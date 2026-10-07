@@ -7,13 +7,18 @@
     "build": "node tools/build.mjs",
     "build:oracle": "node tools/build-oracle.mjs",
     "fetch:upstream": "node tools/fetch-upstream.mjs",
-    "generate": "node tools/generate-checker-flags.mjs && node tools/generate-case-mappings.mjs",
+    "generate": "node tools/generate-checker-flags.mjs && node tools/generate-case-mappings.mjs && oxfmt src/checker/flags.ts src/checker/case-mappings.ts",
     "export:graph": "node tools/export-graph.mjs",
     "bench": "node tools/bench.mjs",
     "coverage": "scriptc coverage src/cli.ts",
-    "test": "node --test tests/*.test.mjs"
+    "test": "node --test tests/*.test.mjs",
+    "lint": "oxlint",
+    "format": "oxfmt",
+    "format:check": "oxfmt --check"
   },
   "devDependencies": {
+    "oxfmt": "^0.72.0",
+    "oxlint": "^1.87.0",
     "scriptc": "0.2.5"
   }
 }

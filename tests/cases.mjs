@@ -7,7 +7,31 @@ type BigOne = 1n; type True = true; type False = false;
 type StrNum = string | number; type StrOrUndef = string | undefined;
 type UnknownLike = {} | null | undefined;
 `;
-export const primitiveNames = ['Any', 'Unknown', 'Never', 'Void', 'Undef', 'Null', 'Str', 'Num', 'Big', 'Bool', 'Sym', 'Obj', 'Empty', 'StrA', 'StrB', 'One', 'Two', 'BigOne', 'True', 'False', 'StrNum', 'StrOrUndef', 'UnknownLike'];
+export const primitiveNames = [
+  'Any',
+  'Unknown',
+  'Never',
+  'Void',
+  'Undef',
+  'Null',
+  'Str',
+  'Num',
+  'Big',
+  'Bool',
+  'Sym',
+  'Obj',
+  'Empty',
+  'StrA',
+  'StrB',
+  'One',
+  'Two',
+  'BigOne',
+  'True',
+  'False',
+  'StrNum',
+  'StrOrUndef',
+  'UnknownLike',
+];
 export const objects = `
 type X = { x: number }; type XOne = { x: 1 }; type XY = { x: number; y: string };
 type Y = { y: string }; type XOptional = { x?: number }; type XReadonly = { readonly x: number };
@@ -33,9 +57,51 @@ type MethodNum = { method(x: number): void }; type MethodOne = { method(x: 1): v
 type CallbackNum = (f: (x: number) => number) => void;
 type CallbackOne = (f: (x: 1) => 1) => void;
 `;
-export const objectNames = ['X', 'XOne', 'XY', 'Y', 'XOptional', 'XReadonly', 'XOptionalUndefined', 'XUndefined', 'XYIntersection', 'XOrY', 'TagA', 'TagB', 'Tagged', 'TagAOne', 'IndexNum', 'NumProperties', 'InterfaceX', 'RecursiveA', 'RecursiveB', 'RecursiveC', 'CycleLateA', 'CycleLateB', 'NumArray', 'LitArray', 'StrArray', 'ReadonlyNumArray', 'Pair', 'PairLit', 'Short', 'OptionalPair', 'ReadonlyPair', 'FNum', 'FOne', 'FVoid', 'FNoArg', 'FOptional', 'FTwoArg', 'MethodNum', 'MethodOne', 'CallbackNum', 'CallbackOne'];
+export const objectNames = [
+  'X',
+  'XOne',
+  'XY',
+  'Y',
+  'XOptional',
+  'XReadonly',
+  'XOptionalUndefined',
+  'XUndefined',
+  'XYIntersection',
+  'XOrY',
+  'TagA',
+  'TagB',
+  'Tagged',
+  'TagAOne',
+  'IndexNum',
+  'NumProperties',
+  'InterfaceX',
+  'RecursiveA',
+  'RecursiveB',
+  'RecursiveC',
+  'CycleLateA',
+  'CycleLateB',
+  'NumArray',
+  'LitArray',
+  'StrArray',
+  'ReadonlyNumArray',
+  'Pair',
+  'PairLit',
+  'Short',
+  'OptionalPair',
+  'ReadonlyPair',
+  'FNum',
+  'FOne',
+  'FVoid',
+  'FNoArg',
+  'FOptional',
+  'FTwoArg',
+  'MethodNum',
+  'MethodOne',
+  'CallbackNum',
+  'CallbackOne',
+];
 export function matrix(names) {
-  return names.flatMap(source => names.map(target => ({ source, target })));
+  return names.flatMap((source) => names.map((target) => ({ source, target })));
 }
 
 export const variadicSignatures = `
@@ -58,7 +124,26 @@ type FixedCopy = (args: [number, string?]) => [number, string?];
 type FixedReadonly = (args: readonly [number, string]) => readonly [number, string];
 type FixedArrayCopy = (args: number[]) => number[];
 `;
-export const variadicSignatureNames = ['VariadicId', 'VariadicReadonly', 'VariadicCopy', 'VariadicPrefix', 'VariadicSuffix', 'VariadicBoth', 'VariadicOptional', 'FixedEmpty', 'FixedPair', 'FixedWrong', 'FixedNumbers', 'FixedPrefix', 'FixedSuffix', 'FixedBoth', 'FixedOptional', 'FixedCopy', 'FixedReadonly', 'FixedArrayCopy'];
+export const variadicSignatureNames = [
+  'VariadicId',
+  'VariadicReadonly',
+  'VariadicCopy',
+  'VariadicPrefix',
+  'VariadicSuffix',
+  'VariadicBoth',
+  'VariadicOptional',
+  'FixedEmpty',
+  'FixedPair',
+  'FixedWrong',
+  'FixedNumbers',
+  'FixedPrefix',
+  'FixedSuffix',
+  'FixedBoth',
+  'FixedOptional',
+  'FixedCopy',
+  'FixedReadonly',
+  'FixedArrayCopy',
+];
 
 export const noInferSignatures = `
     type Plain = <T>(value: T, hint: T) => T;
@@ -80,7 +165,26 @@ export const noInferSignatures = `
     type UnknownReturn = (value: number) => unknown;
     type StringReturn = (value: string) => string;
   `;
-export const noInferSignatureNames = ['Plain', 'Blocked', 'BlockedReturn', 'DefaultPlain', 'DefaultBlocked', 'ConstraintBlocked', 'OnlyBlocked', 'BothBlocked', 'PairSame', 'PairDifferent', 'PairWrong', 'NumberVoid', 'StringVoid', 'AVoid', 'BVoid', 'NumberReturn', 'UnknownReturn', 'StringReturn'];
+export const noInferSignatureNames = [
+  'Plain',
+  'Blocked',
+  'BlockedReturn',
+  'DefaultPlain',
+  'DefaultBlocked',
+  'ConstraintBlocked',
+  'OnlyBlocked',
+  'BothBlocked',
+  'PairSame',
+  'PairDifferent',
+  'PairWrong',
+  'NumberVoid',
+  'StringVoid',
+  'AVoid',
+  'BVoid',
+  'NumberReturn',
+  'UnknownReturn',
+  'StringReturn',
+];
 
 export const enumRelations = `
 enum NumericEnum { A = 0, B = 1, C = 4 }
@@ -102,7 +206,40 @@ type Zero = 0; type One = 1; type Four = 4; type Invalid = 5;
 type LiteralA = "a"; type LiteralB = "b"; type Num = number; type Str = string;
 type Any = any; type Unknown = unknown; type Never = never;
 `;
-export const enumRelationNames = ['NumericEnum', 'OtherNumericEnum', 'TextEnum', 'MixedEnum', 'CollisionEnum', 'ComputedEnum', 'AmbientEnum', 'ConstantEnum', 'NumericA', 'NumericB', 'OtherA', 'TextA', 'MixedA', 'MixedB', 'ComputedA', 'ComputedB', 'AmbientA', 'AmbientB', 'ConstantA', 'CollisionText', 'CollisionNumber', 'Zero', 'One', 'Four', 'Invalid', 'LiteralA', 'LiteralB', 'Num', 'Str', 'Any', 'Unknown', 'Never'];
+export const enumRelationNames = [
+  'NumericEnum',
+  'OtherNumericEnum',
+  'TextEnum',
+  'MixedEnum',
+  'CollisionEnum',
+  'ComputedEnum',
+  'AmbientEnum',
+  'ConstantEnum',
+  'NumericA',
+  'NumericB',
+  'OtherA',
+  'TextA',
+  'MixedA',
+  'MixedB',
+  'ComputedA',
+  'ComputedB',
+  'AmbientA',
+  'AmbientB',
+  'ConstantA',
+  'CollisionText',
+  'CollisionNumber',
+  'Zero',
+  'One',
+  'Four',
+  'Invalid',
+  'LiteralA',
+  'LiteralB',
+  'Num',
+  'Str',
+  'Any',
+  'Unknown',
+  'Never',
+];
 
 export const templateSignatures = `
 type Prefix = <T extends string>(x: T) => \`prefix_\${T}\`;
@@ -125,7 +262,27 @@ type NonCanonical = (x: "042") => number;
 type BigParse = (x: "9007199254740993") => 9007199254740993n;
 type WrongParse = (x: "42") => string;
 `;
-export const templateSignatureNames = ['Prefix', 'Stringify', 'Split', 'Chars', 'Numeric', 'BigNumeric', 'Prefixed', 'WrongPrefix', 'PrefixedUnion', 'NumberString', 'BooleanString', 'SplitDot', 'WrongSplit', 'Character', 'EmptyCharacter', 'NumberParse', 'NonCanonical', 'BigParse', 'WrongParse'];
+export const templateSignatureNames = [
+  'Prefix',
+  'Stringify',
+  'Split',
+  'Chars',
+  'Numeric',
+  'BigNumeric',
+  'Prefixed',
+  'WrongPrefix',
+  'PrefixedUnion',
+  'NumberString',
+  'BooleanString',
+  'SplitDot',
+  'WrongSplit',
+  'Character',
+  'EmptyCharacter',
+  'NumberParse',
+  'NonCanonical',
+  'BigParse',
+  'WrongParse',
+];
 
 export const patternIndexes = `
 type PrefixIndex = { [K: \`pre_\${string}\`]: number };
@@ -153,7 +310,36 @@ interface InterfacePattern { [K: \`pre_\${string}\`]: number }
 class ClassGood { pre_a = 1; }
 type Str = string; type Num = number; type Any = any; type Unknown = unknown; type Never = never;
 `;
-export const patternIndexNames = ['PrefixIndex', 'NarrowIndex', 'WrongIndex', 'OtherIndex', 'SuffixIndex', 'UnionIndex', 'ReadonlyIndex', 'RecordIndex', 'NumericPatternIndex', 'NumberIndex', 'StringIndex', 'AnyIndex', 'MixedIndex', 'Good', 'Bad', 'Optional', 'OptionalUndefined', 'Numeric', 'Miss', 'Empty', 'InterfaceGood', 'InterfacePattern', 'ClassGood', 'Str', 'Num', 'Any', 'Unknown', 'Never'];
+export const patternIndexNames = [
+  'PrefixIndex',
+  'NarrowIndex',
+  'WrongIndex',
+  'OtherIndex',
+  'SuffixIndex',
+  'UnionIndex',
+  'ReadonlyIndex',
+  'RecordIndex',
+  'NumericPatternIndex',
+  'NumberIndex',
+  'StringIndex',
+  'AnyIndex',
+  'MixedIndex',
+  'Good',
+  'Bad',
+  'Optional',
+  'OptionalUndefined',
+  'Numeric',
+  'Miss',
+  'Empty',
+  'InterfaceGood',
+  'InterfacePattern',
+  'ClassGood',
+  'Str',
+  'Num',
+  'Any',
+  'Unknown',
+  'Never',
+];
 
 export const stringMappingSignatures = `
 type UpperFn = <T extends string>(x: T) => Uppercase<T>;
@@ -175,4 +361,23 @@ type UnionText = (x: "a" | "b") => "A" | "B";
 type EmptyText = (x: "") => "";
 type WrongText = (x: "ßfoo") => "ßFOO";
 `;
-export const stringMappingSignatureNames = ['UpperFn', 'LowerFn', 'CapitalFn', 'UncapitalFn', 'NestedFn', 'ParameterFn', 'PatternFn', 'FirstFn', 'UpperText', 'LowerText', 'CapitalText', 'UncapitalText', 'NestedText', 'PatternText', 'FirstText', 'UnionText', 'EmptyText', 'WrongText'];
+export const stringMappingSignatureNames = [
+  'UpperFn',
+  'LowerFn',
+  'CapitalFn',
+  'UncapitalFn',
+  'NestedFn',
+  'ParameterFn',
+  'PatternFn',
+  'FirstFn',
+  'UpperText',
+  'LowerText',
+  'CapitalText',
+  'UncapitalText',
+  'NestedText',
+  'PatternText',
+  'FirstText',
+  'UnionText',
+  'EmptyText',
+  'WrongText',
+];

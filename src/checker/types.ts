@@ -171,7 +171,14 @@ export class Type {
     this.membersResolved = data.target < 0 && (data.objectFlags & (ObjectFlags.Mapped | ObjectFlags.Tuple)) === 0;
     this.flags = data.flags;
     this.objectFlags = data.objectFlags;
-    this.inferableIndex = ((data.symbolFlags & (SymbolFlags.ObjectLiteral | SymbolFlags.TypeLiteral | SymbolFlags.Enum | SymbolFlags.ValueModule)) !== 0 && (data.symbolFlags & SymbolFlags.Class) === 0 && data.calls.length === 0 && data.constructs.length === 0) || (data.objectFlags & (ObjectFlags.JSLiteral | ObjectFlags.ObjectRestType)) !== 0;
+    this.inferableIndex =
+      ((data.symbolFlags &
+        (SymbolFlags.ObjectLiteral | SymbolFlags.TypeLiteral | SymbolFlags.Enum | SymbolFlags.ValueModule)) !==
+        0 &&
+        (data.symbolFlags & SymbolFlags.Class) === 0 &&
+        data.calls.length === 0 &&
+        data.constructs.length === 0) ||
+      (data.objectFlags & (ObjectFlags.JSLiteral | ObjectFlags.ObjectRestType)) !== 0;
     this.name = data.name;
     this.value = data.value;
     this.regularType = data.regularType;
@@ -196,7 +203,17 @@ export class Type {
     this.unsupported = data.unsupported;
   }
 
-  setMembers(properties: Property[], fallbacks: Property[], calls: Signature[], constructs: Signature[], stringIndex: number, numberIndex: number, symbolIndex: number, patterns: IndexInfo[] = [], indexReadonly: number = 0): void {
+  setMembers(
+    properties: Property[],
+    fallbacks: Property[],
+    calls: Signature[],
+    constructs: Signature[],
+    stringIndex: number,
+    numberIndex: number,
+    symbolIndex: number,
+    patterns: IndexInfo[] = [],
+    indexReadonly: number = 0,
+  ): void {
     this.membersVersion++;
     this.data.properties = properties;
     this.data.fallbackProperties = fallbacks;
@@ -218,6 +235,13 @@ export class Type {
     this.symbolIndex = symbolIndex;
     this.patternIndexes = patterns;
     this.indexReadonly = indexReadonly;
-    this.inferableIndex = ((this.data.symbolFlags & (SymbolFlags.ObjectLiteral | SymbolFlags.TypeLiteral | SymbolFlags.Enum | SymbolFlags.ValueModule)) !== 0 && (this.data.symbolFlags & SymbolFlags.Class) === 0 && calls.length === 0 && constructs.length === 0) || (this.objectFlags & (ObjectFlags.JSLiteral | ObjectFlags.ObjectRestType)) !== 0;
+    this.inferableIndex =
+      ((this.data.symbolFlags &
+        (SymbolFlags.ObjectLiteral | SymbolFlags.TypeLiteral | SymbolFlags.Enum | SymbolFlags.ValueModule)) !==
+        0 &&
+        (this.data.symbolFlags & SymbolFlags.Class) === 0 &&
+        calls.length === 0 &&
+        constructs.length === 0) ||
+      (this.objectFlags & (ObjectFlags.JSLiteral | ObjectFlags.ObjectRestType)) !== 0;
   }
 }

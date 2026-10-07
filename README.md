@@ -55,10 +55,10 @@ Run the queries repeatedly to measure throughput:
 
 ### Options
 
-| Option | Default | Description |
-| --- | --- | --- |
-| `strictNullChecks` | `true` | Same as the TypeScript compiler option. |
-| `strictFunctionTypes` | `true` | Same as the TypeScript compiler option. |
+| Option                       | Default | Description                             |
+| ---------------------------- | ------- | --------------------------------------- |
+| `strictNullChecks`           | `true`  | Same as the TypeScript compiler option. |
+| `strictFunctionTypes`        | `true`  | Same as the TypeScript compiler option. |
 | `exactOptionalPropertyTypes` | `false` | Same as the TypeScript compiler option. |
 
 Set options at the top level of the input file.
@@ -67,20 +67,20 @@ Set options at the top level of the input file.
 
 Each file in [`examples`](examples) covers one area of the checker:
 
-| Example | Covers |
-| --- | --- |
-| `relations.json` | Objects, literals, recursive types |
-| `generics.json` | Type argument inference and substitution |
-| `indexed-types.json` | `keyof`, `T[K]` |
-| `mapped-types.json` | Mapped types, reverse inference |
-| `conditional-types.json` | `infer`, distribution |
-| `conditional-tail.json` | Tail-recursive conditional types |
-| `variadic-tuples.json` | Variadic tuples, rest parameters |
-| `no-infer.json` | `NoInfer` |
-| `enums.json` | Enum compatibility |
-| `template-types.json` | Template literal types |
-| `patterned-indexes.json` | Template-pattern index signatures |
-| `string-mappings.json` | `Uppercase`, `Lowercase`, `Capitalize`, `Uncapitalize` |
+| Example                  | Covers                                                 |
+| ------------------------ | ------------------------------------------------------ |
+| `relations.json`         | Objects, literals, recursive types                     |
+| `generics.json`          | Type argument inference and substitution               |
+| `indexed-types.json`     | `keyof`, `T[K]`                                        |
+| `mapped-types.json`      | Mapped types, reverse inference                        |
+| `conditional-types.json` | `infer`, distribution                                  |
+| `conditional-tail.json`  | Tail-recursive conditional types                       |
+| `variadic-tuples.json`   | Variadic tuples, rest parameters                       |
+| `no-infer.json`          | `NoInfer`                                              |
+| `enums.json`             | Enum compatibility                                     |
+| `template-types.json`    | Template literal types                                 |
+| `patterned-indexes.json` | Template-pattern index signatures                      |
+| `string-mappings.json`   | `Uppercase`, `Lowercase`, `Capitalize`, `Uncapitalize` |
 
 ## Testing
 
@@ -88,28 +88,30 @@ Each file in [`examples`](examples) covers one area of the checker:
 npm test          # compare tsts answers with tsgo
 npm run coverage  # check that all statements compile statically
 npm run bench     # time tsts against tsgo
+npm run lint      # oxlint
+npm run format    # oxfmt
 ```
 
 ## Benchmarks
 
 Median of five runs on an Apple M1 Max, measuring assignability checks only (no parsing, binding, or startup). Values are tsts time divided by tsgo time; below 1× means tsts is faster. Raw data: [`benchmarks/latest.json`](benchmarks/latest.json).
 
-| Workload | Warm cache | Cold cache |
-| --- | ---: | ---: |
-| primitives | 0.40× | 1.25× |
-| structural | 0.43× | 0.73× |
-| signatures | 0.64× | 0.89× |
-| generics | 0.71× | 1.56× |
-| array-methods | 0.14× | 0.69× |
-| indexed-types | 0.25× | 1.60× |
-| mapped-types | 0.39× | 1.71× |
-| conditional-types | 0.37× | 1.69× |
-| variadic-tuples | 0.92× | 1.11× |
-| no-infer | 0.76× | 1.70× |
-| enums | 0.50× | 2.12× |
-| template-types | 0.96× | 1.83× |
-| patterned-indexes | 0.63× | 1.42× |
-| string-mappings | 0.84× | 1.41× |
+| Workload          | Warm cache | Cold cache |
+| ----------------- | ---------: | ---------: |
+| primitives        |      0.40× |      1.25× |
+| structural        |      0.43× |      0.73× |
+| signatures        |      0.64× |      0.89× |
+| generics          |      0.71× |      1.56× |
+| array-methods     |      0.14× |      0.69× |
+| indexed-types     |      0.25× |      1.60× |
+| mapped-types      |      0.39× |      1.71× |
+| conditional-types |      0.37× |      1.69× |
+| variadic-tuples   |      0.92× |      1.11× |
+| no-infer          |      0.76× |      1.70× |
+| enums             |      0.50× |      2.12× |
+| template-types    |      0.96× |      1.83× |
+| patterned-indexes |      0.63× |      1.42× |
+| string-mappings   |      0.84× |      1.41× |
 
 These are synthetic, single-threaded benchmarks. They don't predict whole-compiler performance.
 

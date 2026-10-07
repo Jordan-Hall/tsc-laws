@@ -20,7 +20,8 @@ export class RelationCache {
   set(key: number, value: number): void {
     if ((this.count + 1) * 4 >= this.capacity * 3) this.grow();
     let slot = this.hash(key) & (this.capacity - 1);
-    while (this.generations[slot] === this.generation && this.keys[slot] !== key) slot = (slot + 1) & (this.capacity - 1);
+    while (this.generations[slot] === this.generation && this.keys[slot] !== key)
+      slot = (slot + 1) & (this.capacity - 1);
     if (this.generations[slot] !== this.generation) {
       this.generations[slot] = this.generation;
       this.keys[slot] = key;

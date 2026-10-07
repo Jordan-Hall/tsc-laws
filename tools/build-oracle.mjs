@@ -11,7 +11,13 @@ mkdirSync('dist', { recursive: true });
 copyFileSync('tools/oracle/bridge.go', root + '/internal/checker/tsts_oracle.go');
 copyFileSync('tools/oracle/main.go', root + '/cmd/tsts-oracle/main.go');
 const result = spawnSync('go', ['build', '-o', resolve('dist/tsgo-oracle'), './cmd/tsts-oracle'], {
-  cwd: root, stdio: 'inherit', env: { ...process.env, GOARCH: process.arch === 'arm64' ? 'arm64' : 'amd64' },
+  cwd: root,
+  stdio: 'inherit',
+  env: { ...process.env, GOARCH: process.arch === 'arm64' ? 'arm64' : 'amd64' },
 });
 process.exitCode = result.status ?? 1;
-if (result.status === 0) writeFileSync('dist/oracle-build.json', JSON.stringify({ revision: expected, sourceSha256: sourceIdentity(oracleSources), arch: process.arch }) + '\n');
+if (result.status === 0)
+  writeFileSync(
+    'dist/oracle-build.json',
+    JSON.stringify({ revision: expected, sourceSha256: sourceIdentity(oracleSources), arch: process.arch }) + '\n',
+  );

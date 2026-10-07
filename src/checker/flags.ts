@@ -182,4 +182,9 @@ export enum SymbolFlags {
   ObjectLiteral = 4096,
   Enum = ConstEnum | RegularEnum,
 }
-export enum Ternary { False = 0, Unknown = 1, Maybe = 3, True = -1 }
+export enum Ternary {
+  False = 0,
+  Unknown = 1,
+  Maybe = 3,
+  True = -1,
+}

@@ -11,7 +11,10 @@ export class VarianceInference {
   private otherType = -1;
   private readonly reliability: number[] = [];
 
-  constructor(private readonly arena: TypeArena, private readonly related: (source: number, target: number) => number) {}
+  constructor(
+    private readonly arena: TypeArena,
+    private readonly related: (source: number, target: number) => number,
+  ) {}
 
   report(flags: number): void {
     if (this.reliability.length > 0) this.reliability[this.reliability.length - 1] |= flags;
@@ -39,13 +42,22 @@ export class VarianceInference {
     const result: number[] = [];
     for (const param of type.data.typeParameters) {
       const annotation = this.arena.types[param].data.varianceAnnotation;
-      if (annotation >= 0) { result.push(annotation); continue; }
+      if (annotation >= 0) {
+        result.push(annotation);
+        continue;
+      }
       const superRef = this.marker(Number(target), Number(param), Number(this.superType));
       const subRef = this.marker(Number(target), Number(param), Number(this.subType));
       this.reliability.push(0);
-      let variance = (this.related(Number(subRef), Number(superRef)) !== R.False ? V.Covariant : 0)
-        | (this.related(Number(superRef), Number(subRef)) !== R.False ? V.Contravariant : 0);
-      if (variance === V.Bivariant && this.related(Number(this.marker(Number(target), Number(param), Number(this.otherType))), Number(superRef)) !== R.False) variance = V.Independent;
+      let variance =
+        (this.related(Number(subRef), Number(superRef)) !== R.False ? V.Covariant : 0) |
+        (this.related(Number(superRef), Number(subRef)) !== R.False ? V.Contravariant : 0);
+      if (
+        variance === V.Bivariant &&
+        this.related(Number(this.marker(Number(target), Number(param), Number(this.otherType))), Number(superRef)) !==
+          R.False
+      )
+        variance = V.Independent;
       variance |= this.reliability.pop() ?? 0;
       result.push(variance);
     }

@@ -8,8 +8,10 @@ export function validEncoding(value: string): boolean {
   let padding = false;
   for (let i = 0; i < value.length; i++) {
     const ch = value.charAt(i);
-    if (ch === '=') { if (i < value.length - 2) return false; padding = true; }
-    else if (padding || base64Digits.indexOf(ch) < 0) return false;
+    if (ch === '=') {
+      if (i < value.length - 2) return false;
+      padding = true;
+    } else if (padding || base64Digits.indexOf(ch) < 0) return false;
   }
   return true;
 }
@@ -19,7 +21,10 @@ export function hexByte(value: number): string {
 }
 
 export function byteAt(value: string, pos: number): number {
-  return Number(hexDigits.indexOf(String(value).charAt(Number(pos))) * 16 + hexDigits.indexOf(String(value).charAt(Number(pos + 1))));
+  return Number(
+    hexDigits.indexOf(String(value).charAt(Number(pos))) * 16 +
+      hexDigits.indexOf(String(value).charAt(Number(pos + 1))),
+  );
 }
 
 export function decodeBytes(value: string): string {
@@ -27,8 +32,10 @@ export function decodeBytes(value: string): string {
   for (let i = 0; i < value.length; i += 4) {
     const a = base64Digits.indexOf(String(value).charAt(Number(i)));
     const b = base64Digits.indexOf(String(value).charAt(Number(i + 1)));
-    const c = String(value).charAt(Number(i + 2)) === '=' ? 0 : base64Digits.indexOf(String(value).charAt(Number(i + 2)));
-    const d = String(value).charAt(Number(i + 3)) === '=' ? 0 : base64Digits.indexOf(String(value).charAt(Number(i + 3)));
+    const c =
+      String(value).charAt(Number(i + 2)) === '=' ? 0 : base64Digits.indexOf(String(value).charAt(Number(i + 2)));
+    const d =
+      String(value).charAt(Number(i + 3)) === '=' ? 0 : base64Digits.indexOf(String(value).charAt(Number(i + 3)));
     result += hexByte((a << 2) | (b >> 4));
     if (String(value).charAt(Number(i + 2)) !== '=') result += hexByte(((b & 15) << 4) | (c >> 2));
     if (String(value).charAt(Number(i + 3)) !== '=') result += hexByte(((c & 3) << 6) | d);
@@ -42,9 +49,11 @@ export function encodeBytes(value: string): string {
     const a = byteAt(value, Number(i));
     const b = i + 2 < value.length ? byteAt(value, Number(i + 2)) : 0;
     const c = i + 4 < value.length ? byteAt(value, Number(i + 4)) : 0;
-    result += base64Digits[a >> 2] + base64Digits[((a & 3) << 4) | (b >> 4)]
-      + (i + 2 < value.length ? base64Digits[((b & 15) << 2) | (c >> 6)] : '=')
-      + (i + 4 < value.length ? base64Digits[c & 63] : '=');
+    result +=
+      base64Digits[a >> 2] +
+      base64Digits[((a & 3) << 4) | (b >> 4)] +
+      (i + 2 < value.length ? base64Digits[((b & 15) << 2) | (c >> 6)] : '=') +
+      (i + 4 < value.length ? base64Digits[c & 63] : '=');
   }
   return result;
 }
@@ -79,8 +88,11 @@ export function normalizeBytes(value: string): string {
       const low = runeAt(value, Number(i + size));
       if (low >= 0xdc00 && low <= 0xdfff) {
         const scalar = 0x10000 + ((cp - 0xd800) << 10) + low - 0xdc00;
-        result += hexByte(240 | (scalar >> 18)) + hexByte(128 | ((scalar >> 12) & 63))
-          + hexByte(128 | ((scalar >> 6) & 63)) + hexByte(128 | (scalar & 63));
+        result +=
+          hexByte(240 | (scalar >> 18)) +
+          hexByte(128 | ((scalar >> 12) & 63)) +
+          hexByte(128 | ((scalar >> 6) & 63)) +
+          hexByte(128 | (scalar & 63));
         i += size + runeSize(value, Number(i + size));
         continue;
       }
@@ -98,7 +110,18 @@ export function numericText(value: string): string {
   for (let i = 0; i < value.length;) {
     const cp = runeAt(value, Number(i));
     if (cp < 128) result += String.fromCharCode(cp);
-    else if (cp === 160 || cp === 0x1680 || cp >= 0x2000 && cp <= 0x200a || cp === 0x2028 || cp === 0x2029 || cp === 0x202f || cp === 0x205f || cp === 0x3000 || cp === 0xfeff) result += ' ';
+    else if (
+      cp === 160 ||
+      cp === 0x1680 ||
+      (cp >= 0x2000 && cp <= 0x200a) ||
+      cp === 0x2028 ||
+      cp === 0x2029 ||
+      cp === 0x202f ||
+      cp === 0x205f ||
+      cp === 0x3000 ||
+      cp === 0xfeff
+    )
+      result += ' ';
     else return '';
     i += runeSize(value, Number(i));
   }
@@ -118,10 +141,17 @@ export function bigintValue(value: string): string {
   const text = numericText(value);
   let start = text.startsWith('-') ? 1 : 0;
   let base = 10;
-  if (text.slice(start, start + 2).toLowerCase() === '0x') { base = 16; start += 2; }
-  else if (text.slice(start, start + 2).toLowerCase() === '0o') { base = 8; start += 2; }
-  else if (text.slice(start, start + 2).toLowerCase() === '0b') { base = 2; start += 2; }
-  if (start === text.length || base === 10 && text.length - start > 1 && text[start] === '0') return '';
+  if (text.slice(start, start + 2).toLowerCase() === '0x') {
+    base = 16;
+    start += 2;
+  } else if (text.slice(start, start + 2).toLowerCase() === '0o') {
+    base = 8;
+    start += 2;
+  } else if (text.slice(start, start + 2).toLowerCase() === '0b') {
+    base = 2;
+    start += 2;
+  }
+  if (start === text.length || (base === 10 && text.length - start > 1 && text[start] === '0')) return '';
   let result = '0';
   for (let i = start; i < text.length; i++) {
     const digit = hexDigits.indexOf(text[i].toLowerCase());
@@ -133,7 +163,10 @@ export function bigintValue(value: string): string {
       next = String(total % 10) + next;
       carry = Math.floor(total / 10);
     }
-    while (carry > 0) { next = String(carry % 10) + next; carry = Math.floor(carry / 10); }
+    while (carry > 0) {
+      next = String(carry % 10) + next;
+      carry = Math.floor(carry / 10);
+    }
     result = next;
   }
   return text.startsWith('-') && result !== '0' ? '-' + result : result;

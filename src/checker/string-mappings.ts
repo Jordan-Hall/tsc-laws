@@ -27,7 +27,8 @@ function caseIndex(cp: number): number {
     const middle = Math.floor((lo + hi) / 2);
     const value = Number(caseCodePoints[middle]);
     if (cp === value) return Number(middle);
-    if (cp < value) hi = middle - 1; else lo = middle + 1;
+    if (cp < value) hi = middle - 1;
+    else lo = middle + 1;
   }
   return -1;
 }
@@ -65,12 +66,18 @@ export class StringMappings {
   private readonly instances = new Map<number, number>();
   private readonly texts = new Map<string, string>();
   private depth = 0;
-  private related: (source: number, target: number) => boolean = () => { throw new Error('String mapping relation is not initialized'); };
+  private related: (source: number, target: number) => boolean = () => {
+    throw new Error('String mapping relation is not initialized');
+  };
 
   constructor(private readonly arena: TypeArena) {
-    for (const type of arena.types) if ((type.flags & F.StringMapping) !== 0) this.instances.set(type.data.stringMapping * TYPE_ID_STRIDE + type.data.indexObject, type.id);
+    for (const type of arena.types)
+      if ((type.flags & F.StringMapping) !== 0)
+        this.instances.set(type.data.stringMapping * TYPE_ID_STRIDE + type.data.indexObject, type.id);
   }
-  setRelation(related: (source: number, target: number) => boolean): void { this.related = related; }
+  setRelation(related: (source: number, target: number) => boolean): void {
+    this.related = related;
+  }
 
   apply(kind: number, value: string): string {
     const key = kind + ':' + value;
@@ -83,15 +90,24 @@ export class StringMappings {
 
   instantiate(id: number, mapper: Mapper): number {
     const type = this.arena.types[id];
-    const result = this.create(type.data.stringMapping, Number(this.arena.instantiate(Number(type.data.indexObject), mapper)));
+    const result = this.create(
+      type.data.stringMapping,
+      Number(this.arena.instantiate(Number(type.data.indexObject), mapper)),
+    );
     mapper.memo.set(id, result);
     return Number(result);
   }
 
   create(kind: number, id: number): number {
-    if (++this.depth > 100) { this.depth--; throw new Error('String mapping instantiation complexity limit exceeded'); }
-    try { return Number(this.construct(kind, id)); }
-    finally { this.depth--; }
+    if (++this.depth > 100) {
+      this.depth--;
+      throw new Error('String mapping instantiation complexity limit exceeded');
+    }
+    try {
+      return Number(this.construct(kind, id));
+    } finally {
+      this.depth--;
+    }
   }
 
   private construct(kind: number, id: number): number {
@@ -102,7 +118,8 @@ export class StringMappings {
       return Number(this.arena.combine(parts, F.Union));
     }
     if ((type.flags & F.Never) !== 0) return Number(id);
-    if ((type.flags & F.StringLiteral) !== 0) return Number(this.arena.literal(F.StringLiteral, this.apply(kind, type.value)));
+    if ((type.flags & F.StringLiteral) !== 0)
+      return Number(this.arena.literal(F.StringLiteral, this.apply(kind, type.value)));
     if ((type.flags & F.TemplateLiteral) !== 0) {
       const texts = type.data.templateTexts.slice();
       const parts = type.types.slice();
@@ -115,7 +132,8 @@ export class StringMappings {
     }
     if ((type.flags & F.StringMapping) !== 0 && type.data.stringMapping === kind) return Number(id);
     if ((type.flags & (F.Any | F.String | F.StringMapping)) === 0 && !this.arena.indexed.isGenericIndex(Number(id))) {
-      if (this.arena.strings.placeholder(Number(id))) return Number(this.generic(kind, Number(this.arena.strings.create(['', ''], [id]))));
+      if (this.arena.strings.placeholder(Number(id)))
+        return Number(this.generic(kind, Number(this.arena.strings.create(['', ''], [id]))));
       return Number(id);
     }
     return Number(this.generic(kind, id));
@@ -138,7 +156,9 @@ export class StringMappings {
     const type = this.arena.types[id];
     const inner = type.data.indexObject;
     const bound = this.arena.indexed.baseConstraint(Number(inner));
-    return Number(bound !== inner ? this.create(type.data.stringMapping, Number(bound)) : this.arena.intrinsic(F.String));
+    return Number(
+      bound !== inner ? this.create(type.data.stringMapping, Number(bound)) : this.arena.intrinsic(F.String),
+    );
   }
 
   member(source: number, target: number): boolean {
