@@ -1,0 +1,8 @@
+{
+  "source": "type RestId = <T extends unknown[]>(...args: T) => T; type Fixed = (a: number, b: string) => [number, string]; type Wrong = (a: number, b: string) => [string, number]; type Reverse<T> = T extends readonly [infer H, ...infer R] ? [...Reverse<R>, H] : []; type ReverseOp = <T>(x: T) => Reverse<T>; type Reversed = (x: readonly [number, string, boolean]) => [boolean, string, number];",
+  "queries": [
+    { "source": "RestId", "target": "Fixed" },
+    { "source": "RestId", "target": "Wrong" },
+    { "source": "ReverseOp", "target": "Reversed" }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "source": "type Parse<S extends string> = S extends `${infer N extends number}` ? N : never; type Parser = <S extends string>(x: S) => Parse<S>; type Fixed = (x: \"42\") => 42; type Wrong = (x: \"42\") => string; interface Events<T> { value: { [K in keyof T as `on_${K & string}`]: T[K] } } type Native = Events<{ click: number; change: string }>; type Plain = { value: { on_click: number; on_change: string } };",
+  "queries": [
+    {
+      "source": "Parser",
+      "target": "Fixed"
+    },
+    {
+      "source": "Parser",
+      "target": "Wrong"
+    },
+    {
+      "source": "Native",
+      "target": "Plain"
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "source": "interface Box<T> { value: T }\ntype Identity = <T>(value: T) => T;\ntype NumberFunction = (value: number) => number;\ntype WrongReturn = (value: number) => string;\ntype NumberBox = Box<number>;\ntype LiteralBox = Box<1>;",
+  "queries": [
+    { "source": "Identity", "target": "NumberFunction" },
+    { "source": "Identity", "target": "WrongReturn" },
+    { "source": "LiteralBox", "target": "NumberBox" }
+  ]
+}

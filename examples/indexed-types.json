@@ -1,0 +1,8 @@
+{
+  "source": "type Getter = <T, K extends keyof T>(x: T, k: K) => T[K]; type NumberGetter = (x: { value: number }, k: \"value\") => number; type WrongGetter = (x: { value: number }, k: \"value\") => string; interface View<T> { key: keyof T; value: T[keyof T] } type ViewNumber = View<{ value: number }>; type PlainView = { key: \"value\"; value: number };",
+  "queries": [
+    { "source": "Getter", "target": "NumberGetter" },
+    { "source": "Getter", "target": "WrongGetter" },
+    { "source": "ViewNumber", "target": "PlainView" }
+  ]
+}

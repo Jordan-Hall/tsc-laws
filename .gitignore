@@ -1,0 +1,6 @@
+node_modules/
+dist/
+.scriptc/
+upstream/
+*.dSYM/
+benchmarks/generated/

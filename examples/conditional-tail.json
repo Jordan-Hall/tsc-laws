@@ -1,0 +1,8 @@
+{
+  "source": "type TailBuild<N, A extends unknown[] = []> = A[\"length\"] extends N ? A : TailBuild<N, [...A, unknown]>; interface BuiltCount<N> { value: TailBuild<N>[\"length\"] } type Native = BuiltCount<180>; type Plain = { value: 180 }; type Wrong = { value: 179 };",
+  "queries": [
+    { "source": "Native", "target": "Plain" },
+    { "source": "Native", "target": "Wrong" },
+    { "source": "Plain", "target": "Native" }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "source": "type Wide = { value: number }; type Narrow = { value: 1 }; type RecursiveA = { value: string; next?: RecursiveA }; type RecursiveB = { value: string; next?: RecursiveB };",
+  "queries": [
+    { "source": "Narrow", "target": "Wide" },
+    { "source": "Wide", "target": "Narrow" },
+    { "source": "RecursiveA", "target": "RecursiveB" }
+  ]
+}

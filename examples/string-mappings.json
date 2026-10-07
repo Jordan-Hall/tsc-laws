@@ -1,0 +1,17 @@
+{
+  "source": "type Upper = <T extends string>(x: T) => Uppercase<T>; type Sharp = (x: \"ßfoo\") => \"SSFOO\"; type Wrong = (x: \"ßfoo\") => \"ßFOO\"; interface View<T> { value: { [K in keyof T as Uppercase<K & string>]: T[K] }; keys: keyof { [K in keyof T as Uppercase<K & string>]: T[K] } } type Native = View<{ a: number; A: string; \"ß\": boolean; SS: number }>; type Plain = { value: { A: number | string; SS: number | boolean }; keys: \"A\" | \"SS\" };",
+  "queries": [
+    {
+      "source": "Upper",
+      "target": "Sharp"
+    },
+    {
+      "source": "Upper",
+      "target": "Wrong"
+    },
+    {
+      "source": "Native",
+      "target": "Plain"
+    }
+  ]
+}
