@@ -16,7 +16,10 @@ import (
 // overrides replaces Go types with hand-written runtime classes. The value
 // lists the type parameters whose zero factory the class constructor takes.
 var overrides = map[string][]int{
-	"core.Arena": {0},
+	"core.Arena":                   {0},
+	"core.LinkStore":               {1},
+	"checker.nodeLinkStore":        {0},
+	"checker.symbolArenaLinkStore": {0},
 }
 
 func overrideKey(obj types.Object) string {

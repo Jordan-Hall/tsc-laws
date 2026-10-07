@@ -662,9 +662,17 @@ export class Parser extends $rt.GoObject {
     if (margin < indentText.length) {
       initialMargin = indentText.substring(margin);
     }
-    return p!.parseTagComments(margin, $rt.unsupportedAs<$rt.Ref<string> | undefined>('address of non-struct value'));
+    return p!.parseTagComments(
+      margin,
+      $rt.ptrTo<string>(
+        (): string => initialMargin,
+        (v: string): void => {
+          initialMargin = v;
+        },
+      ),
+    );
   }
-  parseTagComments(indent: number, initialMargin: $rt.Ref<string> | undefined): $ast.NodeList | undefined {
+  parseTagComments(indent: number, initialMargin: $rt.Ptr<string> | undefined): $ast.NodeList | undefined {
     const p = this;
     let commentsPos: number = p!.nodePos();
     let comments: string[] = p!.jsdocTagCommentsSpace;
@@ -687,8 +695,8 @@ export class Parser extends $rt.GoObject {
       indent += text.length;
     };
     if (!(initialMargin === undefined)) {
-      if (!(initialMargin!.v === ('' as string))) {
-        pushComment!(initialMargin!.v);
+      if (!(initialMargin!.get() === ('' as string))) {
+        pushComment!(initialMargin!.get());
       }
       state = 1;
     }

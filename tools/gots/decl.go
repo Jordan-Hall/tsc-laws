@@ -804,10 +804,8 @@ func (f *file) tsType(tt types.Type) string {
 		if _, isStruct := types.Unalias(elem).(*types.Struct); isStruct {
 			return f.tsType(elem) + " | undefined"
 		}
-		if _, isTP := types.Unalias(elem).(*types.TypeParam); isTP {
-			return f.tsType(elem) + " | undefined"
-		}
-		return "$rt.Ref<" + f.tsType(elem) + "> | undefined"
+
+		return "$rt.Ptr<" + f.tsType(elem) + "> | undefined"
 	case *types.Slice:
 		return f.arrayOf(x.Elem())
 	case *types.Array:

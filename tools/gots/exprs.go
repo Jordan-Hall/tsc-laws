@@ -89,11 +89,6 @@ func (x *fn) valueExpr(e ast.Expr, to types.Type) string {
 	if lit, ok := e.(*ast.CompositeLit); ok && from == nil {
 		return x.composite(lit, to)
 	}
-	if u, ok := unparen(e).(*ast.UnaryExpr); ok && u.Op == token.AND && to != nil {
-		if _, isLit := u.X.(*ast.CompositeLit); !isLit && !isStructType(x.info.TypeOf(u.X)) {
-			return fmt.Sprintf("$rt.unsupportedAs<%s>(%q)", x.f.tsType(to), x.f.t.stub(e.Pos(), "address of non-struct value"))
-		}
-	}
 	s := x.expr(e)
 	return x.convertValue(s, e, from, to)
 }
@@ -345,7 +340,7 @@ func (x *fn) index(e *ast.IndexExpr) string {
 	case *types.Map:
 		return fmt.Sprintf("(%s?.get(%s) ?? %s)", x.expr(e.X), x.mapKey(e.Index, u.Key()), x.f.zero(u.Elem()))
 	case *types.Pointer:
-		return x.expr(e.X) + "!.v[" + x.expr(e.Index) + "]"
+		return x.expr(e.X) + "!.get()[" + x.expr(e.Index) + "]"
 	}
 	return x.expr(e.X) + "[" + x.expr(e.Index) + "]"
 }
@@ -410,7 +405,7 @@ func (x *fn) slice(e *ast.SliceExpr) string {
 		return base + ".substring(" + lo + ", " + hi + ")"
 	}
 	if _, ok := under(xt).(*types.Pointer); ok {
-		base += "!.v"
+		base += "!.get()"
 	}
 	if hi == "" {
 		if lo == "0" {
@@ -430,7 +425,7 @@ func (x *fn) deref(e *ast.StarExpr) string {
 	if isStructType(p.Elem()) {
 		return x.expr(e.X) + "!"
 	}
-	return x.expr(e.X) + "!.v"
+	return x.expr(e.X) + "!.get()"
 }
 
 func isStructType(t types.Type) bool {
@@ -447,7 +442,7 @@ func (x *fn) unary(e *ast.UnaryExpr) string {
 		if isStructType(x.info.TypeOf(e.X)) {
 			return x.expr(e.X)
 		}
-		return x.unsupportedExpr(e, x.f.t.stub(e.Pos(), "address of non-struct value"))
+		return x.addrOf(e.X)
 	case token.NOT:
 		return "!" + x.expr(e.X)
 	case token.SUB:
@@ -1109,7 +1104,7 @@ func (x *fn) store(l ast.Expr, define bool, v string, tt types.Type, src ast.Exp
 			return
 		}
 		if _, ok := under(xt).(*types.Pointer); ok {
-			x.line("%s!.v[%s] = %s;", x.expr(l.X), x.expr(l.Index), v)
+			x.line("%s!.get()[%s] = %s;", x.expr(l.X), x.expr(l.Index), v)
 			return
 		}
 		x.line("%s[%s] = %s;", x.expr(l.X), x.expr(l.Index), v)
@@ -1120,7 +1115,7 @@ func (x *fn) store(l ast.Expr, define bool, v string, tt types.Type, src ast.Exp
 			x.line("%s!.$copy_%s(%s);", x.expr(l.X), x.f.t.classOf(n.Origin().Obj()).name.Name(), v)
 			return
 		}
-		x.line("%s!.v = %s;", x.expr(l.X), v)
+		x.line("%s!.set(%s);", x.expr(l.X), v)
 		return
 	}
 	x.line("%s = %s;", x.expr(l), v)
@@ -1238,4 +1233,43 @@ func (x *fn) unsupportedExpr(e ast.Expr, msg string) string {
 		t = x.f.tsType(tt)
 	}
 	return fmt.Sprintf("$rt.unsupportedAs<%s>(%q)", t, msg)
+}
+
+// addrOf returns a pointer to the variable, field or element e.
+func (x *fn) addrOf(e ast.Expr) string {
+	t := x.f.tsType(x.info.TypeOf(e))
+	switch v := unparen(e).(type) {
+	case *ast.Ident:
+		obj, _ := x.info.Uses[v].(*types.Var)
+		if obj != nil && obj.Pkg() != nil && obj.Parent() == obj.Pkg().Scope() && obj.Pkg() != x.f.p.p.Types {
+			break // package variables of other modules are read-only bindings
+		}
+		name := x.expr(v)
+		return fmt.Sprintf("$rt.ptrTo<%s>((): %s => %s, (v: %s): void => { %s = v; })", t, t, name, t, name)
+	case *ast.SelectorExpr:
+		if sel := x.info.Selections[v]; sel != nil && sel.Kind() == types.FieldVal {
+			o := x.tmp()
+			field := x.expr(v)
+			obj := x.expr(v.X)
+			if x.f.isNullable(x.info.TypeOf(v.X)) {
+				obj += "!"
+			}
+			rest := strings.TrimPrefix(field, x.expr(v.X))
+			rest = strings.TrimPrefix(rest, "!")
+			ot := strings.TrimSuffix(x.f.tsType(x.info.TypeOf(v.X)), " | undefined")
+			return fmt.Sprintf("((%s: %s) => $rt.ptrTo<%s>((): %s => %s%s, (v: %s): void => { %s%s = v; }))(%s)", o, ot, t, t, o, rest, t, o, rest, obj)
+		}
+	case *ast.IndexExpr:
+		if _, isMap := under(x.info.TypeOf(v.X)).(*types.Map); !isMap {
+			a, i := x.tmp(), x.tmp()
+			at := strings.TrimSuffix(x.f.tsType(x.info.TypeOf(v.X)), " | undefined")
+			if p, ok := under(x.info.TypeOf(v.X)).(*types.Pointer); ok {
+				return fmt.Sprintf("((%s: %s, %s: number) => $rt.ptrTo<%s>((): %s => %s!.get()[%s], (v: %s): void => { %s!.get()[%s] = v; }))(%s, %s)", a, x.f.tsType(p), i, t, t, a, i, t, a, i, x.expr(v.X), x.expr(v.Index))
+			}
+			return fmt.Sprintf("((%s: %s, %s: number) => $rt.ptrTo<%s>((): %s => %s[%s], (v: %s): void => { %s[%s] = v; }))(%s, %s)", a, at, i, t, t, a, i, t, a, i, x.expr(v.X), x.expr(v.Index))
+		}
+	case *ast.StarExpr:
+		return x.expr(v.X)
+	}
+	return x.unsupportedExpr(e, x.f.t.stub(e.Pos(), "address of non-struct value"))
 }

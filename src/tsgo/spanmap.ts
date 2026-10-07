@@ -935,7 +935,12 @@ export function Unmarshal(data: number[]): [SpanMap | undefined, $rt.GoObject | 
   {
     let err: $rt.GoObject | undefined = $json.Unmarshal(
       data,
-      $rt.unsupportedAs<$rt.GoObject | undefined>('address of non-struct value'),
+      $rt.ptrTo<number[][]>(
+        (): number[][] => tuples,
+        (v: number[][]): void => {
+          tuples = v;
+        },
+      ),
       [] as ($rt.github_com_go_json_experiment_json_internal_jsonopts_Options | undefined)[],
     );
     if (!(err === undefined)) {

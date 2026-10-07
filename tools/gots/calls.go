@@ -252,7 +252,7 @@ func (x *fn) builtin(e *ast.CallExpr, name string, pre []string) string {
 		case *types.Map:
 			return "$rt.mapLen(" + arg(0) + ")"
 		case *types.Pointer:
-			return arg(0) + "!.v.length"
+			return arg(0) + "!.get().length"
 		case *types.Chan:
 			return x.unsupportedExpr(e, x.f.t.stub(e.Pos(), "len of channel"))
 		}
@@ -302,7 +302,7 @@ func (x *fn) builtin(e *ast.CallExpr, name string, pre []string) string {
 		if isStructType(t) {
 			return x.f.zero(t)
 		}
-		return "new $rt.Ref<" + x.f.tsType(t) + ">(" + x.f.zero(t) + ")"
+		return "new $rt.Ptr<" + x.f.tsType(t) + ">(" + x.f.zero(t) + ")"
 	case "delete":
 		t := under(x.info.TypeOf(e.Args[0])).(*types.Map)
 		return arg(0) + "?.delete(" + x.mapKey(e.Args[1], t.Key()) + ")"

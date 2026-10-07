@@ -12,12 +12,24 @@ export class GoObject {
   }
 }
 
-// Ref holds a value that Go code addresses through a pointer.
-export class Ref<T> extends GoObject {
+// Ptr is a Go pointer to a non-struct value: either a fresh value (new(T))
+// or an existing variable, field or element reached through closures.
+export class Ptr<T> extends GoObject {
   v: T;
-  constructor(v: T) {
+  g: (() => T) | undefined;
+  s: ((v: T) => void) | undefined;
+  constructor(v: T, g: (() => T) | undefined = undefined, s: ((v: T) => void) | undefined = undefined) {
     super();
     this.v = v;
+    this.g = g;
+    this.s = s;
+  }
+  get(): T {
+    return this.g === undefined ? this.v : this.g();
+  }
+  set(v: T): void {
+    if (this.s === undefined) this.v = v;
+    else this.s(v);
   }
 }
 
@@ -92,12 +104,17 @@ export function ifaceEq(a: GoObject | undefined, b: GoObject | undefined): boole
 
 // Panics.
 
-export class Panic extends Error {
+// Panic is thrown for Go panics. It is a plain class rather than an Error
+// subclass, which scriptc would have to represent dynamically.
+export class Panic extends GoObject {
   value: GoObject | undefined;
   recovered = false;
   constructor(value: GoObject | undefined) {
-    super(panicMessage(value));
+    super();
     this.value = value;
+  }
+  message(): string {
+    return panicMessage(this.value);
   }
 }
 
@@ -115,8 +132,8 @@ export function panic(v: GoObject | undefined): never {
 
 export function toPanic(e: unknown): Panic {
   if (e instanceof Panic) return e;
-  if (e instanceof Error) return new Panic(new Box<string>(e.message, 'string'));
-  return new Panic(new Box<string>(String(e), 'string'));
+  if (e instanceof Error) return new Panic(new BoxStr(e.message, 'string'));
+  return new Panic(new BoxStr('panic', 'string'));
 }
 
 let current: Panic | undefined = undefined;
@@ -492,4 +509,9 @@ export function clearMap<K, V>(m: Map<K, V> | undefined): void {
   const keys: K[] = [];
   for (const k of m.keys()) keys.push(k);
   for (const k of keys) m.delete(k);
+}
+
+// ptrTo makes a pointer to a variable, field or element.
+export function ptrTo<T>(g: () => T, s: (v: T) => void): Ptr<T> {
+  return new Ptr<T>(g(), g, s);
 }

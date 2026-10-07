@@ -430,7 +430,12 @@ export class OrderedMap<K, V> extends $rt.GoObject {
       {
         let err$1: $rt.GoObject | undefined = $json.UnmarshalDecode(
           dec,
-          $rt.unsupportedAs<$rt.GoObject | undefined>('address of non-struct value'),
+          $rt.ptrTo<K>(
+            (): K => key,
+            (v: K): void => {
+              key = v;
+            },
+          ),
           [] as ($rt.github_com_go_json_experiment_json_internal_jsonopts_Options | undefined)[],
         );
         if (!(err$1 === undefined)) {
@@ -440,7 +445,12 @@ export class OrderedMap<K, V> extends $rt.GoObject {
       {
         let err$2: $rt.GoObject | undefined = $json.UnmarshalDecode(
           dec,
-          $rt.unsupportedAs<$rt.GoObject | undefined>('address of non-struct value'),
+          $rt.ptrTo<V>(
+            (): V => value,
+            (v: V): void => {
+              value = v;
+            },
+          ),
           [] as ($rt.github_com_go_json_experiment_json_internal_jsonopts_Options | undefined)[],
         );
         if (!(err$2 === undefined)) {

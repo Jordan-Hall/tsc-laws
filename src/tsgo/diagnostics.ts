@@ -21732,7 +21732,12 @@ export function loadLocaleData(data: string): Map<Key, string> | undefined {
     {
       let err$1: $rt.GoObject | undefined = $json.UnmarshalRead(
         gr,
-        $rt.unsupportedAs<$rt.GoObject | undefined>('address of non-struct value'),
+        $rt.ptrTo<Map<Key, string> | undefined>(
+          (): Map<Key, string> | undefined => result,
+          (v: Map<Key, string> | undefined): void => {
+            result = v;
+          },
+        ),
         [] as ($rt.github_com_go_json_experiment_json_internal_jsonopts_Options | undefined)[],
       );
       if (!(err$1 === undefined)) {

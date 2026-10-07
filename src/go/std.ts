@@ -1207,3 +1207,57 @@ export class regexp_Regexp extends GoObject {
 export function regexp_MustCompile(pattern: string): regexp_Regexp | undefined {
   return new regexp_Regexp(pattern);
 }
+
+// Replacements for TypeScript-Go's link stores. Entries are keyed by object
+// identity and created from the zero factory on first access.
+export class core_LinkStore<K, V> extends GoObject {
+  z: () => V;
+  entries = new Map<K, V>();
+  constructor(z: () => V) {
+    super();
+    this.z = z;
+  }
+  Get(key: K): V {
+    let v = this.entries.get(key);
+    if (v === undefined) {
+      v = this.z();
+      this.entries.set(key, v);
+    }
+    return v;
+  }
+  Has(key: K): boolean {
+    return this.entries.has(key);
+  }
+  TryGet(key: K): V | undefined {
+    return this.entries.get(key);
+  }
+  $clone(): core_LinkStore<K, V> {
+    return this;
+  }
+}
+export class checker_nodeLinkStore<V> extends GoObject {
+  z: () => V;
+  entries = new Map<GoObject, V>();
+  constructor(z: () => V) {
+    super();
+    this.z = z;
+  }
+  Get(node: GoObject | undefined): V {
+    let v = this.entries.get(node!);
+    if (v === undefined) {
+      v = this.z();
+      this.entries.set(node!, v);
+    }
+    return v;
+  }
+  Has(node: GoObject | undefined): boolean {
+    return this.entries.has(node!);
+  }
+  TryGet(node: GoObject | undefined): V | undefined {
+    return this.entries.get(node!);
+  }
+  $clone(): checker_nodeLinkStore<V> {
+    return this;
+  }
+}
+export class checker_symbolArenaLinkStore<V> extends checker_nodeLinkStore<V> {}

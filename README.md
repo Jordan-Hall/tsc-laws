@@ -84,7 +84,7 @@ Each file in [`examples`](examples) covers one area of the checker:
 
 ## Translated front end
 
-`tools/gots` translates TypeScript-Go packages to TypeScript in `src/tsgo`, with a small Go runtime in `src/go`. The scanner and parser are translated so far; their tokens, syntax trees, and parse diagnostics match tsgo.
+`tools/gots` translates TypeScript-Go packages to TypeScript in `src/tsgo`, with a small Go runtime in `src/go`. The scanner, parser, and binder are translated so far; their tokens, syntax trees, symbols, and diagnostics match tsgo.
 
 ```sh
 npm run translate   # regenerate src/tsgo
@@ -125,7 +125,7 @@ These are synthetic, single-threaded benchmarks. They don't predict whole-compil
 
 ## Limitations
 
-- No parser, binder, or diagnostics. Input comes from the Go reference build.
+- The checker is not translated yet. `dist/tsts` checks type graphs exported by the Go reference build.
 - No expression checking or control flow analysis.
 - Comparisons that need protected-member rules fail as unsupported.
 

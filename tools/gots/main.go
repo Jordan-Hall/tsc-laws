@@ -529,7 +529,7 @@ func (t *translator) renameFields() {
 		for _, c := range members {
 			for i := 0; i < c.st.NumFields(); i++ {
 				f := c.st.Field(i)
-				if methods[f.Name()] || f.Name() == "constructor" {
+				if methods[f.Name()] || f.Name() == "constructor" || f.Name() == "Error" || f.Name() == "String" {
 					t.fieldNames[f] = f.Name() + "_"
 				}
 				if f.Name() == "_" {

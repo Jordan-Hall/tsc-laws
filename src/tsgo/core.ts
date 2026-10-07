@@ -104,7 +104,7 @@ export class BuildOptions extends $rt.GoObject {
   Dry: Tristate = 0;
   Force: Tristate = 0;
   Verbose: Tristate = 0;
-  Builders: $rt.Ref<number> | undefined = undefined;
+  Builders: $rt.Ptr<number> | undefined = undefined;
   StopBuildOnErrors: Tristate = 0;
   Clean: Tristate = 0;
   $copy_BuildOptions(src: BuildOptions): void {
@@ -238,7 +238,7 @@ export class CompilerOptions extends $rt.GoObject {
   UseDefineForClassFields: Tristate = 0;
   UseUnknownInCatchVariables: Tristate = 0;
   VerbatimModuleSyntax: Tristate = 0;
-  MaxNodeModuleJsDepth: $rt.Ref<number> | undefined = undefined;
+  MaxNodeModuleJsDepth: $rt.Ptr<number> | undefined = undefined;
   AllowSyntheticDefaultImports: Tristate = 0;
   AlwaysStrict: Tristate = 0;
   BaseUrl: string = '';
@@ -269,7 +269,7 @@ export class CompilerOptions extends $rt.GoObject {
   PprofDir: string = '';
   SingleThreaded: Tristate = 0;
   Quiet: Tristate = 0;
-  Checkers: $rt.Ref<number> | undefined = undefined;
+  Checkers: $rt.Ptr<number> | undefined = undefined;
   $copy_CompilerOptions(src: CompilerOptions): void {
     this.$_0 = src.$_0;
     this.AllowJs = src.AllowJs;
@@ -667,54 +667,10 @@ export class LimitedSemaphore extends $rt.GoObject {
     return [release, acquired];
   }
 }
-export class LinkStore<K, V> extends $rt.GoObject {
-  $z_V: () => V;
-  entries: Map<K, V | undefined> | undefined;
-  arena: $rt.core_Arena<V>;
-  constructor($z_V: () => V) {
-    super();
-    this.$z_V = $z_V;
-    this.entries = undefined;
-    this.arena = new $rt.core_Arena<V>(this.$z_V);
-  }
-  $copy_LinkStore(src: LinkStore<K, V>): void {
-    this.entries = src.entries;
-    this.arena = src.arena.$clone();
-  }
-  $clone_LinkStore(): LinkStore<K, V> {
-    const o = new LinkStore<K, V>(this.$z_V);
-    o.$copy_LinkStore(this);
-    return o;
-  }
-  Get(key: K): V | undefined {
-    const s = this;
-    let value: V | undefined = s!.entries?.get(key) ?? undefined;
-    if (!(value === undefined)) {
-      return value;
-    }
-    if (s!.entries === undefined) {
-      s!.entries = new Map<K, V | undefined>();
-    }
-    value = s!.arena.New();
-    s!.entries!.set(key, value);
-    return value;
-  }
-  Has(key: K): boolean {
-    const s = this;
-    const $t1 = s!.entries;
-    const $t2 = key;
-    let ok: boolean = $t1 !== undefined && $t1.has($t2);
-    return ok;
-  }
-  TryGet(key: K): V | undefined {
-    const s = this;
-    return s!.entries?.get(key) ?? undefined;
-  }
-}
 export class PagedLinkStore<V> extends $rt.GoObject {
   $z_V: () => V;
-  pageMap: Map<number, $rt.Ref<V[]> | undefined> | undefined;
-  pageList: ($rt.Ref<V[]> | undefined)[];
+  pageMap: Map<number, $rt.Ptr<V[]> | undefined> | undefined;
+  pageList: ($rt.Ptr<V[]> | undefined)[];
   constructor($z_V: () => V) {
     super();
     this.$z_V = $z_V;
@@ -730,9 +686,9 @@ export class PagedLinkStore<V> extends $rt.GoObject {
     o.$copy_PagedLinkStore(this);
     return o;
   }
-  Get(key: number): V | undefined {
+  Get(key: number): $rt.Ptr<V> | undefined {
     const s = this;
-    let page: $rt.Ref<V[]> | undefined = undefined;
+    let page: $rt.Ptr<V[]> | undefined = undefined;
     let pageIndex: number = $rt.shr64(key, 8);
     if (pageIndex < 65536) {
       if (pageIndex >= s!.pageList.length) {
@@ -740,28 +696,34 @@ export class PagedLinkStore<V> extends $rt.GoObject {
       }
       page = s!.pageList[pageIndex];
       if (page === undefined) {
-        page = new $rt.Ref<V[]>($rt.makeArray(256, () => this.$z_V()));
+        page = new $rt.Ptr<V[]>($rt.makeArray(256, () => this.$z_V()));
         s!.pageList[pageIndex] = page;
       }
     } else {
       page = s!.pageMap?.get(pageIndex) ?? undefined;
       if (page === undefined) {
-        page = new $rt.Ref<V[]>($rt.makeArray(256, () => this.$z_V()));
+        page = new $rt.Ptr<V[]>($rt.makeArray(256, () => this.$z_V()));
         if (s!.pageMap === undefined) {
-          s!.pageMap = new Map<number, $rt.Ref<V[]> | undefined>();
+          s!.pageMap = new Map<number, $rt.Ptr<V[]> | undefined>();
         }
         s!.pageMap!.set(pageIndex, page);
       }
     }
-    return $rt.unsupportedAs<V | undefined>('address of non-struct value');
+    return (($t1: $rt.Ptr<V[]> | undefined, $t2: number) =>
+      $rt.ptrTo<V>(
+        (): V => $t1!.get()[$t2],
+        (v: V): void => {
+          $t1!.get()[$t2] = v;
+        },
+      ))(page, $rt.and64(key, 255));
   }
   Has(key: number): boolean {
     const s = this;
     return !(s!.TryGet(key) === undefined);
   }
-  TryGet(key: number): V | undefined {
+  TryGet(key: number): $rt.Ptr<V> | undefined {
     const s = this;
-    let page: $rt.Ref<V[]> | undefined = undefined;
+    let page: $rt.Ptr<V[]> | undefined = undefined;
     let pageIndex: number = $rt.shr64(key, 8);
     if (pageIndex < 65536) {
       if (pageIndex < s!.pageList.length) {
@@ -771,7 +733,13 @@ export class PagedLinkStore<V> extends $rt.GoObject {
       page = s!.pageMap?.get(pageIndex) ?? undefined;
     }
     if (!(page === undefined)) {
-      return $rt.unsupportedAs<V | undefined>('address of non-struct value');
+      return (($t1: $rt.Ptr<V[]> | undefined, $t2: number) =>
+        $rt.ptrTo<V>(
+          (): V => $t1!.get()[$t2],
+          (v: V): void => {
+            $t1!.get()[$t2] = v;
+          },
+        ))(page, $rt.and64(key, 255));
     }
     return undefined;
   }
@@ -1115,7 +1083,7 @@ export class UnlimitedSemaphore extends $rt.GoObject {
   }
 }
 export class WatchOptions extends $rt.GoObject {
-  Interval: $rt.Ref<number> | undefined = undefined;
+  Interval: $rt.Ptr<number> | undefined = undefined;
   FileKind: WatchFileKind = 0;
   DirectoryKind: WatchDirectoryKind = 0;
   FallbackPolling: PollingKind = 0;
@@ -1143,7 +1111,7 @@ export class WatchOptions extends $rt.GoObject {
   static WatchInterval$nil(w: WatchOptions | undefined): number {
     let watchInterval: number = 2000000000;
     if (!(w === undefined) && !(w!.Interval === undefined)) {
-      watchInterval = w!.Interval!.v * 1000000;
+      watchInterval = w!.Interval!.get() * 1000000;
     }
     return watchInterval;
   }
@@ -2088,7 +2056,7 @@ export function MapNonNil<T, U>($z_U: () => U, slice: T[], f: ((p0: T) => U) | u
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
       let value = $t1[$t2];
       let mapped: U = f!(value);
-      if (!(mapped === new $rt.Ref<U>($z_U())!.v)) {
+      if (!(mapped === new $rt.Ptr<U>($z_U())!.get())) {
         result.push(mapped);
       }
     }
@@ -2224,7 +2192,7 @@ export function Find<T>($z_T: () => T, slice: T[], f: ((p0: T) => boolean) | und
       }
     }
   }
-  return new $rt.Ref<T>($z_T())!.v;
+  return new $rt.Ptr<T>($z_T())!.get();
 }
 export function FindLast<T>($z_T: () => T, slice: T[], f: ((p0: T) => boolean) | undefined): T {
   {
@@ -2235,7 +2203,7 @@ export function FindLast<T>($z_T: () => T, slice: T[], f: ((p0: T) => boolean) |
       }
     }
   }
-  return new $rt.Ref<T>($z_T())!.v;
+  return new $rt.Ptr<T>($z_T())!.get();
 }
 export function FindIndex<T>(slice: T[], f: ((p0: T) => boolean) | undefined): number {
   {
@@ -2265,19 +2233,19 @@ export function FirstOrNil<T>($z_T: () => T, slice: T[]): T {
   if (!(slice.length === (0 as number))) {
     return slice[0];
   }
-  return new $rt.Ref<T>($z_T())!.v;
+  return new $rt.Ptr<T>($z_T())!.get();
 }
 export function LastOrNil<T>($z_T: () => T, slice: T[]): T {
   if (!(slice.length === (0 as number))) {
     return slice[slice.length - 1];
   }
-  return new $rt.Ref<T>($z_T())!.v;
+  return new $rt.Ptr<T>($z_T())!.get();
 }
 export function ElementOrNil<T>($z_T: () => T, slice: T[], index: number): T {
   if (index < slice.length) {
     return slice[index];
   }
-  return new $rt.Ref<T>($z_T())!.v;
+  return new $rt.Ptr<T>($z_T())!.get();
 }
 export function FirstOrNilSeq<T>($z_T: () => T, seq: ((p0: ((p0: T) => boolean) | undefined) => void) | undefined): T {
   if (!(seq === undefined)) {
@@ -2291,7 +2259,7 @@ export function FirstOrNilSeq<T>($z_T: () => T, seq: ((p0: ((p0: T) => boolean) 
     });
     if ($t1) return $t2!;
   }
-  return new $rt.Ref<T>($z_T())!.v;
+  return new $rt.Ptr<T>($z_T())!.get();
 }
 export function FirstNonNil<T, U>($z_U: () => U, slice: T[], f: ((p0: T) => U) | undefined): U {
   {
@@ -2299,12 +2267,12 @@ export function FirstNonNil<T, U>($z_U: () => U, slice: T[], f: ((p0: T) => U) |
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
       let value = $t1[$t2];
       let mapped: U = f!(value);
-      if (!(mapped === new $rt.Ref<U>($z_U())!.v)) {
+      if (!(mapped === new $rt.Ptr<U>($z_U())!.get())) {
         return mapped;
       }
     }
   }
-  return new $rt.Ref<U>($z_U())!.v;
+  return new $rt.Ptr<U>($z_U())!.get();
 }
 export function FirstNonZero<T>($z_T: () => T, values: T[]): T {
   let zero: T = $z_T();
@@ -2419,7 +2387,7 @@ export function IfElse<T>(b: boolean, whenTrue: T, whenFalse: T): T {
   return whenFalse;
 }
 export function OrElse<T>($z_T: () => T, value: T, defaultValue: T): T {
-  if (!(value === new $rt.Ref<T>($z_T())!.v)) {
+  if (!(value === new $rt.Ptr<T>($z_T())!.get())) {
     return value;
   }
   return defaultValue;
@@ -2767,7 +2735,7 @@ export function levenshteinWithMax(
 export function Identity<T>(t: T): T {
   return t;
 }
-export function CheckEachDefined<S>(s: (S | undefined)[], msg: string): (S | undefined)[] {
+export function CheckEachDefined<S>(s: ($rt.Ptr<S> | undefined)[], msg: string): ($rt.Ptr<S> | undefined)[] {
   {
     const $t1 = s;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
@@ -2795,7 +2763,7 @@ export function ShouldRewriteModuleSpecifier(specifier: string, compilerOptions:
     $tspath.HasTSFileExtension(specifier)
   );
 }
-export function SingleElementSlice<T>(element: T | undefined): (T | undefined)[] {
+export function SingleElementSlice<T>(element: $rt.Ptr<T> | undefined): ($rt.Ptr<T> | undefined)[] {
   if (element === undefined) {
     return [];
   }
@@ -3161,19 +3129,19 @@ export function Tristate$DefaultIfUnknown(t: Tristate, value: Tristate): Tristat
   }
   return t;
 }
-export function Tristate$UnmarshalJSON(t: $rt.Ref<Tristate>, data: number[]): $rt.GoObject | undefined {
+export function Tristate$UnmarshalJSON(t: $rt.Ptr<Tristate>, data: number[]): $rt.GoObject | undefined {
   {
     switch ($rt.bytesToString(data)) {
       case 'true' as string: {
-        t!.v = 2;
+        t!.set(2);
         break;
       }
       case 'false' as string: {
-        t!.v = 1;
+        t!.set(1);
         break;
       }
       default: {
-        t!.v = 0;
+        t!.set(0);
         break;
       }
     }

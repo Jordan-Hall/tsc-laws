@@ -17674,6 +17674,12 @@ export class PatternAmbientModule extends $rt.GoObject {
     o.$copy_PatternAmbientModule(this);
     return o;
   }
+  static $lit_PatternAmbientModule_0_1(p0: $core.Pattern, p1: Symbol_ | undefined): PatternAmbientModule {
+    const o = new PatternAmbientModule();
+    o.Pattern_ = p0;
+    o.Symbol_ = p1;
+    return o;
+  }
   static $cast_PatternAmbientModule(v: $rt.GoObject | undefined): PatternAmbientModule {
     if (v instanceof PatternAmbientModule) return v;
     throw $rt.typeAssertError();
@@ -19819,6 +19825,12 @@ export class Symbol_ extends $rt.GoObject {
   $clone_Symbol(): Symbol_ {
     const o = new Symbol_();
     o.$copy_Symbol(this);
+    return o;
+  }
+  static $lit_Symbol_2_0(p0: string, p1: SymbolFlags): Symbol_ {
+    const o = new Symbol_();
+    o.Name = p0;
+    o.Flags = p1;
     return o;
   }
   static $cast_Symbol(v: $rt.GoObject | undefined): Symbol_ {
@@ -25811,20 +25823,44 @@ export function GetSymbolId(symbol_: Symbol_ | undefined): SymbolId {
   }
   return id;
 }
-export function GetSymbolTable(data: $rt.Ref<SymbolTable> | undefined): SymbolTable {
-  if (data!.v === undefined) {
-    data!.v = new Map<string, Symbol_ | undefined>();
+export function GetSymbolTable(data: $rt.Ptr<SymbolTable> | undefined): SymbolTable {
+  if (data!.get() === undefined) {
+    data!.set(new Map<string, Symbol_ | undefined>());
   }
-  return data!.v;
+  return data!.get();
 }
 export function GetMembers(symbol_: Symbol_ | undefined): SymbolTable {
-  return GetSymbolTable($rt.unsupportedAs<$rt.Ref<SymbolTable> | undefined>('address of non-struct value'));
+  return GetSymbolTable(
+    (($t1: Symbol_) =>
+      $rt.ptrTo<SymbolTable>(
+        (): SymbolTable => $t1.Members,
+        (v: SymbolTable): void => {
+          $t1.Members = v;
+        },
+      ))(symbol_!),
+  );
 }
 export function GetExports(symbol_: Symbol_ | undefined): SymbolTable {
-  return GetSymbolTable($rt.unsupportedAs<$rt.Ref<SymbolTable> | undefined>('address of non-struct value'));
+  return GetSymbolTable(
+    (($t1: Symbol_) =>
+      $rt.ptrTo<SymbolTable>(
+        (): SymbolTable => $t1.Exports,
+        (v: SymbolTable): void => {
+          $t1.Exports = v;
+        },
+      ))(symbol_!),
+  );
 }
 export function GetLocals(container: Node | undefined): SymbolTable {
-  return GetSymbolTable($rt.unsupportedAs<$rt.Ref<SymbolTable> | undefined>('address of non-struct value'));
+  return GetSymbolTable(
+    (($t1: LocalsContainerBase) =>
+      $rt.ptrTo<SymbolTable>(
+        (): SymbolTable => $t1.Locals,
+        (v: SymbolTable): void => {
+          $t1.Locals = v;
+        },
+      ))(container!.LocalsContainerData$Node()!),
+  );
 }
 export function NodeIsMissing(node: Node | undefined): boolean {
   return (

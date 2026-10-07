@@ -118,7 +118,7 @@ func (f *file) funcDecl(fd *ast.FuncDecl) string {
 		name = n.Obj().Name() + "$" + fd.Name.Name
 		tparams = f.tparamList(sig.RecvTypeParams())
 		if _, isPtr := sig.Recv().Type().(*types.Pointer); isPtr && !isStructType(n) {
-			params = append(params, x.recvParam(sig.Recv(), "$rt.Ref<"+f.tsType(n)+">"))
+			params = append(params, x.recvParam(sig.Recv(), "$rt.Ptr<"+f.tsType(n)+">"))
 		} else {
 			params = append(params, x.recvParam(sig.Recv(), f.tsType(sig.Recv().Type())))
 		}
