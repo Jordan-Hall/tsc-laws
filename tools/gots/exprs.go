@@ -166,6 +166,10 @@ func fresh(e ast.Expr) bool {
 func (x *fn) box(s string, from types.Type) string {
 	switch u := from.(type) {
 	case *types.Pointer:
+		// A pointer to an array is the array itself; arrays need a box.
+		if _, isArray := u.Elem().Underlying().(*types.Array); isArray {
+			return "new " + x.f.boxRefFor(from) + "(" + s + ")"
+		}
 		return s
 	case *types.Named:
 		if _, isStruct := u.Underlying().(*types.Struct); isStruct {
@@ -182,6 +186,11 @@ func (x *fn) box(s string, from types.Type) string {
 		}
 	case *types.TypeParam:
 		if ptrOnlyTP(u) {
+			return s
+		}
+		// A type parameter constrained by a method interface holds interface
+		// values already.
+		if it, ok := u.Constraint().Underlying().(*types.Interface); ok && it.NumMethods() > 0 {
 			return s
 		}
 		return "$rt.boxAny(" + s + ")"
@@ -302,6 +311,11 @@ func (x *fn) methodCallOn(e *ast.SelectorExpr, r string, args []string) string {
 		}
 	}
 	argStr := strings.Join(args, ", ")
+	// An interface no translated type implements: the call can't happen.
+	if it, ok := recvType.Underlying().(*types.Interface); ok && it.NumMethods() > 0 && !x.ifaceImplemented(recvType) {
+		_ = argStr
+		return fmt.Sprintf("$rt.unsupportedCall<%s>(%q)", x.f.results(sig), fnc.Name())
+	}
 	declRecv := sig.Recv().Type()
 	n, _ := derefNamed(declRecv)
 	if n != nil && !isIfaceType(n) && x.f.t.classes[n.Origin().Obj()] == nil && !x.f.t.overridden(n.Origin().Obj()) && x.f.t.translated(n.Obj().Pkg()) {
@@ -325,10 +339,24 @@ func (x *fn) methodCallOn(e *ast.SelectorExpr, r string, args []string) string {
 		}
 	}
 	name := x.f.t.methodName(fnc)
-	if x.f.t.nilSafe[fnc.Origin()] && !isIfaceType(sel.Recv()) {
+	// Translated classes implementing a library interface rename its
+	// methods like their own.
+	if isIfaceType(recvType) && fnc.Pkg() != nil && !x.f.t.translated(fnc.Pkg()) && x.ifaceHasClasses(recvType) {
+		if fnc.Name() != "Error" && fnc.Name() != "String" {
+			name = x.f.t.methodNameStr(fnc.Name())
+		}
+	}
+	if x.f.t.nilSafeMethod(fnc) && !isIfaceType(sel.Recv()) {
 		if dn, ok := derefNamed(declRecv); ok {
 			recvText := strings.TrimSuffix(r, "!") + path
-			return fmt.Sprintf("%s.%s$nil(%s)", x.f.qualify(dn.Origin().Obj()), name, strings.Join(append([]string{strings.TrimSuffix(recvText, "!")}, args...), ", "))
+			cls, targs := x.f.qualify(dn.Origin().Obj()), ""
+			var zargs []string
+			if an, ok := derefNamed(recvType); ok && an.TypeArgs().Len() > 0 {
+				cls, targs = x.f.staticRef(dn.Origin().Obj()), x.f.typeArgs(an.TypeArgs())
+				zargs = x.f.factoryArgs(dn.Origin().Obj(), an.TypeArgs())
+			}
+			all := append(append(zargs, strings.TrimSuffix(recvText, "!")), args...)
+			return fmt.Sprintf("%s.%s$nil%s(%s)", cls, name, targs, strings.Join(all, ", "))
 		}
 	}
 	if x.f.t.shadowed[fnc.Origin()] && !isIfaceType(sel.Recv()) {
@@ -545,7 +573,7 @@ func (x *fn) unary(e *ast.UnaryExpr) string {
 	case token.XOR:
 		return x.wrap("~"+x.expr(e.X), x.info.TypeOf(e))
 	case token.ARROW:
-		return x.unsupportedExpr(e, x.f.t.stub(e.Pos(), "channel receive"))
+		return x.expr(e.X) + "!.recv()[0]"
 	}
 	return x.expr(e.X)
 }
@@ -1152,7 +1180,7 @@ func (x *fn) assign(s *ast.AssignStmt) {
 				mexpr := x.expr(r.X)
 				key := x.mapKey(r.Index, m.Key())
 				x.flushPre()
-				x.line("const %s = %s;", t, mexpr)
+				x.line("const %s: %s = %s;", t, x.f.tsType(x.info.TypeOf(r.X)), mexpr)
 				k := x.tmp()
 				x.line("const %s = %s;", k, key)
 				x.bindTwo(s, define, x.mapGet(t, k, m, true), fmt.Sprintf("(%s !== undefined && %s.has(%s))", t, t, k))
@@ -1172,7 +1200,11 @@ func (x *fn) assign(s *ast.AssignStmt) {
 			return
 		case *ast.UnaryExpr:
 			if r.Op == token.ARROW {
-				x.line("throw $rt.unsupported(%q);", x.f.t.stub(s.Pos(), "channel receive"))
+				t := x.tmp()
+				ch := x.expr(r.X)
+				x.flushPre()
+				x.line("const %s = %s!.recv();", t, ch)
+				x.bindTwo(s, define, t+"[0]", t+"[1]")
 				return
 			}
 		}
@@ -1344,6 +1376,11 @@ func (x *fn) store(l ast.Expr, define bool, v string, tt types.Type, src ast.Exp
 		}
 		x.line("%s!.set(%s);", x.expr(l.X), v)
 		return
+	}
+	// Keep TypeScript from narrowing the field to undefined for the rest of
+	// the function: other calls may set it.
+	if _, isSel := unparen(l).(*ast.SelectorExpr); isSel && v == "undefined" {
+		v = "undefined as " + x.f.tsType(tt)
 	}
 	if sh := x.shadowOf(l); sh != "" {
 		t := x.tmp()
@@ -1569,4 +1606,39 @@ func (x *fn) isZeroConst(e ast.Expr) bool {
 	}
 	v, ok := constant.Int64Val(constant.ToInt(tv.Value))
 	return ok && v == 0
+}
+
+// ifaceImplemented reports whether some translated type implements the
+// interface tt, so its method calls have a target.
+func (x *fn) ifaceImplemented(tt types.Type) bool {
+	it := tt.Underlying().(*types.Interface)
+	var m *ifaceMap
+	if n, ok := types.Unalias(tt).(*types.Named); ok {
+		m = x.f.t.ifaces[n.Origin().Obj()]
+	} else {
+		m = x.f.t.anonIfaces[types.TypeString(it, nil)]
+	}
+	if m == nil {
+		return true
+	}
+	return m.stub || m.base != nil || len(m.union) > 0 || len(m.boxed) > 0
+}
+
+// ifaceHasClasses reports whether interface tt is represented by translated
+// classes.
+func (x *fn) ifaceHasClasses(tt types.Type) bool {
+	it := tt.Underlying().(*types.Interface)
+	var m *ifaceMap
+	if n, ok := types.Unalias(tt).(*types.Named); ok && n.Obj().Pkg() != nil && x.f.t.translated(n.Obj().Pkg()) {
+		m = x.f.t.ifaces[n.Origin().Obj()]
+	} else if ok && n.Obj().Pkg() != nil {
+		key := n.Obj().Pkg().Path() + "." + n.Obj().Name()
+		if m = x.f.t.anonIfaces[key]; m == nil {
+			m = x.f.t.mapIface(it, x.f.t.named)
+			x.f.t.anonIfaces[key] = m
+		}
+	} else {
+		m = x.f.t.anonIfaces[types.TypeString(it, nil)]
+	}
+	return m != nil && (m.base != nil || len(m.union) > 0)
 }

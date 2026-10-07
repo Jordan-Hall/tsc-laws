@@ -58,7 +58,7 @@ export class AsyncConn extends $rt.GoObject {
     if (enabled) {
       c!.timing = newTimingCollector();
     } else {
-      c!.timing = undefined;
+      c!.timing = undefined as timingCollector | undefined;
     }
   }
   Run(ctx: $rt.context_Context | undefined): $rt.GoObject | undefined {
@@ -119,7 +119,7 @@ export class AsyncConn extends $rt.GoObject {
         }
       }
       for (const [id, ch] of c!.pending?.entryList() ?? []) {
-        $rt.unsupportedAs<[]>('builtin close');
+        ch!.close();
         c!.pending?.delete(id.$clone_jsonrpc_ID());
       }
     } catch ($e) {
@@ -132,7 +132,7 @@ export class AsyncConn extends $rt.GoObject {
   handleResponse(msg: $jsonrpc.Message | undefined): void {
     const c = this;
     c!.pendingMu.Lock();
-    const $t1 = c!.pending;
+    const $t1: $rt.StructMap<$jsonrpc.ID, $rt.Chan<$jsonrpc.Message | undefined> | undefined> | undefined = c!.pending;
     const $t2 = msg!.ID_!.$clone_jsonrpc_ID();
     const ch: $rt.Chan<$jsonrpc.Message | undefined> | undefined = $rt.structMapGet($t1, $t2, undefined);
     const ok: boolean = $t1 !== undefined && $t1.has($t2);
@@ -141,8 +141,8 @@ export class AsyncConn extends $rt.GoObject {
     }
     c!.pendingMu.Unlock();
     if (ok) {
-      throw $rt.unsupported('channel operation');
-      $rt.unsupportedAs<[]>('builtin close');
+      ch!.send(msg);
+      ch!.close();
     }
   }
   handleRequest(ctx: $rt.context_Context | undefined, msg: $jsonrpc.Message | undefined): void {
@@ -267,9 +267,9 @@ export class AsyncConn extends $rt.GoObject {
       const id: $jsonrpc.ID | undefined = $jsonrpc.NewIDString(
         $rt.fmt_Sprintf('api%d', [new $rt.BoxNum((c!.seq = c!.seq + 1), 'int64')]),
       );
-      const responseChan: $rt.Chan<$jsonrpc.Message | undefined> | undefined = $rt.unsupportedAs<
-        $rt.Chan<$jsonrpc.Message | undefined> | undefined
-      >('make channel');
+      const responseChan: $rt.Chan<$jsonrpc.Message | undefined> | undefined = new $rt.Chan<
+        $jsonrpc.Message | undefined
+      >(1, undefined);
       c!.pendingMu.Lock();
       if (!(c!.terminal === undefined)) {
         const err: $rt.GoObject | undefined = c!.terminal;
@@ -291,12 +291,13 @@ export class AsyncConn extends $rt.GoObject {
             $t4.Unlock();
           });
           {
-            const $t5 = c!.pending;
+            const $t5: $rt.StructMap<$jsonrpc.ID, $rt.Chan<$jsonrpc.Message | undefined> | undefined> | undefined =
+              c!.pending;
             const $t6 = id!.$clone_jsonrpc_ID();
             const ch: $rt.Chan<$jsonrpc.Message | undefined> | undefined = $rt.structMapGet($t5, $t6, undefined);
             const ok: boolean = $t5 !== undefined && $t5.has($t6);
             if (ok) {
-              $rt.unsupportedAs<[]>('builtin close');
+              ch!.close();
               c!.pending?.delete(id!.$clone_jsonrpc_ID());
             }
           }
@@ -624,7 +625,7 @@ export class SyncConn extends $rt.GoObject {
     if (enabled) {
       c!.timing = newTimingCollector();
     } else {
-      c!.timing = undefined;
+      c!.timing = undefined as timingCollector | undefined;
     }
   }
   Run(ctx: $rt.context_Context | undefined): $rt.GoObject | undefined {

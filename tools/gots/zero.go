@@ -106,7 +106,14 @@ func (t *translator) analyzeZero() {
 						tn := info.Defs[ts.Name].(*types.TypeName)
 						u := byObj[tn]
 						if u == nil {
-							u = &unit{obj: tn, params: tn.Type().(*types.Named).TypeParams(), info: info}
+							var params *types.TypeParamList
+							switch t := tn.Type().(type) {
+							case *types.Named:
+								params = t.TypeParams()
+							case *types.Alias:
+								params = t.TypeParams()
+							}
+							u = &unit{obj: tn, params: params, info: info}
 							byObj[tn] = u
 							units = append(units, u)
 						}
@@ -286,7 +293,7 @@ func (f *file) factory(tt types.Type) string {
 				return e
 			}
 		}
-		return "$rt.unsupported(" + fmt.Sprintf("%q", "zero factory for "+tp.Obj().Name()) + ")"
+		return "$rt.missingZero<" + tp.Obj().Name() + ">(" + fmt.Sprintf("%q", tp.Obj().Name()) + ")"
 	}
 	z := f.zero(tt)
 	text := fmt.Sprintf("(): %s => %s", f.tsType(tt), z)

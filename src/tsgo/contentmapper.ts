@@ -12,6 +12,7 @@ import * as $locale from './locale.js';
 import * as $parser from './parser.js';
 import * as $spanmap from './spanmap.js';
 import * as $tspath from './tspath.js';
+import { Set_ as $collections$Set_ } from './collections.js';
 const $zf0 = (): string => '';
 const $zf1 = (): $json.Value => [];
 export type DiagnosticDirectiveErrorKind = number;
@@ -39,6 +40,9 @@ export class SpawnerFunc$Box extends $rt.GoObject {
   static $cast(v: $rt.GoObject | undefined): SpawnerFunc$Box {
     if (v instanceof SpawnerFunc$Box) return v;
     throw $rt.typeAssertError();
+  }
+  override $unbox(): unknown {
+    return this.v;
   }
   Spawn(
     a0: string[],
@@ -783,7 +787,7 @@ export class Mapper extends Definition {
       const $t1 = m!.Manifest_.CompilerOptions;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
         const name_ = $t1[$t2];
-        const $t3 = fields;
+        const $t3: Map<string, number> | undefined = fields;
         const $t4 = name_;
         const i: number = $t3?.get($t4) ?? 0;
         const ok: boolean = $t3 !== undefined && $t3.has($t4);
@@ -1522,9 +1526,18 @@ export class host extends $rt.GoObject {
         if (!(entry!.closer === undefined)) {
           closers.push(entry!.closer);
         }
-        entry!.conn = undefined;
-        entry!.closer = undefined;
-        entry!.err = undefined;
+        entry!.conn = undefined as $ipc.Conn;
+        entry!.closer = undefined as
+          | $ipc.PipeTransport
+          | $ipc.StdioTransport
+          | $ipc.stdioConn
+          | closeOnceReadWriteCloser
+          | host
+          | loggedProcess
+          | projectLease
+          | retainedProject
+          | undefined;
+        entry!.err = undefined as $rt.GoObject | undefined;
         entry!.positionEncoding = '';
         entry!.diagnosticSource = '';
       }
@@ -1788,7 +1801,7 @@ export class host extends $rt.GoObject {
           const mapper = $t1[$t2];
           const identity: string = mapper!.Identity();
           {
-            const $t3 = seen;
+            const $t3: Map<string, $rt.Empty> | undefined = seen;
             const $t4 = identity;
             const ok: boolean = $t3 !== undefined && $t3.has($t4);
             if (ok) {
@@ -1907,9 +1920,9 @@ export class host extends $rt.GoObject {
           closers.push(mc!.closer);
         }
       }
-      h!.conns = undefined;
-      h!.projects = undefined;
-      h!.projectLeases = undefined;
+      h!.conns = undefined as Map<string, mapperConn | undefined> | undefined;
+      h!.projects = undefined as Map<string, projectEntry | undefined> | undefined;
+      h!.projectLeases = undefined as Map<string, projectLease | undefined> | undefined;
       h!.mu.Unlock();
       let errs: ($rt.GoObject | undefined)[] = [];
       {
@@ -2595,7 +2608,7 @@ export class projectLease extends $rt.GoObject {
         $t2 = $t5[1];
         break $body;
       }
-      const $t6 = p!.entries;
+      const $t6: Map<Mapper | undefined, string> | undefined = p!.entries;
       const $t7 = mapper;
       const key: string = $t6?.get($t7) ?? '';
       const ok: boolean = $t6 !== undefined && $t6.has($t7);
@@ -3260,7 +3273,7 @@ export let supportedVirtualExtensions: $collections.Set_<string> | undefined = $
 ]);
 export let compilerOptionFields: (() => Map<string, number> | undefined) | undefined = $rt.sync_OnceValue($fn0);
 export function IsSupportedVirtualExtension(extension: string): boolean {
-  return supportedVirtualExtensions!.Has(extension);
+  return $collections$Set_.Has$nil<string>(supportedVirtualExtensions, extension);
 }
 export function NewTransformError(kind: TransformErrorKind, err: $rt.GoObject | undefined): TransformError | undefined {
   return TransformError.$lit_contentmapper_TransformError_0_1(kind, err);

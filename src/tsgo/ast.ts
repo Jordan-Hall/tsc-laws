@@ -10,6 +10,7 @@ import * as $locale from './locale.js';
 import * as $spanmap from './spanmap.js';
 import * as $stringutil from './stringutil.js';
 import * as $tspath from './tspath.js';
+import { Set_ as $collections$Set_ } from './collections.js';
 export class $Anon1 extends $rt.GoObject {
   parent: Node | undefined;
   visit: ((p0: Node | undefined) => boolean) | undefined;
@@ -294,6 +295,9 @@ export class Kind$Box extends $rt.GoObject {
   static $cast(v: $rt.GoObject | undefined): Kind$Box {
     if (v instanceof Kind$Box) return v;
     throw $rt.typeAssertError();
+  }
+  override $unbox(): unknown {
+    return this.v;
   }
   override $eqv(o: $rt.GoObject): boolean {
     return o instanceof Kind$Box && o.v === this.v;
@@ -6250,7 +6254,7 @@ export class DiagnosticsCollection extends $rt.GoObject {
   getDiagnosticsForFileLocked(file: SourceFile | undefined): (Diagnostic | undefined)[] {
     const c = this;
     const path: $tspath.Path = file!.Path$m();
-    if (!c!.fileDiagnosticsSorted.Has(path)) {
+    if (!$collections$Set_.Has$nil<$tspath.Path>(c!.fileDiagnosticsSorted, path)) {
       $rt.slices_SortStableFunc(c!.fileDiagnostics?.get(path) ?? [], CompareDiagnostics);
       c!.fileDiagnosticsSorted.Add(path);
     }
@@ -19244,7 +19248,7 @@ export class SourceFile extends NodeBase {
     file!.identifiersOnce.Do((): void => {
       file!.identifiers = collectIdentifiersForSourceFile(file);
     });
-    return file!.identifiers.Has(name_);
+    return $collections$Set_.Has$nil<string>(file!.identifiers, name_);
   }
   FileName(): string {
     const node = this;
@@ -19306,7 +19310,7 @@ export class SourceFile extends NodeBase {
       }
       node!.jsdocMu.RLock();
       {
-        const $t2 = node!.jsdocCache;
+        const $t2: Map<Node | undefined, (Node | undefined)[]> | undefined = node!.jsdocCache;
         const $t3 = n;
         const jsdocs: (Node | undefined)[] = $t2?.get($t3) ?? [];
         const ok: boolean = $t2 !== undefined && $t2.has($t3);
@@ -19323,7 +19327,7 @@ export class SourceFile extends NodeBase {
         $t4.Unlock();
       });
       {
-        const $t5 = node!.jsdocCache;
+        const $t5: Map<Node | undefined, (Node | undefined)[]> | undefined = node!.jsdocCache;
         const $t6 = n;
         const jsdocs$1: (Node | undefined)[] = $t5?.get($t6) ?? [];
         const ok$1: boolean = $t5 !== undefined && $t5.has($t6);
@@ -19451,7 +19455,7 @@ export class SourceFile extends NodeBase {
         ) {
           const text: string = node!.Text$Node();
           {
-            const $t1 = nameTable;
+            const $t1: Map<string, number> | undefined = nameTable;
             const $t2 = text;
             const ok: boolean = $t1 !== undefined && $t1.has($t2);
             if (ok) {
@@ -19515,7 +19519,7 @@ export class SourceFile extends NodeBase {
       const loc: $core.TextRange = $core.NewTextRange(pos, end);
       const key: TokenCacheKey = TokenCacheKey.$lit_ast_TokenCacheKey_0_1(parent, loc);
       {
-        const $t3 = node!.tokenCache;
+        const $t3: $rt.StructMap<TokenCacheKey, Node | undefined> | undefined = node!.tokenCache;
         const $t4 = key;
         const token: Node | undefined = $rt.structMapGet($t3, $t4, undefined);
         const ok: boolean = $t3 !== undefined && $t3.has($t4);
@@ -23679,7 +23683,7 @@ export function getSourceFileDataCell<T>(
       file!.data$4 = new Map<sourceFileDataKey, $rt.GoObject | undefined>();
     }
     {
-      const $t3 = file!.data$4;
+      const $t3: Map<sourceFileDataKey, $rt.GoObject | undefined> | undefined = file!.data$4;
       const $t4 = key!.key;
       const cell: $rt.GoObject | undefined = $t3?.get($t4) ?? undefined;
       const ok: boolean = $t3 !== undefined && $t3.has($t4);
@@ -28794,7 +28798,7 @@ export function getModuleInstanceStateCached(
   }
   const nodeId: NodeId = GetNodeId(node);
   {
-    const $t1 = visited;
+    const $t1: Map<NodeId, ModuleInstanceState> | undefined = visited;
     const $t2 = nodeId;
     const cached: ModuleInstanceState = $t1?.get($t2) ?? 0;
     const ok: boolean = $t1 !== undefined && $t1.has($t2);
@@ -29376,7 +29380,7 @@ export function GetPragmaFromSourceFile(file: SourceFile | undefined, name_: str
 export function GetPragmaArgument(pragma: Pragma | undefined, name_: string): string {
   if (!(pragma === undefined)) {
     {
-      const $t1 = pragma!.Args;
+      const $t1: Map<string, PragmaArgument> | undefined = pragma!.Args;
       const $t2 = name_;
       const arg: PragmaArgument = $t1?.get($t2) ?? PragmaArgument$zero;
       const ok: boolean = $t1 !== undefined && $t1.has($t2);

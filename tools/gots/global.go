@@ -79,6 +79,7 @@ func (f *file) typeBoxDecl(tag string) string {
 	typ := f.tsType(tt)
 	fmt.Fprintf(&b, "export class %s extends $rt.GoObject {\n  v: %s;\n  constructor(v: %s) { super(); this.v = v; }\n", name, typ, typ)
 	fmt.Fprintf(&b, "  static $cast(v: $rt.GoObject | undefined): %s { if (v instanceof %s) return v; throw $rt.typeAssertError(); }\n", name, name)
+	b.WriteString("  override $unbox(): unknown { return this.v; }\n")
 	if _, isPtr := tt.(*types.Pointer); isPtr {
 		fmt.Fprintf(&b, "  override $eqv(o: $rt.GoObject): boolean { return o instanceof %s && o.v === this.v; }\n", name)
 	}
@@ -188,7 +189,7 @@ func (t *translator) emitGlobals(out string) {
 		if n.TypeParams().Len() > 0 || t.localTParams[tn] != nil || len(t.needsFor(tn)) > 0 {
 			continue
 		}
-		news = append(news, "    new "+f.qualify(tn)+"(),")
+		news = append(news, "    new "+f.qualify(tn)+"() as $rt.GoObject,")
 	}
 	body.Reset()
 	body.WriteString("// keepAll constructs every class so scriptc lowers each before its uses.\n")

@@ -564,6 +564,18 @@ export function math_Pow(a: number, b: number): number {
 export function math_Mod(a: number, b: number): number {
   return a % b;
 }
+export function math_Sqrt(f: number): number {
+  return Math.sqrt(f);
+}
+export function math_Log(f: number): number {
+  return Math.log(f);
+}
+export function math_Log10(f: number): number {
+  return Math.log10(f);
+}
+export function math_Round(f: number): number {
+  return f < 0 ? -Math.round(-f) : Math.round(f);
+}
 export function math_Log2(f: number): number {
   return Math.log2(f);
 }
@@ -1647,4 +1659,86 @@ export function printer_FormatGeneratedName(
   name += base.length > 0 && base.charCodeAt(0) === 35 ? base.substring(1) : base;
   name += suffix.length > 0 && suffix.charCodeAt(0) === 35 ? suffix.substring(1) : suffix;
   return privateName && !(name.length > 0 && name.charCodeAt(0) === 35) ? '#' + name : name;
+}
+
+// time: wall-clock instants in milliseconds and durations in nanoseconds.
+export class time_Time extends GoObject {
+  ms: number;
+  zero: boolean;
+  constructor(ms = 0, zero = true) {
+    super();
+    this.ms = ms;
+    this.zero = zero;
+  }
+  IsZero(): boolean {
+    return this.zero;
+  }
+  UnixMilli(): number {
+    return Math.trunc(this.ms);
+  }
+  UnixNano(): number {
+    return Math.trunc(this.ms * 1e6);
+  }
+  Unix(): number {
+    return Math.floor(this.ms / 1000);
+  }
+  Sub(u: time_Time): number {
+    return Math.round((this.ms - u.ms) * 1e6);
+  }
+  Add(d: number): time_Time {
+    return new time_Time(this.ms + d / 1e6, false);
+  }
+  Before(u: time_Time): boolean {
+    return this.ms < u.ms;
+  }
+  After(u: time_Time): boolean {
+    return this.ms > u.ms;
+  }
+  Equal(u: time_Time): boolean {
+    return this.ms === u.ms && this.zero === u.zero;
+  }
+  Compare(u: time_Time): number {
+    return this.ms < u.ms ? -1 : this.ms > u.ms ? 1 : 0;
+  }
+  $equals(u: time_Time): boolean {
+    return this.Equal(u);
+  }
+  Format(_layout: string): string {
+    return fromHostString(new Date(this.ms).toISOString());
+  }
+  $clone(): time_Time {
+    return this;
+  }
+}
+export function time_Now(): time_Time {
+  return new time_Time(Date.now(), false);
+}
+export function time_Since(t: time_Time): number {
+  return time_Now().Sub(t);
+}
+export function time_UnixMilli(ms: number): time_Time {
+  return new time_Time(ms, false);
+}
+export function time_Duration$Nanoseconds(d: number): number {
+  return d;
+}
+export function time_Duration$Seconds(d: number): number {
+  return d / 1e9;
+}
+export function time_Duration$Milliseconds(d: number): number {
+  return Math.trunc(d / 1e6);
+}
+
+// sort.Slice sorts the slice in x with less, which compares elements by
+// index. The elements are compared at their original positions, then moved.
+export function sort_Slice(x: GoObject | undefined, less: ((i: number, j: number) => boolean) | undefined): void {
+  const arr = (x === undefined ? [] : x.$unbox()) as unknown[];
+  const order: number[] = [];
+  for (let i = 0; i < arr.length; i++) order.push(i);
+  order.sort((a, b) => (less!(a, b) ? -1 : less!(b, a) ? 1 : 0));
+  const sorted = order.map((i) => arr[i]);
+  for (let i = 0; i < sorted.length; i++) arr[i] = sorted[i];
+}
+export function sort_SliceStable(x: GoObject | undefined, less: ((i: number, j: number) => boolean) | undefined): void {
+  sort_Slice(x, less);
 }

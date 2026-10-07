@@ -2,6 +2,7 @@
 // Copyright Microsoft Corporation. Licensed under Apache-2.0.
 import * as $rt from '../go/runtime.js';
 import * as $ast from './ast.js';
+import * as $collections from './collections.js';
 import * as $core from './core.js';
 import * as $debug from './debug.js';
 import * as $module from './module.js';
@@ -11,11 +12,13 @@ import * as $stringutil from './stringutil.js';
 import * as $tsoptions from './tsoptions.js';
 import * as $tspath from './tspath.js';
 import type * as $checker from './checker.js';
-import type * as $collections from './collections.js';
 import type * as $symlinks from './symlinks.js';
 import type * as $tststest from './tststest.js';
+import { OrderedMap as $collections$OrderedMap } from './collections.js';
 const $zf0 = (): string => '';
 const $zf1 = (): boolean => false;
+const $zf2 = (): $packagejson.ExportsOrImports => new $packagejson.ExportsOrImports();
+const $zf3 = (): string[] => [];
 export type CheckerShape = $checker.Checker | undefined;
 export type ImportModuleSpecifierEndingPreference = string;
 export type ImportModuleSpecifierPreference = string;
@@ -744,7 +747,7 @@ export function tryGetModuleNameFromAmbientModule(
       ) {
         continue;
       }
-      const $t5 = possibleContainer!.Symbol$m()!.Exports;
+      const $t5: $ast.SymbolTable = possibleContainer!.Symbol$m()!.Exports;
       const $t6 = 'export=';
       const sym: $ast.Symbol_ | undefined = $t5?.get($t6) ?? undefined;
       const ok: boolean = $t5 !== undefined && $t5.has($t6);
@@ -1642,7 +1645,11 @@ export function tryGetModuleNameFromExports(
   if (exports.IsSubpaths()) {
     let $t1 = false;
     let $t2: string = '';
-    exports.AsObject$ExportsOrImports()!.Entries()!((k: string, subk: $packagejson.ExportsOrImports): boolean => {
+    $collections$OrderedMap.Entries$nil<string, $packagejson.ExportsOrImports>(
+      $zf0,
+      $zf2,
+      exports.AsObject$ExportsOrImports(),
+    )!((k: string, subk: $packagejson.ExportsOrImports): boolean => {
       const subPackageName: string = $tspath.GetNormalizedAbsolutePath($tspath.CombinePaths(packageName, [k]), '');
       let mode: MatchingMode = 0;
       if ($rt.strings_HasSuffix(k, '/')) {
@@ -1719,7 +1726,7 @@ export function tryGetModuleNameFromPackageJsonImports(
           imports.AsObject$ExportsOrImports();
         const entries:
           | ((p0: ((p0: string, p1: $packagejson.ExportsOrImports) => boolean) | undefined) => void)
-          | undefined = top!.Entries();
+          | undefined = $collections$OrderedMap.Entries$nil<string, $packagejson.ExportsOrImports>($zf0, $zf2, top);
         let $t1 = false;
         let $t2: string = '';
         entries!((k: string, value: $packagejson.ExportsOrImports): boolean => {
@@ -1776,73 +1783,75 @@ export function tryGetModuleNameFromPaths(
   const caseSensitive: boolean = host!.UseCaseSensitiveFileNames();
   let $t1 = false;
   let $t2: string = '';
-  paths!.Entries()!((key: string, values: string[]): boolean => {
-    {
-      const $t3 = values;
-      for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
-        const patternText = $t3[$t4];
-        const normalized: string = $tspath.NormalizePath(patternText);
-        let pattern: string = getRelativePathIfInSameVolume(normalized, baseDirectory, caseSensitive);
-        if (pattern.length === (0 as number)) {
-          pattern = normalized;
-        }
-        const $t5 = $rt.strings_Cut(pattern, '*');
-        const prefix: string = $t5[0];
-        const suffix: string = $t5[1];
-        const ok: boolean = $t5[2];
-        let candidates: specPair[] = [];
-        {
-          const $t6 = allowedEndings;
-          for (let $t7 = 0, $n = $t6.length; $t7 < $n; $t7++) {
-            const ending = $t6[$t7];
-            const result: string = processEnding(relativeToBaseUrl, [ending], compilerOptions, host);
-            candidates.push(specPair.$lit_modulespecifiers_specPair_0_1(ending, result));
+  $collections$OrderedMap.Entries$nil<string, string[]>($zf0, $zf3, paths)!(
+    (key: string, values: string[]): boolean => {
+      {
+        const $t3 = values;
+        for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
+          const patternText = $t3[$t4];
+          const normalized: string = $tspath.NormalizePath(patternText);
+          let pattern: string = getRelativePathIfInSameVolume(normalized, baseDirectory, caseSensitive);
+          if (pattern.length === (0 as number)) {
+            pattern = normalized;
           }
-        }
-        if (($tspath.TryGetExtensionFromPath(pattern) ?? '').length > 0) {
-          candidates.push(specPair.$lit_modulespecifiers_specPair_0_1(2, relativeToBaseUrl));
-        }
-        if (ok) {
+          const $t5 = $rt.strings_Cut(pattern, '*');
+          const prefix: string = $t5[0];
+          const suffix: string = $t5[1];
+          const ok: boolean = $t5[2];
+          let candidates: specPair[] = [];
           {
-            const $t8 = candidates;
-            for (let $t9 = 0, $n = $t8.length; $t9 < $n; $t9++) {
-              const c = $t8[$t9];
-              const value: string = c.value;
-              if (
-                value.length >= prefix.length + suffix.length &&
-                $stringutil.HasPrefix(value, prefix, caseSensitive) &&
-                $stringutil.HasSuffix(value, suffix, caseSensitive) &&
-                validateEnding(c, relativeToBaseUrl, compilerOptions, host)
-              ) {
-                const matchedStar: string = value.substring(prefix.length, value.length - suffix.length);
-                if (!$tspath.PathIsRelative(matchedStar)) {
-                  $t2 = replaceFirstStar(key, matchedStar);
-                  $t1 = true;
-                  return false;
+            const $t6 = allowedEndings;
+            for (let $t7 = 0, $n = $t6.length; $t7 < $n; $t7++) {
+              const ending = $t6[$t7];
+              const result: string = processEnding(relativeToBaseUrl, [ending], compilerOptions, host);
+              candidates.push(specPair.$lit_modulespecifiers_specPair_0_1(ending, result));
+            }
+          }
+          if (($tspath.TryGetExtensionFromPath(pattern) ?? '').length > 0) {
+            candidates.push(specPair.$lit_modulespecifiers_specPair_0_1(2, relativeToBaseUrl));
+          }
+          if (ok) {
+            {
+              const $t8 = candidates;
+              for (let $t9 = 0, $n = $t8.length; $t9 < $n; $t9++) {
+                const c = $t8[$t9];
+                const value: string = c.value;
+                if (
+                  value.length >= prefix.length + suffix.length &&
+                  $stringutil.HasPrefix(value, prefix, caseSensitive) &&
+                  $stringutil.HasSuffix(value, suffix, caseSensitive) &&
+                  validateEnding(c, relativeToBaseUrl, compilerOptions, host)
+                ) {
+                  const matchedStar: string = value.substring(prefix.length, value.length - suffix.length);
+                  if (!$tspath.PathIsRelative(matchedStar)) {
+                    $t2 = replaceFirstStar(key, matchedStar);
+                    $t1 = true;
+                    return false;
+                  }
                 }
               }
             }
+          } else if (
+            $core.Some<specPair>(candidates, (c$1: specPair): boolean => {
+              return !(c$1.ending === (0 as number)) && pattern === c$1.value;
+            }) ||
+            $core.Some<specPair>(candidates, (c$2: specPair): boolean => {
+              return (
+                c$2.ending === (0 as number) &&
+                pattern === c$2.value &&
+                validateEnding(c$2, relativeToBaseUrl, compilerOptions, host)
+              );
+            })
+          ) {
+            $t2 = key;
+            $t1 = true;
+            return false;
           }
-        } else if (
-          $core.Some<specPair>(candidates, (c$1: specPair): boolean => {
-            return !(c$1.ending === (0 as number)) && pattern === c$1.value;
-          }) ||
-          $core.Some<specPair>(candidates, (c$2: specPair): boolean => {
-            return (
-              c$2.ending === (0 as number) &&
-              pattern === c$2.value &&
-              validateEnding(c$2, relativeToBaseUrl, compilerOptions, host)
-            );
-          })
-        ) {
-          $t2 = key;
-          $t1 = true;
-          return false;
         }
       }
-    }
-    return true;
-  });
+      return true;
+    },
+  );
   if ($t1) return $t2;
   return '';
 }
@@ -2079,32 +2088,34 @@ export function tryGetModuleNameFromExportsOrImports(
           exports.AsObject$ExportsOrImports();
         let $t4 = false;
         let $t5: string = '';
-        obj!.Entries()!((key: string, value: $packagejson.ExportsOrImports): boolean => {
-          if (
-            key === ('default' as string) ||
-            $rt.slices_Contains(conditions, key) ||
-            ($rt.slices_Contains(conditions, 'types') && $module.IsApplicableVersionedTypesKey(key))
-          ) {
-            const result$1: string = tryGetModuleNameFromExportsOrImports(
-              options,
-              host,
-              targetFilePath,
-              packageDirectory,
-              packageName,
-              value,
-              conditions,
-              mode,
-              isImports,
-              preferTsExtension,
-            );
-            if (result$1.length > 0) {
-              $t5 = result$1;
-              $t4 = true;
-              return false;
+        $collections$OrderedMap.Entries$nil<string, $packagejson.ExportsOrImports>($zf0, $zf2, obj)!(
+          (key: string, value: $packagejson.ExportsOrImports): boolean => {
+            if (
+              key === ('default' as string) ||
+              $rt.slices_Contains(conditions, key) ||
+              ($rt.slices_Contains(conditions, 'types') && $module.IsApplicableVersionedTypesKey(key))
+            ) {
+              const result$1: string = tryGetModuleNameFromExportsOrImports(
+                options,
+                host,
+                targetFilePath,
+                packageDirectory,
+                packageName,
+                value,
+                conditions,
+                mode,
+                isImports,
+                preferTsExtension,
+              );
+              if (result$1.length > 0) {
+                $t5 = result$1;
+                $t4 = true;
+                return false;
+              }
             }
-          }
-          return true;
-        });
+            return true;
+          },
+        );
         if ($t4) return $t5;
         break;
       }
@@ -2294,7 +2305,7 @@ export function stringToRegex(pattern: string): $rt.regexp_Regexp | undefined {
       caseInsensitive,
     );
     regexPatternCacheMu.RLock();
-    const $t5 = regexPatternCache;
+    const $t5: $rt.StructMap<regexPatternCacheKey, $rt.regexp_Regexp | undefined> | undefined = regexPatternCache;
     const $t6 = key.$clone_modulespecifiers_regexPatternCacheKey();
     let re: $rt.regexp_Regexp | undefined = $rt.structMapGet($t5, $t6, undefined);
     let ok: boolean = $t5 !== undefined && $t5.has($t6);
@@ -2308,7 +2319,7 @@ export function stringToRegex(pattern: string): $rt.regexp_Regexp | undefined {
     $defers.push(() => {
       $t7.Unlock();
     });
-    const $t8 = regexPatternCache;
+    const $t8: $rt.StructMap<regexPatternCacheKey, $rt.regexp_Regexp | undefined> | undefined = regexPatternCache;
     const $t9 = key.$clone_modulespecifiers_regexPatternCacheKey();
     re = $rt.structMapGet($t8, $t9, undefined);
     ok = $t8 !== undefined && $t8.has($t9);
@@ -2586,7 +2597,7 @@ export function allKeysStartWithDot(
 ): boolean {
   let $t1 = false;
   let $t2: boolean = false;
-  obj!.Keys()!((k: string): boolean => {
+  $collections$OrderedMap.Keys$nil<string, $packagejson.ExportsOrImports>($zf0, $zf2, obj)!((k: string): boolean => {
     if (!$rt.strings_HasPrefix(k, '.')) {
       $t2 = false;
       $t1 = true;

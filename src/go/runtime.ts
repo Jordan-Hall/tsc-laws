@@ -31,7 +31,7 @@ export class io_fs_FileInfo extends $b.GoObject {
   IsDir(): boolean {
     throw $b.unsupported('io/fs.FileInfo.IsDir');
   }
-  ModTime(): time_Time {
+  ModTime(): $s.time_Time {
     throw $b.unsupported('io/fs.FileInfo.ModTime');
   }
   Mode(): number {
@@ -68,13 +68,13 @@ export class net_Conn extends $b.GoObject {
   RemoteAddr(): net_Addr | undefined {
     throw $b.unsupported('net.Conn.RemoteAddr');
   }
-  SetDeadline(a0: time_Time): $b.GoObject | undefined {
+  SetDeadline(a0: $s.time_Time): $b.GoObject | undefined {
     throw $b.unsupported('net.Conn.SetDeadline');
   }
-  SetReadDeadline(a0: time_Time): $b.GoObject | undefined {
+  SetReadDeadline(a0: $s.time_Time): $b.GoObject | undefined {
     throw $b.unsupported('net.Conn.SetReadDeadline');
   }
-  SetWriteDeadline(a0: time_Time): $b.GoObject | undefined {
+  SetWriteDeadline(a0: $s.time_Time): $b.GoObject | undefined {
     throw $b.unsupported('net.Conn.SetWriteDeadline');
   }
   Write(a0: number[]): [number, $b.GoObject | undefined] {
@@ -308,10 +308,16 @@ export class bufio_Writer extends $b.GoObject {
 export class compress_gzip_Header extends $b.GoObject {
   Comment: string;
   Extra: number[];
-  ModTime: time_Time;
+  ModTime: $s.time_Time;
   Name: string;
   OS: number;
-  constructor(p0: string = '', p1: number[] = [], p2: time_Time = new time_Time(), p3: string = '', p4: number = 0) {
+  constructor(
+    p0: string = '',
+    p1: number[] = [],
+    p2: $s.time_Time = new $s.time_Time(),
+    p3: string = '',
+    p4: number = 0,
+  ) {
     super();
     this.Comment = p0;
     this.Extra = p1;
@@ -926,166 +932,6 @@ export class strings_Reader extends $b.GoObject {
     return this;
   }
 }
-export class time_Location extends $b.GoObject {
-  constructor() {
-    super();
-  }
-  override String(): string {
-    throw $b.unsupported('time.Location.String');
-  }
-  $clone(): time_Location {
-    return this;
-  }
-}
-export class time_Time extends encoding_TextMarshaler {
-  constructor() {
-    super();
-  }
-  Add(a0: number): time_Time {
-    throw $b.unsupported('time.Time.Add');
-  }
-  AddDate(a0: number, a1: number, a2: number): time_Time {
-    throw $b.unsupported('time.Time.AddDate');
-  }
-  After(a0: time_Time): boolean {
-    throw $b.unsupported('time.Time.After');
-  }
-  AppendBinary(a0: number[]): [number[], $b.GoObject | undefined] {
-    throw $b.unsupported('time.Time.AppendBinary');
-  }
-  AppendFormat(a0: number[], a1: string): number[] {
-    throw $b.unsupported('time.Time.AppendFormat');
-  }
-  AppendText(a0: number[]): [number[], $b.GoObject | undefined] {
-    throw $b.unsupported('time.Time.AppendText');
-  }
-  Before(a0: time_Time): boolean {
-    throw $b.unsupported('time.Time.Before');
-  }
-  Clock(): [number, number, number] {
-    throw $b.unsupported('time.Time.Clock');
-  }
-  Compare(a0: time_Time): number {
-    throw $b.unsupported('time.Time.Compare');
-  }
-  Date(): [number, number, number] {
-    throw $b.unsupported('time.Time.Date');
-  }
-  Day(): number {
-    throw $b.unsupported('time.Time.Day');
-  }
-  Equal(a0: time_Time): boolean {
-    throw $b.unsupported('time.Time.Equal');
-  }
-  Format(a0: string): string {
-    throw $b.unsupported('time.Time.Format');
-  }
-  GoString(): string {
-    throw $b.unsupported('time.Time.GoString');
-  }
-  GobEncode(): [number[], $b.GoObject | undefined] {
-    throw $b.unsupported('time.Time.GobEncode');
-  }
-  Hour(): number {
-    throw $b.unsupported('time.Time.Hour');
-  }
-  ISOWeek(): [number, number] {
-    throw $b.unsupported('time.Time.ISOWeek');
-  }
-  In(a0: time_Location | undefined): time_Time {
-    throw $b.unsupported('time.Time.In');
-  }
-  IsDST(): boolean {
-    throw $b.unsupported('time.Time.IsDST');
-  }
-  IsZero(): boolean {
-    throw $b.unsupported('time.Time.IsZero');
-  }
-  Local(): time_Time {
-    throw $b.unsupported('time.Time.Local');
-  }
-  Location(): time_Location | undefined {
-    throw $b.unsupported('time.Time.Location');
-  }
-  MarshalBinary(): [number[], $b.GoObject | undefined] {
-    throw $b.unsupported('time.Time.MarshalBinary');
-  }
-  MarshalJSON(): [number[], $b.GoObject | undefined] {
-    throw $b.unsupported('time.Time.MarshalJSON');
-  }
-  MarshalText(): [number[], $b.GoObject | undefined] {
-    throw $b.unsupported('time.Time.MarshalText');
-  }
-  Minute(): number {
-    throw $b.unsupported('time.Time.Minute');
-  }
-  Month(): number {
-    throw $b.unsupported('time.Time.Month');
-  }
-  Nanosecond(): number {
-    throw $b.unsupported('time.Time.Nanosecond');
-  }
-  Round(a0: number): time_Time {
-    throw $b.unsupported('time.Time.Round');
-  }
-  Second(): number {
-    throw $b.unsupported('time.Time.Second');
-  }
-  override String(): string {
-    throw $b.unsupported('time.Time.String');
-  }
-  Sub(a0: time_Time): number {
-    throw $b.unsupported('time.Time.Sub');
-  }
-  Truncate(a0: number): time_Time {
-    throw $b.unsupported('time.Time.Truncate');
-  }
-  UTC(): time_Time {
-    throw $b.unsupported('time.Time.UTC');
-  }
-  Unix(): number {
-    throw $b.unsupported('time.Time.Unix');
-  }
-  UnixMicro(): number {
-    throw $b.unsupported('time.Time.UnixMicro');
-  }
-  UnixMilli(): number {
-    throw $b.unsupported('time.Time.UnixMilli');
-  }
-  UnixNano(): number {
-    throw $b.unsupported('time.Time.UnixNano');
-  }
-  Weekday(): number {
-    throw $b.unsupported('time.Time.Weekday');
-  }
-  Year(): number {
-    throw $b.unsupported('time.Time.Year');
-  }
-  YearDay(): number {
-    throw $b.unsupported('time.Time.YearDay');
-  }
-  Zone(): [string, number] {
-    throw $b.unsupported('time.Time.Zone');
-  }
-  ZoneBounds(): [time_Time, time_Time] {
-    throw $b.unsupported('time.Time.ZoneBounds');
-  }
-  GobDecode(a0: number[]): $b.GoObject | undefined {
-    throw $b.unsupported('time.Time.GobDecode');
-  }
-  UnmarshalBinary(a0: number[]): $b.GoObject | undefined {
-    throw $b.unsupported('time.Time.UnmarshalBinary');
-  }
-  UnmarshalJSON(a0: number[]): $b.GoObject | undefined {
-    throw $b.unsupported('time.Time.UnmarshalJSON');
-  }
-  UnmarshalText(a0: number[]): $b.GoObject | undefined {
-    throw $b.unsupported('time.Time.UnmarshalText');
-  }
-  $clone(): time_Time {
-    return this;
-  }
-}
 export function bufio_NewReader(a0: $b.GoObject | undefined): bufio_Reader | undefined {
   return $b.stubCall<bufio_Reader | undefined>('bufio.NewReader', undefined);
 }
@@ -1279,11 +1125,8 @@ export function reflect_StructTag$Get(recv: string, a0: string): string {
 export function reflect_TypeAssert<T>(a0: reflect_Value): [T, boolean] {
   return $b.stubCall<[T, boolean]>('reflect.TypeAssert', [undefined as unknown as T, false]);
 }
-export function reflect_TypeFor<T>(): reflect_Type | undefined {
+export function reflect_TypeFor<T extends $b.GoObject>(): reflect_Type | undefined {
   return $b.stubCall<reflect_Type | undefined>('reflect.TypeFor', undefined);
-}
-export function reflect_TypeOf(a0: $b.GoObject | undefined): reflect_Type | undefined {
-  return $b.stubCall<reflect_Type | undefined>('reflect.TypeOf', undefined);
 }
 export function reflect_ValueOf(a0: $b.GoObject | undefined): reflect_Value {
   return $b.stubCall<reflect_Value>('reflect.ValueOf', new reflect_Value());
@@ -1299,15 +1142,6 @@ export function runtime_debug_Stack(): number[] {
 }
 export function strings_NewReader(a0: string): strings_Reader | undefined {
   return $b.stubCall<strings_Reader | undefined>('strings.NewReader', undefined);
-}
-export function time_Duration$Nanoseconds(recv: number): number {
-  throw $b.unsupported('time.Nanoseconds');
-}
-export function time_Now(): time_Time {
-  return $b.stubCall<time_Time>('time.Now', new time_Time());
-}
-export function time_Since(a0: time_Time): number {
-  return $b.stubCall<number>('time.Since', 0);
 }
 export let context_Canceled: $b.GoObject | undefined = undefined;
 export let context_DeadlineExceeded: $b.GoObject | undefined = undefined;

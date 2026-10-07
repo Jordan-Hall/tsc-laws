@@ -23,6 +23,8 @@ func main() {
 	upstream := flag.String("upstream", "upstream/typescript-go", "TypeScript-Go checkout")
 	out := flag.String("out", "src/tsgo", "output directory")
 	overlay := flag.String("overlay", "", "directory of replacement Go files, by path below internal/")
+	tags := flag.String("tags", "", "Go build tags")
+	goos := flag.String("goos", "", "target GOOS, e.g. wasip1 to select portable files")
 	flag.Parse()
 	names := flag.Args()
 	if len(names) == 0 {
@@ -34,9 +36,11 @@ func main() {
 		patterns[i] = modulePrefix + name
 	}
 	cfg := &packages.Config{
-		Mode:    packages.NeedName | packages.NeedTypes | packages.NeedSyntax | packages.NeedTypesInfo | packages.NeedImports | packages.NeedDeps,
-		Dir:     *upstream,
-		Overlay: loadOverlay(*overlay, mustAbs(*upstream)),
+		Mode:       packages.NeedName | packages.NeedTypes | packages.NeedSyntax | packages.NeedTypesInfo | packages.NeedImports | packages.NeedDeps,
+		Dir:        *upstream,
+		BuildFlags: buildFlags(*tags),
+		Env:        targetEnv(*goos),
+		Overlay:    loadOverlay(*overlay, mustAbs(*upstream), targetEnv(*goos), buildFlags(*tags)),
 	}
 	loaded, err := packages.Load(cfg, patterns...)
 	if err != nil {
@@ -965,7 +969,7 @@ func (t *translator) findNilSafe() {
 					continue
 				}
 				n, _ := derefNamed(recv.Type())
-				if n == nil || n.TypeParams().Len() > 0 || t.classes[n.Origin().Obj()] == nil {
+				if n == nil || t.classes[n.Origin().Obj()] == nil {
 					continue
 				}
 				ast.Inspect(fd.Body, func(node ast.Node) bool {
@@ -1164,4 +1168,29 @@ func mustAbs(path string) string {
 		fatal(err)
 	}
 	return abs
+}
+
+func buildFlags(tags string) []string {
+	if tags == "" {
+		return nil
+	}
+	return []string{"-tags=" + tags}
+}
+
+func targetEnv(goos string) []string {
+	if goos == "" {
+		return nil
+	}
+	arch := "amd64"
+	if goos == "wasip1" || goos == "js" {
+		arch = "wasm"
+	}
+	return append(os.Environ(), "GOOS="+goos, "GOARCH="+arch)
+}
+
+// nilSafeMethod reports whether calls of fn go through its static $nil
+// form, which takes the receiver (possibly nil) and, for generic classes,
+// the zero factories as leading arguments.
+func (t *translator) nilSafeMethod(fn *types.Func) bool {
+	return t.nilSafe[fn.Origin()]
 }

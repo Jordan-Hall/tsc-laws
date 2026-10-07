@@ -14,6 +14,9 @@ export class Number_$Box extends $rt.GoObject {
     if (v instanceof Number_$Box) return v;
     throw $rt.typeAssertError();
   }
+  override $unbox(): unknown {
+    return this.v;
+  }
   override $eqv(o: $rt.GoObject): boolean {
     return o instanceof Number_$Box && o.v === this.v;
   }

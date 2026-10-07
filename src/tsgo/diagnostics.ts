@@ -19,6 +19,9 @@ export class Category$Box extends $rt.GoObject {
     if (v instanceof Category$Box) return v;
     throw $rt.typeAssertError();
   }
+  override $unbox(): unknown {
+    return this.v;
+  }
   override $eqv(o: $rt.GoObject): boolean {
     return o instanceof Category$Box && o.v === this.v;
   }
@@ -15433,7 +15436,7 @@ export function Localize(locale: $locale.Locale, message: Message | undefined, k
   }
   let text: string = message!.text;
   {
-    const $t1 = getLocalizedMessages(locale);
+    const $t1: Map<Key, string> | undefined = getLocalizedMessages(locale);
     const $t2 = message!.key;
     const localized: string = $t1?.get($t2) ?? '';
     const ok: boolean = $t1 !== undefined && $t1.has($t2);

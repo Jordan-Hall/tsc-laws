@@ -221,10 +221,11 @@ func (f *file) anonDecls() string {
 		for j := 0; j < a.st.NumFields(); j++ {
 			fl := a.st.Field(j)
 			typ := f.tsType(fl.Type())
-			fields = append(fields, fmt.Sprintf("  %s: %s;\n", fl.Name(), typ))
+			name := f.fieldName(fl)
+			fields = append(fields, fmt.Sprintf("  %s: %s;\n", name, typ))
 			params = append(params, fmt.Sprintf("p%d: %s = %s", j, typ, f.zero(fl.Type())))
-			sets = append(sets, fmt.Sprintf("this.%s = p%d;", fl.Name(), j))
-			copies = append(copies, f.copyValue("this."+fl.Name(), fl.Type()))
+			sets = append(sets, fmt.Sprintf("this.%s = p%d;", name, j))
+			copies = append(copies, f.copyValue("this."+name, fl.Type()))
 		}
 		fmt.Fprintf(&w, "export class %s extends $rt.GoObject {\n%s", a.name, strings.Join(fields, ""))
 		fmt.Fprintf(&w, "  constructor(%s) { super(); %s }\n", strings.Join(params, ", "), strings.Join(sets, " "))
@@ -372,6 +373,7 @@ func (f *file) boxDecl(tn *types.TypeName) string {
 	name := f.declName(tn)
 	fmt.Fprintf(&w, "export class %s$Box extends $rt.GoObject {\n  v: %s;\n  constructor(v: %s) { super(); this.v = v; }\n", name, name, name)
 	fmt.Fprintf(&w, "  static $cast(v: $rt.GoObject | undefined): %s$Box { if (v instanceof %s$Box) return v; throw $rt.typeAssertError(); }\n", name, name)
+	w.WriteString("  override $unbox(): unknown { return this.v; }\n")
 	if b, ok := n.Underlying().(*types.Basic); ok {
 		// Interface values of this type compare by value.
 		fmt.Fprintf(&w, "  override $eqv(o: $rt.GoObject): boolean { return o instanceof %s$Box && o.v === this.v; }\n", name)
@@ -516,6 +518,12 @@ func (f *file) classDecl(tn *types.TypeName) string {
 		if c.base != nil {
 			bt := c.st.Field(c.baseAt).Type()
 			ext = f.tsType(bt)
+			// A base class is a value reference.
+			if bn, ok := derefNamed(bt); ok && bn.Obj().Pkg() != f.p.p.Types {
+				if tp := f.t.pkgs[bn.Obj().Pkg()]; tp != nil {
+					f.imports[tp.module] = true
+				}
+			}
 			if bn, ok := types.Unalias(bt).(*types.Named); ok {
 				superArgs = f.factoryArgs(bn.Origin().Obj(), bn.TypeArgs())
 			}
@@ -781,6 +789,13 @@ func (f *file) fileFor(tn *types.TypeName) *file {
 func (f *file) fieldName(v *types.Var) string {
 	if n, ok := f.t.fieldNames[v.Origin()]; ok {
 		return n
+	}
+	// Fields of anonymous structs can collide with GoObject's methods too.
+	switch v.Name() {
+	case "Error", "String", "constructor":
+		if v.Pkg() != nil && f.t.translated(v.Pkg()) {
+			return v.Name() + "_"
+		}
 	}
 	return v.Name()
 }

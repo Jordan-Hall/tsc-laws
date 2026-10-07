@@ -1339,7 +1339,7 @@ export function getCommonParentsWorker(
                   options.UseCaseSensitiveFileNames,
                 );
                 {
-                  const $t8 = newGroups;
+                  const $t8: Map<Path, $Anon0> | undefined = newGroups;
                   const $t9 = key;
                   const ok: boolean = $t8 !== undefined && $t8.has($t9);
                   if (!ok) {

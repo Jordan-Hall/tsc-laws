@@ -24,7 +24,7 @@ export class CopyOnWriteMap<K, V> extends $rt.GoObject {
   }
   Get(k: K): [V, boolean] {
     const c = this;
-    const $t1 = c!.m;
+    const $t1: $rt.StructMap<K, V> | undefined = c!.m;
     const $t2 = k;
     const v: V = $rt.structMapGet($t1, $t2, this.$z_V());
     const ok: boolean = $t1 !== undefined && $t1.has($t2);
@@ -32,7 +32,7 @@ export class CopyOnWriteMap<K, V> extends $rt.GoObject {
   }
   Has(k: K): boolean {
     const c = this;
-    const $t1 = c!.m;
+    const $t1: $rt.StructMap<K, V> | undefined = c!.m;
     const $t2 = k;
     const ok: boolean = $t1 !== undefined && $t1.has($t2);
     return ok;
@@ -136,7 +136,7 @@ export class MultiMap<K, V> extends $rt.GoObject {
   }
   Has(key: K): boolean {
     const s = this;
-    const $t1 = s!.M;
+    const $t1: Map<K, V[]> | undefined = s!.M;
     const $t2 = key;
     const ok: boolean = $t1 !== undefined && $t1.has($t2);
     return ok;
@@ -159,7 +159,7 @@ export class MultiMap<K, V> extends $rt.GoObject {
   Remove(key: K, value: V): void {
     const s = this;
     {
-      const $t1 = s!.M;
+      const $t1: Map<K, V[]> | undefined = s!.M;
       const $t2 = key;
       let values: V[] = $t1?.get($t2) ?? [];
       const ok: boolean = $t1 !== undefined && $t1.has($t2);
@@ -238,7 +238,7 @@ export class OrderedMap<K, V> extends $rt.GoObject {
       m!.mp = new $rt.StructMap<K, V>();
     }
     {
-      const $t1 = m!.mp;
+      const $t1: $rt.StructMap<K, V> | undefined = m!.mp;
       const $t2 = key;
       const ok: boolean = $t1 !== undefined && $t1.has($t2);
       if (!ok) {
@@ -249,7 +249,7 @@ export class OrderedMap<K, V> extends $rt.GoObject {
   }
   Get(key: K): [V, boolean] {
     const m = this;
-    const $t1 = m!.mp;
+    const $t1: $rt.StructMap<K, V> | undefined = m!.mp;
     const $t2 = key;
     const v: V = $rt.structMapGet($t1, $t2, this.$z_V());
     const ok: boolean = $t1 !== undefined && $t1.has($t2);
@@ -272,14 +272,14 @@ export class OrderedMap<K, V> extends $rt.GoObject {
   }
   Has(key: K): boolean {
     const m = this;
-    const $t1 = m!.mp;
+    const $t1: $rt.StructMap<K, V> | undefined = m!.mp;
     const $t2 = key;
     const ok: boolean = $t1 !== undefined && $t1.has($t2);
     return ok;
   }
   Delete(key: K): [V, boolean] {
     const m = this;
-    const $t1 = m!.mp;
+    const $t1: $rt.StructMap<K, V> | undefined = m!.mp;
     const $t2 = key;
     const v: V = $rt.structMapGet($t1, $t2, this.$z_V());
     const ok: boolean = $t1 !== undefined && $t1.has($t2);
@@ -307,8 +307,11 @@ export class OrderedMap<K, V> extends $rt.GoObject {
     }
     return [v, true];
   }
-  Keys(): ((p0: ((p0: K) => boolean) | undefined) => void) | undefined {
-    const m = this;
+  static Keys$nil<K, V>(
+    $z_K: () => K,
+    $z_V: () => V,
+    m: OrderedMap<K, V> | undefined,
+  ): ((p0: ((p0: K) => boolean) | undefined) => void) | undefined {
     return (yield_: ((p0: K) => boolean) | undefined): void => {
       if (m === undefined) {
         return;
@@ -322,23 +325,35 @@ export class OrderedMap<K, V> extends $rt.GoObject {
       }
     };
   }
-  Values(): ((p0: ((p0: V) => boolean) | undefined) => void) | undefined {
-    const m = this;
+  Keys(): ((p0: ((p0: K) => boolean) | undefined) => void) | undefined {
+    return OrderedMap.Keys$nil<K, V>(this.$z_K, this.$z_V, this);
+  }
+  static Values$nil<K, V>(
+    $z_K: () => K,
+    $z_V: () => V,
+    m: OrderedMap<K, V> | undefined,
+  ): ((p0: ((p0: V) => boolean) | undefined) => void) | undefined {
     return (yield_: ((p0: V) => boolean) | undefined): void => {
       if (m === undefined) {
         return;
       }
       {
         for (let i: number = 0; i < m!.keys.length; i++) {
-          if (!yield_!($rt.structMapGet(m!.mp, m!.keys[i], this.$z_V()))) {
+          if (!yield_!($rt.structMapGet(m!.mp, m!.keys[i], $z_V()))) {
             break;
           }
         }
       }
     };
   }
-  Entries(): ((p0: ((p0: K, p1: V) => boolean) | undefined) => void) | undefined {
-    const m = this;
+  Values(): ((p0: ((p0: V) => boolean) | undefined) => void) | undefined {
+    return OrderedMap.Values$nil<K, V>(this.$z_K, this.$z_V, this);
+  }
+  static Entries$nil<K, V>(
+    $z_K: () => K,
+    $z_V: () => V,
+    m: OrderedMap<K, V> | undefined,
+  ): ((p0: ((p0: K, p1: V) => boolean) | undefined) => void) | undefined {
     return (yield_: ((p0: K, p1: V) => boolean) | undefined): void => {
       if (m === undefined) {
         return;
@@ -346,12 +361,15 @@ export class OrderedMap<K, V> extends $rt.GoObject {
       {
         for (let i: number = 0; i < m!.keys.length; i++) {
           const key: K = m!.keys[i];
-          if (!yield_!(key, $rt.structMapGet(m!.mp, key, this.$z_V()))) {
+          if (!yield_!(key, $rt.structMapGet(m!.mp, key, $z_V()))) {
             break;
           }
         }
       }
     };
+  }
+  Entries(): ((p0: ((p0: K, p1: V) => boolean) | undefined) => void) | undefined {
+    return OrderedMap.Entries$nil<K, V>(this.$z_K, this.$z_V, this);
   }
   Clear(): void {
     const m = this;
@@ -359,20 +377,24 @@ export class OrderedMap<K, V> extends $rt.GoObject {
     m!.keys = $rt.truncate(m!.keys, 0, this.$z_K());
     m!.mp?.clear();
   }
-  Size(): number {
-    const m = this;
+  static Size$nil<K, V>($z_K: () => K, $z_V: () => V, m: OrderedMap<K, V> | undefined): number {
     if (m === undefined) {
       return 0;
     }
     return m!.keys.length;
   }
-  Clone(): OrderedMap<K, V> | undefined {
-    const m = this;
+  Size(): number {
+    return OrderedMap.Size$nil<K, V>(this.$z_K, this.$z_V, this);
+  }
+  static Clone$nil<K, V>($z_K: () => K, $z_V: () => V, m: OrderedMap<K, V> | undefined): OrderedMap<K, V> | undefined {
     if (m === undefined) {
       return undefined;
     }
     let m2: OrderedMap<K, V> = m!.clone();
     return m2;
+  }
+  Clone(): OrderedMap<K, V> | undefined {
+    return OrderedMap.Clone$nil<K, V>(this.$z_K, this.$z_V, this);
   }
   clone(): OrderedMap<K, V> {
     const m = this;
@@ -523,7 +545,7 @@ export class OrderedSet<T> extends $rt.GoObject {
   }
   Values(): ((p0: ((p0: T) => boolean) | undefined) => void) | undefined {
     const s = this;
-    return s!.m.Keys();
+    return OrderedMap.Keys$nil<T, $rt.Empty>(this.$z_T, $zf0, s!.m);
   }
   Clear(): void {
     const s = this;
@@ -531,7 +553,7 @@ export class OrderedSet<T> extends $rt.GoObject {
   }
   Size(): number {
     const s = this;
-    return s!.m.Size();
+    return OrderedMap.Size$nil<T, $rt.Empty>(this.$z_T, $zf0, s!.m);
   }
   Clone(): OrderedSet<T> | undefined {
     const s = this;
@@ -553,15 +575,17 @@ export class Set_<T> extends $rt.GoObject {
     o.M = p0;
     return o;
   }
-  Has(key: T): boolean {
-    const s = this;
+  static Has$nil<T>(s: Set_<T> | undefined, key: T): boolean {
     if (s === undefined) {
       return false;
     }
-    const $t1 = s!.M;
+    const $t1: Map<T, $rt.Empty> | undefined = s!.M;
     const $t2 = key;
     const ok: boolean = $t1 !== undefined && $t1.has($t2);
     return ok;
+  }
+  Has(key: T): boolean {
+    return Set_.Has$nil<T>(this, key);
   }
   Add(key: T): void {
     const s = this;
@@ -574,46 +598,53 @@ export class Set_<T> extends $rt.GoObject {
     const s = this;
     s!.M?.delete(key);
   }
-  Len(): number {
-    const s = this;
+  static Len$nil<T>(s: Set_<T> | undefined): number {
     if (s === undefined) {
       return 0;
     }
     return $rt.mapLen(s!.M);
   }
-  Keys(): Map<T, $rt.Empty> | undefined {
-    const s = this;
+  Len(): number {
+    return Set_.Len$nil<T>(this);
+  }
+  static Keys$nil<T>(s: Set_<T> | undefined): Map<T, $rt.Empty> | undefined {
     if (s === undefined) {
       return undefined;
     }
     return s!.M;
   }
-  Clear(): void {
-    const s = this;
+  Keys(): Map<T, $rt.Empty> | undefined {
+    return Set_.Keys$nil<T>(this);
+  }
+  static Clear$nil<T>(s: Set_<T> | undefined): void {
     if (s === undefined) {
       return;
     }
     $rt.clearMap(s!.M);
   }
+  Clear(): void {
+    return Set_.Clear$nil<T>(this);
+  }
   AddIfAbsent(key: T): boolean {
     const s = this;
-    if (s!.Has(key)) {
+    if (Set_.Has$nil<T>(s, key)) {
       return false;
     }
     s!.Add(key);
     return true;
   }
-  Clone(): Set_<T> | undefined {
-    const s = this;
+  static Clone$nil<T>(s: Set_<T> | undefined): Set_<T> | undefined {
     if (s === undefined) {
       return undefined;
     }
     const clone: Set_<T> | undefined = Set_.$lit_collections_Set_0<T>($rt.maps_Clone(s!.M));
     return clone;
   }
-  Union(other: Set_<T> | undefined): void {
-    const s = this;
-    if (s!.Len() === (0 as number) && other!.Len() === (0 as number)) {
+  Clone(): Set_<T> | undefined {
+    return Set_.Clone$nil<T>(this);
+  }
+  static Union$nil<T>(s: Set_<T> | undefined, other: Set_<T> | undefined): void {
+    if (Set_.Len$nil<T>(s) === (0 as number) && Set_.Len$nil<T>(other) === (0 as number)) {
       return;
     }
     if (s === undefined) {
@@ -625,12 +656,14 @@ export class Set_<T> extends $rt.GoObject {
     }
     $rt.maps_Copy(s!.M, other!.M);
   }
-  UnionedWith(other: Set_<T> | undefined): Set_<T> | undefined {
-    const s = this;
+  Union(other: Set_<T> | undefined): void {
+    return Set_.Union$nil<T>(this, other);
+  }
+  static UnionedWith$nil<T>(s: Set_<T> | undefined, other: Set_<T> | undefined): Set_<T> | undefined {
     if (s === undefined && other === undefined) {
       return undefined;
     }
-    let result: Set_<T> | undefined = s!.Clone();
+    let result: Set_<T> | undefined = Set_.Clone$nil<T>(s);
     if (!(other === undefined)) {
       if (result === undefined) {
         result = new Set_<T>();
@@ -642,8 +675,10 @@ export class Set_<T> extends $rt.GoObject {
     }
     return result;
   }
-  Equals(other: Set_<T> | undefined): boolean {
-    const s = this;
+  UnionedWith(other: Set_<T> | undefined): Set_<T> | undefined {
+    return Set_.UnionedWith$nil<T>(this, other);
+  }
+  static Equals$nil<T>(s: Set_<T> | undefined, other: Set_<T> | undefined): boolean {
     if (s === other) {
       return true;
     }
@@ -652,29 +687,36 @@ export class Set_<T> extends $rt.GoObject {
     }
     return $rt.maps_Equal(s!.M, other!.M);
   }
-  IsSubsetOf(other: Set_<T> | undefined): boolean {
-    const s = this;
+  Equals(other: Set_<T> | undefined): boolean {
+    return Set_.Equals$nil<T>(this, other);
+  }
+  static IsSubsetOf$nil<T>(s: Set_<T> | undefined, other: Set_<T> | undefined): boolean {
     if (s === undefined) {
       return true;
     }
     for (const [key, $t1] of s!.M ?? new Map<T, $rt.Empty>()) {
-      if (!other!.Has(key)) {
+      if (!Set_.Has$nil<T>(other, key)) {
         return false;
       }
     }
     return true;
   }
-  Intersects(other: Set_<T> | undefined): boolean {
-    const s = this;
+  IsSubsetOf(other: Set_<T> | undefined): boolean {
+    return Set_.IsSubsetOf$nil<T>(this, other);
+  }
+  static Intersects$nil<T>(s: Set_<T> | undefined, other: Set_<T> | undefined): boolean {
     if (s === undefined || other === undefined) {
       return false;
     }
     for (const [key, $t1] of s!.M ?? new Map<T, $rt.Empty>()) {
-      if (other!.Has(key)) {
+      if (Set_.Has$nil<T>(other, key)) {
         return true;
       }
     }
     return false;
+  }
+  Intersects(other: Set_<T> | undefined): boolean {
+    return Set_.Intersects$nil<T>(this, other);
   }
 }
 export class SyncSet<T> extends $rt.GoObject {
@@ -889,7 +931,7 @@ export function DiffOrderedMapsFunc<K, V>(
 ): void {
   let $t1 = false;
   let $t2: undefined = undefined;
-  m2!.Entries()!((k: K, v2: V): boolean => {
+  OrderedMap.Entries$nil<K, V>($rt.missingZero<K>('K'), $rt.missingZero<V>('V'), m2)!((k: K, v2: V): boolean => {
     {
       const $t3 = m1!.Get(k);
       const ok: boolean = $t3[1];
@@ -901,7 +943,7 @@ export function DiffOrderedMapsFunc<K, V>(
   });
   let $t4 = false;
   let $t5: undefined = undefined;
-  m1!.Entries()!((k$1: K, v1: V): boolean => {
+  OrderedMap.Entries$nil<K, V>($rt.missingZero<K>('K'), $rt.missingZero<V>('V'), m1)!((k$1: K, v1: V): boolean => {
     {
       const $t6 = m2!.Get(k$1);
       const v2$1: V = $t6[0];

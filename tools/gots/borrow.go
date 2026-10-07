@@ -156,3 +156,30 @@ func (x *fn) borrowedParam(e *ast.CallExpr, i int) bool {
 	}
 	return borrowGlobal[sig.Params().At(i)]
 }
+
+// staticCallee returns the function or concrete method a call invokes.
+func staticCallee(info *types.Info, call *ast.CallExpr) *types.Func {
+	var obj types.Object
+	switch f := unparen(call.Fun).(type) {
+	case *ast.Ident:
+		obj = info.Uses[f]
+	case *ast.SelectorExpr:
+		if sel := info.Selections[f]; sel != nil {
+			if sel.Kind() != types.MethodVal || isIfaceType(sel.Recv()) {
+				return nil
+			}
+			obj = sel.Obj()
+		} else {
+			obj = info.Uses[f.Sel]
+		}
+	case *ast.IndexExpr:
+		if id, ok := unparen(f.X).(*ast.Ident); ok {
+			obj = info.Uses[id]
+		}
+	}
+	fn, _ := obj.(*types.Func)
+	if fn == nil {
+		return nil
+	}
+	return fn.Origin()
+}

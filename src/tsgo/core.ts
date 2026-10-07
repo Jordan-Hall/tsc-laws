@@ -7,8 +7,10 @@ import * as $json from './json.js';
 import * as $stringutil from './stringutil.js';
 import * as $tspath from './tspath.js';
 import { MapEntry as $collections$MapEntry } from './collections.js';
+import { OrderedMap as $collections$OrderedMap } from './collections.js';
 const $zf0 = (): $rt.GoObject | undefined => undefined;
 const $zf1 = (): string => '';
+const $zf2 = (): string[] => [];
 export type CheckerLifetime = number;
 export type ECMALineStarts = TextPos[];
 export type JsxEmit = number;
@@ -21,6 +23,9 @@ export class JsxEmit$Box extends $rt.GoObject {
   static $cast(v: $rt.GoObject | undefined): JsxEmit$Box {
     if (v instanceof JsxEmit$Box) return v;
     throw $rt.typeAssertError();
+  }
+  override $unbox(): unknown {
+    return this.v;
   }
   override $eqv(o: $rt.GoObject): boolean {
     return o instanceof JsxEmit$Box && o.v === this.v;
@@ -43,6 +48,9 @@ export class LanguageVariant$Box extends $rt.GoObject {
     if (v instanceof LanguageVariant$Box) return v;
     throw $rt.typeAssertError();
   }
+  override $unbox(): unknown {
+    return this.v;
+  }
   override $eqv(o: $rt.GoObject): boolean {
     return o instanceof LanguageVariant$Box && o.v === this.v;
   }
@@ -64,6 +72,9 @@ export class ModuleKind$Box extends $rt.GoObject {
   static $cast(v: $rt.GoObject | undefined): ModuleKind$Box {
     if (v instanceof ModuleKind$Box) return v;
     throw $rt.typeAssertError();
+  }
+  override $unbox(): unknown {
+    return this.v;
   }
   override $eqv(o: $rt.GoObject): boolean {
     return o instanceof ModuleKind$Box && o.v === this.v;
@@ -92,6 +103,9 @@ export class ModuleResolutionKind$Box extends $rt.GoObject {
     if (v instanceof ModuleResolutionKind$Box) return v;
     throw $rt.typeAssertError();
   }
+  override $unbox(): unknown {
+    return this.v;
+  }
   override $eqv(o: $rt.GoObject): boolean {
     return o instanceof ModuleResolutionKind$Box && o.v === this.v;
   }
@@ -116,6 +130,9 @@ export class ScriptKind$Box extends $rt.GoObject {
     if (v instanceof ScriptKind$Box) return v;
     throw $rt.typeAssertError();
   }
+  override $unbox(): unknown {
+    return this.v;
+  }
   override $eqv(o: $rt.GoObject): boolean {
     return o instanceof ScriptKind$Box && o.v === this.v;
   }
@@ -136,6 +153,9 @@ export class ScriptTarget$Box extends $rt.GoObject {
   static $cast(v: $rt.GoObject | undefined): ScriptTarget$Box {
     if (v instanceof ScriptTarget$Box) return v;
     throw $rt.typeAssertError();
+  }
+  override $unbox(): unknown {
+    return this.v;
   }
   override $eqv(o: $rt.GoObject): boolean {
     return o instanceof ScriptTarget$Box && o.v === this.v;
@@ -159,6 +179,9 @@ export class TextRange$Box extends $rt.GoObject {
   static $cast(v: $rt.GoObject | undefined): TextRange$Box {
     if (v instanceof TextRange$Box) return v;
     throw $rt.typeAssertError();
+  }
+  override $unbox(): unknown {
+    return this.v;
   }
   override $eqv(o: $rt.GoObject): boolean {
     return o instanceof TextRange$Box && o.v === this.v;
@@ -219,6 +242,9 @@ export class Tristate$Box extends $rt.GoObject {
   static $cast(v: $rt.GoObject | undefined): Tristate$Box {
     if (v instanceof Tristate$Box) return v;
     throw $rt.typeAssertError();
+  }
+  override $unbox(): unknown {
+    return this.v;
   }
   override $eqv(o: $rt.GoObject): boolean {
     return o instanceof Tristate$Box && o.v === this.v;
@@ -288,7 +314,11 @@ export class BreadthFirstSearchLevel<K, N> extends $rt.GoObject {
     const l = this;
     let $t1 = false;
     let $t2: undefined = undefined;
-    l!.jobs!.Values()!((job: breadthFirstSearchJob<N> | undefined): boolean => {
+    $collections$OrderedMap.Values$nil<K, breadthFirstSearchJob<N> | undefined>(
+      $rt.missingZero<K>('K'),
+      (): breadthFirstSearchJob<N> | undefined => undefined,
+      l!.jobs,
+    )!((job: breadthFirstSearchJob<N> | undefined): boolean => {
       if (!f!(job!.node)) {
         $t1 = true;
         return false;
@@ -884,7 +914,7 @@ export class CompilerOptions extends $rt.GoObject {
   }
   GetPathsBasePath(currentDirectory: string): string {
     const options = this;
-    if (options!.Paths!.Size() === (0 as number)) {
+    if ($collections$OrderedMap.Size$nil<string, string[]>($zf1, $zf2, options!.Paths) === (0 as number)) {
       return '';
     }
     if (!(options!.PathsBasePath === ('' as string))) {
@@ -917,7 +947,7 @@ export class LimitedSemaphore extends $rt.GoObject {
   Acquire(): (() => void) | undefined {
     const s = this;
     let release: (() => void) | undefined = undefined as (() => void) | undefined;
-    throw $rt.unsupported('channel operation');
+    s!.ch!.send($rt.EMPTY);
     return s!.release;
   }
   TryAcquire(ctx: $rt.context_Context | undefined): [(() => void) | undefined, boolean] {
@@ -1200,9 +1230,9 @@ export class ThrottleGroup extends $rt.GoObject {
       const $defers: (() => void)[] = [];
       let $panic: $rt.Panic | undefined = undefined;
       $body: try {
-        throw $rt.unsupported('channel operation');
+        tg!.semaphore!.send($rt.EMPTY);
         $defers.push((): void => {
-          $rt.unsupportedAs<$rt.Empty>('channel receive');
+          tg!.semaphore!.recv()[0];
         });
         $t1 = fn!();
         break $body;
@@ -1836,14 +1866,22 @@ export function BreadthFirstSearchParallelEx<K, N>(
       options.PreprocessLevel!(BreadthFirstSearchLevel.$lit_core_BreadthFirstSearchLevel_0<K, N>(jobs));
     }
     const next: (breadthFirstSearchJob<N> | undefined)[][] = $rt.makeSlice<(breadthFirstSearchJob<N> | undefined)[]>(
-      jobs!.Size(),
+      $collections$OrderedMap.Size$nil<K, breadthFirstSearchJob<N> | undefined>(
+        $z_K,
+        (): breadthFirstSearchJob<N> | undefined => undefined,
+        jobs,
+      ),
       [],
     );
     const wg: $rt.sync_WaitGroup = new $rt.sync_WaitGroup();
     let i: number = 0;
     let $t1 = false;
     let $t2: BreadthFirstSearchParallelEx$result<K, N> = new BreadthFirstSearchParallelEx$result();
-    jobs!.Values()!((j: breadthFirstSearchJob<N> | undefined): boolean => {
+    $collections$OrderedMap.Values$nil<K, breadthFirstSearchJob<N> | undefined>(
+      $z_K,
+      (): breadthFirstSearchJob<N> | undefined => undefined,
+      jobs,
+    )!((j: breadthFirstSearchJob<N> | undefined): boolean => {
       wg.Add(1);
       ((i$1: number, j$1: breadthFirstSearchJob<N> | undefined): void => {
         const $defers: (() => void)[] = [];
@@ -1960,7 +1998,14 @@ export function BreadthFirstSearchParallelEx<K, N>(
         ),
       ],
     );
-  for (; level!.Size() > 0;) {
+  for (
+    ;
+    $collections$OrderedMap.Size$nil<K, breadthFirstSearchJob<N> | undefined>(
+      $z_K,
+      (): breadthFirstSearchJob<N> | undefined => undefined,
+      level,
+    ) > 0;
+  ) {
     const result: BreadthFirstSearchParallelEx$result<K, N> = processLevel!(levelIndex, level);
     if (result.stop) {
       return BreadthFirstSearchResult.$lit_core_BreadthFirstSearchResult_0_1<N>(true, createPath!(result.job));
@@ -3058,7 +3103,7 @@ export function DiffMapsFunc<K, V1, V2>(
   if (!(onAdded === undefined)) {
     for (const [k, v2] of m2 ?? new Map<K, V2>()) {
       {
-        const $t1 = m1;
+        const $t1: Map<K, V1> | undefined = m1;
         const $t2 = k;
         const ok: boolean = $t1 !== undefined && $t1.has($t2);
         if (!ok) {
@@ -3072,7 +3117,7 @@ export function DiffMapsFunc<K, V1, V2>(
   }
   for (const [k$1, v1] of m1 ?? new Map<K, V1>()) {
     {
-      const $t3 = m2;
+      const $t3: Map<K, V2> | undefined = m2;
       const $t4 = k$1;
       const v2$1: V2 = $t3?.get($t4) ?? $z_V2();
       const ok$1: boolean = $t3 !== undefined && $t3.has($t4);
@@ -3289,10 +3334,10 @@ export function NewLimitedSemaphore(maxConcurrency: number): LimitedSemaphore | 
     throw $rt.newPanic(new $rt.BoxStr('maxConcurrency must be positive', 'string'));
   }
   const s: LimitedSemaphore | undefined = LimitedSemaphore.$lit_core_LimitedSemaphore_0(
-    $rt.unsupportedAs<$rt.Chan<$rt.Empty> | undefined>('make channel'),
+    new $rt.Chan<$rt.Empty>(maxConcurrency, $rt.EMPTY),
   );
   s!.release = (): void => {
-    $rt.unsupportedAs<$rt.Empty>('channel receive');
+    s!.ch!.recv()[0];
   };
   return s;
 }

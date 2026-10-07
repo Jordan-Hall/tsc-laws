@@ -66,6 +66,9 @@ export class group$Box extends $rt.GoObject {
     if (v instanceof group$Box) return v;
     throw $rt.typeAssertError();
   }
+  override $unbox(): unknown {
+    return this.v;
+  }
   String(): string {
     return group$String(this.v);
   }
@@ -80,6 +83,9 @@ export class literal$Box extends $rt.GoObject {
   static $cast(v: $rt.GoObject | undefined): literal$Box {
     if (v instanceof literal$Box) return v;
     throw $rt.typeAssertError();
+  }
+  override $unbox(): unknown {
+    return this.v;
   }
   override $eqv(o: $rt.GoObject): boolean {
     return o instanceof literal$Box && o.v === this.v;

@@ -8,13 +8,14 @@ import * as $diagnostics from './diagnostics.js';
 import * as $json from './json.js';
 import * as $semver from './semver.js';
 import * as $tspath from './tspath.js';
+import { OrderedMap as $collections$OrderedMap } from './collections.js';
 export class $Anon2 extends $rt.GoObject {
   HeaderFields: HeaderFields;
   PathFields: PathFields;
   DependencyFields: DependencyFields;
   TypeScript: Expected<typeScriptFields>;
   constructor(
-    p0: HeaderFields = HeaderFields$zero,
+    p0: HeaderFields = new HeaderFields(),
     p1: PathFields = new PathFields(),
     p2: DependencyFields = new DependencyFields(),
     p3: Expected<typeScriptFields> = new Expected<typeScriptFields>($zf9),
@@ -27,7 +28,7 @@ export class $Anon2 extends $rt.GoObject {
   }
   $clone(): $Anon2 {
     return new $Anon2(
-      this.HeaderFields,
+      this.HeaderFields.$clone_packagejson_HeaderFields(),
       this.PathFields.$clone_packagejson_PathFields(),
       this.DependencyFields.$clone_packagejson_DependencyFields(),
       this.TypeScript.$clone_packagejson_Expected(),
@@ -35,12 +36,12 @@ export class $Anon2 extends $rt.GoObject {
   }
 }
 const $zf0 = (): string => '';
-const $zf1 = (): string[] => [];
-const $zf2 = (): ExportsOrImports => new ExportsOrImports();
-const $zf3 = (): JSONValue => new JSONValue();
+const $zf1 = (): JSONValue => new JSONValue();
+const $zf2 = (): string[] => [];
+const $zf3 = (): ExportsOrImports => new ExportsOrImports();
 const $zf4 = (): boolean => false;
 const $zf5 = (): Map<string, string> | undefined => undefined;
-const $zf6 = (): ContentMapperFields => ContentMapperFields$zero;
+const $zf6 = (): ContentMapperFields => new ContentMapperFields();
 const $zf7 = (): $tspath.Path => '';
 const $zf8 = (): InfoCacheEntry | undefined => undefined;
 const $zf9 = (): typeScriptFields => typeScriptFields$zero;
@@ -54,6 +55,9 @@ export class JSONValueType$Box extends $rt.GoObject {
   static $cast(v: $rt.GoObject | undefined): JSONValueType$Box {
     if (v instanceof JSONValueType$Box) return v;
     throw $rt.typeAssertError();
+  }
+  override $unbox(): unknown {
+    return this.v;
   }
   override $eqv(o: $rt.GoObject): boolean {
     return o instanceof JSONValueType$Box && o.v === this.v;
@@ -85,8 +89,8 @@ export class TypeValidatedField extends $rt.GoObject {
 }
 export type objectKind = number;
 export class ContentMapperFields extends $rt.GoObject {
-  Exec: Expected<string[]> = new Expected<string[]>($zf1);
-  CompilerOptions: Expected<string[]> = new Expected<string[]>($zf1);
+  Exec: Expected<string[]> = new Expected<string[]>($zf2);
+  CompilerOptions: Expected<string[]> = new Expected<string[]>($zf2);
   DynamicConfig: Expected<boolean> = new Expected<boolean>($zf4);
   $copy_packagejson_ContentMapperFields(src: ContentMapperFields): void {
     this.Exec = src.Exec.$clone_packagejson_Expected();
@@ -131,7 +135,7 @@ export class DependencyFields extends $rt.GoObject {
       const ok: boolean = $t1[1];
       if (ok) {
         {
-          const $t2 = deps;
+          const $t2: Map<string, string> | undefined = deps;
           const $t3 = name_;
           const ok$1: boolean = $t2 !== undefined && $t2.has($t3);
           if (ok$1) {
@@ -146,7 +150,7 @@ export class DependencyFields extends $rt.GoObject {
       const ok$2: boolean = $t4[1];
       if (ok$2) {
         {
-          const $t5 = devDeps;
+          const $t5: Map<string, string> | undefined = devDeps;
           const $t6 = name_;
           const ok$3: boolean = $t5 !== undefined && $t5.has($t6);
           if (ok$3) {
@@ -161,7 +165,7 @@ export class DependencyFields extends $rt.GoObject {
       const ok$4: boolean = $t7[1];
       if (ok$4) {
         {
-          const $t8 = peerDeps;
+          const $t8: Map<string, string> | undefined = peerDeps;
           const $t9 = name_;
           const ok$5: boolean = $t8 !== undefined && $t8.has($t9);
           if (ok$5) {
@@ -176,7 +180,7 @@ export class DependencyFields extends $rt.GoObject {
       const ok$6: boolean = $t10[1];
       if (ok$6) {
         {
-          const $t11 = optDeps;
+          const $t11: Map<string, string> | undefined = optDeps;
           const $t12 = name_;
           const ok$7: boolean = $t11 !== undefined && $t11.has($t12);
           if (ok$7) {
@@ -373,34 +377,32 @@ export class Expected<T> extends $rt.GoObject {
   }
   ExpectedJSONType(): string {
     const e = this;
+    const zero: T = this.$z_T();
     {
-      switch ($rt.reflect_TypeFor<T>()!.Kind()) {
-        case 24 as number: {
+      const $t1: $rt.GoObject | undefined = $rt.boxAny(zero);
+      $sw2: {
+        if ($rt.isValue($t1, 'string')) {
           return 'string';
-        }
-        case 1 as number: {
+        } else if ($rt.isValue($t1, 'bool')) {
           return 'boolean';
-        }
-        case 23 as number:
-        case 17 as number: {
+        } else if ($t1 instanceof $boxes.Box___string || $t1 instanceof $boxes.Box___any) {
           return 'array';
-        }
-        case 21 as number: {
+        } else if ($t1 instanceof $boxes.Box_map_string_string || $t1 instanceof $boxes.Box_map_string_any) {
           return 'object';
-        }
-        case 2 as number:
-        case 3 as number:
-        case 4 as number:
-        case 5 as number:
-        case 6 as number:
-        case 7 as number:
-        case 8 as number:
-        case 9 as number:
-        case 10 as number:
-        case 11 as number: {
+        } else if (
+          $rt.isValue($t1, 'int') ||
+          $rt.isValue($t1, 'int8') ||
+          $rt.isValue($t1, 'int16') ||
+          $rt.isValue($t1, 'int32') ||
+          $rt.isValue($t1, 'int64') ||
+          $rt.isValue($t1, 'uint') ||
+          $rt.isValue($t1, 'uint8') ||
+          $rt.isValue($t1, 'uint16') ||
+          $rt.isValue($t1, 'uint32') ||
+          $rt.isValue($t1, 'uint64')
+        ) {
           return 'number';
-        }
-        default: {
+        } else {
           return 'unknown';
         }
       }
@@ -429,6 +431,12 @@ export class JSONValue extends $rt.GoObject {
   static $lit_packagejson_JSONValue_0(p0: JSONValueType): JSONValue {
     const o = new JSONValue();
     o.Type = p0;
+    return o;
+  }
+  static $lit_packagejson_JSONValue_0_1(p0: JSONValueType, p1: $rt.GoObject | undefined): JSONValue {
+    const o = new JSONValue();
+    o.Type = p0;
+    o.Value = p1;
     return o;
   }
   static $cast_packagejson_JSONValue(v: $rt.GoObject | undefined): JSONValue {
@@ -495,7 +503,7 @@ export class JSONValue extends $rt.GoObject {
     dec: $rt.github_com_go_json_experiment_json_jsontext_Decoder | undefined,
   ): $rt.GoObject | undefined {
     const v = this;
-    return unmarshalJSONValueV2<JSONValue>($zf3, v, dec);
+    return unmarshalJSONValueV2<JSONValue>($zf1, v, dec);
   }
   UnmarshalJSONFrom(
     dec: $rt.github_com_go_json_experiment_json_jsontext_Decoder | undefined,
@@ -517,6 +525,11 @@ export class ExportsOrImports extends JSONValue {
     o.$copy_packagejson_ExportsOrImports(this);
     return o;
   }
+  static $lit_packagejson_ExportsOrImports_0(p0: JSONValue): ExportsOrImports {
+    const o = new ExportsOrImports();
+    o.$copy_packagejson_JSONValue(p0);
+    return o;
+  }
   static $cast_packagejson_ExportsOrImports(v: $rt.GoObject | undefined): ExportsOrImports {
     if (v instanceof ExportsOrImports) return v;
     throw $rt.typeAssertError();
@@ -525,7 +538,7 @@ export class ExportsOrImports extends JSONValue {
     dec: $rt.github_com_go_json_experiment_json_jsontext_Decoder | undefined,
   ): $rt.GoObject | undefined {
     const e = this;
-    return unmarshalJSONValueV2<ExportsOrImports>($zf2, e!, dec);
+    return unmarshalJSONValueV2<ExportsOrImports>($zf3, e!, dec);
   }
   AsObject$ExportsOrImports(): $collections.OrderedMap<string, ExportsOrImports> | undefined {
     const e = this;
@@ -563,7 +576,7 @@ export class ExportsOrImports extends JSONValue {
     if (e!.objectKind_ === (0 as number) && e!.Type === (6 as number)) {
       {
         const obj: $collections.OrderedMap<string, ExportsOrImports> | undefined = e!.AsObject$ExportsOrImports();
-        if (obj!.Size() > 0) {
+        if ($collections$OrderedMap.Size$nil<string, ExportsOrImports>($zf0, $zf3, obj) > 0) {
           const $t1 = false;
           const $t2 = false;
           const $t3 = false;
@@ -572,7 +585,7 @@ export class ExportsOrImports extends JSONValue {
           let seenOther: boolean = $t3;
           let $t4 = false;
           let $t5: undefined = undefined;
-          obj!.Keys()!((k: string): boolean => {
+          $collections$OrderedMap.Keys$nil<string, ExportsOrImports>($zf0, $zf3, obj)!((k: string): boolean => {
             if (k.length > 0) {
               seenDot = seenDot || k.charCodeAt(0) === (46 as number);
               seenHash = seenHash || k.charCodeAt(0) === (35 as number);
@@ -843,40 +856,42 @@ export class PackageJson extends Fields {
       );
       let $t1 = false;
       let $t2: undefined = undefined;
-      p!.PathFields_.TypesVersions.AsObject()!.Entries()!((key: string, value: JSONValue): boolean => {
-        const $t3 = $semver.TryParseVersionRange(key);
-        const keyRange: $semver.VersionRange = $t3[0];
-        const ok: boolean = $t3[1];
-        if (!ok) {
-          p!.versionTraces.push(
-            diagnosticAndArgs.$lit_packagejson_diagnosticAndArgs_0_1(
-              $diagnostics.X_package_json_has_a_typesVersions_entry_0_that_is_not_a_valid_semver_range,
-              [new $rt.BoxStr(key, 'string')],
-            ),
-          );
-          return true;
-        }
-        if (keyRange.Test(typeScriptVersion)) {
-          if (!(value.Type === (6 as number))) {
+      $collections$OrderedMap.Entries$nil<string, JSONValue>($zf0, $zf1, p!.PathFields_.TypesVersions.AsObject())!(
+        (key: string, value: JSONValue): boolean => {
+          const $t3 = $semver.TryParseVersionRange(key);
+          const keyRange: $semver.VersionRange = $t3[0];
+          const ok: boolean = $t3[1];
+          if (!ok) {
             p!.versionTraces.push(
               diagnosticAndArgs.$lit_packagejson_diagnosticAndArgs_0_1(
-                $diagnostics.Expected_type_of_0_field_in_package_json_to_be_1_got_2,
-                [
-                  new $rt.BoxStr("typesVersions['" + key + "']", 'string'),
-                  new $rt.BoxStr('object', 'string'),
-                  new $rt.BoxStr(JSONValueType$String(value.Type), 'string'),
-                ],
+                $diagnostics.X_package_json_has_a_typesVersions_entry_0_that_is_not_a_valid_semver_range,
+                [new $rt.BoxStr(key, 'string')],
               ),
             );
+            return true;
+          }
+          if (keyRange.Test(typeScriptVersion)) {
+            if (!(value.Type === (6 as number))) {
+              p!.versionTraces.push(
+                diagnosticAndArgs.$lit_packagejson_diagnosticAndArgs_0_1(
+                  $diagnostics.Expected_type_of_0_field_in_package_json_to_be_1_got_2,
+                  [
+                    new $rt.BoxStr("typesVersions['" + key + "']", 'string'),
+                    new $rt.BoxStr('object', 'string'),
+                    new $rt.BoxStr(JSONValueType$String(value.Type), 'string'),
+                  ],
+                ),
+              );
+              $t1 = true;
+              return false;
+            }
+            p!.versionPaths = VersionPaths.$lit_packagejson_VersionPaths_0_1(key, value.AsObject());
             $t1 = true;
             return false;
           }
-          p!.versionPaths = VersionPaths.$lit_packagejson_VersionPaths_0_1(key, value.AsObject());
-          $t1 = true;
-          return false;
-        }
-        return true;
-      });
+          return true;
+        },
+      );
       if ($t1) return;
       p!.versionTraces.push(
         diagnosticAndArgs.$lit_packagejson_diagnosticAndArgs_0_1(
@@ -982,30 +997,32 @@ export class VersionPaths extends $rt.GoObject {
     const paths: $collections.OrderedMap<string, string[]> | undefined = $collections.NewOrderedMapWithSizeHint<
       string,
       string[]
-    >($zf0, $zf1, v!.pathsJSON!.Size());
+    >($zf0, $zf2, $collections$OrderedMap.Size$nil<string, JSONValue>($zf0, $zf1, v!.pathsJSON));
     let $t1 = false;
     let $t2: $collections.OrderedMap<string, string[]> | undefined = undefined as
       | $collections.OrderedMap<string, string[]>
       | undefined;
-    v!.pathsJSON!.Entries()!((key: string, value: JSONValue): boolean => {
-      if (!(value.Type === (5 as number))) {
-        return true;
-      }
-      const slice: string[] = $rt.makeSlice<string>(value.AsArray().length, '');
-      {
-        const $t3 = value.AsArray();
-        for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
-          const i = $t4;
-          const path = $t3[$t4].$clone_packagejson_JSONValue();
-          if (!(path.Type === (2 as number))) {
-            continue;
-          }
-          slice[i] = $rt.checkString($rt.isValue(path.Value, 'string'), path.Value);
+    $collections$OrderedMap.Entries$nil<string, JSONValue>($zf0, $zf1, v!.pathsJSON)!(
+      (key: string, value: JSONValue): boolean => {
+        if (!(value.Type === (5 as number))) {
+          return true;
         }
-      }
-      paths!.Set(key, slice);
-      return true;
-    });
+        const slice: string[] = $rt.makeSlice<string>(value.AsArray().length, '');
+        {
+          const $t3 = value.AsArray();
+          for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
+            const i = $t4;
+            const path = $t3[$t4].$clone_packagejson_JSONValue();
+            if (!(path.Type === (2 as number))) {
+              continue;
+            }
+            slice[i] = $rt.checkString($rt.isValue(path.Value, 'string'), path.Value);
+          }
+        }
+        paths!.Set(key, slice);
+        return true;
+      },
+    );
     v!.paths = paths;
     return v!.paths;
   }
@@ -1036,6 +1053,338 @@ export class diagnosticAndArgs extends $rt.GoObject {
     throw $rt.typeAssertError();
   }
 }
+export class jsonDecoder extends $rt.GoObject {
+  data: number[] = [];
+  pos: number = 0;
+  $copy_packagejson_jsonDecoder(src: jsonDecoder): void {
+    this.data = src.data;
+    this.pos = src.pos;
+  }
+  $clone_packagejson_jsonDecoder(): jsonDecoder {
+    const o = new jsonDecoder();
+    o.$copy_packagejson_jsonDecoder(this);
+    return o;
+  }
+  static $lit_packagejson_jsonDecoder_0(p0: number[]): jsonDecoder {
+    const o = new jsonDecoder();
+    o.data = p0;
+    return o;
+  }
+  static $cast_packagejson_jsonDecoder(v: $rt.GoObject | undefined): jsonDecoder {
+    if (v instanceof jsonDecoder) return v;
+    throw $rt.typeAssertError();
+  }
+  space(): void {
+    const d = this;
+    for (; d!.pos < d!.data.length;) {
+      {
+        switch (d!.data[d!.pos]) {
+          case 32 as number:
+          case 9 as number:
+          case 10 as number:
+          case 13 as number: {
+            d!.pos++;
+            break;
+          }
+          default: {
+            return;
+          }
+        }
+      }
+    }
+  }
+  value(): [$rt.GoObject | undefined, $rt.GoObject | undefined] {
+    const d = this;
+    if (d!.pos >= d!.data.length) {
+      return [undefined, errSyntax];
+    }
+    {
+      const c: number = d!.data[d!.pos];
+      $sw1: {
+        if (c === (123 as number)) {
+          return d!.object();
+        } else if (c === (91 as number)) {
+          return d!.array();
+        } else if (c === (34 as number)) {
+          const $t2 = d!.str();
+          return [new $rt.BoxStr($t2[0], 'string'), $t2[1]];
+        } else if (c === (116 as number)) {
+          return [new $rt.BoxBool(true, 'bool'), d!.literal('true')];
+        } else if (c === (102 as number)) {
+          return [new $rt.BoxBool(false, 'bool'), d!.literal('false')];
+        } else if (c === (110 as number)) {
+          return [undefined, d!.literal('null')];
+        } else if (c === (45 as number) || (c >= 48 && c <= 57)) {
+          return d!.number();
+        }
+      }
+    }
+    return [undefined, errSyntax];
+  }
+  literal(word: string): $rt.GoObject | undefined {
+    const d = this;
+    if (
+      d!.pos + word.length > d!.data.length ||
+      !($rt.bytesToString($rt.reslice(d!.data, d!.pos, d!.pos + word.length, 0)) === word)
+    ) {
+      return errSyntax;
+    }
+    d!.pos += word.length;
+    return undefined;
+  }
+  object(): [$rt.GoObject | undefined, $rt.GoObject | undefined] {
+    const d = this;
+    d!.pos++;
+    const obj: jsonObject | undefined = jsonObject.$lit_packagejson_jsonObject_1(
+      new Map<string, $rt.GoObject | undefined>(),
+    );
+    d!.space();
+    if (d!.pos < d!.data.length && d!.data[d!.pos] === (125 as number)) {
+      d!.pos++;
+      return [obj, undefined];
+    }
+    for (;;) {
+      d!.space();
+      if (d!.pos >= d!.data.length || !(d!.data[d!.pos] === (34 as number))) {
+        return [undefined, errSyntax];
+      }
+      const $t1 = d!.str();
+      const key: string = $t1[0];
+      let err: $rt.GoObject | undefined = $t1[1];
+      if (!(err === undefined)) {
+        return [undefined, err];
+      }
+      d!.space();
+      if (d!.pos >= d!.data.length || !(d!.data[d!.pos] === (58 as number))) {
+        return [undefined, errSyntax];
+      }
+      d!.pos++;
+      d!.space();
+      const $t2 = d!.value();
+      const v: $rt.GoObject | undefined = $t2[0];
+      err = $t2[1];
+      if (!(err === undefined)) {
+        return [undefined, err];
+      }
+      obj!.set(key, v);
+      d!.space();
+      if (d!.pos >= d!.data.length) {
+        return [undefined, errSyntax];
+      }
+      if (d!.data[d!.pos] === (44 as number)) {
+        d!.pos++;
+        continue;
+      }
+      if (d!.data[d!.pos] === (125 as number)) {
+        d!.pos++;
+        return [obj, undefined];
+      }
+      return [undefined, errSyntax];
+    }
+  }
+  array(): [$rt.GoObject | undefined, $rt.GoObject | undefined] {
+    const d = this;
+    d!.pos++;
+    let out_: ($rt.GoObject | undefined)[] = [];
+    d!.space();
+    if (d!.pos < d!.data.length && d!.data[d!.pos] === (93 as number)) {
+      d!.pos++;
+      return [new $boxes.Box___any([] as ($rt.GoObject | undefined)[]), undefined];
+    }
+    for (;;) {
+      d!.space();
+      const $t1 = d!.value();
+      const v: $rt.GoObject | undefined = $t1[0];
+      const err: $rt.GoObject | undefined = $t1[1];
+      if (!(err === undefined)) {
+        return [undefined, err];
+      }
+      out_.push(v);
+      d!.space();
+      if (d!.pos >= d!.data.length) {
+        return [undefined, errSyntax];
+      }
+      if (d!.data[d!.pos] === (44 as number)) {
+        d!.pos++;
+        continue;
+      }
+      if (d!.data[d!.pos] === (93 as number)) {
+        d!.pos++;
+        return [new $boxes.Box___any(out_), undefined];
+      }
+      return [undefined, errSyntax];
+    }
+  }
+  number(): [$rt.GoObject | undefined, $rt.GoObject | undefined] {
+    const d = this;
+    const start: number = d!.pos;
+    for (; d!.pos < d!.data.length;) {
+      const c: number = d!.data[d!.pos];
+      if (
+        c === (45 as number) ||
+        c === (43 as number) ||
+        c === (46 as number) ||
+        c === (101 as number) ||
+        c === (69 as number) ||
+        (c >= 48 && c <= 57)
+      ) {
+        d!.pos++;
+        continue;
+      }
+      break;
+    }
+    const $t1 = $rt.strconv_ParseFloat($rt.bytesToString($rt.reslice(d!.data, start, d!.pos, 0)), 64);
+    const f: number = $t1[0];
+    const err: $rt.GoObject | undefined = $t1[1];
+    if (!(err === undefined)) {
+      return [undefined, errSyntax];
+    }
+    return [new $rt.BoxNum(f, 'float64'), undefined];
+  }
+  str(): [string, $rt.GoObject | undefined] {
+    const d = this;
+    d!.pos++;
+    let out_: number[] = [];
+    for (; d!.pos < d!.data.length;) {
+      const c: number = d!.data[d!.pos];
+      {
+        $sw1: {
+          if (c === (34 as number)) {
+            d!.pos++;
+            return [$rt.bytesToString(out_), undefined];
+          } else if (c === (92 as number)) {
+            if (d!.pos + 1 >= d!.data.length) {
+              return ['', errSyntax];
+            }
+            const e: number = d!.data[d!.pos + 1];
+            d!.pos += 2;
+            {
+              switch (e) {
+                case 34 as number:
+                case 92 as number:
+                case 47 as number: {
+                  out_ = $rt.appendCopy(out_, [e]);
+                  break;
+                }
+                case 98 as number: {
+                  out_ = $rt.appendCopy(out_, [8]);
+                  break;
+                }
+                case 102 as number: {
+                  out_ = $rt.appendCopy(out_, [12]);
+                  break;
+                }
+                case 110 as number: {
+                  out_ = $rt.appendCopy(out_, [10]);
+                  break;
+                }
+                case 114 as number: {
+                  out_ = $rt.appendCopy(out_, [13]);
+                  break;
+                }
+                case 116 as number: {
+                  out_ = $rt.appendCopy(out_, [9]);
+                  break;
+                }
+                case 117 as number: {
+                  const $t2 = d!.hex4();
+                  let r: number = $t2[0];
+                  const ok: boolean = $t2[1];
+                  if (!ok) {
+                    return ['', errSyntax];
+                  }
+                  if ($rt.unicode_utf16_IsSurrogate(r)) {
+                    if (
+                      d!.pos + 1 < d!.data.length &&
+                      d!.data[d!.pos] === (92 as number) &&
+                      d!.data[d!.pos + 1] === (117 as number)
+                    ) {
+                      d!.pos += 2;
+                      const $t3 = d!.hex4();
+                      const r2: number = $t3[0];
+                      const ok$1: boolean = $t3[1];
+                      if (!ok$1) {
+                        return ['', errSyntax];
+                      }
+                      r = $rt.unicode_utf16_DecodeRune(r, r2);
+                    } else {
+                      r = 65533;
+                    }
+                  }
+                  out_ = $rt.unicode_utf8_AppendRune(out_, r);
+                  break;
+                }
+                default: {
+                  return ['', errSyntax];
+                }
+              }
+            }
+          } else {
+            out_ = $rt.appendCopy(out_, [c]);
+            d!.pos++;
+          }
+        }
+      }
+    }
+    return ['', errSyntax];
+  }
+  hex4(): [number, boolean] {
+    const d = this;
+    if (d!.pos + 4 > d!.data.length) {
+      return [0, false];
+    }
+    const $t1 = $rt.strconv_ParseUint($rt.bytesToString($rt.reslice(d!.data, d!.pos, d!.pos + 4, 0)), 16, 32);
+    const v: number = $t1[0];
+    const err: $rt.GoObject | undefined = $t1[1];
+    if (!(err === undefined)) {
+      return [0, false];
+    }
+    d!.pos += 4;
+    return [v | 0, true];
+  }
+}
+export class jsonObject extends $rt.GoObject {
+  keys: string[] = [];
+  values: Map<string, $rt.GoObject | undefined> | undefined = undefined;
+  $copy_packagejson_jsonObject(src: jsonObject): void {
+    this.keys = src.keys;
+    this.values = src.values;
+  }
+  $clone_packagejson_jsonObject(): jsonObject {
+    const o = new jsonObject();
+    o.$copy_packagejson_jsonObject(this);
+    return o;
+  }
+  static $lit_packagejson_jsonObject_1(p0: Map<string, $rt.GoObject | undefined> | undefined): jsonObject {
+    const o = new jsonObject();
+    o.values = p0;
+    return o;
+  }
+  static $cast_packagejson_jsonObject(v: $rt.GoObject | undefined): jsonObject {
+    if (v instanceof jsonObject) return v;
+    throw $rt.typeAssertError();
+  }
+  get(key: string): [$rt.GoObject | undefined, boolean] {
+    const o = this;
+    const $t1: Map<string, $rt.GoObject | undefined> | undefined = o!.values;
+    const $t2 = key;
+    const v: $rt.GoObject | undefined = $t1?.get($t2) ?? undefined;
+    const ok: boolean = $t1 !== undefined && $t1.has($t2);
+    return [v, ok];
+  }
+  set(key: string, v: $rt.GoObject | undefined): void {
+    const o = this;
+    {
+      const $t1: Map<string, $rt.GoObject | undefined> | undefined = o!.values;
+      const $t2 = key;
+      const ok: boolean = $t1 !== undefined && $t1.has($t2);
+      if (!ok) {
+        o!.keys.push(key);
+      }
+    }
+    o!.values!.set(key, v);
+  }
+}
 export class typeScriptFields extends $rt.GoObject {
   ContentMapper: Expected<ContentMapperFields> = new Expected<ContentMapperFields>($zf6);
   $copy_packagejson_typeScriptFields(src: typeScriptFields): void {
@@ -1051,8 +1400,6 @@ export class typeScriptFields extends $rt.GoObject {
     throw $rt.typeAssertError();
   }
 }
-export const ContentMapperFields$zero: ContentMapperFields = new ContentMapperFields();
-export const HeaderFields$zero: HeaderFields = new HeaderFields();
 export const diagnosticAndArgs$zero: diagnosticAndArgs = new diagnosticAndArgs();
 export const typeScriptFields$zero: typeScriptFields = new typeScriptFields();
 export class Box__collections_OrderedMap_string__packagejson_ExportsOrImports_ extends $rt.GoObject {
@@ -1064,6 +1411,9 @@ export class Box__collections_OrderedMap_string__packagejson_ExportsOrImports_ e
   static $cast(v: $rt.GoObject | undefined): Box__collections_OrderedMap_string__packagejson_ExportsOrImports_ {
     if (v instanceof Box__collections_OrderedMap_string__packagejson_ExportsOrImports_) return v;
     throw $rt.typeAssertError();
+  }
+  override $unbox(): unknown {
+    return this.v;
   }
   override $eqv(o: $rt.GoObject): boolean {
     return o instanceof Box__collections_OrderedMap_string__packagejson_ExportsOrImports_ && o.v === this.v;
@@ -1078,6 +1428,9 @@ export class Box__collections_OrderedMap_string__packagejson_JSONValue_ extends 
   static $cast(v: $rt.GoObject | undefined): Box__collections_OrderedMap_string__packagejson_JSONValue_ {
     if (v instanceof Box__collections_OrderedMap_string__packagejson_JSONValue_) return v;
     throw $rt.typeAssertError();
+  }
+  override $unbox(): unknown {
+    return this.v;
   }
   override $eqv(o: $rt.GoObject): boolean {
     return o instanceof Box__collections_OrderedMap_string__packagejson_JSONValue_ && o.v === this.v;
@@ -1096,6 +1449,7 @@ export const objectKindInvalid: objectKind = 4;
 export const objectKindSubpaths: objectKind = 1;
 export const objectKindUnknown: objectKind = 0;
 export let typeScriptVersion: $semver.Version = $semver.MustParse($core.Version());
+export let errSyntax: $rt.GoObject | undefined = $rt.errors_New('invalid JSON in package.json');
 export function NewInfoCache(currentDirectory: string, useCaseSensitiveFileNames: boolean): InfoCache | undefined {
   return InfoCache.$lit_packagejson_InfoCache_1_2(currentDirectory, useCaseSensitiveFileNames);
 }
@@ -1219,7 +1573,7 @@ export function unmarshalJSONValueV2<T extends $rt.GoObject>(
             return err;
           }
         }
-        v!.Value = undefined;
+        v!.Value = undefined as $rt.GoObject | undefined;
         v!.Type = 1;
         return undefined;
       }
@@ -1338,7 +1692,7 @@ export function unmarshalJSONValueV2<T extends $rt.GoObject>(
   }
   return undefined;
 }
-export function Parse(data: number[]): [Fields, $rt.GoObject | undefined] {
+export function parseWithJSONLibrary(data: number[]): [Fields, $rt.GoObject | undefined] {
   let parsed: $Anon2 = new $Anon2();
   {
     const err: $rt.GoObject | undefined = $json.Unmarshal(data, parsed, [$json.AllowDuplicateNames(true)]);
@@ -1350,11 +1704,346 @@ export function Parse(data: number[]): [Fields, $rt.GoObject | undefined] {
   const typeScript: typeScriptFields = $t1[0];
   return [
     Fields.$lit_packagejson_Fields_0_1_2_3(
-      parsed.HeaderFields,
+      parsed.HeaderFields.$clone_packagejson_HeaderFields(),
       parsed.PathFields.$clone_packagejson_PathFields(),
       parsed.DependencyFields.$clone_packagejson_DependencyFields(),
       typeScript.ContentMapper.$clone_packagejson_Expected(),
     ),
     undefined,
   ];
+}
+export function Parse(data: number[]): [Fields, $rt.GoObject | undefined] {
+  const d: jsonDecoder | undefined = jsonDecoder.$lit_packagejson_jsonDecoder_0(data);
+  d!.space();
+  const $t1 = d!.value();
+  const root: $rt.GoObject | undefined = $t1[0];
+  const err: $rt.GoObject | undefined = $t1[1];
+  if (!(err === undefined)) {
+    return [new Fields(), err];
+  }
+  d!.space();
+  if (!(d!.pos === d!.data.length)) {
+    return [new Fields(), $rt.errors_New('invalid character after top-level value')];
+  }
+  const $t2: $rt.GoObject | undefined = root;
+  const $t3: boolean = $t2 instanceof jsonObject;
+  const obj: jsonObject | undefined = $t3 ? jsonObject.$cast_packagejson_jsonObject($t2) : undefined;
+  const ok: boolean = $t3;
+  if (!ok) {
+    return [new Fields(), $rt.errors_New('package.json is not an object')];
+  }
+  const f: Fields = new Fields();
+  f.Name = expectedString(obj, 'name');
+  f.Version = expectedString(obj, 'version');
+  f.Type = expectedString(obj, 'type');
+  f.PathFields_.TSConfig = expectedString(obj, 'tsconfig');
+  f.PathFields_.Main = expectedString(obj, 'main');
+  f.PathFields_.Types = expectedString(obj, 'types');
+  f.PathFields_.Typings = expectedString(obj, 'typings');
+  {
+    const $t4 = obj!.get('typesVersions');
+    const v: $rt.GoObject | undefined = $t4[0];
+    const ok$1: boolean = $t4[1];
+    if (ok$1) {
+      f.PathFields_.TypesVersions = toJSONValue(v);
+    }
+  }
+  {
+    const $t5 = obj!.get('imports');
+    const v$1: $rt.GoObject | undefined = $t5[0];
+    const ok$2: boolean = $t5[1];
+    if (ok$2) {
+      f.PathFields_.Imports = toExportsOrImports(v$1);
+    }
+  }
+  {
+    const $t6 = obj!.get('exports');
+    const v$2: $rt.GoObject | undefined = $t6[0];
+    const ok$3: boolean = $t6[1];
+    if (ok$3) {
+      f.PathFields_.Exports = toExportsOrImports(v$2);
+    }
+  }
+  f.DependencyFields_.Dependencies = expectedStringMap(obj, 'dependencies');
+  f.DependencyFields_.DevDependencies = expectedStringMap(obj, 'devDependencies');
+  f.DependencyFields_.PeerDependencies = expectedStringMap(obj, 'peerDependencies');
+  f.DependencyFields_.OptionalDependencies = expectedStringMap(obj, 'optionalDependencies');
+  {
+    const $t7 = obj!.get('typescript');
+    const v$3: $rt.GoObject | undefined = $t7[0];
+    const ok$4: boolean = $t7[1];
+    if (ok$4) {
+      {
+        const $t8: $rt.GoObject | undefined = v$3;
+        const $t9: boolean = $t8 instanceof jsonObject;
+        const ts: jsonObject | undefined = $t9 ? jsonObject.$cast_packagejson_jsonObject($t8) : undefined;
+        const ok$5: boolean = $t9;
+        if (ok$5) {
+          {
+            const $t10 = ts!.get('contentMapper');
+            const cm: $rt.GoObject | undefined = $t10[0];
+            const ok$6: boolean = $t10[1];
+            if (ok$6) {
+              f.ContentMapper.actualJSONType = jsonKind(cm);
+              {
+                const $t11: $rt.GoObject | undefined = cm;
+                const $t12: boolean = $t11 instanceof jsonObject;
+                const cmObj: jsonObject | undefined = $t12 ? jsonObject.$cast_packagejson_jsonObject($t11) : undefined;
+                const ok$7: boolean = $t12;
+                if (ok$7) {
+                  f.ContentMapper.Valid = true;
+                  f.ContentMapper.Value.Exec = expectedStrings(cmObj, 'exec');
+                  f.ContentMapper.Value.CompilerOptions = expectedStrings(cmObj, 'compilerOptions');
+                  f.ContentMapper.Value.DynamicConfig = expectedBool(cmObj, 'dynamicConfig');
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  return [f.$clone_packagejson_Fields(), undefined];
+}
+export function jsonKind(v: $rt.GoObject | undefined): string {
+  {
+    const $t1: $rt.GoObject | undefined = v;
+    $sw2: {
+      if ($t1 === undefined) {
+        return 'null';
+      } else if ($rt.isValue($t1, 'string')) {
+        return 'string';
+      } else if ($rt.isValue($t1, 'bool')) {
+        return 'boolean';
+      } else if ($t1 instanceof $boxes.Box___any) {
+        return 'array';
+      } else if ($t1 instanceof jsonObject) {
+        return 'object';
+      }
+    }
+  }
+  return 'number';
+}
+export function expectedString(o: jsonObject | undefined, key: string): Expected<string> {
+  const e: Expected<string> = new Expected<string>($zf0);
+  {
+    const $t1 = o!.get(key);
+    const v: $rt.GoObject | undefined = $t1[0];
+    const ok: boolean = $t1[1];
+    if (ok) {
+      e.actualJSONType = jsonKind(v);
+      e.Null = v === undefined;
+      {
+        const $t2: $rt.GoObject | undefined = v;
+        const $t3: boolean = $rt.isValue($t2, 'string');
+        const s: string = $t3 ? $rt.checkString(true, $t2) : '';
+        const ok$1: boolean = $t3;
+        if (ok$1) {
+          const $t4 = s;
+          const $t5 = true;
+          e.Value = $t4;
+          e.Valid = $t5;
+        }
+      }
+    }
+  }
+  return e.$clone_packagejson_Expected();
+}
+export function expectedBool(o: jsonObject | undefined, key: string): Expected<boolean> {
+  const e: Expected<boolean> = new Expected<boolean>($zf4);
+  {
+    const $t1 = o!.get(key);
+    const v: $rt.GoObject | undefined = $t1[0];
+    const ok: boolean = $t1[1];
+    if (ok) {
+      e.actualJSONType = jsonKind(v);
+      e.Null = v === undefined;
+      {
+        const $t2: $rt.GoObject | undefined = v;
+        const $t3: boolean = $rt.isValue($t2, 'bool');
+        const b: boolean = $t3 ? $rt.checkBool(true, $t2) : false;
+        const ok$1: boolean = $t3;
+        if (ok$1) {
+          const $t4 = b;
+          const $t5 = true;
+          e.Value = $t4;
+          e.Valid = $t5;
+        }
+      }
+    }
+  }
+  return e.$clone_packagejson_Expected();
+}
+export function expectedStrings(o: jsonObject | undefined, key: string): Expected<string[]> {
+  const e: Expected<string[]> = new Expected<string[]>($zf2);
+  {
+    const $t1 = o!.get(key);
+    const v: $rt.GoObject | undefined = $t1[0];
+    const ok: boolean = $t1[1];
+    if (ok) {
+      e.actualJSONType = jsonKind(v);
+      e.Null = v === undefined;
+      {
+        const $t2: $rt.GoObject | undefined = v;
+        const $t3: boolean = $t2 instanceof $boxes.Box___any;
+        const list: ($rt.GoObject | undefined)[] = $t3 ? $boxes.Box___any.$cast($t2).v : [];
+        const ok$1: boolean = $t3;
+        if (ok$1) {
+          let out_: string[] = [] as string[];
+          {
+            const $t4 = list;
+            for (let $t5 = 0, $n = $t4.length; $t5 < $n; $t5++) {
+              const item = $t4[$t5];
+              const $t6: $rt.GoObject | undefined = item;
+              const $t7: boolean = $rt.isValue($t6, 'string');
+              const s: string = $t7 ? $rt.checkString(true, $t6) : '';
+              const ok$2: boolean = $t7;
+              if (!ok$2) {
+                return e.$clone_packagejson_Expected();
+              }
+              out_.push(s);
+            }
+          }
+          const $t8 = out_;
+          const $t9 = true;
+          e.Value = $t8;
+          e.Valid = $t9;
+        }
+      }
+    }
+  }
+  return e.$clone_packagejson_Expected();
+}
+export function expectedStringMap(o: jsonObject | undefined, key: string): Expected<Map<string, string> | undefined> {
+  const e: Expected<Map<string, string> | undefined> = new Expected<Map<string, string> | undefined>($zf5);
+  {
+    const $t1 = o!.get(key);
+    const v: $rt.GoObject | undefined = $t1[0];
+    const ok: boolean = $t1[1];
+    if (ok) {
+      e.actualJSONType = jsonKind(v);
+      e.Null = v === undefined;
+      {
+        const $t2: $rt.GoObject | undefined = v;
+        const $t3: boolean = $t2 instanceof jsonObject;
+        const obj: jsonObject | undefined = $t3 ? jsonObject.$cast_packagejson_jsonObject($t2) : undefined;
+        const ok$1: boolean = $t3;
+        if (ok$1) {
+          const out_: Map<string, string> | undefined = new Map<string, string>();
+          {
+            const $t4 = obj!.keys;
+            for (let $t5 = 0, $n = $t4.length; $t5 < $n; $t5++) {
+              const k = $t4[$t5];
+              const $t6: $rt.GoObject | undefined = obj!.values?.get(k) ?? undefined;
+              const $t7: boolean = $rt.isValue($t6, 'string');
+              const s: string = $t7 ? $rt.checkString(true, $t6) : '';
+              const ok$2: boolean = $t7;
+              if (!ok$2) {
+                return e.$clone_packagejson_Expected();
+              }
+              out_!.set(k, s);
+            }
+          }
+          const $t8 = out_;
+          const $t9 = true;
+          e.Value = $t8;
+          e.Valid = $t9;
+        }
+      }
+    }
+  }
+  return e.$clone_packagejson_Expected();
+}
+export function toJSONValue(v: $rt.GoObject | undefined): JSONValue {
+  {
+    const $t1: $rt.GoObject | undefined = v;
+    $sw2: {
+      if ($t1 === undefined) {
+        const x: $rt.GoObject | undefined = $t1;
+        return JSONValue.$lit_packagejson_JSONValue_0(1);
+      } else if ($rt.isValue($t1, 'string')) {
+        const x$1: string = $rt.checkString(true, $t1);
+        return JSONValue.$lit_packagejson_JSONValue_0_1(2, new $rt.BoxStr(x$1, 'string'));
+      } else if ($rt.isValue($t1, 'bool')) {
+        const x$2: boolean = $rt.checkBool(true, $t1);
+        return JSONValue.$lit_packagejson_JSONValue_0_1(4, new $rt.BoxBool(x$2, 'bool'));
+      } else if ($rt.isValue($t1, 'float64')) {
+        const x$3: number = $rt.checkNumber(true, $t1);
+        return JSONValue.$lit_packagejson_JSONValue_0_1(3, new $rt.BoxNum(x$3, 'float64'));
+      } else if ($t1 instanceof $boxes.Box___any) {
+        const x$4: ($rt.GoObject | undefined)[] = $boxes.Box___any.$cast($t1).v;
+        const elements: JSONValue[] = $rt.makeSliceFn<JSONValue>(x$4.length, () => new JSONValue());
+        {
+          const $t3 = x$4;
+          for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
+            const i = $t4;
+            const item = $t3[$t4];
+            elements[i] = toJSONValue(item);
+          }
+        }
+        return JSONValue.$lit_packagejson_JSONValue_0_1(5, new $boxes.Box___packagejson_JSONValue(elements));
+      } else if ($t1 instanceof jsonObject) {
+        const x$5: jsonObject | undefined = jsonObject.$cast_packagejson_jsonObject($t1);
+        const m: $collections.OrderedMap<string, JSONValue> | undefined = new $collections.OrderedMap<
+          string,
+          JSONValue
+        >($zf0, $zf1);
+        {
+          const $t5 = x$5!.keys;
+          for (let $t6 = 0, $n = $t5.length; $t6 < $n; $t6++) {
+            const k = $t5[$t6];
+            m!.Set(k, toJSONValue(x$5!.values?.get(k) ?? undefined));
+          }
+        }
+        return JSONValue.$lit_packagejson_JSONValue_0_1(
+          6,
+          new Box__collections_OrderedMap_string__packagejson_JSONValue_(m),
+        );
+      }
+    }
+  }
+  return new JSONValue();
+}
+export function toExportsOrImports(v: $rt.GoObject | undefined): ExportsOrImports {
+  {
+    const $t1: $rt.GoObject | undefined = v;
+    $sw2: {
+      if ($t1 instanceof $boxes.Box___any) {
+        const x: ($rt.GoObject | undefined)[] = $boxes.Box___any.$cast($t1).v;
+        const elements: ExportsOrImports[] = $rt.makeSliceFn<ExportsOrImports>(x.length, () => new ExportsOrImports());
+        {
+          const $t3 = x;
+          for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
+            const i = $t4;
+            const item = $t3[$t4];
+            elements[i] = toExportsOrImports(item);
+          }
+        }
+        return ExportsOrImports.$lit_packagejson_ExportsOrImports_0(
+          JSONValue.$lit_packagejson_JSONValue_0_1(5, new $boxes.Box___packagejson_ExportsOrImports(elements)),
+        );
+      } else if ($t1 instanceof jsonObject || $t1 === undefined) {
+        const x$1: jsonObject | undefined =
+          $t1 === undefined ? undefined : jsonObject.$cast_packagejson_jsonObject($t1);
+        const m: $collections.OrderedMap<string, ExportsOrImports> | undefined = new $collections.OrderedMap<
+          string,
+          ExportsOrImports
+        >($zf0, $zf3);
+        {
+          const $t5 = x$1!.keys;
+          for (let $t6 = 0, $n = $t5.length; $t6 < $n; $t6++) {
+            const k = $t5[$t6];
+            m!.Set(k, toExportsOrImports(x$1!.values?.get(k) ?? undefined));
+          }
+        }
+        return ExportsOrImports.$lit_packagejson_ExportsOrImports_0(
+          JSONValue.$lit_packagejson_JSONValue_0_1(
+            6,
+            new Box__collections_OrderedMap_string__packagejson_ExportsOrImports_(m),
+          ),
+        );
+      }
+    }
+  }
+  return ExportsOrImports.$lit_packagejson_ExportsOrImports_0(toJSONValue(v));
 }

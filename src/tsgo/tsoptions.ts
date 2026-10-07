@@ -22,6 +22,8 @@ import * as $tspath from './tspath.js';
 import * as $vfs_vfsmatch from './vfs_vfsmatch.js';
 import type * as $vfs from './vfs.js';
 import { MapEntry as $collections$MapEntry } from './collections.js';
+import { OrderedMap as $collections$OrderedMap } from './collections.js';
+import { Set_ as $collections$Set_ } from './collections.js';
 const $zf0 = (): string => '';
 const $zf1 = (): $rt.GoObject | undefined => undefined;
 const $zf10 = (): $ast.Node | undefined => undefined;
@@ -1678,7 +1680,7 @@ export class NameMap extends $rt.GoObject {
   }
   GetFromShort(shortName: string): CommandLineOption | undefined {
     const nm = this;
-    const $t1 = nm!.shortOptionNames;
+    const $t1: Map<string, string> | undefined = nm!.shortOptionNames;
     const $t2 = shortName;
     const name_: string = $t1?.get($t2) ?? '';
     const ok: boolean = $t1 !== undefined && $t1.has($t2);
@@ -2311,7 +2313,7 @@ export class ParsedCommandLine extends $rt.GoObject {
     const p = this;
     const path: $tspath.Path = $tspath.ToPath(fileName, p!.GetCurrentDirectory(), p!.UseCaseSensitiveFileNames());
     {
-      const $t1 = p!.FileNamesByPath();
+      const $t1: Map<$tspath.Path, string> | undefined = p!.FileNamesByPath();
       const $t2 = path;
       const ok: boolean = $t1 !== undefined && $t1.has($t2);
       if (ok) {
@@ -2712,7 +2714,7 @@ export class commandLineParser extends $rt.GoObject {
     $body: try {
       fileName = $tspath.GetNormalizedAbsolutePath(fileName, p!.currentDirectory);
       const path: $tspath.Path = $tspath.ToPath(fileName, p!.currentDirectory, p!.fs!.UseCaseSensitiveFileNames());
-      if (p!.responseFileStack.Has(path)) {
+      if ($collections$Set_.Has$nil<$tspath.Path>(p!.responseFileStack, path)) {
         break $body;
       }
       p!.responseFileStack.Add(path);
@@ -3542,19 +3544,19 @@ const $fn21 = (a: CommandLineOption | undefined, b: CommandLineOption | undefine
   return $rt.strings_Compare(a!.Name, b!.Name);
 };
 const $fn22 = (element: $rt.GoObject | undefined): boolean => {
-  return $rt.ifaceEq($rt.reflect_TypeOf(element), orderedMapType);
+  return isOrderedMapJSONValue(element);
 };
 const $fn23 = (property: $ast.PropertyAssignment | undefined): $ast.Node | undefined => {
   return property!.Initializer_;
 };
 const $fn24 = (element$1: $rt.GoObject | undefined): boolean => {
-  return $rt.ifaceEq($rt.reflect_TypeOf(element$1), orderedMapType);
+  return isOrderedMapJSONValue(element$1);
 };
 const $fn25 = (mapper$4: $contentmapper.Mapper | undefined): string[] => {
   return mapper$4!.Extensions;
 };
 const $fn26 = (element$3: $rt.GoObject | undefined): boolean => {
-  return $rt.ifaceEq($rt.reflect_TypeOf(element$3), orderedMapType);
+  return isOrderedMapJSONValue(element$3);
 };
 const $fn27 = (property$1: $ast.PropertyAssignment | undefined): $ast.Node | undefined => {
   return property$1!.Initializer_;
@@ -5516,9 +5518,15 @@ export let LibMap: $collections.OrderedMap<string, $rt.GoObject | undefined> | u
       new $rt.BoxStr('lib.decorators.legacy.d.ts', 'string'),
     ),
   ]);
-export let Libs: string[] = $rt.slices_Collect(LibMap!.Keys());
+export let Libs: string[] = $rt.slices_Collect(
+  $collections$OrderedMap.Keys$nil<string, $rt.GoObject | undefined>($zf0, $zf1, LibMap),
+);
 export let LibFilesSet: $collections.Set_<string> | undefined = $collections.NewSetFromItems<string>(
-  $core.Map_<$rt.GoObject | undefined, string>($zf0, $rt.slices_Collect(LibMap!.Values()), $fn0),
+  $core.Map_<$rt.GoObject | undefined, string>(
+    $zf0,
+    $rt.slices_Collect($collections$OrderedMap.Values$nil<string, $rt.GoObject | undefined>($zf0, $zf1, LibMap)),
+    $fn0,
+  ),
 );
 export let moduleResolutionOptionMap: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined =
   $collections.NewOrderedMapFromList<string, $rt.GoObject | undefined>($zf0, $zf1, [
@@ -6006,9 +6014,6 @@ export let extendsOptionDeclaration: CommandLineOption | undefined =
     $diagnostics.File_Management,
     commandLineOptionsToMap([CommandLineOption.$lit_tsoptions_CommandLineOption_0_2('extends', 'string')]),
   );
-export let orderedMapType: $rt.reflect_Type | undefined = $rt.reflect_TypeFor<
-  $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined
->();
 export let CommandLineCompilerOptionsMap: CommandLineOptionNameMap = commandLineOptionsToMap(OptionsDeclarations);
 export let compilerOptionsDeclaration: CommandLineOption | undefined =
   CommandLineOption.$lit_tsoptions_CommandLineOption_0_2_25('compilerOptions', 'object', CommandLineCompilerOptionsMap);
@@ -6040,7 +6045,7 @@ export function ParseCommandLine(commandLine: string[], host: ParseConfigHost): 
   );
   const options: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined =
     convertToOptionsWithAbsolutePaths(
-      parser!.options!.Clone(),
+      $collections$OrderedMap.Clone$nil<string, $rt.GoObject | undefined>($zf0, $zf1, parser!.options),
       CommandLineCompilerOptionsMap,
       host!.GetCurrentDirectory(),
     );
@@ -6081,13 +6086,15 @@ export function ParseBuildCommandLine(
   const compilerOptions: $core.CompilerOptions | undefined = new $core.CompilerOptions();
   let $t1 = false;
   let $t2: ParsedBuildCommandLine | undefined = undefined as ParsedBuildCommandLine | undefined;
-  parser!.options!.Entries()!((key: string, value: $rt.GoObject | undefined): boolean => {
-    const buildOption: CommandLineOption | undefined = BuildNameMap!.Get(key);
-    if (buildOption === TscBuildOption || buildOption === CompilerNameMap!.Get(key)) {
-      ParseCompilerOptions(key, value, compilerOptions);
-    }
-    return true;
-  });
+  $collections$OrderedMap.Entries$nil<string, $rt.GoObject | undefined>($zf0, $zf1, parser!.options)!(
+    (key: string, value: $rt.GoObject | undefined): boolean => {
+      const buildOption: CommandLineOption | undefined = BuildNameMap!.Get(key);
+      if (buildOption === TscBuildOption || buildOption === CompilerNameMap!.Get(key)) {
+        ParseCompilerOptions(key, value, compilerOptions);
+      }
+      return true;
+    },
+  );
   const result: ParsedBuildCommandLine | undefined =
     ParsedBuildCommandLine.$lit_tsoptions_ParsedBuildCommandLine_0_1_2_3_4_5_6(
       convertMapToOptions<buildOptionsParser | undefined>(
@@ -6484,7 +6491,7 @@ export function getParseCommandLineWorkerDiagnostics(
 }
 export function GetLibFileName(libName: string): [string, boolean] {
   libName = $tspath.ToFileNameLowerCase(libName);
-  if (LibFilesSet!.Has(libName)) {
+  if ($collections$Set_.Has$nil<string>(LibFilesSet, libName)) {
     return [libName, true];
   }
   const $t1 = LibMap!.Get(libName);
@@ -6499,7 +6506,7 @@ export function TargetToLibMap(): Map<$core.ScriptTarget, string> | undefined {
   return targetToLibMap;
 }
 export function GetDefaultLibFileName(options: $core.CompilerOptions | undefined): string {
-  const $t1 = targetToLibMap;
+  const $t1: Map<$core.ScriptTarget, string> | undefined = targetToLibMap;
   const $t2 = options!.GetEmitScriptTarget();
   const name_: string = $t1?.get($t2) ?? '';
   const ok: boolean = $t1 !== undefined && $t1.has($t2);
@@ -6513,7 +6520,9 @@ export function createDiagnosticForInvalidEnumType(
   sourceFile: $ast.SourceFile | undefined,
   node: $ast.Node | undefined,
 ): $ast.Diagnostic | undefined {
-  const namesOfType: string[] = $rt.slices_Collect(opt!.EnumMap()!.Keys());
+  const namesOfType: string[] = $rt.slices_Collect(
+    $collections$OrderedMap.Keys$nil<string, $rt.GoObject | undefined>($zf0, $zf1, opt!.EnumMap()),
+  );
   const stringNames: string = formatEnumTypeKeys(opt, namesOfType);
   const optName: string = '--' + opt!.Name;
   return CreateDiagnosticForNodeInSourceFileOrCompilerDiagnostic(
@@ -6526,7 +6535,7 @@ export function createDiagnosticForInvalidEnumType(
 export function formatEnumTypeKeys(opt: CommandLineOption | undefined, keys: string[]): string {
   if (!(opt!.DeprecatedKeys() === undefined)) {
     keys = $core.Filter<string>(keys, (key: string): boolean => {
-      return !opt!.DeprecatedKeys()!.Has(key);
+      return !$collections$Set_.Has$nil<string>(opt!.DeprecatedKeys(), key);
     });
   }
   return "'" + $rt.strings_Join(keys, "', '") + "'";
@@ -6747,15 +6756,17 @@ export function parseStringMap(value: $rt.GoObject | undefined): $collections.Or
       const result: $collections.OrderedMap<string, string[]> | undefined = $collections.NewOrderedMapWithSizeHint<
         string,
         string[]
-      >($zf0, $zf3, m!.Size());
+      >($zf0, $zf3, $collections$OrderedMap.Size$nil<string, $rt.GoObject | undefined>($zf0, $zf1, m));
       let $t3 = false;
       let $t4: $collections.OrderedMap<string, string[]> | undefined = undefined as
         | $collections.OrderedMap<string, string[]>
         | undefined;
-      m!.Entries()!((k: string, v: $rt.GoObject | undefined): boolean => {
-        result!.Set(k, ParseStringArray(v));
-        return true;
-      });
+      $collections$OrderedMap.Entries$nil<string, $rt.GoObject | undefined>($zf0, $zf1, m)!(
+        (k: string, v: $rt.GoObject | undefined): boolean => {
+          result!.Set(k, ParseStringArray(v));
+          return true;
+        },
+      );
       return result;
     }
   }
@@ -7827,12 +7838,14 @@ export function mergeCompilerOptions(
               if (ok$1) {
                 let $t6 = false;
                 let $t7: $core.CompilerOptions | undefined = undefined as $core.CompilerOptions | undefined;
-                compilerOptionsMap!.Entries()!((key: string, value: $rt.GoObject | undefined): boolean => {
-                  if (value === undefined) {
-                    explicitNullFields.Add(key);
-                  }
-                  return true;
-                });
+                $collections$OrderedMap.Entries$nil<string, $rt.GoObject | undefined>($zf0, $zf1, compilerOptionsMap)!(
+                  (key: string, value: $rt.GoObject | undefined): boolean => {
+                    if (value === undefined) {
+                      explicitNullFields.Add(key);
+                    }
+                    return true;
+                  },
+                );
               }
             }
           }
@@ -7840,28 +7853,660 @@ export function mergeCompilerOptions(
       }
     }
   }
-  const targetValue: $rt.reflect_Value = $rt.reflect_ValueOf(targetOptions).Elem();
-  const sourceValue: $rt.reflect_Value = $rt.reflect_ValueOf(sourceOptions).Elem();
-  const targetType: $rt.reflect_Type | undefined = targetValue.Type();
-  for (let i = 0, $t8 = targetValue.NumField(); i < $t8; i++) {
-    const targetField: $rt.reflect_Value = targetValue.Field(i);
-    const sourceField: $rt.reflect_Value = sourceValue.Field(i);
-    {
-      const jsonTag: string = $rt.reflect_StructTag$Get(targetType!.Field(i).Tag, 'json');
-      if (!(jsonTag === ('' as string))) {
-        {
-          const $t9 = $rt.strings_Cut(jsonTag, ',');
-          const jsonFieldName: string = $t9[0];
-          if (!(jsonFieldName === ('' as string)) && explicitNullFields.Has(jsonFieldName)) {
-            targetField.SetZero();
-            continue;
-          }
-        }
-      }
-    }
-    if (!sourceField.IsZero()) {
-      targetField.Set(sourceField);
-    }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'allowJs')) {
+    targetOptions!.AllowJs = 0;
+  } else if (!(sourceOptions!.AllowJs === (0 as number))) {
+    targetOptions!.AllowJs = sourceOptions!.AllowJs;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'allowArbitraryExtensions')) {
+    targetOptions!.AllowArbitraryExtensions = 0;
+  } else if (!(sourceOptions!.AllowArbitraryExtensions === (0 as number))) {
+    targetOptions!.AllowArbitraryExtensions = sourceOptions!.AllowArbitraryExtensions;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'allowImportingTsExtensions')) {
+    targetOptions!.AllowImportingTsExtensions = 0;
+  } else if (!(sourceOptions!.AllowImportingTsExtensions === (0 as number))) {
+    targetOptions!.AllowImportingTsExtensions = sourceOptions!.AllowImportingTsExtensions;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'allowNonTsExtensions')) {
+    targetOptions!.AllowNonTsExtensions = 0;
+  } else if (!(sourceOptions!.AllowNonTsExtensions === (0 as number))) {
+    targetOptions!.AllowNonTsExtensions = sourceOptions!.AllowNonTsExtensions;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'allowUmdGlobalAccess')) {
+    targetOptions!.AllowUmdGlobalAccess = 0;
+  } else if (!(sourceOptions!.AllowUmdGlobalAccess === (0 as number))) {
+    targetOptions!.AllowUmdGlobalAccess = sourceOptions!.AllowUmdGlobalAccess;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'allowUnreachableCode')) {
+    targetOptions!.AllowUnreachableCode = 0;
+  } else if (!(sourceOptions!.AllowUnreachableCode === (0 as number))) {
+    targetOptions!.AllowUnreachableCode = sourceOptions!.AllowUnreachableCode;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'allowUnusedLabels')) {
+    targetOptions!.AllowUnusedLabels = 0;
+  } else if (!(sourceOptions!.AllowUnusedLabels === (0 as number))) {
+    targetOptions!.AllowUnusedLabels = sourceOptions!.AllowUnusedLabels;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'assumeChangesOnlyAffectDirectDependencies')) {
+    targetOptions!.AssumeChangesOnlyAffectDirectDependencies = 0;
+  } else if (!(sourceOptions!.AssumeChangesOnlyAffectDirectDependencies === (0 as number))) {
+    targetOptions!.AssumeChangesOnlyAffectDirectDependencies = sourceOptions!.AssumeChangesOnlyAffectDirectDependencies;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'checkJs')) {
+    targetOptions!.CheckJs = 0;
+  } else if (!(sourceOptions!.CheckJs === (0 as number))) {
+    targetOptions!.CheckJs = sourceOptions!.CheckJs;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'customConditions')) {
+    targetOptions!.CustomConditions = [];
+  } else if (!(sourceOptions!.CustomConditions.length === 0)) {
+    targetOptions!.CustomConditions = sourceOptions!.CustomConditions;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'composite')) {
+    targetOptions!.Composite = 0;
+  } else if (!(sourceOptions!.Composite === (0 as number))) {
+    targetOptions!.Composite = sourceOptions!.Composite;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'emitDeclarationOnly')) {
+    targetOptions!.EmitDeclarationOnly = 0;
+  } else if (!(sourceOptions!.EmitDeclarationOnly === (0 as number))) {
+    targetOptions!.EmitDeclarationOnly = sourceOptions!.EmitDeclarationOnly;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'emitBOM')) {
+    targetOptions!.EmitBOM = 0;
+  } else if (!(sourceOptions!.EmitBOM === (0 as number))) {
+    targetOptions!.EmitBOM = sourceOptions!.EmitBOM;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'emitDecoratorMetadata')) {
+    targetOptions!.EmitDecoratorMetadata = 0;
+  } else if (!(sourceOptions!.EmitDecoratorMetadata === (0 as number))) {
+    targetOptions!.EmitDecoratorMetadata = sourceOptions!.EmitDecoratorMetadata;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'declaration')) {
+    targetOptions!.Declaration = 0;
+  } else if (!(sourceOptions!.Declaration === (0 as number))) {
+    targetOptions!.Declaration = sourceOptions!.Declaration;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'declarationDir')) {
+    targetOptions!.DeclarationDir = '';
+  } else if (!(sourceOptions!.DeclarationDir === ('' as string))) {
+    targetOptions!.DeclarationDir = sourceOptions!.DeclarationDir;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'declarationMap')) {
+    targetOptions!.DeclarationMap = 0;
+  } else if (!(sourceOptions!.DeclarationMap === (0 as number))) {
+    targetOptions!.DeclarationMap = sourceOptions!.DeclarationMap;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'deduplicatePackages')) {
+    targetOptions!.DeduplicatePackages = 0;
+  } else if (!(sourceOptions!.DeduplicatePackages === (0 as number))) {
+    targetOptions!.DeduplicatePackages = sourceOptions!.DeduplicatePackages;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'disableSizeLimit')) {
+    targetOptions!.DisableSizeLimit = 0;
+  } else if (!(sourceOptions!.DisableSizeLimit === (0 as number))) {
+    targetOptions!.DisableSizeLimit = sourceOptions!.DisableSizeLimit;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'disableSourceOfProjectReferenceRedirect')) {
+    targetOptions!.DisableSourceOfProjectReferenceRedirect = 0;
+  } else if (!(sourceOptions!.DisableSourceOfProjectReferenceRedirect === (0 as number))) {
+    targetOptions!.DisableSourceOfProjectReferenceRedirect = sourceOptions!.DisableSourceOfProjectReferenceRedirect;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'disableSolutionSearching')) {
+    targetOptions!.DisableSolutionSearching = 0;
+  } else if (!(sourceOptions!.DisableSolutionSearching === (0 as number))) {
+    targetOptions!.DisableSolutionSearching = sourceOptions!.DisableSolutionSearching;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'disableReferencedProjectLoad')) {
+    targetOptions!.DisableReferencedProjectLoad = 0;
+  } else if (!(sourceOptions!.DisableReferencedProjectLoad === (0 as number))) {
+    targetOptions!.DisableReferencedProjectLoad = sourceOptions!.DisableReferencedProjectLoad;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'erasableSyntaxOnly')) {
+    targetOptions!.ErasableSyntaxOnly = 0;
+  } else if (!(sourceOptions!.ErasableSyntaxOnly === (0 as number))) {
+    targetOptions!.ErasableSyntaxOnly = sourceOptions!.ErasableSyntaxOnly;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'exactOptionalPropertyTypes')) {
+    targetOptions!.ExactOptionalPropertyTypes = 0;
+  } else if (!(sourceOptions!.ExactOptionalPropertyTypes === (0 as number))) {
+    targetOptions!.ExactOptionalPropertyTypes = sourceOptions!.ExactOptionalPropertyTypes;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'experimentalDecorators')) {
+    targetOptions!.ExperimentalDecorators = 0;
+  } else if (!(sourceOptions!.ExperimentalDecorators === (0 as number))) {
+    targetOptions!.ExperimentalDecorators = sourceOptions!.ExperimentalDecorators;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'forceConsistentCasingInFileNames')) {
+    targetOptions!.ForceConsistentCasingInFileNames = 0;
+  } else if (!(sourceOptions!.ForceConsistentCasingInFileNames === (0 as number))) {
+    targetOptions!.ForceConsistentCasingInFileNames = sourceOptions!.ForceConsistentCasingInFileNames;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'isolatedModules')) {
+    targetOptions!.IsolatedModules = 0;
+  } else if (!(sourceOptions!.IsolatedModules === (0 as number))) {
+    targetOptions!.IsolatedModules = sourceOptions!.IsolatedModules;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'isolatedDeclarations')) {
+    targetOptions!.IsolatedDeclarations = 0;
+  } else if (!(sourceOptions!.IsolatedDeclarations === (0 as number))) {
+    targetOptions!.IsolatedDeclarations = sourceOptions!.IsolatedDeclarations;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'ignoreConfig')) {
+    targetOptions!.IgnoreConfig = 0;
+  } else if (!(sourceOptions!.IgnoreConfig === (0 as number))) {
+    targetOptions!.IgnoreConfig = sourceOptions!.IgnoreConfig;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'ignoreDeprecations')) {
+    targetOptions!.IgnoreDeprecations = '';
+  } else if (!(sourceOptions!.IgnoreDeprecations === ('' as string))) {
+    targetOptions!.IgnoreDeprecations = sourceOptions!.IgnoreDeprecations;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'importHelpers')) {
+    targetOptions!.ImportHelpers = 0;
+  } else if (!(sourceOptions!.ImportHelpers === (0 as number))) {
+    targetOptions!.ImportHelpers = sourceOptions!.ImportHelpers;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'inlineSourceMap')) {
+    targetOptions!.InlineSourceMap = 0;
+  } else if (!(sourceOptions!.InlineSourceMap === (0 as number))) {
+    targetOptions!.InlineSourceMap = sourceOptions!.InlineSourceMap;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'inlineSources')) {
+    targetOptions!.InlineSources = 0;
+  } else if (!(sourceOptions!.InlineSources === (0 as number))) {
+    targetOptions!.InlineSources = sourceOptions!.InlineSources;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'init')) {
+    targetOptions!.Init = 0;
+  } else if (!(sourceOptions!.Init === (0 as number))) {
+    targetOptions!.Init = sourceOptions!.Init;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'incremental')) {
+    targetOptions!.Incremental = 0;
+  } else if (!(sourceOptions!.Incremental === (0 as number))) {
+    targetOptions!.Incremental = sourceOptions!.Incremental;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'jsx')) {
+    targetOptions!.Jsx = 0;
+  } else if (!(sourceOptions!.Jsx === (0 as number))) {
+    targetOptions!.Jsx = sourceOptions!.Jsx;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'jsxFactory')) {
+    targetOptions!.JsxFactory = '';
+  } else if (!(sourceOptions!.JsxFactory === ('' as string))) {
+    targetOptions!.JsxFactory = sourceOptions!.JsxFactory;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'jsxFragmentFactory')) {
+    targetOptions!.JsxFragmentFactory = '';
+  } else if (!(sourceOptions!.JsxFragmentFactory === ('' as string))) {
+    targetOptions!.JsxFragmentFactory = sourceOptions!.JsxFragmentFactory;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'jsxImportSource')) {
+    targetOptions!.JsxImportSource = '';
+  } else if (!(sourceOptions!.JsxImportSource === ('' as string))) {
+    targetOptions!.JsxImportSource = sourceOptions!.JsxImportSource;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'lib')) {
+    targetOptions!.Lib = [];
+  } else if (!(sourceOptions!.Lib.length === 0)) {
+    targetOptions!.Lib = sourceOptions!.Lib;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'libReplacement')) {
+    targetOptions!.LibReplacement = 0;
+  } else if (!(sourceOptions!.LibReplacement === (0 as number))) {
+    targetOptions!.LibReplacement = sourceOptions!.LibReplacement;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'locale')) {
+    targetOptions!.Locale = '';
+  } else if (!(sourceOptions!.Locale === ('' as string))) {
+    targetOptions!.Locale = sourceOptions!.Locale;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'mapRoot')) {
+    targetOptions!.MapRoot = '';
+  } else if (!(sourceOptions!.MapRoot === ('' as string))) {
+    targetOptions!.MapRoot = sourceOptions!.MapRoot;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'module')) {
+    targetOptions!.Module = 0;
+  } else if (!(sourceOptions!.Module === (0 as number))) {
+    targetOptions!.Module = sourceOptions!.Module;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'moduleResolution')) {
+    targetOptions!.ModuleResolution = 0;
+  } else if (!(sourceOptions!.ModuleResolution === (0 as number))) {
+    targetOptions!.ModuleResolution = sourceOptions!.ModuleResolution;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'moduleSuffixes')) {
+    targetOptions!.ModuleSuffixes = [];
+  } else if (!(sourceOptions!.ModuleSuffixes.length === 0)) {
+    targetOptions!.ModuleSuffixes = sourceOptions!.ModuleSuffixes;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'moduleDetection')) {
+    targetOptions!.ModuleDetection = 0;
+  } else if (!(sourceOptions!.ModuleDetection === (0 as number))) {
+    targetOptions!.ModuleDetection = sourceOptions!.ModuleDetection;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'newLine')) {
+    targetOptions!.NewLine = 0;
+  } else if (!(sourceOptions!.NewLine === (0 as number))) {
+    targetOptions!.NewLine = sourceOptions!.NewLine;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'noEmit')) {
+    targetOptions!.NoEmit = 0;
+  } else if (!(sourceOptions!.NoEmit === (0 as number))) {
+    targetOptions!.NoEmit = sourceOptions!.NoEmit;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'noCheck')) {
+    targetOptions!.NoCheck = 0;
+  } else if (!(sourceOptions!.NoCheck === (0 as number))) {
+    targetOptions!.NoCheck = sourceOptions!.NoCheck;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'noErrorTruncation')) {
+    targetOptions!.NoErrorTruncation = 0;
+  } else if (!(sourceOptions!.NoErrorTruncation === (0 as number))) {
+    targetOptions!.NoErrorTruncation = sourceOptions!.NoErrorTruncation;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'noFallthroughCasesInSwitch')) {
+    targetOptions!.NoFallthroughCasesInSwitch = 0;
+  } else if (!(sourceOptions!.NoFallthroughCasesInSwitch === (0 as number))) {
+    targetOptions!.NoFallthroughCasesInSwitch = sourceOptions!.NoFallthroughCasesInSwitch;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'noImplicitAny')) {
+    targetOptions!.NoImplicitAny = 0;
+  } else if (!(sourceOptions!.NoImplicitAny === (0 as number))) {
+    targetOptions!.NoImplicitAny = sourceOptions!.NoImplicitAny;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'noImplicitThis')) {
+    targetOptions!.NoImplicitThis = 0;
+  } else if (!(sourceOptions!.NoImplicitThis === (0 as number))) {
+    targetOptions!.NoImplicitThis = sourceOptions!.NoImplicitThis;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'noImplicitReturns')) {
+    targetOptions!.NoImplicitReturns = 0;
+  } else if (!(sourceOptions!.NoImplicitReturns === (0 as number))) {
+    targetOptions!.NoImplicitReturns = sourceOptions!.NoImplicitReturns;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'noEmitHelpers')) {
+    targetOptions!.NoEmitHelpers = 0;
+  } else if (!(sourceOptions!.NoEmitHelpers === (0 as number))) {
+    targetOptions!.NoEmitHelpers = sourceOptions!.NoEmitHelpers;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'noLib')) {
+    targetOptions!.NoLib = 0;
+  } else if (!(sourceOptions!.NoLib === (0 as number))) {
+    targetOptions!.NoLib = sourceOptions!.NoLib;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'noPropertyAccessFromIndexSignature')) {
+    targetOptions!.NoPropertyAccessFromIndexSignature = 0;
+  } else if (!(sourceOptions!.NoPropertyAccessFromIndexSignature === (0 as number))) {
+    targetOptions!.NoPropertyAccessFromIndexSignature = sourceOptions!.NoPropertyAccessFromIndexSignature;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'noUncheckedIndexedAccess')) {
+    targetOptions!.NoUncheckedIndexedAccess = 0;
+  } else if (!(sourceOptions!.NoUncheckedIndexedAccess === (0 as number))) {
+    targetOptions!.NoUncheckedIndexedAccess = sourceOptions!.NoUncheckedIndexedAccess;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'noEmitOnError')) {
+    targetOptions!.NoEmitOnError = 0;
+  } else if (!(sourceOptions!.NoEmitOnError === (0 as number))) {
+    targetOptions!.NoEmitOnError = sourceOptions!.NoEmitOnError;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'noUnusedLocals')) {
+    targetOptions!.NoUnusedLocals = 0;
+  } else if (!(sourceOptions!.NoUnusedLocals === (0 as number))) {
+    targetOptions!.NoUnusedLocals = sourceOptions!.NoUnusedLocals;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'noUnusedParameters')) {
+    targetOptions!.NoUnusedParameters = 0;
+  } else if (!(sourceOptions!.NoUnusedParameters === (0 as number))) {
+    targetOptions!.NoUnusedParameters = sourceOptions!.NoUnusedParameters;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'noResolve')) {
+    targetOptions!.NoResolve = 0;
+  } else if (!(sourceOptions!.NoResolve === (0 as number))) {
+    targetOptions!.NoResolve = sourceOptions!.NoResolve;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'noImplicitOverride')) {
+    targetOptions!.NoImplicitOverride = 0;
+  } else if (!(sourceOptions!.NoImplicitOverride === (0 as number))) {
+    targetOptions!.NoImplicitOverride = sourceOptions!.NoImplicitOverride;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'noUncheckedSideEffectImports')) {
+    targetOptions!.NoUncheckedSideEffectImports = 0;
+  } else if (!(sourceOptions!.NoUncheckedSideEffectImports === (0 as number))) {
+    targetOptions!.NoUncheckedSideEffectImports = sourceOptions!.NoUncheckedSideEffectImports;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'outDir')) {
+    targetOptions!.OutDir = '';
+  } else if (!(sourceOptions!.OutDir === ('' as string))) {
+    targetOptions!.OutDir = sourceOptions!.OutDir;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'paths')) {
+    targetOptions!.Paths = undefined as $collections.OrderedMap<string, string[]> | undefined;
+  } else if (!(sourceOptions!.Paths === undefined)) {
+    targetOptions!.Paths = sourceOptions!.Paths;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'preserveConstEnums')) {
+    targetOptions!.PreserveConstEnums = 0;
+  } else if (!(sourceOptions!.PreserveConstEnums === (0 as number))) {
+    targetOptions!.PreserveConstEnums = sourceOptions!.PreserveConstEnums;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'preserveSymlinks')) {
+    targetOptions!.PreserveSymlinks = 0;
+  } else if (!(sourceOptions!.PreserveSymlinks === (0 as number))) {
+    targetOptions!.PreserveSymlinks = sourceOptions!.PreserveSymlinks;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'project')) {
+    targetOptions!.Project = '';
+  } else if (!(sourceOptions!.Project === ('' as string))) {
+    targetOptions!.Project = sourceOptions!.Project;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'resolveJsonModule')) {
+    targetOptions!.ResolveJsonModule = 0;
+  } else if (!(sourceOptions!.ResolveJsonModule === (0 as number))) {
+    targetOptions!.ResolveJsonModule = sourceOptions!.ResolveJsonModule;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'resolvePackageJsonExports')) {
+    targetOptions!.ResolvePackageJsonExports = 0;
+  } else if (!(sourceOptions!.ResolvePackageJsonExports === (0 as number))) {
+    targetOptions!.ResolvePackageJsonExports = sourceOptions!.ResolvePackageJsonExports;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'resolvePackageJsonImports')) {
+    targetOptions!.ResolvePackageJsonImports = 0;
+  } else if (!(sourceOptions!.ResolvePackageJsonImports === (0 as number))) {
+    targetOptions!.ResolvePackageJsonImports = sourceOptions!.ResolvePackageJsonImports;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'removeComments')) {
+    targetOptions!.RemoveComments = 0;
+  } else if (!(sourceOptions!.RemoveComments === (0 as number))) {
+    targetOptions!.RemoveComments = sourceOptions!.RemoveComments;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'rewriteRelativeImportExtensions')) {
+    targetOptions!.RewriteRelativeImportExtensions = 0;
+  } else if (!(sourceOptions!.RewriteRelativeImportExtensions === (0 as number))) {
+    targetOptions!.RewriteRelativeImportExtensions = sourceOptions!.RewriteRelativeImportExtensions;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'reactNamespace')) {
+    targetOptions!.ReactNamespace = '';
+  } else if (!(sourceOptions!.ReactNamespace === ('' as string))) {
+    targetOptions!.ReactNamespace = sourceOptions!.ReactNamespace;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'rootDir')) {
+    targetOptions!.RootDir = '';
+  } else if (!(sourceOptions!.RootDir === ('' as string))) {
+    targetOptions!.RootDir = sourceOptions!.RootDir;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'rootDirs')) {
+    targetOptions!.RootDirs = [];
+  } else if (!(sourceOptions!.RootDirs.length === 0)) {
+    targetOptions!.RootDirs = sourceOptions!.RootDirs;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'skipLibCheck')) {
+    targetOptions!.SkipLibCheck = 0;
+  } else if (!(sourceOptions!.SkipLibCheck === (0 as number))) {
+    targetOptions!.SkipLibCheck = sourceOptions!.SkipLibCheck;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'stableTypeOrdering')) {
+    targetOptions!.StableTypeOrdering = 0;
+  } else if (!(sourceOptions!.StableTypeOrdering === (0 as number))) {
+    targetOptions!.StableTypeOrdering = sourceOptions!.StableTypeOrdering;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'strict')) {
+    targetOptions!.Strict = 0;
+  } else if (!(sourceOptions!.Strict === (0 as number))) {
+    targetOptions!.Strict = sourceOptions!.Strict;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'strictBindCallApply')) {
+    targetOptions!.StrictBindCallApply = 0;
+  } else if (!(sourceOptions!.StrictBindCallApply === (0 as number))) {
+    targetOptions!.StrictBindCallApply = sourceOptions!.StrictBindCallApply;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'strictBuiltinIteratorReturn')) {
+    targetOptions!.StrictBuiltinIteratorReturn = 0;
+  } else if (!(sourceOptions!.StrictBuiltinIteratorReturn === (0 as number))) {
+    targetOptions!.StrictBuiltinIteratorReturn = sourceOptions!.StrictBuiltinIteratorReturn;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'strictFunctionTypes')) {
+    targetOptions!.StrictFunctionTypes = 0;
+  } else if (!(sourceOptions!.StrictFunctionTypes === (0 as number))) {
+    targetOptions!.StrictFunctionTypes = sourceOptions!.StrictFunctionTypes;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'strictNullChecks')) {
+    targetOptions!.StrictNullChecks = 0;
+  } else if (!(sourceOptions!.StrictNullChecks === (0 as number))) {
+    targetOptions!.StrictNullChecks = sourceOptions!.StrictNullChecks;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'strictPropertyInitialization')) {
+    targetOptions!.StrictPropertyInitialization = 0;
+  } else if (!(sourceOptions!.StrictPropertyInitialization === (0 as number))) {
+    targetOptions!.StrictPropertyInitialization = sourceOptions!.StrictPropertyInitialization;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'stripInternal')) {
+    targetOptions!.StripInternal = 0;
+  } else if (!(sourceOptions!.StripInternal === (0 as number))) {
+    targetOptions!.StripInternal = sourceOptions!.StripInternal;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'skipDefaultLibCheck')) {
+    targetOptions!.SkipDefaultLibCheck = 0;
+  } else if (!(sourceOptions!.SkipDefaultLibCheck === (0 as number))) {
+    targetOptions!.SkipDefaultLibCheck = sourceOptions!.SkipDefaultLibCheck;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'sourceMap')) {
+    targetOptions!.SourceMap = 0;
+  } else if (!(sourceOptions!.SourceMap === (0 as number))) {
+    targetOptions!.SourceMap = sourceOptions!.SourceMap;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'sourceRoot')) {
+    targetOptions!.SourceRoot = '';
+  } else if (!(sourceOptions!.SourceRoot === ('' as string))) {
+    targetOptions!.SourceRoot = sourceOptions!.SourceRoot;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'suppressOutputPathCheck')) {
+    targetOptions!.SuppressOutputPathCheck = 0;
+  } else if (!(sourceOptions!.SuppressOutputPathCheck === (0 as number))) {
+    targetOptions!.SuppressOutputPathCheck = sourceOptions!.SuppressOutputPathCheck;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'target')) {
+    targetOptions!.Target = 0;
+  } else if (!(sourceOptions!.Target === (0 as number))) {
+    targetOptions!.Target = sourceOptions!.Target;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'traceResolution')) {
+    targetOptions!.TraceResolution = 0;
+  } else if (!(sourceOptions!.TraceResolution === (0 as number))) {
+    targetOptions!.TraceResolution = sourceOptions!.TraceResolution;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'tsBuildInfoFile')) {
+    targetOptions!.TsBuildInfoFile = '';
+  } else if (!(sourceOptions!.TsBuildInfoFile === ('' as string))) {
+    targetOptions!.TsBuildInfoFile = sourceOptions!.TsBuildInfoFile;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'typeRoots')) {
+    targetOptions!.TypeRoots = [];
+  } else if (!(sourceOptions!.TypeRoots.length === 0)) {
+    targetOptions!.TypeRoots = sourceOptions!.TypeRoots;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'types')) {
+    targetOptions!.Types = [];
+  } else if (!(sourceOptions!.Types.length === 0)) {
+    targetOptions!.Types = sourceOptions!.Types;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'useDefineForClassFields')) {
+    targetOptions!.UseDefineForClassFields = 0;
+  } else if (!(sourceOptions!.UseDefineForClassFields === (0 as number))) {
+    targetOptions!.UseDefineForClassFields = sourceOptions!.UseDefineForClassFields;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'useUnknownInCatchVariables')) {
+    targetOptions!.UseUnknownInCatchVariables = 0;
+  } else if (!(sourceOptions!.UseUnknownInCatchVariables === (0 as number))) {
+    targetOptions!.UseUnknownInCatchVariables = sourceOptions!.UseUnknownInCatchVariables;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'verbatimModuleSyntax')) {
+    targetOptions!.VerbatimModuleSyntax = 0;
+  } else if (!(sourceOptions!.VerbatimModuleSyntax === (0 as number))) {
+    targetOptions!.VerbatimModuleSyntax = sourceOptions!.VerbatimModuleSyntax;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'maxNodeModuleJsDepth')) {
+    targetOptions!.MaxNodeModuleJsDepth = undefined as $rt.Ptr<number> | undefined;
+  } else if (!(sourceOptions!.MaxNodeModuleJsDepth === undefined)) {
+    targetOptions!.MaxNodeModuleJsDepth = sourceOptions!.MaxNodeModuleJsDepth;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'allowSyntheticDefaultImports')) {
+    targetOptions!.AllowSyntheticDefaultImports = 0;
+  } else if (!(sourceOptions!.AllowSyntheticDefaultImports === (0 as number))) {
+    targetOptions!.AllowSyntheticDefaultImports = sourceOptions!.AllowSyntheticDefaultImports;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'alwaysStrict')) {
+    targetOptions!.AlwaysStrict = 0;
+  } else if (!(sourceOptions!.AlwaysStrict === (0 as number))) {
+    targetOptions!.AlwaysStrict = sourceOptions!.AlwaysStrict;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'baseUrl')) {
+    targetOptions!.BaseUrl = '';
+  } else if (!(sourceOptions!.BaseUrl === ('' as string))) {
+    targetOptions!.BaseUrl = sourceOptions!.BaseUrl;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'downlevelIteration')) {
+    targetOptions!.DownlevelIteration = 0;
+  } else if (!(sourceOptions!.DownlevelIteration === (0 as number))) {
+    targetOptions!.DownlevelIteration = sourceOptions!.DownlevelIteration;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'esModuleInterop')) {
+    targetOptions!.ESModuleInterop = 0;
+  } else if (!(sourceOptions!.ESModuleInterop === (0 as number))) {
+    targetOptions!.ESModuleInterop = sourceOptions!.ESModuleInterop;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'outFile')) {
+    targetOptions!.OutFile = '';
+  } else if (!(sourceOptions!.OutFile === ('' as string))) {
+    targetOptions!.OutFile = sourceOptions!.OutFile;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'configFilePath')) {
+    targetOptions!.ConfigFilePath = '';
+  } else if (!(sourceOptions!.ConfigFilePath === ('' as string))) {
+    targetOptions!.ConfigFilePath = sourceOptions!.ConfigFilePath;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'noDtsResolution')) {
+    targetOptions!.NoDtsResolution = 0;
+  } else if (!(sourceOptions!.NoDtsResolution === (0 as number))) {
+    targetOptions!.NoDtsResolution = sourceOptions!.NoDtsResolution;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'pathsBasePath')) {
+    targetOptions!.PathsBasePath = '';
+  } else if (!(sourceOptions!.PathsBasePath === ('' as string))) {
+    targetOptions!.PathsBasePath = sourceOptions!.PathsBasePath;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'diagnostics')) {
+    targetOptions!.Diagnostics = 0;
+  } else if (!(sourceOptions!.Diagnostics === (0 as number))) {
+    targetOptions!.Diagnostics = sourceOptions!.Diagnostics;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'extendedDiagnostics')) {
+    targetOptions!.ExtendedDiagnostics = 0;
+  } else if (!(sourceOptions!.ExtendedDiagnostics === (0 as number))) {
+    targetOptions!.ExtendedDiagnostics = sourceOptions!.ExtendedDiagnostics;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'generateCpuProfile')) {
+    targetOptions!.GenerateCpuProfile = '';
+  } else if (!(sourceOptions!.GenerateCpuProfile === ('' as string))) {
+    targetOptions!.GenerateCpuProfile = sourceOptions!.GenerateCpuProfile;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'generateTrace')) {
+    targetOptions!.GenerateTrace = '';
+  } else if (!(sourceOptions!.GenerateTrace === ('' as string))) {
+    targetOptions!.GenerateTrace = sourceOptions!.GenerateTrace;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'listEmittedFiles')) {
+    targetOptions!.ListEmittedFiles = 0;
+  } else if (!(sourceOptions!.ListEmittedFiles === (0 as number))) {
+    targetOptions!.ListEmittedFiles = sourceOptions!.ListEmittedFiles;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'listFiles')) {
+    targetOptions!.ListFiles = 0;
+  } else if (!(sourceOptions!.ListFiles === (0 as number))) {
+    targetOptions!.ListFiles = sourceOptions!.ListFiles;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'explainFiles')) {
+    targetOptions!.ExplainFiles = 0;
+  } else if (!(sourceOptions!.ExplainFiles === (0 as number))) {
+    targetOptions!.ExplainFiles = sourceOptions!.ExplainFiles;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'listFilesOnly')) {
+    targetOptions!.ListFilesOnly = 0;
+  } else if (!(sourceOptions!.ListFilesOnly === (0 as number))) {
+    targetOptions!.ListFilesOnly = sourceOptions!.ListFilesOnly;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'noEmitForJsFiles')) {
+    targetOptions!.NoEmitForJsFiles = 0;
+  } else if (!(sourceOptions!.NoEmitForJsFiles === (0 as number))) {
+    targetOptions!.NoEmitForJsFiles = sourceOptions!.NoEmitForJsFiles;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'preserveWatchOutput')) {
+    targetOptions!.PreserveWatchOutput = 0;
+  } else if (!(sourceOptions!.PreserveWatchOutput === (0 as number))) {
+    targetOptions!.PreserveWatchOutput = sourceOptions!.PreserveWatchOutput;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'pretty')) {
+    targetOptions!.Pretty = 0;
+  } else if (!(sourceOptions!.Pretty === (0 as number))) {
+    targetOptions!.Pretty = sourceOptions!.Pretty;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'version')) {
+    targetOptions!.Version = 0;
+  } else if (!(sourceOptions!.Version === (0 as number))) {
+    targetOptions!.Version = sourceOptions!.Version;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'watch')) {
+    targetOptions!.Watch = 0;
+  } else if (!(sourceOptions!.Watch === (0 as number))) {
+    targetOptions!.Watch = sourceOptions!.Watch;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'showConfig')) {
+    targetOptions!.ShowConfig = 0;
+  } else if (!(sourceOptions!.ShowConfig === (0 as number))) {
+    targetOptions!.ShowConfig = sourceOptions!.ShowConfig;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'build')) {
+    targetOptions!.Build = 0;
+  } else if (!(sourceOptions!.Build === (0 as number))) {
+    targetOptions!.Build = sourceOptions!.Build;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'help')) {
+    targetOptions!.Help = 0;
+  } else if (!(sourceOptions!.Help === (0 as number))) {
+    targetOptions!.Help = sourceOptions!.Help;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'all')) {
+    targetOptions!.All = 0;
+  } else if (!(sourceOptions!.All === (0 as number))) {
+    targetOptions!.All = sourceOptions!.All;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'runExternalCode')) {
+    targetOptions!.RunExternalCode = 0;
+  } else if (!(sourceOptions!.RunExternalCode === (0 as number))) {
+    targetOptions!.RunExternalCode = sourceOptions!.RunExternalCode;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'pprofDir')) {
+    targetOptions!.PprofDir = '';
+  } else if (!(sourceOptions!.PprofDir === ('' as string))) {
+    targetOptions!.PprofDir = sourceOptions!.PprofDir;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'singleThreaded')) {
+    targetOptions!.SingleThreaded = 0;
+  } else if (!(sourceOptions!.SingleThreaded === (0 as number))) {
+    targetOptions!.SingleThreaded = sourceOptions!.SingleThreaded;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'quiet')) {
+    targetOptions!.Quiet = 0;
+  } else if (!(sourceOptions!.Quiet === (0 as number))) {
+    targetOptions!.Quiet = sourceOptions!.Quiet;
+  }
+  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'checkers')) {
+    targetOptions!.Checkers = undefined as $rt.Ptr<number> | undefined;
+  } else if (!(sourceOptions!.Checkers === undefined)) {
+    targetOptions!.Checkers = sourceOptions!.Checkers;
   }
   return targetOptions;
 }
@@ -7877,15 +8522,17 @@ export function convertToOptionsWithAbsolutePaths(
   let $t2: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined = undefined as
     | $collections.OrderedMap<string, $rt.GoObject | undefined>
     | undefined;
-  optionsBase!.Entries()!((o: string, v: $rt.GoObject | undefined): boolean => {
-    const $t3 = ConvertOptionToAbsolutePath(o, v, optionMap, cwd);
-    const result: $rt.GoObject | undefined = $t3[0];
-    const ok: boolean = $t3[1];
-    if (ok) {
-      optionsBase!.Set(o, result);
-    }
-    return true;
-  });
+  $collections$OrderedMap.Entries$nil<string, $rt.GoObject | undefined>($zf0, $zf1, optionsBase)!(
+    (o: string, v: $rt.GoObject | undefined): boolean => {
+      const $t3 = ConvertOptionToAbsolutePath(o, v, optionMap, cwd);
+      const result: $rt.GoObject | undefined = $t3[0];
+      const ok: boolean = $t3[1];
+      if (ok) {
+        optionsBase!.Set(o, result);
+      }
+      return true;
+    },
+  );
   return optionsBase;
 }
 export function ConvertOptionToAbsolutePath(
@@ -8086,14 +8733,16 @@ export function getNameOfCompilerOptionValue(
 ): string {
   let $t1 = false;
   let $t2: string = '';
-  enumMap!.Entries()!((k: string, v: $rt.GoObject | undefined): boolean => {
-    if ($rt.ifaceEq(v, value)) {
-      $t2 = k;
-      $t1 = true;
-      return false;
-    }
-    return true;
-  });
+  $collections$OrderedMap.Entries$nil<string, $rt.GoObject | undefined>($zf0, $zf1, enumMap)!(
+    (k: string, v: $rt.GoObject | undefined): boolean => {
+      if ($rt.ifaceEq(v, value)) {
+        $t2 = k;
+        $t1 = true;
+        return false;
+      }
+      return true;
+    },
+  );
   if ($t1) return $t2;
   return '';
 }
@@ -8261,15 +8910,17 @@ export function serializeEnumValue(
     const intVal: number = rv.Int();
     let $t1 = false;
     let $t2: string = '';
-    enumMap!.Entries()!((k: string, v: $rt.GoObject | undefined): boolean => {
-      const ev: $rt.reflect_Value = $rt.reflect_ValueOf(v);
-      if (ev.CanInt() && ev.Int() === intVal) {
-        $t2 = k;
-        $t1 = true;
-        return false;
-      }
-      return true;
-    });
+    $collections$OrderedMap.Entries$nil<string, $rt.GoObject | undefined>($zf0, $zf1, enumMap)!(
+      (k: string, v: $rt.GoObject | undefined): boolean => {
+        const ev: $rt.reflect_Value = $rt.reflect_ValueOf(v);
+        if (ev.CanInt() && ev.Int() === intVal) {
+          $t2 = k;
+          $t1 = true;
+          return false;
+        }
+        return true;
+      },
+    );
     if ($t1) return $t2;
   }
   return getNameOfCompilerOptionValue(value, enumMap);
@@ -8283,7 +8934,7 @@ export function addImpliedOptions(
   const provided: Map<string, boolean> | undefined = new Map<string, boolean>();
   let $t1 = false;
   let $t2: undefined = undefined;
-  optionMap!.Keys()!((k: string): boolean => {
+  $collections$OrderedMap.Keys$nil<string, $rt.GoObject | undefined>($zf0, $zf1, optionMap)!((k: string): boolean => {
     provided!.set(k, true);
     return true;
   });
@@ -8587,6 +9238,41 @@ export function convertConfigFileToObject(
   }
   return convertToJson(sourceFile, rootExpression, true, jsonConversionNotifier$v);
 }
+export function isSliceJSONValue(v: $rt.GoObject | undefined): boolean {
+  {
+    const $t1: $rt.GoObject | undefined = v;
+    $sw2: {
+      if ($t1 instanceof $boxes.Box___any || $t1 instanceof $boxes.Box___string) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+export function isStringJSONValue(v: $rt.GoObject | undefined): boolean {
+  const $t1: $rt.GoObject | undefined = v;
+  const $t2: boolean = $rt.isValue($t1, 'string');
+  const ok: boolean = $t2;
+  return ok;
+}
+export function isBoolJSONValue(v: $rt.GoObject | undefined): boolean {
+  const $t1: $rt.GoObject | undefined = v;
+  const $t2: boolean = $rt.isValue($t1, 'bool');
+  const ok: boolean = $t2;
+  return ok;
+}
+export function isFloatJSONValue(v: $rt.GoObject | undefined): boolean {
+  const $t1: $rt.GoObject | undefined = v;
+  const $t2: boolean = $rt.isValue($t1, 'float64');
+  const ok: boolean = $t2;
+  return ok;
+}
+export function isOrderedMapJSONValue(v: $rt.GoObject | undefined): boolean {
+  const $t1: $rt.GoObject | undefined = v;
+  const $t2: boolean = $t1 instanceof $boxes.Box__collections_OrderedMap_string__any_;
+  const ok: boolean = $t2;
+  return ok;
+}
 export function isCompilerOptionsValue(
   option: CommandLineOption | undefined,
   value: $rt.GoObject | undefined,
@@ -8596,28 +9282,28 @@ export function isCompilerOptionsValue(
       return !option!.DisallowNullOrUndefined();
     }
     if (option!.Kind === ('list' as string)) {
-      return $rt.reflect_TypeOf(value)!.Kind() === (23 as number);
+      return isSliceJSONValue(value);
     }
     if (option!.Kind === ('listOrElement' as string)) {
-      if ($rt.reflect_TypeOf(value)!.Kind() === (23 as number)) {
+      if (isSliceJSONValue(value)) {
         return true;
       } else {
         return isCompilerOptionsValue(option!.Elements(), value);
       }
     }
     if (option!.Kind === ('string' as string)) {
-      return $rt.reflect_TypeOf(value)!.Kind() === (24 as number);
+      return isStringJSONValue(value);
     }
     if (option!.Kind === ('boolean' as string)) {
-      return $rt.reflect_TypeOf(value)!.Kind() === (1 as number);
+      return isBoolJSONValue(value);
     }
     if (option!.Kind === ('number' as string)) {
-      return $rt.reflect_TypeOf(value)!.Kind() === (14 as number);
+      return isFloatJSONValue(value);
     }
     if (option!.Kind === ('object' as string)) {
-      return $rt.ifaceEq($rt.reflect_TypeOf(value), orderedMapType);
+      return isOrderedMapJSONValue(value);
     }
-    if (option!.Kind === ('enum' as string) && $rt.reflect_TypeOf(value)!.Kind() === (24 as number)) {
+    if (option!.Kind === ('enum' as string) && isStringJSONValue(value)) {
       return true;
     }
   }
@@ -8796,7 +9482,7 @@ export function convertJsonOption(
           return [new $boxes.Box___any($t1[0]), $t1[1]];
         }
         case 'listOrElement' as string: {
-          if ($rt.reflect_TypeOf(value)!.Kind() === (23 as number)) {
+          if (isSliceJSONValue(value)) {
             const $t2 = convertJsonOptionOfListType(
               opt,
               value,
@@ -8872,7 +9558,7 @@ export function getExtendsConfigPathOrArray(
     const errors: ($ast.Diagnostic | undefined)[] = $t1[1];
     return [extendedConfigPathArray, errors];
   }
-  if ($rt.reflect_TypeOf(value)!.Kind() === (24 as number)) {
+  if (isStringJSONValue(value)) {
     const $t2 = getExtendsConfigPath(
       $rt.checkString($rt.isValue(value, 'string'), value),
       host,
@@ -8888,7 +9574,7 @@ export function getExtendsConfigPathOrArray(
     return [extendedConfigPathArray, err];
   }
   let errors$1: ($ast.Diagnostic | undefined)[] = [];
-  if ($rt.reflect_TypeOf(value)!.Kind() === (23 as number)) {
+  if (isSliceJSONValue(value)) {
     {
       const $t3 =
         value instanceof $boxes.Box___any
@@ -8901,7 +9587,7 @@ export function getExtendsConfigPathOrArray(
         if (!(valueExpression === undefined)) {
           expression = valueExpression!.Elements()[index];
         }
-        if ($rt.reflect_TypeOf(fileName)!.Kind() === (24 as number)) {
+        if (isStringJSONValue(fileName)) {
           const $t5 = getExtendsConfigPath(
             $rt.checkString($rt.isValue(fileName, 'string'), fileName),
             host,
@@ -9013,12 +9699,12 @@ export function CommandLineOptionNameMap$Get(
   m: CommandLineOptionNameMap,
   name_: string,
 ): CommandLineOption | undefined {
-  const $t1 = m;
+  const $t1: CommandLineOptionNameMap = m;
   const $t2 = name_;
   let opt: CommandLineOption | undefined = $t1?.get($t2) ?? undefined;
   const ok: boolean = $t1 !== undefined && $t1.has($t2);
   if (!ok) {
-    const $t3 = m;
+    const $t3: CommandLineOptionNameMap = m;
     const $t4 = $rt.strings_ToLower(name_);
     opt = $t3?.get($t4) ?? undefined;
   }
@@ -9051,10 +9737,12 @@ export function convertMapToOptions<O extends optionParser>(
 ): O {
   let $t1 = false;
   let $t2: O = undefined as unknown as O;
-  compilerOptions!.Entries()!((key: string, value: $rt.GoObject | undefined): boolean => {
-    result!.ParseOption(key, value);
-    return true;
-  });
+  $collections$OrderedMap.Entries$nil<string, $rt.GoObject | undefined>($zf0, $zf1, compilerOptions)!(
+    (key: string, value: $rt.GoObject | undefined): boolean => {
+      result!.ParseOption(key, value);
+      return true;
+    },
+  );
   return result;
 }
 export function convertOptionsFromJson<O extends optionParser>(
@@ -9078,42 +9766,44 @@ export function convertOptionsFromJson<O extends optionParser>(
   let errors: ($ast.Diagnostic | undefined)[] = [];
   let $t3 = false;
   let $t4: [O, ($ast.Diagnostic | undefined)[]] = [undefined as unknown as O, []];
-  jsonMap!.Entries()!((key: string, value: $rt.GoObject | undefined): boolean => {
-    const opt: CommandLineOption | undefined = CommandLineOptionNameMap$Get(optionsNameMap!, key);
-    if (!(opt === undefined) && !(opt!.Name === key)) {
-      errors.push(
-        CreateDiagnosticForNodeInSourceFileOrCompilerDiagnostic(
-          undefined,
-          undefined,
-          result!.UnknownDidYouMeanDiagnostic(),
-          [new $rt.BoxStr(key, 'string'), new $rt.BoxStr(opt!.Name, 'string')],
-        ),
-      );
+  $collections$OrderedMap.Entries$nil<string, $rt.GoObject | undefined>($zf0, $zf1, jsonMap)!(
+    (key: string, value: $rt.GoObject | undefined): boolean => {
+      const opt: CommandLineOption | undefined = CommandLineOptionNameMap$Get(optionsNameMap!, key);
+      if (!(opt === undefined) && !(opt!.Name === key)) {
+        errors.push(
+          CreateDiagnosticForNodeInSourceFileOrCompilerDiagnostic(
+            undefined,
+            undefined,
+            result!.UnknownDidYouMeanDiagnostic(),
+            [new $rt.BoxStr(key, 'string'), new $rt.BoxStr(opt!.Name, 'string')],
+          ),
+        );
+        return true;
+      }
+      if (opt === undefined) {
+        errors.push(
+          createUnknownOptionError(
+            key,
+            result!.UnknownOptionDiagnostic(),
+            '',
+            undefined,
+            undefined,
+            undefined,
+            result!.UnknownDidYouMeanDiagnostic(),
+            optionsNameMap,
+          ),
+        );
+        return true;
+      }
+      const $t5 = convertJsonOption(opt, value, basePath, undefined, undefined, undefined);
+      const convertJson: $rt.GoObject | undefined = $t5[0];
+      const err: ($ast.Diagnostic | undefined)[] = $t5[1];
+      $rt.appendInto(errors, err);
+      const compilerOptionsErr: ($ast.Diagnostic | undefined)[] = result!.ParseOption(key, convertJson);
+      $rt.appendInto(errors, compilerOptionsErr);
       return true;
-    }
-    if (opt === undefined) {
-      errors.push(
-        createUnknownOptionError(
-          key,
-          result!.UnknownOptionDiagnostic(),
-          '',
-          undefined,
-          undefined,
-          undefined,
-          result!.UnknownDidYouMeanDiagnostic(),
-          optionsNameMap,
-        ),
-      );
-      return true;
-    }
-    const $t5 = convertJsonOption(opt, value, basePath, undefined, undefined, undefined);
-    const convertJson: $rt.GoObject | undefined = $t5[0];
-    const err: ($ast.Diagnostic | undefined)[] = $t5[1];
-    $rt.appendInto(errors, err);
-    const compilerOptionsErr: ($ast.Diagnostic | undefined)[] = result!.ParseOption(key, convertJson);
-    $rt.appendInto(errors, compilerOptionsErr);
-    return true;
-  });
+    },
+  );
   return [result, errors];
 }
 export function convertArrayLiteralExpressionToJson(
@@ -9440,10 +10130,12 @@ export function normalizeJsonValue(value: $rt.GoObject | undefined): $rt.GoObjec
           $t1 === undefined ? undefined : $boxes.Box__collections_OrderedMap_string__any_.$cast($t1).v;
         let $t3 = false;
         let $t4: $rt.GoObject | undefined = undefined as $rt.GoObject | undefined;
-        value$1!.Entries()!((key: string, child: $rt.GoObject | undefined): boolean => {
-          value$1!.Set(key, normalizeJsonValue(child));
-          return true;
-        });
+        $collections$OrderedMap.Entries$nil<string, $rt.GoObject | undefined>($zf0, $zf1, value$1)!(
+          (key: string, child: $rt.GoObject | undefined): boolean => {
+            value$1!.Set(key, normalizeJsonValue(child));
+            return true;
+          },
+        );
         return new $boxes.Box__collections_OrderedMap_string__any_(value$1);
       } else if ($t1 instanceof $boxes.Box_map_string_any) {
         const value$2: Map<string, $rt.GoObject | undefined> | undefined = $boxes.Box_map_string_any.$cast($t1).v;
@@ -9473,26 +10165,24 @@ export function normalizeJsonValue(value: $rt.GoObject | undefined): $rt.GoObjec
           }
         }
         return new $boxes.Box___any(result$1);
-      } else {
-        const value$4: $rt.GoObject | undefined = $t1;
-        const reflected: $rt.reflect_Value = $rt.reflect_ValueOf(value$4);
-        if (
-          !reflected.IsValid() ||
-          (!(reflected.Kind() === (23 as number)) && !(reflected.Kind() === (17 as number)))
-        ) {
-          return value$4;
-        }
-        if (reflected.Kind() === (23 as number) && reflected.IsNil()) {
-          return undefined;
-        }
+      } else if ($t1 instanceof $boxes.Box___string) {
+        const value$4: string[] = $boxes.Box___string.$cast($t1).v;
         const result$2: ($rt.GoObject | undefined)[] = $rt.makeSlice<$rt.GoObject | undefined>(
-          reflected.Len(),
+          value$4.length,
           undefined,
         );
-        for (let i$1 = 0, $t9 = reflected.Len(); i$1 < $t9; i$1++) {
-          result$2[i$1] = normalizeJsonValue(reflected.Index(i$1).Interface());
+        {
+          const $t9 = value$4;
+          for (let $t10 = 0, $n = $t9.length; $t10 < $n; $t10++) {
+            const i$1 = $t10;
+            const child$3 = $t9[$t10];
+            result$2[i$1] = new $rt.BoxStr(child$3, 'string');
+          }
         }
         return new $boxes.Box___any(result$2);
+      } else {
+        const value$5: $rt.GoObject | undefined = $t1;
+        return value$5;
       }
     }
   }
@@ -9784,7 +10474,7 @@ export function parseConfig(
         [] as ($rt.GoObject | undefined)[],
       ),
     );
-    if (json!.Size() === (0 as number)) {
+    if ($collections$OrderedMap.Size$nil<string, $rt.GoObject | undefined>($zf0, $zf1, json) === (0 as number)) {
       result = parsedTsconfig.$lit_tsoptions_parsedTsconfig_0(
         new $boxes.Box__collections_OrderedMap_string__any_(json),
       );
@@ -9937,7 +10627,7 @@ export function parseConfig(
     const result$2: extendsResult | undefined = extendsResult.$lit_tsoptions_extendsResult_0(
       new $core.CompilerOptions(),
     );
-    if ($rt.reflect_TypeOf(ownConfig!.extendedConfigPath)!.Kind() === (24 as number)) {
+    if (isStringJSONValue(ownConfig!.extendedConfigPath)) {
       applyExtendedConfig!(
         result$2,
         $rt.checkString($rt.isValue(ownConfig!.extendedConfigPath, 'string'), ownConfig!.extendedConfigPath),
@@ -9996,7 +10686,8 @@ export function parseConfig(
       );
     }
     if (!(sourceFile === undefined)) {
-      for (const [extendedSourceFile, $t25] of result$2!.extendedSourceFiles.Keys() ?? new Map<string, $rt.Empty>()) {
+      for (const [extendedSourceFile, $t25] of $collections$Set_.Keys$nil<string>(result$2!.extendedSourceFiles) ??
+        new Map<string, $rt.Empty>()) {
         sourceFile!.ExtendedSourceFiles = $core.InsertSorted<string>(
           sourceFile!.ExtendedSourceFiles,
           extendedSourceFile,
@@ -10062,7 +10753,7 @@ export function parseJsonConfigFileContentWorker(
     const value: $rt.GoObject | undefined = $t2[0];
     const exists: boolean = $t2[1];
     if (exists && !(value === undefined)) {
-      if ($rt.reflect_TypeOf(value)!.Kind() === (23 as number)) {
+      if (isSliceJSONValue(value)) {
         const result: $rt.GoObject | undefined = rawConfig!.GetOrZero(prop);
         {
           const $t3: $rt.GoObject | undefined = result;
@@ -10347,7 +11038,7 @@ export function parseJsonConfigFileContentWorker(
                 ]);
               } else {
                 {
-                  const $t23 = seenContentMapperExtensions;
+                  const $t23: Map<string, $rt.Empty> | undefined = seenContentMapperExtensions;
                   const $t24 = ext;
                   const seen: boolean = $t23 !== undefined && $t23.has($t24);
                   if (seen) {
@@ -10979,19 +11670,21 @@ export function handleOptionConfigDirTemplateSubstitution(
     | undefined;
   let $t1 = false;
   let $t2: undefined = undefined;
-  compilerOptions!.Paths!.Entries()!((k: string, v: string[]): boolean => {
-    {
-      const substitution: string[] = getSubstitutedStringArrayWithConfigDirTemplate(v, basePath);
-      if (!(substitution.length === 0)) {
-        if (paths === undefined) {
-          paths = compilerOptions!.Paths!.Clone();
-          compilerOptions!.Paths = paths;
+  $collections$OrderedMap.Entries$nil<string, string[]>($zf0, $zf3, compilerOptions!.Paths)!(
+    (k: string, v: string[]): boolean => {
+      {
+        const substitution: string[] = getSubstitutedStringArrayWithConfigDirTemplate(v, basePath);
+        if (!(substitution.length === 0)) {
+          if (paths === undefined) {
+            paths = $collections$OrderedMap.Clone$nil<string, string[]>($zf0, $zf3, compilerOptions!.Paths);
+            compilerOptions!.Paths = paths;
+          }
+          paths!.Set(k, substitution);
         }
-        paths!.Set(k, substitution);
       }
-    }
-    return true;
-  });
+      return true;
+    },
+  );
   {
     const rootDirs: string[] = getSubstitutedStringArrayWithConfigDirTemplate(compilerOptions!.RootDirs, basePath);
     if (!(rootDirs.length === 0)) {
@@ -11206,23 +11899,23 @@ export function getFileNamesFromConfigSpecs(
   let files$1: string[] = [] as string[];
   let $t5 = false;
   let $t6: [string[], number] = [[], 0];
-  literalFileMap.Values()!((file$2: string): boolean => {
+  $collections$OrderedMap.Values$nil<string, string>($zf0, $zf0, literalFileMap)!((file$2: string): boolean => {
     files$1.push(file$2);
     return true;
   });
   let $t7 = false;
   let $t8: [string[], number] = [[], 0];
-  wildcardFileMap.Values()!((file$3: string): boolean => {
+  $collections$OrderedMap.Values$nil<string, string>($zf0, $zf0, wildcardFileMap)!((file$3: string): boolean => {
     files$1.push(file$3);
     return true;
   });
   let $t9 = false;
   let $t10: [string[], number] = [[], 0];
-  wildCardJsonFileMap.Values()!((file$4: string): boolean => {
+  $collections$OrderedMap.Values$nil<string, string>($zf0, $zf0, wildCardJsonFileMap)!((file$4: string): boolean => {
     files$1.push(file$4);
     return true;
   });
-  return [files$1, literalFileMap.Size()];
+  return [files$1, $collections$OrderedMap.Size$nil<string, string>($zf0, $zf0, literalFileMap)];
 }
 export function GetSupportedExtensions(
   compilerOptions: $core.CompilerOptions | undefined,
@@ -11361,7 +12054,7 @@ export function getWildcardDirectories(
         const key: string = match!.Key;
         const path: string = match!.Path;
         const recursive: boolean = match!.Recursive;
-        const $t3 = wildCardKeyToPath;
+        const $t3: Map<string, string> | undefined = wildCardKeyToPath;
         const $t4 = key;
         const existingPath: string = $t3?.get($t4) ?? '';
         const existsPath: boolean = $t3 !== undefined && $t3.has($t4);

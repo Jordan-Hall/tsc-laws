@@ -23,7 +23,7 @@ export const patches = [
     within: 'export class orderedSet<T> extends',
     from: '<T, $rt.Empty>',
     to: '<Type | undefined, $rt.Empty>',
-    count: 2,
+    count: 3,
   },
   {
     file: 'src/tsgo/checker.ts',

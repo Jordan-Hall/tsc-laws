@@ -17,6 +17,9 @@ export class Box__ast_Expression extends $rt.GoObject {
     if (v instanceof Box__ast_Expression) return v;
     throw $rt.typeAssertError();
   }
+  override $unbox(): unknown {
+    return this.v;
+  }
   override $eqv(o: $rt.GoObject): boolean {
     return o instanceof Box__ast_Expression && o.v === this.v;
   }
@@ -30,6 +33,9 @@ export class Box__collections_OrderedMap_string__any_ extends $rt.GoObject {
   static $cast(v: $rt.GoObject | undefined): Box__collections_OrderedMap_string__any_ {
     if (v instanceof Box__collections_OrderedMap_string__any_) return v;
     throw $rt.typeAssertError();
+  }
+  override $unbox(): unknown {
+    return this.v;
   }
   override $eqv(o: $rt.GoObject): boolean {
     return o instanceof Box__collections_OrderedMap_string__any_ && o.v === this.v;
@@ -45,6 +51,9 @@ export class Box__collections_OrderedMap_string__json_Value_ extends $rt.GoObjec
     if (v instanceof Box__collections_OrderedMap_string__json_Value_) return v;
     throw $rt.typeAssertError();
   }
+  override $unbox(): unknown {
+    return this.v;
+  }
   override $eqv(o: $rt.GoObject): boolean {
     return o instanceof Box__collections_OrderedMap_string__json_Value_ && o.v === this.v;
   }
@@ -58,6 +67,9 @@ export class Box__core_TextRange extends $rt.GoObject {
   static $cast(v: $rt.GoObject | undefined): Box__core_TextRange {
     if (v instanceof Box__core_TextRange) return v;
     throw $rt.typeAssertError();
+  }
+  override $unbox(): unknown {
+    return this.v;
   }
   override $eqv(o: $rt.GoObject): boolean {
     return o instanceof Box__core_TextRange && o.v === this.v;
@@ -73,6 +85,9 @@ export class Box____ast_Expression extends $rt.GoObject {
     if (v instanceof Box____ast_Expression) return v;
     throw $rt.typeAssertError();
   }
+  override $unbox(): unknown {
+    return this.v;
+  }
 }
 export class Box_____int32 extends $rt.GoObject {
   v: number[][];
@@ -83,6 +98,9 @@ export class Box_____int32 extends $rt.GoObject {
   static $cast(v: $rt.GoObject | undefined): Box_____int32 {
     if (v instanceof Box_____int32) return v;
     throw $rt.typeAssertError();
+  }
+  override $unbox(): unknown {
+    return this.v;
   }
 }
 export class Box___any extends $rt.GoObject {
@@ -95,6 +113,9 @@ export class Box___any extends $rt.GoObject {
     if (v instanceof Box___any) return v;
     throw $rt.typeAssertError();
   }
+  override $unbox(): unknown {
+    return this.v;
+  }
 }
 export class Box___byte extends $rt.GoObject {
   v: number[];
@@ -105,6 +126,9 @@ export class Box___byte extends $rt.GoObject {
   static $cast(v: $rt.GoObject | undefined): Box___byte {
     if (v instanceof Box___byte) return v;
     throw $rt.typeAssertError();
+  }
+  override $unbox(): unknown {
+    return this.v;
   }
 }
 export class Box___packagejson_ExportsOrImports extends $rt.GoObject {
@@ -117,6 +141,9 @@ export class Box___packagejson_ExportsOrImports extends $rt.GoObject {
     if (v instanceof Box___packagejson_ExportsOrImports) return v;
     throw $rt.typeAssertError();
   }
+  override $unbox(): unknown {
+    return this.v;
+  }
 }
 export class Box___packagejson_JSONValue extends $rt.GoObject {
   v: $packagejson.JSONValue[];
@@ -127,6 +154,9 @@ export class Box___packagejson_JSONValue extends $rt.GoObject {
   static $cast(v: $rt.GoObject | undefined): Box___packagejson_JSONValue {
     if (v instanceof Box___packagejson_JSONValue) return v;
     throw $rt.typeAssertError();
+  }
+  override $unbox(): unknown {
+    return this.v;
   }
 }
 export class Box___string extends $rt.GoObject {
@@ -139,6 +169,9 @@ export class Box___string extends $rt.GoObject {
     if (v instanceof Box___string) return v;
     throw $rt.typeAssertError();
   }
+  override $unbox(): unknown {
+    return this.v;
+  }
 }
 export class Box___tracing_TraceRecord extends $rt.GoObject {
   v: $tracing.TraceRecord[];
@@ -149,6 +182,9 @@ export class Box___tracing_TraceRecord extends $rt.GoObject {
   static $cast(v: $rt.GoObject | undefined): Box___tracing_TraceRecord {
     if (v instanceof Box___tracing_TraceRecord) return v;
     throw $rt.typeAssertError();
+  }
+  override $unbox(): unknown {
+    return this.v;
   }
 }
 export class Box_func_node__ast_Node__bool extends $rt.GoObject {
@@ -161,6 +197,9 @@ export class Box_func_node__ast_Node__bool extends $rt.GoObject {
     if (v instanceof Box_func_node__ast_Node__bool) return v;
     throw $rt.typeAssertError();
   }
+  override $unbox(): unknown {
+    return this.v;
+  }
 }
 export class Box_json_Value extends $rt.GoObject {
   v: $json.Value;
@@ -171,6 +210,9 @@ export class Box_json_Value extends $rt.GoObject {
   static $cast(v: $rt.GoObject | undefined): Box_json_Value {
     if (v instanceof Box_json_Value) return v;
     throw $rt.typeAssertError();
+  }
+  override $unbox(): unknown {
+    return this.v;
   }
 }
 export class Box_map_diagnostics_Key_string extends $rt.GoObject {
@@ -183,6 +225,9 @@ export class Box_map_diagnostics_Key_string extends $rt.GoObject {
     if (v instanceof Box_map_diagnostics_Key_string) return v;
     throw $rt.typeAssertError();
   }
+  override $unbox(): unknown {
+    return this.v;
+  }
 }
 export class Box_map_string_any extends $rt.GoObject {
   v: Map<string, $rt.GoObject | undefined> | undefined;
@@ -194,6 +239,23 @@ export class Box_map_string_any extends $rt.GoObject {
     if (v instanceof Box_map_string_any) return v;
     throw $rt.typeAssertError();
   }
+  override $unbox(): unknown {
+    return this.v;
+  }
+}
+export class Box_map_string_string extends $rt.GoObject {
+  v: Map<string, string> | undefined;
+  constructor(v: Map<string, string> | undefined) {
+    super();
+    this.v = v;
+  }
+  static $cast(v: $rt.GoObject | undefined): Box_map_string_string {
+    if (v instanceof Box_map_string_string) return v;
+    throw $rt.typeAssertError();
+  }
+  override $unbox(): unknown {
+    return this.v;
+  }
 }
 export class Box_struct__ extends $rt.GoObject {
   v: $rt.Empty;
@@ -204,5 +266,8 @@ export class Box_struct__ extends $rt.GoObject {
   static $cast(v: $rt.GoObject | undefined): Box_struct__ {
     if (v instanceof Box_struct__) return v;
     throw $rt.typeAssertError();
+  }
+  override $unbox(): unknown {
+    return this.v;
   }
 }

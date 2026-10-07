@@ -211,6 +211,9 @@ func (f *file) stdStub(name string, ref stdRef) string {
 				continue
 			}
 			typ := f.tsType(fl.Type())
+			if strings.Contains(typ, "$Anon") {
+				continue // anonymous struct types are not declared in the runtime
+			}
 			fmt.Fprintf(&b, "  %s: %s;\n", fname, typ)
 			params = append(params, fmt.Sprintf("p%d: %s = %s", i, typ, f.zero(fl.Type())))
 			sets = append(sets, fmt.Sprintf("this.%s = p%d;", fname, i))

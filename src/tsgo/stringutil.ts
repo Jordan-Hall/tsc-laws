@@ -5285,7 +5285,7 @@ export function ToLowerJS(str: string): string {
         builder.WriteString(EncodeJSStringRune(r));
       } else {
         {
-          const $t3 = specialCasingMappings;
+          const $t3: Map<number, specialCasingMapping> | undefined = specialCasingMappings;
           const $t4 = r;
           const mapping: specialCasingMapping = $t3?.get($t4) ?? specialCasingMapping$zero;
           const ok$1: boolean = $t3 !== undefined && $t3.has($t4);
@@ -5327,7 +5327,7 @@ export function ToUpperJS(str: string): string {
         builder.WriteString(str.substring(i, i + size));
       } else {
         {
-          const $t3 = specialCasingMappings;
+          const $t3: Map<number, specialCasingMapping> | undefined = specialCasingMappings;
           const $t4 = r;
           const mapping: specialCasingMapping = $t3?.get($t4) ?? specialCasingMapping$zero;
           const ok$1: boolean = $t3 !== undefined && $t3.has($t4);

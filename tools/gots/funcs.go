@@ -194,7 +194,7 @@ func (f *file) methodDecl(fd *ast.FuncDecl) string {
 		x.body(fd.Body, fd.Type)
 	})
 	name := f.t.methodName(obj)
-	if f.t.nilSafe[obj] {
+	if f.t.nilSafeMethod(obj) {
 		cls := f.declName(n.Origin().Obj())
 		var args []string
 		for _, p := range params {
@@ -205,8 +205,24 @@ func (f *file) methodDecl(fd *ast.FuncDecl) string {
 			recvName = x.name(r)
 		}
 		staticBody := strings.Replace(b.String(), "    const "+recvName+" = this;\n", "", 1)
-		sp := append([]string{recvName + ": " + cls + " | undefined"}, params...)
-		return fmt.Sprintf("  static %s$nil(%s): %s {\n%s  }\n  %s(%s): %s { return %s.%s$nil(%s); }\n", name, strings.Join(sp, ", "), f.results(sig), staticBody, name, strings.Join(params, ", "), f.results(sig), cls, name, strings.Join(append([]string{"this"}, args...), ", "))
+		// Generic classes: the static takes the class's type parameters and
+		// zero factories, which the instance has as fields.
+		tparams, targs := f.tparamList(sig.RecvTypeParams()), typeArgNames(n.Origin().Obj())
+		var zp, za []string
+		if list := sig.RecvTypeParams(); list != nil {
+			needs := f.t.needsFor(n.Origin().Obj())
+			for i := 0; i < list.Len(); i++ {
+				if i < len(needs) && needs[i] {
+					name := f.zeroParamName(list.At(i))
+					zp = append(zp, fmt.Sprintf("%s: () => %s", name, list.At(i).Obj().Name()))
+					za = append(za, "this."+name)
+					staticBody = strings.ReplaceAll(staticBody, "this."+name, name)
+				}
+			}
+		}
+		sp := append(append(zp, recvName+": "+cls+targs+" | undefined"), params...)
+		callArgs := append(append(za, "this"), args...)
+		return fmt.Sprintf("  static %s$nil%s(%s): %s {\n%s  }\n  %s(%s): %s { return %s.%s$nil%s(%s); }\n", name, tparams, strings.Join(sp, ", "), f.results(sig), staticBody, name, strings.Join(params, ", "), f.results(sig), cls, name, targs, strings.Join(callArgs, ", "))
 	}
 	if f.t.shadowed[obj] {
 		static := name + "$" + f.t.typeName(n.Origin().Obj())
@@ -404,7 +420,12 @@ func (x *fn) stmt(s ast.Stmt) {
 		x.flushPre()
 		x.line("%s; // go statement runs synchronously", e)
 	case *ast.EmptyStmt:
-	case *ast.SendStmt, *ast.SelectStmt:
+	case *ast.SendStmt:
+		ch := x.expr(s.Chan)
+		v := x.valueExpr(s.Value, x.info.TypeOf(s.Chan).Underlying().(*types.Chan).Elem())
+		x.flushPre()
+		x.line("%s!.send(%s);", ch, v)
+	case *ast.SelectStmt:
 		x.line("throw $rt.unsupported(%q);", x.f.t.stub(s.Pos(), "channel operation"))
 	default:
 		x.line("throw $rt.unsupported(%q);", x.f.t.stub(s.Pos(), fmt.Sprintf("statement %T", s)))
@@ -935,8 +956,26 @@ func (x *fn) rangeStmt(s *ast.RangeStmt, label string) {
 			}
 			x.indent--
 		} else {
-			x.line("%sfor (const [%s, %s] of (%s ?? %s)) {", prefix, k, v, e, empty)
+			kw := "const"
+			if key.decl == "let" || val.decl == "let" {
+				kw = "let"
+			}
+			x.line("%sfor (%s [%s, %s] of (%s ?? %s)) {", prefix, kw, k, v, e, empty)
 		}
+		x.loopBody(s.Body.List, label)
+		x.line("}")
+	case *types.Chan:
+		ch := x.expr(s.X)
+		x.flushPre()
+		t := x.tmp()
+		x.line("%sfor (;;) {", prefix)
+		x.indent++
+		x.line("const %s = %s!.recv();", t, ch)
+		x.line("if (!%s[1]) break;", t)
+		if key.name != "" {
+			x.line("%s %s = %s[0];", key.decl, key.name, t)
+		}
+		x.indent--
 		x.loopBody(s.Body.List, label)
 		x.line("}")
 	case *types.Signature:

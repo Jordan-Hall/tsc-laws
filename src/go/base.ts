@@ -18,6 +18,10 @@ export class GoObject {
   $ikey(): string {
     return 'o' + String(objectId(this));
   }
+  // $unbox returns the value a box carries, or the object itself.
+  $unbox(): unknown {
+    return this;
+  }
 }
 
 // Ptr is a Go pointer to a non-struct value: either a fresh value (new(T))
@@ -50,6 +54,9 @@ export class Box<T> extends GoObject {
     this.v = v;
     this.t = t;
   }
+  override $unbox(): unknown {
+    return this.v;
+  }
 }
 
 // Boxes for basic values, so unboxing narrows with instanceof.
@@ -67,6 +74,9 @@ export class BoxNum extends GoObject {
   override $ikey(): string {
     return 'n' + this.t + ':' + String(this.v);
   }
+  override $unbox(): unknown {
+    return this.v;
+  }
 }
 export class BoxStr extends GoObject {
   v: string;
@@ -82,6 +92,9 @@ export class BoxStr extends GoObject {
   override $ikey(): string {
     return 's' + this.t + ':' + this.v;
   }
+  override $unbox(): unknown {
+    return this.v;
+  }
 }
 export class BoxBool extends GoObject {
   v: boolean;
@@ -96,6 +109,9 @@ export class BoxBool extends GoObject {
   }
   override $ikey(): string {
     return 'b' + this.t + ':' + (this.v ? '1' : '0');
+  }
+  override $unbox(): unknown {
+    return this.v;
   }
 }
 
@@ -474,8 +490,35 @@ export function toHostString(s: string): string {
   return out;
 }
 
+// Chan is a Go channel. Code runs on one thread, so an operation that would
+// block can never proceed: it panics as a deadlock.
 export class Chan<T> extends GoObject {
   items: T[] = [];
+  cap: number;
+  zero: T;
+  closed = false;
+  constructor(cap: number = 0, zero: T = undefined as T) {
+    super();
+    this.cap = cap;
+    this.zero = zero;
+  }
+  send(v: T): void {
+    if (this.closed) throw new Panic(new BoxStr('send on closed channel', 'string'));
+    if (this.items.length >= this.cap) throw deadlock();
+    this.items.push(v);
+  }
+  recv(): [T, boolean] {
+    if (this.items.length > 0) return [this.items.shift() as T, true];
+    if (this.closed) return [this.zero, false];
+    throw deadlock();
+  }
+  close(): void {
+    if (this.closed) throw new Panic(new BoxStr('close of closed channel', 'string'));
+    this.closed = true;
+  }
+}
+function deadlock(): Panic {
+  return new Panic(new BoxStr('all goroutines are asleep - deadlock!', 'string'));
 }
 
 // Stubbed library calls made while modules initialize return zero values;
@@ -517,8 +560,7 @@ export function kept(objects: GoObject[]): void {
 }
 
 export function unboxAny<T>(v: GoObject | undefined): T {
-  if (v instanceof Box) return (v as Box<T>).v;
-  return v as T;
+  return (v === undefined ? v : v.$unbox()) as T;
 }
 
 // fromBytes converts file contents to a byte string. It remembers the
@@ -766,4 +808,23 @@ export function truncate<T>(s: T[], n: number, zero: T): T[] {
     return s;
   }
   return reslice(s, 0, n, zero);
+}
+
+// unsupportedCall is a call through an interface no translated type
+// implements.
+export function unsupportedCall<T>(method: string): T {
+  throw unsupported('call of ' + method);
+}
+
+// ptrToObject passes a struct pointer to generic code that takes *T as a Ptr.
+export function ptrToObject<T>(v: T | undefined): Ptr<T> | undefined {
+  return v === undefined ? undefined : new Ptr<T>(v);
+}
+
+// missingZero is the zero factory of a type parameter whose zero value isn't
+// available where it is passed; it fails only if called.
+export function missingZero<T>(name: string): () => T {
+  return (): T => {
+    throw unsupported('zero value of ' + name);
+  };
 }

@@ -41,6 +41,21 @@ func (x *fn) callWithArgs(e *ast.CallExpr, args []string) string {
 			return call
 		}
 	}
+	// fmt.Fprint* to a writer translated code implements: format, then Write.
+	for _, fn := range []string{"Fprintf", "Fprintln", "Fprint"} {
+		if x.isPkgFunc(fun, "fmt", fn) && len(e.Args) > 0 && args == nil && isIfaceType(x.info.TypeOf(e.Args[0])) && x.ifaceHasClasses(x.info.TypeOf(e.Args[0])) {
+			w := x.expr(e.Args[0])
+			rest := &ast.CallExpr{Fun: e.Fun, Args: e.Args[1:], Ellipsis: e.Ellipsis}
+			sig := x.info.TypeOf(e.Fun).(*types.Signature)
+			var params []*types.Var
+			for i := 1; i < sig.Params().Len(); i++ {
+				params = append(params, sig.Params().At(i))
+			}
+			restArgs := x.args(rest, types.NewSignatureType(nil, nil, nil, types.NewTuple(params...), sig.Results(), sig.Variadic()))
+			sprint := "$rt.fmt_S" + strings.TrimPrefix(fn, "F") + "(" + strings.Join(restArgs, ", ") + ")"
+			return "$rt.nn(" + w + ").Write($rt.stringToBytes(" + sprint + "))"
+		}
+	}
 	// unsafe.String(unsafe.SliceData(b), n) converts a byte slice.
 	if x.isUnsafe(fun, "String") && len(e.Args) == 2 {
 		if inner, ok := unparen(e.Args[0]).(*ast.CallExpr); ok && x.isUnsafe(unparen(inner.Fun), "SliceData") {
@@ -149,7 +164,24 @@ func (x *fn) args(e *ast.CallExpr, sig *types.Signature) []string {
 	// f(g()) where g returns multiple values.
 	if len(e.Args) == 1 && sig.Params().Len() > 1 {
 		if tuple, ok := x.info.TypeOf(e.Args[0]).(*types.Tuple); ok && tuple.Len() > 1 {
-			return []string{"..." + x.expr(e.Args[0])}
+			if !sig.Variadic() {
+				return []string{"..." + x.expr(e.Args[0])}
+			}
+			// f(g()) with variadic f: pack g's trailing results into the slice.
+			n := sig.Params().Len()
+			t := x.tmp()
+			var fixed, rest []string
+			for i := 0; i < tuple.Len(); i++ {
+				el := fmt.Sprintf("%s[%d]", t, i)
+				if i < n-1 {
+					fixed = append(fixed, x.convertValue(el, nil, tuple.At(i).Type(), sig.Params().At(i).Type()))
+				} else {
+					elem := sig.Params().At(n - 1).Type().(*types.Slice).Elem()
+					rest = append(rest, x.convertValue(el, nil, tuple.At(i).Type(), elem))
+				}
+			}
+			x.pre = append(x.pre, fmt.Sprintf("const %s = %s;\n", t, x.expr(e.Args[0])))
+			return append(fixed, "["+strings.Join(rest, ", ")+"]")
 		}
 	}
 	var out []string
@@ -197,6 +229,15 @@ func (x *fn) argExpr(e *ast.CallExpr, sig *types.Signature, i int, a ast.Expr) s
 	}
 	if pt != nil && x.f.needsCopy(pt) && x.borrowedParam(e, i) {
 		return x.expr(a)
+	}
+	// A struct pointer passed where the generic function takes *T as a Ptr.
+	if fn := staticCallee(x.info, e); fn != nil && i < n {
+		op := fn.Type().(*types.Signature).Params().At(i).Type()
+		if p, ok := op.(*types.Pointer); ok {
+			if tp, ok := p.Elem().(*types.TypeParam); ok && !structTPGlobal[tp.Obj()] && isPtrToStruct(x.info.TypeOf(a)) {
+				return "$rt.ptrToObject(" + x.expr(a) + ")"
+			}
+		}
 	}
 	return x.valueExpr(a, pt)
 }
@@ -366,7 +407,11 @@ func (x *fn) builtin(e *ast.CallExpr, name string, pre []string) string {
 		case *types.Map:
 			return x.f.newMap(u)
 		case *types.Chan:
-			return x.unsupportedExpr(e, x.f.t.stub(e.Pos(), "make channel"))
+			size := "0"
+			if len(e.Args) > 1 {
+				size = arg(1)
+			}
+			return fmt.Sprintf("new $rt.Chan<%s>(%s, %s)", x.f.tsType(u.Elem()), size, x.f.zero(u.Elem()))
 		}
 	case "new":
 		t := x.info.TypeOf(e.Args[0])
@@ -412,6 +457,8 @@ func (x *fn) builtin(e *ast.CallExpr, name string, pre []string) string {
 			return "$rt.str" + strings.ToUpper(name[:1]) + name[1:] + "([" + strings.Join(parts, ", ") + "])"
 		}
 		return "Math." + name + "(" + strings.Join(parts, ", ") + ")"
+	case "close":
+		return arg(0) + "!.close()"
 	case "clear":
 		t := under(x.info.TypeOf(e.Args[0]))
 		if m, ok := t.(*types.Map); ok {

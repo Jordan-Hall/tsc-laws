@@ -132,7 +132,7 @@ export class DocumentPositionMapper extends $rt.GoObject {
     if (d === undefined) {
       return undefined;
     }
-    const $t1 = d!.sourceToSourceIndexMap;
+    const $t1: Map<string, SourceIndex> | undefined = d!.sourceToSourceIndexMap;
     const $t2 = $tspath.GetCanonicalFileName(loc!.FileName, d!.useCaseSensitiveFileNames);
     const sourceIndex: SourceIndex = $t1?.get($t2) ?? 0;
     const ok: boolean = $t1 !== undefined && $t1.has($t2);
@@ -290,7 +290,7 @@ export class Generator extends $rt.GoObject {
       true,
       gen!.pathOptions,
     );
-    const $t1 = gen!.sourceToSourceIndexMap;
+    const $t1: Map<string, SourceIndex> | undefined = gen!.sourceToSourceIndexMap;
     const $t2 = source;
     let sourceIndex: SourceIndex = $t1?.get($t2) ?? 0;
     const found: boolean = $t1 !== undefined && $t1.has($t2);
@@ -323,7 +323,7 @@ export class Generator extends $rt.GoObject {
   }
   AddName(name_: string): NameIndex {
     const gen = this;
-    const $t1 = gen!.nameToNameIndexMap;
+    const $t1: Map<string, NameIndex> | undefined = gen!.nameToNameIndexMap;
     const $t2 = name_;
     let nameIndex: NameIndex = $t1?.get($t2) ?? 0;
     const found: boolean = $t1 !== undefined && $t1.has($t2);

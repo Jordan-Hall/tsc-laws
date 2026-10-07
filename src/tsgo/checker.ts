@@ -23,6 +23,8 @@ import * as $tsoptions from './tsoptions.js';
 import * as $tspath from './tspath.js';
 import type * as $nodebuilder from './nodebuilder.js';
 import type * as $tststest from './tststest.js';
+import { OrderedMap as $collections$OrderedMap } from './collections.js';
+import { Set_ as $collections$Set_ } from './collections.js';
 export class $Anon3 extends $rt.GoObject {
   primitive: string;
   builtin: string;
@@ -220,6 +222,9 @@ export class SignatureKind$Box extends $rt.GoObject {
     if (v instanceof SignatureKind$Box) return v;
     throw $rt.typeAssertError();
   }
+  override $unbox(): unknown {
+    return this.v;
+  }
   override $eqv(o: $rt.GoObject): boolean {
     return o instanceof SignatureKind$Box && o.v === this.v;
   }
@@ -246,6 +251,9 @@ export class TypeFlags$Box extends $rt.GoObject {
   static $cast(v: $rt.GoObject | undefined): TypeFlags$Box {
     if (v instanceof TypeFlags$Box) return v;
     throw $rt.typeAssertError();
+  }
+  override $unbox(): unknown {
+    return this.v;
   }
   override $eqv(o: $rt.GoObject): boolean {
     return o instanceof TypeFlags$Box && o.v === this.v;
@@ -276,6 +284,9 @@ export class VarianceFlags$Box extends $rt.GoObject {
   static $cast(v: $rt.GoObject | undefined): VarianceFlags$Box {
     if (v instanceof VarianceFlags$Box) return v;
     throw $rt.typeAssertError();
+  }
+  override $unbox(): unknown {
+    return this.v;
   }
   override $eqv(o: $rt.GoObject): boolean {
     return o instanceof VarianceFlags$Box && o.v === this.v;
@@ -1628,7 +1639,7 @@ export class Checker extends $rt.GoObject {
         if (!(file!.DeclarationBase_.Symbol_ === undefined)) {
           for (const [name_, symbol_$1] of file!.GlobalExports ?? new Map<string, $ast.Symbol_ | undefined>()) {
             {
-              const $t6 = c!.globals;
+              const $t6: $ast.SymbolTable = c!.globals;
               const $t7 = name_;
               const ok: boolean = $t6 !== undefined && $t6.has($t7);
               if (!ok) {
@@ -2276,7 +2287,7 @@ export class Checker extends $rt.GoObject {
     const c = this;
     const featureMap: Map<string, FeatureMapEntry[]> | undefined = getFeatureMap!();
     {
-      const $t1 = featureMap;
+      const $t1: Map<string, FeatureMapEntry[]> | undefined = featureMap;
       const $t2 = name_;
       const typeFeatures: FeatureMapEntry[] = $t1?.get($t2) ?? [];
       const ok: boolean = $t1 !== undefined && $t1.has($t2);
@@ -2826,7 +2837,7 @@ export class Checker extends $rt.GoObject {
           c!.checkUnusedRenamedBindingElements();
         }
         c!.produceDeferredDiagnostics();
-        c!.reportedUnreachableNodes.Clear();
+        $collections$Set_.Clear$nil<$ast.Node | undefined>(c!.reportedUnreachableNodes);
         links!.typeChecked = true;
       }
       if (checkUnused && !links!.unusedChecked) {
@@ -2838,7 +2849,7 @@ export class Checker extends $rt.GoObject {
       if (c!.isCanceled()) {
         c!.wasCanceled = true;
       }
-      c!.ctx = undefined;
+      c!.ctx = undefined as $rt.context_Context | undefined;
     } catch ($e) {
       $panic = $rt.toPanic($e);
     } finally {
@@ -3166,7 +3177,7 @@ export class Checker extends $rt.GoObject {
     if (!$ast.IsPotentiallyExecutableNode(node)) {
       return false;
     }
-    if (c!.reportedUnreachableNodes.Has(node)) {
+    if ($collections$Set_.Has$nil<$ast.Node | undefined>(c!.reportedUnreachableNodes, node)) {
       return true;
     }
     if (!c!.isSourceElementUnreachable(node)) {
@@ -7308,7 +7319,7 @@ export class Checker extends $rt.GoObject {
           for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
             const prop = $t3[$t4];
             {
-              const $t5 = seen;
+              const $t5: Map<string, InheritanceInfo> | undefined = seen;
               const $t6 = prop!.Name;
               const existing: InheritanceInfo = $t5?.get($t6) ?? InheritanceInfo$zero;
               const ok: boolean = $t5 !== undefined && $t5.has($t6);
@@ -8991,7 +9002,7 @@ export class Checker extends $rt.GoObject {
     const key: IterationTypesKey = IterationTypesKey.$lit_checker_IterationTypesKey_0_1(t!.id, use & 11);
     let noCache: boolean = false;
     {
-      const $t1 = c!.iterationTypesCache;
+      const $t1: $rt.StructMap<IterationTypesKey, IterationTypes> | undefined = c!.iterationTypesCache;
       const $t2 = key;
       const cached: IterationTypes = $rt.structMapGet($t1, $t2, new IterationTypes());
       const ok: boolean = $t1 !== undefined && $t1.has($t2);
@@ -10274,7 +10285,8 @@ export class Checker extends $rt.GoObject {
         }
       }
     }
-    for (const [declaration$1, $t8] of variableParents.Keys() ?? new Map<$ast.Node | undefined, $rt.Empty>()) {
+    for (const [declaration$1, $t8] of $collections$Set_.Keys$nil<$ast.Node | undefined>(variableParents) ??
+      new Map<$ast.Node | undefined, $rt.Empty>()) {
       if ($ast.IsVariableDeclarationList(declaration$1)) {
         c!.reportUnusedVariables(declaration$1);
       } else {
@@ -10772,7 +10784,7 @@ export class Checker extends $rt.GoObject {
       const saveFlowLoopStack: FlowLoopInfo[] = c!.flowLoopStack;
       const saveFlowTypeCache: Map<$ast.Node | undefined, Type | undefined> | undefined = c!.flowTypeCache;
       c!.flowLoopStack = [];
-      c!.flowTypeCache = undefined;
+      c!.flowTypeCache = undefined as Map<$ast.Node | undefined, Type | undefined> | undefined;
       links!.resolvedType = c!.checkExpressionEx(node, checkMode);
       c!.flowTypeCache = saveFlowTypeCache;
       c!.flowLoopStack = saveFlowLoopStack;
@@ -11575,7 +11587,7 @@ export class Checker extends $rt.GoObject {
     }
     const key: CachedTypeKey = CachedTypeKey.$lit_checker_CachedTypeKey_0_1(7, t!.id);
     {
-      const $t1 = c!.cachedTypes;
+      const $t1: $rt.StructMap<CachedTypeKey, Type | undefined> | undefined = c!.cachedTypes;
       const $t2 = key;
       const cached: Type | undefined = $rt.structMapGet($t1, $t2, undefined);
       const ok: boolean = $t1 !== undefined && $t1.has($t2);
@@ -12605,8 +12617,8 @@ export class Checker extends $rt.GoObject {
   chooseOverload(s: CallState | undefined, relation: Relation | undefined): Signature | undefined {
     const c = this;
     s!.candidatesForArgumentError = [];
-    s!.candidateForArgumentArityError = undefined;
-    s!.candidateForTypeArgumentError = undefined;
+    s!.candidateForArgumentArityError = undefined as Signature | undefined;
+    s!.candidateForTypeArgumentError = undefined as Signature | undefined;
     if (s!.isSingleNonGenericCandidate) {
       const candidate: Signature | undefined = s!.candidates[0];
       if (
@@ -13179,7 +13191,7 @@ export class Checker extends $rt.GoObject {
           if ($core.Some<InferenceInfo | undefined>(returnContext!.inferences, hasInferenceCandidates)) {
             context!.returnMapper = c!.getMapperFromContext(c!.cloneInferredPartOfContext(returnContext));
           } else {
-            context!.returnMapper = undefined;
+            context!.returnMapper = undefined as TypeMapper | undefined;
           }
         }
       }
@@ -14237,7 +14249,7 @@ export class Checker extends $rt.GoObject {
           c!.couldContainTypeVariables!(c!.getReturnTypeOfSignature(contextualSignature))
         ) {
           {
-            const $t1 = c!.contextFreeTypes;
+            const $t1: Map<$ast.Node | undefined, Type | undefined> | undefined = c!.contextFreeTypes;
             const $t2 = node;
             const cached: Type | undefined = $t1?.get($t2) ?? undefined;
             const ok: boolean = $t1 !== undefined && $t1.has($t2);
@@ -14466,8 +14478,8 @@ export class Checker extends $rt.GoObject {
     const c = this;
     const result: Signature | undefined = c!.cloneSignature(sig);
     result!.composite = CompositeSignature.$lit_checker_CompositeSignature_0_1(true, unionSignatures);
-    result!.target = undefined;
-    result!.mapper = undefined;
+    result!.target = undefined as Signature | undefined;
+    result!.mapper = undefined as TypeMapper | undefined;
     return result;
   }
   getContextualCallSignature(t: Type | undefined, node: $ast.Node | undefined): Signature | undefined {
@@ -16234,7 +16246,7 @@ export class Checker extends $rt.GoObject {
       containingType,
       isUncheckedJS,
     );
-    if (c!.nonExistentProperties.Has(key)) {
+    if ($collections$Set_.Has$nil<NonExistentPropertyKey>(c!.nonExistentProperties, key)) {
       return;
     }
     c!.nonExistentProperties.Add(key);
@@ -16365,7 +16377,7 @@ export class Checker extends $rt.GoObject {
     if (!(container === undefined)) {
       const featureMap: Map<string, FeatureMapEntry[]> | undefined = getFeatureMap!();
       {
-        const $t1 = featureMap;
+        const $t1: Map<string, FeatureMapEntry[]> | undefined = featureMap;
         const $t2 = container!.Name;
         const typeFeatures: FeatureMapEntry[] = $t1?.get($t2) ?? [];
         const ok: boolean = $t1 !== undefined && $t1.has($t2);
@@ -18894,7 +18906,10 @@ export class Checker extends $rt.GoObject {
       const $t3 = c!.getPropertiesOfType(left);
       for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
         const leftProp = $t3[$t4];
-        if (skippedPrivateMembers.Has(leftProp!.Name) || !c!.isSpreadableProperty(leftProp)) {
+        if (
+          $collections$Set_.Has$nil<string>(skippedPrivateMembers, leftProp!.Name) ||
+          !c!.isSpreadableProperty(leftProp)
+        ) {
           continue;
         }
         if (!((members?.get(leftProp!.Name) ?? undefined) === undefined)) {
@@ -22457,7 +22472,7 @@ export class Checker extends $rt.GoObject {
         }
       }
     }
-    for (const [name_$2, $t8] of nonTypeOnlyNames!.Keys() ?? new Map<string, $rt.Empty>()) {
+    for (const [name_$2, $t8] of $collections$Set_.Keys$nil<string>(nonTypeOnlyNames) ?? new Map<string, $rt.Empty>()) {
       typeOnlyExportStarMap?.delete(name_$2);
     }
     return [exports, typeOnlyExportStarMap];
@@ -22620,10 +22635,10 @@ export class Checker extends $rt.GoObject {
         return 1073741823;
       }
       if (!((target!.Flags & 2097152) === (0 as number))) {
-        if (target === symbol_ || seenSymbols.Has(target)) {
+        if (target === symbol_ || $collections$Set_.Has$nil<$ast.Symbol_ | undefined>(seenSymbols, target)) {
           break;
         }
-        if (seenSymbols.Len() === (0 as number)) {
+        if ($collections$Set_.Len$nil<$ast.Symbol_ | undefined>(seenSymbols) === (0 as number)) {
           seenSymbols.Add(symbol_);
         }
         seenSymbols.Add(target);
@@ -24414,12 +24429,12 @@ export class Checker extends $rt.GoObject {
       return [0, undefined];
     }
     {
-      const $t1 = c!.thisExpandoKinds;
+      const $t1: Map<$ast.Symbol_ | undefined, thisAssignmentDeclarationKind> | undefined = c!.thisExpandoKinds;
       const $t2 = symbol_;
       const kind: thisAssignmentDeclarationKind = $t1?.get($t2) ?? 0;
       const ok: boolean = $t1 !== undefined && $t1.has($t2);
       if (ok) {
-        const $t3 = c!.thisExpandoLocations;
+        const $t3: Map<$ast.Symbol_ | undefined, $ast.Node | undefined> | undefined = c!.thisExpandoLocations;
         const $t4 = symbol_;
         const location: $ast.Node | undefined = $t3?.get($t4) ?? undefined;
         const ok2: boolean = $t3 !== undefined && $t3.has($t4);
@@ -24787,7 +24802,7 @@ export class Checker extends $rt.GoObject {
         for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
           const prop$1 = $t3[$t4];
           {
-            const $t5 = members;
+            const $t5: $ast.SymbolTable = members;
             const $t6 = prop$1!.Name;
             const ok: boolean = $t5 !== undefined && $t5.has($t6);
             if (!ok) {
@@ -24863,7 +24878,9 @@ export class Checker extends $rt.GoObject {
           }
         }
       }
-      context!.resolvedProperties = $rt.slices_Collect(names.Values());
+      context!.resolvedProperties = $rt.slices_Collect(
+        $collections$OrderedMap.Values$nil<string, $ast.Symbol_ | undefined>($zf4, $zf1, names),
+      );
     }
     return context!.resolvedProperties;
   }
@@ -25330,7 +25347,7 @@ export class Checker extends $rt.GoObject {
             const $t3 = c!.getPropertiesOfType(current);
             for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
               const prop = $t3[$t4];
-              if (!checked.Has(prop!.Name)) {
+              if (!$collections$Set_.Has$nil<string>(checked, prop!.Name)) {
                 checked.Add(prop!.Name);
                 const combinedProp: $ast.Symbol_ | undefined = c!.getPropertyOfUnionOrIntersectionType(
                   t,
@@ -26237,7 +26254,7 @@ export class Checker extends $rt.GoObject {
         const base = $t1[$t2];
         if (!isStaticPrivateIdentifierProperty(base)) {
           {
-            const $t3 = symbols;
+            const $t3: $ast.SymbolTable = symbols;
             const $t4 = base!.Name;
             const s: $ast.Symbol_ | undefined = $t3?.get($t4) ?? undefined;
             const ok: boolean = $t3 !== undefined && $t3.has($t4);
@@ -28902,7 +28919,7 @@ export class Checker extends $rt.GoObject {
         $t1 = true;
         return false;
       }
-      if (commonDeclarations.Len() === (0 as number)) {
+      if ($collections$Set_.Len$nil<$ast.Node | undefined>(commonDeclarations) === (0 as number)) {
         {
           const $t3 = symbol_!.Declarations;
           for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
@@ -28912,12 +28929,13 @@ export class Checker extends $rt.GoObject {
         }
         return true;
       }
-      for (const [d$1, $t5] of commonDeclarations.Keys() ?? new Map<$ast.Node | undefined, $rt.Empty>()) {
+      for (const [d$1, $t5] of $collections$Set_.Keys$nil<$ast.Node | undefined>(commonDeclarations) ??
+        new Map<$ast.Node | undefined, $rt.Empty>()) {
         if (!$rt.slices_Contains(symbol_!.Declarations, d$1)) {
           commonDeclarations.Delete(d$1);
         }
       }
-      if (commonDeclarations.Len() === (0 as number)) {
+      if ($collections$Set_.Len$nil<$ast.Node | undefined>(commonDeclarations) === (0 as number)) {
         $t2 = false;
         $t1 = true;
         return false;
@@ -28925,7 +28943,7 @@ export class Checker extends $rt.GoObject {
       return true;
     });
     if ($t1) return $t2;
-    return !(commonDeclarations.Len() === (0 as number));
+    return !($collections$Set_.Len$nil<$ast.Node | undefined>(commonDeclarations) === (0 as number));
   }
   createSymbolWithType(source: $ast.Symbol_ | undefined, t: Type | undefined): $ast.Symbol_ | undefined {
     const c = this;
@@ -29488,7 +29506,7 @@ export class Checker extends $rt.GoObject {
         $core.IfElse<number>(!(index === (-1 as number)), index, c!.activeTypeMappersCaches.length - 1)
       ];
     {
-      const $t1 = cache;
+      const $t1: $rt.StructMap<CacheHashKey, Type | undefined> | undefined = cache;
       const $t2 = key;
       const cachedType: Type | undefined = $rt.structMapGet($t1, $t2, undefined);
       const ok: boolean = $t1 !== undefined && $t1.has($t2);
@@ -31275,7 +31293,7 @@ export class Checker extends $rt.GoObject {
     const t: Type | undefined = c!.getDeclaredTypeOfSymbol(symbol_);
     if (t === c!.intrinsicMarkerType) {
       {
-        const $t1 = intrinsicTypeKinds;
+        const $t1: Map<string, IntrinsicTypeKind> | undefined = intrinsicTypeKinds;
         const $t2 = symbol_!.Name;
         const typeKind: IntrinsicTypeKind = $t1?.get($t2) ?? 0;
         const ok: boolean = $t1 !== undefined && $t1.has($t2);
@@ -33145,7 +33163,7 @@ export class Checker extends $rt.GoObject {
     const id: CacheHashKey = getTypeListKey(typeArguments);
     const intf: InterfaceType | undefined = target!.AsInterfaceType$Type();
     {
-      const $t1 = intf!.instantiations;
+      const $t1: $rt.StructMap<CacheHashKey, Type | undefined> | undefined = intf!.instantiations;
       const $t2 = id;
       const t: Type | undefined = $rt.structMapGet($t1, $t2, undefined);
       const ok: boolean = $t1 !== undefined && $t1.has($t2);
@@ -33537,7 +33555,7 @@ export class Checker extends $rt.GoObject {
     const c = this;
     const key: CachedTypeKey = CachedTypeKey.$lit_checker_CachedTypeKey_0_1(0, t!.id);
     {
-      const $t1 = c!.cachedTypes;
+      const $t1: $rt.StructMap<CachedTypeKey, Type | undefined> | undefined = c!.cachedTypes;
       const $t2 = key;
       const cached: Type | undefined = $rt.structMapGet($t1, $t2, undefined);
       const ok: boolean = $t1 !== undefined && $t1.has($t2);
@@ -34969,7 +34987,7 @@ export class Checker extends $rt.GoObject {
       !((t!.objectFlags & 536870912) === (0 as number)),
     );
     {
-      const $t1 = c!.propertiesTypes;
+      const $t1: $rt.StructMap<PropertiesTypesKey, Type | undefined> | undefined = c!.propertiesTypes;
       const $t2 = key;
       const cached: Type | undefined = $rt.structMapGet($t1, $t2, undefined);
       const ok: boolean = $t1 !== undefined && $t1.has($t2);
@@ -41476,7 +41494,7 @@ export class Checker extends $rt.GoObject {
       return false;
     }
     {
-      const $t1 = c!.cachedArgumentsReferenced;
+      const $t1: Map<$ast.Node | undefined, boolean> | undefined = c!.cachedArgumentsReferenced;
       const $t2 = node;
       const containsArguments: boolean = $t1?.get($t2) ?? false;
       const ok: boolean = $t1 !== undefined && $t1.has($t2);
@@ -42645,7 +42663,7 @@ export class Checker extends $rt.GoObject {
     if (assumeTrue) {
       return c!.narrowTypeByTypeName(t, literal!.Text$Node());
     }
-    const $t1 = typeofNEFacts;
+    const $t1: Map<string, TypeFacts> | undefined = typeofNEFacts;
     const $t2 = literal!.Text$Node();
     let facts: TypeFacts = $t1?.get($t2) ?? 0;
     const ok: boolean = $t1 !== undefined && $t1.has($t2);
@@ -42940,7 +42958,7 @@ export class Checker extends $rt.GoObject {
       checkDerived,
     );
     {
-      const $t1 = c!.narrowedTypes;
+      const $t1: $rt.StructMap<NarrowedTypeKey, Type | undefined> | undefined = c!.narrowedTypes;
       const $t2 = key;
       const narrowedType: Type | undefined = $rt.structMapGet($t1, $t2, undefined);
       const ok: boolean = $t1 !== undefined && $t1.has($t2);
@@ -43572,7 +43590,7 @@ export class Checker extends $rt.GoObject {
         } else {
           c!.flowLoopStack.push(FlowLoopInfo.$lit_checker_FlowLoopInfo_0_1(key, antecedentTypes));
           const saveFlowTypeCache: Map<$ast.Node | undefined, Type | undefined> | undefined = c!.flowTypeCache;
-          c!.flowTypeCache = undefined;
+          c!.flowTypeCache = undefined as Map<$ast.Node | undefined, Type | undefined> | undefined;
           flowType = c!.getTypeAtFlowNode(f, list!.Flow);
           c!.flowTypeCache = saveFlowTypeCache;
           c!.flowLoopStack = $rt.truncate(c!.flowLoopStack, c!.flowLoopStack.length - 1, FlowLoopInfo$zero);
@@ -44388,7 +44406,7 @@ export class Checker extends $rt.GoObject {
         const i = $t2;
         const witness = $t1[$t2];
         if ((i < start || i >= end) && !(witness === ('' as string))) {
-          const $t3 = typeofNEFacts;
+          const $t3: Map<string, TypeFacts> | undefined = typeofNEFacts;
           const $t4 = witness;
           let f: TypeFacts = $t3?.get($t4) ?? 0;
           const ok: boolean = $t3 !== undefined && $t3.has($t4);
@@ -45069,7 +45087,7 @@ export class Checker extends $rt.GoObject {
       if (!((flags & 4096) === (0 as number))) {
         if (!noCacheCheck && f!.reduceLabels.length === (0 as number)) {
           {
-            const $t1 = c!.flowNodeReachable;
+            const $t1: Map<$ast.FlowNode | undefined, boolean> | undefined = c!.flowNodeReachable;
             const $t2 = flow;
             const reachable: boolean = $t1?.get($t2) ?? false;
             const ok: boolean = $t1 !== undefined && $t1.has($t2);
@@ -45137,7 +45155,7 @@ export class Checker extends $rt.GoObject {
             }
             flow = flow!.Antecedent;
           } else if (!((flags & 1024) === (0 as number))) {
-            c!.lastFlowNode = undefined;
+            c!.lastFlowNode = undefined as $ast.FlowNode | undefined;
             f!.reduceLabels.push(flow!.Node_!.AsFlowReduceLabelData());
             const result: boolean = c!.isReachableFlowNodeWorker(f, flow!.Antecedent, false);
             f!.reduceLabels = $rt.truncate(f!.reduceLabels, f!.reduceLabels.length - 1, undefined);
@@ -45181,7 +45199,7 @@ export class Checker extends $rt.GoObject {
       if (!((flags & 4096) === (0 as number))) {
         if (!noCacheCheck) {
           {
-            const $t1 = c!.flowNodePostSuper;
+            const $t1: Map<$ast.FlowNode | undefined, boolean> | undefined = c!.flowNodePostSuper;
             const $t2 = flow;
             const postSuper: boolean = $t1?.get($t2) ?? false;
             const ok: boolean = $t1 !== undefined && $t1.has($t2);
@@ -47176,7 +47194,7 @@ export class Checker extends $rt.GoObject {
         const name_: $ast.Node | undefined = attr!.Name();
         const initializer: $ast.Node | undefined = attr!.Initializer_;
         const textOfName: string = name_!.Text$Node();
-        if (!seen.Has(textOfName)) {
+        if (!$collections$Set_.Has$nil<string>(seen, textOfName)) {
           seen.Add(textOfName);
         } else {
           return c!.grammarErrorOnNode(
@@ -49026,7 +49044,7 @@ export class Checker extends $rt.GoObject {
     const c = this;
     const key: InferenceKey = InferenceKey.$lit_checker_InferenceKey_0_1(source!.id, target!.id);
     {
-      const $t1 = n!.visited;
+      const $t1: $rt.StructMap<InferenceKey, InferencePriority> | undefined = n!.visited;
       const $t2 = key;
       const status: InferencePriority = $rt.structMapGet($t1, $t2, 0);
       const ok: boolean = $t1 !== undefined && $t1.has($t2);
@@ -50007,7 +50025,7 @@ export class Checker extends $rt.GoObject {
       constraint!.id,
     );
     {
-      const $t1 = c!.reverseMappedCache;
+      const $t1: $rt.StructMap<ReverseMappedTypeKey, Type | undefined> | undefined = c!.reverseMappedCache;
       const $t2 = key;
       const cached: Type | undefined = $rt.structMapGet($t1, $t2, undefined);
       const ok: boolean = $t1 !== undefined && $t1.has($t2);
@@ -50722,7 +50740,7 @@ export class Checker extends $rt.GoObject {
   }
   isSkipDirectInferenceNode(node: $ast.Node | undefined): boolean {
     const c = this;
-    return c!.skipDirectInferenceNodes.Has(node);
+    return $collections$Set_.Has$nil<$ast.Node | undefined>(c!.skipDirectInferenceNodes, node);
   }
   mergeInferences(target: (InferenceInfo | undefined)[], source: (InferenceInfo | undefined)[]): void {
     const c = this;
@@ -50780,7 +50798,10 @@ export class Checker extends $rt.GoObject {
         if (lastJSDocParam === undefined || !$ast.IsIdentifier(lastJSDocParam!.Name())) {
           return;
         }
-        if (excludedParameters.Has(lastJSDocParamIndex) || parameters.Has(lastJSDocParam!.Name()!.Text$Node())) {
+        if (
+          $collections$Set_.Has$nil<number>(excludedParameters, lastJSDocParamIndex) ||
+          $collections$Set_.Has$nil<string>(parameters, lastJSDocParam!.Name()!.Text$Node())
+        ) {
           return;
         }
         if (lastJSDocParam!.TypeExpression_ === undefined || lastJSDocParam!.TypeExpression_!.Type$m() === undefined) {
@@ -50803,7 +50824,10 @@ export class Checker extends $rt.GoObject {
           const tag$1 = $t5[$t6];
           const name_$2: $ast.Node | undefined = tag$1!.AsJSDocParameterOrPropertyTag()!.Name();
           const isNameFirst: boolean = tag$1!.AsJSDocParameterOrPropertyTag()!.IsNameFirst;
-          if (excludedParameters.Has(index) || ($ast.IsIdentifier(name_$2) && parameters.Has(name_$2!.Text$Node()))) {
+          if (
+            $collections$Set_.Has$nil<number>(excludedParameters, index) ||
+            ($ast.IsIdentifier(name_$2) && $collections$Set_.Has$nil<string>(parameters, name_$2!.Text$Node()))
+          ) {
             continue;
           }
           if ($ast.IsQualifiedName(name_$2)) {
@@ -52814,7 +52838,7 @@ export class Checker extends $rt.GoObject {
             for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
               const i$1 = $t2;
               const name_ = $t1[$t2];
-              const $t3 = uniqueNames;
+              const $t3: Map<string, boolean> | undefined = uniqueNames;
               const $t4 = name_;
               const ok: boolean = $t3 !== undefined && $t3.has($t4);
               if (ok) {
@@ -52829,7 +52853,7 @@ export class Checker extends $rt.GoObject {
             const $t5 = duplicates;
             for (let $t6 = 0, $n = $t5.length; $t6 < $n; $t6++) {
               const i$2 = $t5[$t6];
-              const $t7 = counters;
+              const $t7: Map<string, number> | undefined = counters;
               const $t8 = names[i$2];
               let counter: number = $t7?.get($t8) ?? 0;
               const ok$1: boolean = $t7 !== undefined && $t7.has($t8);
@@ -52842,7 +52866,7 @@ export class Checker extends $rt.GoObject {
                   new $rt.BoxStr(names[i$2], 'string'),
                   new $rt.BoxNum(counter, 'int'),
                 ]);
-                const $t9 = uniqueNames;
+                const $t9: Map<string, boolean> | undefined = uniqueNames;
                 const $t10 = name_$1;
                 const ok$2: boolean = $t9 !== undefined && $t9.has($t10);
                 if (ok$2) {
@@ -55357,7 +55381,7 @@ export class Checker extends $rt.GoObject {
   }
   isMarkerType(t: Type | undefined): boolean {
     const c = this;
-    return c!.markerTypes.Has(t);
+    return $collections$Set_.Has$nil<Type | undefined>(c!.markerTypes, t);
   }
   getTypeParameterModifiers(tp: Type | undefined): $ast.ModifierFlags {
     const c = this;
@@ -56755,7 +56779,7 @@ export class Checker extends $rt.GoObject {
   }
   putRelater(r: Relater | undefined): void {
     const c = this;
-    r!.maybeKeysSet.Clear();
+    $collections$Set_.Clear$nil<CacheHashKey>(r!.maybeKeysSet);
     r!.$copy_checker_Relater(
       Relater.$lit_checker_Relater_0_5_6_7_8_15(
         c,
@@ -56912,7 +56936,7 @@ export class Checker extends $rt.GoObject {
       if (!((symbol_!.CombinedLocalAndExportSymbolFlags() & meaning$1) >>> 0 === (0 as number))) {
         const id: string = symbol_!.Name;
         {
-          const $t1 = symbols;
+          const $t1: $ast.SymbolTable = symbols;
           const $t2 = id;
           const ok: boolean = $t1 !== undefined && $t1.has($t2);
           if (!ok) {
@@ -57112,7 +57136,7 @@ export class Checker extends $rt.GoObject {
           for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
             const p = $t3[$t4];
             {
-              const $t5 = props;
+              const $t5: $ast.SymbolTable = props;
               const $t6 = p!.Name;
               const ok: boolean = $t5 !== undefined && $t5.has($t6);
               if (!ok) {
@@ -57187,7 +57211,7 @@ export class Checker extends $rt.GoObject {
         for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
           const p = $t1[$t2];
           {
-            const $t3 = propsByName;
+            const $t3: $ast.SymbolTable = propsByName;
             const $t4 = p!.Name;
             const ok: boolean = $t3 !== undefined && $t3.has($t4);
             if (!ok) {
@@ -57740,7 +57764,7 @@ export class Checker extends $rt.GoObject {
     if (!(parsedNode === undefined)) {
       res = c!.getResolvedSignature(parsedNode, candidatesOutArray, checkMode);
     }
-    c!.apparentArgumentCount = undefined;
+    c!.apparentArgumentCount = undefined as $rt.Ptr<number> | undefined;
     return [res, candidatesOutArray!.get()];
   }
   GetCandidateSignaturesForStringLiteralCompletions(
@@ -57773,7 +57797,7 @@ export class Checker extends $rt.GoObject {
       const $t3 = otherCandidates;
       for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
         const candidate = $t3[$t4];
-        if (candidatesSet!.Has(candidate)) {
+        if ($collections$Set_.Has$nil<Signature | undefined>(candidatesSet, candidate)) {
           continue;
         }
         candidates = $rt.appendCopy(candidates, [candidate]);
@@ -58212,7 +58236,7 @@ export class Checker extends $rt.GoObject {
     if (links!.extendedContainersByFile === undefined) {
       links!.extendedContainersByFile = new Map<$ast.NodeId, ($ast.Symbol_ | undefined)[]>();
     }
-    const $t1 = links!.extendedContainersByFile;
+    const $t1: Map<$ast.NodeId, ($ast.Symbol_ | undefined)[]> | undefined = links!.extendedContainersByFile;
     const $t2 = id;
     const existing: ($ast.Symbol_ | undefined)[] = $t1?.get($t2) ?? [];
     const ok: boolean = $t1 !== undefined && $t1.has($t2);
@@ -58318,7 +58342,7 @@ export class Checker extends $rt.GoObject {
     if (fileSymbol === undefined || fileSymbol!.Exports === undefined) {
       return undefined;
     }
-    const $t1 = fileSymbol!.Exports;
+    const $t1: $ast.SymbolTable = fileSymbol!.Exports;
     const $t2 = 'export=';
     const exported: $ast.Symbol_ | undefined = $t1?.get($t2) ?? undefined;
     const ok: boolean = $t1 !== undefined && $t1.has($t2);
@@ -58429,7 +58453,7 @@ export class Checker extends $rt.GoObject {
       return symbol_;
     }
     if (!(container!.Exports === undefined)) {
-      const $t1 = container!.Exports;
+      const $t1: $ast.SymbolTable = container!.Exports;
       const $t2 = 'export=';
       const exportEquals: $ast.Symbol_ | undefined = $t1?.get($t2) ?? undefined;
       const ok: boolean = $t1 !== undefined && $t1.has($t2);
@@ -58438,7 +58462,7 @@ export class Checker extends $rt.GoObject {
       }
     }
     const exports: $ast.SymbolTable = c!.getExportsOfSymbol(container);
-    const $t3 = exports;
+    const $t3: $ast.SymbolTable = exports;
     const $t4 = symbol_!.Name;
     const quick: $ast.Symbol_ | undefined = $t3?.get($t4) ?? undefined;
     const ok$1: boolean = $t3 !== undefined && $t3.has($t4);
@@ -58508,7 +58532,8 @@ export class Checker extends $rt.GoObject {
     if (links!.accessibleChainCache === undefined) {
       links!.accessibleChainCache = new $rt.StructMap<accessibleChainCacheKey, ($ast.Symbol_ | undefined)[]>($fn146);
     }
-    const $t1 = links!.accessibleChainCache;
+    const $t1: $rt.StructMap<accessibleChainCacheKey, ($ast.Symbol_ | undefined)[]> | undefined =
+      links!.accessibleChainCache;
     const $t2 = linkKey;
     const existing: ($ast.Symbol_ | undefined)[] = $rt.structMapGet($t1, $t2, []);
     const ok: boolean = $t1 !== undefined && $t1.has($t2);
@@ -58551,7 +58576,7 @@ export class Checker extends $rt.GoObject {
   ): ($ast.Symbol_ | undefined)[] {
     const c = this;
     const symId: $ast.SymbolId = $ast.GetSymbolId(ctx.symbol);
-    const $t1 = ctx.visitedSymbolTablesMap;
+    const $t1: Map<$ast.SymbolId, Map<symbolTableID, $rt.Empty> | undefined> | undefined = ctx.visitedSymbolTablesMap;
     const $t2 = symId;
     let visitedSymbolTables: Map<symbolTableID, $rt.Empty> | undefined = $t1?.get($t2) ?? undefined;
     const ok: boolean = $t1 !== undefined && $t1.has($t2);
@@ -58559,7 +58584,7 @@ export class Checker extends $rt.GoObject {
       visitedSymbolTables = new Map<symbolTableID, $rt.Empty>();
       ctx.visitedSymbolTablesMap!.set(symId, visitedSymbolTables);
     }
-    const $t3 = visitedSymbolTables;
+    const $t3: Map<symbolTableID, $rt.Empty> | undefined = visitedSymbolTables;
     const $t4 = tableId;
     const present: boolean = $t3 !== undefined && $t3.has($t4);
     if (present) {
@@ -58585,7 +58610,7 @@ export class Checker extends $rt.GoObject {
     if (kind === 6917529027641081856n || kind === 2305843009213693952n || kind === 9223372036854775808n) {
       if (!(c!.symbolTableAliasCache === undefined)) {
         {
-          const $t1 = c!.symbolTableAliasCache;
+          const $t1: Map<symbolTableID, ($ast.Symbol_ | undefined)[]> | undefined = c!.symbolTableAliasCache;
           const $t2 = tableId;
           const aliases: ($ast.Symbol_ | undefined)[] = $t1?.get($t2) ?? [];
           const ok: boolean = $t1 !== undefined && $t1.has($t2);
@@ -58618,7 +58643,7 @@ export class Checker extends $rt.GoObject {
   ): ($ast.Symbol_ | undefined)[] {
     const c = this;
     const isGlobals: boolean = tableId === 6917529027641081856n;
-    const $t1 = symbols;
+    const $t1: $ast.SymbolTable = symbols;
     const $t2 = ctx.symbol!.Name;
     const res: $ast.Symbol_ | undefined = $t1?.get($t2) ?? undefined;
     const ok: boolean = $t1 !== undefined && $t1.has($t2);
@@ -58788,7 +58813,7 @@ export class Checker extends $rt.GoObject {
         $p3: boolean,
         $p4: $ast.Node | undefined,
       ): boolean => {
-        const $t1 = symbolTable;
+        const $t1: $ast.SymbolTable = symbolTable;
         const $t2 = symbol_!.Name;
         const res: $ast.Symbol_ | undefined = $t1?.get($t2) ?? undefined;
         const ok: boolean = $t1 !== undefined && $t1.has($t2);
@@ -58890,7 +58915,7 @@ export class Checker extends $rt.GoObject {
     const nodeId: $ast.NodeId = $ast.GetNodeId(location);
     if (!(c!.classExpressionNameTables === undefined)) {
       {
-        const $t1 = c!.classExpressionNameTables;
+        const $t1: Map<$ast.NodeId, $ast.SymbolTable> | undefined = c!.classExpressionNameTables;
         const $t2 = nodeId;
         const table: $ast.SymbolTable = $t1?.get($t2) ?? undefined;
         const ok: boolean = $t1 !== undefined && $t1.has($t2);
@@ -59130,7 +59155,7 @@ export class Checker extends $rt.GoObject {
   typesPackageExists(packageName: string): boolean {
     const c = this;
     const packagesMap: Map<string, boolean> | undefined = c!.getPackagesMap();
-    const $t1 = packagesMap;
+    const $t1: Map<string, boolean> | undefined = packagesMap;
     const $t2 = $module.GetTypesPackageName(packageName);
     const ok: boolean = $t1 !== undefined && $t1.has($t2);
     return ok;
@@ -59138,7 +59163,7 @@ export class Checker extends $rt.GoObject {
   packageBundlesTypes(packageName: string): boolean {
     const c = this;
     const packagesMap: Map<string, boolean> | undefined = c!.getPackagesMap();
-    const $t1 = packagesMap;
+    const $t1: Map<string, boolean> | undefined = packagesMap;
     const $t2 = packageName;
     const hasTypes: boolean = $t1?.get($t2) ?? false;
     return hasTypes;
@@ -60487,7 +60512,7 @@ export class EmitResolver extends $rt.GoObject {
     }
     const visited: Map<$ast.SymbolId, $rt.Empty> | undefined = new Map<$ast.SymbolId, $rt.Empty>();
     for (; !(exportSymbol === undefined);) {
-      const $t1 = visited;
+      const $t1: Map<$ast.SymbolId, $rt.Empty> | undefined = visited;
       const $t2 = $ast.GetSymbolId(exportSymbol);
       const seen: boolean = $t1 !== undefined && $t1.has($t2);
       if (seen) {
@@ -64028,7 +64053,7 @@ export class NodeBuilder extends $rt.GoObject {
     const b = this;
     const stackSize: number = b!.ctxStack.length;
     if (stackSize === (0 as number)) {
-      b!.impl!.ctx = undefined;
+      b!.impl!.ctx = undefined as NodeBuilderContext | undefined;
     } else {
       b!.impl!.ctx = b!.ctxStack[stackSize - 1];
       b!.ctxStack = $rt.truncate(b!.ctxStack, stackSize - 1, undefined);
@@ -64724,7 +64749,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
         const memberName: $ast.Node | undefined = m!.Name$Node();
         if (!(memberName === undefined)) {
           {
-            const $t3 = b!.idToSymbol;
+            const $t3: Map<$ast.Node | undefined, $ast.Symbol_ | undefined> | undefined = b!.idToSymbol;
             const $t4 = memberName;
             const sym: $ast.Symbol_ | undefined = $t3?.get($t4) ?? undefined;
             const ok: boolean = $t3 !== undefined && $t3.has($t4);
@@ -65333,7 +65358,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
           for (let $t6 = 0, $n = $t5.length; $t6 < $n; $t6++) {
             const prop = $t5[$t6];
             {
-              const $t7 = propsByName;
+              const $t7: Map<string, $ast.Symbol_ | undefined> | undefined = propsByName;
               const $t8 = prop!.Name;
               const existing: $ast.Symbol_ | undefined = $t7?.get($t8) ?? undefined;
               const ok: boolean = $t7 !== undefined && $t7.has($t8);
@@ -65345,11 +65370,11 @@ export class NodeBuilderImpl extends $rt.GoObject {
         }
       }
     }
-    if (inherited.Len() === (0 as number)) {
+    if ($collections$Set_.Len$nil<string>(inherited) === (0 as number)) {
       return properties;
     }
     return $core.Filter<$ast.Symbol_ | undefined>(properties, (p$1: $ast.Symbol_ | undefined): boolean => {
-      return !inherited.Has(p$1!.Name);
+      return !$collections$Set_.Has$nil<string>(inherited, p$1!.Name);
     });
   }
   isNamespaceMember(p: $ast.Symbol_ | undefined): boolean {
@@ -66040,7 +66065,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
       if (!(parent === undefined)) {
         const exports: $ast.SymbolTable = b!.ch!.getExportsOfSymbol(parent);
         if (!(exports === undefined)) {
-          const $t1 = exports;
+          const $t1: $ast.SymbolTable = exports;
           const $t2 = symbol_!.Name;
           const res: $ast.Symbol_ | undefined = $t1?.get($t2) ?? undefined;
           const ok: boolean = $t1 !== undefined && $t1.has($t2);
@@ -66257,7 +66282,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
   }
   getNameOfSymbolAsWritten(symbol_: $ast.Symbol_ | undefined): string {
     const b = this;
-    const $t1 = b!.ctx!.remappedSymbolReferences;
+    const $t1: Map<$ast.SymbolId, $ast.Symbol_ | undefined> | undefined = b!.ctx!.remappedSymbolReferences;
     const $t2 = $ast.GetSymbolId(symbol_);
     const result: $ast.Symbol_ | undefined = $t1?.get($t2) ?? undefined;
     const ok: boolean = $t1 !== undefined && $t1.has($t2);
@@ -66459,7 +66484,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
             );
             if (parentChain.length > 0) {
               if (!(parent!.Exports === undefined)) {
-                const $t4 = parent!.Exports;
+                const $t4: $ast.SymbolTable = parent!.Exports;
                 const $t5 = 'export=';
                 const exported: $ast.Symbol_ | undefined = $t4?.get($t5) ?? undefined;
                 const ok: boolean = $t4 !== undefined && $t4.has($t5);
@@ -66559,7 +66584,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
     if (links!.specifierCache === undefined) {
       links!.specifierCache = new $rt.StructMap<$module.ModeAwareCacheKey, string>($fn124);
     }
-    const $t1 = links!.specifierCache;
+    const $t1: $module.ModeAwareCache<string> = links!.specifierCache;
     const $t2 = cacheKey;
     const result: string = $rt.structMapGet($t1, $t2, '');
     const ok: boolean = $t1 !== undefined && $t1.has($t2);
@@ -66640,7 +66665,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
       range_ = range_!.Clone$Node(b!.f);
       range_!.Loc = $core.NewTextRange(-1, -1);
       {
-        const $t1 = b!.idToSymbol;
+        const $t1: Map<$ast.Node | undefined, $ast.Symbol_ | undefined> | undefined = b!.idToSymbol;
         const $t2 = original;
         const symbol_: $ast.Symbol_ | undefined = $t1?.get($t2) ?? undefined;
         const ok: boolean = $t1 !== undefined && $t1.has($t2);
@@ -67340,7 +67365,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
     if (!(signature!.declaration === undefined) && !$ast.NodeIsSynthesized(signature!.declaration)) {
       const symbol_: $ast.Symbol_ | undefined = b!.ch!.getSymbolOfDeclaration(signature!.declaration);
       let ok: boolean = false;
-      const $t1 = b!.ctx!.enclosingSymbolTypes;
+      const $t1: Map<$ast.SymbolId, Type | undefined> | undefined = b!.ctx!.enclosingSymbolTypes;
       const $t2 = $ast.GetSymbolId(symbol_);
       returnType = $t1?.get($t2) ?? undefined;
       ok = $t1 !== undefined && $t1.has($t2);
@@ -67919,7 +67944,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
       propertyType = b!.ch!.getNonMissingTypeOfSymbol(propertySymbol);
     }
     const saveEnclosingDeclaration: $ast.Node | undefined = b!.ctx!.enclosingDeclaration;
-    b!.ctx!.enclosingDeclaration = undefined;
+    b!.ctx!.enclosingDeclaration = undefined as $ast.Node | undefined;
     if (isLateBoundName(propertySymbol!.Name)) {
       if (propertySymbol!.Declarations.length > 0) {
         const decl: $ast.Node | undefined = propertySymbol!.Declarations[0];
@@ -68354,7 +68379,8 @@ export class NodeBuilderImpl extends $rt.GoObject {
         symbol_ = b!.ch!.getMergedSymbol(symbol_!.ValueDeclaration!.Parent!.Symbol$m());
       }
       return [
-        (!((b!.ctx!.flags & 4096) === (0 as number)) || b!.ctx!.visitedTypes.Has(typeId)) &&
+        (!((b!.ctx!.flags & 4096) === (0 as number)) ||
+          $collections$Set_.Has$nil<TypeId>(b!.ctx!.visitedTypes, typeId)) &&
           ((b!.ctx!.flags & 8) === (0 as number) ||
             b!.ch!.IsValueSymbolAccessible(symbol_, b!.ctx!.enclosingDeclaration)),
         symbol_,
@@ -68411,7 +68437,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
         const instantiationExpressionType: InstantiationExpressionType | undefined = t!.AsInstantiationExpressionType();
         const existing: $ast.Node | undefined = instantiationExpressionType!.node;
         if ($ast.IsTypeQueryNode(existing) && b!.getTypeFromTypeNode(existing, false) === t) {
-          if (b!.ctx!.visitedTypes.Has(typeId)) {
+          if ($collections$Set_.Has$nil<TypeId>(b!.ctx!.visitedTypes, typeId)) {
             return b!.createElidedInformationPlaceholder();
           }
           b!.ctx!.visitedTypes.Add(typeId);
@@ -68426,7 +68452,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
             return typeNode;
           }
         }
-        if (b!.ctx!.visitedTypes.Has(typeId)) {
+        if ($collections$Set_.Has$nil<TypeId>(b!.ctx!.visitedTypes, typeId)) {
           return b!.createElidedInformationPlaceholder();
         }
         return b!.visitAndTransformType(t, $fn128);
@@ -68449,7 +68475,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
           }
         }
       }
-      if (b!.ctx!.visitedTypes.Has(typeId)) {
+      if ($collections$Set_.Has$nil<TypeId>(b!.ctx!.visitedTypes, typeId)) {
         const typeAlias: $ast.Symbol_ | undefined = getTypeAliasForTypeLiteral(b!.ch, t);
         if (!(typeAlias === undefined)) {
           return b!.symbolToTypeNode(typeAlias, 788968, undefined);
@@ -68481,7 +68507,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
   typeToTypeNodeOrCircularityElision(t: Type | undefined): $ast.Node | undefined {
     const b = this;
     if (!((t!.flags & 134217728) === (0 as number))) {
-      if (b!.ctx!.visitedTypes.Has(t!.id)) {
+      if ($collections$Set_.Has$nil<TypeId>(b!.ctx!.visitedTypes, t!.id)) {
         if ((b!.ctx!.flags & 131072) === (0 as number)) {
           b!.ctx!.encounteredError = true;
           $rt.nn(b!.ctx!.tracker).ReportCyclicStructureError();
@@ -68815,7 +68841,8 @@ export class NodeBuilderImpl extends $rt.GoObject {
     const canUseCache: boolean = b!.ctx!.maxExpansionDepth < 0;
     if (canUseCache && !(b!.ctx!.enclosingDeclaration === undefined) && b!.links.Has(b!.ctx!.enclosingDeclaration)) {
       const links: NodeBuilderLinks | undefined = b!.links.Get(b!.ctx!.enclosingDeclaration);
-      const $t2 = links!.serializedTypes;
+      const $t2: $rt.StructMap<CompositeTypeCacheIdentity, SerializedTypeEntry | undefined> | undefined =
+        links!.serializedTypes;
       const $t3 = key;
       const cachedResult: SerializedTypeEntry | undefined = $rt.structMapGet($t2, $t3, undefined);
       const ok: boolean = $t2 !== undefined && $t2.has($t3);
@@ -69397,7 +69424,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
   addSymbolTypeToContext(symbol_: $ast.Symbol_ | undefined, t: Type | undefined): (() => void) | undefined {
     const b = this;
     const id: $ast.SymbolId = $ast.GetSymbolId(symbol_);
-    const $t1 = b!.ctx!.enclosingSymbolTypes;
+    const $t1: Map<$ast.SymbolId, Type | undefined> | undefined = b!.ctx!.enclosingSymbolTypes;
     const $t2 = id;
     const oldType: Type | undefined = $t1?.get($t2) ?? undefined;
     const oldTypeExists: boolean = $t1 !== undefined && $t1.has($t2);
@@ -69487,7 +69514,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
         let oldLocals: localsRecord[] = [] as localsRecord[];
         addAll!((name_: string, symbol_: $ast.Symbol_ | undefined): void => {
           if (!(existingFakeScope === undefined)) {
-            const $t1 = locals;
+            const $t1: $ast.SymbolTable = locals;
             const $t2 = name_;
             const oldSymbol: $ast.Symbol_ | undefined = $t1?.get($t2) ?? undefined;
             const ok: boolean = $t1 !== undefined && $t1.has($t2);
@@ -71806,14 +71833,14 @@ export class Relater extends $rt.GoObject {
         $t1 = 0;
         break $body;
       }
-      if (r!.maybeKeysSet.Has(id)) {
+      if ($collections$Set_.Has$nil<CacheHashKey>(r!.maybeKeysSet, id)) {
         $t1 = 3;
         break $body;
       }
       if (constrained) {
         const $t3 = getRelationKey(source, target, intersectionState, r!.relation === r!.c!.identityRelation, true);
         const broadestEquivalentId: CacheHashKey = $t3[0];
-        if (r!.maybeKeysSet.Has(broadestEquivalentId)) {
+        if ($collections$Set_.Has$nil<CacheHashKey>(r!.maybeKeysSet, broadestEquivalentId)) {
           $t1 = 3;
           break $body;
         }
@@ -73200,7 +73227,9 @@ export class Relater extends $rt.GoObject {
         const targetTypeArguments: (Type | undefined)[] = r!.c!.getTypeArguments(target);
         const targetStartCount: number = getStartElementCount(target!.TargetTupleType(), 11);
         const targetEndCount: number = getEndElementCount(target!.TargetTupleType(), 11);
-        let canExcludeDiscriminants: boolean = !(excludedProperties.Len() === (0 as number));
+        let canExcludeDiscriminants: boolean = !(
+          $collections$Set_.Len$nil<string>(excludedProperties) === (0 as number)
+        );
         for (let sourcePosition = 0, $t1 = sourceArity; sourcePosition < $t1; sourcePosition++) {
           let sourceFlags: ElementFlags = 0;
           if (isTupleType(source)) {
@@ -73256,7 +73285,10 @@ export class Relater extends $rt.GoObject {
             if (!((sourceFlags & 12) === (0 as number)) || !((targetFlags & 12) === (0 as number))) {
               canExcludeDiscriminants = false;
             }
-            if (canExcludeDiscriminants && excludedProperties.Has($rt.strconv_Itoa(sourcePosition))) {
+            if (
+              canExcludeDiscriminants &&
+              $collections$Set_.Has$nil<string>(excludedProperties, $rt.strconv_Itoa(sourcePosition))
+            ) {
               continue;
             }
           }
@@ -74290,7 +74322,7 @@ export class Relater extends $rt.GoObject {
               ],
             );
           } else {
-            r!.errorChain = undefined;
+            r!.errorChain = undefined as ErrorChain | undefined;
             r!.reportError(
               $diagnostics.X_0_could_be_instantiated_with_an_arbitrary_type_which_could_be_unrelated_to_1,
               [new $rt.BoxStr(targetType, 'string'), new $rt.BoxStr(generalizedSourceType, 'string')],
@@ -75306,7 +75338,7 @@ export class TSTSExporter extends $rt.GoObject {
   signature(sig: Signature | undefined): TSTSSignature {
     const e = this;
     const c: Checker | undefined = e!.Checker_;
-    const $t1 = e!.signatureIDs;
+    const $t1: Map<Signature | undefined, number> | undefined = e!.signatureIDs;
     const $t2 = sig;
     let id: number = $t1?.get($t2) ?? 0;
     const ok: boolean = $t1 !== undefined && $t1.has($t2);
@@ -75421,7 +75453,7 @@ export class TSTSExporter extends $rt.GoObject {
       return -1;
     }
     {
-      const $t1 = e!.ids;
+      const $t1: Map<Type | undefined, number> | undefined = e!.ids;
       const $t2 = t;
       const id: number = $t1?.get($t2) ?? 0;
       const ok: boolean = $t1 !== undefined && $t1.has($t2);
@@ -75797,7 +75829,7 @@ export class TSTSExporter extends $rt.GoObject {
         }
         if (!((flags & 2) === (0 as number))) {
           let ok$2: boolean = false;
-          const $t33 = e!.privateIDs;
+          const $t33: Map<$ast.Node | undefined, number> | undefined = e!.privateIDs;
           const $t34 = sym$1!.ValueDeclaration;
           privateID = $t33?.get($t34) ?? 0;
           ok$2 = $t33 !== undefined && $t33.has($t34);
@@ -76359,7 +76391,7 @@ export class Tracer extends $rt.GoObject {
     if (args === undefined) {
       args = new Map<string, $rt.GoObject | undefined>();
     }
-    const $t1 = args;
+    const $t1: Map<string, $rt.GoObject | undefined> | undefined = args;
     const $t2 = 'checkerId';
     const previous: $rt.GoObject | undefined = $t1?.get($t2) ?? undefined;
     const hadPrevious: boolean = $t1 !== undefined && $t1.has($t2);
@@ -77422,7 +77454,7 @@ export class orderedSet extends $rt.GoObject {
     if (s!.valuesByKey === undefined) {
       return $rt.slices_Contains(s!.values, value);
     }
-    const $t1 = s!.valuesByKey;
+    const $t1: Map<Type | undefined, $rt.Empty> | undefined = s!.valuesByKey;
     const $t2 = value;
     const ok: boolean = $t1 !== undefined && $t1.has($t2);
     return ok;
@@ -80171,7 +80203,7 @@ export function getPrimitiveTypeAliasSuggestions(
     for (const [builtinName, suggestion] of primitiveTypeAliasSuggestions!() ??
       new Map<string, $ast.Symbol_ | undefined>()) {
       {
-        const $t1 = symbols;
+        const $t1: $ast.SymbolTable = symbols;
         const $t2 = builtinName;
         const ok: boolean = $t1 !== undefined && $t1.has($t2);
         if (ok) {
@@ -81672,7 +81704,7 @@ export function clearCachedInferences(inferences: (InferenceInfo | undefined)[])
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
       const inference = $t1[$t2];
       if (!inference!.isFixed) {
-        inference!.inferredType = undefined;
+        inference!.inferredType = undefined as Type | undefined;
       }
     }
   }
@@ -83055,7 +83087,7 @@ export function excludeProperties(
   properties: ($ast.Symbol_ | undefined)[],
   excludedProperties: $collections.Set_<string>,
 ): ($ast.Symbol_ | undefined)[] {
-  if (excludedProperties.Len() === (0 as number) || properties.length === (0 as number)) {
+  if ($collections$Set_.Len$nil<string>(excludedProperties) === (0 as number) || properties.length === (0 as number)) {
     return properties;
   }
   let reduced: ($ast.Symbol_ | undefined)[] = [];
@@ -83065,7 +83097,7 @@ export function excludeProperties(
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
       const i = $t2;
       const prop = $t1[$t2];
-      if (!excludedProperties.Has(prop!.Name)) {
+      if (!$collections$Set_.Has$nil<string>(excludedProperties, prop!.Name)) {
         if (excluded) {
           reduced = $rt.appendCopy(reduced, [prop]);
         }
@@ -83178,7 +83210,7 @@ export function runWithInferenceBlockedFromSourceNode<T>(
   c!.isInferencePartiallyBlocked = true;
   const result: T = runWithoutResolvedSignatureCaching<T>(c, node, fn);
   c!.isInferencePartiallyBlocked = false;
-  c!.skipDirectInferenceNodes.Clear();
+  $collections$Set_.Clear$nil<$ast.Node | undefined>(c!.skipDirectInferenceNodes);
   return result;
 }
 export function GetResolvedSignatureForSignatureHelp(
@@ -83220,14 +83252,14 @@ export function runWithoutResolvedSignatureCaching<T>(
     for (; !(ancestorNode === undefined);) {
       const signatureLinks: SignatureLinks | undefined = c!.signatureLinks.Get(ancestorNode);
       cachedResolvedSignatures!.set(signatureLinks, signatureLinks!.resolvedSignature);
-      signatureLinks!.resolvedSignature = undefined;
+      signatureLinks!.resolvedSignature = undefined as Signature | undefined;
       if ($ast.IsFunctionExpressionOrArrowFunction(ancestorNode)) {
         const symbolLinks: ValueSymbolLinks | undefined = c!.valueSymbolLinks.Get(
           c!.getSymbolOfDeclaration(ancestorNode),
         );
         const resolvedType: Type | undefined = symbolLinks!.resolvedType;
         cachedTypes!.set(symbolLinks, resolvedType);
-        symbolLinks!.resolvedType = undefined;
+        symbolLinks!.resolvedType = undefined as Type | undefined;
       }
       ancestorNode = $ast.FindAncestor(ancestorNode!.Parent, $ast.IsCallLikeOrFunctionLikeExpression);
     }
@@ -83320,7 +83352,7 @@ export function getPossibleSymbolReferencePositions(
   return positions;
 }
 export function isKnownGenericTypeName(name_: string): boolean {
-  const $t1 = knownGenericTypeNames;
+  const $t1: Map<string, $rt.Empty> | undefined = knownGenericTypeNames;
   const $t2 = name_;
   const exists: boolean = $t1 !== undefined && $t1.has($t2);
   return exists;
@@ -84986,7 +85018,7 @@ export function CreateModuleNotFoundChain(
   }
   const packagesMap: Map<string, boolean> | undefined = program!.GetPackagesMap();
   {
-    const $t1 = packagesMap;
+    const $t1: Map<string, boolean> | undefined = packagesMap;
     const $t2 = $module.GetTypesPackageName(packageName);
     const ok: boolean = $t1 !== undefined && $t1.has($t2);
     if (ok) {

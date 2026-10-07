@@ -8,6 +8,7 @@ import * as $debug from './debug.js';
 import * as $diagnostics from './diagnostics.js';
 import * as $jsnum from './jsnum.js';
 import * as $stringutil from './stringutil.js';
+import { Set_ as $collections$Set_ } from './collections.js';
 export type ErrorCallback =
   | ((p0: $diagnostics.Message | undefined, p1: number, p2: number, p3: ($rt.GoObject | undefined)[]) => void)
   | undefined;
@@ -84,7 +85,8 @@ export class Scanner extends ScannerState {
   checkRegularExpressionFlagAvailability(flag: regularExpressionFlags, pos: number, size: number): void {
     const s = this;
     {
-      const $t1 = regExpFlagToFirstAvailableLanguageVersion;
+      const $t1: Map<regularExpressionFlags, $core.ScriptTarget> | undefined =
+        regExpFlagToFirstAvailableLanguageVersion;
       const $t2 = flag;
       const availableFrom: $core.ScriptTarget = $t1?.get($t2) ?? 0;
       const ok: boolean = $t1 !== undefined && $t1.has($t2);
@@ -590,7 +592,7 @@ export class Scanner extends ScannerState {
                 s!.hexNumberCache = new Map<string, string>();
               }
               {
-                const $t4 = s!.hexNumberCache;
+                const $t4: Map<string, string> | undefined = s!.hexNumberCache;
                 const $t5 = digits;
                 const cachedValue: string = $t4?.get($t5) ?? '';
                 const ok: boolean = $t4 !== undefined && $t4.has($t5);
@@ -1173,7 +1175,7 @@ export class Scanner extends ScannerState {
             break;
           }
           if (shouldReportErrors) {
-            const $t4 = charCodeToRegExpFlag;
+            const $t4: Map<number, regularExpressionFlags> | undefined = charCodeToRegExpFlag;
             const $t5 = ch$3;
             const flag: regularExpressionFlags = $t4?.get($t5) ?? 0;
             const ok: boolean = $t4 !== undefined && $t4.has($t5);
@@ -2298,7 +2300,7 @@ export class Scanner extends ScannerState {
       s!.hexDigitCache = new Map<string, string>();
     }
     {
-      const $t1 = s!.hexDigitCache;
+      const $t1: Map<string, string> | undefined = s!.hexDigitCache;
       const $t2 = digits;
       const cached: string = $t1?.get($t2) ?? '';
       const ok: boolean = $t1 !== undefined && $t1.has($t2);
@@ -2375,7 +2377,7 @@ export class Scanner extends ScannerState {
       s!.numberCache = new Map<string, string>();
     }
     {
-      const $t1 = s!.numberCache;
+      const $t1: Map<string, string> | undefined = s!.numberCache;
       const $t2 = s!.tokenValue;
       const cached: string = $t1?.get($t2) ?? '';
       const ok: boolean = $t1 !== undefined && $t1.has($t2);
@@ -2610,7 +2612,8 @@ export class regExpParser extends $rt.GoObject {
     }
     if (isInGroup && p!.namedCapturingGroups.length > 0) {
       const parentScope: Map<string, boolean> | undefined = p!.namedCapturingGroups[p!.namedCapturingGroups.length - 1];
-      for (const [name_$1, $t2] of disjunctionNames.Keys() ?? new Map<string, $rt.Empty>()) {
+      for (const [name_$1, $t2] of $collections$Set_.Keys$nil<string>(disjunctionNames) ??
+        new Map<string, $rt.Empty>()) {
         parentScope!.set(name_$1, true);
       }
     }
@@ -2860,7 +2863,7 @@ export class regExpParser extends $rt.GoObject {
       if (ch === (65533 as number) || !IsIdentifierPart(ch)) {
         break;
       }
-      const $t2 = charCodeToRegExpFlag;
+      const $t2: Map<number, regularExpressionFlags> | undefined = charCodeToRegExpFlag;
       const $t3 = ch;
       const flag: regularExpressionFlags = $t2?.get($t3) ?? 0;
       const ok: boolean = $t2 !== undefined && $t2.has($t3);
@@ -3703,7 +3706,7 @@ export class regExpParser extends $rt.GoObject {
               } else if (!(propertyName === ('' as string))) {
                 const values: $collections.Set_<string> | undefined =
                   valuesOfNonBinaryUnicodeProperties?.get(propertyName) ?? undefined;
-                if (!(values === undefined) && !values!.Has(propertyValue)) {
+                if (!(values === undefined) && !$collections$Set_.Has$nil<string>(values, propertyValue)) {
                   p!.error(
                     $diagnostics.Unknown_Unicode_property_value,
                     propertyValueStart,
@@ -3729,7 +3732,7 @@ export class regExpParser extends $rt.GoObject {
                   0,
                   [] as ($rt.GoObject | undefined)[],
                 );
-              } else if (binaryUnicodePropertiesOfStrings!.Has(propertyNameOrValue)) {
+              } else if ($collections$Set_.Has$nil<string>(binaryUnicodePropertiesOfStrings, propertyNameOrValue)) {
                 if (!p!.unicodeSetsMode) {
                   p!.error(
                     $diagnostics.Any_Unicode_property_that_would_possibly_match_more_than_a_single_character_is_only_available_when_the_Unicode_Sets_v_flag_is_set,
@@ -3748,8 +3751,11 @@ export class regExpParser extends $rt.GoObject {
                   p!.mayContainStrings = true;
                 }
               } else if (
-                !(valuesOfNonBinaryUnicodeProperties?.get('General_Category') ?? undefined)!.Has(propertyNameOrValue) &&
-                !binaryUnicodeProperties!.Has(propertyNameOrValue)
+                !$collections$Set_.Has$nil<string>(
+                  valuesOfNonBinaryUnicodeProperties?.get('General_Category') ?? undefined,
+                  propertyNameOrValue,
+                ) &&
+                !$collections$Set_.Has$nil<string>(binaryUnicodeProperties, propertyNameOrValue)
               ) {
                 p!.error(
                   $diagnostics.Unknown_Unicode_property_name_or_value,
@@ -3802,16 +3808,18 @@ export class regExpParser extends $rt.GoObject {
     if (values === undefined) {
       return '';
     }
-    return $core.GetSpellingSuggestionForStrings(value, $rt.maps_Keys(values!.Keys()));
+    return $core.GetSpellingSuggestionForStrings(value, $rt.maps_Keys($collections$Set_.Keys$nil<string>(values)));
   }
   getSpellingSuggestionForUnicodePropertyNameOrValue(name_: string): string {
     const p = this;
     return $core.GetSpellingSuggestionForStrings(
       name_,
       $core.ConcatenateSeq<string>([
-        $rt.maps_Keys((valuesOfNonBinaryUnicodeProperties?.get('General_Category') ?? undefined)!.Keys()),
-        $rt.maps_Keys(binaryUnicodeProperties!.Keys()),
-        $rt.maps_Keys(binaryUnicodePropertiesOfStrings!.Keys()),
+        $rt.maps_Keys(
+          $collections$Set_.Keys$nil<string>(valuesOfNonBinaryUnicodeProperties?.get('General_Category') ?? undefined),
+        ),
+        $rt.maps_Keys($collections$Set_.Keys$nil<string>(binaryUnicodeProperties)),
+        $rt.maps_Keys($collections$Set_.Keys$nil<string>(binaryUnicodePropertiesOfStrings)),
       ]),
     );
   }
@@ -4815,7 +4823,7 @@ export function TokenToString(token: $ast.Kind): string {
   return tokenToText[token];
 }
 export function StringToToken(s: string): $ast.Kind {
-  const $t1 = textToToken;
+  const $t1: Map<string, $ast.Kind> | undefined = textToToken;
   const $t2 = s;
   const kind: $ast.Kind = $t1?.get($t2) ?? 0;
   const ok: boolean = $t1 !== undefined && $t1.has($t2);

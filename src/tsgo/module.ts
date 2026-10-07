@@ -12,14 +12,18 @@ import * as $tspath from './tspath.js';
 import * as $vfs_vfsmatch from './vfs_vfsmatch.js';
 import type * as $tsoptions from './tsoptions.js';
 import type * as $vfs from './vfs.js';
+import { OrderedMap as $collections$OrderedMap } from './collections.js';
+import { Set_ as $collections$Set_ } from './collections.js';
 const $zf0 = (): $packagejson.InfoCacheEntry | undefined => undefined;
 const $zf1 = (): string => '';
-const $zf2 = (): resolved | undefined => undefined;
-const $zf3 = (): $core.Pattern => new $core.Pattern();
-const $zf4 = (): moduleResolutionCacheKey => moduleResolutionCacheKey$zero;
-const $zf5 = (): ResolvedModule | undefined => undefined;
-const $zf6 = (): typeRefDirectiveResolutionCacheKey => typeRefDirectiveResolutionCacheKey$zero;
-const $zf7 = (): ResolvedTypeReferenceDirective | undefined => undefined;
+const $zf2 = (): $packagejson.ExportsOrImports => new $packagejson.ExportsOrImports();
+const $zf3 = (): resolved | undefined => undefined;
+const $zf4 = (): string[] => [];
+const $zf5 = (): $core.Pattern => new $core.Pattern();
+const $zf6 = (): moduleResolutionCacheKey => moduleResolutionCacheKey$zero;
+const $zf7 = (): ResolvedModule | undefined => undefined;
+const $zf8 = (): typeRefDirectiveResolutionCacheKey => typeRefDirectiveResolutionCacheKey$zero;
+const $zf9 = (): ResolvedTypeReferenceDirective | undefined => undefined;
 export type Ending = number;
 export type ModeAwareCache<T> = $rt.StructMap<ModeAwareCacheKey, T> | undefined;
 export type NodeResolutionFeatures = number;
@@ -35,6 +39,9 @@ export class extensions$Box extends $rt.GoObject {
   static $cast(v: $rt.GoObject | undefined): extensions$Box {
     if (v instanceof extensions$Box) return v;
     throw $rt.typeAssertError();
+  }
+  override $unbox(): unknown {
+    return this.v;
   }
   override $eqv(o: $rt.GoObject): boolean {
     return o instanceof extensions$Box && o.v === this.v;
@@ -814,7 +821,7 @@ export class moduleResolutionCache extends $rt.GoObject {
   cache: $rt.collections_SyncMap<moduleResolutionCacheKey, ResolvedModule | undefined> = new $rt.collections_SyncMap<
     moduleResolutionCacheKey,
     ResolvedModule | undefined
-  >($zf4, $zf5);
+  >($zf6, $zf7);
   $copy_module_moduleResolutionCache(src: moduleResolutionCache): void {
     this.cache = src.cache.$clone();
   }
@@ -1420,12 +1427,14 @@ export class resolutionState extends $rt.GoObject {
     let expandingKeys: string[] = [] as string[];
     let $t2 = false;
     let $t3: resolved | undefined = undefined as resolved | undefined;
-    lookupTable!.Keys()!((key: string): boolean => {
-      if ($rt.strings_Count(key, '*') === (1 as number) || $rt.strings_HasSuffix(key, '/')) {
-        expandingKeys.push(key);
-      }
-      return true;
-    });
+    $collections$OrderedMap.Keys$nil<string, $packagejson.ExportsOrImports>($zf1, $zf2, lookupTable)!(
+      (key: string): boolean => {
+        if ($rt.strings_Count(key, '*') === (1 as number) || $rt.strings_HasSuffix(key, '/')) {
+          expandingKeys.push(key);
+        }
+        return true;
+      },
+    );
     $rt.slices_SortFunc(expandingKeys, ComparePatternKeys);
     {
       const $t4 = expandingKeys;
@@ -1684,7 +1693,11 @@ export class resolutionState extends $rt.GoObject {
             }
             let $t10 = false;
             let $t11: resolved | undefined = undefined as resolved | undefined;
-            target.AsObject$ExportsOrImports()!.Keys()!((condition: string): boolean => {
+            $collections$OrderedMap.Keys$nil<string, $packagejson.ExportsOrImports>(
+              $zf1,
+              $zf2,
+              target.AsObject$ExportsOrImports(),
+            )!((condition: string): boolean => {
               if (r!.conditionMatches(condition)) {
                 if (!(r!.tracer_ === undefined)) {
                   tracer.write$nil(r!.tracer_, $diagnostics.Matched_0_condition_1, [
@@ -1991,7 +2004,7 @@ export class resolutionState extends $rt.GoObject {
   ): resolved | undefined {
     const r = this;
     const $t1 = $tspath.ForEachAncestorDirectory<resolved | undefined>(
-      $zf2,
+      $zf3,
       r!.containingDirectory,
       (directory: string): [resolved | undefined, boolean] => {
         let result: resolved | undefined = undefined as resolved | undefined;
@@ -2291,7 +2304,10 @@ export class resolutionState extends $rt.GoObject {
   }
   tryLoadModuleUsingPathsIfEligible(): resolved | undefined {
     const r = this;
-    if (r!.compilerOptions!.Paths!.Size() > 0 && !$tspath.PathIsRelative(r!.name)) {
+    if (
+      $collections$OrderedMap.Size$nil<string, string[]>($zf1, $zf4, r!.compilerOptions!.Paths) > 0 &&
+      !$tspath.PathIsRelative(r!.name)
+    ) {
       if (!(r!.tracer_ === undefined)) {
         tracer.write$nil(
           r!.tracer_,
@@ -3409,47 +3425,49 @@ export class resolutionState extends $rt.GoObject {
         let prevConditions: string[] = [];
         let $t7 = false;
         let $t8: undefined = undefined;
-        exports$1.AsObject$ExportsOrImports()!.Entries()!(
-          (condition: string, export_: $packagejson.ExportsOrImports): boolean => {
-            if (!(excludeConditions === undefined) && excludeConditions!.Has(condition)) {
-              return true;
-            }
-            const conditionAlwaysMatches: boolean =
-              condition === ('default' as string) ||
-              condition === ('types' as string) ||
-              IsApplicableVersionedTypesKey(condition);
-            let newIncludeConditions: $collections.Set_<string> | undefined = includeConditions;
-            if (!conditionAlwaysMatches) {
-              newIncludeConditions = includeConditions!.Clone();
-              excludeConditions = excludeConditions!.Clone();
-              if (newIncludeConditions === undefined) {
-                newIncludeConditions = new $collections.Set_<string>();
-              }
-              newIncludeConditions!.Add(condition);
-              {
-                const $t9 = prevConditions;
-                for (let $t10 = 0, $n = $t9.length; $t10 < $n; $t10++) {
-                  const prevCondition = $t9[$t10];
-                  if (excludeConditions === undefined) {
-                    excludeConditions = new $collections.Set_<string>();
-                  }
-                  excludeConditions!.Add(prevCondition);
-                }
-              }
-            }
-            prevConditions.push(condition);
-            loadEntrypointsFromTargetExports!(
-              subpath,
-              newIncludeConditions,
-              excludeConditions,
-              export_.$clone_packagejson_ExportsOrImports(),
-            );
-            if (conditionAlwaysMatches) {
-              return false;
-            }
+        $collections$OrderedMap.Entries$nil<string, $packagejson.ExportsOrImports>(
+          $zf1,
+          $zf2,
+          exports$1.AsObject$ExportsOrImports(),
+        )!((condition: string, export_: $packagejson.ExportsOrImports): boolean => {
+          if (!(excludeConditions === undefined) && $collections$Set_.Has$nil<string>(excludeConditions, condition)) {
             return true;
-          },
-        );
+          }
+          const conditionAlwaysMatches: boolean =
+            condition === ('default' as string) ||
+            condition === ('types' as string) ||
+            IsApplicableVersionedTypesKey(condition);
+          let newIncludeConditions: $collections.Set_<string> | undefined = includeConditions;
+          if (!conditionAlwaysMatches) {
+            newIncludeConditions = $collections$Set_.Clone$nil<string>(includeConditions);
+            excludeConditions = $collections$Set_.Clone$nil<string>(excludeConditions);
+            if (newIncludeConditions === undefined) {
+              newIncludeConditions = new $collections.Set_<string>();
+            }
+            newIncludeConditions!.Add(condition);
+            {
+              const $t9 = prevConditions;
+              for (let $t10 = 0, $n = $t9.length; $t10 < $n; $t10++) {
+                const prevCondition = $t9[$t10];
+                if (excludeConditions === undefined) {
+                  excludeConditions = new $collections.Set_<string>();
+                }
+                excludeConditions!.Add(prevCondition);
+              }
+            }
+          }
+          prevConditions.push(condition);
+          loadEntrypointsFromTargetExports!(
+            subpath,
+            newIncludeConditions,
+            excludeConditions,
+            export_.$clone_packagejson_ExportsOrImports(),
+          );
+          if (conditionAlwaysMatches) {
+            return false;
+          }
+          return true;
+        });
       }
     };
     {
@@ -3473,17 +3491,19 @@ export class resolutionState extends $rt.GoObject {
           if (exports.IsSubpaths()) {
             let $t13 = false;
             let $t14: (ResolvedEntrypoint | undefined)[] = [];
-            exports.AsObject$ExportsOrImports()!.Entries()!(
-              (subpath$1: string, export_$1: $packagejson.ExportsOrImports): boolean => {
-                loadEntrypointsFromTargetExports!(
-                  subpath$1,
-                  undefined,
-                  undefined,
-                  export_$1.$clone_packagejson_ExportsOrImports(),
-                );
-                return true;
-              },
-            );
+            $collections$OrderedMap.Entries$nil<string, $packagejson.ExportsOrImports>(
+              $zf1,
+              $zf2,
+              exports.AsObject$ExportsOrImports(),
+            )!((subpath$1: string, export_$1: $packagejson.ExportsOrImports): boolean => {
+              loadEntrypointsFromTargetExports!(
+                subpath$1,
+                undefined,
+                undefined,
+                export_$1.$clone_packagejson_ExportsOrImports(),
+              );
+              return true;
+            });
           } else {
             loadEntrypointsFromTargetExports!('.', undefined, undefined, exports.$clone_packagejson_ExportsOrImports());
           }
@@ -3668,8 +3688,8 @@ export class tracer extends $rt.GoObject {
 export class typeRefDirectiveResolutionCache extends $rt.GoObject {
   cache: $rt.collections_SyncMap<typeRefDirectiveResolutionCacheKey, ResolvedTypeReferenceDirective | undefined> =
     new $rt.collections_SyncMap<typeRefDirectiveResolutionCacheKey, ResolvedTypeReferenceDirective | undefined>(
-      $zf6,
-      $zf7,
+      $zf8,
+      $zf9,
     );
   $copy_module_typeRefDirectiveResolutionCache(src: typeRefDirectiveResolutionCache): void {
     this.cache = src.cache.$clone();
@@ -3967,7 +3987,10 @@ export function moveToNextDirectorySeparatorIfAvailable(
 export function TryParsePatterns(
   pathMappings: $collections.OrderedMap<string, string[]> | undefined,
 ): ParsedPatterns | undefined {
-  const paths: ((p0: ((p0: string) => boolean) | undefined) => void) | undefined = pathMappings!.Keys();
+  const paths: ((p0: ((p0: string) => boolean) | undefined) => void) | undefined = $collections$OrderedMap.Keys$nil<
+    string,
+    string[]
+  >($zf1, $zf4, pathMappings);
   let numPatterns: number = 0;
   let $t1 = false;
   let $t2: ParsedPatterns | undefined = undefined as ParsedPatterns | undefined;
@@ -3980,7 +4003,8 @@ export function TryParsePatterns(
     }
     return true;
   });
-  const numMatchables: number = pathMappings!.Size() - numPatterns;
+  const numMatchables: number =
+    $collections$OrderedMap.Size$nil<string, string[]>($zf1, $zf4, pathMappings) - numPatterns;
   let patterns: $core.Pattern[] = [];
   let matchableStringSet: $collections.Set_<string> = new $collections.Set_<string>();
   if (!(numPatterns === (0 as number))) {
@@ -4007,13 +4031,13 @@ export function TryParsePatterns(
   return ParsedPatterns.$lit_module_ParsedPatterns_0_1(matchableStringSet.$clone_collections_Set(), patterns);
 }
 export function MatchPatternOrExact(patterns: ParsedPatterns | undefined, candidate: string): $core.Pattern {
-  if (patterns!.matchableStringSet.Has(candidate)) {
+  if ($collections$Set_.Has$nil<string>(patterns!.matchableStringSet, candidate)) {
     return $core.Pattern.$lit_core_Pattern_0_1(candidate, -1);
   }
   if (patterns!.patterns.length === (0 as number)) {
     return new $core.Pattern();
   }
-  return $core.FindBestPatternMatch<$core.Pattern>($zf3, patterns!.patterns, $core.Identity, candidate);
+  return $core.FindBestPatternMatch<$core.Pattern>($zf5, patterns!.patterns, $core.Identity, candidate);
 }
 export function normalizePathForCJSResolution(containingDirectory: string, moduleName: string): string {
   const combined: string = $tspath.CombinePaths(containingDirectory, [moduleName]);

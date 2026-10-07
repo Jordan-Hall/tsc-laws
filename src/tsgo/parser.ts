@@ -10,6 +10,7 @@ import * as $diagnostics from './diagnostics.js';
 import * as $scanner from './scanner.js';
 import * as $stringutil from './stringutil.js';
 import * as $tspath from './tspath.js';
+import { Set_ as $collections$Set_ } from './collections.js';
 const $zf0 = (): $ast.Node | undefined => undefined;
 const $zf1 = (): string => '';
 export type ParseFlags = number;
@@ -6632,7 +6633,7 @@ export class Parser extends $rt.GoObject {
   parsePossibleParenthesizedArrowFunctionExpression(allowReturnTypeInArrowFunction: boolean): $ast.Node | undefined {
     const p = this;
     const tokenPos: number = p!.scanner!.TokenStart();
-    if (p!.notParenthesizedArrow.Has(tokenPos)) {
+    if ($collections$Set_.Has$nil<number>(p!.notParenthesizedArrow, tokenPos)) {
       return undefined;
     }
     const result: $ast.Node | undefined = p!.parseParenthesizedArrowFunctionExpression(
@@ -8217,7 +8218,7 @@ export class Parser extends $rt.GoObject {
     const p = this;
     p!.currentParent = node;
     node!.ForEachChild$Node(p!.setParentFromContext);
-    p!.currentParent = undefined;
+    p!.currentParent = undefined as $ast.Node | undefined;
   }
   nextTokenIsSlash(): boolean {
     const p = this;
@@ -8783,7 +8784,7 @@ export class Parser extends $rt.GoObject {
   }
   processPragmasIntoFields(context: $ast.SourceFile | undefined): void {
     const p = this;
-    context!.CheckJsDirective_ = undefined;
+    context!.CheckJsDirective_ = undefined as $ast.CheckJsDirective | undefined;
     context!.ReferencedFiles = [];
     context!.TypeReferenceDirectives = [];
     context!.LibReferenceDirectives = [];
@@ -8794,27 +8795,27 @@ export class Parser extends $rt.GoObject {
         {
           switch (pragma.Name) {
             case 'reference' as string: {
-              const $t3 = pragma.Args;
+              const $t3: Map<string, $ast.PragmaArgument> | undefined = pragma.Args;
               const $t4 = 'types';
               const types: $ast.PragmaArgument = $t3?.get($t4) ?? $ast.PragmaArgument$zero;
               const typesOk: boolean = $t3 !== undefined && $t3.has($t4);
-              const $t5 = pragma.Args;
+              const $t5: Map<string, $ast.PragmaArgument> | undefined = pragma.Args;
               const $t6 = 'lib';
               const lib: $ast.PragmaArgument = $t5?.get($t6) ?? $ast.PragmaArgument$zero;
               const libOk: boolean = $t5 !== undefined && $t5.has($t6);
-              const $t7 = pragma.Args;
+              const $t7: Map<string, $ast.PragmaArgument> | undefined = pragma.Args;
               const $t8 = 'path';
               const path: $ast.PragmaArgument = $t7?.get($t8) ?? $ast.PragmaArgument$zero;
               const pathOk: boolean = $t7 !== undefined && $t7.has($t8);
-              const $t9 = pragma.Args;
+              const $t9: Map<string, $ast.PragmaArgument> | undefined = pragma.Args;
               const $t10 = 'resolution-mode';
               const resolutionMode: $ast.PragmaArgument = $t9?.get($t10) ?? $ast.PragmaArgument$zero;
               const resolutionModeOk: boolean = $t9 !== undefined && $t9.has($t10);
-              const $t11 = pragma.Args;
+              const $t11: Map<string, $ast.PragmaArgument> | undefined = pragma.Args;
               const $t12 = 'preserve';
               const preserve: $ast.PragmaArgument = $t11?.get($t12) ?? $ast.PragmaArgument$zero;
               const preserveOk: boolean = $t11 !== undefined && $t11.has($t12);
-              const $t13 = pragma.Args;
+              const $t13: Map<string, $ast.PragmaArgument> | undefined = pragma.Args;
               const $t14 = 'no-default-lib';
               const noDefaultLib: $ast.PragmaArgument = $t13?.get($t14) ?? $ast.PragmaArgument$zero;
               const noDefaultLibOk: boolean = $t13 !== undefined && $t13.has($t14);

@@ -9,6 +9,7 @@ import * as $diagnostics from './diagnostics.js';
 import * as $scanner from './scanner.js';
 import * as $tspath from './tspath.js';
 import type * as $checker from './checker.js';
+import { Set_ as $collections$Set_ } from './collections.js';
 const $zf0 = (): $ast.Symbol_ | undefined => undefined;
 const $zf1 = (): $ast.Node | undefined => undefined;
 const $zf2 = (): $ast.Symbol_ => new $ast.Symbol_();
@@ -1049,7 +1050,7 @@ export class Binder extends $rt.GoObject {
         const constEnumOnlyModule: boolean =
           (symbol_$1!.Flags & 304) === (0 as number) &&
           state === (3 as number) &&
-          !b!.notConstEnumOnlyModules.Has(symbol_$1);
+          !$collections$Set_.Has$nil<$ast.Symbol_ | undefined>(b!.notConstEnumOnlyModules, symbol_$1);
         if (constEnumOnlyModule) {
           symbol_$1!.Flags = (symbol_$1!.Flags | 268435456) >>> 0;
         } else {
@@ -1799,12 +1800,12 @@ export class Binder extends $rt.GoObject {
       if (isImmediatelyInvoked || node!.Kind_ === (177 as number)) {
         b!.currentReturnTarget = b!.newFlowNode(4);
       } else {
-        b!.currentReturnTarget = undefined;
+        b!.currentReturnTarget = undefined as $ast.FlowNode | undefined;
       }
-      b!.currentExceptionTarget = undefined;
-      b!.currentBreakTarget = undefined;
-      b!.currentContinueTarget = undefined;
-      b!.activeLabelList = undefined;
+      b!.currentExceptionTarget = undefined as $ast.FlowNode | undefined;
+      b!.currentBreakTarget = undefined as $ast.FlowNode | undefined;
+      b!.currentContinueTarget = undefined as $ast.FlowNode | undefined;
+      b!.activeLabelList = undefined as ActiveLabel | undefined;
       b!.hasExplicitReturn = false;
       b!.seenThisKeyword = false;
       b!.bindChildren(node);
@@ -1910,7 +1911,7 @@ export class Binder extends $rt.GoObject {
       {
         const flowNodeData: $ast.FlowNodeBase | undefined = node!.FlowNodeData$Node();
         if (!(flowNodeData === undefined)) {
-          flowNodeData!.FlowNode_ = undefined;
+          flowNodeData!.FlowNode_ = undefined as $ast.FlowNode | undefined;
         }
       }
       if ($ast.IsPotentiallyExecutableNode(node)) {

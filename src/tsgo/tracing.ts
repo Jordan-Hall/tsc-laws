@@ -354,7 +354,7 @@ export class Tracing extends $rt.GoObject {
       return 1;
     }
     {
-      const $t2 = tr!.threadIDs;
+      const $t2: $rt.StructMap<traceThreadKey, number> | undefined = tr!.threadIDs;
       const $t3 = key;
       const tid: number = $rt.structMapGet($t2, $t3, 0);
       const ok$1: boolean = $t2 !== undefined && $t2.has($t3);
@@ -365,7 +365,7 @@ export class Tracing extends $rt.GoObject {
     let tid$1: number = key.defaultThreadID();
     for (;;) {
       {
-        const $t4 = tr!.threadKeys;
+        const $t4: Map<number, traceThreadKey> | undefined = tr!.threadKeys;
         const $t5 = tid$1;
         const existingKey: traceThreadKey = $t4?.get($t5) ?? traceThreadKey$zero;
         const ok$2: boolean = $t4 !== undefined && $t4.has($t5);
@@ -851,7 +851,7 @@ export class typeTracer extends $rt.GoObject {
     {
       const identity: $rt.GoObject | undefined = typ!.RecursionIdentity();
       if (!(identity === undefined)) {
-        const $t1 = recursionIdentityMap;
+        const $t1: Map<$rt.GoObject | undefined, number> | undefined = recursionIdentityMap;
         const $t2 = identity;
         let token: number = $t1?.get($t2) ?? 0;
         const ok: boolean = $t1 !== undefined && $t1.has($t2);
@@ -1168,7 +1168,7 @@ export function traceThreadKeyFromArgs(
     for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
       const key = $t3[$t4];
       {
-        const $t5 = args;
+        const $t5: Map<string, $rt.GoObject | undefined> | undefined = args;
         const $t6 = key;
         const value: $rt.GoObject | undefined = $t5?.get($t6) ?? undefined;
         const ok$1: boolean = $t5 !== undefined && $t5.has($t6);

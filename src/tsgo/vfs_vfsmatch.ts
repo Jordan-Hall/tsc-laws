@@ -5,6 +5,7 @@ import * as $collections from './collections.js';
 import * as $core from './core.js';
 import * as $tspath from './tspath.js';
 import type * as $vfs from './vfs.js';
+import { Set_ as $collections$Set_ } from './collections.js';
 const $zf0 = (): string => '';
 export type Usage = number;
 export class Usage$Box extends $rt.GoObject {
@@ -16,6 +17,9 @@ export class Usage$Box extends $rt.GoObject {
   static $cast(v: $rt.GoObject | undefined): Usage$Box {
     if (v instanceof Usage$Box) return v;
     throw $rt.typeAssertError();
+  }
+  override $unbox(): unknown {
+    return this.v;
   }
   override $eqv(o: $rt.GoObject): boolean {
     return o instanceof Usage$Box && o.v === this.v;
@@ -482,7 +486,7 @@ export class globVisitor extends $rt.GoObject {
       realPath = v!.host!.Realpath(absolutePath);
     }
     const canonicalPath: string = $tspath.GetCanonicalFileName(realPath, v!.useCaseSensitiveFileNames);
-    if (v!.visited.Has(canonicalPath)) {
+    if ($collections$Set_.Has$nil<string>(v!.visited, canonicalPath)) {
       return;
     }
     v!.visited.Add(canonicalPath);
@@ -523,7 +527,7 @@ export class globVisitor extends $rt.GoObject {
         let childRealPath: string = '';
         if (!(entries.Symlinks === undefined)) {
           {
-            const $t6 = entries.Symlinks;
+            const $t6: Map<string, $rt.Empty> | undefined = entries.Symlinks;
             const $t7 = dir;
             const isSymlink: boolean = $t6 !== undefined && $t6.has($t7);
             if (!isSymlink) {
