@@ -29,6 +29,18 @@ func (x *fn) callWithArgs(e *ast.CallExpr, args []string) string {
 			return x.builtin(e, b.Name(), args)
 		}
 	}
+	// slices.Contains and slices.Index compare struct elements by value.
+	if (x.isPkgFunc(fun, "slices", "Contains") || x.isPkgFunc(fun, "slices", "Index")) && len(e.Args) == 2 && args == nil {
+		if st, ok := under(x.info.TypeOf(e.Args[0])).(*types.Slice); ok && isStructType(st.Elem()) {
+			et := x.f.tsType(st.Elem())
+			eq := x.equalText("a", st.Elem(), "b", st.Elem(), nil)
+			call := fmt.Sprintf("$rt.slices_IndexEq(%s, %s, (a: %s, b: %s) => %s)", x.expr(e.Args[0]), x.expr(e.Args[1]), et, et, eq)
+			if x.isPkgFunc(fun, "slices", "Contains") {
+				return "(" + call + " >= 0)"
+			}
+			return call
+		}
+	}
 	// unsafe.String(unsafe.SliceData(b), n) converts a byte slice.
 	if x.isUnsafe(fun, "String") && len(e.Args) == 2 {
 		if inner, ok := unparen(e.Args[0]).(*ast.CallExpr); ok && x.isUnsafe(unparen(inner.Fun), "SliceData") {
@@ -440,6 +452,19 @@ func (x *fn) callFactories(fun ast.Expr) []string {
 		return nil
 	}
 	return x.f.factoryArgs(obj.Origin(), inst.TypeArgs)
+}
+
+func (x *fn) isPkgFunc(fun ast.Expr, path, name string) bool {
+	sel, ok := fun.(*ast.SelectorExpr)
+	if !ok || sel.Sel.Name != name {
+		return false
+	}
+	id, ok := sel.X.(*ast.Ident)
+	if !ok {
+		return false
+	}
+	pn, ok := x.info.Uses[id].(*types.PkgName)
+	return ok && pn.Imported().Path() == path
 }
 
 func (x *fn) isUnsafe(fun ast.Expr, name string) bool {

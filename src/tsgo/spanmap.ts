@@ -526,7 +526,13 @@ export class SpanMap extends $rt.GoObject {
             } else {
               mapped.Position = segment.VirtualStart;
             }
-            if (!$rt.slices_Contains(results, mapped.$clone_spanmap_MappedPosition())) {
+            if (
+              !(
+                $rt.slices_IndexEq(results, mapped, (a: MappedPosition, b: MappedPosition) =>
+                  a.$equals_spanmap_MappedPosition(b),
+                ) >= 0
+              )
+            ) {
               results.push(mapped.$clone_spanmap_MappedPosition());
             }
           }

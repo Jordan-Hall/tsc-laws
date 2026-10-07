@@ -514,10 +514,10 @@ func (f *file) classDecl(tn *types.TypeName) string {
 			}
 			fl := c.st.Field(i)
 			if ctorInit {
-				fmt.Fprintf(&w, "  %s: %s;\n", f.fieldName(fl), f.tsType(fl.Type()))
-				inits = append(inits, fmt.Sprintf("this.%s = %s;", f.fieldName(fl), f.zero(fl.Type())))
+				fmt.Fprintf(&w, "  %s: %s;\n", f.fieldName(fl), f.varType(fl))
+				inits = append(inits, fmt.Sprintf("this.%s = %s;", f.fieldName(fl), f.varZero(fl)))
 			} else {
-				fmt.Fprintf(&w, "  %s: %s = %s;\n", f.fieldName(fl), f.tsType(fl.Type()), f.zero(fl.Type()))
+				fmt.Fprintf(&w, "  %s: %s = %s;\n", f.fieldName(fl), f.varType(fl), f.varZero(fl))
 			}
 			if f.t.byteShadowed(fl) {
 				fmt.Fprintf(&w, "  %s$bytes: Uint8Array = $rt.EMPTY_BYTES;\n", f.fieldName(fl))

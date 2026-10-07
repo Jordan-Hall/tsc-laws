@@ -118,6 +118,8 @@ type translator struct {
 	// nilSafe marks pointer methods that test their receiver against nil;
 	// Go allows calling them on nil pointers.
 	nilSafe map[*types.Func]bool
+	// nilSlices are slice variables whose nil and empty values differ.
+	nilSlices map[*types.Var]bool
 }
 
 func newTranslator() *translator {
@@ -388,6 +390,8 @@ func (t *translator) analyze() {
 		}
 	}
 	t.findNilSafe()
+	t.findNilSlices()
+	nilSliceGlobal = t.nilSlices
 	t.renameMethods()
 	t.renameFields()
 	t.findMutable()

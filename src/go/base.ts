@@ -50,6 +50,18 @@ export class Box<T> extends GoObject {
     this.v = v;
     this.t = t;
   }
+  override $eqv(o: GoObject): boolean {
+    if (!(o instanceof Box) || o.t !== this.t) return false;
+    const a: unknown = this.v;
+    const b: unknown = o.v;
+    if (a instanceof GoObject && b instanceof GoObject) return a.$eqv(b);
+    return a === b;
+  }
+  override $ikey(): string {
+    const v: unknown = this.v;
+    if (v instanceof GoObject) return 'x' + this.t + ':' + v.$ikey();
+    return 'x' + this.t + ':' + typeof v + ':' + String(v);
+  }
 }
 
 // Boxes for basic values, so unboxing narrows with instanceof.

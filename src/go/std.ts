@@ -598,6 +598,10 @@ export function slices_Clone<T>(s: T[]): T[] {
 export function slices_Contains<T>(s: T[], v: T): boolean {
   return s.indexOf(v) >= 0;
 }
+export function slices_IndexEq<T>(s: T[], v: T, eq: (a: T, b: T) => boolean): number {
+  for (let i = 0; i < s.length; i++) if (eq(s[i], v)) return i;
+  return -1;
+}
 export function slices_ContainsFunc<T>(s: T[], f: ((v: T) => boolean) | undefined): boolean {
   for (const v of s) if (f!(v)) return true;
   return false;
@@ -1456,4 +1460,94 @@ export function math_Float64bits(f: number): number {
   const view = new DataView(new ArrayBuffer(8));
   view.setFloat64(0, f, true);
   return view.getUint32(4, true) * 4294967296 + view.getUint32(0, true);
+}
+
+// math/big: the subset used for numeric literals.
+
+export class math_big_Int extends GoObject {
+  v = 0n;
+  SetString(s: string, base: number): [math_big_Int | undefined, boolean] {
+    let i = 0;
+    let neg = false;
+    if (s.length > 0 && (s[0] === '+' || s[0] === '-')) {
+      neg = s[0] === '-';
+      i = 1;
+    }
+    let b = base;
+    let seps = false;
+    if (base === 0) {
+      b = 10;
+      seps = true;
+      if (s.length - i >= 2 && s[i] === '0') {
+        const p = s[i + 1].toLowerCase();
+        if (p === 'x' || p === 'b' || p === 'o') {
+          b = p === 'x' ? 16 : p === 'b' ? 2 : 8;
+          i += 2;
+        } else {
+          b = 8;
+          i += 1;
+        }
+      }
+    }
+    let v = 0n;
+    let digits = 0;
+    const bb = BigInt(b);
+    for (; i < s.length; i++) {
+      const c = s.charCodeAt(i);
+      if (c === 95 && seps) continue;
+      let d = 99;
+      if (c >= 48 && c <= 57) d = c - 48;
+      else if (c >= 97 && c <= 122) d = c - 87;
+      else if (c >= 65 && c <= 90) d = c - 55;
+      if (d >= b) return [undefined, false];
+      v = v * bb + BigInt(d);
+      digits++;
+    }
+    if (digits === 0 && !(base === 0 && b === 8)) return [undefined, false];
+    this.v = neg ? -v : v;
+    return [this, true];
+  }
+  Exp(x: math_big_Int | undefined, y: math_big_Int | undefined, m: math_big_Int | undefined): math_big_Int | undefined {
+    let r = y!.v <= 0n ? 1n : x!.v ** y!.v;
+    if (m !== undefined && m.v !== 0n) r %= m.v;
+    this.v = r;
+    return this;
+  }
+  Float64(): [number, number] {
+    return bigToFloat(this.v);
+  }
+  Sign(): number {
+    return this.v < 0n ? -1 : this.v > 0n ? 1 : 0;
+  }
+  override String(): string {
+    return this.v.toString();
+  }
+}
+
+export function math_big_NewInt(x: number): math_big_Int | undefined {
+  const r = new math_big_Int();
+  r.v = BigInt(x);
+  return r;
+}
+
+export class math_big_Float extends GoObject {
+  v = 0n;
+  SetPrec(_prec: number): math_big_Float | undefined {
+    return this;
+  }
+  SetInt(x: math_big_Int | undefined): math_big_Float | undefined {
+    this.v = x!.v;
+    return this;
+  }
+  Float64(): [number, number] {
+    return bigToFloat(this.v);
+  }
+}
+
+// bigToFloat rounds to the nearest float64 and reports big.Accuracy.
+function bigToFloat(v: bigint): [number, number] {
+  const f = Number(v);
+  if (!Number.isFinite(f)) return [f, f > 0 ? 1 : -1];
+  const back = BigInt(f);
+  return [f, back < v ? -1 : back > v ? 1 : 0];
 }

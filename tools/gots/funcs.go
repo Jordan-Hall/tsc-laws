@@ -29,9 +29,9 @@ type fn struct {
 	views     map[*types.Var]*view
 	notOwned  map[*types.Var]bool
 	// subst replaces expressions with already translated text.
-	subst map[ast.Expr]string
-	indent    int
-	out       *strings.Builder
+	subst  map[ast.Expr]string
+	indent int
+	out    *strings.Builder
 }
 
 type target struct {
@@ -236,11 +236,11 @@ func (x *fn) body(body *ast.BlockStmt, ft *ast.FuncType) {
 		for i := 0; i < res.Len(); i++ {
 			v := res.At(i)
 			n := x.name(v)
-			z := x.f.zero(v.Type())
+			z := x.f.varZero(v)
 			if z == "undefined" {
-				z = "undefined as " + x.f.tsType(v.Type())
+				z = "undefined as " + x.f.varType(v)
 			}
-			x.line("let %s: %s = %s;", n, x.f.tsType(v.Type()), z)
+			x.line("let %s: %s = %s;", n, x.f.varType(v), z)
 			x.results = append(x.results, n)
 		}
 	}
@@ -613,13 +613,13 @@ func (x *fn) declStmt(s *ast.DeclStmt) {
 			if len(vs.Values) == 0 {
 				for _, id := range vs.Names {
 					v := x.info.Defs[id].(*types.Var)
-					z := x.f.zero(v.Type())
+					z := x.f.varZero(v)
 					if z == "undefined" {
 						// Avoid TypeScript narrowing the variable to undefined
 						// when it is only assigned inside closures.
-						z = "undefined as " + x.f.tsType(v.Type())
+						z = "undefined as " + x.f.varType(v)
 					}
-					x.line("let %s: %s = %s;", x.name(v), x.f.tsType(v.Type()), z)
+					x.line("let %s: %s = %s;", x.name(v), x.f.varType(v), z)
 				}
 				continue
 			}
@@ -648,9 +648,9 @@ func (x *fn) declStmt(s *ast.DeclStmt) {
 					x.line("%s;", e)
 					continue
 				}
-				val := x.valueExpr(vs.Values[i], v.Type())
+				val := x.rhsFor(id, vs.Values[i], v.Type())
 				x.flushPre()
-				x.line("let %s: %s = %s;", x.name(v), x.f.tsType(v.Type()), val)
+				x.line("let %s: %s = %s;", x.name(v), x.f.varType(v), val)
 			}
 		}
 	case token.CONST:

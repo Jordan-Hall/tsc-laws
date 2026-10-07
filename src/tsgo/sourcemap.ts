@@ -539,20 +539,20 @@ export class Generator extends $rt.GoObject {
   RawSourceMap$m(): RawSourceMap | undefined {
     const gen = this;
     gen!.commitPendingMapping();
-    let sources: string[] = $rt.slices_Clone(gen!.sources);
-    if (sources.length === 0) {
+    let sources: string[] | undefined = $rt.slices_Clone(gen!.sources);
+    if (sources === undefined) {
       sources = [] as string[];
     }
-    let names: string[] = $rt.slices_Clone(gen!.names);
-    if (names.length === 0) {
+    let names: string[] | undefined = $rt.slices_Clone(gen!.names);
+    if (names === undefined) {
       names = [] as string[];
     }
     return RawSourceMap.$lit_sourcemap_RawSourceMap_0_1_2_3_4_5_6(
       3,
       gen!.file,
       gen!.sourceRoot,
-      sources,
-      names,
+      sources ?? [],
+      names ?? [],
       gen!.mappings.String(),
       $rt.slices_Clone(gen!.sourcesContent),
     );

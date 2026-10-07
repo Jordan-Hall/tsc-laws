@@ -118,7 +118,7 @@ func (x *fn) ownedTarget(l ast.Expr) bool {
 	switch e := unparen(l).(type) {
 	case *ast.Ident:
 		v, ok := x.info.Uses[e].(*types.Var)
-		if !ok {
+		if !ok || x.nilSliceVar(e) != nil {
 			return false
 		}
 		if v.Pkg() != nil && v.Parent() == v.Pkg().Scope() {
@@ -126,7 +126,7 @@ func (x *fn) ownedTarget(l ast.Expr) bool {
 		}
 		return !x.notOwned[v]
 	case *ast.SelectorExpr:
-		return true // struct fields own their arrays
+		return x.nilSliceVar(e) == nil // struct fields own their arrays
 	}
 	return false
 }

@@ -6020,12 +6020,12 @@ export let tsconfigRootOptionsMap: CommandLineOption | undefined =
     ]),
   );
 export function ParseCommandLine(commandLine: string[], host: ParseConfigHost): ParsedCommandLine | undefined {
-  if (commandLine.length === 0) {
+  if (commandLine === undefined) {
     commandLine = [] as string[];
   }
   let parser: commandLineParser | undefined = parseCommandLineWorker(
     CompilerOptionsDidYouMeanDiagnostics,
-    commandLine,
+    commandLine ?? [],
     host!.FS$m(),
     host!.GetCurrentDirectory(),
   );
@@ -6060,12 +6060,12 @@ export function ParseBuildCommandLine(
   commandLine: string[],
   host: ParseConfigHost,
 ): ParsedBuildCommandLine | undefined {
-  if (commandLine.length === 0) {
+  if (commandLine === undefined) {
     commandLine = [] as string[];
   }
   let parser: commandLineParser | undefined = parseCommandLineWorker(
     buildOptionsDidYouMeanDiagnostics,
-    commandLine,
+    commandLine ?? [],
     host!.FS$m(),
     host!.GetCurrentDirectory(),
   );

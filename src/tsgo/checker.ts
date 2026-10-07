@@ -24844,8 +24844,8 @@ export class Checker extends $rt.GoObject {
   }
   getSiblingsOfContext(context: WideningContext | undefined): (Type | undefined)[] {
     const c = this;
-    if (context!.siblings.length === 0) {
-      let siblings: (Type | undefined)[] = [] as (Type | undefined)[];
+    if (context!.siblings === undefined) {
+      let siblings: (Type | undefined)[] | undefined = [] as (Type | undefined)[];
       {
         const $t1 = c!.getSiblingsOfContext(context!.parent);
         for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
@@ -24853,14 +24853,14 @@ export class Checker extends $rt.GoObject {
           if (isObjectLiteralType(t)) {
             let prop: $ast.Symbol_ | undefined = c!.getPropertyOfObjectType(t, context!.propertyName);
             if (!(prop === undefined)) {
-              $rt.appendInto(siblings, c!.getTypeOfSymbol(prop)!.Distributed());
+              siblings = $rt.appendCopy(siblings ?? [], c!.getTypeOfSymbol(prop)!.Distributed());
             }
           }
         }
       }
       context!.siblings = siblings;
     }
-    return context!.siblings;
+    return context!.siblings ?? [];
   }
   getUndefinedProperty(prop: $ast.Symbol_ | undefined): $ast.Symbol_ | undefined {
     const c = this;
@@ -25294,9 +25294,9 @@ export class Checker extends $rt.GoObject {
   getPropertiesOfUnionOrIntersectionType(t: Type | undefined): ($ast.Symbol_ | undefined)[] {
     const c = this;
     let d: UnionOrIntersectionType | undefined = t!.AsUnionOrIntersectionType$Type();
-    if (d!.resolvedProperties.length === 0) {
+    if (d!.resolvedProperties === undefined) {
       let checked: $collections.Set_<string> = new $collections.Set_<string>();
-      let props: ($ast.Symbol_ | undefined)[] = [] as ($ast.Symbol_ | undefined)[];
+      let props: ($ast.Symbol_ | undefined)[] | undefined = [] as ($ast.Symbol_ | undefined)[];
       {
         const $t1 = d!.types;
         for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
@@ -25313,7 +25313,7 @@ export class Checker extends $rt.GoObject {
                   !((t!.flags & 268435456) === (0 as number)),
                 );
                 if (!(combinedProp === undefined)) {
-                  props.push(combinedProp);
+                  props = $rt.appendCopy(props ?? [], [combinedProp]);
                 }
               }
             }
@@ -25325,7 +25325,7 @@ export class Checker extends $rt.GoObject {
       }
       d!.resolvedProperties = props;
     }
-    return d!.resolvedProperties;
+    return d!.resolvedProperties ?? [];
   }
   getPropertyOfType(t: Type | undefined, name_: string): $ast.Symbol_ | undefined {
     const c = this;
@@ -29662,7 +29662,7 @@ export class Checker extends $rt.GoObject {
     const c = this;
     let declaration: $ast.Node | undefined = undefined as $ast.Node | undefined;
     let target: Type | undefined = undefined as Type | undefined;
-    let typeParameters: (Type | undefined)[] = [];
+    let typeParameters: (Type | undefined)[] | undefined = undefined as (Type | undefined)[] | undefined;
     {
       $sw1: {
         if (!((t!.objectFlags & 4) === (0 as number))) {
@@ -29687,32 +29687,32 @@ export class Checker extends $rt.GoObject {
       }
     }
     typeParameters = links!.outerTypeParameters;
-    if (typeParameters.length === 0) {
+    if (typeParameters === undefined) {
       typeParameters = c!.getOuterTypeParameters(declaration, true);
       if (TypeAlias.TypeArguments$nil(target!.alias).length === (0 as number)) {
         if (!((t!.objectFlags & 16777220) === (0 as number))) {
-          typeParameters = $core.Filter<Type | undefined>(typeParameters, (tp: Type | undefined): boolean => {
+          typeParameters = $core.Filter<Type | undefined>(typeParameters ?? [], (tp: Type | undefined): boolean => {
             return c!.isTypeParameterPossiblyReferenced(tp, declaration);
           });
         } else if (!((target!.symbol!.Flags & 10240) === (0 as number))) {
-          typeParameters = $core.Filter<Type | undefined>(typeParameters, (tp$1: Type | undefined): boolean => {
+          typeParameters = $core.Filter<Type | undefined>(typeParameters ?? [], (tp$1: Type | undefined): boolean => {
             return $core.Some<$ast.Node | undefined>(t!.symbol!.Declarations, (d: $ast.Node | undefined): boolean => {
               return c!.isTypeParameterPossiblyReferenced(tp$1, d);
             });
           });
         }
       }
-      if (typeParameters.length === 0) {
+      if (typeParameters === undefined) {
         typeParameters = [] as (Type | undefined)[];
       }
       links!.outerTypeParameters = typeParameters;
     }
-    if (typeParameters.length === (0 as number)) {
+    if ((typeParameters ?? []).length === (0 as number)) {
       return t;
     }
-    let typeArguments: (Type | undefined)[] = $rt.makeSlice<Type | undefined>(typeParameters.length, undefined);
+    let typeArguments: (Type | undefined)[] = $rt.makeSlice<Type | undefined>((typeParameters ?? []).length, undefined);
     {
-      const $t3 = typeParameters;
+      const $t3 = typeParameters ?? [];
       for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
         let i = $t4;
         let tp$2 = $t3[$t4];
@@ -29731,11 +29731,11 @@ export class Checker extends $rt.GoObject {
     );
     if (data!.instantiations === undefined) {
       data!.instantiations = new $rt.StructMap<CacheHashKey, Type | undefined>($fn4);
-      data!.instantiations!.set(getTypeInstantiationKey(typeParameters, target!.alias, false), target);
+      data!.instantiations!.set(getTypeInstantiationKey(typeParameters ?? [], target!.alias, false), target);
     }
     let result: Type | undefined = data!.instantiations?.get(key) ?? undefined;
     if (result === undefined) {
-      let newMapper: TypeMapper | undefined = newTypeMapper(typeParameters, typeArguments);
+      let newMapper: TypeMapper | undefined = newTypeMapper(typeParameters ?? [], typeArguments);
       if (!((target!.objectFlags & 33554432) === (0 as number)) && !(m === undefined)) {
         newMapper = c!.combineTypeMappers(newMapper, m);
       }
@@ -35977,7 +35977,13 @@ export class Checker extends $rt.GoObject {
     }
     let constraint: Type | undefined = undefined as Type | undefined;
     let identity: RecursionId = getRecursionIdentity(t);
-    if (stack.length < 10 || (stack.length < 50 && !$rt.slices_Contains(stack, identity))) {
+    if (
+      stack.length < 10 ||
+      (stack.length < 50 &&
+        !(
+          $rt.slices_IndexEq(stack, identity, (a: RecursionId, b: RecursionId) => a.$equals_checker_RecursionId(b)) >= 0
+        ))
+    ) {
       constraint = c!.computeBaseConstraint(c!.getSimplifiedType(t, false), $rt.appendCopy(stack, [identity]));
     }
     if (!c!.popTypeResolution()) {
@@ -55184,7 +55190,7 @@ export class Checker extends $rt.GoObject {
     let $panic: $rt.Panic | undefined = undefined;
     $body: try {
       let links: VarianceLinks | undefined = c!.varianceLinks.Get(symbol_);
-      if (links!.variances.length === 0) {
+      if (links!.variances === undefined) {
         let traceArgs: Map<string, $rt.GoObject | undefined> | undefined = undefined as
           | Map<string, $rt.GoObject | undefined>
           | undefined;
@@ -55197,9 +55203,9 @@ export class Checker extends $rt.GoObject {
             ]);
             let popFn: (() => void) | undefined = tr!.Push('checkTypes', 'getVariancesWorker', traceArgs, true);
             $defers.push((): void => {
-              let formatted: string[] = $rt.makeSlice<string>(links!.variances.length, '');
+              let formatted: string[] = $rt.makeSlice<string>((links!.variances ?? []).length, '');
               {
-                const $t2 = links!.variances;
+                const $t2 = links!.variances ?? [];
                 for (let $t3 = 0, $n = $t2.length; $t3 < $n; $t3++) {
                   let i = $t3;
                   let v = $t2[$t3];
@@ -55218,7 +55224,7 @@ export class Checker extends $rt.GoObject {
             c!.resolutionStart = c!.typeResolutions.length;
           }
           c!.varianceStack.push(VarianceStackEntry.$lit_checker_VarianceStackEntry_0_1(symbol_, typeParameters));
-          let variances: VarianceFlags[] = $rt.makeSlice<VarianceFlags>(typeParameters.length, 0);
+          let variances: VarianceFlags[] | undefined = $rt.makeSlice<VarianceFlags>(typeParameters.length, 0);
           {
             const $t4 = typeParameters;
             for (let $t5 = 0, $n = $t4.length; $t5 < $n; $t5++) {
@@ -55261,13 +55267,13 @@ export class Checker extends $rt.GoObject {
                   }
                 }
               }
-              if (!(links!.variances.length === (0 as number))) {
+              if (!((links!.variances ?? []).length === (0 as number))) {
                 break;
               }
-              variances[i$1] = variance;
+              (variances ?? [])[i$1] = variance;
             }
           }
-          if (links!.variances.length === (0 as number)) {
+          if ((links!.variances ?? []).length === (0 as number)) {
             links!.variances = variances;
           }
           c!.varianceStack = $rt.reslice(c!.varianceStack, 0, c!.varianceStack.length - 1, new VarianceStackEntry());
@@ -55289,12 +55295,12 @@ export class Checker extends $rt.GoObject {
             c!.getVariancesWorker(saveVarianceStack[minIndex].symbol, saveVarianceStack[minIndex].typeParameters);
             c!.varianceStack = saveVarianceStack;
           }
-          if (links!.variances.length === (0 as number)) {
+          if ((links!.variances ?? []).length === (0 as number)) {
             links!.variances = [] as VarianceFlags[];
           }
         }
       }
-      $t1 = links!.variances;
+      $t1 = links!.variances ?? [];
       break $body;
     } catch ($e) {
       $panic = $rt.toPanic($e);
@@ -63194,7 +63200,7 @@ export class UnionOrIntersectionType extends StructuredType {
   types: (Type | undefined)[] = [];
   propertyCache: $ast.SymbolTable = undefined;
   propertyCacheWithoutFunctionPropertyAugment: $ast.SymbolTable = undefined;
-  resolvedProperties: ($ast.Symbol_ | undefined)[] = [];
+  resolvedProperties: ($ast.Symbol_ | undefined)[] | undefined = undefined;
   $copy_checker_UnionOrIntersectionType(src: UnionOrIntersectionType): void {
     this.$copy_checker_StructuredType(src);
     this.types = src.types;
@@ -76691,7 +76697,7 @@ export class TypeDiscriminator extends $rt.GoObject {
 }
 export class TypeNodeLinks extends $rt.GoObject {
   resolvedType: Type | undefined = undefined;
-  outerTypeParameters: (Type | undefined)[] = [];
+  outerTypeParameters: (Type | undefined)[] | undefined = undefined;
   $copy_checker_TypeNodeLinks(src: TypeNodeLinks): void {
     this.resolvedType = src.resolvedType;
     this.outerTypeParameters = src.outerTypeParameters;
@@ -76957,7 +76963,7 @@ export class ValueSymbolLinks extends $rt.GoObject {
   }
 }
 export class VarianceLinks extends $rt.GoObject {
-  variances: VarianceFlags[] = [];
+  variances: VarianceFlags[] | undefined = undefined;
   $copy_checker_VarianceLinks(src: VarianceLinks): void {
     this.variances = src.variances;
   }
@@ -77029,7 +77035,7 @@ export class VerbosityContext extends $rt.GoObject {
 export class WideningContext extends $rt.GoObject {
   parent: WideningContext | undefined = undefined;
   propertyName: string = '';
-  siblings: (Type | undefined)[] = [];
+  siblings: (Type | undefined)[] | undefined = undefined;
   resolvedProperties: ($ast.Symbol_ | undefined)[] = [];
   childContexts: Map<string, WideningContext | undefined> | undefined = undefined;
   widenedTypes: Map<Type | undefined, Type | undefined> | undefined = undefined;

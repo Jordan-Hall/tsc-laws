@@ -23,10 +23,16 @@ func (x *fn) expr(e ast.Expr) string {
 	case *ast.ParenExpr:
 		return "(" + x.expr(e.X) + ")"
 	case *ast.Ident:
+		if x.nilSliceVar(e) != nil {
+			return "(" + x.ident(e) + " ?? [])"
+		}
 		return x.ident(e)
 	case *ast.BasicLit:
 		return x.f.constValue(constant.MakeFromLiteral(e.Value, e.Kind, 0), tv.Type)
 	case *ast.SelectorExpr:
+		if x.nilSliceVar(e) != nil {
+			return "(" + x.selector(e) + " ?? [])"
+		}
 		return x.selector(e)
 	case *ast.CallExpr:
 		return x.call(e)
@@ -671,6 +677,12 @@ func (x *fn) equal(tag string, tagType types.Type, e ast.Expr) string {
 }
 
 func (x *fn) equalExprs(a ast.Expr, at types.Type, b ast.Expr, bt types.Type) string {
+	if isNilType(bt) && x.nilSliceVar(a) != nil {
+		return x.rawExpr(a) + " === undefined"
+	}
+	if isNilType(at) && x.nilSliceVar(b) != nil {
+		return x.rawExpr(b) + " === undefined"
+	}
 	// &s1[i] == &s2[j] tests whether two slices share storage.
 	if ua, ok := unparen(a).(*ast.UnaryExpr); ok && ua.Op == token.AND {
 		if ub, ok := unparen(b).(*ast.UnaryExpr); ok && ub.Op == token.AND {
@@ -1151,7 +1163,7 @@ func (x *fn) assign(s *ast.AssignStmt) {
 			return
 		}
 		lt := x.lhsType(l, define)
-		v := x.valueExpr(s.Rhs[0], lt)
+		v := x.rhsFor(l, s.Rhs[0], lt)
 		x.flushPre()
 		x.store(l, define, v, lt, s.Rhs[0])
 		return
@@ -1159,7 +1171,7 @@ func (x *fn) assign(s *ast.AssignStmt) {
 	// Parallel assignment: evaluate all right-hand sides first.
 	var temps []string
 	for i, r := range s.Rhs {
-		v := x.valueExpr(r, x.lhsType(s.Lhs[i], define))
+		v := x.rhsFor(s.Lhs[i], r, x.lhsType(s.Lhs[i], define))
 		x.flushPre()
 		t := x.tmp()
 		x.line("const %s = %s;", t, v)
@@ -1211,13 +1223,13 @@ func (x *fn) store(l ast.Expr, define bool, v string, tt types.Type, src ast.Exp
 		if define {
 			if obj, ok := x.info.Defs[id].(*types.Var); ok && obj != nil {
 				if v == "undefined" {
-					v = "undefined as " + x.f.tsType(obj.Type())
+					v = "undefined as " + x.f.varType(obj)
 				}
-				x.line("let %s: %s = %s;", x.name(obj), x.f.tsType(obj.Type()), v)
+				x.line("let %s: %s = %s;", x.name(obj), x.f.varType(obj), v)
 				return
 			}
 		}
-		x.line("%s = %s;", x.expr(id), v)
+		x.line("%s = %s;", x.rawExpr(id), v)
 		return
 	}
 	if sel, ok := unparen(l).(*ast.SelectorExpr); ok {
@@ -1264,7 +1276,7 @@ func (x *fn) store(l ast.Expr, define bool, v string, tt types.Type, src ast.Exp
 		x.line("%s = $rt.stringBytes(%s);", sh, t)
 		return
 	}
-	x.line("%s = %s;", x.expr(l), v)
+	x.line("%s = %s;", x.rawExpr(l), v)
 }
 
 func (x *fn) opAssign(l ast.Expr, op string, r ast.Expr, pos token.Pos) {
