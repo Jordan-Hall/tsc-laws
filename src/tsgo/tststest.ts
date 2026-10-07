@@ -81,9 +81,9 @@ export class Program extends $rt.GoObject {
   GetEmitModuleFormatOfFile(sourceFile: $ast.HasFileName): $core.ModuleKind {
     const p = this;
     return $ast.GetEmitModuleFormatOfFileWorker(
-      sourceFile!.FileName(),
+      $rt.nn(sourceFile).FileName(),
       p!.options,
-      p!.GetSourceFileMetaData(sourceFile!.Path$m()),
+      p!.GetSourceFileMetaData($rt.nn(sourceFile).Path$m()),
     );
   }
   GetEmitSyntaxForUsageLocation(sourceFile: $ast.HasFileName, location: $ast.Node | undefined): $core.ResolutionMode {
@@ -93,9 +93,9 @@ export class Program extends $rt.GoObject {
   GetImpliedNodeFormatForEmit(sourceFile: $ast.HasFileName): $core.ModuleKind {
     const p = this;
     return $ast.GetImpliedNodeFormatForEmitWorker(
-      sourceFile!.FileName(),
+      $rt.nn(sourceFile).FileName(),
       p!.options!.GetEmitModuleKind(),
-      p!.GetSourceFileMetaData(sourceFile!.Path$m()),
+      p!.GetSourceFileMetaData($rt.nn(sourceFile).Path$m()),
     );
   }
   GetResolvedModule(

@@ -260,11 +260,9 @@ export class Reader extends $rt.GoObject {
     let data: number[] = $rt.makeSlice<number>(contentLength, 0);
     {
       const $t4 = $rt.io_ReadFull(
-        r!.r as unknown as
-          | $ipc.stdioConn
-          | $contentmapper.closeOnceReadWriteCloser
-          | $contentmapper.loggedProcess
-          | undefined,
+        $rt.unsupportedConversion<
+          $ipc.stdioConn | $contentmapper.closeOnceReadWriteCloser | $contentmapper.loggedProcess | undefined
+        >('$rt.bufio_Reader | undefined'),
         data,
       );
       let err$1: $rt.GoObject | undefined = $t4[1];
@@ -442,12 +440,13 @@ export class Writer extends $rt.GoObject {
     const w = this;
     {
       const $t1 = $rt.fmt_Fprintf(
-        w!.w as unknown as
+        $rt.unsupportedConversion<
           | $ipc.stdioConn
           | $contentmapper.closeOnceReadWriteCloser
           | $contentmapper.loggedProcess
           | $contentmapper.stderrLogger
-          | undefined,
+          | undefined
+        >('$rt.bufio_Writer | undefined'),
         'Content-Length: %d\r\n\r\n',
         [new $rt.BoxNum(data.length, 'int')],
       );

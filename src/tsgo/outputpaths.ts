@@ -3,9 +3,9 @@
 import * as $rt from '../go/runtime.js';
 import * as $ast from './ast.js';
 import * as $core from './core.js';
-import * as $tsoptions from './tsoptions.js';
 import * as $tspath from './tspath.js';
-import * as $tststest from './tststest.js';
+import type * as $tsoptions from './tsoptions.js';
+import type * as $tststest from './tststest.js';
 export type OutputPathsHost = $tsoptions.ParsedCommandLine | $tststest.Program | undefined;
 export class ForceEmitPaths extends $rt.GoObject {
   Dts: boolean = false;
@@ -184,8 +184,8 @@ export function GetOutputPathsFor(
       sourceFile!.FileName(),
       ownOutputFilePath,
       $tspath.ComparePathsOptions.$lit_tspath_ComparePathsOptions_1_0(
-        host!.GetCurrentDirectory(),
-        host!.UseCaseSensitiveFileNames(),
+        $rt.nn(host).GetCurrentDirectory(),
+        $rt.nn(host).UseCaseSensitiveFileNames(),
       ),
     ) === (0 as number);
   let paths: OutputPaths | undefined = new OutputPaths();
@@ -250,8 +250,8 @@ export function GetOutputJSFileName(
         inputFileName,
         outputFileName,
         $tspath.ComparePathsOptions.$lit_tspath_ComparePathsOptions_1_0(
-          host!.GetCurrentDirectory(),
-          host!.UseCaseSensitiveFileNames(),
+          $rt.nn(host).GetCurrentDirectory(),
+          $rt.nn(host).UseCaseSensitiveFileNames(),
         ),
       ) === (0 as number)
     )
@@ -264,8 +264,8 @@ export function isContentMappedFileName(fileName: string, host: OutputPathsHost)
   return !(
     $tspath.GetLongestExtensionFromPath(
       fileName,
-      host!.ContentMapperExtensions(),
-      !host!.UseCaseSensitiveFileNames(),
+      $rt.nn(host).ContentMapperExtensions(),
+      !$rt.nn(host).UseCaseSensitiveFileNames(),
     ) === ('' as string)
   );
 }
@@ -335,9 +335,9 @@ export function GetDeclarationEmitOutputFilePath(
     path = GetSourceFilePathInNewDirWorker(
       file,
       outputDir!.get(),
-      host!.GetCurrentDirectory(),
-      host!.CommonSourceDirectory(),
-      host!.UseCaseSensitiveFileNames(),
+      $rt.nn(host).GetCurrentDirectory(),
+      $rt.nn(host).CommonSourceDirectory(),
+      $rt.nn(host).UseCaseSensitiveFileNames(),
     );
   } else {
     path = file;
@@ -346,7 +346,7 @@ export function GetDeclarationEmitOutputFilePath(
 }
 export function ChangeToDeclarationExtension(path: string, host: OutputPathsHost): string {
   {
-    let extension: string = $tspath.GetLongestExtensionFromPath(path, host!.ContentMapperExtensions(), false);
+    let extension: string = $tspath.GetLongestExtensionFromPath(path, $rt.nn(host).ContentMapperExtensions(), false);
     if (!(extension === ('' as string))) {
       return $tspath.RemoveExtension(path, extension) + '.d' + extension + '.ts';
     }
@@ -385,11 +385,11 @@ export function getOutputPathWithoutChangingExtension(
   if (outputDirectory.length > 0) {
     return $tspath.ResolvePath(outputDirectory, [
       $tspath.GetRelativePathFromDirectory(
-        host!.CommonSourceDirectory(),
+        $rt.nn(host).CommonSourceDirectory(),
         inputFileName,
         $tspath.ComparePathsOptions.$lit_tspath_ComparePathsOptions_0_1(
-          host!.UseCaseSensitiveFileNames(),
-          host!.GetCurrentDirectory(),
+          $rt.nn(host).UseCaseSensitiveFileNames(),
+          $rt.nn(host).GetCurrentDirectory(),
         ),
       ),
     ]);
@@ -422,14 +422,14 @@ export function getOwnEmitOutputFilePath(
 ): string {
   let emitOutputFilePathWithoutExtension: string = '';
   if (options!.OutDir.length > 0) {
-    let currentDirectory: string = host!.GetCurrentDirectory();
+    let currentDirectory: string = $rt.nn(host).GetCurrentDirectory();
     emitOutputFilePathWithoutExtension = $tspath.RemoveFileExtension(
       GetSourceFilePathInNewDir(
         fileName,
         options!.OutDir,
         currentDirectory,
-        host!.CommonSourceDirectory(),
-        host!.UseCaseSensitiveFileNames(),
+        $rt.nn(host).CommonSourceDirectory(),
+        $rt.nn(host).UseCaseSensitiveFileNames(),
       ),
     );
   } else {

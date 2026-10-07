@@ -1296,7 +1296,31 @@ export class checker_nodeLinkStore<V> extends GoObject {
     return this;
   }
 }
-export class checker_symbolArenaLinkStore<V> extends checker_nodeLinkStore<V> {}
+export class checker_symbolArenaLinkStore<V> extends GoObject {
+  z: () => V;
+  entries = new Map<GoObject, V>();
+  constructor(z: () => V) {
+    super();
+    this.z = z;
+  }
+  Get(node: GoObject | undefined): V {
+    let v = this.entries.get(node!);
+    if (v === undefined) {
+      v = this.z();
+      this.entries.set(node!, v);
+    }
+    return v;
+  }
+  Has(node: GoObject | undefined): boolean {
+    return this.entries.has(node!);
+  }
+  TryGet(node: GoObject | undefined): V | undefined {
+    return this.entries.get(node!);
+  }
+  $clone(): checker_symbolArenaLinkStore<V> {
+    return this;
+  }
+}
 
 export function regexp_Regexp_FindStringSubmatch(re: regexp_Regexp, s: string): string[] {
   re.re.lastIndex = 0;
@@ -1348,15 +1372,15 @@ export function github_com_zeebo_xxh3_Hash128(b: number[]): github_com_zeebo_xxh
   return github_com_zeebo_xxh3_HashString128(bytesToString(b));
 }
 
-// maps.* for struct-keyed maps.
+// maps.* for StructMap.
 export function structMap_Keys<K, V>(m: StructMap<K, V> | undefined): Seq<K> {
   return (y: ((k: K) => boolean) | undefined): void => {
-    if (m !== undefined) for (const k of m.keys.values()) if (!y!(k)) return;
+    if (m !== undefined) for (const k of m.ks.slice()) if (!y!(k)) return;
   };
 }
 export function structMap_Values<K, V>(m: StructMap<K, V> | undefined): Seq<V> {
   return (y: ((v: V) => boolean) | undefined): void => {
-    if (m !== undefined) for (const v of m.vals.values()) if (!y!(v)) return;
+    if (m !== undefined) for (const v of m.vs.slice()) if (!y!(v)) return;
   };
 }
 export function structMap_Clone<K, V>(m: StructMap<K, V> | undefined): StructMap<K, V> | undefined {
@@ -1469,8 +1493,8 @@ export class math_big_Int extends GoObject {
   SetString(s: string, base: number): [math_big_Int | undefined, boolean] {
     let i = 0;
     let neg = false;
-    if (s.length > 0 && (s[0] === '+' || s[0] === '-')) {
-      neg = s[0] === '-';
+    if (s.length > 0 && (s.charCodeAt(0) === 43 || s.charCodeAt(0) === 45)) {
+      neg = s.charCodeAt(0) === 45;
       i = 1;
     }
     let b = base;
@@ -1478,10 +1502,10 @@ export class math_big_Int extends GoObject {
     if (base === 0) {
       b = 10;
       seps = true;
-      if (s.length - i >= 2 && s[i] === '0') {
-        const p = s[i + 1].toLowerCase();
-        if (p === 'x' || p === 'b' || p === 'o') {
-          b = p === 'x' ? 16 : p === 'b' ? 2 : 8;
+      if (s.length - i >= 2 && s.charCodeAt(i) === 48) {
+        const p = s.charCodeAt(i + 1) | 0x20;
+        if (p === 120 || p === 98 || p === 111) {
+          b = p === 120 ? 16 : p === 98 ? 2 : 8;
           i += 2;
         } else {
           b = 8;
@@ -1508,9 +1532,8 @@ export class math_big_Int extends GoObject {
     return [this, true];
   }
   Exp(x: math_big_Int | undefined, y: math_big_Int | undefined, m: math_big_Int | undefined): math_big_Int | undefined {
-    let r = y!.v <= 0n ? 1n : x!.v ** y!.v;
-    if (m !== undefined && m.v !== 0n) r %= m.v;
-    this.v = r;
+    // Only m == nil and y >= 0 are used.
+    this.v = x!.v ** y!.v;
     return this;
   }
   Float64(): [number, number] {
@@ -1550,4 +1573,60 @@ function bigToFloat(v: bigint): [number, number] {
   if (!Number.isFinite(f)) return [f, f > 0 ? 1 : -1];
   const back = BigInt(f);
   return [f, back < v ? -1 : back > v ? 1 : 0];
+}
+
+// collections.SyncMap. Struct keys compare by identity, so caches keyed by
+// structs miss rather than share entries.
+export class collections_SyncMap<K, V> extends GoObject {
+  zk: () => K;
+  z: () => V;
+  m = new StructMap<K, V>();
+  constructor(zk: () => K, z: () => V) {
+    super();
+    this.zk = zk;
+    this.z = z;
+  }
+  Load(key: K): [V, boolean] {
+    const i = this.m.index(key);
+    return i < 0 ? [this.z(), false] : [this.m.vs[i], true];
+  }
+  Store(key: K, value: V): void {
+    this.m.set(key, value);
+  }
+  LoadOrStore(key: K, value: V): [V, boolean] {
+    const i = this.m.index(key);
+    if (i >= 0) return [this.m.vs[i], true];
+    this.m.set(key, value);
+    return [value, false];
+  }
+  Delete(key: K): void {
+    this.m.delete(key);
+  }
+  Clear(): void {
+    this.m.clear();
+  }
+  Range(f: ((k: K, v: V) => boolean) | undefined): void {
+    for (const [k, v] of this.m.entryList()) if (!f!(k, v)) return;
+  }
+  Size(): number {
+    return this.m.size;
+  }
+  ToMap(): Map<K, V> | undefined {
+    const out = new Map<K, V>();
+    for (const [k, v] of this.m.entryList()) out.set(k, v);
+    return out;
+  }
+  Keys(): ((yield_: ((k: K) => boolean) | undefined) => void) | undefined {
+    return (yield_: ((k: K) => boolean) | undefined): void => {
+      for (const k of this.m.ks.slice()) if (!yield_!(k)) return;
+    };
+  }
+  Clone(): collections_SyncMap<K, V> | undefined {
+    const c = new collections_SyncMap<K, V>(this.zk, this.z);
+    for (const [k, v] of this.m.entryList()) c.m.set(k, v);
+    return c;
+  }
+  $clone(): collections_SyncMap<K, V> {
+    return this;
+  }
 }

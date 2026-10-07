@@ -2,13 +2,13 @@
 // Copyright Microsoft Corporation. Licensed under Apache-2.0.
 import * as $rt from '../go/runtime.js';
 import * as $ast from './ast.js';
-import * as $checker from './checker.js';
 import * as $collections from './collections.js';
 import * as $core from './core.js';
 import * as $debug from './debug.js';
 import * as $diagnostics from './diagnostics.js';
 import * as $scanner from './scanner.js';
 import * as $tspath from './tspath.js';
+import type * as $checker from './checker.js';
 const $zf0 = (): $ast.Symbol_ | undefined => undefined;
 const $zf1 = (): $ast.Node | undefined => undefined;
 const $zf2 = (): $ast.Symbol_ => new $ast.Symbol_();

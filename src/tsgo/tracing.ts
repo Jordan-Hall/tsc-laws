@@ -3,10 +3,10 @@
 import * as $rt from '../go/runtime.js';
 import * as $ast from './ast.js';
 import * as $boxes from './boxes.js';
-import * as $checker from './checker.js';
 import * as $json from './json.js';
 import * as $scanner from './scanner.js';
 import * as $tspath from './tspath.js';
+import type * as $checker from './checker.js';
 import type * as $contentmapper from './contentmapper.js';
 import type * as $core from './core.js';
 import type * as $ipc from './ipc.js';
@@ -356,7 +356,7 @@ export class Tracing extends $rt.GoObject {
     {
       const $t2 = tr!.threadIDs;
       const $t3 = key;
-      let tid: number = $t2?.get($t3) ?? 0;
+      let tid: number = $rt.structMapGet($t2, $t3, 0);
       let ok$1: boolean = $t2 !== undefined && $t2.has($t3);
       if (ok$1) {
         return tid;
@@ -815,12 +815,13 @@ export class typeTracer extends $rt.GoObject {
         let descriptor: TypeDescriptor = t!.buildTypeDescriptor(typ, recursionIdentityMap);
         {
           let err: $rt.GoObject | undefined = $json.MarshalWrite(
-            sb as unknown as
+            $rt.unsupportedConversion<
               | $ipc.stdioConn
               | $contentmapper.closeOnceReadWriteCloser
               | $contentmapper.loggedProcess
               | $contentmapper.stderrLogger
-              | undefined,
+              | undefined
+            >('$rt.strings_Builder | undefined'),
             descriptor.$clone_tracing_TypeDescriptor(),
             [] as ($rt.github_com_go_json_experiment_json_internal_jsonopts_Options | undefined)[],
           );
@@ -1124,12 +1125,13 @@ export function StartTracing(
 export function writeEventTo(buf: $rt.strings_Builder | undefined, event: traceEvent): void {
   {
     let err: $rt.GoObject | undefined = $json.MarshalWrite(
-      buf as unknown as
+      $rt.unsupportedConversion<
         | $ipc.stdioConn
         | $contentmapper.closeOnceReadWriteCloser
         | $contentmapper.loggedProcess
         | $contentmapper.stderrLogger
-        | undefined,
+        | undefined
+      >('$rt.strings_Builder | undefined'),
       event,
       [$json.Deterministic(true)],
     );

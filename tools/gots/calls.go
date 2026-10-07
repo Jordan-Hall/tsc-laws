@@ -62,7 +62,7 @@ func (x *fn) callWithArgs(e *ast.CallExpr, args []string) string {
 	if sel, ok := fun.(*ast.SelectorExpr); ok && len(e.Args) > 0 {
 		if id, ok := sel.X.(*ast.Ident); ok {
 			if pn, ok := x.info.Uses[id].(*types.PkgName); ok && pn.Imported().Path() == "maps" {
-				if m, ok := under(x.info.TypeOf(e.Args[0])).(*types.Map); ok && isStructKey(m.Key()) {
+				if m, ok := under(x.info.TypeOf(e.Args[0])).(*types.Map); ok && isSpecialMap(m) {
 					var as []string
 					for _, a := range e.Args {
 						as = append(as, x.expr(a))
@@ -309,7 +309,7 @@ func (x *fn) builtin(e *ast.CallExpr, name string, pre []string) string {
 		t := under(x.info.TypeOf(e.Args[0]))
 		switch tm := t.(type) {
 		case *types.Map:
-			if isStructKey(tm.Key()) {
+			if isSpecialMap(tm) {
 				return "$rt.structMapLen(" + arg(0) + ")"
 			}
 			return "$rt.mapLen(" + arg(0) + ")"
@@ -409,7 +409,7 @@ func (x *fn) builtin(e *ast.CallExpr, name string, pre []string) string {
 	case "clear":
 		t := under(x.info.TypeOf(e.Args[0]))
 		if m, ok := t.(*types.Map); ok {
-			if isStructKey(m.Key()) {
+			if isSpecialMap(m) {
 				return arg(0) + "?.clear()"
 			}
 			return "$rt.clearMap(" + arg(0) + ")"

@@ -8,9 +8,9 @@ import * as $diagnostics from './diagnostics.js';
 import * as $packagejson from './packagejson.js';
 import * as $semver from './semver.js';
 import * as $stringutil from './stringutil.js';
-import * as $tsoptions from './tsoptions.js';
 import * as $tspath from './tspath.js';
 import * as $vfs_vfsmatch from './vfs_vfsmatch.js';
+import type * as $tsoptions from './tsoptions.js';
 import type * as $vfs from './vfs.js';
 const $zf0 = (): $packagejson.InfoCacheEntry | undefined => undefined;
 const $zf1 = (): string => '';
@@ -808,12 +808,12 @@ export class ResolverOptions extends $rt.GoObject {
   }
 }
 export class moduleResolutionCache extends $rt.GoObject {
-  cache: $collections.SyncMap<moduleResolutionCacheKey, ResolvedModule | undefined> = new $collections.SyncMap<
+  cache: $rt.collections_SyncMap<moduleResolutionCacheKey, ResolvedModule | undefined> = new $rt.collections_SyncMap<
     moduleResolutionCacheKey,
     ResolvedModule | undefined
   >($zf4, $zf5);
   $copy_module_moduleResolutionCache(src: moduleResolutionCache): void {
-    this.cache = src.cache.$clone_collections_SyncMap();
+    this.cache = src.cache.$clone();
   }
   $clone_module_moduleResolutionCache(): moduleResolutionCache {
     const o = new moduleResolutionCache();
@@ -1425,7 +1425,7 @@ export class resolutionState extends $rt.GoObject {
     }
     let expandingKeys: string[] = [] as string[];
     let $t2 = false;
-    let $t3: resolved | undefined | undefined = undefined;
+    let $t3: resolved | undefined = undefined as resolved | undefined;
     lookupTable!.Keys()!((key: string): boolean => {
       if ($rt.strings_Count(key, '*') === (1 as number) || $rt.strings_HasSuffix(key, '/')) {
         expandingKeys.push(key);
@@ -1689,7 +1689,7 @@ export class resolutionState extends $rt.GoObject {
               );
             }
             let $t10 = false;
-            let $t11: resolved | undefined | undefined = undefined;
+            let $t11: resolved | undefined = undefined as resolved | undefined;
             target.AsObject$ExportsOrImports()!.Keys()!((condition: string): boolean => {
               if (r!.conditionMatches(condition)) {
                 if (!(r!.tracer_ === undefined)) {
@@ -1743,7 +1743,7 @@ export class resolutionState extends $rt.GoObject {
               return true;
             });
             if ($t10) {
-              $t1 = $t11!;
+              $t1 = $t11;
               break $body;
             }
             if (!(r!.tracer_ === undefined)) {
@@ -3414,7 +3414,7 @@ export class resolutionState extends $rt.GoObject {
       } else if (exports$1.Type === (6 as number)) {
         let prevConditions: string[] = [];
         let $t7 = false;
-        let $t8: undefined | undefined = undefined;
+        let $t8: undefined = undefined;
         exports$1.AsObject$ExportsOrImports()!.Entries()!(
           (condition: string, export_: $packagejson.ExportsOrImports): boolean => {
             if (!(excludeConditions === undefined) && excludeConditions!.Has(condition)) {
@@ -3478,7 +3478,7 @@ export class resolutionState extends $rt.GoObject {
         case 6 as number: {
           if (exports.IsSubpaths()) {
             let $t13 = false;
-            let $t14: (ResolvedEntrypoint | undefined)[] | undefined = undefined;
+            let $t14: (ResolvedEntrypoint | undefined)[] = [];
             exports.AsObject$ExportsOrImports()!.Entries()!(
               (subpath$1: string, export_$1: $packagejson.ExportsOrImports): boolean => {
                 loadEntrypointsFromTargetExports!(
@@ -3672,13 +3672,13 @@ export class tracer extends $rt.GoObject {
   }
 }
 export class typeRefDirectiveResolutionCache extends $rt.GoObject {
-  cache: $collections.SyncMap<typeRefDirectiveResolutionCacheKey, ResolvedTypeReferenceDirective | undefined> =
-    new $collections.SyncMap<typeRefDirectiveResolutionCacheKey, ResolvedTypeReferenceDirective | undefined>(
+  cache: $rt.collections_SyncMap<typeRefDirectiveResolutionCacheKey, ResolvedTypeReferenceDirective | undefined> =
+    new $rt.collections_SyncMap<typeRefDirectiveResolutionCacheKey, ResolvedTypeReferenceDirective | undefined>(
       $zf6,
       $zf7,
     );
   $copy_module_typeRefDirectiveResolutionCache(src: typeRefDirectiveResolutionCache): void {
-    this.cache = src.cache.$clone_collections_SyncMap();
+    this.cache = src.cache.$clone();
   }
   $clone_module_typeRefDirectiveResolutionCache(): typeRefDirectiveResolutionCache {
     const o = new typeRefDirectiveResolutionCache();
@@ -3969,7 +3969,7 @@ export function TryParsePatterns(
   let paths: ((p0: ((p0: string) => boolean) | undefined) => void) | undefined = pathMappings!.Keys();
   let numPatterns: number = 0;
   let $t1 = false;
-  let $t2: ParsedPatterns | undefined | undefined = undefined;
+  let $t2: ParsedPatterns | undefined = undefined as ParsedPatterns | undefined;
   paths!((path: string): boolean => {
     {
       let pattern: $core.Pattern = $core.TryParsePattern(path);
@@ -3989,7 +3989,7 @@ export function TryParsePatterns(
     matchableStringSet = $collections.NewSetWithSizeHint<string>(numMatchables)!.$clone_collections_Set();
   }
   let $t3 = false;
-  let $t4: ParsedPatterns | undefined | undefined = undefined;
+  let $t4: ParsedPatterns | undefined = undefined as ParsedPatterns | undefined;
   paths!((path$1: string): boolean => {
     {
       let pattern$1: $core.Pattern = $core.TryParsePattern(path$1);

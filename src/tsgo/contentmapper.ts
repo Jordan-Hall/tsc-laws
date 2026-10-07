@@ -754,7 +754,7 @@ export class Mapper extends Definition {
     const $t1 = m!.MarshalDeclaredOptions(options);
     let declared: $collections.OrderedMap<string, $json.Value> | undefined = $t1[0];
     const $t2 = $json.Marshal(
-      declared,
+      new $boxes.Box__collections_OrderedMap_string__json_Value_(declared),
       [] as ($rt.github_com_go_json_experiment_json_internal_jsonopts_Options | undefined)[],
     );
     let optionsJSON: number[] = $t2[0];
@@ -1639,16 +1639,18 @@ export class host extends $rt.GoObject {
     }
     let mapperTiming: mapperTimingCollector | undefined = h!.timing!.mapper(entry!.mapper!.Identity());
     let start: $rt.time_Time = mapperTiming!.startRequest();
-    const $t3 = conn!.Call(
-      ctx,
-      'openProject',
-      OpenProjectParams.$lit_contentmapper_OpenProjectParams_0_1_2_3(
-        entry!.spec.ConfigFileName,
-        entry!.projectHandle,
-        entry!.mapper!.Options,
-        compilerOptions,
-      ),
-    );
+    const $t3 = $rt
+      .nn(conn)
+      .Call(
+        ctx,
+        'openProject',
+        OpenProjectParams.$lit_contentmapper_OpenProjectParams_0_1_2_3(
+          entry!.spec.ConfigFileName,
+          entry!.projectHandle,
+          entry!.mapper!.Options,
+          compilerOptions,
+        ),
+      );
     let raw: $json.Value = $t3[0];
     err = $t3[1];
     mapperTiming!.finishRequest(mapperTiming!.openProject, start);
@@ -1770,11 +1772,9 @@ export class host extends $rt.GoObject {
     const h = this;
     let mapperTiming: mapperTimingCollector | undefined = h!.timing!.mapper(mapper!.Identity());
     let start: $rt.time_Time = mapperTiming!.startRequest();
-    const $t1 = conn!.Call(
-      h!.ctx,
-      'closeProject',
-      CloseProjectParams.$lit_contentmapper_CloseProjectParams_0(projectHandle),
-    );
+    const $t1 = $rt
+      .nn(conn)
+      .Call(h!.ctx, 'closeProject', CloseProjectParams.$lit_contentmapper_CloseProjectParams_0(projectHandle));
     let err: $rt.GoObject | undefined = $t1[1];
     mapperTiming!.finishRequest(mapperTiming!.closeProject, start);
     return err;
@@ -1826,9 +1826,9 @@ export class host extends $rt.GoObject {
       );
       const $t3 = project;
       $defers.push(() => {
-        $t3!.Close();
+        $rt.nn($t3).Close();
       });
-      const $t4 = project!.Transform(mapper, request);
+      const $t4 = $rt.nn(project).Transform(mapper, request);
       $t1 = $t4[0];
       $t2 = $t4[1];
       break $body;
@@ -1859,11 +1859,13 @@ export class host extends $rt.GoObject {
     }
     let mapperTiming: mapperTimingCollector | undefined = h!.timing!.mapper(mapper!.Identity());
     let start: $rt.time_Time = mapperTiming!.startRequest();
-    const $t2 = conn!.Call(
-      h!.ctx,
-      'transform',
-      TransformParams.$lit_contentmapper_TransformParams_0_1_2(request.FileName, request.Content, projectHandle),
-    );
+    const $t2 = $rt
+      .nn(conn)
+      .Call(
+        h!.ctx,
+        'transform',
+        TransformParams.$lit_contentmapper_TransformParams_0_1_2(request.FileName, request.Content, projectHandle),
+      );
     let raw: $json.Value = $t2[0];
     err = $t2[1];
     mapperTiming!.finishRequest(mapperTiming!.transform, start);
@@ -2136,7 +2138,7 @@ export class loggingProtocol extends $rt.GoObject {
   }
   ReadMessage(): [$jsonrpc.Message | undefined, $rt.GoObject | undefined] {
     const p = this;
-    const $t1 = p!.Protocol_!.ReadMessage();
+    const $t1 = $rt.nn(p!.Protocol_).ReadMessage();
     let message: $jsonrpc.Message | undefined = $t1[0];
     let err: $rt.GoObject | undefined = $t1[1];
     if (err === undefined) {
@@ -2156,19 +2158,19 @@ export class loggingProtocol extends $rt.GoObject {
       params,
     );
     p!.log('send', message);
-    return p!.Protocol_!.WriteRequest(id, method, params);
+    return $rt.nn(p!.Protocol_).WriteRequest(id, method, params);
   }
   WriteNotification(method: string, params: $rt.GoObject | undefined): $rt.GoObject | undefined {
     const p = this;
     let message: $jsonrpc.RequestMessage = $jsonrpc.RequestMessage.$lit_jsonrpc_RequestMessage_2_3(method, params);
     p!.log('send', message);
-    return p!.Protocol_!.WriteNotification(method, params);
+    return $rt.nn(p!.Protocol_).WriteNotification(method, params);
   }
   WriteResponse(id: $jsonrpc.ID | undefined, result: $rt.GoObject | undefined): $rt.GoObject | undefined {
     const p = this;
     let message: $jsonrpc.ResponseMessage = $jsonrpc.ResponseMessage.$lit_jsonrpc_ResponseMessage_1_2(id, result);
     p!.log('send', message);
-    return p!.Protocol_!.WriteResponse(id, result);
+    return $rt.nn(p!.Protocol_).WriteResponse(id, result);
   }
   WriteError(id: $jsonrpc.ID | undefined, responseError: $jsonrpc.ResponseError | undefined): $rt.GoObject | undefined {
     const p = this;
@@ -2177,7 +2179,7 @@ export class loggingProtocol extends $rt.GoObject {
       responseError,
     );
     p!.log('send', message);
-    return p!.Protocol_!.WriteError(id, responseError);
+    return $rt.nn(p!.Protocol_).WriteError(id, responseError);
   }
 }
 export class mapperConn extends $rt.GoObject {
@@ -3326,7 +3328,7 @@ export function NewHostWithOptions(
         stderrLog = stderrLogger.$lit_contentmapper_stderrLogger_0_1(diagnosticName, logger);
         stderr = stderrLog;
       }
-      const $t1 = spawner!.Spawn(mapper!.Manifest_.Exec, mapper!.PackageDirectory, stderr);
+      const $t1 = $rt.nn(spawner).Spawn(mapper!.Manifest_.Exec, mapper!.PackageDirectory, stderr);
       let rwc: $ipc.stdioConn | closeOnceReadWriteCloser | loggedProcess | undefined = $t1[0];
       let err: $rt.GoObject | undefined = $t1[1];
       mapperTiming!.spawn.record(spawnStart);
@@ -3470,7 +3472,9 @@ export function newWithDial(
 export function projectSpecKey(spec: ProjectSpec): string {
   let key: $rt.strings_Builder = new $rt.strings_Builder();
   $rt.fmt_Fprintf(
-    key as unknown as $ipc.stdioConn | closeOnceReadWriteCloser | loggedProcess | stderrLogger | undefined,
+    $rt.unsupportedConversion<$ipc.stdioConn | closeOnceReadWriteCloser | loggedProcess | stderrLogger | undefined>(
+      '$rt.strings_Builder | undefined',
+    ),
     '%s\x00%p',
     [new $rt.BoxStr(spec.ConfigFileName, 'string'), spec.CompilerOptions_],
   );
@@ -3479,7 +3483,9 @@ export function projectSpecKey(spec: ProjectSpec): string {
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
       let mapper = $t1[$t2];
       $rt.fmt_Fprintf(
-        key as unknown as $ipc.stdioConn | closeOnceReadWriteCloser | loggedProcess | stderrLogger | undefined,
+        $rt.unsupportedConversion<$ipc.stdioConn | closeOnceReadWriteCloser | loggedProcess | stderrLogger | undefined>(
+          '$rt.strings_Builder | undefined',
+        ),
         '\x00%p',
         [mapper],
       );
@@ -3509,14 +3515,16 @@ export function handshake(
   conn: $ipc.Conn,
   diagnosticLocale: $locale.Locale,
 ): [PositionEncoding, string, $rt.GoObject | undefined] {
-  const $t1 = conn!.Call(
-    ctx,
-    'initialize',
-    InitializeParams.$lit_contentmapper_InitializeParams_0_1_2(1, $locale.Locale$String(diagnosticLocale), [
-      'utf-8',
-      'utf-16',
-    ]),
-  );
+  const $t1 = $rt
+    .nn(conn)
+    .Call(
+      ctx,
+      'initialize',
+      InitializeParams.$lit_contentmapper_InitializeParams_0_1_2(1, $locale.Locale$String(diagnosticLocale), [
+        'utf-8',
+        'utf-16',
+      ]),
+    );
   let raw: $json.Value = $t1[0];
   let err: $rt.GoObject | undefined = $t1[1];
   if (!(err === undefined)) {
@@ -3918,13 +3926,13 @@ export function TransformAndParse(
   mapper: Mapper | undefined,
   project: Project,
 ): [SourceFiles, $rt.GoObject | undefined] {
-  const $t1 = project!.Identity(mapper);
+  const $t1 = $rt.nn(project).Identity(mapper);
   let transformIdentity: string = $t1[0];
   let err: $rt.GoObject | undefined = $t1[1];
   if (!(err === undefined)) {
     return [new SourceFiles(), NewTransformError(2, err)];
   }
-  const $t2 = project!.Transform(mapper, Request.$lit_contentmapper_Request_0_1(parseOptions.FileName, content));
+  const $t2 = $rt.nn(project).Transform(mapper, Request.$lit_contentmapper_Request_0_1(parseOptions.FileName, content));
   let result: Result = $t2[0];
   err = $t2[1];
   if (!(err === undefined)) {

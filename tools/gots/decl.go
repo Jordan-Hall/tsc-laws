@@ -25,7 +25,10 @@ type file struct {
 	hoisted    map[string]string
 	hoistedFns map[string]string
 	typeOnly   map[string]bool
-	inType     int
+	// named lists classes imported by name, as "module.Name"; scriptc only
+	// resolves generic static methods through named imports.
+	named  map[string]bool
+	inType int
 	// runtime is set while generating runtime stubs, which must not refer
 	// to translated modules.
 	runtime bool
@@ -199,6 +202,10 @@ func (f *file) assemble() string {
 			fmt.Fprintf(&head, "import type * as $%s from './%s.js';\n", m, m)
 		}
 	}
+	for _, mn := range sortedKeys(f.named) {
+		m, n, _ := strings.Cut(mn, ".")
+		fmt.Fprintf(&head, "import { %s as $%s$%s } from './%s.js';\n", n, m, n, m)
+	}
 	return head.String() + body
 }
 
@@ -293,6 +300,9 @@ func (f *file) constraint(tp *types.TypeParam) string {
 		return " extends " + f.arrayOf(core.Elem())
 	case *types.Map:
 		return " extends " + f.tsType(core)
+	}
+	if ptrOnlyTP(tp) {
+		return " extends $rt.GoObject | undefined"
 	}
 	// Type sets: constrain to number or string when every term agrees.
 	kind := ""
@@ -414,6 +424,8 @@ func (f *file) ifaceDecl(tn *types.TypeName, it *types.Interface) string {
 		fmt.Fprintf(&w, "  static $cast_%s(v: $rt.GoObject | undefined): %s { if (v instanceof %s) return v; throw $rt.typeAssertError(); }\n}\n", f.t.helperKey(tn), name, name)
 		return w.String()
 	}
+	f.inType++
+	defer func() { f.inType-- }()
 	switch {
 	case m == nil || it.NumMethods() == 0:
 		return fmt.Sprintf("export type %s%s = $rt.GoObject | undefined;\n", f.declName(tn), tp)
@@ -710,6 +722,23 @@ func (f *file) litsFor(tn *types.TypeName) map[string][]int {
 	return f.lits[tn]
 }
 
+// staticRef names class tn for calling its generic static methods.
+func (f *file) staticRef(tn *types.TypeName) string {
+	q := f.qualify(tn)
+	if !strings.HasPrefix(q, "$") || strings.HasPrefix(q, "$rt.") {
+		return q
+	}
+	m, n, ok := strings.Cut(q[1:], ".")
+	if !ok {
+		return q
+	}
+	if f.named == nil {
+		f.named = map[string]bool{}
+	}
+	f.named[m+"."+n] = true
+	return "$" + m + "$" + n
+}
+
 // litFactory returns the factory name for a composite literal that sets the
 // given fields, registering it for emission.
 func (f *file) litFactory(tn *types.TypeName, idx []int) string {
@@ -882,7 +911,7 @@ func (f *file) tsType(tt types.Type) string {
 	case *types.Array:
 		return f.arrayOf(x.Elem())
 	case *types.Map:
-		if isStructKey(x.Key()) {
+		if isSpecialMap(x) {
 			return "$rt.StructMap<" + f.tsType(x.Key()) + ", " + f.tsType(x.Elem()) + "> | undefined"
 		}
 		return "Map<" + f.keyType(x.Key()) + ", " + f.tsType(x.Elem()) + "> | undefined"
@@ -1266,10 +1295,73 @@ func isStructKey(k types.Type) bool {
 	return false
 }
 
+// isSpecialMap reports whether m is a StructMap: its keys compare by value
+// as structs, or its values have a type parameter type.
+func isSpecialMap(m *types.Map) bool {
+	if isStructKey(m.Key()) {
+		return true
+	}
+	tp, ok := types.Unalias(m.Elem()).(*types.TypeParam)
+	return ok && classTPGlobal[tp.Obj()]
+}
+
+// classTPGlobal holds the type parameters of generic types and of their
+// methods' receivers. Maps with these value types stay inside the class.
+var classTPGlobal map[*types.TypeName]bool
+
+func (t *translator) findClassTPs() {
+	classTPGlobal = map[*types.TypeName]bool{}
+	for _, p := range t.order {
+		for _, f := range p.p.Syntax {
+			for _, d := range f.Decls {
+				switch d := d.(type) {
+				case *ast.FuncDecl:
+					if fn, ok := p.p.TypesInfo.Defs[d.Name].(*types.Func); ok {
+						if list := fn.Type().(*types.Signature).RecvTypeParams(); list != nil {
+							for i := 0; i < list.Len(); i++ {
+								classTPGlobal[list.At(i).Obj()] = true
+							}
+						}
+					}
+				case *ast.GenDecl:
+					for _, spec := range d.Specs {
+						ts, ok := spec.(*ast.TypeSpec)
+						if !ok {
+							continue
+						}
+						if tn, ok := p.p.TypesInfo.Defs[ts.Name].(*types.TypeName); ok {
+							if n, ok := tn.Type().(*types.Named); ok && n.TypeParams() != nil {
+								for i := 0; i < n.TypeParams().Len(); i++ {
+									classTPGlobal[n.TypeParams().At(i).Obj()] = true
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+// mapGet renders the read m[k] of map text m; nilable says m may be nil.
+func (x *fn) mapGet(m, k string, mt *types.Map, nilable bool) string {
+	z := x.f.zero(mt.Elem())
+	if isSpecialMap(mt) {
+		return fmt.Sprintf("$rt.structMapGet(%s, %s, %s)", m, k, z)
+	}
+	if nilable {
+		return fmt.Sprintf("(%s?.get(%s) ?? %s)", m, k, z)
+	}
+	return fmt.Sprintf("(%s!.get(%s) ?? %s)", m, k, z)
+}
+
 // newMap renders an empty map of type m.
 func (f *file) newMap(m *types.Map) string {
 	if isStructKey(m.Key()) {
 		return "new $rt.StructMap<" + f.tsType(m.Key()) + ", " + f.tsType(m.Elem()) + ">(" + f.keyFn(m.Key()) + ")"
+	}
+	if isSpecialMap(m) {
+		return "new $rt.StructMap<" + f.tsType(m.Key()) + ", " + f.tsType(m.Elem()) + ">()"
 	}
 	return "new Map<" + f.keyType(m.Key()) + ", " + f.tsType(m.Elem()) + ">()"
 }
@@ -1323,4 +1415,53 @@ func (f *file) valueKey(expr string, tt types.Type) string {
 		return "$rt.ifaceKey(" + expr + ")"
 	}
 	return "$rt.objKey(" + expr + ")"
+}
+
+// ptrOnlyTP reports whether every type in tp's type set is a pointer, so
+// its values are objects that convert to interfaces unchanged.
+func ptrOnlyTP(tp *types.TypeParam) bool {
+	it, ok := tp.Constraint().Underlying().(*types.Interface)
+	if !ok || it.NumMethods() > 0 || it.NumEmbeddeds() == 0 {
+		return false
+	}
+	for i := 0; i < it.NumEmbeddeds(); i++ {
+		u, ok := it.EmbeddedType(i).(*types.Union)
+		if !ok {
+			if _, isPtr := it.EmbeddedType(i).(*types.Pointer); isPtr {
+				continue
+			}
+			return false
+		}
+		for j := 0; j < u.Len(); j++ {
+			if _, isPtr := u.Term(j).Type().(*types.Pointer); !isPtr {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// isGenericPtr reports whether tt points to an instantiated generic struct.
+// scriptc cannot narrow an interface value to one instantiation, so such
+// pointers are boxed per instantiation when stored in interfaces.
+func isGenericPtr(tt types.Type) bool {
+	p, ok := types.Unalias(tt).(*types.Pointer)
+	if !ok {
+		return false
+	}
+	n, ok := types.Unalias(p.Elem()).(*types.Named)
+	if !ok || n.TypeArgs().Len() == 0 || mentionsTypeParam(n) {
+		return false
+	}
+	_, isStruct := n.Underlying().(*types.Struct)
+	return isStruct
+}
+
+// isEmptyIface reports whether tt is an interface without methods.
+func isEmptyIface(tt types.Type) bool {
+	if tt == nil {
+		return false
+	}
+	it, ok := tt.Underlying().(*types.Interface)
+	return ok && it.NumMethods() == 0
 }

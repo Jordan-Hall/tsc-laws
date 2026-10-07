@@ -5,7 +5,7 @@ import * as $json from './json.js';
 const $zf0 = (): $rt.Empty => $rt.EMPTY;
 export class CopyOnWriteMap<K, V> extends $rt.GoObject {
   $z_V: () => V;
-  m: Map<K, V> | undefined;
+  m: $rt.StructMap<K, V> | undefined;
   owned: boolean;
   constructor($z_V: () => V) {
     super();
@@ -26,7 +26,7 @@ export class CopyOnWriteMap<K, V> extends $rt.GoObject {
     const c = this;
     const $t1 = c!.m;
     const $t2 = k;
-    let v: V = $t1?.get($t2) ?? this.$z_V();
+    let v: V = $rt.structMapGet($t1, $t2, this.$z_V());
     let ok: boolean = $t1 !== undefined && $t1.has($t2);
     return [v, ok];
   }
@@ -48,9 +48,9 @@ export class CopyOnWriteMap<K, V> extends $rt.GoObject {
       return;
     }
     if (c!.m === undefined) {
-      c!.m = new Map<K, V>();
+      c!.m = new $rt.StructMap<K, V>();
     } else {
-      c!.m = $rt.maps_Clone(c!.m);
+      c!.m = $rt.structMap_Clone(c!.m);
     }
     c!.owned = true;
   }
@@ -202,7 +202,7 @@ export class OrderedMap<K, V> extends $rt.GoObject {
   $z_V: () => V;
   $_0: noCopy;
   keys: K[];
-  mp: Map<K, V> | undefined;
+  mp: $rt.StructMap<K, V> | undefined;
   constructor($z_K: () => K, $z_V: () => V) {
     super();
     this.$z_K = $z_K;
@@ -225,7 +225,7 @@ export class OrderedMap<K, V> extends $rt.GoObject {
     $z_K: () => K,
     $z_V: () => V,
     p0: K[],
-    p1: Map<K, V> | undefined,
+    p1: $rt.StructMap<K, V> | undefined,
   ): OrderedMap<K, V> {
     const o = new OrderedMap<K, V>($z_K, $z_V);
     o.keys = p0;
@@ -235,7 +235,7 @@ export class OrderedMap<K, V> extends $rt.GoObject {
   Set(key: K, value: V): void {
     const m = this;
     if (m!.mp === undefined) {
-      m!.mp = new Map<K, V>();
+      m!.mp = new $rt.StructMap<K, V>();
     }
     {
       const $t1 = m!.mp;
@@ -251,13 +251,13 @@ export class OrderedMap<K, V> extends $rt.GoObject {
     const m = this;
     const $t1 = m!.mp;
     const $t2 = key;
-    let v: V = $t1?.get($t2) ?? this.$z_V();
+    let v: V = $rt.structMapGet($t1, $t2, this.$z_V());
     let ok: boolean = $t1 !== undefined && $t1.has($t2);
     return [v, ok];
   }
   GetOrZero(key: K): V {
     const m = this;
-    return m!.mp?.get(key) ?? this.$z_V();
+    return $rt.structMapGet(m!.mp, key, this.$z_V());
   }
   EntryAt(index: number): [K, V, boolean] {
     const m = this;
@@ -267,7 +267,7 @@ export class OrderedMap<K, V> extends $rt.GoObject {
       return [zero, zeroV, false];
     }
     let key: K = m!.keys[index];
-    let value: V = m!.mp?.get(key) ?? this.$z_V();
+    let value: V = $rt.structMapGet(m!.mp, key, this.$z_V());
     return [key, value, true];
   }
   Has(key: K): boolean {
@@ -281,7 +281,7 @@ export class OrderedMap<K, V> extends $rt.GoObject {
     const m = this;
     const $t1 = m!.mp;
     const $t2 = key;
-    let v: V = $t1?.get($t2) ?? this.$z_V();
+    let v: V = $rt.structMapGet($t1, $t2, this.$z_V());
     let ok: boolean = $t1 !== undefined && $t1.has($t2);
     if (!ok) {
       let zero: V = this.$z_V();
@@ -330,7 +330,7 @@ export class OrderedMap<K, V> extends $rt.GoObject {
       }
       {
         for (let i: number = 0; i < m!.keys.length; i++) {
-          if (!yield_!(m!.mp?.get(m!.keys[i]) ?? this.$z_V())) {
+          if (!yield_!($rt.structMapGet(m!.mp, m!.keys[i], this.$z_V()))) {
             break;
           }
         }
@@ -346,7 +346,7 @@ export class OrderedMap<K, V> extends $rt.GoObject {
       {
         for (let i: number = 0; i < m!.keys.length; i++) {
           let key: K = m!.keys[i];
-          if (!yield_!(key, m!.mp?.get(key) ?? this.$z_V())) {
+          if (!yield_!(key, $rt.structMapGet(m!.mp, key, this.$z_V()))) {
             break;
           }
         }
@@ -357,7 +357,7 @@ export class OrderedMap<K, V> extends $rt.GoObject {
     const m = this;
     $rt.clearSlice(m!.keys, this.$z_K());
     m!.keys = $rt.reslice(m!.keys, 0, 0, this.$z_K());
-    $rt.clearMap(m!.mp);
+    m!.mp?.clear();
   }
   Size(): number {
     const m = this;
@@ -380,7 +380,7 @@ export class OrderedMap<K, V> extends $rt.GoObject {
       this.$z_K,
       this.$z_V,
       $rt.slices_Clone(m!.keys),
-      $rt.maps_Clone(m!.mp),
+      $rt.structMap_Clone(m!.mp),
     );
   }
   MarshalJSONTo(enc: $rt.github_com_go_json_experiment_json_jsontext_Encoder | undefined): $rt.GoObject | undefined {
@@ -414,7 +414,7 @@ export class OrderedMap<K, V> extends $rt.GoObject {
         {
           let err$3: $rt.GoObject | undefined = $json.MarshalEncode(
             enc,
-            $rt.boxAny(m!.mp?.get(k) ?? this.$z_V()),
+            $rt.boxAny($rt.structMapGet(m!.mp, k, this.$z_V())),
             [] as ($rt.github_com_go_json_experiment_json_internal_jsonopts_Options | undefined)[],
           );
           if (!(err$3 === undefined)) {
@@ -677,132 +677,16 @@ export class Set_<T> extends $rt.GoObject {
     return false;
   }
 }
-export class SyncMap<K, V> extends $rt.GoObject {
-  $z_K: () => K;
-  $z_V: () => V;
-  $_0: K[];
-  $_1: V[];
-  m: $rt.sync_Map;
-  constructor($z_K: () => K, $z_V: () => V) {
-    super();
-    this.$z_K = $z_K;
-    this.$z_V = $z_V;
-    this.$_0 = $rt.makeArray(0, () => this.$z_K());
-    this.$_1 = $rt.makeArray(0, () => this.$z_V());
-    this.m = new $rt.sync_Map();
-  }
-  $copy_collections_SyncMap(src: SyncMap<K, V>): void {
-    this.$_0 = src.$_0.slice();
-    this.$_1 = src.$_1.slice();
-    this.m = src.m;
-  }
-  $clone_collections_SyncMap(): SyncMap<K, V> {
-    const o = new SyncMap<K, V>(this.$z_K, this.$z_V);
-    o.$copy_collections_SyncMap(this);
-    return o;
-  }
-  Load(key: K): [V, boolean] {
-    const s = this;
-    let value: V = this.$z_V();
-    let ok: boolean = false;
-    const $t1 = s!.m.Load($rt.boxAny(key));
-    let val: $rt.GoObject | undefined = $t1[0];
-    ok = $t1[1];
-    if (!ok || val === undefined) {
-      return [value, ok];
-    }
-    return [val !== undefined ? $rt.unboxAny<V>(val) : $rt.typeAssertFail<V>(), true];
-  }
-  Store(key: K, value: V): void {
-    const s = this;
-    s!.m.Store($rt.boxAny(key), $rt.boxAny(value));
-  }
-  LoadOrStore(key: K, value: V): [V, boolean] {
-    const s = this;
-    let actual: V = this.$z_V();
-    let loaded: boolean = false;
-    const $t1 = s!.m.LoadOrStore($rt.boxAny(key), $rt.boxAny(value));
-    let actualAny: $rt.GoObject | undefined = $t1[0];
-    loaded = $t1[1];
-    if (actualAny === undefined) {
-      return [actual, loaded];
-    }
-    return [actualAny !== undefined ? $rt.unboxAny<V>(actualAny) : $rt.typeAssertFail<V>(), loaded];
-  }
-  Delete(key: K): void {
-    const s = this;
-    s!.m.Delete($rt.boxAny(key));
-  }
-  Clear(): void {
-    const s = this;
-    s!.m.Clear();
-  }
-  Range(f: ((p0: K, p1: V) => boolean) | undefined): void {
-    const s = this;
-    s!.m.Range((key: $rt.GoObject | undefined, value: $rt.GoObject | undefined): boolean => {
-      let k: K = this.$z_K();
-      if (!(key === undefined)) {
-        k = key !== undefined ? $rt.unboxAny<K>(key) : $rt.typeAssertFail<K>();
-      }
-      let v: V = this.$z_V();
-      if (!(value === undefined)) {
-        v = value !== undefined ? $rt.unboxAny<V>(value) : $rt.typeAssertFail<V>();
-      }
-      return f!(k, v);
-    });
-  }
-  Size(): number {
-    const s = this;
-    let count: number = 0;
-    s!.m.Range(($p0: $rt.GoObject | undefined, $p1: $rt.GoObject | undefined): boolean => {
-      count++;
-      return true;
-    });
-    return count;
-  }
-  ToMap(): Map<K, V> | undefined {
-    const s = this;
-    let m: Map<K, V> | undefined = new Map<K, V>();
-    s!.m.Range((key: $rt.GoObject | undefined, value: $rt.GoObject | undefined): boolean => {
-      m!.set(
-        key !== undefined ? $rt.unboxAny<K>(key) : $rt.typeAssertFail<K>(),
-        value !== undefined ? $rt.unboxAny<V>(value) : $rt.typeAssertFail<V>(),
-      );
-      return true;
-    });
-    return m;
-  }
-  Keys(): ((p0: ((p0: K) => boolean) | undefined) => void) | undefined {
-    const s = this;
-    return (yield_: ((p0: K) => boolean) | undefined): void => {
-      s!.m.Range((key: $rt.GoObject | undefined, value: $rt.GoObject | undefined): boolean => {
-        if (!yield_!(key !== undefined ? $rt.unboxAny<K>(key) : $rt.typeAssertFail<K>())) {
-          return false;
-        }
-        return true;
-      });
-    };
-  }
-  Clone(): SyncMap<K, V> | undefined {
-    const s = this;
-    let clone: SyncMap<K, V> | undefined = new SyncMap<K, V>(this.$z_K, this.$z_V);
-    s!.m.Range((key: $rt.GoObject | undefined, value: $rt.GoObject | undefined): boolean => {
-      clone!.m.Store(key, value);
-      return true;
-    });
-    return clone;
-  }
-}
 export class SyncSet<T> extends $rt.GoObject {
   $z_T: () => T;
-  m: SyncMap<T, $rt.Empty>;
+  m: $rt.collections_SyncMap<T, $rt.Empty>;
   constructor($z_T: () => T) {
     super();
     this.$z_T = $z_T;
-    this.m = new SyncMap<T, $rt.Empty>(this.$z_T, $zf0);
+    this.m = new $rt.collections_SyncMap<T, $rt.Empty>(this.$z_T, $zf0);
   }
   $copy_collections_SyncSet(src: SyncSet<T>): void {
-    this.m = src.m.$clone_collections_SyncMap();
+    this.m = src.m.$clone();
   }
   $clone_collections_SyncSet(): SyncSet<T> {
     const o = new SyncSet<T>(this.$z_T);
@@ -915,7 +799,12 @@ export function NewOrderedMapWithSizeHint<K, V>(
   return m;
 }
 export function newMapWithSizeHint<K, V>($z_K: () => K, $z_V: () => V, hint: number): OrderedMap<K, V> {
-  return OrderedMap.$lit_collections_OrderedMap_1_2<K, V>($z_K, $z_V, [] as K[], new Map<K, V>());
+  return OrderedMap.$lit_collections_OrderedMap_1_2<K, V>(
+    $z_K,
+    $z_V,
+    [] as K[],
+    $rt.toStructMap<K, V>(new Map<K, V>()),
+  );
 }
 export function NewOrderedMapFromList<K, V>(
   $z_K: () => K,
@@ -998,7 +887,7 @@ export function DiffOrderedMapsFunc<K, V>(
   onModified: ((p0: K, p1: V, p2: V) => void) | undefined,
 ): void {
   let $t1 = false;
-  let $t2: undefined | undefined = undefined;
+  let $t2: undefined = undefined;
   m2!.Entries()!((k: K, v2: V): boolean => {
     {
       const $t3 = m1!.Get(k);
@@ -1010,7 +899,7 @@ export function DiffOrderedMapsFunc<K, V>(
     return true;
   });
   let $t4 = false;
-  let $t5: undefined | undefined = undefined;
+  let $t5: undefined = undefined;
   m1!.Entries()!((k$1: K, v1: V): boolean => {
     {
       const $t6 = m2!.Get(k$1);

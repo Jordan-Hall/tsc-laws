@@ -2,7 +2,6 @@
 // Copyright Microsoft Corporation. Licensed under Apache-2.0.
 import * as $rt from '../go/runtime.js';
 import * as $ast from './ast.js';
-import * as $checker from './checker.js';
 import * as $core from './core.js';
 import * as $debug from './debug.js';
 import * as $module from './module.js';
@@ -11,9 +10,10 @@ import * as $packagejson from './packagejson.js';
 import * as $stringutil from './stringutil.js';
 import * as $tsoptions from './tsoptions.js';
 import * as $tspath from './tspath.js';
-import * as $tststest from './tststest.js';
+import type * as $checker from './checker.js';
 import type * as $collections from './collections.js';
 import type * as $symlinks from './symlinks.js';
+import type * as $tststest from './tststest.js';
 const $zf0 = (): string => '';
 const $zf1 = (): boolean => false;
 export type CheckerShape = $checker.Checker | undefined;
@@ -1629,7 +1629,7 @@ export function tryGetModuleNameFromExports(
 ): string {
   if (exports.IsSubpaths()) {
     let $t1 = false;
-    let $t2: string | undefined = undefined;
+    let $t2: string = '';
     exports.AsObject$ExportsOrImports()!.Entries()!((k: string, subk: $packagejson.ExportsOrImports): boolean => {
       let subPackageName: string = $tspath.GetNormalizedAbsolutePath($tspath.CombinePaths(packageName, [k]), '');
       let mode: MatchingMode = 0;
@@ -1657,7 +1657,7 @@ export function tryGetModuleNameFromExports(
       }
       return true;
     });
-    if ($t1) return $t2!;
+    if ($t1) return $t2;
   }
   return tryGetModuleNameFromExportsOrImports(
     options,
@@ -1709,7 +1709,7 @@ export function tryGetModuleNameFromPackageJsonImports(
           | ((p0: ((p0: string, p1: $packagejson.ExportsOrImports) => boolean) | undefined) => void)
           | undefined = top!.Entries();
         let $t1 = false;
-        let $t2: string | undefined = undefined;
+        let $t2: string = '';
         entries!((k: string, value: $packagejson.ExportsOrImports): boolean => {
           if (k === ('#' as string) || k === ('#/' as string) || !$rt.strings_HasPrefix(k, '#')) {
             return true;
@@ -1746,7 +1746,7 @@ export function tryGetModuleNameFromPackageJsonImports(
           }
           return true;
         });
-        if ($t1) return $t2!;
+        if ($t1) return $t2;
         break;
       }
     }
@@ -1763,7 +1763,7 @@ export function tryGetModuleNameFromPaths(
 ): string {
   let caseSensitive: boolean = host!.UseCaseSensitiveFileNames();
   let $t1 = false;
-  let $t2: string | undefined = undefined;
+  let $t2: string = '';
   paths!.Entries()!((key: string, values: string[]): boolean => {
     {
       const $t3 = values;
@@ -1831,7 +1831,7 @@ export function tryGetModuleNameFromPaths(
     }
     return true;
   });
-  if ($t1) return $t2!;
+  if ($t1) return $t2;
   return '';
 }
 export function validateEnding(
@@ -2060,7 +2060,7 @@ export function tryGetModuleNameFromExportsOrImports(
         let obj: $collections.OrderedMap<string, $packagejson.ExportsOrImports> | undefined =
           exports.AsObject$ExportsOrImports();
         let $t4 = false;
-        let $t5: string | undefined = undefined;
+        let $t5: string = '';
         obj!.Entries()!((key: string, value: $packagejson.ExportsOrImports): boolean => {
           if (
             key === ('default' as string) ||
@@ -2087,7 +2087,7 @@ export function tryGetModuleNameFromExportsOrImports(
           }
           return true;
         });
-        if ($t4) return $t5!;
+        if ($t4) return $t5;
         break;
       }
       case 1 as number: {
@@ -2271,7 +2271,7 @@ export function stringToRegex(pattern: string): $rt.regexp_Regexp | undefined {
     regexPatternCacheMu.RLock();
     const $t5 = regexPatternCache;
     const $t6 = key.$clone_modulespecifiers_regexPatternCacheKey();
-    let re: $rt.regexp_Regexp | undefined = $t5?.get($t6) ?? undefined;
+    let re: $rt.regexp_Regexp | undefined = $rt.structMapGet($t5, $t6, undefined);
     let ok: boolean = $t5 !== undefined && $t5.has($t6);
     regexPatternCacheMu.RUnlock();
     if (ok) {
@@ -2285,7 +2285,7 @@ export function stringToRegex(pattern: string): $rt.regexp_Regexp | undefined {
     });
     const $t8 = regexPatternCache;
     const $t9 = key.$clone_modulespecifiers_regexPatternCacheKey();
-    re = $t8?.get($t9) ?? undefined;
+    re = $rt.structMapGet($t8, $t9, undefined);
     ok = $t8 !== undefined && $t8.has($t9);
     if (ok) {
       $t1 = re;
@@ -2560,7 +2560,7 @@ export function allKeysStartWithDot(
   obj: $collections.OrderedMap<string, $packagejson.ExportsOrImports> | undefined,
 ): boolean {
   let $t1 = false;
-  let $t2: boolean | undefined = undefined;
+  let $t2: boolean = false;
   obj!.Keys()!((k: string): boolean => {
     if (!$rt.strings_HasPrefix(k, '.')) {
       $t2 = false;
@@ -2569,7 +2569,7 @@ export function allKeysStartWithDot(
     }
     return true;
   });
-  if ($t1) return $t2!;
+  if ($t1) return $t2;
   return true;
 }
 export function GetPackageNameFromDirectory(fileOrDirectoryPath: string): string {

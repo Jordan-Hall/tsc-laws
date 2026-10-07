@@ -37,22 +37,22 @@ export class KnownDirectoryLink extends $rt.GoObject {
   }
 }
 export class KnownSymlinks extends $rt.GoObject {
-  directories: $collections.SyncMap<$tspath.Path, KnownDirectoryLink | undefined> = new $collections.SyncMap<
+  directories: $rt.collections_SyncMap<$tspath.Path, KnownDirectoryLink | undefined> = new $rt.collections_SyncMap<
     $tspath.Path,
     KnownDirectoryLink | undefined
   >($zf1, $zf2);
-  directoriesByRealpath: $collections.SyncMap<$tspath.Path, $collections.SyncSet<string> | undefined> =
-    new $collections.SyncMap<$tspath.Path, $collections.SyncSet<string> | undefined>($zf1, $zf3);
-  files: $collections.SyncMap<$tspath.Path, string> = new $collections.SyncMap<$tspath.Path, string>($zf1, $zf0);
-  filesByRealpath: $collections.SyncMap<$tspath.Path, $collections.SyncSet<string> | undefined> =
-    new $collections.SyncMap<$tspath.Path, $collections.SyncSet<string> | undefined>($zf1, $zf3);
+  directoriesByRealpath: $rt.collections_SyncMap<$tspath.Path, $collections.SyncSet<string> | undefined> =
+    new $rt.collections_SyncMap<$tspath.Path, $collections.SyncSet<string> | undefined>($zf1, $zf3);
+  files: $rt.collections_SyncMap<$tspath.Path, string> = new $rt.collections_SyncMap<$tspath.Path, string>($zf1, $zf0);
+  filesByRealpath: $rt.collections_SyncMap<$tspath.Path, $collections.SyncSet<string> | undefined> =
+    new $rt.collections_SyncMap<$tspath.Path, $collections.SyncSet<string> | undefined>($zf1, $zf3);
   cwd: string = '';
   useCaseSensitiveFileNames: boolean = false;
   $copy_symlinks_KnownSymlinks(src: KnownSymlinks): void {
-    this.directories = src.directories.$clone_collections_SyncMap();
-    this.directoriesByRealpath = src.directoriesByRealpath.$clone_collections_SyncMap();
-    this.files = src.files.$clone_collections_SyncMap();
-    this.filesByRealpath = src.filesByRealpath.$clone_collections_SyncMap();
+    this.directories = src.directories.$clone();
+    this.directoriesByRealpath = src.directoriesByRealpath.$clone();
+    this.files = src.files.$clone();
+    this.filesByRealpath = src.filesByRealpath.$clone();
     this.cwd = src.cwd;
     this.useCaseSensitiveFileNames = src.useCaseSensitiveFileNames;
   }
@@ -77,19 +77,19 @@ export class KnownSymlinks extends $rt.GoObject {
     let ok: boolean = $t1[1];
     return ok;
   }
-  Directories(): $collections.SyncMap<$tspath.Path, KnownDirectoryLink | undefined> | undefined {
+  Directories(): $rt.collections_SyncMap<$tspath.Path, KnownDirectoryLink | undefined> | undefined {
     const cache = this;
     return cache!.directories;
   }
-  DirectoriesByRealpath(): $collections.SyncMap<$tspath.Path, $collections.SyncSet<string> | undefined> | undefined {
+  DirectoriesByRealpath(): $rt.collections_SyncMap<$tspath.Path, $collections.SyncSet<string> | undefined> | undefined {
     const cache = this;
     return cache!.directoriesByRealpath;
   }
-  Files(): $collections.SyncMap<$tspath.Path, string> | undefined {
+  Files(): $rt.collections_SyncMap<$tspath.Path, string> | undefined {
     const cache = this;
     return cache!.files;
   }
-  FilesByRealpath(): $collections.SyncMap<$tspath.Path, $collections.SyncSet<string> | undefined> | undefined {
+  FilesByRealpath(): $rt.collections_SyncMap<$tspath.Path, $collections.SyncSet<string> | undefined> | undefined {
     const cache = this;
     return cache!.filesByRealpath;
   }

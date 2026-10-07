@@ -2,13 +2,13 @@
 // Copyright Microsoft Corporation. Licensed under Apache-2.0.
 import * as $rt from '../go/runtime.js';
 import * as $ast from './ast.js';
-import * as $checker from './checker.js';
 import * as $collections from './collections.js';
 import * as $core from './core.js';
 import * as $debug from './debug.js';
 import * as $scanner from './scanner.js';
 import * as $stringutil from './stringutil.js';
 import * as $tspath from './tspath.js';
+import type * as $checker from './checker.js';
 import type * as $sourcemap from './sourcemap.js';
 import type * as $tsoptions from './tsoptions.js';
 const $zf0 = (): $ast.Node | undefined => undefined;
@@ -575,7 +575,7 @@ export class textWriter extends $rt.GoObject {
     let count: number = 0;
     let lastLineStart: $core.TextPos = 0;
     let $t1 = false;
-    let $t2: undefined | undefined = undefined;
+    let $t2: undefined = undefined;
     $core.ComputeECMALineStartsSeq(s)!((lineStart: $core.TextPos): boolean => {
       count++;
       lastLineStart = lineStart;
@@ -4256,7 +4256,7 @@ export class Printer extends PrintHandlers {
     {
       switch (writeKind) {
         case 0 as number: {
-          p!.writer!.Write(text);
+          $rt.nn(p!.writer).Write(text);
           break;
         }
         case 5 as number: {
@@ -4280,7 +4280,7 @@ export class Printer extends PrintHandlers {
           break;
         }
         case 4 as number: {
-          p!.writer!.WriteStringLiteral(text);
+          $rt.nn(p!.writer).WriteStringLiteral(text);
           break;
         }
         case 7 as number: {
@@ -4317,44 +4317,44 @@ export class Printer extends PrintHandlers {
     if (optSymbol === undefined) {
       p!.write(text);
     } else {
-      p!.writer!.WriteSymbol(text, optSymbol);
+      $rt.nn(p!.writer).WriteSymbol(text, optSymbol);
     }
   }
   writeLiteral(text: string): void {
     const p = this;
-    p!.writer!.WriteLiteral(text);
+    $rt.nn(p!.writer).WriteLiteral(text);
   }
   writePunctuation(text: string): void {
     const p = this;
-    p!.writer!.WritePunctuation(text);
+    $rt.nn(p!.writer).WritePunctuation(text);
   }
   writeOperator(text: string): void {
     const p = this;
-    p!.writer!.WriteOperator(text);
+    $rt.nn(p!.writer).WriteOperator(text);
   }
   writeKeyword(text: string): void {
     const p = this;
-    p!.writer!.WriteKeyword(text);
+    $rt.nn(p!.writer).WriteKeyword(text);
   }
   writeProperty(text: string): void {
     const p = this;
-    p!.writer!.WriteProperty(text);
+    $rt.nn(p!.writer).WriteProperty(text);
   }
   writeParameter(text: string): void {
     const p = this;
-    p!.writer!.WriteParameter(text);
+    $rt.nn(p!.writer).WriteParameter(text);
   }
   writeComment(text: string): void {
     const p = this;
-    p!.writer!.WriteComment(text);
+    $rt.nn(p!.writer).WriteComment(text);
   }
   writeSpace(): void {
     const p = this;
-    p!.writer!.WriteSpace(' ');
+    $rt.nn(p!.writer).WriteSpace(' ');
   }
   writeLine(): void {
     const p = this;
-    p!.writer!.WriteLine();
+    $rt.nn(p!.writer).WriteLine();
   }
   writeLineRepeat(count: number): void {
     const p = this;
@@ -4382,15 +4382,15 @@ export class Printer extends PrintHandlers {
   }
   writeTrailingSemicolon(): void {
     const p = this;
-    p!.writer!.WriteTrailingSemicolon(';');
+    $rt.nn(p!.writer).WriteTrailingSemicolon(';');
   }
   increaseIndent(): void {
     const p = this;
-    p!.writer!.IncreaseIndent();
+    $rt.nn(p!.writer).IncreaseIndent();
   }
   decreaseIndent(): void {
     const p = this;
-    p!.writer!.DecreaseIndent();
+    $rt.nn(p!.writer).DecreaseIndent();
   }
   increaseIndentIf(indentRequested: boolean): void {
     const p = this;
@@ -4675,7 +4675,7 @@ export class Printer extends PrintHandlers {
           if (firstCommentLineIndent === (-1 as number)) {
             firstCommentLineIndent = calculateIndent(text, lineMap[firstLine], loc.Pos());
           }
-          let currentWriterIndentSpacing: number = p!.writer!.GetIndent() * indentSize;
+          let currentWriterIndentSpacing: number = $rt.nn(p!.writer).GetIndent() * indentSize;
           let spacesToEmit: number =
             currentWriterIndentSpacing - firstCommentLineIndent + calculateIndent(text, pos, nextLineStart);
           if (spacesToEmit > 0) {
@@ -4684,13 +4684,13 @@ export class Printer extends PrintHandlers {
               Math.trunc((spacesToEmit - numberOfSingleSpacesToEmit) / indentSize),
               indentSize,
             );
-            p!.writer!.RawWrite(indentSizeSpaceString);
+            $rt.nn(p!.writer).RawWrite(indentSizeSpaceString);
             for (; numberOfSingleSpacesToEmit > 0;) {
-              p!.writer!.RawWrite(' ');
+              $rt.nn(p!.writer).RawWrite(' ');
               numberOfSingleSpacesToEmit--;
             }
           } else {
-            p!.writer!.RawWrite('');
+            $rt.nn(p!.writer).RawWrite('');
           }
         }
         let end: number = Math.min(loc.End(), nextLineStart);
@@ -4716,7 +4716,7 @@ export class Printer extends PrintHandlers {
             p!.writeLine();
           }
         } else {
-          p!.writer!.WriteLineForce(true);
+          $rt.nn(p!.writer).WriteLineForce(true);
         }
         pos = nextLineStart;
       }
@@ -4855,7 +4855,7 @@ export class Printer extends PrintHandlers {
       return false;
     }
     let $t1 = false;
-    let $t2: boolean | undefined = undefined;
+    let $t2: boolean = false;
     $scanner.GetTrailingCommentRanges(p!.emitContext!.Factory!.AsNodeFactory(), p!.currentSourceFile!.Text(), pos + 1)!(
       ($t3: $ast.CommentRange): boolean => {
         $t2 = true;
@@ -4864,9 +4864,9 @@ export class Printer extends PrintHandlers {
         return true;
       },
     );
-    if ($t1) return $t2!;
+    if ($t1) return $t2;
     let $t4 = false;
-    let $t5: boolean | undefined = undefined;
+    let $t5: boolean = false;
     $scanner.GetLeadingCommentRanges(p!.emitContext!.Factory!.AsNodeFactory(), p!.currentSourceFile!.Text(), pos + 1)!(
       ($t6: $ast.CommentRange): boolean => {
         $t5 = true;
@@ -4875,7 +4875,7 @@ export class Printer extends PrintHandlers {
         return true;
       },
     );
-    if ($t4) return $t5!;
+    if ($t4) return $t5;
     return false;
   }
   shouldEmitIndirectCall(node: $ast.Node | undefined): boolean {
@@ -5018,7 +5018,7 @@ export class Printer extends PrintHandlers {
       flags = $rt.or64(flags, 4);
     }
     let text: string = p!.getLiteralTextOfNode(node, undefined, flags);
-    p!.writer!.WriteStringLiteral(text);
+    $rt.nn(p!.writer).WriteStringLiteral(text);
   }
   emitNumericLiteral(node: $ast.NumericLiteral | undefined): void {
     const p = this;
@@ -5109,7 +5109,7 @@ export class Printer extends PrintHandlers {
     $debug.Assert(node!.Kind_ === (243 as number), [
       new $rt.BoxStr('Snippet tab stops can only be emitted on empty statements', 'string'),
     ]);
-    p!.writer!.RawWrite($rt.fmt_Sprintf('$%d', [new $rt.BoxNum(snippetElement!.Order, 'int')]));
+    $rt.nn(p!.writer).RawWrite($rt.fmt_Sprintf('$%d', [new $rt.BoxNum(snippetElement!.Order, 'int')]));
   }
   emitIdentifierText(node: $ast.Identifier | undefined): void {
     const p = this;
@@ -5693,12 +5693,12 @@ export class Printer extends PrintHandlers {
       body!.Statements_!.Loc,
     );
     let statementOffset: number = p!.emitPrologueDirectives(body!.Statements_);
-    let pos: number = p!.writer!.GetTextPos();
+    let pos: number = $rt.nn(p!.writer).GetTextPos();
     p!.emitHelpers(body!.AsNode());
     if (
       p!.shouldEmitBlockFunctionBodyOnSingleLine(body) &&
       statementOffset === (0 as number) &&
-      pos === p!.writer!.GetTextPos()
+      pos === $rt.nn(p!.writer).GetTextPos()
     ) {
       p!.decreaseIndent();
       p!.emitListRange(
@@ -6787,8 +6787,8 @@ export class Printer extends PrintHandlers {
     let shouldEmitDotDot: boolean =
       !(token!.Kind_ === (28 as number)) &&
       p!.mayNeedDotDotForPropertyAccess(node!.Expression_) &&
-      !p!.writer!.HasTrailingComment() &&
-      !p!.writer!.HasTrailingWhitespace();
+      !$rt.nn(p!.writer).HasTrailingComment() &&
+      !$rt.nn(p!.writer).HasTrailingWhitespace();
     if (shouldEmitDotDot) {
       p!.writePunctuation('.');
     }
@@ -7383,7 +7383,7 @@ export class Printer extends PrintHandlers {
     let hasLeadingCommentRanges: boolean = false;
     let hasNewLineComment: boolean = false;
     let $t1 = false;
-    let $t2: boolean | undefined = undefined;
+    let $t2: boolean = false;
     $scanner.GetLeadingCommentRanges(
       p!.emitContext!.Factory!.AsNodeFactory(),
       p!.currentSourceFile!.Text(),
@@ -7420,7 +7420,7 @@ export class Printer extends PrintHandlers {
       let pee: $ast.PartiallyEmittedExpression | undefined = node!.AsPartiallyEmittedExpression();
       if (!(node!.Pos() === pee!.Expression_!.Pos())) {
         let $t4 = false;
-        let $t5: boolean | undefined = undefined;
+        let $t5: boolean = false;
         $scanner.GetTrailingCommentRanges(
           p!.emitContext!.Factory!.AsNodeFactory(),
           p!.currentSourceFile!.Text(),
@@ -7433,7 +7433,7 @@ export class Printer extends PrintHandlers {
           }
           return true;
         });
-        if ($t4) return $t5!;
+        if ($t4) return $t5;
       }
       return p!.willEmitLeadingNewLine(pee!.Expression_);
     }
@@ -9371,7 +9371,7 @@ export class Printer extends PrintHandlers {
     if (!(node!.ScriptKind_ === (6 as number))) {
       p!.emitShebangIfNeeded(node);
       index = p!.emitPrologueDirectives(node!.Statements_);
-      if (!p!.writer!.IsAtStartOfLine()) {
+      if (!$rt.nn(p!.writer).IsAtStartOfLine()) {
         p!.writeLine();
       }
       state = p!.emitDetachedCommentsBeforeStatementList(node!.AsNode(), node!.Statements_!.Loc);
@@ -9774,8 +9774,8 @@ export class Printer extends PrintHandlers {
       p!.ownWriter = NewTextWriter($core.NewLineKind$GetNewLineCharacter(p!.Options.NewLine), 0);
     }
     p!.Write(node, sourceFile, p!.ownWriter, undefined);
-    let text: string = p!.ownWriter!.String();
-    p!.ownWriter!.Clear();
+    let text: string = $rt.nn(p!.ownWriter).String();
+    $rt.nn(p!.ownWriter).Clear();
     return text;
   }
   EmitSourceFile(sourceFile: $ast.SourceFile | undefined): string {
@@ -9822,7 +9822,7 @@ export class Printer extends PrintHandlers {
       writer = getTrailingSemicolonDeferringWriter(writer);
     }
     p!.writer = writer;
-    p!.writer!.Clear();
+    $rt.nn(p!.writer).Clear();
     if (!(sourceFile === undefined)) {
       {
         const $t1: EmitTextWriter = p!.writer;
@@ -10265,7 +10265,7 @@ export class Printer extends PrintHandlers {
       p!.commentsDisabled || $ast.PositionIsSynthesized(detachedRange.End()) || !((emitFlags & 256) === (0 as number));
     if (!skipTrailingComments) {
       let hasWrittenComment: boolean = p!.emitLeadingComments(detachedRange.End(), false);
-      if (hasWrittenComment && !p!.writer!.IsAtStartOfLine()) {
+      if (hasWrittenComment && !$rt.nn(p!.writer).IsAtStartOfLine()) {
         p!.writeLine();
       }
     }
@@ -10332,13 +10332,13 @@ export class Printer extends PrintHandlers {
   emitLeadingSynthesizedComment(comment: SynthesizedComment): void {
     const p = this;
     if (comment.HasLeadingNewLine || comment.Kind_ === (2 as number)) {
-      p!.writer!.WriteLine();
+      $rt.nn(p!.writer).WriteLine();
     }
     p!.writeSynthesizedComment(comment);
     if (comment.HasTrailingNewLine || comment.Kind_ === (2 as number)) {
-      p!.writer!.WriteLine();
+      $rt.nn(p!.writer).WriteLine();
     } else {
-      p!.writer!.WriteSpace(' ');
+      $rt.nn(p!.writer).WriteSpace(' ');
     }
   }
   emitTrailingSyntheticCommentsOfNode(node: $ast.Node | undefined, emitFlags: EmitFlags): void {
@@ -10357,12 +10357,12 @@ export class Printer extends PrintHandlers {
   }
   emitTrailingSynthesizedComment(comment: SynthesizedComment): void {
     const p = this;
-    if (!p!.writer!.IsAtStartOfLine()) {
-      p!.writer!.WriteSpace(' ');
+    if (!$rt.nn(p!.writer).IsAtStartOfLine()) {
+      $rt.nn(p!.writer).WriteSpace(' ');
     }
     p!.writeSynthesizedComment(comment);
     if (comment.HasTrailingNewLine) {
-      p!.writer!.WriteLine();
+      $rt.nn(p!.writer).WriteLine();
     }
   }
   writeSynthesizedComment(comment: SynthesizedComment): void {
@@ -10404,7 +10404,7 @@ export class Printer extends PrintHandlers {
     }
     let comments: $ast.CommentRange[] = [];
     let $t1 = false;
-    let $t2: boolean | undefined = undefined;
+    let $t2: boolean = false;
     $scanner.GetLeadingCommentRanges(p!.emitContext!.Factory!.AsNodeFactory(), p!.currentSourceFile!.Text(), pos)!(
       (comment: $ast.CommentRange): boolean => {
         if (p!.shouldWriteComment(comment) && p!.shouldEmitCommentIfTripleSlash(comment, tripleSlash)) {
@@ -10466,7 +10466,7 @@ export class Printer extends PrintHandlers {
     }
     let comments: $ast.CommentRange[] = [];
     let $t1 = false;
-    let $t2: undefined | undefined = undefined;
+    let $t2: undefined = undefined;
     $scanner.GetTrailingCommentRanges(p!.emitContext!.Factory!.AsNodeFactory(), p!.currentSourceFile!.Text(), pos)!(
       (comment: $ast.CommentRange): boolean => {
         if (p!.shouldWriteComment(comment)) {
@@ -10487,7 +10487,7 @@ export class Printer extends PrintHandlers {
     }
     let comments: $ast.CommentRange[] = [];
     let $t1 = false;
-    let $t2: undefined | undefined = undefined;
+    let $t2: undefined = undefined;
     $scanner.GetTrailingCommentRanges(p!.emitContext!.Factory!.AsNodeFactory(), p!.currentSourceFile!.Text(), pos)!(
       (comment: $ast.CommentRange): boolean => {
         comments.push(comment);
@@ -10505,7 +10505,7 @@ export class Printer extends PrintHandlers {
           if (!p!.shouldWriteComment(comment$1)) {
             continue;
           }
-          if (!p!.writer!.IsAtStartOfLine()) {
+          if (!$rt.nn(p!.writer).IsAtStartOfLine()) {
             p!.writeSpace();
           }
           p!.emitComment(comment$1);
@@ -10558,7 +10558,7 @@ export class Printer extends PrintHandlers {
     if (p!.commentsDisabled) {
       if (textRange.Pos() === (0 as number)) {
         let $t1 = false;
-        let $t2: [detachedCommentsInfo, boolean] | undefined = undefined;
+        let $t2: [detachedCommentsInfo, boolean] = [new detachedCommentsInfo(), false];
         $scanner.GetLeadingCommentRanges(p!.emitContext!.Factory!.AsNodeFactory(), text, textRange.Pos())!(
           (comment: $ast.CommentRange): boolean => {
             if (IsPinnedComment(text, comment)) {
@@ -10716,8 +10716,8 @@ export class Printer extends PrintHandlers {
     let sourceCharacter: $core.UTF16Offset = $t1[1];
     {
       let err: $rt.GoObject | undefined = p!.sourceMapGenerator!.AddSourceMapping(
-        p!.writer!.GetLine(),
-        p!.writer!.GetColumn(),
+        $rt.nn(p!.writer).GetLine(),
+        $rt.nn(p!.writer).GetColumn(),
         p!.sourceMapSourceIndex,
         sourceLine,
         sourceCharacter,
@@ -11763,14 +11763,14 @@ export class trailingSemicolonDeferringWriter extends $rt.GoObject {
   commitSemicolon(): void {
     const w = this;
     if (w!.hasPendingSemicolon) {
-      w!.inner!.WriteTrailingSemicolon(';');
+      $rt.nn(w!.inner).WriteTrailingSemicolon(';');
       w!.hasPendingSemicolon = false;
     }
   }
   Write(s: string): void {
     const w = this;
     w!.commitSemicolon();
-    w!.inner!.Write(s);
+    $rt.nn(w!.inner).Write(s);
   }
   WriteTrailingSemicolon($p0: string): void {
     const w = this;
@@ -11779,114 +11779,114 @@ export class trailingSemicolonDeferringWriter extends $rt.GoObject {
   WriteComment(text: string): void {
     const w = this;
     w!.commitSemicolon();
-    w!.inner!.WriteComment(text);
+    $rt.nn(w!.inner).WriteComment(text);
   }
   WriteKeyword(text: string): void {
     const w = this;
     w!.commitSemicolon();
-    w!.inner!.WriteKeyword(text);
+    $rt.nn(w!.inner).WriteKeyword(text);
   }
   WriteOperator(text: string): void {
     const w = this;
     w!.commitSemicolon();
-    w!.inner!.WriteOperator(text);
+    $rt.nn(w!.inner).WriteOperator(text);
   }
   WritePunctuation(text: string): void {
     const w = this;
     w!.commitSemicolon();
-    w!.inner!.WritePunctuation(text);
+    $rt.nn(w!.inner).WritePunctuation(text);
   }
   WriteSpace(text: string): void {
     const w = this;
     w!.commitSemicolon();
-    w!.inner!.WriteSpace(text);
+    $rt.nn(w!.inner).WriteSpace(text);
   }
   WriteStringLiteral(text: string): void {
     const w = this;
     w!.commitSemicolon();
-    w!.inner!.WriteStringLiteral(text);
+    $rt.nn(w!.inner).WriteStringLiteral(text);
   }
   WriteParameter(text: string): void {
     const w = this;
     w!.commitSemicolon();
-    w!.inner!.WriteParameter(text);
+    $rt.nn(w!.inner).WriteParameter(text);
   }
   WriteProperty(text: string): void {
     const w = this;
     w!.commitSemicolon();
-    w!.inner!.WriteProperty(text);
+    $rt.nn(w!.inner).WriteProperty(text);
   }
   WriteSymbol(text: string, symbol_: $ast.Symbol_ | undefined): void {
     const w = this;
     w!.commitSemicolon();
-    w!.inner!.WriteSymbol(text, symbol_);
+    $rt.nn(w!.inner).WriteSymbol(text, symbol_);
   }
   WriteLine(): void {
     const w = this;
     w!.commitSemicolon();
-    w!.inner!.WriteLine();
+    $rt.nn(w!.inner).WriteLine();
   }
   WriteLineForce(force: boolean): void {
     const w = this;
     w!.commitSemicolon();
-    w!.inner!.WriteLineForce(force);
+    $rt.nn(w!.inner).WriteLineForce(force);
   }
   IncreaseIndent(): void {
     const w = this;
     w!.commitSemicolon();
-    w!.inner!.IncreaseIndent();
+    $rt.nn(w!.inner).IncreaseIndent();
   }
   DecreaseIndent(): void {
     const w = this;
     w!.commitSemicolon();
-    w!.inner!.DecreaseIndent();
+    $rt.nn(w!.inner).DecreaseIndent();
   }
   Clear(): void {
     const w = this;
     w!.hasPendingSemicolon = false;
-    w!.inner!.Clear();
+    $rt.nn(w!.inner).Clear();
   }
   String(): string {
     const w = this;
-    return w!.inner!.String();
+    return $rt.nn(w!.inner).String();
   }
   RawWrite(s: string): void {
     const w = this;
     w!.commitSemicolon();
-    w!.inner!.RawWrite(s);
+    $rt.nn(w!.inner).RawWrite(s);
   }
   WriteLiteral(s: string): void {
     const w = this;
     w!.commitSemicolon();
-    w!.inner!.WriteLiteral(s);
+    $rt.nn(w!.inner).WriteLiteral(s);
   }
   GetTextPos(): number {
     const w = this;
-    return w!.inner!.GetTextPos();
+    return $rt.nn(w!.inner).GetTextPos();
   }
   GetLine(): number {
     const w = this;
-    return w!.inner!.GetLine();
+    return $rt.nn(w!.inner).GetLine();
   }
   GetColumn(): $core.UTF16Offset {
     const w = this;
-    return w!.inner!.GetColumn();
+    return $rt.nn(w!.inner).GetColumn();
   }
   GetIndent(): number {
     const w = this;
-    return w!.inner!.GetIndent();
+    return $rt.nn(w!.inner).GetIndent();
   }
   IsAtStartOfLine(): boolean {
     const w = this;
-    return w!.inner!.IsAtStartOfLine();
+    return $rt.nn(w!.inner).IsAtStartOfLine();
   }
   HasTrailingComment(): boolean {
     const w = this;
-    return w!.inner!.HasTrailingComment();
+    return $rt.nn(w!.inner).HasTrailingComment();
   }
   HasTrailingWhitespace(): boolean {
     const w = this;
-    return w!.inner!.HasTrailingWhitespace();
+    return $rt.nn(w!.inner).HasTrailingWhitespace();
   }
 }
 export class varScope extends $rt.GoObject {
@@ -13746,22 +13746,22 @@ export function tryGetEnd(
           return [v!.End(), true];
         }
       } else if ($t1 instanceof $ast.NodeList) {
-        const v$1: $ast.NodeList | undefined = $t1;
+        const v$1: $ast.NodeList | undefined = $ast.NodeList.$cast_ast_NodeList($t1);
         if (!(v$1 === undefined)) {
           return [v$1!.End(), true];
         }
       } else if ($t1 instanceof $ast.ModifierList) {
-        const v$2: $ast.ModifierList | undefined = $t1;
+        const v$2: $ast.ModifierList | undefined = $ast.ModifierList.$cast_ast_ModifierList($t1);
         if (!(v$2 === undefined)) {
           return [v$2!.End(), true];
         }
       } else if ($t1 instanceof $core.TextRange) {
-        const v$3: $core.TextRange | undefined = $t1;
+        const v$3: $core.TextRange | undefined = $core.TextRange.$cast_core_TextRange($t1);
         if (!(v$3 === undefined)) {
           return [v$3!.End(), true];
         }
       } else if ($t1 instanceof $core.TextRange) {
-        const v$4: $core.TextRange = $t1;
+        const v$4: $core.TextRange = $core.TextRange.$cast_core_TextRange($t1);
         return [v$4.End(), true];
       } else {
         const v$5:

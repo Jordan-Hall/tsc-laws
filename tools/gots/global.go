@@ -63,7 +63,11 @@ func (t *translator) emitGlobals(out string) {
 		name := boxName(tag)
 		typ := f.tsType(t.boxes[tag])
 		fmt.Fprintf(&body, "export class %s extends $rt.GoObject {\n  v: %s;\n  constructor(v: %s) { super(); this.v = v; }\n", name, typ, typ)
-		fmt.Fprintf(&body, "  static $cast(v: $rt.GoObject | undefined): %s { if (v instanceof %s) return v; throw $rt.typeAssertError(); }\n}\n", name, name)
+		fmt.Fprintf(&body, "  static $cast(v: $rt.GoObject | undefined): %s { if (v instanceof %s) return v; throw $rt.typeAssertError(); }\n", name, name)
+		if _, isPtr := t.boxes[tag].(*types.Pointer); isPtr {
+			fmt.Fprintf(&body, "  override $eqv(o: $rt.GoObject): boolean { return o instanceof %s && o.v === this.v; }\n", name)
+		}
+		body.WriteString("}\n")
 	}
 	writeModule(filepath.Join(out, "boxes.ts"), f, body.String())
 

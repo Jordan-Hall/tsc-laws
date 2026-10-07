@@ -130,35 +130,38 @@ export class Version extends $rt.GoObject {
     const v = this;
     let sb: $rt.strings_Builder = new $rt.strings_Builder();
     $rt.fmt_Fprintf(
-      sb as unknown as
+      $rt.unsupportedConversion<
         | $ipc.stdioConn
         | $contentmapper.closeOnceReadWriteCloser
         | $contentmapper.loggedProcess
         | $contentmapper.stderrLogger
-        | undefined,
+        | undefined
+      >('$rt.strings_Builder | undefined'),
       '%d.%d.%d',
       [new $rt.BoxNum(v!.major, 'uint32'), new $rt.BoxNum(v!.minor, 'uint32'), new $rt.BoxNum(v!.patch, 'uint32')],
     );
     if (v!.prerelease.length > 0) {
       $rt.fmt_Fprintf(
-        sb as unknown as
+        $rt.unsupportedConversion<
           | $ipc.stdioConn
           | $contentmapper.closeOnceReadWriteCloser
           | $contentmapper.loggedProcess
           | $contentmapper.stderrLogger
-          | undefined,
+          | undefined
+        >('$rt.strings_Builder | undefined'),
         '-%s',
         [new $rt.BoxStr($rt.strings_Join(v!.prerelease, '.'), 'string')],
       );
     }
     if (v!.build.length > 0) {
       $rt.fmt_Fprintf(
-        sb as unknown as
+        $rt.unsupportedConversion<
           | $ipc.stdioConn
           | $contentmapper.closeOnceReadWriteCloser
           | $contentmapper.loggedProcess
           | $contentmapper.stderrLogger
-          | undefined,
+          | undefined
+        >('$rt.strings_Builder | undefined'),
         '+%s',
         [new $rt.BoxStr($rt.strings_Join(v!.build, '.'), 'string')],
       );

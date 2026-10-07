@@ -7,6 +7,7 @@ import (
 	"go/token"
 	"go/types"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -112,8 +113,13 @@ func (x *fn) convertValue(s string, e ast.Expr, from, to types.Type) string {
 	if isIfaceType(to) && !isIfaceType(from) {
 		if n, ok := types.Unalias(to).(*types.Named); ok && n.Obj().Pkg() != nil && !x.f.t.translated(n.Obj().Pkg()) {
 			if fn, ok := derefNamed(from); ok && fn.Obj().Pkg() != nil && !x.f.t.translated(fn.Obj().Pkg()) {
-				return "(" + s + " as unknown as " + x.f.tsType(to) + ")"
+				// A library value as a library interface: the interface type
+				// lists only translated implementations.
+				return "$rt.unsupportedConversion<" + x.f.tsType(to) + ">(" + strconv.Quote(x.f.tsType(from)) + ")"
 			}
+		}
+		if isGenericPtr(from) && isEmptyIface(to) {
+			return "new " + x.f.boxRefFor(from) + "(" + s + ")"
 		}
 		return x.box(s, from)
 	}
@@ -171,6 +177,9 @@ func (x *fn) box(s string, from types.Type) string {
 			return "new " + x.f.boxRefFor(from) + "(" + s + ")"
 		}
 	case *types.TypeParam:
+		if ptrOnlyTP(u) {
+			return s
+		}
 		return "$rt.boxAny(" + s + ")"
 	case *types.Basic:
 		if u.Kind() == types.UntypedNil {
@@ -276,7 +285,12 @@ func (x *fn) methodCallOn(e *ast.SelectorExpr, r string, args []string) string {
 		recvType = x.embeddedType(recvType, sel.Index()[:len(sel.Index())-1])
 	}
 	if xt := x.info.TypeOf(e.X); xt != nil && x.f.isNullable(xt) && !strings.HasSuffix(r, "!") {
-		r += "!"
+		if x.f.isUnionIface(xt) {
+			// scriptc cannot call through `u!` for a union of classes.
+			r = "$rt.nn(" + r + ")"
+		} else {
+			r += "!"
+		}
 	}
 	argStr := strings.Join(args, ", ")
 	declRecv := sig.Recv().Type()
@@ -370,7 +384,7 @@ func (x *fn) index(e *ast.IndexExpr) string {
 	case *types.Basic:
 		return x.expr(e.X) + ".charCodeAt(" + x.expr(e.Index) + ")"
 	case *types.Map:
-		return fmt.Sprintf("(%s?.get(%s) ?? %s)", x.expr(e.X), x.mapKey(e.Index, u.Key()), x.f.zero(u.Elem()))
+		return x.mapGet(x.expr(e.X), x.mapKey(e.Index, u.Key()), u, true)
 	case *types.Pointer:
 		if isArrayPtr(xt) {
 			return x.expr(e.X) + "![" + x.expr(e.Index) + "]"
@@ -831,6 +845,8 @@ func reindent(s string, from, to int) string {
 
 func (x *fn) typeAssert(e *ast.TypeAssertExpr) string {
 	v := x.expr(e.X)
+	x.boxGeneric = isEmptyIface(x.info.TypeOf(e.X))
+	defer func() { x.boxGeneric = false }()
 	tt := x.info.TypeOf(e.Type)
 	if !simpleExpr(e.X) {
 		t := x.tmp()
@@ -864,6 +880,9 @@ func (x *fn) checked(v string, tt types.Type, te ast.Expr) string {
 			return c + "(" + v + ").v"
 		}
 		return c + "(" + v + ")"
+	}
+	if x.boxGeneric && isGenericPtr(tt) {
+		return x.unbox(v, tt)
 	}
 	return fmt.Sprintf("(%s ? %s : $rt.typeAssertFail<%s>())", test, x.unbox(v, tt), x.f.tsType(tt))
 }
@@ -904,7 +923,7 @@ func (x *fn) composite(e *ast.CompositeLit, tt types.Type) string {
 			k := x.compositeElem(kv.Key, u.Key())
 			parts = append(parts, "["+k+", "+x.compositeElem(kv.Value, u.Elem())+"]")
 		}
-		if isStructKey(u.Key()) {
+		if isSpecialMap(u) {
 			m := x.f.newMap(u)
 			for _, p := range parts {
 				inner := strings.TrimSuffix(strings.TrimPrefix(p, "["), "]")
@@ -919,6 +938,19 @@ func (x *fn) composite(e *ast.CompositeLit, tt types.Type) string {
 		return "new " + typ + "([" + strings.Join(parts, ", ") + "])"
 	}
 	return x.unsupportedExpr(e, x.f.t.stub(e.Pos(), "composite literal"))
+}
+
+// fieldElem renders the value of field idx in a literal of the generic
+// struct n. A map field whose declared value type is a type parameter is a
+// StructMap even where this instantiation would be a plain Map.
+func (x *fn) fieldElem(e ast.Expr, n *types.Named, st *types.Struct, idx int) string {
+	ft := st.Field(idx).Type()
+	v := x.compositeElem(e, ft)
+	om, ok := n.Origin().Underlying().(*types.Struct).Field(idx).Type().Underlying().(*types.Map)
+	if m, isMap := ft.Underlying().(*types.Map); ok && isMap && isSpecialMap(om) && !isSpecialMap(m) {
+		return "$rt.toStructMap<" + x.f.tsType(m.Key()) + ", " + x.f.tsType(m.Elem()) + ">(" + v + ")"
+	}
+	return v
 }
 
 func (x *fn) compositeElem(e ast.Expr, elem types.Type) string {
@@ -1054,9 +1086,9 @@ func (x *fn) structLit(e *ast.CompositeLit, tt types.Type, st *types.Struct) str
 		if kv, ok := el.(*ast.KeyValueExpr); ok {
 			name := kv.Key.(*ast.Ident).Name
 			idx := fieldIndex(st, name)
-			fields = append(fields, fv{idx, x.compositeElem(kv.Value, st.Field(idx).Type())})
+			fields = append(fields, fv{idx, x.fieldElem(kv.Value, n, st, idx)})
 		} else {
-			fields = append(fields, fv{i, x.compositeElem(el, st.Field(i).Type())})
+			fields = append(fields, fv{i, x.fieldElem(el, n, st, i)})
 		}
 	}
 	// Keep source order for evaluation; the factory key lists field indexes
@@ -1068,7 +1100,11 @@ func (x *fn) structLit(e *ast.CompositeLit, tt types.Type, st *types.Struct) str
 	}
 	factory := x.f.litFactory(tn, idx)
 	vals = append(x.f.factoryArgs(tn, n.TypeArgs()), vals...)
-	return fmt.Sprintf("%s.%s%s(%s)", x.f.qualify(tn), factory, x.f.typeArgs(n.TypeArgs()), strings.Join(vals, ", "))
+	cls := x.f.qualify(tn)
+	if n.TypeArgs().Len() > 0 {
+		cls = x.f.staticRef(tn)
+	}
+	return fmt.Sprintf("%s.%s%s(%s)", cls, factory, x.f.typeArgs(n.TypeArgs()), strings.Join(vals, ", "))
 }
 
 func fieldIndex(st *types.Struct, name string) int {
@@ -1106,7 +1142,7 @@ func (x *fn) assign(s *ast.AssignStmt) {
 				x.line("const %s = %s;", t, mexpr)
 				k := x.tmp()
 				x.line("const %s = %s;", k, key)
-				x.bindTwo(s, define, fmt.Sprintf("(%s?.get(%s) ?? %s)", t, k, x.f.zero(m.Elem())), fmt.Sprintf("(%s !== undefined && %s.has(%s))", t, t, k))
+				x.bindTwo(s, define, x.mapGet(t, k, m, true), fmt.Sprintf("(%s !== undefined && %s.has(%s))", t, t, k))
 				return
 			}
 		case *ast.TypeAssertExpr:
@@ -1116,6 +1152,8 @@ func (x *fn) assign(s *ast.AssignStmt) {
 			x.line("const %s: %s = %s;", t, x.f.tsType(x.info.TypeOf(r.X)), v)
 			tt := x.info.TypeOf(r.Type)
 			ok := x.tmp()
+			x.boxGeneric = isEmptyIface(x.info.TypeOf(r.X))
+			defer func() { x.boxGeneric = false }()
 			x.line("const %s: boolean = %s;", ok, x.typeTest(t, tt, r.Type))
 			x.bindTwo(s, define, fmt.Sprintf("(%s ? %s : %s)", ok, x.unbox(t, tt), x.f.zero(tt)), ok)
 			return
@@ -1289,7 +1327,7 @@ func (x *fn) opAssign(l ast.Expr, op string, r ast.Expr, pos token.Pos) {
 			mt, kt := x.tmp(), x.tmp()
 			x.line("const %s = %s;", mt, x.expr(idx.X))
 			x.line("const %s = %s;", kt, x.mapKey(idx.Index, m.Key()))
-			cur := fmt.Sprintf("(%s!.get(%s) ?? %s)", mt, kt, x.f.zero(m.Elem()))
+			cur := x.mapGet(mt, kt, m, false)
 			val := x.binaryText(cur, op, x.expr(r), lt, r)
 			x.flushPre()
 			x.line("%s!.set(%s, %s);", mt, kt, val)
@@ -1365,7 +1403,7 @@ func (x *fn) appendInPlace(l ast.Expr, call *ast.CallExpr) {
 			m, k, a := x.tmp(), x.tmp(), x.tmp()
 			x.line("const %s = %s;", m, x.expr(idx.X))
 			x.line("const %s = %s;", k, x.mapKey(idx.Index, mt.Key()))
-			x.line("const %s: %s = %s!.get(%s) ?? [];", a, x.f.tsType(mt.Elem()), m, k)
+			x.line("const %s: %s = %s;", a, x.f.tsType(mt.Elem()), x.mapGet(m, k, mt, false))
 			x.appendTo(a, call)
 			x.line("%s!.set(%s, %s);", m, k, a)
 			return
@@ -1455,4 +1493,15 @@ func isMapIndex(x *fn, l ast.Expr) bool {
 	}
 	_, isMap := under(x.info.TypeOf(idx.X)).(*types.Map)
 	return isMap
+}
+
+// isUnionIface reports whether tt is an interface represented as a union of
+// classes.
+func (f *file) isUnionIface(tt types.Type) bool {
+	n, ok := types.Unalias(tt).(*types.Named)
+	if !ok || !isIfaceType(n) {
+		return false
+	}
+	m := f.t.ifaces[n.Origin().Obj()]
+	return m != nil && m.base == nil && len(m.union) > 0
 }

@@ -391,6 +391,7 @@ func (t *translator) analyze() {
 	}
 	t.findNilSafe()
 	t.findNilSlices()
+	t.findClassTPs()
 	nilSliceGlobal = t.nilSlices
 	t.renameMethods()
 	t.renameFields()

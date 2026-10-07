@@ -2,9 +2,9 @@
 // Copyright Microsoft Corporation. Licensed under Apache-2.0.
 import * as $rt from '../go/runtime.js';
 import * as $boxes from './boxes.js';
-import * as $contentmapper from './contentmapper.js';
 import * as $json from './json.js';
 import * as $jsonrpc from './jsonrpc.js';
+import type * as $contentmapper from './contentmapper.js';
 export type Conn = AsyncConn | SyncConn | undefined;
 export type Handler = $contentmapper.rejectHandler | undefined;
 export type Message = $jsonrpc.Message;
@@ -75,7 +75,7 @@ export class AsyncConn extends $rt.GoObject {
           err = ctx!.Err();
           break $body;
         }
-        const $t1 = c!.protocol!.ReadMessage();
+        const $t1 = $rt.nn(c!.protocol).ReadMessage();
         let msg: $jsonrpc.Message | undefined = $t1[0];
         let err$1: $rt.GoObject | undefined = $t1[1];
         if (!(err$1 === undefined)) {
@@ -134,7 +134,7 @@ export class AsyncConn extends $rt.GoObject {
     c!.pendingMu.Lock();
     const $t1 = c!.pending;
     const $t2 = msg!.ID_!.$clone_jsonrpc_ID();
-    let ch: $rt.Chan<$jsonrpc.Message | undefined> | undefined = $t1?.get($t2) ?? undefined;
+    let ch: $rt.Chan<$jsonrpc.Message | undefined> | undefined = $rt.structMapGet($t1, $t2, undefined);
     let ok: boolean = $t1 !== undefined && $t1.has($t2);
     if (ok) {
       c!.pending?.delete(msg!.ID_!.$clone_jsonrpc_ID());
@@ -154,10 +154,9 @@ export class AsyncConn extends $rt.GoObject {
         switch (msg!.Method) {
           case 'getServerTiming' as string: {
             c!.writeMu.Lock();
-            let writeErr: $rt.GoObject | undefined = c!.protocol!.WriteResponse(
-              msg!.ID_,
-              serverTimingSnapshot(c!.timing),
-            );
+            let writeErr: $rt.GoObject | undefined = $rt
+              .nn(c!.protocol)
+              .WriteResponse(msg!.ID_, serverTimingSnapshot(c!.timing));
             c!.writeMu.Unlock();
             if (!(writeErr === undefined)) {
               throw $rt.newPanic(
@@ -174,7 +173,7 @@ export class AsyncConn extends $rt.GoObject {
               c!.timing!.reset();
             }
             c!.writeMu.Lock();
-            let writeErr$1: $rt.GoObject | undefined = c!.protocol!.WriteResponse(msg!.ID_, undefined);
+            let writeErr$1: $rt.GoObject | undefined = $rt.nn(c!.protocol).WriteResponse(msg!.ID_, undefined);
             c!.writeMu.Unlock();
             if (!(writeErr$1 === undefined)) {
               throw $rt.newPanic(
@@ -201,10 +200,9 @@ export class AsyncConn extends $rt.GoObject {
             let stack: string = $rt.bytesToString($rt.runtime_debug_Stack());
             err = $rt.fmt_Errorf('panic: %v\n%s', [r, new $rt.BoxStr(stack, 'string')]);
             c!.writeMu.Lock();
-            let writeErr$2: $rt.GoObject | undefined = c!.protocol!.WriteError(
-              msg!.ID_,
-              $jsonrpc.ResponseError.$lit_jsonrpc_ResponseError_0_1(-32603, err!.Error()),
-            );
+            let writeErr$2: $rt.GoObject | undefined = $rt
+              .nn(c!.protocol)
+              .WriteError(msg!.ID_, $jsonrpc.ResponseError.$lit_jsonrpc_ResponseError_0_1(-32603, err!.Error()));
             c!.writeMu.Unlock();
             if (!(writeErr$2 === undefined)) {
               throw $rt.newPanic(
@@ -233,12 +231,11 @@ export class AsyncConn extends $rt.GoObject {
       });
       let writeErr$3: $rt.GoObject | undefined = undefined as $rt.GoObject | undefined;
       if (!(err === undefined)) {
-        writeErr$3 = c!.protocol!.WriteError(
-          msg!.ID_,
-          $jsonrpc.ResponseError.$lit_jsonrpc_ResponseError_0_1(-32603, err!.Error()),
-        );
+        writeErr$3 = $rt
+          .nn(c!.protocol)
+          .WriteError(msg!.ID_, $jsonrpc.ResponseError.$lit_jsonrpc_ResponseError_0_1(-32603, err!.Error()));
       } else {
-        writeErr$3 = c!.protocol!.WriteResponse(msg!.ID_, result);
+        writeErr$3 = $rt.nn(c!.protocol).WriteResponse(msg!.ID_, result);
       }
       if (!(writeErr$3 === undefined)) {
         throw $rt.newPanic(
@@ -296,7 +293,7 @@ export class AsyncConn extends $rt.GoObject {
           {
             const $t5 = c!.pending;
             const $t6 = id!.$clone_jsonrpc_ID();
-            let ch: $rt.Chan<$jsonrpc.Message | undefined> | undefined = $t5?.get($t6) ?? undefined;
+            let ch: $rt.Chan<$jsonrpc.Message | undefined> | undefined = $rt.structMapGet($t5, $t6, undefined);
             let ok: boolean = $t5 !== undefined && $t5.has($t6);
             if (ok) {
               $rt.unsupportedAs<[]>('builtin close');
@@ -311,7 +308,7 @@ export class AsyncConn extends $rt.GoObject {
         if ($panic !== undefined) throw $panic;
       });
       c!.writeMu.Lock();
-      let err$1: $rt.GoObject | undefined = c!.protocol!.WriteRequest(id, method, params);
+      let err$1: $rt.GoObject | undefined = $rt.nn(c!.protocol).WriteRequest(id, method, params);
       c!.writeMu.Unlock();
       if (!(err$1 === undefined)) {
         const $t7: [$json.Value, $rt.GoObject | undefined] = [[], err$1];
@@ -351,7 +348,7 @@ export class AsyncConn extends $rt.GoObject {
       $defers.push(() => {
         $t2.Unlock();
       });
-      $t1 = c!.protocol!.WriteNotification(method, params);
+      $t1 = $rt.nn(c!.protocol).WriteNotification(method, params);
       break $body;
     } catch ($e) {
       $panic = $rt.toPanic($e);
@@ -637,7 +634,7 @@ export class SyncConn extends $rt.GoObject {
         return ctx!.Err();
       }
       c!.mu.Lock();
-      const $t1 = c!.protocol!.ReadMessage();
+      const $t1 = $rt.nn(c!.protocol).ReadMessage();
       let msg: $jsonrpc.Message | undefined = $t1[0];
       let err: $rt.GoObject | undefined = $t1[1];
       c!.mu.Unlock();
@@ -665,10 +662,9 @@ export class SyncConn extends $rt.GoObject {
         switch (msg!.Method) {
           case 'getServerTiming' as string: {
             c!.mu.Lock();
-            let writeErr: $rt.GoObject | undefined = c!.protocol!.WriteResponse(
-              msg!.ID_,
-              serverTimingSnapshot(c!.timing),
-            );
+            let writeErr: $rt.GoObject | undefined = $rt
+              .nn(c!.protocol)
+              .WriteResponse(msg!.ID_, serverTimingSnapshot(c!.timing));
             c!.mu.Unlock();
             if (!(writeErr === undefined)) {
               throw $rt.newPanic(
@@ -685,7 +681,7 @@ export class SyncConn extends $rt.GoObject {
               c!.timing!.reset();
             }
             c!.mu.Lock();
-            let writeErr$1: $rt.GoObject | undefined = c!.protocol!.WriteResponse(msg!.ID_, undefined);
+            let writeErr$1: $rt.GoObject | undefined = $rt.nn(c!.protocol).WriteResponse(msg!.ID_, undefined);
             c!.mu.Unlock();
             if (!(writeErr$1 === undefined)) {
               throw $rt.newPanic(
@@ -712,10 +708,9 @@ export class SyncConn extends $rt.GoObject {
             let stack: string = $rt.bytesToString($rt.runtime_debug_Stack());
             err = $rt.fmt_Errorf('panic: %v\n%s', [r, new $rt.BoxStr(stack, 'string')]);
             c!.mu.Lock();
-            let writeErr$2: $rt.GoObject | undefined = c!.protocol!.WriteError(
-              msg!.ID_,
-              $jsonrpc.ResponseError.$lit_jsonrpc_ResponseError_0_1(-32603, err!.Error()),
-            );
+            let writeErr$2: $rt.GoObject | undefined = $rt
+              .nn(c!.protocol)
+              .WriteError(msg!.ID_, $jsonrpc.ResponseError.$lit_jsonrpc_ResponseError_0_1(-32603, err!.Error()));
             c!.mu.Unlock();
             if (!(writeErr$2 === undefined)) {
               throw $rt.newPanic(
@@ -744,12 +739,11 @@ export class SyncConn extends $rt.GoObject {
       });
       let writeErr$3: $rt.GoObject | undefined = undefined as $rt.GoObject | undefined;
       if (!(err === undefined)) {
-        writeErr$3 = c!.protocol!.WriteError(
-          msg!.ID_,
-          $jsonrpc.ResponseError.$lit_jsonrpc_ResponseError_0_1(-32603, err!.Error()),
-        );
+        writeErr$3 = $rt
+          .nn(c!.protocol)
+          .WriteError(msg!.ID_, $jsonrpc.ResponseError.$lit_jsonrpc_ResponseError_0_1(-32603, err!.Error()));
       } else {
-        writeErr$3 = c!.protocol!.WriteResponse(msg!.ID_, result);
+        writeErr$3 = $rt.nn(c!.protocol).WriteResponse(msg!.ID_, result);
       }
       if (!(writeErr$3 === undefined)) {
         throw $rt.newPanic(
@@ -785,7 +779,7 @@ export class SyncConn extends $rt.GoObject {
       });
       let id: $jsonrpc.ID | undefined = $jsonrpc.NewIDString(method);
       {
-        let err: $rt.GoObject | undefined = c!.protocol!.WriteRequest(id, method, params);
+        let err: $rt.GoObject | undefined = $rt.nn(c!.protocol).WriteRequest(id, method, params);
         if (!(err === undefined)) {
           const $t4: [$json.Value, $rt.GoObject | undefined] = [[], err];
           $t1 = $t4[0];
@@ -799,7 +793,7 @@ export class SyncConn extends $rt.GoObject {
         $t2 = $t5[1];
         break $body;
       }
-      const $t6 = c!.protocol!.ReadMessage();
+      const $t6 = $rt.nn(c!.protocol).ReadMessage();
       let msg: $jsonrpc.Message | undefined = $t6[0];
       let err$1: $rt.GoObject | undefined = $t6[1];
       if (!(err$1 === undefined)) {
@@ -856,7 +850,7 @@ export class SyncConn extends $rt.GoObject {
       $defers.push(() => {
         $t2.Unlock();
       });
-      $t1 = c!.protocol!.WriteNotification(method, params);
+      $t1 = $rt.nn(c!.protocol).WriteNotification(method, params);
       break $body;
     } catch ($e) {
       $panic = $rt.toPanic($e);

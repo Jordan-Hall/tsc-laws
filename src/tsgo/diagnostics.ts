@@ -22151,11 +22151,9 @@ export function loadLocaleData(data: string): Map<Key, string> | undefined {
   let $panic: $rt.Panic | undefined = undefined;
   $body: try {
     const $t2 = $rt.compress_gzip_NewReader(
-      $rt.strings_NewReader(data) as unknown as
-        | $ipc.stdioConn
-        | $contentmapper.closeOnceReadWriteCloser
-        | $contentmapper.loggedProcess
-        | undefined,
+      $rt.unsupportedConversion<
+        $ipc.stdioConn | $contentmapper.closeOnceReadWriteCloser | $contentmapper.loggedProcess | undefined
+      >('$rt.strings_Reader | undefined'),
     );
     let gr: $rt.compress_gzip_Reader | undefined = $t2[0];
     let err: $rt.GoObject | undefined = $t2[1];
@@ -22169,11 +22167,9 @@ export function loadLocaleData(data: string): Map<Key, string> | undefined {
     let result: Map<Key, string> | undefined = undefined as Map<Key, string> | undefined;
     {
       let err$1: $rt.GoObject | undefined = $json.UnmarshalRead(
-        gr as unknown as
-          | $ipc.stdioConn
-          | $contentmapper.closeOnceReadWriteCloser
-          | $contentmapper.loggedProcess
-          | undefined,
+        $rt.unsupportedConversion<
+          $ipc.stdioConn | $contentmapper.closeOnceReadWriteCloser | $contentmapper.loggedProcess | undefined
+        >('$rt.compress_gzip_Reader | undefined'),
         $rt.ptrTo<Map<Key, string> | undefined>(
           (): Map<Key, string> | undefined => result,
           (v: Map<Key, string> | undefined): void => {

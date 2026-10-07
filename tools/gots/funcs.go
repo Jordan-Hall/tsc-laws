@@ -29,9 +29,12 @@ type fn struct {
 	views     map[*types.Var]*view
 	notOwned  map[*types.Var]bool
 	// subst replaces expressions with already translated text.
-	subst  map[ast.Expr]string
-	indent int
-	out    *strings.Builder
+	subst map[ast.Expr]string
+	// boxGeneric is set while asserting from an empty interface, where
+	// pointers to generic structs are boxed (see isGenericPtr).
+	boxGeneric bool
+	indent     int
+	out        *strings.Builder
 }
 
 type target struct {
@@ -904,7 +907,7 @@ func (x *fn) rangeStmt(s *ast.RangeStmt, label string) {
 		e := x.expr(s.X)
 		x.flushPre()
 		empty := "new " + strings.TrimSuffix(x.f.tsType(u), " | undefined") + "()"
-		if isStructKey(u.Key()) {
+		if isSpecialMap(u) {
 			e = "(" + e + ")?.entryList()"
 			empty = "[]"
 		}
@@ -971,15 +974,26 @@ func (x *fn) rangeFuncStmt(s *ast.RangeStmt, sig *types.Signature, key, val rang
 	x.flushPre()
 	flag, ret := x.tmp(), x.tmp()
 	x.line("let %s = false;", flag)
-	resType := "undefined"
+	// The result starts as the zero value, so its type never gains an
+	// extra undefined arm.
+	resType, resZero := "undefined", "undefined"
 	if x.sig != nil && x.sig.Results().Len() > 0 {
 		if x.sig.Results().Len() == 1 {
 			resType = x.f.tsType(x.sig.Results().At(0).Type())
+			resZero = x.f.zero(x.sig.Results().At(0).Type())
 		} else {
 			resType = x.f.tsType(x.sig.Results())
+			var zs []string
+			for i := 0; i < x.sig.Results().Len(); i++ {
+				zs = append(zs, x.f.zero(x.sig.Results().At(i).Type()))
+			}
+			resZero = "[" + strings.Join(zs, ", ") + "]"
 		}
 	}
-	x.line("let %s: %s | undefined = undefined;", ret, resType)
+	if resZero == "undefined" && resType != "undefined" {
+		resZero = "undefined as " + resType
+	}
+	x.line("let %s: %s = %s;", ret, resType, resZero)
 	yield := sig.Params().At(0).Type().Underlying().(*types.Signature)
 	var params []string
 	names := []rangeVarInfo{key, val}
@@ -1018,7 +1032,7 @@ func (x *fn) rangeFuncStmt(s *ast.RangeStmt, sig *types.Signature, key, val rang
 	x.line("});")
 	if hasReturn(s.Body) {
 		if x.sig != nil && x.sig.Results().Len() > 0 {
-			x.emitReturnRaw(flag, ret+"!")
+			x.emitReturnRaw(flag, ret)
 		} else {
 			x.emitReturnRaw(flag, "")
 		}
@@ -1253,6 +1267,8 @@ func (x *fn) typeSwitch(s *ast.TypeSwitchStmt, label string) {
 	v := x.expr(subject)
 	x.flushPre()
 	x.line("const %s: %s = %s;", subj, x.f.tsType(x.info.TypeOf(subject)), v)
+	x.boxGeneric = isEmptyIface(x.info.TypeOf(subject))
+	defer func() { x.boxGeneric = false }()
 	tsLabel := label
 	if tsLabel == "" {
 		tsLabel = fmt.Sprintf("$sw%d", *x.tmpN+1)
@@ -1306,9 +1322,6 @@ func (x *fn) typeSwitch(s *ast.TypeSwitchStmt, label string) {
 				if len(cc.List) == 1 {
 					val = x.unbox(subj, obj.Type())
 				}
-				if len(cc.List) == 1 && x.castClass(obj.Type()) != "" && (isStructType(obj.Type()) || isPtrToStruct(obj.Type())) {
-					val = subj
-				}
 				if routedHere && len(cc.List) == 1 {
 					val = subj + " === undefined ? undefined : " + x.unbox(subj, obj.Type())
 				}
@@ -1347,6 +1360,9 @@ func (x *fn) typeSwitch(s *ast.TypeSwitchStmt, label string) {
 func (x *fn) typeTest(v string, tt types.Type, e ast.Expr) string {
 	if tt == nil || isNilType(tt) {
 		return v + " === undefined"
+	}
+	if x.boxGeneric && isGenericPtr(tt) {
+		return v + " instanceof " + x.f.boxRefFor(tt)
 	}
 	switch u := tt.(type) {
 	case *types.Pointer:
@@ -1506,6 +1522,9 @@ func (x *fn) castClass(tt types.Type) string {
 
 // unbox extracts a typed value from an interface value known to hold it.
 func (x *fn) unbox(v string, tt types.Type) string {
+	if x.boxGeneric && isGenericPtr(tt) {
+		return x.f.boxRefFor(tt) + ".$cast(" + v + ").v"
+	}
 	if c := x.castClass(tt); c != "" {
 		if isBoxedNamed(x, tt) {
 			return c + "(" + v + ").v"

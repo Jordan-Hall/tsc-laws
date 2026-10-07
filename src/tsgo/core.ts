@@ -6,6 +6,7 @@ import * as $debug from './debug.js';
 import * as $json from './json.js';
 import * as $stringutil from './stringutil.js';
 import * as $tspath from './tspath.js';
+import { MapEntry as $collections$MapEntry } from './collections.js';
 const $zf0 = (): $rt.GoObject | undefined => undefined;
 const $zf1 = (): string => '';
 export type CheckerLifetime = number;
@@ -226,7 +227,7 @@ export class BreadthFirstSearchLevel<K, N> extends $rt.GoObject {
   Range(f: ((p0: N) => boolean) | undefined): void {
     const l = this;
     let $t1 = false;
-    let $t2: undefined | undefined = undefined;
+    let $t2: undefined = undefined;
     l!.jobs!.Values()!((job: breadthFirstSearchJob<N> | undefined): boolean => {
       if (!f!(job!.node)) {
         $t1 = true;
@@ -1851,7 +1852,7 @@ export function BreadthFirstSearchParallelEx<K, N>(
     let wg: $rt.sync_WaitGroup = new $rt.sync_WaitGroup();
     let i: number = 0;
     let $t1 = false;
-    let $t2: BreadthFirstSearchParallelEx$result<K, N> | undefined = undefined;
+    let $t2: BreadthFirstSearchParallelEx$result<K, N> = new BreadthFirstSearchParallelEx$result();
     jobs!.Values()!((j: breadthFirstSearchJob<N> | undefined): boolean => {
       wg.Add(1);
       ((i$1: number, j$1: breadthFirstSearchJob<N> | undefined): void => {
@@ -1961,7 +1962,7 @@ export function BreadthFirstSearchParallelEx<K, N>(
       $z_K,
       (): breadthFirstSearchJob<N> | undefined => undefined,
       [
-        $collections.MapEntry.$lit_collections_MapEntry_0_1<K, breadthFirstSearchJob<N> | undefined>(
+        $collections$MapEntry.$lit_collections_MapEntry_0_1<K, breadthFirstSearchJob<N> | undefined>(
           $z_K,
           (): breadthFirstSearchJob<N> | undefined => undefined,
           getKey!(start),
@@ -2474,14 +2475,14 @@ export function ElementOrNil<T>($z_T: () => T, slice: T[], index: number): T {
 export function FirstOrNilSeq<T>($z_T: () => T, seq: ((p0: ((p0: T) => boolean) | undefined) => void) | undefined): T {
   if (!(seq === undefined)) {
     let $t1 = false;
-    let $t2: T | undefined = undefined;
+    let $t2: T = $z_T();
     seq!((value: T): boolean => {
       $t2 = value;
       $t1 = true;
       return false;
       return true;
     });
-    if ($t1) return $t2!;
+    if ($t1) return $t2;
   }
   return new $rt.Ptr<T>($z_T())!.get();
 }
@@ -2616,7 +2617,7 @@ export function OrElse<T>($z_T: () => T, value: T, defaultValue: T): T {
   }
   return defaultValue;
 }
-export function Coalesce<T, U extends $rt.GoObject>(a: T, b: T): T {
+export function Coalesce<T extends $rt.GoObject | undefined, U extends $rt.GoObject>(a: T, b: T): T {
   if (a === undefined) {
     return b;
   } else {
@@ -2832,7 +2833,7 @@ export function getSpellingSuggestion<T>(
     let hasBest: boolean = false;
     let checkedCandidates: number = 0;
     let $t5 = false;
-    let $t6: T | undefined = undefined;
+    let $t6: T = $z_T();
     candidates!((candidate: T): boolean => {
       checkedCandidates++;
       if (maxCandidates > 0 && checkedCandidates > maxCandidates) {
@@ -2868,7 +2869,7 @@ export function getSpellingSuggestion<T>(
       return true;
     });
     if ($t5) {
-      $t1 = $t6!;
+      $t1 = $t6;
       break $body;
     }
     $t1 = bestCandidate;
@@ -3010,7 +3011,7 @@ export function ConcatenateSeq<T>(
           continue;
         }
         let $t3 = false;
-        let $t4: undefined | undefined = undefined;
+        let $t4: undefined = undefined;
         seq!((e: T): boolean => {
           if (!yield_!(e)) {
             $t3 = true;
@@ -3029,7 +3030,7 @@ export function Enumerate<T>(
   return (yield_: ((p0: number, p1: T) => boolean) | undefined): void => {
     let i: number = 0;
     let $t1 = false;
-    let $t2: undefined | undefined = undefined;
+    let $t2: undefined = undefined;
     seq!((v: T): boolean => {
       if (!yield_!(i, v)) {
         $t1 = true;

@@ -469,9 +469,7 @@ export class JSONValue extends $rt.GoObject {
         new $rt.BoxStr($rt.fmt_Sprintf('expected object, got %v', [new JSONValueType$Box(v.Type)]), 'string'),
       );
     }
-    return v.Value instanceof $collections.OrderedMap
-      ? (v.Value as $collections.OrderedMap<string, JSONValue> | undefined)
-      : $rt.typeAssertFail<$collections.OrderedMap<string, JSONValue> | undefined>();
+    return $boxes.Box__collections_OrderedMap_string__packagejson_JSONValue_.$cast(v.Value).v;
   }
   AsArray(): JSONValue[] {
     const v = this;
@@ -534,9 +532,7 @@ export class ExportsOrImports extends JSONValue {
     if (!(e.Type === (6 as number))) {
       throw $rt.newPanic(new $rt.BoxStr('expected object', 'string'));
     }
-    return e.Value instanceof $collections.OrderedMap
-      ? (e.Value as $collections.OrderedMap<string, ExportsOrImports> | undefined)
-      : $rt.typeAssertFail<$collections.OrderedMap<string, ExportsOrImports> | undefined>();
+    return $boxes.Box__collections_OrderedMap_string__packagejson_ExportsOrImports_.$cast(e.Value).v;
   }
   AsArray$ExportsOrImports(): ExportsOrImports[] {
     const e = this;
@@ -575,7 +571,7 @@ export class ExportsOrImports extends JSONValue {
           let seenHash: boolean = $t2;
           let seenOther: boolean = $t3;
           let $t4 = false;
-          let $t5: undefined | undefined = undefined;
+          let $t5: undefined = undefined;
           obj!.Keys()!((k: string): boolean => {
             if (k.length > 0) {
               seenDot = seenDot || k.charCodeAt(0) === (46 as number);
@@ -664,14 +660,14 @@ export class Fields extends HeaderFields {
   }
 }
 export class InfoCache extends $rt.GoObject {
-  cache: $collections.SyncMap<$tspath.Path, InfoCacheEntry | undefined> = new $collections.SyncMap<
+  cache: $rt.collections_SyncMap<$tspath.Path, InfoCacheEntry | undefined> = new $rt.collections_SyncMap<
     $tspath.Path,
     InfoCacheEntry | undefined
   >($zf7, $zf8);
   currentDirectory: string = '';
   useCaseSensitiveFileNames: boolean = false;
   $copy_packagejson_InfoCache(src: InfoCache): void {
-    this.cache = src.cache.$clone_collections_SyncMap();
+    this.cache = src.cache.$clone();
     this.currentDirectory = src.currentDirectory;
     this.useCaseSensitiveFileNames = src.useCaseSensitiveFileNames;
   }
@@ -846,7 +842,7 @@ export class PackageJson extends Fields {
         ),
       );
       let $t1 = false;
-      let $t2: undefined | undefined = undefined;
+      let $t2: undefined = undefined;
       p!.PathFields_.TypesVersions.AsObject()!.Entries()!((key: string, value: JSONValue): boolean => {
         const $t3 = $semver.TryParseVersionRange(key);
         let keyRange: $semver.VersionRange = $t3[0];
@@ -988,7 +984,9 @@ export class VersionPaths extends $rt.GoObject {
       string[]
     >($zf0, $zf1, v!.pathsJSON!.Size());
     let $t1 = false;
-    let $t2: $collections.OrderedMap<string, string[]> | undefined | undefined = undefined;
+    let $t2: $collections.OrderedMap<string, string[]> | undefined = undefined as
+      | $collections.OrderedMap<string, string[]>
+      | undefined;
     v!.pathsJSON!.Entries()!((key: string, value: JSONValue): boolean => {
       if (!(value.Type === (5 as number))) {
         return true;

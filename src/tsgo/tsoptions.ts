@@ -21,6 +21,7 @@ import * as $stringutil from './stringutil.js';
 import * as $tspath from './tspath.js';
 import * as $vfs_vfsmatch from './vfs_vfsmatch.js';
 import type * as $vfs from './vfs.js';
+import { MapEntry as $collections$MapEntry } from './collections.js';
 const $zf0 = (): string => '';
 const $zf1 = (): $rt.GoObject | undefined => undefined;
 const $zf10 = (): $ast.Node | undefined => undefined;
@@ -1975,7 +1976,7 @@ export class ParsedCommandLine extends $rt.GoObject {
         SourceOutputAndProjectReference | undefined
       >();
       let $t1 = false;
-      let $t2: undefined | undefined = undefined;
+      let $t2: undefined = undefined;
       p!.getOutputDeclarationAndSourceFileNames()!((outputDts: string, source: string): boolean => {
         let path: $tspath.Path = $tspath.ToPath(source, p!.GetCurrentDirectory(), p!.UseCaseSensitiveFileNames());
         let projectReference: SourceOutputAndProjectReference | undefined =
@@ -4844,643 +4845,643 @@ export let watchOptionsDidYouMeanDiagnostics: ParseCommandLineWorkerDiagnostics 
   );
 export let LibMap: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined =
   $collections.NewOrderedMapFromList<string, $rt.GoObject | undefined>($zf0, $zf1, [
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es5',
       new $rt.BoxStr('lib.es5.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es6',
       new $rt.BoxStr('lib.es2015.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2015',
       new $rt.BoxStr('lib.es2015.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es7',
       new $rt.BoxStr('lib.es2016.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2016',
       new $rt.BoxStr('lib.es2016.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2017',
       new $rt.BoxStr('lib.es2017.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2018',
       new $rt.BoxStr('lib.es2018.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2019',
       new $rt.BoxStr('lib.es2019.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2020',
       new $rt.BoxStr('lib.es2020.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2021',
       new $rt.BoxStr('lib.es2021.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2022',
       new $rt.BoxStr('lib.es2022.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2023',
       new $rt.BoxStr('lib.es2023.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2024',
       new $rt.BoxStr('lib.es2024.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2025',
       new $rt.BoxStr('lib.es2025.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'esnext',
       new $rt.BoxStr('lib.esnext.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'dom',
       new $rt.BoxStr('lib.dom.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'dom.iterable',
       new $rt.BoxStr('lib.dom.iterable.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'dom.asynciterable',
       new $rt.BoxStr('lib.dom.asynciterable.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'webworker',
       new $rt.BoxStr('lib.webworker.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'webworker.importscripts',
       new $rt.BoxStr('lib.webworker.importscripts.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'webworker.iterable',
       new $rt.BoxStr('lib.webworker.iterable.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'webworker.asynciterable',
       new $rt.BoxStr('lib.webworker.asynciterable.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'scripthost',
       new $rt.BoxStr('lib.scripthost.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2015.core',
       new $rt.BoxStr('lib.es2015.core.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2015.collection',
       new $rt.BoxStr('lib.es2015.collection.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2015.generator',
       new $rt.BoxStr('lib.es2015.generator.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2015.iterable',
       new $rt.BoxStr('lib.es2015.iterable.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2015.promise',
       new $rt.BoxStr('lib.es2015.promise.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2015.proxy',
       new $rt.BoxStr('lib.es2015.proxy.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2015.reflect',
       new $rt.BoxStr('lib.es2015.reflect.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2015.symbol',
       new $rt.BoxStr('lib.es2015.symbol.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2015.symbol.wellknown',
       new $rt.BoxStr('lib.es2015.symbol.wellknown.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2016.array.include',
       new $rt.BoxStr('lib.es2016.array.include.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2016.intl',
       new $rt.BoxStr('lib.es2016.intl.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2017.arraybuffer',
       new $rt.BoxStr('lib.es2017.arraybuffer.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2017.date',
       new $rt.BoxStr('lib.es2017.date.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2017.object',
       new $rt.BoxStr('lib.es2017.object.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2017.sharedmemory',
       new $rt.BoxStr('lib.es2017.sharedmemory.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2017.string',
       new $rt.BoxStr('lib.es2017.string.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2017.intl',
       new $rt.BoxStr('lib.es2017.intl.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2017.typedarrays',
       new $rt.BoxStr('lib.es2017.typedarrays.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2018.asyncgenerator',
       new $rt.BoxStr('lib.es2018.asyncgenerator.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2018.asynciterable',
       new $rt.BoxStr('lib.es2018.asynciterable.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2018.intl',
       new $rt.BoxStr('lib.es2018.intl.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2018.promise',
       new $rt.BoxStr('lib.es2018.promise.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2018.regexp',
       new $rt.BoxStr('lib.es2018.regexp.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2019.array',
       new $rt.BoxStr('lib.es2019.array.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2019.object',
       new $rt.BoxStr('lib.es2019.object.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2019.string',
       new $rt.BoxStr('lib.es2019.string.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2019.symbol',
       new $rt.BoxStr('lib.es2019.symbol.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2019.intl',
       new $rt.BoxStr('lib.es2019.intl.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2020.bigint',
       new $rt.BoxStr('lib.es2020.bigint.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2020.date',
       new $rt.BoxStr('lib.es2020.date.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2020.promise',
       new $rt.BoxStr('lib.es2020.promise.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2020.sharedmemory',
       new $rt.BoxStr('lib.es2020.sharedmemory.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2020.string',
       new $rt.BoxStr('lib.es2020.string.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2020.symbol.wellknown',
       new $rt.BoxStr('lib.es2020.symbol.wellknown.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2020.intl',
       new $rt.BoxStr('lib.es2020.intl.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2020.number',
       new $rt.BoxStr('lib.es2020.number.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2021.promise',
       new $rt.BoxStr('lib.es2021.promise.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2021.string',
       new $rt.BoxStr('lib.es2021.string.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2021.weakref',
       new $rt.BoxStr('lib.es2021.weakref.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2021.intl',
       new $rt.BoxStr('lib.es2021.intl.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2022.array',
       new $rt.BoxStr('lib.es2022.array.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2022.error',
       new $rt.BoxStr('lib.es2022.error.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2022.intl',
       new $rt.BoxStr('lib.es2022.intl.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2022.object',
       new $rt.BoxStr('lib.es2022.object.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2022.string',
       new $rt.BoxStr('lib.es2022.string.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2022.regexp',
       new $rt.BoxStr('lib.es2022.regexp.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2023.array',
       new $rt.BoxStr('lib.es2023.array.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2023.collection',
       new $rt.BoxStr('lib.es2023.collection.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2023.intl',
       new $rt.BoxStr('lib.es2023.intl.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2024.arraybuffer',
       new $rt.BoxStr('lib.es2024.arraybuffer.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2024.collection',
       new $rt.BoxStr('lib.es2024.collection.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2024.object',
       new $rt.BoxStr('lib.es2024.object.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2024.promise',
       new $rt.BoxStr('lib.es2024.promise.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2024.regexp',
       new $rt.BoxStr('lib.es2024.regexp.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2024.sharedmemory',
       new $rt.BoxStr('lib.es2024.sharedmemory.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2024.string',
       new $rt.BoxStr('lib.es2024.string.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2025.collection',
       new $rt.BoxStr('lib.es2025.collection.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2025.float16',
       new $rt.BoxStr('lib.es2025.float16.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2025.intl',
       new $rt.BoxStr('lib.es2025.intl.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2025.iterator',
       new $rt.BoxStr('lib.es2025.iterator.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2025.promise',
       new $rt.BoxStr('lib.es2025.promise.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2025.regexp',
       new $rt.BoxStr('lib.es2025.regexp.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'esnext.asynciterable',
       new $rt.BoxStr('lib.es2018.asynciterable.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'esnext.symbol',
       new $rt.BoxStr('lib.es2019.symbol.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'esnext.bigint',
       new $rt.BoxStr('lib.es2020.bigint.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'esnext.weakref',
       new $rt.BoxStr('lib.es2021.weakref.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'esnext.object',
       new $rt.BoxStr('lib.es2024.object.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'esnext.regexp',
       new $rt.BoxStr('lib.es2024.regexp.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'esnext.string',
       new $rt.BoxStr('lib.es2024.string.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'esnext.float16',
       new $rt.BoxStr('lib.es2025.float16.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'esnext.iterator',
       new $rt.BoxStr('lib.es2025.iterator.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'esnext.promise',
       new $rt.BoxStr('lib.es2025.promise.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'esnext.array',
       new $rt.BoxStr('lib.esnext.array.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'esnext.collection',
       new $rt.BoxStr('lib.esnext.collection.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'esnext.date',
       new $rt.BoxStr('lib.esnext.date.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'esnext.decorators',
       new $rt.BoxStr('lib.esnext.decorators.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'esnext.disposable',
       new $rt.BoxStr('lib.esnext.disposable.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'esnext.error',
       new $rt.BoxStr('lib.esnext.error.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'esnext.intl',
       new $rt.BoxStr('lib.esnext.intl.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'esnext.sharedmemory',
       new $rt.BoxStr('lib.esnext.sharedmemory.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'esnext.temporal',
       new $rt.BoxStr('lib.esnext.temporal.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'esnext.typedarrays',
       new $rt.BoxStr('lib.esnext.typedarrays.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'decorators',
       new $rt.BoxStr('lib.decorators.d.ts', 'string'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'decorators.legacy',
@@ -5493,37 +5494,37 @@ export let LibFilesSet: $collections.Set_<string> | undefined = $collections.New
 );
 export let moduleResolutionOptionMap: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined =
   $collections.NewOrderedMapFromList<string, $rt.GoObject | undefined>($zf0, $zf1, [
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'node16',
       new $core.ModuleResolutionKind$Box(3),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'nodenext',
       new $core.ModuleResolutionKind$Box(99),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'bundler',
       new $core.ModuleResolutionKind$Box(100),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'classic',
       new $core.ModuleResolutionKind$Box(1),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'node',
       new $core.ModuleResolutionKind$Box(2),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'node10',
@@ -5532,85 +5533,85 @@ export let moduleResolutionOptionMap: $collections.OrderedMap<string, $rt.GoObje
   ]);
 export let targetOptionMap: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined =
   $collections.NewOrderedMapFromList<string, $rt.GoObject | undefined>($zf0, $zf1, [
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es5',
       new $core.ScriptTarget$Box(1),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es6',
       new $core.ScriptTarget$Box(2),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2015',
       new $core.ScriptTarget$Box(2),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2016',
       new $core.ScriptTarget$Box(3),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2017',
       new $core.ScriptTarget$Box(4),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2018',
       new $core.ScriptTarget$Box(5),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2019',
       new $core.ScriptTarget$Box(6),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2020',
       new $core.ScriptTarget$Box(7),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2021',
       new $core.ScriptTarget$Box(8),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2022',
       new $core.ScriptTarget$Box(9),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2023',
       new $core.ScriptTarget$Box(10),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2024',
       new $core.ScriptTarget$Box(11),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2025',
       new $core.ScriptTarget$Box(12),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'esnext',
@@ -5619,85 +5620,85 @@ export let targetOptionMap: $collections.OrderedMap<string, $rt.GoObject | undef
   ]);
 export let moduleOptionMap: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined =
   $collections.NewOrderedMapFromList<string, $rt.GoObject | undefined>($zf0, $zf1, [
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'commonjs',
       new $core.ModuleKind$Box(1),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'amd',
       new $core.ModuleKind$Box(2),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'system',
       new $core.ModuleKind$Box(4),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'umd',
       new $core.ModuleKind$Box(3),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es6',
       new $core.ModuleKind$Box(5),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2015',
       new $core.ModuleKind$Box(5),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2020',
       new $core.ModuleKind$Box(6),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'es2022',
       new $core.ModuleKind$Box(7),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'esnext',
       new $core.ModuleKind$Box(99),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'node16',
       new $core.ModuleKind$Box(100),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'node18',
       new $core.ModuleKind$Box(101),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'node20',
       new $core.ModuleKind$Box(102),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'nodenext',
       new $core.ModuleKind$Box(199),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'preserve',
@@ -5706,19 +5707,19 @@ export let moduleOptionMap: $collections.OrderedMap<string, $rt.GoObject | undef
   ]);
 export let moduleDetectionOptionMap: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined =
   $collections.NewOrderedMapFromList<string, $rt.GoObject | undefined>($zf0, $zf1, [
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'auto',
       new $rt.BoxNum(1, 'core.ModuleDetectionKind'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'legacy',
       new $rt.BoxNum(2, 'core.ModuleDetectionKind'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'force',
@@ -5727,31 +5728,31 @@ export let moduleDetectionOptionMap: $collections.OrderedMap<string, $rt.GoObjec
   ]);
 export let jsxOptionMap: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined =
   $collections.NewOrderedMapFromList<string, $rt.GoObject | undefined>($zf0, $zf1, [
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'preserve',
       new $core.JsxEmit$Box(1),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'react-native',
       new $core.JsxEmit$Box(2),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'react-jsx',
       new $core.JsxEmit$Box(4),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'react-jsxdev',
       new $core.JsxEmit$Box(5),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'react',
@@ -5760,13 +5761,13 @@ export let jsxOptionMap: $collections.OrderedMap<string, $rt.GoObject | undefine
   ]);
 export let newLineOptionMap: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined =
   $collections.NewOrderedMapFromList<string, $rt.GoObject | undefined>($zf0, $zf1, [
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'crlf',
       new $rt.BoxNum(1, 'core.NewLineKind'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'lf',
@@ -5789,37 +5790,37 @@ export let targetToLibMap: Map<$core.ScriptTarget, string> | undefined = new Map
 ]);
 export let watchFileEnumMap: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined =
   $collections.NewOrderedMapFromList<string, $rt.GoObject | undefined>($zf0, $zf1, [
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'fixedpollinginterval',
       new $rt.BoxNum(1, 'core.WatchFileKind'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'prioritypollinginterval',
       new $rt.BoxNum(2, 'core.WatchFileKind'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'dynamicprioritypolling',
       new $rt.BoxNum(3, 'core.WatchFileKind'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'fixedchunksizepolling',
       new $rt.BoxNum(4, 'core.WatchFileKind'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'usefsevents',
       new $rt.BoxNum(5, 'core.WatchFileKind'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'usefseventsonparentdirectory',
@@ -5828,25 +5829,25 @@ export let watchFileEnumMap: $collections.OrderedMap<string, $rt.GoObject | unde
   ]);
 export let watchDirectoryEnumMap: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined =
   $collections.NewOrderedMapFromList<string, $rt.GoObject | undefined>($zf0, $zf1, [
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'usefsevents',
       new $rt.BoxNum(1, 'core.WatchDirectoryKind'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'fixedpollinginterval',
       new $rt.BoxNum(2, 'core.WatchDirectoryKind'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'dynamicprioritypolling',
       new $rt.BoxNum(3, 'core.WatchDirectoryKind'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'fixedchunksizepolling',
@@ -5855,25 +5856,25 @@ export let watchDirectoryEnumMap: $collections.OrderedMap<string, $rt.GoObject |
   ]);
 export let fallbackEnumMap: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined =
   $collections.NewOrderedMapFromList<string, $rt.GoObject | undefined>($zf0, $zf1, [
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'fixedinterval',
       new $rt.BoxNum(1, 'core.PollingKind'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'priorityinterval',
       new $rt.BoxNum(2, 'core.PollingKind'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'dynamicpriority',
       new $rt.BoxNum(3, 'core.PollingKind'),
     ),
-    $collections.MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
+    $collections$MapEntry.$lit_collections_MapEntry_0_1<string, $rt.GoObject | undefined>(
       $zf0,
       $zf1,
       'fixedchunksize',
@@ -6053,7 +6054,7 @@ export function ParseCommandLine(commandLine: string[], host: ParseConfigHost): 
   );
   result!.ParsedConfig!.WatchOptions_ = watchOptions;
   result!.Errors = parser!.errors;
-  result!.Raw = parser!.options;
+  result!.Raw = new $boxes.Box__collections_OrderedMap_string__any_(parser!.options);
   return result;
 }
 export function ParseBuildCommandLine(
@@ -6071,7 +6072,7 @@ export function ParseBuildCommandLine(
   );
   let compilerOptions: $core.CompilerOptions | undefined = new $core.CompilerOptions();
   let $t1 = false;
-  let $t2: ParsedBuildCommandLine | undefined | undefined = undefined;
+  let $t2: ParsedBuildCommandLine | undefined = undefined as ParsedBuildCommandLine | undefined;
   parser!.options!.Entries()!((key: string, value: $rt.GoObject | undefined): boolean => {
     let buildOption: CommandLineOption | undefined = BuildNameMap!.Get(key);
     if (buildOption === TscBuildOption || buildOption === CompilerNameMap!.Get(key)) {
@@ -6092,7 +6093,7 @@ export function ParseBuildCommandLine(
       )!.WatchOptions_,
       parser!.fileNames,
       parser!.errors,
-      parser!.options,
+      new $boxes.Box__collections_OrderedMap_string__any_(parser!.options),
       $tspath.ComparePathsOptions.$lit_tspath_ComparePathsOptions_0_1(
         host!.FS$m()!.UseCaseSensitiveFileNames(),
         host!.GetCurrentDirectory(),
@@ -6729,9 +6730,9 @@ export function ParseStringArray(value: $rt.GoObject | undefined): string[] {
 export function parseStringMap(value: $rt.GoObject | undefined): $collections.OrderedMap<string, string[]> | undefined {
   {
     const $t1: $rt.GoObject | undefined = value;
-    const $t2: boolean = $t1 instanceof $collections.OrderedMap;
+    const $t2: boolean = $t1 instanceof $boxes.Box__collections_OrderedMap_string__any_;
     let m: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined = $t2
-      ? ($t1 as $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined)
+      ? $boxes.Box__collections_OrderedMap_string__any_.$cast($t1).v
       : undefined;
     let ok: boolean = $t2;
     if (ok) {
@@ -6740,7 +6741,9 @@ export function parseStringMap(value: $rt.GoObject | undefined): $collections.Or
         string[]
       >($zf0, $zf3, m!.Size());
       let $t3 = false;
-      let $t4: $collections.OrderedMap<string, string[]> | undefined | undefined = undefined;
+      let $t4: $collections.OrderedMap<string, string[]> | undefined = undefined as
+        | $collections.OrderedMap<string, string[]>
+        | undefined;
       m!.Entries()!((k: string, v: $rt.GoObject | undefined): boolean => {
         result!.Set(k, ParseStringArray(v));
         return true;
@@ -6797,9 +6800,9 @@ export function parseNumber(value: $rt.GoObject | undefined): $rt.Ptr<number> | 
 export function parseProjectReference(json: $rt.GoObject | undefined): projectReferenceParseResult | undefined {
   {
     const $t1: $rt.GoObject | undefined = json;
-    const $t2: boolean = $t1 instanceof $collections.OrderedMap;
+    const $t2: boolean = $t1 instanceof $boxes.Box__collections_OrderedMap_string__any_;
     let v: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined = $t2
-      ? ($t1 as $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined)
+      ? $boxes.Box__collections_OrderedMap_string__any_.$cast($t1).v
       : undefined;
     let ok: boolean = $t2;
     if (ok) {
@@ -6849,9 +6852,9 @@ export function parseContentMapper(
   value: $rt.GoObject | undefined,
 ): [$contentmapper.Mapper | undefined, ($ast.Diagnostic | undefined)[]] {
   const $t1: $rt.GoObject | undefined = value;
-  const $t2: boolean = $t1 instanceof $collections.OrderedMap;
+  const $t2: boolean = $t1 instanceof $boxes.Box__collections_OrderedMap_string__any_;
   let v: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined = $t2
-    ? ($t1 as $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined)
+    ? $boxes.Box__collections_OrderedMap_string__any_.$cast($t1).v
     : undefined;
   let ok: boolean = $t2;
   if (!ok) {
@@ -6925,7 +6928,7 @@ export function parseContentMapper(
     if (ok$3) {
       {
         const $t9: $rt.GoObject | undefined = options;
-        const $t10: boolean = $t9 instanceof $collections.OrderedMap;
+        const $t10: boolean = $t9 instanceof $boxes.Box__collections_OrderedMap_string__any_;
         let isObject: boolean = $t10;
         if (!isObject) {
           errors.push(
@@ -6981,9 +6984,9 @@ export function parseJsonToStringKey(
     $collections.NewOrderedMapWithSizeHint<string, $rt.GoObject | undefined>($zf0, $zf1, 6);
   {
     const $t1: $rt.GoObject | undefined = json;
-    const $t2: boolean = $t1 instanceof $collections.OrderedMap;
+    const $t2: boolean = $t1 instanceof $boxes.Box__collections_OrderedMap_string__any_;
     let m: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined = $t2
-      ? ($t1 as $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined)
+      ? $boxes.Box__collections_OrderedMap_string__any_.$cast($t1).v
       : undefined;
     let ok: boolean = $t2;
     if (ok) {
@@ -7795,9 +7798,9 @@ export function mergeCompilerOptions(
   if (!(rawSource === undefined)) {
     {
       const $t1: $rt.GoObject | undefined = rawSource;
-      const $t2: boolean = $t1 instanceof $collections.OrderedMap;
+      const $t2: boolean = $t1 instanceof $boxes.Box__collections_OrderedMap_string__any_;
       let rawMap: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined = $t2
-        ? ($t1 as $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined)
+        ? $boxes.Box__collections_OrderedMap_string__any_.$cast($t1).v
         : undefined;
       let ok: boolean = $t2;
       if (ok && !(rawMap === undefined)) {
@@ -7808,14 +7811,14 @@ export function mergeCompilerOptions(
           if (exists) {
             {
               const $t4: $rt.GoObject | undefined = compilerOptionsRaw;
-              const $t5: boolean = $t4 instanceof $collections.OrderedMap;
+              const $t5: boolean = $t4 instanceof $boxes.Box__collections_OrderedMap_string__any_;
               let compilerOptionsMap: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined = $t5
-                ? ($t4 as $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined)
+                ? $boxes.Box__collections_OrderedMap_string__any_.$cast($t4).v
                 : undefined;
               let ok$1: boolean = $t5;
               if (ok$1) {
                 let $t6 = false;
-                let $t7: $core.CompilerOptions | undefined | undefined = undefined;
+                let $t7: $core.CompilerOptions | undefined = undefined as $core.CompilerOptions | undefined;
                 compilerOptionsMap!.Entries()!((key: string, value: $rt.GoObject | undefined): boolean => {
                   if (value === undefined) {
                     explicitNullFields.Add(key);
@@ -7863,7 +7866,9 @@ export function convertToOptionsWithAbsolutePaths(
     return undefined;
   }
   let $t1 = false;
-  let $t2: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined | undefined = undefined;
+  let $t2: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined = undefined as
+    | $collections.OrderedMap<string, $rt.GoObject | undefined>
+    | undefined;
   optionsBase!.Entries()!((o: string, v: $rt.GoObject | undefined): boolean => {
     const $t3 = ConvertOptionToAbsolutePath(o, v, optionMap, cwd);
     let result: $rt.GoObject | undefined = $t3[0];
@@ -8029,7 +8034,7 @@ export function ConvertToTSConfig(
           if (r!.Circular) {
             ref!.Set('circular', new $rt.BoxBool(true, 'bool'));
           }
-          references.push(ref);
+          references.push(new $boxes.Box__collections_OrderedMap_string__any_(ref));
         }
       }
       config!.References = references;
@@ -8074,7 +8079,7 @@ export function getNameOfCompilerOptionValue(
   enumMap: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined,
 ): string {
   let $t1 = false;
-  let $t2: string | undefined = undefined;
+  let $t2: string = '';
   enumMap!.Entries()!((k: string, v: $rt.GoObject | undefined): boolean => {
     if ($rt.ifaceEq(v, value)) {
       $t2 = k;
@@ -8083,7 +8088,7 @@ export function getNameOfCompilerOptionValue(
     }
     return true;
   });
-  if ($t1) return $t2!;
+  if ($t1) return $t2;
   return '';
 }
 export function serializeCompilerOptions(
@@ -8249,7 +8254,7 @@ export function serializeEnumValue(
   if (rv.CanInt()) {
     let intVal: number = rv.Int();
     let $t1 = false;
-    let $t2: string | undefined = undefined;
+    let $t2: string = '';
     enumMap!.Entries()!((k: string, v: $rt.GoObject | undefined): boolean => {
       let ev: $rt.reflect_Value = $rt.reflect_ValueOf(v);
       if (ev.CanInt() && ev.Int() === intVal) {
@@ -8259,7 +8264,7 @@ export function serializeEnumValue(
       }
       return true;
     });
-    if ($t1) return $t2!;
+    if ($t1) return $t2;
   }
   return getNameOfCompilerOptionValue(value, enumMap);
 }
@@ -8271,7 +8276,7 @@ export function addImpliedOptions(
 ): void {
   let provided: Map<string, boolean> | undefined = new Map<string, boolean>();
   let $t1 = false;
-  let $t2: undefined | undefined = undefined;
+  let $t2: undefined = undefined;
   optionMap!.Keys()!((k: string): boolean => {
     provided!.set(k, true);
     return true;
@@ -8497,9 +8502,9 @@ export function parseOwnConfigOfJsonSourceFile(
   $rt.appendInto(errors, err$1);
   {
     const $t4: $rt.GoObject | undefined = json;
-    const $t5: boolean = $t4 instanceof $collections.OrderedMap;
+    const $t5: boolean = $t4 instanceof $boxes.Box__collections_OrderedMap_string__any_;
     let jsonObject: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined = $t5
-      ? ($t4 as $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined)
+      ? $boxes.Box__collections_OrderedMap_string__any_.$cast($t4).v
       : undefined;
     let ok: boolean = $t5;
     if (!(rootCompilerOptions.length === (0 as number)) && ok && !jsonObject!.Has('compilerOptions')) {
@@ -8567,7 +8572,12 @@ export function convertConfigFileToObject(
         return convertToJson(sourceFile, firstObject, true, jsonConversionNotifier$v);
       }
     }
-    return [new $collections.OrderedMap<string, $rt.GoObject | undefined>($zf0, $zf1), errors];
+    return [
+      new $boxes.Box__collections_OrderedMap_string__any_(
+        new $collections.OrderedMap<string, $rt.GoObject | undefined>($zf0, $zf1),
+      ),
+      errors,
+    ];
   }
   return convertToJson(sourceFile, rootExpression, true, jsonConversionNotifier$v);
 }
@@ -9031,7 +9041,7 @@ export function convertMapToOptions<O extends optionParser>(
   result: O,
 ): O {
   let $t1 = false;
-  let $t2: O | undefined = undefined;
+  let $t2: O = undefined as unknown as O;
   compilerOptions!.Entries()!((key: string, value: $rt.GoObject | undefined): boolean => {
     result!.ParseOption(key, value);
     return true;
@@ -9048,9 +9058,9 @@ export function convertOptionsFromJson<O extends optionParser>(
     return [result, []];
   }
   const $t1: $rt.GoObject | undefined = jsonOptions;
-  const $t2: boolean = $t1 instanceof $collections.OrderedMap;
+  const $t2: boolean = $t1 instanceof $boxes.Box__collections_OrderedMap_string__any_;
   let jsonMap: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined = $t2
-    ? ($t1 as $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined)
+    ? $boxes.Box__collections_OrderedMap_string__any_.$cast($t1).v
     : undefined;
   let ok: boolean = $t2;
   if (!ok) {
@@ -9058,7 +9068,7 @@ export function convertOptionsFromJson<O extends optionParser>(
   }
   let errors: ($ast.Diagnostic | undefined)[] = [];
   let $t3 = false;
-  let $t4: [O, ($ast.Diagnostic | undefined)[]] | undefined = undefined;
+  let $t4: [O, ($ast.Diagnostic | undefined)[]] = [undefined as unknown as O, []];
   jsonMap!.Entries()!((key: string, value: $rt.GoObject | undefined): boolean => {
     let opt: CommandLineOption | undefined = CommandLineOptionNameMap$Get(optionsNameMap!, key);
     if (!(opt === undefined) && !(opt!.Name === key)) {
@@ -9350,7 +9360,7 @@ export function convertPropertyValueToJson(
           option,
           jsonConversionNotifier$v,
         );
-        return [$t1[0], $t1[1]];
+        return [new $boxes.Box__collections_OrderedMap_string__any_($t1[0]), $t1[1]];
       }
       case 210 as number: {
         const $t2 = convertArrayLiteralExpressionToJson(sourceFile, valueExpression!.Elements(), option, returnValue);
@@ -9391,9 +9401,9 @@ export function ParseJsonConfigFileContent(
 ): ParsedCommandLine | undefined {
   let normalized: $rt.GoObject | undefined = normalizeJsonValue(json);
   const $t1: $rt.GoObject | undefined = normalized;
-  const $t2: boolean = $t1 instanceof $collections.OrderedMap;
+  const $t2: boolean = $t1 instanceof $boxes.Box__collections_OrderedMap_string__any_;
   let jsonObject: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined = $t2
-    ? ($t1 as $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined)
+    ? $boxes.Box__collections_OrderedMap_string__any_.$cast($t1).v
     : undefined;
   let ok: boolean = $t2;
   if (!ok) {
@@ -9416,18 +9426,16 @@ export function normalizeJsonValue(value: $rt.GoObject | undefined): $rt.GoObjec
   {
     const $t1: $rt.GoObject | undefined = value;
     $sw2: {
-      if ($t1 instanceof $collections.OrderedMap || $t1 === undefined) {
+      if ($t1 instanceof $boxes.Box__collections_OrderedMap_string__any_ || $t1 === undefined) {
         const value$1: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined =
-          $t1 === undefined
-            ? undefined
-            : ($t1 as $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined);
+          $t1 === undefined ? undefined : $boxes.Box__collections_OrderedMap_string__any_.$cast($t1).v;
         let $t3 = false;
-        let $t4: $rt.GoObject | undefined | undefined = undefined;
+        let $t4: $rt.GoObject | undefined = undefined as $rt.GoObject | undefined;
         value$1!.Entries()!((key: string, child: $rt.GoObject | undefined): boolean => {
           value$1!.Set(key, normalizeJsonValue(child));
           return true;
         });
-        return value$1;
+        return new $boxes.Box__collections_OrderedMap_string__any_(value$1);
       } else if ($t1 instanceof $boxes.Box_map_string_any) {
         const value$2: Map<string, $rt.GoObject | undefined> | undefined = $boxes.Box_map_string_any.$cast($t1).v;
         let result: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined =
@@ -9440,7 +9448,7 @@ export function normalizeJsonValue(value: $rt.GoObject | undefined): $rt.GoObjec
             result!.Set(key$1, normalizeJsonValue(child$1));
           }
         }
-        return result;
+        return new $boxes.Box__collections_OrderedMap_string__any_(result);
       } else if ($t1 instanceof $boxes.Box___any) {
         const value$3: ($rt.GoObject | undefined)[] = $boxes.Box___any.$cast($t1).v;
         let result$1: ($rt.GoObject | undefined)[] = $rt.makeSlice<$rt.GoObject | undefined>(value$3.length, undefined);
@@ -9604,7 +9612,7 @@ export function parseOwnConfigOfJson(
     }
   }
   let parsedConfig: parsedTsconfig | undefined = parsedTsconfig.$lit_tsoptions_parsedTsconfig_0_1_2_3(
-    json,
+    new $boxes.Box__collections_OrderedMap_string__any_(json),
     options,
     typeAcquisition,
     new $boxes.Box___string(extendedConfigPath),
@@ -9761,7 +9769,9 @@ export function parseConfig(
       ),
     );
     if (json!.Size() === (0 as number)) {
-      result = parsedTsconfig.$lit_tsoptions_parsedTsconfig_0(json);
+      result = parsedTsconfig.$lit_tsoptions_parsedTsconfig_0(
+        new $boxes.Box__collections_OrderedMap_string__any_(json),
+      );
     } else {
       const $t1 = convertToObject(sourceFile!.SourceFile_);
       let rawResult: $rt.GoObject | undefined = $t1[0];
@@ -9800,9 +9810,9 @@ export function parseConfig(
       let setPropertyValue: ((p0: string) => void) | undefined = (propertyName: string): void => {
         {
           const $t5: $rt.GoObject | undefined = ownConfig!.raw;
-          const $t6: boolean = $t5 instanceof $collections.OrderedMap;
+          const $t6: boolean = $t5 instanceof $boxes.Box__collections_OrderedMap_string__any_;
           let rawMap: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined = $t6
-            ? ($t5 as $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined)
+            ? $boxes.Box__collections_OrderedMap_string__any_.$cast($t5).v
             : undefined;
           let ok: boolean = $t6;
           if (ok && rawMap!.Has(propertyName)) {
@@ -9816,9 +9826,9 @@ export function parseConfig(
         ) {
           {
             const $t7: $rt.GoObject | undefined = extendsRaw;
-            const $t8: boolean = $t7 instanceof $collections.OrderedMap;
+            const $t8: boolean = $t7 instanceof $boxes.Box__collections_OrderedMap_string__any_;
             let rawMap$1: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined = $t8
-              ? ($t7 as $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined)
+              ? $boxes.Box__collections_OrderedMap_string__any_.$cast($t7).v
               : undefined;
             let ok$1: boolean = $t8;
             if (ok$1 && rawMap$1!.Has(propertyName)) {
@@ -9873,9 +9883,9 @@ export function parseConfig(
       setPropertyValue!('files');
       {
         const $t13: $rt.GoObject | undefined = extendsRaw;
-        const $t14: boolean = $t13 instanceof $collections.OrderedMap;
+        const $t14: boolean = $t13 instanceof $boxes.Box__collections_OrderedMap_string__any_;
         let extendedRawMap: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined = $t14
-          ? ($t13 as $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined)
+          ? $boxes.Box__collections_OrderedMap_string__any_.$cast($t13).v
           : undefined;
         let ok$2: boolean = $t14;
         if (ok$2 && extendedRawMap!.Has('contentMappers')) {
@@ -9886,9 +9896,9 @@ export function parseConfig(
       }
       {
         const $t17: $rt.GoObject | undefined = extendsRaw;
-        const $t18: boolean = $t17 instanceof $collections.OrderedMap;
+        const $t18: boolean = $t17 instanceof $boxes.Box__collections_OrderedMap_string__any_;
         let extendedRawMap$1: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined = $t18
-          ? ($t17 as $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined)
+          ? $boxes.Box__collections_OrderedMap_string__any_.$cast($t17).v
           : undefined;
         let ok$3: boolean = $t18;
         if (ok$3 && extendedRawMap$1!.Has('compileOnSave')) {
@@ -9932,55 +9942,37 @@ export function parseConfig(
       }
     }
     if (!(result$2!.include.length === 0)) {
-      (ownConfig!.raw instanceof $collections.OrderedMap
-        ? (ownConfig!.raw as $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined)
-        : $rt.typeAssertFail<$collections.OrderedMap<string, $rt.GoObject | undefined> | undefined>())!.Set(
+      $boxes.Box__collections_OrderedMap_string__any_.$cast(ownConfig!.raw).v!.Set(
         'include',
         new $boxes.Box___any(result$2!.include),
       );
     }
     if (!(result$2!.exclude.length === 0)) {
-      (ownConfig!.raw instanceof $collections.OrderedMap
-        ? (ownConfig!.raw as $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined)
-        : $rt.typeAssertFail<$collections.OrderedMap<string, $rt.GoObject | undefined> | undefined>())!.Set(
+      $boxes.Box__collections_OrderedMap_string__any_.$cast(ownConfig!.raw).v!.Set(
         'exclude',
         new $boxes.Box___any(result$2!.exclude),
       );
     }
     if (!(result$2!.files.length === 0)) {
-      (ownConfig!.raw instanceof $collections.OrderedMap
-        ? (ownConfig!.raw as $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined)
-        : $rt.typeAssertFail<$collections.OrderedMap<string, $rt.GoObject | undefined> | undefined>())!.Set(
+      $boxes.Box__collections_OrderedMap_string__any_.$cast(ownConfig!.raw).v!.Set(
         'files',
         new $boxes.Box___any(result$2!.files),
       );
     }
     if (
       !(result$2!.contentMappers.length === 0) &&
-      !(
-        ownConfig!.raw instanceof $collections.OrderedMap
-          ? (ownConfig!.raw as $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined)
-          : $rt.typeAssertFail<$collections.OrderedMap<string, $rt.GoObject | undefined> | undefined>()
-      )!.Has('contentMappers')
+      !$boxes.Box__collections_OrderedMap_string__any_.$cast(ownConfig!.raw).v!.Has('contentMappers')
     ) {
-      (ownConfig!.raw instanceof $collections.OrderedMap
-        ? (ownConfig!.raw as $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined)
-        : $rt.typeAssertFail<$collections.OrderedMap<string, $rt.GoObject | undefined> | undefined>())!.Set(
+      $boxes.Box__collections_OrderedMap_string__any_.$cast(ownConfig!.raw).v!.Set(
         'contentMappers',
         new $boxes.Box___any(result$2!.contentMappers),
       );
     }
     if (
       result$2!.compileOnSave &&
-      !(
-        ownConfig!.raw instanceof $collections.OrderedMap
-          ? (ownConfig!.raw as $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined)
-          : $rt.typeAssertFail<$collections.OrderedMap<string, $rt.GoObject | undefined> | undefined>()
-      )!.Has('compileOnSave')
+      !$boxes.Box__collections_OrderedMap_string__any_.$cast(ownConfig!.raw).v!.Has('compileOnSave')
     ) {
-      (ownConfig!.raw instanceof $collections.OrderedMap
-        ? (ownConfig!.raw as $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined)
-        : $rt.typeAssertFail<$collections.OrderedMap<string, $rt.GoObject | undefined> | undefined>())!.Set(
+      $boxes.Box__collections_OrderedMap_string__any_.$cast(ownConfig!.raw).v!.Set(
         'compileOnSave',
         new $rt.BoxBool(result$2!.compileOnSave, 'bool'),
       );
@@ -10029,7 +10021,11 @@ export function parseJsonConfigFileContentWorker(
   const $t1 = parseConfig(json, sourceFile, host, basePath, configFileName, resolutionStack, extendedConfigCache);
   let parsedConfig: parsedTsconfig | undefined = $t1[0];
   errors = $t1[1];
-  mergeCompilerOptions(parsedConfig!.options, existingOptions, existingOptionsRaw);
+  mergeCompilerOptions(
+    parsedConfig!.options,
+    existingOptions,
+    new $boxes.Box__collections_OrderedMap_string__any_(existingOptionsRaw),
+  );
   handleOptionConfigDirTemplateSubstitution(parsedConfig!.options, basePathForFileNames);
   let rawConfig: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined = parseJsonToStringKey(
     parsedConfig!.raw,
@@ -10511,9 +10507,9 @@ export function parseJsonConfigFileContentWorker(
   let compileOnSave: $rt.Ptr<boolean> | undefined = new $rt.Ptr<boolean>(false);
   {
     const $t32: $rt.GoObject | undefined = parsedConfig!.raw;
-    const $t33: boolean = $t32 instanceof $collections.OrderedMap;
+    const $t33: boolean = $t32 instanceof $boxes.Box__collections_OrderedMap_string__any_;
     let raw: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined = $t33
-      ? ($t32 as $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined)
+      ? $boxes.Box__collections_OrderedMap_string__any_.$cast($t32).v
       : undefined;
     let ok$2: boolean = $t33;
     if (ok$2) {
@@ -10963,7 +10959,7 @@ export function handleOptionConfigDirTemplateSubstitution(
     | $collections.OrderedMap<string, string[]>
     | undefined;
   let $t1 = false;
-  let $t2: undefined | undefined = undefined;
+  let $t2: undefined = undefined;
   compilerOptions!.Paths!.Entries()!((k: string, v: string[]): boolean => {
     {
       let substitution: string[] = getSubstitutedStringArrayWithConfigDirTemplate(v, basePath);
@@ -11187,19 +11183,19 @@ export function getFileNamesFromConfigSpecs(
   }
   let files$1: string[] = [] as string[];
   let $t5 = false;
-  let $t6: [string[], number] | undefined = undefined;
+  let $t6: [string[], number] = [[], 0];
   literalFileMap.Values()!((file$2: string): boolean => {
     files$1.push(file$2);
     return true;
   });
   let $t7 = false;
-  let $t8: [string[], number] | undefined = undefined;
+  let $t8: [string[], number] = [[], 0];
   wildcardFileMap.Values()!((file$3: string): boolean => {
     files$1.push(file$3);
     return true;
   });
   let $t9 = false;
-  let $t10: [string[], number] | undefined = undefined;
+  let $t10: [string[], number] = [[], 0];
   wildCardJsonFileMap.Values()!((file$4: string): boolean => {
     files$1.push(file$4);
     return true;

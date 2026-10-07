@@ -6093,14 +6093,14 @@ export class DiagnosticsCollection extends $rt.GoObject {
       });
       let key: diagnosticLocationKey = getDiagnosticLocationKey(diagnostic);
       {
-        let existing: Diagnostic | undefined = c!.diagnosticIndex?.get(key) ?? undefined;
+        let existing: Diagnostic | undefined = $rt.structMapGet(c!.diagnosticIndex, key, undefined);
         if (!(existing === undefined)) {
           if (EqualDiagnostics(existing, diagnostic)) {
             $t1 = existing;
             break $body;
           }
           {
-            const $t3 = c!.diagnosticCollisions?.get(key) ?? [];
+            const $t3 = $rt.structMapGet(c!.diagnosticCollisions, key, []);
             for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
               let collision = $t3[$t4];
               if (EqualDiagnostics(collision, diagnostic)) {
@@ -6114,7 +6114,7 @@ export class DiagnosticsCollection extends $rt.GoObject {
       if (c!.diagnosticIndex === undefined) {
         c!.diagnosticIndex = new $rt.StructMap<diagnosticLocationKey, Diagnostic | undefined>($fn2);
       }
-      if ((c!.diagnosticIndex?.get(key) ?? undefined) === undefined) {
+      if ($rt.structMapGet(c!.diagnosticIndex, key, undefined) === undefined) {
         c!.diagnosticIndex!.set(key, diagnostic);
       } else {
         if (c!.diagnosticCollisions === undefined) {
@@ -6122,7 +6122,7 @@ export class DiagnosticsCollection extends $rt.GoObject {
         }
         const $t5 = c!.diagnosticCollisions;
         const $t6 = key;
-        const $t7: (Diagnostic | undefined)[] = $t5!.get($t6) ?? [];
+        const $t7: (Diagnostic | undefined)[] = $rt.structMapGet($t5, $t6, []);
         $t7.push(diagnostic);
         $t5!.set($t6, $t7);
       }
@@ -19493,7 +19493,7 @@ export class SourceFile extends NodeBase {
       {
         const $t3 = node!.tokenCache;
         const $t4 = key;
-        let token: Node | undefined = $t3?.get($t4) ?? undefined;
+        let token: Node | undefined = $rt.structMapGet($t3, $t4, undefined);
         let ok: boolean = $t3 !== undefined && $t3.has($t4);
         if (ok) {
           if (!(token!.Kind_ === kind)) {

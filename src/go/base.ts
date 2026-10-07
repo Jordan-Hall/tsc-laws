@@ -50,18 +50,6 @@ export class Box<T> extends GoObject {
     this.v = v;
     this.t = t;
   }
-  override $eqv(o: GoObject): boolean {
-    if (!(o instanceof Box) || o.t !== this.t) return false;
-    const a: unknown = this.v;
-    const b: unknown = o.v;
-    if (a instanceof GoObject && b instanceof GoObject) return a.$eqv(b);
-    return a === b;
-  }
-  override $ikey(): string {
-    const v: unknown = this.v;
-    if (v instanceof GoObject) return 'x' + this.t + ':' + v.$ikey();
-    return 'x' + this.t + ':' + typeof v + ':' + String(v);
-  }
 }
 
 // Boxes for basic values, so unboxing narrows with instanceof.
@@ -203,6 +191,9 @@ export function recover(): GoObject | undefined {
 export function unsupported(what: string): Error {
   return new Error('unsupported: ' + what);
 }
+export function unsupportedConversion<T>(what: string): T {
+  throw unsupported('conversion of ' + what);
+}
 
 export function unsupportedAs<T>(what: string): T {
   throw new Error('unsupported: ' + what);
@@ -213,7 +204,7 @@ export function unimplementedMethod(name: string): Error {
 }
 
 export function typeAssertFail<T>(): T {
-  throw new Panic(new Box<string>('interface conversion', 'string'));
+  throw new Panic(new BoxStr('interface conversion', 'string'));
 }
 
 export function newPanic(v: GoObject | undefined): Panic {
@@ -331,7 +322,7 @@ export function strMax(xs: string[]): string {
 const TWO32 = 4294967296;
 
 export function imod(a: number, b: number): number {
-  if (b === 0) throw new Panic(new Box<string>('integer divide by zero', 'string'));
+  if (b === 0) throw new Panic(new BoxStr('integer divide by zero', 'string'));
   return a - Math.trunc(a / b) * b;
 }
 
@@ -603,45 +594,89 @@ export function utf8_DecodeRuneBytesAt(b: Uint8Array, i: number): [number, numbe
   return [((c0 & 0x07) << 18) | ((c1 & 0x3f) << 12) | ((c2 & 0x3f) << 6) | (c3 & 0x3f), 4];
 }
 
-// StructMap is a Go map whose keys are structs or arrays: keys compare by
-// value through a key function, and iteration yields the original keys.
+// StructMap is a Go map that a plain Map cannot represent: keys that are
+// structs or arrays compare by value through keyOf, and maps in generic code
+// keep values in an array so lookups never produce `V | undefined`.
 export class StructMap<K, V> extends GoObject {
-  keyOf: (k: K) => string;
-  keys = new Map<string, K>();
-  vals = new Map<string, V>();
-  constructor(keyOf: (k: K) => string) {
+  keyOf: ((k: K) => string) | undefined;
+  sidx = new Map<string, number>();
+  kidx = new Map<K, number>();
+  skeys: string[] = [];
+  ks: K[] = [];
+  vs: V[] = [];
+  constructor(keyOf: ((k: K) => string) | undefined = undefined) {
     super();
     this.keyOf = keyOf;
   }
   get size(): number {
-    return this.vals.size;
+    return this.ks.length;
   }
-  get(k: K): V | undefined {
-    return this.vals.get(this.keyOf(k));
+  index(k: K): number {
+    const i = this.keyOf === undefined ? this.kidx.get(k) : this.sidx.get(this.keyOf(k));
+    return i === undefined ? -1 : i;
+  }
+  getOr(k: K, z: V): V {
+    const i = this.index(k);
+    return i < 0 ? z : this.vs[i];
   }
   has(k: K): boolean {
-    return this.vals.has(this.keyOf(k));
+    return this.index(k) >= 0;
   }
   set(k: K, v: V): this {
-    const s = this.keyOf(k);
-    if (!this.keys.has(s)) this.keys.set(s, k);
-    this.vals.set(s, v);
+    const i = this.index(k);
+    if (i >= 0) {
+      this.vs[i] = v;
+      return this;
+    }
+    if (this.keyOf === undefined) {
+      this.kidx.set(k, this.ks.length);
+    } else {
+      const s = this.keyOf(k);
+      this.sidx.set(s, this.ks.length);
+      this.skeys.push(s);
+    }
+    this.ks.push(k);
+    this.vs.push(v);
     return this;
   }
   delete(k: K): boolean {
-    const s = this.keyOf(k);
-    this.keys.delete(s);
-    return this.vals.delete(s);
+    const i = this.index(k);
+    if (i < 0) return false;
+    const last = this.ks.length - 1;
+    if (this.keyOf === undefined) {
+      this.kidx.delete(k);
+      if (i !== last) this.kidx.set(this.ks[last], i);
+    } else {
+      this.sidx.delete(this.skeys[i]);
+      if (i !== last) {
+        this.sidx.set(this.skeys[last], i);
+        this.skeys[i] = this.skeys[last];
+      }
+      this.skeys.pop();
+    }
+    this.ks[i] = this.ks[last];
+    this.vs[i] = this.vs[last];
+    this.ks.pop();
+    this.vs.pop();
+    return true;
   }
   entryList(): [K, V][] {
     const out: [K, V][] = [];
-    for (const [s, k] of this.keys) out.push([k, this.vals.get(s)!]);
+    for (let i = 0; i < this.ks.length; i++) out.push([this.ks[i], this.vs[i]]);
     return out;
   }
   clear(): void {
-    this.keys = new Map<string, K>();
-    this.vals = new Map<string, V>();
+    this.sidx = new Map<string, number>();
+    this.kidx = new Map<K, number>();
+    this.skeys = [];
+    this.ks = [];
+    this.vs = [];
   }
+}
+
+// structMapGet is m[k] for a StructMap.
+export function structMapGet<K, V>(m: StructMap<K, V> | undefined, k: K, z: V): V {
+  return m === undefined ? z : m.getOr(k, z);
 }
 
 // Key fragments for StructMap key functions.
@@ -698,4 +733,19 @@ export function reslice<T>(s: T[], lo: number, hi: number, zero: T): T[] {
   const out = s.slice(lo);
   while (out.length < hi - lo) out.push(zero);
   return out;
+}
+
+// toStructMap copies a plain map into a StructMap.
+export function toStructMap<K, V>(m: Map<K, V> | undefined): StructMap<K, V> | undefined {
+  if (m === undefined) return undefined;
+  const out = new StructMap<K, V>();
+  for (const [k, v] of m) out.set(k, v);
+  return out;
+}
+
+// nn is v!, panicking on nil.
+export function nn<T>(v: T | undefined): T {
+  if (v === undefined)
+    throw new Panic(new BoxStr('runtime error: invalid memory address or nil pointer dereference', 'string'));
+  return v;
 }

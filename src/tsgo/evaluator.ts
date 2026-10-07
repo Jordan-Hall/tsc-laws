@@ -324,7 +324,7 @@ export function AnyToString(v: $rt.GoObject | undefined): string {
         const v$3: boolean = $rt.checkBool(true, $t1);
         return $core.IfElse<string>(v$3, 'true', 'false');
       } else if ($t1 instanceof $jsnum.PseudoBigInt) {
-        const v$4: $jsnum.PseudoBigInt = $t1;
+        const v$4: $jsnum.PseudoBigInt = $jsnum.PseudoBigInt.$cast_jsnum_PseudoBigInt($t1);
         return v$4.String();
       }
     }
@@ -345,7 +345,7 @@ export function IsTruthy(v: $rt.GoObject | undefined): boolean {
         const v$3: boolean = $rt.checkBool(true, $t1);
         return v$3;
       } else if ($t1 instanceof $jsnum.PseudoBigInt) {
-        const v$4: $jsnum.PseudoBigInt = $t1;
+        const v$4: $jsnum.PseudoBigInt = $jsnum.PseudoBigInt.$cast_jsnum_PseudoBigInt($t1);
         return !v$4.$equals_jsnum_PseudoBigInt(new $jsnum.PseudoBigInt());
       }
     }

@@ -10883,7 +10883,7 @@ export function attachFileToDiagnostics(
 export function getCommentPragmas(f: $ast.NodeFactory | undefined, sourceText: string): $ast.Pragma[] {
   let pragmas: $ast.Pragma[] = [];
   let $t1 = false;
-  let $t2: $ast.Pragma[] | undefined = undefined;
+  let $t2: $ast.Pragma[] = [];
   $scanner.GetLeadingCommentRanges(f, sourceText, 0)!((commentRange: $ast.CommentRange): boolean => {
     let comment: string = sourceText.substring(commentRange.Pos(), commentRange.End());
     $rt.appendInto(pragmas, extractPragmas(commentRange, comment));
@@ -11272,13 +11272,13 @@ export function GetJSDocCommentRanges(
       case 261 as number:
       case 282 as number: {
         let $t1 = false;
-        let $t2: $ast.CommentRange[] | undefined = undefined;
+        let $t2: $ast.CommentRange[] = [];
         $scanner.GetTrailingCommentRanges(f, text, node!.Pos())!((commentRange: $ast.CommentRange): boolean => {
           commentRanges = $rt.appendCopy(commentRanges, [commentRange]);
           return true;
         });
         let $t3 = false;
-        let $t4: $ast.CommentRange[] | undefined = undefined;
+        let $t4: $ast.CommentRange[] = [];
         $scanner.GetLeadingCommentRanges(f, text, node!.Pos())!((commentRange$1: $ast.CommentRange): boolean => {
           commentRanges = $rt.appendCopy(commentRanges, [commentRange$1]);
           return true;
@@ -11287,7 +11287,7 @@ export function GetJSDocCommentRanges(
       }
       default: {
         let $t5 = false;
-        let $t6: $ast.CommentRange[] | undefined = undefined;
+        let $t6: $ast.CommentRange[] = [];
         $scanner.GetLeadingCommentRanges(f, text, node!.Pos())!((commentRange$2: $ast.CommentRange): boolean => {
           commentRanges = $rt.appendCopy(commentRanges, [commentRange$2]);
           return true;
