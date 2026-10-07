@@ -6,6 +6,7 @@
   "scripts": {
     "build": "node tools/build.mjs",
     "build:oracle": "node tools/build-oracle.mjs",
+    "build:check": "scriptc build src/drivers/check.ts --optimization=release --no-keep-llvm -o dist/check",
     "fetch:upstream": "node tools/fetch-upstream.mjs",
     "generate": "node tools/generate-checker-flags.mjs && node tools/generate-case-mappings.mjs && oxfmt src/checker/flags.ts src/checker/case-mappings.ts",
     "export:graph": "node tools/export-graph.mjs",

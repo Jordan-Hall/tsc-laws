@@ -18,9 +18,19 @@ run(
   resolve('tools/gots'),
 );
 run(resolve('node_modules/.bin/oxfmt'), ['src/tsgo', 'src/go/runtime.ts'], resolve('.'));
-for (const { file, from, to } of patches) {
-  const text = readFileSync(file, 'utf8');
-  const parts = text.split(from);
-  if (parts.length !== 2) throw new Error(`scriptc patch for ${file} matched ${parts.length - 1} times`);
-  writeFileSync(file, parts.join(to));
+for (const { file, within, from, to, count = 1 } of patches) {
+  let text = readFileSync(file, 'utf8');
+  let start = 0;
+  let end = text.length;
+  if (within) {
+    start = text.indexOf(within);
+    end = text.indexOf('\n}\n', start) + 3;
+    if (start < 0 || end < 3) throw new Error(`scriptc patch: ${within} not found in ${file}`);
+  }
+  const parts = text.slice(start, end).split(from);
+  if (parts.length - 1 !== count) {
+    throw new Error(`scriptc patch for ${file} matched ${parts.length - 1} times, expected ${count}: ${from}`);
+  }
+  text = text.slice(0, start) + parts.join(to) + text.slice(end);
+  writeFileSync(file, text);
 }

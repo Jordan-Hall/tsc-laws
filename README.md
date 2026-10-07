@@ -3,7 +3,7 @@
 An experimental TypeScript port of the type checker from [TypeScript-Go](https://github.com/microsoft/typescript-go) (tsgo), compiled to a native executable with [scriptc](https://scriptc.dev).
 
 > [!NOTE]
-> tsts does not check TypeScript source files yet. It checks assignability between types in a resolved type graph that a Go reference build exports.
+> Two executables are built: `dist/tsts` checks assignability in a type graph exported by a Go reference build, and `dist/check` checks a TypeScript file with the translated tsgo checker.
 
 ## Requirements
 
@@ -84,11 +84,15 @@ Each file in [`examples`](examples) covers one area of the checker:
 
 ## Translated front end
 
-`tools/gots` translates TypeScript-Go packages to TypeScript in `src/tsgo`, with a small Go runtime in `src/go`. The scanner, parser, binder, and checker are translated. Checked against tsgo on TypeScript's compiler test cases, 99.7% of files produce identical diagnostics so far.
+`tools/gots` translates TypeScript-Go packages to TypeScript in `src/tsgo`, with a small Go runtime in `src/go`. The scanner, parser, binder, and checker are translated, and compile with scriptc.
 
 ```sh
-npm run translate   # regenerate src/tsgo
+npm run translate     # regenerate src/tsgo
+npm run build:check   # dist/check
+./dist/check file.ts upstream/typescript-go/internal/bundled/libs
 ```
+
+On TypeScript's 6,419 compiler test cases, `dist/check` reports the same diagnostics as tsgo for every file. It is currently about 7× slower than tsgo.
 
 ## Testing
 
@@ -125,10 +129,8 @@ These are synthetic, single-threaded benchmarks. They don't predict whole-compil
 
 ## Limitations
 
-- The translated checker runs under Node; native builds of it are in progress. `dist/tsts` checks type graphs exported by the Go reference build.
-- Module resolution, multi-file programs, and emit are not translated yet.
-- No expression checking or control flow analysis.
-- Comparisons that need protected-member rules fail as unsupported.
+- `dist/check` checks one file at a time against the bundled libs. Module resolution, multi-file programs, and emit are not supported.
+- `dist/tsts` has no expression checking or control flow analysis, and fails comparisons that need protected-member rules as unsupported.
 
 ## License
 

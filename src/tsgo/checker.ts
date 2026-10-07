@@ -34276,7 +34276,7 @@ export class Checker extends $rt.GoObject {
     alias: TypeAlias | undefined,
   ): Type | undefined {
     const c = this;
-    let orderedTypes: orderedSet<Type | undefined> = new orderedSet<Type | undefined>();
+    let orderedTypes: orderedSet = new orderedSet();
     orderedTypes.values = [] as (Type | undefined)[];
     let includes: TypeFlags = c!.addTypesToIntersection(orderedTypes, 0, types);
     let typeSet: (Type | undefined)[] = orderedTypes.values;
@@ -34452,7 +34452,7 @@ export class Checker extends $rt.GoObject {
     return result;
   }
   addTypesToIntersection(
-    typeSet: orderedSet<Type | undefined> | undefined,
+    typeSet: orderedSet | undefined,
     includes: TypeFlags,
     types: (Type | undefined)[],
   ): TypeFlags {
@@ -34467,7 +34467,7 @@ export class Checker extends $rt.GoObject {
     return includes;
   }
   addTypeToIntersection(
-    typeSet: orderedSet<Type | undefined> | undefined,
+    typeSet: orderedSet | undefined,
     includes: TypeFlags,
     t: Type | undefined,
   ): TypeFlags {
@@ -77365,19 +77365,19 @@ export class localsRecord extends $rt.GoObject {
     throw $rt.typeAssertError();
   }
 }
-export class orderedSet<T> extends $rt.GoObject {
-  valuesByKey: Map<T, $rt.Empty> | undefined = undefined;
-  values: T[] = [];
-  $copy_checker_orderedSet(src: orderedSet<T>): void {
+export class orderedSet extends $rt.GoObject {
+  valuesByKey: Map<Type | undefined, $rt.Empty> | undefined = undefined;
+  values: (Type | undefined)[] = [];
+  $copy_checker_orderedSet(src: orderedSet): void {
     this.valuesByKey = src.valuesByKey;
     this.values = src.values;
   }
-  $clone_checker_orderedSet(): orderedSet<T> {
-    const o = new orderedSet<T>();
+  $clone_checker_orderedSet(): orderedSet {
+    const o = new orderedSet();
     o.$copy_checker_orderedSet(this);
     return o;
   }
-  contains(value: T): boolean {
+  contains(value: Type | undefined): boolean {
     const s = this;
     if (s!.valuesByKey === undefined) {
       return $rt.slices_Contains(s!.values, value);
@@ -77387,16 +77387,16 @@ export class orderedSet<T> extends $rt.GoObject {
     let ok: boolean = $t1 !== undefined && $t1.has($t2);
     return ok;
   }
-  add(value: T): void {
+  add(value: Type | undefined): void {
     const s = this;
     s!.values.push(value);
     if (s!.valuesByKey === undefined) {
       if (s!.values.length <= 16) {
         return;
       }
-      s!.valuesByKey = new Map<T, $rt.Empty>();
+      s!.valuesByKey = new Map<Type | undefined, $rt.Empty>();
       {
-        const $t1 = $rt.reslice(s!.values, 0, s!.values.length - 1, undefined as unknown as T);
+        const $t1 = $rt.reslice(s!.values, 0, s!.values.length - 1, undefined);
         for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
           let v = $t1[$t2];
           s!.valuesByKey!.set(v, $rt.EMPTY);
