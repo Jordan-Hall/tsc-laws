@@ -186,7 +186,8 @@ export function runDefers(defers: (() => void)[], p: Panic | undefined): Panic |
     const saved = current;
     current = active;
     try {
-      defers[i]();
+      const defer = defers[i];
+      defer();
       active = current;
     } catch (e) {
       active = toPanic(e);
