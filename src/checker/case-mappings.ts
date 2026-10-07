@@ -1,5 +1,5 @@
 // Generated from upstream/typescript-go/internal/stringutil/js_case_generated.go by tools/generate-case-mappings.mjs.
-// Unicode 15.1.0; preserves the pinned tsgo case tables. See NOTICE.txt.
+// Unicode 15.1.0; preserves the pinned tsgo case tables. See THIRD_PARTY_NOTICES.md.
 // Copyright Microsoft Corporation. Licensed under Apache-2.0.
 export const caseCodePoints = [
   65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76,

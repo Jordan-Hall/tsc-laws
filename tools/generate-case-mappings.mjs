@@ -14,7 +14,7 @@ const ranges = name => {
 };
 const emit = (name, values) => 'export const ' + name + ' = [\n' + Array.from({ length: Math.ceil(values.length / 12) }, (_, i) => '  ' + values.slice(i * 12, i * 12 + 12).map(v => JSON.stringify(v)).join(', ') + ',').join('\n') + '\n];\n';
 const output = '// Generated from ' + path + ' by tools/generate-case-mappings.mjs.\n'
-  + '// Unicode 15.1.0; preserves the pinned tsgo case tables. See NOTICE.txt.\n'
+  + '// Unicode 15.1.0; preserves the pinned tsgo case tables. See THIRD_PARTY_NOTICES.md.\n'
   + '// Copyright Microsoft Corporation. Licensed under Apache-2.0.\n'
   + emit('caseCodePoints', entries.map(e => Number(e[1])))
   + emit('caseLower', entries.map(e => hex(decode(e[2]))))
