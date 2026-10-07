@@ -223,14 +223,14 @@ export class SpanMap extends $rt.GoObject {
     if (m === undefined) {
       return undefined;
     }
-    let virtualLen: $core.TextPos = virtual.length | 0;
-    let origLen: $core.TextPos = original.length | 0;
+    const virtualLen: $core.TextPos = virtual.length | 0;
+    const origLen: $core.TextPos = original.length | 0;
     let previousVirtualEnd: $core.TextPos = 0;
     {
       const $t1 = m!.segments;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        let i = $t2;
-        let s: Segment | undefined = m!.segments[i];
+        const i = $t2;
+        const s: Segment | undefined = m!.segments[i];
         if (s!.VirtualStart < previousVirtualEnd || s!.VirtualEnd < s!.VirtualStart || s!.VirtualEnd > virtualLen) {
           return MappingError.$lit_spanmap_MappingError_0_1(0, s!.VirtualStart);
         }
@@ -256,7 +256,7 @@ export class SpanMap extends $rt.GoObject {
         }
       }
     }
-    let originalSegments: Segment[] = m!.origIndex();
+    const originalSegments: Segment[] = m!.origIndex();
     {
       for (let i$1: number = 0; i$1 < originalSegments.length;) {
         let groupEnd: number = i$1 + 1;
@@ -296,28 +296,28 @@ export class SpanMap extends $rt.GoObject {
     if (m === undefined) {
       return [r, 0];
     }
-    let virtualStart: $core.TextPos = $core.TextRange$Pos(r) | 0;
-    let virtualEnd: $core.TextPos = Math.max($core.TextRange$End(r) | 0, virtualStart);
+    const virtualStart: $core.TextPos = $core.TextRange$Pos(r) | 0;
+    const virtualEnd: $core.TextPos = Math.max($core.TextRange$End(r) | 0, virtualStart);
     const $t1 = m!.segmentIndexAt(virtualStart);
-    let startIdx: number = $t1[0];
-    let startIn: boolean = $t1[1];
+    const startIdx: number = $t1[0];
+    const startIn: boolean = $t1[1];
     let endProbe: $core.TextPos = virtualEnd;
     if (virtualEnd > virtualStart) {
       endProbe = (virtualEnd - 1) | 0;
     }
     const $t2 = m!.segmentIndexAt(endProbe);
-    let endIdx: number = $t2[0];
-    let endIn: boolean = $t2[1];
+    const endIdx: number = $t2[0];
+    const endIn: boolean = $t2[1];
     if (startIdx === endIdx && startIn === endIn) {
       if (startIn) {
-        let seg: Segment | undefined = m!.segments[startIdx];
+        const seg: Segment | undefined = m!.segments[startIdx];
         if (seg!.Kind_ === (0 as number)) {
-          let origStart: $core.TextPos = clamp(
+          const origStart: $core.TextPos = clamp(
             (seg!.OriginalStart + ((virtualStart - seg!.VirtualStart) | 0)) | 0,
             seg!.OriginalStart,
             seg!.OriginalEnd,
           );
-          let origEnd: $core.TextPos = clamp(
+          const origEnd: $core.TextPos = clamp(
             (seg!.OriginalStart + ((virtualEnd - seg!.VirtualStart) | 0)) | 0,
             origStart,
             seg!.OriginalEnd,
@@ -326,11 +326,11 @@ export class SpanMap extends $rt.GoObject {
         }
         return [$core.NewTextRange(seg!.OriginalStart, seg!.OriginalEnd), 1];
       }
-      let pos: $core.TextPos = m!.insertionPoint(startIdx);
+      const pos: $core.TextPos = m!.insertionPoint(startIdx);
       return [$core.NewTextRange(pos, pos), 3];
     }
-    let origStart$1: $core.TextPos = m!.mapLow(virtualStart, startIdx, startIn);
-    let origEnd$1: $core.TextPos = Math.max(m!.mapHigh(virtualEnd, endIdx, endIn), origStart$1);
+    const origStart$1: $core.TextPos = m!.mapLow(virtualStart, startIdx, startIn);
+    const origEnd$1: $core.TextPos = Math.max(m!.mapHigh(virtualEnd, endIdx, endIn), origStart$1);
     return [$core.NewTextRange(origStart$1, origEnd$1), 2];
   }
   VirtualToOriginalSpan(r: $core.TextRange): [$core.TextRange, Fidelity] {
@@ -342,8 +342,8 @@ export class SpanMap extends $rt.GoObject {
     feature: Feature,
   ): [$core.TextRange, Fidelity] {
     const $t1 = SpanMap.VirtualToOriginalSpan$nil(m, r);
-    let mapped: $core.TextRange = $t1[0];
-    let fidelity: Fidelity = $t1[1];
+    const mapped: $core.TextRange = $t1[0];
+    const fidelity: Fidelity = $t1[1];
     if (m === undefined || m!.virtualSpanSupportsFeature(r, feature)) {
       return [mapped, fidelity];
     }
@@ -354,23 +354,23 @@ export class SpanMap extends $rt.GoObject {
   }
   virtualSpanSupportsFeature(r: $core.TextRange, feature: Feature): boolean {
     const m = this;
-    let start: $core.TextPos = $core.TextRange$Pos(r) | 0;
-    let end: $core.TextPos = Math.max($core.TextRange$End(r) | 0, start);
+    const start: $core.TextPos = $core.TextRange$Pos(r) | 0;
+    const end: $core.TextPos = Math.max($core.TextRange$End(r) | 0, start);
     if (start === end) {
       const $t1 = m!.segmentIndexAt(start);
-      let index: number = $t1[0];
-      let inside: boolean = $t1[1];
+      const index: number = $t1[0];
+      const inside: boolean = $t1[1];
       return inside && supportsFeature(m!.segments[index], feature);
     }
     const $t2 = m!.segmentIndexAt(start);
     let index$1: number = $t2[0];
-    let inside$1: boolean = $t2[1];
+    const inside$1: boolean = $t2[1];
     if (!inside$1) {
       return false;
     }
     let coveredThrough: $core.TextPos = start;
     for (; index$1 < m!.segments.length && coveredThrough < end;) {
-      let segment: Segment = m!.segments[index$1].$clone_spanmap_Segment();
+      const segment: Segment = m!.segments[index$1].$clone_spanmap_Segment();
       if (
         segment.VirtualStart > coveredThrough ||
         segment.VirtualEnd <= coveredThrough ||
@@ -388,12 +388,12 @@ export class SpanMap extends $rt.GoObject {
       return [pos, 0];
     }
     const $t1 = m!.segmentIndexAt(pos);
-    let idx: number = $t1[0];
-    let in_: boolean = $t1[1];
+    const idx: number = $t1[0];
+    const in_: boolean = $t1[1];
     if (!in_) {
       return [m!.insertionPoint(idx), 3];
     }
-    let seg: Segment | undefined = m!.segments[idx];
+    const seg: Segment | undefined = m!.segments[idx];
     if (seg!.Kind_ === (0 as number)) {
       return [
         clamp((seg!.OriginalStart + ((pos - seg!.VirtualStart) | 0)) | 0, seg!.OriginalStart, seg!.OriginalEnd),
@@ -411,14 +411,14 @@ export class SpanMap extends $rt.GoObject {
     feature: Feature,
   ): [$core.TextPos, Fidelity] {
     const $t1 = SpanMap.VirtualToOriginalPosition$nil(m, pos);
-    let mapped: $core.TextPos = $t1[0];
-    let fidelity: Fidelity = $t1[1];
+    const mapped: $core.TextPos = $t1[0];
+    const fidelity: Fidelity = $t1[1];
     if (m === undefined) {
       return [mapped, fidelity];
     }
     const $t2 = m!.segmentIndexAt(pos);
-    let index: number = $t2[0];
-    let inside: boolean = $t2[1];
+    const index: number = $t2[0];
+    const inside: boolean = $t2[1];
     if (!inside || !supportsFeature(m!.segments[index], feature)) {
       return [mapped, 3];
     }
@@ -432,12 +432,12 @@ export class SpanMap extends $rt.GoObject {
       return [new Segment(), false];
     }
     const $t1 = m!.segmentIndexAt($core.TextRange$Pos(r) | 0);
-    let index: number = $t1[0];
-    let inside: boolean = $t1[1];
+    const index: number = $t1[0];
+    const inside: boolean = $t1[1];
     if (!inside) {
       return [new Segment(), false];
     }
-    let segment: Segment = m!.segments[index].$clone_spanmap_Segment();
+    const segment: Segment = m!.segments[index].$clone_spanmap_Segment();
     return [
       segment.$clone_spanmap_Segment(),
       segment.Kind_ === (2 as number) &&
@@ -451,12 +451,12 @@ export class SpanMap extends $rt.GoObject {
   segmentIndexAt(pos: $core.TextPos): [number, boolean] {
     const m = this;
     const $t1 = $rt.slices_BinarySearchFunc(m!.segments, pos, $fn1);
-    let idx: number = $t1[0];
-    let found: boolean = $t1[1];
+    const idx: number = $t1[0];
+    const found: boolean = $t1[1];
     if (found) {
       return [idx, true];
     }
-    let prev: number = idx - 1;
+    const prev: number = idx - 1;
     if (prev >= 0 && pos < m!.segments[prev].VirtualEnd) {
       return [prev, true];
     }
@@ -474,7 +474,7 @@ export class SpanMap extends $rt.GoObject {
     if (!in_) {
       return m!.insertionPoint(idx);
     }
-    let seg: Segment | undefined = m!.segments[idx];
+    const seg: Segment | undefined = m!.segments[idx];
     if (seg!.Kind_ === (0 as number)) {
       return clamp((seg!.OriginalStart + ((pos - seg!.VirtualStart) | 0)) | 0, seg!.OriginalStart, seg!.OriginalEnd);
     }
@@ -485,7 +485,7 @@ export class SpanMap extends $rt.GoObject {
     if (!in_) {
       return m!.insertionPoint(idx);
     }
-    let seg: Segment | undefined = m!.segments[idx];
+    const seg: Segment | undefined = m!.segments[idx];
     if (seg!.Kind_ === (0 as number)) {
       return clamp((seg!.OriginalStart + ((pos - seg!.VirtualStart) | 0)) | 0, seg!.OriginalStart, seg!.OriginalEnd);
     }
@@ -499,7 +499,7 @@ export class SpanMap extends $rt.GoObject {
     if (m === undefined) {
       return [MappedPosition.$lit_spanmap_MappedPosition_0_1(pos, 0)];
     }
-    let groups: segmentGroupAtOriginalPosition[] = segmentGroupsAtOriginalPosition(m!.origIndex(), pos);
+    const groups: segmentGroupAtOriginalPosition[] = segmentGroupsAtOriginalPosition(m!.origIndex(), pos);
     if (groups.length === (0 as number)) {
       return [];
     }
@@ -507,15 +507,15 @@ export class SpanMap extends $rt.GoObject {
     {
       const $t1 = groups;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        let group = $t1[$t2];
+        const group = $t1[$t2];
         {
           const $t3 = group.segments;
           for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
-            let segment = $t3[$t4].$clone_spanmap_Segment();
+            const segment = $t3[$t4].$clone_spanmap_Segment();
             if (!supportsFeature(segment, feature)) {
               continue;
             }
-            let mapped: MappedPosition = MappedPosition.$lit_spanmap_MappedPosition_1(1);
+            const mapped: MappedPosition = MappedPosition.$lit_spanmap_MappedPosition_1(1);
             if (segment.Kind_ === (0 as number)) {
               mapped.Position = clamp(
                 (segment.VirtualStart + ((pos - segment.OriginalStart) | 0)) | 0,
@@ -551,27 +551,27 @@ export class SpanMap extends $rt.GoObject {
     if (m === undefined) {
       return [MappedSpan.$lit_spanmap_MappedSpan_0_1(r, 0)];
     }
-    let start: $core.TextPos = $core.TextRange$Pos(r) | 0;
-    let end: $core.TextPos = Math.max($core.TextRange$End(r) | 0, start);
+    const start: $core.TextPos = $core.TextRange$Pos(r) | 0;
+    const end: $core.TextPos = Math.max($core.TextRange$End(r) | 0, start);
     let lastCharacter: $core.TextPos = end;
     if (end > start) {
       lastCharacter = (lastCharacter - 1) | 0;
     }
-    let originalSegments: Segment[] = m!.origIndex();
+    const originalSegments: Segment[] = m!.origIndex();
     const $t1 = segmentsAtOriginalPosition(originalSegments, start);
-    let startSegments: Segment[] = $t1[0];
-    let startInside: boolean = $t1[1];
+    const startSegments: Segment[] = $t1[0];
+    const startInside: boolean = $t1[1];
     const $t2 = segmentsAtOriginalPosition(originalSegments, lastCharacter);
-    let endSegments: Segment[] = $t2[0];
-    let endInside: boolean = $t2[1];
+    const endSegments: Segment[] = $t2[0];
+    const endInside: boolean = $t2[1];
     if (!startInside || !endInside) {
       return [];
     }
     if (sameOriginalRange(startSegments[0], endSegments[0])) {
       return originalToVirtualSpansInGroup(startSegments, start, end, feature);
     }
-    let starts: $core.TextPos[] = originalStartProjections(startSegments, start, feature);
-    let ends: $core.TextPos[] = originalEndProjections(endSegments, end, feature);
+    const starts: $core.TextPos[] = originalStartProjections(startSegments, start, feature);
+    const ends: $core.TextPos[] = originalEndProjections(endSegments, end, feature);
     if (starts.length === (0 as number) || ends.length === (0 as number)) {
       return [];
     }
@@ -579,10 +579,10 @@ export class SpanMap extends $rt.GoObject {
     {
       const $t3 = starts;
       for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
-        let i = $t4;
-        let virtualStart = $t3[$t4];
+        const i = $t4;
+        const virtualStart = $t3[$t4];
         const $t5 = $rt.slices_BinarySearch(ends, virtualStart);
-        let endIndex: number = $t5[0];
+        const endIndex: number = $t5[0];
         if (endIndex === ends.length || (i + 1 < starts.length && starts[i + 1] <= ends[endIndex])) {
           continue;
         }
@@ -609,12 +609,12 @@ export class SpanMap extends $rt.GoObject {
     {
       const $t1 = m!.segments;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        let segment = $t1[$t2].$clone_spanmap_Segment();
+        const segment = $t1[$t2].$clone_spanmap_Segment();
         if (!supportsFeature(segment, feature)) {
           continue;
         }
-        let start: $core.TextPos = Math.max($core.TextRange$Pos(r) | 0, segment.OriginalStart);
-        let end: $core.TextPos = Math.min($core.TextRange$End(r) | 0, segment.OriginalEnd);
+        const start: $core.TextPos = Math.max($core.TextRange$Pos(r) | 0, segment.OriginalStart);
+        const end: $core.TextPos = Math.min($core.TextRange$End(r) | 0, segment.OriginalEnd);
         if (start >= end) {
           continue;
         }
@@ -650,12 +650,12 @@ export class SpanMap extends $rt.GoObject {
   }
   Marshal(): [number[], $rt.GoObject | undefined] {
     const m = this;
-    let tuples: number[][] = $rt.makeSlice<number[]>(m!.segments.length, []);
+    const tuples: number[][] = $rt.makeSlice<number[]>(m!.segments.length, []);
     {
       const $t1 = m!.segments;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        let i = $t2;
-        let s = $t1[$t2].$clone_spanmap_Segment();
+        const i = $t2;
+        const s = $t1[$t2].$clone_spanmap_Segment();
         tuples[i] = [
           s.VirtualStart,
           (s.VirtualEnd - s.VirtualStart) | 0,
@@ -751,13 +751,13 @@ const $fn2 = (a: MappedPosition, b: MappedPosition): number => {
 };
 const $fn3 = (a: Segment, b: Segment): number => {
   {
-    let c: number = (a.OriginalStart - b.OriginalStart) | 0;
+    const c: number = (a.OriginalStart - b.OriginalStart) | 0;
     if (!(c === (0 as number))) {
       return c;
     }
   }
   {
-    let c$1: number = (a.OriginalEnd - b.OriginalEnd) | 0;
+    const c$1: number = (a.OriginalEnd - b.OriginalEnd) | 0;
     if (!(c$1 === (0 as number))) {
       return c$1;
     }
@@ -777,7 +777,7 @@ export function Fidelity$IsNone(f: Fidelity): boolean {
   return f === (3 as number);
 }
 export function New(segments: Segment[]): SpanMap | undefined {
-  let sorted: Segment[] = $rt.slices_Clone(segments);
+  const sorted: Segment[] = $rt.slices_Clone(segments);
   $rt.slices_SortFunc(sorted, $fn0);
   return SpanMap.$lit_spanmap_SpanMap_0(sorted);
 }
@@ -786,7 +786,7 @@ export function originalStartProjections(segments: Segment[], start: $core.TextP
   {
     const $t1 = segments;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let segment = $t1[$t2].$clone_spanmap_Segment();
+      const segment = $t1[$t2].$clone_spanmap_Segment();
       if (!supportsFeature(segment, feature)) {
         continue;
       }
@@ -810,7 +810,7 @@ export function originalEndProjections(segments: Segment[], end: $core.TextPos, 
   {
     const $t1 = segments;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let segment = $t1[$t2].$clone_spanmap_Segment();
+      const segment = $t1[$t2].$clone_spanmap_Segment();
       if (!supportsFeature(segment, feature)) {
         continue;
       }
@@ -839,17 +839,17 @@ export function originalToVirtualSpansInGroup(
   {
     const $t1 = segments;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let segment = $t1[$t2].$clone_spanmap_Segment();
+      const segment = $t1[$t2].$clone_spanmap_Segment();
       if (!supportsFeature(segment, feature)) {
         continue;
       }
       if (segment.Kind_ === (0 as number)) {
-        let virtualStart: $core.TextPos = clamp(
+        const virtualStart: $core.TextPos = clamp(
           (segment.VirtualStart + ((start - segment.OriginalStart) | 0)) | 0,
           segment.VirtualStart,
           segment.VirtualEnd,
         );
-        let virtualEnd: $core.TextPos = clamp(
+        const virtualEnd: $core.TextPos = clamp(
           (segment.VirtualStart + ((end - segment.OriginalStart) | 0)) | 0,
           virtualStart,
           segment.VirtualEnd,
@@ -870,7 +870,7 @@ export function sameOriginalRange(left: Segment, right: Segment): boolean {
 export function segmentsAtOriginalPosition(segments: Segment[], pos: $core.TextPos): [Segment[], boolean] {
   const $t1 = $rt.slices_BinarySearchFunc(segments, pos, $fn4);
   let index: number = $t1[0];
-  let found: boolean = $t1[1];
+  const found: boolean = $t1[1];
   if (!found) {
     index--;
   }
@@ -892,14 +892,14 @@ export function segmentGroupsAtOriginalPosition(
   pos: $core.TextPos,
 ): segmentGroupAtOriginalPosition[] {
   const $t1 = $rt.slices_BinarySearchFunc(segments, pos, $fn4);
-  let index: number = $t1[0];
-  let startsAtPosition: boolean = $t1[1];
+  const index: number = $t1[0];
+  const startsAtPosition: boolean = $t1[1];
   if (startsAtPosition) {
     const $t2 = segmentsAtOriginalPosition(segments, pos);
-    let right: Segment[] = $t2[0];
+    const right: Segment[] = $t2[0];
     let groups: segmentGroupAtOriginalPosition[] = [];
     if (index > 0) {
-      let leftIndex: number = index - 1;
+      const leftIndex: number = index - 1;
       if (segments[leftIndex].OriginalEnd === pos) {
         let leftStart: number = leftIndex;
         for (; leftStart > 0 && sameOriginalRange(segments[leftStart - 1], segments[leftIndex]);) {
@@ -920,8 +920,8 @@ export function segmentGroupsAtOriginalPosition(
   if (index === (0 as number)) {
     return [];
   }
-  let leftIndex$1: number = index - 1;
-  let segment$1: Segment = segments[leftIndex$1].$clone_spanmap_Segment();
+  const leftIndex$1: number = index - 1;
+  const segment$1: Segment = segments[leftIndex$1].$clone_spanmap_Segment();
   if (pos > segment$1.OriginalEnd) {
     return [];
   }
@@ -945,7 +945,7 @@ export function clamp(v: $core.TextPos, lo: $core.TextPos, hi: $core.TextPos): $
 export function Unmarshal(data: number[]): [SpanMap | undefined, $rt.GoObject | undefined] {
   let tuples: number[][] = [];
   {
-    let err: $rt.GoObject | undefined = $json.Unmarshal(
+    const err: $rt.GoObject | undefined = $json.Unmarshal(
       data,
       $rt.ptrTo<number[][]>(
         (): number[][] => tuples,
@@ -959,12 +959,12 @@ export function Unmarshal(data: number[]): [SpanMap | undefined, $rt.GoObject | 
       return [undefined, err];
     }
   }
-  let segments: Segment[] = $rt.makeSliceFn<Segment>(tuples.length, () => new Segment());
+  const segments: Segment[] = $rt.makeSliceFn<Segment>(tuples.length, () => new Segment());
   {
     const $t1 = tuples;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let i = $t2;
-      let t = $t1[$t2];
+      const i = $t2;
+      const t = $t1[$t2];
       if (!(t.length === (5 as number)) && !(t.length === (6 as number))) {
         return [
           undefined,

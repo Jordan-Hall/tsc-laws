@@ -676,9 +676,9 @@ export class CompilerOptions extends $rt.GoObject {
   }
   Clone(): CompilerOptions | undefined {
     const options = this;
-    let target: CompilerOptions | undefined = new CompilerOptions();
-    let sourceValue: $rt.reflect_Value = $rt.reflect_ValueOf(options).Elem();
-    let targetValue: $rt.reflect_Value = $rt.reflect_ValueOf(target).Elem();
+    const target: CompilerOptions | undefined = new CompilerOptions();
+    const sourceValue: $rt.reflect_Value = $rt.reflect_ValueOf(options).Elem();
+    const targetValue: $rt.reflect_Value = $rt.reflect_ValueOf(target).Elem();
     for (let i = 0, $t1 = sourceValue.NumField(); i < $t1; i++) {
       if (optionsType!.Field(i).IsExported()) {
         targetValue.Field(i).Set(sourceValue.Field(i));
@@ -698,7 +698,7 @@ export class CompilerOptions extends $rt.GoObject {
     if (!(options!.Module === (0 as number))) {
       return options!.Module;
     }
-    let target: ScriptTarget = options!.GetEmitScriptTarget();
+    const target: ScriptTarget = options!.GetEmitScriptTarget();
     if (target === (99 as number)) {
       return 99;
     }
@@ -748,7 +748,7 @@ export class CompilerOptions extends $rt.GoObject {
     if (!(options!.ModuleDetection === (0 as number))) {
       return options!.ModuleDetection;
     }
-    let moduleKind: ModuleKind = options!.GetEmitModuleKind();
+    const moduleKind: ModuleKind = options!.GetEmitModuleKind();
     if (100 <= moduleKind && moduleKind <= 199) {
       return 3;
     }
@@ -800,7 +800,7 @@ export class CompilerOptions extends $rt.GoObject {
   }
   GetJSXTransformEnabled(): boolean {
     const options = this;
-    let jsx: JsxEmit = options!.Jsx;
+    const jsx: JsxEmit = options!.Jsx;
     return jsx === (3 as number) || jsx === (4 as number) || jsx === (5 as number);
   }
   GetStrictOptionValue(value: Tristate): boolean {
@@ -950,7 +950,7 @@ export class PagedLinkStore<V> extends $rt.GoObject {
   Get(key$v: number): $rt.Ptr<V> | undefined {
     const s = this;
     let page: V[] | undefined = undefined as V[] | undefined;
-    let pageIndex: number = $rt.shr64(key$v, 8);
+    const pageIndex: number = $rt.shr64(key$v, 8);
     if (pageIndex < 65536) {
       if (pageIndex >= s!.pageList.length) {
         s!.pageList = $rt.reslice(
@@ -990,7 +990,7 @@ export class PagedLinkStore<V> extends $rt.GoObject {
   TryGet(key$v: number): $rt.Ptr<V> | undefined {
     const s = this;
     let page: V[] | undefined = undefined as V[] | undefined;
-    let pageIndex: number = $rt.shr64(key$v, 8);
+    const pageIndex: number = $rt.shr64(key$v, 8);
     if (pageIndex < 65536) {
       if (pageIndex < s!.pageList.length) {
         page = s!.pageList[pageIndex];
@@ -1112,19 +1112,19 @@ export class Stack<T> extends $rt.GoObject {
   }
   Pop(): T {
     const s = this;
-    let l: number = s!.data.length;
+    const l: number = s!.data.length;
     if (l === (0 as number)) {
       throw $rt.newPanic(new $rt.BoxStr('stack is empty', 'string'));
     }
-    let item: T = s!.data[l - 1];
-    let zero: T = this.$z_T();
+    const item: T = s!.data[l - 1];
+    const zero: T = this.$z_T();
     s!.data[l - 1] = zero;
     s!.data = $rt.truncate(s!.data, l - 1, this.$z_T());
     return item;
   }
   Peek(): T {
     const s = this;
-    let l: number = s!.data.length;
+    const l: number = s!.data.length;
     if (l === (0 as number)) {
       throw $rt.newPanic(new $rt.BoxStr('stack is empty', 'string'));
     }
@@ -1490,7 +1490,7 @@ export class singleThreadedWorkGroup extends $rt.GoObject {
         $t2.Store($t1);
       });
       for (;;) {
-        let fn: (() => void) | undefined = w!.pop();
+        const fn: (() => void) | undefined = w!.pop();
         if (fn === undefined) {
           break $body;
         }
@@ -1518,8 +1518,8 @@ export class singleThreadedWorkGroup extends $rt.GoObject {
         $t1 = undefined;
         break $body;
       }
-      let end: number = w!.fns.length - 1;
-      let fn: (() => void) | undefined = w!.fns[end];
+      const end: number = w!.fns.length - 1;
+      const fn: (() => void) | undefined = w!.fns[end];
       w!.fns[end] = undefined;
       w!.fns = $rt.truncate(w!.fns, end, undefined);
       $t1 = fn;
@@ -1674,7 +1674,7 @@ const $fn0 = (): $rt.GoObject | undefined => {
   return new levenshteinBuffers();
 };
 const $fn1 = (): Map<string, boolean> | undefined => {
-  let nodeCoreModules: Map<string, boolean> | undefined = new Map<string, boolean>();
+  const nodeCoreModules: Map<string, boolean> | undefined = new Map<string, boolean>();
   for (const [unprefixed, $t1] of UnprefixedNodeCoreModules ?? new Map<string, boolean>()) {
     nodeCoreModules!.set(unprefixed, true);
     nodeCoreModules!.set('node:' + unprefixed, true);
@@ -1684,7 +1684,7 @@ const $fn1 = (): Map<string, boolean> | undefined => {
 };
 const $fn2 = (): string => {
   let seenMajor: boolean = false;
-  let i: number = $rt.strings_IndexFunc(version, (r: number): boolean => {
+  const i: number = $rt.strings_IndexFunc(version, (r: number): boolean => {
     if (r === (46 as number)) {
       if (seenMajor) {
         return true;
@@ -1818,7 +1818,7 @@ export function BreadthFirstSearchParallelEx<K, N>(
     visited = new $collections.SyncSet<K>($z_K);
   }
   let fallback: breadthFirstSearchJob<N> | undefined = undefined as breadthFirstSearchJob<N> | undefined;
-  let processLevel:
+  const processLevel:
     | ((
         p0: number,
         p1: $collections.OrderedMap<K, breadthFirstSearchJob<N> | undefined> | undefined,
@@ -1835,11 +1835,11 @@ export function BreadthFirstSearchParallelEx<K, N>(
     if (!(options.PreprocessLevel === undefined)) {
       options.PreprocessLevel!(BreadthFirstSearchLevel.$lit_core_BreadthFirstSearchLevel_0<K, N>(jobs));
     }
-    let next: (breadthFirstSearchJob<N> | undefined)[][] = $rt.makeSlice<(breadthFirstSearchJob<N> | undefined)[]>(
+    const next: (breadthFirstSearchJob<N> | undefined)[][] = $rt.makeSlice<(breadthFirstSearchJob<N> | undefined)[]>(
       jobs!.Size(),
       [],
     );
-    let wg: $rt.sync_WaitGroup = new $rt.sync_WaitGroup();
+    const wg: $rt.sync_WaitGroup = new $rt.sync_WaitGroup();
     let i: number = 0;
     let $t1 = false;
     let $t2: BreadthFirstSearchParallelEx$result<K, N> = new BreadthFirstSearchParallelEx$result();
@@ -1860,8 +1860,8 @@ export function BreadthFirstSearchParallelEx<K, N>(
             break $body;
           }
           const $t4 = visit!(j$1!.node);
-          let isResult: boolean = $t4[0];
-          let stop: boolean = $t4[1];
+          const isResult: boolean = $t4[0];
+          const stop: boolean = $t4[1];
           if (isResult) {
             if (stop) {
               updateMin(lowestGoal, i$1);
@@ -1874,7 +1874,7 @@ export function BreadthFirstSearchParallelEx<K, N>(
           if (i$1 >= lowestGoal.Load()) {
             break $body;
           }
-          let neighborNodes: N[] = neighbors!(j$1!.node);
+          const neighborNodes: N[] = neighbors!(j$1!.node);
           if (neighborNodes.length > 0) {
             nextJobCount = nextJobCount + neighborNodes.length;
             next[i$1] = Map_<N, breadthFirstSearchJob<N> | undefined>(
@@ -1897,23 +1897,23 @@ export function BreadthFirstSearchParallelEx<K, N>(
     });
     wg.Wait();
     {
-      let index$1: number = lowestGoal.Load();
+      const index$1: number = lowestGoal.Load();
       if (!(index$1 === (9223372036854775807 as number))) {
         const $t5 = jobs!.EntryAt(index$1);
-        let job: breadthFirstSearchJob<N> | undefined = $t5[1];
+        const job: breadthFirstSearchJob<N> | undefined = $t5[1];
         return BreadthFirstSearchParallelEx$result.$lit_core_BreadthFirstSearchParallelEx$result_0_1(true, job);
       }
     }
     if (fallback === undefined) {
       {
-        let index$2: number = lowestFallback.Load();
+        const index$2: number = lowestFallback.Load();
         if (!(index$2 === (9223372036854775807 as number))) {
           const $t6 = jobs!.EntryAt(index$2);
           fallback = $t6[1];
         }
       }
     }
-    let nextJobs: $collections.OrderedMap<K, breadthFirstSearchJob<N> | undefined> | undefined =
+    const nextJobs: $collections.OrderedMap<K, breadthFirstSearchJob<N> | undefined> | undefined =
       $collections.NewOrderedMapWithSizeHint<K, breadthFirstSearchJob<N> | undefined>(
         $z_K,
         (): breadthFirstSearchJob<N> | undefined => undefined,
@@ -1922,11 +1922,11 @@ export function BreadthFirstSearchParallelEx<K, N>(
     {
       const $t7 = next;
       for (let $t8 = 0, $n = $t7.length; $t8 < $n; $t8++) {
-        let jobs$1 = $t7[$t8];
+        const jobs$1 = $t7[$t8];
         {
           const $t9 = jobs$1;
           for (let $t10 = 0, $n = $t9.length; $t10 < $n; $t10++) {
-            let j$2 = $t9[$t10];
+            const j$2 = $t9[$t10];
             if (!nextJobs!.Has(getKey!(j$2!.node))) {
               nextJobs!.Set(getKey!(j$2!.node), j$2);
             }
@@ -1936,7 +1936,7 @@ export function BreadthFirstSearchParallelEx<K, N>(
     }
     return BreadthFirstSearchParallelEx$result.$lit_core_BreadthFirstSearchParallelEx$result_2(nextJobs);
   };
-  let createPath: ((p0: breadthFirstSearchJob<N> | undefined) => N[]) | undefined = (
+  const createPath: ((p0: breadthFirstSearchJob<N> | undefined) => N[]) | undefined = (
     job$1: breadthFirstSearchJob<N> | undefined,
   ): N[] => {
     let path: N[] = [];
@@ -1961,7 +1961,7 @@ export function BreadthFirstSearchParallelEx<K, N>(
       ],
     );
   for (; level!.Size() > 0;) {
-    let result: BreadthFirstSearchParallelEx$result<K, N> = processLevel!(levelIndex, level);
+    const result: BreadthFirstSearchParallelEx$result<K, N> = processLevel!(levelIndex, level);
     if (result.stop) {
       return BreadthFirstSearchResult.$lit_core_BreadthFirstSearchResult_0_1<N>(true, createPath!(result.job));
     } else if (!(result.job === undefined) && fallback === undefined) {
@@ -1974,7 +1974,7 @@ export function BreadthFirstSearchParallelEx<K, N>(
 }
 export function updateMin(a: $rt.sync_atomic_Int64 | undefined, candidate: number): boolean {
   for (;;) {
-    let current: number = a!.Load();
+    const current: number = a!.Load();
     if (current < candidate) {
       return false;
     }
@@ -1987,7 +1987,7 @@ export function BinarySearchUniqueFunc<S extends E[], E>(
   x: S,
   cmp: ((p0: number, p1: E) => number) | undefined,
 ): [number, boolean] {
-  let n: number = x.length;
+  const n: number = x.length;
   if (n === (0 as number)) {
     return [0, false];
   }
@@ -1996,8 +1996,8 @@ export function BinarySearchUniqueFunc<S extends E[], E>(
   let low: number = $t1;
   let high: number = $t2;
   for (; low <= high;) {
-    let middle: number = low + $rt.shr64(high - low, 1);
-    let value: number = cmp!(middle, x[middle]);
+    const middle: number = low + $rt.shr64(high - low, 1);
+    const value: number = cmp!(middle, x[middle]);
     if (value < 0) {
       low = middle + 1;
     } else if (value > 0) {
@@ -2102,8 +2102,8 @@ export function GetRequestID(ctx: $rt.context_Context | undefined): string {
   {
     const $t1: $rt.GoObject | undefined = ctx!.Value(new $rt.BoxNum(0, 'core.key'));
     const $t2: boolean = $rt.isValue($t1, 'string');
-    let id: string = $t2 ? $rt.checkString(true, $t1) : '';
-    let ok: boolean = $t2;
+    const id: string = $t2 ? $rt.checkString(true, $t1) : '';
+    const ok: boolean = $t2;
     if (ok) {
       return id;
     }
@@ -2120,8 +2120,8 @@ export function GetCheckerLifetime(ctx: $rt.context_Context | undefined): Checke
   {
     const $t1: $rt.GoObject | undefined = ctx!.Value(new $rt.BoxNum(1, 'core.key'));
     const $t2: boolean = $rt.isValue($t1, 'core.CheckerLifetime');
-    let lifetime: CheckerLifetime = $t2 ? $rt.checkNumber(true, $t1) : 0;
-    let ok: boolean = $t2;
+    const lifetime: CheckerLifetime = $t2 ? $rt.checkNumber(true, $t1) : 0;
+    const ok: boolean = $t2;
     if (ok) {
       return lifetime;
     }
@@ -2129,13 +2129,13 @@ export function GetCheckerLifetime(ctx: $rt.context_Context | undefined): Checke
   return 0;
 }
 export function ApplyDebugStackLimit(): void {
-  let v: string = $rt.os_Getenv('TS_GO_DEBUG_STACK_LIMIT');
+  const v: string = $rt.os_Getenv('TS_GO_DEBUG_STACK_LIMIT');
   if (v === ('' as string)) {
     return;
   }
   const $t1 = $rt.strconv_Atoi(v);
-  let n: number = $t1[0];
-  let err: $rt.GoObject | undefined = $t1[1];
+  const n: number = $t1[0];
+  const err: $rt.GoObject | undefined = $t1[1];
   if (!(err === undefined) || n <= 0) {
     return;
   }
@@ -2172,7 +2172,7 @@ export function FilterSeq<T>(
     {
       const $t1 = slice;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        let value = $t1[$t2];
+        const value = $t1[$t2];
         if (f!(value)) {
           if (!yield_!(value)) {
             return;
@@ -2209,12 +2209,12 @@ export function Map_<T, U>($z_U: () => U, slice: T[], f: ((p0: T) => U) | undefi
   if (slice.length === 0) {
     return [];
   }
-  let result: U[] = $rt.makeSlice<U>(slice.length, $z_U());
+  const result: U[] = $rt.makeSlice<U>(slice.length, $z_U());
   {
     const $t1 = slice;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let i = $t2;
-      let value = $t1[$t2];
+      const i = $t2;
+      const value = $t1[$t2];
       result[i] = f!(value);
     }
   }
@@ -2228,15 +2228,15 @@ export function TryMap<T, U>(
   if (slice.length === (0 as number)) {
     return [[], undefined];
   }
-  let result: U[] = $rt.makeSlice<U>(slice.length, $z_U());
+  const result: U[] = $rt.makeSlice<U>(slice.length, $z_U());
   {
     const $t1 = slice;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let i = $t2;
-      let value = $t1[$t2];
+      const i = $t2;
+      const value = $t1[$t2];
       const $t3 = f!(value);
-      let mapped: U = $t3[0];
-      let err: $rt.GoObject | undefined = $t3[1];
+      const mapped: U = $t3[0];
+      const err: $rt.GoObject | undefined = $t3[1];
       if (!(err === undefined)) {
         return [[], err];
       }
@@ -2249,12 +2249,12 @@ export function MapIndex<T, U>($z_U: () => U, slice: T[], f: ((p0: T, p1: number
   if (slice.length === 0) {
     return [];
   }
-  let result: U[] = $rt.makeSlice<U>(slice.length, $z_U());
+  const result: U[] = $rt.makeSlice<U>(slice.length, $z_U());
   {
     const $t1 = slice;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let i = $t2;
-      let value = $t1[$t2];
+      const i = $t2;
+      const value = $t1[$t2];
       result[i] = f!(value, i);
     }
   }
@@ -2265,8 +2265,8 @@ export function MapNonNil<T, U>($z_U: () => U, slice: T[], f: ((p0: T) => U) | u
   {
     const $t1 = slice;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let value = $t1[$t2];
-      let mapped: U = f!(value);
+      const value = $t1[$t2];
+      const mapped: U = f!(value);
       if (!(mapped === new $rt.Ptr<U>($z_U())!.get())) {
         result.push(mapped);
       }
@@ -2279,10 +2279,10 @@ export function MapFiltered<T, U>(slice: T[], f: ((p0: T) => [U, boolean]) | und
   {
     const $t1 = slice;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let value = $t1[$t2];
+      const value = $t1[$t2];
       const $t3 = f!(value);
-      let mapped: U = $t3[0];
-      let ok: boolean = $t3[1];
+      const mapped: U = $t3[0];
+      const ok: boolean = $t3[1];
       if (!ok) {
         continue;
       }
@@ -2296,8 +2296,8 @@ export function FlatMap<T, U>(slice: T[], f: ((p0: T) => U[]) | undefined): U[] 
   {
     const $t1 = slice;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let value = $t1[$t2];
-      let mapped: U[] = f!(value);
+      const value = $t1[$t2];
+      const mapped: U[] = f!(value);
       if (!(mapped.length === (0 as number))) {
         $rt.appendInto(result, mapped);
       }
@@ -2309,11 +2309,11 @@ export function SameMap<T>($z_T: () => T, slice: T[], f: ((p0: T) => T) | undefi
   {
     const $t1 = slice;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let i = $t2;
-      let value = $t1[$t2];
-      let mapped: T = f!(value);
+      const i = $t2;
+      const value = $t1[$t2];
+      const mapped: T = f!(value);
       if (!(mapped === value)) {
-        let result: T[] = $rt.makeSlice<T>(slice.length, $z_T());
+        const result: T[] = $rt.makeSlice<T>(slice.length, $z_T());
         const $t3 = $rt.reslice(slice, 0, i, $z_T());
         $rt.copySlice(result, $t3);
         $rt.copyAt(slice, 0, -1, $t3);
@@ -2333,11 +2333,11 @@ export function SameMapIndex<T>($z_T: () => T, slice: T[], f: ((p0: T, p1: numbe
   {
     const $t1 = slice;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let i = $t2;
-      let value = $t1[$t2];
-      let mapped: T = f!(value, i);
+      const i = $t2;
+      const value = $t1[$t2];
+      const mapped: T = f!(value, i);
       if (!(mapped === value)) {
-        let result: T[] = $rt.makeSlice<T>(slice.length, $z_T());
+        const result: T[] = $rt.makeSlice<T>(slice.length, $z_T());
         const $t3 = $rt.reslice(slice, 0, i, $z_T());
         $rt.copySlice(result, $t3);
         $rt.copyAt(slice, 0, -1, $t3);
@@ -2363,7 +2363,7 @@ export function Some<T>(slice: T[], f: ((p0: T) => boolean) | undefined): boolea
   {
     const $t1 = slice;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let value = $t1[$t2];
+      const value = $t1[$t2];
       if (f!(value)) {
         return true;
       }
@@ -2375,7 +2375,7 @@ export function Every<T>(slice: T[], f: ((p0: T) => boolean) | undefined): boole
   {
     const $t1 = slice;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let value = $t1[$t2];
+      const value = $t1[$t2];
       if (!f!(value)) {
         return false;
       }
@@ -2388,7 +2388,7 @@ export function Or<T>(funcs: (((p0: T) => boolean) | undefined)[]): ((p0: T) => 
     {
       const $t1 = funcs;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        let f = $t1[$t2];
+        const f = $t1[$t2];
         if (f!(input)) {
           return true;
         }
@@ -2401,7 +2401,7 @@ export function Find<T>($z_T: () => T, slice: T[], f: ((p0: T) => boolean) | und
   {
     const $t1 = slice;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let value = $t1[$t2];
+      const value = $t1[$t2];
       if (f!(value)) {
         return value;
       }
@@ -2412,7 +2412,7 @@ export function Find<T>($z_T: () => T, slice: T[], f: ((p0: T) => boolean) | und
 export function FindLast<T>($z_T: () => T, slice: T[], f: ((p0: T) => boolean) | undefined): T {
   {
     for (let i: number = slice.length - 1; i >= 0; i--) {
-      let value: T = slice[i];
+      const value: T = slice[i];
       if (f!(value)) {
         return value;
       }
@@ -2424,8 +2424,8 @@ export function FindIndex<T>(slice: T[], f: ((p0: T) => boolean) | undefined): n
   {
     const $t1 = slice;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let i = $t2;
-      let value = $t1[$t2];
+      const i = $t2;
+      const value = $t1[$t2];
       if (f!(value)) {
         return i;
       }
@@ -2436,7 +2436,7 @@ export function FindIndex<T>(slice: T[], f: ((p0: T) => boolean) | undefined): n
 export function FindLastIndex<T>(slice: T[], f: ((p0: T) => boolean) | undefined): number {
   {
     for (let i: number = slice.length - 1; i >= 0; i--) {
-      let value: T = slice[i];
+      const value: T = slice[i];
       if (f!(value)) {
         return i;
       }
@@ -2480,8 +2480,8 @@ export function FirstNonNil<T, U>($z_U: () => U, slice: T[], f: ((p0: T) => U) |
   {
     const $t1 = slice;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let value = $t1[$t2];
-      let mapped: U = f!(value);
+      const value = $t1[$t2];
+      const mapped: U = f!(value);
       if (!(mapped === new $rt.Ptr<U>($z_U())!.get())) {
         return mapped;
       }
@@ -2490,11 +2490,11 @@ export function FirstNonNil<T, U>($z_U: () => U, slice: T[], f: ((p0: T) => U) |
   return new $rt.Ptr<U>($z_U())!.get();
 }
 export function FirstNonZero<T>($z_T: () => T, values: T[]): T {
-  let zero: T = $z_T();
+  const zero: T = $z_T();
   {
     const $t1 = values;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let value = $t1[$t2];
+      const value = $t1[$t2];
       if (!(value === zero)) {
         return value;
       }
@@ -2524,7 +2524,7 @@ export function Splice<T>(s1: T[], start: number, deleteCount: number, items: T[
   if (deleteCount < 0) {
     deleteCount = 0;
   }
-  let end: number = Math.min(start + Math.max(deleteCount, 0), s1.length);
+  const end: number = Math.min(start + Math.max(deleteCount, 0), s1.length);
   if (start === end && items.length === (0 as number)) {
     return s1;
   }
@@ -2535,7 +2535,7 @@ export function CountWhere<T>(slice: T[], f: ((p0: T) => boolean) | undefined): 
   {
     const $t1 = slice;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let value = $t1[$t2];
+      const value = $t1[$t2];
       if (f!(value)) {
         count++;
       }
@@ -2544,13 +2544,13 @@ export function CountWhere<T>(slice: T[], f: ((p0: T) => boolean) | undefined): 
   return count;
 }
 export function ReplaceElement<T>(slice: T[], i: number, t: T): T[] {
-  let result: T[] = $rt.slices_Clone(slice);
+  const result: T[] = $rt.slices_Clone(slice);
   result[i] = t;
   return result;
 }
 export function InsertSorted<T>(slice: T[], element: T, cmp: ((p0: T, p1: T) => number) | undefined): T[] {
   const $t1 = $rt.slices_BinarySearchFunc(slice, element, cmp);
-  let i: number = $t1[0];
+  const i: number = $t1[0];
   return $rt.slices_Insert(slice, i, [element]);
 }
 export function MinAllFunc<T>(xs: T[], cmp: ((p0: T, p1: T) => number) | undefined): T[] {
@@ -2562,8 +2562,8 @@ export function MinAllFunc<T>(xs: T[], cmp: ((p0: T, p1: T) => number) | undefin
   {
     const $t1 = xs.slice(1);
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let x = $t1[$t2];
-      let c: number = cmp!(x, m);
+      const x = $t1[$t2];
+      const c: number = cmp!(x, m);
       {
         $sw3: {
           if (c < 0) {
@@ -2615,18 +2615,18 @@ export function Coalesce<T extends $rt.GoObject | undefined, U extends $rt.GoObj
   }
 }
 export function ComputeECMALineStarts(text: string): ECMALineStarts {
-  let result: TextPos[] = [] as TextPos[];
+  const result: TextPos[] = [] as TextPos[];
   return $rt.slices_AppendSeq(result, ComputeECMALineStartsSeq(text));
 }
 export function ComputeECMALineStartsSeq(
   text: string,
 ): ((p0: ((p0: TextPos) => boolean) | undefined) => void) | undefined {
   return (yield_: ((p0: TextPos) => boolean) | undefined): void => {
-    let textLen: TextPos = text.length | 0;
+    const textLen: TextPos = text.length | 0;
     let pos: TextPos = 0;
     let lineStart: TextPos = 0;
     for (; pos < textLen;) {
-      let b: number = text.charCodeAt(pos);
+      const b: number = text.charCodeAt(pos);
       if (b < 128) {
         pos = (pos + 1) | 0;
         {
@@ -2647,8 +2647,8 @@ export function ComputeECMALineStartsSeq(
         }
       } else {
         const $t1 = $rt.utf8_DecodeRuneInStringAt(text, pos);
-        let ch: number = $t1[0];
-        let size: number = $t1[1];
+        const ch: number = $t1[0];
+        const size: number = $t1[1];
         pos = (pos + (size | 0)) | 0;
         if ($stringutil.IsLineBreak(ch)) {
           if (!yield_!(lineStart)) {
@@ -2680,7 +2680,7 @@ export function UTF16Len(s: string): UTF16Offset {
         const $t2 = s.substring(i);
         for (let $t3 = 0, $t4 = 0; $t3 < $t2.length; $t3 += $t4) {
           $t4 = $rt.utf8_DecodeRuneInStringAt($t2, $t3)[1];
-          let r = $rt.utf8_DecodeRuneInStringAt($t2, $t3)[0];
+          const r = $rt.utf8_DecodeRuneInStringAt($t2, $t3)[0];
           n += $rt.unicode_utf16_RuneLen(r);
         }
       }
@@ -2694,7 +2694,7 @@ export function Flatten<T>(array: T[][]): T[] {
   {
     const $t1 = array;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let subArray = $t1[$t2];
+      const subArray = $t1[$t2];
       $rt.appendInto(result, subArray);
     }
   }
@@ -2715,12 +2715,12 @@ export function StringifyJson(
   indent: string,
 ): [string, $rt.GoObject | undefined] {
   const $t1 = $json.MarshalIndent(input, prefix, indent);
-  let output: number[] = $t1[0];
-  let err: $rt.GoObject | undefined = $t1[1];
+  const output: number[] = $t1[0];
+  const err: $rt.GoObject | undefined = $t1[1];
   return [$rt.bytesToString(output), err];
 }
 export function GetScriptKindFromFileName(fileName: string): ScriptKind {
-  let dotPos: number = $rt.strings_LastIndex(fileName, '.');
+  const dotPos: number = $rt.strings_LastIndex(fileName, '.');
   if (dotPos >= 0) {
     {
       switch ($rt.strings_ToLower(fileName.substring(dotPos))) {
@@ -2771,7 +2771,7 @@ export function GetDefaultExtensionForScriptKind(scriptKind: ScriptKind): string
 }
 export function EnsureScriptKindFromFileName(fileName: string): ScriptKind {
   {
-    let kind: ScriptKind = GetScriptKindFromFileName(fileName);
+    const kind: ScriptKind = GetScriptKindFromFileName(fileName);
     if (!(kind === (0 as number))) {
       return kind;
     }
@@ -2809,10 +2809,10 @@ export function getSpellingSuggestion<T>(
   const $defers: (() => void)[] = [];
   let $panic: $rt.Panic | undefined = undefined;
   $body: try {
-    let runeName: number[] = $rt.stringToRunes(name_);
-    let maximumLengthDifference: number = Math.max(2, Math.trunc(runeName.length * 0.34));
+    const runeName: number[] = $rt.stringToRunes(name_);
+    const maximumLengthDifference: number = Math.max(2, Math.trunc(runeName.length * 0.34));
     let bestDistance: number = $rt.math_Floor(runeName.length * 0.4) + 0.9;
-    let buffers: levenshteinBuffers | undefined = (($t2: $rt.GoObject | undefined) =>
+    const buffers: levenshteinBuffers | undefined = (($t2: $rt.GoObject | undefined) =>
       levenshteinBuffers.$cast_core_levenshteinBuffers($t2))(levenshteinBuffersPool.Get());
     const $t3 = buffers;
     const $t4 = levenshteinBuffersPool;
@@ -2827,14 +2827,14 @@ export function getSpellingSuggestion<T>(
     candidates!((candidate: T): boolean => {
       checkedCandidates++;
       if (maxCandidates > 0 && checkedCandidates > maxCandidates) {
-        let zero: T = $z_T();
+        const zero: T = $z_T();
         $t6 = zero;
         $t5 = true;
         return false;
       }
-      let candidateName: string = getName!(candidate);
-      let maxLen: number = Math.max(candidateName.length, runeName.length);
-      let minLen: number = Math.min(candidateName.length, runeName.length);
+      const candidateName: string = getName!(candidate);
+      const maxLen: number = Math.max(candidateName.length, runeName.length);
+      const minLen: number = Math.min(candidateName.length, runeName.length);
       if (!(candidateName === ('' as string)) && maxLen - minLen <= maximumLengthDifference) {
         if (candidateName === name_) {
           return true;
@@ -2842,7 +2842,7 @@ export function getSpellingSuggestion<T>(
         if (candidateName.length < 3 && !$rt.strings_EqualFold(candidateName, name_)) {
           return true;
         }
-        let distance: number = levenshteinWithMax(buffers, runeName, $rt.stringToRunes(candidateName), bestDistance);
+        const distance: number = levenshteinWithMax(buffers, runeName, $rt.stringToRunes(candidateName), bestDistance);
         if (distance < 0) {
           return true;
         }
@@ -2884,7 +2884,7 @@ export function levenshteinWithMax(
   s2: number[],
   maxValue: number,
 ): number {
-  let bufferSize: number = s2.length + 1;
+  const bufferSize: number = s2.length + 1;
   buffers!.previous = $rt.reslice(
     $rt.slices_Grow($rt.reslice(buffers!.previous, 0, 0, 0), bufferSize),
     0,
@@ -2894,19 +2894,19 @@ export function levenshteinWithMax(
   buffers!.current = $rt.reslice($rt.slices_Grow($rt.reslice(buffers!.current, 0, 0, 0), bufferSize), 0, bufferSize, 0);
   let previous: number[] = buffers!.previous;
   let current: number[] = buffers!.current;
-  let big: number = maxValue + 0.01;
+  const big: number = maxValue + 0.01;
   {
     const $t1 = previous;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let i = $t2;
+      const i = $t2;
       previous[i] = i;
     }
   }
   {
     for (let i$1: number = 1; i$1 <= s1.length; i$1++) {
-      let c1: number = s1[i$1 - 1];
-      let minJ: number = Math.max(Math.trunc($rt.math_Ceil(i$1 - maxValue)), 1);
-      let maxJ: number = Math.min(Math.trunc($rt.math_Floor(maxValue + i$1)), s2.length);
+      const c1: number = s1[i$1 - 1];
+      const minJ: number = Math.max(Math.trunc($rt.math_Ceil(i$1 - maxValue)), 1);
+      const maxJ: number = Math.min(Math.trunc($rt.math_Floor(maxValue + i$1)), s2.length);
       let colMin: number = i$1;
       current[0] = colMin;
       {
@@ -2946,7 +2946,7 @@ export function levenshteinWithMax(
       current = $t4;
     }
   }
-  let res: number = previous[s2.length];
+  const res: number = previous[s2.length];
   if (res > maxValue) {
     return -1;
   }
@@ -2959,7 +2959,7 @@ export function CheckEachDefined<S>(s: ($rt.Ptr<S> | undefined)[], msg: string):
   {
     const $t1 = s;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let value = $t1[$t2];
+      const value = $t1[$t2];
       if (value === undefined) {
         throw $rt.newPanic(new $rt.BoxStr(msg, 'string'));
       }
@@ -2968,7 +2968,7 @@ export function CheckEachDefined<S>(s: ($rt.Ptr<S> | undefined)[], msg: string):
   return s;
 }
 export function IndexAfter(s: string, pattern: string, startIndex: number): number {
-  let matched: number = $rt.strings_IndexFrom(s, startIndex, pattern);
+  const matched: number = $rt.strings_IndexFrom(s, startIndex, pattern);
   if (matched === (-1 as number)) {
     return -1;
   } else {
@@ -2996,7 +2996,7 @@ export function ConcatenateSeq<T>(
     {
       const $t1 = seqs;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        let seq = $t1[$t2];
+        const seq = $t1[$t2];
         if (seq === undefined) {
           continue;
         }
@@ -3060,7 +3060,7 @@ export function DiffMapsFunc<K, V1, V2>(
       {
         const $t1 = m1;
         const $t2 = k;
-        let ok: boolean = $t1 !== undefined && $t1.has($t2);
+        const ok: boolean = $t1 !== undefined && $t1.has($t2);
         if (!ok) {
           onAdded!(k, v2);
         }
@@ -3074,8 +3074,8 @@ export function DiffMapsFunc<K, V1, V2>(
     {
       const $t3 = m2;
       const $t4 = k$1;
-      let v2$1: V2 = $t3?.get($t4) ?? $z_V2();
-      let ok$1: boolean = $t3 !== undefined && $t3.has($t4);
+      const v2$1: V2 = $t3?.get($t4) ?? $z_V2();
+      const ok$1: boolean = $t3 !== undefined && $t3.has($t4);
       if (ok$1) {
         if (!(onChanged === undefined) && !equalValues!(v1, v2$1)) {
           onChanged!(k$1, v1, v2$1);
@@ -3100,11 +3100,11 @@ export function UnorderedEqual<T>(s1: T[], s2: T[]): boolean {
   if (!(s1.length === s2.length)) {
     return false;
   }
-  let counts: Map<T, number> | undefined = new Map<T, number>();
+  const counts: Map<T, number> | undefined = new Map<T, number>();
   {
     const $t1 = s1;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let v = $t1[$t2];
+      const v = $t1[$t2];
       const $t3 = counts;
       const $t4 = v;
       $t3!.set($t4, ($t3!.get($t4) ?? 0) + 1);
@@ -3113,7 +3113,7 @@ export function UnorderedEqual<T>(s1: T[], s2: T[]): boolean {
   {
     const $t5 = s2;
     for (let $t6 = 0, $n = $t5.length; $t6 < $n; $t6++) {
-      let v$1 = $t5[$t6];
+      const v$1 = $t5[$t6];
       const $t7 = counts;
       const $t8 = v$1;
       $t7!.set($t8, ($t7!.get($t8) ?? 0) - 1);
@@ -3157,7 +3157,7 @@ export function DeduplicateSorted<T>(slice: T[], isEqual: ((p0: T, p1: T) => boo
   let deduplicated: T[] = $rt.reslice(slice, 0, 1, undefined as unknown as T);
   {
     for (let i: number = 1; i < slice.length; i++) {
-      let next: T = slice[i];
+      const next: T = slice[i];
       if (isEqual!(last, next)) {
         continue;
       }
@@ -3176,7 +3176,7 @@ export function CompareBooleans(a: boolean, b: boolean): number {
   return 0;
 }
 export function LanguageVariant$String(i: LanguageVariant): string {
-  let idx: number = i - 0;
+  const idx: number = i - 0;
   if (i < 0 || idx >= 2) {
     return 'LanguageVariant(' + $rt.strconv_FormatInt(i, 10) + ')';
   }
@@ -3212,7 +3212,7 @@ export function NonRelativeModuleNameForTypingCache(moduleName: string): string 
   return moduleName;
 }
 export function TryParsePattern(pattern: string): Pattern {
-  let starIndex: number = $rt.strings_Index(pattern, '*');
+  const starIndex: number = $rt.strings_Index(pattern, '*');
   if (starIndex === (-1 as number) || !$rt.strings_Contains(pattern.substring(starIndex + 1), '*')) {
     return Pattern.$lit_core_Pattern_0_1(pattern, starIndex);
   }
@@ -3229,8 +3229,8 @@ export function FindBestPatternMatch<T>(
   {
     const $t1 = values;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let value = $t1[$t2];
-      let pattern: Pattern = getPattern!(value);
+      const value = $t1[$t2];
+      const pattern: Pattern = getPattern!(value);
       if (
         (pattern.StarIndex === (-1 as number) || pattern.StarIndex > longestMatchPrefixLength) &&
         pattern.Matches(candidate)
@@ -3288,7 +3288,7 @@ export function NewLimitedSemaphore(maxConcurrency: number): LimitedSemaphore | 
   if (maxConcurrency <= 0) {
     throw $rt.newPanic(new $rt.BoxStr('maxConcurrency must be positive', 'string'));
   }
-  let s: LimitedSemaphore | undefined = LimitedSemaphore.$lit_core_LimitedSemaphore_0(
+  const s: LimitedSemaphore | undefined = LimitedSemaphore.$lit_core_LimitedSemaphore_0(
     $rt.unsupportedAs<$rt.Chan<$rt.Empty> | undefined>('make channel'),
   );
   s!.release = (): void => {
@@ -3305,7 +3305,7 @@ export function makeTextRange(pos: TextPos, end: TextPos): TextRange {
 }
 export function TextRange$pos(t: TextRange): TextPos {
   let p: number = Math.trunc(t / 134217728);
-  let e: number = $rt.imod(t, 134217728);
+  const e: number = $rt.imod(t, 134217728);
   if (e >= 67108864) {
     p++;
   } else if (e < -67108864) {
@@ -3359,31 +3359,31 @@ export function TextRange$ContainedBy(t: TextRange, t2: TextRange): boolean {
   return TextRange$pos(t2) <= TextRange$pos(t) && TextRange$end(t2) >= TextRange$end(t);
 }
 export function TextRange$Overlaps(t: TextRange, t2: TextRange): boolean {
-  let start: TextPos = Math.max(TextRange$pos(t), TextRange$pos(t2));
-  let end: TextPos = Math.min(TextRange$end(t), TextRange$end(t2));
+  const start: TextPos = Math.max(TextRange$pos(t), TextRange$pos(t2));
+  const end: TextPos = Math.min(TextRange$end(t), TextRange$end(t2));
   return start < end;
 }
 export function TextRange$Intersects(t: TextRange, t2: TextRange): boolean {
-  let start: TextPos = Math.max(TextRange$pos(t), TextRange$pos(t2));
-  let end: TextPos = Math.min(TextRange$end(t), TextRange$end(t2));
+  const start: TextPos = Math.max(TextRange$pos(t), TextRange$pos(t2));
+  const end: TextPos = Math.min(TextRange$end(t), TextRange$end(t2));
   return start <= end;
 }
 export function CompareTextRanges(r1: TextRange, r2: TextRange): number {
-  let c: number = TextRange$pos(r1) - TextRange$pos(r2);
+  const c: number = TextRange$pos(r1) - TextRange$pos(r2);
   if (!(c === (0 as number))) {
     return c;
   }
   return TextRange$end(r1) - TextRange$end(r2);
 }
 export function ApplyBulkEdits(text: string, edits: TextChange[]): string {
-  let b: $rt.strings_Builder = new $rt.strings_Builder();
+  const b: $rt.strings_Builder = new $rt.strings_Builder();
   b.Grow(text.length);
   let lastEnd: number = 0;
   {
     const $t1 = edits;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let e = $t1[$t2];
-      let start: number = TextRange$Pos(e.TextRange_);
+      const e = $t1[$t2];
+      const start: number = TextRange$Pos(e.TextRange_);
       if (!(start === lastEnd)) {
         b.WriteString(text.substring(lastEnd, TextRange$Pos(e.TextRange_)));
       }
@@ -3456,7 +3456,7 @@ export function BoolToTristate(b: boolean): Tristate {
   return 1;
 }
 export function Tristate$String(i: Tristate): string {
-  let idx: number = i - 0;
+  const idx: number = i - 0;
   if (i < 0 || idx >= 3) {
     return 'Tristate(' + $rt.strconv_FormatInt(i, 10) + ')';
   }
@@ -3479,6 +3479,6 @@ export function NewThrottleGroup(
   semaphore: $rt.Chan<$rt.Empty> | undefined,
 ): ThrottleGroup | undefined {
   const $t1 = $rt.golang_org_x_sync_errgroup_WithContext(ctx);
-  let g: $rt.golang_org_x_sync_errgroup_Group | undefined = $t1[0];
+  const g: $rt.golang_org_x_sync_errgroup_Group | undefined = $t1[0];
   return ThrottleGroup.$lit_core_ThrottleGroup_0_1(semaphore, g);
 }

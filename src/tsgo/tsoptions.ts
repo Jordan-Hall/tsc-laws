@@ -1680,8 +1680,8 @@ export class NameMap extends $rt.GoObject {
     const nm = this;
     const $t1 = nm!.shortOptionNames;
     const $t2 = shortName;
-    let name_: string = $t1?.get($t2) ?? '';
-    let ok: boolean = $t1 !== undefined && $t1.has($t2);
+    const name_: string = $t1?.get($t2) ?? '';
+    const ok: boolean = $t1 !== undefined && $t1.has($t2);
     if (!ok) {
       return undefined;
     }
@@ -1691,7 +1691,7 @@ export class NameMap extends $rt.GoObject {
     const nm = this;
     optionName = $rt.strings_ToLower(optionName);
     if (allowShort) {
-      let short: string = nm!.shortOptionNames?.get(optionName) ?? '';
+      const short: string = nm!.shortOptionNames?.get(optionName) ?? '';
       if (!(short === ('' as string))) {
         optionName = short;
       }
@@ -1915,7 +1915,7 @@ export class ParsedCommandLine extends $rt.GoObject {
     const p = this;
     let fileGlob: string = '';
     let recursiveFileGlob: string = '';
-    let mapperExtensions: string[] = p!.ContentMapperExtensions();
+    const mapperExtensions: string[] = p!.ContentMapperExtensions();
     if (mapperExtensions.length === (0 as number)) {
       return ['*.{js,jsx,mjs,cjs,ts,tsx,mts,cts,json}', '**/*.{js,jsx,mjs,cjs,ts,tsx,mts,cts,json}'];
     }
@@ -1924,7 +1924,7 @@ export class ParsedCommandLine extends $rt.GoObject {
     {
       const $t1 = mapperExtensions;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        let extension = $t1[$t2];
+        const extension = $t1[$t2];
         extensions.push($rt.strings_TrimPrefix(extension, '.'));
       }
     }
@@ -1967,19 +1967,19 @@ export class ParsedCommandLine extends $rt.GoObject {
   ParseInputOutputNames(): void {
     const p = this;
     p!.sourceAndOutputMapsOnce.Do((): void => {
-      let sourceToOutput: Map<$tspath.Path, SourceOutputAndProjectReference | undefined> | undefined = new Map<
+      const sourceToOutput: Map<$tspath.Path, SourceOutputAndProjectReference | undefined> | undefined = new Map<
         $tspath.Path,
         SourceOutputAndProjectReference | undefined
       >();
-      let outputDtsToSource: Map<$tspath.Path, SourceOutputAndProjectReference | undefined> | undefined = new Map<
+      const outputDtsToSource: Map<$tspath.Path, SourceOutputAndProjectReference | undefined> | undefined = new Map<
         $tspath.Path,
         SourceOutputAndProjectReference | undefined
       >();
       let $t1 = false;
       let $t2: undefined = undefined;
       p!.getOutputDeclarationAndSourceFileNames()!((outputDts: string, source: string): boolean => {
-        let path: $tspath.Path = $tspath.ToPath(source, p!.GetCurrentDirectory(), p!.UseCaseSensitiveFileNames());
-        let projectReference: SourceOutputAndProjectReference | undefined =
+        const path: $tspath.Path = $tspath.ToPath(source, p!.GetCurrentDirectory(), p!.UseCaseSensitiveFileNames());
+        const projectReference: SourceOutputAndProjectReference | undefined =
           SourceOutputAndProjectReference.$lit_tsoptions_SourceOutputAndProjectReference_0_1_2(source, outputDts, p);
         if (!(outputDts === ('' as string))) {
           outputDtsToSource!.set(
@@ -1997,7 +1997,7 @@ export class ParsedCommandLine extends $rt.GoObject {
   CommonSourceDirectory(): string {
     const p = this;
     p!.commonSourceDirectoryOnce.Do((): void => {
-      let files: (() => string[]) | undefined = (): string[] => {
+      const files: (() => string[]) | undefined = (): string[] => {
         return $core.Filter<string>(p!.ParsedConfig!.FileNames, (file: string): boolean => {
           return (
             !(
@@ -2027,8 +2027,8 @@ export class ParsedCommandLine extends $rt.GoObject {
     {
       const $t1 = sourceFiles;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        let file = $t1[$t2];
-        let absoluteSourceFilePath: string = $tspath.GetCanonicalFileName(
+        const file = $t1[$t2];
+        const absoluteSourceFilePath: string = $tspath.GetCanonicalFileName(
           $tspath.GetNormalizedAbsolutePath(file, p!.GetCurrentDirectory()),
           p!.UseCaseSensitiveFileNames(),
         );
@@ -2061,7 +2061,7 @@ export class ParsedCommandLine extends $rt.GoObject {
       {
         const $t1 = p!.ParsedConfig!.FileNames;
         for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-          let fileName = $t1[$t2];
+          const fileName = $t1[$t2];
           let outputDts: string = '';
           if (!$tspath.IsDeclarationFileName(fileName) && !$tspath.FileExtensionIs(fileName, '.json')) {
             outputDts = $outputpaths.GetOutputDeclarationFileNameWorker(
@@ -2083,22 +2083,22 @@ export class ParsedCommandLine extends $rt.GoObject {
       {
         const $t1 = p!.ParsedConfig!.FileNames;
         for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-          let fileName = $t1[$t2];
+          const fileName = $t1[$t2];
           if ($tspath.IsDeclarationFileName(fileName)) {
             continue;
           }
-          let jsFileName: string = $outputpaths.GetOutputJSFileName(
+          const jsFileName: string = $outputpaths.GetOutputJSFileName(
             fileName,
             ParsedCommandLine.CompilerOptions$m$nil(p),
             p,
           );
-          let isJson: boolean = $tspath.FileExtensionIs(fileName, '.json');
+          const isJson: boolean = $tspath.FileExtensionIs(fileName, '.json');
           if (!(jsFileName === ('' as string))) {
             if (!yield_!(jsFileName)) {
               return;
             }
             if (!isJson) {
-              let sourceMap: string = $outputpaths.GetSourceMapFilePath(
+              const sourceMap: string = $outputpaths.GetSourceMapFilePath(
                 jsFileName,
                 ParsedCommandLine.CompilerOptions$m$nil(p),
               );
@@ -2113,7 +2113,7 @@ export class ParsedCommandLine extends $rt.GoObject {
             continue;
           }
           if (ParsedCommandLine.CompilerOptions$m$nil(p)!.GetEmitDeclarations()) {
-            let dtsFileName: string = $outputpaths.GetOutputDeclarationFileNameWorker(
+            const dtsFileName: string = $outputpaths.GetOutputDeclarationFileNameWorker(
               fileName,
               ParsedCommandLine.CompilerOptions$m$nil(p),
               p,
@@ -2126,7 +2126,7 @@ export class ParsedCommandLine extends $rt.GoObject {
                 p!.GetContentMapperForFileName(fileName) === undefined &&
                 ParsedCommandLine.CompilerOptions$m$nil(p)!.GetAreDeclarationMapsEnabled()
               ) {
-                let declarationMap: string = dtsFileName + '.map';
+                const declarationMap: string = dtsFileName + '.map';
                 if (!yield_!(declarationMap)) {
                   return;
                 }
@@ -2161,15 +2161,15 @@ export class ParsedCommandLine extends $rt.GoObject {
   }
   WildcardDirectoryGlobs(): ($glob.Glob | undefined)[] {
     const p = this;
-    let wildcardDirectories: Map<string, boolean> | undefined = ParsedCommandLine.WildcardDirectories$nil(p);
+    const wildcardDirectories: Map<string, boolean> | undefined = ParsedCommandLine.WildcardDirectories$nil(p);
     if (wildcardDirectories === undefined) {
       return [];
     }
     p!.includeGlobsOnce.Do((): void => {
       if (p!.includeGlobs.length === 0) {
         const $t1 = p!.fileGlobPatterns();
-        let fileGlob: string = $t1[0];
-        let recursiveFileGlob: string = $t1[1];
+        const fileGlob: string = $t1[0];
+        const recursiveFileGlob: string = $t1[1];
         let globs: ($glob.Glob | undefined)[] = [] as ($glob.Glob | undefined)[];
         for (const [dir, recursive] of wildcardDirectories ?? new Map<string, boolean>()) {
           {
@@ -2179,8 +2179,8 @@ export class ParsedCommandLine extends $rt.GoObject {
                 new $rt.BoxStr($core.IfElse<string>(recursive, recursiveFileGlob, fileGlob), 'string'),
               ]),
             );
-            let parsed: $glob.Glob | undefined = $t2[0];
-            let err: $rt.GoObject | undefined = $t2[1];
+            const parsed: $glob.Glob | undefined = $t2[0];
+            const err: $rt.GoObject | undefined = $t2[1];
             if (err === undefined) {
               globs.push(parsed);
             }
@@ -2236,8 +2236,8 @@ export class ParsedCommandLine extends $rt.GoObject {
       {
         const $t1 = p!.ParsedConfig!.FileNames;
         for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-          let fileName = $t1[$t2];
-          let path: $tspath.Path = $tspath.ToPath(fileName, p!.GetCurrentDirectory(), p!.UseCaseSensitiveFileNames());
+          const fileName = $t1[$t2];
+          const path: $tspath.Path = $tspath.ToPath(fileName, p!.GetCurrentDirectory(), p!.UseCaseSensitiveFileNames());
           p!.fileNamesByPath!.set(path, fileName);
         }
       }
@@ -2263,12 +2263,12 @@ export class ParsedCommandLine extends $rt.GoObject {
   }
   GetContentMapperForFileName(fileName: string): $contentmapper.Mapper | undefined {
     const p = this;
-    let ignoreCase: boolean = !p!.UseCaseSensitiveFileNames();
-    let extension: string = $tspath.GetLongestExtensionFromPath(fileName, p!.ContentMapperExtensions(), ignoreCase);
+    const ignoreCase: boolean = !p!.UseCaseSensitiveFileNames();
+    const extension: string = $tspath.GetLongestExtensionFromPath(fileName, p!.ContentMapperExtensions(), ignoreCase);
     {
       const $t1 = ParsedCommandLine.ContentMappers$nil(p);
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        let mapper = $t1[$t2];
+        const mapper = $t1[$t2];
         if (
           $rt.slices_ContainsFunc(mapper!.Extensions, (mapperExtension: string): boolean => {
             return extension === mapperExtension || (ignoreCase && $rt.strings_EqualFold(extension, mapperExtension));
@@ -2309,11 +2309,11 @@ export class ParsedCommandLine extends $rt.GoObject {
   }
   PossiblyMatchesFileName(fileName: string): boolean {
     const p = this;
-    let path: $tspath.Path = $tspath.ToPath(fileName, p!.GetCurrentDirectory(), p!.UseCaseSensitiveFileNames());
+    const path: $tspath.Path = $tspath.ToPath(fileName, p!.GetCurrentDirectory(), p!.UseCaseSensitiveFileNames());
     {
       const $t1 = p!.FileNamesByPath();
       const $t2 = path;
-      let ok: boolean = $t1 !== undefined && $t1.has($t2);
+      const ok: boolean = $t1 !== undefined && $t1.has($t2);
       if (ok) {
         return true;
       }
@@ -2321,9 +2321,9 @@ export class ParsedCommandLine extends $rt.GoObject {
     {
       const $t3 = p!.ConfigFile!.configFileSpecs_!.validatedIncludeSpecs;
       for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
-        let include = $t3[$t4];
+        const include = $t3[$t4];
         if (!$rt.strings_ContainsAny(include, '*?') && !$vfs_vfsmatch.IsImplicitGlob(include)) {
-          let includePath: $tspath.Path = $tspath.ToPath(
+          const includePath: $tspath.Path = $tspath.ToPath(
             include,
             p!.GetCurrentDirectory(),
             p!.UseCaseSensitiveFileNames(),
@@ -2335,18 +2335,18 @@ export class ParsedCommandLine extends $rt.GoObject {
       }
     }
     if (!(p!.GetContentMapperForFileName(fileName) === undefined)) {
-      let directoryPath: $tspath.Path = $tspath.Path$GetDirectoryPath(path);
+      const directoryPath: $tspath.Path = $tspath.Path$GetDirectoryPath(path);
       if (p!.PossiblyMatchesDirectoryName(directoryPath)) {
         return true;
       }
     }
     {
-      let wildcardDirectoryGlobs: ($glob.Glob | undefined)[] = p!.WildcardDirectoryGlobs();
+      const wildcardDirectoryGlobs: ($glob.Glob | undefined)[] = p!.WildcardDirectoryGlobs();
       if (wildcardDirectoryGlobs.length > 0) {
         {
           const $t5 = wildcardDirectoryGlobs;
           for (let $t6 = 0, $n = $t5.length; $t6 < $n; $t6++) {
-            let glob = $t5[$t6];
+            const glob = $t5[$t6];
             if (glob!.Match(fileName)) {
               return true;
             }
@@ -2359,7 +2359,7 @@ export class ParsedCommandLine extends $rt.GoObject {
   PossiblyMatchesDirectoryName(directoryPath: $tspath.Path): boolean {
     const p = this;
     for (const [wildcardDir, recursive] of ParsedCommandLine.WildcardDirectories$nil(p) ?? new Map<string, boolean>()) {
-      let wildcardDirPath: $tspath.Path = $tspath.ToPath(
+      const wildcardDirPath: $tspath.Path = $tspath.ToPath(
         wildcardDir,
         p!.GetCurrentDirectory(),
         p!.UseCaseSensitiveFileNames(),
@@ -2400,8 +2400,8 @@ export class ParsedCommandLine extends $rt.GoObject {
       fs,
       p!.ContentMapperExtensions(),
     );
-    let fileNames: string[] = $t1[0];
-    let literalFileNamesLen: number = $t1[1];
+    const fileNames: string[] = $t1[0];
+    const literalFileNamesLen: number = $t1[1];
     parsedConfig.FileNames = fileNames;
     let parsedCommandLine: ParsedCommandLine = ParsedCommandLine.$lit_tsoptions_ParsedCommandLine_0_1_2_3_4_5_7_9_17(
       parsedConfig,
@@ -2660,7 +2660,7 @@ export class commandLineParser extends $rt.GoObject {
     const p = this;
     let i: number = 0;
     for (; i < args.length;) {
-      let s: string = args[i];
+      const s: string = args[i];
       i++;
       if (s === ('' as string)) {
         continue;
@@ -2672,12 +2672,15 @@ export class commandLineParser extends $rt.GoObject {
             break;
           }
           case 45 as number: {
-            let inputOptionName: string = getInputOptionName(s);
-            let opt: CommandLineOption | undefined = p!.optionsMap!.GetOptionDeclarationFromName(inputOptionName, true);
+            const inputOptionName: string = getInputOptionName(s);
+            const opt: CommandLineOption | undefined = p!.optionsMap!.GetOptionDeclarationFromName(
+              inputOptionName,
+              true,
+            );
             if (!(opt === undefined)) {
               i = p!.parseOptionValue(args, i, opt, p!.workerDiagnostics!.OptionTypeMismatchDiagnostic);
             } else {
-              let watchOpt: CommandLineOption | undefined = WatchNameMap!.GetOptionDeclarationFromName(
+              const watchOpt: CommandLineOption | undefined = WatchNameMap!.GetOptionDeclarationFromName(
                 inputOptionName,
                 true,
               );
@@ -2708,7 +2711,7 @@ export class commandLineParser extends $rt.GoObject {
     let $panic: $rt.Panic | undefined = undefined;
     $body: try {
       fileName = $tspath.GetNormalizedAbsolutePath(fileName, p!.currentDirectory);
-      let path: $tspath.Path = $tspath.ToPath(fileName, p!.currentDirectory, p!.fs!.UseCaseSensitiveFileNames());
+      const path: $tspath.Path = $tspath.ToPath(fileName, p!.currentDirectory, p!.fs!.UseCaseSensitiveFileNames());
       if (p!.responseFileStack.Has(path)) {
         break $body;
       }
@@ -2725,21 +2728,21 @@ export class commandLineParser extends $rt.GoObject {
             return ['', false];
           }
           const $t3 = p!.fs!.ReadFile(fileName$1);
-          let read: string = $t3[0];
-          let err: boolean = $t3[1];
+          const read: string = $t3[0];
+          const err: boolean = $t3[1];
           return [read, err];
         },
         p!.errors,
       );
-      let fileContents: string = $t4[0];
-      let errors: ($ast.Diagnostic | undefined)[] = $t4[1];
+      const fileContents: string = $t4[0];
+      const errors: ($ast.Diagnostic | undefined)[] = $t4[1];
       p!.errors = errors;
       if (fileContents === ('' as string)) {
         break $body;
       }
       let args: string[] = [];
-      let text: number[] = $rt.stringToRunes(fileContents);
-      let textLength: number = text.length;
+      const text: number[] = $rt.stringToRunes(fileContents);
+      const textLength: number = text.length;
       let pos: number = 0;
       for (; pos < textLength;) {
         for (; pos < textLength && text[pos] <= 32;) {
@@ -2748,7 +2751,7 @@ export class commandLineParser extends $rt.GoObject {
         if (pos >= textLength) {
           break;
         }
-        let start: number = pos;
+        const start: number = pos;
         if (text[pos] === (34 as number)) {
           pos++;
           for (; pos < textLength && !(text[pos] === (34 as number));) {
@@ -2844,8 +2847,8 @@ export class commandLineParser extends $rt.GoObject {
           switch (opt!.Kind) {
             case 'number' as string: {
               const $t1 = $rt.strconv_Atoi(args[i]);
-              let num: number = $t1[0];
-              let e: $rt.GoObject | undefined = $t1[1];
+              const num: number = $t1[0];
+              const e: $rt.GoObject | undefined = $t1[1];
               if (e === undefined) {
                 if (num >= opt!.minValue) {
                   p!.options!.Set(opt!.Name, new $rt.BoxNum(num, 'int'));
@@ -2869,7 +2872,7 @@ export class commandLineParser extends $rt.GoObject {
               break;
             }
             case 'boolean' as string: {
-              let optValue$1: string = args[i];
+              const optValue$1: string = args[i];
               if (optValue$1 === ('false' as string)) {
                 p!.options!.Set(opt!.Name, new $rt.BoxBool(false, 'bool'));
               } else {
@@ -2882,8 +2885,8 @@ export class commandLineParser extends $rt.GoObject {
             }
             case 'string' as string: {
               const $t2 = validateJsonOptionValue(opt, new $rt.BoxStr(args[i], 'string'), undefined, undefined);
-              let val: $rt.GoObject | undefined = $t2[0];
-              let err: ($ast.Diagnostic | undefined)[] = $t2[1];
+              const val: $rt.GoObject | undefined = $t2[0];
+              const err: ($ast.Diagnostic | undefined)[] = $t2[1];
               if (err.length === 0) {
                 p!.options!.Set(opt!.Name, val);
               } else {
@@ -2894,8 +2897,8 @@ export class commandLineParser extends $rt.GoObject {
             }
             case 'list' as string: {
               const $t3 = p!.parseListTypeOption(opt, args[i]);
-              let result: ($rt.GoObject | undefined)[] = $t3[0];
-              let err$1: ($ast.Diagnostic | undefined)[] = $t3[1];
+              const result: ($rt.GoObject | undefined)[] = $t3[0];
+              const err$1: ($ast.Diagnostic | undefined)[] = $t3[1];
               p!.options!.Set(opt!.Name, new $boxes.Box___any(result));
               $rt.appendInto(p!.errors, err$1);
               if (result.length > 0 || err$1.length > 0) {
@@ -2913,8 +2916,8 @@ export class commandLineParser extends $rt.GoObject {
                 undefined,
                 undefined,
               );
-              let val$1: $rt.GoObject | undefined = $t4[0];
-              let err$2: ($ast.Diagnostic | undefined)[] = $t4[1];
+              const val$1: $rt.GoObject | undefined = $t4[0];
+              const err$2: ($ast.Diagnostic | undefined)[] = $t4[1];
               p!.options!.Set(opt!.Name, val$1);
               $rt.appendInto(p!.errors, err$2);
               i++;
@@ -3048,7 +3051,7 @@ export class configFileSpecs extends $rt.GoObject {
     if (c!.validatedExcludeSpecs.length === (0 as number)) {
       return false;
     }
-    let excludeMatcher: $vfs_vfsmatch.SpecMatcher | undefined = $vfs_vfsmatch.NewSpecMatcher(
+    const excludeMatcher: $vfs_vfsmatch.SpecMatcher | undefined = $vfs_vfsmatch.NewSpecMatcher(
       c!.validatedExcludeSpecs,
       comparePathsOptions.CurrentDirectory,
       2,
@@ -3075,9 +3078,9 @@ export class configFileSpecs extends $rt.GoObject {
     {
       const $t1 = c!.validatedIncludeSpecs;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        let index = $t2;
-        let spec = $t1[$t2];
-        let includeMatcher: $vfs_vfsmatch.SpecMatcher | undefined = $vfs_vfsmatch.NewSpecMatcher(
+        const index = $t2;
+        const spec = $t1[$t2];
+        const includeMatcher: $vfs_vfsmatch.SpecMatcher | undefined = $vfs_vfsmatch.NewSpecMatcher(
           [spec],
           comparePathsOptions.CurrentDirectory,
           0,
@@ -3095,7 +3098,7 @@ export class configFileSpecs extends $rt.GoObject {
     if (c!.validatedFilesSpec.length === (0 as number)) {
       return '';
     }
-    let filePath: $tspath.Path = $tspath.ToPath(
+    const filePath: $tspath.Path = $tspath.ToPath(
       fileName,
       comparePathsOptions.CurrentDirectory,
       comparePathsOptions.UseCaseSensitiveFileNames,
@@ -3103,8 +3106,8 @@ export class configFileSpecs extends $rt.GoObject {
     {
       const $t1 = c!.validatedFilesSpec;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        let index = $t2;
-        let spec = $t1[$t2];
+        const index = $t2;
+        const spec = $t1[$t2];
         if (
           $tspath.ToPath(spec, comparePathsOptions.CurrentDirectory, comparePathsOptions.UseCaseSensitiveFileNames) ===
           filePath
@@ -6029,27 +6032,27 @@ export function ParseCommandLine(commandLine: string[], host: ParseConfigHost): 
   if (commandLine === undefined) {
     commandLine = [] as string[];
   }
-  let parser: commandLineParser | undefined = parseCommandLineWorker(
+  const parser: commandLineParser | undefined = parseCommandLineWorker(
     CompilerOptionsDidYouMeanDiagnostics,
     commandLine ?? [],
     host!.FS$m(),
     host!.GetCurrentDirectory(),
   );
-  let options: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined =
+  const options: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined =
     convertToOptionsWithAbsolutePaths(
       parser!.options!.Clone(),
       CommandLineCompilerOptionsMap,
       host!.GetCurrentDirectory(),
     );
-  let compilerOptions: $core.CompilerOptions | undefined = convertMapToOptions<compilerOptionsParser | undefined>(
+  const compilerOptions: $core.CompilerOptions | undefined = convertMapToOptions<compilerOptionsParser | undefined>(
     options,
     compilerOptionsParser.$lit_tsoptions_compilerOptionsParser_0(new $core.CompilerOptions()),
   )!.CompilerOptions_;
-  let watchOptions: $core.WatchOptions | undefined = convertMapToOptions<watchOptionsParser | undefined>(
+  const watchOptions: $core.WatchOptions | undefined = convertMapToOptions<watchOptionsParser | undefined>(
     options,
     watchOptionsParser.$lit_tsoptions_watchOptionsParser_0(new $core.WatchOptions()),
   )!.WatchOptions_;
-  let result: ParsedCommandLine | undefined = NewParsedCommandLine(
+  const result: ParsedCommandLine | undefined = NewParsedCommandLine(
     compilerOptions,
     parser!.fileNames,
     $tspath.ComparePathsOptions.$lit_tspath_ComparePathsOptions_0_1(
@@ -6069,23 +6072,23 @@ export function ParseBuildCommandLine(
   if (commandLine === undefined) {
     commandLine = [] as string[];
   }
-  let parser: commandLineParser | undefined = parseCommandLineWorker(
+  const parser: commandLineParser | undefined = parseCommandLineWorker(
     buildOptionsDidYouMeanDiagnostics,
     commandLine ?? [],
     host!.FS$m(),
     host!.GetCurrentDirectory(),
   );
-  let compilerOptions: $core.CompilerOptions | undefined = new $core.CompilerOptions();
+  const compilerOptions: $core.CompilerOptions | undefined = new $core.CompilerOptions();
   let $t1 = false;
   let $t2: ParsedBuildCommandLine | undefined = undefined as ParsedBuildCommandLine | undefined;
   parser!.options!.Entries()!((key: string, value: $rt.GoObject | undefined): boolean => {
-    let buildOption: CommandLineOption | undefined = BuildNameMap!.Get(key);
+    const buildOption: CommandLineOption | undefined = BuildNameMap!.Get(key);
     if (buildOption === TscBuildOption || buildOption === CompilerNameMap!.Get(key)) {
       ParseCompilerOptions(key, value, compilerOptions);
     }
     return true;
   });
-  let result: ParsedBuildCommandLine | undefined =
+  const result: ParsedBuildCommandLine | undefined =
     ParsedBuildCommandLine.$lit_tsoptions_ParsedBuildCommandLine_0_1_2_3_4_5_6(
       convertMapToOptions<buildOptionsParser | undefined>(
         parser!.options,
@@ -6147,7 +6150,7 @@ export function parseCommandLineWorker(
   fs: $vfs.FS | undefined,
   currentDirectory: string,
 ): commandLineParser | undefined {
-  let parser: commandLineParser | undefined = commandLineParser.$lit_tsoptions_commandLineParser_2_3_0_5_4_6(
+  const parser: commandLineParser | undefined = commandLineParser.$lit_tsoptions_commandLineParser_2_3_0_5_4_6(
     fs,
     currentDirectory,
     parseCommandLineWithDiagnostics,
@@ -6169,7 +6172,7 @@ export function tryReadFile(
 ): [string, ($ast.Diagnostic | undefined)[]] {
   const $t1 = readFile!(fileName);
   let text: string = $t1[0];
-  let e: boolean = $t1[1];
+  const e: boolean = $t1[1];
   if (!e) {
     text = '';
     errors = $rt.appendCopy(errors, [
@@ -6189,8 +6192,8 @@ export function ParseListTypeOption(
   }
   if (opt!.Kind === ('listOrElement' as string) && !$rt.strings_ContainsRune(value, 44)) {
     const $t1 = validateJsonOptionValue(opt, new $rt.BoxStr(value, 'string'), undefined, undefined);
-    let val: $rt.GoObject | undefined = $t1[0];
-    let err: ($ast.Diagnostic | undefined)[] = $t1[1];
+    const val: $rt.GoObject | undefined = $t1[0];
+    const err: ($ast.Diagnostic | undefined)[] = $t1[1];
     if (!(err.length === 0)) {
       return [[] as ($rt.GoObject | undefined)[], err];
     }
@@ -6199,21 +6202,21 @@ export function ParseListTypeOption(
   if (value === ('' as string)) {
     return [[] as ($rt.GoObject | undefined)[], errors];
   }
-  let values: string[] = $rt.strings_Split(value, ',');
+  const values: string[] = $rt.strings_Split(value, ',');
   {
     switch (opt!.Elements()!.Kind) {
       case 'string' as string: {
-        let elements: ($rt.GoObject | undefined)[] = $core.MapFiltered<string, $rt.GoObject | undefined>(
+        const elements: ($rt.GoObject | undefined)[] = $core.MapFiltered<string, $rt.GoObject | undefined>(
           values,
           (v: string): [$rt.GoObject | undefined, boolean] => {
             const $t2 = validateJsonOptionValue(opt!.Elements(), new $rt.BoxStr(v, 'string'), undefined, undefined);
-            let val$1: $rt.GoObject | undefined = $t2[0];
-            let err$1: ($ast.Diagnostic | undefined)[] = $t2[1];
+            const val$1: $rt.GoObject | undefined = $t2[0];
+            const err$1: ($ast.Diagnostic | undefined)[] = $t2[1];
             {
               const $t3: $rt.GoObject | undefined = val$1;
               const $t4: boolean = $rt.isValue($t3, 'string');
-              let s: string = $t4 ? $rt.checkString(true, $t3) : '';
-              let ok: boolean = $t4;
+              const s: string = $t4 ? $rt.checkString(true, $t3) : '';
+              const ok: boolean = $t4;
               if (ok && err$1.length === (0 as number) && !(s === ('' as string))) {
                 return [new $rt.BoxStr(s, 'string'), true];
               }
@@ -6235,7 +6238,7 @@ export function ParseListTypeOption(
         );
       }
       default: {
-        let result: ($rt.GoObject | undefined)[] = $core.MapFiltered<string, $rt.GoObject | undefined>(
+        const result: ($rt.GoObject | undefined)[] = $core.MapFiltered<string, $rt.GoObject | undefined>(
           values,
           (v$1: string): [$rt.GoObject | undefined, boolean] => {
             const $t5 = convertJsonOptionOfEnumType(
@@ -6244,13 +6247,13 @@ export function ParseListTypeOption(
               undefined,
               undefined,
             );
-            let val$2: $rt.GoObject | undefined = $t5[0];
-            let err$2: ($ast.Diagnostic | undefined)[] = $t5[1];
+            const val$2: $rt.GoObject | undefined = $t5[0];
+            const err$2: ($ast.Diagnostic | undefined)[] = $t5[1];
             {
               const $t6: $rt.GoObject | undefined = val$2;
               const $t7: boolean = $rt.isValue($t6, 'string');
-              let s$1: string = $t7 ? $rt.checkString(true, $t6) : '';
-              let ok$1: boolean = $t7;
+              const s$1: string = $t7 ? $rt.checkString(true, $t6) : '';
+              const ok$1: boolean = $t7;
               if (ok$1 && err$2.length === (0 as number) && !(s$1 === ('' as string))) {
                 return [new $rt.BoxStr(s$1, 'string'), true];
               }
@@ -6273,14 +6276,14 @@ export function convertJsonOptionOfEnumType(
   if (value === ('' as string)) {
     return [undefined, []];
   }
-  let key: string = $rt.strings_ToLower(value);
-  let typeMap: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined = opt!.EnumMap();
+  const key: string = $rt.strings_ToLower(value);
+  const typeMap: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined = opt!.EnumMap();
   if (typeMap === undefined) {
     return [undefined, []];
   }
   const $t1 = typeMap!.Get(key);
-  let val: $rt.GoObject | undefined = $t1[0];
-  let ok: boolean = $t1[1];
+  const val: $rt.GoObject | undefined = $t1[0];
+  const ok: boolean = $t1[1];
   if (ok) {
     return validateJsonOptionValue(opt, val, valueExpression, sourceFile);
   }
@@ -6291,14 +6294,14 @@ export function resolveContentMapperManifest(
   containingFile: string,
   packageName: string,
 ): [$contentmapper.Manifest, string, $ast.Diagnostic | undefined] {
-  let resolver: $module.Resolver | undefined = $module.NewResolver(
+  const resolver: $module.Resolver | undefined = $module.NewResolver(
     host as unknown as $module.ResolutionHost,
     $core.CompilerOptions.$lit_core_CompilerOptions_45(100),
     '',
     '',
     [],
   );
-  let resolved: $module.ResolvedModule | undefined = resolver!.ResolvePackageDirectory(
+  const resolved: $module.ResolvedModule | undefined = resolver!.ResolvePackageDirectory(
     packageName,
     containingFile,
     0,
@@ -6313,10 +6316,10 @@ export function resolveContentMapperManifest(
       ]),
     ];
   }
-  let packageDirectory: string = resolved!.ResolvedFileName;
-  let packageJsonPath: string = $tspath.CombinePaths(packageDirectory, ['package.json']);
+  const packageDirectory: string = resolved!.ResolvedFileName;
+  const packageJsonPath: string = $tspath.CombinePaths(packageDirectory, ['package.json']);
   const $t1 = host!.FS$m()!.ReadFile(packageJsonPath);
-  let contents: string = $t1[0];
+  const contents: string = $t1[0];
   let ok: boolean = $t1[1];
   if (!ok) {
     return [
@@ -6328,8 +6331,8 @@ export function resolveContentMapperManifest(
     ];
   }
   const $t2 = $packagejson.Parse($rt.stringToBytes(contents));
-  let fields: $packagejson.Fields = $t2[0];
-  let err: $rt.GoObject | undefined = $t2[1];
+  const fields: $packagejson.Fields = $t2[0];
+  const err: $rt.GoObject | undefined = $t2[1];
   if (!(err === undefined)) {
     return [
       new $contentmapper.Manifest(),
@@ -6340,7 +6343,7 @@ export function resolveContentMapperManifest(
     ];
   }
   const $t3 = fields.Name.GetValue();
-  let name_: string = $t3[0];
+  const name_: string = $t3[0];
   if (name_ === ('' as string)) {
     return [
       new $contentmapper.Manifest(),
@@ -6352,9 +6355,9 @@ export function resolveContentMapperManifest(
     ];
   }
   const $t4 = fields.Version.GetValue();
-  let version: string = $t4[0];
+  const version: string = $t4[0];
   const $t5 = fields.ContentMapper.GetValue();
-  let cm: $packagejson.ContentMapperFields = $t5[0];
+  const cm: $packagejson.ContentMapperFields = $t5[0];
   ok = $t5[1];
   if (!ok) {
     return [
@@ -6367,7 +6370,7 @@ export function resolveContentMapperManifest(
     ];
   }
   const $t6 = cm.Exec.GetValue();
-  let exec: string[] = $t6[0];
+  const exec: string[] = $t6[0];
   ok = $t6[1];
   if (!ok || exec.length === (0 as number)) {
     return [
@@ -6380,9 +6383,9 @@ export function resolveContentMapperManifest(
     ];
   }
   const $t7 = cm.CompilerOptions.GetValue();
-  let compilerOptions: string[] = $t7[0];
+  const compilerOptions: string[] = $t7[0];
   const $t8 = cm.DynamicConfig.GetValue();
-  let dynamicConfig: boolean = $t8[0];
+  const dynamicConfig: boolean = $t8[0];
   return [
     $contentmapper.Manifest.$lit_contentmapper_Manifest_0_1_2_3_4(name_, version, exec, compilerOptions, dynamicConfig),
     packageDirectory,
@@ -6400,13 +6403,13 @@ export function optionsHaveChanges(
   if (oldOptions === undefined || newOptions === undefined) {
     return true;
   }
-  let oldOptionsValue: $rt.reflect_Value = $rt.reflect_ValueOf(oldOptions).Elem();
+  const oldOptionsValue: $rt.reflect_Value = $rt.reflect_ValueOf(oldOptions).Elem();
   return ForEachCompilerOptionValue(
     newOptions,
     declFilter,
     (option: CommandLineOption | undefined, value: $rt.reflect_Value, i: number): boolean => {
-      let newValue: $rt.GoObject | undefined = value.Interface();
-      let oldValue: $rt.GoObject | undefined = oldOptionsValue.Field(i).Interface();
+      const newValue: $rt.GoObject | undefined = value.Interface();
+      const oldValue: $rt.GoObject | undefined = oldOptionsValue.Field(i).Interface();
       if (option!.strictFlag) {
         return !(
           oldOptions!.GetStrictOptionValue($core.Tristate$Box.$cast(oldValue).v) ===
@@ -6425,14 +6428,14 @@ export function ForEachCompilerOptionValue(
   declFilter: ((p0: CommandLineOption | undefined) => boolean) | undefined,
   fn: ((p0: CommandLineOption | undefined, p1: $rt.reflect_Value, p2: number) => boolean) | undefined,
 ): boolean {
-  let optionsValue: $rt.reflect_Value = $rt.reflect_ValueOf(options).Elem();
+  const optionsValue: $rt.reflect_Value = $rt.reflect_ValueOf(options).Elem();
   for (let i = 0, $t1 = optionsValue.NumField(); i < $t1; i++) {
-    let field: $rt.reflect_StructField = optionsType!.Field(i);
+    const field: $rt.reflect_StructField = optionsType!.Field(i);
     if (!field.IsExported()) {
       continue;
     }
     {
-      let optionDeclaration: CommandLineOption | undefined = CommandLineOptionNameMap$Get(
+      const optionDeclaration: CommandLineOption | undefined = CommandLineOptionNameMap$Get(
         CommandLineCompilerOptionsMap!,
         field.Name,
       );
@@ -6485,8 +6488,8 @@ export function GetLibFileName(libName: string): [string, boolean] {
     return [libName, true];
   }
   const $t1 = LibMap!.Get(libName);
-  let lib: $rt.GoObject | undefined = $t1[0];
-  let ok: boolean = $t1[1];
+  const lib: $rt.GoObject | undefined = $t1[0];
+  const ok: boolean = $t1[1];
   if (!ok) {
     return ['', false];
   }
@@ -6498,8 +6501,8 @@ export function TargetToLibMap(): Map<$core.ScriptTarget, string> | undefined {
 export function GetDefaultLibFileName(options: $core.CompilerOptions | undefined): string {
   const $t1 = targetToLibMap;
   const $t2 = options!.GetEmitScriptTarget();
-  let name_: string = $t1?.get($t2) ?? '';
-  let ok: boolean = $t1 !== undefined && $t1.has($t2);
+  const name_: string = $t1?.get($t2) ?? '';
+  const ok: boolean = $t1 !== undefined && $t1.has($t2);
   if (!ok) {
     return 'lib.d.ts';
   }
@@ -6510,9 +6513,9 @@ export function createDiagnosticForInvalidEnumType(
   sourceFile: $ast.SourceFile | undefined,
   node: $ast.Node | undefined,
 ): $ast.Diagnostic | undefined {
-  let namesOfType: string[] = $rt.slices_Collect(opt!.EnumMap()!.Keys());
-  let stringNames: string = formatEnumTypeKeys(opt, namesOfType);
-  let optName: string = '--' + opt!.Name;
+  const namesOfType: string[] = $rt.slices_Collect(opt!.EnumMap()!.Keys());
+  const stringNames: string = formatEnumTypeKeys(opt, namesOfType);
+  const optName: string = '--' + opt!.Name;
   return CreateDiagnosticForNodeInSourceFileOrCompilerDiagnostic(
     sourceFile,
     node,
@@ -6556,7 +6559,7 @@ export function createUnknownOptionError(
   optionsNameMap: CommandLineOptionNameMap,
 ): $ast.Diagnostic | undefined {
   if (!(alternateMode === undefined) && !(alternateMode!.optionsNameMap === undefined)) {
-    let otherOption: CommandLineOption | undefined = alternateMode!.optionsNameMap!.Get(
+    const otherOption: CommandLineOption | undefined = alternateMode!.optionsNameMap!.Get(
       $rt.strings_ToLower(unknownOption),
     );
     if (!(otherOption === undefined)) {
@@ -6574,7 +6577,7 @@ export function createUnknownOptionError(
   }
   if (!(unknownDidYouMeanDiagnostic === undefined) && !(optionsNameMap === undefined)) {
     {
-      let possibleOption: CommandLineOption | undefined = CommandLineOptionNameMap$GetSpellingSuggestion(
+      const possibleOption: CommandLineOption | undefined = CommandLineOptionNameMap$GetSpellingSuggestion(
         optionsNameMap!,
         unknownOption,
       );
@@ -6657,13 +6660,13 @@ export function extraKeyDidYouMeanDiagnostics(s: string): $diagnostics.Message |
   }
 }
 export function GetNameMapFromList(optDecls: (CommandLineOption | undefined)[]): NameMap | undefined {
-  let optionsNames: $collections.OrderedMap<string, CommandLineOption | undefined> | undefined =
+  const optionsNames: $collections.OrderedMap<string, CommandLineOption | undefined> | undefined =
     $collections.NewOrderedMapWithSizeHint<string, CommandLineOption | undefined>($zf0, $zf2, optDecls.length);
-  let shortOptionNames: Map<string, string> | undefined = new Map<string, string>();
+  const shortOptionNames: Map<string, string> | undefined = new Map<string, string>();
   {
     const $t1 = optDecls;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let option = $t1[$t2];
+      const option = $t1[$t2];
       optionsNames!.Set($rt.strings_ToLower(option!.Name), option);
       if (!(option!.ShortName === ('' as string))) {
         shortOptionNames!.set(option!.ShortName, option!.Name);
@@ -6689,8 +6692,8 @@ export function ParseTristate(value: $rt.GoObject | undefined): $core.Tristate {
   {
     const $t1: $rt.GoObject | undefined = value;
     const $t2: boolean = $t1 instanceof $core.Tristate$Box;
-    let v: $core.Tristate = $t2 ? $core.Tristate$Box.$cast($t1).v : 0;
-    let ok: boolean = $t2;
+    const v: $core.Tristate = $t2 ? $core.Tristate$Box.$cast($t1).v : 0;
+    const ok: boolean = $t2;
     if (ok) {
       return v;
     }
@@ -6705,8 +6708,8 @@ export function ParseStringArray(value: $rt.GoObject | undefined): string[] {
   {
     const $t1: $rt.GoObject | undefined = value;
     const $t2: boolean = $t1 instanceof $boxes.Box___any;
-    let arr: ($rt.GoObject | undefined)[] = $t2 ? $boxes.Box___any.$cast($t1).v : [];
-    let ok: boolean = $t2;
+    const arr: ($rt.GoObject | undefined)[] = $t2 ? $boxes.Box___any.$cast($t1).v : [];
+    const ok: boolean = $t2;
     if (ok) {
       if (arr.length === 0) {
         return [];
@@ -6715,12 +6718,12 @@ export function ParseStringArray(value: $rt.GoObject | undefined): string[] {
       {
         const $t3 = arr;
         for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
-          let v = $t3[$t4];
+          const v = $t3[$t4];
           {
             const $t5: $rt.GoObject | undefined = v;
             const $t6: boolean = $rt.isValue($t5, 'string');
-            let str: string = $t6 ? $rt.checkString(true, $t5) : '';
-            let ok$1: boolean = $t6;
+            const str: string = $t6 ? $rt.checkString(true, $t5) : '';
+            const ok$1: boolean = $t6;
             if (ok$1) {
               result.push(str);
             }
@@ -6736,12 +6739,12 @@ export function parseStringMap(value: $rt.GoObject | undefined): $collections.Or
   {
     const $t1: $rt.GoObject | undefined = value;
     const $t2: boolean = $t1 instanceof $boxes.Box__collections_OrderedMap_string__any_;
-    let m: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined = $t2
+    const m: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined = $t2
       ? $boxes.Box__collections_OrderedMap_string__any_.$cast($t1).v
       : undefined;
-    let ok: boolean = $t2;
+    const ok: boolean = $t2;
     if (ok) {
-      let result: $collections.OrderedMap<string, string[]> | undefined = $collections.NewOrderedMapWithSizeHint<
+      const result: $collections.OrderedMap<string, string[]> | undefined = $collections.NewOrderedMapWithSizeHint<
         string,
         string[]
       >($zf0, $zf3, m!.Size());
@@ -6762,8 +6765,8 @@ export function ParseString(value: $rt.GoObject | undefined): string {
   {
     const $t1: $rt.GoObject | undefined = value;
     const $t2: boolean = $rt.isValue($t1, 'string');
-    let str: string = $t2 ? $rt.checkString(true, $t1) : '';
-    let ok: boolean = $t2;
+    const str: string = $t2 ? $rt.checkString(true, $t1) : '';
+    const ok: boolean = $t2;
     if (ok) {
       return str;
     }
@@ -6775,7 +6778,7 @@ export function parseNumber(value: $rt.GoObject | undefined): $rt.Ptr<number> | 
     const $t1: $rt.GoObject | undefined = value;
     const $t2: boolean = $rt.isValue($t1, 'int');
     let num: number = $t2 ? $rt.checkNumber(true, $t1) : 0;
-    let ok: boolean = $t2;
+    const ok: boolean = $t2;
     if (ok) {
       return $rt.ptrTo<number>(
         (): number => num,
@@ -6788,8 +6791,8 @@ export function parseNumber(value: $rt.GoObject | undefined): $rt.Ptr<number> | 
   {
     const $t3: $rt.GoObject | undefined = value;
     const $t4: boolean = $rt.isValue($t3, 'float64');
-    let num$1: number = $t4 ? $rt.checkNumber(true, $t3) : 0;
-    let ok$1: boolean = $t4;
+    const num$1: number = $t4 ? $rt.checkNumber(true, $t3) : 0;
+    const ok$1: boolean = $t4;
     if (ok$1) {
       let n: number = Math.trunc(num$1);
       return $rt.ptrTo<number>(
@@ -6806,23 +6809,23 @@ export function parseProjectReference(json: $rt.GoObject | undefined): projectRe
   {
     const $t1: $rt.GoObject | undefined = json;
     const $t2: boolean = $t1 instanceof $boxes.Box__collections_OrderedMap_string__any_;
-    let v: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined = $t2
+    const v: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined = $t2
       ? $boxes.Box__collections_OrderedMap_string__any_.$cast($t1).v
       : undefined;
-    let ok: boolean = $t2;
+    const ok: boolean = $t2;
     if (ok) {
-      let result: projectReferenceParseResult | undefined = new projectReferenceParseResult();
+      const result: projectReferenceParseResult | undefined = new projectReferenceParseResult();
       {
         const $t3 = v!.Get('path');
-        let value: $rt.GoObject | undefined = $t3[0];
-        let ok$1: boolean = $t3[1];
+        const value: $rt.GoObject | undefined = $t3[0];
+        const ok$1: boolean = $t3[1];
         if (ok$1) {
           result!.hasPath = true;
           {
             const $t4: $rt.GoObject | undefined = value;
             const $t5: boolean = $rt.isValue($t4, 'string');
-            let path: string = $t5 ? $rt.checkString(true, $t4) : '';
-            let ok$2: boolean = $t5;
+            const path: string = $t5 ? $rt.checkString(true, $t4) : '';
+            const ok$2: boolean = $t5;
             if (ok$2) {
               result!.reference.Path = path;
               result!.pathValid = true;
@@ -6832,15 +6835,15 @@ export function parseProjectReference(json: $rt.GoObject | undefined): projectRe
       }
       {
         const $t6 = v!.Get('circular');
-        let value$1: $rt.GoObject | undefined = $t6[0];
-        let ok$3: boolean = $t6[1];
+        const value$1: $rt.GoObject | undefined = $t6[0];
+        const ok$3: boolean = $t6[1];
         if (ok$3) {
           result!.hasCircular = true;
           {
             const $t7: $rt.GoObject | undefined = value$1;
             const $t8: boolean = $rt.isValue($t7, 'bool');
-            let circular: boolean = $t8 ? $rt.checkBool(true, $t7) : false;
-            let ok$4: boolean = $t8;
+            const circular: boolean = $t8 ? $rt.checkBool(true, $t7) : false;
+            const ok$4: boolean = $t8;
             if (ok$4) {
               result!.reference.Circular = circular;
               result!.circularValid = true;
@@ -6858,25 +6861,25 @@ export function parseContentMapper(
 ): [$contentmapper.Mapper | undefined, ($ast.Diagnostic | undefined)[]] {
   const $t1: $rt.GoObject | undefined = value;
   const $t2: boolean = $t1 instanceof $boxes.Box__collections_OrderedMap_string__any_;
-  let v: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined = $t2
+  const v: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined = $t2
     ? $boxes.Box__collections_OrderedMap_string__any_.$cast($t1).v
     : undefined;
-  let ok: boolean = $t2;
+  const ok: boolean = $t2;
   if (!ok) {
     return [undefined, []];
   }
   let errors: ($ast.Diagnostic | undefined)[] = [];
-  let mapper: $contentmapper.Mapper | undefined = new $contentmapper.Mapper();
+  const mapper: $contentmapper.Mapper | undefined = new $contentmapper.Mapper();
   {
     const $t3 = v!.Get('package');
-    let pkg: $rt.GoObject | undefined = $t3[0];
-    let ok$1: boolean = $t3[1];
+    const pkg: $rt.GoObject | undefined = $t3[0];
+    const ok$1: boolean = $t3[1];
     if (ok$1) {
       {
         const $t4: $rt.GoObject | undefined = pkg;
         const $t5: boolean = $rt.isValue($t4, 'string');
-        let str: string = $t5 ? $rt.checkString(true, $t4) : '';
-        let isString: boolean = $t5;
+        const str: string = $t5 ? $rt.checkString(true, $t4) : '';
+        const isString: boolean = $t5;
         if (isString && !(str === ('' as string))) {
           mapper!.Package = str;
         } else {
@@ -6899,13 +6902,13 @@ export function parseContentMapper(
   }
   {
     const $t6 = v!.Get('extensions');
-    let extensions: $rt.GoObject | undefined = $t6[0];
-    let ok$2: boolean = $t6[1];
+    const extensions: $rt.GoObject | undefined = $t6[0];
+    const ok$2: boolean = $t6[1];
     if (ok$2) {
       {
         const $t7 = parseStringArrayStrict(extensions);
-        let strs: string[] = $t7[0];
-        let isStringArray: boolean = $t7[1];
+        const strs: string[] = $t7[0];
+        const isStringArray: boolean = $t7[1];
         if (isStringArray) {
           mapper!.Extensions = strs;
         } else {
@@ -6928,13 +6931,13 @@ export function parseContentMapper(
   }
   {
     const $t8 = v!.Get('options');
-    let options: $rt.GoObject | undefined = $t8[0];
-    let ok$3: boolean = $t8[1];
+    const options: $rt.GoObject | undefined = $t8[0];
+    const ok$3: boolean = $t8[1];
     if (ok$3) {
       {
         const $t9: $rt.GoObject | undefined = options;
         const $t10: boolean = $t9 instanceof $boxes.Box__collections_OrderedMap_string__any_;
-        let isObject: boolean = $t10;
+        const isObject: boolean = $t10;
         if (!isObject) {
           errors.push(
             $ast.NewCompilerDiagnostic($diagnostics.Compiler_option_0_requires_a_value_of_type_1, [
@@ -6960,8 +6963,8 @@ export function parseContentMapper(
 export function parseStringArrayStrict(value: $rt.GoObject | undefined): [string[], boolean] {
   const $t1: $rt.GoObject | undefined = value;
   const $t2: boolean = $t1 instanceof $boxes.Box___any;
-  let arr: ($rt.GoObject | undefined)[] = $t2 ? $boxes.Box___any.$cast($t1).v : [];
-  let ok: boolean = $t2;
+  const arr: ($rt.GoObject | undefined)[] = $t2 ? $boxes.Box___any.$cast($t1).v : [];
+  const ok: boolean = $t2;
   if (!ok) {
     return [[], false];
   }
@@ -6969,11 +6972,11 @@ export function parseStringArrayStrict(value: $rt.GoObject | undefined): [string
   {
     const $t3 = arr;
     for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
-      let v = $t3[$t4];
+      const v = $t3[$t4];
       const $t5: $rt.GoObject | undefined = v;
       const $t6: boolean = $rt.isValue($t5, 'string');
-      let str: string = $t6 ? $rt.checkString(true, $t5) : '';
-      let ok$1: boolean = $t6;
+      const str: string = $t6 ? $rt.checkString(true, $t5) : '';
+      const ok$1: boolean = $t6;
       if (!ok$1) {
         return [[], false];
       }
@@ -6985,66 +6988,66 @@ export function parseStringArrayStrict(value: $rt.GoObject | undefined): [string
 export function parseJsonToStringKey(
   json: $rt.GoObject | undefined,
 ): $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined {
-  let result: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined =
+  const result: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined =
     $collections.NewOrderedMapWithSizeHint<string, $rt.GoObject | undefined>($zf0, $zf1, 6);
   {
     const $t1: $rt.GoObject | undefined = json;
     const $t2: boolean = $t1 instanceof $boxes.Box__collections_OrderedMap_string__any_;
-    let m: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined = $t2
+    const m: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined = $t2
       ? $boxes.Box__collections_OrderedMap_string__any_.$cast($t1).v
       : undefined;
-    let ok: boolean = $t2;
+    const ok: boolean = $t2;
     if (ok) {
       {
         const $t3 = m!.Get('include');
-        let v: $rt.GoObject | undefined = $t3[0];
-        let ok$1: boolean = $t3[1];
+        const v: $rt.GoObject | undefined = $t3[0];
+        const ok$1: boolean = $t3[1];
         if (ok$1) {
           result!.Set('include', v);
         }
       }
       {
         const $t4 = m!.Get('exclude');
-        let v$1: $rt.GoObject | undefined = $t4[0];
-        let ok$2: boolean = $t4[1];
+        const v$1: $rt.GoObject | undefined = $t4[0];
+        const ok$2: boolean = $t4[1];
         if (ok$2) {
           result!.Set('exclude', v$1);
         }
       }
       {
         const $t5 = m!.Get('files');
-        let v$2: $rt.GoObject | undefined = $t5[0];
-        let ok$3: boolean = $t5[1];
+        const v$2: $rt.GoObject | undefined = $t5[0];
+        const ok$3: boolean = $t5[1];
         if (ok$3) {
           result!.Set('files', v$2);
         }
       }
       {
         const $t6 = m!.Get('references');
-        let v$3: $rt.GoObject | undefined = $t6[0];
-        let ok$4: boolean = $t6[1];
+        const v$3: $rt.GoObject | undefined = $t6[0];
+        const ok$4: boolean = $t6[1];
         if (ok$4) {
           result!.Set('references', v$3);
         }
       }
       {
         const $t7 = m!.Get('contentMappers');
-        let v$4: $rt.GoObject | undefined = $t7[0];
-        let ok$5: boolean = $t7[1];
+        const v$4: $rt.GoObject | undefined = $t7[0];
+        const ok$5: boolean = $t7[1];
         if (ok$5) {
           result!.Set('contentMappers', v$4);
         }
       }
       {
         const $t8 = m!.Get('extends');
-        let v$5: $rt.GoObject | undefined = $t8[0];
-        let ok$6: boolean = $t8[1];
+        const v$5: $rt.GoObject | undefined = $t8[0];
+        const ok$6: boolean = $t8[1];
         if (ok$6) {
           {
             const $t9: $rt.GoObject | undefined = v$5;
             const $t10: boolean = $rt.isValue($t9, 'string');
-            let str: string = $t10 ? $rt.checkString(true, $t9) : '';
-            let ok$7: boolean = $t10;
+            const str: string = $t10 ? $rt.checkString(true, $t9) : '';
+            const ok$7: boolean = $t10;
             if (ok$7) {
               result!.Set('extends', new $boxes.Box___any([new $rt.BoxStr(str, 'string')]));
             }
@@ -7054,24 +7057,24 @@ export function parseJsonToStringKey(
       }
       {
         const $t11 = m!.Get('compilerOptions');
-        let v$6: $rt.GoObject | undefined = $t11[0];
-        let ok$8: boolean = $t11[1];
+        const v$6: $rt.GoObject | undefined = $t11[0];
+        const ok$8: boolean = $t11[1];
         if (ok$8) {
           result!.Set('compilerOptions', v$6);
         }
       }
       {
         const $t12 = m!.Get('excludes');
-        let v$7: $rt.GoObject | undefined = $t12[0];
-        let ok$9: boolean = $t12[1];
+        const v$7: $rt.GoObject | undefined = $t12[0];
+        const ok$9: boolean = $t12[1];
         if (ok$9) {
           result!.Set('excludes', v$7);
         }
       }
       {
         const $t13 = m!.Get('typeAcquisition');
-        let v$8: $rt.GoObject | undefined = $t13[0];
-        let ok$10: boolean = $t13[1];
+        const v$8: $rt.GoObject | undefined = $t13[0];
+        const ok$10: boolean = $t13[1];
         if (ok$10) {
           result!.Set('typeAcquisition', v$8);
         }
@@ -7100,7 +7103,7 @@ export function parseCompilerOptions(
   allOptions: $core.CompilerOptions | undefined,
 ): boolean {
   let foundKey: boolean = false;
-  let option: CommandLineOption | undefined = CommandLineOptionNameMap$Get(CommandLineCompilerOptionsMap!, key);
+  const option: CommandLineOption | undefined = CommandLineOptionNameMap$Get(CommandLineCompilerOptionsMap!, key);
   if (!(option === undefined)) {
     key = option!.Name;
   }
@@ -7310,7 +7313,7 @@ export function parseCompilerOptions(
         {
           const $t1: $rt.GoObject | undefined = value;
           const $t2: boolean = $t1 instanceof $boxes.Box___string;
-          let ok: boolean = $t2;
+          const ok: boolean = $t2;
           if (ok) {
             allOptions!.Lib =
               value instanceof $boxes.Box___string
@@ -7657,8 +7660,8 @@ export function floatOrInt32ToFlag<T extends number>($z_T: () => T, value: $rt.G
   {
     const $t1: $rt.GoObject | undefined = value;
     const $t2: boolean = $t1 !== undefined;
-    let v: T = $t2 ? $rt.unboxAny<T>($t1) : $z_T();
-    let ok: boolean = $t2;
+    const v: T = $t2 ? $rt.unboxAny<T>($t1) : $z_T();
+    const ok: boolean = $t2;
     if (ok) {
       return v;
     }
@@ -7757,7 +7760,7 @@ export function ParseBuildOptions(
   if (allOptions === undefined) {
     return [];
   }
-  let option: CommandLineOption | undefined = BuildNameMap!.Get(key);
+  const option: CommandLineOption | undefined = BuildNameMap!.Get(key);
   if (!(option === undefined)) {
     key = option!.Name;
   }
@@ -7799,28 +7802,28 @@ export function mergeCompilerOptions(
   if (sourceOptions === undefined) {
     return targetOptions;
   }
-  let explicitNullFields: $collections.Set_<string> = new $collections.Set_<string>();
+  const explicitNullFields: $collections.Set_<string> = new $collections.Set_<string>();
   if (!(rawSource === undefined)) {
     {
       const $t1: $rt.GoObject | undefined = rawSource;
       const $t2: boolean = $t1 instanceof $boxes.Box__collections_OrderedMap_string__any_;
-      let rawMap: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined = $t2
+      const rawMap: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined = $t2
         ? $boxes.Box__collections_OrderedMap_string__any_.$cast($t1).v
         : undefined;
-      let ok: boolean = $t2;
+      const ok: boolean = $t2;
       if (ok && !(rawMap === undefined)) {
         {
           const $t3 = rawMap!.Get('compilerOptions');
-          let compilerOptionsRaw: $rt.GoObject | undefined = $t3[0];
-          let exists: boolean = $t3[1];
+          const compilerOptionsRaw: $rt.GoObject | undefined = $t3[0];
+          const exists: boolean = $t3[1];
           if (exists) {
             {
               const $t4: $rt.GoObject | undefined = compilerOptionsRaw;
               const $t5: boolean = $t4 instanceof $boxes.Box__collections_OrderedMap_string__any_;
-              let compilerOptionsMap: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined = $t5
+              const compilerOptionsMap: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined = $t5
                 ? $boxes.Box__collections_OrderedMap_string__any_.$cast($t4).v
                 : undefined;
-              let ok$1: boolean = $t5;
+              const ok$1: boolean = $t5;
               if (ok$1) {
                 let $t6 = false;
                 let $t7: $core.CompilerOptions | undefined = undefined as $core.CompilerOptions | undefined;
@@ -7837,18 +7840,18 @@ export function mergeCompilerOptions(
       }
     }
   }
-  let targetValue: $rt.reflect_Value = $rt.reflect_ValueOf(targetOptions).Elem();
-  let sourceValue: $rt.reflect_Value = $rt.reflect_ValueOf(sourceOptions).Elem();
-  let targetType: $rt.reflect_Type | undefined = targetValue.Type();
+  const targetValue: $rt.reflect_Value = $rt.reflect_ValueOf(targetOptions).Elem();
+  const sourceValue: $rt.reflect_Value = $rt.reflect_ValueOf(sourceOptions).Elem();
+  const targetType: $rt.reflect_Type | undefined = targetValue.Type();
   for (let i = 0, $t8 = targetValue.NumField(); i < $t8; i++) {
-    let targetField: $rt.reflect_Value = targetValue.Field(i);
-    let sourceField: $rt.reflect_Value = sourceValue.Field(i);
+    const targetField: $rt.reflect_Value = targetValue.Field(i);
+    const sourceField: $rt.reflect_Value = sourceValue.Field(i);
     {
-      let jsonTag: string = $rt.reflect_StructTag$Get(targetType!.Field(i).Tag, 'json');
+      const jsonTag: string = $rt.reflect_StructTag$Get(targetType!.Field(i).Tag, 'json');
       if (!(jsonTag === ('' as string))) {
         {
           const $t9 = $rt.strings_Cut(jsonTag, ',');
-          let jsonFieldName: string = $t9[0];
+          const jsonFieldName: string = $t9[0];
           if (!(jsonFieldName === ('' as string)) && explicitNullFields.Has(jsonFieldName)) {
             targetField.SetZero();
             continue;
@@ -7876,8 +7879,8 @@ export function convertToOptionsWithAbsolutePaths(
     | undefined;
   optionsBase!.Entries()!((o: string, v: $rt.GoObject | undefined): boolean => {
     const $t3 = ConvertOptionToAbsolutePath(o, v, optionMap, cwd);
-    let result: $rt.GoObject | undefined = $t3[0];
-    let ok: boolean = $t3[1];
+    const result: $rt.GoObject | undefined = $t3[0];
+    const ok: boolean = $t3[1];
     if (ok) {
       optionsBase!.Set(o, result);
     }
@@ -7891,7 +7894,7 @@ export function ConvertOptionToAbsolutePath(
   optionMap: CommandLineOptionNameMap,
   cwd: string,
 ): [$rt.GoObject | undefined, boolean] {
-  let option: CommandLineOption | undefined = CommandLineOptionNameMap$Get(optionMap!, o);
+  const option: CommandLineOption | undefined = CommandLineOptionNameMap$Get(optionMap!, o);
   if (option === undefined) {
     return [undefined, false];
   }
@@ -7900,8 +7903,8 @@ export function ConvertOptionToAbsolutePath(
       {
         const $t1: $rt.GoObject | undefined = v;
         const $t2: boolean = $t1 instanceof $boxes.Box___string;
-        let arr: string[] = $t2 ? $boxes.Box___string.$cast($t1).v : [];
-        let ok: boolean = $t2;
+        const arr: string[] = $t2 ? $boxes.Box___string.$cast($t1).v : [];
+        const ok: boolean = $t2;
         if (ok) {
           return [
             new $boxes.Box___string(
@@ -7916,8 +7919,8 @@ export function ConvertOptionToAbsolutePath(
       {
         const $t3: $rt.GoObject | undefined = v;
         const $t4: boolean = $t3 instanceof $boxes.Box___any;
-        let arr$1: ($rt.GoObject | undefined)[] = $t4 ? $boxes.Box___any.$cast($t3).v : [];
-        let ok$1: boolean = $t4;
+        const arr$1: ($rt.GoObject | undefined)[] = $t4 ? $boxes.Box___any.$cast($t3).v : [];
+        const ok$1: boolean = $t4;
         if (ok$1) {
           return [
             new $boxes.Box___any(
@@ -7928,8 +7931,8 @@ export function ConvertOptionToAbsolutePath(
                   {
                     const $t5: $rt.GoObject | undefined = item$1;
                     const $t6: boolean = $rt.isValue($t5, 'string');
-                    let s: string = $t6 ? $rt.checkString(true, $t5) : '';
-                    let isStr: boolean = $t6;
+                    const s: string = $t6 ? $rt.checkString(true, $t5) : '';
+                    const isStr: boolean = $t6;
                     if (isStr) {
                       return new $rt.BoxStr($tspath.GetNormalizedAbsolutePath(s, cwd), 'string');
                     }
@@ -7947,8 +7950,8 @@ export function ConvertOptionToAbsolutePath(
     {
       const $t7: $rt.GoObject | undefined = v;
       const $t8: boolean = $rt.isValue($t7, 'string');
-      let value: string = $t8 ? $rt.checkString(true, $t7) : '';
-      let ok$2: boolean = $t8;
+      const value: string = $t8 ? $rt.checkString(true, $t7) : '';
+      const ok$2: boolean = $t8;
       if (ok$2) {
         return [new $rt.BoxStr($tspath.GetNormalizedAbsolutePath(value, cwd), 'string'), true];
       }
@@ -7970,11 +7973,11 @@ export function ConvertToTSConfig(
   if (configFileName === ('' as string)) {
     configFileName = 'tsconfig.json';
   }
-  let normalizedConfigPath: string = $tspath.GetNormalizedAbsolutePath(
+  const normalizedConfigPath: string = $tspath.GetNormalizedAbsolutePath(
     configFileName,
     configParseResult!.GetCurrentDirectory(),
   );
-  let comparePathsOptions: $tspath.ComparePathsOptions =
+  const comparePathsOptions: $tspath.ComparePathsOptions =
     $tspath.ComparePathsOptions.$lit_tspath_ComparePathsOptions_1_0(
       configParseResult!.GetCurrentDirectory(),
       configParseResult!.UseCaseSensitiveFileNames(),
@@ -7983,9 +7986,9 @@ export function ConvertToTSConfig(
   {
     const $t1 = configParseResult!.FileNames();
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let f = $t1[$t2];
-      let normalizedFilePath: string = $tspath.GetNormalizedAbsolutePath(f, configParseResult!.GetCurrentDirectory());
-      let relativePath: string = $tspath.GetRelativePathFromFile(
+      const f = $t1[$t2];
+      const normalizedFilePath: string = $tspath.GetNormalizedAbsolutePath(f, configParseResult!.GetCurrentDirectory());
+      const relativePath: string = $tspath.GetRelativePathFromFile(
         normalizedConfigPath,
         normalizedFilePath,
         comparePathsOptions,
@@ -7993,7 +7996,7 @@ export function ConvertToTSConfig(
       files.push(relativePath);
     }
   }
-  let optionMap: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined = serializeCompilerOptions(
+  const optionMap: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined = serializeCompilerOptions(
     ParsedCommandLine.CompilerOptions$m$nil(configParseResult),
     normalizedConfigPath,
     comparePathsOptions,
@@ -8012,7 +8015,7 @@ export function ConvertToTSConfig(
       'version',
     ];
     for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
-      let name_ = $t3[$t4];
+      const name_ = $t3[$t4];
       optionMap!.Delete(name_);
     }
   }
@@ -8022,19 +8025,17 @@ export function ConvertToTSConfig(
     normalizedConfigPath,
     comparePathsOptions,
   );
-  let config: TSConfig | undefined = TSConfig.$lit_tsoptions_TSConfig_0(optionMap);
+  const config: TSConfig | undefined = TSConfig.$lit_tsoptions_TSConfig_0(optionMap);
   {
-    let refs: ($core.ProjectReference | undefined)[] = configParseResult!.ProjectReferences();
+    const refs: ($core.ProjectReference | undefined)[] = configParseResult!.ProjectReferences();
     if (refs.length > 0) {
       let references: ($rt.GoObject | undefined)[] = [];
       {
         const $t5 = refs;
         for (let $t6 = 0, $n = $t5.length; $t6 < $n; $t6++) {
-          let r = $t5[$t6];
-          let ref: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined = new $collections.OrderedMap<
-            string,
-            $rt.GoObject | undefined
-          >($zf0, $zf1);
+          const r = $t5[$t6];
+          const ref: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined =
+            new $collections.OrderedMap<string, $rt.GoObject | undefined>($zf0, $zf1);
           ref!.Set('path', new $rt.BoxStr(r!.OriginalPath, 'string'));
           if (r!.Circular) {
             ref!.Set('circular', new $rt.BoxBool(true, 'bool'));
@@ -8052,8 +8053,8 @@ export function ConvertToTSConfig(
     !(configParseResult!.ConfigFile === undefined) &&
     !(configParseResult!.ConfigFile!.configFileSpecs_ === undefined)
   ) {
-    let specs: configFileSpecs | undefined = configParseResult!.ConfigFile!.configFileSpecs_;
-    let include: string[] = filterSameAsDefaultInclude(specs!.validatedIncludeSpecs);
+    const specs: configFileSpecs | undefined = configParseResult!.ConfigFile!.configFileSpecs_;
+    const include: string[] = filterSameAsDefaultInclude(specs!.validatedIncludeSpecs);
     if (include.length > 0) {
       config!.Include = include;
     }
@@ -8101,17 +8102,17 @@ export function serializeCompilerOptions(
   configFilePath: string,
   comparePathsOptions: $tspath.ComparePathsOptions,
 ): $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined {
-  let result: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined =
+  const result: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined =
     $collections.NewOrderedMapWithSizeHint<string, $rt.GoObject | undefined>($zf0, $zf1, 32);
-  let configDir: string = $tspath.GetDirectoryPath(configFilePath);
-  let optionsValue: $rt.reflect_Value = $rt.reflect_ValueOf(options).Elem();
-  let optionsTypeInfo: $rt.reflect_Type | undefined = $rt.reflect_TypeFor<$core.CompilerOptions>();
+  const configDir: string = $tspath.GetDirectoryPath(configFilePath);
+  const optionsValue: $rt.reflect_Value = $rt.reflect_ValueOf(options).Elem();
+  const optionsTypeInfo: $rt.reflect_Type | undefined = $rt.reflect_TypeFor<$core.CompilerOptions>();
   for (let i = 0, $t1 = optionsValue.NumField(); i < $t1; i++) {
-    let field: $rt.reflect_StructField = optionsTypeInfo!.Field(i);
+    const field: $rt.reflect_StructField = optionsTypeInfo!.Field(i);
     if (!field.IsExported()) {
       continue;
     }
-    let optionDecl: CommandLineOption | undefined = CommandLineOptionNameMap$Get(
+    const optionDecl: CommandLineOption | undefined = CommandLineOptionNameMap$Get(
       CommandLineCompilerOptionsMap!,
       field.Name,
     );
@@ -8124,15 +8125,15 @@ export function serializeCompilerOptions(
     ) {
       continue;
     }
-    let fieldValue: $rt.reflect_Value = optionsValue.Field(i);
+    const fieldValue: $rt.reflect_Value = optionsValue.Field(i);
     if (fieldValue.IsZero()) {
       continue;
     }
-    let name_: string = optionDecl!.Name;
-    let value: $rt.GoObject | undefined = fieldValue.Interface();
-    let enumMap: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined = optionDecl!.EnumMap();
+    const name_: string = optionDecl!.Name;
+    const value: $rt.GoObject | undefined = fieldValue.Interface();
+    const enumMap: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined = optionDecl!.EnumMap();
     if (!(enumMap === undefined)) {
-      let serialized: string = serializeEnumValue(value, enumMap);
+      const serialized: string = serializeEnumValue(value, enumMap);
       if (!(serialized === ('' as string))) {
         result!.Set(name_, new $rt.BoxStr(serialized, 'string'));
       }
@@ -8145,21 +8146,21 @@ export function serializeCompilerOptions(
           break;
         }
         case 'list' as string: {
-          let elem: CommandLineOption | undefined = optionDecl!.Elements();
+          const elem: CommandLineOption | undefined = optionDecl!.Elements();
           if (!(elem === undefined) && elem!.IsFilePath) {
             {
               const $t2: $rt.GoObject | undefined = value;
               const $t3: boolean = $t2 instanceof $boxes.Box___string;
-              let strs: string[] = $t3 ? $boxes.Box___string.$cast($t2).v : [];
-              let ok: boolean = $t3;
+              const strs: string[] = $t3 ? $boxes.Box___string.$cast($t2).v : [];
+              const ok: boolean = $t3;
               if (ok) {
-                let relPaths: string[] = $rt.makeSlice<string>(strs.length, '');
+                const relPaths: string[] = $rt.makeSlice<string>(strs.length, '');
                 {
                   const $t4 = strs;
                   for (let $t5 = 0, $n = $t4.length; $t5 < $n; $t5++) {
-                    let j = $t5;
-                    let s = $t4[$t5];
-                    let absPath: string = $tspath.GetNormalizedAbsolutePath(s, configDir);
+                    const j = $t5;
+                    const s = $t4[$t5];
+                    const absPath: string = $tspath.GetNormalizedAbsolutePath(s, configDir);
                     relPaths[j] = $tspath.GetRelativePathFromFile(configFilePath, absPath, comparePathsOptions);
                   }
                 }
@@ -8169,19 +8170,19 @@ export function serializeCompilerOptions(
             }
           }
           if (!(elem === undefined) && !(elem!.EnumMap() === undefined)) {
-            let elemMap: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined = elem!.EnumMap();
+            const elemMap: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined = elem!.EnumMap();
             {
               const $t6: $rt.GoObject | undefined = value;
               const $t7: boolean = $t6 instanceof $boxes.Box___string;
-              let strs$1: string[] = $t7 ? $boxes.Box___string.$cast($t6).v : [];
-              let ok$1: boolean = $t7;
+              const strs$1: string[] = $t7 ? $boxes.Box___string.$cast($t6).v : [];
+              const ok$1: boolean = $t7;
               if (ok$1) {
                 let serialized$1: string[] = [] as string[];
                 {
                   const $t8 = strs$1;
                   for (let $t9 = 0, $n = $t8.length; $t9 < $n; $t9++) {
-                    let s$1 = $t8[$t9];
-                    let found: string = getNameOfCompilerOptionValue(new $rt.BoxStr(s$1, 'string'), elemMap);
+                    const s$1 = $t8[$t9];
+                    const found: string = getNameOfCompilerOptionValue(new $rt.BoxStr(s$1, 'string'), elemMap);
                     if (!(found === ('' as string))) {
                       serialized$1.push(found);
                     } else {
@@ -8202,10 +8203,10 @@ export function serializeCompilerOptions(
             {
               const $t10: $rt.GoObject | undefined = value;
               const $t11: boolean = $rt.isValue($t10, 'string');
-              let s$2: string = $t11 ? $rt.checkString(true, $t10) : '';
-              let ok$2: boolean = $t11;
+              const s$2: string = $t11 ? $rt.checkString(true, $t10) : '';
+              const ok$2: boolean = $t11;
               if (ok$2 && !(s$2 === ('' as string))) {
-                let absPath$1: string = $tspath.GetNormalizedAbsolutePath(s$2, configDir);
+                const absPath$1: string = $tspath.GetNormalizedAbsolutePath(s$2, configDir);
                 result!.Set(
                   name_,
                   new $rt.BoxStr(
@@ -8224,8 +8225,8 @@ export function serializeCompilerOptions(
           {
             const $t12: $rt.GoObject | undefined = value;
             const $t13: boolean = $t12 instanceof $core.Tristate$Box;
-            let t: $core.Tristate = $t13 ? $core.Tristate$Box.$cast($t12).v : 0;
-            let ok$3: boolean = $t13;
+            const t: $core.Tristate = $t13 ? $core.Tristate$Box.$cast($t12).v : 0;
+            const ok$3: boolean = $t13;
             if (ok$3) {
               if ($core.Tristate$IsTrue(t)) {
                 result!.Set(name_, new $rt.BoxBool(true, 'bool'));
@@ -8255,13 +8256,13 @@ export function serializeEnumValue(
   value: $rt.GoObject | undefined,
   enumMap: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined,
 ): string {
-  let rv: $rt.reflect_Value = $rt.reflect_ValueOf(value);
+  const rv: $rt.reflect_Value = $rt.reflect_ValueOf(value);
   if (rv.CanInt()) {
-    let intVal: number = rv.Int();
+    const intVal: number = rv.Int();
     let $t1 = false;
     let $t2: string = '';
     enumMap!.Entries()!((k: string, v: $rt.GoObject | undefined): boolean => {
-      let ev: $rt.reflect_Value = $rt.reflect_ValueOf(v);
+      const ev: $rt.reflect_Value = $rt.reflect_ValueOf(v);
       if (ev.CanInt() && ev.Int() === intVal) {
         $t2 = k;
         $t1 = true;
@@ -8279,19 +8280,19 @@ export function addImpliedOptions(
   $p2: string,
   $p3: $tspath.ComparePathsOptions,
 ): void {
-  let provided: Map<string, boolean> | undefined = new Map<string, boolean>();
+  const provided: Map<string, boolean> | undefined = new Map<string, boolean>();
   let $t1 = false;
   let $t2: undefined = undefined;
   optionMap!.Keys()!((k: string): boolean => {
     provided!.set(k, true);
     return true;
   });
-  let defaultOpts: $core.CompilerOptions | undefined = new $core.CompilerOptions();
+  const defaultOpts: $core.CompilerOptions | undefined = new $core.CompilerOptions();
   {
     const $t3 = impliedOptions;
     for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
-      let entry = $t3[$t4];
-      let optionDecl: CommandLineOption | undefined = CommandLineOptionNameMap$Get(
+      const entry = $t3[$t4];
+      const optionDecl: CommandLineOption | undefined = CommandLineOptionNameMap$Get(
         CommandLineCompilerOptionsMap!,
         entry.name,
       );
@@ -8304,12 +8305,12 @@ export function addImpliedOptions(
       if (!anyDependencyProvided(entry.dependencies, provided)) {
         continue;
       }
-      let implied: $rt.GoObject | undefined = entry.compute!(options);
-      let defaultVal: $rt.GoObject | undefined = entry.compute!(defaultOpts);
+      const implied: $rt.GoObject | undefined = entry.compute!(options);
+      const defaultVal: $rt.GoObject | undefined = entry.compute!(defaultOpts);
       if ($rt.reflect_DeepEqual(implied, defaultVal)) {
         continue;
       }
-      let serialized: $rt.GoObject | undefined = serializeImpliedOptionValue(optionDecl, implied);
+      const serialized: $rt.GoObject | undefined = serializeImpliedOptionValue(optionDecl, implied);
       if (serialized === undefined) {
         continue;
       }
@@ -8321,8 +8322,8 @@ export function anyDependencyProvided(dependencies: string[], provided: Map<stri
   {
     const $t1 = dependencies;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let dep = $t1[$t2];
-      let depDecl: CommandLineOption | undefined = CommandLineOptionNameMap$Get(CommandLineCompilerOptionsMap!, dep);
+      const dep = $t1[$t2];
+      const depDecl: CommandLineOption | undefined = CommandLineOptionNameMap$Get(CommandLineCompilerOptionsMap!, dep);
       if (!(depDecl === undefined) && (provided?.get(depDecl!.Name) ?? false)) {
         return true;
       }
@@ -8337,9 +8338,9 @@ export function serializeImpliedOptionValue(
   if (value === undefined) {
     return undefined;
   }
-  let enumMap: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined = optionDecl!.EnumMap();
+  const enumMap: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined = optionDecl!.EnumMap();
   if (!(enumMap === undefined)) {
-    let s: string = serializeEnumValue(value, enumMap);
+    const s: string = serializeEnumValue(value, enumMap);
     if (!(s === ('' as string))) {
       return new $rt.BoxStr(s, 'string');
     }
@@ -8370,12 +8371,12 @@ export function parseOwnConfigOfJsonSourceFile(
   basePath: string,
   configFileName: string,
 ): [parsedTsconfig | undefined, ($ast.Diagnostic | undefined)[]] {
-  let compilerOptions: $core.CompilerOptions | undefined = getDefaultCompilerOptions(configFileName);
-  let typeAcquisition: $core.TypeAcquisition | undefined = getDefaultTypeAcquisition(configFileName);
+  const compilerOptions: $core.CompilerOptions | undefined = getDefaultCompilerOptions(configFileName);
+  const typeAcquisition: $core.TypeAcquisition | undefined = getDefaultTypeAcquisition(configFileName);
   let extendedConfigPath: $rt.GoObject | undefined = undefined as $rt.GoObject | undefined;
   let rootCompilerOptions: ($ast.Node | undefined)[] = [];
   let errors: ($ast.Diagnostic | undefined)[] = [];
-  let onPropertySet:
+  const onPropertySet:
     | ((
         p0: string,
         p1: $rt.GoObject | undefined,
@@ -8420,7 +8421,7 @@ export function parseOwnConfigOfJsonSourceFile(
         }
         propertySetErrors = $rt.appendCopy(propertySetErrors, parseDiagnostics);
       } else if (!(keyText === ('' as string)) && !(extraKeyDiagnostics(parentOption!.Name) === undefined)) {
-        let unknownNameDiag: $diagnostics.Message | undefined = extraKeyDiagnostics(parentOption!.Name);
+        const unknownNameDiag: $diagnostics.Message | undefined = extraKeyDiagnostics(parentOption!.Name);
         if (!(parentOption!.ElementOptions === undefined)) {
           let possibleOption: CommandLineOption | undefined = CommandLineOptionNameMap$Get(
             parentOption!.ElementOptions!,
@@ -8466,8 +8467,8 @@ export function parseOwnConfigOfJsonSourceFile(
           propertyAssignment!.Initializer_,
           sourceFile,
         );
-        let configPath: string[] = $t2[0];
-        let err: ($ast.Diagnostic | undefined)[] = $t2[1];
+        const configPath: string[] = $t2[0];
+        const err: ($ast.Diagnostic | undefined)[] = $t2[1];
         extendedConfigPath = new $boxes.Box___string(configPath);
         propertySetErrors = $rt.appendCopy(propertySetErrors, err);
       } else if (option === undefined) {
@@ -8502,16 +8503,16 @@ export function parseOwnConfigOfJsonSourceFile(
     sourceFile,
     jsonConversionNotifier.$lit_tsoptions_jsonConversionNotifier_0_1(tsconfigRootOptionsMap, onPropertySet),
   );
-  let json: $rt.GoObject | undefined = $t3[0];
-  let err$1: ($ast.Diagnostic | undefined)[] = $t3[1];
+  const json: $rt.GoObject | undefined = $t3[0];
+  const err$1: ($ast.Diagnostic | undefined)[] = $t3[1];
   $rt.appendInto(errors, err$1);
   {
     const $t4: $rt.GoObject | undefined = json;
     const $t5: boolean = $t4 instanceof $boxes.Box__collections_OrderedMap_string__any_;
-    let jsonObject: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined = $t5
+    const jsonObject: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined = $t5
       ? $boxes.Box__collections_OrderedMap_string__any_.$cast($t4).v
       : undefined;
-    let ok: boolean = $t5;
+    const ok: boolean = $t5;
     if (!(rootCompilerOptions.length === (0 as number)) && ok && !jsonObject!.Has('compilerOptions')) {
       errors.push(
         CreateDiagnosticForNodeInSourceFile(
@@ -8539,7 +8540,7 @@ export function NewTsconfigSourceFileFromFilePath(
   configPath: $tspath.Path,
   configSourceText: string,
 ): TsConfigSourceFile | undefined {
-  let sourceFile: $ast.SourceFile | undefined = $parser.ParseSourceFile(
+  const sourceFile: $ast.SourceFile | undefined = $parser.ParseSourceFile(
     $ast.SourceFileParseOptions.$lit_ast_SourceFileParseOptions_0_1(configFileName, configPath),
     configSourceText,
     6,
@@ -8559,7 +8560,7 @@ export function convertConfigFileToObject(
     if ($tspath.GetBaseFileName(sourceFile!.FileName()) === ('jsconfig.json' as string)) {
       baseFileName = 'jsconfig.json';
     }
-    let errors: ($ast.Diagnostic | undefined)[] = [
+    const errors: ($ast.Diagnostic | undefined)[] = [
       CreateDiagnosticForNodeInSourceFile(
         sourceFile,
         rootExpression,
@@ -8568,7 +8569,7 @@ export function convertConfigFileToObject(
       ),
     ];
     if ($ast.IsArrayLiteralExpression(rootExpression)) {
-      let firstObject: $ast.Node | undefined = $core.Find<$ast.Node | undefined>(
+      const firstObject: $ast.Node | undefined = $core.Find<$ast.Node | undefined>(
         $zf10,
         rootExpression!.Elements(),
         $ast.IsObjectLiteralExpression,
@@ -8636,7 +8637,7 @@ export function validateJsonOptionValue(
     switch (opt!.extraValidation_) {
       case 'spec' as string: {
         {
-          let diag: $diagnostics.Message | undefined = specToDiagnostic(
+          const diag: $diagnostics.Message | undefined = specToDiagnostic(
             $rt.checkString($rt.isValue(val, 'string'), val),
             false,
           );
@@ -8656,7 +8657,7 @@ export function validateJsonOptionValue(
       case 'locale' as string: {
         {
           const $t1 = $locale.Parse($rt.checkString($rt.isValue(val, 'string'), val));
-          let ok: boolean = $t1[1];
+          const ok: boolean = $t1[1];
           if (!ok) {
             errors.push(
               CreateDiagnosticForNodeInSourceFileOrCompilerDiagnostic(
@@ -8690,10 +8691,10 @@ export function convertJsonOptionOfListType(
   {
     const $t1: $rt.GoObject | undefined = values;
     const $t2: boolean = $t1 instanceof $boxes.Box___any;
-    let values$1: ($rt.GoObject | undefined)[] = $t2 ? $boxes.Box___any.$cast($t1).v : [];
-    let ok: boolean = $t2;
+    const values$1: ($rt.GoObject | undefined)[] = $t2 ? $boxes.Box___any.$cast($t1).v : [];
+    const ok: boolean = $t2;
     if (ok) {
-      let mappedValues: ($rt.GoObject | undefined)[] = $core.MapIndex<
+      const mappedValues: ($rt.GoObject | undefined)[] = $core.MapIndex<
         $rt.GoObject | undefined,
         $rt.GoObject | undefined
       >($zf1, values$1, (v: $rt.GoObject | undefined, index: number): $rt.GoObject | undefined => {
@@ -8701,8 +8702,8 @@ export function convertJsonOptionOfListType(
           expression = valueExpression!.Elements()[index];
         }
         const $t3 = convertJsonOption(option!.Elements(), v, basePath, propertyAssignment, expression, sourceFile);
-        let result: $rt.GoObject | undefined = $t3[0];
-        let err: ($ast.Diagnostic | undefined)[] = $t3[1];
+        const result: $rt.GoObject | undefined = $t3[0];
+        const err: ($ast.Diagnostic | undefined)[] = $t3[1];
         $rt.appendInto(errors, err);
         return result;
       });
@@ -8718,8 +8719,8 @@ export function convertJsonOptionOfListType(
 export function startsWithConfigDirTemplate(value: $rt.GoObject | undefined): boolean {
   const $t1: $rt.GoObject | undefined = value;
   const $t2: boolean = $rt.isValue($t1, 'string');
-  let str: string = $t2 ? $rt.checkString(true, $t1) : '';
-  let ok: boolean = $t2;
+  const str: string = $t2 ? $rt.checkString(true, $t1) : '';
+  const ok: boolean = $t2;
   if (!ok) {
     return false;
   }
@@ -8824,8 +8825,8 @@ export function convertJsonOption(
       }
     }
     const $t3 = validateJsonOptionValue(opt, value, valueExpression, sourceFile);
-    let validatedValue: $rt.GoObject | undefined = $t3[0];
-    let errors: ($ast.Diagnostic | undefined)[] = $t3[1];
+    const validatedValue: $rt.GoObject | undefined = $t3[0];
+    const errors: ($ast.Diagnostic | undefined)[] = $t3[1];
     if (errors.length > 0 || validatedValue === undefined) {
       return [validatedValue, errors];
     } else {
@@ -8868,7 +8869,7 @@ export function getExtendsConfigPathOrArray(
       valueExpression,
       sourceFile,
     );
-    let errors: ($ast.Diagnostic | undefined)[] = $t1[1];
+    const errors: ($ast.Diagnostic | undefined)[] = $t1[1];
     return [extendedConfigPathArray, errors];
   }
   if ($rt.reflect_TypeOf(value)!.Kind() === (24 as number)) {
@@ -8879,8 +8880,8 @@ export function getExtendsConfigPathOrArray(
       valueExpression,
       sourceFile,
     );
-    let val: string = $t2[0];
-    let err: ($ast.Diagnostic | undefined)[] = $t2[1];
+    const val: string = $t2[0];
+    const err: ($ast.Diagnostic | undefined)[] = $t2[1];
     if (!(val === ('' as string))) {
       extendedConfigPathArray.push(val);
     }
@@ -8894,8 +8895,8 @@ export function getExtendsConfigPathOrArray(
           ? $boxes.Box___any.$cast(value).v
           : $rt.typeAssertFail<($rt.GoObject | undefined)[]>();
       for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
-        let index = $t4;
-        let fileName = $t3[$t4];
+        const index = $t4;
+        const fileName = $t3[$t4];
         let expression: $ast.Node | undefined = undefined;
         if (!(valueExpression === undefined)) {
           expression = valueExpression!.Elements()[index];
@@ -8908,8 +8909,8 @@ export function getExtendsConfigPathOrArray(
             expression,
             sourceFile,
           );
-          let val$1: string = $t5[0];
-          let err$1: ($ast.Diagnostic | undefined)[] = $t5[1];
+          const val$1: string = $t5[0];
+          const err$1: ($ast.Diagnostic | undefined)[] = $t5[1];
           if (!(val$1 === ('' as string))) {
             extendedConfigPathArray.push(val$1);
           }
@@ -8923,7 +8924,7 @@ export function getExtendsConfigPathOrArray(
             expression,
             sourceFile,
           );
-          let err$2: ($ast.Diagnostic | undefined)[] = $t6[1];
+          const err$2: ($ast.Diagnostic | undefined)[] = $t6[1];
           errors$1 = $rt.appendCopy(errors$1, err$2);
         }
       }
@@ -8976,9 +8977,9 @@ export function getExtendsConfigPath(
     }
     return [extendedConfigPath, errors];
   }
-  let resolverHost$v: resolverHost | undefined = resolverHost.$lit_tsoptions_resolverHost_0(host);
+  const resolverHost$v: resolverHost | undefined = resolverHost.$lit_tsoptions_resolverHost_0(host);
   {
-    let resolved: $module.ResolvedModule | undefined = $module.ResolveConfig(
+    const resolved: $module.ResolvedModule | undefined = $module.ResolveConfig(
       extendedConfig,
       $tspath.CombinePaths(basePath, ['tsconfig.json']),
       resolverHost$v,
@@ -9015,7 +9016,7 @@ export function CommandLineOptionNameMap$Get(
   const $t1 = m;
   const $t2 = name_;
   let opt: CommandLineOption | undefined = $t1?.get($t2) ?? undefined;
-  let ok: boolean = $t1 !== undefined && $t1.has($t2);
+  const ok: boolean = $t1 !== undefined && $t1.has($t2);
   if (!ok) {
     const $t3 = m;
     const $t4 = $rt.strings_ToLower(name_);
@@ -9030,11 +9031,14 @@ export function CommandLineOptionNameMap$GetSpellingSuggestion(
   return $core.GetSpellingSuggestion<CommandLineOption | undefined>($zf2, name_, $rt.maps_Values(m), $fn20, $fn21);
 }
 export function commandLineOptionsToMap(compilerOptions: (CommandLineOption | undefined)[]): CommandLineOptionNameMap {
-  let result: Map<string, CommandLineOption | undefined> | undefined = new Map<string, CommandLineOption | undefined>();
+  const result: Map<string, CommandLineOption | undefined> | undefined = new Map<
+    string,
+    CommandLineOption | undefined
+  >();
   {
     const $t1 = compilerOptions;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let i = $t2;
+      const i = $t2;
       result!.set(compilerOptions[i]!.Name, compilerOptions[i]);
       result!.set($rt.strings_ToLower(compilerOptions[i]!.Name), compilerOptions[i]);
     }
@@ -9064,10 +9068,10 @@ export function convertOptionsFromJson<O extends optionParser>(
   }
   const $t1: $rt.GoObject | undefined = jsonOptions;
   const $t2: boolean = $t1 instanceof $boxes.Box__collections_OrderedMap_string__any_;
-  let jsonMap: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined = $t2
+  const jsonMap: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined = $t2
     ? $boxes.Box__collections_OrderedMap_string__any_.$cast($t1).v
     : undefined;
-  let ok: boolean = $t2;
+  const ok: boolean = $t2;
   if (!ok) {
     return [result, []];
   }
@@ -9075,7 +9079,7 @@ export function convertOptionsFromJson<O extends optionParser>(
   let $t3 = false;
   let $t4: [O, ($ast.Diagnostic | undefined)[]] = [undefined as unknown as O, []];
   jsonMap!.Entries()!((key: string, value: $rt.GoObject | undefined): boolean => {
-    let opt: CommandLineOption | undefined = CommandLineOptionNameMap$Get(optionsNameMap!, key);
+    const opt: CommandLineOption | undefined = CommandLineOptionNameMap$Get(optionsNameMap!, key);
     if (!(opt === undefined) && !(opt!.Name === key)) {
       errors.push(
         CreateDiagnosticForNodeInSourceFileOrCompilerDiagnostic(
@@ -9103,10 +9107,10 @@ export function convertOptionsFromJson<O extends optionParser>(
       return true;
     }
     const $t5 = convertJsonOption(opt, value, basePath, undefined, undefined, undefined);
-    let convertJson: $rt.GoObject | undefined = $t5[0];
-    let err: ($ast.Diagnostic | undefined)[] = $t5[1];
+    const convertJson: $rt.GoObject | undefined = $t5[0];
+    const err: ($ast.Diagnostic | undefined)[] = $t5[1];
     $rt.appendInto(errors, err);
-    let compilerOptionsErr: ($ast.Diagnostic | undefined)[] = result!.ParseOption(key, convertJson);
+    const compilerOptionsErr: ($ast.Diagnostic | undefined)[] = result!.ParseOption(key, convertJson);
     $rt.appendInto(errors, compilerOptionsErr);
     return true;
   });
@@ -9122,7 +9126,7 @@ export function convertArrayLiteralExpressionToJson(
     {
       const $t1 = elements;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        let element = $t1[$t2];
+        const element = $t1[$t2];
         convertPropertyValueToJson(sourceFile, element, elementOption, returnValue, undefined);
       }
     }
@@ -9136,10 +9140,10 @@ export function convertArrayLiteralExpressionToJson(
   {
     const $t3 = elements;
     for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
-      let element$1 = $t3[$t4];
+      const element$1 = $t3[$t4];
       const $t5 = convertPropertyValueToJson(sourceFile, element$1, elementOption, returnValue, undefined);
-      let convertedValue: $rt.GoObject | undefined = $t5[0];
-      let err: ($ast.Diagnostic | undefined)[] = $t5[1];
+      const convertedValue: $rt.GoObject | undefined = $t5[0];
+      const err: ($ast.Diagnostic | undefined)[] = $t5[1];
       $rt.appendInto(errors, err);
       if (!(convertedValue === undefined)) {
         value.push(convertedValue);
@@ -9156,13 +9160,13 @@ export function ParseConfigFileTextToJson(
   path: $tspath.Path,
   jsonText: string,
 ): [$rt.GoObject | undefined, ($ast.Diagnostic | undefined)[]] {
-  let jsonSourceFile: $ast.SourceFile | undefined = $parser.ParseSourceFile(
+  const jsonSourceFile: $ast.SourceFile | undefined = $parser.ParseSourceFile(
     $ast.SourceFileParseOptions.$lit_ast_SourceFileParseOptions_0_1(fileName, path),
     jsonText,
     6,
   );
   const $t1 = convertConfigFileToObject(jsonSourceFile, undefined);
-  let config: $rt.GoObject | undefined = $t1[0];
+  const config: $rt.GoObject | undefined = $t1[0];
   let errors: ($ast.Diagnostic | undefined)[] = $t1[1];
   if (jsonSourceFile!.Diagnostics().length > 0) {
     errors = [jsonSourceFile!.Diagnostics()[0]];
@@ -9179,7 +9183,7 @@ export function ParseJsonSourceFileConfigFileContent(
   resolutionStack: $tspath.Path[],
   extendedConfigCache: ExtendedConfigCache | undefined,
 ): ParsedCommandLine | undefined {
-  let result: ParsedCommandLine | undefined = parseJsonConfigFileContentWorker(
+  const result: ParsedCommandLine | undefined = parseJsonConfigFileContentWorker(
     undefined,
     sourceFile,
     host,
@@ -9209,7 +9213,7 @@ export function convertObjectLiteralExpressionToJson(
   {
     const $t1 = node!.Properties_!.Nodes;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let element = $t1[$t2];
+      const element = $t1[$t2];
       if (!(element!.Kind_ === (303 as number))) {
         errors.push(
           $ast.NewDiagnostic(
@@ -9222,7 +9226,7 @@ export function convertObjectLiteralExpressionToJson(
         continue;
       }
       {
-        let token: $ast.Node | undefined = element!.QuestionToken();
+        const token: $ast.Node | undefined = element!.QuestionToken();
         if (!(token === undefined)) {
           errors.push(
             $ast.NewDiagnostic(
@@ -9239,7 +9243,7 @@ export function convertObjectLiteralExpressionToJson(
         const $t3 = $ast.TryGetTextOfPropertyName(element!.Name$Node());
         textOfKey = $t3[0];
       }
-      let keyText: string = textOfKey;
+      const keyText: string = textOfKey;
       let option: CommandLineOption | undefined = undefined;
       if (
         !(keyText === ('' as string)) &&
@@ -9258,8 +9262,8 @@ export function convertObjectLiteralExpressionToJson(
         returnValue,
         jsonConversionNotifier$v,
       );
-      let value: $rt.GoObject | undefined = $t4[0];
-      let err: ($ast.Diagnostic | undefined)[] = $t4[1];
+      const value: $rt.GoObject | undefined = $t4[0];
+      const err: ($ast.Diagnostic | undefined)[] = $t4[1];
       $rt.appendInto(errors, err);
       if (!(keyText === ('' as string))) {
         if (returnValue) {
@@ -9273,7 +9277,7 @@ export function convertObjectLiteralExpressionToJson(
             objectOption,
             option,
           );
-          let err$1: ($ast.Diagnostic | undefined)[] = $t5[1];
+          const err$1: ($ast.Diagnostic | undefined)[] = $t5[1];
           $rt.appendInto(errors, err$1);
         }
       }
@@ -9356,7 +9360,7 @@ export function convertPropertyValueToJson(
         ];
       }
       case 211 as number: {
-        let objectLiteralExpression: $ast.ObjectLiteralExpression | undefined =
+        const objectLiteralExpression: $ast.ObjectLiteralExpression | undefined =
           valueExpression!.AsObjectLiteralExpression();
         const $t1 = convertObjectLiteralExpressionToJson(
           sourceFile,
@@ -9369,8 +9373,8 @@ export function convertPropertyValueToJson(
       }
       case 210 as number: {
         const $t2 = convertArrayLiteralExpressionToJson(sourceFile, valueExpression!.Elements(), option, returnValue);
-        let result: $rt.GoObject | undefined = $t2[0];
-        let errors: ($ast.Diagnostic | undefined)[] = $t2[1];
+        const result: $rt.GoObject | undefined = $t2[0];
+        const errors: ($ast.Diagnostic | undefined)[] = $t2[1];
         return [result, errors];
       }
     }
@@ -9404,17 +9408,17 @@ export function ParseJsonConfigFileContent(
   resolutionStack: $tspath.Path[],
   extendedConfigCache: ExtendedConfigCache | undefined,
 ): ParsedCommandLine | undefined {
-  let normalized: $rt.GoObject | undefined = normalizeJsonValue(json);
+  const normalized: $rt.GoObject | undefined = normalizeJsonValue(json);
   const $t1: $rt.GoObject | undefined = normalized;
   const $t2: boolean = $t1 instanceof $boxes.Box__collections_OrderedMap_string__any_;
   let jsonObject: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined = $t2
     ? $boxes.Box__collections_OrderedMap_string__any_.$cast($t1).v
     : undefined;
-  let ok: boolean = $t2;
+  const ok: boolean = $t2;
   if (!ok) {
     jsonObject = new $collections.OrderedMap<string, $rt.GoObject | undefined>($zf0, $zf1);
   }
-  let result: ParsedCommandLine | undefined = parseJsonConfigFileContentWorker(
+  const result: ParsedCommandLine | undefined = parseJsonConfigFileContentWorker(
     jsonObject,
     undefined,
     host,
@@ -9443,32 +9447,35 @@ export function normalizeJsonValue(value: $rt.GoObject | undefined): $rt.GoObjec
         return new $boxes.Box__collections_OrderedMap_string__any_(value$1);
       } else if ($t1 instanceof $boxes.Box_map_string_any) {
         const value$2: Map<string, $rt.GoObject | undefined> | undefined = $boxes.Box_map_string_any.$cast($t1).v;
-        let result: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined =
+        const result: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined =
           $collections.NewOrderedMapWithSizeHint<string, $rt.GoObject | undefined>($zf0, $zf1, $rt.mapLen(value$2));
         {
           const $t5 = $rt.slices_Sorted($rt.maps_Keys(value$2));
           for (let $t6 = 0, $n = $t5.length; $t6 < $n; $t6++) {
-            let key$1 = $t5[$t6];
-            let child$1: $rt.GoObject | undefined = value$2?.get(key$1) ?? undefined;
+            const key$1 = $t5[$t6];
+            const child$1: $rt.GoObject | undefined = value$2?.get(key$1) ?? undefined;
             result!.Set(key$1, normalizeJsonValue(child$1));
           }
         }
         return new $boxes.Box__collections_OrderedMap_string__any_(result);
       } else if ($t1 instanceof $boxes.Box___any) {
         const value$3: ($rt.GoObject | undefined)[] = $boxes.Box___any.$cast($t1).v;
-        let result$1: ($rt.GoObject | undefined)[] = $rt.makeSlice<$rt.GoObject | undefined>(value$3.length, undefined);
+        const result$1: ($rt.GoObject | undefined)[] = $rt.makeSlice<$rt.GoObject | undefined>(
+          value$3.length,
+          undefined,
+        );
         {
           const $t7 = value$3;
           for (let $t8 = 0, $n = $t7.length; $t8 < $n; $t8++) {
-            let i = $t8;
-            let child$2 = $t7[$t8];
+            const i = $t8;
+            const child$2 = $t7[$t8];
             result$1[i] = normalizeJsonValue(child$2);
           }
         }
         return new $boxes.Box___any(result$1);
       } else {
         const value$4: $rt.GoObject | undefined = $t1;
-        let reflected: $rt.reflect_Value = $rt.reflect_ValueOf(value$4);
+        const reflected: $rt.reflect_Value = $rt.reflect_ValueOf(value$4);
         if (
           !reflected.IsValid() ||
           (!(reflected.Kind() === (23 as number)) && !(reflected.Kind() === (17 as number)))
@@ -9478,7 +9485,7 @@ export function normalizeJsonValue(value: $rt.GoObject | undefined): $rt.GoObjec
         if (reflected.Kind() === (23 as number) && reflected.IsNil()) {
           return undefined;
         }
-        let result$2: ($rt.GoObject | undefined)[] = $rt.makeSlice<$rt.GoObject | undefined>(
+        const result$2: ($rt.GoObject | undefined)[] = $rt.makeSlice<$rt.GoObject | undefined>(
           reflected.Len(),
           undefined,
         );
@@ -9518,7 +9525,7 @@ export function getDefaultCompilerOptions(configFileName: string): $core.Compile
   return options;
 }
 export function getDefaultTypeAcquisition(configFileName: string): $core.TypeAcquisition | undefined {
-  let options: $core.TypeAcquisition | undefined = new $core.TypeAcquisition();
+  const options: $core.TypeAcquisition | undefined = new $core.TypeAcquisition();
   if (!(configFileName === ('' as string)) && $tspath.GetBaseFileName(configFileName) === ('jsconfig.json' as string)) {
     options!.Enable = 2;
   }
@@ -9529,14 +9536,14 @@ export function convertCompilerOptionsFromJsonWorker(
   basePath: string,
   configFileName: string,
 ): [$core.CompilerOptions | undefined, ($ast.Diagnostic | undefined)[]] {
-  let options: $core.CompilerOptions | undefined = getDefaultCompilerOptions(configFileName);
+  const options: $core.CompilerOptions | undefined = getDefaultCompilerOptions(configFileName);
   const $t1 = convertOptionsFromJson<compilerOptionsParser | undefined>(
     CommandLineCompilerOptionsMap,
     jsonOptions,
     basePath,
     compilerOptionsParser.$lit_tsoptions_compilerOptionsParser_0(options),
   );
-  let errors: ($ast.Diagnostic | undefined)[] = $t1[1];
+  const errors: ($ast.Diagnostic | undefined)[] = $t1[1];
   if (!(configFileName === ('' as string))) {
     options!.ConfigFilePath = $tspath.NormalizeSlashes(configFileName);
   }
@@ -9547,14 +9554,14 @@ export function convertTypeAcquisitionFromJsonWorker(
   basePath: string,
   configFileName: string,
 ): [$core.TypeAcquisition | undefined, ($ast.Diagnostic | undefined)[]] {
-  let options: $core.TypeAcquisition | undefined = getDefaultTypeAcquisition(configFileName);
+  const options: $core.TypeAcquisition | undefined = getDefaultTypeAcquisition(configFileName);
   const $t1 = convertOptionsFromJson<typeAcquisitionParser | undefined>(
     typeAcquisitionDeclaration!.ElementOptions,
     jsonOptions,
     basePath,
     typeAcquisitionParser.$lit_tsoptions_typeAcquisitionParser_0(options),
   );
-  let errors: ($ast.Diagnostic | undefined)[] = $t1[1];
+  const errors: ($ast.Diagnostic | undefined)[] = $t1[1];
   return [options, errors];
 }
 export function parseOwnConfigOfJson(
@@ -9573,16 +9580,16 @@ export function parseOwnConfigOfJson(
     ]);
   }
   const $t1 = convertCompilerOptionsFromJsonWorker(json!.GetOrZero('compilerOptions'), basePath, configFileName);
-  let options: $core.CompilerOptions | undefined = $t1[0];
+  const options: $core.CompilerOptions | undefined = $t1[0];
   let err: ($ast.Diagnostic | undefined)[] = $t1[1];
   const $t2 = convertTypeAcquisitionFromJsonWorker(json!.GetOrZero('typeAcquisition'), basePath, configFileName);
-  let typeAcquisition: $core.TypeAcquisition | undefined = $t2[0];
-  let err2: ($ast.Diagnostic | undefined)[] = $t2[1];
+  const typeAcquisition: $core.TypeAcquisition | undefined = $t2[0];
+  const err2: ($ast.Diagnostic | undefined)[] = $t2[1];
   errors = $rt.appendCopy($rt.appendCopy(errors, err), err2);
   {
     const $t3 = json!.Get('compileOnSave');
-    let compileOnSave: $rt.GoObject | undefined = $t3[0];
-    let ok: boolean = $t3[1];
+    const compileOnSave: $rt.GoObject | undefined = $t3[0];
+    const ok: boolean = $t3[1];
     if (ok) {
       const $t4 = convertJsonOption(
         compileOnSaveCommandLineOption,
@@ -9592,15 +9599,15 @@ export function parseOwnConfigOfJson(
         undefined,
         undefined,
       );
-      let converted: $rt.GoObject | undefined = $t4[0];
-      let compileOnSaveErrors: ($ast.Diagnostic | undefined)[] = $t4[1];
+      const converted: $rt.GoObject | undefined = $t4[0];
+      const compileOnSaveErrors: ($ast.Diagnostic | undefined)[] = $t4[1];
       errors = $rt.appendCopy(errors, compileOnSaveErrors);
       json!.Set('compileOnSave', converted);
     }
   }
   let extendedConfigPath: string[] = [];
   {
-    let extends_: $rt.GoObject | undefined = json!.GetOrZero('extends');
+    const extends_: $rt.GoObject | undefined = json!.GetOrZero('extends');
     if (!(extends_ === undefined) && !$rt.ifaceEq(extends_, new $rt.BoxStr('' as string, 'string'))) {
       const $t5 = getExtendsConfigPathOrArray(
         extends_ as unknown as CompilerOptionsValue,
@@ -9616,7 +9623,7 @@ export function parseOwnConfigOfJson(
       errors = $rt.appendCopy(errors, err);
     }
   }
-  let parsedConfig: parsedTsconfig | undefined = parsedTsconfig.$lit_tsoptions_parsedTsconfig_0_1_2_3(
+  const parsedConfig: parsedTsconfig | undefined = parsedTsconfig.$lit_tsoptions_parsedTsconfig_0_1_2_3(
     new $boxes.Box__collections_OrderedMap_string__any_(json),
     options,
     typeAcquisition,
@@ -9630,8 +9637,8 @@ export function readJsonConfigFile(
   readFile: ((p0: string) => [string, boolean]) | undefined,
 ): [TsConfigSourceFile | undefined, ($ast.Diagnostic | undefined)[]] {
   const $t1 = tryReadFile(fileName, readFile, [] as ($ast.Diagnostic | undefined)[]);
-  let text: string = $t1[0];
-  let diagnostic: ($ast.Diagnostic | undefined)[] = $t1[1];
+  const text: string = $t1[0];
+  const diagnostic: ($ast.Diagnostic | undefined)[] = $t1[1];
   if (!(text === ('' as string))) {
     return [
       TsConfigSourceFile.$lit_tsoptions_TsConfigSourceFile_2(
@@ -9644,8 +9651,8 @@ export function readJsonConfigFile(
       diagnostic,
     ];
   } else {
-    let factory: $ast.NodeFactory | undefined = new $ast.NodeFactory();
-    let file: TsConfigSourceFile | undefined = TsConfigSourceFile.$lit_tsoptions_TsConfigSourceFile_2(
+    const factory: $ast.NodeFactory | undefined = new $ast.NodeFactory();
+    const file: TsConfigSourceFile | undefined = TsConfigSourceFile.$lit_tsoptions_TsConfigSourceFile_2(
       factory!
         .NewSourceFile(
           $ast.SourceFileParseOptions.$lit_ast_SourceFileParseOptions_0_1(fileName, path),
@@ -9668,7 +9675,7 @@ export function getExtendedConfig(
   result: extendsResult | undefined,
 ): [parsedTsconfig | undefined, ($ast.Diagnostic | undefined)[]] {
   let errors: ($ast.Diagnostic | undefined)[] = [];
-  let extendedConfigPath: $tspath.Path = $tspath.ToPath(
+  const extendedConfigPath: $tspath.Path = $tspath.ToPath(
     extendedConfigFileName,
     host!.GetCurrentDirectory(),
     host!.FS$m()!.UseCaseSensitiveFileNames(),
@@ -9699,7 +9706,7 @@ export function getExtendedConfig(
       {
         const $t1 = cacheEntry!.extendedResult!.ExtendedSourceFiles;
         for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-          let extendedSourceFile = $t1[$t2];
+          const extendedSourceFile = $t1[$t2];
           result!.extendedSourceFiles.Add(extendedSourceFile);
         }
       }
@@ -9723,16 +9730,16 @@ export function ParseExtendedConfig(
         $t1!.ReadFile(a0)
     )(host!.FS$m()),
   );
-  let extendedResult: TsConfigSourceFile | undefined = $t2[0];
-  let readErrors: ($ast.Diagnostic | undefined)[] = $t2[1];
-  let entry: ExtendedConfigCacheEntry | undefined =
+  const extendedResult: TsConfigSourceFile | undefined = $t2[0];
+  const readErrors: ($ast.Diagnostic | undefined)[] = $t2[1];
+  const entry: ExtendedConfigCacheEntry | undefined =
     ExtendedConfigCacheEntry.$lit_tsoptions_ExtendedConfigCacheEntry_0(extendedResult);
   if (readErrors.length > 0) {
     entry!.errors = readErrors;
     return entry;
   }
   {
-    let parseDiagnostics: ($ast.Diagnostic | undefined)[] = extendedResult!.SourceFile_!.Diagnostics();
+    const parseDiagnostics: ($ast.Diagnostic | undefined)[] = extendedResult!.SourceFile_!.Diagnostics();
     if (parseDiagnostics.length > 0) {
       entry!.errors = parseDiagnostics;
       return entry;
@@ -9763,7 +9770,11 @@ export function parseConfig(
   extendedConfigCache: ExtendedConfigCache | undefined,
 ): [parsedTsconfig | undefined, ($ast.Diagnostic | undefined)[]] {
   basePath = $tspath.NormalizeSlashes(basePath);
-  let resolvedPath: $tspath.Path = $tspath.ToPath(configFileName, basePath, host!.FS$m()!.UseCaseSensitiveFileNames());
+  const resolvedPath: $tspath.Path = $tspath.ToPath(
+    configFileName,
+    basePath,
+    host!.FS$m()!.UseCaseSensitiveFileNames(),
+  );
   let errors: ($ast.Diagnostic | undefined)[] = [];
   if ($rt.slices_Contains(resolutionStack, resolvedPath)) {
     let result: parsedTsconfig | undefined = undefined as parsedTsconfig | undefined;
@@ -9779,8 +9790,8 @@ export function parseConfig(
       );
     } else {
       const $t1 = convertToObject(sourceFile!.SourceFile_);
-      let rawResult: $rt.GoObject | undefined = $t1[0];
-      let err: ($ast.Diagnostic | undefined)[] = $t1[1];
+      const rawResult: $rt.GoObject | undefined = $t1[0];
+      const err: ($ast.Diagnostic | undefined)[] = $t1[1];
       $rt.appendInto(errors, err);
       result = parsedTsconfig.$lit_tsoptions_parsedTsconfig_0(rawResult);
     }
@@ -9801,25 +9812,25 @@ export function parseConfig(
   if (!(ownConfig!.options === undefined) && !(ownConfig!.options!.Paths === undefined)) {
     ownConfig!.options!.PathsBasePath = basePath;
   }
-  let applyExtendedConfig: ((p0: extendsResult | undefined, p1: string) => void) | undefined = (
+  const applyExtendedConfig: ((p0: extendsResult | undefined, p1: string) => void) | undefined = (
     result$1: extendsResult | undefined,
     extendedConfigPath: string,
   ): void => {
     const $t4 = getExtendedConfig(sourceFile, extendedConfigPath, host, resolutionStack, extendedConfigCache, result$1);
-    let extendedConfig: parsedTsconfig | undefined = $t4[0];
-    let extendedErrors: ($ast.Diagnostic | undefined)[] = $t4[1];
+    const extendedConfig: parsedTsconfig | undefined = $t4[0];
+    const extendedErrors: ($ast.Diagnostic | undefined)[] = $t4[1];
     $rt.appendInto(errors, extendedErrors);
     if (!(extendedConfig === undefined) && !(extendedConfig!.options === undefined)) {
-      let extendsRaw: $rt.GoObject | undefined = extendedConfig!.raw;
+      const extendsRaw: $rt.GoObject | undefined = extendedConfig!.raw;
       let relativeDifference: string = '';
-      let setPropertyValue: ((p0: string) => void) | undefined = (propertyName: string): void => {
+      const setPropertyValue: ((p0: string) => void) | undefined = (propertyName: string): void => {
         {
           const $t5: $rt.GoObject | undefined = ownConfig!.raw;
           const $t6: boolean = $t5 instanceof $boxes.Box__collections_OrderedMap_string__any_;
-          let rawMap: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined = $t6
+          const rawMap: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined = $t6
             ? $boxes.Box__collections_OrderedMap_string__any_.$cast($t5).v
             : undefined;
-          let ok: boolean = $t6;
+          const ok: boolean = $t6;
           if (ok && rawMap!.Has(propertyName)) {
             return;
           }
@@ -9832,24 +9843,24 @@ export function parseConfig(
           {
             const $t7: $rt.GoObject | undefined = extendsRaw;
             const $t8: boolean = $t7 instanceof $boxes.Box__collections_OrderedMap_string__any_;
-            let rawMap$1: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined = $t8
+            const rawMap$1: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined = $t8
               ? $boxes.Box__collections_OrderedMap_string__any_.$cast($t7).v
               : undefined;
-            let ok$1: boolean = $t8;
+            const ok$1: boolean = $t8;
             if (ok$1 && rawMap$1!.Has(propertyName)) {
               {
                 const $t9: $rt.GoObject | undefined = rawMap$1!.GetOrZero(propertyName);
                 const $t10: boolean = $t9 instanceof $boxes.Box___any;
-                let slice: ($rt.GoObject | undefined)[] = $t10 ? $boxes.Box___any.$cast($t9).v : [];
+                const slice: ($rt.GoObject | undefined)[] = $t10 ? $boxes.Box___any.$cast($t9).v : [];
                 if (!(slice.length === 0)) {
-                  let value: ($rt.GoObject | undefined)[] = $core.Map_<
+                  const value: ($rt.GoObject | undefined)[] = $core.Map_<
                     $rt.GoObject | undefined,
                     $rt.GoObject | undefined
                   >($zf1, slice, (path: $rt.GoObject | undefined): $rt.GoObject | undefined => {
                     const $t11: $rt.GoObject | undefined = path;
                     const $t12: boolean = $rt.isValue($t11, 'string');
-                    let pathStr: string = $t12 ? $rt.checkString(true, $t11) : '';
-                    let isString: boolean = $t12;
+                    const pathStr: string = $t12 ? $rt.checkString(true, $t11) : '';
+                    const isString: boolean = $t12;
                     if (!isString) {
                       return path;
                     }
@@ -9857,7 +9868,7 @@ export function parseConfig(
                       return new $rt.BoxStr(pathStr, 'string');
                     } else {
                       if (relativeDifference === ('' as string)) {
-                        let t: $tspath.ComparePathsOptions =
+                        const t: $tspath.ComparePathsOptions =
                           $tspath.ComparePathsOptions.$lit_tspath_ComparePathsOptions_0_1(
                             host!.FS$m()!.UseCaseSensitiveFileNames(),
                             basePath,
@@ -9889,10 +9900,10 @@ export function parseConfig(
       {
         const $t13: $rt.GoObject | undefined = extendsRaw;
         const $t14: boolean = $t13 instanceof $boxes.Box__collections_OrderedMap_string__any_;
-        let extendedRawMap: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined = $t14
+        const extendedRawMap: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined = $t14
           ? $boxes.Box__collections_OrderedMap_string__any_.$cast($t13).v
           : undefined;
-        let ok$2: boolean = $t14;
+        const ok$2: boolean = $t14;
         if (ok$2 && extendedRawMap!.Has('contentMappers')) {
           const $t15: $rt.GoObject | undefined = extendedRawMap!.GetOrZero('contentMappers');
           const $t16: boolean = $t15 instanceof $boxes.Box___any;
@@ -9902,16 +9913,16 @@ export function parseConfig(
       {
         const $t17: $rt.GoObject | undefined = extendsRaw;
         const $t18: boolean = $t17 instanceof $boxes.Box__collections_OrderedMap_string__any_;
-        let extendedRawMap$1: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined = $t18
+        const extendedRawMap$1: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined = $t18
           ? $boxes.Box__collections_OrderedMap_string__any_.$cast($t17).v
           : undefined;
-        let ok$3: boolean = $t18;
+        const ok$3: boolean = $t18;
         if (ok$3 && extendedRawMap$1!.Has('compileOnSave')) {
           {
             const $t19: $rt.GoObject | undefined = extendedRawMap$1!.GetOrZero('compileOnSave');
             const $t20: boolean = $rt.isValue($t19, 'bool');
-            let compileOnSave: boolean = $t20 ? $rt.checkBool(true, $t19) : false;
-            let ok$4: boolean = $t20;
+            const compileOnSave: boolean = $t20 ? $rt.checkBool(true, $t19) : false;
+            const ok$4: boolean = $t20;
             if (ok$4) {
               result$1!.compileOnSave = compileOnSave;
             }
@@ -9923,7 +9934,9 @@ export function parseConfig(
   };
   if (!(ownConfig!.extendedConfigPath === undefined)) {
     resolutionStack = $rt.appendCopy(resolutionStack, [resolvedPath]);
-    let result$2: extendsResult | undefined = extendsResult.$lit_tsoptions_extendsResult_0(new $core.CompilerOptions());
+    const result$2: extendsResult | undefined = extendsResult.$lit_tsoptions_extendsResult_0(
+      new $core.CompilerOptions(),
+    );
     if ($rt.reflect_TypeOf(ownConfig!.extendedConfigPath)!.Kind() === (24 as number)) {
       applyExtendedConfig!(
         result$2,
@@ -9933,13 +9946,13 @@ export function parseConfig(
       {
         const $t21: $rt.GoObject | undefined = ownConfig!.extendedConfigPath;
         const $t22: boolean = $t21 instanceof $boxes.Box___string;
-        let configPath: string[] = $t22 ? $boxes.Box___string.$cast($t21).v : [];
-        let ok$5: boolean = $t22;
+        const configPath: string[] = $t22 ? $boxes.Box___string.$cast($t21).v : [];
+        const ok$5: boolean = $t22;
         if (ok$5) {
           {
             const $t23 = configPath;
             for (let $t24 = 0, $n = $t23.length; $t24 < $n; $t24++) {
-              let extendedConfigPath$1 = $t23[$t24];
+              const extendedConfigPath$1 = $t23[$t24];
               applyExtendedConfig!(result$2, extendedConfigPath$1);
             }
           }
@@ -9998,7 +10011,7 @@ export function parseConfig(
 export function isStringValue(value: $rt.GoObject | undefined): boolean {
   const $t1: $rt.GoObject | undefined = value;
   const $t2: boolean = $rt.isValue($t1, 'string');
-  let ok: boolean = $t2;
+  const ok: boolean = $t2;
   return ok;
 }
 export function parseJsonConfigFileContentWorker(
@@ -10024,7 +10037,7 @@ export function parseJsonConfigFileContentWorker(
   }
   let errors: ($ast.Diagnostic | undefined)[] = [];
   const $t1 = parseConfig(json, sourceFile, host, basePath, configFileName, resolutionStack, extendedConfigCache);
-  let parsedConfig: parsedTsconfig | undefined = $t1[0];
+  const parsedConfig: parsedTsconfig | undefined = $t1[0];
   errors = $t1[1];
   mergeCompilerOptions(
     parsedConfig!.options,
@@ -10032,13 +10045,13 @@ export function parseJsonConfigFileContentWorker(
     new $boxes.Box__collections_OrderedMap_string__any_(existingOptionsRaw),
   );
   handleOptionConfigDirTemplateSubstitution(parsedConfig!.options, basePathForFileNames);
-  let rawConfig: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined = parseJsonToStringKey(
+  const rawConfig: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined = parseJsonToStringKey(
     parsedConfig!.raw,
   );
   if (!(configFileName === ('' as string)) && !(parsedConfig!.options === undefined)) {
     parsedConfig!.options!.ConfigFilePath = $tspath.NormalizeSlashes(configFileName);
   }
-  let getPropFromRaw:
+  const getPropFromRaw:
     | ((p0: string, p1: ((p0: $rt.GoObject | undefined) => boolean) | undefined, p2: string) => propOfRaw)
     | undefined = (
     prop: string,
@@ -10046,15 +10059,15 @@ export function parseJsonConfigFileContentWorker(
     elementTypeName: string,
   ): propOfRaw => {
     const $t2 = rawConfig!.Get(prop);
-    let value: $rt.GoObject | undefined = $t2[0];
-    let exists: boolean = $t2[1];
+    const value: $rt.GoObject | undefined = $t2[0];
+    const exists: boolean = $t2[1];
     if (exists && !(value === undefined)) {
       if ($rt.reflect_TypeOf(value)!.Kind() === (23 as number)) {
-        let result: $rt.GoObject | undefined = rawConfig!.GetOrZero(prop);
+        const result: $rt.GoObject | undefined = rawConfig!.GetOrZero(prop);
         {
           const $t3: $rt.GoObject | undefined = result;
           const $t4: boolean = $t3 instanceof $boxes.Box___any;
-          let ok: boolean = $t4;
+          const ok: boolean = $t4;
           if (ok) {
             if (
               sourceFile === undefined &&
@@ -10091,8 +10104,8 @@ export function parseJsonConfigFileContentWorker(
     }
     return propOfRaw.$lit_tsoptions_propOfRaw_0_1([], 'no-prop');
   };
-  let referencesOfRaw: propOfRaw = getPropFromRaw!('references', $fn22, 'object');
-  let fileSpecs: propOfRaw = getPropFromRaw!('files', isStringValue, 'string');
+  const referencesOfRaw: propOfRaw = getPropFromRaw!('references', $fn22, 'object');
+  const fileSpecs: propOfRaw = getPropFromRaw!('files', isStringValue, 'string');
   if (!(fileSpecs.sliceValue.length === 0) || fileSpecs.wrongValue === ('' as string)) {
     let hasZeroOrNoReferences: boolean = false;
     if (
@@ -10102,7 +10115,7 @@ export function parseJsonConfigFileContentWorker(
     ) {
       hasZeroOrNoReferences = true;
     }
-    let hasExtends: $rt.GoObject | undefined = rawConfig!.GetOrZero('extends');
+    const hasExtends: $rt.GoObject | undefined = rawConfig!.GetOrZero('extends');
     if (
       !(fileSpecs.sliceValue.length === 0) &&
       fileSpecs.sliceValue.length === (0 as number) &&
@@ -10116,8 +10129,9 @@ export function parseJsonConfigFileContentWorker(
         } else {
           fileName = 'tsconfig.json';
         }
-        let diagnosticMessage: $diagnostics.Message | undefined = $diagnostics.The_files_list_in_config_file_0_is_empty;
-        let nodeValue: $ast.Node | undefined = ForEachTsConfigPropArray<$ast.Node>(
+        const diagnosticMessage: $diagnostics.Message | undefined =
+          $diagnostics.The_files_list_in_config_file_0_is_empty;
+        const nodeValue: $ast.Node | undefined = ForEachTsConfigPropArray<$ast.Node>(
           sourceFile!.SourceFile_,
           'files',
           $fn23,
@@ -10140,8 +10154,8 @@ export function parseJsonConfigFileContentWorker(
   let excludeSpecs: propOfRaw = getPropFromRaw!('exclude', isStringValue, 'string');
   let isDefaultIncludeSpec: boolean = false;
   if (excludeSpecs.wrongValue === ('no-prop' as string) && !(parsedConfig!.options === undefined)) {
-    let outDir: string = parsedConfig!.options!.OutDir;
-    let declarationDir: string = parsedConfig!.options!.DeclarationDir;
+    const outDir: string = parsedConfig!.options!.OutDir;
+    const declarationDir: string = parsedConfig!.options!.DeclarationDir;
     if (!(outDir === ('' as string)) || !(declarationDir === ('' as string))) {
       let values: ($rt.GoObject | undefined)[] = [];
       if (!(outDir === ('' as string))) {
@@ -10195,7 +10209,7 @@ export function parseJsonConfigFileContentWorker(
     err$1 = $t6[1];
     errors = $rt.appendCopy(errors, err$1);
     {
-      let validatedExcludeSpecsWithSubstitution: string[] = getSubstitutedStringArrayWithConfigDirTemplate(
+      const validatedExcludeSpecsWithSubstitution: string[] = getSubstitutedStringArrayWithConfigDirTemplate(
         validatedExcludeSpecs,
         basePathForFileNames,
       );
@@ -10205,19 +10219,19 @@ export function parseJsonConfigFileContentWorker(
     }
   }
   if (!(fileSpecs.sliceValue.length === 0)) {
-    let fileSpecs$1: ($rt.GoObject | undefined)[] = $core.Filter<$rt.GoObject | undefined>(
+    const fileSpecs$1: ($rt.GoObject | undefined)[] = $core.Filter<$rt.GoObject | undefined>(
       fileSpecs.sliceValue,
       isStringValue,
     );
     {
       const $t7 = fileSpecs$1;
       for (let $t8 = 0, $n = $t7.length; $t8 < $n; $t8++) {
-        let spec = $t7[$t8];
+        const spec = $t7[$t8];
         {
           const $t9: $rt.GoObject | undefined = spec;
           const $t10: boolean = $rt.isValue($t9, 'string');
-          let spec$1: string = $t10 ? $rt.checkString(true, $t9) : '';
-          let ok$1: boolean = $t10;
+          const spec$1: string = $t10 ? $rt.checkString(true, $t9) : '';
+          const ok$1: boolean = $t10;
           if (ok$1) {
             validatedFilesSpecBeforeSubstitution.push(spec$1);
           }
@@ -10254,19 +10268,19 @@ export function parseJsonConfigFileContentWorker(
   }
   let contentMappers: ($contentmapper.Mapper | undefined)[] = [];
   let contentMapperIndices: number[] = [];
-  let contentMappersOfRaw: propOfRaw = getPropFromRaw!('contentMappers', $fn24, 'object');
+  const contentMappersOfRaw: propOfRaw = getPropFromRaw!('contentMappers', $fn24, 'object');
   {
     const $t11 = contentMappersOfRaw.sliceValue;
     for (let $t12 = 0, $n = $t11.length; $t12 < $n; $t12++) {
-      let i = $t12;
-      let element$2 = $t11[$t12];
+      const i = $t12;
+      const element$2 = $t11[$t12];
       const $t13 = parseContentMapper(element$2);
-      let mapper: $contentmapper.Mapper | undefined = $t13[0];
-      let mapperErrors: ($ast.Diagnostic | undefined)[] = $t13[1];
+      const mapper: $contentmapper.Mapper | undefined = $t13[0];
+      const mapperErrors: ($ast.Diagnostic | undefined)[] = $t13[1];
       {
         const $t14 = mapperErrors;
         for (let $t15 = 0, $n = $t14.length; $t15 < $n; $t15++) {
-          let mapperError = $t14[$t15];
+          const mapperError = $t14[$t15];
           errors = $rt.appendCopy(errors, [
             setContentMapperDiagnosticLocation(
               mapperError,
@@ -10286,24 +10300,24 @@ export function parseJsonConfigFileContentWorker(
   {
     const $t16 = contentMappers;
     for (let $t17 = 0, $n = $t16.length; $t17 < $n; $t17++) {
-      let mapper$1 = $t16[$t17];
+      const mapper$1 = $t16[$t17];
       totalContentMapperExtensions += mapper$1!.Extensions.length;
     }
   }
-  let seenContentMapperExtensions: Map<string, $rt.Empty> | undefined = new Map<string, $rt.Empty>();
+  const seenContentMapperExtensions: Map<string, $rt.Empty> | undefined = new Map<string, $rt.Empty>();
   let contentMapperExtensions: string[] = [] as string[];
-  let nativeExtensions: string[] = $core.Flatten<string>($tspath.AllSupportedExtensionsWithJson);
+  const nativeExtensions: string[] = $core.Flatten<string>($tspath.AllSupportedExtensionsWithJson);
   {
     const $t18 = contentMappers;
     for (let $t19 = 0, $n = $t18.length; $t19 < $n; $t19++) {
-      let j = $t19;
-      let mapper$2 = $t18[$t19];
+      const j = $t19;
+      const mapper$2 = $t18[$t19];
       let validExtensions: string[] = [] as string[];
       {
         const $t20 = mapper$2!.Extensions;
         for (let $t21 = 0, $n = $t20.length; $t21 < $n; $t21++) {
-          let ext = $t20[$t21];
-          let extNode: $ast.Node | undefined = getContentMapperExtensionSyntax(
+          const ext = $t20[$t21];
+          const extNode: $ast.Node | undefined = getContentMapperExtensionSyntax(
             contentMapperSourceFile,
             contentMapperIndices[j],
             ext,
@@ -10335,7 +10349,7 @@ export function parseJsonConfigFileContentWorker(
                 {
                   const $t23 = seenContentMapperExtensions;
                   const $t24 = ext;
-                  let seen: boolean = $t23 !== undefined && $t23.has($t24);
+                  const seen: boolean = $t23 !== undefined && $t23.has($t24);
                   if (seen) {
                     errors = $rt.appendCopy(errors, [
                       setContentMapperDiagnosticLocation(
@@ -10386,12 +10400,12 @@ export function parseJsonConfigFileContentWorker(
     {
       const $t25 = contentMappers;
       for (let $t26 = 0, $n = $t25.length; $t26 < $n; $t26++) {
-        let j$1 = $t26;
-        let mapper$3 = $t25[$t26];
+        const j$1 = $t26;
+        const mapper$3 = $t25[$t26];
         const $t27 = resolveContentMapperManifest(host, containingFile, mapper$3!.Package);
-        let manifest: $contentmapper.Manifest = $t27[0];
-        let packageDirectory: string = $t27[1];
-        let diagnostic: $ast.Diagnostic | undefined = $t27[2];
+        const manifest: $contentmapper.Manifest = $t27[0];
+        const packageDirectory: string = $t27[1];
+        const diagnostic: $ast.Diagnostic | undefined = $t27[2];
         mapper$3!.PackageDirectory = packageDirectory;
         if (!(diagnostic === undefined)) {
           errors = $rt.appendCopy(errors, [
@@ -10410,8 +10424,8 @@ export function parseJsonConfigFileContentWorker(
     contentMappers = resolvedContentMappers;
     contentMapperExtensions = $core.FlatMap<$contentmapper.Mapper | undefined, string>(contentMappers, $fn25);
   }
-  let getFileNames: ((p0: string) => [string[], number]) | undefined = (basePath$1: string): [string[], number] => {
-    let parsedConfigOptions: $core.CompilerOptions | undefined = parsedConfig!.options;
+  const getFileNames: ((p0: string) => [string[], number]) | undefined = (basePath$1: string): [string[], number] => {
+    const parsedConfigOptions: $core.CompilerOptions | undefined = parsedConfig!.options;
     const $t28 = getFileNamesFromConfigSpecs(
       configFileSpecs$v,
       basePath$1,
@@ -10419,8 +10433,8 @@ export function parseJsonConfigFileContentWorker(
       host!.FS$m(),
       contentMapperExtensions,
     );
-    let fileNames: string[] = $t28[0];
-    let literalFileNamesLen: number = $t28[1];
+    const fileNames: string[] = $t28[0];
+    const literalFileNamesLen: number = $t28[1];
     if (shouldReportNoInputFiles(fileNames, canJsonReportNoInputFiles(rawConfig), resolutionStack)) {
       let includeSpecs$1: $rt.GoObject | undefined = configFileSpecs$v.includeSpecs;
       let excludeSpecs$1: $rt.GoObject | undefined = configFileSpecs$v.excludeSpecs;
@@ -10443,19 +10457,19 @@ export function parseJsonConfigFileContentWorker(
     }
     return [fileNames, literalFileNamesLen];
   };
-  let getProjectReferences: ((p0: string) => ($core.ProjectReference | undefined)[]) | undefined = (
+  const getProjectReferences: ((p0: string) => ($core.ProjectReference | undefined)[]) | undefined = (
     basePath$2: string,
   ): ($core.ProjectReference | undefined)[] => {
     let projectReferences: ($core.ProjectReference | undefined)[] = [];
-    let newReferencesOfRaw: propOfRaw = getPropFromRaw!('references', $fn26, 'object');
+    const newReferencesOfRaw: propOfRaw = getPropFromRaw!('references', $fn26, 'object');
     if (!(newReferencesOfRaw.sliceValue.length === 0)) {
       projectReferences = [] as ($core.ProjectReference | undefined)[];
       {
         const $t29 = newReferencesOfRaw.sliceValue;
         for (let $t30 = 0, $n = $t29.length; $t30 < $n; $t30++) {
-          let index = $t30;
-          let reference = $t29[$t30];
-          let ref: projectReferenceParseResult | undefined = parseProjectReference(reference);
+          const index = $t30;
+          const reference = $t29[$t30];
+          const ref: projectReferenceParseResult | undefined = parseProjectReference(reference);
           if (ref === undefined) {
             continue;
           }
@@ -10507,22 +10521,22 @@ export function parseJsonConfigFileContentWorker(
     return projectReferences;
   };
   const $t31 = getFileNames!(basePathForFileNames);
-  let fileNames$1: string[] = $t31[0];
-  let literalFileNamesLen$1: number = $t31[1];
+  const fileNames$1: string[] = $t31[0];
+  const literalFileNamesLen$1: number = $t31[1];
   let compileOnSave: $rt.Ptr<boolean> | undefined = new $rt.Ptr<boolean>(false);
   {
     const $t32: $rt.GoObject | undefined = parsedConfig!.raw;
     const $t33: boolean = $t32 instanceof $boxes.Box__collections_OrderedMap_string__any_;
-    let raw: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined = $t33
+    const raw: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined = $t33
       ? $boxes.Box__collections_OrderedMap_string__any_.$cast($t32).v
       : undefined;
-    let ok$2: boolean = $t33;
+    const ok$2: boolean = $t33;
     if (ok$2) {
       {
         const $t34: $rt.GoObject | undefined = raw!.GetOrZero('compileOnSave');
         const $t35: boolean = $rt.isValue($t34, 'bool');
         let value$1: boolean = $t35 ? $rt.checkBool(true, $t34) : false;
-        let ok$3: boolean = $t35;
+        const ok$3: boolean = $t35;
         if (ok$3) {
           compileOnSave = $rt.ptrTo<boolean>(
             (): boolean => value$1,
@@ -10556,8 +10570,8 @@ export function parseJsonConfigFileContentWorker(
 export function canJsonReportNoInputFiles(
   rawConfig: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined,
 ): boolean {
-  let filesExists: boolean = rawConfig!.Has('files');
-  let referencesExists: boolean = rawConfig!.Has('references');
+  const filesExists: boolean = rawConfig!.Has('files');
+  const referencesExists: boolean = rawConfig!.Has('references');
   return !filesExists && !referencesExists;
 }
 export function shouldReportNoInputFiles(
@@ -10573,10 +10587,10 @@ export function validateSpecs(
   jsonSourceFile: $ast.SourceFile | undefined,
   specKey: string,
 ): [string[], ($ast.Diagnostic | undefined)[]] {
-  let createDiagnostic:
+  const createDiagnostic:
     | ((p0: $diagnostics.Message | undefined, p1: string) => $ast.Diagnostic | undefined)
     | undefined = (message: $diagnostics.Message | undefined, spec: string): $ast.Diagnostic | undefined => {
-    let element: $ast.StringLiteral | undefined = GetTsConfigPropArrayElementValue(jsonSourceFile, specKey, spec);
+    const element: $ast.StringLiteral | undefined = GetTsConfigPropArrayElementValue(jsonSourceFile, specKey, spec);
     let node: $ast.Node | undefined = undefined as $ast.Node | undefined;
     if (!(element === undefined)) {
       node = element!.AsNode();
@@ -10593,15 +10607,15 @@ export function validateSpecs(
         ? $boxes.Box___any.$cast(specs).v
         : $rt.typeAssertFail<($rt.GoObject | undefined)[]>();
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let value = $t1[$t2];
+      const value = $t1[$t2];
       const $t3: $rt.GoObject | undefined = value;
       const $t4: boolean = $rt.isValue($t3, 'string');
-      let spec$1: string = $t4 ? $rt.checkString(true, $t3) : '';
-      let ok: boolean = $t4;
+      const spec$1: string = $t4 ? $rt.checkString(true, $t3) : '';
+      const ok: boolean = $t4;
       if (!ok) {
         continue;
       }
-      let diag: $diagnostics.Message | undefined = specToDiagnostic(spec$1, disallowTrailingRecursion);
+      const diag: $diagnostics.Message | undefined = specToDiagnostic(spec$1, disallowTrailingRecursion);
       if (!(diag === undefined)) {
         errors.push(createDiagnostic!(diag, spec$1));
       } else {
@@ -10621,7 +10635,7 @@ export function specToDiagnostic(spec: string, disallowTrailingRecursion: boolea
   return undefined;
 }
 export function invalidTrailingRecursion(spec: string): boolean {
-  let s: string = $rt.strings_TrimSuffix(spec, '/');
+  const s: string = $rt.strings_TrimSuffix(spec, '/');
   return s === ('**' as string) || $rt.strings_HasSuffix(s, '/**');
 }
 export function invalidDotDotAfterRecursiveWildcard(s: string): boolean {
@@ -10647,14 +10661,14 @@ export function GetTsConfigPropArrayElementValue(
   propKey: string,
   elementValue: string,
 ): $ast.StringLiteral | undefined {
-  let callback: ((p0: $ast.PropertyAssignment | undefined) => $ast.Node | undefined) | undefined =
+  const callback: ((p0: $ast.PropertyAssignment | undefined) => $ast.Node | undefined) | undefined =
     GetCallbackForFindingPropertyAssignmentByValue(elementValue);
   return ForEachTsConfigPropArray<$ast.StringLiteral>(
     tsConfigSourceFile,
     propKey,
     (property: $ast.PropertyAssignment | undefined): $ast.StringLiteral | undefined => {
       {
-        let value: $ast.Node | undefined = callback!(property);
+        const value: $ast.Node | undefined = callback!(property);
         if (!(value === undefined)) {
           return value!.AsStringLiteral();
         }
@@ -10689,7 +10703,7 @@ export function CreateDiagnosticAtReferenceSyntax(
     'references',
     (property: $ast.PropertyAssignment | undefined): $ast.Diagnostic | undefined => {
       if ($ast.IsArrayLiteralExpression(property!.Initializer_)) {
-        let value: ($ast.Node | undefined)[] = property!.Initializer_!.Elements();
+        const value: ($ast.Node | undefined)[] = property!.Initializer_!.Elements();
         if (value.length > index) {
           return CreateDiagnosticForNodeInSourceFile(config!.ConfigFile!.SourceFile_, value[index], message, args);
         }
@@ -10712,10 +10726,10 @@ export function createDiagnosticAtProjectReferenceProperty(
       'references',
       (property: $ast.PropertyAssignment | undefined): $ast.Node | undefined => {
         if ($ast.IsArrayLiteralExpression(property!.Initializer_)) {
-          let elements: ($ast.Node | undefined)[] = property!.Initializer_!.Elements();
+          const elements: ($ast.Node | undefined)[] = property!.Initializer_!.Elements();
           if (elements.length > index && $ast.IsObjectLiteralExpression(elements[index])) {
             {
-              let propertyNode: $ast.Node | undefined = ForEachPropertyAssignment<$ast.Node>(
+              const propertyNode: $ast.Node | undefined = ForEachPropertyAssignment<$ast.Node>(
                 elements[index]!.AsObjectLiteralExpression(),
                 propertyName,
                 $fn27,
@@ -10777,14 +10791,14 @@ export function getContentMapperSyntax(
       if (!$ast.IsArrayLiteralExpression(property!.Initializer_)) {
         return property!.Initializer_;
       }
-      let elements: ($ast.Node | undefined)[] = property!.Initializer_!.Elements();
+      const elements: ($ast.Node | undefined)[] = property!.Initializer_!.Elements();
       if (index < 0 || index >= elements.length) {
         return property!.Initializer_;
       }
-      let element: $ast.Node | undefined = elements[index];
+      const element: $ast.Node | undefined = elements[index];
       if (!(subKey === ('' as string)) && $ast.IsObjectLiteralExpression(element)) {
         {
-          let node: $ast.Node | undefined = ForEachPropertyAssignment<$ast.Node>(
+          const node: $ast.Node | undefined = ForEachPropertyAssignment<$ast.Node>(
             element!.AsObjectLiteralExpression(),
             subKey,
             $fn27,
@@ -10807,8 +10821,8 @@ export function GetContentMapperOptionDiagnosticLocation(
   if (config === undefined || config!.ConfigFile === undefined) {
     return [undefined, $core.UndefinedTextRange()];
   }
-  let index: number = $rt.slices_Index(ParsedCommandLine.ContentMappers$nil(config), mapper);
-  let mapperNode: $ast.Node | undefined = getContentMapperSyntax(config!.ConfigFile!.SourceFile_, index, '');
+  const index: number = $rt.slices_Index(ParsedCommandLine.ContentMappers$nil(config), mapper);
+  const mapperNode: $ast.Node | undefined = getContentMapperSyntax(config!.ConfigFile!.SourceFile_, index, '');
   let node: $ast.Node | undefined = getContentMapperSyntax(config!.ConfigFile!.SourceFile_, index, 'options');
   if (node === undefined) {
     node = mapperNode;
@@ -10816,12 +10830,12 @@ export function GetContentMapperOptionDiagnosticLocation(
   {
     const $t1 = path;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let segment = $t1[$t2].$clone_contentmapper_OptionPathSegment();
+      const segment = $t1[$t2].$clone_contentmapper_OptionPathSegment();
       let next: $ast.Node | undefined = undefined as $ast.Node | undefined;
       {
         $sw3: {
           if (segment.IsIndex && $ast.IsArrayLiteralExpression(node)) {
-            let elements: ($ast.Node | undefined)[] = node!.Elements();
+            const elements: ($ast.Node | undefined)[] = node!.Elements();
             if (segment.Index < elements.length) {
               next = elements[segment.Index];
             }
@@ -10844,7 +10858,7 @@ export function GetContentMapperOptionDiagnosticLocation(
   if (node === undefined) {
     return [undefined, $core.UndefinedTextRange()];
   }
-  let file: $ast.SourceFile | undefined = config!.ConfigFile!.SourceFile_;
+  const file: $ast.SourceFile | undefined = config!.ConfigFile!.SourceFile_;
   return [file, $core.NewTextRange($scanner.SkipTrivia(file!.Text(), node!.Pos()), node!.End())];
 }
 export function getContentMappersKeySyntax(sourceFile: $ast.SourceFile | undefined): $ast.Node | undefined {
@@ -10858,10 +10872,10 @@ export function getContentMapperExtensionSyntax(
   index: number,
   ext: string,
 ): $ast.Node | undefined {
-  let node: $ast.Node | undefined = getContentMapperSyntax(sourceFile, index, 'extensions');
+  const node: $ast.Node | undefined = getContentMapperSyntax(sourceFile, index, 'extensions');
   if (!(node === undefined) && $ast.IsArrayLiteralExpression(node)) {
     {
-      let element$1: $ast.Node | undefined = $core.Find<$ast.Node | undefined>(
+      const element$1: $ast.Node | undefined = $core.Find<$ast.Node | undefined>(
         $zf10,
         node!.Elements(),
         (element: $ast.Node | undefined): boolean => {
@@ -10896,14 +10910,14 @@ export function ForEachPropertyAssignment<T extends $rt.GoObject>(
     {
       const $t1 = objectLiteral!.Properties_!.Nodes;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        let property = $t1[$t2];
+        const property = $t1[$t2];
         if (!$ast.IsPropertyAssignment(property)) {
           continue;
         }
         {
           const $t3 = $ast.TryGetTextOfPropertyName(property!.Name$Node());
-          let propName: string = $t3[0];
-          let ok: boolean = $t3[1];
+          const propName: string = $t3[0];
+          const ok: boolean = $t3[1];
           if (ok) {
             if (propName === key || (key2.length > 0 && key2[0] === propName)) {
               return callback!(property!.AsPropertyAssignment());
@@ -10923,7 +10937,7 @@ export function getTsConfigObjectLiteralExpression(
     !(tsConfigSourceFile!.Statements_ === undefined) &&
     tsConfigSourceFile!.Statements_!.Nodes.length > 0
   ) {
-    let expression: $ast.Node | undefined = tsConfigSourceFile!.Statements_!.Nodes[0]!.Expression();
+    const expression: $ast.Node | undefined = tsConfigSourceFile!.Statements_!.Nodes[0]!.Expression();
     if ($ast.IsObjectLiteralExpression(expression)) {
       return expression!.AsObjectLiteralExpression();
     }
@@ -10938,8 +10952,8 @@ export function getSubstitutedStringArrayWithConfigDirTemplate(list: string[], b
   {
     const $t1 = list;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let i = $t2;
-      let element = $t1[$t2];
+      const i = $t2;
+      const element = $t1[$t2];
       if (startsWithConfigDirTemplate(new $rt.BoxStr(element, 'string'))) {
         if (result.length === 0) {
           result = $rt.slices_Clone(list);
@@ -10967,7 +10981,7 @@ export function handleOptionConfigDirTemplateSubstitution(
   let $t2: undefined = undefined;
   compilerOptions!.Paths!.Entries()!((k: string, v: string[]): boolean => {
     {
-      let substitution: string[] = getSubstitutedStringArrayWithConfigDirTemplate(v, basePath);
+      const substitution: string[] = getSubstitutedStringArrayWithConfigDirTemplate(v, basePath);
       if (!(substitution.length === 0)) {
         if (paths === undefined) {
           paths = compilerOptions!.Paths!.Clone();
@@ -10979,13 +10993,13 @@ export function handleOptionConfigDirTemplateSubstitution(
     return true;
   });
   {
-    let rootDirs: string[] = getSubstitutedStringArrayWithConfigDirTemplate(compilerOptions!.RootDirs, basePath);
+    const rootDirs: string[] = getSubstitutedStringArrayWithConfigDirTemplate(compilerOptions!.RootDirs, basePath);
     if (!(rootDirs.length === 0)) {
       compilerOptions!.RootDirs = rootDirs;
     }
   }
   {
-    let typeRoots: string[] = getSubstitutedStringArrayWithConfigDirTemplate(compilerOptions!.TypeRoots, basePath);
+    const typeRoots: string[] = getSubstitutedStringArrayWithConfigDirTemplate(compilerOptions!.TypeRoots, basePath);
     if (!(typeRoots.length === 0)) {
       compilerOptions!.TypeRoots = typeRoots;
     }
@@ -11033,7 +11047,7 @@ export function hasFileWithHigherPriorityExtension(
   {
     const $t1 = extensions;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let group = $t1[$t2];
+      const group = $t1[$t2];
       if ($tspath.FileExtensionIsOneOf(file, group)) {
         $rt.appendInto(extensionGroup, group);
       }
@@ -11045,7 +11059,7 @@ export function hasFileWithHigherPriorityExtension(
   {
     const $t3 = extensionGroup;
     for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
-      let ext = $t3[$t4];
+      const ext = $t3[$t4];
       if (
         $tspath.FileExtensionIs(file, ext) &&
         (!(ext === ('.ts' as string)) || !$tspath.FileExtensionIs(file, '.d.ts'))
@@ -11075,7 +11089,7 @@ export function removeWildcardFilesWithLowerPriorityExtension(
   {
     const $t1 = extensions;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let group = $t1[$t2];
+      const group = $t1[$t2];
       if ($tspath.FileExtensionIsOneOf(file, group)) {
         $rt.appendInto(extensionGroup, group);
       }
@@ -11086,11 +11100,11 @@ export function removeWildcardFilesWithLowerPriorityExtension(
   }
   {
     for (let i: number = extensionGroup.length - 1; i >= 0; i--) {
-      let ext: string = extensionGroup[i];
+      const ext: string = extensionGroup[i];
       if ($tspath.FileExtensionIs(file, ext)) {
         return;
       }
-      let lowerPriorityPath: string = keyMapper!($tspath.ChangeExtension(file, ext));
+      const lowerPriorityPath: string = keyMapper!($tspath.ChangeExtension(file, ext));
       wildcardFiles!.Delete(lowerPriorityPath);
     }
   }
@@ -11103,31 +11117,34 @@ export function getFileNamesFromConfigSpecs(
   extraExtensions: string[],
 ): [string[], number] {
   basePath = $tspath.NormalizePath(basePath);
-  let keyMappper: ((p0: string) => string) | undefined = (value: string): string => {
+  const keyMappper: ((p0: string) => string) | undefined = (value: string): string => {
     return $tspath.GetCanonicalFileName(value, host!.UseCaseSensitiveFileNames());
   };
-  let literalFileMap: $collections.OrderedMap<string, string> = new $collections.OrderedMap<string, string>($zf0, $zf0);
+  const literalFileMap: $collections.OrderedMap<string, string> = new $collections.OrderedMap<string, string>(
+    $zf0,
+    $zf0,
+  );
   let wildcardFileMap: $collections.OrderedMap<string, string> = new $collections.OrderedMap<string, string>(
     $zf0,
     $zf0,
   );
-  let wildCardJsonFileMap: $collections.OrderedMap<string, string> = new $collections.OrderedMap<string, string>(
+  const wildCardJsonFileMap: $collections.OrderedMap<string, string> = new $collections.OrderedMap<string, string>(
     $zf0,
     $zf0,
   );
-  let validatedFilesSpec: string[] = configFileSpecs$v.validatedFilesSpec;
-  let validatedIncludeSpecs: string[] = configFileSpecs$v.validatedIncludeSpecs;
-  let validatedExcludeSpecs: string[] = configFileSpecs$v.validatedExcludeSpecs;
-  let supportedExtensions: string[][] = GetSupportedExtensions(options, extraExtensions);
-  let supportedExtensionsWithJsonIfResolveJsonModule: string[][] = GetSupportedExtensionsWithJsonIfResolveJsonModule(
+  const validatedFilesSpec: string[] = configFileSpecs$v.validatedFilesSpec;
+  const validatedIncludeSpecs: string[] = configFileSpecs$v.validatedIncludeSpecs;
+  const validatedExcludeSpecs: string[] = configFileSpecs$v.validatedExcludeSpecs;
+  const supportedExtensions: string[][] = GetSupportedExtensions(options, extraExtensions);
+  const supportedExtensionsWithJsonIfResolveJsonModule: string[][] = GetSupportedExtensionsWithJsonIfResolveJsonModule(
     options,
     supportedExtensions,
   );
   {
     const $t1 = validatedFilesSpec;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let fileName = $t1[$t2];
-      let file: string = $tspath.GetNormalizedAbsolutePath(fileName, basePath);
+      const fileName = $t1[$t2];
+      const file: string = $tspath.GetNormalizedAbsolutePath(fileName, basePath);
       literalFileMap.Set(keyMappper!(fileName), file);
     }
   }
@@ -11135,7 +11152,7 @@ export function getFileNamesFromConfigSpecs(
     | $vfs_vfsmatch.SpecMatcher
     | undefined;
   if (validatedIncludeSpecs.length > 0) {
-    let files: string[] = $vfs_vfsmatch.ReadDirectory(
+    const files: string[] = $vfs_vfsmatch.ReadDirectory(
       host,
       basePath,
       basePath,
@@ -11147,10 +11164,10 @@ export function getFileNamesFromConfigSpecs(
     {
       const $t3 = files;
       for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
-        let file$1 = $t3[$t4];
+        const file$1 = $t3[$t4];
         if ($tspath.FileExtensionIs(file$1, '.json')) {
           if (jsonOnlyIncludeMatchers === undefined) {
-            let includes: string[] = $core.Filter<string>(validatedIncludeSpecs, $fn29);
+            const includes: string[] = $core.Filter<string>(validatedIncludeSpecs, $fn29);
             jsonOnlyIncludeMatchers = $vfs_vfsmatch.NewSpecMatcher(
               includes,
               basePath,
@@ -11163,7 +11180,7 @@ export function getFileNamesFromConfigSpecs(
             includeIndex = jsonOnlyIncludeMatchers!.MatchIndex(file$1);
           }
           if (!(includeIndex === (-1 as number))) {
-            let key: string = keyMappper!(file$1);
+            const key: string = keyMappper!(file$1);
             if (!literalFileMap.Has(key) && !wildCardJsonFileMap.Has(key)) {
               wildCardJsonFileMap.Set(key, file$1);
             }
@@ -11172,14 +11189,14 @@ export function getFileNamesFromConfigSpecs(
         }
         if (
           hasFileWithHigherPriorityExtension(file$1, supportedExtensions, (fileName$1: string): boolean => {
-            let canonicalFileName: string = keyMappper!(fileName$1);
+            const canonicalFileName: string = keyMappper!(fileName$1);
             return literalFileMap.Has(canonicalFileName) || wildcardFileMap.Has(canonicalFileName);
           })
         ) {
           continue;
         }
         removeWildcardFilesWithLowerPriorityExtension(file$1, wildcardFileMap, supportedExtensions, keyMappper);
-        let key$1: string = keyMappper!(file$1);
+        const key$1: string = keyMappper!(file$1);
         if (!literalFileMap.Has(key$1) && !wildcardFileMap.Has(key$1)) {
           wildcardFileMap.Set(key$1, file$1);
         }
@@ -11211,7 +11228,7 @@ export function GetSupportedExtensions(
   compilerOptions: $core.CompilerOptions | undefined,
   extraExtensions: string[],
 ): string[][] {
-  let needJSExtensions: boolean = compilerOptions!.GetAllowJS();
+  const needJSExtensions: boolean = compilerOptions!.GetAllowJS();
   let builtins: string[][] = [];
   if (needJSExtensions) {
     builtins = $tspath.AllSupportedExtensions;
@@ -11221,12 +11238,12 @@ export function GetSupportedExtensions(
   if (extraExtensions.length === (0 as number)) {
     return builtins;
   }
-  let flatBuiltins: string[] = $core.Flatten<string>(builtins);
+  const flatBuiltins: string[] = $core.Flatten<string>(builtins);
   let result: string[][] = [];
   {
     const $t1 = extraExtensions;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let ext = $t1[$t2];
+      const ext = $t1[$t2];
       if (!$rt.slices_Contains(flatBuiltins, ext)) {
         result.push([ext]);
       }
@@ -11287,12 +11304,12 @@ export function GetParsedCommandLineOfConfigFilePath(
     )(sys!.FS$m()),
     errors,
   );
-  let configFileText: string = $t2[0];
+  const configFileText: string = $t2[0];
   errors = $t2[1];
   if (errors.length > 0) {
     return [undefined, errors];
   }
-  let tsConfigSourceFile: TsConfigSourceFile | undefined = NewTsconfigSourceFileFromFilePath(
+  const tsConfigSourceFile: TsConfigSourceFile | undefined = NewTsconfigSourceFileFromFilePath(
     configFileName,
     path,
     configFileText,
@@ -11319,35 +11336,35 @@ export function getWildcardDirectories(
   if (include.length === (0 as number)) {
     return undefined;
   }
-  let excludeMatcher: $vfs_vfsmatch.SpecMatcher | undefined = $vfs_vfsmatch.NewSpecMatcher(
+  const excludeMatcher: $vfs_vfsmatch.SpecMatcher | undefined = $vfs_vfsmatch.NewSpecMatcher(
     exclude,
     comparePathsOptions.CurrentDirectory,
     2,
     comparePathsOptions.UseCaseSensitiveFileNames,
   );
-  let wildcardDirectories: Map<string, boolean> | undefined = new Map<string, boolean>();
-  let wildCardKeyToPath: Map<string, string> | undefined = new Map<string, string>();
+  const wildcardDirectories: Map<string, boolean> | undefined = new Map<string, boolean>();
+  const wildCardKeyToPath: Map<string, string> | undefined = new Map<string, string>();
   let recursiveKeys: string[] = [];
   {
     const $t1 = include;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let file = $t1[$t2];
-      let spec: string = $tspath.NormalizePath($tspath.CombinePaths(comparePathsOptions.CurrentDirectory, [file]));
+      const file = $t1[$t2];
+      const spec: string = $tspath.NormalizePath($tspath.CombinePaths(comparePathsOptions.CurrentDirectory, [file]));
       if (!(excludeMatcher === undefined) && excludeMatcher!.MatchString(spec)) {
         continue;
       }
-      let match: wildcardDirectoryMatch | undefined = getWildcardDirectoryFromSpec(
+      const match: wildcardDirectoryMatch | undefined = getWildcardDirectoryFromSpec(
         spec,
         comparePathsOptions.UseCaseSensitiveFileNames,
       );
       if (!(match === undefined)) {
-        let key: string = match!.Key;
-        let path: string = match!.Path;
-        let recursive: boolean = match!.Recursive;
+        const key: string = match!.Key;
+        const path: string = match!.Path;
+        const recursive: boolean = match!.Recursive;
         const $t3 = wildCardKeyToPath;
         const $t4 = key;
-        let existingPath: string = $t3?.get($t4) ?? '';
-        let existsPath: boolean = $t3 !== undefined && $t3.has($t4);
+        const existingPath: string = $t3?.get($t4) ?? '';
+        const existsPath: boolean = $t3 !== undefined && $t3.has($t4);
         let existingRecursive: boolean = false;
         if (existsPath) {
           existingRecursive = wildcardDirectories?.get(existingPath) ?? false;
@@ -11370,8 +11387,8 @@ export function getWildcardDirectories(
         {
           const $t6 = recursiveKeys;
           for (let $t7 = 0, $n = $t6.length; $t7 < $n; $t7++) {
-            let recursiveKey = $t6[$t7];
-            let key$1: string = toCanonicalKey(path$1, comparePathsOptions.UseCaseSensitiveFileNames);
+            const recursiveKey = $t6[$t7];
+            const key$1: string = toCanonicalKey(path$1, comparePathsOptions.UseCaseSensitiveFileNames);
             if (!(key$1 === recursiveKey) && $tspath.ContainsPath(recursiveKey, key$1, comparePathsOptions)) {
               wildcardDirectories?.delete(path$1);
             }
@@ -11392,13 +11409,13 @@ export function getWildcardDirectoryFromSpec(
   spec: string,
   useCaseSensitiveFileNames: boolean,
 ): wildcardDirectoryMatch | undefined {
-  let firstWildcard: number = $rt.strings_IndexAny(spec, '*?');
+  const firstWildcard: number = $rt.strings_IndexAny(spec, '*?');
   if (!(firstWildcard === (-1 as number))) {
-    let lastSepBeforeWildcard: number = $rt.strings_LastIndexByte(spec.substring(0, firstWildcard), 47);
+    const lastSepBeforeWildcard: number = $rt.strings_LastIndexByte(spec.substring(0, firstWildcard), 47);
     if (!(lastSepBeforeWildcard === (-1 as number))) {
-      let path: string = spec.substring(0, lastSepBeforeWildcard);
-      let lastDirectorySeparatorIndex: number = $rt.strings_LastIndexByte(spec, 47);
-      let recursive: boolean = firstWildcard < lastDirectorySeparatorIndex;
+      const path: string = spec.substring(0, lastSepBeforeWildcard);
+      const lastDirectorySeparatorIndex: number = $rt.strings_LastIndexByte(spec, 47);
+      const recursive: boolean = firstWildcard < lastDirectorySeparatorIndex;
       return wildcardDirectoryMatch.$lit_tsoptions_wildcardDirectoryMatch_0_1_2(
         toCanonicalKey(path, useCaseSensitiveFileNames),
         path,
@@ -11407,11 +11424,11 @@ export function getWildcardDirectoryFromSpec(
     }
   }
   {
-    let lastSepIndex: number = $rt.strings_LastIndexByte(spec, 47);
+    const lastSepIndex: number = $rt.strings_LastIndexByte(spec, 47);
     if (!(lastSepIndex === (-1 as number))) {
-      let lastSegment: string = spec.substring(lastSepIndex + 1);
+      const lastSegment: string = spec.substring(lastSepIndex + 1);
       if ($vfs_vfsmatch.IsImplicitGlob(lastSegment)) {
-        let path$1: string = $tspath.RemoveTrailingDirectorySeparator(spec);
+        const path$1: string = $tspath.RemoveTrailingDirectorySeparator(spec);
         return wildcardDirectoryMatch.$lit_tsoptions_wildcardDirectoryMatch_0_1_2(
           toCanonicalKey(path$1, useCaseSensitiveFileNames),
           path$1,

@@ -536,7 +536,7 @@ export class textWriter extends $rt.GoObject {
       return false;
     }
     const $t1 = $rt.unicode_utf8_DecodeLastRuneInString(w!.lastWritten);
-    let ch: number = $t1[0];
+    const ch: number = $t1[0];
     if (ch === (65533 as number)) {
       return false;
     }
@@ -584,7 +584,7 @@ export class textWriter extends $rt.GoObject {
     });
     if (count > 1) {
       w!.lineCount += count - 1;
-      let curLen: number = w!.builder.Len();
+      const curLen: number = w!.builder.Len();
       w!.linePos = curLen - s.length + lastLineStart;
       w!.lineStart = w!.linePos - curLen === (0 as number);
       return;
@@ -811,8 +811,8 @@ export class ChangeTrackerWriter extends textWriter {
       let pos: number = s.length;
       for (; pos > 0;) {
         const $t1 = $rt.unicode_utf8_DecodeLastRuneInString(s.substring(0, pos));
-        let r: number = $t1[0];
-        let size: number = $t1[1];
+        const r: number = $t1[0];
+        const size: number = $t1[1];
         if ($stringutil.IsWhiteSpaceLike(r)) {
           pos -= size;
         } else {
@@ -848,7 +848,7 @@ export class ChangeTrackerWriter extends textWriter {
         )(ct),
         (modifiers: $ast.ModifierList | undefined, v: $ast.NodeVisitor | undefined): $ast.ModifierList | undefined => {
           if (!(modifiers === undefined)) {
-            let newNodeList: $ast.NodeList | undefined = ct!.assignPositionsToNodeArray(modifiers!, v);
+            const newNodeList: $ast.NodeList | undefined = ct!.assignPositionsToNodeArray(modifiers!, v);
             return factory!.NewModifierList(newNodeList!.Nodes);
           }
           return modifiers;
@@ -862,7 +862,7 @@ export class ChangeTrackerWriter extends textWriter {
     if (node === undefined) {
       return node;
     }
-    let visited: $ast.Node | undefined = node!.VisitEachChild$Node(v);
+    const visited: $ast.Node | undefined = node!.VisitEachChild$Node(v);
     let newNode: $ast.Node | undefined = visited;
     if (!$ast.NodeIsSynthesized(visited)) {
       newNode = visited!.Clone$Node(v!.Factory);
@@ -879,7 +879,7 @@ export class ChangeTrackerWriter extends textWriter {
     v: $ast.NodeVisitor | undefined,
   ): $ast.NodeList | undefined {
     const ct = this;
-    let visited: $ast.NodeList | undefined = v!.VisitNodes(nodes);
+    const visited: $ast.NodeList | undefined = v!.VisitNodes(nodes);
     if (visited === undefined) {
       return visited;
     }
@@ -1070,7 +1070,7 @@ export class EmitContext extends $rt.GoObject {
     c!.SetOriginal(updated, original);
     if ($ast.IsIdentifier(updated) || $ast.IsPrivateIdentifier(updated)) {
       {
-        let autoGenerate: AutoGenerateInfo | undefined = c!.autoGenerate?.get(original) ?? undefined;
+        const autoGenerate: AutoGenerateInfo | undefined = c!.autoGenerate?.get(original) ?? undefined;
         if (!(autoGenerate === undefined)) {
           let autoGenerateCopy: AutoGenerateInfo = autoGenerate!.$clone_printer_AutoGenerateInfo();
           c!.autoGenerate!.set(updated, autoGenerateCopy);
@@ -1121,17 +1121,17 @@ export class EmitContext extends $rt.GoObject {
   }
   EndVariableEnvironment(): ($ast.Node | undefined)[] {
     const c = this;
-    let scope: varScope | undefined = c!.varScopeStack.Pop();
+    const scope: varScope | undefined = c!.varScopeStack.Pop();
     let statements: ($ast.Node | undefined)[] = [];
     if (scope!.functions.length > 0) {
       statements = $rt.slices_Clone(scope!.functions);
     }
     if (scope!.variables.length > 0) {
-      let varDeclList: $ast.Node | undefined = c!.Factory!.NewVariableDeclarationList(
+      const varDeclList: $ast.Node | undefined = c!.Factory!.NewVariableDeclarationList(
         c!.Factory!.NewNodeList(scope!.variables),
         0,
       );
-      let varStatement: $ast.Node | undefined = c!.Factory!.NewVariableStatement(undefined, varDeclList);
+      const varStatement: $ast.Node | undefined = c!.Factory!.NewVariableStatement(undefined, varDeclList);
       c!.SetEmitFlags(varStatement, 65536);
       statements = $rt.appendCopy(statements, [varStatement]);
     }
@@ -1148,10 +1148,10 @@ export class EmitContext extends $rt.GoObject {
     }
     {
       const $t1 = c!.endAndMergeVariableEnvironment(nodes);
-      let result: ($ast.Node | undefined)[] = $t1[0];
-      let changed: boolean = $t1[1];
+      const result: ($ast.Node | undefined)[] = $t1[0];
+      const changed: boolean = $t1[1];
       if (changed) {
-        let list: $ast.NodeList | undefined = c!.Factory!.NewNodeList(result);
+        const list: $ast.NodeList | undefined = c!.Factory!.NewNodeList(result);
         list!.Loc = statements!.Loc;
         return list;
       }
@@ -1161,7 +1161,7 @@ export class EmitContext extends $rt.GoObject {
   EndAndMergeVariableEnvironment(statements: ($ast.Node | undefined)[]): ($ast.Node | undefined)[] {
     const c = this;
     const $t1 = c!.endAndMergeVariableEnvironment(statements);
-    let result: ($ast.Node | undefined)[] = $t1[0];
+    const result: ($ast.Node | undefined)[] = $t1[0];
     return result;
   }
   endAndMergeVariableEnvironment(statements: ($ast.Node | undefined)[]): [($ast.Node | undefined)[], boolean] {
@@ -1170,9 +1170,9 @@ export class EmitContext extends $rt.GoObject {
   }
   AddVariableDeclaration(name_: $ast.Node | undefined): void {
     const c = this;
-    let varDecl: $ast.Node | undefined = c!.Factory!.NewVariableDeclaration(name_, undefined, undefined, undefined);
+    const varDecl: $ast.Node | undefined = c!.Factory!.NewVariableDeclaration(name_, undefined, undefined, undefined);
     c!.SetEmitFlags(varDecl, 16);
-    let scope: varScope | undefined = c!.varScopeStack.Peek();
+    const scope: varScope | undefined = c!.varScopeStack.Peek();
     scope!.variables.push(varDecl);
     if (!($rt.and64(scope!.flags, 1) === (0 as number))) {
       scope!.flags = $rt.or64(scope!.flags, 2);
@@ -1181,7 +1181,7 @@ export class EmitContext extends $rt.GoObject {
   AddHoistedFunctionDeclaration(node: $ast.Node | undefined): void {
     const c = this;
     c!.SetEmitFlags(node, 65536);
-    let scope: varScope | undefined = c!.varScopeStack.Peek();
+    const scope: varScope | undefined = c!.varScopeStack.Peek();
     scope!.functions.push(node);
   }
   StartLexicalEnvironment(): void {
@@ -1190,14 +1190,14 @@ export class EmitContext extends $rt.GoObject {
   }
   EndLexicalEnvironment(): ($ast.Node | undefined)[] {
     const c = this;
-    let scope: varScope | undefined = c!.letScopeStack.Pop();
+    const scope: varScope | undefined = c!.letScopeStack.Pop();
     let statements: ($ast.Node | undefined)[] = [];
     if (scope!.variables.length > 0) {
-      let varDeclList: $ast.Node | undefined = c!.Factory!.NewVariableDeclarationList(
+      const varDeclList: $ast.Node | undefined = c!.Factory!.NewVariableDeclarationList(
         c!.Factory!.NewNodeList(scope!.variables),
         1,
       );
-      let varStatement: $ast.Node | undefined = c!.Factory!.NewVariableStatement(undefined, varDeclList);
+      const varStatement: $ast.Node | undefined = c!.Factory!.NewVariableStatement(undefined, varDeclList);
       c!.SetEmitFlags(varStatement, 65536);
       statements.push(varStatement);
     }
@@ -1211,10 +1211,10 @@ export class EmitContext extends $rt.GoObject {
     }
     {
       const $t1 = c!.endAndMergeLexicalEnvironment(nodes);
-      let result: ($ast.Node | undefined)[] = $t1[0];
-      let changed: boolean = $t1[1];
+      const result: ($ast.Node | undefined)[] = $t1[0];
+      const changed: boolean = $t1[1];
       if (changed) {
-        let list: $ast.NodeList | undefined = c!.Factory!.NewNodeList(result);
+        const list: $ast.NodeList | undefined = c!.Factory!.NewNodeList(result);
         list!.Loc = statements!.Loc;
         return list;
       }
@@ -1224,7 +1224,7 @@ export class EmitContext extends $rt.GoObject {
   EndAndMergeLexicalEnvironment(statements: ($ast.Node | undefined)[]): ($ast.Node | undefined)[] {
     const c = this;
     const $t1 = c!.endAndMergeLexicalEnvironment(statements);
-    let result: ($ast.Node | undefined)[] = $t1[0];
+    const result: ($ast.Node | undefined)[] = $t1[0];
     return result;
   }
   endAndMergeLexicalEnvironment(statements: ($ast.Node | undefined)[]): [($ast.Node | undefined)[], boolean] {
@@ -1233,9 +1233,9 @@ export class EmitContext extends $rt.GoObject {
   }
   AddLexicalDeclaration(name_: $ast.Node | undefined): void {
     const c = this;
-    let varDecl: $ast.Node | undefined = c!.Factory!.NewVariableDeclaration(name_, undefined, undefined, undefined);
+    const varDecl: $ast.Node | undefined = c!.Factory!.NewVariableDeclaration(name_, undefined, undefined, undefined);
     c!.SetEmitFlags(varDecl, 16);
-    let scope: varScope | undefined = c!.letScopeStack.Peek();
+    const scope: varScope | undefined = c!.letScopeStack.Peek();
     scope!.variables.push(varDecl);
   }
   MergeEnvironmentList(
@@ -1245,10 +1245,10 @@ export class EmitContext extends $rt.GoObject {
     const c = this;
     {
       const $t1 = c!.mergeEnvironment(statements!.Nodes, declarations);
-      let result: ($ast.Node | undefined)[] = $t1[0];
-      let changed: boolean = $t1[1];
+      const result: ($ast.Node | undefined)[] = $t1[0];
+      const changed: boolean = $t1[1];
       if (changed) {
-        let list: $ast.NodeList | undefined = c!.Factory!.NewNodeList(result);
+        const list: $ast.NodeList | undefined = c!.Factory!.NewNodeList(result);
         list!.Loc = statements!.Loc;
         return list;
       }
@@ -1261,7 +1261,7 @@ export class EmitContext extends $rt.GoObject {
   ): ($ast.Node | undefined)[] {
     const c = this;
     const $t1 = c!.mergeEnvironment(statements, declarations);
-    let result: ($ast.Node | undefined)[] = $t1[0];
+    const result: ($ast.Node | undefined)[] = $t1[0];
     return result;
   }
   mergeEnvironment(
@@ -1273,37 +1273,37 @@ export class EmitContext extends $rt.GoObject {
       return [statements, false];
     }
     let changed: boolean = false;
-    let leftStandardPrologueEnd: number = findSpanEnd<$ast.Node | undefined>(statements, $ast.IsPrologueDirective, 0);
-    let leftHoistedFunctionsEnd: number = findSpanEndWithEmitContext<$ast.Node | undefined>(
+    const leftStandardPrologueEnd: number = findSpanEnd<$ast.Node | undefined>(statements, $ast.IsPrologueDirective, 0);
+    const leftHoistedFunctionsEnd: number = findSpanEndWithEmitContext<$ast.Node | undefined>(
       c,
       statements,
       $fn4,
       leftStandardPrologueEnd,
     );
-    let leftHoistedVariablesEnd: number = findSpanEndWithEmitContext<$ast.Node | undefined>(
+    const leftHoistedVariablesEnd: number = findSpanEndWithEmitContext<$ast.Node | undefined>(
       c,
       statements,
       $fn5,
       leftHoistedFunctionsEnd,
     );
-    let rightStandardPrologueEnd: number = findSpanEnd<$ast.Node | undefined>(
+    const rightStandardPrologueEnd: number = findSpanEnd<$ast.Node | undefined>(
       declarations,
       $ast.IsPrologueDirective,
       0,
     );
-    let rightHoistedFunctionsEnd: number = findSpanEndWithEmitContext<$ast.Node | undefined>(
+    const rightHoistedFunctionsEnd: number = findSpanEndWithEmitContext<$ast.Node | undefined>(
       c,
       declarations,
       $fn4,
       rightStandardPrologueEnd,
     );
-    let rightHoistedVariablesEnd: number = findSpanEndWithEmitContext<$ast.Node | undefined>(
+    const rightHoistedVariablesEnd: number = findSpanEndWithEmitContext<$ast.Node | undefined>(
       c,
       declarations,
       $fn5,
       rightHoistedFunctionsEnd,
     );
-    let rightCustomPrologueEnd: number = findSpanEndWithEmitContext<$ast.Node | undefined>(
+    const rightCustomPrologueEnd: number = findSpanEndWithEmitContext<$ast.Node | undefined>(
       c,
       declarations,
       $fn6,
@@ -1350,14 +1350,14 @@ export class EmitContext extends $rt.GoObject {
         );
         changed = true;
       } else {
-        let leftPrologues: $collections.Set_<string> = new $collections.Set_<string>();
+        const leftPrologues: $collections.Set_<string> = new $collections.Set_<string>();
         for (let i = 0, $t1 = leftStandardPrologueEnd; i < $t1; i++) {
-          let leftPrologue: $ast.Node | undefined = statements[i];
+          const leftPrologue: $ast.Node | undefined = statements[i];
           leftPrologues.Add(leftPrologue!.Expression()!.Text$Node());
         }
         {
           for (let i$1: number = rightStandardPrologueEnd - 1; i$1 >= 0; i$1--) {
-            let rightPrologue: $ast.Node | undefined = declarations[i$1];
+            const rightPrologue: $ast.Node | undefined = declarations[i$1];
             if (!leftPrologues.Has(rightPrologue!.Expression()!.Text$Node())) {
               left = $core.Concatenate<$ast.Node | undefined>([rightPrologue], left);
               changed = true;
@@ -1392,7 +1392,7 @@ export class EmitContext extends $rt.GoObject {
     if (!(node === undefined)) {
       const $t1 = c!.autoGenerate;
       const $t2 = node;
-      let ok: boolean = $t1 !== undefined && $t1.has($t2);
+      const ok: boolean = $t1 !== undefined && $t1.has($t2);
       return ok;
     }
     return false;
@@ -1407,7 +1407,7 @@ export class EmitContext extends $rt.GoObject {
   GetNodeForGeneratedName(name_: $ast.Node | undefined): $ast.Node | undefined {
     const c = this;
     {
-      let autoGenerate: AutoGenerateInfo | undefined = c!.autoGenerate?.get(name_) ?? undefined;
+      const autoGenerate: AutoGenerateInfo | undefined = c!.autoGenerate?.get(name_) ?? undefined;
       if (!(autoGenerate === undefined) && GeneratedIdentifierFlags$IsNode(autoGenerate!.Flags)) {
         return c!.getNodeForGeneratedNameWorker(autoGenerate!.Node_, autoGenerate!.Id);
       }
@@ -1420,7 +1420,7 @@ export class EmitContext extends $rt.GoObject {
     for (; !(original === undefined);) {
       node = original;
       if ($ast.IsMemberName(node)) {
-        let autoGenerate: AutoGenerateInfo | undefined = c!.autoGenerate?.get(node) ?? undefined;
+        const autoGenerate: AutoGenerateInfo | undefined = c!.autoGenerate?.get(node) ?? undefined;
         if (
           autoGenerate === undefined ||
           (GeneratedIdentifierFlags$IsNode(autoGenerate!.Flags) && !(autoGenerate!.Id === autoGenerateId))
@@ -1454,12 +1454,12 @@ export class EmitContext extends $rt.GoObject {
     }
     const $t1 = c!.original;
     const $t2 = node;
-    let existing: $ast.Node | undefined = $t1?.get($t2) ?? undefined;
-    let ok: boolean = $t1 !== undefined && $t1.has($t2);
+    const existing: $ast.Node | undefined = $t1?.get($t2) ?? undefined;
+    const ok: boolean = $t1 !== undefined && $t1.has($t2);
     if (!ok) {
       c!.original!.set(node, original);
       {
-        let emitNode$v: emitNode | undefined = c!.emitNodes.TryGet(original);
+        const emitNode$v: emitNode | undefined = c!.emitNodes.TryGet(original);
         if (!(emitNode$v === undefined)) {
           c!.emitNodes.Get(node)!.copyFrom(emitNode$v);
         }
@@ -1508,7 +1508,7 @@ export class EmitContext extends $rt.GoObject {
   EmitFlags$m(node: $ast.Node | undefined): EmitFlags {
     const c = this;
     {
-      let emitNode$v: emitNode | undefined = c!.emitNodes.TryGet(node);
+      const emitNode$v: emitNode | undefined = c!.emitNodes.TryGet(node);
       if (!(emitNode$v === undefined)) {
         return emitNode$v!.emitFlags;
       }
@@ -1526,7 +1526,7 @@ export class EmitContext extends $rt.GoObject {
   SnippetElement$m(node: $ast.Node | undefined): SnippetElement | undefined {
     const c = this;
     {
-      let emitNode$v: emitNode | undefined = c!.emitNodes.TryGet(node);
+      const emitNode$v: emitNode | undefined = c!.emitNodes.TryGet(node);
       if (!(emitNode$v === undefined)) {
         return emitNode$v!.snippetElement;
       }
@@ -1540,7 +1540,7 @@ export class EmitContext extends $rt.GoObject {
   CommentRange(node: $ast.Node | undefined): $core.TextRange {
     const c = this;
     {
-      let emitNode$v: emitNode | undefined = c!.emitNodes.TryGet(node);
+      const emitNode$v: emitNode | undefined = c!.emitNodes.TryGet(node);
       if (!(emitNode$v === undefined) && !((emitNode$v!.flags & 1) === (0 as number))) {
         return emitNode$v!.commentRange;
       }
@@ -1549,7 +1549,7 @@ export class EmitContext extends $rt.GoObject {
   }
   SetCommentRange(node: $ast.Node | undefined, loc: $core.TextRange): void {
     const c = this;
-    let emitNode$v: emitNode | undefined = c!.emitNodes.Get(node);
+    const emitNode$v: emitNode | undefined = c!.emitNodes.Get(node);
     emitNode$v!.commentRange = loc;
     emitNode$v!.flags = (emitNode$v!.flags | 1) >>> 0;
   }
@@ -1560,7 +1560,7 @@ export class EmitContext extends $rt.GoObject {
   SourceMapRange(node: $ast.Node | undefined): $core.TextRange {
     const c = this;
     {
-      let emitNode$v: emitNode | undefined = c!.emitNodes.TryGet(node);
+      const emitNode$v: emitNode | undefined = c!.emitNodes.TryGet(node);
       if (!(emitNode$v === undefined) && !((emitNode$v!.flags & 2) === (0 as number))) {
         return emitNode$v!.sourceMapRange;
       }
@@ -1569,7 +1569,7 @@ export class EmitContext extends $rt.GoObject {
   }
   SetSourceMapRange(node: $ast.Node | undefined, loc: $core.TextRange): void {
     const c = this;
-    let emitNode$v: emitNode | undefined = c!.emitNodes.Get(node);
+    const emitNode$v: emitNode | undefined = c!.emitNodes.Get(node);
     emitNode$v!.sourceMapRange = loc;
     emitNode$v!.flags = (emitNode$v!.flags | 2) >>> 0;
   }
@@ -1579,9 +1579,9 @@ export class EmitContext extends $rt.GoObject {
   }
   AssignCommentAndSourceMapRanges(to: $ast.Node | undefined, from_: $ast.Node | undefined): void {
     const c = this;
-    let emitNode$v: emitNode | undefined = c!.emitNodes.Get(to);
-    let commentRange: $core.TextRange = c!.CommentRange(from_);
-    let sourceMapRange: $core.TextRange = c!.SourceMapRange(from_);
+    const emitNode$v: emitNode | undefined = c!.emitNodes.Get(to);
+    const commentRange: $core.TextRange = c!.CommentRange(from_);
+    const sourceMapRange: $core.TextRange = c!.SourceMapRange(from_);
     emitNode$v!.commentRange = commentRange;
     emitNode$v!.sourceMapRange = sourceMapRange;
     emitNode$v!.flags = (emitNode$v!.flags | 3) >>> 0;
@@ -1589,13 +1589,13 @@ export class EmitContext extends $rt.GoObject {
   TokenSourceMapRange(node: $ast.Node | undefined, kind: $ast.Kind): [$core.TextRange, boolean] {
     const c = this;
     {
-      let emitNode$v: emitNode | undefined = c!.emitNodes.TryGet(node);
+      const emitNode$v: emitNode | undefined = c!.emitNodes.TryGet(node);
       if (!(emitNode$v === undefined) && !(emitNode$v!.tokenSourceMapRanges === undefined)) {
         {
           const $t1 = emitNode$v!.tokenSourceMapRanges;
           const $t2 = kind;
-          let loc: $core.TextRange = $t1?.get($t2) ?? 0;
-          let ok: boolean = $t1 !== undefined && $t1.has($t2);
+          const loc: $core.TextRange = $t1?.get($t2) ?? 0;
+          const ok: boolean = $t1 !== undefined && $t1.has($t2);
           if (ok) {
             return [loc, true];
           }
@@ -1606,7 +1606,7 @@ export class EmitContext extends $rt.GoObject {
   }
   SetTokenSourceMapRange(node: $ast.Node | undefined, kind: $ast.Kind, loc: $core.TextRange): void {
     const c = this;
-    let emitNode$v: emitNode | undefined = c!.emitNodes.Get(node);
+    const emitNode$v: emitNode | undefined = c!.emitNodes.Get(node);
     if (emitNode$v!.tokenSourceMapRanges === undefined) {
       emitNode$v!.tokenSourceMapRanges = new Map<$ast.Kind, $core.TextRange>();
     }
@@ -1646,7 +1646,7 @@ export class EmitContext extends $rt.GoObject {
     {
       const $t1 = helper!.Dependencies;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        let h = $t1[$t2];
+        const h = $t1[$t2];
         c!.RequestEmitHelper(h);
       }
     }
@@ -1654,17 +1654,17 @@ export class EmitContext extends $rt.GoObject {
   }
   ReadEmitHelpers(): (EmitHelper | undefined)[] {
     const c = this;
-    let helpers: (EmitHelper | undefined)[] = $rt.slices_Collect(c!.emitHelpers.Values());
+    const helpers: (EmitHelper | undefined)[] = $rt.slices_Collect(c!.emitHelpers.Values());
     c!.emitHelpers.Clear();
     return helpers;
   }
   AddEmitHelper(node: $ast.Node | undefined, helper: (EmitHelper | undefined)[]): void {
     const c = this;
-    let emitNode$v: emitNode | undefined = c!.emitNodes.Get(node);
+    const emitNode$v: emitNode | undefined = c!.emitNodes.Get(node);
     {
       const $t1 = helper;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        let h = $t1[$t2];
+        const h = $t1[$t2];
         emitNode$v!.helpers = $core.AppendIfUnique<EmitHelper | undefined>(emitNode$v!.helpers, h);
       }
     }
@@ -1675,7 +1675,7 @@ export class EmitContext extends $rt.GoObject {
     predicate: ((p0: EmitHelper | undefined) => boolean) | undefined,
   ): void {
     const c = this;
-    let sourceEmitNode: emitNode | undefined = c!.emitNodes.TryGet(source);
+    const sourceEmitNode: emitNode | undefined = c!.emitNodes.TryGet(source);
     if (sourceEmitNode === undefined) {
       return;
     }
@@ -1683,13 +1683,13 @@ export class EmitContext extends $rt.GoObject {
     if (sourceEmitHelpers.length === (0 as number)) {
       return;
     }
-    let targetEmitNode: emitNode | undefined = c!.emitNodes.Get(target);
+    const targetEmitNode: emitNode | undefined = c!.emitNodes.Get(target);
     let helpersRemoved: number = 0;
     {
       const $t1 = sourceEmitHelpers;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        let i = $t2;
-        let helper: EmitHelper | undefined = sourceEmitHelpers[i];
+        const i = $t2;
+        const helper: EmitHelper | undefined = sourceEmitHelpers[i];
         if (predicate!(helper)) {
           helpersRemoved++;
           targetEmitNode!.helpers = $core.AppendIfUnique<EmitHelper | undefined>(targetEmitNode!.helpers, helper);
@@ -1705,7 +1705,7 @@ export class EmitContext extends $rt.GoObject {
   }
   GetEmitHelpers(node: $ast.Node | undefined): (EmitHelper | undefined)[] {
     const c = this;
-    let emitNode$v: emitNode | undefined = c!.emitNodes.TryGet(node);
+    const emitNode$v: emitNode | undefined = c!.emitNodes.TryGet(node);
     if (!(emitNode$v === undefined)) {
       return emitNode$v!.helpers;
     }
@@ -1714,10 +1714,10 @@ export class EmitContext extends $rt.GoObject {
   GetExternalHelpersModuleName(node: $ast.SourceFile | undefined): $ast.Node | undefined {
     const c = this;
     {
-      let parseNode: $ast.Node | undefined = c!.ParseNode(node!.AsNode());
+      const parseNode: $ast.Node | undefined = c!.ParseNode(node!.AsNode());
       if (!(parseNode === undefined)) {
         {
-          let emitNode$v: emitNode | undefined = c!.emitNodes.TryGet(parseNode);
+          const emitNode$v: emitNode | undefined = c!.emitNodes.TryGet(parseNode);
           if (!(emitNode$v === undefined)) {
             return emitNode$v!.externalHelpersModuleName;
           }
@@ -1728,21 +1728,21 @@ export class EmitContext extends $rt.GoObject {
   }
   SetExternalHelpersModuleName(node: $ast.SourceFile | undefined, name_: $ast.Node | undefined): void {
     const c = this;
-    let parseNode: $ast.Node | undefined = c!.ParseNode(node!.AsNode());
+    const parseNode: $ast.Node | undefined = c!.ParseNode(node!.AsNode());
     if (parseNode === undefined) {
       throw $rt.newPanic(
         new $rt.BoxStr('Node must be a parse tree node or have an Original pointer to a parse tree node.', 'string'),
       );
     }
-    let emitNode$v: emitNode | undefined = c!.emitNodes.Get(parseNode);
+    const emitNode$v: emitNode | undefined = c!.emitNodes.Get(parseNode);
     emitNode$v!.externalHelpersModuleName = name_;
   }
   HasRecordedExternalHelpers(node: $ast.SourceFile | undefined): boolean {
     const c = this;
     {
-      let parseNode: $ast.Node | undefined = c!.ParseNode(node!.AsNode());
+      const parseNode: $ast.Node | undefined = c!.ParseNode(node!.AsNode());
       if (!(parseNode === undefined)) {
-        let emitNode$v: emitNode | undefined = c!.emitNodes.TryGet(parseNode);
+        const emitNode$v: emitNode | undefined = c!.emitNodes.TryGet(parseNode);
         return (
           !(emitNode$v === undefined) &&
           (!(emitNode$v!.externalHelpersModuleName === undefined) ||
@@ -1772,8 +1772,8 @@ export class EmitContext extends $rt.GoObject {
   VisitParameters(nodes: $ast.NodeList | undefined, visitor: $ast.NodeVisitor | undefined): $ast.NodeList | undefined {
     const c = this;
     c!.StartVariableEnvironment();
-    let scope: varScope | undefined = c!.varScopeStack.Peek();
-    let oldFlags: environmentFlags = scope!.flags;
+    const scope: varScope | undefined = c!.varScopeStack.Peek();
+    const oldFlags: environmentFlags = scope!.flags;
     scope!.flags = $rt.or64(scope!.flags, 1);
     nodes = visitor!.VisitNodes(nodes);
     if (!($rt.and64(scope!.flags, 2) === (0 as number))) {
@@ -1788,13 +1788,15 @@ export class EmitContext extends $rt.GoObject {
       return nodeList;
     }
     let result: ($ast.Node | undefined)[] = [];
-    let nodes: ($ast.Node | undefined)[] = nodeList!.Nodes;
+    const nodes: ($ast.Node | undefined)[] = nodeList!.Nodes;
     {
       const $t1 = nodes;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        let i = $t2;
-        let parameter = $t1[$t2];
-        let updated: $ast.Node | undefined = c!.addDefaultValueAssignmentIfNeeded(parameter!.AsParameterDeclaration());
+        const i = $t2;
+        const parameter = $t1[$t2];
+        const updated: $ast.Node | undefined = c!.addDefaultValueAssignmentIfNeeded(
+          parameter!.AsParameterDeclaration(),
+        );
         if (!(updated === parameter)) {
           if (result.length === 0) {
             result = $rt.slices_Clone(nodes);
@@ -1804,7 +1806,7 @@ export class EmitContext extends $rt.GoObject {
       }
     }
     if (!(result.length === 0)) {
-      let res: $ast.NodeList | undefined = c!.Factory!.NewNodeList(result);
+      const res: $ast.NodeList | undefined = c!.Factory!.NewNodeList(result);
       res!.Loc = nodeList!.Loc;
       return res;
     }
@@ -1866,12 +1868,12 @@ export class EmitContext extends $rt.GoObject {
   ): $ast.Node | undefined {
     const c = this;
     c!.AddEmitFlags(initializer, 396);
-    let nameClone: $ast.Node | undefined = name_!.Clone$Node(c!.Factory);
+    const nameClone: $ast.Node | undefined = name_!.Clone$Node(c!.Factory);
     c!.AddEmitFlags(nameClone, 12);
-    let initAssignment: $ast.Node | undefined = c!.Factory!.NewAssignmentExpression(nameClone, initializer);
+    const initAssignment: $ast.Node | undefined = c!.Factory!.NewAssignmentExpression(nameClone, initializer);
     initAssignment!.Loc = parameter!.Loc;
     c!.AddEmitFlags(initAssignment, 384);
-    let initBlock: $ast.Node | undefined = c!.Factory!.NewBlock(
+    const initBlock: $ast.Node | undefined = c!.Factory!.NewBlock(
       c!.Factory!.NewNodeList([c!.Factory!.NewExpressionStatement(initAssignment)]),
       false,
     );
@@ -1896,7 +1898,7 @@ export class EmitContext extends $rt.GoObject {
   }
   AddInitializationStatement(node: $ast.Node | undefined): void {
     const c = this;
-    let scope: varScope | undefined = c!.varScopeStack.Peek();
+    const scope: varScope | undefined = c!.varScopeStack.Peek();
     if (scope === undefined) {
       throw $rt.newPanic(
         new $rt.BoxStr('Tried to add an initialization statement without a surrounding variable scope', 'string'),
@@ -1910,18 +1912,18 @@ export class EmitContext extends $rt.GoObject {
     if ($ast.IsBlock(node)) {
       return node;
     }
-    let returnStatement: $ast.Node | undefined = c!.Factory!.NewReturnStatement(node);
+    const returnStatement: $ast.Node | undefined = c!.Factory!.NewReturnStatement(node);
     returnStatement!.Loc = node!.Loc;
-    let statements: $ast.NodeList | undefined = c!.Factory!.NewNodeList([returnStatement]);
+    const statements: $ast.NodeList | undefined = c!.Factory!.NewNodeList([returnStatement]);
     statements!.Loc = node!.Loc;
-    let block: $ast.Node | undefined = c!.Factory!.NewBlock(statements, multiLine);
+    const block: $ast.Node | undefined = c!.Factory!.NewBlock(statements, multiLine);
     block!.Loc = node!.Loc;
     return block;
   }
   VisitFunctionBody(node: $ast.Node | undefined, visitor: $ast.NodeVisitor | undefined): $ast.Node | undefined {
     const c = this;
-    let updated: $ast.Node | undefined = visitor!.VisitNode(node);
-    let declarations: ($ast.Node | undefined)[] = c!.EndVariableEnvironment();
+    const updated: $ast.Node | undefined = visitor!.VisitNode(node);
+    const declarations: ($ast.Node | undefined)[] = c!.EndVariableEnvironment();
     if (declarations.length === (0 as number)) {
       return updated;
     }
@@ -1930,7 +1932,7 @@ export class EmitContext extends $rt.GoObject {
     }
     if (!$ast.IsBlock(updated)) {
       c!.AddEmitFlags(updated, 384);
-      let block: $ast.Node | undefined = c!.ConvertToFunctionBlock(updated, false);
+      const block: $ast.Node | undefined = c!.ConvertToFunctionBlock(updated, false);
       return c!.Factory!.UpdateBlock(
         block!.AsBlock(),
         c!.MergeEnvironmentList(block!.StatementList(), declarations),
@@ -1949,7 +1951,7 @@ export class EmitContext extends $rt.GoObject {
       return undefined;
     }
     c!.StartLexicalEnvironment();
-    let updated: $ast.Node | undefined = c!.VisitEmbeddedStatement(body, visitor);
+    const updated: $ast.Node | undefined = c!.VisitEmbeddedStatement(body, visitor);
     if (updated === undefined) {
       throw $rt.newPanic(new $rt.BoxStr('Expected visitor to return a statement.', 'string'));
     }
@@ -1957,7 +1959,7 @@ export class EmitContext extends $rt.GoObject {
     if (statements.length > 0) {
       if ($ast.IsBlock(updated)) {
         statements = $rt.appendCopy(statements, updated!.Statements());
-        let statementsList: $ast.NodeList | undefined = c!.Factory!.NewNodeList(statements);
+        const statementsList: $ast.NodeList | undefined = c!.Factory!.NewNodeList(statements);
         statementsList!.Loc = updated!.StatementList()!.Loc;
         return c!.Factory!.UpdateBlock(updated!.AsBlock(), statementsList, updated!.AsBlock()!.MultiLine);
       }
@@ -1971,9 +1973,9 @@ export class EmitContext extends $rt.GoObject {
     if (node === undefined) {
       return undefined;
     }
-    let embeddedStatement: $ast.Node | undefined = visitor!.VisitEmbeddedStatement(node);
+    const embeddedStatement: $ast.Node | undefined = visitor!.VisitEmbeddedStatement(node);
     if (embeddedStatement === undefined || $ast.IsNotEmittedStatement(embeddedStatement)) {
-      let emptyStatement: $ast.Node | undefined = visitor!.Factory!.NewEmptyStatement();
+      const emptyStatement: $ast.Node | undefined = visitor!.Factory!.NewEmptyStatement();
       emptyStatement!.Loc = node!.Loc;
       c!.SetOriginal(emptyStatement, node);
       c!.AssignCommentRange(emptyStatement, node);
@@ -2050,7 +2052,7 @@ export class EmitContext extends $rt.GoObject {
   GetTypeNode(node: $ast.Node | undefined): $ast.Node | undefined {
     const c = this;
     {
-      let emitNode$v: emitNode | undefined = c!.emitNodes.TryGet(node);
+      const emitNode$v: emitNode | undefined = c!.emitNodes.TryGet(node);
       if (!(emitNode$v === undefined)) {
         return emitNode$v!.typeNode;
       }
@@ -2059,7 +2061,7 @@ export class EmitContext extends $rt.GoObject {
   }
   NewNotEmittedStatement(node: $ast.Node | undefined): $ast.Node | undefined {
     const c = this;
-    let statement: $ast.Node | undefined = c!.Factory!.NewNotEmittedStatement();
+    const statement: $ast.Node | undefined = c!.Factory!.NewNotEmittedStatement();
     statement!.Loc = node!.Loc;
     c!.SetOriginal(statement, node);
     c!.AssignCommentRange(statement, node);
@@ -2229,7 +2231,7 @@ export class NameGenerator extends $rt.GoObject {
   }
   getTempFlags(privateName: boolean): tempFlags {
     const g = this;
-    let scope: $rt.Ptr<nameGenerationScope | undefined> | undefined = g!.getScope(privateName);
+    const scope: $rt.Ptr<nameGenerationScope | undefined> | undefined = g!.getScope(privateName);
     if (!(scope!.get() === undefined)) {
       return scope!.get()!.tempFlags_;
     }
@@ -2237,7 +2239,7 @@ export class NameGenerator extends $rt.GoObject {
   }
   setTempFlags(privateName: boolean, flags: tempFlags): void {
     const g = this;
-    let scope: $rt.Ptr<nameGenerationScope | undefined> | undefined = g!.getScope(privateName);
+    const scope: $rt.Ptr<nameGenerationScope | undefined> | undefined = g!.getScope(privateName);
     if (scope!.get() === undefined) {
       scope!.set(new nameGenerationScope());
     }
@@ -2245,13 +2247,13 @@ export class NameGenerator extends $rt.GoObject {
   }
   getTempFlagsForFormattedName(privateName: boolean, formattedNameKey: string): tempFlags {
     const g = this;
-    let scope: $rt.Ptr<nameGenerationScope | undefined> | undefined = g!.getScope(privateName);
+    const scope: $rt.Ptr<nameGenerationScope | undefined> | undefined = g!.getScope(privateName);
     if (!(scope!.get() === undefined)) {
       {
         const $t1 = scope!.get()!.formattedNameTempFlags;
         const $t2 = formattedNameKey;
-        let flags: tempFlags = $t1?.get($t2) ?? 0;
-        let ok: boolean = $t1 !== undefined && $t1.has($t2);
+        const flags: tempFlags = $t1?.get($t2) ?? 0;
+        const ok: boolean = $t1 !== undefined && $t1.has($t2);
         if (ok) {
           return flags;
         }
@@ -2261,7 +2263,7 @@ export class NameGenerator extends $rt.GoObject {
   }
   setTempFlagsForFormattedName(privateName: boolean, formattedNameKey: string, flags: tempFlags): void {
     const g = this;
-    let scope: $rt.Ptr<nameGenerationScope | undefined> | undefined = g!.getScope(privateName);
+    const scope: $rt.Ptr<nameGenerationScope | undefined> | undefined = g!.getScope(privateName);
     if (scope!.get() === undefined) {
       scope!.set(new nameGenerationScope());
     }
@@ -2272,7 +2274,7 @@ export class NameGenerator extends $rt.GoObject {
   }
   reserveName(name_: string, privateName: boolean, scoped: boolean, temp: boolean): void {
     const g = this;
-    let scope: $rt.Ptr<nameGenerationScope | undefined> | undefined = g!.getScope(privateName);
+    const scope: $rt.Ptr<nameGenerationScope | undefined> | undefined = g!.getScope(privateName);
     if (scope!.get() === undefined) {
       scope!.set(new nameGenerationScope());
     }
@@ -2288,8 +2290,8 @@ export class NameGenerator extends $rt.GoObject {
       {
         const $t1 = g!.Context!.autoGenerate;
         const $t2 = name_;
-        let autoGenerate: AutoGenerateInfo | undefined = $t1?.get($t2) ?? undefined;
-        let ok: boolean = $t1 !== undefined && $t1.has($t2);
+        const autoGenerate: AutoGenerateInfo | undefined = $t1?.get($t2) ?? undefined;
+        const ok: boolean = $t1 !== undefined && $t1.has($t2);
         if (ok) {
           if (GeneratedIdentifierFlags$IsNode(autoGenerate!.Flags)) {
             return g!.generateNameForNodeCached(
@@ -2303,8 +2305,8 @@ export class NameGenerator extends $rt.GoObject {
             {
               const $t3 = g!.autoGeneratedIdToGeneratedName;
               const $t4 = autoGenerate!.Id;
-              let autoGeneratedName: string = $t3?.get($t4) ?? '';
-              let ok$1: boolean = $t3 !== undefined && $t3.has($t4);
+              const autoGeneratedName: string = $t3?.get($t4) ?? '';
+              const ok$1: boolean = $t3 !== undefined && $t3.has($t4);
               if (ok$1) {
                 return autoGeneratedName;
               }
@@ -2312,7 +2314,7 @@ export class NameGenerator extends $rt.GoObject {
             if (g!.autoGeneratedIdToGeneratedName === undefined) {
               g!.autoGeneratedIdToGeneratedName = new Map<AutoGenerateId, string>();
             }
-            let autoGeneratedName$1: string = g!.makeName(name_);
+            const autoGeneratedName$1: string = g!.makeName(name_);
             g!.autoGeneratedIdToGeneratedName!.set(autoGenerate!.Id, autoGeneratedName$1);
             return autoGeneratedName$1;
           }
@@ -2329,8 +2331,8 @@ export class NameGenerator extends $rt.GoObject {
     suffix: string,
   ): string {
     const g = this;
-    let nodeId: $ast.NodeId = $ast.GetNodeId(node);
-    let cache: $rt.Ptr<Map<$ast.NodeId, string> | undefined> | undefined = $core.IfElse<
+    const nodeId: $ast.NodeId = $ast.GetNodeId(node);
+    const cache: $rt.Ptr<Map<$ast.NodeId, string> | undefined> | undefined = $core.IfElse<
       $rt.Ptr<Map<$ast.NodeId, string> | undefined> | undefined
     >(
       privateName,
@@ -2355,13 +2357,13 @@ export class NameGenerator extends $rt.GoObject {
     {
       const $t3 = cache!.get();
       const $t4 = nodeId;
-      let name_: string = $t3?.get($t4) ?? '';
-      let ok: boolean = $t3 !== undefined && $t3.has($t4);
+      const name_: string = $t3?.get($t4) ?? '';
+      const ok: boolean = $t3 !== undefined && $t3.has($t4);
       if (ok) {
         return name_;
       }
     }
-    let name_$1: string = g!.generateNameForNode(node, privateName, flags, prefix, suffix);
+    const name_$1: string = g!.generateNameForNode(node, privateName, flags, prefix, suffix);
     cache!.get()!.set(nodeId, name_$1);
     return name_$1;
   }
@@ -2422,7 +2424,7 @@ export class NameGenerator extends $rt.GoObject {
               ),
             );
           }
-          let name_: $ast.Node | undefined = node!.Name$Node();
+          const name_: $ast.Node | undefined = node!.Name$Node();
           if (!(name_ === undefined) && !(g!.Context === undefined && g!.Context!.HasAutoGenerateInfo(name_))) {
             return g!.generateNameForNode(name_, false, flags, '', '');
           }
@@ -2466,7 +2468,7 @@ export class NameGenerator extends $rt.GoObject {
   }
   generateNameForModuleOrEnum(node: $ast.Node | undefined): string {
     const g = this;
-    let name_: string = g!.GetTextOfNode!(node!.Name$Node());
+    const name_: string = g!.GetTextOfNode!(node!.Name$Node());
     if (isUniqueLocalName(name_, node)) {
       return name_;
     } else {
@@ -2475,7 +2477,7 @@ export class NameGenerator extends $rt.GoObject {
   }
   generateNameForImportOrExportDeclaration(node: $ast.Node | undefined): string {
     const g = this;
-    let expr: $ast.Node | undefined = $ast.GetExternalModuleName(node);
+    const expr: $ast.Node | undefined = $ast.GetExternalModuleName(node);
     let baseName: string = 'module';
     if ($ast.IsStringLiteral(expr)) {
       baseName = makeIdentifierFromModuleName(expr!.Text$Node());
@@ -2508,8 +2510,8 @@ export class NameGenerator extends $rt.GoObject {
       {
         const $t1 = g!.Context!.autoGenerate;
         const $t2 = name_;
-        let autoGenerate: AutoGenerateInfo | undefined = $t1?.get($t2) ?? undefined;
-        let ok: boolean = $t1 !== undefined && $t1.has($t2);
+        const autoGenerate: AutoGenerateInfo | undefined = $t1?.get($t2) ?? undefined;
+        const ok: boolean = $t1 !== undefined && $t1.has($t2);
         if (ok) {
           {
             switch (GeneratedIdentifierFlags$Kind(autoGenerate!.Flags)) {
@@ -2564,7 +2566,7 @@ export class NameGenerator extends $rt.GoObject {
     const g = this;
     let tempFlags$v: tempFlags = 0;
     let key: string = '';
-    let simple: boolean = prefix.length === (0 as number) && suffix.length === (0 as number);
+    const simple: boolean = prefix.length === (0 as number) && suffix.length === (0 as number);
     if (simple) {
       tempFlags$v = g!.getTempFlags(privateName);
     } else {
@@ -2575,7 +2577,7 @@ export class NameGenerator extends $rt.GoObject {
       tempFlags$v = g!.getTempFlagsForFormattedName(privateName, key);
     }
     if (!(flags === (0 as number)) && $rt.and64(tempFlags$v, flags) === (0 as number)) {
-      let fullName: string = $rt.printer_FormatGeneratedName(privateName, prefix, '_i', suffix);
+      const fullName: string = $rt.printer_FormatGeneratedName(privateName, prefix, '_i', suffix);
       if (g!.isUniqueName(fullName, privateName)) {
         tempFlags$v = $rt.or64(tempFlags$v, flags);
         g!.reserveName(fullName, privateName, reservedInNestedScopes, true);
@@ -2588,7 +2590,7 @@ export class NameGenerator extends $rt.GoObject {
       }
     }
     for (;;) {
-      let count: tempFlags = $rt.and64(tempFlags$v, 268435455);
+      const count: tempFlags = $rt.and64(tempFlags$v, 268435455);
       tempFlags$v++;
       if (!(count === (8 as number)) && !(count === (13 as number))) {
         let name_: string = '';
@@ -2597,7 +2599,7 @@ export class NameGenerator extends $rt.GoObject {
         } else {
           name_ = $rt.fmt_Sprintf('_%d', [new $rt.BoxNum(count - 26, 'printer.tempFlags')]);
         }
-        let fullName$1: string = $rt.printer_FormatGeneratedName(privateName, prefix, name_, suffix);
+        const fullName$1: string = $rt.printer_FormatGeneratedName(privateName, prefix, name_, suffix);
         if (g!.isUniqueName(fullName$1, privateName)) {
           g!.reserveName(fullName$1, privateName, reservedInNestedScopes, true);
           if (simple) {
@@ -2622,7 +2624,7 @@ export class NameGenerator extends $rt.GoObject {
     const g = this;
     baseName = removeLeadingHash(baseName);
     if (optimistic) {
-      let fullName: string = $rt.printer_FormatGeneratedName(privateName, prefix, baseName, suffix);
+      const fullName: string = $rt.printer_FormatGeneratedName(privateName, prefix, baseName, suffix);
       if (g!.checkUniqueName(fullName, privateName, checkFn)) {
         g!.reserveName(fullName, privateName, scoped, false);
         return fullName;
@@ -2633,7 +2635,7 @@ export class NameGenerator extends $rt.GoObject {
     }
     let i: number = 1;
     for (;;) {
-      let fullName$1: string = $rt.printer_FormatGeneratedName(
+      const fullName$1: string = $rt.printer_FormatGeneratedName(
         privateName,
         prefix,
         $rt.fmt_Sprintf('%s%d', [new $rt.BoxStr(baseName, 'string'), new $rt.BoxNum(i, 'int')]),
@@ -2745,7 +2747,7 @@ export class NodeFactory extends $ast.NodeFactory {
     options: AutoGenerateOptions,
   ): $ast.Node | undefined {
     const f = this;
-    let id: AutoGenerateId = (nextAutoGenerateId = (nextAutoGenerateId + 1) >>> 0);
+    const id: AutoGenerateId = (nextAutoGenerateId = (nextAutoGenerateId + 1) >>> 0);
     if (text.length === (0 as number)) {
       {
         $sw1: {
@@ -2762,8 +2764,8 @@ export class NodeFactory extends $ast.NodeFactory {
       }
       text = $rt.printer_FormatGeneratedName(false, options.Prefix, text, options.Suffix);
     }
-    let name_: $ast.Node | undefined = f!.NewIdentifier(text);
-    let autoGenerate: AutoGenerateInfo | undefined = AutoGenerateInfo.$lit_printer_AutoGenerateInfo_1_0_2_3_4(
+    const name_: $ast.Node | undefined = f!.NewIdentifier(text);
+    const autoGenerate: AutoGenerateInfo | undefined = AutoGenerateInfo.$lit_printer_AutoGenerateInfo_1_0_2_3_4(
       id,
       $rt.or64(kind, $rt.and64(options.Flags, -8)),
       options.Prefix,
@@ -2818,7 +2820,7 @@ export class NodeFactory extends $ast.NodeFactory {
     options: AutoGenerateOptions,
   ): $ast.Node | undefined {
     const f = this;
-    let id: AutoGenerateId = (nextAutoGenerateId = (nextAutoGenerateId + 1) >>> 0);
+    const id: AutoGenerateId = (nextAutoGenerateId = (nextAutoGenerateId + 1) >>> 0);
     if (text.length === (0 as number)) {
       {
         $sw1: {
@@ -2837,8 +2839,8 @@ export class NodeFactory extends $ast.NodeFactory {
     } else if (!$rt.strings_HasPrefix(text, '#')) {
       throw $rt.newPanic(new $rt.BoxStr('First character of private identifier must be #: ' + text, 'string'));
     }
-    let name_: $ast.Node | undefined = f!.NewPrivateIdentifier(text);
-    let autoGenerate: AutoGenerateInfo | undefined = AutoGenerateInfo.$lit_printer_AutoGenerateInfo_1_0_2_3_4(
+    const name_: $ast.Node | undefined = f!.NewPrivateIdentifier(text);
+    const autoGenerate: AutoGenerateInfo | undefined = AutoGenerateInfo.$lit_printer_AutoGenerateInfo_1_0_2_3_4(
       id,
       $rt.or64(kind, $rt.andNot64(options.Flags, 7)),
       options.Prefix,
@@ -2891,7 +2893,7 @@ export class NodeFactory extends $ast.NodeFactory {
         }
       }
     }
-    let node: $ast.Node | undefined = f!.NewStringLiteral(text, 0);
+    const node: $ast.Node | undefined = f!.NewStringLiteral(text, 0);
     if (f!.emitContext!.textSource === undefined) {
       f!.emitContext!.textSource = new Map<$ast.Node | undefined, $ast.Node | undefined>();
     }
@@ -2951,7 +2953,7 @@ export class NodeFactory extends $ast.NodeFactory {
     {
       const $t1 = expressions.slice(1);
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        let next = $t1[$t2];
+        const next = $t1[$t2];
         expression = f!.NewCommaExpression(expression, next);
       }
     }
@@ -2960,15 +2962,15 @@ export class NodeFactory extends $ast.NodeFactory {
   CreateExpressionFromEntityName(node: $ast.Node | undefined): $ast.Node | undefined {
     const f = this;
     if ($ast.IsQualifiedName(node)) {
-      let left: $ast.Node | undefined = f!.CreateExpressionFromEntityName(node!.AsQualifiedName()!.Left);
-      let right: $ast.Node | undefined = node!.AsQualifiedName()!.Right!.Clone$Node(f!.AsNodeFactory());
+      const left: $ast.Node | undefined = f!.CreateExpressionFromEntityName(node!.AsQualifiedName()!.Left);
+      const right: $ast.Node | undefined = node!.AsQualifiedName()!.Right!.Clone$Node(f!.AsNodeFactory());
       right!.Loc = node!.AsQualifiedName()!.Right!.Loc;
       right!.Parent = node!.AsQualifiedName()!.Right!.Parent;
-      let propAccess: $ast.Node | undefined = f!.NewPropertyAccessExpression(left, undefined, right, 0);
+      const propAccess: $ast.Node | undefined = f!.NewPropertyAccessExpression(left, undefined, right, 0);
       propAccess!.Loc = node!.Loc;
       return propAccess;
     }
-    let res: $ast.Node | undefined = node!.Clone$Node(f!.AsNodeFactory());
+    const res: $ast.Node | undefined = node!.Clone$Node(f!.AsNodeFactory());
     res!.Loc = node!.Loc;
     res!.Parent = node!.Parent;
     return res;
@@ -2990,15 +2992,15 @@ export class NodeFactory extends $ast.NodeFactory {
   CreateForOfBindingStatement(node: $ast.Node | undefined, boundValue: $ast.Node | undefined): $ast.Node | undefined {
     const f = this;
     if ($ast.IsVariableDeclarationList(node)) {
-      let firstDeclaration: $ast.Node | undefined = node!.AsVariableDeclarationList()!.Declarations!.Nodes[0];
-      let updatedDeclaration: $ast.Node | undefined = f!.UpdateVariableDeclaration(
+      const firstDeclaration: $ast.Node | undefined = node!.AsVariableDeclarationList()!.Declarations!.Nodes[0];
+      const updatedDeclaration: $ast.Node | undefined = f!.UpdateVariableDeclaration(
         firstDeclaration!.AsVariableDeclaration(),
         firstDeclaration!.Name$Node(),
         undefined,
         undefined,
         boundValue,
       );
-      let statement: $ast.Node | undefined = f!.NewVariableStatement(
+      const statement: $ast.Node | undefined = f!.NewVariableStatement(
         undefined,
         f!.UpdateVariableDeclarationList(
           node!.AsVariableDeclarationList(),
@@ -3009,9 +3011,9 @@ export class NodeFactory extends $ast.NodeFactory {
       statement!.Loc = node!.Loc;
       return statement;
     }
-    let updatedExpression: $ast.Node | undefined = f!.NewAssignmentExpression(node, boundValue);
+    const updatedExpression: $ast.Node | undefined = f!.NewAssignmentExpression(node, boundValue);
     updatedExpression!.Loc = node!.Loc;
-    let statement$1: $ast.Node | undefined = f!.NewExpressionStatement(updatedExpression);
+    const statement$1: $ast.Node | undefined = f!.NewExpressionStatement(updatedExpression);
     statement$1!.Loc = node!.Loc;
     return statement$1;
   }
@@ -3067,7 +3069,7 @@ export class NodeFactory extends $ast.NodeFactory {
         new $rt.BoxStr('Attempted to construct function call call without this argument expression', 'string'),
       );
     }
-    let args: ($ast.Node | undefined)[] = $rt.appendCopy([thisArg], argumentsList);
+    const args: ($ast.Node | undefined)[] = $rt.appendCopy([thisArg], argumentsList);
     return f!.NewMethodCall(target, f!.NewIdentifier('call'), args);
   }
   NewArraySliceCall(array: $ast.Node | undefined, start: number): $ast.Node | undefined {
@@ -3157,7 +3159,7 @@ export class NodeFactory extends $ast.NodeFactory {
     {
       const $t1 = statements;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        let statement = $t1[$t2];
+        const statement = $t1[$t2];
         if ($ast.IsPrologueDirective(statement) && statement!.Expression()!.Text$Node() === ('use strict' as string)) {
           return statements;
         } else {
@@ -3165,7 +3167,7 @@ export class NodeFactory extends $ast.NodeFactory {
         }
       }
     }
-    let useStrictPrologue: $ast.Node | undefined = f!.NewExpressionStatement(f!.NewStringLiteral('use strict', 0));
+    const useStrictPrologue: $ast.Node | undefined = f!.NewExpressionStatement(f!.NewStringLiteral('use strict', 0));
     statements = $rt.appendCopy([useStrictPrologue], statements);
     return statements;
   }
@@ -3176,8 +3178,8 @@ export class NodeFactory extends $ast.NodeFactory {
     {
       const $t1 = source;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        let i = $t2;
-        let statement = $t1[$t2];
+        const i = $t2;
+        const statement = $t1[$t2];
         if (!$ast.IsPrologueDirective(statement)) {
           return [$rt.reslice(source, 0, i, undefined), source.slice(i)];
         }
@@ -3192,8 +3194,8 @@ export class NodeFactory extends $ast.NodeFactory {
     {
       const $t1 = source;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        let i = $t2;
-        let statement = $t1[$t2];
+        const i = $t2;
+        const statement = $t1[$t2];
         if ($ast.IsPrologueDirective(statement) || (f!.emitContext!.EmitFlags$m(statement) & 65536) === (0 as number)) {
           return [$rt.reslice(source, 0, i, undefined), source.slice(i)];
         }
@@ -3212,7 +3214,7 @@ export class NodeFactory extends $ast.NodeFactory {
       }
     }
     if (!(nodeName === undefined)) {
-      let name_: $ast.Node | undefined = nodeName!.Clone$Node(f);
+      const name_: $ast.Node | undefined = nodeName!.Clone$Node(f);
       if (!opts.AllowComments) {
         emitFlags = (emitFlags | 384) >>> 0;
       }
@@ -3261,7 +3263,7 @@ export class NodeFactory extends $ast.NodeFactory {
     if (!f!.emitContext!.HasAutoGenerateInfo(name_)) {
       name_ = name_!.Clone$Node(f);
     }
-    let qualifiedName: $ast.Node | undefined = f!.NewPropertyAccessExpression(ns, undefined, name_, 0);
+    const qualifiedName: $ast.Node | undefined = f!.NewPropertyAccessExpression(ns, undefined, name_, 0);
     f!.emitContext!.AssignCommentAndSourceMapRanges(qualifiedName, name_);
     if (!opts.AllowComments) {
       f!.emitContext!.AddEmitFlags(qualifiedName, 384);
@@ -3279,7 +3281,7 @@ export class NodeFactory extends $ast.NodeFactory {
   ): $ast.Node | undefined {
     const f = this;
     if (!(ns === undefined) && $ast.HasSyntacticModifier(node, 32)) {
-      let nameOpts: NameOptions = NameOptions.$lit_printer_NameOptions_0_1(allowComments, allowSourceMaps);
+      const nameOpts: NameOptions = NameOptions.$lit_printer_NameOptions_0_1(allowComments, allowSourceMaps);
       return f!.GetNamespaceMemberName(ns, f!.GetDeclarationNameEx(node, nameOpts), nameOpts);
     }
     return f!.GetExportNameEx(
@@ -3289,7 +3291,7 @@ export class NodeFactory extends $ast.NodeFactory {
   }
   NewUnscopedHelperName(name_: string): $ast.Node | undefined {
     const f = this;
-    let node: $ast.Node | undefined = f!.NewIdentifier(name_);
+    const node: $ast.Node | undefined = f!.NewIdentifier(name_);
     f!.emitContext!.SetEmitFlags(node, 1024);
     return node;
   }
@@ -3336,7 +3338,7 @@ export class NodeFactory extends $ast.NodeFactory {
   ): $ast.Node | undefined {
     const f = this;
     f!.emitContext!.RequestEmitHelper(paramHelper);
-    let helper: $ast.Node | undefined = f!.NewCallExpression(
+    const helper: $ast.Node | undefined = f!.NewCallExpression(
       f!.NewUnscopedHelperName('__param'),
       undefined,
       undefined,
@@ -3484,7 +3486,7 @@ export class NodeFactory extends $ast.NodeFactory {
   }
   NewImmediatelyInvokedArrowFunction(statements: ($ast.Node | undefined)[]): $ast.Node | undefined {
     const f = this;
-    let arrow: $ast.Node | undefined = f!.NewArrowFunction(
+    const arrow: $ast.Node | undefined = f!.NewArrowFunction(
       undefined,
       undefined,
       f!.NewNodeList([] as ($ast.Node | undefined)[]),
@@ -3507,8 +3509,8 @@ export class NodeFactory extends $ast.NodeFactory {
   }
   NewExternalModuleExport(name_: $ast.Node | undefined): $ast.Node | undefined {
     const f = this;
-    let specifier: $ast.Node | undefined = f!.NewExportSpecifier(false, undefined, name_);
-    let namedExports: $ast.Node | undefined = f!.NewNamedExports(f!.NewNodeList([specifier]));
+    const specifier: $ast.Node | undefined = f!.NewExportSpecifier(false, undefined, name_);
+    const namedExports: $ast.Node | undefined = f!.NewNamedExports(f!.NewNodeList([specifier]));
     return f!.NewExportDeclaration(undefined, false, namedExports, undefined, undefined);
   }
   NewAssignHelper(
@@ -3537,12 +3539,12 @@ export class NodeFactory extends $ast.NodeFactory {
     {
       const $t1 = elements;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        let i = $t2;
-        let element = $t1[$t2];
+        const i = $t2;
+        const element = $t1[$t2];
         if (i === elements.length - 1) {
           break;
         }
-        let propertyName: $ast.Node | undefined = $ast.TryGetPropertyNameOfBindingOrAssignmentElement(element);
+        const propertyName: $ast.Node | undefined = $ast.TryGetPropertyNameOfBindingOrAssignmentElement(element);
         if (!(propertyName === undefined)) {
           if ($ast.IsComputedPropertyName(propertyName)) {
             $debug.Assert(!(computedTempVariables.length === 0), [
@@ -3551,7 +3553,7 @@ export class NodeFactory extends $ast.NodeFactory {
                 'string',
               ),
             ]);
-            let temp: $ast.Node | undefined = computedTempVariables[computedTempVariableOffset];
+            const temp: $ast.Node | undefined = computedTempVariables[computedTempVariableOffset];
             computedTempVariableOffset++;
             propertyNames.push(
               f!.NewConditionalExpression(
@@ -3568,7 +3570,7 @@ export class NodeFactory extends $ast.NodeFactory {
         }
       }
     }
-    let propNames: $ast.Node | undefined = f!.NewArrayLiteralExpression(f!.NewNodeList(propertyNames), false);
+    const propNames: $ast.Node | undefined = f!.NewArrayLiteralExpression(f!.NewNodeList(propertyNames), false);
     propNames!.Loc = location;
     return f!.NewCallExpression(
       f!.NewUnscopedHelperName('__rest'),
@@ -3645,7 +3647,7 @@ export class NodeFactory extends $ast.NodeFactory {
     } else {
       params = f!.NewNodeList([] as ($ast.Node | undefined)[]);
     }
-    let generatorFunc: $ast.Node | undefined = f!.NewFunctionExpression(
+    const generatorFunc: $ast.Node | undefined = f!.NewFunctionExpression(
       undefined,
       f!.NewToken(41),
       undefined,
@@ -3681,7 +3683,7 @@ export class NodeFactory extends $ast.NodeFactory {
     metadata: $ast.Node | undefined,
   ): $ast.Node | undefined {
     const f = this;
-    let props: ($ast.Node | undefined)[] = [
+    const props: ($ast.Node | undefined)[] = [
       f!.NewPropertyAssignment(
         undefined,
         f!.NewIdentifier('kind'),
@@ -3705,7 +3707,7 @@ export class NodeFactory extends $ast.NodeFactory {
     } else {
       accessor_ = f!.NewPropertyAccessExpression(f!.NewIdentifier('obj'), undefined, nameExpr, 0);
     }
-    let objParam: $ast.Node | undefined = f!.NewParameterDeclaration(
+    const objParam: $ast.Node | undefined = f!.NewParameterDeclaration(
       undefined,
       undefined,
       f!.NewIdentifier('obj'),
@@ -3713,7 +3715,7 @@ export class NodeFactory extends $ast.NodeFactory {
       undefined,
       undefined,
     );
-    let arrow: $ast.Node | undefined = f!.NewArrowFunction(
+    const arrow: $ast.Node | undefined = f!.NewArrowFunction(
       undefined,
       undefined,
       f!.NewNodeList([objParam]),
@@ -3735,10 +3737,10 @@ export class NodeFactory extends $ast.NodeFactory {
     } else {
       accessor_ = f!.NewPropertyAccessExpression(f!.NewIdentifier('obj'), undefined, nameExpr, 0);
     }
-    let assignment: $ast.Node | undefined = f!.NewAssignmentExpression(accessor_, f!.NewIdentifier('value'));
-    let stmt: $ast.Node | undefined = f!.NewExpressionStatement(assignment);
-    let body: $ast.Node | undefined = f!.NewBlock(f!.NewNodeList([stmt]), false);
-    let objParam: $ast.Node | undefined = f!.NewParameterDeclaration(
+    const assignment: $ast.Node | undefined = f!.NewAssignmentExpression(accessor_, f!.NewIdentifier('value'));
+    const stmt: $ast.Node | undefined = f!.NewExpressionStatement(assignment);
+    const body: $ast.Node | undefined = f!.NewBlock(f!.NewNodeList([stmt]), false);
+    const objParam: $ast.Node | undefined = f!.NewParameterDeclaration(
       undefined,
       undefined,
       f!.NewIdentifier('obj'),
@@ -3746,7 +3748,7 @@ export class NodeFactory extends $ast.NodeFactory {
       undefined,
       undefined,
     );
-    let valueParam: $ast.Node | undefined = f!.NewParameterDeclaration(
+    const valueParam: $ast.Node | undefined = f!.NewParameterDeclaration(
       undefined,
       undefined,
       f!.NewIdentifier('value'),
@@ -3754,7 +3756,7 @@ export class NodeFactory extends $ast.NodeFactory {
       undefined,
       undefined,
     );
-    let arrow: $ast.Node | undefined = f!.NewArrowFunction(
+    const arrow: $ast.Node | undefined = f!.NewArrowFunction(
       undefined,
       undefined,
       f!.NewNodeList([objParam, valueParam]),
@@ -3776,7 +3778,7 @@ export class NodeFactory extends $ast.NodeFactory {
     } else {
       propertyName = nameExpr;
     }
-    let objParam: $ast.Node | undefined = f!.NewParameterDeclaration(
+    const objParam: $ast.Node | undefined = f!.NewParameterDeclaration(
       undefined,
       undefined,
       f!.NewIdentifier('obj'),
@@ -3784,14 +3786,14 @@ export class NodeFactory extends $ast.NodeFactory {
       undefined,
       undefined,
     );
-    let inExpr: $ast.Node | undefined = f!.NewBinaryExpression(
+    const inExpr: $ast.Node | undefined = f!.NewBinaryExpression(
       undefined,
       propertyName,
       undefined,
       f!.NewToken(102),
       f!.NewIdentifier('obj'),
     );
-    let arrow: $ast.Node | undefined = f!.NewArrowFunction(
+    const arrow: $ast.Node | undefined = f!.NewArrowFunction(
       undefined,
       undefined,
       f!.NewNodeList([objParam]),
@@ -3840,7 +3842,7 @@ export class NodeFactory extends $ast.NodeFactory {
     } else {
       nameValue = nameExpr;
     }
-    let accessObj: $ast.Node | undefined = f!.NewESDecorateClassElementAccessObject(
+    const accessObj: $ast.Node | undefined = f!.NewESDecorateClassElementAccessObject(
       nameComputed,
       nameExpr,
       hasGet,
@@ -3858,7 +3860,7 @@ export class NodeFactory extends $ast.NodeFactory {
     } else {
       privateExpr = f!.NewFalseExpression();
     }
-    let props: ($ast.Node | undefined)[] = [
+    const props: ($ast.Node | undefined)[] = [
       f!.NewPropertyAssignment(undefined, f!.NewIdentifier('kind'), undefined, undefined, f!.NewStringLiteral(kind, 0)),
       f!.NewPropertyAssignment(undefined, f!.NewIdentifier('name'), undefined, undefined, nameValue),
       f!.NewPropertyAssignment(undefined, f!.NewIdentifier('static'), undefined, undefined, staticExpr),
@@ -3985,7 +3987,7 @@ export class NodeFactory extends $ast.NodeFactory {
     expression: $ast.Node | undefined,
   ): $ast.Node | undefined {
     const f = this;
-    let setAccessor: $ast.Node | undefined = f!.NewSetAccessorDeclaration(
+    const setAccessor: $ast.Node | undefined = f!.NewSetAccessorDeclaration(
       undefined,
       f!.NewIdentifier('value'),
       undefined,
@@ -3994,7 +3996,7 @@ export class NodeFactory extends $ast.NodeFactory {
       undefined,
       f!.NewBlock(f!.NewNodeList([f!.NewExpressionStatement(expression)]), false),
     );
-    let objLiteral: $ast.Node | undefined = f!.NewObjectLiteralExpression(f!.NewNodeList([setAccessor]), false);
+    const objLiteral: $ast.Node | undefined = f!.NewObjectLiteralExpression(f!.NewNodeList([setAccessor]), false);
     return f!.NewPropertyAccessExpression(
       f!.NewParenthesizedExpression(objLiteral),
       undefined,
@@ -4153,8 +4155,8 @@ export class Printer extends PrintHandlers {
       {
         const $t1 = p!.emitContext!.textSource;
         const $t2 = node;
-        let textSourceNode: $ast.Node | undefined = $t1?.get($t2) ?? undefined;
-        let ok: boolean = $t1 !== undefined && $t1.has($t2);
+        const textSourceNode: $ast.Node | undefined = $t1?.get($t2) ?? undefined;
+        const ok: boolean = $t1 !== undefined && $t1.has($t2);
         if (ok && !(textSourceNode === undefined)) {
           let text: string = '';
           {
@@ -4210,13 +4212,13 @@ export class Printer extends PrintHandlers {
     }
     if ($ast.IsStringLiteral(node)) {
       {
-        let textSourceNode: $ast.Node | undefined = p!.emitContext!.textSource?.get(node) ?? undefined;
+        const textSourceNode: $ast.Node | undefined = p!.emitContext!.textSource?.get(node) ?? undefined;
         if (!(textSourceNode === undefined)) {
           return p!.getTextOfNode(textSourceNode, includeTrivia);
         }
       }
     }
-    let canUseSourceFile: boolean =
+    const canUseSourceFile: boolean =
       !(p!.currentSourceFile === undefined) && !(node!.Parent === undefined) && !$ast.NodeIsSynthesized(node);
     {
       switch (node!.Kind_) {
@@ -4309,7 +4311,7 @@ export class Printer extends PrintHandlers {
   }
   setWriteKind(kind: WriteKind): WriteKind {
     const p = this;
-    let previous: WriteKind = p!.writeKind;
+    const previous: WriteKind = p!.writeKind;
     p!.writeKind = kind;
     return previous;
   }
@@ -4365,8 +4367,8 @@ export class Printer extends PrintHandlers {
   }
   writeLines(text: string): void {
     const p = this;
-    let lines: string[] = $stringutil.SplitLines(text);
-    let indentation: number = $stringutil.GuessIndentation(lines);
+    const lines: string[] = $stringutil.SplitLines(text);
+    const indentation: number = $stringutil.GuessIndentation(lines);
     {
       const $t1 = lines;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
@@ -4414,7 +4416,7 @@ export class Printer extends PrintHandlers {
     if (p!.shouldEmitOnSingleLine(parentNode)) {
       p!.writeSpace();
     } else if (p!.Options.PreserveSourceNewlines) {
-      let lines: number = p!.getLinesBetweenNodes(parentNode, prevChildNode, nextChildNode);
+      const lines: number = p!.getLinesBetweenNodes(parentNode, prevChildNode, nextChildNode);
       if (lines > 0) {
         p!.writeLineRepeat(lines);
       } else {
@@ -4436,7 +4438,7 @@ export class Printer extends PrintHandlers {
   writeLineSeparatorsAndIndentBefore(node: $ast.Node | undefined, parent: $ast.Node | undefined): boolean {
     const p = this;
     if (p!.Options.PreserveSourceNewlines) {
-      let leadingNewlines: number = p!.getLeadingLineTerminatorCount(parent, node, 0);
+      const leadingNewlines: number = p!.getLeadingLineTerminatorCount(parent, node, 0);
       if (leadingNewlines > 0) {
         p!.writeLinesAndIndent(leadingNewlines, false);
         return true;
@@ -4447,7 +4449,7 @@ export class Printer extends PrintHandlers {
   writeLineSeparatorsAfter(node: $ast.Node | undefined, parent: $ast.Node | undefined): void {
     const p = this;
     if (p!.Options.PreserveSourceNewlines) {
-      let trailingNewlines: number = p!.getClosingLineTerminatorCount(parent, node, 0, $core.NewTextRange(-1, -1));
+      const trailingNewlines: number = p!.getClosingLineTerminatorCount(parent, node, 0, $core.NewTextRange(-1, -1));
       if (trailingNewlines > 0) {
         p!.writeLineRepeat(trailingNewlines);
       }
@@ -4488,7 +4490,7 @@ export class Printer extends PrintHandlers {
     if (!p!.Options.PreserveSourceNewlines) {
       throw $rt.newPanic(new $rt.BoxStr('Should not be called when preserveSourceNewlines is false', 'string'));
     }
-    let lines: number = getLineDifference!(true);
+    const lines: number = getLineDifference!(true);
     if (lines === (0 as number)) {
       return getLineDifference!(false);
     }
@@ -4622,7 +4624,7 @@ export class Printer extends PrintHandlers {
         (lastChild!.Parent === undefined || lastChild!.Parent === parentNode)
       ) {
         if (p!.Options.PreserveSourceNewlines) {
-          let end: number = greatestEnd(lastChild!.End(), [new $core.TextRange$Box(childrenTextRange)]);
+          const end: number = greatestEnd(lastChild!.End(), [new $core.TextRange$Box(childrenTextRange)]);
           return p!.getEffectiveLines((includeComments: boolean): number => {
             return getLinesBetweenPositionAndNextNonWhitespaceCharacter(
               end,
@@ -4652,16 +4654,16 @@ export class Printer extends PrintHandlers {
     if (p!.currentSourceFile === undefined) {
       return;
     }
-    let text: string = p!.currentSourceFile!.Text();
-    let lineMap: $core.TextPos[] = p!.currentSourceFile!.ECMALineMap();
+    const text: string = p!.currentSourceFile!.Text();
+    const lineMap: $core.TextPos[] = p!.currentSourceFile!.ECMALineMap();
     p!.writeCommentRangeWorker(text, lineMap, comment.Kind_, comment.TextRange_);
   }
   writeCommentRangeWorker(text: string, lineMap: $core.TextPos[], kind: $ast.Kind, loc: $core.TextRange): void {
     const p = this;
     if (kind === (3 as number)) {
-      let indentSize: number = GetDefaultIndentSize();
-      let firstLine: number = $scanner.ComputeLineOfPosition(lineMap, $core.TextRange$Pos(loc));
-      let lineCount: number = lineMap.length;
+      const indentSize: number = GetDefaultIndentSize();
+      const firstLine: number = $scanner.ComputeLineOfPosition(lineMap, $core.TextRange$Pos(loc));
+      const lineCount: number = lineMap.length;
       let firstCommentLineIndent: number = -1;
       let pos: number = $core.TextRange$Pos(loc);
       let currentLine: number = firstLine;
@@ -4676,12 +4678,12 @@ export class Printer extends PrintHandlers {
           if (firstCommentLineIndent === (-1 as number)) {
             firstCommentLineIndent = calculateIndent(text, lineMap[firstLine], $core.TextRange$Pos(loc));
           }
-          let currentWriterIndentSpacing: number = $rt.nn(p!.writer).GetIndent() * indentSize;
-          let spacesToEmit: number =
+          const currentWriterIndentSpacing: number = $rt.nn(p!.writer).GetIndent() * indentSize;
+          const spacesToEmit: number =
             currentWriterIndentSpacing - firstCommentLineIndent + calculateIndent(text, pos, nextLineStart);
           if (spacesToEmit > 0) {
             let numberOfSingleSpacesToEmit: number = $rt.imod(spacesToEmit, indentSize);
-            let indentSizeSpaceString: string = getIndentString(
+            const indentSizeSpaceString: string = getIndentString(
               Math.trunc((spacesToEmit - numberOfSingleSpacesToEmit) / indentSize),
               indentSize,
             );
@@ -4698,8 +4700,8 @@ export class Printer extends PrintHandlers {
         {
           for (let scan: number = pos; scan < end;) {
             const $t1 = $rt.unicode_utf8_DecodeRuneInString(text.substring(scan, end));
-            let ch: number = $t1[0];
-            let size: number = $t1[1];
+            const ch: number = $t1[0];
+            const size: number = $t1[1];
             if (size === (0 as number)) {
               break;
             }
@@ -4710,7 +4712,7 @@ export class Printer extends PrintHandlers {
             scan += size;
           }
         }
-        let currentLineText: string = $rt.strings_TrimSpace(text.substring(pos, end));
+        const currentLineText: string = $rt.strings_TrimSpace(text.substring(pos, end));
         if (currentLineText.length > 0) {
           p!.writeComment(currentLineText);
           if (!(end === $core.TextRange$End(loc))) {
@@ -4787,7 +4789,7 @@ export class Printer extends PrintHandlers {
     {
       const $t1 = body!.Statements_!.Nodes;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        let statement = $t1[$t2];
+        const statement = $t1[$t2];
         if (p!.getSeparatingLineTerminatorCount(previousStatement, statement, 2) > 0) {
           return false;
         }
@@ -4843,7 +4845,7 @@ export class Printer extends PrintHandlers {
     if (!$ast.IsSourceFile(node)) {
       return true;
     }
-    let file: $ast.SourceFile | undefined = node!.AsSourceFile();
+    const file: $ast.SourceFile | undefined = node!.AsSourceFile();
     return (
       file!.Statements_!.Nodes.length === (0 as number) ||
       !$ast.IsPrologueDirective(file!.Statements_!.Nodes[0]) ||
@@ -4934,7 +4936,7 @@ export class Printer extends PrintHandlers {
   }
   writeTokenText(token: $ast.Kind, writeKind: WriteKind, pos: number): number {
     const p = this;
-    let tokenString: string = $scanner.TokenToString(token);
+    const tokenString: string = $scanner.TokenToString(token);
     p!.writeAs(tokenString, writeKind);
     if ($ast.PositionIsSynthesized(pos)) {
       return pos;
@@ -4955,7 +4957,7 @@ export class Printer extends PrintHandlers {
   ): number {
     const p = this;
     const $t1 = p!.enterToken(token, pos, contextNode, flags);
-    let state: printerState = $t1[0];
+    const state: printerState = $t1[0];
     pos = $t1[1];
     pos = p!.writeTokenText(token, writeKind, pos);
     p!.exitToken(token, pos, contextNode, state);
@@ -4970,7 +4972,7 @@ export class Printer extends PrintHandlers {
     if (node === undefined) {
       return;
     }
-    let state: printerState = p!.enterTokenNode(node, flags);
+    const state: printerState = p!.enterTokenNode(node, flags);
     p!.writeTokenText(node!.Kind_, 1, node!.Pos());
     p!.exitTokenNode(node, state);
   }
@@ -4983,7 +4985,7 @@ export class Printer extends PrintHandlers {
     if (node === undefined) {
       return;
     }
-    let state: printerState = p!.enterTokenNode(node, flags);
+    const state: printerState = p!.enterTokenNode(node, flags);
     p!.writeTokenText(node!.Kind_, 3, node!.Pos());
     p!.exitTokenNode(node, state);
   }
@@ -5018,54 +5020,54 @@ export class Printer extends PrintHandlers {
     if (p!.Options.TerminateUnterminatedLiterals) {
       flags = $rt.or64(flags, 4);
     }
-    let text: string = p!.getLiteralTextOfNode(node, undefined, flags);
+    const text: string = p!.getLiteralTextOfNode(node, undefined, flags);
     $rt.nn(p!.writer).WriteStringLiteral(text);
   }
   emitNumericLiteral(node: $ast.NumericLiteral | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitLiteral(node!.AsNode(), 0);
     p!.exitNode(node!.AsNode(), state);
   }
   emitBigIntLiteral(node: $ast.BigIntLiteral | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitLiteral(node!.AsNode(), 0);
     p!.exitNode(node!.AsNode(), state);
   }
   emitStringLiteral(node: $ast.StringLiteral | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitLiteral(node!.AsNode(), 0);
     p!.exitNode(node!.AsNode(), state);
   }
   emitNoSubstitutionTemplateLiteral(node: $ast.NoSubstitutionTemplateLiteral | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitLiteral(node!.AsNode(), 0);
     p!.exitNode(node!.AsNode(), state);
   }
   emitRegularExpressionLiteral(node: $ast.RegularExpressionLiteral | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitLiteral(node!.AsNode(), 0);
     p!.exitNode(node!.AsNode(), state);
   }
   emitTemplateHead(node: $ast.TemplateHead | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitLiteral(node!.AsNode(), 0);
     p!.exitNode(node!.AsNode(), state);
   }
   emitTemplateMiddle(node: $ast.TemplateMiddle | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitLiteral(node!.AsNode(), 0);
     p!.exitNode(node!.AsNode(), state);
   }
   emitTemplateTail(node: $ast.TemplateTail | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitLiteral(node!.AsNode(), 0);
     p!.exitNode(node!.AsNode(), state);
   }
@@ -5114,18 +5116,18 @@ export class Printer extends PrintHandlers {
   }
   emitIdentifierText(node: $ast.Identifier | undefined): void {
     const p = this;
-    let f: $ast.SourceFile | undefined = $ast.GetSourceFileOfNode(node!.AsNode());
+    const f: $ast.SourceFile | undefined = $ast.GetSourceFileOfNode(node!.AsNode());
     $debug.Assert(
       f === undefined || p!.currentSourceFile === undefined || f!.FileName() === p!.currentSourceFile!.FileName(),
       [] as ($rt.GoObject | undefined)[],
     );
-    let text: string = p!.getTextOfNode(node!.AsNode(), false);
+    const text: string = p!.getTextOfNode(node!.AsNode(), false);
     if (!(p!.IdToSymbol === undefined)) {
       {
         const $t1 = p!.IdToSymbol;
         const $t2 = node!.AsNode();
-        let symbol_: $ast.Symbol_ | undefined = $t1?.get($t2) ?? undefined;
-        let ok: boolean = $t1 !== undefined && $t1.has($t2);
+        const symbol_: $ast.Symbol_ | undefined = $t1?.get($t2) ?? undefined;
+        const ok: boolean = $t1 !== undefined && $t1.has($t2);
         if (ok) {
           p!.writeSymbol(text, symbol_);
           return;
@@ -5136,7 +5138,7 @@ export class Printer extends PrintHandlers {
   }
   emitIdentifierName(node: $ast.Identifier | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitIdentifierText(node);
     p!.exitNode(node!.AsNode(), state);
   }
@@ -5149,9 +5151,9 @@ export class Printer extends PrintHandlers {
   }
   getUniqueHelperName(name_: string): $ast.Node | undefined {
     const p = this;
-    let helperName: $ast.Node | undefined = p!.uniqueHelperNames?.get(name_) ?? undefined;
+    const helperName: $ast.Node | undefined = p!.uniqueHelperNames?.get(name_) ?? undefined;
     if (helperName === undefined) {
-      let helperName$1: $ast.Node | undefined = p!.emitContext!.Factory!.NewUniqueNameEx(
+      const helperName$1: $ast.Node | undefined = p!.emitContext!.Factory!.NewUniqueNameEx(
         name_,
         AutoGenerateOptions.$lit_printer_AutoGenerateOptions_0(48),
       );
@@ -5168,7 +5170,7 @@ export class Printer extends PrintHandlers {
       !((p!.emitContext!.EmitFlags$m(node!.AsNode()) & 1024) === (0 as number))
     ) {
       if (!(p!.externalHelpersModuleName === undefined)) {
-        let helper: $ast.Node | undefined = p!.emitContext!.Factory!.NewPropertyAccessExpression(
+        const helper: $ast.Node | undefined = p!.emitContext!.Factory!.NewPropertyAccessExpression(
           p!.externalHelpersModuleName!.Clone$Node(p!.emitContext!.Factory),
           undefined,
           node!.Clone(p!.emitContext!.Factory),
@@ -5179,12 +5181,12 @@ export class Printer extends PrintHandlers {
         return;
       }
       if (!(p!.uniqueHelperNames === undefined)) {
-        let helperName: $ast.Node | undefined = p!.getUniqueHelperName(node!.Text_);
+        const helperName: $ast.Node | undefined = p!.getUniqueHelperName(node!.Text_);
         p!.emitContext!.AssignCommentAndSourceMapRanges(helperName, node!.AsNode());
         node = helperName!.AsIdentifier();
       }
     }
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitIdentifierText(node);
     p!.exitNode(node!.AsNode(), state);
   }
@@ -5194,29 +5196,29 @@ export class Printer extends PrintHandlers {
       !(p!.uniqueHelperNames === undefined) &&
       !((p!.emitContext!.EmitFlags$m(node!.AsNode()) & 1024) === (0 as number))
     ) {
-      let helperName: $ast.Node | undefined = p!.getUniqueHelperName(node!.Text_);
+      const helperName: $ast.Node | undefined = p!.getUniqueHelperName(node!.Text_);
       p!.emitContext!.AssignCommentAndSourceMapRanges(helperName, node!.AsNode());
       node = helperName!.AsIdentifier();
     }
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitIdentifierText(node);
     p!.exitNode(node!.AsNode(), state);
   }
   emitLabelIdentifier(node: $ast.Identifier | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitIdentifierText(node);
     p!.exitNode(node!.AsNode(), state);
   }
   emitPrivateIdentifier(node: $ast.PrivateIdentifier | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.write(p!.getTextOfNode(node!.AsNode(), false));
     p!.exitNode(node!.AsNode(), state);
   }
   emitQualifiedName(node: $ast.QualifiedName | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitEntityName(node!.Left);
     p!.writePunctuation('.');
     p!.emitMemberName(node!.Right);
@@ -5224,7 +5226,7 @@ export class Printer extends PrintHandlers {
   }
   emitComputedPropertyName(node: $ast.ComputedPropertyName | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.writePunctuation('[');
     p!.emitExpression(node!.Expression_, 2);
     p!.writePunctuation(']');
@@ -5286,7 +5288,7 @@ export class Printer extends PrintHandlers {
     if (node === undefined) {
       return;
     }
-    let savedWriteKind: WriteKind = p!.writeKind;
+    const savedWriteKind: WriteKind = p!.writeKind;
     p!.writeKind = 6;
     {
       switch (node!.Kind_) {
@@ -5519,7 +5521,7 @@ export class Printer extends PrintHandlers {
   }
   emitTypeParameter(node: $ast.TypeParameterDeclaration | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitModifierList(node!.AsNode(), node!.ModifiersBase_.Modifiers$ModifiersBase(), false);
     p!.emitBindingIdentifier(node!.Name()!.AsIdentifier());
     if (!(node!.Constraint === undefined)) {
@@ -5546,14 +5548,14 @@ export class Printer extends PrintHandlers {
   }
   emitParameterName(node: $ast.Node | undefined): void {
     const p = this;
-    let savedWriteKind: WriteKind = p!.writeKind;
+    const savedWriteKind: WriteKind = p!.writeKind;
     p!.writeKind = 5;
     p!.emitBindingName(node);
     p!.writeKind = savedWriteKind;
   }
   emitParameter(node: $ast.ParameterDeclaration | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitModifierList(node!.AsNode(), node!.ModifiersBase_.Modifiers$ModifiersBase(), true);
     p!.emitTokenNode(node!.DotDotDotToken);
     p!.emitParameterName(node!.Name());
@@ -5577,7 +5579,7 @@ export class Printer extends PrintHandlers {
   }
   emitDecorator(node: $ast.Decorator | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.writePunctuation('@');
     p!.emitExpression(node!.Expression_, 18);
     p!.exitNode(node!.AsNode(), state);
@@ -5650,7 +5652,7 @@ export class Printer extends PrintHandlers {
   }
   emitSignature(node: $ast.Node | undefined): void {
     const p = this;
-    let n: $ast.FunctionLikeBase | undefined = node!.FunctionLikeData$Node();
+    const n: $ast.FunctionLikeBase | undefined = node!.FunctionLikeData$Node();
     p!.emitTypeParameters(node, n!.TypeParameters);
     p!.emitParameters(node, n!.Parameters);
     p!.emitTypeAnnotation(n!.Type);
@@ -5664,12 +5666,12 @@ export class Printer extends PrintHandlers {
     p!.generateNames(body!.AsNode());
     p!.writePunctuation('{');
     p!.increaseIndent();
-    let detachedState: commentState | undefined = p!.emitDetachedCommentsBeforeStatementList(
+    const detachedState: commentState | undefined = p!.emitDetachedCommentsBeforeStatementList(
       body!.AsNode(),
       body!.Statements_!.Loc,
     );
-    let statementOffset: number = p!.emitPrologueDirectives(body!.Statements_);
-    let pos: number = $rt.nn(p!.writer).GetTextPos();
+    const statementOffset: number = p!.emitPrologueDirectives(body!.Statements_);
+    const pos: number = $rt.nn(p!.writer).GetTextPos();
     p!.emitHelpers(body!.AsNode());
     if (
       p!.shouldEmitBlockFunctionBodyOnSingleLine(body) &&
@@ -5700,7 +5702,7 @@ export class Printer extends PrintHandlers {
   }
   emitPropertySignature(node: $ast.PropertySignatureDeclaration | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitModifierList(node!.AsNode(), node!.NamedMemberBase_.Modifiers(), false);
     p!.emitPropertyName(node!.Name());
     p!.emitTokenNode(node!.NamedMemberBase_.PostfixToken);
@@ -5710,7 +5712,7 @@ export class Printer extends PrintHandlers {
   }
   emitPropertyDeclaration(node: $ast.PropertyDeclaration | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitModifierList(node!.AsNode(), node!.NamedMemberBase_.Modifiers(), true);
     p!.emitPropertyName(node!.Name());
     p!.emitTokenNode(node!.NamedMemberBase_.PostfixToken);
@@ -5725,11 +5727,11 @@ export class Printer extends PrintHandlers {
   }
   emitMethodSignature(node: $ast.MethodSignatureDeclaration | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitModifierList(node!.AsNode(), node!.NamedMemberBase_.Modifiers(), false);
     p!.emitPropertyName(node!.Name());
     p!.emitTokenNode(node!.NamedMemberBase_.PostfixToken);
-    let indented: boolean = p!.shouldEmitIndented(node!.AsNode());
+    const indented: boolean = p!.shouldEmitIndented(node!.AsNode());
     p!.increaseIndentIf(indented);
     p!.pushNameGenerationScope(node!.AsNode());
     p!.emitSignature(node!.AsNode());
@@ -5740,12 +5742,12 @@ export class Printer extends PrintHandlers {
   }
   emitMethodDeclaration(node: $ast.MethodDeclaration | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitModifierList(node!.AsNode(), node!.NamedMemberBase_.Modifiers(), true);
     p!.emitTokenNode(node!.FunctionLikeWithBodyBase_.BodyBase_.AsteriskToken);
     p!.emitPropertyName(node!.Name());
     p!.emitTokenNode(node!.NamedMemberBase_.PostfixToken);
-    let indented: boolean = p!.shouldEmitIndented(node!.AsNode());
+    const indented: boolean = p!.shouldEmitIndented(node!.AsNode());
     p!.increaseIndentIf(indented);
     p!.pushNameGenerationScope(node!.AsNode());
     p!.emitSignature(node!.AsNode());
@@ -5756,7 +5758,7 @@ export class Printer extends PrintHandlers {
   }
   emitClassStaticBlockDeclaration(node: $ast.ClassStaticBlockDeclaration | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.writeKeyword('static');
     p!.pushNameGenerationScope(node!.AsNode());
     p!.emitFunctionBodyNode(node!.Body_);
@@ -5765,10 +5767,10 @@ export class Printer extends PrintHandlers {
   }
   emitConstructor(node: $ast.ConstructorDeclaration | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitModifierList(node!.AsNode(), node!.ModifiersBase_.Modifiers$ModifiersBase(), false);
     p!.writeKeyword('constructor');
-    let indented: boolean = p!.shouldEmitIndented(node!.AsNode());
+    const indented: boolean = p!.shouldEmitIndented(node!.AsNode());
     p!.increaseIndentIf(indented);
     p!.pushNameGenerationScope(node!.AsNode());
     p!.emitSignature(node!.AsNode());
@@ -5779,12 +5781,12 @@ export class Printer extends PrintHandlers {
   }
   emitAccessorDeclaration(token: $ast.Kind, node: $ast.AccessorDeclarationBase | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
-    let pos: number = p!.emitModifierList(node!.AsNode(), node!.NamedMemberBase_.Modifiers(), true);
+    const state: printerState = p!.enterNode(node!.AsNode());
+    const pos: number = p!.emitModifierList(node!.AsNode(), node!.NamedMemberBase_.Modifiers(), true);
     p!.emitToken(token, pos, 1, node!.AsNode());
     p!.writeSpace();
     p!.emitPropertyName(node!.NamedMemberBase_.Name());
-    let indented: boolean = p!.shouldEmitIndented(node!.AsNode());
+    const indented: boolean = p!.shouldEmitIndented(node!.AsNode());
     p!.increaseIndentIf(indented);
     p!.pushNameGenerationScope(node!.AsNode());
     p!.emitSignature(node!.AsNode());
@@ -5803,8 +5805,8 @@ export class Printer extends PrintHandlers {
   }
   emitCallSignature(node: $ast.CallSignatureDeclaration | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
-    let indented: boolean = p!.shouldEmitIndented(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
+    const indented: boolean = p!.shouldEmitIndented(node!.AsNode());
     p!.increaseIndentIf(indented);
     p!.pushNameGenerationScope(node!.AsNode());
     p!.emitSignature(node!.AsNode());
@@ -5815,10 +5817,10 @@ export class Printer extends PrintHandlers {
   }
   emitConstructSignature(node: $ast.ConstructSignatureDeclaration | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.writeKeyword('new');
     p!.writeSpace();
-    let indented: boolean = p!.shouldEmitIndented(node!.AsNode());
+    const indented: boolean = p!.shouldEmitIndented(node!.AsNode());
     p!.increaseIndentIf(indented);
     p!.pushNameGenerationScope(node!.AsNode());
     p!.emitSignature(node!.AsNode());
@@ -5829,9 +5831,9 @@ export class Printer extends PrintHandlers {
   }
   emitIndexSignature(node: $ast.IndexSignatureDeclaration | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitModifierList(node!.AsNode(), node!.ModifiersBase_.Modifiers$ModifiersBase(), false);
-    let indented: boolean = p!.shouldEmitIndented(node!.AsNode());
+    const indented: boolean = p!.shouldEmitIndented(node!.AsNode());
     p!.increaseIndentIf(indented);
     p!.pushNameGenerationScope(node!.AsNode());
     p!.emitParametersForIndexSignature(node!.AsNode(), node!.FunctionLikeBase_.Parameters);
@@ -6005,7 +6007,7 @@ export class Printer extends PrintHandlers {
   }
   emitTypePredicate(node: $ast.TypePredicateNode | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     if (!(node!.AssertsModifier === undefined)) {
       p!.emitTokenNode(node!.AssertsModifier);
       p!.writeSpace();
@@ -6032,7 +6034,7 @@ export class Printer extends PrintHandlers {
   }
   emitTypeReference(node: $ast.TypeReferenceNode | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitEntityName(node!.TypeName);
     p!.emitTypeArguments(node!.AsNode(), node!.TypeArguments_);
     p!.exitNode(node!.AsNode(), state);
@@ -6056,8 +6058,8 @@ export class Printer extends PrintHandlers {
   }
   emitFunctionType(node: $ast.FunctionTypeNode | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
-    let indented: boolean = p!.shouldEmitIndented(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
+    const indented: boolean = p!.shouldEmitIndented(node!.AsNode());
     p!.increaseIndentIf(indented);
     p!.pushNameGenerationScope(node!.AsNode());
     p!.emitTypeParameters(node!.AsNode(), node!.FunctionLikeBase_.TypeParameters);
@@ -6070,11 +6072,11 @@ export class Printer extends PrintHandlers {
   }
   emitConstructorType(node: $ast.ConstructorTypeNode | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitModifierList(node!.AsNode(), node!.ModifiersBase_.Modifiers$ModifiersBase(), false);
     p!.writeKeyword('new');
     p!.writeSpace();
-    let indented: boolean = p!.shouldEmitIndented(node!.AsNode());
+    const indented: boolean = p!.shouldEmitIndented(node!.AsNode());
     p!.increaseIndentIf(indented);
     p!.pushNameGenerationScope(node!.AsNode());
     p!.emitTypeParameters(node!.AsNode(), node!.FunctionLikeBase_.TypeParameters);
@@ -6087,7 +6089,7 @@ export class Printer extends PrintHandlers {
   }
   emitTypeQuery(node: $ast.TypeQueryNode | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.writeKeyword('typeof');
     p!.writeSpace();
     p!.emitEntityName(node!.ExprName);
@@ -6096,11 +6098,11 @@ export class Printer extends PrintHandlers {
   }
   emitTypeLiteral(node: $ast.TypeLiteralNode | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.pushNameGenerationScope(node!.AsNode());
     p!.generateAllMemberNames(node!.Members_);
     p!.writePunctuation('{');
-    let flags: ListFormat = $core.IfElse<ListFormat>(p!.shouldEmitOnSingleLine(node!.AsNode()), 768, 32897);
+    const flags: ListFormat = $core.IfElse<ListFormat>(p!.shouldEmitOnSingleLine(node!.AsNode()), 768, 32897);
     p!.emitList($fn12, node!.AsNode(), node!.Members_, $rt.or64(flags, 524288));
     p!.writePunctuation('}');
     p!.popNameGenerationScope(node!.AsNode());
@@ -6108,7 +6110,7 @@ export class Printer extends PrintHandlers {
   }
   emitArrayType(node: $ast.ArrayTypeNode | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitPostfixTypeOperand(node!.ElementType, node!.AsNode());
     p!.writePunctuation('[');
     p!.writePunctuation(']');
@@ -6128,30 +6130,30 @@ export class Printer extends PrintHandlers {
   }
   emitTupleType(node: $ast.TupleTypeNode | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitToken(22, node!.Pos(), 3, node!.AsNode());
-    let flags: ListFormat = $core.IfElse<ListFormat>(p!.shouldEmitOnSingleLine(node!.AsNode()), 528, 657);
+    const flags: ListFormat = $core.IfElse<ListFormat>(p!.shouldEmitOnSingleLine(node!.AsNode()), 528, 657);
     p!.emitList($fn13, node!.AsNode(), node!.Elements_, $rt.or64(flags, 524288));
     p!.emitToken(23, node!.Elements_!.End(), 3, node!.AsNode());
     p!.exitNode(node!.AsNode(), state);
   }
   emitRestType(node: $ast.RestTypeNode | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.writePunctuation('...');
     p!.emitTypeNodeOutsideExtends(node!.Type_);
     p!.exitNode(node!.AsNode(), state);
   }
   emitOptionalType(node: $ast.OptionalTypeNode | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitPostfixTypeOperand(node!.Type_, node!.AsNode());
     p!.writePunctuation('?');
     p!.exitNode(node!.AsNode(), state);
   }
   emitNamedTupleMember(node: $ast.NamedTupleMember | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitPunctuationNode(node!.DotDotDotToken);
     p!.emitIdentifierName(node!.Name()!.AsIdentifier());
     p!.emitPunctuationNode(node!.QuestionToken_);
@@ -6166,7 +6168,7 @@ export class Printer extends PrintHandlers {
   }
   emitUnionType(node: $ast.UnionTypeNode | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitList($fn14, node!.AsNode(), node!.Types, 516);
     p!.exitNode(node!.AsNode(), state);
   }
@@ -6176,13 +6178,13 @@ export class Printer extends PrintHandlers {
   }
   emitIntersectionType(node: $ast.IntersectionTypeNode | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitList($fn15, node!.AsNode(), node!.Types, 520);
     p!.exitNode(node!.AsNode(), state);
   }
   emitConditionalType(node: $ast.ConditionalTypeNode | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitTypeNode(node!.CheckType, 3);
     p!.writeSpace();
     p!.writeKeyword('extends');
@@ -6200,7 +6202,7 @@ export class Printer extends PrintHandlers {
   }
   emitInferTypeParameter(node: $ast.TypeParameterDeclaration | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitBindingIdentifier(node!.Name()!.AsIdentifier());
     if (!(node!.Constraint === undefined)) {
       p!.writeSpace();
@@ -6212,7 +6214,7 @@ export class Printer extends PrintHandlers {
   }
   emitInferType(node: $ast.InferTypeNode | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.writeKeyword('infer');
     p!.writeSpace();
     p!.emitInferTypeParameter(node!.TypeParameter!.AsTypeParameterDeclaration());
@@ -6220,7 +6222,7 @@ export class Printer extends PrintHandlers {
   }
   emitParenthesizedType(node: $ast.ParenthesizedTypeNode | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.writePunctuation('(');
     p!.emitTypeNodeOutsideExtends(node!.Type_);
     p!.writePunctuation(')');
@@ -6228,13 +6230,13 @@ export class Printer extends PrintHandlers {
   }
   emitThisType(node: $ast.ThisTypeNode | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.writeKeyword('this');
     p!.exitNode(node!.AsNode(), state);
   }
   emitTypeOperator(node: $ast.TypeOperatorNode | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitToken(node!.Operator, node!.Pos(), 1, node!.AsNode());
     p!.writeSpace();
     p!.emitTypeNode(node!.Type_, $core.IfElse<$ast.TypePrecedence>(node!.Operator === (148 as number), 6, 5));
@@ -6242,7 +6244,7 @@ export class Printer extends PrintHandlers {
   }
   emitIndexedAccessType(node: $ast.IndexedAccessTypeNode | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitPostfixTypeOperand(node!.ObjectType, node!.AsNode());
     p!.writePunctuation('[');
     p!.emitTypeNodeOutsideExtends(node!.IndexType);
@@ -6251,7 +6253,7 @@ export class Printer extends PrintHandlers {
   }
   emitMappedTypeParameter(node: $ast.TypeParameterDeclaration | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitBindingIdentifier(node!.Name()!.AsIdentifier());
     p!.writeSpace();
     p!.writeKeyword('in');
@@ -6261,8 +6263,8 @@ export class Printer extends PrintHandlers {
   }
   emitMappedType(node: $ast.MappedTypeNode | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
-    let singleLine: boolean = p!.shouldEmitOnSingleLine(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
+    const singleLine: boolean = p!.shouldEmitOnSingleLine(node!.AsNode());
     p!.writePunctuation('{');
     if (singleLine) {
       p!.writeSpace();
@@ -6317,13 +6319,13 @@ export class Printer extends PrintHandlers {
   }
   emitLiteralType(node: $ast.LiteralTypeNode | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitExpression(node!.Literal, 0);
     p!.exitNode(node!.AsNode(), state);
   }
   emitTemplateTypeSpan(node: $ast.TemplateLiteralTypeSpan | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitTypeNodeOutsideExtends(node!.Type_);
     p!.emitTemplateMiddleTail(node!.Literal);
     p!.exitNode(node!.AsNode(), state);
@@ -6334,14 +6336,14 @@ export class Printer extends PrintHandlers {
   }
   emitTemplateType(node: $ast.TemplateLiteralTypeNode | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitTemplateHead(node!.Head!.AsTemplateHead());
     p!.emitList($fn16, node!.AsNode(), node!.TemplateSpans, 262144);
     p!.exitNode(node!.AsNode(), state);
   }
   emitImportTypeNodeAttributes(node: $ast.ImportAttributes | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.writePunctuation('{');
     p!.writeSpace();
     p!.writeKeyword($core.IfElse<string>(node!.Token === (131 as number), 'assert', 'with'));
@@ -6354,7 +6356,7 @@ export class Printer extends PrintHandlers {
   }
   emitImportTypeNode(node: $ast.ImportTypeNode | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     if (node!.IsTypeOf) {
       p!.writeKeyword('typeof');
       p!.writeSpace();
@@ -6377,14 +6379,14 @@ export class Printer extends PrintHandlers {
   }
   emitTypeNodeInExtends(node: $ast.Node | undefined): void {
     const p = this;
-    let savedInExtends: boolean = p!.inExtends;
+    const savedInExtends: boolean = p!.inExtends;
     p!.inExtends = true;
     p!.emitTypeNodePreservingExtends(node, 0);
     p!.inExtends = savedInExtends;
   }
   emitTypeNodeOutsideExtends(node: $ast.Node | undefined): void {
     const p = this;
-    let savedInExtends: boolean = p!.inExtends;
+    const savedInExtends: boolean = p!.inExtends;
     p!.inExtends = false;
     p!.emitTypeNodePreservingExtends(node, 0);
     p!.inExtends = savedInExtends;
@@ -6398,8 +6400,8 @@ export class Printer extends PrintHandlers {
     if (p!.inExtends && precedence <= 0) {
       precedence = 2;
     }
-    let savedInExtends: boolean = p!.inExtends;
-    let parens: boolean = $ast.GetTypeNodePrecedence(node) < precedence;
+    const savedInExtends: boolean = p!.inExtends;
+    const parens: boolean = $ast.GetTypeNodePrecedence(node) < precedence;
     if (parens) {
       p!.inExtends = false;
       p!.writePunctuation('(');
@@ -6559,7 +6561,7 @@ export class Printer extends PrintHandlers {
   }
   emitObjectBindingPattern(node: $ast.BindingPattern | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.writePunctuation('{');
     p!.emitList($fn18, node!.AsNode(), node!.Elements_, 525136);
     p!.writePunctuation('}');
@@ -6567,7 +6569,7 @@ export class Printer extends PrintHandlers {
   }
   emitArrayBindingPattern(node: $ast.BindingPattern | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.writePunctuation('[');
     p!.emitList($fn18, node!.AsNode(), node!.Elements_, 524880);
     p!.writePunctuation(']');
@@ -6575,7 +6577,7 @@ export class Printer extends PrintHandlers {
   }
   emitBindingElement(node: $ast.BindingElement | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitTokenNode(node!.DotDotDotToken);
     if (!(node!.PropertyName_ === undefined)) {
       p!.emitPropertyName(node!.PropertyName_);
@@ -6583,7 +6585,7 @@ export class Printer extends PrintHandlers {
       p!.writeSpace();
     }
     {
-      let name_: $ast.Node | undefined = node!.Name();
+      const name_: $ast.Node | undefined = node!.Name();
       if (!(name_ === undefined)) {
         p!.emitBindingName(name_);
         p!.emitInitializer(node!.Initializer_, node!.Name()!.End(), node!.AsNode());
@@ -6601,28 +6603,28 @@ export class Printer extends PrintHandlers {
   }
   emitJSDocNonNullableType(node: $ast.JSDocNonNullableType | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.writePunctuation('!');
     p!.emitTypeNode(node!.Type_, 7);
     p!.exitNode(node!.AsNode(), state);
   }
   emitJSDocNullableType(node: $ast.JSDocNullableType | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.writePunctuation('?');
     p!.emitTypeNode(node!.Type_, 7);
     p!.exitNode(node!.AsNode(), state);
   }
   emitJSDocOptionalType(node: $ast.JSDocOptionalType | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitTypeNode(node!.Type_, 1);
     p!.writePunctuation('=');
     p!.exitNode(node!.AsNode(), state);
   }
   emitJSDocVariadicType(node: $ast.JSDocVariadicType | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.writePunctuation('...');
     p!.emitTypeNode(node!.Type_, 1);
     p!.exitNode(node!.AsNode(), state);
@@ -6637,7 +6639,7 @@ export class Printer extends PrintHandlers {
   }
   emitArrayLiteralExpression(node: $ast.ArrayLiteralExpression | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitList(
       $fn19,
       node!.AsNode(),
@@ -6648,8 +6650,8 @@ export class Printer extends PrintHandlers {
   }
   emitObjectLiteralExpression(node: $ast.ObjectLiteralExpression | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
-    let indented: boolean = p!.shouldEmitIndented(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
+    const indented: boolean = p!.shouldEmitIndented(node!.AsNode());
     p!.increaseIndentIf(indented);
     p!.pushNameGenerationScope(node!.AsNode());
     p!.generateAllMemberNames(node!.Properties_);
@@ -6670,7 +6672,7 @@ export class Printer extends PrintHandlers {
     const p = this;
     expression = $ast.SkipPartiallyEmittedExpressions(expression);
     if ($ast.IsNumericLiteral(expression)) {
-      let text: string = p!.getLiteralTextOfNode(expression, undefined, 1);
+      const text: string = p!.getLiteralTextOfNode(expression, undefined, 1);
       return (
         (expression!.AsNumericLiteral()!.LiteralLikeNodeBase_.TokenFlags_ & 448) === (0 as number) &&
         !$rt.strings_Contains(text, $scanner.TokenToString(24)) &&
@@ -6682,7 +6684,7 @@ export class Printer extends PrintHandlers {
   }
   emitPropertyAccessExpression(node: $ast.PropertyAccessExpression | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitExpression(
       node!.Expression_,
       $core.IfElse<$ast.OperatorPrecedence>($ast.IsOptionalChain(node!.AsNode()), 19, 20),
@@ -6693,10 +6695,10 @@ export class Printer extends PrintHandlers {
       token!.Loc = $core.NewTextRange(node!.Expression_!.End(), node!.Name()!.Pos());
       p!.emitContext!.AddEmitFlags(token, 12);
     }
-    let linesBeforeDot: number = p!.getLinesBetweenNodes(node!.AsNode(), node!.Expression_, token);
+    const linesBeforeDot: number = p!.getLinesBetweenNodes(node!.AsNode(), node!.Expression_, token);
     p!.writeLineRepeat(linesBeforeDot);
     p!.increaseIndentIf(linesBeforeDot > 0);
-    let shouldEmitDotDot: boolean =
+    const shouldEmitDotDot: boolean =
       !(token!.Kind_ === (28 as number)) &&
       p!.mayNeedDotDotForPropertyAccess(node!.Expression_) &&
       !$rt.nn(p!.writer).HasTrailingComment() &&
@@ -6709,7 +6711,7 @@ export class Printer extends PrintHandlers {
     } else {
       p!.emitToken(24, node!.Expression_!.End(), 3, node!.AsNode());
     }
-    let linesAfterDot: number = p!.getLinesBetweenNodes(node!.AsNode(), token, node!.Name());
+    const linesAfterDot: number = p!.getLinesBetweenNodes(node!.AsNode(), token, node!.Name());
     p!.writeLineRepeat(linesAfterDot);
     p!.increaseIndentIf(linesAfterDot > 0);
     p!.emitMemberName(node!.Name());
@@ -6719,7 +6721,7 @@ export class Printer extends PrintHandlers {
   }
   emitElementAccessExpression(node: $ast.ElementAccessExpression | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitExpression(
       node!.Expression_,
       $core.IfElse<$ast.OperatorPrecedence>($ast.IsOptionalChain(node!.AsNode()), 19, 20),
@@ -6754,7 +6756,7 @@ export class Printer extends PrintHandlers {
   }
   emitCallExpression(node: $ast.CallExpression | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitCallee(node!.Expression_, node!.AsNode());
     p!.emitTokenNode(node!.QuestionDotToken_);
     p!.emitTypeArguments(node!.AsNode(), node!.TypeArguments_);
@@ -6763,7 +6765,7 @@ export class Printer extends PrintHandlers {
   }
   emitNewExpression(node: $ast.NewExpression | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitToken(104, node!.Pos(), 1, node!.AsNode());
     p!.writeSpace();
     if ($ast.SkipPartiallyEmittedExpressions(node!.Expression_)!.Kind_ === (214 as number)) {
@@ -6800,7 +6802,7 @@ export class Printer extends PrintHandlers {
   }
   emitTaggedTemplateExpression(node: $ast.TaggedTemplateExpression | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitCallee(node!.Tag, node!.AsNode());
     p!.emitTypeArguments(node!.AsNode(), node!.TypeArguments_);
     p!.writeSpace();
@@ -6809,7 +6811,7 @@ export class Printer extends PrintHandlers {
   }
   emitTypeAssertionExpression(node: $ast.TypeAssertion | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.writePunctuation('<');
     p!.emitTypeNodeOutsideExtends(node!.Type_);
     p!.writePunctuation('>');
@@ -6818,9 +6820,9 @@ export class Printer extends PrintHandlers {
   }
   emitParenthesizedExpression(node: $ast.ParenthesizedExpression | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
-    let openParenPos: number = p!.emitToken(20, node!.Pos(), 3, node!.AsNode());
-    let indented: boolean = p!.writeLineSeparatorsAndIndentBefore(node!.Expression_, node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
+    const openParenPos: number = p!.emitToken(20, node!.Pos(), 3, node!.AsNode());
+    const indented: boolean = p!.writeLineSeparatorsAndIndentBefore(node!.Expression_, node!.AsNode());
     p!.emitExpression(node!.Expression_, 0);
     p!.writeLineSeparatorsAfter(node!.Expression_, node!.AsNode());
     p!.decreaseIndentIf(indented);
@@ -6833,14 +6835,14 @@ export class Printer extends PrintHandlers {
   }
   emitFunctionExpression(node: $ast.FunctionExpression | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.generateNameIfNeeded(node!.Name());
     p!.emitModifierList(node!.AsNode(), node!.ModifiersBase_.Modifiers$ModifiersBase(), false);
     p!.writeKeyword('function');
     p!.emitTokenNode(node!.FunctionLikeWithBodyBase_.BodyBase_.AsteriskToken);
     p!.writeSpace();
     p!.emitIdentifierNameNode(node!.Name());
-    let indented: boolean = p!.shouldEmitIndented(node!.AsNode());
+    const indented: boolean = p!.shouldEmitIndented(node!.AsNode());
     p!.increaseIndentIf(indented);
     p!.pushNameGenerationScope(node!.AsNode());
     p!.emitSignature(node!.AsNode());
@@ -6856,7 +6858,7 @@ export class Printer extends PrintHandlers {
         if ($ast.IsBlock(node)) {
           p!.emitFunctionBody(node!.AsBlock());
         } else if ($ast.IsObjectLiteralExpression($ast.GetLeftmostExpression(node, false))) {
-          let paren: $ast.Node | undefined = p!.emitContext!.Factory!.NewParenthesizedExpression(node);
+          const paren: $ast.Node | undefined = p!.emitContext!.Factory!.NewParenthesizedExpression(node);
           paren!.Loc = node!.Loc;
           p!.emitExpression(paren, 0);
         } else if ($ast.IsExpression(node)) {
@@ -6871,9 +6873,9 @@ export class Printer extends PrintHandlers {
   }
   emitArrowFunction(node: $ast.ArrowFunction | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitModifierList(node!.AsNode(), node!.ModifiersBase_.Modifiers$ModifiersBase(), false);
-    let indented: boolean = p!.shouldEmitIndented(node!.AsNode());
+    const indented: boolean = p!.shouldEmitIndented(node!.AsNode());
     p!.increaseIndentIf(indented);
     p!.pushNameGenerationScope(node!.AsNode());
     p!.emitTypeParameters(node!.AsNode(), node!.FunctionLikeWithBodyBase_.TypeParameters);
@@ -6889,7 +6891,7 @@ export class Printer extends PrintHandlers {
   }
   emitDeleteExpression(node: $ast.DeleteExpression | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitToken(90, node!.Pos(), 1, node!.AsNode());
     p!.writeSpace();
     p!.emitExpression(node!.Expression_, 16);
@@ -6897,7 +6899,7 @@ export class Printer extends PrintHandlers {
   }
   emitTypeOfExpression(node: $ast.TypeOfExpression | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitToken(113, node!.Pos(), 1, node!.AsNode());
     p!.writeSpace();
     p!.emitExpression(node!.Expression_, 16);
@@ -6905,7 +6907,7 @@ export class Printer extends PrintHandlers {
   }
   emitVoidExpression(node: $ast.VoidExpression | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitToken(115, node!.Pos(), 1, node!.AsNode());
     p!.writeSpace();
     p!.emitExpression(node!.Expression_, 16);
@@ -6913,7 +6915,7 @@ export class Printer extends PrintHandlers {
   }
   emitAwaitExpression(node: $ast.AwaitExpression | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitToken(134, node!.Pos(), 1, node!.AsNode());
     p!.writeSpace();
     p!.emitExpression(node!.Expression_, 16);
@@ -6921,12 +6923,12 @@ export class Printer extends PrintHandlers {
   }
   emitPrefixUnaryExpression(node: $ast.PrefixUnaryExpression | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
-    let operator: $ast.Kind = node!.Operator;
-    let operand: $ast.Node | undefined = node!.Operand;
+    const state: printerState = p!.enterNode(node!.AsNode());
+    const operator: $ast.Kind = node!.Operator;
+    const operand: $ast.Node | undefined = node!.Operand;
     p!.emitToken(operator, node!.Pos(), 2, node!.AsNode());
     if (operand!.Kind_ === (225 as number)) {
-      let inner: $ast.Kind = operand!.AsPrefixUnaryExpression()!.Operator;
+      const inner: $ast.Kind = operand!.AsPrefixUnaryExpression()!.Operator;
       if (
         (operator === (39 as number) && (inner === (39 as number) || inner === (45 as number))) ||
         (operator === (40 as number) && (inner === (40 as number) || inner === (46 as number)))
@@ -6939,7 +6941,7 @@ export class Printer extends PrintHandlers {
   }
   emitPostfixUnaryExpression(node: $ast.PostfixUnaryExpression | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitExpression(node!.Operand, 18);
     p!.emitToken(node!.Operator, node!.Operand!.End(), 2, node!.AsNode());
     p!.exitNode(node!.AsNode(), state);
@@ -6952,9 +6954,9 @@ export class Printer extends PrintHandlers {
     }
     if (node!.Kind_ === (227 as number)) {
       {
-        let n: $ast.BinaryExpression | undefined = node!.AsBinaryExpression();
+        const n: $ast.BinaryExpression | undefined = node!.AsBinaryExpression();
         if (n!.OperatorToken!.Kind_ === (39 as number)) {
-          let leftKind: $ast.Kind = p!.getLiteralKindOfBinaryPlusOperand(n!.Left);
+          const leftKind: $ast.Kind = p!.getLiteralKindOfBinaryPlusOperand(n!.Left);
           let literalKind: $ast.Kind = 0;
           if ($ast.IsLiteralKind(leftKind) && leftKind === p!.getLiteralKindOfBinaryPlusOperand(n!.Right)) {
             literalKind = leftKind;
@@ -6971,7 +6973,7 @@ export class Printer extends PrintHandlers {
     const p = this;
     let leftPrec: $ast.OperatorPrecedence = 0;
     let rightPrec: $ast.OperatorPrecedence = 0;
-    let precedence: $ast.OperatorPrecedence = $ast.GetExpressionPrecedence(node!.AsNode());
+    const precedence: $ast.OperatorPrecedence = $ast.GetExpressionPrecedence(node!.AsNode());
     leftPrec = precedence;
     rightPrec = precedence;
     {
@@ -7019,7 +7021,7 @@ export class Printer extends PrintHandlers {
         }
         case 13 as number: {
           if (node!.OperatorToken!.Kind_ === (39 as number) && isBinaryOperation(node!.Right, 39)) {
-            let leftKind: $ast.Kind = p!.getLiteralKindOfBinaryPlusOperand(node!.Left);
+            const leftKind: $ast.Kind = p!.getLiteralKindOfBinaryPlusOperand(node!.Left);
             if ($ast.IsLiteralKind(leftKind) && leftKind === p!.getLiteralKindOfBinaryPlusOperand(node!.Right)) {
               break;
             }
@@ -7056,7 +7058,7 @@ export class Printer extends PrintHandlers {
     let leftPrec: $ast.OperatorPrecedence = $t1[0];
     let rightPrec: $ast.OperatorPrecedence = $t1[1];
     {
-      let emittedLeft: $ast.Node | undefined = $ast.SkipPartiallyEmittedExpressions(node!.Left);
+      const emittedLeft: $ast.Node | undefined = $ast.SkipPartiallyEmittedExpressions(node!.Left);
       if (
         $ast.NodeIsSynthesized(emittedLeft) &&
         emittedLeft!.Kind_ === (227 as number) &&
@@ -7069,7 +7071,7 @@ export class Printer extends PrintHandlers {
       }
     }
     {
-      let emittedRight: $ast.Node | undefined = $ast.SkipPartiallyEmittedExpressions(node!.Right);
+      const emittedRight: $ast.Node | undefined = $ast.SkipPartiallyEmittedExpressions(node!.Right);
       if (
         $ast.NodeIsSynthesized(emittedRight) &&
         emittedRight!.Kind_ === (227 as number) &&
@@ -7081,10 +7083,10 @@ export class Printer extends PrintHandlers {
         rightPrec = 22;
       }
     }
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitExpression(node!.Left, leftPrec);
-    let linesBeforeOperator: number = p!.getLinesBetweenNodes(node!.AsNode(), node!.Left, node!.OperatorToken);
-    let linesAfterOperator: number = p!.getLinesBetweenNodes(node!.AsNode(), node!.OperatorToken, node!.Right);
+    const linesBeforeOperator: number = p!.getLinesBetweenNodes(node!.AsNode(), node!.Left, node!.OperatorToken);
+    const linesAfterOperator: number = p!.getLinesBetweenNodes(node!.AsNode(), node!.OperatorToken, node!.Right);
     p!.writeLinesAndIndent(linesBeforeOperator, !(node!.OperatorToken!.Kind_ === (27 as number)));
     p!.emitTokenNodeEx(node!.OperatorToken, 4);
     p!.writeLinesAndIndent(linesAfterOperator, true);
@@ -7103,11 +7105,11 @@ export class Printer extends PrintHandlers {
   }
   emitConditionalExpression(node: $ast.ConditionalExpression | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
-    let linesBeforeQuestion: number = p!.getLinesBetweenNodes(node!.AsNode(), node!.Condition, node!.QuestionToken_);
-    let linesAfterQuestion: number = p!.getLinesBetweenNodes(node!.AsNode(), node!.QuestionToken_, node!.WhenTrue);
-    let linesBeforeColon: number = p!.getLinesBetweenNodes(node!.AsNode(), node!.WhenTrue, node!.ColonToken);
-    let linesAfterColon: number = p!.getLinesBetweenNodes(node!.AsNode(), node!.ColonToken, node!.WhenFalse);
+    const state: printerState = p!.enterNode(node!.AsNode());
+    const linesBeforeQuestion: number = p!.getLinesBetweenNodes(node!.AsNode(), node!.Condition, node!.QuestionToken_);
+    const linesAfterQuestion: number = p!.getLinesBetweenNodes(node!.AsNode(), node!.QuestionToken_, node!.WhenTrue);
+    const linesBeforeColon: number = p!.getLinesBetweenNodes(node!.AsNode(), node!.WhenTrue, node!.ColonToken);
+    const linesAfterColon: number = p!.getLinesBetweenNodes(node!.AsNode(), node!.ColonToken, node!.WhenFalse);
     p!.emitShortCircuitExpression(node!.Condition);
     p!.writeLinesAndIndent(linesBeforeQuestion, true);
     p!.emitPunctuationNode(node!.QuestionToken_);
@@ -7125,14 +7127,14 @@ export class Printer extends PrintHandlers {
   }
   emitTemplateExpression(node: $ast.TemplateExpression | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitTemplateHead(node!.Head!.AsTemplateHead());
     p!.emitList($fn22, node!.AsNode(), node!.TemplateSpans, 262144);
     p!.exitNode(node!.AsNode(), state);
   }
   emitYieldExpression(node: $ast.YieldExpression | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitToken(126, node!.Pos(), 1, node!.AsNode());
     p!.emitPunctuationNode(node!.AsteriskToken);
     if (!(node!.Expression_ === undefined)) {
@@ -7143,16 +7145,16 @@ export class Printer extends PrintHandlers {
   }
   emitSpreadElement(node: $ast.SpreadElement | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitToken(25, node!.Pos(), 3, node!.AsNode());
     p!.emitExpression(node!.Expression_, 2);
     p!.exitNode(node!.AsNode(), state);
   }
   emitClassExpression(node: $ast.ClassExpression | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.generateNameIfNeeded(node!.Name());
-    let pos: number = p!.emitModifierList(
+    const pos: number = p!.emitModifierList(
       node!.AsNode(),
       node!.ClassLikeBase_.ModifiersBase_.Modifiers$ModifiersBase(),
       true,
@@ -7162,7 +7164,7 @@ export class Printer extends PrintHandlers {
       p!.writeSpace();
       p!.emitIdentifierName(node!.Name()!.AsIdentifier());
     }
-    let indented: boolean = p!.shouldEmitIndented(node!.AsNode());
+    const indented: boolean = p!.shouldEmitIndented(node!.AsNode());
     p!.increaseIndentIf(indented);
     p!.emitTypeParameters(node!.AsNode(), node!.ClassLikeBase_.TypeParameters);
     p!.emitList($fn23, node!.AsNode(), node!.ClassLikeBase_.HeritageClauses, 0);
@@ -7182,14 +7184,14 @@ export class Printer extends PrintHandlers {
   }
   emitExpressionWithTypeArguments(node: $ast.ExpressionWithTypeArguments | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitExpression(node!.Expression_, 20);
     p!.emitTypeArguments(node!.AsNode(), node!.TypeArguments_);
     p!.exitNode(node!.AsNode(), state);
   }
   emitAsExpression(node: $ast.AsExpression | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitExpression(node!.Expression_, 11);
     p!.writeSpace();
     p!.writeKeyword('as');
@@ -7199,7 +7201,7 @@ export class Printer extends PrintHandlers {
   }
   emitSatisfiesExpression(node: $ast.SatisfiesExpression | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitExpression(node!.Expression_, 11);
     p!.writeSpace();
     p!.writeKeyword('satisfies');
@@ -7209,14 +7211,14 @@ export class Printer extends PrintHandlers {
   }
   emitNonNullExpression(node: $ast.NonNullExpression | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitExpression(node!.Expression_, 20);
     p!.writeOperator('!');
     p!.exitNode(node!.AsNode(), state);
   }
   emitMetaProperty(node: $ast.MetaProperty | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitToken(node!.KeywordToken, node!.Pos(), 3, node!.AsNode());
     p!.writePunctuation('.');
     p!.emitIdentifierName(node!.Name()!.AsIdentifier());
@@ -7224,11 +7226,11 @@ export class Printer extends PrintHandlers {
   }
   emitPartiallyEmittedExpression(node: $ast.PartiallyEmittedExpression | undefined): void {
     const p = this;
-    let stack: $core.Stack<emitPartiallyEmittedExpression$entry> =
+    const stack: $core.Stack<emitPartiallyEmittedExpression$entry> =
       new $core.Stack<emitPartiallyEmittedExpression$entry>($zf1);
     for (;;) {
-      let state: printerState = p!.enterNode(node!.AsNode());
-      let emitFlags: EmitFlags = p!.emitContext!.EmitFlags$m(node!.AsNode());
+      const state: printerState = p!.enterNode(node!.AsNode());
+      const emitFlags: EmitFlags = p!.emitContext!.EmitFlags$m(node!.AsNode());
       if ((emitFlags & 128) === (0 as number) && !(node!.Pos() === node!.Expression_!.Pos())) {
         p!.emitTrailingCommentsOfPosition(node!.Expression_!.Pos(), false, false);
       }
@@ -7245,8 +7247,8 @@ export class Printer extends PrintHandlers {
     }
     p!.emitExpression(node!.Expression_, 0);
     for (; stack.Len() > 0;) {
-      let entry: emitPartiallyEmittedExpression$entry = stack.Pop();
-      let emitFlags$1: EmitFlags = p!.emitContext!.EmitFlags$m(node!.AsNode());
+      const entry: emitPartiallyEmittedExpression$entry = stack.Pop();
+      const emitFlags$1: EmitFlags = p!.emitContext!.EmitFlags$m(node!.AsNode());
       if ((emitFlags$1 & 256) === (0 as number) && !(node!.End() === node!.Expression_!.End())) {
         p!.emitLeadingCommentsOfPosition(node!.Expression_!.End());
       }
@@ -7283,7 +7285,7 @@ export class Printer extends PrintHandlers {
       return true;
     });
     if (hasLeadingCommentRanges) {
-      let parseNode: $ast.Node | undefined = p!.emitContext!.ParseNode(node);
+      const parseNode: $ast.Node | undefined = p!.emitContext!.ParseNode(node);
       if (!(parseNode === undefined) && $ast.IsParenthesizedExpression(parseNode!.Parent)) {
         return true;
       }
@@ -7304,7 +7306,7 @@ export class Printer extends PrintHandlers {
       return true;
     }
     if ($ast.IsPartiallyEmittedExpression(node)) {
-      let pee: $ast.PartiallyEmittedExpression | undefined = node!.AsPartiallyEmittedExpression();
+      const pee: $ast.PartiallyEmittedExpression | undefined = node!.AsPartiallyEmittedExpression();
       if (!(node!.Pos() === pee!.Expression_!.Pos())) {
         let $t4 = false;
         let $t5: boolean = false;
@@ -7333,10 +7335,10 @@ export class Printer extends PrintHandlers {
         switch (node!.Kind_) {
           case 348 as number: {
             if (p!.willEmitLeadingNewLine(node)) {
-              let pee: $ast.PartiallyEmittedExpression | undefined = node!.AsPartiallyEmittedExpression();
-              let parseNode: $ast.Node | undefined = p!.emitContext!.ParseNode(node);
+              const pee: $ast.PartiallyEmittedExpression | undefined = node!.AsPartiallyEmittedExpression();
+              const parseNode: $ast.Node | undefined = p!.emitContext!.ParseNode(node);
               if (!(parseNode === undefined) && $ast.IsParenthesizedExpression(parseNode)) {
-                let parens: $ast.Node | undefined = p!.emitContext!.Factory!.NewParenthesizedExpression(
+                const parens: $ast.Node | undefined = p!.emitContext!.Factory!.NewParenthesizedExpression(
                   pee!.Expression_,
                 );
                 p!.emitContext!.SetOriginal(parens, node);
@@ -7345,14 +7347,14 @@ export class Printer extends PrintHandlers {
               }
               return p!.emitContext!.Factory!.NewParenthesizedExpression(node);
             }
-            let pee$1: $ast.PartiallyEmittedExpression | undefined = node!.AsPartiallyEmittedExpression();
+            const pee$1: $ast.PartiallyEmittedExpression | undefined = node!.AsPartiallyEmittedExpression();
             return p!.emitContext!.Factory!.UpdatePartiallyEmittedExpression(
               pee$1,
               p!.parenthesizeExpressionForNoAsi(pee$1!.Expression_),
             );
           }
           case 212 as number: {
-            let pae: $ast.PropertyAccessExpression | undefined = node!.AsPropertyAccessExpression();
+            const pae: $ast.PropertyAccessExpression | undefined = node!.AsPropertyAccessExpression();
             return p!.emitContext!.Factory!.UpdatePropertyAccessExpression(
               pae,
               p!.parenthesizeExpressionForNoAsi(pae!.Expression_),
@@ -7362,7 +7364,7 @@ export class Printer extends PrintHandlers {
             );
           }
           case 213 as number: {
-            let eae: $ast.ElementAccessExpression | undefined = node!.AsElementAccessExpression();
+            const eae: $ast.ElementAccessExpression | undefined = node!.AsElementAccessExpression();
             return p!.emitContext!.Factory!.UpdateElementAccessExpression(
               eae,
               p!.parenthesizeExpressionForNoAsi(eae!.Expression_),
@@ -7372,7 +7374,7 @@ export class Printer extends PrintHandlers {
             );
           }
           case 214 as number: {
-            let ce: $ast.CallExpression | undefined = node!.AsCallExpression();
+            const ce: $ast.CallExpression | undefined = node!.AsCallExpression();
             return p!.emitContext!.Factory!.UpdateCallExpression(
               ce,
               p!.parenthesizeExpressionForNoAsi(ce!.Expression_),
@@ -7383,7 +7385,7 @@ export class Printer extends PrintHandlers {
             );
           }
           case 216 as number: {
-            let tte: $ast.TaggedTemplateExpression | undefined = node!.AsTaggedTemplateExpression();
+            const tte: $ast.TaggedTemplateExpression | undefined = node!.AsTaggedTemplateExpression();
             return p!.emitContext!.Factory!.UpdateTaggedTemplateExpression(
               tte,
               p!.parenthesizeExpressionForNoAsi(tte!.Tag),
@@ -7394,7 +7396,7 @@ export class Printer extends PrintHandlers {
             );
           }
           case 226 as number: {
-            let pue: $ast.PostfixUnaryExpression | undefined = node!.AsPostfixUnaryExpression();
+            const pue: $ast.PostfixUnaryExpression | undefined = node!.AsPostfixUnaryExpression();
             return p!.emitContext!.Factory!.UpdatePostfixUnaryExpression(
               pue,
               p!.parenthesizeExpressionForNoAsi(pue!.Operand),
@@ -7402,7 +7404,7 @@ export class Printer extends PrintHandlers {
             );
           }
           case 227 as number: {
-            let be: $ast.BinaryExpression | undefined = node!.AsBinaryExpression();
+            const be: $ast.BinaryExpression | undefined = node!.AsBinaryExpression();
             return p!.emitContext!.Factory!.UpdateBinaryExpression(
               be,
               be!.ModifiersBase_.Modifiers$ModifiersBase(),
@@ -7413,7 +7415,7 @@ export class Printer extends PrintHandlers {
             );
           }
           case 228 as number: {
-            let ce$1: $ast.ConditionalExpression | undefined = node!.AsConditionalExpression();
+            const ce$1: $ast.ConditionalExpression | undefined = node!.AsConditionalExpression();
             return p!.emitContext!.Factory!.UpdateConditionalExpression(
               ce$1,
               p!.parenthesizeExpressionForNoAsi(ce$1!.Condition),
@@ -7424,7 +7426,7 @@ export class Printer extends PrintHandlers {
             );
           }
           case 235 as number: {
-            let ae: $ast.AsExpression | undefined = node!.AsAsExpression();
+            const ae: $ast.AsExpression | undefined = node!.AsAsExpression();
             return p!.emitContext!.Factory!.UpdateAsExpression(
               ae,
               p!.parenthesizeExpressionForNoAsi(ae!.Expression_),
@@ -7432,7 +7434,7 @@ export class Printer extends PrintHandlers {
             );
           }
           case 239 as number: {
-            let se: $ast.SatisfiesExpression | undefined = node!.AsSatisfiesExpression();
+            const se: $ast.SatisfiesExpression | undefined = node!.AsSatisfiesExpression();
             return p!.emitContext!.Factory!.UpdateSatisfiesExpression(
               se,
               p!.parenthesizeExpressionForNoAsi(se!.Expression_),
@@ -7440,7 +7442,7 @@ export class Printer extends PrintHandlers {
             );
           }
           case 236 as number: {
-            let nne: $ast.NonNullExpression | undefined = node!.AsNonNullExpression();
+            const nne: $ast.NonNullExpression | undefined = node!.AsNonNullExpression();
             return p!.emitContext!.Factory!.UpdateNonNullExpression(
               nne,
               p!.parenthesizeExpressionForNoAsi(nne!.Expression_),
@@ -7459,7 +7461,7 @@ export class Printer extends PrintHandlers {
   }
   emitExpression(node: $ast.Node | undefined, precedence: $ast.OperatorPrecedence): void {
     const p = this;
-    let parens: boolean = $ast.GetExpressionPrecedence($ast.SkipPartiallyEmittedExpressions(node)) < precedence;
+    const parens: boolean = $ast.GetExpressionPrecedence($ast.SkipPartiallyEmittedExpressions(node)) < precedence;
     if (parens) {
       p!.writePunctuation('(');
     }
@@ -7666,7 +7668,7 @@ export class Printer extends PrintHandlers {
   }
   emitTemplateSpan(node: $ast.TemplateSpan | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitExpression(node!.Expression_, 0);
     p!.emitTemplateMiddleTail(node!.Literal);
     p!.exitNode(node!.AsNode(), state);
@@ -7677,7 +7679,7 @@ export class Printer extends PrintHandlers {
   }
   emitSemicolonClassElement(node: $ast.SemicolonClassElement | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.writeTrailingSemicolon();
     p!.exitNode(node!.AsNode(), state);
   }
@@ -7691,10 +7693,10 @@ export class Printer extends PrintHandlers {
   }
   emitBlock(node: $ast.Block | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.generateNames(node!.AsNode());
     p!.emitToken(18, node!.Pos(), 3, node!.AsNode());
-    let format: ListFormat = $core.IfElse<ListFormat>(
+    const format: ListFormat = $core.IfElse<ListFormat>(
       (!node!.MultiLine && p!.isEmptyBlock(node!.AsNode(), node!.Statements_)) ||
         p!.shouldEmitOnSingleLine(node!.AsNode()),
       768,
@@ -7712,7 +7714,7 @@ export class Printer extends PrintHandlers {
   }
   emitVariableStatement(node: $ast.VariableStatement | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitModifierList(node!.AsNode(), node!.ModifiersBase_.Modifiers$ModifiersBase(), false);
     p!.emitVariableDeclarationList(node!.DeclarationList!.AsVariableDeclarationList());
     p!.writeTrailingSemicolon();
@@ -7720,7 +7722,7 @@ export class Printer extends PrintHandlers {
   }
   emitEmptyStatement(node: $ast.EmptyStatement | undefined, isEmbeddedStatement: boolean): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     if (isEmbeddedStatement) {
       p!.writePunctuation(';');
     } else {
@@ -7730,7 +7732,7 @@ export class Printer extends PrintHandlers {
   }
   emitExpressionStatement(node: $ast.ExpressionStatement | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     if (!(p!.currentSourceFile === undefined) && p!.currentSourceFile!.ScriptKind_ === (6 as number)) {
       p!.emitExpression(node!.Expression_, 0);
     } else if (isImmediatelyInvokedFunctionExpressionOrArrowFunction(node!.Expression_)) {
@@ -7761,8 +7763,8 @@ export class Printer extends PrintHandlers {
   }
   emitIIFEWithParenthesizedCallee(node: $ast.Node | undefined): void {
     const p = this;
-    let call: $ast.CallExpression | undefined = $ast.SkipPartiallyEmittedExpressions(node)!.AsCallExpression();
-    let state: printerState = p!.enterNode(call!.AsNode());
+    const call: $ast.CallExpression | undefined = $ast.SkipPartiallyEmittedExpressions(node)!.AsCallExpression();
+    const state: printerState = p!.enterNode(call!.AsNode());
     p!.writePunctuation('(');
     p!.emitExpression(call!.Expression_, 0);
     p!.writePunctuation(')');
@@ -7773,8 +7775,8 @@ export class Printer extends PrintHandlers {
   }
   emitIfStatement(node: $ast.IfStatement | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
-    let pos: number = p!.emitToken(100, node!.Pos(), 1, node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
+    const pos: number = p!.emitToken(100, node!.Pos(), 1, node!.AsNode());
     p!.writeSpace();
     p!.emitToken(20, pos, 3, node!.AsNode());
     p!.emitExpression(node!.Expression_, 0);
@@ -7794,7 +7796,7 @@ export class Printer extends PrintHandlers {
   }
   emitWhileClause(node: $ast.Node | undefined, expression: $ast.Node | undefined, startPos: number): void {
     const p = this;
-    let pos: number = p!.emitToken(116, startPos, 1, node);
+    const pos: number = p!.emitToken(116, startPos, 1, node);
     p!.writeSpace();
     p!.emitToken(20, pos, 3, node);
     p!.emitExpression(expression, 0);
@@ -7802,7 +7804,7 @@ export class Printer extends PrintHandlers {
   }
   emitDoStatement(node: $ast.DoStatement | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitToken(91, node!.Pos(), 1, node!.AsNode());
     p!.emitEmbeddedStatement(node!.AsNode(), node!.Statement_);
     if ($ast.IsBlock(node!.Statement_) && !p!.Options.PreserveSourceNewlines) {
@@ -7816,7 +7818,7 @@ export class Printer extends PrintHandlers {
   }
   emitWhileStatement(node: $ast.WhileStatement | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitWhileClause(node!.AsNode(), node!.Expression_, node!.Pos());
     p!.emitEmbeddedStatement(node!.AsNode(), node!.Statement_);
     p!.exitNode(node!.AsNode(), state);
@@ -7831,7 +7833,7 @@ export class Printer extends PrintHandlers {
   }
   emitForStatement(node: $ast.ForStatement | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     let pos: number = p!.emitToken(98, node!.Pos(), 1, node!.AsNode());
     p!.writeSpace();
     pos = p!.emitToken(20, pos, 3, node!.AsNode());
@@ -7857,8 +7859,8 @@ export class Printer extends PrintHandlers {
   }
   emitForInStatement(node: $ast.ForInOrOfStatement | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
-    let pos: number = p!.emitToken(98, node!.Pos(), 1, node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
+    const pos: number = p!.emitToken(98, node!.Pos(), 1, node!.AsNode());
     p!.writeSpace();
     p!.emitToken(20, pos, 3, node!.AsNode());
     p!.emitForInitializer(node!.Initializer_);
@@ -7872,8 +7874,8 @@ export class Printer extends PrintHandlers {
   }
   emitForOfStatement(node: $ast.ForInOrOfStatement | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
-    let openParenPos: number = p!.emitToken(98, node!.Pos(), 1, node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
+    const openParenPos: number = p!.emitToken(98, node!.Pos(), 1, node!.AsNode());
     p!.writeSpace();
     if (!(node!.AwaitModifier === undefined)) {
       p!.emitKeywordNode(node!.AwaitModifier);
@@ -7891,7 +7893,7 @@ export class Printer extends PrintHandlers {
   }
   emitContinueStatement(node: $ast.ContinueStatement | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitToken(87, node!.Pos(), 1, node!.AsNode());
     if (!(node!.Label_ === undefined)) {
       p!.writeSpace();
@@ -7902,7 +7904,7 @@ export class Printer extends PrintHandlers {
   }
   emitBreakStatement(node: $ast.BreakStatement | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitToken(82, node!.Pos(), 1, node!.AsNode());
     if (!(node!.Label_ === undefined)) {
       p!.writeSpace();
@@ -7913,7 +7915,7 @@ export class Printer extends PrintHandlers {
   }
   emitReturnStatement(node: $ast.ReturnStatement | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitToken(106, node!.Pos(), 1, node!.AsNode());
     if (!(node!.Expression_ === undefined)) {
       p!.writeSpace();
@@ -7924,8 +7926,8 @@ export class Printer extends PrintHandlers {
   }
   emitWithStatement(node: $ast.WithStatement | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
-    let pos: number = p!.emitToken(117, node!.Pos(), 1, node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
+    const pos: number = p!.emitToken(117, node!.Pos(), 1, node!.AsNode());
     p!.writeSpace();
     p!.emitToken(20, pos, 3, node!.AsNode());
     p!.emitExpression(node!.Expression_, 0);
@@ -7935,8 +7937,8 @@ export class Printer extends PrintHandlers {
   }
   emitSwitchStatement(node: $ast.SwitchStatement | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
-    let pos: number = p!.emitToken(108, node!.Pos(), 1, node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
+    const pos: number = p!.emitToken(108, node!.Pos(), 1, node!.AsNode());
     p!.writeSpace();
     p!.emitToken(20, pos, 3, node!.AsNode());
     p!.emitExpression(node!.Expression_, 0);
@@ -7947,7 +7949,7 @@ export class Printer extends PrintHandlers {
   }
   emitLabeledStatement(node: $ast.LabeledStatement | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitLabelIdentifier(node!.Label_!.AsIdentifier());
     p!.emitToken(58, node!.Label_!.End(), 3, node!.AsNode());
     p!.writeSpace();
@@ -7956,7 +7958,7 @@ export class Printer extends PrintHandlers {
   }
   emitThrowStatement(node: $ast.ThrowStatement | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitToken(110, node!.Pos(), 1, node!.AsNode());
     p!.writeSpace();
     p!.emitExpressionNoASI(node!.Expression_, 0);
@@ -7965,7 +7967,7 @@ export class Printer extends PrintHandlers {
   }
   emitTryStatement(node: $ast.TryStatement | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitToken(112, node!.Pos(), 1, node!.AsNode());
     p!.writeSpace();
     p!.emitBlock(node!.TryBlock!.AsBlock());
@@ -7992,7 +7994,7 @@ export class Printer extends PrintHandlers {
   }
   emitDebuggerStatement(node: $ast.DebuggerStatement | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitToken(88, node!.Pos(), 1, node!.AsNode());
     p!.writeTrailingSemicolon();
     p!.exitNode(node!.AsNode(), state);
@@ -8007,7 +8009,7 @@ export class Printer extends PrintHandlers {
   }
   emitVariableDeclaration(node: $ast.VariableDeclaration | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitBindingName(node!.Name());
     p!.emitPunctuationNode(node!.ExclamationToken);
     p!.emitTypeAnnotation(node!.Type_);
@@ -8024,7 +8026,7 @@ export class Printer extends PrintHandlers {
   }
   emitVariableDeclarationList(node: $ast.VariableDeclarationList | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     {
       $sw1: {
         if ($ast.IsVarLet(node!.AsNode())) {
@@ -8048,19 +8050,19 @@ export class Printer extends PrintHandlers {
   }
   emitFunctionDeclaration(node: $ast.FunctionDeclaration | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.generateNameIfNeeded(node!.Name());
     p!.emitModifierList(node!.AsNode(), node!.ModifiersBase_.Modifiers$ModifiersBase(), false);
     p!.writeKeyword('function');
     p!.emitTokenNode(node!.FunctionLikeWithBodyBase_.BodyBase_.AsteriskToken);
     p!.writeSpace();
     {
-      let name_: $ast.Node | undefined = node!.Name();
+      const name_: $ast.Node | undefined = node!.Name();
       if (!(name_ === undefined)) {
         p!.emitIdentifierName(name_!.AsIdentifier());
       }
     }
-    let indented: boolean = p!.shouldEmitIndented(node!.AsNode());
+    const indented: boolean = p!.shouldEmitIndented(node!.AsNode());
     p!.increaseIndentIf(indented);
     p!.pushNameGenerationScope(node!.AsNode());
     p!.emitSignature(node!.AsNode());
@@ -8071,9 +8073,9 @@ export class Printer extends PrintHandlers {
   }
   emitClassDeclaration(node: $ast.ClassDeclaration | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.generateNameIfNeeded(node!.Name());
-    let pos: number = p!.emitModifierList(
+    const pos: number = p!.emitModifierList(
       node!.AsNode(),
       node!.ClassLikeBase_.ModifiersBase_.Modifiers$ModifiersBase(),
       true,
@@ -8083,7 +8085,7 @@ export class Printer extends PrintHandlers {
       p!.writeSpace();
       p!.emitIdentifierName(node!.Name()!.AsIdentifier());
     }
-    let indented: boolean = p!.shouldEmitIndented(node!.AsNode());
+    const indented: boolean = p!.shouldEmitIndented(node!.AsNode());
     p!.increaseIndentIf(indented);
     p!.emitTypeParameters(node!.AsNode(), node!.ClassLikeBase_.TypeParameters);
     p!.emitList($fn23, node!.AsNode(), node!.ClassLikeBase_.HeritageClauses, 0);
@@ -8099,7 +8101,7 @@ export class Printer extends PrintHandlers {
   }
   emitInterfaceDeclaration(node: $ast.InterfaceDeclaration | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitModifierList(node!.AsNode(), node!.ModifiersBase_.Modifiers$ModifiersBase(), false);
     p!.writeKeyword('interface');
     p!.writeSpace();
@@ -8117,7 +8119,7 @@ export class Printer extends PrintHandlers {
   }
   emitTypeAliasDeclaration(node: $ast.TypeAliasDeclaration | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitModifierList(node!.AsNode(), node!.ModifiersBase_.Modifiers$ModifiersBase(), false);
     p!.writeKeyword('type');
     p!.writeSpace();
@@ -8132,7 +8134,7 @@ export class Printer extends PrintHandlers {
   }
   emitEnumDeclaration(node: $ast.EnumDeclaration | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitModifierList(node!.AsNode(), node!.ModifiersBase_.Modifiers$ModifiersBase(), false);
     p!.writeKeyword('enum');
     p!.writeSpace();
@@ -8145,7 +8147,7 @@ export class Printer extends PrintHandlers {
   }
   emitModuleDeclaration(node: $ast.ModuleDeclaration | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitModifierList(node!.AsNode(), node!.ModifiersBase_.Modifiers$ModifiersBase(), false);
     if (!(node!.Keyword === (162 as number))) {
       p!.writeKeyword($core.IfElse<string>(node!.Keyword === (145 as number), 'namespace', 'module'));
@@ -8154,7 +8156,7 @@ export class Printer extends PrintHandlers {
     p!.emitModuleName(node!.Name());
     let body: $ast.Node | undefined = node!.BodyBase_.Body;
     for (; !(body === undefined) && $ast.IsModuleDeclaration(body);) {
-      let module_: $ast.ModuleDeclaration | undefined = body!.AsModuleDeclaration();
+      const module_: $ast.ModuleDeclaration | undefined = body!.AsModuleDeclaration();
       p!.writePunctuation('.');
       p!.emitNestedModuleName(module_!.Name());
       body = module_!.BodyBase_.Body;
@@ -8169,10 +8171,10 @@ export class Printer extends PrintHandlers {
   }
   emitModuleBlock(node: $ast.ModuleBlock | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.generateNames(node!.AsNode());
     p!.emitToken(18, node!.Pos(), 3, node!.AsNode());
-    let format: ListFormat = $core.IfElse<ListFormat>(
+    const format: ListFormat = $core.IfElse<ListFormat>(
       p!.isEmptyBlock(node!.AsNode(), node!.Statements_) || p!.shouldEmitOnSingleLine(node!.AsNode()),
       768,
       129,
@@ -8189,7 +8191,7 @@ export class Printer extends PrintHandlers {
   }
   emitCaseBlock(node: $ast.CaseBlock | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitToken(18, node!.Pos(), 3, node!.AsNode());
     p!.emitList($fn27, node!.AsNode(), node!.Clauses, 129);
     p!.emitTokenEx(19, node!.Clauses!.End(), 3, node!.AsNode(), 2);
@@ -8197,9 +8199,9 @@ export class Printer extends PrintHandlers {
   }
   emitImportEqualsDeclaration(node: $ast.ImportEqualsDeclaration | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitModifierList(node!.AsNode(), node!.ModifiersBase_.Modifiers$ModifiersBase(), false);
-    let pos: number = p!.emitToken(
+    const pos: number = p!.emitToken(
       101,
       greatestEnd(node!.Pos(), [node!.ModifiersBase_.Modifiers$ModifiersBase()]),
       1,
@@ -8247,7 +8249,7 @@ export class Printer extends PrintHandlers {
   }
   emitImportDeclaration(node: $ast.ImportDeclaration | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitModifierList(node!.AsNode(), node!.ModifiersBase_.Modifiers$ModifiersBase(), false);
     p!.emitToken(101, greatestEnd(node!.Pos(), [node!.ModifiersBase_.Modifiers$ModifiersBase()]), 1, node!.AsNode());
     p!.writeSpace();
@@ -8267,13 +8269,13 @@ export class Printer extends PrintHandlers {
   }
   emitImportClause(node: $ast.ImportClause | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     if (!(node!.PhaseModifier === (0 as number))) {
       p!.emitToken(node!.PhaseModifier, node!.Pos(), 1, node!.AsNode());
       p!.writeSpace();
     }
     {
-      let name_: $ast.Node | undefined = node!.Name();
+      const name_: $ast.Node | undefined = node!.Name();
       if (!(name_ === undefined)) {
         p!.emitBindingIdentifier(node!.Name()!.AsIdentifier());
         if (!(node!.NamedBindings === undefined)) {
@@ -8287,8 +8289,8 @@ export class Printer extends PrintHandlers {
   }
   emitNamespaceImport(node: $ast.NamespaceImport | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
-    let pos: number = p!.emitToken(41, node!.Pos(), 3, node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
+    const pos: number = p!.emitToken(41, node!.Pos(), 3, node!.AsNode());
     p!.writeSpace();
     p!.emitToken(129, pos, 1, node!.AsNode());
     p!.writeSpace();
@@ -8297,7 +8299,7 @@ export class Printer extends PrintHandlers {
   }
   emitNamedImports(node: $ast.NamedImports | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.writePunctuation('{');
     p!.emitList($fn28, node!.AsNode(), node!.Elements_, 525136);
     p!.writePunctuation('}');
@@ -8331,7 +8333,7 @@ export class Printer extends PrintHandlers {
   }
   emitImportSpecifier(node: $ast.ImportSpecifier | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     if (node!.IsTypeOnly_) {
       p!.writeKeyword('type');
       p!.writeSpace();
@@ -8351,8 +8353,8 @@ export class Printer extends PrintHandlers {
   }
   emitExportAssignment(node: $ast.ExportAssignment | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
-    let nextPos: number = p!.emitToken(94, node!.Pos(), 1, node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
+    const nextPos: number = p!.emitToken(94, node!.Pos(), 1, node!.AsNode());
     p!.writeSpace();
     if (node!.IsExportEquals) {
       p!.emitToken(63, nextPos, 2, node!.AsNode());
@@ -8363,7 +8365,7 @@ export class Printer extends PrintHandlers {
     if (node!.IsExportEquals) {
       p!.emitExpression(node!.Expression_, 3);
     } else {
-      let expr: $ast.Node | undefined = $ast.GetLeftmostExpression(node!.Expression_, false);
+      const expr: $ast.Node | undefined = $ast.GetLeftmostExpression(node!.Expression_, false);
       if ($ast.IsClassExpression(expr) || $ast.IsFunctionExpression(expr)) {
         p!.emitExpression(node!.Expression_, 22);
       } else {
@@ -8375,7 +8377,7 @@ export class Printer extends PrintHandlers {
   }
   emitExportDeclaration(node: $ast.ExportDeclaration | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitModifierList(node!.AsNode(), node!.ModifiersBase_.Modifiers$ModifiersBase(), false);
     let pos: number = p!.emitToken(94, node!.Pos(), 1, node!.AsNode());
     p!.writeSpace();
@@ -8403,7 +8405,7 @@ export class Printer extends PrintHandlers {
   }
   emitImportAttributes(node: $ast.ImportAttributes | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitToken(node!.Token, node!.Pos(), 1, node!.AsNode());
     p!.writeSpace();
     p!.emitList($fn17, node!.AsNode(), node!.Attributes_, 526226);
@@ -8411,13 +8413,13 @@ export class Printer extends PrintHandlers {
   }
   emitImportAttribute(node: $ast.ImportAttribute | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitImportAttributeName(node!.Name());
     p!.writePunctuation(':');
     p!.writeSpace();
-    let value: $ast.Node | undefined = node!.Value;
+    const value: $ast.Node | undefined = node!.Value;
     if ((p!.emitContext!.EmitFlags$m(node!.Value) & 128) === (0 as number)) {
-      let commentRange: $core.TextRange = p!.emitContext!.CommentRange(value);
+      const commentRange: $core.TextRange = p!.emitContext!.CommentRange(value);
       p!.emitTrailingComments($core.TextRange$Pos(commentRange), 2);
     }
     p!.emitExpression(value, 2);
@@ -8429,7 +8431,7 @@ export class Printer extends PrintHandlers {
   }
   emitNamespaceExportDeclaration(node: $ast.NamespaceExportDeclaration | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     let pos: number = p!.emitToken(94, node!.Pos(), 1, node!.AsNode());
     p!.writeSpace();
     pos = p!.emitToken(129, pos, 1, node!.AsNode());
@@ -8442,8 +8444,8 @@ export class Printer extends PrintHandlers {
   }
   emitNamespaceExport(node: $ast.NamespaceExport | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
-    let pos: number = p!.emitToken(41, node!.Pos(), 3, node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
+    const pos: number = p!.emitToken(41, node!.Pos(), 3, node!.AsNode());
     p!.writeSpace();
     p!.emitToken(129, pos, 1, node!.AsNode());
     p!.writeSpace();
@@ -8452,7 +8454,7 @@ export class Printer extends PrintHandlers {
   }
   emitNamedExports(node: $ast.NamedExports | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.writePunctuation('{');
     p!.emitList($fn29, node!.AsNode(), node!.Elements_, 525136);
     p!.writePunctuation('}');
@@ -8483,7 +8485,7 @@ export class Printer extends PrintHandlers {
   }
   emitExportSpecifier(node: $ast.ExportSpecifier | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     if (node!.IsTypeOnly_) {
       p!.writeKeyword('type');
       p!.writeSpace();
@@ -8524,7 +8526,7 @@ export class Printer extends PrintHandlers {
   emitStatement(node: $ast.Node | undefined): void {
     const p = this;
     {
-      let snippetElement: SnippetElement | undefined = p!.emitContext!.SnippetElement$m(node);
+      const snippetElement: SnippetElement | undefined = p!.emitContext!.SnippetElement$m(node);
       if (!(snippetElement === undefined)) {
         p!.emitSnippetNode(node, snippetElement);
         return;
@@ -8671,7 +8673,7 @@ export class Printer extends PrintHandlers {
   }
   emitExternalModuleReference(node: $ast.ExternalModuleReference | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.writeKeyword('require');
     p!.writePunctuation('(');
     p!.emitExpression(node!.Expression_, 2);
@@ -8680,7 +8682,7 @@ export class Printer extends PrintHandlers {
   }
   emitJsxElement(node: $ast.JsxElement | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitJsxOpeningElement(node!.OpeningElement!.AsJsxOpeningElement());
     p!.emitList($fn30, node!.AsNode(), node!.Children_, 262144);
     p!.emitJsxClosingElement(node!.ClosingElement!.AsJsxClosingElement());
@@ -8688,7 +8690,7 @@ export class Printer extends PrintHandlers {
   }
   emitJsxSelfClosingElement(node: $ast.JsxSelfClosingElement | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.writePunctuation('<');
     p!.emitJsxTagName(node!.TagName_);
     p!.emitTypeArguments(node!.AsNode(), node!.TypeArguments_);
@@ -8699,7 +8701,7 @@ export class Printer extends PrintHandlers {
   }
   emitJsxFragment(node: $ast.JsxFragment | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitJsxOpeningFragment(node!.OpeningFragment!.AsJsxOpeningFragment());
     p!.emitList($fn30, node!.AsNode(), node!.Children_, 262144);
     p!.emitJsxClosingFragment(node!.ClosingFragment!.AsJsxClosingFragment());
@@ -8707,9 +8709,9 @@ export class Printer extends PrintHandlers {
   }
   emitJsxOpeningElement(node: $ast.JsxOpeningElement | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.writePunctuation('<');
-    let indented: boolean = p!.writeLineSeparatorsAndIndentBefore(node!.TagName_, node!.AsNode());
+    const indented: boolean = p!.writeLineSeparatorsAndIndentBefore(node!.TagName_, node!.AsNode());
     p!.emitJsxTagName(node!.TagName_);
     p!.emitTypeArguments(node!.AsNode(), node!.TypeArguments_);
     if (node!.Attributes_!.Properties().length > 0) {
@@ -8723,7 +8725,7 @@ export class Printer extends PrintHandlers {
   }
   emitJsxClosingElement(node: $ast.JsxClosingElement | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.writePunctuation('</');
     p!.emitJsxTagName(node!.TagName_);
     p!.writePunctuation('>');
@@ -8731,33 +8733,33 @@ export class Printer extends PrintHandlers {
   }
   emitJsxOpeningFragment(node: $ast.JsxOpeningFragment | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.writePunctuation('<');
     p!.writePunctuation('>');
     p!.exitNode(node!.AsNode(), state);
   }
   emitJsxClosingFragment(node: $ast.JsxClosingFragment | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.writePunctuation('</');
     p!.writePunctuation('>');
     p!.exitNode(node!.AsNode(), state);
   }
   emitJsxText(node: $ast.JsxText | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.writeLiteral(node!.LiteralLikeNodeBase_.Text);
     p!.exitNode(node!.AsNode(), state);
   }
   emitJsxAttributes(node: $ast.JsxAttributes | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitList($fn31, node!.AsNode(), node!.Properties_, 262656);
     p!.exitNode(node!.AsNode(), state);
   }
   emitJsxAttribute(node: $ast.JsxAttribute | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitJsxAttributeName(node!.Name());
     if (!(node!.Initializer_ === undefined)) {
       p!.writePunctuation('=');
@@ -8767,7 +8769,7 @@ export class Printer extends PrintHandlers {
   }
   emitJsxSpreadAttribute(node: $ast.JsxSpreadAttribute | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.writePunctuation('{...');
     p!.emitExpression(node!.Expression_, 0);
     p!.writePunctuation('}');
@@ -8798,17 +8800,17 @@ export class Printer extends PrintHandlers {
   }
   emitJsxExpression(node: $ast.JsxExpression | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     if (
       !(node!.Expression_ === undefined) ||
       (!p!.commentsDisabled && !$ast.NodeIsSynthesized(node!.AsNode()) && p!.hasCommentsAtPosition(node!.Pos()))
     ) {
-      let indented: boolean =
+      const indented: boolean =
         !(p!.currentSourceFile === undefined) &&
         !$ast.NodeIsSynthesized(node!.AsNode()) &&
         !(GetLinesBetweenPositions(p!.currentSourceFile, node!.Pos(), node!.End()) === (0 as number));
       p!.increaseIndentIf(indented);
-      let end: number = p!.emitToken(18, node!.Pos(), 3, node!.AsNode());
+      const end: number = p!.emitToken(18, node!.Pos(), 3, node!.AsNode());
       p!.emitTokenNode(node!.DotDotDotToken);
       if (!(node!.Expression_ === undefined)) {
         p!.emitExpression(node!.Expression_, 2);
@@ -8820,7 +8822,7 @@ export class Printer extends PrintHandlers {
   }
   emitJsxNamespacedName(node: $ast.JsxNamespacedName | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitIdentifierName(node!.Namespace!.AsIdentifier());
     p!.writePunctuation(':');
     p!.emitIdentifierName(node!.Name()!.AsIdentifier());
@@ -8942,7 +8944,7 @@ export class Printer extends PrintHandlers {
   }
   emitCaseOrDefaultClauseStatements(node: $ast.CaseOrDefaultClause | undefined, colonPos: number): void {
     const p = this;
-    let emitAsSingleStatement: boolean =
+    const emitAsSingleStatement: boolean =
       node!.Statements_!.Nodes.length === (1 as number) &&
       (p!.currentSourceFile === undefined ||
         $ast.NodeIsSynthesized(node!.AsNode()) ||
@@ -8960,7 +8962,7 @@ export class Printer extends PrintHandlers {
   }
   emitCaseClause(node: $ast.CaseOrDefaultClause | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitToken(83, node!.Pos(), 1, node!.AsNode());
     p!.writeSpace();
     p!.emitExpression(node!.Expression_, 0);
@@ -8969,8 +8971,8 @@ export class Printer extends PrintHandlers {
   }
   emitDefaultClause(node: $ast.CaseOrDefaultClause | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
-    let pos: number = p!.emitToken(89, node!.Pos(), 1, node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
+    const pos: number = p!.emitToken(89, node!.Pos(), 1, node!.AsNode());
     p!.emitCaseOrDefaultClauseStatements(node, pos);
     p!.exitNode(node!.AsNode(), state);
   }
@@ -8999,7 +9001,7 @@ export class Printer extends PrintHandlers {
   }
   emitHeritageClause(node: $ast.HeritageClause | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.writeSpace();
     p!.emitToken(node!.Token, node!.Pos(), 1, node!.AsNode());
     p!.writeSpace();
@@ -9035,8 +9037,8 @@ export class Printer extends PrintHandlers {
   }
   emitCatchClause(node: $ast.CatchClause | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
-    let openParenPos: number = p!.emitToken(84, node!.Pos(), 1, node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
+    const openParenPos: number = p!.emitToken(84, node!.Pos(), 1, node!.AsNode());
     p!.writeSpace();
     if (!(node!.VariableDeclaration === undefined)) {
       p!.emitToken(20, openParenPos, 3, node!.AsNode());
@@ -9049,13 +9051,13 @@ export class Printer extends PrintHandlers {
   }
   emitPropertyAssignment(node: $ast.PropertyAssignment | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitPropertyName(node!.Name());
     p!.writePunctuation(':');
     p!.writeSpace();
-    let initializer: $ast.Node | undefined = node!.Initializer_;
+    const initializer: $ast.Node | undefined = node!.Initializer_;
     if ((p!.emitContext!.EmitFlags$m(initializer) & 128) === (0 as number)) {
-      let commentRange: $core.TextRange = p!.emitContext!.CommentRange(initializer);
+      const commentRange: $core.TextRange = p!.emitContext!.CommentRange(initializer);
       p!.emitTrailingComments($core.TextRange$Pos(commentRange), 2);
     }
     p!.emitExpression(initializer, 2);
@@ -9063,7 +9065,7 @@ export class Printer extends PrintHandlers {
   }
   emitShorthandPropertyAssignment(node: $ast.ShorthandPropertyAssignment | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitPropertyName(node!.Name());
     if (!(node!.ObjectAssignmentInitializer === undefined)) {
       p!.writeSpace();
@@ -9075,7 +9077,7 @@ export class Printer extends PrintHandlers {
   }
   emitSpreadAssignment(node: $ast.SpreadAssignment | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     if (!(node!.Expression_ === undefined)) {
       p!.emitToken(25, node!.Pos(), 3, node!.AsNode());
       p!.emitExpression(node!.Expression_, 2);
@@ -9084,7 +9086,7 @@ export class Printer extends PrintHandlers {
   }
   emitEnumMember(node: $ast.EnumMember | undefined): void {
     const p = this;
-    let state: printerState = p!.enterNode(node!.AsNode());
+    const state: printerState = p!.enterNode(node!.AsNode());
     p!.emitPropertyName(node!.Name());
     p!.emitInitializer(node!.Initializer_, node!.Name()!.End(), node!.AsNode());
     p!.exitNode(node!.AsNode(), state);
@@ -9102,7 +9104,7 @@ export class Printer extends PrintHandlers {
     if ($ast.NodeIsSynthesized(node!.AsNode())) {
       return;
     }
-    let shebang: string = $scanner.GetShebang(node!.Text());
+    const shebang: string = $scanner.GetShebang(node!.Text());
     if (!(shebang === ('' as string))) {
       p!.writeComment(shebang);
       p!.writeLine();
@@ -9113,8 +9115,8 @@ export class Printer extends PrintHandlers {
     {
       const $t1 = statements!.Nodes;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        let i = $t2;
-        let statement = $t1[$t2];
+        const i = $t2;
+        const statement = $t1[$t2];
         if ($ast.IsPrologueDirective(statement)) {
           p!.writeLine();
           p!.emitStatement(statement);
@@ -9128,17 +9130,17 @@ export class Printer extends PrintHandlers {
   emitHelpers(node: $ast.Node | undefined): boolean {
     const p = this;
     let helpersEmitted: boolean = false;
-    let sourceFile: $ast.SourceFile | undefined = p!.currentSourceFile;
-    let shouldSkip: boolean =
+    const sourceFile: $ast.SourceFile | undefined = p!.currentSourceFile;
+    const shouldSkip: boolean =
       p!.Options.NoEmitHelpers ||
       (!(sourceFile === undefined) && p!.emitContext!.HasRecordedExternalHelpers(sourceFile));
-    let helpers: (EmitHelper | undefined)[] = $rt.slices_Clone(p!.emitContext!.GetEmitHelpers(node));
+    const helpers: (EmitHelper | undefined)[] = $rt.slices_Clone(p!.emitContext!.GetEmitHelpers(node));
     if (helpers.length > 0) {
       $rt.slices_SortStableFunc(helpers, compareEmitHelpers);
       {
         const $t1 = helpers;
         for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-          let helper = $t1[$t2];
+          const helper = $t1[$t2];
           if (!helper!.Scoped) {
             if (shouldSkip) {
               continue;
@@ -9157,8 +9159,8 @@ export class Printer extends PrintHandlers {
   }
   emitSourceFile(node: $ast.SourceFile | undefined): void {
     const p = this;
-    let savedCurrentSourceFile: $ast.SourceFile | undefined = p!.currentSourceFile;
-    let savedCommentsDisabled: boolean = p!.commentsDisabled;
+    const savedCurrentSourceFile: $ast.SourceFile | undefined = p!.currentSourceFile;
+    const savedCommentsDisabled: boolean = p!.commentsDisabled;
     p!.currentSourceFile = node;
     p!.writeLine();
     p!.pushNameGenerationScope(node!.AsNode());
@@ -9196,7 +9198,7 @@ export class Printer extends PrintHandlers {
     {
       const $t1 = refs;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        let ref = $t1[$t2];
+        const ref = $t1[$t2];
         let resolutionMode: string = '';
         if (!(ref!.ResolutionMode === (0 as number))) {
           resolutionMode = $rt.fmt_Sprintf('resolution-mode="%s" ', [
@@ -9236,7 +9238,7 @@ export class Printer extends PrintHandlers {
     count: number,
   ): void {
     const p = this;
-    let isNil: boolean = children === undefined;
+    const isNil: boolean = children === undefined;
     let length_: number = 0;
     if (!isNil) {
       length_ = children!.Nodes.length;
@@ -9250,7 +9252,7 @@ export class Printer extends PrintHandlers {
     if (isNil && !($rt.and64(format, 16384) === (0 as number))) {
       return;
     }
-    let isEmpty: boolean = isNil || start >= length_ || count <= 0;
+    const isEmpty: boolean = isNil || start >= length_ || count <= 0;
     if (isEmpty && !($rt.and64(format, 32768) === (0 as number))) {
       if (!(p!.OnBeforeEmitNodeList === undefined)) {
         p!.OnBeforeEmitNodeList!(children);
@@ -9283,7 +9285,7 @@ export class Printer extends PrintHandlers {
         p!.writeSpace();
       }
     } else {
-      let end: number = Math.min(start + count, length_);
+      const end: number = Math.min(start + count, length_);
       const $t1 = $rt.reslice(children!.Nodes, start, end, undefined);
       p!.emitListItems(emit, parentNode, $t1, format, p!.hasTrailingComma(parentNode, children), children!.Loc);
       $rt.copyAt(children!.Nodes, start, -1, $t1);
@@ -9303,7 +9305,7 @@ export class Printer extends PrintHandlers {
     if (!children!.HasTrailingComma()) {
       return false;
     }
-    let originalParent: $ast.Node | undefined = p!.emitContext!.MostOriginal(parentNode);
+    const originalParent: $ast.Node | undefined = p!.emitContext!.MostOriginal(parentNode);
     if (originalParent === parentNode) {
       return true;
     }
@@ -9441,7 +9443,7 @@ export class Printer extends PrintHandlers {
     childrenTextRange: $core.TextRange,
   ): void {
     const p = this;
-    let mayEmitInterveningComments: boolean = $rt.and64(format, 262144) === (0 as number);
+    const mayEmitInterveningComments: boolean = $rt.and64(format, 262144) === (0 as number);
     let shouldEmitInterveningComments: boolean = mayEmitInterveningComments;
     let leadingLineTerminatorCount: number = 0;
     if (children.length > 0) {
@@ -9458,13 +9460,13 @@ export class Printer extends PrintHandlers {
     if (!($rt.and64(format, 128) === (0 as number))) {
       p!.increaseIndent();
     }
-    let parentEnd: number = greatestEnd(-1, [parentNode]);
+    const parentEnd: number = greatestEnd(-1, [parentNode]);
     let previousSibling: $ast.Node | undefined = undefined as $ast.Node | undefined;
     let shouldDecreaseIndentAfterEmit: boolean = false;
     {
       const $t3 = children;
       for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
-        let child = $t3[$t4];
+        const child = $t3[$t4];
         if (!($rt.and64(format, 32) === (0 as number))) {
           p!.writeLine();
           p!.writeDelimiter(format);
@@ -9475,7 +9477,7 @@ export class Printer extends PrintHandlers {
             }
           }
           p!.writeDelimiter(format);
-          let separatingLineTerminatorCount: number = p!.getSeparatingLineTerminatorCount(
+          const separatingLineTerminatorCount: number = p!.getSeparatingLineTerminatorCount(
             previousSibling,
             child,
             format,
@@ -9491,7 +9493,7 @@ export class Printer extends PrintHandlers {
               !$ast.PositionIsSynthesized(child!.Pos()) &&
               p!.shouldEmitLeadingComments(child)
             ) {
-              let commentRange: $core.TextRange = p!.emitContext!.CommentRange(child);
+              const commentRange: $core.TextRange = p!.emitContext!.CommentRange(child);
               p!.emitTrailingCommentsOfPosition(
                 $core.TextRange$Pos(commentRange),
                 !($rt.and64(format, 512) === (0 as number)),
@@ -9507,7 +9509,7 @@ export class Printer extends PrintHandlers {
           }
         }
         if (shouldEmitInterveningComments && p!.shouldEmitLeadingComments(child)) {
-          let commentRange$1: $core.TextRange = p!.emitContext!.CommentRange(child);
+          const commentRange$1: $core.TextRange = p!.emitContext!.CommentRange(child);
           p!.emitTrailingCommentsOfPosition($core.TextRange$Pos(commentRange$1), false, false);
         } else {
           shouldEmitInterveningComments = mayEmitInterveningComments;
@@ -9521,8 +9523,8 @@ export class Printer extends PrintHandlers {
         previousSibling = child;
       }
     }
-    let skipTrailingComments: boolean = p!.commentsDisabled || !p!.shouldEmitTrailingComments(previousSibling);
-    let emitTrailingComma: boolean =
+    const skipTrailingComments: boolean = p!.commentsDisabled || !p!.shouldEmitTrailingComments(previousSibling);
+    const emitTrailingComma: boolean =
       hasTrailingComma && !($rt.and64(format, 64) === (0 as number)) && !($rt.and64(format, 16) === (0 as number));
     if (emitTrailingComma) {
       if (!(previousSibling === undefined) && !skipTrailingComments) {
@@ -9548,7 +9550,7 @@ export class Printer extends PrintHandlers {
     if (!($rt.and64(format, 128) === (0 as number))) {
       p!.decreaseIndent();
     }
-    let closingLineTerminatorCount: number = p!.getClosingLineTerminatorCount(
+    const closingLineTerminatorCount: number = p!.getClosingLineTerminatorCount(
       parentNode,
       $core.LastOrNil<$ast.Node | undefined>($zf0, children),
       format,
@@ -9568,7 +9570,7 @@ export class Printer extends PrintHandlers {
       p!.ownWriter = NewTextWriter($core.NewLineKind$GetNewLineCharacter(p!.Options.NewLine), 0);
     }
     p!.Write(node, sourceFile, p!.ownWriter, undefined);
-    let text: string = $rt.nn(p!.ownWriter).String();
+    const text: string = $rt.nn(p!.ownWriter).String();
     $rt.nn(p!.ownWriter).Clear();
     return text;
   }
@@ -9598,14 +9600,14 @@ export class Printer extends PrintHandlers {
     sourceMapGenerator: $sourcemap.Generator | undefined,
   ): void {
     const p = this;
-    let savedCurrentSourceFile: $ast.SourceFile | undefined = p!.currentSourceFile;
-    let savedWriter: EmitTextWriter = p!.writer;
-    let savedUniqueHelperNames: Map<string, $ast.Node | undefined> | undefined = p!.uniqueHelperNames;
-    let savedSourceMapsDisabled: boolean = p!.sourceMapsDisabled;
-    let savedSourceMapGenerator: $sourcemap.Generator | undefined = p!.sourceMapGenerator;
-    let savedSourceMapSource: $sourcemap.Source = p!.sourceMapSource;
-    let savedSourceMapSourceIndex: $sourcemap.SourceIndex = p!.sourceMapSourceIndex;
-    let savedSourceMapLineCharCache: lineCharacterCache | undefined = p!.sourceMapLineCharCache;
+    const savedCurrentSourceFile: $ast.SourceFile | undefined = p!.currentSourceFile;
+    const savedWriter: EmitTextWriter = p!.writer;
+    const savedUniqueHelperNames: Map<string, $ast.Node | undefined> | undefined = p!.uniqueHelperNames;
+    const savedSourceMapsDisabled: boolean = p!.sourceMapsDisabled;
+    const savedSourceMapGenerator: $sourcemap.Generator | undefined = p!.sourceMapGenerator;
+    const savedSourceMapSource: $sourcemap.Source = p!.sourceMapSource;
+    const savedSourceMapSourceIndex: $sourcemap.SourceIndex = p!.sourceMapSourceIndex;
+    const savedSourceMapLineCharCache: lineCharacterCache | undefined = p!.sourceMapLineCharCache;
     p!.sourceMapsDisabled = sourceMapGenerator === undefined;
     p!.sourceMapGenerator = sourceMapGenerator;
     p!.sourceMapSource = undefined;
@@ -9621,8 +9623,8 @@ export class Printer extends PrintHandlers {
       {
         const $t1: EmitTextWriter = p!.writer;
         const $t2: boolean = $t1 instanceof textWriter;
-        let grower: textWriter | undefined = $t2 ? ($t1 as textWriter | undefined) : undefined;
-        let ok: boolean = $t2;
+        const grower: textWriter | undefined = $t2 ? ($t1 as textWriter | undefined) : undefined;
+        const ok: boolean = $t2;
         if (ok) {
           grower!.Grow(sourceFile!.Text().length);
         }
@@ -9910,17 +9912,17 @@ export class Printer extends PrintHandlers {
     if (!p!.shouldEmitComments(node)) {
       return undefined;
     }
-    let emitFlags: EmitFlags = p!.emitContext!.EmitFlags$m(node);
-    let commentRange: $core.TextRange = p!.emitContext!.CommentRange(node);
-    let containerPos: number = p!.containerPos;
-    let containerEnd: number = p!.containerEnd;
-    let declarationListContainerEnd: number = p!.declarationListContainerEnd;
+    const emitFlags: EmitFlags = p!.emitContext!.EmitFlags$m(node);
+    const commentRange: $core.TextRange = p!.emitContext!.CommentRange(node);
+    const containerPos: number = p!.containerPos;
+    const containerEnd: number = p!.containerEnd;
+    const declarationListContainerEnd: number = p!.declarationListContainerEnd;
     p!.emitLeadingCommentsOfNode(node, emitFlags, commentRange);
     p!.emitLeadingSyntheticCommentsOfNode(node, emitFlags);
     if (!((emitFlags & 512) === (0 as number))) {
       p!.commentsDisabled = true;
     }
-    let c: commentState | undefined = p!.commentStateArena.New();
+    const c: commentState | undefined = p!.commentStateArena.New();
     c!.$copy_printer_commentState(
       commentState.$lit_printer_commentState_0_1_2_3_4(
         emitFlags,
@@ -9937,11 +9939,11 @@ export class Printer extends PrintHandlers {
     if (state === undefined) {
       return;
     }
-    let emitFlags: EmitFlags = state!.emitFlags;
-    let commentRange: $core.TextRange = state!.commentRange;
-    let containerPos: number = state!.containerPos;
-    let containerEnd: number = state!.containerEnd;
-    let declarationListContainerEnd: number = state!.declarationListContainerEnd;
+    const emitFlags: EmitFlags = state!.emitFlags;
+    const commentRange: $core.TextRange = state!.commentRange;
+    const containerPos: number = state!.containerPos;
+    const containerEnd: number = state!.containerEnd;
+    const declarationListContainerEnd: number = state!.declarationListContainerEnd;
     if (!((emitFlags & 512) === (0 as number))) {
       p!.commentsDisabled = false;
     }
@@ -9955,7 +9957,7 @@ export class Printer extends PrintHandlers {
       declarationListContainerEnd,
     );
     {
-      let typeNode: $ast.Node | undefined = p!.emitContext!.GetTypeNode(node);
+      const typeNode: $ast.Node | undefined = p!.emitContext!.GetTypeNode(node);
       if (!(typeNode === undefined)) {
         p!.emitTrailingCommentsOfNode(
           node,
@@ -9981,18 +9983,18 @@ export class Printer extends PrintHandlers {
       }
       return [undefined, pos];
     }
-    let startPos: number = pos;
+    const startPos: number = pos;
     if (!(p!.currentSourceFile === undefined)) {
       pos = $scanner.SkipTrivia(p!.currentSourceFile!.Text(), startPos);
     }
-    let node: $ast.Node | undefined = p!.emitContext!.ParseNode(contextNode);
-    let isSimilarNode: boolean = !(node === undefined) && node!.Kind_ === contextNode!.Kind_;
+    const node: $ast.Node | undefined = p!.emitContext!.ParseNode(contextNode);
+    const isSimilarNode: boolean = !(node === undefined) && node!.Kind_ === contextNode!.Kind_;
     if (!isSimilarNode) {
       return [undefined, pos];
     }
     if (!(contextNode!.Pos() === startPos)) {
-      let indentLeading: boolean = !((flags & 2) === (0 as number));
-      let needsIndent: boolean =
+      const indentLeading: boolean = !((flags & 2) === (0 as number));
+      const needsIndent: boolean =
         indentLeading &&
         !(p!.currentSourceFile === undefined) &&
         !PositionsAreOnSameLine(startPos, pos, p!.currentSourceFile);
@@ -10013,7 +10015,7 @@ export class Printer extends PrintHandlers {
       return;
     }
     if (!(contextNode!.End() === pos)) {
-      let isJsxExprContext: boolean = contextNode!.Kind_ === (295 as number);
+      const isJsxExprContext: boolean = contextNode!.Kind_ === (295 as number);
       p!.emitTrailingComments(pos, $core.IfElse<commentSeparator>(isJsxExprContext, 0, 1));
     }
   }
@@ -10025,11 +10027,11 @@ export class Printer extends PrintHandlers {
     if (!p!.shouldEmitDetachedComments(node)) {
       return undefined;
     }
-    let emitFlags: EmitFlags = p!.emitContext!.EmitFlags$m(node);
-    let containerPos: number = p!.containerPos;
-    let containerEnd: number = p!.containerEnd;
-    let declarationListContainerEnd: number = p!.declarationListContainerEnd;
-    let skipLeadingComments: boolean =
+    const emitFlags: EmitFlags = p!.emitContext!.EmitFlags$m(node);
+    const containerPos: number = p!.containerPos;
+    const containerEnd: number = p!.containerEnd;
+    const declarationListContainerEnd: number = p!.declarationListContainerEnd;
+    const skipLeadingComments: boolean =
       $ast.PositionIsSynthesized($core.TextRange$Pos(detachedRange)) || !((emitFlags & 128) === (0 as number));
     if (!skipLeadingComments) {
       p!.emitDetachedCommentsAndUpdateCommentsInfo(detachedRange);
@@ -10054,13 +10056,13 @@ export class Printer extends PrintHandlers {
     if (state === undefined) {
       return;
     }
-    let emitFlags: EmitFlags = state!.emitFlags;
-    let skipTrailingComments: boolean =
+    const emitFlags: EmitFlags = state!.emitFlags;
+    const skipTrailingComments: boolean =
       p!.commentsDisabled ||
       $ast.PositionIsSynthesized($core.TextRange$End(detachedRange)) ||
       !((emitFlags & 256) === (0 as number));
     if (!skipTrailingComments) {
-      let hasWrittenComment: boolean = p!.emitLeadingComments($core.TextRange$End(detachedRange), false);
+      const hasWrittenComment: boolean = p!.emitLeadingComments($core.TextRange$End(detachedRange), false);
       if (hasWrittenComment && !$rt.nn(p!.writer).IsAtStartOfLine()) {
         p!.writeLine();
       }
@@ -10068,12 +10070,12 @@ export class Printer extends PrintHandlers {
   }
   emitLeadingCommentsOfNode(node: $ast.Node | undefined, emitFlags: EmitFlags, commentRange: $core.TextRange): void {
     const p = this;
-    let pos: number = $core.TextRange$Pos(commentRange);
-    let end: number = $core.TextRange$End(commentRange);
+    const pos: number = $core.TextRange$Pos(commentRange);
+    const end: number = $core.TextRange$End(commentRange);
     if ((!$ast.PositionIsSynthesized(pos) || !$ast.PositionIsSynthesized(end)) && !(pos === end)) {
-      let skipLeadingComments: boolean =
+      const skipLeadingComments: boolean =
         $ast.PositionIsSynthesized(pos) || !((emitFlags & 128) === (0 as number)) || node!.Kind_ === (11 as number);
-      let skipTrailingComments: boolean =
+      const skipTrailingComments: boolean =
         $ast.PositionIsSynthesized(end) || !((emitFlags & 256) === (0 as number)) || node!.Kind_ === (11 as number);
       if (!skipLeadingComments) {
         p!.emitLeadingComments(pos, node!.Kind_ === (347 as number));
@@ -10098,9 +10100,9 @@ export class Printer extends PrintHandlers {
     declarationListContainerEnd: number,
   ): void {
     const p = this;
-    let pos: number = $core.TextRange$Pos(commentRange);
-    let end: number = $core.TextRange$End(commentRange);
-    let skipTrailingComments: boolean =
+    const pos: number = $core.TextRange$Pos(commentRange);
+    const end: number = $core.TextRange$End(commentRange);
+    const skipTrailingComments: boolean =
       end < 0 || !((emitFlags & 256) === (0 as number)) || node!.Kind_ === (11 as number);
     if ((!$ast.PositionIsSynthesized(pos) || !$ast.PositionIsSynthesized(end)) && !(pos === end)) {
       p!.containerPos = containerPos;
@@ -10116,11 +10118,11 @@ export class Printer extends PrintHandlers {
     if (!((emitFlags & 128) === (0 as number))) {
       return;
     }
-    let synth: SynthesizedComment[] = p!.emitContext!.GetSyntheticLeadingComments(node);
+    const synth: SynthesizedComment[] = p!.emitContext!.GetSyntheticLeadingComments(node);
     {
       const $t1 = synth;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        let c = $t1[$t2];
+        const c = $t1[$t2];
         p!.emitLeadingSynthesizedComment(c);
       }
     }
@@ -10142,11 +10144,11 @@ export class Printer extends PrintHandlers {
     if (!((emitFlags & 256) === (0 as number))) {
       return;
     }
-    let synth: SynthesizedComment[] = p!.emitContext!.GetSyntheticTrailingComments(node);
+    const synth: SynthesizedComment[] = p!.emitContext!.GetSyntheticTrailingComments(node);
     {
       const $t1 = synth;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        let c = $t1[$t2];
+        const c = $t1[$t2];
         p!.emitTrailingSynthesizedComment(c);
       }
     }
@@ -10163,7 +10165,7 @@ export class Printer extends PrintHandlers {
   }
   writeSynthesizedComment(comment: SynthesizedComment): void {
     const p = this;
-    let text: string = formatSynthesizedComment(comment);
+    const text: string = formatSynthesizedComment(comment);
     let lineMap: $core.TextPos[] = [];
     if (comment.Kind_ === (3 as number)) {
       lineMap = $core.ComputeECMALineStarts(text);
@@ -10192,7 +10194,7 @@ export class Printer extends PrintHandlers {
     }
     if (p!.detachedCommentsInfo.Len() > 0) {
       {
-        let info: detachedCommentsInfo = p!.detachedCommentsInfo.Peek();
+        const info: detachedCommentsInfo = p!.detachedCommentsInfo.Peek();
         if (info.nodePos === pos) {
           pos = p!.detachedCommentsInfo.Pop().detachedCommentEndPos;
         }
@@ -10299,7 +10301,7 @@ export class Printer extends PrintHandlers {
     {
       const $t3 = comments;
       for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
-        let comment$1 = $t3[$t4];
+        const comment$1 = $t3[$t4];
         if (prefixSpace) {
           if (!p!.shouldWriteComment(comment$1)) {
             continue;
@@ -10337,8 +10339,8 @@ export class Printer extends PrintHandlers {
     }
     {
       const $t1 = p!.emitDetachedComments(textRange);
-      let currentDetachedCommentInfo: detachedCommentsInfo = $t1[0];
-      let ok: boolean = $t1[1];
+      const currentDetachedCommentInfo: detachedCommentsInfo = $t1[0];
+      const ok: boolean = $t1[1];
       if (ok) {
         p!.detachedCommentsInfo.Push(currentDetachedCommentInfo);
       }
@@ -10351,8 +10353,8 @@ export class Printer extends PrintHandlers {
     if (p!.currentSourceFile === undefined) {
       return [result, hasResult];
     }
-    let text: string = p!.currentSourceFile!.Text();
-    let lineMap: $core.TextPos[] = p!.currentSourceFile!.ECMALineMap();
+    const text: string = p!.currentSourceFile!.Text();
+    const lineMap: $core.TextPos[] = p!.currentSourceFile!.ECMALineMap();
     let leadingComments: $ast.CommentRange[] = [];
     if (p!.commentsDisabled) {
       if ($core.TextRange$Pos(textRange) === (0 as number)) {
@@ -10384,14 +10386,14 @@ export class Printer extends PrintHandlers {
       {
         const $t3 = leadingComments;
         for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
-          let i = $t4;
-          let comment$1 = $t3[$t4];
+          const i = $t4;
+          const comment$1 = $t3[$t4];
           if (i > 0) {
-            let lastCommentLine: number = $scanner.ComputeLineOfPosition(
+            const lastCommentLine: number = $scanner.ComputeLineOfPosition(
               lineMap,
               $core.TextRange$End(lastComment.TextRange_),
             );
-            let commentLine: number = $scanner.ComputeLineOfPosition(
+            const commentLine: number = $scanner.ComputeLineOfPosition(
               lineMap,
               $core.TextRange$Pos(comment$1.TextRange_),
             );
@@ -10404,11 +10406,11 @@ export class Printer extends PrintHandlers {
         }
       }
       if (detachedComments.length > 0) {
-        let lastCommentLine$1: number = $scanner.ComputeLineOfPosition(
+        const lastCommentLine$1: number = $scanner.ComputeLineOfPosition(
           lineMap,
           $core.TextRange$End($core.LastOrNil<$ast.CommentRange>($zf2, detachedComments).TextRange_),
         );
-        let nodeLine: number = $scanner.ComputeLineOfPosition(
+        const nodeLine: number = $scanner.ComputeLineOfPosition(
           lineMap,
           $scanner.SkipTrivia(text, $core.TextRange$Pos(textRange)),
         );
@@ -10417,7 +10419,7 @@ export class Printer extends PrintHandlers {
           {
             const $t5 = detachedComments;
             for (let $t6 = 0, $n = $t5.length; $t6 < $n; $t6++) {
-              let comment$2 = $t5[$t6];
+              const comment$2 = $t5[$t6];
               if (p!.shouldWriteComment(comment$2)) {
                 commentsToEmit.push(comment$2);
               }
@@ -10456,7 +10458,7 @@ export class Printer extends PrintHandlers {
     {
       const $t1 = comments;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        let comment = $t1[$t2];
+        const comment = $t1[$t2];
         if (interveningSeparator) {
           p!.writeSpace();
           interveningSeparator = false;
@@ -10507,7 +10509,7 @@ export class Printer extends PrintHandlers {
     p!.sourceMapSourceIndex = p!.sourceMapGenerator!.AddSource(source!.FileName());
     if (p!.Options.InlineSources) {
       {
-        let err: $rt.GoObject | undefined = p!.sourceMapGenerator!.SetSourceContent(
+        const err: $rt.GoObject | undefined = p!.sourceMapGenerator!.SetSourceContent(
           p!.sourceMapSourceIndex,
           source!.Text(),
         );
@@ -10531,10 +10533,10 @@ export class Printer extends PrintHandlers {
       return;
     }
     const $t1 = p!.sourceMapLineCharCache!.getLineAndCharacter(pos);
-    let sourceLine: number = $t1[0];
-    let sourceCharacter: $core.UTF16Offset = $t1[1];
+    const sourceLine: number = $t1[0];
+    const sourceCharacter: $core.UTF16Offset = $t1[1];
     {
-      let err: $rt.GoObject | undefined = p!.sourceMapGenerator!.AddSourceMapping(
+      const err: $rt.GoObject | undefined = p!.sourceMapGenerator!.AddSourceMapping(
         $rt.nn(p!.writer).GetLine(),
         $rt.nn(p!.writer).GetColumn(),
         p!.sourceMapSourceIndex,
@@ -10549,9 +10551,9 @@ export class Printer extends PrintHandlers {
   emitSourcePos(source: $sourcemap.Source, pos: number): void {
     const p = this;
     if (!$rt.ifaceEq(source, p!.sourceMapSource)) {
-      let savedSourceMapSource: $sourcemap.Source = p!.sourceMapSource;
-      let savedSourceMapSourceIndex: $sourcemap.SourceIndex = p!.sourceMapSourceIndex;
-      let savedSourceMapLineCharCache: lineCharacterCache | undefined = p!.sourceMapLineCharCache;
+      const savedSourceMapSource: $sourcemap.Source = p!.sourceMapSource;
+      const savedSourceMapSourceIndex: $sourcemap.SourceIndex = p!.sourceMapSourceIndex;
+      const savedSourceMapLineCharCache: lineCharacterCache | undefined = p!.sourceMapLineCharCache;
       p!.setSourceMapSource(source);
       p!.emitPos(pos);
       p!.sourceMapSource = savedSourceMapSource;
@@ -10566,8 +10568,8 @@ export class Printer extends PrintHandlers {
     if (!p!.shouldEmitSourceMaps(node)) {
       return undefined;
     }
-    let emitFlags: EmitFlags = p!.emitContext!.EmitFlags$m(node);
-    let loc: $core.TextRange = p!.emitContext!.SourceMapRange(node);
+    const emitFlags: EmitFlags = p!.emitContext!.EmitFlags$m(node);
+    const loc: $core.TextRange = p!.emitContext!.SourceMapRange(node);
     if (
       !$ast.IsNotEmittedStatement(node) &&
       (emitFlags & 4) === (0 as number) &&
@@ -10579,7 +10581,7 @@ export class Printer extends PrintHandlers {
     if (!((emitFlags & 16) === (0 as number))) {
       p!.sourceMapsDisabled = true;
     }
-    let state: sourceMapState | undefined = p!.sourceMapStateArena.New();
+    const state: sourceMapState | undefined = p!.sourceMapStateArena.New();
     state!.$copy_printer_sourceMapState(sourceMapState.$lit_printer_sourceMapState_0_1_2(emitFlags, loc, false));
     return state;
   }
@@ -10588,8 +10590,8 @@ export class Printer extends PrintHandlers {
     if (previousState === undefined) {
       return;
     }
-    let emitFlags: EmitFlags = previousState!.emitFlags;
-    let loc: $core.TextRange = previousState!.sourceMapRange;
+    const emitFlags: EmitFlags = previousState!.emitFlags;
+    const loc: $core.TextRange = previousState!.sourceMapRange;
     if (!((emitFlags & 16) === (0 as number))) {
       p!.sourceMapsDisabled = false;
     }
@@ -10611,10 +10613,10 @@ export class Printer extends PrintHandlers {
     if (!p!.shouldEmitTokenSourceMaps(token, pos, contextNode, flags)) {
       return undefined;
     }
-    let emitFlags: EmitFlags = p!.emitContext!.EmitFlags$m(contextNode);
+    const emitFlags: EmitFlags = p!.emitContext!.EmitFlags$m(contextNode);
     const $t1 = p!.emitContext!.TokenSourceMapRange(contextNode, token);
-    let loc: $core.TextRange = $t1[0];
-    let hasLoc: boolean = $t1[1];
+    const loc: $core.TextRange = $t1[0];
+    const hasLoc: boolean = $t1[1];
     if (hasLoc) {
       pos = $core.TextRange$Pos(loc);
     }
@@ -10624,7 +10626,7 @@ export class Printer extends PrintHandlers {
     if ((emitFlags & 32) === (0 as number) && pos >= 0) {
       p!.emitSourcePos(p!.sourceMapSource, pos);
     }
-    let state: sourceMapState | undefined = p!.sourceMapStateArena.New();
+    const state: sourceMapState | undefined = p!.sourceMapStateArena.New();
     state!.$copy_printer_sourceMapState(sourceMapState.$lit_printer_sourceMapState_0_1_2(emitFlags, loc, hasLoc));
     return state;
   }
@@ -10638,9 +10640,9 @@ export class Printer extends PrintHandlers {
     if (previousState === undefined) {
       return;
     }
-    let emitFlags: EmitFlags = previousState!.emitFlags;
-    let loc: $core.TextRange = previousState!.sourceMapRange;
-    let hasLoc: boolean = previousState!.hasTokenSourceMapRange;
+    const emitFlags: EmitFlags = previousState!.emitFlags;
+    const loc: $core.TextRange = previousState!.sourceMapRange;
+    const hasLoc: boolean = previousState!.hasTokenSourceMapRange;
     if ((emitFlags & 64) === (0 as number)) {
       if (hasLoc) {
         pos = $core.TextRange$End(loc);
@@ -10670,7 +10672,7 @@ export class Printer extends PrintHandlers {
     {
       const $t1 = nodes!.Nodes;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        let node = $t1[$t2];
+        const node = $t1[$t2];
         p!.generateNames(node);
       }
     }
@@ -10774,7 +10776,7 @@ export class Printer extends PrintHandlers {
           break;
         }
         case 277 as number: {
-          let n: $ast.ImportSpecifier | undefined = node!.AsImportSpecifier();
+          const n: $ast.ImportSpecifier | undefined = node!.AsImportSpecifier();
           if (!(n!.PropertyName_ === undefined)) {
             p!.generateNameIfNeeded(n!.PropertyName_);
           } else {
@@ -10793,7 +10795,7 @@ export class Printer extends PrintHandlers {
     {
       const $t1 = nodes!.Nodes;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        let node = $t1[$t2];
+        const node = $t1[$t2];
         p!.generateMemberNames(node);
       }
     }
@@ -10843,7 +10845,7 @@ export class Printer extends PrintHandlers {
   }
   enterNode(node: $ast.Node | undefined): printerState {
     const p = this;
-    let state: printerState = new printerState();
+    const state: printerState = new printerState();
     if (!(p!.OnBeforeEmitNode === undefined)) {
       p!.OnBeforeEmitNode!(node);
     }
@@ -10861,7 +10863,7 @@ export class Printer extends PrintHandlers {
   }
   enterTokenNode(node: $ast.Node | undefined, flags: tokenEmitFlags): printerState {
     const p = this;
-    let state: printerState = new printerState();
+    const state: printerState = new printerState();
     if (!(p!.OnBeforeEmitToken === undefined)) {
       p!.OnBeforeEmitToken!(node);
     }
@@ -10888,7 +10890,7 @@ export class Printer extends PrintHandlers {
     flags: tokenEmitFlags,
   ): [printerState, number] {
     const p = this;
-    let state: printerState = new printerState();
+    const state: printerState = new printerState();
     const $t1 = p!.emitCommentsBeforeToken(token, pos, contextNode, flags);
     state.commentState_ = $t1[0];
     pos = $t1[1];
@@ -11317,14 +11319,14 @@ export class lineCharacterCache extends $rt.GoObject {
     let line: number = 0;
     let character: $core.UTF16Offset = 0;
     line = $scanner.ComputeLineOfPosition(c!.lineMap, pos);
-    let lineStart: number = c!.lineMap[line];
-    let endPos: number = Math.min(pos, c!.text.length);
+    const lineStart: number = c!.lineMap[line];
+    const endPos: number = Math.min(pos, c!.text.length);
     if (c!.hasCached && line === c!.cachedLine && endPos >= c!.cachedPos) {
       character = c!.cachedChar + $core.UTF16Len(c!.text.substring(c!.cachedPos, endPos));
     } else {
       character = $core.UTF16Len(c!.text.substring(lineStart, endPos));
     }
-    let cachedChar: $core.UTF16Offset = character;
+    const cachedChar: $core.UTF16Offset = character;
     character += pos - endPos;
     c!.cachedLine = line;
     c!.cachedPos = endPos;
@@ -11433,7 +11435,7 @@ export class singleLineStringWriter extends $rt.GoObject {
       return false;
     }
     const $t1 = $rt.unicode_utf8_DecodeLastRuneInString(w.lastWritten);
-    let ch: number = $t1[0];
+    const ch: number = $t1[0];
     if (ch === (65533 as number)) {
       return false;
     }
@@ -12182,7 +12184,7 @@ export function NewChangeTrackerWriter(newline: string, indentSize: number): Cha
   if (indentSize < 0) {
     indentSize = 4;
   }
-  let ctw: ChangeTrackerWriter | undefined = ChangeTrackerWriter.$lit_printer_ChangeTrackerWriter_0_1_2_3(
+  const ctw: ChangeTrackerWriter | undefined = ChangeTrackerWriter.$lit_printer_ChangeTrackerWriter_0_1_2_3(
     textWriter.$lit_printer_textWriter_0_1(newline, indentSize),
     0,
     new Map<triviaPositionKey, number>(),
@@ -12192,12 +12194,12 @@ export function NewChangeTrackerWriter(newline: string, indentSize: number): Cha
   return ctw;
 }
 export function NewEmitContext(): EmitContext | undefined {
-  let c: EmitContext | undefined = new EmitContext();
+  const c: EmitContext | undefined = new EmitContext();
   c!.Factory = NewNodeFactory(c);
   return c;
 }
 export function GetEmitContext(): [EmitContext | undefined, (() => void) | undefined] {
-  let c: EmitContext | undefined = (($t1: $rt.GoObject | undefined) => EmitContext.$cast_printer_EmitContext($t1))(
+  const c: EmitContext | undefined = (($t1: $rt.GoObject | undefined) => EmitContext.$cast_printer_EmitContext($t1))(
     emitContextPool.Get(),
   );
   return [
@@ -12258,7 +12260,7 @@ export function flattenCommaElements(expressions: ($ast.Node | undefined)[]): ($
   {
     const $t1 = expressions;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let expression = $t1[$t2];
+      const expression = $t1[$t2];
       result = flattenCommaElement(expression, result);
     }
   }
@@ -12307,7 +12309,7 @@ export function compareEmitHelpers(x: EmitHelper | undefined, y: EmitHelper | un
   return x!.Priority_!.Value - y!.Priority_!.Value;
 }
 export function nextContainer(node: $ast.Node | undefined): $ast.Node | undefined {
-  let data: $ast.LocalsContainerBase | undefined = node!.LocalsContainerData$Node();
+  const data: $ast.LocalsContainerBase | undefined = node!.LocalsContainerData$Node();
   if (!(data === undefined)) {
     return data!.NextContainer;
   }
@@ -12321,13 +12323,13 @@ export function isUniqueLocalName(name_: string, container: $ast.Node | undefine
     $ast.IsNodeDescendantOf(node, container) &&
     !(node!.LocalsContainerData$Node() === undefined);
   ) {
-    let locals: $ast.SymbolTable = node!.Locals();
+    const locals: $ast.SymbolTable = node!.Locals();
     if (!(locals === undefined)) {
       {
         const $t1 = locals;
         const $t2 = name_;
-        let local: $ast.Symbol_ | undefined = $t1?.get($t2) ?? undefined;
-        let ok: boolean = $t1 !== undefined && $t1.has($t2);
+        const local: $ast.Symbol_ | undefined = $t1?.get($t2) ?? undefined;
+        const ok: boolean = $t1 !== undefined && $t1.has($t2);
         if (ok && !((local!.Flags & 3257279) === (0 as number))) {
           return false;
         }
@@ -12342,7 +12344,7 @@ export function NewPrinter(
   handlers: PrintHandlers,
   emitContext: EmitContext | undefined,
 ): Printer | undefined {
-  let printer: Printer | undefined = Printer.$lit_printer_Printer_0_1_2(handlers, options, emitContext);
+  const printer: Printer | undefined = Printer.$lit_printer_Printer_0_1_2(handlers, options, emitContext);
   if (printer!.emitContext === undefined) {
     printer!.emitContext = NewEmitContext();
   }
@@ -12371,8 +12373,8 @@ export function canEmitSimpleArrowHead(
   if (!$ast.IsArrowFunction(parentNode) || !(parameters!.Nodes.length === (1 as number))) {
     return false;
   }
-  let parent: $ast.ArrowFunction | undefined = parentNode!.AsArrowFunction();
-  let parameter: $ast.ParameterDeclaration | undefined = parameters!.Nodes[0]!.AsParameterDeclaration();
+  const parent: $ast.ArrowFunction | undefined = parentNode!.AsArrowFunction();
+  const parameter: $ast.ParameterDeclaration | undefined = parameters!.Nodes[0]!.AsParameterDeclaration();
   return (
     parameter!.Pos() === parent!.Pos() &&
     parent!.FunctionLikeWithBodyBase_.TypeParameters === undefined &&
@@ -12450,7 +12452,7 @@ export function getTrailingSemicolonDeferringWriter(writer: EmitTextWriter): Emi
   return trailingSemicolonDeferringWriter.$lit_printer_trailingSemicolonDeferringWriter_0(writer);
 }
 export function GetSingleLineStringWriter(): [EmitTextWriter, (() => void) | undefined] {
-  let w: singleLineStringWriter | undefined = (($t1: $rt.GoObject | undefined) =>
+  const w: singleLineStringWriter | undefined = (($t1: $rt.GoObject | undefined) =>
     singleLineStringWriter.$cast_printer_singleLineStringWriter($t1))(singleLineStringWriterPool.Get());
   w!.Clear();
   return [
@@ -12470,7 +12472,7 @@ export function PrintAndPositionNode(
 ): [string, $ast.Node | undefined] {
   let text: string = '';
   let positioned: $ast.Node | undefined = undefined as $ast.Node | undefined;
-  let writer: ChangeTrackerWriter | undefined = NewChangeTrackerWriter(newLine, indentSize);
+  const writer: ChangeTrackerWriter | undefined = NewChangeTrackerWriter(newLine, indentSize);
   NewPrinter(
     PrinterOptions.$lit_printer_PrinterOptions_1_10_11_12($core.GetNewLineKind(newLine), true, true, true),
     writer!.GetPrintHandlers(),
@@ -12487,11 +12489,11 @@ export function CreateSyntheticSourceFile(
   text: string,
   parseOptions: $ast.SourceFileParseOptions,
 ): $ast.SourceFile | undefined {
-  let eof: $ast.Node | undefined = factory!.NewToken(1);
+  const eof: $ast.Node | undefined = factory!.NewToken(1);
   eof!.Loc = $core.NewTextRange(text.length, text.length);
-  let statements: $ast.NodeList | undefined = factory!.NewNodeList([node]);
+  const statements: $ast.NodeList | undefined = factory!.NewNodeList([node]);
   statements!.Loc = $core.NewTextRange(node!.Pos(), node!.End());
-  let syntheticFile: $ast.Node | undefined = factory!.NewSourceFile(parseOptions, text, statements, eof);
+  const syntheticFile: $ast.Node | undefined = factory!.NewSourceFile(parseOptions, text, statements, eof);
   syntheticFile!.Loc = $core.NewTextRange(0, text.length);
   $ast.SetParentInChildren(syntheticFile);
   return syntheticFile!.AsSourceFile();
@@ -12516,13 +12518,13 @@ export function NewTextWriter(newLine: string, indentSize: number): EmitTextWrit
   return w;
 }
 export function encodeJsxCharacterEntity(b: $rt.strings_Builder | undefined, charCode: number): void {
-  let hexCharCode: string = $rt.strings_ToUpper($rt.strconv_FormatUint(charCode, 16));
+  const hexCharCode: string = $rt.strings_ToUpper($rt.strconv_FormatUint(charCode, 16));
   b!.WriteString('&#x');
   b!.WriteString(hexCharCode);
   b!.WriteByte(59);
 }
 export function encodeUtf16EscapeSequence(b: $rt.strings_Builder | undefined, charCode: number): void {
-  let hexCharCode: string = $rt.strings_ToUpper($rt.strconv_FormatUint(charCode, 16));
+  const hexCharCode: string = $rt.strings_ToUpper($rt.strconv_FormatUint(charCode, 16));
   b!.WriteString('\\u');
   {
     for (let i: number = hexCharCode.length; i < 4; i++) {
@@ -12592,8 +12594,8 @@ export function escapeStringWorker(
               {
                 const $t5 = jsxEscapedCharsMap;
                 const $t6 = ch;
-                let match: string = $t5?.get($t6) ?? '';
-                let ok: boolean = $t5 !== undefined && $t5.has($t6);
+                const match: string = $t5?.get($t6) ?? '';
+                const ok: boolean = $t5 !== undefined && $t5.has($t6);
                 if (ok) {
                   b!.WriteString(match);
                 } else {
@@ -12626,8 +12628,8 @@ export function escapeStringWorker(
               {
                 const $t7 = escapedCharsMap;
                 const $t8 = ch;
-                let match$1: string = $t7?.get($t8) ?? '';
-                let ok$1: boolean = $t7 !== undefined && $t7.has($t8);
+                const match$1: string = $t7?.get($t8) ?? '';
+                const ok$1: boolean = $t7 !== undefined && $t7.has($t8);
                 if (ok$1) {
                   b!.WriteString(match$1);
                 } else {
@@ -12673,7 +12675,7 @@ export function canUseOriginalText(node: $ast.Node | undefined, flags: getLitera
     return false;
   }
   if (node!.Kind_ === (8 as number)) {
-    let tokenFlags: $ast.TokenFlags = node!.AsNumericLiteral()!.LiteralLikeNodeBase_.TokenFlags_;
+    const tokenFlags: $ast.TokenFlags = node!.AsNumericLiteral()!.LiteralLikeNodeBase_.TokenFlags_;
     if (!((tokenFlags & 26656) === (0 as number))) {
       return false;
     }
@@ -12701,7 +12703,7 @@ export function getLiteralText(
         } else {
           quoteChar = 34;
         }
-        let text: string = node!.Text$Node();
+        const text: string = node!.Text$Node();
         b.Grow(text.length + 2);
         b.WriteRune(quoteChar);
         escapeStringWorker(text, quoteChar, flags, b);
@@ -12713,9 +12715,9 @@ export function getLiteralText(
       case 16 as number:
       case 17 as number: {
         let b$1: $rt.strings_Builder = new $rt.strings_Builder();
-        let text$1: string = node!.Text$Node();
-        let rawText: string = node!.TemplateLiteralLikeData$Node()!.RawText;
-        let raw: boolean = rawText.length > 0 || text$1.length === (0 as number);
+        const text$1: string = node!.Text$Node();
+        const rawText: string = node!.TemplateLiteralLikeData$Node()!.RawText;
+        const raw: boolean = rawText.length > 0 || text$1.length === (0 as number);
         let textLen: number = 0;
         if (raw) {
           textLen = rawText.length;
@@ -12783,8 +12785,8 @@ export function getLiteralText(
       }
       case 13 as number: {
         if (!($rt.and64(flags, 4) === (0 as number)) && $ast.IsUnterminatedLiteral(node)) {
-          let b$2: $rt.strings_Builder = new $rt.strings_Builder();
-          let text$2: string = node!.Text$Node();
+          const b$2: $rt.strings_Builder = new $rt.strings_Builder();
+          const text$2: string = node!.Text$Node();
           if (text$2.length > 0 && text$2.charCodeAt(text$2.length - 1) === (92 as number)) {
             b$2.Grow(2 + text$2.length);
             b$2.WriteString(text$2);
@@ -12871,12 +12873,12 @@ export function GetLinesBetweenPositions(sourceFile: $ast.SourceFile | undefined
   if (pos1 === pos2) {
     return 0;
   }
-  let lineStarts: $core.TextPos[] = $scanner.GetECMALineStarts(sourceFile);
-  let lower: number = $core.IfElse<number>(pos1 < pos2, pos1, pos2);
-  let isNegative: boolean = lower === pos2;
-  let upper: number = $core.IfElse<number>(isNegative, pos1, pos2);
-  let lowerLine: number = $scanner.ComputeLineOfPosition(lineStarts, lower);
-  let upperLine: number = lowerLine + $scanner.ComputeLineOfPosition(lineStarts.slice(lowerLine), upper);
+  const lineStarts: $core.TextPos[] = $scanner.GetECMALineStarts(sourceFile);
+  const lower: number = $core.IfElse<number>(pos1 < pos2, pos1, pos2);
+  const isNegative: boolean = lower === pos2;
+  const upper: number = $core.IfElse<number>(isNegative, pos1, pos2);
+  const lowerLine: number = $scanner.ComputeLineOfPosition(lineStarts, lower);
+  const upperLine: number = lowerLine + $scanner.ComputeLineOfPosition(lineStarts.slice(lowerLine), upper);
   if (isNegative) {
     return lowerLine - upperLine;
   } else {
@@ -12889,7 +12891,7 @@ export function getLinesBetweenRangeEndAndRangeStart(
   sourceFile: $ast.SourceFile | undefined,
   includeSecondRangeComments: boolean,
 ): number {
-  let range2Start: number = getStartPositionOfRange(range2, sourceFile, includeSecondRangeComments);
+  const range2Start: number = getStartPositionOfRange(range2, sourceFile, includeSecondRangeComments);
   return GetLinesBetweenPositions(sourceFile, $core.TextRange$End(range1), range2Start);
 }
 export function getLinesBetweenPositionAndPrecedingNonWhitespaceCharacter(
@@ -12898,12 +12900,12 @@ export function getLinesBetweenPositionAndPrecedingNonWhitespaceCharacter(
   sourceFile: $ast.SourceFile | undefined,
   includeComments: boolean,
 ): number {
-  let startPos: number = $scanner.SkipTriviaEx(
+  const startPos: number = $scanner.SkipTriviaEx(
     sourceFile!.Text(),
     pos,
     $scanner.SkipTriviaOptions.$lit_scanner_SkipTriviaOptions_1(includeComments),
   );
-  let prevPos: number = getPreviousNonWhitespacePosition(startPos, stopPos, sourceFile);
+  const prevPos: number = getPreviousNonWhitespacePosition(startPos, stopPos, sourceFile);
   return GetLinesBetweenPositions(sourceFile, $core.IfElse<number>(prevPos >= 0, prevPos, stopPos), startPos);
 }
 export function getLinesBetweenPositionAndNextNonWhitespaceCharacter(
@@ -12912,7 +12914,7 @@ export function getLinesBetweenPositionAndNextNonWhitespaceCharacter(
   sourceFile: $ast.SourceFile | undefined,
   includeComments: boolean,
 ): number {
-  let nextPos: number = $scanner.SkipTriviaEx(
+  const nextPos: number = $scanner.SkipTriviaEx(
     sourceFile!.Text(),
     pos,
     $scanner.SkipTriviaOptions.$lit_scanner_SkipTriviaOptions_1(includeComments),
@@ -12941,19 +12943,19 @@ export function siblingNodePositionsAreComparable(
   }
   previousNode = emitContext!.MostOriginal(previousNode);
   nextNode = emitContext!.MostOriginal(nextNode);
-  let parent: $ast.Node | undefined = previousNode!.Parent;
+  const parent: $ast.Node | undefined = previousNode!.Parent;
   if (parent === undefined || !(parent === nextNode!.Parent)) {
     return false;
   }
-  let parentNodeArray: $ast.NodeList | undefined = getContainingNodeArray(previousNode);
+  const parentNodeArray: $ast.NodeList | undefined = getContainingNodeArray(previousNode);
   if (!(parentNodeArray === undefined)) {
-    let prevNodeIndex: number = $rt.slices_Index(parentNodeArray!.Nodes, previousNode);
+    const prevNodeIndex: number = $rt.slices_Index(parentNodeArray!.Nodes, previousNode);
     return prevNodeIndex >= 0 && $rt.slices_Index(parentNodeArray!.Nodes, nextNode) === prevNodeIndex + 1;
   }
   return false;
 }
 export function getContainingNodeArray(node: $ast.Node | undefined): $ast.NodeList | undefined {
-  let parent: $ast.Node | undefined = node!.Parent;
+  const parent: $ast.Node | undefined = node!.Parent;
   if (parent === undefined) {
     return undefined;
   }
@@ -12995,7 +12997,7 @@ export function getContainingNodeArray(node: $ast.Node | undefined): $ast.NodeLi
       case 171 as number: {
         if (canHaveDecorators(node!.Parent)) {
           {
-            let modifiers: $ast.ModifierList | undefined = node!.Parent!.Modifiers$Node();
+            const modifiers: $ast.ModifierList | undefined = node!.Parent!.Modifiers$Node();
             if (!(modifiers === undefined)) {
               return modifiers!;
             }
@@ -13039,7 +13041,7 @@ export function getContainingNodeArray(node: $ast.Node | undefined): $ast.NodeLi
         return parent!.PropertyList();
       }
       case 214 as number: {
-        let p: $ast.CallExpression | undefined = parent!.AsCallExpression();
+        const p: $ast.CallExpression | undefined = parent!.AsCallExpression();
         {
           $sw2: {
             if ($ast.IsTypeNode(node)) {
@@ -13052,7 +13054,7 @@ export function getContainingNodeArray(node: $ast.Node | undefined): $ast.NodeLi
         break;
       }
       case 215 as number: {
-        let p$1: $ast.NewExpression | undefined = parent!.AsNewExpression();
+        const p$1: $ast.NewExpression | undefined = parent!.AsNewExpression();
         {
           $sw3: {
             if ($ast.IsTypeNode(node)) {
@@ -13110,7 +13112,7 @@ export function getContainingNodeArray(node: $ast.Node | undefined): $ast.NodeLi
   }
   if ($ast.IsModifier(node)) {
     {
-      let modifiers$1: $ast.ModifierList | undefined = parent!.Modifiers$Node();
+      const modifiers$1: $ast.ModifierList | undefined = parent!.Modifiers$Node();
       if (!(modifiers$1 === undefined)) {
         return modifiers$1!;
       }
@@ -14086,7 +14088,7 @@ export function greatestEnd(
 ): number {
   {
     for (let i: number = nodes.length - 1; i >= 0; i--) {
-      let node:
+      const node:
         | $core.TextChange
         | $core.TextRange$Box
         | $ast.AccessorDeclarationBase
@@ -14313,8 +14315,8 @@ export function greatestEnd(
         | undefined = nodes[i];
       {
         const $t1 = tryGetEnd(node);
-        let nodeEnd: number = $t1[0];
-        let ok: boolean = $t1[1];
+        const nodeEnd: number = $t1[0];
+        const ok: boolean = $t1[1];
         if (ok && end < nodeEnd) {
           end = nodeEnd;
         }
@@ -14375,11 +14377,11 @@ export function isASCIIWordCharacter(ch: number): boolean {
 }
 export function makeIdentifierFromModuleName(moduleName: string): string {
   moduleName = $tspath.GetBaseFileName(moduleName);
-  let builder: $rt.strings_Builder = new $rt.strings_Builder();
+  const builder: $rt.strings_Builder = new $rt.strings_Builder();
   let start: number = 0;
   let pos: number = 0;
   for (; pos < moduleName.length;) {
-    let ch: number = moduleName.charCodeAt(pos) | 0;
+    const ch: number = moduleName.charCodeAt(pos) | 0;
     if (pos === (0 as number) && $stringutil.IsDigit(ch)) {
       builder.WriteByte(95);
     } else if (!isASCIIWordCharacter(ch)) {
@@ -14418,8 +14420,8 @@ export function findSpanEnd<T>(array: T[], test: ((p0: T) => boolean) | undefine
 export function skipWhiteSpaceSingleLine(text: string, pos: $rt.Ptr<number> | undefined): void {
   for (; pos!.get() < text.length;) {
     const $t1 = $rt.utf8_DecodeRuneInStringAt(text, pos!.get());
-    let ch: number = $t1[0];
-    let size: number = $t1[1];
+    const ch: number = $t1[0];
+    const size: number = $t1[1];
     if (!$stringutil.IsWhiteSpaceSingleLine(ch)) {
       break;
     }
@@ -14427,14 +14429,14 @@ export function skipWhiteSpaceSingleLine(text: string, pos: $rt.Ptr<number> | un
   }
 }
 export function matchWhiteSpaceSingleLine(text: string, pos: $rt.Ptr<number> | undefined): boolean {
-  let startPos: number = pos!.get();
+  const startPos: number = pos!.get();
   skipWhiteSpaceSingleLine(text, pos);
   return !(pos!.get() === startPos);
 }
 export function matchRune(text: string, pos: $rt.Ptr<number> | undefined, expected: number): boolean {
   const $t1 = $rt.utf8_DecodeRuneInStringAt(text, pos!.get());
-  let ch: number = $t1[0];
-  let size: number = $t1[1];
+  const ch: number = $t1[0];
+  const size: number = $t1[1];
   if (ch === expected) {
     pos!.set(pos!.get() + size);
     return true;
@@ -14449,8 +14451,8 @@ export function matchString(text: string, pos: $rt.Ptr<number> | undefined, expe
       return false;
     }
     const $t1 = $rt.utf8_DecodeRuneInStringAt(expected, expectedPos);
-    let expectedRune: number = $t1[0];
-    let expectedSize: number = $t1[1];
+    const expectedRune: number = $t1[0];
+    const expectedSize: number = $t1[1];
     if (
       !matchRune(
         text,
@@ -14508,8 +14510,8 @@ export function matchQuotedString(text: string, pos: $rt.Ptr<number> | undefined
   }
   for (; textPos < text.length;) {
     const $t2 = $rt.utf8_DecodeRuneInStringAt(text, textPos);
-    let ch: number = $t2[0];
-    let size: number = $t2[1];
+    const ch: number = $t2[0];
+    const size: number = $t2[1];
     textPos += size;
     if (ch === quoteChar) {
       pos!.set(textPos);
@@ -14779,7 +14781,7 @@ export function IsRecognizedTripleSlashComment(text: string, commentRange: $ast.
         }
       }
     }
-    let index: number = $rt.strings_IndexFrom(text, pos, '/>');
+    const index: number = $rt.strings_IndexFrom(text, pos, '/>');
     return !(index === (-1 as number));
   }
   return false;
@@ -14801,11 +14803,11 @@ export function IsPinnedComment(text: string, comment: $ast.CommentRange): boole
 }
 export function calculateIndent(text: string, pos: number, end: number): number {
   let currentLineIndent: number = 0;
-  let indentSize: number = GetDefaultIndentSize();
+  const indentSize: number = GetDefaultIndentSize();
   for (; pos < end;) {
     const $t1 = $rt.utf8_DecodeRuneInStringAt(text, pos);
-    let ch: number = $t1[0];
-    let size: number = $t1[1];
+    const ch: number = $t1[0];
+    const size: number = $t1[1];
     if (!$stringutil.IsWhiteSpaceSingleLine(ch)) {
       break;
     }

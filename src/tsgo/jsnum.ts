@@ -151,7 +151,7 @@ export function Number$toUint32(x: Number_): number {
 export function Number$toInt32(n: Number_): number {
   let x: number = n;
   {
-    let smi: number = Math.trunc(x) | 0;
+    const smi: number = Math.trunc(x) | 0;
     if (smi === x) {
       return smi;
     }
@@ -224,8 +224,8 @@ export function Number$Exponentiate(base: Number_, exponent: Number_): Number_ {
       }
     }
   }
-  let b: number = base;
-  let e: number = exponent;
+  const b: number = base;
+  const e: number = exponent;
   if (
     b >= -9.223372036854776e18 &&
     b <= 9.223372036854776e18 &&
@@ -235,15 +235,15 @@ export function Number$Exponentiate(base: Number_, exponent: Number_): Number_ {
     e === $rt.math_Trunc(e) &&
     !$rt.math_IsInf(e, 0)
   ) {
-    let magnitude: number = e * $rt.math_Log2($rt.math_Abs(b));
+    const magnitude: number = e * $rt.math_Log2($rt.math_Abs(b));
     if (magnitude > 53 && magnitude <= $rt.math_Log2(1.7976931348623157e308)) {
-      let ri: $rt.math_big_Int | undefined = new $rt.math_big_Int()!.Exp(
+      const ri: $rt.math_big_Int | undefined = new $rt.math_big_Int()!.Exp(
         $rt.math_big_NewInt(Math.trunc(b)),
         $rt.math_big_NewInt(Math.trunc(e)),
         undefined,
       );
       const $t2 = new $rt.math_big_Float()!.SetPrec(256)!.SetInt(ri)!.Float64();
-      let result: number = $t2[0];
+      const result: number = $t2[0];
       return result;
     }
   }
@@ -256,7 +256,7 @@ export function NewPseudoBigInt(value: string, negative: boolean): PseudoBigInt 
 export function ParseValidBigInt(text: string): PseudoBigInt {
   const $t1 = $rt.strings_CutPrefix(text, '-');
   text = $t1[0];
-  let negative: boolean = $t1[1];
+  const negative: boolean = $t1[1];
   return NewPseudoBigInt(ParsePseudoBigInt(text), negative);
 }
 export function ParsePseudoBigInt(stringValue: string): string {
@@ -285,8 +285,8 @@ export function ParsePseudoBigInt(stringValue: string): string {
     }
   }
   const $t1 = new $rt.math_big_Int()!.SetString(stringValue, 0);
-  let bi: $rt.math_big_Int | undefined = $t1[0];
-  let ok: boolean = $t1[1];
+  const bi: $rt.math_big_Int | undefined = $t1[0];
+  const ok: boolean = $t1[1];
   if (!ok) {
     throw $rt.newPanic(
       new $rt.BoxStr($rt.fmt_Sprintf('Failed to parse big int: %q', [new $rt.BoxStr(stringValue, 'string')]), 'string'),
@@ -309,7 +309,7 @@ export function Number$String(n: Number_): string {
   }
   if (-9.007199254740991e15 <= n && n <= 9.007199254740991e15) {
     {
-      let i: number = Math.trunc(n);
+      const i: number = Math.trunc(n);
       if (i === n) {
         return $rt.strconv_FormatInt(i, 10);
       }
@@ -319,7 +319,7 @@ export function Number$String(n: Number_): string {
     new $rt.BoxNum(n, 'float64'),
     [] as ($rt.github_com_go_json_experiment_json_internal_jsonopts_Options | undefined)[],
   );
-  let b: number[] = $t2[0];
+  const b: number[] = $t2[0];
   return $rt.bytesToString(b);
 }
 export function FromString(s: string): Number_ {
@@ -342,7 +342,7 @@ export function FromString(s: string): Number_ {
     const $t1 = s;
     for (let $t2 = 0, $t3 = 0; $t2 < $t1.length; $t2 += $t3) {
       $t3 = $rt.utf8_DecodeRuneInStringAt($t1, $t2)[1];
-      let r = $rt.utf8_DecodeRuneInStringAt($t1, $t2)[0];
+      const r = $rt.utf8_DecodeRuneInStringAt($t1, $t2)[0];
       if (!isNumberRune(r)) {
         return NaN();
       }
@@ -350,27 +350,27 @@ export function FromString(s: string): Number_ {
   }
   {
     const $t4 = tryParseInt(s);
-    let n: Number_ = $t4[0];
-    let ok: boolean = $t4[1];
+    const n: Number_ = $t4[0];
+    const ok: boolean = $t4[1];
     if (ok) {
       return n;
     }
   }
   const $t5 = $rt.strings_CutPrefix(s, '-');
   s = $t5[0];
-  let negative: boolean = $t5[1];
+  const negative: boolean = $t5[1];
   if (!negative) {
     const $t6 = $rt.strings_CutPrefix(s, '+');
     s = $t6[0];
   }
   {
     const $t7 = $rt.unicode_utf8_DecodeRuneInString(s);
-    let first: number = $t7[0];
+    const first: number = $t7[0];
     if (!$stringutil.IsDigit(first) && !(first === (46 as number))) {
       return NaN();
     }
   }
-  let f: number = parseFloatString(s);
+  const f: number = parseFloatString(s);
   if ($rt.math_IsNaN(f)) {
     return NaN();
   }
@@ -406,8 +406,8 @@ export function tryParseInt(s: string): [Number_, boolean] {
   if (s.length > 2) {
     const $t1 = s.substring(0, 2);
     const $t2 = s.substring(2);
-    let prefix: string = $t1;
-    let rest: string = $t2;
+    const prefix: string = $t1;
+    const rest: string = $t2;
     {
       switch (prefix) {
         case '0b' as string:
@@ -460,13 +460,13 @@ export function tryParseInt(s: string): [Number_, boolean] {
     return [i, true];
   }
   const $t7 = new $rt.math_big_Int()!.SetString(s, 0);
-  let bi: $rt.math_big_Int | undefined = $t7[0];
-  let ok: boolean = $t7[1];
+  const bi: $rt.math_big_Int | undefined = $t7[0];
+  const ok: boolean = $t7[1];
   if (!ok) {
     return [NaN(), true];
   }
   const $t8 = bi!.Float64();
-  let f: number = $t8[0];
+  const f: number = $t8[0];
   return [f, true];
 }
 export function parseFloatString(s: string): number {
@@ -491,7 +491,7 @@ export function parseFloatString(s: string): number {
     c = $t3[1];
     hasExp = $t3[2];
   }
-  let sb: $rt.strings_Builder = new $rt.strings_Builder();
+  const sb: $rt.strings_Builder = new $rt.strings_Builder();
   sb.Grow(a.length + b.length + c.length + 3);
   if (a === ('' as string)) {
     if (hasDot && b === ('' as string)) {
@@ -524,7 +524,7 @@ export function parseFloatString(s: string): number {
     sb.WriteString('e');
     const $t4 = $rt.strings_CutPrefix(c, '-');
     let c$1: string = $t4[0];
-    let negative: boolean = $t4[1];
+    const negative: boolean = $t4[1];
     if (negative) {
       sb.WriteString('-');
     } else {
@@ -544,12 +544,12 @@ export function cutAny(s: string, cutset: string): [string, string, boolean] {
   let after: string = '';
   let found: boolean = false;
   {
-    let i: number = $rt.strings_IndexAny(s, cutset);
+    const i: number = $rt.strings_IndexAny(s, cutset);
     if (i >= 0) {
       before = s.substring(0, i);
-      let afterAndFound: string = s.substring(i);
+      const afterAndFound: string = s.substring(i);
       const $t1 = $rt.unicode_utf8_DecodeRuneInString(afterAndFound);
-      let size: number = $t1[1];
+      const size: number = $t1[1];
       after = afterAndFound.substring(size);
       return [before, after, true];
     }
@@ -577,8 +577,8 @@ export function trimTrailingZeros(s: string): string {
 export function stringToFloat64(s: string): number {
   {
     const $t1 = $rt.strconv_ParseFloat(s, 64);
-    let f: number = $t1[0];
-    let err: $rt.GoObject | undefined = $t1[1];
+    const f: number = $t1[0];
+    const err: $rt.GoObject | undefined = $t1[1];
     if (err === undefined) {
       return f;
     } else {
@@ -594,7 +594,7 @@ export function isAllDigits(s: string): boolean {
     const $t1 = s;
     for (let $t2 = 0, $t3 = 0; $t2 < $t1.length; $t2 += $t3) {
       $t3 = $rt.utf8_DecodeRuneInStringAt($t1, $t2)[1];
-      let r = $rt.utf8_DecodeRuneInStringAt($t1, $t2)[0];
+      const r = $rt.utf8_DecodeRuneInStringAt($t1, $t2)[0];
       if (!$stringutil.IsDigit(r)) {
         return false;
       }
@@ -607,7 +607,7 @@ export function isAllBinaryDigits(s: string): boolean {
     const $t1 = s;
     for (let $t2 = 0, $t3 = 0; $t2 < $t1.length; $t2 += $t3) {
       $t3 = $rt.utf8_DecodeRuneInStringAt($t1, $t2)[1];
-      let r = $rt.utf8_DecodeRuneInStringAt($t1, $t2)[0];
+      const r = $rt.utf8_DecodeRuneInStringAt($t1, $t2)[0];
       if (!(r === (48 as number)) && !(r === (49 as number))) {
         return false;
       }
@@ -620,7 +620,7 @@ export function isAllOctalDigits(s: string): boolean {
     const $t1 = s;
     for (let $t2 = 0, $t3 = 0; $t2 < $t1.length; $t2 += $t3) {
       $t3 = $rt.utf8_DecodeRuneInStringAt($t1, $t2)[1];
-      let r = $rt.utf8_DecodeRuneInStringAt($t1, $t2)[0];
+      const r = $rt.utf8_DecodeRuneInStringAt($t1, $t2)[0];
       if (!$stringutil.IsOctalDigit(r)) {
         return false;
       }
@@ -633,7 +633,7 @@ export function isAllHexDigits(s: string): boolean {
     const $t1 = s;
     for (let $t2 = 0, $t3 = 0; $t2 < $t1.length; $t2 += $t3) {
       $t3 = $rt.utf8_DecodeRuneInStringAt($t1, $t2)[1];
-      let r = $rt.utf8_DecodeRuneInStringAt($t1, $t2)[0];
+      const r = $rt.utf8_DecodeRuneInStringAt($t1, $t2)[0];
       if (!$stringutil.IsHexDigit(r)) {
         return false;
       }

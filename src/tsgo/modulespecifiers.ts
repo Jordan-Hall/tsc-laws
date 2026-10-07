@@ -392,8 +392,8 @@ export function usesExtensionsOnImports(file: SourceFileForSpecifierGeneration):
   {
     const $t1 = file!.Imports();
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let ref = $t1[$t2];
-      let text: string = ref!.Text$Node();
+      const ref = $t1[$t2];
+      const text: string = ref!.Text$Node();
       if (
         $tspath.PathIsRelative(text) &&
         !$tspath.FileExtensionIsOneOf(text, $tspath.ExtensionsNotSupportingExtensionlessResolution)
@@ -418,8 +418,8 @@ export function inferPreference(
   {
     const $t1 = specifiers;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let specifier = $t1[$t2];
-      let path: string = specifier!.Text$Node();
+      const specifier = $t1[$t2];
+      const path: string = specifier!.Text$Node();
       if ($tspath.PathIsRelative(path)) {
         if (moduleResolutionIsNodeNext && resolutionMode === (1 as number)) {
           continue;
@@ -447,8 +447,8 @@ export function getModuleSpecifierEndingPreference(
   compilerOptions: $core.CompilerOptions | undefined,
   sourceFile: SourceFileForSpecifierGeneration,
 ): ModuleSpecifierEnding {
-  let moduleResolution: $core.ModuleResolutionKind = compilerOptions!.GetModuleResolutionKind();
-  let moduleResolutionIsNodeNext: boolean = 3 <= moduleResolution && moduleResolution <= 99;
+  const moduleResolution: $core.ModuleResolutionKind = compilerOptions!.GetModuleResolutionKind();
+  const moduleResolutionIsNodeNext: boolean = 3 <= moduleResolution && moduleResolution <= 99;
   if (pref === ('js' as string) || (resolutionMode === (99 as number) && moduleResolutionIsNodeNext)) {
     if (!shouldAllowImportingTsExtension(compilerOptions, '')) {
       return 2;
@@ -514,7 +514,7 @@ export function GetAllowedEndingsInPreferredOrder(
     oldImportSpecifier,
     0,
   );
-  let resolutionMode: $core.ResolutionMode = host!.GetDefaultResolutionModeForFile(
+  const resolutionMode: $core.ResolutionMode = host!.GetDefaultResolutionModeForFile(
     importingSourceFile as unknown as $ast.HasFileName,
   );
   if (!(resolutionMode === syntaxImpliedNodeFormat)) {
@@ -527,9 +527,9 @@ export function GetAllowedEndingsInPreferredOrder(
       syntaxImpliedNodeFormat,
     );
   }
-  let moduleResolution: $core.ModuleResolutionKind = compilerOptions!.GetModuleResolutionKind();
-  let moduleResolutionIsNodeNext: boolean = 3 <= moduleResolution && moduleResolution <= 99;
-  let allowImportingTsExtension: boolean = shouldAllowImportingTsExtension(
+  const moduleResolution: $core.ModuleResolutionKind = compilerOptions!.GetModuleResolutionKind();
+  const moduleResolutionIsNodeNext: boolean = 3 <= moduleResolution && moduleResolution <= 99;
+  const allowImportingTsExtension: boolean = shouldAllowImportingTsExtension(
     compilerOptions,
     importingSourceFile!.FileName(),
   );
@@ -584,7 +584,7 @@ export function getModuleSpecifierPreferences(
   importingSourceFile: SourceFileForSpecifierGeneration,
   oldImportSpecifier: string,
 ): ModuleSpecifierPreferences {
-  let excludes: string[] = prefs.AutoImportSpecifierExcludeRegexes;
+  const excludes: string[] = prefs.AutoImportSpecifierExcludeRegexes;
   let relativePreference: RelativePreferenceKind = 2;
   if (oldImportSpecifier.length > 0) {
     if ($tspath.IsExternalModuleNameRelative(oldImportSpecifier)) {
@@ -610,7 +610,7 @@ export function getModuleSpecifierPreferences(
       }
     }
   }
-  let getAllowedEndingsInPreferredOrder: ((p0: $core.ResolutionMode) => ModuleSpecifierEnding[]) | undefined = (
+  const getAllowedEndingsInPreferredOrder: ((p0: $core.ResolutionMode) => ModuleSpecifierEnding[]) | undefined = (
     syntaxImpliedNodeFormat: $core.ResolutionMode,
   ): ModuleSpecifierEnding[] => {
     return GetAllowedEndingsInPreferredOrder(
@@ -648,7 +648,7 @@ export function GetModuleSpecifiers(
     options,
     forAutoImports,
   );
-  let result: string[] = $t1[0];
+  const result: string[] = $t1[0];
   return result;
 }
 export function GetModuleSpecifiersWithInfo(
@@ -661,18 +661,18 @@ export function GetModuleSpecifiersWithInfo(
   options: ModuleSpecifierOptions,
   forAutoImports: boolean,
 ): [string[], ResultKind] {
-  let ambient: string = tryGetModuleNameFromAmbientModule(moduleSymbol, checker);
+  const ambient: string = tryGetModuleNameFromAmbientModule(moduleSymbol, checker);
   if (ambient.length > 0) {
     if (forAutoImports && IsExcludedByRegex(ambient, userPreferences.AutoImportSpecifierExcludeRegexes)) {
       return [[], 5];
     }
     return [[ambient], 5];
   }
-  let moduleSourceFile: $ast.SourceFile | undefined = $ast.GetSourceFileOfModule(moduleSymbol);
+  const moduleSourceFile: $ast.SourceFile | undefined = $ast.GetSourceFileOfModule(moduleSymbol);
   if (moduleSourceFile === undefined) {
     return [[], 0];
   }
-  let moduleFileName: string = host!.GetSourceOfProjectReferenceIfOutputIncluded(moduleSourceFile);
+  const moduleFileName: string = host!.GetSourceOfProjectReferenceIfOutputIncluded(moduleSourceFile);
   return GetModuleSpecifiersForFileWithInfo(
     importingSourceFile,
     moduleFileName,
@@ -692,7 +692,7 @@ export function GetModuleSpecifiersForFileWithInfo(
   options: ModuleSpecifierOptions,
   forAutoImports: boolean,
 ): [string[], ResultKind] {
-  let modulePaths: ModulePath[] = getAllModulePathsWorker(
+  const modulePaths: ModulePath[] = getAllModulePathsWorker(
     getInfo(
       host!.GetSourceOfProjectReferenceIfOutputIncluded(importingSourceFile as unknown as $ast.HasFileName),
       host,
@@ -719,7 +719,7 @@ export function tryGetModuleNameFromAmbientModule(
   {
     const $t1 = moduleSymbol!.Declarations;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let decl = $t1[$t2];
+      const decl = $t1[$t2];
       if (
         $ast.IsModuleWithStringLiteralName(decl) &&
         (!$ast.IsModuleAugmentationExternal(decl) ||
@@ -732,11 +732,11 @@ export function tryGetModuleNameFromAmbientModule(
   {
     const $t3 = moduleSymbol!.Declarations;
     for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
-      let d = $t3[$t4];
+      const d = $t3[$t4];
       if (!$ast.IsModuleDeclaration(d)) {
         continue;
       }
-      let possibleContainer: $ast.Node | undefined = $ast.FindAncestor(d, $ast.IsModuleWithStringLiteralName);
+      const possibleContainer: $ast.Node | undefined = $ast.FindAncestor(d, $ast.IsModuleWithStringLiteralName);
       if (
         possibleContainer === undefined ||
         possibleContainer!.Parent === undefined ||
@@ -746,12 +746,12 @@ export function tryGetModuleNameFromAmbientModule(
       }
       const $t5 = possibleContainer!.Symbol$m()!.Exports;
       const $t6 = 'export=';
-      let sym: $ast.Symbol_ | undefined = $t5?.get($t6) ?? undefined;
-      let ok: boolean = $t5 !== undefined && $t5.has($t6);
+      const sym: $ast.Symbol_ | undefined = $t5?.get($t6) ?? undefined;
+      const ok: boolean = $t5 !== undefined && $t5.has($t6);
       if (!ok || sym === undefined) {
         continue;
       }
-      let exportAssignmentDecl: $ast.Node | undefined = sym!.ValueDeclaration;
+      const exportAssignmentDecl: $ast.Node | undefined = sym!.ValueDeclaration;
       if (exportAssignmentDecl === undefined || !(exportAssignmentDecl!.Kind_ === (278 as number))) {
         continue;
       }
@@ -770,7 +770,7 @@ export function tryGetModuleNameFromAmbientModule(
   return '';
 }
 export function getInfo(importingSourceFileName: string, host: ModuleSpecifierGenerationHost): Info {
-  let sourceDirectory: string = $tspath.GetDirectoryPath(importingSourceFileName);
+  const sourceDirectory: string = $tspath.GetDirectoryPath(importingSourceFileName);
   return Info.$lit_modulespecifiers_Info_1_2_0(
     importingSourceFileName,
     sourceDirectory,
@@ -785,7 +785,7 @@ export function getAllModulePaths(
   preferences: UserPreferences,
   options: ModuleSpecifierOptions,
 ): ModulePath[] {
-  let modulePaths: ModulePath[] = getAllModulePathsWorker(info, importedFileName, host, compilerOptions, options);
+  const modulePaths: ModulePath[] = getAllModulePathsWorker(info, importedFileName, host, compilerOptions, options);
   return modulePaths;
 }
 export function getAllModulePathsWorker(
@@ -795,17 +795,17 @@ export function getAllModulePathsWorker(
   compilerOptions: $core.CompilerOptions | undefined,
   options: ModuleSpecifierOptions,
 ): ModulePath[] {
-  let allFileNames: Map<string, ModulePath> | undefined = new Map<string, ModulePath>();
-  let paths: ModulePath[] = GetEachFileNameOfModule(info.ImportingSourceFileName, importedFileName, host, true);
+  const allFileNames: Map<string, ModulePath> | undefined = new Map<string, ModulePath>();
+  const paths: ModulePath[] = GetEachFileNameOfModule(info.ImportingSourceFileName, importedFileName, host, true);
   {
     const $t1 = paths;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let p = $t1[$t2];
+      const p = $t1[$t2];
       allFileNames!.set(p.FileName, p);
     }
   }
-  let useCaseSensitiveFileNames: boolean = info.UseCaseSensitiveFileNames;
-  let comparePaths: ((p0: ModulePath, p1: ModulePath) => number) | undefined = (
+  const useCaseSensitiveFileNames: boolean = info.UseCaseSensitiveFileNames;
+  const comparePaths: ((p0: ModulePath, p1: ModulePath) => number) | undefined = (
     a: ModulePath,
     b: ModulePath,
   ): number => {
@@ -814,7 +814,7 @@ export function getAllModulePathsWorker(
   let sortedPaths: ModulePath[] = [] as ModulePath[];
   {
     for (let directory: string = info.SourceDirectory; !($rt.mapLen(allFileNames) === (0 as number));) {
-      let directoryStart: string = $tspath.EnsureTrailingDirectorySeparator(directory);
+      const directoryStart: string = $tspath.EnsureTrailingDirectorySeparator(directory);
       let pathsInDirectory: ModulePath[] = [];
       for (const [fileName, p$1] of allFileNames ?? new Map<string, ModulePath>()) {
         if ($rt.strings_HasPrefix(fileName, directoryStart)) {
@@ -826,7 +826,7 @@ export function getAllModulePathsWorker(
         $rt.slices_SortFunc(pathsInDirectory, comparePaths);
         $rt.appendInto(sortedPaths, pathsInDirectory);
       }
-      let newDirectory: string = $tspath.GetDirectoryPath(directory);
+      const newDirectory: string = $tspath.GetDirectoryPath(directory);
       if (newDirectory === directory) {
         break;
       }
@@ -834,7 +834,7 @@ export function getAllModulePathsWorker(
     }
   }
   if ($rt.mapLen(allFileNames) > 0) {
-    let remainingPaths: ModulePath[] = $rt.slices_Collect($rt.maps_Values(allFileNames));
+    const remainingPaths: ModulePath[] = $rt.slices_Collect($rt.maps_Values(allFileNames));
     $rt.slices_SortFunc(remainingPaths, comparePaths);
     $rt.appendInto(sortedPaths, remainingPaths);
   }
@@ -854,22 +854,22 @@ export function GetEachFileNameOfModule(
   host: ModuleSpecifierGenerationHost,
   preferSymlinks: boolean,
 ): ModulePath[] {
-  let cwd: string = host!.GetCurrentDirectory();
-  let importedPath: $tspath.Path = $tspath.ToPath(importedFileName, cwd, host!.UseCaseSensitiveFileNames());
+  const cwd: string = host!.GetCurrentDirectory();
+  const importedPath: $tspath.Path = $tspath.ToPath(importedFileName, cwd, host!.UseCaseSensitiveFileNames());
   let referenceRedirect: string = '';
-  let outputAndReference: $tsoptions.SourceOutputAndProjectReference | undefined =
+  const outputAndReference: $tsoptions.SourceOutputAndProjectReference | undefined =
     host!.GetProjectReferenceFromSource(importedPath);
   if (!(outputAndReference === undefined) && !(outputAndReference!.OutputDts === ('' as string))) {
     referenceRedirect = outputAndReference!.OutputDts;
   }
-  let redirects: string[] = host!.GetRedirectTargets(importedPath);
+  const redirects: string[] = host!.GetRedirectTargets(importedPath);
   let importedFileNames: string[] = [] as string[];
   if (referenceRedirect.length > 0) {
     importedFileNames.push(referenceRedirect);
   }
   importedFileNames.push(importedFileName);
   $rt.appendInto(importedFileNames, redirects);
-  let targets: string[] = $core.Map_<string, string>($zf0, importedFileNames, (f: string): string => {
+  const targets: string[] = $core.Map_<string, string>($zf0, importedFileNames, (f: string): string => {
     return $tspath.GetNormalizedAbsolutePath(f, cwd);
   });
   let shouldFilterIgnoredPaths: boolean = !$core.Every<string>(targets, containsIgnoredPath);
@@ -878,7 +878,7 @@ export function GetEachFileNameOfModule(
     {
       const $t1 = targets;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        let p = $t1[$t2];
+        const p = $t1[$t2];
         if (!(shouldFilterIgnoredPaths && containsIgnoredPath(p))) {
           results.push(
             ModulePath.$lit_modulespecifiers_ModulePath_0_1_2(p, ContainsNodeModules(p), referenceRedirect === p),
@@ -887,8 +887,8 @@ export function GetEachFileNameOfModule(
       }
     }
   }
-  let symlinkCache: $symlinks.KnownSymlinks | undefined = host!.GetSymlinkCache();
-  let fullImportedFileName: string = $tspath.GetNormalizedAbsolutePath(importedFileName, cwd);
+  const symlinkCache: $symlinks.KnownSymlinks | undefined = host!.GetSymlinkCache();
+  const fullImportedFileName: string = $tspath.GetNormalizedAbsolutePath(importedFileName, cwd);
   if (!(symlinkCache === undefined)) {
     $tspath.ForEachAncestorDirectoryStoppingAtGlobalCache<boolean>(
       $zf1,
@@ -902,8 +902,8 @@ export function GetEachFileNameOfModule(
               $tspath.ToPath(realPathDirectory, cwd, host!.UseCaseSensitiveFileNames()),
             ),
           );
-        let symlinkSet: $collections.SyncSet<string> | undefined = $t3[0];
-        let ok: boolean = $t3[1];
+        const symlinkSet: $collections.SyncSet<string> | undefined = $t3[0];
+        const ok: boolean = $t3[1];
         if (!ok) {
           return [false, false];
         }
@@ -913,17 +913,17 @@ export function GetEachFileNameOfModule(
         {
           const $t4 = targets;
           for (let $t5 = 0, $n = $t4.length; $t5 < $n; $t5++) {
-            let target = $t4[$t5];
+            const target = $t4[$t5];
             if (!$tspath.StartsWithDirectory(target, realPathDirectory, host!.UseCaseSensitiveFileNames())) {
               continue;
             }
-            let relative: string = $tspath.GetRelativePathFromDirectory(
+            const relative: string = $tspath.GetRelativePathFromDirectory(
               realPathDirectory,
               target,
               $tspath.ComparePathsOptions.$lit_tspath_ComparePathsOptions_0_1(host!.UseCaseSensitiveFileNames(), cwd),
             );
             symlinkSet!.Range((symlinkDirectory: string): boolean => {
-              let option: string = $tspath.ResolvePath(symlinkDirectory, [relative]);
+              const option: string = $tspath.ResolvePath(symlinkDirectory, [relative]);
               results.push(
                 ModulePath.$lit_modulespecifiers_ModulePath_0_1_2(
                   option,
@@ -944,7 +944,7 @@ export function GetEachFileNameOfModule(
     {
       const $t6 = targets;
       for (let $t7 = 0, $n = $t6.length; $t7 < $n; $t7++) {
-        let p$1 = $t6[$t7];
+        const p$1 = $t6[$t7];
         if (!(shouldFilterIgnoredPaths && containsIgnoredPath(p$1))) {
           results.push(
             ModulePath.$lit_modulespecifiers_ModulePath_0_1_2(p$1, ContainsNodeModules(p$1), referenceRedirect === p$1),
@@ -964,8 +964,8 @@ export function computeModuleSpecifiers(
   options: ModuleSpecifierOptions,
   forAutoImport: boolean,
 ): [string[], ResultKind] {
-  let info: Info = getInfo(importingSourceFile!.FileName(), host);
-  let preferences: ModuleSpecifierPreferences = getModuleSpecifierPreferences(
+  const info: Info = getInfo(importingSourceFile!.FileName(), host);
+  const preferences: ModuleSpecifierPreferences = getModuleSpecifierPreferences(
     userPreferences,
     host,
     compilerOptions,
@@ -976,8 +976,8 @@ export function computeModuleSpecifiers(
   {
     const $t1 = modulePaths;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let modulePath = $t1[$t2];
-      let targetPath: $tspath.Path = $tspath.ToPath(
+      const modulePath = $t1[$t2];
+      const targetPath: $tspath.Path = $tspath.ToPath(
         modulePath.FileName,
         host!.GetCurrentDirectory(),
         info.UseCaseSensitiveFileNames,
@@ -986,8 +986,8 @@ export function computeModuleSpecifiers(
       {
         const $t3 = importingSourceFile!.Imports();
         for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
-          let importSpecifier = $t3[$t4];
-          let resolvedModule: $module.ResolvedModule | undefined = host!.GetResolvedModuleFromModuleSpecifier(
+          const importSpecifier = $t3[$t4];
+          const resolvedModule: $module.ResolvedModule | undefined = host!.GetResolvedModuleFromModuleSpecifier(
             importingSourceFile as unknown as $ast.HasFileName,
             importSpecifier,
           );
@@ -1008,7 +1008,7 @@ export function computeModuleSpecifiers(
         if (preferences.relativePreference === (1 as number) && $tspath.PathIsRelative(existingImport!.Text$Node())) {
           continue;
         }
-        let existingMode: $core.ResolutionMode = host!.GetModeForUsageLocation(
+        const existingMode: $core.ResolutionMode = host!.GetModeForUsageLocation(
           importingSourceFile as unknown as $ast.HasFileName,
           existingImport,
         );
@@ -1027,7 +1027,7 @@ export function computeModuleSpecifiers(
   if (!(existingSpecifier === ('' as string))) {
     return [[existingSpecifier], 0];
   }
-  let importedFileIsInNodeModules: boolean = $core.Some<ModulePath>(modulePaths, $fn1);
+  const importedFileIsInNodeModules: boolean = $core.Some<ModulePath>(modulePaths, $fn1);
   let pathsSpecifiers: string[] = [];
   let redirectPathsSpecifiers: string[] = [];
   let nodeModulesSpecifiers: string[] = [];
@@ -1035,7 +1035,7 @@ export function computeModuleSpecifiers(
   {
     const $t5 = modulePaths;
     for (let $t6 = 0, $n = $t5.length; $t6 < $n; $t6++) {
-      let modulePath$1 = $t5[$t6];
+      const modulePath$1 = $t5[$t6];
       let specifier: string = '';
       if (modulePath$1.IsInNodeModules) {
         specifier = tryGetModuleNameAsNodeModule(
@@ -1059,7 +1059,7 @@ export function computeModuleSpecifiers(
       if (importMode === (0 as number)) {
         importMode = host!.GetDefaultResolutionModeForFile(importingSourceFile as unknown as $ast.HasFileName);
       }
-      let local: string = getLocalModuleSpecifier(
+      const local: string = getLocalModuleSpecifier(
         modulePath$1.FileName,
         info,
         compilerOptions,
@@ -1104,13 +1104,13 @@ export function getLocalModuleSpecifier(
   preferences: ModuleSpecifierPreferences,
   pathsOnly: boolean,
 ): string {
-  let paths: $collections.OrderedMap<string, string[]> | undefined = compilerOptions!.Paths;
-  let rootDirs: string[] = compilerOptions!.RootDirs;
+  const paths: $collections.OrderedMap<string, string[]> | undefined = compilerOptions!.Paths;
+  const rootDirs: string[] = compilerOptions!.RootDirs;
   if (pathsOnly && paths === undefined) {
     return '';
   }
-  let sourceDirectory: string = info.SourceDirectory;
-  let allowedEndings: ModuleSpecifierEnding[] = preferences.getAllowedEndingsInPreferredOrder!(importMode);
+  const sourceDirectory: string = info.SourceDirectory;
+  const allowedEndings: ModuleSpecifierEnding[] = preferences.getAllowedEndingsInPreferredOrder!(importMode);
   let relativePath: string = '';
   if (rootDirs.length > 0) {
     relativePath = tryGetModuleNameFromRootDirs(
@@ -1148,9 +1148,9 @@ export function getLocalModuleSpecifier(
     }
     return relativePath;
   }
-  let root: string = compilerOptions!.GetPathsBasePath(host!.GetCurrentDirectory());
-  let baseDirectory: string = $tspath.GetNormalizedAbsolutePath(root, host!.GetCurrentDirectory());
-  let relativeToBaseUrl: string = getRelativePathIfInSameVolume(
+  const root: string = compilerOptions!.GetPathsBasePath(host!.GetCurrentDirectory());
+  const baseDirectory: string = $tspath.GetNormalizedAbsolutePath(root, host!.GetCurrentDirectory());
+  const relativeToBaseUrl: string = getRelativePathIfInSameVolume(
     moduleFileName,
     baseDirectory,
     host!.UseCaseSensitiveFileNames(),
@@ -1195,8 +1195,8 @@ export function getLocalModuleSpecifier(
   if (maybeNonRelative.length === (0 as number)) {
     return relativePath;
   }
-  let relativeIsExcluded: boolean = IsExcludedByRegex(relativePath, preferences.excludeRegexes);
-  let nonRelativeIsExcluded: boolean = IsExcludedByRegex(maybeNonRelative, preferences.excludeRegexes);
+  const relativeIsExcluded: boolean = IsExcludedByRegex(relativePath, preferences.excludeRegexes);
+  const nonRelativeIsExcluded: boolean = IsExcludedByRegex(maybeNonRelative, preferences.excludeRegexes);
   if (!relativeIsExcluded && nonRelativeIsExcluded) {
     return relativePath;
   }
@@ -1221,21 +1221,25 @@ export function getLocalModuleSpecifier(
         host!.UseCaseSensitiveFileNames(),
       );
     }
-    let canonicalSourceDirectory: $tspath.Path = $tspath.ToPath(
+    const canonicalSourceDirectory: $tspath.Path = $tspath.ToPath(
       sourceDirectory,
       host!.GetCurrentDirectory(),
       host!.UseCaseSensitiveFileNames(),
     );
-    let modulePath: $tspath.Path = $tspath.ToPath(moduleFileName, projectDirectory, host!.UseCaseSensitiveFileNames());
-    let sourceIsInternal: boolean = $tspath.Path$ContainsPath(projectDirectory, canonicalSourceDirectory);
-    let targetIsInternal: boolean = $tspath.Path$ContainsPath(projectDirectory, modulePath);
+    const modulePath: $tspath.Path = $tspath.ToPath(
+      moduleFileName,
+      projectDirectory,
+      host!.UseCaseSensitiveFileNames(),
+    );
+    const sourceIsInternal: boolean = $tspath.Path$ContainsPath(projectDirectory, canonicalSourceDirectory);
+    const targetIsInternal: boolean = $tspath.Path$ContainsPath(projectDirectory, modulePath);
     if ((sourceIsInternal && !targetIsInternal) || (!sourceIsInternal && targetIsInternal)) {
       return maybeNonRelative;
     }
-    let nearestTargetPackageJson: string = host!.GetNearestAncestorDirectoryWithPackageJson(
+    const nearestTargetPackageJson: string = host!.GetNearestAncestorDirectoryWithPackageJson(
       $tspath.GetDirectoryPath(modulePath),
     );
-    let nearestSourcePackageJson: string = host!.GetNearestAncestorDirectoryWithPackageJson(sourceDirectory);
+    const nearestSourcePackageJson: string = host!.GetNearestAncestorDirectoryWithPackageJson(sourceDirectory);
     if (
       !packageJsonPathsAreEqual(
         nearestTargetPackageJson,
@@ -1267,12 +1271,12 @@ export function processEnding(
   if ($tspath.FileExtensionIsOneOf(fileName, ['.json', '.mjs', '.cjs'])) {
     return fileName;
   }
-  let noExtension: string = $tspath.RemoveFileExtension(fileName);
+  const noExtension: string = $tspath.RemoveFileExtension(fileName);
   if (fileName === noExtension) {
     return fileName;
   }
-  let jsPriority: number = $rt.slices_Index(allowedEndings, 2);
-  let tsPriority: number = $rt.slices_Index(allowedEndings, 3);
+  const jsPriority: number = $rt.slices_Index(allowedEndings, 2);
+  const tsPriority: number = $rt.slices_Index(allowedEndings, 3);
   if (
     $tspath.FileExtensionIsOneOf(fileName, ['.mts', '.cts']) &&
     !(tsPriority === (-1 as number)) &&
@@ -1281,8 +1285,8 @@ export function processEnding(
     return fileName;
   }
   if ($tspath.FileExtensionIsOneOf(fileName, ['.d.mts', '.d.cts'])) {
-    let inputExt: string = $tspath.GetDeclarationFileExtension(fileName);
-    let ext: string = GetJSExtensionForDeclarationFileExtension(inputExt);
+    const inputExt: string = $tspath.GetDeclarationFileExtension(fileName);
+    const ext: string = GetJSExtensionForDeclarationFileExtension(inputExt);
     return $tspath.RemoveExtension(fileName, inputExt) + ext;
   }
   if ($tspath.FileExtensionIsOneOf(fileName, ['.mts', '.cts'])) {
@@ -1294,7 +1298,7 @@ export function processEnding(
     $rt.strings_Contains(fileName, '.d.')
   ) {
     {
-      let result: string = TryGetRealFileNameForNonJSDeclarationFileName(fileName);
+      const result: string = TryGetRealFileNameForNonJSDeclarationFileName(fileName);
       if (!(result === ('' as string))) {
         return result;
       }
@@ -1303,7 +1307,7 @@ export function processEnding(
   {
     switch (allowedEndings[0]) {
       case 0 as number: {
-        let withoutIndex: string = $rt.strings_TrimSuffix(noExtension, '/index');
+        const withoutIndex: string = $rt.strings_TrimSuffix(noExtension, '/index');
         if (!(host === undefined) && !(withoutIndex === noExtension) && tryGetAnyFileFromPath(host, withoutIndex)) {
           return noExtension;
         }
@@ -1321,8 +1325,8 @@ export function processEnding(
           {
             const $t1 = allowedEndings;
             for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-              let i = $t2;
-              let e = $t1[$t2];
+              const i = $t2;
+              const e = $t1[$t2];
               if (e === (0 as number) || e === (1 as number)) {
                 extensionlessPriority = i;
                 break;
@@ -1354,7 +1358,7 @@ export function tryGetModuleNameFromRootDirs(
   compilerOptions: $core.CompilerOptions | undefined,
   host: ModuleSpecifierGenerationHost,
 ): string {
-  let normalizedTargetPaths: string[] = getPathsRelativeToRootDirs(
+  const normalizedTargetPaths: string[] = getPathsRelativeToRootDirs(
     moduleFileName,
     rootDirs,
     host!.UseCaseSensitiveFileNames(),
@@ -1362,7 +1366,7 @@ export function tryGetModuleNameFromRootDirs(
   if (normalizedTargetPaths.length === (0 as number)) {
     return '';
   }
-  let normalizedSourcePaths: string[] = getPathsRelativeToRootDirs(
+  const normalizedSourcePaths: string[] = getPathsRelativeToRootDirs(
     sourceDirectory,
     rootDirs,
     host!.UseCaseSensitiveFileNames(),
@@ -1372,12 +1376,12 @@ export function tryGetModuleNameFromRootDirs(
   {
     const $t1 = normalizedSourcePaths;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let sourcePath = $t1[$t2];
+      const sourcePath = $t1[$t2];
       {
         const $t3 = normalizedTargetPaths;
         for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
-          let targetPath = $t3[$t4];
-          let candidate: string = ensurePathIsNonModuleName(
+          const targetPath = $t3[$t4];
+          const candidate: string = ensurePathIsNonModuleName(
             $tspath.GetRelativePathFromDirectory(
               sourcePath,
               targetPath,
@@ -1387,7 +1391,7 @@ export function tryGetModuleNameFromRootDirs(
               ),
             ),
           );
-          let candidateSepCount: number = $rt.strings_Count(candidate, '/');
+          const candidateSepCount: number = $rt.strings_Count(candidate, '/');
           if (shortest.length === (0 as number) || candidateSepCount < shortestSepCount) {
             shortest = candidate;
             shortestSepCount = candidateSepCount;
@@ -1411,26 +1415,26 @@ export function tryGetModuleNameAsNodeModule(
   packageNameOnly: boolean,
   overrideMode: $core.ResolutionMode,
 ): string {
-  let parts: NodeModulePathParts | undefined = GetNodeModulePathParts(pathObj.FileName);
+  const parts: NodeModulePathParts | undefined = GetNodeModulePathParts(pathObj.FileName);
   if (parts === undefined) {
     return '';
   }
-  let preferences: ModuleSpecifierPreferences = getModuleSpecifierPreferences(
+  const preferences: ModuleSpecifierPreferences = getModuleSpecifierPreferences(
     userPreferences,
     host,
     options,
     importingSourceFile,
     '',
   );
-  let allowedEndings: ModuleSpecifierEnding[] = preferences.getAllowedEndingsInPreferredOrder!(0);
-  let caseSensitive: boolean = host!.UseCaseSensitiveFileNames();
+  const allowedEndings: ModuleSpecifierEnding[] = preferences.getAllowedEndingsInPreferredOrder!(0);
+  const caseSensitive: boolean = host!.UseCaseSensitiveFileNames();
   let moduleSpecifier: string = pathObj.FileName;
   let isPackageRootPath: boolean = false;
   if (!packageNameOnly) {
     let packageRootIndex: number = parts!.PackageRootIndex;
     let moduleFileName: string = '';
     for (; true;) {
-      let pkgJsonResults: pkgJsonDirAttemptResult = tryDirectoryWithPackageJson(
+      const pkgJsonResults: pkgJsonDirAttemptResult = tryDirectoryWithPackageJson(
         parts!,
         pathObj,
         importingSourceFile,
@@ -1439,10 +1443,10 @@ export function tryGetModuleNameAsNodeModule(
         options,
         allowedEndings,
       );
-      let moduleFileToTry: string = pkgJsonResults.moduleFileToTry;
-      let packageRootPath: string = pkgJsonResults.packageRootPath;
-      let blockedByExports: boolean = pkgJsonResults.blockedByExports;
-      let verbatimFromExports: boolean = pkgJsonResults.verbatimFromExports;
+      const moduleFileToTry: string = pkgJsonResults.moduleFileToTry;
+      const packageRootPath: string = pkgJsonResults.packageRootPath;
+      const blockedByExports: boolean = pkgJsonResults.blockedByExports;
+      const verbatimFromExports: boolean = pkgJsonResults.verbatimFromExports;
       if (blockedByExports) {
         return '';
       }
@@ -1467,8 +1471,8 @@ export function tryGetModuleNameAsNodeModule(
   if (pathObj.IsRedirect && !isPackageRootPath) {
     return '';
   }
-  let globalTypingsCacheLocation: string = host!.GetGlobalTypingsCacheLocation();
-  let pathToTopLevelNodeModules: string = moduleSpecifier.substring(0, parts!.TopLevelNodeModulesIndex);
+  const globalTypingsCacheLocation: string = host!.GetGlobalTypingsCacheLocation();
+  const pathToTopLevelNodeModules: string = moduleSpecifier.substring(0, parts!.TopLevelNodeModulesIndex);
   if (
     !$stringutil.HasPrefix(info.SourceDirectory, pathToTopLevelNodeModules, caseSensitive) ||
     (globalTypingsCacheLocation.length > 0 &&
@@ -1476,7 +1480,7 @@ export function tryGetModuleNameAsNodeModule(
   ) {
     return '';
   }
-  let nodeModulesDirectoryName: string = moduleSpecifier.substring(parts!.TopLevelPackageNameIndex + 1);
+  const nodeModulesDirectoryName: string = moduleSpecifier.substring(parts!.TopLevelPackageNameIndex + 1);
   return $module.GetPackageNameFromTypesPackageName(nodeModulesDirectoryName);
 }
 export function tryDirectoryWithPackageJson(
@@ -1492,13 +1496,13 @@ export function tryDirectoryWithPackageJson(
   if (rootIdx === (-1 as number)) {
     rootIdx = pathObj.FileName.length;
   }
-  let packageRootPath: string = pathObj.FileName.substring(0, rootIdx);
-  let packageJsonPath: string = $tspath.CombinePaths(packageRootPath, ['package.json']);
+  const packageRootPath: string = pathObj.FileName.substring(0, rootIdx);
+  const packageJsonPath: string = $tspath.CombinePaths(packageRootPath, ['package.json']);
   let moduleFileToTry: string = pathObj.FileName;
   let maybeBlockedByTypesVersions: boolean = false;
-  let packageJson: $packagejson.InfoCacheEntry | undefined = host!.GetPackageJsonInfo(packageJsonPath);
+  const packageJson: $packagejson.InfoCacheEntry | undefined = host!.GetPackageJsonInfo(packageJsonPath);
   if (packageJson === undefined) {
-    let fileName: string = moduleFileToTry.substring(parts.PackageRootIndex + 1);
+    const fileName: string = moduleFileToTry.substring(parts.PackageRootIndex + 1);
     if (
       fileName === ('index.d.ts' as string) ||
       fileName === ('index.js' as string) ||
@@ -1517,17 +1521,17 @@ export function tryDirectoryWithPackageJson(
   if (importMode === (0 as number)) {
     importMode = host!.GetDefaultResolutionModeForFile(importingSourceFile as unknown as $ast.HasFileName);
   }
-  let packageJsonContent: $packagejson.PackageJson | undefined =
+  const packageJsonContent: $packagejson.PackageJson | undefined =
     $packagejson.InfoCacheEntry.GetContents$nil(packageJson);
   if (options!.GetResolvePackageJsonExports()) {
-    let nodeModulesDirectoryName: string = packageRootPath.substring(parts.TopLevelPackageNameIndex + 1);
-    let packageName: string = $module.GetPackageNameFromTypesPackageName(nodeModulesDirectoryName);
+    const nodeModulesDirectoryName: string = packageRootPath.substring(parts.TopLevelPackageNameIndex + 1);
+    const packageName: string = $module.GetPackageNameFromTypesPackageName(nodeModulesDirectoryName);
     if ($tspath.FileExtensionIsOneOf(pathObj.FileName, ['.cjs', '.cts', '.d.cts'])) {
       importMode = 1;
     } else if ($tspath.FileExtensionIsOneOf(pathObj.FileName, ['.mjs', '.mts', '.d.mts'])) {
       importMode = 99;
     }
-    let conditions: string[] = $module.GetConditions(options, importMode);
+    const conditions: string[] = $module.GetConditions(options, importMode);
     let fromExports: string = '';
     if (!(packageJsonContent === undefined) && !(packageJsonContent!.PathFields_.Exports.Type === (0 as number))) {
       fromExports = tryGetModuleNameFromExports(
@@ -1552,8 +1556,8 @@ export function tryDirectoryWithPackageJson(
     versionPaths = packageJsonContent!.GetVersionPaths(undefined);
   }
   if (!(versionPaths.GetPaths() === undefined)) {
-    let subModuleName: string = pathObj.FileName.substring(packageRootPath.length + 1);
-    let fromPaths: string = tryGetModuleNameFromPaths(
+    const subModuleName: string = pathObj.FileName.substring(packageRootPath.length + 1);
+    const fromPaths: string = tryGetModuleNameFromPaths(
       subModuleName,
       versionPaths.GetPaths(),
       allowedEndings,
@@ -1586,12 +1590,12 @@ export function tryDirectoryWithPackageJson(
         .$equals_core_Pattern(new $core.Pattern())
     )
   ) {
-    let mainExportFile: $tspath.Path = $tspath.ToPath(
+    const mainExportFile: $tspath.Path = $tspath.ToPath(
       mainFileRelative,
       packageRootPath,
       host!.UseCaseSensitiveFileNames(),
     );
-    let compareOpt: $tspath.ComparePathsOptions = $tspath.ComparePathsOptions.$lit_tspath_ComparePathsOptions_0_1(
+    const compareOpt: $tspath.ComparePathsOptions = $tspath.ComparePathsOptions.$lit_tspath_ComparePathsOptions_0_1(
       host!.UseCaseSensitiveFileNames(),
       host!.GetCurrentDirectory(),
     );
@@ -1639,14 +1643,14 @@ export function tryGetModuleNameFromExports(
     let $t1 = false;
     let $t2: string = '';
     exports.AsObject$ExportsOrImports()!.Entries()!((k: string, subk: $packagejson.ExportsOrImports): boolean => {
-      let subPackageName: string = $tspath.GetNormalizedAbsolutePath($tspath.CombinePaths(packageName, [k]), '');
+      const subPackageName: string = $tspath.GetNormalizedAbsolutePath($tspath.CombinePaths(packageName, [k]), '');
       let mode: MatchingMode = 0;
       if ($rt.strings_HasSuffix(k, '/')) {
         mode = 1;
       } else if ($rt.strings_Contains(k, '*')) {
         mode = 2;
       }
-      let result: string = tryGetModuleNameFromExportsOrImports(
+      const result: string = tryGetModuleNameFromExportsOrImports(
         options,
         host,
         targetFilePath,
@@ -1691,16 +1695,16 @@ export function tryGetModuleNameFromPackageJsonImports(
   if (!options!.GetResolvePackageJsonImports()) {
     return '';
   }
-  let ancestorDirectoryWithPackageJson: string = host!.GetNearestAncestorDirectoryWithPackageJson(sourceDirectory);
+  const ancestorDirectoryWithPackageJson: string = host!.GetNearestAncestorDirectoryWithPackageJson(sourceDirectory);
   if (ancestorDirectoryWithPackageJson.length === (0 as number)) {
     return '';
   }
-  let packageJsonPath: string = $tspath.CombinePaths(ancestorDirectoryWithPackageJson, ['package.json']);
-  let info: $packagejson.InfoCacheEntry | undefined = host!.GetPackageJsonInfo(packageJsonPath);
+  const packageJsonPath: string = $tspath.CombinePaths(ancestorDirectoryWithPackageJson, ['package.json']);
+  const info: $packagejson.InfoCacheEntry | undefined = host!.GetPackageJsonInfo(packageJsonPath);
   if (info === undefined) {
     return '';
   }
-  let imports: $packagejson.ExportsOrImports =
+  const imports: $packagejson.ExportsOrImports =
     $packagejson.InfoCacheEntry.GetContents$nil(info)!.PathFields_.Imports.$clone_packagejson_ExportsOrImports();
   {
     switch (imports.Type) {
@@ -1710,10 +1714,10 @@ export function tryGetModuleNameFromPackageJsonImports(
         return '';
       }
       case 6 as number: {
-        let conditions: string[] = $module.GetConditions(options, importMode);
-        let top: $collections.OrderedMap<string, $packagejson.ExportsOrImports> | undefined =
+        const conditions: string[] = $module.GetConditions(options, importMode);
+        const top: $collections.OrderedMap<string, $packagejson.ExportsOrImports> | undefined =
           imports.AsObject$ExportsOrImports();
-        let entries:
+        const entries:
           | ((p0: ((p0: string, p1: $packagejson.ExportsOrImports) => boolean) | undefined) => void)
           | undefined = top!.Entries();
         let $t1 = false;
@@ -1735,7 +1739,7 @@ export function tryGetModuleNameFromPackageJsonImports(
           } else if ($rt.strings_Contains(k, '*')) {
             mode = 2;
           }
-          let result: string = tryGetModuleNameFromExportsOrImports(
+          const result: string = tryGetModuleNameFromExportsOrImports(
             options,
             host,
             moduleFileName,
@@ -1769,29 +1773,29 @@ export function tryGetModuleNameFromPaths(
   host: ModuleSpecifierGenerationHost,
   compilerOptions: $core.CompilerOptions | undefined,
 ): string {
-  let caseSensitive: boolean = host!.UseCaseSensitiveFileNames();
+  const caseSensitive: boolean = host!.UseCaseSensitiveFileNames();
   let $t1 = false;
   let $t2: string = '';
   paths!.Entries()!((key: string, values: string[]): boolean => {
     {
       const $t3 = values;
       for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
-        let patternText = $t3[$t4];
-        let normalized: string = $tspath.NormalizePath(patternText);
+        const patternText = $t3[$t4];
+        const normalized: string = $tspath.NormalizePath(patternText);
         let pattern: string = getRelativePathIfInSameVolume(normalized, baseDirectory, caseSensitive);
         if (pattern.length === (0 as number)) {
           pattern = normalized;
         }
         const $t5 = $rt.strings_Cut(pattern, '*');
-        let prefix: string = $t5[0];
-        let suffix: string = $t5[1];
-        let ok: boolean = $t5[2];
+        const prefix: string = $t5[0];
+        const suffix: string = $t5[1];
+        const ok: boolean = $t5[2];
         let candidates: specPair[] = [];
         {
           const $t6 = allowedEndings;
           for (let $t7 = 0, $n = $t6.length; $t7 < $n; $t7++) {
-            let ending = $t6[$t7];
-            let result: string = processEnding(relativeToBaseUrl, [ending], compilerOptions, host);
+            const ending = $t6[$t7];
+            const result: string = processEnding(relativeToBaseUrl, [ending], compilerOptions, host);
             candidates.push(specPair.$lit_modulespecifiers_specPair_0_1(ending, result));
           }
         }
@@ -1802,15 +1806,15 @@ export function tryGetModuleNameFromPaths(
           {
             const $t8 = candidates;
             for (let $t9 = 0, $n = $t8.length; $t9 < $n; $t9++) {
-              let c = $t8[$t9];
-              let value: string = c.value;
+              const c = $t8[$t9];
+              const value: string = c.value;
               if (
                 value.length >= prefix.length + suffix.length &&
                 $stringutil.HasPrefix(value, prefix, caseSensitive) &&
                 $stringutil.HasSuffix(value, suffix, caseSensitive) &&
                 validateEnding(c, relativeToBaseUrl, compilerOptions, host)
               ) {
-                let matchedStar: string = value.substring(prefix.length, value.length - suffix.length);
+                const matchedStar: string = value.substring(prefix.length, value.length - suffix.length);
                 if (!$tspath.PathIsRelative(matchedStar)) {
                   $t2 = replaceFirstStar(key, matchedStar);
                   $t1 = true;
@@ -1870,7 +1874,7 @@ export function tryGetModuleNameFromExportsOrImports(
         return '';
       }
       case 2 as number: {
-        let strValue: string = $rt.checkString($rt.isValue(exports.Value, 'string'), exports.Value);
+        const strValue: string = $rt.checkString($rt.isValue(exports.Value, 'string'), exports.Value);
         let outputFile: string = '';
         let declarationFile: string = '';
         if (isImports) {
@@ -1885,7 +1889,7 @@ export function tryGetModuleNameFromExportsOrImports(
             host as unknown as $outputpaths.OutputPathsHost,
           );
         }
-        let pathOrPattern: string = $tspath.GetNormalizedAbsolutePath(
+        const pathOrPattern: string = $tspath.GetNormalizedAbsolutePath(
           $tspath.CombinePaths(packageDirectory, [strValue]),
           '',
         );
@@ -1894,11 +1898,13 @@ export function tryGetModuleNameFromExportsOrImports(
           extensionSwappedTarget =
             $tspath.RemoveFileExtension(targetFilePath) + $module.TryGetJSExtensionForFile(targetFilePath, options);
         }
-        let canTryTsExtension: boolean = preferTsExtension && $tspath.HasImplementationTSFileExtension(targetFilePath);
-        let compareOpts: $tspath.ComparePathsOptions = $tspath.ComparePathsOptions.$lit_tspath_ComparePathsOptions_0_1(
-          host!.UseCaseSensitiveFileNames(),
-          host!.GetCurrentDirectory(),
-        );
+        const canTryTsExtension: boolean =
+          preferTsExtension && $tspath.HasImplementationTSFileExtension(targetFilePath);
+        const compareOpts: $tspath.ComparePathsOptions =
+          $tspath.ComparePathsOptions.$lit_tspath_ComparePathsOptions_0_1(
+            host!.UseCaseSensitiveFileNames(),
+            host!.GetCurrentDirectory(),
+          );
         {
           switch (mode) {
             case 0 as number: {
@@ -1917,7 +1923,11 @@ export function tryGetModuleNameFromExportsOrImports(
             }
             case 1 as number: {
               if (canTryTsExtension && $tspath.ContainsPath(targetFilePath, pathOrPattern, compareOpts)) {
-                let fragment: string = $tspath.GetRelativePathFromDirectory(pathOrPattern, targetFilePath, compareOpts);
+                const fragment: string = $tspath.GetRelativePathFromDirectory(
+                  pathOrPattern,
+                  targetFilePath,
+                  compareOpts,
+                );
                 return $tspath.GetNormalizedAbsolutePath(
                   $tspath.CombinePaths($tspath.CombinePaths(packageName, [strValue]), [fragment]),
                   '',
@@ -1927,7 +1937,7 @@ export function tryGetModuleNameFromExportsOrImports(
                 extensionSwappedTarget.length > 0 &&
                 $tspath.ContainsPath(pathOrPattern, extensionSwappedTarget, compareOpts)
               ) {
-                let fragment$1: string = $tspath.GetRelativePathFromDirectory(
+                const fragment$1: string = $tspath.GetRelativePathFromDirectory(
                   pathOrPattern,
                   extensionSwappedTarget,
                   compareOpts,
@@ -1938,7 +1948,7 @@ export function tryGetModuleNameFromExportsOrImports(
                 );
               }
               if (!canTryTsExtension && $tspath.ContainsPath(pathOrPattern, targetFilePath, compareOpts)) {
-                let fragment$2: string = $tspath.GetRelativePathFromDirectory(
+                const fragment$2: string = $tspath.GetRelativePathFromDirectory(
                   pathOrPattern,
                   targetFilePath,
                   compareOpts,
@@ -1949,31 +1959,31 @@ export function tryGetModuleNameFromExportsOrImports(
                 );
               }
               if (outputFile.length > 0 && $tspath.ContainsPath(pathOrPattern, outputFile, compareOpts)) {
-                let fragment$3: string = $tspath.GetRelativePathFromDirectory(pathOrPattern, outputFile, compareOpts);
+                const fragment$3: string = $tspath.GetRelativePathFromDirectory(pathOrPattern, outputFile, compareOpts);
                 return $tspath.CombinePaths(packageName, [fragment$3]);
               }
               if (declarationFile.length > 0 && $tspath.ContainsPath(pathOrPattern, declarationFile, compareOpts)) {
-                let fragment$4: string = $tspath.GetRelativePathFromDirectory(
+                const fragment$4: string = $tspath.GetRelativePathFromDirectory(
                   pathOrPattern,
                   declarationFile,
                   compareOpts,
                 );
-                let jsExtension: string = getJSExtensionForFile(declarationFile, options);
-                let fragmentWithJsExtension: string = $tspath.ChangeExtension(fragment$4, jsExtension);
+                const jsExtension: string = getJSExtensionForFile(declarationFile, options);
+                const fragmentWithJsExtension: string = $tspath.ChangeExtension(fragment$4, jsExtension);
                 return $tspath.CombinePaths(packageName, [fragmentWithJsExtension]);
               }
               break;
             }
             case 2 as number: {
               const $t1 = $rt.strings_Cut(pathOrPattern, '*');
-              let leadingSlice: string = $t1[0];
-              let trailingSlice: string = $t1[1];
-              let caseSensitive: boolean = host!.UseCaseSensitiveFileNames();
+              const leadingSlice: string = $t1[0];
+              const trailingSlice: string = $t1[1];
+              const caseSensitive: boolean = host!.UseCaseSensitiveFileNames();
               if (
                 canTryTsExtension &&
                 $stringutil.HasPrefixAndSuffixWithoutOverlap(targetFilePath, leadingSlice, trailingSlice, caseSensitive)
               ) {
-                let starReplacement: string = targetFilePath.substring(
+                const starReplacement: string = targetFilePath.substring(
                   leadingSlice.length,
                   targetFilePath.length - trailingSlice.length,
                 );
@@ -1988,7 +1998,7 @@ export function tryGetModuleNameFromExportsOrImports(
                   caseSensitive,
                 )
               ) {
-                let starReplacement$1: string = extensionSwappedTarget.substring(
+                const starReplacement$1: string = extensionSwappedTarget.substring(
                   leadingSlice.length,
                   extensionSwappedTarget.length - trailingSlice.length,
                 );
@@ -1998,7 +2008,7 @@ export function tryGetModuleNameFromExportsOrImports(
                 !canTryTsExtension &&
                 $stringutil.HasPrefixAndSuffixWithoutOverlap(targetFilePath, leadingSlice, trailingSlice, caseSensitive)
               ) {
-                let starReplacement$2: string = targetFilePath.substring(
+                const starReplacement$2: string = targetFilePath.substring(
                   leadingSlice.length,
                   targetFilePath.length - trailingSlice.length,
                 );
@@ -2008,7 +2018,7 @@ export function tryGetModuleNameFromExportsOrImports(
                 outputFile.length > 0 &&
                 $stringutil.HasPrefixAndSuffixWithoutOverlap(outputFile, leadingSlice, trailingSlice, caseSensitive)
               ) {
-                let starReplacement$3: string = outputFile.substring(
+                const starReplacement$3: string = outputFile.substring(
                   leadingSlice.length,
                   outputFile.length - trailingSlice.length,
                 );
@@ -2023,12 +2033,12 @@ export function tryGetModuleNameFromExportsOrImports(
                   caseSensitive,
                 )
               ) {
-                let starReplacement$4: string = declarationFile.substring(
+                const starReplacement$4: string = declarationFile.substring(
                   leadingSlice.length,
                   declarationFile.length - trailingSlice.length,
                 );
-                let substituted: string = replaceFirstStar(packageName, starReplacement$4);
-                let jsExtension$1: string = $module.TryGetJSExtensionForFile(declarationFile, options);
+                const substituted: string = replaceFirstStar(packageName, starReplacement$4);
+                const jsExtension$1: string = $module.TryGetJSExtensionForFile(declarationFile, options);
                 if (jsExtension$1.length > 0) {
                   return $tspath.ChangeFullExtension(substituted, jsExtension$1);
                 }
@@ -2040,12 +2050,12 @@ export function tryGetModuleNameFromExportsOrImports(
         return '';
       }
       case 5 as number: {
-        let arr: $packagejson.ExportsOrImports[] = exports.AsArray$ExportsOrImports();
+        const arr: $packagejson.ExportsOrImports[] = exports.AsArray$ExportsOrImports();
         {
           const $t2 = arr;
           for (let $t3 = 0, $n = $t2.length; $t3 < $n; $t3++) {
-            let e = $t2[$t3].$clone_packagejson_ExportsOrImports();
-            let result: string = tryGetModuleNameFromExportsOrImports(
+            const e = $t2[$t3].$clone_packagejson_ExportsOrImports();
+            const result: string = tryGetModuleNameFromExportsOrImports(
               options,
               host,
               targetFilePath,
@@ -2065,7 +2075,7 @@ export function tryGetModuleNameFromExportsOrImports(
         break;
       }
       case 6 as number: {
-        let obj: $collections.OrderedMap<string, $packagejson.ExportsOrImports> | undefined =
+        const obj: $collections.OrderedMap<string, $packagejson.ExportsOrImports> | undefined =
           exports.AsObject$ExportsOrImports();
         let $t4 = false;
         let $t5: string = '';
@@ -2075,7 +2085,7 @@ export function tryGetModuleNameFromExportsOrImports(
             $rt.slices_Contains(conditions, key) ||
             ($rt.slices_Contains(conditions, 'types') && $module.IsApplicableVersionedTypesKey(key))
           ) {
-            let result$1: string = tryGetModuleNameFromExportsOrImports(
+            const result$1: string = tryGetModuleNameFromExportsOrImports(
               options,
               host,
               targetFilePath,
@@ -2156,9 +2166,16 @@ export function getModuleSpecifierWithPreferences(
   userPreferences: UserPreferences,
   options: ModuleSpecifierOptions,
 ): string {
-  let info: Info = getInfo(importingSourceFileName, host);
-  let modulePaths: ModulePath[] = getAllModulePaths(info, toFileName, host, compilerOptions, userPreferences, options);
-  let preferences: ModuleSpecifierPreferences = getModuleSpecifierPreferences(
+  const info: Info = getInfo(importingSourceFileName, host);
+  const modulePaths: ModulePath[] = getAllModulePaths(
+    info,
+    toFileName,
+    host,
+    compilerOptions,
+    userPreferences,
+    options,
+  );
+  const preferences: ModuleSpecifierPreferences = getModuleSpecifierPreferences(
     userPreferences,
     host,
     compilerOptions,
@@ -2172,9 +2189,9 @@ export function getModuleSpecifierWithPreferences(
   {
     const $t1 = modulePaths;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let modulePath = $t1[$t2];
+      const modulePath = $t1[$t2];
       {
-        let firstDefined: string = tryGetModuleNameAsNodeModule(
+        const firstDefined: string = tryGetModuleNameAsNodeModule(
           modulePath,
           info,
           importingSourceFile,
@@ -2194,13 +2211,13 @@ export function getModuleSpecifierWithPreferences(
 }
 export function comparePathsByRedirect(a: ModulePath, b: ModulePath, useCaseSensitiveFileNames: boolean): number {
   {
-    let c: number = $core.CompareBooleans(b.IsRedirect, a.IsRedirect);
+    const c: number = $core.CompareBooleans(b.IsRedirect, a.IsRedirect);
     if (!(c === (0 as number))) {
       return c;
     }
   }
   {
-    let c$1: number = $tspath.CompareNumberOfDirectorySeparators(a.FileName, b.FileName);
+    const c$1: number = $tspath.CompareNumberOfDirectorySeparators(a.FileName, b.FileName);
     if (!(c$1 === (0 as number))) {
       return c$1;
     }
@@ -2218,8 +2235,8 @@ export function IsExcludedByRegex(moduleSpecifier: string, excludes: string[]): 
   {
     const $t1 = excludes;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let pattern = $t1[$t2];
-      let re: $rt.regexp_Regexp | undefined = stringToRegex(pattern);
+      const pattern = $t1[$t2];
+      const re: $rt.regexp_Regexp | undefined = stringToRegex(pattern);
       if (re === undefined) {
         continue;
       }
@@ -2237,7 +2254,7 @@ export function stringToRegex(pattern: string): $rt.regexp_Regexp | undefined {
   $body: try {
     let caseInsensitive: boolean = false;
     if (pattern.length > 2 && pattern.charCodeAt(0) === (47 as number)) {
-      let lastSlash: number = $rt.strings_LastIndex(pattern, '/');
+      const lastSlash: number = $rt.strings_LastIndex(pattern, '/');
       if (lastSlash > 0) {
         let hasUnescapedMiddleSlash: boolean = false;
         {
@@ -2252,13 +2269,13 @@ export function stringToRegex(pattern: string): $rt.regexp_Regexp | undefined {
           }
         }
         if (!hasUnescapedMiddleSlash) {
-          let flags: string = pattern.substring(lastSlash + 1);
+          const flags: string = pattern.substring(lastSlash + 1);
           pattern = pattern.substring(1, lastSlash);
           {
             const $t2 = flags;
             for (let $t3 = 0, $t4 = 0; $t3 < $t2.length; $t3 += $t4) {
               $t4 = $rt.utf8_DecodeRuneInStringAt($t2, $t3)[1];
-              let flag = $rt.utf8_DecodeRuneInStringAt($t2, $t3)[0];
+              const flag = $rt.utf8_DecodeRuneInStringAt($t2, $t3)[0];
               {
                 switch (flag) {
                   case 105 as number: {
@@ -2272,7 +2289,7 @@ export function stringToRegex(pattern: string): $rt.regexp_Regexp | undefined {
         }
       }
     }
-    let key: regexPatternCacheKey = regexPatternCacheKey.$lit_modulespecifiers_regexPatternCacheKey_0_1(
+    const key: regexPatternCacheKey = regexPatternCacheKey.$lit_modulespecifiers_regexPatternCacheKey_0_1(
       pattern,
       caseInsensitive,
     );
@@ -2309,8 +2326,8 @@ export function stringToRegex(pattern: string): $rt.regexp_Regexp | undefined {
       compilePattern = '(?i:' + pattern + ')';
     }
     const $t10 = $rt.regexp_Compile(compilePattern);
-    let compiled: $rt.regexp_Regexp | undefined = $t10[0];
-    let err: $rt.GoObject | undefined = $t10[1];
+    const compiled: $rt.regexp_Regexp | undefined = $t10[0];
+    const err: $rt.GoObject | undefined = $t10[1];
     if (!(err === undefined)) {
       regexPatternCache!.set(key.$clone_modulespecifiers_regexPatternCacheKey(), undefined);
       $t1 = undefined;
@@ -2352,7 +2369,7 @@ export function GetJSExtensionForDeclarationFileExtension(ext: string): string {
   }
 }
 export function TryGetRealFileNameForNonJSDeclarationFileName(fileName: string): string {
-  let baseName: string = $tspath.GetBaseFileName(fileName);
+  const baseName: string = $tspath.GetBaseFileName(fileName);
   if (
     !$rt.strings_HasSuffix(fileName, '.ts') ||
     !$rt.strings_Contains(baseName, '.d.') ||
@@ -2360,15 +2377,15 @@ export function TryGetRealFileNameForNonJSDeclarationFileName(fileName: string):
   ) {
     return '';
   }
-  let noExtension: string = $tspath.RemoveExtension(fileName, '.ts');
-  let lastDotIndex: number = $rt.strings_LastIndex(noExtension, '.');
-  let ext: string = noExtension.substring(lastDotIndex);
+  const noExtension: string = $tspath.RemoveExtension(fileName, '.ts');
+  const lastDotIndex: number = $rt.strings_LastIndex(noExtension, '.');
+  const ext: string = noExtension.substring(lastDotIndex);
   const $t1 = $rt.strings_Cut(noExtension, '.d.');
-  let before: string = $t1[0];
+  const before: string = $t1[0];
   return before + ext;
 }
 export function getJSExtensionForFile(fileName: string, options: $core.CompilerOptions | undefined): string {
-  let result: string = $module.TryGetJSExtensionForFile(fileName, options);
+  const result: string = $module.TryGetJSExtensionForFile(fileName, options);
   if (result.length === (0 as number)) {
     throw $rt.newPanic(
       new $rt.BoxStr(
@@ -2383,7 +2400,7 @@ export function getJSExtensionForFile(fileName: string, options: $core.CompilerO
   return result;
 }
 export function extensionFromPath(path: string): string {
-  let ext: string = $tspath.TryGetExtensionFromPath(path);
+  const ext: string = $tspath.TryGetExtensionFromPath(path);
   if (ext.length === (0 as number)) {
     throw $rt.newPanic(
       new $rt.BoxStr($rt.fmt_Sprintf('File %s has unknown extension.', [new $rt.BoxStr(path, 'string')]), 'string'),
@@ -2392,19 +2409,19 @@ export function extensionFromPath(path: string): string {
   return ext;
 }
 export function tryGetAnyFileFromPath(host: ModuleSpecifierGenerationHost, path: string): boolean {
-  let extGroups: string[][] = $tsoptions.GetSupportedExtensions($core.CompilerOptions.$lit_core_CompilerOptions_1(2), [
-    '.node',
-    '.json',
-  ]);
+  const extGroups: string[][] = $tsoptions.GetSupportedExtensions(
+    $core.CompilerOptions.$lit_core_CompilerOptions_1(2),
+    ['.node', '.json'],
+  );
   {
     const $t1 = extGroups;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let exts = $t1[$t2];
+      const exts = $t1[$t2];
       {
         const $t3 = exts;
         for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
-          let e = $t3[$t4];
-          let fullPath: string = path + e;
+          const e = $t3[$t4];
+          const fullPath: string = path + e;
           if (host!.FileExists($tspath.GetNormalizedAbsolutePath(fullPath, host!.GetCurrentDirectory()))) {
             return true;
           }
@@ -2423,8 +2440,8 @@ export function getPathsRelativeToRootDirs(
   {
     const $t1 = rootDirs;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let rootDir = $t1[$t2];
-      let relativePath: string = getRelativePathIfInSameVolume(path, rootDir, useCaseSensitiveFileNames);
+      const rootDir = $t1[$t2];
+      const relativePath: string = getRelativePathIfInSameVolume(path, rootDir, useCaseSensitiveFileNames);
       if (!isPathRelativeToParent(relativePath)) {
         results.push(relativePath);
       }
@@ -2440,7 +2457,7 @@ export function getRelativePathIfInSameVolume(
   directoryPath: string,
   useCaseSensitiveFileNames: boolean,
 ): string {
-  let relativePath: string = $tspath.GetRelativePathToDirectoryOrUrl(
+  const relativePath: string = $tspath.GetRelativePathToDirectoryOrUrl(
     directoryPath,
     path,
     false,
@@ -2461,8 +2478,8 @@ export function packageJsonPathsAreEqual(a: string, b: string, options: $tspath.
   return $tspath.ComparePaths(a, b, options) === (0 as number);
 }
 export function prefersTsExtension(allowedEndings: ModuleSpecifierEnding[]): boolean {
-  let jsPriority: number = $rt.slices_Index(allowedEndings, 2);
-  let tsPriority: number = $rt.slices_Index(allowedEndings, 3);
+  const jsPriority: number = $rt.slices_Index(allowedEndings, 2);
+  const tsPriority: number = $rt.slices_Index(allowedEndings, 3);
   if (tsPriority > -1) {
     return tsPriority < jsPriority;
   }
@@ -2532,8 +2549,8 @@ export function GetNodeModulesPackageName(
   preferences: UserPreferences,
   options: ModuleSpecifierOptions,
 ): string {
-  let info: Info = getInfo(importingSourceFile!.FileName(), host);
-  let modulePaths: ModulePath[] = getAllModulePaths(
+  const info: Info = getInfo(importingSourceFile!.FileName(), host);
+  const modulePaths: ModulePath[] = getAllModulePaths(
     info,
     nodeModulesFileName,
     host,
@@ -2544,9 +2561,9 @@ export function GetNodeModulesPackageName(
   {
     const $t1 = modulePaths;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let modulePath = $t1[$t2];
+      const modulePath = $t1[$t2];
       {
-        let result: string = tryGetModuleNameAsNodeModule(
+        const result: string = tryGetModuleNameAsNodeModule(
           modulePath,
           info,
           importingSourceFile,
@@ -2581,22 +2598,22 @@ export function allKeysStartWithDot(
   return true;
 }
 export function GetPackageNameFromDirectory(fileOrDirectoryPath: string): string {
-  let idx: number = $rt.strings_LastIndex(fileOrDirectoryPath, '/node_modules/');
+  const idx: number = $rt.strings_LastIndex(fileOrDirectoryPath, '/node_modules/');
   if (idx === (-1 as number)) {
     return '';
   }
-  let basename: string = fileOrDirectoryPath.substring(idx + 14);
+  const basename: string = fileOrDirectoryPath.substring(idx + 14);
   if (basename.charCodeAt(0) === (46 as number)) {
     return '';
   }
-  let nextSlash: number = $rt.strings_Index(basename, '/');
+  const nextSlash: number = $rt.strings_Index(basename, '/');
   if (nextSlash === (-1 as number)) {
     return basename;
   }
   if (!(basename.charCodeAt(0) === (64 as number)) || nextSlash === basename.length - 1) {
     return basename.substring(0, nextSlash);
   }
-  let secondSlash: number = $rt.strings_IndexFrom(basename, nextSlash + 1, '/');
+  const secondSlash: number = $rt.strings_IndexFrom(basename, nextSlash + 1, '/');
   if (secondSlash === (-1 as number)) {
     return basename;
   }
@@ -2624,14 +2641,14 @@ export function ProcessEntrypointEnding(
       host!.GetDefaultResolutionModeForFile(importingSourceFile as unknown as $ast.HasFileName),
     );
   }
-  let preferredEnding: ModuleSpecifierEnding = allowedEndings[0];
-  let dtsExtension: string = $tspath.GetDeclarationFileExtension(specifier);
+  const preferredEnding: ModuleSpecifierEnding = allowedEndings[0];
+  const dtsExtension: string = $tspath.GetDeclarationFileExtension(specifier);
   if (!(dtsExtension === ('' as string))) {
     {
       switch (preferredEnding) {
         case 3 as number:
         case 2 as number: {
-          let jsExtension: string = GetJSExtensionForDeclarationFileExtension(dtsExtension);
+          const jsExtension: string = GetJSExtensionForDeclarationFileExtension(dtsExtension);
           return $tspath.ChangeAnyExtension(specifier, jsExtension, [dtsExtension], false);
         }
         case 0 as number:
@@ -2644,10 +2661,10 @@ export function ProcessEntrypointEnding(
               }
               return specifier;
             }
-            let jsExtension$1: string = GetJSExtensionForDeclarationFileExtension(dtsExtension);
+            const jsExtension$1: string = GetJSExtensionForDeclarationFileExtension(dtsExtension);
             return $tspath.ChangeAnyExtension(specifier, jsExtension$1, [dtsExtension], false);
           }
-          let jsExtension$2: string = GetJSExtensionForDeclarationFileExtension(dtsExtension);
+          const jsExtension$2: string = GetJSExtensionForDeclarationFileExtension(dtsExtension);
           return $tspath.ChangeAnyExtension(specifier, jsExtension$2, [dtsExtension], false);
         }
       }
@@ -2662,7 +2679,7 @@ export function ProcessEntrypointEnding(
         }
         case 2 as number: {
           {
-            let jsExtension$3: string = $module.TryGetJSExtensionForFile(specifier, options);
+            const jsExtension$3: string = $module.TryGetJSExtensionForFile(specifier, options);
             if (!(jsExtension$3 === ('' as string))) {
               return $tspath.RemoveFileExtension(specifier) + jsExtension$3;
             }
@@ -2679,7 +2696,7 @@ export function ProcessEntrypointEnding(
             return specifier;
           }
           {
-            let jsExtension$4: string = $module.TryGetJSExtensionForFile(specifier, options);
+            const jsExtension$4: string = $module.TryGetJSExtensionForFile(specifier, options);
             if (!(jsExtension$4 === ('' as string))) {
               return $tspath.RemoveFileExtension(specifier) + jsExtension$4;
             }

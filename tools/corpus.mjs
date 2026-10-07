@@ -30,12 +30,10 @@ function files(dir) {
 let check = [resolve('dist/check')];
 if (!native) {
   const out = join(work, 'js');
+  const options = ['--target', 'es2024', '--module', 'nodenext', '--moduleResolution', 'nodenext'];
   const tsc = spawnSync(
     resolve('node_modules/.bin/tsc'),
-    [
-      ...['--outDir', out, '--target', 'es2024', '--module', 'nodenext', '--moduleResolution', 'nodenext'],
-      ...['--skipLibCheck', '--types', 'node', 'src/drivers/check.ts'],
-    ],
+    ['--outDir', out, ...options, '--skipLibCheck', '--types', 'node', 'src/drivers/check.ts'],
     { stdio: 'inherit' },
   );
   if (tsc.status !== 0) throw new Error('could not compile the translated checker');

@@ -5178,11 +5178,11 @@ export function CompareStringsCaseInsensitive(a: string, b: string): Comparison 
   }
   for (;;) {
     const $t1 = $rt.unicode_utf8_DecodeRuneInString(a);
-    let ca: number = $t1[0];
-    let sa: number = $t1[1];
+    const ca: number = $t1[0];
+    const sa: number = $t1[1];
     const $t2 = $rt.unicode_utf8_DecodeRuneInString(b);
-    let cb: number = $t2[0];
-    let sb: number = $t2[1];
+    const cb: number = $t2[0];
+    const sb: number = $t2[1];
     if (sa === (0 as number)) {
       if (sb === (0 as number)) {
         return 0;
@@ -5192,8 +5192,8 @@ export function CompareStringsCaseInsensitive(a: string, b: string): Comparison 
     if (sb === (0 as number)) {
       return 1;
     }
-    let lca: number = $rt.unicode_ToLower(ca);
-    let lcb: number = $rt.unicode_ToLower(cb);
+    const lca: number = $rt.unicode_ToLower(ca);
+    const lcb: number = $rt.unicode_ToLower(cb);
     if (!(lca === lcb)) {
       if (lca < lcb) {
         return -1;
@@ -5243,7 +5243,7 @@ export function HasPrefixAndSuffixWithoutOverlap(
   return HasPrefix(s, prefix, caseSensitive) && HasSuffix(s, suffix, caseSensitive);
 }
 export function CompareStringsCaseInsensitiveThenSensitive(a: string, b: string): Comparison {
-  let cmp: Comparison = CompareStringsCaseInsensitive(a, b);
+  const cmp: Comparison = CompareStringsCaseInsensitive(a, b);
   if (!(cmp === (0 as number))) {
     return cmp;
   }
@@ -5266,20 +5266,20 @@ export function IsUnicodeIdentifierPart(ch: number): boolean {
 export function ToLowerJS(str: string): string {
   {
     const $t1 = toLowerASCII(str);
-    let ascii: string = $t1[0];
-    let ok: boolean = $t1[1];
+    const ascii: string = $t1[0];
+    const ok: boolean = $t1[1];
     if (ok) {
       return ascii;
     }
   }
-  let builder: $rt.strings_Builder = new $rt.strings_Builder();
+  const builder: $rt.strings_Builder = new $rt.strings_Builder();
   builder.Grow(str.length);
   let casedBefore: boolean = false;
   {
     for (let i: number = 0; i < str.length;) {
       const $t2 = DecodeJSStringRune(str.substring(i));
-      let r: number = $t2[0];
-      let size: number = $t2[1];
+      const r: number = $t2[0];
+      const size: number = $t2[1];
       i += size;
       if (IsSurrogate(r)) {
         builder.WriteString(EncodeJSStringRune(r));
@@ -5287,8 +5287,8 @@ export function ToLowerJS(str: string): string {
         {
           const $t3 = specialCasingMappings;
           const $t4 = r;
-          let mapping: specialCasingMapping = $t3?.get($t4) ?? specialCasingMapping$zero;
-          let ok$1: boolean = $t3 !== undefined && $t3.has($t4);
+          const mapping: specialCasingMapping = $t3?.get($t4) ?? specialCasingMapping$zero;
+          const ok$1: boolean = $t3 !== undefined && $t3.has($t4);
           if (ok$1) {
             if (mapping.condition === (1 as number) && isFinalSigmaContext(casedBefore, str, i)) {
               builder.WriteString(mapping.conditionalLower);
@@ -5310,27 +5310,27 @@ export function ToLowerJS(str: string): string {
 export function ToUpperJS(str: string): string {
   {
     const $t1 = toUpperASCII(str);
-    let ascii: string = $t1[0];
-    let ok: boolean = $t1[1];
+    const ascii: string = $t1[0];
+    const ok: boolean = $t1[1];
     if (ok) {
       return ascii;
     }
   }
-  let builder: $rt.strings_Builder = new $rt.strings_Builder();
+  const builder: $rt.strings_Builder = new $rt.strings_Builder();
   builder.Grow(str.length);
   {
     for (let i: number = 0; i < str.length;) {
       const $t2 = DecodeJSStringRune(str.substring(i));
-      let r: number = $t2[0];
-      let size: number = $t2[1];
+      const r: number = $t2[0];
+      const size: number = $t2[1];
       if (IsSurrogate(r)) {
         builder.WriteString(str.substring(i, i + size));
       } else {
         {
           const $t3 = specialCasingMappings;
           const $t4 = r;
-          let mapping: specialCasingMapping = $t3?.get($t4) ?? specialCasingMapping$zero;
-          let ok$1: boolean = $t3 !== undefined && $t3.has($t4);
+          const mapping: specialCasingMapping = $t3?.get($t4) ?? specialCasingMapping$zero;
+          const ok$1: boolean = $t3 !== undefined && $t3.has($t4);
           if (ok$1) {
             builder.WriteString(mapping.upper);
           } else {
@@ -5346,7 +5346,7 @@ export function ToUpperJS(str: string): string {
 export function toLowerASCII(str: string): [string, boolean] {
   let needsMapping: boolean = false;
   for (let i = 0, $t1 = str.length; i < $t1; i++) {
-    let ch: number = str.charCodeAt(i);
+    const ch: number = str.charCodeAt(i);
     if (ch >= 128) {
       return ['', false];
     }
@@ -5355,12 +5355,12 @@ export function toLowerASCII(str: string): [string, boolean] {
   if (!needsMapping) {
     return [str, true];
   }
-  let buf: number[] = $rt.stringToBytes(str);
+  const buf: number[] = $rt.stringToBytes(str);
   {
     const $t2 = buf;
     for (let $t3 = 0, $n = $t2.length; $t3 < $n; $t3++) {
-      let i$1 = $t3;
-      let ch$1 = $t2[$t3];
+      const i$1 = $t3;
+      const ch$1 = $t2[$t3];
       if (65 <= ch$1 && ch$1 <= 90) {
         buf[i$1] = (ch$1 + 32) & 0xff;
       }
@@ -5371,7 +5371,7 @@ export function toLowerASCII(str: string): [string, boolean] {
 export function toUpperASCII(str: string): [string, boolean] {
   let needsMapping: boolean = false;
   for (let i = 0, $t1 = str.length; i < $t1; i++) {
-    let ch: number = str.charCodeAt(i);
+    const ch: number = str.charCodeAt(i);
     if (ch >= 128) {
       return ['', false];
     }
@@ -5380,12 +5380,12 @@ export function toUpperASCII(str: string): [string, boolean] {
   if (!needsMapping) {
     return [str, true];
   }
-  let buf: number[] = $rt.stringToBytes(str);
+  const buf: number[] = $rt.stringToBytes(str);
   {
     const $t2 = buf;
     for (let $t3 = 0, $n = $t2.length; $t3 < $n; $t3++) {
-      let i$1 = $t3;
-      let ch$1 = $t2[$t3];
+      const i$1 = $t3;
+      const ch$1 = $t2[$t3];
       if (97 <= ch$1 && ch$1 <= 122) {
         buf[i$1] = (ch$1 - 32) & 0xff;
       }
@@ -5400,8 +5400,8 @@ export function hasSigmaCasedAfter(str: string, start: number): boolean {
   {
     for (let i: number = start; i < str.length;) {
       const $t1 = DecodeJSStringRune(str.substring(i));
-      let r: number = $t1[0];
-      let size: number = $t1[1];
+      const r: number = $t1[0];
+      const size: number = $t1[1];
       i += size;
       if (isUnicodeCaseIgnorable(r)) {
         continue;
@@ -5513,15 +5513,15 @@ export function GuessIndentation(lines: string[]): number {
   {
     const $t1 = lines;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let line = $t1[$t2];
+      const line = $t1[$t2];
       if (line.length === (0 as number)) {
         continue;
       }
       let i: number = 0;
       for (; i < line.length && i < indentation;) {
         const $t3 = $rt.utf8_DecodeRuneInStringAt(line, i);
-        let ch: number = $t3[0];
-        let size: number = $t3[1];
+        const ch: number = $t3[0];
+        const size: number = $t3[1];
         if (!IsWhiteSpaceLike(ch)) {
           break;
         }
@@ -5541,9 +5541,9 @@ export function GuessIndentation(lines: string[]): number {
   return indentation;
 }
 export function EncodeURI(s: string): string {
-  let builder: $rt.strings_Builder = new $rt.strings_Builder();
+  const builder: $rt.strings_Builder = new $rt.strings_Builder();
   for (let i = 0, $t1 = s.length; i < $t1; i++) {
-    let b: number = s.charCodeAt(i);
+    const b: number = s.charCodeAt(i);
     if (!shouldEscapeForEncodeURI(b)) {
       builder.WriteByte(b);
       continue;
@@ -5551,7 +5551,7 @@ export function EncodeURI(s: string): string {
     {
       const $t2 = $rt.stringToBytes(s.substring(i, i + 1));
       for (let $t3 = 0, $n = $t2.length; $t3 < $n; $t3++) {
-        let escaped = $t2[$t3];
+        const escaped = $t2[$t3];
         builder.WriteByte(37);
         builder.WriteByte('0123456789ABCDEF'.charCodeAt(escaped >>> 4));
         builder.WriteByte('0123456789ABCDEF'.charCodeAt(escaped & 15));
@@ -5604,7 +5604,7 @@ export function shouldEscapeForEncodeURI(b: number): boolean {
 }
 export function getByteOrderMarkLength(text: string): number {
   if (text.length >= 1) {
-    let ch0: number = text.charCodeAt(0);
+    const ch0: number = text.charCodeAt(0);
     if (ch0 === (254 as number)) {
       if (text.length >= 2 && text.charCodeAt(1) === (255 as number)) {
         return 2;
@@ -5627,7 +5627,7 @@ export function getByteOrderMarkLength(text: string): number {
   return 0;
 }
 export function RemoveByteOrderMark(text: string): string {
-  let length_: number = getByteOrderMarkLength(text);
+  const length_: number = getByteOrderMarkLength(text);
   if (length_ > 0) {
     return text.substring(length_);
   }
@@ -5644,9 +5644,9 @@ export function StripQuotes(name_: string): string {
     return name_;
   }
   const $t1 = $rt.unicode_utf8_DecodeRuneInString(name_);
-  let firstChar: number = $t1[0];
+  const firstChar: number = $t1[0];
   const $t2 = $rt.unicode_utf8_DecodeLastRuneInString(name_);
-  let lastChar: number = $t2[0];
+  const lastChar: number = $t2[0];
   if (
     firstChar === lastChar &&
     (firstChar === (39 as number) || firstChar === (34 as number) || firstChar === (96 as number))
@@ -5659,13 +5659,13 @@ export function matchSlashReplacer(in_: string): string {
   return in_.substring(1);
 }
 export function UnquoteString(str: string): string {
-  let inner: string = StripQuotes(str);
+  const inner: string = StripQuotes(str);
   return matchSlashSomething!.ReplaceAllStringFunc(inner, matchSlashReplacer);
 }
 export function LowerFirstChar(str: string): string {
   const $t1 = $rt.unicode_utf8_DecodeRuneInString(str);
-  let char: number = $t1[0];
-  let size: number = $t1[1];
+  const char: number = $t1[0];
+  const size: number = $t1[1];
   if (size > 0) {
     return $rt.runeToString($rt.unicode_ToLower(char)) + str.substring(size);
   }
@@ -5731,18 +5731,18 @@ export function CombineSurrogatePairs(s: string): string {
   if ($rt.strings_IndexByte(s, 237) < 0) {
     return s;
   }
-  let b: $rt.strings_Builder = new $rt.strings_Builder();
+  const b: $rt.strings_Builder = new $rt.strings_Builder();
   b.Grow(s.length);
   {
     for (let i: number = 0; i < s.length;) {
       const $t1 = DecodeJSStringRune(s.substring(i));
-      let r: number = $t1[0];
-      let size: number = $t1[1];
+      const r: number = $t1[0];
+      const size: number = $t1[1];
       if (IsHighSurrogate(r)) {
         {
           const $t2 = DecodeJSStringRune(s.substring(i + size));
-          let low: number = $t2[0];
-          let lowSize: number = $t2[1];
+          const low: number = $t2[0];
+          const lowSize: number = $t2[1];
           if (IsLowSurrogate(low)) {
             b.WriteRune(SurrogatePairToCodePoint(r, low));
             i += size + lowSize;

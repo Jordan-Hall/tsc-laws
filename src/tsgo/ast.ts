@@ -684,7 +684,7 @@ export class Node extends $rt.GoObject {
   }
   Symbol$m(): Symbol_ | undefined {
     const n = this;
-    let data: DeclarationBase | undefined = n!.DeclarationData$Node();
+    const data: DeclarationBase | undefined = n!.DeclarationData$Node();
     if (!(data === undefined)) {
       return data!.Symbol_;
     }
@@ -692,7 +692,7 @@ export class Node extends $rt.GoObject {
   }
   LocalSymbol(): Symbol_ | undefined {
     const n = this;
-    let data: ExportableBase | undefined = n!.ExportableData$Node();
+    const data: ExportableBase | undefined = n!.ExportableData$Node();
     if (!(data === undefined)) {
       return data!.LocalSymbol;
     }
@@ -700,7 +700,7 @@ export class Node extends $rt.GoObject {
   }
   Locals(): SymbolTable {
     const n = this;
-    let data: LocalsContainerBase | undefined = n!.LocalsContainerData$Node();
+    const data: LocalsContainerBase | undefined = n!.LocalsContainerData$Node();
     if (!(data === undefined)) {
       return data!.Locals;
     }
@@ -708,7 +708,7 @@ export class Node extends $rt.GoObject {
   }
   Body(): Node | undefined {
     const n = this;
-    let data: BodyBase | undefined = n!.BodyData$Node();
+    const data: BodyBase | undefined = n!.BodyData$Node();
     if (!(data === undefined)) {
       return data!.Body;
     }
@@ -920,7 +920,7 @@ export class Node extends $rt.GoObject {
   }
   Arguments(): (Node | undefined)[] {
     const n = this;
-    let list: NodeList | undefined = n!.ArgumentList();
+    const list: NodeList | undefined = n!.ArgumentList();
     if (!(list === undefined)) {
       return list!.Nodes;
     }
@@ -963,7 +963,7 @@ export class Node extends $rt.GoObject {
   }
   TypeArguments(): (Node | undefined)[] {
     const n = this;
-    let list: NodeList | undefined = n!.TypeArgumentList();
+    const list: NodeList | undefined = n!.TypeArgumentList();
     if (!(list === undefined)) {
       return list!.Nodes;
     }
@@ -990,7 +990,7 @@ export class Node extends $rt.GoObject {
           return n!.AsJSDocTemplateTag()!.TypeParameters_;
         }
         default: {
-          let funcLike: FunctionLikeBase | undefined = n!.FunctionLikeData$Node();
+          const funcLike: FunctionLikeBase | undefined = n!.FunctionLikeData$Node();
           if (!(funcLike === undefined)) {
             return funcLike!.TypeParameters;
           }
@@ -1002,7 +1002,7 @@ export class Node extends $rt.GoObject {
   }
   TypeParameters(): (Node | undefined)[] {
     const n = this;
-    let list: NodeList | undefined = n!.TypeParameterList();
+    const list: NodeList | undefined = n!.TypeParameterList();
     if (!(list === undefined)) {
       return list!.Nodes;
     }
@@ -1036,7 +1036,7 @@ export class Node extends $rt.GoObject {
   }
   Members(): (Node | undefined)[] {
     const n = this;
-    let list: NodeList | undefined = n!.MemberList();
+    const list: NodeList | undefined = n!.MemberList();
     if (!(list === undefined)) {
       return list!.Nodes;
     }
@@ -1065,7 +1065,7 @@ export class Node extends $rt.GoObject {
   }
   Statements(): (Node | undefined)[] {
     const n = this;
-    let list: NodeList | undefined = n!.StatementList();
+    const list: NodeList | undefined = n!.StatementList();
     if (!(list === undefined)) {
       return list!.Nodes;
     }
@@ -1090,7 +1090,7 @@ export class Node extends $rt.GoObject {
   }
   ModifierFlags$m(): ModifierFlags {
     const n = this;
-    let modifiers: ModifierList | undefined = n!.Modifiers$Node();
+    const modifiers: ModifierList | undefined = n!.Modifiers$Node();
     if (!(modifiers === undefined)) {
       return modifiers!.ModifierFlags_;
     }
@@ -1098,7 +1098,7 @@ export class Node extends $rt.GoObject {
   }
   ModifierNodes(): (Node | undefined)[] {
     const n = this;
-    let modifiers: ModifierList | undefined = n!.Modifiers$Node();
+    const modifiers: ModifierList | undefined = n!.Modifiers$Node();
     if (!(modifiers === undefined)) {
       return modifiers!.Nodes;
     }
@@ -1187,7 +1187,7 @@ export class Node extends $rt.GoObject {
         }
         default: {
           {
-            let funcLike: FunctionLikeBase | undefined = n!.FunctionLikeData$Node();
+            const funcLike: FunctionLikeBase | undefined = n!.FunctionLikeData$Node();
             if (!(funcLike === undefined)) {
               return funcLike!.Type;
             }
@@ -1443,7 +1443,7 @@ export class Node extends $rt.GoObject {
   }
   Comments(): (Node | undefined)[] {
     const n = this;
-    let list: NodeList | undefined = n!.CommentList();
+    const list: NodeList | undefined = n!.CommentList();
     if (!(list === undefined)) {
       return list!.Nodes;
     }
@@ -1570,7 +1570,7 @@ export class Node extends $rt.GoObject {
   }
   Properties(): (Node | undefined)[] {
     const n = this;
-    let list: NodeList | undefined = n!.PropertyList();
+    const list: NodeList | undefined = n!.PropertyList();
     if (!(list === undefined)) {
       return list!.Nodes;
     }
@@ -1602,7 +1602,7 @@ export class Node extends $rt.GoObject {
   }
   Elements(): (Node | undefined)[] {
     const n = this;
-    let list: NodeList | undefined = n!.ElementList();
+    const list: NodeList | undefined = n!.ElementList();
     if (!(list === undefined)) {
       return list!.Nodes;
     }
@@ -1661,7 +1661,7 @@ export class Node extends $rt.GoObject {
         }
       }
     }
-    let postfix: Node | undefined = n!.PostfixToken();
+    const postfix: Node | undefined = n!.PostfixToken();
     if (!(postfix === undefined) && postfix!.Kind_ === (57 as number)) {
       return postfix;
     }
@@ -1736,7 +1736,7 @@ export class Node extends $rt.GoObject {
       if (descendant === n) {
         return true;
       }
-      let parent: Node | undefined = descendant!.Parent;
+      const parent: Node | undefined = descendant!.Parent;
       if (parent === undefined && !IsSourceFile(descendant)) {
         throw $rt.newPanic(new $rt.BoxStr('descendant is not parented', 'string'));
       }
@@ -1784,7 +1784,7 @@ export class Node extends $rt.GoObject {
     }
     if (file!.hasLazyJSDoc) {
       file!.jsdocMu.RLock();
-      let jsdocs: (Node | undefined)[] = file!.jsdocCache?.get(node) ?? [];
+      const jsdocs: (Node | undefined)[] = file!.jsdocCache?.get(node) ?? [];
       file!.jsdocMu.RUnlock();
       return jsdocs;
     }
@@ -1794,11 +1794,11 @@ export class Node extends $rt.GoObject {
     if (node === undefined) {
       return [0, false];
     }
-    let attributes: NodeList | undefined = node!.AsImportAttributes()!.Attributes_;
+    const attributes: NodeList | undefined = node!.AsImportAttributes()!.Attributes_;
     if (!(attributes!.Nodes.length === (1 as number))) {
       return [0, false];
     }
-    let elem: ImportAttribute | undefined = attributes!.Nodes[0]!.AsImportAttribute();
+    const elem: ImportAttribute | undefined = attributes!.Nodes[0]!.AsImportAttribute();
     if (!IsStringLiteralLike(elem!.Name())) {
       return [0, false];
     }
@@ -6023,13 +6023,13 @@ export class Diagnostic extends $rt.GoObject {
       return d!.messageArgs;
     }
     const $t1 = $spanmap.SpanMap.AliasForVirtualSpan$nil(d!.file!.SpanMap$m(), d!.loc);
-    let segment: $spanmap.Segment = $t1[0];
-    let ok: boolean = $t1[1];
+    const segment: $spanmap.Segment = $t1[0];
+    const ok: boolean = $t1[1];
     if (!ok) {
       return d!.messageArgs;
     }
-    let virtualText: string = d!.file!.Text();
-    let originalText: string = d!.file!.OriginalText();
+    const virtualText: string = d!.file!.Text();
+    const originalText: string = d!.file!.OriginalText();
     if (
       segment.VirtualStart < 0 ||
       segment.VirtualEnd > (virtualText.length | 0) ||
@@ -6038,14 +6038,14 @@ export class Diagnostic extends $rt.GoObject {
     ) {
       return d!.messageArgs;
     }
-    let virtualName: string = virtualText.substring(segment.VirtualStart, segment.VirtualEnd);
-    let originalName: string = originalText.substring(segment.OriginalStart, segment.OriginalEnd);
+    const virtualName: string = virtualText.substring(segment.VirtualStart, segment.VirtualEnd);
+    const originalName: string = originalText.substring(segment.OriginalStart, segment.OriginalEnd);
     let result: string[] = [];
     {
       const $t2 = d!.messageArgs;
       for (let $t3 = 0, $n = $t2.length; $t3 < $n; $t3++) {
-        let i = $t3;
-        let arg = $t2[$t3];
+        const i = $t3;
+        const arg = $t2[$t3];
         if (!(arg === virtualName)) {
           continue;
         }
@@ -6100,9 +6100,9 @@ export class DiagnosticsCollection extends $rt.GoObject {
       $defers.push(() => {
         $t2.Unlock();
       });
-      let key: diagnosticLocationKey = getDiagnosticLocationKey(diagnostic);
+      const key: diagnosticLocationKey = getDiagnosticLocationKey(diagnostic);
       {
-        let existing: Diagnostic | undefined = $rt.structMapGet(c!.diagnosticIndex, key, undefined);
+        const existing: Diagnostic | undefined = $rt.structMapGet(c!.diagnosticIndex, key, undefined);
         if (!(existing === undefined)) {
           if (EqualDiagnostics(existing, diagnostic)) {
             $t1 = existing;
@@ -6111,7 +6111,7 @@ export class DiagnosticsCollection extends $rt.GoObject {
           {
             const $t3 = $rt.structMapGet(c!.diagnosticCollisions, key, []);
             for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
-              let collision = $t3[$t4];
+              const collision = $t3[$t4];
               if (EqualDiagnostics(collision, diagnostic)) {
                 $t1 = collision;
                 break $body;
@@ -6137,7 +6137,7 @@ export class DiagnosticsCollection extends $rt.GoObject {
       }
       c!.count++;
       if (!(diagnostic!.File() === undefined)) {
-        let path: $tspath.Path = diagnostic!.File()!.Path$m();
+        const path: $tspath.Path = diagnostic!.File()!.Path$m();
         if (c!.fileDiagnostics === undefined) {
           c!.fileDiagnostics = new Map<$tspath.Path, (Diagnostic | undefined)[]>();
         }
@@ -6180,8 +6180,8 @@ export class DiagnosticsCollection extends $rt.GoObject {
       }
       {
         const $t3 = $rt.slices_BinarySearchFunc(diagnostics, diagnostic, CompareDiagnostics);
-        let i: number = $t3[0];
-        let ok: boolean = $t3[1];
+        const i: number = $t3[0];
+        const ok: boolean = $t3[1];
         if (ok) {
           $t1 = diagnostics[i];
           break $body;
@@ -6249,7 +6249,7 @@ export class DiagnosticsCollection extends $rt.GoObject {
   }
   getDiagnosticsForFileLocked(file: SourceFile | undefined): (Diagnostic | undefined)[] {
     const c = this;
-    let path: $tspath.Path = file!.Path$m();
+    const path: $tspath.Path = file!.Path$m();
     if (!c!.fileDiagnosticsSorted.Has(path)) {
       $rt.slices_SortStableFunc(c!.fileDiagnostics?.get(path) ?? [], CompareDiagnostics);
       c!.fileDiagnosticsSorted.Add(path);
@@ -7458,8 +7458,8 @@ export class FunctionDeclaration extends StatementBase {
     ) {
       return 1;
     } else {
-      let isAsync: boolean = !((node!.ModifierFlags$m() & 1024) === (0 as number));
-      let isGenerator: boolean = !(node!.FunctionLikeWithBodyBase_.BodyBase_.AsteriskToken === undefined);
+      const isAsync: boolean = !((node!.ModifierFlags$m() & 1024) === (0 as number));
+      const isGenerator: boolean = !(node!.FunctionLikeWithBodyBase_.BodyBase_.AsteriskToken === undefined);
       return (
         (((((((((((((((((propagateModifierListSubtreeFacts(node!.ModifiersBase_.modifiers) |
           propagateSubtreeFacts(node!.FunctionLikeWithBodyBase_.BodyBase_.AsteriskToken)) >>>
@@ -7594,10 +7594,10 @@ export class FunctionExpression extends PrimaryExpressionBase {
   }
   computeSubtreeFacts(): SubtreeFacts {
     const node = this;
-    let isAsync: boolean =
+    const isAsync: boolean =
       !(node!.ModifiersBase_.modifiers === undefined) &&
       !((node!.ModifiersBase_.modifiers!.ModifierFlags_ & 1024) === (0 as number));
-    let isGenerator: boolean = !(node!.FunctionLikeWithBodyBase_.BodyBase_.AsteriskToken === undefined);
+    const isGenerator: boolean = !(node!.FunctionLikeWithBodyBase_.BodyBase_.AsteriskToken === undefined);
     return (
       (((((((((((((((((propagateModifierListSubtreeFacts(node!.ModifiersBase_.modifiers) |
         propagateSubtreeFacts(node!.FunctionLikeWithBodyBase_.BodyBase_.AsteriskToken)) >>>
@@ -10302,7 +10302,7 @@ export class JSDocTypeLiteral extends JSDocTypeBase {
   }
   VisitEachChild(v: NodeVisitor | undefined): Node | undefined {
     const node = this;
-    let jsdocPropertyTags: (Node | undefined)[] = $core.SameMap<Node | undefined>(
+    const jsdocPropertyTags: (Node | undefined)[] = $core.SameMap<Node | undefined>(
       $zf0,
       node!.JSDocPropertyTags,
       (n: Node | undefined): Node | undefined => {
@@ -11532,10 +11532,10 @@ export class MethodDeclaration extends NodeBase {
     if (node!.FunctionLikeWithBodyBase_.BodyBase_.Body === undefined) {
       return 1;
     } else {
-      let isAsync: boolean =
+      const isAsync: boolean =
         !(node!.NamedMemberBase_.modifiers === undefined) &&
         !((node!.NamedMemberBase_.modifiers!.ModifierFlags_ & 1024) === (0 as number));
-      let isGenerator: boolean = !(node!.FunctionLikeWithBodyBase_.BodyBase_.AsteriskToken === undefined);
+      const isGenerator: boolean = !(node!.FunctionLikeWithBodyBase_.BodyBase_.AsteriskToken === undefined);
       return (
         (((((((((((((((((((propagateModifierListSubtreeFacts(node!.NamedMemberBase_.modifiers) |
           propagateSubtreeFacts(node!.FunctionLikeWithBodyBase_.BodyBase_.AsteriskToken)) >>>
@@ -11814,12 +11814,12 @@ export class NodeList extends $rt.GoObject {
     if (list!.Nodes.length === (0 as number)) {
       return false;
     }
-    let last: Node | undefined = list!.Nodes[list!.Nodes.length - 1];
+    const last: Node | undefined = list!.Nodes[list!.Nodes.length - 1];
     return last!.End() < list!.End();
   }
   Clone(f: NodeFactoryCoercible): NodeList | undefined {
     const list = this;
-    let result: NodeList | undefined = f!.AsNodeFactory()!.NewNodeList(list!.Nodes);
+    const result: NodeList | undefined = f!.AsNodeFactory()!.NewNodeList(list!.Nodes);
     result!.Loc = list!.Loc;
     return result;
   }
@@ -11841,7 +11841,7 @@ export class ModifierList extends NodeList {
   }
   Clone$ModifierList(f: NodeFactory | undefined): ModifierList | undefined {
     const list = this;
-    let res: ModifierList | undefined = f!.modifierListArena.New();
+    const res: ModifierList | undefined = f!.modifierListArena.New();
     res!.Loc = list!.Loc;
     res!.Nodes = list!.Nodes;
     res!.ModifierFlags_ = list!.ModifierFlags_;
@@ -12679,14 +12679,14 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewNodeList(nodes: (Node | undefined)[]): NodeList | undefined {
     const f = this;
-    let list: NodeList | undefined = f!.nodeListArena.New();
+    const list: NodeList | undefined = f!.nodeListArena.New();
     list!.Loc = $core.UndefinedTextRange();
     list!.Nodes = nodes;
     return list;
   }
   NewModifierList(nodes: (Node | undefined)[]): ModifierList | undefined {
     const f = this;
-    let list: ModifierList | undefined = f!.modifierListArena.New();
+    const list: ModifierList | undefined = f!.modifierListArena.New();
     list!.Loc = $core.UndefinedTextRange();
     list!.Nodes = nodes;
     list!.ModifierFlags_ = ModifiersToFlags(nodes);
@@ -12714,7 +12714,7 @@ export class NodeFactory extends $rt.GoObject {
         ),
       );
     }
-    let data: SourceFile | undefined = new SourceFile();
+    const data: SourceFile | undefined = new SourceFile();
     data!.fileName = opts.FileName;
     data!.parseOptions.$copy_ast_SourceFileParseOptions(opts);
     data!.text = text;
@@ -12729,7 +12729,7 @@ export class NodeFactory extends $rt.GoObject {
   ): Node | undefined {
     const f = this;
     if (!(statements === node!.Statements_) || !(endOfFileToken === node!.EndOfFileToken)) {
-      let updated: SourceFile | undefined = f!
+      const updated: SourceFile | undefined = f!
         .NewSourceFile(node!.parseOptions, node!.text, statements, endOfFileToken)!
         .AsSourceFile();
       updated!.copyFrom(node);
@@ -12747,26 +12747,26 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewToken(kind: TokenSyntaxKind): Node | undefined {
     const f = this;
-    let data: Token | undefined = f!.tokenArena.New();
+    const data: Token | undefined = f!.tokenArena.New();
     return f!.newNode(kind, data);
   }
   NewIdentifier(text: string): Node | undefined {
     const f = this;
-    let data: Identifier | undefined = f!.identifierArena.New();
+    const data: Identifier | undefined = f!.identifierArena.New();
     data!.Text_ = text;
     f!.textCount++;
     return f!.newNode(79, data);
   }
   NewPrivateIdentifier(text: string): Node | undefined {
     const f = this;
-    let data: PrivateIdentifier | undefined = new PrivateIdentifier();
+    const data: PrivateIdentifier | undefined = new PrivateIdentifier();
     data!.Text_ = text;
     f!.textCount++;
     return f!.newNode(80, data);
   }
   NewQualifiedName(left: Node | undefined, right: Node | undefined): Node | undefined {
     const f = this;
-    let data: QualifiedName | undefined = new QualifiedName();
+    const data: QualifiedName | undefined = new QualifiedName();
     data!.Left = left;
     data!.Right = right;
     return f!.newNode(167, data);
@@ -12784,7 +12784,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewComputedPropertyName(expression: Node | undefined): Node | undefined {
     const f = this;
-    let data: ComputedPropertyName | undefined = new ComputedPropertyName();
+    const data: ComputedPropertyName | undefined = new ComputedPropertyName();
     data!.Expression_ = expression;
     return f!.newNode(168, data);
   }
@@ -12797,7 +12797,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewDecorator(expression: Node | undefined): Node | undefined {
     const f = this;
-    let data: Decorator | undefined = new Decorator();
+    const data: Decorator | undefined = new Decorator();
     data!.Expression_ = expression;
     return f!.newNode(171, data);
   }
@@ -12810,7 +12810,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewEmptyStatement(): Node | undefined {
     const f = this;
-    let data: EmptyStatement | undefined = new EmptyStatement();
+    const data: EmptyStatement | undefined = new EmptyStatement();
     return f!.newNode(243, data);
   }
   NewIfStatement(
@@ -12819,7 +12819,7 @@ export class NodeFactory extends $rt.GoObject {
     elseStatement: Node | undefined,
   ): Node | undefined {
     const f = this;
-    let data: IfStatement | undefined = f!.ifStatementArena.New();
+    const data: IfStatement | undefined = f!.ifStatementArena.New();
     data!.Expression_ = expression;
     data!.ThenStatement = thenStatement;
     data!.ElseStatement = elseStatement;
@@ -12843,7 +12843,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewDoStatement(statement: Node | undefined, expression: Node | undefined): Node | undefined {
     const f = this;
-    let data: DoStatement | undefined = new DoStatement();
+    const data: DoStatement | undefined = new DoStatement();
     data!.Statement_ = statement;
     data!.Expression_ = expression;
     return f!.newNode(247, data);
@@ -12861,7 +12861,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewWhileStatement(expression: Node | undefined, statement: Node | undefined): Node | undefined {
     const f = this;
-    let data: WhileStatement | undefined = new WhileStatement();
+    const data: WhileStatement | undefined = new WhileStatement();
     data!.Expression_ = expression;
     data!.Statement_ = statement;
     return f!.newNode(248, data);
@@ -12884,7 +12884,7 @@ export class NodeFactory extends $rt.GoObject {
     statement: Node | undefined,
   ): Node | undefined {
     const f = this;
-    let data: ForStatement | undefined = new ForStatement();
+    const data: ForStatement | undefined = new ForStatement();
     data!.Initializer_ = initializer;
     data!.Condition = condition;
     data!.Incrementor = incrementor;
@@ -12917,7 +12917,7 @@ export class NodeFactory extends $rt.GoObject {
     statement: Node | undefined,
   ): Node | undefined {
     const f = this;
-    let data: ForInOrOfStatement | undefined = new ForInOrOfStatement();
+    const data: ForInOrOfStatement | undefined = new ForInOrOfStatement();
     data!.AwaitModifier = awaitModifier;
     data!.Initializer_ = initializer;
     data!.Expression_ = expression;
@@ -12948,7 +12948,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewBreakStatement(label: Node | undefined): Node | undefined {
     const f = this;
-    let data: BreakStatement | undefined = new BreakStatement();
+    const data: BreakStatement | undefined = new BreakStatement();
     data!.Label_ = label;
     return f!.newNode(253, data);
   }
@@ -12961,7 +12961,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewContinueStatement(label: Node | undefined): Node | undefined {
     const f = this;
-    let data: ContinueStatement | undefined = new ContinueStatement();
+    const data: ContinueStatement | undefined = new ContinueStatement();
     data!.Label_ = label;
     return f!.newNode(252, data);
   }
@@ -12974,7 +12974,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewReturnStatement(expression: Node | undefined): Node | undefined {
     const f = this;
-    let data: ReturnStatement | undefined = f!.returnStatementArena.New();
+    const data: ReturnStatement | undefined = f!.returnStatementArena.New();
     data!.Expression_ = expression;
     return f!.newNode(254, data);
   }
@@ -12987,7 +12987,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewWithStatement(expression: Node | undefined, statement: Node | undefined): Node | undefined {
     const f = this;
-    let data: WithStatement | undefined = new WithStatement();
+    const data: WithStatement | undefined = new WithStatement();
     data!.Expression_ = expression;
     data!.Statement_ = statement;
     return f!.newNode(255, data);
@@ -13005,7 +13005,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewSwitchStatement(expression: Node | undefined, caseBlock: Node | undefined): Node | undefined {
     const f = this;
-    let data: SwitchStatement | undefined = new SwitchStatement();
+    const data: SwitchStatement | undefined = new SwitchStatement();
     data!.Expression_ = expression;
     data!.CaseBlock = caseBlock;
     return f!.newNode(256, data);
@@ -13023,7 +13023,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewCaseBlock(clauses: NodeList | undefined): Node | undefined {
     const f = this;
-    let data: CaseBlock | undefined = new CaseBlock();
+    const data: CaseBlock | undefined = new CaseBlock();
     data!.Clauses = clauses;
     return f!.newNode(270, data);
   }
@@ -13036,7 +13036,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewCaseOrDefaultClause(kind: Kind, expression: Node | undefined, statements: NodeList | undefined): Node | undefined {
     const f = this;
-    let data: CaseOrDefaultClause | undefined = new CaseOrDefaultClause();
+    const data: CaseOrDefaultClause | undefined = new CaseOrDefaultClause();
     data!.Expression_ = expression;
     data!.Statements_ = statements;
     return f!.newNode(kind, data);
@@ -13054,7 +13054,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewThrowStatement(expression: Node | undefined): Node | undefined {
     const f = this;
-    let data: ThrowStatement | undefined = new ThrowStatement();
+    const data: ThrowStatement | undefined = new ThrowStatement();
     data!.Expression_ = expression;
     return f!.newNode(258, data);
   }
@@ -13071,7 +13071,7 @@ export class NodeFactory extends $rt.GoObject {
     finallyBlock: Node | undefined,
   ): Node | undefined {
     const f = this;
-    let data: TryStatement | undefined = new TryStatement();
+    const data: TryStatement | undefined = new TryStatement();
     data!.TryBlock = tryBlock;
     data!.CatchClause = catchClause;
     data!.FinallyBlock = finallyBlock;
@@ -13095,7 +13095,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewCatchClause(variableDeclaration: Node | undefined, block: Node | undefined): Node | undefined {
     const f = this;
-    let data: CatchClause | undefined = new CatchClause();
+    const data: CatchClause | undefined = new CatchClause();
     data!.VariableDeclaration = variableDeclaration;
     data!.Block = block;
     return f!.newNode(300, data);
@@ -13113,12 +13113,12 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewDebuggerStatement(): Node | undefined {
     const f = this;
-    let data: DebuggerStatement | undefined = new DebuggerStatement();
+    const data: DebuggerStatement | undefined = new DebuggerStatement();
     return f!.newNode(260, data);
   }
   NewLabeledStatement(label: Node | undefined, statement: Node | undefined): Node | undefined {
     const f = this;
-    let data: LabeledStatement | undefined = new LabeledStatement();
+    const data: LabeledStatement | undefined = new LabeledStatement();
     data!.Label_ = label;
     data!.Statement_ = statement;
     return f!.newNode(257, data);
@@ -13136,7 +13136,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewExpressionStatement(expression: Node | undefined): Node | undefined {
     const f = this;
-    let data: ExpressionStatement | undefined = f!.expressionStatementArena.New();
+    const data: ExpressionStatement | undefined = f!.expressionStatementArena.New();
     data!.Expression_ = expression;
     return f!.newNode(245, data);
   }
@@ -13149,7 +13149,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewBlock(statements: NodeList | undefined, multiLine: boolean): Node | undefined {
     const f = this;
-    let data: Block | undefined = f!.blockArena.New();
+    const data: Block | undefined = f!.blockArena.New();
     data!.Statements_ = statements;
     data!.MultiLine = multiLine;
     return f!.newNode(242, data);
@@ -13163,7 +13163,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewVariableStatement(modifiers: ModifierList | undefined, declarationList: Node | undefined): Node | undefined {
     const f = this;
-    let data: VariableStatement | undefined = f!.variableStatementArena.New();
+    const data: VariableStatement | undefined = f!.variableStatementArena.New();
     data!.ModifiersBase_.modifiers = modifiers;
     data!.DeclarationList = declarationList;
     return f!.newNode(244, data);
@@ -13186,7 +13186,7 @@ export class NodeFactory extends $rt.GoObject {
     initializer: Node | undefined,
   ): Node | undefined {
     const f = this;
-    let data: VariableDeclaration | undefined = f!.variableDeclarationArena.New();
+    const data: VariableDeclaration | undefined = f!.variableDeclarationArena.New();
     data!.name = name_;
     data!.ExclamationToken = exclamationToken;
     data!.Type_ = typeNode;
@@ -13217,9 +13217,9 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewVariableDeclarationList(declarations: NodeList | undefined, flags: NodeFlags): Node | undefined {
     const f = this;
-    let data: VariableDeclarationList | undefined = f!.variableDeclarationListArena.New();
+    const data: VariableDeclarationList | undefined = f!.variableDeclarationListArena.New();
     data!.Declarations = declarations;
-    let node: Node | undefined = f!.newNode(262, data);
+    const node: Node | undefined = f!.newNode(262, data);
     node!.Flags = flags;
     return node;
   }
@@ -13236,7 +13236,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewBindingPattern(kind: Kind, elements: NodeList | undefined): Node | undefined {
     const f = this;
-    let data: BindingPattern | undefined = new BindingPattern();
+    const data: BindingPattern | undefined = new BindingPattern();
     data!.Elements_ = elements;
     return f!.newNode(kind, data);
   }
@@ -13256,7 +13256,7 @@ export class NodeFactory extends $rt.GoObject {
     initializer: Node | undefined,
   ): Node | undefined {
     const f = this;
-    let data: ParameterDeclaration | undefined = f!.parameterDeclarationArena.New();
+    const data: ParameterDeclaration | undefined = f!.parameterDeclarationArena.New();
     data!.ModifiersBase_.modifiers = modifiers;
     data!.DotDotDotToken = dotDotDotToken;
     data!.name = name_;
@@ -13298,7 +13298,7 @@ export class NodeFactory extends $rt.GoObject {
     initializer: Node | undefined,
   ): Node | undefined {
     const f = this;
-    let data: BindingElement | undefined = new BindingElement();
+    const data: BindingElement | undefined = new BindingElement();
     data!.DotDotDotToken = dotDotDotToken;
     data!.PropertyName_ = propertyName;
     data!.name = name_;
@@ -13329,7 +13329,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewMissingDeclaration(modifiers: ModifierList | undefined): Node | undefined {
     const f = this;
-    let data: MissingDeclaration | undefined = new MissingDeclaration();
+    const data: MissingDeclaration | undefined = new MissingDeclaration();
     data!.ModifiersBase_.modifiers = modifiers;
     return f!.newNode(283, data);
   }
@@ -13354,7 +13354,7 @@ export class NodeFactory extends $rt.GoObject {
     body: Node | undefined,
   ): Node | undefined {
     const f = this;
-    let data: FunctionDeclaration | undefined = f!.functionDeclarationArena.New();
+    const data: FunctionDeclaration | undefined = f!.functionDeclarationArena.New();
     data!.ModifiersBase_.modifiers = modifiers;
     data!.FunctionLikeWithBodyBase_.BodyBase_.AsteriskToken = asteriskToken;
     data!.name = name_;
@@ -13412,7 +13412,7 @@ export class NodeFactory extends $rt.GoObject {
     members: NodeList | undefined,
   ): Node | undefined {
     const f = this;
-    let data: ClassDeclaration | undefined = new ClassDeclaration();
+    const data: ClassDeclaration | undefined = new ClassDeclaration();
     data!.ClassLikeBase_.ModifiersBase_.modifiers = modifiers;
     data!.ClassLikeBase_.name = name_;
     data!.ClassLikeBase_.TypeParameters = typeParameters;
@@ -13452,7 +13452,7 @@ export class NodeFactory extends $rt.GoObject {
     members: NodeList | undefined,
   ): Node | undefined {
     const f = this;
-    let data: ClassExpression | undefined = new ClassExpression();
+    const data: ClassExpression | undefined = new ClassExpression();
     data!.ClassLikeBase_.ModifiersBase_.modifiers = modifiers;
     data!.ClassLikeBase_.name = name_;
     data!.ClassLikeBase_.TypeParameters = typeParameters;
@@ -13486,7 +13486,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewHeritageClause(token: Kind, types: NodeList | undefined): Node | undefined {
     const f = this;
-    let data: HeritageClause | undefined = f!.heritageClauseArena.New();
+    const data: HeritageClause | undefined = f!.heritageClauseArena.New();
     data!.Token = token;
     data!.Types = types;
     return f!.newNode(299, data);
@@ -13506,7 +13506,7 @@ export class NodeFactory extends $rt.GoObject {
     members: NodeList | undefined,
   ): Node | undefined {
     const f = this;
-    let data: InterfaceDeclaration | undefined = f!.interfaceDeclarationArena.New();
+    const data: InterfaceDeclaration | undefined = f!.interfaceDeclarationArena.New();
     data!.ModifiersBase_.modifiers = modifiers;
     data!.name = name_;
     data!.TypeParameters_ = typeParameters;
@@ -13545,7 +13545,7 @@ export class NodeFactory extends $rt.GoObject {
     typeNode: Node | undefined,
   ): Node | undefined {
     const f = this;
-    let data: TypeAliasDeclaration | undefined = f!.typeAliasDeclarationArena.New();
+    const data: TypeAliasDeclaration | undefined = f!.typeAliasDeclarationArena.New();
     data!.ModifiersBase_.modifiers = modifiers;
     data!.name = name_;
     data!.TypeParameters_ = typeParameters;
@@ -13559,7 +13559,7 @@ export class NodeFactory extends $rt.GoObject {
     typeNode: Node | undefined,
   ): Node | undefined {
     const f = this;
-    let data: TypeAliasDeclaration | undefined = f!.typeAliasDeclarationArena.New();
+    const data: TypeAliasDeclaration | undefined = f!.typeAliasDeclarationArena.New();
     data!.ModifiersBase_.modifiers = modifiers;
     data!.name = name_;
     data!.TypeParameters_ = typeParameters;
@@ -13608,7 +13608,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewEnumMember(name_: Node | undefined, initializer: Node | undefined): Node | undefined {
     const f = this;
-    let data: EnumMember | undefined = new EnumMember();
+    const data: EnumMember | undefined = new EnumMember();
     data!.NamedMemberBase_.name = name_;
     data!.Initializer_ = initializer;
     return f!.newNode(306, data);
@@ -13630,7 +13630,7 @@ export class NodeFactory extends $rt.GoObject {
     members: NodeList | undefined,
   ): Node | undefined {
     const f = this;
-    let data: EnumDeclaration | undefined = new EnumDeclaration();
+    const data: EnumDeclaration | undefined = new EnumDeclaration();
     data!.ModifiersBase_.modifiers = modifiers;
     data!.name = name_;
     data!.Members_ = members;
@@ -13650,7 +13650,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewModuleBlock(statements: NodeList | undefined): Node | undefined {
     const f = this;
-    let data: ModuleBlock | undefined = new ModuleBlock();
+    const data: ModuleBlock | undefined = new ModuleBlock();
     data!.Statements_ = statements;
     return f!.newNode(269, data);
   }
@@ -13663,12 +13663,12 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewNotEmittedStatement(): Node | undefined {
     const f = this;
-    let data: NotEmittedStatement | undefined = new NotEmittedStatement();
+    const data: NotEmittedStatement | undefined = new NotEmittedStatement();
     return f!.newNode(347, data);
   }
   NewNotEmittedTypeElement(): Node | undefined {
     const f = this;
-    let data: NotEmittedTypeElement | undefined = new NotEmittedTypeElement();
+    const data: NotEmittedTypeElement | undefined = new NotEmittedTypeElement();
     return f!.newNode(350, data);
   }
   NewImportDeclaration(
@@ -13678,7 +13678,7 @@ export class NodeFactory extends $rt.GoObject {
     attributes: Node | undefined,
   ): Node | undefined {
     const f = this;
-    let data: ImportDeclaration | undefined = new ImportDeclaration();
+    const data: ImportDeclaration | undefined = new ImportDeclaration();
     data!.ModifiersBase_.modifiers = modifiers;
     data!.ImportClause_ = importClause;
     data!.ModuleSpecifier_ = moduleSpecifier;
@@ -13692,7 +13692,7 @@ export class NodeFactory extends $rt.GoObject {
     attributes: Node | undefined,
   ): Node | undefined {
     const f = this;
-    let data: ImportDeclaration | undefined = new ImportDeclaration();
+    const data: ImportDeclaration | undefined = new ImportDeclaration();
     data!.ModifiersBase_.modifiers = modifiers;
     data!.ImportClause_ = importClause;
     data!.ModuleSpecifier_ = moduleSpecifier;
@@ -13741,7 +13741,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewExternalModuleReference(expression: Node | undefined): Node | undefined {
     const f = this;
-    let data: ExternalModuleReference | undefined = new ExternalModuleReference();
+    const data: ExternalModuleReference | undefined = new ExternalModuleReference();
     data!.Expression_ = expression;
     return f!.newNode(284, data);
   }
@@ -13757,7 +13757,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewNamespaceImport(name_: Node | undefined): Node | undefined {
     const f = this;
-    let data: NamespaceImport | undefined = new NamespaceImport();
+    const data: NamespaceImport | undefined = new NamespaceImport();
     data!.name = name_;
     return f!.newNode(275, data);
   }
@@ -13770,7 +13770,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewNamedImports(elements: NodeList | undefined): Node | undefined {
     const f = this;
-    let data: NamedImports | undefined = new NamedImports();
+    const data: NamedImports | undefined = new NamedImports();
     data!.Elements_ = elements;
     return f!.newNode(276, data);
   }
@@ -13788,7 +13788,7 @@ export class NodeFactory extends $rt.GoObject {
     expression: Node | undefined,
   ): Node | undefined {
     const f = this;
-    let data: ExportAssignment | undefined = new ExportAssignment();
+    const data: ExportAssignment | undefined = new ExportAssignment();
     data!.ModifiersBase_.modifiers = modifiers;
     data!.IsExportEquals = isExportEquals;
     data!.Type_ = typeNode;
@@ -13819,7 +13819,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewNamespaceExportDeclaration(modifiers: ModifierList | undefined, name_: Node | undefined): Node | undefined {
     const f = this;
-    let data: NamespaceExportDeclaration | undefined = new NamespaceExportDeclaration();
+    const data: NamespaceExportDeclaration | undefined = new NamespaceExportDeclaration();
     data!.ModifiersBase_.modifiers = modifiers;
     data!.name = name_;
     return f!.newNode(271, data);
@@ -13837,7 +13837,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewNamespaceExport(name_: Node | undefined): Node | undefined {
     const f = this;
-    let data: NamespaceExport | undefined = new NamespaceExport();
+    const data: NamespaceExport | undefined = new NamespaceExport();
     data!.name = name_;
     return f!.newNode(281, data);
   }
@@ -13850,7 +13850,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewNamedExports(elements: NodeList | undefined): Node | undefined {
     const f = this;
-    let data: NamedExports | undefined = new NamedExports();
+    const data: NamedExports | undefined = new NamedExports();
     data!.Elements_ = elements;
     return f!.newNode(280, data);
   }
@@ -13863,7 +13863,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewExportSpecifier(isTypeOnly: boolean, propertyName: Node | undefined, name_: Node | undefined): Node | undefined {
     const f = this;
-    let data: ExportSpecifier | undefined = new ExportSpecifier();
+    const data: ExportSpecifier | undefined = new ExportSpecifier();
     data!.IsTypeOnly_ = isTypeOnly;
     data!.PropertyName_ = propertyName;
     data!.name = name_;
@@ -13887,7 +13887,7 @@ export class NodeFactory extends $rt.GoObject {
     typeNode: Node | undefined,
   ): Node | undefined {
     const f = this;
-    let data: CallSignatureDeclaration | undefined = new CallSignatureDeclaration();
+    const data: CallSignatureDeclaration | undefined = new CallSignatureDeclaration();
     data!.FunctionLikeBase_.TypeParameters = typeParameters;
     data!.FunctionLikeBase_.Parameters = parameters;
     data!.FunctionLikeBase_.Type = typeNode;
@@ -13915,7 +13915,7 @@ export class NodeFactory extends $rt.GoObject {
     typeNode: Node | undefined,
   ): Node | undefined {
     const f = this;
-    let data: ConstructSignatureDeclaration | undefined = f!.constructSignatureDeclarationArena.New();
+    const data: ConstructSignatureDeclaration | undefined = f!.constructSignatureDeclarationArena.New();
     data!.FunctionLikeBase_.TypeParameters = typeParameters;
     data!.FunctionLikeBase_.Parameters = parameters;
     data!.FunctionLikeBase_.Type = typeNode;
@@ -13950,7 +13950,7 @@ export class NodeFactory extends $rt.GoObject {
     body: Node | undefined,
   ): Node | undefined {
     const f = this;
-    let data: ConstructorDeclaration | undefined = new ConstructorDeclaration();
+    const data: ConstructorDeclaration | undefined = new ConstructorDeclaration();
     data!.ModifiersBase_.modifiers = modifiers;
     data!.FunctionLikeWithBodyBase_.TypeParameters = typeParameters;
     data!.FunctionLikeWithBodyBase_.Parameters = parameters;
@@ -13995,7 +13995,7 @@ export class NodeFactory extends $rt.GoObject {
     body: Node | undefined,
   ): Node | undefined {
     const f = this;
-    let data: GetAccessorDeclaration | undefined = new GetAccessorDeclaration();
+    const data: GetAccessorDeclaration | undefined = new GetAccessorDeclaration();
     data!.NamedMemberBase_.modifiers = modifiers;
     data!.NamedMemberBase_.name = name_;
     data!.FunctionLikeWithBodyBase_.TypeParameters = typeParameters;
@@ -14043,7 +14043,7 @@ export class NodeFactory extends $rt.GoObject {
     body: Node | undefined,
   ): Node | undefined {
     const f = this;
-    let data: SetAccessorDeclaration | undefined = new SetAccessorDeclaration();
+    const data: SetAccessorDeclaration | undefined = new SetAccessorDeclaration();
     data!.NamedMemberBase_.modifiers = modifiers;
     data!.NamedMemberBase_.name = name_;
     data!.FunctionLikeWithBodyBase_.TypeParameters = typeParameters;
@@ -14087,7 +14087,7 @@ export class NodeFactory extends $rt.GoObject {
     typeNode: Node | undefined,
   ): Node | undefined {
     const f = this;
-    let data: IndexSignatureDeclaration | undefined = new IndexSignatureDeclaration();
+    const data: IndexSignatureDeclaration | undefined = new IndexSignatureDeclaration();
     data!.ModifiersBase_.modifiers = modifiers;
     data!.FunctionLikeBase_.Parameters = parameters;
     data!.FunctionLikeBase_.Type = typeNode;
@@ -14118,7 +14118,7 @@ export class NodeFactory extends $rt.GoObject {
     typeNode: Node | undefined,
   ): Node | undefined {
     const f = this;
-    let data: MethodSignatureDeclaration | undefined = f!.methodSignatureDeclarationArena.New();
+    const data: MethodSignatureDeclaration | undefined = f!.methodSignatureDeclarationArena.New();
     data!.NamedMemberBase_.modifiers = modifiers;
     data!.NamedMemberBase_.name = name_;
     data!.NamedMemberBase_.PostfixToken = postfixToken;
@@ -14165,7 +14165,7 @@ export class NodeFactory extends $rt.GoObject {
     body: Node | undefined,
   ): Node | undefined {
     const f = this;
-    let data: MethodDeclaration | undefined = new MethodDeclaration();
+    const data: MethodDeclaration | undefined = new MethodDeclaration();
     data!.NamedMemberBase_.modifiers = modifiers;
     data!.FunctionLikeWithBodyBase_.BodyBase_.AsteriskToken = asteriskToken;
     data!.NamedMemberBase_.name = name_;
@@ -14227,7 +14227,7 @@ export class NodeFactory extends $rt.GoObject {
     initializer: Node | undefined,
   ): Node | undefined {
     const f = this;
-    let data: PropertySignatureDeclaration | undefined = f!.propertySignatureDeclarationArena.New();
+    const data: PropertySignatureDeclaration | undefined = f!.propertySignatureDeclarationArena.New();
     data!.NamedMemberBase_.modifiers = modifiers;
     data!.NamedMemberBase_.name = name_;
     data!.NamedMemberBase_.PostfixToken = postfixToken;
@@ -14267,7 +14267,7 @@ export class NodeFactory extends $rt.GoObject {
     initializer: Node | undefined,
   ): Node | undefined {
     const f = this;
-    let data: PropertyDeclaration | undefined = new PropertyDeclaration();
+    const data: PropertyDeclaration | undefined = new PropertyDeclaration();
     data!.NamedMemberBase_.modifiers = modifiers;
     data!.NamedMemberBase_.name = name_;
     data!.NamedMemberBase_.PostfixToken = postfixToken;
@@ -14301,12 +14301,12 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewSemicolonClassElement(): Node | undefined {
     const f = this;
-    let data: SemicolonClassElement | undefined = new SemicolonClassElement();
+    const data: SemicolonClassElement | undefined = new SemicolonClassElement();
     return f!.newNode(241, data);
   }
   NewClassStaticBlockDeclaration(modifiers: ModifierList | undefined, body: Node | undefined): Node | undefined {
     const f = this;
-    let data: ClassStaticBlockDeclaration | undefined = new ClassStaticBlockDeclaration();
+    const data: ClassStaticBlockDeclaration | undefined = new ClassStaticBlockDeclaration();
     data!.ModifiersBase_.modifiers = modifiers;
     data!.Body_ = body;
     return f!.newNode(176, data);
@@ -14324,17 +14324,17 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewOmittedExpression(): Node | undefined {
     const f = this;
-    let data: OmittedExpression | undefined = new OmittedExpression();
+    const data: OmittedExpression | undefined = new OmittedExpression();
     return f!.newNode(233, data);
   }
   NewKeywordExpression(kind: KeywordExpressionSyntaxKind): Node | undefined {
     const f = this;
-    let data: KeywordExpression | undefined = f!.keywordExpressionArena.New();
+    const data: KeywordExpression | undefined = f!.keywordExpressionArena.New();
     return f!.newNode(kind, data);
   }
   NewStringLiteral(text: string, tokenFlags: TokenFlags): Node | undefined {
     const f = this;
-    let data: StringLiteral | undefined = f!.stringLiteralArena.New();
+    const data: StringLiteral | undefined = f!.stringLiteralArena.New();
     data!.LiteralLikeNodeBase_.Text = text;
     data!.LiteralLikeNodeBase_.TokenFlags_ = tokenFlags & 72716;
     f!.textCount++;
@@ -14342,7 +14342,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewNumericLiteral(text: string, tokenFlags: TokenFlags): Node | undefined {
     const f = this;
-    let data: NumericLiteral | undefined = f!.numericLiteralArena.New();
+    const data: NumericLiteral | undefined = f!.numericLiteralArena.New();
     data!.LiteralLikeNodeBase_.Text = text;
     data!.LiteralLikeNodeBase_.TokenFlags_ = tokenFlags & 25584;
     f!.textCount++;
@@ -14350,7 +14350,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewBigIntLiteral(text: string, tokenFlags: TokenFlags): Node | undefined {
     const f = this;
-    let data: BigIntLiteral | undefined = new BigIntLiteral();
+    const data: BigIntLiteral | undefined = new BigIntLiteral();
     data!.LiteralLikeNodeBase_.Text = text;
     data!.LiteralLikeNodeBase_.TokenFlags_ = tokenFlags & 25584;
     f!.textCount++;
@@ -14358,7 +14358,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewRegularExpressionLiteral(text: string, tokenFlags: TokenFlags): Node | undefined {
     const f = this;
-    let data: RegularExpressionLiteral | undefined = new RegularExpressionLiteral();
+    const data: RegularExpressionLiteral | undefined = new RegularExpressionLiteral();
     data!.LiteralLikeNodeBase_.Text = text;
     data!.LiteralLikeNodeBase_.TokenFlags_ = tokenFlags & 4;
     f!.textCount++;
@@ -14366,7 +14366,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewNoSubstitutionTemplateLiteral(text: string, templateFlags: TokenFlags): Node | undefined {
     const f = this;
-    let data: NoSubstitutionTemplateLiteral | undefined = new NoSubstitutionTemplateLiteral();
+    const data: NoSubstitutionTemplateLiteral | undefined = new NoSubstitutionTemplateLiteral();
     data!.TemplateLiteralLikeNodeBase_.Text = text;
     data!.TemplateLiteralLikeNodeBase_.TemplateFlags = templateFlags & 7180;
     f!.textCount++;
@@ -14380,7 +14380,7 @@ export class NodeFactory extends $rt.GoObject {
     right: Node | undefined,
   ): Node | undefined {
     const f = this;
-    let data: BinaryExpression | undefined = f!.binaryExpressionArena.New();
+    const data: BinaryExpression | undefined = f!.binaryExpressionArena.New();
     data!.ModifiersBase_.modifiers = modifiers;
     data!.Left = left;
     data!.Type_ = typeNode;
@@ -14414,7 +14414,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewPrefixUnaryExpression(operator: Kind, operand: Node | undefined): Node | undefined {
     const f = this;
-    let data: PrefixUnaryExpression | undefined = f!.prefixUnaryExpressionArena.New();
+    const data: PrefixUnaryExpression | undefined = f!.prefixUnaryExpressionArena.New();
     data!.Operator = operator;
     data!.Operand = operand;
     return f!.newNode(225, data);
@@ -14432,7 +14432,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewPostfixUnaryExpression(operand: Node | undefined, operator: Kind): Node | undefined {
     const f = this;
-    let data: PostfixUnaryExpression | undefined = new PostfixUnaryExpression();
+    const data: PostfixUnaryExpression | undefined = new PostfixUnaryExpression();
     data!.Operand = operand;
     data!.Operator = operator;
     return f!.newNode(226, data);
@@ -14450,7 +14450,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewYieldExpression(asteriskToken: Node | undefined, expression: Node | undefined): Node | undefined {
     const f = this;
-    let data: YieldExpression | undefined = new YieldExpression();
+    const data: YieldExpression | undefined = new YieldExpression();
     data!.AsteriskToken = asteriskToken;
     data!.Expression_ = expression;
     return f!.newNode(230, data);
@@ -14476,7 +14476,7 @@ export class NodeFactory extends $rt.GoObject {
     body: Node | undefined,
   ): Node | undefined {
     const f = this;
-    let data: ArrowFunction | undefined = new ArrowFunction();
+    const data: ArrowFunction | undefined = new ArrowFunction();
     data!.ModifiersBase_.modifiers = modifiers;
     data!.FunctionLikeWithBodyBase_.TypeParameters = typeParameters;
     data!.FunctionLikeWithBodyBase_.Parameters = parameters;
@@ -14533,7 +14533,7 @@ export class NodeFactory extends $rt.GoObject {
     body: Node | undefined,
   ): Node | undefined {
     const f = this;
-    let data: FunctionExpression | undefined = new FunctionExpression();
+    const data: FunctionExpression | undefined = new FunctionExpression();
     data!.ModifiersBase_.modifiers = modifiers;
     data!.FunctionLikeWithBodyBase_.BodyBase_.AsteriskToken = asteriskToken;
     data!.name = name_;
@@ -14585,7 +14585,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewAsExpression(expression: Node | undefined, typeNode: Node | undefined): Node | undefined {
     const f = this;
-    let data: AsExpression | undefined = new AsExpression();
+    const data: AsExpression | undefined = new AsExpression();
     data!.Expression_ = expression;
     data!.Type_ = typeNode;
     return f!.newNode(235, data);
@@ -14603,7 +14603,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewSatisfiesExpression(expression: Node | undefined, typeNode: Node | undefined): Node | undefined {
     const f = this;
-    let data: SatisfiesExpression | undefined = new SatisfiesExpression();
+    const data: SatisfiesExpression | undefined = new SatisfiesExpression();
     data!.Expression_ = expression;
     data!.Type_ = typeNode;
     return f!.newNode(239, data);
@@ -14627,7 +14627,7 @@ export class NodeFactory extends $rt.GoObject {
     whenFalse: Node | undefined,
   ): Node | undefined {
     const f = this;
-    let data: ConditionalExpression | undefined = f!.conditionalExpressionArena.New();
+    const data: ConditionalExpression | undefined = f!.conditionalExpressionArena.New();
     data!.Condition = condition;
     data!.QuestionToken_ = questionToken;
     data!.WhenTrue = whenTrue;
@@ -14666,11 +14666,11 @@ export class NodeFactory extends $rt.GoObject {
     flags: NodeFlags,
   ): Node | undefined {
     const f = this;
-    let data: PropertyAccessExpression | undefined = f!.propertyAccessExpressionArena.New();
+    const data: PropertyAccessExpression | undefined = f!.propertyAccessExpressionArena.New();
     data!.Expression_ = expression;
     data!.QuestionDotToken_ = questionDotToken;
     data!.name = name_;
-    let node: Node | undefined = f!.newNode(212, data);
+    const node: Node | undefined = f!.newNode(212, data);
     node!.Flags = (node!.Flags | (flags & 32)) >>> 0;
     return node;
   }
@@ -14703,11 +14703,11 @@ export class NodeFactory extends $rt.GoObject {
     flags: NodeFlags,
   ): Node | undefined {
     const f = this;
-    let data: ElementAccessExpression | undefined = f!.elementAccessExpressionArena.New();
+    const data: ElementAccessExpression | undefined = f!.elementAccessExpressionArena.New();
     data!.Expression_ = expression;
     data!.QuestionDotToken_ = questionDotToken;
     data!.ArgumentExpression = argumentExpression;
-    let node: Node | undefined = f!.newNode(213, data);
+    const node: Node | undefined = f!.newNode(213, data);
     node!.Flags = (node!.Flags | (flags & 32)) >>> 0;
     return node;
   }
@@ -14741,12 +14741,12 @@ export class NodeFactory extends $rt.GoObject {
     flags: NodeFlags,
   ): Node | undefined {
     const f = this;
-    let data: CallExpression | undefined = f!.callExpressionArena.New();
+    const data: CallExpression | undefined = f!.callExpressionArena.New();
     data!.Expression_ = expression;
     data!.QuestionDotToken_ = questionDotToken;
     data!.TypeArguments_ = typeArguments;
     data!.Arguments_ = arguments_;
-    let node: Node | undefined = f!.newNode(214, data);
+    const node: Node | undefined = f!.newNode(214, data);
     node!.Flags = (node!.Flags | (flags & 32)) >>> 0;
     return node;
   }
@@ -14780,7 +14780,7 @@ export class NodeFactory extends $rt.GoObject {
     arguments_: NodeList | undefined,
   ): Node | undefined {
     const f = this;
-    let data: NewExpression | undefined = new NewExpression();
+    const data: NewExpression | undefined = new NewExpression();
     data!.Expression_ = expression;
     data!.TypeArguments_ = typeArguments;
     data!.Arguments_ = arguments_;
@@ -14804,7 +14804,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewMetaProperty(keywordToken: Kind, name_: Node | undefined): Node | undefined {
     const f = this;
-    let data: MetaProperty | undefined = new MetaProperty();
+    const data: MetaProperty | undefined = new MetaProperty();
     data!.KeywordToken = keywordToken;
     data!.name = name_;
     return f!.newNode(237, data);
@@ -14818,9 +14818,9 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewNonNullExpression(expression: Node | undefined, flags: NodeFlags): Node | undefined {
     const f = this;
-    let data: NonNullExpression | undefined = new NonNullExpression();
+    const data: NonNullExpression | undefined = new NonNullExpression();
     data!.Expression_ = expression;
-    let node: Node | undefined = f!.newNode(236, data);
+    const node: Node | undefined = f!.newNode(236, data);
     node!.Flags = (node!.Flags | (flags & 32)) >>> 0;
     return node;
   }
@@ -14837,7 +14837,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewSpreadElement(expression: Node | undefined): Node | undefined {
     const f = this;
-    let data: SpreadElement | undefined = new SpreadElement();
+    const data: SpreadElement | undefined = new SpreadElement();
     data!.Expression_ = expression;
     return f!.newNode(231, data);
   }
@@ -14850,7 +14850,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewTemplateExpression(head: Node | undefined, templateSpans: NodeList | undefined): Node | undefined {
     const f = this;
-    let data: TemplateExpression | undefined = new TemplateExpression();
+    const data: TemplateExpression | undefined = new TemplateExpression();
     data!.Head = head;
     data!.TemplateSpans = templateSpans;
     return f!.newNode(229, data);
@@ -14868,7 +14868,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewTemplateSpan(expression: Node | undefined, literal: Node | undefined): Node | undefined {
     const f = this;
-    let data: TemplateSpan | undefined = new TemplateSpan();
+    const data: TemplateSpan | undefined = new TemplateSpan();
     data!.Expression_ = expression;
     data!.Literal = literal;
     return f!.newNode(240, data);
@@ -14892,12 +14892,12 @@ export class NodeFactory extends $rt.GoObject {
     flags: NodeFlags,
   ): Node | undefined {
     const f = this;
-    let data: TaggedTemplateExpression | undefined = new TaggedTemplateExpression();
+    const data: TaggedTemplateExpression | undefined = new TaggedTemplateExpression();
     data!.Tag = tag;
     data!.QuestionDotToken_ = questionDotToken;
     data!.TypeArguments_ = typeArguments;
     data!.Template = template;
-    let node: Node | undefined = f!.newNode(216, data);
+    const node: Node | undefined = f!.newNode(216, data);
     node!.Flags = (node!.Flags | (flags & 32)) >>> 0;
     return node;
   }
@@ -14927,7 +14927,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewParenthesizedExpression(expression: Node | undefined): Node | undefined {
     const f = this;
-    let data: ParenthesizedExpression | undefined = f!.parenthesizedExpressionArena.New();
+    const data: ParenthesizedExpression | undefined = f!.parenthesizedExpressionArena.New();
     data!.Expression_ = expression;
     return f!.newNode(218, data);
   }
@@ -14943,7 +14943,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewArrayLiteralExpression(elements: NodeList | undefined, multiLine: boolean): Node | undefined {
     const f = this;
-    let data: ArrayLiteralExpression | undefined = new ArrayLiteralExpression();
+    const data: ArrayLiteralExpression | undefined = new ArrayLiteralExpression();
     data!.Elements_ = elements;
     data!.MultiLine = multiLine;
     return f!.newNode(210, data);
@@ -14961,7 +14961,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewObjectLiteralExpression(properties: NodeList | undefined, multiLine: boolean): Node | undefined {
     const f = this;
-    let data: ObjectLiteralExpression | undefined = new ObjectLiteralExpression();
+    const data: ObjectLiteralExpression | undefined = new ObjectLiteralExpression();
     data!.Properties_ = properties;
     data!.MultiLine = multiLine;
     return f!.newNode(211, data);
@@ -14979,7 +14979,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewSpreadAssignment(expression: Node | undefined): Node | undefined {
     const f = this;
-    let data: SpreadAssignment | undefined = new SpreadAssignment();
+    const data: SpreadAssignment | undefined = new SpreadAssignment();
     data!.Expression_ = expression;
     return f!.newNode(305, data);
   }
@@ -14998,7 +14998,7 @@ export class NodeFactory extends $rt.GoObject {
     initializer: Node | undefined,
   ): Node | undefined {
     const f = this;
-    let data: PropertyAssignment | undefined = f!.propertyAssignmentArena.New();
+    const data: PropertyAssignment | undefined = f!.propertyAssignmentArena.New();
     data!.NamedMemberBase_.modifiers = modifiers;
     data!.NamedMemberBase_.name = name_;
     data!.NamedMemberBase_.PostfixToken = postfixToken;
@@ -15039,7 +15039,7 @@ export class NodeFactory extends $rt.GoObject {
     objectAssignmentInitializer: Node | undefined,
   ): Node | undefined {
     const f = this;
-    let data: ShorthandPropertyAssignment | undefined = new ShorthandPropertyAssignment();
+    const data: ShorthandPropertyAssignment | undefined = new ShorthandPropertyAssignment();
     data!.NamedMemberBase_.modifiers = modifiers;
     data!.NamedMemberBase_.name = name_;
     data!.NamedMemberBase_.PostfixToken = postfixToken;
@@ -15083,7 +15083,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewDeleteExpression(expression: Node | undefined): Node | undefined {
     const f = this;
-    let data: DeleteExpression | undefined = new DeleteExpression();
+    const data: DeleteExpression | undefined = new DeleteExpression();
     data!.Expression_ = expression;
     return f!.newNode(221, data);
   }
@@ -15096,7 +15096,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewTypeOfExpression(expression: Node | undefined): Node | undefined {
     const f = this;
-    let data: TypeOfExpression | undefined = new TypeOfExpression();
+    const data: TypeOfExpression | undefined = new TypeOfExpression();
     data!.Expression_ = expression;
     return f!.newNode(222, data);
   }
@@ -15109,7 +15109,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewVoidExpression(expression: Node | undefined): Node | undefined {
     const f = this;
-    let data: VoidExpression | undefined = new VoidExpression();
+    const data: VoidExpression | undefined = new VoidExpression();
     data!.Expression_ = expression;
     return f!.newNode(223, data);
   }
@@ -15122,7 +15122,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewAwaitExpression(expression: Node | undefined): Node | undefined {
     const f = this;
-    let data: AwaitExpression | undefined = new AwaitExpression();
+    const data: AwaitExpression | undefined = new AwaitExpression();
     data!.Expression_ = expression;
     return f!.newNode(224, data);
   }
@@ -15135,7 +15135,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewTypeAssertion(typeNode: Node | undefined, expression: Node | undefined): Node | undefined {
     const f = this;
-    let data: TypeAssertion | undefined = new TypeAssertion();
+    const data: TypeAssertion | undefined = new TypeAssertion();
     data!.Type_ = typeNode;
     data!.Expression_ = expression;
     return f!.newNode(217, data);
@@ -15153,12 +15153,12 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewKeywordTypeNode(kind: KeywordTypeSyntaxKind): Node | undefined {
     const f = this;
-    let data: KeywordTypeNode | undefined = f!.keywordTypeNodeArena.New();
+    const data: KeywordTypeNode | undefined = f!.keywordTypeNodeArena.New();
     return f!.newNode(kind, data);
   }
   NewUnionTypeNode(types: NodeList | undefined): Node | undefined {
     const f = this;
-    let data: UnionTypeNode | undefined = f!.unionTypeNodeArena.New();
+    const data: UnionTypeNode | undefined = f!.unionTypeNodeArena.New();
     data!.Types = types;
     return f!.newNode(193, data);
   }
@@ -15171,7 +15171,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewIntersectionTypeNode(types: NodeList | undefined): Node | undefined {
     const f = this;
-    let data: IntersectionTypeNode | undefined = f!.intersectionTypeNodeArena.New();
+    const data: IntersectionTypeNode | undefined = f!.intersectionTypeNodeArena.New();
     data!.Types = types;
     return f!.newNode(194, data);
   }
@@ -15189,7 +15189,7 @@ export class NodeFactory extends $rt.GoObject {
     falseType: Node | undefined,
   ): Node | undefined {
     const f = this;
-    let data: ConditionalTypeNode | undefined = new ConditionalTypeNode();
+    const data: ConditionalTypeNode | undefined = new ConditionalTypeNode();
     data!.CheckType = checkType;
     data!.ExtendsType = extendsType;
     data!.TrueType = trueType;
@@ -15220,7 +15220,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewTypeOperatorNode(operator: Kind, typeNode: Node | undefined): Node | undefined {
     const f = this;
-    let data: TypeOperatorNode | undefined = f!.typeOperatorNodeArena.New();
+    const data: TypeOperatorNode | undefined = f!.typeOperatorNodeArena.New();
     data!.Operator = operator;
     data!.Type_ = typeNode;
     return f!.newNode(199, data);
@@ -15238,7 +15238,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewInferTypeNode(typeParameter: Node | undefined): Node | undefined {
     const f = this;
-    let data: InferTypeNode | undefined = new InferTypeNode();
+    const data: InferTypeNode | undefined = new InferTypeNode();
     data!.TypeParameter = typeParameter;
     return f!.newNode(196, data);
   }
@@ -15251,7 +15251,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewArrayTypeNode(elementType: Node | undefined): Node | undefined {
     const f = this;
-    let data: ArrayTypeNode | undefined = f!.arrayTypeNodeArena.New();
+    const data: ArrayTypeNode | undefined = f!.arrayTypeNodeArena.New();
     data!.ElementType = elementType;
     return f!.newNode(189, data);
   }
@@ -15264,7 +15264,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewIndexedAccessTypeNode(objectType: Node | undefined, indexType: Node | undefined): Node | undefined {
     const f = this;
-    let data: IndexedAccessTypeNode | undefined = f!.indexedAccessTypeNodeArena.New();
+    const data: IndexedAccessTypeNode | undefined = f!.indexedAccessTypeNodeArena.New();
     data!.ObjectType = objectType;
     data!.IndexType = indexType;
     return f!.newNode(200, data);
@@ -15282,7 +15282,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewTypeReferenceNode(typeName: Node | undefined, typeArguments: NodeList | undefined): Node | undefined {
     const f = this;
-    let data: TypeReferenceNode | undefined = f!.typeReferenceNodeArena.New();
+    const data: TypeReferenceNode | undefined = f!.typeReferenceNodeArena.New();
     data!.TypeName = typeName;
     data!.TypeArguments_ = typeArguments;
     return f!.newNode(184, data);
@@ -15300,7 +15300,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewExpressionWithTypeArguments(expression: Node | undefined, typeArguments: NodeList | undefined): Node | undefined {
     const f = this;
-    let data: ExpressionWithTypeArguments | undefined = f!.expressionWithTypeArgumentsArena.New();
+    const data: ExpressionWithTypeArguments | undefined = f!.expressionWithTypeArgumentsArena.New();
     data!.Expression_ = expression;
     data!.TypeArguments_ = typeArguments;
     return f!.newNode(234, data);
@@ -15318,7 +15318,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewLiteralTypeNode(literal: Node | undefined): Node | undefined {
     const f = this;
-    let data: LiteralTypeNode | undefined = f!.literalTypeNodeArena.New();
+    const data: LiteralTypeNode | undefined = f!.literalTypeNodeArena.New();
     data!.Literal = literal;
     return f!.newNode(202, data);
   }
@@ -15331,7 +15331,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewThisTypeNode(): Node | undefined {
     const f = this;
-    let data: ThisTypeNode | undefined = new ThisTypeNode();
+    const data: ThisTypeNode | undefined = new ThisTypeNode();
     return f!.newNode(198, data);
   }
   NewTypePredicateNode(
@@ -15340,7 +15340,7 @@ export class NodeFactory extends $rt.GoObject {
     typeNode: Node | undefined,
   ): Node | undefined {
     const f = this;
-    let data: TypePredicateNode | undefined = new TypePredicateNode();
+    const data: TypePredicateNode | undefined = new TypePredicateNode();
     data!.AssertsModifier = assertsModifier;
     data!.ParameterName = parameterName;
     data!.Type_ = typeNode;
@@ -15364,7 +15364,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewImportAttribute(name_: Node | undefined, value: Node | undefined): Node | undefined {
     const f = this;
-    let data: ImportAttribute | undefined = new ImportAttribute();
+    const data: ImportAttribute | undefined = new ImportAttribute();
     data!.name = name_;
     data!.Value = value;
     return f!.newNode(302, data);
@@ -15382,7 +15382,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewImportAttributes(token: Kind, attributes: NodeList | undefined, multiLine: boolean): Node | undefined {
     const f = this;
-    let data: ImportAttributes | undefined = new ImportAttributes();
+    const data: ImportAttributes | undefined = new ImportAttributes();
     data!.Token = token;
     data!.Attributes_ = attributes;
     data!.MultiLine = multiLine;
@@ -15402,7 +15402,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewTypeQueryNode(exprName: Node | undefined, typeArguments: NodeList | undefined): Node | undefined {
     const f = this;
-    let data: TypeQueryNode | undefined = new TypeQueryNode();
+    const data: TypeQueryNode | undefined = new TypeQueryNode();
     data!.ExprName = exprName;
     data!.TypeArguments_ = typeArguments;
     return f!.newNode(187, data);
@@ -15427,7 +15427,7 @@ export class NodeFactory extends $rt.GoObject {
     members: NodeList | undefined,
   ): Node | undefined {
     const f = this;
-    let data: MappedTypeNode | undefined = new MappedTypeNode();
+    const data: MappedTypeNode | undefined = new MappedTypeNode();
     data!.ReadonlyToken = readonlyToken;
     data!.TypeParameter = typeParameter;
     data!.NameType = nameType;
@@ -15464,7 +15464,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewTypeLiteralNode(members: NodeList | undefined): Node | undefined {
     const f = this;
-    let data: TypeLiteralNode | undefined = f!.typeLiteralNodeArena.New();
+    const data: TypeLiteralNode | undefined = f!.typeLiteralNodeArena.New();
     data!.Members_ = members;
     return f!.newNode(188, data);
   }
@@ -15477,7 +15477,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewTupleTypeNode(elements: NodeList | undefined): Node | undefined {
     const f = this;
-    let data: TupleTypeNode | undefined = new TupleTypeNode();
+    const data: TupleTypeNode | undefined = new TupleTypeNode();
     data!.Elements_ = elements;
     return f!.newNode(190, data);
   }
@@ -15495,7 +15495,7 @@ export class NodeFactory extends $rt.GoObject {
     typeNode: Node | undefined,
   ): Node | undefined {
     const f = this;
-    let data: NamedTupleMember | undefined = new NamedTupleMember();
+    const data: NamedTupleMember | undefined = new NamedTupleMember();
     data!.DotDotDotToken = dotDotDotToken;
     data!.name = name_;
     data!.QuestionToken_ = questionToken;
@@ -15526,7 +15526,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewOptionalTypeNode(typeNode: Node | undefined): Node | undefined {
     const f = this;
-    let data: OptionalTypeNode | undefined = new OptionalTypeNode();
+    const data: OptionalTypeNode | undefined = new OptionalTypeNode();
     data!.Type_ = typeNode;
     return f!.newNode(191, data);
   }
@@ -15539,7 +15539,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewRestTypeNode(typeNode: Node | undefined): Node | undefined {
     const f = this;
-    let data: RestTypeNode | undefined = new RestTypeNode();
+    const data: RestTypeNode | undefined = new RestTypeNode();
     data!.Type_ = typeNode;
     return f!.newNode(192, data);
   }
@@ -15552,7 +15552,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewParenthesizedTypeNode(typeNode: Node | undefined): Node | undefined {
     const f = this;
-    let data: ParenthesizedTypeNode | undefined = f!.parenthesizedTypeNodeArena.New();
+    const data: ParenthesizedTypeNode | undefined = f!.parenthesizedTypeNodeArena.New();
     data!.Type_ = typeNode;
     return f!.newNode(197, data);
   }
@@ -15569,7 +15569,7 @@ export class NodeFactory extends $rt.GoObject {
     typeNode: Node | undefined,
   ): Node | undefined {
     const f = this;
-    let data: FunctionTypeNode | undefined = f!.functionTypeNodeArena.New();
+    const data: FunctionTypeNode | undefined = f!.functionTypeNodeArena.New();
     data!.FunctionLikeBase_.TypeParameters = typeParameters;
     data!.FunctionLikeBase_.Parameters = parameters;
     data!.FunctionLikeBase_.Type = typeNode;
@@ -15598,7 +15598,7 @@ export class NodeFactory extends $rt.GoObject {
     typeNode: Node | undefined,
   ): Node | undefined {
     const f = this;
-    let data: ConstructorTypeNode | undefined = new ConstructorTypeNode();
+    const data: ConstructorTypeNode | undefined = new ConstructorTypeNode();
     data!.ModifiersBase_.modifiers = modifiers;
     data!.FunctionLikeBase_.TypeParameters = typeParameters;
     data!.FunctionLikeBase_.Parameters = parameters;
@@ -15629,7 +15629,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewTemplateHead(text: string, rawText: string, templateFlags: TokenFlags): Node | undefined {
     const f = this;
-    let data: TemplateHead | undefined = new TemplateHead();
+    const data: TemplateHead | undefined = new TemplateHead();
     data!.TemplateLiteralLikeNodeBase_.Text = text;
     data!.TemplateLiteralLikeNodeBase_.RawText = rawText;
     data!.TemplateLiteralLikeNodeBase_.TemplateFlags = templateFlags & 7180;
@@ -15638,7 +15638,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewTemplateMiddle(text: string, rawText: string, templateFlags: TokenFlags): Node | undefined {
     const f = this;
-    let data: TemplateMiddle | undefined = new TemplateMiddle();
+    const data: TemplateMiddle | undefined = new TemplateMiddle();
     data!.TemplateLiteralLikeNodeBase_.Text = text;
     data!.TemplateLiteralLikeNodeBase_.RawText = rawText;
     data!.TemplateLiteralLikeNodeBase_.TemplateFlags = templateFlags & 7180;
@@ -15647,7 +15647,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewTemplateTail(text: string, rawText: string, templateFlags: TokenFlags): Node | undefined {
     const f = this;
-    let data: TemplateTail | undefined = new TemplateTail();
+    const data: TemplateTail | undefined = new TemplateTail();
     data!.TemplateLiteralLikeNodeBase_.Text = text;
     data!.TemplateLiteralLikeNodeBase_.RawText = rawText;
     data!.TemplateLiteralLikeNodeBase_.TemplateFlags = templateFlags & 7180;
@@ -15656,7 +15656,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewTemplateLiteralTypeNode(head: Node | undefined, templateSpans: NodeList | undefined): Node | undefined {
     const f = this;
-    let data: TemplateLiteralTypeNode | undefined = new TemplateLiteralTypeNode();
+    const data: TemplateLiteralTypeNode | undefined = new TemplateLiteralTypeNode();
     data!.Head = head;
     data!.TemplateSpans = templateSpans;
     return f!.newNode(204, data);
@@ -15674,7 +15674,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewTemplateLiteralTypeSpan(typeNode: Node | undefined, literal: Node | undefined): Node | undefined {
     const f = this;
-    let data: TemplateLiteralTypeSpan | undefined = new TemplateLiteralTypeSpan();
+    const data: TemplateLiteralTypeSpan | undefined = new TemplateLiteralTypeSpan();
     data!.Type_ = typeNode;
     data!.Literal = literal;
     return f!.newNode(205, data);
@@ -15696,7 +15696,7 @@ export class NodeFactory extends $rt.GoObject {
     tupleNameSource: Node | undefined,
   ): Node | undefined {
     const f = this;
-    let data: SyntheticExpression | undefined = new SyntheticExpression();
+    const data: SyntheticExpression | undefined = new SyntheticExpression();
     data!.Type_ = typeNode;
     data!.IsSpread = isSpread;
     data!.TupleNameSource = tupleNameSource;
@@ -15720,7 +15720,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewPartiallyEmittedExpression(expression: Node | undefined): Node | undefined {
     const f = this;
-    let data: PartiallyEmittedExpression | undefined = new PartiallyEmittedExpression();
+    const data: PartiallyEmittedExpression | undefined = new PartiallyEmittedExpression();
     data!.Expression_ = expression;
     return f!.newNode(348, data);
   }
@@ -15740,7 +15740,7 @@ export class NodeFactory extends $rt.GoObject {
     closingElement: Node | undefined,
   ): Node | undefined {
     const f = this;
-    let data: JsxElement | undefined = new JsxElement();
+    const data: JsxElement | undefined = new JsxElement();
     data!.OpeningElement = openingElement;
     data!.Children_ = children;
     data!.ClosingElement = closingElement;
@@ -15764,7 +15764,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewJsxAttributes(properties: NodeList | undefined): Node | undefined {
     const f = this;
-    let data: JsxAttributes | undefined = new JsxAttributes();
+    const data: JsxAttributes | undefined = new JsxAttributes();
     data!.Properties_ = properties;
     return f!.newNode(293, data);
   }
@@ -15777,7 +15777,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewJsxNamespacedName(namespace_: Node | undefined, name_: Node | undefined): Node | undefined {
     const f = this;
-    let data: JsxNamespacedName | undefined = new JsxNamespacedName();
+    const data: JsxNamespacedName | undefined = new JsxNamespacedName();
     data!.Namespace = namespace_;
     data!.name = name_;
     return f!.newNode(296, data);
@@ -15799,7 +15799,7 @@ export class NodeFactory extends $rt.GoObject {
     attributes: Node | undefined,
   ): Node | undefined {
     const f = this;
-    let data: JsxOpeningElement | undefined = new JsxOpeningElement();
+    const data: JsxOpeningElement | undefined = new JsxOpeningElement();
     data!.TagName_ = tagName;
     data!.TypeArguments_ = typeArguments;
     data!.Attributes_ = attributes;
@@ -15827,7 +15827,7 @@ export class NodeFactory extends $rt.GoObject {
     attributes: Node | undefined,
   ): Node | undefined {
     const f = this;
-    let data: JsxSelfClosingElement | undefined = new JsxSelfClosingElement();
+    const data: JsxSelfClosingElement | undefined = new JsxSelfClosingElement();
     data!.TagName_ = tagName;
     data!.TypeArguments_ = typeArguments;
     data!.Attributes_ = attributes;
@@ -15855,7 +15855,7 @@ export class NodeFactory extends $rt.GoObject {
     closingFragment: Node | undefined,
   ): Node | undefined {
     const f = this;
-    let data: JsxFragment | undefined = new JsxFragment();
+    const data: JsxFragment | undefined = new JsxFragment();
     data!.OpeningFragment = openingFragment;
     data!.Children_ = children;
     data!.ClosingFragment = closingFragment;
@@ -15879,17 +15879,17 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewJsxOpeningFragment(): Node | undefined {
     const f = this;
-    let data: JsxOpeningFragment | undefined = new JsxOpeningFragment();
+    const data: JsxOpeningFragment | undefined = new JsxOpeningFragment();
     return f!.newNode(290, data);
   }
   NewJsxClosingFragment(): Node | undefined {
     const f = this;
-    let data: JsxClosingFragment | undefined = new JsxClosingFragment();
+    const data: JsxClosingFragment | undefined = new JsxClosingFragment();
     return f!.newNode(291, data);
   }
   NewJsxAttribute(name_: Node | undefined, initializer: Node | undefined): Node | undefined {
     const f = this;
-    let data: JsxAttribute | undefined = new JsxAttribute();
+    const data: JsxAttribute | undefined = new JsxAttribute();
     data!.name = name_;
     data!.Initializer_ = initializer;
     return f!.newNode(292, data);
@@ -15907,7 +15907,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewJsxSpreadAttribute(expression: Node | undefined): Node | undefined {
     const f = this;
-    let data: JsxSpreadAttribute | undefined = new JsxSpreadAttribute();
+    const data: JsxSpreadAttribute | undefined = new JsxSpreadAttribute();
     data!.Expression_ = expression;
     return f!.newNode(294, data);
   }
@@ -15920,7 +15920,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewJsxClosingElement(tagName: Node | undefined): Node | undefined {
     const f = this;
-    let data: JsxClosingElement | undefined = new JsxClosingElement();
+    const data: JsxClosingElement | undefined = new JsxClosingElement();
     data!.TagName_ = tagName;
     return f!.newNode(288, data);
   }
@@ -15933,7 +15933,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewJsxExpression(dotDotDotToken: Node | undefined, expression: Node | undefined): Node | undefined {
     const f = this;
-    let data: JsxExpression | undefined = new JsxExpression();
+    const data: JsxExpression | undefined = new JsxExpression();
     data!.DotDotDotToken = dotDotDotToken;
     data!.Expression_ = expression;
     return f!.newNode(295, data);
@@ -15951,7 +15951,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewJsxText(text: string, containsOnlyTriviaWhiteSpaces: boolean): Node | undefined {
     const f = this;
-    let data: JsxText | undefined = new JsxText();
+    const data: JsxText | undefined = new JsxText();
     data!.LiteralLikeNodeBase_.Text = text;
     data!.ContainsOnlyTriviaWhiteSpaces = containsOnlyTriviaWhiteSpaces;
     f!.textCount++;
@@ -15959,7 +15959,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewSyntaxList(children: (Node | undefined)[]): Node | undefined {
     const f = this;
-    let data: SyntaxList | undefined = new SyntaxList();
+    const data: SyntaxList | undefined = new SyntaxList();
     data!.Children_ = children;
     return f!.newNode(344, data);
   }
@@ -15972,7 +15972,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewJSDoc(comment: NodeList | undefined, tags: NodeList | undefined): Node | undefined {
     const f = this;
-    let data: JSDoc | undefined = f!.jsdocArena.New();
+    const data: JSDoc | undefined = f!.jsdocArena.New();
     data!.Comment = comment;
     data!.Tags = tags;
     return f!.newNode(315, data);
@@ -15986,7 +15986,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewJSDocTypeExpression(typeNode: Node | undefined): Node | undefined {
     const f = this;
-    let data: JSDocTypeExpression | undefined = new JSDocTypeExpression();
+    const data: JSDocTypeExpression | undefined = new JSDocTypeExpression();
     data!.Type_ = typeNode;
     return f!.newNode(308, data);
   }
@@ -15999,7 +15999,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewJSDocNonNullableType(typeNode: Node | undefined): Node | undefined {
     const f = this;
-    let data: JSDocNonNullableType | undefined = new JSDocNonNullableType();
+    const data: JSDocNonNullableType | undefined = new JSDocNonNullableType();
     data!.Type_ = typeNode;
     return f!.newNode(312, data);
   }
@@ -16012,7 +16012,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewJSDocNullableType(typeNode: Node | undefined): Node | undefined {
     const f = this;
-    let data: JSDocNullableType | undefined = new JSDocNullableType();
+    const data: JSDocNullableType | undefined = new JSDocNullableType();
     data!.Type_ = typeNode;
     return f!.newNode(311, data);
   }
@@ -16025,12 +16025,12 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewJSDocAllType(): Node | undefined {
     const f = this;
-    let data: JSDocAllType | undefined = new JSDocAllType();
+    const data: JSDocAllType | undefined = new JSDocAllType();
     return f!.newNode(310, data);
   }
   NewJSDocVariadicType(typeNode: Node | undefined): Node | undefined {
     const f = this;
-    let data: JSDocVariadicType | undefined = new JSDocVariadicType();
+    const data: JSDocVariadicType | undefined = new JSDocVariadicType();
     data!.Type_ = typeNode;
     return f!.newNode(314, data);
   }
@@ -16043,7 +16043,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewJSDocOptionalType(typeNode: Node | undefined): Node | undefined {
     const f = this;
-    let data: JSDocOptionalType | undefined = new JSDocOptionalType();
+    const data: JSDocOptionalType | undefined = new JSDocOptionalType();
     data!.Type_ = typeNode;
     return f!.newNode(313, data);
   }
@@ -16060,7 +16060,7 @@ export class NodeFactory extends $rt.GoObject {
     comment: NodeList | undefined,
   ): Node | undefined {
     const f = this;
-    let data: JSDocTypeTag | undefined = new JSDocTypeTag();
+    const data: JSDocTypeTag | undefined = new JSDocTypeTag();
     data!.TagName_ = tagName;
     data!.TypeExpression_ = typeExpression;
     data!.Comment = comment;
@@ -16080,7 +16080,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewJSDocUnknownTag(tagName: Node | undefined, comment: NodeList | undefined): Node | undefined {
     const f = this;
-    let data: JSDocUnknownTag | undefined = f!.jsdocUnknownTagArena.New();
+    const data: JSDocUnknownTag | undefined = f!.jsdocUnknownTagArena.New();
     data!.TagName_ = tagName;
     data!.Comment = comment;
     return f!.newNode(322, data);
@@ -16103,7 +16103,7 @@ export class NodeFactory extends $rt.GoObject {
     comment: NodeList | undefined,
   ): Node | undefined {
     const f = this;
-    let data: JSDocTemplateTag | undefined = new JSDocTemplateTag();
+    const data: JSDocTemplateTag | undefined = new JSDocTemplateTag();
     data!.TagName_ = tagName;
     data!.Constraint = constraint;
     data!.TypeParameters_ = typeParameters;
@@ -16134,7 +16134,7 @@ export class NodeFactory extends $rt.GoObject {
     comment: NodeList | undefined,
   ): Node | undefined {
     const f = this;
-    let data: JSDocReturnTag | undefined = new JSDocReturnTag();
+    const data: JSDocReturnTag | undefined = new JSDocReturnTag();
     data!.TagName_ = tagName;
     data!.TypeExpression_ = typeExpression;
     data!.Comment = comment;
@@ -16154,7 +16154,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewJSDocPublicTag(tagName: Node | undefined, comment: NodeList | undefined): Node | undefined {
     const f = this;
-    let data: JSDocPublicTag | undefined = new JSDocPublicTag();
+    const data: JSDocPublicTag | undefined = new JSDocPublicTag();
     data!.TagName_ = tagName;
     data!.Comment = comment;
     return f!.newNode(326, data);
@@ -16172,7 +16172,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewJSDocPrivateTag(tagName: Node | undefined, comment: NodeList | undefined): Node | undefined {
     const f = this;
-    let data: JSDocPrivateTag | undefined = new JSDocPrivateTag();
+    const data: JSDocPrivateTag | undefined = new JSDocPrivateTag();
     data!.TagName_ = tagName;
     data!.Comment = comment;
     return f!.newNode(327, data);
@@ -16190,7 +16190,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewJSDocProtectedTag(tagName: Node | undefined, comment: NodeList | undefined): Node | undefined {
     const f = this;
-    let data: JSDocProtectedTag | undefined = new JSDocProtectedTag();
+    const data: JSDocProtectedTag | undefined = new JSDocProtectedTag();
     data!.TagName_ = tagName;
     data!.Comment = comment;
     return f!.newNode(328, data);
@@ -16208,7 +16208,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewJSDocReadonlyTag(tagName: Node | undefined, comment: NodeList | undefined): Node | undefined {
     const f = this;
-    let data: JSDocReadonlyTag | undefined = new JSDocReadonlyTag();
+    const data: JSDocReadonlyTag | undefined = new JSDocReadonlyTag();
     data!.TagName_ = tagName;
     data!.Comment = comment;
     return f!.newNode(329, data);
@@ -16226,7 +16226,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewJSDocOverrideTag(tagName: Node | undefined, comment: NodeList | undefined): Node | undefined {
     const f = this;
-    let data: JSDocOverrideTag | undefined = new JSDocOverrideTag();
+    const data: JSDocOverrideTag | undefined = new JSDocOverrideTag();
     data!.TagName_ = tagName;
     data!.Comment = comment;
     return f!.newNode(330, data);
@@ -16244,7 +16244,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewJSDocDeprecatedTag(tagName: Node | undefined, comment: NodeList | undefined): Node | undefined {
     const f = this;
-    let data: JSDocDeprecatedTag | undefined = f!.jsdocDeprecatedTagArena.New();
+    const data: JSDocDeprecatedTag | undefined = f!.jsdocDeprecatedTagArena.New();
     data!.TagName_ = tagName;
     data!.Comment = comment;
     return f!.newNode(325, data);
@@ -16266,7 +16266,7 @@ export class NodeFactory extends $rt.GoObject {
     comment: NodeList | undefined,
   ): Node | undefined {
     const f = this;
-    let data: JSDocSeeTag | undefined = new JSDocSeeTag();
+    const data: JSDocSeeTag | undefined = new JSDocSeeTag();
     data!.TagName_ = tagName;
     data!.NameExpression = nameExpression;
     data!.Comment = comment;
@@ -16290,7 +16290,7 @@ export class NodeFactory extends $rt.GoObject {
     comment: NodeList | undefined,
   ): Node | undefined {
     const f = this;
-    let data: JSDocImplementsTag | undefined = new JSDocImplementsTag();
+    const data: JSDocImplementsTag | undefined = new JSDocImplementsTag();
     data!.TagName_ = tagName;
     data!.ClassName_ = className;
     data!.Comment = comment;
@@ -16314,7 +16314,7 @@ export class NodeFactory extends $rt.GoObject {
     comment: NodeList | undefined,
   ): Node | undefined {
     const f = this;
-    let data: JSDocAugmentsTag | undefined = new JSDocAugmentsTag();
+    const data: JSDocAugmentsTag | undefined = new JSDocAugmentsTag();
     data!.TagName_ = tagName;
     data!.ClassName_ = className;
     data!.Comment = comment;
@@ -16338,7 +16338,7 @@ export class NodeFactory extends $rt.GoObject {
     comment: NodeList | undefined,
   ): Node | undefined {
     const f = this;
-    let data: JSDocSatisfiesTag | undefined = new JSDocSatisfiesTag();
+    const data: JSDocSatisfiesTag | undefined = new JSDocSatisfiesTag();
     data!.TagName_ = tagName;
     data!.TypeExpression_ = typeExpression;
     data!.Comment = comment;
@@ -16362,7 +16362,7 @@ export class NodeFactory extends $rt.GoObject {
     comment: NodeList | undefined,
   ): Node | undefined {
     const f = this;
-    let data: JSDocThrowsTag | undefined = new JSDocThrowsTag();
+    const data: JSDocThrowsTag | undefined = new JSDocThrowsTag();
     data!.TagName_ = tagName;
     data!.TypeExpression_ = typeExpression;
     data!.Comment = comment;
@@ -16386,7 +16386,7 @@ export class NodeFactory extends $rt.GoObject {
     comment: NodeList | undefined,
   ): Node | undefined {
     const f = this;
-    let data: JSDocThisTag | undefined = new JSDocThisTag();
+    const data: JSDocThisTag | undefined = new JSDocThisTag();
     data!.TagName_ = tagName;
     data!.TypeExpression_ = typeExpression;
     data!.Comment = comment;
@@ -16412,7 +16412,7 @@ export class NodeFactory extends $rt.GoObject {
     comment: NodeList | undefined,
   ): Node | undefined {
     const f = this;
-    let data: JSDocImportTag | undefined = new JSDocImportTag();
+    const data: JSDocImportTag | undefined = new JSDocImportTag();
     data!.TagName_ = tagName;
     data!.ImportClause_ = importClause;
     data!.ModuleSpecifier_ = moduleSpecifier;
@@ -16451,7 +16451,7 @@ export class NodeFactory extends $rt.GoObject {
     comment: NodeList | undefined,
   ): Node | undefined {
     const f = this;
-    let data: JSDocCallbackTag | undefined = new JSDocCallbackTag();
+    const data: JSDocCallbackTag | undefined = new JSDocCallbackTag();
     data!.TagName_ = tagName;
     data!.TypeExpression_ = typeExpression;
     data!.name = name_;
@@ -16482,7 +16482,7 @@ export class NodeFactory extends $rt.GoObject {
     comment: NodeList | undefined,
   ): Node | undefined {
     const f = this;
-    let data: JSDocOverloadTag | undefined = new JSDocOverloadTag();
+    const data: JSDocOverloadTag | undefined = new JSDocOverloadTag();
     data!.TagName_ = tagName;
     data!.TypeExpression_ = typeExpression;
     data!.Comment = comment;
@@ -16507,7 +16507,7 @@ export class NodeFactory extends $rt.GoObject {
     comment: NodeList | undefined,
   ): Node | undefined {
     const f = this;
-    let data: JSDocTypedefTag | undefined = new JSDocTypedefTag();
+    const data: JSDocTypedefTag | undefined = new JSDocTypedefTag();
     data!.TagName_ = tagName;
     data!.TypeExpression_ = typeExpression;
     data!.name = name_;
@@ -16538,7 +16538,7 @@ export class NodeFactory extends $rt.GoObject {
     typeNode: Node | undefined,
   ): Node | undefined {
     const f = this;
-    let data: JSDocSignature | undefined = new JSDocSignature();
+    const data: JSDocSignature | undefined = new JSDocSignature();
     data!.FunctionLikeBase_.TypeParameters = typeParameters;
     data!.FunctionLikeBase_.Parameters = parameters;
     data!.FunctionLikeBase_.Type = typeNode;
@@ -16562,7 +16562,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewJSDocNameReference(name_: Node | undefined): Node | undefined {
     const f = this;
-    let data: JSDocNameReference | undefined = new JSDocNameReference();
+    const data: JSDocNameReference | undefined = new JSDocNameReference();
     data!.name = name_;
     return f!.newNode(309, data);
   }
@@ -16580,7 +16580,7 @@ export class NodeFactory extends $rt.GoObject {
     body: Node | undefined,
   ): Node | undefined {
     const f = this;
-    let data: ModuleDeclaration | undefined = new ModuleDeclaration();
+    const data: ModuleDeclaration | undefined = new ModuleDeclaration();
     data!.ModifiersBase_.modifiers = modifiers;
     data!.Keyword = keyword;
     data!.name = name_;
@@ -16612,7 +16612,7 @@ export class NodeFactory extends $rt.GoObject {
     moduleReference: Node | undefined,
   ): Node | undefined {
     const f = this;
-    let data: ImportEqualsDeclaration | undefined = new ImportEqualsDeclaration();
+    const data: ImportEqualsDeclaration | undefined = new ImportEqualsDeclaration();
     data!.ModifiersBase_.modifiers = modifiers;
     data!.IsTypeOnly_ = isTypeOnly;
     data!.name = name_;
@@ -16649,7 +16649,7 @@ export class NodeFactory extends $rt.GoObject {
     attributes: Node | undefined,
   ): Node | undefined {
     const f = this;
-    let data: ExportDeclaration | undefined = new ExportDeclaration();
+    const data: ExportDeclaration | undefined = new ExportDeclaration();
     data!.ModifiersBase_.modifiers = modifiers;
     data!.IsTypeOnly_ = isTypeOnly;
     data!.ExportClause = exportClause;
@@ -16689,7 +16689,7 @@ export class NodeFactory extends $rt.GoObject {
     typeArguments: NodeList | undefined,
   ): Node | undefined {
     const f = this;
-    let data: ImportTypeNode | undefined = new ImportTypeNode();
+    const data: ImportTypeNode | undefined = new ImportTypeNode();
     data!.IsTypeOf = isTypeOf;
     data!.Argument = argument;
     data!.Attributes_ = attributes;
@@ -16727,7 +16727,7 @@ export class NodeFactory extends $rt.GoObject {
     namedBindings: Node | undefined,
   ): Node | undefined {
     const f = this;
-    let data: ImportClause | undefined = new ImportClause();
+    const data: ImportClause | undefined = new ImportClause();
     data!.PhaseModifier = phaseModifier;
     data!.name = name_;
     data!.NamedBindings = namedBindings;
@@ -16751,7 +16751,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewImportSpecifier(isTypeOnly: boolean, propertyName: Node | undefined, name_: Node | undefined): Node | undefined {
     const f = this;
-    let data: ImportSpecifier | undefined = f!.importSpecifierArena.New();
+    const data: ImportSpecifier | undefined = f!.importSpecifierArena.New();
     data!.IsTypeOnly_ = isTypeOnly;
     data!.PropertyName_ = propertyName;
     data!.name = name_;
@@ -16771,14 +16771,14 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewJSDocText(text: string[]): Node | undefined {
     const f = this;
-    let data: JSDocText | undefined = f!.jsdocTextArena.New();
+    const data: JSDocText | undefined = f!.jsdocTextArena.New();
     data!.text = text;
     f!.textCount++;
     return f!.newNode(316, data);
   }
   NewJSDocLink(name_: Node | undefined, text: string[]): Node | undefined {
     const f = this;
-    let data: JSDocLink | undefined = new JSDocLink();
+    const data: JSDocLink | undefined = new JSDocLink();
     data!.name = name_;
     data!.text = text;
     f!.textCount++;
@@ -16793,7 +16793,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewJSDocLinkPlain(name_: Node | undefined, text: string[]): Node | undefined {
     const f = this;
-    let data: JSDocLinkPlain | undefined = new JSDocLinkPlain();
+    const data: JSDocLinkPlain | undefined = new JSDocLinkPlain();
     data!.name = name_;
     data!.text = text;
     f!.textCount++;
@@ -16808,7 +16808,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewJSDocLinkCode(name_: Node | undefined, text: string[]): Node | undefined {
     const f = this;
-    let data: JSDocLinkCode | undefined = new JSDocLinkCode();
+    const data: JSDocLinkCode | undefined = new JSDocLinkCode();
     data!.name = name_;
     data!.text = text;
     f!.textCount++;
@@ -16829,7 +16829,7 @@ export class NodeFactory extends $rt.GoObject {
     defaultType: Node | undefined,
   ): Node | undefined {
     const f = this;
-    let data: TypeParameterDeclaration | undefined = f!.typeParameterDeclarationArena.New();
+    const data: TypeParameterDeclaration | undefined = f!.typeParameterDeclarationArena.New();
     data!.ModifiersBase_.modifiers = modifiers;
     data!.name = name_;
     data!.Constraint = constraint;
@@ -16863,7 +16863,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewSyntheticReferenceExpression(expression: Node | undefined, thisArg: Node | undefined): Node | undefined {
     const f = this;
-    let data: SyntheticReferenceExpression | undefined = new SyntheticReferenceExpression();
+    const data: SyntheticReferenceExpression | undefined = new SyntheticReferenceExpression();
     data!.Expression_ = expression;
     data!.ThisArg = thisArg;
     return f!.newNode(349, data);
@@ -16881,7 +16881,7 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewJSDocTypeLiteral(jsdocPropertyTags: (Node | undefined)[], isArrayType: boolean): Node | undefined {
     const f = this;
-    let data: JSDocTypeLiteral | undefined = new JSDocTypeLiteral();
+    const data: JSDocTypeLiteral | undefined = new JSDocTypeLiteral();
     data!.JSDocPropertyTags = jsdocPropertyTags;
     data!.IsArrayType = isArrayType;
     return f!.newNode(317, data);
@@ -16910,7 +16910,7 @@ export class NodeFactory extends $rt.GoObject {
     comment: NodeList | undefined,
   ): Node | undefined {
     const f = this;
-    let data: JSDocParameterOrPropertyTag | undefined = new JSDocParameterOrPropertyTag();
+    const data: JSDocParameterOrPropertyTag | undefined = new JSDocParameterOrPropertyTag();
     data!.TagName_ = tagName;
     data!.name = name_;
     data!.IsBracketed = isBracketed;
@@ -17042,7 +17042,7 @@ export class NodeVisitor extends $rt.GoObject {
     if (!(v!.Visit === undefined)) {
       let visited: Node | undefined = v!.Visit!(node);
       if (!(visited === undefined) && visited!.Kind_ === (344 as number)) {
-        let nodes: (Node | undefined)[] = visited!.AsSyntaxList()!.Children_;
+        const nodes: (Node | undefined)[] = visited!.AsSyntaxList()!.Children_;
         if (!(nodes.length === (1 as number))) {
           throw $rt.newPanic(new $rt.BoxStr('Expected only a single node to be written to output', 'string'));
         }
@@ -17062,7 +17062,7 @@ export class NodeVisitor extends $rt.GoObject {
     if (node === undefined || v!.Visit === undefined) {
       return node;
     }
-    let visited: Node | undefined = v!.Visit!(node);
+    const visited: Node | undefined = v!.Visit!(node);
     if (visited === undefined) {
       return undefined;
     }
@@ -17075,10 +17075,10 @@ export class NodeVisitor extends $rt.GoObject {
     }
     {
       const $t1 = v!.VisitSlice(nodes!.Nodes);
-      let result: (Node | undefined)[] = $t1[0];
-      let changed: boolean = $t1[1];
+      const result: (Node | undefined)[] = $t1[0];
+      const changed: boolean = $t1[1];
       if (changed) {
-        let list: NodeList | undefined = v!.Factory!.NewNodeList(result);
+        const list: NodeList | undefined = v!.Factory!.NewNodeList(result);
         list!.Loc = nodes!.Loc;
         return list;
       }
@@ -17092,10 +17092,10 @@ export class NodeVisitor extends $rt.GoObject {
     }
     {
       const $t1 = v!.VisitSlice(nodes!.Nodes);
-      let result: (Node | undefined)[] = $t1[0];
-      let changed: boolean = $t1[1];
+      const result: (Node | undefined)[] = $t1[0];
+      const changed: boolean = $t1[1];
       if (changed) {
-        let list: ModifierList | undefined = v!.Factory!.NewModifierList(result);
+        const list: ModifierList | undefined = v!.Factory!.NewModifierList(result);
         list!.Loc = nodes!.Loc;
         return list;
       }
@@ -17881,7 +17881,7 @@ export class PositionMap extends $rt.GoObject {
     let lo: number = $t1;
     let hi: number = $t2;
     for (; lo < hi;) {
-      let mid: number = lo + Math.trunc((hi - lo) / 2);
+      const mid: number = lo + Math.trunc((hi - lo) / 2);
       if (pm!.entries[mid].utf8Pos <= utf8Offset) {
         lo = mid + 1;
       } else {
@@ -17903,8 +17903,8 @@ export class PositionMap extends $rt.GoObject {
     let lo: number = $t1;
     let hi: number = $t2;
     for (; lo < hi;) {
-      let mid: number = lo + Math.trunc((hi - lo) / 2);
-      let utf16Pos: number = pm!.entries[mid].utf8Pos - pm!.entries[mid].delta;
+      const mid: number = lo + Math.trunc((hi - lo) / 2);
+      const utf16Pos: number = pm!.entries[mid].utf8Pos - pm!.entries[mid].delta;
       if (utf16Pos <= utf16Offset) {
         lo = mid + 1;
       } else {
@@ -19161,7 +19161,7 @@ export class SourceFile extends NodeBase {
   OriginalFileName(): string {
     const node = this;
     {
-      let canonical: SourceFile | undefined = node!.CanonicalSourceFile();
+      const canonical: SourceFile | undefined = node!.CanonicalSourceFile();
       if (!(canonical === undefined)) {
         return canonical!.FileName();
       }
@@ -19308,8 +19308,8 @@ export class SourceFile extends NodeBase {
       {
         const $t2 = node!.jsdocCache;
         const $t3 = n;
-        let jsdocs: (Node | undefined)[] = $t2?.get($t3) ?? [];
-        let ok: boolean = $t2 !== undefined && $t2.has($t3);
+        const jsdocs: (Node | undefined)[] = $t2?.get($t3) ?? [];
+        const ok: boolean = $t2 !== undefined && $t2.has($t3);
         if (ok) {
           node!.jsdocMu.RUnlock();
           $t1 = jsdocs;
@@ -19325,14 +19325,14 @@ export class SourceFile extends NodeBase {
       {
         const $t5 = node!.jsdocCache;
         const $t6 = n;
-        let jsdocs$1: (Node | undefined)[] = $t5?.get($t6) ?? [];
-        let ok$1: boolean = $t5 !== undefined && $t5.has($t6);
+        const jsdocs$1: (Node | undefined)[] = $t5?.get($t6) ?? [];
+        const ok$1: boolean = $t5 !== undefined && $t5.has($t6);
         if (ok$1) {
           $t1 = jsdocs$1;
           break $body;
         }
       }
-      let jsdocs$2: (Node | undefined)[] = parseJSDocForNode!(node, n);
+      const jsdocs$2: (Node | undefined)[] = parseJSDocForNode!(node, n);
       if (node!.jsdocCache === undefined) {
         node!.jsdocCache = new Map<Node | undefined, (Node | undefined)[]>();
       }
@@ -19394,10 +19394,10 @@ export class SourceFile extends NodeBase {
   }
   Clone(f: NodeFactoryCoercible): Node | undefined {
     const node = this;
-    let updated: Node | undefined = f!
+    const updated: Node | undefined = f!
       .AsNodeFactory()!
       .NewSourceFile(node!.parseOptions, node!.text, node!.Statements_, node!.EndOfFileToken);
-    let newFile: SourceFile | undefined = updated!.AsSourceFile();
+    const newFile: SourceFile | undefined = updated!.AsSourceFile();
     newFile!.copyFrom(node);
     return cloneNode(updated, node!.AsNode(), f!.AsNodeFactory()!.hooks);
   }
@@ -19439,7 +19439,7 @@ export class SourceFile extends NodeBase {
   GetNameTable(): Map<string, number> | undefined {
     const file = this;
     file!.nameTableOnce.Do((): void => {
-      let nameTable: Map<string, number> | undefined = new Map<string, number>();
+      const nameTable: Map<string, number> | undefined = new Map<string, number>();
       let walk: ((p0: Node | undefined) => boolean) | undefined = undefined as
         | ((p0: Node | undefined) => boolean)
         | undefined;
@@ -19449,11 +19449,11 @@ export class SourceFile extends NodeBase {
           (IsStringOrNumericLiteralLike(node) && literalIsName(node)) ||
           IsPrivateIdentifier(node)
         ) {
-          let text: string = node!.Text$Node();
+          const text: string = node!.Text$Node();
           {
             const $t1 = nameTable;
             const $t2 = text;
-            let ok: boolean = $t1 !== undefined && $t1.has($t2);
+            const ok: boolean = $t1 !== undefined && $t1.has($t2);
             if (ok) {
               nameTable!.set(text, -1);
             } else {
@@ -19462,11 +19462,11 @@ export class SourceFile extends NodeBase {
           }
         }
         node!.ForEachChild$Node(walk);
-        let jsdocNodes: (Node | undefined)[] = node!.JSDoc(file);
+        const jsdocNodes: (Node | undefined)[] = node!.JSDoc(file);
         {
           const $t3 = jsdocNodes;
           for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
-            let jsdoc = $t3[$t4];
+            const jsdoc = $t3[$t4];
             jsdoc!.ForEachChild$Node(walk);
           }
         }
@@ -19512,13 +19512,13 @@ export class SourceFile extends NodeBase {
       $defers.push(() => {
         $t2.Unlock();
       });
-      let loc: $core.TextRange = $core.NewTextRange(pos, end);
-      let key: TokenCacheKey = TokenCacheKey.$lit_ast_TokenCacheKey_0_1(parent, loc);
+      const loc: $core.TextRange = $core.NewTextRange(pos, end);
+      const key: TokenCacheKey = TokenCacheKey.$lit_ast_TokenCacheKey_0_1(parent, loc);
       {
         const $t3 = node!.tokenCache;
         const $t4 = key;
-        let token: Node | undefined = $rt.structMapGet($t3, $t4, undefined);
-        let ok: boolean = $t3 !== undefined && $t3.has($t4);
+        const token: Node | undefined = $rt.structMapGet($t3, $t4, undefined);
+        const ok: boolean = $t3 !== undefined && $t3.has($t4);
         if (ok) {
           if (!(token!.Kind_ === kind)) {
             throw $rt.newPanic(
@@ -19543,7 +19543,7 @@ export class SourceFile extends NodeBase {
       if (node!.tokenCache === undefined) {
         node!.tokenCache = new $rt.StructMap<TokenCacheKey, Node | undefined>($fn1);
       }
-      let token$1: Node | undefined = createToken(kind, node, pos, end, flags);
+      const token$1: Node | undefined = createToken(kind, node, pos, end, flags);
       token$1!.Loc = loc;
       token$1!.Parent = parent;
       node!.tokenCache!.set(key, token$1);
@@ -19583,9 +19583,9 @@ export class SourceFile extends NodeBase {
   }
   computeDeclarationMap(): Map<string, (Node | undefined)[]> | undefined {
     const node = this;
-    let result: Map<string, (Node | undefined)[]> | undefined = new Map<string, (Node | undefined)[]>();
-    let addDeclaration: ((p0: Node | undefined) => void) | undefined = (declaration: Node | undefined): void => {
-      let name_: string = GetDeclarationName(declaration);
+    const result: Map<string, (Node | undefined)[]> | undefined = new Map<string, (Node | undefined)[]>();
+    const addDeclaration: ((p0: Node | undefined) => void) | undefined = (declaration: Node | undefined): void => {
+      const name_: string = GetDeclarationName(declaration);
       if (!(name_ === ('' as string))) {
         const $t1 = result;
         const $t2 = name_;
@@ -19604,9 +19604,9 @@ export class SourceFile extends NodeBase {
           case 219 as number:
           case 175 as number:
           case 174 as number: {
-            let declarationName: string = GetDeclarationName(node$1);
+            const declarationName: string = GetDeclarationName(node$1);
             if (!(declarationName === ('' as string))) {
-              let declarations: (Node | undefined)[] = result?.get(declarationName) ?? [];
+              const declarations: (Node | undefined)[] = result?.get(declarationName) ?? [];
               let lastDeclaration: Node | undefined = undefined as Node | undefined;
               if (!(declarations.length === (0 as number))) {
                 lastDeclaration = declarations[declarations.length - 1];
@@ -19660,7 +19660,7 @@ export class SourceFile extends NodeBase {
           }
           case 261 as number:
           case 209 as number: {
-            let name_$1: Node | undefined = node$1!.Name$Node();
+            const name_$1: Node | undefined = node$1!.Name$Node();
             if (!(name_$1 === undefined)) {
               if (IsBindingPattern(name_$1)) {
                 node$1!.Name$Node()!.ForEachChild$Node(visit);
@@ -19680,13 +19680,13 @@ export class SourceFile extends NodeBase {
             break;
           }
           case 279 as number: {
-            let exportClause: Node | undefined = node$1!.AsExportDeclaration()!.ExportClause;
+            const exportClause: Node | undefined = node$1!.AsExportDeclaration()!.ExportClause;
             if (!(exportClause === undefined)) {
               if (IsNamedExports(exportClause)) {
                 {
                   const $t7 = exportClause!.Elements();
                   for (let $t8 = 0, $n = $t7.length; $t8 < $n; $t8++) {
-                    let element = $t7[$t8];
+                    const element = $t7[$t8];
                     visit!(element);
                   }
                 }
@@ -19697,12 +19697,12 @@ export class SourceFile extends NodeBase {
             break;
           }
           case 273 as number: {
-            let importClause: Node | undefined = node$1!.AsImportDeclaration()!.ImportClause_;
+            const importClause: Node | undefined = node$1!.AsImportDeclaration()!.ImportClause_;
             if (!(importClause === undefined)) {
               if (!(importClause!.Name$Node() === undefined)) {
                 addDeclaration!(importClause!.Name$Node());
               }
-              let namedBindings: Node | undefined = importClause!.AsImportClause()!.NamedBindings;
+              const namedBindings: Node | undefined = importClause!.AsImportClause()!.NamedBindings;
               if (!(namedBindings === undefined)) {
                 if (namedBindings!.Kind_ === (275 as number)) {
                   addDeclaration!(namedBindings);
@@ -19710,7 +19710,7 @@ export class SourceFile extends NodeBase {
                   {
                     const $t9 = namedBindings!.Elements();
                     for (let $t10 = 0, $n = $t9.length; $t10 < $n; $t10++) {
-                      let element$1 = $t9[$t10];
+                      const element$1 = $t9[$t10];
                       visit!(element$1);
                     }
                   }
@@ -20057,7 +20057,7 @@ export class Symbol_ extends $rt.GoObject {
     if (s!.ValueDeclaration === undefined) {
       return false;
     }
-    let modifierFlags: ModifierFlags = s!.ValueDeclaration!.ModifierFlags$m();
+    const modifierFlags: ModifierFlags = s!.ValueDeclaration!.ModifierFlags$m();
     return !((modifierFlags & 256) === (0 as number));
   }
   CombinedLocalAndExportSymbolFlags(): SymbolFlags {
@@ -20089,7 +20089,7 @@ export class SyntaxList extends NodeBase {
   }
   VisitEachChild(v: NodeVisitor | undefined): Node | undefined {
     const node = this;
-    let children: (Node | undefined)[] = $core.SameMap<Node | undefined>(
+    const children: (Node | undefined)[] = $core.SameMap<Node | undefined>(
       $zf0,
       node!.Children_,
       (n: Node | undefined): Node | undefined => {
@@ -22967,7 +22967,7 @@ export function visitNodes(v: Visitor, nodes: (Node | undefined)[]): boolean {
   {
     const $t1 = nodes;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let node = $t1[$t2];
+      const node = $t1[$t2];
       if (v!(node)) {
         return true;
       }
@@ -22991,7 +22991,7 @@ export function NewNodeFactory(hooks: NodeFactoryHooks): NodeFactory | undefined
   return NodeFactory.$lit_ast_NodeFactory_0(hooks);
 }
 export function newNode(kind: Kind, data: nodeData, hooks: NodeFactoryHooks): Node | undefined {
-  let n: Node | undefined = data!.AsNode();
+  const n: Node | undefined = data!.AsNode();
   n!.Loc = $core.UndefinedTextRange();
   n!.Kind_ = kind;
   n!.data = data;
@@ -23029,7 +23029,7 @@ export function MutableNode$SetModifiers(n: MutableNode | undefined, modifiers: 
   n!.data!.setModifiers(modifiers);
 }
 export function MutableNode$SetExpression(m: MutableNode | undefined, expr: Node | undefined): void {
-  let n: Node | undefined = m;
+  const n: Node | undefined = m;
   {
     switch (n!.Kind_) {
       case 212 as number: {
@@ -23182,7 +23182,7 @@ export function MutableNode$SetExpression(m: MutableNode | undefined, expr: Node
   }
 }
 export function MutableNode$SetType(m: MutableNode | undefined, t: Node | undefined): void {
-  let n: Node | undefined = m;
+  const n: Node | undefined = m;
   {
     switch (m!.Kind_) {
       case 261 as number: {
@@ -23289,7 +23289,7 @@ export function MutableNode$SetType(m: MutableNode | undefined, t: Node | undefi
       }
       default: {
         {
-          let funcLike: FunctionLikeBase | undefined = n!.FunctionLikeData$Node();
+          const funcLike: FunctionLikeBase | undefined = n!.FunctionLikeData$Node();
           if (!(funcLike === undefined)) {
             funcLike!.Type = t;
           } else {
@@ -23304,7 +23304,7 @@ export function MutableNode$SetType(m: MutableNode | undefined, t: Node | undefi
   }
 }
 export function MutableNode$SetInitializer(m: MutableNode | undefined, initializer: Node | undefined): void {
-  let n: Node | undefined = m;
+  const n: Node | undefined = m;
   {
     switch (n!.Kind_) {
       case 261 as number: {
@@ -23361,7 +23361,7 @@ export function IsWriteAccess(node: Node | undefined): boolean {
   return !(accessKind(node) === (0 as number));
 }
 export function IsWriteAccessForReference(node: Node | undefined): boolean {
-  let decl: Node | undefined = GetDeclarationFromName(node);
+  const decl: Node | undefined = GetDeclarationFromName(node);
   return (
     (!(decl === undefined) && declarationIsWriteAccess(decl)) || node!.Kind_ === (89 as number) || IsWriteAccess(node)
   );
@@ -23370,7 +23370,7 @@ export function GetDeclarationFromName(name_: Node | undefined): Node | undefine
   if (name_ === undefined || name_!.Parent === undefined) {
     return undefined;
   }
-  let parent: Node | undefined = name_!.Parent;
+  const parent: Node | undefined = name_!.Parent;
   {
     switch (name_!.Kind_) {
       case 10 as number:
@@ -23388,13 +23388,13 @@ export function GetDeclarationFromName(name_: Node | undefined): Node | undefine
           return undefined;
         }
         if (IsQualifiedName(parent)) {
-          let tag: Node | undefined = parent!.Parent;
+          const tag: Node | undefined = parent!.Parent;
           if (IsJSDocParameterTag(tag) && tag!.Name$Node() === parent) {
             return tag;
           }
           return undefined;
         }
-        let binExp: Node | undefined = parent!.Parent;
+        const binExp: Node | undefined = parent!.Parent;
         if (IsBinaryExpression(binExp) && !(GetAssignmentDeclarationKind(binExp) === (0 as number))) {
           let leftHasSymbol: boolean = false;
           if (
@@ -23522,7 +23522,7 @@ export function IsArrayLiteralOrObjectLiteralDestructuringPattern(node: Node | u
   if (!(IsArrayLiteralExpression(node) || IsObjectLiteralExpression(node))) {
     return false;
   }
-  let parent: Node | undefined = node!.Parent;
+  const parent: Node | undefined = node!.Parent;
   if (
     IsBinaryExpression(parent) &&
     parent!.AsBinaryExpression()!.Left === node &&
@@ -23539,7 +23539,7 @@ export function IsArrayLiteralOrObjectLiteralDestructuringPattern(node: Node | u
   return IsArrayLiteralOrObjectLiteralDestructuringPattern(parent);
 }
 export function accessKind(node: Node | undefined): AccessKind {
-  let parent: Node | undefined = node!.Parent;
+  const parent: Node | undefined = node!.Parent;
   if (parent === undefined) {
     return 0;
   }
@@ -23549,14 +23549,14 @@ export function accessKind(node: Node | undefined): AccessKind {
         return accessKind(parent);
       }
       case 225 as number: {
-        let operator: Kind = parent!.AsPrefixUnaryExpression()!.Operator;
+        const operator: Kind = parent!.AsPrefixUnaryExpression()!.Operator;
         if (operator === (45 as number) || operator === (46 as number)) {
           return 2;
         }
         return 0;
       }
       case 226 as number: {
-        let operator$1: Kind = parent!.AsPostfixUnaryExpression()!.Operator;
+        const operator$1: Kind = parent!.AsPostfixUnaryExpression()!.Operator;
         if (operator$1 === (45 as number) || operator$1 === (46 as number)) {
           return 2;
         }
@@ -23564,7 +23564,7 @@ export function accessKind(node: Node | undefined): AccessKind {
       }
       case 227 as number: {
         if (parent!.AsBinaryExpression()!.Left === node) {
-          let operator$2: Node | undefined = parent!.AsBinaryExpression()!.OperatorToken;
+          const operator$2: Node | undefined = parent!.AsBinaryExpression()!.OperatorToken;
           if (IsAssignmentOperator(operator$2!.Kind_)) {
             if (operator$2!.Kind_ === (63 as number)) {
               return 1;
@@ -23581,7 +23581,7 @@ export function accessKind(node: Node | undefined): AccessKind {
         return accessKind(parent);
       }
       case 303 as number: {
-        let parentAccess: AccessKind = accessKind(parent!.Parent);
+        const parentAccess: AccessKind = accessKind(parent!.Parent);
         if (node === parent!.AsPropertyAssignment()!.Name()) {
           return reverseAccessKind(parentAccess);
         }
@@ -23652,7 +23652,7 @@ export function GetOrComputeSourceFileData<T>(
   key: SourceFileDataKey<T> | undefined,
   compute: ((p0: SourceFile | undefined) => T) | undefined,
 ): T {
-  let cell: sourceFileDataCell<T> | undefined = getSourceFileDataCell<T>($z_T, file, key);
+  const cell: sourceFileDataCell<T> | undefined = getSourceFileDataCell<T>($z_T, file, key);
   cell!.once.Do((): void => {
     cell!.value = compute!(file);
   });
@@ -23681,8 +23681,8 @@ export function getSourceFileDataCell<T>(
     {
       const $t3 = file!.data$4;
       const $t4 = key!.key;
-      let cell: $rt.GoObject | undefined = $t3?.get($t4) ?? undefined;
-      let ok: boolean = $t3 !== undefined && $t3.has($t4);
+      const cell: $rt.GoObject | undefined = $t3?.get($t4) ?? undefined;
+      const ok: boolean = $t3 !== undefined && $t3.has($t4);
       if (ok) {
         $t1 =
           cell instanceof sourceFileDataCell
@@ -23691,7 +23691,7 @@ export function getSourceFileDataCell<T>(
         break $body;
       }
     }
-    let cell$1: sourceFileDataCell<T> | undefined = new sourceFileDataCell<T>($z_T);
+    const cell$1: sourceFileDataCell<T> | undefined = new sourceFileDataCell<T>($z_T);
     file!.data$4!.set(key!.key, cell$1);
     $t1 = cell$1;
     break $body;
@@ -23704,7 +23704,7 @@ export function getSourceFileDataCell<T>(
   return $t1;
 }
 export function collectIdentifiersForSourceFile(sourceFile: SourceFile | undefined): $collections.Set_<string> {
-  let identifiers: $collections.Set_<string> = new $collections.Set_<string>();
+  const identifiers: $collections.Set_<string> = new $collections.Set_<string>();
   let collect: ((p0: Node | undefined) => boolean) | undefined = undefined as
     | ((p0: Node | undefined) => boolean)
     | undefined;
@@ -23738,7 +23738,7 @@ export function createToken(
   if (file!.tokenFactory === undefined) {
     file!.tokenFactory = NewNodeFactory(new NodeFactoryHooks());
   }
-  let text: string = file!.text.substring(pos, end);
+  const text: string = file!.text.substring(pos, end);
   {
     switch (kind) {
       case 8 as number: {
@@ -23782,7 +23782,7 @@ export function createToken(
   }
 }
 export function GetDeclarationName(declaration: Node | undefined): string {
-  let name_: Node | undefined = GetNonAssignedNameOfDeclaration(declaration);
+  const name_: Node | undefined = GetNonAssignedNameOfDeclaration(declaration);
   if (!(name_ === undefined)) {
     if (IsComputedPropertyName(name_)) {
       if (IsStringOrNumericLiteralLike(name_!.Expression())) {
@@ -25197,14 +25197,14 @@ export function getDeepCloneVisitor(f: NodeFactory | undefined, syntheticLocatio
   let visitor: NodeVisitor | undefined = undefined as NodeVisitor | undefined;
   visitor = NewNodeVisitor(
     (node: Node | undefined): Node | undefined => {
-      let visited: Node | undefined = visitor!.VisitEachChild(node);
+      const visited: Node | undefined = visitor!.VisitEachChild(node);
       if (!(visited === node)) {
         if (syntheticLocation) {
           visited!.Loc = $core.NewTextRange(-1, -1);
         }
         return visited;
       }
-      let c: Node | undefined = node!.Clone$Node(f);
+      const c: Node | undefined = node!.Clone$Node(f);
       if (syntheticLocation) {
         c!.Loc = $core.NewTextRange(-1, -1);
       }
@@ -25216,7 +25216,7 @@ export function getDeepCloneVisitor(f: NodeFactory | undefined, syntheticLocatio
         if (nodes === undefined) {
           return undefined;
         }
-        let visited$1: NodeList | undefined = v!.VisitNodes(nodes);
+        const visited$1: NodeList | undefined = v!.VisitNodes(nodes);
         let newList: NodeList | undefined = undefined as NodeList | undefined;
         if (!(visited$1 === nodes)) {
           newList = visited$1;
@@ -25235,7 +25235,7 @@ export function getDeepCloneVisitor(f: NodeFactory | undefined, syntheticLocatio
         if (nodes$1 === undefined) {
           return undefined;
         }
-        let visited$2: ModifierList | undefined = v$1!.VisitModifiers(nodes$1);
+        const visited$2: ModifierList | undefined = v$1!.VisitModifiers(nodes$1);
         let newList$1: ModifierList | undefined = undefined as ModifierList | undefined;
         if (!(visited$2 === nodes$1)) {
           newList$1 = visited$2;
@@ -25391,7 +25391,7 @@ export function compareMessageChainSize(c1: (Diagnostic | undefined)[], c2: (Dia
   {
     const $t1 = c1;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let i = $t2;
+      const i = $t2;
       c = compareMessageChainSize(c1[i]!.MessageChain(), c2[i]!.MessageChain());
       if (!(c === (0 as number))) {
         return c;
@@ -25404,7 +25404,7 @@ export function compareMessageChainContent(c1: (Diagnostic | undefined)[], c2: (
   {
     const $t1 = c1;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let i = $t2;
+      const i = $t2;
       let c: number = $rt.slices_Compare(c1[i]!.MessageArgs(), c2[i]!.MessageArgs());
       if (!(c === (0 as number))) {
         return c;
@@ -25427,7 +25427,7 @@ export function compareRelatedInfo(r1: (Diagnostic | undefined)[], r2: (Diagnost
   {
     const $t1 = r1;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let i = $t2;
+      const i = $t2;
       c = CompareDiagnostics(r1[i], r2[i]);
       if (!(c === (0 as number))) {
         return c;
@@ -25487,7 +25487,7 @@ export function NewFlowSwitchClauseData(
   clauseStart: number,
   clauseEnd: number,
 ): Node | undefined {
-  let node: FlowSwitchClauseData | undefined = new FlowSwitchClauseData();
+  const node: FlowSwitchClauseData | undefined = new FlowSwitchClauseData();
   node!.SwitchStatement = switchStatement;
   node!.ClauseStart = clauseStart | 0;
   node!.ClauseEnd = clauseEnd | 0;
@@ -25497,7 +25497,7 @@ export function NewFlowReduceLabelData(
   target: FlowNode | undefined,
   antecedents: FlowList | undefined,
 ): Node | undefined {
-  let node: FlowReduceLabelData | undefined = new FlowReduceLabelData();
+  const node: FlowReduceLabelData | undefined = new FlowReduceLabelData();
   node!.Target = target;
   node!.Antecedents = antecedents;
   return newNode(0, node, new NodeFactoryHooks());
@@ -25506,7 +25506,7 @@ export function GetFunctionFlags(node: Node | undefined): FunctionFlags {
   if (node === undefined) {
     return 4;
   }
-  let data: BodyBase | undefined = node!.BodyData$Node();
+  const data: BodyBase | undefined = node!.BodyData$Node();
   if (data === undefined) {
     return 4;
   }
@@ -25534,7 +25534,7 @@ export function GetFunctionFlags(node: Node | undefined): FunctionFlags {
   return flags;
 }
 export function Kind$String(i: Kind): string {
-  let idx: number = i - 0;
+  const idx: number = i - 0;
   if (i < 0 || idx >= 352) {
     return 'Kind(' + $rt.strconv_FormatInt(i, 10) + ')';
   }
@@ -25595,7 +25595,7 @@ export function getExternalModuleIndicator(
     return undefined;
   }
   {
-    let node: Node | undefined = isFileProbablyExternalModule(file);
+    const node: Node | undefined = isFileProbablyExternalModule(file);
     if (!(node === undefined)) {
       return node;
     }
@@ -25605,7 +25605,7 @@ export function getExternalModuleIndicator(
   }
   if (opts.JSX) {
     {
-      let node$1: Node | undefined = isFileModuleFromUsingJSXTag(file);
+      const node$1: Node | undefined = isFileModuleFromUsingJSXTag(file);
       if (!(node$1 === undefined)) {
         return node$1;
       }
@@ -25620,7 +25620,7 @@ export function isFileProbablyExternalModule(sourceFile: SourceFile | undefined)
   {
     const $t1 = sourceFile!.Statements_!.Nodes;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let statement = $t1[$t2];
+      const statement = $t1[$t2];
       if (isAnExternalModuleIndicatorNode(statement)) {
         return statement;
       }
@@ -25687,18 +25687,18 @@ export function walkTreeForJSXTags(node: Node | undefined): Node | undefined {
   return found;
 }
 export function ComputePositionMap(text: string): PositionMap | undefined {
-  let pm: PositionMap | undefined = new PositionMap();
+  const pm: PositionMap | undefined = new PositionMap();
   let delta: number = 0;
   {
     for (let i: number = 0; i < text.length;) {
-      let b: number = text.charCodeAt(i);
+      const b: number = text.charCodeAt(i);
       if (b < 128) {
         i++;
         continue;
       }
       const $t1 = $stringutil.DecodeJSStringRune(text.substring(i));
-      let r: number = $t1[0];
-      let size: number = $t1[1];
+      const r: number = $t1[0];
+      const size: number = $t1[1];
       let utf16Size: number = 1;
       if (r >= 65536) {
         utf16Size = 2;
@@ -25730,7 +25730,7 @@ export function getOperator(expression: Node | undefined): Kind {
   }
 }
 export function GetExpressionPrecedence(expression: Node | undefined): OperatorPrecedence {
-  let operator: Kind = getOperator(expression);
+  const operator: Kind = getOperator(expression);
   let flags: OperatorPrecedenceFlags = 0;
   if (expression!.Kind_ === (215 as number) && expression!.ArgumentList() === undefined) {
     flags = 1;
@@ -26070,7 +26070,7 @@ export function propagateNodeListSubtreeFacts(
   {
     const $t1 = children!.Nodes;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let child = $t1[$t2];
+      const child = $t1[$t2];
       facts = (facts | propagate!(child)) >>> 0;
     }
   }
@@ -26097,8 +26097,8 @@ export function EscapeAllInternalSymbolNames(name_: string): string {
 export function EscapeInternalSymbolName(name_: string): string {
   {
     const $t1 = $rt.strings_CutPrefix(name_, '\xfe');
-    let rest: string = $t1[0];
-    let ok: boolean = $t1[1];
+    const rest: string = $t1[0];
+    const ok: boolean = $t1[1];
     if (ok) {
       return '__' + rest;
     }
@@ -26108,8 +26108,8 @@ export function EscapeInternalSymbolName(name_: string): string {
 export function EscapeSymbolName(name_: string): string {
   {
     const $t1 = $rt.strings_CutPrefix(name_, '\xfe');
-    let rest: string = $t1[0];
-    let ok: boolean = $t1[1];
+    const rest: string = $t1[0];
+    const ok: boolean = $t1[1];
     if (ok) {
       return '__' + rest;
     }
@@ -26222,7 +26222,7 @@ export function IsCompoundAssignment(token: Kind): boolean {
 }
 export function IsAssignmentExpression(node: Node | undefined, excludeCompoundAssignment: boolean): boolean {
   if (node!.Kind_ === (227 as number)) {
-    let expr: BinaryExpression | undefined = node!.AsBinaryExpression();
+    const expr: BinaryExpression | undefined = node!.AsBinaryExpression();
     return (
       (expr!.OperatorToken!.Kind_ === (63 as number) ||
         (!excludeCompoundAssignment && IsAssignmentOperator(expr!.OperatorToken!.Kind_))) &&
@@ -26239,7 +26239,7 @@ export function GetRightMostAssignedExpression(node: Node | undefined): Node | u
 }
 export function IsDestructuringAssignment(node: Node | undefined): boolean {
   if (IsAssignmentExpression(node, true)) {
-    let kind: Kind = node!.AsBinaryExpression()!.Left!.Kind_;
+    const kind: Kind = node!.AsBinaryExpression()!.Left!.Kind_;
     return kind === (211 as number) || kind === (210 as number);
   }
   return false;
@@ -26285,7 +26285,7 @@ export function IsAssignmentTarget(node: Node | undefined): boolean {
 }
 export function GetAssignmentTarget(node: Node | undefined): Node | undefined {
   for (;;) {
-    let parent: Node | undefined = node!.Parent;
+    const parent: Node | undefined = node!.Parent;
     {
       switch (parent!.Kind_) {
         case 227 as number: {
@@ -26419,7 +26419,7 @@ export function IsPropertyName(node: Node | undefined): boolean {
   return false;
 }
 export function IsIdentifierName(node: Node | undefined): boolean {
-  let parent: Node | undefined = node!.Parent;
+  const parent: Node | undefined = node!.Parent;
   {
     switch (parent!.Kind_) {
       case 173 as number:
@@ -26454,7 +26454,7 @@ export function IsIdentifierName(node: Node | undefined): boolean {
   return false;
 }
 export function IsPushOrUnshiftIdentifier(node: Node | undefined): boolean {
-  let text: string = node!.Text$Node();
+  const text: string = node!.Text$Node();
   return text === ('push' as string) || text === ('unshift' as string);
 }
 export function IsBooleanLiteral(node: Node | undefined): boolean {
@@ -26479,7 +26479,7 @@ export function IsStringOrNumericLiteralLike(node: Node | undefined): boolean {
 }
 export function IsSignedNumericLiteral(node: Node | undefined): boolean {
   if (node!.Kind_ === (225 as number)) {
-    let node$1: PrefixUnaryExpression | undefined = node!.AsPrefixUnaryExpression();
+    const node$1: PrefixUnaryExpression | undefined = node!.AsPrefixUnaryExpression();
     return (
       (node$1!.Operator === (39 as number) || node$1!.Operator === (40 as number)) && IsNumericLiteral(node$1!.Operand)
     );
@@ -26508,7 +26508,7 @@ export function IsOptionalChainRoot(node: Node | undefined): boolean {
   return IsOptionalChain(node) && !IsNonNullExpression(node) && !(getQuestionDotToken(node) === undefined);
 }
 export function IsOutermostOptionalChain(node: Node | undefined): boolean {
-  let parent: Node | undefined = node!.Parent;
+  const parent: Node | undefined = node!.Parent;
   return !IsOptionalChain(parent) || IsOptionalChainRoot(parent) || !(node === parent!.Expression());
 }
 export function IsExpressionOfOptionalChainRoot(node: Node | undefined): boolean {
@@ -26518,7 +26518,7 @@ export function IsNullishCoalesce(node: Node | undefined): boolean {
   return node!.Kind_ === (227 as number) && node!.AsBinaryExpression()!.OperatorToken!.Kind_ === (60 as number);
 }
 export function IsAssertionExpression(node: Node | undefined): boolean {
-  let kind: Kind = node!.Kind_;
+  const kind: Kind = node!.Kind_;
   return kind === (217 as number) || kind === (235 as number);
 }
 export function isLeftHandSideExpressionKind(kind: Kind): boolean {
@@ -26713,7 +26713,7 @@ export function IsPrivateIdentifierClassElementDeclaration(node: Node | undefine
   return (IsPropertyDeclaration(node) || IsMethodOrAccessor(node)) && IsPrivateIdentifier(node!.Name$Node());
 }
 export function IsObjectLiteralOrClassExpressionMethodOrAccessor(node: Node | undefined): boolean {
-  let kind: Kind = node!.Kind_;
+  const kind: Kind = node!.Kind_;
   return (
     (kind === (175 as number) || kind === (178 as number) || kind === (179 as number)) &&
     (node!.Parent!.Kind_ === (211 as number) || node!.Parent!.Kind_ === (232 as number))
@@ -26835,7 +26835,7 @@ export function IsStatementButNotDeclaration(node: Node | undefined): boolean {
   return isStatementKindButNotDeclarationKind(node!.Kind_);
 }
 export function IsStatement(node: Node | undefined): boolean {
-  let kind: Kind = node!.Kind_;
+  const kind: Kind = node!.Kind_;
   return isStatementKindButNotDeclarationKind(kind) || isDeclarationStatementKind(kind) || isBlockStatement(node);
 }
 export function isBlockStatement(node: Node | undefined): boolean {
@@ -26865,7 +26865,7 @@ export function IsBlockOrCatchScoped(declaration: Node | undefined): boolean {
   );
 }
 export function IsCatchClauseVariableDeclarationOrBindingElement(declaration: Node | undefined): boolean {
-  let node: Node | undefined = GetRootDeclaration(declaration);
+  const node: Node | undefined = GetRootDeclaration(declaration);
   return node!.Kind_ === (261 as number) && node!.Parent!.Kind_ === (300 as number);
 }
 export function IsTypeNodeKind(kind: Kind): boolean {
@@ -26905,7 +26905,7 @@ export function IsJSDocTypeAssertion(node: Node | undefined): boolean {
   if (node === undefined || !IsParenthesizedExpression(node) || !IsInJSFile(node)) {
     return false;
   }
-  let expr: Node | undefined = node!.Expression();
+  const expr: Node | undefined = node!.Expression();
   return IsAsExpression(expr) && !(expr!.Type$m() === undefined) && !((expr!.Type$m()!.Flags & 8) === (0 as number));
 }
 export function IsPrologueDirective(node: Node | undefined): boolean {
@@ -26994,12 +26994,12 @@ export function GetSourceFileOfNode(node: Node | undefined): SourceFile | undefi
   return undefined;
 }
 export function newParentInChildrenSetter(): ((p0: Node | undefined) => boolean) | undefined {
-  let state: $Anon1 = new $Anon1();
+  const state: $Anon1 = new $Anon1();
   state.visit = (node: Node | undefined): boolean => {
     if (!(state.parent === undefined)) {
       node!.Parent = state.parent;
     }
-    let saveParent: Node | undefined = state.parent;
+    const saveParent: Node | undefined = state.parent;
     state.parent = node;
     node!.ForEachChild$Node(state.visit);
     state.parent = saveParent;
@@ -27011,7 +27011,7 @@ export function SetParentInChildren(node: Node | undefined): void {
   const $defers: (() => void)[] = [];
   let $panic: $rt.Panic | undefined = undefined;
   $body: try {
-    let fn: ((p0: Node | undefined) => boolean) | undefined = (($t1: $rt.GoObject | undefined) =>
+    const fn: ((p0: Node | undefined) => boolean) | undefined = (($t1: $rt.GoObject | undefined) =>
       $t1 instanceof $boxes.Box_func_node__ast_Node__bool
         ? $boxes.Box_func_node__ast_Node__bool.$cast($t1).v
         : $rt.typeAssertFail<((p0: Node | undefined) => boolean) | undefined>())(setParentInChildrenPool.Get());
@@ -27047,14 +27047,14 @@ export function FindManyAncestors(
   node: Node | undefined,
   callbacks: (((p0: Node | undefined) => boolean) | undefined)[],
 ): (Node | undefined)[] {
-  let ancestors: (Node | undefined)[] = $rt.makeSlice<Node | undefined>(callbacks.length, undefined);
+  const ancestors: (Node | undefined)[] = $rt.makeSlice<Node | undefined>(callbacks.length, undefined);
   let found: number = 0;
   for (; !(node === undefined);) {
     {
       const $t1 = callbacks;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        let i = $t2;
-        let callback = $t1[$t2];
+        const i = $t2;
+        const callback = $t1[$t2];
         if (ancestors[i] === undefined && callback!(node)) {
           ancestors[i] = node;
           found++;
@@ -27172,7 +27172,7 @@ export function ModifiersToFlags(modifiers: (Node | undefined)[]): ModifierFlags
   {
     const $t1 = modifiers;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let modifier = $t1[$t2];
+      const modifier = $t1[$t2];
       flags = (flags | ModifierToFlag(modifier!.Kind_)) >>> 0;
     }
   }
@@ -27435,13 +27435,13 @@ export function GetJSDocDeprecatedTag(node: Node | undefined): Node | undefined 
   {
     const $t1 = node!.JSDoc(undefined);
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let jsdoc = $t1[$t2];
-      let tags: NodeList | undefined = jsdoc!.AsJSDoc()!.Tags;
+      const jsdoc = $t1[$t2];
+      const tags: NodeList | undefined = jsdoc!.AsJSDoc()!.Tags;
       if (!(tags === undefined)) {
         {
           const $t3 = tags!.Nodes;
           for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
-            let tag = $t3[$t4];
+            const tag = $t3[$t4];
             if (IsJSDocDeprecatedTag(tag)) {
               return tag;
             }
@@ -27559,7 +27559,7 @@ export function IsLiteralImportTypeNode(node: Node | undefined): boolean {
   );
 }
 export function IsJsxTagName(node: Node | undefined): boolean {
-  let parent: Node | undefined = node!.Parent;
+  const parent: Node | undefined = node!.Parent;
   {
     switch (parent!.Kind_) {
       case 287 as number:
@@ -27612,7 +27612,7 @@ export function IsBindableStaticElementAccessExpression(node: Node | undefined, 
 export function IsPrototypeAccess(node: Node | undefined): boolean {
   if (IsBindableStaticAccessExpression(node, false)) {
     {
-      let name_: Node | undefined = GetElementOrPropertyAccessName(node);
+      const name_: Node | undefined = GetElementOrPropertyAccessName(node);
       if (!(name_ === undefined)) {
         return name_!.Text$Node() === ('prototype' as string);
       }
@@ -27640,7 +27640,7 @@ export function GetElementOrPropertyAccessName(node: Node | undefined): Node | u
       }
       case 213 as number: {
         {
-          let arg: Node | undefined = SkipParentheses(node!.AsElementAccessExpression()!.ArgumentExpression);
+          const arg: Node | undefined = SkipParentheses(node!.AsElementAccessExpression()!.ArgumentExpression);
           if (IsStringOrNumericLiteralLike(arg)) {
             return arg;
           }
@@ -27665,8 +27665,8 @@ export function TryGetClassExtendingExpressionWithTypeArguments(node: Node | und
     return undefined;
   }
   const $t1 = TryGetClassImplementingOrExtendingHeritageClauseElement(node);
-  let cls: Node | undefined = $t1[0];
-  let isImplements: boolean = $t1[1];
+  const cls: Node | undefined = $t1[0];
+  const isImplements: boolean = $t1[1];
   if (!(cls === undefined) && !isImplements) {
     return cls;
   }
@@ -27690,7 +27690,7 @@ export function GetNameOfDeclaration(declaration: Node | undefined): Node | unde
   if (declaration === undefined) {
     return undefined;
   }
-  let nonAssignedName: Node | undefined = GetNonAssignedNameOfDeclaration(declaration);
+  const nonAssignedName: Node | undefined = GetNonAssignedNameOfDeclaration(declaration);
   if (!(nonAssignedName === undefined)) {
     return nonAssignedName;
   }
@@ -27709,9 +27709,9 @@ export function GetNonAssignedNameOfDeclaration(declaration: Node | undefined): 
             case 4 as number:
             case 3 as number:
             case 2 as number: {
-              let left: Node | undefined = declaration!.AsBinaryExpression()!.Left;
+              const left: Node | undefined = declaration!.AsBinaryExpression()!.Left;
               {
-                let name_: Node | undefined = GetElementOrPropertyAccessName(left);
+                const name_: Node | undefined = GetElementOrPropertyAccessName(left);
                 if (!(name_ === undefined)) {
                   return name_;
                 }
@@ -27727,7 +27727,7 @@ export function GetNonAssignedNameOfDeclaration(declaration: Node | undefined): 
         return undefined;
       }
       case 278 as number: {
-        let expr: Node | undefined = declaration!.Expression();
+        const expr: Node | undefined = declaration!.Expression();
         if (IsIdentifier(expr)) {
           return expr;
         }
@@ -27738,7 +27738,7 @@ export function GetNonAssignedNameOfDeclaration(declaration: Node | undefined): 
   return declaration!.Name$Node();
 }
 export function GetAssignedName(node: Node | undefined): Node | undefined {
-  let parent: Node | undefined = node!.Parent;
+  const parent: Node | undefined = node!.Parent;
   if (!(parent === undefined)) {
     {
       switch (parent!.Kind_) {
@@ -27750,7 +27750,7 @@ export function GetAssignedName(node: Node | undefined): Node | undefined {
         }
         case 227 as number: {
           if (node === parent!.AsBinaryExpression()!.Right) {
-            let left: Node | undefined = parent!.AsBinaryExpression()!.Left;
+            const left: Node | undefined = parent!.AsBinaryExpression()!.Left;
             {
               switch (left!.Kind_) {
                 case 79 as number: {
@@ -27760,7 +27760,7 @@ export function GetAssignedName(node: Node | undefined): Node | undefined {
                   return left!.AsPropertyAccessExpression()!.Name();
                 }
                 case 213 as number: {
-                  let arg: Node | undefined = SkipParentheses(left!.AsElementAccessExpression()!.ArgumentExpression);
+                  const arg: Node | undefined = SkipParentheses(left!.AsElementAccessExpression()!.ArgumentExpression);
                   if (IsStringOrNumericLiteralLike(arg)) {
                     return arg;
                   }
@@ -27772,7 +27772,7 @@ export function GetAssignedName(node: Node | undefined): Node | undefined {
           break;
         }
         case 261 as number: {
-          let name_: Node | undefined = parent!.AsVariableDeclaration()!.Name();
+          const name_: Node | undefined = parent!.AsVariableDeclaration()!.Name();
           if (IsIdentifier(name_)) {
             return name_;
           }
@@ -27787,7 +27787,7 @@ export function GetAssignmentDeclarationKind(node: Node | undefined): JSDeclarat
   {
     switch (node!.Kind_) {
       case 227 as number: {
-        let bin: BinaryExpression | undefined = node!.AsBinaryExpression();
+        const bin: BinaryExpression | undefined = node!.AsBinaryExpression();
         if (bin!.OperatorToken!.Kind_ === (63 as number) && IsAccessExpression(bin!.Left)) {
           if (IsInJSFile(bin!.Left)) {
             if (IsModuleExportsAccessExpression(bin!.Left) && !IsExportsIdentifier(bin!.Right)) {
@@ -27818,7 +27818,7 @@ export function GetAssignmentDeclarationKind(node: Node | undefined): JSDeclarat
       }
       case 214 as number: {
         if (IsInJSFile(node) && IsBindableObjectDefinePropertyCall(node)) {
-          let entityName: Node | undefined = node!.Arguments()[0];
+          const entityName: Node | undefined = node!.Arguments()[0];
           if (IsExportsIdentifier(entityName) || IsModuleExportsAccessExpression(entityName)) {
             return 6;
           }
@@ -27832,10 +27832,10 @@ export function GetAssignmentDeclarationKind(node: Node | undefined): JSDeclarat
 }
 export function IsBindableObjectDefinePropertyCall(node: Node | undefined): boolean {
   {
-    let args: (Node | undefined)[] = node!.Arguments();
+    const args: (Node | undefined)[] = node!.Arguments();
     if (args.length === (3 as number)) {
       {
-        let expr: Node | undefined = node!.Expression();
+        const expr: Node | undefined = node!.Expression();
         if (
           IsPropertyAccessExpression(expr) &&
           IsIdentifier(expr!.Expression()) &&
@@ -27852,7 +27852,7 @@ export function IsBindableObjectDefinePropertyCall(node: Node | undefined): bool
   return false;
 }
 export function HasDynamicName(declaration: Node | undefined): boolean {
-  let name_: Node | undefined = GetNameOfDeclaration(declaration);
+  const name_: Node | undefined = GetNameOfDeclaration(declaration);
   return !(name_ === undefined) && IsDynamicName(name_);
 }
 export function IsDynamicName(name_: Node | undefined): boolean {
@@ -27960,7 +27960,7 @@ export function IsExternalModuleIndicator(node: Node | undefined): boolean {
 }
 export function IsExportNamespaceAsDefaultDeclaration(node: Node | undefined): boolean {
   if (IsExportDeclaration(node)) {
-    let decl: ExportDeclaration | undefined = node!.AsExportDeclaration();
+    const decl: ExportDeclaration | undefined = node!.AsExportDeclaration();
     return IsNamespaceExport(decl!.ExportClause) && ModuleExportNameIsDefault(decl!.ExportClause!.Name$Node());
   }
   return false;
@@ -27975,7 +27975,7 @@ export function IsModuleAugmentationExternal(node: Node | undefined): boolean {
         return IsExternalModule(node!.Parent!.AsSourceFile());
       }
       case 269 as number: {
-        let grandParent: Node | undefined = node!.Parent!.Parent;
+        const grandParent: Node | undefined = node!.Parent!.Parent;
         return (
           IsAmbientModule(grandParent) &&
           IsSourceFile(grandParent!.Parent) &&
@@ -27999,7 +27999,7 @@ export function GetImplementsHeritageClauseElements(node: Node | undefined): (No
   return GetHeritageElements(node, 118);
 }
 export function GetHeritageElements(node: Node | undefined, kind: Kind): (Node | undefined)[] {
-  let clause: Node | undefined = GetHeritageClause(node, kind);
+  const clause: Node | undefined = GetHeritageClause(node, kind);
   if (!(clause === undefined)) {
     return clause!.AsHeritageClause()!.Types!.Nodes;
   }
@@ -28022,12 +28022,12 @@ export function IsNameOfHeritageClauseTypeReference(node: Node | undefined): boo
   );
 }
 export function GetHeritageClause(node: Node | undefined, kind: Kind): Node | undefined {
-  let clauses: NodeList | undefined = getHeritageClauses(node);
+  const clauses: NodeList | undefined = getHeritageClauses(node);
   if (!(clauses === undefined)) {
     {
       const $t1 = clauses!.Nodes;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        let clause = $t1[$t2];
+        const clause = $t1[$t2];
         if (clause!.AsHeritageClause()!.Token === kind) {
           return clause;
         }
@@ -28063,12 +28063,12 @@ export function IsPartOfParameterDeclaration(node: Node | undefined): boolean {
 }
 export function IsInTopLevelContext(node: Node | undefined): boolean {
   if (IsIdentifier(node)) {
-    let parent: Node | undefined = node!.Parent;
+    const parent: Node | undefined = node!.Parent;
     if ((IsClassDeclaration(parent) || IsFunctionDeclaration(parent)) && parent!.Name$Node() === node) {
       node = parent;
     }
   }
-  let container: Node | undefined = GetThisContainer(node, true, false);
+  const container: Node | undefined = GetThisContainer(node, true, false);
   return IsSourceFile(container);
 }
 export function GetThisContainer(
@@ -28252,9 +28252,9 @@ export function GetImportAttributes(node: Node | undefined): Node | undefined {
 }
 export function getImportTypeNodeLiteral(node: Node | undefined): Node | undefined {
   if (IsImportTypeNode(node)) {
-    let importTypeNode: ImportTypeNode | undefined = node!.AsImportTypeNode();
+    const importTypeNode: ImportTypeNode | undefined = node!.AsImportTypeNode();
     if (IsLiteralTypeNode(importTypeNode!.Argument)) {
-      let literalTypeNode: LiteralTypeNode | undefined = importTypeNode!.Argument!.AsLiteralTypeNode();
+      const literalTypeNode: LiteralTypeNode | undefined = importTypeNode!.Argument!.AsLiteralTypeNode();
       if (IsStringLiteral(literalTypeNode!.Literal)) {
         return literalTypeNode!.Literal;
       }
@@ -28350,7 +28350,7 @@ export function IsExpressionNode(node: Node | undefined): boolean {
   }
 }
 export function IsInExpressionContext(node: Node | undefined): boolean {
-  let parent: Node | undefined = node!.Parent;
+  const parent: Node | undefined = node!.Parent;
   {
     switch (parent!.Kind_) {
       case 261 as number:
@@ -28380,7 +28380,7 @@ export function IsInExpressionContext(node: Node | undefined): boolean {
         return parent!.Expression() === node;
       }
       case 249 as number: {
-        let s: ForStatement | undefined = parent!.AsForStatement();
+        const s: ForStatement | undefined = parent!.AsForStatement();
         return (
           (s!.Initializer_ === node && !(s!.Initializer_!.Kind_ === (262 as number))) ||
           s!.Condition === node ||
@@ -28389,7 +28389,7 @@ export function IsInExpressionContext(node: Node | undefined): boolean {
       }
       case 250 as number:
       case 251 as number: {
-        let s$1: ForInOrOfStatement | undefined = parent!.AsForInOrOfStatement();
+        const s$1: ForInOrOfStatement | undefined = parent!.AsForInOrOfStatement();
         return (
           (s$1!.Initializer_ === node && !(s$1!.Initializer_!.Kind_ === (262 as number))) || s$1!.Expression_ === node
         );
@@ -28413,7 +28413,7 @@ export function IsInExpressionContext(node: Node | undefined): boolean {
   }
 }
 export function IsPartOfTypeNode(node: Node | undefined): boolean {
-  let kind: Kind = node!.Kind_;
+  const kind: Kind = node!.Kind_;
   if (kind >= 183 && kind <= 206) {
     return true;
   }
@@ -28442,7 +28442,7 @@ export function IsPartOfTypeNode(node: Node | undefined): boolean {
         return node!.Parent!.Kind_ === (201 as number) || node!.Parent!.Kind_ === (196 as number);
       }
       case 79 as number: {
-        let parent: Node | undefined = node!.Parent;
+        const parent: Node | undefined = node!.Parent;
         if (IsQualifiedName(parent) && parent!.AsQualifiedName()!.Right === node) {
           return isPartOfTypeNodeInParent(parent);
         }
@@ -28461,7 +28461,7 @@ export function IsPartOfTypeNode(node: Node | undefined): boolean {
   return false;
 }
 export function isPartOfTypeNodeInParent(node: Node | undefined): boolean {
-  let parent: Node | undefined = node!.Parent;
+  const parent: Node | undefined = node!.Parent;
   if (parent!.Kind_ === (187 as number)) {
     return false;
   }
@@ -28507,7 +28507,7 @@ export function isPartOfTypeNodeInParent(node: Node | undefined): boolean {
   return false;
 }
 export function isPartOfTypeExpressionWithTypeArguments(node: Node | undefined): boolean {
-  let parent: Node | undefined = node!.Parent;
+  const parent: Node | undefined = node!.Parent;
   return (
     (IsHeritageClause(parent) &&
       (!IsClassLike(parent!.Parent) || parent!.AsHeritageClause()!.Token === (118 as number))) ||
@@ -28528,7 +28528,7 @@ export function IsImportCall(node: Node | undefined): boolean {
   if (!IsCallExpression(node)) {
     return false;
   }
-  let e: Node | undefined = node!.Expression();
+  const e: Node | undefined = node!.Expression();
   return (
     e!.Kind_ === (101 as number) ||
     (IsMetaProperty(e) &&
@@ -28585,7 +28585,7 @@ export function EntityNameToString(
 }
 export function GetTextOfPropertyName(name_: Node | undefined): string {
   const $t1 = TryGetTextOfPropertyName(name_);
-  let text: string = $t1[0];
+  const text: string = $t1[0];
   return text;
 }
 export function TryGetTextOfPropertyName(name_: Node | undefined): [string, boolean] {
@@ -28622,7 +28622,7 @@ export function IsWhitespaceOnlyJsxText(node: Node | undefined): boolean {
   return node!.Kind_ === (11 as number) && node!.AsJsxText()!.ContainsOnlyTriviaWhiteSpaces;
 }
 export function GetNewTargetContainer(node: Node | undefined): Node | undefined {
-  let container: Node | undefined = GetThisContainer(node, false, false);
+  const container: Node | undefined = GetThisContainer(node, false, false);
   if (!(container === undefined)) {
     {
       switch (container!.Kind_) {
@@ -28766,7 +28766,7 @@ export function popAncestor(
   if (ancestors.length === (0 as number)) {
     return [[], node!.Parent];
   }
-  let n: number = ancestors.length - 1;
+  const n: number = ancestors.length - 1;
   return [$rt.reslice(ancestors, 0, n, undefined), ancestors[n]];
 }
 export function GetModuleInstanceState(node: Node | undefined): ModuleInstanceState {
@@ -28777,7 +28777,7 @@ export function getModuleInstanceState(
   ancestors: (Node | undefined)[],
   visited: Map<NodeId, ModuleInstanceState> | undefined,
 ): ModuleInstanceState {
-  let module_: ModuleDeclaration | undefined = node!.AsModuleDeclaration();
+  const module_: ModuleDeclaration | undefined = node!.AsModuleDeclaration();
   if (!(module_!.BodyBase_.Body === undefined)) {
     return getModuleInstanceStateCached(module_!.BodyBase_.Body, pushAncestor(ancestors, node), visited);
   } else {
@@ -28792,12 +28792,12 @@ export function getModuleInstanceStateCached(
   if (visited === undefined) {
     visited = new Map<NodeId, ModuleInstanceState>();
   }
-  let nodeId: NodeId = GetNodeId(node);
+  const nodeId: NodeId = GetNodeId(node);
   {
     const $t1 = visited;
     const $t2 = nodeId;
-    let cached: ModuleInstanceState = $t1?.get($t2) ?? 0;
-    let ok: boolean = $t1 !== undefined && $t1.has($t2);
+    const cached: ModuleInstanceState = $t1?.get($t2) ?? 0;
+    const ok: boolean = $t1 !== undefined && $t1.has($t2);
     if (ok) {
       if (!(cached === (0 as number))) {
         return cached;
@@ -28806,7 +28806,7 @@ export function getModuleInstanceStateCached(
     }
   }
   visited!.set(nodeId, 0);
-  let result: ModuleInstanceState = getModuleInstanceStateWorker(node, ancestors, visited);
+  const result: ModuleInstanceState = getModuleInstanceStateWorker(node, ancestors, visited);
   visited!.set(nodeId, result);
   return result;
 }
@@ -28837,7 +28837,7 @@ export function getModuleInstanceStateWorker(
         break;
       }
       case 279 as number: {
-        let decl: ExportDeclaration | undefined = node!.AsExportDeclaration();
+        const decl: ExportDeclaration | undefined = node!.AsExportDeclaration();
         if (
           decl!.ModuleSpecifier_ === undefined &&
           !(decl!.ExportClause === undefined) &&
@@ -28849,8 +28849,8 @@ export function getModuleInstanceStateWorker(
           {
             const $t1 = decl!.ExportClause!.Elements();
             for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-              let specifier = $t1[$t2];
-              let specifierState: ModuleInstanceState = getModuleInstanceStateForAliasTarget(
+              const specifier = $t1[$t2];
+              const specifierState: ModuleInstanceState = getModuleInstanceStateForAliasTarget(
                 specifier,
                 ancestors,
                 visited,
@@ -28871,7 +28871,7 @@ export function getModuleInstanceStateWorker(
         let state$1: ModuleInstanceState = 1;
         ancestors = pushAncestor(ancestors, node);
         node!.ForEachChild$Node((n: Node | undefined): boolean => {
-          let childState: ModuleInstanceState = getModuleInstanceStateCached(n, ancestors, visited);
+          const childState: ModuleInstanceState = getModuleInstanceStateCached(n, ancestors, visited);
           {
             switch (childState) {
               case 1 as number: {
@@ -28903,7 +28903,7 @@ export function getModuleInstanceStateForAliasTarget(
   ancestors: (Node | undefined)[],
   visited: Map<NodeId, ModuleInstanceState> | undefined,
 ): ModuleInstanceState {
-  let name_: Node | undefined = node!.PropertyNameOrName();
+  const name_: Node | undefined = node!.PropertyNameOrName();
   if (!(name_!.Kind_ === (79 as number))) {
     return 2;
   }
@@ -28915,13 +28915,17 @@ export function getModuleInstanceStateForAliasTarget(
       $cont3: {
         if (IsBlock(p) || IsModuleBlock(p) || IsSourceFile(p)) {
           let found: ModuleInstanceState = 0;
-          let statementsAncestors: (Node | undefined)[] = pushAncestor(ancestors$1, p);
+          const statementsAncestors: (Node | undefined)[] = pushAncestor(ancestors$1, p);
           {
             const $t4 = p!.Statements();
             for (let $t5 = 0, $n = $t4.length; $t5 < $n; $t5++) {
-              let statement = $t4[$t5];
+              const statement = $t4[$t5];
               if (NodeHasName(statement, name_)) {
-                let state: ModuleInstanceState = getModuleInstanceStateCached(statement, statementsAncestors, visited);
+                const state: ModuleInstanceState = getModuleInstanceStateCached(
+                  statement,
+                  statementsAncestors,
+                  visited,
+                );
                 if (found === (0 as number) || state > found) {
                   found = state;
                 }
@@ -28947,16 +28951,16 @@ export function getModuleInstanceStateForAliasTarget(
   return 2;
 }
 export function IsInstantiatedModule(node: Node | undefined, preserveConstEnums: boolean): boolean {
-  let moduleState: ModuleInstanceState = GetModuleInstanceState(node);
+  const moduleState: ModuleInstanceState = GetModuleInstanceState(node);
   return moduleState === (2 as number) || (preserveConstEnums && moduleState === (3 as number));
 }
 export function NodeHasName(statement: Node | undefined, id: Node | undefined): boolean {
-  let name_: Node | undefined = statement!.Name$Node();
+  const name_: Node | undefined = statement!.Name$Node();
   if (!(name_ === undefined)) {
     return IsIdentifier(name_) && name_!.Text$Node() === id!.Text$Node();
   }
   if (IsVariableStatement(statement)) {
-    let declarations: (Node | undefined)[] = statement!
+    const declarations: (Node | undefined)[] = statement!
       .AsVariableStatement()!
       .DeclarationList!.AsVariableDeclarationList()!.Declarations!.Nodes;
     return $core.Some<Node | undefined>(declarations, (d: Node | undefined): boolean => {
@@ -29007,7 +29011,7 @@ export function GetDeclarationOfKind(symbol_: Symbol_ | undefined, kind: Kind): 
   {
     const $t1 = symbol_!.Declarations;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let declaration = $t1[$t2];
+      const declaration = $t1[$t2];
       if (declaration!.Kind_ === kind) {
         return declaration;
       }
@@ -29019,7 +29023,7 @@ export function FindConstructorDeclaration(node: Node | undefined): Node | undef
   {
     const $t1 = node!.Members();
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let member = $t1[$t2];
+      const member = $t1[$t2];
       if (IsConstructorDeclaration(member) && NodeIsPresent(member!.Body())) {
         return member;
       }
@@ -29048,7 +29052,7 @@ export function GetNamespaceDeclarationNode(node: Node | undefined): Node | unde
     switch (node!.Kind_) {
       case 273 as number:
       case 346 as number: {
-        let importClause: Node | undefined = node!.ImportClause();
+        const importClause: Node | undefined = node!.ImportClause();
         if (
           !(importClause === undefined) &&
           !(importClause!.AsImportClause()!.NamedBindings === undefined) &&
@@ -29062,7 +29066,7 @@ export function GetNamespaceDeclarationNode(node: Node | undefined): Node | unde
         return node;
       }
       case 279 as number: {
-        let exportClause: Node | undefined = node!.AsExportDeclaration()!.ExportClause;
+        const exportClause: Node | undefined = node!.AsExportDeclaration()!.ExportClause;
         if (!(exportClause === undefined) && IsNamespaceExport(exportClause)) {
           return exportClause;
         }
@@ -29083,7 +29087,7 @@ export function IsDefaultImport(node: Node | undefined): boolean {
     switch (node!.Kind_) {
       case 273 as number:
       case 346 as number: {
-        let importClause: Node | undefined = node!.ImportClause();
+        const importClause: Node | undefined = node!.ImportClause();
         return !(importClause === undefined) && !(importClause!.AsImportClause()!.name === undefined);
       }
     }
@@ -29106,7 +29110,7 @@ export function GetEmitModuleFormatOfFileWorker(
   options: $core.CompilerOptions | undefined,
   sourceFileMetaData: SourceFileMetaData,
 ): $core.ModuleKind {
-  let result: $core.ResolutionMode = GetImpliedNodeFormatForEmitWorker(
+  const result: $core.ResolutionMode = GetImpliedNodeFormatForEmitWorker(
     fileName,
     options!.GetEmitModuleKind(),
     sourceFileMetaData,
@@ -29203,7 +29207,7 @@ export function GetNodeAtPosition(
       {
         const $t1 = current!.JSDoc(file);
         for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-          let jsdoc = $t1[$t2];
+          const jsdoc = $t1[$t2];
           if (nodeContainsPosition(jsdoc, position)) {
             child = jsdoc;
             break;
@@ -29237,9 +29241,9 @@ export function findImportOrRequire(text: string, start: number): [number, numbe
   let index: number = 0;
   let size: number = 0;
   index = Math.max(start, 0);
-  let n: number = text.length;
+  const n: number = text.length;
   for (; index < n;) {
-    let next: number = $rt.strings_IndexAny(text.substring(index), 'ir');
+    const next: number = $rt.strings_IndexAny(text.substring(index), 'ir');
     if (next < 0) {
       break;
     }
@@ -29265,12 +29269,12 @@ export function ForEachDynamicImportOrRequireCall(
   requireStringLiteralLikeArgument: boolean,
   cb: ((p0: Node | undefined, p1: Node | undefined) => boolean) | undefined,
 ): boolean {
-  let isJavaScriptFile: boolean = IsInJSFile(file!.AsNode());
+  const isJavaScriptFile: boolean = IsInJSFile(file!.AsNode());
   const $t1 = findImportOrRequire(file!.Text(), 0);
   let lastIndex: number = $t1[0];
   let size: number = $t1[1];
   for (; lastIndex >= 0;) {
-    let node: Node | undefined = GetNodeAtPosition(file, lastIndex, isJavaScriptFile && includeTypeSpaceImports);
+    const node: Node | undefined = GetNodeAtPosition(file, lastIndex, isJavaScriptFile && includeTypeSpaceImports);
     if (isJavaScriptFile && IsRequireCall(node, requireStringLiteralLikeArgument)) {
       if (cb!(node, node!.Arguments()[0])) {
         return true;
@@ -29299,7 +29303,7 @@ export function IsRequireCall(node: Node | undefined, requireStringLiteralLikeAr
   if (!IsCallExpression(node)) {
     return false;
   }
-  let call: CallExpression | undefined = node!.AsCallExpression();
+  const call: CallExpression | undefined = node!.AsCallExpression();
   if (!IsIdentifier(call!.Expression_) || !(call!.Expression_!.Text$Node() === ('require' as string))) {
     return false;
   }
@@ -29311,7 +29315,7 @@ export function IsRequireCall(node: Node | undefined, requireStringLiteralLikeAr
 export function IsRequireVariableStatement(node: Node | undefined): boolean {
   if (IsVariableStatement(node)) {
     {
-      let declarations: (Node | undefined)[] = node!
+      const declarations: (Node | undefined)[] = node!
         .AsVariableStatement()!
         .DeclarationList!.AsVariableDeclarationList()!.Declarations!.Nodes;
       if (declarations.length > 0) {
@@ -29325,8 +29329,8 @@ export function GetJSXImplicitImportBase(
   compilerOptions: $core.CompilerOptions | undefined,
   file: SourceFile | undefined,
 ): string {
-  let jsxImportSourcePragma: Pragma | undefined = GetPragmaFromSourceFile(file, 'jsximportsource');
-  let jsxRuntimePragma: Pragma | undefined = GetPragmaFromSourceFile(file, 'jsxruntime');
+  const jsxImportSourcePragma: Pragma | undefined = GetPragmaFromSourceFile(file, 'jsximportsource');
+  const jsxRuntimePragma: Pragma | undefined = GetPragmaFromSourceFile(file, 'jsxruntime');
   if (GetPragmaArgument(jsxRuntimePragma, 'factory') === ('classic' as string)) {
     return '';
   }
@@ -29360,7 +29364,7 @@ export function GetPragmaFromSourceFile(file: SourceFile | undefined, name_: str
     {
       const $t1 = file!.Pragmas;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        let i = $t2;
+        const i = $t2;
         if (file!.Pragmas[i].Name === name_) {
           result = file!.Pragmas[i];
         }
@@ -29374,8 +29378,8 @@ export function GetPragmaArgument(pragma: Pragma | undefined, name_: string): st
     {
       const $t1 = pragma!.Args;
       const $t2 = name_;
-      let arg: PragmaArgument = $t1?.get($t2) ?? PragmaArgument$zero;
-      let ok: boolean = $t1 !== undefined && $t1.has($t2);
+      const arg: PragmaArgument = $t1?.get($t2) ?? PragmaArgument$zero;
+      const ok: boolean = $t1 !== undefined && $t1.has($t2);
       if (ok) {
         return arg.Value;
       }
@@ -29420,7 +29424,7 @@ export function GetModuleSpecifierOfBareOrAccessedRequire(node: Node | undefined
     return node!.Initializer()!.Arguments()[0];
   }
   if (isVariableDeclarationInitializedWithRequireHelper(node, true)) {
-    let leftmost: Node | undefined = GetLeftmostAccessExpression(node!.Initializer());
+    const leftmost: Node | undefined = GetLeftmostAccessExpression(node!.Initializer());
     if (IsRequireCall(leftmost, true)) {
       return leftmost!.Arguments()[0];
     }
@@ -29430,7 +29434,7 @@ export function GetModuleSpecifierOfBareOrAccessedRequire(node: Node | undefined
 export function IsModuleExportsAccessExpression(node: Node | undefined): boolean {
   if (IsAccessExpression(node) && IsModuleIdentifier(node!.Expression())) {
     {
-      let name_: Node | undefined = GetElementOrPropertyAccessName(node);
+      const name_: Node | undefined = GetElementOrPropertyAccessName(node);
       if (!(name_ === undefined)) {
         return name_!.Text$Node() === ('exports' as string);
       }
@@ -29492,7 +29496,7 @@ export function isTypeOnlyExportDeclaration(node: Node | undefined): boolean {
         return node!.IsTypeOnly() || node!.Parent!.Parent!.IsTypeOnly();
       }
       case 279 as number: {
-        let d: ExportDeclaration | undefined = node!.AsExportDeclaration();
+        const d: ExportDeclaration | undefined = node!.AsExportDeclaration();
         return d!.IsTypeOnly_ && !(d!.ModuleSpecifier_ === undefined) && d!.ExportClause === undefined;
       }
       case 281 as number: {
@@ -29514,7 +29518,7 @@ export function IsExclusivelyTypeOnlyImportOrExport(node: Node | undefined): boo
       case 273 as number:
       case 346 as number: {
         {
-          let importClause: Node | undefined = node!.ImportClause();
+          const importClause: Node | undefined = node!.ImportClause();
           if (!(importClause === undefined)) {
             return importClause!.AsImportClause()!.IsTypeOnly();
           }
@@ -29523,7 +29527,7 @@ export function IsExclusivelyTypeOnlyImportOrExport(node: Node | undefined): boo
       }
       case 343 as number: {
         {
-          let importClause$1: Node | undefined = node!.ImportClause();
+          const importClause$1: Node | undefined = node!.ImportClause();
           if (!(importClause$1 === undefined)) {
             return importClause$1!.AsImportClause()!.IsTypeOnly();
           }
@@ -29711,7 +29715,7 @@ export function GetTypeAnnotationNode(node: Node | undefined): Node | undefined 
         return node!.Type$m();
       }
       default: {
-        let funcLike: FunctionLikeBase | undefined = node!.FunctionLikeData$Node();
+        const funcLike: FunctionLikeBase | undefined = node!.FunctionLikeData$Node();
         if (!(funcLike === undefined)) {
           return funcLike!.Type;
         }
@@ -29727,7 +29731,7 @@ export function IsClassOrTypeElement(node: Node | undefined): boolean {
   return IsClassElement(node) || IsTypeElement(node);
 }
 export function GetClassExtendsHeritageElement(node: Node | undefined): Node | undefined {
-  let heritageElements: (Node | undefined)[] = GetHeritageElements(node, 95);
+  const heritageElements: (Node | undefined)[] = GetHeritageElements(node, 95);
   if (heritageElements.length > 0) {
     return heritageElements[0];
   }
@@ -29740,7 +29744,7 @@ export function IsJSDocSingleCommentNodeList(nodeList: NodeList | undefined): bo
   if (nodeList === undefined || nodeList!.Nodes.length === (0 as number)) {
     return false;
   }
-  let parent: Node | undefined = nodeList!.Nodes[0]!.Parent;
+  const parent: Node | undefined = nodeList!.Nodes[0]!.Parent;
   if (parent === undefined) {
     return false;
   }
@@ -29813,7 +29817,7 @@ export function GetPropertyNameForPropertyNameNode(name_: Node | undefined): str
         return name_!.Text$Node();
       }
       case 168 as number: {
-        let nameExpression: Node | undefined = name_!.Expression();
+        const nameExpression: Node | undefined = name_!.Expression();
         if (IsStringOrNumericLiteralLike(nameExpression)) {
           return nameExpression!.Text$Node();
         }
@@ -29893,7 +29897,7 @@ export function HasResolutionModeOverride(node: Node | undefined): boolean {
   }
   if (!(attributes === undefined)) {
     const $t1 = Node.GetResolutionModeOverride$nil(attributes);
-    let ok: boolean = $t1[1];
+    const ok: boolean = $t1[1];
     return ok;
   }
   return false;
@@ -29965,7 +29969,7 @@ export function CreateModifiersFromModifierFlags(
 }
 export function GetThisParameter(signature: Node | undefined): Node | undefined {
   if (!(signature!.Parameters().length === (0 as number))) {
-    let thisParameter: Node | undefined = signature!.Parameters()[0];
+    const thisParameter: Node | undefined = signature!.Parameters()[0];
     if (IsThisParameter(thisParameter)) {
       return thisParameter;
     }
@@ -30454,7 +30458,7 @@ export function isCalleeWorker(
   );
 }
 export function IsRightSideOfQualifiedNameOrPropertyAccess(node: Node | undefined): boolean {
-  let parent: Node | undefined = node!.Parent;
+  const parent: Node | undefined = node!.Parent;
   {
     switch (parent!.Kind_) {
       case 167 as number: {
@@ -30475,7 +30479,7 @@ export function ShouldTransformImportCall(
   options: $core.CompilerOptions | undefined,
   impliedNodeFormatForEmit: $core.ModuleKind,
 ): boolean {
-  let moduleKind: $core.ModuleKind = options!.GetEmitModuleKind();
+  const moduleKind: $core.ModuleKind = options!.GetEmitModuleKind();
   if ((100 <= moduleKind && moduleKind <= 199) || moduleKind === (200 as number)) {
     return false;
   }
@@ -30514,8 +30518,8 @@ export function IsCallOrNewExpression(node: Node | undefined): boolean {
 }
 export function IndexOfNode(nodes: (Node | undefined)[], node: Node | undefined): number {
   const $t1 = $rt.slices_BinarySearchFunc(nodes, node, CompareNodePositions);
-  let index: number = $t1[0];
-  let ok: boolean = $t1[1];
+  const index: number = $t1[0];
+  const ok: boolean = $t1[1];
   if (ok) {
     return index;
   }
@@ -30645,7 +30649,7 @@ export function TryGetPropertyNameOfBindingOrAssignmentElement(bindingElement: N
     switch (bindingElement!.Kind_) {
       case 209 as number: {
         if (!(bindingElement!.PropertyName() === undefined)) {
-          let propertyName: Node | undefined = bindingElement!.PropertyName();
+          const propertyName: Node | undefined = bindingElement!.PropertyName();
           if (IsComputedPropertyName(propertyName) && IsStringOrNumericLiteralLike(propertyName!.Expression())) {
             return propertyName!.Expression();
           }
@@ -30655,7 +30659,7 @@ export function TryGetPropertyNameOfBindingOrAssignmentElement(bindingElement: N
       }
       case 303 as number: {
         if (!(bindingElement!.Name$Node() === undefined)) {
-          let propertyName$1: Node | undefined = bindingElement!.Name$Node();
+          const propertyName$1: Node | undefined = bindingElement!.Name$Node();
           if (IsComputedPropertyName(propertyName$1) && IsStringOrNumericLiteralLike(propertyName$1!.Expression())) {
             return propertyName$1!.Expression();
           }
@@ -30668,7 +30672,7 @@ export function TryGetPropertyNameOfBindingOrAssignmentElement(bindingElement: N
       }
     }
   }
-  let target: Node | undefined = GetTargetOfBindingOrAssignmentElement(bindingElement);
+  const target: Node | undefined = GetTargetOfBindingOrAssignmentElement(bindingElement);
   if (!(target === undefined) && IsPropertyName(target)) {
     return target;
   }
@@ -30682,8 +30686,8 @@ export function ContainsObjectRestOrSpread(node: Node | undefined): boolean {
     {
       const $t1 = GetElementsOfBindingOrAssignmentPattern(node);
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        let element = $t1[$t2];
-        let target: Node | undefined = GetTargetOfBindingOrAssignmentElement(element);
+        const element = $t1[$t2];
+        const target: Node | undefined = GetTargetOfBindingOrAssignmentElement(element);
         if (!(target === undefined) && IsAssignmentPattern(target)) {
           if (!((target!.SubtreeFacts$m$Node() & 131072) === (0 as number))) {
             return true;
@@ -30729,14 +30733,14 @@ export function GetJSDocRoot(node: Node | undefined): Node | undefined {
   return FindAncestor(node!.Parent, $fn8);
 }
 export function GetJSDocHost(node: Node | undefined): Node | undefined {
-  let jsDoc: Node | undefined = GetJSDocRoot(node);
+  const jsDoc: Node | undefined = GetJSDocRoot(node);
   if (jsDoc === undefined) {
     return undefined;
   }
   return jsDoc!.Parent;
 }
 export function GetHostSignatureFromJSDoc(node: Node | undefined): Node | undefined {
-  let host: Node | undefined = GetJSDocHost(node);
+  const host: Node | undefined = GetJSDocHost(node);
   if (host === undefined) {
     return undefined;
   }
@@ -30750,7 +30754,7 @@ export function GetHostSignatureFromJSDoc(node: Node | undefined): Node | undefi
 }
 export function GetNextJSDocCommentLocation(node: Node | undefined): Node | undefined {
   {
-    let parent: Node | undefined = node!.Parent;
+    const parent: Node | undefined = node!.Parent;
     if (!(parent === undefined)) {
       {
         switch (parent!.Kind_) {
@@ -30866,7 +30870,7 @@ export function GetContainingFunction(node: Node | undefined): Node | undefined 
 }
 export function ImportFromModuleSpecifier(node: Node | undefined): Node | undefined {
   {
-    let result: Node | undefined = TryGetImportFromModuleSpecifier(node);
+    const result: Node | undefined = TryGetImportFromModuleSpecifier(node);
     if (!(result === undefined)) {
       return result;
     }
@@ -30919,7 +30923,7 @@ export function HasContextSensitiveParameters(node: Node | undefined): boolean {
       return true;
     }
     if (!IsArrowFunction(node)) {
-      let parameter: Node | undefined = $core.FirstOrNil<Node | undefined>($zf0, node!.Parameters());
+      const parameter: Node | undefined = $core.FirstOrNil<Node | undefined>($zf0, node!.Parameters());
       if (parameter === undefined || !IsThisParameter(parameter)) {
         return !((node!.Flags & 128) === (0 as number));
       }
@@ -30934,7 +30938,7 @@ export function GetFirstConstructorWithBody(node: Node | undefined): Node | unde
   {
     const $t1 = node!.Members();
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let member = $t1[$t2];
+      const member = $t1[$t2];
       if (IsConstructorDeclaration(member) && NodeIsPresent(member!.Body())) {
         return member;
       }
@@ -30945,11 +30949,11 @@ export function GetFirstConstructorWithBody(node: Node | undefined): Node | unde
 export function IsPotentiallyExecutableNode(node: Node | undefined): boolean {
   if (244 <= node!.Kind_ && node!.Kind_ <= 260) {
     if (IsVariableStatement(node)) {
-      let declarationList: Node | undefined = node!.AsVariableStatement()!.DeclarationList;
+      const declarationList: Node | undefined = node!.AsVariableStatement()!.DeclarationList;
       if (!((GetCombinedNodeFlags(declarationList) & 7) === (0 as number))) {
         return true;
       }
-      let declarations: (Node | undefined)[] = declarationList!.AsVariableDeclarationList()!.Declarations!.Nodes;
+      const declarations: (Node | undefined)[] = declarationList!.AsVariableDeclarationList()!.Declarations!.Nodes;
       return $core.Some<Node | undefined>(declarations, $fn10);
     }
     return true;
@@ -31018,7 +31022,7 @@ export function ClassOrConstructorParameterIsDecorated(useLegacyDecorators: bool
   if (NodeIsDecorated(useLegacyDecorators, node, undefined, undefined)) {
     return true;
   }
-  let constructor_: Node | undefined = GetFirstConstructorWithBody(node);
+  const constructor_: Node | undefined = GetFirstConstructorWithBody(node);
   return !(constructor_ === undefined) && ChildIsDecorated(useLegacyDecorators, constructor_, node);
 }
 export function ClassElementOrClassElementParameterIsDecorated(
@@ -31028,7 +31032,7 @@ export function ClassElementOrClassElementParameterIsDecorated(
 ): boolean {
   let parameters: NodeList | undefined = undefined as NodeList | undefined;
   if (IsAccessor(node)) {
-    let decls: AllAccessorDeclarations = GetAllAccessorDeclarations(parent!.Members(), node);
+    const decls: AllAccessorDeclarations = GetAllAccessorDeclarations(parent!.Members(), node);
     let firstAccessorWithDecorators: Node | undefined = undefined as Node | undefined;
     if (HasDecorators(decls.FirstAccessor)) {
       firstAccessorWithDecorators = decls.FirstAccessor;
@@ -31051,7 +31055,7 @@ export function ClassElementOrClassElementParameterIsDecorated(
     {
       const $t1 = parameters!.Nodes;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        let parameter = $t1[$t2];
+        const parameter = $t1[$t2];
         if (IsThisParameter(parameter)) {
           continue;
         }
@@ -31126,7 +31130,7 @@ export function GetAllAccessorDeclarationsForDeclaration(
   {
     const $t1 = declarationsOfSymbol;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let d = $t1[$t2];
+      const d = $t1[$t2];
       if (d!.Kind_ === otherKind) {
         otherAccessor = d;
         break;
@@ -31169,17 +31173,17 @@ export function GetAllAccessorDeclarations(
   if (HasDynamicName(accessor_)) {
     return GetAllAccessorDeclarationsForDeclaration(accessor_, [accessor_]);
   }
-  let accessorName: string = GetPropertyNameForPropertyNameNode(accessor_!.Name$Node());
-  let accessorStatic: boolean = IsStatic(accessor_);
+  const accessorName: string = GetPropertyNameForPropertyNameNode(accessor_!.Name$Node());
+  const accessorStatic: boolean = IsStatic(accessor_);
   let matches: (Node | undefined)[] = [];
   {
     const $t1 = parentDeclarations;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let member = $t1[$t2];
+      const member = $t1[$t2];
       if (!IsAccessor(member) || !(IsStatic(member) === accessorStatic)) {
         continue;
       }
-      let memberName: string = GetPropertyNameForPropertyNameNode(member!.Name$Node());
+      const memberName: string = GetPropertyNameForPropertyNameNode(member!.Name$Node());
       if (memberName === accessorName) {
         matches.push(member);
       }
@@ -31194,7 +31198,7 @@ export function IsAsyncFunction(node: Node | undefined): boolean {
       case 219 as number:
       case 220 as number:
       case 175 as number: {
-        let data: BodyBase | undefined = node!.BodyData$Node();
+        const data: BodyBase | undefined = node!.BodyData$Node();
         return !(data!.Body === undefined) && data!.AsteriskToken === undefined && HasSyntacticModifier(node, 1024);
       }
     }
@@ -31264,18 +31268,18 @@ export function isArgumentOfElementAccessExpression(node: Node | undefined): boo
 export function GetReparsedNodeForNode(node: Node | undefined): Node | undefined {
   if (!(node === undefined) && !((node!.Flags & 4194304) === (0 as number)) && (node!.Flags & 8) === (0 as number)) {
     {
-      let file: SourceFile | undefined = GetSourceFileOfNode(node);
+      const file: SourceFile | undefined = GetSourceFileOfNode(node);
       if (!(file === undefined) && !(file!.ReparsedClones.length === (0 as number))) {
         const $t1 = $rt.slices_BinarySearchFunc(file!.ReparsedClones, node, CompareNodePositions);
         let pos: number = $t1[0];
-        let found: boolean = $t1[1];
+        const found: boolean = $t1[1];
         if (!found && pos > 0) {
           pos--;
         }
-        let candidate: Node | undefined = file!.ReparsedClones[pos];
+        const candidate: Node | undefined = file!.ReparsedClones[pos];
         if ($core.TextRange$ContainedBy(node!.Loc, candidate!.Loc)) {
           {
-            let reparsed: Node | undefined = findCloneInNode(candidate, node);
+            const reparsed: Node | undefined = findCloneInNode(candidate, node);
             if (!(reparsed === undefined)) {
               return reparsed;
             }
@@ -31291,7 +31295,7 @@ export function findCloneInNode(node: Node | undefined, original: Node | undefin
     if (node!.Kind_ === original!.Kind_ && node!.Loc === original!.Loc) {
       return node;
     }
-    let foundContainingChild: boolean = node!.ForEachChild$Node((n: Node | undefined): boolean => {
+    const foundContainingChild: boolean = node!.ForEachChild$Node((n: Node | undefined): boolean => {
       if ($core.TextRange$ContainedBy(original!.Loc, n!.Loc)) {
         node = n;
         return true;

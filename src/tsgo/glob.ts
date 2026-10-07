@@ -126,7 +126,7 @@ export class Glob extends $rt.GoObject {
     {
       const $t1 = g!.elems;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        let e = $t1[$t2];
+        const e = $t1[$t2];
         $rt.fmt_Fprint(
           $rt.unsupportedConversion<
             | $ipc.stdioConn
@@ -264,12 +264,12 @@ export let errBadRange: $rt.GoObject | undefined = $rt.errors_New("'[' patterns 
 export let errInvalidUTF8: $rt.GoObject | undefined = $rt.errors_New('invalid UTF-8 encoding');
 export function Parse(pattern: string): [Glob | undefined, $rt.GoObject | undefined] {
   const $t1 = parse(pattern, false);
-  let g: Glob | undefined = $t1[0];
-  let err: $rt.GoObject | undefined = $t1[2];
+  const g: Glob | undefined = $t1[0];
+  const err: $rt.GoObject | undefined = $t1[2];
   return [g, err];
 }
 export function parse(pattern: string, nested: boolean): [Glob | undefined, string, $rt.GoObject | undefined] {
-  let g: Glob | undefined = new Glob();
+  const g: Glob | undefined = new Glob();
   for (; pattern.length > 0;) {
     {
       switch (pattern.charCodeAt(0)) {
@@ -304,9 +304,9 @@ export function parse(pattern: string, nested: boolean): [Glob | undefined, stri
           for (; !(pattern.charCodeAt(0) === (125 as number));) {
             pattern = pattern.substring(1);
             const $t1 = parse(pattern, true);
-            let groupG: Glob | undefined = $t1[0];
-            let pat: string = $t1[1];
-            let err: $rt.GoObject | undefined = $t1[2];
+            const groupG: Glob | undefined = $t1[0];
+            const pat: string = $t1[1];
+            const err: $rt.GoObject | undefined = $t1[2];
             if (!(err === undefined)) {
               return [undefined, '', err];
             }
@@ -339,7 +339,7 @@ export function parse(pattern: string, nested: boolean): [Glob | undefined, stri
             negate = true;
           }
           const $t2 = readRangeRune(pattern);
-          let low: number = $t2[0];
+          const low: number = $t2[0];
           let sz: number = $t2[1];
           let err$1: $rt.GoObject | undefined = $t2[2];
           if (!(err$1 === undefined)) {
@@ -351,7 +351,7 @@ export function parse(pattern: string, nested: boolean): [Glob | undefined, stri
           }
           pattern = pattern.substring(1);
           const $t3 = readRangeRune(pattern);
-          let high: number = $t3[0];
+          const high: number = $t3[0];
           sz = $t3[1];
           err$1 = $t3[2];
           if (!(err$1 === undefined)) {
@@ -376,8 +376,8 @@ export function parse(pattern: string, nested: boolean): [Glob | undefined, stri
 }
 export function readRangeRune(input: string): [number, number, $rt.GoObject | undefined] {
   const $t1 = $rt.unicode_utf8_DecodeRuneInString(input);
-  let r: number = $t1[0];
-  let sz: number = $t1[1];
+  const r: number = $t1[0];
+  const sz: number = $t1[1];
   let err: $rt.GoObject | undefined = undefined as $rt.GoObject | undefined;
   if (r === (65533 as number)) {
     {
@@ -403,7 +403,7 @@ export function group$String(g: group): string {
   {
     const $t1 = g;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let g$1 = $t1[$t2];
+      const g$1 = $t1[$t2];
       parts.push(g$1!.String());
     }
   }
@@ -460,15 +460,15 @@ export function match(elems: element[], input: string): boolean {
           {
             const $t7 = elems;
             for (let $t8 = 0, $n = $t7.length; $t8 < $n; $t8++) {
-              let i = $t8;
-              let e = $t7[$t8];
+              const i = $t8;
+              const e = $t7[$t8];
               if ($rt.ifaceEq(e, new slash())) {
                 elemEnd = i;
                 break;
               }
             }
           }
-          let segElems: element[] = $rt.reslice(elems, 0, elemEnd, undefined);
+          const segElems: element[] = $rt.reslice(elems, 0, elemEnd, undefined);
           elems = elems.slice(elemEnd);
           if (segElems.length === (0 as number)) {
             break $sw4;
@@ -495,7 +495,7 @@ export function match(elems: element[], input: string): boolean {
           {
             const $t10 = elem$6;
             for (let $t11 = 0, $n = $t10.length; $t11 < $n; $t11++) {
-              let m = $t10[$t11];
+              const m = $t10[$t11];
               branch = $rt.reslice(branch, 0, 0, undefined);
               branch = $rt.appendCopy(branch, m!.elems);
               branch = $rt.appendCopy(branch, elems);
@@ -511,8 +511,8 @@ export function match(elems: element[], input: string): boolean {
             return false;
           }
           const $t12 = $rt.unicode_utf8_DecodeRuneInString(input);
-          let c: number = $t12[0];
-          let sz: number = $t12[1];
+          const c: number = $t12[0];
+          const sz: number = $t12[1];
           if (c < elem$7.low || c > elem$7.high) {
             return false;
           }
@@ -529,7 +529,7 @@ export function match(elems: element[], input: string): boolean {
 export function split(input: string): [string, string] {
   let first: string = '';
   let rest: string = '';
-  let i: number = $rt.strings_IndexByte(input, 47);
+  const i: number = $rt.strings_IndexByte(input, 47);
   if (i < 0) {
     return [input, ''];
   }

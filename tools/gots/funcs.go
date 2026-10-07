@@ -29,6 +29,8 @@ type fn struct {
 	rangeFunc *rangeFuncCtx
 	views     map[*types.Var]*view
 	notOwned  map[*types.Var]bool
+	// assigned are the locals assigned after their definition.
+	assigned map[*types.Var]bool
 	// subst replaces expressions with already translated text.
 	subst map[ast.Expr]string
 	// boxGeneric is set while asserting from an empty interface, where
@@ -55,6 +57,7 @@ func newFunc(f *file, parent *fn) *fn {
 	if parent != nil {
 		x.views = parent.views
 		x.notOwned = parent.notOwned
+		x.assigned = parent.assigned
 		x.tmpN = parent.tmpN
 		for k, v := range parent.names {
 			x.names[k] = v
@@ -233,6 +236,7 @@ func (x *fn) params(sig *types.Signature) []string {
 func (x *fn) body(body *ast.BlockStmt, ft *ast.FuncType) {
 	x.findViews(body)
 	x.findOwned(body, x.sig)
+	x.findAssigned(body)
 	sig := x.sig
 	res := sig.Results()
 	named := res.Len() > 0 && res.At(0).Name() != ""
@@ -623,7 +627,7 @@ func (x *fn) declStmt(s *ast.DeclStmt) {
 						// when it is only assigned inside closures.
 						z = "undefined as " + x.f.varType(v)
 					}
-					x.line("let %s: %s = %s;", x.name(v), x.f.varType(v), z)
+					x.line("%s %s: %s = %s;", x.declKeyword(v), x.name(v), x.f.varType(v), z)
 				}
 				continue
 			}
@@ -637,7 +641,7 @@ func (x *fn) declStmt(s *ast.DeclStmt) {
 						continue
 					}
 					v := x.info.Defs[id].(*types.Var)
-					x.line("let %s: %s = %s;", x.name(v), x.f.tsType(v.Type()), x.tupleElem(t, vs.Values[0], i))
+					x.line("%s %s: %s = %s;", x.declKeyword(v), x.name(v), x.f.tsType(v.Type()), x.tupleElem(t, vs.Values[0], i))
 				}
 				continue
 			}
@@ -654,7 +658,7 @@ func (x *fn) declStmt(s *ast.DeclStmt) {
 				}
 				val := x.rhsFor(id, vs.Values[i], v.Type())
 				x.flushPre()
-				x.line("let %s: %s = %s;", x.name(v), x.f.varType(v), val)
+				x.line("%s %s: %s = %s;", x.declKeyword(v), x.name(v), x.f.varType(v), val)
 			}
 		}
 	case token.CONST:
@@ -888,7 +892,7 @@ func (x *fn) rangeStmt(s *ast.RangeStmt, label string) {
 		x.line("%sfor (let %s = 0, $n = %s.length; %s < $n; %s++) {", prefix, i, src, i, i)
 		x.indent++
 		if key.name != "" {
-			x.line("%s %s = %s;", key.declOr("let"), key.name, i)
+			x.line("%s %s = %s;", key.decl, key.name, i)
 		}
 		if val.name != "" {
 			var elem types.Type
@@ -897,7 +901,7 @@ func (x *fn) rangeStmt(s *ast.RangeStmt, label string) {
 			} else {
 				elem = u.(*types.Array).Elem()
 			}
-			x.line("%s %s = %s;", val.declOr("let"), val.name, x.f.copyValue(src+"["+i+"]", elem))
+			x.line("%s %s = %s;", val.decl, val.name, x.f.copyValue(src+"["+i+"]", elem))
 		}
 		x.indent--
 		x.loopBody(s.Body.List, label)
@@ -947,13 +951,6 @@ type rangeVarInfo struct {
 	decl string // "let" for new variables, "" for assignment to existing ones
 }
 
-func (r rangeVarInfo) declOr(def string) string {
-	if r.decl == "" {
-		return ""
-	}
-	return def
-}
-
 func (x *fn) rangeVar(e ast.Expr, tok token.Token) rangeVarInfo {
 	if e == nil {
 		return rangeVarInfo{}
@@ -964,7 +961,7 @@ func (x *fn) rangeVar(e ast.Expr, tok token.Token) rangeVarInfo {
 	}
 	if tok == token.DEFINE && ok {
 		v := x.info.Defs[id].(*types.Var)
-		return rangeVarInfo{name: x.name(v), decl: "let"}
+		return rangeVarInfo{name: x.name(v), decl: x.declKeyword(v)}
 	}
 	return rangeVarInfo{name: x.expr(e)}
 }

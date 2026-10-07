@@ -53,7 +53,7 @@ export class SpecMatcher extends $rt.GoObject {
     {
       const $t1 = m!.patterns;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        let i = $t2;
+        const i = $t2;
         if (m!.patterns[i].matches(path)) {
           return true;
         }
@@ -66,7 +66,7 @@ export class SpecMatcher extends $rt.GoObject {
     {
       const $t1 = m!.patterns;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        let i = $t2;
+        const i = $t2;
         if (m!.patterns[i].matches(path)) {
           return i;
         }
@@ -144,7 +144,7 @@ export class globMatcher extends $rt.GoObject {
     {
       const $t1 = m!.excludes;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        let i = $t2;
+        const i = $t2;
         if (m!.excludes[i].matchesParts(prefix, suffix)) {
           return [0, false];
         }
@@ -159,7 +159,7 @@ export class globMatcher extends $rt.GoObject {
     {
       const $t3 = m!.includes;
       for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
-        let i$1 = $t4;
+        const i$1 = $t4;
         if (m!.includes[i$1].matchesParts(prefix, suffix)) {
           return [i$1, true];
         }
@@ -172,7 +172,7 @@ export class globMatcher extends $rt.GoObject {
     {
       const $t1 = m!.excludes;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        let i = $t2;
+        const i = $t2;
         if (m!.excludes[i].matchesParts(prefix, suffix)) {
           return false;
         }
@@ -184,7 +184,7 @@ export class globMatcher extends $rt.GoObject {
     {
       const $t3 = m!.includes;
       for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
-        let i$1 = $t4;
+        const i$1 = $t4;
         if (m!.includes[i$1].matchesPrefixParts(prefix, suffix)) {
           return true;
         }
@@ -237,9 +237,9 @@ export class globPattern extends $rt.GoObject {
     const p = this;
     for (;;) {
       const $t1 = nextPathPartParts(prefix, suffix, pathOffset);
-      let pathPart: string = $t1[0];
-      let nextOffset: number = $t1[1];
-      let ok: boolean = $t1[2];
+      const pathPart: string = $t1[0];
+      const nextOffset: number = $t1[1];
+      const ok: boolean = $t1[2];
       if (!ok) {
         if (prefixOnly) {
           return true;
@@ -249,7 +249,7 @@ export class globPattern extends $rt.GoObject {
       if (compIdx >= p!.components.length) {
         return p!.isExclude && !prefixOnly;
       }
-      let comp: component = p!.components[compIdx];
+      const comp: component = p!.components[compIdx];
       {
         switch (comp.kind) {
           case 2 as number: {
@@ -293,7 +293,7 @@ export class globPattern extends $rt.GoObject {
     {
       const $t1 = p!.components.slice(compIdx);
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        let c = $t1[$t2];
+        const c = $t1[$t2];
         if (!(c.kind === (2 as number))) {
           return false;
         }
@@ -312,7 +312,7 @@ export class globPattern extends $rt.GoObject {
       return false;
     }
     if (segs.length === (2 as number) && segs[0].kind === (1 as number) && segs[1].kind === (0 as number)) {
-      let suffix: string = segs[1].literal;
+      const suffix: string = segs[1].literal;
       if (s.length < suffix.length || !p!.stringsEqual(suffix, s.substring(s.length - suffix.length))) {
         return false;
       }
@@ -332,11 +332,11 @@ export class globPattern extends $rt.GoObject {
     let starSIdx: number = $t4;
     for (; sIdx < s.length;) {
       if (segIdx < segs.length) {
-        let seg: segment = segs[segIdx];
+        const seg: segment = segs[segIdx];
         {
           switch (seg.kind) {
             case 0 as number: {
-              let end: number = sIdx + seg.literal.length;
+              const end: number = sIdx + seg.literal.length;
               if (end <= s.length && p!.stringsEqual(seg.literal, s.substring(sIdx, end))) {
                 sIdx = end;
                 segIdx++;
@@ -347,7 +347,7 @@ export class globPattern extends $rt.GoObject {
             case 2 as number: {
               if (!(s.charCodeAt(sIdx) === (47 as number))) {
                 const $t5 = $rt.utf8_DecodeRuneInStringAt(s, sIdx);
-                let size: number = $t5[1];
+                const size: number = $t5[1];
                 sIdx += size;
                 segIdx++;
                 continue;
@@ -365,7 +365,7 @@ export class globPattern extends $rt.GoObject {
       }
       if (starSegIdx >= 0 && starSIdx < s.length && !(s.charCodeAt(starSIdx) === (47 as number))) {
         const $t6 = $rt.utf8_DecodeRuneInStringAt(s, starSIdx);
-        let size$1: number = $t6[1];
+        const size$1: number = $t6[1];
         starSIdx += size$1;
         sIdx = starSIdx;
         segIdx = starSegIdx + 1;
@@ -407,7 +407,7 @@ export class globPattern extends $rt.GoObject {
     {
       const $t1 = segs;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        let seg = $t1[$t2];
+        const seg = $t1[$t2];
         if (!(seg.kind === (0 as number))) {
           continue;
         }
@@ -481,25 +481,25 @@ export class globVisitor extends $rt.GoObject {
     } else {
       realPath = v!.host!.Realpath(absolutePath);
     }
-    let canonicalPath: string = $tspath.GetCanonicalFileName(realPath, v!.useCaseSensitiveFileNames);
+    const canonicalPath: string = $tspath.GetCanonicalFileName(realPath, v!.useCaseSensitiveFileNames);
     if (v!.visited.Has(canonicalPath)) {
       return;
     }
     v!.visited.Add(canonicalPath);
-    let entries: $vfs.Entries = v!.host!.GetAccessibleEntries(absolutePath);
-    let pathPrefix: string = ensureTrailingSlash(path);
-    let absPrefix: string = ensureTrailingSlash(absolutePath);
+    const entries: $vfs.Entries = v!.host!.GetAccessibleEntries(absolutePath);
+    const pathPrefix: string = ensureTrailingSlash(path);
+    const absPrefix: string = ensureTrailingSlash(absolutePath);
     {
       const $t1 = entries.Files;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        let file = $t1[$t2];
+        const file = $t1[$t2];
         if (v!.extensions.length > 0 && !$tspath.FileExtensionIsOneOf(file, v!.extensions)) {
           continue;
         }
         {
           const $t3 = v!.fileMatcher!.matchesFileParts(absPrefix, file);
-          let idx: number = $t3[0];
-          let ok: boolean = $t3[1];
+          const idx: number = $t3[0];
+          const ok: boolean = $t3[1];
           if (ok) {
             v!.results[idx] = $rt.appendCopy(v!.results[idx], [pathPrefix + file]);
           }
@@ -515,17 +515,17 @@ export class globVisitor extends $rt.GoObject {
     {
       const $t4 = entries.Directories;
       for (let $t5 = 0, $n = $t4.length; $t5 < $n; $t5++) {
-        let dir = $t4[$t5];
+        const dir = $t4[$t5];
         if (!v!.directoryMatcher!.matchesDirectoryParts(absPrefix, dir)) {
           continue;
         }
-        let absDir: string = absPrefix + dir;
+        const absDir: string = absPrefix + dir;
         let childRealPath: string = '';
         if (!(entries.Symlinks === undefined)) {
           {
             const $t6 = entries.Symlinks;
             const $t7 = dir;
-            let isSymlink: boolean = $t6 !== undefined && $t6.has($t7);
+            const isSymlink: boolean = $t6 !== undefined && $t6.has($t7);
             if (!isSymlink) {
               childRealPath = $tspath.CombinePaths(realPath, [dir]);
             }
@@ -586,7 +586,7 @@ const $fn2 = segment.$lit_vfs_vfsmatch_segment_0(2);
 export let _Usage_index: number[] = [0, 5, 16, 23];
 export let wildcardCharCodes: number[] = [42, 63];
 export function Usage$String(i: Usage): string {
-  let idx: number = i - 0;
+  const idx: number = i - 0;
   if (i < 0 || idx >= 3) {
     return 'Usage(' + $rt.strconv_FormatInt(i, 10) + ')';
   }
@@ -607,7 +607,7 @@ export function IsImplicitGlob(lastPathComponent: string): boolean {
   return !$rt.strings_ContainsAny(lastPathComponent, '.*?');
 }
 export function getIncludeBasePath(absolute: string): string {
-  let wildcardOffset: number = $rt.strings_IndexAny(absolute, $rt.runesToString(wildcardCharCodes));
+  const wildcardOffset: number = $rt.strings_IndexAny(absolute, $rt.runesToString(wildcardCharCodes));
   if (wildcardOffset < 0) {
     if (!$tspath.HasExtension(absolute)) {
       return absolute;
@@ -620,14 +620,14 @@ export function getIncludeBasePath(absolute: string): string {
 export function getBasePaths(path: string, includes: string[], useCaseSensitiveFileNames: boolean): string[] {
   let basePaths: string[] = [path];
   if (includes.length > 0) {
-    let comparePathsOptions: $tspath.ComparePathsOptions =
+    const comparePathsOptions: $tspath.ComparePathsOptions =
       $tspath.ComparePathsOptions.$lit_tspath_ComparePathsOptions_1_0(path, useCaseSensitiveFileNames);
-    let stringComparer: ((p0: string, p1: string) => number) | undefined = comparePathsOptions.GetComparer();
+    const stringComparer: ((p0: string, p1: string) => number) | undefined = comparePathsOptions.GetComparer();
     let includeBasePaths: string[] = [] as string[];
     {
       const $t1 = includes;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        let include = $t1[$t2];
+        const include = $t1[$t2];
         let absolute: string = '';
         if ($tspath.IsRootedDiskPath(include)) {
           absolute = include;
@@ -641,7 +641,7 @@ export function getBasePaths(path: string, includes: string[], useCaseSensitiveF
     {
       const $t3 = includeBasePaths;
       for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
-        let includeBasePath = $t3[$t4];
+        const includeBasePath = $t3[$t4];
         if (
           $core.Every<string>(basePaths, (basepath: string): boolean => {
             return !$tspath.ContainsPath(basepath, includeBasePath, comparePathsOptions);
@@ -668,7 +668,7 @@ export function compileGlobPattern(
   if (IsImplicitGlob($core.LastOrNil<string>($zf0, parts))) {
     parts = $rt.appendCopy(parts, ['**', '*']);
   }
-  let p: globPattern = globPattern.$lit_vfs_vfsmatch_globPattern_1_2_3_0(
+  const p: globPattern = globPattern.$lit_vfs_vfsmatch_globPattern_1_2_3_0(
     usage === (2 as number),
     caseSensitive,
     usage === (0 as number),
@@ -677,7 +677,7 @@ export function compileGlobPattern(
   {
     const $t1 = parts;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let part = $t1[$t2];
+      const part = $t1[$t2];
       p.components.push(parseComponent(part, !(usage === (2 as number))));
     }
   }
@@ -741,9 +741,9 @@ export function nextPathPartSingle(s: string, offset: number): [string, number, 
   if (offset >= s.length) {
     return ['', offset, false];
   }
-  let rest: string = s.substring(offset);
+  const rest: string = s.substring(offset);
   {
-    let idx: number = $rt.strings_IndexByte(rest, 47);
+    const idx: number = $rt.strings_IndexByte(rest, 47);
     if (idx >= 0) {
       return [rest.substring(0, idx), offset + idx, true];
     }
@@ -760,7 +760,7 @@ export function nextPathPartParts(prefix: string, suffix: string, offset: number
   if (prefix.length === (0 as number)) {
     return nextPathPartSingle(suffix, offset);
   }
-  let totalLen: number = prefix.length + suffix.length;
+  const totalLen: number = prefix.length + suffix.length;
   if (offset >= totalLen) {
     return ['', offset, false];
   }
@@ -772,12 +772,12 @@ export function nextPathPartParts(prefix: string, suffix: string, offset: number
       offset++;
     }
     if (offset < prefix.length) {
-      let rest: string = prefix.substring(offset);
-      let idx: number = $rt.strings_IndexByte(rest, 47);
+      const rest: string = prefix.substring(offset);
+      const idx: number = $rt.strings_IndexByte(rest, 47);
       return [rest.substring(0, idx), offset + idx, true];
     }
   }
-  let sOff: number = offset - prefix.length;
+  const sOff: number = offset - prefix.length;
   if (sOff >= suffix.length) {
     return ['', offset, false];
   }
@@ -815,7 +815,7 @@ export function newGlobMatcher(
   caseSensitive: boolean,
   usage: Usage,
 ): globMatcher | undefined {
-  let m: globMatcher | undefined = globMatcher.$lit_vfs_vfsmatch_globMatcher_2_0_1(
+  const m: globMatcher | undefined = globMatcher.$lit_vfs_vfsmatch_globMatcher_2_0_1(
     includeSpecs.length > 0,
     [] as globPattern[],
     [] as globPattern[],
@@ -823,11 +823,11 @@ export function newGlobMatcher(
   {
     const $t1 = includeSpecs;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let spec = $t1[$t2];
+      const spec = $t1[$t2];
       {
         const $t3 = compileGlobPattern(spec, basePath, usage, caseSensitive);
-        let p: globPattern = $t3[0];
-        let ok: boolean = $t3[1];
+        const p: globPattern = $t3[0];
+        const ok: boolean = $t3[1];
         if (ok) {
           m!.includes.push(p.$clone_vfs_vfsmatch_globPattern());
         }
@@ -837,11 +837,11 @@ export function newGlobMatcher(
   {
     const $t4 = excludeSpecs;
     for (let $t5 = 0, $n = $t4.length; $t5 < $n; $t5++) {
-      let spec$1 = $t4[$t5];
+      const spec$1 = $t4[$t5];
       {
         const $t6 = compileGlobPattern(spec$1, basePath, 2, caseSensitive);
-        let p$1: globPattern = $t6[0];
-        let ok$1: boolean = $t6[1];
+        const p$1: globPattern = $t6[0];
+        const ok$1: boolean = $t6[1];
         if (ok$1) {
           m!.excludes.push(p$1.$clone_vfs_vfsmatch_globPattern());
         }
@@ -862,22 +862,22 @@ export function matchFiles(
 ): string[] {
   path = $tspath.NormalizePath(path);
   currentDirectory = $tspath.NormalizePath(currentDirectory);
-  let absolutePath: string = $tspath.CombinePaths(currentDirectory, [path]);
-  let fileMatcher: globMatcher | undefined = newGlobMatcher(
+  const absolutePath: string = $tspath.CombinePaths(currentDirectory, [path]);
+  const fileMatcher: globMatcher | undefined = newGlobMatcher(
     includes,
     excludes,
     absolutePath,
     useCaseSensitiveFileNames,
     0,
   );
-  let directoryMatcher: globMatcher | undefined = newGlobMatcher(
+  const directoryMatcher: globMatcher | undefined = newGlobMatcher(
     includes,
     excludes,
     absolutePath,
     useCaseSensitiveFileNames,
     1,
   );
-  let v: globVisitor = globVisitor.$lit_vfs_vfsmatch_globVisitor_0_1_2_3_4_6(
+  const v: globVisitor = globVisitor.$lit_vfs_vfsmatch_globVisitor_0_1_2_3_4_6(
     host,
     fileMatcher,
     directoryMatcher,
@@ -888,7 +888,7 @@ export function matchFiles(
   {
     const $t1 = getBasePaths(path, includes, useCaseSensitiveFileNames);
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let basePath = $t1[$t2];
+      const basePath = $t1[$t2];
       v.visit(basePath, $tspath.CombinePaths(currentDirectory, [basePath]), depth, '');
     }
   }
@@ -910,11 +910,11 @@ export function NewSpecMatcher(
   {
     const $t1 = specs;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let spec = $t1[$t2];
+      const spec = $t1[$t2];
       {
         const $t3 = compileGlobPattern(spec, basePath, usage, useCaseSensitiveFileNames);
-        let p: globPattern = $t3[0];
-        let ok: boolean = $t3[1];
+        const p: globPattern = $t3[0];
+        const ok: boolean = $t3[1];
         if (ok) {
           patterns.push(p.$clone_vfs_vfsmatch_globPattern());
         }

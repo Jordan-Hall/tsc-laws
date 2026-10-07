@@ -67,7 +67,7 @@ export class Program extends $rt.GoObject {
     {
       const $t1 = p!.files;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        let file = $t1[$t2];
+        const file = $t1[$t2];
         if (!file!.IsBound()) {
           $binder.BindSourceFile(file);
         }
@@ -206,7 +206,7 @@ export let libCache: Map<string, $ast.SourceFile | undefined> | undefined = new 
   $ast.SourceFile | undefined
 >();
 export function parseFile(fileName: string, text: string): $ast.SourceFile | undefined {
-  let opts: $ast.SourceFileParseOptions = $ast.SourceFileParseOptions.$lit_ast_SourceFileParseOptions_0_1(
+  const opts: $ast.SourceFileParseOptions = $ast.SourceFileParseOptions.$lit_ast_SourceFileParseOptions_0_1(
     fileName,
     fileName,
   );
@@ -217,22 +217,22 @@ export function NewProgram(
   text: string,
   readLib: ((p0: string) => [string, boolean]) | undefined,
 ): Program | undefined {
-  let p: Program | undefined = Program.$lit_tststest_Program_0_2_3(
+  const p: Program | undefined = Program.$lit_tststest_Program_0_2_3(
     $core.CompilerOptions.$lit_core_CompilerOptions_81_92_49(2, 99, 2),
     new Map<$tspath.Path, $ast.SourceFile | undefined>(),
     new Map<$tspath.Path, boolean>(),
   );
   let addLib: ((p0: string) => void) | undefined = undefined as ((p0: string) => void) | undefined;
   addLib = (name_: string): void => {
-    let path: $tspath.Path = '/libs/' + name_;
+    const path: $tspath.Path = '/libs/' + name_;
     if (!((p!.byPath?.get(path) ?? undefined) === undefined)) {
       return;
     }
     let file: $ast.SourceFile | undefined = libCache?.get(name_) ?? undefined;
     if (file === undefined) {
       const $t1 = readLib!(name_);
-      let libText: string = $t1[0];
-      let ok: boolean = $t1[1];
+      const libText: string = $t1[0];
+      const ok: boolean = $t1[1];
       if (!ok) {
         return;
       }
@@ -244,11 +244,11 @@ export function NewProgram(
     {
       const $t2 = file!.LibReferenceDirectives;
       for (let $t3 = 0, $n = $t2.length; $t3 < $n; $t3++) {
-        let ref = $t2[$t3];
+        const ref = $t2[$t3];
         {
           const $t4 = $tsoptions.GetLibFileName(ref!.FileName);
-          let libName: string = $t4[0];
-          let ok$1: boolean = $t4[1];
+          const libName: string = $t4[0];
+          const ok$1: boolean = $t4[1];
           if (ok$1) {
             addLib!(libName);
           }
@@ -258,7 +258,7 @@ export function NewProgram(
     p!.files.push(file);
   };
   addLib!($tsoptions.GetDefaultLibFileName(p!.options));
-  let main: $ast.SourceFile | undefined = parseFile(fileName, text);
+  const main: $ast.SourceFile | undefined = parseFile(fileName, text);
   p!.byPath!.set(main!.Path$m(), main);
   p!.files.push(main);
   return p;
@@ -268,11 +268,11 @@ export function Check(
   text: string,
   readLib: ((p0: string) => [string, boolean]) | undefined,
 ): ($ast.Diagnostic | undefined)[] {
-  let p: Program | undefined = NewProgram(fileName, text, readLib);
+  const p: Program | undefined = NewProgram(fileName, text, readLib);
   p!.BindSourceFiles();
   const $t1 = $checker.NewChecker(p, undefined);
-  let c: $checker.Checker | undefined = $t1[0];
-  let file: $ast.SourceFile | undefined = p!.byPath?.get(fileName) ?? undefined;
+  const c: $checker.Checker | undefined = $t1[0];
+  const file: $ast.SourceFile | undefined = p!.byPath?.get(fileName) ?? undefined;
   let diags: ($ast.Diagnostic | undefined)[] = [];
   $rt.appendInto(diags, file!.Diagnostics());
   $rt.appendInto(diags, file!.BindDiagnostics());

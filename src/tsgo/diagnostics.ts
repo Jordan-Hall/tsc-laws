@@ -15435,8 +15435,8 @@ export function Localize(locale: $locale.Locale, message: Message | undefined, k
   {
     const $t1 = getLocalizedMessages(locale);
     const $t2 = message!.key;
-    let localized: string = $t1?.get($t2) ?? '';
-    let ok: boolean = $t1 !== undefined && $t1.has($t2);
+    const localized: string = $t1?.get($t2) ?? '';
+    const ok: boolean = $t1 !== undefined && $t1.has($t2);
     if (ok) {
       text = localized;
     }
@@ -15449,8 +15449,8 @@ export function getLocalizedMessages(loc: $rt.golang_org_x_text_language_Tag): M
   }
   {
     const $t1 = localizedMessagesCache.Load(loc);
-    let cached: $rt.GoObject | undefined = $t1[0];
-    let ok: boolean = $t1[1];
+    const cached: $rt.GoObject | undefined = $t1[0];
+    const ok: boolean = $t1[1];
     if (ok) {
       if (cached === undefined) {
         return undefined;
@@ -15462,11 +15462,11 @@ export function getLocalizedMessages(loc: $rt.golang_org_x_text_language_Tag): M
   }
   let messages: Map<Key, string> | undefined = undefined as Map<Key, string> | undefined;
   const $t2 = matcher!.Match([loc]);
-  let index: number = $t2[1];
-  let confidence: number = $t2[2];
+  const index: number = $t2[1];
+  const confidence: number = $t2[2];
   if (confidence >= 1 && index >= 0 && index < localeFuncs.length) {
     {
-      let fn: (() => Map<Key, string> | undefined) | undefined = localeFuncs[index];
+      const fn: (() => Map<Key, string> | undefined) | undefined = localeFuncs[index];
       if (!(fn === undefined)) {
         messages = fn!();
       }
@@ -15482,8 +15482,8 @@ export function Format(text: string, args: string[]): string {
   args = $core.SameMap<string>($zf0, args, $fn13);
   return placeholderRegexp!.ReplaceAllStringFunc(text, (match: string): string => {
     const $t1 = $rt.strconv_ParseInt(match.substring(1, match.length - 1), 10, 0);
-    let index: number = $t1[0];
-    let err: $rt.GoObject | undefined = $t1[1];
+    const index: number = $t1[0];
+    const err: $rt.GoObject | undefined = $t1[1];
     if (!(err === undefined) || index >= args.length) {
       throw $rt.newPanic(new $rt.BoxStr('Invalid formatting placeholder', 'string'));
     }
@@ -15494,17 +15494,17 @@ export function StringifyArgs(args: ($rt.GoObject | undefined)[]): string[] {
   if (args.length === (0 as number)) {
     return [];
   }
-  let result: string[] = $rt.makeSlice<string>(args.length, '');
+  const result: string[] = $rt.makeSlice<string>(args.length, '');
   {
     const $t1 = args;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let i = $t2;
-      let arg = $t1[$t2];
+      const i = $t2;
+      const arg = $t1[$t2];
       {
         const $t3: $rt.GoObject | undefined = arg;
         const $t4: boolean = $rt.isValue($t3, 'string');
-        let s: string = $t4 ? $rt.checkString(true, $t3) : '';
-        let ok: boolean = $t4;
+        const s: string = $t4 ? $rt.checkString(true, $t3) : '';
+        const ok: boolean = $t4;
         if (ok) {
           result[i] = s;
         } else {
@@ -22155,8 +22155,8 @@ export function loadLocaleData(data: string): Map<Key, string> | undefined {
         $ipc.stdioConn | $contentmapper.closeOnceReadWriteCloser | $contentmapper.loggedProcess | undefined
       >('$rt.strings_Reader | undefined'),
     );
-    let gr: $rt.compress_gzip_Reader | undefined = $t2[0];
-    let err: $rt.GoObject | undefined = $t2[1];
+    const gr: $rt.compress_gzip_Reader | undefined = $t2[0];
+    const err: $rt.GoObject | undefined = $t2[1];
     if (!(err === undefined)) {
       throw $rt.newPanic(new $rt.BoxStr('failed to create gzip reader: ' + err!.Error(), 'string'));
     }
@@ -22166,7 +22166,7 @@ export function loadLocaleData(data: string): Map<Key, string> | undefined {
     });
     let result: Map<Key, string> | undefined = undefined as Map<Key, string> | undefined;
     {
-      let err$1: $rt.GoObject | undefined = $json.UnmarshalRead(
+      const err$1: $rt.GoObject | undefined = $json.UnmarshalRead(
         $rt.unsupportedConversion<
           $ipc.stdioConn | $contentmapper.closeOnceReadWriteCloser | $contentmapper.loggedProcess | undefined
         >('$rt.compress_gzip_Reader | undefined'),
@@ -22193,7 +22193,7 @@ export function loadLocaleData(data: string): Map<Key, string> | undefined {
   return $t1;
 }
 export function Category$String(i: Category): string {
-  let idx: number = i - 0;
+  const idx: number = i - 0;
   if (i < 0 || idx >= 4) {
     return 'Category(' + $rt.strconv_FormatInt(i, 10) + ')';
   }

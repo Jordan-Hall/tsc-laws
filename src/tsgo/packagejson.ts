@@ -127,13 +127,13 @@ export class DependencyFields extends $rt.GoObject {
     const df = this;
     {
       const $t1 = df!.Dependencies.GetValue();
-      let deps: Map<string, string> | undefined = $t1[0];
-      let ok: boolean = $t1[1];
+      const deps: Map<string, string> | undefined = $t1[0];
+      const ok: boolean = $t1[1];
       if (ok) {
         {
           const $t2 = deps;
           const $t3 = name_;
-          let ok$1: boolean = $t2 !== undefined && $t2.has($t3);
+          const ok$1: boolean = $t2 !== undefined && $t2.has($t3);
           if (ok$1) {
             return true;
           }
@@ -142,13 +142,13 @@ export class DependencyFields extends $rt.GoObject {
     }
     {
       const $t4 = df!.DevDependencies.GetValue();
-      let devDeps: Map<string, string> | undefined = $t4[0];
-      let ok$2: boolean = $t4[1];
+      const devDeps: Map<string, string> | undefined = $t4[0];
+      const ok$2: boolean = $t4[1];
       if (ok$2) {
         {
           const $t5 = devDeps;
           const $t6 = name_;
-          let ok$3: boolean = $t5 !== undefined && $t5.has($t6);
+          const ok$3: boolean = $t5 !== undefined && $t5.has($t6);
           if (ok$3) {
             return true;
           }
@@ -157,13 +157,13 @@ export class DependencyFields extends $rt.GoObject {
     }
     {
       const $t7 = df!.PeerDependencies.GetValue();
-      let peerDeps: Map<string, string> | undefined = $t7[0];
-      let ok$4: boolean = $t7[1];
+      const peerDeps: Map<string, string> | undefined = $t7[0];
+      const ok$4: boolean = $t7[1];
       if (ok$4) {
         {
           const $t8 = peerDeps;
           const $t9 = name_;
-          let ok$5: boolean = $t8 !== undefined && $t8.has($t9);
+          const ok$5: boolean = $t8 !== undefined && $t8.has($t9);
           if (ok$5) {
             return true;
           }
@@ -172,13 +172,13 @@ export class DependencyFields extends $rt.GoObject {
     }
     {
       const $t10 = df!.OptionalDependencies.GetValue();
-      let optDeps: Map<string, string> | undefined = $t10[0];
-      let ok$6: boolean = $t10[1];
+      const optDeps: Map<string, string> | undefined = $t10[0];
+      const ok$6: boolean = $t10[1];
       if (ok$6) {
         {
           const $t11 = optDeps;
           const $t12 = name_;
-          let ok$7: boolean = $t11 !== undefined && $t11.has($t12);
+          const ok$7: boolean = $t11 !== undefined && $t11.has($t12);
           if (ok$7) {
             return true;
           }
@@ -191,8 +191,8 @@ export class DependencyFields extends $rt.GoObject {
     const df = this;
     {
       const $t1 = df!.Dependencies.GetValue();
-      let deps: Map<string, string> | undefined = $t1[0];
-      let ok: boolean = $t1[1];
+      const deps: Map<string, string> | undefined = $t1[0];
+      const ok: boolean = $t1[1];
       if (ok) {
         for (const [name_, version] of deps ?? new Map<string, string>()) {
           if (!f!(name_, version, 'dependencies')) {
@@ -203,8 +203,8 @@ export class DependencyFields extends $rt.GoObject {
     }
     {
       const $t2 = df!.DevDependencies.GetValue();
-      let devDeps: Map<string, string> | undefined = $t2[0];
-      let ok$1: boolean = $t2[1];
+      const devDeps: Map<string, string> | undefined = $t2[0];
+      const ok$1: boolean = $t2[1];
       if (ok$1) {
         for (const [name_$1, version$1] of devDeps ?? new Map<string, string>()) {
           if (!f!(name_$1, version$1, 'devDependencies')) {
@@ -215,8 +215,8 @@ export class DependencyFields extends $rt.GoObject {
     }
     {
       const $t3 = df!.PeerDependencies.GetValue();
-      let peerDeps: Map<string, string> | undefined = $t3[0];
-      let ok$2: boolean = $t3[1];
+      const peerDeps: Map<string, string> | undefined = $t3[0];
+      const ok$2: boolean = $t3[1];
       if (ok$2) {
         for (const [name_$2, version$2] of peerDeps ?? new Map<string, string>()) {
           if (!f!(name_$2, version$2, 'peerDependencies')) {
@@ -227,8 +227,8 @@ export class DependencyFields extends $rt.GoObject {
     }
     {
       const $t4 = df!.OptionalDependencies.GetValue();
-      let optDeps: Map<string, string> | undefined = $t4[0];
-      let ok$3: boolean = $t4[1];
+      const optDeps: Map<string, string> | undefined = $t4[0];
+      const ok$3: boolean = $t4[1];
       if (ok$3) {
         for (const [name_$3, version$3] of optDeps ?? new Map<string, string>()) {
           if (!f!(name_$3, version$3, 'optionalDependencies')) {
@@ -242,15 +242,15 @@ export class DependencyFields extends $rt.GoObject {
     const df = this;
     let count: number = 0;
     const $t1 = df!.Dependencies.GetValue();
-    let deps: Map<string, string> | undefined = $t1[0];
+    const deps: Map<string, string> | undefined = $t1[0];
     count += $rt.mapLen(deps);
     const $t2 = df!.PeerDependencies.GetValue();
-    let peerDeps: Map<string, string> | undefined = $t2[0];
+    const peerDeps: Map<string, string> | undefined = $t2[0];
     count += $rt.mapLen(peerDeps);
     const $t3 = df!.OptionalDependencies.GetValue();
-    let optDeps: Map<string, string> | undefined = $t3[0];
+    const optDeps: Map<string, string> | undefined = $t3[0];
     count += $rt.mapLen(optDeps);
-    let names: $collections.Set_<string> | undefined = $collections.NewSetWithSizeHint<string>(count);
+    const names: $collections.Set_<string> | undefined = $collections.NewSetWithSizeHint<string>(count);
     for (const [name_, $t4] of deps ?? new Map<string, string>()) {
       names!.Add(name_);
     }
@@ -562,7 +562,7 @@ export class ExportsOrImports extends JSONValue {
     const e = this;
     if (e!.objectKind_ === (0 as number) && e!.Type === (6 as number)) {
       {
-        let obj: $collections.OrderedMap<string, ExportsOrImports> | undefined = e!.AsObject$ExportsOrImports();
+        const obj: $collections.OrderedMap<string, ExportsOrImports> | undefined = e!.AsObject$ExportsOrImports();
         if (obj!.Size() > 0) {
           const $t1 = false;
           const $t2 = false;
@@ -688,11 +688,11 @@ export class InfoCache extends $rt.GoObject {
   }
   Get(packageJsonPath: string): InfoCacheEntry | undefined {
     const p = this;
-    let key: $tspath.Path = $tspath.ToPath(packageJsonPath, p!.currentDirectory, p!.useCaseSensitiveFileNames);
+    const key: $tspath.Path = $tspath.ToPath(packageJsonPath, p!.currentDirectory, p!.useCaseSensitiveFileNames);
     {
       const $t1 = p!.cache.Load(key);
-      let value: InfoCacheEntry | undefined = $t1[0];
-      let ok: boolean = $t1[1];
+      const value: InfoCacheEntry | undefined = $t1[0];
+      const ok: boolean = $t1[1];
       if (ok) {
         return value;
       }
@@ -701,9 +701,9 @@ export class InfoCache extends $rt.GoObject {
   }
   Set(packageJsonPath: string, info: InfoCacheEntry | undefined): InfoCacheEntry | undefined {
     const p = this;
-    let key: $tspath.Path = $tspath.ToPath(packageJsonPath, p!.currentDirectory, p!.useCaseSensitiveFileNames);
+    const key: $tspath.Path = $tspath.ToPath(packageJsonPath, p!.currentDirectory, p!.useCaseSensitiveFileNames);
     const $t1 = p!.cache.LoadOrStore(key, info);
-    let actual: InfoCacheEntry | undefined = $t1[0];
+    const actual: InfoCacheEntry | undefined = $t1[0];
     return actual;
   }
   Range(f: ((p0: $tspath.Path, p1: InfoCacheEntry | undefined) => boolean) | undefined): void {
@@ -845,8 +845,8 @@ export class PackageJson extends Fields {
       let $t2: undefined = undefined;
       p!.PathFields_.TypesVersions.AsObject()!.Entries()!((key: string, value: JSONValue): boolean => {
         const $t3 = $semver.TryParseVersionRange(key);
-        let keyRange: $semver.VersionRange = $t3[0];
-        let ok: boolean = $t3[1];
+        const keyRange: $semver.VersionRange = $t3[0];
+        const ok: boolean = $t3[1];
         if (!ok) {
           p!.versionTraces.push(
             diagnosticAndArgs.$lit_packagejson_diagnosticAndArgs_0_1(
@@ -889,7 +889,7 @@ export class PackageJson extends Fields {
       {
         const $t4 = p!.versionTraces;
         for (let $t5 = 0, $n = $t4.length; $t5 < $n; $t5++) {
-          let msg = $t4[$t5];
+          const msg = $t4[$t5];
           trace!(msg.message, msg.args);
         }
       }
@@ -979,7 +979,7 @@ export class VersionPaths extends $rt.GoObject {
     if (!(v!.paths === undefined)) {
       return v!.paths;
     }
-    let paths: $collections.OrderedMap<string, string[]> | undefined = $collections.NewOrderedMapWithSizeHint<
+    const paths: $collections.OrderedMap<string, string[]> | undefined = $collections.NewOrderedMapWithSizeHint<
       string,
       string[]
     >($zf0, $zf1, v!.pathsJSON!.Size());
@@ -991,12 +991,12 @@ export class VersionPaths extends $rt.GoObject {
       if (!(value.Type === (5 as number))) {
         return true;
       }
-      let slice: string[] = $rt.makeSlice<string>(value.AsArray().length, '');
+      const slice: string[] = $rt.makeSlice<string>(value.AsArray().length, '');
       {
         const $t3 = value.AsArray();
         for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
-          let i = $t4;
-          let path = $t3[$t4].$clone_packagejson_JSONValue();
+          const i = $t4;
+          const path = $t3[$t4].$clone_packagejson_JSONValue();
           if (!(path.Type === (2 as number))) {
             continue;
           }
@@ -1152,7 +1152,7 @@ export function unmarshalJSONValue<T>(
   } else if (data[0] === (91 as number)) {
     let elements: T[] = [];
     {
-      let err: $rt.GoObject | undefined = $json.Unmarshal(
+      const err: $rt.GoObject | undefined = $json.Unmarshal(
         data,
         $rt.ptrTo<T[]>(
           (): T[] => elements,
@@ -1171,7 +1171,7 @@ export function unmarshalJSONValue<T>(
   } else if (data[0] === (123 as number)) {
     let object_: $collections.OrderedMap<string, T> = new $collections.OrderedMap<string, T>($zf0, $z_T);
     {
-      let err$1: $rt.GoObject | undefined = $json.Unmarshal(
+      const err$1: $rt.GoObject | undefined = $json.Unmarshal(
         data,
         object_,
         [] as ($rt.github_com_go_json_experiment_json_internal_jsonopts_Options | undefined)[],
@@ -1214,7 +1214,7 @@ export function unmarshalJSONValueV2<T extends $rt.GoObject>(
       case 110 as number: {
         {
           const $t1 = dec!.ReadToken();
-          let err: $rt.GoObject | undefined = $t1[1];
+          const err: $rt.GoObject | undefined = $t1[1];
           if (!(err === undefined)) {
             return err;
           }
@@ -1226,7 +1226,7 @@ export function unmarshalJSONValueV2<T extends $rt.GoObject>(
       case 34 as number: {
         v!.Type = 2;
         {
-          let err$1: $rt.GoObject | undefined = $json.UnmarshalDecode(
+          const err$1: $rt.GoObject | undefined = $json.UnmarshalDecode(
             dec,
             (($t2: JSONValue) =>
               $rt.ptrTo<$rt.GoObject | undefined>(
@@ -1246,7 +1246,7 @@ export function unmarshalJSONValueV2<T extends $rt.GoObject>(
       case 91 as number: {
         {
           const $t3 = dec!.ReadToken();
-          let err$2: $rt.GoObject | undefined = $t3[1];
+          const err$2: $rt.GoObject | undefined = $t3[1];
           if (!(err$2 === undefined)) {
             return err$2;
           }
@@ -1255,7 +1255,7 @@ export function unmarshalJSONValueV2<T extends $rt.GoObject>(
         for (; !(dec!.PeekKind() === $json.EndArray.Kind());) {
           let element: T = $z_T();
           {
-            let err$3: $rt.GoObject | undefined = $json.UnmarshalDecode(
+            const err$3: $rt.GoObject | undefined = $json.UnmarshalDecode(
               dec,
               element,
               [] as ($rt.github_com_go_json_experiment_json_internal_jsonopts_Options | undefined)[],
@@ -1268,7 +1268,7 @@ export function unmarshalJSONValueV2<T extends $rt.GoObject>(
         }
         {
           const $t4 = dec!.ReadToken();
-          let err$4: $rt.GoObject | undefined = $t4[1];
+          const err$4: $rt.GoObject | undefined = $t4[1];
           if (!(err$4 === undefined)) {
             return err$4;
           }
@@ -1280,7 +1280,7 @@ export function unmarshalJSONValueV2<T extends $rt.GoObject>(
       case 123 as number: {
         let object_: $collections.OrderedMap<string, T> = new $collections.OrderedMap<string, T>($zf0, $z_T);
         {
-          let err$5: $rt.GoObject | undefined = $json.UnmarshalDecode(
+          const err$5: $rt.GoObject | undefined = $json.UnmarshalDecode(
             dec,
             object_,
             [] as ($rt.github_com_go_json_experiment_json_internal_jsonopts_Options | undefined)[],
@@ -1297,7 +1297,7 @@ export function unmarshalJSONValueV2<T extends $rt.GoObject>(
       case 102 as number: {
         v!.Type = 4;
         {
-          let err$6: $rt.GoObject | undefined = $json.UnmarshalDecode(
+          const err$6: $rt.GoObject | undefined = $json.UnmarshalDecode(
             dec,
             (($t5: JSONValue) =>
               $rt.ptrTo<$rt.GoObject | undefined>(
@@ -1317,7 +1317,7 @@ export function unmarshalJSONValueV2<T extends $rt.GoObject>(
       default: {
         v!.Type = 3;
         {
-          let err$7: $rt.GoObject | undefined = $json.UnmarshalDecode(
+          const err$7: $rt.GoObject | undefined = $json.UnmarshalDecode(
             dec,
             (($t6: JSONValue) =>
               $rt.ptrTo<$rt.GoObject | undefined>(
@@ -1341,13 +1341,13 @@ export function unmarshalJSONValueV2<T extends $rt.GoObject>(
 export function Parse(data: number[]): [Fields, $rt.GoObject | undefined] {
   let parsed: $Anon2 = new $Anon2();
   {
-    let err: $rt.GoObject | undefined = $json.Unmarshal(data, parsed, [$json.AllowDuplicateNames(true)]);
+    const err: $rt.GoObject | undefined = $json.Unmarshal(data, parsed, [$json.AllowDuplicateNames(true)]);
     if (!(err === undefined)) {
       return [new Fields(), err];
     }
   }
   const $t1 = parsed.TypeScript.GetValue();
-  let typeScript: typeScriptFields = $t1[0];
+  const typeScript: typeScriptFields = $t1[0];
   return [
     Fields.$lit_packagejson_Fields_0_1_2_3(
       parsed.HeaderFields,

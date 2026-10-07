@@ -221,7 +221,7 @@ export class Reader extends $rt.GoObject {
     let contentLength: number = 0;
     for (;;) {
       const $t1 = r!.r!.ReadBytes(10);
-      let line: number[] = $t1[0];
+      const line: number[] = $t1[0];
       let err: $rt.GoObject | undefined = $t1[1];
       if (!(err === undefined)) {
         if ($rt.errors_Is(err, $rt.io_EOF)) {
@@ -233,9 +233,9 @@ export class Reader extends $rt.GoObject {
         break;
       }
       const $t2 = $rt.bytes_Cut(line, $rt.stringToBytes(':'));
-      let key: number[] = $t2[0];
-      let value: number[] = $t2[1];
-      let ok: boolean = $t2[2];
+      const key: number[] = $t2[0];
+      const value: number[] = $t2[1];
+      const ok: boolean = $t2[2];
       if (!ok) {
         return [[], $rt.fmt_Errorf('%w: %q', [ErrInvalidHeader, new $boxes.Box___byte(line)])];
       }
@@ -257,7 +257,7 @@ export class Reader extends $rt.GoObject {
     if (contentLength <= 0) {
       return [[], ErrNoContentLength];
     }
-    let data: number[] = $rt.makeSlice<number>(contentLength, 0);
+    const data: number[] = $rt.makeSlice<number>(contentLength, 0);
     {
       const $t4 = $rt.io_ReadFull(
         $rt.unsupportedConversion<
@@ -265,7 +265,7 @@ export class Reader extends $rt.GoObject {
         >('$rt.bufio_Reader | undefined'),
         data,
       );
-      let err$1: $rt.GoObject | undefined = $t4[1];
+      const err$1: $rt.GoObject | undefined = $t4[1];
       if (!(err$1 === undefined)) {
         return [[], $rt.fmt_Errorf('jsonrpc: read content: %w', [err$1])];
       }
@@ -354,8 +354,8 @@ export class ResponseError extends $rt.GoObject {
       r!.Data,
       [] as ($rt.github_com_go_json_experiment_json_internal_jsonopts_Options | undefined)[],
     );
-    let data: number[] = $t1[0];
-    let err: $rt.GoObject | undefined = $t1[1];
+    const data: number[] = $t1[0];
+    const err: $rt.GoObject | undefined = $t1[1];
     if (!(err === undefined)) {
       return $rt.fmt_Sprintf('[%d]: %s\n%v', [
         new $rt.BoxNum(r!.Code, 'int32'),
@@ -450,14 +450,14 @@ export class Writer extends $rt.GoObject {
         'Content-Length: %d\r\n\r\n',
         [new $rt.BoxNum(data.length, 'int')],
       );
-      let err: $rt.GoObject | undefined = $t1[1];
+      const err: $rt.GoObject | undefined = $t1[1];
       if (!(err === undefined)) {
         return err;
       }
     }
     {
       const $t2 = w!.w!.Write(data);
-      let err$1: $rt.GoObject | undefined = $t2[1];
+      const err$1: $rt.GoObject | undefined = $t2[1];
       if (!(err$1 === undefined)) {
         return err$1;
       }

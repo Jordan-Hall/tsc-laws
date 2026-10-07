@@ -411,10 +411,13 @@ export class Resolver extends caches {
     redirectedReference: ResolvedProjectReference,
   ): [ResolvedTypeReferenceDirective | undefined, DiagAndArgs[]] {
     const r = this;
-    let containingDirectory: string = $tspath.GetDirectoryPath(containingFile);
-    let traceBuilder: tracer | undefined = r!.newTraceBuilder();
-    let fromInferredTypesContainingFile: boolean = $rt.strings_HasSuffix(containingFile, '__inferred type names__.ts');
-    let cacheKey: typeRefDirectiveResolutionCacheKey =
+    const containingDirectory: string = $tspath.GetDirectoryPath(containingFile);
+    const traceBuilder: tracer | undefined = r!.newTraceBuilder();
+    const fromInferredTypesContainingFile: boolean = $rt.strings_HasSuffix(
+      containingFile,
+      '__inferred type names__.ts',
+    );
+    const cacheKey: typeRefDirectiveResolutionCacheKey =
       typeRefDirectiveResolutionCacheKey.$lit_module_typeRefDirectiveResolutionCacheKey_0_1_2_3_4(
         containingDirectory,
         typeReferenceDirectiveName,
@@ -425,20 +428,20 @@ export class Resolver extends caches {
     if (traceBuilder === undefined) {
       {
         const $t1 = r!.typeRefDirectiveResolutionCache_.Get(cacheKey);
-        let cached: ResolvedTypeReferenceDirective | undefined = $t1[0];
-        let ok: boolean = $t1[1];
+        const cached: ResolvedTypeReferenceDirective | undefined = $t1[0];
+        const ok: boolean = $t1[1];
         if (ok) {
           return [cached, []];
         }
       }
     }
-    let compilerOptions: $core.CompilerOptions | undefined = GetCompilerOptionsWithRedirect(
+    const compilerOptions: $core.CompilerOptions | undefined = GetCompilerOptionsWithRedirect(
       r!.compilerOptions,
       redirectedReference,
     );
     const $t2 = compilerOptions!.GetEffectiveTypeRoots(r!.host!.GetCurrentDirectory());
-    let typeRoots: string[] = $t2[0];
-    let fromConfig: boolean = $t2[1];
+    const typeRoots: string[] = $t2[0];
+    const fromConfig: boolean = $t2[1];
     if (!(traceBuilder === undefined)) {
       tracer.write$nil(
         traceBuilder,
@@ -451,7 +454,7 @@ export class Resolver extends caches {
       );
       traceBuilder!.traceResolutionUsingProjectReference(redirectedReference);
     }
-    let state: resolutionState | undefined = newResolutionState(
+    const state: resolutionState | undefined = newResolutionState(
       typeReferenceDirectiveName,
       containingDirectory,
       true,
@@ -461,7 +464,7 @@ export class Resolver extends caches {
       r,
       traceBuilder,
     );
-    let result: ResolvedTypeReferenceDirective | undefined = state!.resolveTypeReferenceDirective(
+    const result: ResolvedTypeReferenceDirective | undefined = state!.resolveTypeReferenceDirective(
       typeRoots,
       fromConfig,
       fromInferredTypesContainingFile,
@@ -479,9 +482,9 @@ export class Resolver extends caches {
     redirectedReference: ResolvedProjectReference,
   ): [ResolvedModule | undefined, DiagAndArgs[]] {
     const r = this;
-    let containingDirectory: string = $tspath.GetDirectoryPath(containingFile);
-    let traceBuilder: tracer | undefined = r!.newTraceBuilder();
-    let cacheKey: moduleResolutionCacheKey = moduleResolutionCacheKey.$lit_module_moduleResolutionCacheKey_0_1_2_3(
+    const containingDirectory: string = $tspath.GetDirectoryPath(containingFile);
+    const traceBuilder: tracer | undefined = r!.newTraceBuilder();
+    const cacheKey: moduleResolutionCacheKey = moduleResolutionCacheKey.$lit_module_moduleResolutionCacheKey_0_1_2_3(
       containingDirectory,
       moduleName,
       resolutionMode,
@@ -490,14 +493,14 @@ export class Resolver extends caches {
     if (traceBuilder === undefined) {
       {
         const $t1 = r!.moduleResolutionCache_.Get(cacheKey);
-        let cached: ResolvedModule | undefined = $t1[0];
-        let ok: boolean = $t1[1];
+        const cached: ResolvedModule | undefined = $t1[0];
+        const ok: boolean = $t1[1];
         if (ok) {
           return [cached, []];
         }
       }
     }
-    let compilerOptions: $core.CompilerOptions | undefined = GetCompilerOptionsWithRedirect(
+    const compilerOptions: $core.CompilerOptions | undefined = GetCompilerOptionsWithRedirect(
       r!.compilerOptions,
       redirectedReference,
     );
@@ -508,7 +511,7 @@ export class Resolver extends caches {
       ]);
       traceBuilder!.traceResolutionUsingProjectReference(redirectedReference);
     }
-    let moduleResolution: $core.ModuleResolutionKind = compilerOptions!.GetModuleResolutionKind();
+    const moduleResolution: $core.ModuleResolutionKind = compilerOptions!.GetModuleResolutionKind();
     if (!(compilerOptions!.ModuleResolution === moduleResolution)) {
       if (!(traceBuilder === undefined)) {
         tracer.write$nil(traceBuilder, $diagnostics.Module_resolution_kind_is_not_specified_using_0, [
@@ -528,7 +531,7 @@ export class Resolver extends caches {
         case 3 as number:
         case 99 as number:
         case 100 as number: {
-          let state: resolutionState | undefined = newResolutionState(
+          const state: resolutionState | undefined = newResolutionState(
             moduleName,
             containingDirectory,
             false,
@@ -573,7 +576,7 @@ export class Resolver extends caches {
         ]);
       }
     }
-    let finalResult: ResolvedModule | undefined = r!.tryResolveFromTypingsLocation(
+    const finalResult: ResolvedModule | undefined = r!.tryResolveFromTypingsLocation(
       moduleName,
       containingDirectory,
       result,
@@ -589,12 +592,12 @@ export class Resolver extends caches {
     redirectedReference: ResolvedProjectReference,
   ): ResolvedModule | undefined {
     const r = this;
-    let compilerOptions: $core.CompilerOptions | undefined = GetCompilerOptionsWithRedirect(
+    const compilerOptions: $core.CompilerOptions | undefined = GetCompilerOptionsWithRedirect(
       r!.compilerOptions,
       redirectedReference,
     );
-    let containingDirectory: string = $tspath.GetDirectoryPath(containingFile);
-    let state: resolutionState | undefined = newResolutionState(
+    const containingDirectory: string = $tspath.GetDirectoryPath(containingFile);
+    const state: resolutionState | undefined = newResolutionState(
       moduleName,
       containingDirectory,
       false,
@@ -606,7 +609,7 @@ export class Resolver extends caches {
     );
     state!.resolvePackageDirectoryOnly = true;
     {
-      let result: resolved | undefined = state!.loadModuleFromNearestNodeModulesDirectory(false);
+      const result: resolved | undefined = state!.loadModuleFromNearestNodeModulesDirectory(false);
       if (!(result === undefined) && !(result!.path === ('' as string))) {
         return state!.createResolvedModuleHandlingSymlink(result);
       }
@@ -628,7 +631,7 @@ export class Resolver extends caches {
     ) {
       return originalResult;
     }
-    let state: resolutionState | undefined = newResolutionState(
+    const state: resolutionState | undefined = newResolutionState(
       moduleName,
       containingDirectory,
       false,
@@ -649,7 +652,7 @@ export class Resolver extends caches {
         ],
       );
     }
-    let globalResolved: resolved | undefined = state!.loadModuleFromImmediateNodeModulesDirectory(
+    const globalResolved: resolved | undefined = state!.loadModuleFromImmediateNodeModulesDirectory(
       4,
       r!.typingsLocation,
       false,
@@ -657,7 +660,7 @@ export class Resolver extends caches {
     if (globalResolved === undefined) {
       return originalResult;
     }
-    let result: ResolvedModule | undefined = state!.createResolvedModule(globalResolved, true);
+    const result: ResolvedModule | undefined = state!.createResolvedModule(globalResolved, true);
     result!.ResolutionDiagnostics = $rt.appendCopy(
       originalResult!.ResolutionDiagnostics,
       result!.ResolutionDiagnostics,
@@ -666,8 +669,8 @@ export class Resolver extends caches {
   }
   resolveConfig(moduleName: string, containingFile: string): ResolvedModule | undefined {
     const r = this;
-    let containingDirectory: string = $tspath.GetDirectoryPath(containingFile);
-    let state: resolutionState | undefined = newResolutionState(
+    const containingDirectory: string = $tspath.GetDirectoryPath(containingFile);
+    const state: resolutionState | undefined = newResolutionState(
       moduleName,
       containingDirectory,
       false,
@@ -694,16 +697,16 @@ export class Resolver extends caches {
     enableDirectorySearch: boolean,
   ): (ResolvedEntrypoint | undefined)[] {
     const r = this;
-    let extensions$v: extensions = 5;
-    let features: NodeResolutionFeatures = 31;
-    let state: resolutionState | undefined = resolutionState.$lit_module_resolutionState_0_8_5_9(
+    const extensions$v: extensions = 5;
+    const features: NodeResolutionFeatures = 31;
+    const state: resolutionState | undefined = resolutionState.$lit_module_resolutionState_0_8_5_9(
       r,
       extensions$v,
       features,
       r!.compilerOptions,
     );
     if ($packagejson.InfoCacheEntry.Exists$nil(packageJson) && packageJson!.Contents!.PathFields_.Exports.IsPresent()) {
-      let entrypoints: (ResolvedEntrypoint | undefined)[] = state!.loadEntrypointsFromExportMap(
+      const entrypoints: (ResolvedEntrypoint | undefined)[] = state!.loadEntrypointsFromExportMap(
         packageJson,
         packageName,
         packageJson!.Contents!.PathFields_.Exports,
@@ -711,7 +714,7 @@ export class Resolver extends caches {
       return entrypoints;
     }
     let result: (ResolvedEntrypoint | undefined)[] = [];
-    let mainResolution: resolved | undefined = state!.loadNodeModuleFromDirectoryWorker(
+    const mainResolution: resolved | undefined = state!.loadNodeModuleFromDirectoryWorker(
       extensions$v,
       packageJson!.PackageDirectory,
       packageJson,
@@ -722,7 +725,7 @@ export class Resolver extends caches {
       );
     }
     if (enableDirectorySearch) {
-      let otherFiles: string[] = $vfs_vfsmatch.ReadDirectory(
+      const otherFiles: string[] = $vfs_vfsmatch.ReadDirectory(
         r!.host!.FS$m(),
         r!.host!.GetCurrentDirectory(),
         packageJson!.PackageDirectory,
@@ -731,12 +734,12 @@ export class Resolver extends caches {
         ['**/*'],
         9223372036854775807,
       );
-      let comparePathsOptions: $tspath.ComparePathsOptions =
+      const comparePathsOptions: $tspath.ComparePathsOptions =
         $tspath.ComparePathsOptions.$lit_tspath_ComparePathsOptions_0(r!.host!.FS$m()!.UseCaseSensitiveFileNames());
       {
         const $t1 = otherFiles;
         for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-          let file = $t1[$t2];
+          const file = $t1[$t2];
           if (
             resolved.isResolved$nil(mainResolution) &&
             $tspath.ComparePaths(file, mainResolution!.path, comparePathsOptions) === (0 as number)
@@ -773,7 +776,7 @@ export class Resolver extends caches {
     let originalFileName: string = '';
     let resolvedFileName: string = fileName;
     {
-      let realPath: string = r!.host!.FS$m()!.Realpath(fileName);
+      const realPath: string = r!.host!.FS$m()!.Realpath(fileName);
       if (!(realPath === fileName)) {
         originalFileName = fileName;
         resolvedFileName = realPath;
@@ -971,9 +974,9 @@ export class resolutionState extends $rt.GoObject {
       {
         const $t1 = typeRoots;
         for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-          let typeRoot = $t1[$t2];
-          let candidate: string = r!.getCandidateFromTypeRoot(typeRoot);
-          let directoryExists: boolean = r!.resolver!.host!.FS$m()!.DirectoryExists(typeRoot);
+          const typeRoot = $t1[$t2];
+          const candidate: string = r!.getCandidateFromTypeRoot(typeRoot);
+          const directoryExists: boolean = r!.resolver!.host!.FS$m()!.DirectoryExists(typeRoot);
           if (!directoryExists) {
             if (!(r!.tracer_ === undefined)) {
               tracer.write$nil(r!.tracer_, $diagnostics.Directory_0_does_not_exist_skipping_all_lookups_in_it, [
@@ -984,9 +987,9 @@ export class resolutionState extends $rt.GoObject {
           }
           if (fromConfig) {
             {
-              let resolvedFromFile: resolved | undefined = r!.loadModuleFromFile(4, candidate);
+              const resolvedFromFile: resolved | undefined = r!.loadModuleFromFile(4, candidate);
               if (!resolved.shouldContinueSearching$nil(resolvedFromFile)) {
-                let packageDirectory: string = ParseNodeModuleFromPath(resolvedFromFile!.path, false);
+                const packageDirectory: string = ParseNodeModuleFromPath(resolvedFromFile!.path, false);
                 if (!(packageDirectory === ('' as string))) {
                   resolvedFromFile!.packageId = r!.getPackageId(
                     resolvedFromFile!.path,
@@ -998,7 +1001,7 @@ export class resolutionState extends $rt.GoObject {
             }
           }
           {
-            let resolvedFromDirectory: resolved | undefined = r!.loadNodeModuleFromDirectory(4, candidate, true);
+            const resolvedFromDirectory: resolved | undefined = r!.loadNodeModuleFromDirectory(4, candidate, true);
             if (!resolved.shouldContinueSearching$nil(resolvedFromDirectory)) {
               return r!.createResolvedTypeReferenceDirective(resolvedFromDirectory, true);
             }
@@ -1022,7 +1025,7 @@ export class resolutionState extends $rt.GoObject {
       if (!$tspath.IsExternalModuleNameRelative(r!.name)) {
         resolved$v = r!.loadModuleFromNearestNodeModulesDirectory(false);
       } else {
-        let candidate$1: string = normalizePathForCJSResolution(r!.containingDirectory, r!.name);
+        const candidate$1: string = normalizePathForCJSResolution(r!.containingDirectory, r!.name);
         resolved$v = r!.nodeLoadModuleByRelativeName(4, candidate$1, true);
       }
     } else if (!(r!.tracer_ === undefined)) {
@@ -1047,7 +1050,7 @@ export class resolutionState extends $rt.GoObject {
   }
   mangleScopedPackageName(name_: string): string {
     const r = this;
-    let mangled: string = MangleScopedPackageName(name_);
+    const mangled: string = MangleScopedPackageName(name_);
     if (!(r!.tracer_ === undefined) && !(mangled === name_)) {
       tracer.write$nil(r!.tracer_, $diagnostics.Scoped_package_detected_looking_in_0, [
         new $rt.BoxStr(mangled, 'string'),
@@ -1063,9 +1066,9 @@ export class resolutionState extends $rt.GoObject {
     {
       const $t1 = r!.compilerOptions!.TypeRoots;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        let typeRoot = $t1[$t2];
-        let candidate: string = r!.getCandidateFromTypeRoot(typeRoot);
-        let directoryExists: boolean = r!.resolver!.host!.FS$m()!.DirectoryExists(typeRoot);
+        const typeRoot = $t1[$t2];
+        const candidate: string = r!.getCandidateFromTypeRoot(typeRoot);
+        const directoryExists: boolean = r!.resolver!.host!.FS$m()!.DirectoryExists(typeRoot);
         if (!directoryExists) {
           if (!(r!.tracer_ === undefined)) {
             tracer.write$nil(r!.tracer_, $diagnostics.Directory_0_does_not_exist_skipping_all_lookups_in_it, [
@@ -1075,9 +1078,9 @@ export class resolutionState extends $rt.GoObject {
           continue;
         }
         {
-          let resolvedFromFile: resolved | undefined = r!.loadModuleFromFile(4, candidate);
+          const resolvedFromFile: resolved | undefined = r!.loadModuleFromFile(4, candidate);
           if (!resolved.shouldContinueSearching$nil(resolvedFromFile)) {
-            let packageDirectory: string = ParseNodeModuleFromPath(resolvedFromFile!.path, false);
+            const packageDirectory: string = ParseNodeModuleFromPath(resolvedFromFile!.path, false);
             if (!(packageDirectory === ('' as string))) {
               resolvedFromFile!.packageId = r!.getPackageId(
                 resolvedFromFile!.path,
@@ -1088,7 +1091,7 @@ export class resolutionState extends $rt.GoObject {
           }
         }
         {
-          let resolved$v: resolved | undefined = r!.loadNodeModuleFromDirectory(4, candidate, true);
+          const resolved$v: resolved | undefined = r!.loadNodeModuleFromDirectory(4, candidate, true);
           if (!resolved.shouldContinueSearching$nil(resolved$v)) {
             return resolved$v;
           }
@@ -1099,7 +1102,7 @@ export class resolutionState extends $rt.GoObject {
   }
   getPackageScopeForPath(directory: string): $packagejson.InfoCacheEntry | undefined {
     const r = this;
-    let result$1: $packagejson.InfoCacheEntry | undefined = $tspath.ForEachAncestorDirectoryStoppingAtGlobalCache<
+    const result$1: $packagejson.InfoCacheEntry | undefined = $tspath.ForEachAncestorDirectoryStoppingAtGlobalCache<
       $packagejson.InfoCacheEntry | undefined
     >(
       $zf0,
@@ -1107,7 +1110,7 @@ export class resolutionState extends $rt.GoObject {
       directory,
       (directory$1: string): [$packagejson.InfoCacheEntry | undefined, boolean] => {
         {
-          let result: $packagejson.InfoCacheEntry | undefined = r!.getPackageJsonInfo(directory$1);
+          const result: $packagejson.InfoCacheEntry | undefined = r!.getPackageJsonInfo(directory$1);
           if (!(result === undefined)) {
             return [result, true];
           }
@@ -1120,7 +1123,7 @@ export class resolutionState extends $rt.GoObject {
   resolveNodeLike(): ResolvedModule | undefined {
     const r = this;
     if (!(r!.tracer_ === undefined)) {
-      let conditions: string = $rt.strings_Join($core.Map_<string, string>($zf1, r!.conditions, $fn0), ', ');
+      const conditions: string = $rt.strings_Join($core.Map_<string, string>($zf1, r!.conditions, $fn0), ', ');
       if (r!.esmMode) {
         tracer.write$nil(r!.tracer_, $diagnostics.Resolving_in_0_mode_with_conditions_1, [
           new $rt.BoxStr('ESM', 'string'),
@@ -1133,7 +1136,7 @@ export class resolutionState extends $rt.GoObject {
         ]);
       }
     }
-    let result: ResolvedModule | undefined = r!.resolveNodeLikeWorker();
+    const result: ResolvedModule | undefined = r!.resolveNodeLikeWorker();
     if (
       r!.resolvedPackageDirectory &&
       !r!.isConfigLookup &&
@@ -1154,9 +1157,9 @@ export class resolutionState extends $rt.GoObject {
       }
       r!.features = r!.features & -5;
       r!.extensions_ = r!.extensions_ & 5;
-      let diagnosticsCount: number = r!.diagnostics.length;
+      const diagnosticsCount: number = r!.diagnostics.length;
       {
-        let diagnosticResult: ResolvedModule | undefined = r!.resolveNodeLikeWorker();
+        const diagnosticResult: ResolvedModule | undefined = r!.resolveNodeLikeWorker();
         if (ResolvedModule.IsResolved$nil(diagnosticResult) && diagnosticResult!.IsExternalLibraryImport) {
           result!.AlternateResult = diagnosticResult!.ResolvedFileName;
         }
@@ -1168,7 +1171,7 @@ export class resolutionState extends $rt.GoObject {
   resolveNodeLikeWorker(): ResolvedModule | undefined {
     const r = this;
     {
-      let resolved$v: resolved | undefined = r!.tryLoadModuleUsingOptionalResolutionSettings();
+      const resolved$v: resolved | undefined = r!.tryLoadModuleUsingOptionalResolutionSettings();
       if (!resolved.shouldContinueSearching$nil(resolved$v)) {
         return r!.createResolvedModuleHandlingSymlink(resolved$v);
       }
@@ -1176,7 +1179,7 @@ export class resolutionState extends $rt.GoObject {
     if (!$tspath.IsExternalModuleNameRelative(r!.name)) {
       if (!((r!.features & 1) === (0 as number)) && $rt.strings_HasPrefix(r!.name, '#')) {
         {
-          let resolved$1: resolved | undefined = r!.loadModuleFromImports();
+          const resolved$1: resolved | undefined = r!.loadModuleFromImports();
           if (!resolved.shouldContinueSearching$nil(resolved$1)) {
             return r!.createResolvedModuleHandlingSymlink(resolved$1);
           }
@@ -1184,7 +1187,7 @@ export class resolutionState extends $rt.GoObject {
       }
       if (!((r!.features & 2) === (0 as number))) {
         {
-          let resolved$2: resolved | undefined = r!.loadModuleFromSelfNameReference();
+          const resolved$2: resolved | undefined = r!.loadModuleFromSelfNameReference();
           if (!resolved.shouldContinueSearching$nil(resolved$2)) {
             return r!.createResolvedModuleHandlingSymlink(resolved$2);
           }
@@ -1207,22 +1210,22 @@ export class resolutionState extends $rt.GoObject {
         ]);
       }
       {
-        let resolved$3: resolved | undefined = r!.loadModuleFromNearestNodeModulesDirectory(false);
+        const resolved$3: resolved | undefined = r!.loadModuleFromNearestNodeModulesDirectory(false);
         if (!resolved.shouldContinueSearching$nil(resolved$3)) {
           return r!.createResolvedModuleHandlingSymlink(resolved$3);
         }
       }
       if (!((r!.extensions_ & 4) === (0 as number))) {
         {
-          let resolved$4: resolved | undefined = r!.resolveFromTypeRoot();
+          const resolved$4: resolved | undefined = r!.resolveFromTypeRoot();
           if (!resolved.shouldContinueSearching$nil(resolved$4)) {
             return r!.createResolvedModuleHandlingSymlink(resolved$4);
           }
         }
       }
     } else {
-      let candidate: string = normalizePathForCJSResolution(r!.containingDirectory, r!.name);
-      let resolved$5: resolved | undefined = r!.nodeLoadModuleByRelativeName(r!.extensions_, candidate, true);
+      const candidate: string = normalizePathForCJSResolution(r!.containingDirectory, r!.name);
+      const resolved$5: resolved | undefined = r!.nodeLoadModuleByRelativeName(r!.extensions_, candidate, true);
       return r!.createResolvedModule(
         resolved$5,
         !(resolved$5 === undefined) && $rt.strings_Contains(resolved$5!.path, '/node_modules/'),
@@ -1232,26 +1235,26 @@ export class resolutionState extends $rt.GoObject {
   }
   loadModuleFromSelfNameReference(): resolved | undefined {
     const r = this;
-    let directoryPath: string = $tspath.GetNormalizedAbsolutePath(
+    const directoryPath: string = $tspath.GetNormalizedAbsolutePath(
       r!.containingDirectory,
       r!.resolver!.host!.GetCurrentDirectory(),
     );
-    let scope: $packagejson.InfoCacheEntry | undefined = r!.getPackageScopeForPath(directoryPath);
+    const scope: $packagejson.InfoCacheEntry | undefined = r!.getPackageScopeForPath(directoryPath);
     if (!$packagejson.InfoCacheEntry.Exists$nil(scope) || scope!.Contents!.PathFields_.Exports.IsFalsy()) {
       return continueSearching();
     }
     const $t1 = scope!.Contents!.Name.GetValue();
-    let name_: string = $t1[0];
-    let ok: boolean = $t1[1];
+    const name_: string = $t1[0];
+    const ok: boolean = $t1[1];
     if (!ok) {
       return continueSearching();
     }
-    let parts: string[] = $tspath.GetPathComponents(r!.name, '');
-    let nameParts: string[] = $tspath.GetPathComponents(name_, '');
+    const parts: string[] = $tspath.GetPathComponents(r!.name, '');
+    const nameParts: string[] = $tspath.GetPathComponents(name_, '');
     if (parts.length < nameParts.length || !$rt.slices_Equal(nameParts, $rt.reslice(parts, 0, nameParts.length, ''))) {
       return continueSearching();
     }
-    let trailingParts: string[] = parts.slice(nameParts.length);
+    const trailingParts: string[] = parts.slice(nameParts.length);
     let subpath: string = '';
     if (trailingParts.length > 0) {
       subpath = $tspath.CombinePaths('.', trailingParts);
@@ -1261,10 +1264,10 @@ export class resolutionState extends $rt.GoObject {
     if (r!.compilerOptions!.GetAllowJS() && !$rt.strings_Contains(r!.containingDirectory, '/node_modules/')) {
       return r!.loadModuleFromExports(scope, r!.extensions_, subpath);
     }
-    let priorityExtensions: extensions = r!.extensions_ & 5;
-    let secondaryExtensions: extensions = r!.extensions_ & -6;
+    const priorityExtensions: extensions = r!.extensions_ & 5;
+    const secondaryExtensions: extensions = r!.extensions_ & -6;
     {
-      let resolved$v: resolved | undefined = r!.loadModuleFromExports(scope, priorityExtensions, subpath);
+      const resolved$v: resolved | undefined = r!.loadModuleFromExports(scope, priorityExtensions, subpath);
       if (!resolved.shouldContinueSearching$nil(resolved$v)) {
         return resolved$v;
       }
@@ -1281,11 +1284,11 @@ export class resolutionState extends $rt.GoObject {
       }
       return continueSearching();
     }
-    let directoryPath: string = $tspath.GetNormalizedAbsolutePath(
+    const directoryPath: string = $tspath.GetNormalizedAbsolutePath(
       r!.containingDirectory,
       r!.resolver!.host!.GetCurrentDirectory(),
     );
-    let scope: $packagejson.InfoCacheEntry | undefined = r!.getPackageScopeForPath(directoryPath);
+    const scope: $packagejson.InfoCacheEntry | undefined = r!.getPackageScopeForPath(directoryPath);
     if (!$packagejson.InfoCacheEntry.Exists$nil(scope)) {
       if (!(r!.tracer_ === undefined)) {
         tracer.write$nil(
@@ -1305,7 +1308,7 @@ export class resolutionState extends $rt.GoObject {
       return continueSearching();
     }
     {
-      let result: resolved | undefined = r!.loadModuleFromExportsOrImports(
+      const result: resolved | undefined = r!.loadModuleFromExportsOrImports(
         r!.extensions_,
         r!.name,
         scope!.Contents!.PathFields_.Imports.AsObject$ExportsOrImports(),
@@ -1348,8 +1351,8 @@ export class resolutionState extends $rt.GoObject {
             } else {
               {
                 const $t1 = packageInfo!.Contents!.PathFields_.Exports.AsObject$ExportsOrImports()!.Get('.');
-                let dot: $packagejson.ExportsOrImports = $t1[0];
-                let ok: boolean = $t1[1];
+                const dot: $packagejson.ExportsOrImports = $t1[0];
+                const ok: boolean = $t1[1];
                 if (ok) {
                   mainExport = dot.$clone_packagejson_ExportsOrImports();
                 }
@@ -1367,7 +1370,7 @@ export class resolutionState extends $rt.GoObject {
       packageInfo!.Contents!.PathFields_.Exports.IsSubpaths()
     ) {
       {
-        let result: resolved | undefined = r!.loadModuleFromExportsOrImports(
+        const result: resolved | undefined = r!.loadModuleFromExportsOrImports(
           ext,
           subpath,
           packageInfo!.Contents!.PathFields_.Exports.AsObject$ExportsOrImports(),
@@ -1398,8 +1401,8 @@ export class resolutionState extends $rt.GoObject {
     if (!$rt.strings_HasSuffix(moduleName, '/') && !$rt.strings_Contains(moduleName, '*')) {
       {
         const $t1 = lookupTable!.Get(moduleName);
-        let target: $packagejson.ExportsOrImports = $t1[0];
-        let ok: boolean = $t1[1];
+        const target: $packagejson.ExportsOrImports = $t1[0];
+        const ok: boolean = $t1[1];
         if (ok) {
           return r!.loadModuleFromTargetExportOrImport(
             extensions$v,
@@ -1427,12 +1430,12 @@ export class resolutionState extends $rt.GoObject {
     {
       const $t4 = expandingKeys;
       for (let $t5 = 0, $n = $t4.length; $t5 < $n; $t5++) {
-        let potentialTarget = $t4[$t5];
+        const potentialTarget = $t4[$t5];
         if (!((r!.features & 8) === (0 as number)) && matchesPatternWithTrailer(potentialTarget, moduleName)) {
           const $t6 = lookupTable!.Get(potentialTarget);
-          let target$1: $packagejson.ExportsOrImports = $t6[0];
-          let starPos: number = $rt.strings_Index(potentialTarget, '*');
-          let subpath: string = moduleName.substring(
+          const target$1: $packagejson.ExportsOrImports = $t6[0];
+          const starPos: number = $rt.strings_Index(potentialTarget, '*');
+          const subpath: string = moduleName.substring(
             potentialTarget.substring(0, starPos).length,
             moduleName.length - (potentialTarget.length - 1 - starPos),
           );
@@ -1451,8 +1454,8 @@ export class resolutionState extends $rt.GoObject {
           $rt.strings_HasPrefix(moduleName, potentialTarget.substring(0, potentialTarget.length - 1))
         ) {
           const $t7 = lookupTable!.Get(potentialTarget);
-          let target$2: $packagejson.ExportsOrImports = $t7[0];
-          let subpath$1: string = moduleName.substring(potentialTarget.length - 1);
+          const target$2: $packagejson.ExportsOrImports = $t7[0];
+          const subpath$1: string = moduleName.substring(potentialTarget.length - 1);
           return r!.loadModuleFromTargetExportOrImport(
             extensions$v,
             moduleName,
@@ -1465,8 +1468,8 @@ export class resolutionState extends $rt.GoObject {
           );
         } else if ($rt.strings_HasPrefix(moduleName, potentialTarget)) {
           const $t8 = lookupTable!.Get(potentialTarget);
-          let target$3: $packagejson.ExportsOrImports = $t8[0];
-          let subpath$2: string = moduleName.substring(potentialTarget.length);
+          const target$3: $packagejson.ExportsOrImports = $t8[0];
+          const subpath$2: string = moduleName.substring(potentialTarget.length);
           return r!.loadModuleFromTargetExportOrImport(
             extensions$v,
             moduleName,
@@ -1502,7 +1505,7 @@ export class resolutionState extends $rt.GoObject {
           case 2 as number: {
             const $t2: $rt.GoObject | undefined = target.Value;
             const $t3: boolean = $rt.isValue($t2, 'string');
-            let targetString: string = $t3 ? $rt.checkString(true, $t2) : '';
+            const targetString: string = $t3 ? $rt.checkString(true, $t2) : '';
             if (!isPattern && subpath.length > 0 && !$rt.strings_HasSuffix(targetString, '/')) {
               if (!(r!.tracer_ === undefined)) {
                 tracer.write$nil(
@@ -1525,7 +1528,7 @@ export class resolutionState extends $rt.GoObject {
                 if (isPattern) {
                   combinedLookup = $rt.strings_ReplaceAll(targetString, '*', subpath);
                 }
-                let scopeContainingDirectory: string = $tspath.EnsureTrailingDirectorySeparator(
+                const scopeContainingDirectory: string = $tspath.EnsureTrailingDirectorySeparator(
                   scope!.PackageDirectory,
                 );
                 if (!(r!.tracer_ === undefined)) {
@@ -1541,8 +1544,8 @@ export class resolutionState extends $rt.GoObject {
                 }
                 const $t4 = r!.name;
                 const $t5 = r!.containingDirectory;
-                let name_: string = $t4;
-                let containingDirectory: string = $t5;
+                const name_: string = $t4;
+                const containingDirectory: string = $t5;
                 const $t6 = combinedLookup;
                 const $t7 = scopeContainingDirectory;
                 r!.name = $t6;
@@ -1554,7 +1557,7 @@ export class resolutionState extends $rt.GoObject {
                   r!.containingDirectory = $t9;
                 });
                 {
-                  let result: ResolvedModule | undefined = r!.resolveNodeLike();
+                  const result: ResolvedModule | undefined = r!.resolveNodeLike();
                   if (ResolvedModule.IsResolved$nil(result)) {
                     $t1 = resolved.$lit_module_resolved_0_1_2_3_4(
                       result!.ResolvedFileName,
@@ -1585,7 +1588,7 @@ export class resolutionState extends $rt.GoObject {
             } else {
               parts = $tspath.GetPathComponents(targetString, '');
             }
-            let partsAfterFirst: string[] = parts.slice(1);
+            const partsAfterFirst: string[] = parts.slice(1);
             if (
               $rt.slices_Contains(partsAfterFirst, '..') ||
               $rt.slices_Contains(partsAfterFirst, '.') ||
@@ -1601,8 +1604,8 @@ export class resolutionState extends $rt.GoObject {
               $t1 = continueSearching();
               break $body;
             }
-            let resolvedTarget: string = $tspath.CombinePaths(scope!.PackageDirectory, [targetString]);
-            let subpathParts: string[] = $tspath.GetPathComponents(subpath, '');
+            const resolvedTarget: string = $tspath.CombinePaths(scope!.PackageDirectory, [targetString]);
+            const subpathParts: string[] = $tspath.GetPathComponents(subpath, '');
             if (
               $rt.slices_Contains(subpathParts, '..') ||
               $rt.slices_Contains(subpathParts, '.') ||
@@ -1644,7 +1647,7 @@ export class resolutionState extends $rt.GoObject {
               );
             }
             {
-              let inputLink: resolved | undefined = r!.tryLoadInputFileForPath(
+              const inputLink: resolved | undefined = r!.tryLoadInputFileForPath(
                 finalPath,
                 subpath,
                 $tspath.CombinePaths(scope!.PackageDirectory, ['package.json']),
@@ -1657,7 +1660,7 @@ export class resolutionState extends $rt.GoObject {
               }
             }
             {
-              let result$1: resolved | undefined = r!.loadFileNameFromPackageJSONField(
+              const result$1: resolved | undefined = r!.loadFileNameFromPackageJSONField(
                 extensions$v,
                 finalPath,
                 targetString,
@@ -1690,9 +1693,9 @@ export class resolutionState extends $rt.GoObject {
                   ]);
                 }
                 const $t12 = target.AsObject$ExportsOrImports()!.Get(condition);
-                let subTarget: $packagejson.ExportsOrImports = $t12[0];
+                const subTarget: $packagejson.ExportsOrImports = $t12[0];
                 {
-                  let result$2: resolved | undefined = r!.loadModuleFromTargetExportOrImport(
+                  const result$2: resolved | undefined = r!.loadModuleFromTargetExportOrImport(
                     extensions$v,
                     moduleName,
                     scope,
@@ -1762,9 +1765,9 @@ export class resolutionState extends $rt.GoObject {
             {
               const $t13 = target.AsArray$ExportsOrImports();
               for (let $t14 = 0, $n = $t13.length; $t14 < $n; $t14++) {
-                let elem = $t13[$t14].$clone_packagejson_ExportsOrImports();
+                const elem = $t13[$t14].$clone_packagejson_ExportsOrImports();
                 {
-                  let result$3: resolved | undefined = r!.loadModuleFromTargetExportOrImport(
+                  const result$3: resolved | undefined = r!.loadModuleFromTargetExportOrImport(
                     extensions$v,
                     moduleName,
                     scope,
@@ -1838,7 +1841,7 @@ export class resolutionState extends $rt.GoObject {
       } else if (!(r!.compilerOptions!.ConfigFilePath === ('' as string))) {
         rootDir = $tspath.GetDirectoryPath(r!.compilerOptions!.ConfigFilePath);
       } else {
-        let diagnostic: $ast.Diagnostic | undefined = $ast.NewDiagnostic(
+        const diagnostic: $ast.Diagnostic | undefined = $ast.NewDiagnostic(
           undefined,
           0,
           $core.IfElse<$diagnostics.Message | undefined>(
@@ -1854,11 +1857,11 @@ export class resolutionState extends $rt.GoObject {
         r!.diagnostics.push(diagnostic);
         return unresolved();
       }
-      let candidateDirectories: string[] = r!.getOutputDirectoriesForBaseDirectory(rootDir);
+      const candidateDirectories: string[] = r!.getOutputDirectoriesForBaseDirectory(rootDir);
       {
         const $t1 = candidateDirectories;
         for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-          let candidateDir = $t1[$t2];
+          const candidateDir = $t1[$t2];
           if (
             $tspath.ContainsPath(
               candidateDir,
@@ -1873,27 +1876,27 @@ export class resolutionState extends $rt.GoObject {
             if (finalPath.length > candidateDir.length) {
               pathFragment = finalPath.substring(candidateDir.length + 1);
             }
-            let possibleInputBase: string = $tspath.CombinePaths(rootDir, [pathFragment]);
-            let jsAndDtsExtensions: string[] = ['.mjs', '.cjs', '.js', '.json', '.d.mts', '.d.cts', '.d.ts'];
+            const possibleInputBase: string = $tspath.CombinePaths(rootDir, [pathFragment]);
+            const jsAndDtsExtensions: string[] = ['.mjs', '.cjs', '.js', '.json', '.d.mts', '.d.cts', '.d.ts'];
             {
               const $t3 = jsAndDtsExtensions;
               for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
-                let ext = $t3[$t4];
+                const ext = $t3[$t4];
                 if ($tspath.FileExtensionIs(possibleInputBase, ext)) {
-                  let inputExts: string[] = $tspath.GetPossibleOriginalInputExtensionForExtension(possibleInputBase);
+                  const inputExts: string[] = $tspath.GetPossibleOriginalInputExtensionForExtension(possibleInputBase);
                   {
                     const $t5 = inputExts;
                     for (let $t6 = 0, $n = $t5.length; $t6 < $n; $t6++) {
-                      let possibleExt = $t5[$t6];
+                      const possibleExt = $t5[$t6];
                       if (!extensionIsOk(r!.extensions_, possibleExt)) {
                         continue;
                       }
-                      let possibleInputWithInputExtension: string = $tspath.ChangeExtension(
+                      const possibleInputWithInputExtension: string = $tspath.ChangeExtension(
                         possibleInputBase,
                         possibleExt,
                       );
                       if (r!.resolver!.host!.FS$m()!.FileExists(possibleInputWithInputExtension)) {
-                        let resolved$v: resolved | undefined = r!.loadFileNameFromPackageJSONField(
+                        const resolved$v: resolved | undefined = r!.loadFileNameFromPackageJSONField(
                           r!.extensions_,
                           possibleInputWithInputExtension,
                           '',
@@ -1915,7 +1918,7 @@ export class resolutionState extends $rt.GoObject {
   }
   getOutputDirectoriesForBaseDirectory(commonSourceDirGuess: string): string[] {
     const r = this;
-    let currentDir: string = $core.IfElse<string>(
+    const currentDir: string = $core.IfElse<string>(
       !(r!.compilerOptions!.ConfigFilePath === ('' as string)),
       r!.resolver!.host!.GetCurrentDirectory(),
       commonSourceDirGuess,
@@ -1948,8 +1951,8 @@ export class resolutionState extends $rt.GoObject {
     if (r!.esmMode || r!.conditionMatches('import')) {
       mode = 99;
     }
-    let priorityExtensions: extensions = r!.extensions_ & 5;
-    let secondaryExtensions: extensions = r!.extensions_ & -6;
+    const priorityExtensions: extensions = r!.extensions_ & 5;
+    const secondaryExtensions: extensions = r!.extensions_ & -6;
     if (!(priorityExtensions === (0 as number))) {
       if (!(r!.tracer_ === undefined)) {
         tracer.write$nil(
@@ -1959,7 +1962,7 @@ export class resolutionState extends $rt.GoObject {
         );
       }
       {
-        let result: resolved | undefined = r!.loadModuleFromNearestNodeModulesDirectoryWorker(
+        const result: resolved | undefined = r!.loadModuleFromNearestNodeModulesDirectoryWorker(
           priorityExtensions,
           mode,
           typesScopeOnly,
@@ -1994,7 +1997,7 @@ export class resolutionState extends $rt.GoObject {
         let result: resolved | undefined = undefined as resolved | undefined;
         let stop: boolean = false;
         if (!($tspath.GetBaseFileName(directory) === ('node_modules' as string))) {
-          let result$1: resolved | undefined = r!.loadModuleFromImmediateNodeModulesDirectory(
+          const result$1: resolved | undefined = r!.loadModuleFromImmediateNodeModulesDirectory(
             ext,
             directory,
             typesScopeOnly,
@@ -2004,7 +2007,7 @@ export class resolutionState extends $rt.GoObject {
         return [continueSearching(), false];
       },
     );
-    let result$2: resolved | undefined = $t1[0];
+    const result$2: resolved | undefined = $t1[0];
     return result$2;
   }
   loadModuleFromImmediateNodeModulesDirectory(
@@ -2013,7 +2016,7 @@ export class resolutionState extends $rt.GoObject {
     typesScopeOnly: boolean,
   ): resolved | undefined {
     const r = this;
-    let nodeModulesFolder: string = $tspath.CombinePaths(directory, ['node_modules']);
+    const nodeModulesFolder: string = $tspath.CombinePaths(directory, ['node_modules']);
     if (!r!.resolver!.host!.FS$m()!.DirectoryExists(nodeModulesFolder)) {
       if (!(r!.tracer_ === undefined)) {
         tracer.write$nil(r!.tracer_, $diagnostics.Directory_0_does_not_exist_skipping_all_lookups_in_it, [
@@ -2024,7 +2027,7 @@ export class resolutionState extends $rt.GoObject {
     }
     if (!typesScopeOnly) {
       {
-        let packageResult: resolved | undefined = r!.loadModuleFromSpecificNodeModulesDirectory(
+        const packageResult: resolved | undefined = r!.loadModuleFromSpecificNodeModulesDirectory(
           extensions$v,
           r!.name,
           nodeModulesFolder,
@@ -2035,7 +2038,7 @@ export class resolutionState extends $rt.GoObject {
       }
     }
     if (!((extensions$v & 4) === (0 as number))) {
-      let nodeModulesAtTypes: string = $tspath.CombinePaths(nodeModulesFolder, ['@types']);
+      const nodeModulesAtTypes: string = $tspath.CombinePaths(nodeModulesFolder, ['@types']);
       if (!r!.resolver!.host!.FS$m()!.DirectoryExists(nodeModulesAtTypes)) {
         if (!(r!.tracer_ === undefined)) {
           tracer.write$nil(r!.tracer_, $diagnostics.Directory_0_does_not_exist_skipping_all_lookups_in_it, [
@@ -2054,12 +2057,12 @@ export class resolutionState extends $rt.GoObject {
     nodeModulesDirectory: string,
   ): resolved | undefined {
     const r = this;
-    let candidate: string = $tspath.RemoveTrailingDirectorySeparator(
+    const candidate: string = $tspath.RemoveTrailingDirectorySeparator(
       $tspath.NormalizePath($tspath.CombinePaths(nodeModulesDirectory, [moduleName])),
     );
     const $t1 = ParsePackageName(moduleName);
-    let packageName: string = $t1[0];
-    let rest: string = $t1[1];
+    const packageName: string = $t1[0];
+    const rest: string = $t1[1];
     let packageDirectory: string = $tspath.CombinePaths(nodeModulesDirectory, [packageName]);
     if (packageName === ('' as string)) {
       packageDirectory = candidate;
@@ -2081,13 +2084,13 @@ export class resolutionState extends $rt.GoObject {
         rootPackageInfo!.Contents!.PathFields_.Exports.Type === (0 as number)
       ) {
         {
-          let fromFile: resolved | undefined = r!.loadModuleFromFile(ext, candidate);
+          const fromFile: resolved | undefined = r!.loadModuleFromFile(ext, candidate);
           if (!resolved.shouldContinueSearching$nil(fromFile)) {
             return fromFile;
           }
         }
         {
-          let fromDirectory: resolved | undefined = r!.loadNodeModuleFromDirectoryWorker(ext, candidate, packageInfo);
+          const fromDirectory: resolved | undefined = r!.loadNodeModuleFromDirectoryWorker(ext, candidate, packageInfo);
           if (!resolved.shouldContinueSearching$nil(fromDirectory)) {
             fromDirectory!.packageId = r!.getPackageId(fromDirectory!.path, packageInfo);
             return fromDirectory;
@@ -2095,13 +2098,13 @@ export class resolutionState extends $rt.GoObject {
         }
       }
     }
-    let loader: ((p0: extensions, p1: string) => resolved | undefined) | undefined = (
+    const loader: ((p0: extensions, p1: string) => resolved | undefined) | undefined = (
       extensions$v: extensions,
       candidate$1: string,
     ): resolved | undefined => {
       if (!(rest === ('' as string)) || !r!.esmMode) {
         {
-          let fromFile$1: resolved | undefined = r!.loadModuleFromFile(extensions$v, candidate$1);
+          const fromFile$1: resolved | undefined = r!.loadModuleFromFile(extensions$v, candidate$1);
           if (!resolved.shouldContinueSearching$nil(fromFile$1)) {
             fromFile$1!.packageId = r!.getPackageId(fromFile$1!.path, packageInfo);
             return fromFile$1;
@@ -2109,7 +2112,7 @@ export class resolutionState extends $rt.GoObject {
         }
       }
       {
-        let fromDirectory$1: resolved | undefined = r!.loadNodeModuleFromDirectoryWorker(
+        const fromDirectory$1: resolved | undefined = r!.loadNodeModuleFromDirectoryWorker(
           extensions$v,
           candidate$1,
           packageInfo,
@@ -2127,7 +2130,7 @@ export class resolutionState extends $rt.GoObject {
         r!.esmMode
       ) {
         {
-          let indexResult: resolved | undefined = r!.loadModuleFromFile(
+          const indexResult: resolved | undefined = r!.loadModuleFromFile(
             extensions$v,
             $tspath.CombinePaths(candidate$1, ['index.js']),
           );
@@ -2155,7 +2158,7 @@ export class resolutionState extends $rt.GoObject {
         return r!.loadModuleFromExports(packageInfo, ext, $tspath.CombinePaths('.', [rest]));
       }
       if (!(rest === ('' as string)) && $packagejson.InfoCacheEntry.Exists$nil(packageInfo)) {
-        let versionPaths: $packagejson.VersionPaths = packageInfo!.Contents!.GetVersionPaths(r!.getTraceFunc());
+        const versionPaths: $packagejson.VersionPaths = packageInfo!.Contents!.GetVersionPaths(r!.getTraceFunc());
         if ($packagejson.VersionPaths.Exists$nil(versionPaths)) {
           if (!(r!.tracer_ === undefined)) {
             tracer.write$nil(
@@ -2168,9 +2171,9 @@ export class resolutionState extends $rt.GoObject {
               ],
             );
           }
-          let pathPatterns: ParsedPatterns | undefined = TryParsePatterns(versionPaths.GetPaths());
+          const pathPatterns: ParsedPatterns | undefined = TryParsePatterns(versionPaths.GetPaths());
           {
-            let fromPaths: resolved | undefined = r!.tryLoadModuleUsingPaths(
+            const fromPaths: resolved | undefined = r!.tryLoadModuleUsingPaths(
               ext,
               rest,
               packageDirectory,
@@ -2189,7 +2192,7 @@ export class resolutionState extends $rt.GoObject {
   }
   createResolvedModuleHandlingSymlink(resolved$v: resolved | undefined): ResolvedModule | undefined {
     const r = this;
-    let isExternalLibraryImport: boolean =
+    const isExternalLibraryImport: boolean =
       !(resolved$v === undefined) && $rt.strings_Contains(resolved$v!.path, '/node_modules/');
     if (
       !(r!.compilerOptions!.PreserveSymlinks === (2 as number)) &&
@@ -2198,8 +2201,8 @@ export class resolutionState extends $rt.GoObject {
       !$tspath.IsExternalModuleNameRelative(r!.name)
     ) {
       const $t1 = r!.getOriginalAndResolvedFileName(resolved$v!.path);
-      let originalPath: string = $t1[0];
-      let resolvedFileName: string = $t1[1];
+      const originalPath: string = $t1[0];
+      const resolvedFileName: string = $t1[1];
       if (!(originalPath === ('' as string))) {
         resolved$v!.path = resolvedFileName;
         resolved$v!.originalPath = originalPath;
@@ -2239,8 +2242,8 @@ export class resolutionState extends $rt.GoObject {
       resolvedTypeReferenceDirective.IsExternalLibraryImport = $rt.strings_Contains(resolved$v!.path, '/node_modules/');
       if (!(r!.compilerOptions!.PreserveSymlinks === (2 as number))) {
         const $t1 = r!.getOriginalAndResolvedFileName(resolved$v!.path);
-        let originalPath: string = $t1[0];
-        let resolvedFileName: string = $t1[1];
+        const originalPath: string = $t1[0];
+        const resolvedFileName: string = $t1[1];
         if (!(originalPath === ('' as string))) {
           resolvedTypeReferenceDirective.ResolvedFileName = resolvedFileName;
           resolvedTypeReferenceDirective.OriginalPath = originalPath;
@@ -2251,8 +2254,8 @@ export class resolutionState extends $rt.GoObject {
   }
   getOriginalAndResolvedFileName(fileName: string): [string, string] {
     const r = this;
-    let resolvedFileName: string = r!.realPath(fileName);
-    let comparePathsOptions: $tspath.ComparePathsOptions =
+    const resolvedFileName: string = r!.realPath(fileName);
+    const comparePathsOptions: $tspath.ComparePathsOptions =
       $tspath.ComparePathsOptions.$lit_tspath_ComparePathsOptions_0_1(
         r!.resolver!.host!.FS$m()!.UseCaseSensitiveFileNames(),
         r!.resolver!.host!.GetCurrentDirectory(),
@@ -2265,7 +2268,7 @@ export class resolutionState extends $rt.GoObject {
   tryLoadModuleUsingOptionalResolutionSettings(): resolved | undefined {
     const r = this;
     {
-      let resolved$v: resolved | undefined = r!.tryLoadModuleUsingPathsIfEligible();
+      const resolved$v: resolved | undefined = r!.tryLoadModuleUsingPathsIfEligible();
       if (!resolved.shouldContinueSearching$nil(resolved$v)) {
         return resolved$v;
       }
@@ -2299,8 +2302,8 @@ export class resolutionState extends $rt.GoObject {
     } else {
       return continueSearching();
     }
-    let baseDirectory: string = r!.compilerOptions!.GetPathsBasePath(r!.resolver!.host!.GetCurrentDirectory());
-    let pathPatterns: ParsedPatterns | undefined = r!.getParsedPatternsForPaths();
+    const baseDirectory: string = r!.compilerOptions!.GetPathsBasePath(r!.resolver!.host!.GetCurrentDirectory());
+    const pathPatterns: ParsedPatterns | undefined = r!.getParsedPatternsForPaths();
     return r!.tryLoadModuleUsingPaths(
       r!.extensions_,
       r!.name,
@@ -2322,9 +2325,9 @@ export class resolutionState extends $rt.GoObject {
   ): resolved | undefined {
     const r = this;
     {
-      let matchedPattern: $core.Pattern = MatchPatternOrExact(pathPatterns, moduleName);
+      const matchedPattern: $core.Pattern = MatchPatternOrExact(pathPatterns, moduleName);
       if (matchedPattern.IsValid()) {
-        let matchedStar: string = matchedPattern.MatchedText(moduleName);
+        const matchedStar: string = matchedPattern.MatchedText(moduleName);
         if (!(r!.tracer_ === undefined)) {
           tracer.write$nil(r!.tracer_, $diagnostics.Module_name_0_matched_pattern_1, [
             new $rt.BoxStr(moduleName, 'string'),
@@ -2334,31 +2337,31 @@ export class resolutionState extends $rt.GoObject {
         {
           const $t1 = paths!.GetOrZero(matchedPattern.Text);
           for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-            let subst = $t1[$t2];
-            let path: string = $rt.strings_Replace(subst, '*', matchedStar, 1);
-            let candidate: string = $tspath.NormalizePath($tspath.CombinePaths(containingDirectory, [path]));
+            const subst = $t1[$t2];
+            const path: string = $rt.strings_Replace(subst, '*', matchedStar, 1);
+            const candidate: string = $tspath.NormalizePath($tspath.CombinePaths(containingDirectory, [path]));
             if (!(r!.tracer_ === undefined)) {
               tracer.write$nil(r!.tracer_, $diagnostics.Trying_substitution_0_candidate_module_location_Colon_1, [
                 new $rt.BoxStr(subst, 'string'),
                 new $rt.BoxStr(path, 'string'),
               ]);
             }
-            let extensionFromSubst: string = $tspath.TryGetExtensionFromPath(subst);
+            const extensionFromSubst: string = $tspath.TryGetExtensionFromPath(subst);
             if (!(extensionFromSubst === ('' as string))) {
               {
                 const $t3 = r!.tryFile(candidate);
-                let path$1: string = $t3[0];
-                let ok: boolean = $t3[1];
+                const path$1: string = $t3[0];
+                const ok: boolean = $t3[1];
                 if (ok) {
                   return resolved.$lit_module_resolved_0_1(path$1, extensionFromSubst);
                 }
               }
             }
-            let saveCandidateEndingIsFromConfig: boolean = r!.candidateEndingIsFromConfig;
+            const saveCandidateEndingIsFromConfig: boolean = r!.candidateEndingIsFromConfig;
             if (!(extensionFromSubst === ('' as string))) {
               r!.candidateEndingIsFromConfig = true;
             }
-            let resolved$v: resolved | undefined = loader!(extensions$v, candidate);
+            const resolved$v: resolved | undefined = loader!(extensions$v, candidate);
             r!.candidateEndingIsFromConfig = saveCandidateEndingIsFromConfig;
             if (!resolved.shouldContinueSearching$nil(resolved$v)) {
               return resolved$v;
@@ -2379,18 +2382,18 @@ export class resolutionState extends $rt.GoObject {
         new $rt.BoxStr(r!.name, 'string'),
       ]);
     }
-    let candidate: string = $tspath.NormalizePath($tspath.CombinePaths(r!.containingDirectory, [r!.name]));
+    const candidate: string = $tspath.NormalizePath($tspath.CombinePaths(r!.containingDirectory, [r!.name]));
     let matchedRootDir: string = '';
     let matchedNormalizedPrefix: string = '';
     {
       const $t1 = r!.compilerOptions!.RootDirs;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        let rootDir = $t1[$t2];
+        const rootDir = $t1[$t2];
         let normalizedRoot: string = $tspath.NormalizePath(rootDir);
         if (!$rt.strings_HasSuffix(normalizedRoot, '/')) {
           normalizedRoot += '/';
         }
-        let isLongestMatchingPrefix: boolean =
+        const isLongestMatchingPrefix: boolean =
           $rt.strings_HasPrefix(candidate, normalizedRoot) &&
           (matchedNormalizedPrefix === ('' as string) || matchedNormalizedPrefix.length < normalizedRoot.length);
         if (!(r!.tracer_ === undefined)) {
@@ -2413,7 +2416,7 @@ export class resolutionState extends $rt.GoObject {
           new $rt.BoxStr(matchedNormalizedPrefix, 'string'),
         ]);
       }
-      let suffix: string = candidate.substring(matchedNormalizedPrefix.length);
+      const suffix: string = candidate.substring(matchedNormalizedPrefix.length);
       if (!(r!.tracer_ === undefined)) {
         tracer.write$nil(r!.tracer_, $diagnostics.Loading_0_from_the_root_dir_1_candidate_location_2, [
           new $rt.BoxStr(suffix, 'string'),
@@ -2421,14 +2424,14 @@ export class resolutionState extends $rt.GoObject {
           new $rt.BoxStr(candidate, 'string'),
         ]);
       }
-      let loader: ((p0: extensions, p1: string) => resolved | undefined) | undefined = (
+      const loader: ((p0: extensions, p1: string) => resolved | undefined) | undefined = (
         extensions$v: extensions,
         candidate$1: string,
       ): resolved | undefined => {
         return r!.nodeLoadModuleByRelativeName(extensions$v, candidate$1, true);
       };
       {
-        let resolvedFileName: resolved | undefined = loader!(r!.extensions_, candidate);
+        const resolvedFileName: resolved | undefined = loader!(r!.extensions_, candidate);
         if (!resolved.shouldContinueSearching$nil(resolvedFileName)) {
           return resolvedFileName;
         }
@@ -2439,11 +2442,11 @@ export class resolutionState extends $rt.GoObject {
       {
         const $t3 = r!.compilerOptions!.RootDirs;
         for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
-          let rootDir$1 = $t3[$t4];
+          const rootDir$1 = $t3[$t4];
           if (rootDir$1 === matchedRootDir) {
             continue;
           }
-          let candidate$2: string = $tspath.CombinePaths($tspath.NormalizePath(rootDir$1), [suffix]);
+          const candidate$2: string = $tspath.CombinePaths($tspath.NormalizePath(rootDir$1), [suffix]);
           if (!(r!.tracer_ === undefined)) {
             tracer.write$nil(r!.tracer_, $diagnostics.Loading_0_from_the_root_dir_1_candidate_location_2, [
               new $rt.BoxStr(suffix, 'string'),
@@ -2452,7 +2455,7 @@ export class resolutionState extends $rt.GoObject {
             ]);
           }
           {
-            let resolvedFileName$1: resolved | undefined = loader!(r!.extensions_, candidate$2);
+            const resolvedFileName$1: resolved | undefined = loader!(r!.extensions_, candidate$2);
             if (!resolved.shouldContinueSearching$nil(resolvedFileName$1)) {
               return resolvedFileName$1;
             }
@@ -2483,7 +2486,7 @@ export class resolutionState extends $rt.GoObject {
       );
     }
     if (!$tspath.HasTrailingDirectorySeparator(candidate)) {
-      let parentOfCandidate: string = $tspath.GetDirectoryPath(candidate);
+      const parentOfCandidate: string = $tspath.GetDirectoryPath(candidate);
       if (!r!.resolver!.host!.FS$m()!.DirectoryExists(parentOfCandidate)) {
         if (!(r!.tracer_ === undefined)) {
           tracer.write$nil(r!.tracer_, $diagnostics.Directory_0_does_not_exist_skipping_all_lookups_in_it, [
@@ -2492,11 +2495,11 @@ export class resolutionState extends $rt.GoObject {
         }
         return continueSearching();
       }
-      let resolvedFromFile: resolved | undefined = r!.loadModuleFromFile(extensions$v, candidate);
+      const resolvedFromFile: resolved | undefined = r!.loadModuleFromFile(extensions$v, candidate);
       if (!(resolvedFromFile === undefined)) {
         if (considerPackageJson) {
           {
-            let packageDirectory: string = ParseNodeModuleFromPath(resolvedFromFile!.path, false);
+            const packageDirectory: string = ParseNodeModuleFromPath(resolvedFromFile!.path, false);
             if (!(packageDirectory === ('' as string))) {
               resolvedFromFile!.packageId = r!.getPackageId(
                 resolvedFromFile!.path,
@@ -2523,7 +2526,7 @@ export class resolutionState extends $rt.GoObject {
   }
   loadModuleFromFile(extensions$v: extensions, candidate: string): resolved | undefined {
     const r = this;
-    let resolvedByReplacingExtension: resolved | undefined = r!.loadModuleFromFileNoImplicitExtensions(
+    const resolvedByReplacingExtension: resolved | undefined = r!.loadModuleFromFileNoImplicitExtensions(
       extensions$v,
       candidate,
     );
@@ -2537,7 +2540,7 @@ export class resolutionState extends $rt.GoObject {
   }
   loadModuleFromFileNoImplicitExtensions(extensions$v: extensions, candidate: string): resolved | undefined {
     const r = this;
-    let base: string = $tspath.GetBaseFileName(candidate);
+    const base: string = $tspath.GetBaseFileName(candidate);
     if (!$rt.strings_Contains(base, '.')) {
       return continueSearching();
     }
@@ -2549,7 +2552,7 @@ export class resolutionState extends $rt.GoObject {
       }
       extensionless = $tspath.RemoveExtension(candidate, extension);
     }
-    let extension$1: string = candidate.substring(extensionless.length);
+    const extension$1: string = candidate.substring(extensionless.length);
     if (!(r!.tracer_ === undefined)) {
       tracer.write$nil(r!.tracer_, $diagnostics.File_name_0_has_a_1_extension_stripping_it, [
         new $rt.BoxStr(candidate, 'string'),
@@ -2564,7 +2567,7 @@ export class resolutionState extends $rt.GoObject {
     originalExtension: string,
   ): resolved | undefined {
     const r = this;
-    let directory: string = $tspath.GetDirectoryPath(extensionless);
+    const directory: string = $tspath.GetDirectoryPath(extensionless);
     if (!(directory === ('' as string)) && !r!.resolver!.host!.FS$m()!.DirectoryExists(directory)) {
       return continueSearching();
     }
@@ -2575,7 +2578,7 @@ export class resolutionState extends $rt.GoObject {
         case '.d.mts' as string: {
           if (!((extensions$v & 1) === (0 as number))) {
             {
-              let resolved$v: resolved | undefined = r!.tryExtension(
+              const resolved$v: resolved | undefined = r!.tryExtension(
                 '.mts',
                 extensionless,
                 originalExtension === ('.mts' as string) || originalExtension === ('.d.mts' as string),
@@ -2587,7 +2590,7 @@ export class resolutionState extends $rt.GoObject {
           }
           if (!((extensions$v & 4) === (0 as number))) {
             {
-              let resolved$1: resolved | undefined = r!.tryExtension(
+              const resolved$1: resolved | undefined = r!.tryExtension(
                 '.d.mts',
                 extensionless,
                 originalExtension === ('.mts' as string) || originalExtension === ('.d.mts' as string),
@@ -2599,7 +2602,7 @@ export class resolutionState extends $rt.GoObject {
           }
           if (!((extensions$v & 2) === (0 as number))) {
             {
-              let resolved$2: resolved | undefined = r!.tryExtension('.mjs', extensionless, false);
+              const resolved$2: resolved | undefined = r!.tryExtension('.mjs', extensionless, false);
               if (!resolved.shouldContinueSearching$nil(resolved$2)) {
                 return resolved$2;
               }
@@ -2612,7 +2615,7 @@ export class resolutionState extends $rt.GoObject {
         case '.d.cts' as string: {
           if (!((extensions$v & 1) === (0 as number))) {
             {
-              let resolved$3: resolved | undefined = r!.tryExtension(
+              const resolved$3: resolved | undefined = r!.tryExtension(
                 '.cts',
                 extensionless,
                 originalExtension === ('.cts' as string) || originalExtension === ('.d.cts' as string),
@@ -2624,7 +2627,7 @@ export class resolutionState extends $rt.GoObject {
           }
           if (!((extensions$v & 4) === (0 as number))) {
             {
-              let resolved$4: resolved | undefined = r!.tryExtension(
+              const resolved$4: resolved | undefined = r!.tryExtension(
                 '.d.cts',
                 extensionless,
                 originalExtension === ('.cts' as string) || originalExtension === ('.d.cts' as string),
@@ -2636,7 +2639,7 @@ export class resolutionState extends $rt.GoObject {
           }
           if (!((extensions$v & 2) === (0 as number))) {
             {
-              let resolved$5: resolved | undefined = r!.tryExtension('.cjs', extensionless, false);
+              const resolved$5: resolved | undefined = r!.tryExtension('.cjs', extensionless, false);
               if (!resolved.shouldContinueSearching$nil(resolved$5)) {
                 return resolved$5;
               }
@@ -2647,7 +2650,7 @@ export class resolutionState extends $rt.GoObject {
         case '.json' as string: {
           if (!((extensions$v & 4) === (0 as number))) {
             {
-              let resolved$6: resolved | undefined = r!.tryExtension('.d.json.ts', extensionless, false);
+              const resolved$6: resolved | undefined = r!.tryExtension('.d.json.ts', extensionless, false);
               if (!resolved.shouldContinueSearching$nil(resolved$6)) {
                 return resolved$6;
               }
@@ -2655,7 +2658,7 @@ export class resolutionState extends $rt.GoObject {
           }
           if (!((extensions$v & 8) === (0 as number))) {
             {
-              let resolved$7: resolved | undefined = r!.tryExtension('.json', extensionless, false);
+              const resolved$7: resolved | undefined = r!.tryExtension('.json', extensionless, false);
               if (!resolved.shouldContinueSearching$nil(resolved$7)) {
                 return resolved$7;
               }
@@ -2667,7 +2670,7 @@ export class resolutionState extends $rt.GoObject {
         case '.jsx' as string: {
           if (!((extensions$v & 1) === (0 as number))) {
             {
-              let resolved$8: resolved | undefined = r!.tryExtension(
+              const resolved$8: resolved | undefined = r!.tryExtension(
                 '.tsx',
                 extensionless,
                 originalExtension === ('.tsx' as string),
@@ -2677,7 +2680,7 @@ export class resolutionState extends $rt.GoObject {
               }
             }
             {
-              let resolved$9: resolved | undefined = r!.tryExtension(
+              const resolved$9: resolved | undefined = r!.tryExtension(
                 '.ts',
                 extensionless,
                 originalExtension === ('.tsx' as string),
@@ -2689,7 +2692,7 @@ export class resolutionState extends $rt.GoObject {
           }
           if (!((extensions$v & 4) === (0 as number))) {
             {
-              let resolved$10: resolved | undefined = r!.tryExtension(
+              const resolved$10: resolved | undefined = r!.tryExtension(
                 '.d.ts',
                 extensionless,
                 originalExtension === ('.tsx' as string),
@@ -2701,13 +2704,13 @@ export class resolutionState extends $rt.GoObject {
           }
           if (!((extensions$v & 2) === (0 as number))) {
             {
-              let resolved$11: resolved | undefined = r!.tryExtension('.jsx', extensionless, false);
+              const resolved$11: resolved | undefined = r!.tryExtension('.jsx', extensionless, false);
               if (!resolved.shouldContinueSearching$nil(resolved$11)) {
                 return resolved$11;
               }
             }
             {
-              let resolved$12: resolved | undefined = r!.tryExtension('.js', extensionless, false);
+              const resolved$12: resolved | undefined = r!.tryExtension('.js', extensionless, false);
               if (!resolved.shouldContinueSearching$nil(resolved$12)) {
                 return resolved$12;
               }
@@ -2721,7 +2724,7 @@ export class resolutionState extends $rt.GoObject {
         case '' as string: {
           if (!((extensions$v & 1) === (0 as number))) {
             {
-              let resolved$13: resolved | undefined = r!.tryExtension(
+              const resolved$13: resolved | undefined = r!.tryExtension(
                 '.ts',
                 extensionless,
                 originalExtension === ('.ts' as string) || originalExtension === ('.d.ts' as string),
@@ -2731,7 +2734,7 @@ export class resolutionState extends $rt.GoObject {
               }
             }
             {
-              let resolved$14: resolved | undefined = r!.tryExtension(
+              const resolved$14: resolved | undefined = r!.tryExtension(
                 '.tsx',
                 extensionless,
                 originalExtension === ('.ts' as string) || originalExtension === ('.d.ts' as string),
@@ -2743,7 +2746,7 @@ export class resolutionState extends $rt.GoObject {
           }
           if (!((extensions$v & 4) === (0 as number))) {
             {
-              let resolved$15: resolved | undefined = r!.tryExtension(
+              const resolved$15: resolved | undefined = r!.tryExtension(
                 '.d.ts',
                 extensionless,
                 originalExtension === ('.ts' as string) || originalExtension === ('.d.ts' as string),
@@ -2755,13 +2758,13 @@ export class resolutionState extends $rt.GoObject {
           }
           if (!((extensions$v & 2) === (0 as number))) {
             {
-              let resolved$16: resolved | undefined = r!.tryExtension('.js', extensionless, false);
+              const resolved$16: resolved | undefined = r!.tryExtension('.js', extensionless, false);
               if (!resolved.shouldContinueSearching$nil(resolved$16)) {
                 return resolved$16;
               }
             }
             {
-              let resolved$17: resolved | undefined = r!.tryExtension('.jsx', extensionless, false);
+              const resolved$17: resolved | undefined = r!.tryExtension('.jsx', extensionless, false);
               if (!resolved.shouldContinueSearching$nil(resolved$17)) {
                 return resolved$17;
               }
@@ -2769,7 +2772,7 @@ export class resolutionState extends $rt.GoObject {
           }
           if (r!.isConfigLookup) {
             {
-              let resolved$18: resolved | undefined = r!.tryExtension('.json', extensionless, false);
+              const resolved$18: resolved | undefined = r!.tryExtension('.json', extensionless, false);
               if (!resolved.shouldContinueSearching$nil(resolved$18)) {
                 return resolved$18;
               }
@@ -2780,7 +2783,7 @@ export class resolutionState extends $rt.GoObject {
         default: {
           if ($rt.slices_Contains(r!.resolver!.extraExtensions, originalExtension)) {
             {
-              let resolved$19: resolved | undefined = r!.tryExtension(originalExtension, extensionless, false);
+              const resolved$19: resolved | undefined = r!.tryExtension(originalExtension, extensionless, false);
               if (!resolved.shouldContinueSearching$nil(resolved$19)) {
                 resolved$19!.resolvedUsingExtraExtensions = true;
                 return resolved$19;
@@ -2792,7 +2795,7 @@ export class resolutionState extends $rt.GoObject {
             !$tspath.IsDeclarationFileName(extensionless + originalExtension)
           ) {
             {
-              let resolved$20: resolved | undefined = r!.tryExtension(
+              const resolved$20: resolved | undefined = r!.tryExtension(
                 '.d' + originalExtension + '.ts',
                 extensionless,
                 false,
@@ -2809,11 +2812,11 @@ export class resolutionState extends $rt.GoObject {
   }
   tryExtension(extension: string, extensionless: string, resolvedUsingTsExtension: boolean): resolved | undefined {
     const r = this;
-    let fileName: string = extensionless + extension;
+    const fileName: string = extensionless + extension;
     {
       const $t1 = r!.tryFile(fileName);
-      let path: string = $t1[0];
-      let ok: boolean = $t1[1];
+      const path: string = $t1[0];
+      const ok: boolean = $t1[1];
       if (ok) {
         return resolved.$lit_module_resolved_0_1_4(
           path,
@@ -2829,13 +2832,13 @@ export class resolutionState extends $rt.GoObject {
     if (r!.compilerOptions!.ModuleSuffixes.length === (0 as number)) {
       return [fileName, r!.tryFileLookup(fileName)];
     }
-    let ext: string = $tspath.TryGetExtensionFromPath(fileName);
-    let fileNameNoExtension: string = $tspath.RemoveExtension(fileName, ext);
+    const ext: string = $tspath.TryGetExtensionFromPath(fileName);
+    const fileNameNoExtension: string = $tspath.RemoveExtension(fileName, ext);
     {
       const $t1 = r!.compilerOptions!.ModuleSuffixes;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        let suffix = $t1[$t2];
-        let path: string = fileNameNoExtension + suffix + ext;
+        const suffix = $t1[$t2];
+        const path: string = fileNameNoExtension + suffix + ext;
         if (r!.tryFileLookup(path)) {
           return [path, true];
         }
@@ -2890,20 +2893,20 @@ export class resolutionState extends $rt.GoObject {
       ) {
         {
           const $t1 = r!.getPackageFile(ext, packageInfo);
-          let file: string = $t1[0];
-          let ok: boolean = $t1[1];
+          const file: string = $t1[0];
+          const ok: boolean = $t1[1];
           if (ok) {
             packageFile = file;
           }
         }
       }
     }
-    let loader: ((p0: extensions, p1: string) => resolved | undefined) | undefined = (
+    const loader: ((p0: extensions, p1: string) => resolved | undefined) | undefined = (
       extensions$v: extensions,
       candidate$1: string,
     ): resolved | undefined => {
       {
-        let fromFile: resolved | undefined = r!.loadFileNameFromPackageJSONField(
+        const fromFile: resolved | undefined = r!.loadFileNameFromPackageJSONField(
           extensions$v,
           candidate$1,
           packageFile,
@@ -2916,8 +2919,8 @@ export class resolutionState extends $rt.GoObject {
       if (extensions$v === (4 as number)) {
         expandedExtensions = 5;
       }
-      let saveESMMode: boolean = r!.esmMode;
-      let saveCandidateEndingIsFromConfig: boolean = r!.candidateEndingIsFromConfig;
+      const saveESMMode: boolean = r!.esmMode;
+      const saveCandidateEndingIsFromConfig: boolean = r!.candidateEndingIsFromConfig;
       r!.candidateEndingIsFromConfig = true;
       if (
         $packagejson.InfoCacheEntry.Exists$nil(packageInfo) &&
@@ -2925,7 +2928,7 @@ export class resolutionState extends $rt.GoObject {
       ) {
         r!.esmMode = false;
       }
-      let result: resolved | undefined = r!.nodeLoadModuleByRelativeName(expandedExtensions, candidate$1, false);
+      const result: resolved | undefined = r!.nodeLoadModuleByRelativeName(expandedExtensions, candidate$1, false);
       r!.esmMode = saveESMMode;
       r!.candidateEndingIsFromConfig = saveCandidateEndingIsFromConfig;
       return result;
@@ -2958,9 +2961,9 @@ export class resolutionState extends $rt.GoObject {
           ],
         );
       }
-      let pathPatterns: ParsedPatterns | undefined = TryParsePatterns(versionPaths.GetPaths());
+      const pathPatterns: ParsedPatterns | undefined = TryParsePatterns(versionPaths.GetPaths());
       {
-        let result$1: resolved | undefined = r!.tryLoadModuleUsingPaths(
+        const result$1: resolved | undefined = r!.tryLoadModuleUsingPaths(
           ext,
           moduleName,
           candidate,
@@ -2978,7 +2981,7 @@ export class resolutionState extends $rt.GoObject {
     }
     if (!(packageFile === ('' as string))) {
       {
-        let packageFileResult: resolved | undefined = loader!(ext, packageFile);
+        const packageFileResult: resolved | undefined = loader!(ext, packageFile);
         if (!resolved.shouldContinueSearching$nil(packageFileResult)) {
           if (!(packageFileResult!.packageId.Name === ('' as string))) {
             throw $rt.newPanic(new $rt.BoxStr('expected packageId to be empty', 'string'));
@@ -3007,11 +3010,11 @@ export class resolutionState extends $rt.GoObject {
     ) {
       {
         const $t1 = r!.tryFile(candidate);
-        let path: string = $t1[0];
-        let ok: boolean = $t1[1];
+        const path: string = $t1[0];
+        const ok: boolean = $t1[1];
         if (ok) {
-          let extension: string = $tspath.TryExtractTSExtension(path);
-          let resolvedUsingTsExtension: boolean =
+          const extension: string = $tspath.TryExtractTSExtension(path);
+          const resolvedUsingTsExtension: boolean =
             $rt.strings_HasSuffix(packageJSONValue, '*') && !(extension === ('' as string));
           return resolved.$lit_module_resolved_0_1_4(path, extension, resolvedUsingTsExtension);
         }
@@ -3021,8 +3024,8 @@ export class resolutionState extends $rt.GoObject {
     if (r!.isConfigLookup && !((extensions$v & 8) === (0 as number)) && $tspath.FileExtensionIs(candidate, '.json')) {
       {
         const $t2 = r!.tryFile(candidate);
-        let path$1: string = $t2[0];
-        let ok$1: boolean = $t2[1];
+        const path$1: string = $t2[0];
+        const ok$1: boolean = $t2[1];
         if (ok$1) {
           return resolved.$lit_module_resolved_0_1(path$1, '.json');
         }
@@ -3049,8 +3052,8 @@ export class resolutionState extends $rt.GoObject {
           packageInfo!.Contents!.PathFields_.Typings,
           packageInfo!.PackageDirectory,
         );
-        let packageFile: string = $t1[0];
-        let ok: boolean = $t1[1];
+        const packageFile: string = $t1[0];
+        const ok: boolean = $t1[1];
         if (ok) {
           return [packageFile, ok];
         }
@@ -3061,8 +3064,8 @@ export class resolutionState extends $rt.GoObject {
           packageInfo!.Contents!.PathFields_.Types,
           packageInfo!.PackageDirectory,
         );
-        let packageFile$1: string = $t2[0];
-        let ok$1: boolean = $t2[1];
+        const packageFile$1: string = $t2[0];
+        const ok$1: boolean = $t2[1];
         if (ok$1) {
           return [packageFile$1, ok$1];
         }
@@ -3075,9 +3078,9 @@ export class resolutionState extends $rt.GoObject {
   }
   getPackageJsonInfo(packageDirectory: string): $packagejson.InfoCacheEntry | undefined {
     const r = this;
-    let packageJsonPath: string = $tspath.CombinePaths(packageDirectory, ['package.json']);
+    const packageJsonPath: string = $tspath.CombinePaths(packageDirectory, ['package.json']);
     {
-      let existing: $packagejson.InfoCacheEntry | undefined = r!.resolver!.packageJsonInfoCache!.Get(packageJsonPath);
+      const existing: $packagejson.InfoCacheEntry | undefined = r!.resolver!.packageJsonInfoCache!.Get(packageJsonPath);
       if (!(existing === undefined)) {
         if (!(existing!.Contents === undefined)) {
           if (!(r!.tracer_ === undefined)) {
@@ -3096,13 +3099,13 @@ export class resolutionState extends $rt.GoObject {
         }
       }
     }
-    let directoryExists: boolean = r!.resolver!.host!.FS$m()!.DirectoryExists(packageDirectory);
+    const directoryExists: boolean = r!.resolver!.host!.FS$m()!.DirectoryExists(packageDirectory);
     if (directoryExists && r!.resolver!.host!.FS$m()!.FileExists(packageJsonPath)) {
       const $t1 = r!.resolver!.host!.FS$m()!.ReadFile(packageJsonPath);
-      let contents: string = $t1[0];
+      const contents: string = $t1[0];
       const $t2 = $packagejson.Parse($rt.stringToBytes(contents));
-      let packageJsonContent: $packagejson.Fields = $t2[0];
-      let err: $rt.GoObject | undefined = $t2[1];
+      const packageJsonContent: $packagejson.Fields = $t2[0];
+      const err: $rt.GoObject | undefined = $t2[1];
       if (!(r!.tracer_ === undefined)) {
         tracer.write$nil(r!.tracer_, $diagnostics.Found_package_json_at_0, [new $rt.BoxStr(packageJsonPath, 'string')]);
       }
@@ -3131,16 +3134,16 @@ export class resolutionState extends $rt.GoObject {
   getPackageId(resolvedFileName: string, packageInfo: $packagejson.InfoCacheEntry | undefined): PackageId {
     const r = this;
     if ($packagejson.InfoCacheEntry.Exists$nil(packageInfo)) {
-      let packageJsonContent: $packagejson.PackageJson | undefined = packageInfo!.Contents;
+      const packageJsonContent: $packagejson.PackageJson | undefined = packageInfo!.Contents;
       {
         const $t1 = packageJsonContent!.Name.GetValue();
-        let name_: string = $t1[0];
-        let ok: boolean = $t1[1];
+        const name_: string = $t1[0];
+        const ok: boolean = $t1[1];
         if (ok) {
           {
             const $t2 = packageJsonContent!.Version.GetValue();
-            let version: string = $t2[0];
-            let ok$1: boolean = $t2[1];
+            const version: string = $t2[0];
+            const ok$1: boolean = $t2[1];
             if (ok$1) {
               let subModuleName: string = '';
               if (resolvedFileName.length > packageInfo!.PackageDirectory.length) {
@@ -3163,7 +3166,7 @@ export class resolutionState extends $rt.GoObject {
     const r = this;
     let peerDependencies: $packagejson.Expected<Map<string, string> | undefined> =
       packageJsonInfo!.Contents!.DependencyFields_.PeerDependencies.$clone_packagejson_Expected();
-    let ok: boolean = r!.validatePackageJSONField('peerDependencies', peerDependencies);
+    const ok: boolean = r!.validatePackageJSONField('peerDependencies', peerDependencies);
     if (!ok || $rt.mapLen(peerDependencies.Value) === (0 as number)) {
       return '';
     }
@@ -3174,22 +3177,22 @@ export class resolutionState extends $rt.GoObject {
         [] as ($rt.GoObject | undefined)[],
       );
     }
-    let packageDirectory: string = r!.realPath(packageJsonInfo!.PackageDirectory);
-    let nodeModulesIndex: number = $rt.strings_LastIndex(packageDirectory, '/node_modules');
+    const packageDirectory: string = r!.realPath(packageJsonInfo!.PackageDirectory);
+    const nodeModulesIndex: number = $rt.strings_LastIndex(packageDirectory, '/node_modules');
     if (nodeModulesIndex === (-1 as number)) {
       return '';
     }
-    let nodeModules: string = packageDirectory.substring(0, nodeModulesIndex + 13) + '/';
-    let names: string[] = $rt.slices_AppendSeq([] as string[], $rt.maps_Keys(peerDependencies.Value));
+    const nodeModules: string = packageDirectory.substring(0, nodeModulesIndex + 13) + '/';
+    const names: string[] = $rt.slices_AppendSeq([] as string[], $rt.maps_Keys(peerDependencies.Value));
     $rt.slices_Sort(names);
-    let builder: $rt.strings_Builder = new $rt.strings_Builder();
+    const builder: $rt.strings_Builder = new $rt.strings_Builder();
     {
       const $t1 = names;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        let name_ = $t1[$t2];
-        let peerPackageJson: $packagejson.InfoCacheEntry | undefined = r!.getPackageJsonInfo(nodeModules + name_);
+        const name_ = $t1[$t2];
+        const peerPackageJson: $packagejson.InfoCacheEntry | undefined = r!.getPackageJsonInfo(nodeModules + name_);
         if ($packagejson.InfoCacheEntry.Exists$nil(peerPackageJson)) {
-          let version: string = peerPackageJson!.Contents!.Version.Value;
+          const version: string = peerPackageJson!.Contents!.Version.Value;
           builder.WriteString('+');
           builder.WriteString(name_);
           builder.WriteString('@');
@@ -3209,7 +3212,7 @@ export class resolutionState extends $rt.GoObject {
   }
   realPath(path: string): string {
     const r = this;
-    let rp: string = $tspath.NormalizePath(r!.resolver!.host!.FS$m()!.Realpath(path));
+    const rp: string = $tspath.NormalizePath(r!.resolver!.host!.FS$m()!.Realpath(path));
     if (!(r!.tracer_ === undefined)) {
       tracer.write$nil(r!.tracer_, $diagnostics.Resolving_real_path_for_0_result_1, [
         new $rt.BoxStr(path, 'string'),
@@ -3256,7 +3259,7 @@ export class resolutionState extends $rt.GoObject {
       }
       return ['', false];
     }
-    let path: string = $tspath.NormalizePath($tspath.CombinePaths(directory, [field!.Value]));
+    const path: string = $tspath.NormalizePath($tspath.CombinePaths(directory, [field!.Value]));
     if (!(r!.tracer_ === undefined)) {
       tracer.write$nil(r!.tracer_, $diagnostics.X_package_json_has_0_field_1_that_references_2, [
         new $rt.BoxStr(fieldName, 'string'),
@@ -3322,12 +3325,12 @@ export class resolutionState extends $rt.GoObject {
           ) {
             return;
           }
-          let patternPath: string = $tspath.ResolvePath(packageJson!.PackageDirectory, [exports$1.AsString()]);
+          const patternPath: string = $tspath.ResolvePath(packageJson!.PackageDirectory, [exports$1.AsString()]);
           const $t1 = $rt.strings_Cut(patternPath, '*');
-          let leadingSlice: string = $t1[0];
-          let trailingSlice: string = $t1[1];
-          let caseSensitive: boolean = r!.resolver!.host!.FS$m()!.UseCaseSensitiveFileNames();
-          let files: string[] = $vfs_vfsmatch.ReadDirectory(
+          const leadingSlice: string = $t1[0];
+          const trailingSlice: string = $t1[1];
+          const caseSensitive: boolean = r!.resolver!.host!.FS$m()!.UseCaseSensitiveFileNames();
+          const files: string[] = $vfs_vfsmatch.ReadDirectory(
             r!.resolver!.host!.FS$m(),
             r!.resolver!.host!.GetCurrentDirectory(),
             packageJson!.PackageDirectory,
@@ -3339,14 +3342,14 @@ export class resolutionState extends $rt.GoObject {
           {
             const $t2 = files;
             for (let $t3 = 0, $n = $t2.length; $t3 < $n; $t3++) {
-              let file = $t2[$t3];
+              const file = $t2[$t3];
               const $t4 = r!.getMatchedStarForPatternEntrypoint(file, leadingSlice, trailingSlice, caseSensitive);
-              let matchedStar: string = $t4[0];
-              let ok: boolean = $t4[1];
+              const matchedStar: string = $t4[0];
+              const ok: boolean = $t4[1];
               if (!ok) {
                 continue;
               }
-              let moduleSpecifier: string = $tspath.ResolvePath(packageName, [
+              const moduleSpecifier: string = $tspath.ResolvePath(packageName, [
                 $rt.strings_Replace(subpath, '*', matchedStar, 1),
               ]);
               entrypoints.push(
@@ -3361,7 +3364,7 @@ export class resolutionState extends $rt.GoObject {
             }
           }
         } else {
-          let partsAfterFirst: string[] = $tspath.GetPathComponents(exports$1.AsString(), '').slice(2);
+          const partsAfterFirst: string[] = $tspath.GetPathComponents(exports$1.AsString(), '').slice(2);
           if (
             $rt.slices_Contains(partsAfterFirst, '..') ||
             $rt.slices_Contains(partsAfterFirst, '.') ||
@@ -3369,9 +3372,9 @@ export class resolutionState extends $rt.GoObject {
           ) {
             return;
           }
-          let resolvedTarget: string = $tspath.ResolvePath(packageJson!.PackageDirectory, [exports$1.AsString()]);
+          const resolvedTarget: string = $tspath.ResolvePath(packageJson!.PackageDirectory, [exports$1.AsString()]);
           {
-            let result: resolved | undefined = r!.loadFileNameFromPackageJSONField(
+            const result: resolved | undefined = r!.loadFileNameFromPackageJSONField(
               r!.extensions_,
               resolvedTarget,
               exports$1.AsString(),
@@ -3393,7 +3396,7 @@ export class resolutionState extends $rt.GoObject {
         {
           const $t5 = exports$1.AsArray$ExportsOrImports();
           for (let $t6 = 0, $n = $t5.length; $t6 < $n; $t6++) {
-            let element = $t5[$t6].$clone_packagejson_ExportsOrImports();
+            const element = $t5[$t6].$clone_packagejson_ExportsOrImports();
             loadEntrypointsFromTargetExports!(
               subpath,
               includeConditions,
@@ -3411,7 +3414,7 @@ export class resolutionState extends $rt.GoObject {
             if (!(excludeConditions === undefined) && excludeConditions!.Has(condition)) {
               return true;
             }
-            let conditionAlwaysMatches: boolean =
+            const conditionAlwaysMatches: boolean =
               condition === ('default' as string) ||
               condition === ('types' as string) ||
               IsApplicableVersionedTypesKey(condition);
@@ -3426,7 +3429,7 @@ export class resolutionState extends $rt.GoObject {
               {
                 const $t9 = prevConditions;
                 for (let $t10 = 0, $n = $t9.length; $t10 < $n; $t10++) {
-                  let prevCondition = $t9[$t10];
+                  const prevCondition = $t9[$t10];
                   if (excludeConditions === undefined) {
                     excludeConditions = new $collections.Set_<string>();
                   }
@@ -3455,7 +3458,7 @@ export class resolutionState extends $rt.GoObject {
           {
             const $t11 = exports.AsArray$ExportsOrImports();
             for (let $t12 = 0, $n = $t11.length; $t12 < $n; $t12++) {
-              let element$1 = $t11[$t12].$clone_packagejson_ExportsOrImports();
+              const element$1 = $t11[$t12].$clone_packagejson_ExportsOrImports();
               loadEntrypointsFromTargetExports!(
                 '.',
                 undefined,
@@ -3505,9 +3508,9 @@ export class resolutionState extends $rt.GoObject {
       return [file.substring(leadingSlice.length, file.length - trailingSlice.length), true];
     }
     {
-      let jsExtension: string = TryGetJSExtensionForFile(file, r!.compilerOptions);
+      const jsExtension: string = TryGetJSExtensionForFile(file, r!.compilerOptions);
       if (jsExtension.length > 0) {
-        let swapped: string = $tspath.ChangeFullExtension(file, jsExtension);
+        const swapped: string = $tspath.ChangeFullExtension(file, jsExtension);
         if ($stringutil.HasPrefixAndSuffixWithoutOverlap(swapped, leadingSlice, trailingSlice, caseSensitive)) {
           return [swapped.substring(leadingSlice.length, swapped.length - trailingSlice.length), true];
         }
@@ -3797,7 +3800,7 @@ export function newResolutionState(
   resolver: Resolver | undefined,
   traceBuilder: tracer | undefined,
 ): resolutionState | undefined {
-  let state: resolutionState | undefined = resolutionState.$lit_module_resolutionState_2_3_9_0_1(
+  const state: resolutionState | undefined = resolutionState.$lit_module_resolutionState_2_3_9_0_1(
     name_,
     containingDirectory,
     GetCompilerOptionsWithRedirect(compilerOptions, redirectedReference),
@@ -3845,7 +3848,7 @@ export function GetCompilerOptionsWithRedirect(
     return compilerOptions;
   }
   {
-    let optionsFromRedirect: $core.CompilerOptions | undefined = redirectedReference!.CompilerOptions$m();
+    const optionsFromRedirect: $core.CompilerOptions | undefined = redirectedReference!.CompilerOptions$m();
     if (!(optionsFromRedirect === undefined)) {
       return optionsFromRedirect;
     }
@@ -3875,7 +3878,7 @@ export function NewResolverWithOptions(
   projectName: string,
   opts: ResolverOptions,
 ): Resolver | undefined {
-  let r: Resolver | undefined = Resolver.$lit_module_Resolver_1_2_3_4(
+  const r: Resolver | undefined = Resolver.$lit_module_Resolver_1_2_3_4(
     host,
     compilerOptions,
     typingsLocation,
@@ -3894,7 +3897,7 @@ export function GetConditions(
   options: $core.CompilerOptions | undefined,
   resolutionMode: $core.ResolutionMode,
 ): string[] {
-  let moduleResolution: $core.ModuleResolutionKind = options!.GetModuleResolutionKind();
+  const moduleResolution: $core.ModuleResolutionKind = options!.GetModuleResolutionKind();
   if (resolutionMode === (0 as number) && moduleResolution === (100 as number)) {
     resolutionMode = 99;
   }
@@ -3948,7 +3951,7 @@ export function moveToNextDirectorySeparatorIfAvailable(
   prevSeparatorIndex: number,
   isFolder: boolean,
 ): number {
-  let offset: number = prevSeparatorIndex + 1;
+  const offset: number = prevSeparatorIndex + 1;
   let nextSeparatorIndex: number = -1;
   if (offset <= path.length) {
     nextSeparatorIndex = $rt.strings_IndexFrom(path, offset, '/');
@@ -3964,20 +3967,20 @@ export function moveToNextDirectorySeparatorIfAvailable(
 export function TryParsePatterns(
   pathMappings: $collections.OrderedMap<string, string[]> | undefined,
 ): ParsedPatterns | undefined {
-  let paths: ((p0: ((p0: string) => boolean) | undefined) => void) | undefined = pathMappings!.Keys();
+  const paths: ((p0: ((p0: string) => boolean) | undefined) => void) | undefined = pathMappings!.Keys();
   let numPatterns: number = 0;
   let $t1 = false;
   let $t2: ParsedPatterns | undefined = undefined as ParsedPatterns | undefined;
   paths!((path: string): boolean => {
     {
-      let pattern: $core.Pattern = $core.TryParsePattern(path);
+      const pattern: $core.Pattern = $core.TryParsePattern(path);
       if (pattern.IsValid() && pattern.StarIndex === (-1 as number)) {
         numPatterns++;
       }
     }
     return true;
   });
-  let numMatchables: number = pathMappings!.Size() - numPatterns;
+  const numMatchables: number = pathMappings!.Size() - numPatterns;
   let patterns: $core.Pattern[] = [];
   let matchableStringSet: $collections.Set_<string> = new $collections.Set_<string>();
   if (!(numPatterns === (0 as number))) {
@@ -3990,7 +3993,7 @@ export function TryParsePatterns(
   let $t4: ParsedPatterns | undefined = undefined as ParsedPatterns | undefined;
   paths!((path$1: string): boolean => {
     {
-      let pattern$1: $core.Pattern = $core.TryParsePattern(path$1);
+      const pattern$1: $core.Pattern = $core.TryParsePattern(path$1);
       if (pattern$1.IsValid()) {
         if (pattern$1.StarIndex === (-1 as number)) {
           matchableStringSet.Add(path$1);
@@ -4013,9 +4016,9 @@ export function MatchPatternOrExact(patterns: ParsedPatterns | undefined, candid
   return $core.FindBestPatternMatch<$core.Pattern>($zf3, patterns!.patterns, $core.Identity, candidate);
 }
 export function normalizePathForCJSResolution(containingDirectory: string, moduleName: string): string {
-  let combined: string = $tspath.CombinePaths(containingDirectory, [moduleName]);
-  let parts: string[] = $tspath.GetPathComponents(combined, '');
-  let lastPart: string = parts[parts.length - 1];
+  const combined: string = $tspath.CombinePaths(containingDirectory, [moduleName]);
+  const parts: string[] = $tspath.GetPathComponents(combined, '');
+  const lastPart: string = parts[parts.length - 1];
   if (lastPart === ('.' as string) || lastPart === ('..' as string)) {
     return $tspath.EnsureTrailingDirectorySeparator($tspath.NormalizePath(combined));
   }
@@ -4026,9 +4029,9 @@ export function matchesPatternWithTrailer(target: string, name_: string): boolea
     return false;
   }
   const $t1 = $rt.strings_Cut(target, '*');
-  let before: string = $t1[0];
-  let after: string = $t1[1];
-  let ok: boolean = $t1[2];
+  const before: string = $t1[0];
+  const after: string = $t1[1];
+  const ok: boolean = $t1[2];
   if (!ok) {
     return false;
   }
@@ -4058,7 +4061,7 @@ export function ResolveConfig(
   containingFile: string,
   host: ResolutionHost,
 ): ResolvedModule | undefined {
-  let resolver: Resolver | undefined = NewResolver(
+  const resolver: Resolver | undefined = NewResolver(
     host,
     $core.CompilerOptions.$lit_core_CompilerOptions_45(99),
     '',
@@ -4079,28 +4082,28 @@ export function GetAutomaticTypeDirectiveNames(
   }
   let wildcardMatches: string[] = [];
   const $t1 = options!.GetEffectiveTypeRoots(host!.GetCurrentDirectory());
-  let typeRoots: string[] = $t1[0];
+  const typeRoots: string[] = $t1[0];
   {
     const $t2 = typeRoots;
     for (let $t3 = 0, $n = $t2.length; $t3 < $n; $t3++) {
-      let root = $t2[$t3];
+      const root = $t2[$t3];
       if (host!.FS$m()!.DirectoryExists(root)) {
         {
           const $t4 = host!.FS$m()!.GetAccessibleEntries(root).Directories;
           for (let $t5 = 0, $n = $t4.length; $t5 < $n; $t5++) {
-            let typeDirectivePath = $t4[$t5];
-            let normalized: string = $tspath.NormalizePath(typeDirectivePath);
-            let packageJsonPath: string = $tspath.CombinePaths(root, [normalized, 'package.json']);
+            const typeDirectivePath = $t4[$t5];
+            const normalized: string = $tspath.NormalizePath(typeDirectivePath);
+            const packageJsonPath: string = $tspath.CombinePaths(root, [normalized, 'package.json']);
             let isNotNeededPackage: boolean = false;
             if (host!.FS$m()!.FileExists(packageJsonPath)) {
               const $t6 = host!.FS$m()!.ReadFile(packageJsonPath);
-              let contents: string = $t6[0];
+              const contents: string = $t6[0];
               const $t7 = $packagejson.Parse($rt.stringToBytes(contents));
-              let packageJsonContent: $packagejson.Fields = $t7[0];
+              const packageJsonContent: $packagejson.Fields = $t7[0];
               isNotNeededPackage = packageJsonContent.PathFields_.Typings.Null;
             }
             if (!isNotNeededPackage) {
-              let baseFileName: string = $tspath.GetBaseFileName(normalized);
+              const baseFileName: string = $tspath.GetBaseFileName(normalized);
               if (!$rt.strings_HasPrefix(baseFileName, '.')) {
                 wildcardMatches.push(baseFileName);
               }
@@ -4114,7 +4117,7 @@ export function GetAutomaticTypeDirectiveNames(
   {
     const $t8 = options!.Types;
     for (let $t9 = 0, $n = $t8.length; $t9 < $n; $t9++) {
-      let t = $t8[$t9];
+      const t = $t8[$t9];
       if (t === ('*' as string)) {
         $rt.appendInto(result, wildcardMatches);
       } else {
@@ -4161,20 +4164,20 @@ export function IsApplicableVersionedTypesKey(key: string): boolean {
     return false;
   }
   const $t1 = $semver.TryParseVersionRange(key.substring(6));
-  let range_: $semver.VersionRange = $t1[0];
-  let ok: boolean = $t1[1];
+  const range_: $semver.VersionRange = $t1[0];
+  const ok: boolean = $t1[1];
   if (!ok) {
     return false;
   }
   return range_.Test(typeScriptVersion);
 }
 export function ParseNodeModuleFromPath(resolved$v: string, isFolder: boolean): string {
-  let path: string = $tspath.NormalizePath(resolved$v);
-  let idx: number = $rt.strings_LastIndex(path, '/node_modules/');
+  const path: string = $tspath.NormalizePath(resolved$v);
+  const idx: number = $rt.strings_LastIndex(path, '/node_modules/');
   if (idx === (-1 as number)) {
     return '';
   }
-  let indexAfterNodeModules: number = idx + 14;
+  const indexAfterNodeModules: number = idx + 14;
   let indexAfterPackageName: number = moveToNextDirectorySeparatorIfAvailable(path, indexAfterNodeModules, isFolder);
   if (path.charCodeAt(indexAfterNodeModules) === (64 as number)) {
     indexAfterPackageName = moveToNextDirectorySeparatorIfAvailable(path, indexAfterPackageName, isFolder);
@@ -4186,7 +4189,7 @@ export function ParsePackageName(moduleName: string): [string, string] {
   let rest: string = '';
   let idx: number = $rt.strings_Index(moduleName, '/');
   if (moduleName.length > 0 && moduleName.charCodeAt(0) === (64 as number)) {
-    let offset: number = idx + 1;
+    const offset: number = idx + 1;
     idx = $rt.strings_IndexFrom(moduleName, offset, '/');
     if (!(idx === (-1 as number))) {
       idx += offset;
@@ -4199,7 +4202,7 @@ export function ParsePackageName(moduleName: string): [string, string] {
 }
 export function MangleScopedPackageName(packageName: string): string {
   if (packageName.length > 0 && packageName.charCodeAt(0) === (64 as number)) {
-    let idx: number = $rt.strings_Index(packageName, '/');
+    const idx: number = $rt.strings_Index(packageName, '/');
     if (idx === (-1 as number)) {
       return packageName;
     }
@@ -4209,9 +4212,9 @@ export function MangleScopedPackageName(packageName: string): string {
 }
 export function UnmangleScopedPackageName(packageName: string): string {
   const $t1 = $rt.strings_Cut(packageName, '__');
-  let before: string = $t1[0];
-  let after: string = $t1[1];
-  let ok: boolean = $t1[2];
+  const before: string = $t1[0];
+  const after: string = $t1[1];
+  const ok: boolean = $t1[2];
   if (ok) {
     return '@' + before + '/' + after;
   }
@@ -4221,15 +4224,15 @@ export function GetTypesPackageName(packageName: string): string {
   return '@types/' + MangleScopedPackageName(packageName);
 }
 export function GetPackageNameFromTypesPackageName(mangledName: string): string {
-  let withoutAtTypePrefix: string = $rt.strings_TrimPrefix(mangledName, '@types/');
+  const withoutAtTypePrefix: string = $rt.strings_TrimPrefix(mangledName, '@types/');
   if (!(withoutAtTypePrefix === mangledName)) {
     return UnmangleScopedPackageName(withoutAtTypePrefix);
   }
   return mangledName;
 }
 export function ComparePatternKeys(a: string, b: string): number {
-  let aPatternIndex: number = $rt.strings_Index(a, '*');
-  let bPatternIndex: number = $rt.strings_Index(b, '*');
+  const aPatternIndex: number = $rt.strings_Index(a, '*');
+  const bPatternIndex: number = $rt.strings_Index(b, '*');
   let baseLenA: number = a.length;
   if (!(aPatternIndex === (-1 as number))) {
     baseLenA = aPatternIndex + 1;
@@ -4263,13 +4266,13 @@ export function GetResolutionDiagnostic(
   resolvedModule: ResolvedModule | undefined,
   file: $ast.SourceFile | undefined,
 ): $diagnostics.Message | undefined {
-  let needJsx: (() => $diagnostics.Message | undefined) | undefined = (): $diagnostics.Message | undefined => {
+  const needJsx: (() => $diagnostics.Message | undefined) | undefined = (): $diagnostics.Message | undefined => {
     if (!(options!.Jsx === (0 as number))) {
       return undefined;
     }
     return $diagnostics.Module_0_was_resolved_to_1_but_jsx_is_not_set;
   };
-  let needAllowJs: (() => $diagnostics.Message | undefined) | undefined = (): $diagnostics.Message | undefined => {
+  const needAllowJs: (() => $diagnostics.Message | undefined) | undefined = (): $diagnostics.Message | undefined => {
     if (
       options!.GetAllowJS() ||
       !$core.Tristate$IsTrue($core.Tristate$DefaultIfUnknown(options!.NoImplicitAny, options!.Strict))
@@ -4278,7 +4281,7 @@ export function GetResolutionDiagnostic(
     }
     return $diagnostics.Could_not_find_a_declaration_file_for_module_0_1_implicitly_has_an_any_type;
   };
-  let needResolveJsonModule: (() => $diagnostics.Message | undefined) | undefined = ():
+  const needResolveJsonModule: (() => $diagnostics.Message | undefined) | undefined = ():
     | $diagnostics.Message
     | undefined => {
     if (options!.GetResolveJsonModule()) {
@@ -4286,7 +4289,7 @@ export function GetResolutionDiagnostic(
     }
     return $diagnostics.Module_0_was_resolved_to_1_but_resolveJsonModule_is_not_used;
   };
-  let needAllowArbitraryExtensions: (() => $diagnostics.Message | undefined) | undefined = ():
+  const needAllowArbitraryExtensions: (() => $diagnostics.Message | undefined) | undefined = ():
     | $diagnostics.Message
     | undefined => {
     if (file!.IsDeclarationFile || $core.Tristate$IsTrue(options!.AllowArbitraryExtensions)) {
@@ -4312,7 +4315,7 @@ export function GetResolutionDiagnostic(
       }
       case '.jsx' as string: {
         {
-          let message: $diagnostics.Message | undefined = needJsx!();
+          const message: $diagnostics.Message | undefined = needJsx!();
           if (!(message === undefined)) {
             return message;
           }
@@ -4334,7 +4337,7 @@ export function GetResolutionDiagnostic(
   }
 }
 export function TryGetJSExtensionForFile(fileName: string, options: $core.CompilerOptions | undefined): string {
-  let ext: string = $tspath.TryGetExtensionFromPath(fileName);
+  const ext: string = $tspath.TryGetExtensionFromPath(fileName);
   {
     switch (ext) {
       case '.ts' as string:

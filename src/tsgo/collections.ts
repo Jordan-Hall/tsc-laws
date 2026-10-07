@@ -26,15 +26,15 @@ export class CopyOnWriteMap<K, V> extends $rt.GoObject {
     const c = this;
     const $t1 = c!.m;
     const $t2 = k;
-    let v: V = $rt.structMapGet($t1, $t2, this.$z_V());
-    let ok: boolean = $t1 !== undefined && $t1.has($t2);
+    const v: V = $rt.structMapGet($t1, $t2, this.$z_V());
+    const ok: boolean = $t1 !== undefined && $t1.has($t2);
     return [v, ok];
   }
   Has(k: K): boolean {
     const c = this;
     const $t1 = c!.m;
     const $t2 = k;
-    let ok: boolean = $t1 !== undefined && $t1.has($t2);
+    const ok: boolean = $t1 !== undefined && $t1.has($t2);
     return ok;
   }
   Set(k: K, v: V): void {
@@ -56,7 +56,7 @@ export class CopyOnWriteMap<K, V> extends $rt.GoObject {
   }
   EnterScope(): (() => void) | undefined {
     const c = this;
-    let saved: CopyOnWriteMap<K, V> = c!.$clone_collections_CopyOnWriteMap();
+    const saved: CopyOnWriteMap<K, V> = c!.$clone_collections_CopyOnWriteMap();
     c!.owned = false;
     return (): void => {
       c!.$copy_collections_CopyOnWriteMap(saved);
@@ -76,7 +76,7 @@ export class CopyOnWriteSet<K> extends $rt.GoObject {
   Has(k: K): boolean {
     const c = this;
     const $t1 = c!.m.Get(k);
-    let ok: boolean = $t1[1];
+    const ok: boolean = $t1[1];
     return ok;
   }
   Add(k: K): void {
@@ -138,7 +138,7 @@ export class MultiMap<K, V> extends $rt.GoObject {
     const s = this;
     const $t1 = s!.M;
     const $t2 = key;
-    let ok: boolean = $t1 !== undefined && $t1.has($t2);
+    const ok: boolean = $t1 !== undefined && $t1.has($t2);
     return ok;
   }
   Get(key: K): V[] {
@@ -162,9 +162,9 @@ export class MultiMap<K, V> extends $rt.GoObject {
       const $t1 = s!.M;
       const $t2 = key;
       let values: V[] = $t1?.get($t2) ?? [];
-      let ok: boolean = $t1 !== undefined && $t1.has($t2);
+      const ok: boolean = $t1 !== undefined && $t1.has($t2);
       if (ok) {
-        let i: number = $rt.slices_Index(values, value);
+        const i: number = $rt.slices_Index(values, value);
         if (i >= 0) {
           if (values.length === (1 as number)) {
             s!.M?.delete(key);
@@ -240,7 +240,7 @@ export class OrderedMap<K, V> extends $rt.GoObject {
     {
       const $t1 = m!.mp;
       const $t2 = key;
-      let ok: boolean = $t1 !== undefined && $t1.has($t2);
+      const ok: boolean = $t1 !== undefined && $t1.has($t2);
       if (!ok) {
         m!.keys.push(key);
       }
@@ -251,8 +251,8 @@ export class OrderedMap<K, V> extends $rt.GoObject {
     const m = this;
     const $t1 = m!.mp;
     const $t2 = key;
-    let v: V = $rt.structMapGet($t1, $t2, this.$z_V());
-    let ok: boolean = $t1 !== undefined && $t1.has($t2);
+    const v: V = $rt.structMapGet($t1, $t2, this.$z_V());
+    const ok: boolean = $t1 !== undefined && $t1.has($t2);
     return [v, ok];
   }
   GetOrZero(key: K): V {
@@ -262,42 +262,42 @@ export class OrderedMap<K, V> extends $rt.GoObject {
   EntryAt(index: number): [K, V, boolean] {
     const m = this;
     if (index < 0 || index >= m!.keys.length) {
-      let zero: K = this.$z_K();
-      let zeroV: V = this.$z_V();
+      const zero: K = this.$z_K();
+      const zeroV: V = this.$z_V();
       return [zero, zeroV, false];
     }
-    let key: K = m!.keys[index];
-    let value: V = $rt.structMapGet(m!.mp, key, this.$z_V());
+    const key: K = m!.keys[index];
+    const value: V = $rt.structMapGet(m!.mp, key, this.$z_V());
     return [key, value, true];
   }
   Has(key: K): boolean {
     const m = this;
     const $t1 = m!.mp;
     const $t2 = key;
-    let ok: boolean = $t1 !== undefined && $t1.has($t2);
+    const ok: boolean = $t1 !== undefined && $t1.has($t2);
     return ok;
   }
   Delete(key: K): [V, boolean] {
     const m = this;
     const $t1 = m!.mp;
     const $t2 = key;
-    let v: V = $rt.structMapGet($t1, $t2, this.$z_V());
-    let ok: boolean = $t1 !== undefined && $t1.has($t2);
+    const v: V = $rt.structMapGet($t1, $t2, this.$z_V());
+    const ok: boolean = $t1 !== undefined && $t1.has($t2);
     if (!ok) {
-      let zero: V = this.$z_V();
+      const zero: V = this.$z_V();
       return [zero, false];
     }
     m!.mp?.delete(key);
-    let i: number = $rt.slices_Index(m!.keys, key);
+    const i: number = $rt.slices_Index(m!.keys, key);
     if (i === (0 as number)) {
-      let zero$1: K = this.$z_K();
+      const zero$1: K = this.$z_K();
       m!.keys[0] = zero$1;
       m!.keys = m!.keys.slice(1);
     } else {
       {
-        let end: number = m!.keys.length - 1;
+        const end: number = m!.keys.length - 1;
         if (i === end) {
-          let zero$2: K = this.$z_K();
+          const zero$2: K = this.$z_K();
           m!.keys[end] = zero$2;
           m!.keys = $rt.truncate(m!.keys, end, this.$z_K());
         } else {
@@ -345,7 +345,7 @@ export class OrderedMap<K, V> extends $rt.GoObject {
       }
       {
         for (let i: number = 0; i < m!.keys.length; i++) {
-          let key: K = m!.keys[i];
+          const key: K = m!.keys[i];
           if (!yield_!(key, $rt.structMapGet(m!.mp, key, this.$z_V()))) {
             break;
           }
@@ -386,7 +386,7 @@ export class OrderedMap<K, V> extends $rt.GoObject {
   MarshalJSONTo(enc: $rt.github_com_go_json_experiment_json_jsontext_Encoder | undefined): $rt.GoObject | undefined {
     const m = this;
     {
-      let err: $rt.GoObject | undefined = enc!.WriteToken($json.BeginObject);
+      const err: $rt.GoObject | undefined = enc!.WriteToken($json.BeginObject);
       if (!(err === undefined)) {
         return err;
       }
@@ -394,15 +394,15 @@ export class OrderedMap<K, V> extends $rt.GoObject {
     {
       const $t1 = m!.keys;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        let k = $t1[$t2];
+        const k = $t1[$t2];
         const $t3 = resolveKeyName($rt.reflect_ValueOf($rt.boxAny(k)));
-        let keyString: string = $t3[0];
-        let err$1: $rt.GoObject | undefined = $t3[1];
+        const keyString: string = $t3[0];
+        const err$1: $rt.GoObject | undefined = $t3[1];
         if (!(err$1 === undefined)) {
           return err$1;
         }
         {
-          let err$2: $rt.GoObject | undefined = $json.MarshalEncode(
+          const err$2: $rt.GoObject | undefined = $json.MarshalEncode(
             enc,
             new $rt.BoxStr(keyString, 'string'),
             [] as ($rt.github_com_go_json_experiment_json_internal_jsonopts_Options | undefined)[],
@@ -412,7 +412,7 @@ export class OrderedMap<K, V> extends $rt.GoObject {
           }
         }
         {
-          let err$3: $rt.GoObject | undefined = $json.MarshalEncode(
+          const err$3: $rt.GoObject | undefined = $json.MarshalEncode(
             enc,
             $rt.boxAny($rt.structMapGet(m!.mp, k, this.$z_V())),
             [] as ($rt.github_com_go_json_experiment_json_internal_jsonopts_Options | undefined)[],
@@ -430,8 +430,8 @@ export class OrderedMap<K, V> extends $rt.GoObject {
   ): $rt.GoObject | undefined {
     const m = this;
     const $t1 = dec!.ReadToken();
-    let token: $rt.github_com_go_json_experiment_json_jsontext_Token = $t1[0];
-    let err: $rt.GoObject | undefined = $t1[1];
+    const token: $rt.github_com_go_json_experiment_json_jsontext_Token = $t1[0];
+    const err: $rt.GoObject | undefined = $t1[1];
     if (!(err === undefined)) {
       return err;
     }
@@ -445,7 +445,7 @@ export class OrderedMap<K, V> extends $rt.GoObject {
       let key: K = this.$z_K();
       let value: V = this.$z_V();
       {
-        let err$1: $rt.GoObject | undefined = $json.UnmarshalDecode(
+        const err$1: $rt.GoObject | undefined = $json.UnmarshalDecode(
           dec,
           $rt.ptrTo<K>(
             (): K => key,
@@ -460,7 +460,7 @@ export class OrderedMap<K, V> extends $rt.GoObject {
         }
       }
       {
-        let err$2: $rt.GoObject | undefined = $json.UnmarshalDecode(
+        const err$2: $rt.GoObject | undefined = $json.UnmarshalDecode(
           dec,
           $rt.ptrTo<V>(
             (): V => value,
@@ -478,7 +478,7 @@ export class OrderedMap<K, V> extends $rt.GoObject {
     }
     {
       const $t2 = dec!.ReadToken();
-      let err$3: $rt.GoObject | undefined = $t2[1];
+      const err$3: $rt.GoObject | undefined = $t2[1];
       if (!(err$3 === undefined)) {
         return err$3;
       }
@@ -518,7 +518,7 @@ export class OrderedSet<T> extends $rt.GoObject {
   Delete(value: T): boolean {
     const s = this;
     const $t1 = s!.m.Delete(value);
-    let ok: boolean = $t1[1];
+    const ok: boolean = $t1[1];
     return ok;
   }
   Values(): ((p0: ((p0: T) => boolean) | undefined) => void) | undefined {
@@ -560,7 +560,7 @@ export class Set_<T> extends $rt.GoObject {
     }
     const $t1 = s!.M;
     const $t2 = key;
-    let ok: boolean = $t1 !== undefined && $t1.has($t2);
+    const ok: boolean = $t1 !== undefined && $t1.has($t2);
     return ok;
   }
   Add(key: T): void {
@@ -608,7 +608,7 @@ export class Set_<T> extends $rt.GoObject {
     if (s === undefined) {
       return undefined;
     }
-    let clone: Set_<T> | undefined = Set_.$lit_collections_Set_0<T>($rt.maps_Clone(s!.M));
+    const clone: Set_<T> | undefined = Set_.$lit_collections_Set_0<T>($rt.maps_Clone(s!.M));
     return clone;
   }
   Union(other: Set_<T> | undefined): void {
@@ -696,7 +696,7 @@ export class SyncSet<T> extends $rt.GoObject {
   Has(key: T): boolean {
     const s = this;
     const $t1 = s!.m.Load(key);
-    let ok: boolean = $t1[1];
+    const ok: boolean = $t1[1];
     return ok;
   }
   Add(key: T): void {
@@ -706,7 +706,7 @@ export class SyncSet<T> extends $rt.GoObject {
   AddIfAbsent(key: T): boolean {
     const s = this;
     const $t1 = s!.m.LoadOrStore(key, $rt.EMPTY);
-    let loaded: boolean = $t1[1];
+    const loaded: boolean = $t1[1];
     return !loaded;
   }
   Delete(key: T): void {
@@ -781,11 +781,11 @@ export function NewMultiMapWithSizeHint<K, V>(hint: number): MultiMap<K, V> | un
   return MultiMap.$lit_collections_MultiMap_0<K, V>(new Map<K, V[]>());
 }
 export function GroupBy<K, V>(items: V[], groupId: ((p0: V) => K) | undefined): MultiMap<K, V> | undefined {
-  let m: MultiMap<K, V> | undefined = new MultiMap<K, V>();
+  const m: MultiMap<K, V> | undefined = new MultiMap<K, V>();
   {
     const $t1 = items;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let item = $t1[$t2];
+      const item = $t1[$t2];
       m!.Add(groupId!(item), item);
     }
   }
@@ -812,11 +812,11 @@ export function NewOrderedMapFromList<K, V>(
   $z_V: () => V,
   items: MapEntry<K, V>[],
 ): OrderedMap<K, V> | undefined {
-  let mp: OrderedMap<K, V> | undefined = NewOrderedMapWithSizeHint<K, V>($z_K, $z_V, items.length);
+  const mp: OrderedMap<K, V> | undefined = NewOrderedMapWithSizeHint<K, V>($z_K, $z_V, items.length);
   {
     const $t1 = items;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let item = $t1[$t2];
+      const item = $t1[$t2];
       mp!.Set(item.Key, item.Value);
     }
   }
@@ -828,15 +828,15 @@ export function resolveKeyName(k: $rt.reflect_Value): [string, $rt.GoObject | un
   }
   {
     const $t1 = $rt.reflect_TypeAssert<$rt.encoding_TextMarshaler | undefined>(k);
-    let tm: $rt.encoding_TextMarshaler | undefined = $t1[0];
-    let ok: boolean = $t1[1];
+    const tm: $rt.encoding_TextMarshaler | undefined = $t1[0];
+    const ok: boolean = $t1[1];
     if (ok) {
       if (k.Kind() === (22 as number) && k.IsNil()) {
         return ['', undefined];
       }
       const $t2 = tm!.MarshalText();
-      let buf: number[] = $t2[0];
-      let err: $rt.GoObject | undefined = $t2[1];
+      const buf: number[] = $t2[0];
+      const err: $rt.GoObject | undefined = $t2[1];
       return [$rt.bytesToString(buf), err];
     }
   }
@@ -892,7 +892,7 @@ export function DiffOrderedMapsFunc<K, V>(
   m2!.Entries()!((k: K, v2: V): boolean => {
     {
       const $t3 = m1!.Get(k);
-      let ok: boolean = $t3[1];
+      const ok: boolean = $t3[1];
       if (!ok) {
         onAdded!(k, v2);
       }
@@ -904,8 +904,8 @@ export function DiffOrderedMapsFunc<K, V>(
   m1!.Entries()!((k$1: K, v1: V): boolean => {
     {
       const $t6 = m2!.Get(k$1);
-      let v2$1: V = $t6[0];
-      let ok$1: boolean = $t6[1];
+      const v2$1: V = $t6[0];
+      const ok$1: boolean = $t6[1];
       if (ok$1) {
         if (!equalValues!(v1, v2$1)) {
           onModified!(k$1, v1, v2$1);
@@ -924,11 +924,11 @@ export function NewSetWithSizeHint<T>(hint: number): Set_<T> | undefined {
   return Set_.$lit_collections_Set_0<T>(new Map<T, $rt.Empty>());
 }
 export function NewSetFromItems<T>(items: T[]): Set_<T> | undefined {
-  let s: Set_<T> | undefined = new Set_<T>();
+  const s: Set_<T> | undefined = new Set_<T>();
   {
     const $t1 = items;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let item = $t1[$t2];
+      const item = $t1[$t2];
       s!.Add(item);
     }
   }

@@ -16,14 +16,14 @@ export function WithLocale(ctx: $rt.context_Context | undefined, locale: Locale)
 export function FromContext(ctx: $rt.context_Context | undefined): Locale {
   const $t1: $rt.GoObject | undefined = ctx!.Value(new $rt.BoxNum(0, 'locale.contextKey'));
   const $t2: boolean = $t1 instanceof $rt.golang_org_x_text_language_Tag;
-  let locale: Locale = $t2 ? ($t1 as Locale) : new $rt.golang_org_x_text_language_Tag();
+  const locale: Locale = $t2 ? ($t1 as Locale) : new $rt.golang_org_x_text_language_Tag();
   return locale;
 }
 export function Parse(localeStr: string): [Locale, boolean] {
   let locale: Locale = new $rt.golang_org_x_text_language_Tag();
   let ok: boolean = false;
   const $t1 = $rt.golang_org_x_text_language_Parse(localeStr);
-  let tag: $rt.golang_org_x_text_language_Tag = $t1[0];
-  let err: $rt.GoObject | undefined = $t1[1];
+  const tag: $rt.golang_org_x_text_language_Tag = $t1[0];
+  const err: $rt.GoObject | undefined = $t1[1];
   return [tag, err === undefined];
 }

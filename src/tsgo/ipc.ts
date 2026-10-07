@@ -76,8 +76,8 @@ export class AsyncConn extends $rt.GoObject {
           break $body;
         }
         const $t1 = $rt.nn(c!.protocol).ReadMessage();
-        let msg: $jsonrpc.Message | undefined = $t1[0];
-        let err$1: $rt.GoObject | undefined = $t1[1];
+        const msg: $jsonrpc.Message | undefined = $t1[0];
+        const err$1: $rt.GoObject | undefined = $t1[1];
         if (!(err$1 === undefined)) {
           if ($rt.errors_Is(err$1, $rt.io_EOF)) {
             err = undefined;
@@ -134,8 +134,8 @@ export class AsyncConn extends $rt.GoObject {
     c!.pendingMu.Lock();
     const $t1 = c!.pending;
     const $t2 = msg!.ID_!.$clone_jsonrpc_ID();
-    let ch: $rt.Chan<$jsonrpc.Message | undefined> | undefined = $rt.structMapGet($t1, $t2, undefined);
-    let ok: boolean = $t1 !== undefined && $t1.has($t2);
+    const ch: $rt.Chan<$jsonrpc.Message | undefined> | undefined = $rt.structMapGet($t1, $t2, undefined);
+    const ok: boolean = $t1 !== undefined && $t1.has($t2);
     if (ok) {
       c!.pending?.delete(msg!.ID_!.$clone_jsonrpc_ID());
     }
@@ -154,7 +154,7 @@ export class AsyncConn extends $rt.GoObject {
         switch (msg!.Method) {
           case 'getServerTiming' as string: {
             c!.writeMu.Lock();
-            let writeErr: $rt.GoObject | undefined = $rt
+            const writeErr: $rt.GoObject | undefined = $rt
               .nn(c!.protocol)
               .WriteResponse(msg!.ID_, serverTimingSnapshot(c!.timing));
             c!.writeMu.Unlock();
@@ -173,7 +173,7 @@ export class AsyncConn extends $rt.GoObject {
               c!.timing!.reset();
             }
             c!.writeMu.Lock();
-            let writeErr$1: $rt.GoObject | undefined = $rt.nn(c!.protocol).WriteResponse(msg!.ID_, undefined);
+            const writeErr$1: $rt.GoObject | undefined = $rt.nn(c!.protocol).WriteResponse(msg!.ID_, undefined);
             c!.writeMu.Unlock();
             if (!(writeErr$1 === undefined)) {
               throw $rt.newPanic(
@@ -195,12 +195,12 @@ export class AsyncConn extends $rt.GoObject {
       }
       $defers.push((): void => {
         {
-          let r: $rt.GoObject | undefined = $rt.recover();
+          const r: $rt.GoObject | undefined = $rt.recover();
           if (!(r === undefined)) {
-            let stack: string = $rt.bytesToString($rt.runtime_debug_Stack());
+            const stack: string = $rt.bytesToString($rt.runtime_debug_Stack());
             err = $rt.fmt_Errorf('panic: %v\n%s', [r, new $rt.BoxStr(stack, 'string')]);
             c!.writeMu.Lock();
-            let writeErr$2: $rt.GoObject | undefined = $rt
+            const writeErr$2: $rt.GoObject | undefined = $rt
               .nn(c!.protocol)
               .WriteError(msg!.ID_, $jsonrpc.ResponseError.$lit_jsonrpc_ResponseError_0_1(-32603, err!.Error()));
             c!.writeMu.Unlock();
@@ -264,15 +264,15 @@ export class AsyncConn extends $rt.GoObject {
     const $defers: (() => void)[] = [];
     let $panic: $rt.Panic | undefined = undefined;
     $body: try {
-      let id: $jsonrpc.ID | undefined = $jsonrpc.NewIDString(
+      const id: $jsonrpc.ID | undefined = $jsonrpc.NewIDString(
         $rt.fmt_Sprintf('api%d', [new $rt.BoxNum((c!.seq = c!.seq + 1), 'int64')]),
       );
-      let responseChan: $rt.Chan<$jsonrpc.Message | undefined> | undefined = $rt.unsupportedAs<
+      const responseChan: $rt.Chan<$jsonrpc.Message | undefined> | undefined = $rt.unsupportedAs<
         $rt.Chan<$jsonrpc.Message | undefined> | undefined
       >('make channel');
       c!.pendingMu.Lock();
       if (!(c!.terminal === undefined)) {
-        let err: $rt.GoObject | undefined = c!.terminal;
+        const err: $rt.GoObject | undefined = c!.terminal;
         c!.pendingMu.Unlock();
         const $t3: [$json.Value, $rt.GoObject | undefined] = [[], err];
         $t1 = $t3[0];
@@ -293,8 +293,8 @@ export class AsyncConn extends $rt.GoObject {
           {
             const $t5 = c!.pending;
             const $t6 = id!.$clone_jsonrpc_ID();
-            let ch: $rt.Chan<$jsonrpc.Message | undefined> | undefined = $rt.structMapGet($t5, $t6, undefined);
-            let ok: boolean = $t5 !== undefined && $t5.has($t6);
+            const ch: $rt.Chan<$jsonrpc.Message | undefined> | undefined = $rt.structMapGet($t5, $t6, undefined);
+            const ok: boolean = $t5 !== undefined && $t5.has($t6);
             if (ok) {
               $rt.unsupportedAs<[]>('builtin close');
               c!.pending?.delete(id!.$clone_jsonrpc_ID());
@@ -308,7 +308,7 @@ export class AsyncConn extends $rt.GoObject {
         if ($panic !== undefined) throw $panic;
       });
       c!.writeMu.Lock();
-      let err$1: $rt.GoObject | undefined = $rt.nn(c!.protocol).WriteRequest(id, method, params);
+      const err$1: $rt.GoObject | undefined = $rt.nn(c!.protocol).WriteRequest(id, method, params);
       c!.writeMu.Unlock();
       if (!(err$1 === undefined)) {
         const $t7: [$json.Value, $rt.GoObject | undefined] = [[], err$1];
@@ -337,7 +337,7 @@ export class AsyncConn extends $rt.GoObject {
     $body: try {
       c!.pendingMu.Lock();
       if (!(c!.terminal === undefined)) {
-        let err: $rt.GoObject | undefined = c!.terminal;
+        const err: $rt.GoObject | undefined = c!.terminal;
         c!.pendingMu.Unlock();
         $t1 = err;
         break $body;
@@ -390,14 +390,14 @@ export class JSONRPCProtocol extends $rt.GoObject {
   ReadMessage(): [$jsonrpc.Message | undefined, $rt.GoObject | undefined] {
     const p = this;
     const $t1 = p!.reader!.Read();
-    let data: number[] = $t1[0];
-    let err: $rt.GoObject | undefined = $t1[1];
+    const data: number[] = $t1[0];
+    const err: $rt.GoObject | undefined = $t1[1];
     if (!(err === undefined)) {
       return [undefined, err];
     }
     let msg: Message = new $jsonrpc.Message();
     {
-      let err$1: $rt.GoObject | undefined = $json.Unmarshal(
+      const err$1: $rt.GoObject | undefined = $json.Unmarshal(
         data,
         msg,
         [] as ($rt.github_com_go_json_experiment_json_internal_jsonopts_Options | undefined)[],
@@ -414,13 +414,13 @@ export class JSONRPCProtocol extends $rt.GoObject {
     params: $rt.GoObject | undefined,
   ): $rt.GoObject | undefined {
     const p = this;
-    let msg: $jsonrpc.RequestMessage = $jsonrpc.RequestMessage.$lit_jsonrpc_RequestMessage_1_2_3(id, method, params);
+    const msg: $jsonrpc.RequestMessage = $jsonrpc.RequestMessage.$lit_jsonrpc_RequestMessage_1_2_3(id, method, params);
     const $t1 = $json.Marshal(
       msg,
       [] as ($rt.github_com_go_json_experiment_json_internal_jsonopts_Options | undefined)[],
     );
-    let data: number[] = $t1[0];
-    let err: $rt.GoObject | undefined = $t1[1];
+    const data: number[] = $t1[0];
+    const err: $rt.GoObject | undefined = $t1[1];
     if (!(err === undefined)) {
       return err;
     }
@@ -428,13 +428,13 @@ export class JSONRPCProtocol extends $rt.GoObject {
   }
   WriteNotification(method: string, params: $rt.GoObject | undefined): $rt.GoObject | undefined {
     const p = this;
-    let msg: $jsonrpc.RequestMessage = $jsonrpc.RequestMessage.$lit_jsonrpc_RequestMessage_2_3(method, params);
+    const msg: $jsonrpc.RequestMessage = $jsonrpc.RequestMessage.$lit_jsonrpc_RequestMessage_2_3(method, params);
     const $t1 = $json.Marshal(
       msg,
       [] as ($rt.github_com_go_json_experiment_json_internal_jsonopts_Options | undefined)[],
     );
-    let data: number[] = $t1[0];
-    let err: $rt.GoObject | undefined = $t1[1];
+    const data: number[] = $t1[0];
+    const err: $rt.GoObject | undefined = $t1[1];
     if (!(err === undefined)) {
       return err;
     }
@@ -445,13 +445,13 @@ export class JSONRPCProtocol extends $rt.GoObject {
     if (result === undefined) {
       result = new $boxes.Box_json_Value($rt.stringToBytes('null'));
     }
-    let msg: $jsonrpc.ResponseMessage = $jsonrpc.ResponseMessage.$lit_jsonrpc_ResponseMessage_1_2(id, result);
+    const msg: $jsonrpc.ResponseMessage = $jsonrpc.ResponseMessage.$lit_jsonrpc_ResponseMessage_1_2(id, result);
     const $t1 = $json.Marshal(
       msg,
       [] as ($rt.github_com_go_json_experiment_json_internal_jsonopts_Options | undefined)[],
     );
-    let data: number[] = $t1[0];
-    let err: $rt.GoObject | undefined = $t1[1];
+    const data: number[] = $t1[0];
+    const err: $rt.GoObject | undefined = $t1[1];
     if (!(err === undefined)) {
       return err;
     }
@@ -459,13 +459,13 @@ export class JSONRPCProtocol extends $rt.GoObject {
   }
   WriteError(id: $jsonrpc.ID | undefined, respErr: $jsonrpc.ResponseError | undefined): $rt.GoObject | undefined {
     const p = this;
-    let msg: $jsonrpc.ResponseMessage = $jsonrpc.ResponseMessage.$lit_jsonrpc_ResponseMessage_1_3(id, respErr);
+    const msg: $jsonrpc.ResponseMessage = $jsonrpc.ResponseMessage.$lit_jsonrpc_ResponseMessage_1_3(id, respErr);
     const $t1 = $json.Marshal(
       msg,
       [] as ($rt.github_com_go_json_experiment_json_internal_jsonopts_Options | undefined)[],
     );
-    let data: number[] = $t1[0];
-    let err: $rt.GoObject | undefined = $t1[1];
+    const data: number[] = $t1[0];
+    const err: $rt.GoObject | undefined = $t1[1];
     if (!(err === undefined)) {
       return err;
     }
@@ -635,8 +635,8 @@ export class SyncConn extends $rt.GoObject {
       }
       c!.mu.Lock();
       const $t1 = $rt.nn(c!.protocol).ReadMessage();
-      let msg: $jsonrpc.Message | undefined = $t1[0];
-      let err: $rt.GoObject | undefined = $t1[1];
+      const msg: $jsonrpc.Message | undefined = $t1[0];
+      const err: $rt.GoObject | undefined = $t1[1];
       c!.mu.Unlock();
       if (!(err === undefined)) {
         if ($rt.errors_Is(err, $rt.io_EOF)) {
@@ -662,7 +662,7 @@ export class SyncConn extends $rt.GoObject {
         switch (msg!.Method) {
           case 'getServerTiming' as string: {
             c!.mu.Lock();
-            let writeErr: $rt.GoObject | undefined = $rt
+            const writeErr: $rt.GoObject | undefined = $rt
               .nn(c!.protocol)
               .WriteResponse(msg!.ID_, serverTimingSnapshot(c!.timing));
             c!.mu.Unlock();
@@ -681,7 +681,7 @@ export class SyncConn extends $rt.GoObject {
               c!.timing!.reset();
             }
             c!.mu.Lock();
-            let writeErr$1: $rt.GoObject | undefined = $rt.nn(c!.protocol).WriteResponse(msg!.ID_, undefined);
+            const writeErr$1: $rt.GoObject | undefined = $rt.nn(c!.protocol).WriteResponse(msg!.ID_, undefined);
             c!.mu.Unlock();
             if (!(writeErr$1 === undefined)) {
               throw $rt.newPanic(
@@ -703,12 +703,12 @@ export class SyncConn extends $rt.GoObject {
       }
       $defers.push((): void => {
         {
-          let r: $rt.GoObject | undefined = $rt.recover();
+          const r: $rt.GoObject | undefined = $rt.recover();
           if (!(r === undefined)) {
-            let stack: string = $rt.bytesToString($rt.runtime_debug_Stack());
+            const stack: string = $rt.bytesToString($rt.runtime_debug_Stack());
             err = $rt.fmt_Errorf('panic: %v\n%s', [r, new $rt.BoxStr(stack, 'string')]);
             c!.mu.Lock();
-            let writeErr$2: $rt.GoObject | undefined = $rt
+            const writeErr$2: $rt.GoObject | undefined = $rt
               .nn(c!.protocol)
               .WriteError(msg!.ID_, $jsonrpc.ResponseError.$lit_jsonrpc_ResponseError_0_1(-32603, err!.Error()));
             c!.mu.Unlock();
@@ -777,9 +777,9 @@ export class SyncConn extends $rt.GoObject {
       $defers.push(() => {
         $t3.Unlock();
       });
-      let id: $jsonrpc.ID | undefined = $jsonrpc.NewIDString(method);
+      const id: $jsonrpc.ID | undefined = $jsonrpc.NewIDString(method);
       {
-        let err: $rt.GoObject | undefined = $rt.nn(c!.protocol).WriteRequest(id, method, params);
+        const err: $rt.GoObject | undefined = $rt.nn(c!.protocol).WriteRequest(id, method, params);
         if (!(err === undefined)) {
           const $t4: [$json.Value, $rt.GoObject | undefined] = [[], err];
           $t1 = $t4[0];
@@ -794,8 +794,8 @@ export class SyncConn extends $rt.GoObject {
         break $body;
       }
       const $t6 = $rt.nn(c!.protocol).ReadMessage();
-      let msg: $jsonrpc.Message | undefined = $t6[0];
-      let err$1: $rt.GoObject | undefined = $t6[1];
+      const msg: $jsonrpc.Message | undefined = $t6[0];
+      const err$1: $rt.GoObject | undefined = $t6[1];
       if (!(err$1 === undefined)) {
         const $t7: [$json.Value, $rt.GoObject | undefined] = [[], err$1];
         $t1 = $t7[0];
@@ -999,8 +999,8 @@ export class stdioConn extends $rt.GoObject {
   }
   Close(): $rt.GoObject | undefined {
     const c = this;
-    let err1: $rt.GoObject | undefined = c!.stdin!.Close();
-    let err2: $rt.GoObject | undefined = c!.stdout!.Close();
+    const err1: $rt.GoObject | undefined = c!.stdin!.Close();
+    const err2: $rt.GoObject | undefined = c!.stdout!.Close();
     if (!(err1 === undefined)) {
       return err1;
     }
@@ -1038,7 +1038,7 @@ export class timingCollector extends $rt.GoObject {
     const $defers: (() => void)[] = [];
     let $panic: $rt.Panic | undefined = undefined;
     $body: try {
-      let processingMs: number = durationToMillis(d);
+      const processingMs: number = durationToMillis(d);
       c!.mu.Lock();
       const $t1 = c!.mu;
       $defers.push(() => {
@@ -1046,7 +1046,7 @@ export class timingCollector extends $rt.GoObject {
       });
       c!.totals.RequestCount++;
       c!.totals.TotalProcessingTimeMs += processingMs;
-      let entry: serverRequestTiming = serverRequestTiming.$lit_ipc_serverRequestTiming_0_1_2(
+      const entry: serverRequestTiming = serverRequestTiming.$lit_ipc_serverRequestTiming_0_1_2(
         method,
         processingMs,
         $rt.time_Now().UnixMilli(),
@@ -1079,7 +1079,7 @@ export class timingCollector extends $rt.GoObject {
       {
         const $t3 = c!.ring;
         for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
-          let i = $t4;
+          const i = $t4;
           recent.push(c!.ring[$rt.imod(c!.head + i, c!.ring.length)]);
         }
       }
@@ -1131,7 +1131,7 @@ export function UnmarshalParams<T>(
   }
   let v: T = $z_T();
   {
-    let err: $rt.GoObject | undefined = $json.Unmarshal(
+    const err: $rt.GoObject | undefined = $json.Unmarshal(
       params,
       $rt.ptrTo<T>(
         (): T => v,
@@ -1215,8 +1215,8 @@ export function durationToMillis(d: number): number {
 }
 export function NewPipeTransport(path: string): [PipeTransport | undefined, $rt.GoObject | undefined] {
   const $t1 = newPipeListener(path);
-  let listener: $rt.net_Listener | undefined = $t1[0];
-  let err: $rt.GoObject | undefined = $t1[1];
+  const listener: $rt.net_Listener | undefined = $t1[0];
+  const err: $rt.GoObject | undefined = $t1[1];
   if (!(err === undefined)) {
     return [undefined, err];
   }

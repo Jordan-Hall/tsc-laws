@@ -548,7 +548,7 @@ export class MappedDiagnosticDirective extends $rt.GoObject {
     const d = this;
     let tuple: $json.Value[] = [];
     {
-      let err: $rt.GoObject | undefined = $json.UnmarshalDecode(
+      const err: $rt.GoObject | undefined = $json.UnmarshalDecode(
         dec,
         $rt.ptrTo<$json.Value[]>(
           (): $json.Value[] => tuple,
@@ -568,7 +568,7 @@ export class MappedDiagnosticDirective extends $rt.GoObject {
       ]);
     }
     d!.$copy_contentmapper_MappedDiagnosticDirective(new MappedDiagnosticDirective());
-    let fields: ($rt.GoObject | undefined)[] = [
+    const fields: ($rt.GoObject | undefined)[] = [
       (($t1: MappedDiagnosticDirective) =>
         $rt.ptrTo<number>(
           (): number => $t1.OriginalStart,
@@ -608,10 +608,10 @@ export class MappedDiagnosticDirective extends $rt.GoObject {
     {
       const $t6 = fields;
       for (let $t7 = 0, $n = $t6.length; $t7 < $n; $t7++) {
-        let i = $t7;
-        let field = $t6[$t7];
+        const i = $t7;
+        const field = $t6[$t7];
         {
-          let err$1: $rt.GoObject | undefined = $json.Unmarshal(
+          const err$1: $rt.GoObject | undefined = $json.Unmarshal(
             tuple[i],
             field,
             [] as ($rt.github_com_go_json_experiment_json_internal_jsonopts_Options | undefined)[],
@@ -634,7 +634,7 @@ export class MappedDiagnosticDirective extends $rt.GoObject {
         },
       );
       {
-        let err$2: $rt.GoObject | undefined = $json.Unmarshal(
+        const err$2: $rt.GoObject | undefined = $json.Unmarshal(
           tuple[5],
           d!.UnusedExpectDirectiveIndex,
           [] as ($rt.github_com_go_json_experiment_json_internal_jsonopts_Options | undefined)[],
@@ -752,12 +752,12 @@ export class Mapper extends Definition {
   TransformIdentity(options: $core.CompilerOptions | undefined): $rt.github_com_zeebo_xxh3_Uint128 {
     const m = this;
     const $t1 = m!.MarshalDeclaredOptions(options);
-    let declared: $collections.OrderedMap<string, $json.Value> | undefined = $t1[0];
+    const declared: $collections.OrderedMap<string, $json.Value> | undefined = $t1[0];
     const $t2 = $json.Marshal(
       new $boxes.Box__collections_OrderedMap_string__json_Value_(declared),
       [] as ($rt.github_com_go_json_experiment_json_internal_jsonopts_Options | undefined)[],
     );
-    let optionsJSON: number[] = $t2[0];
+    const optionsJSON: number[] = $t2[0];
     let buf: number[] = [] as number[];
     $rt.appendInto(buf, $rt.stringToBytes(m!.Identity()));
     buf.push(0);
@@ -770,27 +770,27 @@ export class Mapper extends Definition {
     options: $core.CompilerOptions | undefined,
   ): [$collections.OrderedMap<string, $json.Value> | undefined, $rt.GoObject | undefined] {
     const m = this;
-    let out_: $collections.OrderedMap<string, $json.Value> | undefined = $collections.NewOrderedMapWithSizeHint<
+    const out_: $collections.OrderedMap<string, $json.Value> | undefined = $collections.NewOrderedMapWithSizeHint<
       string,
       $json.Value
     >($zf0, $zf1, m!.Manifest_.CompilerOptions.length);
     if (options === undefined || m!.Manifest_.CompilerOptions.length === (0 as number)) {
       return [out_, undefined];
     }
-    let fields: Map<string, number> | undefined = compilerOptionFields!();
-    let v: $rt.reflect_Value = $rt.reflect_ValueOf(options).Elem();
+    const fields: Map<string, number> | undefined = compilerOptionFields!();
+    const v: $rt.reflect_Value = $rt.reflect_ValueOf(options).Elem();
     {
       const $t1 = m!.Manifest_.CompilerOptions;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        let name_ = $t1[$t2];
+        const name_ = $t1[$t2];
         const $t3 = fields;
         const $t4 = name_;
-        let i: number = $t3?.get($t4) ?? 0;
-        let ok: boolean = $t3 !== undefined && $t3.has($t4);
+        const i: number = $t3?.get($t4) ?? 0;
+        const ok: boolean = $t3 !== undefined && $t3.has($t4);
         if (!ok) {
           continue;
         }
-        let field: $rt.reflect_Value = v.Field(i);
+        const field: $rt.reflect_Value = v.Field(i);
         if (field.IsZero()) {
           continue;
         }
@@ -798,8 +798,8 @@ export class Mapper extends Definition {
           field.Interface(),
           [] as ($rt.github_com_go_json_experiment_json_internal_jsonopts_Options | undefined)[],
         );
-        let raw: number[] = $t5[0];
-        let err: $rt.GoObject | undefined = $t5[1];
+        const raw: number[] = $t5[0];
+        const err: $rt.GoObject | undefined = $t5[1];
         if (!(err === undefined)) {
           return [undefined, err];
         }
@@ -1249,12 +1249,12 @@ export class Timings extends $rt.GoObject {
   }
   Since(previous: Timings): Timings {
     const t = this;
-    let result: Timings = Timings.$lit_contentmapper_Timings_0_1(
+    const result: Timings = Timings.$lit_contentmapper_Timings_0_1(
       new Map<string, MapperTimings>(),
       Math.max(t.RequestWait - previous.RequestWait, 0),
     );
     for (const [identity, current] of t.Mappers ?? new Map<string, MapperTimings>()) {
-      let before: MapperTimings = previous.Mappers?.get(identity) ?? MapperTimings$zero;
+      const before: MapperTimings = previous.Mappers?.get(identity) ?? MapperTimings$zero;
       result.Mappers!.set(
         identity,
         MapperTimings.$lit_contentmapper_MapperTimings_0_1_2_3_4(
@@ -1414,10 +1414,10 @@ export class closeOnceReadWriteCloser extends $rt.GoObject {
     {
       const $t1: $ipc.stdioConn | closeOnceReadWriteCloser | loggedProcess | undefined = c!.ReadWriteCloser_;
       const $t2: boolean = $t1 instanceof closeOnceReadWriteCloser;
-      let state: processExitState = $t2
+      const state: processExitState = $t2
         ? closeOnceReadWriteCloser.$cast_contentmapper_closeOnceReadWriteCloser($t1)
         : undefined;
-      let ok: boolean = $t2;
+      const ok: boolean = $t2;
       if (ok) {
         return state!.ExitCode();
       }
@@ -1535,7 +1535,7 @@ export class host extends $rt.GoObject {
       {
         const $t4 = closers;
         for (let $t5 = 0, $n = $t4.length; $t5 < $n; $t5++) {
-          let closer = $t4[$t5];
+          const closer = $t4[$t5];
           closer!.Close();
         }
       }
@@ -1557,7 +1557,7 @@ export class host extends $rt.GoObject {
       $defers.push(() => {
         $t2.RUnlock();
       });
-      let key: string = projectSpecKey(spec);
+      const key: string = projectSpecKey(spec);
       h!.mu.Lock();
       const $t3 = h!.mu;
       $defers.push(() => {
@@ -1568,13 +1568,13 @@ export class host extends $rt.GoObject {
         break $body;
       }
       {
-        let lease: projectLease | undefined = h!.projectLeases?.get(key) ?? undefined;
+        const lease: projectLease | undefined = h!.projectLeases?.get(key) ?? undefined;
         if (!(lease === undefined)) {
           $t1 = lease!.retainLocked();
           break $body;
         }
       }
-      let lease$1: projectLease | undefined = projectLease.$lit_contentmapper_projectLease_0_1_2_3(
+      const lease$1: projectLease | undefined = projectLease.$lit_contentmapper_projectLease_0_1_2_3(
         h,
         key,
         $rt.slices_Clone(spec.Mappers),
@@ -1584,13 +1584,13 @@ export class host extends $rt.GoObject {
       {
         const $t4 = spec.Mappers;
         for (let $t5 = 0, $n = $t4.length; $t5 < $n; $t5++) {
-          let mapper = $t4[$t5];
-          let entryKey: string = $rt.fmt_Sprintf('%s:%d', [
+          const mapper = $t4[$t5];
+          const entryKey: string = $rt.fmt_Sprintf('%s:%d', [
             new $rt.BoxStr(mapper!.Identity(), 'string'),
             new $rt.BoxNum(h!.nextProjectID, 'uint64'),
           ]);
           h!.nextProjectID++;
-          let entry: projectEntry | undefined = projectEntry.$lit_contentmapper_projectEntry_0_1_2(
+          const entry: projectEntry | undefined = projectEntry.$lit_contentmapper_projectEntry_0_1_2(
             mapper,
             spec,
             entryKey,
@@ -1622,8 +1622,8 @@ export class host extends $rt.GoObject {
       return undefined;
     }
     const $t1 = h!.connForLocked(entry!.mapper);
-    let conn: $ipc.Conn = $t1[0];
-    let diagnosticSource: string = $t1[2];
+    const conn: $ipc.Conn = $t1[0];
+    const diagnosticSource: string = $t1[2];
     let err: $rt.GoObject | undefined = $t1[3];
     if (!(err === undefined)) {
       return err;
@@ -1632,13 +1632,13 @@ export class host extends $rt.GoObject {
       entry!.spec.CompilerOptions_,
       [] as ($rt.github_com_go_json_experiment_json_internal_jsonopts_Options | undefined)[],
     );
-    let compilerOptions: number[] = $t2[0];
+    const compilerOptions: number[] = $t2[0];
     err = $t2[1];
     if (!(err === undefined)) {
       return err;
     }
-    let mapperTiming: mapperTimingCollector | undefined = h!.timing!.mapper(entry!.mapper!.Identity());
-    let start: $rt.time_Time = mapperTiming!.startRequest();
+    const mapperTiming: mapperTimingCollector | undefined = h!.timing!.mapper(entry!.mapper!.Identity());
+    const start: $rt.time_Time = mapperTiming!.startRequest();
     const $t3 = $rt
       .nn(conn)
       .Call(
@@ -1651,7 +1651,7 @@ export class host extends $rt.GoObject {
           compilerOptions,
         ),
       );
-    let raw: $json.Value = $t3[0];
+    const raw: $json.Value = $t3[0];
     err = $t3[1];
     mapperTiming!.finishRequest(mapperTiming!.openProject, start);
     if (!(err === undefined)) {
@@ -1659,7 +1659,7 @@ export class host extends $rt.GoObject {
     }
     let result: OpenProjectResult = new OpenProjectResult();
     {
-      let err$1: $rt.GoObject | undefined = $json.Unmarshal(
+      const err$1: $rt.GoObject | undefined = $json.Unmarshal(
         raw,
         result,
         [] as ($rt.github_com_go_json_experiment_json_internal_jsonopts_Options | undefined)[],
@@ -1681,7 +1681,7 @@ export class host extends $rt.GoObject {
     {
       const $t4 = result.WatchedFiles;
       for (let $t5 = 0, $n = $t4.length; $t5 < $n; $t5++) {
-        let fileName = $t4[$t5];
+        const fileName = $t4[$t5];
         if (!$tspath.PathIsAbsolute(fileName)) {
           return ProjectError.$lit_contentmapper_ProjectError_0(2);
         }
@@ -1692,23 +1692,23 @@ export class host extends $rt.GoObject {
     {
       const $t6 = result.OptionDiagnostics;
       for (let $t7 = 0, $n = $t6.length; $t7 < $n; $t7++) {
-        let i = $t7;
-        let diagnostic = $t6[$t7];
-        let path: OptionPathSegment[] = $rt.makeSliceFn<OptionPathSegment>(
+        const i = $t7;
+        const diagnostic = $t6[$t7];
+        const path: OptionPathSegment[] = $rt.makeSliceFn<OptionPathSegment>(
           diagnostic.Path.length,
           () => new OptionPathSegment(),
         );
         {
           const $t8 = diagnostic.Path;
           for (let $t9 = 0, $n = $t8.length; $t9 < $n; $t9++) {
-            let j = $t9;
-            let rawSegment = $t8[$t9];
+            const j = $t9;
+            const rawSegment = $t8[$t9];
             {
               switch ($rt.github_com_go_json_experiment_json_jsontext_Value$Kind(rawSegment)) {
                 case 34 as number: {
                   let property: string = '';
                   {
-                    let err$2: $rt.GoObject | undefined = $json.Unmarshal(
+                    const err$2: $rt.GoObject | undefined = $json.Unmarshal(
                       rawSegment,
                       $rt.ptrTo<string>(
                         (): string => property,
@@ -1728,7 +1728,7 @@ export class host extends $rt.GoObject {
                 case 48 as number: {
                   let index: number = 0;
                   {
-                    let err$3: $rt.GoObject | undefined = $json.Unmarshal(
+                    const err$3: $rt.GoObject | undefined = $json.Unmarshal(
                       rawSegment,
                       $rt.ptrTo<number>(
                         (): number => index,
@@ -1767,30 +1767,30 @@ export class host extends $rt.GoObject {
   }
   closeProject(mapper: Mapper | undefined, conn: $ipc.Conn, projectHandle: string): $rt.GoObject | undefined {
     const h = this;
-    let mapperTiming: mapperTimingCollector | undefined = h!.timing!.mapper(mapper!.Identity());
-    let start: $rt.time_Time = mapperTiming!.startRequest();
+    const mapperTiming: mapperTimingCollector | undefined = h!.timing!.mapper(mapper!.Identity());
+    const start: $rt.time_Time = mapperTiming!.startRequest();
     const $t1 = $rt
       .nn(conn)
       .Call(h!.ctx, 'closeProject', CloseProjectParams.$lit_contentmapper_CloseProjectParams_0(projectHandle));
-    let err: $rt.GoObject | undefined = $t1[1];
+    const err: $rt.GoObject | undefined = $t1[1];
     mapperTiming!.finishRequest(mapperTiming!.closeProject, start);
     return err;
   }
   Acquire(mappers: (Mapper | undefined)[]): (() => void) | undefined {
     const h = this;
-    let seen: Map<string, $rt.Empty> | undefined = new Map<string, $rt.Empty>();
+    const seen: Map<string, $rt.Empty> | undefined = new Map<string, $rt.Empty>();
     let identities: string[] = [] as string[];
     h!.mu.Lock();
     if (!(h!.conns === undefined)) {
       {
         const $t1 = mappers;
         for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-          let mapper = $t1[$t2];
-          let identity: string = mapper!.Identity();
+          const mapper = $t1[$t2];
+          const identity: string = mapper!.Identity();
           {
             const $t3 = seen;
             const $t4 = identity;
-            let ok: boolean = $t3 !== undefined && $t3.has($t4);
+            const ok: boolean = $t3 !== undefined && $t3.has($t4);
             if (ok) {
               continue;
             }
@@ -1818,7 +1818,7 @@ export class host extends $rt.GoObject {
     const $defers: (() => void)[] = [];
     let $panic: $rt.Panic | undefined = undefined;
     $body: try {
-      let project: Project = h!.Project$m(
+      const project: Project = h!.Project$m(
         ProjectSpec.$lit_contentmapper_ProjectSpec_1_2([mapper], new $core.CompilerOptions()),
       );
       const $t3 = project;
@@ -1847,15 +1847,15 @@ export class host extends $rt.GoObject {
       return [new Result(), $rt.errors_New('content mapper project handle is required')];
     }
     const $t1 = h!.connFor(mapper);
-    let conn: $ipc.Conn = $t1[0];
-    let positionEncoding: PositionEncoding = $t1[1];
-    let diagnosticSource: string = $t1[2];
+    const conn: $ipc.Conn = $t1[0];
+    const positionEncoding: PositionEncoding = $t1[1];
+    const diagnosticSource: string = $t1[2];
     let err: $rt.GoObject | undefined = $t1[3];
     if (!(err === undefined)) {
       return [new Result(), NewTransformError(1, err)];
     }
-    let mapperTiming: mapperTimingCollector | undefined = h!.timing!.mapper(mapper!.Identity());
-    let start: $rt.time_Time = mapperTiming!.startRequest();
+    const mapperTiming: mapperTimingCollector | undefined = h!.timing!.mapper(mapper!.Identity());
+    const start: $rt.time_Time = mapperTiming!.startRequest();
     const $t2 = $rt
       .nn(conn)
       .Call(
@@ -1863,14 +1863,14 @@ export class host extends $rt.GoObject {
         'transform',
         TransformParams.$lit_contentmapper_TransformParams_0_1_2(request.FileName, request.Content, projectHandle),
       );
-    let raw: $json.Value = $t2[0];
+    const raw: $json.Value = $t2[0];
     err = $t2[1];
     mapperTiming!.finishRequest(mapperTiming!.transform, start);
     if (!(err === undefined)) {
       return [new Result(), NewTransformError(3, err)];
     }
     const $t3 = decodeTransformResult(raw, request.Content, positionEncoding, diagnosticSource);
-    let decoded: Result = $t3[0];
+    const decoded: Result = $t3[0];
     err = $t3[1];
     if (!(err === undefined)) {
       return [new Result(), NewTransformError(4, err)];
@@ -1915,9 +1915,9 @@ export class host extends $rt.GoObject {
       {
         const $t4 = closers;
         for (let $t5 = 0, $n = $t4.length; $t5 < $n; $t5++) {
-          let closer = $t4[$t5];
+          const closer = $t4[$t5];
           {
-            let err: $rt.GoObject | undefined = closer!.Close();
+            const err: $rt.GoObject | undefined = closer!.Close();
             if (!(err === undefined)) {
               errs.push(err);
             }
@@ -1967,7 +1967,7 @@ export class host extends $rt.GoObject {
     if (h!.conns === undefined) {
       return [undefined, '', '', $rt.errors_New('content mapper host is closed')];
     }
-    let identity: string = mapper!.Identity();
+    const identity: string = mapper!.Identity();
     let entry: mapperConn | undefined = h!.conns?.get(identity) ?? undefined;
     if (entry === undefined) {
       entry = new mapperConn();
@@ -1977,8 +1977,8 @@ export class host extends $rt.GoObject {
       return [entry!.conn, entry!.positionEncoding, entry!.diagnosticSource, entry!.err];
     }
     const $t1 = h!.dial!(h!.ctx, mapper, h!.diagnosticLocale);
-    let conn: $ipc.Conn = $t1[0];
-    let closer:
+    const conn: $ipc.Conn = $t1[0];
+    const closer:
       | $ipc.PipeTransport
       | $ipc.StdioTransport
       | $ipc.stdioConn
@@ -1988,9 +1988,9 @@ export class host extends $rt.GoObject {
       | projectLease
       | retainedProject
       | undefined = $t1[1];
-    let positionEncoding: PositionEncoding = $t1[2];
-    let diagnosticSource: string = $t1[3];
-    let err: $rt.GoObject | undefined = $t1[4];
+    const positionEncoding: PositionEncoding = $t1[2];
+    const diagnosticSource: string = $t1[3];
+    const err: $rt.GoObject | undefined = $t1[4];
     entry!.conn = conn;
     entry!.closer = closer;
     entry!.err = err;
@@ -2016,8 +2016,8 @@ export class host extends $rt.GoObject {
       {
         const $t1 = identities;
         for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-          let identity = $t1[$t2];
-          let entry: mapperConn | undefined = h!.conns?.get(identity) ?? undefined;
+          const identity = $t1[$t2];
+          const entry: mapperConn | undefined = h!.conns?.get(identity) ?? undefined;
           if (entry === undefined) {
             continue;
           }
@@ -2035,7 +2035,7 @@ export class host extends $rt.GoObject {
     {
       const $t3 = closers;
       for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
-        let closer = $t3[$t4];
+        const closer = $t3[$t4];
         closer!.Close();
       }
     }
@@ -2071,7 +2071,7 @@ export class loggedProcess extends $rt.GoObject {
   }
   Close(): $rt.GoObject | undefined {
     const p = this;
-    let err: $rt.GoObject | undefined = p!.ReadWriteCloser_!.Close();
+    const err: $rt.GoObject | undefined = p!.ReadWriteCloser_!.Close();
     p!.stderr!.flush();
     return err;
   }
@@ -2113,8 +2113,8 @@ export class loggingProtocol extends $rt.GoObject {
       message,
       [] as ($rt.github_com_go_json_experiment_json_internal_jsonopts_Options | undefined)[],
     );
-    let data: number[] = $t1[0];
-    let err: $rt.GoObject | undefined = $t1[1];
+    const data: number[] = $t1[0];
+    const err: $rt.GoObject | undefined = $t1[1];
     if (!(err === undefined)) {
       p!.logger!(
         $rt.fmt_Sprintf('[content mapper: %s] %s: <failed to serialize: %v>', [
@@ -2136,8 +2136,8 @@ export class loggingProtocol extends $rt.GoObject {
   ReadMessage(): [$jsonrpc.Message | undefined, $rt.GoObject | undefined] {
     const p = this;
     const $t1 = $rt.nn(p!.Protocol_).ReadMessage();
-    let message: $jsonrpc.Message | undefined = $t1[0];
-    let err: $rt.GoObject | undefined = $t1[1];
+    const message: $jsonrpc.Message | undefined = $t1[0];
+    const err: $rt.GoObject | undefined = $t1[1];
     if (err === undefined) {
       p!.log('receive', message);
     }
@@ -2149,7 +2149,7 @@ export class loggingProtocol extends $rt.GoObject {
     params: $rt.GoObject | undefined,
   ): $rt.GoObject | undefined {
     const p = this;
-    let message: $jsonrpc.RequestMessage = $jsonrpc.RequestMessage.$lit_jsonrpc_RequestMessage_1_2_3(
+    const message: $jsonrpc.RequestMessage = $jsonrpc.RequestMessage.$lit_jsonrpc_RequestMessage_1_2_3(
       id,
       method,
       params,
@@ -2159,19 +2159,19 @@ export class loggingProtocol extends $rt.GoObject {
   }
   WriteNotification(method: string, params: $rt.GoObject | undefined): $rt.GoObject | undefined {
     const p = this;
-    let message: $jsonrpc.RequestMessage = $jsonrpc.RequestMessage.$lit_jsonrpc_RequestMessage_2_3(method, params);
+    const message: $jsonrpc.RequestMessage = $jsonrpc.RequestMessage.$lit_jsonrpc_RequestMessage_2_3(method, params);
     p!.log('send', message);
     return $rt.nn(p!.Protocol_).WriteNotification(method, params);
   }
   WriteResponse(id: $jsonrpc.ID | undefined, result: $rt.GoObject | undefined): $rt.GoObject | undefined {
     const p = this;
-    let message: $jsonrpc.ResponseMessage = $jsonrpc.ResponseMessage.$lit_jsonrpc_ResponseMessage_1_2(id, result);
+    const message: $jsonrpc.ResponseMessage = $jsonrpc.ResponseMessage.$lit_jsonrpc_ResponseMessage_1_2(id, result);
     p!.log('send', message);
     return $rt.nn(p!.Protocol_).WriteResponse(id, result);
   }
   WriteError(id: $jsonrpc.ID | undefined, responseError: $jsonrpc.ResponseError | undefined): $rt.GoObject | undefined {
     const p = this;
-    let message: $jsonrpc.ResponseMessage = $jsonrpc.ResponseMessage.$lit_jsonrpc_ResponseMessage_1_3(
+    const message: $jsonrpc.ResponseMessage = $jsonrpc.ResponseMessage.$lit_jsonrpc_ResponseMessage_1_3(
       id,
       responseError,
     );
@@ -2349,8 +2349,8 @@ export class positionNormalizer extends $rt.GoObject {
   normalizeTextPos(position: $core.TextPos): [$core.TextPos, $rt.GoObject | undefined] {
     const n = this;
     const $t1 = n!.normalize(position);
-    let normalized: number = $t1[0];
-    let err: $rt.GoObject | undefined = $t1[1];
+    const normalized: number = $t1[0];
+    const err: $rt.GoObject | undefined = $t1[1];
     return [normalized | 0, err];
   }
   normalize(position: number): [number, $rt.GoObject | undefined] {
@@ -2485,12 +2485,12 @@ export class projectLease extends $rt.GoObject {
       }
       let result: $rt.GoObject | undefined = undefined as $rt.GoObject | undefined;
       for (const [$t4, key] of p!.entries ?? new Map<Mapper | undefined, string>()) {
-        let entry: projectEntry | undefined = p!.host_!.projects?.get(key) ?? undefined;
+        const entry: projectEntry | undefined = p!.host_!.projects?.get(key) ?? undefined;
         if (entry === undefined || !entry!.opened) {
           continue;
         }
         {
-          let connEntry: mapperConn | undefined = p!.host_!.conns?.get(entry!.mapper!.Identity()) ?? undefined;
+          const connEntry: mapperConn | undefined = p!.host_!.conns?.get(entry!.mapper!.Identity()) ?? undefined;
           if (!(connEntry === undefined) && !(connEntry!.conn === undefined)) {
             result = $rt.errors_Join([
               result,
@@ -2537,15 +2537,15 @@ export class projectLease extends $rt.GoObject {
       {
         const $t6 = p!.mappers;
         for (let $t7 = 0, $n = $t6.length; $t7 < $n; $t7++) {
-          let mapper = $t6[$t7];
-          let key: string = p!.entries?.get(mapper) ?? '';
-          let entry: projectEntry | undefined = p!.host_!.projects?.get(key) ?? undefined;
+          const mapper = $t6[$t7];
+          const key: string = p!.entries?.get(mapper) ?? '';
+          const entry: projectEntry | undefined = p!.host_!.projects?.get(key) ?? undefined;
           if (entry === undefined) {
             continue;
           }
           if (mapper!.Manifest_.DynamicConfig) {
             {
-              let err: $rt.GoObject | undefined = p!.host_!.openProjectLocked(p!.host_!.ctx, entry);
+              const err: $rt.GoObject | undefined = p!.host_!.openProjectLocked(p!.host_!.ctx, entry);
               if (!(err === undefined)) {
                 const $t8: [string[], $rt.GoObject | undefined] = [[], err];
                 $t1 = $t8[0];
@@ -2555,7 +2555,7 @@ export class projectLease extends $rt.GoObject {
             }
             identities.push(combinedIdentity(mapper, entry!.configIdentity, entry!.spec.CompilerOptions_));
           } else {
-            let hash: number[] = mapper!.TransformIdentity(entry!.spec.CompilerOptions_).Bytes();
+            const hash: number[] = mapper!.TransformIdentity(entry!.spec.CompilerOptions_).Bytes();
             identities.push(mapper!.Identity() + ':' + $rt.encoding_hex_EncodeToString(hash.slice()));
           }
         }
@@ -2597,15 +2597,15 @@ export class projectLease extends $rt.GoObject {
       }
       const $t6 = p!.entries;
       const $t7 = mapper;
-      let key: string = $t6?.get($t7) ?? '';
-      let ok: boolean = $t6 !== undefined && $t6.has($t7);
+      const key: string = $t6?.get($t7) ?? '';
+      const ok: boolean = $t6 !== undefined && $t6.has($t7);
       if (!ok) {
         const $t8: [string, $rt.GoObject | undefined] = ['', undefined];
         $t1 = $t8[0];
         $t2 = $t8[1];
         break $body;
       }
-      let entry: projectEntry | undefined = p!.host_!.projects?.get(key) ?? undefined;
+      const entry: projectEntry | undefined = p!.host_!.projects?.get(key) ?? undefined;
       if (entry === undefined) {
         const $t9: [string, $rt.GoObject | undefined] = ['', undefined];
         $t1 = $t9[0];
@@ -2614,7 +2614,7 @@ export class projectLease extends $rt.GoObject {
       }
       if (mapper!.Manifest_.DynamicConfig) {
         {
-          let err: $rt.GoObject | undefined = p!.host_!.openProjectLocked(p!.host_!.ctx, entry);
+          const err: $rt.GoObject | undefined = p!.host_!.openProjectLocked(p!.host_!.ctx, entry);
           if (!(err === undefined)) {
             const $t10: [string, $rt.GoObject | undefined] = ['', err];
             $t1 = $t10[0];
@@ -2630,7 +2630,7 @@ export class projectLease extends $rt.GoObject {
         $t2 = $t11[1];
         break $body;
       }
-      let hash: number[] = mapper!.TransformIdentity(entry!.spec.CompilerOptions_).Bytes();
+      const hash: number[] = mapper!.TransformIdentity(entry!.spec.CompilerOptions_).Bytes();
       const $t12: [string, $rt.GoObject | undefined] = [
         mapper!.Identity() + ':' + $rt.encoding_hex_EncodeToString(hash.slice()),
         undefined,
@@ -2671,13 +2671,13 @@ export class projectLease extends $rt.GoObject {
       }
       let files: string[] = [];
       for (const [$t6, key] of p!.entries ?? new Map<Mapper | undefined, string>()) {
-        let entry: projectEntry | undefined = p!.host_!.projects?.get(key) ?? undefined;
+        const entry: projectEntry | undefined = p!.host_!.projects?.get(key) ?? undefined;
         if (entry === undefined) {
           continue;
         }
         if (entry!.mapper!.Manifest_.DynamicConfig) {
           {
-            let err: $rt.GoObject | undefined = p!.host_!.openProjectLocked(p!.host_!.ctx, entry);
+            const err: $rt.GoObject | undefined = p!.host_!.openProjectLocked(p!.host_!.ctx, entry);
             if (!(err === undefined)) {
               const $t7: [string[], $rt.GoObject | undefined] = [[], err];
               $t1 = $t7[0];
@@ -2725,8 +2725,8 @@ export class projectLease extends $rt.GoObject {
       {
         const $t4 = p!.mappers;
         for (let $t5 = 0, $n = $t4.length; $t5 < $n; $t5++) {
-          let mapper = $t4[$t5];
-          let entry: projectEntry | undefined = p!.host_!.projects?.get(p!.entries?.get(mapper) ?? '') ?? undefined;
+          const mapper = $t4[$t5];
+          const entry: projectEntry | undefined = p!.host_!.projects?.get(p!.entries?.get(mapper) ?? '') ?? undefined;
           if (entry === undefined) {
             continue;
           }
@@ -2759,7 +2759,7 @@ export class projectLease extends $rt.GoObject {
         $t3.RUnlock();
       });
       p!.host_!.mu.Lock();
-      let entry: projectEntry | undefined = p!.host_!.projects?.get(p!.entries?.get(mapper) ?? '') ?? undefined;
+      const entry: projectEntry | undefined = p!.host_!.projects?.get(p!.entries?.get(mapper) ?? '') ?? undefined;
       if (entry === undefined) {
         p!.host_!.mu.Unlock();
         const $t4: [Result, $rt.GoObject | undefined] = [
@@ -2771,12 +2771,12 @@ export class projectLease extends $rt.GoObject {
         break $body;
       }
       {
-        let err: $rt.GoObject | undefined = p!.host_!.openProjectLocked(p!.host_!.ctx, entry);
+        const err: $rt.GoObject | undefined = p!.host_!.openProjectLocked(p!.host_!.ctx, entry);
         if (!(err === undefined)) {
           p!.host_!.mu.Unlock();
           {
             const $t5 = $rt.errors_AsType<InitializeError | undefined>(err);
-            let ok: boolean = $t5[1];
+            const ok: boolean = $t5[1];
             if (ok) {
               const $t6: [Result, $rt.GoObject | undefined] = [new Result(), NewTransformError(1, err)];
               $t1 = $t6[0];
@@ -2790,7 +2790,7 @@ export class projectLease extends $rt.GoObject {
           break $body;
         }
       }
-      let handle: string = entry!.projectHandle;
+      const handle: string = entry!.projectHandle;
       p!.host_!.mu.Unlock();
       const $t8 = p!.host_!.transformLocked(mapper, request, handle);
       $t1 = $t8[0];
@@ -2840,13 +2840,13 @@ export class projectLease extends $rt.GoObject {
           p!.host_!.projectLeases?.delete(p!.key);
         }
         for (const [$t3, key] of p!.entries ?? new Map<Mapper | undefined, string>()) {
-          let entry: projectEntry | undefined = p!.host_!.projects?.get(key) ?? undefined;
+          const entry: projectEntry | undefined = p!.host_!.projects?.get(key) ?? undefined;
           if (entry === undefined) {
             continue;
           }
           if (entry!.opened) {
             {
-              let connEntry: mapperConn | undefined = p!.host_!.conns?.get(entry!.mapper!.Identity()) ?? undefined;
+              const connEntry: mapperConn | undefined = p!.host_!.conns?.get(entry!.mapper!.Identity()) ?? undefined;
               if (!(connEntry === undefined) && !(connEntry!.conn === undefined)) {
                 result = $rt.errors_Join([
                   result,
@@ -2998,7 +2998,7 @@ export class stderrLogger extends $rt.GoObject {
       });
       w!.pending += $rt.bytesToString(data);
       for (;;) {
-        let index: number = $rt.strings_IndexByte(w!.pending, 10);
+        const index: number = $rt.strings_IndexByte(w!.pending, 10);
         if (index < 0) {
           break;
         }
@@ -3089,13 +3089,13 @@ export class timingCollector extends $rt.GoObject {
         $t2.Unlock();
       });
       {
-        let timing: mapperTimingCollector | undefined = t!.mappers?.get(identity) ?? undefined;
+        const timing: mapperTimingCollector | undefined = t!.mappers?.get(identity) ?? undefined;
         if (!(timing === undefined)) {
           $t1 = timing;
           break $body;
         }
       }
-      let timing$1: mapperTimingCollector | undefined =
+      const timing$1: mapperTimingCollector | undefined =
         mapperTimingCollector.$lit_contentmapper_mapperTimingCollector_5(t);
       t!.mappers!.set(identity, timing$1);
       $t1 = timing$1;
@@ -3115,13 +3115,13 @@ export class timingCollector extends $rt.GoObject {
     if (!(t!.activeRequests === (0 as number))) {
       requestWait += $rt.time_Since(t!.requestWaitStart);
     }
-    let mappers: Map<string, mapperTimingCollector | undefined> | undefined = new Map<
+    const mappers: Map<string, mapperTimingCollector | undefined> | undefined = new Map<
       string,
       mapperTimingCollector | undefined
     >();
     $rt.maps_Copy(mappers, t!.mappers);
     t!.mu.Unlock();
-    let result: Timings = Timings.$lit_contentmapper_Timings_0_1(new Map<string, MapperTimings>(), requestWait);
+    const result: Timings = Timings.$lit_contentmapper_Timings_0_1(new Map<string, MapperTimings>(), requestWait);
     for (const [identity, timing] of mappers ?? new Map<string, mapperTimingCollector | undefined>()) {
       result.Mappers!.set(
         identity,
@@ -3229,11 +3229,11 @@ export const TransformErrorKindUnknown: TransformErrorKind = 0;
 export const initializeTimeout: number = 5000000000;
 export const initializeTimeoutSeconds: number = 5;
 const $fn0 = (): Map<string, number> | undefined => {
-  let t: $rt.reflect_Type | undefined = $rt.reflect_TypeFor<$core.CompilerOptions>();
-  let fields: Map<string, number> | undefined = new Map<string, number>();
+  const t: $rt.reflect_Type | undefined = $rt.reflect_TypeFor<$core.CompilerOptions>();
+  const fields: Map<string, number> | undefined = new Map<string, number>();
   for (let i = 0, $t1 = t!.NumField(); i < $t1; i++) {
     const $t2 = $rt.strings_Cut($rt.reflect_StructTag$Get(t!.Field(i).Tag, 'json'), ',');
-    let name_: string = $t2[0];
+    const name_: string = $t2[0];
     if (!(name_ === ('' as string)) && !(name_ === ('-' as string))) {
       fields!.set(name_, i);
     }
@@ -3292,8 +3292,8 @@ export function NewHostWithOptions(
   diagnosticLocale: $locale.Locale,
   options: HostOptions,
 ): Host {
-  let logger: Logger = options.Logger_;
-  let timing: timingCollector | undefined = timingCollector.$lit_contentmapper_timingCollector_1(
+  const logger: Logger = options.Logger_;
+  const timing: timingCollector | undefined = timingCollector.$lit_contentmapper_timingCollector_1(
     new Map<string, mapperTimingCollector | undefined>(),
   );
   return newWithDial(
@@ -3330,9 +3330,9 @@ export function NewHostWithOptions(
           $rt.fmt_Errorf('content mapper %q declares no command to run', [new $rt.BoxStr(mapper!.Package, 'string')]),
         ];
       }
-      let mapperTiming: mapperTimingCollector | undefined = timing!.mapper(mapper!.Identity());
-      let diagnosticName: string = mapper!.DiagnosticName();
-      let spawnStart: $rt.time_Time = $rt.time_Now();
+      const mapperTiming: mapperTimingCollector | undefined = timing!.mapper(mapper!.Identity());
+      const diagnosticName: string = mapper!.DiagnosticName();
+      const spawnStart: $rt.time_Time = $rt.time_Now();
       let stderr: $ipc.stdioConn | closeOnceReadWriteCloser | loggedProcess | stderrLogger | undefined =
         $rt.io_Discard as unknown as
           | $ipc.stdioConn
@@ -3371,21 +3371,21 @@ export function NewHostWithOptions(
       if (!(logger === undefined)) {
         protocol = loggingProtocol.$lit_contentmapper_loggingProtocol_0_1_2(protocol, diagnosticName, logger);
       }
-      let conn: $ipc.AsyncConn | undefined = $ipc.NewAsyncConnWithProtocol(rwc, protocol, new rejectHandler());
+      const conn: $ipc.AsyncConn | undefined = $ipc.NewAsyncConnWithProtocol(rwc, protocol, new rejectHandler());
       ((): void => {
         conn!.Run(ctx$1);
         rwc!.Close();
       })(); // go statement runs synchronously
       const $t2 = $rt.context_WithTimeout(ctx$1, 5000000000);
-      let initializeCtx: $rt.context_Context | undefined = $t2[0];
-      let cancel: (() => void) | undefined = $t2[1];
-      let initializeStart: $rt.time_Time = mapperTiming!.startRequest();
+      const initializeCtx: $rt.context_Context | undefined = $t2[0];
+      const cancel: (() => void) | undefined = $t2[1];
+      const initializeStart: $rt.time_Time = mapperTiming!.startRequest();
       const $t3 = handshake(initializeCtx, conn, diagnosticLocale$1);
-      let positionEncoding: PositionEncoding = $t3[0];
-      let diagnosticSource: string = $t3[1];
+      const positionEncoding: PositionEncoding = $t3[0];
+      const diagnosticSource: string = $t3[1];
       err = $t3[2];
       mapperTiming!.finishRequest(mapperTiming!.initialize, initializeStart);
-      let initializeCtxErr: $rt.GoObject | undefined = initializeCtx!.Err();
+      const initializeCtxErr: $rt.GoObject | undefined = initializeCtx!.Err();
       cancel!();
       if (!(err === undefined)) {
         let exitCode: number = 0;
@@ -3393,10 +3393,10 @@ export function NewHostWithOptions(
         {
           const $t4: $ipc.stdioConn | closeOnceReadWriteCloser | loggedProcess | undefined = rwc;
           const $t5: boolean = $t4 instanceof closeOnceReadWriteCloser;
-          let exitState: processExitState = $t5
+          const exitState: processExitState = $t5
             ? closeOnceReadWriteCloser.$cast_contentmapper_closeOnceReadWriteCloser($t4)
             : undefined;
-          let ok: boolean = $t5;
+          const ok: boolean = $t5;
           if (ok) {
             const $t6 = exitState!.ExitCode();
             exitCode = $t6[0];
@@ -3406,8 +3406,8 @@ export function NewHostWithOptions(
         rwc!.Close();
         {
           const $t7 = $rt.errors_AsType<InitializeError | undefined>(err);
-          let initializeError: InitializeError | undefined = $t7[0];
-          let ok$1: boolean = $t7[1];
+          const initializeError: InitializeError | undefined = $t7[0];
+          const ok$1: boolean = $t7[1];
           if (ok$1) {
             initializeError!.MapperName = diagnosticName;
             return [undefined, undefined, '', '', initializeError];
@@ -3469,9 +3469,9 @@ export function newWithDial(
   dial: dialFunc,
 ): host | undefined {
   const $t1 = $rt.context_WithCancel(ctx);
-  let hostCtx: $rt.context_Context | undefined = $t1[0];
-  let cancel: (() => void) | undefined = $t1[1];
-  let h: host | undefined = host.$lit_contentmapper_host_0_1_3_4_6_8_9_10(
+  const hostCtx: $rt.context_Context | undefined = $t1[0];
+  const cancel: (() => void) | undefined = $t1[1];
+  const h: host | undefined = host.$lit_contentmapper_host_0_1_3_4_6_8_9_10(
     hostCtx,
     cancel,
     dial,
@@ -3498,7 +3498,7 @@ export function projectSpecKey(spec: ProjectSpec): string {
   {
     const $t1 = spec.Mappers;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let mapper = $t1[$t2];
+      const mapper = $t1[$t2];
       $rt.fmt_Fprintf(
         $rt.unsupportedConversion<$ipc.stdioConn | closeOnceReadWriteCloser | loggedProcess | stderrLogger | undefined>(
           '$rt.strings_Builder | undefined',
@@ -3515,7 +3515,7 @@ export function combinedIdentity(
   configIdentity: string,
   compilerOptions: $core.CompilerOptions | undefined,
 ): string {
-  let transformIdentity: number[] = mapper!.TransformIdentity(compilerOptions).Bytes();
+  const transformIdentity: number[] = mapper!.TransformIdentity(compilerOptions).Bytes();
   let buf: number[] = [] as number[];
   $rt.appendInto(buf, $rt.stringToBytes(mapper!.Identity()));
   buf.push(0);
@@ -3524,7 +3524,7 @@ export function combinedIdentity(
   $rt.appendInto(buf, $rt.stringToBytes(configIdentity));
   buf.push(0);
   $rt.appendInto(buf, transformIdentity.slice());
-  let hash: number[] = $rt.github_com_zeebo_xxh3_Hash128(buf).Bytes();
+  const hash: number[] = $rt.github_com_zeebo_xxh3_Hash128(buf).Bytes();
   return mapper!.Identity() + ':' + $rt.encoding_hex_EncodeToString(hash.slice());
 }
 export function handshake(
@@ -3542,14 +3542,14 @@ export function handshake(
         'utf-16',
       ]),
     );
-  let raw: $json.Value = $t1[0];
-  let err: $rt.GoObject | undefined = $t1[1];
+  const raw: $json.Value = $t1[0];
+  const err: $rt.GoObject | undefined = $t1[1];
   if (!(err === undefined)) {
     return ['', '', err];
   }
   let res: InitializeResult = new InitializeResult();
   {
-    let err$1: $rt.GoObject | undefined = $json.Unmarshal(
+    const err$1: $rt.GoObject | undefined = $json.Unmarshal(
       raw,
       res,
       [] as ($rt.github_com_go_json_experiment_json_internal_jsonopts_Options | undefined)[],
@@ -3570,7 +3570,7 @@ export function handshake(
   if ($rt.strings_EqualFold(res.DiagnosticSource, 'typescript') || $rt.strings_EqualFold(res.DiagnosticSource, 'tsc')) {
     return ['', '', InitializeError.$lit_contentmapper_InitializeError_0_8(8, res.DiagnosticSource)];
   }
-  let nativeExtensions: string[] = $core.Flatten<string>($tspath.AllSupportedExtensionsWithJson);
+  const nativeExtensions: string[] = $core.Flatten<string>($tspath.AllSupportedExtensionsWithJson);
   if (
     $rt.slices_ContainsFunc(nativeExtensions, (extension: string): boolean => {
       return $rt.strings_EqualFold(res.DiagnosticSource, $rt.strings_TrimPrefix(extension, '.'));
@@ -3588,7 +3588,7 @@ export function decodeTransformResult(
 ): [Result, $rt.GoObject | undefined] {
   let res: TransformResult = new TransformResult();
   {
-    let err: $rt.GoObject | undefined = $json.Unmarshal(
+    const err: $rt.GoObject | undefined = $json.Unmarshal(
       raw,
       res,
       [] as ($rt.github_com_go_json_experiment_json_internal_jsonopts_Options | undefined)[],
@@ -3598,13 +3598,13 @@ export function decodeTransformResult(
     }
   }
   const $t1 = decodeMappedOutput(res, originalText, positionEncoding, diagnosticSource);
-  let mapped: MappedResult = $t1[0];
-  let originalPositions: positionNormalizer | undefined = $t1[1];
-  let err$1: $rt.GoObject | undefined = $t1[2];
+  const mapped: MappedResult = $t1[0];
+  const originalPositions: positionNormalizer | undefined = $t1[1];
+  const err$1: $rt.GoObject | undefined = $t1[2];
   if (!(err$1 === undefined)) {
     return [new Result(), err$1];
   }
-  let result: Result = Result.$lit_contentmapper_Result_0_1_3_4(
+  const result: Result = Result.$lit_contentmapper_Result_0_1_3_4(
     mapped.Text,
     mapped.VirtualExtension,
     mapped.Mappings,
@@ -3613,16 +3613,16 @@ export function decodeTransformResult(
   {
     const $t2 = res.Supplemental;
     for (let $t3 = 0, $n = $t2.length; $t3 < $n; $t3++) {
-      let supplementalIndex = $t3;
-      let supplemental = $t2[$t3];
+      const supplementalIndex = $t3;
+      const supplemental = $t2[$t3];
       const $t4 = decodeMappedOutput(supplemental, originalText, positionEncoding, diagnosticSource);
-      let mapped$1: MappedResult = $t4[0];
-      let err$2: $rt.GoObject | undefined = $t4[2];
+      const mapped$1: MappedResult = $t4[0];
+      const err$2: $rt.GoObject | undefined = $t4[2];
       if (!(err$2 === undefined)) {
         {
           const $t5 = $rt.errors_AsType<DiagnosticDirectiveError | undefined>(err$2);
-          let directiveError: DiagnosticDirectiveError | undefined = $t5[0];
-          let ok: boolean = $t5[1];
+          const directiveError: DiagnosticDirectiveError | undefined = $t5[0];
+          const ok: boolean = $t5[1];
           if (ok) {
             directiveError!.SupplementalIndex = supplementalIndex;
           }
@@ -3635,7 +3635,7 @@ export function decodeTransformResult(
   {
     const $t6 = res.Diagnostics;
     for (let $t7 = 0, $n = $t6.length; $t7 < $n; $t7++) {
-      let d = $t6[$t7];
+      const d = $t6[$t7];
       if (d.Start < 0 || d.Length < 0 || d.Start > 9223372036854775807 - d.Length) {
         return [
           new Result(),
@@ -3646,13 +3646,13 @@ export function decodeTransformResult(
         ];
       }
       const $t8 = originalPositions!.normalize(d.Start);
-      let start: number = $t8[0];
+      const start: number = $t8[0];
       let err$3: $rt.GoObject | undefined = $t8[1];
       if (!(err$3 === undefined)) {
         return [new Result(), $rt.fmt_Errorf('invalid content mapper diagnostic start: %w', [err$3])];
       }
       const $t9 = originalPositions!.normalize(d.Start + d.Length);
-      let end: number = $t9[0];
+      const end: number = $t9[0];
       err$3 = $t9[1];
       if (!(err$3 === undefined)) {
         return [new Result(), $rt.fmt_Errorf('invalid content mapper diagnostic end: %w', [err$3])];
@@ -3684,23 +3684,23 @@ export function decodeMappedOutput(
       InvalidVirtualExtensionError.$lit_contentmapper_InvalidVirtualExtensionError_0(output.Extension),
     ];
   }
-  let result: MappedResult = MappedResult.$lit_contentmapper_MappedResult_0_1(output.Text, output.Extension);
+  const result: MappedResult = MappedResult.$lit_contentmapper_MappedResult_0_1(output.Text, output.Extension);
   const $t1 = newPositionNormalizer(output.Text, positionEncoding);
-  let virtualPositions: positionNormalizer | undefined = $t1[0];
+  const virtualPositions: positionNormalizer | undefined = $t1[0];
   let err: $rt.GoObject | undefined = $t1[1];
   if (!(err === undefined)) {
     return [new MappedResult(), undefined, err];
   }
   const $t2 = newPositionNormalizer(originalText, positionEncoding);
-  let originalPositions: positionNormalizer | undefined = $t2[0];
+  const originalPositions: positionNormalizer | undefined = $t2[0];
   err = $t2[1];
   if (!(err === undefined)) {
     return [new MappedResult(), undefined, err];
   }
   if (output.Mappings.length > 0) {
     const $t3 = $spanmap.Unmarshal(output.Mappings);
-    let mappings: $spanmap.SpanMap | undefined = $t3[0];
-    let unmarshalErr: $rt.GoObject | undefined = $t3[1];
+    const mappings: $spanmap.SpanMap | undefined = $t3[0];
+    const unmarshalErr: $rt.GoObject | undefined = $t3[1];
     if (!(unmarshalErr === undefined)) {
       return [new MappedResult(), undefined, unmarshalErr];
     }
@@ -3735,22 +3735,22 @@ export function normalizeDiagnosticDirectives(
   if (diagnosticDirectives === undefined) {
     return [[], undefined];
   }
-  let directives: MappedDiagnosticDirective[] = diagnosticDirectives!.Directives;
-  let result: $ast.MappedDiagnosticDirective[] = $rt.makeSliceFn<$ast.MappedDiagnosticDirective>(
+  const directives: MappedDiagnosticDirective[] = diagnosticDirectives!.Directives;
+  const result: $ast.MappedDiagnosticDirective[] = $rt.makeSliceFn<$ast.MappedDiagnosticDirective>(
     directives.length,
     () => new $ast.MappedDiagnosticDirective(),
   );
   {
     const $t1 = directives;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let i = $t2;
-      let directive = $t1[$t2].$clone_contentmapper_MappedDiagnosticDirective();
-      let directiveError: ((p0: DiagnosticDirectiveErrorKind) => DiagnosticDirectiveError | undefined) | undefined = (
+      const i = $t2;
+      const directive = $t1[$t2].$clone_contentmapper_MappedDiagnosticDirective();
+      const directiveError: ((p0: DiagnosticDirectiveErrorKind) => DiagnosticDirectiveError | undefined) | undefined = (
         kind: DiagnosticDirectiveErrorKind,
       ): DiagnosticDirectiveError | undefined => {
         return DiagnosticDirectiveError.$lit_contentmapper_DiagnosticDirectiveError_0_1_2(kind, i, -1);
       };
-      let normalized: $ast.MappedDiagnosticDirective =
+      const normalized: $ast.MappedDiagnosticDirective =
         $ast.MappedDiagnosticDirective.$lit_ast_MappedDiagnosticDirective_5(diagnosticSource);
       {
         switch (directive.Policy) {
@@ -3771,7 +3771,7 @@ export function normalizeDiagnosticDirectives(
             ) {
               return [[], directiveError!(3)];
             }
-            let unusedDiagnostic: UnusedExpectDirectiveDiagnostic =
+            const unusedDiagnostic: UnusedExpectDirectiveDiagnostic =
               diagnosticDirectives!.UnusedExpectDirectiveDiagnostics[unusedDiagnosticIndex];
             normalized.Policy = 1;
             normalized.UnusedCode = unusedDiagnostic.Code;
@@ -3779,7 +3779,7 @@ export function normalizeDiagnosticDirectives(
             break;
           }
           default: {
-            let validationError: DiagnosticDirectiveError | undefined = directiveError!(1);
+            const validationError: DiagnosticDirectiveError | undefined = directiveError!(1);
             validationError!.Policy = directive.Policy;
             return [[], validationError];
           }
@@ -3789,13 +3789,13 @@ export function normalizeDiagnosticDirectives(
         return [[], directiveError!(0)];
       }
       const $t3 = virtualPositions!.normalize(directive.VirtualStart);
-      let virtualStart: number = $t3[0];
+      const virtualStart: number = $t3[0];
       let err: $rt.GoObject | undefined = $t3[1];
       if (!(err === undefined)) {
         return [[], directiveError!(0)];
       }
       const $t4 = virtualPositions!.normalize(directive.VirtualEnd);
-      let virtualEnd: number = $t4[0];
+      const virtualEnd: number = $t4[0];
       err = $t4[1];
       if (!(err === undefined)) {
         return [[], directiveError!(0)];
@@ -3807,11 +3807,11 @@ export function normalizeDiagnosticDirectives(
         directive.OriginalStart <= 9223372036854775807 - directive.OriginalLength;
       if (validOriginalRange) {
         const $t5 = originalPositions!.normalize(directive.OriginalStart);
-        let originalStart: number = $t5[0];
-        let startErr: $rt.GoObject | undefined = $t5[1];
+        const originalStart: number = $t5[0];
+        const startErr: $rt.GoObject | undefined = $t5[1];
         const $t6 = originalPositions!.normalize(directive.OriginalStart + directive.OriginalLength);
-        let originalEnd: number = $t6[0];
-        let endErr: $rt.GoObject | undefined = $t6[1];
+        const originalEnd: number = $t6[0];
+        const endErr: $rt.GoObject | undefined = $t6[1];
         if (startErr === undefined && endErr === undefined) {
           normalized.OriginalRange = $core.NewTextRange(originalStart, originalEnd);
         } else {
@@ -3824,7 +3824,7 @@ export function normalizeDiagnosticDirectives(
       result[i] = normalized.$clone_ast_MappedDiagnosticDirective();
     }
   }
-  let sorted: normalizeDiagnosticDirectives$indexedDirective[] =
+  const sorted: normalizeDiagnosticDirectives$indexedDirective[] =
     $rt.makeSliceFn<normalizeDiagnosticDirectives$indexedDirective>(
       result.length,
       () => new normalizeDiagnosticDirectives$indexedDirective(),
@@ -3832,8 +3832,8 @@ export function normalizeDiagnosticDirectives(
   {
     const $t7 = result;
     for (let $t8 = 0, $n = $t7.length; $t8 < $n; $t8++) {
-      let i$1 = $t8;
-      let directive$1 = $t7[$t8].$clone_ast_MappedDiagnosticDirective();
+      const i$1 = $t8;
+      const directive$1 = $t7[$t8].$clone_ast_MappedDiagnosticDirective();
       sorted[i$1] =
         normalizeDiagnosticDirectives$indexedDirective.$lit_contentmapper_normalizeDiagnosticDirectives$indexedDirective_0_1(
           directive$1.$clone_ast_MappedDiagnosticDirective(),
@@ -3862,12 +3862,12 @@ export function normalizeMappings(
   virtualPositions: positionNormalizer | undefined,
   originalPositions: positionNormalizer | undefined,
 ): [$spanmap.SpanMap | undefined, $rt.GoObject | undefined] {
-  let segments: $spanmap.Segment[] = $spanmap.SpanMap.Segments$nil(mappings);
+  const segments: $spanmap.Segment[] = $spanmap.SpanMap.Segments$nil(mappings);
   {
     const $t1 = segments;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let i = $t2;
-      let segment: $spanmap.Segment | undefined = segments[i];
+      const i = $t2;
+      const segment: $spanmap.Segment | undefined = segments[i];
       let err: $rt.GoObject | undefined = undefined as $rt.GoObject | undefined;
       const $t3 = virtualPositions!.normalizeTextPos(segment!.VirtualStart);
       segment!.VirtualStart = $t3[0];
@@ -3913,7 +3913,7 @@ export function newPositionNormalizer(
   text: string,
   encoding: PositionEncoding,
 ): [positionNormalizer | undefined, $rt.GoObject | undefined] {
-  let normalizer: positionNormalizer | undefined = positionNormalizer.$lit_contentmapper_positionNormalizer_0_1(
+  const normalizer: positionNormalizer | undefined = positionNormalizer.$lit_contentmapper_positionNormalizer_0_1(
     text,
     encoding,
   );
@@ -3947,13 +3947,13 @@ export function TransformAndParse(
   project: Project,
 ): [SourceFiles, $rt.GoObject | undefined] {
   const $t1 = $rt.nn(project).Identity(mapper);
-  let transformIdentity: string = $t1[0];
+  const transformIdentity: string = $t1[0];
   let err: $rt.GoObject | undefined = $t1[1];
   if (!(err === undefined)) {
     return [new SourceFiles(), NewTransformError(2, err)];
   }
   const $t2 = $rt.nn(project).Transform(mapper, Request.$lit_contentmapper_Request_0_1(parseOptions.FileName, content));
-  let result: Result = $t2[0];
+  const result: Result = $t2[0];
   err = $t2[1];
   if (!(err === undefined)) {
     return [new SourceFiles(), err];
@@ -3977,7 +3977,7 @@ export function ParseResult(
     return [new SourceFiles(), NewTransformError(5, undefined)];
   }
   {
-    let problem: $spanmap.MappingError | undefined = $spanmap.SpanMap.Validate$nil(
+    const problem: $spanmap.MappingError | undefined = $spanmap.SpanMap.Validate$nil(
       result.Mappings,
       result.Text,
       content,
@@ -3986,17 +3986,17 @@ export function ParseResult(
       return [new SourceFiles(), problem];
     }
   }
-  let virtualExtension: string = result.VirtualExtension;
+  const virtualExtension: string = result.VirtualExtension;
   if (!IsSupportedVirtualExtension(virtualExtension)) {
     return [new SourceFiles(), NewTransformError(4, undefined)];
   }
-  let baseParseOptions: $ast.SourceFileParseOptions = parseOptions.$clone_ast_SourceFileParseOptions();
-  let virtualFileName: string = baseParseOptions.FileName + virtualExtension;
+  const baseParseOptions: $ast.SourceFileParseOptions = parseOptions.$clone_ast_SourceFileParseOptions();
+  const virtualFileName: string = baseParseOptions.FileName + virtualExtension;
   parseOptions = baseParseOptions.$clone_ast_SourceFileParseOptions();
   if (isModuleVirtualExtension(virtualExtension)) {
     parseOptions.ExternalModuleIndicatorOptions_.Force = true;
   }
-  let sourceFile: $ast.SourceFile | undefined = $parser.ParseSourceFile(
+  const sourceFile: $ast.SourceFile | undefined = $parser.ParseSourceFile(
     parseOptions,
     result.Text,
     $core.GetScriptKindFromFileName(virtualFileName),
@@ -4005,26 +4005,26 @@ export function ParseResult(
     {
       const $t1 = result.Diagnostics;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        let diagnostic = $t1[$t2];
+        const diagnostic = $t1[$t2];
         diagnostic!.SetFile(sourceFile);
       }
     }
     sourceFile!.SetDiagnostics($rt.appendCopy(sourceFile!.Diagnostics(), result.Diagnostics));
   }
-  let files: SourceFiles = SourceFiles.$lit_contentmapper_SourceFiles_0_1(
+  const files: SourceFiles = SourceFiles.$lit_contentmapper_SourceFiles_0_1(
     sourceFile,
     [] as ($ast.SourceFile | undefined)[],
   );
   {
     const $t3 = result.Supplemental;
     for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
-      let i = $t4;
-      let supplemental = $t3[$t4].$clone_contentmapper_MappedResult();
+      const i = $t4;
+      const supplemental = $t3[$t4].$clone_contentmapper_MappedResult();
       if (supplemental.Mappings === undefined) {
         return [new SourceFiles(), NewTransformError(5, undefined)];
       }
       {
-        let problem$1: $spanmap.MappingError | undefined = $spanmap.SpanMap.Validate$nil(
+        const problem$1: $spanmap.MappingError | undefined = $spanmap.SpanMap.Validate$nil(
           supplemental.Mappings,
           supplemental.Text,
           content,
@@ -4033,17 +4033,17 @@ export function ParseResult(
           return [new SourceFiles(), problem$1];
         }
       }
-      let supplementalOptions: $ast.SourceFileParseOptions = baseParseOptions.$clone_ast_SourceFileParseOptions();
+      const supplementalOptions: $ast.SourceFileParseOptions = baseParseOptions.$clone_ast_SourceFileParseOptions();
       if (!IsSupportedVirtualExtension(supplemental.VirtualExtension)) {
         return [new SourceFiles(), NewTransformError(4, undefined)];
       }
-      let suffix: string = '.' + $rt.strconv_Itoa(i) + supplemental.VirtualExtension;
+      const suffix: string = '.' + $rt.strconv_Itoa(i) + supplemental.VirtualExtension;
       supplementalOptions.FileName += suffix;
       supplementalOptions.Path_ = parseOptions.Path_ + suffix;
       if (isModuleVirtualExtension(supplemental.VirtualExtension)) {
         supplementalOptions.ExternalModuleIndicatorOptions_.Force = true;
       }
-      let file: $ast.SourceFile | undefined = $parser.ParseSourceFile(
+      const file: $ast.SourceFile | undefined = $parser.ParseSourceFile(
         supplementalOptions,
         supplemental.Text,
         $core.GetScriptKindFromFileName(supplementalOptions.FileName),
@@ -4051,7 +4051,7 @@ export function ParseResult(
       files.Supplemental.push(file);
     }
   }
-  let mapperIdentity: string = mapper!.Identity();
+  const mapperIdentity: string = mapper!.Identity();
   sourceFile!.SetContentMapperInfo(
     $ast.ContentMapperSourceFileInfo.$lit_ast_ContentMapperSourceFileInfo_0_1_2_3_4_5_6_7(
       mapperIdentity,
@@ -4067,9 +4067,9 @@ export function ParseResult(
   {
     const $t5 = files.Supplemental;
     for (let $t6 = 0, $n = $t5.length; $t6 < $n; $t6++) {
-      let i$1 = $t6;
-      let file$1 = $t5[$t6];
-      let supplemental$1: MappedResult = result.Supplemental[i$1].$clone_contentmapper_MappedResult();
+      const i$1 = $t6;
+      const file$1 = $t5[$t6];
+      const supplemental$1: MappedResult = result.Supplemental[i$1].$clone_contentmapper_MappedResult();
       file$1!.SetContentMapperInfo(
         $ast.ContentMapperSourceFileInfo.$lit_ast_ContentMapperSourceFileInfo_0_1_2_3_4_5_6_8(
           mapperIdentity,
@@ -4096,7 +4096,7 @@ export function CheckSupplementalFileNameCollisions(
   {
     const $t1 = files.Supplemental;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let file = $t1[$t2];
+      const file = $t1[$t2];
       if (fileExists!(file!.FileName())) {
         return SupplementalFileCollisionError.$lit_contentmapper_SupplementalFileCollisionError_0(file!.FileName());
       }

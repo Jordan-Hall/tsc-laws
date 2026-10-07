@@ -61,14 +61,14 @@ export function NewEvaluator(evaluateEntity: Evaluator, outerExpressionsToSkip: 
     {
       switch (expr!.Kind_) {
         case 225 as number: {
-          let result: Result = evaluate!(expr!.AsPrefixUnaryExpression()!.Operand, location);
+          const result: Result = evaluate!(expr!.AsPrefixUnaryExpression()!.Operand, location);
           resolvedOtherFiles = result.ResolvedOtherFiles;
           hasExternalReferences = result.HasExternalReferences;
           {
             const $t1: $rt.GoObject | undefined = result.Value;
             const $t2: boolean = $t1 instanceof $jsnum.Number_$Box;
-            let value: $jsnum.Number_ = $t2 ? $jsnum.Number_$Box.$cast($t1).v : 0;
-            let ok: boolean = $t2;
+            const value: $jsnum.Number_ = $t2 ? $jsnum.Number_$Box.$cast($t1).v : 0;
+            const ok: boolean = $t2;
             if (ok) {
               {
                 switch (expr!.AsPrefixUnaryExpression()!.Operator) {
@@ -103,9 +103,9 @@ export function NewEvaluator(evaluateEntity: Evaluator, outerExpressionsToSkip: 
           break;
         }
         case 227 as number: {
-          let left: Result = evaluate!(expr!.AsBinaryExpression()!.Left, location);
-          let right: Result = evaluate!(expr!.AsBinaryExpression()!.Right, location);
-          let operator: $ast.Kind = expr!.AsBinaryExpression()!.OperatorToken!.Kind_;
+          const left: Result = evaluate!(expr!.AsBinaryExpression()!.Left, location);
+          const right: Result = evaluate!(expr!.AsBinaryExpression()!.Right, location);
+          const operator: $ast.Kind = expr!.AsBinaryExpression()!.OperatorToken!.Kind_;
           isSyntacticallyString =
             (left.IsSyntacticallyString || right.IsSyntacticallyString) &&
             expr!.AsBinaryExpression()!.OperatorToken!.Kind_ === (39 as number);
@@ -113,12 +113,12 @@ export function NewEvaluator(evaluateEntity: Evaluator, outerExpressionsToSkip: 
           hasExternalReferences = left.HasExternalReferences || right.HasExternalReferences;
           const $t3: $rt.GoObject | undefined = left.Value;
           const $t4: boolean = $t3 instanceof $jsnum.Number_$Box;
-          let leftNum: $jsnum.Number_ = $t4 ? $jsnum.Number_$Box.$cast($t3).v : 0;
-          let leftIsNum: boolean = $t4;
+          const leftNum: $jsnum.Number_ = $t4 ? $jsnum.Number_$Box.$cast($t3).v : 0;
+          const leftIsNum: boolean = $t4;
           const $t5: $rt.GoObject | undefined = right.Value;
           const $t6: boolean = $t5 instanceof $jsnum.Number_$Box;
-          let rightNum: $jsnum.Number_ = $t6 ? $jsnum.Number_$Box.$cast($t5).v : 0;
-          let rightIsNum: boolean = $t6;
+          const rightNum: $jsnum.Number_ = $t6 ? $jsnum.Number_$Box.$cast($t5).v : 0;
+          const rightIsNum: boolean = $t6;
           if (leftIsNum && rightIsNum) {
             {
               switch (operator) {
@@ -224,11 +224,11 @@ export function NewEvaluator(evaluateEntity: Evaluator, outerExpressionsToSkip: 
           const $t7: $rt.GoObject | undefined = left.Value;
           const $t8: boolean = $rt.isValue($t7, 'string');
           let leftStr: string = $t8 ? $rt.checkString(true, $t7) : '';
-          let leftIsStr: boolean = $t8;
+          const leftIsStr: boolean = $t8;
           const $t9: $rt.GoObject | undefined = right.Value;
           const $t10: boolean = $rt.isValue($t9, 'string');
           let rightStr: string = $t10 ? $rt.checkString(true, $t9) : '';
-          let rightIsStr: boolean = $t10;
+          const rightIsStr: boolean = $t10;
           if ((leftIsStr || leftIsNum) && (rightIsStr || rightIsNum) && operator === (39 as number)) {
             if (leftIsNum) {
               leftStr = $jsnum.Number$String(leftNum);
@@ -286,15 +286,15 @@ export function evaluateTemplateExpression(
   location: $ast.Node | undefined,
   evaluate: Evaluator,
 ): Result {
-  let sb: $rt.strings_Builder = new $rt.strings_Builder();
+  const sb: $rt.strings_Builder = new $rt.strings_Builder();
   sb.WriteString(expr!.AsTemplateExpression()!.Head!.Text$Node());
   let resolvedOtherFiles: boolean = false;
   let hasExternalReferences: boolean = false;
   {
     const $t1 = expr!.AsTemplateExpression()!.TemplateSpans!.Nodes;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let span = $t1[$t2];
-      let spanResult: Result = evaluate!(span!.Expression(), location);
+      const span = $t1[$t2];
+      const spanResult: Result = evaluate!(span!.Expression(), location);
       if (spanResult.Value === undefined) {
         return Result.$lit_evaluator_Result_0_1_2_3(undefined, true, false, false);
       }

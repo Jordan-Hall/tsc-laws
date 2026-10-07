@@ -152,7 +152,7 @@ export function RemoveFileExtension(path: string): string {
   {
     const $t1 = extensionsToRemove;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let ext = $t1[$t2];
+      const ext = $t1[$t2];
       if ($rt.strings_HasSuffix(path, ext)) {
         return path.substring(0, path.length - ext.length);
       }
@@ -162,13 +162,13 @@ export function RemoveFileExtension(path: string): string {
 }
 export function RemoveAnyFileExtension(path: string): string {
   {
-    let withoutExtension: string = RemoveFileExtension(path);
+    const withoutExtension: string = RemoveFileExtension(path);
     if (!(withoutExtension === path)) {
       return withoutExtension;
     }
   }
   {
-    let extension: string = GetAnyExtensionFromPath(path, [], false);
+    const extension: string = GetAnyExtensionFromPath(path, [], false);
     if (!(extension === ('' as string))) {
       return RemoveExtension(path, extension);
     }
@@ -179,7 +179,7 @@ export function TryGetExtensionFromPath(p: string): string {
   {
     const $t1 = extensionsToRemove;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let ext = $t1[$t2];
+      const ext = $t1[$t2];
       if (FileExtensionIs(p, ext)) {
         return ext;
       }
@@ -194,7 +194,7 @@ export function FileExtensionIsOneOf(path: string, extensions: string[]): boolea
   {
     const $t1 = extensions;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let ext = $t1[$t2];
+      const ext = $t1[$t2];
       if (FileExtensionIs(path, ext)) {
         return true;
       }
@@ -206,7 +206,7 @@ export function TryExtractTSExtension(fileName: string): string {
   {
     const $t1 = supportedTSExtensionsForExtractExtension;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let ext = $t1[$t2];
+      const ext = $t1[$t2];
       if (FileExtensionIs(fileName, ext)) {
         return ext;
       }
@@ -233,18 +233,18 @@ export function ExtensionIsOneOf(ext: string, extensions: string[]): boolean {
   return $rt.slices_Contains(extensions, ext);
 }
 export function GetDeclarationFileExtension(fileName: string): string {
-  let base: string = GetBaseFileName(fileName);
+  const base: string = GetBaseFileName(fileName);
   {
     const $t1 = SupportedDeclarationExtensions;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let ext = $t1[$t2];
+      const ext = $t1[$t2];
       if ($rt.strings_HasSuffix(base, ext)) {
         return ext;
       }
     }
   }
   if ($rt.strings_HasSuffix(base, '.ts')) {
-    let index: number = $rt.strings_Index(base, '.d.');
+    const index: number = $rt.strings_Index(base, '.d.');
     if (index >= 0) {
       return base.substring(index);
     }
@@ -261,7 +261,7 @@ export function GetDeclarationEmitExtensionForPath(path: string): string {
       } else if (FileExtensionIsOneOf(path, ['.ts', '.tsx', '.js', '.jsx'])) {
         return '.d.ts';
       } else {
-        let ext: string = GetAnyExtensionFromPath(path, [], false);
+        const ext: string = GetAnyExtensionFromPath(path, [], false);
         if (!(ext === ('' as string))) {
           return '.d' + ext + '.ts';
         }
@@ -271,9 +271,9 @@ export function GetDeclarationEmitExtensionForPath(path: string): string {
   }
 }
 export function ChangeAnyExtension(path: string, ext: string, extensions: string[], ignoreCase: boolean): string {
-  let pathext: string = GetAnyExtensionFromPath(path, extensions, ignoreCase);
+  const pathext: string = GetAnyExtensionFromPath(path, extensions, ignoreCase);
   if (!(pathext === ('' as string))) {
-    let result: string = path.substring(0, path.length - pathext.length);
+    const result: string = path.substring(0, path.length - pathext.length);
     if (ext === ('' as string)) {
       return result;
     }
@@ -288,7 +288,7 @@ export function ChangeExtension(path: string, newExtension: string): string {
   return ChangeAnyExtension(path, newExtension, extensionsToRemove, false);
 }
 export function ChangeFullExtension(path: string, newExtension: string): string {
-  let declarationExtension: string = GetDeclarationFileExtension(path);
+  const declarationExtension: string = GetDeclarationFileExtension(path);
   if (!(declarationExtension === ('' as string))) {
     let ext: string = newExtension;
     if (!$rt.strings_HasPrefix(ext, '.')) {
@@ -306,9 +306,9 @@ export function GetPossibleOriginalInputExtensionForExtension(path: string): str
     return ['.cts', '.cjs'];
   }
   {
-    let ext: string = GetDeclarationFileExtension(path);
+    const ext: string = GetDeclarationFileExtension(path);
     if (!(ext === ('' as string)) && !(ext === ('.d.ts' as string))) {
-      let inner: string = ext.substring(3, ext.length - 3);
+      const inner: string = ext.substring(3, ext.length - 3);
       return ['.' + inner];
     }
   }
@@ -318,7 +318,7 @@ export function ContainsIgnoredPath(path: string): boolean {
   {
     const $t1 = ignoredPaths;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let pattern = $t1[$t2];
+      const pattern = $t1[$t2];
       if ($rt.strings_Contains(path, pattern)) {
         return true;
       }
@@ -336,7 +336,7 @@ export function IsRootedDiskPath(path: string): boolean {
   return GetEncodedRootLength(path) > 0;
 }
 export function IsDiskPathRoot(path: string): boolean {
-  let rootLength: number = GetEncodedRootLength(path);
+  const rootLength: number = GetEncodedRootLength(path);
   return rootLength > 0 && rootLength === path.length;
 }
 export function IsDynamicFileName(fileName: string): boolean {
@@ -350,22 +350,22 @@ export function HasTrailingDirectorySeparator(path: string): boolean {
 }
 export function CombinePaths(firstPath: string, paths: string[]): string {
   firstPath = NormalizeSlashes(firstPath);
-  let b: $rt.strings_Builder = new $rt.strings_Builder();
+  const b: $rt.strings_Builder = new $rt.strings_Builder();
   let size: number = firstPath.length + paths.length;
   {
     const $t1 = paths;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let p = $t1[$t2];
+      const p = $t1[$t2];
       size += p.length;
     }
   }
   b.Grow(size);
   b.WriteString(firstPath);
   let start: number = 0;
-  let result: (() => string) | undefined = (): string => {
+  const result: (() => string) | undefined = (): string => {
     return b.String().substring(start);
   };
-  let setResult: ((p0: string) => void) | undefined = (value: string): void => {
+  const setResult: ((p0: string) => void) | undefined = (value: string): void => {
     start = b.Len();
     b.WriteString(value);
   };
@@ -394,7 +394,7 @@ export function GetPathComponents(path: string, currentDirectory: string): strin
   return pathComponents(path, GetRootLength(path));
 }
 export function pathComponents(path: string, rootLength: number): string[] {
-  let root: string = path.substring(0, rootLength);
+  const root: string = path.substring(0, rootLength);
   let rest: string[] = $rt.strings_Split(path.substring(rootLength), '/');
   if (rest.length > 0 && rest[rest.length - 1] === ('' as string)) {
     rest = $rt.reslice(rest, 0, rest.length - 1, '');
@@ -408,12 +408,12 @@ export function getFileUrlVolumeSeparatorEnd(url: string, start: number): number
   if (url.length <= start) {
     return -1;
   }
-  let ch0: number = url.charCodeAt(start);
+  const ch0: number = url.charCodeAt(start);
   if (ch0 === (58 as number)) {
     return start + 1;
   }
   if (ch0 === (37 as number) && url.length > start + 2 && url.charCodeAt(start + 1) === (51 as number)) {
-    let ch2: number = url.charCodeAt(start + 2);
+    const ch2: number = url.charCodeAt(start + 2);
     if (ch2 === (97 as number) || ch2 === (65 as number)) {
       return start + 3;
     }
@@ -421,17 +421,17 @@ export function getFileUrlVolumeSeparatorEnd(url: string, start: number): number
   return -1;
 }
 export function GetEncodedRootLength(path: string): number {
-  let ln: number = path.length;
+  const ln: number = path.length;
   if (ln === (0 as number)) {
     return 0;
   }
-  let ch0: number = path.charCodeAt(0);
+  const ch0: number = path.charCodeAt(0);
   if (ch0 === (47 as number) || ch0 === (92 as number)) {
     if (ln === (1 as number) || !(path.charCodeAt(1) === ch0)) {
       return 1;
     }
-    let offset: number = 2;
-    let p1: number = $rt.strings_IndexByteFrom(path, offset, ch0);
+    const offset: number = 2;
+    const p1: number = $rt.strings_IndexByteFrom(path, offset, ch0);
     if (p1 < 0) {
       return ln;
     }
@@ -441,7 +441,7 @@ export function GetEncodedRootLength(path: string): number {
     if (ln === (2 as number)) {
       return 2;
     }
-    let ch2: number = path.charCodeAt(2);
+    const ch2: number = path.charCodeAt(2);
     if (ch2 === (47 as number) || ch2 === (92 as number)) {
       return 3;
     }
@@ -449,21 +449,21 @@ export function GetEncodedRootLength(path: string): number {
   if (ch0 === (94 as number) && ln > 1 && path.charCodeAt(1) === (47 as number)) {
     return 2;
   }
-  let schemeEnd: number = $rt.strings_Index(path, '://');
+  const schemeEnd: number = $rt.strings_Index(path, '://');
   if (!(schemeEnd === (-1 as number))) {
-    let authorityStart: number = schemeEnd + 3;
-    let authorityLength: number = $rt.strings_IndexFrom(path, authorityStart, '/');
+    const authorityStart: number = schemeEnd + 3;
+    const authorityLength: number = $rt.strings_IndexFrom(path, authorityStart, '/');
     if (!(authorityLength === (-1 as number))) {
-      let authorityEnd: number = authorityStart + authorityLength;
-      let scheme: string = path.substring(0, schemeEnd);
-      let authority: string = path.substring(authorityStart, authorityEnd);
+      const authorityEnd: number = authorityStart + authorityLength;
+      const scheme: string = path.substring(0, schemeEnd);
+      const authority: string = path.substring(authorityStart, authorityEnd);
       if (
         scheme === ('file' as string) &&
         (authority === ('' as string) || authority === ('localhost' as string)) &&
         path.length > authorityEnd + 2 &&
         IsVolumeCharacter(path.charCodeAt(authorityEnd + 1))
       ) {
-        let volumeSeparatorEnd: number = getFileUrlVolumeSeparatorEnd(path, authorityEnd + 2);
+        const volumeSeparatorEnd: number = getFileUrlVolumeSeparatorEnd(path, authorityEnd + 2);
         if (!(volumeSeparatorEnd === (-1 as number))) {
           if (volumeSeparatorEnd === path.length) {
             return ~volumeSeparatorEnd;
@@ -480,7 +480,7 @@ export function GetEncodedRootLength(path: string): number {
   return 0;
 }
 export function GetRootLength(path: string): number {
-  let rootLength: number = GetEncodedRootLength(path);
+  const rootLength: number = GetEncodedRootLength(path);
   if (rootLength < 0) {
     return ~rootLength;
   }
@@ -488,7 +488,7 @@ export function GetRootLength(path: string): number {
 }
 export function GetDirectoryPath(path: string): string {
   path = NormalizeSlashes(path);
-  let rootLength: number = GetRootLength(path);
+  const rootLength: number = GetRootLength(path);
   if (rootLength === path.length) {
     return path;
   }
@@ -518,7 +518,7 @@ export function reducePathComponents(components: string[]): string[] {
   let reduced: string[] = [components[0]];
   {
     for (let i: number = 1; i < components.length; i++) {
-      let component: string = components[i];
+      const component: string = components[i];
       if (component === ('' as string)) {
         continue;
       }
@@ -550,18 +550,18 @@ export function ResolvePath(path: string, paths: string[]): string {
   return NormalizePath(combinedPath);
 }
 export function ResolveTripleslashReference(moduleName: string, containingFile: string): string {
-  let basePath: string = GetDirectoryPath(containingFile);
+  const basePath: string = GetDirectoryPath(containingFile);
   if (IsRootedDiskPath(moduleName)) {
     return NormalizePath(moduleName);
   }
   return NormalizePath(CombinePaths(basePath, [moduleName]));
 }
 export function GetNormalizedPathComponents(path: string, currentDirectory: string): string[] {
-  let combined: string = CombinePaths(currentDirectory, [path]);
+  const combined: string = CombinePaths(currentDirectory, [path]);
   return getNormalizedPathComponentsFromCombined(combined);
 }
 export function getNormalizedPathComponentsFromCombined(path: string): string[] {
-  let rootLength: number = GetRootLength(path);
+  const rootLength: number = GetRootLength(path);
   let components: string[] = $rt.makeSlice<string>(1, '');
   components[0] = path.substring(0, rootLength);
   {
@@ -572,11 +572,11 @@ export function getNormalizedPathComponentsFromCombined(path: string): string[] 
       if (i >= path.length) {
         break;
       }
-      let start: number = i;
+      const start: number = i;
       for (; i < path.length && !(path.charCodeAt(i) === (47 as number));) {
         i++;
       }
-      let component: string = path.substring(start, i);
+      const component: string = path.substring(start, i);
       if (component === ('' as string) || component === ('.' as string)) {
         continue;
       }
@@ -596,8 +596,8 @@ export function getNormalizedPathComponentsFromCombined(path: string): string[] 
   return components;
 }
 export function GetNormalizedAbsolutePathWithoutRoot(fileName: string, currentDirectory: string): string {
-  let absolutePath: string = GetNormalizedAbsolutePath(fileName, currentDirectory);
-  let rootLength: number = GetRootLength(absolutePath);
+  const absolutePath: string = GetNormalizedAbsolutePath(fileName, currentDirectory);
+  const rootLength: number = GetRootLength(absolutePath);
   return absolutePath.substring(rootLength);
 }
 export function GetNormalizedAbsolutePath(fileName: string, currentDirectory: string): string {
@@ -610,10 +610,10 @@ export function GetNormalizedAbsolutePath(fileName: string, currentDirectory: st
   rootLength = GetRootLength(fileName);
   {
     const $t1 = simpleNormalizePath(fileName);
-    let simpleNormalized: string = $t1[0];
-    let ok: boolean = $t1[1];
+    const simpleNormalized: string = $t1[0];
+    const ok: boolean = $t1[1];
     if (ok) {
-      let length_: number = simpleNormalized.length;
+      const length_: number = simpleNormalized.length;
       if (length_ > rootLength) {
         return RemoveTrailingDirectorySeparator(simpleNormalized);
       }
@@ -623,8 +623,8 @@ export function GetNormalizedAbsolutePath(fileName: string, currentDirectory: st
       return simpleNormalized;
     }
   }
-  let length_$1: number = fileName.length;
-  let root: string = fileName.substring(0, rootLength);
+  const length_$1: number = fileName.length;
+  const root: string = fileName.substring(0, rootLength);
   let changed: boolean = false;
   let normalized: string = '';
   let segmentStart: number = 0;
@@ -658,7 +658,7 @@ export function GetNormalizedAbsolutePath(fileName: string, currentDirectory: st
     } else {
       segmentEnd += index + 1;
     }
-    let segmentLength: number = segmentEnd - segmentStart;
+    const segmentLength: number = segmentEnd - segmentStart;
     if (segmentLength === (1 as number) && fileName.charCodeAt(index) === (46 as number)) {
       if (!changed) {
         normalized = fileName.substring(0, normalizedUpTo);
@@ -694,7 +694,7 @@ export function GetNormalizedAbsolutePath(fileName: string, currentDirectory: st
           !(normalized === ('..' as string)) &&
           !$rt.strings_HasSuffix(normalized, '/..');
       } else {
-        let lastSlash: number = $rt.strings_LastIndexByte(normalized, 47);
+        const lastSlash: number = $rt.strings_LastIndexByte(normalized, 47);
         if (!(lastSlash === (-1 as number))) {
           normalized = normalized.substring(0, Math.max(rootLength, lastSlash));
         } else {
@@ -732,8 +732,8 @@ export function simpleNormalizePath(path: string): [string, boolean] {
   if (!hasRelativePathSegment(path)) {
     return [path, true];
   }
-  let simplified: string = $rt.strings_ReplaceAll(path, '/./', '/');
-  let trimmed: string = $rt.strings_TrimPrefix(simplified, './');
+  const simplified: string = $rt.strings_ReplaceAll(path, '/./', '/');
+  const trimmed: string = $rt.strings_TrimPrefix(simplified, './');
   if (
     !(trimmed === path) &&
     !hasRelativePathSegment(trimmed) &&
@@ -745,7 +745,7 @@ export function simpleNormalizePath(path: string): [string, boolean] {
   return ['', false];
 }
 export function hasRelativePathSegment(p: string): boolean {
-  let n: number = p.length;
+  const n: number = p.length;
   if (n === (0 as number)) {
     return false;
   }
@@ -772,7 +772,7 @@ export function hasRelativePathSegment(p: string): boolean {
   let segLen: number = 0;
   let dotCount: number = 0;
   for (let i = 0, $t1 = n; i < $t1; i++) {
-    let c: number = p.charCodeAt(i);
+    const c: number = p.charCodeAt(i);
     if (c === (47 as number)) {
       if (prevSlash) {
         return true;
@@ -806,8 +806,8 @@ export function NormalizePath(path: string): string {
   path = NormalizeSlashes(path);
   {
     const $t1 = simpleNormalizePath(path);
-    let normalized: string = $t1[0];
-    let ok: boolean = $t1[1];
+    const normalized: string = $t1[0];
+    const ok: boolean = $t1[1];
     if (ok) {
       return normalized;
     }
@@ -832,7 +832,7 @@ export function TrimFilePathPrefix(
   if (useCaseSensitiveFileNames) {
     return $rt.strings_CutPrefix(path, prefix);
   }
-  let canonicalPrefix: string = GetCanonicalFileName(prefix, false);
+  const canonicalPrefix: string = GetCanonicalFileName(prefix, false);
   if (!$rt.strings_HasPrefix(GetCanonicalFileName(path, false), canonicalPrefix)) {
     return [path, false];
   }
@@ -845,7 +845,7 @@ export function trimRuneCount(s: string, runeCount: number): string {
       break;
     }
     const $t3 = $rt.utf8_DecodeRuneInStringAt(s, i);
-    let size: number = $t3[1];
+    const size: number = $t3[1];
     i += size;
   }
   return s.substring(i);
@@ -854,9 +854,9 @@ export function ToFileNameLowerCase(fileName: string): string {
   const $c_IWithDot: number = 304;
   let ascii: boolean = true;
   let needsLower: boolean = false;
-  let fileNameLen: number = fileName.length;
+  const fileNameLen: number = fileName.length;
   for (let i = 0, $t1 = fileNameLen; i < $t1; i++) {
-    let c: number = fileName.charCodeAt(i);
+    const c: number = fileName.charCodeAt(i);
     if (c >= 128) {
       ascii = false;
       break;
@@ -869,7 +869,7 @@ export function ToFileNameLowerCase(fileName: string): string {
     if (!needsLower) {
       return fileName;
     }
-    let b: number[] = $rt.makeSlice<number>(fileNameLen, 0);
+    const b: number[] = $rt.makeSlice<number>(fileNameLen, 0);
     for (let i$1 = 0, $t2 = fileNameLen; i$1 < $t2; i$1++) {
       let c$1: number = fileName.charCodeAt(i$1);
       if (65 <= c$1 && c$1 <= 90) {
@@ -915,14 +915,14 @@ export function Path$EnsureTrailingDirectorySeparator(p: Path): Path {
   return EnsureTrailingDirectorySeparator(p);
 }
 export function GetPathComponentsRelativeTo(from_: string, to: string, options: ComparePathsOptions): string[] {
-  let fromComponents: string[] = reducePathComponents(GetPathComponents(from_, options.CurrentDirectory));
-  let toComponents: string[] = reducePathComponents(GetPathComponents(to, options.CurrentDirectory));
+  const fromComponents: string[] = reducePathComponents(GetPathComponents(from_, options.CurrentDirectory));
+  const toComponents: string[] = reducePathComponents(GetPathComponents(to, options.CurrentDirectory));
   let start: number = 0;
-  let maxCommonComponents: number = Math.min(fromComponents.length, toComponents.length);
-  let stringEqualer: ((p0: string, p1: string) => boolean) | undefined = options.getEqualityComparer();
+  const maxCommonComponents: number = Math.min(fromComponents.length, toComponents.length);
+  const stringEqualer: ((p0: string, p1: string) => boolean) | undefined = options.getEqualityComparer();
   for (; start < maxCommonComponents; start++) {
-    let fromComponent: string = fromComponents[start];
-    let toComponent: string = toComponents[start];
+    const fromComponent: string = fromComponents[start];
+    const toComponent: string = toComponents[start];
     if (start === (0 as number)) {
       if (!$stringutil.EquateStringCaseInsensitive(fromComponent, toComponent)) {
         break;
@@ -936,8 +936,8 @@ export function GetPathComponentsRelativeTo(from_: string, to: string, options: 
   if (start === (0 as number)) {
     return toComponents;
   }
-  let numDotDotSlashes: number = fromComponents.length - start;
-  let result: string[] = $rt.makeSlice<string>(1 + numDotDotSlashes + toComponents.length - start, '');
+  const numDotDotSlashes: number = fromComponents.length - start;
+  const result: string[] = $rt.makeSlice<string>(1 + numDotDotSlashes + toComponents.length - start, '');
   result[0] = '';
   let i: number = 1;
   for (let $t1 = 0, $t2 = numDotDotSlashes; $t1 < $t2; $t1++) {
@@ -947,7 +947,7 @@ export function GetPathComponentsRelativeTo(from_: string, to: string, options: 
   {
     const $t3 = toComponents.slice(start);
     for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
-      let component = $t3[$t4];
+      const component = $t3[$t4];
       result[i] = component;
       i++;
     }
@@ -958,7 +958,7 @@ export function GetRelativePathFromDirectory(fromDirectory: string, to: string, 
   if (!(GetRootLength(fromDirectory) > 0 === GetRootLength(to) > 0)) {
     throw $rt.newPanic(new $rt.BoxStr('paths must either both be absolute or both be relative', 'string'));
   }
-  let pathComponents: string[] = GetPathComponentsRelativeTo(fromDirectory, to, options);
+  const pathComponents: string[] = GetPathComponentsRelativeTo(fromDirectory, to, options);
   return GetPathFromPathComponents(pathComponents);
 }
 export function GetRelativePathFromFile(from_: string, to: string, options: ComparePathsOptions): string {
@@ -976,8 +976,8 @@ export function GetRelativePathToDirectoryOrUrl(
   isAbsolutePathAnUrl: boolean,
   options: ComparePathsOptions,
 ): string {
-  let pathComponents: string[] = GetPathComponentsRelativeTo(directoryPathOrUrl, relativeOrAbsolutePath, options);
-  let firstComponent: string = pathComponents[0];
+  const pathComponents: string[] = GetPathComponentsRelativeTo(directoryPathOrUrl, relativeOrAbsolutePath, options);
+  const firstComponent: string = pathComponents[0];
   if (isAbsolutePathAnUrl && IsRootedDiskPath(firstComponent)) {
     let prefix: string = '';
     if (firstComponent.charCodeAt(0) === (47 as number)) {
@@ -991,7 +991,7 @@ export function GetRelativePathToDirectoryOrUrl(
 }
 export function GetBaseFileName(path: string): string {
   path = NormalizeSlashes(path);
-  let rootLength: number = GetRootLength(path);
+  const rootLength: number = GetRootLength(path);
   if (rootLength === path.length) {
     return '';
   }
@@ -1006,8 +1006,8 @@ export function GetAnyExtensionFromPath(path: string, extensions: string[], igno
       $stringutil.GetStringEqualityComparer(ignoreCase),
     );
   }
-  let baseFileName: string = GetBaseFileName(path);
-  let extensionIndex: number = $rt.strings_LastIndex(baseFileName, '.');
+  const baseFileName: string = GetBaseFileName(path);
+  const extensionIndex: number = $rt.strings_LastIndex(baseFileName, '.');
   if (extensionIndex >= 0) {
     return baseFileName.substring(extensionIndex);
   }
@@ -1015,15 +1015,15 @@ export function GetAnyExtensionFromPath(path: string, extensions: string[], igno
 }
 export function GetLongestExtensionFromPath(path: string, extensions: string[], ignoreCase: boolean): string {
   path = RemoveTrailingDirectorySeparator(path);
-  let comparer: ((p0: string, p1: string) => boolean) | undefined = $stringutil.GetStringEqualityComparer(ignoreCase);
+  const comparer: ((p0: string, p1: string) => boolean) | undefined = $stringutil.GetStringEqualityComparer(ignoreCase);
   let longest: string = '';
   {
     const $t1 = extensions;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let extension = $t1[$t2];
+      const extension = $t1[$t2];
       if (extension.length > longest.length) {
         {
-          let matched: string = tryGetExtensionFromPath(path, extension, comparer);
+          const matched: string = tryGetExtensionFromPath(path, extension, comparer);
           if (!(matched === ('' as string))) {
             longest = matched;
           }
@@ -1041,8 +1041,8 @@ export function getAnyExtensionFromPathWorker(
   {
     const $t1 = extensions;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let extension = $t1[$t2];
-      let result: string = tryGetExtensionFromPath(path, extension, stringEqualityComparer);
+      const extension = $t1[$t2];
+      const result: string = tryGetExtensionFromPath(path, extension, stringEqualityComparer);
       if (!(result === ('' as string))) {
         return result;
       }
@@ -1059,7 +1059,7 @@ export function tryGetExtensionFromPath(
     extension = '.' + extension;
   }
   if (path.length >= extension.length && path.charCodeAt(path.length - extension.length) === (46 as number)) {
-    let pathExtension: string = path.substring(path.length - extension.length);
+    const pathExtension: string = path.substring(path.length - extension.length);
     if (stringEqualityComparer!(pathExtension, extension)) {
       return pathExtension;
     }
@@ -1108,23 +1108,23 @@ export function ComparePaths(a: string, b: string, options: ComparePathsOptions)
   if (b === ('' as string)) {
     return 1;
   }
-  let aRoot: string = a.substring(0, GetRootLength(a));
-  let bRoot: string = b.substring(0, GetRootLength(b));
-  let result: $stringutil.Comparison = $stringutil.CompareStringsCaseInsensitive(aRoot, bRoot);
+  const aRoot: string = a.substring(0, GetRootLength(a));
+  const bRoot: string = b.substring(0, GetRootLength(b));
+  const result: $stringutil.Comparison = $stringutil.CompareStringsCaseInsensitive(aRoot, bRoot);
   if (!(result === (0 as number))) {
     return result;
   }
-  let aRest: string = a.substring(aRoot.length);
-  let bRest: string = b.substring(bRoot.length);
+  const aRest: string = a.substring(aRoot.length);
+  const bRest: string = b.substring(bRoot.length);
   if (!hasRelativePathSegment(aRest) && !hasRelativePathSegment(bRest)) {
     return options.GetComparer()!(aRest, bRest);
   }
-  let aComponents: string[] = reducePathComponents(GetPathComponents(a, ''));
-  let bComponents: string[] = reducePathComponents(GetPathComponents(b, ''));
-  let sharedLength: number = Math.min(aComponents.length, bComponents.length);
+  const aComponents: string[] = reducePathComponents(GetPathComponents(a, ''));
+  const bComponents: string[] = reducePathComponents(GetPathComponents(b, ''));
+  const sharedLength: number = Math.min(aComponents.length, bComponents.length);
   {
     for (let i: number = 1; i < sharedLength; i++) {
-      let result$1: number = options.GetComparer()!(aComponents[i], bComponents[i]);
+      const result$1: number = options.GetComparer()!(aComponents[i], bComponents[i]);
       if (!(result$1 === (0 as number))) {
         return result$1;
       }
@@ -1147,17 +1147,17 @@ export function ContainsPath(parent: string, child: string, options: ComparePath
   if (parent === child) {
     return true;
   }
-  let parentComponents: string[] = reducePathComponents(GetPathComponents(parent, ''));
-  let childComponents: string[] = reducePathComponents(GetPathComponents(child, ''));
+  const parentComponents: string[] = reducePathComponents(GetPathComponents(parent, ''));
+  const childComponents: string[] = reducePathComponents(GetPathComponents(child, ''));
   if (childComponents.length < parentComponents.length) {
     return false;
   }
-  let componentComparer: ((p0: string, p1: string) => boolean) | undefined = options.getEqualityComparer();
+  const componentComparer: ((p0: string, p1: string) => boolean) | undefined = options.getEqualityComparer();
   {
     const $t1 = parentComponents;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let i = $t2;
-      let parentComponent = $t1[$t2];
+      const i = $t2;
+      const parentComponent = $t1[$t2];
       let comparer: ((p0: string, p1: string) => boolean) | undefined = undefined as
         | ((p0: string, p1: string) => boolean)
         | undefined;
@@ -1195,14 +1195,14 @@ export function ForEachAncestorDirectoryStoppingAtGlobalCache<T>(
 ): T {
   const $t2 = ForEachAncestorDirectory<T>($z_T, directory, (ancestorDirectory: string): [T, boolean] => {
     const $t1 = callback!(ancestorDirectory);
-    let result: T = $t1[0];
-    let stop: boolean = $t1[1];
+    const result: T = $t1[0];
+    const stop: boolean = $t1[1];
     if (stop || ancestorDirectory === globalCacheLocation) {
       return [result, true];
     }
     return [result, false];
   });
-  let result$1: T = $t2[0];
+  const result$1: T = $t2[0];
   return result$1;
 }
 export function ForEachAncestorDirectory<T>(
@@ -1214,14 +1214,14 @@ export function ForEachAncestorDirectory<T>(
   let ok: boolean = false;
   for (;;) {
     const $t1 = callback!(directory);
-    let result$1: T = $t1[0];
-    let stop: boolean = $t1[1];
+    const result$1: T = $t1[0];
+    const stop: boolean = $t1[1];
     if (stop) {
       return [result$1, true];
     }
-    let parentPath: string = GetDirectoryPath(directory);
+    const parentPath: string = GetDirectoryPath(directory);
     if (parentPath === directory) {
-      let zero: T = $z_T();
+      const zero: T = $z_T();
       return [zero, false];
     }
     directory = parentPath;
@@ -1275,8 +1275,8 @@ export function GetCommonParents(
   {
     const $t1 = paths;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let path = $t1[$t2];
-      let components: string[] = reducePathComponents(getPathComponents!(path, options.CurrentDirectory));
+      const path = $t1[$t2];
+      const components: string[] = reducePathComponents(getPathComponents!(path, options.CurrentDirectory));
       if (components.length < minComponents) {
         ignored!.set(path, $rt.EMPTY);
       } else {
@@ -1284,13 +1284,13 @@ export function GetCommonParents(
       }
     }
   }
-  let results: string[][] = getCommonParentsWorker(pathComponents, minComponents, options);
-  let resultPaths: string[] = $rt.makeSlice<string>(results.length, '');
+  const results: string[][] = getCommonParentsWorker(pathComponents, minComponents, options);
+  const resultPaths: string[] = $rt.makeSlice<string>(results.length, '');
   {
     const $t3 = results;
     for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
-      let i = $t4;
-      let comps = $t3[$t4];
+      const i = $t4;
+      const comps = $t3[$t4];
       resultPaths[i] = GetPathFromPathComponents(comps);
     }
   }
@@ -1308,36 +1308,40 @@ export function getCommonParentsWorker(
   {
     const $t1 = componentGroups.slice(1);
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let comps = $t1[$t2];
+      const comps = $t1[$t2];
       {
-        let l: number = comps.length;
+        const l: number = comps.length;
         if (l < maxDepth) {
           maxDepth = l;
         }
       }
     }
   }
-  let equality: ((p0: string, p1: string) => boolean) | undefined = options.getEqualityComparer();
+  const equality: ((p0: string, p1: string) => boolean) | undefined = options.getEqualityComparer();
   for (let lastCommonIndex = 0, $t3 = maxDepth; lastCommonIndex < $t3; lastCommonIndex++) {
-    let candidate: string = componentGroups[0][lastCommonIndex];
+    const candidate: string = componentGroups[0][lastCommonIndex];
     {
       const $t4 = componentGroups.slice(1);
       for (let $t5 = 0, $n = $t4.length; $t5 < $n; $t5++) {
-        let j = $t5;
-        let comps$1 = $t4[$t5];
+        const j = $t5;
+        const comps$1 = $t4[$t5];
         if (!equality!(candidate, comps$1[lastCommonIndex])) {
           if (lastCommonIndex < minComponents) {
             let orderedGroups: Path[] = [] as Path[];
-            let newGroups: Map<Path, $Anon0> | undefined = new Map<Path, $Anon0>();
+            const newGroups: Map<Path, $Anon0> | undefined = new Map<Path, $Anon0>();
             {
               const $t6 = componentGroups;
               for (let $t7 = 0, $n = $t6.length; $t7 < $n; $t7++) {
-                let g = $t6[$t7];
-                let key: Path = ToPath(g[lastCommonIndex], options.CurrentDirectory, options.UseCaseSensitiveFileNames);
+                const g = $t6[$t7];
+                const key: Path = ToPath(
+                  g[lastCommonIndex],
+                  options.CurrentDirectory,
+                  options.UseCaseSensitiveFileNames,
+                );
                 {
                   const $t8 = newGroups;
                   const $t9 = key;
-                  let ok: boolean = $t8 !== undefined && $t8.has($t9);
+                  const ok: boolean = $t8 !== undefined && $t8.has($t9);
                   if (!ok) {
                     orderedGroups.push(key);
                   }
@@ -1356,9 +1360,9 @@ export function getCommonParentsWorker(
             {
               const $t10 = orderedGroups;
               for (let $t11 = 0, $n = $t10.length; $t11 < $n; $t11++) {
-                let key$1 = $t10[$t11];
-                let group: $Anon0 = (newGroups?.get(key$1) ?? new $Anon0()).$clone();
-                let subResults: string[][] = getCommonParentsWorker(
+                const key$1 = $t10[$t11];
+                const group: $Anon0 = (newGroups?.get(key$1) ?? new $Anon0()).$clone();
+                const subResults: string[][] = getCommonParentsWorker(
                   group.tails,
                   minComponents - (lastCommonIndex + 1),
                   options,
@@ -1366,7 +1370,7 @@ export function getCommonParentsWorker(
                 {
                   const $t12 = subResults;
                   for (let $t13 = 0, $n = $t12.length; $t13 < $n; $t13++) {
-                    let sr = $t12[$t13];
+                    const sr = $t12[$t13];
                     result.push($rt.appendCopy(group.head, sr));
                   }
                 }
@@ -1389,7 +1393,7 @@ export function StartsWithDirectory(
   if (directoryName === ('' as string)) {
     return false;
   }
-  let canonicalFileName: string = GetCanonicalFileName(fileName, useCaseSensitiveFileNames);
+  const canonicalFileName: string = GetCanonicalFileName(fileName, useCaseSensitiveFileNames);
   let canonicalDirectoryName: string = GetCanonicalFileName(directoryName, useCaseSensitiveFileNames);
   canonicalDirectoryName = $rt.strings_TrimSuffix(canonicalDirectoryName, '/');
   canonicalDirectoryName = $rt.strings_TrimSuffix(canonicalDirectoryName, '\\');

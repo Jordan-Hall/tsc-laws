@@ -21,7 +21,7 @@ export function shouldRescanLessThanLessThanToken(
   return token === (47 as number) && $ast.IsJsxChild(containingNode);
 }
 export function scanNavigationToken(s: $scanner.Scanner | undefined, containingNode: $ast.Node | undefined): $ast.Kind {
-  let token: $ast.Kind = s!.Token();
+  const token: $ast.Kind = s!.Token();
   if (shouldRescanLessThanLessThanToken(s, containingNode, token)) {
     return s!.ReScanJsxToken(true);
   }
@@ -50,16 +50,16 @@ export function getTokenAtPosition(
   let current: $ast.Node | undefined = sourceFile!.AsNode();
   let left: number = 0;
   let nodeAfterLeft: $ast.Node | undefined = undefined as $ast.Node | undefined;
-  let getIncludedPrecedingToken: ((p0: $ast.Node | undefined) => $ast.Node | undefined) | undefined = (
+  const getIncludedPrecedingToken: ((p0: $ast.Node | undefined) => $ast.Node | undefined) | undefined = (
     subtree: $ast.Node | undefined,
   ): $ast.Node | undefined => {
-    let child: $ast.Node | undefined = FindPrecedingTokenEx(sourceFile, position, subtree, false);
+    const child: $ast.Node | undefined = FindPrecedingTokenEx(sourceFile, position, subtree, false);
     if (!(child === undefined) && child!.End() === position && includePrecedingTokenAtEndPosition!(child)) {
       return child;
     }
     return undefined;
   };
-  let testNode: ((p0: $ast.Node | undefined) => number) | undefined = (node: $ast.Node | undefined): number => {
+  const testNode: ((p0: $ast.Node | undefined) => number) | undefined = (node: $ast.Node | undefined): number => {
     if (
       !(node!.Kind_ === (1 as number)) &&
       node!.End() === position &&
@@ -79,13 +79,13 @@ export function getTokenAtPosition(
     ) {
       return -1;
     }
-    let nodePos: number = getPosition(node, sourceFile, allowPositionInLeadingTrivia);
+    const nodePos: number = getPosition(node, sourceFile, allowPositionInLeadingTrivia);
     if (nodePos > position) {
       return 1;
     }
     return 0;
   };
-  let visitNode:
+  const visitNode:
     | ((p0: $ast.Node | undefined, p1: $ast.NodeVisitor | undefined) => $ast.Node | undefined)
     | undefined = (node$1: $ast.Node | undefined, $p1: $ast.NodeVisitor | undefined): $ast.Node | undefined => {
     if (node$1 === undefined || !((node$1!.Flags & 8) === (0 as number))) {
@@ -95,7 +95,7 @@ export function getTokenAtPosition(
       nodeAfterLeft = node$1;
     }
     if (next === undefined) {
-      let result: number = testNode!(node$1);
+      const result: number = testNode!(node$1);
       {
         switch (result) {
           case -1 as number: {
@@ -114,7 +114,7 @@ export function getTokenAtPosition(
     }
     return node$1;
   };
-  let visitNodeList:
+  const visitNodeList:
     | ((p0: $ast.NodeList | undefined, p1: $ast.NodeVisitor | undefined) => $ast.NodeList | undefined)
     | undefined = (
     nodeList: $ast.NodeList | undefined,
@@ -127,7 +127,7 @@ export function getTokenAtPosition(
       {
         const $t1 = nodeList!.Nodes;
         for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-          let node$2 = $t1[$t2];
+          const node$2 = $t1[$t2];
           if ((node$2!.Flags & 8) === (0 as number)) {
             nodeAfterLeft = node$2;
             break;
@@ -158,7 +158,7 @@ export function getTokenAtPosition(
             if (!((node$3!.Flags & 8) === (0 as number))) {
               return 0;
             }
-            let cmp: number = testNode!(node$3);
+            const cmp: number = testNode!(node$3);
             if (cmp < 0) {
               left = node$3!.End();
               nodeAfterLeft = undefined;
@@ -181,7 +181,7 @@ export function getTokenAtPosition(
           const $t4 = $core.BinarySearchUniqueFunc<($ast.Node | undefined)[], $ast.Node | undefined>(
             nodes,
             (middle$1: number, node$5: $ast.Node | undefined): number => {
-              let cmp$1: number = testNode!(node$5);
+              const cmp$1: number = testNode!(node$5);
               if (cmp$1 < 0) {
                 left = node$5!.End();
                 if (middle$1 + 1 < nodes.length) {
@@ -207,7 +207,7 @@ export function getTokenAtPosition(
     VisitEachChildAndJSDoc(current, sourceFile, visitNode, visitNodeList);
     if (!(prevSubtree === undefined)) {
       {
-        let child$1: $ast.Node | undefined = getIncludedPrecedingToken!(prevSubtree);
+        const child$1: $ast.Node | undefined = getIncludedPrecedingToken!(prevSubtree);
         if (!(child$1 === undefined)) {
           return child$1;
         }
@@ -218,21 +218,21 @@ export function getTokenAtPosition(
       if ($ast.IsTokenKind(current!.Kind_) || shouldSkipChild(current)) {
         return current;
       }
-      let scanner: $scanner.Scanner | undefined = $scanner.GetScannerForSourceFile(sourceFile, left);
+      const scanner: $scanner.Scanner | undefined = $scanner.GetScannerForSourceFile(sourceFile, left);
       let end: number = current!.End();
       if (!(nodeAfterLeft === undefined)) {
         end = nodeAfterLeft!.Pos();
       }
       for (; left < end;) {
-        let token: $ast.Kind = scanNavigationToken(scanner, current);
-        let tokenFullStart: number = scanner!.TokenFullStart();
-        let tokenStart: number = $core.IfElse<number>(
+        const token: $ast.Kind = scanNavigationToken(scanner, current);
+        const tokenFullStart: number = scanner!.TokenFullStart();
+        const tokenStart: number = $core.IfElse<number>(
           allowPositionInLeadingTrivia,
           tokenFullStart,
           scanner!.TokenStart(),
         );
-        let tokenEnd: number = scanner!.TokenEnd();
-        let flags: $ast.TokenFlags = scanner!.TokenFlags$m();
+        const tokenEnd: number = scanner!.TokenEnd();
+        const flags: $ast.TokenFlags = scanner!.TokenFlags$m();
         if (tokenEnd > end) {
           break;
         }
@@ -254,7 +254,7 @@ export function getTokenAtPosition(
           return sourceFile!.GetOrCreateToken(token, tokenFullStart, tokenEnd, current, flags);
         }
         if (!(includePrecedingTokenAtEndPosition === undefined) && tokenEnd === position) {
-          let prevToken: $ast.Node | undefined = sourceFile!.GetOrCreateToken(
+          const prevToken: $ast.Node | undefined = sourceFile!.GetOrCreateToken(
             token,
             tokenFullStart,
             tokenEnd,
@@ -289,7 +289,7 @@ export function getPosition(
 export function findRightmostNode(node: $ast.Node | undefined): $ast.Node | undefined {
   let next: $ast.Node | undefined = undefined as $ast.Node | undefined;
   let current: $ast.Node | undefined = node;
-  let visitNode:
+  const visitNode:
     | ((p0: $ast.Node | undefined, p1: $ast.NodeVisitor | undefined) => $ast.Node | undefined)
     | undefined = (node$1: $ast.Node | undefined, $p1: $ast.NodeVisitor | undefined): $ast.Node | undefined => {
     if (!(node$1 === undefined)) {
@@ -297,7 +297,7 @@ export function findRightmostNode(node: $ast.Node | undefined): $ast.Node | unde
     }
     return node$1;
   };
-  let visitNodes:
+  const visitNodes:
     | ((p0: $ast.NodeList | undefined, p1: $ast.NodeVisitor | undefined) => $ast.NodeList | undefined)
     | undefined = (
     nodeList: $ast.NodeList | undefined,
@@ -305,7 +305,7 @@ export function findRightmostNode(node: $ast.Node | undefined): $ast.Node | unde
   ): $ast.NodeList | undefined => {
     if (!(nodeList === undefined)) {
       {
-        let rightmost: $ast.Node | undefined = $ast.FindLastVisibleNode(nodeList!.Nodes);
+        const rightmost: $ast.Node | undefined = $ast.FindLastVisibleNode(nodeList!.Nodes);
         if (!(rightmost === undefined)) {
           next = rightmost;
         }
@@ -313,7 +313,7 @@ export function findRightmostNode(node: $ast.Node | undefined): $ast.Node | unde
     }
     return nodeList;
   };
-  let visitor$1: $ast.NodeVisitor | undefined = getNodeVisitor(visitNode, visitNodes);
+  const visitor$1: $ast.NodeVisitor | undefined = getNodeVisitor(visitNode, visitNodes);
   for (;;) {
     current!.VisitEachChild$Node(visitor$1);
     if (next === undefined) {
@@ -331,11 +331,11 @@ export function VisitEachChildAndJSDoc(
     | ((p0: $ast.NodeList | undefined, p1: $ast.NodeVisitor | undefined) => $ast.NodeList | undefined)
     | undefined,
 ): void {
-  let visitor: $ast.NodeVisitor | undefined = getNodeVisitor(visitNode, visitNodes);
+  const visitor: $ast.NodeVisitor | undefined = getNodeVisitor(visitNode, visitNodes);
   {
     const $t1 = node!.JSDoc(sourceFile);
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let jsdoc = $t1[$t2];
+      const jsdoc = $t1[$t2];
       if (!(visitor!.Hooks.VisitNode === undefined)) {
         visitor!.Hooks.VisitNode!(jsdoc, visitor);
       } else {
@@ -363,7 +363,7 @@ export function FindPrecedingTokenEx(
     }
     let foundChild: $ast.Node | undefined = undefined as $ast.Node | undefined;
     let prevChild: $ast.Node | undefined = undefined as $ast.Node | undefined;
-    let visitNode:
+    const visitNode:
       | ((p0: $ast.Node | undefined, p1: $ast.NodeVisitor | undefined) => $ast.Node | undefined)
       | undefined = (node: $ast.Node | undefined, $p1: $ast.NodeVisitor | undefined): $ast.Node | undefined => {
       if (node === undefined || !((node!.Flags & 8) === (0 as number))) {
@@ -379,7 +379,7 @@ export function FindPrecedingTokenEx(
       }
       return node;
     };
-    let visitNodes:
+    const visitNodes:
       | ((p0: $ast.NodeList | undefined, p1: $ast.NodeVisitor | undefined) => $ast.NodeList | undefined)
       | undefined = (
       nodeList: $ast.NodeList | undefined,
@@ -389,7 +389,7 @@ export function FindPrecedingTokenEx(
         return nodeList;
       }
       if (!(nodeList === undefined) && nodeList!.Nodes.length > 0) {
-        let nodes: ($ast.Node | undefined)[] = nodeList!.Nodes;
+        const nodes: ($ast.Node | undefined)[] = nodeList!.Nodes;
         const $t1 = $core.BinarySearchUniqueFunc<($ast.Node | undefined)[], $ast.Node | undefined>(
           nodes,
           (middle: number, $p1: $ast.Node | undefined): number => {
@@ -405,12 +405,12 @@ export function FindPrecedingTokenEx(
             return -1;
           },
         );
-        let index: number = $t1[0];
-        let match: boolean = $t1[1];
+        const index: number = $t1[0];
+        const match: boolean = $t1[1];
         if (match) {
           foundChild = nodes[index];
         }
-        let validLookupIndex: number = $core.IfElse<number>(match, index - 1, nodes.length - 1);
+        const validLookupIndex: number = $core.IfElse<number>(match, index - 1, nodes.length - 1);
         {
           for (let i: number = validLookupIndex; i >= 0; i--) {
             if (!((nodes[i]!.Flags & 8) === (0 as number))) {
@@ -426,12 +426,12 @@ export function FindPrecedingTokenEx(
     };
     VisitEachChildAndJSDoc(n, sourceFile, visitNode, visitNodes);
     if (!(foundChild === undefined)) {
-      let start: number = GetStartOfNode(foundChild, sourceFile, !excludeJSDoc);
-      let lookInPreviousChild: boolean = start >= position || !isValidPrecedingNode(foundChild, sourceFile);
+      const start: number = GetStartOfNode(foundChild, sourceFile, !excludeJSDoc);
+      const lookInPreviousChild: boolean = start >= position || !isValidPrecedingNode(foundChild, sourceFile);
       if (lookInPreviousChild) {
         if (position >= foundChild!.Pos()) {
           let jsDoc: $ast.Node | undefined = undefined as $ast.Node | undefined;
-          let nodeJSDoc: ($ast.Node | undefined)[] = n!.JSDoc(sourceFile);
+          const nodeJSDoc: ($ast.Node | undefined)[] = n!.JSDoc(sourceFile);
           {
             for (let i$1: number = nodeJSDoc.length - 1; i$1 >= 0; i$1--) {
               if (nodeJSDoc[i$1]!.Pos() >= foundChild!.Pos()) {
@@ -467,7 +467,7 @@ export function FindPrecedingTokenEx(
   } else {
     node$1 = sourceFile!.AsNode();
   }
-  let result: $ast.Node | undefined = find!(node$1);
+  const result: $ast.Node | undefined = find!(node$1);
   if (!(result === undefined) && $ast.IsWhitespaceOnlyJsxText(result)) {
     throw $rt.newPanic(new $rt.BoxStr('Expected result to be a non-whitespace token.', 'string'));
   }
@@ -477,8 +477,8 @@ export function isValidPrecedingNode(node: $ast.Node | undefined, sourceFile: $a
   if (node!.Kind_ === (1 as number)) {
     return node!.JSDoc(sourceFile).length > 0;
   }
-  let start: number = GetStartOfNode(node, sourceFile, false);
-  let width: number = node!.End() - start;
+  const start: number = GetStartOfNode(node, sourceFile, false);
+  const width: number = node!.End() - start;
   return !($ast.IsWhitespaceOnlyJsxText(node) || width === (0 as number));
 }
 export function GetStartOfNode(
@@ -511,7 +511,7 @@ export function findRightmostValidToken(
     let rightmostValidNode: $ast.Node | undefined = undefined as $ast.Node | undefined;
     let rightmostVisitedNodes: ($ast.Node | undefined)[] = [] as ($ast.Node | undefined)[];
     let hasChildren: boolean = false;
-    let shouldVisitNode: ((p0: $ast.Node | undefined) => boolean) | undefined = (
+    const shouldVisitNode: ((p0: $ast.Node | undefined) => boolean) | undefined = (
       node: $ast.Node | undefined,
     ): boolean => {
       return !(
@@ -520,7 +520,7 @@ export function findRightmostValidToken(
         GetStartOfNode(node, sourceFile, !excludeJSDoc) >= position
       );
     };
-    let visitNode:
+    const visitNode:
       | ((p0: $ast.Node | undefined, p1: $ast.NodeVisitor | undefined) => $ast.Node | undefined)
       | undefined = (node$1: $ast.Node | undefined, $p1: $ast.NodeVisitor | undefined): $ast.Node | undefined => {
       if (node$1 === undefined || !((node$1!.Flags & 8) === (0 as number))) {
@@ -537,7 +537,7 @@ export function findRightmostValidToken(
       }
       return node$1;
     };
-    let visitNodes:
+    const visitNodes:
       | ((p0: $ast.NodeList | undefined, p1: $ast.NodeVisitor | undefined) => $ast.NodeList | undefined)
       | undefined = (
       nodeList: $ast.NodeList | undefined,
@@ -554,7 +554,7 @@ export function findRightmostValidToken(
             return -1;
           },
         );
-        let index: number = $t1[0];
+        const index: number = $t1[0];
         let validIndex: number = -1;
         {
           for (let i: number = index - 1; i >= 0; i--) {
@@ -587,22 +587,22 @@ export function findRightmostValidToken(
       } else {
         startPos = n!.Pos();
       }
-      let scanner: $scanner.Scanner | undefined = $scanner.GetScannerForSourceFile(sourceFile, startPos);
+      const scanner: $scanner.Scanner | undefined = $scanner.GetScannerForSourceFile(sourceFile, startPos);
       let tokens: ($ast.Node | undefined)[] = [];
       {
         const $t2 = rightmostVisitedNodes;
         for (let $t3 = 0, $n = $t2.length; $t3 < $n; $t3++) {
-          let visitedNode = $t2[$t3];
+          const visitedNode = $t2[$t3];
           for (; startPos < Math.min(visitedNode!.Pos(), position);) {
-            let token: $ast.Kind = scanNavigationToken(scanner, n);
-            let tokenStart: number = scanner!.TokenStart();
+            const token: $ast.Kind = scanNavigationToken(scanner, n);
+            const tokenStart: number = scanner!.TokenStart();
             if (tokenStart >= Math.min(visitedNode!.Pos(), position)) {
               break;
             }
-            let tokenFullStart: number = scanner!.TokenFullStart();
-            let tokenEnd: number = scanner!.TokenEnd();
+            const tokenFullStart: number = scanner!.TokenFullStart();
+            const tokenEnd: number = scanner!.TokenEnd();
             startPos = tokenEnd;
-            let flags: $ast.TokenFlags = scanner!.TokenFlags$m();
+            const flags: $ast.TokenFlags = scanner!.TokenFlags$m();
             tokens.push(sourceFile!.GetOrCreateToken(token, tokenFullStart, tokenEnd, n, flags));
             scanner!.Scan();
           }
@@ -612,19 +612,19 @@ export function findRightmostValidToken(
         }
       }
       for (; startPos < Math.min(endPos$1, position);) {
-        let token$1: $ast.Kind = scanNavigationToken(scanner, n);
-        let tokenStart$1: number = scanner!.TokenStart();
+        const token$1: $ast.Kind = scanNavigationToken(scanner, n);
+        const tokenStart$1: number = scanner!.TokenStart();
         if (tokenStart$1 >= Math.min(endPos$1, position)) {
           break;
         }
-        let tokenFullStart$1: number = scanner!.TokenFullStart();
-        let tokenEnd$1: number = scanner!.TokenEnd();
+        const tokenFullStart$1: number = scanner!.TokenFullStart();
+        const tokenEnd$1: number = scanner!.TokenEnd();
         startPos = tokenEnd$1;
-        let flags$1: $ast.TokenFlags = scanner!.TokenFlags$m();
+        const flags$1: $ast.TokenFlags = scanner!.TokenFlags$m();
         tokens.push(sourceFile!.GetOrCreateToken(token$1, tokenFullStart$1, tokenEnd$1, n, flags$1));
         scanner!.Scan();
       }
-      let lastToken: number = tokens.length - 1;
+      const lastToken: number = tokens.length - 1;
       {
         for (let i$2: number = lastToken; i$2 >= 0; i$2--) {
           if (!$ast.IsWhitespaceOnlyJsxText(tokens[i$2])) {
@@ -659,7 +659,7 @@ export function FindNextToken(
       return n;
     }
     let foundNode: $ast.Node | undefined = undefined as $ast.Node | undefined;
-    let visitNode:
+    const visitNode:
       | ((p0: $ast.Node | undefined, p1: $ast.NodeVisitor | undefined) => $ast.Node | undefined)
       | undefined = (node: $ast.Node | undefined, $p1: $ast.NodeVisitor | undefined): $ast.Node | undefined => {
       if (
@@ -672,14 +672,14 @@ export function FindNextToken(
       }
       return node;
     };
-    let visitNodes:
+    const visitNodes:
       | ((p0: $ast.NodeList | undefined, p1: $ast.NodeVisitor | undefined) => $ast.NodeList | undefined)
       | undefined = (
       nodeList: $ast.NodeList | undefined,
       $p1: $ast.NodeVisitor | undefined,
     ): $ast.NodeList | undefined => {
       if (!(nodeList === undefined) && nodeList!.Nodes.length > 0 && foundNode === undefined) {
-        let nodes: ($ast.Node | undefined)[] = nodeList!.Nodes;
+        const nodes: ($ast.Node | undefined)[] = nodeList!.Nodes;
         const $t1 = $core.BinarySearchUniqueFunc<($ast.Node | undefined)[], $ast.Node | undefined>(
           nodes,
           ($p0: number, node$1: $ast.Node | undefined): number => {
@@ -695,8 +695,8 @@ export function FindNextToken(
             return 0;
           },
         );
-        let index: number = $t1[0];
-        let match: boolean = $t1[1];
+        const index: number = $t1[0];
+        const match: boolean = $t1[1];
         if (match) {
           foundNode = nodes[index];
         }
@@ -707,13 +707,13 @@ export function FindNextToken(
     if (!(foundNode === undefined)) {
       return find!(foundNode);
     }
-    let startPos: number = previousToken!.End();
+    const startPos: number = previousToken!.End();
     if (startPos >= n!.Pos() && startPos < n!.End()) {
-      let scanner: $scanner.Scanner | undefined = $scanner.GetScannerForSourceFile(file, startPos);
-      let token: $ast.Kind = scanner!.Token();
-      let tokenFullStart: number = scanner!.TokenFullStart();
-      let tokenEnd: number = scanner!.TokenEnd();
-      let flags: $ast.TokenFlags = scanner!.TokenFlags$m();
+      const scanner: $scanner.Scanner | undefined = $scanner.GetScannerForSourceFile(file, startPos);
+      const token: $ast.Kind = scanner!.Token();
+      const tokenFullStart: number = scanner!.TokenFullStart();
+      const tokenEnd: number = scanner!.TokenEnd();
+      const flags: $ast.TokenFlags = scanner!.TokenFlags$m();
       if (tokenFullStart === previousToken!.End()) {
         return file!.GetOrCreateToken(token, tokenFullStart, tokenEnd, n, flags);
       }
@@ -802,19 +802,19 @@ export function FindChildOfKind(
   sourceFile: $ast.SourceFile | undefined,
 ): $ast.Node | undefined {
   let lastNodePos: number = containingNode!.Pos();
-  let scan: $scanner.Scanner | undefined = $scanner.GetScannerForSourceFile(sourceFile, lastNodePos);
+  const scan: $scanner.Scanner | undefined = $scanner.GetScannerForSourceFile(sourceFile, lastNodePos);
   let foundChild: $ast.Node | undefined = undefined as $ast.Node | undefined;
-  let visitNode: ((p0: $ast.Node | undefined) => boolean) | undefined = (node: $ast.Node | undefined): boolean => {
+  const visitNode: ((p0: $ast.Node | undefined) => boolean) | undefined = (node: $ast.Node | undefined): boolean => {
     if (node === undefined || !((node!.Flags & 8) === (0 as number))) {
       return false;
     }
     let startPos: number = lastNodePos;
     for (; startPos < node!.Pos();) {
-      let tokenKind: $ast.Kind = scan!.Token();
-      let tokenEnd: number = scan!.TokenEnd();
+      const tokenKind: $ast.Kind = scan!.Token();
+      const tokenEnd: number = scan!.TokenEnd();
       if (tokenKind === kind) {
-        let tokenFullStart: number = scan!.TokenFullStart();
-        let flags: $ast.TokenFlags = scan!.TokenFlags$m();
+        const tokenFullStart: number = scan!.TokenFullStart();
+        const flags: $ast.TokenFlags = scan!.TokenFlags$m();
         foundChild = sourceFile!.GetOrCreateToken(tokenKind, tokenFullStart, tokenEnd, containingNode, flags);
         return true;
       }
@@ -835,12 +835,12 @@ export function FindChildOfKind(
   }
   let startPos$1: number = lastNodePos;
   for (; startPos$1 < containingNode!.End();) {
-    let tokenKind$1: $ast.Kind = scan!.Token();
-    let tokenEnd$1: number = scan!.TokenEnd();
+    const tokenKind$1: $ast.Kind = scan!.Token();
+    const tokenEnd$1: number = scan!.TokenEnd();
     if (tokenKind$1 === kind) {
-      let tokenFullStart$1: number = scan!.TokenFullStart();
-      let flags$1: $ast.TokenFlags = scan!.TokenFlags$m();
-      let token: $ast.Node | undefined = sourceFile!.GetOrCreateToken(
+      const tokenFullStart$1: number = scan!.TokenFullStart();
+      const flags$1: $ast.TokenFlags = scan!.TokenFlags$m();
+      const token: $ast.Node | undefined = sourceFile!.GetOrCreateToken(
         tokenKind$1,
         tokenFullStart$1,
         tokenEnd$1,

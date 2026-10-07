@@ -74,7 +74,7 @@ export class KnownSymlinks extends $rt.GoObject {
   HasDirectory(symlinkPath: $tspath.Path): boolean {
     const cache = this;
     const $t1 = cache!.directories.Load($tspath.Path$EnsureTrailingDirectorySeparator(symlinkPath));
-    let ok: boolean = $t1[1];
+    const ok: boolean = $t1[1];
     return ok;
   }
   Directories(): $rt.collections_SyncMap<$tspath.Path, KnownDirectoryLink | undefined> | undefined {
@@ -98,13 +98,13 @@ export class KnownSymlinks extends $rt.GoObject {
     if (!(realDirectory === undefined)) {
       {
         const $t1 = cache!.directories.Load(symlinkPath);
-        let ok: boolean = $t1[1];
+        const ok: boolean = $t1[1];
         if (!ok) {
           const $t2 = cache!.directoriesByRealpath.LoadOrStore(
             realDirectory!.RealPath,
             new $collections.SyncSet<string>($zf0),
           );
-          let set_: $collections.SyncSet<string> | undefined = $t2[0];
+          const set_: $collections.SyncSet<string> | undefined = $t2[0];
           set_!.Add(symlink);
         }
       }
@@ -115,11 +115,11 @@ export class KnownSymlinks extends $rt.GoObject {
     const cache = this;
     {
       const $t1 = cache!.files.Load(symlinkPath);
-      let ok: boolean = $t1[1];
+      const ok: boolean = $t1[1];
       if (!ok) {
-        let realpathPath: $tspath.Path = $tspath.ToPath(realpath, cache!.cwd, cache!.useCaseSensitiveFileNames);
+        const realpathPath: $tspath.Path = $tspath.ToPath(realpath, cache!.cwd, cache!.useCaseSensitiveFileNames);
         const $t2 = cache!.filesByRealpath.LoadOrStore(realpathPath, new $collections.SyncSet<string>($zf0));
-        let set_: $collections.SyncSet<string> | undefined = $t2[0];
+        const set_: $collections.SyncSet<string> | undefined = $t2[0];
         set_!.Add(symlink);
       }
     }
@@ -183,10 +183,10 @@ export class KnownSymlinks extends $rt.GoObject {
       resolvedFileName,
     );
     const $t1 = cache!.guessDirectorySymlink(resolvedFileName, originalPath, cache!.cwd);
-    let commonResolved: string = $t1[0];
-    let commonOriginal: string = $t1[1];
+    const commonResolved: string = $t1[0];
+    const commonOriginal: string = $t1[1];
     if (!(commonResolved === ('' as string)) && !(commonOriginal === ('' as string))) {
-      let symlinkPath: $tspath.Path = $tspath.ToPath(commonOriginal, cache!.cwd, cache!.useCaseSensitiveFileNames);
+      const symlinkPath: $tspath.Path = $tspath.ToPath(commonOriginal, cache!.cwd, cache!.useCaseSensitiveFileNames);
       if (!$tspath.ContainsIgnoredPath(symlinkPath)) {
         cache!.SetDirectory(
           commonOriginal,

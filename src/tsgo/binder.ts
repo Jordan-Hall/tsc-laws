@@ -151,7 +151,7 @@ export class Binder extends $rt.GoObject {
   newSymbol(flags: $ast.SymbolFlags, name_: string): $ast.Symbol_ | undefined {
     const b = this;
     b!.symbolCount++;
-    let result: $ast.Symbol_ | undefined = b!.symbolArena.New();
+    const result: $ast.Symbol_ | undefined = b!.symbolArena.New();
     result!.Flags = flags;
     result!.Name = name_;
     return result;
@@ -177,7 +177,7 @@ export class Binder extends $rt.GoObject {
   ): $ast.Symbol_ | undefined {
     const b = this;
     $debug.Assert(isComputedName || !$ast.HasDynamicName(node), [] as ($rt.GoObject | undefined)[]);
-    let isDefaultExport: boolean =
+    const isDefaultExport: boolean =
       $ast.HasSyntacticModifier(node, 2048) ||
       ($ast.IsExportSpecifier(node) && $ast.ModuleExportNameIsDefault(node!.AsExportSpecifier()!.Name()));
     let name_: string = '';
@@ -271,8 +271,8 @@ export class Binder extends $rt.GoObject {
           {
             const $t2 = symbol_!.Declarations;
             for (let $t3 = 0, $n = $t2.length; $t3 < $n; $t3++) {
-              let index = $t3;
-              let declaration = $t2[$t3];
+              const index = $t3;
+              const declaration = $t2[$t3];
               let decl: $ast.Node | undefined = $ast.GetNameOfDeclaration(declaration);
               if (decl === undefined) {
                 decl = declaration;
@@ -331,17 +331,17 @@ export class Binder extends $rt.GoObject {
     if ($ast.IsExportAssignment(node)) {
       return $core.IfElse<string>(node!.AsExportAssignment()!.IsExportEquals, 'export=', 'default');
     }
-    let name_: $ast.Node | undefined = $ast.GetNameOfDeclaration(node);
+    const name_: $ast.Node | undefined = $ast.GetNameOfDeclaration(node);
     if (!(name_ === undefined)) {
       if ($ast.IsAmbientModule(node)) {
-        let moduleName: string = name_!.Text$Node();
+        const moduleName: string = name_!.Text$Node();
         if ($ast.IsGlobalScopeAugmentation(node)) {
           return '\xfeglobal';
         }
         return '"' + moduleName + '"';
       }
       if ($ast.IsPrivateIdentifier(name_)) {
-        let containingClass: $ast.Node | undefined = $ast.GetContainingClass(node);
+        const containingClass: $ast.Node | undefined = $ast.GetContainingClass(node);
         if (containingClass === undefined) {
           return '\xfemissing';
         }
@@ -351,12 +351,12 @@ export class Binder extends $rt.GoObject {
         return name_!.Text$Node();
       }
       if ($ast.IsComputedPropertyName(name_)) {
-        let nameExpression: $ast.Node | undefined = name_!.Expression();
+        const nameExpression: $ast.Node | undefined = name_!.Expression();
         if ($ast.IsStringOrNumericLiteralLike(nameExpression)) {
           return nameExpression!.Text$Node();
         }
         if ($ast.IsSignedNumericLiteral(nameExpression)) {
-          let unaryExpression: $ast.PrefixUnaryExpression | undefined = nameExpression!.AsPrefixUnaryExpression();
+          const unaryExpression: $ast.PrefixUnaryExpression | undefined = nameExpression!.AsPrefixUnaryExpression();
           return $scanner.TokenToString(unaryExpression!.Operator) + unaryExpression!.Operand!.Text$Node();
         }
         throw $rt.newPanic(
@@ -394,11 +394,11 @@ export class Binder extends $rt.GoObject {
   }
   getDisplayName(node: $ast.Node | undefined): string {
     const b = this;
-    let nameNode: $ast.Node | undefined = node!.Name$Node();
+    const nameNode: $ast.Node | undefined = node!.Name$Node();
     if (!(nameNode === undefined)) {
       return $scanner.DeclarationNameToString(nameNode);
     }
-    let name_: string = b!.getDeclarationName(node);
+    const name_: string = b!.getDeclarationName(node);
     if (!(name_ === ('\xfemissing' as string))) {
       return name_;
     }
@@ -410,8 +410,8 @@ export class Binder extends $rt.GoObject {
     symbolExcludes: $ast.SymbolFlags,
   ): $ast.Symbol_ | undefined {
     const b = this;
-    let container: $ast.Node | undefined = b!.container;
-    let hasExportModifier: boolean =
+    const container: $ast.Node | undefined = b!.container;
+    const hasExportModifier: boolean =
       !(($ast.GetCombinedModifierFlags(node) & 32) === (0 as number)) ||
       $ast.IsImplicitlyExportedJSDocDeclaration(node);
     if (!((symbolFlags & 2097152) === (0 as number))) {
@@ -443,7 +443,7 @@ export class Binder extends $rt.GoObject {
       if (!((symbolFlags & 111551) === (0 as number))) {
         exportKind = 1048576;
       }
-      let local: $ast.Symbol_ | undefined = b!.declareSymbol(
+      const local: $ast.Symbol_ | undefined = b!.declareSymbol(
         $ast.GetLocals(container),
         undefined,
         node,
@@ -560,7 +560,7 @@ export class Binder extends $rt.GoObject {
   }
   newFlowNode(flags: $ast.FlowFlags): $ast.FlowNode | undefined {
     const b = this;
-    let result: $ast.FlowNode | undefined = b!.flowNodeArena.New();
+    const result: $ast.FlowNode | undefined = b!.flowNodeArena.New();
     result!.Flags = flags;
     return result;
   }
@@ -570,7 +570,7 @@ export class Binder extends $rt.GoObject {
     antecedent: $ast.FlowNode | undefined,
   ): $ast.FlowNode | undefined {
     const b = this;
-    let result: $ast.FlowNode | undefined = b!.newFlowNode(flags);
+    const result: $ast.FlowNode | undefined = b!.newFlowNode(flags);
     result!.Node_ = node;
     result!.Antecedent = antecedent;
     return result;
@@ -628,7 +628,7 @@ export class Binder extends $rt.GoObject {
     const b = this;
     setFlowNodeReferenced(antecedent);
     b!.hasFlowEffects = true;
-    let result: $ast.FlowNode | undefined = b!.newFlowNodeEx(flags, node, antecedent);
+    const result: $ast.FlowNode | undefined = b!.newFlowNodeEx(flags, node, antecedent);
     if (!(b!.currentExceptionTarget === undefined)) {
       b!.addAntecedent(b!.currentExceptionTarget, result);
     }
@@ -652,7 +652,7 @@ export class Binder extends $rt.GoObject {
   }
   newFlowList(head: $ast.FlowNode | undefined, tail: $ast.FlowList | undefined): $ast.FlowList | undefined {
     const b = this;
-    let result: $ast.FlowList | undefined = b!.flowListArena.New();
+    const result: $ast.FlowList | undefined = b!.flowListArena.New();
     result!.Flow = head;
     result!.Next = tail;
     return result;
@@ -957,9 +957,9 @@ export class Binder extends $rt.GoObject {
     }
     let thisNodeOrAnySubnodesHasError: boolean = !((node!.Flags & 32768) === (0 as number));
     if (node!.Kind_ > 166) {
-      let saveSeenParseError: boolean = b!.seenParseError;
+      const saveSeenParseError: boolean = b!.seenParseError;
       b!.seenParseError = false;
-      let containerFlags: ContainerFlags = GetContainerFlags(node);
+      const containerFlags: ContainerFlags = GetContainerFlags(node);
       if (containerFlags === (0 as number)) {
         b!.bindChildren(node);
       } else {
@@ -978,9 +978,9 @@ export class Binder extends $rt.GoObject {
   }
   bindPropertyWorker(node: $ast.Node | undefined): void {
     const b = this;
-    let isAutoAccessor: boolean = $ast.IsAutoAccessorPropertyDeclaration(node);
-    let includes: $ast.SymbolFlags = $core.IfElse<$ast.SymbolFlags>(isAutoAccessor, 98304, 4);
-    let excludes: $ast.SymbolFlags = $core.IfElse<$ast.SymbolFlags>(isAutoAccessor, 111547, 13243);
+    const isAutoAccessor: boolean = $ast.IsAutoAccessorPropertyDeclaration(node);
+    const includes: $ast.SymbolFlags = $core.IfElse<$ast.SymbolFlags>(isAutoAccessor, 98304, 4);
+    const excludes: $ast.SymbolFlags = $core.IfElse<$ast.SymbolFlags>(isAutoAccessor, 111547, 13243);
     b!.bindPropertyOrMethodOrAccessor(node, (includes | getOptionalSymbolFlagForNode(node)) >>> 0, excludes);
   }
   bindSourceFileIfExternalModule(): void {
@@ -990,7 +990,7 @@ export class Binder extends $rt.GoObject {
       b!.bindSourceFileAsExternalModule();
     } else if ($ast.IsJsonSourceFile(b!.file)) {
       b!.bindSourceFileAsExternalModule();
-      let originalSymbol: $ast.Symbol_ | undefined = b!.file!.DeclarationBase_.Symbol_;
+      const originalSymbol: $ast.Symbol_ | undefined = b!.file!.DeclarationBase_.Symbol_;
       b!.declareSymbol(
         $ast.GetSymbolTable(
           (($t1: $ast.Symbol_) =>
@@ -1027,10 +1027,10 @@ export class Binder extends $rt.GoObject {
       if ($ast.IsModuleAugmentationExternal(node)) {
         b!.declareModuleSymbol(node);
       } else {
-        let name_: $ast.Node | undefined = node!.AsModuleDeclaration()!.Name();
-        let symbol_: $ast.Symbol_ | undefined = b!.declareSymbolAndAddToSymbolTable(node, 512, 110735);
+        const name_: $ast.Node | undefined = node!.AsModuleDeclaration()!.Name();
+        const symbol_: $ast.Symbol_ | undefined = b!.declareSymbolAndAddToSymbolTable(node, 512, 110735);
         if ($ast.IsStringLiteral(name_)) {
-          let pattern: $core.Pattern = $core.TryParsePattern(name_!.Text$Node());
+          const pattern: $core.Pattern = $core.TryParsePattern(name_!.Text$Node());
           if (!pattern.IsValid()) {
             b!.errorOnFirstToken(name_, $diagnostics.Pattern_0_can_have_at_most_one_Asterisk_character, [
               new $rt.BoxStr(name_!.Text$Node(), 'string'),
@@ -1043,10 +1043,10 @@ export class Binder extends $rt.GoObject {
         }
       }
     } else {
-      let state: $ast.ModuleInstanceState = b!.declareModuleSymbol(node);
+      const state: $ast.ModuleInstanceState = b!.declareModuleSymbol(node);
       if (!(state === (1 as number))) {
-        let symbol_$1: $ast.Symbol_ | undefined = node!.Symbol$m();
-        let constEnumOnlyModule: boolean =
+        const symbol_$1: $ast.Symbol_ | undefined = node!.Symbol$m();
+        const constEnumOnlyModule: boolean =
           (symbol_$1!.Flags & 304) === (0 as number) &&
           state === (3 as number) &&
           !b!.notConstEnumOnlyModules.Has(symbol_$1);
@@ -1061,8 +1061,8 @@ export class Binder extends $rt.GoObject {
   }
   declareModuleSymbol(node: $ast.Node | undefined): $ast.ModuleInstanceState {
     const b = this;
-    let state: $ast.ModuleInstanceState = $ast.GetModuleInstanceState(node);
-    let instantiated: boolean = !(state === (1 as number));
+    const state: $ast.ModuleInstanceState = $ast.GetModuleInstanceState(node);
+    const instantiated: boolean = !(state === (1 as number));
     b!.declareSymbolAndAddToSymbolTable(
       node,
       $core.IfElse<$ast.SymbolFlags>(instantiated, 512, 1024),
@@ -1123,7 +1123,7 @@ export class Binder extends $rt.GoObject {
   }
   bindExportDeclaration(node: $ast.Node | undefined): void {
     const b = this;
-    let decl: $ast.ExportDeclaration | undefined = node!.AsExportDeclaration();
+    const decl: $ast.ExportDeclaration | undefined = node!.AsExportDeclaration();
     if (b!.container!.Symbol$m() === undefined) {
       b!.bindAnonymousDeclaration(node, 8388608, b!.getDeclarationName(node));
     } else if (decl!.ExportClause === undefined) {
@@ -1140,16 +1140,16 @@ export class Binder extends $rt.GoObject {
   }
   bindExportAssignment(node: $ast.Node | undefined): void {
     const b = this;
-    let container: $ast.Node | undefined = b!.container;
+    const container: $ast.Node | undefined = b!.container;
     if (container!.Symbol$m() === undefined && $ast.IsExportAssignment(node)) {
       b!.bindAnonymousDeclaration(node, 111551, b!.getDeclarationName(node));
     } else {
-      let flags: $ast.SymbolFlags = $core.IfElse<$ast.SymbolFlags>(
+      const flags: $ast.SymbolFlags = $core.IfElse<$ast.SymbolFlags>(
         $ast.ExpressionIsAlias(node!.Expression()),
         2097152,
         4,
       );
-      let symbol_: $ast.Symbol_ | undefined = b!.declareSymbol(
+      const symbol_: $ast.Symbol_ | undefined = b!.declareSymbol(
         $ast.GetExports(container!.Symbol$m()),
         container!.Symbol$m(),
         node,
@@ -1187,7 +1187,7 @@ export class Binder extends $rt.GoObject {
           break;
         }
         case 268 as number: {
-          let body: $ast.Node | undefined = node!.Body();
+          const body: $ast.Node | undefined = node!.Body();
           if (!(body === undefined) && $ast.IsModuleBlock(body)) {
             statements = body!.Statements();
           }
@@ -1234,7 +1234,7 @@ export class Binder extends $rt.GoObject {
   }
   bindClassLikeDeclaration(node: $ast.Node | undefined): void {
     const b = this;
-    let name_: $ast.Node | undefined = node!.Name$Node();
+    const name_: $ast.Node | undefined = node!.Name$Node();
     {
       switch (node!.Kind_) {
         case 264 as number: {
@@ -1251,9 +1251,9 @@ export class Binder extends $rt.GoObject {
         }
       }
     }
-    let symbol_: $ast.Symbol_ | undefined = node!.Symbol$m();
-    let prototypeSymbol: $ast.Symbol_ | undefined = b!.newSymbol(4194308, 'prototype');
-    let symbolExport: $ast.Symbol_ | undefined = $ast.GetExports(symbol_)?.get(prototypeSymbol!.Name) ?? undefined;
+    const symbol_: $ast.Symbol_ | undefined = node!.Symbol$m();
+    const prototypeSymbol: $ast.Symbol_ | undefined = b!.newSymbol(4194308, 'prototype');
+    const symbolExport: $ast.Symbol_ | undefined = $ast.GetExports(symbol_)?.get(prototypeSymbol!.Name) ?? undefined;
     if (!(symbolExport === undefined)) {
       b!.errorOnNode(symbolExport!.Declarations[0], $diagnostics.Duplicate_identifier_0, [
         new $rt.BoxStr($ast.SymbolName(prototypeSymbol), 'string'),
@@ -1282,16 +1282,16 @@ export class Binder extends $rt.GoObject {
   }
   bindFunctionOrConstructorType(node: $ast.Node | undefined): void {
     const b = this;
-    let symbol_: $ast.Symbol_ | undefined = b!.newSymbol(131072, b!.getDeclarationName(node));
+    const symbol_: $ast.Symbol_ | undefined = b!.newSymbol(131072, b!.getDeclarationName(node));
     b!.addDeclarationToSymbol(symbol_, node, 131072);
-    let typeLiteralSymbol: $ast.Symbol_ | undefined = b!.newSymbol(2048, '\xfetype');
+    const typeLiteralSymbol: $ast.Symbol_ | undefined = b!.newSymbol(2048, '\xfetype');
     b!.addDeclarationToSymbol(typeLiteralSymbol, node, 2048);
     typeLiteralSymbol!.Members = new Map<string, $ast.Symbol_ | undefined>();
     typeLiteralSymbol!.Members!.set(symbol_!.Name, symbol_);
   }
   addLateBoundAssignmentDeclarationToSymbol(node: $ast.Node | undefined, symbol_: $ast.Symbol_ | undefined): void {
     const b = this;
-    let exports: $ast.SymbolTable = $ast.GetExports(symbol_);
+    const exports: $ast.SymbolTable = $ast.GetExports(symbol_);
     let assignmentSymbol: $ast.Symbol_ | undefined = exports?.get('\xfeassignment') ?? undefined;
     if (assignmentSymbol === undefined) {
       assignmentSymbol = b!.newSymbol(0, '\xfeassignment');
@@ -1302,13 +1302,13 @@ export class Binder extends $rt.GoObject {
   bindModuleExportsAssignment(node: $ast.Node | undefined): void {
     const b = this;
     if (b!.setCommonJSModuleIndicator(node)) {
-      let container: $ast.Node | undefined = b!.file!.AsNode();
-      let flags: $ast.SymbolFlags = $core.IfElse<$ast.SymbolFlags>(
+      const container: $ast.Node | undefined = b!.file!.AsNode();
+      const flags: $ast.SymbolFlags = $core.IfElse<$ast.SymbolFlags>(
         $ast.ExpressionIsAlias(node!.AsBinaryExpression()!.Right),
         2097152,
         4,
       );
-      let symbol_: $ast.Symbol_ | undefined = b!.declareSymbol(
+      const symbol_: $ast.Symbol_ | undefined = b!.declareSymbol(
         $ast.GetExports(container!.Symbol$m()),
         container!.Symbol$m(),
         node,
@@ -1329,7 +1329,7 @@ export class Binder extends $rt.GoObject {
     {
       const $t1 = b!.expandoAssignments;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        let info = $t1[$t2];
+        const info = $t1[$t2];
         b!.container = info.container;
         b!.blockScopeContainer = info.blockScopeContainer;
         b!.bindDeferredExpandoAssignment(info.node);
@@ -1338,9 +1338,9 @@ export class Binder extends $rt.GoObject {
   }
   bindCommonJSTypeExports(moduleSymbol: $ast.Symbol_ | undefined): void {
     const b = this;
-    let moduleExports: $ast.SymbolTable = moduleSymbol!.Exports;
+    const moduleExports: $ast.SymbolTable = moduleSymbol!.Exports;
     {
-      let exportEquals: $ast.Symbol_ | undefined = moduleExports?.get('export=') ?? undefined;
+      const exportEquals: $ast.Symbol_ | undefined = moduleExports?.get('export=') ?? undefined;
       if (!(exportEquals === undefined)) {
         for (const [$t1, symbol_] of moduleExports ?? new Map<string, $ast.Symbol_ | undefined>()) {
           if (!(symbol_!.Name === ('export=' as string)) && !((symbol_!.Flags & 790504) === (0 as number))) {
@@ -1353,7 +1353,7 @@ export class Binder extends $rt.GoObject {
   }
   bindDeferredExpandoAssignment(node: $ast.Node | undefined): void {
     const b = this;
-    let parent: $ast.Node | undefined = getParentOfPropertyAssignment(node);
+    const parent: $ast.Node | undefined = getParentOfPropertyAssignment(node);
     let symbol_: $ast.Symbol_ | undefined = b!.lookupEntity(parent, b!.blockScopeContainer);
     if (symbol_ === undefined) {
       symbol_ = b!.lookupEntity(parent, b!.container);
@@ -1365,9 +1365,9 @@ export class Binder extends $rt.GoObject {
           b!.bindAnonymousDeclaration(node, 67108868, '\xfecomputed');
           b!.addLateBoundAssignmentDeclarationToSymbol(node, symbol_);
         } else {
-          let exports: $ast.SymbolTable = $ast.GetExports(symbol_);
+          const exports: $ast.SymbolTable = $ast.GetExports(symbol_);
           {
-            let existing: $ast.Symbol_ | undefined = exports?.get(b!.getDeclarationName(node)) ?? undefined;
+            const existing: $ast.Symbol_ | undefined = exports?.get(b!.getDeclarationName(node)) ?? undefined;
             if (existing === undefined || !((existing!.Flags & 67108864) === (0 as number))) {
               b!.declareSymbol(exports, symbol_, node, 67108868, 13243);
             }
@@ -1379,8 +1379,8 @@ export class Binder extends $rt.GoObject {
   bindExportsOrObjectDefineProperty(node: $ast.Node | undefined): void {
     const b = this;
     if (b!.setCommonJSModuleIndicator(node)) {
-      let container: $ast.Node | undefined = b!.file!.AsNode();
-      let flags: $ast.SymbolFlags = $core.IfElse<$ast.SymbolFlags>(
+      const container: $ast.Node | undefined = b!.file!.AsNode();
+      const flags: $ast.SymbolFlags = $core.IfElse<$ast.SymbolFlags>(
         $ast.IsBinaryExpression(node) && $ast.ExpressionIsAlias(node!.AsBinaryExpression()!.Right),
         2097152,
         1,
@@ -1393,7 +1393,7 @@ export class Binder extends $rt.GoObject {
     if (!$ast.IsInJSFile(node)) {
       return;
     }
-    let bin: $ast.BinaryExpression | undefined = node!.AsBinaryExpression();
+    const bin: $ast.BinaryExpression | undefined = node!.AsBinaryExpression();
     if (
       ($ast.IsPropertyAccessExpression(bin!.Left) &&
         $ast.IsPrivateIdentifier(bin!.Left!.AsPropertyAccessExpression()!.Name())) ||
@@ -1403,8 +1403,8 @@ export class Binder extends $rt.GoObject {
     }
     {
       const $t1 = b!.getThisClassAndSymbolTable();
-      let classSymbol: $ast.Symbol_ | undefined = $t1[0];
-      let symbolTable: $ast.SymbolTable = $t1[1];
+      const classSymbol: $ast.Symbol_ | undefined = $t1[0];
+      const symbolTable: $ast.SymbolTable = $t1[1];
       if (!(symbolTable === undefined)) {
         if ($ast.HasDynamicName(node)) {
           b!.declareSymbolEx(symbolTable, classSymbol, node, 4, 0, true, true);
@@ -1465,7 +1465,7 @@ export class Binder extends $rt.GoObject {
     const b = this;
     b!.checkStrictModeEvalOrArguments(node, node!.Name$Node());
     {
-      let name_: $ast.Node | undefined = node!.Name$Node();
+      const name_: $ast.Node | undefined = node!.Name$Node();
       if (!(name_ === undefined) && !$ast.IsBindingPattern(name_)) {
         {
           $sw1: {
@@ -1485,19 +1485,19 @@ export class Binder extends $rt.GoObject {
   }
   bindParameter(node: $ast.Node | undefined): void {
     const b = this;
-    let decl: $ast.ParameterDeclaration | undefined = node!.AsParameterDeclaration();
+    const decl: $ast.ParameterDeclaration | undefined = node!.AsParameterDeclaration();
     if ((node!.Flags & 8388608) === (0 as number)) {
       b!.checkStrictModeEvalOrArguments(node, decl!.Name());
     }
     if ($ast.IsBindingPattern(decl!.Name())) {
-      let index: number = $rt.slices_Index(node!.Parent!.Parameters(), node);
+      const index: number = $rt.slices_Index(node!.Parent!.Parameters(), node);
       b!.bindAnonymousDeclaration(node, 1, '__' + $rt.strconv_Itoa(index));
     } else {
       b!.declareSymbolAndAddToSymbolTable(node, 1, 111551);
     }
     if ($ast.IsParameterPropertyDeclaration(node, node!.Parent)) {
-      let classDeclaration: $ast.Node | undefined = node!.Parent!.Parent;
-      let flags: $ast.SymbolFlags =
+      const classDeclaration: $ast.Node | undefined = node!.Parent!.Parent;
+      const flags: $ast.SymbolFlags =
         (4 | $core.IfElse<$ast.SymbolFlags>(!(decl!.QuestionToken_ === undefined), 16777216, 0)) >>> 0;
       b!.declareSymbol($ast.GetMembers(classDeclaration!.Symbol$m()), classDeclaration!.Symbol$m(), node, flags, 13243);
     }
@@ -1512,7 +1512,7 @@ export class Binder extends $rt.GoObject {
   }
   getInferTypeContainer(node: $ast.Node | undefined): $ast.Node | undefined {
     const b = this;
-    let extendsType: $ast.Node | undefined = $ast.FindAncestor(node, $fn2);
+    const extendsType: $ast.Node | undefined = $ast.FindAncestor(node, $fn2);
     if (!(extendsType === undefined)) {
       return extendsType!.Parent;
     }
@@ -1520,7 +1520,7 @@ export class Binder extends $rt.GoObject {
   }
   bindAnonymousDeclaration(node: $ast.Node | undefined, symbolFlags: $ast.SymbolFlags, name_: string): void {
     const b = this;
-    let symbol_: $ast.Symbol_ | undefined = b!.newSymbol(symbolFlags, name_);
+    const symbol_: $ast.Symbol_ | undefined = b!.newSymbol(symbolFlags, name_);
     if (!((symbolFlags & 106508) === (0 as number))) {
       symbol_!.Parent = b!.container!.Symbol$m();
     }
@@ -1554,7 +1554,7 @@ export class Binder extends $rt.GoObject {
   bindTypeParameter(node: $ast.Node | undefined): void {
     const b = this;
     if (node!.Parent!.Kind_ === (196 as number)) {
-      let container: $ast.Node | undefined = b!.getInferTypeContainer(node!.Parent);
+      const container: $ast.Node | undefined = b!.getInferTypeContainer(node!.Parent);
       if (!(container === undefined)) {
         b!.declareSymbol($ast.GetLocals(container), undefined, node, 262144, 526824);
       } else {
@@ -1572,10 +1572,10 @@ export class Binder extends $rt.GoObject {
     if (node!.Expression()!.Kind_ === (109 as number)) {
       {
         const $t1 = b!.getThisClassAndSymbolTable();
-        let symbolTable: $ast.SymbolTable = $t1[1];
+        const symbolTable: $ast.SymbolTable = $t1[1];
         if (!(symbolTable === undefined)) {
           {
-            let name_: $ast.Node | undefined = $ast.GetElementOrPropertyAccessName(node);
+            const name_: $ast.Node | undefined = $ast.GetElementOrPropertyAccessName(node);
             if (!(name_ === undefined)) {
               return symbolTable?.get(name_!.Text$Node()) ?? undefined;
             }
@@ -1585,10 +1585,10 @@ export class Binder extends $rt.GoObject {
       return undefined;
     }
     {
-      let symbol_: $ast.Symbol_ | undefined = getInitializerSymbol(b!.lookupEntity(node!.Expression(), container));
+      const symbol_: $ast.Symbol_ | undefined = getInitializerSymbol(b!.lookupEntity(node!.Expression(), container));
       if (!(symbol_ === undefined) && !(symbol_!.Exports === undefined)) {
         {
-          let name_$1: $ast.Node | undefined = $ast.GetElementOrPropertyAccessName(node);
+          const name_$1: $ast.Node | undefined = $ast.GetElementOrPropertyAccessName(node);
           if (!(name_$1 === undefined)) {
             return symbol_!.Exports?.get(name_$1!.Text$Node()) ?? undefined;
           }
@@ -1600,10 +1600,10 @@ export class Binder extends $rt.GoObject {
   lookupName(name_: string, container: $ast.Node | undefined): $ast.Symbol_ | undefined {
     const b = this;
     {
-      let localsContainer: $ast.LocalsContainerBase | undefined = container!.LocalsContainerData$Node();
+      const localsContainer: $ast.LocalsContainerBase | undefined = container!.LocalsContainerData$Node();
       if (!(localsContainer === undefined)) {
         {
-          let local: $ast.Symbol_ | undefined = localsContainer!.Locals?.get(name_) ?? undefined;
+          const local: $ast.Symbol_ | undefined = localsContainer!.Locals?.get(name_) ?? undefined;
           if (!(local === undefined)) {
             return $core.OrElse<$ast.Symbol_ | undefined>($zf0, local!.ExportSymbol, local);
           }
@@ -1611,7 +1611,7 @@ export class Binder extends $rt.GoObject {
       }
     }
     {
-      let declaration: $ast.DeclarationBase | undefined = container!.DeclarationData$Node();
+      const declaration: $ast.DeclarationBase | undefined = container!.DeclarationData$Node();
       if (!(declaration === undefined) && !(declaration!.Symbol_ === undefined)) {
         return declaration!.Symbol_!.Exports?.get(name_) ?? undefined;
       }
@@ -1626,7 +1626,7 @@ export class Binder extends $rt.GoObject {
       (node!.Flags & 4194304) === (0 as number) &&
       !$ast.IsIdentifierName(node)
     ) {
-      let originalKeywordKind: $ast.Kind = $scanner.GetIdentifierToken(node!.Text$Node());
+      const originalKeywordKind: $ast.Kind = $scanner.GetIdentifierToken(node!.Text$Node());
       if (originalKeywordKind === (79 as number)) {
         return;
       }
@@ -1689,21 +1689,21 @@ export class Binder extends $rt.GoObject {
   }
   checkStrictModeBinaryExpression(node: $ast.Node | undefined): void {
     const b = this;
-    let expr: $ast.BinaryExpression | undefined = node!.AsBinaryExpression();
+    const expr: $ast.BinaryExpression | undefined = node!.AsBinaryExpression();
     if ($ast.IsLeftHandSideExpression(expr!.Left) && $ast.IsAssignmentOperator(expr!.OperatorToken!.Kind_)) {
       b!.checkStrictModeEvalOrArguments(node, expr!.Left);
     }
   }
   checkStrictModeCatchClause(node: $ast.Node | undefined): void {
     const b = this;
-    let clause: $ast.CatchClause | undefined = node!.AsCatchClause();
+    const clause: $ast.CatchClause | undefined = node!.AsCatchClause();
     if (!(clause!.VariableDeclaration === undefined)) {
       b!.checkStrictModeEvalOrArguments(node, clause!.VariableDeclaration!.AsVariableDeclaration()!.Name());
     }
   }
   checkStrictModeDeleteExpression(node: $ast.Node | undefined): void {
     const b = this;
-    let expr: $ast.DeleteExpression | undefined = node!.AsDeleteExpression();
+    const expr: $ast.DeleteExpression | undefined = node!.AsDeleteExpression();
     if (expr!.Expression_!.Kind_ === (79 as number)) {
       b!.errorOnNode(
         expr!.Expression_,
@@ -1718,7 +1718,7 @@ export class Binder extends $rt.GoObject {
   }
   checkStrictModePrefixUnaryExpression(node: $ast.Node | undefined): void {
     const b = this;
-    let expr: $ast.PrefixUnaryExpression | undefined = node!.AsPrefixUnaryExpression();
+    const expr: $ast.PrefixUnaryExpression | undefined = node!.AsPrefixUnaryExpression();
     if (expr!.Operator === (45 as number) || expr!.Operator === (46 as number)) {
       b!.checkStrictModeEvalOrArguments(node, expr!.Operand);
     }
@@ -1733,7 +1733,7 @@ export class Binder extends $rt.GoObject {
   }
   checkStrictModeLabeledStatement(node: $ast.Node | undefined): void {
     const b = this;
-    let data: $ast.LabeledStatement | undefined = node!.AsLabeledStatement();
+    const data: $ast.LabeledStatement | undefined = node!.AsLabeledStatement();
     if ($ast.IsDeclarationStatement(data!.Statement_) || $ast.IsVariableStatement(data!.Statement_)) {
       b!.errorOnFirstToken(data!.Label_, $diagnostics.A_label_is_not_allowed_here, [] as ($rt.GoObject | undefined)[]);
     }
@@ -1758,9 +1758,9 @@ export class Binder extends $rt.GoObject {
   }
   bindContainer(node: $ast.Node | undefined, containerFlags: ContainerFlags): void {
     const b = this;
-    let saveContainer: $ast.Node | undefined = b!.container;
-    let saveThisContainer: $ast.Node | undefined = b!.thisContainer;
-    let savedBlockScopeContainer: $ast.Node | undefined = b!.blockScopeContainer;
+    const saveContainer: $ast.Node | undefined = b!.container;
+    const saveThisContainer: $ast.Node | undefined = b!.thisContainer;
+    const savedBlockScopeContainer: $ast.Node | undefined = b!.blockScopeContainer;
     if (!((containerFlags & 1) === (0 as number))) {
       b!.container = node;
       b!.blockScopeContainer = node;
@@ -1775,22 +1775,22 @@ export class Binder extends $rt.GoObject {
       b!.thisContainer = node;
     }
     if (!((containerFlags & 4) === (0 as number))) {
-      let saveCurrentFlow: $ast.FlowNode | undefined = b!.currentFlow;
-      let saveBreakTarget: $ast.FlowNode | undefined = b!.currentBreakTarget;
-      let saveContinueTarget: $ast.FlowNode | undefined = b!.currentContinueTarget;
-      let saveReturnTarget: $ast.FlowNode | undefined = b!.currentReturnTarget;
-      let saveExceptionTarget: $ast.FlowNode | undefined = b!.currentExceptionTarget;
-      let saveActiveLabelList: ActiveLabel | undefined = b!.activeLabelList;
-      let saveHasExplicitReturn: boolean = b!.hasExplicitReturn;
-      let saveSeenThisKeyword: boolean = b!.seenThisKeyword;
-      let isImmediatelyInvoked: boolean =
+      const saveCurrentFlow: $ast.FlowNode | undefined = b!.currentFlow;
+      const saveBreakTarget: $ast.FlowNode | undefined = b!.currentBreakTarget;
+      const saveContinueTarget: $ast.FlowNode | undefined = b!.currentContinueTarget;
+      const saveReturnTarget: $ast.FlowNode | undefined = b!.currentReturnTarget;
+      const saveExceptionTarget: $ast.FlowNode | undefined = b!.currentExceptionTarget;
+      const saveActiveLabelList: ActiveLabel | undefined = b!.activeLabelList;
+      const saveHasExplicitReturn: boolean = b!.hasExplicitReturn;
+      const saveSeenThisKeyword: boolean = b!.seenThisKeyword;
+      const isImmediatelyInvoked: boolean =
         (!((containerFlags & 16) === (0 as number)) &&
           !$ast.HasSyntacticModifier(node, 1024) &&
           !isGeneratorFunctionExpression(node) &&
           !($ast.GetImmediatelyInvokedFunctionExpression(node) === undefined)) ||
         node!.Kind_ === (176 as number);
       if (!isImmediatelyInvoked) {
-        let flowStart: $ast.FlowNode | undefined = b!.newFlowNode(2);
+        const flowStart: $ast.FlowNode | undefined = b!.newFlowNode(2);
         b!.currentFlow = flowStart;
         if (!((containerFlags & 144) === (0 as number))) {
           flowStart!.Node_ = node;
@@ -1810,7 +1810,7 @@ export class Binder extends $rt.GoObject {
       b!.bindChildren(node);
       node!.Flags = (node!.Flags & ~263040) >>> 0;
       if ((b!.currentFlow!.Flags & 1) === (0 as number) && !((containerFlags & 8) === (0 as number))) {
-        let bodyData: $ast.BodyBase | undefined = node!.BodyData$Node();
+        const bodyData: $ast.BodyBase | undefined = node!.BodyData$Node();
         if (!(bodyData === undefined) && $ast.NodeIsPresent(bodyData!.Body)) {
           node!.Flags = (node!.Flags | 256) >>> 0;
           if (b!.hasExplicitReturn) {
@@ -1847,7 +1847,7 @@ export class Binder extends $rt.GoObject {
         b!.seenThisKeyword = saveSeenThisKeyword;
       }
     } else if (!((containerFlags & 64) === (0 as number))) {
-      let saveSeenThisKeyword$1: boolean = b!.seenThisKeyword;
+      const saveSeenThisKeyword$1: boolean = b!.seenThisKeyword;
       b!.seenThisKeyword = false;
       b!.bindChildren(node);
       if (b!.seenThisKeyword) {
@@ -1863,7 +1863,7 @@ export class Binder extends $rt.GoObject {
       {
         const $t1 = node!.Statements();
         for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-          let statement = $t1[$t2];
+          const statement = $t1[$t2];
           if ($ast.IsJSTypeAliasDeclaration(statement)) {
             b!.bindBlockScopedDeclaration(statement, 524288, 788968);
           }
@@ -1886,13 +1886,13 @@ export class Binder extends $rt.GoObject {
   }
   declareCommonJSVariable(name_: string): void {
     const b = this;
-    let locals: $ast.SymbolTable = $ast.GetLocals(b!.file!.AsNode());
+    const locals: $ast.SymbolTable = $ast.GetLocals(b!.file!.AsNode());
     if ((locals?.get(name_) ?? undefined) === undefined) {
-      let symbol_: $ast.Symbol_ | undefined = b!.newSymbol(134217729, name_);
+      const symbol_: $ast.Symbol_ | undefined = b!.newSymbol(134217729, name_);
       symbol_!.Declarations = b!.newSingleDeclaration(b!.file!.AsNode());
       symbol_!.ValueDeclaration = symbol_!.Declarations[0];
       if (name_ === ('module' as string)) {
-        let exportsProperty: $ast.Symbol_ | undefined = b!.newSymbol(134217732, 'exports');
+        const exportsProperty: $ast.Symbol_ | undefined = b!.newSymbol(134217732, 'exports');
         exportsProperty!.Declarations = symbol_!.Declarations;
         exportsProperty!.ValueDeclaration = symbol_!.ValueDeclaration;
         exportsProperty!.Parent = symbol_;
@@ -1904,11 +1904,11 @@ export class Binder extends $rt.GoObject {
   }
   bindChildren(node: $ast.Node | undefined): void {
     const b = this;
-    let saveInAssignmentPattern: boolean = b!.inAssignmentPattern;
+    const saveInAssignmentPattern: boolean = b!.inAssignmentPattern;
     b!.inAssignmentPattern = false;
     if (b!.currentFlow === b!.unreachableFlow) {
       {
-        let flowNodeData: $ast.FlowNodeBase | undefined = node!.FlowNodeData$Node();
+        const flowNodeData: $ast.FlowNodeBase | undefined = node!.FlowNodeData$Node();
         if (!(flowNodeData === undefined)) {
           flowNodeData!.FlowNode_ = undefined;
         }
@@ -1922,7 +1922,7 @@ export class Binder extends $rt.GoObject {
     }
     if (244 <= node!.Kind_ && node!.Kind_ <= 260) {
       {
-        let flowNodeData$1: $ast.FlowNodeBase | undefined = node!.FlowNodeData$Node();
+        const flowNodeData$1: $ast.FlowNodeBase | undefined = node!.FlowNodeData$Node();
         if (!(flowNodeData$1 === undefined)) {
           flowNodeData$1!.FlowNode_ = b!.currentFlow;
         }
@@ -2035,7 +2035,7 @@ export class Binder extends $rt.GoObject {
           break;
         }
         case 307 as number: {
-          let sourceFile: $ast.SourceFile | undefined = node!.AsSourceFile();
+          const sourceFile: $ast.SourceFile | undefined = node!.AsSourceFile();
           b!.bindEachStatementFunctionsFirst(sourceFile!.Statements_);
           b!.bind(sourceFile!.EndOfFileToken);
           break;
@@ -2078,7 +2078,7 @@ export class Binder extends $rt.GoObject {
     {
       const $t1 = nodes;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        let node = $t1[$t2];
+        const node = $t1[$t2];
         b!.bind(node);
       }
     }
@@ -2100,7 +2100,7 @@ export class Binder extends $rt.GoObject {
     {
       const $t1 = statements!.Nodes;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        let node = $t1[$t2];
+        const node = $t1[$t2];
         if (node!.Kind_ === (263 as number)) {
           b!.bind(node);
         }
@@ -2109,7 +2109,7 @@ export class Binder extends $rt.GoObject {
     {
       const $t3 = statements!.Nodes;
       for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
-        let node$1 = $t3[$t4];
+        const node$1 = $t3[$t4];
         if (!(node$1!.Kind_ === (263 as number))) {
           b!.bind(node$1);
         }
@@ -2133,8 +2133,8 @@ export class Binder extends $rt.GoObject {
     falseTarget: $ast.FlowNode | undefined,
   ): void {
     const b = this;
-    let savedTrueTarget: $ast.FlowNode | undefined = b!.currentTrueTarget;
-    let savedFalseTarget: $ast.FlowNode | undefined = b!.currentFalseTarget;
+    const savedTrueTarget: $ast.FlowNode | undefined = b!.currentTrueTarget;
+    const savedFalseTarget: $ast.FlowNode | undefined = b!.currentFalseTarget;
     b!.currentTrueTarget = trueTarget;
     b!.currentFalseTarget = falseTarget;
     action!(b, value);
@@ -2164,8 +2164,8 @@ export class Binder extends $rt.GoObject {
     continueTarget: $ast.FlowNode | undefined,
   ): void {
     const b = this;
-    let saveBreakTarget: $ast.FlowNode | undefined = b!.currentBreakTarget;
-    let saveContinueTarget: $ast.FlowNode | undefined = b!.currentContinueTarget;
+    const saveBreakTarget: $ast.FlowNode | undefined = b!.currentBreakTarget;
+    const saveContinueTarget: $ast.FlowNode | undefined = b!.currentContinueTarget;
     b!.currentBreakTarget = breakTarget;
     b!.currentContinueTarget = continueTarget;
     b!.bind(node);
@@ -2180,7 +2180,7 @@ export class Binder extends $rt.GoObject {
           {
             const $t1 = node!.Elements();
             for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-              let e = $t1[$t2];
+              const e = $t1[$t2];
               if (e!.Kind_ === (231 as number)) {
                 b!.bindAssignmentTargetFlow(e!.Expression());
               } else {
@@ -2194,7 +2194,7 @@ export class Binder extends $rt.GoObject {
           {
             const $t3 = node!.Properties();
             for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
-              let p = $t3[$t4];
+              const p = $t3[$t4];
               {
                 switch (p!.Kind_) {
                   case 303 as number: {
@@ -2234,10 +2234,10 @@ export class Binder extends $rt.GoObject {
   }
   bindWhileStatement(node: $ast.Node | undefined): void {
     const b = this;
-    let stmt: $ast.WhileStatement | undefined = node!.AsWhileStatement();
-    let preWhileLabel: $ast.FlowNode | undefined = b!.setContinueTarget(node, b!.createLoopLabel());
-    let preBodyLabel: $ast.FlowNode | undefined = b!.createBranchLabel();
-    let postWhileLabel: $ast.FlowNode | undefined = b!.createBranchLabel();
+    const stmt: $ast.WhileStatement | undefined = node!.AsWhileStatement();
+    const preWhileLabel: $ast.FlowNode | undefined = b!.setContinueTarget(node, b!.createLoopLabel());
+    const preBodyLabel: $ast.FlowNode | undefined = b!.createBranchLabel();
+    const postWhileLabel: $ast.FlowNode | undefined = b!.createBranchLabel();
     b!.addAntecedent(preWhileLabel, b!.currentFlow);
     b!.currentFlow = preWhileLabel;
     b!.bindCondition(stmt!.Expression_, preBodyLabel, postWhileLabel);
@@ -2248,10 +2248,10 @@ export class Binder extends $rt.GoObject {
   }
   bindDoStatement(node: $ast.Node | undefined): void {
     const b = this;
-    let stmt: $ast.DoStatement | undefined = node!.AsDoStatement();
-    let preDoLabel: $ast.FlowNode | undefined = b!.createLoopLabel();
-    let preConditionLabel: $ast.FlowNode | undefined = b!.setContinueTarget(node, b!.createBranchLabel());
-    let postDoLabel: $ast.FlowNode | undefined = b!.createBranchLabel();
+    const stmt: $ast.DoStatement | undefined = node!.AsDoStatement();
+    const preDoLabel: $ast.FlowNode | undefined = b!.createLoopLabel();
+    const preConditionLabel: $ast.FlowNode | undefined = b!.setContinueTarget(node, b!.createBranchLabel());
+    const postDoLabel: $ast.FlowNode | undefined = b!.createBranchLabel();
     b!.addAntecedent(preDoLabel, b!.currentFlow);
     b!.currentFlow = preDoLabel;
     b!.bindIterativeStatement(stmt!.Statement_, postDoLabel, preConditionLabel);
@@ -2262,7 +2262,7 @@ export class Binder extends $rt.GoObject {
   }
   bindForStatement(node: $ast.Node | undefined): void {
     const b = this;
-    let stmt: $ast.ForStatement | undefined = node!.AsForStatement();
+    const stmt: $ast.ForStatement | undefined = node!.AsForStatement();
     b!.bind(stmt!.Initializer_);
     if (b!.currentFlow === b!.unreachableFlow) {
       b!.bind(stmt!.Condition);
@@ -2270,10 +2270,10 @@ export class Binder extends $rt.GoObject {
       b!.bind(stmt!.Incrementor);
       return;
     }
-    let preLoopLabel: $ast.FlowNode | undefined = b!.setContinueTarget(node, b!.createLoopLabel());
-    let preBodyLabel: $ast.FlowNode | undefined = b!.createBranchLabel();
-    let preIncrementorLabel: $ast.FlowNode | undefined = b!.createBranchLabel();
-    let postLoopLabel: $ast.FlowNode | undefined = b!.createBranchLabel();
+    const preLoopLabel: $ast.FlowNode | undefined = b!.setContinueTarget(node, b!.createLoopLabel());
+    const preBodyLabel: $ast.FlowNode | undefined = b!.createBranchLabel();
+    const preIncrementorLabel: $ast.FlowNode | undefined = b!.createBranchLabel();
+    const postLoopLabel: $ast.FlowNode | undefined = b!.createBranchLabel();
     b!.addAntecedent(preLoopLabel, b!.currentFlow);
     b!.currentFlow = preLoopLabel;
     b!.bindCondition(stmt!.Condition, preBodyLabel, postLoopLabel);
@@ -2287,9 +2287,9 @@ export class Binder extends $rt.GoObject {
   }
   bindForInOrForOfStatement(node: $ast.Node | undefined): void {
     const b = this;
-    let stmt: $ast.ForInOrOfStatement | undefined = node!.AsForInOrOfStatement();
-    let preLoopLabel: $ast.FlowNode | undefined = b!.setContinueTarget(node, b!.createLoopLabel());
-    let postLoopLabel: $ast.FlowNode | undefined = b!.createBranchLabel();
+    const stmt: $ast.ForInOrOfStatement | undefined = node!.AsForInOrOfStatement();
+    const preLoopLabel: $ast.FlowNode | undefined = b!.setContinueTarget(node, b!.createLoopLabel());
+    const postLoopLabel: $ast.FlowNode | undefined = b!.createBranchLabel();
     b!.bind(stmt!.Expression_);
     b!.addAntecedent(preLoopLabel, b!.currentFlow);
     b!.currentFlow = preLoopLabel;
@@ -2307,10 +2307,10 @@ export class Binder extends $rt.GoObject {
   }
   bindIfStatement(node: $ast.Node | undefined): void {
     const b = this;
-    let stmt: $ast.IfStatement | undefined = node!.AsIfStatement();
-    let thenLabel: $ast.FlowNode | undefined = b!.createBranchLabel();
-    let elseLabel: $ast.FlowNode | undefined = b!.createBranchLabel();
-    let postIfLabel: $ast.FlowNode | undefined = b!.createBranchLabel();
+    const stmt: $ast.IfStatement | undefined = node!.AsIfStatement();
+    const thenLabel: $ast.FlowNode | undefined = b!.createBranchLabel();
+    const elseLabel: $ast.FlowNode | undefined = b!.createBranchLabel();
+    const postIfLabel: $ast.FlowNode | undefined = b!.createBranchLabel();
     b!.bindCondition(stmt!.Expression_, thenLabel, elseLabel);
     b!.currentFlow = b!.finishFlowLabel(thenLabel);
     b!.bind(stmt!.ThenStatement);
@@ -2352,7 +2352,7 @@ export class Binder extends $rt.GoObject {
     const b = this;
     b!.bind(label);
     if (!(label === undefined)) {
-      let activeLabel: ActiveLabel | undefined = b!.findActiveLabel(label!.Text$Node());
+      const activeLabel: ActiveLabel | undefined = b!.findActiveLabel(label!.Text$Node());
       if (!(activeLabel === undefined)) {
         activeLabel!.referenced = true;
         b!.bindBreakOrContinueFlow(getTarget!(activeLabel));
@@ -2382,11 +2382,11 @@ export class Binder extends $rt.GoObject {
   }
   bindTryStatement(node: $ast.Node | undefined): void {
     const b = this;
-    let stmt: $ast.TryStatement | undefined = node!.AsTryStatement();
-    let saveReturnTarget: $ast.FlowNode | undefined = b!.currentReturnTarget;
-    let saveExceptionTarget: $ast.FlowNode | undefined = b!.currentExceptionTarget;
-    let normalExitLabel: $ast.FlowNode | undefined = b!.createBranchLabel();
-    let returnLabel: $ast.FlowNode | undefined = b!.createBranchLabel();
+    const stmt: $ast.TryStatement | undefined = node!.AsTryStatement();
+    const saveReturnTarget: $ast.FlowNode | undefined = b!.currentReturnTarget;
+    const saveExceptionTarget: $ast.FlowNode | undefined = b!.currentExceptionTarget;
+    const normalExitLabel: $ast.FlowNode | undefined = b!.createBranchLabel();
+    const returnLabel: $ast.FlowNode | undefined = b!.createBranchLabel();
     let exceptionLabel: $ast.FlowNode | undefined = b!.createBranchLabel();
     if (!(stmt!.FinallyBlock === undefined)) {
       b!.currentReturnTarget = returnLabel;
@@ -2406,7 +2406,7 @@ export class Binder extends $rt.GoObject {
     b!.currentReturnTarget = saveReturnTarget;
     b!.currentExceptionTarget = saveExceptionTarget;
     if (!(stmt!.FinallyBlock === undefined)) {
-      let finallyLabel: $ast.FlowNode | undefined = b!.createBranchLabel();
+      const finallyLabel: $ast.FlowNode | undefined = b!.createBranchLabel();
       finallyLabel!.Antecedents = b!.combineFlowLists(
         normalExitLabel!.Antecedents,
         b!.combineFlowLists(exceptionLabel!.Antecedents, returnLabel!.Antecedents),
@@ -2440,16 +2440,16 @@ export class Binder extends $rt.GoObject {
   }
   bindSwitchStatement(node: $ast.Node | undefined): void {
     const b = this;
-    let stmt: $ast.SwitchStatement | undefined = node!.AsSwitchStatement();
-    let postSwitchLabel: $ast.FlowNode | undefined = b!.createBranchLabel();
+    const stmt: $ast.SwitchStatement | undefined = node!.AsSwitchStatement();
+    const postSwitchLabel: $ast.FlowNode | undefined = b!.createBranchLabel();
     b!.bind(stmt!.Expression_);
-    let saveBreakTarget: $ast.FlowNode | undefined = b!.currentBreakTarget;
-    let savePreSwitchCaseFlow: $ast.FlowNode | undefined = b!.preSwitchCaseFlow;
+    const saveBreakTarget: $ast.FlowNode | undefined = b!.currentBreakTarget;
+    const savePreSwitchCaseFlow: $ast.FlowNode | undefined = b!.preSwitchCaseFlow;
     b!.currentBreakTarget = postSwitchLabel;
     b!.preSwitchCaseFlow = b!.currentFlow;
     b!.bind(stmt!.CaseBlock);
     b!.addAntecedent(postSwitchLabel, b!.currentFlow);
-    let hasDefault: boolean = $core.Some<$ast.Node | undefined>(stmt!.CaseBlock!.AsCaseBlock()!.Clauses!.Nodes, $fn6);
+    const hasDefault: boolean = $core.Some<$ast.Node | undefined>(stmt!.CaseBlock!.AsCaseBlock()!.Clauses!.Nodes, $fn6);
     if (!hasDefault) {
       b!.addAntecedent(postSwitchLabel, b!.createFlowSwitchClause(b!.preSwitchCaseFlow, node, 0, 0));
     }
@@ -2459,14 +2459,14 @@ export class Binder extends $rt.GoObject {
   }
   bindCaseBlock(node: $ast.Node | undefined): void {
     const b = this;
-    let switchStatement: $ast.Node | undefined = node!.Parent;
-    let clauses: ($ast.Node | undefined)[] = node!.AsCaseBlock()!.Clauses!.Nodes;
-    let isNarrowingSwitch: boolean =
+    const switchStatement: $ast.Node | undefined = node!.Parent;
+    const clauses: ($ast.Node | undefined)[] = node!.AsCaseBlock()!.Clauses!.Nodes;
+    const isNarrowingSwitch: boolean =
       switchStatement!.Expression()!.Kind_ === (111 as number) || isNarrowingExpression(switchStatement!.Expression());
     let fallthroughFlow: $ast.FlowNode | undefined = b!.unreachableFlow;
     {
       for (let i: number = 0; i < clauses.length; i++) {
-        let clauseStart: number = i;
+        const clauseStart: number = i;
         for (; clauses[i]!.Statements().length === (0 as number) && i + 1 < clauses.length;) {
           if (fallthroughFlow === b!.unreachableFlow) {
             b!.currentFlow = b!.preSwitchCaseFlow;
@@ -2474,7 +2474,7 @@ export class Binder extends $rt.GoObject {
           b!.bind(clauses[i]);
           i++;
         }
-        let preCaseLabel: $ast.FlowNode | undefined = b!.createBranchLabel();
+        const preCaseLabel: $ast.FlowNode | undefined = b!.createBranchLabel();
         let preCaseFlow: $ast.FlowNode | undefined = b!.preSwitchCaseFlow;
         if (isNarrowingSwitch) {
           preCaseFlow = b!.createFlowSwitchClause(b!.preSwitchCaseFlow, switchStatement, clauseStart, i + 1);
@@ -2482,7 +2482,7 @@ export class Binder extends $rt.GoObject {
         b!.addAntecedent(preCaseLabel, preCaseFlow);
         b!.addAntecedent(preCaseLabel, fallthroughFlow);
         b!.currentFlow = b!.finishFlowLabel(preCaseLabel);
-        let clause: $ast.Node | undefined = clauses[i];
+        const clause: $ast.Node | undefined = clauses[i];
         b!.bind(clause);
         fallthroughFlow = b!.currentFlow;
         if ((b!.currentFlow!.Flags & 1) === (0 as number) && !(i === clauses.length - 1)) {
@@ -2493,9 +2493,9 @@ export class Binder extends $rt.GoObject {
   }
   bindCaseOrDefaultClause(node: $ast.Node | undefined): void {
     const b = this;
-    let clause: $ast.CaseOrDefaultClause | undefined = node!.AsCaseOrDefaultClause();
+    const clause: $ast.CaseOrDefaultClause | undefined = node!.AsCaseOrDefaultClause();
     if (!(clause!.Expression_ === undefined)) {
-      let saveCurrentFlow: $ast.FlowNode | undefined = b!.currentFlow;
+      const saveCurrentFlow: $ast.FlowNode | undefined = b!.currentFlow;
       b!.currentFlow = b!.preSwitchCaseFlow;
       b!.bind(clause!.Expression_);
       b!.currentFlow = saveCurrentFlow;
@@ -2504,7 +2504,7 @@ export class Binder extends $rt.GoObject {
   }
   bindExpressionStatement(node: $ast.Node | undefined): void {
     const b = this;
-    let stmt: $ast.ExpressionStatement | undefined = node!.AsExpressionStatement();
+    const stmt: $ast.ExpressionStatement | undefined = node!.AsExpressionStatement();
     b!.bind(stmt!.Expression_);
     b!.maybeBindExpressionFlowIfCall(stmt!.Expression_);
   }
@@ -2518,8 +2518,8 @@ export class Binder extends $rt.GoObject {
   }
   bindLabeledStatement(node: $ast.Node | undefined): void {
     const b = this;
-    let stmt: $ast.LabeledStatement | undefined = node!.AsLabeledStatement();
-    let postStatementLabel: $ast.FlowNode | undefined = b!.createBranchLabel();
+    const stmt: $ast.LabeledStatement | undefined = node!.AsLabeledStatement();
+    const postStatementLabel: $ast.FlowNode | undefined = b!.createBranchLabel();
     b!.activeLabelList = ActiveLabel.$lit_binder_ActiveLabel_0_3_1_2_4(
       b!.activeLabelList,
       stmt!.Label_!.Text$Node(),
@@ -2538,9 +2538,9 @@ export class Binder extends $rt.GoObject {
   }
   bindPrefixUnaryExpressionFlow(node: $ast.Node | undefined): void {
     const b = this;
-    let expr: $ast.PrefixUnaryExpression | undefined = node!.AsPrefixUnaryExpression();
+    const expr: $ast.PrefixUnaryExpression | undefined = node!.AsPrefixUnaryExpression();
     if (expr!.Operator === (53 as number)) {
-      let saveTrueTarget: $ast.FlowNode | undefined = b!.currentTrueTarget;
+      const saveTrueTarget: $ast.FlowNode | undefined = b!.currentTrueTarget;
       b!.currentTrueTarget = b!.currentFalseTarget;
       b!.currentFalseTarget = saveTrueTarget;
       b!.bindEachChild(node);
@@ -2555,7 +2555,7 @@ export class Binder extends $rt.GoObject {
   }
   bindPostfixUnaryExpressionFlow(node: $ast.Node | undefined): void {
     const b = this;
-    let expr: $ast.PostfixUnaryExpression | undefined = node!.AsPostfixUnaryExpression();
+    const expr: $ast.PostfixUnaryExpression | undefined = node!.AsPostfixUnaryExpression();
     b!.bindEachChild(node);
     if (expr!.Operator === (45 as number) || expr!.Operator === (46 as number)) {
       b!.bindAssignmentTargetFlow(expr!.Operand);
@@ -2563,7 +2563,7 @@ export class Binder extends $rt.GoObject {
   }
   bindDestructuringAssignmentFlow(node: $ast.Node | undefined): void {
     const b = this;
-    let expr: $ast.BinaryExpression | undefined = node!.AsBinaryExpression();
+    const expr: $ast.BinaryExpression | undefined = node!.AsBinaryExpression();
     if (b!.inAssignmentPattern) {
       b!.inAssignmentPattern = false;
       b!.bind(expr!.OperatorToken);
@@ -2583,13 +2583,13 @@ export class Binder extends $rt.GoObject {
   }
   bindBinaryExpressionFlow(node: $ast.Node | undefined): void {
     const b = this;
-    let expr: $ast.BinaryExpression | undefined = node!.AsBinaryExpression();
-    let operator: $ast.Kind = expr!.OperatorToken!.Kind_;
+    const expr: $ast.BinaryExpression | undefined = node!.AsBinaryExpression();
+    const operator: $ast.Kind = expr!.OperatorToken!.Kind_;
     if ($ast.IsLogicalOrCoalescingBinaryOperator(operator) || $ast.IsLogicalOrCoalescingAssignmentOperator(operator)) {
       if (isTopLevelLogicalExpression(node)) {
-        let postExpressionLabel: $ast.FlowNode | undefined = b!.createBranchLabel();
-        let saveCurrentFlow: $ast.FlowNode | undefined = b!.currentFlow;
-        let saveHasFlowEffects: boolean = b!.hasFlowEffects;
+        const postExpressionLabel: $ast.FlowNode | undefined = b!.createBranchLabel();
+        const saveCurrentFlow: $ast.FlowNode | undefined = b!.currentFlow;
+        const saveHasFlowEffects: boolean = b!.hasFlowEffects;
         b!.hasFlowEffects = false;
         b!.bindLogicalLikeExpression(node, postExpressionLabel, postExpressionLabel);
         if (b!.hasFlowEffects) {
@@ -2615,7 +2615,7 @@ export class Binder extends $rt.GoObject {
       if ($ast.IsAssignmentOperator(operator) && !$ast.IsAssignmentTarget(node)) {
         b!.bindAssignmentTargetFlow(expr!.Left);
         if (operator === (63 as number) && expr!.Left!.Kind_ === (213 as number)) {
-          let elementAccess: $ast.ElementAccessExpression | undefined = expr!.Left!.AsElementAccessExpression();
+          const elementAccess: $ast.ElementAccessExpression | undefined = expr!.Left!.AsElementAccessExpression();
           if (isNarrowableOperand(elementAccess!.Expression_)) {
             b!.currentFlow = b!.createFlowMutation(256, b!.currentFlow, node);
           }
@@ -2629,8 +2629,8 @@ export class Binder extends $rt.GoObject {
     falseTarget: $ast.FlowNode | undefined,
   ): void {
     const b = this;
-    let expr: $ast.BinaryExpression | undefined = node!.AsBinaryExpression();
-    let preRightLabel: $ast.FlowNode | undefined = b!.createBranchLabel();
+    const expr: $ast.BinaryExpression | undefined = node!.AsBinaryExpression();
+    const preRightLabel: $ast.FlowNode | undefined = b!.createBranchLabel();
     if (expr!.OperatorToken!.Kind_ === (55 as number) || expr!.OperatorToken!.Kind_ === (76 as number)) {
       b!.bindCondition(expr!.Left, preRightLabel, falseTarget);
     } else {
@@ -2649,7 +2649,7 @@ export class Binder extends $rt.GoObject {
   }
   bindDeleteExpressionFlow(node: $ast.Node | undefined): void {
     const b = this;
-    let expr: $ast.DeleteExpression | undefined = node!.AsDeleteExpression();
+    const expr: $ast.DeleteExpression | undefined = node!.AsDeleteExpression();
     b!.bindEachChild(node);
     if (expr!.Expression_!.Kind_ === (212 as number)) {
       b!.bindAssignmentTargetFlow(expr!.Expression_);
@@ -2657,12 +2657,12 @@ export class Binder extends $rt.GoObject {
   }
   bindConditionalExpressionFlow(node: $ast.Node | undefined): void {
     const b = this;
-    let expr: $ast.ConditionalExpression | undefined = node!.AsConditionalExpression();
-    let trueLabel: $ast.FlowNode | undefined = b!.createBranchLabel();
-    let falseLabel: $ast.FlowNode | undefined = b!.createBranchLabel();
-    let postExpressionLabel: $ast.FlowNode | undefined = b!.createBranchLabel();
-    let saveCurrentFlow: $ast.FlowNode | undefined = b!.currentFlow;
-    let saveHasFlowEffects: boolean = b!.hasFlowEffects;
+    const expr: $ast.ConditionalExpression | undefined = node!.AsConditionalExpression();
+    const trueLabel: $ast.FlowNode | undefined = b!.createBranchLabel();
+    const falseLabel: $ast.FlowNode | undefined = b!.createBranchLabel();
+    const postExpressionLabel: $ast.FlowNode | undefined = b!.createBranchLabel();
+    const saveCurrentFlow: $ast.FlowNode | undefined = b!.currentFlow;
+    const saveHasFlowEffects: boolean = b!.hasFlowEffects;
     b!.hasFlowEffects = false;
     b!.bindCondition(expr!.Condition, trueLabel, falseLabel);
     b!.currentFlow = b!.finishFlowLabel(trueLabel);
@@ -2706,7 +2706,7 @@ export class Binder extends $rt.GoObject {
       {
         const $t1 = name_!.Elements();
         for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-          let child = $t1[$t2];
+          const child = $t1[$t2];
           b!.bindInitializedVariableFlow(child);
         }
       }
@@ -2725,9 +2725,9 @@ export class Binder extends $rt.GoObject {
   bindOptionalChainFlow(node: $ast.Node | undefined): void {
     const b = this;
     if (isTopLevelLogicalExpression(node)) {
-      let postExpressionLabel: $ast.FlowNode | undefined = b!.createBranchLabel();
-      let saveCurrentFlow: $ast.FlowNode | undefined = b!.currentFlow;
-      let saveHasFlowEffects: boolean = b!.hasFlowEffects;
+      const postExpressionLabel: $ast.FlowNode | undefined = b!.createBranchLabel();
+      const saveCurrentFlow: $ast.FlowNode | undefined = b!.currentFlow;
+      const saveHasFlowEffects: boolean = b!.hasFlowEffects;
       b!.bindOptionalChain(node, postExpressionLabel, postExpressionLabel);
       if (b!.hasFlowEffects) {
         b!.currentFlow = b!.finishFlowLabel(postExpressionLabel);
@@ -2801,11 +2801,11 @@ export class Binder extends $rt.GoObject {
   }
   bindCallExpressionFlow(node: $ast.Node | undefined): void {
     const b = this;
-    let call: $ast.CallExpression | undefined = node!.AsCallExpression();
+    const call: $ast.CallExpression | undefined = node!.AsCallExpression();
     if ($ast.IsOptionalChain(node)) {
       b!.bindOptionalChainFlow(node);
     } else {
-      let expr: $ast.Node | undefined = $ast.SkipParentheses(call!.Expression_);
+      const expr: $ast.Node | undefined = $ast.SkipParentheses(call!.Expression_);
       if (expr!.Kind_ === (219 as number) || expr!.Kind_ === (220 as number)) {
         b!.bindNodeList(call!.TypeArguments_);
         b!.bindEach(call!.Arguments_!.Nodes);
@@ -2818,7 +2818,7 @@ export class Binder extends $rt.GoObject {
       }
     }
     if ($ast.IsPropertyAccessExpression(call!.Expression_)) {
-      let access: $ast.PropertyAccessExpression | undefined = call!.Expression_!.AsPropertyAccessExpression();
+      const access: $ast.PropertyAccessExpression | undefined = call!.Expression_!.AsPropertyAccessExpression();
       if (
         $ast.IsIdentifier(access!.Name()) &&
         isNarrowableOperand(access!.Expression_) &&
@@ -2838,7 +2838,7 @@ export class Binder extends $rt.GoObject {
   }
   bindBindingElementFlow(node: $ast.Node | undefined): void {
     const b = this;
-    let elem: $ast.BindingElement | undefined = node!.AsBindingElement();
+    const elem: $ast.BindingElement | undefined = node!.AsBindingElement();
     b!.bind(elem!.DotDotDotToken);
     b!.bind(elem!.PropertyName_);
     b!.bindInitializer(elem!.Initializer_);
@@ -2846,7 +2846,7 @@ export class Binder extends $rt.GoObject {
   }
   bindParameterFlow(node: $ast.Node | undefined): void {
     const b = this;
-    let param: $ast.ParameterDeclaration | undefined = node!.AsParameterDeclaration();
+    const param: $ast.ParameterDeclaration | undefined = node!.AsParameterDeclaration();
     b!.bindModifiers(param!.ModifiersBase_.Modifiers$ModifiersBase());
     b!.bind(param!.DotDotDotToken);
     b!.bind(param!.QuestionToken_);
@@ -2859,12 +2859,12 @@ export class Binder extends $rt.GoObject {
     if (node === undefined) {
       return;
     }
-    let entryFlow: $ast.FlowNode | undefined = b!.currentFlow;
+    const entryFlow: $ast.FlowNode | undefined = b!.currentFlow;
     b!.bind(node);
     if (entryFlow === b!.unreachableFlow || entryFlow === b!.currentFlow) {
       return;
     }
-    let exitFlow: $ast.FlowNode | undefined = b!.createBranchLabel();
+    const exitFlow: $ast.FlowNode | undefined = b!.createBranchLabel();
     b!.addAntecedent(exitFlow, entryFlow);
     b!.addAntecedent(exitFlow, b!.currentFlow);
     b!.currentFlow = b!.finishFlowLabel(exitFlow);
@@ -2911,7 +2911,7 @@ export class Binder extends $rt.GoObject {
     args: ($rt.GoObject | undefined)[],
   ): void {
     const b = this;
-    let span: $core.TextRange = $scanner.GetRangeOfTokenAtPosition(b!.file, node!.Pos());
+    const span: $core.TextRange = $scanner.GetRangeOfTokenAtPosition(b!.file, node!.Pos());
     b!.addDiagnostic($ast.NewDiagnostic(b!.file, span, message, args));
   }
   createDiagnosticForNode(
@@ -3122,8 +3122,8 @@ export class NameResolver extends $rt.GoObject {
       | undefined;
     let withinDeferredContext: boolean = false;
     let grandparent: $ast.Node | undefined = undefined as $ast.Node | undefined;
-    let originalLocation: $ast.Node | undefined = location;
-    let nameIsConst: boolean = name_ === ('const' as string);
+    const originalLocation: $ast.Node | undefined = location;
+    const nameIsConst: boolean = name_ === ('const' as string);
     loop: for (; !(location === undefined);) {
       if (nameIsConst && $ast.IsConstAssertion(location)) {
         return undefined;
@@ -3136,7 +3136,7 @@ export class NameResolver extends $rt.GoObject {
         lastLocation = location;
         location = location!.Parent;
       }
-      let locals: $ast.SymbolTable = location!.Locals();
+      const locals: $ast.SymbolTable = location!.Locals();
       if (!(locals === undefined) && !$ast.IsGlobalSourceFile(location)) {
         result = r!.lookup(locals, name_, meaning);
         if (!(result === undefined)) {
@@ -3184,11 +3184,11 @@ export class NameResolver extends $rt.GoObject {
             }
           }
           case 268 as number: {
-            let moduleSymbol: $ast.Symbol_ | undefined = r!.getSymbolOfDeclaration(location);
+            const moduleSymbol: $ast.Symbol_ | undefined = r!.getSymbolOfDeclaration(location);
             if (moduleSymbol === undefined) {
               break;
             }
-            let moduleExports: $ast.SymbolTable = moduleSymbol!.Exports;
+            const moduleExports: $ast.SymbolTable = moduleSymbol!.Exports;
             if (
               $ast.IsSourceFile(location) ||
               ($ast.IsModuleDeclaration(location) &&
@@ -3197,7 +3197,7 @@ export class NameResolver extends $rt.GoObject {
             ) {
               result = moduleExports?.get('default') ?? undefined;
               if (!(result === undefined)) {
-                let localSymbol: $ast.Symbol_ | undefined = GetLocalSymbolForExportDefault(result);
+                const localSymbol: $ast.Symbol_ | undefined = GetLocalSymbolForExportDefault(result);
                 if (
                   !(localSymbol === undefined) &&
                   !((result!.Flags & meaning) >>> 0 === (0 as number)) &&
@@ -3207,7 +3207,7 @@ export class NameResolver extends $rt.GoObject {
                 }
                 result = undefined;
               }
-              let moduleExport: $ast.Symbol_ | undefined = moduleExports?.get(name_) ?? undefined;
+              const moduleExport: $ast.Symbol_ | undefined = moduleExports?.get(name_) ?? undefined;
               if (
                 !(moduleExport === undefined) &&
                 moduleExport!.Flags === (2097152 as number) &&
@@ -3236,7 +3236,7 @@ export class NameResolver extends $rt.GoObject {
             break;
           }
           case 267 as number: {
-            let enumSymbol: $ast.Symbol_ | undefined = r!.getSymbolOfDeclaration(location);
+            const enumSymbol: $ast.Symbol_ | undefined = r!.getSymbolOfDeclaration(location);
             if (enumSymbol === undefined) {
               break;
             }
@@ -3248,7 +3248,7 @@ export class NameResolver extends $rt.GoObject {
                 (location!.Flags & 8388608) === (0 as number) &&
                 !($ast.GetSourceFileOfNode(location) === $ast.GetSourceFileOfNode(result!.ValueDeclaration))
               ) {
-                let isolatedModulesLikeFlagName: string = $core.IfElse<string>(
+                const isolatedModulesLikeFlagName: string = $core.IfElse<string>(
                   r!.CompilerOptions_!.VerbatimModuleSyntax === (2 as number),
                   'verbatimModuleSyntax',
                   'isolatedModules',
@@ -3269,7 +3269,7 @@ export class NameResolver extends $rt.GoObject {
           }
           case 173 as number: {
             if (!$ast.IsStatic(location)) {
-              let ctor: $ast.Node | undefined = $ast.FindConstructorDeclaration(location!.Parent);
+              const ctor: $ast.Node | undefined = $ast.FindConstructorDeclaration(location!.Parent);
               if (!(ctor === undefined) && !(ctor!.Locals() === undefined)) {
                 if (!(r!.lookup(ctor!.Locals(), name_, meaning & 111551) === undefined)) {
                   propertyWithInvalidInitializer = location;
@@ -3300,7 +3300,7 @@ export class NameResolver extends $rt.GoObject {
               break loop;
             }
             if ($ast.IsClassExpression(location) && !((meaning & 32) === (0 as number))) {
-              let className: $ast.Node | undefined = location!.Name$Node();
+              const className: $ast.Node | undefined = location!.Name$Node();
               if (!(className === undefined) && name_ === className!.Text$Node()) {
                 result = location!.Symbol$m();
                 break loop;
@@ -3314,7 +3314,7 @@ export class NameResolver extends $rt.GoObject {
               $ast.IsHeritageClause(location!.Parent) &&
               location!.Parent!.AsHeritageClause()!.Token === (95 as number)
             ) {
-              let container: $ast.Node | undefined = location!.Parent!.Parent;
+              const container: $ast.Node | undefined = location!.Parent!.Parent;
               if ($ast.IsClassLike(container)) {
                 result = r!.lookup(r!.getSymbolOfDeclaration(container)!.Members, name_, meaning & 788968);
                 if (!(result === undefined)) {
@@ -3365,7 +3365,7 @@ export class NameResolver extends $rt.GoObject {
               break loop;
             }
             if (!((meaning & 16) === (0 as number))) {
-              let functionName: $ast.Node | undefined = location!.AsFunctionExpression()!.Name();
+              const functionName: $ast.Node | undefined = location!.AsFunctionExpression()!.Name();
               if (!(functionName === undefined) && name_ === functionName!.Text$Node()) {
                 result = location!.Symbol$m();
                 break loop;
@@ -3386,7 +3386,7 @@ export class NameResolver extends $rt.GoObject {
             break;
           }
           case 170 as number: {
-            let parameterDeclaration: $ast.ParameterDeclaration | undefined = location!.AsParameterDeclaration();
+            const parameterDeclaration: $ast.ParameterDeclaration | undefined = location!.AsParameterDeclaration();
             if (
               !(lastLocation === undefined) &&
               (lastLocation === parameterDeclaration!.Initializer_ ||
@@ -3399,7 +3399,7 @@ export class NameResolver extends $rt.GoObject {
             break;
           }
           case 209 as number: {
-            let bindingElement: $ast.BindingElement | undefined = location!.AsBindingElement();
+            const bindingElement: $ast.BindingElement | undefined = location!.AsBindingElement();
             if (
               !(lastLocation === undefined) &&
               (lastLocation === bindingElement!.Initializer_ ||
@@ -3416,7 +3416,7 @@ export class NameResolver extends $rt.GoObject {
           }
           case 196 as number: {
             if (!((meaning & 262144) === (0 as number))) {
-              let parameterName: $ast.Node | undefined = location!
+              const parameterName: $ast.Node | undefined = location!
                 .AsInferTypeNode()!
                 .TypeParameter!.AsTypeParameterDeclaration()!
                 .Name();
@@ -3428,7 +3428,7 @@ export class NameResolver extends $rt.GoObject {
             break;
           }
           case 282 as number: {
-            let exportSpecifier: $ast.ExportSpecifier | undefined = location!.AsExportSpecifier();
+            const exportSpecifier: $ast.ExportSpecifier | undefined = location!.AsExportSpecifier();
             if (
               !(lastLocation === undefined) &&
               lastLocation === exportSpecifier!.PropertyName_ &&
@@ -3503,14 +3503,14 @@ export class NameResolver extends $rt.GoObject {
   ): boolean {
     const r = this;
     if ($ast.IsParameterDeclaration(lastLocation)) {
-      let body: $ast.Node | undefined = location!.Body();
+      const body: $ast.Node | undefined = location!.Body();
       if (
         !(body === undefined) &&
         !(result!.ValueDeclaration === undefined) &&
         result!.ValueDeclaration!.Pos() >= body!.Pos() &&
         result!.ValueDeclaration!.End() <= body!.End()
       ) {
-        let functionLocation: $ast.Node | undefined = location;
+        const functionLocation: $ast.Node | undefined = location;
         let declarationRequiresScopeChange: $core.Tristate = 0;
         if (!(r!.GetRequiresScopeChangeCache === undefined)) {
           declarationRequiresScopeChange = r!.GetRequiresScopeChangeCache!(functionLocation);
@@ -3539,7 +3539,7 @@ export class NameResolver extends $rt.GoObject {
   }
   requiresScopeChange(node: $ast.Node | undefined): boolean {
     const r = this;
-    let d: $ast.ParameterDeclaration | undefined = node!.AsParameterDeclaration();
+    const d: $ast.ParameterDeclaration | undefined = node!.AsParameterDeclaration();
     return (
       r!.requiresScopeChangeWorker(d!.Name()) ||
       (!(d!.Initializer_ === undefined) && r!.requiresScopeChangeWorker(d!.Initializer_))
@@ -3615,7 +3615,7 @@ export class NameResolver extends $rt.GoObject {
       return r!.Lookup!(symbols, name_, meaning);
     }
     if (!(meaning === (0 as number))) {
-      let symbol_: $ast.Symbol_ | undefined = symbols?.get(name_) ?? undefined;
+      const symbol_: $ast.Symbol_ | undefined = symbols?.get(name_) ?? undefined;
       if (!(symbol_ === undefined)) {
         if (!((symbol_!.Flags & meaning) >>> 0 === (0 as number))) {
           return symbol_;
@@ -3775,7 +3775,7 @@ export class referenceResolver extends $rt.GoObject {
     startInDeclarationContainer: boolean,
   ): $ast.Symbol_ | undefined {
     const r = this;
-    let resolvedSymbol: $ast.Symbol_ | undefined = r!.getResolvedSymbol(reference);
+    const resolvedSymbol: $ast.Symbol_ | undefined = r!.getResolvedSymbol(reference);
     if (!(resolvedSymbol === undefined)) {
       return resolvedSymbol;
     }
@@ -3850,7 +3850,7 @@ export class referenceResolver extends $rt.GoObject {
   }
   GetReferencedExportContainer(node: $ast.Node | undefined, prefixLocals: boolean): $ast.Node | undefined {
     const r = this;
-    let startInDeclarationContainer: boolean =
+    const startInDeclarationContainer: boolean =
       !(node!.Parent === undefined) &&
       (node!.Parent!.Kind_ === (268 as number) || node!.Parent!.Kind_ === (267 as number)) &&
       node === node!.Parent!.Name$Node();
@@ -3858,7 +3858,7 @@ export class referenceResolver extends $rt.GoObject {
       let symbol_: $ast.Symbol_ | undefined = r!.getReferencedValueSymbol(node, startInDeclarationContainer);
       if (!(symbol_ === undefined)) {
         if (!((symbol_!.Flags & 1048576) === (0 as number))) {
-          let exportSymbol: $ast.Symbol_ | undefined = r!.getMergedSymbol(symbol_!.ExportSymbol);
+          const exportSymbol: $ast.Symbol_ | undefined = r!.getMergedSymbol(symbol_!.ExportSymbol);
           if (
             !prefixLocals &&
             !((exportSymbol!.Flags & 944) === (0 as number)) &&
@@ -3868,22 +3868,22 @@ export class referenceResolver extends $rt.GoObject {
           }
           symbol_ = exportSymbol;
         }
-        let parentSymbol: $ast.Symbol_ | undefined = r!.getParentOfSymbol(symbol_);
+        const parentSymbol: $ast.Symbol_ | undefined = r!.getParentOfSymbol(symbol_);
         if (!(parentSymbol === undefined)) {
           if (
             !((parentSymbol!.Flags & 512) === (0 as number)) &&
             !(parentSymbol!.ValueDeclaration === undefined) &&
             parentSymbol!.ValueDeclaration!.Kind_ === (307 as number)
           ) {
-            let symbolFile: $ast.SourceFile | undefined = parentSymbol!.ValueDeclaration!.AsSourceFile();
-            let referenceFile: $ast.SourceFile | undefined = $ast.GetSourceFileOfNode(node);
-            let symbolIsUmdExport: boolean = !(symbolFile === referenceFile);
+            const symbolFile: $ast.SourceFile | undefined = parentSymbol!.ValueDeclaration!.AsSourceFile();
+            const referenceFile: $ast.SourceFile | undefined = $ast.GetSourceFileOfNode(node);
+            const symbolIsUmdExport: boolean = !(symbolFile === referenceFile);
             if (symbolIsUmdExport) {
               return undefined;
             }
             return symbolFile!.AsNode();
           }
-          let isMatchingContainer: ((p0: $ast.Node | undefined) => boolean) | undefined = (
+          const isMatchingContainer: ((p0: $ast.Node | undefined) => boolean) | undefined = (
             n: $ast.Node | undefined,
           ): boolean => {
             return (
@@ -3900,7 +3900,7 @@ export class referenceResolver extends $rt.GoObject {
   GetReferencedImportDeclaration(node: $ast.Node | undefined): $ast.Node | undefined {
     const r = this;
     {
-      let symbol_: $ast.Symbol_ | undefined = r!.getReferencedValueSymbol(node, false);
+      const symbol_: $ast.Symbol_ | undefined = r!.getReferencedValueSymbol(node, false);
       if (!(symbol_ === undefined)) {
         if ($ast.IsNonLocalAlias(symbol_, 111551) && !r!.isTypeOnlyAliasDeclaration(symbol_)) {
           return r!.getDeclarationOfAliasSymbol(symbol_);
@@ -3912,7 +3912,7 @@ export class referenceResolver extends $rt.GoObject {
   GetReferencedValueDeclaration(node: $ast.Node | undefined): $ast.Node | undefined {
     const r = this;
     {
-      let symbol_: $ast.Symbol_ | undefined = r!.getReferencedValueSymbol(node, false);
+      const symbol_: $ast.Symbol_ | undefined = r!.getReferencedValueSymbol(node, false);
       if (!(symbol_ === undefined)) {
         return r!.getExportSymbolOfValueSymbolIfExported(symbol_)!.ValueDeclaration;
       }
@@ -3929,7 +3929,7 @@ export class referenceResolver extends $rt.GoObject {
         {
           const $t1 = symbol_!.Declarations;
           for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-            let declaration = $t1[$t2];
+            const declaration = $t1[$t2];
             {
               switch (declaration!.Kind_) {
                 case 261 as number:
@@ -3967,8 +3967,8 @@ export class referenceResolver extends $rt.GoObject {
       if (!(r!.hooks.GetElementAccessExpressionName === undefined)) {
         {
           const $t1 = r!.hooks.GetElementAccessExpressionName!(expression);
-          let name_: string = $t1[0];
-          let ok: boolean = $t1[1];
+          const name_: string = $t1[0];
+          const ok: boolean = $t1[1];
           if (ok) {
             return name_;
           }
@@ -4003,7 +4003,7 @@ export const ContainerFlagsIsThisContainer: ContainerFlags = 256;
 export const ContainerFlagsNone: ContainerFlags = 0;
 export const ContainerFlagsPropagatesThisKeyword: ContainerFlags = 512;
 const $fn0 = (): $rt.GoObject | undefined => {
-  let b: Binder | undefined = new Binder();
+  const b: Binder | undefined = new Binder();
   b!.bindFunc = (
     ($t1: Binder | undefined) =>
     (a0: $ast.Node | undefined): boolean =>
@@ -4015,7 +4015,7 @@ const $fn1 = (s: $ast.Node | undefined): boolean => {
   return $ast.IsExportDeclaration(s) || $ast.IsExportAssignment(s);
 };
 const $fn2 = (n: $ast.Node | undefined): boolean => {
-  let parent: $ast.Node | undefined = n!.Parent;
+  const parent: $ast.Node | undefined = n!.Parent;
   return (
     !(parent === undefined) && $ast.IsConditionalTypeNode(parent) && parent!.AsConditionalTypeNode()!.ExtendsType === n
   );
@@ -4045,7 +4045,7 @@ export function bindSourceFile(file: $ast.SourceFile | undefined): void {
     const $defers: (() => void)[] = [];
     let $panic: $rt.Panic | undefined = undefined;
     $body: try {
-      let b: Binder | undefined = getBinder();
+      const b: Binder | undefined = getBinder();
       const $t1 = b;
       $defers.push(() => {
         putBinder($t1);
@@ -4093,7 +4093,7 @@ export function getInitializerSymbol(symbol_: $ast.Symbol_ | undefined): $ast.Sy
   if (symbol_ === undefined || symbol_!.ValueDeclaration === undefined) {
     return undefined;
   }
-  let declaration: $ast.Node | undefined = symbol_!.ValueDeclaration;
+  const declaration: $ast.Node | undefined = symbol_!.ValueDeclaration;
   {
     $sw1: {
       if (
@@ -4105,12 +4105,12 @@ export function getInitializerSymbol(symbol_: $ast.Symbol_ | undefined): $ast.Sy
         $ast.IsVariableDeclaration(declaration) &&
         (!((declaration!.Parent!.Flags & 2) === (0 as number)) || $ast.IsInJSFile(declaration))
       ) {
-        let initializer: $ast.Node | undefined = declaration!.Initializer();
+        const initializer: $ast.Node | undefined = declaration!.Initializer();
         if ($ast.IsExpandoInitializer(declaration, initializer)) {
           return initializer!.Symbol$m();
         }
       } else if ($ast.IsBinaryExpression(declaration) && $ast.IsInJSFile(declaration)) {
-        let initializer$1: $ast.Node | undefined = declaration!.AsBinaryExpression()!.Right;
+        const initializer$1: $ast.Node | undefined = declaration!.AsBinaryExpression()!.Right;
         if ($ast.IsExpandoInitializer(declaration, initializer$1)) {
           return initializer$1!.Symbol$m();
         }
@@ -4123,7 +4123,7 @@ export function isUseStrictPrologueDirective(
   sourceFile: $ast.SourceFile | undefined,
   node: $ast.Node | undefined,
 ): boolean {
-  let nodeText: string = $scanner.GetSourceTextOfNodeFromSourceFile(sourceFile, node!.Expression(), false);
+  const nodeText: string = $scanner.GetSourceTextOfNodeFromSourceFile(sourceFile, node!.Expression(), false);
   return nodeText === ('"use strict"' as string) || nodeText === ("'use strict'" as string);
 }
 export function FindUseStrictPrologue(
@@ -4133,7 +4133,7 @@ export function FindUseStrictPrologue(
   {
     const $t1 = statements;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let statement = $t1[$t2];
+      const statement = $t1[$t2];
       if ($ast.IsPrologueDirective(statement)) {
         if (isUseStrictPrologueDirective(sourceFile, statement)) {
           return statement;
@@ -4147,7 +4147,7 @@ export function FindUseStrictPrologue(
 }
 export function isEvalOrArgumentsIdentifier(node: $ast.Node | undefined): boolean {
   if ($ast.IsIdentifier(node)) {
-    let text: string = node!.Text$Node();
+    const text: string = node!.Text$Node();
     return text === ('eval' as string) || text === ('arguments' as string);
   }
   return false;
@@ -4156,7 +4156,7 @@ export function isLogicalAssignmentExpression(node: $ast.Node | undefined): bool
   return $ast.IsLogicalOrCoalescingAssignmentExpression($ast.SkipParentheses(node));
 }
 export function setFlowNode(node: $ast.Node | undefined, flowNode: $ast.FlowNode | undefined): void {
-  let data: $ast.FlowNodeBase | undefined = node!.FlowNodeData$Node();
+  const data: $ast.FlowNodeBase | undefined = node!.FlowNodeData$Node();
   if (!(data === undefined)) {
     data!.FlowNode_ = flowNode;
   }
@@ -4190,7 +4190,7 @@ export function isGeneratorFunctionExpression(node: $ast.Node | undefined): bool
   );
 }
 export function SetValueDeclaration(symbol_: $ast.Symbol_ | undefined, node: $ast.Node | undefined): void {
-  let valueDeclaration: $ast.Node | undefined = symbol_!.ValueDeclaration;
+  const valueDeclaration: $ast.Node | undefined = symbol_!.ValueDeclaration;
   if (
     valueDeclaration === undefined ||
     (isAssignmentDeclaration(valueDeclaration) && !isAssignmentDeclaration(node)) ||
@@ -4343,14 +4343,14 @@ export function isNarrowableReference(node: $ast.Node | undefined): boolean {
         return isNarrowableReference(node!.Expression());
       }
       case 213 as number: {
-        let expr: $ast.ElementAccessExpression | undefined = node!.AsElementAccessExpression();
+        const expr: $ast.ElementAccessExpression | undefined = node!.AsElementAccessExpression();
         return (
           $ast.IsStringOrNumericLiteralLike(expr!.ArgumentExpression) ||
           ($ast.IsEntityNameExpression(expr!.ArgumentExpression) && isNarrowableReference(expr!.Expression_))
         );
       }
       case 227 as number: {
-        let expr$1: $ast.BinaryExpression | undefined = node!.AsBinaryExpression();
+        const expr$1: $ast.BinaryExpression | undefined = node!.AsBinaryExpression();
         return (
           (expr$1!.OperatorToken!.Kind_ === (27 as number) && isNarrowableReference(expr$1!.Right)) ||
           ($ast.IsAssignmentOperator(expr$1!.OperatorToken!.Kind_) && $ast.IsLeftHandSideExpression(expr$1!.Left))
@@ -4361,11 +4361,11 @@ export function isNarrowableReference(node: $ast.Node | undefined): boolean {
   return false;
 }
 export function hasNarrowableArgument(expr: $ast.Node | undefined): boolean {
-  let call: $ast.CallExpression | undefined = expr!.AsCallExpression();
+  const call: $ast.CallExpression | undefined = expr!.AsCallExpression();
   {
     const $t1 = call!.Arguments_!.Nodes;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let argument = $t1[$t2];
+      const argument = $t1[$t2];
       if (containsNarrowableReference(argument)) {
         return true;
       }
@@ -4391,8 +4391,8 @@ export function isNarrowingBinaryExpression(expr: $ast.BinaryExpression | undefi
       case 35 as number:
       case 36 as number:
       case 37 as number: {
-        let left: $ast.Node | undefined = $ast.SkipParentheses(expr!.Left);
-        let right: $ast.Node | undefined = $ast.SkipParentheses(expr!.Right);
+        const left: $ast.Node | undefined = $ast.SkipParentheses(expr!.Left);
+        const right: $ast.Node | undefined = $ast.SkipParentheses(expr!.Right);
         return (
           isNarrowableOperand(left) ||
           isNarrowableOperand(right) ||
@@ -4422,7 +4422,7 @@ export function isNarrowableOperand(expr: $ast.Node | undefined): boolean {
         return isNarrowableOperand(expr!.Expression());
       }
       case 227 as number: {
-        let binary: $ast.BinaryExpression | undefined = expr!.AsBinaryExpression();
+        const binary: $ast.BinaryExpression | undefined = expr!.AsBinaryExpression();
         {
           switch (binary!.OperatorToken!.Kind_) {
             case 63 as number: {
@@ -4444,7 +4444,7 @@ export function isNarrowingTypeOfOperands(expr1: $ast.Node | undefined, expr2: $
 }
 export function isSignedNumericLiteral(node: $ast.Node | undefined): boolean {
   if (node!.Kind_ === (225 as number)) {
-    let node$1: $ast.PrefixUnaryExpression | undefined = node!.AsPrefixUnaryExpression();
+    const node$1: $ast.PrefixUnaryExpression | undefined = node!.AsPrefixUnaryExpression();
     return (
       (node$1!.Operator === (39 as number) || node$1!.Operator === (40 as number)) &&
       $ast.IsNumericLiteral(node$1!.Operand)
@@ -4453,7 +4453,7 @@ export function isSignedNumericLiteral(node: $ast.Node | undefined): boolean {
   return false;
 }
 export function getOptionalSymbolFlagForNode(node: $ast.Node | undefined): $ast.SymbolFlags {
-  let postfixToken: $ast.Node | undefined = node!.PostfixToken();
+  const postfixToken: $ast.Node | undefined = node!.PostfixToken();
   return $core.IfElse<$ast.SymbolFlags>(
     !(postfixToken === undefined) && postfixToken!.Kind_ === (57 as number),
     16777216,
@@ -4461,13 +4461,13 @@ export function getOptionalSymbolFlagForNode(node: $ast.Node | undefined): $ast.
   );
 }
 export function isFunctionSymbol(symbol_: $ast.Symbol_ | undefined): boolean {
-  let d: $ast.Node | undefined = symbol_!.ValueDeclaration;
+  const d: $ast.Node | undefined = symbol_!.ValueDeclaration;
   if (!(d === undefined)) {
     if ($ast.IsFunctionDeclaration(d)) {
       return true;
     }
     if ($ast.IsVariableDeclaration(d)) {
-      let varDecl: $ast.VariableDeclaration | undefined = d!.AsVariableDeclaration();
+      const varDecl: $ast.VariableDeclaration | undefined = d!.AsVariableDeclaration();
       if (!(varDecl!.Initializer_ === undefined)) {
         return $ast.IsFunctionLike(varDecl!.Initializer_);
       }
@@ -4526,8 +4526,8 @@ export function GetLocalSymbolForExportDefault(symbol_: $ast.Symbol_ | undefined
   {
     const $t1 = symbol_!.Declarations;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let decl = $t1[$t2];
-      let localSymbol: $ast.Symbol_ | undefined = decl!.LocalSymbol();
+      const decl = $t1[$t2];
+      const localSymbol: $ast.Symbol_ | undefined = decl!.LocalSymbol();
       if (!(localSymbol === undefined)) {
         return localSymbol;
       }
@@ -4566,9 +4566,9 @@ export function isTypeParameterSymbolDeclaredInContainer(
   {
     const $t1 = symbol_!.Declarations;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let decl = $t1[$t2];
+      const decl = $t1[$t2];
       if (decl!.Kind_ === (169 as number)) {
-        let parent: $ast.Node | undefined = decl!.Parent;
+        const parent: $ast.Node | undefined = decl!.Parent;
         if (parent === container) {
           return true;
         }

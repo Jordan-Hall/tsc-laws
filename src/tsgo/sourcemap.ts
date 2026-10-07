@@ -109,11 +109,11 @@ export class DocumentPositionMapper extends $rt.GoObject {
       return undefined;
     }
     const $t1 = $rt.slices_BinarySearchFunc(d!.generatedMappings, loc!.Pos, $fn4);
-    let targetIndex: number = $t1[0];
+    const targetIndex: number = $t1[0];
     if (targetIndex < 0 || targetIndex >= d!.generatedMappings.length) {
       return undefined;
     }
-    let mapping: MappedPosition | undefined = d!.generatedMappings[targetIndex];
+    const mapping: MappedPosition | undefined = d!.generatedMappings[targetIndex];
     if (!mapping!.isSourceMappedPosition()) {
       return undefined;
     }
@@ -134,21 +134,21 @@ export class DocumentPositionMapper extends $rt.GoObject {
     }
     const $t1 = d!.sourceToSourceIndexMap;
     const $t2 = $tspath.GetCanonicalFileName(loc!.FileName, d!.useCaseSensitiveFileNames);
-    let sourceIndex: SourceIndex = $t1?.get($t2) ?? 0;
-    let ok: boolean = $t1 !== undefined && $t1.has($t2);
+    const sourceIndex: SourceIndex = $t1?.get($t2) ?? 0;
+    const ok: boolean = $t1 !== undefined && $t1.has($t2);
     if (!ok) {
       return undefined;
     }
     if (sourceIndex < 0 || sourceIndex >= $rt.mapLen(d!.sourceMappings)) {
       return undefined;
     }
-    let sourceMappings: (MappedPosition | undefined)[] = d!.sourceMappings?.get(sourceIndex) ?? [];
+    const sourceMappings: (MappedPosition | undefined)[] = d!.sourceMappings?.get(sourceIndex) ?? [];
     const $t3 = $rt.slices_BinarySearchFunc(sourceMappings, loc!.Pos, $fn5);
-    let targetIndex: number = $t3[0];
+    const targetIndex: number = $t3[0];
     if (targetIndex < 0 || targetIndex >= sourceMappings.length) {
       return undefined;
     }
-    let mapping: MappedPosition | undefined = sourceMappings[targetIndex];
+    const mapping: MappedPosition | undefined = sourceMappings[targetIndex];
     if (!(mapping!.sourceIndex === sourceIndex)) {
       return undefined;
     }
@@ -189,7 +189,7 @@ export class ECMALineInfo extends $rt.GoObject {
   }
   LineText(line: number): string {
     const li = this;
-    let pos: $core.TextPos = li!.lineStarts[line];
+    const pos: $core.TextPos = li!.lineStarts[line];
     let end: $core.TextPos = 0;
     if (line + 1 < li!.lineStarts.length) {
       end = li!.lineStarts[line + 1];
@@ -284,7 +284,7 @@ export class Generator extends $rt.GoObject {
   }
   AddSource(fileName: string): SourceIndex {
     const gen = this;
-    let source: string = $tspath.GetRelativePathToDirectoryOrUrl(
+    const source: string = $tspath.GetRelativePathToDirectoryOrUrl(
       gen!.sourcesDirectoryPath,
       fileName,
       true,
@@ -293,7 +293,7 @@ export class Generator extends $rt.GoObject {
     const $t1 = gen!.sourceToSourceIndexMap;
     const $t2 = source;
     let sourceIndex: SourceIndex = $t1?.get($t2) ?? 0;
-    let found: boolean = $t1 !== undefined && $t1.has($t2);
+    const found: boolean = $t1 !== undefined && $t1.has($t2);
     if (!found) {
       sourceIndex = gen!.sources.length;
       gen!.sources.push(source);
@@ -326,7 +326,7 @@ export class Generator extends $rt.GoObject {
     const $t1 = gen!.nameToNameIndexMap;
     const $t2 = name_;
     let nameIndex: NameIndex = $t1?.get($t2) ?? 0;
-    let found: boolean = $t1 !== undefined && $t1.has($t2);
+    const found: boolean = $t1 !== undefined && $t1.has($t2);
     if (!found) {
       nameIndex = gen!.names.length;
       gen!.names.push(name_);
@@ -563,8 +563,8 @@ export class Generator extends $rt.GoObject {
       gen!.RawSourceMap$m(),
       [] as ($rt.github_com_go_json_experiment_json_internal_jsonopts_Options | undefined)[],
     );
-    let buf: number[] = $t1[0];
-    let err: $rt.GoObject | undefined = $t1[1];
+    const buf: number[] = $t1[0];
+    const err: $rt.GoObject | undefined = $t1[1];
     if (!(err === undefined)) {
       throw $rt.newPanic(new $rt.BoxStr(err!.Error(), 'string'));
     }
@@ -577,11 +577,11 @@ export class Generator extends $rt.GoObject {
   Base64DataURL(): string {
     const gen = this;
     const $c_prefix: string = 'data:application/json;base64,';
-    let data: number[] = gen!.bytes();
+    const data: number[] = gen!.bytes();
     let sb: $rt.strings_Builder = new $rt.strings_Builder();
     sb.Grow(29 + $rt.encoding_base64_StdEncoding!.EncodedLen(data.length));
     sb.WriteString('data:application/json;base64,');
-    let encoder: $ipc.stdioConn | $contentmapper.closeOnceReadWriteCloser | $contentmapper.loggedProcess | undefined =
+    const encoder: $ipc.stdioConn | $contentmapper.closeOnceReadWriteCloser | $contentmapper.loggedProcess | undefined =
       $rt.encoding_base64_NewEncoder(
         $rt.encoding_base64_StdEncoding,
         $rt.unsupportedConversion<
@@ -779,7 +779,7 @@ export class MappingsDecoder extends $rt.GoObject {
     let value: Mapping | undefined = undefined as Mapping | undefined;
     let done: boolean = false;
     for (; !d!.done && d!.pos < d!.mappings.length;) {
-      let ch: number = d!.mappings.charCodeAt(d!.pos);
+      const ch: number = d!.mappings.charCodeAt(d!.pos);
       if (ch === (59 as number)) {
         d!.generatedLine++;
         d!.generatedCharacter = 0;
@@ -848,7 +848,7 @@ export class MappingsDecoder extends $rt.GoObject {
   }
   captureMapping(hasSource: boolean, hasName: boolean): Mapping | undefined {
     const d = this;
-    let mapping: Mapping | undefined = d!.mappingArena.New();
+    const mapping: Mapping | undefined = d!.mappingArena.New();
     mapping!.GeneratedLine = d!.generatedLine;
     mapping!.GeneratedCharacter = d!.generatedCharacter;
     mapping!.SourceIndex_ = $core.IfElse<SourceIndex>(hasSource, d!.sourceIndex, -1);
@@ -893,7 +893,7 @@ export class MappingsDecoder extends $rt.GoObject {
         d!.setError('Error in decoding base64VLQFormatDecode, past the mapping string');
         return -1;
       }
-      let currentByte: number = base64FormatDecode(d!.mappings.charCodeAt(d!.pos));
+      const currentByte: number = base64FormatDecode(d!.mappings.charCodeAt(d!.pos));
       if (currentByte === (-1 as number)) {
         d!.setError('Invalid character in VLQ');
         return -1;
@@ -1057,43 +1057,43 @@ export function createDocumentPositionMapper(
   sourceMap: RawSourceMap | undefined,
   mapPath: string,
 ): DocumentPositionMapper | undefined {
-  let mapDirectory: string = $tspath.GetDirectoryPath(mapPath);
+  const mapDirectory: string = $tspath.GetDirectoryPath(mapPath);
   let sourceRoot: string = '';
   if (!(sourceMap!.SourceRoot === ('' as string))) {
     sourceRoot = $tspath.GetNormalizedAbsolutePath(sourceMap!.SourceRoot, mapDirectory);
   } else {
     sourceRoot = mapDirectory;
   }
-  let generatedAbsoluteFilePath: string = $tspath.GetNormalizedAbsolutePath(sourceMap!.File, mapDirectory);
-  let sourceFileAbsolutePaths: string[] = $core.Map_<string, string>(
+  const generatedAbsoluteFilePath: string = $tspath.GetNormalizedAbsolutePath(sourceMap!.File, mapDirectory);
+  const sourceFileAbsolutePaths: string[] = $core.Map_<string, string>(
     $zf0,
     sourceMap!.Sources,
     (source: string): string => {
       return $tspath.GetNormalizedAbsolutePath(source, sourceRoot);
     },
   );
-  let useCaseSensitiveFileNames: boolean = host!.UseCaseSensitiveFileNames();
-  let sourceToSourceIndexMap: Map<string, SourceIndex> | undefined = new Map<string, SourceIndex>();
+  const useCaseSensitiveFileNames: boolean = host!.UseCaseSensitiveFileNames();
+  const sourceToSourceIndexMap: Map<string, SourceIndex> | undefined = new Map<string, SourceIndex>();
   {
     const $t1 = sourceFileAbsolutePaths;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let i = $t2;
-      let source$1 = $t1[$t2];
+      const i = $t2;
+      const source$1 = $t1[$t2];
       sourceToSourceIndexMap!.set($tspath.GetCanonicalFileName(source$1, useCaseSensitiveFileNames), i);
     }
   }
   let decodedMappings: (MappedPosition | undefined)[] = [];
   let generatedMappings: (MappedPosition | undefined)[] = [];
-  let sourceMappings: Map<SourceIndex, (MappedPosition | undefined)[]> | undefined = new Map<
+  const sourceMappings: Map<SourceIndex, (MappedPosition | undefined)[]> | undefined = new Map<
     SourceIndex,
     (MappedPosition | undefined)[]
   >();
-  let decoder: MappingsDecoder | undefined = DecodeMappings(sourceMap!.Mappings);
+  const decoder: MappingsDecoder | undefined = DecodeMappings(sourceMap!.Mappings);
   let $t3 = false;
   let $t4: DocumentPositionMapper | undefined = undefined as DocumentPositionMapper | undefined;
   decoder!.Values()!((mapping: Mapping | undefined): boolean => {
     let generatedPosition: number = -1;
-    let lineInfo: ECMALineInfo | undefined = host!.GetECMALineInfo(generatedAbsoluteFilePath);
+    const lineInfo: ECMALineInfo | undefined = host!.GetECMALineInfo(generatedAbsoluteFilePath);
     if (!(lineInfo === undefined)) {
       generatedPosition = $scanner.ComputePositionOfLineAndUTF16Character(
         lineInfo!.lineStarts,
@@ -1105,9 +1105,11 @@ export function createDocumentPositionMapper(
     }
     let sourcePosition: number = -1;
     if (mapping!.IsSourceMapping()) {
-      let lineInfo$1: ECMALineInfo | undefined = host!.GetECMALineInfo(sourceFileAbsolutePaths[mapping!.SourceIndex_]);
+      const lineInfo$1: ECMALineInfo | undefined = host!.GetECMALineInfo(
+        sourceFileAbsolutePaths[mapping!.SourceIndex_],
+      );
       if (!(lineInfo$1 === undefined)) {
-        let pos: number = $scanner.ComputePositionOfLineAndUTF16Character(
+        const pos: number = $scanner.ComputePositionOfLineAndUTF16Character(
           lineInfo$1!.lineStarts,
           mapping!.SourceLine,
           mapping!.SourceCharacter,
@@ -1133,11 +1135,11 @@ export function createDocumentPositionMapper(
   {
     const $t5 = decodedMappings;
     for (let $t6 = 0, $n = $t5.length; $t6 < $n; $t6++) {
-      let mapping$1 = $t5[$t6];
+      const mapping$1 = $t5[$t6];
       if (!mapping$1!.isSourceMappedPosition()) {
         continue;
       }
-      let sourceIndex: SourceIndex = mapping$1!.sourceIndex;
+      const sourceIndex: SourceIndex = mapping$1!.sourceIndex;
       let list: (MappedPosition | undefined)[] = sourceMappings?.get(sourceIndex) ?? [];
       list = $rt.appendCopy(list, [
         MappedPosition.$lit_sourcemap_MappedPosition_0_2_1_3(
@@ -1174,14 +1176,14 @@ export function GetDocumentPositionMapper(
   if (!(mapFileName === ('' as string))) {
     {
       const $t1 = tryParseBase64Url(mapFileName);
-      let base64Object: string = $t1[0];
-      let matched: boolean = $t1[1];
+      const base64Object: string = $t1[0];
+      const matched: boolean = $t1[1];
       if (matched) {
         if (!(base64Object === ('' as string))) {
           {
             const $t2 = $rt.encoding_base64_StdEncoding!.DecodeString(base64Object);
-            let decoded: number[] = $t2[0];
-            let err: $rt.GoObject | undefined = $t2[1];
+            const decoded: number[] = $t2[0];
+            const err: $rt.GoObject | undefined = $t2[1];
             if (err === undefined) {
               return convertDocumentToSourceMapper(host, $rt.bytesToString(decoded), generatedFileName);
             }
@@ -1199,15 +1201,15 @@ export function GetDocumentPositionMapper(
   {
     const $t3 = possibleMapLocations;
     for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
-      let location = $t3[$t4];
-      let mapFileName$1: string = $tspath.GetNormalizedAbsolutePath(
+      const location = $t3[$t4];
+      const mapFileName$1: string = $tspath.GetNormalizedAbsolutePath(
         location,
         $tspath.GetDirectoryPath(generatedFileName),
       );
       {
         const $t5 = host!.ReadFile(mapFileName$1);
-        let mapFileContents: string = $t5[0];
-        let ok: boolean = $t5[1];
+        const mapFileContents: string = $t5[0];
+        const ok: boolean = $t5[1];
         if (ok) {
           return convertDocumentToSourceMapper(host, mapFileContents, mapFileName$1);
         }
@@ -1221,7 +1223,7 @@ export function convertDocumentToSourceMapper(
   contents: string,
   mapFileName: string,
 ): DocumentPositionMapper | undefined {
-  let sourceMap: RawSourceMap | undefined = tryParseRawSourceMap(contents);
+  const sourceMap: RawSourceMap | undefined = tryParseRawSourceMap(contents);
   if (
     sourceMap === undefined ||
     sourceMap!.Sources.length === (0 as number) ||
@@ -1236,8 +1238,8 @@ export function convertDocumentToSourceMapper(
   return createDocumentPositionMapper(host, sourceMap, mapFileName);
 }
 export function tryParseRawSourceMap(contents: string): RawSourceMap | undefined {
-  let sourceMap: RawSourceMap | undefined = new RawSourceMap();
-  let err: $rt.GoObject | undefined = $json.Unmarshal(
+  const sourceMap: RawSourceMap | undefined = new RawSourceMap();
+  const err: $rt.GoObject | undefined = $json.Unmarshal(
     $rt.stringToBytes(contents),
     sourceMap,
     [] as ($rt.github_com_go_json_experiment_json_internal_jsonopts_Options | undefined)[],
@@ -1251,7 +1253,7 @@ export function tryParseRawSourceMap(contents: string): RawSourceMap | undefined
   return sourceMap;
 }
 export function tryGetSourceMappingURL(host: Host | undefined, fileName: string): string {
-  let lineInfo: ECMALineInfo | undefined = host!.GetECMALineInfo(fileName);
+  const lineInfo: ECMALineInfo | undefined = host!.GetECMALineInfo(fileName);
   return TryGetSourceMappingURL(lineInfo);
 }
 export function tryParseBase64Url(url: string): [string, boolean] {
@@ -1297,7 +1299,7 @@ export function tryParseBase64Url(url: string): [string, boolean] {
     const $t5 = url;
     for (let $t6 = 0, $t7 = 0; $t6 < $t5.length; $t6 += $t7) {
       $t7 = $rt.utf8_DecodeRuneInStringAt($t5, $t6)[1];
-      let r = $rt.utf8_DecodeRuneInStringAt($t5, $t6)[0];
+      const r = $rt.utf8_DecodeRuneInStringAt($t5, $t6)[0];
       if (
         !(
           $stringutil.IsASCIILetter(r) ||
@@ -1333,8 +1335,8 @@ export function TryGetSourceMappingURL(lineInfo: ECMALineInfo | undefined): stri
         }
         {
           const $t1 = $rt.strings_CutPrefix(line.substring(4), 'sourceMappingURL=');
-          let url: string = $t1[0];
-          let ok: boolean = $t1[1];
+          const url: string = $t1[0];
+          const ok: boolean = $t1[1];
           if (ok) {
             return $rt.strings_TrimRightFunc(url, $rt.unicode_IsSpace);
           }

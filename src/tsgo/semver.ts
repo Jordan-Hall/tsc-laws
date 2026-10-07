@@ -296,12 +296,12 @@ export function comparePreReleaseIdentifiers(left: string[], right: string[]): n
   return $rt.slices_CompareFunc(left, right, comparePreReleaseIdentifier);
 }
 export function comparePreReleaseIdentifier(left: string, right: string): number {
-  let compareResult: number = $rt.strings_Compare(left, right);
+  const compareResult: number = $rt.strings_Compare(left, right);
   if (compareResult === (0 as number)) {
     return compareResult;
   }
-  let leftIsNumeric: boolean = numericIdentifierRegExp!.MatchString(left);
-  let rightIsNumeric: boolean = numericIdentifierRegExp!.MatchString(right);
+  const leftIsNumeric: boolean = numericIdentifierRegExp!.MatchString(left);
+  const rightIsNumeric: boolean = numericIdentifierRegExp!.MatchString(right);
   if (leftIsNumeric || rightIsNumeric) {
     if (!rightIsNumeric) {
       return -1;
@@ -310,15 +310,15 @@ export function comparePreReleaseIdentifier(left: string, right: string): number
       return 1;
     }
     const $t1 = getUintComponent(left);
-    let leftAsNumber: number = $t1[0];
-    let leftErr: $rt.GoObject | undefined = $t1[1];
+    const leftAsNumber: number = $t1[0];
+    const leftErr: $rt.GoObject | undefined = $t1[1];
     const $t2 = getUintComponent(right);
-    let rightAsNumber: number = $t2[0];
-    let rightErr: $rt.GoObject | undefined = $t2[1];
+    const rightAsNumber: number = $t2[0];
+    const rightErr: $rt.GoObject | undefined = $t2[1];
     if (!(leftErr === undefined) || !(rightErr === undefined)) {
-      let leftLen: number = left.length;
-      let rightLen: number = right.length;
-      let lenCompare: number = $rt.cmp_Compare(leftLen, rightLen);
+      const leftLen: number = left.length;
+      const rightLen: number = right.length;
+      const lenCompare: number = $rt.cmp_Compare(leftLen, rightLen);
       if (lenCompare === (0 as number)) {
         return compareResult;
       } else {
@@ -330,16 +330,16 @@ export function comparePreReleaseIdentifier(left: string, right: string): number
   return compareResult;
 }
 export function TryParseVersion(text: string): [Version, $rt.GoObject | undefined] {
-  let result: Version = new Version();
-  let match: string[] = versionRegexp!.FindStringSubmatch(text);
+  const result: Version = new Version();
+  const match: string[] = versionRegexp!.FindStringSubmatch(text);
   if (match.length === 0) {
     return [result.$clone_semver_Version(), SemverParseError.$lit_semver_SemverParseError_0(text)];
   }
-  let majorStr: string = match[1];
-  let minorStr: string = match[2];
-  let patchStr: string = match[3];
-  let prereleaseStr: string = match[4];
-  let buildStr: string = match[5];
+  const majorStr: string = match[1];
+  const minorStr: string = match[2];
+  const patchStr: string = match[3];
+  const prereleaseStr: string = match[4];
+  const buildStr: string = match[5];
   let err: $rt.GoObject | undefined = undefined as $rt.GoObject | undefined;
   const $t1 = getUintComponent(majorStr);
   result.major = $t1[0];
@@ -379,8 +379,8 @@ export function TryParseVersion(text: string): [Version, $rt.GoObject | undefine
 }
 export function MustParse(text: string): Version {
   const $t1 = TryParseVersion(text);
-  let v: Version = $t1[0];
-  let err: $rt.GoObject | undefined = $t1[1];
+  const v: Version = $t1[0];
+  const err: $rt.GoObject | undefined = $t1[1];
   if (!(err === undefined)) {
     throw $rt.newPanic(err);
   }
@@ -388,17 +388,17 @@ export function MustParse(text: string): Version {
 }
 export function getUintComponent(text: string): [number, $rt.GoObject | undefined] {
   const $t1 = $rt.strconv_ParseUint(text, 10, 32);
-  let r: number = $t1[0];
-  let err: $rt.GoObject | undefined = $t1[1];
+  const r: number = $t1[0];
+  const err: $rt.GoObject | undefined = $t1[1];
   return [r >>> 0, err];
 }
 export function formatDisjunction(sb: $rt.strings_Builder | undefined, alternatives: versionComparator[][]): void {
-  let origLen: number = sb!.Len();
+  const origLen: number = sb!.Len();
   {
     const $t1 = alternatives;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let i = $t2;
-      let alternative = $t1[$t2];
+      const i = $t2;
+      const alternative = $t1[$t2];
       if (i > 0) {
         sb!.WriteString(' || ');
       }
@@ -413,8 +413,8 @@ export function formatAlternative(sb: $rt.strings_Builder | undefined, comparato
   {
     const $t1 = comparators;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let i = $t2;
-      let comparator = $t1[$t2].$clone_semver_versionComparator();
+      const i = $t2;
+      const comparator = $t1[$t2].$clone_semver_versionComparator();
       if (i > 0) {
         sb!.WriteByte(32);
       }
@@ -433,7 +433,7 @@ export function testDisjunction(alternatives: versionComparator[][], version: Ve
   {
     const $t1 = alternatives;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let alternative = $t1[$t2];
+      const alternative = $t1[$t2];
       if (testAlternative(alternative, version)) {
         return true;
       }
@@ -445,7 +445,7 @@ export function testAlternative(alternative: versionComparator[], version: Versi
   {
     const $t1 = alternative;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let comparator = $t1[$t2].$clone_semver_versionComparator();
+      const comparator = $t1[$t2].$clone_semver_versionComparator();
       if (!testComparator(comparator.$clone_semver_versionComparator(), version)) {
         return false;
       }
@@ -454,7 +454,7 @@ export function testAlternative(alternative: versionComparator[], version: Versi
   return true;
 }
 export function testComparator(comparator: versionComparator, version: Version | undefined): boolean {
-  let cmp: number = Version.Compare$nil(version, comparator.operand);
+  const cmp: number = Version.Compare$nil(version, comparator.operand);
   {
     switch (comparator.operator) {
       case '<' as string: {
@@ -480,14 +480,14 @@ export function testComparator(comparator: versionComparator, version: Version |
 }
 export function TryParseVersionRange(text: string): [VersionRange, boolean] {
   const $t1 = parseAlternatives(text);
-  let alternatives: versionComparator[][] = $t1[0];
-  let ok: boolean = $t1[1];
+  const alternatives: versionComparator[][] = $t1[0];
+  const ok: boolean = $t1[1];
   return [VersionRange.$lit_semver_VersionRange_0(alternatives), ok];
 }
 export function parseAlternatives(text: string): [versionComparator[][], boolean] {
   let alternatives: versionComparator[][] = [];
   text = $rt.strings_TrimSpace(text);
-  let ranges: string[] = logicalOrRegExp!.Split(text, -1);
+  const ranges: string[] = logicalOrRegExp!.Split(text, -1);
   {
     const $t1 = ranges;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
@@ -498,12 +498,12 @@ export function parseAlternatives(text: string): [versionComparator[][], boolean
       }
       let comparators: versionComparator[] = [];
       {
-        let hyphenMatch: string[] = hyphenRegExp!.FindStringSubmatch(r);
+        const hyphenMatch: string[] = hyphenRegExp!.FindStringSubmatch(r);
         if (!(hyphenMatch.length === 0)) {
           {
             const $t3 = parseHyphen(hyphenMatch[1], hyphenMatch[2]);
-            let parsedComparators: versionComparator[] = $t3[0];
-            let ok: boolean = $t3[1];
+            const parsedComparators: versionComparator[] = $t3[0];
+            const ok: boolean = $t3[1];
             if (ok) {
               $rt.appendInto(comparators, parsedComparators);
             } else {
@@ -514,15 +514,15 @@ export function parseAlternatives(text: string): [versionComparator[][], boolean
           {
             const $t4 = whitespaceRegExp!.Split(r, -1);
             for (let $t5 = 0, $n = $t4.length; $t5 < $n; $t5++) {
-              let simple = $t4[$t5];
-              let match: string[] = rangeRegExp!.FindStringSubmatch($rt.strings_TrimSpace(simple));
+              const simple = $t4[$t5];
+              const match: string[] = rangeRegExp!.FindStringSubmatch($rt.strings_TrimSpace(simple));
               if (match.length === 0) {
                 return [[], false];
               }
               {
                 const $t6 = parseComparator(match[1], match[2]);
-                let parsedComparators$1: versionComparator[] = $t6[0];
-                let ok$1: boolean = $t6[1];
+                const parsedComparators$1: versionComparator[] = $t6[0];
+                const ok$1: boolean = $t6[1];
                 if (ok$1) {
                   $rt.appendInto(comparators, parsedComparators$1);
                 } else {
@@ -540,14 +540,14 @@ export function parseAlternatives(text: string): [versionComparator[][], boolean
 }
 export function parseHyphen(left: string, right: string): [versionComparator[], boolean] {
   const $t1 = parsePartial(left);
-  let leftResult: partialVersion = $t1[0];
-  let leftOk: boolean = $t1[1];
+  const leftResult: partialVersion = $t1[0];
+  const leftOk: boolean = $t1[1];
   if (!leftOk) {
     return [[], false];
   }
   const $t2 = parsePartial(right);
-  let rightResult: partialVersion = $t2[0];
-  let rightOk: boolean = $t2[1];
+  const rightResult: partialVersion = $t2[0];
+  const rightOk: boolean = $t2[1];
   if (!rightOk) {
     return [[], false];
   }
@@ -578,15 +578,15 @@ export function parseHyphen(left: string, right: string): [versionComparator[], 
   return [comparators, true];
 }
 export function parsePartial(text: string): [partialVersion, boolean] {
-  let match: string[] = partialRegExp!.FindStringSubmatch(text);
+  const match: string[] = partialRegExp!.FindStringSubmatch(text);
   if (match.length === 0) {
     return [new partialVersion(), false];
   }
-  let majorStr: string = match[1];
+  const majorStr: string = match[1];
   let minorStr: string = match[2];
   let patchStr: string = match[3];
-  let prereleaseStr: string = match[4];
-  let buildStr: string = match[5];
+  const prereleaseStr: string = match[4];
+  const buildStr: string = match[5];
   if (minorStr === ('' as string)) {
     minorStr = '*';
   }
@@ -638,7 +638,7 @@ export function parsePartial(text: string): [partialVersion, boolean] {
   if (!(buildStr === ('' as string))) {
     build = $rt.strings_Split(buildStr, '.');
   }
-  let result: partialVersion = partialVersion.$lit_semver_partialVersion_0_1_2_3(
+  const result: partialVersion = partialVersion.$lit_semver_partialVersion_0_1_2_3(
     Version.$lit_semver_Version_0_1_2_3_4(majorNumeric, minorNumeric, patchNumeric, prerelease, build),
     majorStr,
     minorStr,
@@ -649,8 +649,8 @@ export function parsePartial(text: string): [partialVersion, boolean] {
 export function parseComparator(op: string, text: string): [versionComparator[], boolean] {
   let operator: comparatorOperator = op;
   const $t1 = parsePartial(text);
-  let result: partialVersion = $t1[0];
-  let ok: boolean = $t1[1];
+  const result: partialVersion = $t1[0];
+  const ok: boolean = $t1[1];
   if (!ok) {
     return [[], false];
   }
@@ -659,7 +659,7 @@ export function parseComparator(op: string, text: string): [versionComparator[],
     {
       switch (operator) {
         case '~' as string: {
-          let first: versionComparator = versionComparator.$lit_semver_versionComparator_0_1(
+          const first: versionComparator = versionComparator.$lit_semver_versionComparator_0_1(
             '>=',
             result.version.$clone_semver_Version(),
           );
@@ -669,7 +669,7 @@ export function parseComparator(op: string, text: string): [versionComparator[],
           } else {
             secondVersion = result.version.incrementMinor();
           }
-          let second: versionComparator = versionComparator.$lit_semver_versionComparator_0_1(
+          const second: versionComparator = versionComparator.$lit_semver_versionComparator_0_1(
             '<',
             secondVersion.$clone_semver_Version(),
           );
@@ -677,7 +677,7 @@ export function parseComparator(op: string, text: string): [versionComparator[],
           break;
         }
         case '^' as string: {
-          let first$1: versionComparator = versionComparator.$lit_semver_versionComparator_0_1(
+          const first$1: versionComparator = versionComparator.$lit_semver_versionComparator_0_1(
             '>=',
             result.version.$clone_semver_Version(),
           );
@@ -689,7 +689,7 @@ export function parseComparator(op: string, text: string): [versionComparator[],
           } else {
             secondVersion$1 = result.version.incrementPatch();
           }
-          let second$1: versionComparator = versionComparator.$lit_semver_versionComparator_0_1(
+          const second$1: versionComparator = versionComparator.$lit_semver_versionComparator_0_1(
             '<',
             secondVersion$1.$clone_semver_Version(),
           );
@@ -698,7 +698,7 @@ export function parseComparator(op: string, text: string): [versionComparator[],
         }
         case '<' as string:
         case '>=' as string: {
-          let version: Version = result.version.$clone_semver_Version();
+          const version: Version = result.version.$clone_semver_Version();
           if (isWildcard(result.minorStr) || isWildcard(result.patchStr)) {
             version.prerelease = ['0'];
           }
@@ -736,8 +736,8 @@ export function parseComparator(op: string, text: string): [versionComparator[],
         case '' as string: {
           operator = '=';
           if (isWildcard(result.minorStr) || isWildcard(result.patchStr)) {
-            let originalVersion: Version = result.version.$clone_semver_Version();
-            let firstVersion: Version = originalVersion.$clone_semver_Version();
+            const originalVersion: Version = result.version.$clone_semver_Version();
+            const firstVersion: Version = originalVersion.$clone_semver_Version();
             firstVersion.prerelease = ['0'];
             let secondVersion$2: Version = new Version();
             if (isWildcard(result.minorStr)) {

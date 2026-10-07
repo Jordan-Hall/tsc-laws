@@ -198,7 +198,7 @@ export class Tracing extends $rt.GoObject {
       return;
     }
     {
-      let err: $rt.GoObject | undefined = tr!.fs!.AppendFile(tr!.tracePath, tr!.traceContent.String());
+      const err: $rt.GoObject | undefined = tr!.fs!.AppendFile(tr!.tracePath, tr!.traceContent.String());
       if (!(err === undefined)) {
         tr!.flushErr = $rt.fmt_Errorf('failed to flush trace file: %w', [err]);
       }
@@ -225,8 +225,8 @@ export class Tracing extends $rt.GoObject {
       if (!tr!.traceStarted) {
         break $body;
       }
-      let ts: number = tr!.timestamp();
-      let tid: number = tr!.threadIDLocked(args);
+      const ts: number = tr!.timestamp();
+      const tid: number = tr!.threadIDLocked(args);
       tr!.traceContent.WriteString(',\n');
       tr!.writeEvent(traceEvent.$lit_tracing_traceEvent_0_1_2_3_4_5_6_8(1, tid, 'I', phase, ts, name_, 'g', args));
       tr!.maybeFlushLocked();
@@ -256,8 +256,8 @@ export class Tracing extends $rt.GoObject {
         tr!.mu.Unlock();
         return $fn1;
       }
-      let ts: number = tr!.timestamp();
-      let tid: number = tr!.threadIDLocked(args);
+      const ts: number = tr!.timestamp();
+      const tid: number = tr!.threadIDLocked(args);
       tr!.traceContent.WriteString(',\n');
       tr!.writeEvent(traceEvent.$lit_tracing_traceEvent_0_1_2_3_4_5_8(1, tid, 'B', phase, ts, name_, args));
       tr!.maybeFlushLocked();
@@ -274,7 +274,7 @@ export class Tracing extends $rt.GoObject {
           if (!tr!.traceStarted) {
             break $body;
           }
-          let endTs: number = tr!.timestamp();
+          const endTs: number = tr!.timestamp();
           tr!.traceContent.WriteString(',\n');
           tr!.writeEvent(traceEvent.$lit_tracing_traceEvent_0_1_2_3_4_5_8(1, tid, 'E', phase, endTs, name_, args));
           tr!.maybeFlushLocked();
@@ -289,15 +289,15 @@ export class Tracing extends $rt.GoObject {
     if (tr!.deterministic) {
       return $fn1;
     }
-    let startTime: $rt.time_Time = $rt.time_Now();
+    const startTime: $rt.time_Time = $rt.time_Now();
     args = $rt.maps_Clone(args);
     return (): void => {
       const $defers: (() => void)[] = [];
       let $panic: $rt.Panic | undefined = undefined;
       $body: try {
         let dur: number = $rt.time_Duration$Nanoseconds($rt.time_Since(startTime)) / 1000;
-        let startMicros: number = $rt.time_Duration$Nanoseconds(startTime.Sub(tr!.startTime)) / 1000;
-        let intervalMicros: number = $rt.time_Duration$Nanoseconds(10000000) / 1000;
+        const startMicros: number = $rt.time_Duration$Nanoseconds(startTime.Sub(tr!.startTime)) / 1000;
+        const intervalMicros: number = $rt.time_Duration$Nanoseconds(10000000) / 1000;
         if (intervalMicros - $rt.math_Mod(startMicros, intervalMicros) > dur) {
           break $body;
         }
@@ -309,7 +309,7 @@ export class Tracing extends $rt.GoObject {
         if (!tr!.traceStarted) {
           break $body;
         }
-        let tid$1: number = tr!.threadIDLocked(args);
+        const tid$1: number = tr!.threadIDLocked(args);
         tr!.traceContent.WriteString(',\n');
         tr!.writeEvent(
           traceEvent.$lit_tracing_traceEvent_0_1_2_3_4_5_7_8(
@@ -348,16 +348,16 @@ export class Tracing extends $rt.GoObject {
   threadIDLocked(args: Map<string, $rt.GoObject | undefined> | undefined): number {
     const tr = this;
     const $t1 = traceThreadKeyFromArgs(args);
-    let key: traceThreadKey = $t1[0];
-    let ok: boolean = $t1[1];
+    const key: traceThreadKey = $t1[0];
+    const ok: boolean = $t1[1];
     if (!ok) {
       return 1;
     }
     {
       const $t2 = tr!.threadIDs;
       const $t3 = key;
-      let tid: number = $rt.structMapGet($t2, $t3, 0);
-      let ok$1: boolean = $t2 !== undefined && $t2.has($t3);
+      const tid: number = $rt.structMapGet($t2, $t3, 0);
+      const ok$1: boolean = $t2 !== undefined && $t2.has($t3);
       if (ok$1) {
         return tid;
       }
@@ -367,8 +367,8 @@ export class Tracing extends $rt.GoObject {
       {
         const $t4 = tr!.threadKeys;
         const $t5 = tid$1;
-        let existingKey: traceThreadKey = $t4?.get($t5) ?? traceThreadKey$zero;
-        let ok$2: boolean = $t4 !== undefined && $t4.has($t5);
+        const existingKey: traceThreadKey = $t4?.get($t5) ?? traceThreadKey$zero;
+        const ok$2: boolean = $t4 !== undefined && $t4.has($t5);
         if (!ok$2 || existingKey.$equals_tracing_traceThreadKey(key)) {
           break;
         }
@@ -406,10 +406,10 @@ export class Tracing extends $rt.GoObject {
       $defers.push(() => {
         $t2.Unlock();
       });
-      let typesPath: string = $tspath.CombinePaths(tr!.traceDir, [
+      const typesPath: string = $tspath.CombinePaths(tr!.traceDir, [
         $rt.fmt_Sprintf('types_%d.json', [new $rt.BoxNum(checkerIndex, 'int')]),
       ]);
-      let tracer: typeTracer | undefined = typeTracer.$lit_tracing_typeTracer_0_1_2_3(
+      const tracer: typeTracer | undefined = typeTracer.$lit_tracing_typeTracer_0_1_2_3(
         tr!.fs,
         checkerIndex,
         typesPath,
@@ -438,9 +438,9 @@ export class Tracing extends $rt.GoObject {
       {
         const $t2 = tr!.tracers;
         for (let $t3 = 0, $n = $t2.length; $t3 < $n; $t3++) {
-          let tracer = $t2[$t3];
+          const tracer = $t2[$t3];
           {
-            let err: $rt.GoObject | undefined = tracer!.DumpTypes();
+            const err: $rt.GoObject | undefined = tracer!.DumpTypes();
             if (!(err === undefined)) {
               $t1 = $rt.fmt_Errorf('failed to dump types for checker %d: %w', [
                 new $rt.BoxNum(tracer!.checkerIndex, 'int'),
@@ -464,7 +464,10 @@ export class Tracing extends $rt.GoObject {
           break $body;
         }
         {
-          let err$1: $rt.GoObject | undefined = tr!.fs!.AppendFile(tr!.tracePath, tr!.traceContent.String() + '\n]\n');
+          const err$1: $rt.GoObject | undefined = tr!.fs!.AppendFile(
+            tr!.tracePath,
+            tr!.traceContent.String() + '\n]\n',
+          );
           if (!(err$1 === undefined)) {
             $t1 = $rt.fmt_Errorf('failed to write trace file: %w', [err$1]);
             break $body;
@@ -474,16 +477,16 @@ export class Tracing extends $rt.GoObject {
         tr!.traceStarted = false;
       }
       $rt.slices_SortFunc(tr!.legend, $fn2);
-      let legendPath: string = $tspath.CombinePaths(tr!.traceDir, ['legend.json']);
+      const legendPath: string = $tspath.CombinePaths(tr!.traceDir, ['legend.json']);
       const $t5 = $json.MarshalIndent(new $boxes.Box___tracing_TraceRecord(tr!.legend), '', '  ');
-      let legendData: number[] = $t5[0];
-      let err$2: $rt.GoObject | undefined = $t5[1];
+      const legendData: number[] = $t5[0];
+      const err$2: $rt.GoObject | undefined = $t5[1];
       if (!(err$2 === undefined)) {
         $t1 = $rt.fmt_Errorf('failed to marshal legend file: %w', [err$2]);
         break $body;
       }
       {
-        let err$3: $rt.GoObject | undefined = tr!.fs!.WriteFile(legendPath, $rt.bytesToString(legendData));
+        const err$3: $rt.GoObject | undefined = tr!.fs!.WriteFile(legendPath, $rt.bytesToString(legendData));
         if (!(err$3 === undefined)) {
           $t1 = $rt.fmt_Errorf('failed to write legend file: %w', [err$3]);
           break $body;
@@ -796,25 +799,25 @@ export class typeTracer extends $rt.GoObject {
   DumpTypes(): $rt.GoObject | undefined {
     const t = this;
     t!.mu.Lock();
-    let types: TracedType[] = $rt.slices_Clone(t!.types);
+    const types: TracedType[] = $rt.slices_Clone(t!.types);
     t!.mu.Unlock();
     if (types.length === (0 as number)) {
       return undefined;
     }
     let sb: $rt.strings_Builder = new $rt.strings_Builder();
     sb.WriteString('[');
-    let recursionIdentityMap: Map<$rt.GoObject | undefined, number> | undefined = new Map<
+    const recursionIdentityMap: Map<$rt.GoObject | undefined, number> | undefined = new Map<
       $rt.GoObject | undefined,
       number
     >();
     {
       const $t1 = types;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        let i = $t2;
-        let typ = $t1[$t2];
-        let descriptor: TypeDescriptor = t!.buildTypeDescriptor(typ, recursionIdentityMap);
+        const i = $t2;
+        const typ = $t1[$t2];
+        const descriptor: TypeDescriptor = t!.buildTypeDescriptor(typ, recursionIdentityMap);
         {
-          let err: $rt.GoObject | undefined = $json.MarshalWrite(
+          const err: $rt.GoObject | undefined = $json.MarshalWrite(
             $rt.unsupportedConversion<
               | $ipc.stdioConn
               | $contentmapper.closeOnceReadWriteCloser
@@ -842,16 +845,16 @@ export class typeTracer extends $rt.GoObject {
     recursionIdentityMap: Map<$rt.GoObject | undefined, number> | undefined,
   ): TypeDescriptor {
     const t = this;
-    let symbol_: $ast.Symbol_ | undefined = typ!.Symbol$m();
-    let aliasSymbol: $ast.Symbol_ | undefined = typ!.AliasSymbol();
-    let desc: TypeDescriptor = TypeDescriptor.$lit_tracing_TypeDescriptor_0_27(typ!.Id(), typ!.FormatFlags());
+    const symbol_: $ast.Symbol_ | undefined = typ!.Symbol$m();
+    const aliasSymbol: $ast.Symbol_ | undefined = typ!.AliasSymbol();
+    const desc: TypeDescriptor = TypeDescriptor.$lit_tracing_TypeDescriptor_0_27(typ!.Id(), typ!.FormatFlags());
     {
-      let identity: $rt.GoObject | undefined = typ!.RecursionIdentity();
+      const identity: $rt.GoObject | undefined = typ!.RecursionIdentity();
       if (!(identity === undefined)) {
         const $t1 = recursionIdentityMap;
         const $t2 = identity;
         let token: number = $t1?.get($t2) ?? 0;
-        let ok: boolean = $t1 !== undefined && $t1.has($t2);
+        const ok: boolean = $t1 !== undefined && $t1.has($t2);
         if (!ok) {
           token = $rt.mapLen(recursionIdentityMap);
           recursionIdentityMap!.set(identity, token);
@@ -865,13 +868,13 @@ export class typeTracer extends $rt.GoObject {
       }
     }
     {
-      let name_: string = typ!.IntrinsicName();
+      const name_: string = typ!.IntrinsicName();
       if (!(name_ === ('' as string))) {
         desc.IntrinsicName = name_;
       }
     }
     {
-      let sym: $ast.Symbol_ | undefined = aliasSymbol;
+      const sym: $ast.Symbol_ | undefined = aliasSymbol;
       if (!(sym === undefined)) {
         desc.SymbolName = $ast.EscapeAllInternalSymbolNames(sym!.Name);
       } else if (!(symbol_ === undefined)) {
@@ -882,56 +885,56 @@ export class typeTracer extends $rt.GoObject {
       desc.IsTuple = true;
     }
     {
-      let types: TracedType[] = typ!.UnionTypes();
+      const types: TracedType[] = typ!.UnionTypes();
       if (types.length > 0) {
         desc.UnionTypes = mapTypeIds(types);
       }
     }
     {
-      let types$1: TracedType[] = typ!.IntersectionTypes();
+      const types$1: TracedType[] = typ!.IntersectionTypes();
       if (types$1.length > 0) {
         desc.IntersectionTypes = mapTypeIds(types$1);
       }
     }
     {
-      let args: TracedType[] = typ!.AliasTypeArguments();
+      const args: TracedType[] = typ!.AliasTypeArguments();
       if (args.length > 0) {
         desc.AliasTypeArguments = mapTypeIds(args);
       }
     }
     {
-      let indexType: TracedType = typ!.IndexType();
+      const indexType: TracedType = typ!.IndexType();
       if (!(indexType === undefined)) {
         desc.KeyofType = new $rt.Ptr<number>(0);
       }
     }
     {
-      let objType: TracedType = typ!.IndexedAccessObjectType();
+      const objType: TracedType = typ!.IndexedAccessObjectType();
       if (!(objType === undefined)) {
         desc.IndexedAccessObjectType = new $rt.Ptr<number>(0);
       }
     }
     {
-      let idxType: TracedType = typ!.IndexedAccessIndexType();
+      const idxType: TracedType = typ!.IndexedAccessIndexType();
       if (!(idxType === undefined)) {
         desc.IndexedAccessIndexType = new $rt.Ptr<number>(0);
       }
     }
     if (typ!.IsConditional()) {
       {
-        let checkType: TracedType = typ!.ConditionalCheckType();
+        const checkType: TracedType = typ!.ConditionalCheckType();
         if (!(checkType === undefined)) {
           desc.ConditionalCheckType = new $rt.Ptr<number>(0);
         }
       }
       {
-        let extendsType: TracedType = typ!.ConditionalExtendsType();
+        const extendsType: TracedType = typ!.ConditionalExtendsType();
         if (!(extendsType === undefined)) {
           desc.ConditionalExtendsType = new $rt.Ptr<number>(0);
         }
       }
       {
-        let trueType: TracedType = typ!.ConditionalTrueType();
+        const trueType: TracedType = typ!.ConditionalTrueType();
         if (!(trueType === undefined)) {
           desc.ConditionalTrueType = new $rt.Ptr<number>(0);
         } else {
@@ -939,7 +942,7 @@ export class typeTracer extends $rt.GoObject {
         }
       }
       {
-        let falseType: TracedType = typ!.ConditionalFalseType();
+        const falseType: TracedType = typ!.ConditionalFalseType();
         if (!(falseType === undefined)) {
           desc.ConditionalFalseType = new $rt.Ptr<number>(0);
         } else {
@@ -948,67 +951,67 @@ export class typeTracer extends $rt.GoObject {
       }
     }
     {
-      let baseType: TracedType = typ!.SubstitutionBaseType();
+      const baseType: TracedType = typ!.SubstitutionBaseType();
       if (!(baseType === undefined)) {
         desc.SubstitutionBaseType = new $rt.Ptr<number>(0);
       }
     }
     {
-      let constraint: TracedType = typ!.SubstitutionConstraintType();
+      const constraint: TracedType = typ!.SubstitutionConstraintType();
       if (!(constraint === undefined)) {
         desc.ConstraintType = new $rt.Ptr<number>(0);
       }
     }
     {
-      let target: TracedType = typ!.ReferenceTarget();
+      const target: TracedType = typ!.ReferenceTarget();
       if (!(target === undefined)) {
         desc.InstantiatedType = new $rt.Ptr<number>(0);
       }
     }
     {
-      let args$1: TracedType[] = typ!.ReferenceTypeArguments();
+      const args$1: TracedType[] = typ!.ReferenceTypeArguments();
       if (args$1.length > 0) {
         desc.TypeArguments = mapTypeIds(args$1);
       }
     }
     {
-      let node: $ast.Node | undefined = typ!.ReferenceNode();
+      const node: $ast.Node | undefined = typ!.ReferenceNode();
       if (!(node === undefined)) {
         desc.ReferenceLocation = getLocation(node);
       }
     }
     {
-      let sourceType: TracedType = typ!.ReverseMappedSourceType();
+      const sourceType: TracedType = typ!.ReverseMappedSourceType();
       if (!(sourceType === undefined)) {
         desc.ReverseMappedSourceType = new $rt.Ptr<number>(0);
       }
     }
     {
-      let mappedType: TracedType = typ!.ReverseMappedMappedType();
+      const mappedType: TracedType = typ!.ReverseMappedMappedType();
       if (!(mappedType === undefined)) {
         desc.ReverseMappedMappedType = new $rt.Ptr<number>(0);
       }
     }
     {
-      let constraintType: TracedType = typ!.ReverseMappedConstraintType();
+      const constraintType: TracedType = typ!.ReverseMappedConstraintType();
       if (!(constraintType === undefined)) {
         desc.ReverseMappedConstraintType = new $rt.Ptr<number>(0);
       }
     }
     {
-      let elemType: TracedType = typ!.EvolvingArrayElementType();
+      const elemType: TracedType = typ!.EvolvingArrayElementType();
       if (!(elemType === undefined)) {
         desc.EvolvingArrayElementType = new $rt.Ptr<number>(0);
       }
     }
     {
-      let finalType: TracedType = typ!.EvolvingArrayFinalType();
+      const finalType: TracedType = typ!.EvolvingArrayFinalType();
       if (!(finalType === undefined)) {
         desc.EvolvingArrayFinalType = new $rt.Ptr<number>(0);
       }
     }
     {
-      let pattern: $ast.Node | undefined = typ!.Pattern();
+      const pattern: $ast.Node | undefined = typ!.Pattern();
       if (!(pattern === undefined)) {
         desc.DestructuringPattern = getLocation(pattern);
       }
@@ -1021,7 +1024,7 @@ export class typeTracer extends $rt.GoObject {
       desc.FirstDeclaration = getLocation(firstDeclSymbol!.Declarations[0]);
     }
     {
-      let display: string = typ!.Display();
+      const display: string = typ!.Display();
       if (!(display === ('' as string))) {
         desc.Display = display;
       }
@@ -1068,7 +1071,7 @@ export function StartTracing(
   configFilePath: string,
   deterministic: boolean,
 ): [Tracing | undefined, $rt.GoObject | undefined] {
-  let tr: Tracing | undefined = Tracing.$lit_tracing_Tracing_0_1_2_3_4_5_8_9_11_13(
+  const tr: Tracing | undefined = Tracing.$lit_tracing_Tracing_0_1_2_3_4_5_8_9_11_13(
     fs,
     traceDir,
     $tspath.CombinePaths(traceDir, ['trace.json']),
@@ -1082,7 +1085,7 @@ export function StartTracing(
   );
   tr!.traceStarted = true;
   tr!.traceContent.WriteString('[\n');
-  let metaTs: number = tr!.timestamp();
+  const metaTs: number = tr!.timestamp();
   tr!.metadataTS = metaTs;
   tr!.writeEvent(
     traceEvent.$lit_tracing_traceEvent_0_1_2_3_4_5_8(
@@ -1119,7 +1122,7 @@ export function StartTracing(
     ),
   );
   {
-    let err: $rt.GoObject | undefined = tr!.fs!.WriteFile(tr!.tracePath, tr!.traceContent.String());
+    const err: $rt.GoObject | undefined = tr!.fs!.WriteFile(tr!.tracePath, tr!.traceContent.String());
     if (!(err === undefined)) {
       return [undefined, $rt.fmt_Errorf('failed to write trace file header: %w', [err])];
     }
@@ -1129,7 +1132,7 @@ export function StartTracing(
 }
 export function writeEventTo(buf: $rt.strings_Builder | undefined, event: traceEvent): void {
   {
-    let err: $rt.GoObject | undefined = $json.MarshalWrite(
+    const err: $rt.GoObject | undefined = $json.MarshalWrite(
       $rt.unsupportedConversion<
         | $ipc.stdioConn
         | $contentmapper.closeOnceReadWriteCloser
@@ -1154,8 +1157,8 @@ export function traceThreadKeyFromArgs(
   {
     const $t1: $rt.GoObject | undefined = args?.get('checkerId') ?? undefined;
     const $t2: boolean = $rt.isValue($t1, 'int');
-    let checkerID: number = $t2 ? $rt.checkNumber(true, $t1) : 0;
-    let ok: boolean = $t2;
+    const checkerID: number = $t2 ? $rt.checkNumber(true, $t1) : 0;
+    const ok: boolean = $t2;
     if (ok) {
       return [traceThreadKey.$lit_tracing_traceThreadKey_0_2_3('checker', checkerID, true), true];
     }
@@ -1163,18 +1166,18 @@ export function traceThreadKeyFromArgs(
   {
     const $t3 = traceThreadArgKeys;
     for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
-      let key = $t3[$t4];
+      const key = $t3[$t4];
       {
         const $t5 = args;
         const $t6 = key;
-        let value: $rt.GoObject | undefined = $t5?.get($t6) ?? undefined;
-        let ok$1: boolean = $t5 !== undefined && $t5.has($t6);
+        const value: $rt.GoObject | undefined = $t5?.get($t6) ?? undefined;
+        const ok$1: boolean = $t5 !== undefined && $t5.has($t6);
         if (ok$1) {
           {
             const $t7: $rt.GoObject | undefined = value;
             const $t8: boolean = $rt.isValue($t7, 'string');
-            let path: string = $t8 ? $rt.checkString(true, $t7) : '';
-            let ok$2: boolean = $t8;
+            const path: string = $t8 ? $rt.checkString(true, $t7) : '';
+            const ok$2: boolean = $t8;
             if (ok$2 && !(path === ('' as string))) {
               return [traceThreadKey.$lit_tracing_traceThreadKey_0_1('file', path), true];
             }
@@ -1186,7 +1189,7 @@ export function traceThreadKeyFromArgs(
   return [new traceThreadKey(), false];
 }
 export function stableTraceThreadID(key: traceThreadKey): number {
-  let hash: $rt.github_com_zeebo_xxh3_Hasher | undefined = $rt.github_com_zeebo_xxh3_New();
+  const hash: $rt.github_com_zeebo_xxh3_Hasher | undefined = $rt.github_com_zeebo_xxh3_New();
   const $t1 = hash!.WriteString(key.kind);
   const $t2 = hash!.WriteString(':');
   if (key.hasIndex) {
@@ -1200,12 +1203,12 @@ export function mapTypeIds(types: TracedType[]): number[] {
   if (types.length === (0 as number)) {
     return [];
   }
-  let ids: number[] = $rt.makeSlice<number>(types.length, 0);
+  const ids: number[] = $rt.makeSlice<number>(types.length, 0);
   {
     const $t1 = types;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let i = $t2;
-      let t = $t1[$t2];
+      const i = $t2;
+      const t = $t1[$t2];
       if (!(t === undefined)) {
         ids[i] = t!.Id();
       }
@@ -1217,17 +1220,17 @@ export function getLocation(node: $ast.Node | undefined): Location | undefined {
   if (node === undefined) {
     return undefined;
   }
-  let file: $ast.SourceFile | undefined = $ast.GetSourceFileOfNode(node);
+  const file: $ast.SourceFile | undefined = $ast.GetSourceFileOfNode(node);
   if (file === undefined) {
     return undefined;
   }
-  let startPos: number = $scanner.GetTokenPosOfNode(node, file, false);
+  const startPos: number = $scanner.GetTokenPosOfNode(node, file, false);
   const $t1 = $scanner.GetECMALineAndUTF16CharacterOfPosition(file, startPos);
-  let startLine: number = $t1[0];
-  let startChar: $core.UTF16Offset = $t1[1];
+  const startLine: number = $t1[0];
+  const startChar: $core.UTF16Offset = $t1[1];
   const $t2 = $scanner.GetECMALineAndUTF16CharacterOfPosition(file, node!.End());
-  let endLine: number = $t2[0];
-  let endChar: $core.UTF16Offset = $t2[1];
+  const endLine: number = $t2[0];
+  const endChar: $core.UTF16Offset = $t2[1];
   return Location.$lit_tracing_Location_0_1_2(
     $tspath.ToPath(file!.FileName(), '', false),
     LineAndChar.$lit_tracing_LineAndChar_0_1(startLine + 1, startChar + 1),

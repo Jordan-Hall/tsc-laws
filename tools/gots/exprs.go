@@ -1286,7 +1286,7 @@ func (x *fn) store(l ast.Expr, define bool, v string, tt types.Type, src ast.Exp
 				if v == "undefined" {
 					v = "undefined as " + x.f.varType(obj)
 				}
-				x.line("let %s: %s = %s;", x.name(obj), x.f.varType(obj), v)
+				x.line("%s %s: %s = %s;", x.declKeyword(obj), x.name(obj), x.f.varType(obj), v)
 				return
 			}
 		}

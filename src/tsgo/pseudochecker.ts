@@ -128,14 +128,14 @@ export class PseudoChecker extends $rt.GoObject {
   }
   typeFromPropertyAssignment(node: $ast.Node | undefined): PseudoType | undefined {
     const ch = this;
-    let annotation: $ast.Node | undefined = node!.Type$m();
+    const annotation: $ast.Node | undefined = node!.Type$m();
     if (!(annotation === undefined)) {
       return NewPseudoTypeDirect(annotation);
     }
     if (node!.Kind_ === (303 as number)) {
-      let init: $ast.Node | undefined = node!.Initializer();
+      const init: $ast.Node | undefined = node!.Initializer();
       if (!(init === undefined)) {
-        let expr: PseudoType | undefined = ch!.typeFromExpression(init);
+        const expr: PseudoType | undefined = ch!.typeFromExpression(init);
         if (
           !(expr === undefined) &&
           (!(expr!.Kind === (1 as number)) || expr!.AsPseudoTypeInferred()!.ErrorNodes.length > 0)
@@ -148,7 +148,7 @@ export class PseudoChecker extends $rt.GoObject {
   }
   typeFromExpandoProperty(node: $ast.Node | undefined): PseudoType | undefined {
     const ch = this;
-    let declaredType: $ast.Node | undefined = node!.Type$m();
+    const declaredType: $ast.Node | undefined = node!.Type$m();
     if (!(declaredType === undefined)) {
       return NewPseudoTypeDirect(declaredType);
     }
@@ -156,17 +156,17 @@ export class PseudoChecker extends $rt.GoObject {
   }
   typeFromProperty(node: $ast.Node | undefined): PseudoType | undefined {
     const ch = this;
-    let t: $ast.Node | undefined = node!.Type$m();
+    const t: $ast.Node | undefined = node!.Type$m();
     if (!(t === undefined)) {
       return NewPseudoTypeDirect(t);
     }
     if ($ast.IsPropertyDeclaration(node)) {
-      let init: $ast.Node | undefined = node!.Initializer();
+      const init: $ast.Node | undefined = node!.Initializer();
       if (!(init === undefined) && !isContextuallyTyped(node)) {
         if ($ast.HasModifier(node, 8) && $ast.IsTemplateExpression(init)) {
           return NewPseudoTypeNoResult(node);
         }
-        let expr: PseudoType | undefined = ch!.typeFromExpression(init);
+        const expr: PseudoType | undefined = ch!.typeFromExpression(init);
         if (
           !(expr === undefined) &&
           (!(expr!.Kind === (1 as number)) || expr!.AsPseudoTypeInferred()!.ErrorNodes.length > 0)
@@ -186,11 +186,11 @@ export class PseudoChecker extends $rt.GoObject {
   }
   typeFromVariable(declaration: $ast.VariableDeclaration | undefined): PseudoType | undefined {
     const ch = this;
-    let t: $ast.Node | undefined = declaration!.Type_;
+    const t: $ast.Node | undefined = declaration!.Type_;
     if (!(t === undefined)) {
       return NewPseudoTypeDirect(t);
     }
-    let init: $ast.Node | undefined = declaration!.Initializer_;
+    const init: $ast.Node | undefined = declaration!.Initializer_;
     if (
       !(init === undefined) &&
       !(declaration!.DeclarationBase_.Symbol_ === undefined) &&
@@ -204,7 +204,7 @@ export class PseudoChecker extends $rt.GoObject {
         if ($ast.IsVarConst(declaration!.AsNode()) && $ast.IsTemplateExpression(init)) {
           return NewPseudoTypeNoResult(declaration!.AsNode());
         }
-        let expr: PseudoType | undefined = ch!.typeFromExpression(init);
+        const expr: PseudoType | undefined = ch!.typeFromExpression(init);
         if (
           !(expr === undefined) &&
           (!(expr!.Kind === (1 as number)) || expr!.AsPseudoTypeInferred()!.ErrorNodes.length > 0)
@@ -217,11 +217,11 @@ export class PseudoChecker extends $rt.GoObject {
   }
   typeFromAccessor(accessor_: $ast.Node | undefined): PseudoType | undefined {
     const ch = this;
-    let accessorDeclarations: $ast.AllAccessorDeclarations = $ast.GetAllAccessorDeclarationsForDeclaration(
+    const accessorDeclarations: $ast.AllAccessorDeclarations = $ast.GetAllAccessorDeclarationsForDeclaration(
       accessor_,
       accessor_!.DeclarationData$Node()!.Symbol_!.Declarations,
     );
-    let accessorType: $ast.Node | undefined = ch!.getTypeAnnotationFromAllAccessorDeclarations(
+    const accessorType: $ast.Node | undefined = ch!.getTypeAnnotationFromAllAccessorDeclarations(
       accessor_,
       accessorDeclarations,
     );
@@ -271,14 +271,14 @@ export class PseudoChecker extends $rt.GoObject {
     if (node!.Kind_ === (178 as number)) {
       return node!.AsGetAccessorDeclaration()!.FunctionLikeWithBodyBase_.Type;
     }
-    let set_: $ast.SetAccessorDeclaration | undefined = node!.AsSetAccessorDeclaration();
+    const set_: $ast.SetAccessorDeclaration | undefined = node!.AsSetAccessorDeclaration();
     if (
       set_!.FunctionLikeWithBodyBase_.Parameters === undefined ||
       set_!.FunctionLikeWithBodyBase_.Parameters!.Nodes.length < 1
     ) {
       return undefined;
     }
-    let p: $ast.Node | undefined = set_!.FunctionLikeWithBodyBase_.Parameters!.Nodes[0];
+    const p: $ast.Node | undefined = set_!.FunctionLikeWithBodyBase_.Parameters!.Nodes[0];
     if (!$ast.IsParameterDeclaration(p)) {
       return undefined;
     }
@@ -287,8 +287,8 @@ export class PseudoChecker extends $rt.GoObject {
   createReturnFromSignature(fn: $ast.Node | undefined): PseudoType | undefined {
     const ch = this;
     if ($ast.IsFunctionLike(fn)) {
-      let d: $ast.FunctionLikeBase | undefined = fn!.FunctionLikeData$Node();
-      let r: $ast.Node | undefined = d!.Type;
+      const d: $ast.FunctionLikeBase | undefined = fn!.FunctionLikeData$Node();
+      const r: $ast.Node | undefined = d!.Type;
       if (!(r === undefined)) {
         return NewPseudoTypeDirect(r);
       }
@@ -302,11 +302,11 @@ export class PseudoChecker extends $rt.GoObject {
     const ch = this;
     let candidateExpr: $ast.Node | undefined = undefined as $ast.Node | undefined;
     if (!(fn === undefined) && !$ast.NodeIsMissing(fn!.Body())) {
-      let flags: $ast.FunctionFlags = $ast.GetFunctionFlags(fn);
+      const flags: $ast.FunctionFlags = $ast.GetFunctionFlags(fn);
       if (!((flags & 3) === (0 as number))) {
         return NewPseudoTypeInferred(fn, true);
       }
-      let body: $ast.Node | undefined = fn!.Body();
+      const body: $ast.Node | undefined = fn!.Body();
       if ($ast.IsBlock(body)) {
         $ast.ForEachReturnStatement(body, (stmt: $ast.Node | undefined): boolean => {
           if (!(stmt!.Parent === body)) {
@@ -417,7 +417,7 @@ export class PseudoChecker extends $rt.GoObject {
   typeFromObjectLiteral(node: $ast.ObjectLiteralExpression | undefined): PseudoType | undefined {
     const ch = this;
     {
-      let errorNodes: ($ast.Node | undefined)[] = ch!.canGetTypeFromObjectLiteral(node);
+      const errorNodes: ($ast.Node | undefined)[] = ch!.canGetTypeFromObjectLiteral(node);
       if (!(errorNodes.length === 0)) {
         return NewPseudoTypeInferredWithErrors(node!.AsNode(), false, errorNodes);
       }
@@ -429,11 +429,11 @@ export class PseudoChecker extends $rt.GoObject {
     {
       const $t1 = node!.Properties_!.Nodes;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        let e = $t1[$t2];
+        const e = $t1[$t2];
         {
           switch (e!.Kind_) {
             case 175 as number: {
-              let optional: boolean =
+              const optional: boolean =
                 !(e!.AsMethodDeclaration()!.NamedMemberBase_.PostfixToken === undefined) &&
                 e!.AsMethodDeclaration()!.NamedMemberBase_.PostfixToken!.Kind_ === (57 as number);
               if (!(e!.FunctionLikeData$Node()!.FullSignature === undefined)) {
@@ -473,7 +473,7 @@ export class PseudoChecker extends $rt.GoObject {
             }
             case 179 as number:
             case 178 as number: {
-              let member: PseudoObjectElement | undefined = ch!.getAccessorMember(e, e!.Name$Node());
+              const member: PseudoObjectElement | undefined = ch!.getAccessorMember(e, e!.Name$Node());
               if (!(member === undefined)) {
                 results.push(member);
               }
@@ -487,7 +487,7 @@ export class PseudoChecker extends $rt.GoObject {
   }
   getAccessorMember(accessor_: $ast.Node | undefined, name_: $ast.Node | undefined): PseudoObjectElement | undefined {
     const ch = this;
-    let allAccessors: $ast.AllAccessorDeclarations = $ast.GetAllAccessorDeclarationsForDeclaration(
+    const allAccessors: $ast.AllAccessorDeclarations = $ast.GetAllAccessorDeclarationsForDeclaration(
       accessor_,
       accessor_!.Symbol$m()!.Declarations,
     );
@@ -513,8 +513,8 @@ export class PseudoChecker extends $rt.GoObject {
       }
     }
     if (accessor_ === allAccessors.FirstAccessor) {
-      let accessorType: PseudoType | undefined = ch!.typeFromAccessor(accessor_);
-      let readonly_: boolean = $ast.IsGetAccessorDeclaration(accessor_) && allAccessors.SecondAccessor === undefined;
+      const accessorType: PseudoType | undefined = ch!.typeFromAccessor(accessor_);
+      const readonly_: boolean = $ast.IsGetAccessorDeclaration(accessor_) && allAccessors.SecondAccessor === undefined;
       return NewPseudoPropertyAssignment(readonly_, name_, false, accessorType);
     }
     return undefined;
@@ -528,7 +528,7 @@ export class PseudoChecker extends $rt.GoObject {
     {
       const $t1 = node!.Properties_!.Nodes;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        let e = $t1[$t2];
+        const e = $t1[$t2];
         if (!((e!.Flags & 32768) === (0 as number))) {
           errorNodes.push(e);
           continue;
@@ -546,7 +546,7 @@ export class PseudoChecker extends $rt.GoObject {
           continue;
         }
         if (e!.Name$Node()!.Kind_ === (168 as number)) {
-          let expression: $ast.Node | undefined = e!.Name$Node()!.Expression();
+          const expression: $ast.Node | undefined = e!.Name$Node()!.Expression();
           if (!$ast.IsPrimitiveLiteralValue(expression, false)) {
             errorNodes.push(e!.Name$Node());
           }
@@ -558,7 +558,7 @@ export class PseudoChecker extends $rt.GoObject {
   typeFromArrayLiteral(node: $ast.ArrayLiteralExpression | undefined): PseudoType | undefined {
     const ch = this;
     {
-      let errorNodes: ($ast.Node | undefined)[] = ch!.canGetTypeFromArrayLiteral(node);
+      const errorNodes: ($ast.Node | undefined)[] = ch!.canGetTypeFromArrayLiteral(node);
       if (!(errorNodes.length === 0)) {
         return NewPseudoTypeInferredWithErrors(node!.AsNode(), false, errorNodes);
       }
@@ -570,7 +570,7 @@ export class PseudoChecker extends $rt.GoObject {
     {
       const $t1 = node!.Elements_!.Nodes;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        let e = $t1[$t2];
+        const e = $t1[$t2];
         results.push(ch!.typeFromExpression(e));
       }
     }
@@ -584,7 +584,7 @@ export class PseudoChecker extends $rt.GoObject {
     {
       const $t1 = node!.Elements_!.Nodes;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        let e = $t1[$t2];
+        const e = $t1[$t2];
         if (e!.Kind_ === (231 as number)) {
           return [e];
         }
@@ -598,7 +598,7 @@ export class PseudoChecker extends $rt.GoObject {
     if (node!.Operator === (39 as number)) {
       expr = node!.Operand;
     }
-    let inner: $ast.Node | undefined = node!.Operand;
+    const inner: $ast.Node | undefined = node!.Operand;
     if (inner!.Kind_ === (9 as number)) {
       return NewPseudoTypeMaybeConstLocation(
         node!.AsNode(),
@@ -628,11 +628,11 @@ export class PseudoChecker extends $rt.GoObject {
     if (!(node!.FunctionLikeData$Node()!.FullSignature === undefined)) {
       return NewPseudoTypeDirect(node!.FunctionLikeData$Node()!.FullSignature);
     }
-    let returnType: PseudoType | undefined = ch!.createReturnFromSignature(node);
-    let typeParameters: ($ast.TypeParameterDeclaration | undefined)[] = ch!.cloneTypeParameters(
+    const returnType: PseudoType | undefined = ch!.createReturnFromSignature(node);
+    const typeParameters: ($ast.TypeParameterDeclaration | undefined)[] = ch!.cloneTypeParameters(
       node!.FunctionLikeData$Node()!.TypeParameters,
     );
-    let parameters: (PseudoParameter | undefined)[] = ch!.cloneParameters(node!.FunctionLikeData$Node()!.Parameters);
+    const parameters: (PseudoParameter | undefined)[] = ch!.cloneParameters(node!.FunctionLikeData$Node()!.Parameters);
     return NewPseudoTypeSingleCallSignature(node, parameters, typeParameters, returnType);
   }
   cloneTypeParameters(nodes: $ast.NodeList | undefined): ($ast.TypeParameterDeclaration | undefined)[] {
@@ -647,7 +647,7 @@ export class PseudoChecker extends $rt.GoObject {
     {
       const $t1 = nodes!.Nodes;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        let e = $t1[$t2];
+        const e = $t1[$t2];
         result.push(e!.AsTypeParameterDeclaration());
       }
     }
@@ -655,7 +655,7 @@ export class PseudoChecker extends $rt.GoObject {
   }
   typeFromParameter(node: $ast.ParameterDeclaration | undefined): PseudoType | undefined {
     const ch = this;
-    let parent: $ast.Node | undefined = node!.Parent;
+    const parent: $ast.Node | undefined = node!.Parent;
     if (parent!.Kind_ === (179 as number)) {
       return ch!.GetTypeOfAccessor(parent);
     }
@@ -665,9 +665,9 @@ export class PseudoChecker extends $rt.GoObject {
       }
       return NewPseudoTypeNoResult(node!.AsNode());
     }
-    let p: ($ast.Node | undefined)[] = parent!.Parameters();
-    let selfIdx: number = $rt.slices_Index(p, node!.AsNode());
-    let lastRequired: number = lastRequiredParamIndex(p);
+    const p: ($ast.Node | undefined)[] = parent!.Parameters();
+    const selfIdx: number = $rt.slices_Index(p, node!.AsNode());
+    const lastRequired: number = lastRequiredParamIndex(p);
     return ch!.typeFromParameterWorker(node, selfIdx, lastRequired);
   }
   typeFromParameterWorker(
@@ -676,14 +676,14 @@ export class PseudoChecker extends $rt.GoObject {
     lastRequired: number,
   ): PseudoType | undefined {
     const ch = this;
-    let parent: $ast.Node | undefined = node!.Parent;
+    const parent: $ast.Node | undefined = node!.Parent;
     if (parent!.Kind_ === (179 as number)) {
       return ch!.GetTypeOfAccessor(parent);
     }
-    let hasRequiredAfter: boolean = selfIdx < lastRequired - 1;
-    let declaredType: $ast.Node | undefined = node!.Type_;
+    const hasRequiredAfter: boolean = selfIdx < lastRequired - 1;
+    const declaredType: $ast.Node | undefined = node!.Type_;
     if (!(declaredType === undefined)) {
-      let result: PseudoType | undefined = NewPseudoTypeDirect(declaredType);
+      const result: PseudoType | undefined = NewPseudoTypeDirect(declaredType);
       if (ch!.strictNullChecks && !(node!.Initializer_ === undefined) && hasRequiredAfter) {
         return addUndefinedIfDefinitelyRequired(result);
       }
@@ -720,14 +720,14 @@ export class PseudoChecker extends $rt.GoObject {
     if (nodes!.Nodes.length === (0 as number)) {
       return [];
     }
-    let lastRequired: number = lastRequiredParamIndex(nodes!.Nodes);
+    const lastRequired: number = lastRequiredParamIndex(nodes!.Nodes);
     let result: (PseudoParameter | undefined)[] = [] as (PseudoParameter | undefined)[];
     {
       const $t1 = nodes!.Nodes;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        let i = $t2;
-        let e = $t1[$t2];
-        let p: $ast.ParameterDeclaration | undefined = e!.AsParameterDeclaration();
+        const i = $t2;
+        const e = $t1[$t2];
+        const p: $ast.ParameterDeclaration | undefined = e!.AsParameterDeclaration();
         let optional: boolean = !(p!.QuestionToken_ === undefined);
         if (!optional && !(p!.Initializer_ === undefined)) {
           optional = i >= lastRequired - 1;
@@ -1421,7 +1421,7 @@ export function isConstContextPropagatingKind(kind: $ast.Kind): boolean {
   return false;
 }
 export function IsInConstContext(node: $ast.Node | undefined): boolean {
-  let maybeAssertion: $ast.Node | undefined = $ast.FindAncestor(node!.Parent, $fn0);
+  const maybeAssertion: $ast.Node | undefined = $ast.FindAncestor(node!.Parent, $fn0);
   return $ast.IsConstAssertion(maybeAssertion);
 }
 export function isUndefinedPseudoType(t: PseudoType | undefined): boolean {
@@ -1476,11 +1476,11 @@ export function CouldAlreadyReferToUndefinedType(t: PseudoType | undefined): boo
     return true;
   }
   if (t!.Kind === (3 as number)) {
-    let mc: PseudoTypeMaybeConstLocation | undefined = t!.AsPseudoTypeMaybeConstLocation();
+    const mc: PseudoTypeMaybeConstLocation | undefined = t!.AsPseudoTypeMaybeConstLocation();
     return CouldAlreadyReferToUndefinedType(mc!.RegularType);
   }
   if (t!.Kind === (0 as number)) {
-    let node: $ast.Node | undefined = t!.AsPseudoTypeDirect()!.TypeNode;
+    const node: $ast.Node | undefined = t!.AsPseudoTypeDirect()!.TypeNode;
     return typeNodeCouldReferToUndefined(node);
   }
   if (t!.Kind === (4 as number)) {
@@ -1489,7 +1489,7 @@ export function CouldAlreadyReferToUndefinedType(t: PseudoType | undefined): boo
   return false;
 }
 export function isOptionalInitializedOrRestParameter(node: $ast.Node | undefined): boolean {
-  let p: $ast.ParameterDeclaration | undefined = node!.AsParameterDeclaration();
+  const p: $ast.ParameterDeclaration | undefined = node!.AsParameterDeclaration();
   if (!(p!.DotDotDotToken === undefined) || !(p!.Initializer_ === undefined) || !(p!.QuestionToken_ === undefined)) {
     return true;
   }
@@ -1515,7 +1515,7 @@ export function isContextuallyTyped(node: $ast.Node | undefined): boolean {
   return !($ast.FindAncestor(node!.Parent, $fn1) === undefined);
 }
 export function newPseudoType(kind: PseudoTypeKind, data: pseudoTypeData): PseudoType | undefined {
-  let n: PseudoType | undefined = data!.AsPseudoType();
+  const n: PseudoType | undefined = data!.AsPseudoType();
   n!.Kind = kind;
   n!.data = data;
   return n;
@@ -1585,7 +1585,7 @@ export function newPseudoObjectElement(
   optional: boolean,
   data: pseudoObjectElementData,
 ): PseudoObjectElement | undefined {
-  let e: PseudoObjectElement | undefined = data!.AsPseudoObjectElement();
+  const e: PseudoObjectElement | undefined = data!.AsPseudoObjectElement();
   e!.Kind = kind;
   e!.Name = name_;
   e!.Optional = optional;

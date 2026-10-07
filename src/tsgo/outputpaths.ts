@@ -89,14 +89,14 @@ export function computeCommonSourceDirectoryOfFilenames(
   {
     const $t1 = fileNames;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let sourceFile = $t1[$t2];
+      const sourceFile = $t1[$t2];
       let sourcePathComponents: string[] = $tspath.GetNormalizedPathComponents(sourceFile, currentDirectory);
       sourcePathComponents = $rt.reslice(sourcePathComponents, 0, sourcePathComponents.length - 1, '');
       if (commonPathComponents.length === 0) {
         commonPathComponents = sourcePathComponents;
         continue;
       }
-      let n: number = Math.min(commonPathComponents.length, sourcePathComponents.length);
+      const n: number = Math.min(commonPathComponents.length, sourcePathComponents.length);
       for (let i = 0, $t3 = n; i < $t3; i++) {
         if (
           !(
@@ -172,14 +172,14 @@ export function GetOutputPathsFor(
   host: OutputPathsHost,
   force: ForceEmitPaths,
 ): OutputPaths | undefined {
-  let ownOutputFilePath: string = getOwnEmitOutputFilePath(
+  const ownOutputFilePath: string = getOwnEmitOutputFilePath(
     sourceFile!.FileName(),
     options,
     host,
     GetOutputExtension(sourceFile!.FileName(), options!.Jsx),
   );
-  let isJsonFile: boolean = $ast.IsJsonSourceFile(sourceFile);
-  let isJsonEmittedToSameLocation: boolean =
+  const isJsonFile: boolean = $ast.IsJsonSourceFile(sourceFile);
+  const isJsonEmittedToSameLocation: boolean =
     isJsonFile &&
     $tspath.ComparePaths(
       sourceFile!.FileName(),
@@ -189,7 +189,7 @@ export function GetOutputPathsFor(
         $rt.nn(host).UseCaseSensitiveFileNames(),
       ),
     ) === (0 as number);
-  let paths: OutputPaths | undefined = new OutputPaths();
+  const paths: OutputPaths | undefined = new OutputPaths();
   if (
     sourceFile!.ContentMapper() === ('' as string) &&
     (force.Js || !(options!.EmitDeclarationOnly === (2 as number))) &&
@@ -222,7 +222,7 @@ export function ForEachEmittedFile(
   {
     const $t1 = sourceFiles;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let sourceFile = $t1[$t2];
+      const sourceFile = $t1[$t2];
       if (
         action!(
           GetOutputPathsFor(sourceFile, options, host, ForceEmitPaths.$lit_outputpaths_ForceEmitPaths_0(forceDtsEmit)),
@@ -243,7 +243,7 @@ export function GetOutputJSFileName(
   if ($core.Tristate$IsTrue(options!.EmitDeclarationOnly) || isContentMappedFileName(inputFileName, host)) {
     return '';
   }
-  let outputFileName: string = GetOutputJSFileNameWorker(inputFileName, options, host);
+  const outputFileName: string = GetOutputJSFileNameWorker(inputFileName, options, host);
   if (
     !$tspath.FileExtensionIs(outputFileName, '.json') ||
     !(
@@ -347,7 +347,7 @@ export function GetDeclarationEmitOutputFilePath(
 }
 export function ChangeToDeclarationExtension(path: string, host: OutputPathsHost): string {
   {
-    let extension: string = $tspath.GetLongestExtensionFromPath(path, $rt.nn(host).ContentMapperExtensions(), false);
+    const extension: string = $tspath.GetLongestExtensionFromPath(path, $rt.nn(host).ContentMapperExtensions(), false);
     if (!(extension === ('' as string))) {
       return $tspath.RemoveExtension(path, extension) + '.d' + extension + '.ts';
     }
@@ -355,7 +355,7 @@ export function ChangeToDeclarationExtension(path: string, host: OutputPathsHost
   let pathWithoutExtension: string = $tspath.RemoveFileExtension(path);
   if (pathWithoutExtension === path) {
     {
-      let extension$1: string = $tspath.GetAnyExtensionFromPath(path, [], false);
+      const extension$1: string = $tspath.GetAnyExtensionFromPath(path, [], false);
       if (!(extension$1 === ('' as string))) {
         pathWithoutExtension = $tspath.RemoveExtension(path, extension$1);
       }
@@ -407,8 +407,8 @@ export function GetSourceFilePathInNewDirWorker(
   let sourceFilePath: string = $tspath.GetNormalizedAbsolutePath(fileName, currentDirectory);
   {
     const $t1 = $tspath.TrimFilePathPrefix(sourceFilePath, commonSourceDirectory, useCaseSensitiveFileNames);
-    let trimmed: string = $t1[0];
-    let ok: boolean = $t1[1];
+    const trimmed: string = $t1[0];
+    const ok: boolean = $t1[1];
     if (ok) {
       sourceFilePath = trimmed;
     }
@@ -423,7 +423,7 @@ export function getOwnEmitOutputFilePath(
 ): string {
   let emitOutputFilePathWithoutExtension: string = '';
   if (options!.OutDir.length > 0) {
-    let currentDirectory: string = $rt.nn(host).GetCurrentDirectory();
+    const currentDirectory: string = $rt.nn(host).GetCurrentDirectory();
     emitOutputFilePathWithoutExtension = $tspath.RemoveFileExtension(
       GetSourceFilePathInNewDir(
         fileName,
@@ -457,7 +457,7 @@ export function GetBuildInfoFileName(
   if (options!.ConfigFilePath === ('' as string)) {
     return '';
   }
-  let configFileExtensionLess: string = $tspath.RemoveFileExtension(options!.ConfigFilePath);
+  const configFileExtensionLess: string = $tspath.RemoveFileExtension(options!.ConfigFilePath);
   let buildInfoExtensionLess: string = '';
   if (!(options!.OutDir === ('' as string))) {
     if (!(options!.RootDir === ('' as string))) {

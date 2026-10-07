@@ -137,7 +137,7 @@ export class Parser extends $rt.GoObject {
         return [];
       }
     }
-    let ranges: $ast.CommentRange[] = GetJSDocCommentRanges(
+    const ranges: $ast.CommentRange[] = GetJSDocCommentRanges(
       p!.factory,
       p!.jsdocCommentRangesSpace,
       node,
@@ -150,9 +150,9 @@ export class Parser extends $rt.GoObject {
     {
       const $t1 = ranges;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        let comment = $t1[$t2];
+        const comment = $t1[$t2];
         {
-          let parsed: $ast.Node | undefined = p!.parseJSDocComment(
+          const parsed: $ast.Node | undefined = p!.parseJSDocComment(
             node,
             $core.TextRange$Pos(comment.TextRange_),
             $core.TextRange$End(comment.TextRange_),
@@ -184,16 +184,16 @@ export class Parser extends $rt.GoObject {
   }
   parseJSDocTypeExpression(mayOmitBraces: boolean): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
+    const pos: number = p!.nodePos();
     let hasBrace: boolean = false;
     if (mayOmitBraces) {
       hasBrace = p!.parseOptional(18);
     } else {
       hasBrace = p!.parseExpected(18);
     }
-    let saveContextFlags: $ast.NodeFlags = p!.contextFlags;
+    const saveContextFlags: $ast.NodeFlags = p!.contextFlags;
     p!.setContextFlags(4194304, true);
-    let t: $ast.Node | undefined = p!.parseJSDocType();
+    const t: $ast.Node | undefined = p!.parseJSDocType();
     p!.contextFlags = saveContextFlags;
     if (hasBrace) {
       p!.parseExpectedJSDoc(19);
@@ -202,9 +202,9 @@ export class Parser extends $rt.GoObject {
   }
   parseJSDocNameReference(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
-    let hasBrace: boolean = p!.parseOptional(18);
-    let entityName: $ast.Node | undefined = p!.parseJSDocLinkName();
+    const pos: number = p!.nodePos();
+    const hasBrace: boolean = p!.parseOptional(18);
+    const entityName: $ast.Node | undefined = p!.parseJSDocLinkName();
     if (hasBrace) {
       p!.parseExpectedJSDoc(19);
     }
@@ -225,21 +225,21 @@ export class Parser extends $rt.GoObject {
     if (!isJSDocLikeText(p!.sourceText.substring(start))) {
       return undefined;
     }
-    let saveSourceText: string = p!.sourceText;
-    let saveToken: $ast.Kind = p!.token;
-    let saveContextFlags: $ast.NodeFlags = p!.contextFlags;
-    let saveParsingContexts: ParsingContexts = p!.parsingContexts;
-    let saveScannerState: $scanner.ScannerState = p!.scanner!.Mark();
-    let saveDiagnosticsLength: number = p!.diagnostics.length;
-    let saveHasParseError: boolean = p!.hasParseError;
-    let saveHasAwaitIdentifier: boolean = p!.statementHasAwaitIdentifier;
-    let initialIndent: number = start + 4 - ($rt.strings_LastIndex(p!.sourceText.substring(0, start), '\n') + 1);
+    const saveSourceText: string = p!.sourceText;
+    const saveToken: $ast.Kind = p!.token;
+    const saveContextFlags: $ast.NodeFlags = p!.contextFlags;
+    const saveParsingContexts: ParsingContexts = p!.parsingContexts;
+    const saveScannerState: $scanner.ScannerState = p!.scanner!.Mark();
+    const saveDiagnosticsLength: number = p!.diagnostics.length;
+    const saveHasParseError: boolean = p!.hasParseError;
+    const saveHasAwaitIdentifier: boolean = p!.statementHasAwaitIdentifier;
+    const initialIndent: number = start + 4 - ($rt.strings_LastIndex(p!.sourceText.substring(0, start), '\n') + 1);
     p!.sourceText = p!.sourceText.substring(0, end - 2);
     p!.scanner!.SetText(p!.sourceText);
     p!.scanner!.ResetPos(start + 3);
     p!.setContextFlags(4194304, true);
     p!.parsingContexts = $rt.or64(p!.parsingContexts, 33554432);
-    let comment: $ast.Node | undefined = p!.parseJSDocCommentWorker(start, end, fullStart, initialIndent);
+    const comment: $ast.Node | undefined = p!.parseJSDocCommentWorker(start, end, fullStart, initialIndent);
     if (!((p!.contextFlags & 65536) === (0 as number))) {
       $rt.appendInto(p!.jsdocDiagnostics, p!.diagnostics.slice(saveDiagnosticsLength));
     }
@@ -267,7 +267,7 @@ export class Parser extends $rt.GoObject {
     let commentsPos: number = -1;
     let linkEnd: number = start;
     let margin: number = -1;
-    let pushComment: ((p0: string) => void) | undefined = (text: string): void => {
+    const pushComment: ((p0: string) => void) | undefined = (text: string): void => {
       if (margin === (-1 as number)) {
         margin = indent;
       }
@@ -303,7 +303,7 @@ export class Parser extends $rt.GoObject {
             if (commentsPos === (-1 as number)) {
               commentsPos = p!.nodePos();
             }
-            let tag: $ast.Node | undefined = p!.parseTag(tags, indent);
+            const tag: $ast.Node | undefined = p!.parseTag(tags, indent);
             if (tagsPos === (-1 as number)) {
               tagsPos = tag!.Pos();
             }
@@ -320,7 +320,7 @@ export class Parser extends $rt.GoObject {
             break;
           }
           case 41 as number: {
-            let asterisk: string = p!.scanner!.TokenText();
+            const asterisk: string = p!.scanner!.TokenText();
             if (state === (1 as number)) {
               state = 2;
               pushComment!(asterisk);
@@ -342,7 +342,7 @@ export class Parser extends $rt.GoObject {
                 ),
               );
             }
-            let whitespace: string = p!.scanner!.TokenText();
+            const whitespace: string = p!.scanner!.TokenText();
             if (margin > -1 && indent + whitespace.length > margin) {
               let existingIndent: number = margin - indent;
               if (existingIndent < 0) {
@@ -387,14 +387,14 @@ export class Parser extends $rt.GoObject {
               break;
             }
             state = 2;
-            let commentEnd: number = p!.scanner!.TokenFullStart();
-            let linkStart: number = p!.scanner!.TokenEnd() - 1;
-            let link: $ast.Node | undefined = p!.parseJSDocLink(linkStart);
+            const commentEnd: number = p!.scanner!.TokenFullStart();
+            const linkStart: number = p!.scanner!.TokenEnd() - 1;
+            const link: $ast.Node | undefined = p!.parseJSDocLink(linkStart);
             if (!(link === undefined)) {
               if (linkEnd === start) {
                 comments = removeLeadingNewlines(comments);
               }
-              let jsdocText: $ast.Node | undefined = p!.finishNodeWithEnd(
+              const jsdocText: $ast.Node | undefined = p!.finishNodeWithEnd(
                 p!.factory.NewJSDocText(p!.stringSliceArena.Clone(comments)),
                 linkEnd,
                 commentEnd,
@@ -430,7 +430,7 @@ export class Parser extends $rt.GoObject {
     }
     if (comments.length > 0) {
       comments[comments.length - 1] = $rt.strings_TrimRightFunc(comments[comments.length - 1], $rt.unicode_IsSpace);
-      let jsdocText$1: $ast.Node | undefined = p!.finishNodeWithEnd(
+      const jsdocText$1: $ast.Node | undefined = p!.finishNodeWithEnd(
         p!.factory.NewJSDocText(p!.stringSliceArena.Clone(comments)),
         linkEnd,
         commentsPos,
@@ -446,7 +446,7 @@ export class Parser extends $rt.GoObject {
     if (!(tagsPos === (-1 as number))) {
       tagsNodeList = p!.newNodeList($core.NewTextRange(tagsPos, tagsEnd), tags);
     }
-    let jsdocComment: $ast.Node | undefined = p!.factory.NewJSDoc(
+    const jsdocComment: $ast.Node | undefined = p!.factory.NewJSDoc(
       p!.newNodeList($core.NewTextRange(start, commentsPos), commentParts),
       tagsNodeList,
     );
@@ -510,10 +510,10 @@ export class Parser extends $rt.GoObject {
     if (!(p!.token === (59 as number))) {
       throw $rt.newPanic(new $rt.BoxStr('should be called only at the start of a tag', 'string'));
     }
-    let start: number = p!.scanner!.TokenStart();
+    const start: number = p!.scanner!.TokenStart();
     p!.nextTokenJSDoc();
-    let tagName: $ast.Node | undefined = p!.parseJSDocIdentifierName($diagnostics.Identifier_expected);
-    let indentText: string = p!.skipWhitespaceOrAsterisk();
+    const tagName: $ast.Node | undefined = p!.parseJSDocIdentifierName($diagnostics.Identifier_expected);
+    const indentText: string = p!.skipWhitespaceOrAsterisk();
     let tag: $ast.Node | undefined = undefined as $ast.Node | undefined;
     {
       switch (tagName!.Text$Node()) {
@@ -683,7 +683,7 @@ export class Parser extends $rt.GoObject {
   }
   parseTagComments(indent: number, initialMargin: $rt.Ptr<string> | undefined): $ast.NodeList | undefined {
     const p = this;
-    let commentsPos: number = p!.nodePos();
+    const commentsPos: number = p!.nodePos();
     let comments: string[] = p!.jsdocTagCommentsSpace;
     p!.jsdocTagCommentsSpace = [];
     let parts: ($ast.Node | undefined)[] = p!.jsdocTagCommentsPartsSpace;
@@ -696,7 +696,7 @@ export class Parser extends $rt.GoObject {
       throw $rt.newPanic(new $rt.BoxStr('indent must be a natural number', 'string'));
     }
     let margin: number = -1;
-    let pushComment: ((p0: string) => void) | undefined = (text: string): void => {
+    const pushComment: ((p0: string) => void) | undefined = (text: string): void => {
       if (margin === (-1 as number)) {
         margin = indent;
       }
@@ -747,7 +747,7 @@ export class Parser extends $rt.GoObject {
                 new $rt.BoxStr("whitespace shouldn't come from the scanner while saving comment text", 'string'),
               );
             }
-            let whitespace: string = p!.scanner!.TokenText();
+            const whitespace: string = p!.scanner!.TokenText();
             if (margin > -1 && indent + whitespace.length > margin) {
               comments = $rt.appendCopy(comments, [whitespace.substring(Math.max(margin - indent, 0))]);
               if (inFencedCodeBlock) {
@@ -766,9 +766,9 @@ export class Parser extends $rt.GoObject {
               break;
             }
             state = 2;
-            let commentEnd: number = p!.scanner!.TokenFullStart();
-            let linkStart: number = p!.scanner!.TokenEnd() - 1;
-            let link: $ast.Node | undefined = p!.parseJSDocLink(linkStart);
+            const commentEnd: number = p!.scanner!.TokenFullStart();
+            const linkStart: number = p!.scanner!.TokenEnd() - 1;
+            const link: $ast.Node | undefined = p!.parseJSDocLink(linkStart);
             if (!(link === undefined)) {
               let commentStart: number = 0;
               if (linkEnd > -1) {
@@ -776,7 +776,7 @@ export class Parser extends $rt.GoObject {
               } else {
                 commentStart = commentsPos;
               }
-              let text$1: $ast.Node | undefined = p!.finishNodeWithEnd(
+              const text$1: $ast.Node | undefined = p!.finishNodeWithEnd(
                 p!.factory.NewJSDocText(p!.stringSliceArena.Clone(comments)),
                 commentStart,
                 commentEnd,
@@ -847,7 +847,7 @@ export class Parser extends $rt.GoObject {
       } else {
         commentStart$1 = commentsPos;
       }
-      let text$2: $ast.Node | undefined = p!.finishNode(
+      const text$2: $ast.Node | undefined = p!.finishNode(
         p!.factory.NewJSDocText(p!.stringSliceArena.Clone(comments)),
         commentStart$1,
       );
@@ -861,17 +861,17 @@ export class Parser extends $rt.GoObject {
   }
   parseJSDocLink(start: number): $ast.Node | undefined {
     const p = this;
-    let state: ParserState = p!.mark();
+    const state: ParserState = p!.mark();
     const $t1 = p!.parseJSDocLinkPrefix();
-    let linkType: string = $t1[0];
-    let ok: boolean = $t1[1];
+    const linkType: string = $t1[0];
+    const ok: boolean = $t1[1];
     if (!ok) {
       p!.rewind(state);
       return undefined;
     }
     p!.nextTokenJSDoc();
     p!.skipWhitespace();
-    let name_: $ast.Node | undefined = p!.parseJSDocLinkName();
+    const name_: $ast.Node | undefined = p!.parseJSDocLinkName();
     let text: string[] = [];
     for (; !(p!.token === (19 as number)) && !(p!.token === (4 as number)) && !(p!.token === (1 as number));) {
       text.push(p!.scanner!.TokenText());
@@ -899,7 +899,7 @@ export class Parser extends $rt.GoObject {
   parseJSDocLinkName(): $ast.Node | undefined {
     const p = this;
     if (tokenIsIdentifierOrKeyword(p!.token)) {
-      let pos: number = p!.nodePos();
+      const pos: number = p!.nodePos();
       let name_: $ast.Node | undefined = p!.parseIdentifierName();
       for (; p!.parseOptional(24);) {
         let right: $ast.Node | undefined = undefined as $ast.Node | undefined;
@@ -927,7 +927,7 @@ export class Parser extends $rt.GoObject {
       p!.nextTokenJSDoc() === (59 as number) &&
       tokenIsIdentifierOrKeyword(p!.nextTokenJSDoc())
     ) {
-      let kind: string = p!.scanner!.TokenValue();
+      const kind: string = p!.scanner!.TokenValue();
       if (isJSDocLinkTag(kind)) {
         return [kind, true];
       }
@@ -963,7 +963,7 @@ export class Parser extends $rt.GoObject {
     if (isBracketed) {
       p!.skipWhitespace();
     }
-    let isBackquoted: boolean = p!.parseOptionalJsdoc(61);
+    const isBackquoted: boolean = p!.parseOptionalJsdoc(61);
     name_ = p!.parseJSDocEntityName(
       $core.IfElse<$diagnostics.Message | undefined>(
         target === (2 as number),
@@ -994,20 +994,20 @@ export class Parser extends $rt.GoObject {
     let isNameFirst: boolean = typeExpression === undefined;
     p!.skipWhitespaceOrAsterisk();
     const $t1 = p!.parseBracketNameInPropertyAndParamTag(target);
-    let name_: $ast.Node | undefined = $t1[0];
-    let isBracketed: boolean = $t1[1];
-    let indentText: string = p!.skipWhitespaceOrAsterisk();
+    const name_: $ast.Node | undefined = $t1[0];
+    const isBracketed: boolean = $t1[1];
+    const indentText: string = p!.skipWhitespaceOrAsterisk();
     if (isNameFirst && p!.lookAhead($fn2)) {
       typeExpression = p!.tryParseTypeExpression();
     }
-    let comment: $ast.NodeList | undefined = p!.parseTrailingTagComments(start, p!.nodePos(), indent, indentText);
-    let nestedTypeLiteral: $ast.Node | undefined = p!.parseNestedTypeLiteral(typeExpression, name_, target, indent);
+    const comment: $ast.NodeList | undefined = p!.parseTrailingTagComments(start, p!.nodePos(), indent, indentText);
+    const nestedTypeLiteral: $ast.Node | undefined = p!.parseNestedTypeLiteral(typeExpression, name_, target, indent);
     if (!(nestedTypeLiteral === undefined)) {
       typeExpression = nestedTypeLiteral;
       isNameFirst = true;
     }
     let result: $ast.Node | undefined = undefined as $ast.Node | undefined;
-    let kind: $ast.Kind = $core.IfElse<$ast.Kind>(target === (1 as number), 340, 333);
+    const kind: $ast.Kind = $core.IfElse<$ast.Kind>(target === (1 as number), 340, 333);
     result = p!.factory.NewJSDocParameterOrPropertyTag(
       kind,
       tagName,
@@ -1027,11 +1027,11 @@ export class Parser extends $rt.GoObject {
   ): $ast.Node | undefined {
     const p = this;
     if (!(typeExpression === undefined) && isObjectOrObjectArrayTypeReference(typeExpression!.Type$m())) {
-      let pos: number = p!.nodePos();
+      const pos: number = p!.nodePos();
       let children: ($ast.Node | undefined)[] = [];
       for (;;) {
-        let state: ParserState = p!.mark();
-        let child: $ast.Node | undefined = p!.parseChildParameterOrPropertyTag(target, indent, name_);
+        const state: ParserState = p!.mark();
+        const child: $ast.Node | undefined = p!.parseChildParameterOrPropertyTag(target, indent, name_);
         if (child === undefined) {
           p!.rewind(state);
           break;
@@ -1055,7 +1055,7 @@ export class Parser extends $rt.GoObject {
         }
       }
       if (!(children.length === 0)) {
-        let literal: $ast.Node | undefined = p!.finishNode(
+        const literal: $ast.Node | undefined = p!.finishNode(
           p!.factory.NewJSDocTypeLiteral(children, typeExpression!.Type$m()!.Kind_ === (189 as number)),
           pos,
         );
@@ -1077,7 +1077,7 @@ export class Parser extends $rt.GoObject {
         new $rt.BoxStr(tagName!.Text$Node(), 'string'),
       ]);
     }
-    let typeExpression: $ast.Node | undefined = p!.tryParseTypeExpression();
+    const typeExpression: $ast.Node | undefined = p!.tryParseTypeExpression();
     return p!.finishNode(
       p!.factory.NewJSDocReturnTag(
         tagName,
@@ -1100,7 +1100,7 @@ export class Parser extends $rt.GoObject {
         new $rt.BoxStr(tagName!.Text$Node(), 'string'),
       ]);
     }
-    let typeExpression: $ast.Node | undefined = p!.parseJSDocTypeExpression(true);
+    const typeExpression: $ast.Node | undefined = p!.parseJSDocTypeExpression(true);
     let comments: $ast.NodeList | undefined = undefined as $ast.NodeList | undefined;
     if (!(indent === (-1 as number))) {
       comments = p!.parseTrailingTagComments(start, p!.nodePos(), indent, indentText);
@@ -1114,14 +1114,14 @@ export class Parser extends $rt.GoObject {
     indentText: string,
   ): $ast.Node | undefined {
     const p = this;
-    let hasNameReference: boolean =
+    const hasNameReference: boolean =
       (p!.isIdentifier() && !p!.sourceText.startsWith('://', p!.scanner!.TokenEnd())) ||
       (p!.token === (18 as number) && p!.lookAhead($fn3));
     let nameExpression: $ast.Node | undefined = undefined as $ast.Node | undefined;
     if (hasNameReference) {
       nameExpression = p!.parseJSDocNameReference();
     }
-    let comments: $ast.NodeList | undefined = p!.parseTrailingTagComments(start, p!.nodePos(), indent, indentText);
+    const comments: $ast.NodeList | undefined = p!.parseTrailingTagComments(start, p!.nodePos(), indent, indentText);
     return p!.finishNode(p!.factory.NewJSDocSeeTag(tagName, nameExpression, comments), start);
   }
   parseImplementsTag(
@@ -1131,7 +1131,7 @@ export class Parser extends $rt.GoObject {
     indentText: string,
   ): $ast.Node | undefined {
     const p = this;
-    let className: $ast.Node | undefined = p!.parseExpressionWithTypeArgumentsForAugments();
+    const className: $ast.Node | undefined = p!.parseExpressionWithTypeArgumentsForAugments();
     return p!.finishNode(
       p!.factory.NewJSDocImplementsTag(
         tagName,
@@ -1148,7 +1148,7 @@ export class Parser extends $rt.GoObject {
     indentText: string,
   ): $ast.Node | undefined {
     const p = this;
-    let className: $ast.Node | undefined = p!.parseExpressionWithTypeArgumentsForAugments();
+    const className: $ast.Node | undefined = p!.parseExpressionWithTypeArgumentsForAugments();
     return p!.finishNode(
       p!.factory.NewJSDocAugmentsTag(
         tagName,
@@ -1165,8 +1165,8 @@ export class Parser extends $rt.GoObject {
     indentText: string,
   ): $ast.Node | undefined {
     const p = this;
-    let typeExpression: $ast.Node | undefined = p!.parseJSDocTypeExpression(false);
-    let comments: $ast.NodeList | undefined = p!.parseTrailingTagComments(start, p!.nodePos(), margin, indentText);
+    const typeExpression: $ast.Node | undefined = p!.parseJSDocTypeExpression(false);
+    const comments: $ast.NodeList | undefined = p!.parseTrailingTagComments(start, p!.nodePos(), margin, indentText);
     return p!.finishNode(p!.factory.NewJSDocSatisfiesTag(tagName, typeExpression, comments), start);
   }
   parseThrowsTag(
@@ -1176,8 +1176,8 @@ export class Parser extends $rt.GoObject {
     indentText: string,
   ): $ast.Node | undefined {
     const p = this;
-    let typeExpression: $ast.Node | undefined = p!.tryParseTypeExpression();
-    let comment: $ast.NodeList | undefined = p!.parseTrailingTagComments(start, p!.nodePos(), margin, indentText);
+    const typeExpression: $ast.Node | undefined = p!.tryParseTypeExpression();
+    const comment: $ast.NodeList | undefined = p!.parseTrailingTagComments(start, p!.nodePos(), margin, indentText);
     return p!.finishNode(p!.factory.NewJSDocThrowsTag(tagName, typeExpression, comment), start);
   }
   parseImportTag(
@@ -1187,15 +1187,15 @@ export class Parser extends $rt.GoObject {
     indentText: string,
   ): $ast.Node | undefined {
     const p = this;
-    let afterImportTagPos: number = p!.scanner!.TokenFullStart();
+    const afterImportTagPos: number = p!.scanner!.TokenFullStart();
     let identifier: $ast.Node | undefined = undefined as $ast.Node | undefined;
     if (p!.isIdentifier()) {
       identifier = p!.parseIdentifier();
     }
-    let importClause: $ast.Node | undefined = p!.tryParseImportClause(identifier, afterImportTagPos, 156, true);
-    let moduleSpecifier: $ast.Node | undefined = p!.parseModuleSpecifier();
-    let attributes: $ast.Node | undefined = p!.tryParseImportAttributes();
-    let comments: $ast.NodeList | undefined = p!.parseTrailingTagComments(start, p!.nodePos(), margin, indentText);
+    const importClause: $ast.Node | undefined = p!.tryParseImportClause(identifier, afterImportTagPos, 156, true);
+    const moduleSpecifier: $ast.Node | undefined = p!.parseModuleSpecifier();
+    const attributes: $ast.Node | undefined = p!.tryParseImportAttributes();
+    const comments: $ast.NodeList | undefined = p!.parseTrailingTagComments(start, p!.nodePos(), margin, indentText);
     return p!.finishNode(
       p!.factory.NewJSDocImportTag(tagName, importClause, moduleSpecifier, attributes, comments),
       start,
@@ -1203,13 +1203,13 @@ export class Parser extends $rt.GoObject {
   }
   parseExpressionWithTypeArgumentsForAugments(): $ast.Node | undefined {
     const p = this;
-    let usedBrace: boolean = p!.parseOptional(18);
-    let pos: number = p!.nodePos();
-    let expression: $ast.Node | undefined = p!.parsePropertyAccessEntityNameExpression();
+    const usedBrace: boolean = p!.parseOptional(18);
+    const pos: number = p!.nodePos();
+    const expression: $ast.Node | undefined = p!.parsePropertyAccessEntityNameExpression();
     p!.scanner!.SetSkipJSDocLeadingAsterisks(true);
-    let typeArguments: $ast.NodeList | undefined = p!.parseTypeArguments();
+    const typeArguments: $ast.NodeList | undefined = p!.parseTypeArguments();
     p!.scanner!.SetSkipJSDocLeadingAsterisks(false);
-    let node: $ast.Node | undefined = p!.finishNode(
+    const node: $ast.Node | undefined = p!.finishNode(
       p!.factory.NewExpressionWithTypeArguments(expression, typeArguments),
       pos,
     );
@@ -1221,10 +1221,10 @@ export class Parser extends $rt.GoObject {
   }
   parsePropertyAccessEntityNameExpression(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
+    const pos: number = p!.nodePos();
     let node: $ast.Node | undefined = p!.parseJSDocIdentifierName($diagnostics.Identifier_expected);
     for (; p!.parseOptional(24);) {
-      let name_: $ast.Node | undefined = p!.parseJSDocIdentifierName($diagnostics.Identifier_expected);
+      const name_: $ast.Node | undefined = p!.parseJSDocIdentifierName($diagnostics.Identifier_expected);
       node = p!.finishNode(p!.factory.NewPropertyAccessExpression(node, undefined, name_, 0), pos);
     }
     return node;
@@ -1249,9 +1249,9 @@ export class Parser extends $rt.GoObject {
     indentText: string,
   ): $ast.Node | undefined {
     const p = this;
-    let typeExpression: $ast.Node | undefined = p!.parseJSDocTypeExpression(true);
+    const typeExpression: $ast.Node | undefined = p!.parseJSDocTypeExpression(true);
     p!.skipWhitespace();
-    let result: $ast.Node | undefined = p!.factory.NewJSDocThisTag(
+    const result: $ast.Node | undefined = p!.factory.NewJSDocThisTag(
       tagName,
       typeExpression,
       p!.parseTrailingTagComments(start, p!.nodePos(), margin, indentText),
@@ -1260,14 +1260,14 @@ export class Parser extends $rt.GoObject {
   }
   parseJSDocTypeNameWithNamespace(nested: boolean): $ast.Node | undefined {
     const p = this;
-    let start: number = p!.scanner!.TokenStart();
+    const start: number = p!.scanner!.TokenStart();
     if (!tokenIsIdentifierOrKeyword(p!.token)) {
       return undefined;
     }
-    let typeNameOrNamespaceName: $ast.Node | undefined = p!.parseJSDocIdentifierName(undefined);
+    const typeNameOrNamespaceName: $ast.Node | undefined = p!.parseJSDocIdentifierName(undefined);
     if (p!.parseOptionalJsdoc(24)) {
-      let body: $ast.Node | undefined = p!.parseJSDocTypeNameWithNamespace(true);
-      let jsDocNamespaceNode: $ast.Node | undefined = p!.factory.NewModuleDeclaration(
+      const body: $ast.Node | undefined = p!.parseJSDocTypeNameWithNamespace(true);
+      const jsDocNamespaceNode: $ast.Node | undefined = p!.factory.NewModuleDeclaration(
         undefined,
         145,
         typeNameOrNamespaceName,
@@ -1305,7 +1305,7 @@ export class Parser extends $rt.GoObject {
       let childTypeTag: $ast.JSDocTypeTag | undefined = undefined as $ast.JSDocTypeTag | undefined;
       let jsdocPropertyTags: ($ast.Node | undefined)[] = [];
       for (;;) {
-        let state: ParserState = p!.mark();
+        const state: ParserState = p!.mark();
         child = p!.parseChildPropertyTag(indent);
         if (child === undefined) {
           p!.rewind(state);
@@ -1326,12 +1326,12 @@ export class Parser extends $rt.GoObject {
               if (childTypeTag === undefined) {
                 childTypeTag = child!.AsJSDocTypeTag();
               } else {
-                let lastError: $ast.Diagnostic | undefined = p!.parseErrorAtCurrentToken(
+                const lastError: $ast.Diagnostic | undefined = p!.parseErrorAtCurrentToken(
                   $diagnostics.A_JSDoc_typedef_comment_may_not_contain_multiple_type_tags,
                   [] as ($rt.GoObject | undefined)[],
                 );
                 if (!(lastError === undefined)) {
-                  let related: $ast.Diagnostic | undefined = $ast.NewDiagnostic(
+                  const related: $ast.Diagnostic | undefined = $ast.NewDiagnostic(
                     undefined,
                     $core.NewTextRange(0, 0),
                     $diagnostics.The_tag_was_first_specified_here,
@@ -1350,9 +1350,9 @@ export class Parser extends $rt.GoObject {
         }
       }
       if (hasChildren) {
-        let isArrayType: boolean =
+        const isArrayType: boolean =
           !(typeExpression === undefined) && typeExpression!.Type$m()!.Kind_ === (189 as number);
-        let jsdocTypeLiteral: $ast.Node | undefined = p!.factory.NewJSDocTypeLiteral(jsdocPropertyTags, isArrayType);
+        const jsdocTypeLiteral: $ast.Node | undefined = p!.factory.NewJSDocTypeLiteral(jsdocPropertyTags, isArrayType);
         if (
           !(childTypeTag === undefined) &&
           !(childTypeTag!.TypeExpression_ === undefined) &&
@@ -1385,7 +1385,7 @@ export class Parser extends $rt.GoObject {
     if (comment === undefined) {
       comment = p!.parseTrailingTagComments(start, end, indent, indentText);
     }
-    let typedefTag: $ast.Node | undefined = p!.finishNodeWithEnd(
+    const typedefTag: $ast.Node | undefined = p!.finishNodeWithEnd(
       p!.factory.NewJSDocTypedefTag(tagName, typeExpression, fullName, comment),
       start,
       end,
@@ -1399,9 +1399,9 @@ export class Parser extends $rt.GoObject {
     const p = this;
     let child: $ast.Node | undefined = undefined as $ast.Node | undefined;
     let parameters: ($ast.Node | undefined)[] = [];
-    let pos: number = p!.nodePos();
+    const pos: number = p!.nodePos();
     for (;;) {
-      let state: ParserState = p!.mark();
+      const state: ParserState = p!.mark();
       child = p!.parseChildParameterOrPropertyTag(4, indent, undefined);
       if (child === undefined) {
         p!.rewind(state);
@@ -1421,11 +1421,11 @@ export class Parser extends $rt.GoObject {
   }
   parseJSDocSignature(start: number, indent: number): $ast.Node | undefined {
     const p = this;
-    let parameters: $ast.NodeList | undefined = p!.parseCallbackTagParameters(indent);
+    const parameters: $ast.NodeList | undefined = p!.parseCallbackTagParameters(indent);
     let returnTag: $ast.Node | undefined = undefined as $ast.Node | undefined;
-    let state: ParserState = p!.mark();
+    const state: ParserState = p!.mark();
     if (p!.parseOptionalJsdoc(59)) {
-      let tag: $ast.Node | undefined = p!.parseTag([], indent);
+      const tag: $ast.Node | undefined = p!.parseTag([], indent);
       if (tag!.Kind_ === (334 as number)) {
         returnTag = tag;
       }
@@ -1448,7 +1448,7 @@ export class Parser extends $rt.GoObject {
     }
     p!.skipWhitespace();
     let comment: $ast.NodeList | undefined = p!.parseTagComments(indent, undefined);
-    let typeExpression: $ast.Node | undefined = p!.parseJSDocSignature(p!.nodePos(), indent);
+    const typeExpression: $ast.Node | undefined = p!.parseJSDocSignature(p!.nodePos(), indent);
     if (comment === undefined) {
       comment = p!.parseTrailingTagComments(start, p!.nodePos(), indent, indentText);
     }
@@ -1469,7 +1469,7 @@ export class Parser extends $rt.GoObject {
     const p = this;
     p!.skipWhitespace();
     let comment: $ast.NodeList | undefined = p!.parseTagComments(indent, undefined);
-    let typeExpression: $ast.Node | undefined = p!.parseJSDocSignature(start, indent);
+    const typeExpression: $ast.Node | undefined = p!.parseJSDocSignature(start, indent);
     if (comment === undefined) {
       comment = p!.parseTrailingTagComments(start, p!.nodePos(), indent, indentText);
     }
@@ -1498,7 +1498,7 @@ export class Parser extends $rt.GoObject {
         switch (p!.nextTokenJSDoc()) {
           case 59 as number: {
             if (canParseTag && p!.scanner!.CanFollowJSDocAt()) {
-              let child: $ast.Node | undefined = p!.tryParseChildTag(target, indent);
+              const child: $ast.Node | undefined = p!.tryParseChildTag(target, indent);
               if (
                 !(child === undefined) &&
                 !(name_ === undefined) &&
@@ -1541,10 +1541,10 @@ export class Parser extends $rt.GoObject {
     if (!(p!.token === (59 as number))) {
       throw $rt.newPanic(new $rt.BoxStr('should only be called when at @', 'string'));
     }
-    let start: number = p!.scanner!.TokenFullStart();
+    const start: number = p!.scanner!.TokenFullStart();
     p!.nextTokenJSDoc();
-    let tagName: $ast.Node | undefined = p!.parseJSDocIdentifierName($diagnostics.Identifier_expected);
-    let indentText: string = p!.skipWhitespaceOrAsterisk();
+    const tagName: $ast.Node | undefined = p!.parseJSDocIdentifierName($diagnostics.Identifier_expected);
+    const indentText: string = p!.skipWhitespaceOrAsterisk();
     let t: propertyLikeParse = 0;
     {
       switch (tagName!.Text$Node()) {
@@ -1583,20 +1583,20 @@ export class Parser extends $rt.GoObject {
   }
   parseTemplateTagTypeParameter(): $ast.Node | undefined {
     const p = this;
-    let typeParameterPos: number = p!.nodePos();
-    let isBracketed: boolean = p!.parseOptionalJsdoc(22);
+    const typeParameterPos: number = p!.nodePos();
+    const isBracketed: boolean = p!.parseOptionalJsdoc(22);
     if (isBracketed) {
       p!.skipWhitespace();
     }
-    let modifiers: $ast.ModifierList | undefined = p!.parseModifiersEx(false, true, false);
-    let name_: $ast.Node | undefined = p!.parseJSDocIdentifierName(
+    const modifiers: $ast.ModifierList | undefined = p!.parseModifiersEx(false, true, false);
+    const name_: $ast.Node | undefined = p!.parseJSDocIdentifierName(
       $diagnostics.Unexpected_token_A_type_parameter_name_was_expected_without_curly_braces,
     );
     let defaultType: $ast.Node | undefined = undefined as $ast.Node | undefined;
     if (isBracketed) {
       p!.skipWhitespace();
       p!.parseExpected(63);
-      let saveContextFlags: $ast.NodeFlags = p!.contextFlags;
+      const saveContextFlags: $ast.NodeFlags = p!.contextFlags;
       p!.setContextFlags(4194304, true);
       defaultType = p!.parseJSDocType();
       p!.contextFlags = saveContextFlags;
@@ -1616,7 +1616,7 @@ export class Parser extends $rt.GoObject {
     {
       for (let ok: boolean = true; ok; ok = p!.parseOptionalJsdoc(27)) {
         p!.skipWhitespace();
-        let node: $ast.Node | undefined = p!.parseTemplateTagTypeParameter();
+        const node: $ast.Node | undefined = p!.parseTemplateTagTypeParameter();
         if (!(node === undefined)) {
           typeParameters.Nodes.push(node);
         }
@@ -1636,8 +1636,8 @@ export class Parser extends $rt.GoObject {
     if (p!.token === (18 as number)) {
       constraint = p!.parseJSDocTypeExpression(false);
     }
-    let typeParameters: $ast.NodeList | undefined = p!.parseTemplateTagTypeParameters();
-    let result: $ast.Node | undefined = p!.factory.NewJSDocTemplateTag(
+    const typeParameters: $ast.NodeList | undefined = p!.parseTemplateTagTypeParameters();
+    const result: $ast.Node | undefined = p!.factory.NewJSDocTemplateTag(
       tagName,
       constraint,
       typeParameters,
@@ -1660,11 +1660,11 @@ export class Parser extends $rt.GoObject {
       p!.parseExpected(23);
     }
     for (; p!.parseOptional(24);) {
-      let name_: $ast.Node | undefined = p!.parseJSDocIdentifierName($diagnostics.Identifier_expected);
+      const name_: $ast.Node | undefined = p!.parseJSDocIdentifierName($diagnostics.Identifier_expected);
       if (p!.parseOptional(22)) {
         p!.parseExpected(23);
       }
-      let pos: number = entity!.Pos();
+      const pos: number = entity!.Pos();
       entity = p!.finishNode(p!.factory.NewQualifiedName(entity, name_), pos);
     }
     return entity;
@@ -1681,9 +1681,9 @@ export class Parser extends $rt.GoObject {
       }
       return p!.finishNode(p!.newIdentifier(''), p!.nodePos());
     }
-    let pos: number = p!.scanner!.TokenStart();
-    let end: number = p!.scanner!.TokenEnd();
-    let text: string = p!.scanner!.TokenValue();
+    const pos: number = p!.scanner!.TokenStart();
+    const end: number = p!.scanner!.TokenEnd();
+    const text: string = p!.scanner!.TokenValue();
     p!.nextTokenJSDoc();
     return p!.finishNodeWithEnd(p!.newIdentifier(text), pos, end);
   }
@@ -1700,7 +1700,7 @@ export class Parser extends $rt.GoObject {
   }
   parseJSONText(): $ast.SourceFile | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
+    const pos: number = p!.nodePos();
     let statements: $ast.NodeList | undefined = undefined as $ast.NodeList | undefined;
     let eof: $ast.Node | undefined = undefined as $ast.Node | undefined;
     if (p!.token === (1 as number)) {
@@ -1747,8 +1747,8 @@ export class Parser extends $rt.GoObject {
           {
             const $t1: $rt.GoObject | undefined = expressions;
             const $t2: boolean = $t1 instanceof $boxes.Box____ast_Expression;
-            let es: ($ast.Node | undefined)[] = $t2 ? $boxes.Box____ast_Expression.$cast($t1).v : [];
-            let ok: boolean = $t2;
+            const es: ($ast.Node | undefined)[] = $t2 ? $boxes.Box____ast_Expression.$cast($t1).v : [];
+            const ok: boolean = $t2;
             if (ok) {
               expressions = new $boxes.Box____ast_Expression($rt.appendCopy(es, [expression]));
             } else {
@@ -1766,8 +1766,8 @@ export class Parser extends $rt.GoObject {
       {
         const $t3: $rt.GoObject | undefined = expressions;
         const $t4: boolean = $t3 instanceof $boxes.Box____ast_Expression;
-        let es$1: ($ast.Node | undefined)[] = $t4 ? $boxes.Box____ast_Expression.$cast($t3).v : [];
-        let ok$1: boolean = $t4;
+        const es$1: ($ast.Node | undefined)[] = $t4 ? $boxes.Box____ast_Expression.$cast($t3).v : [];
+        const ok$1: boolean = $t4;
         if (ok$1) {
           expression$1 = p!.finishNode(
             p!.factory.NewArrayLiteralExpression(p!.newNodeList($core.NewTextRange(pos, p!.nodePos()), es$1), false),
@@ -1777,15 +1777,15 @@ export class Parser extends $rt.GoObject {
           expression$1 = $ast.Node.$cast_ast_Node(expressions);
         }
       }
-      let statement: $ast.Node | undefined = p!.finishNode(p!.factory.NewExpressionStatement(expression$1), pos);
+      const statement: $ast.Node | undefined = p!.finishNode(p!.factory.NewExpressionStatement(expression$1), pos);
       statements = p!.newNodeList($core.NewTextRange(pos, p!.nodePos()), [statement]);
       eof = p!.parseExpectedToken(1);
     }
-    let node: $ast.Node | undefined = p!.finishNode(
+    const node: $ast.Node | undefined = p!.finishNode(
       p!.factory.NewSourceFile(p!.opts, p!.sourceText, statements, eof),
       pos,
     );
-    let result: $ast.SourceFile | undefined = node!.AsSourceFile();
+    const result: $ast.SourceFile | undefined = node!.AsSourceFile();
     if (result!.Statements_!.Nodes.length > 0) {
       p!.validateJsonValue(result, result!.Statements_!.Nodes[0]!.Expression());
     }
@@ -1835,7 +1835,7 @@ export class Parser extends $rt.GoObject {
           {
             const $t1 = valueExpression!.Elements();
             for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-              let element = $t1[$t2];
+              const element = $t1[$t2];
               p!.validateJsonValue(sourceFile, element);
             }
           }
@@ -1860,7 +1860,7 @@ export class Parser extends $rt.GoObject {
     {
       const $t1 = node!.Properties_!.Nodes;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        let element = $t1[$t2];
+        const element = $t1[$t2];
         if (!(element!.Kind_ === (303 as number))) {
           p!.diagnostics.push(
             $ast.NewDiagnostic(
@@ -2001,7 +2001,7 @@ export class Parser extends $rt.GoObject {
     if (p!.lookAheadDepth === p!.lookAheadStates.length) {
       p!.lookAheadStates.push(new ParserState());
     }
-    let state: ParserState | undefined = p!.lookAheadStates[p!.lookAheadDepth];
+    const state: ParserState | undefined = p!.lookAheadStates[p!.lookAheadDepth];
     p!.scanner!.MarkInto(state!.scannerState);
     state!.contextFlags = p!.contextFlags;
     state!.diagnosticsLen = p!.diagnostics.length;
@@ -2011,7 +2011,7 @@ export class Parser extends $rt.GoObject {
     state!.statementHasAwaitIdentifier = p!.statementHasAwaitIdentifier;
     state!.hasParseError = p!.hasParseError;
     p!.lookAheadDepth++;
-    let result: boolean = callback!(p);
+    const result: boolean = callback!(p);
     p!.lookAheadDepth--;
     p!.rewind(state!);
     return result;
@@ -2066,15 +2066,15 @@ export class Parser extends $rt.GoObject {
   }
   parseSourceFileWorker(): $ast.SourceFile | undefined {
     const p = this;
-    let isDeclarationFile: boolean = $tspath.IsDeclarationFileName(p!.opts.FileName);
+    const isDeclarationFile: boolean = $tspath.IsDeclarationFileName(p!.opts.FileName);
     if (isDeclarationFile) {
       p!.contextFlags = (p!.contextFlags | 8388608) >>> 0;
     }
-    let pos: number = p!.nodePos();
+    const pos: number = p!.nodePos();
     let statements: ($ast.Node | undefined)[] = p!.parseListIndex(0, $fn6);
-    let end: number = p!.nodePos();
-    let endJSDoc: jsdocScannerInfo = p!.jsdocScannerInfo$m();
-    let eof: $ast.Node | undefined = p!.parseTokenNode();
+    const end: number = p!.nodePos();
+    const endJSDoc: jsdocScannerInfo = p!.jsdocScannerInfo$m();
+    const eof: $ast.Node | undefined = p!.parseTokenNode();
     p!.withJSDoc(eof, endJSDoc);
     if (!(eof!.Kind_ === (1 as number))) {
       throw $rt.newPanic(new $rt.BoxStr('Expected end of file token from scanner.', 'string'));
@@ -2083,7 +2083,7 @@ export class Parser extends $rt.GoObject {
       statements = $rt.appendCopy(statements, p!.reparseList);
       p!.reparseList = [];
     }
-    let node: $ast.Node | undefined = p!.finishNode(
+    const node: $ast.Node | undefined = p!.finishNode(
       p!.factory.NewSourceFile(p!.opts, p!.sourceText, p!.newNodeList($core.NewTextRange(pos, end), statements), eof),
       pos,
     );
@@ -2094,7 +2094,7 @@ export class Parser extends $rt.GoObject {
       !(result!.ExternalModuleIndicator === undefined) &&
       p!.possibleAwaitSpans.length > 0
     ) {
-      let reparse: $ast.Node | undefined = p!.finishNode(p!.reparseTopLevelAwait(result), pos);
+      const reparse: $ast.Node | undefined = p!.finishNode(p!.reparseTopLevelAwait(result), pos);
       if (!(node === reparse)) {
         result = reparse!.AsSourceFile();
         p!.finishSourceFile(result, isDeclarationFile);
@@ -2133,14 +2133,14 @@ export class Parser extends $rt.GoObject {
     if (p!.jsdocInfos.length === (0 as number)) {
       return undefined;
     }
-    let result: Map<$ast.Node | undefined, ($ast.Node | undefined)[]> | undefined = new Map<
+    const result: Map<$ast.Node | undefined, ($ast.Node | undefined)[]> | undefined = new Map<
       $ast.Node | undefined,
       ($ast.Node | undefined)[]
     >();
     {
       const $t1 = p!.jsdocInfos;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        let info = $t1[$t2];
+        const info = $t1[$t2];
         result!.set(info.parent, info.jsDocs);
       }
     }
@@ -2149,7 +2149,7 @@ export class Parser extends $rt.GoObject {
   parseToplevelStatement(i: number): $ast.Node | undefined {
     const p = this;
     p!.statementHasAwaitIdentifier = false;
-    let statement: $ast.Node | undefined = p!.parseStatement();
+    const statement: $ast.Node | undefined = p!.parseStatement();
     i += p!.reparseList.length;
     if (p!.statementHasAwaitIdentifier && (statement!.Flags & 8192) === (0 as number)) {
       if (
@@ -2171,19 +2171,19 @@ export class Parser extends $rt.GoObject {
       );
     }
     let statements: ($ast.Node | undefined)[] = [] as ($ast.Node | undefined)[];
-    let savedParseDiagnostics: ($ast.Diagnostic | undefined)[] = p!.diagnostics;
+    const savedParseDiagnostics: ($ast.Diagnostic | undefined)[] = p!.diagnostics;
     p!.diagnostics = [] as ($ast.Diagnostic | undefined)[];
     let afterAwaitStatement: number = 0;
     {
       for (let i: number = 0; i < p!.possibleAwaitSpans.length; i += 2) {
-        let nextAwaitStatement: number = p!.possibleAwaitSpans[i];
-        let prevStatement: $ast.Node | undefined = sourceFile!.Statements_!.Nodes[afterAwaitStatement];
-        let nextStatement: $ast.Node | undefined = sourceFile!.Statements_!.Nodes[nextAwaitStatement];
+        const nextAwaitStatement: number = p!.possibleAwaitSpans[i];
+        const prevStatement: $ast.Node | undefined = sourceFile!.Statements_!.Nodes[afterAwaitStatement];
+        const nextStatement: $ast.Node | undefined = sourceFile!.Statements_!.Nodes[nextAwaitStatement];
         $rt.appendInto(
           statements,
           $rt.reslice(sourceFile!.Statements_!.Nodes, afterAwaitStatement, nextAwaitStatement, undefined),
         );
-        let diagnosticStart: number = $core.FindIndex<$ast.Diagnostic | undefined>(
+        const diagnosticStart: number = $core.FindIndex<$ast.Diagnostic | undefined>(
           savedParseDiagnostics,
           (diagnostic: $ast.Diagnostic | undefined): boolean => {
             return diagnostic!.Pos() >= prevStatement!.Pos();
@@ -2209,20 +2209,20 @@ export class Parser extends $rt.GoObject {
           }
           $rt.appendInto(p!.diagnostics, slice);
         }
-        let state: ParserState = p!.mark();
+        const state: ParserState = p!.mark();
         p!.contextFlags = (p!.contextFlags | 8192) >>> 0;
         p!.scanner!.ResetPos(nextStatement!.Pos());
         p!.nextToken();
         afterAwaitStatement = p!.possibleAwaitSpans[i + 1];
         for (; !(p!.token === (1 as number));) {
-          let startPos: number = p!.scanner!.TokenFullStart();
-          let statement: $ast.Node | undefined = p!.parseStatement();
+          const startPos: number = p!.scanner!.TokenFullStart();
+          const statement: $ast.Node | undefined = p!.parseStatement();
           statements.push(statement);
           if (startPos === p!.scanner!.TokenFullStart()) {
             p!.nextToken();
           }
           if (afterAwaitStatement < sourceFile!.Statements_!.Nodes.length) {
-            let lastAwaitStatement: $ast.Node | undefined = sourceFile!.Statements_!.Nodes[afterAwaitStatement - 1];
+            const lastAwaitStatement: $ast.Node | undefined = sourceFile!.Statements_!.Nodes[afterAwaitStatement - 1];
             if (statement!.End() === lastAwaitStatement!.End()) {
               break;
             }
@@ -2241,9 +2241,9 @@ export class Parser extends $rt.GoObject {
       }
     }
     if (afterAwaitStatement < sourceFile!.Statements_!.Nodes.length) {
-      let prevStatement$1: $ast.Node | undefined = sourceFile!.Statements_!.Nodes[afterAwaitStatement];
+      const prevStatement$1: $ast.Node | undefined = sourceFile!.Statements_!.Nodes[afterAwaitStatement];
       $rt.appendInto(statements, sourceFile!.Statements_!.Nodes.slice(afterAwaitStatement));
-      let diagnosticStart$1: number = $core.FindIndex<$ast.Diagnostic | undefined>(
+      const diagnosticStart$1: number = $core.FindIndex<$ast.Diagnostic | undefined>(
         savedParseDiagnostics,
         (diagnostic$2: $ast.Diagnostic | undefined): boolean => {
           return diagnostic$2!.Pos() >= prevStatement$1!.Pos();
@@ -2253,7 +2253,7 @@ export class Parser extends $rt.GoObject {
         $rt.appendInto(p!.diagnostics, savedParseDiagnostics.slice(diagnosticStart$1));
       }
     }
-    let result: $ast.Node | undefined = p!.factory.NewSourceFile(
+    const result: $ast.Node | undefined = p!.factory.NewSourceFile(
       sourceFile!.ParseOptions(),
       p!.sourceText,
       p!.newNodeList(sourceFile!.Statements_!.Loc, statements),
@@ -2262,7 +2262,7 @@ export class Parser extends $rt.GoObject {
     {
       const $t1 = statements;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        let s = $t1[$t2];
+        const s = $t1[$t2];
         s!.Parent = result!.AsNode$Node();
       }
     }
@@ -2273,7 +2273,7 @@ export class Parser extends $rt.GoObject {
     parseElement: ((p0: Parser | undefined, p1: number) => $ast.Node | undefined) | undefined,
   ): ($ast.Node | undefined)[] {
     const p = this;
-    let saveParsingContexts: ParsingContexts = p!.parsingContexts;
+    const saveParsingContexts: ParsingContexts = p!.parsingContexts;
     p!.parsingContexts = $rt.or64(p!.parsingContexts, $rt.shl64(1, kind));
     let outerReparseList: ($ast.Node | undefined)[] = p!.reparseList;
     p!.reparseList = [];
@@ -2281,12 +2281,12 @@ export class Parser extends $rt.GoObject {
     {
       for (let i: number = 0; !p!.isListTerminator(kind); i++) {
         if (p!.isListElement(kind, false)) {
-          let elt: $ast.Node | undefined = parseElement!(p, list.length);
+          const elt: $ast.Node | undefined = parseElement!(p, list.length);
           if (!(p!.reparseList.length === (0 as number))) {
             {
               const $t1 = p!.reparseList;
               for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-                let e = $t1[$t2];
+                const e = $t1[$t2];
                 if (
                   ($ast.IsJSTypeAliasDeclaration(e) || $ast.IsJSImportDeclaration(e)) &&
                   !(kind === (0 as number)) &&
@@ -2317,8 +2317,8 @@ export class Parser extends $rt.GoObject {
     parseElement: ((p0: Parser | undefined) => $ast.Node | undefined) | undefined,
   ): $ast.NodeList | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
-    let nodes: ($ast.Node | undefined)[] = p!.parseListIndex(
+    const pos: number = p!.nodePos();
+    const nodes: ($ast.Node | undefined)[] = p!.parseListIndex(
       kind,
       (p$1: Parser | undefined, $p1: number): $ast.Node | undefined => {
         return parseElement!(p$1);
@@ -2331,14 +2331,14 @@ export class Parser extends $rt.GoObject {
     parseElement: ((p0: Parser | undefined) => $ast.Node | undefined) | undefined,
   ): $ast.NodeList | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
-    let saveParsingContexts: ParsingContexts = p!.parsingContexts;
+    const pos: number = p!.nodePos();
+    const saveParsingContexts: ParsingContexts = p!.parsingContexts;
     p!.parsingContexts = $rt.or64(p!.parsingContexts, $rt.shl64(1, kind));
     let list: ($ast.Node | undefined)[] = [] as ($ast.Node | undefined)[];
     for (;;) {
       if (p!.isListElement(kind, false)) {
-        let startPos: number = p!.nodePos();
-        let element: $ast.Node | undefined = parseElement!(p);
+        const startPos: number = p!.nodePos();
+        const element: $ast.Node | undefined = parseElement!(p);
         if (element === undefined) {
           p!.parsingContexts = saveParsingContexts;
           return undefined;
@@ -2388,7 +2388,7 @@ export class Parser extends $rt.GoObject {
   ): $ast.NodeList | undefined {
     const p = this;
     if (p!.parseExpected(opening)) {
-      let result: $ast.NodeList | undefined = p!.parseDelimitedList(kind, parseElement);
+      const result: $ast.NodeList | undefined = p!.parseDelimitedList(kind, parseElement);
       p!.parseExpected(closing);
       return result;
     }
@@ -2400,7 +2400,7 @@ export class Parser extends $rt.GoObject {
   }
   createMissingList(): $ast.NodeList | undefined {
     const p = this;
-    let result: $ast.NodeList | undefined = p!.parseEmptyNodeList();
+    const result: $ast.NodeList | undefined = p!.parseEmptyNodeList();
     result!.Nodes = missingListNodes;
     return result;
   }
@@ -2778,14 +2778,14 @@ export class Parser extends $rt.GoObject {
       p!.nextToken();
       return;
     }
-    let lastError: $ast.Diagnostic | undefined = p!.parseErrorAtCurrentToken($diagnostics.X_0_expected, [
+    const lastError: $ast.Diagnostic | undefined = p!.parseErrorAtCurrentToken($diagnostics.X_0_expected, [
       new $rt.BoxStr($scanner.TokenToString(closeKind), 'string'),
     ]);
     if (!openParsed) {
       return;
     }
     if (!(lastError === undefined)) {
-      let related: $ast.Diagnostic | undefined = $ast.NewDiagnostic(
+      const related: $ast.Diagnostic | undefined = $ast.NewDiagnostic(
         undefined,
         $core.NewTextRange(openPosition, openPosition),
         $diagnostics.The_parser_expected_to_find_a_1_to_match_the_0_token_here,
@@ -2834,8 +2834,8 @@ export class Parser extends $rt.GoObject {
   }
   parseTokenNode(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
-    let kind: $ast.Kind = p!.token;
+    const pos: number = p!.nodePos();
+    const kind: $ast.Kind = p!.token;
     p!.nextToken();
     return p!.finishNode(p!.factory.NewToken(kind), pos);
   }
@@ -2981,22 +2981,22 @@ export class Parser extends $rt.GoObject {
   }
   parseDeclaration(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
-    let jsdoc: jsdocScannerInfo = p!.jsdocScannerInfo$m();
-    let modifiers: $ast.ModifierList | undefined = p!.parseModifiersEx(true, false, false);
-    let isAmbient: boolean =
+    const pos: number = p!.nodePos();
+    const jsdoc: jsdocScannerInfo = p!.jsdocScannerInfo$m();
+    const modifiers: $ast.ModifierList | undefined = p!.parseModifiersEx(true, false, false);
+    const isAmbient: boolean =
       !(modifiers === undefined) && $core.Some<$ast.Node | undefined>(modifiers!.Nodes, isDeclareModifier);
     if (isAmbient) {
       {
         const $t1 = modifiers!.Nodes;
         for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-          let m = $t1[$t2];
+          const m = $t1[$t2];
           m!.Flags = (m!.Flags | 8388608) >>> 0;
         }
       }
-      let saveContextFlags: $ast.NodeFlags = p!.contextFlags;
+      const saveContextFlags: $ast.NodeFlags = p!.contextFlags;
       p!.setContextFlags(8388608, true);
-      let result: $ast.Node | undefined = p!.parseDeclarationWorker(pos, jsdoc, modifiers);
+      const result: $ast.Node | undefined = p!.parseDeclarationWorker(pos, jsdoc, modifiers);
       p!.contextFlags = saveContextFlags;
       return result;
     } else {
@@ -3091,16 +3091,16 @@ export class Parser extends $rt.GoObject {
     diagnosticMessage: $diagnostics.Message | undefined,
   ): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
-    let jsdoc: jsdocScannerInfo = p!.jsdocScannerInfo$m();
-    let openBracePosition: number = p!.scanner!.TokenStart();
-    let openBraceParsed: boolean = p!.parseExpectedWithDiagnostic(18, diagnosticMessage, true);
+    const pos: number = p!.nodePos();
+    const jsdoc: jsdocScannerInfo = p!.jsdocScannerInfo$m();
+    const openBracePosition: number = p!.scanner!.TokenStart();
+    const openBraceParsed: boolean = p!.parseExpectedWithDiagnostic(18, diagnosticMessage, true);
     let multiline: boolean = false;
     if (openBraceParsed || ignoreMissingOpenBrace) {
       multiline = p!.hasPrecedingLineBreak();
-      let statements: $ast.NodeList | undefined = p!.parseList(1, $fn12);
+      const statements: $ast.NodeList | undefined = p!.parseList(1, $fn12);
       p!.parseExpectedMatchingBrackets(18, 19, openBraceParsed, openBracePosition);
-      let result: $ast.Node | undefined = p!.finishNode(p!.factory.NewBlock(statements, multiline), pos);
+      const result: $ast.Node | undefined = p!.finishNode(p!.factory.NewBlock(statements, multiline), pos);
       p!.withJSDoc(result, jsdoc);
       if (p!.token === (63 as number)) {
         p!.parseErrorAtCurrentToken(
@@ -3111,34 +3111,34 @@ export class Parser extends $rt.GoObject {
       }
       return result;
     }
-    let result$1: $ast.Node | undefined = p!.finishNode(p!.factory.NewBlock(p!.createMissingList(), multiline), pos);
+    const result$1: $ast.Node | undefined = p!.finishNode(p!.factory.NewBlock(p!.createMissingList(), multiline), pos);
     p!.withJSDoc(result$1, jsdoc);
     return result$1;
   }
   parseEmptyStatement(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
-    let jsdoc: jsdocScannerInfo = p!.jsdocScannerInfo$m();
+    const pos: number = p!.nodePos();
+    const jsdoc: jsdocScannerInfo = p!.jsdocScannerInfo$m();
     p!.parseExpected(26);
-    let result: $ast.Node | undefined = p!.finishNode(p!.factory.NewEmptyStatement(), pos);
+    const result: $ast.Node | undefined = p!.finishNode(p!.factory.NewEmptyStatement(), pos);
     p!.withJSDoc(result, jsdoc);
     return result;
   }
   parseIfStatement(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
-    let jsdoc: jsdocScannerInfo = p!.jsdocScannerInfo$m();
+    const pos: number = p!.nodePos();
+    const jsdoc: jsdocScannerInfo = p!.jsdocScannerInfo$m();
     p!.parseExpected(100);
-    let openParenPosition: number = p!.scanner!.TokenStart();
-    let openParenParsed: boolean = p!.parseExpected(20);
-    let expression: $ast.Node | undefined = p!.parseExpressionAllowIn();
+    const openParenPosition: number = p!.scanner!.TokenStart();
+    const openParenParsed: boolean = p!.parseExpected(20);
+    const expression: $ast.Node | undefined = p!.parseExpressionAllowIn();
     p!.parseExpectedMatchingBrackets(20, 21, openParenParsed, openParenPosition);
-    let thenStatement: $ast.Node | undefined = p!.parseStatement();
+    const thenStatement: $ast.Node | undefined = p!.parseStatement();
     let elseStatement: $ast.Node | undefined = undefined as $ast.Node | undefined;
     if (p!.parseOptional(92)) {
       elseStatement = p!.parseStatement();
     }
-    let result: $ast.Node | undefined = p!.finishNode(
+    const result: $ast.Node | undefined = p!.finishNode(
       p!.factory.NewIfStatement(expression, thenStatement, elseStatement),
       pos,
     );
@@ -3147,40 +3147,40 @@ export class Parser extends $rt.GoObject {
   }
   parseDoStatement(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
-    let jsdoc: jsdocScannerInfo = p!.jsdocScannerInfo$m();
+    const pos: number = p!.nodePos();
+    const jsdoc: jsdocScannerInfo = p!.jsdocScannerInfo$m();
     p!.parseExpected(91);
-    let statement: $ast.Node | undefined = p!.parseStatement();
+    const statement: $ast.Node | undefined = p!.parseStatement();
     p!.parseExpected(116);
-    let openParenPosition: number = p!.scanner!.TokenStart();
-    let openParenParsed: boolean = p!.parseExpected(20);
-    let expression: $ast.Node | undefined = p!.parseExpressionAllowIn();
+    const openParenPosition: number = p!.scanner!.TokenStart();
+    const openParenParsed: boolean = p!.parseExpected(20);
+    const expression: $ast.Node | undefined = p!.parseExpressionAllowIn();
     p!.parseExpectedMatchingBrackets(20, 21, openParenParsed, openParenPosition);
     p!.parseOptional(26);
-    let result: $ast.Node | undefined = p!.finishNode(p!.factory.NewDoStatement(statement, expression), pos);
+    const result: $ast.Node | undefined = p!.finishNode(p!.factory.NewDoStatement(statement, expression), pos);
     p!.withJSDoc(result, jsdoc);
     return result;
   }
   parseWhileStatement(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
-    let jsdoc: jsdocScannerInfo = p!.jsdocScannerInfo$m();
+    const pos: number = p!.nodePos();
+    const jsdoc: jsdocScannerInfo = p!.jsdocScannerInfo$m();
     p!.parseExpected(116);
-    let openParenPosition: number = p!.scanner!.TokenStart();
-    let openParenParsed: boolean = p!.parseExpected(20);
-    let expression: $ast.Node | undefined = p!.parseExpressionAllowIn();
+    const openParenPosition: number = p!.scanner!.TokenStart();
+    const openParenParsed: boolean = p!.parseExpected(20);
+    const expression: $ast.Node | undefined = p!.parseExpressionAllowIn();
     p!.parseExpectedMatchingBrackets(20, 21, openParenParsed, openParenPosition);
-    let statement: $ast.Node | undefined = p!.parseStatement();
-    let result: $ast.Node | undefined = p!.finishNode(p!.factory.NewWhileStatement(expression, statement), pos);
+    const statement: $ast.Node | undefined = p!.parseStatement();
+    const result: $ast.Node | undefined = p!.finishNode(p!.factory.NewWhileStatement(expression, statement), pos);
     p!.withJSDoc(result, jsdoc);
     return result;
   }
   parseForOrForInOrForOfStatement(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
-    let jsdoc: jsdocScannerInfo = p!.jsdocScannerInfo$m();
+    const pos: number = p!.nodePos();
+    const jsdoc: jsdocScannerInfo = p!.jsdocScannerInfo$m();
     p!.parseExpected(98);
-    let awaitToken: $ast.Node | undefined = p!.parseOptionalToken(134);
+    const awaitToken: $ast.Node | undefined = p!.parseOptionalToken(134);
     p!.parseExpected(20);
     let initializer: $ast.Node | undefined = undefined as $ast.Node | undefined;
     if (!(p!.token === (26 as number))) {
@@ -3203,11 +3203,11 @@ export class Parser extends $rt.GoObject {
           (!(awaitToken === undefined) && p!.parseExpected(165)) ||
           (awaitToken === undefined && p!.parseOptional(165))
         ) {
-          let expression: $ast.Node | undefined = doInContext<$ast.Node | undefined>(p, 1024, false, $fn16);
+          const expression: $ast.Node | undefined = doInContext<$ast.Node | undefined>(p, 1024, false, $fn16);
           p!.parseExpected(21);
           result = p!.factory.NewForInOrOfStatement(251, awaitToken, initializer, expression, p!.parseStatement());
         } else if (p!.parseOptional(102)) {
-          let expression$1: $ast.Node | undefined = p!.parseExpressionAllowIn();
+          const expression$1: $ast.Node | undefined = p!.parseExpressionAllowIn();
           p!.parseExpected(21);
           result = p!.factory.NewForInOrOfStatement(250, undefined, initializer, expression$1, p!.parseStatement());
         } else {
@@ -3232,23 +3232,23 @@ export class Parser extends $rt.GoObject {
   }
   parseBreakStatement(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
-    let jsdoc: jsdocScannerInfo = p!.jsdocScannerInfo$m();
+    const pos: number = p!.nodePos();
+    const jsdoc: jsdocScannerInfo = p!.jsdocScannerInfo$m();
     p!.parseExpected(82);
-    let label: $ast.Node | undefined = p!.parseIdentifierUnlessAtSemicolon();
+    const label: $ast.Node | undefined = p!.parseIdentifierUnlessAtSemicolon();
     p!.parseSemicolon();
-    let result: $ast.Node | undefined = p!.finishNode(p!.factory.NewBreakStatement(label), pos);
+    const result: $ast.Node | undefined = p!.finishNode(p!.factory.NewBreakStatement(label), pos);
     p!.withJSDoc(result, jsdoc);
     return result;
   }
   parseContinueStatement(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
-    let jsdoc: jsdocScannerInfo = p!.jsdocScannerInfo$m();
+    const pos: number = p!.nodePos();
+    const jsdoc: jsdocScannerInfo = p!.jsdocScannerInfo$m();
     p!.parseExpected(87);
-    let label: $ast.Node | undefined = p!.parseIdentifierUnlessAtSemicolon();
+    const label: $ast.Node | undefined = p!.parseIdentifierUnlessAtSemicolon();
     p!.parseSemicolon();
-    let result: $ast.Node | undefined = p!.finishNode(p!.factory.NewContinueStatement(label), pos);
+    const result: $ast.Node | undefined = p!.finishNode(p!.factory.NewContinueStatement(label), pos);
     p!.withJSDoc(result, jsdoc);
     return result;
   }
@@ -3261,41 +3261,41 @@ export class Parser extends $rt.GoObject {
   }
   parseReturnStatement(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
-    let jsdoc: jsdocScannerInfo = p!.jsdocScannerInfo$m();
+    const pos: number = p!.nodePos();
+    const jsdoc: jsdocScannerInfo = p!.jsdocScannerInfo$m();
     p!.parseExpected(106);
     let expression: $ast.Node | undefined = undefined as $ast.Node | undefined;
     if (!p!.canParseSemicolon()) {
       expression = p!.parseExpressionAllowIn();
     }
     p!.parseSemicolon();
-    let result: $ast.Node | undefined = p!.finishNode(p!.factory.NewReturnStatement(expression), pos);
+    const result: $ast.Node | undefined = p!.finishNode(p!.factory.NewReturnStatement(expression), pos);
     p!.withJSDoc(result, jsdoc);
     return result;
   }
   parseWithStatement(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
-    let jsdoc: jsdocScannerInfo = p!.jsdocScannerInfo$m();
+    const pos: number = p!.nodePos();
+    const jsdoc: jsdocScannerInfo = p!.jsdocScannerInfo$m();
     p!.parseExpected(117);
-    let openParenPosition: number = p!.scanner!.TokenStart();
-    let openParenParsed: boolean = p!.parseExpected(20);
-    let expression: $ast.Node | undefined = p!.parseExpressionAllowIn();
+    const openParenPosition: number = p!.scanner!.TokenStart();
+    const openParenParsed: boolean = p!.parseExpected(20);
+    const expression: $ast.Node | undefined = p!.parseExpressionAllowIn();
     p!.parseExpectedMatchingBrackets(20, 21, openParenParsed, openParenPosition);
-    let statement: $ast.Node | undefined = doInContext<$ast.Node | undefined>(p, 16777216, true, $fn12);
-    let result: $ast.Node | undefined = p!.finishNode(p!.factory.NewWithStatement(expression, statement), pos);
+    const statement: $ast.Node | undefined = doInContext<$ast.Node | undefined>(p, 16777216, true, $fn12);
+    const result: $ast.Node | undefined = p!.finishNode(p!.factory.NewWithStatement(expression, statement), pos);
     p!.withJSDoc(result, jsdoc);
     return result;
   }
   parseCaseClause(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
-    let jsdoc: jsdocScannerInfo = p!.jsdocScannerInfo$m();
+    const pos: number = p!.nodePos();
+    const jsdoc: jsdocScannerInfo = p!.jsdocScannerInfo$m();
     p!.parseExpected(83);
-    let expression: $ast.Node | undefined = p!.parseExpressionAllowIn();
+    const expression: $ast.Node | undefined = p!.parseExpressionAllowIn();
     p!.parseExpected(58);
-    let statements: $ast.NodeList | undefined = p!.parseList(3, $fn12);
-    let result: $ast.Node | undefined = p!.finishNode(
+    const statements: $ast.NodeList | undefined = p!.parseList(3, $fn12);
+    const result: $ast.Node | undefined = p!.finishNode(
       p!.factory.NewCaseOrDefaultClause(297, expression, statements),
       pos,
     );
@@ -3304,12 +3304,12 @@ export class Parser extends $rt.GoObject {
   }
   parseDefaultClause(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
-    let jsdoc: jsdocScannerInfo = p!.jsdocScannerInfo$m();
+    const pos: number = p!.nodePos();
+    const jsdoc: jsdocScannerInfo = p!.jsdocScannerInfo$m();
     p!.parseExpected(89);
     p!.parseExpected(58);
-    let statements: $ast.NodeList | undefined = p!.parseList(3, $fn12);
-    let result: $ast.Node | undefined = p!.finishNode(
+    const statements: $ast.NodeList | undefined = p!.parseList(3, $fn12);
+    const result: $ast.Node | undefined = p!.finishNode(
       p!.factory.NewCaseOrDefaultClause(298, undefined, statements),
       pos,
     );
@@ -3325,32 +3325,32 @@ export class Parser extends $rt.GoObject {
   }
   parseCaseBlock(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
-    let jsdoc: jsdocScannerInfo = p!.jsdocScannerInfo$m();
+    const pos: number = p!.nodePos();
+    const jsdoc: jsdocScannerInfo = p!.jsdocScannerInfo$m();
     p!.parseExpected(18);
-    let clauses: $ast.NodeList | undefined = p!.parseList(2, $fn17);
+    const clauses: $ast.NodeList | undefined = p!.parseList(2, $fn17);
     p!.parseExpected(19);
-    let result: $ast.Node | undefined = p!.finishNode(p!.factory.NewCaseBlock(clauses), pos);
+    const result: $ast.Node | undefined = p!.finishNode(p!.factory.NewCaseBlock(clauses), pos);
     p!.withJSDoc(result, jsdoc);
     return result;
   }
   parseSwitchStatement(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
-    let jsdoc: jsdocScannerInfo = p!.jsdocScannerInfo$m();
+    const pos: number = p!.nodePos();
+    const jsdoc: jsdocScannerInfo = p!.jsdocScannerInfo$m();
     p!.parseExpected(108);
     p!.parseExpected(20);
-    let expression: $ast.Node | undefined = p!.parseExpressionAllowIn();
+    const expression: $ast.Node | undefined = p!.parseExpressionAllowIn();
     p!.parseExpected(21);
-    let caseBlock: $ast.Node | undefined = p!.parseCaseBlock();
-    let result: $ast.Node | undefined = p!.finishNode(p!.factory.NewSwitchStatement(expression, caseBlock), pos);
+    const caseBlock: $ast.Node | undefined = p!.parseCaseBlock();
+    const result: $ast.Node | undefined = p!.finishNode(p!.factory.NewSwitchStatement(expression, caseBlock), pos);
     p!.withJSDoc(result, jsdoc);
     return result;
   }
   parseThrowStatement(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
-    let jsdoc: jsdocScannerInfo = p!.jsdocScannerInfo$m();
+    const pos: number = p!.nodePos();
+    const jsdoc: jsdocScannerInfo = p!.jsdocScannerInfo$m();
     p!.parseExpected(110);
     let expression: $ast.Node | undefined = undefined as $ast.Node | undefined;
     if (!p!.hasPrecedingLineBreak()) {
@@ -3361,16 +3361,16 @@ export class Parser extends $rt.GoObject {
     if (!p!.tryParseSemicolon()) {
       p!.parseErrorForMissingSemicolonAfter(expression);
     }
-    let result: $ast.Node | undefined = p!.finishNode(p!.factory.NewThrowStatement(expression), pos);
+    const result: $ast.Node | undefined = p!.finishNode(p!.factory.NewThrowStatement(expression), pos);
     p!.withJSDoc(result, jsdoc);
     return result;
   }
   parseTryStatement(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
-    let jsdoc: jsdocScannerInfo = p!.jsdocScannerInfo$m();
+    const pos: number = p!.nodePos();
+    const jsdoc: jsdocScannerInfo = p!.jsdocScannerInfo$m();
     p!.parseExpected(112);
-    let tryBlock: $ast.Node | undefined = p!.parseBlock(false, undefined);
+    const tryBlock: $ast.Node | undefined = p!.parseBlock(false, undefined);
     let catchClause: $ast.Node | undefined = undefined as $ast.Node | undefined;
     if (p!.token === (84 as number)) {
       catchClause = p!.parseCatchClause();
@@ -3380,7 +3380,7 @@ export class Parser extends $rt.GoObject {
       p!.parseExpectedWithDiagnostic(97, $diagnostics.X_catch_or_finally_expected, true);
       finallyBlock = p!.parseBlock(false, undefined);
     }
-    let result: $ast.Node | undefined = p!.finishNode(
+    const result: $ast.Node | undefined = p!.finishNode(
       p!.factory.NewTryStatement(tryBlock, catchClause, finallyBlock),
       pos,
     );
@@ -3389,35 +3389,35 @@ export class Parser extends $rt.GoObject {
   }
   parseCatchClause(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
+    const pos: number = p!.nodePos();
     p!.parseExpected(84);
     let variableDeclaration: $ast.Node | undefined = undefined as $ast.Node | undefined;
     if (p!.parseOptional(20)) {
       variableDeclaration = p!.parseVariableDeclaration();
       p!.parseExpected(21);
     }
-    let block: $ast.Node | undefined = p!.parseBlock(false, undefined);
-    let result: $ast.Node | undefined = p!.finishNode(p!.factory.NewCatchClause(variableDeclaration, block), pos);
+    const block: $ast.Node | undefined = p!.parseBlock(false, undefined);
+    const result: $ast.Node | undefined = p!.finishNode(p!.factory.NewCatchClause(variableDeclaration, block), pos);
     return result;
   }
   parseDebuggerStatement(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
-    let jsdoc: jsdocScannerInfo = p!.jsdocScannerInfo$m();
+    const pos: number = p!.nodePos();
+    const jsdoc: jsdocScannerInfo = p!.jsdocScannerInfo$m();
     p!.parseExpected(88);
     p!.parseSemicolon();
-    let result: $ast.Node | undefined = p!.finishNode(p!.factory.NewDebuggerStatement(), pos);
+    const result: $ast.Node | undefined = p!.finishNode(p!.factory.NewDebuggerStatement(), pos);
     p!.withJSDoc(result, jsdoc);
     return result;
   }
   parseExpressionOrLabeledStatement(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
+    const pos: number = p!.nodePos();
     let jsdoc: jsdocScannerInfo = p!.jsdocScannerInfo$m();
-    let hasParen: boolean = p!.token === (20 as number);
-    let expression: $ast.Node | undefined = p!.parseExpression();
+    const hasParen: boolean = p!.token === (20 as number);
+    const expression: $ast.Node | undefined = p!.parseExpression();
     if (expression!.Kind_ === (79 as number) && p!.parseOptional(58)) {
-      let result: $ast.Node | undefined = p!.finishNode(
+      const result: $ast.Node | undefined = p!.finishNode(
         p!.factory.NewLabeledStatement(expression, p!.parseStatement()),
         pos,
       );
@@ -3427,7 +3427,7 @@ export class Parser extends $rt.GoObject {
     if (!p!.tryParseSemicolon()) {
       p!.parseErrorForMissingSemicolonAfter(expression);
     }
-    let result$1: $ast.Node | undefined = p!.finishNode(p!.factory.NewExpressionStatement(expression), pos);
+    const result$1: $ast.Node | undefined = p!.finishNode(p!.factory.NewExpressionStatement(expression), pos);
     if (hasParen) {
       jsdoc = jsdoc & ~1 & 0xff;
     }
@@ -3440,16 +3440,19 @@ export class Parser extends $rt.GoObject {
     modifiers: $ast.ModifierList | undefined,
   ): $ast.Node | undefined {
     const p = this;
-    let declarationList: $ast.Node | undefined = p!.parseVariableDeclarationList(false);
+    const declarationList: $ast.Node | undefined = p!.parseVariableDeclarationList(false);
     p!.parseSemicolon();
-    let result: $ast.Node | undefined = p!.finishNode(p!.factory.NewVariableStatement(modifiers, declarationList), pos);
+    const result: $ast.Node | undefined = p!.finishNode(
+      p!.factory.NewVariableStatement(modifiers, declarationList),
+      pos,
+    );
     p!.withJSDoc(result, jsdoc);
     p!.checkJSSyntax(result);
     return result;
   }
   parseVariableDeclarationList(inForStatementInitializer: boolean): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
+    const pos: number = p!.nodePos();
     let flags: $ast.NodeFlags = 0;
     {
       switch (p!.token) {
@@ -3487,7 +3490,7 @@ export class Parser extends $rt.GoObject {
     if (p!.token === (165 as number) && p!.lookAhead($fn18)) {
       declarations = p!.createMissingList();
     } else {
-      let saveContextFlags: $ast.NodeFlags = p!.contextFlags;
+      const saveContextFlags: $ast.NodeFlags = p!.contextFlags;
       p!.setContextFlags(1024, inForStatementInitializer);
       declarations = p!.parseDelimitedList(
         8,
@@ -3499,7 +3502,10 @@ export class Parser extends $rt.GoObject {
       );
       p!.contextFlags = saveContextFlags;
     }
-    let result: $ast.Node | undefined = p!.finishNode(p!.factory.NewVariableDeclarationList(declarations, flags), pos);
+    const result: $ast.Node | undefined = p!.finishNode(
+      p!.factory.NewVariableDeclarationList(declarations, flags),
+      pos,
+    );
     return result;
   }
   nextIsIdentifierAndCloseParen(): boolean {
@@ -3521,9 +3527,9 @@ export class Parser extends $rt.GoObject {
   }
   parseVariableDeclarationWorker(allowExclamation: boolean): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
-    let jsdoc: jsdocScannerInfo = p!.jsdocScannerInfo$m();
-    let name_: $ast.Node | undefined = p!.parseIdentifierOrPatternWithDiagnostic(
+    const pos: number = p!.nodePos();
+    const jsdoc: jsdocScannerInfo = p!.jsdocScannerInfo$m();
+    const name_: $ast.Node | undefined = p!.parseIdentifierOrPatternWithDiagnostic(
       $diagnostics.Private_identifiers_are_not_allowed_in_variable_declarations,
     );
     let exclamationToken: $ast.Node | undefined = undefined as $ast.Node | undefined;
@@ -3535,12 +3541,12 @@ export class Parser extends $rt.GoObject {
     ) {
       exclamationToken = p!.parseTokenNode();
     }
-    let typeNode: $ast.Node | undefined = p!.parseTypeAnnotation();
+    const typeNode: $ast.Node | undefined = p!.parseTypeAnnotation();
     let initializer: $ast.Node | undefined = undefined as $ast.Node | undefined;
     if (!(p!.token === (102 as number)) && !(p!.token === (165 as number))) {
       initializer = p!.parseInitializer();
     }
-    let result: $ast.Node | undefined = p!.finishNode(
+    const result: $ast.Node | undefined = p!.finishNode(
       p!.factory.NewVariableDeclaration(name_, exclamationToken, typeNode, initializer),
       pos,
     );
@@ -3566,18 +3572,18 @@ export class Parser extends $rt.GoObject {
   }
   parseArrayBindingPattern(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
+    const pos: number = p!.nodePos();
     p!.parseExpected(22);
-    let saveContextFlags: $ast.NodeFlags = p!.contextFlags;
+    const saveContextFlags: $ast.NodeFlags = p!.contextFlags;
     p!.setContextFlags(1024, false);
-    let elements: $ast.NodeList | undefined = p!.parseDelimitedList(10, $fn21);
+    const elements: $ast.NodeList | undefined = p!.parseDelimitedList(10, $fn21);
     p!.contextFlags = saveContextFlags;
     p!.parseExpected(23);
     return p!.finishNode(p!.factory.NewBindingPattern(208, elements), pos);
   }
   parseArrayBindingElement(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
+    const pos: number = p!.nodePos();
     let dotDotDotToken: $ast.Node | undefined = undefined as $ast.Node | undefined;
     let name_: $ast.Node | undefined = undefined as $ast.Node | undefined;
     let initializer: $ast.Node | undefined = undefined as $ast.Node | undefined;
@@ -3590,20 +3596,20 @@ export class Parser extends $rt.GoObject {
   }
   parseObjectBindingPattern(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
+    const pos: number = p!.nodePos();
     p!.parseExpected(18);
-    let saveContextFlags: $ast.NodeFlags = p!.contextFlags;
+    const saveContextFlags: $ast.NodeFlags = p!.contextFlags;
     p!.setContextFlags(1024, false);
-    let elements: $ast.NodeList | undefined = p!.parseDelimitedList(9, $fn22);
+    const elements: $ast.NodeList | undefined = p!.parseDelimitedList(9, $fn22);
     p!.contextFlags = saveContextFlags;
     p!.parseExpected(19);
     return p!.finishNode(p!.factory.NewBindingPattern(207, elements), pos);
   }
   parseObjectBindingElement(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
-    let dotDotDotToken: $ast.Node | undefined = p!.parseOptionalToken(25);
-    let tokenIsIdentifier: boolean = p!.isBindingIdentifier();
+    const pos: number = p!.nodePos();
+    const dotDotDotToken: $ast.Node | undefined = p!.parseOptionalToken(25);
+    const tokenIsIdentifier: boolean = p!.isBindingIdentifier();
     let propertyName: $ast.Node | undefined = p!.parsePropertyName();
     let name_: $ast.Node | undefined = undefined as $ast.Node | undefined;
     if (tokenIsIdentifier && !(p!.token === (58 as number))) {
@@ -3613,7 +3619,7 @@ export class Parser extends $rt.GoObject {
       p!.parseExpected(58);
       name_ = p!.parseIdentifierOrPattern();
     }
-    let initializer: $ast.Node | undefined = p!.parseInitializer();
+    const initializer: $ast.Node | undefined = p!.parseInitializer();
     return p!.finishNode(p!.factory.NewBindingElement(dotDotDotToken, propertyName, name_, initializer), pos);
   }
   parseInitializer(): $ast.Node | undefined {
@@ -3637,12 +3643,12 @@ export class Parser extends $rt.GoObject {
   ): $ast.Node | undefined {
     const p = this;
     p!.parseExpected(99);
-    let asteriskToken: $ast.Node | undefined = p!.parseOptionalToken(41);
+    const asteriskToken: $ast.Node | undefined = p!.parseOptionalToken(41);
     let name_: $ast.Node | undefined = undefined as $ast.Node | undefined;
     if (modifiers === undefined || (modifiers!.ModifierFlags_ & 2048) === (0 as number) || p!.isBindingIdentifier()) {
       name_ = p!.parseBindingIdentifier();
     }
-    let signatureFlags: ParseFlags =
+    const signatureFlags: ParseFlags =
       ($core.IfElse<ParseFlags>(!(asteriskToken === undefined), 1, 0) |
         $core.IfElse<ParseFlags>(
           !(modifiers === undefined) && !((modifiers!.ModifierFlags_ & 1024) === (0 as number)),
@@ -3650,16 +3656,16 @@ export class Parser extends $rt.GoObject {
           0,
         )) >>>
       0;
-    let typeParameters: $ast.NodeList | undefined = p!.parseTypeParameters();
-    let saveContextFlags: $ast.NodeFlags = p!.contextFlags;
+    const typeParameters: $ast.NodeList | undefined = p!.parseTypeParameters();
+    const saveContextFlags: $ast.NodeFlags = p!.contextFlags;
     if (!(modifiers === undefined) && !((modifiers!.ModifierFlags_ & 32) === (0 as number))) {
       p!.setContextFlags(8192, true);
     }
-    let parameters: $ast.NodeList | undefined = p!.parseParameters(signatureFlags);
-    let returnType: $ast.Node | undefined = p!.parseReturnType(58, false);
-    let body: $ast.Node | undefined = p!.parseFunctionBlockOrSemicolon(signatureFlags, $diagnostics.X_or_expected);
+    const parameters: $ast.NodeList | undefined = p!.parseParameters(signatureFlags);
+    const returnType: $ast.Node | undefined = p!.parseReturnType(58, false);
+    const body: $ast.Node | undefined = p!.parseFunctionBlockOrSemicolon(signatureFlags, $diagnostics.X_or_expected);
     p!.contextFlags = saveContextFlags;
-    let result: $ast.Node | undefined = p!.finishNode(
+    const result: $ast.Node | undefined = p!.finishNode(
       p!.factory.NewFunctionDeclaration(
         modifiers,
         asteriskToken,
@@ -3695,11 +3701,11 @@ export class Parser extends $rt.GoObject {
     kind: $ast.Kind,
   ): $ast.Node | undefined {
     const p = this;
-    let saveContextFlags: $ast.NodeFlags = p!.contextFlags;
-    let saveHasAwaitIdentifier: boolean = p!.statementHasAwaitIdentifier;
+    const saveContextFlags: $ast.NodeFlags = p!.contextFlags;
+    const saveHasAwaitIdentifier: boolean = p!.statementHasAwaitIdentifier;
     p!.parseExpected(85);
-    let name_: $ast.Node | undefined = p!.parseNameOfClassDeclarationOrExpression();
-    let typeParameters: $ast.NodeList | undefined = p!.parseTypeParameters();
+    const name_: $ast.Node | undefined = p!.parseNameOfClassDeclarationOrExpression();
+    const typeParameters: $ast.NodeList | undefined = p!.parseTypeParameters();
     if (
       !(modifiers === undefined) &&
       !($rt.and64(p!.parsingContexts, 1) === (0 as number)) &&
@@ -3708,7 +3714,7 @@ export class Parser extends $rt.GoObject {
     ) {
       p!.setContextFlags(8192, true);
     }
-    let heritageClauses: $ast.NodeList | undefined = p!.parseHeritageClauses(false);
+    const heritageClauses: $ast.NodeList | undefined = p!.parseHeritageClauses(false);
     let members: $ast.NodeList | undefined = undefined as $ast.NodeList | undefined;
     if (p!.parseExpected(18)) {
       members = p!.parseList(5, $fn23);
@@ -3734,12 +3740,12 @@ export class Parser extends $rt.GoObject {
         {
           const $t1 = heritageClauses!.Nodes;
           for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-            let clause = $t1[$t2];
+            const clause = $t1[$t2];
             if (clause!.AsHeritageClause()!.Token === (95 as number)) {
               {
                 const $t3 = clause!.AsHeritageClause()!.Types!.Nodes;
                 for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
-                  let expr = $t3[$t4];
+                  const expr = $t3[$t4];
                   p!.checkJSSyntax(expr);
                 }
               }
@@ -3753,8 +3759,8 @@ export class Parser extends $rt.GoObject {
   parseNameOfClassDeclarationOrExpression(): $ast.Node | undefined {
     const p = this;
     if (p!.isBindingIdentifier() && !p!.isImplementsClause()) {
-      let saveHasAwaitIdentifier: boolean = p!.statementHasAwaitIdentifier;
-      let id: $ast.Node | undefined = p!.createIdentifier(p!.isBindingIdentifier());
+      const saveHasAwaitIdentifier: boolean = p!.statementHasAwaitIdentifier;
+      const id: $ast.Node | undefined = p!.createIdentifier(p!.isBindingIdentifier());
       p!.statementHasAwaitIdentifier = saveHasAwaitIdentifier;
       return id;
     }
@@ -3775,26 +3781,26 @@ export class Parser extends $rt.GoObject {
   }
   parseHeritageClause(isInterface: boolean): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
-    let kind: $ast.Kind = p!.token;
+    const pos: number = p!.nodePos();
+    const kind: $ast.Kind = p!.token;
     p!.nextToken();
     let parseElement: ((p0: Parser | undefined) => $ast.Node | undefined) | undefined = $fn24;
     if (isTypeHeritageClause(isInterface, kind)) {
       parseElement = $fn25;
     }
-    let types: $ast.NodeList | undefined = p!.parseDelimitedList(7, parseElement);
+    const types: $ast.NodeList | undefined = p!.parseDelimitedList(7, parseElement);
     return p!.checkJSSyntax(p!.finishNode(p!.factory.NewHeritageClause(kind, types), pos));
   }
   parseTypeHeritageClauseElement(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
-    let expressionWithTypeArguments: $ast.ExpressionWithTypeArguments | undefined = p!
+    const pos: number = p!.nodePos();
+    const expressionWithTypeArguments: $ast.ExpressionWithTypeArguments | undefined = p!
       .parseExpressionWithTypeArguments()!
       .AsExpressionWithTypeArguments();
     if (!isValidHeritageTypeReferenceExpression(expressionWithTypeArguments!.Expression_)) {
       return expressionWithTypeArguments!.AsNode();
     }
-    let typeName: $ast.Node | undefined = p!.convertEntityNameExpressionToEntityName(
+    const typeName: $ast.Node | undefined = p!.convertEntityNameExpressionToEntityName(
       expressionWithTypeArguments!.Expression_,
     );
     return p!.finishNode(p!.factory.NewTypeReferenceNode(typeName, expressionWithTypeArguments!.TypeArguments_), pos);
@@ -3804,8 +3810,8 @@ export class Parser extends $rt.GoObject {
     if ($ast.IsIdentifier(node)) {
       return node;
     }
-    let propertyAccess: $ast.PropertyAccessExpression | undefined = node!.AsPropertyAccessExpression();
-    let result: $ast.Node | undefined = p!.factory.NewQualifiedName(
+    const propertyAccess: $ast.PropertyAccessExpression | undefined = node!.AsPropertyAccessExpression();
+    const result: $ast.Node | undefined = p!.factory.NewQualifiedName(
       p!.convertEntityNameExpressionToEntityName(propertyAccess!.Expression_),
       propertyAccess!.Name(),
     );
@@ -3813,25 +3819,25 @@ export class Parser extends $rt.GoObject {
   }
   parseExpressionWithTypeArguments(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
-    let expression: $ast.Node | undefined = p!.parseLeftHandSideExpressionOrHigher();
+    const pos: number = p!.nodePos();
+    const expression: $ast.Node | undefined = p!.parseLeftHandSideExpressionOrHigher();
     if ($ast.IsExpressionWithTypeArguments(expression)) {
       return expression;
     }
-    let typeArguments: $ast.NodeList | undefined = p!.parseTypeArguments();
+    const typeArguments: $ast.NodeList | undefined = p!.parseTypeArguments();
     return p!.finishNode(p!.factory.NewExpressionWithTypeArguments(expression, typeArguments), pos);
   }
   parseClassElement(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
-    let jsdoc: jsdocScannerInfo = p!.jsdocScannerInfo$m();
+    const pos: number = p!.nodePos();
+    const jsdoc: jsdocScannerInfo = p!.jsdocScannerInfo$m();
     if (p!.token === (26 as number)) {
       p!.nextToken();
-      let result: $ast.Node | undefined = p!.finishNode(p!.factory.NewSemicolonClassElement(), pos);
+      const result: $ast.Node | undefined = p!.finishNode(p!.factory.NewSemicolonClassElement(), pos);
       p!.withJSDoc(result, jsdoc);
       return result;
     }
-    let modifiers: $ast.ModifierList | undefined = p!.parseModifiersEx(true, true, true);
+    const modifiers: $ast.ModifierList | undefined = p!.parseModifiersEx(true, true, true);
     if (p!.token === (125 as number) && p!.lookAhead($fn26)) {
       return p!.parseClassStaticBlockDeclaration(pos, jsdoc, modifiers);
     }
@@ -3842,7 +3848,7 @@ export class Parser extends $rt.GoObject {
       return p!.parseAccessorDeclaration(pos, jsdoc, modifiers, 179, 0);
     }
     if (p!.token === (136 as number) || p!.token === (10 as number)) {
-      let constructorDeclaration: $ast.Node | undefined = p!.tryParseConstructorDeclaration(pos, jsdoc, modifiers);
+      const constructorDeclaration: $ast.Node | undefined = p!.tryParseConstructorDeclaration(pos, jsdoc, modifiers);
       if (!(constructorDeclaration === undefined)) {
         return constructorDeclaration;
       }
@@ -3858,19 +3864,19 @@ export class Parser extends $rt.GoObject {
       p!.token === (41 as number) ||
       p!.token === (22 as number)
     ) {
-      let isAmbient: boolean =
+      const isAmbient: boolean =
         !(modifiers === undefined) && $core.Some<$ast.Node | undefined>(modifiers!.Nodes, isDeclareModifier);
       if (isAmbient) {
         {
           const $t1 = modifiers!.Nodes;
           for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-            let m = $t1[$t2];
+            const m = $t1[$t2];
             m!.Flags = (m!.Flags | 8388608) >>> 0;
           }
         }
-        let saveContextFlags: $ast.NodeFlags = p!.contextFlags;
+        const saveContextFlags: $ast.NodeFlags = p!.contextFlags;
         p!.setContextFlags(8388608, true);
-        let result$1: $ast.Node | undefined = p!.parsePropertyOrMethodDeclaration(pos, jsdoc, modifiers);
+        const result$1: $ast.Node | undefined = p!.parsePropertyOrMethodDeclaration(pos, jsdoc, modifiers);
         p!.contextFlags = saveContextFlags;
         return result$1;
       } else {
@@ -3884,7 +3890,7 @@ export class Parser extends $rt.GoObject {
         $diagnostics.Declaration_expected,
         [] as ($rt.GoObject | undefined)[],
       );
-      let name_: $ast.Node | undefined = p!.createMissingIdentifier();
+      const name_: $ast.Node | undefined = p!.createMissingIdentifier();
       return p!.parsePropertyDeclaration(pos, jsdoc, modifiers, name_, undefined);
     }
     throw $rt.newPanic(new $rt.BoxStr('Should not have attempted to parse class member declaration.', 'string'));
@@ -3896,17 +3902,20 @@ export class Parser extends $rt.GoObject {
   ): $ast.Node | undefined {
     const p = this;
     p!.parseExpectedToken(125);
-    let body: $ast.Node | undefined = p!.parseClassStaticBlockBody();
-    let result: $ast.Node | undefined = p!.finishNode(p!.factory.NewClassStaticBlockDeclaration(modifiers, body), pos);
+    const body: $ast.Node | undefined = p!.parseClassStaticBlockBody();
+    const result: $ast.Node | undefined = p!.finishNode(
+      p!.factory.NewClassStaticBlockDeclaration(modifiers, body),
+      pos,
+    );
     p!.withJSDoc(result, jsdoc);
     return result;
   }
   parseClassStaticBlockBody(): $ast.Node | undefined {
     const p = this;
-    let saveContextFlags: $ast.NodeFlags = p!.contextFlags;
+    const saveContextFlags: $ast.NodeFlags = p!.contextFlags;
     p!.setContextFlags(2048, false);
     p!.setContextFlags(8192, true);
-    let body: $ast.Node | undefined = p!.parseBlock(false, undefined);
+    const body: $ast.Node | undefined = p!.parseBlock(false, undefined);
     p!.contextFlags = saveContextFlags;
     return body;
   }
@@ -3916,17 +3925,17 @@ export class Parser extends $rt.GoObject {
     modifiers: $ast.ModifierList | undefined,
   ): $ast.Node | undefined {
     const p = this;
-    let state: ParserState = p!.mark();
+    const state: ParserState = p!.mark();
     if (
       p!.token === (136 as number) ||
       (p!.token === (10 as number) && p!.scanner!.TokenValue() === ('constructor' as string) && p!.lookAhead($fn27))
     ) {
       p!.nextToken();
-      let typeParameters: $ast.NodeList | undefined = p!.parseTypeParameters();
-      let parameters: $ast.NodeList | undefined = p!.parseParameters(0);
-      let returnType: $ast.Node | undefined = p!.parseReturnType(58, false);
-      let body: $ast.Node | undefined = p!.parseFunctionBlockOrSemicolon(0, $diagnostics.X_or_expected);
-      let result: $ast.Node | undefined = p!.finishNode(
+      const typeParameters: $ast.NodeList | undefined = p!.parseTypeParameters();
+      const parameters: $ast.NodeList | undefined = p!.parseParameters(0);
+      const returnType: $ast.Node | undefined = p!.parseReturnType(58, false);
+      const body: $ast.Node | undefined = p!.parseFunctionBlockOrSemicolon(0, $diagnostics.X_or_expected);
+      const result: $ast.Node | undefined = p!.finishNode(
         p!.factory.NewConstructorDeclaration(modifiers, typeParameters, parameters, returnType, undefined, body),
         pos,
       );
@@ -3947,9 +3956,9 @@ export class Parser extends $rt.GoObject {
     modifiers: $ast.ModifierList | undefined,
   ): $ast.Node | undefined {
     const p = this;
-    let asteriskToken: $ast.Node | undefined = p!.parseOptionalToken(41);
-    let name_: $ast.Node | undefined = p!.parsePropertyName();
-    let questionToken: $ast.Node | undefined = p!.parseOptionalToken(57);
+    const asteriskToken: $ast.Node | undefined = p!.parseOptionalToken(41);
+    const name_: $ast.Node | undefined = p!.parsePropertyName();
+    const questionToken: $ast.Node | undefined = p!.parseOptionalToken(57);
     if (!(asteriskToken === undefined) || p!.token === (20 as number) || p!.token === (29 as number)) {
       return p!.parseMethodDeclaration(
         pos,
@@ -3973,15 +3982,15 @@ export class Parser extends $rt.GoObject {
     diagnosticMessage: $diagnostics.Message | undefined,
   ): $ast.Node | undefined {
     const p = this;
-    let signatureFlags: ParseFlags =
+    const signatureFlags: ParseFlags =
       ($core.IfElse<ParseFlags>(!(asteriskToken === undefined), 1, 0) |
         $core.IfElse<ParseFlags>(modifierListHasAsync(modifiers), 2, 0)) >>>
       0;
-    let typeParameters: $ast.NodeList | undefined = p!.parseTypeParameters();
-    let parameters: $ast.NodeList | undefined = p!.parseParameters(signatureFlags);
-    let typeNode: $ast.Node | undefined = p!.parseReturnType(58, false);
-    let body: $ast.Node | undefined = p!.parseFunctionBlockOrSemicolon(signatureFlags, diagnosticMessage);
-    let result: $ast.Node | undefined = p!.finishNode(
+    const typeParameters: $ast.NodeList | undefined = p!.parseTypeParameters();
+    const parameters: $ast.NodeList | undefined = p!.parseParameters(signatureFlags);
+    const typeNode: $ast.Node | undefined = p!.parseReturnType(58, false);
+    const body: $ast.Node | undefined = p!.parseFunctionBlockOrSemicolon(signatureFlags, diagnosticMessage);
+    const result: $ast.Node | undefined = p!.finishNode(
       p!.factory.NewMethodDeclaration(
         modifiers,
         asteriskToken,
@@ -4011,10 +4020,10 @@ export class Parser extends $rt.GoObject {
     if (postfixToken === undefined && !p!.hasPrecedingLineBreak()) {
       postfixToken = p!.parseOptionalToken(53);
     }
-    let typeNode: $ast.Node | undefined = p!.parseTypeAnnotation();
-    let initializer: $ast.Node | undefined = doInContext<$ast.Node | undefined>(p, 11264, false, $fn28);
+    const typeNode: $ast.Node | undefined = p!.parseTypeAnnotation();
+    const initializer: $ast.Node | undefined = doInContext<$ast.Node | undefined>(p, 11264, false, $fn28);
     p!.parseSemicolonAfterPropertyName(name_, typeNode, initializer);
-    let result: $ast.Node | undefined = p!.finishNode(
+    const result: $ast.Node | undefined = p!.finishNode(
       p!.factory.NewPropertyDeclaration(modifiers, name_, postfixToken, typeNode, initializer),
       pos,
     );
@@ -4078,7 +4087,7 @@ export class Parser extends $rt.GoObject {
       p!.parseErrorAtCurrentToken($diagnostics.X_0_expected, [new $rt.BoxStr($scanner.TokenToString(26), 'string')]);
       return;
     }
-    let pos: number = $scanner.SkipTrivia(p!.sourceText, node!.Pos());
+    const pos: number = $scanner.SkipTrivia(p!.sourceText, node!.Pos());
     {
       switch (expressionText) {
         case 'const' as string:
@@ -4173,11 +4182,11 @@ export class Parser extends $rt.GoObject {
   ): $ast.Node | undefined {
     const p = this;
     p!.parseExpected(119);
-    let name_: $ast.Node | undefined = p!.parseIdentifier();
-    let typeParameters: $ast.NodeList | undefined = p!.parseTypeParameters();
-    let heritageClauses: $ast.NodeList | undefined = p!.parseHeritageClauses(true);
-    let members: $ast.NodeList | undefined = p!.parseObjectTypeMembers();
-    let result: $ast.Node | undefined = p!.finishNode(
+    const name_: $ast.Node | undefined = p!.parseIdentifier();
+    const typeParameters: $ast.NodeList | undefined = p!.parseTypeParameters();
+    const heritageClauses: $ast.NodeList | undefined = p!.parseHeritageClauses(true);
+    const members: $ast.NodeList | undefined = p!.parseObjectTypeMembers();
+    const result: $ast.Node | undefined = p!.finishNode(
       p!.factory.NewInterfaceDeclaration(modifiers, name_, typeParameters, heritageClauses, members),
       pos,
     );
@@ -4195,8 +4204,8 @@ export class Parser extends $rt.GoObject {
     if (p!.hasPrecedingLineBreak()) {
       p!.parseErrorAtCurrentToken($diagnostics.Line_break_not_permitted_here, [] as ($rt.GoObject | undefined)[]);
     }
-    let name_: $ast.Node | undefined = p!.parseIdentifier();
-    let typeParameters: $ast.NodeList | undefined = p!.parseTypeParameters();
+    const name_: $ast.Node | undefined = p!.parseIdentifier();
+    const typeParameters: $ast.NodeList | undefined = p!.parseTypeParameters();
     p!.parseExpected(63);
     let typeNode: $ast.Node | undefined = undefined as $ast.Node | undefined;
     if (p!.token === (141 as number) && p!.lookAhead($fn29)) {
@@ -4205,7 +4214,7 @@ export class Parser extends $rt.GoObject {
       typeNode = p!.parseType();
     }
     p!.parseSemicolon();
-    let result: $ast.Node | undefined = p!.finishNode(
+    const result: $ast.Node | undefined = p!.finishNode(
       p!.factory.NewTypeAliasDeclaration(modifiers, name_, typeParameters, typeNode),
       pos,
     );
@@ -4219,11 +4228,11 @@ export class Parser extends $rt.GoObject {
   }
   parseEnumMember(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
-    let jsdoc: jsdocScannerInfo = p!.jsdocScannerInfo$m();
-    let name_: $ast.Node | undefined = p!.parsePropertyName();
-    let initializer: $ast.Node | undefined = doInContext<$ast.Node | undefined>(p, 1024, false, $fn28);
-    let result: $ast.Node | undefined = p!.finishNode(p!.factory.NewEnumMember(name_, initializer), pos);
+    const pos: number = p!.nodePos();
+    const jsdoc: jsdocScannerInfo = p!.jsdocScannerInfo$m();
+    const name_: $ast.Node | undefined = p!.parsePropertyName();
+    const initializer: $ast.Node | undefined = doInContext<$ast.Node | undefined>(p, 1024, false, $fn28);
+    const result: $ast.Node | undefined = p!.finishNode(p!.factory.NewEnumMember(name_, initializer), pos);
     p!.withJSDoc(result, jsdoc);
     return result;
   }
@@ -4233,12 +4242,12 @@ export class Parser extends $rt.GoObject {
     modifiers: $ast.ModifierList | undefined,
   ): $ast.Node | undefined {
     const p = this;
-    let saveHasAwaitIdentifier: boolean = p!.statementHasAwaitIdentifier;
+    const saveHasAwaitIdentifier: boolean = p!.statementHasAwaitIdentifier;
     p!.parseExpected(93);
-    let name_: $ast.Node | undefined = p!.parseIdentifier();
+    const name_: $ast.Node | undefined = p!.parseIdentifier();
     let members: $ast.NodeList | undefined = undefined as $ast.NodeList | undefined;
     if (p!.parseExpected(18)) {
-      let saveContextFlags: $ast.NodeFlags = p!.contextFlags;
+      const saveContextFlags: $ast.NodeFlags = p!.contextFlags;
       p!.setContextFlags(10240, false);
       members = p!.parseDelimitedList(6, $fn30);
       p!.contextFlags = saveContextFlags;
@@ -4246,7 +4255,7 @@ export class Parser extends $rt.GoObject {
     } else {
       members = p!.createMissingList();
     }
-    let result: $ast.Node | undefined = p!.finishNode(p!.factory.NewEnumDeclaration(modifiers, name_, members), pos);
+    const result: $ast.Node | undefined = p!.finishNode(p!.factory.NewEnumDeclaration(modifiers, name_, members), pos);
     p!.withJSDoc(result, jsdoc);
     p!.checkJSSyntax(result);
     p!.statementHasAwaitIdentifier = saveHasAwaitIdentifier;
@@ -4279,7 +4288,7 @@ export class Parser extends $rt.GoObject {
     const p = this;
     let name_: $ast.Node | undefined = undefined as $ast.Node | undefined;
     let keyword: $ast.Kind = 144;
-    let saveHasAwaitIdentifier: boolean = p!.statementHasAwaitIdentifier;
+    const saveHasAwaitIdentifier: boolean = p!.statementHasAwaitIdentifier;
     if (p!.token === (162 as number)) {
       name_ = p!.parseIdentifier();
       keyword = 162;
@@ -4292,7 +4301,7 @@ export class Parser extends $rt.GoObject {
     } else {
       p!.parseSemicolon();
     }
-    let result: $ast.Node | undefined = p!.finishNode(
+    const result: $ast.Node | undefined = p!.finishNode(
       p!.factory.NewModuleDeclaration(modifiers, keyword, name_, body),
       pos,
     );
@@ -4302,7 +4311,7 @@ export class Parser extends $rt.GoObject {
   }
   parseModuleBlock(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
+    const pos: number = p!.nodePos();
     let statements: $ast.NodeList | undefined = undefined as $ast.NodeList | undefined;
     if (p!.parseExpected(18)) {
       statements = p!.parseList(1, $fn12);
@@ -4320,7 +4329,7 @@ export class Parser extends $rt.GoObject {
     keyword: $ast.Kind,
   ): $ast.Node | undefined {
     const p = this;
-    let saveHasAwaitIdentifier: boolean = p!.statementHasAwaitIdentifier;
+    const saveHasAwaitIdentifier: boolean = p!.statementHasAwaitIdentifier;
     let name_: $ast.Node | undefined = undefined as $ast.Node | undefined;
     if (nested) {
       name_ = p!.parseIdentifierName();
@@ -4329,10 +4338,10 @@ export class Parser extends $rt.GoObject {
     }
     let body: $ast.Node | undefined = undefined as $ast.Node | undefined;
     if (p!.parseOptional(24)) {
-      let implicitExport: $ast.Node | undefined = p!.factory.NewModifier(94);
+      const implicitExport: $ast.Node | undefined = p!.factory.NewModifier(94);
       implicitExport!.Loc = $core.NewTextRange(p!.nodePos(), p!.nodePos());
       implicitExport!.Flags = 8;
-      let implicitModifiers: $ast.ModifierList | undefined = p!.newModifierList(
+      const implicitModifiers: $ast.ModifierList | undefined = p!.newModifierList(
         implicitExport!.Loc,
         p!.nodeSliceArena.NewSlice1(implicitExport),
       );
@@ -4340,7 +4349,7 @@ export class Parser extends $rt.GoObject {
     } else {
       body = p!.parseModuleBlock();
     }
-    let result: $ast.Node | undefined = p!.finishNode(
+    const result: $ast.Node | undefined = p!.finishNode(
       p!.factory.NewModuleDeclaration(modifiers, keyword, name_, body),
       pos,
     );
@@ -4356,8 +4365,8 @@ export class Parser extends $rt.GoObject {
   ): $ast.Node | undefined {
     const p = this;
     p!.parseExpected(101);
-    let afterImportPos: number = p!.nodePos();
-    let saveHasAwaitIdentifier: boolean = p!.statementHasAwaitIdentifier;
+    const afterImportPos: number = p!.nodePos();
+    const saveHasAwaitIdentifier: boolean = p!.statementHasAwaitIdentifier;
     let identifier: $ast.Node | undefined = undefined as $ast.Node | undefined;
     if (p!.isIdentifier()) {
       identifier = p!.parseIdentifier();
@@ -4394,18 +4403,23 @@ export class Parser extends $rt.GoObject {
       !p!.tokenAfterImportedIdentifierDefinitelyProducesImportDeclaration() &&
       !(phaseModifier === (166 as number))
     ) {
-      let importEquals: $ast.Node | undefined = p!.checkJSSyntax(
+      const importEquals: $ast.Node | undefined = p!.checkJSSyntax(
         p!.parseImportEqualsDeclaration(pos, jsdoc, modifiers, identifier, phaseModifier === (156 as number)),
       );
       p!.statementHasAwaitIdentifier = saveHasAwaitIdentifier;
       return importEquals;
     }
-    let importClause: $ast.Node | undefined = p!.tryParseImportClause(identifier, afterImportPos, phaseModifier, false);
+    const importClause: $ast.Node | undefined = p!.tryParseImportClause(
+      identifier,
+      afterImportPos,
+      phaseModifier,
+      false,
+    );
     p!.statementHasAwaitIdentifier = saveHasAwaitIdentifier;
-    let moduleSpecifier: $ast.Node | undefined = p!.parseModuleSpecifier();
-    let attributes: $ast.Node | undefined = p!.tryParseImportAttributes();
+    const moduleSpecifier: $ast.Node | undefined = p!.parseModuleSpecifier();
+    const attributes: $ast.Node | undefined = p!.tryParseImportAttributes();
     p!.parseSemicolon();
-    let result: $ast.Node | undefined = p!.finishNode(
+    const result: $ast.Node | undefined = p!.finishNode(
       p!.factory.NewImportDeclaration(modifiers, importClause, moduleSpecifier, attributes),
       pos,
     );
@@ -4435,9 +4449,9 @@ export class Parser extends $rt.GoObject {
   ): $ast.Node | undefined {
     const p = this;
     p!.parseExpected(63);
-    let moduleReference: $ast.Node | undefined = p!.parseModuleReference();
+    const moduleReference: $ast.Node | undefined = p!.parseModuleReference();
     p!.parseSemicolon();
-    let result: $ast.Node | undefined = p!.finishNode(
+    const result: $ast.Node | undefined = p!.finishNode(
       p!.factory.NewImportEqualsDeclaration(modifiers, isTypeOnly, identifier, moduleReference),
       pos,
     );
@@ -4453,13 +4467,13 @@ export class Parser extends $rt.GoObject {
   }
   parseExternalModuleReference(): $ast.Node | undefined {
     const p = this;
-    let saveHasAwaitIdentifier: boolean = p!.statementHasAwaitIdentifier;
-    let pos: number = p!.nodePos();
+    const saveHasAwaitIdentifier: boolean = p!.statementHasAwaitIdentifier;
+    const pos: number = p!.nodePos();
     p!.parseExpected(149);
     p!.parseExpected(20);
-    let expression: $ast.Node | undefined = p!.parseModuleSpecifier();
+    const expression: $ast.Node | undefined = p!.parseModuleSpecifier();
     p!.parseExpected(21);
-    let result: $ast.Node | undefined = p!.finishNode(p!.factory.NewExternalModuleReference(expression), pos);
+    const result: $ast.Node | undefined = p!.finishNode(p!.factory.NewExternalModuleReference(expression), pos);
     p!.statementHasAwaitIdentifier = saveHasAwaitIdentifier;
     return result;
   }
@@ -4478,7 +4492,7 @@ export class Parser extends $rt.GoObject {
   ): $ast.Node | undefined {
     const p = this;
     if (!(identifier === undefined) || p!.token === (41 as number) || p!.token === (18 as number)) {
-      let importClause: $ast.Node | undefined = p!.parseImportClause(
+      const importClause: $ast.Node | undefined = p!.parseImportClause(
         identifier,
         pos,
         phaseModifier,
@@ -4497,7 +4511,7 @@ export class Parser extends $rt.GoObject {
   ): $ast.Node | undefined {
     const p = this;
     let namedBindings: $ast.Node | undefined = undefined as $ast.Node | undefined;
-    let saveHasAwaitIdentifier: boolean = p!.statementHasAwaitIdentifier;
+    const saveHasAwaitIdentifier: boolean = p!.statementHasAwaitIdentifier;
     if (identifier === undefined || p!.parseOptional(27)) {
       if (skipJSDocLeadingAsterisks) {
         p!.scanner!.SetSkipJSDocLeadingAsterisks(true);
@@ -4511,7 +4525,7 @@ export class Parser extends $rt.GoObject {
         p!.scanner!.SetSkipJSDocLeadingAsterisks(false);
       }
     }
-    let result: $ast.Node | undefined = p!.finishNode(
+    const result: $ast.Node | undefined = p!.finishNode(
       p!.factory.NewImportClause(phaseModifier, identifier, namedBindings),
       pos,
     );
@@ -4520,25 +4534,25 @@ export class Parser extends $rt.GoObject {
   }
   parseNamespaceImport(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
+    const pos: number = p!.nodePos();
     p!.parseExpected(41);
     p!.parseExpected(129);
-    let name_: $ast.Node | undefined = p!.parseIdentifier();
+    const name_: $ast.Node | undefined = p!.parseIdentifier();
     return p!.finishNode(p!.factory.NewNamespaceImport(name_), pos);
   }
   parseNamedImports(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
-    let imports: $ast.NodeList | undefined = p!.parseBracketedList(23, $fn32, 18, 19);
+    const pos: number = p!.nodePos();
+    const imports: $ast.NodeList | undefined = p!.parseBracketedList(23, $fn32, 18, 19);
     return p!.finishNode(p!.factory.NewNamedImports(imports), pos);
   }
   parseImportSpecifier(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
+    const pos: number = p!.nodePos();
     const $t1 = p!.parseImportOrExportSpecifier(277);
-    let isTypeOnly: boolean = $t1[0];
-    let propertyName: $ast.Node | undefined = $t1[1];
-    let name_: $ast.Node | undefined = $t1[2];
+    const isTypeOnly: boolean = $t1[0];
+    const propertyName: $ast.Node | undefined = $t1[1];
+    const name_: $ast.Node | undefined = $t1[2];
     let identifierName: $ast.Node | undefined = undefined as $ast.Node | undefined;
     if (name_!.Kind_ === (79 as number)) {
       identifierName = name_;
@@ -4551,7 +4565,7 @@ export class Parser extends $rt.GoObject {
       identifierName = p!.newIdentifier('');
       p!.finishNode(identifierName, name_!.Pos());
     }
-    let result: $ast.Node | undefined = p!.checkJSSyntax(
+    const result: $ast.Node | undefined = p!.checkJSSyntax(
       p!.finishNode(p!.factory.NewImportSpecifier(isTypeOnly, propertyName, identifierName), pos),
     );
     return result;
@@ -4562,16 +4576,16 @@ export class Parser extends $rt.GoObject {
     let propertyName: $ast.Node | undefined = undefined as $ast.Node | undefined;
     let name_: $ast.Node | undefined = undefined as $ast.Node | undefined;
     let canParseAsKeyword: boolean = true;
-    let disallowKeywords: boolean = kind === (277 as number);
+    const disallowKeywords: boolean = kind === (277 as number);
     let nameOk: boolean = false;
     const $t1 = p!.parseModuleExportName(disallowKeywords);
     name_ = $t1[0];
     nameOk = $t1[1];
     if (name_!.Kind_ === (79 as number) && name_!.Text$Node() === ('type' as string)) {
       if (p!.token === (129 as number)) {
-        let firstAs: $ast.Node | undefined = p!.parseIdentifierName();
+        const firstAs: $ast.Node | undefined = p!.parseIdentifierName();
         if (p!.token === (129 as number)) {
-          let secondAs: $ast.Node | undefined = p!.parseIdentifierName();
+          const secondAs: $ast.Node | undefined = p!.parseIdentifierName();
           if (p!.canParseModuleExportName()) {
             isTypeOnly = true;
             propertyName = firstAs;
@@ -4653,8 +4667,8 @@ export class Parser extends $rt.GoObject {
     modifiers: $ast.ModifierList | undefined,
   ): $ast.Node | undefined {
     const p = this;
-    let saveContextFlags: $ast.NodeFlags = p!.contextFlags;
-    let saveHasAwaitIdentifier: boolean = p!.statementHasAwaitIdentifier;
+    const saveContextFlags: $ast.NodeFlags = p!.contextFlags;
+    const saveHasAwaitIdentifier: boolean = p!.statementHasAwaitIdentifier;
     p!.setContextFlags(8192, true);
     let isExportEquals: boolean = false;
     if (p!.parseOptional(63)) {
@@ -4662,11 +4676,11 @@ export class Parser extends $rt.GoObject {
     } else {
       p!.parseExpected(89);
     }
-    let expression: $ast.Node | undefined = p!.parseAssignmentExpressionOrHigher();
+    const expression: $ast.Node | undefined = p!.parseAssignmentExpressionOrHigher();
     p!.parseSemicolon();
     p!.contextFlags = saveContextFlags;
     p!.statementHasAwaitIdentifier = saveHasAwaitIdentifier;
-    let result: $ast.Node | undefined = p!.finishNode(
+    const result: $ast.Node | undefined = p!.finishNode(
       p!.factory.NewExportAssignment(modifiers, isExportEquals, undefined, expression),
       pos,
     );
@@ -4682,11 +4696,14 @@ export class Parser extends $rt.GoObject {
     const p = this;
     p!.parseExpected(129);
     p!.parseExpected(145);
-    let saveHasAwaitIdentifier: boolean = p!.statementHasAwaitIdentifier;
-    let name_: $ast.Node | undefined = p!.parseIdentifier();
+    const saveHasAwaitIdentifier: boolean = p!.statementHasAwaitIdentifier;
+    const name_: $ast.Node | undefined = p!.parseIdentifier();
     p!.statementHasAwaitIdentifier = saveHasAwaitIdentifier;
     p!.parseSemicolon();
-    let result: $ast.Node | undefined = p!.finishNode(p!.factory.NewNamespaceExportDeclaration(modifiers, name_), pos);
+    const result: $ast.Node | undefined = p!.finishNode(
+      p!.factory.NewNamespaceExportDeclaration(modifiers, name_),
+      pos,
+    );
     p!.withJSDoc(result, jsdoc);
     return result;
   }
@@ -4696,14 +4713,14 @@ export class Parser extends $rt.GoObject {
     modifiers: $ast.ModifierList | undefined,
   ): $ast.Node | undefined {
     const p = this;
-    let saveContextFlags: $ast.NodeFlags = p!.contextFlags;
-    let saveHasAwaitIdentifier: boolean = p!.statementHasAwaitIdentifier;
+    const saveContextFlags: $ast.NodeFlags = p!.contextFlags;
+    const saveHasAwaitIdentifier: boolean = p!.statementHasAwaitIdentifier;
     p!.setContextFlags(8192, true);
     let exportClause: $ast.Node | undefined = undefined as $ast.Node | undefined;
     let moduleSpecifier: $ast.Node | undefined = undefined as $ast.Node | undefined;
     let attributes: $ast.Node | undefined = undefined as $ast.Node | undefined;
-    let isTypeOnly: boolean = p!.parseOptional(156);
-    let namespaceExportPos: number = p!.nodePos();
+    const isTypeOnly: boolean = p!.parseOptional(156);
+    const namespaceExportPos: number = p!.nodePos();
     if (p!.parseOptional(41)) {
       if (p!.parseOptional(129)) {
         exportClause = p!.parseNamespaceExport(namespaceExportPos);
@@ -4733,7 +4750,7 @@ export class Parser extends $rt.GoObject {
     p!.parseSemicolon();
     p!.contextFlags = saveContextFlags;
     p!.statementHasAwaitIdentifier = saveHasAwaitIdentifier;
-    let result: $ast.Node | undefined = p!.finishNode(
+    const result: $ast.Node | undefined = p!.finishNode(
       p!.factory.NewExportDeclaration(modifiers, isTypeOnly, exportClause, moduleSpecifier, attributes),
       pos,
     );
@@ -4744,24 +4761,24 @@ export class Parser extends $rt.GoObject {
   parseNamespaceExport(pos: number): $ast.Node | undefined {
     const p = this;
     const $t1 = p!.parseModuleExportName(false);
-    let exportName: $ast.Node | undefined = $t1[0];
+    const exportName: $ast.Node | undefined = $t1[0];
     return p!.finishNode(p!.factory.NewNamespaceExport(exportName), pos);
   }
   parseNamedExports(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
-    let exports: $ast.NodeList | undefined = p!.parseBracketedList(23, $fn33, 18, 19);
+    const pos: number = p!.nodePos();
+    const exports: $ast.NodeList | undefined = p!.parseBracketedList(23, $fn33, 18, 19);
     return p!.finishNode(p!.factory.NewNamedExports(exports), pos);
   }
   parseExportSpecifier(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
-    let jsdoc: jsdocScannerInfo = p!.jsdocScannerInfo$m();
+    const pos: number = p!.nodePos();
+    const jsdoc: jsdocScannerInfo = p!.jsdocScannerInfo$m();
     const $t1 = p!.parseImportOrExportSpecifier(282);
-    let isTypeOnly: boolean = $t1[0];
-    let propertyName: $ast.Node | undefined = $t1[1];
-    let name_: $ast.Node | undefined = $t1[2];
-    let result: $ast.Node | undefined = p!.finishNode(
+    const isTypeOnly: boolean = $t1[0];
+    const propertyName: $ast.Node | undefined = $t1[1];
+    const name_: $ast.Node | undefined = $t1[2];
+    const result: $ast.Node | undefined = p!.finishNode(
       p!.factory.NewExportSpecifier(isTypeOnly, propertyName, name_),
       pos,
     );
@@ -4771,21 +4788,21 @@ export class Parser extends $rt.GoObject {
   }
   parseType(): $ast.Node | undefined {
     const p = this;
-    let saveContextFlags: $ast.NodeFlags = p!.contextFlags;
+    const saveContextFlags: $ast.NodeFlags = p!.contextFlags;
     p!.setContextFlags(10240, false);
     let typeNode: $ast.Node | undefined = undefined as $ast.Node | undefined;
     if (p!.isStartOfFunctionTypeOrConstructorType()) {
       typeNode = p!.parseFunctionOrConstructorType();
     } else {
-      let pos: number = p!.nodePos();
+      const pos: number = p!.nodePos();
       typeNode = p!.parseUnionTypeOrHigher();
       if (!p!.inDisallowConditionalTypesContext() && !p!.hasPrecedingLineBreak() && p!.parseOptional(95)) {
-        let extendsType: $ast.Node | undefined = doInContext<$ast.Node | undefined>(p, 16384, true, $fn34);
+        const extendsType: $ast.Node | undefined = doInContext<$ast.Node | undefined>(p, 16384, true, $fn34);
         p!.parseExpected(57);
-        let trueType: $ast.Node | undefined = doInContext<$ast.Node | undefined>(p, 16384, false, $fn34);
+        const trueType: $ast.Node | undefined = doInContext<$ast.Node | undefined>(p, 16384, false, $fn34);
         p!.parseExpected(58);
-        let falseType: $ast.Node | undefined = doInContext<$ast.Node | undefined>(p, 16384, false, $fn34);
-        let conditionalType: $ast.Node | undefined = p!.factory.NewConditionalTypeNode(
+        const falseType: $ast.Node | undefined = doInContext<$ast.Node | undefined>(p, 16384, false, $fn34);
+        const conditionalType: $ast.Node | undefined = p!.factory.NewConditionalTypeNode(
           typeNode,
           extendsType,
           trueType,
@@ -4811,9 +4828,9 @@ export class Parser extends $rt.GoObject {
     parseConstituentType: ((p0: Parser | undefined) => $ast.Node | undefined) | undefined,
   ): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
-    let isUnionType: boolean = operator === (51 as number);
-    let hasLeadingOperator: boolean = p!.parseOptional(operator);
+    const pos: number = p!.nodePos();
+    const isUnionType: boolean = operator === (51 as number);
+    const hasLeadingOperator: boolean = p!.parseOptional(operator);
     let typeNode: $ast.Node | undefined = undefined as $ast.Node | undefined;
     if (hasLeadingOperator) {
       typeNode = p!.parseFunctionOrConstructorTypeToError(isUnionType, parseConstituentType);
@@ -4852,7 +4869,7 @@ export class Parser extends $rt.GoObject {
   }
   parseTypeOperatorOrHigher(): $ast.Node | undefined {
     const p = this;
-    let operator: $ast.Kind = p!.token;
+    const operator: $ast.Kind = p!.token;
     {
       switch (operator) {
         case 143 as number:
@@ -4869,21 +4886,21 @@ export class Parser extends $rt.GoObject {
   }
   parseTypeOperator(operator: $ast.Kind): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
+    const pos: number = p!.nodePos();
     p!.parseExpected(operator);
     return p!.finishNode(p!.factory.NewTypeOperatorNode(operator, p!.parseTypeOperatorOrHigher()), pos);
   }
   parseInferType(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
+    const pos: number = p!.nodePos();
     p!.parseExpected(140);
     return p!.finishNode(p!.factory.NewInferTypeNode(p!.parseTypeParameterOfInferType()), pos);
   }
   parseTypeParameterOfInferType(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
-    let name_: $ast.Node | undefined = p!.parseIdentifier();
-    let constraint: $ast.Node | undefined = p!.tryParseConstraintOfInferType();
+    const pos: number = p!.nodePos();
+    const name_: $ast.Node | undefined = p!.parseIdentifier();
+    const constraint: $ast.Node | undefined = p!.tryParseConstraintOfInferType();
     return p!.finishNode(
       p!.factory.NewTypeParameterDeclaration(undefined, name_, constraint, undefined, undefined),
       pos,
@@ -4891,9 +4908,9 @@ export class Parser extends $rt.GoObject {
   }
   tryParseConstraintOfInferType(): $ast.Node | undefined {
     const p = this;
-    let state: ParserState = p!.mark();
+    const state: ParserState = p!.mark();
     if (p!.parseOptional(95)) {
-      let constraint: $ast.Node | undefined = doInContext<$ast.Node | undefined>(p, 16384, true, $fn34);
+      const constraint: $ast.Node | undefined = doInContext<$ast.Node | undefined>(p, 16384, true, $fn34);
       if (p!.inDisallowConditionalTypesContext() || !(p!.token === (57 as number))) {
         return constraint;
       }
@@ -4903,7 +4920,7 @@ export class Parser extends $rt.GoObject {
   }
   parsePostfixTypeOrHigher(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
+    const pos: number = p!.nodePos();
     let typeNode: $ast.Node | undefined = p!.parseNonArrayType();
     for (; !p!.hasPrecedingLineBreak();) {
       {
@@ -4924,7 +4941,7 @@ export class Parser extends $rt.GoObject {
           case 22 as number: {
             p!.parseExpected(22);
             if (p!.isStartOfType(false)) {
-              let indexType: $ast.Node | undefined = p!.parseType();
+              const indexType: $ast.Node | undefined = p!.parseType();
               p!.parseExpected(23);
               typeNode = p!.finishNode(p!.factory.NewIndexedAccessTypeNode(typeNode, indexType), pos);
             } else {
@@ -4960,8 +4977,8 @@ export class Parser extends $rt.GoObject {
         case 157 as number:
         case 146 as number:
         case 151 as number: {
-          let state: ParserState = p!.mark();
-          let keywordTypeNode: $ast.Node | undefined = p!.parseKeywordTypeNode();
+          const state: ParserState = p!.mark();
+          const keywordTypeNode: $ast.Node | undefined = p!.parseKeywordTypeNode();
           if (!(p!.token === (24 as number))) {
             return keywordTypeNode;
           }
@@ -5002,7 +5019,7 @@ export class Parser extends $rt.GoObject {
           return p!.parseKeywordTypeNode();
         }
         case 109 as number: {
-          let thisKeyword: $ast.Node | undefined = p!.parseThisTypeNode();
+          const thisKeyword: $ast.Node | undefined = p!.parseThisTypeNode();
           if (p!.token === (142 as number) && !p!.hasPrecedingLineBreak()) {
             return p!.parseThisTypePredicate(thisKeyword);
           }
@@ -5046,14 +5063,14 @@ export class Parser extends $rt.GoObject {
   }
   parseKeywordTypeNode(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
-    let result: $ast.Node | undefined = p!.factory.NewKeywordTypeNode(p!.token);
+    const pos: number = p!.nodePos();
+    const result: $ast.Node | undefined = p!.factory.NewKeywordTypeNode(p!.token);
     p!.nextToken();
     return p!.finishNode(result, pos);
   }
   parseThisTypeNode(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
+    const pos: number = p!.nodePos();
     p!.nextToken();
     return p!.finishNode(p!.factory.NewThisTypeNode(), pos);
   }
@@ -5064,27 +5081,27 @@ export class Parser extends $rt.GoObject {
   }
   parseJSDocAllType(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
+    const pos: number = p!.nodePos();
     p!.nextToken();
     return p!.finishNode(p!.factory.NewJSDocAllType(), pos);
   }
   parseJSDocNonNullableType(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
+    const pos: number = p!.nodePos();
     p!.nextToken();
     return p!.finishNode(p!.factory.NewJSDocNonNullableType(p!.parseTypeOperatorOrHigher()), pos);
   }
   parseJSDocNullableType(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
+    const pos: number = p!.nodePos();
     p!.nextToken();
     return p!.finishNode(p!.factory.NewJSDocNullableType(p!.parseTypeOperatorOrHigher()), pos);
   }
   parseJSDocType(): $ast.Node | undefined {
     const p = this;
     p!.scanner!.SetSkipJSDocLeadingAsterisks(true);
-    let pos: number = p!.nodePos();
-    let hasDotDotDot: boolean = p!.parseOptional(25);
+    const pos: number = p!.nodePos();
+    const hasDotDotDot: boolean = p!.parseOptional(25);
     let t: $ast.Node | undefined = p!.parseTypeOrTypePredicate();
     p!.scanner!.SetSkipJSDocLeadingAsterisks(false);
     if (hasDotDotDot) {
@@ -5098,7 +5115,7 @@ export class Parser extends $rt.GoObject {
   }
   parseLiteralTypeNode(negative: boolean): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
+    const pos: number = p!.nodePos();
     if (negative) {
       p!.nextToken();
     }
@@ -5115,7 +5132,7 @@ export class Parser extends $rt.GoObject {
   }
   parseTypeReference(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
+    const pos: number = p!.nodePos();
     return p!.finishNode(
       p!.factory.NewTypeReferenceNode(p!.parseEntityNameOfTypeReference(), p!.parseTypeArgumentsOfTypeReference()),
       pos,
@@ -5131,7 +5148,7 @@ export class Parser extends $rt.GoObject {
     diagnosticMessage: $diagnostics.Message | undefined,
   ): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
+    const pos: number = p!.nodePos();
     let entity: $ast.Node | undefined = undefined as $ast.Node | undefined;
     if (allowReservedWords) {
       entity = p!.parseIdentifierNameWithDiagnostic(diagnosticMessage);
@@ -5160,7 +5177,7 @@ export class Parser extends $rt.GoObject {
       return p!.createMissingIdentifier();
     }
     if (p!.token === (80 as number)) {
-      let node: $ast.Node | undefined = p!.parsePrivateIdentifier();
+      const node: $ast.Node | undefined = p!.parsePrivateIdentifier();
       if (allowPrivateIdentifiers) {
         return node;
       }
@@ -5173,15 +5190,15 @@ export class Parser extends $rt.GoObject {
       }
       return p!.parseIdentifierNameErrorOnUnicodeEscapeSequence();
     }
-    let saveHasAwaitIdentifier: boolean = p!.statementHasAwaitIdentifier;
-    let id: $ast.Node | undefined = p!.parseIdentifier();
+    const saveHasAwaitIdentifier: boolean = p!.statementHasAwaitIdentifier;
+    const id: $ast.Node | undefined = p!.parseIdentifier();
     p!.statementHasAwaitIdentifier = saveHasAwaitIdentifier;
     return id;
   }
   newIdentifier(text: string): $ast.Node | undefined {
     const p = this;
     p!.identifierCount++;
-    let id: $ast.Node | undefined = p!.factory.NewIdentifier(text);
+    const id: $ast.Node | undefined = p!.factory.NewIdentifier(text);
     if (text === ('await' as string)) {
       p!.statementHasAwaitIdentifier = true;
     }
@@ -5193,8 +5210,8 @@ export class Parser extends $rt.GoObject {
   }
   parsePrivateIdentifier(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
-    let text: string = p!.scanner!.TokenValue();
+    const pos: number = p!.nodePos();
+    const text: string = p!.scanner!.TokenValue();
     p!.nextToken();
     return p!.finishNode(p!.factory.NewPrivateIdentifier(text), pos);
   }
@@ -5240,16 +5257,16 @@ export class Parser extends $rt.GoObject {
   parseImportType(): $ast.Node | undefined {
     const p = this;
     p!.sourceFlags = (p!.sourceFlags | 524288) >>> 0;
-    let pos: number = p!.nodePos();
-    let isTypeOf: boolean = p!.parseOptional(113);
+    const pos: number = p!.nodePos();
+    const isTypeOf: boolean = p!.parseOptional(113);
     p!.parseExpected(101);
     p!.parseExpected(20);
-    let typeNode: $ast.Node | undefined = p!.parseType();
+    const typeNode: $ast.Node | undefined = p!.parseType();
     let attributes: $ast.Node | undefined = undefined as $ast.Node | undefined;
     if (p!.parseOptional(27)) {
-      let openBracePosition: number = p!.scanner!.TokenStart();
+      const openBracePosition: number = p!.scanner!.TokenStart();
       p!.parseExpected(18);
-      let currentToken: $ast.Kind = p!.token;
+      const currentToken: $ast.Kind = p!.token;
       if (currentToken === (117 as number) || currentToken === (131 as number)) {
         if (currentToken === (131 as number)) {
           p!.parseErrorAtCurrentToken(
@@ -5266,9 +5283,9 @@ export class Parser extends $rt.GoObject {
       p!.parseOptional(27);
       if (!p!.parseExpected(19)) {
         if (!(p!.diagnostics.length === (0 as number))) {
-          let lastDiagnostic: $ast.Diagnostic | undefined = p!.diagnostics[p!.diagnostics.length - 1];
+          const lastDiagnostic: $ast.Diagnostic | undefined = p!.diagnostics[p!.diagnostics.length - 1];
           if (lastDiagnostic!.Code() === $diagnostics.X_0_expected!.Code()) {
-            let related: $ast.Diagnostic | undefined = $ast.NewDiagnostic(
+            const related: $ast.Diagnostic | undefined = $ast.NewDiagnostic(
               undefined,
               $core.NewTextRange(openBracePosition, openBracePosition),
               $diagnostics.The_parser_expected_to_find_a_1_to_match_the_0_token_here,
@@ -5284,12 +5301,12 @@ export class Parser extends $rt.GoObject {
     if (p!.parseOptional(24)) {
       qualifier = p!.parseEntityNameOfTypeReference();
     }
-    let typeArguments: $ast.NodeList | undefined = p!.parseTypeArgumentsOfTypeReference();
+    const typeArguments: $ast.NodeList | undefined = p!.parseTypeArgumentsOfTypeReference();
     return p!.finishNode(p!.factory.NewImportTypeNode(isTypeOf, typeNode, attributes, qualifier, typeArguments), pos);
   }
   parseImportAttribute(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
+    const pos: number = p!.nodePos();
     let name_: $ast.Node | undefined = undefined as $ast.Node | undefined;
     if (tokenIsIdentifierOrKeyword(p!.token)) {
       name_ = p!.parseIdentifierName();
@@ -5304,26 +5321,26 @@ export class Parser extends $rt.GoObject {
         [] as ($rt.GoObject | undefined)[],
       );
     }
-    let value: $ast.Node | undefined = p!.parseAssignmentExpressionOrHigher();
+    const value: $ast.Node | undefined = p!.parseAssignmentExpressionOrHigher();
     return p!.finishNode(p!.factory.NewImportAttribute(name_, value), pos);
   }
   parseImportAttributes(token: $ast.Kind, skipKeyword: boolean): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
+    const pos: number = p!.nodePos();
     if (!skipKeyword) {
       p!.parseExpected(token);
     }
     let elements: $ast.NodeList | undefined = undefined as $ast.NodeList | undefined;
     let multiLine: boolean = false;
-    let openBracePosition: number = p!.scanner!.TokenStart();
+    const openBracePosition: number = p!.scanner!.TokenStart();
     if (p!.parseExpected(18)) {
       multiLine = p!.hasPrecedingLineBreak();
       elements = p!.parseDelimitedList(24, $fn43);
       if (!p!.parseExpected(19)) {
         if (!(p!.diagnostics.length === (0 as number))) {
-          let lastDiagnostic: $ast.Diagnostic | undefined = p!.diagnostics[p!.diagnostics.length - 1];
+          const lastDiagnostic: $ast.Diagnostic | undefined = p!.diagnostics[p!.diagnostics.length - 1];
           if (lastDiagnostic!.Code() === $diagnostics.X_0_expected!.Code()) {
-            let related: $ast.Diagnostic | undefined = $ast.NewDiagnostic(
+            const related: $ast.Diagnostic | undefined = $ast.NewDiagnostic(
               undefined,
               $core.NewTextRange(openBracePosition, openBracePosition),
               $diagnostics.The_parser_expected_to_find_a_1_to_match_the_0_token_here,
@@ -5340,9 +5357,9 @@ export class Parser extends $rt.GoObject {
   }
   parseTypeQuery(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
+    const pos: number = p!.nodePos();
     p!.parseExpected(113);
-    let entityName: $ast.Node | undefined = p!.parseEntityName(true, true, undefined);
+    const entityName: $ast.Node | undefined = p!.parseEntityName(true, true, undefined);
     let typeArguments: $ast.NodeList | undefined = undefined as $ast.NodeList | undefined;
     if (!p!.hasPrecedingLineBreak()) {
       typeArguments = p!.parseTypeArguments();
@@ -5362,7 +5379,7 @@ export class Parser extends $rt.GoObject {
   }
   parseMappedType(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
+    const pos: number = p!.nodePos();
     p!.parseExpected(18);
     let readonlyToken: $ast.Node | undefined = undefined as $ast.Node | undefined;
     if (p!.token === (148 as number) || p!.token === (39 as number) || p!.token === (40 as number)) {
@@ -5372,7 +5389,7 @@ export class Parser extends $rt.GoObject {
       }
     }
     p!.parseExpected(22);
-    let typeParameter: $ast.Node | undefined = p!.parseMappedTypeParameter();
+    const typeParameter: $ast.Node | undefined = p!.parseMappedTypeParameter();
     let nameType: $ast.Node | undefined = undefined as $ast.Node | undefined;
     if (p!.parseOptional(129)) {
       nameType = p!.parseType();
@@ -5385,9 +5402,9 @@ export class Parser extends $rt.GoObject {
         p!.parseExpected(57);
       }
     }
-    let typeNode: $ast.Node | undefined = p!.parseTypeAnnotation();
+    const typeNode: $ast.Node | undefined = p!.parseTypeAnnotation();
     p!.parseSemicolon();
-    let members: $ast.NodeList | undefined = p!.parseList(4, $fn44);
+    const members: $ast.NodeList | undefined = p!.parseList(4, $fn44);
     p!.parseExpected(19);
     return p!.finishNode(
       p!.factory.NewMappedTypeNode(readonlyToken, typeParameter, nameType, questionToken, typeNode, members),
@@ -5396,10 +5413,10 @@ export class Parser extends $rt.GoObject {
   }
   parseMappedTypeParameter(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
-    let name_: $ast.Node | undefined = p!.parseIdentifierName();
+    const pos: number = p!.nodePos();
+    const name_: $ast.Node | undefined = p!.parseIdentifierName();
     p!.parseExpected(102);
-    let typeNode: $ast.Node | undefined = p!.parseType();
+    const typeNode: $ast.Node | undefined = p!.parseType();
     return p!.finishNode(p!.factory.NewTypeParameterDeclaration(undefined, name_, typeNode, undefined, undefined), pos);
   }
   parseTypeMember(): $ast.Node | undefined {
@@ -5410,9 +5427,9 @@ export class Parser extends $rt.GoObject {
     if (p!.token === (104 as number) && p!.lookAhead($fn45)) {
       return p!.parseSignatureMember(181);
     }
-    let pos: number = p!.nodePos();
-    let jsdoc: jsdocScannerInfo = p!.jsdocScannerInfo$m();
-    let modifiers: $ast.ModifierList | undefined = p!.parseModifiers();
+    const pos: number = p!.nodePos();
+    const jsdoc: jsdocScannerInfo = p!.jsdocScannerInfo$m();
+    const modifiers: $ast.ModifierList | undefined = p!.parseModifiers();
     if (p!.parseContextualModifier(138)) {
       return p!.parseAccessorDeclaration(pos, jsdoc, modifiers, 178, 4);
     }
@@ -5431,14 +5448,14 @@ export class Parser extends $rt.GoObject {
   }
   parseSignatureMember(kind: $ast.Kind): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
-    let jsdoc: jsdocScannerInfo = p!.jsdocScannerInfo$m();
+    const pos: number = p!.nodePos();
+    const jsdoc: jsdocScannerInfo = p!.jsdocScannerInfo$m();
     if (kind === (181 as number)) {
       p!.parseExpected(104);
     }
-    let typeParameters: $ast.NodeList | undefined = p!.parseTypeParameters();
-    let parameters: $ast.NodeList | undefined = p!.parseParameters(4);
-    let typeNode: $ast.Node | undefined = p!.parseReturnType(58, true);
+    const typeParameters: $ast.NodeList | undefined = p!.parseTypeParameters();
+    const parameters: $ast.NodeList | undefined = p!.parseParameters(4);
+    const typeNode: $ast.Node | undefined = p!.parseReturnType(58, true);
     p!.parseTypeMemberSemicolon();
     let result: $ast.Node | undefined = undefined as $ast.Node | undefined;
     if (kind === (180 as number)) {
@@ -5459,9 +5476,9 @@ export class Parser extends $rt.GoObject {
   }
   parseTypeParameter(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
-    let modifiers: $ast.ModifierList | undefined = p!.parseModifiersEx(false, true, false);
-    let name_: $ast.Node | undefined = p!.parseIdentifier();
+    const pos: number = p!.nodePos();
+    const modifiers: $ast.ModifierList | undefined = p!.parseModifiersEx(false, true, false);
+    const name_: $ast.Node | undefined = p!.parseIdentifier();
     let constraint: $ast.Node | undefined = undefined as $ast.Node | undefined;
     let expression: $ast.Node | undefined = undefined as $ast.Node | undefined;
     if (p!.parseOptional(95)) {
@@ -5475,7 +5492,7 @@ export class Parser extends $rt.GoObject {
     if (p!.parseOptional(63)) {
       defaultType = p!.parseType();
     }
-    let result: $ast.Node | undefined = p!.factory.NewTypeParameterDeclaration(
+    const result: $ast.Node | undefined = p!.factory.NewTypeParameterDeclaration(
       modifiers,
       name_,
       constraint,
@@ -5487,7 +5504,7 @@ export class Parser extends $rt.GoObject {
   parseParameters(flags: ParseFlags): $ast.NodeList | undefined {
     const p = this;
     if (p!.parseExpected(20)) {
-      let parameters: $ast.NodeList | undefined = p!.parseParametersWorker(flags, true);
+      const parameters: $ast.NodeList | undefined = p!.parseParametersWorker(flags, true);
       p!.parseExpected(21);
       return parameters;
     }
@@ -5495,14 +5512,14 @@ export class Parser extends $rt.GoObject {
   }
   parseParametersWorker(flags: ParseFlags, allowAmbiguity: boolean): $ast.NodeList | undefined {
     const p = this;
-    let inAwaitContext: boolean = !((p!.contextFlags & 8192) === (0 as number));
-    let saveContextFlags: $ast.NodeFlags = p!.contextFlags;
+    const inAwaitContext: boolean = !((p!.contextFlags & 8192) === (0 as number));
+    const saveContextFlags: $ast.NodeFlags = p!.contextFlags;
     p!.setContextFlags(2048, !((flags & 1) === (0 as number)));
     p!.setContextFlags(8192, !((flags & 2) === (0 as number)));
-    let parameters: $ast.NodeList | undefined = p!.parseDelimitedList(
+    const parameters: $ast.NodeList | undefined = p!.parseDelimitedList(
       16,
       (p$1: Parser | undefined): $ast.Node | undefined => {
-        let parameter: $ast.Node | undefined = p$1!.parseParameterEx(inAwaitContext, allowAmbiguity);
+        const parameter: $ast.Node | undefined = p$1!.parseParameterEx(inAwaitContext, allowAmbiguity);
         if (!(parameter === undefined) && (flags & 4) === (0 as number)) {
           p$1!.checkJSSyntax(parameter);
         }
@@ -5518,14 +5535,14 @@ export class Parser extends $rt.GoObject {
   }
   parseParameterEx(inOuterAwaitContext: boolean, allowAmbiguity: boolean): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
-    let jsdoc: jsdocScannerInfo = p!.jsdocScannerInfo$m();
-    let saveContextFlags: $ast.NodeFlags = p!.contextFlags;
+    const pos: number = p!.nodePos();
+    const jsdoc: jsdocScannerInfo = p!.jsdocScannerInfo$m();
+    const saveContextFlags: $ast.NodeFlags = p!.contextFlags;
     p!.setContextFlags(8192, inOuterAwaitContext);
-    let modifiers: $ast.ModifierList | undefined = p!.parseModifiersEx(true, false, false);
+    const modifiers: $ast.ModifierList | undefined = p!.parseModifiersEx(true, false, false);
     p!.contextFlags = saveContextFlags;
     if (p!.token === (109 as number)) {
-      let result: $ast.Node | undefined = p!.factory.NewParameterDeclaration(
+      const result: $ast.Node | undefined = p!.factory.NewParameterDeclaration(
         modifiers,
         undefined,
         p!.createIdentifier(true),
@@ -5543,11 +5560,11 @@ export class Parser extends $rt.GoObject {
       p!.withJSDoc(p!.finishNode(result, pos), jsdoc);
       return result;
     }
-    let dotDotDotToken: $ast.Node | undefined = p!.parseOptionalToken(25);
+    const dotDotDotToken: $ast.Node | undefined = p!.parseOptionalToken(25);
     if (!allowAmbiguity && !p!.isParameterNameStart()) {
       return undefined;
     }
-    let result$1: $ast.Node | undefined = p!.factory.NewParameterDeclaration(
+    const result$1: $ast.Node | undefined = p!.factory.NewParameterDeclaration(
       modifiers,
       dotDotDotToken,
       p!.parseNameOfParameter(modifiers),
@@ -5564,7 +5581,7 @@ export class Parser extends $rt.GoObject {
   }
   parseNameOfParameter(modifiers: $ast.ModifierList | undefined): $ast.Node | undefined {
     const p = this;
-    let name_: $ast.Node | undefined = p!.parseIdentifierOrPatternWithDiagnostic(
+    const name_: $ast.Node | undefined = p!.parseIdentifierOrPatternWithDiagnostic(
       $diagnostics.Private_identifiers_cannot_be_used_as_parameters,
     );
     if ($core.TextRange$Len(name_!.Loc) === (0 as number) && modifiers === undefined && $ast.IsModifierKind(p!.token)) {
@@ -5596,9 +5613,9 @@ export class Parser extends $rt.GoObject {
   parseTypeOrTypePredicate(): $ast.Node | undefined {
     const p = this;
     if (p!.isIdentifier()) {
-      let state: ParserState = p!.mark();
-      let pos: number = p!.nodePos();
-      let id: $ast.Node | undefined = p!.parseIdentifier();
+      const state: ParserState = p!.mark();
+      const pos: number = p!.nodePos();
+      const id: $ast.Node | undefined = p!.parseIdentifier();
       if (p!.token === (142 as number) && !p!.hasPrecedingLineBreak()) {
         p!.nextToken();
         return p!.finishNode(p!.factory.NewTypePredicateNode(undefined, id, p!.parseType()), pos);
@@ -5622,11 +5639,11 @@ export class Parser extends $rt.GoObject {
     flags: ParseFlags,
   ): $ast.Node | undefined {
     const p = this;
-    let name_: $ast.Node | undefined = p!.parsePropertyName();
-    let typeParameters: $ast.NodeList | undefined = p!.parseTypeParameters();
-    let parameters: $ast.NodeList | undefined = p!.parseParameters(0);
-    let returnType: $ast.Node | undefined = p!.parseReturnType(58, false);
-    let body: $ast.Node | undefined = p!.parseFunctionBlockOrSemicolon(flags, undefined);
+    const name_: $ast.Node | undefined = p!.parsePropertyName();
+    const typeParameters: $ast.NodeList | undefined = p!.parseTypeParameters();
+    const parameters: $ast.NodeList | undefined = p!.parseParameters(0);
+    const returnType: $ast.Node | undefined = p!.parseReturnType(58, false);
+    const body: $ast.Node | undefined = p!.parseFunctionBlockOrSemicolon(flags, undefined);
     let result: $ast.Node | undefined = undefined as $ast.Node | undefined;
     if (kind === (178 as number)) {
       result = p!.factory.NewGetAccessorDeclaration(
@@ -5657,8 +5674,8 @@ export class Parser extends $rt.GoObject {
   }
   parsePropertyName(): $ast.Node | undefined {
     const p = this;
-    let saveHasAwaitIdentifier: boolean = p!.statementHasAwaitIdentifier;
-    let prop: $ast.Node | undefined = p!.parsePropertyNameWorker(true);
+    const saveHasAwaitIdentifier: boolean = p!.statementHasAwaitIdentifier;
+    const prop: $ast.Node | undefined = p!.parsePropertyNameWorker(true);
     p!.statementHasAwaitIdentifier = saveHasAwaitIdentifier;
     return prop;
   }
@@ -5677,9 +5694,9 @@ export class Parser extends $rt.GoObject {
   }
   parseComputedPropertyName(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
+    const pos: number = p!.nodePos();
     p!.parseExpected(22);
-    let expression: $ast.Node | undefined = p!.parseExpressionAllowIn();
+    const expression: $ast.Node | undefined = p!.parseExpressionAllowIn();
     p!.parseExpected(23);
     return p!.finishNode(p!.factory.NewComputedPropertyName(expression), pos);
   }
@@ -5702,12 +5719,12 @@ export class Parser extends $rt.GoObject {
   }
   parseFunctionBlock(flags: ParseFlags, diagnosticMessage: $diagnostics.Message | undefined): $ast.Node | undefined {
     const p = this;
-    let saveContextFlags: $ast.NodeFlags = p!.contextFlags;
-    let saveHasAwaitIdentifier: boolean = p!.statementHasAwaitIdentifier;
+    const saveContextFlags: $ast.NodeFlags = p!.contextFlags;
+    const saveHasAwaitIdentifier: boolean = p!.statementHasAwaitIdentifier;
     p!.setContextFlags(2048, !((flags & 1) === (0 as number)));
     p!.setContextFlags(8192, !((flags & 2) === (0 as number)));
     p!.setContextFlags(4096, false);
-    let block: $ast.Node | undefined = p!.parseBlock(!((flags & 16) === (0 as number)), diagnosticMessage);
+    const block: $ast.Node | undefined = p!.parseBlock(!((flags & 16) === (0 as number)), diagnosticMessage);
     p!.contextFlags = saveContextFlags;
     p!.statementHasAwaitIdentifier = saveHasAwaitIdentifier;
     return block;
@@ -5747,10 +5764,10 @@ export class Parser extends $rt.GoObject {
     modifiers: $ast.ModifierList | undefined,
   ): $ast.Node | undefined {
     const p = this;
-    let parameters: $ast.NodeList | undefined = p!.parseBracketedList(16, $fn49, 22, 23);
-    let typeNode: $ast.Node | undefined = p!.parseTypeAnnotation();
+    const parameters: $ast.NodeList | undefined = p!.parseBracketedList(16, $fn49, 22, 23);
+    const typeNode: $ast.Node | undefined = p!.parseTypeAnnotation();
     p!.parseTypeMemberSemicolon();
-    let result: $ast.Node | undefined = p!.finishNode(
+    const result: $ast.Node | undefined = p!.finishNode(
       p!.factory.NewIndexSignatureDeclaration(modifiers, parameters, typeNode),
       pos,
     );
@@ -5763,13 +5780,13 @@ export class Parser extends $rt.GoObject {
     modifiers: $ast.ModifierList | undefined,
   ): $ast.Node | undefined {
     const p = this;
-    let name_: $ast.Node | undefined = p!.parsePropertyName();
-    let questionToken: $ast.Node | undefined = p!.parseOptionalToken(57);
+    const name_: $ast.Node | undefined = p!.parsePropertyName();
+    const questionToken: $ast.Node | undefined = p!.parseOptionalToken(57);
     let result: $ast.Node | undefined = undefined as $ast.Node | undefined;
     if (p!.token === (20 as number) || p!.token === (29 as number)) {
-      let typeParameters: $ast.NodeList | undefined = p!.parseTypeParameters();
-      let parameters: $ast.NodeList | undefined = p!.parseParameters(4);
-      let returnType: $ast.Node | undefined = p!.parseReturnType(58, true);
+      const typeParameters: $ast.NodeList | undefined = p!.parseTypeParameters();
+      const parameters: $ast.NodeList | undefined = p!.parseParameters(4);
+      const returnType: $ast.Node | undefined = p!.parseReturnType(58, true);
       result = p!.factory.NewMethodSignatureDeclaration(
         modifiers,
         name_,
@@ -5779,7 +5796,7 @@ export class Parser extends $rt.GoObject {
         returnType,
       );
     } else {
-      let typeNode: $ast.Node | undefined = p!.parseTypeAnnotation();
+      const typeNode: $ast.Node | undefined = p!.parseTypeAnnotation();
       let initializer: $ast.Node | undefined = undefined as $ast.Node | undefined;
       if (p!.token === (63 as number)) {
         initializer = p!.parseInitializer();
@@ -5792,14 +5809,17 @@ export class Parser extends $rt.GoObject {
   }
   parseTypeLiteral(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
-    let result: $ast.Node | undefined = p!.finishNode(p!.factory.NewTypeLiteralNode(p!.parseObjectTypeMembers()), pos);
+    const pos: number = p!.nodePos();
+    const result: $ast.Node | undefined = p!.finishNode(
+      p!.factory.NewTypeLiteralNode(p!.parseObjectTypeMembers()),
+      pos,
+    );
     return result;
   }
   parseObjectTypeMembers(): $ast.NodeList | undefined {
     const p = this;
     if (p!.parseExpected(18)) {
-      let members: $ast.NodeList | undefined = p!.parseList(4, $fn44);
+      const members: $ast.NodeList | undefined = p!.parseList(4, $fn44);
       p!.parseExpected(19);
       return members;
     }
@@ -5807,20 +5827,20 @@ export class Parser extends $rt.GoObject {
   }
   parseTupleType(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
+    const pos: number = p!.nodePos();
     return p!.finishNode(p!.factory.NewTupleTypeNode(p!.parseBracketedList(21, $fn50, 22, 23)), pos);
   }
   parseTupleElementNameOrTupleElementType(): $ast.Node | undefined {
     const p = this;
     if (p!.lookAhead($fn51)) {
-      let pos: number = p!.nodePos();
-      let jsdoc: jsdocScannerInfo = p!.jsdocScannerInfo$m();
-      let dotDotDotToken: $ast.Node | undefined = p!.parseOptionalToken(25);
-      let name_: $ast.Node | undefined = p!.parseIdentifierName();
-      let questionToken: $ast.Node | undefined = p!.parseOptionalToken(57);
+      const pos: number = p!.nodePos();
+      const jsdoc: jsdocScannerInfo = p!.jsdocScannerInfo$m();
+      const dotDotDotToken: $ast.Node | undefined = p!.parseOptionalToken(25);
+      const name_: $ast.Node | undefined = p!.parseIdentifierName();
+      const questionToken: $ast.Node | undefined = p!.parseOptionalToken(57);
       p!.parseExpected(58);
-      let typeNode: $ast.Node | undefined = p!.parseTupleElementType();
-      let result: $ast.Node | undefined = p!.finishNode(
+      const typeNode: $ast.Node | undefined = p!.parseTupleElementType();
+      const result: $ast.Node | undefined = p!.finishNode(
         p!.factory.NewNamedTupleMember(dotDotDotToken, name_, questionToken, typeNode),
         pos,
       );
@@ -5842,13 +5862,13 @@ export class Parser extends $rt.GoObject {
   }
   parseTupleElementType(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
+    const pos: number = p!.nodePos();
     if (p!.parseOptional(25)) {
       return p!.finishNode(p!.factory.NewRestTypeNode(p!.parseType()), pos);
     }
-    let typeNode: $ast.Node | undefined = p!.parseType();
+    const typeNode: $ast.Node | undefined = p!.parseType();
     if ($ast.IsJSDocNullableType(typeNode) && typeNode!.Pos() === typeNode!.Type$m()!.Pos()) {
-      let node: $ast.Node | undefined = p!.factory.NewOptionalTypeNode(typeNode!.Type$m());
+      const node: $ast.Node | undefined = p!.factory.NewOptionalTypeNode(typeNode!.Type$m());
       node!.Flags = typeNode!.Flags;
       node!.Loc = typeNode!.Loc;
       typeNode!.Type$m()!.Parent = node;
@@ -5858,16 +5878,16 @@ export class Parser extends $rt.GoObject {
   }
   parseParenthesizedType(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
+    const pos: number = p!.nodePos();
     p!.parseExpected(20);
-    let typeNode: $ast.Node | undefined = p!.parseType();
+    const typeNode: $ast.Node | undefined = p!.parseType();
     p!.parseExpected(21);
     return p!.finishNode(p!.factory.NewParenthesizedTypeNode(typeNode), pos);
   }
   parseAssertsTypePredicate(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
-    let assertsModifier: $ast.Node | undefined = p!.parseExpectedToken(130);
+    const pos: number = p!.nodePos();
+    const assertsModifier: $ast.Node | undefined = p!.parseExpectedToken(130);
     let parameterName: $ast.Node | undefined = undefined as $ast.Node | undefined;
     if (p!.token === (109 as number)) {
       parameterName = p!.parseThisTypeNode();
@@ -5882,7 +5902,7 @@ export class Parser extends $rt.GoObject {
   }
   parseTemplateType(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
+    const pos: number = p!.nodePos();
     return p!.finishNode(
       p!.factory.NewTemplateLiteralTypeNode(p!.parseTemplateHead(false), p!.parseTemplateTypeSpans()),
       pos,
@@ -5893,8 +5913,8 @@ export class Parser extends $rt.GoObject {
     if (!isTaggedTemplate && !((p!.scanner!.TokenFlags$m() & 26656) === (0 as number))) {
       p!.reScanTemplateToken(false);
     }
-    let pos: number = p!.nodePos();
-    let result: $ast.Node | undefined = p!.factory.NewTemplateHead(
+    const pos: number = p!.nodePos();
+    const result: $ast.Node | undefined = p!.factory.NewTemplateHead(
       p!.scanner!.TokenValue(),
       p!.getTemplateLiteralRawText(2),
       p!.scanner!.TokenFlags$m(),
@@ -5904,7 +5924,7 @@ export class Parser extends $rt.GoObject {
   }
   getTemplateLiteralRawText(endLength: number): string {
     const p = this;
-    let tokenText: string = p!.scanner!.TokenText();
+    const tokenText: string = p!.scanner!.TokenText();
     if (!((p!.scanner!.TokenFlags$m() & 4) === (0 as number))) {
       endLength = 0;
     }
@@ -5912,10 +5932,10 @@ export class Parser extends $rt.GoObject {
   }
   parseTemplateTypeSpans(): $ast.NodeList | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
+    const pos: number = p!.nodePos();
     let list: ($ast.Node | undefined)[] = [];
     for (;;) {
-      let span: $ast.Node | undefined = p!.parseTemplateTypeSpan();
+      const span: $ast.Node | undefined = p!.parseTemplateTypeSpan();
       list.push(span);
       if (!(span!.AsTemplateLiteralTypeSpan()!.Literal!.Kind_ === (16 as number))) {
         break;
@@ -5925,7 +5945,7 @@ export class Parser extends $rt.GoObject {
   }
   parseTemplateTypeSpan(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
+    const pos: number = p!.nodePos();
     return p!.finishNode(
       p!.factory.NewTemplateLiteralTypeSpan(p!.parseType(), p!.parseLiteralOfTemplateSpan(false)),
       pos,
@@ -5942,7 +5962,7 @@ export class Parser extends $rt.GoObject {
   }
   parseTemplateMiddleOrTail(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
+    const pos: number = p!.nodePos();
     let result: $ast.Node | undefined = undefined as $ast.Node | undefined;
     if (p!.token === (16 as number)) {
       result = p!.factory.NewTemplateMiddle(
@@ -5966,7 +5986,7 @@ export class Parser extends $rt.GoObject {
   ): $ast.Node | undefined {
     const p = this;
     if (p!.isStartOfFunctionTypeOrConstructorType()) {
-      let typeNode: $ast.Node | undefined = p!.parseFunctionOrConstructorType();
+      const typeNode: $ast.Node | undefined = p!.parseFunctionOrConstructorType();
       let diagnostic: $diagnostics.Message | undefined = undefined as $diagnostics.Message | undefined;
       if (typeNode!.Kind_ === (185 as number)) {
         diagnostic = $core.IfElse<$diagnostics.Message | undefined>(
@@ -5997,16 +6017,16 @@ export class Parser extends $rt.GoObject {
   }
   parseFunctionOrConstructorType(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
-    let jsdoc: jsdocScannerInfo = p!.jsdocScannerInfo$m();
-    let modifiers: $ast.ModifierList | undefined = p!.parseModifiersForConstructorType();
-    let isConstructorType: boolean = p!.parseOptional(104);
+    const pos: number = p!.nodePos();
+    const jsdoc: jsdocScannerInfo = p!.jsdocScannerInfo$m();
+    const modifiers: $ast.ModifierList | undefined = p!.parseModifiersForConstructorType();
+    const isConstructorType: boolean = p!.parseOptional(104);
     $debug.Assert(modifiers === undefined || isConstructorType, [
       new $rt.BoxStr('Per isStartOfFunctionOrConstructorType, a function type cannot have modifiers.', 'string'),
     ]);
-    let typeParameters: $ast.NodeList | undefined = p!.parseTypeParameters();
-    let parameters: $ast.NodeList | undefined = p!.parseParameters(4);
-    let returnType: $ast.Node | undefined = p!.parseReturnType(38, false);
+    const typeParameters: $ast.NodeList | undefined = p!.parseTypeParameters();
+    const parameters: $ast.NodeList | undefined = p!.parseParameters(4);
+    const returnType: $ast.Node | undefined = p!.parseReturnType(38, false);
     let result: $ast.Node | undefined = undefined as $ast.Node | undefined;
     if (isConstructorType) {
       result = p!.factory.NewConstructorTypeNode(modifiers, typeParameters, parameters, returnType);
@@ -6020,8 +6040,8 @@ export class Parser extends $rt.GoObject {
   parseModifiersForConstructorType(): $ast.ModifierList | undefined {
     const p = this;
     if (p!.token === (127 as number)) {
-      let pos: number = p!.nodePos();
-      let modifier: $ast.Node | undefined = p!.factory.NewModifier(p!.token);
+      const pos: number = p!.nodePos();
+      const modifier: $ast.Node | undefined = p!.factory.NewModifier(p!.token);
       p!.nextToken();
       p!.finishNode(modifier, pos);
       return p!.newModifierList(modifier!.Loc, p!.nodeSliceArena.NewSlice1(modifier));
@@ -6064,7 +6084,7 @@ export class Parser extends $rt.GoObject {
       return true;
     }
     if (p!.token === (22 as number) || p!.token === (18 as number)) {
-      let previousErrorCount: number = p!.diagnostics.length;
+      const previousErrorCount: number = p!.diagnostics.length;
       p!.parseIdentifierOrPattern();
       return previousErrorCount === p!.diagnostics.length;
     }
@@ -6084,17 +6104,17 @@ export class Parser extends $rt.GoObject {
     let hasTrailingDecorator: boolean = false;
     let hasTrailingModifier: boolean = false;
     let hasStaticModifier: boolean = false;
-    let pos: number = p!.nodePos();
+    const pos: number = p!.nodePos();
     let list: ($ast.Node | undefined)[] = [] as ($ast.Node | undefined)[];
     for (;;) {
       if (allowDecorators && p!.token === (59 as number) && !hasTrailingModifier) {
-        let decorator: $ast.Node | undefined = p!.parseDecorator();
+        const decorator: $ast.Node | undefined = p!.parseDecorator();
         list.push(decorator);
         if (hasLeadingModifier) {
           hasTrailingDecorator = true;
         }
       } else {
-        let modifier: $ast.Node | undefined = p!.tryParseModifier(
+        const modifier: $ast.Node | undefined = p!.tryParseModifier(
           hasStaticModifier,
           permitConstAsModifier,
           stopOnStartOfClassStaticBlock,
@@ -6120,21 +6140,21 @@ export class Parser extends $rt.GoObject {
   }
   parseDecorator(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
+    const pos: number = p!.nodePos();
     p!.parseExpected(59);
-    let expression: $ast.Node | undefined = doInContext<$ast.Node | undefined>(p, 4096, true, $fn54);
+    const expression: $ast.Node | undefined = doInContext<$ast.Node | undefined>(p, 4096, true, $fn54);
     return p!.finishNode(p!.factory.NewDecorator(expression), pos);
   }
   parseDecoratorExpression(): $ast.Node | undefined {
     const p = this;
     if (p!.inAwaitContext() && p!.token === (134 as number)) {
-      let pos: number = p!.nodePos();
-      let awaitExpression: $ast.Node | undefined = p!.parseIdentifierWithDiagnostic(
+      const pos: number = p!.nodePos();
+      const awaitExpression: $ast.Node | undefined = p!.parseIdentifierWithDiagnostic(
         $diagnostics.Expression_expected,
         undefined,
       );
       p!.nextToken();
-      let memberExpression: $ast.Node | undefined = p!.parseMemberExpressionRest(pos, awaitExpression, true);
+      const memberExpression: $ast.Node | undefined = p!.parseMemberExpressionRest(pos, awaitExpression, true);
       return p!.parseCallExpressionRest(pos, memberExpression);
     }
     return p!.parseLeftHandSideExpressionOrHigher();
@@ -6145,8 +6165,8 @@ export class Parser extends $rt.GoObject {
     stopOnStartOfClassStaticBlock: boolean,
   ): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
-    let kind: $ast.Kind = p!.token;
+    const pos: number = p!.nodePos();
+    const kind: $ast.Kind = p!.token;
     if (p!.token === (86 as number) && permitConstAsModifier) {
       if (!p!.lookAhead($fn55)) {
         return undefined;
@@ -6166,7 +6186,7 @@ export class Parser extends $rt.GoObject {
   }
   parseContextualModifier(t: $ast.Kind): boolean {
     const p = this;
-    let state: ParserState = p!.mark();
+    const state: ParserState = p!.mark();
     if (p!.token === t && p!.nextTokenCanFollowModifier()) {
       return true;
     }
@@ -6175,7 +6195,7 @@ export class Parser extends $rt.GoObject {
   }
   parseAnyContextualModifier(): boolean {
     const p = this;
-    let state: ParserState = p!.mark();
+    const state: ParserState = p!.mark();
     if ($ast.IsModifierKind(p!.token) && p!.nextTokenCanFollowModifier()) {
       return true;
     }
@@ -6310,12 +6330,12 @@ export class Parser extends $rt.GoObject {
   }
   parseExpression(): $ast.Node | undefined {
     const p = this;
-    let saveContextFlags: $ast.NodeFlags = p!.contextFlags;
+    const saveContextFlags: $ast.NodeFlags = p!.contextFlags;
     p!.contextFlags = (p!.contextFlags & ~4096) >>> 0;
-    let pos: number = p!.nodePos();
+    const pos: number = p!.nodePos();
     let expr: $ast.Node | undefined = p!.parseAssignmentExpressionOrHigher();
     for (;;) {
-      let operatorToken: $ast.Node | undefined = p!.parseOptionalToken(27);
+      const operatorToken: $ast.Node | undefined = p!.parseOptionalToken(27);
       if (operatorToken === undefined) {
         break;
       }
@@ -6346,9 +6366,9 @@ export class Parser extends $rt.GoObject {
     if (!(arrowExpression === undefined)) {
       return arrowExpression;
     }
-    let pos: number = p!.nodePos();
-    let jsdoc: jsdocScannerInfo = p!.jsdocScannerInfo$m();
-    let expr: $ast.Node | undefined = p!.parseBinaryExpressionOrHigher(0);
+    const pos: number = p!.nodePos();
+    const jsdoc: jsdocScannerInfo = p!.jsdocScannerInfo$m();
+    const expr: $ast.Node | undefined = p!.parseBinaryExpressionOrHigher(0);
     if (expr!.Kind_ === (79 as number) && p!.token === (38 as number)) {
       return p!.parseSimpleArrowFunctionExpression(pos, expr, allowReturnTypeInArrowFunction, jsdoc, undefined);
     }
@@ -6374,7 +6394,7 @@ export class Parser extends $rt.GoObject {
   }
   parseYieldExpression(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
+    const pos: number = p!.nodePos();
     p!.nextToken();
     let result: $ast.Node | undefined = undefined as $ast.Node | undefined;
     if (!p!.hasPrecedingLineBreak() && (p!.token === (41 as number) || p!.isStartOfExpression())) {
@@ -6387,8 +6407,8 @@ export class Parser extends $rt.GoObject {
   isParenthesizedArrowFunctionExpression(): $core.Tristate {
     const p = this;
     if (p!.token === (20 as number) || p!.token === (29 as number) || p!.token === (133 as number)) {
-      let state: ParserState = p!.mark();
-      let result: $core.Tristate = p!.nextIsParenthesizedArrowFunctionExpression();
+      const state: ParserState = p!.mark();
+      const result: $core.Tristate = p!.nextIsParenthesizedArrowFunctionExpression();
       p!.rewind(state);
       return result;
     }
@@ -6408,11 +6428,11 @@ export class Parser extends $rt.GoObject {
         return 1;
       }
     }
-    let first: $ast.Kind = p!.token;
-    let second: $ast.Kind = p!.nextToken();
+    const first: $ast.Kind = p!.token;
+    const second: $ast.Kind = p!.nextToken();
     if (first === (20 as number)) {
       if (second === (21 as number)) {
-        let third: $ast.Kind = p!.nextToken();
+        const third: $ast.Kind = p!.nextToken();
         {
           switch (third) {
             case 38 as number:
@@ -6470,7 +6490,7 @@ export class Parser extends $rt.GoObject {
         return 1;
       }
       if (p!.languageVariant === (1 as number)) {
-        let isArrowFunctionInJsx: boolean = p!.lookAhead($fn62);
+        const isArrowFunctionInJsx: boolean = p!.lookAhead($fn62);
         if (isArrowFunctionInJsx) {
           return 2;
         }
@@ -6481,15 +6501,15 @@ export class Parser extends $rt.GoObject {
   }
   tryParseParenthesizedArrowFunctionExpression(allowReturnTypeInArrowFunction: boolean): $ast.Node | undefined {
     const p = this;
-    let tristate: $core.Tristate = p!.isParenthesizedArrowFunctionExpression();
+    const tristate: $core.Tristate = p!.isParenthesizedArrowFunctionExpression();
     if (tristate === (1 as number)) {
       return undefined;
     }
     if (tristate === (2 as number)) {
       return p!.parseParenthesizedArrowFunctionExpression(true, true);
     }
-    let state: ParserState = p!.mark();
-    let result: $ast.Node | undefined =
+    const state: ParserState = p!.mark();
+    const result: $ast.Node | undefined =
       p!.parsePossibleParenthesizedArrowFunctionExpression(allowReturnTypeInArrowFunction);
     if (result === undefined) {
       p!.rewind(state);
@@ -6501,12 +6521,12 @@ export class Parser extends $rt.GoObject {
     allowReturnTypeInArrowFunction: boolean,
   ): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
-    let jsdoc: jsdocScannerInfo = p!.jsdocScannerInfo$m();
-    let modifiers: $ast.ModifierList | undefined = p!.parseModifiersForArrowFunction();
-    let isAsync: boolean = modifierListHasAsync(modifiers);
-    let signatureFlags: ParseFlags = $core.IfElse<ParseFlags>(isAsync, 2, 0);
-    let typeParameters: $ast.NodeList | undefined = p!.parseTypeParameters();
+    const pos: number = p!.nodePos();
+    const jsdoc: jsdocScannerInfo = p!.jsdocScannerInfo$m();
+    const modifiers: $ast.ModifierList | undefined = p!.parseModifiersForArrowFunction();
+    const isAsync: boolean = modifierListHasAsync(modifiers);
+    const signatureFlags: ParseFlags = $core.IfElse<ParseFlags>(isAsync, 2, 0);
+    const typeParameters: $ast.NodeList | undefined = p!.parseTypeParameters();
     let parameters: $ast.NodeList | undefined = undefined as $ast.NodeList | undefined;
     if (!p!.parseExpected(20)) {
       if (!allowAmbiguity) {
@@ -6515,7 +6535,7 @@ export class Parser extends $rt.GoObject {
       parameters = p!.createMissingList();
     } else {
       if (!allowAmbiguity) {
-        let maybeParameters: $ast.NodeList | undefined = p!.parseParametersWorker(signatureFlags, allowAmbiguity);
+        const maybeParameters: $ast.NodeList | undefined = p!.parseParametersWorker(signatureFlags, allowAmbiguity);
         if (maybeParameters === undefined) {
           return undefined;
         }
@@ -6527,8 +6547,8 @@ export class Parser extends $rt.GoObject {
         return undefined;
       }
     }
-    let hasReturnColon: boolean = p!.token === (58 as number);
-    let returnType: $ast.Node | undefined = p!.parseReturnType(58, false);
+    const hasReturnColon: boolean = p!.token === (58 as number);
+    const returnType: $ast.Node | undefined = p!.parseReturnType(58, false);
     if (!(returnType === undefined) && !allowAmbiguity && typeHasArrowFunctionBlockingParseError(returnType)) {
       return undefined;
     }
@@ -6539,8 +6559,8 @@ export class Parser extends $rt.GoObject {
     if (!allowAmbiguity && !(p!.token === (38 as number)) && !(p!.token === (18 as number))) {
       return undefined;
     }
-    let lastToken: $ast.Kind = p!.token;
-    let equalsGreaterThanToken: $ast.Node | undefined = p!.parseExpectedToken(38);
+    const lastToken: $ast.Kind = p!.token;
+    const equalsGreaterThanToken: $ast.Node | undefined = p!.parseExpectedToken(38);
     let body: $ast.Node | undefined = undefined as $ast.Node | undefined;
     if (lastToken === (38 as number) || lastToken === (18 as number)) {
       body = p!.parseArrowFunctionExpressionBody(isAsync, allowReturnTypeInArrowFunction);
@@ -6552,7 +6572,7 @@ export class Parser extends $rt.GoObject {
         return undefined;
       }
     }
-    let result: $ast.Node | undefined = p!.finishNode(
+    const result: $ast.Node | undefined = p!.finishNode(
       p!.factory.NewArrowFunction(
         modifiers,
         typeParameters,
@@ -6571,9 +6591,9 @@ export class Parser extends $rt.GoObject {
   parseModifiersForArrowFunction(): $ast.ModifierList | undefined {
     const p = this;
     if (p!.token === (133 as number)) {
-      let pos: number = p!.nodePos();
+      const pos: number = p!.nodePos();
       p!.nextToken();
-      let modifier: $ast.Node | undefined = p!.finishNode(p!.factory.NewModifier(133), pos);
+      const modifier: $ast.Node | undefined = p!.finishNode(p!.factory.NewModifier(133), pos);
       return p!.newModifierList(modifier!.Loc, p!.nodeSliceArena.NewSlice1(modifier));
     }
     return undefined;
@@ -6592,10 +6612,10 @@ export class Parser extends $rt.GoObject {
     ) {
       return p!.parseFunctionBlock((16 | $core.IfElse<ParseFlags>(isAsync, 2, 0)) >>> 0, undefined);
     }
-    let saveContextFlags: $ast.NodeFlags = p!.contextFlags;
+    const saveContextFlags: $ast.NodeFlags = p!.contextFlags;
     p!.setContextFlags(8192, isAsync);
     p!.setContextFlags(2048, false);
-    let node: $ast.Node | undefined = p!.parseAssignmentExpressionOrHigherWorker(allowReturnTypeInArrowFunction);
+    const node: $ast.Node | undefined = p!.parseAssignmentExpressionOrHigherWorker(allowReturnTypeInArrowFunction);
     p!.contextFlags = saveContextFlags;
     return node;
   }
@@ -6611,11 +6631,11 @@ export class Parser extends $rt.GoObject {
   }
   parsePossibleParenthesizedArrowFunctionExpression(allowReturnTypeInArrowFunction: boolean): $ast.Node | undefined {
     const p = this;
-    let tokenPos: number = p!.scanner!.TokenStart();
+    const tokenPos: number = p!.scanner!.TokenStart();
     if (p!.notParenthesizedArrow.Has(tokenPos)) {
       return undefined;
     }
-    let result: $ast.Node | undefined = p!.parseParenthesizedArrowFunctionExpression(
+    const result: $ast.Node | undefined = p!.parseParenthesizedArrowFunctionExpression(
       false,
       allowReturnTypeInArrowFunction,
     );
@@ -6627,10 +6647,10 @@ export class Parser extends $rt.GoObject {
   tryParseAsyncSimpleArrowFunctionExpression(allowReturnTypeInArrowFunction: boolean): $ast.Node | undefined {
     const p = this;
     if (p!.token === (133 as number) && p!.lookAhead($fn63)) {
-      let pos: number = p!.nodePos();
-      let jsdoc: jsdocScannerInfo = p!.jsdocScannerInfo$m();
-      let asyncModifier: $ast.ModifierList | undefined = p!.parseModifiersForArrowFunction();
-      let expr: $ast.Node | undefined = p!.parseBinaryExpressionOrHigher(0);
+      const pos: number = p!.nodePos();
+      const jsdoc: jsdocScannerInfo = p!.jsdocScannerInfo$m();
+      const asyncModifier: $ast.ModifierList | undefined = p!.parseModifiersForArrowFunction();
+      const expr: $ast.Node | undefined = p!.parseBinaryExpressionOrHigher(0);
       return p!.parseSimpleArrowFunctionExpression(pos, expr, allowReturnTypeInArrowFunction, jsdoc, asyncModifier);
     }
     return undefined;
@@ -6661,17 +6681,17 @@ export class Parser extends $rt.GoObject {
     $debug.Assert(p!.token === (38 as number), [
       new $rt.BoxStr('parseSimpleArrowFunctionExpression should only have been called if we had a =>', 'string'),
     ]);
-    let parameter: $ast.Node | undefined = p!.finishNode(
+    const parameter: $ast.Node | undefined = p!.finishNode(
       p!.factory.NewParameterDeclaration(undefined, undefined, identifier, undefined, undefined, undefined),
       identifier!.Pos(),
     );
-    let parameters: $ast.NodeList | undefined = p!.newNodeList(parameter!.Loc, [parameter]);
-    let equalsGreaterThanToken: $ast.Node | undefined = p!.parseExpectedToken(38);
-    let body: $ast.Node | undefined = p!.parseArrowFunctionExpressionBody(
+    const parameters: $ast.NodeList | undefined = p!.newNodeList(parameter!.Loc, [parameter]);
+    const equalsGreaterThanToken: $ast.Node | undefined = p!.parseExpectedToken(38);
+    const body: $ast.Node | undefined = p!.parseArrowFunctionExpressionBody(
       !(asyncModifier === undefined),
       allowReturnTypeInArrowFunction,
     );
-    let result: $ast.Node | undefined = p!.finishNode(
+    const result: $ast.Node | undefined = p!.finishNode(
       p!.factory.NewArrowFunction(
         asyncModifier,
         undefined,
@@ -6692,15 +6712,15 @@ export class Parser extends $rt.GoObject {
     allowReturnTypeInArrowFunction: boolean,
   ): $ast.Node | undefined {
     const p = this;
-    let questionToken: $ast.Node | undefined = p!.parseOptionalToken(57);
+    const questionToken: $ast.Node | undefined = p!.parseOptionalToken(57);
     if (questionToken === undefined) {
       return leftOperand;
     }
-    let saveContextFlags: $ast.NodeFlags = p!.contextFlags;
+    const saveContextFlags: $ast.NodeFlags = p!.contextFlags;
     p!.setContextFlags(1024, false);
-    let trueExpression: $ast.Node | undefined = p!.parseAssignmentExpressionOrHigherWorker(false);
+    const trueExpression: $ast.Node | undefined = p!.parseAssignmentExpressionOrHigherWorker(false);
     p!.contextFlags = saveContextFlags;
-    let colonToken: $ast.Node | undefined = p!.parseExpectedToken(58);
+    const colonToken: $ast.Node | undefined = p!.parseExpectedToken(58);
     let falseExpression: $ast.Node | undefined = undefined as $ast.Node | undefined;
     if ($ast.NodeIsPresent(colonToken)) {
       falseExpression = p!.parseAssignmentExpressionOrHigherWorker(allowReturnTypeInArrowFunction);
@@ -6714,8 +6734,8 @@ export class Parser extends $rt.GoObject {
   }
   parseBinaryExpressionOrHigher(precedence: $ast.OperatorPrecedence): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
-    let leftOperand: $ast.Node | undefined = p!.parseUnaryExpressionOrHigher();
+    const pos: number = p!.nodePos();
+    const leftOperand: $ast.Node | undefined = p!.parseUnaryExpressionOrHigher();
     return p!.parseBinaryExpressionRest(precedence, leftOperand, pos);
   }
   parseBinaryExpressionRest(
@@ -6726,8 +6746,8 @@ export class Parser extends $rt.GoObject {
     const p = this;
     let lastOperand: $ast.Node | undefined = leftOperand;
     for (;;) {
-      let operator: $ast.Kind = p!.reScanGreaterThanToken();
-      let newPrecedence: $ast.OperatorPrecedence = $ast.GetBinaryOperatorPrecedence(operator);
+      const operator: $ast.Kind = p!.reScanGreaterThanToken();
+      const newPrecedence: $ast.OperatorPrecedence = $ast.GetBinaryOperatorPrecedence(operator);
       if (!shouldConsumeBinaryOperator(operator, newPrecedence, precedence)) {
         break;
       }
@@ -6748,8 +6768,8 @@ export class Parser extends $rt.GoObject {
           } else {
             leftOperand = p!.makeAsExpression(leftOperand, p!.parseType());
           }
-          let nextOperator: $ast.Kind = p!.reScanGreaterThanToken();
-          let nextPrecedence: $ast.OperatorPrecedence = $ast.GetBinaryOperatorPrecedence(nextOperator);
+          const nextOperator: $ast.Kind = p!.reScanGreaterThanToken();
+          const nextPrecedence: $ast.OperatorPrecedence = $ast.GetBinaryOperatorPrecedence(nextOperator);
           if (shouldConsumeBinaryOperator(nextOperator, nextPrecedence, lastPrecedence)) {
             break;
           }
@@ -6786,18 +6806,18 @@ export class Parser extends $rt.GoObject {
   parseUnaryExpressionOrHigher(): $ast.Node | undefined {
     const p = this;
     if (p!.isUpdateExpression()) {
-      let pos: number = p!.nodePos();
-      let updateExpression: $ast.Node | undefined = p!.parseUpdateExpression();
+      const pos: number = p!.nodePos();
+      const updateExpression: $ast.Node | undefined = p!.parseUpdateExpression();
       if (p!.token === (42 as number)) {
         return p!.parseBinaryExpressionRest($ast.GetBinaryOperatorPrecedence(p!.token), updateExpression, pos);
       }
       return updateExpression;
     }
-    let unaryOperator: $ast.Kind = p!.token;
-    let simpleUnaryExpression: $ast.Node | undefined = p!.parseSimpleUnaryExpression();
+    const unaryOperator: $ast.Kind = p!.token;
+    const simpleUnaryExpression: $ast.Node | undefined = p!.parseSimpleUnaryExpression();
     if (p!.token === (42 as number)) {
-      let pos$1: number = $scanner.SkipTrivia(p!.sourceText, simpleUnaryExpression!.Pos());
-      let end: number = simpleUnaryExpression!.End();
+      const pos$1: number = $scanner.SkipTrivia(p!.sourceText, simpleUnaryExpression!.Pos());
+      const end: number = simpleUnaryExpression!.End();
       if (simpleUnaryExpression!.Kind_ === (217 as number)) {
         p!.parseErrorAt(
           pos$1,
@@ -6840,9 +6860,9 @@ export class Parser extends $rt.GoObject {
   }
   parseUpdateExpression(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
+    const pos: number = p!.nodePos();
     if (p!.token === (45 as number) || p!.token === (46 as number)) {
-      let operator: $ast.Kind = p!.token;
+      const operator: $ast.Kind = p!.token;
       p!.nextToken();
       return p!.finishNode(
         p!.factory.NewPrefixUnaryExpression(operator, p!.parseLeftHandSideExpressionOrHigher()),
@@ -6851,9 +6871,9 @@ export class Parser extends $rt.GoObject {
     } else if (p!.languageVariant === (1 as number) && p!.token === (29 as number) && p!.lookAhead($fn64)) {
       return p!.parseJsxElementOrSelfClosingElementOrFragment(true, -1, undefined, false);
     }
-    let expression: $ast.Node | undefined = p!.parseLeftHandSideExpressionOrHigher();
+    const expression: $ast.Node | undefined = p!.parseLeftHandSideExpressionOrHigher();
     if ((p!.token === (45 as number) || p!.token === (46 as number)) && !p!.hasPrecedingLineBreak()) {
-      let operator$1: $ast.Kind = p!.token;
+      const operator$1: $ast.Kind = p!.token;
       p!.nextToken();
       return p!.finishNode(p!.factory.NewPostfixUnaryExpression(expression, operator$1), pos);
     }
@@ -6866,15 +6886,15 @@ export class Parser extends $rt.GoObject {
     mustBeUnary: boolean,
   ): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
-    let opening: $ast.Node | undefined = p!.parseJsxOpeningOrSelfClosingElementOrOpeningFragment(inExpressionContext);
+    const pos: number = p!.nodePos();
+    const opening: $ast.Node | undefined = p!.parseJsxOpeningOrSelfClosingElementOrOpeningFragment(inExpressionContext);
     let result: $ast.Node | undefined = undefined as $ast.Node | undefined;
     {
       switch (opening!.Kind_) {
         case 287 as number: {
           let children: $ast.NodeList | undefined = p!.parseJsxChildren(opening);
           let closingElement: $ast.Node | undefined = undefined as $ast.Node | undefined;
-          let lastChild: $ast.Node | undefined = $core.LastOrNil<$ast.Node | undefined>($zf0, children!.Nodes);
+          const lastChild: $ast.Node | undefined = $core.LastOrNil<$ast.Node | undefined>($zf0, children!.Nodes);
           if (
             !(lastChild === undefined) &&
             lastChild!.Kind_ === (285 as number) &&
@@ -6884,14 +6904,14 @@ export class Parser extends $rt.GoObject {
             ) &&
             $ast.TagNamesAreEquivalent(opening!.TagName(), lastChild!.AsJsxElement()!.ClosingElement!.TagName())
           ) {
-            let end: number = lastChild!.Children()!.End();
-            let missingIdentifier: $ast.Node | undefined = p!.finishNodeWithEnd(p!.newIdentifier(''), end, end);
-            let newClosingElement: $ast.Node | undefined = p!.finishNodeWithEnd(
+            const end: number = lastChild!.Children()!.End();
+            const missingIdentifier: $ast.Node | undefined = p!.finishNodeWithEnd(p!.newIdentifier(''), end, end);
+            const newClosingElement: $ast.Node | undefined = p!.finishNodeWithEnd(
               p!.factory.NewJsxClosingElement(missingIdentifier),
               end,
               end,
             );
-            let newLast: $ast.Node | undefined = p!.finishNodeWithEnd(
+            const newLast: $ast.Node | undefined = p!.finishNodeWithEnd(
               p!.factory.NewJsxElement(
                 lastChild!.AsJsxElement()!.OpeningElement,
                 lastChild!.Children(),
@@ -6907,7 +6927,7 @@ export class Parser extends $rt.GoObject {
               {
                 const $t1 = lastChild!.Children()!.Nodes;
                 for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-                  let c = $t1[$t2];
+                  const c = $t1[$t2];
                   c!.Parent = newLast;
                 }
               }
@@ -6981,13 +7001,13 @@ export class Parser extends $rt.GoObject {
       if (topBadPos < 0) {
         topBadPos = result!.Pos();
       }
-      let invalidElement: $ast.Node | undefined = p!.parseJsxElementOrSelfClosingElementOrFragment(
+      const invalidElement: $ast.Node | undefined = p!.parseJsxElementOrSelfClosingElementOrFragment(
         true,
         topBadPos,
         undefined,
         false,
       );
-      let operatorToken: $ast.Node | undefined = p!.factory.NewToken(27);
+      const operatorToken: $ast.Node | undefined = p!.factory.NewToken(27);
       operatorToken!.Loc = $core.NewTextRange(invalidElement!.Pos(), invalidElement!.Pos());
       p!.parseErrorAt(
         $scanner.SkipTrivia(p!.sourceText, topBadPos),
@@ -7004,13 +7024,13 @@ export class Parser extends $rt.GoObject {
   }
   parseJsxChildren(openingTag: $ast.Node | undefined): $ast.NodeList | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
-    let saveParsingContexts: ParsingContexts = p!.parsingContexts;
+    const pos: number = p!.nodePos();
+    const saveParsingContexts: ParsingContexts = p!.parsingContexts;
     p!.parsingContexts = $rt.or64(p!.parsingContexts, 16384);
     let list: ($ast.Node | undefined)[] = [];
     for (;;) {
-      let currentToken: $ast.Kind = p!.scanner!.ReScanJsxToken(true);
-      let child: $ast.Node | undefined = p!.parseJsxChild(openingTag, currentToken);
+      const currentToken: $ast.Kind = p!.scanner!.ReScanJsxToken(true);
+      const child: $ast.Node | undefined = p!.parseJsxChild(openingTag, currentToken);
       if (child === undefined) {
         break;
       }
@@ -7042,8 +7062,8 @@ export class Parser extends $rt.GoObject {
               [] as ($rt.GoObject | undefined)[],
             );
           } else {
-            let tag: $ast.Node | undefined = openingTag!.TagName();
-            let start: number = Math.min($scanner.SkipTrivia(p!.sourceText, tag!.Pos()), tag!.End());
+            const tag: $ast.Node | undefined = openingTag!.TagName();
+            const start: number = Math.min($scanner.SkipTrivia(p!.sourceText, tag!.Pos()), tag!.End());
             p!.parseErrorAt(start, tag!.End(), $diagnostics.JSX_element_0_has_no_corresponding_closing_tag, [
               new $rt.BoxStr(
                 $scanner.GetTextOfNodeFromSourceText(p!.sourceText, openingTag!.TagName(), false),
@@ -7073,14 +7093,14 @@ export class Parser extends $rt.GoObject {
   }
   parseJsxText(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
-    let result: $ast.Node | undefined = p!.factory.NewJsxText(p!.scanner!.TokenValue(), p!.token === (12 as number));
+    const pos: number = p!.nodePos();
+    const result: $ast.Node | undefined = p!.factory.NewJsxText(p!.scanner!.TokenValue(), p!.token === (12 as number));
     p!.scanJsxText();
     return p!.finishNode(result, pos);
   }
   parseJsxExpression(inExpressionContext: boolean): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
+    const pos: number = p!.nodePos();
     if (!p!.parseExpected(18)) {
       return undefined;
     }
@@ -7116,9 +7136,9 @@ export class Parser extends $rt.GoObject {
   }
   parseJsxClosingElement(open: $ast.Node | undefined, inExpressionContext: boolean): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
+    const pos: number = p!.nodePos();
     p!.parseExpected(30);
-    let tagName: $ast.Node | undefined = p!.parseJsxElementName();
+    const tagName: $ast.Node | undefined = p!.parseJsxElementName();
     if (p!.parseExpectedWithDiagnostic(31, undefined, false)) {
       if (inExpressionContext || !$ast.TagNamesAreEquivalent(open!.TagName(), tagName)) {
         p!.nextToken();
@@ -7130,18 +7150,18 @@ export class Parser extends $rt.GoObject {
   }
   parseJsxOpeningOrSelfClosingElementOrOpeningFragment(inExpressionContext: boolean): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
+    const pos: number = p!.nodePos();
     p!.parseExpected(29);
     if (p!.token === (31 as number)) {
       p!.scanJsxText();
       return p!.finishNode(p!.factory.NewJsxOpeningFragment(), pos);
     }
-    let tagName: $ast.Node | undefined = p!.parseJsxElementName();
+    const tagName: $ast.Node | undefined = p!.parseJsxElementName();
     let typeArguments: $ast.NodeList | undefined = undefined as $ast.NodeList | undefined;
     if ((p!.contextFlags & 65536) === (0 as number)) {
       typeArguments = p!.parseTypeArguments();
     }
-    let attributes: $ast.Node | undefined = p!.parseJsxAttributes();
+    const attributes: $ast.Node | undefined = p!.parseJsxAttributes();
     let result: $ast.Node | undefined = undefined as $ast.Node | undefined;
     if (p!.token === (31 as number)) {
       p!.scanJsxText();
@@ -7161,8 +7181,8 @@ export class Parser extends $rt.GoObject {
   }
   parseJsxElementName(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
-    let initialExpression: $ast.Node | undefined = p!.parseJsxTagName();
+    const pos: number = p!.nodePos();
+    const initialExpression: $ast.Node | undefined = p!.parseJsxTagName();
     if ($ast.IsJsxNamespacedName(initialExpression)) {
       return initialExpression;
     }
@@ -7177,10 +7197,10 @@ export class Parser extends $rt.GoObject {
   }
   parseJsxTagName(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
+    const pos: number = p!.nodePos();
     p!.scanJsxIdentifier();
-    let isThis: boolean = p!.token === (109 as number);
-    let tagName: $ast.Node | undefined = p!.parseIdentifierNameErrorOnUnicodeEscapeSequence();
+    const isThis: boolean = p!.token === (109 as number);
+    const tagName: $ast.Node | undefined = p!.parseIdentifierNameErrorOnUnicodeEscapeSequence();
     if (p!.parseOptional(58)) {
       p!.scanJsxIdentifier();
       return p!.finishNode(
@@ -7189,14 +7209,14 @@ export class Parser extends $rt.GoObject {
       );
     }
     if (isThis) {
-      let result: $ast.Node | undefined = p!.factory.NewKeywordExpression(109);
+      const result: $ast.Node | undefined = p!.factory.NewKeywordExpression(109);
       return p!.finishNode(result, pos);
     }
     return tagName;
   }
   parseJsxAttributes(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
+    const pos: number = p!.nodePos();
     return p!.finishNode(p!.factory.NewJsxAttributes(p!.parseList(13, $fn65)), pos);
   }
   parseJsxAttribute(): $ast.Node | undefined {
@@ -7204,23 +7224,23 @@ export class Parser extends $rt.GoObject {
     if (p!.token === (18 as number)) {
       return p!.parseJsxSpreadAttribute();
     }
-    let pos: number = p!.nodePos();
+    const pos: number = p!.nodePos();
     return p!.finishNode(p!.factory.NewJsxAttribute(p!.parseJsxAttributeName(), p!.parseJsxAttributeValue()), pos);
   }
   parseJsxSpreadAttribute(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
+    const pos: number = p!.nodePos();
     p!.parseExpected(18);
     p!.parseExpected(25);
-    let expression: $ast.Node | undefined = p!.parseExpression();
+    const expression: $ast.Node | undefined = p!.parseExpression();
     p!.parseExpected(19);
     return p!.finishNode(p!.factory.NewJsxSpreadAttribute(expression), pos);
   }
   parseJsxAttributeName(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
+    const pos: number = p!.nodePos();
     p!.scanJsxIdentifier();
-    let attrName: $ast.Node | undefined = p!.parseIdentifierNameErrorOnUnicodeEscapeSequence();
+    const attrName: $ast.Node | undefined = p!.parseIdentifierNameErrorOnUnicodeEscapeSequence();
     if (p!.parseOptional(58)) {
       p!.scanJsxIdentifier();
       return p!.finishNode(
@@ -7248,7 +7268,7 @@ export class Parser extends $rt.GoObject {
   }
   parseJsxClosingFragment(inExpressionContext: boolean): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
+    const pos: number = p!.nodePos();
     p!.parseExpected(30);
     if (p!.parseExpectedWithDiagnostic(31, $diagnostics.Expected_corresponding_closing_tag_for_JSX_fragment, false)) {
       if (inExpressionContext) {
@@ -7297,26 +7317,26 @@ export class Parser extends $rt.GoObject {
   }
   parsePrefixUnaryExpression(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
-    let operator: $ast.Kind = p!.token;
+    const pos: number = p!.nodePos();
+    const operator: $ast.Kind = p!.token;
     p!.nextToken();
     return p!.finishNode(p!.factory.NewPrefixUnaryExpression(operator, p!.parseSimpleUnaryExpression()), pos);
   }
   parseDeleteExpression(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
+    const pos: number = p!.nodePos();
     p!.nextToken();
     return p!.finishNode(p!.factory.NewDeleteExpression(p!.parseSimpleUnaryExpression()), pos);
   }
   parseTypeOfExpression(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
+    const pos: number = p!.nodePos();
     p!.nextToken();
     return p!.finishNode(p!.factory.NewTypeOfExpression(p!.parseSimpleUnaryExpression()), pos);
   }
   parseVoidExpression(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
+    const pos: number = p!.nodePos();
     p!.nextToken();
     return p!.finishNode(p!.factory.NewVoidExpression(p!.parseSimpleUnaryExpression()), pos);
   }
@@ -7332,7 +7352,7 @@ export class Parser extends $rt.GoObject {
   }
   parseAwaitExpression(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
+    const pos: number = p!.nodePos();
     p!.nextToken();
     return p!.finishNode(p!.factory.NewAwaitExpression(p!.parseSimpleUnaryExpression()), pos);
   }
@@ -7344,16 +7364,16 @@ export class Parser extends $rt.GoObject {
         'string',
       ),
     ]);
-    let pos: number = p!.nodePos();
+    const pos: number = p!.nodePos();
     p!.parseExpected(29);
-    let typeNode: $ast.Node | undefined = p!.parseType();
+    const typeNode: $ast.Node | undefined = p!.parseType();
     p!.parseExpected(31);
-    let expression: $ast.Node | undefined = p!.parseSimpleUnaryExpression();
+    const expression: $ast.Node | undefined = p!.parseSimpleUnaryExpression();
     return p!.finishNode(p!.factory.NewTypeAssertion(typeNode, expression), pos);
   }
   parseLeftHandSideExpressionOrHigher(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
+    const pos: number = p!.nodePos();
     let expression: $ast.Node | undefined = undefined as $ast.Node | undefined;
     if (p!.token === (101 as number)) {
       if (p!.lookAhead($fn45)) {
@@ -7386,11 +7406,11 @@ export class Parser extends $rt.GoObject {
   }
   parseSuperExpression(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
+    const pos: number = p!.nodePos();
     let expression: $ast.Node | undefined = p!.parseKeywordExpression();
     if (p!.token === (29 as number)) {
-      let startPos: number = p!.nodePos();
-      let typeArguments: $ast.NodeList | undefined = p!.tryParseTypeArgumentsInExpression();
+      const startPos: number = p!.nodePos();
+      const typeArguments: $ast.NodeList | undefined = p!.tryParseTypeArgumentsInExpression();
       if (!(typeArguments === undefined)) {
         p!.parseErrorAt(
           startPos,
@@ -7427,10 +7447,10 @@ export class Parser extends $rt.GoObject {
     ) {
       return undefined;
     }
-    let state: ParserState = p!.mark();
+    const state: ParserState = p!.mark();
     if (p!.reScanLessThanToken() === (29 as number)) {
       p!.nextToken();
-      let typeArguments: $ast.NodeList | undefined = p!.parseDelimitedList(20, $fn34);
+      const typeArguments: $ast.NodeList | undefined = p!.parseDelimitedList(20, $fn34);
       if (p!.reScanGreaterThanToken() === (31 as number)) {
         p!.nextToken();
         if (p!.canFollowTypeArgumentsInExpression()) {
@@ -7462,8 +7482,8 @@ export class Parser extends $rt.GoObject {
   }
   parseMemberExpressionOrHigher(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
-    let expression: $ast.Node | undefined = p!.parsePrimaryExpression();
+    const pos: number = p!.nodePos();
+    const expression: $ast.Node | undefined = p!.parsePrimaryExpression();
     return p!.parseMemberExpressionRest(pos, expression, true);
   }
   parseMemberExpressionRest(
@@ -7491,7 +7511,7 @@ export class Parser extends $rt.GoObject {
       }
       if (p!.isTemplateStartOfTaggedTemplate()) {
         if (questionDotToken === undefined && $ast.IsExpressionWithTypeArguments(expression)) {
-          let original: $ast.ExpressionWithTypeArguments | undefined = expression!.AsExpressionWithTypeArguments();
+          const original: $ast.ExpressionWithTypeArguments | undefined = expression!.AsExpressionWithTypeArguments();
           expression = p!.parseTaggedTemplateRest(
             pos,
             original!.Expression_,
@@ -7510,7 +7530,7 @@ export class Parser extends $rt.GoObject {
           expression = p!.checkJSSyntax(p!.finishNode(p!.factory.NewNonNullExpression(expression, 0), pos));
           continue;
         }
-        let typeArguments: $ast.NodeList | undefined = p!.tryParseTypeArgumentsInExpression();
+        const typeArguments: $ast.NodeList | undefined = p!.tryParseTypeArgumentsInExpression();
         if (!(typeArguments === undefined)) {
           expression = p!.finishNode(p!.factory.NewExpressionWithTypeArguments(expression, typeArguments), pos);
           continue;
@@ -7534,9 +7554,9 @@ export class Parser extends $rt.GoObject {
     questionDotToken: $ast.Node | undefined,
   ): $ast.Node | undefined {
     const p = this;
-    let name_: $ast.Node | undefined = p!.parseRightSideOfDot(true, true, true);
-    let isOptionalChain: boolean = !(questionDotToken === undefined) || p!.tryReparseOptionalChain(expression);
-    let propertyAccess: $ast.Node | undefined = p!.factory.NewPropertyAccessExpression(
+    const name_: $ast.Node | undefined = p!.parseRightSideOfDot(true, true, true);
+    const isOptionalChain: boolean = !(questionDotToken === undefined) || p!.tryReparseOptionalChain(expression);
+    const propertyAccess: $ast.Node | undefined = p!.factory.NewPropertyAccessExpression(
       expression,
       questionDotToken,
       name_,
@@ -7550,9 +7570,9 @@ export class Parser extends $rt.GoObject {
       );
     }
     if ($ast.IsExpressionWithTypeArguments(expression)) {
-      let typeArguments: $ast.NodeList | undefined = expression!.TypeArgumentList();
+      const typeArguments: $ast.NodeList | undefined = expression!.TypeArgumentList();
       if (!(typeArguments === undefined)) {
-        let loc: $core.TextRange = $core.NewTextRange(
+        const loc: $core.TextRange = $core.NewTextRange(
           typeArguments!.Pos() - 1,
           $scanner.SkipTrivia(p!.sourceText, typeArguments!.End()) + 1,
         );
@@ -7603,7 +7623,7 @@ export class Parser extends $rt.GoObject {
       argumentExpression = p!.parseExpressionAllowIn();
     }
     p!.parseExpected(23);
-    let isOptionalChain: boolean = !(questionDotToken === undefined) || p!.tryReparseOptionalChain(expression);
+    const isOptionalChain: boolean = !(questionDotToken === undefined) || p!.tryReparseOptionalChain(expression);
     return p!.finishNode(
       p!.factory.NewElementAccessExpression(
         expression,
@@ -7619,7 +7639,7 @@ export class Parser extends $rt.GoObject {
     for (;;) {
       expression = p!.parseMemberExpressionRest(pos, expression, true);
       let typeArguments: $ast.NodeList | undefined = undefined as $ast.NodeList | undefined;
-      let questionDotToken: $ast.Node | undefined = p!.parseOptionalToken(28);
+      const questionDotToken: $ast.Node | undefined = p!.parseOptionalToken(28);
       if (!(questionDotToken === undefined)) {
         typeArguments = p!.tryParseTypeArgumentsInExpression();
         if (p!.isTemplateStartOfTaggedTemplate()) {
@@ -7632,9 +7652,9 @@ export class Parser extends $rt.GoObject {
           typeArguments = expression!.TypeArgumentList();
           expression = expression!.AsExpressionWithTypeArguments()!.Expression_;
         }
-        let inner: $ast.Node | undefined = expression;
-        let argumentList: $ast.NodeList | undefined = p!.parseArgumentList();
-        let isOptionalChain: boolean = !(questionDotToken === undefined) || p!.tryReparseOptionalChain(expression);
+        const inner: $ast.Node | undefined = expression;
+        const argumentList: $ast.NodeList | undefined = p!.parseArgumentList();
+        const isOptionalChain: boolean = !(questionDotToken === undefined) || p!.tryReparseOptionalChain(expression);
         expression = p!.checkJSSyntax(
           p!.finishNode(
             p!.factory.NewCallExpression(
@@ -7652,7 +7672,7 @@ export class Parser extends $rt.GoObject {
       }
       if (!(questionDotToken === undefined)) {
         p!.parseErrorAtCurrentToken($diagnostics.Identifier_expected, [] as ($rt.GoObject | undefined)[]);
-        let name_: $ast.Node | undefined = p!.createMissingIdentifier();
+        const name_: $ast.Node | undefined = p!.createMissingIdentifier();
         expression = p!.finishNode(
           p!.factory.NewPropertyAccessExpression(expression, questionDotToken, name_, 32),
           pos,
@@ -7665,7 +7685,7 @@ export class Parser extends $rt.GoObject {
   parseArgumentList(): $ast.NodeList | undefined {
     const p = this;
     p!.parseExpected(20);
-    let result: $ast.NodeList | undefined = p!.parseDelimitedList(11, $fn68);
+    const result: $ast.NodeList | undefined = p!.parseDelimitedList(11, $fn68);
     p!.parseExpected(21);
     return result;
   }
@@ -7689,9 +7709,9 @@ export class Parser extends $rt.GoObject {
   }
   parseSpreadElement(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
+    const pos: number = p!.nodePos();
     p!.parseExpected(25);
-    let expression: $ast.Node | undefined = p!.parseAssignmentExpressionOrHigher();
+    const expression: $ast.Node | undefined = p!.parseAssignmentExpressionOrHigher();
     return p!.finishNode(p!.factory.NewSpreadElement(expression), pos);
   }
   parseTaggedTemplateRest(
@@ -7708,7 +7728,7 @@ export class Parser extends $rt.GoObject {
     } else {
       template = p!.parseTemplateExpression(true);
     }
-    let isOptionalChain: boolean = !(questionDotToken === undefined) || !((tag!.Flags & 32) === (0 as number));
+    const isOptionalChain: boolean = !(questionDotToken === undefined) || !((tag!.Flags & 32) === (0 as number));
     return p!.checkJSSyntax(
       p!.finishNode(
         p!.factory.NewTaggedTemplateExpression(
@@ -7724,7 +7744,7 @@ export class Parser extends $rt.GoObject {
   }
   parseTemplateExpression(isTaggedTemplate: boolean): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
+    const pos: number = p!.nodePos();
     return p!.finishNode(
       p!.factory.NewTemplateExpression(p!.parseTemplateHead(isTaggedTemplate), p!.parseTemplateSpans(isTaggedTemplate)),
       pos,
@@ -7732,10 +7752,10 @@ export class Parser extends $rt.GoObject {
   }
   parseTemplateSpans(isTaggedTemplate: boolean): $ast.NodeList | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
+    const pos: number = p!.nodePos();
     let list: ($ast.Node | undefined)[] = [];
     for (;;) {
-      let span: $ast.Node | undefined = p!.parseTemplateSpan(isTaggedTemplate);
+      const span: $ast.Node | undefined = p!.parseTemplateSpan(isTaggedTemplate);
       list.push(span);
       if (!(span!.AsTemplateSpan()!.Literal!.Kind_ === (16 as number))) {
         break;
@@ -7745,9 +7765,9 @@ export class Parser extends $rt.GoObject {
   }
   parseTemplateSpan(isTaggedTemplate: boolean): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
-    let expression: $ast.Node | undefined = p!.parseExpressionAllowIn();
-    let literal: $ast.Node | undefined = p!.parseLiteralOfTemplateSpan(isTaggedTemplate);
+    const pos: number = p!.nodePos();
+    const expression: $ast.Node | undefined = p!.parseExpressionAllowIn();
+    const literal: $ast.Node | undefined = p!.parseLiteralOfTemplateSpan(isTaggedTemplate);
     return p!.finishNode(p!.factory.NewTemplateSpan(expression, literal), pos);
   }
   parsePrimaryExpression(): $ast.Node | undefined {
@@ -7817,55 +7837,55 @@ export class Parser extends $rt.GoObject {
   }
   parseParenthesizedExpression(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
-    let jsdoc: jsdocScannerInfo = p!.jsdocScannerInfo$m();
+    const pos: number = p!.nodePos();
+    const jsdoc: jsdocScannerInfo = p!.jsdocScannerInfo$m();
     p!.parseExpected(20);
-    let expression: $ast.Node | undefined = p!.parseExpressionAllowIn();
+    const expression: $ast.Node | undefined = p!.parseExpressionAllowIn();
     p!.parseExpected(21);
-    let result: $ast.Node | undefined = p!.finishNode(p!.factory.NewParenthesizedExpression(expression), pos);
+    const result: $ast.Node | undefined = p!.finishNode(p!.factory.NewParenthesizedExpression(expression), pos);
     p!.withJSDoc(result, jsdoc);
     return result;
   }
   parseArrayLiteralExpression(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
-    let openBracketPosition: number = p!.scanner!.TokenStart();
-    let openBracketParsed: boolean = p!.parseExpected(22);
-    let multiLine: boolean = p!.hasPrecedingLineBreak();
-    let elements: $ast.NodeList | undefined = p!.parseDelimitedList(15, $fn69);
+    const pos: number = p!.nodePos();
+    const openBracketPosition: number = p!.scanner!.TokenStart();
+    const openBracketParsed: boolean = p!.parseExpected(22);
+    const multiLine: boolean = p!.hasPrecedingLineBreak();
+    const elements: $ast.NodeList | undefined = p!.parseDelimitedList(15, $fn69);
     p!.parseExpectedMatchingBrackets(22, 23, openBracketParsed, openBracketPosition);
     return p!.finishNode(p!.factory.NewArrayLiteralExpression(elements, multiLine), pos);
   }
   parseObjectLiteralExpression(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
-    let openBracePosition: number = p!.scanner!.TokenStart();
-    let openBraceParsed: boolean = p!.parseExpected(18);
-    let multiLine: boolean = p!.hasPrecedingLineBreak();
-    let properties: $ast.NodeList | undefined = p!.parseDelimitedList(12, $fn70);
+    const pos: number = p!.nodePos();
+    const openBracePosition: number = p!.scanner!.TokenStart();
+    const openBraceParsed: boolean = p!.parseExpected(18);
+    const multiLine: boolean = p!.hasPrecedingLineBreak();
+    const properties: $ast.NodeList | undefined = p!.parseDelimitedList(12, $fn70);
     p!.parseExpectedMatchingBrackets(18, 19, openBraceParsed, openBracePosition);
     return p!.finishNode(p!.factory.NewObjectLiteralExpression(properties, multiLine), pos);
   }
   parseObjectLiteralElement(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
-    let jsdoc: jsdocScannerInfo = p!.jsdocScannerInfo$m();
+    const pos: number = p!.nodePos();
+    const jsdoc: jsdocScannerInfo = p!.jsdocScannerInfo$m();
     if (p!.parseOptional(25)) {
-      let expression: $ast.Node | undefined = p!.parseAssignmentExpressionOrHigher();
-      let result: $ast.Node | undefined = p!.finishNode(p!.factory.NewSpreadAssignment(expression), pos);
+      const expression: $ast.Node | undefined = p!.parseAssignmentExpressionOrHigher();
+      const result: $ast.Node | undefined = p!.finishNode(p!.factory.NewSpreadAssignment(expression), pos);
       p!.withJSDoc(result, jsdoc);
       return result;
     }
-    let modifiers: $ast.ModifierList | undefined = p!.parseModifiersEx(true, false, false);
+    const modifiers: $ast.ModifierList | undefined = p!.parseModifiersEx(true, false, false);
     if (p!.parseContextualModifier(138)) {
       return p!.parseAccessorDeclaration(pos, jsdoc, modifiers, 178, 0);
     }
     if (p!.parseContextualModifier(153)) {
       return p!.parseAccessorDeclaration(pos, jsdoc, modifiers, 179, 0);
     }
-    let asteriskToken: $ast.Node | undefined = p!.parseOptionalToken(41);
-    let tokenIsIdentifier: boolean = p!.isIdentifier();
-    let name_: $ast.Node | undefined = p!.parsePropertyName();
+    const asteriskToken: $ast.Node | undefined = p!.parseOptionalToken(41);
+    const tokenIsIdentifier: boolean = p!.isIdentifier();
+    const name_: $ast.Node | undefined = p!.parsePropertyName();
     let postfixToken: $ast.Node | undefined = p!.parseOptionalToken(57);
     if (postfixToken === undefined) {
       postfixToken = p!.parseOptionalToken(53);
@@ -7874,9 +7894,9 @@ export class Parser extends $rt.GoObject {
       return p!.parseMethodDeclaration(pos, jsdoc, modifiers, asteriskToken, name_, postfixToken, undefined);
     }
     let node: $ast.Node | undefined = undefined as $ast.Node | undefined;
-    let isShorthandPropertyAssignment: boolean = tokenIsIdentifier && !(p!.token === (58 as number));
+    const isShorthandPropertyAssignment: boolean = tokenIsIdentifier && !(p!.token === (58 as number));
     if (isShorthandPropertyAssignment) {
-      let equalsToken: $ast.Node | undefined = p!.parseOptionalToken(63);
+      const equalsToken: $ast.Node | undefined = p!.parseOptionalToken(63);
       let initializer: $ast.Node | undefined = undefined as $ast.Node | undefined;
       if (!(equalsToken === undefined)) {
         initializer = doInContext<$ast.Node | undefined>(p, 1024, false, $fn16);
@@ -7891,7 +7911,7 @@ export class Parser extends $rt.GoObject {
       );
     } else {
       p!.parseExpected(58);
-      let initializer$1: $ast.Node | undefined = doInContext<$ast.Node | undefined>(p, 1024, false, $fn16);
+      const initializer$1: $ast.Node | undefined = doInContext<$ast.Node | undefined>(p, 1024, false, $fn16);
       node = p!.factory.NewPropertyAssignment(modifiers, name_, postfixToken, undefined, initializer$1);
     }
     p!.finishNode(node, pos);
@@ -7900,16 +7920,16 @@ export class Parser extends $rt.GoObject {
   }
   parseFunctionExpression(): $ast.Node | undefined {
     const p = this;
-    let saveContexFlags: $ast.NodeFlags = p!.contextFlags;
+    const saveContexFlags: $ast.NodeFlags = p!.contextFlags;
     p!.setContextFlags(4096, false);
-    let pos: number = p!.nodePos();
-    let jsdoc: jsdocScannerInfo = p!.jsdocScannerInfo$m();
-    let modifiers: $ast.ModifierList | undefined = p!.parseModifiers();
+    const pos: number = p!.nodePos();
+    const jsdoc: jsdocScannerInfo = p!.jsdocScannerInfo$m();
+    const modifiers: $ast.ModifierList | undefined = p!.parseModifiers();
     p!.parseExpected(99);
-    let asteriskToken: $ast.Node | undefined = p!.parseOptionalToken(41);
-    let isGenerator: boolean = !(asteriskToken === undefined);
-    let isAsync: boolean = modifierListHasAsync(modifiers);
-    let signatureFlags: ParseFlags =
+    const asteriskToken: $ast.Node | undefined = p!.parseOptionalToken(41);
+    const isGenerator: boolean = !(asteriskToken === undefined);
+    const isAsync: boolean = modifierListHasAsync(modifiers);
+    const signatureFlags: ParseFlags =
       ($core.IfElse<ParseFlags>(isGenerator, 1, 0) | $core.IfElse<ParseFlags>(isAsync, 2, 0)) >>> 0;
     let name_: $ast.Node | undefined = undefined as $ast.Node | undefined;
     {
@@ -7925,12 +7945,12 @@ export class Parser extends $rt.GoObject {
         }
       }
     }
-    let typeParameters: $ast.NodeList | undefined = p!.parseTypeParameters();
-    let parameters: $ast.NodeList | undefined = p!.parseParameters(signatureFlags);
-    let returnType: $ast.Node | undefined = p!.parseReturnType(58, false);
-    let body: $ast.Node | undefined = p!.parseFunctionBlock(signatureFlags, undefined);
+    const typeParameters: $ast.NodeList | undefined = p!.parseTypeParameters();
+    const parameters: $ast.NodeList | undefined = p!.parseParameters(signatureFlags);
+    const returnType: $ast.Node | undefined = p!.parseReturnType(58, false);
+    const body: $ast.Node | undefined = p!.parseFunctionBlock(signatureFlags, undefined);
     p!.contextFlags = saveContexFlags;
-    let result: $ast.Node | undefined = p!.factory.NewFunctionExpression(
+    const result: $ast.Node | undefined = p!.factory.NewFunctionExpression(
       modifiers,
       asteriskToken,
       name_,
@@ -7954,9 +7974,9 @@ export class Parser extends $rt.GoObject {
   }
   parseDecoratedExpression(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
-    let jsdoc: jsdocScannerInfo = p!.jsdocScannerInfo$m();
-    let modifiers: $ast.ModifierList | undefined = p!.parseModifiersEx(true, false, false);
+    const pos: number = p!.nodePos();
+    const jsdoc: jsdocScannerInfo = p!.jsdocScannerInfo$m();
+    const modifiers: $ast.ModifierList | undefined = p!.parseModifiersEx(true, false, false);
     if (p!.token === (85 as number)) {
       return p!.parseClassDeclarationOrExpression(pos, jsdoc, modifiers, 232);
     }
@@ -7976,7 +7996,7 @@ export class Parser extends $rt.GoObject {
       {
         const $t1 = typeArguments!.Nodes;
         for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-          let a = $t1[$t2];
+          const a = $t1[$t2];
           a!.Parent = result;
         }
       }
@@ -7984,13 +8004,13 @@ export class Parser extends $rt.GoObject {
   }
   parseNewExpressionOrNewDotTarget(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
+    const pos: number = p!.nodePos();
     p!.parseExpected(104);
     if (p!.parseOptional(24)) {
-      let name_: $ast.Node | undefined = p!.parseIdentifierName();
+      const name_: $ast.Node | undefined = p!.parseIdentifierName();
       return p!.finishNode(p!.factory.NewMetaProperty(104, name_), pos);
     }
-    let expressionPos: number = p!.nodePos();
+    const expressionPos: number = p!.nodePos();
     let expression: $ast.Node | undefined = p!.parseMemberExpressionRest(
       expressionPos,
       p!.parsePrimaryExpression(),
@@ -8010,7 +8030,7 @@ export class Parser extends $rt.GoObject {
     if (p!.token === (20 as number)) {
       argumentList = p!.parseArgumentList();
     }
-    let result: $ast.Node | undefined = p!.checkJSSyntax(
+    const result: $ast.Node | undefined = p!.checkJSSyntax(
       p!.finishNode(p!.factory.NewNewExpression(expression, typeArguments, argumentList), pos),
     );
     p!.unparseExpressionWithTypeArguments(expression, typeArguments, result);
@@ -8018,16 +8038,16 @@ export class Parser extends $rt.GoObject {
   }
   parseKeywordExpression(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
-    let result: $ast.Node | undefined = p!.factory.NewKeywordExpression(p!.token);
+    const pos: number = p!.nodePos();
+    const result: $ast.Node | undefined = p!.factory.NewKeywordExpression(p!.token);
     p!.nextToken();
     return p!.finishNode(result, pos);
   }
   parseLiteralExpression(): $ast.Node | undefined {
     const p = this;
-    let pos: number = p!.nodePos();
-    let text: string = p!.scanner!.TokenValue();
-    let tokenFlags: $ast.TokenFlags = p!.scanner!.TokenFlags$m();
+    const pos: number = p!.nodePos();
+    const text: string = p!.scanner!.TokenValue();
+    const tokenFlags: $ast.TokenFlags = p!.scanner!.TokenFlags$m();
     let result: $ast.Node | undefined = undefined as $ast.Node | undefined;
     {
       switch (p!.token) {
@@ -8077,8 +8097,8 @@ export class Parser extends $rt.GoObject {
     privateIdentifierDiagnosticMessage: $diagnostics.Message | undefined,
   ): $ast.Node | undefined {
     const p = this;
-    let saveHasAwaitIdentifier: boolean = p!.statementHasAwaitIdentifier;
-    let id: $ast.Node | undefined = p!.createIdentifierWithDiagnostic(
+    const saveHasAwaitIdentifier: boolean = p!.statementHasAwaitIdentifier;
+    const id: $ast.Node | undefined = p!.createIdentifierWithDiagnostic(
       p!.isBindingIdentifier(),
       undefined,
       privateIdentifierDiagnosticMessage,
@@ -8122,7 +8142,7 @@ export class Parser extends $rt.GoObject {
       } else {
         pos = p!.nodePos();
       }
-      let text: string = p!.scanner!.TokenValue();
+      const text: string = p!.scanner!.TokenValue();
       p!.nextTokenWithoutCheck();
       return p!.finishNode(p!.newIdentifier(text), pos);
     }
@@ -8137,17 +8157,17 @@ export class Parser extends $rt.GoObject {
       }
       return p!.createIdentifier(true);
     }
-    let reportAtCurrentPosition: boolean = p!.token === (1 as number);
+    const reportAtCurrentPosition: boolean = p!.token === (1 as number);
     if (!(diagnosticMessage === undefined)) {
       if (reportAtCurrentPosition) {
-        let pos$1: number = p!.scanner!.TokenFullStart();
+        const pos$1: number = p!.scanner!.TokenFullStart();
         p!.parseErrorAt(pos$1, pos$1, diagnosticMessage, [] as ($rt.GoObject | undefined)[]);
       } else {
         p!.parseErrorAtCurrentToken(diagnosticMessage, [] as ($rt.GoObject | undefined)[]);
       }
     } else if (isReservedWord(p!.token)) {
       if (reportAtCurrentPosition) {
-        let pos$2: number = p!.scanner!.TokenFullStart();
+        const pos$2: number = p!.scanner!.TokenFullStart();
         p!.parseErrorAt(pos$2, pos$2, $diagnostics.Identifier_expected_0_is_a_reserved_word_that_cannot_be_used_here, [
           new $rt.BoxStr(p!.scanner!.TokenText(), 'string'),
         ]);
@@ -8158,7 +8178,7 @@ export class Parser extends $rt.GoObject {
       }
     } else {
       if (reportAtCurrentPosition) {
-        let pos$3: number = p!.scanner!.TokenFullStart();
+        const pos$3: number = p!.scanner!.TokenFullStart();
         p!.parseErrorAt(pos$3, pos$3, $diagnostics.Identifier_expected, [] as ($rt.GoObject | undefined)[]);
       } else {
         p!.parseErrorAtCurrentToken($diagnostics.Identifier_expected, [] as ($rt.GoObject | undefined)[]);
@@ -8168,13 +8188,13 @@ export class Parser extends $rt.GoObject {
   }
   newNodeList(loc: $core.TextRange, nodes: ($ast.Node | undefined)[]): $ast.NodeList | undefined {
     const p = this;
-    let list: $ast.NodeList | undefined = p!.factory.NewNodeList(nodes);
+    const list: $ast.NodeList | undefined = p!.factory.NewNodeList(nodes);
     list!.Loc = loc;
     return list;
   }
   newModifierList(loc: $core.TextRange, nodes: ($ast.Node | undefined)[]): $ast.ModifierList | undefined {
     const p = this;
-    let list: $ast.ModifierList | undefined = p!.factory.NewModifierList(nodes);
+    const list: $ast.ModifierList | undefined = p!.factory.NewModifierList(nodes);
     list!.Loc = loc;
     return list;
   }
@@ -8412,7 +8432,7 @@ export class Parser extends $rt.GoObject {
           case 123 as number:
           case 124 as number:
           case 148 as number: {
-            let previousToken: $ast.Kind = p!.token;
+            const previousToken: $ast.Kind = p!.token;
             p!.nextToken();
             if (p!.hasPrecedingLineBreak()) {
               return false;
@@ -8675,7 +8695,7 @@ export class Parser extends $rt.GoObject {
   nextIsValidHeritageClauseObjectLiteral(): boolean {
     const p = this;
     if (p!.nextToken() === (19 as number)) {
-      let next: $ast.Kind = p!.nextToken();
+      const next: $ast.Kind = p!.nextToken();
       return next === (27 as number) || next === (18 as number) || next === (95 as number) || next === (118 as number);
     }
     return true;
@@ -8770,34 +8790,34 @@ export class Parser extends $rt.GoObject {
     {
       const $t1 = context!.Pragmas;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        let pragma = $t1[$t2].$clone_ast_Pragma();
+        const pragma = $t1[$t2].$clone_ast_Pragma();
         {
           switch (pragma.Name) {
             case 'reference' as string: {
               const $t3 = pragma.Args;
               const $t4 = 'types';
-              let types: $ast.PragmaArgument = $t3?.get($t4) ?? $ast.PragmaArgument$zero;
-              let typesOk: boolean = $t3 !== undefined && $t3.has($t4);
+              const types: $ast.PragmaArgument = $t3?.get($t4) ?? $ast.PragmaArgument$zero;
+              const typesOk: boolean = $t3 !== undefined && $t3.has($t4);
               const $t5 = pragma.Args;
               const $t6 = 'lib';
-              let lib: $ast.PragmaArgument = $t5?.get($t6) ?? $ast.PragmaArgument$zero;
-              let libOk: boolean = $t5 !== undefined && $t5.has($t6);
+              const lib: $ast.PragmaArgument = $t5?.get($t6) ?? $ast.PragmaArgument$zero;
+              const libOk: boolean = $t5 !== undefined && $t5.has($t6);
               const $t7 = pragma.Args;
               const $t8 = 'path';
-              let path: $ast.PragmaArgument = $t7?.get($t8) ?? $ast.PragmaArgument$zero;
-              let pathOk: boolean = $t7 !== undefined && $t7.has($t8);
+              const path: $ast.PragmaArgument = $t7?.get($t8) ?? $ast.PragmaArgument$zero;
+              const pathOk: boolean = $t7 !== undefined && $t7.has($t8);
               const $t9 = pragma.Args;
               const $t10 = 'resolution-mode';
-              let resolutionMode: $ast.PragmaArgument = $t9?.get($t10) ?? $ast.PragmaArgument$zero;
-              let resolutionModeOk: boolean = $t9 !== undefined && $t9.has($t10);
+              const resolutionMode: $ast.PragmaArgument = $t9?.get($t10) ?? $ast.PragmaArgument$zero;
+              const resolutionModeOk: boolean = $t9 !== undefined && $t9.has($t10);
               const $t11 = pragma.Args;
               const $t12 = 'preserve';
-              let preserve: $ast.PragmaArgument = $t11?.get($t12) ?? $ast.PragmaArgument$zero;
-              let preserveOk: boolean = $t11 !== undefined && $t11.has($t12);
+              const preserve: $ast.PragmaArgument = $t11?.get($t12) ?? $ast.PragmaArgument$zero;
+              const preserveOk: boolean = $t11 !== undefined && $t11.has($t12);
               const $t13 = pragma.Args;
               const $t14 = 'no-default-lib';
-              let noDefaultLib: $ast.PragmaArgument = $t13?.get($t14) ?? $ast.PragmaArgument$zero;
-              let noDefaultLibOk: boolean = $t13 !== undefined && $t13.has($t14);
+              const noDefaultLib: $ast.PragmaArgument = $t13?.get($t14) ?? $ast.PragmaArgument$zero;
+              const noDefaultLibOk: boolean = $t13 !== undefined && $t13.has($t14);
               {
                 $sw15: {
                   if (noDefaultLibOk && noDefaultLib.Value === ('true' as string)) {
@@ -8909,7 +8929,7 @@ export class Parser extends $rt.GoObject {
   }
   checkJSDecoratorSyntax(node: $ast.Node | undefined): void {
     const p = this;
-    let modifiers: ($ast.Node | undefined)[] = node!.ModifierNodes();
+    const modifiers: ($ast.Node | undefined)[] = node!.ModifierNodes();
     if (modifiers.length === (0 as number)) {
       return;
     }
@@ -8917,7 +8937,7 @@ export class Parser extends $rt.GoObject {
       {
         const $t1 = modifiers;
         for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-          let modifier = $t1[$t2];
+          const modifier = $t1[$t2];
           if ($ast.IsDecorator(modifier)) {
             p!.jsErrorAtRange(
               modifier!.Loc,
@@ -8929,12 +8949,12 @@ export class Parser extends $rt.GoObject {
         }
       }
     } else if ($ast.CanHaveDecorators(node)) {
-      let decoratorIndex: number = $core.FindIndex<$ast.Node | undefined>(modifiers, $ast.IsDecorator);
+      const decoratorIndex: number = $core.FindIndex<$ast.Node | undefined>(modifiers, $ast.IsDecorator);
       if (decoratorIndex >= 0) {
         if ($ast.IsClassDeclaration(node)) {
-          let exportIndex: number = $core.FindIndex<$ast.Node | undefined>(modifiers, isExportModifier);
+          const exportIndex: number = $core.FindIndex<$ast.Node | undefined>(modifiers, isExportModifier);
           if (exportIndex >= 0) {
-            let defaultIndex: number = $core.FindIndex<$ast.Node | undefined>(modifiers, $fn79);
+            const defaultIndex: number = $core.FindIndex<$ast.Node | undefined>(modifiers, $fn79);
             if (decoratorIndex > exportIndex && defaultIndex >= 0 && decoratorIndex < defaultIndex) {
               p!.jsErrorAtRange(
                 modifiers[decoratorIndex]!.Loc,
@@ -8952,7 +8972,7 @@ export class Parser extends $rt.GoObject {
                 }
               }
               if (trailingDecoratorIndex >= 0) {
-                let diag: $ast.Diagnostic | undefined = $ast.NewDiagnostic(
+                const diag: $ast.Diagnostic | undefined = $ast.NewDiagnostic(
                   undefined,
                   $core.NewTextRange(
                     $scanner.SkipTrivia(p!.sourceText, $core.TextRange$Pos(modifiers[trailingDecoratorIndex]!.Loc)),
@@ -8991,7 +9011,7 @@ export class Parser extends $rt.GoObject {
         case 173 as number:
         case 175 as number: {
           {
-            let token: $ast.Node | undefined = node!.QuestionToken();
+            const token: $ast.Node | undefined = node!.QuestionToken();
             if (!(token === undefined) && (token!.Flags & 8) === (0 as number) && $ast.IsQuestionToken(token)) {
               p!.jsErrorAtRange(token!.Loc, $diagnostics.The_0_modifier_can_only_be_used_in_TypeScript_files, [
                 new $rt.BoxStr('?', 'string'),
@@ -9016,7 +9036,7 @@ export class Parser extends $rt.GoObject {
             );
           } else {
             {
-              let t: $ast.Node | undefined = node!.Type$m();
+              const t: $ast.Node | undefined = node!.Type$m();
               if (!(t === undefined) && (t!.Flags & 8) === (0 as number)) {
                 p!.jsErrorAtRange(
                   t!.Loc,
@@ -9030,7 +9050,7 @@ export class Parser extends $rt.GoObject {
         }
         case 273 as number: {
           {
-            let clause: $ast.Node | undefined = node!.ImportClause();
+            const clause: $ast.Node | undefined = node!.ImportClause();
             if (!(clause === undefined) && clause!.IsTypeOnly()) {
               p!.jsErrorAtRange(node!.Loc, $diagnostics.X_0_declarations_can_only_be_used_in_TypeScript_files, [
                 new $rt.BoxStr('import type', 'string'),
@@ -9162,7 +9182,7 @@ export class Parser extends $rt.GoObject {
         case 263 as number:
         case 220 as number: {
           {
-            let list: $ast.NodeList | undefined = node!.TypeParameterList();
+            const list: $ast.NodeList | undefined = node!.TypeParameterList();
             if (!(list === undefined) && $core.Some<$ast.Node | undefined>(list!.Nodes, $fn80)) {
               p!.jsErrorAtRange(
                 list!.Loc,
@@ -9177,7 +9197,7 @@ export class Parser extends $rt.GoObject {
           {
             const $t1 = node!.ModifierNodes();
             for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-              let modifier = $t1[$t2];
+              const modifier = $t1[$t2];
               if (
                 (modifier!.Flags & 8) === (0 as number) &&
                 !(modifier!.Kind_ === (171 as number)) &&
@@ -9208,7 +9228,7 @@ export class Parser extends $rt.GoObject {
         case 287 as number:
         case 216 as number: {
           {
-            let list$1: $ast.NodeList | undefined = node!.TypeArgumentList();
+            const list$1: $ast.NodeList | undefined = node!.TypeArgumentList();
             if (!(list$1 === undefined) && $core.Some<$ast.Node | undefined>(list$1!.Nodes, $fn81)) {
               p!.jsErrorAtRange(
                 list$1!.Loc,
@@ -9235,7 +9255,7 @@ export class Parser extends $rt.GoObject {
   }
   addDeepCloneReparse(node: $ast.Node | undefined): $ast.Node | undefined {
     const p = this;
-    let clone: $ast.Node | undefined = p!.factory.DeepCloneReparse(node);
+    const clone: $ast.Node | undefined = p!.factory.DeepCloneReparse(node);
     if (!(clone === undefined)) {
       p!.reparsedClones.push(clone);
     }
@@ -9264,16 +9284,16 @@ export class Parser extends $rt.GoObject {
     {
       const $t1 = jsDoc;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        let j = $t1[$t2];
-        let isLast: boolean = j === jsDoc[jsDoc.length - 1];
-        let tags: $ast.NodeList | undefined = j!.AsJSDoc()!.Tags;
+        const j = $t1[$t2];
+        const isLast: boolean = j === jsDoc[jsDoc.length - 1];
+        const tags: $ast.NodeList | undefined = j!.AsJSDoc()!.Tags;
         if (tags === undefined) {
           continue;
         }
         {
           const $t3 = tags!.Nodes;
           for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
-            let tag = $t3[$t4];
+            const tag = $t3[$t4];
             p!.reparseUnhosted(tag, parent, j);
             if (isLast) {
               p!.reparseHosted(tag, parent, j);
@@ -9288,17 +9308,17 @@ export class Parser extends $rt.GoObject {
     {
       switch (tag!.Kind_) {
         case 338 as number: {
-          let typeExpression: $ast.Node | undefined = tag!.TypeExpression();
+          const typeExpression: $ast.Node | undefined = tag!.TypeExpression();
           if (typeExpression === undefined) {
             break;
           }
-          let fullName: $ast.Node | undefined = tag!.Name$Node();
-          let isNamespace: boolean = !(fullName === undefined) && $ast.IsModuleDeclaration(fullName);
+          const fullName: $ast.Node | undefined = tag!.Name$Node();
+          const isNamespace: boolean = !(fullName === undefined) && $ast.IsModuleDeclaration(fullName);
           let modifiers: $ast.ModifierList | undefined = undefined as $ast.ModifierList | undefined;
           if (isNamespace) {
             modifiers = p!.createExportModifier(tag);
           }
-          let typeAlias: $ast.Node | undefined = p!.factory.NewJSTypeAliasDeclaration(
+          const typeAlias: $ast.Node | undefined = p!.factory.NewJSTypeAliasDeclaration(
             modifiers,
             p!.addDeepCloneReparse(p!.checkNonIdentifierName(p!.getInnermostNameOfJSDocNamespace(fullName))),
             undefined,
@@ -9331,29 +9351,29 @@ export class Parser extends $rt.GoObject {
           p!.finishReparsedNode(typeAlias, tag);
           p!.jsdocInfos.push(JSDocInfo.$lit_parser_JSDocInfo_0_1(typeAlias, [jsDoc]));
           typeAlias!.Flags = (typeAlias!.Flags | 2097152) >>> 0;
-          let result: $ast.Node | undefined = p!.wrapInJSDocNamespace(fullName, typeAlias, false);
+          const result: $ast.Node | undefined = p!.wrapInJSDocNamespace(fullName, typeAlias, false);
           p!.reparseList.push(result);
           break;
         }
         case 331 as number: {
-          let typeExpression$1: $ast.Node | undefined = tag!.TypeExpression();
+          const typeExpression$1: $ast.Node | undefined = tag!.TypeExpression();
           if (typeExpression$1 === undefined) {
             break;
           }
-          let fullName$1: $ast.Node | undefined = tag!.Name$Node();
-          let isNamespace$1: boolean = !(fullName$1 === undefined) && $ast.IsModuleDeclaration(fullName$1);
+          const fullName$1: $ast.Node | undefined = tag!.Name$Node();
+          const isNamespace$1: boolean = !(fullName$1 === undefined) && $ast.IsModuleDeclaration(fullName$1);
           let modifiers$1: $ast.ModifierList | undefined = undefined as $ast.ModifierList | undefined;
           if (isNamespace$1) {
             modifiers$1 = p!.createExportModifier(tag);
           }
-          let functionType: $ast.Node | undefined = p!.reparseJSDocSignature(
+          const functionType: $ast.Node | undefined = p!.reparseJSDocSignature(
             typeExpression$1,
             tag,
             jsDoc,
             tag,
             undefined,
           );
-          let typeAlias$1: $ast.Node | undefined = p!.factory.NewJSTypeAliasDeclaration(
+          const typeAlias$1: $ast.Node | undefined = p!.factory.NewJSTypeAliasDeclaration(
             modifiers$1,
             p!.addDeepCloneReparse(p!.getInnermostNameOfJSDocNamespace(fullName$1)),
             undefined,
@@ -9363,18 +9383,18 @@ export class Parser extends $rt.GoObject {
           p!.finishReparsedNode(typeAlias$1, tag);
           p!.jsdocInfos.push(JSDocInfo.$lit_parser_JSDocInfo_0_1(typeAlias$1, [jsDoc]));
           typeAlias$1!.Flags = (typeAlias$1!.Flags | 2097152) >>> 0;
-          let result$1: $ast.Node | undefined = p!.wrapInJSDocNamespace(fullName$1, typeAlias$1, false);
+          const result$1: $ast.Node | undefined = p!.wrapInJSDocNamespace(fullName$1, typeAlias$1, false);
           p!.reparseList.push(result$1);
           break;
         }
         case 343 as number: {
-          let importTag: $ast.JSDocImportTag | undefined = tag!.AsJSDocImportTag();
+          const importTag: $ast.JSDocImportTag | undefined = tag!.AsJSDocImportTag();
           if (importTag!.ImportClause_ === undefined) {
             break;
           }
-          let importClause: $ast.Node | undefined = p!.addDeepCloneReparse(importTag!.ImportClause_);
+          const importClause: $ast.Node | undefined = p!.addDeepCloneReparse(importTag!.ImportClause_);
           importClause!.AsImportClause()!.PhaseModifier = 156;
-          let importDeclaration: $ast.Node | undefined = p!.factory.NewJSImportDeclaration(
+          const importDeclaration: $ast.Node | undefined = p!.factory.NewJSImportDeclaration(
             p!.factory.DeepCloneReparseModifiers(importTag!.Modifiers()),
             importClause,
             p!.addDeepCloneReparse(importTag!.ModuleSpecifier_),
@@ -9415,7 +9435,7 @@ export class Parser extends $rt.GoObject {
   ): $ast.Node | undefined {
     const p = this;
     let signature: $ast.Node | undefined = undefined as $ast.Node | undefined;
-    let clonedModifiers: $ast.ModifierList | undefined = p!.factory.DeepCloneReparseModifiers(modifiers);
+    const clonedModifiers: $ast.ModifierList | undefined = p!.factory.DeepCloneReparseModifiers(modifiers);
     {
       switch (fun!.Kind_) {
         case 263 as number: {
@@ -9472,12 +9492,12 @@ export class Parser extends $rt.GoObject {
     {
       const $t1 = jsSignature!.Parameters();
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        let pi = $t2;
-        let param = $t1[$t2];
+        const pi = $t2;
+        const param = $t1[$t2];
         let parameter: $ast.Node | undefined = undefined as $ast.Node | undefined;
         if (param!.Kind_ === (335 as number)) {
-          let thisTag: $ast.JSDocThisTag | undefined = param!.AsJSDocThisTag();
-          let thisIdent: $ast.Node | undefined = p!.factory.NewIdentifier('this');
+          const thisTag: $ast.JSDocThisTag | undefined = param!.AsJSDocThisTag();
+          const thisIdent: $ast.Node | undefined = p!.factory.NewIdentifier('this');
           thisIdent!.Loc = thisTag!.Loc;
           thisIdent!.Flags = (p!.contextFlags | 8) >>> 0;
           parameter = p!.factory.NewParameterDeclaration(
@@ -9492,7 +9512,7 @@ export class Parser extends $rt.GoObject {
             parameter!.AsParameterDeclaration()!.Type_ = p!.addDeepCloneReparse(thisTag!.TypeExpression_!.Type$m());
           }
         } else if (param!.Kind_ === (333 as number) || param!.Kind_ === (340 as number)) {
-          let jsparam: $ast.JSDocParameterOrPropertyTag | undefined = param!.AsJSDocParameterOrPropertyTag();
+          const jsparam: $ast.JSDocParameterOrPropertyTag | undefined = param!.AsJSDocParameterOrPropertyTag();
           if ($ast.IsQualifiedName(jsparam!.Name())) {
             continue;
           }
@@ -9503,7 +9523,7 @@ export class Parser extends $rt.GoObject {
               dotDotDotToken = p!.factory.NewToken(25);
               dotDotDotToken!.Loc = jsparam!.Loc;
               dotDotDotToken!.Flags = (p!.contextFlags | 8) >>> 0;
-              let variadicType: $ast.JSDocVariadicType | undefined = jsparam!
+              const variadicType: $ast.JSDocVariadicType | undefined = jsparam!
                 .TypeExpression_!.Type$m()!
                 .AsJSDocVariadicType();
               paramType = p!.reparseJSDocTypeLiteral(variadicType!.Type_);
@@ -9513,12 +9533,12 @@ export class Parser extends $rt.GoObject {
           }
           let name_: $ast.Node | undefined = jsparam!.Name();
           if ($ast.IsIdentifier(name_) && !$scanner.IsValidIdentifier(name_!.AsIdentifier()!.Text_)) {
-            let result: $rt.strings_Builder = new $rt.strings_Builder();
+            const result: $rt.strings_Builder = new $rt.strings_Builder();
             {
               const $t3 = name_!.AsIdentifier()!.Text_;
               for (let i = 0, $t4 = 0; i < $t3.length; i += $t4) {
                 $t4 = $rt.utf8_DecodeRuneInStringAt($t3, i)[1];
-                let ch = $rt.utf8_DecodeRuneInStringAt($t3, i)[0];
+                const ch = $rt.utf8_DecodeRuneInStringAt($t3, i)[0];
                 if (i === (0 as number)) {
                   if (!$scanner.IsIdentifierStart(ch)) {
                     result.WriteRune(95);
@@ -9577,17 +9597,17 @@ export class Parser extends $rt.GoObject {
       return undefined;
     }
     if (t!.Kind_ === (317 as number)) {
-      let jstypeliteral: $ast.JSDocTypeLiteral | undefined = t!.AsJSDocTypeLiteral();
-      let isArrayType: boolean = jstypeliteral!.IsArrayType;
+      const jstypeliteral: $ast.JSDocTypeLiteral | undefined = t!.AsJSDocTypeLiteral();
+      const isArrayType: boolean = jstypeliteral!.IsArrayType;
       let properties: ($ast.Node | undefined)[] = p!.nodeSliceArena.NewSlice(0);
       {
         const $t1 = jstypeliteral!.JSDocPropertyTags;
         for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-          let prop = $t1[$t2];
+          const prop = $t1[$t2];
           if (!(prop!.Kind_ === (340 as number)) && !(prop!.Kind_ === (333 as number))) {
             continue;
           }
-          let jsprop: $ast.JSDocParameterOrPropertyTag | undefined = prop!.AsJSDocParameterOrPropertyTag();
+          const jsprop: $ast.JSDocParameterOrPropertyTag | undefined = prop!.AsJSDocParameterOrPropertyTag();
           let name_: $ast.Node | undefined = prop!.Name$Node();
           if (name_!.Kind_ === (167 as number)) {
             name_ = name_!.AsQualifiedName()!.Right;
@@ -9597,7 +9617,7 @@ export class Parser extends $rt.GoObject {
           } else {
             name_ = p!.addDeepCloneReparse(name_);
           }
-          let property: $ast.Node | undefined = p!.factory.NewPropertySignatureDeclaration(
+          const property: $ast.Node | undefined = p!.factory.NewPropertySignatureDeclaration(
             undefined,
             name_,
             p!.makeQuestionIfOptional(jsprop),
@@ -9627,9 +9647,9 @@ export class Parser extends $rt.GoObject {
   reparseJSDocComment(node: $ast.Node | undefined, tag: $ast.Node | undefined): void {
     const p = this;
     {
-      let comment: $ast.NodeList | undefined = tag!.CommentList();
+      const comment: $ast.NodeList | undefined = tag!.CommentList();
       if (!(comment === undefined)) {
-        let newComment: $ast.NodeList | undefined = p!.factory.NewNodeList(
+        const newComment: $ast.NodeList | undefined = p!.factory.NewNodeList(
           $core.Map_<$ast.Node | undefined, $ast.Node | undefined>(
             $zf0,
             comment!.Nodes,
@@ -9641,7 +9661,7 @@ export class Parser extends $rt.GoObject {
           ),
         );
         newComment!.Loc = comment!.Loc;
-        let propJSDoc: $ast.Node | undefined = p!.factory.NewJSDoc(newComment, undefined);
+        const propJSDoc: $ast.Node | undefined = p!.factory.NewJSDoc(newComment, undefined);
         p!.finishReparsedNode(propJSDoc, tag);
         propJSDoc!.Parent = node;
         p!.jsdocInfos.push(JSDocInfo.$lit_parser_JSDocInfo_0_1(node, [propJSDoc]));
@@ -9658,7 +9678,7 @@ export class Parser extends $rt.GoObject {
     {
       const $t1 = j!.AsJSDoc()!.Tags!.Nodes;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        let tag = $t1[$t2];
+        const tag = $t1[$t2];
         if (!typedefOrCallback && ($ast.IsJSDocTypedefTag(tag) || $ast.IsJSDocCallbackTag(tag))) {
           return undefined;
         }
@@ -9670,12 +9690,12 @@ export class Parser extends $rt.GoObject {
           firstTemplate = false;
         }
         endPos = tag!.End();
-        let constraint: $ast.Node | undefined = tag!.AsJSDocTemplateTag()!.Constraint;
+        const constraint: $ast.Node | undefined = tag!.AsJSDocTemplateTag()!.Constraint;
         let firstTypeParameter: boolean = true;
         {
           const $t3 = tag!.TypeParameters();
           for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
-            let tp = $t3[$t4];
+            const tp = $t3[$t4];
             let reparse: $ast.Node | undefined = undefined as $ast.Node | undefined;
             if (!(constraint === undefined) && firstTypeParameter) {
               reparse = p!.factory.NewTypeParameterDeclaration(
@@ -9717,7 +9737,7 @@ export class Parser extends $rt.GoObject {
                     const $t1 = parent!.AsVariableStatement()!.DeclarationList!.AsVariableDeclarationList()!
                       .Declarations!.Nodes;
                     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-                      let declaration = $t1[$t2];
+                      const declaration = $t1[$t2];
                       if (declaration!.Type$m() === undefined && !(tag!.TypeExpression() === undefined)) {
                         $ast.MutableNode$SetType(
                           declaration!.AsMutable()!,
@@ -9760,9 +9780,9 @@ export class Parser extends $rt.GoObject {
               }
               case 245 as number: {
                 if (parent!.Expression()!.Kind_ === (227 as number)) {
-                  let bin: $ast.BinaryExpression | undefined = parent!.Expression()!.AsBinaryExpression();
+                  const bin: $ast.BinaryExpression | undefined = parent!.Expression()!.AsBinaryExpression();
                   {
-                    let kind: $ast.JSDeclarationKind = $ast.GetAssignmentDeclarationKind(bin!.AsNode());
+                    const kind: $ast.JSDeclarationKind = $ast.GetAssignmentDeclarationKind(bin!.AsNode());
                     if (!(kind === (0 as number)) && !(tag!.TypeExpression() === undefined)) {
                       $ast.MutableNode$SetType(
                         bin!.AsMutable()!,
@@ -9790,9 +9810,9 @@ export class Parser extends $rt.GoObject {
             }
           }
           {
-            let fun: $ast.Node | undefined = getFunctionLikeHost(parent);
+            const fun: $ast.Node | undefined = getFunctionLikeHost(parent);
             if (!(fun === undefined)) {
-              let noTypedParams: boolean = $core.Every<$ast.Node | undefined>(fun!.Parameters(), $fn82);
+              const noTypedParams: boolean = $core.Every<$ast.Node | undefined>(fun!.Parameters(), $fn82);
               if (
                 fun!.TypeParameterList() === undefined &&
                 fun!.Type$m() === undefined &&
@@ -9815,7 +9835,7 @@ export class Parser extends $rt.GoObject {
                     const $t3 = parent!.AsVariableStatement()!.DeclarationList!.AsVariableDeclarationList()!
                       .Declarations!.Nodes;
                     for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
-                      let declaration$1 = $t3[$t4];
+                      const declaration$1 = $t3[$t4];
                       if (!(declaration$1!.Initializer() === undefined) && !(tag!.TypeExpression() === undefined)) {
                         $ast.MutableNode$SetInitializer(
                           declaration$1!.AsMutable()!,
@@ -9850,7 +9870,7 @@ export class Parser extends $rt.GoObject {
                 break;
               }
               case 304 as number: {
-                let shorthand: $ast.ShorthandPropertyAssignment | undefined = parent!.AsShorthandPropertyAssignment();
+                const shorthand: $ast.ShorthandPropertyAssignment | undefined = parent!.AsShorthandPropertyAssignment();
                 if (
                   !(shorthand!.ObjectAssignmentInitializer === undefined) &&
                   !(tag!.AsJSDocSatisfiesTag()!.TypeExpression_ === undefined)
@@ -9882,9 +9902,9 @@ export class Parser extends $rt.GoObject {
               }
               case 245 as number: {
                 if (parent!.Expression()!.Kind_ === (227 as number)) {
-                  let bin$1: $ast.BinaryExpression | undefined = parent!.Expression()!.AsBinaryExpression();
+                  const bin$1: $ast.BinaryExpression | undefined = parent!.Expression()!.AsBinaryExpression();
                   {
-                    let kind$1: $ast.JSDeclarationKind = $ast.GetAssignmentDeclarationKind(bin$1!.AsNode());
+                    const kind$1: $ast.JSDeclarationKind = $ast.GetAssignmentDeclarationKind(bin$1!.AsNode());
                     if (!(kind$1 === (0 as number)) && !(tag!.TypeExpression() === undefined)) {
                       bin$1!.Right = p!.makeNewCast(
                         p!.addDeepCloneReparse(tag!.TypeExpression()!.Type$m()),
@@ -9903,20 +9923,20 @@ export class Parser extends $rt.GoObject {
         }
         case 337 as number: {
           {
-            let fun$1: $ast.Node | undefined = getFunctionLikeHost(parent);
+            const fun$1: $ast.Node | undefined = getFunctionLikeHost(parent);
             if (!(fun$1 === undefined)) {
               if (fun$1!.TypeParameters().length === 0 && fun$1!.FunctionLikeData$Node()!.FullSignature === undefined) {
                 fun$1!.FunctionLikeData$Node()!.TypeParameters = p!.gatherTypeParameters(jsDoc, false);
                 p!.finishMutatedNode(fun$1);
               }
             } else if (parent!.Kind_ === (264 as number)) {
-              let class_: $ast.ClassDeclaration | undefined = parent!.AsClassDeclaration();
+              const class_: $ast.ClassDeclaration | undefined = parent!.AsClassDeclaration();
               if (class_!.ClassLikeBase_.TypeParameters === undefined) {
                 class_!.ClassLikeBase_.TypeParameters = p!.gatherTypeParameters(jsDoc, false);
                 p!.finishMutatedNode(parent);
               }
             } else if (parent!.Kind_ === (232 as number)) {
-              let class_$1: $ast.ClassExpression | undefined = parent!.AsClassExpression();
+              const class_$1: $ast.ClassExpression | undefined = parent!.AsClassExpression();
               if (class_$1!.ClassLikeBase_.TypeParameters === undefined) {
                 class_$1!.ClassLikeBase_.TypeParameters = p!.gatherTypeParameters(jsDoc, false);
                 p!.finishMutatedNode(parent);
@@ -9927,13 +9947,13 @@ export class Parser extends $rt.GoObject {
         }
         case 333 as number: {
           {
-            let fun$2: $ast.Node | undefined = getFunctionLikeHost(parent);
+            const fun$2: $ast.Node | undefined = getFunctionLikeHost(parent);
             if (!(fun$2 === undefined) && fun$2!.FunctionLikeData$Node()!.FullSignature === undefined) {
-              let parameterTag: $ast.JSDocParameterOrPropertyTag | undefined = tag!.AsJSDocParameterOrPropertyTag();
+              const parameterTag: $ast.JSDocParameterOrPropertyTag | undefined = tag!.AsJSDocParameterOrPropertyTag();
               {
                 const $t5 = findMatchingParameter(fun$2, parameterTag, jsDoc);
-                let param$1: $ast.ParameterDeclaration | undefined = $t5[0];
-                let ok: boolean = $t5[1];
+                const param$1: $ast.ParameterDeclaration | undefined = $t5[0];
+                const ok: boolean = $t5[1];
                 if (ok) {
                   if (param$1!.Type_ === undefined && !(parameterTag!.TypeExpression_ === undefined)) {
                     param$1!.AsParameterDeclaration()!.Type_ = p!.reparseJSDocTypeLiteral(
@@ -9942,7 +9962,7 @@ export class Parser extends $rt.GoObject {
                   }
                   if (param$1!.QuestionToken_ === undefined) {
                     {
-                      let question: $ast.Node | undefined = p!.makeQuestionIfOptional(parameterTag);
+                      const question: $ast.Node | undefined = p!.makeQuestionIfOptional(parameterTag);
                       if (!(question === undefined)) {
                         param$1!.QuestionToken_ = question;
                       }
@@ -9957,14 +9977,14 @@ export class Parser extends $rt.GoObject {
         }
         case 335 as number: {
           {
-            let fun$3: $ast.Node | undefined = getFunctionLikeHost(parent);
+            const fun$3: $ast.Node | undefined = getFunctionLikeHost(parent);
             if (!(fun$3 === undefined)) {
-              let params: ($ast.Node | undefined)[] = fun$3!.Parameters();
+              const params: ($ast.Node | undefined)[] = fun$3!.Parameters();
               if (
                 params.length === (0 as number) ||
                 (!(params[0]!.Name$Node()!.Kind_ === (109 as number)) && !$ast.IsThisIdentifier(params[0]!.Name$Node()))
               ) {
-                let thisParam: $ast.Node | undefined = p!.factory.NewParameterDeclaration(
+                const thisParam: $ast.Node | undefined = p!.factory.NewParameterDeclaration(
                   undefined,
                   undefined,
                   p!.factory.NewIdentifier('this'),
@@ -9978,13 +9998,13 @@ export class Parser extends $rt.GoObject {
                   );
                 }
                 p!.finishReparsedNode(thisParam, tag!.TagName());
-                let newParams: ($ast.Node | undefined)[] = p!.nodeSliceArena.NewSlice(params.length + 1);
+                const newParams: ($ast.Node | undefined)[] = p!.nodeSliceArena.NewSlice(params.length + 1);
                 newParams[0] = thisParam;
                 {
                   const $t6 = params;
                   for (let $t7 = 0, $n = $t6.length; $t7 < $n; $t7++) {
-                    let i = $t7;
-                    let param$2 = $t6[$t7];
+                    const i = $t7;
+                    const param$2 = $t6[$t7];
                     newParams[i + 1] = param$2;
                   }
                 }
@@ -9997,7 +10017,7 @@ export class Parser extends $rt.GoObject {
         }
         case 334 as number: {
           {
-            let fun$4: $ast.Node | undefined = getFunctionLikeHost(parent);
+            const fun$4: $ast.Node | undefined = getFunctionLikeHost(parent);
             if (!(fun$4 === undefined) && fun$4!.FunctionLikeData$Node()!.FullSignature === undefined) {
               if (fun$4!.Type$m() === undefined && !(tag!.TypeExpression() === undefined)) {
                 fun$4!.FunctionLikeData$Node()!.Type = p!.addDeepCloneReparse(tag!.TypeExpression()!.Type$m());
@@ -10052,7 +10072,7 @@ export class Parser extends $rt.GoObject {
                     }
                   }
                 }
-                let modifier: $ast.Node | undefined = p!.factory.NewModifier(keyword);
+                const modifier: $ast.Node | undefined = p!.factory.NewModifier(keyword);
                 modifier!.Loc = tag!.Loc;
                 modifier!.Flags = (p!.contextFlags | 8) >>> 0;
                 let nodes: ($ast.Node | undefined)[] = [];
@@ -10075,12 +10095,12 @@ export class Parser extends $rt.GoObject {
         }
         case 324 as number: {
           {
-            let class_$2: $ast.ClassLikeBase | undefined = getClassLikeData(parent);
+            const class_$2: $ast.ClassLikeBase | undefined = getClassLikeData(parent);
             if (!(class_$2 === undefined)) {
-              let implementsTag: $ast.JSDocImplementsTag | undefined = tag!.AsJSDocImplementsTag();
+              const implementsTag: $ast.JSDocImplementsTag | undefined = tag!.AsJSDocImplementsTag();
               if (!(class_$2!.HeritageClauses === undefined)) {
                 {
-                  let implementsClause: $ast.Node | undefined = $core.Find<$ast.Node | undefined>(
+                  const implementsClause: $ast.Node | undefined = $core.Find<$ast.Node | undefined>(
                     $zf0,
                     class_$2!.HeritageClauses!.Nodes,
                     $fn83,
@@ -10094,14 +10114,14 @@ export class Parser extends $rt.GoObject {
                   }
                 }
               }
-              let typesList: $ast.NodeList | undefined = p!.newNodeList(
+              const typesList: $ast.NodeList | undefined = p!.newNodeList(
                 implementsTag!.ClassName_!.Loc,
                 p!.nodeSliceArena.NewSlice1(p!.addDeepCloneReparse(implementsTag!.ClassName_)),
               );
-              let heritageClause: $ast.Node | undefined = p!.factory.NewHeritageClause(118, typesList);
+              const heritageClause: $ast.Node | undefined = p!.factory.NewHeritageClause(118, typesList);
               p!.finishReparsedNode(heritageClause, implementsTag!.ClassName_);
               if (class_$2!.HeritageClauses === undefined) {
-                let heritageClauses: $ast.NodeList | undefined = p!.newNodeList(
+                const heritageClauses: $ast.NodeList | undefined = p!.newNodeList(
                   implementsTag!.ClassName_!.Loc,
                   p!.nodeSliceArena.NewSlice1(heritageClause),
                 );
@@ -10116,10 +10136,10 @@ export class Parser extends $rt.GoObject {
         }
         case 323 as number: {
           {
-            let class_$3: $ast.ClassLikeBase | undefined = getClassLikeData(parent);
+            const class_$3: $ast.ClassLikeBase | undefined = getClassLikeData(parent);
             if (!(class_$3 === undefined) && !(class_$3!.HeritageClauses === undefined)) {
               {
-                let extendsClause: $ast.Node | undefined = $core.Find<$ast.Node | undefined>(
+                const extendsClause: $ast.Node | undefined = $core.Find<$ast.Node | undefined>(
                   $zf0,
                   class_$3!.HeritageClauses!.Nodes,
                   $fn84,
@@ -10128,22 +10148,22 @@ export class Parser extends $rt.GoObject {
                   !(extendsClause === undefined) &&
                   extendsClause!.AsHeritageClause()!.Types!.Nodes.length === (1 as number)
                 ) {
-                  let target: $ast.ExpressionWithTypeArguments | undefined = extendsClause!
+                  const target: $ast.ExpressionWithTypeArguments | undefined = extendsClause!
                     .AsHeritageClause()!
                     .Types!.Nodes[0]!.AsExpressionWithTypeArguments();
-                  let source: $ast.ExpressionWithTypeArguments | undefined = tag!
+                  const source: $ast.ExpressionWithTypeArguments | undefined = tag!
                     .ClassName()!
                     .AsExpressionWithTypeArguments();
                   if ($ast.HasSamePropertyAccessName(target!.Expression_, source!.Expression_)) {
                     if (target!.TypeArguments_ === undefined && !(source!.TypeArguments_ === undefined)) {
-                      let newArguments: ($ast.Node | undefined)[] = p!.nodeSliceArena.NewSlice(
+                      const newArguments: ($ast.Node | undefined)[] = p!.nodeSliceArena.NewSlice(
                         source!.TypeArguments_!.Nodes.length,
                       );
                       {
                         const $t8 = source!.TypeArguments_!.Nodes;
                         for (let $t9 = 0, $n = $t8.length; $t9 < $n; $t9++) {
-                          let i$1 = $t9;
-                          let arg = $t8[$t9];
+                          const i$1 = $t9;
+                          const arg = $t8[$t9];
                           newArguments[i$1] = p!.addDeepCloneReparse(arg);
                         }
                       }
@@ -10186,10 +10206,10 @@ export class Parser extends $rt.GoObject {
   }
   createExportModifier(locationNode: $ast.Node | undefined): $ast.ModifierList | undefined {
     const p = this;
-    let exportModifier: $ast.Node | undefined = p!.factory.NewModifier(94);
+    const exportModifier: $ast.Node | undefined = p!.factory.NewModifier(94);
     exportModifier!.Loc = locationNode!.Loc;
     exportModifier!.Flags = (p!.contextFlags | 8) >>> 0;
-    let nodes: ($ast.Node | undefined)[] = p!.nodeSliceArena.NewSlice1(exportModifier);
+    const nodes: ($ast.Node | undefined)[] = p!.nodeSliceArena.NewSlice1(exportModifier);
     return p!.newModifierList(locationNode!.Loc, nodes);
   }
   getInnermostNameOfJSDocNamespace(fullName: $ast.Node | undefined): $ast.Node | undefined {
@@ -10198,7 +10218,7 @@ export class Parser extends $rt.GoObject {
       return undefined;
     }
     for (; fullName!.Kind_ === (268 as number);) {
-      let body: $ast.Node | undefined = fullName!.AsModuleDeclaration()!.BodyBase_.Body;
+      const body: $ast.Node | undefined = fullName!.AsModuleDeclaration()!.BodyBase_.Body;
       if (body === undefined) {
         return fullName!.Name$Node();
       }
@@ -10215,8 +10235,8 @@ export class Parser extends $rt.GoObject {
     if (fullName === undefined || !$ast.IsModuleDeclaration(fullName)) {
       return statement;
     }
-    let wrapped: $ast.Node | undefined = p!.wrapInJSDocNamespace(fullName!.Body(), statement, true);
-    let block: $ast.Node | undefined = p!.factory.NewModuleBlock(
+    const wrapped: $ast.Node | undefined = p!.wrapInJSDocNamespace(fullName!.Body(), statement, true);
+    const block: $ast.Node | undefined = p!.factory.NewModuleBlock(
       p!.newNodeList(fullName!.Loc, p!.nodeSliceArena.NewSlice1(wrapped)),
     );
     p!.finishReparsedNode(block, fullName);
@@ -10224,7 +10244,7 @@ export class Parser extends $rt.GoObject {
     if (nested) {
       modifiers = p!.createExportModifier(fullName);
     }
-    let result: $ast.Node | undefined = p!.factory.NewModuleDeclaration(
+    const result: $ast.Node | undefined = p!.factory.NewModuleDeclaration(
       modifiers,
       145,
       p!.addDeepCloneReparse(fullName!.Name$Node()),
@@ -10347,7 +10367,7 @@ const $fn18 = ($r: Parser | undefined): boolean => $r!.nextIsIdentifierAndCloseP
 const $fn19 = ($r: Parser | undefined): $ast.Node | undefined => $r!.parseVariableDeclaration();
 const $fn2 = (p$1: Parser | undefined): boolean => {
   const $t2 = p$1!.parseJSDocLinkPrefix();
-  let ok: boolean = $t2[1];
+  const ok: boolean = $t2[1];
   return !ok;
 };
 const $fn20 = ($r: Parser | undefined): $ast.Node | undefined => $r!.parseVariableDeclarationAllowExclamation();
@@ -10402,9 +10422,9 @@ const $fn60 = ($r: Parser | undefined): boolean => $r!.nextTokenIsIdentifierOrKe
 const $fn61 = ($r: Parser | undefined): boolean => $r!.nextTokenIsIdentifier();
 const $fn62 = (p$1: Parser | undefined): boolean => {
   p$1!.parseOptional(86);
-  let third$1: $ast.Kind = p$1!.nextToken();
+  const third$1: $ast.Kind = p$1!.nextToken();
   if (third$1 === (95 as number)) {
-    let fourth: $ast.Kind = p$1!.nextToken();
+    const fourth: $ast.Kind = p$1!.nextToken();
     {
       switch (fourth) {
         case 63 as number:
@@ -10473,13 +10493,13 @@ export function parseJSDocForNode(
   const $defers: (() => void)[] = [];
   let $panic: $rt.Panic | undefined = undefined;
   $body: try {
-    let p: Parser | undefined = getParser();
+    const p: Parser | undefined = getParser();
     const $t2 = p;
     $defers.push(() => {
       putParser($t2);
     });
     p!.initializeState(sourceFile!.ParseOptions(), sourceFile!.Text(), sourceFile!.ScriptKind_);
-    let ranges: $ast.CommentRange[] = GetJSDocCommentRanges(p!.factory, [], node, sourceFile!.Text());
+    const ranges: $ast.CommentRange[] = GetJSDocCommentRanges(p!.factory, [], node, sourceFile!.Text());
     if (ranges.length === (0 as number)) {
       $t1 = [];
       break $body;
@@ -10489,9 +10509,9 @@ export function parseJSDocForNode(
     {
       const $t3 = ranges;
       for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
-        let comment = $t3[$t4];
+        const comment = $t3[$t4];
         {
-          let parsed: $ast.Node | undefined = p!.parseJSDocComment(
+          const parsed: $ast.Node | undefined = p!.parseJSDocComment(
             node,
             $core.TextRange$Pos(comment.TextRange_),
             $core.TextRange$End(comment.TextRange_),
@@ -10529,7 +10549,7 @@ export function removeTrailingWhitespace(comments: string[]): string[] {
   let end: number = comments.length;
   {
     for (let i: number = comments.length - 1; i >= 0; i--) {
-      let trimmed: string = trimEnd(comments[i]);
+      const trimmed: string = trimEnd(comments[i]);
       if (trimmed === ('' as string)) {
         end = i;
       } else {
@@ -10554,7 +10574,7 @@ export function isObjectOrObjectArrayTypeReference(node: $ast.Node | undefined):
       }
       default: {
         if ($ast.IsTypeReferenceNode(node)) {
-          let ref: $ast.TypeReferenceNode | undefined = node!.AsTypeReferenceNode();
+          const ref: $ast.TypeReferenceNode | undefined = node!.AsTypeReferenceNode();
           return (
             $ast.IsIdentifier(ref!.TypeName) &&
             ref!.TypeName!.Text$Node() === ('Object' as string) &&
@@ -10582,7 +10602,7 @@ export function textsEqual(a: $ast.Node | undefined, b: $ast.Node | undefined): 
   return a!.Text$Node() === b!.Text$Node();
 }
 export function newParser(): Parser | undefined {
-  let res: Parser | undefined = new Parser();
+  const res: Parser | undefined = new Parser();
   res!.initializeClosures();
   return res;
 }
@@ -10610,7 +10630,7 @@ export function ParseSourceFile(
   const $defers: (() => void)[] = [];
   let $panic: $rt.Panic | undefined = undefined;
   $body: try {
-    let p: Parser | undefined = getParser();
+    const p: Parser | undefined = getParser();
     const $t2 = p;
     $defers.push(() => {
       putParser($t2);
@@ -10648,14 +10668,14 @@ export function ParseIsolatedEntityName(text: string): $ast.Node | undefined {
   const $defers: (() => void)[] = [];
   let $panic: $rt.Panic | undefined = undefined;
   $body: try {
-    let p: Parser | undefined = getParser();
+    const p: Parser | undefined = getParser();
     const $t2 = p;
     $defers.push(() => {
       putParser($t2);
     });
     p!.initializeState(new $ast.SourceFileParseOptions(), text, 1);
     p!.nextToken();
-    let entityName: $ast.Node | undefined = p!.parseEntityName(true, false, undefined);
+    const entityName: $ast.Node | undefined = p!.parseEntityName(true, false, undefined);
     $t1 = $core.IfElse<$ast.Node | undefined>(
       p!.token === (1 as number) && p!.diagnostics.length === (0 as number),
       entityName,
@@ -10700,7 +10720,7 @@ export function getSpaceSuggestion(expressionText: string): string {
   {
     const $t1 = viableKeywordSuggestions;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let keyword = $t1[$t2];
+      const keyword = $t1[$t2];
       if (expressionText.length > keyword.length + 2 && $rt.strings_HasPrefix(expressionText, keyword)) {
         return keyword + ' ' + expressionText.substring(keyword.length);
       }
@@ -10744,9 +10764,9 @@ export function doInContext<T>(
   value: boolean,
   f: ((p0: Parser | undefined) => T) | undefined,
 ): T {
-  let saveContextFlags: $ast.NodeFlags = p!.contextFlags;
+  const saveContextFlags: $ast.NodeFlags = p!.contextFlags;
   p!.setContextFlags(flags, value);
-  let result: T = f!(p);
+  const result: T = f!(p);
   p!.contextFlags = saveContextFlags;
   return result;
 }
@@ -10760,12 +10780,12 @@ export function attachFileToDiagnostics(
   {
     const $t1 = diagnostics;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let d = $t1[$t2];
+      const d = $t1[$t2];
       d!.SetFile(file);
       {
         const $t3 = d!.RelatedInformation();
         for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
-          let r = $t3[$t4];
+          const r = $t3[$t4];
           r!.SetFile(file);
         }
       }
@@ -10778,7 +10798,7 @@ export function getCommentPragmas(f: $ast.NodeFactory | undefined, sourceText: s
   let $t1 = false;
   let $t2: $ast.Pragma[] = [];
   $scanner.GetLeadingCommentRanges(f, sourceText, 0)!((commentRange: $ast.CommentRange): boolean => {
-    let comment: string = sourceText.substring(
+    const comment: string = sourceText.substring(
       $core.TextRange$Pos(commentRange.TextRange_),
       $core.TextRange$End(commentRange.TextRange_),
     );
@@ -10790,24 +10810,24 @@ export function getCommentPragmas(f: $ast.NodeFactory | undefined, sourceText: s
 export function extractPragmas(commentRange: $ast.CommentRange, text: string): $ast.Pragma[] {
   if (commentRange.Kind_ === (2 as number)) {
     let pos: number = 2;
-    let tripleSlash: boolean = match(text, pos, '/');
+    const tripleSlash: boolean = match(text, pos, '/');
     if (tripleSlash) {
       pos++;
     }
     pos = skipBlanks(text, pos);
     if (tripleSlash && match(text, pos, '<')) {
-      let tagName: string = extractName(text, pos + 1);
+      const tagName: string = extractName(text, pos + 1);
       if (!(tagName === ('reference' as string))) {
         return [];
       }
       pos += 10;
-      let args: Map<string, $ast.PragmaArgument> | undefined = new Map<string, $ast.PragmaArgument>();
+      const args: Map<string, $ast.PragmaArgument> | undefined = new Map<string, $ast.PragmaArgument>();
       for (;;) {
         pos = skipBlanks(text, pos);
         if (match(text, pos, '/>')) {
           break;
         }
-        let argName: string = extractName(text, pos);
+        const argName: string = extractName(text, pos);
         if (argName === ('' as string)) {
           break;
         }
@@ -10817,8 +10837,8 @@ export function extractPragmas(commentRange: $ast.CommentRange, text: string): $
         }
         pos = skipBlanks(text, pos + 1);
         const $t1 = extractQuotedString(text, pos);
-        let value: string = $t1[0];
-        let ok: boolean = $t1[1];
+        const value: string = $t1[0];
+        const ok: boolean = $t1[1];
         if (!ok) {
           break;
         }
@@ -10839,7 +10859,7 @@ export function extractPragmas(commentRange: $ast.CommentRange, text: string): $
     }
     if (match(text, pos, '@')) {
       pos++;
-      let pragmaName: string = extractName(text, pos);
+      const pragmaName: string = extractName(text, pos);
       if (!(pragmaName === ('ts-check' as string) || pragmaName === ('ts-nocheck' as string))) {
         return [];
       }
@@ -10857,24 +10877,24 @@ export function extractPragmas(commentRange: $ast.CommentRange, text: string): $
           break;
         }
       }
-      let namePos: number = pos$1 + 1;
-      let nameEnd: number = skipNonBlanks(text, namePos);
+      const namePos: number = pos$1 + 1;
+      const nameEnd: number = skipNonBlanks(text, namePos);
       if (nameEnd === namePos) {
         pos$1++;
         continue;
       }
-      let lineEnd: number = lineEndPos(text, pos$1);
-      let pragmaName$1: string = $rt.strings_ToLower(text.substring(namePos, nameEnd));
+      const lineEnd: number = lineEndPos(text, pos$1);
+      const pragmaName$1: string = $rt.strings_ToLower(text.substring(namePos, nameEnd));
       if (
         pragmaName$1 === ('jsx' as string) ||
         pragmaName$1 === ('jsxfrag' as string) ||
         pragmaName$1 === ('jsximportsource' as string) ||
         pragmaName$1 === ('jsxruntime' as string)
       ) {
-        let start: number = skipBlanks(text, nameEnd);
-        let argEnd: number = skipNonBlanks(text, start);
+        const start: number = skipBlanks(text, nameEnd);
+        const argEnd: number = skipNonBlanks(text, start);
         if (!(argEnd === start)) {
-          let args$1: Map<string, $ast.PragmaArgument> | undefined = new Map<string, $ast.PragmaArgument>();
+          const args$1: Map<string, $ast.PragmaArgument> | undefined = new Map<string, $ast.PragmaArgument>();
           args$1!.set(
             'factory',
             $ast.PragmaArgument.$lit_ast_PragmaArgument_1_2_0(
@@ -10921,7 +10941,7 @@ export function skipTo(text: string, pos: number, s: string): number {
   if (pos >= text.length) {
     return -1;
   }
-  let i: number = $rt.strings_IndexFrom(text, pos, s);
+  const i: number = $rt.strings_IndexFrom(text, pos, s);
   if (i < 0) {
     return -1;
   }
@@ -10930,8 +10950,8 @@ export function skipTo(text: string, pos: number, s: string): number {
 export function lineEndPos(text: string, pos: number): number {
   for (; pos < text.length;) {
     const $t1 = $rt.utf8_DecodeRuneInStringAt(text, pos);
-    let ch: number = $t1[0];
-    let size: number = $t1[1];
+    const ch: number = $t1[0];
+    const size: number = $t1[1];
     if ($stringutil.IsLineBreak(ch)) {
       return pos;
     }
@@ -10940,7 +10960,7 @@ export function lineEndPos(text: string, pos: number): number {
   return text.length;
 }
 export function extractName(text: string, pos: number): string {
-  let start: number = pos;
+  const start: number = pos;
   for (
     ;
     pos < text.length &&
@@ -10956,12 +10976,12 @@ export function extractQuotedString(text: string, pos: number): [string, boolean
   if (pos === text.length) {
     return ['', false];
   }
-  let quote: number = text.charCodeAt(pos);
+  const quote: number = text.charCodeAt(pos);
   if (!(quote === (39 as number)) && !(quote === (34 as number))) {
     return ['', false];
   }
   pos++;
-  let start: number = pos;
+  const start: number = pos;
   for (; pos < text.length && !(text.charCodeAt(pos) === quote);) {
     pos++;
   }
@@ -10974,7 +10994,7 @@ export function collectExternalModuleReferences(file: $ast.SourceFile | undefine
   {
     const $t1 = file!.Statements_!.Nodes;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let node = $t1[$t2];
+      const node = $t1[$t2];
       collectModuleReferences(file, node, false);
     }
   }
@@ -10996,9 +11016,9 @@ export function collectModuleReferences(
   inAmbientModule: boolean,
 ): void {
   if ($ast.IsAnyImportOrReExport(node)) {
-    let moduleNameExpr: $ast.Node | undefined = $ast.GetExternalModuleName(node);
+    const moduleNameExpr: $ast.Node | undefined = $ast.GetExternalModuleName(node);
     if (!(moduleNameExpr === undefined) && $ast.IsStringLiteral(moduleNameExpr)) {
-      let moduleName: string = moduleNameExpr!.Text$Node();
+      const moduleName: string = moduleNameExpr!.Text$Node();
       if (!(moduleName === ('' as string)) && (!inAmbientModule || !$tspath.IsExternalModuleNameRelative(moduleName))) {
         $ast.SetImportsOfSourceFile(file, $rt.appendCopy(file!.Imports(), [moduleNameExpr]));
         if (!(file!.UsesUriStyleNodeCoreModules === (2 as number)) && !file!.IsDeclarationFile) {
@@ -11023,7 +11043,7 @@ export function collectModuleReferences(
     $ast.IsAmbientModule(node) &&
     (inAmbientModule || $ast.HasSyntacticModifier(node, 128) || file!.IsDeclarationFile)
   ) {
-    let nameText: string = node!.AsModuleDeclaration()!.Name()!.Text$Node();
+    const nameText: string = node!.AsModuleDeclaration()!.Name()!.Text$Node();
     if ($ast.IsExternalModule(file) || (inAmbientModule && !$tspath.IsExternalModuleNameRelative(nameText))) {
       file!.ModuleAugmentations.push(node!.AsModuleDeclaration()!.Name());
     } else if (!inAmbientModule) {
@@ -11032,7 +11052,7 @@ export function collectModuleReferences(
         {
           const $t1 = node!.Body()!.Statements();
           for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-            let statement = $t1[$t2];
+            const statement = $t1[$t2];
             collectModuleReferences(file, statement, true);
           }
         }
@@ -11050,7 +11070,7 @@ export function findMatchingParameter(
   {
     const $t1 = jsDoc!.AsJSDoc()!.Tags!.Nodes;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      let tag = $t1[$t2];
+      const tag = $t1[$t2];
       if (tag!.Kind_ === (333 as number)) {
         paramCount++;
         if (tag!.AsJSDocParameterOrPropertyTag() === parameterTag) {
@@ -11063,8 +11083,8 @@ export function findMatchingParameter(
   {
     const $t3 = fun!.Parameters();
     for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
-      let parameterIndex = $t4;
-      let parameter = $t3[$t4];
+      const parameterIndex = $t4;
+      const parameter = $t3[$t4];
       if (parameter!.Name$Node()!.Kind_ === (79 as number)) {
         if (
           parameterTag!.Name()!.Kind_ === (79 as number) &&
@@ -11092,7 +11112,7 @@ export function getFunctionLikeHost(host: $ast.Node | undefined): $ast.Node | un
     switch (host!.Kind_) {
       case 244 as number: {
         {
-          let nodes: ($ast.Node | undefined)[] = host!
+          const nodes: ($ast.Node | undefined)[] = host!
             .AsVariableStatement()!
             .DeclarationList!.AsVariableDeclarationList()!.Declarations!.Nodes;
           if (!(nodes.length === (0 as number))) {
@@ -11199,8 +11219,8 @@ export function GetJSDocCommentRanges(
     }
   }
   return $rt.slices_DeleteFunc(commentRanges, (comment: $ast.CommentRange): boolean => {
-    let commentStart: number = $core.TextRange$Pos(comment.TextRange_);
-    let commentLen: number = $core.TextRange$End(comment.TextRange_) - commentStart;
+    const commentStart: number = $core.TextRange$Pos(comment.TextRange_);
+    const commentLen: number = $core.TextRange$End(comment.TextRange_) - commentStart;
     return (
       $core.TextRange$End(comment.TextRange_) > node!.End() ||
       commentLen < 4 ||
