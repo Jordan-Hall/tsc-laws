@@ -8,16 +8,15 @@ import {
   cpSync,
   existsSync,
   mkdirSync,
-  mkdtempSync,
   readdirSync,
   realpathSync,
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import test from 'node:test';
 import { scriptcDist } from './toolchain.mjs';
+import { tempDir } from './temp.mjs';
 
 const bundled = scriptcDist ?? '';
 const main = resolve('dist/tsc-ts/src/main.js');
@@ -26,7 +25,7 @@ const skip = !existsSync(bundled) ? 'needs the scriptc toolchain' : !existsSync(
 // A copy of the scriptc toolchain whose bundled tsc runs tsc-ts.
 function toolchain() {
   const source = realpathSync(bundled);
-  const root = mkdtempSync(join(tmpdir(), 'tsc-ts-scriptc-'));
+  const root = tempDir('tsc-ts-scriptc-');
   mkdirSync(join(root, 'bin'));
   for (const name of readdirSync(join(source, 'bin'))) copyFileSync(join(source, 'bin', name), join(root, 'bin', name));
   chmodSync(join(root, 'bin/scriptc'), 0o755);
@@ -71,7 +70,7 @@ test('scriptc builds the same programs with tsc-ts', { skip, timeout: 900_000 },
   for (const [fixture, entry] of programs) {
     const results = [];
     for (const scriptc of [theirs, ours]) {
-      const dir = mkdtempSync(join(tmpdir(), 'tsc-ts-program-'));
+      const dir = tempDir('tsc-ts-program-');
       cpSync(resolve('tests/fixtures/programs', fixture), fixture.endsWith('.ts') ? join(dir, fixture) : dir, {
         recursive: true,
       });

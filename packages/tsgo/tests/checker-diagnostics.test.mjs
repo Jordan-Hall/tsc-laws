@@ -1,9 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readdirSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { existsSync, readdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { tempDir } from './temp.mjs';
 
 const oracle = resolve('dist/check-oracle');
 const libs = resolve('../../upstream/typescript-go/internal/bundled/libs');
@@ -23,7 +23,7 @@ test(
   'translated checker matches tsgo diagnostics',
   { skip: !existsSync(oracle) && 'run npm run build:oracle', timeout: 1_800_000 },
   () => {
-    const out = mkdtempSync(join(tmpdir(), 'tsc-ts-check-'));
+    const out = tempDir('tsc-ts-check-');
     execFileSync(
       resolve('../../node_modules/.bin/tsc'),
       [

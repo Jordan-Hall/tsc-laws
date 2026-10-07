@@ -4,10 +4,11 @@
 // Usage: node scripts/corpus.mjs [--native] [--jobs N] [compiler|conformance ...]
 //
 // --native uses dist/check; the default runs the translated checker under Node.
-import { mkdtempSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { readdirSync, statSync, writeFileSync } from 'node:fs';
 import { spawn, spawnSync } from 'node:child_process';
-import { availableParallelism, tmpdir } from 'node:os';
+import { availableParallelism } from 'node:os';
 import { join, resolve } from 'node:path';
+import { tempDir } from '../tests/temp.mjs';
 
 const args = process.argv.slice(2);
 const native = args.includes('--native');
@@ -15,7 +16,7 @@ const jobsAt = args.indexOf('--jobs');
 const jobs = jobsAt >= 0 ? Number(args[jobsAt + 1]) : Math.max(1, Math.min(8, availableParallelism() >> 1));
 const suites = args.filter((a, i) => !a.startsWith('--') && args[i - 1] !== '--jobs');
 const libs = resolve('../../upstream/typescript-go/internal/bundled/libs');
-const work = mkdtempSync(join(tmpdir(), 'tsc-ts-corpus-'));
+const work = tempDir('tsc-ts-corpus-');
 
 function files(dir) {
   const out = [];

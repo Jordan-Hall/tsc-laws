@@ -1,9 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readdirSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { existsSync, readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { tempDir } from './temp.mjs';
 
 const oracle = resolve('dist/parse-oracle');
 const inputs = [
@@ -17,7 +17,7 @@ test(
   'translated parser matches tsgo trees and diagnostics',
   { skip: !existsSync(oracle) && 'run npm run build:oracle' },
   () => {
-    const out = mkdtempSync(join(tmpdir(), 'tsc-ts-parse-'));
+    const out = tempDir('tsc-ts-parse-');
     execFileSync(
       resolve('../../node_modules/.bin/tsc'),
       [

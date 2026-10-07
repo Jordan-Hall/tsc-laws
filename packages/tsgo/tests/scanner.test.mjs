@@ -1,9 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readdirSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { existsSync, readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { tempDir } from './temp.mjs';
 
 const oracle = resolve('dist/scan-oracle');
 const inputs = [
@@ -16,7 +16,7 @@ test(
   'translated scanner matches tsgo token streams',
   { skip: !existsSync(oracle) && 'run npm run build:oracle' },
   () => {
-    const out = mkdtempSync(join(tmpdir(), 'tsc-ts-scan-'));
+    const out = tempDir('tsc-ts-scan-');
     execFileSync(
       resolve('../../node_modules/.bin/tsc'),
       [

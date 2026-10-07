@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { cpSync, existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import test from 'node:test';
 import { Differential, explore } from './differential.mjs';
 import { typescriptLib as bundledLib } from './toolchain.mjs';
+import { tempDir } from './temp.mjs';
 
 // The reference: TypeScript 7.0.2's tsc, shipped with scriptc. It reads lib
 // files from its real directory.
@@ -17,7 +17,7 @@ const env = { TSC_TS_LIB_DIR: typescriptLib };
 const skip = !existsSync(realTsc) ? 'needs the scriptc toolchain' : !existsSync(main) ? 'run npm run build' : false;
 
 function copyProject() {
-  const dir = mkdtempSync(join(tmpdir(), 'tsc-ts-api-'));
+  const dir = tempDir('tsc-ts-api-');
   cpSync(resolve('tests/fixtures/project'), dir, { recursive: true });
   return dir;
 }
@@ -129,7 +129,7 @@ test('tsc-ts --api answers like tsc --api', { skip, timeout: 600_000 }, async ()
 });
 
 test('tsc-ts --api tracks projects and open files like tsc --api', { skip, timeout: 300_000 }, async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'tsc-ts-api-'));
+  const dir = tempDir('tsc-ts-api-');
   cpSync(resolve('tests/fixtures/project'), join(dir, 'a'), { recursive: true });
   mkdirSync(join(dir, 'b'));
   writeFileSync(join(dir, 'b/tsconfig.json'), '{"compilerOptions":{"strict":false,"types":[]},"files":["x.ts"]}');

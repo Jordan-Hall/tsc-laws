@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync, statSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { cpSync, existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import test from 'node:test';
+import { tempDir } from './temp.mjs';
 
 const tsgo = resolve('dist/tsgo');
 const project = resolve('tests/fixtures/tsc-project');
@@ -21,7 +21,7 @@ const files = (dir, root = dir, out = {}) => {
 };
 
 const run = (command, args) => {
-  const cwd = mkdtempSync(join(tmpdir(), 'tsc-ts-tsc-'));
+  const cwd = tempDir('tsc-ts-tsc-');
   cpSync(project, cwd, { recursive: true });
   const result = spawnSync(command[0], [...command.slice(1), ...args], {
     cwd,
@@ -35,7 +35,7 @@ test(
   'translated tsc matches tsgo on a project',
   { skip: !existsSync(tsgo) && 'run npm run build:oracle', timeout: 600_000 },
   () => {
-    const out = mkdtempSync(join(tmpdir(), 'tsc-ts-tsc-build-'));
+    const out = tempDir('tsc-ts-tsc-build-');
     execFileSync(
       resolve('../../node_modules/.bin/tsc'),
       [

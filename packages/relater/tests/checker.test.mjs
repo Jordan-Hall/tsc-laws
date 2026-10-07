@@ -1,8 +1,7 @@
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import {
   primitives,
@@ -24,6 +23,7 @@ import {
   stringMappingSignatureNames,
 } from './cases.mjs';
 import { checkerSources, oracleSources, sourceIdentity } from '../scripts/source-identity.mjs';
+import { tempDir } from './temp.mjs';
 
 for (const [path, sources, command] of [
   ['dist/build.json', checkerSources, 'build'],
@@ -34,7 +34,7 @@ for (const [path, sources, command] of [
   if (build.arch !== process.arch) throw new Error('Test executable architecture does not match this host');
 }
 
-const temp = mkdtempSync(join(tmpdir(), 'tsc-ts-tests-'));
+const temp = tempDir('tsc-ts-tests-');
 const native = resolve('dist/relater');
 const oracle = resolve('dist/tsgo-oracle');
 let serial = 0;
