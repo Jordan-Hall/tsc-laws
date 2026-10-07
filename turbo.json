@@ -1,0 +1,31 @@
+{
+  "$schema": "https://turborepo.com/schema.json",
+  "agentGuidance": false,
+  "tasks": {
+    "build": {
+      "outputs": ["dist/**"]
+    },
+    "build:oracle": {
+      "outputs": ["dist/**"],
+      "inputs": ["oracle/**", "oracles/**", "checkhost/**", "scripts/build-oracle.mjs", "$TURBO_ROOT$/upstream.json"]
+    },
+    "translate": {
+      "dependsOn": ["^build"],
+      "cache": false
+    },
+    "build:check": {
+      "outputs": ["dist/check"]
+    },
+    "test": {
+      "dependsOn": ["build", "build:oracle"],
+      "cache": false
+    },
+    "test:corpus": {
+      "dependsOn": ["build:oracle"],
+      "cache": false
+    },
+    "@tsts/gots#build": {
+      "outputs": []
+    }
+  }
+}

@@ -9,7 +9,7 @@ tsts includes material from the projects below.
 - Copyright (c) Microsoft Corporation
 - License: Apache-2.0
 
-The type checker in `src/checker` is ported from TypeScript-Go. `src/checker/flags.ts` and `src/checker/case-mappings.ts` are generated from it. `tools/oracle` builds against it.
+The type checker in `packages/tsts/src/checker` is ported from TypeScript-Go. `packages/tsts/src/checker/flags.ts` and `packages/tsts/src/checker/case-mappings.ts` are generated from it. `packages/tsgo/src/tsgo` is translated from it by `packages/gots`. `packages/tsts/oracle` and `packages/tsgo/oracles` build against it.
 
 TypeScript-Go's NOTICE file follows.
 

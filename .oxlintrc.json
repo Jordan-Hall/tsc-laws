@@ -1,12 +1,12 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
   "ignorePatterns": [
-    "src/tsgo/**",
-    "src/go/runtime.ts",
+    "packages/tsgo/src/tsgo/**",
+    "packages/tsgo/src/go/runtime.ts",
+    "packages/tsgo/tests/fixtures/**",
+    "packages/tsts/src/checker/flags.ts",
+    "packages/tsts/src/checker/case-mappings.ts",
     "upstream/**",
-    "dist/**",
-    "src/checker/flags.ts",
-    "src/checker/case-mappings.ts",
-    "tests/fixtures/**"
+    "**/dist/**"
   ]
 }

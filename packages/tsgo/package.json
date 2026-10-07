@@ -1,0 +1,16 @@
+{
+  "name": "@tsts/tsgo",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "translate": "node scripts/translate.mjs",
+    "build:oracle": "node scripts/build-oracle.mjs",
+    "build:check": "scriptc build src/drivers/check.ts --optimization=release --no-keep-llvm -o dist/check",
+    "test": "node --test tests/*.test.mjs",
+    "test:corpus": "node scripts/corpus.mjs"
+  },
+  "devDependencies": {
+    "@tsts/gots": "*"
+  }
+}

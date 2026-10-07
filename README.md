@@ -2,8 +2,15 @@
 
 An experimental TypeScript port of the type checker from [TypeScript-Go](https://github.com/microsoft/typescript-go) (tsgo), compiled to a native executable with [scriptc](https://scriptc.dev).
 
-> [!NOTE]
-> Two executables are built: `dist/tsts` checks assignability in a type graph exported by a Go reference build, and `dist/check` checks a TypeScript file with the translated tsgo checker.
+## Packages
+
+| Package                          | Description                                                                      |
+| -------------------------------- | -------------------------------------------------------------------------------- |
+| [`packages/tsts`](packages/tsts) | Native assignability checker over a type graph exported by a Go reference build. |
+| [`packages/tsgo`](packages/tsgo) | tsgo's scanner, parser, binder, and checker translated to TypeScript.            |
+| [`packages/gots`](packages/gots) | Go-to-TypeScript translator that generates `packages/tsgo/src/tsgo`.             |
+
+Tasks run with [Turborepo](https://turborepo.com).
 
 ## Requirements
 
@@ -16,8 +23,8 @@ An experimental TypeScript port of the type checker from [TypeScript-Go](https:/
 ```sh
 npm ci
 npm run fetch:upstream   # clone tsgo at the pinned commit
-npm run build            # dist/tsts
-npm run build:oracle     # dist/tsgo-oracle
+npm run build            # packages/tsts/dist/tsts
+npm run build:oracle     # reference builds in packages/*/dist
 ```
 
 `package.json` pins scriptc `0.2.5`. The build fails with any other version.
@@ -37,9 +44,10 @@ An input file has TypeScript declarations and queries naming source and target t
 }
 ```
 
-Export a type graph, then check it:
+Export a type graph, then check it (from `packages/tsts`):
 
 ```sh
+cd packages/tsts
 npm run export:graph -- examples/relations.json dist/relations.graph.json
 ./dist/tsts dist/relations.graph.json
 # [true, false, true]
@@ -65,7 +73,7 @@ Set options at the top level of the input file.
 
 ## Examples
 
-Each file in [`examples`](examples) covers one area of the checker:
+Each file in [`packages/tsts/examples`](packages/tsts/examples) covers one area of the checker:
 
 | Example                  | Covers                                                 |
 | ------------------------ | ------------------------------------------------------ |
@@ -84,12 +92,12 @@ Each file in [`examples`](examples) covers one area of the checker:
 
 ## Translated front end
 
-`tools/gots` translates TypeScript-Go packages to TypeScript in `src/tsgo`, with a small Go runtime in `src/go`. The scanner, parser, binder, and checker are translated, and compile with scriptc.
+`packages/gots` translates TypeScript-Go packages to TypeScript in `packages/tsgo/src/tsgo`, with a small Go runtime in `packages/tsgo/src/go`. The scanner, parser, binder, and checker are translated, and compile with scriptc.
 
 ```sh
-npm run translate     # regenerate src/tsgo
-npm run build:check   # dist/check
-./dist/check file.ts upstream/typescript-go/internal/bundled/libs
+npm run translate                              # regenerate packages/tsgo/src/tsgo
+npm run build:check -w @tsts/tsgo              # packages/tsgo/dist/check
+packages/tsgo/dist/check file.ts upstream/typescript-go/internal/bundled/libs
 ```
 
 `dist/check` reports the same diagnostics as tsgo for all 6,537 of TypeScript's compiler test cases and all 5,907 of its conformance test cases. It is currently about 7× slower than tsgo.
@@ -97,17 +105,17 @@ npm run build:check   # dist/check
 ## Testing
 
 ```sh
-npm test             # compare tsts answers with tsgo
-npm run test:corpus  # compare the translated checker with tsgo on TypeScript's test cases
-npm run coverage     # check that all statements compile statically
-npm run bench        # time tsts against tsgo
-npm run lint         # oxlint
-npm run format       # oxfmt
+npm test                     # compare both packages with tsgo
+npm run test:corpus          # compare the translated checker with tsgo on TypeScript's test cases
+npm run coverage -w tsts     # check that all statements compile statically
+npm run bench -w tsts        # time tsts against tsgo
+npm run lint                 # oxlint
+npm run format               # oxfmt
 ```
 
 ## Benchmarks
 
-Median of five runs on an Apple M1 Max, measuring assignability checks only (no parsing, binding, or startup). Values are tsts time divided by tsgo time; below 1× means tsts is faster. Raw data: [`benchmarks/latest.json`](benchmarks/latest.json).
+Median of five runs on an Apple M1 Max, measuring assignability checks only (no parsing, binding, or startup). Values are tsts time divided by tsgo time; below 1× means tsts is faster. Raw data: [`packages/tsts/benchmarks/latest.json`](packages/tsts/benchmarks/latest.json).
 
 | Workload          | Warm cache | Cold cache |
 | ----------------- | ---------: | ---------: |
@@ -130,8 +138,8 @@ These are synthetic, single-threaded benchmarks. They don't predict whole-compil
 
 ## Limitations
 
-- `dist/check` checks one file at a time against the bundled libs. Module resolution, multi-file programs, and emit are not supported.
-- `dist/tsts` has no expression checking or control flow analysis, and fails comparisons that need protected-member rules as unsupported.
+- `packages/tsgo/dist/check` checks one file at a time against the bundled libs. Module resolution, multi-file programs, and emit are not supported.
+- `packages/tsts/dist/tsts` has no expression checking or control flow analysis, and fails comparisons that need protected-member rules as unsupported.
 
 ## License
 

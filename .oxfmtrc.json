@@ -2,5 +2,11 @@
   "$schema": "./node_modules/oxfmt/configuration_schema.json",
   "singleQuote": true,
   "printWidth": 120,
-  "ignorePatterns": ["THIRD_PARTY_NOTICES.md", "LICENSE", "tests/fixtures/**"]
+  "ignorePatterns": [
+    "THIRD_PARTY_NOTICES.md",
+    "LICENSE",
+    "packages/tsgo/tests/fixtures/**",
+    "**/dist/**",
+    "upstream/**"
+  ]
 }

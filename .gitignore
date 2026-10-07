@@ -3,5 +3,6 @@ dist/
 .scriptc/
 upstream/
 *.dSYM/
-benchmarks/generated/
+packages/tsts/benchmarks/generated/
 isolate-*.log
+.turbo/
