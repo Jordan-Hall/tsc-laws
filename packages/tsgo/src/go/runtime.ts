@@ -519,47 +519,6 @@ export class encoding_binary_bigEndian extends encoding_binary_ByteOrder {
     return this;
   }
 }
-export class encoding_binary_littleEndian extends encoding_binary_ByteOrder {
-  constructor() {
-    super();
-  }
-  AppendUint16(a0: number[], a1: number): number[] {
-    throw $b.unsupported('encoding/binary.littleEndian.AppendUint16');
-  }
-  AppendUint32(a0: number[], a1: number): number[] {
-    throw $b.unsupported('encoding/binary.littleEndian.AppendUint32');
-  }
-  AppendUint64(a0: number[], a1: number): number[] {
-    throw $b.unsupported('encoding/binary.littleEndian.AppendUint64');
-  }
-  GoString(): string {
-    throw $b.unsupported('encoding/binary.littleEndian.GoString');
-  }
-  PutUint16(a0: number[], a1: number): void {
-    throw $b.unsupported('encoding/binary.littleEndian.PutUint16');
-  }
-  PutUint32(a0: number[], a1: number): void {
-    throw $b.unsupported('encoding/binary.littleEndian.PutUint32');
-  }
-  PutUint64(a0: number[], a1: number): void {
-    throw $b.unsupported('encoding/binary.littleEndian.PutUint64');
-  }
-  override String(): string {
-    throw $b.unsupported('encoding/binary.littleEndian.String');
-  }
-  Uint16(a0: number[]): number {
-    throw $b.unsupported('encoding/binary.littleEndian.Uint16');
-  }
-  Uint32(a0: number[]): number {
-    throw $b.unsupported('encoding/binary.littleEndian.Uint32');
-  }
-  Uint64(a0: number[]): number {
-    throw $b.unsupported('encoding/binary.littleEndian.Uint64');
-  }
-  $clone(): encoding_binary_littleEndian {
-    return this;
-  }
-}
 export class github_com_go_json_experiment_json_internal_NotForPublicUse extends $b.GoObject {
   constructor() {
     super();
@@ -1730,7 +1689,6 @@ export function unicode_utf16_Decode(a0: number[]): number[] {
 }
 export let encoding_base64_StdEncoding: encoding_base64_Encoding | undefined = undefined;
 export let encoding_binary_BigEndian: encoding_binary_bigEndian = new encoding_binary_bigEndian();
-export let encoding_binary_LittleEndian: encoding_binary_littleEndian = new encoding_binary_littleEndian();
 export let github_com_go_json_experiment_json_jsontext_BeginArray: github_com_go_json_experiment_json_jsontext_Token =
   new github_com_go_json_experiment_json_jsontext_Token();
 export let github_com_go_json_experiment_json_jsontext_BeginObject: github_com_go_json_experiment_json_jsontext_Token =

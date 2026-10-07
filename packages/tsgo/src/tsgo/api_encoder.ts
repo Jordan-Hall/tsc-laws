@@ -2251,7 +2251,8 @@ export function encodeParseOptions(opts: $ast.ExternalModuleIndicatorOptions): n
 export function BuildNodeIndexTable(sourceFile: $ast.SourceFile | undefined): NodeIndexTable | undefined {
   let nodeCount: number = 0;
   let nodeTable: ($ast.Node | undefined)[] = $rt.makeSlice<$ast.Node | undefined>(1, undefined);
-  const visitor$2: $ast.NodeVisitor | undefined = $ast.NodeVisitor.$lit_ast_NodeVisitor_2(
+  const visitor$2: $ast.NodeVisitor | undefined = $ast.NodeVisitor.$lit_ast_NodeVisitor_1_2(
+    new $ast.NodeFactory(),
     $ast.NodeVisitorHooks.$lit_ast_NodeVisitorHooks_2_3(
       (nodeList: $ast.NodeList | undefined, visitor: $ast.NodeVisitor | undefined): $ast.NodeList | undefined => {
         if (nodeList === undefined) {
@@ -2388,7 +2389,8 @@ export function encodeTree(
       }
     }
   }
-  const visitor$2: $ast.NodeVisitor | undefined = $ast.NodeVisitor.$lit_ast_NodeVisitor_2(
+  const visitor$2: $ast.NodeVisitor | undefined = $ast.NodeVisitor.$lit_ast_NodeVisitor_1_2(
+    new $ast.NodeFactory(),
     $ast.NodeVisitorHooks.$lit_ast_NodeVisitorHooks_2_3(
       (nodeList: $ast.NodeList | undefined, visitor: $ast.NodeVisitor | undefined): $ast.NodeList | undefined => {
         if (nodeList === undefined) {
@@ -2576,15 +2578,9 @@ export function encodeTree(
         },
       ),
     );
-    const $t19 = extendedData.slice(sfExtendedDataOffset + 32);
-    $rt.putUint32LE(extendedData, sfExtendedDataOffset + 32, importsOffset);
-    $rt.copyAt(extendedData, sfExtendedDataOffset + 32, -1, $t19);
-    const $t20 = extendedData.slice(sfExtendedDataOffset + 36);
-    $rt.putUint32LE(extendedData, sfExtendedDataOffset + 36, moduleAugmentationsOffset);
-    $rt.copyAt(extendedData, sfExtendedDataOffset + 36, -1, $t20);
-    const $t21 = extendedData.slice(sfExtendedDataOffset + 40);
-    $rt.putUint32LE(extendedData, sfExtendedDataOffset + 40, ambientModuleNamesOffset);
-    $rt.copyAt(extendedData, sfExtendedDataOffset + 40, -1, $t21);
+    putUint32At(extendedData, sfExtendedDataOffset + 32, importsOffset);
+    putUint32At(extendedData, sfExtendedDataOffset + 36, moduleAugmentationsOffset);
+    putUint32At(extendedData, sfExtendedDataOffset + 40, ambientModuleNamesOffset);
     let externalModuleIndicatorIndex: number = 0;
     if (!(sf$1!.ExternalModuleIndicator === undefined)) {
       if (sf$1!.ExternalModuleIndicator === rootNode) {
@@ -2593,9 +2589,7 @@ export function encodeTree(
         externalModuleIndicatorIndex = nodeIndexMap?.get(sf$1!.ExternalModuleIndicator) ?? 0;
       }
     }
-    const $t22 = extendedData.slice(sfExtendedDataOffset + 44);
-    $rt.putUint32LE(extendedData, sfExtendedDataOffset + 44, externalModuleIndicatorIndex);
-    $rt.copyAt(extendedData, sfExtendedDataOffset + 44, -1, $t22);
+    putUint32At(extendedData, sfExtendedDataOffset + 44, externalModuleIndicatorIndex);
   }
   const metadata: number = 83886080;
   const offsetStringTableOffsets: number = 44;
@@ -2699,6 +2693,12 @@ export function recordExtendedData_SourceFile(
       0,
     ]),
   );
+}
+export function putUint32At(b: number[], offset: number, v: number): void {
+  b[offset] = v & 0xff;
+  b[offset + 1] = (v >>> 8) & 0xff;
+  b[offset + 2] = (v >>> 16) & 0xff;
+  b[offset + 3] = (v >>> 24) & 0xff;
 }
 export function recordExtendedData_TemplateHead(
   node: $ast.Node | undefined,

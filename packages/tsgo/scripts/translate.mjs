@@ -13,7 +13,7 @@ const run = (cmd, args, cwd) => {
 rmSync('../../upstream/typescript-go/internal/checker/relater_oracle.go', { force: true });
 // The test host lives in this repository and is translated with the checker.
 mkdirSync('../../upstream/typescript-go/internal/checkhost', { recursive: true });
-for (const file of ['checkhost.go', 'tsc.go', 'project.go']) {
+for (const file of ['checkhost.go', 'tsc.go', 'project.go', 'api.go']) {
   copyFileSync('checkhost/' + file, '../../upstream/typescript-go/internal/checkhost/' + file);
 }
 run(

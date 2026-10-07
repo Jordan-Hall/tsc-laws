@@ -1785,3 +1785,35 @@ export function sort_Slice(x: GoObject | undefined, less: ((i: number, j: number
 export function sort_SliceStable(x: GoObject | undefined, less: ((i: number, j: number) => boolean) | undefined): void {
   sort_Slice(x, less);
 }
+
+// encoding/binary little-endian byte order, used by the API's AST encoder.
+export class encoding_binary_littleEndian extends GoObject {
+  Uint16(b: number[]): number {
+    return b[0] | (b[1] << 8);
+  }
+  Uint32(b: number[]): number {
+    return (b[0] | (b[1] << 8) | (b[2] << 16) | (b[3] << 24)) >>> 0;
+  }
+  PutUint16(b: number[], v: number): void {
+    b[0] = v & 0xff;
+    b[1] = (v >>> 8) & 0xff;
+  }
+  PutUint32(b: number[], v: number): void {
+    b[0] = v & 0xff;
+    b[1] = (v >>> 8) & 0xff;
+    b[2] = (v >>> 16) & 0xff;
+    b[3] = (v >>> 24) & 0xff;
+  }
+  AppendUint16(b: number[], v: number): number[] {
+    b.push(v & 0xff, (v >>> 8) & 0xff);
+    return b;
+  }
+  AppendUint32(b: number[], v: number): number[] {
+    b.push(v & 0xff, (v >>> 8) & 0xff, (v >>> 16) & 0xff, (v >>> 24) & 0xff);
+    return b;
+  }
+  $clone(): encoding_binary_littleEndian {
+    return this;
+  }
+}
+export const encoding_binary_LittleEndian = new encoding_binary_littleEndian();

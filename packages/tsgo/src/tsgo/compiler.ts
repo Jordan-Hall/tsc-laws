@@ -3674,6 +3674,19 @@ export class ProgramOptions extends $rt.GoObject {
     o.Host = p1;
     return o;
   }
+  static $lit_compiler_ProgramOptions_1_0_2_3(
+    p0: $tsoptions.ParsedCommandLine | undefined,
+    p1: CompilerHost,
+    p2: boolean,
+    p3: $core.Tristate,
+  ): ProgramOptions {
+    const o = new ProgramOptions();
+    o.Config = p0;
+    o.Host = p1;
+    o.UseSourceOfProjectReference = p2;
+    o.SingleThreaded = p3;
+    return o;
+  }
   static $lit_compiler_ProgramOptions_1_0_3(
     p0: $tsoptions.ParsedCommandLine | undefined,
     p1: CompilerHost,

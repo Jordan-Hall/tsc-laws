@@ -17180,9 +17180,10 @@ export class NodeVisitor extends $rt.GoObject {
     o.Hooks = p2;
     return o;
   }
-  static $lit_ast_NodeVisitor_2(p0: NodeVisitorHooks): NodeVisitor {
+  static $lit_ast_NodeVisitor_1_2(p0: NodeFactory | undefined, p1: NodeVisitorHooks): NodeVisitor {
     const o = new NodeVisitor();
-    o.Hooks = p0;
+    o.Factory = p0;
+    o.Hooks = p1;
     return o;
   }
   static $cast_ast_NodeVisitor(v: $rt.GoObject | undefined): NodeVisitor {

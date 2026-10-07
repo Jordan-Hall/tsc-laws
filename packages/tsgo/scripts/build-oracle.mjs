@@ -7,7 +7,8 @@ const expected = JSON.parse(readFileSync('../../upstream.json', 'utf8')).commit;
 const revision = spawnSync('git', ['-C', root, 'rev-parse', 'HEAD'], { encoding: 'utf8' });
 if (revision.stdout.trim() !== expected) throw new Error('Upstream revision does not match upstream.json');
 mkdirSync(root + '/internal/checkhost', { recursive: true });
-for (const file of ['checkhost.go', 'tsc.go', 'project.go']) copyFileSync('checkhost/' + file, root + '/internal/checkhost/' + file);
+for (const file of ['checkhost.go', 'tsc.go', 'project.go', 'api.go'])
+  copyFileSync('checkhost/' + file, root + '/internal/checkhost/' + file);
 // The tsgo command line, the reference for the translated tsc.
 const tsgo = spawnSync('go', ['build', '-o', resolve('dist/tsgo'), './cmd/tsgo'], { cwd: root, stdio: 'inherit' });
 if (tsgo.status !== 0) process.exitCode = tsgo.status ?? 1;

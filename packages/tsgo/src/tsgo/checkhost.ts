@@ -3,17 +3,127 @@
 import * as $rt from '../go/runtime.js';
 import * as $ast from './ast.js';
 import * as $binder from './binder.js';
+import * as $boxes from './boxes.js';
 import * as $checker from './checker.js';
 import * as $compiler from './compiler.js';
 import * as $core from './core.js';
 import * as $execute from './execute.js';
+import * as $jsnum from './jsnum.js';
 import * as $parser from './parser.js';
 import * as $tsoptions from './tsoptions.js';
 import * as $tspath from './tspath.js';
 import * as $vfs from './vfs.js';
+import type * as $collections from './collections.js';
 import type * as $module from './module.js';
 import type * as $packagejson from './packagejson.js';
 import type * as $symlinks from './symlinks.js';
+export class APIHost extends $rt.GoObject {
+  Cwd: string = '';
+  LibPath: string = '';
+  UseCaseSensitive: boolean = false;
+  ReadFile: ((p0: string) => [string, boolean]) | undefined = undefined;
+  FileExists: ((p0: string) => boolean) | undefined = undefined;
+  DirectoryExists: ((p0: string) => boolean) | undefined = undefined;
+  GetAccessibleEntries: ((p0: string) => [string[], string[]]) | undefined = undefined;
+  Realpath: ((p0: string) => string) | undefined = undefined;
+  Stat: ((p0: string) => [number, number, number]) | undefined = undefined;
+  $copy_checkhost_APIHost(src: APIHost): void {
+    this.Cwd = src.Cwd;
+    this.LibPath = src.LibPath;
+    this.UseCaseSensitive = src.UseCaseSensitive;
+    this.ReadFile = src.ReadFile;
+    this.FileExists = src.FileExists;
+    this.DirectoryExists = src.DirectoryExists;
+    this.GetAccessibleEntries = src.GetAccessibleEntries;
+    this.Realpath = src.Realpath;
+    this.Stat = src.Stat;
+  }
+  $clone_checkhost_APIHost(): APIHost {
+    const o = new APIHost();
+    o.$copy_checkhost_APIHost(this);
+    return o;
+  }
+  static $cast_checkhost_APIHost(v: $rt.GoObject | undefined): APIHost {
+    if (v instanceof APIHost) return v;
+    throw $rt.typeAssertError();
+  }
+}
+export class APIProject extends $rt.GoObject {
+  Config: $tsoptions.ParsedCommandLine | undefined = undefined;
+  Program_: $compiler.Program | undefined = undefined;
+  Checker_: $checker.Checker | undefined = undefined;
+  $copy_checkhost_APIProject(src: APIProject): void {
+    this.Config = src.Config;
+    this.Program_ = src.Program_;
+    this.Checker_ = src.Checker_;
+  }
+  $equals_checkhost_APIProject(o: APIProject): boolean {
+    return this.Config === o.Config && this.Program_ === o.Program_ && this.Checker_ === o.Checker_;
+  }
+  $clone_checkhost_APIProject(): APIProject {
+    const o = new APIProject();
+    o.$copy_checkhost_APIProject(this);
+    return o;
+  }
+  static $lit_checkhost_APIProject_0_1_2(
+    p0: $tsoptions.ParsedCommandLine | undefined,
+    p1: $compiler.Program | undefined,
+    p2: $checker.Checker | undefined,
+  ): APIProject {
+    const o = new APIProject();
+    o.Config = p0;
+    o.Program_ = p1;
+    o.Checker_ = p2;
+    return o;
+  }
+  static $cast_checkhost_APIProject(v: $rt.GoObject | undefined): APIProject {
+    if (v instanceof APIProject) return v;
+    throw $rt.typeAssertError();
+  }
+  Diagnostics(kind: string, file: $ast.SourceFile | undefined): ($ast.Diagnostic | undefined)[] {
+    const p = this;
+    const ctx: $rt.context_Context | undefined = $rt.context_Background();
+    {
+      switch (kind) {
+        case 'config' as string: {
+          return p!.Program_!.GetConfigFileParsingDiagnostics();
+        }
+        case 'program' as string: {
+          return p!.Program_!.GetProgramDiagnostics();
+        }
+        case 'global' as string: {
+          p!.Program_!.GetSemanticDiagnostics(ctx, undefined);
+          const all: ($ast.Diagnostic | undefined)[] = $compiler.SortAndDeduplicateDiagnostics(
+            $rt.appendCopy(
+              $rt.appendCopy(
+                $rt.appendCopy([] as ($ast.Diagnostic | undefined)[], p!.Program_!.GetConfigFileParsingDiagnostics()),
+                p!.Program_!.GetProgramDiagnostics(),
+              ),
+              p!.Program_!.GetGlobalDiagnostics(ctx),
+            ),
+          );
+          return $core.Filter<$ast.Diagnostic | undefined>(all, $fn0);
+        }
+        case 'syntactic' as string: {
+          return p!.Program_!.GetSyntacticDiagnostics(ctx, file);
+        }
+        case 'bind' as string: {
+          return p!.Program_!.GetBindDiagnostics(ctx, file);
+        }
+        case 'semantic' as string: {
+          return p!.Program_!.GetSemanticDiagnostics(ctx, file);
+        }
+        case 'suggestion' as string: {
+          return p!.Program_!.GetSuggestionDiagnostics(ctx, file);
+        }
+        case 'declaration' as string: {
+          return p!.Program_!.GetDeclarationDiagnostics(ctx, file);
+        }
+      }
+    }
+    return [];
+  }
+}
 export class Host extends $rt.GoObject {
   Cwd: string = '';
   LibPath: string = '';
@@ -42,6 +152,48 @@ export class Host extends $rt.GoObject {
   }
   static $cast_checkhost_Host(v: $rt.GoObject | undefined): Host {
     if (v instanceof Host) return v;
+    throw $rt.typeAssertError();
+  }
+}
+export class LiteralValue extends $rt.GoObject {
+  Kind: number = 0;
+  Text: string = '';
+  Number: number = 0;
+  Bool: boolean = false;
+  $copy_checkhost_LiteralValue(src: LiteralValue): void {
+    this.Kind = src.Kind;
+    this.Text = src.Text;
+    this.Number = src.Number;
+    this.Bool = src.Bool;
+  }
+  $equals_checkhost_LiteralValue(o: LiteralValue): boolean {
+    return this.Kind === o.Kind && this.Text === o.Text && this.Number === o.Number && this.Bool === o.Bool;
+  }
+  $clone_checkhost_LiteralValue(): LiteralValue {
+    const o = new LiteralValue();
+    o.$copy_checkhost_LiteralValue(this);
+    return o;
+  }
+  static $lit_checkhost_LiteralValue_0_1(p0: number, p1: string): LiteralValue {
+    const o = new LiteralValue();
+    o.Kind = p0;
+    o.Text = p1;
+    return o;
+  }
+  static $lit_checkhost_LiteralValue_0_2(p0: number, p1: number): LiteralValue {
+    const o = new LiteralValue();
+    o.Kind = p0;
+    o.Number = p1;
+    return o;
+  }
+  static $lit_checkhost_LiteralValue_0_3(p0: number, p1: boolean): LiteralValue {
+    const o = new LiteralValue();
+    o.Kind = p0;
+    o.Bool = p1;
+    return o;
+  }
+  static $cast_checkhost_LiteralValue(v: $rt.GoObject | undefined): LiteralValue {
+    if (v instanceof LiteralValue) return v;
     throw $rt.typeAssertError();
   }
 }
@@ -289,6 +441,92 @@ export class Project extends $rt.GoObject {
       }
     }
     return [];
+  }
+}
+export class apiFS extends $rt.GoObject {
+  host: APIHost | undefined = undefined;
+  $copy_checkhost_apiFS(src: apiFS): void {
+    this.host = src.host;
+  }
+  $equals_checkhost_apiFS(o: apiFS): boolean {
+    return this.host === o.host;
+  }
+  $clone_checkhost_apiFS(): apiFS {
+    const o = new apiFS();
+    o.$copy_checkhost_apiFS(this);
+    return o;
+  }
+  static $lit_checkhost_apiFS_0(p0: APIHost | undefined): apiFS {
+    const o = new apiFS();
+    o.host = p0;
+    return o;
+  }
+  static $cast_checkhost_apiFS(v: $rt.GoObject | undefined): apiFS {
+    if (v instanceof apiFS) return v;
+    throw $rt.typeAssertError();
+  }
+  UseCaseSensitiveFileNames(): boolean {
+    const f = this;
+    return f!.host!.UseCaseSensitive;
+  }
+  FileExists(path: string): boolean {
+    const f = this;
+    return f!.host!.FileExists!(path);
+  }
+  DirectoryExists(path: string): boolean {
+    const f = this;
+    return f!.host!.DirectoryExists!(path);
+  }
+  ReadFile(path: string): [string, boolean] {
+    const f = this;
+    return f!.host!.ReadFile!(path);
+  }
+  Realpath(path: string): string {
+    const f = this;
+    return f!.host!.Realpath!(path);
+  }
+  WriteFile(path: string, data: string): $rt.GoObject | undefined {
+    const f = this;
+    return $rt.errors_New('writing files is not supported');
+  }
+  AppendFile(path: string, data: string): $rt.GoObject | undefined {
+    const f = this;
+    return $rt.errors_New('writing files is not supported');
+  }
+  Remove(path: string): $rt.GoObject | undefined {
+    const f = this;
+    return $rt.errors_New('removing files is not supported');
+  }
+  Chtimes(path: string, a: $rt.time_Time, m: $rt.time_Time): $rt.GoObject | undefined {
+    const f = this;
+    return undefined;
+  }
+  GetAccessibleEntries(path: string): $vfs.Entries {
+    const f = this;
+    const $t1 = f!.host!.GetAccessibleEntries!(path);
+    const files: string[] = $t1[0];
+    const dirs: string[] = $t1[1];
+    return $vfs.Entries.$lit_vfs_Entries_0_1(files, dirs);
+  }
+  Stat(path: string): $vfs.FileInfo {
+    const f = this;
+    const $t1 = f!.host!.Stat!(path);
+    const kind: number = $t1[0];
+    const size: number = $t1[1];
+    const mtime: number = $t1[2];
+    if (kind === (0 as number)) {
+      return undefined;
+    }
+    return hostFileInfo.$lit_checkhost_hostFileInfo_0_1_2_3(
+      $tspath.GetBaseFileName(path),
+      kind === (2 as number),
+      size,
+      mtime,
+    );
+  }
+  WalkDir(root: string, walkFn: $vfs.WalkDirFunc): $rt.GoObject | undefined {
+    const f = this;
+    return $rt.errors_New('walking directories is not supported');
   }
 }
 export class hostFS extends $rt.GoObject {
@@ -550,12 +788,158 @@ export class hostWriter extends $rt.GoObject {
     return [p.length, undefined];
   }
 }
+export const APIHost$zero: APIHost = new APIHost();
 export const Host$zero: Host = new Host();
+export const LiteralValue$zero: LiteralValue = new LiteralValue();
 export const LibDir: string = '/libs/';
+const $fn0 = (d: $ast.Diagnostic | undefined): boolean => {
+  return d!.File() === undefined;
+};
 export let libCache: Map<string, $ast.SourceFile | undefined> | undefined = new Map<
   string,
   $ast.SourceFile | undefined
 >();
+export function OpenAPIProject(host: APIHost | undefined, configFileName: string): APIProject | undefined {
+  const compilerHost: $compiler.CompilerHost = $compiler.NewCompilerHost(
+    host!.Cwd,
+    apiFS.$lit_checkhost_apiFS_0(host),
+    host!.LibPath,
+    undefined,
+    undefined,
+  );
+  const $t1 = $tsoptions.GetParsedCommandLineOfConfigFile(
+    configFileName,
+    undefined,
+    undefined,
+    compilerHost as unknown as $tsoptions.ParseConfigHost,
+    undefined,
+  );
+  let config: $tsoptions.ParsedCommandLine | undefined = $t1[0];
+  const errs: ($ast.Diagnostic | undefined)[] = $t1[1];
+  if (config === undefined) {
+    config = new $tsoptions.ParsedCommandLine();
+  }
+  if (errs.length > 0) {
+    $rt.appendInto(config!.Errors, errs);
+  }
+  return newAPIProject(config, compilerHost);
+}
+export function OpenInferredAPIProject(host: APIHost | undefined, rootFileNames: string[]): APIProject | undefined {
+  const compilerHost: $compiler.CompilerHost = $compiler.NewCompilerHost(
+    host!.Cwd,
+    apiFS.$lit_checkhost_apiFS_0(host),
+    host!.LibPath,
+    undefined,
+    undefined,
+  );
+  const options: $core.CompilerOptions | undefined =
+    $core.CompilerOptions.$lit_core_CompilerOptions_1_44_45_92_36_3_85_84_89_4_71(2, 99, 100, 12, 4, 2, 2, 2, 2, 2, 2);
+  const config: $tsoptions.ParsedCommandLine | undefined = $tsoptions.NewParsedCommandLine(
+    options,
+    rootFileNames,
+    $tspath.ComparePathsOptions.$lit_tspath_ComparePathsOptions_0_1(host!.UseCaseSensitive, host!.Cwd),
+  );
+  return newAPIProject(config, compilerHost);
+}
+export function newAPIProject(
+  config: $tsoptions.ParsedCommandLine | undefined,
+  compilerHost: $compiler.CompilerHost,
+): APIProject | undefined {
+  const program: $compiler.Program | undefined = $compiler.NewProgram(
+    $compiler.ProgramOptions.$lit_compiler_ProgramOptions_1_0_2_3(config, compilerHost, true, 2),
+  );
+  program!.BindSourceFiles();
+  const $t1 = $checker.NewChecker(program, undefined);
+  const c: $checker.Checker | undefined = $t1[0];
+  return APIProject.$lit_checkhost_APIProject_0_1_2(config, program, c);
+}
+export function ParseAPIConfigFile(
+  host: APIHost | undefined,
+  configFileName: string,
+): $tsoptions.ParsedCommandLine | undefined {
+  const fs: apiFS | undefined = apiFS.$lit_checkhost_apiFS_0(host);
+  const $t1 = fs!.ReadFile(configFileName);
+  const text: string = $t1[0];
+  const ok: boolean = $t1[1];
+  if (!ok) {
+    return undefined;
+  }
+  const compilerHost: $compiler.CompilerHost = $compiler.NewCompilerHost(
+    host!.Cwd,
+    fs,
+    host!.LibPath,
+    undefined,
+    undefined,
+  );
+  const path: $tspath.Path = $tspath.ToPath(configFileName, host!.Cwd, host!.UseCaseSensitive);
+  const sourceFile: $tsoptions.TsConfigSourceFile | undefined = $tsoptions.NewTsconfigSourceFileFromFilePath(
+    configFileName,
+    path,
+    text,
+  );
+  return $tsoptions.ParseJsonSourceFileConfigFileContent(
+    sourceFile,
+    compilerHost as unknown as $tsoptions.ParseConfigHost,
+    $tspath.GetDirectoryPath(configFileName),
+    undefined,
+    undefined,
+    configFileName,
+    [],
+    [],
+    undefined,
+  );
+}
+export function RawCompilerOption(config: $tsoptions.ParsedCommandLine | undefined, name_: string): boolean {
+  const $t1: $rt.GoObject | undefined = config!.Raw;
+  const $t2: boolean = $t1 instanceof $boxes.Box__collections_OrderedMap_string__any_;
+  const raw: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined = $t2
+    ? $boxes.Box__collections_OrderedMap_string__any_.$cast($t1).v
+    : undefined;
+  let ok: boolean = $t2;
+  if (!ok) {
+    return false;
+  }
+  const $t3 = raw!.Get('compilerOptions');
+  const options: $rt.GoObject | undefined = $t3[0];
+  ok = $t3[1];
+  if (!ok) {
+    return false;
+  }
+  const $t4: $rt.GoObject | undefined = options;
+  const $t5: boolean = $t4 instanceof $boxes.Box__collections_OrderedMap_string__any_;
+  const m: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined = $t5
+    ? $boxes.Box__collections_OrderedMap_string__any_.$cast($t4).v
+    : undefined;
+  ok = $t5;
+  return ok && m!.Has(name_);
+}
+export function literalValueOf(value: $rt.GoObject | undefined): LiteralValue {
+  {
+    const $t1: $rt.GoObject | undefined = value;
+    $sw2: {
+      if ($rt.isValue($t1, 'string')) {
+        const v: string = $rt.checkString(true, $t1);
+        return LiteralValue.$lit_checkhost_LiteralValue_0_1(1, v);
+      } else if ($t1 instanceof $jsnum.Number_$Box) {
+        const v$1: $jsnum.Number_ = $jsnum.Number_$Box.$cast($t1).v;
+        return LiteralValue.$lit_checkhost_LiteralValue_0_2(2, v$1);
+      } else if ($rt.isValue($t1, 'bool')) {
+        const v$2: boolean = $rt.checkBool(true, $t1);
+        return LiteralValue.$lit_checkhost_LiteralValue_0_3(3, v$2);
+      } else if ($t1 instanceof $jsnum.PseudoBigInt) {
+        const v$3: $jsnum.PseudoBigInt = $jsnum.PseudoBigInt.$cast_jsnum_PseudoBigInt($t1);
+        return LiteralValue.$lit_checkhost_LiteralValue_0_1(4, v$3.String());
+      }
+    }
+  }
+  return new LiteralValue();
+}
+export function LiteralTypeValue(t: $checker.Type | undefined): LiteralValue {
+  return literalValueOf(t!.AsLiteralType()!.Value());
+}
+export function ConstantValue(c: $checker.Checker | undefined, node: $ast.Node | undefined): LiteralValue {
+  return literalValueOf(c!.GetConstantValue(node));
+}
 export function parseFile(fileName: string, text: string): $ast.SourceFile | undefined {
   const opts: $ast.SourceFileParseOptions = $ast.SourceFileParseOptions.$lit_ast_SourceFileParseOptions_0_1(
     fileName,

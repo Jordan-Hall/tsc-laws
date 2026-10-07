@@ -686,6 +686,33 @@ export class CompilerOptions extends $rt.GoObject {
     o.NoEmit = p3;
     return o;
   }
+  static $lit_core_CompilerOptions_1_44_45_92_36_3_85_84_89_4_71(
+    p0: Tristate,
+    p1: ModuleKind,
+    p2: ModuleResolutionKind,
+    p3: ScriptTarget,
+    p4: JsxEmit,
+    p5: Tristate,
+    p6: Tristate,
+    p7: Tristate,
+    p8: Tristate,
+    p9: Tristate,
+    p10: Tristate,
+  ): CompilerOptions {
+    const o = new CompilerOptions();
+    o.AllowJs = p0;
+    o.Module = p1;
+    o.ModuleResolution = p2;
+    o.Target = p3;
+    o.Jsx = p4;
+    o.AllowImportingTsExtensions = p5;
+    o.StrictNullChecks = p6;
+    o.StrictFunctionTypes = p7;
+    o.SourceMap = p8;
+    o.AllowNonTsExtensions = p9;
+    o.ResolveJsonModule = p10;
+    return o;
+  }
   static $lit_core_CompilerOptions_45(p0: ModuleResolutionKind): CompilerOptions {
     const o = new CompilerOptions();
     o.ModuleResolution = p0;

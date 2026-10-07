@@ -6,6 +6,7 @@ An experimental TypeScript port of the TypeScript 7.0.2 compiler ([TypeScript-Go
 
 | Package                                | Description                                                             |
 | -------------------------------------- | ----------------------------------------------------------------------- |
+| [`packages/tsc-ts`](packages/tsc-ts)   | The `tsc-ts` command line and its `--api` server.                       |
 | [`packages/tsgo`](packages/tsgo)       | tsgo's scanner, parser, binder, and checker, translated to TypeScript.  |
 | [`packages/gots`](packages/gots)       | Go-to-TypeScript translator that generates `packages/tsgo/src/tsgo`.    |
 | [`packages/relater`](packages/relater) | Hand-ported assignability checker over a type graph exported from tsgo. |
@@ -28,6 +29,17 @@ npm run build:oracle     # tsgo reference builds in packages/*/dist
 ```
 
 `package.json` pins scriptc `0.2.5`. The build fails with any other version.
+
+## API server
+
+`tsc-ts --api` serves the same API as TypeScript 7.0.2's `tsc --api`, over stdin and stdout, so tools that drive `tsc --api` (such as scriptc) can run `tsc-ts` instead.
+
+```sh
+npm run build -w tsc-ts
+node packages/tsc-ts/dist/tsc-ts/src/main.js --api --cwd path/to/project
+```
+
+The server is checked against `tsc --api` 7.0.2 response by response, and scriptc builds the same programs with either. The compiler behind it is currently the translated tsgo in `packages/tsgo`. Language service methods (completions, references, JSDoc queries) are not supported yet.
 
 ## Checker
 

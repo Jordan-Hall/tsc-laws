@@ -1,0 +1,275 @@
+// Request parameters and responses of the API, as sent over the wire.
+// Fields are declared in the order tsc --api writes them.
+import type { CompilerOptions, LiteralValue } from './backend.js';
+
+// A file name, or a document URI.
+export type DocumentIdentifier = string | { uri: string };
+
+export type NodeHandle = string;
+
+// Params
+
+export interface UpdateSnapshotParams {
+  openProjects?: DocumentIdentifier[];
+  closeProjects?: DocumentIdentifier[];
+  fileChanges?: FileChanges;
+  openFiles?: DocumentIdentifier[];
+  closeFiles?: DocumentIdentifier[];
+}
+
+export interface FileChanges {
+  invalidateAll?: boolean;
+  changed?: DocumentIdentifier[];
+  created?: DocumentIdentifier[];
+  deleted?: DocumentIdentifier[];
+}
+
+export interface ReleaseParams {
+  snapshot?: number;
+}
+
+export interface FileParams {
+  file: DocumentIdentifier;
+}
+
+export interface SnapshotFileParams {
+  snapshot?: number;
+  file: DocumentIdentifier;
+}
+
+export interface ProjectParams {
+  snapshot?: number;
+  project?: string;
+}
+
+export interface ProjectFileParams extends ProjectParams {
+  file: DocumentIdentifier;
+}
+
+export interface OptionalFileParams extends ProjectParams {
+  file?: DocumentIdentifier | null;
+}
+
+export interface PositionParams extends ProjectFileParams {
+  position?: number;
+}
+
+export interface PositionsParams extends ProjectFileParams {
+  positions?: number[];
+}
+
+export interface LocationParams extends ProjectParams {
+  location?: NodeHandle;
+}
+
+export interface LocationsParams extends ProjectParams {
+  locations?: NodeHandle[];
+}
+
+export interface SymbolParams extends ProjectParams {
+  symbol?: number;
+}
+
+export interface SymbolsParams extends ProjectParams {
+  symbols?: number[];
+}
+
+export interface TypeParams extends ProjectParams {
+  type?: number;
+}
+
+// Parameters of the get*Of* property methods, which name the object `objectId`.
+export interface ObjectParams extends ProjectParams {
+  objectId?: number;
+}
+
+export interface SignatureParams extends ProjectParams {
+  signature?: number;
+}
+
+export interface SymbolAtLocationParams extends ProjectParams {
+  symbol?: number;
+  location?: NodeHandle;
+}
+
+export interface NamedTypeParams extends TypeParams {
+  name?: string;
+}
+
+export interface NamedSymbolParams extends SymbolParams {
+  name?: string;
+}
+
+export interface SignaturesOfTypeParams extends TypeParams {
+  kind?: number;
+}
+
+export interface ParameterTypeParams extends SignatureParams {
+  index?: number;
+}
+
+export interface AssignabilityParams extends ProjectParams {
+  source?: number;
+  target?: number;
+}
+
+export interface ResolveNameParams extends ProjectParams {
+  name?: string;
+  location?: NodeHandle;
+  file?: DocumentIdentifier | null;
+  position?: number | null;
+  meaning?: number;
+  excludeGlobals?: boolean;
+}
+
+export interface TypeToTypeNodeParams extends TypeParams {
+  location?: NodeHandle;
+  flags?: number;
+}
+
+export interface SignatureToDeclarationParams extends SignatureParams {
+  kind?: number;
+  location?: NodeHandle;
+  flags?: number;
+}
+
+export interface PrintNodeParams {
+  data?: string;
+  preserveSourceNewlines?: boolean;
+  neverAsciiEscape?: boolean;
+  terminateUnterminatedLiterals?: boolean;
+}
+
+// Responses
+
+export interface InitializeResponse {
+  useCaseSensitiveFileNames: boolean;
+  currentDirectory: string;
+}
+
+export interface UpdateSnapshotResponse {
+  snapshot: number;
+  projects: ProjectResponse[];
+  changes?: SnapshotChanges;
+}
+
+export interface SnapshotChanges {
+  changedProjects?: Record<string, ProjectFileChanges>;
+  removedProjects?: string[];
+}
+
+export interface ProjectFileChanges {
+  changedFiles?: string[];
+  deletedFiles?: string[];
+}
+
+export interface ProjectResponse {
+  id: string;
+  configFileName: string;
+  rootFiles: string[];
+  compilerOptions: CompilerOptions;
+}
+
+export interface ConfigFileResponse {
+  fileNames: string[];
+  options: CompilerOptions;
+}
+
+export interface SymbolResponse {
+  id: number;
+  project: string;
+  name: string;
+  flags: number;
+  checkFlags: number;
+  declarations?: NodeHandle[];
+  valueDeclaration?: NodeHandle;
+  parent?: number;
+  exportSymbol?: number;
+}
+
+export interface TypeResponse {
+  id: number;
+  flags: number;
+  objectFlags: number;
+  value: LiteralValueResponse;
+  target?: number;
+  typeParameters?: number[];
+  outerTypeParameters?: number[];
+  localTypeParameters?: number[];
+  elementFlags?: number[];
+  fixedLength?: number;
+  readonly?: boolean;
+  objectType?: number;
+  indexType?: number;
+  checkType?: number;
+  extendsType?: number;
+  baseType?: number;
+  substConstraint?: number;
+  texts?: string[];
+  freshType?: number;
+  regularType?: number;
+  isThisType: boolean;
+  intrinsicName?: string;
+  aliasTypeArguments?: number[];
+  aliasSymbol?: number;
+  symbol?: number;
+}
+
+// Literal values on the wire: bigints are decimal strings.
+export type LiteralValueResponse = string | number | boolean | null;
+
+export interface SignatureResponse {
+  id: number;
+  flags: number;
+  declaration?: NodeHandle;
+  typeParameters?: number[];
+  parameters?: number[];
+  thisParameter?: number;
+  target?: number;
+}
+
+export interface SourceFileMetadataResponse {
+  isDefaultLibrary: boolean;
+  isFromExternalLibrary: boolean;
+  packageJsonType: string;
+  packageJsonDirectory: string;
+  impliedNodeFormat: number;
+}
+
+export interface IndexInfoResponse {
+  keyType: TypeResponse;
+  valueType: TypeResponse;
+  isReadonly?: boolean;
+  declaration?: NodeHandle;
+}
+
+export interface TypePredicateResponse {
+  kind: number;
+  parameterIndex: number;
+  parameterName?: string;
+  type?: TypeResponse;
+}
+
+export interface WellKnownSymbolsResponse {
+  unknown: number;
+  undefined: number;
+  arguments: number;
+}
+
+export interface DiagnosticResponse {
+  fileName?: string;
+  pos: number;
+  end: number;
+  code: number;
+  category: number;
+  text: string;
+  reportsUnnecessary?: boolean;
+  reportsDeprecated?: boolean;
+  messageChain?: DiagnosticResponse[];
+  relatedInformation?: DiagnosticResponse[];
+}
+
+export function literalValueResponse(value: LiteralValue): LiteralValueResponse {
+  if (value !== null && typeof value === 'object') return value.bigint;
+  return value;
+}

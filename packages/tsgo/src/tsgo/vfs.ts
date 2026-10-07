@@ -12,6 +12,7 @@ export type FS =
   | $compiler.projectReferenceDtsFakingVfs
   | $vfs_osvfs.osFS
   | $vfs_trackingvfs.FS
+  | $checkhost.apiFS
   | $checkhost.hostFS
   | undefined;
 export type FileInfo = $checkhost.hostFileInfo | undefined;

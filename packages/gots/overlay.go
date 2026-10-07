@@ -97,6 +97,21 @@ func isOrderedMapJSONValue(v any) bool { _, ok := v.(*collections.OrderedMap[str
 	}
 }`},
 	{"packagejson/expected.go", `\t"reflect"\n`, ""},
+	// The encoder's visitors call factory updates through a nil *NodeFactory,
+	// which Go allows for unchanged nodes but the translation can't.
+	{"api/encoder/encoder.go", `visitor := &ast.NodeVisitor\{\n`, "visitor := &ast.NodeVisitor{\n\t\tFactory: &ast.NodeFactory{},\n"},
+	// The encoder patches offsets through subslices, which the translation
+	// copies; write through the slice itself.
+	{"api/encoder/encoder.go", `binary\.LittleEndian\.PutUint32\(extendedData\[([^\]]+):\], `, "putUint32At(extendedData, $1, "},
+	{"api/encoder/encoder.go", `\nfunc recordExtendedData_TemplateHead\(`, `
+func putUint32At(b []byte, offset int, v uint32) {
+	b[offset] = byte(v)
+	b[offset+1] = byte(v >> 8)
+	b[offset+2] = byte(v >> 16)
+	b[offset+3] = byte(v >> 24)
+}
+
+func recordExtendedData_TemplateHead(`},
 }
 
 func loadOverlay(dir, upstream string, env, flags []string) map[string][]byte {
