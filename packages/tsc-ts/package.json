@@ -6,7 +6,8 @@
   "scripts": {
     "build": "tsc --outDir dist --rootDir .. --target es2024 --module nodenext --moduleResolution nodenext --strict --skipLibCheck --types node src/main.ts",
     "build:native": "scriptc build src/main.ts -o dist/tsc",
-    "test": "node --test tests/*.test.mjs"
+    "test": "node --test tests/*.test.mjs",
+    "bench": "node scripts/bench.mjs"
   },
   "devDependencies": {
     "@tsc-ts/tsgo": "*"
