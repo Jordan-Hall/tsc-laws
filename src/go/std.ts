@@ -9,6 +9,9 @@ import {
   runeToString,
   imod,
   bytesToString,
+  objectId,
+  toHostString,
+  fromHostString,
 } from './base.js';
 
 // strings
@@ -981,4 +984,226 @@ export function strings_IndexFrom(s: string, from: number, sub: string): number 
 export function strings_IndexByteFrom(s: string, from: number, c: number): number {
   const i = s.indexOf(String.fromCharCode(c), from);
   return i < 0 ? -1 : i - from;
+}
+
+// json.Marshal for basic values. Go encodes float64 with ECMAScript number
+// formatting, which String() also produces.
+export function github_com_go_json_experiment_json_Marshal(
+  v: GoObject | undefined,
+  _opts: (GoObject | undefined)[],
+): [number[], GoObject | undefined] {
+  let s: string;
+  if (v instanceof BoxNum) s = Number.isFinite(v.v) ? String(v.v) : 'null';
+  else if (v instanceof BoxStr) s = strconv_Quote(v.v);
+  else if (v instanceof BoxBool) s = v.v ? 'true' : 'false';
+  else if (v === undefined) s = 'null';
+  else return [[], new GoError('json: unsupported value')];
+  const out: number[] = [];
+  for (let i = 0; i < s.length; i++) out.push(s.charCodeAt(i));
+  return [out, undefined];
+}
+
+// sync.Map. Keys compare like Go interface values: boxed basic values by
+// value, objects by identity.
+function anyKey(k: GoObject | undefined): string {
+  if (k === undefined) return 'nil';
+  if (k instanceof BoxNum) return 'n' + k.t + ':' + String(k.v);
+  if (k instanceof BoxStr) return 's' + k.t + ':' + k.v;
+  if (k instanceof BoxBool) return 'b' + k.t + ':' + (k.v ? '1' : '0');
+  return 'o' + String(objectId(k));
+}
+export class sync_Map extends GoObject {
+  keys = new Map<string, GoObject | undefined>();
+  vals = new Map<string, GoObject | undefined>();
+  Load(k: GoObject | undefined): [GoObject | undefined, boolean] {
+    const key = anyKey(k);
+    return this.vals.has(key) ? [this.vals.get(key), true] : [undefined, false];
+  }
+  Store(k: GoObject | undefined, v: GoObject | undefined): void {
+    const key = anyKey(k);
+    this.keys.set(key, k);
+    this.vals.set(key, v);
+  }
+  LoadOrStore(k: GoObject | undefined, v: GoObject | undefined): [GoObject | undefined, boolean] {
+    const key = anyKey(k);
+    if (this.vals.has(key)) return [this.vals.get(key), true];
+    this.keys.set(key, k);
+    this.vals.set(key, v);
+    return [v, false];
+  }
+  LoadAndDelete(k: GoObject | undefined): [GoObject | undefined, boolean] {
+    const r = this.Load(k);
+    this.Delete(k);
+    return r;
+  }
+  Delete(k: GoObject | undefined): void {
+    const key = anyKey(k);
+    this.keys.delete(key);
+    this.vals.delete(key);
+  }
+  Swap(k: GoObject | undefined, v: GoObject | undefined): [GoObject | undefined, boolean] {
+    const r = this.Load(k);
+    this.Store(k, v);
+    return r;
+  }
+  CompareAndSwap(k: GoObject | undefined, old: GoObject | undefined, v: GoObject | undefined): boolean {
+    const [cur, ok] = this.Load(k);
+    if (!ok || cur !== old) return false;
+    this.Store(k, v);
+    return true;
+  }
+  CompareAndDelete(k: GoObject | undefined, old: GoObject | undefined): boolean {
+    const [cur, ok] = this.Load(k);
+    if (!ok || cur !== old) return false;
+    this.Delete(k);
+    return true;
+  }
+  Range(f: ((k: GoObject | undefined, v: GoObject | undefined) => boolean) | undefined): void {
+    for (const [key, k] of this.keys) if (!f!(k, this.vals.get(key))) return;
+  }
+  Clear(): void {
+    this.keys = new Map<string, GoObject | undefined>();
+    this.vals = new Map<string, GoObject | undefined>();
+  }
+  $clone(): sync_Map {
+    return this;
+  }
+}
+
+// golang.org/x/text/language: tags compare by their string form. The matcher
+// never matches, so diagnostics use the built-in English messages.
+export class golang_org_x_text_language_Tag extends GoObject {
+  s: string;
+  constructor(s = '') {
+    super();
+    this.s = s;
+  }
+  override String(): string {
+    return this.s === '' ? 'und' : this.s;
+  }
+  $equals(o: golang_org_x_text_language_Tag): boolean {
+    return this.s === o.s;
+  }
+  $clone(): golang_org_x_text_language_Tag {
+    return this;
+  }
+}
+export const golang_org_x_text_language_Und = new golang_org_x_text_language_Tag('');
+export const golang_org_x_text_language_English = new golang_org_x_text_language_Tag('en');
+export function golang_org_x_text_language_MustParse(s: string): golang_org_x_text_language_Tag {
+  return new golang_org_x_text_language_Tag(s);
+}
+export function golang_org_x_text_language_Parse(s: string): [golang_org_x_text_language_Tag, GoObject | undefined] {
+  return [new golang_org_x_text_language_Tag(s), undefined];
+}
+export class golang_org_x_text_language_Matcher extends GoObject {
+  Match(_tags: golang_org_x_text_language_Tag[]): [golang_org_x_text_language_Tag, number, number] {
+    return [golang_org_x_text_language_Und, -1, 0];
+  }
+}
+export class golang_org_x_text_language_matcher extends golang_org_x_text_language_Matcher {}
+export function golang_org_x_text_language_NewMatcher(
+  _tags: golang_org_x_text_language_Tag[],
+  _opts: (((m: golang_org_x_text_language_matcher | undefined) => void) | undefined)[],
+): golang_org_x_text_language_Matcher | undefined {
+  return new golang_org_x_text_language_Matcher();
+}
+
+// regexp on top of RegExp. Go strings here are UTF-8 byte strings, so
+// matching runs on host strings and results are converted back.
+function toRegExpSource(pattern: string): string {
+  const src = toHostString(pattern).replace(/\\x\{([0-9A-Fa-f]+)\}/g, '\\u{$1}');
+  // RE2 treats braces that do not form a quantifier as literals.
+  let out = '';
+  for (let i = 0; i < src.length; i++) {
+    const c = src[i];
+    if (c === '\\') {
+      out += src.substring(i, i + 2);
+      i++;
+      if (src[i] === 'u' && src[i + 1] === '{') {
+        const close = src.indexOf('}', i);
+        out += src.substring(i + 1, close + 1);
+        i = close;
+      }
+      continue;
+    }
+    if (c === '{') {
+      const m = /^\{\d+(,\d*)?\}/.exec(src.substring(i));
+      if (m !== null) {
+        out += m[0];
+        i += m[0].length - 1;
+        continue;
+      }
+      out += '\\{';
+      continue;
+    }
+    out += c === '}' ? '\\}' : c;
+  }
+  return out;
+}
+// Expands $1 and ${1} in a replacement template.
+function expandTemplate(r: string, m: string[]): string {
+  let out = '';
+  for (let i = 0; i < r.length; i++) {
+    if (r[i] !== '$' || i + 1 >= r.length) {
+      out += r[i];
+      continue;
+    }
+    let j = i + 1;
+    const braced = r[j] === '{';
+    if (braced) j++;
+    let d = '';
+    while (j < r.length && r[j] >= '0' && r[j] <= '9') d += r[j++];
+    if (d === '' || (braced && r[j] !== '}')) {
+      out += r[i];
+      continue;
+    }
+    const g = m[Number(d)];
+    out += g === undefined ? '' : g;
+    i = braced ? j : j - 1;
+  }
+  return out;
+}
+export class regexp_Regexp extends GoObject {
+  re: RegExp;
+  src: string;
+  constructor(src = '') {
+    super();
+    this.src = src;
+    this.re = new RegExp(toRegExpSource(src), 'gu');
+  }
+  MatchString(s: string): boolean {
+    this.re.lastIndex = 0;
+    return this.re.test(toHostString(s));
+  }
+  // Calls f for each match of re in host string h and joins the pieces.
+  private replaceAll(h: string, f: (m: string[]) => string): string {
+    let out = '';
+    let last = 0;
+    this.re.lastIndex = 0;
+    for (let m = this.re.exec(h); m !== null; m = this.re.exec(h)) {
+      out += h.substring(last, m.index) + f(m);
+      last = m.index + m[0].length;
+      if (m[0].length === 0) this.re.lastIndex = this.re.lastIndex + 1;
+    }
+    return out + h.substring(last);
+  }
+  ReplaceAllString(s: string, repl: string): string {
+    const r = toHostString(repl);
+    return fromHostString(this.replaceAll(toHostString(s), (m: string[]): string => expandTemplate(r, m)));
+  }
+  ReplaceAllStringFunc(s: string, f: ((m: string) => string) | undefined): string {
+    return fromHostString(
+      this.replaceAll(toHostString(s), (m: string[]): string => toHostString(f!(fromHostString(m[0])))),
+    );
+  }
+  override String(): string {
+    return this.src;
+  }
+  $clone(): regexp_Regexp {
+    return this;
+  }
+}
+export function regexp_MustCompile(pattern: string): regexp_Regexp | undefined {
+  return new regexp_Regexp(pattern);
 }

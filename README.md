@@ -84,7 +84,7 @@ Each file in [`examples`](examples) covers one area of the checker:
 
 ## Translated front end
 
-`tools/gots` translates TypeScript-Go packages to TypeScript in `src/tsgo`, with a small Go runtime in `src/go`. The scanner and its dependencies are translated so far; their token streams match tsgo.
+`tools/gots` translates TypeScript-Go packages to TypeScript in `src/tsgo`, with a small Go runtime in `src/go`. The scanner and parser are translated so far; their tokens, syntax trees, and parse diagnostics match tsgo.
 
 ```sh
 npm run translate   # regenerate src/tsgo

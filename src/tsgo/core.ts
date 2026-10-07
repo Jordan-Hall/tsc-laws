@@ -38,7 +38,7 @@ export class BreadthFirstSearchLevel<K, N> extends $rt.GoObject {
     o.$copy_BreadthFirstSearchLevel(this);
     return o;
   }
-  static $lit_0<K, N>(
+  static $lit_BreadthFirstSearchLevel_0<K, N>(
     p0: $collections.OrderedMap<K, breadthFirstSearchJob<N> | undefined> | undefined,
   ): BreadthFirstSearchLevel<K, N> {
     const o = new BreadthFirstSearchLevel<K, N>();
@@ -92,7 +92,7 @@ export class BreadthFirstSearchResult<N> extends $rt.GoObject {
     o.$copy_BreadthFirstSearchResult(this);
     return o;
   }
-  static $lit_0_1<N>(p0: boolean, p1: N[]): BreadthFirstSearchResult<N> {
+  static $lit_BreadthFirstSearchResult_0_1<N>(p0: boolean, p1: N[]): BreadthFirstSearchResult<N> {
     const o = new BreadthFirstSearchResult<N>();
     o.Stopped = p0;
     o.Path = p1;
@@ -116,12 +116,23 @@ export class BuildOptions extends $rt.GoObject {
     this.StopBuildOnErrors = src.StopBuildOnErrors;
     this.Clean = src.Clean;
   }
+  $equals_BuildOptions(o: BuildOptions): boolean {
+    return (
+      this.$_0.$equals_noCopy(o.$_0) &&
+      this.Dry === o.Dry &&
+      this.Force === o.Force &&
+      this.Verbose === o.Verbose &&
+      this.Builders === o.Builders &&
+      this.StopBuildOnErrors === o.StopBuildOnErrors &&
+      this.Clean === o.Clean
+    );
+  }
   $clone_BuildOptions(): BuildOptions {
     const o = new BuildOptions();
     o.$copy_BuildOptions(this);
     return o;
   }
-  static $cast(v: $rt.GoObject | undefined): BuildOptions {
+  static $cast_BuildOptions(v: $rt.GoObject | undefined): BuildOptions {
     if (v instanceof BuildOptions) return v;
     throw $rt.typeAssertError();
   }
@@ -398,7 +409,7 @@ export class CompilerOptions extends $rt.GoObject {
     o.$copy_CompilerOptions(this);
     return o;
   }
-  static $cast(v: $rt.GoObject | undefined): CompilerOptions {
+  static $cast_CompilerOptions(v: $rt.GoObject | undefined): CompilerOptions {
     if (v instanceof CompilerOptions) return v;
     throw $rt.typeAssertError();
   }
@@ -416,18 +427,18 @@ export class CompilerOptions extends $rt.GoObject {
   }
   GetEmitScriptTarget(): ScriptTarget {
     const options = this;
-    if (!(options!.Target === 0)) {
+    if (!(options!.Target === (0 as number))) {
       return options!.Target;
     }
     return 12;
   }
   GetEmitModuleKind(): ModuleKind {
     const options = this;
-    if (!(options!.Module === 0)) {
+    if (!(options!.Module === (0 as number))) {
       return options!.Module;
     }
     let target: ScriptTarget = options!.GetEmitScriptTarget();
-    if (target === 99) {
+    if (target === (99 as number)) {
       return 99;
     }
     if (target >= 9) {
@@ -445,17 +456,17 @@ export class CompilerOptions extends $rt.GoObject {
     const options = this;
     {
       switch (options!.ModuleResolution) {
-        case 0:
-        case 1:
-        case 2: {
+        case 0 as number:
+        case 1 as number:
+        case 2 as number: {
           {
             switch (options!.GetEmitModuleKind()) {
-              case 100:
-              case 101:
-              case 102: {
+              case 100 as number:
+              case 101 as number:
+              case 102 as number: {
                 return 3;
               }
-              case 199: {
+              case 199 as number: {
                 return 99;
               }
               default: {
@@ -473,7 +484,7 @@ export class CompilerOptions extends $rt.GoObject {
   }
   GetEmitModuleDetectionKind(): ModuleDetectionKind {
     const options = this;
-    if (!(options!.ModuleDetection === 0)) {
+    if (!(options!.ModuleDetection === (0 as number))) {
       return options!.ModuleDetection;
     }
     let moduleKind: ModuleKind = options!.GetEmitModuleKind();
@@ -502,41 +513,41 @@ export class CompilerOptions extends $rt.GoObject {
   }
   GetResolveJsonModule(): boolean {
     const options = this;
-    if (!(options!.ResolveJsonModule === 0)) {
-      return options!.ResolveJsonModule === 2;
+    if (!(options!.ResolveJsonModule === (0 as number))) {
+      return options!.ResolveJsonModule === (2 as number);
     }
     {
       switch (options!.GetEmitModuleKind()) {
-        case 102:
-        case 199: {
+        case 102 as number:
+        case 199 as number: {
           return true;
         }
       }
     }
-    return options!.GetModuleResolutionKind() === 100;
+    return options!.GetModuleResolutionKind() === (100 as number);
   }
   ShouldPreserveConstEnums(): boolean {
     const options = this;
-    return options!.PreserveConstEnums === 2 || options!.GetIsolatedModules();
+    return options!.PreserveConstEnums === (2 as number) || options!.GetIsolatedModules();
   }
   GetAllowJS(): boolean {
     const options = this;
-    if (!(options!.AllowJs === 0)) {
-      return options!.AllowJs === 2;
+    if (!(options!.AllowJs === (0 as number))) {
+      return options!.AllowJs === (2 as number);
     }
-    return options!.CheckJs === 2;
+    return options!.CheckJs === (2 as number);
   }
   GetJSXTransformEnabled(): boolean {
     const options = this;
     let jsx: JsxEmit = options!.Jsx;
-    return jsx === 3 || jsx === 4 || jsx === 5;
+    return jsx === (3 as number) || jsx === (4 as number) || jsx === (5 as number);
   }
   GetStrictOptionValue(value: Tristate): boolean {
     const options = this;
-    if (!(value === 0)) {
-      return value === 2;
+    if (!(value === (0 as number))) {
+      return value === (2 as number);
     }
-    return !(options!.Strict === 1);
+    return !(options!.Strict === (1 as number));
   }
   GetEffectiveTypeRoots(currentDirectory: string): [string[], boolean] {
     const options = this;
@@ -546,21 +557,25 @@ export class CompilerOptions extends $rt.GoObject {
       return [options!.TypeRoots, true];
     }
     let baseDir: string = '';
-    if (!(options!.ConfigFilePath === '')) {
+    if (!(options!.ConfigFilePath === ('' as string))) {
       baseDir = $tspath.GetDirectoryPath(options!.ConfigFilePath);
     } else {
       baseDir = currentDirectory;
-      if (baseDir === '') {
+      if (baseDir === ('' as string)) {
         throw $rt.newPanic(
           new $rt.BoxStr('cannot get effective type roots without a config file path or current directory', 'string'),
         );
       }
     }
     let typeRoots: string[] = [] as string[];
-    $tspath.ForEachAncestorDirectory($zf0, baseDir, (dir: string): [$rt.GoObject | undefined, boolean] => {
-      typeRoots.push($tspath.CombinePaths(dir, ['node_modules', '@types']));
-      return [undefined, false];
-    });
+    $tspath.ForEachAncestorDirectory<$rt.GoObject | undefined>(
+      $zf0,
+      baseDir,
+      (dir: string): [$rt.GoObject | undefined, boolean] => {
+        typeRoots.push($tspath.CombinePaths(dir, ['node_modules', '@types']));
+        return [undefined, false];
+      },
+    );
     return [typeRoots, false];
   }
   UsesWildcardTypes(): boolean {
@@ -569,7 +584,7 @@ export class CompilerOptions extends $rt.GoObject {
   }
   GetIsolatedModules(): boolean {
     const options = this;
-    return options!.IsolatedModules === 2 || options!.VerbatimModuleSyntax === 2;
+    return options!.IsolatedModules === (2 as number) || options!.VerbatimModuleSyntax === (2 as number);
   }
   IsIncremental(): boolean {
     const options = this;
@@ -577,14 +592,14 @@ export class CompilerOptions extends $rt.GoObject {
   }
   GetEmitStandardClassFields(): boolean {
     const options = this;
-    return !(options!.UseDefineForClassFields === 1) && options!.GetEmitScriptTarget() >= 9;
+    return !(options!.UseDefineForClassFields === (1 as number)) && options!.GetEmitScriptTarget() >= 9;
   }
   GetUseDefineForClassFields(): boolean {
     const options = this;
-    if (options!.UseDefineForClassFields === 0) {
+    if (options!.UseDefineForClassFields === (0 as number)) {
       return options!.GetEmitScriptTarget() >= 9;
     }
-    return options!.UseDefineForClassFields === 2;
+    return options!.UseDefineForClassFields === (2 as number);
   }
   GetEmitDeclarations(): boolean {
     const options = this;
@@ -592,14 +607,14 @@ export class CompilerOptions extends $rt.GoObject {
   }
   GetAreDeclarationMapsEnabled(): boolean {
     const options = this;
-    return options!.DeclarationMap === 2 && options!.GetEmitDeclarations();
+    return options!.DeclarationMap === (2 as number) && options!.GetEmitDeclarations();
   }
   HasJsonModuleEmitEnabled(): boolean {
     const options = this;
     {
       switch (options!.GetEmitModuleKind()) {
-        case 4:
-        case 3: {
+        case 4 as number:
+        case 3 as number: {
           return false;
         }
       }
@@ -608,10 +623,10 @@ export class CompilerOptions extends $rt.GoObject {
   }
   GetPathsBasePath(currentDirectory: string): string {
     const options = this;
-    if (options!.Paths!.Size() === 0) {
+    if (options!.Paths!.Size() === (0 as number)) {
       return '';
     }
-    if (!(options!.PathsBasePath === '')) {
+    if (!(options!.PathsBasePath === ('' as string))) {
       return options!.PathsBasePath;
     }
     return currentDirectory;
@@ -629,12 +644,12 @@ export class LimitedSemaphore extends $rt.GoObject {
     o.$copy_LimitedSemaphore(this);
     return o;
   }
-  static $lit_0(p0: $rt.Chan<$rt.Empty> | undefined): LimitedSemaphore {
+  static $lit_LimitedSemaphore_0(p0: $rt.Chan<$rt.Empty> | undefined): LimitedSemaphore {
     const o = new LimitedSemaphore();
     o.ch = p0;
     return o;
   }
-  static $cast(v: $rt.GoObject | undefined): LimitedSemaphore {
+  static $cast_LimitedSemaphore(v: $rt.GoObject | undefined): LimitedSemaphore {
     if (v instanceof LimitedSemaphore) return v;
     throw $rt.typeAssertError();
   }
@@ -768,28 +783,31 @@ export class Pattern extends $rt.GoObject {
     this.Text = src.Text;
     this.StarIndex = src.StarIndex;
   }
+  $equals_Pattern(o: Pattern): boolean {
+    return this.Text === o.Text && this.StarIndex === o.StarIndex;
+  }
   $clone_Pattern(): Pattern {
     const o = new Pattern();
     o.$copy_Pattern(this);
     return o;
   }
-  static $lit_0_1(p0: string, p1: number): Pattern {
+  static $lit_Pattern_0_1(p0: string, p1: number): Pattern {
     const o = new Pattern();
     o.Text = p0;
     o.StarIndex = p1;
     return o;
   }
-  static $cast(v: $rt.GoObject | undefined): Pattern {
+  static $cast_Pattern(v: $rt.GoObject | undefined): Pattern {
     if (v instanceof Pattern) return v;
     throw $rt.typeAssertError();
   }
   IsValid(): boolean {
     const p = this;
-    return p!.StarIndex === -1 || p!.StarIndex < p!.Text.length;
+    return p!.StarIndex === (-1 as number) || p!.StarIndex < p!.Text.length;
   }
   Matches(candidate: string): boolean {
     const p = this;
-    if (p!.StarIndex === -1) {
+    if (p!.StarIndex === (-1 as number)) {
       return p!.Text === candidate;
     }
     return (
@@ -803,7 +821,7 @@ export class Pattern extends $rt.GoObject {
     if (!p!.Matches(candidate)) {
       throw $rt.newPanic(new $rt.BoxStr('candidate does not match pattern', 'string'));
     }
-    if (p!.StarIndex === -1) {
+    if (p!.StarIndex === (-1 as number)) {
       return '';
     }
     return candidate.substring(p!.StarIndex, candidate.length - p!.Text.length + p!.StarIndex + 1);
@@ -818,12 +836,15 @@ export class ProjectReference extends $rt.GoObject {
     this.OriginalPath = src.OriginalPath;
     this.Circular = src.Circular;
   }
+  $equals_ProjectReference(o: ProjectReference): boolean {
+    return this.Path === o.Path && this.OriginalPath === o.OriginalPath && this.Circular === o.Circular;
+  }
   $clone_ProjectReference(): ProjectReference {
     const o = new ProjectReference();
     o.$copy_ProjectReference(this);
     return o;
   }
-  static $cast(v: $rt.GoObject | undefined): ProjectReference {
+  static $cast_ProjectReference(v: $rt.GoObject | undefined): ProjectReference {
     if (v instanceof ProjectReference) return v;
     throw $rt.typeAssertError();
   }
@@ -851,7 +872,7 @@ export class Stack<T> extends $rt.GoObject {
   Pop(): T {
     const s = this;
     let l: number = s!.data.length;
-    if (l === 0) {
+    if (l === (0 as number)) {
       throw $rt.newPanic(new $rt.BoxStr('stack is empty', 'string'));
     }
     let item: T = s!.data[l - 1];
@@ -863,7 +884,7 @@ export class Stack<T> extends $rt.GoObject {
   Peek(): T {
     const s = this;
     let l: number = s!.data.length;
-    if (l === 0) {
+    if (l === (0 as number)) {
       throw $rt.newPanic(new $rt.BoxStr('stack is empty', 'string'));
     }
     return s!.data[l - 1];
@@ -880,18 +901,21 @@ export class TextRange extends $rt.GoObject {
     this.pos = src.pos;
     this.end = src.end;
   }
+  $equals_TextRange(o: TextRange): boolean {
+    return this.pos === o.pos && this.end === o.end;
+  }
   $clone_TextRange(): TextRange {
     const o = new TextRange();
     o.$copy_TextRange(this);
     return o;
   }
-  static $lit_0_1(p0: TextPos, p1: TextPos): TextRange {
+  static $lit_TextRange_0_1(p0: TextPos, p1: TextPos): TextRange {
     const o = new TextRange();
     o.pos = p0;
     o.end = p1;
     return o;
   }
-  static $cast(v: $rt.GoObject | undefined): TextRange {
+  static $cast_TextRange(v: $rt.GoObject | undefined): TextRange {
     if (v instanceof TextRange) return v;
     throw $rt.typeAssertError();
   }
@@ -925,11 +949,11 @@ export class TextRange extends $rt.GoObject {
   }
   WithPos(pos: number): TextRange {
     const t = this;
-    return TextRange.$lit_0_1(pos | 0, t.end);
+    return TextRange.$lit_TextRange_0_1(pos | 0, t.end);
   }
   WithEnd(end: number): TextRange {
     const t = this;
-    return TextRange.$lit_0_1(t.pos, end | 0);
+    return TextRange.$lit_TextRange_0_1(t.pos, end | 0);
   }
   ContainedBy(t2: TextRange): boolean {
     const t = this;
@@ -954,12 +978,15 @@ export class TextChange extends TextRange {
     this.$copy_TextRange(src);
     this.NewText = src.NewText;
   }
+  $equals_TextChange(o: TextChange): boolean {
+    return this.$equals_TextRange(o) && this.NewText === o.NewText;
+  }
   $clone_TextChange(): TextChange {
     const o = new TextChange();
     o.$copy_TextChange(this);
     return o;
   }
-  static $cast(v: $rt.GoObject | undefined): TextChange {
+  static $cast_TextChange(v: $rt.GoObject | undefined): TextChange {
     if (v instanceof TextChange) return v;
     throw $rt.typeAssertError();
   }
@@ -975,12 +1002,15 @@ export class ThrottleGroup extends $rt.GoObject {
     this.semaphore = src.semaphore;
     this.group = src.group;
   }
+  $equals_ThrottleGroup(o: ThrottleGroup): boolean {
+    return this.semaphore === o.semaphore && this.group === o.group;
+  }
   $clone_ThrottleGroup(): ThrottleGroup {
     const o = new ThrottleGroup();
     o.$copy_ThrottleGroup(this);
     return o;
   }
-  static $lit_0_1(
+  static $lit_ThrottleGroup_0_1(
     p0: $rt.Chan<$rt.Empty> | undefined,
     p1: $rt.golang_org_x_sync_errgroup_Group | undefined,
   ): ThrottleGroup {
@@ -989,7 +1019,7 @@ export class ThrottleGroup extends $rt.GoObject {
     o.group = p1;
     return o;
   }
-  static $cast(v: $rt.GoObject | undefined): ThrottleGroup {
+  static $cast_ThrottleGroup(v: $rt.GoObject | undefined): ThrottleGroup {
     if (v instanceof ThrottleGroup) return v;
     throw $rt.typeAssertError();
   }
@@ -1036,12 +1066,11 @@ export class TypeAcquisition extends $rt.GoObject {
     o.$copy_TypeAcquisition(this);
     return o;
   }
-  static $cast(v: $rt.GoObject | undefined): TypeAcquisition {
+  static $cast_TypeAcquisition(v: $rt.GoObject | undefined): TypeAcquisition {
     if (v instanceof TypeAcquisition) return v;
     throw $rt.typeAssertError();
   }
-  Equals(other: TypeAcquisition | undefined): boolean {
-    const ta = this;
+  static Equals$nil(ta: TypeAcquisition | undefined, other: TypeAcquisition | undefined): boolean {
     if (ta === other) {
       return true;
     }
@@ -1055,15 +1084,21 @@ export class TypeAcquisition extends $rt.GoObject {
       ta!.DisableFilenameBasedTypeAcquisition === other!.DisableFilenameBasedTypeAcquisition
     );
   }
+  Equals(other: TypeAcquisition | undefined): boolean {
+    return TypeAcquisition.Equals$nil(this, other);
+  }
 }
 export class UnlimitedSemaphore extends $rt.GoObject {
   $copy_UnlimitedSemaphore(src: UnlimitedSemaphore): void {}
+  $equals_UnlimitedSemaphore(o: UnlimitedSemaphore): boolean {
+    return true;
+  }
   $clone_UnlimitedSemaphore(): UnlimitedSemaphore {
     const o = new UnlimitedSemaphore();
     o.$copy_UnlimitedSemaphore(this);
     return o;
   }
-  static $cast(v: $rt.GoObject | undefined): UnlimitedSemaphore {
+  static $cast_UnlimitedSemaphore(v: $rt.GoObject | undefined): UnlimitedSemaphore {
     if (v instanceof UnlimitedSemaphore) return v;
     throw $rt.typeAssertError();
   }
@@ -1101,17 +1136,19 @@ export class WatchOptions extends $rt.GoObject {
     o.$copy_WatchOptions(this);
     return o;
   }
-  static $cast(v: $rt.GoObject | undefined): WatchOptions {
+  static $cast_WatchOptions(v: $rt.GoObject | undefined): WatchOptions {
     if (v instanceof WatchOptions) return v;
     throw $rt.typeAssertError();
   }
-  WatchInterval(): number {
-    const w = this;
+  static WatchInterval$nil(w: WatchOptions | undefined): number {
     let watchInterval: number = 2000000000;
     if (!(w === undefined) && !(w!.Interval === undefined)) {
       watchInterval = w!.Interval!.v * 1000000;
     }
     return watchInterval;
+  }
+  WatchInterval(): number {
+    return WatchOptions.WatchInterval$nil(this);
   }
 }
 export class breadthFirstSearchJob<N> extends $rt.GoObject {
@@ -1133,12 +1170,16 @@ export class breadthFirstSearchJob<N> extends $rt.GoObject {
     o.$copy_breadthFirstSearchJob(this);
     return o;
   }
-  static $lit_0<N>($z_N: () => N, p0: N): breadthFirstSearchJob<N> {
+  static $lit_breadthFirstSearchJob_0<N>($z_N: () => N, p0: N): breadthFirstSearchJob<N> {
     const o = new breadthFirstSearchJob<N>($z_N);
     o.node = p0;
     return o;
   }
-  static $lit_0_1<N>($z_N: () => N, p0: N, p1: breadthFirstSearchJob<N> | undefined): breadthFirstSearchJob<N> {
+  static $lit_breadthFirstSearchJob_0_1<N>(
+    $z_N: () => N,
+    p0: N,
+    p1: breadthFirstSearchJob<N> | undefined,
+  ): breadthFirstSearchJob<N> {
     const o = new breadthFirstSearchJob<N>($z_N);
     o.node = p0;
     o.parent = p1;
@@ -1157,19 +1198,22 @@ export class levenshteinBuffers extends $rt.GoObject {
     o.$copy_levenshteinBuffers(this);
     return o;
   }
-  static $cast(v: $rt.GoObject | undefined): levenshteinBuffers {
+  static $cast_levenshteinBuffers(v: $rt.GoObject | undefined): levenshteinBuffers {
     if (v instanceof levenshteinBuffers) return v;
     throw $rt.typeAssertError();
   }
 }
 export class noCopy extends $rt.GoObject {
   $copy_noCopy(src: noCopy): void {}
+  $equals_noCopy(o: noCopy): boolean {
+    return true;
+  }
   $clone_noCopy(): noCopy {
     const o = new noCopy();
     o.$copy_noCopy(this);
     return o;
   }
-  static $cast(v: $rt.GoObject | undefined): noCopy {
+  static $cast_noCopy(v: $rt.GoObject | undefined): noCopy {
     if (v instanceof noCopy) return v;
     throw $rt.typeAssertError();
   }
@@ -1183,12 +1227,15 @@ export class parallelWorkGroup extends $rt.GoObject {
     this.done = src.done;
     this.wg = src.wg;
   }
+  $equals_parallelWorkGroup(o: parallelWorkGroup): boolean {
+    return this.done === o.done && this.wg === o.wg;
+  }
   $clone_parallelWorkGroup(): parallelWorkGroup {
     const o = new parallelWorkGroup();
     o.$copy_parallelWorkGroup(this);
     return o;
   }
-  static $cast(v: $rt.GoObject | undefined): parallelWorkGroup {
+  static $cast_parallelWorkGroup(v: $rt.GoObject | undefined): parallelWorkGroup {
     if (v instanceof parallelWorkGroup) return v;
     throw $rt.typeAssertError();
   }
@@ -1234,7 +1281,7 @@ export class singleThreadedWorkGroup extends $rt.GoObject {
     o.$copy_singleThreadedWorkGroup(this);
     return o;
   }
-  static $cast(v: $rt.GoObject | undefined): singleThreadedWorkGroup {
+  static $cast_singleThreadedWorkGroup(v: $rt.GoObject | undefined): singleThreadedWorkGroup {
     if (v instanceof singleThreadedWorkGroup) return v;
     throw $rt.typeAssertError();
   }
@@ -1294,7 +1341,7 @@ export class singleThreadedWorkGroup extends $rt.GoObject {
       $defers.push(() => {
         $t2.Unlock();
       });
-      if (w!.fns.length === 0) {
+      if (w!.fns.length === (0 as number)) {
         $t1 = undefined;
         break $body;
       }
@@ -1322,12 +1369,15 @@ export class BreadthFirstSearchParallelEx$result<K, N> extends $rt.GoObject {
     this.job = src.job;
     this.next = src.next;
   }
+  $equals_BreadthFirstSearchParallelEx$result(o: BreadthFirstSearchParallelEx$result<K, N>): boolean {
+    return this.stop === o.stop && this.job === o.job && this.next === o.next;
+  }
   $clone_BreadthFirstSearchParallelEx$result(): BreadthFirstSearchParallelEx$result<K, N> {
     const o = new BreadthFirstSearchParallelEx$result<K, N>();
     o.$copy_BreadthFirstSearchParallelEx$result(this);
     return o;
   }
-  static $lit_0_1<K, N>(
+  static $lit_BreadthFirstSearchParallelEx$result_0_1<K, N>(
     p0: boolean,
     p1: breadthFirstSearchJob<N> | undefined,
   ): BreadthFirstSearchParallelEx$result<K, N> {
@@ -1336,7 +1386,7 @@ export class BreadthFirstSearchParallelEx$result<K, N> extends $rt.GoObject {
     o.job = p1;
     return o;
   }
-  static $lit_2<K, N>(
+  static $lit_BreadthFirstSearchParallelEx$result_2<K, N>(
     p0: $collections.OrderedMap<K, breadthFirstSearchJob<N> | undefined> | undefined,
   ): BreadthFirstSearchParallelEx$result<K, N> {
     const o = new BreadthFirstSearchParallelEx$result<K, N>();
@@ -1541,7 +1591,7 @@ export let version: string = '7.1.0-dev';
 export let versionMajorMinor: string = ((): string => {
   let seenMajor: boolean = false;
   let i: number = $rt.strings_IndexFunc(version, (r: number): boolean => {
-    if (r === 46) {
+    if (r === (46 as number)) {
       if (seenMajor) {
         return true;
       }
@@ -1549,7 +1599,7 @@ export let versionMajorMinor: string = ((): string => {
     }
     return false;
   });
-  if (i === -1) {
+  if (i === (-1 as number)) {
     throw $rt.newPanic(new $rt.BoxStr('invalid version string: ' + version, 'string'));
   }
   return version.substring(0, i);
@@ -1565,7 +1615,7 @@ export function BreadthFirstSearchParallel<N>(
   neighbors: ((p0: N) => N[]) | undefined,
   visit: ((p0: N) => [boolean, boolean]) | undefined,
 ): BreadthFirstSearchResult<N> {
-  return BreadthFirstSearchParallelEx(
+  return BreadthFirstSearchParallelEx<N, N>(
     $z_N,
     $z_N,
     start,
@@ -1604,7 +1654,7 @@ export function BreadthFirstSearchParallelEx<K, N>(
     lowestGoal.Store(9223372036854775807);
     lowestFallback.Store(9223372036854775807);
     if (!(options.PreprocessLevel === undefined)) {
-      options.PreprocessLevel!(BreadthFirstSearchLevel.$lit_0<K, N>(jobs));
+      options.PreprocessLevel!(BreadthFirstSearchLevel.$lit_BreadthFirstSearchLevel_0<K, N>(jobs));
     }
     let next: (breadthFirstSearchJob<N> | undefined)[][] = $rt.makeSlice<(breadthFirstSearchJob<N> | undefined)[]>(
       jobs!.Size(),
@@ -1648,11 +1698,11 @@ export function BreadthFirstSearchParallelEx<K, N>(
           let neighborNodes: N[] = neighbors!(j$1!.node);
           if (neighborNodes.length > 0) {
             nextJobCount.Add(neighborNodes.length);
-            next[i$1] = Map_(
+            next[i$1] = Map_<N, breadthFirstSearchJob<N> | undefined>(
               (): breadthFirstSearchJob<N> | undefined => undefined,
               neighborNodes,
               (child: N): breadthFirstSearchJob<N> | undefined => {
-                return breadthFirstSearchJob.$lit_0_1<N>($z_N, child, j$1);
+                return breadthFirstSearchJob.$lit_breadthFirstSearchJob_0_1<N>($z_N, child, j$1);
               },
             );
           }
@@ -1669,16 +1719,16 @@ export function BreadthFirstSearchParallelEx<K, N>(
     wg.Wait();
     {
       let index$1: number = lowestGoal.Load();
-      if (!(index$1 === 9223372036854775807)) {
+      if (!(index$1 === (9223372036854775807 as number))) {
         const $t5 = jobs!.EntryAt(index$1);
         let job: breadthFirstSearchJob<N> | undefined = $t5[1];
-        return BreadthFirstSearchParallelEx$result.$lit_0_1(true, job);
+        return BreadthFirstSearchParallelEx$result.$lit_BreadthFirstSearchParallelEx$result_0_1(true, job);
       }
     }
     if (fallback === undefined) {
       {
         let index$2: number = lowestFallback.Load();
-        if (!(index$2 === 9223372036854775807)) {
+        if (!(index$2 === (9223372036854775807 as number))) {
           const $t6 = jobs!.EntryAt(index$2);
           fallback = $t6[1];
         }
@@ -1705,7 +1755,7 @@ export function BreadthFirstSearchParallelEx<K, N>(
         }
       }
     }
-    return BreadthFirstSearchParallelEx$result.$lit_2(nextJobs);
+    return BreadthFirstSearchParallelEx$result.$lit_BreadthFirstSearchParallelEx$result_2(nextJobs);
   };
   let createPath: ((p0: breadthFirstSearchJob<N> | undefined) => N[]) | undefined = (
     job$1: breadthFirstSearchJob<N> | undefined,
@@ -1719,25 +1769,29 @@ export function BreadthFirstSearchParallelEx<K, N>(
   };
   let levelIndex: number = 0;
   let level: $collections.OrderedMap<K, breadthFirstSearchJob<N> | undefined> | undefined =
-    $collections.NewOrderedMapFromList($z_K, (): breadthFirstSearchJob<N> | undefined => undefined, [
-      $collections.MapEntry.$lit_0_1<K, breadthFirstSearchJob<N> | undefined>(
-        $z_K,
-        (): breadthFirstSearchJob<N> | undefined => undefined,
-        getKey!(start),
-        breadthFirstSearchJob.$lit_0<N>($z_N, start),
-      ),
-    ]);
+    $collections.NewOrderedMapFromList<K, breadthFirstSearchJob<N> | undefined>(
+      $z_K,
+      (): breadthFirstSearchJob<N> | undefined => undefined,
+      [
+        $collections.MapEntry.$lit_MapEntry_0_1<K, breadthFirstSearchJob<N> | undefined>(
+          $z_K,
+          (): breadthFirstSearchJob<N> | undefined => undefined,
+          getKey!(start),
+          breadthFirstSearchJob.$lit_breadthFirstSearchJob_0<N>($z_N, start),
+        ),
+      ],
+    );
   for (; level!.Size() > 0;) {
     let result: BreadthFirstSearchParallelEx$result<K, N> = processLevel!(levelIndex, level);
     if (result.stop) {
-      return BreadthFirstSearchResult.$lit_0_1<N>(true, createPath!(result.job));
+      return BreadthFirstSearchResult.$lit_BreadthFirstSearchResult_0_1<N>(true, createPath!(result.job));
     } else if (!(result.job === undefined) && fallback === undefined) {
       fallback = result.job;
     }
     level = result.next;
     levelIndex++;
   }
-  return BreadthFirstSearchResult.$lit_0_1<N>(false, createPath!(fallback));
+  return BreadthFirstSearchResult.$lit_BreadthFirstSearchResult_0_1<N>(false, createPath!(fallback));
 }
 export function updateMin(a: $rt.sync_atomic_Int64 | undefined, candidate: number): boolean {
   for (;;) {
@@ -1755,7 +1809,7 @@ export function BinarySearchUniqueFunc<S extends E[], E>(
   cmp: ((p0: number, p1: E) => number) | undefined,
 ): [number, boolean] {
   let n: number = x.length;
-  if (n === 0) {
+  if (n === (0 as number)) {
     return [0, false];
   }
   const $t1 = 0;
@@ -1779,27 +1833,27 @@ export function ModuleKind$IsNonNodeESM(moduleKind: ModuleKind): boolean {
   return moduleKind >= 5 && moduleKind <= 99;
 }
 export function ModuleKind$SupportsImportAttributes(moduleKind: ModuleKind): boolean {
-  return (101 <= moduleKind && moduleKind <= 199) || moduleKind === 200 || moduleKind === 99;
+  return (101 <= moduleKind && moduleKind <= 199) || moduleKind === (200 as number) || moduleKind === (99 as number);
 }
 export function ModuleResolutionKind$String(m: ModuleResolutionKind): string {
   {
     switch (m) {
-      case 0: {
+      case 0 as number: {
         throw $rt.newPanic(new $rt.BoxStr('should not use zero value of ModuleResolutionKind', 'string'));
       }
-      case 1: {
+      case 1 as number: {
         return 'Classic';
       }
-      case 2: {
+      case 2 as number: {
         return 'Node10';
       }
-      case 3: {
+      case 3 as number: {
         return 'Node16';
       }
-      case 99: {
+      case 99 as number: {
         return 'NodeNext';
       }
-      case 100: {
+      case 100 as number: {
         return 'Bundler';
       }
       default: {
@@ -1811,10 +1865,10 @@ export function ModuleResolutionKind$String(m: ModuleResolutionKind): string {
 export function GetNewLineKind(s: string): NewLineKind {
   {
     switch (s) {
-      case '\r\n': {
+      case '\r\n' as string: {
         return 1;
       }
-      case '\n': {
+      case '\n' as string: {
         return 2;
       }
       default: {
@@ -1826,7 +1880,7 @@ export function GetNewLineKind(s: string): NewLineKind {
 export function NewLineKind$GetNewLineCharacter(newLine: NewLineKind): string {
   {
     switch (newLine) {
-      case 1: {
+      case 1 as number: {
         return '\r\n';
       }
       default: {
@@ -1838,22 +1892,22 @@ export function NewLineKind$GetNewLineCharacter(newLine: NewLineKind): string {
 export function JsxEmit$String(j: JsxEmit): string {
   {
     switch (j) {
-      case 0: {
+      case 0 as number: {
         throw $rt.newPanic(new $rt.BoxStr('should not use zero value of JsxEmit', 'string'));
       }
-      case 1: {
+      case 1 as number: {
         return 'preserve';
       }
-      case 2: {
+      case 2 as number: {
         return 'react-native';
       }
-      case 3: {
+      case 3 as number: {
         return 'react';
       }
-      case 4: {
+      case 4 as number: {
         return 'react-jsx';
       }
-      case 5: {
+      case 5 as number: {
         return 'react-jsxdev';
       }
       default: {
@@ -1897,7 +1951,7 @@ export function GetCheckerLifetime(ctx: $rt.context_Context | undefined): Checke
 }
 export function ApplyDebugStackLimit(): void {
   let v: string = $rt.os_Getenv('TS_GO_DEBUG_STACK_LIMIT');
-  if (v === '') {
+  if (v === ('' as string)) {
     return;
   }
   const $t1 = $rt.strconv_Atoi(v);
@@ -1992,7 +2046,7 @@ export function TryMap<T, U>(
   slice: T[],
   f: ((p0: T) => [U, $rt.GoObject | undefined]) | undefined,
 ): [U[], $rt.GoObject | undefined] {
-  if (slice.length === 0) {
+  if (slice.length === (0 as number)) {
     return [[], undefined];
   }
   let result: U[] = $rt.makeSlice<U>(slice.length, $z_U());
@@ -2065,7 +2119,7 @@ export function FlatMap<T, U>(slice: T[], f: ((p0: T) => U[]) | undefined): U[] 
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
       let value = $t1[$t2];
       let mapped: U[] = f!(value);
-      if (!(mapped.length === 0)) {
+      if (!(mapped.length === (0 as number))) {
         $rt.appendInto(result, mapped);
       }
     }
@@ -2118,11 +2172,7 @@ export function SameMapIndex<T>($z_T: () => T, slice: T[], f: ((p0: T, p1: numbe
 }
 export function Same<T>(s1: T[], s2: T[]): boolean {
   if (s1.length === s2.length) {
-    return (
-      s1.length === 0 ||
-      $rt.unsupportedAs<T | undefined>('address of non-struct value') ===
-        $rt.unsupportedAs<T | undefined>('address of non-struct value')
-    );
+    return s1.length === (0 as number) || (s1 === s2 && 0 === 0);
   }
   return false;
 }
@@ -2212,13 +2262,13 @@ export function FindLastIndex<T>(slice: T[], f: ((p0: T) => boolean) | undefined
   return -1;
 }
 export function FirstOrNil<T>($z_T: () => T, slice: T[]): T {
-  if (!(slice.length === 0)) {
+  if (!(slice.length === (0 as number))) {
     return slice[0];
   }
   return new $rt.Ref<T>($z_T())!.v;
 }
 export function LastOrNil<T>($z_T: () => T, slice: T[]): T {
-  if (!(slice.length === 0)) {
+  if (!(slice.length === (0 as number))) {
     return slice[slice.length - 1];
   }
   return new $rt.Ref<T>($z_T())!.v;
@@ -2270,10 +2320,10 @@ export function FirstNonZero<T>($z_T: () => T, values: T[]): T {
   return zero;
 }
 export function Concatenate<T>(s1: T[], s2: T[]): T[] {
-  if (s2.length === 0) {
+  if (s2.length === (0 as number)) {
     return s1;
   }
-  if (s1.length === 0) {
+  if (s1.length === (0 as number)) {
     return s2;
   }
   return $rt.slices_Concat([s1, s2]);
@@ -2292,7 +2342,7 @@ export function Splice<T>(s1: T[], start: number, deleteCount: number, items: T[
     deleteCount = 0;
   }
   let end: number = Math.min(start + Math.max(deleteCount, 0), s1.length);
-  if (start === end && items.length === 0) {
+  if (start === end && items.length === (0 as number)) {
     return s1;
   }
   return $rt.slices_Concat([s1.slice(0, start), items, s1.slice(end)]);
@@ -2321,7 +2371,7 @@ export function InsertSorted<T>(slice: T[], element: T, cmp: ((p0: T, p1: T) => 
   return $rt.slices_Insert(slice, i, [element]);
 }
 export function MinAllFunc<T>(xs: T[], cmp: ((p0: T, p1: T) => number) | undefined): T[] {
-  if (xs.length === 0) {
+  if (xs.length === (0 as number)) {
     return [];
   }
   let m: T = xs[0];
@@ -2337,7 +2387,7 @@ export function MinAllFunc<T>(xs: T[], cmp: ((p0: T, p1: T) => number) | undefin
             m = x;
             mins = mins.slice(0, 0);
             mins.push(x);
-          } else if (c === 0) {
+          } else if (c === (0 as number)) {
             mins.push(x);
           }
         }
@@ -2398,12 +2448,12 @@ export function ComputeECMALineStartsSeq(
         pos = (pos + 1) | 0;
         {
           switch (b) {
-            case 13: {
-              if (pos < textLen && text.charCodeAt(pos) === 10) {
+            case 13 as number: {
+              if (pos < textLen && text.charCodeAt(pos) === (10 as number)) {
                 pos = (pos + 1) | 0;
               }
             }
-            case 10: {
+            case 10 as number: {
               if (!yield_!(lineStart)) {
                 return;
               }
@@ -2491,23 +2541,23 @@ export function GetScriptKindFromFileName(fileName: string): ScriptKind {
   if (dotPos >= 0) {
     {
       switch ($rt.strings_ToLower(fileName.substring(dotPos))) {
-        case '.js':
-        case '.cjs':
-        case '.mjs': {
+        case '.js' as string:
+        case '.cjs' as string:
+        case '.mjs' as string: {
           return 1;
         }
-        case '.jsx': {
+        case '.jsx' as string: {
           return 2;
         }
-        case '.ts':
-        case '.cts':
-        case '.mts': {
+        case '.ts' as string:
+        case '.cts' as string:
+        case '.mts' as string: {
           return 3;
         }
-        case '.tsx': {
+        case '.tsx' as string: {
           return 4;
         }
-        case '.json': {
+        case '.json' as string: {
           return 6;
         }
       }
@@ -2518,16 +2568,16 @@ export function GetScriptKindFromFileName(fileName: string): ScriptKind {
 export function GetDefaultExtensionForScriptKind(scriptKind: ScriptKind): string {
   {
     switch (scriptKind) {
-      case 1: {
+      case 1 as number: {
         return '.js';
       }
-      case 2: {
+      case 2 as number: {
         return '.jsx';
       }
-      case 4: {
+      case 4 as number: {
         return '.tsx';
       }
-      case 6: {
+      case 6 as number: {
         return '.json';
       }
       default: {
@@ -2539,7 +2589,7 @@ export function GetDefaultExtensionForScriptKind(scriptKind: ScriptKind): string
 export function EnsureScriptKindFromFileName(fileName: string): ScriptKind {
   {
     let kind: ScriptKind = GetScriptKindFromFileName(fileName);
-    if (!(kind === 0)) {
+    if (!(kind === (0 as number))) {
       return kind;
     }
   }
@@ -2552,7 +2602,7 @@ export function GetSpellingSuggestion<T>(
   getName: ((p0: T) => string) | undefined,
   compare: ((p0: T, p1: T) => number) | undefined,
 ): T {
-  return getSpellingSuggestion($z_T, name_, candidates, getName, compare, 0);
+  return getSpellingSuggestion<T>($z_T, name_, candidates, getName, compare, 0);
 }
 export function GetSpellingSuggestionWithMaxCandidateCount<T>(
   $z_T: () => T,
@@ -2562,7 +2612,7 @@ export function GetSpellingSuggestionWithMaxCandidateCount<T>(
   compare: ((p0: T, p1: T) => number) | undefined,
   maxCandidates: number,
 ): T {
-  return getSpellingSuggestion($z_T, name_, candidates, getName, compare, maxCandidates);
+  return getSpellingSuggestion<T>($z_T, name_, candidates, getName, compare, maxCandidates);
 }
 export function getSpellingSuggestion<T>(
   $z_T: () => T,
@@ -2579,9 +2629,8 @@ export function getSpellingSuggestion<T>(
     let runeName: number[] = $rt.stringToRunes(name_);
     let maximumLengthDifference: number = Math.max(2, Math.trunc(runeName.length * 0.34));
     let bestDistance: number = $rt.math_Floor(runeName.length * 0.4) + 0.9;
-    let buffers: levenshteinBuffers | undefined = (($t2: $rt.GoObject | undefined) => levenshteinBuffers.$cast($t2))(
-      levenshteinBuffersPool.Get(),
-    );
+    let buffers: levenshteinBuffers | undefined = (($t2: $rt.GoObject | undefined) =>
+      levenshteinBuffers.$cast_levenshteinBuffers($t2))(levenshteinBuffersPool.Get());
     const $t3 = buffers;
     const $t4 = levenshteinBuffersPool;
     $defers.push(() => {
@@ -2603,7 +2652,7 @@ export function getSpellingSuggestion<T>(
       let candidateName: string = getName!(candidate);
       let maxLen: number = Math.max(candidateName.length, runeName.length);
       let minLen: number = Math.min(candidateName.length, runeName.length);
-      if (!(candidateName === '') && maxLen - minLen <= maximumLengthDifference) {
+      if (!(candidateName === ('' as string)) && maxLen - minLen <= maximumLengthDifference) {
         if (candidateName === name_) {
           return true;
         }
@@ -2644,7 +2693,7 @@ export function GetSpellingSuggestionForStrings(
   name_: string,
   candidates: ((p0: ((p0: string) => boolean) | undefined) => void) | undefined,
 ): string {
-  return GetSpellingSuggestion($zf1, name_, candidates, Identity, $rt.strings_Compare);
+  return GetSpellingSuggestion<string>($zf1, name_, candidates, Identity, $rt.strings_Compare);
 }
 export function levenshteinWithMax(
   buffers: levenshteinBuffers | undefined,
@@ -2732,7 +2781,7 @@ export function CheckEachDefined<S>(s: (S | undefined)[], msg: string): (S | und
 }
 export function IndexAfter(s: string, pattern: string, startIndex: number): number {
   let matched: number = $rt.strings_IndexFrom(s, startIndex, pattern);
-  if (matched === -1) {
+  if (matched === (-1 as number)) {
     return -1;
   } else {
     return matched + startIndex;
@@ -2806,7 +2855,7 @@ export function DiffMaps<K, V>(
   onRemoved: ((p0: K, p1: V) => void) | undefined,
   onChanged: ((p0: K, p1: V, p2: V) => void) | undefined,
 ): void {
-  DiffMapsFunc($z_V, $z_V, m1, m2, comparableValuesEqual, onAdded, onRemoved, onChanged);
+  DiffMapsFunc<K, V, V>($z_V, $z_V, m1, m2, comparableValuesEqual, onAdded, onRemoved, onChanged);
 }
 export function DiffMapsFunc<K, V1, V2>(
   $z_V1: () => V1,
@@ -2913,7 +2962,7 @@ export function Deduplicate<T>(slice: T[]): T[] {
   return slice;
 }
 export function DeduplicateSorted<T>(slice: T[], isEqual: ((p0: T, p1: T) => boolean) | undefined): T[] {
-  if (slice.length === 0) {
+  if (slice.length === (0 as number)) {
     return slice;
   }
   let last: T = slice[0];
@@ -2976,8 +3025,8 @@ export function NonRelativeModuleNameForTypingCache(moduleName: string): string 
 }
 export function TryParsePattern(pattern: string): Pattern {
   let starIndex: number = $rt.strings_Index(pattern, '*');
-  if (starIndex === -1 || !$rt.strings_Contains(pattern.substring(starIndex + 1), '*')) {
-    return Pattern.$lit_0_1(pattern, starIndex);
+  if (starIndex === (-1 as number) || !$rt.strings_Contains(pattern.substring(starIndex + 1), '*')) {
+    return Pattern.$lit_Pattern_0_1(pattern, starIndex);
   }
   return new Pattern();
 }
@@ -2994,7 +3043,10 @@ export function FindBestPatternMatch<T>(
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
       let value = $t1[$t2];
       let pattern: Pattern = getPattern!(value);
-      if ((pattern.StarIndex === -1 || pattern.StarIndex > longestMatchPrefixLength) && pattern.Matches(candidate)) {
+      if (
+        (pattern.StarIndex === (-1 as number) || pattern.StarIndex > longestMatchPrefixLength) &&
+        pattern.Matches(candidate)
+      ) {
         bestPattern = value;
         longestMatchPrefixLength = pattern.StarIndex;
       }
@@ -3019,7 +3071,7 @@ export function ScriptKind$String(i: ScriptKind): string {
           _ScriptKind_index_0[i],
           _ScriptKind_index_0[(i + 1) | 0],
         );
-      } else if (i === 6) {
+      } else if (i === (6 as number)) {
         return 'ScriptKindJSON';
       } else {
         return 'ScriptKind(' + $rt.strconv_FormatInt(i, 10) + ')';
@@ -3048,7 +3100,7 @@ export function NewLimitedSemaphore(maxConcurrency: number): LimitedSemaphore | 
   if (maxConcurrency <= 0) {
     throw $rt.newPanic(new $rt.BoxStr('maxConcurrency must be positive', 'string'));
   }
-  let s: LimitedSemaphore | undefined = LimitedSemaphore.$lit_0(
+  let s: LimitedSemaphore | undefined = LimitedSemaphore.$lit_LimitedSemaphore_0(
     $rt.unsupportedAs<$rt.Chan<$rt.Empty> | undefined>('make channel'),
   );
   s!.release = (): void => {
@@ -3057,14 +3109,14 @@ export function NewLimitedSemaphore(maxConcurrency: number): LimitedSemaphore | 
   return s;
 }
 export function NewTextRange(pos: number, end: number): TextRange {
-  return TextRange.$lit_0_1(pos | 0, end | 0);
+  return TextRange.$lit_TextRange_0_1(pos | 0, end | 0);
 }
 export function UndefinedTextRange(): TextRange {
-  return TextRange.$lit_0_1(-1, -1);
+  return TextRange.$lit_TextRange_0_1(-1, -1);
 }
 export function CompareTextRanges(r1: TextRange, r2: TextRange): number {
   let c: number = r1.pos - r2.pos;
-  if (!(c === 0)) {
+  if (!(c === (0 as number))) {
     return c;
   }
   return r1.end - r2.end;
@@ -3089,22 +3141,22 @@ export function ApplyBulkEdits(text: string, edits: TextChange[]): string {
   return b.String();
 }
 export function Tristate$IsTrue(t: Tristate): boolean {
-  return t === 2;
+  return t === (2 as number);
 }
 export function Tristate$IsTrueOrUnknown(t: Tristate): boolean {
-  return t === 2 || t === 0;
+  return t === (2 as number) || t === (0 as number);
 }
 export function Tristate$IsFalse(t: Tristate): boolean {
-  return t === 1;
+  return t === (1 as number);
 }
 export function Tristate$IsFalseOrUnknown(t: Tristate): boolean {
-  return t === 1 || t === 0;
+  return t === (1 as number) || t === (0 as number);
 }
 export function Tristate$IsUnknown(t: Tristate): boolean {
-  return t === 0;
+  return t === (0 as number);
 }
 export function Tristate$DefaultIfUnknown(t: Tristate, value: Tristate): Tristate {
-  if (t === 0) {
+  if (t === (0 as number)) {
     return value;
   }
   return t;
@@ -3112,11 +3164,11 @@ export function Tristate$DefaultIfUnknown(t: Tristate, value: Tristate): Tristat
 export function Tristate$UnmarshalJSON(t: $rt.Ref<Tristate>, data: number[]): $rt.GoObject | undefined {
   {
     switch ($rt.bytesToString(data)) {
-      case 'true': {
+      case 'true' as string: {
         t!.v = 2;
         break;
       }
-      case 'false': {
+      case 'false' as string: {
         t!.v = 1;
         break;
       }
@@ -3131,10 +3183,10 @@ export function Tristate$UnmarshalJSON(t: $rt.Ref<Tristate>, data: number[]): $r
 export function Tristate$MarshalJSON(t: Tristate): [number[], $rt.GoObject | undefined] {
   {
     switch (t) {
-      case 2: {
+      case 2 as number: {
         return [$rt.stringToBytes('true'), undefined];
       }
-      case 1: {
+      case 1 as number: {
         return [$rt.stringToBytes('false'), undefined];
       }
       default: {
@@ -3174,5 +3226,5 @@ export function NewThrottleGroup(
 ): ThrottleGroup | undefined {
   const $t1 = $rt.golang_org_x_sync_errgroup_WithContext(ctx);
   let g: $rt.golang_org_x_sync_errgroup_Group | undefined = $t1[0];
-  return ThrottleGroup.$lit_0_1(semaphore, g);
+  return ThrottleGroup.$lit_ThrottleGroup_0_1(semaphore, g);
 }

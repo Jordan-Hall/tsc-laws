@@ -109,7 +109,7 @@ export class MapEntry<K, V> extends $rt.GoObject {
     o.$copy_MapEntry(this);
     return o;
   }
-  static $lit_0_1<K, V>($z_K: () => K, $z_V: () => V, p0: K, p1: V): MapEntry<K, V> {
+  static $lit_MapEntry_0_1<K, V>($z_K: () => K, $z_V: () => V, p0: K, p1: V): MapEntry<K, V> {
     const o = new MapEntry<K, V>($z_K, $z_V);
     o.Key = p0;
     o.Value = p1;
@@ -126,7 +126,7 @@ export class MultiMap<K, V> extends $rt.GoObject {
     o.$copy_MultiMap(this);
     return o;
   }
-  static $lit_0<K, V>(p0: Map<K, V[]> | undefined): MultiMap<K, V> {
+  static $lit_MultiMap_0<K, V>(p0: Map<K, V[]> | undefined): MultiMap<K, V> {
     const o = new MultiMap<K, V>();
     o.M = p0;
     return o;
@@ -159,7 +159,7 @@ export class MultiMap<K, V> extends $rt.GoObject {
       if (ok) {
         let i: number = $rt.slices_Index(values, value);
         if (i >= 0) {
-          if (values.length === 1) {
+          if (values.length === (1 as number)) {
             s!.M?.delete(key);
           } else {
             values = $rt.appendCopy(values.slice(0, i), values.slice(i + 1));
@@ -187,7 +187,7 @@ export class MultiMap<K, V> extends $rt.GoObject {
   }
   Clear(): void {
     const s = this;
-    s!.M?.clear();
+    $rt.clearMap(s!.M);
   }
 }
 export class OrderedMap<K, V> extends $rt.GoObject {
@@ -214,7 +214,7 @@ export class OrderedMap<K, V> extends $rt.GoObject {
     o.$copy_OrderedMap(this);
     return o;
   }
-  static $lit_1_2<K, V>($z_K: () => K, $z_V: () => V, p0: K[], p1: Map<K, V> | undefined): OrderedMap<K, V> {
+  static $lit_OrderedMap_1_2<K, V>($z_K: () => K, $z_V: () => V, p0: K[], p1: Map<K, V> | undefined): OrderedMap<K, V> {
     const o = new OrderedMap<K, V>($z_K, $z_V);
     o.keys = p0;
     o.mp = p1;
@@ -277,7 +277,7 @@ export class OrderedMap<K, V> extends $rt.GoObject {
     }
     m!.mp?.delete(key);
     let i: number = $rt.slices_Index(m!.keys, key);
-    if (i === 0) {
+    if (i === (0 as number)) {
       let zero$1: K = this.$z_K();
       m!.keys[0] = zero$1;
       m!.keys = m!.keys.slice(1);
@@ -345,7 +345,7 @@ export class OrderedMap<K, V> extends $rt.GoObject {
     const m = this;
     $rt.clearSlice(m!.keys, this.$z_K());
     m!.keys = m!.keys.slice(0, 0);
-    m!.mp?.clear();
+    $rt.clearMap(m!.mp);
   }
   Size(): number {
     const m = this;
@@ -364,7 +364,7 @@ export class OrderedMap<K, V> extends $rt.GoObject {
   }
   clone(): OrderedMap<K, V> {
     const m = this;
-    return OrderedMap.$lit_1_2<K, V>(this.$z_K, this.$z_V, $rt.slices_Clone(m!.keys), $rt.maps_Clone(m!.mp));
+    return OrderedMap.$lit_OrderedMap_1_2<K, V>(this.$z_K, this.$z_V, $rt.slices_Clone(m!.keys), $rt.maps_Clone(m!.mp));
   }
   MarshalJSONTo(enc: $rt.github_com_go_json_experiment_json_jsontext_Encoder | undefined): $rt.GoObject | undefined {
     const m = this;
@@ -418,13 +418,13 @@ export class OrderedMap<K, V> extends $rt.GoObject {
     if (!(err === undefined)) {
       return err;
     }
-    if (token.Kind() === 110) {
+    if (token.Kind() === (110 as number)) {
       return undefined;
     }
-    if (!(token.Kind() === 123)) {
+    if (!(token.Kind() === (123 as number))) {
       return $rt.errors_New('cannot unmarshal non-object JSON value into Map');
     }
-    for (; !(dec!.PeekKind() === 125);) {
+    for (; !(dec!.PeekKind() === (125 as number));) {
       let key: K = this.$z_K();
       let value: V = this.$z_V();
       {
@@ -475,7 +475,7 @@ export class OrderedSet<T> extends $rt.GoObject {
     o.$copy_OrderedSet(this);
     return o;
   }
-  static $lit_0<T>($z_T: () => T, p0: OrderedMap<T, $rt.Empty>): OrderedSet<T> {
+  static $lit_OrderedSet_0<T>($z_T: () => T, p0: OrderedMap<T, $rt.Empty>): OrderedSet<T> {
     const o = new OrderedSet<T>($z_T);
     o.m = p0;
     return o;
@@ -508,7 +508,7 @@ export class OrderedSet<T> extends $rt.GoObject {
   }
   Clone(): OrderedSet<T> | undefined {
     const s = this;
-    return OrderedSet.$lit_0<T>(this.$z_T, s!.m.clone());
+    return OrderedSet.$lit_OrderedSet_0<T>(this.$z_T, s!.m.clone());
   }
 }
 export class Set_<T> extends $rt.GoObject {
@@ -521,7 +521,7 @@ export class Set_<T> extends $rt.GoObject {
     o.$copy_Set(this);
     return o;
   }
-  static $lit_0<T>(p0: Map<T, $rt.Empty> | undefined): Set_<T> {
+  static $lit_Set_0<T>(p0: Map<T, $rt.Empty> | undefined): Set_<T> {
     const o = new Set_<T>();
     o.M = p0;
     return o;
@@ -566,7 +566,7 @@ export class Set_<T> extends $rt.GoObject {
     if (s === undefined) {
       return;
     }
-    s!.M?.clear();
+    $rt.clearMap(s!.M);
   }
   AddIfAbsent(key: T): boolean {
     const s = this;
@@ -581,12 +581,12 @@ export class Set_<T> extends $rt.GoObject {
     if (s === undefined) {
       return undefined;
     }
-    let clone: Set_<T> | undefined = Set_.$lit_0<T>($rt.maps_Clone(s!.M));
+    let clone: Set_<T> | undefined = Set_.$lit_Set_0<T>($rt.maps_Clone(s!.M));
     return clone;
   }
   Union(other: Set_<T> | undefined): void {
     const s = this;
-    if (s!.Len() === 0 && other!.Len() === 0) {
+    if (s!.Len() === (0 as number) && other!.Len() === (0 as number)) {
       return;
     }
     if (s === undefined) {
@@ -850,12 +850,15 @@ export class SyncSet<T> extends $rt.GoObject {
 }
 export class noCopy extends $rt.GoObject {
   $copy_noCopy(src: noCopy): void {}
+  $equals_noCopy(o: noCopy): boolean {
+    return true;
+  }
   $clone_noCopy(): noCopy {
     const o = new noCopy();
     o.$copy_noCopy(this);
     return o;
   }
-  static $cast(v: $rt.GoObject | undefined): noCopy {
+  static $cast_noCopy(v: $rt.GoObject | undefined): noCopy {
     if (v instanceof noCopy) return v;
     throw $rt.typeAssertError();
   }
@@ -863,7 +866,7 @@ export class noCopy extends $rt.GoObject {
   Unlock(): void {}
 }
 export function NewMultiMapWithSizeHint<K, V>(hint: number): MultiMap<K, V> | undefined {
-  return MultiMap.$lit_0<K, V>(new Map<K, V[]>());
+  return MultiMap.$lit_MultiMap_0<K, V>(new Map<K, V[]>());
 }
 export function GroupBy<K, V>(items: V[], groupId: ((p0: V) => K) | undefined): MultiMap<K, V> | undefined {
   let m: MultiMap<K, V> | undefined = new MultiMap<K, V>();
@@ -885,7 +888,7 @@ export function NewOrderedMapWithSizeHint<K, V>(
   return m;
 }
 export function newMapWithSizeHint<K, V>($z_K: () => K, $z_V: () => V, hint: number): OrderedMap<K, V> {
-  return OrderedMap.$lit_1_2<K, V>($z_K, $z_V, [] as K[], new Map<K, V>());
+  return OrderedMap.$lit_OrderedMap_1_2<K, V>($z_K, $z_V, [] as K[], new Map<K, V>());
 }
 export function NewOrderedMapFromList<K, V>(
   $z_K: () => K,
@@ -903,7 +906,7 @@ export function NewOrderedMapFromList<K, V>(
   return mp;
 }
 export function resolveKeyName(k: $rt.reflect_Value): [string, $rt.GoObject | undefined] {
-  if (k.Kind() === 24) {
+  if (k.Kind() === (24 as number)) {
     return [k.String(), undefined];
   }
   {
@@ -911,7 +914,7 @@ export function resolveKeyName(k: $rt.reflect_Value): [string, $rt.GoObject | un
     let tm: $rt.encoding_TextMarshaler | undefined = $t1[0];
     let ok: boolean = $t1[1];
     if (ok) {
-      if (k.Kind() === 22 && k.IsNil()) {
+      if (k.Kind() === (22 as number) && k.IsNil()) {
         return ['', undefined];
       }
       const $t2 = tm!.MarshalText();
@@ -922,19 +925,19 @@ export function resolveKeyName(k: $rt.reflect_Value): [string, $rt.GoObject | un
   }
   {
     switch (k.Kind()) {
-      case 2:
-      case 3:
-      case 4:
-      case 5:
-      case 6: {
+      case 2 as number:
+      case 3 as number:
+      case 4 as number:
+      case 5 as number:
+      case 6 as number: {
         return [$rt.strconv_FormatInt(k.Int(), 10), undefined];
       }
-      case 7:
-      case 8:
-      case 9:
-      case 10:
-      case 11:
-      case 12: {
+      case 7 as number:
+      case 8 as number:
+      case 9 as number:
+      case 10 as number:
+      case 11 as number:
+      case 12 as number: {
         return [$rt.strconv_FormatUint(k.Uint(), 10), undefined];
       }
     }
@@ -948,7 +951,7 @@ export function DiffOrderedMaps<K, V>(
   onRemoved: ((p0: K, p1: V) => void) | undefined,
   onModified: ((p0: K, p1: V, p2: V) => void) | undefined,
 ): void {
-  DiffOrderedMapsFunc(
+  DiffOrderedMapsFunc<K, V>(
     m1,
     m2,
     (a: V, b: V): boolean => {
@@ -998,10 +1001,10 @@ export function DiffOrderedMapsFunc<K, V>(
   });
 }
 export function NewOrderedSetWithSizeHint<T>($z_T: () => T, hint: number): OrderedSet<T> | undefined {
-  return OrderedSet.$lit_0<T>($z_T, newMapWithSizeHint<T, $rt.Empty>($z_T, $zf0, hint));
+  return OrderedSet.$lit_OrderedSet_0<T>($z_T, newMapWithSizeHint<T, $rt.Empty>($z_T, $zf0, hint));
 }
 export function NewSetWithSizeHint<T>(hint: number): Set_<T> | undefined {
-  return Set_.$lit_0<T>(new Map<T, $rt.Empty>());
+  return Set_.$lit_Set_0<T>(new Map<T, $rt.Empty>());
 }
 export function NewSetFromItems<T>(items: T[]): Set_<T> | undefined {
   let s: Set_<T> | undefined = new Set_<T>();

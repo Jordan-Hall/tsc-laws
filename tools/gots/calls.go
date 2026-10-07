@@ -59,6 +59,11 @@ func (x *fn) callWithArgs(e *ast.CallExpr, args []string) string {
 	if _, isLit := fun.(*ast.FuncLit); isLit {
 		callee = "(" + callee + ")"
 	}
+	// Pass inferred type arguments explicitly; TypeScript cannot infer type
+	// parameters that only appear in another parameter's constraint.
+	if ta := x.inferredTypeArgs(fun); ta != "" {
+		callee += ta
+	}
 	if needsBang(x.info.TypeOf(e.Fun)) && !isFuncObject(x.info, fun) {
 		callee += "!"
 	}
@@ -323,7 +328,7 @@ func (x *fn) builtin(e *ast.CallExpr, name string, pre []string) string {
 	case "clear":
 		t := under(x.info.TypeOf(e.Args[0]))
 		if _, ok := t.(*types.Map); ok {
-			return arg(0) + "?.clear()"
+			return "$rt.clearMap(" + arg(0) + ")"
 		}
 		sl := t.(*types.Slice)
 		return "$rt.clearSlice(" + arg(0) + ", " + x.f.zero(sl.Elem()) + ")"
@@ -412,4 +417,25 @@ func (x *fn) suffixCall(fun ast.Expr, e *ast.CallExpr) (string, bool) {
 		return "$rt.strings_IndexByteFrom(" + str + ", " + off + ", " + x.expr(e.Args[1]) + ")", true
 	}
 	return "", false
+}
+
+func (x *fn) inferredTypeArgs(fun ast.Expr) string {
+	var id *ast.Ident
+	switch f := fun.(type) {
+	case *ast.Ident:
+		id = f
+	case *ast.SelectorExpr:
+		id = f.Sel
+	default:
+		return ""
+	}
+	inst, ok := x.info.Instances[id]
+	if !ok || inst.TypeArgs == nil || inst.TypeArgs.Len() == 0 {
+		return ""
+	}
+	fn, ok := x.info.Uses[id].(*types.Func)
+	if !ok || fn.Pkg() == nil || !x.f.t.translated(fn.Pkg()) {
+		return ""
+	}
+	return x.f.typeArgs(inst.TypeArgs)
 }

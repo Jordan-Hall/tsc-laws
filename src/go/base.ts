@@ -473,3 +473,23 @@ export function unboxAny<T>(v: GoObject | undefined): T {
   if (v instanceof Box) return (v as Box<T>).v;
   return v as T;
 }
+
+// fromBytes converts file contents to a byte string.
+export function fromBytes(bytes: Uint8Array): string {
+  const parts: string[] = [];
+  for (let i = 0; i < bytes.length; i += 4096) {
+    const end = Math.min(bytes.length, i + 4096);
+    const codes: number[] = [];
+    for (let j = i; j < end; j++) codes.push(bytes[j]);
+    parts.push(String.fromCharCode(...codes));
+  }
+  return parts.join('');
+}
+
+// Map.prototype.clear has no scriptc lowering; delete keys one by one.
+export function clearMap<K, V>(m: Map<K, V> | undefined): void {
+  if (m === undefined) return;
+  const keys: K[] = [];
+  for (const k of m.keys()) keys.push(k);
+  for (const k of keys) m.delete(k);
+}

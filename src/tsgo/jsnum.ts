@@ -11,24 +11,27 @@ export class PseudoBigInt extends $rt.GoObject {
     this.Negative = src.Negative;
     this.Base10Value = src.Base10Value;
   }
+  $equals_PseudoBigInt(o: PseudoBigInt): boolean {
+    return this.Negative === o.Negative && this.Base10Value === o.Base10Value;
+  }
   $clone_PseudoBigInt(): PseudoBigInt {
     const o = new PseudoBigInt();
     o.$copy_PseudoBigInt(this);
     return o;
   }
-  static $lit_0_1(p0: boolean, p1: string): PseudoBigInt {
+  static $lit_PseudoBigInt_0_1(p0: boolean, p1: string): PseudoBigInt {
     const o = new PseudoBigInt();
     o.Negative = p0;
     o.Base10Value = p1;
     return o;
   }
-  static $cast(v: $rt.GoObject | undefined): PseudoBigInt {
+  static $cast_PseudoBigInt(v: $rt.GoObject | undefined): PseudoBigInt {
     if (v instanceof PseudoBigInt) return v;
     throw $rt.typeAssertError();
   }
   String(): string {
     const value = this;
-    if (value.Base10Value.length === 0) {
+    if (value.Base10Value.length === (0 as number)) {
       return '0';
     }
     if (value.Negative) {
@@ -38,7 +41,7 @@ export class PseudoBigInt extends $rt.GoObject {
   }
   Sign(): number {
     const value = this;
-    if (value.Base10Value.length === 0) {
+    if (value.Base10Value.length === (0 as number)) {
       return 0;
     }
     if (value.Negative) {
@@ -65,7 +68,7 @@ export function Number$IsInf(n: Number_): boolean {
 }
 export function isNonFinite(x: number): boolean {
   const $c_mask: number = 9218868437227405312;
-  return $rt.and64($rt.math_Float64bits(x), 9218868437227405312) === 9218868437227405312;
+  return $rt.and64($rt.math_Float64bits(x), 9218868437227405312) === (9218868437227405312 as number);
 }
 export function Number$toUint32(x: Number_): number {
   return Number$toInt32(x) >>> 0;
@@ -127,9 +130,9 @@ export function Number$Remainder(n: Number_, d: Number_): Number_ {
         return NaN();
       } else if (Number$IsInf(d)) {
         return n;
-      } else if (d === 0) {
+      } else if (d === (0 as number)) {
         return NaN();
-      } else if (n === 0) {
+      } else if (n === (0 as number)) {
         return n;
       }
     }
@@ -139,9 +142,9 @@ export function Number$Remainder(n: Number_, d: Number_): Number_ {
 export function Number$Exponentiate(base: Number_, exponent: Number_): Number_ {
   {
     $sw1: {
-      if ((base === 1 || base === -1) && Number$IsInf(exponent)) {
+      if ((base === (1 as number) || base === (-1 as number)) && Number$IsInf(exponent)) {
         return NaN();
-      } else if (base === 1 && Number$IsNaN(exponent)) {
+      } else if (base === (1 as number) && Number$IsNaN(exponent)) {
         return NaN();
       }
     }
@@ -173,7 +176,7 @@ export function Number$Exponentiate(base: Number_, exponent: Number_): Number_ {
 }
 export function NewPseudoBigInt(value: string, negative: boolean): PseudoBigInt {
   value = $rt.strings_TrimLeft(value, '0');
-  return PseudoBigInt.$lit_0_1(negative && !(value.length === 0), value);
+  return PseudoBigInt.$lit_PseudoBigInt_0_1(negative && !(value.length === (0 as number)), value);
 }
 export function ParseValidBigInt(text: string): PseudoBigInt {
   const $t1 = $rt.strings_CutPrefix(text, '-');
@@ -189,17 +192,17 @@ export function ParsePseudoBigInt(stringValue: string): string {
   }
   {
     switch (b1) {
-      case 98:
-      case 66:
-      case 111:
-      case 79:
-      case 120:
-      case 88: {
+      case 98 as number:
+      case 66 as number:
+      case 111 as number:
+      case 79 as number:
+      case 120 as number:
+      case 88 as number: {
         break;
       }
       default: {
         stringValue = $rt.strings_TrimLeft(stringValue, '0');
-        if (stringValue === '') {
+        if (stringValue === ('' as string)) {
           return '0';
         }
         return stringValue;
@@ -248,14 +251,14 @@ export function FromString(s: string): Number_ {
   s = $rt.strings_TrimFunc(s, isStrWhiteSpace);
   {
     switch (s) {
-      case '': {
+      case '' as string: {
         return 0;
       }
-      case 'Infinity':
-      case '+Infinity': {
+      case 'Infinity' as string:
+      case '+Infinity' as string: {
         return Inf(1);
       }
-      case '-Infinity': {
+      case '-Infinity' as string: {
         return Inf(-1);
       }
     }
@@ -288,7 +291,7 @@ export function FromString(s: string): Number_ {
   {
     const $t7 = $rt.unicode_utf8_DecodeRuneInString(s);
     let first: number = $t7[0];
-    if (!$stringutil.IsDigit(first) && !(first === 46)) {
+    if (!$stringutil.IsDigit(first) && !(first === (46 as number))) {
       return NaN();
     }
   }
@@ -305,16 +308,16 @@ export function FromString(s: string): Number_ {
 export function isStrWhiteSpace(r: number): boolean {
   {
     switch (r) {
-      case 10:
-      case 13:
-      case 8232:
-      case 8233: {
+      case 10 as number:
+      case 13 as number:
+      case 8232 as number:
+      case 8233 as number: {
         return true;
       }
-      case 9:
-      case 11:
-      case 12:
-      case 65279: {
+      case 9 as number:
+      case 11 as number:
+      case 12 as number:
+      case 65279 as number: {
         return true;
       }
     }
@@ -332,8 +335,8 @@ export function tryParseInt(s: string): [Number_, boolean] {
     let rest: string = $t2;
     {
       switch (prefix) {
-        case '0b':
-        case '0B': {
+        case '0b' as string:
+        case '0B' as string: {
           if (!isAllBinaryDigits(rest)) {
             return [NaN(), true];
           }
@@ -343,8 +346,8 @@ export function tryParseInt(s: string): [Number_, boolean] {
           hasIntResult = true;
           break;
         }
-        case '0o':
-        case '0O': {
+        case '0o' as string:
+        case '0O' as string: {
           if (!isAllOctalDigits(rest)) {
             return [NaN(), true];
           }
@@ -354,8 +357,8 @@ export function tryParseInt(s: string): [Number_, boolean] {
           hasIntResult = true;
           break;
         }
-        case '0x':
-        case '0X': {
+        case '0x' as string:
+        case '0X' as string: {
           if (!isAllHexDigits(rest)) {
             return [NaN(), true];
           }
@@ -415,11 +418,11 @@ export function parseFloatString(s: string): number {
   }
   let sb: $rt.strings_Builder = new $rt.strings_Builder();
   sb.Grow(a.length + b.length + c.length + 3);
-  if (a === '') {
-    if (hasDot && b === '') {
+  if (a === ('' as string)) {
+    if (hasDot && b === ('' as string)) {
       return $rt.math_NaN();
     }
-    if (hasExp && c === '') {
+    if (hasExp && c === ('' as string)) {
       return $rt.math_NaN();
     }
     sb.WriteString('0');
@@ -432,7 +435,7 @@ export function parseFloatString(s: string): number {
   }
   if (hasDot) {
     sb.WriteString('.');
-    if (b === '') {
+    if (b === ('' as string)) {
       sb.WriteString('0');
     } else {
       b = trimTrailingZeros(b);
@@ -481,7 +484,7 @@ export function cutAny(s: string, cutset: string): [string, string, boolean] {
 export function trimLeadingZeros(s: string): string {
   if ($rt.strings_HasPrefix(s, '0')) {
     s = $rt.strings_TrimLeft(s, '0');
-    if (s === '') {
+    if (s === ('' as string)) {
       return '0';
     }
   }
@@ -490,7 +493,7 @@ export function trimLeadingZeros(s: string): string {
 export function trimTrailingZeros(s: string): string {
   if ($rt.strings_HasSuffix(s, '0')) {
     s = $rt.strings_TrimRight(s, '0');
-    if (s === '') {
+    if (s === ('' as string)) {
       return '0';
     }
   }
@@ -530,7 +533,7 @@ export function isAllBinaryDigits(s: string): boolean {
     for (let $t2 = 0, $t3 = 0; $t2 < $t1.length; $t2 += $t3) {
       $t3 = $rt.utf8_DecodeRuneInStringAt($t1, $t2)[1];
       let r = $rt.utf8_DecodeRuneInStringAt($t1, $t2)[0];
-      if (!(r === 48) && !(r === 49)) {
+      if (!(r === (48 as number)) && !(r === (49 as number))) {
         return false;
       }
     }
@@ -575,13 +578,13 @@ export function isNumberRune(r: number): boolean {
   }
   {
     switch (r) {
-      case 46:
-      case 45:
-      case 43:
-      case 120:
-      case 88:
-      case 111:
-      case 79: {
+      case 46 as number:
+      case 45 as number:
+      case 43 as number:
+      case 120 as number:
+      case 88 as number:
+      case 111 as number:
+      case 79 as number: {
         return true;
       }
     }

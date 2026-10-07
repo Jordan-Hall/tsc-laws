@@ -3,7 +3,7 @@
 import * as $rt from '../go/runtime.js';
 import type * as $ast from './ast.js';
 export function Fail(reason: string): void {
-  if (reason.length === 0) {
+  if (reason.length === (0 as number)) {
     reason = 'Debug failure.';
   } else {
     reason = 'Debug failure. ' + reason;
@@ -12,7 +12,7 @@ export function Fail(reason: string): void {
 }
 export function FailBadSyntaxKind(node: $ast.Node | undefined, message: ($rt.GoObject | undefined)[]): void {
   let msg: string = '';
-  if (message.length === 0) {
+  if (message.length === (0 as number)) {
     msg = 'Unexpected node.';
   } else {
     msg = $rt.fmt_Sprint(message);
@@ -26,7 +26,7 @@ export function FailBadSyntaxKind(node: $ast.Node | undefined, message: ($rt.GoO
 }
 export function AssertNever(member: $rt.GoObject | undefined, message: ($rt.GoObject | undefined)[]): void {
   let msg: string = '';
-  if (message.length === 0) {
+  if (message.length === (0 as number)) {
     msg = 'Illegal value:';
   } else {
     msg = $rt.fmt_Sprint(message);

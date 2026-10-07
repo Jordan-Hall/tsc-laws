@@ -5,6 +5,7 @@ import * as $collections from './collections.js';
 import * as $core from './core.js';
 import * as $diagnostics from './diagnostics.js';
 import * as $jsnum from './jsnum.js';
+import * as $parser from './parser.js';
 import * as $scanner from './scanner.js';
 import * as $spanmap from './spanmap.js';
 import * as $stringutil from './stringutil.js';
@@ -295,8 +296,11 @@ export function keepAll(): $rt.GoObject[] {
     new $core.parallelWorkGroup(),
     new $core.singleThreadedWorkGroup(),
     new $jsnum.PseudoBigInt(),
+    new $parser.JSDocInfo(),
     new $scanner.ScannerState(),
     new $scanner.Scanner(),
+    new $parser.Parser(),
+    new $parser.ParserState(),
     new $scanner.SkipTriviaOptions(),
     new $scanner.decimalEscapeValue(),
     new $scanner.groupNameReference(),

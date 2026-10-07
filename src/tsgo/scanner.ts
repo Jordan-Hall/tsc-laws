@@ -38,7 +38,7 @@ export class ScannerState extends $rt.GoObject {
     o.$copy_ScannerState(this);
     return o;
   }
-  static $cast(v: $rt.GoObject | undefined): ScannerState {
+  static $cast_ScannerState(v: $rt.GoObject | undefined): ScannerState {
     if (v instanceof ScannerState) return v;
     throw $rt.typeAssertError();
   }
@@ -70,12 +70,12 @@ export class Scanner extends ScannerState {
     o.$copy_Scanner(this);
     return o;
   }
-  static $lit_5(p0: boolean): Scanner {
+  static $lit_Scanner_5(p0: boolean): Scanner {
     const o = new Scanner();
     o.skipTrivia = p0;
     return o;
   }
-  static $cast(v: $rt.GoObject | undefined): Scanner {
+  static $cast_Scanner(v: $rt.GoObject | undefined): Scanner {
     if (v instanceof Scanner) return v;
     throw $rt.typeAssertError();
   }
@@ -95,9 +95,15 @@ export class Scanner extends ScannerState {
   }
   Reset(): void {
     const s = this;
-    let numberCache: Map<string, string> | undefined = cleared(s!.numberCache);
-    let hexNumberCache: Map<string, string> | undefined = cleared(s!.hexNumberCache);
-    let hexDigitCache: Map<string, string> | undefined = cleared(s!.hexDigitCache);
+    let numberCache: Map<string, string> | undefined = cleared<Map<string, string> | undefined, string, string>(
+      s!.numberCache,
+    );
+    let hexNumberCache: Map<string, string> | undefined = cleared<Map<string, string> | undefined, string, string>(
+      s!.hexNumberCache,
+    );
+    let hexDigitCache: Map<string, string> | undefined = cleared<Map<string, string> | undefined, string, string>(
+      s!.hexDigitCache,
+    );
     s!.$copy_Scanner(defaultScanner());
     s!.numberCache = numberCache;
     s!.hexNumberCache = hexNumberCache;
@@ -181,31 +187,31 @@ export class Scanner extends ScannerState {
   }
   HasUnicodeEscape(): boolean {
     const s = this;
-    return !((s!.tokenFlags & 1024) === 0);
+    return !((s!.tokenFlags & 1024) === (0 as number));
   }
   HasExtendedUnicodeEscape(): boolean {
     const s = this;
-    return !((s!.tokenFlags & 8) === 0);
+    return !((s!.tokenFlags & 8) === (0 as number));
   }
   HasPrecedingLineBreak(): boolean {
     const s = this;
-    return !((s!.tokenFlags & 1) === 0);
+    return !((s!.tokenFlags & 1) === (0 as number));
   }
   HasPrecedingJSDocComment(): boolean {
     const s = this;
-    return !((s!.tokenFlags & 2) === 0);
+    return !((s!.tokenFlags & 2) === (0 as number));
   }
   HasPrecedingJSDocLeadingAsterisks(): boolean {
     const s = this;
-    return !((s!.tokenFlags & 32768) === 0);
+    return !((s!.tokenFlags & 32768) === (0 as number));
   }
   HasPrecedingJSDocWithDeprecatedTag(): boolean {
     const s = this;
-    return !((s!.tokenFlags & 131072) === 0);
+    return !((s!.tokenFlags & 131072) === (0 as number));
   }
   HasPrecedingJSDocWithSeeOrLink(): boolean {
     const s = this;
-    return !((s!.tokenFlags & 262144) === 0);
+    return !((s!.tokenFlags & 262144) === (0 as number));
   }
   scanJSDocCommentForTags(commentText: string): void {
     const s = this;
@@ -215,13 +221,16 @@ export class Scanner extends ScannerState {
         return;
       }
       commentText = commentText.substring(i + 1);
-      if ((s!.tokenFlags & 131072) === 0 && hasJSDocTag(commentText, ['deprecated'])) {
+      if ((s!.tokenFlags & 131072) === (0 as number) && hasJSDocTag(commentText, ['deprecated'])) {
         s!.tokenFlags = s!.tokenFlags | 131072 | 0;
       }
-      if ((s!.tokenFlags & 262144) === 0 && hasJSDocTag(commentText, ['see', 'link', 'linkcode', 'linkplain'])) {
+      if (
+        (s!.tokenFlags & 262144) === (0 as number) &&
+        hasJSDocTag(commentText, ['see', 'link', 'linkcode', 'linkplain'])
+      ) {
         s!.tokenFlags = s!.tokenFlags | 262144 | 0;
       }
-      if ((s!.tokenFlags & 393216) === 393216) {
+      if ((s!.tokenFlags & 393216) === (393216 as number)) {
         return;
       }
     }
@@ -246,7 +255,7 @@ export class Scanner extends ScannerState {
   }
   languageVersion(): $core.ScriptTarget {
     const s = this;
-    if (s!.scriptTarget === 0) {
+    if (s!.scriptTarget === (0 as number)) {
       return 99;
     }
     return s!.scriptTarget;
@@ -316,10 +325,10 @@ export class Scanner extends ScannerState {
       s!.tokenStart = s!.pos;
       {
         switch (ch) {
-          case 9:
-          case 11:
-          case 12:
-          case 32: {
+          case 9 as number:
+          case 11 as number:
+          case 12 as number:
+          case 32 as number: {
             s!.pos++;
             if (s!.skipTrivia) {
               continue;
@@ -336,17 +345,17 @@ export class Scanner extends ScannerState {
             s!.token = 5;
             break;
           }
-          case 10:
-          case 13: {
+          case 10 as number:
+          case 13 as number: {
             s!.tokenFlags = s!.tokenFlags | 1 | 0;
             if (s!.skipTrivia) {
               s!.pos++;
               s!.scanASCIIWhile((b: number): boolean => {
-                return b === 32 || (b >= 9 && b <= 13);
+                return b === (32 as number) || (b >= 9 && b <= 13);
               });
               continue;
             }
-            if (ch === 13 && s!.charAt(1) === 10) {
+            if (ch === (13 as number) && s!.charAt(1) === (10 as number)) {
               s!.pos += 2;
             } else {
               s!.pos++;
@@ -354,9 +363,9 @@ export class Scanner extends ScannerState {
             s!.token = 4;
             break;
           }
-          case 33: {
-            if (s!.charAt(1) === 61) {
-              if (s!.charAt(2) === 61) {
+          case 33 as number: {
+            if (s!.charAt(1) === (61 as number)) {
+              if (s!.charAt(2) === (61 as number)) {
                 s!.pos += 3;
                 s!.token = 37;
               } else {
@@ -369,18 +378,18 @@ export class Scanner extends ScannerState {
             }
             break;
           }
-          case 34:
-          case 39: {
+          case 34 as number:
+          case 39 as number: {
             s!.tokenValue = s!.scanString(false);
             s!.token = 10;
             break;
           }
-          case 96: {
+          case 96 as number: {
             s!.token = s!.scanTemplateAndSetTokenValue(false);
             break;
           }
-          case 37: {
-            if (s!.charAt(1) === 61) {
+          case 37 as number: {
+            if (s!.charAt(1) === (61 as number)) {
               s!.pos += 2;
               s!.token = 69;
             } else {
@@ -389,17 +398,17 @@ export class Scanner extends ScannerState {
             }
             break;
           }
-          case 38: {
+          case 38 as number: {
             let next: number = s!.charAt(1);
-            if (next === 38) {
-              if (s!.charAt(2) === 61) {
+            if (next === (38 as number)) {
+              if (s!.charAt(2) === (61 as number)) {
                 s!.pos += 3;
                 s!.token = 76;
               } else {
                 s!.pos += 2;
                 s!.token = 55;
               }
-            } else if (next === 61) {
+            } else if (next === (61 as number)) {
               s!.pos += 2;
               s!.token = 73;
             } else {
@@ -408,23 +417,23 @@ export class Scanner extends ScannerState {
             }
             break;
           }
-          case 40: {
+          case 40 as number: {
             s!.pos++;
             s!.token = 20;
             break;
           }
-          case 41: {
+          case 41 as number: {
             s!.pos++;
             s!.token = 21;
             break;
           }
-          case 42: {
+          case 42 as number: {
             let next$1: number = s!.charAt(1);
-            if (next$1 === 61) {
+            if (next$1 === (61 as number)) {
               s!.pos += 2;
               s!.token = 66;
-            } else if (next$1 === 42) {
-              if (s!.charAt(2) === 61) {
+            } else if (next$1 === (42 as number)) {
+              if (s!.charAt(2) === (61 as number)) {
                 s!.pos += 3;
                 s!.token = 67;
               } else {
@@ -434,9 +443,9 @@ export class Scanner extends ScannerState {
             } else {
               s!.pos++;
               if (
-                !(s!.skipJSDocLeadingAsterisks === 0) &&
-                (s!.tokenFlags & 32768) === 0 &&
-                !((s!.tokenFlags & 1) === 0)
+                !(s!.skipJSDocLeadingAsterisks === (0 as number)) &&
+                (s!.tokenFlags & 32768) === (0 as number) &&
+                !((s!.tokenFlags & 1) === (0 as number))
               ) {
                 s!.tokenFlags = s!.tokenFlags | 32768 | 0;
                 continue;
@@ -445,12 +454,12 @@ export class Scanner extends ScannerState {
             }
             break;
           }
-          case 43: {
+          case 43 as number: {
             let next$2: number = s!.charAt(1);
-            if (next$2 === 61) {
+            if (next$2 === (61 as number)) {
               s!.pos += 2;
               s!.token = 64;
-            } else if (next$2 === 43) {
+            } else if (next$2 === (43 as number)) {
               s!.pos += 2;
               s!.token = 45;
             } else {
@@ -459,17 +468,17 @@ export class Scanner extends ScannerState {
             }
             break;
           }
-          case 44: {
+          case 44 as number: {
             s!.pos++;
             s!.token = 27;
             break;
           }
-          case 45: {
+          case 45 as number: {
             let next$3: number = s!.charAt(1);
-            if (next$3 === 61) {
+            if (next$3 === (61 as number)) {
               s!.pos += 2;
               s!.token = 65;
-            } else if (next$3 === 45) {
+            } else if (next$3 === (45 as number)) {
               s!.pos += 2;
               s!.token = 46;
             } else {
@@ -478,11 +487,11 @@ export class Scanner extends ScannerState {
             }
             break;
           }
-          case 46: {
+          case 46 as number: {
             let next$4: number = s!.charAt(1);
             if ($stringutil.IsDigit(next$4)) {
               s!.token = s!.scanNumber();
-            } else if (next$4 === 46 && s!.charAt(2) === 46) {
+            } else if (next$4 === (46 as number) && s!.charAt(2) === (46 as number)) {
               s!.pos += 3;
               s!.token = 25;
             } else {
@@ -491,17 +500,17 @@ export class Scanner extends ScannerState {
             }
             break;
           }
-          case 47: {
-            if (s!.charAt(1) === 47) {
+          case 47 as number: {
+            if (s!.charAt(1) === (47 as number)) {
               s!.pos += 2;
               for (;;) {
                 s!.scanASCIIWhile((b$1: number): boolean => {
-                  return !(b$1 === 10) && !(b$1 === 13);
+                  return !(b$1 === (10 as number)) && !(b$1 === (13 as number));
                 });
                 const $t2 = s!.charAndSize();
                 let ch1: number = $t2[0];
                 let size$1: number = $t2[1];
-                if (size$1 === 0 || $stringutil.IsLineBreak(ch1)) {
+                if (size$1 === (0 as number) || $stringutil.IsLineBreak(ch1)) {
                   break;
                 }
                 s!.pos += size$1;
@@ -513,22 +522,22 @@ export class Scanner extends ScannerState {
               s!.token = 2;
               return s!.token;
             }
-            if (s!.charAt(1) === 42) {
+            if (s!.charAt(1) === (42 as number)) {
               s!.pos += 2;
-              let isJSDoc: boolean = s!.char() === 42 && !(s!.charAt(1) === 47);
+              let isJSDoc: boolean = s!.char() === (42 as number) && !(s!.charAt(1) === (47 as number));
               let commentClosed: boolean = false;
               let lastLineStart: number = s!.tokenStart;
               for (;;) {
                 s!.scanASCIIWhile((b$2: number): boolean => {
-                  return !(b$2 === 42) && !(b$2 === 10) && !(b$2 === 13);
+                  return !(b$2 === (42 as number)) && !(b$2 === (10 as number)) && !(b$2 === (13 as number));
                 });
                 const $t3 = s!.charAndSize();
                 let ch1$1: number = $t3[0];
                 let size$2: number = $t3[1];
-                if (size$2 === 0) {
+                if (size$2 === (0 as number)) {
                   break;
                 }
-                if (ch1$1 === 42 && s!.charAt(1) === 47) {
+                if (ch1$1 === (42 as number) && s!.charAt(1) === (47 as number)) {
                   s!.pos += 2;
                   commentClosed = true;
                   break;
@@ -556,7 +565,7 @@ export class Scanner extends ScannerState {
               s!.token = 3;
               return s!.token;
             }
-            if (s!.charAt(1) === 61) {
+            if (s!.charAt(1) === (61 as number)) {
               s!.pos += 2;
               s!.token = 68;
             } else {
@@ -565,12 +574,12 @@ export class Scanner extends ScannerState {
             }
             break;
           }
-          case 48: {
-            if (s!.charAt(1) === 88 || s!.charAt(1) === 120) {
+          case 48 as number: {
+            if (s!.charAt(1) === (88 as number) || s!.charAt(1) === (120 as number)) {
               let start: number = s!.pos;
               s!.pos += 2;
               let digits: string = s!.scanHexDigits(1, true, true);
-              if (digits === '') {
+              if (digits === ('' as string)) {
                 s!.error($diagnostics.Hexadecimal_digit_expected);
                 digits = '0';
               }
@@ -598,10 +607,10 @@ export class Scanner extends ScannerState {
               s!.token = s!.scanBigIntSuffix();
               break;
             }
-            if (s!.charAt(1) === 66 || s!.charAt(1) === 98) {
+            if (s!.charAt(1) === (66 as number) || s!.charAt(1) === (98 as number)) {
               s!.pos += 2;
               let digits$1: string = s!.scanBinaryOrOctalDigits(2);
-              if (digits$1 === '') {
+              if (digits$1 === ('' as string)) {
                 s!.error($diagnostics.Binary_digit_expected);
                 digits$1 = '0';
               }
@@ -610,10 +619,10 @@ export class Scanner extends ScannerState {
               s!.token = s!.scanBigIntSuffix();
               break;
             }
-            if (s!.charAt(1) === 79 || s!.charAt(1) === 111) {
+            if (s!.charAt(1) === (79 as number) || s!.charAt(1) === (111 as number)) {
               s!.pos += 2;
               let digits$2: string = s!.scanBinaryOrOctalDigits(8);
-              if (digits$2 === '') {
+              if (digits$2 === ('' as string)) {
                 s!.error($diagnostics.Octal_digit_expected);
                 digits$2 = '0';
               }
@@ -623,30 +632,30 @@ export class Scanner extends ScannerState {
               break;
             }
           }
-          case 49:
-          case 50:
-          case 51:
-          case 52:
-          case 53:
-          case 54:
-          case 55:
-          case 56:
-          case 57: {
+          case 49 as number:
+          case 50 as number:
+          case 51 as number:
+          case 52 as number:
+          case 53 as number:
+          case 54 as number:
+          case 55 as number:
+          case 56 as number:
+          case 57 as number: {
             s!.token = s!.scanNumber();
             break;
           }
-          case 58: {
+          case 58 as number: {
             s!.pos++;
             s!.token = 58;
             break;
           }
-          case 59: {
+          case 59 as number: {
             s!.pos++;
             s!.token = 26;
             break;
           }
-          case 60: {
-            if (s!.charAt(1) === 60 && isConflictMarkerTrivia(s!.text, s!.pos)) {
+          case 60 as number: {
+            if (s!.charAt(1) === (60 as number) && isConflictMarkerTrivia(s!.text, s!.pos)) {
               s!.pos = scanConflictMarkerTrivia(
                 s!.text,
                 s!.pos,
@@ -668,18 +677,22 @@ export class Scanner extends ScannerState {
                 return s!.token;
               }
             }
-            if (s!.charAt(1) === 60) {
-              if (s!.charAt(2) === 61) {
+            if (s!.charAt(1) === (60 as number)) {
+              if (s!.charAt(2) === (61 as number)) {
                 s!.pos += 3;
                 s!.token = 70;
               } else {
                 s!.pos += 2;
                 s!.token = 47;
               }
-            } else if (s!.charAt(1) === 61) {
+            } else if (s!.charAt(1) === (61 as number)) {
               s!.pos += 2;
               s!.token = 32;
-            } else if (s!.languageVariant === 1 && s!.charAt(1) === 47 && !(s!.charAt(2) === 42)) {
+            } else if (
+              s!.languageVariant === (1 as number) &&
+              s!.charAt(1) === (47 as number) &&
+              !(s!.charAt(2) === (42 as number))
+            ) {
               s!.pos += 2;
               s!.token = 30;
             } else {
@@ -688,8 +701,8 @@ export class Scanner extends ScannerState {
             }
             break;
           }
-          case 61: {
-            if (s!.charAt(1) === 61 && isConflictMarkerTrivia(s!.text, s!.pos)) {
+          case 61 as number: {
+            if (s!.charAt(1) === (61 as number) && isConflictMarkerTrivia(s!.text, s!.pos)) {
               s!.pos = scanConflictMarkerTrivia(
                 s!.text,
                 s!.pos,
@@ -711,15 +724,15 @@ export class Scanner extends ScannerState {
                 return s!.token;
               }
             }
-            if (s!.charAt(1) === 61) {
-              if (s!.charAt(2) === 61) {
+            if (s!.charAt(1) === (61 as number)) {
+              if (s!.charAt(2) === (61 as number)) {
                 s!.pos += 3;
                 s!.token = 36;
               } else {
                 s!.pos += 2;
                 s!.token = 34;
               }
-            } else if (s!.charAt(1) === 62) {
+            } else if (s!.charAt(1) === (62 as number)) {
               s!.pos += 2;
               s!.token = 38;
             } else {
@@ -728,8 +741,8 @@ export class Scanner extends ScannerState {
             }
             break;
           }
-          case 62: {
-            if (s!.charAt(1) === 62 && isConflictMarkerTrivia(s!.text, s!.pos)) {
+          case 62 as number: {
+            if (s!.charAt(1) === (62 as number) && isConflictMarkerTrivia(s!.text, s!.pos)) {
               s!.pos = scanConflictMarkerTrivia(
                 s!.text,
                 s!.pos,
@@ -755,12 +768,12 @@ export class Scanner extends ScannerState {
             s!.token = 31;
             break;
           }
-          case 63: {
-            if (s!.charAt(1) === 46 && !$stringutil.IsDigit(s!.charAt(2))) {
+          case 63 as number: {
+            if (s!.charAt(1) === (46 as number) && !$stringutil.IsDigit(s!.charAt(2))) {
               s!.pos += 2;
               s!.token = 28;
-            } else if (s!.charAt(1) === 63) {
-              if (s!.charAt(2) === 61) {
+            } else if (s!.charAt(1) === (63 as number)) {
+              if (s!.charAt(2) === (61 as number)) {
                 s!.pos += 3;
                 s!.token = 77;
               } else {
@@ -773,18 +786,18 @@ export class Scanner extends ScannerState {
             }
             break;
           }
-          case 91: {
+          case 91 as number: {
             s!.pos++;
             s!.token = 22;
             break;
           }
-          case 93: {
+          case 93 as number: {
             s!.pos++;
             s!.token = 23;
             break;
           }
-          case 94: {
-            if (s!.charAt(1) === 61) {
+          case 94 as number: {
+            if (s!.charAt(1) === (61 as number)) {
               s!.pos += 2;
               s!.token = 78;
             } else {
@@ -793,13 +806,13 @@ export class Scanner extends ScannerState {
             }
             break;
           }
-          case 123: {
+          case 123 as number: {
             s!.pos++;
             s!.token = 18;
             break;
           }
-          case 124: {
-            if (s!.charAt(1) === 124 && isConflictMarkerTrivia(s!.text, s!.pos)) {
+          case 124 as number: {
+            if (s!.charAt(1) === (124 as number) && isConflictMarkerTrivia(s!.text, s!.pos)) {
               s!.pos = scanConflictMarkerTrivia(
                 s!.text,
                 s!.pos,
@@ -821,15 +834,15 @@ export class Scanner extends ScannerState {
                 return s!.token;
               }
             }
-            if (s!.charAt(1) === 124) {
-              if (s!.charAt(2) === 61) {
+            if (s!.charAt(1) === (124 as number)) {
+              if (s!.charAt(2) === (61 as number)) {
                 s!.pos += 3;
                 s!.token = 75;
               } else {
                 s!.pos += 2;
                 s!.token = 56;
               }
-            } else if (s!.charAt(1) === 61) {
+            } else if (s!.charAt(1) === (61 as number)) {
               s!.pos += 2;
               s!.token = 74;
             } else {
@@ -838,22 +851,22 @@ export class Scanner extends ScannerState {
             }
             break;
           }
-          case 125: {
+          case 125 as number: {
             s!.pos++;
             s!.token = 19;
             break;
           }
-          case 126: {
+          case 126 as number: {
             s!.pos++;
             s!.token = 54;
             break;
           }
-          case 64: {
+          case 64 as number: {
             s!.pos++;
             s!.token = 59;
             break;
           }
-          case 92: {
+          case 92 as number: {
             let cp: number = s!.peekUnicodeEscape();
             if (cp >= 0 && IsIdentifierStart(cp)) {
               s!.tokenValue = $rt.runeToString(s!.scanUnicodeEscape(true)) + s!.scanIdentifierParts();
@@ -863,9 +876,9 @@ export class Scanner extends ScannerState {
             }
             break;
           }
-          case 35: {
-            if (s!.charAt(1) === 33) {
-              if (s!.pos === 0) {
+          case 35 as number: {
+            if (s!.charAt(1) === (33 as number)) {
+              if (s!.pos === (0 as number)) {
                 s!.pos += 2;
                 {
                   const $t10 = s!.charAndSize();
@@ -892,7 +905,7 @@ export class Scanner extends ScannerState {
               s!.token = 0;
               break;
             }
-            if (s!.charAt(1) === 92) {
+            if (s!.charAt(1) === (92 as number)) {
               s!.pos++;
               let cp$1: number = s!.peekUnicodeEscape();
               if (cp$1 >= 0 && IsIdentifierStart(cp$1)) {
@@ -921,7 +934,7 @@ export class Scanner extends ScannerState {
             const $t14 = s!.charAndSize();
             let ch$3: number = $t14[0];
             let size$4: number = $t14[1];
-            if (ch$3 === 65533) {
+            if (ch$3 === (65533 as number)) {
               s!.errorAt($diagnostics.File_appears_to_be_binary, 0, 0, [] as ($rt.GoObject | undefined)[]);
               s!.pos = s!.text.length;
               s!.token = 7;
@@ -929,7 +942,7 @@ export class Scanner extends ScannerState {
             }
             if ($stringutil.IsWhiteSpaceSingleLine(ch$3)) {
               s!.pos += size$4;
-              if (ch$3 === 133 || s!.skipTrivia) {
+              if (ch$3 === (133 as number) || s!.skipTrivia) {
                 continue;
               }
               for (;;) {
@@ -961,22 +974,22 @@ export class Scanner extends ScannerState {
     const s = this;
     let pos: number = start;
     if (multiline) {
-      for (; pos < end && (s!.text.charCodeAt(pos) === 32 || s!.text.charCodeAt(pos) === 9);) {
+      for (; pos < end && (s!.text.charCodeAt(pos) === (32 as number) || s!.text.charCodeAt(pos) === (9 as number));) {
         pos++;
       }
-      for (; pos < end && (s!.text.charCodeAt(pos) === 47 || s!.text.charCodeAt(pos) === 42);) {
+      for (; pos < end && (s!.text.charCodeAt(pos) === (47 as number) || s!.text.charCodeAt(pos) === (42 as number));) {
         pos++;
       }
     } else {
       pos += 2;
-      for (; pos < end && s!.text.charCodeAt(pos) === 47;) {
+      for (; pos < end && s!.text.charCodeAt(pos) === (47 as number);) {
         pos++;
       }
     }
-    for (; pos < end && (s!.text.charCodeAt(pos) === 32 || s!.text.charCodeAt(pos) === 9);) {
+    for (; pos < end && (s!.text.charCodeAt(pos) === (32 as number) || s!.text.charCodeAt(pos) === (9 as number));) {
       pos++;
     }
-    if (!(pos < end && s!.text.charCodeAt(pos) === 64)) {
+    if (!(pos < end && s!.text.charCodeAt(pos) === (64 as number))) {
       return;
     }
     pos++;
@@ -992,11 +1005,11 @@ export class Scanner extends ScannerState {
         }
       }
     }
-    s!.commentDirectives.push($ast.CommentDirective.$lit_0_1($core.NewTextRange(start, end), kind));
+    s!.commentDirectives.push($ast.CommentDirective.$lit_CommentDirective_0_1($core.NewTextRange(start, end), kind));
   }
   ReScanLessThanToken(): $ast.Kind {
     const s = this;
-    if (s!.token === 47) {
+    if (s!.token === (47 as number)) {
       s!.pos = s!.tokenStart + 1;
       s!.token = 29;
     }
@@ -1004,7 +1017,7 @@ export class Scanner extends ScannerState {
   }
   ReScanGreaterThanToken(): $ast.Kind {
     const s = this;
-    if (s!.token === 31) {
+    if (s!.token === (31 as number)) {
       s!.reScanGreaterThanTokenInner();
     }
     return s!.token;
@@ -1012,23 +1025,23 @@ export class Scanner extends ScannerState {
   reScanGreaterThanTokenInner(): void {
     const s = this;
     s!.pos = s!.tokenStart + 1;
-    if (s!.char() === 62) {
-      if (s!.charAt(1) === 62) {
-        if (s!.charAt(2) === 61) {
+    if (s!.char() === (62 as number)) {
+      if (s!.charAt(1) === (62 as number)) {
+        if (s!.charAt(2) === (61 as number)) {
           s!.pos += 3;
           s!.token = 72;
         } else {
           s!.pos += 2;
           s!.token = 49;
         }
-      } else if (s!.charAt(1) === 61) {
+      } else if (s!.charAt(1) === (61 as number)) {
         s!.pos += 2;
         s!.token = 71;
       } else {
         s!.pos++;
         s!.token = 48;
       }
-    } else if (s!.char() === 61) {
+    } else if (s!.char() === (61 as number)) {
       s!.pos++;
       s!.token = 33;
     }
@@ -1041,7 +1054,7 @@ export class Scanner extends ScannerState {
   }
   ReScanAsteriskEqualsToken(): $ast.Kind {
     const s = this;
-    if (!(s!.token === 66)) {
+    if (!(s!.token === (66 as number))) {
       throw $rt.newPanic(new $rt.BoxStr("'ReScanAsteriskEqualsToken' should only be called on a '*='", 'string'));
     }
     s!.pos = s!.tokenStart + 1;
@@ -1051,7 +1064,7 @@ export class Scanner extends ScannerState {
   ReScanSlashToken(reportErrors: boolean[]): $ast.Kind {
     const s = this;
     let shouldReportErrors: boolean = reportErrors.length > 0 && reportErrors[0];
-    if (s!.token === 43 || s!.token === 68) {
+    if (s!.token === (43 as number) || s!.token === (68 as number)) {
       let startOfRegExpBody: number = s!.tokenStart + 1;
       let p: number = startOfRegExpBody;
       let inEscape: boolean = false;
@@ -1070,22 +1083,23 @@ export class Scanner extends ScannerState {
               break loop;
             } else if (inEscape) {
               inEscape = false;
-            } else if (ch === 47 && !inCharacterClass) {
+            } else if (ch === (47 as number) && !inCharacterClass) {
               break loop;
-            } else if (ch === 91) {
+            } else if (ch === (91 as number)) {
               inCharacterClass = true;
-            } else if (ch === 92) {
+            } else if (ch === (92 as number)) {
               inEscape = true;
-            } else if (ch === 93) {
+            } else if (ch === (93 as number)) {
               inCharacterClass = false;
             } else if (
               !inCharacterClass &&
-              ch === 40 &&
+              ch === (40 as number) &&
               p + 1 < s!.end &&
-              s!.text.charCodeAt(p + 1) === 63 &&
+              s!.text.charCodeAt(p + 1) === (63 as number) &&
               p + 2 < s!.end &&
-              s!.text.charCodeAt(p + 2) === 60 &&
-              (p + 3 >= s!.end || (!(s!.text.charCodeAt(p + 3) === 61) && !(s!.text.charCodeAt(p + 3) === 33)))
+              s!.text.charCodeAt(p + 2) === (60 as number) &&
+              (p + 3 >= s!.end ||
+                (!(s!.text.charCodeAt(p + 3) === (61 as number)) && !(s!.text.charCodeAt(p + 3) === (33 as number))))
             ) {
               namedCaptureGroups = true;
             }
@@ -1094,7 +1108,7 @@ export class Scanner extends ScannerState {
         p++;
       }
       let endOfRegExpBody: number = p;
-      if (!((s!.tokenFlags & 4) === 0)) {
+      if (!((s!.tokenFlags & 4) === (0 as number))) {
         p = startOfRegExpBody;
         inEscape = false;
         let characterClassDepth: number = 0;
@@ -1104,23 +1118,23 @@ export class Scanner extends ScannerState {
           let ch$1: number = s!.text.charCodeAt(p) | 0;
           if (inEscape) {
             inEscape = false;
-          } else if (ch$1 === 92) {
+          } else if (ch$1 === (92 as number)) {
             inEscape = true;
-          } else if (ch$1 === 91) {
+          } else if (ch$1 === (91 as number)) {
             characterClassDepth++;
-          } else if (ch$1 === 93 && !(characterClassDepth === 0)) {
+          } else if (ch$1 === (93 as number) && !(characterClassDepth === (0 as number))) {
             characterClassDepth--;
-          } else if (characterClassDepth === 0) {
-            if (ch$1 === 123) {
+          } else if (characterClassDepth === (0 as number)) {
+            if (ch$1 === (123 as number)) {
               inDecimalQuantifier = true;
-            } else if (ch$1 === 125 && inDecimalQuantifier) {
+            } else if (ch$1 === (125 as number) && inDecimalQuantifier) {
               inDecimalQuantifier = false;
             } else if (!inDecimalQuantifier) {
-              if (ch$1 === 40) {
+              if (ch$1 === (40 as number)) {
                 groupDepth++;
-              } else if (ch$1 === 41 && !(groupDepth === 0)) {
+              } else if (ch$1 === (41 as number) && !(groupDepth === (0 as number))) {
                 groupDepth--;
-              } else if (ch$1 === 41 || ch$1 === 93 || ch$1 === 125) {
+              } else if (ch$1 === (41 as number) || ch$1 === (93 as number) || ch$1 === (125 as number)) {
                 break;
               }
             }
@@ -1131,7 +1145,7 @@ export class Scanner extends ScannerState {
           const $t2 = $rt.unicode_utf8_DecodeLastRuneInString(s!.text.substring(0, p));
           let ch$2: number = $t2[0];
           let size: number = $t2[1];
-          if ($stringutil.IsWhiteSpaceLike(ch$2) || ch$2 === 59) {
+          if ($stringutil.IsWhiteSpaceLike(ch$2) || ch$2 === (59 as number)) {
             p -= size;
           } else {
             break;
@@ -1150,7 +1164,7 @@ export class Scanner extends ScannerState {
           const $t3 = $rt.utf8_DecodeRuneInStringAt(s!.text, p);
           let ch$3: number = $t3[0];
           let size$1: number = $t3[1];
-          if (ch$3 === 65533 || !IsIdentifierPart(ch$3)) {
+          if (ch$3 === (65533 as number) || !IsIdentifierPart(ch$3)) {
             break;
           }
           if (shouldReportErrors) {
@@ -1160,9 +1174,9 @@ export class Scanner extends ScannerState {
             let ok: boolean = $t4 !== undefined && $t4.has($t5);
             if (!ok) {
               s!.errorAt($diagnostics.Unknown_regular_expression_flag, p, size$1, [] as ($rt.GoObject | undefined)[]);
-            } else if (!((regExpFlags & flag) === 0)) {
+            } else if (!((regExpFlags & flag) === (0 as number))) {
               s!.errorAt($diagnostics.Duplicate_regular_expression_flag, p, size$1, [] as ($rt.GoObject | undefined)[]);
-            } else if (((regExpFlags | flag | 0) & 96) === 96) {
+            } else if (((regExpFlags | flag | 0) & 96) === (96 as number)) {
               s!.errorAt(
                 $diagnostics.The_Unicode_u_flag_and_the_Unicode_Sets_v_flag_cannot_be_set_simultaneously,
                 p,
@@ -1182,12 +1196,12 @@ export class Scanner extends ScannerState {
           let saveTokenPos: number = s!.tokenStart;
           let saveTokenFlags: $ast.TokenFlags = s!.tokenFlags;
           s!.end = endOfRegExpBody;
-          let parser: regExpParser | undefined = regExpParser.$lit_0_1_2_3_4_5_7_10(
+          let parser: regExpParser | undefined = regExpParser.$lit_regExpParser_0_1_2_3_4_5_7_10(
             s,
             endOfRegExpBody,
             regExpFlags,
-            !((regExpFlags & 96) === 0),
-            !((regExpFlags & 64) === 0),
+            !((regExpFlags & 96) === (0 as number)),
+            !((regExpFlags & 64) === (0 as number)),
             true,
             namedCaptureGroups,
             new Map<string, boolean>(),
@@ -1216,7 +1230,7 @@ export class Scanner extends ScannerState {
   }
   ReScanHashToken(): $ast.Kind {
     const s = this;
-    if (s!.token === 80) {
+    if (s!.token === (80 as number)) {
       s!.pos = s!.tokenStart + 1;
       s!.token = 62;
     }
@@ -1224,7 +1238,7 @@ export class Scanner extends ScannerState {
   }
   ReScanQuestionToken(): $ast.Kind {
     const s = this;
-    if (!(s!.token === 60)) {
+    if (!(s!.token === (60 as number))) {
       throw $rt.newPanic(new $rt.BoxStr("'reScanQuestionToken' should only be called on a '??'", 'string'));
     }
     s!.pos = s!.tokenStart + 1;
@@ -1244,15 +1258,15 @@ export class Scanner extends ScannerState {
       $sw1: {
         if (ch < 0) {
           s!.token = 1;
-        } else if (ch === 60) {
-          if (s!.charAt(1) === 47) {
+        } else if (ch === (60 as number)) {
+          if (s!.charAt(1) === (47 as number)) {
             s!.pos += 2;
             s!.token = 30;
           } else {
             s!.pos++;
             s!.token = 29;
           }
-        } else if (ch === 123) {
+        } else if (ch === (123 as number)) {
           s!.pos++;
           s!.token = 18;
         } else {
@@ -1261,10 +1275,10 @@ export class Scanner extends ScannerState {
             const $t2 = s!.charAndSize();
             let ch$1: number = $t2[0];
             let size: number = $t2[1];
-            if (size === 0 || ch$1 === 123) {
+            if (size === (0 as number) || ch$1 === (123 as number)) {
               break;
             }
-            if (ch$1 === 60) {
+            if (ch$1 === (60 as number)) {
               if (isConflictMarkerTrivia(s!.text, s!.pos)) {
                 s!.pos = scanConflictMarkerTrivia(
                   s!.text,
@@ -1285,14 +1299,14 @@ export class Scanner extends ScannerState {
               }
               break;
             }
-            if (ch$1 === 62) {
+            if (ch$1 === (62 as number)) {
               s!.errorAt(
                 $diagnostics.Unexpected_token_Did_you_mean_or_gt,
                 s!.pos,
                 1,
                 [] as ($rt.GoObject | undefined)[],
               );
-            } else if (ch$1 === 125) {
+            } else if (ch$1 === (125 as number)) {
               s!.errorAt(
                 $diagnostics.Unexpected_token_Did_you_mean_or_rbrace,
                 s!.pos,
@@ -1300,7 +1314,7 @@ export class Scanner extends ScannerState {
                 [] as ($rt.GoObject | undefined)[],
               );
             }
-            if ($stringutil.IsLineBreak(ch$1) && firstNonWhitespace === 0) {
+            if ($stringutil.IsLineBreak(ch$1) && firstNonWhitespace === (0 as number)) {
               firstNonWhitespace = -1;
             } else if (!allowMultilineJsxText && $stringutil.IsLineBreak(ch$1) && firstNonWhitespace > 0) {
               break;
@@ -1311,7 +1325,7 @@ export class Scanner extends ScannerState {
           }
           s!.tokenValue = s!.text.substring(s!.fullStartPos, s!.pos);
           s!.token = 11;
-          if (firstNonWhitespace === -1) {
+          if (firstNonWhitespace === (-1 as number)) {
             s!.token = 12;
           }
         }
@@ -1327,7 +1341,7 @@ export class Scanner extends ScannerState {
         if (ch < 0) {
           break;
         }
-        if (ch === 45) {
+        if (ch === (45 as number)) {
           s!.tokenValue += '-';
           s!.pos++;
           continue;
@@ -1361,8 +1375,8 @@ export class Scanner extends ScannerState {
     s!.tokenStart = s!.pos;
     {
       switch (s!.char()) {
-        case 34:
-        case 39: {
+        case 34 as number:
+        case 39 as number: {
           s!.tokenValue = s!.scanString(true);
           s!.token = 10;
           return s!.token;
@@ -1392,12 +1406,12 @@ export class Scanner extends ScannerState {
       const $t1 = s!.charAndSize();
       let ch: number = $t1[0];
       let size: number = $t1[1];
-      for (; s!.pos < s!.text.length && !$stringutil.IsLineBreak(ch) && !(ch === 96);) {
+      for (; s!.pos < s!.text.length && !$stringutil.IsLineBreak(ch) && !(ch === (96 as number));) {
         $cont3: {
           if (!inBackticks) {
-            if (ch === 123) {
+            if (ch === (123 as number)) {
               break;
-            } else if (ch === 64 && s!.pos >= 0) {
+            } else if (ch === (64 as number) && s!.pos >= 0) {
               const $t4 = $rt.unicode_utf8_DecodeLastRuneInString(s!.text.substring(0, s!.pos));
               let previous: number = $t4[0];
               if ($stringutil.IsWhiteSpaceSingleLine(previous)) {
@@ -1447,10 +1461,10 @@ export class Scanner extends ScannerState {
     s!.pos += size;
     {
       switch (ch) {
-        case 9:
-        case 11:
-        case 12:
-        case 32: {
+        case 9 as number:
+        case 11 as number:
+        case 12 as number:
+        case 32 as number: {
           {
             const $t2 = s!.charAndSize();
             let ch2: number = $t2[0];
@@ -1467,77 +1481,77 @@ export class Scanner extends ScannerState {
           s!.token = 5;
           return s!.token;
         }
-        case 64: {
+        case 64 as number: {
           s!.token = 59;
           return s!.token;
         }
-        case 13: {
-          if (s!.char() === 10) {
+        case 13 as number: {
+          if (s!.char() === (10 as number)) {
             s!.pos++;
           }
         }
-        case 10: {
+        case 10 as number: {
           s!.tokenFlags = s!.tokenFlags | 1 | 0;
           s!.token = 4;
           return s!.token;
         }
-        case 42: {
+        case 42 as number: {
           s!.token = 41;
           return s!.token;
         }
-        case 123: {
+        case 123 as number: {
           s!.token = 18;
           return s!.token;
         }
-        case 125: {
+        case 125 as number: {
           s!.token = 19;
           return s!.token;
         }
-        case 91: {
+        case 91 as number: {
           s!.token = 22;
           return s!.token;
         }
-        case 93: {
+        case 93 as number: {
           s!.token = 23;
           return s!.token;
         }
-        case 40: {
+        case 40 as number: {
           s!.token = 20;
           return s!.token;
         }
-        case 41: {
+        case 41 as number: {
           s!.token = 21;
           return s!.token;
         }
-        case 60: {
+        case 60 as number: {
           s!.token = 29;
           return s!.token;
         }
-        case 62: {
+        case 62 as number: {
           s!.token = 31;
           return s!.token;
         }
-        case 61: {
+        case 61 as number: {
           s!.token = 63;
           return s!.token;
         }
-        case 44: {
+        case 44 as number: {
           s!.token = 27;
           return s!.token;
         }
-        case 46: {
+        case 46 as number: {
           s!.token = 24;
           return s!.token;
         }
-        case 96: {
+        case 96 as number: {
           s!.token = 61;
           return s!.token;
         }
-        case 35: {
+        case 35 as number: {
           s!.token = 62;
           return s!.token;
         }
-        case 92: {
+        case 92 as number: {
           s!.pos--;
           let cp: number = s!.peekUnicodeEscape();
           if (cp >= 0 && IsIdentifierStart(cp)) {
@@ -1560,13 +1574,13 @@ export class Scanner extends ScannerState {
         const $t6 = s!.charAndSize();
         char = $t6[0];
         size = $t6[1];
-        if (!IsIdentifierPart(char) && !(char === 45)) {
+        if (!IsIdentifierPart(char) && !(char === (45 as number))) {
           break;
         }
         s!.pos += size;
       }
       s!.tokenValue = s!.text.substring(s!.tokenStart, s!.pos);
-      if (char === 92) {
+      if (char === (92 as number)) {
         s!.tokenValue += s!.scanIdentifierParts();
       }
       s!.token = GetIdentifierToken(s!.tokenValue);
@@ -1581,13 +1595,19 @@ export class Scanner extends ScannerState {
     let start: number = s!.pos;
     s!.pos += prefixLength;
     let ch: number = s!.char();
-    if ($stringutil.IsASCIILetter(ch) || ch === 95 || ch === 36) {
+    if ($stringutil.IsASCIILetter(ch) || ch === (95 as number) || ch === (36 as number)) {
       s!.pos++;
       s!.scanASCIIWhile((b: number): boolean => {
-        return (b >= 97 && b <= 122) || (b >= 65 && b <= 90) || (b >= 48 && b <= 57) || b === 95 || b === 36;
+        return (
+          (b >= 97 && b <= 122) ||
+          (b >= 65 && b <= 90) ||
+          (b >= 48 && b <= 57) ||
+          b === (95 as number) ||
+          b === (36 as number)
+        );
       });
       ch = s!.char();
-      if (ch < 128 && !(ch === 92)) {
+      if (ch < 128 && !(ch === (92 as number))) {
         s!.tokenValue = s!.text.substring(start, s!.pos);
         return true;
       }
@@ -1607,7 +1627,7 @@ export class Scanner extends ScannerState {
         }
       }
       s!.tokenValue = s!.text.substring(start, s!.pos);
-      if (ch === 92) {
+      if (ch === (92 as number)) {
         s!.tokenValue += s!.scanIdentifierParts();
       }
       return true;
@@ -1626,7 +1646,7 @@ export class Scanner extends ScannerState {
         s!.pos += size;
         continue;
       }
-      if (ch === 92) {
+      if (ch === (92 as number)) {
         let escaped: number = s!.peekUnicodeEscape();
         if (escaped >= 0 && IsIdentifierPart(escaped)) {
           sb.WriteString(s!.text.substring(start, s!.pos));
@@ -1643,12 +1663,12 @@ export class Scanner extends ScannerState {
   scanString(jsxAttributeString: boolean): string {
     const s = this;
     let quote: number = s!.char();
-    if (quote === 39) {
+    if (quote === (39 as number)) {
       s!.tokenFlags = s!.tokenFlags | 65536 | 0;
     }
     s!.pos++;
     let strLen: number = $rt.strings_IndexByteFrom(s!.text, s!.pos, quote & 0xff);
-    if (strLen === 0) {
+    if (strLen === (0 as number)) {
       s!.pos++;
       return '';
     }
@@ -1677,13 +1697,13 @@ export class Scanner extends ScannerState {
         s!.pos++;
         break;
       }
-      if (ch === 92 && !jsxAttributeString) {
+      if (ch === (92 as number) && !jsxAttributeString) {
         sb.WriteString(s!.text.substring(start, s!.pos));
         sb.WriteString(s!.scanEscapeSequence(3));
         start = s!.pos;
         continue;
       }
-      if ((ch === 10 || ch === 13) && !jsxAttributeString) {
+      if ((ch === (10 as number) || ch === (13 as number)) && !jsxAttributeString) {
         sb.WriteString(s!.text.substring(start, s!.pos));
         s!.tokenFlags = s!.tokenFlags | 4 | 0;
         s!.error($diagnostics.Unterminated_string_literal);
@@ -1695,43 +1715,45 @@ export class Scanner extends ScannerState {
   }
   scanTemplateAndSetTokenValue(shouldEmitInvalidEscapeError: boolean): $ast.Kind {
     const s = this;
-    let startedWithBacktick: boolean = s!.char() === 96;
+    let startedWithBacktick: boolean = s!.char() === (96 as number);
     s!.pos++;
     let start: number = s!.pos;
     let parts: string[] = [] as string[];
     let token: $ast.Kind = 0;
     for (;;) {
       s!.scanASCIIWhile((b: number): boolean => {
-        return !(b === 96) && !(b === 36) && !(b === 92) && !(b === 13);
+        return !(b === (96 as number)) && !(b === (36 as number)) && !(b === (92 as number)) && !(b === (13 as number));
       });
       let ch: number = s!.char();
-      if (ch < 0 || ch === 96) {
+      if (ch < 0 || ch === (96 as number)) {
         parts.push(s!.text.substring(start, s!.pos));
-        if (ch === 96) {
+        if (ch === (96 as number)) {
           s!.pos++;
         } else {
           s!.tokenFlags = s!.tokenFlags | 4 | 0;
           s!.error($diagnostics.Unterminated_template_literal);
         }
-        token = $core.IfElse(startedWithBacktick, 14, 17);
+        token = $core.IfElse<$ast.Kind>(startedWithBacktick, 14, 17);
         break;
       }
-      if (ch === 36 && s!.charAt(1) === 123) {
+      if (ch === (36 as number) && s!.charAt(1) === (123 as number)) {
         parts.push(s!.text.substring(start, s!.pos));
         s!.pos += 2;
-        token = $core.IfElse(startedWithBacktick, 15, 16);
+        token = $core.IfElse<$ast.Kind>(startedWithBacktick, 15, 16);
         break;
       }
-      if (ch === 92) {
+      if (ch === (92 as number)) {
         parts.push(s!.text.substring(start, s!.pos));
-        parts.push(s!.scanEscapeSequence(1 | $core.IfElse(shouldEmitInvalidEscapeError, 2, 0) | 0));
+        parts.push(
+          s!.scanEscapeSequence(1 | $core.IfElse<EscapeSequenceScanningFlags>(shouldEmitInvalidEscapeError, 2, 0) | 0),
+        );
         start = s!.pos;
         continue;
       }
-      if (ch === 13) {
+      if (ch === (13 as number)) {
         parts.push(s!.text.substring(start, s!.pos));
         s!.pos++;
-        if (s!.char() === 10) {
+        if (s!.char() === (10 as number)) {
           s!.pos++;
         }
         parts.push('\n');
@@ -1755,30 +1777,30 @@ export class Scanner extends ScannerState {
     s!.pos++;
     {
       switch (ch) {
-        case 48: {
+        case 48 as number: {
           if (!$stringutil.IsDigit(s!.char())) {
             return '\x00';
           }
         }
-        case 49:
-        case 50:
-        case 51: {
+        case 49 as number:
+        case 50 as number:
+        case 51 as number: {
           if ($stringutil.IsOctalDigit(s!.char())) {
             s!.pos++;
           }
         }
-        case 52:
-        case 53:
-        case 54:
-        case 55: {
+        case 52 as number:
+        case 53 as number:
+        case 54 as number:
+        case 55 as number: {
           if ($stringutil.IsOctalDigit(s!.char())) {
             s!.pos++;
           }
           s!.tokenFlags = s!.tokenFlags | 2048 | 0;
-          if (!((flags & 6) === 0)) {
+          if (!((flags & 6) === (0 as number))) {
             const $t1 = $rt.strconv_ParseInt(s!.text.substring(start + 1, s!.pos), 8, 32);
             let code: number = $t1[0];
-            if (!((flags & 4) === 0) && (flags & 32) === 0 && !(ch === 48)) {
+            if (!((flags & 4) === (0 as number)) && (flags & 32) === (0 as number) && !(ch === (48 as number))) {
               s!.errorAt(
                 $diagnostics.Octal_escape_sequences_and_backreferences_are_not_allowed_in_a_character_class_If_this_was_intended_as_an_escape_sequence_use_the_syntax_0_instead,
                 start,
@@ -1794,11 +1816,11 @@ export class Scanner extends ScannerState {
           }
           return s!.text.substring(start, s!.pos);
         }
-        case 56:
-        case 57: {
+        case 56 as number:
+        case 57 as number: {
           s!.tokenFlags = s!.tokenFlags | 2048 | 0;
-          if (!((flags & 6) === 0)) {
-            if (!((flags & 4) === 0) && (flags & 32) === 0) {
+          if (!((flags & 6) === (0 as number))) {
+            if (!((flags & 4) === (0 as number)) && (flags & 32) === (0 as number)) {
               s!.errorAt(
                 $diagnostics.Decimal_escape_sequences_and_backreferences_are_not_allowed_in_a_character_class,
                 start,
@@ -1814,38 +1836,38 @@ export class Scanner extends ScannerState {
           }
           return s!.text.substring(start, s!.pos);
         }
-        case 98: {
+        case 98 as number: {
           return '\x08';
         }
-        case 116: {
+        case 116 as number: {
           return '\t';
         }
-        case 110: {
+        case 110 as number: {
           return '\n';
         }
-        case 118: {
+        case 118 as number: {
           return '\x0b';
         }
-        case 102: {
+        case 102 as number: {
           return '\x0c';
         }
-        case 114: {
+        case 114 as number: {
           return '\r';
         }
-        case 39: {
+        case 39 as number: {
           return "'";
         }
-        case 34: {
+        case 34 as number: {
           return '"';
         }
-        case 117: {
-          let extended: boolean = s!.char() === 123;
+        case 117 as number: {
+          let extended: boolean = s!.char() === (123 as number);
           s!.pos -= 2;
-          let codePoint: number = s!.scanUnicodeEscape(!((flags & 6) === 0));
+          let codePoint: number = s!.scanUnicodeEscape(!((flags & 6) === (0 as number)));
           if (extended) {
-            if ((flags & 17) === 0) {
+            if ((flags & 17) === (0 as number)) {
               s!.tokenFlags = s!.tokenFlags | 2048 | 0;
-              if (!((flags & 6) === 0)) {
+              if (!((flags & 6) === (0 as number))) {
                 s!.errorAt(
                   $diagnostics.Unicode_escape_sequences_are_only_available_when_the_Unicode_u_flag_or_the_Unicode_Sets_v_flag_is_set,
                   start,
@@ -1857,7 +1879,7 @@ export class Scanner extends ScannerState {
             if (codePoint < 0) {
               return s!.text.substring(start, s!.pos);
             }
-            if ((flags & 4) === 0 && $stringutil.IsHighSurrogate(codePoint)) {
+            if ((flags & 4) === (0 as number) && $stringutil.IsHighSurrogate(codePoint)) {
               {
                 const $t2 = s!.scanLowSurrogateEscape(codePoint);
                 let combined: number = $t2[0];
@@ -1872,7 +1894,7 @@ export class Scanner extends ScannerState {
           if (codePoint < 0) {
             return s!.text.substring(start, s!.pos);
           } else if ($stringutil.IsHighSurrogate(codePoint)) {
-            if ((flags & 4) === 0) {
+            if ((flags & 4) === (0 as number)) {
               {
                 const $t3 = s!.scanLowSurrogateEscape(codePoint);
                 let combined$1: number = $t3[0];
@@ -1881,9 +1903,14 @@ export class Scanner extends ScannerState {
                   return $rt.runeToString(combined$1);
                 }
               }
-            } else if (!((flags & 16) === 0) && s!.char() === 92 && s!.charAt(1) === 117 && !(s!.charAt(2) === 123)) {
+            } else if (
+              !((flags & 16) === (0 as number)) &&
+              s!.char() === (92 as number) &&
+              s!.charAt(1) === (117 as number) &&
+              !(s!.charAt(2) === (123 as number))
+            ) {
               let savedPos: number = s!.pos;
-              let nextCodePoint: number = s!.scanUnicodeEscape(!((flags & 6) === 0));
+              let nextCodePoint: number = s!.scanUnicodeEscape(!((flags & 6) === (0 as number)));
               if ($stringutil.IsLowSurrogate(nextCodePoint)) {
                 return $rt.runeToString($stringutil.SurrogatePairToCodePoint(codePoint, nextCodePoint));
               }
@@ -1892,11 +1919,11 @@ export class Scanner extends ScannerState {
           }
           return $stringutil.EncodeJSStringRune(codePoint);
         }
-        case 120: {
+        case 120 as number: {
           for (; s!.pos < start + 4; s!.pos++) {
             if (!$stringutil.IsHexDigit(s!.char())) {
               s!.tokenFlags = s!.tokenFlags | 2048 | 0;
-              if (!((flags & 6) === 0)) {
+              if (!((flags & 6) === (0 as number))) {
                 s!.error($diagnostics.Hexadecimal_digit_expected);
               }
               return s!.text.substring(start, s!.pos);
@@ -1907,12 +1934,12 @@ export class Scanner extends ScannerState {
           let escapedValue: number = $t4[0];
           return $rt.runeToString(escapedValue | 0);
         }
-        case 13: {
-          if (s!.char() === 10) {
+        case 13 as number: {
+          if (s!.char() === (10 as number)) {
             s!.pos++;
           }
         }
-        case 10: {
+        case 10 as number: {
           return '';
         }
         default: {
@@ -1924,10 +1951,13 @@ export class Scanner extends ScannerState {
             size = $t5[1];
             s!.pos += size;
           }
-          if (ch === 8232 || ch === 8233) {
+          if (ch === (8232 as number) || ch === (8233 as number)) {
             return '';
           }
-          if (!((flags & 16) === 0) || (!((flags & 4) === 0) && (flags & 8) === 0 && IsIdentifierPart(ch))) {
+          if (
+            !((flags & 16) === (0 as number)) ||
+            (!((flags & 4) === (0 as number)) && (flags & 8) === (0 as number) && IsIdentifierPart(ch))
+          ) {
             s!.errorAt(
               $diagnostics.This_character_cannot_be_escaped_in_a_regular_expression,
               start,
@@ -1944,7 +1974,7 @@ export class Scanner extends ScannerState {
     const s = this;
     s!.pos += 2;
     let start: number = s!.pos;
-    let extended: boolean = s!.char() === 123;
+    let extended: boolean = s!.char() === (123 as number);
     let hexDigits: string = '';
     if (extended) {
       s!.pos++;
@@ -1953,7 +1983,7 @@ export class Scanner extends ScannerState {
       s!.tokenFlags = s!.tokenFlags | 1024 | 0;
       hexDigits = s!.scanHexDigits(4, false, false);
     }
-    if (hexDigits === '') {
+    if (hexDigits === ('' as string)) {
       s!.tokenFlags = s!.tokenFlags | 2048 | 0;
       if (shouldEmitInvalidEscapeError) {
         s!.error($diagnostics.Hexadecimal_digit_expected);
@@ -1980,7 +2010,7 @@ export class Scanner extends ScannerState {
           s!.error($diagnostics.Unexpected_end_of_text);
         }
         isInvalidExtendedEscape = true;
-      } else if (s!.char() === 125) {
+      } else if (s!.char() === (125 as number)) {
         s!.pos++;
       } else {
         if (shouldEmitInvalidEscapeError) {
@@ -1998,7 +2028,7 @@ export class Scanner extends ScannerState {
   }
   scanLowSurrogateEscape(high: number): [number, boolean] {
     const s = this;
-    if (!(s!.char() === 92) || !(s!.charAt(1) === 117)) {
+    if (!(s!.char() === (92 as number)) || !(s!.charAt(1) === (117 as number))) {
       return [0, false];
     }
     let savedPos: number = s!.pos;
@@ -2013,7 +2043,7 @@ export class Scanner extends ScannerState {
   }
   peekUnicodeEscape(): number {
     const s = this;
-    if (s!.charAt(1) === 117) {
+    if (s!.charAt(1) === (117 as number)) {
       let savePos: number = s!.pos;
       let saveTokenFlags: $ast.TokenFlags = s!.tokenFlags;
       let codePoint: number = s!.scanUnicodeEscape(false);
@@ -2027,9 +2057,9 @@ export class Scanner extends ScannerState {
     const s = this;
     let start: number = s!.pos;
     let fixedPart: string = '';
-    if (s!.char() === 48) {
+    if (s!.char() === (48 as number)) {
       s!.pos++;
-      if (s!.char() === 95) {
+      if (s!.char() === (95 as number)) {
         s!.tokenFlags = s!.tokenFlags | 16896 | 0;
         s!.errorAt($diagnostics.Numeric_separators_are_not_allowed_here, s!.pos, 1, [] as ($rt.GoObject | undefined)[]);
         s!.pos = start;
@@ -2038,7 +2068,7 @@ export class Scanner extends ScannerState {
         const $t1 = s!.scanDigits();
         let digits: string = $t1[0];
         let isOctal: boolean = $t1[1];
-        if (digits === '') {
+        if (digits === ('' as string)) {
           fixedPart = '0';
         } else if (!isOctal) {
           s!.tokenFlags = s!.tokenFlags | 8192 | 0;
@@ -2048,8 +2078,8 @@ export class Scanner extends ScannerState {
           let val: number = $t2[0];
           s!.tokenValue = $rt.strconv_FormatInt(val, 10);
           s!.tokenFlags = s!.tokenFlags | 32 | 0;
-          let withMinus: boolean = s!.token === 40;
-          let literal: string = $core.IfElse(withMinus, '-', '') + '0o' + $rt.strconv_FormatInt(val, 8);
+          let withMinus: boolean = s!.token === (40 as number);
+          let literal: string = $core.IfElse<string>(withMinus, '-', '') + '0o' + $rt.strconv_FormatInt(val, 8);
           if (withMinus) {
             start--;
           }
@@ -2066,38 +2096,38 @@ export class Scanner extends ScannerState {
     let fractionalPart: string = '';
     let exponentPreamble: string = '';
     let exponentPart: string = '';
-    if (s!.char() === 46) {
+    if (s!.char() === (46 as number)) {
       s!.pos++;
       fractionalPart = s!.scanNumberFragment();
     }
     let end: number = s!.pos;
-    if (s!.char() === 69 || s!.char() === 101) {
+    if (s!.char() === (69 as number) || s!.char() === (101 as number)) {
       s!.pos++;
       s!.tokenFlags = s!.tokenFlags | 16 | 0;
-      if (s!.char() === 43 || s!.char() === 45) {
+      if (s!.char() === (43 as number) || s!.char() === (45 as number)) {
         s!.pos++;
       }
       let startNumericPart: number = s!.pos;
       exponentPart = s!.scanNumberFragment();
-      if (exponentPart === '') {
+      if (exponentPart === ('' as string)) {
         s!.error($diagnostics.Digit_expected);
       } else {
         exponentPreamble = s!.text.substring(end, startNumericPart);
         end = s!.pos;
       }
     }
-    if (!((s!.tokenFlags & 512) === 0)) {
+    if (!((s!.tokenFlags & 512) === (0 as number))) {
       s!.tokenValue = fixedPart;
-      if (!(fractionalPart === '')) {
+      if (!(fractionalPart === ('' as string))) {
         s!.tokenValue += '.' + fractionalPart;
       }
-      if (!(exponentPart === '')) {
+      if (!(exponentPart === ('' as string))) {
         s!.tokenValue += exponentPreamble + exponentPart;
       }
     } else {
       s!.tokenValue = s!.text.substring(start, end);
     }
-    if (!((s!.tokenFlags & 8192) === 0)) {
+    if (!((s!.tokenFlags & 8192) === (0 as number))) {
       s!.errorAt(
         $diagnostics.Decimals_with_leading_zeros_are_not_allowed,
         start,
@@ -2119,8 +2149,12 @@ export class Scanner extends ScannerState {
     if (IsIdentifierStart(ch)) {
       let idStart: number = s!.pos;
       let id: string = s!.scanIdentifierParts();
-      if (!(result === 9) && id.length === 1 && s!.text.charCodeAt(idStart) === 110) {
-        if (!((s!.tokenFlags & 16) === 0)) {
+      if (
+        !(result === (9 as number)) &&
+        id.length === (1 as number) &&
+        s!.text.charCodeAt(idStart) === (110 as number)
+      ) {
+        if (!((s!.tokenFlags & 16) === (0 as number))) {
           s!.errorAt(
             $diagnostics.A_bigint_literal_cannot_use_exponential_notation,
             start,
@@ -2165,7 +2199,7 @@ export class Scanner extends ScannerState {
         isPreviousTokenSeparator = false;
       }
       let ch: number = s!.char();
-      if (ch === 95) {
+      if (ch === (95 as number)) {
         s!.tokenFlags = s!.tokenFlags | 512 | 0;
         if (allowSeparator) {
           allowSeparator = false;
@@ -2204,7 +2238,7 @@ export class Scanner extends ScannerState {
         [] as ($rt.GoObject | undefined)[],
       );
     }
-    if (result.Len() === 0) {
+    if (result.Len() === (0 as number)) {
       return s!.text.substring(start, s!.pos);
     }
     result.WriteString(s!.text.substring(start, s!.pos));
@@ -2234,7 +2268,7 @@ export class Scanner extends ScannerState {
         allowSeparator = canHaveSeparators;
         isPreviousTokenSeparator = false;
         digitCount++;
-      } else if (canHaveSeparators && ch === 95) {
+      } else if (canHaveSeparators && ch === (95 as number)) {
         s!.tokenFlags = s!.tokenFlags | 512 | 0;
         if (allowSeparator) {
           allowSeparator = false;
@@ -2283,7 +2317,7 @@ export class Scanner extends ScannerState {
         return cached;
       } else {
         let original: string = digits;
-        if (!((s!.tokenFlags & 512) === 0)) {
+        if (!((s!.tokenFlags & 512) === (0 as number))) {
           digits = $rt.strings_ReplaceAll(digits, '_', '');
         }
         digits = $rt.strings_ToLower(digits);
@@ -2303,7 +2337,7 @@ export class Scanner extends ScannerState {
         sb.WriteByte(ch & 0xff);
         allowSeparator = true;
         isPreviousTokenSeparator = false;
-      } else if (ch === 95) {
+      } else if (ch === (95 as number)) {
         s!.tokenFlags = s!.tokenFlags | 512 | 0;
         if (allowSeparator) {
           allowSeparator = false;
@@ -2340,9 +2374,9 @@ export class Scanner extends ScannerState {
   }
   scanBigIntSuffix(): $ast.Kind {
     const s = this;
-    if (s!.char() === 110) {
+    if (s!.char() === (110 as number)) {
       s!.tokenValue += 'n';
-      if (!((s!.tokenFlags & 384) === 0)) {
+      if (!((s!.tokenFlags & 384) === (0 as number))) {
         s!.tokenValue = $jsnum.ParsePseudoBigInt(s!.tokenValue) + 'n';
       }
       s!.pos++;
@@ -2387,22 +2421,29 @@ export class SkipTriviaOptions extends $rt.GoObject {
     this.StopAtComments = src.StopAtComments;
     this.InJSDoc = src.InJSDoc;
   }
+  $equals_SkipTriviaOptions(o: SkipTriviaOptions): boolean {
+    return (
+      this.StopAfterLineBreak === o.StopAfterLineBreak &&
+      this.StopAtComments === o.StopAtComments &&
+      this.InJSDoc === o.InJSDoc
+    );
+  }
   $clone_SkipTriviaOptions(): SkipTriviaOptions {
     const o = new SkipTriviaOptions();
     o.$copy_SkipTriviaOptions(this);
     return o;
   }
-  static $lit_1(p0: boolean): SkipTriviaOptions {
+  static $lit_SkipTriviaOptions_1(p0: boolean): SkipTriviaOptions {
     const o = new SkipTriviaOptions();
     o.StopAtComments = p0;
     return o;
   }
-  static $lit_2(p0: boolean): SkipTriviaOptions {
+  static $lit_SkipTriviaOptions_2(p0: boolean): SkipTriviaOptions {
     const o = new SkipTriviaOptions();
     o.InJSDoc = p0;
     return o;
   }
-  static $cast(v: $rt.GoObject | undefined): SkipTriviaOptions {
+  static $cast_SkipTriviaOptions(v: $rt.GoObject | undefined): SkipTriviaOptions {
     if (v instanceof SkipTriviaOptions) return v;
     throw $rt.typeAssertError();
   }
@@ -2416,19 +2457,22 @@ export class decimalEscapeValue extends $rt.GoObject {
     this.end = src.end;
     this.value = src.value;
   }
+  $equals_decimalEscapeValue(o: decimalEscapeValue): boolean {
+    return this.pos === o.pos && this.end === o.end && this.value === o.value;
+  }
   $clone_decimalEscapeValue(): decimalEscapeValue {
     const o = new decimalEscapeValue();
     o.$copy_decimalEscapeValue(this);
     return o;
   }
-  static $lit_0_1_2(p0: number, p1: number, p2: number): decimalEscapeValue {
+  static $lit_decimalEscapeValue_0_1_2(p0: number, p1: number, p2: number): decimalEscapeValue {
     const o = new decimalEscapeValue();
     o.pos = p0;
     o.end = p1;
     o.value = p2;
     return o;
   }
-  static $cast(v: $rt.GoObject | undefined): decimalEscapeValue {
+  static $cast_decimalEscapeValue(v: $rt.GoObject | undefined): decimalEscapeValue {
     if (v instanceof decimalEscapeValue) return v;
     throw $rt.typeAssertError();
   }
@@ -2442,19 +2486,22 @@ export class groupNameReference extends $rt.GoObject {
     this.end = src.end;
     this.name = src.name;
   }
+  $equals_groupNameReference(o: groupNameReference): boolean {
+    return this.pos === o.pos && this.end === o.end && this.name === o.name;
+  }
   $clone_groupNameReference(): groupNameReference {
     const o = new groupNameReference();
     o.$copy_groupNameReference(this);
     return o;
   }
-  static $lit_0_1_2(p0: number, p1: number, p2: string): groupNameReference {
+  static $lit_groupNameReference_0_1_2(p0: number, p1: number, p2: string): groupNameReference {
     const o = new groupNameReference();
     o.pos = p0;
     o.end = p1;
     o.name = p2;
     return o;
   }
-  static $cast(v: $rt.GoObject | undefined): groupNameReference {
+  static $cast_groupNameReference(v: $rt.GoObject | undefined): groupNameReference {
     if (v instanceof groupNameReference) return v;
     throw $rt.typeAssertError();
   }
@@ -2497,7 +2544,7 @@ export class regExpParser extends $rt.GoObject {
     o.$copy_regExpParser(this);
     return o;
   }
-  static $lit_0_1_2_3_4_5_7_10(
+  static $lit_regExpParser_0_1_2_3_4_5_7_10(
     p0: Scanner | undefined,
     p1: number,
     p2: regularExpressionFlags,
@@ -2518,7 +2565,7 @@ export class regExpParser extends $rt.GoObject {
     o.groupSpecifiers = p7;
     return o;
   }
-  static $cast(v: $rt.GoObject | undefined): regExpParser {
+  static $cast_regExpParser(v: $rt.GoObject | undefined): regExpParser {
     if (v instanceof regExpParser) return v;
     throw $rt.typeAssertError();
   }
@@ -2562,7 +2609,7 @@ export class regExpParser extends $rt.GoObject {
       for (const [name_, $t1] of alternativeNames ?? new Map<string, boolean>()) {
         disjunctionNames.Add(name_);
       }
-      if (!(p!.char() === 124)) {
+      if (!(p!.char() === (124 as number))) {
         break;
       }
       p!.incPos(1);
@@ -2582,18 +2629,18 @@ export class regExpParser extends $rt.GoObject {
       let ch: number = p!.char();
       {
         switch (ch) {
-          case 94:
-          case 36: {
+          case 94 as number:
+          case 36 as number: {
             p!.incPos(1);
             isPreviousTermQuantifiable = false;
             break;
           }
-          case 92: {
+          case 92 as number: {
             p!.incPos(1);
             {
               switch (p!.char()) {
-                case 98:
-                case 66: {
+                case 98 as number:
+                case 66 as number: {
                   p!.incPos(1);
                   isPreviousTermQuantifiable = false;
                   break;
@@ -2607,25 +2654,25 @@ export class regExpParser extends $rt.GoObject {
             }
             break;
           }
-          case 40: {
+          case 40 as number: {
             p!.incPos(1);
-            if (p!.char() === 63) {
+            if (p!.char() === (63 as number)) {
               p!.incPos(1);
               {
                 switch (p!.char()) {
-                  case 61:
-                  case 33: {
+                  case 61 as number:
+                  case 33 as number: {
                     p!.incPos(1);
                     isPreviousTermQuantifiable = !p!.anyUnicodeModeOrNonAnnexB;
                     break;
                   }
-                  case 60: {
+                  case 60 as number: {
                     let groupNameStart: number = p!.pos();
                     p!.incPos(1);
                     {
                       switch (p!.char()) {
-                        case 61:
-                        case 33: {
+                        case 61 as number:
+                        case 33 as number: {
                           p!.incPos(1);
                           isPreviousTermQuantifiable = false;
                           break;
@@ -2652,7 +2699,7 @@ export class regExpParser extends $rt.GoObject {
                   default: {
                     let flagsStart: number = p!.pos();
                     let setFlags: regularExpressionFlags = p!.scanPatternModifiers(0);
-                    if (p!.char() === 45) {
+                    if (p!.char() === (45 as number)) {
                       p!.incPos(1);
                       p!.scanPatternModifiers(setFlags);
                       if (p!.pos() === flagsStart + 1) {
@@ -2686,21 +2733,21 @@ export class regExpParser extends $rt.GoObject {
             p!.scanExpectedChar(41);
             break;
           }
-          case 123: {
+          case 123 as number: {
             p!.incPos(1);
             let digitsStart: number = p!.pos();
             p!.scanDigits();
             let minStr: string = p!.scanner!.tokenValue;
-            if (!p!.anyUnicodeModeOrNonAnnexB && minStr === '') {
+            if (!p!.anyUnicodeModeOrNonAnnexB && minStr === ('' as string)) {
               isPreviousTermQuantifiable = true;
               continue;
             }
-            if (p!.char() === 44) {
+            if (p!.char() === (44 as number)) {
               p!.incPos(1);
               p!.scanDigits();
               let maxStr: string = p!.scanner!.tokenValue;
-              if (minStr === '') {
-                if (!(maxStr === '') || p!.char() === 125) {
+              if (minStr === ('' as string)) {
+                if (!(maxStr === ('' as string)) || p!.char() === (125 as number)) {
                   p!.error(
                     $diagnostics.Incomplete_quantifier_Digit_expected,
                     digitsStart,
@@ -2714,8 +2761,11 @@ export class regExpParser extends $rt.GoObject {
                   isPreviousTermQuantifiable = true;
                   continue;
                 }
-              } else if (!(maxStr === '')) {
-                if (compareDecimalStrings(minStr, maxStr) > 0 && (p!.anyUnicodeModeOrNonAnnexB || p!.char() === 125)) {
+              } else if (!(maxStr === ('' as string))) {
+                if (
+                  compareDecimalStrings(minStr, maxStr) > 0 &&
+                  (p!.anyUnicodeModeOrNonAnnexB || p!.char() === (125 as number))
+                ) {
                   p!.error(
                     $diagnostics.Numbers_out_of_order_in_quantifier,
                     digitsStart,
@@ -2724,7 +2774,7 @@ export class regExpParser extends $rt.GoObject {
                   );
                 }
               }
-            } else if (minStr === '') {
+            } else if (minStr === ('' as string)) {
               if (p!.anyUnicodeModeOrNonAnnexB) {
                 p!.error($diagnostics.Unexpected_0_Did_you_mean_to_escape_it_with_backslash, start, 1, [
                   new $rt.BoxStr($rt.runeToString(ch), 'string'),
@@ -2733,7 +2783,7 @@ export class regExpParser extends $rt.GoObject {
               isPreviousTermQuantifiable = true;
               continue;
             }
-            if (!(p!.char() === 125)) {
+            if (!(p!.char() === (125 as number))) {
               if (p!.anyUnicodeModeOrNonAnnexB) {
                 p!.error($diagnostics.X_0_expected, p!.pos(), 0, [new $rt.BoxStr('}', 'string')]);
                 p!.incPos(-1);
@@ -2743,11 +2793,11 @@ export class regExpParser extends $rt.GoObject {
               }
             }
           }
-          case 42:
-          case 43:
-          case 63: {
+          case 42 as number:
+          case 43 as number:
+          case 63 as number: {
             p!.incPos(1);
-            if (p!.char() === 63) {
+            if (p!.char() === (63 as number)) {
               p!.incPos(1);
             }
             if (!isPreviousTermQuantifiable) {
@@ -2761,12 +2811,12 @@ export class regExpParser extends $rt.GoObject {
             isPreviousTermQuantifiable = false;
             break;
           }
-          case 46: {
+          case 46 as number: {
             p!.incPos(1);
             isPreviousTermQuantifiable = true;
             break;
           }
-          case 91: {
+          case 91 as number: {
             p!.incPos(1);
             if (p!.unicodeSetsMode) {
               p!.scanClassSetExpression();
@@ -2778,14 +2828,14 @@ export class regExpParser extends $rt.GoObject {
             isPreviousTermQuantifiable = true;
             break;
           }
-          case 41: {
+          case 41 as number: {
             if (isInGroup) {
               return;
             }
           }
-          case 93:
-          case 125: {
-            if (p!.anyUnicodeModeOrNonAnnexB || ch === 41) {
+          case 93 as number:
+          case 125 as number: {
+            if (p!.anyUnicodeModeOrNonAnnexB || ch === (41 as number)) {
               p!.error($diagnostics.Unexpected_0_Did_you_mean_to_escape_it_with_backslash, p!.pos(), 1, [
                 new $rt.BoxStr($rt.runeToString(ch), 'string'),
               ]);
@@ -2794,8 +2844,8 @@ export class regExpParser extends $rt.GoObject {
             isPreviousTermQuantifiable = true;
             break;
           }
-          case 47:
-          case 124: {
+          case 47 as number:
+          case 124 as number: {
             return;
           }
           default: {
@@ -2813,7 +2863,7 @@ export class regExpParser extends $rt.GoObject {
       const $t1 = $rt.utf8_DecodeRuneInStringAt(p!.text(), p!.pos());
       let ch: number = $t1[0];
       let size: number = $t1[1];
-      if (ch === 65533 || !IsIdentifierPart(ch)) {
+      if (ch === (65533 as number) || !IsIdentifierPart(ch)) {
         break;
       }
       const $t2 = charCodeToRegExpFlag;
@@ -2822,9 +2872,9 @@ export class regExpParser extends $rt.GoObject {
       let ok: boolean = $t2 !== undefined && $t2.has($t3);
       if (!ok) {
         p!.error($diagnostics.Unknown_regular_expression_flag, p!.pos(), size, [] as ($rt.GoObject | undefined)[]);
-      } else if (!((currFlags & flag) === 0)) {
+      } else if (!((currFlags & flag) === (0 as number))) {
         p!.error($diagnostics.Duplicate_regular_expression_flag, p!.pos(), size, [] as ($rt.GoObject | undefined)[]);
-      } else if ((flag & 28) === 0) {
+      } else if ((flag & 28) === (0 as number)) {
         p!.error(
           $diagnostics.This_regular_expression_flag_cannot_be_toggled_within_a_subpattern,
           p!.pos(),
@@ -2840,12 +2890,15 @@ export class regExpParser extends $rt.GoObject {
   }
   scanAtomEscape(): void {
     const p = this;
-    $debug.Assert(p!.pos() > 0 && p!.text().charCodeAt(p!.pos() - 1) === 92, [] as ($rt.GoObject | undefined)[]);
+    $debug.Assert(
+      p!.pos() > 0 && p!.text().charCodeAt(p!.pos() - 1) === (92 as number),
+      [] as ($rt.GoObject | undefined)[],
+    );
     {
       switch (p!.char()) {
-        case 107: {
+        case 107 as number: {
           p!.incPos(1);
-          if (p!.char() === 60) {
+          if (p!.char() === (60 as number)) {
             p!.incPos(1);
             p!.scanGroupName(true);
             p!.scanExpectedChar(62);
@@ -2859,7 +2912,7 @@ export class regExpParser extends $rt.GoObject {
           }
           break;
         }
-        case 113: {
+        case 113 as number: {
           if (p!.unicodeSetsMode) {
             p!.incPos(1);
             p!.error(
@@ -2873,7 +2926,7 @@ export class regExpParser extends $rt.GoObject {
         }
         default: {
           if (!p!.scanCharacterClassEscape() && !p!.scanDecimalEscape()) {
-            $debug.Assert(!(p!.scanCharacterEscape(true) === ''), [] as ($rt.GoObject | undefined)[]);
+            $debug.Assert(!(p!.scanCharacterEscape(true) === ('' as string)), [] as ($rt.GoObject | undefined)[]);
           }
           break;
         }
@@ -2882,7 +2935,10 @@ export class regExpParser extends $rt.GoObject {
   }
   scanDecimalEscape(): boolean {
     const p = this;
-    $debug.Assert(p!.pos() > 0 && p!.text().charCodeAt(p!.pos() - 1) === 92, [] as ($rt.GoObject | undefined)[]);
+    $debug.Assert(
+      p!.pos() > 0 && p!.text().charCodeAt(p!.pos() - 1) === (92 as number),
+      [] as ($rt.GoObject | undefined)[],
+    );
     let ch: number = p!.char();
     if (ch >= 49 && ch <= 57) {
       let start: number = p!.pos();
@@ -2893,22 +2949,25 @@ export class regExpParser extends $rt.GoObject {
       if (!(err === undefined)) {
         val = 9223372036854775807;
       }
-      p!.decimalEscapes.push(decimalEscapeValue.$lit_0_1_2(start, p!.pos(), val));
+      p!.decimalEscapes.push(decimalEscapeValue.$lit_decimalEscapeValue_0_1_2(start, p!.pos(), val));
       return true;
     }
     return false;
   }
   scanCharacterEscape(atomEscape: boolean): string {
     const p = this;
-    $debug.Assert(p!.pos() > 0 && p!.text().charCodeAt(p!.pos() - 1) === 92, [] as ($rt.GoObject | undefined)[]);
+    $debug.Assert(
+      p!.pos() > 0 && p!.text().charCodeAt(p!.pos() - 1) === (92 as number),
+      [] as ($rt.GoObject | undefined)[],
+    );
     let ch: number = p!.char();
     {
       switch (ch) {
-        case -1: {
+        case -1 as number: {
           p!.error($diagnostics.Undetermined_character_escape, p!.pos() - 1, 1, [] as ($rt.GoObject | undefined)[]);
           return '\\';
         }
-        case 99: {
+        case 99 as number: {
           p!.incPos(1);
           ch = p!.char();
           if ($stringutil.IsASCIILetter(ch)) {
@@ -2928,21 +2987,21 @@ export class regExpParser extends $rt.GoObject {
           }
           return $rt.runeToString(ch);
         }
-        case 94:
-        case 36:
-        case 47:
-        case 92:
-        case 46:
-        case 42:
-        case 43:
-        case 63:
-        case 40:
-        case 41:
-        case 91:
-        case 93:
-        case 123:
-        case 125:
-        case 124: {
+        case 94 as number:
+        case 36 as number:
+        case 47 as number:
+        case 92 as number:
+        case 46 as number:
+        case 42 as number:
+        case 43 as number:
+        case 63 as number:
+        case 40 as number:
+        case 41 as number:
+        case 91 as number:
+        case 93 as number:
+        case 123 as number:
+        case 125 as number:
+        case 124 as number: {
           p!.incPos(1);
           return $rt.runeToString(ch);
         }
@@ -2965,14 +3024,17 @@ export class regExpParser extends $rt.GoObject {
   }
   scanGroupName(isReference: boolean): void {
     const p = this;
-    $debug.Assert(p!.pos() > 0 && p!.text().charCodeAt(p!.pos() - 1) === 60, [] as ($rt.GoObject | undefined)[]);
+    $debug.Assert(
+      p!.pos() > 0 && p!.text().charCodeAt(p!.pos() - 1) === (60 as number),
+      [] as ($rt.GoObject | undefined)[],
+    );
     p!.scanner!.tokenStart = p!.pos();
     p!.scanner!.scanIdentifier(0);
     if (p!.pos() === p!.scanner!.tokenStart) {
       p!.error($diagnostics.Expected_a_capturing_group_name, p!.pos(), 0, [] as ($rt.GoObject | undefined)[]);
     } else if (isReference) {
       p!.groupNameReferences.push(
-        groupNameReference.$lit_0_1_2(p!.scanner!.tokenStart, p!.pos(), p!.scanner!.tokenValue),
+        groupNameReference.$lit_groupNameReference_0_1_2(p!.scanner!.tokenStart, p!.pos(), p!.scanner!.tokenValue),
       );
     } else if (p!.namedCapturingGroupsContains(p!.scanner!.tokenValue)) {
       p!.error(
@@ -3015,13 +3077,16 @@ export class regExpParser extends $rt.GoObject {
   }
   isClassContentExit(ch: number): boolean {
     const p = this;
-    return ch === 93 || p!.pos() >= p!.end;
+    return ch === (93 as number) || p!.pos() >= p!.end;
   }
   scanClassRanges(): void {
     const p = this;
-    $debug.Assert(p!.pos() > 0 && p!.text().charCodeAt(p!.pos() - 1) === 91, [] as ($rt.GoObject | undefined)[]);
+    $debug.Assert(
+      p!.pos() > 0 && p!.text().charCodeAt(p!.pos() - 1) === (91 as number),
+      [] as ($rt.GoObject | undefined)[],
+    );
     p!.pendingLowSurrogate = 0;
-    if (p!.char() === 94) {
+    if (p!.char() === (94 as number)) {
       p!.incPos(1);
     }
     for (; p!.pos() < p!.end;) {
@@ -3031,13 +3096,13 @@ export class regExpParser extends $rt.GoObject {
       }
       let minStart: number = p!.pos();
       let minCharacter: string = p!.scanClassAtom();
-      if (p!.char() === 45) {
+      if (p!.char() === (45 as number)) {
         p!.incPos(1);
         ch = p!.char();
         if (p!.isClassContentExit(ch)) {
           return;
         }
-        if (minCharacter === '' && p!.anyUnicodeModeOrNonAnnexB) {
+        if (minCharacter === ('' as string) && p!.anyUnicodeModeOrNonAnnexB) {
           p!.error(
             $diagnostics.A_character_class_range_must_not_be_bounded_by_another_character_class,
             minStart,
@@ -3047,7 +3112,7 @@ export class regExpParser extends $rt.GoObject {
         }
         let maxStart: number = p!.pos();
         let maxCharacter: string = p!.scanClassAtom();
-        if (maxCharacter === '' && p!.anyUnicodeModeOrNonAnnexB) {
+        if (maxCharacter === ('' as string) && p!.anyUnicodeModeOrNonAnnexB) {
           p!.error(
             $diagnostics.A_character_class_range_must_not_be_bounded_by_another_character_class,
             maxStart,
@@ -3056,7 +3121,7 @@ export class regExpParser extends $rt.GoObject {
           );
           continue;
         }
-        if (minCharacter === '') {
+        if (minCharacter === ('' as string)) {
           continue;
         }
         const $t1 = $stringutil.DecodeJSStringRune(minCharacter);
@@ -3082,9 +3147,12 @@ export class regExpParser extends $rt.GoObject {
   }
   scanClassSetExpression(): void {
     const p = this;
-    $debug.Assert(p!.pos() > 0 && p!.text().charCodeAt(p!.pos() - 1) === 91, [] as ($rt.GoObject | undefined)[]);
+    $debug.Assert(
+      p!.pos() > 0 && p!.text().charCodeAt(p!.pos() - 1) === (91 as number),
+      [] as ($rt.GoObject | undefined)[],
+    );
     let isCharacterComplement: boolean = false;
-    if (p!.char() === 94) {
+    if (p!.char() === (94 as number)) {
       p!.incPos(1);
       isCharacterComplement = true;
     }
@@ -3101,8 +3169,8 @@ export class regExpParser extends $rt.GoObject {
     }
     {
       switch (twoChars) {
-        case '--':
-        case '&&': {
+        case '--' as string:
+        case '&&' as string: {
           p!.error($diagnostics.Expected_a_class_set_operand, p!.pos(), 0, [] as ($rt.GoObject | undefined)[]);
           p!.mayContainStrings = false;
           break;
@@ -3115,8 +3183,8 @@ export class regExpParser extends $rt.GoObject {
     }
     {
       switch (p!.char()) {
-        case 45: {
-          if (p!.pos() + 1 < p!.end && p!.charAt(p!.pos() + 1) === 45) {
+        case 45 as number: {
+          if (p!.pos() + 1 < p!.end && p!.charAt(p!.pos() + 1) === (45 as number)) {
             if (isCharacterComplement && p!.mayContainStrings) {
               p!.error(
                 $diagnostics.Anything_that_would_possibly_match_more_than_a_single_character_is_invalid_inside_a_negated_character_class,
@@ -3132,8 +3200,8 @@ export class regExpParser extends $rt.GoObject {
           }
           break;
         }
-        case 38: {
-          if (p!.pos() + 1 < p!.end && p!.charAt(p!.pos() + 1) === 38) {
+        case 38 as number: {
+          if (p!.pos() + 1 < p!.end && p!.charAt(p!.pos() + 1) === (38 as number)) {
             p!.scanClassSetSubExpression(2);
             if (isCharacterComplement && p!.mayContainStrings) {
               p!.error(
@@ -3167,14 +3235,14 @@ export class regExpParser extends $rt.GoObject {
       ch = p!.char();
       {
         switch (ch) {
-          case 45: {
+          case 45 as number: {
             p!.incPos(1);
             ch = p!.char();
             if (p!.isClassContentExit(ch)) {
               p!.mayContainStrings = !isCharacterComplement && expressionMayContainStrings;
               return;
             }
-            if (ch === 45) {
+            if (ch === (45 as number)) {
               p!.incPos(1);
               p!.error(
                 $diagnostics.Operators_must_not_be_mixed_within_a_character_class_Wrap_it_in_a_nested_class_instead,
@@ -3186,7 +3254,7 @@ export class regExpParser extends $rt.GoObject {
               operand = p!.text().substring(start, p!.pos());
               continue;
             } else {
-              if (operand === '') {
+              if (operand === ('' as string)) {
                 p!.error(
                   $diagnostics.A_character_class_range_must_not_be_bounded_by_another_character_class,
                   start,
@@ -3205,14 +3273,14 @@ export class regExpParser extends $rt.GoObject {
                 );
               }
               expressionMayContainStrings = expressionMayContainStrings || p!.mayContainStrings;
-              if (secondOperand === '') {
+              if (secondOperand === ('' as string)) {
                 p!.error(
                   $diagnostics.A_character_class_range_must_not_be_bounded_by_another_character_class,
                   secondStart,
                   p!.pos() - secondStart,
                   [] as ($rt.GoObject | undefined)[],
                 );
-              } else if (!(operand === '')) {
+              } else if (!(operand === ('' as string))) {
                 const $t1 = $stringutil.DecodeJSStringRune(operand);
                 let minCharacterValue: number = $t1[0];
                 let minSize: number = $t1[1];
@@ -3235,8 +3303,8 @@ export class regExpParser extends $rt.GoObject {
             }
             break;
           }
-          case 38: {
-            if (p!.pos() + 1 < p!.end && p!.charAt(p!.pos() + 1) === 38) {
+          case 38 as number: {
+            if (p!.pos() + 1 < p!.end && p!.charAt(p!.pos() + 1) === (38 as number)) {
               start = p!.pos();
               p!.incPos(2);
               p!.error(
@@ -3245,7 +3313,7 @@ export class regExpParser extends $rt.GoObject {
                 2,
                 [] as ($rt.GoObject | undefined)[],
               );
-              if (p!.char() === 38) {
+              if (p!.char() === (38 as number)) {
                 p!.error($diagnostics.Unexpected_0_Did_you_mean_to_escape_it_with_backslash, p!.pos(), 1, [
                   new $rt.BoxStr($rt.runeToString(ch), 'string'),
                 ]);
@@ -3268,8 +3336,8 @@ export class regExpParser extends $rt.GoObject {
       }
       {
         switch (twoChars) {
-          case '--':
-          case '&&': {
+          case '--' as string:
+          case '&&' as string: {
             p!.error(
               $diagnostics.Operators_must_not_be_mixed_within_a_character_class_Wrap_it_in_a_nested_class_instead,
               p!.pos(),
@@ -3308,11 +3376,11 @@ export class regExpParser extends $rt.GoObject {
       }
       {
         switch (ch) {
-          case 45: {
+          case 45 as number: {
             p!.incPos(1);
-            if (p!.char() === 45) {
+            if (p!.char() === (45 as number)) {
               p!.incPos(1);
-              if (!(expressionType === 3)) {
+              if (!(expressionType === (3 as number))) {
                 p!.error(
                   $diagnostics.Operators_must_not_be_mixed_within_a_character_class_Wrap_it_in_a_nested_class_instead,
                   p!.pos() - 2,
@@ -3330,11 +3398,11 @@ export class regExpParser extends $rt.GoObject {
             }
             break;
           }
-          case 38: {
+          case 38 as number: {
             p!.incPos(1);
-            if (p!.char() === 38) {
+            if (p!.char() === (38 as number)) {
               p!.incPos(1);
-              if (!(expressionType === 2)) {
+              if (!(expressionType === (2 as number))) {
                 p!.error(
                   $diagnostics.Operators_must_not_be_mixed_within_a_character_class_Wrap_it_in_a_nested_class_instead,
                   p!.pos() - 2,
@@ -3342,7 +3410,7 @@ export class regExpParser extends $rt.GoObject {
                   [] as ($rt.GoObject | undefined)[],
                 );
               }
-              if (p!.char() === 38) {
+              if (p!.char() === (38 as number)) {
                 p!.error($diagnostics.Unexpected_0_Did_you_mean_to_escape_it_with_backslash, p!.pos(), 1, [
                   new $rt.BoxStr($rt.runeToString(ch), 'string'),
                 ]);
@@ -3358,11 +3426,11 @@ export class regExpParser extends $rt.GoObject {
           default: {
             {
               switch (expressionType) {
-                case 3: {
+                case 3 as number: {
                   p!.error($diagnostics.X_0_expected, p!.pos(), 0, [new $rt.BoxStr('--', 'string')]);
                   break;
                 }
-                case 2: {
+                case 2 as number: {
                   p!.error($diagnostics.X_0_expected, p!.pos(), 0, [new $rt.BoxStr('&&', 'string')]);
                   break;
                 }
@@ -3378,7 +3446,7 @@ export class regExpParser extends $rt.GoObject {
         break;
       }
       p!.scanClassSetOperand();
-      if (expressionType === 2) {
+      if (expressionType === (2 as number)) {
         expressionMayContainStrings = expressionMayContainStrings && p!.mayContainStrings;
       }
     }
@@ -3389,19 +3457,19 @@ export class regExpParser extends $rt.GoObject {
     p!.mayContainStrings = false;
     {
       switch (p!.char()) {
-        case 91: {
+        case 91 as number: {
           p!.incPos(1);
           p!.scanClassSetExpression();
           p!.scanExpectedChar(93);
           return '';
         }
-        case 92: {
+        case 92 as number: {
           p!.incPos(1);
           if (p!.scanCharacterClassEscape()) {
             return '';
-          } else if (p!.char() === 113) {
+          } else if (p!.char() === (113 as number)) {
             p!.incPos(1);
-            if (p!.char() === 123) {
+            if (p!.char() === (123 as number)) {
               p!.incPos(1);
               p!.scanClassStringDisjunctionContents();
               p!.scanExpectedChar(125);
@@ -3426,20 +3494,23 @@ export class regExpParser extends $rt.GoObject {
   }
   scanClassStringDisjunctionContents(): void {
     const p = this;
-    $debug.Assert(p!.pos() > 0 && p!.text().charCodeAt(p!.pos() - 1) === 123, [] as ($rt.GoObject | undefined)[]);
+    $debug.Assert(
+      p!.pos() > 0 && p!.text().charCodeAt(p!.pos() - 1) === (123 as number),
+      [] as ($rt.GoObject | undefined)[],
+    );
     let characterCount: number = 0;
     for (; p!.pos() < p!.end;) {
       let ch: number = p!.char();
       {
         switch (ch) {
-          case 125: {
-            if (!(characterCount === 1)) {
+          case 125 as number: {
+            if (!(characterCount === (1 as number))) {
               p!.mayContainStrings = true;
             }
             return;
           }
-          case 124: {
-            if (!(characterCount === 1)) {
+          case 124 as number: {
+            if (!(characterCount === (1 as number))) {
               p!.mayContainStrings = true;
             }
             p!.incPos(1);
@@ -3458,29 +3529,29 @@ export class regExpParser extends $rt.GoObject {
   scanClassSetCharacter(): string {
     const p = this;
     let ch: number = p!.char();
-    if (ch === 92) {
+    if (ch === (92 as number)) {
       p!.incPos(1);
       let innerCh: number = p!.char();
       {
         switch (innerCh) {
-          case 98: {
+          case 98 as number: {
             p!.incPos(1);
             return '\x08';
           }
-          case 38:
-          case 45:
-          case 33:
-          case 35:
-          case 37:
-          case 44:
-          case 58:
-          case 59:
-          case 60:
-          case 61:
-          case 62:
-          case 64:
-          case 96:
-          case 126: {
+          case 38 as number:
+          case 45 as number:
+          case 33 as number:
+          case 35 as number:
+          case 37 as number:
+          case 44 as number:
+          case 58 as number:
+          case 59 as number:
+          case 60 as number:
+          case 61 as number:
+          case 62 as number:
+          case 64 as number:
+          case 96 as number:
+          case 126 as number: {
             p!.incPos(1);
             return $rt.runeToString(innerCh);
           }
@@ -3492,23 +3563,23 @@ export class regExpParser extends $rt.GoObject {
     } else if (p!.pos() + 1 < p!.end && ch === p!.charAt(p!.pos() + 1)) {
       {
         switch (ch) {
-          case 38:
-          case 33:
-          case 35:
-          case 37:
-          case 42:
-          case 43:
-          case 44:
-          case 46:
-          case 58:
-          case 59:
-          case 60:
-          case 61:
-          case 62:
-          case 63:
-          case 64:
-          case 96:
-          case 126: {
+          case 38 as number:
+          case 33 as number:
+          case 35 as number:
+          case 37 as number:
+          case 42 as number:
+          case 43 as number:
+          case 44 as number:
+          case 46 as number:
+          case 58 as number:
+          case 59 as number:
+          case 60 as number:
+          case 61 as number:
+          case 62 as number:
+          case 63 as number:
+          case 64 as number:
+          case 96 as number:
+          case 126 as number: {
             p!.error(
               $diagnostics.A_character_class_must_not_contain_a_reserved_double_punctuator_Did_you_mean_to_escape_it_with_backslash,
               p!.pos(),
@@ -3523,15 +3594,15 @@ export class regExpParser extends $rt.GoObject {
     }
     {
       switch (ch) {
-        case 47:
-        case 40:
-        case 41:
-        case 91:
-        case 93:
-        case 123:
-        case 125:
-        case 45:
-        case 124: {
+        case 47 as number:
+        case 40 as number:
+        case 41 as number:
+        case 91 as number:
+        case 93 as number:
+        case 123 as number:
+        case 125 as number:
+        case 45 as number:
+        case 124 as number: {
           p!.error($diagnostics.Unexpected_0_Did_you_mean_to_escape_it_with_backslash, p!.pos(), 1, [
             new $rt.BoxStr($rt.runeToString(ch), 'string'),
           ]);
@@ -3544,16 +3615,16 @@ export class regExpParser extends $rt.GoObject {
   }
   scanClassAtom(): string {
     const p = this;
-    if (p!.char() === 92) {
+    if (p!.char() === (92 as number)) {
       p!.incPos(1);
       let ch: number = p!.char();
       {
         switch (ch) {
-          case 98: {
+          case 98 as number: {
             p!.incPos(1);
             return '\x08';
           }
-          case 45: {
+          case 45 as number: {
             p!.incPos(1);
             return $rt.runeToString(ch);
           }
@@ -3571,31 +3642,34 @@ export class regExpParser extends $rt.GoObject {
   }
   scanCharacterClassEscape(): boolean {
     const p = this;
-    $debug.Assert(p!.pos() > 0 && p!.text().charCodeAt(p!.pos() - 1) === 92, [] as ($rt.GoObject | undefined)[]);
+    $debug.Assert(
+      p!.pos() > 0 && p!.text().charCodeAt(p!.pos() - 1) === (92 as number),
+      [] as ($rt.GoObject | undefined)[],
+    );
     let isCharacterComplement: boolean = false;
     let start: number = p!.pos() - 1;
     let ch: number = p!.char();
     {
       switch (ch) {
-        case 100:
-        case 68:
-        case 115:
-        case 83:
-        case 119:
-        case 87: {
+        case 100 as number:
+        case 68 as number:
+        case 115 as number:
+        case 83 as number:
+        case 119 as number:
+        case 87 as number: {
           p!.incPos(1);
           return true;
         }
-        case 80: {
+        case 80 as number: {
           isCharacterComplement = true;
         }
-        case 112: {
+        case 112 as number: {
           p!.incPos(1);
-          if (p!.char() === 123) {
+          if (p!.char() === (123 as number)) {
             p!.incPos(1);
             let propertyNameOrValueStart: number = p!.pos();
             let propertyNameOrValue: string = p!.scanWordCharacters();
-            if (p!.char() === 61) {
+            if (p!.char() === (61 as number)) {
               let propertyName: string = nonBinaryUnicodeProperties?.get(propertyNameOrValue) ?? '';
               if (p!.pos() === propertyNameOrValueStart) {
                 p!.error(
@@ -3604,7 +3678,7 @@ export class regExpParser extends $rt.GoObject {
                   0,
                   [] as ($rt.GoObject | undefined)[],
                 );
-              } else if (propertyName === '') {
+              } else if (propertyName === ('' as string)) {
                 p!.error(
                   $diagnostics.Unknown_Unicode_property_name,
                   propertyNameOrValueStart,
@@ -3612,7 +3686,7 @@ export class regExpParser extends $rt.GoObject {
                   [] as ($rt.GoObject | undefined)[],
                 );
                 let suggestion: string = p!.getSpellingSuggestionForUnicodePropertyName(propertyNameOrValue);
-                if (!(suggestion === '')) {
+                if (!(suggestion === ('' as string))) {
                   p!.error($diagnostics.Did_you_mean_0, propertyNameOrValueStart, p!.pos() - propertyNameOrValueStart, [
                     new $rt.BoxStr(suggestion, 'string'),
                   ]);
@@ -3628,7 +3702,7 @@ export class regExpParser extends $rt.GoObject {
                   0,
                   [] as ($rt.GoObject | undefined)[],
                 );
-              } else if (!(propertyName === '')) {
+              } else if (!(propertyName === ('' as string))) {
                 let values: $collections.Set_<string> | undefined =
                   valuesOfNonBinaryUnicodeProperties?.get(propertyName) ?? undefined;
                 if (!(values === undefined) && !values!.Has(propertyValue)) {
@@ -3642,7 +3716,7 @@ export class regExpParser extends $rt.GoObject {
                     propertyName,
                     propertyValue,
                   );
-                  if (!(suggestion$1 === '')) {
+                  if (!(suggestion$1 === ('' as string))) {
                     p!.error($diagnostics.Did_you_mean_0, propertyValueStart, p!.pos() - propertyValueStart, [
                       new $rt.BoxStr(suggestion$1, 'string'),
                     ]);
@@ -3686,7 +3760,7 @@ export class regExpParser extends $rt.GoObject {
                   [] as ($rt.GoObject | undefined)[],
                 );
                 let suggestion$2: string = p!.getSpellingSuggestionForUnicodePropertyNameOrValue(propertyNameOrValue);
-                if (!(suggestion$2 === '')) {
+                if (!(suggestion$2 === ('' as string))) {
                   p!.error($diagnostics.Did_you_mean_0, propertyNameOrValueStart, p!.pos() - propertyNameOrValueStart, [
                     new $rt.BoxStr(suggestion$2, 'string'),
                   ]);
@@ -3736,7 +3810,7 @@ export class regExpParser extends $rt.GoObject {
     const p = this;
     return $core.GetSpellingSuggestionForStrings(
       name_,
-      $core.ConcatenateSeq([
+      $core.ConcatenateSeq<string>([
         $rt.maps_Keys((valuesOfNonBinaryUnicodeProperties?.get('General_Category') ?? undefined)!.Keys()),
         $rt.maps_Keys(binaryUnicodeProperties!.Keys()),
         $rt.maps_Keys(binaryUnicodePropertiesOfStrings!.Keys()),
@@ -3761,7 +3835,7 @@ export class regExpParser extends $rt.GoObject {
       return '';
     }
     if (!p!.anyUnicodeMode) {
-      if (!(p!.pendingLowSurrogate === 0)) {
+      if (!(p!.pendingLowSurrogate === (0 as number))) {
         const $t1 = $rt.utf8_DecodeRuneInStringAt(p!.text(), p!.pos());
         let size: number = $t1[1];
         p!.incPos(size);
@@ -3772,11 +3846,11 @@ export class regExpParser extends $rt.GoObject {
       const $t2 = $rt.utf8_DecodeRuneInStringAt(p!.text(), p!.pos());
       let ch: number = $t2[0];
       let size$1: number = $t2[1];
-      if (ch === 65533 || size$1 === 0) {
+      if (ch === (65533 as number) || size$1 === (0 as number)) {
         p!.incPos(1);
         return $rt.runeToString(p!.text().charCodeAt(p!.pos() - 1));
       }
-      if ($rt.unicode_utf16_RuneLen(ch) === 2) {
+      if ($rt.unicode_utf16_RuneLen(ch) === (2 as number)) {
         const $t3 = $stringutil.CodePointToSurrogatePair(ch);
         let high: number = $t3[0];
         let low$1: number = $t3[1];
@@ -3789,10 +3863,10 @@ export class regExpParser extends $rt.GoObject {
     const $t4 = $rt.utf8_DecodeRuneInStringAt(p!.text(), p!.pos());
     let ch$1: number = $t4[0];
     let size$2: number = $t4[1];
-    if (size$2 === 0) {
+    if (size$2 === (0 as number)) {
       return '';
     }
-    if (ch$1 === 65533) {
+    if (ch$1 === (65533 as number)) {
       p!.incPos(size$2);
       return '';
     }
@@ -3835,7 +3909,7 @@ export class regExpParser extends $rt.GoObject {
               reference.name,
               $rt.maps_Keys(p!.groupSpecifiers),
             );
-            if (!(suggestion === '')) {
+            if (!(suggestion === ('' as string))) {
               p!.error($diagnostics.Did_you_mean_0, reference.pos, reference.end - reference.pos, [
                 new $rt.BoxStr(suggestion, 'string'),
               ]);
@@ -4082,7 +4156,7 @@ export let nonBinaryUnicodeProperties: Map<string, string> | undefined = new Map
   ['Script_Extensions', 'Script_Extensions'],
   ['scx', 'Script_Extensions'],
 ]);
-export let binaryUnicodeProperties: $collections.Set_<string> | undefined = $collections.NewSetFromItems([
+export let binaryUnicodeProperties: $collections.Set_<string> | undefined = $collections.NewSetFromItems<string>([
   'ASCII',
   'ASCII_Hex_Digit',
   'AHex',
@@ -4182,16 +4256,17 @@ export let binaryUnicodeProperties: $collections.Set_<string> | undefined = $col
   'XID_Start',
   'XIDS',
 ]);
-export let binaryUnicodePropertiesOfStrings: $collections.Set_<string> | undefined = $collections.NewSetFromItems([
-  'Basic_Emoji',
-  'Emoji_Keycap_Sequence',
-  'RGI_Emoji_Modifier_Sequence',
-  'RGI_Emoji_Flag_Sequence',
-  'RGI_Emoji_Tag_Sequence',
-  'RGI_Emoji_ZWJ_Sequence',
-  'RGI_Emoji',
-]);
-export let scriptValues: $collections.Set_<string> | undefined = $collections.NewSetFromItems([
+export let binaryUnicodePropertiesOfStrings: $collections.Set_<string> | undefined =
+  $collections.NewSetFromItems<string>([
+    'Basic_Emoji',
+    'Emoji_Keycap_Sequence',
+    'RGI_Emoji_Modifier_Sequence',
+    'RGI_Emoji_Flag_Sequence',
+    'RGI_Emoji_Tag_Sequence',
+    'RGI_Emoji_ZWJ_Sequence',
+    'RGI_Emoji',
+  ]);
+export let scriptValues: $collections.Set_<string> | undefined = $collections.NewSetFromItems<string>([
   'Adlm',
   'Adlam',
   'Aghb',
@@ -4523,7 +4598,7 @@ export let valuesOfNonBinaryUnicodeProperties: Map<string, $collections.Set_<str
 >([
   [
     'General_Category',
-    $collections.NewSetFromItems([
+    $collections.NewSetFromItems<string>([
       'C',
       'Other',
       'Cc',
@@ -4612,10 +4687,10 @@ export let valuesOfNonBinaryUnicodeProperties: Map<string, $collections.Set_<str
 export function compareDecimalStrings(a: string, b: string): number {
   a = $rt.strings_TrimLeft(a, '0');
   b = $rt.strings_TrimLeft(b, '0');
-  if (a === '') {
+  if (a === ('' as string)) {
     a = '0';
   }
-  if (b === '') {
+  if (b === ('' as string)) {
     b = '0';
   }
   if (!(a.length === b.length)) {
@@ -4627,14 +4702,14 @@ export function compareDecimalStrings(a: string, b: string): number {
   return $rt.strings_Compare(a, b);
 }
 export function defaultScanner(): Scanner {
-  return Scanner.$lit_5(true);
+  return Scanner.$lit_Scanner_5(true);
 }
 export function NewScanner(): Scanner | undefined {
   let s: Scanner = defaultScanner();
   return s;
 }
 export function cleared<M extends Map<K, V> | undefined, K, V>(m: M): M {
-  m?.clear();
+  $rt.clearMap(m);
   return m;
 }
 export function hasJSDocTag(text: string, tags: string[]): boolean {
@@ -4649,7 +4724,14 @@ export function hasJSDocTag(text: string, tags: string[]): boolean {
         return true;
       }
       let ch: number = text.charCodeAt(tag.length);
-      if (ch === 32 || ch === 9 || ch === 10 || ch === 13 || ch === 125 || ch === 42) {
+      if (
+        ch === (32 as number) ||
+        ch === (9 as number) ||
+        ch === (10 as number) ||
+        ch === (13 as number) ||
+        ch === (125 as number) ||
+        ch === (42 as number)
+      ) {
         return true;
       }
     }
@@ -4659,14 +4741,14 @@ export function hasJSDocTag(text: string, tags: string[]): boolean {
 export function GetIdentifierToken(str: string): $ast.Kind {
   if (str.length >= 2 && str.length <= 12 && str.charCodeAt(0) >= 97 && str.charCodeAt(0) <= 122) {
     let keyword: $ast.Kind = textToKeyword?.get(str) ?? 0;
-    if (!(keyword === 0)) {
+    if (!(keyword === (0 as number))) {
       return keyword;
     }
   }
   return 79;
 }
 export function IsValidIdentifier(s: string): boolean {
-  if (s.length === 0) {
+  if (s.length === (0 as number)) {
     return false;
   }
   {
@@ -4674,7 +4756,7 @@ export function IsValidIdentifier(s: string): boolean {
     for (let i = 0, $t2 = 0; i < $t1.length; i += $t2) {
       $t2 = $rt.utf8_DecodeRuneInStringAt($t1, i)[1];
       let ch = $rt.utf8_DecodeRuneInStringAt($t1, i)[0];
-      if ((i === 0 && !IsIdentifierStart(ch)) || (!(i === 0) && !IsIdentifierPart(ch))) {
+      if ((i === (0 as number) && !IsIdentifierStart(ch)) || (!(i === (0 as number)) && !IsIdentifierPart(ch))) {
         return false;
       }
     }
@@ -4682,11 +4764,14 @@ export function IsValidIdentifier(s: string): boolean {
   return true;
 }
 export function isWordCharacter(ch: number): boolean {
-  return $stringutil.IsASCIILetter(ch) || $stringutil.IsDigit(ch) || ch === 95;
+  return $stringutil.IsASCIILetter(ch) || $stringutil.IsDigit(ch) || ch === (95 as number);
 }
 export function IsIdentifierStart(ch: number): boolean {
   return (
-    $stringutil.IsASCIILetter(ch) || ch === 95 || ch === 36 || (ch >= 128 && $stringutil.IsUnicodeIdentifierStart(ch))
+    $stringutil.IsASCIILetter(ch) ||
+    ch === (95 as number) ||
+    ch === (36 as number) ||
+    (ch >= 128 && $stringutil.IsUnicodeIdentifierStart(ch))
   );
 }
 export function IsIdentifierPart(ch: number): boolean {
@@ -4695,9 +4780,9 @@ export function IsIdentifierPart(ch: number): boolean {
 export function IsIdentifierPartEx(ch: number, languageVariant: $core.LanguageVariant): boolean {
   return (
     isWordCharacter(ch) ||
-    ch === 36 ||
+    ch === (36 as number) ||
     (ch >= 128 && $stringutil.IsUnicodeIdentifierPart(ch)) ||
-    (languageVariant === 1 && (ch === 45 || ch === 58))
+    (languageVariant === (1 as number) && (ch === (45 as number) || ch === (58 as number)))
   );
 }
 export function TokenToString(token: $ast.Kind): string {
@@ -4726,21 +4811,21 @@ export function couldStartTrivia(text: string, pos: number): boolean {
   {
     let ch: number = text.charCodeAt(pos);
     switch (ch) {
-      case 13:
-      case 10:
-      case 9:
-      case 11:
-      case 12:
-      case 32:
-      case 47:
-      case 60:
-      case 124:
-      case 61:
-      case 62: {
+      case 13 as number:
+      case 10 as number:
+      case 9 as number:
+      case 11 as number:
+      case 12 as number:
+      case 32 as number:
+      case 47 as number:
+      case 60 as number:
+      case 124 as number:
+      case 61 as number:
+      case 62 as number: {
         return true;
       }
-      case 35: {
-        return pos === 0;
+      case 35 as number: {
+        return pos === (0 as number);
       }
       default: {
         return ch > maxAsciiCharacter;
@@ -4769,12 +4854,12 @@ export function SkipTriviaEx(text: string, pos: number, options: SkipTriviaOptio
     let size: number = $t1[1];
     {
       switch (ch) {
-        case 13: {
-          if (pos + 1 < textLen && text.charCodeAt(pos + 1) === 10) {
+        case 13 as number: {
+          if (pos + 1 < textLen && text.charCodeAt(pos + 1) === (10 as number)) {
             pos++;
           }
         }
-        case 10: {
+        case 10 as number: {
           pos++;
           if (options!.StopAfterLineBreak) {
             return pos;
@@ -4782,19 +4867,19 @@ export function SkipTriviaEx(text: string, pos: number, options: SkipTriviaOptio
           canConsumeStar = options!.InJSDoc;
           continue;
         }
-        case 9:
-        case 11:
-        case 12:
-        case 32: {
+        case 9 as number:
+        case 11 as number:
+        case 12 as number:
+        case 32 as number: {
           pos++;
           continue;
         }
-        case 47: {
+        case 47 as number: {
           if (options!.StopAtComments) {
             break;
           }
           if (pos + 1 < textLen) {
-            if (text.charCodeAt(pos + 1) === 47) {
+            if (text.charCodeAt(pos + 1) === (47 as number)) {
               pos += 2;
               for (; pos < textLen;) {
                 const $t2 = $rt.utf8_DecodeRuneInStringAt(text, pos);
@@ -4808,10 +4893,14 @@ export function SkipTriviaEx(text: string, pos: number, options: SkipTriviaOptio
               canConsumeStar = false;
               continue;
             }
-            if (text.charCodeAt(pos + 1) === 42) {
+            if (text.charCodeAt(pos + 1) === (42 as number)) {
               pos += 2;
               for (; pos < textLen;) {
-                if (text.charCodeAt(pos) === 42 && pos + 1 < textLen && text.charCodeAt(pos + 1) === 47) {
+                if (
+                  text.charCodeAt(pos) === (42 as number) &&
+                  pos + 1 < textLen &&
+                  text.charCodeAt(pos + 1) === (47 as number)
+                ) {
                   pos += 2;
                   break;
                 }
@@ -4825,10 +4914,10 @@ export function SkipTriviaEx(text: string, pos: number, options: SkipTriviaOptio
           }
           break;
         }
-        case 60:
-        case 124:
-        case 61:
-        case 62: {
+        case 60 as number:
+        case 124 as number:
+        case 61 as number:
+        case 62 as number: {
           if (isConflictMarkerTrivia(text, pos)) {
             pos = scanConflictMarkerTrivia(text, pos, undefined);
             canConsumeStar = false;
@@ -4836,15 +4925,15 @@ export function SkipTriviaEx(text: string, pos: number, options: SkipTriviaOptio
           }
           break;
         }
-        case 35: {
-          if (pos === 0 && isShebangTrivia(text, pos)) {
+        case 35 as number: {
+          if (pos === (0 as number) && isShebangTrivia(text, pos)) {
             pos = scanShebangTrivia(text, pos);
             canConsumeStar = false;
             continue;
           }
           break;
         }
-        case 42: {
+        case 42 as number: {
           if (canConsumeStar) {
             pos++;
             canConsumeStar = false;
@@ -4871,7 +4960,7 @@ export function isConflictMarkerTrivia(text: string, pos: number): boolean {
   if (pos + 1 >= text.length || !(text.charCodeAt(pos + 1) === text.charCodeAt(pos))) {
     return false;
   }
-  let atLineStart: boolean = pos === 0 || $stringutil.IsLineBreak(text.charCodeAt(pos - 1) | 0);
+  let atLineStart: boolean = pos === (0 as number) || $stringutil.IsLineBreak(text.charCodeAt(pos - 1) | 0);
   if (!atLineStart && pos >= 2) {
     const $t1 = $rt.unicode_utf8_DecodeLastRuneInString(text.substring(0, pos - 2));
     let prev: number = $t1[0];
@@ -4885,7 +4974,7 @@ export function isConflictMarkerTrivia(text: string, pos: number): boolean {
           return false;
         }
       }
-      return ch === 61 || text.charCodeAt(pos + mergeConflictMarkerLength) === 32;
+      return ch === (61 as number) || text.charCodeAt(pos + mergeConflictMarkerLength) === (32 as number);
     }
   }
   return false;
@@ -4909,7 +4998,7 @@ export function scanConflictMarkerTrivia(
   let ch: number = $t1[0];
   let size: number = $t1[1];
   let length_: number = text.length;
-  if (ch === 60 || ch === 62) {
+  if (ch === (60 as number) || ch === (62 as number)) {
     for (; pos < length_ && !$stringutil.IsLineBreak(ch);) {
       pos += size;
       const $t2 = $rt.utf8_DecodeRuneInStringAt(text, pos);
@@ -4917,13 +5006,13 @@ export function scanConflictMarkerTrivia(
       size = $t2[1];
     }
   } else {
-    if (!(ch === 124) && !(ch === 61)) {
+    if (!(ch === (124 as number)) && !(ch === (61 as number))) {
       throw $rt.newPanic(new $rt.BoxStr("Assertion failed: ch must be either '|' or '='", 'string'));
     }
     for (; pos < length_;) {
       let currentChar: number = text.charCodeAt(pos);
       if (
-        (currentChar === 61 || currentChar === 62) &&
+        (currentChar === (61 as number) || currentChar === (62 as number)) &&
         !((currentChar | 0) === ch) &&
         isConflictMarkerTrivia(text, pos)
       ) {
@@ -4938,10 +5027,10 @@ export function isShebangTrivia(text: string, pos: number): boolean {
   if (text.length < 2) {
     return false;
   }
-  if (!(pos === 0)) {
+  if (!(pos === (0 as number))) {
     throw $rt.newPanic(new $rt.BoxStr('Shebangs check must only be done at the start of the file', 'string'));
   }
-  return text.charCodeAt(0) === 35 && text.charCodeAt(1) === 33;
+  return text.charCodeAt(0) === (35 as number) && text.charCodeAt(1) === (33 as number);
 }
 export function scanShebangTrivia(text: string, pos: number): number {
   pos += 2;
@@ -4988,13 +5077,17 @@ export function GetTokenPosOfNode(
   if ($ast.NodeIsMissing(node)) {
     return node!.Pos();
   }
-  if ($ast.IsJSDocNode(node) || node!.Kind_ === 11) {
-    return SkipTriviaEx(sourceFile!.Text(), node!.Pos(), SkipTriviaOptions.$lit_1(true));
+  if ($ast.IsJSDocNode(node) || node!.Kind_ === (11 as number)) {
+    return SkipTriviaEx(sourceFile!.Text(), node!.Pos(), SkipTriviaOptions.$lit_SkipTriviaOptions_1(true));
   }
   if (includeJSDoc && node!.JSDoc(sourceFile).length > 0) {
     return GetTokenPosOfNode(node!.JSDoc(sourceFile)[0], sourceFile, false);
   }
-  return SkipTriviaEx(sourceFile!.Text(), node!.Pos(), SkipTriviaOptions.$lit_2(!((node!.Flags & 4194304) === 0)));
+  return SkipTriviaEx(
+    sourceFile!.Text(),
+    node!.Pos(),
+    SkipTriviaOptions.$lit_SkipTriviaOptions_2(!((node!.Flags & 4194304) === (0 as number))),
+  );
 }
 export function getErrorRangeForArrowFunction(
   sourceFile: $ast.SourceFile | undefined,
@@ -5002,7 +5095,7 @@ export function getErrorRangeForArrowFunction(
 ): $core.TextRange {
   let pos: number = SkipTrivia(sourceFile!.Text(), node!.Pos());
   let body: $ast.Node | undefined = node!.Body();
-  if (!(body === undefined) && body!.Kind_ === 242) {
+  if (!(body === undefined) && body!.Kind_ === (242 as number)) {
     let startLine: number = GetECMALineOfPosition(sourceFile, body!.Pos());
     let endLine: number = GetECMALineOfPosition(sourceFile, body!.End());
     if (startLine < endLine) {
@@ -5016,12 +5109,12 @@ export function findOriginatingJSDocSatisfiesTag(
   node: $ast.Node | undefined,
 ): $ast.Node | undefined {
   let targetType: $ast.Node | undefined = node!.AsSatisfiesExpression()!.Type_;
-  if ((targetType!.Flags & 8) === 0) {
+  if ((targetType!.Flags & 8) === (0 as number)) {
     return undefined;
   }
   {
     for (let current: $ast.Node | undefined = node!.Parent; !(current === undefined); current = current!.Parent) {
-      if ((current!.Flags & 2097152) === 0) {
+      if ((current!.Flags & 2097152) === (0 as number)) {
         continue;
       }
       let firstSatisfiesTag: $ast.Node | undefined = undefined;
@@ -5047,7 +5140,7 @@ export function findOriginatingJSDocSatisfiesTag(
                     if (!(typeExpr === undefined)) {
                       {
                         let t: $ast.Node | undefined = typeExpr!.Type();
-                        if (!(t === undefined) && $rt.structEq(t!.Loc, targetType!.Loc)) {
+                        if (!(t === undefined) && t!.Loc.$equals_TextRange(targetType!.Loc)) {
                           return tag;
                         }
                       }
@@ -5071,61 +5164,61 @@ export function GetErrorRangeForNode(
   let errorNode: $ast.Node | undefined = node;
   {
     switch (node!.Kind_) {
-      case 307: {
+      case 307 as number: {
         let pos: number = SkipTrivia(sourceFile!.Text(), 0);
         if (pos === sourceFile!.Text().length) {
           return $core.NewTextRange(0, 0);
         }
         return GetRangeOfTokenAtPosition(sourceFile, pos);
       }
-      case 263:
-      case 175: {
-        if (!((node!.Flags & 8) === 0)) {
+      case 263 as number:
+      case 175 as number: {
+        if (!((node!.Flags & 8) === (0 as number))) {
           errorNode = node;
           break;
         }
       }
-      case 261:
-      case 209:
-      case 264:
-      case 265:
-      case 268:
-      case 267:
-      case 306:
-      case 219:
-      case 178:
-      case 179:
-      case 266:
-      case 345:
-      case 173:
-      case 172:
-      case 275: {
+      case 261 as number:
+      case 209 as number:
+      case 264 as number:
+      case 265 as number:
+      case 268 as number:
+      case 267 as number:
+      case 306 as number:
+      case 219 as number:
+      case 178 as number:
+      case 179 as number:
+      case 266 as number:
+      case 345 as number:
+      case 173 as number:
+      case 172 as number:
+      case 275 as number: {
         errorNode = $ast.GetNameOfDeclaration(node);
         break;
       }
-      case 232: {
+      case 232 as number: {
         errorNode = node!.Name$Node();
         break;
       }
-      case 220: {
+      case 220 as number: {
         return getErrorRangeForArrowFunction(sourceFile, node);
       }
-      case 297:
-      case 298: {
+      case 297 as number:
+      case 298 as number: {
         let start: number = SkipTrivia(sourceFile!.Text(), node!.Pos());
         let end: number = node!.End();
         let statements: ($ast.Node | undefined)[] = node!.Statements();
-        if (!(statements.length === 0)) {
+        if (!(statements.length === (0 as number))) {
           end = statements[0]!.Pos();
         }
         return $core.NewTextRange(start, end);
       }
-      case 254:
-      case 230: {
+      case 254 as number:
+      case 230 as number: {
         let pos$1: number = SkipTrivia(sourceFile!.Text(), node!.Pos());
         return GetRangeOfTokenAtPosition(sourceFile, pos$1);
       }
-      case 239: {
+      case 239 as number: {
         {
           let jsDocSatisfiesTag: $ast.Node | undefined = findOriginatingJSDocSatisfiesTag(sourceFile, node);
           if (!(jsDocSatisfiesTag === undefined)) {
@@ -5136,14 +5229,19 @@ export function GetErrorRangeForNode(
         let pos$3: number = SkipTrivia(sourceFile!.Text(), node!.AsSatisfiesExpression()!.Expression_!.End());
         return GetRangeOfTokenAtPosition(sourceFile, pos$3);
       }
-      case 177: {
-        if (!((node!.Flags & 8) === 0)) {
+      case 177 as number: {
+        if (!((node!.Flags & 8) === (0 as number))) {
           errorNode = node;
           break;
         }
         let scanner: Scanner | undefined = GetScannerForSourceFile(sourceFile, node!.Pos());
         let start$1: number = scanner!.TokenStart();
-        for (; !(scanner!.Token() === 136) && !(scanner!.Token() === 10) && !(scanner!.Token() === 1);) {
+        for (
+          ;
+          !(scanner!.Token() === (136 as number)) &&
+          !(scanner!.Token() === (10 as number)) &&
+          !(scanner!.Token() === (1 as number));
+        ) {
           scanner!.Scan();
         }
         return $core.NewTextRange(start$1, scanner!.TokenEnd());
@@ -5207,7 +5305,7 @@ export function GetECMAEndLinePosition(sourceFile: $ast.SourceFile | undefined, 
     const $t1 = $rt.utf8_DecodeRuneInStringAt(sourceFile!.Text(), pos);
     let ch: number = $t1[0];
     let size: number = $t1[1];
-    if (size === 0 || $stringutil.IsLineBreak(ch)) {
+    if (size === (0 as number) || $stringutil.IsLineBreak(ch)) {
       return pos - 1;
     }
     pos += size;
@@ -5347,7 +5445,7 @@ export function iterateCommentRanges(
     let pendingHasTrailingNewLine: boolean = false;
     let hasPendingCommentRange: boolean = false;
     let collecting: boolean = trailing;
-    if (pos === 0) {
+    if (pos === (0 as number)) {
       collecting = true;
       if (isShebangTrivia(text, pos)) {
         pos = scanShebangTrivia(text, pos);
@@ -5359,12 +5457,12 @@ export function iterateCommentRanges(
       let size: number = $t1[1];
       {
         switch (ch) {
-          case 13: {
-            if (pos + 1 < text.length && text.charCodeAt(pos + 1) === 10) {
+          case 13 as number: {
+            if (pos + 1 < text.length && text.charCodeAt(pos + 1) === (10 as number)) {
               pos++;
             }
           }
-          case 10: {
+          case 10 as number: {
             pos++;
             if (trailing) {
               break scan;
@@ -5375,29 +5473,29 @@ export function iterateCommentRanges(
             }
             continue;
           }
-          case 9:
-          case 11:
-          case 12:
-          case 32: {
+          case 9 as number:
+          case 11 as number:
+          case 12 as number:
+          case 32 as number: {
             pos++;
             continue;
           }
-          case 47: {
+          case 47 as number: {
             let nextChar: number = 0;
             if (pos + 1 < text.length) {
               nextChar = text.charCodeAt(pos + 1);
             }
             let hasTrailingNewLine: boolean = false;
-            if (nextChar === 47 || nextChar === 42) {
+            if (nextChar === (47 as number) || nextChar === (42 as number)) {
               let kind: $ast.Kind = 0;
-              if (nextChar === 47) {
+              if (nextChar === (47 as number)) {
                 kind = 2;
               } else {
                 kind = 3;
               }
               let startPos: number = pos;
               pos += 2;
-              if (nextChar === 47) {
+              if (nextChar === (47 as number)) {
                 for (; pos < text.length;) {
                   const $t2 = $rt.utf8_DecodeRuneInStringAt(text, pos);
                   let c: number = $t2[0];
@@ -5469,7 +5567,7 @@ export function isJSDocTypeExpressionOrChild(node: $ast.Node | undefined): boole
   if ($ast.IsJSDocTypeExpression(node)) {
     return true;
   }
-  if ((node!.Flags & 4194312) === 0) {
+  if ((node!.Flags & 4194312) === (0 as number)) {
     return false;
   }
   {
@@ -5483,7 +5581,7 @@ export function isJSDocTypeExpressionOrChild(node: $ast.Node | undefined): boole
 }
 export function normalizeJSDocTypeSourceText(text: string): string {
   let lineStarts: $core.ECMALineStarts = $core.ComputeECMALineStarts(text);
-  if (lineStarts.length === 1) {
+  if (lineStarts.length === (1 as number)) {
     return stripLeadingJSDocComment(text);
   }
   let result: $rt.strings_Builder = new $rt.strings_Builder();
@@ -5509,7 +5607,7 @@ export function normalizeJSDocTypeSourceText(text: string): string {
 }
 export function stripLeadingJSDocComment(line: string): string {
   line = $rt.strings_TrimLeftFunc(line, $stringutil.IsWhiteSpaceLike);
-  if (line.length > 0 && line.charCodeAt(0) === 42) {
+  if (line.length > 0 && line.charCodeAt(0) === (42 as number)) {
     line = line.substring(1);
   }
   return $rt.strings_TrimLeftFunc(line, $stringutil.IsWhiteSpaceLike);
@@ -5530,9 +5628,9 @@ export function GetTextOfNodeFromSourceText(
   if (isJSDocTypeExpressionOrChild(node)) {
     text = normalizeJSDocTypeSourceText(text);
   }
-  if (!((node!.Flags & 268435456) === 0)) {
+  if (!((node!.Flags & 268435456) === (0 as number))) {
     if ($ast.IsStringLiteral(node)) {
-      if (!((node!.AsStringLiteral()!.LiteralLikeNodeBase_.TokenFlags_ & 65536) === 0)) {
+      if (!((node!.AsStringLiteral()!.LiteralLikeNodeBase_.TokenFlags_ & 65536) === (0 as number))) {
         return "'" + text + "'";
       }
       return '"' + text + '"';
@@ -5557,13 +5655,13 @@ export function GetTextOfJSDocComment(comment: $ast.NodeList | undefined): strin
       let n = $t1[$t2];
       {
         switch (n!.Kind_) {
-          case 316: {
+          case 316 as number: {
             b.WriteString(n!.Text$Node());
             break;
           }
-          case 319:
-          case 320:
-          case 321: {
+          case 319 as number:
+          case 320 as number:
+          case 321 as number: {
             b.WriteString(GetTextOfNode(n));
             break;
           }
@@ -5601,7 +5699,7 @@ export function IsIdentifierText(name_: string, languageVariant: $core.LanguageV
 }
 export function IsIntrinsicJsxName(name_: string): boolean {
   return (
-    !(name_.length === 0) &&
+    !(name_.length === (0 as number)) &&
     ((name_.charCodeAt(0) >= 97 && name_.charCodeAt(0) <= 122) || $rt.strings_ContainsRune(name_, 45))
   );
 }

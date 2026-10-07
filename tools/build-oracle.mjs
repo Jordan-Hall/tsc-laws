@@ -17,14 +17,16 @@ const result = spawnSync('go', ['build', '-o', resolve('dist/tsgo-oracle'), './c
 });
 process.exitCode = result.status ?? 1;
 if (result.status === 0) {
-  // Token stream reference for the translated scanner.
-  mkdirSync(root + '/cmd/scan-oracle', { recursive: true });
-  copyFileSync('tools/scan-oracle/main.go', root + '/cmd/scan-oracle/main.go');
-  const scan = spawnSync('go', ['build', '-o', resolve('dist/scan-oracle'), './cmd/scan-oracle'], {
-    cwd: root,
-    stdio: 'inherit',
-  });
-  if (scan.status !== 0) process.exitCode = scan.status ?? 1;
+  // References for the translated scanner and parser.
+  for (const name of ['scan-oracle', 'parse-oracle']) {
+    mkdirSync(root + '/cmd/' + name, { recursive: true });
+    copyFileSync('tools/' + name + '/main.go', root + '/cmd/' + name + '/main.go');
+    const built = spawnSync('go', ['build', '-o', resolve('dist/' + name), './cmd/' + name], {
+      cwd: root,
+      stdio: 'inherit',
+    });
+    if (built.status !== 0) process.exitCode = built.status ?? 1;
+  }
 }
 if (result.status === 0)
   writeFileSync(

@@ -106,6 +106,9 @@ type translator struct {
 	// method's own signature; scriptc can reject such classes.
 	badMethodNames map[string]bool
 	boxes          map[string]types.Type
+	// nilSafe marks pointer methods that test their receiver against nil;
+	// Go allows calling them on nil pointers.
+	nilSafe map[*types.Func]bool
 }
 
 func newTranslator() *translator {
@@ -372,6 +375,7 @@ func (t *translator) analyze() {
 			})
 		}
 	}
+	t.findNilSafe()
 	t.renameMethods()
 	t.renameFields()
 	t.findMutable()
@@ -876,4 +880,43 @@ func typeNamed(tt types.Type, name string) bool {
 		return false
 	}
 	return false
+}
+
+func (t *translator) findNilSafe() {
+	t.nilSafe = map[*types.Func]bool{}
+	for _, p := range t.order {
+		info := p.p.TypesInfo
+		for _, f := range p.p.Syntax {
+			for _, d := range f.Decls {
+				fd, ok := d.(*ast.FuncDecl)
+				if !ok || fd.Recv == nil || fd.Body == nil || len(fd.Recv.List[0].Names) == 0 {
+					continue
+				}
+				if _, isPtr := fd.Recv.List[0].Type.(*ast.StarExpr); !isPtr {
+					continue
+				}
+				recv, _ := info.Defs[fd.Recv.List[0].Names[0]].(*types.Var)
+				obj, _ := info.Defs[fd.Name].(*types.Func)
+				if recv == nil || obj == nil {
+					continue
+				}
+				n, _ := derefNamed(recv.Type())
+				if n == nil || n.TypeParams().Len() > 0 || t.classes[n.Origin().Obj()] == nil {
+					continue
+				}
+				ast.Inspect(fd.Body, func(node ast.Node) bool {
+					be, ok := node.(*ast.BinaryExpr)
+					if !ok || (be.Op != token.EQL && be.Op != token.NEQ) {
+						return true
+					}
+					for _, side := range []ast.Expr{be.X, be.Y} {
+						if id, ok := side.(*ast.Ident); ok && info.Uses[id] == recv {
+							t.nilSafe[obj] = true
+						}
+					}
+					return true
+				})
+			}
+		}
+	}
 }

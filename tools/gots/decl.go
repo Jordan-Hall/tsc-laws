@@ -509,6 +509,48 @@ func (f *file) classDecl(tn *types.TypeName) string {
 			fmt.Fprintf(&w, " this.%s = %s;", f.fieldName(fl), f.copyValue("src."+f.fieldName(fl), fl.Type()))
 		}
 		w.WriteString(" }\n")
+		// Value equality for comparable structs.
+		var eqs []string
+		if c.base != nil {
+			eqs = append(eqs, fmt.Sprintf("this.$equals_%s(o)", f.t.typeName(c.base)))
+		}
+		comparable := true
+		for i := 0; i < c.st.NumFields(); i++ {
+			if i == c.baseAt {
+				continue
+			}
+			fl := c.st.Field(i)
+			if !types.Comparable(fl.Type()) {
+				comparable = false
+				break
+			}
+			fname := f.fieldName(fl)
+			if n, ok := types.Unalias(fl.Type()).(*types.Named); ok && isStructType(n) {
+				if fc := f.t.classOf(n.Origin().Obj()); fc != nil {
+					eqs = append(eqs, fmt.Sprintf("this.%s.$equals_%s(o.%s)", fname, f.t.typeName(fc.name), fname))
+					continue
+				}
+				if !f.t.translated(n.Obj().Pkg()) {
+					if stdEquals[n.Obj().Pkg().Path()+"."+n.Obj().Name()] {
+						eqs = append(eqs, fmt.Sprintf("this.%s.$equals(o.%s)", fname, fname))
+					} else {
+						eqs = append(eqs, fmt.Sprintf("this.%s === o.%s", fname, fname))
+					}
+					continue
+				}
+			}
+			if isIfaceType(fl.Type()) {
+				eqs = append(eqs, fmt.Sprintf("$rt.ifaceEq(this.%s, o.%s)", fname, fname))
+				continue
+			}
+			eqs = append(eqs, fmt.Sprintf("this.%s === o.%s", fname, fname))
+		}
+		if comparable && types.Comparable(tn.Type()) && n.TypeParams().Len() == 0 {
+			if len(eqs) == 0 {
+				eqs = []string{"true"}
+			}
+			fmt.Fprintf(&w, "  $equals_%s(o: %s): boolean { return %s; }\n", f.t.typeName(tn), self, strings.Join(eqs, " && "))
+		}
 		fmt.Fprintf(&w, "  $clone_%s(): %s { const o = new %s%s(%s); o.$copy_%s(this); return o; }\n", f.t.typeName(tn), self, f.declName(tn), typeArgNames(tn), strings.Join(zargs, ", "), f.t.typeName(tn))
 		var staticZ []string
 		var staticZArgs []string
@@ -532,10 +574,10 @@ func (f *file) classDecl(tn *types.TypeName) string {
 					sets = append(sets, fmt.Sprintf("o.%s = p%d;", f.fieldName(fl), j))
 				}
 			}
-			fmt.Fprintf(&w, "  static $lit_%s%s(%s): %s { const o = new %s%s(%s); %s return o; }\n", key, tp, strings.Join(params, ", "), self, f.declName(tn), typeArgNames(tn), strings.Join(staticZArgs, ", "), strings.Join(sets, " "))
+			fmt.Fprintf(&w, "  static $lit_%s_%s%s(%s): %s { const o = new %s%s(%s); %s return o; }\n", f.t.typeName(tn), key, tp, strings.Join(params, ", "), self, f.declName(tn), typeArgNames(tn), strings.Join(staticZArgs, ", "), strings.Join(sets, " "))
 		}
 		if n.TypeParams().Len() == 0 && f.t.localTParams[tn] == nil {
-			fmt.Fprintf(&w, "  static $cast(v: $rt.GoObject | undefined): %s { if (v instanceof %s) return v; throw $rt.typeAssertError(); }\n", self, f.declName(tn))
+			fmt.Fprintf(&w, "  static $cast_%s(v: $rt.GoObject | undefined): %s { if (v instanceof %s) return v; throw $rt.typeAssertError(); }\n", f.t.typeName(tn), self, f.declName(tn))
 		}
 		// Methods.
 		defined := f.defined[tn]
@@ -622,7 +664,7 @@ func (f *file) litFactory(tn *types.TypeName, idx []int) string {
 		owner.lits[tn] = map[string][]int{}
 	}
 	owner.lits[tn][key] = idx
-	return "$lit_" + key
+	return "$lit_" + f.t.typeName(tn) + "_" + key
 }
 
 // fileFor returns the output file that declares tn. Literal factories for
@@ -1133,3 +1175,6 @@ func (f *file) cloneCall(tt types.Type) string {
 	}
 	return ".$clone()"
 }
+
+// stdEquals lists library struct types whose runtime class has $equals.
+var stdEquals = map[string]bool{"golang.org/x/text/language.Tag": true}

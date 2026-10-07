@@ -37,11 +37,6 @@ export class github_com_go_json_experiment_json_internal_jsonopts_Options extend
     throw $b.unsupported('github.com/go-json-experiment/json/internal/jsonopts.Options.JSONOptions');
   }
 }
-export class golang_org_x_text_language_Matcher extends $b.GoObject {
-  Match(a0: golang_org_x_text_language_Tag[]): [golang_org_x_text_language_Tag, number, number] {
-    throw $b.unsupported('golang.org/x/text/language.Matcher.Match');
-  }
-}
 export class io_Reader extends $b.GoObject {
   Read(a0: number[]): [number, $b.GoObject | undefined] {
     throw $b.unsupported('io.Reader.Read');
@@ -339,67 +334,6 @@ export class golang_org_x_sync_errgroup_Group extends $b.GoObject {
     throw $b.unsupported('golang.org/x/sync/errgroup.Group.Wait');
   }
   $clone(): golang_org_x_sync_errgroup_Group {
-    return this;
-  }
-}
-export class golang_org_x_text_language_Tag extends encoding_TextMarshaler {
-  constructor() {
-    super();
-  }
-  Base(): [golang_org_x_text_language_Base, number] {
-    throw $b.unsupported('golang.org/x/text/language.Tag.Base');
-  }
-  Extension(a0: number): [golang_org_x_text_language_Extension, boolean] {
-    throw $b.unsupported('golang.org/x/text/language.Tag.Extension');
-  }
-  Extensions(): golang_org_x_text_language_Extension[] {
-    throw $b.unsupported('golang.org/x/text/language.Tag.Extensions');
-  }
-  IsRoot(): boolean {
-    throw $b.unsupported('golang.org/x/text/language.Tag.IsRoot');
-  }
-  MarshalText(): [number[], $b.GoObject | undefined] {
-    throw $b.unsupported('golang.org/x/text/language.Tag.MarshalText');
-  }
-  Parent(): golang_org_x_text_language_Tag {
-    throw $b.unsupported('golang.org/x/text/language.Tag.Parent');
-  }
-  Raw(): [golang_org_x_text_language_Base, golang_org_x_text_language_Script, golang_org_x_text_language_Region] {
-    throw $b.unsupported('golang.org/x/text/language.Tag.Raw');
-  }
-  Region(): [golang_org_x_text_language_Region, number] {
-    throw $b.unsupported('golang.org/x/text/language.Tag.Region');
-  }
-  Script(): [golang_org_x_text_language_Script, number] {
-    throw $b.unsupported('golang.org/x/text/language.Tag.Script');
-  }
-  SetTypeForKey(a0: string, a1: string): [golang_org_x_text_language_Tag, $b.GoObject | undefined] {
-    throw $b.unsupported('golang.org/x/text/language.Tag.SetTypeForKey');
-  }
-  override String(): string {
-    throw $b.unsupported('golang.org/x/text/language.Tag.String');
-  }
-  TypeForKey(a0: string): string {
-    throw $b.unsupported('golang.org/x/text/language.Tag.TypeForKey');
-  }
-  Variants(): golang_org_x_text_language_Variant[] {
-    throw $b.unsupported('golang.org/x/text/language.Tag.Variants');
-  }
-  UnmarshalText(a0: number[]): $b.GoObject | undefined {
-    throw $b.unsupported('golang.org/x/text/language.Tag.UnmarshalText');
-  }
-  $clone(): golang_org_x_text_language_Tag {
-    return this;
-  }
-}
-export class golang_org_x_text_language_matcher extends golang_org_x_text_language_Matcher {
-  constructor() {
-    super();
-  }
-  Match(a0: golang_org_x_text_language_Tag[]): [golang_org_x_text_language_Tag, number, number] {
-    throw $b.unsupported('golang.org/x/text/language.matcher.Match');
-  }
-  $clone(): golang_org_x_text_language_matcher {
     return this;
   }
 }
@@ -999,172 +933,6 @@ export class reflect_Value extends $b.GoObject {
     return this;
   }
 }
-export class regexp_Regexp extends encoding_TextMarshaler {
-  constructor() {
-    super();
-  }
-  AppendText(a0: number[]): [number[], $b.GoObject | undefined] {
-    throw $b.unsupported('regexp.Regexp.AppendText');
-  }
-  Copy(): regexp_Regexp | undefined {
-    throw $b.unsupported('regexp.Regexp.Copy');
-  }
-  Expand(a0: number[], a1: number[], a2: number[], a3: number[]): number[] {
-    throw $b.unsupported('regexp.Regexp.Expand');
-  }
-  ExpandString(a0: number[], a1: string, a2: string, a3: number[]): number[] {
-    throw $b.unsupported('regexp.Regexp.ExpandString');
-  }
-  Find(a0: number[]): number[] {
-    throw $b.unsupported('regexp.Regexp.Find');
-  }
-  FindAll(a0: number[], a1: number): number[][] {
-    throw $b.unsupported('regexp.Regexp.FindAll');
-  }
-  FindAllIndex(a0: number[], a1: number): number[][] {
-    throw $b.unsupported('regexp.Regexp.FindAllIndex');
-  }
-  FindAllString(a0: string, a1: number): string[] {
-    throw $b.unsupported('regexp.Regexp.FindAllString');
-  }
-  FindAllStringIndex(a0: string, a1: number): number[][] {
-    throw $b.unsupported('regexp.Regexp.FindAllStringIndex');
-  }
-  FindAllStringSubmatch(a0: string, a1: number): string[][] {
-    throw $b.unsupported('regexp.Regexp.FindAllStringSubmatch');
-  }
-  FindAllStringSubmatchIndex(a0: string, a1: number): number[][] {
-    throw $b.unsupported('regexp.Regexp.FindAllStringSubmatchIndex');
-  }
-  FindAllSubmatch(a0: number[], a1: number): number[][][] {
-    throw $b.unsupported('regexp.Regexp.FindAllSubmatch');
-  }
-  FindAllSubmatchIndex(a0: number[], a1: number): number[][] {
-    throw $b.unsupported('regexp.Regexp.FindAllSubmatchIndex');
-  }
-  FindIndex(a0: number[]): number[] {
-    throw $b.unsupported('regexp.Regexp.FindIndex');
-  }
-  FindReaderIndex(a0: io_RuneReader | undefined): number[] {
-    throw $b.unsupported('regexp.Regexp.FindReaderIndex');
-  }
-  FindReaderSubmatchIndex(a0: io_RuneReader | undefined): number[] {
-    throw $b.unsupported('regexp.Regexp.FindReaderSubmatchIndex');
-  }
-  FindString(a0: string): string {
-    throw $b.unsupported('regexp.Regexp.FindString');
-  }
-  FindStringIndex(a0: string): number[] {
-    throw $b.unsupported('regexp.Regexp.FindStringIndex');
-  }
-  FindStringSubmatch(a0: string): string[] {
-    throw $b.unsupported('regexp.Regexp.FindStringSubmatch');
-  }
-  FindStringSubmatchIndex(a0: string): number[] {
-    throw $b.unsupported('regexp.Regexp.FindStringSubmatchIndex');
-  }
-  FindSubmatch(a0: number[]): number[][] {
-    throw $b.unsupported('regexp.Regexp.FindSubmatch');
-  }
-  FindSubmatchIndex(a0: number[]): number[] {
-    throw $b.unsupported('regexp.Regexp.FindSubmatchIndex');
-  }
-  LiteralPrefix(): [string, boolean] {
-    throw $b.unsupported('regexp.Regexp.LiteralPrefix');
-  }
-  Longest(): void {
-    throw $b.unsupported('regexp.Regexp.Longest');
-  }
-  MarshalText(): [number[], $b.GoObject | undefined] {
-    throw $b.unsupported('regexp.Regexp.MarshalText');
-  }
-  Match(a0: number[]): boolean {
-    throw $b.unsupported('regexp.Regexp.Match');
-  }
-  MatchReader(a0: io_RuneReader | undefined): boolean {
-    throw $b.unsupported('regexp.Regexp.MatchReader');
-  }
-  MatchString(a0: string): boolean {
-    throw $b.unsupported('regexp.Regexp.MatchString');
-  }
-  NumSubexp(): number {
-    throw $b.unsupported('regexp.Regexp.NumSubexp');
-  }
-  ReplaceAll(a0: number[], a1: number[]): number[] {
-    throw $b.unsupported('regexp.Regexp.ReplaceAll');
-  }
-  ReplaceAllFunc(a0: number[], a1: ((p0: number[]) => number[]) | undefined): number[] {
-    throw $b.unsupported('regexp.Regexp.ReplaceAllFunc');
-  }
-  ReplaceAllLiteral(a0: number[], a1: number[]): number[] {
-    throw $b.unsupported('regexp.Regexp.ReplaceAllLiteral');
-  }
-  ReplaceAllLiteralString(a0: string, a1: string): string {
-    throw $b.unsupported('regexp.Regexp.ReplaceAllLiteralString');
-  }
-  ReplaceAllString(a0: string, a1: string): string {
-    throw $b.unsupported('regexp.Regexp.ReplaceAllString');
-  }
-  ReplaceAllStringFunc(a0: string, a1: ((p0: string) => string) | undefined): string {
-    throw $b.unsupported('regexp.Regexp.ReplaceAllStringFunc');
-  }
-  Split(a0: string, a1: number): string[] {
-    throw $b.unsupported('regexp.Regexp.Split');
-  }
-  override String(): string {
-    throw $b.unsupported('regexp.Regexp.String');
-  }
-  SubexpIndex(a0: string): number {
-    throw $b.unsupported('regexp.Regexp.SubexpIndex');
-  }
-  SubexpNames(): string[] {
-    throw $b.unsupported('regexp.Regexp.SubexpNames');
-  }
-  UnmarshalText(a0: number[]): $b.GoObject | undefined {
-    throw $b.unsupported('regexp.Regexp.UnmarshalText');
-  }
-  $clone(): regexp_Regexp {
-    return this;
-  }
-}
-export class sync_Map extends $b.GoObject {
-  constructor() {
-    super();
-  }
-  Clear(): void {
-    throw $b.unsupported('sync.Map.Clear');
-  }
-  CompareAndDelete(a0: $b.GoObject | undefined, a1: $b.GoObject | undefined): boolean {
-    throw $b.unsupported('sync.Map.CompareAndDelete');
-  }
-  CompareAndSwap(a0: $b.GoObject | undefined, a1: $b.GoObject | undefined, a2: $b.GoObject | undefined): boolean {
-    throw $b.unsupported('sync.Map.CompareAndSwap');
-  }
-  Delete(a0: $b.GoObject | undefined): void {
-    throw $b.unsupported('sync.Map.Delete');
-  }
-  Load(a0: $b.GoObject | undefined): [$b.GoObject | undefined, boolean] {
-    throw $b.unsupported('sync.Map.Load');
-  }
-  LoadAndDelete(a0: $b.GoObject | undefined): [$b.GoObject | undefined, boolean] {
-    throw $b.unsupported('sync.Map.LoadAndDelete');
-  }
-  LoadOrStore(a0: $b.GoObject | undefined, a1: $b.GoObject | undefined): [$b.GoObject | undefined, boolean] {
-    throw $b.unsupported('sync.Map.LoadOrStore');
-  }
-  Range(a0: ((p0: $b.GoObject | undefined, p1: $b.GoObject | undefined) => boolean) | undefined): void {
-    throw $b.unsupported('sync.Map.Range');
-  }
-  Store(a0: $b.GoObject | undefined, a1: $b.GoObject | undefined): void {
-    throw $b.unsupported('sync.Map.Store');
-  }
-  Swap(a0: $b.GoObject | undefined, a1: $b.GoObject | undefined): [$b.GoObject | undefined, boolean] {
-    throw $b.unsupported('sync.Map.Swap');
-  }
-  $clone(): sync_Map {
-    return this;
-  }
-}
 export function compress_gzip_NewReader(
   a0: io_Reader | undefined,
 ): [compress_gzip_Reader | undefined, $b.GoObject | undefined] {
@@ -1187,15 +955,6 @@ export function github_com_go_json_experiment_json_Deterministic(
     'github.com/go-json-experiment/json.Deterministic',
     undefined,
   );
-}
-export function github_com_go_json_experiment_json_Marshal(
-  a0: $b.GoObject | undefined,
-  a1: (github_com_go_json_experiment_json_internal_jsonopts_Options | undefined)[],
-): [number[], $b.GoObject | undefined] {
-  return $b.stubCall<[number[], $b.GoObject | undefined]>('github.com/go-json-experiment/json.Marshal', [
-    [],
-    undefined,
-  ]);
 }
 export function github_com_go_json_experiment_json_MarshalEncode(
   a0: github_com_go_json_experiment_json_jsontext_Encoder | undefined,
@@ -1281,29 +1040,6 @@ export function golang_org_x_sync_errgroup_WithContext(
     [undefined, undefined],
   );
 }
-export function golang_org_x_text_language_MustParse(a0: string): golang_org_x_text_language_Tag {
-  return $b.stubCall<golang_org_x_text_language_Tag>(
-    'golang.org/x/text/language.MustParse',
-    new golang_org_x_text_language_Tag(),
-  );
-}
-export function golang_org_x_text_language_NewMatcher(
-  a0: golang_org_x_text_language_Tag[],
-  a1: (((p0: golang_org_x_text_language_matcher | undefined) => void) | undefined)[],
-): golang_org_x_text_language_Matcher | undefined {
-  return $b.stubCall<golang_org_x_text_language_Matcher | undefined>(
-    'golang.org/x/text/language.NewMatcher',
-    undefined,
-  );
-}
-export function golang_org_x_text_language_Parse(
-  a0: string,
-): [golang_org_x_text_language_Tag, $b.GoObject | undefined] {
-  return $b.stubCall<[golang_org_x_text_language_Tag, $b.GoObject | undefined]>('golang.org/x/text/language.Parse', [
-    new golang_org_x_text_language_Tag(),
-    undefined,
-  ]);
-}
 export function math_Float64bits(a0: number): number {
   return $b.stubCall<number>('math.Float64bits', 0);
 }
@@ -1322,11 +1058,11 @@ export function reflect_TypeFor<T>(): reflect_Type | undefined {
 export function reflect_ValueOf(a0: $b.GoObject | undefined): reflect_Value {
   return $b.stubCall<reflect_Value>('reflect.ValueOf', new reflect_Value());
 }
-export function regexp_MustCompile(a0: string): regexp_Regexp | undefined {
-  return $b.stubCall<regexp_Regexp | undefined>('regexp.MustCompile', undefined);
-}
 export function runtime_debug_SetMaxStack(a0: number): number {
   return $b.stubCall<number>('runtime/debug.SetMaxStack', 0);
+}
+export function slices_DeleteFunc<S extends E[], E>(a0: S, a1: ((p0: E) => boolean) | undefined): S {
+  return $b.stubCall<S>('slices.DeleteFunc', undefined as unknown as S);
 }
 export function strings_NewReader(a0: string): strings_Reader | undefined {
   return $b.stubCall<strings_Reader | undefined>('strings.NewReader', undefined);
@@ -1341,8 +1077,6 @@ export let github_com_go_json_experiment_json_jsontext_EndObject: github_com_go_
   new github_com_go_json_experiment_json_jsontext_Token();
 export let github_com_go_json_experiment_json_jsontext_Null: github_com_go_json_experiment_json_jsontext_Token =
   new github_com_go_json_experiment_json_jsontext_Token();
-export let golang_org_x_text_language_English: golang_org_x_text_language_Tag = new golang_org_x_text_language_Tag();
-export let golang_org_x_text_language_Und: golang_org_x_text_language_Tag = new golang_org_x_text_language_Tag();
 export class fmt_ScanState extends $b.GoObject {
   Read(a0: number[]): [number, $b.GoObject | undefined] {
     throw $b.unsupported('fmt.ScanState.Read');
@@ -1377,11 +1111,6 @@ export class fmt_State extends $b.GoObject {
     throw $b.unsupported('fmt.State.Write');
   }
 }
-export class io_RuneReader extends $b.GoObject {
-  ReadRune(): [number, number, $b.GoObject | undefined] {
-    throw $b.unsupported('io.RuneReader.ReadRune');
-  }
-}
 export class compress_gzip_Header extends $b.GoObject {
   Comment: string;
   Extra: number[];
@@ -1405,100 +1134,6 @@ export class github_com_go_json_experiment_json_internal_NotForPublicUse extends
     super();
   }
   $clone(): github_com_go_json_experiment_json_internal_NotForPublicUse {
-    return this;
-  }
-}
-export class golang_org_x_text_language_Base extends $b.GoObject {
-  constructor() {
-    super();
-  }
-  ISO3(): string {
-    throw $b.unsupported('golang.org/x/text/language.Base.ISO3');
-  }
-  IsPrivateUse(): boolean {
-    throw $b.unsupported('golang.org/x/text/language.Base.IsPrivateUse');
-  }
-  override String(): string {
-    throw $b.unsupported('golang.org/x/text/language.Base.String');
-  }
-  $clone(): golang_org_x_text_language_Base {
-    return this;
-  }
-}
-export class golang_org_x_text_language_Extension extends $b.GoObject {
-  constructor() {
-    super();
-  }
-  override String(): string {
-    throw $b.unsupported('golang.org/x/text/language.Extension.String');
-  }
-  Tokens(): string[] {
-    throw $b.unsupported('golang.org/x/text/language.Extension.Tokens');
-  }
-  Type(): number {
-    throw $b.unsupported('golang.org/x/text/language.Extension.Type');
-  }
-  $clone(): golang_org_x_text_language_Extension {
-    return this;
-  }
-}
-export class golang_org_x_text_language_Region extends $b.GoObject {
-  constructor() {
-    super();
-  }
-  Canonicalize(): golang_org_x_text_language_Region {
-    throw $b.unsupported('golang.org/x/text/language.Region.Canonicalize');
-  }
-  Contains(a0: golang_org_x_text_language_Region): boolean {
-    throw $b.unsupported('golang.org/x/text/language.Region.Contains');
-  }
-  ISO3(): string {
-    throw $b.unsupported('golang.org/x/text/language.Region.ISO3');
-  }
-  IsCountry(): boolean {
-    throw $b.unsupported('golang.org/x/text/language.Region.IsCountry');
-  }
-  IsGroup(): boolean {
-    throw $b.unsupported('golang.org/x/text/language.Region.IsGroup');
-  }
-  IsPrivateUse(): boolean {
-    throw $b.unsupported('golang.org/x/text/language.Region.IsPrivateUse');
-  }
-  M49(): number {
-    throw $b.unsupported('golang.org/x/text/language.Region.M49');
-  }
-  override String(): string {
-    throw $b.unsupported('golang.org/x/text/language.Region.String');
-  }
-  TLD(): [golang_org_x_text_language_Region, $b.GoObject | undefined] {
-    throw $b.unsupported('golang.org/x/text/language.Region.TLD');
-  }
-  $clone(): golang_org_x_text_language_Region {
-    return this;
-  }
-}
-export class golang_org_x_text_language_Script extends $b.GoObject {
-  constructor() {
-    super();
-  }
-  IsPrivateUse(): boolean {
-    throw $b.unsupported('golang.org/x/text/language.Script.IsPrivateUse');
-  }
-  override String(): string {
-    throw $b.unsupported('golang.org/x/text/language.Script.String');
-  }
-  $clone(): golang_org_x_text_language_Script {
-    return this;
-  }
-}
-export class golang_org_x_text_language_Variant extends $b.GoObject {
-  constructor() {
-    super();
-  }
-  override String(): string {
-    throw $b.unsupported('golang.org/x/text/language.Variant.String');
-  }
-  $clone(): golang_org_x_text_language_Variant {
     return this;
   }
 }

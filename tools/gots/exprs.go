@@ -277,6 +277,12 @@ func (x *fn) methodCallOn(e *ast.SelectorExpr, r string, args []string) string {
 		}
 	}
 	name := x.f.t.methodName(fnc)
+	if x.f.t.nilSafe[fnc.Origin()] && !isIfaceType(sel.Recv()) {
+		if dn, ok := derefNamed(declRecv); ok {
+			recvText := strings.TrimSuffix(r, "!") + path
+			return fmt.Sprintf("%s.%s$nil(%s)", x.f.qualify(dn.Origin().Obj()), name, strings.Join(append([]string{strings.TrimSuffix(recvText, "!")}, args...), ", "))
+		}
+	}
 	if x.f.t.shadowed[fnc.Origin()] && !isIfaceType(sel.Recv()) {
 		if dn, ok := derefNamed(declRecv); ok {
 			name += "$" + x.f.t.typeName(dn.Origin().Obj())
@@ -592,11 +598,41 @@ func (x *fn) nonNegSmallConst(e ast.Expr) bool {
 
 // equal compares a stored tag value with a case expression.
 func (x *fn) equal(tag string, tagType types.Type, e ast.Expr) string {
-	return x.equalText(tag, tagType, x.expr(e), x.info.TypeOf(e), e)
+	return x.equalText(tag, tagType, x.widened(e), x.info.TypeOf(e), e)
 }
 
 func (x *fn) equalExprs(a ast.Expr, at types.Type, b ast.Expr, bt types.Type) string {
-	return x.equalText(x.expr(a), at, x.expr(b), bt, b)
+	// &s1[i] == &s2[j] tests whether two slices share storage.
+	if ua, ok := unparen(a).(*ast.UnaryExpr); ok && ua.Op == token.AND {
+		if ub, ok := unparen(b).(*ast.UnaryExpr); ok && ub.Op == token.AND {
+			ia, okA := unparen(ua.X).(*ast.IndexExpr)
+			ib, okB := unparen(ub.X).(*ast.IndexExpr)
+			if okA && okB {
+				return "(" + x.expr(ia.X) + " === " + x.expr(ib.X) + " && " + x.expr(ia.Index) + " === " + x.expr(ib.Index) + ")"
+			}
+		}
+	}
+	return x.equalText(x.widened(a), at, x.widened(b), bt, b)
+}
+
+// widened renders a constant operand of a comparison with its general type,
+// so TypeScript's literal narrowing (which method calls don't reset) does
+// not reject comparisons that are valid in Go.
+func (x *fn) widened(e ast.Expr) string {
+	s := x.expr(e)
+	tv := x.info.Types[e]
+	if tv.Value == nil {
+		return s
+	}
+	if b, ok := under(tv.Type).(*types.Basic); ok {
+		switch basicKind(b) {
+		case "number":
+			return "(" + s + " as number)"
+		case "string":
+			return "(" + s + " as string)"
+		}
+	}
+	return s
 }
 
 func (x *fn) equalText(l string, lt types.Type, r string, rt types.Type, re ast.Expr) string {
@@ -628,6 +664,14 @@ func (x *fn) equalText(l string, lt types.Type, r string, rt types.Type, re ast.
 		return "$rt.ifaceEq(" + x.box(l, lt) + ", " + r + ")"
 	}
 	if isStructType(lt) {
+		if n, ok := types.Unalias(lt).(*types.Named); ok {
+			if c := x.f.t.classOf(n.Origin().Obj()); c != nil {
+				return l + ".$equals_" + x.f.t.typeName(c.name) + "(" + r + ")"
+			}
+			if !x.f.t.translated(n.Obj().Pkg()) && stdEquals[n.Obj().Pkg().Path()+"."+n.Obj().Name()] {
+				return l + ".$equals(" + r + ")"
+			}
+		}
 		return "$rt.structEq(" + l + ", " + r + ")"
 	}
 	if _, ok := under(lt).(*types.Array); ok {
@@ -685,7 +729,7 @@ func (x *fn) checked(v string, tt types.Type, te ast.Expr) string {
 		}
 	}
 	if c := x.castClass(tt); c != "" {
-		return c + ".$cast(" + v + ")"
+		return c + "(" + v + ")"
 	}
 	return fmt.Sprintf("(%s ? %s : $rt.typeAssertFail<%s>())", test, x.unbox(v, tt), x.f.tsType(tt))
 }

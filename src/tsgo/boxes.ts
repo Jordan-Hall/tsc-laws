@@ -2,6 +2,28 @@
 import * as $rt from '../go/runtime.js';
 import type * as $ast from './ast.js';
 import type * as $diagnostics from './diagnostics.js';
+export class Box__ast_Expression extends $rt.GoObject {
+  v: $ast.Node | undefined;
+  constructor(v: $ast.Node | undefined) {
+    super();
+    this.v = v;
+  }
+  static $cast(v: $rt.GoObject | undefined): Box__ast_Expression {
+    if (v instanceof Box__ast_Expression) return v;
+    throw $rt.typeAssertError();
+  }
+}
+export class Box____ast_Expression extends $rt.GoObject {
+  v: ($ast.Node | undefined)[];
+  constructor(v: ($ast.Node | undefined)[]) {
+    super();
+    this.v = v;
+  }
+  static $cast(v: $rt.GoObject | undefined): Box____ast_Expression {
+    if (v instanceof Box____ast_Expression) return v;
+    throw $rt.typeAssertError();
+  }
+}
 export class Box_____int32 extends $rt.GoObject {
   v: number[][];
   constructor(v: number[][]) {

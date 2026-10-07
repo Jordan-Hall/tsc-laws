@@ -181,6 +181,20 @@ func (f *file) methodDecl(fd *ast.FuncDecl) string {
 		x.body(fd.Body, fd.Type)
 	})
 	name := f.t.methodName(obj)
+	if f.t.nilSafe[obj] {
+		cls := f.declName(n.Origin().Obj())
+		var args []string
+		for _, p := range params {
+			args = append(args, strings.SplitN(p, ":", 2)[0])
+		}
+		recvName := "$recv"
+		if r := sig.Recv(); r.Name() != "" && r.Name() != "_" {
+			recvName = x.name(r)
+		}
+		staticBody := strings.Replace(b.String(), "    const "+recvName+" = this;\n", "", 1)
+		sp := append([]string{recvName + ": " + cls + " | undefined"}, params...)
+		return fmt.Sprintf("  static %s$nil(%s): %s {\n%s  }\n  %s(%s): %s { return %s.%s$nil(%s); }\n", name, strings.Join(sp, ", "), f.results(sig), staticBody, name, strings.Join(params, ", "), f.results(sig), cls, name, strings.Join(append([]string{"this"}, args...), ", "))
+	}
 	if f.t.shadowed[obj] {
 		static := name + "$" + f.t.typeName(n.Origin().Obj())
 		var args []string
@@ -1048,7 +1062,7 @@ func (x *fn) switchStmt(s *ast.SwitchStmt, label string) {
 				x.line("default: {")
 			} else {
 				for i, e := range cc.List {
-					v := x.expr(e)
+					v := x.widened(e)
 					if i == len(cc.List)-1 {
 						x.line("case %s: {", v)
 					} else {
@@ -1410,19 +1424,19 @@ func (x *fn) castClass(tt types.Type) string {
 	if it, ok := n.Underlying().(*types.Interface); ok {
 		if m := x.f.t.ifaces[tn]; m != nil && m.base != nil && it.NumMethods() > 0 && x.f.dependsOn(m.base.Pkg()) {
 			if bn, ok := m.base.Type().(*types.Named); ok && bn.TypeParams().Len() == 0 {
-				return x.f.qualify(m.base)
+				return x.f.qualify(m.base) + ".$cast_" + x.f.t.typeName(m.base)
 			}
 		}
 		return ""
 	}
 	if !isStructType(n) {
 		if x.f.boxedBy(tn) {
-			return x.f.boxRef(tn)
+			return x.f.boxRef(tn) + ".$cast"
 		}
 		return ""
 	}
 	if c := x.f.t.classOf(tn); c != nil && n.Origin().TypeParams().Len() == 0 {
-		return x.f.qualify(c.name)
+		return x.f.qualify(c.name) + ".$cast_" + x.f.t.typeName(c.name)
 	}
 	return ""
 }
@@ -1431,9 +1445,9 @@ func (x *fn) castClass(tt types.Type) string {
 func (x *fn) unbox(v string, tt types.Type) string {
 	if c := x.castClass(tt); c != "" {
 		if !isIfaceType(tt) && !isStructType(tt) {
-			return c + ".$cast(" + v + ").v"
+			return c + "(" + v + ").v"
 		}
-		return c + ".$cast(" + v + ")"
+		return c + "(" + v + ")"
 	}
 	if isIfaceType(tt) {
 		if t := x.f.tsType(tt); t != "$rt.GoObject | undefined" {

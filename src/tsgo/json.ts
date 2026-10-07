@@ -25,7 +25,7 @@ export function Marshal(
 ): [number[], $rt.GoObject | undefined] {
   let out_: number[] = [];
   let err: $rt.GoObject | undefined = undefined;
-  if (opts.length === 0) {
+  if (opts.length === (0 as number)) {
     opts = allowInvalid;
   } else {
     opts = $rt.appendCopy(allowInvalid, opts);
@@ -38,7 +38,7 @@ export function MarshalEncode(
   opts: ($rt.github_com_go_json_experiment_json_internal_jsonopts_Options | undefined)[],
 ): $rt.GoObject | undefined {
   let err: $rt.GoObject | undefined = undefined;
-  if (opts.length === 0) {
+  if (opts.length === (0 as number)) {
     opts = allowInvalid;
   } else {
     opts = $rt.appendCopy(allowInvalid, opts);
@@ -51,7 +51,7 @@ export function MarshalWrite(
   opts: ($rt.github_com_go_json_experiment_json_internal_jsonopts_Options | undefined)[],
 ): $rt.GoObject | undefined {
   let err: $rt.GoObject | undefined = undefined;
-  if (opts.length === 0) {
+  if (opts.length === (0 as number)) {
     opts = allowInvalid;
   } else {
     opts = $rt.appendCopy(allowInvalid, opts);
@@ -65,7 +65,7 @@ export function MarshalIndent(
 ): [number[], $rt.GoObject | undefined] {
   let out_: number[] = [];
   let err: $rt.GoObject | undefined = undefined;
-  if (prefix === '' && indent === '') {
+  if (prefix === ('' as string) && indent === ('' as string)) {
     return Marshal(in_, [] as ($rt.github_com_go_json_experiment_json_internal_jsonopts_Options | undefined)[]);
   }
   return Marshal(in_, [
@@ -80,7 +80,7 @@ export function MarshalIndentWrite(
   indent: string,
 ): $rt.GoObject | undefined {
   let err: $rt.GoObject | undefined = undefined;
-  if (prefix === '' && indent === '') {
+  if (prefix === ('' as string) && indent === ('' as string)) {
     return MarshalWrite(
       out_,
       in_,
