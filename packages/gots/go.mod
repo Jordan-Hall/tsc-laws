@@ -1,4 +1,4 @@
-module tsts/gots
+module tsc-ts/gots
 
 go 1.26
 

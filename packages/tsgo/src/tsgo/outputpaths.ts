@@ -4,9 +4,9 @@ import * as $rt from '../go/runtime.js';
 import * as $ast from './ast.js';
 import * as $core from './core.js';
 import * as $tspath from './tspath.js';
+import type * as $checkhost from './checkhost.js';
 import type * as $tsoptions from './tsoptions.js';
-import type * as $tststest from './tststest.js';
-export type OutputPathsHost = $tsoptions.ParsedCommandLine | $tststest.Program | undefined;
+export type OutputPathsHost = $tsoptions.ParsedCommandLine | $checkhost.Program | undefined;
 export class ForceEmitPaths extends $rt.GoObject {
   Dts: boolean = false;
   Js: boolean = false;

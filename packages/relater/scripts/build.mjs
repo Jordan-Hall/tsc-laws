@@ -9,7 +9,7 @@ if (version.status !== 0 || version.stdout.trim() !== '0.2.5') {
   throw new Error('This port requires scriptc v0.2.5. Run npm install.');
 }
 mkdirSync('dist', { recursive: true });
-const result = spawnSync(compiler, ['build', 'src/cli.ts', '--optimization=release', '--strip', '-o', 'dist/tsts'], {
+const result = spawnSync(compiler, ['build', 'src/cli.ts', '--optimization=release', '--strip', '-o', 'dist/relater'], {
   stdio: 'inherit',
 });
 process.exitCode = result.status ?? 1;

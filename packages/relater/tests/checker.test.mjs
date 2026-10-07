@@ -34,8 +34,8 @@ for (const [path, sources, command] of [
   if (build.arch !== process.arch) throw new Error('Test executable architecture does not match this host');
 }
 
-const temp = mkdtempSync(join(tmpdir(), 'tsts-tests-'));
-const native = resolve('dist/tsts');
+const temp = mkdtempSync(join(tmpdir(), 'tsc-ts-tests-'));
+const native = resolve('dist/relater');
 const oracle = resolve('dist/tsgo-oracle');
 let serial = 0;
 let differentialQueries = 0;
@@ -55,14 +55,14 @@ export function runCase(source, queries, options = {}) {
     { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 },
   );
   assert.equal(result.status, 0, result.stderr);
-  const tsts = JSON.parse(result.stdout);
+  const relater = JSON.parse(result.stdout);
   const mismatches = [];
   for (let i = 0; i < queries.length; i++) {
-    if (tsts.results[i] !== go.graph.queries[i].expected)
-      mismatches.push({ ...queries[i], expected: go.graph.queries[i].expected, actual: tsts.results[i] });
+    if (relater.results[i] !== go.graph.queries[i].expected)
+      mismatches.push({ ...queries[i], expected: go.graph.queries[i].expected, actual: relater.results[i] });
   }
   assert.deepEqual(mismatches, []);
-  assert.equal(tsts.checksum, go.benchmark.checksum);
+  assert.equal(relater.checksum, go.benchmark.checksum);
   differentialQueries += queries.length;
   return go.graph;
 }
@@ -1181,7 +1181,7 @@ test('conditional branches distribute and instantiate inside native signatures a
     'WrongUnion',
   ];
   const graph = runCase(source, matrix(names));
-  assert.equal(graph.schema, 'tsts.type-graph.v11');
+  assert.equal(graph.schema, 'relater.type-graph.v11');
   const root = graph.types.find((t) => t.conditionalCheck >= 0 && t.conditionalDistributive);
   assert.ok(root && root.conditionalTrue >= 0 && root.conditionalFalse >= 0);
   runCase(source, matrix(names).reverse(), { rounds: 3, cold: true });
@@ -1617,7 +1617,7 @@ test('conditional infer constraints and identity preserve intrinsic mapping kind
 });
 test('string mapping schema v11 validates kinds and targets and rejects stale v10 graphs', () => {
   const graph = runCase('type A = Uppercase<string>; type B = "ABC";', matrix(['A', 'B']));
-  assert.equal(graph.schema, 'tsts.type-graph.v11');
+  assert.equal(graph.schema, 'relater.type-graph.v11');
   const type = graph.types.find((t) => t.stringMapping > 0);
   assert.equal(type.stringMapping, 1);
   assert.ok(type.indexObject >= 0);
@@ -1638,11 +1638,11 @@ test('string mapping schema v11 validates kinds and targets and rejects stale v1
     assert.match(result.stderr, /Invalid string mapping metadata|Invalid referenced type ID/);
   }
   Object.assign(type, original);
-  graph.schema = 'tsts.type-graph.v10';
+  graph.schema = 'relater.type-graph.v10';
   writeFileSync(graphPath, JSON.stringify(graph));
   const stale = spawnSync(native, [graphPath], { encoding: 'utf8' });
   assert.equal(stale.status, 1);
-  assert.match(stale.stderr, /Expected tsts.type-graph.v11/);
+  assert.match(stale.stderr, /Expected relater.type-graph.v11/);
 });
 test('template construction and contextual inference agree with tsgo', () => {
   const queries = matrix(templateSignatureNames);
@@ -2007,7 +2007,7 @@ test('template text spans and placeholder IDs validate schema v9', () => {
   const graph = runCase('type Pattern = `pre_${number}_end`; type Value = "pre_42_end";', [
     { source: 'Value', target: 'Pattern' },
   ]);
-  assert.equal(graph.schema, 'tsts.type-graph.v11');
+  assert.equal(graph.schema, 'relater.type-graph.v11');
   const type = graph.types.find((t) => t.templateTexts.length > 0);
   assert.deepEqual(type.templateTexts, ['cHJlXw==', 'X2VuZA==']);
   assert.equal(type.types.length, 1);
@@ -2026,11 +2026,11 @@ test('template text spans and placeholder IDs validate schema v9', () => {
     assert.match(result.stderr, diagnostic);
   }
   Object.assign(type, original);
-  graph.schema = 'tsts.type-graph.v8';
+  graph.schema = 'relater.type-graph.v8';
   writeFileSync(graphPath, JSON.stringify(graph));
   const stale = spawnSync(native, [graphPath], { encoding: 'utf8' });
   assert.equal(stale.status, 1);
-  assert.match(stale.stderr, /Expected tsts.type-graph.v11/);
+  assert.match(stale.stderr, /Expected relater.type-graph.v11/);
 });
 test('template construction rejects the 100000-member cross-product boundary', () => {
   const left = Array.from({ length: 316 }, (_, i) => JSON.stringify('a' + i)).join(' | ');
@@ -2182,7 +2182,7 @@ test('pattern index schema v10 validates keys, values, and readonly flags', () =
     'type A = { readonly [K: `pre_${string}`]: number; readonly [K: number]: string }; type B = { pre_x: number };',
     [{ source: 'B', target: 'A' }],
   );
-  assert.equal(graph.schema, 'tsts.type-graph.v11');
+  assert.equal(graph.schema, 'relater.type-graph.v11');
   const type = graph.types.find((t) => t.patternIndexes.length > 0);
   assert.equal(type.patternIndexes.length, 1);
   assert.equal(type.patternIndexes[0].readonly, true);
@@ -2207,11 +2207,11 @@ test('pattern index schema v10 validates keys, values, and readonly flags', () =
     assert.match(result.stderr, diagnostic);
   }
   Object.assign(type, original);
-  graph.schema = 'tsts.type-graph.v9';
+  graph.schema = 'relater.type-graph.v9';
   writeFileSync(graphPath, JSON.stringify(graph));
   const stale = spawnSync(native, [graphPath], { encoding: 'utf8' });
   assert.equal(stale.status, 1);
-  assert.match(stale.stderr, /Expected tsts.type-graph.v11/);
+  assert.match(stale.stderr, /Expected relater.type-graph.v11/);
 });
 test('native pattern intersections and unions preserve shared keys and value domains', () => {
   const source = `
@@ -2312,7 +2312,7 @@ test('invalid query IDs and options fail with diagnostics', () => {
   writeFileSync(
     graphPath,
     JSON.stringify({
-      schema: 'tsts.type-graph.v11',
+      schema: 'relater.type-graph.v11',
       revision: '',
       strictNullChecks: true,
       strictFunctionTypes: true,
@@ -2637,7 +2637,7 @@ test('tuple shapes and effective rest templates validate the graph boundary', ()
     { source: 'VariadicId', target: 'FixedPair' },
     { source: 'VariadicId', target: 'FixedWrong' },
   ]);
-  assert.equal(graph.schema, 'tsts.type-graph.v11');
+  assert.equal(graph.schema, 'relater.type-graph.v11');
   const tuples = graph.types.filter((type) => (type.objectFlags & 8) !== 0);
   assert.ok(tuples.some((type) => type.tupleFlags.some((flag) => (flag & 8) !== 0)));
   for (const type of tuples) {
@@ -2654,11 +2654,11 @@ test('tuple shapes and effective rest templates validate the graph boundary', ()
   assert.equal(invalid.status, 1);
   assert.match(invalid.stderr, /effectiveRest.*undefined/);
   signature.effectiveRest = effectiveRest;
-  graph.schema = 'tsts.type-graph.v5';
+  graph.schema = 'relater.type-graph.v5';
   writeFileSync(graphPath, JSON.stringify(graph));
   const old = spawnSync(native, [graphPath], { encoding: 'utf8' });
   assert.equal(old.status, 1);
-  assert.match(old.stderr, /Expected tsts.type-graph.v11/);
+  assert.match(old.stderr, /Expected relater.type-graph.v11/);
 });
 
 test('NoInfer blocks contextual candidates while preserving assignability and defaults', () => {
@@ -3021,7 +3021,7 @@ test('conditional alias metadata exports and validates conditional alias and nes
   `,
     [{ source: 'ChoiceOp', target: 'Plain' }],
   );
-  assert.equal(graph.schema, 'tsts.type-graph.v11');
+  assert.equal(graph.schema, 'relater.type-graph.v11');
   const root = graph.types.find((t) => t.conditionalAlias && t.conditionalNestedFalse);
   assert.ok(root);
   const graphPath = join(temp, 'conditional-tail-schema.json');
@@ -3031,11 +3031,11 @@ test('conditional alias metadata exports and validates conditional alias and nes
   assert.equal(invalid.status, 1);
   assert.match(invalid.stderr, /conditionalAlias.*undefined/);
   root.conditionalAlias = true;
-  graph.schema = 'tsts.type-graph.v6';
+  graph.schema = 'relater.type-graph.v6';
   writeFileSync(graphPath, JSON.stringify(graph));
   const old = spawnSync(native, [graphPath], { encoding: 'utf8' });
   assert.equal(old.status, 1);
-  assert.match(old.stderr, /Expected tsts.type-graph.v11/);
+  assert.match(old.stderr, /Expected relater.type-graph.v11/);
 });
 
 test('numeric, string, heterogeneous, computed, ambient, and const enum relations agree with tsgo', () => {
@@ -3179,7 +3179,7 @@ test('version 8 retains enum declaration identities, member values, and reverse 
     { source: 'NumericA', target: 'OtherA' },
     { source: 'Namespace', target: 'Plain' },
   ]);
-  assert.equal(graph.schema, 'tsts.type-graph.v11');
+  assert.equal(graph.schema, 'relater.type-graph.v11');
   const member = graph.types[graph.queries[0].source];
   assert.ok(member.enumOrigin >= 0);
   const declaration = graph.types[member.enumOrigin];

@@ -3,6 +3,7 @@ import * as $rt from '../go/runtime.js';
 import * as $ast from './ast.js';
 import * as $binder from './binder.js';
 import * as $checker from './checker.js';
+import * as $checkhost from './checkhost.js';
 import * as $collections from './collections.js';
 import * as $contentmapper from './contentmapper.js';
 import * as $core from './core.js';
@@ -28,7 +29,6 @@ import * as $symlinks from './symlinks.js';
 import * as $tracing from './tracing.js';
 import * as $tsoptions from './tsoptions.js';
 import * as $tspath from './tspath.js';
-import * as $tststest from './tststest.js';
 import * as $vfs from './vfs.js';
 import * as $vfs_vfsmatch from './vfs_vfsmatch.js';
 // keepAll constructs every class so scriptc lowers each before its uses.
@@ -445,12 +445,6 @@ export function keepAll(): $rt.GoObject[] {
     new $checker.SymbolNodeLinks() as $rt.GoObject,
     new $checker.SymbolReferenceLinks() as $rt.GoObject,
     new $checker.SymbolTrackerImpl() as $rt.GoObject,
-    new $checker.TSTSEnumMember() as $rt.GoObject,
-    new $checker.TSTSProperty() as $rt.GoObject,
-    new $checker.TSTSSignature() as $rt.GoObject,
-    new $checker.TSTSIndexInfo() as $rt.GoObject,
-    new $checker.TSTSType() as $rt.GoObject,
-    new $checker.TSTSExporter() as $rt.GoObject,
     new $checker.TemplateLiteralType() as $rt.GoObject,
     new $checker.TupleElementInfo() as $rt.GoObject,
     new $checker.TupleNormalizer() as $rt.GoObject,
@@ -476,6 +470,7 @@ export function keepAll(): $rt.GoObject[] {
     new $checker.sortedSymbolNamePair() as $rt.GoObject,
     new $checker.tracedTypeAdapter() as $rt.GoObject,
     new $checker.wrappingTracker() as $rt.GoObject,
+    new $checkhost.Program() as $rt.GoObject,
     new $contentmapper.CloseProjectParams() as $rt.GoObject,
     new $contentmapper.Definition() as $rt.GoObject,
     new $contentmapper.Diagnostic() as $rt.GoObject,
@@ -706,7 +701,6 @@ export function keepAll(): $rt.GoObject[] {
     new $tsoptions.typeAcquisitionParser() as $rt.GoObject,
     new $tsoptions.watchOptionsParser() as $rt.GoObject,
     new $tsoptions.wildcardDirectoryMatch() as $rt.GoObject,
-    new $tststest.Program() as $rt.GoObject,
     new $vfs.Entries() as $rt.GoObject,
     new $vfs_vfsmatch.segment() as $rt.GoObject,
     new $vfs_vfsmatch.component() as $rt.GoObject,

@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/microsoft/typescript-go/internal/ast"
-	"github.com/microsoft/typescript-go/internal/tststest"
+	"github.com/microsoft/typescript-go/internal/checkhost"
 )
 
 func main() {
@@ -44,7 +44,7 @@ func main() {
 						fmt.Fprintf(w, "!! panic\n")
 					}
 				}()
-				print(w, tststest.Check("/input.ts", string(input), readLib))
+				print(w, checkhost.Check("/input.ts", string(input), readLib))
 			}()
 		}
 		return
@@ -53,14 +53,14 @@ func main() {
 		start := time.Now()
 		var diags []*ast.Diagnostic
 		for range 5 {
-			diags = tststest.Check("/input.ts", text, readLib)
+			diags = checkhost.Check("/input.ts", text, readLib)
 		}
 		fmt.Printf("diagnostics %d time %.2fms\n", len(diags), float64(time.Since(start).Microseconds())/1000/5)
 		return
 	}
 	w := bufio.NewWriter(os.Stdout)
 	defer w.Flush()
-	print(w, tststest.Check("/input.ts", text, readLib))
+	print(w, checkhost.Check("/input.ts", text, readLib))
 }
 
 func print(w *bufio.Writer, diags []*ast.Diagnostic) {

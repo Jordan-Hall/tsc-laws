@@ -10,7 +10,7 @@ const inputs = [
   'tests/fixtures/tokens.ts',
   'tests/fixtures/syntax-errors.ts',
   'tests/fixtures/bind.ts',
-  ...readdirSync('../tsts/src/checker').map((f) => join('../tsts/src/checker', f)),
+  ...readdirSync('../relater/src/checker').map((f) => join('../relater/src/checker', f)),
   ...readdirSync('src/go').map((f) => join('src/go', f)),
 ];
 
@@ -18,7 +18,7 @@ test(
   'translated binder matches tsgo symbols and diagnostics',
   { skip: !existsSync(oracle) && 'run npm run build:oracle' },
   () => {
-    const out = mkdtempSync(join(tmpdir(), 'tsts-bind-'));
+    const out = mkdtempSync(join(tmpdir(), 'tsc-ts-bind-'));
     execFileSync(
       resolve('../../node_modules/.bin/tsc'),
       [

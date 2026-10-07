@@ -23,7 +23,7 @@ test(
   'translated checker matches tsgo diagnostics',
   { skip: !existsSync(oracle) && 'run npm run build:oracle', timeout: 1_800_000 },
   () => {
-    const out = mkdtempSync(join(tmpdir(), 'tsts-check-'));
+    const out = mkdtempSync(join(tmpdir(), 'tsc-ts-check-'));
     execFileSync(
       resolve('../../node_modules/.bin/tsc'),
       [

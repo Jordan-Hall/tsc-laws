@@ -4,11 +4,11 @@ An experimental TypeScript port of the [TypeScript-Go](https://github.com/micros
 
 ## Packages
 
-| Package                          | Description                                                             |
-| -------------------------------- | ----------------------------------------------------------------------- |
-| [`packages/tsgo`](packages/tsgo) | tsgo's scanner, parser, binder, and checker, translated to TypeScript.  |
-| [`packages/gots`](packages/gots) | Go-to-TypeScript translator that generates `packages/tsgo/src/tsgo`.    |
-| [`packages/tsts`](packages/tsts) | Hand-ported assignability checker over a type graph exported from tsgo. |
+| Package                                | Description                                                             |
+| -------------------------------------- | ----------------------------------------------------------------------- |
+| [`packages/tsgo`](packages/tsgo)       | tsgo's scanner, parser, binder, and checker, translated to TypeScript.  |
+| [`packages/gots`](packages/gots)       | Go-to-TypeScript translator that generates `packages/tsgo/src/tsgo`.    |
+| [`packages/relater`](packages/relater) | Hand-ported assignability checker over a type graph exported from tsgo. |
 
 Tasks run with [Turborepo](https://turborepo.com).
 
@@ -23,7 +23,7 @@ Tasks run with [Turborepo](https://turborepo.com).
 ```sh
 npm ci
 npm run fetch:upstream   # clone tsgo at the pinned commit
-npm run build            # packages/tsts/dist/tsts
+npm run build            # packages/relater/dist/relater
 npm run build:oracle     # tsgo reference builds in packages/*/dist
 ```
 
@@ -43,7 +43,7 @@ packages/tsgo/dist/check file.ts upstream/typescript-go/internal/bundled/libs
 
 ## Assignability checker
 
-`tsts` answers assignability queries between type aliases. An input file has TypeScript declarations and queries:
+`relater` answers assignability queries between type aliases. An input file has TypeScript declarations and queries:
 
 ```json
 {
@@ -59,16 +59,16 @@ packages/tsgo/dist/check file.ts upstream/typescript-go/internal/bundled/libs
 Export a type graph, then check it:
 
 ```sh
-cd packages/tsts
+cd packages/relater
 npm run export:graph -- examples/relations.json dist/relations.graph.json
-./dist/tsts dist/relations.graph.json
+./dist/relater dist/relations.graph.json
 # [true, false, true]
 ```
 
 Run the queries repeatedly to measure throughput:
 
 ```sh
-./dist/tsts dist/relations.graph.json --rounds 10000 --cold
+./dist/relater dist/relations.graph.json --rounds 10000 --cold
 ```
 
 `--cold` clears relation caches between rounds.
@@ -85,7 +85,7 @@ Set options at the top level of the input file.
 
 ### Examples
 
-Each file in [`packages/tsts/examples`](packages/tsts/examples) covers one area of the checker:
+Each file in [`packages/relater/examples`](packages/relater/examples) covers one area of the checker:
 
 | Example                  | Covers                                                 |
 | ------------------------ | ------------------------------------------------------ |
@@ -104,7 +104,7 @@ Each file in [`packages/tsts/examples`](packages/tsts/examples) covers one area 
 
 ### Benchmarks
 
-Median of five runs on an Apple M1 Max, measuring assignability checks only (no parsing, binding, or startup). Values are tsts time divided by tsgo time; below 1× means tsts is faster. Raw data: [`packages/tsts/benchmarks/latest.json`](packages/tsts/benchmarks/latest.json).
+Median of five runs on an Apple M1 Max, measuring assignability checks only (no parsing, binding, or startup). Values are relater time divided by tsgo time; below 1× means relater is faster. Raw data: [`packages/relater/benchmarks/latest.json`](packages/relater/benchmarks/latest.json).
 
 | Workload          | Warm cache | Cold cache |
 | ----------------- | ---------: | ---------: |
@@ -130,8 +130,8 @@ These are synthetic, single-threaded benchmarks. They don't predict whole-compil
 ```sh
 npm test                     # compare both checkers with tsgo
 npm run test:corpus          # compare the translated checker with tsgo on TypeScript's test cases
-npm run coverage -w tsts     # check that all statements compile statically
-npm run bench -w tsts        # time tsts against tsgo
+npm run coverage -w @tsc-ts/relater     # check that all statements compile statically
+npm run bench -w @tsc-ts/relater        # time relater against tsgo
 npm run lint                 # oxlint
 npm run format               # oxfmt
 ```
@@ -139,7 +139,7 @@ npm run format               # oxfmt
 ## Limitations
 
 - `check` checks one file at a time against the bundled libs. Module resolution, multi-file programs, and emit are not supported.
-- `tsts` has no expression checking or control flow analysis, and fails comparisons that need protected-member rules as unsupported.
+- `relater` has no expression checking or control flow analysis, and fails comparisons that need protected-member rules as unsupported.
 
 ## License
 

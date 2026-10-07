@@ -7,16 +7,17 @@ function run(): void {
   const args = process.argv.slice(2);
   if (args.length === 0 || args[0] === '--help') {
     console.log(
-      'tsts — experimental tsgo assignability port, compiled statically with scriptc v0.2.5\nUsage: tsts graph.json [--rounds N] [--cold]\nInput: tsts.type-graph.v11 resolved type arena.',
+      'relater — experimental tsgo assignability port, compiled statically with scriptc v0.2.5\nUsage: relater graph.json [--rounds N] [--cold]\nInput: relater.type-graph.v11 resolved type arena.',
     );
     return;
   }
   if (args[0] === '--version') {
-    console.log('tsts 0.0.0 (scriptc 0.2.5)');
+    console.log('relater 0.0.0 (scriptc 0.2.5)');
     return;
   }
   const graph = JSON.parse(readFileSync(args[0], 'utf8')) as Graph;
-  if (graph.schema !== 'tsts.type-graph.v11') throw new Error('Expected tsts.type-graph.v11; re-export older graphs');
+  if (graph.schema !== 'relater.type-graph.v11')
+    throw new Error('Expected relater.type-graph.v11; re-export older graphs');
   let rounds = 1;
   let cold = false;
   for (let i = 1; i < args.length; i++) {

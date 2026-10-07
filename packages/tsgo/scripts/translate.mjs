@@ -1,17 +1,19 @@
 // Regenerates src/tsgo and src/go/runtime.ts from the pinned TypeScript-Go checkout.
-import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { resolve } from 'node:path';
 import { patches } from './scriptc-patches.mjs';
 
-const packages = ['parser', 'binder', 'checker', 'tststest'];
+const packages = ['parser', 'binder', 'checker', 'checkhost'];
 const run = (cmd, args, cwd) => {
   const result = spawnSync(cmd, args, { cwd, stdio: 'inherit' });
   if (result.status !== 0) process.exit(result.status ?? 1);
 };
+// build:oracle copies the relater bridge into the checkout; keep it out of the translation.
+rmSync('../../upstream/typescript-go/internal/checker/relater_oracle.go', { force: true });
 // The test host lives in this repository and is translated with the checker.
-mkdirSync('../../upstream/typescript-go/internal/tststest', { recursive: true });
-copyFileSync('checkhost/checkhost.go', '../../upstream/typescript-go/internal/tststest/checkhost.go');
+mkdirSync('../../upstream/typescript-go/internal/checkhost', { recursive: true });
+copyFileSync('checkhost/checkhost.go', '../../upstream/typescript-go/internal/checkhost/checkhost.go');
 run(
   'go',
   [

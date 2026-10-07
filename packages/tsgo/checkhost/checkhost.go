@@ -1,7 +1,7 @@
-// Package tststest is a minimal checker.Program for checking one file
+// Package checkhost is a minimal checker.Program for checking one file
 // against the bundled lib files. It is translated with the checker so the Go
 // reference and the TypeScript port use the same host.
-package tststest
+package checkhost
 
 import (
 	"context"

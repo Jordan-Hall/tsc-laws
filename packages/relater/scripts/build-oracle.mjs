@@ -6,11 +6,11 @@ const root = resolve('../../upstream/typescript-go');
 const expected = JSON.parse(readFileSync('../../upstream.json', 'utf8')).commit;
 const revision = spawnSync('git', ['-C', root, 'rev-parse', 'HEAD'], { encoding: 'utf8' });
 if (revision.stdout.trim() !== expected) throw new Error('Upstream revision does not match upstream.json');
-mkdirSync(root + '/cmd/tsts-oracle', { recursive: true });
+mkdirSync(root + '/cmd/relater-oracle', { recursive: true });
 mkdirSync('dist', { recursive: true });
-copyFileSync('oracle/bridge.go', root + '/internal/checker/tsts_oracle.go');
-copyFileSync('oracle/main.go', root + '/cmd/tsts-oracle/main.go');
-const result = spawnSync('go', ['build', '-o', resolve('dist/tsgo-oracle'), './cmd/tsts-oracle'], {
+copyFileSync('oracle/bridge.go', root + '/internal/checker/relater_oracle.go');
+copyFileSync('oracle/main.go', root + '/cmd/relater-oracle/main.go');
+const result = spawnSync('go', ['build', '-o', resolve('dist/tsgo-oracle'), './cmd/relater-oracle'], {
   cwd: root,
   stdio: 'inherit',
   env: { ...process.env, GOARCH: process.arch === 'arm64' ? 'arm64' : 'amd64' },

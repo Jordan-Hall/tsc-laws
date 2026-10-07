@@ -16,40 +16,40 @@
       "rounds": 2000,
       "checks": 648000,
       "tsgoMs": 17.798583,
-      "tstsMs": 14.888999998569489,
-      "tstsOverTsgo": 0.8365272672869233,
+      "relaterMs": 14.888999998569489,
+      "relaterOverTsgo": 0.8365272672869233,
       "samples": [
         {
           "tsgoMs": 17.398667,
-          "tstsMs": 14.40599999576807,
+          "relaterMs": 14.40599999576807,
           "checks": 648000,
           "checksum": 74000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 17.798583,
-          "tstsMs": 14.898000001907349,
+          "relaterMs": 14.898000001907349,
           "checks": 648000,
           "checksum": 74000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 17.372833,
-          "tstsMs": 15.118000000715256,
+          "relaterMs": 15.118000000715256,
           "checks": 648000,
           "checksum": 74000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 17.937875,
-          "tstsMs": 14.888999998569489,
+          "relaterMs": 14.888999998569489,
           "checks": 648000,
           "checksum": 74000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 18.169334,
-          "tstsMs": 14.52699999511242,
+          "relaterMs": 14.52699999511242,
           "checks": 648000,
           "checksum": 74000,
           "goVersion": "go1.26.0"
@@ -62,40 +62,40 @@
       "rounds": 2000,
       "checks": 648000,
       "tsgoMs": 754.722125,
-      "tstsMs": 1062.0260000005364,
-      "tstsOverTsgo": 1.407174859224561,
+      "relaterMs": 1062.0260000005364,
+      "relaterOverTsgo": 1.407174859224561,
       "samples": [
         {
           "tsgoMs": 785.18175,
-          "tstsMs": 1066.682999998331,
+          "relaterMs": 1066.682999998331,
           "checks": 648000,
           "checksum": 74000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 744.9783749999999,
-          "tstsMs": 1075.555999994278,
+          "relaterMs": 1075.555999994278,
           "checks": 648000,
           "checksum": 74000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 756.6642909999999,
-          "tstsMs": 1054.262000001967,
+          "relaterMs": 1054.262000001967,
           "checks": 648000,
           "checksum": 74000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 754.722125,
-          "tstsMs": 1050.5600000023842,
+          "relaterMs": 1050.5600000023842,
           "checks": 648000,
           "checksum": 74000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 743.21875,
-          "tstsMs": 1062.0260000005364,
+          "relaterMs": 1062.0260000005364,
           "checks": 648000,
           "checksum": 74000,
           "goVersion": "go1.26.0"
@@ -108,40 +108,40 @@
       "rounds": 2000,
       "checks": 1568000,
       "tsgoMs": 60.818749999999994,
-      "tstsMs": 38.44299999624491,
-      "tstsOverTsgo": 0.6320912546911094,
+      "relaterMs": 38.44299999624491,
+      "relaterOverTsgo": 0.6320912546911094,
       "samples": [
         {
           "tsgoMs": 60.400917,
-          "tstsMs": 38.667000003159046,
+          "relaterMs": 38.667000003159046,
           "checks": 1568000,
           "checksum": 878000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 59.912124999999996,
-          "tstsMs": 38.03900000452995,
+          "relaterMs": 38.03900000452995,
           "checks": 1568000,
           "checksum": 878000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 61.203708000000006,
-          "tstsMs": 38.226000003516674,
+          "relaterMs": 38.226000003516674,
           "checks": 1568000,
           "checksum": 878000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 60.818749999999994,
-          "tstsMs": 38.68900000303984,
+          "relaterMs": 38.68900000303984,
           "checks": 1568000,
           "checksum": 878000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 61.47425,
-          "tstsMs": 38.44299999624491,
+          "relaterMs": 38.44299999624491,
           "checks": 1568000,
           "checksum": 878000,
           "goVersion": "go1.26.0"
@@ -154,40 +154,40 @@
       "rounds": 2000,
       "checks": 1568000,
       "tsgoMs": 444.896833,
-      "tstsMs": 631.2990000024438,
-      "tstsOverTsgo": 1.4189784084222594,
+      "relaterMs": 631.2990000024438,
+      "relaterOverTsgo": 1.4189784084222594,
       "samples": [
         {
           "tsgoMs": 449.086625,
-          "tstsMs": 633.7800000011921,
+          "relaterMs": 633.7800000011921,
           "checks": 1568000,
           "checksum": 878000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 441.714,
-          "tstsMs": 625.7000000029802,
+          "relaterMs": 625.7000000029802,
           "checks": 1568000,
           "checksum": 878000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 444.896833,
-          "tstsMs": 634.8069999963045,
+          "relaterMs": 634.8069999963045,
           "checks": 1568000,
           "checksum": 878000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 439.80512500000003,
-          "tstsMs": 622.319000005722,
+          "relaterMs": 622.319000005722,
           "checks": 1568000,
           "checksum": 878000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 446.25874999999996,
-          "tstsMs": 631.2990000024438,
+          "relaterMs": 631.2990000024438,
           "checks": 1568000,
           "checksum": 878000,
           "goVersion": "go1.26.0"
@@ -200,40 +200,40 @@
       "rounds": 2000,
       "checks": 722000,
       "tsgoMs": 20.109458,
-      "tstsMs": 19.26799999922514,
-      "tstsOverTsgo": 0.9581561074010617,
+      "relaterMs": 19.26799999922514,
+      "relaterOverTsgo": 0.9581561074010617,
       "samples": [
         {
           "tsgoMs": 20.109458,
-          "tstsMs": 19.10700000077486,
+          "relaterMs": 19.10700000077486,
           "checks": 722000,
           "checksum": 110000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 19.942,
-          "tstsMs": 19.155000001192093,
+          "relaterMs": 19.155000001192093,
           "checks": 722000,
           "checksum": 110000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 20.626665999999997,
-          "tstsMs": 19.836999997496605,
+          "relaterMs": 19.836999997496605,
           "checks": 722000,
           "checksum": 110000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 19.815083,
-          "tstsMs": 19.425999999046326,
+          "relaterMs": 19.425999999046326,
           "checks": 722000,
           "checksum": 110000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 20.281750000000002,
-          "tstsMs": 19.26799999922514,
+          "relaterMs": 19.26799999922514,
           "checks": 722000,
           "checksum": 110000,
           "goVersion": "go1.26.0"
@@ -246,40 +246,40 @@
       "rounds": 2000,
       "checks": 722000,
       "tsgoMs": 622.053292,
-      "tstsMs": 1135.3650000020862,
-      "tstsOverTsgo": 1.825189279766863,
+      "relaterMs": 1135.3650000020862,
+      "relaterOverTsgo": 1.825189279766863,
       "samples": [
         {
           "tsgoMs": 634.3944580000001,
-          "tstsMs": 1171.7450000047684,
+          "relaterMs": 1171.7450000047684,
           "checks": 722000,
           "checksum": 110000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 630.342792,
-          "tstsMs": 1150.2140000015497,
+          "relaterMs": 1150.2140000015497,
           "checks": 722000,
           "checksum": 110000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 622.053292,
-          "tstsMs": 1129.4830000028014,
+          "relaterMs": 1129.4830000028014,
           "checks": 722000,
           "checksum": 110000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 613.731291,
-          "tstsMs": 1129.0219999998808,
+          "relaterMs": 1129.0219999998808,
           "checks": 722000,
           "checksum": 110000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 613.641542,
-          "tstsMs": 1135.3650000020862,
+          "relaterMs": 1135.3650000020862,
           "checks": 722000,
           "checksum": 110000,
           "goVersion": "go1.26.0"
@@ -292,40 +292,40 @@
       "rounds": 2000,
       "checks": 2048000,
       "tsgoMs": 113.014375,
-      "tstsMs": 56.97599999606609,
-      "tstsOverTsgo": 0.5041482554415408,
+      "relaterMs": 56.97599999606609,
+      "relaterOverTsgo": 0.5041482554415408,
       "samples": [
         {
           "tsgoMs": 111.751083,
-          "tstsMs": 57.04800000041723,
+          "relaterMs": 57.04800000041723,
           "checks": 2048000,
           "checksum": 500000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 115.874583,
-          "tstsMs": 58.717000000178814,
+          "relaterMs": 58.717000000178814,
           "checks": 2048000,
           "checksum": 500000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 114.63179199999999,
-          "tstsMs": 56.95499999821186,
+          "relaterMs": 56.95499999821186,
           "checks": 2048000,
           "checksum": 500000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 113.014375,
-          "tstsMs": 56.97599999606609,
+          "relaterMs": 56.97599999606609,
           "checks": 2048000,
           "checksum": 500000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 111.00758300000001,
-          "tstsMs": 56.748000003397465,
+          "relaterMs": 56.748000003397465,
           "checks": 2048000,
           "checksum": 500000,
           "goVersion": "go1.26.0"
@@ -338,40 +338,40 @@
       "rounds": 2000,
       "checks": 2048000,
       "tsgoMs": 139.406375,
-      "tstsMs": 295.9130000025034,
-      "tstsOverTsgo": 2.1226647633761613,
+      "relaterMs": 295.9130000025034,
+      "relaterOverTsgo": 2.1226647633761613,
       "samples": [
         {
           "tsgoMs": 137.90191700000003,
-          "tstsMs": 300.8589999973774,
+          "relaterMs": 300.8589999973774,
           "checks": 2048000,
           "checksum": 500000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 139.724166,
-          "tstsMs": 298.29199999570847,
+          "relaterMs": 298.29199999570847,
           "checks": 2048000,
           "checksum": 500000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 139.406375,
-          "tstsMs": 295.48299999535084,
+          "relaterMs": 295.48299999535084,
           "checks": 2048000,
           "checksum": 500000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 138.10270799999998,
-          "tstsMs": 295.9130000025034,
+          "relaterMs": 295.9130000025034,
           "checks": 2048000,
           "checksum": 500000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 143.428,
-          "tstsMs": 295.2939999997616,
+          "relaterMs": 295.2939999997616,
           "checks": 2048000,
           "checksum": 500000,
           "goVersion": "go1.26.0"
@@ -384,40 +384,40 @@
       "rounds": 2000,
       "checks": 648000,
       "tsgoMs": 17.5475,
-      "tstsMs": 13.35700000077486,
-      "tstsOverTsgo": 0.7611910529006902,
+      "relaterMs": 13.35700000077486,
+      "relaterOverTsgo": 0.7611910529006902,
       "samples": [
         {
           "tsgoMs": 17.5475,
-          "tstsMs": 13.435000002384186,
+          "relaterMs": 13.435000002384186,
           "checks": 648000,
           "checksum": 138000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 17.325875,
-          "tstsMs": 13.34800000488758,
+          "relaterMs": 13.34800000488758,
           "checks": 648000,
           "checksum": 138000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 17.53575,
-          "tstsMs": 13.197999998927116,
+          "relaterMs": 13.197999998927116,
           "checks": 648000,
           "checksum": 138000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 17.889167,
-          "tstsMs": 13.359000004827976,
+          "relaterMs": 13.359000004827976,
           "checks": 648000,
           "checksum": 138000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 17.779166999999998,
-          "tstsMs": 13.35700000077486,
+          "relaterMs": 13.35700000077486,
           "checks": 648000,
           "checksum": 138000,
           "goVersion": "go1.26.0"
@@ -430,40 +430,40 @@
       "rounds": 2000,
       "checks": 648000,
       "tsgoMs": 308.808417,
-      "tstsMs": 524.5230000019073,
-      "tstsOverTsgo": 1.6985385472893613,
+      "relaterMs": 524.5230000019073,
+      "relaterOverTsgo": 1.6985385472893613,
       "samples": [
         {
           "tsgoMs": 308.808417,
-          "tstsMs": 524.5230000019073,
+          "relaterMs": 524.5230000019073,
           "checks": 648000,
           "checksum": 138000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 307.883083,
-          "tstsMs": 530.2430000007153,
+          "relaterMs": 530.2430000007153,
           "checks": 648000,
           "checksum": 138000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 312.810333,
-          "tstsMs": 522.2900000065565,
+          "relaterMs": 522.2900000065565,
           "checks": 648000,
           "checksum": 138000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 313.67908300000005,
-          "tstsMs": 534.5930000022054,
+          "relaterMs": 534.5930000022054,
           "checks": 648000,
           "checksum": 138000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 307.796792,
-          "tstsMs": 523.3430000022054,
+          "relaterMs": 523.3430000022054,
           "checks": 648000,
           "checksum": 138000,
           "goVersion": "go1.26.0"
@@ -476,40 +476,40 @@
       "rounds": 2000,
       "checks": 648000,
       "tsgoMs": 17.450666000000002,
-      "tstsMs": 16.135999999940395,
-      "tstsOverTsgo": 0.9246638495023854,
+      "relaterMs": 16.135999999940395,
+      "relaterOverTsgo": 0.9246638495023854,
       "samples": [
         {
           "tsgoMs": 17.450666000000002,
-          "tstsMs": 15.840000003576279,
+          "relaterMs": 15.840000003576279,
           "checks": 648000,
           "checksum": 70000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 17.3855,
-          "tstsMs": 16.25899999588728,
+          "relaterMs": 16.25899999588728,
           "checks": 648000,
           "checksum": 70000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 17.309792,
-          "tstsMs": 16.135999999940395,
+          "relaterMs": 16.135999999940395,
           "checks": 648000,
           "checksum": 70000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 17.780917,
-          "tstsMs": 16.38899999856949,
+          "relaterMs": 16.38899999856949,
           "checks": 648000,
           "checksum": 70000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 17.464834,
-          "tstsMs": 15.979999996721745,
+          "relaterMs": 15.979999996721745,
           "checks": 648000,
           "checksum": 70000,
           "goVersion": "go1.26.0"
@@ -522,40 +522,40 @@
       "rounds": 2000,
       "checks": 648000,
       "tsgoMs": 989.468167,
-      "tstsMs": 1095.0130000039935,
-      "tstsOverTsgo": 1.1066682451482985,
+      "relaterMs": 1095.0130000039935,
+      "relaterOverTsgo": 1.1066682451482985,
       "samples": [
         {
           "tsgoMs": 989.6052910000001,
-          "tstsMs": 1094.3830000013113,
+          "relaterMs": 1094.3830000013113,
           "checks": 648000,
           "checksum": 70000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 989.468167,
-          "tstsMs": 1101.6270000040531,
+          "relaterMs": 1101.6270000040531,
           "checks": 648000,
           "checksum": 70000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 977.5929580000001,
-          "tstsMs": 1095.0130000039935,
+          "relaterMs": 1095.0130000039935,
           "checks": 648000,
           "checksum": 70000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 981.7492920000001,
-          "tstsMs": 1093.667999997735,
+          "relaterMs": 1093.667999997735,
           "checks": 648000,
           "checksum": 70000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 993.320625,
-          "tstsMs": 1152.2400000020862,
+          "relaterMs": 1152.2400000020862,
           "checks": 648000,
           "checksum": 70000,
           "goVersion": "go1.26.0"
@@ -568,40 +568,40 @@
       "rounds": 10000,
       "checks": 5290000,
       "tsgoMs": 196.940167,
-      "tstsMs": 79.1330000013113,
-      "tstsOverTsgo": 0.4018123941232938,
+      "relaterMs": 79.1330000013113,
+      "relaterOverTsgo": 0.4018123941232938,
       "samples": [
         {
           "tsgoMs": 200.398792,
-          "tstsMs": 81.0789999961853,
+          "relaterMs": 81.0789999961853,
           "checks": 5290000,
           "checksum": 1600000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 199.47324999999998,
-          "tstsMs": 79.14199999719858,
+          "relaterMs": 79.14199999719858,
           "checks": 5290000,
           "checksum": 1600000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 196.124167,
-          "tstsMs": 79.1330000013113,
+          "relaterMs": 79.1330000013113,
           "checks": 5290000,
           "checksum": 1600000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 196.940167,
-          "tstsMs": 79.05699999630451,
+          "relaterMs": 79.05699999630451,
           "checks": 5290000,
           "checksum": 1600000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 196.70533400000002,
-          "tstsMs": 79.11500000208616,
+          "relaterMs": 79.11500000208616,
           "checks": 5290000,
           "checksum": 1600000,
           "goVersion": "go1.26.0"
@@ -614,40 +614,40 @@
       "rounds": 10000,
       "checks": 5290000,
       "tsgoMs": 239.91475,
-      "tstsMs": 300.2230000048876,
-      "tstsOverTsgo": 1.251373665040968,
+      "relaterMs": 300.2230000048876,
+      "relaterOverTsgo": 1.251373665040968,
       "samples": [
         {
           "tsgoMs": 242.337042,
-          "tstsMs": 300.1979999989271,
+          "relaterMs": 300.1979999989271,
           "checks": 5290000,
           "checksum": 1600000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 239.91475,
-          "tstsMs": 299.0329999998212,
+          "relaterMs": 299.0329999998212,
           "checks": 5290000,
           "checksum": 1600000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 239.421,
-          "tstsMs": 300.2230000048876,
+          "relaterMs": 300.2230000048876,
           "checks": 5290000,
           "checksum": 1600000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 240.473792,
-          "tstsMs": 302.46899999678135,
+          "relaterMs": 302.46899999678135,
           "checks": 5290000,
           "checksum": 1600000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 239.282084,
-          "tstsMs": 300.7879999950528,
+          "relaterMs": 300.7879999950528,
           "checks": 5290000,
           "checksum": 1600000,
           "goVersion": "go1.26.0"
@@ -660,40 +660,40 @@
       "rounds": 2000,
       "checks": 968000,
       "tsgoMs": 55.289958,
-      "tstsMs": 23.751000002026558,
-      "tstsOverTsgo": 0.42957167741068925,
+      "relaterMs": 23.751000002026558,
+      "relaterOverTsgo": 0.42957167741068925,
       "samples": [
         {
           "tsgoMs": 55.548458000000004,
-          "tstsMs": 23.79900000244379,
+          "relaterMs": 23.79900000244379,
           "checks": 968000,
           "checksum": 224000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 55.098208,
-          "tstsMs": 23.61999999731779,
+          "relaterMs": 23.61999999731779,
           "checks": 968000,
           "checksum": 224000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 55.111292,
-          "tstsMs": 23.751000002026558,
+          "relaterMs": 23.751000002026558,
           "checks": 968000,
           "checksum": 224000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 56.056583,
-          "tstsMs": 23.509999997913837,
+          "relaterMs": 23.509999997913837,
           "checks": 968000,
           "checksum": 224000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 55.289958,
-          "tstsMs": 23.810999996960163,
+          "relaterMs": 23.810999996960163,
           "checks": 968000,
           "checksum": 224000,
           "goVersion": "go1.26.0"
@@ -706,40 +706,40 @@
       "rounds": 2000,
       "checks": 968000,
       "tsgoMs": 292.139792,
-      "tstsMs": 213.14099999517202,
-      "tstsOverTsgo": 0.7295856498561895,
+      "relaterMs": 213.14099999517202,
+      "relaterOverTsgo": 0.7295856498561895,
       "samples": [
         {
           "tsgoMs": 292.022792,
-          "tstsMs": 213.0190000012517,
+          "relaterMs": 213.0190000012517,
           "checks": 968000,
           "checksum": 224000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 292.139792,
-          "tstsMs": 214.14199999719858,
+          "relaterMs": 214.14199999719858,
           "checks": 968000,
           "checksum": 224000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 291.522792,
-          "tstsMs": 211.63400000333786,
+          "relaterMs": 211.63400000333786,
           "checks": 968000,
           "checksum": 224000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 292.540417,
-          "tstsMs": 213.34399999678135,
+          "relaterMs": 213.34399999678135,
           "checks": 968000,
           "checksum": 224000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 293.34779100000003,
-          "tstsMs": 213.14099999517202,
+          "relaterMs": 213.14099999517202,
           "checks": 968000,
           "checksum": 224000,
           "goVersion": "go1.26.0"
@@ -752,40 +752,40 @@
       "rounds": 20000,
       "checks": 2000000,
       "tsgoMs": 53.432458000000004,
-      "tstsMs": 34.01899999380112,
-      "tstsOverTsgo": 0.636672937520507,
+      "relaterMs": 34.01899999380112,
+      "relaterOverTsgo": 0.636672937520507,
       "samples": [
         {
           "tsgoMs": 58.339166999999996,
-          "tstsMs": 34.046999998390675,
+          "relaterMs": 34.046999998390675,
           "checks": 2000000,
           "checksum": 480000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 53.297458,
-          "tstsMs": 33.80699999630451,
+          "relaterMs": 33.80699999630451,
           "checks": 2000000,
           "checksum": 480000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 54.270041,
-          "tstsMs": 33.909000001847744,
+          "relaterMs": 33.909000001847744,
           "checks": 2000000,
           "checksum": 480000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 53.337666,
-          "tstsMs": 34.23300000280142,
+          "relaterMs": 34.23300000280142,
           "checks": 2000000,
           "checksum": 480000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 53.432458000000004,
-          "tstsMs": 34.01899999380112,
+          "relaterMs": 34.01899999380112,
           "checks": 2000000,
           "checksum": 480000,
           "goVersion": "go1.26.0"
@@ -798,40 +798,40 @@
       "rounds": 20000,
       "checks": 2000000,
       "tsgoMs": 591.846709,
-      "tstsMs": 529.5460000038147,
-      "tstsOverTsgo": 0.8947350588441215,
+      "relaterMs": 529.5460000038147,
+      "relaterOverTsgo": 0.8947350588441215,
       "samples": [
         {
           "tsgoMs": 590.644791,
-          "tstsMs": 547.5649999976158,
+          "relaterMs": 547.5649999976158,
           "checks": 2000000,
           "checksum": 480000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 591.846709,
-          "tstsMs": 529.3720000013709,
+          "relaterMs": 529.3720000013709,
           "checks": 2000000,
           "checksum": 480000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 594.673625,
-          "tstsMs": 532.6709999963641,
+          "relaterMs": 532.6709999963641,
           "checks": 2000000,
           "checksum": 480000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 590.036875,
-          "tstsMs": 529.5460000038147,
+          "relaterMs": 529.5460000038147,
           "checks": 2000000,
           "checksum": 480000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 600.7885,
-          "tstsMs": 529.3819999992847,
+          "relaterMs": 529.3819999992847,
           "checks": 2000000,
           "checksum": 480000,
           "goVersion": "go1.26.0"
@@ -844,40 +844,40 @@
       "rounds": 2000,
       "checks": 200000,
       "tsgoMs": 5.133,
-      "tstsMs": 3.626000002026558,
-      "tstsOverTsgo": 0.706409507505661,
+      "relaterMs": 3.626000002026558,
+      "relaterOverTsgo": 0.706409507505661,
       "samples": [
         {
           "tsgoMs": 5.095542,
-          "tstsMs": 3.652999997138977,
+          "relaterMs": 3.652999997138977,
           "checks": 200000,
           "checksum": 42000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 5.133,
-          "tstsMs": 3.586999997496605,
+          "relaterMs": 3.586999997496605,
           "checks": 200000,
           "checksum": 42000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 5.165958,
-          "tstsMs": 3.677999995648861,
+          "relaterMs": 3.677999995648861,
           "checks": 200000,
           "checksum": 42000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 5.5963330000000004,
-          "tstsMs": 3.626000002026558,
+          "relaterMs": 3.626000002026558,
           "checks": 200000,
           "checksum": 42000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 5.096042000000001,
-          "tstsMs": 3.5839999988675117,
+          "relaterMs": 3.5839999988675117,
           "checks": 200000,
           "checksum": 42000,
           "goVersion": "go1.26.0"
@@ -890,40 +890,40 @@
       "rounds": 2000,
       "checks": 200000,
       "tsgoMs": 136.06125,
-      "tstsMs": 212.22100000083447,
-      "tstsOverTsgo": 1.5597460702502326,
+      "relaterMs": 212.22100000083447,
+      "relaterOverTsgo": 1.5597460702502326,
       "samples": [
         {
           "tsgoMs": 136.04829199999998,
-          "tstsMs": 211.9160000011325,
+          "relaterMs": 211.9160000011325,
           "checks": 200000,
           "checksum": 42000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 136.668958,
-          "tstsMs": 216.59699999541044,
+          "relaterMs": 216.59699999541044,
           "checks": 200000,
           "checksum": 42000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 140.403458,
-          "tstsMs": 213.14800000190735,
+          "relaterMs": 213.14800000190735,
           "checks": 200000,
           "checksum": 42000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 135.71745800000002,
-          "tstsMs": 212.22100000083447,
+          "relaterMs": 212.22100000083447,
           "checks": 200000,
           "checksum": 42000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 136.06125,
-          "tstsMs": 211.56899999827147,
+          "relaterMs": 211.56899999827147,
           "checks": 200000,
           "checksum": 42000,
           "goVersion": "go1.26.0"
@@ -936,40 +936,40 @@
       "rounds": 2000,
       "checks": 200000,
       "tsgoMs": 23.463207999999998,
-      "tstsMs": 3.3969999998807907,
-      "tstsOverTsgo": 0.1447798612994775,
+      "relaterMs": 3.3969999998807907,
+      "relaterOverTsgo": 0.1447798612994775,
       "samples": [
         {
           "tsgoMs": 22.460708999999998,
-          "tstsMs": 3.3610000014305115,
+          "relaterMs": 3.3610000014305115,
           "checks": 200000,
           "checksum": 68000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 23.513958000000002,
-          "tstsMs": 3.3969999998807907,
+          "relaterMs": 3.3969999998807907,
           "checks": 200000,
           "checksum": 68000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 23.463207999999998,
-          "tstsMs": 3.4509999975562096,
+          "relaterMs": 3.4509999975562096,
           "checks": 200000,
           "checksum": 68000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 23.500166999999998,
-          "tstsMs": 3.3610000014305115,
+          "relaterMs": 3.3610000014305115,
           "checks": 200000,
           "checksum": 68000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 23.331334,
-          "tstsMs": 3.4020000025629997,
+          "relaterMs": 3.4020000025629997,
           "checks": 200000,
           "checksum": 68000,
           "goVersion": "go1.26.0"
@@ -982,40 +982,40 @@
       "rounds": 2000,
       "checks": 200000,
       "tsgoMs": 90.761375,
-      "tstsMs": 62.21400000154972,
-      "tstsOverTsgo": 0.6854677995077721,
+      "relaterMs": 62.21400000154972,
+      "relaterOverTsgo": 0.6854677995077721,
       "samples": [
         {
           "tsgoMs": 90.461625,
-          "tstsMs": 62.21400000154972,
+          "relaterMs": 62.21400000154972,
           "checks": 200000,
           "checksum": 68000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 91.2675,
-          "tstsMs": 62.38100000470877,
+          "relaterMs": 62.38100000470877,
           "checks": 200000,
           "checksum": 68000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 90.761375,
-          "tstsMs": 61.7580000013113,
+          "relaterMs": 61.7580000013113,
           "checks": 200000,
           "checksum": 68000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 90.208709,
-          "tstsMs": 62.278999999165535,
+          "relaterMs": 62.278999999165535,
           "checks": 200000,
           "checksum": 68000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 90.88475,
-          "tstsMs": 61.927000001072884,
+          "relaterMs": 61.927000001072884,
           "checks": 200000,
           "checksum": 68000,
           "goVersion": "go1.26.0"
@@ -1028,40 +1028,40 @@
       "rounds": 2000,
       "checks": 288000,
       "tsgoMs": 21.272083000000002,
-      "tstsMs": 5.2120000049471855,
-      "tstsOverTsgo": 0.24501596787428787,
+      "relaterMs": 5.2120000049471855,
+      "relaterOverTsgo": 0.24501596787428787,
       "samples": [
         {
           "tsgoMs": 21.645958999999998,
-          "tstsMs": 5.178999997675419,
+          "relaterMs": 5.178999997675419,
           "checks": 288000,
           "checksum": 52000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 19.624875,
-          "tstsMs": 5.2120000049471855,
+          "relaterMs": 5.2120000049471855,
           "checks": 288000,
           "checksum": 52000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 21.272083000000002,
-          "tstsMs": 5.184999994933605,
+          "relaterMs": 5.184999994933605,
           "checks": 288000,
           "checksum": 52000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 20.161792000000002,
-          "tstsMs": 5.248999997973442,
+          "relaterMs": 5.248999997973442,
           "checks": 288000,
           "checksum": 52000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 21.783667,
-          "tstsMs": 5.391999997198582,
+          "relaterMs": 5.391999997198582,
           "checks": 288000,
           "checksum": 52000,
           "goVersion": "go1.26.0"
@@ -1074,40 +1074,40 @@
       "rounds": 2000,
       "checks": 288000,
       "tsgoMs": 140.71445799999998,
-      "tstsMs": 224.99099999666214,
-      "tstsOverTsgo": 1.5989188544979662,
+      "relaterMs": 224.99099999666214,
+      "relaterOverTsgo": 1.5989188544979662,
       "samples": [
         {
           "tsgoMs": 143.602375,
-          "tstsMs": 224.99099999666214,
+          "relaterMs": 224.99099999666214,
           "checks": 288000,
           "checksum": 52000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 140.641375,
-          "tstsMs": 225.53400000184774,
+          "relaterMs": 225.53400000184774,
           "checks": 288000,
           "checksum": 52000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 140.71445799999998,
-          "tstsMs": 227.2799999937415,
+          "relaterMs": 227.2799999937415,
           "checks": 288000,
           "checksum": 52000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 138.882125,
-          "tstsMs": 223.91499999910593,
+          "relaterMs": 223.91499999910593,
           "checks": 288000,
           "checksum": 52000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 149.43308299999998,
-          "tstsMs": 223.722999997437,
+          "relaterMs": 223.722999997437,
           "checks": 288000,
           "checksum": 52000,
           "goVersion": "go1.26.0"
@@ -1120,40 +1120,40 @@
       "rounds": 2000,
       "checks": 242000,
       "tsgoMs": 11.7305,
-      "tstsMs": 4.620000004768372,
-      "tstsOverTsgo": 0.3938451050482394,
+      "relaterMs": 4.620000004768372,
+      "relaterOverTsgo": 0.3938451050482394,
       "samples": [
         {
           "tsgoMs": 11.863917,
-          "tstsMs": 4.627999998629093,
+          "relaterMs": 4.627999998629093,
           "checks": 242000,
           "checksum": 50000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 11.770917,
-          "tstsMs": 4.557000003755093,
+          "relaterMs": 4.557000003755093,
           "checks": 242000,
           "checksum": 50000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 11.5995,
-          "tstsMs": 4.620000004768372,
+          "relaterMs": 4.620000004768372,
           "checks": 242000,
           "checksum": 50000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 11.7305,
-          "tstsMs": 4.641999997198582,
+          "relaterMs": 4.641999997198582,
           "checks": 242000,
           "checksum": 50000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 11.698542,
-          "tstsMs": 4.6110000014305115,
+          "relaterMs": 4.6110000014305115,
           "checks": 242000,
           "checksum": 50000,
           "goVersion": "go1.26.0"
@@ -1166,40 +1166,40 @@
       "rounds": 2000,
       "checks": 242000,
       "tsgoMs": 218.090542,
-      "tstsMs": 373.67800000309944,
-      "tstsOverTsgo": 1.7134076360042219,
+      "relaterMs": 373.67800000309944,
+      "relaterOverTsgo": 1.7134076360042219,
       "samples": [
         {
           "tsgoMs": 218.090542,
-          "tstsMs": 367.9949999973178,
+          "relaterMs": 367.9949999973178,
           "checks": 242000,
           "checksum": 50000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 217.676625,
-          "tstsMs": 369.9219999983907,
+          "relaterMs": 369.9219999983907,
           "checks": 242000,
           "checksum": 50000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 217.960958,
-          "tstsMs": 373.67800000309944,
+          "relaterMs": 373.67800000309944,
           "checks": 242000,
           "checksum": 50000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 221.685416,
-          "tstsMs": 377.97400000691414,
+          "relaterMs": 377.97400000691414,
           "checks": 242000,
           "checksum": 50000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 220.82666700000001,
-          "tstsMs": 376.527000002563,
+          "relaterMs": 376.527000002563,
           "checks": 242000,
           "checksum": 50000,
           "goVersion": "go1.26.0"
@@ -1212,40 +1212,40 @@
       "rounds": 2000,
       "checks": 288000,
       "tsgoMs": 14.299249999999999,
-      "tstsMs": 5.346999995410442,
-      "tstsOverTsgo": 0.37393569560714324,
+      "relaterMs": 5.346999995410442,
+      "relaterOverTsgo": 0.37393569560714324,
       "samples": [
         {
           "tsgoMs": 14.152790999999999,
-          "tstsMs": 5.351999998092651,
+          "relaterMs": 5.351999998092651,
           "checks": 288000,
           "checksum": 54000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 14.375125,
-          "tstsMs": 5.346999995410442,
+          "relaterMs": 5.346999995410442,
           "checks": 288000,
           "checksum": 54000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 14.554375,
-          "tstsMs": 5.3269999995827675,
+          "relaterMs": 5.3269999995827675,
           "checks": 288000,
           "checksum": 54000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 14.116042,
-          "tstsMs": 5.346000000834465,
+          "relaterMs": 5.346000000834465,
           "checks": 288000,
           "checksum": 54000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 14.299249999999999,
-          "tstsMs": 5.3610000014305115,
+          "relaterMs": 5.3610000014305115,
           "checks": 288000,
           "checksum": 54000,
           "goVersion": "go1.26.0"
@@ -1258,40 +1258,40 @@
       "rounds": 2000,
       "checks": 288000,
       "tsgoMs": 186.952667,
-      "tstsMs": 315.8119999989867,
-      "tstsOverTsgo": 1.6892618065672567,
+      "relaterMs": 315.8119999989867,
+      "relaterOverTsgo": 1.6892618065672567,
       "samples": [
         {
           "tsgoMs": 187.27491700000002,
-          "tstsMs": 315.9070000052452,
+          "relaterMs": 315.9070000052452,
           "checks": 288000,
           "checksum": 54000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 188.33741700000002,
-          "tstsMs": 313.8159999996424,
+          "relaterMs": 313.8159999996424,
           "checks": 288000,
           "checksum": 54000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 185.014667,
-          "tstsMs": 315.8119999989867,
+          "relaterMs": 315.8119999989867,
           "checks": 288000,
           "checksum": 54000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 186.099709,
-          "tstsMs": 313.7690000012517,
+          "relaterMs": 313.7690000012517,
           "checks": 288000,
           "checksum": 54000,
           "goVersion": "go1.26.0"
         },
         {
           "tsgoMs": 186.952667,
-          "tstsMs": 317.13499999791384,
+          "relaterMs": 317.13499999791384,
           "checks": 288000,
           "checksum": 54000,
           "goVersion": "go1.26.0"

@@ -104,7 +104,7 @@ func (f *file) localBoxes() string {
 }
 
 func (t *translator) syntheticFile(module string) *file {
-	p := &pkg{p: &packages.Package{Types: types.NewPackage("tsts/"+module, module)}, module: module}
+	p := &pkg{p: &packages.Package{Types: types.NewPackage("tsc-ts/"+module, module)}, module: module}
 	return &file{t: t, p: p, imports: map[string]bool{}, typeOnly: map[string]bool{}, lits: map[*types.TypeName]map[string][]int{}}
 }
 

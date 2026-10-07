@@ -35,13 +35,13 @@ type graphQuery struct {
 	Label    string `json:"label"`
 }
 type graph struct {
-	Schema                     string              `json:"schema"`
-	Revision                   string              `json:"revision"`
-	StrictNullChecks           bool                `json:"strictNullChecks"`
-	StrictFunctionTypes        bool                `json:"strictFunctionTypes"`
-	ExactOptionalPropertyTypes bool                `json:"exactOptionalPropertyTypes"`
-	Types                      []*checker.TSTSType `json:"types"`
-	Queries                    []graphQuery        `json:"queries"`
+	Schema                     string                 `json:"schema"`
+	Revision                   string                 `json:"revision"`
+	StrictNullChecks           bool                   `json:"strictNullChecks"`
+	StrictFunctionTypes        bool                   `json:"strictFunctionTypes"`
+	ExactOptionalPropertyTypes bool                   `json:"exactOptionalPropertyTypes"`
+	Types                      []*checker.RelaterType `json:"types"`
+	Queries                    []graphQuery           `json:"queries"`
 }
 type benchmark struct {
 	ElapsedMs float64 `json:"elapsedMs"`
@@ -97,8 +97,8 @@ func main() {
 			}
 		}
 	}
-	exporter := checker.TSTSNewExporter(c)
-	g := graph{Schema: "tsts.type-graph.v11", Revision: "89d5d5b2849a0db0957065889ca58536fa6d2e4a", StrictNullChecks: nullChecks, StrictFunctionTypes: functionTypes, ExactOptionalPropertyTypes: in.ExactOptionalPropertyTypes, Queries: []graphQuery{}}
+	exporter := checker.RelaterNewExporter(c)
+	g := graph{Schema: "relater.type-graph.v11", Revision: "89d5d5b2849a0db0957065889ca58536fa6d2e4a", StrictNullChecks: nullChecks, StrictFunctionTypes: functionTypes, ExactOptionalPropertyTypes: in.ExactOptionalPropertyTypes, Queries: []graphQuery{}}
 	sources := make([]*checker.Type, len(in.Queries))
 	targets := make([]*checker.Type, len(in.Queries))
 	for i, q := range in.Queries {
@@ -116,7 +116,7 @@ func main() {
 	if rounds <= 0 {
 		rounds = 1
 	}
-	checker.TSTSResetRelations(c)
+	checker.RelaterResetRelations(c)
 	// One unmeasured warm-up keeps first-time lazy resolution out of both lanes.
 	for i := range sources {
 		c.IsTypeAssignableTo(sources[i], targets[i])
@@ -125,7 +125,7 @@ func main() {
 	start := time.Now()
 	for round := 0; round < rounds; round++ {
 		if in.Cold {
-			checker.TSTSResetRelations(c)
+			checker.RelaterResetRelations(c)
 		}
 		for i := range sources {
 			if c.IsTypeAssignableTo(sources[i], targets[i]) {

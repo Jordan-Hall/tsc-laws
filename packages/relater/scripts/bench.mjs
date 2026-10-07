@@ -24,7 +24,7 @@ import {
 import { checkerSources, oracleSources, sourceIdentity } from './source-identity.mjs';
 
 const oracle = resolve('dist/tsgo-oracle');
-const native = resolve('dist/tsts');
+const native = resolve('dist/relater');
 const nativeBuild = JSON.parse(readFileSync('dist/build.json', 'utf8'));
 const oracleBuild = JSON.parse(readFileSync('dist/oracle-build.json', 'utf8'));
 if (nativeBuild.sourceSha256 !== sourceIdentity(checkerSources))
@@ -158,7 +158,7 @@ for (const workload of cases) {
           throw new Error('Benchmark relation mismatch: ' + go.graph.queries[i].label);
       samples.push({
         tsgoMs: go.benchmark.elapsedMs,
-        tstsMs: ts.elapsedMs,
+        relaterMs: ts.elapsedMs,
         checks: ts.checks,
         checksum: ts.checksum,
         goVersion: go.benchmark.goVersion,
@@ -166,20 +166,20 @@ for (const workload of cases) {
     }
     const median = (values) => [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)];
     const tsgoMs = median(samples.map((s) => s.tsgoMs));
-    const tstsMs = median(samples.map((s) => s.tstsMs));
+    const relaterMs = median(samples.map((s) => s.relaterMs));
     const result = {
       workload: workload.name,
       cold,
       rounds: workload.rounds,
       checks: samples[0].checks,
       tsgoMs,
-      tstsMs,
-      tstsOverTsgo: tstsMs / tsgoMs,
+      relaterMs,
+      relaterOverTsgo: relaterMs / tsgoMs,
       samples,
     };
     results.push(result);
     console.log(
-      `${workload.name} ${cold ? 'cold' : 'warm'}: tsgo ${tsgoMs.toFixed(2)} ms; tsts ${tstsMs.toFixed(2)} ms; tsts/tsgo ${(tstsMs / tsgoMs).toFixed(2)}x`,
+      `${workload.name} ${cold ? 'cold' : 'warm'}: tsgo ${tsgoMs.toFixed(2)} ms; relater ${relaterMs.toFixed(2)} ms; relater/tsgo ${(relaterMs / tsgoMs).toFixed(2)}x`,
     );
   }
 }

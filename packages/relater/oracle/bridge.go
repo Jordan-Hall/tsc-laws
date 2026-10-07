@@ -1,5 +1,5 @@
 // Test-only instrumentation copied into upstream/internal/checker by build-oracle.mjs.
-// The tsts executable never imports or links this Go code.
+// The relater executable never imports or links this Go code.
 package checker
 
 import (
@@ -10,7 +10,7 @@ import (
 	"math"
 )
 
-type TSTSProperty struct {
+type RelaterProperty struct {
 	Name          string `json:"name"`
 	Numeric       bool   `json:"numeric"`
 	NumericName   string `json:"numericName"`
@@ -20,7 +20,7 @@ type TSTSProperty struct {
 	Readonly      bool   `json:"readonly"`
 	PrivateOrigin int    `json:"privateOrigin"`
 }
-type TSTSSignature struct {
+type RelaterSignature struct {
 	ID               int    `json:"id"`
 	TypeParameters   []int  `json:"typeParameters"`
 	TailTypes        []int  `json:"tailTypes"`
@@ -39,17 +39,17 @@ type TSTSSignature struct {
 	PredicateType    int    `json:"predicateType"`
 	Unsupported      string `json:"unsupported"`
 }
-type TSTSEnumMember struct {
+type RelaterEnumMember struct {
 	Name  string `json:"name"`
 	Kind  int    `json:"kind"`
 	Value string `json:"value"`
 }
-type TSTSIndexInfo struct {
-	KeyType int  `json:"keyType"`
-	Type    int  `json:"type"`
+type RelaterIndexInfo struct {
+	KeyType  int  `json:"keyType"`
+	Type     int  `json:"type"`
 	Readonly bool `json:"readonly"`
 }
-type TSTSType struct {
+type RelaterType struct {
 	Flags                   TypeFlags           `json:"flags"`
 	SymbolFlags             ast.SymbolFlags     `json:"symbolFlags"`
 	ObjectFlags             ObjectFlags         `json:"objectFlags"`
@@ -73,15 +73,15 @@ type TSTSType struct {
 	StringMapping           int                 `json:"stringMapping"`
 	TupleIndex              float64             `json:"tupleIndex"`
 	Types                   []int               `json:"types"`
-	Properties              []TSTSProperty      `json:"properties"`
-	FallbackProperties      []TSTSProperty      `json:"fallbackProperties"`
-	Calls                   []TSTSSignature     `json:"calls"`
-	Constructs              []TSTSSignature     `json:"constructs"`
+	Properties              []RelaterProperty   `json:"properties"`
+	FallbackProperties      []RelaterProperty   `json:"fallbackProperties"`
+	Calls                   []RelaterSignature  `json:"calls"`
+	Constructs              []RelaterSignature  `json:"constructs"`
 	StringIndex             int                 `json:"stringIndex"`
 	NumberIndex             int                 `json:"numberIndex"`
 	SymbolIndex             int                 `json:"symbolIndex"`
 	IndexReadonly           int                 `json:"indexReadonly"`
-	PatternIndexes          []TSTSIndexInfo      `json:"patternIndexes"`
+	PatternIndexes          []RelaterIndexInfo  `json:"patternIndexes"`
 	ArrayElement            int                 `json:"arrayElement"`
 	TupleElements           []int               `json:"tupleElements"`
 	TupleFlags              []ElementFlags      `json:"tupleFlags"`
@@ -113,41 +113,41 @@ type TSTSType struct {
 	EnumName                string              `json:"enumName"`
 	EnumMemberName          string              `json:"enumMemberName"`
 	EnumRegular             bool                `json:"enumRegular"`
-	EnumMembers             []TSTSEnumMember    `json:"enumMembers"`
+	EnumMembers             []RelaterEnumMember `json:"enumMembers"`
 	EnumNumberIndex         bool                `json:"enumNumberIndex"`
 }
 
-type TSTSExporter struct {
+type RelaterExporter struct {
 	Checker      *Checker
-	Types        []*TSTSType
+	Types        []*RelaterType
 	ids          map[*Type]int
 	privateIDs   map[*ast.Node]int
 	signatureIDs map[*Signature]int
 }
 
-func TSTSNewExporter(c *Checker) *TSTSExporter {
-	return &TSTSExporter{Checker: c, Types: []*TSTSType{}, ids: make(map[*Type]int), privateIDs: make(map[*ast.Node]int), signatureIDs: make(map[*Signature]int)}
+func RelaterNewExporter(c *Checker) *RelaterExporter {
+	return &RelaterExporter{Checker: c, Types: []*RelaterType{}, ids: make(map[*Type]int), privateIDs: make(map[*ast.Node]int), signatureIDs: make(map[*Signature]int)}
 }
-func (e *TSTSExporter) AddRuntimeDeclarations() {
+func (e *RelaterExporter) AddRuntimeDeclarations() {
 	e.Add(e.Checker.globalArrayType)
 	e.Add(e.Checker.globalReadonlyArrayType)
 }
-func (e *TSTSExporter) property(sym *ast.Symbol, privateID int) TSTSProperty {
+func (e *RelaterExporter) property(sym *ast.Symbol, privateID int) RelaterProperty {
 	numeric := isNumericLiteralName(sym.Name)
 	numericName := ""
 	if numeric {
 		numericName = sym.Name
 	}
-	return TSTSProperty{Name: base64.StdEncoding.EncodeToString([]byte(sym.Name)), Numeric: numeric, NumericName: numericName, KeyType: e.Add(e.Checker.getLiteralTypeFromProperty(sym, TypeFlagsStringOrNumberLiteralOrUnique, false)), Type: e.Add(e.Checker.getNonMissingTypeOfSymbol(sym)), Optional: sym.Flags&ast.SymbolFlagsOptional != 0, Readonly: e.Checker.isReadonlySymbol(sym), PrivateOrigin: privateID}
+	return RelaterProperty{Name: base64.StdEncoding.EncodeToString([]byte(sym.Name)), Numeric: numeric, NumericName: numericName, KeyType: e.Add(e.Checker.getLiteralTypeFromProperty(sym, TypeFlagsStringOrNumberLiteralOrUnique, false)), Type: e.Add(e.Checker.getNonMissingTypeOfSymbol(sym)), Optional: sym.Flags&ast.SymbolFlagsOptional != 0, Readonly: e.Checker.isReadonlySymbol(sym), PrivateOrigin: privateID}
 }
-func (e *TSTSExporter) signature(sig *Signature) TSTSSignature {
+func (e *RelaterExporter) signature(sig *Signature) RelaterSignature {
 	c := e.Checker
 	id, ok := e.signatureIDs[sig]
 	if !ok {
 		id = len(e.signatureIDs)
 		e.signatureIDs[sig] = id
 	}
-	result := TSTSSignature{ID: id, TypeParameters: []int{}, TailTypes: []int{}, Parameters: []int{}, MinArgumentCount: c.getMinArgumentCount(sig), RestType: -1, EffectiveRest: e.Add(c.getEffectiveRestType(sig)), ReturnType: e.Add(c.getReturnTypeOfSignature(sig)), ThisType: -1, Generic: len(sig.typeParameters) > 0, PredicateKind: -1, PredicateIndex: -1, PredicateType: -1, NonArrayRest: c.getNonArrayRestType(sig) != nil}
+	result := RelaterSignature{ID: id, TypeParameters: []int{}, TailTypes: []int{}, Parameters: []int{}, MinArgumentCount: c.getMinArgumentCount(sig), RestType: -1, EffectiveRest: e.Add(c.getEffectiveRestType(sig)), ReturnType: e.Add(c.getReturnTypeOfSignature(sig)), ThisType: -1, Generic: len(sig.typeParameters) > 0, PredicateKind: -1, PredicateIndex: -1, PredicateType: -1, NonArrayRest: c.getNonArrayRestType(sig) != nil}
 	for _, t := range sig.typeParameters {
 		result.TypeParameters = append(result.TypeParameters, e.Add(t))
 	}
@@ -166,7 +166,7 @@ func (e *TSTSExporter) signature(sig *Signature) TSTSSignature {
 	}
 	count := c.getParameterCount(sig)
 	// Export the effective rest template only. Fixed-parameter tails are built
-	// by tsts on demand; eagerly exporting them creates an infinite sequence
+	// by relater on demand; eagerly exporting them creates an infinite sequence
 	// of tuple methods whose signatures contain further tuple tails.
 	for i := 0; i < count; i++ {
 		result.TailTypes = append(result.TailTypes, -1)
@@ -182,7 +182,7 @@ func (e *TSTSExporter) signature(sig *Signature) TSTSSignature {
 	return result
 }
 
-func (e *TSTSExporter) objectFallbacks(t *Type, d *TSTSType) {
+func (e *RelaterExporter) objectFallbacks(t *Type, d *RelaterType) {
 	c := e.Checker
 	names := []string{}
 	for _, sym := range c.getPropertiesOfType(c.globalObjectType) {
@@ -207,7 +207,7 @@ func (e *TSTSExporter) objectFallbacks(t *Type, d *TSTSType) {
 		}
 	}
 }
-func (e *TSTSExporter) Add(t *Type) int {
+func (e *RelaterExporter) Add(t *Type) int {
 	if t == nil {
 		return -1
 	}
@@ -219,7 +219,7 @@ func (e *TSTSExporter) Add(t *Type) int {
 	}
 	id := len(e.Types)
 	e.ids[t] = id
-	d := &TSTSType{Flags: t.flags, ObjectFlags: t.objectFlags, Name: e.Checker.TypeToString(t), RegularType: -1, ApparentType: -1, Target: -1, ThisTypeParameter: -1, DefaultType: -1, VarianceAnnotation: -1, IndexObject: -1, IndexKey: -1, TypeParameters: []int{}, TypeArguments: []int{}, Types: []int{}, Properties: []TSTSProperty{}, FallbackProperties: []TSTSProperty{}, Calls: []TSTSSignature{}, Constructs: []TSTSSignature{}, StringIndex: -1, NumberIndex: -1, SymbolIndex: -1, ArrayElement: -1, TupleElements: []int{}, TupleFlags: []ElementFlags{}, Constraint: -1}
+	d := &RelaterType{Flags: t.flags, ObjectFlags: t.objectFlags, Name: e.Checker.TypeToString(t), RegularType: -1, ApparentType: -1, Target: -1, ThisTypeParameter: -1, DefaultType: -1, VarianceAnnotation: -1, IndexObject: -1, IndexKey: -1, TypeParameters: []int{}, TypeArguments: []int{}, Types: []int{}, Properties: []RelaterProperty{}, FallbackProperties: []RelaterProperty{}, Calls: []RelaterSignature{}, Constructs: []RelaterSignature{}, StringIndex: -1, NumberIndex: -1, SymbolIndex: -1, ArrayElement: -1, TupleElements: []int{}, TupleFlags: []ElementFlags{}, Constraint: -1}
 	e.Types = append(e.Types, d)
 	d.TupleIndex = -1
 	d.MappedParameter = -1
@@ -234,9 +234,9 @@ func (e *TSTSExporter) Add(t *Type) int {
 	d.ConditionalFalse = -1
 	d.ConditionalInfer = []int{}
 	d.EnumOrigin = -1
-	d.EnumMembers = []TSTSEnumMember{}
+	d.EnumMembers = []RelaterEnumMember{}
 	d.TemplateTexts = []string{}
-	d.PatternIndexes = []TSTSIndexInfo{}
+	d.PatternIndexes = []RelaterIndexInfo{}
 	c := e.Checker
 	d.Missing = t == c.missingType
 	if isTypeUsableAsPropertyName(t) {
@@ -263,7 +263,7 @@ func (e *TSTSExporter) Add(t *Type) int {
 				if member.Flags&ast.SymbolFlagsEnumMember == 0 {
 					continue
 				}
-				data := TSTSEnumMember{Name: base64.StdEncoding.EncodeToString([]byte(member.Name))}
+				data := RelaterEnumMember{Name: base64.StdEncoding.EncodeToString([]byte(member.Name))}
 				value := c.getEnumMemberValue(ast.GetDeclarationOfKind(member, ast.KindEnumMember)).Value
 				if str, ok := value.(string); ok {
 					data.Kind = 2
@@ -429,7 +429,9 @@ func (e *TSTSExporter) Add(t *Type) int {
 		}
 		if info := c.getIndexInfoOfType(t, c.numberType); info != nil {
 			d.NumberIndex = e.Add(info.valueType)
-			if info.isReadonly { d.IndexReadonly |= 2 }
+			if info.isReadonly {
+				d.IndexReadonly |= 2
+			}
 		}
 		return id
 	}
@@ -444,7 +446,9 @@ func (e *TSTSExporter) Add(t *Type) int {
 				d.ArrayElement = e.Add(c.getTypeArguments(t)[0])
 				d.NumberIndex = d.ArrayElement
 				d.Readonly = c.isReadonlyArrayType(t)
-				if d.Readonly { d.IndexReadonly |= 2 }
+				if d.Readonly {
+					d.IndexReadonly |= 2
+				}
 			}
 			return id
 		}
@@ -457,7 +461,9 @@ func (e *TSTSExporter) Add(t *Type) int {
 		d.ArrayElement = e.Add(c.getTypeArguments(t)[0])
 		d.Readonly = c.isReadonlyArrayType(t)
 		d.NumberIndex = d.ArrayElement
-		if c.isReadonlyArrayType(t) { d.IndexReadonly |= 2 }
+		if c.isReadonlyArrayType(t) {
+			d.IndexReadonly |= 2
+		}
 		// Preserve the declaration's polymorphic this parameter. Apparent
 		// properties substitute it with Array<T>, losing tuple sort's return.
 		declaration := c.getTypeWithThisArgument(t, t.AsInterfaceType().thisType, false)
@@ -492,27 +498,33 @@ func (e *TSTSExporter) Add(t *Type) int {
 	e.objectFallbacks(t, d)
 	for _, info := range c.getIndexInfosOfType(t) {
 		if info.keyType.flags&(TypeFlagsString|TypeFlagsNumber|TypeFlagsESSymbol) == 0 {
-			d.PatternIndexes = append(d.PatternIndexes, TSTSIndexInfo{KeyType: e.Add(info.keyType), Type: e.Add(info.valueType), Readonly: info.isReadonly})
+			d.PatternIndexes = append(d.PatternIndexes, RelaterIndexInfo{KeyType: e.Add(info.keyType), Type: e.Add(info.valueType), Readonly: info.isReadonly})
 		}
 	}
 	if info := c.getIndexInfoOfType(t, c.stringType); info != nil {
 		d.StringIndex = e.Add(info.valueType)
-		if info.isReadonly { d.IndexReadonly |= 1 }
+		if info.isReadonly {
+			d.IndexReadonly |= 1
+		}
 	}
 	if info := c.getIndexInfoOfType(t, c.numberType); info != nil {
 		d.NumberIndex = e.Add(info.valueType)
 		d.EnumNumberIndex = info == c.enumNumberIndexInfo
-		if info.isReadonly { d.IndexReadonly |= 2 }
+		if info.isReadonly {
+			d.IndexReadonly |= 2
+		}
 	}
 	if info := c.getIndexInfoOfType(t, c.esSymbolType); info != nil {
 		d.SymbolIndex = e.Add(info.valueType)
-		if info.isReadonly { d.IndexReadonly |= 4 }
+		if info.isReadonly {
+			d.IndexReadonly |= 4
+		}
 	}
 	return id
 }
 
 // Keep type construction, parsing, and binding out of relation timing.
-func TSTSResetRelations(c *Checker) {
+func RelaterResetRelations(c *Checker) {
 	clear(c.assignableRelation.results)
 	clear(c.identityRelation.results)
 	clear(c.subtypeRelation.results)

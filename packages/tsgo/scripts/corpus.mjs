@@ -15,7 +15,7 @@ const jobsAt = args.indexOf('--jobs');
 const jobs = jobsAt >= 0 ? Number(args[jobsAt + 1]) : Math.max(1, Math.min(8, availableParallelism() >> 1));
 const suites = args.filter((a, i) => !a.startsWith('--') && args[i - 1] !== '--jobs');
 const libs = resolve('../../upstream/typescript-go/internal/bundled/libs');
-const work = mkdtempSync(join(tmpdir(), 'tsts-corpus-'));
+const work = mkdtempSync(join(tmpdir(), 'tsc-ts-corpus-'));
 
 function files(dir) {
   const out = [];

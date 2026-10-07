@@ -3,7 +3,7 @@
 import { readFileSync, writeSync } from 'node:fs';
 import { performance } from 'node:perf_hooks';
 import * as ast from '../tsgo/ast.js';
-import * as tststest from '../tsgo/tststest.js';
+import * as checkhost from '../tsgo/checkhost.js';
 import * as classes from '../tsgo/classes.js';
 import { initDone, keepClasses, fromBytes, toHostString } from '../go/base.js';
 
@@ -45,7 +45,7 @@ if (process.argv[4] === '--batch') {
     }
     const out: string[] = ['== ' + line];
     try {
-      print(out, tststest.Check('/input.ts', input, readLib));
+      print(out, checkhost.Check('/input.ts', input, readLib));
     } catch {
       out.push('!! panic');
     }
@@ -54,11 +54,11 @@ if (process.argv[4] === '--batch') {
 } else if (process.argv[4] === '--bench') {
   const start = performance.now();
   let count = 0;
-  for (let round = 0; round < 5; round++) count = tststest.Check('/input.ts', text, readLib).length;
+  for (let round = 0; round < 5; round++) count = checkhost.Check('/input.ts', text, readLib).length;
   writeSync(1, `diagnostics ${count} time ${((performance.now() - start) / 5).toFixed(2)}ms\n`);
 } else {
   const out: string[] = [];
-  print(out, tststest.Check('/input.ts', text, readLib));
+  print(out, checkhost.Check('/input.ts', text, readLib));
   writeSync(1, out.join('\n') + '\n');
 }
 // Output is written synchronously, so skip freeing the heap at exit.
