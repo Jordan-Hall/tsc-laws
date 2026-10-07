@@ -706,7 +706,7 @@ export class Resolver extends caches {
       let entrypoints: (ResolvedEntrypoint | undefined)[] = state!.loadEntrypointsFromExportMap(
         packageJson,
         packageName,
-        packageJson!.Contents!.PathFields_.Exports.$clone_packagejson_ExportsOrImports(),
+        packageJson!.Contents!.PathFields_.Exports,
       );
       return entrypoints;
     }
@@ -1360,16 +1360,7 @@ export class resolutionState extends $rt.GoObject {
         }
       }
       if (!(mainExport.Type === (0 as number))) {
-        return r!.loadModuleFromTargetExportOrImport(
-          ext,
-          subpath,
-          packageInfo,
-          false,
-          mainExport.$clone_packagejson_ExportsOrImports(),
-          '',
-          false,
-          '.',
-        );
+        return r!.loadModuleFromTargetExportOrImport(ext, subpath, packageInfo, false, mainExport, '', false, '.');
       }
     } else if (
       packageInfo!.Contents!.PathFields_.Exports.Type === (6 as number) &&
@@ -1415,7 +1406,7 @@ export class resolutionState extends $rt.GoObject {
             moduleName,
             scope,
             isImports,
-            target.$clone_packagejson_ExportsOrImports(),
+            target,
             '',
             false,
             moduleName,
@@ -1450,7 +1441,7 @@ export class resolutionState extends $rt.GoObject {
             moduleName,
             scope,
             isImports,
-            target$1.$clone_packagejson_ExportsOrImports(),
+            target$1,
             subpath,
             true,
             potentialTarget,
@@ -1467,7 +1458,7 @@ export class resolutionState extends $rt.GoObject {
             moduleName,
             scope,
             isImports,
-            target$2.$clone_packagejson_ExportsOrImports(),
+            target$2,
             subpath$1,
             true,
             potentialTarget,
@@ -1481,7 +1472,7 @@ export class resolutionState extends $rt.GoObject {
             moduleName,
             scope,
             isImports,
-            target$3.$clone_packagejson_ExportsOrImports(),
+            target$3,
             subpath$2,
             false,
             potentialTarget,
@@ -1706,7 +1697,7 @@ export class resolutionState extends $rt.GoObject {
                     moduleName,
                     scope,
                     isImports,
-                    subTarget.$clone_packagejson_ExportsOrImports(),
+                    subTarget,
                     subpath,
                     isPattern,
                     key,
@@ -1778,7 +1769,7 @@ export class resolutionState extends $rt.GoObject {
                     moduleName,
                     scope,
                     isImports,
-                    elem.$clone_packagejson_ExportsOrImports(),
+                    elem,
                     subpath,
                     isPattern,
                     key,

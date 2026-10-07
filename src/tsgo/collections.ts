@@ -207,7 +207,7 @@ export class OrderedMap<K, V> extends $rt.GoObject {
     super();
     this.$z_K = $z_K;
     this.$z_V = $z_V;
-    this.$_0 = new noCopy();
+    this.$_0 = noCopy$zero;
     this.keys = [];
     this.mp = undefined;
   }
@@ -776,6 +776,7 @@ export class noCopy extends $rt.GoObject {
   Lock(): void {}
   Unlock(): void {}
 }
+export const noCopy$zero: noCopy = new noCopy();
 export function NewMultiMapWithSizeHint<K, V>(hint: number): MultiMap<K, V> | undefined {
   return MultiMap.$lit_collections_MultiMap_0<K, V>(new Map<K, V[]>());
 }

@@ -3191,6 +3191,7 @@ export const Timings$zero: Timings = new Timings();
 export const TransformParams$zero: TransformParams = new TransformParams();
 export const UnusedExpectDirectiveDiagnostic$zero: UnusedExpectDirectiveDiagnostic =
   new UnusedExpectDirectiveDiagnostic();
+export const rejectHandler$zero: rejectHandler = new rejectHandler();
 export const DiagnosticDirectiveErrorKindExpectMissingUnusedDiagnostic: DiagnosticDirectiveErrorKind = 2;
 export const DiagnosticDirectiveErrorKindInvalidPolicy: DiagnosticDirectiveErrorKind = 1;
 export const DiagnosticDirectiveErrorKindInvalidRange: DiagnosticDirectiveErrorKind = 0;
@@ -3996,7 +3997,7 @@ export function ParseResult(
     parseOptions.ExternalModuleIndicatorOptions_.Force = true;
   }
   let sourceFile: $ast.SourceFile | undefined = $parser.ParseSourceFile(
-    parseOptions.$clone_ast_SourceFileParseOptions(),
+    parseOptions,
     result.Text,
     $core.GetScriptKindFromFileName(virtualFileName),
   );
@@ -4043,7 +4044,7 @@ export function ParseResult(
         supplementalOptions.ExternalModuleIndicatorOptions_.Force = true;
       }
       let file: $ast.SourceFile | undefined = $parser.ParseSourceFile(
-        supplementalOptions.$clone_ast_SourceFileParseOptions(),
+        supplementalOptions,
         supplemental.Text,
         $core.GetScriptKindFromFileName(supplementalOptions.FileName),
       );

@@ -360,7 +360,7 @@ export class SpanMap extends $rt.GoObject {
       const $t1 = m!.segmentIndexAt(start);
       let index: number = $t1[0];
       let inside: boolean = $t1[1];
-      return inside && supportsFeature(m!.segments[index].$clone_spanmap_Segment(), feature);
+      return inside && supportsFeature(m!.segments[index], feature);
     }
     const $t2 = m!.segmentIndexAt(start);
     let index$1: number = $t2[0];
@@ -374,7 +374,7 @@ export class SpanMap extends $rt.GoObject {
       if (
         segment.VirtualStart > coveredThrough ||
         segment.VirtualEnd <= coveredThrough ||
-        !supportsFeature(segment.$clone_spanmap_Segment(), feature)
+        !supportsFeature(segment, feature)
       ) {
         return false;
       }
@@ -419,7 +419,7 @@ export class SpanMap extends $rt.GoObject {
     const $t2 = m!.segmentIndexAt(pos);
     let index: number = $t2[0];
     let inside: boolean = $t2[1];
-    if (!inside || !supportsFeature(m!.segments[index].$clone_spanmap_Segment(), feature)) {
+    if (!inside || !supportsFeature(m!.segments[index], feature)) {
       return [mapped, 3];
     }
     return [mapped, fidelity];
@@ -512,7 +512,7 @@ export class SpanMap extends $rt.GoObject {
           const $t3 = group.segments;
           for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
             let segment = $t3[$t4].$clone_spanmap_Segment();
-            if (!supportsFeature(segment.$clone_spanmap_Segment(), feature)) {
+            if (!supportsFeature(segment, feature)) {
               continue;
             }
             let mapped: MappedPosition = MappedPosition.$lit_spanmap_MappedPosition_1(1);
@@ -567,7 +567,7 @@ export class SpanMap extends $rt.GoObject {
     if (!startInside || !endInside) {
       return [];
     }
-    if (sameOriginalRange(startSegments[0].$clone_spanmap_Segment(), endSegments[0].$clone_spanmap_Segment())) {
+    if (sameOriginalRange(startSegments[0], endSegments[0])) {
       return originalToVirtualSpansInGroup(startSegments, start, end, feature);
     }
     let starts: $core.TextPos[] = originalStartProjections(startSegments, start, feature);
@@ -610,7 +610,7 @@ export class SpanMap extends $rt.GoObject {
       const $t1 = m!.segments;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
         let segment = $t1[$t2].$clone_spanmap_Segment();
-        if (!supportsFeature(segment.$clone_spanmap_Segment(), feature)) {
+        if (!supportsFeature(segment, feature)) {
           continue;
         }
         let start: $core.TextPos = Math.max($core.TextRange$Pos(r) | 0, segment.OriginalStart);
@@ -787,7 +787,7 @@ export function originalStartProjections(segments: Segment[], start: $core.TextP
     const $t1 = segments;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
       let segment = $t1[$t2].$clone_spanmap_Segment();
-      if (!supportsFeature(segment.$clone_spanmap_Segment(), feature)) {
+      if (!supportsFeature(segment, feature)) {
         continue;
       }
       if (segment.Kind_ === (0 as number)) {
@@ -811,7 +811,7 @@ export function originalEndProjections(segments: Segment[], end: $core.TextPos, 
     const $t1 = segments;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
       let segment = $t1[$t2].$clone_spanmap_Segment();
-      if (!supportsFeature(segment.$clone_spanmap_Segment(), feature)) {
+      if (!supportsFeature(segment, feature)) {
         continue;
       }
       if (segment.Kind_ === (0 as number)) {
@@ -840,7 +840,7 @@ export function originalToVirtualSpansInGroup(
     const $t1 = segments;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
       let segment = $t1[$t2].$clone_spanmap_Segment();
-      if (!supportsFeature(segment.$clone_spanmap_Segment(), feature)) {
+      if (!supportsFeature(segment, feature)) {
         continue;
       }
       if (segment.Kind_ === (0 as number)) {
@@ -878,19 +878,11 @@ export function segmentsAtOriginalPosition(segments: Segment[], pos: $core.TextP
     return [[], false];
   }
   let start: number = index;
-  for (
-    ;
-    start > 0 &&
-    sameOriginalRange(segments[start - 1].$clone_spanmap_Segment(), segments[index].$clone_spanmap_Segment());
-  ) {
+  for (; start > 0 && sameOriginalRange(segments[start - 1], segments[index]);) {
     start--;
   }
   let end: number = start + 1;
-  for (
-    ;
-    end < segments.length &&
-    sameOriginalRange(segments[end].$clone_spanmap_Segment(), segments[start].$clone_spanmap_Segment());
-  ) {
+  for (; end < segments.length && sameOriginalRange(segments[end], segments[start]);) {
     end++;
   }
   return [$rt.reslice(segments, start, end, new Segment()), true];
@@ -910,14 +902,7 @@ export function segmentGroupsAtOriginalPosition(
       let leftIndex: number = index - 1;
       if (segments[leftIndex].OriginalEnd === pos) {
         let leftStart: number = leftIndex;
-        for (
-          ;
-          leftStart > 0 &&
-          sameOriginalRange(
-            segments[leftStart - 1].$clone_spanmap_Segment(),
-            segments[leftIndex].$clone_spanmap_Segment(),
-          );
-        ) {
+        for (; leftStart > 0 && sameOriginalRange(segments[leftStart - 1], segments[leftIndex]);) {
           leftStart--;
         }
         groups.push(
@@ -941,10 +926,7 @@ export function segmentGroupsAtOriginalPosition(
     return [];
   }
   let start: number = leftIndex$1;
-  for (
-    ;
-    start > 0 && sameOriginalRange(segments[start - 1].$clone_spanmap_Segment(), segment$1.$clone_spanmap_Segment());
-  ) {
+  for (; start > 0 && sameOriginalRange(segments[start - 1], segment$1);) {
     start--;
   }
   return [

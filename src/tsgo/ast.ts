@@ -3248,9 +3248,9 @@ export class NodeBase extends NodeDefault {
   }
 }
 export class AccessorDeclarationBase extends NodeBase {
-  TypeElementBase_: TypeElementBase = new TypeElementBase();
-  ClassElementBase_: ClassElementBase = new ClassElementBase();
-  ObjectLiteralElementBase_: ObjectLiteralElementBase = new ObjectLiteralElementBase();
+  TypeElementBase_: TypeElementBase = TypeElementBase$zero;
+  ClassElementBase_: ClassElementBase = ClassElementBase$zero;
+  ObjectLiteralElementBase_: ObjectLiteralElementBase = ObjectLiteralElementBase$zero;
   DeclarationBase_: DeclarationBase = new DeclarationBase();
   NamedMemberBase_: NamedMemberBase = new NamedMemberBase();
   FunctionLikeWithBodyBase_: FunctionLikeWithBodyBase = new FunctionLikeWithBodyBase();
@@ -3533,7 +3533,7 @@ export class ArrayLiteralExpression extends PrimaryExpressionBase {
   }
 }
 export class TypeNodeBase extends NodeBase {
-  TypeSyntaxBase_: TypeSyntaxBase = new TypeSyntaxBase();
+  TypeSyntaxBase_: TypeSyntaxBase = TypeSyntaxBase$zero;
   $copy_ast_TypeNodeBase(src: TypeNodeBase): void {
     this.$copy_ast_NodeBase(src);
     this.TypeSyntaxBase_ = src.TypeSyntaxBase_;
@@ -4361,8 +4361,8 @@ export class CallExpression extends LeftHandSideExpressionBase {
   }
 }
 export class CallSignatureDeclaration extends NodeBase {
-  TypeElementBase_: TypeElementBase = new TypeElementBase();
-  TypeSyntaxBase_: TypeSyntaxBase = new TypeSyntaxBase();
+  TypeElementBase_: TypeElementBase = TypeElementBase$zero;
+  TypeSyntaxBase_: TypeSyntaxBase = TypeSyntaxBase$zero;
   DeclarationBase_: DeclarationBase = new DeclarationBase();
   FunctionLikeBase_: FunctionLikeBase = new FunctionLikeBase();
   $copy_ast_CallSignatureDeclaration(src: CallSignatureDeclaration): void {
@@ -4887,7 +4887,7 @@ export class ClassLikeBase extends ExportableBase {
   }
 }
 export class ClassStaticBlockDeclaration extends NodeBase {
-  ClassElementBase_: ClassElementBase = new ClassElementBase();
+  ClassElementBase_: ClassElementBase = ClassElementBase$zero;
   DeclarationBase_: DeclarationBase = new DeclarationBase();
   ModifiersBase_: ModifiersBase = new ModifiersBase();
   LocalsContainerBase_: LocalsContainerBase = new LocalsContainerBase();
@@ -5247,8 +5247,8 @@ export class ConditionalTypeNode extends TypeNodeBase {
   }
 }
 export class ConstructSignatureDeclaration extends NodeBase {
-  TypeElementBase_: TypeElementBase = new TypeElementBase();
-  TypeSyntaxBase_: TypeSyntaxBase = new TypeSyntaxBase();
+  TypeElementBase_: TypeElementBase = TypeElementBase$zero;
+  TypeSyntaxBase_: TypeSyntaxBase = TypeSyntaxBase$zero;
   DeclarationBase_: DeclarationBase = new DeclarationBase();
   FunctionLikeBase_: FunctionLikeBase = new FunctionLikeBase();
   $copy_ast_ConstructSignatureDeclaration(src: ConstructSignatureDeclaration): void {
@@ -5315,7 +5315,7 @@ export class ConstructSignatureDeclaration extends NodeBase {
   }
 }
 export class ConstructorDeclaration extends NodeBase {
-  ClassElementBase_: ClassElementBase = new ClassElementBase();
+  ClassElementBase_: ClassElementBase = ClassElementBase$zero;
   DeclarationBase_: DeclarationBase = new DeclarationBase();
   ModifiersBase_: ModifiersBase = new ModifiersBase();
   FunctionLikeWithBodyBase_: FunctionLikeWithBodyBase = new FunctionLikeWithBodyBase();
@@ -8690,9 +8690,9 @@ export class ImportTypeNode extends NodeWithTypeArgumentsBase {
   }
 }
 export class IndexSignatureDeclaration extends NodeBase {
-  TypeElementBase_: TypeElementBase = new TypeElementBase();
-  ClassElementBase_: ClassElementBase = new ClassElementBase();
-  TypeSyntaxBase_: TypeSyntaxBase = new TypeSyntaxBase();
+  TypeElementBase_: TypeElementBase = TypeElementBase$zero;
+  ClassElementBase_: ClassElementBase = ClassElementBase$zero;
+  TypeSyntaxBase_: TypeSyntaxBase = TypeSyntaxBase$zero;
   DeclarationBase_: DeclarationBase = new DeclarationBase();
   ModifiersBase_: ModifiersBase = new ModifiersBase();
   FunctionLikeBase_: FunctionLikeBase = new FunctionLikeBase();
@@ -8852,7 +8852,7 @@ export class InferTypeNode extends TypeNodeBase {
   }
 }
 export class InterfaceDeclaration extends StatementBase {
-  TypeSyntaxBase_: TypeSyntaxBase = new TypeSyntaxBase();
+  TypeSyntaxBase_: TypeSyntaxBase = TypeSyntaxBase$zero;
   DeclarationBase_: DeclarationBase = new DeclarationBase();
   ExportableBase_: ExportableBase = new ExportableBase();
   ModifiersBase_: ModifiersBase = new ModifiersBase();
@@ -11054,7 +11054,7 @@ export class JsxSelfClosingElement extends PrimaryExpressionBase {
   }
 }
 export class JsxSpreadAttribute extends NodeBase {
-  ObjectLiteralElementBase_: ObjectLiteralElementBase = new ObjectLiteralElementBase();
+  ObjectLiteralElementBase_: ObjectLiteralElementBase = ObjectLiteralElementBase$zero;
   Expression_: Node | undefined = undefined;
   $copy_ast_JsxSpreadAttribute(src: JsxSpreadAttribute): void {
     this.$copy_ast_NodeBase(src);
@@ -11501,8 +11501,8 @@ export class MetaProperty extends PrimaryExpressionBase {
   }
 }
 export class MethodDeclaration extends NodeBase {
-  ClassElementBase_: ClassElementBase = new ClassElementBase();
-  ObjectLiteralElementBase_: ObjectLiteralElementBase = new ObjectLiteralElementBase();
+  ClassElementBase_: ClassElementBase = ClassElementBase$zero;
+  ObjectLiteralElementBase_: ObjectLiteralElementBase = ObjectLiteralElementBase$zero;
   DeclarationBase_: DeclarationBase = new DeclarationBase();
   NamedMemberBase_: NamedMemberBase = new NamedMemberBase();
   FunctionLikeWithBodyBase_: FunctionLikeWithBodyBase = new FunctionLikeWithBodyBase();
@@ -11644,8 +11644,8 @@ export class MethodDeclaration extends NodeBase {
   }
 }
 export class MethodSignatureDeclaration extends NodeBase {
-  TypeElementBase_: TypeElementBase = new TypeElementBase();
-  TypeSyntaxBase_: TypeSyntaxBase = new TypeSyntaxBase();
+  TypeElementBase_: TypeElementBase = TypeElementBase$zero;
+  TypeSyntaxBase_: TypeSyntaxBase = TypeSyntaxBase$zero;
   DeclarationBase_: DeclarationBase = new DeclarationBase();
   NamedMemberBase_: NamedMemberBase = new NamedMemberBase();
   FunctionLikeBase_: FunctionLikeBase = new FunctionLikeBase();
@@ -12274,7 +12274,7 @@ export class NamespaceExport extends NodeBase {
   }
 }
 export class NamespaceExportDeclaration extends StatementBase {
-  TypeSyntaxBase_: TypeSyntaxBase = new TypeSyntaxBase();
+  TypeSyntaxBase_: TypeSyntaxBase = TypeSyntaxBase$zero;
   DeclarationBase_: DeclarationBase = new DeclarationBase();
   ModifiersBase_: ModifiersBase = new ModifiersBase();
   name: Node | undefined = undefined;
@@ -12730,7 +12730,7 @@ export class NodeFactory extends $rt.GoObject {
     const f = this;
     if (!(statements === node!.Statements_) || !(endOfFileToken === node!.EndOfFileToken)) {
       let updated: SourceFile | undefined = f!
-        .NewSourceFile(node!.parseOptions.$clone_ast_SourceFileParseOptions(), node!.text, statements, endOfFileToken)!
+        .NewSourceFile(node!.parseOptions, node!.text, statements, endOfFileToken)!
         .AsSourceFile();
       updated!.copyFrom(node);
       return updateNode(updated!.AsNode(), node!.AsNode(), f!.hooks);
@@ -17401,7 +17401,7 @@ export class NotEmittedStatement extends StatementBase {
   }
 }
 export class NotEmittedTypeElement extends NodeBase {
-  TypeElementBase_: TypeElementBase = new TypeElementBase();
+  TypeElementBase_: TypeElementBase = TypeElementBase$zero;
   $copy_ast_NotEmittedTypeElement(src: NotEmittedTypeElement): void {
     this.$copy_ast_NodeBase(src);
     this.TypeElementBase_ = src.TypeElementBase_;
@@ -18228,7 +18228,7 @@ export class PropertyAccessExpression extends MemberExpressionBase {
   }
 }
 export class PropertyAssignment extends NodeBase {
-  ObjectLiteralElementBase_: ObjectLiteralElementBase = new ObjectLiteralElementBase();
+  ObjectLiteralElementBase_: ObjectLiteralElementBase = ObjectLiteralElementBase$zero;
   DeclarationBase_: DeclarationBase = new DeclarationBase();
   NamedMemberBase_: NamedMemberBase = new NamedMemberBase();
   CompositeBase_: CompositeBase = new CompositeBase();
@@ -18326,7 +18326,7 @@ export class PropertyAssignment extends NodeBase {
   }
 }
 export class PropertyDeclaration extends NodeBase {
-  ClassElementBase_: ClassElementBase = new ClassElementBase();
+  ClassElementBase_: ClassElementBase = ClassElementBase$zero;
   DeclarationBase_: DeclarationBase = new DeclarationBase();
   NamedMemberBase_: NamedMemberBase = new NamedMemberBase();
   CompositeBase_: CompositeBase = new CompositeBase();
@@ -18436,8 +18436,8 @@ export class PropertyDeclaration extends NodeBase {
   }
 }
 export class PropertySignatureDeclaration extends NodeBase {
-  TypeElementBase_: TypeElementBase = new TypeElementBase();
-  TypeSyntaxBase_: TypeSyntaxBase = new TypeSyntaxBase();
+  TypeElementBase_: TypeElementBase = TypeElementBase$zero;
+  TypeSyntaxBase_: TypeSyntaxBase = TypeSyntaxBase$zero;
   DeclarationBase_: DeclarationBase = new DeclarationBase();
   NamedMemberBase_: NamedMemberBase = new NamedMemberBase();
   Type_: Node | undefined = undefined;
@@ -18796,7 +18796,7 @@ export class SatisfiesExpression extends ExpressionBase {
   }
 }
 export class SemicolonClassElement extends NodeBase {
-  ClassElementBase_: ClassElementBase = new ClassElementBase();
+  ClassElementBase_: ClassElementBase = ClassElementBase$zero;
   DeclarationBase_: DeclarationBase = new DeclarationBase();
   $copy_ast_SemicolonClassElement(src: SemicolonClassElement): void {
     this.$copy_ast_NodeBase(src);
@@ -18913,7 +18913,7 @@ export class SetAccessorDeclaration extends AccessorDeclarationBase {
   }
 }
 export class ShorthandPropertyAssignment extends NodeBase {
-  ObjectLiteralElementBase_: ObjectLiteralElementBase = new ObjectLiteralElementBase();
+  ObjectLiteralElementBase_: ObjectLiteralElementBase = ObjectLiteralElementBase$zero;
   DeclarationBase_: DeclarationBase = new DeclarationBase();
   NamedMemberBase_: NamedMemberBase = new NamedMemberBase();
   CompositeBase_: CompositeBase = new CompositeBase();
@@ -19396,12 +19396,7 @@ export class SourceFile extends NodeBase {
     const node = this;
     let updated: Node | undefined = f!
       .AsNodeFactory()!
-      .NewSourceFile(
-        node!.parseOptions.$clone_ast_SourceFileParseOptions(),
-        node!.text,
-        node!.Statements_,
-        node!.EndOfFileToken,
-      );
+      .NewSourceFile(node!.parseOptions, node!.text, node!.Statements_, node!.EndOfFileToken);
     let newFile: SourceFile | undefined = updated!.AsSourceFile();
     newFile!.copyFrom(node);
     return cloneNode(updated, node!.AsNode(), f!.AsNodeFactory()!.hooks);
@@ -19844,7 +19839,7 @@ export class SourceFileParseOptions extends $rt.GoObject {
   }
 }
 export class SpreadAssignment extends NodeBase {
-  ObjectLiteralElementBase_: ObjectLiteralElementBase = new ObjectLiteralElementBase();
+  ObjectLiteralElementBase_: ObjectLiteralElementBase = ObjectLiteralElementBase$zero;
   DeclarationBase_: DeclarationBase = new DeclarationBase();
   Expression_: Node | undefined = undefined;
   $copy_ast_SpreadAssignment(src: SpreadAssignment): void {
@@ -20943,7 +20938,7 @@ export class TupleTypeNode extends TypeNodeBase {
   }
 }
 export class TypeAliasDeclaration extends StatementBase {
-  TypeSyntaxBase_: TypeSyntaxBase = new TypeSyntaxBase();
+  TypeSyntaxBase_: TypeSyntaxBase = TypeSyntaxBase$zero;
   DeclarationBase_: DeclarationBase = new DeclarationBase();
   ExportableBase_: ExportableBase = new ExportableBase();
   ModifiersBase_: ModifiersBase = new ModifiersBase();
@@ -21248,7 +21243,7 @@ export class TypeOperatorNode extends TypeNodeBase {
   }
 }
 export class TypeParameterDeclaration extends NodeBase {
-  TypeSyntaxBase_: TypeSyntaxBase = new TypeSyntaxBase();
+  TypeSyntaxBase_: TypeSyntaxBase = TypeSyntaxBase$zero;
   DeclarationBase_: DeclarationBase = new DeclarationBase();
   ModifiersBase_: ModifiersBase = new ModifiersBase();
   name: Node | undefined = undefined;
@@ -22073,9 +22068,11 @@ export class sourceFileDataCell<T> extends $rt.GoObject {
 export const AllAccessorDeclarations$zero: AllAccessorDeclarations = new AllAccessorDeclarations();
 export const CommentRange$zero: CommentRange = new CommentRange();
 export const CheckJsDirective$zero: CheckJsDirective = new CheckJsDirective();
+export const ClassElementBase$zero: ClassElementBase = new ClassElementBase();
 export const CommentDirective$zero: CommentDirective = new CommentDirective();
 export const ExpressionBase$zero: ExpressionBase = new ExpressionBase();
 export const FileReference$zero: FileReference = new FileReference();
+export const TypeSyntaxBase$zero: TypeSyntaxBase = new TypeSyntaxBase();
 export const TypeNodeBase$zero: TypeNodeBase = new TypeNodeBase();
 export const JSDocTypeBase$zero: JSDocTypeBase = new JSDocTypeBase();
 export const UnaryExpressionBase$zero: UnaryExpressionBase = new UnaryExpressionBase();
@@ -22084,6 +22081,7 @@ export const LeftHandSideExpressionBase$zero: LeftHandSideExpressionBase = new L
 export const MemberExpressionBase$zero: MemberExpressionBase = new MemberExpressionBase();
 export const NodeFactoryHooks$zero: NodeFactoryHooks = new NodeFactoryHooks();
 export const NodeVisitorHooks$zero: NodeVisitorHooks = new NodeVisitorHooks();
+export const ObjectLiteralElementBase$zero: ObjectLiteralElementBase = new ObjectLiteralElementBase();
 export const PatternAmbientModule$zero: PatternAmbientModule = new PatternAmbientModule();
 export const PragmaArgument$zero: PragmaArgument = new PragmaArgument();
 export const PragmaArgumentSpecification$zero: PragmaArgumentSpecification = new PragmaArgumentSpecification();
@@ -22092,6 +22090,7 @@ export const RepopulateDiagnosticInfo$zero: RepopulateDiagnosticInfo = new Repop
 export const SourceFileMetaData$zero: SourceFileMetaData = new SourceFileMetaData();
 export const StatementBase$zero: StatementBase = new StatementBase();
 export const TokenCacheKey$zero: TokenCacheKey = new TokenCacheKey();
+export const TypeElementBase$zero: TypeElementBase = new TypeElementBase();
 export const diagnosticLocationKey$zero: diagnosticLocationKey = new diagnosticLocationKey();
 export const positionMapEntry$zero: positionMapEntry = new positionMapEntry();
 export const AccessKindRead: AccessKind = 0;
@@ -25586,7 +25585,7 @@ export function isFileForcedToBeModuleByFormat(
   return false;
 }
 export function SetExternalModuleIndicator(file: SourceFile | undefined, opts: ExternalModuleIndicatorOptions): void {
-  file!.ExternalModuleIndicator = getExternalModuleIndicator(file, opts.$clone_ast_ExternalModuleIndicatorOptions());
+  file!.ExternalModuleIndicator = getExternalModuleIndicator(file, opts);
 }
 export function getExternalModuleIndicator(
   file: SourceFile | undefined,

@@ -210,11 +210,7 @@ export function parseFile(fileName: string, text: string): $ast.SourceFile | und
     fileName,
     fileName,
   );
-  return $parser.ParseSourceFile(
-    opts.$clone_ast_SourceFileParseOptions(),
-    text,
-    $core.GetScriptKindFromFileName(fileName),
-  );
+  return $parser.ParseSourceFile(opts, text, $core.GetScriptKindFromFileName(fileName));
 }
 export function NewProgram(
   fileName: string,

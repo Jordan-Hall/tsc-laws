@@ -244,7 +244,7 @@ export class Parser extends $rt.GoObject {
     p!.scanner!.SetText(p!.sourceText);
     p!.parsingContexts = saveParsingContexts;
     p!.contextFlags = saveContextFlags;
-    p!.scanner!.Rewind(saveScannerState.$clone_scanner_ScannerState());
+    p!.scanner!.Rewind(saveScannerState);
     p!.token = saveToken;
     p!.hasParseError = saveHasParseError;
     p!.statementHasAwaitIdentifier = saveHasAwaitIdentifier;
@@ -862,7 +862,7 @@ export class Parser extends $rt.GoObject {
     let linkType: string = $t1[0];
     let ok: boolean = $t1[1];
     if (!ok) {
-      p!.rewind(state.$clone_parser_ParserState());
+      p!.rewind(state);
       return undefined;
     }
     p!.nextTokenJSDoc();
@@ -1029,7 +1029,7 @@ export class Parser extends $rt.GoObject {
         let state: ParserState = p!.mark();
         let child: $ast.Node | undefined = p!.parseChildParameterOrPropertyTag(target, indent, name_);
         if (child === undefined) {
-          p!.rewind(state.$clone_parser_ParserState());
+          p!.rewind(state);
           break;
         }
         {
@@ -1305,7 +1305,7 @@ export class Parser extends $rt.GoObject {
         let state: ParserState = p!.mark();
         child = p!.parseChildPropertyTag(indent);
         if (child === undefined) {
-          p!.rewind(state.$clone_parser_ParserState());
+          p!.rewind(state);
           break;
         }
         hasChildren = true;
@@ -1401,7 +1401,7 @@ export class Parser extends $rt.GoObject {
       let state: ParserState = p!.mark();
       child = p!.parseChildParameterOrPropertyTag(4, indent, undefined);
       if (child === undefined) {
-        p!.rewind(state.$clone_parser_ParserState());
+        p!.rewind(state);
         break;
       }
       if (child!.Kind_ === (337 as number)) {
@@ -1428,7 +1428,7 @@ export class Parser extends $rt.GoObject {
       }
     }
     if (returnTag === undefined) {
-      p!.rewind(state.$clone_parser_ParserState());
+      p!.rewind(state);
     }
     return p!.finishNode(p!.factory.NewJSDocSignature(undefined, parameters, returnTag), start);
   }
@@ -1779,7 +1779,7 @@ export class Parser extends $rt.GoObject {
       eof = p!.parseExpectedToken(1);
     }
     let node: $ast.Node | undefined = p!.finishNode(
-      p!.factory.NewSourceFile(p!.opts.$clone_ast_SourceFileParseOptions(), p!.sourceText, statements, eof),
+      p!.factory.NewSourceFile(p!.opts, p!.sourceText, statements, eof),
       pos,
     );
     let result: $ast.SourceFile | undefined = node!.AsSourceFile();
@@ -1983,7 +1983,7 @@ export class Parser extends $rt.GoObject {
   }
   rewind(state: ParserState): void {
     const p = this;
-    p!.scanner!.Rewind(state.scannerState.$clone_scanner_ScannerState());
+    p!.scanner!.Rewind(state.scannerState);
     p!.token = p!.scanner!.Token();
     p!.contextFlags = state.contextFlags;
     p!.diagnostics = $rt.reslice(p!.diagnostics, 0, state.diagnosticsLen, undefined);
@@ -1997,7 +1997,7 @@ export class Parser extends $rt.GoObject {
     const p = this;
     let state: ParserState = p!.mark();
     let result: boolean = callback!(p);
-    p!.rewind(state.$clone_parser_ParserState());
+    p!.rewind(state);
     return result;
   }
   nextToken(): $ast.Kind {
@@ -2071,12 +2071,7 @@ export class Parser extends $rt.GoObject {
       p!.reparseList = [];
     }
     let node: $ast.Node | undefined = p!.finishNode(
-      p!.factory.NewSourceFile(
-        p!.opts.$clone_ast_SourceFileParseOptions(),
-        p!.sourceText,
-        p!.newNodeList($core.NewTextRange(pos, end), statements),
-        eof,
-      ),
+      p!.factory.NewSourceFile(p!.opts, p!.sourceText, p!.newNodeList($core.NewTextRange(pos, end), statements), eof),
       pos,
     );
     let result: $ast.SourceFile | undefined = node!.AsSourceFile();
@@ -2118,10 +2113,7 @@ export class Parser extends $rt.GoObject {
     }
     $rt.slices_SortFunc(p!.reparsedClones, $ast.CompareNodePositions);
     result!.ReparsedClones = $rt.slices_Clone(p!.reparsedClones);
-    $ast.SetExternalModuleIndicator(
-      result,
-      p!.opts.ExternalModuleIndicatorOptions_.$clone_ast_ExternalModuleIndicatorOptions(),
-    );
+    $ast.SetExternalModuleIndicator(result, p!.opts.ExternalModuleIndicatorOptions_);
   }
   createJSDocCache(): Map<$ast.Node | undefined, ($ast.Node | undefined)[]> | undefined {
     const p = this;
@@ -2232,7 +2224,7 @@ export class Parser extends $rt.GoObject {
           }
         }
         state.diagnosticsLen = p!.diagnostics.length;
-        p!.rewind(state.$clone_parser_ParserState());
+        p!.rewind(state);
       }
     }
     if (afterAwaitStatement < sourceFile!.Statements_!.Nodes.length) {
@@ -3982,7 +3974,7 @@ export class Parser extends $rt.GoObject {
       p!.checkJSSyntax(result);
       return result;
     }
-    p!.rewind(state.$clone_parser_ParserState());
+    p!.rewind(state);
     return undefined;
   }
   nextTokenIsOpenParen(): boolean {
@@ -4996,7 +4988,7 @@ export class Parser extends $rt.GoObject {
         return constraint;
       }
     }
-    p!.rewind(state.$clone_parser_ParserState());
+    p!.rewind(state);
     return undefined;
   }
   parsePostfixTypeOrHigher(): $ast.Node | undefined {
@@ -5063,7 +5055,7 @@ export class Parser extends $rt.GoObject {
           if (!(p!.token === (24 as number))) {
             return keywordTypeNode;
           }
-          p!.rewind(state.$clone_parser_ParserState());
+          p!.rewind(state);
           return p!.parseTypeReference();
         }
         case 66 as number: {
@@ -5719,7 +5711,7 @@ export class Parser extends $rt.GoObject {
         p!.nextToken();
         return p!.finishNode(p!.factory.NewTypePredicateNode(undefined, id, p!.parseType()), pos);
       }
-      p!.rewind(state.$clone_parser_ParserState());
+      p!.rewind(state);
     }
     return p!.parseType();
   }
@@ -6316,7 +6308,7 @@ export class Parser extends $rt.GoObject {
     if (p!.token === t && p!.nextTokenCanFollowModifier()) {
       return true;
     }
-    p!.rewind(state.$clone_parser_ParserState());
+    p!.rewind(state);
     return false;
   }
   parseAnyContextualModifier(): boolean {
@@ -6325,7 +6317,7 @@ export class Parser extends $rt.GoObject {
     if ($ast.IsModifierKind(p!.token) && p!.nextTokenCanFollowModifier()) {
       return true;
     }
-    p!.rewind(state.$clone_parser_ParserState());
+    p!.rewind(state);
     return false;
   }
   nextTokenCanFollowModifier(): boolean {
@@ -6537,7 +6529,7 @@ export class Parser extends $rt.GoObject {
     if (p!.token === (20 as number) || p!.token === (29 as number) || p!.token === (133 as number)) {
       let state: ParserState = p!.mark();
       let result: $core.Tristate = p!.nextIsParenthesizedArrowFunctionExpression();
-      p!.rewind(state.$clone_parser_ParserState());
+      p!.rewind(state);
       return result;
     }
     if (p!.token === (38 as number)) {
@@ -6644,7 +6636,7 @@ export class Parser extends $rt.GoObject {
     let result: $ast.Node | undefined =
       p!.parsePossibleParenthesizedArrowFunctionExpression(allowReturnTypeInArrowFunction);
     if (result === undefined) {
-      p!.rewind(state.$clone_parser_ParserState());
+      p!.rewind(state);
     }
     return result;
   }
@@ -7605,7 +7597,7 @@ export class Parser extends $rt.GoObject {
         }
       }
     }
-    p!.rewind(state.$clone_parser_ParserState());
+    p!.rewind(state);
     return undefined;
   }
   canFollowTypeArgumentsInExpression(): boolean {
@@ -10747,7 +10739,7 @@ export function ParseSourceFile(
     $defers.push(() => {
       putParser($t2);
     });
-    p!.initializeState(opts.$clone_ast_SourceFileParseOptions(), sourceText, scriptKind);
+    p!.initializeState(opts, sourceText, scriptKind);
     p!.nextToken();
     if (p!.scriptKind === (6 as number)) {
       $t1 = p!.parseJSONText();

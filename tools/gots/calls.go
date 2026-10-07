@@ -195,6 +195,9 @@ func (x *fn) argExpr(e *ast.CallExpr, sig *types.Signature, i int, a ast.Expr) s
 	} else if i < n {
 		pt = sig.Params().At(i).Type()
 	}
+	if pt != nil && x.f.needsCopy(pt) && x.borrowedParam(e, i) {
+		return x.expr(a)
+	}
 	return x.valueExpr(a, pt)
 }
 

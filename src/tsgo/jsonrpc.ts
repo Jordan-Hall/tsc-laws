@@ -148,7 +148,7 @@ export class JSONRPCVersion extends $rt.GoObject {
   }
 }
 export class Message extends $rt.GoObject {
-  JSONRPC: JSONRPCVersion = new JSONRPCVersion();
+  JSONRPC: JSONRPCVersion = JSONRPCVersion$zero;
   ID_: ID | undefined = undefined;
   Method: string = '';
   Params: $json.Value = [];
@@ -274,7 +274,7 @@ export class Reader extends $rt.GoObject {
   }
 }
 export class RequestMessage extends $rt.GoObject {
-  JSONRPC: JSONRPCVersion = new JSONRPCVersion();
+  JSONRPC: JSONRPCVersion = JSONRPCVersion$zero;
   ID_: ID | undefined = undefined;
   Method: string = '';
   Params: $rt.GoObject | undefined = undefined;
@@ -374,7 +374,7 @@ export class ResponseError extends $rt.GoObject {
   }
 }
 export class ResponseMessage extends $rt.GoObject {
-  JSONRPC: JSONRPCVersion = new JSONRPCVersion();
+  JSONRPC: JSONRPCVersion = JSONRPCVersion$zero;
   ID_: ID | undefined = undefined;
   Result: $rt.GoObject | undefined = undefined;
   Error_: ResponseError | undefined = undefined;
@@ -466,6 +466,7 @@ export class Writer extends $rt.GoObject {
   }
 }
 export const IntegerOrString$zero: IntegerOrString = new IntegerOrString();
+export const JSONRPCVersion$zero: JSONRPCVersion = new JSONRPCVersion();
 export const RequestMessage$zero: RequestMessage = new RequestMessage();
 export const ResponseMessage$zero: ResponseMessage = new ResponseMessage();
 export const CodeInternalError: number = -32603;

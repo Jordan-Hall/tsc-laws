@@ -2394,7 +2394,7 @@ export class ParsedCommandLine extends $rt.GoObject {
     const p = this;
     let parsedConfig: ParsedOptions = p!.ParsedConfig!.$clone_tsoptions_ParsedOptions();
     const $t1 = getFileNamesFromConfigSpecs(
-      p!.ConfigFile!.configFileSpecs_!.$clone_tsoptions_configFileSpecs(),
+      p!.ConfigFile!.configFileSpecs_!,
       p!.GetCurrentDirectory(),
       ParsedCommandLine.CompilerOptions$m$nil(p),
       fs,
@@ -10419,7 +10419,7 @@ export function parseJsonConfigFileContentWorker(
   let getFileNames: ((p0: string) => [string[], number]) | undefined = (basePath$1: string): [string[], number] => {
     let parsedConfigOptions: $core.CompilerOptions | undefined = parsedConfig!.options;
     const $t28 = getFileNamesFromConfigSpecs(
-      configFileSpecs$v.$clone_tsoptions_configFileSpecs(),
+      configFileSpecs$v,
       basePath$1,
       parsedConfigOptions,
       host!.FS$m(),

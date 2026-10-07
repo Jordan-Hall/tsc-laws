@@ -1485,14 +1485,18 @@ func isEmptyIface(tt types.Type) bool {
 // shared instance: no code changes its values after construction.
 func (t *translator) sharedZero(tn *types.TypeName) bool {
 	c := t.classes[tn]
-	if c == nil || c.name != tn || t.mutable[tn] || t.overridden(tn) || t.localTypes[tn] != "" {
+	if c == nil || c.name != tn || t.overridden(tn) || t.localTypes[tn] != "" {
+		return false
+	}
+	// Empty structs have nothing to change, even through pointer methods.
+	if t.mutable[tn] && (c.st.NumFields() > 0 || c.base != nil) {
 		return false
 	}
 	n, ok := tn.Type().(*types.Named)
 	if !ok || n.TypeParams().Len() > 0 || t.localTParams[tn] != nil || len(t.needsFor(tn)) > 0 {
 		return false
 	}
-	return c.st.NumFields() > 0
+	return true
 }
 
 // sharedZeros declares the shared zero values of this module's classes,

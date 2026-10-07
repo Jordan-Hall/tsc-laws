@@ -331,7 +331,7 @@ export class BreadthFirstSearchResult<N> extends $rt.GoObject {
   }
 }
 export class BuildOptions extends $rt.GoObject {
-  $_0: noCopy = new noCopy();
+  $_0: noCopy = noCopy$zero;
   Dry: Tristate = 0;
   Force: Tristate = 0;
   Verbose: Tristate = 0;
@@ -369,7 +369,7 @@ export class BuildOptions extends $rt.GoObject {
   }
 }
 export class CompilerOptions extends $rt.GoObject {
-  $_0: noCopy = new noCopy();
+  $_0: noCopy = noCopy$zero;
   AllowJs: Tristate = 0;
   AllowArbitraryExtensions: Tristate = 0;
   AllowImportingTsExtensions: Tristate = 0;
@@ -1568,6 +1568,8 @@ export class BreadthFirstSearchParallelEx$result<K, N> extends $rt.GoObject {
   }
 }
 export const TextChange$zero: TextChange = new TextChange();
+export const UnlimitedSemaphore$zero: UnlimitedSemaphore = new UnlimitedSemaphore();
+export const noCopy$zero: noCopy = new noCopy();
 export const CheckerLifetimeAPI: CheckerLifetime = 2;
 export const CheckerLifetimeDiagnostics: CheckerLifetime = 1;
 export const CheckerLifetimeTemporary: CheckerLifetime = 0;

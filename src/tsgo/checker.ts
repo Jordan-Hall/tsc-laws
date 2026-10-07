@@ -73108,7 +73108,7 @@ export class Relater extends $rt.GoObject {
   ): Ternary {
     const r = this;
     if (r!.relation === r!.c!.identityRelation) {
-      return r!.propertiesIdenticalTo(source, target, excludedProperties.$clone_collections_Set());
+      return r!.propertiesIdenticalTo(source, target, excludedProperties);
     }
     let result: Ternary = -1;
     if (isTupleType(target)) {
@@ -76450,7 +76450,7 @@ export class TupleNormalizer extends $rt.GoObject {
           if (!((t!.flags & 1) === (0 as number))) {
             n!.add(t, TupleElementInfo.$lit_checker_TupleElementInfo_0_1(4, info.labeledDeclaration));
           } else if (!((t!.flags & 117964800) === (0 as number)) || c!.isGenericMappedType(t)) {
-            n!.add(t, info.$clone_checker_TupleElementInfo());
+            n!.add(t, info);
           } else if (isTupleType(t)) {
             let spreadTypes: (Type | undefined)[] = c!.getElementTypes(t);
             if (spreadTypes.length + n!.types.length >= 10000) {
@@ -76468,7 +76468,7 @@ export class TupleNormalizer extends $rt.GoObject {
               for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
                 let j = $t4;
                 let s = $t3[$t4];
-                n!.add(s, spreadInfos[j].$clone_checker_TupleElementInfo());
+                n!.add(s, spreadInfos[j]);
               }
             }
           } else {
@@ -76482,7 +76482,7 @@ export class TupleNormalizer extends $rt.GoObject {
             n!.add(s$1, TupleElementInfo.$lit_checker_TupleElementInfo_0_1(4, info.labeledDeclaration));
           }
         } else {
-          n!.add(t, info.$clone_checker_TupleElementInfo());
+          n!.add(t, info);
         }
       }
     }
