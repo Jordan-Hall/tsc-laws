@@ -155,6 +155,10 @@ export class Scanner extends ScannerState {
     const s = this;
     return s!.$clone_scanner_ScannerState();
   }
+  MarkInto(dst: ScannerState | undefined): void {
+    const s = this;
+    dst!.$copy_scanner_ScannerState(s!);
+  }
   Rewind(state: ScannerState): void {
     const s = this;
     s!.$copy_scanner_ScannerState(state);

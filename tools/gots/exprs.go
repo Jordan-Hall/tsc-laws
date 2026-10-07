@@ -1337,6 +1337,8 @@ func (x *fn) store(l ast.Expr, define bool, v string, tt types.Type, src ast.Exp
 	case *ast.StarExpr:
 		pt := under(x.info.TypeOf(l.X)).(*types.Pointer)
 		if n, ok := types.Unalias(pt.Elem()).(*types.Named); ok && isStructType(n) && x.f.t.classOf(n.Origin().Obj()) != nil {
+			// $copy copies the fields, so the value needs no clone first.
+			v = strings.TrimSuffix(v, x.f.cloneCall(pt.Elem()))
 			x.line("%s!.$copy_%s(%s);", x.expr(l.X), x.f.t.helperKey(x.f.t.classOf(n.Origin().Obj()).name), v)
 			return
 		}

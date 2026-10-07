@@ -59,7 +59,7 @@ export class CopyOnWriteMap<K, V> extends $rt.GoObject {
     let saved: CopyOnWriteMap<K, V> = c!.$clone_collections_CopyOnWriteMap();
     c!.owned = false;
     return (): void => {
-      c!.$copy_collections_CopyOnWriteMap(saved.$clone_collections_CopyOnWriteMap());
+      c!.$copy_collections_CopyOnWriteMap(saved);
     };
   }
 }

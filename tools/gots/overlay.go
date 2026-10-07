@@ -21,6 +21,34 @@ var sourceEdits = []struct{ file, from, to string }{
 	// the translation can't tell from an empty slice; use a sentinel.
 	{"checker/checker.go", "Expression_produces_a_union_type_that_is_too_complex_to_represent)\n\t\t\t\t\t\t\treturn nil", "Expression_produces_a_union_type_that_is_too_complex_to_represent)\n\t\t\t\t\t\t\treturn []*Type{nil}"},
 	{"checker/checker.go", "typeSet = c.removeSubtypes(typeSet, includes&TypeFlagsObject != 0)\n\t\t\tif typeSet == nil {", "typeSet = c.removeSubtypes(typeSet, includes&TypeFlagsObject != 0)\n\t\t\tif len(typeSet) == 1 && typeSet[0] == nil {"},
+	// lookAhead saves the parser state in a reused object per nesting depth
+	// instead of a new value per call, which the translation allocates.
+	{"parser/parser.go", "type Parser struct {\n\tscanner *scanner.Scanner\n", "type Parser struct {\n\tlookAheadStates []*ParserState\n\tlookAheadDepth  int\n\tscanner *scanner.Scanner\n"},
+	{"parser/parser.go", `func (p *Parser) lookAhead(callback func(p *Parser) bool) bool {
+	state := p.mark()
+	result := callback(p)
+	p.rewind(state)
+	return result
+}`, `func (p *Parser) lookAhead(callback func(p *Parser) bool) bool {
+	if p.lookAheadDepth == len(p.lookAheadStates) {
+		p.lookAheadStates = append(p.lookAheadStates, &ParserState{})
+	}
+	state := p.lookAheadStates[p.lookAheadDepth]
+	p.scanner.MarkInto(&state.scannerState)
+	state.contextFlags = p.contextFlags
+	state.diagnosticsLen = len(p.diagnostics)
+	state.jsDiagnosticsLen = len(p.jsDiagnostics)
+	state.jsdocInfosLen = len(p.jsdocInfos)
+	state.reparsedClonesLen = len(p.reparsedClones)
+	state.statementHasAwaitIdentifier = p.statementHasAwaitIdentifier
+	state.hasParseError = p.hasParseError
+	p.lookAheadDepth++
+	result := callback(p)
+	p.lookAheadDepth--
+	p.rewind(*state)
+	return result
+}`},
+	{"scanner/scanner.go", "func (s *Scanner) Rewind(state ScannerState) {", "func (s *Scanner) MarkInto(dst *ScannerState) {\n\t*dst = s.ScannerState\n}\n\nfunc (s *Scanner) Rewind(state ScannerState) {"},
 }
 
 func loadOverlay(dir, upstream string) map[string][]byte {

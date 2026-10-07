@@ -42,6 +42,8 @@ export class JSDocInfo extends $rt.GoObject {
   }
 }
 export class Parser extends $rt.GoObject {
+  lookAheadStates: (ParserState | undefined)[] = [];
+  lookAheadDepth: number = 0;
   scanner: $scanner.Scanner | undefined = undefined;
   factory: $ast.NodeFactory = new $ast.NodeFactory();
   opts: $ast.SourceFileParseOptions = new $ast.SourceFileParseOptions();
@@ -73,6 +75,8 @@ export class Parser extends $rt.GoObject {
   setParentFromContext: $ast.Visitor = undefined;
   reparsedClones: ($ast.Node | undefined)[] = [];
   $copy_parser_Parser(src: Parser): void {
+    this.lookAheadStates = src.lookAheadStates;
+    this.lookAheadDepth = src.lookAheadDepth;
     this.scanner = src.scanner;
     this.factory = src.factory.$clone_ast_NodeFactory();
     this.opts = src.opts.$clone_ast_SourceFileParseOptions();
@@ -109,7 +113,7 @@ export class Parser extends $rt.GoObject {
     o.$copy_parser_Parser(this);
     return o;
   }
-  static $lit_parser_Parser_0_28(p0: $scanner.Scanner | undefined, p1: $ast.Visitor): Parser {
+  static $lit_parser_Parser_2_30(p0: $scanner.Scanner | undefined, p1: $ast.Visitor): Parser {
     const o = new Parser();
     o.scanner = p0;
     o.setParentFromContext = p1;
@@ -1994,9 +1998,22 @@ export class Parser extends $rt.GoObject {
   }
   lookAhead(callback: ((p0: Parser | undefined) => boolean) | undefined): boolean {
     const p = this;
-    let state: ParserState = p!.mark();
+    if (p!.lookAheadDepth === p!.lookAheadStates.length) {
+      p!.lookAheadStates.push(new ParserState());
+    }
+    let state: ParserState | undefined = p!.lookAheadStates[p!.lookAheadDepth];
+    p!.scanner!.MarkInto(state!.scannerState);
+    state!.contextFlags = p!.contextFlags;
+    state!.diagnosticsLen = p!.diagnostics.length;
+    state!.jsDiagnosticsLen = p!.jsDiagnostics.length;
+    state!.jsdocInfosLen = p!.jsdocInfos.length;
+    state!.reparsedClonesLen = p!.reparsedClones.length;
+    state!.statementHasAwaitIdentifier = p!.statementHasAwaitIdentifier;
+    state!.hasParseError = p!.hasParseError;
+    p!.lookAheadDepth++;
     let result: boolean = callback!(p);
-    p!.rewind(state);
+    p!.lookAheadDepth--;
+    p!.rewind(state!);
     return result;
   }
   nextToken(): $ast.Kind {
@@ -10581,7 +10598,7 @@ export function getParser(): Parser | undefined {
   return (($t1: $rt.GoObject | undefined) => Parser.$cast_parser_Parser($t1))(parserPool.Get());
 }
 export function putParser(p: Parser | undefined): void {
-  p!.$copy_parser_Parser(Parser.$lit_parser_Parser_0_28(p!.scanner, p!.setParentFromContext));
+  p!.$copy_parser_Parser(Parser.$lit_parser_Parser_2_30(p!.scanner, p!.setParentFromContext));
   parserPool.Put(p);
 }
 export function ParseSourceFile(
