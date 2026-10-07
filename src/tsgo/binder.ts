@@ -2,6 +2,7 @@
 // Copyright Microsoft Corporation. Licensed under Apache-2.0.
 import * as $rt from '../go/runtime.js';
 import * as $ast from './ast.js';
+import * as $checker from './checker.js';
 import * as $collections from './collections.js';
 import * as $core from './core.js';
 import * as $debug from './debug.js';
@@ -14,21 +15,21 @@ const $zf2 = (): $ast.Symbol_ => new $ast.Symbol_();
 const $zf3 = (): $ast.FlowNode => new $ast.FlowNode();
 const $zf4 = (): $ast.FlowList => new $ast.FlowList();
 export type ContainerFlags = number;
-export type ReferenceResolver = referenceResolver | undefined;
+export type ReferenceResolver = referenceResolver | $checker.EmitResolver | undefined;
 export class ActiveLabel extends $rt.GoObject {
   next: ActiveLabel | undefined = undefined;
   breakTarget: $ast.FlowNode | undefined = undefined;
   continueTarget: $ast.FlowNode | undefined = undefined;
   name: string = '';
   referenced: boolean = false;
-  $copy_ActiveLabel(src: ActiveLabel): void {
+  $copy_binder_ActiveLabel(src: ActiveLabel): void {
     this.next = src.next;
     this.breakTarget = src.breakTarget;
     this.continueTarget = src.continueTarget;
     this.name = src.name;
     this.referenced = src.referenced;
   }
-  $equals_ActiveLabel(o: ActiveLabel): boolean {
+  $equals_binder_ActiveLabel(o: ActiveLabel): boolean {
     return (
       this.next === o.next &&
       this.breakTarget === o.breakTarget &&
@@ -37,12 +38,12 @@ export class ActiveLabel extends $rt.GoObject {
       this.referenced === o.referenced
     );
   }
-  $clone_ActiveLabel(): ActiveLabel {
+  $clone_binder_ActiveLabel(): ActiveLabel {
     const o = new ActiveLabel();
-    o.$copy_ActiveLabel(this);
+    o.$copy_binder_ActiveLabel(this);
     return o;
   }
-  static $lit_ActiveLabel_0_3_1_2_4(
+  static $lit_binder_ActiveLabel_0_3_1_2_4(
     p0: ActiveLabel | undefined,
     p1: string,
     p2: $ast.FlowNode | undefined,
@@ -57,7 +58,7 @@ export class ActiveLabel extends $rt.GoObject {
     o.referenced = p4;
     return o;
   }
-  static $cast_ActiveLabel(v: $rt.GoObject | undefined): ActiveLabel {
+  static $cast_binder_ActiveLabel(v: $rt.GoObject | undefined): ActiveLabel {
     if (v instanceof ActiveLabel) return v;
     throw $rt.typeAssertError();
   }
@@ -102,7 +103,7 @@ export class Binder extends $rt.GoObject {
   flowListArena: $rt.core_Arena<$ast.FlowList> = new $rt.core_Arena<$ast.FlowList>($zf4);
   singleDeclarationsArena: $rt.core_Arena<$ast.Node | undefined> = new $rt.core_Arena<$ast.Node | undefined>($zf1);
   expandoAssignments: ExpandoAssignmentInfo[] = [];
-  $copy_Binder(src: Binder): void {
+  $copy_binder_Binder(src: Binder): void {
     this.file = src.file;
     this.bindFunc = src.bindFunc;
     this.unreachableFlow = src.unreachableFlow;
@@ -126,24 +127,24 @@ export class Binder extends $rt.GoObject {
     this.inAssignmentPattern = src.inAssignmentPattern;
     this.seenParseError = src.seenParseError;
     this.symbolCount = src.symbolCount;
-    this.notConstEnumOnlyModules = src.notConstEnumOnlyModules.$clone_Set();
+    this.notConstEnumOnlyModules = src.notConstEnumOnlyModules.$clone_collections_Set();
     this.symbolArena = src.symbolArena.$clone();
     this.flowNodeArena = src.flowNodeArena.$clone();
     this.flowListArena = src.flowListArena.$clone();
     this.singleDeclarationsArena = src.singleDeclarationsArena.$clone();
     this.expandoAssignments = src.expandoAssignments;
   }
-  $clone_Binder(): Binder {
+  $clone_binder_Binder(): Binder {
     const o = new Binder();
-    o.$copy_Binder(this);
+    o.$copy_binder_Binder(this);
     return o;
   }
-  static $lit_Binder_1(p0: ((p0: $ast.Node | undefined) => boolean) | undefined): Binder {
+  static $lit_binder_Binder_1(p0: ((p0: $ast.Node | undefined) => boolean) | undefined): Binder {
     const o = new Binder();
     o.bindFunc = p0;
     return o;
   }
-  static $cast_Binder(v: $rt.GoObject | undefined): Binder {
+  static $cast_binder_Binder(v: $rt.GoObject | undefined): Binder {
     if (v instanceof Binder) return v;
     throw $rt.typeAssertError();
   }
@@ -191,7 +192,7 @@ export class Binder extends $rt.GoObject {
         }
       }
     }
-    let symbol_: $ast.Symbol_ | undefined = undefined;
+    let symbol_: $ast.Symbol_ | undefined = undefined as $ast.Symbol_ | undefined;
     if (name_ === ('\xfemissing' as string)) {
       symbol_ = b!.newSymbol(0, '\xfemissing');
     } else {
@@ -214,7 +215,7 @@ export class Binder extends $rt.GoObject {
             (!((includes & 67108864) === (0 as number)) && !((symbol_!.Flags & 3) === (0 as number)))
           )
         ) {
-          let message: $diagnostics.Message | undefined = undefined;
+          let message: $diagnostics.Message | undefined = undefined as $diagnostics.Message | undefined;
           if (!((symbol_!.Flags & 2) === (0 as number))) {
             message = $diagnostics.Cannot_redeclare_block_scoped_variable_0;
           } else {
@@ -247,7 +248,7 @@ export class Binder extends $rt.GoObject {
           if (declarationName === undefined) {
             declarationName = node;
           }
-          let diag: $ast.Diagnostic | undefined = undefined;
+          let diag: $ast.Diagnostic | undefined = undefined as $ast.Diagnostic | undefined;
           if (messageNeedsName) {
             diag = b!.createDiagnosticForNode(declarationName, message, [
               new $rt.BoxStr(b!.getDisplayName(node), 'string'),
@@ -257,7 +258,7 @@ export class Binder extends $rt.GoObject {
           }
           if (
             $ast.IsTypeAliasDeclaration(node) &&
-            $ast.NodeIsMissing(node!.Type()) &&
+            $ast.NodeIsMissing(node!.Type$m()) &&
             $ast.HasSyntacticModifier(node, 32) &&
             !((symbol_!.Flags & 2887656) === (0 as number))
           ) {
@@ -276,7 +277,7 @@ export class Binder extends $rt.GoObject {
               if (decl === undefined) {
                 decl = declaration;
               }
-              let d: $ast.Diagnostic | undefined = undefined;
+              let d: $ast.Diagnostic | undefined = undefined as $ast.Diagnostic | undefined;
               if (messageNeedsName) {
                 d = b!.createDiagnosticForNode(decl, message, [
                   new $rt.BoxStr(b!.getDisplayName(declaration), 'string'),
@@ -344,7 +345,7 @@ export class Binder extends $rt.GoObject {
         if (containingClass === undefined) {
           return '\xfemissing';
         }
-        return GetSymbolNameForPrivateIdentifier(containingClass!.Symbol_(), name_!.Text$Node());
+        return GetSymbolNameForPrivateIdentifier(containingClass!.Symbol$m(), name_!.Text$Node());
       }
       if ($ast.IsPropertyNameLiteral(name_) || $ast.IsJsxNamespacedName(name_)) {
         return name_!.Text$Node();
@@ -416,8 +417,8 @@ export class Binder extends $rt.GoObject {
     if (!((symbolFlags & 2097152) === (0 as number))) {
       if (node!.Kind_ === (282 as number) || (node!.Kind_ === (272 as number) && hasExportModifier)) {
         return b!.declareSymbol(
-          $ast.GetExports(container!.Symbol_()),
-          container!.Symbol_(),
+          $ast.GetExports(container!.Symbol$m()),
+          container!.Symbol$m(),
           node,
           symbolFlags,
           symbolExcludes,
@@ -431,8 +432,8 @@ export class Binder extends $rt.GoObject {
         ($ast.HasSyntacticModifier(node, 2048) && b!.getDeclarationName(node) === ('\xfemissing' as string))
       ) {
         return b!.declareSymbol(
-          $ast.GetExports(container!.Symbol_()),
-          container!.Symbol_(),
+          $ast.GetExports(container!.Symbol$m()),
+          container!.Symbol$m(),
           node,
           symbolFlags,
           symbolExcludes,
@@ -450,8 +451,8 @@ export class Binder extends $rt.GoObject {
         symbolExcludes,
       );
       local!.ExportSymbol = b!.declareSymbol(
-        $ast.GetExports(container!.Symbol_()),
-        container!.Symbol_(),
+        $ast.GetExports(container!.Symbol$m()),
+        container!.Symbol$m(),
         node,
         symbolFlags,
         symbolExcludes,
@@ -469,16 +470,16 @@ export class Binder extends $rt.GoObject {
     const b = this;
     if ($ast.IsStatic(node)) {
       return b!.declareSymbol(
-        $ast.GetExports(b!.container!.Symbol_()),
-        b!.container!.Symbol_(),
+        $ast.GetExports(b!.container!.Symbol$m()),
+        b!.container!.Symbol$m(),
         node,
         symbolFlags,
         symbolExcludes,
       );
     }
     return b!.declareSymbol(
-      $ast.GetMembers(b!.container!.Symbol_()),
-      b!.container!.Symbol_(),
+      $ast.GetMembers(b!.container!.Symbol$m()),
+      b!.container!.Symbol$m(),
       node,
       symbolFlags,
       symbolExcludes,
@@ -515,8 +516,8 @@ export class Binder extends $rt.GoObject {
         }
         case 267 as number: {
           return b!.declareSymbol(
-            $ast.GetExports(b!.container!.Symbol_()),
-            b!.container!.Symbol_(),
+            $ast.GetExports(b!.container!.Symbol$m()),
+            b!.container!.Symbol$m(),
             node,
             symbolFlags,
             symbolExcludes,
@@ -527,8 +528,8 @@ export class Binder extends $rt.GoObject {
         case 265 as number:
         case 293 as number: {
           return b!.declareSymbol(
-            $ast.GetMembers(b!.container!.Symbol_()),
-            b!.container!.Symbol_(),
+            $ast.GetMembers(b!.container!.Symbol$m()),
+            b!.container!.Symbol$m(),
             node,
             symbolFlags,
             symbolExcludes,
@@ -672,7 +673,7 @@ export class Binder extends $rt.GoObject {
     if (!((antecedent!.Flags & 1) === (0 as number))) {
       return;
     }
-    let last: $ast.FlowList | undefined = undefined;
+    let last: $ast.FlowList | undefined = undefined as $ast.FlowList | undefined;
     {
       for (let list: $ast.FlowList | undefined = label!.Antecedents; !(list === undefined); list = list!.Next) {
         if (list!.Flow === antecedent) {
@@ -1036,7 +1037,7 @@ export class Binder extends $rt.GoObject {
             ]);
           } else if (pattern.StarIndex >= 0) {
             b!.file!.PatternAmbientModules.push(
-              $ast.PatternAmbientModule.$lit_PatternAmbientModule_0_1(pattern.$clone_Pattern(), symbol_),
+              $ast.PatternAmbientModule.$lit_ast_PatternAmbientModule_0_1(pattern.$clone_core_Pattern(), symbol_),
             );
           }
         }
@@ -1044,7 +1045,7 @@ export class Binder extends $rt.GoObject {
     } else {
       let state: $ast.ModuleInstanceState = b!.declareModuleSymbol(node);
       if (!(state === (1 as number))) {
-        let symbol_$1: $ast.Symbol_ | undefined = node!.Symbol_();
+        let symbol_$1: $ast.Symbol_ | undefined = node!.Symbol$m();
         let constEnumOnlyModule: boolean =
           (symbol_$1!.Flags & 304) === (0 as number) &&
           state === (3 as number) &&
@@ -1123,14 +1124,14 @@ export class Binder extends $rt.GoObject {
   bindExportDeclaration(node: $ast.Node | undefined): void {
     const b = this;
     let decl: $ast.ExportDeclaration | undefined = node!.AsExportDeclaration();
-    if (b!.container!.Symbol_() === undefined) {
+    if (b!.container!.Symbol$m() === undefined) {
       b!.bindAnonymousDeclaration(node, 8388608, b!.getDeclarationName(node));
     } else if (decl!.ExportClause === undefined) {
-      b!.declareSymbol($ast.GetExports(b!.container!.Symbol_()), b!.container!.Symbol_(), node, 8388608, 0);
+      b!.declareSymbol($ast.GetExports(b!.container!.Symbol$m()), b!.container!.Symbol$m(), node, 8388608, 0);
     } else if ($ast.IsNamespaceExport(decl!.ExportClause)) {
       b!.declareSymbol(
-        $ast.GetExports(b!.container!.Symbol_()),
-        b!.container!.Symbol_(),
+        $ast.GetExports(b!.container!.Symbol$m()),
+        b!.container!.Symbol$m(),
         decl!.ExportClause,
         2097152,
         2097152,
@@ -1140,7 +1141,7 @@ export class Binder extends $rt.GoObject {
   bindExportAssignment(node: $ast.Node | undefined): void {
     const b = this;
     let container: $ast.Node | undefined = b!.container;
-    if (container!.Symbol_() === undefined && $ast.IsExportAssignment(node)) {
+    if (container!.Symbol$m() === undefined && $ast.IsExportAssignment(node)) {
       b!.bindAnonymousDeclaration(node, 111551, b!.getDeclarationName(node));
     } else {
       let flags: $ast.SymbolFlags = $core.IfElse<$ast.SymbolFlags>(
@@ -1149,8 +1150,8 @@ export class Binder extends $rt.GoObject {
         4,
       );
       let symbol_: $ast.Symbol_ | undefined = b!.declareSymbol(
-        $ast.GetExports(container!.Symbol_()),
-        container!.Symbol_(),
+        $ast.GetExports(container!.Symbol$m()),
+        container!.Symbol$m(),
         node,
         flags,
         1073741823,
@@ -1194,9 +1195,7 @@ export class Binder extends $rt.GoObject {
         }
       }
     }
-    return $core.Some<$ast.Node | undefined>(statements, (s: $ast.Node | undefined): boolean => {
-      return $ast.IsExportDeclaration(s) || $ast.IsExportAssignment(s);
-    });
+    return $core.Some<$ast.Node | undefined>(statements, $fn1);
   }
   bindFunctionExpression(node: $ast.Node | undefined): void {
     const b = this;
@@ -1252,7 +1251,7 @@ export class Binder extends $rt.GoObject {
         }
       }
     }
-    let symbol_: $ast.Symbol_ | undefined = node!.Symbol_();
+    let symbol_: $ast.Symbol_ | undefined = node!.Symbol$m();
     let prototypeSymbol: $ast.Symbol_ | undefined = b!.newSymbol(4194308, 'prototype');
     let symbolExport: $ast.Symbol_ | undefined = $ast.GetExports(symbol_)?.get(prototypeSymbol!.Name) ?? undefined;
     if (!(symbolExport === undefined)) {
@@ -1310,8 +1309,8 @@ export class Binder extends $rt.GoObject {
         4,
       );
       let symbol_: $ast.Symbol_ | undefined = b!.declareSymbol(
-        $ast.GetExports(container!.Symbol_()),
-        container!.Symbol_(),
+        $ast.GetExports(container!.Symbol$m()),
+        container!.Symbol$m(),
         node,
         flags,
         0,
@@ -1322,7 +1321,7 @@ export class Binder extends $rt.GoObject {
   bindExpandoPropertyAssignment(node: $ast.Node | undefined): void {
     const b = this;
     b!.expandoAssignments.push(
-      ExpandoAssignmentInfo.$lit_ExpandoAssignmentInfo_0_1_2(node, b!.container, b!.blockScopeContainer),
+      ExpandoAssignmentInfo.$lit_binder_ExpandoAssignmentInfo_0_1_2(node, b!.container, b!.blockScopeContainer),
     );
   }
   bindDeferredExpandoAssignments(): void {
@@ -1386,7 +1385,7 @@ export class Binder extends $rt.GoObject {
         2097152,
         1,
       );
-      b!.declareSymbol($ast.GetExports(container!.Symbol_()), container!.Symbol_(), node, flags, 111550);
+      b!.declareSymbol($ast.GetExports(container!.Symbol$m()), container!.Symbol$m(), node, flags, 111550);
     }
   }
   bindThisPropertyAssignment(node: $ast.Node | undefined): void {
@@ -1425,8 +1424,8 @@ export class Binder extends $rt.GoObject {
   }
   getThisClassAndSymbolTable(): [$ast.Symbol_ | undefined, $ast.SymbolTable] {
     const b = this;
-    let classSymbol: $ast.Symbol_ | undefined = undefined;
-    let symbolTable: $ast.SymbolTable = undefined;
+    let classSymbol: $ast.Symbol_ | undefined = undefined as $ast.Symbol_ | undefined;
+    let symbolTable: $ast.SymbolTable = undefined as $ast.SymbolTable;
     if (b!.thisContainer === undefined) {
       return [undefined, undefined];
     }
@@ -1442,7 +1441,7 @@ export class Binder extends $rt.GoObject {
         case 178 as number:
         case 179 as number:
         case 176 as number: {
-          classSymbol = b!.thisContainer!.Parent!.Symbol_();
+          classSymbol = b!.thisContainer!.Parent!.Symbol$m();
           if ($ast.IsStatic(b!.thisContainer)) {
             symbolTable = $ast.GetExports(classSymbol);
           } else {
@@ -1500,7 +1499,7 @@ export class Binder extends $rt.GoObject {
       let classDeclaration: $ast.Node | undefined = node!.Parent!.Parent;
       let flags: $ast.SymbolFlags =
         (4 | $core.IfElse<$ast.SymbolFlags>(!(decl!.QuestionToken_ === undefined), 16777216, 0)) >>> 0;
-      b!.declareSymbol($ast.GetMembers(classDeclaration!.Symbol_()), classDeclaration!.Symbol_(), node, flags, 13243);
+      b!.declareSymbol($ast.GetMembers(classDeclaration!.Symbol$m()), classDeclaration!.Symbol$m(), node, flags, 13243);
     }
   }
   bindFunctionDeclaration(node: $ast.Node | undefined): void {
@@ -1513,14 +1512,7 @@ export class Binder extends $rt.GoObject {
   }
   getInferTypeContainer(node: $ast.Node | undefined): $ast.Node | undefined {
     const b = this;
-    let extendsType: $ast.Node | undefined = $ast.FindAncestor(node, (n: $ast.Node | undefined): boolean => {
-      let parent: $ast.Node | undefined = n!.Parent;
-      return (
-        !(parent === undefined) &&
-        $ast.IsConditionalTypeNode(parent) &&
-        parent!.AsConditionalTypeNode()!.ExtendsType === n
-      );
-    });
+    let extendsType: $ast.Node | undefined = $ast.FindAncestor(node, $fn2);
     if (!(extendsType === undefined)) {
       return extendsType!.Parent;
     }
@@ -1530,7 +1522,7 @@ export class Binder extends $rt.GoObject {
     const b = this;
     let symbol_: $ast.Symbol_ | undefined = b!.newSymbol(symbolFlags, name_);
     if (!((symbolFlags & 106508) === (0 as number))) {
-      symbol_!.Parent = b!.container!.Symbol_();
+      symbol_!.Parent = b!.container!.Symbol$m();
     }
     b!.addDeclarationToSymbol(symbol_, node, symbolFlags);
   }
@@ -1886,7 +1878,7 @@ export class Binder extends $rt.GoObject {
       ($ast.IsSourceFile(node) && $ast.IsExternalOrCommonJSModule(node!.AsSourceFile())) ||
       $ast.IsAmbientModule(node)
     ) {
-      b!.bindCommonJSTypeExports(node!.Symbol_());
+      b!.bindCommonJSTypeExports(node!.Symbol$m());
     }
     b!.container = saveContainer;
     b!.thisContainer = saveThisContainer;
@@ -2470,12 +2462,7 @@ export class Binder extends $rt.GoObject {
     b!.preSwitchCaseFlow = b!.currentFlow;
     b!.bind(stmt!.CaseBlock);
     b!.addAntecedent(postSwitchLabel, b!.currentFlow);
-    let hasDefault: boolean = $core.Some<$ast.Node | undefined>(
-      stmt!.CaseBlock!.AsCaseBlock()!.Clauses!.Nodes,
-      (c: $ast.Node | undefined): boolean => {
-        return c!.Kind_ === (298 as number);
-      },
-    );
+    let hasDefault: boolean = $core.Some<$ast.Node | undefined>(stmt!.CaseBlock!.AsCaseBlock()!.Clauses!.Nodes, $fn3);
     if (!hasDefault) {
       b!.addAntecedent(postSwitchLabel, b!.createFlowSwitchClause(b!.preSwitchCaseFlow, node, 0, 0));
     }
@@ -2546,7 +2533,7 @@ export class Binder extends $rt.GoObject {
     const b = this;
     let stmt: $ast.LabeledStatement | undefined = node!.AsLabeledStatement();
     let postStatementLabel: $ast.FlowNode | undefined = b!.createBranchLabel();
-    b!.activeLabelList = ActiveLabel.$lit_ActiveLabel_0_3_1_2_4(
+    b!.activeLabelList = ActiveLabel.$lit_binder_ActiveLabel_0_3_1_2_4(
       b!.activeLabelList,
       stmt!.Label_!.Text$Node(),
       postStatementLabel,
@@ -2720,7 +2707,7 @@ export class Binder extends $rt.GoObject {
   }
   bindInitializedVariableFlow(node: $ast.Node | undefined): void {
     const b = this;
-    let name_: $ast.Node | undefined = undefined;
+    let name_: $ast.Node | undefined = undefined as $ast.Node | undefined;
     {
       switch (node!.Kind_) {
         case 261 as number: {
@@ -2776,7 +2763,7 @@ export class Binder extends $rt.GoObject {
     falseTarget: $ast.FlowNode | undefined,
   ): void {
     const b = this;
-    let preChainLabel: $ast.FlowNode | undefined = undefined;
+    let preChainLabel: $ast.FlowNode | undefined = undefined as $ast.FlowNode | undefined;
     if ($ast.IsOptionalChainRoot(node)) {
       preChainLabel = b!.createBranchLabel();
     }
@@ -2972,20 +2959,20 @@ export class ExpandoAssignmentInfo extends $rt.GoObject {
   node: $ast.Node | undefined = undefined;
   container: $ast.Node | undefined = undefined;
   blockScopeContainer: $ast.Node | undefined = undefined;
-  $copy_ExpandoAssignmentInfo(src: ExpandoAssignmentInfo): void {
+  $copy_binder_ExpandoAssignmentInfo(src: ExpandoAssignmentInfo): void {
     this.node = src.node;
     this.container = src.container;
     this.blockScopeContainer = src.blockScopeContainer;
   }
-  $equals_ExpandoAssignmentInfo(o: ExpandoAssignmentInfo): boolean {
+  $equals_binder_ExpandoAssignmentInfo(o: ExpandoAssignmentInfo): boolean {
     return this.node === o.node && this.container === o.container && this.blockScopeContainer === o.blockScopeContainer;
   }
-  $clone_ExpandoAssignmentInfo(): ExpandoAssignmentInfo {
+  $clone_binder_ExpandoAssignmentInfo(): ExpandoAssignmentInfo {
     const o = new ExpandoAssignmentInfo();
-    o.$copy_ExpandoAssignmentInfo(this);
+    o.$copy_binder_ExpandoAssignmentInfo(this);
     return o;
   }
-  static $lit_ExpandoAssignmentInfo_0_1_2(
+  static $lit_binder_ExpandoAssignmentInfo_0_1_2(
     p0: $ast.Node | undefined,
     p1: $ast.Node | undefined,
     p2: $ast.Node | undefined,
@@ -2996,7 +2983,7 @@ export class ExpandoAssignmentInfo extends $rt.GoObject {
     o.blockScopeContainer = p2;
     return o;
   }
-  static $cast_ExpandoAssignmentInfo(v: $rt.GoObject | undefined): ExpandoAssignmentInfo {
+  static $cast_binder_ExpandoAssignmentInfo(v: $rt.GoObject | undefined): ExpandoAssignmentInfo {
     if (v instanceof ExpandoAssignmentInfo) return v;
     throw $rt.typeAssertError();
   }
@@ -3035,7 +3022,7 @@ export class NameResolver extends $rt.GoObject {
         p5: boolean,
       ) => void)
     | undefined = undefined;
-  $copy_NameResolver(src: NameResolver): void {
+  $copy_binder_NameResolver(src: NameResolver): void {
     this.CompilerOptions_ = src.CompilerOptions_;
     this.GetSymbolOfDeclaration = src.GetSymbolOfDeclaration;
     this.Error_ = src.Error_;
@@ -3050,17 +3037,98 @@ export class NameResolver extends $rt.GoObject {
     this.OnFailedToResolveSymbol = src.OnFailedToResolveSymbol;
     this.OnSuccessfullyResolvedSymbol = src.OnSuccessfullyResolvedSymbol;
   }
-  $clone_NameResolver(): NameResolver {
+  $clone_binder_NameResolver(): NameResolver {
     const o = new NameResolver();
-    o.$copy_NameResolver(this);
+    o.$copy_binder_NameResolver(this);
     return o;
   }
-  static $lit_NameResolver_0(p0: $core.CompilerOptions | undefined): NameResolver {
+  static $lit_binder_NameResolver_0(p0: $core.CompilerOptions | undefined): NameResolver {
     const o = new NameResolver();
     o.CompilerOptions_ = p0;
     return o;
   }
-  static $cast_NameResolver(v: $rt.GoObject | undefined): NameResolver {
+  static $lit_binder_NameResolver_0_1_2_3_4_5_6_7_8_9(
+    p0: $core.CompilerOptions | undefined,
+    p1: ((p0: $ast.Node | undefined) => $ast.Symbol_ | undefined) | undefined,
+    p2:
+      | ((
+          p0: $ast.Node | undefined,
+          p1: $diagnostics.Message | undefined,
+          p2: ($rt.GoObject | undefined)[],
+        ) => $ast.Diagnostic | undefined)
+      | undefined,
+    p3: $ast.SymbolTable,
+    p4: $ast.Symbol_ | undefined,
+    p5: $ast.Symbol_ | undefined,
+    p6: ((p0: $ast.SymbolTable, p1: string, p2: $ast.SymbolFlags) => $ast.Symbol_ | undefined) | undefined,
+    p7: ((p0: $ast.Symbol_ | undefined, p1: $ast.SymbolFlags) => void) | undefined,
+    p8: ((p0: $ast.Node | undefined, p1: $core.Tristate) => void) | undefined,
+    p9: ((p0: $ast.Node | undefined) => $core.Tristate) | undefined,
+  ): NameResolver {
+    const o = new NameResolver();
+    o.CompilerOptions_ = p0;
+    o.GetSymbolOfDeclaration = p1;
+    o.Error_ = p2;
+    o.Globals = p3;
+    o.ArgumentsSymbol = p4;
+    o.RequireSymbol = p5;
+    o.Lookup = p6;
+    o.SymbolReferenced = p7;
+    o.SetRequiresScopeChangeCache = p8;
+    o.GetRequiresScopeChangeCache = p9;
+    return o;
+  }
+  static $lit_binder_NameResolver_0_1_2_3_4_5_6_7_8_9_10_11_12(
+    p0: $core.CompilerOptions | undefined,
+    p1: ((p0: $ast.Node | undefined) => $ast.Symbol_ | undefined) | undefined,
+    p2:
+      | ((
+          p0: $ast.Node | undefined,
+          p1: $diagnostics.Message | undefined,
+          p2: ($rt.GoObject | undefined)[],
+        ) => $ast.Diagnostic | undefined)
+      | undefined,
+    p3: $ast.SymbolTable,
+    p4: $ast.Symbol_ | undefined,
+    p5: $ast.Symbol_ | undefined,
+    p6: ((p0: $ast.SymbolTable, p1: string, p2: $ast.SymbolFlags) => $ast.Symbol_ | undefined) | undefined,
+    p7: ((p0: $ast.Symbol_ | undefined, p1: $ast.SymbolFlags) => void) | undefined,
+    p8: ((p0: $ast.Node | undefined, p1: $core.Tristate) => void) | undefined,
+    p9: ((p0: $ast.Node | undefined) => $core.Tristate) | undefined,
+    p10:
+      | ((p0: $ast.Node | undefined, p1: string, p2: $ast.Node | undefined, p3: $ast.Symbol_ | undefined) => boolean)
+      | undefined,
+    p11:
+      | ((p0: $ast.Node | undefined, p1: string, p2: $ast.SymbolFlags, p3: $diagnostics.Message | undefined) => void)
+      | undefined,
+    p12:
+      | ((
+          p0: $ast.Node | undefined,
+          p1: $ast.Symbol_ | undefined,
+          p2: $ast.SymbolFlags,
+          p3: $ast.Node | undefined,
+          p4: $ast.Node | undefined,
+          p5: boolean,
+        ) => void)
+      | undefined,
+  ): NameResolver {
+    const o = new NameResolver();
+    o.CompilerOptions_ = p0;
+    o.GetSymbolOfDeclaration = p1;
+    o.Error_ = p2;
+    o.Globals = p3;
+    o.ArgumentsSymbol = p4;
+    o.RequireSymbol = p5;
+    o.Lookup = p6;
+    o.SymbolReferenced = p7;
+    o.SetRequiresScopeChangeCache = p8;
+    o.GetRequiresScopeChangeCache = p9;
+    o.OnPropertyWithInvalidInitializer = p10;
+    o.OnFailedToResolveSymbol = p11;
+    o.OnSuccessfullyResolvedSymbol = p12;
+    return o;
+  }
+  static $cast_binder_NameResolver(v: $rt.GoObject | undefined): NameResolver {
     if (v instanceof NameResolver) return v;
     throw $rt.typeAssertError();
   }
@@ -3073,13 +3141,15 @@ export class NameResolver extends $rt.GoObject {
     excludeGlobals: boolean,
   ): $ast.Symbol_ | undefined {
     const r = this;
-    let result: $ast.Symbol_ | undefined = undefined;
-    let lastLocation: $ast.Node | undefined = undefined;
-    let lastSelfReferenceLocation: $ast.Node | undefined = undefined;
-    let propertyWithInvalidInitializer: $ast.Node | undefined = undefined;
-    let associatedDeclarationForContainingInitializerOrBindingName: $ast.Node | undefined = undefined;
+    let result: $ast.Symbol_ | undefined = undefined as $ast.Symbol_ | undefined;
+    let lastLocation: $ast.Node | undefined = undefined as $ast.Node | undefined;
+    let lastSelfReferenceLocation: $ast.Node | undefined = undefined as $ast.Node | undefined;
+    let propertyWithInvalidInitializer: $ast.Node | undefined = undefined as $ast.Node | undefined;
+    let associatedDeclarationForContainingInitializerOrBindingName: $ast.Node | undefined = undefined as
+      | $ast.Node
+      | undefined;
     let withinDeferredContext: boolean = false;
-    let grandparent: $ast.Node | undefined = undefined;
+    let grandparent: $ast.Node | undefined = undefined as $ast.Node | undefined;
     let originalLocation: $ast.Node | undefined = location;
     let nameIsConst: boolean = name_ === ('const' as string);
     loop: for (; !(location === undefined);) {
@@ -3107,7 +3177,7 @@ export class NameResolver extends $rt.GoObject {
               useResult =
                 !((result!.Flags & 262144) === (0 as number)) &&
                 (!((lastLocation!.Flags & 16) === (0 as number)) ||
-                  lastLocation === location!.Type() ||
+                  lastLocation === location!.Type$m() ||
                   lastLocation!.Kind_ === (170 as number) ||
                   lastLocation!.Kind_ === (333 as number) ||
                   lastLocation!.Kind_ === (334 as number) ||
@@ -3120,7 +3190,7 @@ export class NameResolver extends $rt.GoObject {
                 useResult =
                   lastLocation!.Kind_ === (170 as number) ||
                   !((lastLocation!.Flags & 16) === (0 as number)) ||
-                  (lastLocation === location!.Type() &&
+                  (lastLocation === location!.Type$m() &&
                     !($ast.FindAncestor(result!.ValueDeclaration, $ast.IsParameterDeclaration) === undefined));
               }
             }
@@ -3260,7 +3330,7 @@ export class NameResolver extends $rt.GoObject {
             if ($ast.IsClassExpression(location) && !((meaning & 32) === (0 as number))) {
               let className: $ast.Node | undefined = location!.Name$Node();
               if (!(className === undefined) && name_ === className!.Text$Node()) {
-                result = location!.Symbol_();
+                result = location!.Symbol$m();
                 break loop;
               }
             }
@@ -3325,7 +3395,7 @@ export class NameResolver extends $rt.GoObject {
             if (!((meaning & 16) === (0 as number))) {
               let functionName: $ast.Node | undefined = location!.AsFunctionExpression()!.Name();
               if (!(functionName === undefined) && name_ === functionName!.Text$Node()) {
-                result = location!.Symbol_();
+                result = location!.Symbol$m();
                 break loop;
               }
             }
@@ -3379,7 +3449,7 @@ export class NameResolver extends $rt.GoObject {
                 .TypeParameter!.AsTypeParameterDeclaration()!
                 .Name();
               if (!(parameterName === undefined) && name_ === parameterName!.Text$Node()) {
-                result = location!.AsInferTypeNode()!.TypeParameter!.Symbol_();
+                result = location!.AsInferTypeNode()!.TypeParameter!.Symbol$m();
                 break loop;
               }
             }
@@ -3407,7 +3477,7 @@ export class NameResolver extends $rt.GoObject {
     if (
       isUse &&
       !(result === undefined) &&
-      (lastSelfReferenceLocation === undefined || !(result === lastSelfReferenceLocation!.Symbol_()))
+      (lastSelfReferenceLocation === undefined || !(result === lastSelfReferenceLocation!.Symbol$m()))
     ) {
       if (!(r!.SymbolReferenced === undefined)) {
         r!.SymbolReferenced!(result, meaning);
@@ -3565,7 +3635,7 @@ export class NameResolver extends $rt.GoObject {
     if (!(r!.GetSymbolOfDeclaration === undefined)) {
       return r!.GetSymbolOfDeclaration!(node);
     }
-    return node!.Symbol_();
+    return node!.Symbol$m();
   }
   lookup(symbols: $ast.SymbolTable, name_: string, meaning: $ast.SymbolFlags): $ast.Symbol_ | undefined {
     const r = this;
@@ -3585,7 +3655,7 @@ export class NameResolver extends $rt.GoObject {
   argumentsSymbol(): $ast.Symbol_ | undefined {
     const r = this;
     if (r!.ArgumentsSymbol === undefined) {
-      r!.ArgumentsSymbol = $ast.Symbol_.$lit_Symbol_2_0('arguments', 33554436);
+      r!.ArgumentsSymbol = $ast.Symbol_.$lit_ast_Symbol_2_0('arguments', 33554436);
     }
     return r!.ArgumentsSymbol;
   }
@@ -3612,7 +3682,7 @@ export class ReferenceResolverHooks extends $rt.GoObject {
     undefined;
   GetElementAccessExpressionName: ((p0: $ast.ElementAccessExpression | undefined) => [string, boolean]) | undefined =
     undefined;
-  $copy_ReferenceResolverHooks(src: ReferenceResolverHooks): void {
+  $copy_binder_ReferenceResolverHooks(src: ReferenceResolverHooks): void {
     this.ResolveName = src.ResolveName;
     this.GetResolvedSymbol = src.GetResolvedSymbol;
     this.GetMergedSymbol = src.GetMergedSymbol;
@@ -3622,12 +3692,42 @@ export class ReferenceResolverHooks extends $rt.GoObject {
     this.GetExportSymbolOfValueSymbolIfExported = src.GetExportSymbolOfValueSymbolIfExported;
     this.GetElementAccessExpressionName = src.GetElementAccessExpressionName;
   }
-  $clone_ReferenceResolverHooks(): ReferenceResolverHooks {
+  $clone_binder_ReferenceResolverHooks(): ReferenceResolverHooks {
     const o = new ReferenceResolverHooks();
-    o.$copy_ReferenceResolverHooks(this);
+    o.$copy_binder_ReferenceResolverHooks(this);
     return o;
   }
-  static $cast_ReferenceResolverHooks(v: $rt.GoObject | undefined): ReferenceResolverHooks {
+  static $lit_binder_ReferenceResolverHooks_0_1_2_3_4_5_6_7(
+    p0:
+      | ((
+          p0: $ast.Node | undefined,
+          p1: string,
+          p2: $ast.SymbolFlags,
+          p3: $diagnostics.Message | undefined,
+          p4: boolean,
+          p5: boolean,
+        ) => $ast.Symbol_ | undefined)
+      | undefined,
+    p1: ((p0: $ast.Node | undefined) => $ast.Symbol_ | undefined) | undefined,
+    p2: ((p0: $ast.Symbol_ | undefined) => $ast.Symbol_ | undefined) | undefined,
+    p3: ((p0: $ast.Symbol_ | undefined) => $ast.Symbol_ | undefined) | undefined,
+    p4: ((p0: $ast.Node | undefined) => $ast.Symbol_ | undefined) | undefined,
+    p5: ((p0: $ast.Symbol_ | undefined, p1: $ast.SymbolFlags) => $ast.Node | undefined) | undefined,
+    p6: ((p0: $ast.Symbol_ | undefined) => $ast.Symbol_ | undefined) | undefined,
+    p7: ((p0: $ast.ElementAccessExpression | undefined) => [string, boolean]) | undefined,
+  ): ReferenceResolverHooks {
+    const o = new ReferenceResolverHooks();
+    o.ResolveName = p0;
+    o.GetResolvedSymbol = p1;
+    o.GetMergedSymbol = p2;
+    o.GetParentOfSymbol = p3;
+    o.GetSymbolOfDeclaration = p4;
+    o.GetTypeOnlyAliasDeclaration = p5;
+    o.GetExportSymbolOfValueSymbolIfExported = p6;
+    o.GetElementAccessExpressionName = p7;
+    return o;
+  }
+  static $cast_binder_ReferenceResolverHooks(v: $rt.GoObject | undefined): ReferenceResolverHooks {
     if (v instanceof ReferenceResolverHooks) return v;
     throw $rt.typeAssertError();
   }
@@ -3636,17 +3736,17 @@ export class referenceResolver extends $rt.GoObject {
   resolver: NameResolver | undefined = undefined;
   options: $core.CompilerOptions | undefined = undefined;
   hooks: ReferenceResolverHooks = new ReferenceResolverHooks();
-  $copy_referenceResolver(src: referenceResolver): void {
+  $copy_binder_referenceResolver(src: referenceResolver): void {
     this.resolver = src.resolver;
     this.options = src.options;
     this.hooks = src.hooks;
   }
-  $clone_referenceResolver(): referenceResolver {
+  $clone_binder_referenceResolver(): referenceResolver {
     const o = new referenceResolver();
-    o.$copy_referenceResolver(this);
+    o.$copy_binder_referenceResolver(this);
     return o;
   }
-  static $lit_referenceResolver_1_2(
+  static $lit_binder_referenceResolver_1_2(
     p0: $core.CompilerOptions | undefined,
     p1: ReferenceResolverHooks,
   ): referenceResolver {
@@ -3655,7 +3755,7 @@ export class referenceResolver extends $rt.GoObject {
     o.hooks = p1;
     return o;
   }
-  static $cast_referenceResolver(v: $rt.GoObject | undefined): referenceResolver {
+  static $cast_binder_referenceResolver(v: $rt.GoObject | undefined): referenceResolver {
     if (v instanceof referenceResolver) return v;
     throw $rt.typeAssertError();
   }
@@ -3694,7 +3794,7 @@ export class referenceResolver extends $rt.GoObject {
       if (!(r!.hooks.GetSymbolOfDeclaration === undefined)) {
         return r!.hooks.GetSymbolOfDeclaration!(declaration);
       }
-      return declaration!.Symbol_();
+      return declaration!.Symbol$m();
     }
     return undefined;
   }
@@ -3720,7 +3820,7 @@ export class referenceResolver extends $rt.GoObject {
       return r!.hooks.ResolveName!(location, reference!.Text$Node(), 3257279, undefined, false, false);
     }
     if (r!.resolver === undefined) {
-      r!.resolver = NameResolver.$lit_NameResolver_0(r!.options);
+      r!.resolver = NameResolver.$lit_binder_NameResolver_0(r!.options);
     }
     return r!.resolver!.Resolve(location, reference!.Text$Node(), 3257279, undefined, false, false);
   }
@@ -3908,8 +4008,8 @@ export class referenceResolver extends $rt.GoObject {
   GetReferencedMemberValueDeclaration(node: $ast.Node | undefined): $ast.Node | undefined {
     const r = this;
     let s: $ast.Symbol_ | undefined = r!.getResolvedSymbol(node);
-    if (s === undefined && !(node!.Symbol_() === undefined)) {
-      s = r!.getMergedSymbol(node!.Symbol_());
+    if (s === undefined && !(node!.Symbol$m() === undefined)) {
+      s = r!.getMergedSymbol(node!.Symbol$m());
     }
     if (s === undefined) {
       return undefined;
@@ -3928,7 +4028,7 @@ export const ContainerFlagsIsObjectLiteralOrClassExpressionMethodOrAccessor: Con
 export const ContainerFlagsIsThisContainer: ContainerFlags = 256;
 export const ContainerFlagsNone: ContainerFlags = 0;
 export const ContainerFlagsPropagatesThisKeyword: ContainerFlags = 512;
-export let binderPool: $rt.sync_Pool = new $rt.sync_Pool((): $rt.GoObject | undefined => {
+const $fn0 = (): $rt.GoObject | undefined => {
   let b: Binder | undefined = new Binder();
   b!.bindFunc = (
     ($t1: Binder | undefined) =>
@@ -3936,17 +4036,30 @@ export let binderPool: $rt.sync_Pool = new $rt.sync_Pool((): $rt.GoObject | unde
       $t1!.bind(a0)
   )(b);
   return b;
-});
+};
+const $fn1 = (s: $ast.Node | undefined): boolean => {
+  return $ast.IsExportDeclaration(s) || $ast.IsExportAssignment(s);
+};
+const $fn2 = (n: $ast.Node | undefined): boolean => {
+  let parent: $ast.Node | undefined = n!.Parent;
+  return (
+    !(parent === undefined) && $ast.IsConditionalTypeNode(parent) && parent!.AsConditionalTypeNode()!.ExtendsType === n
+  );
+};
+const $fn3 = (c: $ast.Node | undefined): boolean => {
+  return c!.Kind_ === (298 as number);
+};
+export let binderPool: $rt.sync_Pool = new $rt.sync_Pool($fn0);
 export function BindSourceFile(file: $ast.SourceFile | undefined): void {
   if (!file!.IsBound()) {
     bindSourceFile(file);
   }
 }
 export function getBinder(): Binder | undefined {
-  return (($t1: $rt.GoObject | undefined) => Binder.$cast_Binder($t1))(binderPool.Get());
+  return (($t1: $rt.GoObject | undefined) => Binder.$cast_binder_Binder($t1))(binderPool.Get());
 }
 export function putBinder(b: Binder | undefined): void {
-  b!.$copy_Binder(Binder.$lit_Binder_1(b!.bindFunc));
+  b!.$copy_binder_Binder(Binder.$lit_binder_Binder_1(b!.bindFunc));
   binderPool.Put(b);
 }
 export function bindSourceFile(file: $ast.SourceFile | undefined): void {
@@ -4016,12 +4129,12 @@ export function getInitializerSymbol(symbol_: $ast.Symbol_ | undefined): $ast.Sy
       ) {
         let initializer: $ast.Node | undefined = declaration!.Initializer();
         if ($ast.IsExpandoInitializer(declaration, initializer)) {
-          return initializer!.Symbol_();
+          return initializer!.Symbol$m();
         }
       } else if ($ast.IsBinaryExpression(declaration) && $ast.IsInJSFile(declaration)) {
         let initializer$1: $ast.Node | undefined = declaration!.AsBinaryExpression()!.Right;
         if ($ast.IsExpandoInitializer(declaration, initializer$1)) {
-          return initializer$1!.Symbol_();
+          return initializer$1!.Symbol$m();
         }
       }
     }
@@ -4509,5 +4622,5 @@ export function NewReferenceResolver(
   options: $core.CompilerOptions | undefined,
   hooks: ReferenceResolverHooks,
 ): ReferenceResolver {
-  return referenceResolver.$lit_referenceResolver_1_2(options, hooks);
+  return referenceResolver.$lit_binder_referenceResolver_1_2(options, hooks);
 }

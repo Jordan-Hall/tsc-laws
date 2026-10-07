@@ -35,7 +35,7 @@ if (process.argv[3] === '--bench') {
   binder.BindSourceFile(f);
   const out: string[] = [];
   const visit = (n: ast.Node | undefined, depth: number): boolean => {
-    let line = `${depth} ${n!.Kind_} ${n!.Pos()} ${n!.End()} ${n!.Flags} ${symbol(n!.Symbol_())} ${symbol(n!.LocalSymbol())}`;
+    let line = `${depth} ${n!.Kind_} ${n!.Pos()} ${n!.End()} ${n!.Flags} ${symbol(n!.Symbol$m())} ${symbol(n!.LocalSymbol())}`;
     const locals = n!.Locals();
     if (locals !== undefined && locals.size > 0) {
       const names: string[] = [];

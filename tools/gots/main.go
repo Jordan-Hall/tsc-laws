@@ -102,6 +102,11 @@ type translator struct {
 	// shadowed marks methods that a subclass redeclares with the same
 	// signature; static calls use their class-qualified name.
 	shadowed map[*types.Func]bool
+	// structTP marks type parameters (by object) whose instantiations are
+	// all struct types; *T then means an object reference.
+	structTP map[*types.TypeName]bool
+	// keyTypes are struct types used, directly or nested, as map keys.
+	keyTypes map[*types.TypeName]bool
 	// badMethodNames are method names that equal a type named in the
 	// method's own signature; scriptc can reject such classes.
 	badMethodNames map[string]bool
@@ -206,6 +211,9 @@ type class struct {
 
 // ifaceMap describes how an interface type is represented.
 type ifaceMap struct {
+	// stub is set for interfaces without translated implementers; the
+	// interface is emitted as a class declaring its methods.
+	stub  bool
 	base  *types.TypeName   // common superclass, if any
 	union []types.Type      // implementing types otherwise
 	boxed []*types.TypeName // named non-struct implementers
@@ -380,6 +388,9 @@ func (t *translator) analyze() {
 	t.renameFields()
 	t.findMutable()
 	t.analyzeZero()
+	t.analyzeStructTP()
+	t.analyzeKeyTypes()
+	structTPGlobal = t.structTP
 	localTParamsGlobal = t.localTParams
 }
 
@@ -398,7 +409,13 @@ func (t *translator) chain(tn *types.TypeName) []*types.TypeName {
 }
 
 func (t *translator) mapInterface(tn *types.TypeName, it *types.Interface, named []*types.TypeName) {
-	t.ifaces[tn] = t.mapIface(it, named)
+	m := t.mapIface(it, named)
+	if it.NumMethods() > 0 && m.base == nil && len(m.union) == 0 && len(m.boxed) == 0 {
+		if n, ok := tn.Type().(*types.Named); ok && n.TypeParams().Len() == 0 {
+			m.stub = true
+		}
+	}
+	t.ifaces[tn] = m
 }
 
 func (t *translator) mapIface(it *types.Interface, named []*types.TypeName) *ifaceMap {
@@ -423,15 +440,20 @@ func (t *translator) mapIface(it *types.Interface, named []*types.TypeName) *ifa
 	}
 	var common []*types.TypeName
 	allStruct := true
-	for i, impl := range impls {
+	first := true
+	for _, impl := range impls {
+		if _, isAlias := t.structAlias[impl]; isAlias && t.classOf(impl) == nil {
+			continue
+		}
 		if t.classes[impl] == nil {
 			allStruct = false
 			m.boxed = append(m.boxed, impl)
 			continue
 		}
 		ch := t.chain(impl)
-		if i == 0 || common == nil {
+		if first {
 			common = ch
+			first = false
 			continue
 		}
 		var keep []*types.TypeName
@@ -462,6 +484,9 @@ func (t *translator) mapIface(it *types.Interface, named []*types.TypeName) *ifa
 		return m
 	}
 	for _, impl := range impls {
+		if _, isAlias := t.structAlias[impl]; isAlias && t.classOf(impl) == nil {
+			continue
+		}
 		if t.classes[impl] != nil {
 			m.union = append(m.union, types.NewPointer(impl.Type()))
 			t.addForwards(impl, it)
@@ -799,6 +824,12 @@ func (t *translator) renameMethods() {
 		}
 		for _, m := range methods {
 			sig := m.Type().(*types.Signature)
+			if m.Name() == "Error" || m.Name() == "String" {
+				isStringer := sig.Params().Len() == 0 && sig.Results().Len() == 1 && types.Identical(sig.Results().At(0).Type(), types.Typ[types.String])
+				if !isStringer {
+					t.badMethodNames[m.Name()] = true
+				}
+			}
 			for i := 0; i < sig.Results().Len(); i++ {
 				if typeNamed(sig.Results().At(i).Type(), m.Name()) {
 					t.badMethodNames[m.Name()] = true
@@ -853,12 +884,23 @@ func (t *translator) methodName(fn *types.Func) string {
 	if n, ok := t.methodNames[fn.Origin()]; ok {
 		return n
 	}
+	if fn.Pkg() == nil || !t.translated(fn.Pkg()) {
+		return fn.Name()
+	}
+	if (fn.Name() == "Error" || fn.Name() == "String") && isStringerSig(fn) {
+		return fn.Name()
+	}
 	return t.methodNameStr(fn.Name())
+}
+
+func isStringerSig(fn *types.Func) bool {
+	sig := fn.Type().(*types.Signature)
+	return sig.Params().Len() == 0 && sig.Results().Len() == 1 && types.Identical(sig.Results().At(0).Type(), types.Typ[types.String])
 }
 
 func (t *translator) methodNameStr(name string) string {
 	if t.badMethodNames[name] {
-		return name + "_"
+		return name + "$m"
 	}
 	return name
 }
@@ -916,6 +958,140 @@ func (t *translator) findNilSafe() {
 					}
 					return true
 				})
+			}
+		}
+	}
+}
+
+// helperKey names a class in its generated helper methods ($copy_, $clone_,
+// $equals_, $cast_, $lit_), unique across packages.
+func (t *translator) helperKey(tn *types.TypeName) string {
+	module := "x"
+	if p := t.pkgs[tn.Pkg()]; p != nil {
+		module = p.module
+	}
+	return module + "_" + t.typeName(tn)
+}
+
+func (t *translator) analyzeStructTP() {
+	// args[tp] collects every type argument bound to tp.
+	args := map[*types.TypeName][]types.Type{}
+	recvAlias := map[*types.TypeName]*types.TypeName{}
+	for _, p := range t.order {
+		info := p.p.TypesInfo
+		for id, inst := range info.Instances {
+			var params *types.TypeParamList
+			switch o := info.Uses[id].(type) {
+			case *types.Func:
+				params = o.Origin().Type().(*types.Signature).TypeParams()
+			case *types.TypeName:
+				if n, ok := o.Type().(*types.Named); ok {
+					params = n.Origin().TypeParams()
+				}
+			}
+			if params == nil {
+				continue
+			}
+			for i := 0; i < params.Len() && i < inst.TypeArgs.Len(); i++ {
+				args[params.At(i).Obj()] = append(args[params.At(i).Obj()], inst.TypeArgs.At(i))
+			}
+		}
+		// Method receiver type parameters alias the type's parameters.
+		for _, f := range p.p.Syntax {
+			for _, d := range f.Decls {
+				fd, ok := d.(*ast.FuncDecl)
+				if !ok || fd.Recv == nil {
+					continue
+				}
+				fn, ok := info.Defs[fd.Name].(*types.Func)
+				if !ok {
+					continue
+				}
+				sig := fn.Type().(*types.Signature)
+				n, _ := derefNamed(sig.Recv().Type())
+				if n == nil || sig.RecvTypeParams().Len() == 0 {
+					continue
+				}
+				for i := 0; i < sig.RecvTypeParams().Len() && i < n.Origin().TypeParams().Len(); i++ {
+					recvAlias[sig.RecvTypeParams().At(i).Obj()] = n.Origin().TypeParams().At(i).Obj()
+				}
+			}
+		}
+	}
+	t.structTP = map[*types.TypeName]bool{}
+	for tp := range args {
+		t.structTP[tp] = true
+	}
+	// Remove type parameters with a non-struct argument, to a fixed point
+	// (an argument that is itself a type parameter inherits its status).
+	for changed := true; changed; {
+		changed = false
+		for tp, list := range args {
+			if !t.structTP[tp] {
+				continue
+			}
+			for _, a := range list {
+				ok := isStructType(a)
+				if p, isTP := types.Unalias(a).(*types.TypeParam); isTP {
+					obj := p.Obj()
+					if alias, ok2 := recvAlias[obj]; ok2 {
+						obj = alias
+					}
+					ok = t.structTP[obj]
+				}
+				if !ok {
+					t.structTP[tp] = false
+					changed = true
+					break
+				}
+			}
+		}
+	}
+	for recv, typ := range recvAlias {
+		t.structTP[recv] = t.structTP[typ]
+	}
+}
+
+func (t *translator) analyzeKeyTypes() {
+	t.keyTypes = map[*types.TypeName]bool{}
+	var mark func(tt types.Type)
+	mark = func(tt types.Type) {
+		switch u := types.Unalias(tt).(type) {
+		case *types.Named:
+			tn := u.Origin().Obj()
+			if c := t.classOf(tn); c != nil {
+				tn = c.name
+			}
+			if t.keyTypes[tn] {
+				return
+			}
+			if st, ok := u.Underlying().(*types.Struct); ok {
+				t.keyTypes[tn] = true
+				for i := 0; i < st.NumFields(); i++ {
+					mark(st.Field(i).Type())
+				}
+				if c := t.classes[tn]; c != nil && c.base != nil {
+					mark(c.base.Type())
+				}
+			} else if a, ok := u.Underlying().(*types.Array); ok {
+				mark(a.Elem())
+			}
+		case *types.Array:
+			mark(u.Elem())
+		}
+	}
+	for _, p := range t.order {
+		for _, tv := range p.p.TypesInfo.Types {
+			if m, ok := tv.Type.Underlying().(*types.Map); ok && isStructKey(m.Key()) {
+				mark(m.Key())
+			}
+		}
+		for _, obj := range p.p.TypesInfo.Defs {
+			if obj == nil {
+				continue
+			}
+			if m, ok := obj.Type().Underlying().(*types.Map); ok && isStructKey(m.Key()) {
+				mark(m.Key())
 			}
 		}
 	}

@@ -285,6 +285,20 @@ export type KeywordSyntaxKind = Kind;
 export type KeywordTypeNodeNode = Node;
 export type KeywordTypeSyntaxKind = Kind;
 export type Kind = number;
+export class Kind$Box extends $rt.GoObject {
+  v: Kind;
+  constructor(v: Kind) {
+    super();
+    this.v = v;
+  }
+  static $cast(v: $rt.GoObject | undefined): Kind$Box {
+    if (v instanceof Kind$Box) return v;
+    throw $rt.typeAssertError();
+  }
+  String(): string {
+    return Kind$String(this.v);
+  }
+}
 export type LabeledStatementNode = Node;
 export type LeftHandSideExpression = Node;
 export type LiteralExpression = Node;
@@ -480,7 +494,7 @@ export class Node extends $rt.GoObject {
   id: $rt.sync_atomic_Uint64 = new $rt.sync_atomic_Uint64();
   Parent: Node | undefined = undefined;
   data: nodeData = undefined;
-  $copy_Node(src: Node): void {
+  $copy_ast_Node(src: Node): void {
     this.Kind_ = src.Kind_;
     this.Flags = src.Flags;
     this.Loc = src.Loc;
@@ -488,22 +502,22 @@ export class Node extends $rt.GoObject {
     this.Parent = src.Parent;
     this.data = src.data;
   }
-  $equals_Node(o: Node): boolean {
+  $equals_ast_Node(o: Node): boolean {
     return (
       this.Kind_ === o.Kind_ &&
       this.Flags === o.Flags &&
-      this.Loc.$equals_TextRange(o.Loc) &&
+      this.Loc.$equals_core_TextRange(o.Loc) &&
       this.id === o.id &&
       this.Parent === o.Parent &&
       $rt.ifaceEq(this.data, o.data)
     );
   }
-  $clone_Node(): Node {
+  $clone_ast_Node(): Node {
     const o = new Node();
-    o.$copy_Node(this);
+    o.$copy_ast_Node(this);
     return o;
   }
-  static $cast_Node(v: $rt.GoObject | undefined): Node {
+  static $cast_ast_Node(v: $rt.GoObject | undefined): Node {
     if (v instanceof Node) return v;
     throw $rt.typeAssertError();
   }
@@ -615,12 +629,12 @@ export class Node extends $rt.GoObject {
   BodyData(): BodyBase | undefined {
     return this.BodyData$Node();
   }
-  SubtreeFacts_$Node(): SubtreeFacts {
+  SubtreeFacts$m$Node(): SubtreeFacts {
     const n = this;
-    return n!.data!.SubtreeFacts_();
+    return n!.data!.SubtreeFacts$m();
   }
-  SubtreeFacts_(): SubtreeFacts {
-    return this.SubtreeFacts_$Node();
+  SubtreeFacts$m(): SubtreeFacts {
+    return this.SubtreeFacts$m$Node();
   }
   propagateSubtreeFacts$Node(): SubtreeFacts {
     const n = this;
@@ -662,7 +676,7 @@ export class Node extends $rt.GoObject {
     const n = this;
     return n;
   }
-  Symbol_(): Symbol_ | undefined {
+  Symbol$m(): Symbol_ | undefined {
     const n = this;
     let data: DeclarationBase | undefined = n!.DeclarationData$Node();
     if (!(data === undefined)) {
@@ -1068,7 +1082,7 @@ export class Node extends $rt.GoObject {
       }
     }
   }
-  ModifierFlags_(): ModifierFlags {
+  ModifierFlags$m(): ModifierFlags {
     const n = this;
     let modifiers: ModifierList | undefined = n!.Modifiers$Node();
     if (!(modifiers === undefined)) {
@@ -1084,7 +1098,7 @@ export class Node extends $rt.GoObject {
     }
     return [];
   }
-  Type(): Node | undefined {
+  Type$m(): Node | undefined {
     const n = this;
     {
       switch (n!.Kind_) {
@@ -1729,11 +1743,11 @@ export class Node extends $rt.GoObject {
   }
   AsFlowSwitchClauseData(): FlowSwitchClauseData | undefined {
     const n = this;
-    return FlowSwitchClauseData.$cast_FlowSwitchClauseData(n!.data);
+    return FlowSwitchClauseData.$cast_ast_FlowSwitchClauseData(n!.data);
   }
   AsFlowReduceLabelData(): FlowReduceLabelData | undefined {
     const n = this;
-    return FlowReduceLabelData.$cast_FlowReduceLabelData(n!.data);
+    return FlowReduceLabelData.$cast_ast_FlowReduceLabelData(n!.data);
   }
   JSDoc(file: SourceFile | undefined): (Node | undefined)[] {
     const node = this;
@@ -1809,511 +1823,511 @@ export class Node extends $rt.GoObject {
     {
       switch (n!.Kind_) {
         case 167 as number: {
-          return QualifiedName.$cast_QualifiedName(n!.data)!.ForEachChild(v);
+          return QualifiedName.$cast_ast_QualifiedName(n!.data)!.ForEachChild(v);
         }
         case 168 as number: {
-          return ComputedPropertyName.$cast_ComputedPropertyName(n!.data)!.ForEachChild(v);
+          return ComputedPropertyName.$cast_ast_ComputedPropertyName(n!.data)!.ForEachChild(v);
         }
         case 171 as number: {
-          return Decorator.$cast_Decorator(n!.data)!.ForEachChild(v);
+          return Decorator.$cast_ast_Decorator(n!.data)!.ForEachChild(v);
         }
         case 246 as number: {
-          return IfStatement.$cast_IfStatement(n!.data)!.ForEachChild(v);
+          return IfStatement.$cast_ast_IfStatement(n!.data)!.ForEachChild(v);
         }
         case 247 as number: {
-          return DoStatement.$cast_DoStatement(n!.data)!.ForEachChild(v);
+          return DoStatement.$cast_ast_DoStatement(n!.data)!.ForEachChild(v);
         }
         case 248 as number: {
-          return WhileStatement.$cast_WhileStatement(n!.data)!.ForEachChild(v);
+          return WhileStatement.$cast_ast_WhileStatement(n!.data)!.ForEachChild(v);
         }
         case 249 as number: {
-          return ForStatement.$cast_ForStatement(n!.data)!.ForEachChild(v);
+          return ForStatement.$cast_ast_ForStatement(n!.data)!.ForEachChild(v);
         }
         case 250 as number:
         case 251 as number: {
-          return ForInOrOfStatement.$cast_ForInOrOfStatement(n!.data)!.ForEachChild(v);
+          return ForInOrOfStatement.$cast_ast_ForInOrOfStatement(n!.data)!.ForEachChild(v);
         }
         case 253 as number: {
-          return BreakStatement.$cast_BreakStatement(n!.data)!.ForEachChild(v);
+          return BreakStatement.$cast_ast_BreakStatement(n!.data)!.ForEachChild(v);
         }
         case 252 as number: {
-          return ContinueStatement.$cast_ContinueStatement(n!.data)!.ForEachChild(v);
+          return ContinueStatement.$cast_ast_ContinueStatement(n!.data)!.ForEachChild(v);
         }
         case 254 as number: {
-          return ReturnStatement.$cast_ReturnStatement(n!.data)!.ForEachChild(v);
+          return ReturnStatement.$cast_ast_ReturnStatement(n!.data)!.ForEachChild(v);
         }
         case 255 as number: {
-          return WithStatement.$cast_WithStatement(n!.data)!.ForEachChild(v);
+          return WithStatement.$cast_ast_WithStatement(n!.data)!.ForEachChild(v);
         }
         case 256 as number: {
-          return SwitchStatement.$cast_SwitchStatement(n!.data)!.ForEachChild(v);
+          return SwitchStatement.$cast_ast_SwitchStatement(n!.data)!.ForEachChild(v);
         }
         case 270 as number: {
-          return CaseBlock.$cast_CaseBlock(n!.data)!.ForEachChild(v);
+          return CaseBlock.$cast_ast_CaseBlock(n!.data)!.ForEachChild(v);
         }
         case 297 as number:
         case 298 as number: {
-          return CaseOrDefaultClause.$cast_CaseOrDefaultClause(n!.data)!.ForEachChild(v);
+          return CaseOrDefaultClause.$cast_ast_CaseOrDefaultClause(n!.data)!.ForEachChild(v);
         }
         case 258 as number: {
-          return ThrowStatement.$cast_ThrowStatement(n!.data)!.ForEachChild(v);
+          return ThrowStatement.$cast_ast_ThrowStatement(n!.data)!.ForEachChild(v);
         }
         case 259 as number: {
-          return TryStatement.$cast_TryStatement(n!.data)!.ForEachChild(v);
+          return TryStatement.$cast_ast_TryStatement(n!.data)!.ForEachChild(v);
         }
         case 300 as number: {
-          return CatchClause.$cast_CatchClause(n!.data)!.ForEachChild(v);
+          return CatchClause.$cast_ast_CatchClause(n!.data)!.ForEachChild(v);
         }
         case 257 as number: {
-          return LabeledStatement.$cast_LabeledStatement(n!.data)!.ForEachChild(v);
+          return LabeledStatement.$cast_ast_LabeledStatement(n!.data)!.ForEachChild(v);
         }
         case 245 as number: {
-          return ExpressionStatement.$cast_ExpressionStatement(n!.data)!.ForEachChild(v);
+          return ExpressionStatement.$cast_ast_ExpressionStatement(n!.data)!.ForEachChild(v);
         }
         case 242 as number: {
-          return Block.$cast_Block(n!.data)!.ForEachChild(v);
+          return Block.$cast_ast_Block(n!.data)!.ForEachChild(v);
         }
         case 244 as number: {
-          return VariableStatement.$cast_VariableStatement(n!.data)!.ForEachChild(v);
+          return VariableStatement.$cast_ast_VariableStatement(n!.data)!.ForEachChild(v);
         }
         case 261 as number: {
-          return VariableDeclaration.$cast_VariableDeclaration(n!.data)!.ForEachChild(v);
+          return VariableDeclaration.$cast_ast_VariableDeclaration(n!.data)!.ForEachChild(v);
         }
         case 262 as number: {
-          return VariableDeclarationList.$cast_VariableDeclarationList(n!.data)!.ForEachChild(v);
+          return VariableDeclarationList.$cast_ast_VariableDeclarationList(n!.data)!.ForEachChild(v);
         }
         case 207 as number:
         case 208 as number: {
-          return BindingPattern.$cast_BindingPattern(n!.data)!.ForEachChild(v);
+          return BindingPattern.$cast_ast_BindingPattern(n!.data)!.ForEachChild(v);
         }
         case 170 as number: {
-          return ParameterDeclaration.$cast_ParameterDeclaration(n!.data)!.ForEachChild(v);
+          return ParameterDeclaration.$cast_ast_ParameterDeclaration(n!.data)!.ForEachChild(v);
         }
         case 209 as number: {
-          return BindingElement.$cast_BindingElement(n!.data)!.ForEachChild(v);
+          return BindingElement.$cast_ast_BindingElement(n!.data)!.ForEachChild(v);
         }
         case 283 as number: {
-          return MissingDeclaration.$cast_MissingDeclaration(n!.data)!.ForEachChild(v);
+          return MissingDeclaration.$cast_ast_MissingDeclaration(n!.data)!.ForEachChild(v);
         }
         case 263 as number: {
-          return FunctionDeclaration.$cast_FunctionDeclaration(n!.data)!.ForEachChild(v);
+          return FunctionDeclaration.$cast_ast_FunctionDeclaration(n!.data)!.ForEachChild(v);
         }
         case 264 as number: {
-          return ClassDeclaration.$cast_ClassDeclaration(n!.data)!.ForEachChild(v);
+          return ClassDeclaration.$cast_ast_ClassDeclaration(n!.data)!.ForEachChild(v);
         }
         case 232 as number: {
-          return ClassExpression.$cast_ClassExpression(n!.data)!.ForEachChild(v);
+          return ClassExpression.$cast_ast_ClassExpression(n!.data)!.ForEachChild(v);
         }
         case 299 as number: {
-          return HeritageClause.$cast_HeritageClause(n!.data)!.ForEachChild(v);
+          return HeritageClause.$cast_ast_HeritageClause(n!.data)!.ForEachChild(v);
         }
         case 265 as number: {
-          return InterfaceDeclaration.$cast_InterfaceDeclaration(n!.data)!.ForEachChild(v);
+          return InterfaceDeclaration.$cast_ast_InterfaceDeclaration(n!.data)!.ForEachChild(v);
         }
         case 266 as number:
         case 345 as number: {
-          return TypeAliasDeclaration.$cast_TypeAliasDeclaration(n!.data)!.ForEachChild(v);
+          return TypeAliasDeclaration.$cast_ast_TypeAliasDeclaration(n!.data)!.ForEachChild(v);
         }
         case 306 as number: {
-          return EnumMember.$cast_EnumMember(n!.data)!.ForEachChild(v);
+          return EnumMember.$cast_ast_EnumMember(n!.data)!.ForEachChild(v);
         }
         case 267 as number: {
-          return EnumDeclaration.$cast_EnumDeclaration(n!.data)!.ForEachChild(v);
+          return EnumDeclaration.$cast_ast_EnumDeclaration(n!.data)!.ForEachChild(v);
         }
         case 269 as number: {
-          return ModuleBlock.$cast_ModuleBlock(n!.data)!.ForEachChild(v);
+          return ModuleBlock.$cast_ast_ModuleBlock(n!.data)!.ForEachChild(v);
         }
         case 273 as number:
         case 346 as number: {
-          return ImportDeclaration.$cast_ImportDeclaration(n!.data)!.ForEachChild(v);
+          return ImportDeclaration.$cast_ast_ImportDeclaration(n!.data)!.ForEachChild(v);
         }
         case 284 as number: {
-          return ExternalModuleReference.$cast_ExternalModuleReference(n!.data)!.ForEachChild(v);
+          return ExternalModuleReference.$cast_ast_ExternalModuleReference(n!.data)!.ForEachChild(v);
         }
         case 275 as number: {
-          return NamespaceImport.$cast_NamespaceImport(n!.data)!.ForEachChild(v);
+          return NamespaceImport.$cast_ast_NamespaceImport(n!.data)!.ForEachChild(v);
         }
         case 276 as number: {
-          return NamedImports.$cast_NamedImports(n!.data)!.ForEachChild(v);
+          return NamedImports.$cast_ast_NamedImports(n!.data)!.ForEachChild(v);
         }
         case 278 as number: {
-          return ExportAssignment.$cast_ExportAssignment(n!.data)!.ForEachChild(v);
+          return ExportAssignment.$cast_ast_ExportAssignment(n!.data)!.ForEachChild(v);
         }
         case 271 as number: {
-          return NamespaceExportDeclaration.$cast_NamespaceExportDeclaration(n!.data)!.ForEachChild(v);
+          return NamespaceExportDeclaration.$cast_ast_NamespaceExportDeclaration(n!.data)!.ForEachChild(v);
         }
         case 281 as number: {
-          return NamespaceExport.$cast_NamespaceExport(n!.data)!.ForEachChild(v);
+          return NamespaceExport.$cast_ast_NamespaceExport(n!.data)!.ForEachChild(v);
         }
         case 280 as number: {
-          return NamedExports.$cast_NamedExports(n!.data)!.ForEachChild(v);
+          return NamedExports.$cast_ast_NamedExports(n!.data)!.ForEachChild(v);
         }
         case 282 as number: {
-          return ExportSpecifier.$cast_ExportSpecifier(n!.data)!.ForEachChild(v);
+          return ExportSpecifier.$cast_ast_ExportSpecifier(n!.data)!.ForEachChild(v);
         }
         case 180 as number: {
-          return CallSignatureDeclaration.$cast_CallSignatureDeclaration(n!.data)!.ForEachChild(v);
+          return CallSignatureDeclaration.$cast_ast_CallSignatureDeclaration(n!.data)!.ForEachChild(v);
         }
         case 181 as number: {
-          return ConstructSignatureDeclaration.$cast_ConstructSignatureDeclaration(n!.data)!.ForEachChild(v);
+          return ConstructSignatureDeclaration.$cast_ast_ConstructSignatureDeclaration(n!.data)!.ForEachChild(v);
         }
         case 177 as number: {
-          return ConstructorDeclaration.$cast_ConstructorDeclaration(n!.data)!.ForEachChild(v);
+          return ConstructorDeclaration.$cast_ast_ConstructorDeclaration(n!.data)!.ForEachChild(v);
         }
         case 178 as number: {
-          return GetAccessorDeclaration.$cast_GetAccessorDeclaration(n!.data)!.ForEachChild(v);
+          return GetAccessorDeclaration.$cast_ast_GetAccessorDeclaration(n!.data)!.ForEachChild(v);
         }
         case 179 as number: {
-          return SetAccessorDeclaration.$cast_SetAccessorDeclaration(n!.data)!.ForEachChild(v);
+          return SetAccessorDeclaration.$cast_ast_SetAccessorDeclaration(n!.data)!.ForEachChild(v);
         }
         case 182 as number: {
-          return IndexSignatureDeclaration.$cast_IndexSignatureDeclaration(n!.data)!.ForEachChild(v);
+          return IndexSignatureDeclaration.$cast_ast_IndexSignatureDeclaration(n!.data)!.ForEachChild(v);
         }
         case 174 as number: {
-          return MethodSignatureDeclaration.$cast_MethodSignatureDeclaration(n!.data)!.ForEachChild(v);
+          return MethodSignatureDeclaration.$cast_ast_MethodSignatureDeclaration(n!.data)!.ForEachChild(v);
         }
         case 175 as number: {
-          return MethodDeclaration.$cast_MethodDeclaration(n!.data)!.ForEachChild(v);
+          return MethodDeclaration.$cast_ast_MethodDeclaration(n!.data)!.ForEachChild(v);
         }
         case 172 as number: {
-          return PropertySignatureDeclaration.$cast_PropertySignatureDeclaration(n!.data)!.ForEachChild(v);
+          return PropertySignatureDeclaration.$cast_ast_PropertySignatureDeclaration(n!.data)!.ForEachChild(v);
         }
         case 173 as number: {
-          return PropertyDeclaration.$cast_PropertyDeclaration(n!.data)!.ForEachChild(v);
+          return PropertyDeclaration.$cast_ast_PropertyDeclaration(n!.data)!.ForEachChild(v);
         }
         case 176 as number: {
-          return ClassStaticBlockDeclaration.$cast_ClassStaticBlockDeclaration(n!.data)!.ForEachChild(v);
+          return ClassStaticBlockDeclaration.$cast_ast_ClassStaticBlockDeclaration(n!.data)!.ForEachChild(v);
         }
         case 227 as number: {
-          return BinaryExpression.$cast_BinaryExpression(n!.data)!.ForEachChild(v);
+          return BinaryExpression.$cast_ast_BinaryExpression(n!.data)!.ForEachChild(v);
         }
         case 225 as number: {
-          return PrefixUnaryExpression.$cast_PrefixUnaryExpression(n!.data)!.ForEachChild(v);
+          return PrefixUnaryExpression.$cast_ast_PrefixUnaryExpression(n!.data)!.ForEachChild(v);
         }
         case 226 as number: {
-          return PostfixUnaryExpression.$cast_PostfixUnaryExpression(n!.data)!.ForEachChild(v);
+          return PostfixUnaryExpression.$cast_ast_PostfixUnaryExpression(n!.data)!.ForEachChild(v);
         }
         case 230 as number: {
-          return YieldExpression.$cast_YieldExpression(n!.data)!.ForEachChild(v);
+          return YieldExpression.$cast_ast_YieldExpression(n!.data)!.ForEachChild(v);
         }
         case 220 as number: {
-          return ArrowFunction.$cast_ArrowFunction(n!.data)!.ForEachChild(v);
+          return ArrowFunction.$cast_ast_ArrowFunction(n!.data)!.ForEachChild(v);
         }
         case 219 as number: {
-          return FunctionExpression.$cast_FunctionExpression(n!.data)!.ForEachChild(v);
+          return FunctionExpression.$cast_ast_FunctionExpression(n!.data)!.ForEachChild(v);
         }
         case 235 as number: {
-          return AsExpression.$cast_AsExpression(n!.data)!.ForEachChild(v);
+          return AsExpression.$cast_ast_AsExpression(n!.data)!.ForEachChild(v);
         }
         case 239 as number: {
-          return SatisfiesExpression.$cast_SatisfiesExpression(n!.data)!.ForEachChild(v);
+          return SatisfiesExpression.$cast_ast_SatisfiesExpression(n!.data)!.ForEachChild(v);
         }
         case 228 as number: {
-          return ConditionalExpression.$cast_ConditionalExpression(n!.data)!.ForEachChild(v);
+          return ConditionalExpression.$cast_ast_ConditionalExpression(n!.data)!.ForEachChild(v);
         }
         case 212 as number: {
-          return PropertyAccessExpression.$cast_PropertyAccessExpression(n!.data)!.ForEachChild(v);
+          return PropertyAccessExpression.$cast_ast_PropertyAccessExpression(n!.data)!.ForEachChild(v);
         }
         case 213 as number: {
-          return ElementAccessExpression.$cast_ElementAccessExpression(n!.data)!.ForEachChild(v);
+          return ElementAccessExpression.$cast_ast_ElementAccessExpression(n!.data)!.ForEachChild(v);
         }
         case 214 as number: {
-          return CallExpression.$cast_CallExpression(n!.data)!.ForEachChild(v);
+          return CallExpression.$cast_ast_CallExpression(n!.data)!.ForEachChild(v);
         }
         case 215 as number: {
-          return NewExpression.$cast_NewExpression(n!.data)!.ForEachChild(v);
+          return NewExpression.$cast_ast_NewExpression(n!.data)!.ForEachChild(v);
         }
         case 237 as number: {
-          return MetaProperty.$cast_MetaProperty(n!.data)!.ForEachChild(v);
+          return MetaProperty.$cast_ast_MetaProperty(n!.data)!.ForEachChild(v);
         }
         case 236 as number: {
-          return NonNullExpression.$cast_NonNullExpression(n!.data)!.ForEachChild(v);
+          return NonNullExpression.$cast_ast_NonNullExpression(n!.data)!.ForEachChild(v);
         }
         case 231 as number: {
-          return SpreadElement.$cast_SpreadElement(n!.data)!.ForEachChild(v);
+          return SpreadElement.$cast_ast_SpreadElement(n!.data)!.ForEachChild(v);
         }
         case 229 as number: {
-          return TemplateExpression.$cast_TemplateExpression(n!.data)!.ForEachChild(v);
+          return TemplateExpression.$cast_ast_TemplateExpression(n!.data)!.ForEachChild(v);
         }
         case 240 as number: {
-          return TemplateSpan.$cast_TemplateSpan(n!.data)!.ForEachChild(v);
+          return TemplateSpan.$cast_ast_TemplateSpan(n!.data)!.ForEachChild(v);
         }
         case 216 as number: {
-          return TaggedTemplateExpression.$cast_TaggedTemplateExpression(n!.data)!.ForEachChild(v);
+          return TaggedTemplateExpression.$cast_ast_TaggedTemplateExpression(n!.data)!.ForEachChild(v);
         }
         case 218 as number: {
-          return ParenthesizedExpression.$cast_ParenthesizedExpression(n!.data)!.ForEachChild(v);
+          return ParenthesizedExpression.$cast_ast_ParenthesizedExpression(n!.data)!.ForEachChild(v);
         }
         case 210 as number: {
-          return ArrayLiteralExpression.$cast_ArrayLiteralExpression(n!.data)!.ForEachChild(v);
+          return ArrayLiteralExpression.$cast_ast_ArrayLiteralExpression(n!.data)!.ForEachChild(v);
         }
         case 211 as number: {
-          return ObjectLiteralExpression.$cast_ObjectLiteralExpression(n!.data)!.ForEachChild(v);
+          return ObjectLiteralExpression.$cast_ast_ObjectLiteralExpression(n!.data)!.ForEachChild(v);
         }
         case 305 as number: {
-          return SpreadAssignment.$cast_SpreadAssignment(n!.data)!.ForEachChild(v);
+          return SpreadAssignment.$cast_ast_SpreadAssignment(n!.data)!.ForEachChild(v);
         }
         case 303 as number: {
-          return PropertyAssignment.$cast_PropertyAssignment(n!.data)!.ForEachChild(v);
+          return PropertyAssignment.$cast_ast_PropertyAssignment(n!.data)!.ForEachChild(v);
         }
         case 304 as number: {
-          return ShorthandPropertyAssignment.$cast_ShorthandPropertyAssignment(n!.data)!.ForEachChild(v);
+          return ShorthandPropertyAssignment.$cast_ast_ShorthandPropertyAssignment(n!.data)!.ForEachChild(v);
         }
         case 221 as number: {
-          return DeleteExpression.$cast_DeleteExpression(n!.data)!.ForEachChild(v);
+          return DeleteExpression.$cast_ast_DeleteExpression(n!.data)!.ForEachChild(v);
         }
         case 222 as number: {
-          return TypeOfExpression.$cast_TypeOfExpression(n!.data)!.ForEachChild(v);
+          return TypeOfExpression.$cast_ast_TypeOfExpression(n!.data)!.ForEachChild(v);
         }
         case 223 as number: {
-          return VoidExpression.$cast_VoidExpression(n!.data)!.ForEachChild(v);
+          return VoidExpression.$cast_ast_VoidExpression(n!.data)!.ForEachChild(v);
         }
         case 224 as number: {
-          return AwaitExpression.$cast_AwaitExpression(n!.data)!.ForEachChild(v);
+          return AwaitExpression.$cast_ast_AwaitExpression(n!.data)!.ForEachChild(v);
         }
         case 217 as number: {
-          return TypeAssertion.$cast_TypeAssertion(n!.data)!.ForEachChild(v);
+          return TypeAssertion.$cast_ast_TypeAssertion(n!.data)!.ForEachChild(v);
         }
         case 193 as number: {
-          return UnionTypeNode.$cast_UnionTypeNode(n!.data)!.ForEachChild(v);
+          return UnionTypeNode.$cast_ast_UnionTypeNode(n!.data)!.ForEachChild(v);
         }
         case 194 as number: {
-          return IntersectionTypeNode.$cast_IntersectionTypeNode(n!.data)!.ForEachChild(v);
+          return IntersectionTypeNode.$cast_ast_IntersectionTypeNode(n!.data)!.ForEachChild(v);
         }
         case 195 as number: {
-          return ConditionalTypeNode.$cast_ConditionalTypeNode(n!.data)!.ForEachChild(v);
+          return ConditionalTypeNode.$cast_ast_ConditionalTypeNode(n!.data)!.ForEachChild(v);
         }
         case 199 as number: {
-          return TypeOperatorNode.$cast_TypeOperatorNode(n!.data)!.ForEachChild(v);
+          return TypeOperatorNode.$cast_ast_TypeOperatorNode(n!.data)!.ForEachChild(v);
         }
         case 196 as number: {
-          return InferTypeNode.$cast_InferTypeNode(n!.data)!.ForEachChild(v);
+          return InferTypeNode.$cast_ast_InferTypeNode(n!.data)!.ForEachChild(v);
         }
         case 189 as number: {
-          return ArrayTypeNode.$cast_ArrayTypeNode(n!.data)!.ForEachChild(v);
+          return ArrayTypeNode.$cast_ast_ArrayTypeNode(n!.data)!.ForEachChild(v);
         }
         case 200 as number: {
-          return IndexedAccessTypeNode.$cast_IndexedAccessTypeNode(n!.data)!.ForEachChild(v);
+          return IndexedAccessTypeNode.$cast_ast_IndexedAccessTypeNode(n!.data)!.ForEachChild(v);
         }
         case 184 as number: {
-          return TypeReferenceNode.$cast_TypeReferenceNode(n!.data)!.ForEachChild(v);
+          return TypeReferenceNode.$cast_ast_TypeReferenceNode(n!.data)!.ForEachChild(v);
         }
         case 234 as number: {
-          return ExpressionWithTypeArguments.$cast_ExpressionWithTypeArguments(n!.data)!.ForEachChild(v);
+          return ExpressionWithTypeArguments.$cast_ast_ExpressionWithTypeArguments(n!.data)!.ForEachChild(v);
         }
         case 202 as number: {
-          return LiteralTypeNode.$cast_LiteralTypeNode(n!.data)!.ForEachChild(v);
+          return LiteralTypeNode.$cast_ast_LiteralTypeNode(n!.data)!.ForEachChild(v);
         }
         case 183 as number: {
-          return TypePredicateNode.$cast_TypePredicateNode(n!.data)!.ForEachChild(v);
+          return TypePredicateNode.$cast_ast_TypePredicateNode(n!.data)!.ForEachChild(v);
         }
         case 302 as number: {
-          return ImportAttribute.$cast_ImportAttribute(n!.data)!.ForEachChild(v);
+          return ImportAttribute.$cast_ast_ImportAttribute(n!.data)!.ForEachChild(v);
         }
         case 301 as number: {
-          return ImportAttributes.$cast_ImportAttributes(n!.data)!.ForEachChild(v);
+          return ImportAttributes.$cast_ast_ImportAttributes(n!.data)!.ForEachChild(v);
         }
         case 187 as number: {
-          return TypeQueryNode.$cast_TypeQueryNode(n!.data)!.ForEachChild(v);
+          return TypeQueryNode.$cast_ast_TypeQueryNode(n!.data)!.ForEachChild(v);
         }
         case 201 as number: {
-          return MappedTypeNode.$cast_MappedTypeNode(n!.data)!.ForEachChild(v);
+          return MappedTypeNode.$cast_ast_MappedTypeNode(n!.data)!.ForEachChild(v);
         }
         case 188 as number: {
-          return TypeLiteralNode.$cast_TypeLiteralNode(n!.data)!.ForEachChild(v);
+          return TypeLiteralNode.$cast_ast_TypeLiteralNode(n!.data)!.ForEachChild(v);
         }
         case 190 as number: {
-          return TupleTypeNode.$cast_TupleTypeNode(n!.data)!.ForEachChild(v);
+          return TupleTypeNode.$cast_ast_TupleTypeNode(n!.data)!.ForEachChild(v);
         }
         case 203 as number: {
-          return NamedTupleMember.$cast_NamedTupleMember(n!.data)!.ForEachChild(v);
+          return NamedTupleMember.$cast_ast_NamedTupleMember(n!.data)!.ForEachChild(v);
         }
         case 191 as number: {
-          return OptionalTypeNode.$cast_OptionalTypeNode(n!.data)!.ForEachChild(v);
+          return OptionalTypeNode.$cast_ast_OptionalTypeNode(n!.data)!.ForEachChild(v);
         }
         case 192 as number: {
-          return RestTypeNode.$cast_RestTypeNode(n!.data)!.ForEachChild(v);
+          return RestTypeNode.$cast_ast_RestTypeNode(n!.data)!.ForEachChild(v);
         }
         case 197 as number: {
-          return ParenthesizedTypeNode.$cast_ParenthesizedTypeNode(n!.data)!.ForEachChild(v);
+          return ParenthesizedTypeNode.$cast_ast_ParenthesizedTypeNode(n!.data)!.ForEachChild(v);
         }
         case 185 as number: {
-          return FunctionTypeNode.$cast_FunctionTypeNode(n!.data)!.ForEachChild(v);
+          return FunctionTypeNode.$cast_ast_FunctionTypeNode(n!.data)!.ForEachChild(v);
         }
         case 186 as number: {
-          return ConstructorTypeNode.$cast_ConstructorTypeNode(n!.data)!.ForEachChild(v);
+          return ConstructorTypeNode.$cast_ast_ConstructorTypeNode(n!.data)!.ForEachChild(v);
         }
         case 204 as number: {
-          return TemplateLiteralTypeNode.$cast_TemplateLiteralTypeNode(n!.data)!.ForEachChild(v);
+          return TemplateLiteralTypeNode.$cast_ast_TemplateLiteralTypeNode(n!.data)!.ForEachChild(v);
         }
         case 205 as number: {
-          return TemplateLiteralTypeSpan.$cast_TemplateLiteralTypeSpan(n!.data)!.ForEachChild(v);
+          return TemplateLiteralTypeSpan.$cast_ast_TemplateLiteralTypeSpan(n!.data)!.ForEachChild(v);
         }
         case 238 as number: {
-          return SyntheticExpression.$cast_SyntheticExpression(n!.data)!.ForEachChild(v);
+          return SyntheticExpression.$cast_ast_SyntheticExpression(n!.data)!.ForEachChild(v);
         }
         case 348 as number: {
-          return PartiallyEmittedExpression.$cast_PartiallyEmittedExpression(n!.data)!.ForEachChild(v);
+          return PartiallyEmittedExpression.$cast_ast_PartiallyEmittedExpression(n!.data)!.ForEachChild(v);
         }
         case 285 as number: {
-          return JsxElement.$cast_JsxElement(n!.data)!.ForEachChild(v);
+          return JsxElement.$cast_ast_JsxElement(n!.data)!.ForEachChild(v);
         }
         case 293 as number: {
-          return JsxAttributes.$cast_JsxAttributes(n!.data)!.ForEachChild(v);
+          return JsxAttributes.$cast_ast_JsxAttributes(n!.data)!.ForEachChild(v);
         }
         case 296 as number: {
-          return JsxNamespacedName.$cast_JsxNamespacedName(n!.data)!.ForEachChild(v);
+          return JsxNamespacedName.$cast_ast_JsxNamespacedName(n!.data)!.ForEachChild(v);
         }
         case 287 as number: {
-          return JsxOpeningElement.$cast_JsxOpeningElement(n!.data)!.ForEachChild(v);
+          return JsxOpeningElement.$cast_ast_JsxOpeningElement(n!.data)!.ForEachChild(v);
         }
         case 286 as number: {
-          return JsxSelfClosingElement.$cast_JsxSelfClosingElement(n!.data)!.ForEachChild(v);
+          return JsxSelfClosingElement.$cast_ast_JsxSelfClosingElement(n!.data)!.ForEachChild(v);
         }
         case 289 as number: {
-          return JsxFragment.$cast_JsxFragment(n!.data)!.ForEachChild(v);
+          return JsxFragment.$cast_ast_JsxFragment(n!.data)!.ForEachChild(v);
         }
         case 292 as number: {
-          return JsxAttribute.$cast_JsxAttribute(n!.data)!.ForEachChild(v);
+          return JsxAttribute.$cast_ast_JsxAttribute(n!.data)!.ForEachChild(v);
         }
         case 294 as number: {
-          return JsxSpreadAttribute.$cast_JsxSpreadAttribute(n!.data)!.ForEachChild(v);
+          return JsxSpreadAttribute.$cast_ast_JsxSpreadAttribute(n!.data)!.ForEachChild(v);
         }
         case 288 as number: {
-          return JsxClosingElement.$cast_JsxClosingElement(n!.data)!.ForEachChild(v);
+          return JsxClosingElement.$cast_ast_JsxClosingElement(n!.data)!.ForEachChild(v);
         }
         case 295 as number: {
-          return JsxExpression.$cast_JsxExpression(n!.data)!.ForEachChild(v);
+          return JsxExpression.$cast_ast_JsxExpression(n!.data)!.ForEachChild(v);
         }
         case 344 as number: {
-          return SyntaxList.$cast_SyntaxList(n!.data)!.ForEachChild(v);
+          return SyntaxList.$cast_ast_SyntaxList(n!.data)!.ForEachChild(v);
         }
         case 315 as number: {
-          return JSDoc.$cast_JSDoc(n!.data)!.ForEachChild(v);
+          return JSDoc.$cast_ast_JSDoc(n!.data)!.ForEachChild(v);
         }
         case 308 as number: {
-          return JSDocTypeExpression.$cast_JSDocTypeExpression(n!.data)!.ForEachChild(v);
+          return JSDocTypeExpression.$cast_ast_JSDocTypeExpression(n!.data)!.ForEachChild(v);
         }
         case 312 as number: {
-          return JSDocNonNullableType.$cast_JSDocNonNullableType(n!.data)!.ForEachChild(v);
+          return JSDocNonNullableType.$cast_ast_JSDocNonNullableType(n!.data)!.ForEachChild(v);
         }
         case 311 as number: {
-          return JSDocNullableType.$cast_JSDocNullableType(n!.data)!.ForEachChild(v);
+          return JSDocNullableType.$cast_ast_JSDocNullableType(n!.data)!.ForEachChild(v);
         }
         case 314 as number: {
-          return JSDocVariadicType.$cast_JSDocVariadicType(n!.data)!.ForEachChild(v);
+          return JSDocVariadicType.$cast_ast_JSDocVariadicType(n!.data)!.ForEachChild(v);
         }
         case 313 as number: {
-          return JSDocOptionalType.$cast_JSDocOptionalType(n!.data)!.ForEachChild(v);
+          return JSDocOptionalType.$cast_ast_JSDocOptionalType(n!.data)!.ForEachChild(v);
         }
         case 336 as number: {
-          return JSDocTypeTag.$cast_JSDocTypeTag(n!.data)!.ForEachChild(v);
+          return JSDocTypeTag.$cast_ast_JSDocTypeTag(n!.data)!.ForEachChild(v);
         }
         case 322 as number: {
-          return JSDocUnknownTag.$cast_JSDocUnknownTag(n!.data)!.ForEachChild(v);
+          return JSDocUnknownTag.$cast_ast_JSDocUnknownTag(n!.data)!.ForEachChild(v);
         }
         case 337 as number: {
-          return JSDocTemplateTag.$cast_JSDocTemplateTag(n!.data)!.ForEachChild(v);
+          return JSDocTemplateTag.$cast_ast_JSDocTemplateTag(n!.data)!.ForEachChild(v);
         }
         case 334 as number: {
-          return JSDocReturnTag.$cast_JSDocReturnTag(n!.data)!.ForEachChild(v);
+          return JSDocReturnTag.$cast_ast_JSDocReturnTag(n!.data)!.ForEachChild(v);
         }
         case 326 as number: {
-          return JSDocPublicTag.$cast_JSDocPublicTag(n!.data)!.ForEachChild(v);
+          return JSDocPublicTag.$cast_ast_JSDocPublicTag(n!.data)!.ForEachChild(v);
         }
         case 327 as number: {
-          return JSDocPrivateTag.$cast_JSDocPrivateTag(n!.data)!.ForEachChild(v);
+          return JSDocPrivateTag.$cast_ast_JSDocPrivateTag(n!.data)!.ForEachChild(v);
         }
         case 328 as number: {
-          return JSDocProtectedTag.$cast_JSDocProtectedTag(n!.data)!.ForEachChild(v);
+          return JSDocProtectedTag.$cast_ast_JSDocProtectedTag(n!.data)!.ForEachChild(v);
         }
         case 329 as number: {
-          return JSDocReadonlyTag.$cast_JSDocReadonlyTag(n!.data)!.ForEachChild(v);
+          return JSDocReadonlyTag.$cast_ast_JSDocReadonlyTag(n!.data)!.ForEachChild(v);
         }
         case 330 as number: {
-          return JSDocOverrideTag.$cast_JSDocOverrideTag(n!.data)!.ForEachChild(v);
+          return JSDocOverrideTag.$cast_ast_JSDocOverrideTag(n!.data)!.ForEachChild(v);
         }
         case 325 as number: {
-          return JSDocDeprecatedTag.$cast_JSDocDeprecatedTag(n!.data)!.ForEachChild(v);
+          return JSDocDeprecatedTag.$cast_ast_JSDocDeprecatedTag(n!.data)!.ForEachChild(v);
         }
         case 339 as number: {
-          return JSDocSeeTag.$cast_JSDocSeeTag(n!.data)!.ForEachChild(v);
+          return JSDocSeeTag.$cast_ast_JSDocSeeTag(n!.data)!.ForEachChild(v);
         }
         case 324 as number: {
-          return JSDocImplementsTag.$cast_JSDocImplementsTag(n!.data)!.ForEachChild(v);
+          return JSDocImplementsTag.$cast_ast_JSDocImplementsTag(n!.data)!.ForEachChild(v);
         }
         case 323 as number: {
-          return JSDocAugmentsTag.$cast_JSDocAugmentsTag(n!.data)!.ForEachChild(v);
+          return JSDocAugmentsTag.$cast_ast_JSDocAugmentsTag(n!.data)!.ForEachChild(v);
         }
         case 342 as number: {
-          return JSDocSatisfiesTag.$cast_JSDocSatisfiesTag(n!.data)!.ForEachChild(v);
+          return JSDocSatisfiesTag.$cast_ast_JSDocSatisfiesTag(n!.data)!.ForEachChild(v);
         }
         case 341 as number: {
-          return JSDocThrowsTag.$cast_JSDocThrowsTag(n!.data)!.ForEachChild(v);
+          return JSDocThrowsTag.$cast_ast_JSDocThrowsTag(n!.data)!.ForEachChild(v);
         }
         case 335 as number: {
-          return JSDocThisTag.$cast_JSDocThisTag(n!.data)!.ForEachChild(v);
+          return JSDocThisTag.$cast_ast_JSDocThisTag(n!.data)!.ForEachChild(v);
         }
         case 343 as number: {
-          return JSDocImportTag.$cast_JSDocImportTag(n!.data)!.ForEachChild(v);
+          return JSDocImportTag.$cast_ast_JSDocImportTag(n!.data)!.ForEachChild(v);
         }
         case 331 as number: {
-          return JSDocCallbackTag.$cast_JSDocCallbackTag(n!.data)!.ForEachChild(v);
+          return JSDocCallbackTag.$cast_ast_JSDocCallbackTag(n!.data)!.ForEachChild(v);
         }
         case 332 as number: {
-          return JSDocOverloadTag.$cast_JSDocOverloadTag(n!.data)!.ForEachChild(v);
+          return JSDocOverloadTag.$cast_ast_JSDocOverloadTag(n!.data)!.ForEachChild(v);
         }
         case 338 as number: {
-          return JSDocTypedefTag.$cast_JSDocTypedefTag(n!.data)!.ForEachChild(v);
+          return JSDocTypedefTag.$cast_ast_JSDocTypedefTag(n!.data)!.ForEachChild(v);
         }
         case 318 as number: {
-          return JSDocSignature.$cast_JSDocSignature(n!.data)!.ForEachChild(v);
+          return JSDocSignature.$cast_ast_JSDocSignature(n!.data)!.ForEachChild(v);
         }
         case 309 as number: {
-          return JSDocNameReference.$cast_JSDocNameReference(n!.data)!.ForEachChild(v);
+          return JSDocNameReference.$cast_ast_JSDocNameReference(n!.data)!.ForEachChild(v);
         }
         case 307 as number: {
-          return SourceFile.$cast_SourceFile(n!.data)!.ForEachChild(v);
+          return SourceFile.$cast_ast_SourceFile(n!.data)!.ForEachChild(v);
         }
         case 268 as number: {
-          return ModuleDeclaration.$cast_ModuleDeclaration(n!.data)!.ForEachChild(v);
+          return ModuleDeclaration.$cast_ast_ModuleDeclaration(n!.data)!.ForEachChild(v);
         }
         case 272 as number: {
-          return ImportEqualsDeclaration.$cast_ImportEqualsDeclaration(n!.data)!.ForEachChild(v);
+          return ImportEqualsDeclaration.$cast_ast_ImportEqualsDeclaration(n!.data)!.ForEachChild(v);
         }
         case 279 as number: {
-          return ExportDeclaration.$cast_ExportDeclaration(n!.data)!.ForEachChild(v);
+          return ExportDeclaration.$cast_ast_ExportDeclaration(n!.data)!.ForEachChild(v);
         }
         case 206 as number: {
-          return ImportTypeNode.$cast_ImportTypeNode(n!.data)!.ForEachChild(v);
+          return ImportTypeNode.$cast_ast_ImportTypeNode(n!.data)!.ForEachChild(v);
         }
         case 274 as number: {
-          return ImportClause.$cast_ImportClause(n!.data)!.ForEachChild(v);
+          return ImportClause.$cast_ast_ImportClause(n!.data)!.ForEachChild(v);
         }
         case 277 as number: {
-          return ImportSpecifier.$cast_ImportSpecifier(n!.data)!.ForEachChild(v);
+          return ImportSpecifier.$cast_ast_ImportSpecifier(n!.data)!.ForEachChild(v);
         }
         case 319 as number: {
-          return JSDocLink.$cast_JSDocLink(n!.data)!.ForEachChild(v);
+          return JSDocLink.$cast_ast_JSDocLink(n!.data)!.ForEachChild(v);
         }
         case 321 as number: {
-          return JSDocLinkPlain.$cast_JSDocLinkPlain(n!.data)!.ForEachChild(v);
+          return JSDocLinkPlain.$cast_ast_JSDocLinkPlain(n!.data)!.ForEachChild(v);
         }
         case 320 as number: {
-          return JSDocLinkCode.$cast_JSDocLinkCode(n!.data)!.ForEachChild(v);
+          return JSDocLinkCode.$cast_ast_JSDocLinkCode(n!.data)!.ForEachChild(v);
         }
         case 169 as number: {
-          return TypeParameterDeclaration.$cast_TypeParameterDeclaration(n!.data)!.ForEachChild(v);
+          return TypeParameterDeclaration.$cast_ast_TypeParameterDeclaration(n!.data)!.ForEachChild(v);
         }
         case 349 as number: {
-          return SyntheticReferenceExpression.$cast_SyntheticReferenceExpression(n!.data)!.ForEachChild(v);
+          return SyntheticReferenceExpression.$cast_ast_SyntheticReferenceExpression(n!.data)!.ForEachChild(v);
         }
         case 317 as number: {
-          return JSDocTypeLiteral.$cast_JSDocTypeLiteral(n!.data)!.ForEachChild(v);
+          return JSDocTypeLiteral.$cast_ast_JSDocTypeLiteral(n!.data)!.ForEachChild(v);
         }
         case 333 as number:
         case 340 as number: {
-          return JSDocParameterOrPropertyTag.$cast_JSDocParameterOrPropertyTag(n!.data)!.ForEachChild(v);
+          return JSDocParameterOrPropertyTag.$cast_ast_JSDocParameterOrPropertyTag(n!.data)!.ForEachChild(v);
         }
         default: {
           return false;
@@ -2326,792 +2340,792 @@ export class Node extends $rt.GoObject {
   }
   AsToken(): Token | undefined {
     const n = this;
-    return Token.$cast_Token(n!.data);
+    return Token.$cast_ast_Token(n!.data);
   }
   AsIdentifier(): Identifier | undefined {
     const n = this;
-    return Identifier.$cast_Identifier(n!.data);
+    return Identifier.$cast_ast_Identifier(n!.data);
   }
   AsPrivateIdentifier(): PrivateIdentifier | undefined {
     const n = this;
-    return PrivateIdentifier.$cast_PrivateIdentifier(n!.data);
+    return PrivateIdentifier.$cast_ast_PrivateIdentifier(n!.data);
   }
   AsQualifiedName(): QualifiedName | undefined {
     const n = this;
-    return QualifiedName.$cast_QualifiedName(n!.data);
+    return QualifiedName.$cast_ast_QualifiedName(n!.data);
   }
   AsComputedPropertyName(): ComputedPropertyName | undefined {
     const n = this;
-    return ComputedPropertyName.$cast_ComputedPropertyName(n!.data);
+    return ComputedPropertyName.$cast_ast_ComputedPropertyName(n!.data);
   }
   AsDecorator(): Decorator | undefined {
     const n = this;
-    return Decorator.$cast_Decorator(n!.data);
+    return Decorator.$cast_ast_Decorator(n!.data);
   }
   AsEmptyStatement(): EmptyStatement | undefined {
     const n = this;
-    return EmptyStatement.$cast_EmptyStatement(n!.data);
+    return EmptyStatement.$cast_ast_EmptyStatement(n!.data);
   }
   AsIfStatement(): IfStatement | undefined {
     const n = this;
-    return IfStatement.$cast_IfStatement(n!.data);
+    return IfStatement.$cast_ast_IfStatement(n!.data);
   }
   AsDoStatement(): DoStatement | undefined {
     const n = this;
-    return DoStatement.$cast_DoStatement(n!.data);
+    return DoStatement.$cast_ast_DoStatement(n!.data);
   }
   AsWhileStatement(): WhileStatement | undefined {
     const n = this;
-    return WhileStatement.$cast_WhileStatement(n!.data);
+    return WhileStatement.$cast_ast_WhileStatement(n!.data);
   }
   AsForStatement(): ForStatement | undefined {
     const n = this;
-    return ForStatement.$cast_ForStatement(n!.data);
+    return ForStatement.$cast_ast_ForStatement(n!.data);
   }
   AsForInOrOfStatement(): ForInOrOfStatement | undefined {
     const n = this;
-    return ForInOrOfStatement.$cast_ForInOrOfStatement(n!.data);
+    return ForInOrOfStatement.$cast_ast_ForInOrOfStatement(n!.data);
   }
   AsBreakStatement(): BreakStatement | undefined {
     const n = this;
-    return BreakStatement.$cast_BreakStatement(n!.data);
+    return BreakStatement.$cast_ast_BreakStatement(n!.data);
   }
   AsContinueStatement(): ContinueStatement | undefined {
     const n = this;
-    return ContinueStatement.$cast_ContinueStatement(n!.data);
+    return ContinueStatement.$cast_ast_ContinueStatement(n!.data);
   }
   AsReturnStatement(): ReturnStatement | undefined {
     const n = this;
-    return ReturnStatement.$cast_ReturnStatement(n!.data);
+    return ReturnStatement.$cast_ast_ReturnStatement(n!.data);
   }
   AsWithStatement(): WithStatement | undefined {
     const n = this;
-    return WithStatement.$cast_WithStatement(n!.data);
+    return WithStatement.$cast_ast_WithStatement(n!.data);
   }
   AsSwitchStatement(): SwitchStatement | undefined {
     const n = this;
-    return SwitchStatement.$cast_SwitchStatement(n!.data);
+    return SwitchStatement.$cast_ast_SwitchStatement(n!.data);
   }
   AsCaseBlock(): CaseBlock | undefined {
     const n = this;
-    return CaseBlock.$cast_CaseBlock(n!.data);
+    return CaseBlock.$cast_ast_CaseBlock(n!.data);
   }
   AsCaseOrDefaultClause(): CaseOrDefaultClause | undefined {
     const n = this;
-    return CaseOrDefaultClause.$cast_CaseOrDefaultClause(n!.data);
+    return CaseOrDefaultClause.$cast_ast_CaseOrDefaultClause(n!.data);
   }
   AsThrowStatement(): ThrowStatement | undefined {
     const n = this;
-    return ThrowStatement.$cast_ThrowStatement(n!.data);
+    return ThrowStatement.$cast_ast_ThrowStatement(n!.data);
   }
   AsTryStatement(): TryStatement | undefined {
     const n = this;
-    return TryStatement.$cast_TryStatement(n!.data);
+    return TryStatement.$cast_ast_TryStatement(n!.data);
   }
   AsCatchClause(): CatchClause | undefined {
     const n = this;
-    return CatchClause.$cast_CatchClause(n!.data);
+    return CatchClause.$cast_ast_CatchClause(n!.data);
   }
   AsDebuggerStatement(): DebuggerStatement | undefined {
     const n = this;
-    return DebuggerStatement.$cast_DebuggerStatement(n!.data);
+    return DebuggerStatement.$cast_ast_DebuggerStatement(n!.data);
   }
   AsLabeledStatement(): LabeledStatement | undefined {
     const n = this;
-    return LabeledStatement.$cast_LabeledStatement(n!.data);
+    return LabeledStatement.$cast_ast_LabeledStatement(n!.data);
   }
   AsExpressionStatement(): ExpressionStatement | undefined {
     const n = this;
-    return ExpressionStatement.$cast_ExpressionStatement(n!.data);
+    return ExpressionStatement.$cast_ast_ExpressionStatement(n!.data);
   }
   AsBlock(): Block | undefined {
     const n = this;
-    return Block.$cast_Block(n!.data);
+    return Block.$cast_ast_Block(n!.data);
   }
   AsVariableStatement(): VariableStatement | undefined {
     const n = this;
-    return VariableStatement.$cast_VariableStatement(n!.data);
+    return VariableStatement.$cast_ast_VariableStatement(n!.data);
   }
   AsVariableDeclaration(): VariableDeclaration | undefined {
     const n = this;
-    return VariableDeclaration.$cast_VariableDeclaration(n!.data);
+    return VariableDeclaration.$cast_ast_VariableDeclaration(n!.data);
   }
   AsVariableDeclarationList(): VariableDeclarationList | undefined {
     const n = this;
-    return VariableDeclarationList.$cast_VariableDeclarationList(n!.data);
+    return VariableDeclarationList.$cast_ast_VariableDeclarationList(n!.data);
   }
   AsBindingPattern(): BindingPattern | undefined {
     const n = this;
-    return BindingPattern.$cast_BindingPattern(n!.data);
+    return BindingPattern.$cast_ast_BindingPattern(n!.data);
   }
   AsParameterDeclaration(): ParameterDeclaration | undefined {
     const n = this;
-    return ParameterDeclaration.$cast_ParameterDeclaration(n!.data);
+    return ParameterDeclaration.$cast_ast_ParameterDeclaration(n!.data);
   }
   AsBindingElement(): BindingElement | undefined {
     const n = this;
-    return BindingElement.$cast_BindingElement(n!.data);
+    return BindingElement.$cast_ast_BindingElement(n!.data);
   }
   AsMissingDeclaration(): MissingDeclaration | undefined {
     const n = this;
-    return MissingDeclaration.$cast_MissingDeclaration(n!.data);
+    return MissingDeclaration.$cast_ast_MissingDeclaration(n!.data);
   }
   AsFunctionDeclaration(): FunctionDeclaration | undefined {
     const n = this;
-    return FunctionDeclaration.$cast_FunctionDeclaration(n!.data);
+    return FunctionDeclaration.$cast_ast_FunctionDeclaration(n!.data);
   }
   AsClassDeclaration(): ClassDeclaration | undefined {
     const n = this;
-    return ClassDeclaration.$cast_ClassDeclaration(n!.data);
+    return ClassDeclaration.$cast_ast_ClassDeclaration(n!.data);
   }
   AsClassExpression(): ClassExpression | undefined {
     const n = this;
-    return ClassExpression.$cast_ClassExpression(n!.data);
+    return ClassExpression.$cast_ast_ClassExpression(n!.data);
   }
   AsHeritageClause(): HeritageClause | undefined {
     const n = this;
-    return HeritageClause.$cast_HeritageClause(n!.data);
+    return HeritageClause.$cast_ast_HeritageClause(n!.data);
   }
   AsInterfaceDeclaration(): InterfaceDeclaration | undefined {
     const n = this;
-    return InterfaceDeclaration.$cast_InterfaceDeclaration(n!.data);
+    return InterfaceDeclaration.$cast_ast_InterfaceDeclaration(n!.data);
   }
   AsTypeAliasDeclaration(): TypeAliasDeclaration | undefined {
     const n = this;
-    return TypeAliasDeclaration.$cast_TypeAliasDeclaration(n!.data);
+    return TypeAliasDeclaration.$cast_ast_TypeAliasDeclaration(n!.data);
   }
   AsEnumMember(): EnumMember | undefined {
     const n = this;
-    return EnumMember.$cast_EnumMember(n!.data);
+    return EnumMember.$cast_ast_EnumMember(n!.data);
   }
   AsEnumDeclaration(): EnumDeclaration | undefined {
     const n = this;
-    return EnumDeclaration.$cast_EnumDeclaration(n!.data);
+    return EnumDeclaration.$cast_ast_EnumDeclaration(n!.data);
   }
   AsModuleBlock(): ModuleBlock | undefined {
     const n = this;
-    return ModuleBlock.$cast_ModuleBlock(n!.data);
+    return ModuleBlock.$cast_ast_ModuleBlock(n!.data);
   }
   AsNotEmittedStatement(): NotEmittedStatement | undefined {
     const n = this;
-    return NotEmittedStatement.$cast_NotEmittedStatement(n!.data);
+    return NotEmittedStatement.$cast_ast_NotEmittedStatement(n!.data);
   }
   AsNotEmittedTypeElement(): NotEmittedTypeElement | undefined {
     const n = this;
-    return NotEmittedTypeElement.$cast_NotEmittedTypeElement(n!.data);
+    return NotEmittedTypeElement.$cast_ast_NotEmittedTypeElement(n!.data);
   }
   AsImportDeclaration(): ImportDeclaration | undefined {
     const n = this;
-    return ImportDeclaration.$cast_ImportDeclaration(n!.data);
+    return ImportDeclaration.$cast_ast_ImportDeclaration(n!.data);
   }
   AsExternalModuleReference(): ExternalModuleReference | undefined {
     const n = this;
-    return ExternalModuleReference.$cast_ExternalModuleReference(n!.data);
+    return ExternalModuleReference.$cast_ast_ExternalModuleReference(n!.data);
   }
   AsNamespaceImport(): NamespaceImport | undefined {
     const n = this;
-    return NamespaceImport.$cast_NamespaceImport(n!.data);
+    return NamespaceImport.$cast_ast_NamespaceImport(n!.data);
   }
   AsNamedImports(): NamedImports | undefined {
     const n = this;
-    return NamedImports.$cast_NamedImports(n!.data);
+    return NamedImports.$cast_ast_NamedImports(n!.data);
   }
   AsExportAssignment(): ExportAssignment | undefined {
     const n = this;
-    return ExportAssignment.$cast_ExportAssignment(n!.data);
+    return ExportAssignment.$cast_ast_ExportAssignment(n!.data);
   }
   AsNamespaceExportDeclaration(): NamespaceExportDeclaration | undefined {
     const n = this;
-    return NamespaceExportDeclaration.$cast_NamespaceExportDeclaration(n!.data);
+    return NamespaceExportDeclaration.$cast_ast_NamespaceExportDeclaration(n!.data);
   }
   AsNamespaceExport(): NamespaceExport | undefined {
     const n = this;
-    return NamespaceExport.$cast_NamespaceExport(n!.data);
+    return NamespaceExport.$cast_ast_NamespaceExport(n!.data);
   }
   AsNamedExports(): NamedExports | undefined {
     const n = this;
-    return NamedExports.$cast_NamedExports(n!.data);
+    return NamedExports.$cast_ast_NamedExports(n!.data);
   }
   AsExportSpecifier(): ExportSpecifier | undefined {
     const n = this;
-    return ExportSpecifier.$cast_ExportSpecifier(n!.data);
+    return ExportSpecifier.$cast_ast_ExportSpecifier(n!.data);
   }
   AsCallSignatureDeclaration(): CallSignatureDeclaration | undefined {
     const n = this;
-    return CallSignatureDeclaration.$cast_CallSignatureDeclaration(n!.data);
+    return CallSignatureDeclaration.$cast_ast_CallSignatureDeclaration(n!.data);
   }
   AsConstructSignatureDeclaration(): ConstructSignatureDeclaration | undefined {
     const n = this;
-    return ConstructSignatureDeclaration.$cast_ConstructSignatureDeclaration(n!.data);
+    return ConstructSignatureDeclaration.$cast_ast_ConstructSignatureDeclaration(n!.data);
   }
   AsConstructorDeclaration(): ConstructorDeclaration | undefined {
     const n = this;
-    return ConstructorDeclaration.$cast_ConstructorDeclaration(n!.data);
+    return ConstructorDeclaration.$cast_ast_ConstructorDeclaration(n!.data);
   }
   AsGetAccessorDeclaration(): GetAccessorDeclaration | undefined {
     const n = this;
-    return GetAccessorDeclaration.$cast_GetAccessorDeclaration(n!.data);
+    return GetAccessorDeclaration.$cast_ast_GetAccessorDeclaration(n!.data);
   }
   AsSetAccessorDeclaration(): SetAccessorDeclaration | undefined {
     const n = this;
-    return SetAccessorDeclaration.$cast_SetAccessorDeclaration(n!.data);
+    return SetAccessorDeclaration.$cast_ast_SetAccessorDeclaration(n!.data);
   }
   AsIndexSignatureDeclaration(): IndexSignatureDeclaration | undefined {
     const n = this;
-    return IndexSignatureDeclaration.$cast_IndexSignatureDeclaration(n!.data);
+    return IndexSignatureDeclaration.$cast_ast_IndexSignatureDeclaration(n!.data);
   }
   AsMethodSignatureDeclaration(): MethodSignatureDeclaration | undefined {
     const n = this;
-    return MethodSignatureDeclaration.$cast_MethodSignatureDeclaration(n!.data);
+    return MethodSignatureDeclaration.$cast_ast_MethodSignatureDeclaration(n!.data);
   }
   AsMethodDeclaration(): MethodDeclaration | undefined {
     const n = this;
-    return MethodDeclaration.$cast_MethodDeclaration(n!.data);
+    return MethodDeclaration.$cast_ast_MethodDeclaration(n!.data);
   }
   AsPropertySignatureDeclaration(): PropertySignatureDeclaration | undefined {
     const n = this;
-    return PropertySignatureDeclaration.$cast_PropertySignatureDeclaration(n!.data);
+    return PropertySignatureDeclaration.$cast_ast_PropertySignatureDeclaration(n!.data);
   }
   AsPropertyDeclaration(): PropertyDeclaration | undefined {
     const n = this;
-    return PropertyDeclaration.$cast_PropertyDeclaration(n!.data);
+    return PropertyDeclaration.$cast_ast_PropertyDeclaration(n!.data);
   }
   AsSemicolonClassElement(): SemicolonClassElement | undefined {
     const n = this;
-    return SemicolonClassElement.$cast_SemicolonClassElement(n!.data);
+    return SemicolonClassElement.$cast_ast_SemicolonClassElement(n!.data);
   }
   AsClassStaticBlockDeclaration(): ClassStaticBlockDeclaration | undefined {
     const n = this;
-    return ClassStaticBlockDeclaration.$cast_ClassStaticBlockDeclaration(n!.data);
+    return ClassStaticBlockDeclaration.$cast_ast_ClassStaticBlockDeclaration(n!.data);
   }
   AsOmittedExpression(): OmittedExpression | undefined {
     const n = this;
-    return OmittedExpression.$cast_OmittedExpression(n!.data);
+    return OmittedExpression.$cast_ast_OmittedExpression(n!.data);
   }
   AsKeywordExpression(): KeywordExpression | undefined {
     const n = this;
-    return KeywordExpression.$cast_KeywordExpression(n!.data);
+    return KeywordExpression.$cast_ast_KeywordExpression(n!.data);
   }
   AsStringLiteral(): StringLiteral | undefined {
     const n = this;
-    return StringLiteral.$cast_StringLiteral(n!.data);
+    return StringLiteral.$cast_ast_StringLiteral(n!.data);
   }
   AsNumericLiteral(): NumericLiteral | undefined {
     const n = this;
-    return NumericLiteral.$cast_NumericLiteral(n!.data);
+    return NumericLiteral.$cast_ast_NumericLiteral(n!.data);
   }
   AsBigIntLiteral(): BigIntLiteral | undefined {
     const n = this;
-    return BigIntLiteral.$cast_BigIntLiteral(n!.data);
+    return BigIntLiteral.$cast_ast_BigIntLiteral(n!.data);
   }
   AsRegularExpressionLiteral(): RegularExpressionLiteral | undefined {
     const n = this;
-    return RegularExpressionLiteral.$cast_RegularExpressionLiteral(n!.data);
+    return RegularExpressionLiteral.$cast_ast_RegularExpressionLiteral(n!.data);
   }
   AsNoSubstitutionTemplateLiteral(): NoSubstitutionTemplateLiteral | undefined {
     const n = this;
-    return NoSubstitutionTemplateLiteral.$cast_NoSubstitutionTemplateLiteral(n!.data);
+    return NoSubstitutionTemplateLiteral.$cast_ast_NoSubstitutionTemplateLiteral(n!.data);
   }
   AsBinaryExpression(): BinaryExpression | undefined {
     const n = this;
-    return BinaryExpression.$cast_BinaryExpression(n!.data);
+    return BinaryExpression.$cast_ast_BinaryExpression(n!.data);
   }
   AsPrefixUnaryExpression(): PrefixUnaryExpression | undefined {
     const n = this;
-    return PrefixUnaryExpression.$cast_PrefixUnaryExpression(n!.data);
+    return PrefixUnaryExpression.$cast_ast_PrefixUnaryExpression(n!.data);
   }
   AsPostfixUnaryExpression(): PostfixUnaryExpression | undefined {
     const n = this;
-    return PostfixUnaryExpression.$cast_PostfixUnaryExpression(n!.data);
+    return PostfixUnaryExpression.$cast_ast_PostfixUnaryExpression(n!.data);
   }
   AsYieldExpression(): YieldExpression | undefined {
     const n = this;
-    return YieldExpression.$cast_YieldExpression(n!.data);
+    return YieldExpression.$cast_ast_YieldExpression(n!.data);
   }
   AsArrowFunction(): ArrowFunction | undefined {
     const n = this;
-    return ArrowFunction.$cast_ArrowFunction(n!.data);
+    return ArrowFunction.$cast_ast_ArrowFunction(n!.data);
   }
   AsFunctionExpression(): FunctionExpression | undefined {
     const n = this;
-    return FunctionExpression.$cast_FunctionExpression(n!.data);
+    return FunctionExpression.$cast_ast_FunctionExpression(n!.data);
   }
   AsAsExpression(): AsExpression | undefined {
     const n = this;
-    return AsExpression.$cast_AsExpression(n!.data);
+    return AsExpression.$cast_ast_AsExpression(n!.data);
   }
   AsSatisfiesExpression(): SatisfiesExpression | undefined {
     const n = this;
-    return SatisfiesExpression.$cast_SatisfiesExpression(n!.data);
+    return SatisfiesExpression.$cast_ast_SatisfiesExpression(n!.data);
   }
   AsConditionalExpression(): ConditionalExpression | undefined {
     const n = this;
-    return ConditionalExpression.$cast_ConditionalExpression(n!.data);
+    return ConditionalExpression.$cast_ast_ConditionalExpression(n!.data);
   }
   AsPropertyAccessExpression(): PropertyAccessExpression | undefined {
     const n = this;
-    return PropertyAccessExpression.$cast_PropertyAccessExpression(n!.data);
+    return PropertyAccessExpression.$cast_ast_PropertyAccessExpression(n!.data);
   }
   AsElementAccessExpression(): ElementAccessExpression | undefined {
     const n = this;
-    return ElementAccessExpression.$cast_ElementAccessExpression(n!.data);
+    return ElementAccessExpression.$cast_ast_ElementAccessExpression(n!.data);
   }
   AsCallExpression(): CallExpression | undefined {
     const n = this;
-    return CallExpression.$cast_CallExpression(n!.data);
+    return CallExpression.$cast_ast_CallExpression(n!.data);
   }
   AsNewExpression(): NewExpression | undefined {
     const n = this;
-    return NewExpression.$cast_NewExpression(n!.data);
+    return NewExpression.$cast_ast_NewExpression(n!.data);
   }
   AsMetaProperty(): MetaProperty | undefined {
     const n = this;
-    return MetaProperty.$cast_MetaProperty(n!.data);
+    return MetaProperty.$cast_ast_MetaProperty(n!.data);
   }
   AsNonNullExpression(): NonNullExpression | undefined {
     const n = this;
-    return NonNullExpression.$cast_NonNullExpression(n!.data);
+    return NonNullExpression.$cast_ast_NonNullExpression(n!.data);
   }
   AsSpreadElement(): SpreadElement | undefined {
     const n = this;
-    return SpreadElement.$cast_SpreadElement(n!.data);
+    return SpreadElement.$cast_ast_SpreadElement(n!.data);
   }
   AsTemplateExpression(): TemplateExpression | undefined {
     const n = this;
-    return TemplateExpression.$cast_TemplateExpression(n!.data);
+    return TemplateExpression.$cast_ast_TemplateExpression(n!.data);
   }
   AsTemplateSpan(): TemplateSpan | undefined {
     const n = this;
-    return TemplateSpan.$cast_TemplateSpan(n!.data);
+    return TemplateSpan.$cast_ast_TemplateSpan(n!.data);
   }
   AsTaggedTemplateExpression(): TaggedTemplateExpression | undefined {
     const n = this;
-    return TaggedTemplateExpression.$cast_TaggedTemplateExpression(n!.data);
+    return TaggedTemplateExpression.$cast_ast_TaggedTemplateExpression(n!.data);
   }
   AsParenthesizedExpression(): ParenthesizedExpression | undefined {
     const n = this;
-    return ParenthesizedExpression.$cast_ParenthesizedExpression(n!.data);
+    return ParenthesizedExpression.$cast_ast_ParenthesizedExpression(n!.data);
   }
   AsArrayLiteralExpression(): ArrayLiteralExpression | undefined {
     const n = this;
-    return ArrayLiteralExpression.$cast_ArrayLiteralExpression(n!.data);
+    return ArrayLiteralExpression.$cast_ast_ArrayLiteralExpression(n!.data);
   }
   AsObjectLiteralExpression(): ObjectLiteralExpression | undefined {
     const n = this;
-    return ObjectLiteralExpression.$cast_ObjectLiteralExpression(n!.data);
+    return ObjectLiteralExpression.$cast_ast_ObjectLiteralExpression(n!.data);
   }
   AsSpreadAssignment(): SpreadAssignment | undefined {
     const n = this;
-    return SpreadAssignment.$cast_SpreadAssignment(n!.data);
+    return SpreadAssignment.$cast_ast_SpreadAssignment(n!.data);
   }
   AsPropertyAssignment(): PropertyAssignment | undefined {
     const n = this;
-    return PropertyAssignment.$cast_PropertyAssignment(n!.data);
+    return PropertyAssignment.$cast_ast_PropertyAssignment(n!.data);
   }
   AsShorthandPropertyAssignment(): ShorthandPropertyAssignment | undefined {
     const n = this;
-    return ShorthandPropertyAssignment.$cast_ShorthandPropertyAssignment(n!.data);
+    return ShorthandPropertyAssignment.$cast_ast_ShorthandPropertyAssignment(n!.data);
   }
   AsDeleteExpression(): DeleteExpression | undefined {
     const n = this;
-    return DeleteExpression.$cast_DeleteExpression(n!.data);
+    return DeleteExpression.$cast_ast_DeleteExpression(n!.data);
   }
   AsTypeOfExpression(): TypeOfExpression | undefined {
     const n = this;
-    return TypeOfExpression.$cast_TypeOfExpression(n!.data);
+    return TypeOfExpression.$cast_ast_TypeOfExpression(n!.data);
   }
   AsVoidExpression(): VoidExpression | undefined {
     const n = this;
-    return VoidExpression.$cast_VoidExpression(n!.data);
+    return VoidExpression.$cast_ast_VoidExpression(n!.data);
   }
   AsAwaitExpression(): AwaitExpression | undefined {
     const n = this;
-    return AwaitExpression.$cast_AwaitExpression(n!.data);
+    return AwaitExpression.$cast_ast_AwaitExpression(n!.data);
   }
   AsTypeAssertion(): TypeAssertion | undefined {
     const n = this;
-    return TypeAssertion.$cast_TypeAssertion(n!.data);
+    return TypeAssertion.$cast_ast_TypeAssertion(n!.data);
   }
   AsKeywordTypeNode(): KeywordTypeNode | undefined {
     const n = this;
-    return KeywordTypeNode.$cast_KeywordTypeNode(n!.data);
+    return KeywordTypeNode.$cast_ast_KeywordTypeNode(n!.data);
   }
   AsUnionTypeNode(): UnionTypeNode | undefined {
     const n = this;
-    return UnionTypeNode.$cast_UnionTypeNode(n!.data);
+    return UnionTypeNode.$cast_ast_UnionTypeNode(n!.data);
   }
   AsIntersectionTypeNode(): IntersectionTypeNode | undefined {
     const n = this;
-    return IntersectionTypeNode.$cast_IntersectionTypeNode(n!.data);
+    return IntersectionTypeNode.$cast_ast_IntersectionTypeNode(n!.data);
   }
   AsConditionalTypeNode(): ConditionalTypeNode | undefined {
     const n = this;
-    return ConditionalTypeNode.$cast_ConditionalTypeNode(n!.data);
+    return ConditionalTypeNode.$cast_ast_ConditionalTypeNode(n!.data);
   }
   AsTypeOperatorNode(): TypeOperatorNode | undefined {
     const n = this;
-    return TypeOperatorNode.$cast_TypeOperatorNode(n!.data);
+    return TypeOperatorNode.$cast_ast_TypeOperatorNode(n!.data);
   }
   AsInferTypeNode(): InferTypeNode | undefined {
     const n = this;
-    return InferTypeNode.$cast_InferTypeNode(n!.data);
+    return InferTypeNode.$cast_ast_InferTypeNode(n!.data);
   }
   AsArrayTypeNode(): ArrayTypeNode | undefined {
     const n = this;
-    return ArrayTypeNode.$cast_ArrayTypeNode(n!.data);
+    return ArrayTypeNode.$cast_ast_ArrayTypeNode(n!.data);
   }
   AsIndexedAccessTypeNode(): IndexedAccessTypeNode | undefined {
     const n = this;
-    return IndexedAccessTypeNode.$cast_IndexedAccessTypeNode(n!.data);
+    return IndexedAccessTypeNode.$cast_ast_IndexedAccessTypeNode(n!.data);
   }
   AsTypeReferenceNode(): TypeReferenceNode | undefined {
     const n = this;
-    return TypeReferenceNode.$cast_TypeReferenceNode(n!.data);
+    return TypeReferenceNode.$cast_ast_TypeReferenceNode(n!.data);
   }
   AsExpressionWithTypeArguments(): ExpressionWithTypeArguments | undefined {
     const n = this;
-    return ExpressionWithTypeArguments.$cast_ExpressionWithTypeArguments(n!.data);
+    return ExpressionWithTypeArguments.$cast_ast_ExpressionWithTypeArguments(n!.data);
   }
   AsLiteralTypeNode(): LiteralTypeNode | undefined {
     const n = this;
-    return LiteralTypeNode.$cast_LiteralTypeNode(n!.data);
+    return LiteralTypeNode.$cast_ast_LiteralTypeNode(n!.data);
   }
   AsThisTypeNode(): ThisTypeNode | undefined {
     const n = this;
-    return ThisTypeNode.$cast_ThisTypeNode(n!.data);
+    return ThisTypeNode.$cast_ast_ThisTypeNode(n!.data);
   }
   AsTypePredicateNode(): TypePredicateNode | undefined {
     const n = this;
-    return TypePredicateNode.$cast_TypePredicateNode(n!.data);
+    return TypePredicateNode.$cast_ast_TypePredicateNode(n!.data);
   }
   AsImportAttribute(): ImportAttribute | undefined {
     const n = this;
-    return ImportAttribute.$cast_ImportAttribute(n!.data);
+    return ImportAttribute.$cast_ast_ImportAttribute(n!.data);
   }
   AsImportAttributes(): ImportAttributes | undefined {
     const n = this;
-    return ImportAttributes.$cast_ImportAttributes(n!.data);
+    return ImportAttributes.$cast_ast_ImportAttributes(n!.data);
   }
   AsTypeQueryNode(): TypeQueryNode | undefined {
     const n = this;
-    return TypeQueryNode.$cast_TypeQueryNode(n!.data);
+    return TypeQueryNode.$cast_ast_TypeQueryNode(n!.data);
   }
   AsMappedTypeNode(): MappedTypeNode | undefined {
     const n = this;
-    return MappedTypeNode.$cast_MappedTypeNode(n!.data);
+    return MappedTypeNode.$cast_ast_MappedTypeNode(n!.data);
   }
   AsTypeLiteralNode(): TypeLiteralNode | undefined {
     const n = this;
-    return TypeLiteralNode.$cast_TypeLiteralNode(n!.data);
+    return TypeLiteralNode.$cast_ast_TypeLiteralNode(n!.data);
   }
   AsTupleTypeNode(): TupleTypeNode | undefined {
     const n = this;
-    return TupleTypeNode.$cast_TupleTypeNode(n!.data);
+    return TupleTypeNode.$cast_ast_TupleTypeNode(n!.data);
   }
   AsNamedTupleMember(): NamedTupleMember | undefined {
     const n = this;
-    return NamedTupleMember.$cast_NamedTupleMember(n!.data);
+    return NamedTupleMember.$cast_ast_NamedTupleMember(n!.data);
   }
   AsOptionalTypeNode(): OptionalTypeNode | undefined {
     const n = this;
-    return OptionalTypeNode.$cast_OptionalTypeNode(n!.data);
+    return OptionalTypeNode.$cast_ast_OptionalTypeNode(n!.data);
   }
   AsRestTypeNode(): RestTypeNode | undefined {
     const n = this;
-    return RestTypeNode.$cast_RestTypeNode(n!.data);
+    return RestTypeNode.$cast_ast_RestTypeNode(n!.data);
   }
   AsParenthesizedTypeNode(): ParenthesizedTypeNode | undefined {
     const n = this;
-    return ParenthesizedTypeNode.$cast_ParenthesizedTypeNode(n!.data);
+    return ParenthesizedTypeNode.$cast_ast_ParenthesizedTypeNode(n!.data);
   }
   AsFunctionTypeNode(): FunctionTypeNode | undefined {
     const n = this;
-    return FunctionTypeNode.$cast_FunctionTypeNode(n!.data);
+    return FunctionTypeNode.$cast_ast_FunctionTypeNode(n!.data);
   }
   AsConstructorTypeNode(): ConstructorTypeNode | undefined {
     const n = this;
-    return ConstructorTypeNode.$cast_ConstructorTypeNode(n!.data);
+    return ConstructorTypeNode.$cast_ast_ConstructorTypeNode(n!.data);
   }
   AsTemplateHead(): TemplateHead | undefined {
     const n = this;
-    return TemplateHead.$cast_TemplateHead(n!.data);
+    return TemplateHead.$cast_ast_TemplateHead(n!.data);
   }
   AsTemplateMiddle(): TemplateMiddle | undefined {
     const n = this;
-    return TemplateMiddle.$cast_TemplateMiddle(n!.data);
+    return TemplateMiddle.$cast_ast_TemplateMiddle(n!.data);
   }
   AsTemplateTail(): TemplateTail | undefined {
     const n = this;
-    return TemplateTail.$cast_TemplateTail(n!.data);
+    return TemplateTail.$cast_ast_TemplateTail(n!.data);
   }
   AsTemplateLiteralTypeNode(): TemplateLiteralTypeNode | undefined {
     const n = this;
-    return TemplateLiteralTypeNode.$cast_TemplateLiteralTypeNode(n!.data);
+    return TemplateLiteralTypeNode.$cast_ast_TemplateLiteralTypeNode(n!.data);
   }
   AsTemplateLiteralTypeSpan(): TemplateLiteralTypeSpan | undefined {
     const n = this;
-    return TemplateLiteralTypeSpan.$cast_TemplateLiteralTypeSpan(n!.data);
+    return TemplateLiteralTypeSpan.$cast_ast_TemplateLiteralTypeSpan(n!.data);
   }
   AsSyntheticExpression(): SyntheticExpression | undefined {
     const n = this;
-    return SyntheticExpression.$cast_SyntheticExpression(n!.data);
+    return SyntheticExpression.$cast_ast_SyntheticExpression(n!.data);
   }
   AsPartiallyEmittedExpression(): PartiallyEmittedExpression | undefined {
     const n = this;
-    return PartiallyEmittedExpression.$cast_PartiallyEmittedExpression(n!.data);
+    return PartiallyEmittedExpression.$cast_ast_PartiallyEmittedExpression(n!.data);
   }
   AsJsxElement(): JsxElement | undefined {
     const n = this;
-    return JsxElement.$cast_JsxElement(n!.data);
+    return JsxElement.$cast_ast_JsxElement(n!.data);
   }
   AsJsxAttributes(): JsxAttributes | undefined {
     const n = this;
-    return JsxAttributes.$cast_JsxAttributes(n!.data);
+    return JsxAttributes.$cast_ast_JsxAttributes(n!.data);
   }
   AsJsxNamespacedName(): JsxNamespacedName | undefined {
     const n = this;
-    return JsxNamespacedName.$cast_JsxNamespacedName(n!.data);
+    return JsxNamespacedName.$cast_ast_JsxNamespacedName(n!.data);
   }
   AsJsxOpeningElement(): JsxOpeningElement | undefined {
     const n = this;
-    return JsxOpeningElement.$cast_JsxOpeningElement(n!.data);
+    return JsxOpeningElement.$cast_ast_JsxOpeningElement(n!.data);
   }
   AsJsxSelfClosingElement(): JsxSelfClosingElement | undefined {
     const n = this;
-    return JsxSelfClosingElement.$cast_JsxSelfClosingElement(n!.data);
+    return JsxSelfClosingElement.$cast_ast_JsxSelfClosingElement(n!.data);
   }
   AsJsxFragment(): JsxFragment | undefined {
     const n = this;
-    return JsxFragment.$cast_JsxFragment(n!.data);
+    return JsxFragment.$cast_ast_JsxFragment(n!.data);
   }
   AsJsxOpeningFragment(): JsxOpeningFragment | undefined {
     const n = this;
-    return JsxOpeningFragment.$cast_JsxOpeningFragment(n!.data);
+    return JsxOpeningFragment.$cast_ast_JsxOpeningFragment(n!.data);
   }
   AsJsxClosingFragment(): JsxClosingFragment | undefined {
     const n = this;
-    return JsxClosingFragment.$cast_JsxClosingFragment(n!.data);
+    return JsxClosingFragment.$cast_ast_JsxClosingFragment(n!.data);
   }
   AsJsxAttribute(): JsxAttribute | undefined {
     const n = this;
-    return JsxAttribute.$cast_JsxAttribute(n!.data);
+    return JsxAttribute.$cast_ast_JsxAttribute(n!.data);
   }
   AsJsxSpreadAttribute(): JsxSpreadAttribute | undefined {
     const n = this;
-    return JsxSpreadAttribute.$cast_JsxSpreadAttribute(n!.data);
+    return JsxSpreadAttribute.$cast_ast_JsxSpreadAttribute(n!.data);
   }
   AsJsxClosingElement(): JsxClosingElement | undefined {
     const n = this;
-    return JsxClosingElement.$cast_JsxClosingElement(n!.data);
+    return JsxClosingElement.$cast_ast_JsxClosingElement(n!.data);
   }
   AsJsxExpression(): JsxExpression | undefined {
     const n = this;
-    return JsxExpression.$cast_JsxExpression(n!.data);
+    return JsxExpression.$cast_ast_JsxExpression(n!.data);
   }
   AsJsxText(): JsxText | undefined {
     const n = this;
-    return JsxText.$cast_JsxText(n!.data);
+    return JsxText.$cast_ast_JsxText(n!.data);
   }
   AsSyntaxList(): SyntaxList | undefined {
     const n = this;
-    return SyntaxList.$cast_SyntaxList(n!.data);
+    return SyntaxList.$cast_ast_SyntaxList(n!.data);
   }
   AsJSDoc(): JSDoc | undefined {
     const n = this;
-    return JSDoc.$cast_JSDoc(n!.data);
+    return JSDoc.$cast_ast_JSDoc(n!.data);
   }
   AsJSDocTypeExpression(): JSDocTypeExpression | undefined {
     const n = this;
-    return JSDocTypeExpression.$cast_JSDocTypeExpression(n!.data);
+    return JSDocTypeExpression.$cast_ast_JSDocTypeExpression(n!.data);
   }
   AsJSDocNonNullableType(): JSDocNonNullableType | undefined {
     const n = this;
-    return JSDocNonNullableType.$cast_JSDocNonNullableType(n!.data);
+    return JSDocNonNullableType.$cast_ast_JSDocNonNullableType(n!.data);
   }
   AsJSDocNullableType(): JSDocNullableType | undefined {
     const n = this;
-    return JSDocNullableType.$cast_JSDocNullableType(n!.data);
+    return JSDocNullableType.$cast_ast_JSDocNullableType(n!.data);
   }
   AsJSDocAllType(): JSDocAllType | undefined {
     const n = this;
-    return JSDocAllType.$cast_JSDocAllType(n!.data);
+    return JSDocAllType.$cast_ast_JSDocAllType(n!.data);
   }
   AsJSDocVariadicType(): JSDocVariadicType | undefined {
     const n = this;
-    return JSDocVariadicType.$cast_JSDocVariadicType(n!.data);
+    return JSDocVariadicType.$cast_ast_JSDocVariadicType(n!.data);
   }
   AsJSDocOptionalType(): JSDocOptionalType | undefined {
     const n = this;
-    return JSDocOptionalType.$cast_JSDocOptionalType(n!.data);
+    return JSDocOptionalType.$cast_ast_JSDocOptionalType(n!.data);
   }
   AsJSDocTypeTag(): JSDocTypeTag | undefined {
     const n = this;
-    return JSDocTypeTag.$cast_JSDocTypeTag(n!.data);
+    return JSDocTypeTag.$cast_ast_JSDocTypeTag(n!.data);
   }
   AsJSDocUnknownTag(): JSDocUnknownTag | undefined {
     const n = this;
-    return JSDocUnknownTag.$cast_JSDocUnknownTag(n!.data);
+    return JSDocUnknownTag.$cast_ast_JSDocUnknownTag(n!.data);
   }
   AsJSDocTemplateTag(): JSDocTemplateTag | undefined {
     const n = this;
-    return JSDocTemplateTag.$cast_JSDocTemplateTag(n!.data);
+    return JSDocTemplateTag.$cast_ast_JSDocTemplateTag(n!.data);
   }
   AsJSDocReturnTag(): JSDocReturnTag | undefined {
     const n = this;
-    return JSDocReturnTag.$cast_JSDocReturnTag(n!.data);
+    return JSDocReturnTag.$cast_ast_JSDocReturnTag(n!.data);
   }
   AsJSDocPublicTag(): JSDocPublicTag | undefined {
     const n = this;
-    return JSDocPublicTag.$cast_JSDocPublicTag(n!.data);
+    return JSDocPublicTag.$cast_ast_JSDocPublicTag(n!.data);
   }
   AsJSDocPrivateTag(): JSDocPrivateTag | undefined {
     const n = this;
-    return JSDocPrivateTag.$cast_JSDocPrivateTag(n!.data);
+    return JSDocPrivateTag.$cast_ast_JSDocPrivateTag(n!.data);
   }
   AsJSDocProtectedTag(): JSDocProtectedTag | undefined {
     const n = this;
-    return JSDocProtectedTag.$cast_JSDocProtectedTag(n!.data);
+    return JSDocProtectedTag.$cast_ast_JSDocProtectedTag(n!.data);
   }
   AsJSDocReadonlyTag(): JSDocReadonlyTag | undefined {
     const n = this;
-    return JSDocReadonlyTag.$cast_JSDocReadonlyTag(n!.data);
+    return JSDocReadonlyTag.$cast_ast_JSDocReadonlyTag(n!.data);
   }
   AsJSDocOverrideTag(): JSDocOverrideTag | undefined {
     const n = this;
-    return JSDocOverrideTag.$cast_JSDocOverrideTag(n!.data);
+    return JSDocOverrideTag.$cast_ast_JSDocOverrideTag(n!.data);
   }
   AsJSDocDeprecatedTag(): JSDocDeprecatedTag | undefined {
     const n = this;
-    return JSDocDeprecatedTag.$cast_JSDocDeprecatedTag(n!.data);
+    return JSDocDeprecatedTag.$cast_ast_JSDocDeprecatedTag(n!.data);
   }
   AsJSDocSeeTag(): JSDocSeeTag | undefined {
     const n = this;
-    return JSDocSeeTag.$cast_JSDocSeeTag(n!.data);
+    return JSDocSeeTag.$cast_ast_JSDocSeeTag(n!.data);
   }
   AsJSDocImplementsTag(): JSDocImplementsTag | undefined {
     const n = this;
-    return JSDocImplementsTag.$cast_JSDocImplementsTag(n!.data);
+    return JSDocImplementsTag.$cast_ast_JSDocImplementsTag(n!.data);
   }
   AsJSDocAugmentsTag(): JSDocAugmentsTag | undefined {
     const n = this;
-    return JSDocAugmentsTag.$cast_JSDocAugmentsTag(n!.data);
+    return JSDocAugmentsTag.$cast_ast_JSDocAugmentsTag(n!.data);
   }
   AsJSDocSatisfiesTag(): JSDocSatisfiesTag | undefined {
     const n = this;
-    return JSDocSatisfiesTag.$cast_JSDocSatisfiesTag(n!.data);
+    return JSDocSatisfiesTag.$cast_ast_JSDocSatisfiesTag(n!.data);
   }
   AsJSDocThrowsTag(): JSDocThrowsTag | undefined {
     const n = this;
-    return JSDocThrowsTag.$cast_JSDocThrowsTag(n!.data);
+    return JSDocThrowsTag.$cast_ast_JSDocThrowsTag(n!.data);
   }
   AsJSDocThisTag(): JSDocThisTag | undefined {
     const n = this;
-    return JSDocThisTag.$cast_JSDocThisTag(n!.data);
+    return JSDocThisTag.$cast_ast_JSDocThisTag(n!.data);
   }
   AsJSDocImportTag(): JSDocImportTag | undefined {
     const n = this;
-    return JSDocImportTag.$cast_JSDocImportTag(n!.data);
+    return JSDocImportTag.$cast_ast_JSDocImportTag(n!.data);
   }
   AsJSDocCallbackTag(): JSDocCallbackTag | undefined {
     const n = this;
-    return JSDocCallbackTag.$cast_JSDocCallbackTag(n!.data);
+    return JSDocCallbackTag.$cast_ast_JSDocCallbackTag(n!.data);
   }
   AsJSDocOverloadTag(): JSDocOverloadTag | undefined {
     const n = this;
-    return JSDocOverloadTag.$cast_JSDocOverloadTag(n!.data);
+    return JSDocOverloadTag.$cast_ast_JSDocOverloadTag(n!.data);
   }
   AsJSDocTypedefTag(): JSDocTypedefTag | undefined {
     const n = this;
-    return JSDocTypedefTag.$cast_JSDocTypedefTag(n!.data);
+    return JSDocTypedefTag.$cast_ast_JSDocTypedefTag(n!.data);
   }
   AsJSDocSignature(): JSDocSignature | undefined {
     const n = this;
-    return JSDocSignature.$cast_JSDocSignature(n!.data);
+    return JSDocSignature.$cast_ast_JSDocSignature(n!.data);
   }
   AsJSDocNameReference(): JSDocNameReference | undefined {
     const n = this;
-    return JSDocNameReference.$cast_JSDocNameReference(n!.data);
+    return JSDocNameReference.$cast_ast_JSDocNameReference(n!.data);
   }
   AsSourceFile(): SourceFile | undefined {
     const n = this;
-    return SourceFile.$cast_SourceFile(n!.data);
+    return SourceFile.$cast_ast_SourceFile(n!.data);
   }
   AsModuleDeclaration(): ModuleDeclaration | undefined {
     const n = this;
-    return ModuleDeclaration.$cast_ModuleDeclaration(n!.data);
+    return ModuleDeclaration.$cast_ast_ModuleDeclaration(n!.data);
   }
   AsImportEqualsDeclaration(): ImportEqualsDeclaration | undefined {
     const n = this;
-    return ImportEqualsDeclaration.$cast_ImportEqualsDeclaration(n!.data);
+    return ImportEqualsDeclaration.$cast_ast_ImportEqualsDeclaration(n!.data);
   }
   AsExportDeclaration(): ExportDeclaration | undefined {
     const n = this;
-    return ExportDeclaration.$cast_ExportDeclaration(n!.data);
+    return ExportDeclaration.$cast_ast_ExportDeclaration(n!.data);
   }
   AsImportTypeNode(): ImportTypeNode | undefined {
     const n = this;
-    return ImportTypeNode.$cast_ImportTypeNode(n!.data);
+    return ImportTypeNode.$cast_ast_ImportTypeNode(n!.data);
   }
   AsImportClause(): ImportClause | undefined {
     const n = this;
-    return ImportClause.$cast_ImportClause(n!.data);
+    return ImportClause.$cast_ast_ImportClause(n!.data);
   }
   AsImportSpecifier(): ImportSpecifier | undefined {
     const n = this;
-    return ImportSpecifier.$cast_ImportSpecifier(n!.data);
+    return ImportSpecifier.$cast_ast_ImportSpecifier(n!.data);
   }
   AsJSDocText(): JSDocText | undefined {
     const n = this;
-    return JSDocText.$cast_JSDocText(n!.data);
+    return JSDocText.$cast_ast_JSDocText(n!.data);
   }
   AsJSDocLink(): JSDocLink | undefined {
     const n = this;
-    return JSDocLink.$cast_JSDocLink(n!.data);
+    return JSDocLink.$cast_ast_JSDocLink(n!.data);
   }
   AsJSDocLinkPlain(): JSDocLinkPlain | undefined {
     const n = this;
-    return JSDocLinkPlain.$cast_JSDocLinkPlain(n!.data);
+    return JSDocLinkPlain.$cast_ast_JSDocLinkPlain(n!.data);
   }
   AsJSDocLinkCode(): JSDocLinkCode | undefined {
     const n = this;
-    return JSDocLinkCode.$cast_JSDocLinkCode(n!.data);
+    return JSDocLinkCode.$cast_ast_JSDocLinkCode(n!.data);
   }
   AsTypeParameterDeclaration(): TypeParameterDeclaration | undefined {
     const n = this;
-    return TypeParameterDeclaration.$cast_TypeParameterDeclaration(n!.data);
+    return TypeParameterDeclaration.$cast_ast_TypeParameterDeclaration(n!.data);
   }
   AsSyntheticReferenceExpression(): SyntheticReferenceExpression | undefined {
     const n = this;
-    return SyntheticReferenceExpression.$cast_SyntheticReferenceExpression(n!.data);
+    return SyntheticReferenceExpression.$cast_ast_SyntheticReferenceExpression(n!.data);
   }
   AsJSDocTypeLiteral(): JSDocTypeLiteral | undefined {
     const n = this;
-    return JSDocTypeLiteral.$cast_JSDocTypeLiteral(n!.data);
+    return JSDocTypeLiteral.$cast_ast_JSDocTypeLiteral(n!.data);
   }
   AsJSDocParameterOrPropertyTag(): JSDocParameterOrPropertyTag | undefined {
     const n = this;
-    return JSDocParameterOrPropertyTag.$cast_JSDocParameterOrPropertyTag(n!.data);
+    return JSDocParameterOrPropertyTag.$cast_ast_JSDocParameterOrPropertyTag(n!.data);
   }
 }
 export class NodeDefault extends Node {
-  $copy_NodeDefault(src: NodeDefault): void {
-    this.$copy_Node(src);
+  $copy_ast_NodeDefault(src: NodeDefault): void {
+    this.$copy_ast_Node(src);
   }
-  $equals_NodeDefault(o: NodeDefault): boolean {
-    return this.$equals_Node(o);
+  $equals_ast_NodeDefault(o: NodeDefault): boolean {
+    return this.$equals_ast_Node(o);
   }
-  $clone_NodeDefault(): NodeDefault {
+  $clone_ast_NodeDefault(): NodeDefault {
     const o = new NodeDefault();
-    o.$copy_NodeDefault(this);
+    o.$copy_ast_NodeDefault(this);
     return o;
   }
-  static $cast_NodeDefault(v: $rt.GoObject | undefined): NodeDefault {
+  static $cast_ast_NodeDefault(v: $rt.GoObject | undefined): NodeDefault {
     if (v instanceof NodeDefault) return v;
     throw $rt.typeAssertError();
   }
   AsNode(): Node | undefined {
     const node = this;
-    return node;
+    return node!;
   }
   ForEachChild$NodeDefault(v: Visitor): boolean {
     const node = this;
@@ -3187,7 +3201,7 @@ export class NodeDefault extends Node {
     const node = this;
     return undefined;
   }
-  SubtreeFacts_(): SubtreeFacts {
+  SubtreeFacts$m(): SubtreeFacts {
     const node = this;
     return node!.data!.subtreeFactsWorker(node!.data);
   }
@@ -3204,25 +3218,25 @@ export class NodeDefault extends Node {
   }
   propagateSubtreeFacts$NodeDefault(): SubtreeFacts {
     const node = this;
-    return (node!.data!.SubtreeFacts_() & 4261412863) >>> 0;
+    return (node!.data!.SubtreeFacts$m() & 4261412863) >>> 0;
   }
   propagateSubtreeFacts(): SubtreeFacts {
     return this.propagateSubtreeFacts$NodeDefault();
   }
 }
 export class NodeBase extends NodeDefault {
-  $copy_NodeBase(src: NodeBase): void {
-    this.$copy_NodeDefault(src);
+  $copy_ast_NodeBase(src: NodeBase): void {
+    this.$copy_ast_NodeDefault(src);
   }
-  $equals_NodeBase(o: NodeBase): boolean {
-    return this.$equals_NodeDefault(o);
+  $equals_ast_NodeBase(o: NodeBase): boolean {
+    return this.$equals_ast_NodeDefault(o);
   }
-  $clone_NodeBase(): NodeBase {
+  $clone_ast_NodeBase(): NodeBase {
     const o = new NodeBase();
-    o.$copy_NodeBase(this);
+    o.$copy_ast_NodeBase(this);
     return o;
   }
-  static $cast_NodeBase(v: $rt.GoObject | undefined): NodeBase {
+  static $cast_ast_NodeBase(v: $rt.GoObject | undefined): NodeBase {
     if (v instanceof NodeBase) return v;
     throw $rt.typeAssertError();
   }
@@ -3236,23 +3250,23 @@ export class AccessorDeclarationBase extends NodeBase {
   FunctionLikeWithBodyBase_: FunctionLikeWithBodyBase = new FunctionLikeWithBodyBase();
   FlowNodeBase_: FlowNodeBase = new FlowNodeBase();
   CompositeBase_: CompositeBase = new CompositeBase();
-  $copy_AccessorDeclarationBase(src: AccessorDeclarationBase): void {
-    this.$copy_NodeBase(src);
+  $copy_ast_AccessorDeclarationBase(src: AccessorDeclarationBase): void {
+    this.$copy_ast_NodeBase(src);
     this.TypeElementBase_ = src.TypeElementBase_;
     this.ClassElementBase_ = src.ClassElementBase_;
     this.ObjectLiteralElementBase_ = src.ObjectLiteralElementBase_;
-    this.DeclarationBase_ = src.DeclarationBase_.$clone_DeclarationBase();
-    this.NamedMemberBase_ = src.NamedMemberBase_.$clone_NamedMemberBase();
-    this.FunctionLikeWithBodyBase_ = src.FunctionLikeWithBodyBase_.$clone_FunctionLikeWithBodyBase();
-    this.FlowNodeBase_ = src.FlowNodeBase_.$clone_FlowNodeBase();
-    this.CompositeBase_ = src.CompositeBase_.$clone_CompositeBase();
+    this.DeclarationBase_ = src.DeclarationBase_.$clone_ast_DeclarationBase();
+    this.NamedMemberBase_ = src.NamedMemberBase_.$clone_ast_NamedMemberBase();
+    this.FunctionLikeWithBodyBase_ = src.FunctionLikeWithBodyBase_.$clone_ast_FunctionLikeWithBodyBase();
+    this.FlowNodeBase_ = src.FlowNodeBase_.$clone_ast_FlowNodeBase();
+    this.CompositeBase_ = src.CompositeBase_.$clone_ast_CompositeBase();
   }
-  $clone_AccessorDeclarationBase(): AccessorDeclarationBase {
+  $clone_ast_AccessorDeclarationBase(): AccessorDeclarationBase {
     const o = new AccessorDeclarationBase();
-    o.$copy_AccessorDeclarationBase(this);
+    o.$copy_ast_AccessorDeclarationBase(this);
     return o;
   }
-  static $cast_AccessorDeclarationBase(v: $rt.GoObject | undefined): AccessorDeclarationBase {
+  static $cast_ast_AccessorDeclarationBase(v: $rt.GoObject | undefined): AccessorDeclarationBase {
     if (v instanceof AccessorDeclarationBase) return v;
     throw $rt.typeAssertError();
   }
@@ -3283,7 +3297,7 @@ export class AccessorDeclarationBase extends NodeBase {
   }
   propagateSubtreeFacts(): SubtreeFacts {
     const node = this;
-    return (((node!.SubtreeFacts_() & 4260970495) >>> 0) | propagateSubtreeFacts(node!.NamedMemberBase_.name)) >>> 0;
+    return (((node!.SubtreeFacts$m() & 4260970495) >>> 0) | propagateSubtreeFacts(node!.NamedMemberBase_.name)) >>> 0;
   }
   BodyData(): BodyBase | undefined {
     return this.FunctionLikeWithBodyBase_.BodyData();
@@ -3318,13 +3332,13 @@ export class AllAccessorDeclarations extends $rt.GoObject {
   SecondAccessor: Node | undefined = undefined;
   SetAccessor: SetAccessorDeclaration | undefined = undefined;
   GetAccessor: GetAccessorDeclaration | undefined = undefined;
-  $copy_AllAccessorDeclarations(src: AllAccessorDeclarations): void {
+  $copy_ast_AllAccessorDeclarations(src: AllAccessorDeclarations): void {
     this.FirstAccessor = src.FirstAccessor;
     this.SecondAccessor = src.SecondAccessor;
     this.SetAccessor = src.SetAccessor;
     this.GetAccessor = src.GetAccessor;
   }
-  $equals_AllAccessorDeclarations(o: AllAccessorDeclarations): boolean {
+  $equals_ast_AllAccessorDeclarations(o: AllAccessorDeclarations): boolean {
     return (
       this.FirstAccessor === o.FirstAccessor &&
       this.SecondAccessor === o.SecondAccessor &&
@@ -3332,12 +3346,12 @@ export class AllAccessorDeclarations extends $rt.GoObject {
       this.GetAccessor === o.GetAccessor
     );
   }
-  $clone_AllAccessorDeclarations(): AllAccessorDeclarations {
+  $clone_ast_AllAccessorDeclarations(): AllAccessorDeclarations {
     const o = new AllAccessorDeclarations();
-    o.$copy_AllAccessorDeclarations(this);
+    o.$copy_ast_AllAccessorDeclarations(this);
     return o;
   }
-  static $lit_AllAccessorDeclarations_0_1_2_3(
+  static $lit_ast_AllAccessorDeclarations_0_1_2_3(
     p0: Node | undefined,
     p1: Node | undefined,
     p2: SetAccessorDeclaration | undefined,
@@ -3350,109 +3364,109 @@ export class AllAccessorDeclarations extends $rt.GoObject {
     o.GetAccessor = p3;
     return o;
   }
-  static $cast_AllAccessorDeclarations(v: $rt.GoObject | undefined): AllAccessorDeclarations {
+  static $cast_ast_AllAccessorDeclarations(v: $rt.GoObject | undefined): AllAccessorDeclarations {
     if (v instanceof AllAccessorDeclarations) return v;
     throw $rt.typeAssertError();
   }
 }
 export class ExpressionBase extends NodeBase {
-  $copy_ExpressionBase(src: ExpressionBase): void {
-    this.$copy_NodeBase(src);
+  $copy_ast_ExpressionBase(src: ExpressionBase): void {
+    this.$copy_ast_NodeBase(src);
   }
-  $equals_ExpressionBase(o: ExpressionBase): boolean {
-    return this.$equals_NodeBase(o);
+  $equals_ast_ExpressionBase(o: ExpressionBase): boolean {
+    return this.$equals_ast_NodeBase(o);
   }
-  $clone_ExpressionBase(): ExpressionBase {
+  $clone_ast_ExpressionBase(): ExpressionBase {
     const o = new ExpressionBase();
-    o.$copy_ExpressionBase(this);
+    o.$copy_ast_ExpressionBase(this);
     return o;
   }
-  static $cast_ExpressionBase(v: $rt.GoObject | undefined): ExpressionBase {
+  static $cast_ast_ExpressionBase(v: $rt.GoObject | undefined): ExpressionBase {
     if (v instanceof ExpressionBase) return v;
     throw $rt.typeAssertError();
   }
 }
 export class UnaryExpressionBase extends ExpressionBase {
-  $copy_UnaryExpressionBase(src: UnaryExpressionBase): void {
-    this.$copy_ExpressionBase(src);
+  $copy_ast_UnaryExpressionBase(src: UnaryExpressionBase): void {
+    this.$copy_ast_ExpressionBase(src);
   }
-  $equals_UnaryExpressionBase(o: UnaryExpressionBase): boolean {
-    return this.$equals_ExpressionBase(o);
+  $equals_ast_UnaryExpressionBase(o: UnaryExpressionBase): boolean {
+    return this.$equals_ast_ExpressionBase(o);
   }
-  $clone_UnaryExpressionBase(): UnaryExpressionBase {
+  $clone_ast_UnaryExpressionBase(): UnaryExpressionBase {
     const o = new UnaryExpressionBase();
-    o.$copy_UnaryExpressionBase(this);
+    o.$copy_ast_UnaryExpressionBase(this);
     return o;
   }
-  static $cast_UnaryExpressionBase(v: $rt.GoObject | undefined): UnaryExpressionBase {
+  static $cast_ast_UnaryExpressionBase(v: $rt.GoObject | undefined): UnaryExpressionBase {
     if (v instanceof UnaryExpressionBase) return v;
     throw $rt.typeAssertError();
   }
 }
 export class UpdateExpressionBase extends UnaryExpressionBase {
-  $copy_UpdateExpressionBase(src: UpdateExpressionBase): void {
-    this.$copy_UnaryExpressionBase(src);
+  $copy_ast_UpdateExpressionBase(src: UpdateExpressionBase): void {
+    this.$copy_ast_UnaryExpressionBase(src);
   }
-  $equals_UpdateExpressionBase(o: UpdateExpressionBase): boolean {
-    return this.$equals_UnaryExpressionBase(o);
+  $equals_ast_UpdateExpressionBase(o: UpdateExpressionBase): boolean {
+    return this.$equals_ast_UnaryExpressionBase(o);
   }
-  $clone_UpdateExpressionBase(): UpdateExpressionBase {
+  $clone_ast_UpdateExpressionBase(): UpdateExpressionBase {
     const o = new UpdateExpressionBase();
-    o.$copy_UpdateExpressionBase(this);
+    o.$copy_ast_UpdateExpressionBase(this);
     return o;
   }
-  static $cast_UpdateExpressionBase(v: $rt.GoObject | undefined): UpdateExpressionBase {
+  static $cast_ast_UpdateExpressionBase(v: $rt.GoObject | undefined): UpdateExpressionBase {
     if (v instanceof UpdateExpressionBase) return v;
     throw $rt.typeAssertError();
   }
 }
 export class LeftHandSideExpressionBase extends UpdateExpressionBase {
-  $copy_LeftHandSideExpressionBase(src: LeftHandSideExpressionBase): void {
-    this.$copy_UpdateExpressionBase(src);
+  $copy_ast_LeftHandSideExpressionBase(src: LeftHandSideExpressionBase): void {
+    this.$copy_ast_UpdateExpressionBase(src);
   }
-  $equals_LeftHandSideExpressionBase(o: LeftHandSideExpressionBase): boolean {
-    return this.$equals_UpdateExpressionBase(o);
+  $equals_ast_LeftHandSideExpressionBase(o: LeftHandSideExpressionBase): boolean {
+    return this.$equals_ast_UpdateExpressionBase(o);
   }
-  $clone_LeftHandSideExpressionBase(): LeftHandSideExpressionBase {
+  $clone_ast_LeftHandSideExpressionBase(): LeftHandSideExpressionBase {
     const o = new LeftHandSideExpressionBase();
-    o.$copy_LeftHandSideExpressionBase(this);
+    o.$copy_ast_LeftHandSideExpressionBase(this);
     return o;
   }
-  static $cast_LeftHandSideExpressionBase(v: $rt.GoObject | undefined): LeftHandSideExpressionBase {
+  static $cast_ast_LeftHandSideExpressionBase(v: $rt.GoObject | undefined): LeftHandSideExpressionBase {
     if (v instanceof LeftHandSideExpressionBase) return v;
     throw $rt.typeAssertError();
   }
 }
 export class MemberExpressionBase extends LeftHandSideExpressionBase {
-  $copy_MemberExpressionBase(src: MemberExpressionBase): void {
-    this.$copy_LeftHandSideExpressionBase(src);
+  $copy_ast_MemberExpressionBase(src: MemberExpressionBase): void {
+    this.$copy_ast_LeftHandSideExpressionBase(src);
   }
-  $equals_MemberExpressionBase(o: MemberExpressionBase): boolean {
-    return this.$equals_LeftHandSideExpressionBase(o);
+  $equals_ast_MemberExpressionBase(o: MemberExpressionBase): boolean {
+    return this.$equals_ast_LeftHandSideExpressionBase(o);
   }
-  $clone_MemberExpressionBase(): MemberExpressionBase {
+  $clone_ast_MemberExpressionBase(): MemberExpressionBase {
     const o = new MemberExpressionBase();
-    o.$copy_MemberExpressionBase(this);
+    o.$copy_ast_MemberExpressionBase(this);
     return o;
   }
-  static $cast_MemberExpressionBase(v: $rt.GoObject | undefined): MemberExpressionBase {
+  static $cast_ast_MemberExpressionBase(v: $rt.GoObject | undefined): MemberExpressionBase {
     if (v instanceof MemberExpressionBase) return v;
     throw $rt.typeAssertError();
   }
 }
 export class PrimaryExpressionBase extends MemberExpressionBase {
-  $copy_PrimaryExpressionBase(src: PrimaryExpressionBase): void {
-    this.$copy_MemberExpressionBase(src);
+  $copy_ast_PrimaryExpressionBase(src: PrimaryExpressionBase): void {
+    this.$copy_ast_MemberExpressionBase(src);
   }
-  $equals_PrimaryExpressionBase(o: PrimaryExpressionBase): boolean {
-    return this.$equals_MemberExpressionBase(o);
+  $equals_ast_PrimaryExpressionBase(o: PrimaryExpressionBase): boolean {
+    return this.$equals_ast_MemberExpressionBase(o);
   }
-  $clone_PrimaryExpressionBase(): PrimaryExpressionBase {
+  $clone_ast_PrimaryExpressionBase(): PrimaryExpressionBase {
     const o = new PrimaryExpressionBase();
-    o.$copy_PrimaryExpressionBase(this);
+    o.$copy_ast_PrimaryExpressionBase(this);
     return o;
   }
-  static $cast_PrimaryExpressionBase(v: $rt.GoObject | undefined): PrimaryExpressionBase {
+  static $cast_ast_PrimaryExpressionBase(v: $rt.GoObject | undefined): PrimaryExpressionBase {
     if (v instanceof PrimaryExpressionBase) return v;
     throw $rt.typeAssertError();
   }
@@ -3461,32 +3475,32 @@ export class ArrayLiteralExpression extends PrimaryExpressionBase {
   CompositeBase_: CompositeBase = new CompositeBase();
   Elements_: NodeList | undefined = undefined;
   MultiLine: boolean = false;
-  $copy_ArrayLiteralExpression(src: ArrayLiteralExpression): void {
-    this.$copy_PrimaryExpressionBase(src);
-    this.CompositeBase_ = src.CompositeBase_.$clone_CompositeBase();
+  $copy_ast_ArrayLiteralExpression(src: ArrayLiteralExpression): void {
+    this.$copy_ast_PrimaryExpressionBase(src);
+    this.CompositeBase_ = src.CompositeBase_.$clone_ast_CompositeBase();
     this.Elements_ = src.Elements_;
     this.MultiLine = src.MultiLine;
   }
-  $equals_ArrayLiteralExpression(o: ArrayLiteralExpression): boolean {
+  $equals_ast_ArrayLiteralExpression(o: ArrayLiteralExpression): boolean {
     return (
-      this.$equals_PrimaryExpressionBase(o) &&
-      this.CompositeBase_.$equals_CompositeBase(o.CompositeBase_) &&
+      this.$equals_ast_PrimaryExpressionBase(o) &&
+      this.CompositeBase_.$equals_ast_CompositeBase(o.CompositeBase_) &&
       this.Elements_ === o.Elements_ &&
       this.MultiLine === o.MultiLine
     );
   }
-  $clone_ArrayLiteralExpression(): ArrayLiteralExpression {
+  $clone_ast_ArrayLiteralExpression(): ArrayLiteralExpression {
     const o = new ArrayLiteralExpression();
-    o.$copy_ArrayLiteralExpression(this);
+    o.$copy_ast_ArrayLiteralExpression(this);
     return o;
   }
-  static $cast_ArrayLiteralExpression(v: $rt.GoObject | undefined): ArrayLiteralExpression {
+  static $cast_ast_ArrayLiteralExpression(v: $rt.GoObject | undefined): ArrayLiteralExpression {
     if (v instanceof ArrayLiteralExpression) return v;
     throw $rt.typeAssertError();
   }
   propagateSubtreeFacts(): SubtreeFacts {
     const node = this;
-    return (node!.SubtreeFacts_() & 4261412863) >>> 0;
+    return (node!.SubtreeFacts$m() & 4261412863) >>> 0;
   }
   ForEachChild(v: Visitor): boolean {
     const node = this;
@@ -3514,19 +3528,19 @@ export class ArrayLiteralExpression extends PrimaryExpressionBase {
 }
 export class TypeNodeBase extends NodeBase {
   TypeSyntaxBase_: TypeSyntaxBase = new TypeSyntaxBase();
-  $copy_TypeNodeBase(src: TypeNodeBase): void {
-    this.$copy_NodeBase(src);
+  $copy_ast_TypeNodeBase(src: TypeNodeBase): void {
+    this.$copy_ast_NodeBase(src);
     this.TypeSyntaxBase_ = src.TypeSyntaxBase_;
   }
-  $equals_TypeNodeBase(o: TypeNodeBase): boolean {
-    return this.$equals_NodeBase(o) && this.TypeSyntaxBase_.$equals_TypeSyntaxBase(o.TypeSyntaxBase_);
+  $equals_ast_TypeNodeBase(o: TypeNodeBase): boolean {
+    return this.$equals_ast_NodeBase(o) && this.TypeSyntaxBase_.$equals_ast_TypeSyntaxBase(o.TypeSyntaxBase_);
   }
-  $clone_TypeNodeBase(): TypeNodeBase {
+  $clone_ast_TypeNodeBase(): TypeNodeBase {
     const o = new TypeNodeBase();
-    o.$copy_TypeNodeBase(this);
+    o.$copy_ast_TypeNodeBase(this);
     return o;
   }
-  static $cast_TypeNodeBase(v: $rt.GoObject | undefined): TypeNodeBase {
+  static $cast_ast_TypeNodeBase(v: $rt.GoObject | undefined): TypeNodeBase {
     if (v instanceof TypeNodeBase) return v;
     throw $rt.typeAssertError();
   }
@@ -3539,19 +3553,19 @@ export class TypeNodeBase extends NodeBase {
 }
 export class ArrayTypeNode extends TypeNodeBase {
   ElementType: Node | undefined = undefined;
-  $copy_ArrayTypeNode(src: ArrayTypeNode): void {
-    this.$copy_TypeNodeBase(src);
+  $copy_ast_ArrayTypeNode(src: ArrayTypeNode): void {
+    this.$copy_ast_TypeNodeBase(src);
     this.ElementType = src.ElementType;
   }
-  $equals_ArrayTypeNode(o: ArrayTypeNode): boolean {
-    return this.$equals_TypeNodeBase(o) && this.ElementType === o.ElementType;
+  $equals_ast_ArrayTypeNode(o: ArrayTypeNode): boolean {
+    return this.$equals_ast_TypeNodeBase(o) && this.ElementType === o.ElementType;
   }
-  $clone_ArrayTypeNode(): ArrayTypeNode {
+  $clone_ast_ArrayTypeNode(): ArrayTypeNode {
     const o = new ArrayTypeNode();
-    o.$copy_ArrayTypeNode(this);
+    o.$copy_ast_ArrayTypeNode(this);
     return o;
   }
-  static $cast_ArrayTypeNode(v: $rt.GoObject | undefined): ArrayTypeNode {
+  static $cast_ast_ArrayTypeNode(v: $rt.GoObject | undefined): ArrayTypeNode {
     if (v instanceof ArrayTypeNode) return v;
     throw $rt.typeAssertError();
   }
@@ -3585,21 +3599,21 @@ export class ArrowFunction extends ExpressionBase {
   FlowNodeBase_: FlowNodeBase = new FlowNodeBase();
   CompositeBase_: CompositeBase = new CompositeBase();
   EqualsGreaterThanToken: Node | undefined = undefined;
-  $copy_ArrowFunction(src: ArrowFunction): void {
-    this.$copy_ExpressionBase(src);
-    this.DeclarationBase_ = src.DeclarationBase_.$clone_DeclarationBase();
-    this.ModifiersBase_ = src.ModifiersBase_.$clone_ModifiersBase();
-    this.FunctionLikeWithBodyBase_ = src.FunctionLikeWithBodyBase_.$clone_FunctionLikeWithBodyBase();
-    this.FlowNodeBase_ = src.FlowNodeBase_.$clone_FlowNodeBase();
-    this.CompositeBase_ = src.CompositeBase_.$clone_CompositeBase();
+  $copy_ast_ArrowFunction(src: ArrowFunction): void {
+    this.$copy_ast_ExpressionBase(src);
+    this.DeclarationBase_ = src.DeclarationBase_.$clone_ast_DeclarationBase();
+    this.ModifiersBase_ = src.ModifiersBase_.$clone_ast_ModifiersBase();
+    this.FunctionLikeWithBodyBase_ = src.FunctionLikeWithBodyBase_.$clone_ast_FunctionLikeWithBodyBase();
+    this.FlowNodeBase_ = src.FlowNodeBase_.$clone_ast_FlowNodeBase();
+    this.CompositeBase_ = src.CompositeBase_.$clone_ast_CompositeBase();
     this.EqualsGreaterThanToken = src.EqualsGreaterThanToken;
   }
-  $clone_ArrowFunction(): ArrowFunction {
+  $clone_ast_ArrowFunction(): ArrowFunction {
     const o = new ArrowFunction();
-    o.$copy_ArrowFunction(this);
+    o.$copy_ast_ArrowFunction(this);
     return o;
   }
-  static $cast_ArrowFunction(v: $rt.GoObject | undefined): ArrowFunction {
+  static $cast_ast_ArrowFunction(v: $rt.GoObject | undefined): ArrowFunction {
     if (v instanceof ArrowFunction) return v;
     throw $rt.typeAssertError();
   }
@@ -3617,13 +3631,13 @@ export class ArrowFunction extends ExpressionBase {
         0) |
         propagateSubtreeFacts(node!.FunctionLikeWithBodyBase_.BodyBase_.Body)) >>>
         0) |
-        $core.IfElse<SubtreeFacts>(!((node!.ModifierFlags_() & 1024) === (0 as number)), 4096, 0)) >>>
+        $core.IfElse<SubtreeFacts>(!((node!.ModifierFlags$m() & 1024) === (0 as number)), 4096, 0)) >>>
       0
     );
   }
   propagateSubtreeFacts(): SubtreeFacts {
     const node = this;
-    return (node!.SubtreeFacts_() & 4261019647) >>> 0;
+    return (node!.SubtreeFacts$m() & 4261019647) >>> 0;
   }
   ForEachChild(v: Visitor): boolean {
     const node = this;
@@ -3696,20 +3710,20 @@ export class ArrowFunction extends ExpressionBase {
 export class AsExpression extends ExpressionBase {
   Expression_: Node | undefined = undefined;
   Type_: Node | undefined = undefined;
-  $copy_AsExpression(src: AsExpression): void {
-    this.$copy_ExpressionBase(src);
+  $copy_ast_AsExpression(src: AsExpression): void {
+    this.$copy_ast_ExpressionBase(src);
     this.Expression_ = src.Expression_;
     this.Type_ = src.Type_;
   }
-  $equals_AsExpression(o: AsExpression): boolean {
-    return this.$equals_ExpressionBase(o) && this.Expression_ === o.Expression_ && this.Type_ === o.Type_;
+  $equals_ast_AsExpression(o: AsExpression): boolean {
+    return this.$equals_ast_ExpressionBase(o) && this.Expression_ === o.Expression_ && this.Type_ === o.Type_;
   }
-  $clone_AsExpression(): AsExpression {
+  $clone_ast_AsExpression(): AsExpression {
     const o = new AsExpression();
-    o.$copy_AsExpression(this);
+    o.$copy_ast_AsExpression(this);
     return o;
   }
-  static $cast_AsExpression(v: $rt.GoObject | undefined): AsExpression {
+  static $cast_ast_AsExpression(v: $rt.GoObject | undefined): AsExpression {
     if (v instanceof AsExpression) return v;
     throw $rt.typeAssertError();
   }
@@ -3719,7 +3733,7 @@ export class AsExpression extends ExpressionBase {
   }
   propagateSubtreeFacts(): SubtreeFacts {
     const node = this;
-    return (node!.SubtreeFacts_() & 4261412863) >>> 0;
+    return (node!.SubtreeFacts$m() & 4261412863) >>> 0;
   }
   ForEachChild(v: Visitor): boolean {
     const node = this;
@@ -3740,19 +3754,19 @@ export class AsExpression extends ExpressionBase {
 }
 export class AwaitExpression extends UnaryExpressionBase {
   Expression_: Node | undefined = undefined;
-  $copy_AwaitExpression(src: AwaitExpression): void {
-    this.$copy_UnaryExpressionBase(src);
+  $copy_ast_AwaitExpression(src: AwaitExpression): void {
+    this.$copy_ast_UnaryExpressionBase(src);
     this.Expression_ = src.Expression_;
   }
-  $equals_AwaitExpression(o: AwaitExpression): boolean {
-    return this.$equals_UnaryExpressionBase(o) && this.Expression_ === o.Expression_;
+  $equals_ast_AwaitExpression(o: AwaitExpression): boolean {
+    return this.$equals_ast_UnaryExpressionBase(o) && this.Expression_ === o.Expression_;
   }
-  $clone_AwaitExpression(): AwaitExpression {
+  $clone_ast_AwaitExpression(): AwaitExpression {
     const o = new AwaitExpression();
-    o.$copy_AwaitExpression(this);
+    o.$copy_ast_AwaitExpression(this);
     return o;
   }
-  static $cast_AwaitExpression(v: $rt.GoObject | undefined): AwaitExpression {
+  static $cast_ast_AwaitExpression(v: $rt.GoObject | undefined): AwaitExpression {
     if (v instanceof AwaitExpression) return v;
     throw $rt.typeAssertError();
   }
@@ -3779,22 +3793,22 @@ export class AwaitExpression extends UnaryExpressionBase {
 }
 export class LiteralExpressionBase extends PrimaryExpressionBase {
   LiteralLikeNodeBase_: LiteralLikeNodeBase = new LiteralLikeNodeBase();
-  $copy_LiteralExpressionBase(src: LiteralExpressionBase): void {
-    this.$copy_PrimaryExpressionBase(src);
-    this.LiteralLikeNodeBase_ = src.LiteralLikeNodeBase_.$clone_LiteralLikeNodeBase();
+  $copy_ast_LiteralExpressionBase(src: LiteralExpressionBase): void {
+    this.$copy_ast_PrimaryExpressionBase(src);
+    this.LiteralLikeNodeBase_ = src.LiteralLikeNodeBase_.$clone_ast_LiteralLikeNodeBase();
   }
-  $equals_LiteralExpressionBase(o: LiteralExpressionBase): boolean {
+  $equals_ast_LiteralExpressionBase(o: LiteralExpressionBase): boolean {
     return (
-      this.$equals_PrimaryExpressionBase(o) &&
-      this.LiteralLikeNodeBase_.$equals_LiteralLikeNodeBase(o.LiteralLikeNodeBase_)
+      this.$equals_ast_PrimaryExpressionBase(o) &&
+      this.LiteralLikeNodeBase_.$equals_ast_LiteralLikeNodeBase(o.LiteralLikeNodeBase_)
     );
   }
-  $clone_LiteralExpressionBase(): LiteralExpressionBase {
+  $clone_ast_LiteralExpressionBase(): LiteralExpressionBase {
     const o = new LiteralExpressionBase();
-    o.$copy_LiteralExpressionBase(this);
+    o.$copy_ast_LiteralExpressionBase(this);
     return o;
   }
-  static $cast_LiteralExpressionBase(v: $rt.GoObject | undefined): LiteralExpressionBase {
+  static $cast_ast_LiteralExpressionBase(v: $rt.GoObject | undefined): LiteralExpressionBase {
     if (v instanceof LiteralExpressionBase) return v;
     throw $rt.typeAssertError();
   }
@@ -3803,18 +3817,18 @@ export class LiteralExpressionBase extends PrimaryExpressionBase {
   }
 }
 export class BigIntLiteral extends LiteralExpressionBase {
-  $copy_BigIntLiteral(src: BigIntLiteral): void {
-    this.$copy_LiteralExpressionBase(src);
+  $copy_ast_BigIntLiteral(src: BigIntLiteral): void {
+    this.$copy_ast_LiteralExpressionBase(src);
   }
-  $equals_BigIntLiteral(o: BigIntLiteral): boolean {
-    return this.$equals_LiteralExpressionBase(o);
+  $equals_ast_BigIntLiteral(o: BigIntLiteral): boolean {
+    return this.$equals_ast_LiteralExpressionBase(o);
   }
-  $clone_BigIntLiteral(): BigIntLiteral {
+  $clone_ast_BigIntLiteral(): BigIntLiteral {
     const o = new BigIntLiteral();
-    o.$copy_BigIntLiteral(this);
+    o.$copy_ast_BigIntLiteral(this);
     return o;
   }
-  static $cast_BigIntLiteral(v: $rt.GoObject | undefined): BigIntLiteral {
+  static $cast_ast_BigIntLiteral(v: $rt.GoObject | undefined): BigIntLiteral {
     if (v instanceof BigIntLiteral) return v;
     throw $rt.typeAssertError();
   }
@@ -3842,34 +3856,34 @@ export class BinaryExpression extends ExpressionBase {
   Type_: Node | undefined = undefined;
   OperatorToken: Node | undefined = undefined;
   Right: Node | undefined = undefined;
-  $copy_BinaryExpression(src: BinaryExpression): void {
-    this.$copy_ExpressionBase(src);
-    this.DeclarationBase_ = src.DeclarationBase_.$clone_DeclarationBase();
-    this.ModifiersBase_ = src.ModifiersBase_.$clone_ModifiersBase();
-    this.CompositeBase_ = src.CompositeBase_.$clone_CompositeBase();
+  $copy_ast_BinaryExpression(src: BinaryExpression): void {
+    this.$copy_ast_ExpressionBase(src);
+    this.DeclarationBase_ = src.DeclarationBase_.$clone_ast_DeclarationBase();
+    this.ModifiersBase_ = src.ModifiersBase_.$clone_ast_ModifiersBase();
+    this.CompositeBase_ = src.CompositeBase_.$clone_ast_CompositeBase();
     this.Left = src.Left;
     this.Type_ = src.Type_;
     this.OperatorToken = src.OperatorToken;
     this.Right = src.Right;
   }
-  $equals_BinaryExpression(o: BinaryExpression): boolean {
+  $equals_ast_BinaryExpression(o: BinaryExpression): boolean {
     return (
-      this.$equals_ExpressionBase(o) &&
-      this.DeclarationBase_.$equals_DeclarationBase(o.DeclarationBase_) &&
-      this.ModifiersBase_.$equals_ModifiersBase(o.ModifiersBase_) &&
-      this.CompositeBase_.$equals_CompositeBase(o.CompositeBase_) &&
+      this.$equals_ast_ExpressionBase(o) &&
+      this.DeclarationBase_.$equals_ast_DeclarationBase(o.DeclarationBase_) &&
+      this.ModifiersBase_.$equals_ast_ModifiersBase(o.ModifiersBase_) &&
+      this.CompositeBase_.$equals_ast_CompositeBase(o.CompositeBase_) &&
       this.Left === o.Left &&
       this.Type_ === o.Type_ &&
       this.OperatorToken === o.OperatorToken &&
       this.Right === o.Right
     );
   }
-  $clone_BinaryExpression(): BinaryExpression {
+  $clone_ast_BinaryExpression(): BinaryExpression {
     const o = new BinaryExpression();
-    o.$copy_BinaryExpression(this);
+    o.$copy_ast_BinaryExpression(this);
     return o;
   }
-  static $cast_BinaryExpression(v: $rt.GoObject | undefined): BinaryExpression {
+  static $cast_ast_BinaryExpression(v: $rt.GoObject | undefined): BinaryExpression {
     if (v instanceof BinaryExpression) return v;
     throw $rt.typeAssertError();
   }
@@ -3961,36 +3975,36 @@ export class BindingElement extends NodeBase {
   PropertyName_: Node | undefined = undefined;
   name: Node | undefined = undefined;
   Initializer_: Node | undefined = undefined;
-  $copy_BindingElement(src: BindingElement): void {
-    this.$copy_NodeBase(src);
-    this.DeclarationBase_ = src.DeclarationBase_.$clone_DeclarationBase();
-    this.ExportableBase_ = src.ExportableBase_.$clone_ExportableBase();
-    this.FlowNodeBase_ = src.FlowNodeBase_.$clone_FlowNodeBase();
-    this.CompositeBase_ = src.CompositeBase_.$clone_CompositeBase();
+  $copy_ast_BindingElement(src: BindingElement): void {
+    this.$copy_ast_NodeBase(src);
+    this.DeclarationBase_ = src.DeclarationBase_.$clone_ast_DeclarationBase();
+    this.ExportableBase_ = src.ExportableBase_.$clone_ast_ExportableBase();
+    this.FlowNodeBase_ = src.FlowNodeBase_.$clone_ast_FlowNodeBase();
+    this.CompositeBase_ = src.CompositeBase_.$clone_ast_CompositeBase();
     this.DotDotDotToken = src.DotDotDotToken;
     this.PropertyName_ = src.PropertyName_;
     this.name = src.name;
     this.Initializer_ = src.Initializer_;
   }
-  $equals_BindingElement(o: BindingElement): boolean {
+  $equals_ast_BindingElement(o: BindingElement): boolean {
     return (
-      this.$equals_NodeBase(o) &&
-      this.DeclarationBase_.$equals_DeclarationBase(o.DeclarationBase_) &&
-      this.ExportableBase_.$equals_ExportableBase(o.ExportableBase_) &&
-      this.FlowNodeBase_.$equals_FlowNodeBase(o.FlowNodeBase_) &&
-      this.CompositeBase_.$equals_CompositeBase(o.CompositeBase_) &&
+      this.$equals_ast_NodeBase(o) &&
+      this.DeclarationBase_.$equals_ast_DeclarationBase(o.DeclarationBase_) &&
+      this.ExportableBase_.$equals_ast_ExportableBase(o.ExportableBase_) &&
+      this.FlowNodeBase_.$equals_ast_FlowNodeBase(o.FlowNodeBase_) &&
+      this.CompositeBase_.$equals_ast_CompositeBase(o.CompositeBase_) &&
       this.DotDotDotToken === o.DotDotDotToken &&
       this.PropertyName_ === o.PropertyName_ &&
       this.name === o.name &&
       this.Initializer_ === o.Initializer_
     );
   }
-  $clone_BindingElement(): BindingElement {
+  $clone_ast_BindingElement(): BindingElement {
     const o = new BindingElement();
-    o.$copy_BindingElement(this);
+    o.$copy_ast_BindingElement(this);
     return o;
   }
-  static $cast_BindingElement(v: $rt.GoObject | undefined): BindingElement {
+  static $cast_ast_BindingElement(v: $rt.GoObject | undefined): BindingElement {
     if (v instanceof BindingElement) return v;
     throw $rt.typeAssertError();
   }
@@ -4051,24 +4065,24 @@ export class BindingElement extends NodeBase {
 export class BindingPattern extends NodeBase {
   CompositeBase_: CompositeBase = new CompositeBase();
   Elements_: NodeList | undefined = undefined;
-  $copy_BindingPattern(src: BindingPattern): void {
-    this.$copy_NodeBase(src);
-    this.CompositeBase_ = src.CompositeBase_.$clone_CompositeBase();
+  $copy_ast_BindingPattern(src: BindingPattern): void {
+    this.$copy_ast_NodeBase(src);
+    this.CompositeBase_ = src.CompositeBase_.$clone_ast_CompositeBase();
     this.Elements_ = src.Elements_;
   }
-  $equals_BindingPattern(o: BindingPattern): boolean {
+  $equals_ast_BindingPattern(o: BindingPattern): boolean {
     return (
-      this.$equals_NodeBase(o) &&
-      this.CompositeBase_.$equals_CompositeBase(o.CompositeBase_) &&
+      this.$equals_ast_NodeBase(o) &&
+      this.CompositeBase_.$equals_ast_CompositeBase(o.CompositeBase_) &&
       this.Elements_ === o.Elements_
     );
   }
-  $clone_BindingPattern(): BindingPattern {
+  $clone_ast_BindingPattern(): BindingPattern {
     const o = new BindingPattern();
-    o.$copy_BindingPattern(this);
+    o.$copy_ast_BindingPattern(this);
     return o;
   }
-  static $cast_BindingPattern(v: $rt.GoObject | undefined): BindingPattern {
+  static $cast_ast_BindingPattern(v: $rt.GoObject | undefined): BindingPattern {
     if (v instanceof BindingPattern) return v;
     throw $rt.typeAssertError();
   }
@@ -4090,7 +4104,7 @@ export class BindingPattern extends NodeBase {
   }
   propagateSubtreeFacts(): SubtreeFacts {
     const node = this;
-    return (node!.SubtreeFacts_() & 4261347327) >>> 0;
+    return (node!.SubtreeFacts$m() & 4261347327) >>> 0;
   }
   ForEachChild(v: Visitor): boolean {
     const node = this;
@@ -4114,19 +4128,19 @@ export class BindingPattern extends NodeBase {
 }
 export class StatementBase extends NodeBase {
   FlowNodeBase_: FlowNodeBase = new FlowNodeBase();
-  $copy_StatementBase(src: StatementBase): void {
-    this.$copy_NodeBase(src);
-    this.FlowNodeBase_ = src.FlowNodeBase_.$clone_FlowNodeBase();
+  $copy_ast_StatementBase(src: StatementBase): void {
+    this.$copy_ast_NodeBase(src);
+    this.FlowNodeBase_ = src.FlowNodeBase_.$clone_ast_FlowNodeBase();
   }
-  $equals_StatementBase(o: StatementBase): boolean {
-    return this.$equals_NodeBase(o) && this.FlowNodeBase_.$equals_FlowNodeBase(o.FlowNodeBase_);
+  $equals_ast_StatementBase(o: StatementBase): boolean {
+    return this.$equals_ast_NodeBase(o) && this.FlowNodeBase_.$equals_ast_FlowNodeBase(o.FlowNodeBase_);
   }
-  $clone_StatementBase(): StatementBase {
+  $clone_ast_StatementBase(): StatementBase {
     const o = new StatementBase();
-    o.$copy_StatementBase(this);
+    o.$copy_ast_StatementBase(this);
     return o;
   }
-  static $cast_StatementBase(v: $rt.GoObject | undefined): StatementBase {
+  static $cast_ast_StatementBase(v: $rt.GoObject | undefined): StatementBase {
     if (v instanceof StatementBase) return v;
     throw $rt.typeAssertError();
   }
@@ -4139,19 +4153,19 @@ export class Block extends StatementBase {
   CompositeBase_: CompositeBase = new CompositeBase();
   Statements_: NodeList | undefined = undefined;
   MultiLine: boolean = false;
-  $copy_Block(src: Block): void {
-    this.$copy_StatementBase(src);
-    this.LocalsContainerBase_ = src.LocalsContainerBase_.$clone_LocalsContainerBase();
-    this.CompositeBase_ = src.CompositeBase_.$clone_CompositeBase();
+  $copy_ast_Block(src: Block): void {
+    this.$copy_ast_StatementBase(src);
+    this.LocalsContainerBase_ = src.LocalsContainerBase_.$clone_ast_LocalsContainerBase();
+    this.CompositeBase_ = src.CompositeBase_.$clone_ast_CompositeBase();
     this.Statements_ = src.Statements_;
     this.MultiLine = src.MultiLine;
   }
-  $clone_Block(): Block {
+  $clone_ast_Block(): Block {
     const o = new Block();
-    o.$copy_Block(this);
+    o.$copy_ast_Block(this);
     return o;
   }
-  static $cast_Block(v: $rt.GoObject | undefined): Block {
+  static $cast_ast_Block(v: $rt.GoObject | undefined): Block {
     if (v instanceof Block) return v;
     throw $rt.typeAssertError();
   }
@@ -4189,20 +4203,20 @@ export class BodyBase extends $rt.GoObject {
   AsteriskToken: Node | undefined = undefined;
   Body: Node | undefined = undefined;
   EndFlowNode: FlowNode | undefined = undefined;
-  $copy_BodyBase(src: BodyBase): void {
+  $copy_ast_BodyBase(src: BodyBase): void {
     this.AsteriskToken = src.AsteriskToken;
     this.Body = src.Body;
     this.EndFlowNode = src.EndFlowNode;
   }
-  $equals_BodyBase(o: BodyBase): boolean {
+  $equals_ast_BodyBase(o: BodyBase): boolean {
     return this.AsteriskToken === o.AsteriskToken && this.Body === o.Body && this.EndFlowNode === o.EndFlowNode;
   }
-  $clone_BodyBase(): BodyBase {
+  $clone_ast_BodyBase(): BodyBase {
     const o = new BodyBase();
-    o.$copy_BodyBase(this);
+    o.$copy_ast_BodyBase(this);
     return o;
   }
-  static $cast_BodyBase(v: $rt.GoObject | undefined): BodyBase {
+  static $cast_ast_BodyBase(v: $rt.GoObject | undefined): BodyBase {
     if (v instanceof BodyBase) return v;
     throw $rt.typeAssertError();
   }
@@ -4213,19 +4227,19 @@ export class BodyBase extends $rt.GoObject {
 }
 export class BreakStatement extends StatementBase {
   Label_: Node | undefined = undefined;
-  $copy_BreakStatement(src: BreakStatement): void {
-    this.$copy_StatementBase(src);
+  $copy_ast_BreakStatement(src: BreakStatement): void {
+    this.$copy_ast_StatementBase(src);
     this.Label_ = src.Label_;
   }
-  $equals_BreakStatement(o: BreakStatement): boolean {
-    return this.$equals_StatementBase(o) && this.Label_ === o.Label_;
+  $equals_ast_BreakStatement(o: BreakStatement): boolean {
+    return this.$equals_ast_StatementBase(o) && this.Label_ === o.Label_;
   }
-  $clone_BreakStatement(): BreakStatement {
+  $clone_ast_BreakStatement(): BreakStatement {
     const o = new BreakStatement();
-    o.$copy_BreakStatement(this);
+    o.$copy_ast_BreakStatement(this);
     return o;
   }
-  static $cast_BreakStatement(v: $rt.GoObject | undefined): BreakStatement {
+  static $cast_ast_BreakStatement(v: $rt.GoObject | undefined): BreakStatement {
     if (v instanceof BreakStatement) return v;
     throw $rt.typeAssertError();
   }
@@ -4252,32 +4266,32 @@ export class CallExpression extends LeftHandSideExpressionBase {
   QuestionDotToken_: Node | undefined = undefined;
   TypeArguments_: NodeList | undefined = undefined;
   Arguments_: NodeList | undefined = undefined;
-  $copy_CallExpression(src: CallExpression): void {
-    this.$copy_LeftHandSideExpressionBase(src);
-    this.DeclarationBase_ = src.DeclarationBase_.$clone_DeclarationBase();
-    this.CompositeBase_ = src.CompositeBase_.$clone_CompositeBase();
+  $copy_ast_CallExpression(src: CallExpression): void {
+    this.$copy_ast_LeftHandSideExpressionBase(src);
+    this.DeclarationBase_ = src.DeclarationBase_.$clone_ast_DeclarationBase();
+    this.CompositeBase_ = src.CompositeBase_.$clone_ast_CompositeBase();
     this.Expression_ = src.Expression_;
     this.QuestionDotToken_ = src.QuestionDotToken_;
     this.TypeArguments_ = src.TypeArguments_;
     this.Arguments_ = src.Arguments_;
   }
-  $equals_CallExpression(o: CallExpression): boolean {
+  $equals_ast_CallExpression(o: CallExpression): boolean {
     return (
-      this.$equals_LeftHandSideExpressionBase(o) &&
-      this.DeclarationBase_.$equals_DeclarationBase(o.DeclarationBase_) &&
-      this.CompositeBase_.$equals_CompositeBase(o.CompositeBase_) &&
+      this.$equals_ast_LeftHandSideExpressionBase(o) &&
+      this.DeclarationBase_.$equals_ast_DeclarationBase(o.DeclarationBase_) &&
+      this.CompositeBase_.$equals_ast_CompositeBase(o.CompositeBase_) &&
       this.Expression_ === o.Expression_ &&
       this.QuestionDotToken_ === o.QuestionDotToken_ &&
       this.TypeArguments_ === o.TypeArguments_ &&
       this.Arguments_ === o.Arguments_
     );
   }
-  $clone_CallExpression(): CallExpression {
+  $clone_ast_CallExpression(): CallExpression {
     const o = new CallExpression();
-    o.$copy_CallExpression(this);
+    o.$copy_ast_CallExpression(this);
     return o;
   }
-  static $cast_CallExpression(v: $rt.GoObject | undefined): CallExpression {
+  static $cast_ast_CallExpression(v: $rt.GoObject | undefined): CallExpression {
     if (v instanceof CallExpression) return v;
     throw $rt.typeAssertError();
   }
@@ -4295,7 +4309,7 @@ export class CallExpression extends LeftHandSideExpressionBase {
   }
   propagateSubtreeFacts(): SubtreeFacts {
     const node = this;
-    return (node!.SubtreeFacts_() & 4261412863) >>> 0;
+    return (node!.SubtreeFacts$m() & 4261412863) >>> 0;
   }
   ForEachChild(v: Visitor): boolean {
     const node = this;
@@ -4345,19 +4359,19 @@ export class CallSignatureDeclaration extends NodeBase {
   TypeSyntaxBase_: TypeSyntaxBase = new TypeSyntaxBase();
   DeclarationBase_: DeclarationBase = new DeclarationBase();
   FunctionLikeBase_: FunctionLikeBase = new FunctionLikeBase();
-  $copy_CallSignatureDeclaration(src: CallSignatureDeclaration): void {
-    this.$copy_NodeBase(src);
+  $copy_ast_CallSignatureDeclaration(src: CallSignatureDeclaration): void {
+    this.$copy_ast_NodeBase(src);
     this.TypeElementBase_ = src.TypeElementBase_;
     this.TypeSyntaxBase_ = src.TypeSyntaxBase_;
-    this.DeclarationBase_ = src.DeclarationBase_.$clone_DeclarationBase();
-    this.FunctionLikeBase_ = src.FunctionLikeBase_.$clone_FunctionLikeBase();
+    this.DeclarationBase_ = src.DeclarationBase_.$clone_ast_DeclarationBase();
+    this.FunctionLikeBase_ = src.FunctionLikeBase_.$clone_ast_FunctionLikeBase();
   }
-  $clone_CallSignatureDeclaration(): CallSignatureDeclaration {
+  $clone_ast_CallSignatureDeclaration(): CallSignatureDeclaration {
     const o = new CallSignatureDeclaration();
-    o.$copy_CallSignatureDeclaration(this);
+    o.$copy_ast_CallSignatureDeclaration(this);
     return o;
   }
-  static $cast_CallSignatureDeclaration(v: $rt.GoObject | undefined): CallSignatureDeclaration {
+  static $cast_ast_CallSignatureDeclaration(v: $rt.GoObject | undefined): CallSignatureDeclaration {
     if (v instanceof CallSignatureDeclaration) return v;
     throw $rt.typeAssertError();
   }
@@ -4412,18 +4426,18 @@ export class CaseBlock extends NodeBase {
   LocalsContainerBase_: LocalsContainerBase = new LocalsContainerBase();
   CompositeBase_: CompositeBase = new CompositeBase();
   Clauses: NodeList | undefined = undefined;
-  $copy_CaseBlock(src: CaseBlock): void {
-    this.$copy_NodeBase(src);
-    this.LocalsContainerBase_ = src.LocalsContainerBase_.$clone_LocalsContainerBase();
-    this.CompositeBase_ = src.CompositeBase_.$clone_CompositeBase();
+  $copy_ast_CaseBlock(src: CaseBlock): void {
+    this.$copy_ast_NodeBase(src);
+    this.LocalsContainerBase_ = src.LocalsContainerBase_.$clone_ast_LocalsContainerBase();
+    this.CompositeBase_ = src.CompositeBase_.$clone_ast_CompositeBase();
     this.Clauses = src.Clauses;
   }
-  $clone_CaseBlock(): CaseBlock {
+  $clone_ast_CaseBlock(): CaseBlock {
     const o = new CaseBlock();
-    o.$copy_CaseBlock(this);
+    o.$copy_ast_CaseBlock(this);
     return o;
   }
-  static $cast_CaseBlock(v: $rt.GoObject | undefined): CaseBlock {
+  static $cast_ast_CaseBlock(v: $rt.GoObject | undefined): CaseBlock {
     if (v instanceof CaseBlock) return v;
     throw $rt.typeAssertError();
   }
@@ -4455,28 +4469,28 @@ export class CaseOrDefaultClause extends NodeBase {
   Expression_: Node | undefined = undefined;
   Statements_: NodeList | undefined = undefined;
   FallthroughFlowNode: FlowNode | undefined = undefined;
-  $copy_CaseOrDefaultClause(src: CaseOrDefaultClause): void {
-    this.$copy_NodeBase(src);
-    this.CompositeBase_ = src.CompositeBase_.$clone_CompositeBase();
+  $copy_ast_CaseOrDefaultClause(src: CaseOrDefaultClause): void {
+    this.$copy_ast_NodeBase(src);
+    this.CompositeBase_ = src.CompositeBase_.$clone_ast_CompositeBase();
     this.Expression_ = src.Expression_;
     this.Statements_ = src.Statements_;
     this.FallthroughFlowNode = src.FallthroughFlowNode;
   }
-  $equals_CaseOrDefaultClause(o: CaseOrDefaultClause): boolean {
+  $equals_ast_CaseOrDefaultClause(o: CaseOrDefaultClause): boolean {
     return (
-      this.$equals_NodeBase(o) &&
-      this.CompositeBase_.$equals_CompositeBase(o.CompositeBase_) &&
+      this.$equals_ast_NodeBase(o) &&
+      this.CompositeBase_.$equals_ast_CompositeBase(o.CompositeBase_) &&
       this.Expression_ === o.Expression_ &&
       this.Statements_ === o.Statements_ &&
       this.FallthroughFlowNode === o.FallthroughFlowNode
     );
   }
-  $clone_CaseOrDefaultClause(): CaseOrDefaultClause {
+  $clone_ast_CaseOrDefaultClause(): CaseOrDefaultClause {
     const o = new CaseOrDefaultClause();
-    o.$copy_CaseOrDefaultClause(this);
+    o.$copy_ast_CaseOrDefaultClause(this);
     return o;
   }
-  static $cast_CaseOrDefaultClause(v: $rt.GoObject | undefined): CaseOrDefaultClause {
+  static $cast_ast_CaseOrDefaultClause(v: $rt.GoObject | undefined): CaseOrDefaultClause {
     if (v instanceof CaseOrDefaultClause) return v;
     throw $rt.typeAssertError();
   }
@@ -4517,19 +4531,19 @@ export class CatchClause extends NodeBase {
   CompositeBase_: CompositeBase = new CompositeBase();
   VariableDeclaration: Node | undefined = undefined;
   Block: Node | undefined = undefined;
-  $copy_CatchClause(src: CatchClause): void {
-    this.$copy_NodeBase(src);
-    this.LocalsContainerBase_ = src.LocalsContainerBase_.$clone_LocalsContainerBase();
-    this.CompositeBase_ = src.CompositeBase_.$clone_CompositeBase();
+  $copy_ast_CatchClause(src: CatchClause): void {
+    this.$copy_ast_NodeBase(src);
+    this.LocalsContainerBase_ = src.LocalsContainerBase_.$clone_ast_LocalsContainerBase();
+    this.CompositeBase_ = src.CompositeBase_.$clone_ast_CompositeBase();
     this.VariableDeclaration = src.VariableDeclaration;
     this.Block = src.Block;
   }
-  $clone_CatchClause(): CatchClause {
+  $clone_ast_CatchClause(): CatchClause {
     const o = new CatchClause();
-    o.$copy_CatchClause(this);
+    o.$copy_ast_CatchClause(this);
     return o;
   }
-  static $cast_CatchClause(v: $rt.GoObject | undefined): CatchClause {
+  static $cast_ast_CatchClause(v: $rt.GoObject | undefined): CatchClause {
     if (v instanceof CatchClause) return v;
     throw $rt.typeAssertError();
   }
@@ -4544,7 +4558,7 @@ export class CatchClause extends NodeBase {
   }
   propagateSubtreeFacts(): SubtreeFacts {
     const node = this;
-    return (node!.SubtreeFacts_() & 4261281791) >>> 0;
+    return (node!.SubtreeFacts$m() & 4261281791) >>> 0;
   }
   ForEachChild(v: Visitor): boolean {
     const node = this;
@@ -4572,25 +4586,25 @@ export class CatchClause extends NodeBase {
 export class CheckJsDirective extends $rt.GoObject {
   Enabled: boolean = false;
   Range: CommentRange = new CommentRange();
-  $copy_CheckJsDirective(src: CheckJsDirective): void {
+  $copy_ast_CheckJsDirective(src: CheckJsDirective): void {
     this.Enabled = src.Enabled;
     this.Range = src.Range;
   }
-  $equals_CheckJsDirective(o: CheckJsDirective): boolean {
-    return this.Enabled === o.Enabled && this.Range.$equals_CommentRange(o.Range);
+  $equals_ast_CheckJsDirective(o: CheckJsDirective): boolean {
+    return this.Enabled === o.Enabled && this.Range.$equals_ast_CommentRange(o.Range);
   }
-  $clone_CheckJsDirective(): CheckJsDirective {
+  $clone_ast_CheckJsDirective(): CheckJsDirective {
     const o = new CheckJsDirective();
-    o.$copy_CheckJsDirective(this);
+    o.$copy_ast_CheckJsDirective(this);
     return o;
   }
-  static $lit_CheckJsDirective_0_1(p0: boolean, p1: CommentRange): CheckJsDirective {
+  static $lit_ast_CheckJsDirective_0_1(p0: boolean, p1: CommentRange): CheckJsDirective {
     const o = new CheckJsDirective();
     o.Enabled = p0;
     o.Range = p1;
     return o;
   }
-  static $cast_CheckJsDirective(v: $rt.GoObject | undefined): CheckJsDirective {
+  static $cast_ast_CheckJsDirective(v: $rt.GoObject | undefined): CheckJsDirective {
     if (v instanceof CheckJsDirective) return v;
     throw $rt.typeAssertError();
   }
@@ -4598,23 +4612,23 @@ export class CheckJsDirective extends $rt.GoObject {
 export class ClassDeclaration extends StatementBase {
   DeclarationBase_: DeclarationBase = new DeclarationBase();
   ClassLikeBase_: ClassLikeBase = new ClassLikeBase();
-  $copy_ClassDeclaration(src: ClassDeclaration): void {
-    this.$copy_StatementBase(src);
-    this.DeclarationBase_ = src.DeclarationBase_.$clone_DeclarationBase();
-    this.ClassLikeBase_ = src.ClassLikeBase_.$clone_ClassLikeBase();
+  $copy_ast_ClassDeclaration(src: ClassDeclaration): void {
+    this.$copy_ast_StatementBase(src);
+    this.DeclarationBase_ = src.DeclarationBase_.$clone_ast_DeclarationBase();
+    this.ClassLikeBase_ = src.ClassLikeBase_.$clone_ast_ClassLikeBase();
   }
-  $clone_ClassDeclaration(): ClassDeclaration {
+  $clone_ast_ClassDeclaration(): ClassDeclaration {
     const o = new ClassDeclaration();
-    o.$copy_ClassDeclaration(this);
+    o.$copy_ast_ClassDeclaration(this);
     return o;
   }
-  static $cast_ClassDeclaration(v: $rt.GoObject | undefined): ClassDeclaration {
+  static $cast_ast_ClassDeclaration(v: $rt.GoObject | undefined): ClassDeclaration {
     if (v instanceof ClassDeclaration) return v;
     throw $rt.typeAssertError();
   }
   propagateSubtreeFacts(): SubtreeFacts {
     const node = this;
-    return (node!.SubtreeFacts_() & 4261412863) >>> 0;
+    return (node!.SubtreeFacts$m() & 4261412863) >>> 0;
   }
   ForEachChild(v: Visitor): boolean {
     const node = this;
@@ -4686,16 +4700,16 @@ export class ClassDeclaration extends StatementBase {
   }
 }
 export class ClassElementBase extends $rt.GoObject {
-  $copy_ClassElementBase(src: ClassElementBase): void {}
-  $equals_ClassElementBase(o: ClassElementBase): boolean {
+  $copy_ast_ClassElementBase(src: ClassElementBase): void {}
+  $equals_ast_ClassElementBase(o: ClassElementBase): boolean {
     return true;
   }
-  $clone_ClassElementBase(): ClassElementBase {
+  $clone_ast_ClassElementBase(): ClassElementBase {
     const o = new ClassElementBase();
-    o.$copy_ClassElementBase(this);
+    o.$copy_ast_ClassElementBase(this);
     return o;
   }
-  static $cast_ClassElementBase(v: $rt.GoObject | undefined): ClassElementBase {
+  static $cast_ast_ClassElementBase(v: $rt.GoObject | undefined): ClassElementBase {
     if (v instanceof ClassElementBase) return v;
     throw $rt.typeAssertError();
   }
@@ -4703,23 +4717,23 @@ export class ClassElementBase extends $rt.GoObject {
 export class ClassExpression extends PrimaryExpressionBase {
   DeclarationBase_: DeclarationBase = new DeclarationBase();
   ClassLikeBase_: ClassLikeBase = new ClassLikeBase();
-  $copy_ClassExpression(src: ClassExpression): void {
-    this.$copy_PrimaryExpressionBase(src);
-    this.DeclarationBase_ = src.DeclarationBase_.$clone_DeclarationBase();
-    this.ClassLikeBase_ = src.ClassLikeBase_.$clone_ClassLikeBase();
+  $copy_ast_ClassExpression(src: ClassExpression): void {
+    this.$copy_ast_PrimaryExpressionBase(src);
+    this.DeclarationBase_ = src.DeclarationBase_.$clone_ast_DeclarationBase();
+    this.ClassLikeBase_ = src.ClassLikeBase_.$clone_ast_ClassLikeBase();
   }
-  $clone_ClassExpression(): ClassExpression {
+  $clone_ast_ClassExpression(): ClassExpression {
     const o = new ClassExpression();
-    o.$copy_ClassExpression(this);
+    o.$copy_ast_ClassExpression(this);
     return o;
   }
-  static $cast_ClassExpression(v: $rt.GoObject | undefined): ClassExpression {
+  static $cast_ast_ClassExpression(v: $rt.GoObject | undefined): ClassExpression {
     if (v instanceof ClassExpression) return v;
     throw $rt.typeAssertError();
   }
   propagateSubtreeFacts(): SubtreeFacts {
     const node = this;
-    return (node!.SubtreeFacts_() & 4261412863) >>> 0;
+    return (node!.SubtreeFacts$m() & 4261412863) >>> 0;
   }
   ForEachChild(v: Visitor): boolean {
     const node = this;
@@ -4789,18 +4803,18 @@ export class ClassExpression extends PrimaryExpressionBase {
 }
 export class ExportableBase extends $rt.GoObject {
   LocalSymbol: Symbol_ | undefined = undefined;
-  $copy_ExportableBase(src: ExportableBase): void {
+  $copy_ast_ExportableBase(src: ExportableBase): void {
     this.LocalSymbol = src.LocalSymbol;
   }
-  $equals_ExportableBase(o: ExportableBase): boolean {
+  $equals_ast_ExportableBase(o: ExportableBase): boolean {
     return this.LocalSymbol === o.LocalSymbol;
   }
-  $clone_ExportableBase(): ExportableBase {
+  $clone_ast_ExportableBase(): ExportableBase {
     const o = new ExportableBase();
-    o.$copy_ExportableBase(this);
+    o.$copy_ast_ExportableBase(this);
     return o;
   }
-  static $cast_ExportableBase(v: $rt.GoObject | undefined): ExportableBase {
+  static $cast_ast_ExportableBase(v: $rt.GoObject | undefined): ExportableBase {
     if (v instanceof ExportableBase) return v;
     throw $rt.typeAssertError();
   }
@@ -4817,22 +4831,22 @@ export class ClassLikeBase extends ExportableBase {
   TypeParameters: NodeList | undefined = undefined;
   HeritageClauses: NodeList | undefined = undefined;
   Members: NodeList | undefined = undefined;
-  $copy_ClassLikeBase(src: ClassLikeBase): void {
-    this.$copy_ExportableBase(src);
-    this.ModifiersBase_ = src.ModifiersBase_.$clone_ModifiersBase();
-    this.LocalsContainerBase_ = src.LocalsContainerBase_.$clone_LocalsContainerBase();
-    this.CompositeBase_ = src.CompositeBase_.$clone_CompositeBase();
+  $copy_ast_ClassLikeBase(src: ClassLikeBase): void {
+    this.$copy_ast_ExportableBase(src);
+    this.ModifiersBase_ = src.ModifiersBase_.$clone_ast_ModifiersBase();
+    this.LocalsContainerBase_ = src.LocalsContainerBase_.$clone_ast_LocalsContainerBase();
+    this.CompositeBase_ = src.CompositeBase_.$clone_ast_CompositeBase();
     this.name = src.name;
     this.TypeParameters = src.TypeParameters;
     this.HeritageClauses = src.HeritageClauses;
     this.Members = src.Members;
   }
-  $clone_ClassLikeBase(): ClassLikeBase {
+  $clone_ast_ClassLikeBase(): ClassLikeBase {
     const o = new ClassLikeBase();
-    o.$copy_ClassLikeBase(this);
+    o.$copy_ast_ClassLikeBase(this);
     return o;
   }
-  static $cast_ClassLikeBase(v: $rt.GoObject | undefined): ClassLikeBase {
+  static $cast_ast_ClassLikeBase(v: $rt.GoObject | undefined): ClassLikeBase {
     if (v instanceof ClassLikeBase) return v;
     throw $rt.typeAssertError();
   }
@@ -4874,22 +4888,22 @@ export class ClassStaticBlockDeclaration extends NodeBase {
   CompositeBase_: CompositeBase = new CompositeBase();
   Body_: Node | undefined = undefined;
   ReturnFlowNode: FlowNode | undefined = undefined;
-  $copy_ClassStaticBlockDeclaration(src: ClassStaticBlockDeclaration): void {
-    this.$copy_NodeBase(src);
+  $copy_ast_ClassStaticBlockDeclaration(src: ClassStaticBlockDeclaration): void {
+    this.$copy_ast_NodeBase(src);
     this.ClassElementBase_ = src.ClassElementBase_;
-    this.DeclarationBase_ = src.DeclarationBase_.$clone_DeclarationBase();
-    this.ModifiersBase_ = src.ModifiersBase_.$clone_ModifiersBase();
-    this.LocalsContainerBase_ = src.LocalsContainerBase_.$clone_LocalsContainerBase();
-    this.CompositeBase_ = src.CompositeBase_.$clone_CompositeBase();
+    this.DeclarationBase_ = src.DeclarationBase_.$clone_ast_DeclarationBase();
+    this.ModifiersBase_ = src.ModifiersBase_.$clone_ast_ModifiersBase();
+    this.LocalsContainerBase_ = src.LocalsContainerBase_.$clone_ast_LocalsContainerBase();
+    this.CompositeBase_ = src.CompositeBase_.$clone_ast_CompositeBase();
     this.Body_ = src.Body_;
     this.ReturnFlowNode = src.ReturnFlowNode;
   }
-  $clone_ClassStaticBlockDeclaration(): ClassStaticBlockDeclaration {
+  $clone_ast_ClassStaticBlockDeclaration(): ClassStaticBlockDeclaration {
     const o = new ClassStaticBlockDeclaration();
-    o.$copy_ClassStaticBlockDeclaration(this);
+    o.$copy_ast_ClassStaticBlockDeclaration(this);
     return o;
   }
-  static $cast_ClassStaticBlockDeclaration(v: $rt.GoObject | undefined): ClassStaticBlockDeclaration {
+  static $cast_ast_ClassStaticBlockDeclaration(v: $rt.GoObject | undefined): ClassStaticBlockDeclaration {
     if (v instanceof ClassStaticBlockDeclaration) return v;
     throw $rt.typeAssertError();
   }
@@ -4941,25 +4955,25 @@ export class ClassStaticBlockDeclaration extends NodeBase {
 export class CommentDirective extends $rt.GoObject {
   Loc: $core.TextRange = new $core.TextRange();
   Kind: CommentDirectiveKind = 0;
-  $copy_CommentDirective(src: CommentDirective): void {
+  $copy_ast_CommentDirective(src: CommentDirective): void {
     this.Loc = src.Loc;
     this.Kind = src.Kind;
   }
-  $equals_CommentDirective(o: CommentDirective): boolean {
-    return this.Loc.$equals_TextRange(o.Loc) && this.Kind === o.Kind;
+  $equals_ast_CommentDirective(o: CommentDirective): boolean {
+    return this.Loc.$equals_core_TextRange(o.Loc) && this.Kind === o.Kind;
   }
-  $clone_CommentDirective(): CommentDirective {
+  $clone_ast_CommentDirective(): CommentDirective {
     const o = new CommentDirective();
-    o.$copy_CommentDirective(this);
+    o.$copy_ast_CommentDirective(this);
     return o;
   }
-  static $lit_CommentDirective_0_1(p0: $core.TextRange, p1: CommentDirectiveKind): CommentDirective {
+  static $lit_ast_CommentDirective_0_1(p0: $core.TextRange, p1: CommentDirectiveKind): CommentDirective {
     const o = new CommentDirective();
     o.Loc = p0;
     o.Kind = p1;
     return o;
   }
-  static $cast_CommentDirective(v: $rt.GoObject | undefined): CommentDirective {
+  static $cast_ast_CommentDirective(v: $rt.GoObject | undefined): CommentDirective {
     if (v instanceof CommentDirective) return v;
     throw $rt.typeAssertError();
   }
@@ -4967,45 +4981,45 @@ export class CommentDirective extends $rt.GoObject {
 export class CommentRange extends $core.TextRange {
   Kind_: Kind = 0;
   HasTrailingNewLine: boolean = false;
-  $copy_CommentRange(src: CommentRange): void {
-    this.$copy_TextRange(src);
+  $copy_ast_CommentRange(src: CommentRange): void {
+    this.$copy_core_TextRange(src);
     this.Kind_ = src.Kind_;
     this.HasTrailingNewLine = src.HasTrailingNewLine;
   }
-  $equals_CommentRange(o: CommentRange): boolean {
-    return this.$equals_TextRange(o) && this.Kind_ === o.Kind_ && this.HasTrailingNewLine === o.HasTrailingNewLine;
+  $equals_ast_CommentRange(o: CommentRange): boolean {
+    return this.$equals_core_TextRange(o) && this.Kind_ === o.Kind_ && this.HasTrailingNewLine === o.HasTrailingNewLine;
   }
-  $clone_CommentRange(): CommentRange {
+  $clone_ast_CommentRange(): CommentRange {
     const o = new CommentRange();
-    o.$copy_CommentRange(this);
+    o.$copy_ast_CommentRange(this);
     return o;
   }
-  static $lit_CommentRange_0_1_2(p0: $core.TextRange, p1: Kind, p2: boolean): CommentRange {
+  static $lit_ast_CommentRange_0_1_2(p0: $core.TextRange, p1: Kind, p2: boolean): CommentRange {
     const o = new CommentRange();
-    o.$copy_TextRange(p0);
+    o.$copy_core_TextRange(p0);
     o.Kind_ = p1;
     o.HasTrailingNewLine = p2;
     return o;
   }
-  static $cast_CommentRange(v: $rt.GoObject | undefined): CommentRange {
+  static $cast_ast_CommentRange(v: $rt.GoObject | undefined): CommentRange {
     if (v instanceof CommentRange) return v;
     throw $rt.typeAssertError();
   }
 }
 export class CompositeBase extends $rt.GoObject {
   facts: $rt.sync_atomic_Uint32 = new $rt.sync_atomic_Uint32();
-  $copy_CompositeBase(src: CompositeBase): void {
+  $copy_ast_CompositeBase(src: CompositeBase): void {
     this.facts = src.facts;
   }
-  $equals_CompositeBase(o: CompositeBase): boolean {
+  $equals_ast_CompositeBase(o: CompositeBase): boolean {
     return this.facts === o.facts;
   }
-  $clone_CompositeBase(): CompositeBase {
+  $clone_ast_CompositeBase(): CompositeBase {
     const o = new CompositeBase();
-    o.$copy_CompositeBase(this);
+    o.$copy_ast_CompositeBase(this);
     return o;
   }
-  static $cast_CompositeBase(v: $rt.GoObject | undefined): CompositeBase {
+  static $cast_ast_CompositeBase(v: $rt.GoObject | undefined): CompositeBase {
     if (v instanceof CompositeBase) return v;
     throw $rt.typeAssertError();
   }
@@ -5026,24 +5040,24 @@ export class CompositeBase extends $rt.GoObject {
 export class ComputedPropertyName extends NodeBase {
   CompositeBase_: CompositeBase = new CompositeBase();
   Expression_: Node | undefined = undefined;
-  $copy_ComputedPropertyName(src: ComputedPropertyName): void {
-    this.$copy_NodeBase(src);
-    this.CompositeBase_ = src.CompositeBase_.$clone_CompositeBase();
+  $copy_ast_ComputedPropertyName(src: ComputedPropertyName): void {
+    this.$copy_ast_NodeBase(src);
+    this.CompositeBase_ = src.CompositeBase_.$clone_ast_CompositeBase();
     this.Expression_ = src.Expression_;
   }
-  $equals_ComputedPropertyName(o: ComputedPropertyName): boolean {
+  $equals_ast_ComputedPropertyName(o: ComputedPropertyName): boolean {
     return (
-      this.$equals_NodeBase(o) &&
-      this.CompositeBase_.$equals_CompositeBase(o.CompositeBase_) &&
+      this.$equals_ast_NodeBase(o) &&
+      this.CompositeBase_.$equals_ast_CompositeBase(o.CompositeBase_) &&
       this.Expression_ === o.Expression_
     );
   }
-  $clone_ComputedPropertyName(): ComputedPropertyName {
+  $clone_ast_ComputedPropertyName(): ComputedPropertyName {
     const o = new ComputedPropertyName();
-    o.$copy_ComputedPropertyName(this);
+    o.$copy_ast_ComputedPropertyName(this);
     return o;
   }
-  static $cast_ComputedPropertyName(v: $rt.GoObject | undefined): ComputedPropertyName {
+  static $cast_ast_ComputedPropertyName(v: $rt.GoObject | undefined): ComputedPropertyName {
     if (v instanceof ComputedPropertyName) return v;
     throw $rt.typeAssertError();
   }
@@ -5078,19 +5092,19 @@ export class ConditionalExpression extends ExpressionBase {
   WhenTrue: Node | undefined = undefined;
   ColonToken: Node | undefined = undefined;
   WhenFalse: Node | undefined = undefined;
-  $copy_ConditionalExpression(src: ConditionalExpression): void {
-    this.$copy_ExpressionBase(src);
-    this.CompositeBase_ = src.CompositeBase_.$clone_CompositeBase();
+  $copy_ast_ConditionalExpression(src: ConditionalExpression): void {
+    this.$copy_ast_ExpressionBase(src);
+    this.CompositeBase_ = src.CompositeBase_.$clone_ast_CompositeBase();
     this.Condition = src.Condition;
     this.QuestionToken_ = src.QuestionToken_;
     this.WhenTrue = src.WhenTrue;
     this.ColonToken = src.ColonToken;
     this.WhenFalse = src.WhenFalse;
   }
-  $equals_ConditionalExpression(o: ConditionalExpression): boolean {
+  $equals_ast_ConditionalExpression(o: ConditionalExpression): boolean {
     return (
-      this.$equals_ExpressionBase(o) &&
-      this.CompositeBase_.$equals_CompositeBase(o.CompositeBase_) &&
+      this.$equals_ast_ExpressionBase(o) &&
+      this.CompositeBase_.$equals_ast_CompositeBase(o.CompositeBase_) &&
       this.Condition === o.Condition &&
       this.QuestionToken_ === o.QuestionToken_ &&
       this.WhenTrue === o.WhenTrue &&
@@ -5098,12 +5112,12 @@ export class ConditionalExpression extends ExpressionBase {
       this.WhenFalse === o.WhenFalse
     );
   }
-  $clone_ConditionalExpression(): ConditionalExpression {
+  $clone_ast_ConditionalExpression(): ConditionalExpression {
     const o = new ConditionalExpression();
-    o.$copy_ConditionalExpression(this);
+    o.$copy_ast_ConditionalExpression(this);
     return o;
   }
-  static $cast_ConditionalExpression(v: $rt.GoObject | undefined): ConditionalExpression {
+  static $cast_ast_ConditionalExpression(v: $rt.GoObject | undefined): ConditionalExpression {
     if (v instanceof ConditionalExpression) return v;
     throw $rt.typeAssertError();
   }
@@ -5166,20 +5180,20 @@ export class ConditionalTypeNode extends TypeNodeBase {
   ExtendsType: Node | undefined = undefined;
   TrueType: Node | undefined = undefined;
   FalseType: Node | undefined = undefined;
-  $copy_ConditionalTypeNode(src: ConditionalTypeNode): void {
-    this.$copy_TypeNodeBase(src);
-    this.LocalsContainerBase_ = src.LocalsContainerBase_.$clone_LocalsContainerBase();
+  $copy_ast_ConditionalTypeNode(src: ConditionalTypeNode): void {
+    this.$copy_ast_TypeNodeBase(src);
+    this.LocalsContainerBase_ = src.LocalsContainerBase_.$clone_ast_LocalsContainerBase();
     this.CheckType = src.CheckType;
     this.ExtendsType = src.ExtendsType;
     this.TrueType = src.TrueType;
     this.FalseType = src.FalseType;
   }
-  $clone_ConditionalTypeNode(): ConditionalTypeNode {
+  $clone_ast_ConditionalTypeNode(): ConditionalTypeNode {
     const o = new ConditionalTypeNode();
-    o.$copy_ConditionalTypeNode(this);
+    o.$copy_ast_ConditionalTypeNode(this);
     return o;
   }
-  static $cast_ConditionalTypeNode(v: $rt.GoObject | undefined): ConditionalTypeNode {
+  static $cast_ast_ConditionalTypeNode(v: $rt.GoObject | undefined): ConditionalTypeNode {
     if (v instanceof ConditionalTypeNode) return v;
     throw $rt.typeAssertError();
   }
@@ -5222,19 +5236,19 @@ export class ConstructSignatureDeclaration extends NodeBase {
   TypeSyntaxBase_: TypeSyntaxBase = new TypeSyntaxBase();
   DeclarationBase_: DeclarationBase = new DeclarationBase();
   FunctionLikeBase_: FunctionLikeBase = new FunctionLikeBase();
-  $copy_ConstructSignatureDeclaration(src: ConstructSignatureDeclaration): void {
-    this.$copy_NodeBase(src);
+  $copy_ast_ConstructSignatureDeclaration(src: ConstructSignatureDeclaration): void {
+    this.$copy_ast_NodeBase(src);
     this.TypeElementBase_ = src.TypeElementBase_;
     this.TypeSyntaxBase_ = src.TypeSyntaxBase_;
-    this.DeclarationBase_ = src.DeclarationBase_.$clone_DeclarationBase();
-    this.FunctionLikeBase_ = src.FunctionLikeBase_.$clone_FunctionLikeBase();
+    this.DeclarationBase_ = src.DeclarationBase_.$clone_ast_DeclarationBase();
+    this.FunctionLikeBase_ = src.FunctionLikeBase_.$clone_ast_FunctionLikeBase();
   }
-  $clone_ConstructSignatureDeclaration(): ConstructSignatureDeclaration {
+  $clone_ast_ConstructSignatureDeclaration(): ConstructSignatureDeclaration {
     const o = new ConstructSignatureDeclaration();
-    o.$copy_ConstructSignatureDeclaration(this);
+    o.$copy_ast_ConstructSignatureDeclaration(this);
     return o;
   }
-  static $cast_ConstructSignatureDeclaration(v: $rt.GoObject | undefined): ConstructSignatureDeclaration {
+  static $cast_ast_ConstructSignatureDeclaration(v: $rt.GoObject | undefined): ConstructSignatureDeclaration {
     if (v instanceof ConstructSignatureDeclaration) return v;
     throw $rt.typeAssertError();
   }
@@ -5292,21 +5306,21 @@ export class ConstructorDeclaration extends NodeBase {
   FunctionLikeWithBodyBase_: FunctionLikeWithBodyBase = new FunctionLikeWithBodyBase();
   CompositeBase_: CompositeBase = new CompositeBase();
   ReturnFlowNode: FlowNode | undefined = undefined;
-  $copy_ConstructorDeclaration(src: ConstructorDeclaration): void {
-    this.$copy_NodeBase(src);
+  $copy_ast_ConstructorDeclaration(src: ConstructorDeclaration): void {
+    this.$copy_ast_NodeBase(src);
     this.ClassElementBase_ = src.ClassElementBase_;
-    this.DeclarationBase_ = src.DeclarationBase_.$clone_DeclarationBase();
-    this.ModifiersBase_ = src.ModifiersBase_.$clone_ModifiersBase();
-    this.FunctionLikeWithBodyBase_ = src.FunctionLikeWithBodyBase_.$clone_FunctionLikeWithBodyBase();
-    this.CompositeBase_ = src.CompositeBase_.$clone_CompositeBase();
+    this.DeclarationBase_ = src.DeclarationBase_.$clone_ast_DeclarationBase();
+    this.ModifiersBase_ = src.ModifiersBase_.$clone_ast_ModifiersBase();
+    this.FunctionLikeWithBodyBase_ = src.FunctionLikeWithBodyBase_.$clone_ast_FunctionLikeWithBodyBase();
+    this.CompositeBase_ = src.CompositeBase_.$clone_ast_CompositeBase();
     this.ReturnFlowNode = src.ReturnFlowNode;
   }
-  $clone_ConstructorDeclaration(): ConstructorDeclaration {
+  $clone_ast_ConstructorDeclaration(): ConstructorDeclaration {
     const o = new ConstructorDeclaration();
-    o.$copy_ConstructorDeclaration(this);
+    o.$copy_ast_ConstructorDeclaration(this);
     return o;
   }
-  static $cast_ConstructorDeclaration(v: $rt.GoObject | undefined): ConstructorDeclaration {
+  static $cast_ast_ConstructorDeclaration(v: $rt.GoObject | undefined): ConstructorDeclaration {
     if (v instanceof ConstructorDeclaration) return v;
     throw $rt.typeAssertError();
   }
@@ -5332,7 +5346,7 @@ export class ConstructorDeclaration extends NodeBase {
   }
   propagateSubtreeFacts(): SubtreeFacts {
     const node = this;
-    return (node!.SubtreeFacts_() & 4260970495) >>> 0;
+    return (node!.SubtreeFacts$m() & 4260970495) >>> 0;
   }
   ForEachChild(v: Visitor): boolean {
     const node = this;
@@ -5400,18 +5414,18 @@ export class FunctionOrConstructorTypeNodeBase extends TypeNodeBase {
   DeclarationBase_: DeclarationBase = new DeclarationBase();
   ModifiersBase_: ModifiersBase = new ModifiersBase();
   FunctionLikeBase_: FunctionLikeBase = new FunctionLikeBase();
-  $copy_FunctionOrConstructorTypeNodeBase(src: FunctionOrConstructorTypeNodeBase): void {
-    this.$copy_TypeNodeBase(src);
-    this.DeclarationBase_ = src.DeclarationBase_.$clone_DeclarationBase();
-    this.ModifiersBase_ = src.ModifiersBase_.$clone_ModifiersBase();
-    this.FunctionLikeBase_ = src.FunctionLikeBase_.$clone_FunctionLikeBase();
+  $copy_ast_FunctionOrConstructorTypeNodeBase(src: FunctionOrConstructorTypeNodeBase): void {
+    this.$copy_ast_TypeNodeBase(src);
+    this.DeclarationBase_ = src.DeclarationBase_.$clone_ast_DeclarationBase();
+    this.ModifiersBase_ = src.ModifiersBase_.$clone_ast_ModifiersBase();
+    this.FunctionLikeBase_ = src.FunctionLikeBase_.$clone_ast_FunctionLikeBase();
   }
-  $clone_FunctionOrConstructorTypeNodeBase(): FunctionOrConstructorTypeNodeBase {
+  $clone_ast_FunctionOrConstructorTypeNodeBase(): FunctionOrConstructorTypeNodeBase {
     const o = new FunctionOrConstructorTypeNodeBase();
-    o.$copy_FunctionOrConstructorTypeNodeBase(this);
+    o.$copy_ast_FunctionOrConstructorTypeNodeBase(this);
     return o;
   }
-  static $cast_FunctionOrConstructorTypeNodeBase(v: $rt.GoObject | undefined): FunctionOrConstructorTypeNodeBase {
+  static $cast_ast_FunctionOrConstructorTypeNodeBase(v: $rt.GoObject | undefined): FunctionOrConstructorTypeNodeBase {
     if (v instanceof FunctionOrConstructorTypeNodeBase) return v;
     throw $rt.typeAssertError();
   }
@@ -5438,15 +5452,15 @@ export class FunctionOrConstructorTypeNodeBase extends TypeNodeBase {
   }
 }
 export class ConstructorTypeNode extends FunctionOrConstructorTypeNodeBase {
-  $copy_ConstructorTypeNode(src: ConstructorTypeNode): void {
-    this.$copy_FunctionOrConstructorTypeNodeBase(src);
+  $copy_ast_ConstructorTypeNode(src: ConstructorTypeNode): void {
+    this.$copy_ast_FunctionOrConstructorTypeNodeBase(src);
   }
-  $clone_ConstructorTypeNode(): ConstructorTypeNode {
+  $clone_ast_ConstructorTypeNode(): ConstructorTypeNode {
     const o = new ConstructorTypeNode();
-    o.$copy_ConstructorTypeNode(this);
+    o.$copy_ast_ConstructorTypeNode(this);
     return o;
   }
-  static $cast_ConstructorTypeNode(v: $rt.GoObject | undefined): ConstructorTypeNode {
+  static $cast_ast_ConstructorTypeNode(v: $rt.GoObject | undefined): ConstructorTypeNode {
     if (v instanceof ConstructorTypeNode) return v;
     throw $rt.typeAssertError();
   }
@@ -5516,10 +5530,10 @@ export class ContentMapperSourceFileInfo extends $rt.GoObject {
   DiagnosticDirectives: MappedDiagnosticDirective[] = [];
   SupplementalSourceFiles: (SourceFile | undefined)[] = [];
   CanonicalSourceFile: SourceFile | undefined = undefined;
-  $copy_ContentMapperSourceFileInfo(src: ContentMapperSourceFileInfo): void {
+  $copy_ast_ContentMapperSourceFileInfo(src: ContentMapperSourceFileInfo): void {
     this.ContentMapper = src.ContentMapper;
     this.TransformIdentity = src.TransformIdentity;
-    this.ParseOptions = src.ParseOptions;
+    this.ParseOptions = src.ParseOptions.$clone_ast_SourceFileParseOptions();
     this.VirtualFileName = src.VirtualFileName;
     this.OriginalText = src.OriginalText;
     this.SpanMap_ = src.SpanMap_;
@@ -5527,31 +5541,73 @@ export class ContentMapperSourceFileInfo extends $rt.GoObject {
     this.SupplementalSourceFiles = src.SupplementalSourceFiles;
     this.CanonicalSourceFile = src.CanonicalSourceFile;
   }
-  $clone_ContentMapperSourceFileInfo(): ContentMapperSourceFileInfo {
+  $clone_ast_ContentMapperSourceFileInfo(): ContentMapperSourceFileInfo {
     const o = new ContentMapperSourceFileInfo();
-    o.$copy_ContentMapperSourceFileInfo(this);
+    o.$copy_ast_ContentMapperSourceFileInfo(this);
     return o;
   }
-  static $cast_ContentMapperSourceFileInfo(v: $rt.GoObject | undefined): ContentMapperSourceFileInfo {
+  static $lit_ast_ContentMapperSourceFileInfo_0_1_2_3_4_5_6_7(
+    p0: string,
+    p1: string,
+    p2: SourceFileParseOptions,
+    p3: string,
+    p4: string,
+    p5: $spanmap.SpanMap | undefined,
+    p6: MappedDiagnosticDirective[],
+    p7: (SourceFile | undefined)[],
+  ): ContentMapperSourceFileInfo {
+    const o = new ContentMapperSourceFileInfo();
+    o.ContentMapper = p0;
+    o.TransformIdentity = p1;
+    o.ParseOptions = p2;
+    o.VirtualFileName = p3;
+    o.OriginalText = p4;
+    o.SpanMap_ = p5;
+    o.DiagnosticDirectives = p6;
+    o.SupplementalSourceFiles = p7;
+    return o;
+  }
+  static $lit_ast_ContentMapperSourceFileInfo_0_1_2_3_4_5_6_8(
+    p0: string,
+    p1: string,
+    p2: SourceFileParseOptions,
+    p3: string,
+    p4: string,
+    p5: $spanmap.SpanMap | undefined,
+    p6: MappedDiagnosticDirective[],
+    p7: SourceFile | undefined,
+  ): ContentMapperSourceFileInfo {
+    const o = new ContentMapperSourceFileInfo();
+    o.ContentMapper = p0;
+    o.TransformIdentity = p1;
+    o.ParseOptions = p2;
+    o.VirtualFileName = p3;
+    o.OriginalText = p4;
+    o.SpanMap_ = p5;
+    o.DiagnosticDirectives = p6;
+    o.CanonicalSourceFile = p7;
+    return o;
+  }
+  static $cast_ast_ContentMapperSourceFileInfo(v: $rt.GoObject | undefined): ContentMapperSourceFileInfo {
     if (v instanceof ContentMapperSourceFileInfo) return v;
     throw $rt.typeAssertError();
   }
 }
 export class ContinueStatement extends StatementBase {
   Label_: Node | undefined = undefined;
-  $copy_ContinueStatement(src: ContinueStatement): void {
-    this.$copy_StatementBase(src);
+  $copy_ast_ContinueStatement(src: ContinueStatement): void {
+    this.$copy_ast_StatementBase(src);
     this.Label_ = src.Label_;
   }
-  $equals_ContinueStatement(o: ContinueStatement): boolean {
-    return this.$equals_StatementBase(o) && this.Label_ === o.Label_;
+  $equals_ast_ContinueStatement(o: ContinueStatement): boolean {
+    return this.$equals_ast_StatementBase(o) && this.Label_ === o.Label_;
   }
-  $clone_ContinueStatement(): ContinueStatement {
+  $clone_ast_ContinueStatement(): ContinueStatement {
     const o = new ContinueStatement();
-    o.$copy_ContinueStatement(this);
+    o.$copy_ast_ContinueStatement(this);
     return o;
   }
-  static $cast_ContinueStatement(v: $rt.GoObject | undefined): ContinueStatement {
+  static $cast_ast_ContinueStatement(v: $rt.GoObject | undefined): ContinueStatement {
     if (v instanceof ContinueStatement) return v;
     throw $rt.typeAssertError();
   }
@@ -5572,18 +5628,18 @@ export class ContinueStatement extends StatementBase {
   }
 }
 export class DebuggerStatement extends StatementBase {
-  $copy_DebuggerStatement(src: DebuggerStatement): void {
-    this.$copy_StatementBase(src);
+  $copy_ast_DebuggerStatement(src: DebuggerStatement): void {
+    this.$copy_ast_StatementBase(src);
   }
-  $equals_DebuggerStatement(o: DebuggerStatement): boolean {
-    return this.$equals_StatementBase(o);
+  $equals_ast_DebuggerStatement(o: DebuggerStatement): boolean {
+    return this.$equals_ast_StatementBase(o);
   }
-  $clone_DebuggerStatement(): DebuggerStatement {
+  $clone_ast_DebuggerStatement(): DebuggerStatement {
     const o = new DebuggerStatement();
-    o.$copy_DebuggerStatement(this);
+    o.$copy_ast_DebuggerStatement(this);
     return o;
   }
-  static $cast_DebuggerStatement(v: $rt.GoObject | undefined): DebuggerStatement {
+  static $cast_ast_DebuggerStatement(v: $rt.GoObject | undefined): DebuggerStatement {
     if (v instanceof DebuggerStatement) return v;
     throw $rt.typeAssertError();
   }
@@ -5597,18 +5653,18 @@ export class DebuggerStatement extends StatementBase {
 }
 export class DeclarationBase extends $rt.GoObject {
   Symbol_: Symbol_ | undefined = undefined;
-  $copy_DeclarationBase(src: DeclarationBase): void {
+  $copy_ast_DeclarationBase(src: DeclarationBase): void {
     this.Symbol_ = src.Symbol_;
   }
-  $equals_DeclarationBase(o: DeclarationBase): boolean {
+  $equals_ast_DeclarationBase(o: DeclarationBase): boolean {
     return this.Symbol_ === o.Symbol_;
   }
-  $clone_DeclarationBase(): DeclarationBase {
+  $clone_ast_DeclarationBase(): DeclarationBase {
     const o = new DeclarationBase();
-    o.$copy_DeclarationBase(this);
+    o.$copy_ast_DeclarationBase(this);
     return o;
   }
-  static $cast_DeclarationBase(v: $rt.GoObject | undefined): DeclarationBase {
+  static $cast_ast_DeclarationBase(v: $rt.GoObject | undefined): DeclarationBase {
     if (v instanceof DeclarationBase) return v;
     throw $rt.typeAssertError();
   }
@@ -5620,24 +5676,24 @@ export class DeclarationBase extends $rt.GoObject {
 export class Decorator extends NodeBase {
   CompositeBase_: CompositeBase = new CompositeBase();
   Expression_: Node | undefined = undefined;
-  $copy_Decorator(src: Decorator): void {
-    this.$copy_NodeBase(src);
-    this.CompositeBase_ = src.CompositeBase_.$clone_CompositeBase();
+  $copy_ast_Decorator(src: Decorator): void {
+    this.$copy_ast_NodeBase(src);
+    this.CompositeBase_ = src.CompositeBase_.$clone_ast_CompositeBase();
     this.Expression_ = src.Expression_;
   }
-  $equals_Decorator(o: Decorator): boolean {
+  $equals_ast_Decorator(o: Decorator): boolean {
     return (
-      this.$equals_NodeBase(o) &&
-      this.CompositeBase_.$equals_CompositeBase(o.CompositeBase_) &&
+      this.$equals_ast_NodeBase(o) &&
+      this.CompositeBase_.$equals_ast_CompositeBase(o.CompositeBase_) &&
       this.Expression_ === o.Expression_
     );
   }
-  $clone_Decorator(): Decorator {
+  $clone_ast_Decorator(): Decorator {
     const o = new Decorator();
-    o.$copy_Decorator(this);
+    o.$copy_ast_Decorator(this);
     return o;
   }
-  static $cast_Decorator(v: $rt.GoObject | undefined): Decorator {
+  static $cast_ast_Decorator(v: $rt.GoObject | undefined): Decorator {
     if (v instanceof Decorator) return v;
     throw $rt.typeAssertError();
   }
@@ -5663,19 +5719,19 @@ export class Decorator extends NodeBase {
 }
 export class DeleteExpression extends UnaryExpressionBase {
   Expression_: Node | undefined = undefined;
-  $copy_DeleteExpression(src: DeleteExpression): void {
-    this.$copy_UnaryExpressionBase(src);
+  $copy_ast_DeleteExpression(src: DeleteExpression): void {
+    this.$copy_ast_UnaryExpressionBase(src);
     this.Expression_ = src.Expression_;
   }
-  $equals_DeleteExpression(o: DeleteExpression): boolean {
-    return this.$equals_UnaryExpressionBase(o) && this.Expression_ === o.Expression_;
+  $equals_ast_DeleteExpression(o: DeleteExpression): boolean {
+    return this.$equals_ast_UnaryExpressionBase(o) && this.Expression_ === o.Expression_;
   }
-  $clone_DeleteExpression(): DeleteExpression {
+  $clone_ast_DeleteExpression(): DeleteExpression {
     const o = new DeleteExpression();
-    o.$copy_DeleteExpression(this);
+    o.$copy_ast_DeleteExpression(this);
     return o;
   }
-  static $cast_DeleteExpression(v: $rt.GoObject | undefined): DeleteExpression {
+  static $cast_ast_DeleteExpression(v: $rt.GoObject | undefined): DeleteExpression {
     if (v instanceof DeleteExpression) return v;
     throw $rt.typeAssertError();
   }
@@ -5716,7 +5772,7 @@ export class Diagnostic extends $rt.GoObject {
   reportsDeprecated: boolean = false;
   skippedOnNoEmit: boolean = false;
   repopulateInfo: RepopulateDiagnosticInfo | undefined = undefined;
-  $copy_Diagnostic(src: Diagnostic): void {
+  $copy_ast_Diagnostic(src: Diagnostic): void {
     this.file = src.file;
     this.loc = src.loc;
     this.code = src.code;
@@ -5733,12 +5789,12 @@ export class Diagnostic extends $rt.GoObject {
     this.skippedOnNoEmit = src.skippedOnNoEmit;
     this.repopulateInfo = src.repopulateInfo;
   }
-  $clone_Diagnostic(): Diagnostic {
+  $clone_ast_Diagnostic(): Diagnostic {
     const o = new Diagnostic();
-    o.$copy_Diagnostic(this);
+    o.$copy_ast_Diagnostic(this);
     return o;
   }
-  static $lit_Diagnostic_0_1_2_3_4_6(
+  static $lit_ast_Diagnostic_0_1_2_3_4_6(
     p0: SourceFile | undefined,
     p1: $core.TextRange,
     p2: number,
@@ -5755,7 +5811,7 @@ export class Diagnostic extends $rt.GoObject {
     o.messageText = p5;
     return o;
   }
-  static $lit_Diagnostic_0_1_2_3_5_7_8_11_12(
+  static $lit_ast_Diagnostic_0_1_2_3_5_7_8_11_12(
     p0: SourceFile | undefined,
     p1: $core.TextRange,
     p2: number,
@@ -5778,7 +5834,7 @@ export class Diagnostic extends $rt.GoObject {
     o.reportsDeprecated = p8;
     return o;
   }
-  static $lit_Diagnostic_0_1_2_3_7_8_9_10_11_12_13(
+  static $lit_ast_Diagnostic_0_1_2_3_7_8_9_10_11_12_13(
     p0: SourceFile | undefined,
     p1: $core.TextRange,
     p2: number,
@@ -5805,7 +5861,7 @@ export class Diagnostic extends $rt.GoObject {
     o.skippedOnNoEmit = p10;
     return o;
   }
-  static $cast_Diagnostic(v: $rt.GoObject | undefined): Diagnostic {
+  static $cast_ast_Diagnostic(v: $rt.GoObject | undefined): Diagnostic {
     if (v instanceof Diagnostic) return v;
     throw $rt.typeAssertError();
   }
@@ -5833,7 +5889,7 @@ export class Diagnostic extends $rt.GoObject {
     const d = this;
     return d!.code;
   }
-  Category_(): $diagnostics.Category {
+  Category$m(): $diagnostics.Category {
     const d = this;
     return d!.category;
   }
@@ -5929,7 +5985,7 @@ export class Diagnostic extends $rt.GoObject {
   }
   Clone(): Diagnostic | undefined {
     const d = this;
-    let result: Diagnostic = d!.$clone_Diagnostic();
+    let result: Diagnostic = d!.$clone_ast_Diagnostic();
     return result;
   }
   Localize(locale: $locale.Locale): string {
@@ -5951,7 +6007,7 @@ export class Diagnostic extends $rt.GoObject {
     if (d!.file === undefined || !(d!.source === ('' as string))) {
       return d!.messageArgs;
     }
-    const $t1 = $spanmap.SpanMap.AliasForVirtualSpan$nil(d!.file!.SpanMap_(), d!.loc);
+    const $t1 = $spanmap.SpanMap.AliasForVirtualSpan$nil(d!.file!.SpanMap$m(), d!.loc);
     let segment: $spanmap.Segment = $t1[0];
     let ok: boolean = $t1[1];
     if (!ok) {
@@ -5997,24 +6053,24 @@ export class DiagnosticsCollection extends $rt.GoObject {
   fileDiagnosticsSorted: $collections.Set_<$tspath.Path> = new $collections.Set_<$tspath.Path>();
   nonFileDiagnostics: (Diagnostic | undefined)[] = [];
   nonFileDiagnosticsSorted: boolean = false;
-  diagnosticIndex: Map<string, Diagnostic | undefined> | undefined = undefined;
-  diagnosticCollisions: Map<string, (Diagnostic | undefined)[]> | undefined = undefined;
-  $copy_DiagnosticsCollection(src: DiagnosticsCollection): void {
+  diagnosticIndex: $rt.StructMap<diagnosticLocationKey, Diagnostic | undefined> | undefined = undefined;
+  diagnosticCollisions: $rt.StructMap<diagnosticLocationKey, (Diagnostic | undefined)[]> | undefined = undefined;
+  $copy_ast_DiagnosticsCollection(src: DiagnosticsCollection): void {
     this.mu = src.mu;
     this.count = src.count;
     this.fileDiagnostics = src.fileDiagnostics;
-    this.fileDiagnosticsSorted = src.fileDiagnosticsSorted.$clone_Set();
+    this.fileDiagnosticsSorted = src.fileDiagnosticsSorted.$clone_collections_Set();
     this.nonFileDiagnostics = src.nonFileDiagnostics;
     this.nonFileDiagnosticsSorted = src.nonFileDiagnosticsSorted;
     this.diagnosticIndex = src.diagnosticIndex;
     this.diagnosticCollisions = src.diagnosticCollisions;
   }
-  $clone_DiagnosticsCollection(): DiagnosticsCollection {
+  $clone_ast_DiagnosticsCollection(): DiagnosticsCollection {
     const o = new DiagnosticsCollection();
-    o.$copy_DiagnosticsCollection(this);
+    o.$copy_ast_DiagnosticsCollection(this);
     return o;
   }
-  static $cast_DiagnosticsCollection(v: $rt.GoObject | undefined): DiagnosticsCollection {
+  static $cast_ast_DiagnosticsCollection(v: $rt.GoObject | undefined): DiagnosticsCollection {
     if (v instanceof DiagnosticsCollection) return v;
     throw $rt.typeAssertError();
   }
@@ -6031,14 +6087,14 @@ export class DiagnosticsCollection extends $rt.GoObject {
       });
       let key: diagnosticLocationKey = getDiagnosticLocationKey(diagnostic);
       {
-        let existing: Diagnostic | undefined = c!.diagnosticIndex?.get($rt.structKey(key)) ?? undefined;
+        let existing: Diagnostic | undefined = c!.diagnosticIndex?.get(key) ?? undefined;
         if (!(existing === undefined)) {
           if (EqualDiagnostics(existing, diagnostic)) {
             $t1 = existing;
             break $body;
           }
           {
-            const $t3 = c!.diagnosticCollisions?.get($rt.structKey(key)) ?? [];
+            const $t3 = c!.diagnosticCollisions?.get(key) ?? [];
             for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
               let collision = $t3[$t4];
               if (EqualDiagnostics(collision, diagnostic)) {
@@ -6050,23 +6106,31 @@ export class DiagnosticsCollection extends $rt.GoObject {
         }
       }
       if (c!.diagnosticIndex === undefined) {
-        c!.diagnosticIndex = new Map<string, Diagnostic | undefined>();
+        c!.diagnosticIndex = new $rt.StructMap<diagnosticLocationKey, Diagnostic | undefined>($fn2);
       }
-      if ((c!.diagnosticIndex?.get($rt.structKey(key)) ?? undefined) === undefined) {
-        c!.diagnosticIndex!.set($rt.structKey(key), diagnostic);
+      if ((c!.diagnosticIndex?.get(key) ?? undefined) === undefined) {
+        c!.diagnosticIndex!.set(key, diagnostic);
       } else {
         if (c!.diagnosticCollisions === undefined) {
-          c!.diagnosticCollisions = new Map<string, (Diagnostic | undefined)[]>();
+          c!.diagnosticCollisions = new $rt.StructMap<diagnosticLocationKey, (Diagnostic | undefined)[]>($fn2);
         }
-        (c!.diagnosticCollisions?.get($rt.structKey(key)) ?? []).push(diagnostic);
+        const $t5 = c!.diagnosticCollisions;
+        const $t6 = key;
+        const $t7: (Diagnostic | undefined)[] = $t5!.get($t6) ?? [];
+        $t7.push(diagnostic);
+        $t5!.set($t6, $t7);
       }
       c!.count++;
       if (!(diagnostic!.File() === undefined)) {
-        let path: $tspath.Path = diagnostic!.File()!.Path_();
+        let path: $tspath.Path = diagnostic!.File()!.Path$m();
         if (c!.fileDiagnostics === undefined) {
           c!.fileDiagnostics = new Map<$tspath.Path, (Diagnostic | undefined)[]>();
         }
-        (c!.fileDiagnostics?.get(path) ?? []).push(diagnostic);
+        const $t8 = c!.fileDiagnostics;
+        const $t9 = path;
+        const $t10: (Diagnostic | undefined)[] = $t8!.get($t9) ?? [];
+        $t10.push(diagnostic);
+        $t8!.set($t9, $t10);
         c!.fileDiagnosticsSorted.Delete(path);
       } else {
         c!.nonFileDiagnostics.push(diagnostic);
@@ -6170,7 +6234,7 @@ export class DiagnosticsCollection extends $rt.GoObject {
   }
   getDiagnosticsForFileLocked(file: SourceFile | undefined): (Diagnostic | undefined)[] {
     const c = this;
-    let path: $tspath.Path = file!.Path_();
+    let path: $tspath.Path = file!.Path$m();
     if (!c!.fileDiagnosticsSorted.Has(path)) {
       $rt.slices_SortStableFunc(c!.fileDiagnostics?.get(path) ?? [], CompareDiagnostics);
       c!.fileDiagnosticsSorted.Add(path);
@@ -6207,19 +6271,19 @@ export class DiagnosticsCollection extends $rt.GoObject {
 }
 export class IterationStatementBase extends StatementBase {
   Statement_: Node | undefined = undefined;
-  $copy_IterationStatementBase(src: IterationStatementBase): void {
-    this.$copy_StatementBase(src);
+  $copy_ast_IterationStatementBase(src: IterationStatementBase): void {
+    this.$copy_ast_StatementBase(src);
     this.Statement_ = src.Statement_;
   }
-  $equals_IterationStatementBase(o: IterationStatementBase): boolean {
-    return this.$equals_StatementBase(o) && this.Statement_ === o.Statement_;
+  $equals_ast_IterationStatementBase(o: IterationStatementBase): boolean {
+    return this.$equals_ast_StatementBase(o) && this.Statement_ === o.Statement_;
   }
-  $clone_IterationStatementBase(): IterationStatementBase {
+  $clone_ast_IterationStatementBase(): IterationStatementBase {
     const o = new IterationStatementBase();
-    o.$copy_IterationStatementBase(this);
+    o.$copy_ast_IterationStatementBase(this);
     return o;
   }
-  static $cast_IterationStatementBase(v: $rt.GoObject | undefined): IterationStatementBase {
+  static $cast_ast_IterationStatementBase(v: $rt.GoObject | undefined): IterationStatementBase {
     if (v instanceof IterationStatementBase) return v;
     throw $rt.typeAssertError();
   }
@@ -6230,24 +6294,24 @@ export class IterationStatementBase extends StatementBase {
 export class DoStatement extends IterationStatementBase {
   CompositeBase_: CompositeBase = new CompositeBase();
   Expression_: Node | undefined = undefined;
-  $copy_DoStatement(src: DoStatement): void {
-    this.$copy_IterationStatementBase(src);
-    this.CompositeBase_ = src.CompositeBase_.$clone_CompositeBase();
+  $copy_ast_DoStatement(src: DoStatement): void {
+    this.$copy_ast_IterationStatementBase(src);
+    this.CompositeBase_ = src.CompositeBase_.$clone_ast_CompositeBase();
     this.Expression_ = src.Expression_;
   }
-  $equals_DoStatement(o: DoStatement): boolean {
+  $equals_ast_DoStatement(o: DoStatement): boolean {
     return (
-      this.$equals_IterationStatementBase(o) &&
-      this.CompositeBase_.$equals_CompositeBase(o.CompositeBase_) &&
+      this.$equals_ast_IterationStatementBase(o) &&
+      this.CompositeBase_.$equals_ast_CompositeBase(o.CompositeBase_) &&
       this.Expression_ === o.Expression_
     );
   }
-  $clone_DoStatement(): DoStatement {
+  $clone_ast_DoStatement(): DoStatement {
     const o = new DoStatement();
-    o.$copy_DoStatement(this);
+    o.$copy_ast_DoStatement(this);
     return o;
   }
-  static $cast_DoStatement(v: $rt.GoObject | undefined): DoStatement {
+  static $cast_ast_DoStatement(v: $rt.GoObject | undefined): DoStatement {
     if (v instanceof DoStatement) return v;
     throw $rt.typeAssertError();
   }
@@ -6288,36 +6352,36 @@ export class ElementAccessExpression extends MemberExpressionBase {
   Expression_: Node | undefined = undefined;
   QuestionDotToken_: Node | undefined = undefined;
   ArgumentExpression: Node | undefined = undefined;
-  $copy_ElementAccessExpression(src: ElementAccessExpression): void {
-    this.$copy_MemberExpressionBase(src);
-    this.FlowNodeBase_ = src.FlowNodeBase_.$clone_FlowNodeBase();
-    this.CompositeBase_ = src.CompositeBase_.$clone_CompositeBase();
+  $copy_ast_ElementAccessExpression(src: ElementAccessExpression): void {
+    this.$copy_ast_MemberExpressionBase(src);
+    this.FlowNodeBase_ = src.FlowNodeBase_.$clone_ast_FlowNodeBase();
+    this.CompositeBase_ = src.CompositeBase_.$clone_ast_CompositeBase();
     this.Expression_ = src.Expression_;
     this.QuestionDotToken_ = src.QuestionDotToken_;
     this.ArgumentExpression = src.ArgumentExpression;
   }
-  $equals_ElementAccessExpression(o: ElementAccessExpression): boolean {
+  $equals_ast_ElementAccessExpression(o: ElementAccessExpression): boolean {
     return (
-      this.$equals_MemberExpressionBase(o) &&
-      this.FlowNodeBase_.$equals_FlowNodeBase(o.FlowNodeBase_) &&
-      this.CompositeBase_.$equals_CompositeBase(o.CompositeBase_) &&
+      this.$equals_ast_MemberExpressionBase(o) &&
+      this.FlowNodeBase_.$equals_ast_FlowNodeBase(o.FlowNodeBase_) &&
+      this.CompositeBase_.$equals_ast_CompositeBase(o.CompositeBase_) &&
       this.Expression_ === o.Expression_ &&
       this.QuestionDotToken_ === o.QuestionDotToken_ &&
       this.ArgumentExpression === o.ArgumentExpression
     );
   }
-  $clone_ElementAccessExpression(): ElementAccessExpression {
+  $clone_ast_ElementAccessExpression(): ElementAccessExpression {
     const o = new ElementAccessExpression();
-    o.$copy_ElementAccessExpression(this);
+    o.$copy_ast_ElementAccessExpression(this);
     return o;
   }
-  static $cast_ElementAccessExpression(v: $rt.GoObject | undefined): ElementAccessExpression {
+  static $cast_ast_ElementAccessExpression(v: $rt.GoObject | undefined): ElementAccessExpression {
     if (v instanceof ElementAccessExpression) return v;
     throw $rt.typeAssertError();
   }
   propagateSubtreeFacts(): SubtreeFacts {
     const node = this;
-    return (node!.SubtreeFacts_() & 4261412863) >>> 0;
+    return (node!.SubtreeFacts$m() & 4261412863) >>> 0;
   }
   ForEachChild(v: Visitor): boolean {
     const node = this;
@@ -6359,18 +6423,18 @@ export class ElementAccessExpression extends MemberExpressionBase {
   }
 }
 export class EmptyStatement extends StatementBase {
-  $copy_EmptyStatement(src: EmptyStatement): void {
-    this.$copy_StatementBase(src);
+  $copy_ast_EmptyStatement(src: EmptyStatement): void {
+    this.$copy_ast_StatementBase(src);
   }
-  $equals_EmptyStatement(o: EmptyStatement): boolean {
-    return this.$equals_StatementBase(o);
+  $equals_ast_EmptyStatement(o: EmptyStatement): boolean {
+    return this.$equals_ast_StatementBase(o);
   }
-  $clone_EmptyStatement(): EmptyStatement {
+  $clone_ast_EmptyStatement(): EmptyStatement {
     const o = new EmptyStatement();
-    o.$copy_EmptyStatement(this);
+    o.$copy_ast_EmptyStatement(this);
     return o;
   }
-  static $cast_EmptyStatement(v: $rt.GoObject | undefined): EmptyStatement {
+  static $cast_ast_EmptyStatement(v: $rt.GoObject | undefined): EmptyStatement {
     if (v instanceof EmptyStatement) return v;
     throw $rt.typeAssertError();
   }
@@ -6389,32 +6453,32 @@ export class EnumDeclaration extends StatementBase {
   CompositeBase_: CompositeBase = new CompositeBase();
   name: Node | undefined = undefined;
   Members_: NodeList | undefined = undefined;
-  $copy_EnumDeclaration(src: EnumDeclaration): void {
-    this.$copy_StatementBase(src);
-    this.DeclarationBase_ = src.DeclarationBase_.$clone_DeclarationBase();
-    this.ExportableBase_ = src.ExportableBase_.$clone_ExportableBase();
-    this.ModifiersBase_ = src.ModifiersBase_.$clone_ModifiersBase();
-    this.CompositeBase_ = src.CompositeBase_.$clone_CompositeBase();
+  $copy_ast_EnumDeclaration(src: EnumDeclaration): void {
+    this.$copy_ast_StatementBase(src);
+    this.DeclarationBase_ = src.DeclarationBase_.$clone_ast_DeclarationBase();
+    this.ExportableBase_ = src.ExportableBase_.$clone_ast_ExportableBase();
+    this.ModifiersBase_ = src.ModifiersBase_.$clone_ast_ModifiersBase();
+    this.CompositeBase_ = src.CompositeBase_.$clone_ast_CompositeBase();
     this.name = src.name;
     this.Members_ = src.Members_;
   }
-  $equals_EnumDeclaration(o: EnumDeclaration): boolean {
+  $equals_ast_EnumDeclaration(o: EnumDeclaration): boolean {
     return (
-      this.$equals_StatementBase(o) &&
-      this.DeclarationBase_.$equals_DeclarationBase(o.DeclarationBase_) &&
-      this.ExportableBase_.$equals_ExportableBase(o.ExportableBase_) &&
-      this.ModifiersBase_.$equals_ModifiersBase(o.ModifiersBase_) &&
-      this.CompositeBase_.$equals_CompositeBase(o.CompositeBase_) &&
+      this.$equals_ast_StatementBase(o) &&
+      this.DeclarationBase_.$equals_ast_DeclarationBase(o.DeclarationBase_) &&
+      this.ExportableBase_.$equals_ast_ExportableBase(o.ExportableBase_) &&
+      this.ModifiersBase_.$equals_ast_ModifiersBase(o.ModifiersBase_) &&
+      this.CompositeBase_.$equals_ast_CompositeBase(o.CompositeBase_) &&
       this.name === o.name &&
       this.Members_ === o.Members_
     );
   }
-  $clone_EnumDeclaration(): EnumDeclaration {
+  $clone_ast_EnumDeclaration(): EnumDeclaration {
     const o = new EnumDeclaration();
-    o.$copy_EnumDeclaration(this);
+    o.$copy_ast_EnumDeclaration(this);
     return o;
   }
-  static $cast_EnumDeclaration(v: $rt.GoObject | undefined): EnumDeclaration {
+  static $cast_ast_EnumDeclaration(v: $rt.GoObject | undefined): EnumDeclaration {
     if (v instanceof EnumDeclaration) return v;
     throw $rt.typeAssertError();
   }
@@ -6489,28 +6553,28 @@ export class EnumMember extends NodeBase {
   NamedMemberBase_: NamedMemberBase = new NamedMemberBase();
   CompositeBase_: CompositeBase = new CompositeBase();
   Initializer_: Node | undefined = undefined;
-  $copy_EnumMember(src: EnumMember): void {
-    this.$copy_NodeBase(src);
-    this.DeclarationBase_ = src.DeclarationBase_.$clone_DeclarationBase();
-    this.NamedMemberBase_ = src.NamedMemberBase_.$clone_NamedMemberBase();
-    this.CompositeBase_ = src.CompositeBase_.$clone_CompositeBase();
+  $copy_ast_EnumMember(src: EnumMember): void {
+    this.$copy_ast_NodeBase(src);
+    this.DeclarationBase_ = src.DeclarationBase_.$clone_ast_DeclarationBase();
+    this.NamedMemberBase_ = src.NamedMemberBase_.$clone_ast_NamedMemberBase();
+    this.CompositeBase_ = src.CompositeBase_.$clone_ast_CompositeBase();
     this.Initializer_ = src.Initializer_;
   }
-  $equals_EnumMember(o: EnumMember): boolean {
+  $equals_ast_EnumMember(o: EnumMember): boolean {
     return (
-      this.$equals_NodeBase(o) &&
-      this.DeclarationBase_.$equals_DeclarationBase(o.DeclarationBase_) &&
-      this.NamedMemberBase_.$equals_NamedMemberBase(o.NamedMemberBase_) &&
-      this.CompositeBase_.$equals_CompositeBase(o.CompositeBase_) &&
+      this.$equals_ast_NodeBase(o) &&
+      this.DeclarationBase_.$equals_ast_DeclarationBase(o.DeclarationBase_) &&
+      this.NamedMemberBase_.$equals_ast_NamedMemberBase(o.NamedMemberBase_) &&
+      this.CompositeBase_.$equals_ast_CompositeBase(o.CompositeBase_) &&
       this.Initializer_ === o.Initializer_
     );
   }
-  $clone_EnumMember(): EnumMember {
+  $clone_ast_EnumMember(): EnumMember {
     const o = new EnumMember();
-    o.$copy_EnumMember(this);
+    o.$copy_ast_EnumMember(this);
     return o;
   }
-  static $cast_EnumMember(v: $rt.GoObject | undefined): EnumMember {
+  static $cast_ast_EnumMember(v: $rt.GoObject | undefined): EnumMember {
     if (v instanceof EnumMember) return v;
     throw $rt.typeAssertError();
   }
@@ -6565,32 +6629,32 @@ export class ExportAssignment extends StatementBase {
   IsExportEquals: boolean = false;
   Type_: Node | undefined = undefined;
   Expression_: Node | undefined = undefined;
-  $copy_ExportAssignment(src: ExportAssignment): void {
-    this.$copy_StatementBase(src);
-    this.DeclarationBase_ = src.DeclarationBase_.$clone_DeclarationBase();
-    this.ModifiersBase_ = src.ModifiersBase_.$clone_ModifiersBase();
-    this.CompositeBase_ = src.CompositeBase_.$clone_CompositeBase();
+  $copy_ast_ExportAssignment(src: ExportAssignment): void {
+    this.$copy_ast_StatementBase(src);
+    this.DeclarationBase_ = src.DeclarationBase_.$clone_ast_DeclarationBase();
+    this.ModifiersBase_ = src.ModifiersBase_.$clone_ast_ModifiersBase();
+    this.CompositeBase_ = src.CompositeBase_.$clone_ast_CompositeBase();
     this.IsExportEquals = src.IsExportEquals;
     this.Type_ = src.Type_;
     this.Expression_ = src.Expression_;
   }
-  $equals_ExportAssignment(o: ExportAssignment): boolean {
+  $equals_ast_ExportAssignment(o: ExportAssignment): boolean {
     return (
-      this.$equals_StatementBase(o) &&
-      this.DeclarationBase_.$equals_DeclarationBase(o.DeclarationBase_) &&
-      this.ModifiersBase_.$equals_ModifiersBase(o.ModifiersBase_) &&
-      this.CompositeBase_.$equals_CompositeBase(o.CompositeBase_) &&
+      this.$equals_ast_StatementBase(o) &&
+      this.DeclarationBase_.$equals_ast_DeclarationBase(o.DeclarationBase_) &&
+      this.ModifiersBase_.$equals_ast_ModifiersBase(o.ModifiersBase_) &&
+      this.CompositeBase_.$equals_ast_CompositeBase(o.CompositeBase_) &&
       this.IsExportEquals === o.IsExportEquals &&
       this.Type_ === o.Type_ &&
       this.Expression_ === o.Expression_
     );
   }
-  $clone_ExportAssignment(): ExportAssignment {
+  $clone_ast_ExportAssignment(): ExportAssignment {
     const o = new ExportAssignment();
-    o.$copy_ExportAssignment(this);
+    o.$copy_ast_ExportAssignment(this);
     return o;
   }
-  static $cast_ExportAssignment(v: $rt.GoObject | undefined): ExportAssignment {
+  static $cast_ast_ExportAssignment(v: $rt.GoObject | undefined): ExportAssignment {
     if (v instanceof ExportAssignment) return v;
     throw $rt.typeAssertError();
   }
@@ -6658,34 +6722,34 @@ export class ExportDeclaration extends StatementBase {
   ExportClause: Node | undefined = undefined;
   ModuleSpecifier_: Node | undefined = undefined;
   Attributes_: Node | undefined = undefined;
-  $copy_ExportDeclaration(src: ExportDeclaration): void {
-    this.$copy_StatementBase(src);
-    this.DeclarationBase_ = src.DeclarationBase_.$clone_DeclarationBase();
-    this.ModifiersBase_ = src.ModifiersBase_.$clone_ModifiersBase();
-    this.CompositeBase_ = src.CompositeBase_.$clone_CompositeBase();
+  $copy_ast_ExportDeclaration(src: ExportDeclaration): void {
+    this.$copy_ast_StatementBase(src);
+    this.DeclarationBase_ = src.DeclarationBase_.$clone_ast_DeclarationBase();
+    this.ModifiersBase_ = src.ModifiersBase_.$clone_ast_ModifiersBase();
+    this.CompositeBase_ = src.CompositeBase_.$clone_ast_CompositeBase();
     this.IsTypeOnly_ = src.IsTypeOnly_;
     this.ExportClause = src.ExportClause;
     this.ModuleSpecifier_ = src.ModuleSpecifier_;
     this.Attributes_ = src.Attributes_;
   }
-  $equals_ExportDeclaration(o: ExportDeclaration): boolean {
+  $equals_ast_ExportDeclaration(o: ExportDeclaration): boolean {
     return (
-      this.$equals_StatementBase(o) &&
-      this.DeclarationBase_.$equals_DeclarationBase(o.DeclarationBase_) &&
-      this.ModifiersBase_.$equals_ModifiersBase(o.ModifiersBase_) &&
-      this.CompositeBase_.$equals_CompositeBase(o.CompositeBase_) &&
+      this.$equals_ast_StatementBase(o) &&
+      this.DeclarationBase_.$equals_ast_DeclarationBase(o.DeclarationBase_) &&
+      this.ModifiersBase_.$equals_ast_ModifiersBase(o.ModifiersBase_) &&
+      this.CompositeBase_.$equals_ast_CompositeBase(o.CompositeBase_) &&
       this.IsTypeOnly_ === o.IsTypeOnly_ &&
       this.ExportClause === o.ExportClause &&
       this.ModuleSpecifier_ === o.ModuleSpecifier_ &&
       this.Attributes_ === o.Attributes_
     );
   }
-  $clone_ExportDeclaration(): ExportDeclaration {
+  $clone_ast_ExportDeclaration(): ExportDeclaration {
     const o = new ExportDeclaration();
-    o.$copy_ExportDeclaration(this);
+    o.$copy_ast_ExportDeclaration(this);
     return o;
   }
-  static $cast_ExportDeclaration(v: $rt.GoObject | undefined): ExportDeclaration {
+  static $cast_ast_ExportDeclaration(v: $rt.GoObject | undefined): ExportDeclaration {
     if (v instanceof ExportDeclaration) return v;
     throw $rt.typeAssertError();
   }
@@ -6762,32 +6826,32 @@ export class ExportSpecifier extends NodeBase {
   IsTypeOnly_: boolean = false;
   PropertyName_: Node | undefined = undefined;
   name: Node | undefined = undefined;
-  $copy_ExportSpecifier(src: ExportSpecifier): void {
-    this.$copy_NodeBase(src);
-    this.DeclarationBase_ = src.DeclarationBase_.$clone_DeclarationBase();
-    this.ExportableBase_ = src.ExportableBase_.$clone_ExportableBase();
-    this.CompositeBase_ = src.CompositeBase_.$clone_CompositeBase();
+  $copy_ast_ExportSpecifier(src: ExportSpecifier): void {
+    this.$copy_ast_NodeBase(src);
+    this.DeclarationBase_ = src.DeclarationBase_.$clone_ast_DeclarationBase();
+    this.ExportableBase_ = src.ExportableBase_.$clone_ast_ExportableBase();
+    this.CompositeBase_ = src.CompositeBase_.$clone_ast_CompositeBase();
     this.IsTypeOnly_ = src.IsTypeOnly_;
     this.PropertyName_ = src.PropertyName_;
     this.name = src.name;
   }
-  $equals_ExportSpecifier(o: ExportSpecifier): boolean {
+  $equals_ast_ExportSpecifier(o: ExportSpecifier): boolean {
     return (
-      this.$equals_NodeBase(o) &&
-      this.DeclarationBase_.$equals_DeclarationBase(o.DeclarationBase_) &&
-      this.ExportableBase_.$equals_ExportableBase(o.ExportableBase_) &&
-      this.CompositeBase_.$equals_CompositeBase(o.CompositeBase_) &&
+      this.$equals_ast_NodeBase(o) &&
+      this.DeclarationBase_.$equals_ast_DeclarationBase(o.DeclarationBase_) &&
+      this.ExportableBase_.$equals_ast_ExportableBase(o.ExportableBase_) &&
+      this.CompositeBase_.$equals_ast_CompositeBase(o.CompositeBase_) &&
       this.IsTypeOnly_ === o.IsTypeOnly_ &&
       this.PropertyName_ === o.PropertyName_ &&
       this.name === o.name
     );
   }
-  $clone_ExportSpecifier(): ExportSpecifier {
+  $clone_ast_ExportSpecifier(): ExportSpecifier {
     const o = new ExportSpecifier();
-    o.$copy_ExportSpecifier(this);
+    o.$copy_ast_ExportSpecifier(this);
     return o;
   }
-  static $cast_ExportSpecifier(v: $rt.GoObject | undefined): ExportSpecifier {
+  static $cast_ast_ExportSpecifier(v: $rt.GoObject | undefined): ExportSpecifier {
     if (v instanceof ExportSpecifier) return v;
     throw $rt.typeAssertError();
   }
@@ -6836,19 +6900,19 @@ export class ExportSpecifier extends NodeBase {
 }
 export class ExpressionStatement extends StatementBase {
   Expression_: Node | undefined = undefined;
-  $copy_ExpressionStatement(src: ExpressionStatement): void {
-    this.$copy_StatementBase(src);
+  $copy_ast_ExpressionStatement(src: ExpressionStatement): void {
+    this.$copy_ast_StatementBase(src);
     this.Expression_ = src.Expression_;
   }
-  $equals_ExpressionStatement(o: ExpressionStatement): boolean {
-    return this.$equals_StatementBase(o) && this.Expression_ === o.Expression_;
+  $equals_ast_ExpressionStatement(o: ExpressionStatement): boolean {
+    return this.$equals_ast_StatementBase(o) && this.Expression_ === o.Expression_;
   }
-  $clone_ExpressionStatement(): ExpressionStatement {
+  $clone_ast_ExpressionStatement(): ExpressionStatement {
     const o = new ExpressionStatement();
-    o.$copy_ExpressionStatement(this);
+    o.$copy_ast_ExpressionStatement(this);
     return o;
   }
-  static $cast_ExpressionStatement(v: $rt.GoObject | undefined): ExpressionStatement {
+  static $cast_ast_ExpressionStatement(v: $rt.GoObject | undefined): ExpressionStatement {
     if (v instanceof ExpressionStatement) return v;
     throw $rt.typeAssertError();
   }
@@ -6880,26 +6944,26 @@ export class ExpressionWithTypeArguments extends MemberExpressionBase {
   CompositeBase_: CompositeBase = new CompositeBase();
   Expression_: Node | undefined = undefined;
   TypeArguments_: NodeList | undefined = undefined;
-  $copy_ExpressionWithTypeArguments(src: ExpressionWithTypeArguments): void {
-    this.$copy_MemberExpressionBase(src);
-    this.CompositeBase_ = src.CompositeBase_.$clone_CompositeBase();
+  $copy_ast_ExpressionWithTypeArguments(src: ExpressionWithTypeArguments): void {
+    this.$copy_ast_MemberExpressionBase(src);
+    this.CompositeBase_ = src.CompositeBase_.$clone_ast_CompositeBase();
     this.Expression_ = src.Expression_;
     this.TypeArguments_ = src.TypeArguments_;
   }
-  $equals_ExpressionWithTypeArguments(o: ExpressionWithTypeArguments): boolean {
+  $equals_ast_ExpressionWithTypeArguments(o: ExpressionWithTypeArguments): boolean {
     return (
-      this.$equals_MemberExpressionBase(o) &&
-      this.CompositeBase_.$equals_CompositeBase(o.CompositeBase_) &&
+      this.$equals_ast_MemberExpressionBase(o) &&
+      this.CompositeBase_.$equals_ast_CompositeBase(o.CompositeBase_) &&
       this.Expression_ === o.Expression_ &&
       this.TypeArguments_ === o.TypeArguments_
     );
   }
-  $clone_ExpressionWithTypeArguments(): ExpressionWithTypeArguments {
+  $clone_ast_ExpressionWithTypeArguments(): ExpressionWithTypeArguments {
     const o = new ExpressionWithTypeArguments();
-    o.$copy_ExpressionWithTypeArguments(this);
+    o.$copy_ast_ExpressionWithTypeArguments(this);
     return o;
   }
-  static $cast_ExpressionWithTypeArguments(v: $rt.GoObject | undefined): ExpressionWithTypeArguments {
+  static $cast_ast_ExpressionWithTypeArguments(v: $rt.GoObject | undefined): ExpressionWithTypeArguments {
     if (v instanceof ExpressionWithTypeArguments) return v;
     throw $rt.typeAssertError();
   }
@@ -6936,49 +7000,49 @@ export class ExpressionWithTypeArguments extends MemberExpressionBase {
 export class ExternalModuleIndicatorOptions extends $rt.GoObject {
   JSX: boolean = false;
   Force: boolean = false;
-  $copy_ExternalModuleIndicatorOptions(src: ExternalModuleIndicatorOptions): void {
+  $copy_ast_ExternalModuleIndicatorOptions(src: ExternalModuleIndicatorOptions): void {
     this.JSX = src.JSX;
     this.Force = src.Force;
   }
-  $equals_ExternalModuleIndicatorOptions(o: ExternalModuleIndicatorOptions): boolean {
+  $equals_ast_ExternalModuleIndicatorOptions(o: ExternalModuleIndicatorOptions): boolean {
     return this.JSX === o.JSX && this.Force === o.Force;
   }
-  $clone_ExternalModuleIndicatorOptions(): ExternalModuleIndicatorOptions {
+  $clone_ast_ExternalModuleIndicatorOptions(): ExternalModuleIndicatorOptions {
     const o = new ExternalModuleIndicatorOptions();
-    o.$copy_ExternalModuleIndicatorOptions(this);
+    o.$copy_ast_ExternalModuleIndicatorOptions(this);
     return o;
   }
-  static $lit_ExternalModuleIndicatorOptions_0_1(p0: boolean, p1: boolean): ExternalModuleIndicatorOptions {
+  static $lit_ast_ExternalModuleIndicatorOptions_0_1(p0: boolean, p1: boolean): ExternalModuleIndicatorOptions {
     const o = new ExternalModuleIndicatorOptions();
     o.JSX = p0;
     o.Force = p1;
     return o;
   }
-  static $lit_ExternalModuleIndicatorOptions_1(p0: boolean): ExternalModuleIndicatorOptions {
+  static $lit_ast_ExternalModuleIndicatorOptions_1(p0: boolean): ExternalModuleIndicatorOptions {
     const o = new ExternalModuleIndicatorOptions();
     o.Force = p0;
     return o;
   }
-  static $cast_ExternalModuleIndicatorOptions(v: $rt.GoObject | undefined): ExternalModuleIndicatorOptions {
+  static $cast_ast_ExternalModuleIndicatorOptions(v: $rt.GoObject | undefined): ExternalModuleIndicatorOptions {
     if (v instanceof ExternalModuleIndicatorOptions) return v;
     throw $rt.typeAssertError();
   }
 }
 export class ExternalModuleReference extends NodeBase {
   Expression_: Node | undefined = undefined;
-  $copy_ExternalModuleReference(src: ExternalModuleReference): void {
-    this.$copy_NodeBase(src);
+  $copy_ast_ExternalModuleReference(src: ExternalModuleReference): void {
+    this.$copy_ast_NodeBase(src);
     this.Expression_ = src.Expression_;
   }
-  $equals_ExternalModuleReference(o: ExternalModuleReference): boolean {
-    return this.$equals_NodeBase(o) && this.Expression_ === o.Expression_;
+  $equals_ast_ExternalModuleReference(o: ExternalModuleReference): boolean {
+    return this.$equals_ast_NodeBase(o) && this.Expression_ === o.Expression_;
   }
-  $clone_ExternalModuleReference(): ExternalModuleReference {
+  $clone_ast_ExternalModuleReference(): ExternalModuleReference {
     const o = new ExternalModuleReference();
-    o.$copy_ExternalModuleReference(this);
+    o.$copy_ast_ExternalModuleReference(this);
     return o;
   }
-  static $cast_ExternalModuleReference(v: $rt.GoObject | undefined): ExternalModuleReference {
+  static $cast_ast_ExternalModuleReference(v: $rt.GoObject | undefined): ExternalModuleReference {
     if (v instanceof ExternalModuleReference) return v;
     throw $rt.typeAssertError();
   }
@@ -7007,46 +7071,46 @@ export class FileReference extends $core.TextRange {
   FileName: string = '';
   ResolutionMode: $core.ResolutionMode = 0;
   Preserve: boolean = false;
-  $copy_FileReference(src: FileReference): void {
-    this.$copy_TextRange(src);
+  $copy_ast_FileReference(src: FileReference): void {
+    this.$copy_core_TextRange(src);
     this.FileName = src.FileName;
     this.ResolutionMode = src.ResolutionMode;
     this.Preserve = src.Preserve;
   }
-  $equals_FileReference(o: FileReference): boolean {
+  $equals_ast_FileReference(o: FileReference): boolean {
     return (
-      this.$equals_TextRange(o) &&
+      this.$equals_core_TextRange(o) &&
       this.FileName === o.FileName &&
       this.ResolutionMode === o.ResolutionMode &&
       this.Preserve === o.Preserve
     );
   }
-  $clone_FileReference(): FileReference {
+  $clone_ast_FileReference(): FileReference {
     const o = new FileReference();
-    o.$copy_FileReference(this);
+    o.$copy_ast_FileReference(this);
     return o;
   }
-  static $lit_FileReference_0_1_2_3(
+  static $lit_ast_FileReference_0_1_2_3(
     p0: $core.TextRange,
     p1: string,
     p2: $core.ResolutionMode,
     p3: boolean,
   ): FileReference {
     const o = new FileReference();
-    o.$copy_TextRange(p0);
+    o.$copy_core_TextRange(p0);
     o.FileName = p1;
     o.ResolutionMode = p2;
     o.Preserve = p3;
     return o;
   }
-  static $lit_FileReference_0_1_3(p0: $core.TextRange, p1: string, p2: boolean): FileReference {
+  static $lit_ast_FileReference_0_1_3(p0: $core.TextRange, p1: string, p2: boolean): FileReference {
     const o = new FileReference();
-    o.$copy_TextRange(p0);
+    o.$copy_core_TextRange(p0);
     o.FileName = p1;
     o.Preserve = p2;
     return o;
   }
-  static $cast_FileReference(v: $rt.GoObject | undefined): FileReference {
+  static $cast_ast_FileReference(v: $rt.GoObject | undefined): FileReference {
     if (v instanceof FileReference) return v;
     throw $rt.typeAssertError();
   }
@@ -7054,19 +7118,19 @@ export class FileReference extends $core.TextRange {
 export class FlowList extends $rt.GoObject {
   Flow: FlowNode | undefined = undefined;
   Next: FlowList | undefined = undefined;
-  $copy_FlowList(src: FlowList): void {
+  $copy_ast_FlowList(src: FlowList): void {
     this.Flow = src.Flow;
     this.Next = src.Next;
   }
-  $equals_FlowList(o: FlowList): boolean {
+  $equals_ast_FlowList(o: FlowList): boolean {
     return this.Flow === o.Flow && this.Next === o.Next;
   }
-  $clone_FlowList(): FlowList {
+  $clone_ast_FlowList(): FlowList {
     const o = new FlowList();
-    o.$copy_FlowList(this);
+    o.$copy_ast_FlowList(this);
     return o;
   }
-  static $cast_FlowList(v: $rt.GoObject | undefined): FlowList {
+  static $cast_ast_FlowList(v: $rt.GoObject | undefined): FlowList {
     if (v instanceof FlowList) return v;
     throw $rt.typeAssertError();
   }
@@ -7076,13 +7140,13 @@ export class FlowNode extends $rt.GoObject {
   Node_: Node | undefined = undefined;
   Antecedent: FlowNode | undefined = undefined;
   Antecedents: FlowList | undefined = undefined;
-  $copy_FlowNode(src: FlowNode): void {
+  $copy_ast_FlowNode(src: FlowNode): void {
     this.Flags = src.Flags;
     this.Node_ = src.Node_;
     this.Antecedent = src.Antecedent;
     this.Antecedents = src.Antecedents;
   }
-  $equals_FlowNode(o: FlowNode): boolean {
+  $equals_ast_FlowNode(o: FlowNode): boolean {
     return (
       this.Flags === o.Flags &&
       this.Node_ === o.Node_ &&
@@ -7090,30 +7154,42 @@ export class FlowNode extends $rt.GoObject {
       this.Antecedents === o.Antecedents
     );
   }
-  $clone_FlowNode(): FlowNode {
+  $clone_ast_FlowNode(): FlowNode {
     const o = new FlowNode();
-    o.$copy_FlowNode(this);
+    o.$copy_ast_FlowNode(this);
     return o;
   }
-  static $cast_FlowNode(v: $rt.GoObject | undefined): FlowNode {
+  static $lit_ast_FlowNode_0(p0: FlowFlags): FlowNode {
+    const o = new FlowNode();
+    o.Flags = p0;
+    return o;
+  }
+  static $lit_ast_FlowNode_0_1_2(p0: FlowFlags, p1: Node | undefined, p2: FlowNode | undefined): FlowNode {
+    const o = new FlowNode();
+    o.Flags = p0;
+    o.Node_ = p1;
+    o.Antecedent = p2;
+    return o;
+  }
+  static $cast_ast_FlowNode(v: $rt.GoObject | undefined): FlowNode {
     if (v instanceof FlowNode) return v;
     throw $rt.typeAssertError();
   }
 }
 export class FlowNodeBase extends $rt.GoObject {
   FlowNode_: FlowNode | undefined = undefined;
-  $copy_FlowNodeBase(src: FlowNodeBase): void {
+  $copy_ast_FlowNodeBase(src: FlowNodeBase): void {
     this.FlowNode_ = src.FlowNode_;
   }
-  $equals_FlowNodeBase(o: FlowNodeBase): boolean {
+  $equals_ast_FlowNodeBase(o: FlowNodeBase): boolean {
     return this.FlowNode_ === o.FlowNode_;
   }
-  $clone_FlowNodeBase(): FlowNodeBase {
+  $clone_ast_FlowNodeBase(): FlowNodeBase {
     const o = new FlowNodeBase();
-    o.$copy_FlowNodeBase(this);
+    o.$copy_ast_FlowNodeBase(this);
     return o;
   }
-  static $cast_FlowNodeBase(v: $rt.GoObject | undefined): FlowNodeBase {
+  static $cast_ast_FlowNodeBase(v: $rt.GoObject | undefined): FlowNodeBase {
     if (v instanceof FlowNodeBase) return v;
     throw $rt.typeAssertError();
   }
@@ -7125,20 +7201,20 @@ export class FlowNodeBase extends $rt.GoObject {
 export class FlowReduceLabelData extends NodeBase {
   Target: FlowNode | undefined = undefined;
   Antecedents: FlowList | undefined = undefined;
-  $copy_FlowReduceLabelData(src: FlowReduceLabelData): void {
-    this.$copy_NodeBase(src);
+  $copy_ast_FlowReduceLabelData(src: FlowReduceLabelData): void {
+    this.$copy_ast_NodeBase(src);
     this.Target = src.Target;
     this.Antecedents = src.Antecedents;
   }
-  $equals_FlowReduceLabelData(o: FlowReduceLabelData): boolean {
-    return this.$equals_NodeBase(o) && this.Target === o.Target && this.Antecedents === o.Antecedents;
+  $equals_ast_FlowReduceLabelData(o: FlowReduceLabelData): boolean {
+    return this.$equals_ast_NodeBase(o) && this.Target === o.Target && this.Antecedents === o.Antecedents;
   }
-  $clone_FlowReduceLabelData(): FlowReduceLabelData {
+  $clone_ast_FlowReduceLabelData(): FlowReduceLabelData {
     const o = new FlowReduceLabelData();
-    o.$copy_FlowReduceLabelData(this);
+    o.$copy_ast_FlowReduceLabelData(this);
     return o;
   }
-  static $cast_FlowReduceLabelData(v: $rt.GoObject | undefined): FlowReduceLabelData {
+  static $cast_ast_FlowReduceLabelData(v: $rt.GoObject | undefined): FlowReduceLabelData {
     if (v instanceof FlowReduceLabelData) return v;
     throw $rt.typeAssertError();
   }
@@ -7147,26 +7223,26 @@ export class FlowSwitchClauseData extends NodeBase {
   SwitchStatement: Node | undefined = undefined;
   ClauseStart: number = 0;
   ClauseEnd: number = 0;
-  $copy_FlowSwitchClauseData(src: FlowSwitchClauseData): void {
-    this.$copy_NodeBase(src);
+  $copy_ast_FlowSwitchClauseData(src: FlowSwitchClauseData): void {
+    this.$copy_ast_NodeBase(src);
     this.SwitchStatement = src.SwitchStatement;
     this.ClauseStart = src.ClauseStart;
     this.ClauseEnd = src.ClauseEnd;
   }
-  $equals_FlowSwitchClauseData(o: FlowSwitchClauseData): boolean {
+  $equals_ast_FlowSwitchClauseData(o: FlowSwitchClauseData): boolean {
     return (
-      this.$equals_NodeBase(o) &&
+      this.$equals_ast_NodeBase(o) &&
       this.SwitchStatement === o.SwitchStatement &&
       this.ClauseStart === o.ClauseStart &&
       this.ClauseEnd === o.ClauseEnd
     );
   }
-  $clone_FlowSwitchClauseData(): FlowSwitchClauseData {
+  $clone_ast_FlowSwitchClauseData(): FlowSwitchClauseData {
     const o = new FlowSwitchClauseData();
-    o.$copy_FlowSwitchClauseData(this);
+    o.$copy_ast_FlowSwitchClauseData(this);
     return o;
   }
-  static $cast_FlowSwitchClauseData(v: $rt.GoObject | undefined): FlowSwitchClauseData {
+  static $cast_ast_FlowSwitchClauseData(v: $rt.GoObject | undefined): FlowSwitchClauseData {
     if (v instanceof FlowSwitchClauseData) return v;
     throw $rt.typeAssertError();
   }
@@ -7182,21 +7258,21 @@ export class ForInOrOfStatement extends StatementBase {
   Initializer_: Node | undefined = undefined;
   Expression_: Node | undefined = undefined;
   Statement_: Node | undefined = undefined;
-  $copy_ForInOrOfStatement(src: ForInOrOfStatement): void {
-    this.$copy_StatementBase(src);
-    this.LocalsContainerBase_ = src.LocalsContainerBase_.$clone_LocalsContainerBase();
-    this.CompositeBase_ = src.CompositeBase_.$clone_CompositeBase();
+  $copy_ast_ForInOrOfStatement(src: ForInOrOfStatement): void {
+    this.$copy_ast_StatementBase(src);
+    this.LocalsContainerBase_ = src.LocalsContainerBase_.$clone_ast_LocalsContainerBase();
+    this.CompositeBase_ = src.CompositeBase_.$clone_ast_CompositeBase();
     this.AwaitModifier = src.AwaitModifier;
     this.Initializer_ = src.Initializer_;
     this.Expression_ = src.Expression_;
     this.Statement_ = src.Statement_;
   }
-  $clone_ForInOrOfStatement(): ForInOrOfStatement {
+  $clone_ast_ForInOrOfStatement(): ForInOrOfStatement {
     const o = new ForInOrOfStatement();
-    o.$copy_ForInOrOfStatement(this);
+    o.$copy_ast_ForInOrOfStatement(this);
     return o;
   }
-  static $cast_ForInOrOfStatement(v: $rt.GoObject | undefined): ForInOrOfStatement {
+  static $cast_ast_ForInOrOfStatement(v: $rt.GoObject | undefined): ForInOrOfStatement {
     if (v instanceof ForInOrOfStatement) return v;
     throw $rt.typeAssertError();
   }
@@ -7261,20 +7337,20 @@ export class ForStatement extends IterationStatementBase {
   Initializer_: Node | undefined = undefined;
   Condition: Node | undefined = undefined;
   Incrementor: Node | undefined = undefined;
-  $copy_ForStatement(src: ForStatement): void {
-    this.$copy_IterationStatementBase(src);
-    this.LocalsContainerBase_ = src.LocalsContainerBase_.$clone_LocalsContainerBase();
-    this.CompositeBase_ = src.CompositeBase_.$clone_CompositeBase();
+  $copy_ast_ForStatement(src: ForStatement): void {
+    this.$copy_ast_IterationStatementBase(src);
+    this.LocalsContainerBase_ = src.LocalsContainerBase_.$clone_ast_LocalsContainerBase();
+    this.CompositeBase_ = src.CompositeBase_.$clone_ast_CompositeBase();
     this.Initializer_ = src.Initializer_;
     this.Condition = src.Condition;
     this.Incrementor = src.Incrementor;
   }
-  $clone_ForStatement(): ForStatement {
+  $clone_ast_ForStatement(): ForStatement {
     const o = new ForStatement();
-    o.$copy_ForStatement(this);
+    o.$copy_ast_ForStatement(this);
     return o;
   }
-  static $cast_ForStatement(v: $rt.GoObject | undefined): ForStatement {
+  static $cast_ast_ForStatement(v: $rt.GoObject | undefined): ForStatement {
     if (v instanceof ForStatement) return v;
     throw $rt.typeAssertError();
   }
@@ -7333,22 +7409,22 @@ export class FunctionDeclaration extends StatementBase {
   CompositeBase_: CompositeBase = new CompositeBase();
   name: Node | undefined = undefined;
   ReturnFlowNode: FlowNode | undefined = undefined;
-  $copy_FunctionDeclaration(src: FunctionDeclaration): void {
-    this.$copy_StatementBase(src);
-    this.DeclarationBase_ = src.DeclarationBase_.$clone_DeclarationBase();
-    this.ExportableBase_ = src.ExportableBase_.$clone_ExportableBase();
-    this.ModifiersBase_ = src.ModifiersBase_.$clone_ModifiersBase();
-    this.FunctionLikeWithBodyBase_ = src.FunctionLikeWithBodyBase_.$clone_FunctionLikeWithBodyBase();
-    this.CompositeBase_ = src.CompositeBase_.$clone_CompositeBase();
+  $copy_ast_FunctionDeclaration(src: FunctionDeclaration): void {
+    this.$copy_ast_StatementBase(src);
+    this.DeclarationBase_ = src.DeclarationBase_.$clone_ast_DeclarationBase();
+    this.ExportableBase_ = src.ExportableBase_.$clone_ast_ExportableBase();
+    this.ModifiersBase_ = src.ModifiersBase_.$clone_ast_ModifiersBase();
+    this.FunctionLikeWithBodyBase_ = src.FunctionLikeWithBodyBase_.$clone_ast_FunctionLikeWithBodyBase();
+    this.CompositeBase_ = src.CompositeBase_.$clone_ast_CompositeBase();
     this.name = src.name;
     this.ReturnFlowNode = src.ReturnFlowNode;
   }
-  $clone_FunctionDeclaration(): FunctionDeclaration {
+  $clone_ast_FunctionDeclaration(): FunctionDeclaration {
     const o = new FunctionDeclaration();
-    o.$copy_FunctionDeclaration(this);
+    o.$copy_ast_FunctionDeclaration(this);
     return o;
   }
-  static $cast_FunctionDeclaration(v: $rt.GoObject | undefined): FunctionDeclaration {
+  static $cast_ast_FunctionDeclaration(v: $rt.GoObject | undefined): FunctionDeclaration {
     if (v instanceof FunctionDeclaration) return v;
     throw $rt.typeAssertError();
   }
@@ -7356,11 +7432,11 @@ export class FunctionDeclaration extends StatementBase {
     const node = this;
     if (
       node!.FunctionLikeWithBodyBase_.BodyBase_.Body === undefined ||
-      !((node!.ModifierFlags_() & 128) === (0 as number))
+      !((node!.ModifierFlags$m() & 128) === (0 as number))
     ) {
       return 1;
     } else {
-      let isAsync: boolean = !((node!.ModifierFlags_() & 1024) === (0 as number));
+      let isAsync: boolean = !((node!.ModifierFlags$m() & 1024) === (0 as number));
       let isGenerator: boolean = !(node!.FunctionLikeWithBodyBase_.BodyBase_.AsteriskToken === undefined);
       return (
         (((((((((((((((((propagateModifierListSubtreeFacts(node!.ModifiersBase_.modifiers) |
@@ -7387,7 +7463,7 @@ export class FunctionDeclaration extends StatementBase {
   }
   propagateSubtreeFacts(): SubtreeFacts {
     const node = this;
-    return (node!.SubtreeFacts_() & 4260970495) >>> 0;
+    return (node!.SubtreeFacts$m() & 4260970495) >>> 0;
   }
   ForEachChild(v: Visitor): boolean {
     const node = this;
@@ -7475,22 +7551,22 @@ export class FunctionExpression extends PrimaryExpressionBase {
   CompositeBase_: CompositeBase = new CompositeBase();
   name: Node | undefined = undefined;
   ReturnFlowNode: FlowNode | undefined = undefined;
-  $copy_FunctionExpression(src: FunctionExpression): void {
-    this.$copy_PrimaryExpressionBase(src);
-    this.DeclarationBase_ = src.DeclarationBase_.$clone_DeclarationBase();
-    this.ModifiersBase_ = src.ModifiersBase_.$clone_ModifiersBase();
-    this.FunctionLikeWithBodyBase_ = src.FunctionLikeWithBodyBase_.$clone_FunctionLikeWithBodyBase();
-    this.FlowNodeBase_ = src.FlowNodeBase_.$clone_FlowNodeBase();
-    this.CompositeBase_ = src.CompositeBase_.$clone_CompositeBase();
+  $copy_ast_FunctionExpression(src: FunctionExpression): void {
+    this.$copy_ast_PrimaryExpressionBase(src);
+    this.DeclarationBase_ = src.DeclarationBase_.$clone_ast_DeclarationBase();
+    this.ModifiersBase_ = src.ModifiersBase_.$clone_ast_ModifiersBase();
+    this.FunctionLikeWithBodyBase_ = src.FunctionLikeWithBodyBase_.$clone_ast_FunctionLikeWithBodyBase();
+    this.FlowNodeBase_ = src.FlowNodeBase_.$clone_ast_FlowNodeBase();
+    this.CompositeBase_ = src.CompositeBase_.$clone_ast_CompositeBase();
     this.name = src.name;
     this.ReturnFlowNode = src.ReturnFlowNode;
   }
-  $clone_FunctionExpression(): FunctionExpression {
+  $clone_ast_FunctionExpression(): FunctionExpression {
     const o = new FunctionExpression();
-    o.$copy_FunctionExpression(this);
+    o.$copy_ast_FunctionExpression(this);
     return o;
   }
-  static $cast_FunctionExpression(v: $rt.GoObject | undefined): FunctionExpression {
+  static $cast_ast_FunctionExpression(v: $rt.GoObject | undefined): FunctionExpression {
     if (v instanceof FunctionExpression) return v;
     throw $rt.typeAssertError();
   }
@@ -7524,7 +7600,7 @@ export class FunctionExpression extends PrimaryExpressionBase {
   }
   propagateSubtreeFacts(): SubtreeFacts {
     const node = this;
-    return (node!.SubtreeFacts_() & 4260970495) >>> 0;
+    return (node!.SubtreeFacts$m() & 4260970495) >>> 0;
   }
   ForEachChild(v: Visitor): boolean {
     const node = this;
@@ -7604,16 +7680,16 @@ export class FunctionExpression extends PrimaryExpressionBase {
 export class LocalsContainerBase extends $rt.GoObject {
   Locals: SymbolTable = undefined;
   NextContainer: Node | undefined = undefined;
-  $copy_LocalsContainerBase(src: LocalsContainerBase): void {
+  $copy_ast_LocalsContainerBase(src: LocalsContainerBase): void {
     this.Locals = src.Locals;
     this.NextContainer = src.NextContainer;
   }
-  $clone_LocalsContainerBase(): LocalsContainerBase {
+  $clone_ast_LocalsContainerBase(): LocalsContainerBase {
     const o = new LocalsContainerBase();
-    o.$copy_LocalsContainerBase(this);
+    o.$copy_ast_LocalsContainerBase(this);
     return o;
   }
-  static $cast_LocalsContainerBase(v: $rt.GoObject | undefined): LocalsContainerBase {
+  static $cast_ast_LocalsContainerBase(v: $rt.GoObject | undefined): LocalsContainerBase {
     if (v instanceof LocalsContainerBase) return v;
     throw $rt.typeAssertError();
   }
@@ -7630,25 +7706,25 @@ export class FunctionLikeBase extends LocalsContainerBase {
   Parameters: NodeList | undefined = undefined;
   Type: Node | undefined = undefined;
   FullSignature: Node | undefined = undefined;
-  $copy_FunctionLikeBase(src: FunctionLikeBase): void {
-    this.$copy_LocalsContainerBase(src);
+  $copy_ast_FunctionLikeBase(src: FunctionLikeBase): void {
+    this.$copy_ast_LocalsContainerBase(src);
     this.TypeParameters = src.TypeParameters;
     this.Parameters = src.Parameters;
     this.Type = src.Type;
     this.FullSignature = src.FullSignature;
   }
-  $clone_FunctionLikeBase(): FunctionLikeBase {
+  $clone_ast_FunctionLikeBase(): FunctionLikeBase {
     const o = new FunctionLikeBase();
-    o.$copy_FunctionLikeBase(this);
+    o.$copy_ast_FunctionLikeBase(this);
     return o;
   }
-  static $cast_FunctionLikeBase(v: $rt.GoObject | undefined): FunctionLikeBase {
+  static $cast_ast_FunctionLikeBase(v: $rt.GoObject | undefined): FunctionLikeBase {
     if (v instanceof FunctionLikeBase) return v;
     throw $rt.typeAssertError();
   }
   LocalsContainerData$FunctionLikeBase(): LocalsContainerBase | undefined {
     const node = this;
-    return node;
+    return node!;
   }
   LocalsContainerData(): LocalsContainerBase | undefined {
     return this.LocalsContainerData$FunctionLikeBase();
@@ -7663,26 +7739,26 @@ export class FunctionLikeBase extends LocalsContainerBase {
 }
 export class FunctionLikeWithBodyBase extends FunctionLikeBase {
   BodyBase_: BodyBase = new BodyBase();
-  $copy_FunctionLikeWithBodyBase(src: FunctionLikeWithBodyBase): void {
-    this.$copy_FunctionLikeBase(src);
-    this.BodyBase_ = src.BodyBase_.$clone_BodyBase();
+  $copy_ast_FunctionLikeWithBodyBase(src: FunctionLikeWithBodyBase): void {
+    this.$copy_ast_FunctionLikeBase(src);
+    this.BodyBase_ = src.BodyBase_.$clone_ast_BodyBase();
   }
-  $clone_FunctionLikeWithBodyBase(): FunctionLikeWithBodyBase {
+  $clone_ast_FunctionLikeWithBodyBase(): FunctionLikeWithBodyBase {
     const o = new FunctionLikeWithBodyBase();
-    o.$copy_FunctionLikeWithBodyBase(this);
+    o.$copy_ast_FunctionLikeWithBodyBase(this);
     return o;
   }
-  static $cast_FunctionLikeWithBodyBase(v: $rt.GoObject | undefined): FunctionLikeWithBodyBase {
+  static $cast_ast_FunctionLikeWithBodyBase(v: $rt.GoObject | undefined): FunctionLikeWithBodyBase {
     if (v instanceof FunctionLikeWithBodyBase) return v;
     throw $rt.typeAssertError();
   }
   LocalsContainerData(): LocalsContainerBase | undefined {
     const node = this;
-    return node;
+    return node!;
   }
   FunctionLikeData(): FunctionLikeBase | undefined {
     const node = this;
-    return node;
+    return node!;
   }
   BodyData(): BodyBase | undefined {
     const node = this;
@@ -7690,15 +7766,15 @@ export class FunctionLikeWithBodyBase extends FunctionLikeBase {
   }
 }
 export class FunctionTypeNode extends FunctionOrConstructorTypeNodeBase {
-  $copy_FunctionTypeNode(src: FunctionTypeNode): void {
-    this.$copy_FunctionOrConstructorTypeNodeBase(src);
+  $copy_ast_FunctionTypeNode(src: FunctionTypeNode): void {
+    this.$copy_ast_FunctionOrConstructorTypeNodeBase(src);
   }
-  $clone_FunctionTypeNode(): FunctionTypeNode {
+  $clone_ast_FunctionTypeNode(): FunctionTypeNode {
     const o = new FunctionTypeNode();
-    o.$copy_FunctionTypeNode(this);
+    o.$copy_ast_FunctionTypeNode(this);
     return o;
   }
-  static $cast_FunctionTypeNode(v: $rt.GoObject | undefined): FunctionTypeNode {
+  static $cast_ast_FunctionTypeNode(v: $rt.GoObject | undefined): FunctionTypeNode {
     if (v instanceof FunctionTypeNode) return v;
     throw $rt.typeAssertError();
   }
@@ -7756,15 +7832,15 @@ export class FunctionTypeNode extends FunctionOrConstructorTypeNodeBase {
   }
 }
 export class GetAccessorDeclaration extends AccessorDeclarationBase {
-  $copy_GetAccessorDeclaration(src: GetAccessorDeclaration): void {
-    this.$copy_AccessorDeclarationBase(src);
+  $copy_ast_GetAccessorDeclaration(src: GetAccessorDeclaration): void {
+    this.$copy_ast_AccessorDeclarationBase(src);
   }
-  $clone_GetAccessorDeclaration(): GetAccessorDeclaration {
+  $clone_ast_GetAccessorDeclaration(): GetAccessorDeclaration {
     const o = new GetAccessorDeclaration();
-    o.$copy_GetAccessorDeclaration(this);
+    o.$copy_ast_GetAccessorDeclaration(this);
     return o;
   }
-  static $cast_GetAccessorDeclaration(v: $rt.GoObject | undefined): GetAccessorDeclaration {
+  static $cast_ast_GetAccessorDeclaration(v: $rt.GoObject | undefined): GetAccessorDeclaration {
     if (v instanceof GetAccessorDeclaration) return v;
     throw $rt.typeAssertError();
   }
@@ -7844,26 +7920,26 @@ export class HeritageClause extends NodeBase {
   CompositeBase_: CompositeBase = new CompositeBase();
   Token: Kind = 0;
   Types: NodeList | undefined = undefined;
-  $copy_HeritageClause(src: HeritageClause): void {
-    this.$copy_NodeBase(src);
-    this.CompositeBase_ = src.CompositeBase_.$clone_CompositeBase();
+  $copy_ast_HeritageClause(src: HeritageClause): void {
+    this.$copy_ast_NodeBase(src);
+    this.CompositeBase_ = src.CompositeBase_.$clone_ast_CompositeBase();
     this.Token = src.Token;
     this.Types = src.Types;
   }
-  $equals_HeritageClause(o: HeritageClause): boolean {
+  $equals_ast_HeritageClause(o: HeritageClause): boolean {
     return (
-      this.$equals_NodeBase(o) &&
-      this.CompositeBase_.$equals_CompositeBase(o.CompositeBase_) &&
+      this.$equals_ast_NodeBase(o) &&
+      this.CompositeBase_.$equals_ast_CompositeBase(o.CompositeBase_) &&
       this.Token === o.Token &&
       this.Types === o.Types
     );
   }
-  $clone_HeritageClause(): HeritageClause {
+  $clone_ast_HeritageClause(): HeritageClause {
     const o = new HeritageClause();
-    o.$copy_HeritageClause(this);
+    o.$copy_ast_HeritageClause(this);
     return o;
   }
-  static $cast_HeritageClause(v: $rt.GoObject | undefined): HeritageClause {
+  static $cast_ast_HeritageClause(v: $rt.GoObject | undefined): HeritageClause {
     if (v instanceof HeritageClause) return v;
     throw $rt.typeAssertError();
   }
@@ -7906,24 +7982,24 @@ export class HeritageClause extends NodeBase {
 export class Identifier extends PrimaryExpressionBase {
   FlowNodeBase_: FlowNodeBase = new FlowNodeBase();
   Text_: string = '';
-  $copy_Identifier(src: Identifier): void {
-    this.$copy_PrimaryExpressionBase(src);
-    this.FlowNodeBase_ = src.FlowNodeBase_.$clone_FlowNodeBase();
+  $copy_ast_Identifier(src: Identifier): void {
+    this.$copy_ast_PrimaryExpressionBase(src);
+    this.FlowNodeBase_ = src.FlowNodeBase_.$clone_ast_FlowNodeBase();
     this.Text_ = src.Text_;
   }
-  $equals_Identifier(o: Identifier): boolean {
+  $equals_ast_Identifier(o: Identifier): boolean {
     return (
-      this.$equals_PrimaryExpressionBase(o) &&
-      this.FlowNodeBase_.$equals_FlowNodeBase(o.FlowNodeBase_) &&
+      this.$equals_ast_PrimaryExpressionBase(o) &&
+      this.FlowNodeBase_.$equals_ast_FlowNodeBase(o.FlowNodeBase_) &&
       this.Text_ === o.Text_
     );
   }
-  $clone_Identifier(): Identifier {
+  $clone_ast_Identifier(): Identifier {
     const o = new Identifier();
-    o.$copy_Identifier(this);
+    o.$copy_ast_Identifier(this);
     return o;
   }
-  static $cast_Identifier(v: $rt.GoObject | undefined): Identifier {
+  static $cast_ast_Identifier(v: $rt.GoObject | undefined): Identifier {
     if (v instanceof Identifier) return v;
     throw $rt.typeAssertError();
   }
@@ -7944,28 +8020,28 @@ export class IfStatement extends StatementBase {
   Expression_: Node | undefined = undefined;
   ThenStatement: Node | undefined = undefined;
   ElseStatement: Node | undefined = undefined;
-  $copy_IfStatement(src: IfStatement): void {
-    this.$copy_StatementBase(src);
-    this.CompositeBase_ = src.CompositeBase_.$clone_CompositeBase();
+  $copy_ast_IfStatement(src: IfStatement): void {
+    this.$copy_ast_StatementBase(src);
+    this.CompositeBase_ = src.CompositeBase_.$clone_ast_CompositeBase();
     this.Expression_ = src.Expression_;
     this.ThenStatement = src.ThenStatement;
     this.ElseStatement = src.ElseStatement;
   }
-  $equals_IfStatement(o: IfStatement): boolean {
+  $equals_ast_IfStatement(o: IfStatement): boolean {
     return (
-      this.$equals_StatementBase(o) &&
-      this.CompositeBase_.$equals_CompositeBase(o.CompositeBase_) &&
+      this.$equals_ast_StatementBase(o) &&
+      this.CompositeBase_.$equals_ast_CompositeBase(o.CompositeBase_) &&
       this.Expression_ === o.Expression_ &&
       this.ThenStatement === o.ThenStatement &&
       this.ElseStatement === o.ElseStatement
     );
   }
-  $clone_IfStatement(): IfStatement {
+  $clone_ast_IfStatement(): IfStatement {
     const o = new IfStatement();
-    o.$copy_IfStatement(this);
+    o.$copy_ast_IfStatement(this);
     return o;
   }
-  static $cast_IfStatement(v: $rt.GoObject | undefined): IfStatement {
+  static $cast_ast_IfStatement(v: $rt.GoObject | undefined): IfStatement {
     if (v instanceof IfStatement) return v;
     throw $rt.typeAssertError();
   }
@@ -8009,26 +8085,26 @@ export class ImportAttribute extends NodeBase {
   CompositeBase_: CompositeBase = new CompositeBase();
   name: Node | undefined = undefined;
   Value: Node | undefined = undefined;
-  $copy_ImportAttribute(src: ImportAttribute): void {
-    this.$copy_NodeBase(src);
-    this.CompositeBase_ = src.CompositeBase_.$clone_CompositeBase();
+  $copy_ast_ImportAttribute(src: ImportAttribute): void {
+    this.$copy_ast_NodeBase(src);
+    this.CompositeBase_ = src.CompositeBase_.$clone_ast_CompositeBase();
     this.name = src.name;
     this.Value = src.Value;
   }
-  $equals_ImportAttribute(o: ImportAttribute): boolean {
+  $equals_ast_ImportAttribute(o: ImportAttribute): boolean {
     return (
-      this.$equals_NodeBase(o) &&
-      this.CompositeBase_.$equals_CompositeBase(o.CompositeBase_) &&
+      this.$equals_ast_NodeBase(o) &&
+      this.CompositeBase_.$equals_ast_CompositeBase(o.CompositeBase_) &&
       this.name === o.name &&
       this.Value === o.Value
     );
   }
-  $clone_ImportAttribute(): ImportAttribute {
+  $clone_ast_ImportAttribute(): ImportAttribute {
     const o = new ImportAttribute();
-    o.$copy_ImportAttribute(this);
+    o.$copy_ast_ImportAttribute(this);
     return o;
   }
-  static $cast_ImportAttribute(v: $rt.GoObject | undefined): ImportAttribute {
+  static $cast_ast_ImportAttribute(v: $rt.GoObject | undefined): ImportAttribute {
     if (v instanceof ImportAttribute) return v;
     throw $rt.typeAssertError();
   }
@@ -8065,28 +8141,28 @@ export class ImportAttributes extends NodeBase {
   Token: Kind = 0;
   Attributes_: NodeList | undefined = undefined;
   MultiLine: boolean = false;
-  $copy_ImportAttributes(src: ImportAttributes): void {
-    this.$copy_NodeBase(src);
-    this.CompositeBase_ = src.CompositeBase_.$clone_CompositeBase();
+  $copy_ast_ImportAttributes(src: ImportAttributes): void {
+    this.$copy_ast_NodeBase(src);
+    this.CompositeBase_ = src.CompositeBase_.$clone_ast_CompositeBase();
     this.Token = src.Token;
     this.Attributes_ = src.Attributes_;
     this.MultiLine = src.MultiLine;
   }
-  $equals_ImportAttributes(o: ImportAttributes): boolean {
+  $equals_ast_ImportAttributes(o: ImportAttributes): boolean {
     return (
-      this.$equals_NodeBase(o) &&
-      this.CompositeBase_.$equals_CompositeBase(o.CompositeBase_) &&
+      this.$equals_ast_NodeBase(o) &&
+      this.CompositeBase_.$equals_ast_CompositeBase(o.CompositeBase_) &&
       this.Token === o.Token &&
       this.Attributes_ === o.Attributes_ &&
       this.MultiLine === o.MultiLine
     );
   }
-  $clone_ImportAttributes(): ImportAttributes {
+  $clone_ast_ImportAttributes(): ImportAttributes {
     const o = new ImportAttributes();
-    o.$copy_ImportAttributes(this);
+    o.$copy_ast_ImportAttributes(this);
     return o;
   }
-  static $cast_ImportAttributes(v: $rt.GoObject | undefined): ImportAttributes {
+  static $cast_ast_ImportAttributes(v: $rt.GoObject | undefined): ImportAttributes {
     if (v instanceof ImportAttributes) return v;
     throw $rt.typeAssertError();
   }
@@ -8121,32 +8197,32 @@ export class ImportClause extends NodeBase {
   PhaseModifier: ImportPhaseModifierSyntaxKind = 0;
   name: Node | undefined = undefined;
   NamedBindings: Node | undefined = undefined;
-  $copy_ImportClause(src: ImportClause): void {
-    this.$copy_NodeBase(src);
-    this.DeclarationBase_ = src.DeclarationBase_.$clone_DeclarationBase();
-    this.ExportableBase_ = src.ExportableBase_.$clone_ExportableBase();
-    this.CompositeBase_ = src.CompositeBase_.$clone_CompositeBase();
+  $copy_ast_ImportClause(src: ImportClause): void {
+    this.$copy_ast_NodeBase(src);
+    this.DeclarationBase_ = src.DeclarationBase_.$clone_ast_DeclarationBase();
+    this.ExportableBase_ = src.ExportableBase_.$clone_ast_ExportableBase();
+    this.CompositeBase_ = src.CompositeBase_.$clone_ast_CompositeBase();
     this.PhaseModifier = src.PhaseModifier;
     this.name = src.name;
     this.NamedBindings = src.NamedBindings;
   }
-  $equals_ImportClause(o: ImportClause): boolean {
+  $equals_ast_ImportClause(o: ImportClause): boolean {
     return (
-      this.$equals_NodeBase(o) &&
-      this.DeclarationBase_.$equals_DeclarationBase(o.DeclarationBase_) &&
-      this.ExportableBase_.$equals_ExportableBase(o.ExportableBase_) &&
-      this.CompositeBase_.$equals_CompositeBase(o.CompositeBase_) &&
+      this.$equals_ast_NodeBase(o) &&
+      this.DeclarationBase_.$equals_ast_DeclarationBase(o.DeclarationBase_) &&
+      this.ExportableBase_.$equals_ast_ExportableBase(o.ExportableBase_) &&
+      this.CompositeBase_.$equals_ast_CompositeBase(o.CompositeBase_) &&
       this.PhaseModifier === o.PhaseModifier &&
       this.name === o.name &&
       this.NamedBindings === o.NamedBindings
     );
   }
-  $clone_ImportClause(): ImportClause {
+  $clone_ast_ImportClause(): ImportClause {
     const o = new ImportClause();
-    o.$copy_ImportClause(this);
+    o.$copy_ast_ImportClause(this);
     return o;
   }
-  static $cast_ImportClause(v: $rt.GoObject | undefined): ImportClause {
+  static $cast_ast_ImportClause(v: $rt.GoObject | undefined): ImportClause {
     if (v instanceof ImportClause) return v;
     throw $rt.typeAssertError();
   }
@@ -8200,32 +8276,32 @@ export class ImportDeclaration extends StatementBase {
   ImportClause_: Node | undefined = undefined;
   ModuleSpecifier_: Node | undefined = undefined;
   Attributes_: Node | undefined = undefined;
-  $copy_ImportDeclaration(src: ImportDeclaration): void {
-    this.$copy_StatementBase(src);
-    this.ModifiersBase_ = src.ModifiersBase_.$clone_ModifiersBase();
-    this.CompositeBase_ = src.CompositeBase_.$clone_CompositeBase();
-    this.DeclarationBase_ = src.DeclarationBase_.$clone_DeclarationBase();
+  $copy_ast_ImportDeclaration(src: ImportDeclaration): void {
+    this.$copy_ast_StatementBase(src);
+    this.ModifiersBase_ = src.ModifiersBase_.$clone_ast_ModifiersBase();
+    this.CompositeBase_ = src.CompositeBase_.$clone_ast_CompositeBase();
+    this.DeclarationBase_ = src.DeclarationBase_.$clone_ast_DeclarationBase();
     this.ImportClause_ = src.ImportClause_;
     this.ModuleSpecifier_ = src.ModuleSpecifier_;
     this.Attributes_ = src.Attributes_;
   }
-  $equals_ImportDeclaration(o: ImportDeclaration): boolean {
+  $equals_ast_ImportDeclaration(o: ImportDeclaration): boolean {
     return (
-      this.$equals_StatementBase(o) &&
-      this.ModifiersBase_.$equals_ModifiersBase(o.ModifiersBase_) &&
-      this.CompositeBase_.$equals_CompositeBase(o.CompositeBase_) &&
-      this.DeclarationBase_.$equals_DeclarationBase(o.DeclarationBase_) &&
+      this.$equals_ast_StatementBase(o) &&
+      this.ModifiersBase_.$equals_ast_ModifiersBase(o.ModifiersBase_) &&
+      this.CompositeBase_.$equals_ast_CompositeBase(o.CompositeBase_) &&
+      this.DeclarationBase_.$equals_ast_DeclarationBase(o.DeclarationBase_) &&
       this.ImportClause_ === o.ImportClause_ &&
       this.ModuleSpecifier_ === o.ModuleSpecifier_ &&
       this.Attributes_ === o.Attributes_
     );
   }
-  $clone_ImportDeclaration(): ImportDeclaration {
+  $clone_ast_ImportDeclaration(): ImportDeclaration {
     const o = new ImportDeclaration();
-    o.$copy_ImportDeclaration(this);
+    o.$copy_ast_ImportDeclaration(this);
     return o;
   }
-  static $cast_ImportDeclaration(v: $rt.GoObject | undefined): ImportDeclaration {
+  static $cast_ast_ImportDeclaration(v: $rt.GoObject | undefined): ImportDeclaration {
     if (v instanceof ImportDeclaration) return v;
     throw $rt.typeAssertError();
   }
@@ -8324,34 +8400,34 @@ export class ImportEqualsDeclaration extends StatementBase {
   IsTypeOnly_: boolean = false;
   name: Node | undefined = undefined;
   ModuleReference: Node | undefined = undefined;
-  $copy_ImportEqualsDeclaration(src: ImportEqualsDeclaration): void {
-    this.$copy_StatementBase(src);
-    this.DeclarationBase_ = src.DeclarationBase_.$clone_DeclarationBase();
-    this.ExportableBase_ = src.ExportableBase_.$clone_ExportableBase();
-    this.ModifiersBase_ = src.ModifiersBase_.$clone_ModifiersBase();
-    this.CompositeBase_ = src.CompositeBase_.$clone_CompositeBase();
+  $copy_ast_ImportEqualsDeclaration(src: ImportEqualsDeclaration): void {
+    this.$copy_ast_StatementBase(src);
+    this.DeclarationBase_ = src.DeclarationBase_.$clone_ast_DeclarationBase();
+    this.ExportableBase_ = src.ExportableBase_.$clone_ast_ExportableBase();
+    this.ModifiersBase_ = src.ModifiersBase_.$clone_ast_ModifiersBase();
+    this.CompositeBase_ = src.CompositeBase_.$clone_ast_CompositeBase();
     this.IsTypeOnly_ = src.IsTypeOnly_;
     this.name = src.name;
     this.ModuleReference = src.ModuleReference;
   }
-  $equals_ImportEqualsDeclaration(o: ImportEqualsDeclaration): boolean {
+  $equals_ast_ImportEqualsDeclaration(o: ImportEqualsDeclaration): boolean {
     return (
-      this.$equals_StatementBase(o) &&
-      this.DeclarationBase_.$equals_DeclarationBase(o.DeclarationBase_) &&
-      this.ExportableBase_.$equals_ExportableBase(o.ExportableBase_) &&
-      this.ModifiersBase_.$equals_ModifiersBase(o.ModifiersBase_) &&
-      this.CompositeBase_.$equals_CompositeBase(o.CompositeBase_) &&
+      this.$equals_ast_StatementBase(o) &&
+      this.DeclarationBase_.$equals_ast_DeclarationBase(o.DeclarationBase_) &&
+      this.ExportableBase_.$equals_ast_ExportableBase(o.ExportableBase_) &&
+      this.ModifiersBase_.$equals_ast_ModifiersBase(o.ModifiersBase_) &&
+      this.CompositeBase_.$equals_ast_CompositeBase(o.CompositeBase_) &&
       this.IsTypeOnly_ === o.IsTypeOnly_ &&
       this.name === o.name &&
       this.ModuleReference === o.ModuleReference
     );
   }
-  $clone_ImportEqualsDeclaration(): ImportEqualsDeclaration {
+  $clone_ast_ImportEqualsDeclaration(): ImportEqualsDeclaration {
     const o = new ImportEqualsDeclaration();
-    o.$copy_ImportEqualsDeclaration(this);
+    o.$copy_ast_ImportEqualsDeclaration(this);
     return o;
   }
-  static $cast_ImportEqualsDeclaration(v: $rt.GoObject | undefined): ImportEqualsDeclaration {
+  static $cast_ast_ImportEqualsDeclaration(v: $rt.GoObject | undefined): ImportEqualsDeclaration {
     if (v instanceof ImportEqualsDeclaration) return v;
     throw $rt.typeAssertError();
   }
@@ -8427,32 +8503,32 @@ export class ImportSpecifier extends NodeBase {
   IsTypeOnly_: boolean = false;
   PropertyName_: Node | undefined = undefined;
   name: Node | undefined = undefined;
-  $copy_ImportSpecifier(src: ImportSpecifier): void {
-    this.$copy_NodeBase(src);
-    this.DeclarationBase_ = src.DeclarationBase_.$clone_DeclarationBase();
-    this.ExportableBase_ = src.ExportableBase_.$clone_ExportableBase();
-    this.CompositeBase_ = src.CompositeBase_.$clone_CompositeBase();
+  $copy_ast_ImportSpecifier(src: ImportSpecifier): void {
+    this.$copy_ast_NodeBase(src);
+    this.DeclarationBase_ = src.DeclarationBase_.$clone_ast_DeclarationBase();
+    this.ExportableBase_ = src.ExportableBase_.$clone_ast_ExportableBase();
+    this.CompositeBase_ = src.CompositeBase_.$clone_ast_CompositeBase();
     this.IsTypeOnly_ = src.IsTypeOnly_;
     this.PropertyName_ = src.PropertyName_;
     this.name = src.name;
   }
-  $equals_ImportSpecifier(o: ImportSpecifier): boolean {
+  $equals_ast_ImportSpecifier(o: ImportSpecifier): boolean {
     return (
-      this.$equals_NodeBase(o) &&
-      this.DeclarationBase_.$equals_DeclarationBase(o.DeclarationBase_) &&
-      this.ExportableBase_.$equals_ExportableBase(o.ExportableBase_) &&
-      this.CompositeBase_.$equals_CompositeBase(o.CompositeBase_) &&
+      this.$equals_ast_NodeBase(o) &&
+      this.DeclarationBase_.$equals_ast_DeclarationBase(o.DeclarationBase_) &&
+      this.ExportableBase_.$equals_ast_ExportableBase(o.ExportableBase_) &&
+      this.CompositeBase_.$equals_ast_CompositeBase(o.CompositeBase_) &&
       this.IsTypeOnly_ === o.IsTypeOnly_ &&
       this.PropertyName_ === o.PropertyName_ &&
       this.name === o.name
     );
   }
-  $clone_ImportSpecifier(): ImportSpecifier {
+  $clone_ast_ImportSpecifier(): ImportSpecifier {
     const o = new ImportSpecifier();
-    o.$copy_ImportSpecifier(this);
+    o.$copy_ast_ImportSpecifier(this);
     return o;
   }
-  static $cast_ImportSpecifier(v: $rt.GoObject | undefined): ImportSpecifier {
+  static $cast_ast_ImportSpecifier(v: $rt.GoObject | undefined): ImportSpecifier {
     if (v instanceof ImportSpecifier) return v;
     throw $rt.typeAssertError();
   }
@@ -8501,19 +8577,19 @@ export class ImportSpecifier extends NodeBase {
 }
 export class NodeWithTypeArgumentsBase extends TypeNodeBase {
   TypeArguments_: NodeList | undefined = undefined;
-  $copy_NodeWithTypeArgumentsBase(src: NodeWithTypeArgumentsBase): void {
-    this.$copy_TypeNodeBase(src);
+  $copy_ast_NodeWithTypeArgumentsBase(src: NodeWithTypeArgumentsBase): void {
+    this.$copy_ast_TypeNodeBase(src);
     this.TypeArguments_ = src.TypeArguments_;
   }
-  $equals_NodeWithTypeArgumentsBase(o: NodeWithTypeArgumentsBase): boolean {
-    return this.$equals_TypeNodeBase(o) && this.TypeArguments_ === o.TypeArguments_;
+  $equals_ast_NodeWithTypeArgumentsBase(o: NodeWithTypeArgumentsBase): boolean {
+    return this.$equals_ast_TypeNodeBase(o) && this.TypeArguments_ === o.TypeArguments_;
   }
-  $clone_NodeWithTypeArgumentsBase(): NodeWithTypeArgumentsBase {
+  $clone_ast_NodeWithTypeArgumentsBase(): NodeWithTypeArgumentsBase {
     const o = new NodeWithTypeArgumentsBase();
-    o.$copy_NodeWithTypeArgumentsBase(this);
+    o.$copy_ast_NodeWithTypeArgumentsBase(this);
     return o;
   }
-  static $cast_NodeWithTypeArgumentsBase(v: $rt.GoObject | undefined): NodeWithTypeArgumentsBase {
+  static $cast_ast_NodeWithTypeArgumentsBase(v: $rt.GoObject | undefined): NodeWithTypeArgumentsBase {
     if (v instanceof NodeWithTypeArgumentsBase) return v;
     throw $rt.typeAssertError();
   }
@@ -8529,28 +8605,28 @@ export class ImportTypeNode extends NodeWithTypeArgumentsBase {
   Argument: Node | undefined = undefined;
   Attributes_: Node | undefined = undefined;
   Qualifier: Node | undefined = undefined;
-  $copy_ImportTypeNode(src: ImportTypeNode): void {
-    this.$copy_NodeWithTypeArgumentsBase(src);
+  $copy_ast_ImportTypeNode(src: ImportTypeNode): void {
+    this.$copy_ast_NodeWithTypeArgumentsBase(src);
     this.IsTypeOf = src.IsTypeOf;
     this.Argument = src.Argument;
     this.Attributes_ = src.Attributes_;
     this.Qualifier = src.Qualifier;
   }
-  $equals_ImportTypeNode(o: ImportTypeNode): boolean {
+  $equals_ast_ImportTypeNode(o: ImportTypeNode): boolean {
     return (
-      this.$equals_NodeWithTypeArgumentsBase(o) &&
+      this.$equals_ast_NodeWithTypeArgumentsBase(o) &&
       this.IsTypeOf === o.IsTypeOf &&
       this.Argument === o.Argument &&
       this.Attributes_ === o.Attributes_ &&
       this.Qualifier === o.Qualifier
     );
   }
-  $clone_ImportTypeNode(): ImportTypeNode {
+  $clone_ast_ImportTypeNode(): ImportTypeNode {
     const o = new ImportTypeNode();
-    o.$copy_ImportTypeNode(this);
+    o.$copy_ast_ImportTypeNode(this);
     return o;
   }
-  static $cast_ImportTypeNode(v: $rt.GoObject | undefined): ImportTypeNode {
+  static $cast_ast_ImportTypeNode(v: $rt.GoObject | undefined): ImportTypeNode {
     if (v instanceof ImportTypeNode) return v;
     throw $rt.typeAssertError();
   }
@@ -8598,21 +8674,21 @@ export class IndexSignatureDeclaration extends NodeBase {
   DeclarationBase_: DeclarationBase = new DeclarationBase();
   ModifiersBase_: ModifiersBase = new ModifiersBase();
   FunctionLikeBase_: FunctionLikeBase = new FunctionLikeBase();
-  $copy_IndexSignatureDeclaration(src: IndexSignatureDeclaration): void {
-    this.$copy_NodeBase(src);
+  $copy_ast_IndexSignatureDeclaration(src: IndexSignatureDeclaration): void {
+    this.$copy_ast_NodeBase(src);
     this.TypeElementBase_ = src.TypeElementBase_;
     this.ClassElementBase_ = src.ClassElementBase_;
     this.TypeSyntaxBase_ = src.TypeSyntaxBase_;
-    this.DeclarationBase_ = src.DeclarationBase_.$clone_DeclarationBase();
-    this.ModifiersBase_ = src.ModifiersBase_.$clone_ModifiersBase();
-    this.FunctionLikeBase_ = src.FunctionLikeBase_.$clone_FunctionLikeBase();
+    this.DeclarationBase_ = src.DeclarationBase_.$clone_ast_DeclarationBase();
+    this.ModifiersBase_ = src.ModifiersBase_.$clone_ast_ModifiersBase();
+    this.FunctionLikeBase_ = src.FunctionLikeBase_.$clone_ast_FunctionLikeBase();
   }
-  $clone_IndexSignatureDeclaration(): IndexSignatureDeclaration {
+  $clone_ast_IndexSignatureDeclaration(): IndexSignatureDeclaration {
     const o = new IndexSignatureDeclaration();
-    o.$copy_IndexSignatureDeclaration(this);
+    o.$copy_ast_IndexSignatureDeclaration(this);
     return o;
   }
-  static $cast_IndexSignatureDeclaration(v: $rt.GoObject | undefined): IndexSignatureDeclaration {
+  static $cast_ast_IndexSignatureDeclaration(v: $rt.GoObject | undefined): IndexSignatureDeclaration {
     if (v instanceof IndexSignatureDeclaration) return v;
     throw $rt.typeAssertError();
   }
@@ -8672,20 +8748,20 @@ export class IndexSignatureDeclaration extends NodeBase {
 export class IndexedAccessTypeNode extends TypeNodeBase {
   ObjectType: Node | undefined = undefined;
   IndexType: Node | undefined = undefined;
-  $copy_IndexedAccessTypeNode(src: IndexedAccessTypeNode): void {
-    this.$copy_TypeNodeBase(src);
+  $copy_ast_IndexedAccessTypeNode(src: IndexedAccessTypeNode): void {
+    this.$copy_ast_TypeNodeBase(src);
     this.ObjectType = src.ObjectType;
     this.IndexType = src.IndexType;
   }
-  $equals_IndexedAccessTypeNode(o: IndexedAccessTypeNode): boolean {
-    return this.$equals_TypeNodeBase(o) && this.ObjectType === o.ObjectType && this.IndexType === o.IndexType;
+  $equals_ast_IndexedAccessTypeNode(o: IndexedAccessTypeNode): boolean {
+    return this.$equals_ast_TypeNodeBase(o) && this.ObjectType === o.ObjectType && this.IndexType === o.IndexType;
   }
-  $clone_IndexedAccessTypeNode(): IndexedAccessTypeNode {
+  $clone_ast_IndexedAccessTypeNode(): IndexedAccessTypeNode {
     const o = new IndexedAccessTypeNode();
-    o.$copy_IndexedAccessTypeNode(this);
+    o.$copy_ast_IndexedAccessTypeNode(this);
     return o;
   }
-  static $cast_IndexedAccessTypeNode(v: $rt.GoObject | undefined): IndexedAccessTypeNode {
+  static $cast_ast_IndexedAccessTypeNode(v: $rt.GoObject | undefined): IndexedAccessTypeNode {
     if (v instanceof IndexedAccessTypeNode) return v;
     throw $rt.typeAssertError();
   }
@@ -8714,19 +8790,19 @@ export class IndexedAccessTypeNode extends TypeNodeBase {
 }
 export class InferTypeNode extends TypeNodeBase {
   TypeParameter: Node | undefined = undefined;
-  $copy_InferTypeNode(src: InferTypeNode): void {
-    this.$copy_TypeNodeBase(src);
+  $copy_ast_InferTypeNode(src: InferTypeNode): void {
+    this.$copy_ast_TypeNodeBase(src);
     this.TypeParameter = src.TypeParameter;
   }
-  $equals_InferTypeNode(o: InferTypeNode): boolean {
-    return this.$equals_TypeNodeBase(o) && this.TypeParameter === o.TypeParameter;
+  $equals_ast_InferTypeNode(o: InferTypeNode): boolean {
+    return this.$equals_ast_TypeNodeBase(o) && this.TypeParameter === o.TypeParameter;
   }
-  $clone_InferTypeNode(): InferTypeNode {
+  $clone_ast_InferTypeNode(): InferTypeNode {
     const o = new InferTypeNode();
-    o.$copy_InferTypeNode(this);
+    o.$copy_ast_InferTypeNode(this);
     return o;
   }
-  static $cast_InferTypeNode(v: $rt.GoObject | undefined): InferTypeNode {
+  static $cast_ast_InferTypeNode(v: $rt.GoObject | undefined): InferTypeNode {
     if (v instanceof InferTypeNode) return v;
     throw $rt.typeAssertError();
   }
@@ -8762,36 +8838,36 @@ export class InterfaceDeclaration extends StatementBase {
   TypeParameters_: NodeList | undefined = undefined;
   HeritageClauses: NodeList | undefined = undefined;
   Members_: NodeList | undefined = undefined;
-  $copy_InterfaceDeclaration(src: InterfaceDeclaration): void {
-    this.$copy_StatementBase(src);
+  $copy_ast_InterfaceDeclaration(src: InterfaceDeclaration): void {
+    this.$copy_ast_StatementBase(src);
     this.TypeSyntaxBase_ = src.TypeSyntaxBase_;
-    this.DeclarationBase_ = src.DeclarationBase_.$clone_DeclarationBase();
-    this.ExportableBase_ = src.ExportableBase_.$clone_ExportableBase();
-    this.ModifiersBase_ = src.ModifiersBase_.$clone_ModifiersBase();
+    this.DeclarationBase_ = src.DeclarationBase_.$clone_ast_DeclarationBase();
+    this.ExportableBase_ = src.ExportableBase_.$clone_ast_ExportableBase();
+    this.ModifiersBase_ = src.ModifiersBase_.$clone_ast_ModifiersBase();
     this.name = src.name;
     this.TypeParameters_ = src.TypeParameters_;
     this.HeritageClauses = src.HeritageClauses;
     this.Members_ = src.Members_;
   }
-  $equals_InterfaceDeclaration(o: InterfaceDeclaration): boolean {
+  $equals_ast_InterfaceDeclaration(o: InterfaceDeclaration): boolean {
     return (
-      this.$equals_StatementBase(o) &&
-      this.TypeSyntaxBase_.$equals_TypeSyntaxBase(o.TypeSyntaxBase_) &&
-      this.DeclarationBase_.$equals_DeclarationBase(o.DeclarationBase_) &&
-      this.ExportableBase_.$equals_ExportableBase(o.ExportableBase_) &&
-      this.ModifiersBase_.$equals_ModifiersBase(o.ModifiersBase_) &&
+      this.$equals_ast_StatementBase(o) &&
+      this.TypeSyntaxBase_.$equals_ast_TypeSyntaxBase(o.TypeSyntaxBase_) &&
+      this.DeclarationBase_.$equals_ast_DeclarationBase(o.DeclarationBase_) &&
+      this.ExportableBase_.$equals_ast_ExportableBase(o.ExportableBase_) &&
+      this.ModifiersBase_.$equals_ast_ModifiersBase(o.ModifiersBase_) &&
       this.name === o.name &&
       this.TypeParameters_ === o.TypeParameters_ &&
       this.HeritageClauses === o.HeritageClauses &&
       this.Members_ === o.Members_
     );
   }
-  $clone_InterfaceDeclaration(): InterfaceDeclaration {
+  $clone_ast_InterfaceDeclaration(): InterfaceDeclaration {
     const o = new InterfaceDeclaration();
-    o.$copy_InterfaceDeclaration(this);
+    o.$copy_ast_InterfaceDeclaration(this);
     return o;
   }
-  static $cast_InterfaceDeclaration(v: $rt.GoObject | undefined): InterfaceDeclaration {
+  static $cast_ast_InterfaceDeclaration(v: $rt.GoObject | undefined): InterfaceDeclaration {
     if (v instanceof InterfaceDeclaration) return v;
     throw $rt.typeAssertError();
   }
@@ -8860,19 +8936,19 @@ export class InterfaceDeclaration extends StatementBase {
 }
 export class UnionOrIntersectionTypeNodeBase extends TypeNodeBase {
   Types: NodeList | undefined = undefined;
-  $copy_UnionOrIntersectionTypeNodeBase(src: UnionOrIntersectionTypeNodeBase): void {
-    this.$copy_TypeNodeBase(src);
+  $copy_ast_UnionOrIntersectionTypeNodeBase(src: UnionOrIntersectionTypeNodeBase): void {
+    this.$copy_ast_TypeNodeBase(src);
     this.Types = src.Types;
   }
-  $equals_UnionOrIntersectionTypeNodeBase(o: UnionOrIntersectionTypeNodeBase): boolean {
-    return this.$equals_TypeNodeBase(o) && this.Types === o.Types;
+  $equals_ast_UnionOrIntersectionTypeNodeBase(o: UnionOrIntersectionTypeNodeBase): boolean {
+    return this.$equals_ast_TypeNodeBase(o) && this.Types === o.Types;
   }
-  $clone_UnionOrIntersectionTypeNodeBase(): UnionOrIntersectionTypeNodeBase {
+  $clone_ast_UnionOrIntersectionTypeNodeBase(): UnionOrIntersectionTypeNodeBase {
     const o = new UnionOrIntersectionTypeNodeBase();
-    o.$copy_UnionOrIntersectionTypeNodeBase(this);
+    o.$copy_ast_UnionOrIntersectionTypeNodeBase(this);
     return o;
   }
-  static $cast_UnionOrIntersectionTypeNodeBase(v: $rt.GoObject | undefined): UnionOrIntersectionTypeNodeBase {
+  static $cast_ast_UnionOrIntersectionTypeNodeBase(v: $rt.GoObject | undefined): UnionOrIntersectionTypeNodeBase {
     if (v instanceof UnionOrIntersectionTypeNodeBase) return v;
     throw $rt.typeAssertError();
   }
@@ -8884,18 +8960,18 @@ export class UnionOrIntersectionTypeNodeBase extends TypeNodeBase {
   }
 }
 export class IntersectionTypeNode extends UnionOrIntersectionTypeNodeBase {
-  $copy_IntersectionTypeNode(src: IntersectionTypeNode): void {
-    this.$copy_UnionOrIntersectionTypeNodeBase(src);
+  $copy_ast_IntersectionTypeNode(src: IntersectionTypeNode): void {
+    this.$copy_ast_UnionOrIntersectionTypeNodeBase(src);
   }
-  $equals_IntersectionTypeNode(o: IntersectionTypeNode): boolean {
-    return this.$equals_UnionOrIntersectionTypeNodeBase(o);
+  $equals_ast_IntersectionTypeNode(o: IntersectionTypeNode): boolean {
+    return this.$equals_ast_UnionOrIntersectionTypeNodeBase(o);
   }
-  $clone_IntersectionTypeNode(): IntersectionTypeNode {
+  $clone_ast_IntersectionTypeNode(): IntersectionTypeNode {
     const o = new IntersectionTypeNode();
-    o.$copy_IntersectionTypeNode(this);
+    o.$copy_ast_IntersectionTypeNode(this);
     return o;
   }
-  static $cast_IntersectionTypeNode(v: $rt.GoObject | undefined): IntersectionTypeNode {
+  static $cast_ast_IntersectionTypeNode(v: $rt.GoObject | undefined): IntersectionTypeNode {
     if (v instanceof IntersectionTypeNode) return v;
     throw $rt.typeAssertError();
   }
@@ -8925,20 +9001,20 @@ export class IntersectionTypeNode extends UnionOrIntersectionTypeNodeBase {
 export class JSDoc extends NodeBase {
   Comment: NodeList | undefined = undefined;
   Tags: NodeList | undefined = undefined;
-  $copy_JSDoc(src: JSDoc): void {
-    this.$copy_NodeBase(src);
+  $copy_ast_JSDoc(src: JSDoc): void {
+    this.$copy_ast_NodeBase(src);
     this.Comment = src.Comment;
     this.Tags = src.Tags;
   }
-  $equals_JSDoc(o: JSDoc): boolean {
-    return this.$equals_NodeBase(o) && this.Comment === o.Comment && this.Tags === o.Tags;
+  $equals_ast_JSDoc(o: JSDoc): boolean {
+    return this.$equals_ast_NodeBase(o) && this.Comment === o.Comment && this.Tags === o.Tags;
   }
-  $clone_JSDoc(): JSDoc {
+  $clone_ast_JSDoc(): JSDoc {
     const o = new JSDoc();
-    o.$copy_JSDoc(this);
+    o.$copy_ast_JSDoc(this);
     return o;
   }
-  static $cast_JSDoc(v: $rt.GoObject | undefined): JSDoc {
+  static $cast_ast_JSDoc(v: $rt.GoObject | undefined): JSDoc {
     if (v instanceof JSDoc) return v;
     throw $rt.typeAssertError();
   }
@@ -8960,18 +9036,18 @@ export class JSDoc extends NodeBase {
   }
 }
 export class JSDocTypeBase extends TypeNodeBase {
-  $copy_JSDocTypeBase(src: JSDocTypeBase): void {
-    this.$copy_TypeNodeBase(src);
+  $copy_ast_JSDocTypeBase(src: JSDocTypeBase): void {
+    this.$copy_ast_TypeNodeBase(src);
   }
-  $equals_JSDocTypeBase(o: JSDocTypeBase): boolean {
-    return this.$equals_TypeNodeBase(o);
+  $equals_ast_JSDocTypeBase(o: JSDocTypeBase): boolean {
+    return this.$equals_ast_TypeNodeBase(o);
   }
-  $clone_JSDocTypeBase(): JSDocTypeBase {
+  $clone_ast_JSDocTypeBase(): JSDocTypeBase {
     const o = new JSDocTypeBase();
-    o.$copy_JSDocTypeBase(this);
+    o.$copy_ast_JSDocTypeBase(this);
     return o;
   }
-  static $cast_JSDocTypeBase(v: $rt.GoObject | undefined): JSDocTypeBase {
+  static $cast_ast_JSDocTypeBase(v: $rt.GoObject | undefined): JSDocTypeBase {
     if (v instanceof JSDocTypeBase) return v;
     throw $rt.typeAssertError();
   }
@@ -8983,18 +9059,18 @@ export class JSDocTypeBase extends TypeNodeBase {
   }
 }
 export class JSDocAllType extends JSDocTypeBase {
-  $copy_JSDocAllType(src: JSDocAllType): void {
-    this.$copy_JSDocTypeBase(src);
+  $copy_ast_JSDocAllType(src: JSDocAllType): void {
+    this.$copy_ast_JSDocTypeBase(src);
   }
-  $equals_JSDocAllType(o: JSDocAllType): boolean {
-    return this.$equals_JSDocTypeBase(o);
+  $equals_ast_JSDocAllType(o: JSDocAllType): boolean {
+    return this.$equals_ast_JSDocTypeBase(o);
   }
-  $clone_JSDocAllType(): JSDocAllType {
+  $clone_ast_JSDocAllType(): JSDocAllType {
     const o = new JSDocAllType();
-    o.$copy_JSDocAllType(this);
+    o.$copy_ast_JSDocAllType(this);
     return o;
   }
-  static $cast_JSDocAllType(v: $rt.GoObject | undefined): JSDocAllType {
+  static $cast_ast_JSDocAllType(v: $rt.GoObject | undefined): JSDocAllType {
     if (v instanceof JSDocAllType) return v;
     throw $rt.typeAssertError();
   }
@@ -9012,39 +9088,39 @@ export class JSDocAllType extends JSDocTypeBase {
 export class JSDocTagBase extends NodeBase {
   TagName_: Node | undefined = undefined;
   Comment: NodeList | undefined = undefined;
-  $copy_JSDocTagBase(src: JSDocTagBase): void {
-    this.$copy_NodeBase(src);
+  $copy_ast_JSDocTagBase(src: JSDocTagBase): void {
+    this.$copy_ast_NodeBase(src);
     this.TagName_ = src.TagName_;
     this.Comment = src.Comment;
   }
-  $equals_JSDocTagBase(o: JSDocTagBase): boolean {
-    return this.$equals_NodeBase(o) && this.TagName_ === o.TagName_ && this.Comment === o.Comment;
+  $equals_ast_JSDocTagBase(o: JSDocTagBase): boolean {
+    return this.$equals_ast_NodeBase(o) && this.TagName_ === o.TagName_ && this.Comment === o.Comment;
   }
-  $clone_JSDocTagBase(): JSDocTagBase {
+  $clone_ast_JSDocTagBase(): JSDocTagBase {
     const o = new JSDocTagBase();
-    o.$copy_JSDocTagBase(this);
+    o.$copy_ast_JSDocTagBase(this);
     return o;
   }
-  static $cast_JSDocTagBase(v: $rt.GoObject | undefined): JSDocTagBase {
+  static $cast_ast_JSDocTagBase(v: $rt.GoObject | undefined): JSDocTagBase {
     if (v instanceof JSDocTagBase) return v;
     throw $rt.typeAssertError();
   }
 }
 export class JSDocAugmentsTag extends JSDocTagBase {
   ClassName_: Node | undefined = undefined;
-  $copy_JSDocAugmentsTag(src: JSDocAugmentsTag): void {
-    this.$copy_JSDocTagBase(src);
+  $copy_ast_JSDocAugmentsTag(src: JSDocAugmentsTag): void {
+    this.$copy_ast_JSDocTagBase(src);
     this.ClassName_ = src.ClassName_;
   }
-  $equals_JSDocAugmentsTag(o: JSDocAugmentsTag): boolean {
-    return this.$equals_JSDocTagBase(o) && this.ClassName_ === o.ClassName_;
+  $equals_ast_JSDocAugmentsTag(o: JSDocAugmentsTag): boolean {
+    return this.$equals_ast_JSDocTagBase(o) && this.ClassName_ === o.ClassName_;
   }
-  $clone_JSDocAugmentsTag(): JSDocAugmentsTag {
+  $clone_ast_JSDocAugmentsTag(): JSDocAugmentsTag {
     const o = new JSDocAugmentsTag();
-    o.$copy_JSDocAugmentsTag(this);
+    o.$copy_ast_JSDocAugmentsTag(this);
     return o;
   }
-  static $cast_JSDocAugmentsTag(v: $rt.GoObject | undefined): JSDocAugmentsTag {
+  static $cast_ast_JSDocAugmentsTag(v: $rt.GoObject | undefined): JSDocAugmentsTag {
     if (v instanceof JSDocAugmentsTag) return v;
     throw $rt.typeAssertError();
   }
@@ -9073,20 +9149,20 @@ export class JSDocAugmentsTag extends JSDocTagBase {
 export class JSDocCallbackTag extends JSDocTagBase {
   TypeExpression_: Node | undefined = undefined;
   name: Node | undefined = undefined;
-  $copy_JSDocCallbackTag(src: JSDocCallbackTag): void {
-    this.$copy_JSDocTagBase(src);
+  $copy_ast_JSDocCallbackTag(src: JSDocCallbackTag): void {
+    this.$copy_ast_JSDocTagBase(src);
     this.TypeExpression_ = src.TypeExpression_;
     this.name = src.name;
   }
-  $equals_JSDocCallbackTag(o: JSDocCallbackTag): boolean {
-    return this.$equals_JSDocTagBase(o) && this.TypeExpression_ === o.TypeExpression_ && this.name === o.name;
+  $equals_ast_JSDocCallbackTag(o: JSDocCallbackTag): boolean {
+    return this.$equals_ast_JSDocTagBase(o) && this.TypeExpression_ === o.TypeExpression_ && this.name === o.name;
   }
-  $clone_JSDocCallbackTag(): JSDocCallbackTag {
+  $clone_ast_JSDocCallbackTag(): JSDocCallbackTag {
     const o = new JSDocCallbackTag();
-    o.$copy_JSDocCallbackTag(this);
+    o.$copy_ast_JSDocCallbackTag(this);
     return o;
   }
-  static $cast_JSDocCallbackTag(v: $rt.GoObject | undefined): JSDocCallbackTag {
+  static $cast_ast_JSDocCallbackTag(v: $rt.GoObject | undefined): JSDocCallbackTag {
     if (v instanceof JSDocCallbackTag) return v;
     throw $rt.typeAssertError();
   }
@@ -9124,33 +9200,33 @@ export class JSDocCallbackTag extends JSDocTagBase {
 }
 export class JSDocCommentBase extends NodeBase {
   text: string[] = [];
-  $copy_JSDocCommentBase(src: JSDocCommentBase): void {
-    this.$copy_NodeBase(src);
+  $copy_ast_JSDocCommentBase(src: JSDocCommentBase): void {
+    this.$copy_ast_NodeBase(src);
     this.text = src.text;
   }
-  $clone_JSDocCommentBase(): JSDocCommentBase {
+  $clone_ast_JSDocCommentBase(): JSDocCommentBase {
     const o = new JSDocCommentBase();
-    o.$copy_JSDocCommentBase(this);
+    o.$copy_ast_JSDocCommentBase(this);
     return o;
   }
-  static $cast_JSDocCommentBase(v: $rt.GoObject | undefined): JSDocCommentBase {
+  static $cast_ast_JSDocCommentBase(v: $rt.GoObject | undefined): JSDocCommentBase {
     if (v instanceof JSDocCommentBase) return v;
     throw $rt.typeAssertError();
   }
 }
 export class JSDocDeprecatedTag extends JSDocTagBase {
-  $copy_JSDocDeprecatedTag(src: JSDocDeprecatedTag): void {
-    this.$copy_JSDocTagBase(src);
+  $copy_ast_JSDocDeprecatedTag(src: JSDocDeprecatedTag): void {
+    this.$copy_ast_JSDocTagBase(src);
   }
-  $equals_JSDocDeprecatedTag(o: JSDocDeprecatedTag): boolean {
-    return this.$equals_JSDocTagBase(o);
+  $equals_ast_JSDocDeprecatedTag(o: JSDocDeprecatedTag): boolean {
+    return this.$equals_ast_JSDocTagBase(o);
   }
-  $clone_JSDocDeprecatedTag(): JSDocDeprecatedTag {
+  $clone_ast_JSDocDeprecatedTag(): JSDocDeprecatedTag {
     const o = new JSDocDeprecatedTag();
-    o.$copy_JSDocDeprecatedTag(this);
+    o.$copy_ast_JSDocDeprecatedTag(this);
     return o;
   }
-  static $cast_JSDocDeprecatedTag(v: $rt.GoObject | undefined): JSDocDeprecatedTag {
+  static $cast_ast_JSDocDeprecatedTag(v: $rt.GoObject | undefined): JSDocDeprecatedTag {
     if (v instanceof JSDocDeprecatedTag) return v;
     throw $rt.typeAssertError();
   }
@@ -9173,19 +9249,19 @@ export class JSDocDeprecatedTag extends JSDocTagBase {
 }
 export class JSDocImplementsTag extends JSDocTagBase {
   ClassName_: Node | undefined = undefined;
-  $copy_JSDocImplementsTag(src: JSDocImplementsTag): void {
-    this.$copy_JSDocTagBase(src);
+  $copy_ast_JSDocImplementsTag(src: JSDocImplementsTag): void {
+    this.$copy_ast_JSDocTagBase(src);
     this.ClassName_ = src.ClassName_;
   }
-  $equals_JSDocImplementsTag(o: JSDocImplementsTag): boolean {
-    return this.$equals_JSDocTagBase(o) && this.ClassName_ === o.ClassName_;
+  $equals_ast_JSDocImplementsTag(o: JSDocImplementsTag): boolean {
+    return this.$equals_ast_JSDocTagBase(o) && this.ClassName_ === o.ClassName_;
   }
-  $clone_JSDocImplementsTag(): JSDocImplementsTag {
+  $clone_ast_JSDocImplementsTag(): JSDocImplementsTag {
     const o = new JSDocImplementsTag();
-    o.$copy_JSDocImplementsTag(this);
+    o.$copy_ast_JSDocImplementsTag(this);
     return o;
   }
-  static $cast_JSDocImplementsTag(v: $rt.GoObject | undefined): JSDocImplementsTag {
+  static $cast_ast_JSDocImplementsTag(v: $rt.GoObject | undefined): JSDocImplementsTag {
     if (v instanceof JSDocImplementsTag) return v;
     throw $rt.typeAssertError();
   }
@@ -9215,26 +9291,26 @@ export class JSDocImportTag extends JSDocTagBase {
   ImportClause_: Node | undefined = undefined;
   ModuleSpecifier_: Node | undefined = undefined;
   Attributes_: Node | undefined = undefined;
-  $copy_JSDocImportTag(src: JSDocImportTag): void {
-    this.$copy_JSDocTagBase(src);
+  $copy_ast_JSDocImportTag(src: JSDocImportTag): void {
+    this.$copy_ast_JSDocTagBase(src);
     this.ImportClause_ = src.ImportClause_;
     this.ModuleSpecifier_ = src.ModuleSpecifier_;
     this.Attributes_ = src.Attributes_;
   }
-  $equals_JSDocImportTag(o: JSDocImportTag): boolean {
+  $equals_ast_JSDocImportTag(o: JSDocImportTag): boolean {
     return (
-      this.$equals_JSDocTagBase(o) &&
+      this.$equals_ast_JSDocTagBase(o) &&
       this.ImportClause_ === o.ImportClause_ &&
       this.ModuleSpecifier_ === o.ModuleSpecifier_ &&
       this.Attributes_ === o.Attributes_
     );
   }
-  $clone_JSDocImportTag(): JSDocImportTag {
+  $clone_ast_JSDocImportTag(): JSDocImportTag {
     const o = new JSDocImportTag();
-    o.$copy_JSDocImportTag(this);
+    o.$copy_ast_JSDocImportTag(this);
     return o;
   }
-  static $cast_JSDocImportTag(v: $rt.GoObject | undefined): JSDocImportTag {
+  static $cast_ast_JSDocImportTag(v: $rt.GoObject | undefined): JSDocImportTag {
     if (v instanceof JSDocImportTag) return v;
     throw $rt.typeAssertError();
   }
@@ -9278,16 +9354,16 @@ export class JSDocImportTag extends JSDocTagBase {
 }
 export class JSDocLink extends JSDocCommentBase {
   name: Node | undefined = undefined;
-  $copy_JSDocLink(src: JSDocLink): void {
-    this.$copy_JSDocCommentBase(src);
+  $copy_ast_JSDocLink(src: JSDocLink): void {
+    this.$copy_ast_JSDocCommentBase(src);
     this.name = src.name;
   }
-  $clone_JSDocLink(): JSDocLink {
+  $clone_ast_JSDocLink(): JSDocLink {
     const o = new JSDocLink();
-    o.$copy_JSDocLink(this);
+    o.$copy_ast_JSDocLink(this);
     return o;
   }
-  static $cast_JSDocLink(v: $rt.GoObject | undefined): JSDocLink {
+  static $cast_ast_JSDocLink(v: $rt.GoObject | undefined): JSDocLink {
     if (v instanceof JSDocLink) return v;
     throw $rt.typeAssertError();
   }
@@ -9314,16 +9390,16 @@ export class JSDocLink extends JSDocCommentBase {
 }
 export class JSDocLinkCode extends JSDocCommentBase {
   name: Node | undefined = undefined;
-  $copy_JSDocLinkCode(src: JSDocLinkCode): void {
-    this.$copy_JSDocCommentBase(src);
+  $copy_ast_JSDocLinkCode(src: JSDocLinkCode): void {
+    this.$copy_ast_JSDocCommentBase(src);
     this.name = src.name;
   }
-  $clone_JSDocLinkCode(): JSDocLinkCode {
+  $clone_ast_JSDocLinkCode(): JSDocLinkCode {
     const o = new JSDocLinkCode();
-    o.$copy_JSDocLinkCode(this);
+    o.$copy_ast_JSDocLinkCode(this);
     return o;
   }
-  static $cast_JSDocLinkCode(v: $rt.GoObject | undefined): JSDocLinkCode {
+  static $cast_ast_JSDocLinkCode(v: $rt.GoObject | undefined): JSDocLinkCode {
     if (v instanceof JSDocLinkCode) return v;
     throw $rt.typeAssertError();
   }
@@ -9350,16 +9426,16 @@ export class JSDocLinkCode extends JSDocCommentBase {
 }
 export class JSDocLinkPlain extends JSDocCommentBase {
   name: Node | undefined = undefined;
-  $copy_JSDocLinkPlain(src: JSDocLinkPlain): void {
-    this.$copy_JSDocCommentBase(src);
+  $copy_ast_JSDocLinkPlain(src: JSDocLinkPlain): void {
+    this.$copy_ast_JSDocCommentBase(src);
     this.name = src.name;
   }
-  $clone_JSDocLinkPlain(): JSDocLinkPlain {
+  $clone_ast_JSDocLinkPlain(): JSDocLinkPlain {
     const o = new JSDocLinkPlain();
-    o.$copy_JSDocLinkPlain(this);
+    o.$copy_ast_JSDocLinkPlain(this);
     return o;
   }
-  static $cast_JSDocLinkPlain(v: $rt.GoObject | undefined): JSDocLinkPlain {
+  static $cast_ast_JSDocLinkPlain(v: $rt.GoObject | undefined): JSDocLinkPlain {
     if (v instanceof JSDocLinkPlain) return v;
     throw $rt.typeAssertError();
   }
@@ -9386,19 +9462,19 @@ export class JSDocLinkPlain extends JSDocCommentBase {
 }
 export class JSDocNameReference extends TypeNodeBase {
   name: Node | undefined = undefined;
-  $copy_JSDocNameReference(src: JSDocNameReference): void {
-    this.$copy_TypeNodeBase(src);
+  $copy_ast_JSDocNameReference(src: JSDocNameReference): void {
+    this.$copy_ast_TypeNodeBase(src);
     this.name = src.name;
   }
-  $equals_JSDocNameReference(o: JSDocNameReference): boolean {
-    return this.$equals_TypeNodeBase(o) && this.name === o.name;
+  $equals_ast_JSDocNameReference(o: JSDocNameReference): boolean {
+    return this.$equals_ast_TypeNodeBase(o) && this.name === o.name;
   }
-  $clone_JSDocNameReference(): JSDocNameReference {
+  $clone_ast_JSDocNameReference(): JSDocNameReference {
     const o = new JSDocNameReference();
-    o.$copy_JSDocNameReference(this);
+    o.$copy_ast_JSDocNameReference(this);
     return o;
   }
-  static $cast_JSDocNameReference(v: $rt.GoObject | undefined): JSDocNameReference {
+  static $cast_ast_JSDocNameReference(v: $rt.GoObject | undefined): JSDocNameReference {
     if (v instanceof JSDocNameReference) return v;
     throw $rt.typeAssertError();
   }
@@ -9427,19 +9503,19 @@ export class JSDocNameReference extends TypeNodeBase {
 }
 export class JSDocNonNullableType extends JSDocTypeBase {
   Type_: Node | undefined = undefined;
-  $copy_JSDocNonNullableType(src: JSDocNonNullableType): void {
-    this.$copy_JSDocTypeBase(src);
+  $copy_ast_JSDocNonNullableType(src: JSDocNonNullableType): void {
+    this.$copy_ast_JSDocTypeBase(src);
     this.Type_ = src.Type_;
   }
-  $equals_JSDocNonNullableType(o: JSDocNonNullableType): boolean {
-    return this.$equals_JSDocTypeBase(o) && this.Type_ === o.Type_;
+  $equals_ast_JSDocNonNullableType(o: JSDocNonNullableType): boolean {
+    return this.$equals_ast_JSDocTypeBase(o) && this.Type_ === o.Type_;
   }
-  $clone_JSDocNonNullableType(): JSDocNonNullableType {
+  $clone_ast_JSDocNonNullableType(): JSDocNonNullableType {
     const o = new JSDocNonNullableType();
-    o.$copy_JSDocNonNullableType(this);
+    o.$copy_ast_JSDocNonNullableType(this);
     return o;
   }
-  static $cast_JSDocNonNullableType(v: $rt.GoObject | undefined): JSDocNonNullableType {
+  static $cast_ast_JSDocNonNullableType(v: $rt.GoObject | undefined): JSDocNonNullableType {
     if (v instanceof JSDocNonNullableType) return v;
     throw $rt.typeAssertError();
   }
@@ -9468,19 +9544,19 @@ export class JSDocNonNullableType extends JSDocTypeBase {
 }
 export class JSDocNullableType extends JSDocTypeBase {
   Type_: Node | undefined = undefined;
-  $copy_JSDocNullableType(src: JSDocNullableType): void {
-    this.$copy_JSDocTypeBase(src);
+  $copy_ast_JSDocNullableType(src: JSDocNullableType): void {
+    this.$copy_ast_JSDocTypeBase(src);
     this.Type_ = src.Type_;
   }
-  $equals_JSDocNullableType(o: JSDocNullableType): boolean {
-    return this.$equals_JSDocTypeBase(o) && this.Type_ === o.Type_;
+  $equals_ast_JSDocNullableType(o: JSDocNullableType): boolean {
+    return this.$equals_ast_JSDocTypeBase(o) && this.Type_ === o.Type_;
   }
-  $clone_JSDocNullableType(): JSDocNullableType {
+  $clone_ast_JSDocNullableType(): JSDocNullableType {
     const o = new JSDocNullableType();
-    o.$copy_JSDocNullableType(this);
+    o.$copy_ast_JSDocNullableType(this);
     return o;
   }
-  static $cast_JSDocNullableType(v: $rt.GoObject | undefined): JSDocNullableType {
+  static $cast_ast_JSDocNullableType(v: $rt.GoObject | undefined): JSDocNullableType {
     if (v instanceof JSDocNullableType) return v;
     throw $rt.typeAssertError();
   }
@@ -9505,19 +9581,19 @@ export class JSDocNullableType extends JSDocTypeBase {
 }
 export class JSDocOptionalType extends JSDocTypeBase {
   Type_: Node | undefined = undefined;
-  $copy_JSDocOptionalType(src: JSDocOptionalType): void {
-    this.$copy_JSDocTypeBase(src);
+  $copy_ast_JSDocOptionalType(src: JSDocOptionalType): void {
+    this.$copy_ast_JSDocTypeBase(src);
     this.Type_ = src.Type_;
   }
-  $equals_JSDocOptionalType(o: JSDocOptionalType): boolean {
-    return this.$equals_JSDocTypeBase(o) && this.Type_ === o.Type_;
+  $equals_ast_JSDocOptionalType(o: JSDocOptionalType): boolean {
+    return this.$equals_ast_JSDocTypeBase(o) && this.Type_ === o.Type_;
   }
-  $clone_JSDocOptionalType(): JSDocOptionalType {
+  $clone_ast_JSDocOptionalType(): JSDocOptionalType {
     const o = new JSDocOptionalType();
-    o.$copy_JSDocOptionalType(this);
+    o.$copy_ast_JSDocOptionalType(this);
     return o;
   }
-  static $cast_JSDocOptionalType(v: $rt.GoObject | undefined): JSDocOptionalType {
+  static $cast_ast_JSDocOptionalType(v: $rt.GoObject | undefined): JSDocOptionalType {
     if (v instanceof JSDocOptionalType) return v;
     throw $rt.typeAssertError();
   }
@@ -9542,19 +9618,19 @@ export class JSDocOptionalType extends JSDocTypeBase {
 }
 export class JSDocOverloadTag extends JSDocTagBase {
   TypeExpression_: Node | undefined = undefined;
-  $copy_JSDocOverloadTag(src: JSDocOverloadTag): void {
-    this.$copy_JSDocTagBase(src);
+  $copy_ast_JSDocOverloadTag(src: JSDocOverloadTag): void {
+    this.$copy_ast_JSDocTagBase(src);
     this.TypeExpression_ = src.TypeExpression_;
   }
-  $equals_JSDocOverloadTag(o: JSDocOverloadTag): boolean {
-    return this.$equals_JSDocTagBase(o) && this.TypeExpression_ === o.TypeExpression_;
+  $equals_ast_JSDocOverloadTag(o: JSDocOverloadTag): boolean {
+    return this.$equals_ast_JSDocTagBase(o) && this.TypeExpression_ === o.TypeExpression_;
   }
-  $clone_JSDocOverloadTag(): JSDocOverloadTag {
+  $clone_ast_JSDocOverloadTag(): JSDocOverloadTag {
     const o = new JSDocOverloadTag();
-    o.$copy_JSDocOverloadTag(this);
+    o.$copy_ast_JSDocOverloadTag(this);
     return o;
   }
-  static $cast_JSDocOverloadTag(v: $rt.GoObject | undefined): JSDocOverloadTag {
+  static $cast_ast_JSDocOverloadTag(v: $rt.GoObject | undefined): JSDocOverloadTag {
     if (v instanceof JSDocOverloadTag) return v;
     throw $rt.typeAssertError();
   }
@@ -9581,18 +9657,18 @@ export class JSDocOverloadTag extends JSDocTagBase {
   }
 }
 export class JSDocOverrideTag extends JSDocTagBase {
-  $copy_JSDocOverrideTag(src: JSDocOverrideTag): void {
-    this.$copy_JSDocTagBase(src);
+  $copy_ast_JSDocOverrideTag(src: JSDocOverrideTag): void {
+    this.$copy_ast_JSDocTagBase(src);
   }
-  $equals_JSDocOverrideTag(o: JSDocOverrideTag): boolean {
-    return this.$equals_JSDocTagBase(o);
+  $equals_ast_JSDocOverrideTag(o: JSDocOverrideTag): boolean {
+    return this.$equals_ast_JSDocTagBase(o);
   }
-  $clone_JSDocOverrideTag(): JSDocOverrideTag {
+  $clone_ast_JSDocOverrideTag(): JSDocOverrideTag {
     const o = new JSDocOverrideTag();
-    o.$copy_JSDocOverrideTag(this);
+    o.$copy_ast_JSDocOverrideTag(this);
     return o;
   }
-  static $cast_JSDocOverrideTag(v: $rt.GoObject | undefined): JSDocOverrideTag {
+  static $cast_ast_JSDocOverrideTag(v: $rt.GoObject | undefined): JSDocOverrideTag {
     if (v instanceof JSDocOverrideTag) return v;
     throw $rt.typeAssertError();
   }
@@ -9618,28 +9694,28 @@ export class JSDocParameterOrPropertyTag extends JSDocTagBase {
   IsBracketed: boolean = false;
   TypeExpression_: Node | undefined = undefined;
   IsNameFirst: boolean = false;
-  $copy_JSDocParameterOrPropertyTag(src: JSDocParameterOrPropertyTag): void {
-    this.$copy_JSDocTagBase(src);
+  $copy_ast_JSDocParameterOrPropertyTag(src: JSDocParameterOrPropertyTag): void {
+    this.$copy_ast_JSDocTagBase(src);
     this.name = src.name;
     this.IsBracketed = src.IsBracketed;
     this.TypeExpression_ = src.TypeExpression_;
     this.IsNameFirst = src.IsNameFirst;
   }
-  $equals_JSDocParameterOrPropertyTag(o: JSDocParameterOrPropertyTag): boolean {
+  $equals_ast_JSDocParameterOrPropertyTag(o: JSDocParameterOrPropertyTag): boolean {
     return (
-      this.$equals_JSDocTagBase(o) &&
+      this.$equals_ast_JSDocTagBase(o) &&
       this.name === o.name &&
       this.IsBracketed === o.IsBracketed &&
       this.TypeExpression_ === o.TypeExpression_ &&
       this.IsNameFirst === o.IsNameFirst
     );
   }
-  $clone_JSDocParameterOrPropertyTag(): JSDocParameterOrPropertyTag {
+  $clone_ast_JSDocParameterOrPropertyTag(): JSDocParameterOrPropertyTag {
     const o = new JSDocParameterOrPropertyTag();
-    o.$copy_JSDocParameterOrPropertyTag(this);
+    o.$copy_ast_JSDocParameterOrPropertyTag(this);
     return o;
   }
-  static $cast_JSDocParameterOrPropertyTag(v: $rt.GoObject | undefined): JSDocParameterOrPropertyTag {
+  static $cast_ast_JSDocParameterOrPropertyTag(v: $rt.GoObject | undefined): JSDocParameterOrPropertyTag {
     if (v instanceof JSDocParameterOrPropertyTag) return v;
     throw $rt.typeAssertError();
   }
@@ -9675,18 +9751,18 @@ export class JSDocParameterOrPropertyTag extends JSDocTagBase {
   }
 }
 export class JSDocPrivateTag extends JSDocTagBase {
-  $copy_JSDocPrivateTag(src: JSDocPrivateTag): void {
-    this.$copy_JSDocTagBase(src);
+  $copy_ast_JSDocPrivateTag(src: JSDocPrivateTag): void {
+    this.$copy_ast_JSDocTagBase(src);
   }
-  $equals_JSDocPrivateTag(o: JSDocPrivateTag): boolean {
-    return this.$equals_JSDocTagBase(o);
+  $equals_ast_JSDocPrivateTag(o: JSDocPrivateTag): boolean {
+    return this.$equals_ast_JSDocTagBase(o);
   }
-  $clone_JSDocPrivateTag(): JSDocPrivateTag {
+  $clone_ast_JSDocPrivateTag(): JSDocPrivateTag {
     const o = new JSDocPrivateTag();
-    o.$copy_JSDocPrivateTag(this);
+    o.$copy_ast_JSDocPrivateTag(this);
     return o;
   }
-  static $cast_JSDocPrivateTag(v: $rt.GoObject | undefined): JSDocPrivateTag {
+  static $cast_ast_JSDocPrivateTag(v: $rt.GoObject | undefined): JSDocPrivateTag {
     if (v instanceof JSDocPrivateTag) return v;
     throw $rt.typeAssertError();
   }
@@ -9708,18 +9784,18 @@ export class JSDocPrivateTag extends JSDocTagBase {
   }
 }
 export class JSDocProtectedTag extends JSDocTagBase {
-  $copy_JSDocProtectedTag(src: JSDocProtectedTag): void {
-    this.$copy_JSDocTagBase(src);
+  $copy_ast_JSDocProtectedTag(src: JSDocProtectedTag): void {
+    this.$copy_ast_JSDocTagBase(src);
   }
-  $equals_JSDocProtectedTag(o: JSDocProtectedTag): boolean {
-    return this.$equals_JSDocTagBase(o);
+  $equals_ast_JSDocProtectedTag(o: JSDocProtectedTag): boolean {
+    return this.$equals_ast_JSDocTagBase(o);
   }
-  $clone_JSDocProtectedTag(): JSDocProtectedTag {
+  $clone_ast_JSDocProtectedTag(): JSDocProtectedTag {
     const o = new JSDocProtectedTag();
-    o.$copy_JSDocProtectedTag(this);
+    o.$copy_ast_JSDocProtectedTag(this);
     return o;
   }
-  static $cast_JSDocProtectedTag(v: $rt.GoObject | undefined): JSDocProtectedTag {
+  static $cast_ast_JSDocProtectedTag(v: $rt.GoObject | undefined): JSDocProtectedTag {
     if (v instanceof JSDocProtectedTag) return v;
     throw $rt.typeAssertError();
   }
@@ -9741,18 +9817,18 @@ export class JSDocProtectedTag extends JSDocTagBase {
   }
 }
 export class JSDocPublicTag extends JSDocTagBase {
-  $copy_JSDocPublicTag(src: JSDocPublicTag): void {
-    this.$copy_JSDocTagBase(src);
+  $copy_ast_JSDocPublicTag(src: JSDocPublicTag): void {
+    this.$copy_ast_JSDocTagBase(src);
   }
-  $equals_JSDocPublicTag(o: JSDocPublicTag): boolean {
-    return this.$equals_JSDocTagBase(o);
+  $equals_ast_JSDocPublicTag(o: JSDocPublicTag): boolean {
+    return this.$equals_ast_JSDocTagBase(o);
   }
-  $clone_JSDocPublicTag(): JSDocPublicTag {
+  $clone_ast_JSDocPublicTag(): JSDocPublicTag {
     const o = new JSDocPublicTag();
-    o.$copy_JSDocPublicTag(this);
+    o.$copy_ast_JSDocPublicTag(this);
     return o;
   }
-  static $cast_JSDocPublicTag(v: $rt.GoObject | undefined): JSDocPublicTag {
+  static $cast_ast_JSDocPublicTag(v: $rt.GoObject | undefined): JSDocPublicTag {
     if (v instanceof JSDocPublicTag) return v;
     throw $rt.typeAssertError();
   }
@@ -9774,18 +9850,18 @@ export class JSDocPublicTag extends JSDocTagBase {
   }
 }
 export class JSDocReadonlyTag extends JSDocTagBase {
-  $copy_JSDocReadonlyTag(src: JSDocReadonlyTag): void {
-    this.$copy_JSDocTagBase(src);
+  $copy_ast_JSDocReadonlyTag(src: JSDocReadonlyTag): void {
+    this.$copy_ast_JSDocTagBase(src);
   }
-  $equals_JSDocReadonlyTag(o: JSDocReadonlyTag): boolean {
-    return this.$equals_JSDocTagBase(o);
+  $equals_ast_JSDocReadonlyTag(o: JSDocReadonlyTag): boolean {
+    return this.$equals_ast_JSDocTagBase(o);
   }
-  $clone_JSDocReadonlyTag(): JSDocReadonlyTag {
+  $clone_ast_JSDocReadonlyTag(): JSDocReadonlyTag {
     const o = new JSDocReadonlyTag();
-    o.$copy_JSDocReadonlyTag(this);
+    o.$copy_ast_JSDocReadonlyTag(this);
     return o;
   }
-  static $cast_JSDocReadonlyTag(v: $rt.GoObject | undefined): JSDocReadonlyTag {
+  static $cast_ast_JSDocReadonlyTag(v: $rt.GoObject | undefined): JSDocReadonlyTag {
     if (v instanceof JSDocReadonlyTag) return v;
     throw $rt.typeAssertError();
   }
@@ -9808,19 +9884,19 @@ export class JSDocReadonlyTag extends JSDocTagBase {
 }
 export class JSDocReturnTag extends JSDocTagBase {
   TypeExpression_: Node | undefined = undefined;
-  $copy_JSDocReturnTag(src: JSDocReturnTag): void {
-    this.$copy_JSDocTagBase(src);
+  $copy_ast_JSDocReturnTag(src: JSDocReturnTag): void {
+    this.$copy_ast_JSDocTagBase(src);
     this.TypeExpression_ = src.TypeExpression_;
   }
-  $equals_JSDocReturnTag(o: JSDocReturnTag): boolean {
-    return this.$equals_JSDocTagBase(o) && this.TypeExpression_ === o.TypeExpression_;
+  $equals_ast_JSDocReturnTag(o: JSDocReturnTag): boolean {
+    return this.$equals_ast_JSDocTagBase(o) && this.TypeExpression_ === o.TypeExpression_;
   }
-  $clone_JSDocReturnTag(): JSDocReturnTag {
+  $clone_ast_JSDocReturnTag(): JSDocReturnTag {
     const o = new JSDocReturnTag();
-    o.$copy_JSDocReturnTag(this);
+    o.$copy_ast_JSDocReturnTag(this);
     return o;
   }
-  static $cast_JSDocReturnTag(v: $rt.GoObject | undefined): JSDocReturnTag {
+  static $cast_ast_JSDocReturnTag(v: $rt.GoObject | undefined): JSDocReturnTag {
     if (v instanceof JSDocReturnTag) return v;
     throw $rt.typeAssertError();
   }
@@ -9848,19 +9924,19 @@ export class JSDocReturnTag extends JSDocTagBase {
 }
 export class JSDocSatisfiesTag extends JSDocTagBase {
   TypeExpression_: Node | undefined = undefined;
-  $copy_JSDocSatisfiesTag(src: JSDocSatisfiesTag): void {
-    this.$copy_JSDocTagBase(src);
+  $copy_ast_JSDocSatisfiesTag(src: JSDocSatisfiesTag): void {
+    this.$copy_ast_JSDocTagBase(src);
     this.TypeExpression_ = src.TypeExpression_;
   }
-  $equals_JSDocSatisfiesTag(o: JSDocSatisfiesTag): boolean {
-    return this.$equals_JSDocTagBase(o) && this.TypeExpression_ === o.TypeExpression_;
+  $equals_ast_JSDocSatisfiesTag(o: JSDocSatisfiesTag): boolean {
+    return this.$equals_ast_JSDocTagBase(o) && this.TypeExpression_ === o.TypeExpression_;
   }
-  $clone_JSDocSatisfiesTag(): JSDocSatisfiesTag {
+  $clone_ast_JSDocSatisfiesTag(): JSDocSatisfiesTag {
     const o = new JSDocSatisfiesTag();
-    o.$copy_JSDocSatisfiesTag(this);
+    o.$copy_ast_JSDocSatisfiesTag(this);
     return o;
   }
-  static $cast_JSDocSatisfiesTag(v: $rt.GoObject | undefined): JSDocSatisfiesTag {
+  static $cast_ast_JSDocSatisfiesTag(v: $rt.GoObject | undefined): JSDocSatisfiesTag {
     if (v instanceof JSDocSatisfiesTag) return v;
     throw $rt.typeAssertError();
   }
@@ -9888,19 +9964,19 @@ export class JSDocSatisfiesTag extends JSDocTagBase {
 }
 export class JSDocSeeTag extends JSDocTagBase {
   NameExpression: Node | undefined = undefined;
-  $copy_JSDocSeeTag(src: JSDocSeeTag): void {
-    this.$copy_JSDocTagBase(src);
+  $copy_ast_JSDocSeeTag(src: JSDocSeeTag): void {
+    this.$copy_ast_JSDocTagBase(src);
     this.NameExpression = src.NameExpression;
   }
-  $equals_JSDocSeeTag(o: JSDocSeeTag): boolean {
-    return this.$equals_JSDocTagBase(o) && this.NameExpression === o.NameExpression;
+  $equals_ast_JSDocSeeTag(o: JSDocSeeTag): boolean {
+    return this.$equals_ast_JSDocTagBase(o) && this.NameExpression === o.NameExpression;
   }
-  $clone_JSDocSeeTag(): JSDocSeeTag {
+  $clone_ast_JSDocSeeTag(): JSDocSeeTag {
     const o = new JSDocSeeTag();
-    o.$copy_JSDocSeeTag(this);
+    o.$copy_ast_JSDocSeeTag(this);
     return o;
   }
-  static $cast_JSDocSeeTag(v: $rt.GoObject | undefined): JSDocSeeTag {
+  static $cast_ast_JSDocSeeTag(v: $rt.GoObject | undefined): JSDocSeeTag {
     if (v instanceof JSDocSeeTag) return v;
     throw $rt.typeAssertError();
   }
@@ -9929,17 +10005,17 @@ export class JSDocSeeTag extends JSDocTagBase {
 export class JSDocSignature extends JSDocTypeBase {
   DeclarationBase_: DeclarationBase = new DeclarationBase();
   FunctionLikeBase_: FunctionLikeBase = new FunctionLikeBase();
-  $copy_JSDocSignature(src: JSDocSignature): void {
-    this.$copy_JSDocTypeBase(src);
-    this.DeclarationBase_ = src.DeclarationBase_.$clone_DeclarationBase();
-    this.FunctionLikeBase_ = src.FunctionLikeBase_.$clone_FunctionLikeBase();
+  $copy_ast_JSDocSignature(src: JSDocSignature): void {
+    this.$copy_ast_JSDocTypeBase(src);
+    this.DeclarationBase_ = src.DeclarationBase_.$clone_ast_DeclarationBase();
+    this.FunctionLikeBase_ = src.FunctionLikeBase_.$clone_ast_FunctionLikeBase();
   }
-  $clone_JSDocSignature(): JSDocSignature {
+  $clone_ast_JSDocSignature(): JSDocSignature {
     const o = new JSDocSignature();
-    o.$copy_JSDocSignature(this);
+    o.$copy_ast_JSDocSignature(this);
     return o;
   }
-  static $cast_JSDocSignature(v: $rt.GoObject | undefined): JSDocSignature {
+  static $cast_ast_JSDocSignature(v: $rt.GoObject | undefined): JSDocSignature {
     if (v instanceof JSDocSignature) return v;
     throw $rt.typeAssertError();
   }
@@ -9993,22 +10069,22 @@ export class JSDocSignature extends JSDocTypeBase {
 export class JSDocTemplateTag extends JSDocTagBase {
   Constraint: Node | undefined = undefined;
   TypeParameters_: NodeList | undefined = undefined;
-  $copy_JSDocTemplateTag(src: JSDocTemplateTag): void {
-    this.$copy_JSDocTagBase(src);
+  $copy_ast_JSDocTemplateTag(src: JSDocTemplateTag): void {
+    this.$copy_ast_JSDocTagBase(src);
     this.Constraint = src.Constraint;
     this.TypeParameters_ = src.TypeParameters_;
   }
-  $equals_JSDocTemplateTag(o: JSDocTemplateTag): boolean {
+  $equals_ast_JSDocTemplateTag(o: JSDocTemplateTag): boolean {
     return (
-      this.$equals_JSDocTagBase(o) && this.Constraint === o.Constraint && this.TypeParameters_ === o.TypeParameters_
+      this.$equals_ast_JSDocTagBase(o) && this.Constraint === o.Constraint && this.TypeParameters_ === o.TypeParameters_
     );
   }
-  $clone_JSDocTemplateTag(): JSDocTemplateTag {
+  $clone_ast_JSDocTemplateTag(): JSDocTemplateTag {
     const o = new JSDocTemplateTag();
-    o.$copy_JSDocTemplateTag(this);
+    o.$copy_ast_JSDocTemplateTag(this);
     return o;
   }
-  static $cast_JSDocTemplateTag(v: $rt.GoObject | undefined): JSDocTemplateTag {
+  static $cast_ast_JSDocTemplateTag(v: $rt.GoObject | undefined): JSDocTemplateTag {
     if (v instanceof JSDocTemplateTag) return v;
     throw $rt.typeAssertError();
   }
@@ -10041,15 +10117,15 @@ export class JSDocTemplateTag extends JSDocTagBase {
   }
 }
 export class JSDocText extends JSDocCommentBase {
-  $copy_JSDocText(src: JSDocText): void {
-    this.$copy_JSDocCommentBase(src);
+  $copy_ast_JSDocText(src: JSDocText): void {
+    this.$copy_ast_JSDocCommentBase(src);
   }
-  $clone_JSDocText(): JSDocText {
+  $clone_ast_JSDocText(): JSDocText {
     const o = new JSDocText();
-    o.$copy_JSDocText(this);
+    o.$copy_ast_JSDocText(this);
     return o;
   }
-  static $cast_JSDocText(v: $rt.GoObject | undefined): JSDocText {
+  static $cast_ast_JSDocText(v: $rt.GoObject | undefined): JSDocText {
     if (v instanceof JSDocText) return v;
     throw $rt.typeAssertError();
   }
@@ -10060,19 +10136,19 @@ export class JSDocText extends JSDocCommentBase {
 }
 export class JSDocThisTag extends JSDocTagBase {
   TypeExpression_: Node | undefined = undefined;
-  $copy_JSDocThisTag(src: JSDocThisTag): void {
-    this.$copy_JSDocTagBase(src);
+  $copy_ast_JSDocThisTag(src: JSDocThisTag): void {
+    this.$copy_ast_JSDocTagBase(src);
     this.TypeExpression_ = src.TypeExpression_;
   }
-  $equals_JSDocThisTag(o: JSDocThisTag): boolean {
-    return this.$equals_JSDocTagBase(o) && this.TypeExpression_ === o.TypeExpression_;
+  $equals_ast_JSDocThisTag(o: JSDocThisTag): boolean {
+    return this.$equals_ast_JSDocTagBase(o) && this.TypeExpression_ === o.TypeExpression_;
   }
-  $clone_JSDocThisTag(): JSDocThisTag {
+  $clone_ast_JSDocThisTag(): JSDocThisTag {
     const o = new JSDocThisTag();
-    o.$copy_JSDocThisTag(this);
+    o.$copy_ast_JSDocThisTag(this);
     return o;
   }
-  static $cast_JSDocThisTag(v: $rt.GoObject | undefined): JSDocThisTag {
+  static $cast_ast_JSDocThisTag(v: $rt.GoObject | undefined): JSDocThisTag {
     if (v instanceof JSDocThisTag) return v;
     throw $rt.typeAssertError();
   }
@@ -10100,19 +10176,19 @@ export class JSDocThisTag extends JSDocTagBase {
 }
 export class JSDocThrowsTag extends JSDocTagBase {
   TypeExpression_: Node | undefined = undefined;
-  $copy_JSDocThrowsTag(src: JSDocThrowsTag): void {
-    this.$copy_JSDocTagBase(src);
+  $copy_ast_JSDocThrowsTag(src: JSDocThrowsTag): void {
+    this.$copy_ast_JSDocTagBase(src);
     this.TypeExpression_ = src.TypeExpression_;
   }
-  $equals_JSDocThrowsTag(o: JSDocThrowsTag): boolean {
-    return this.$equals_JSDocTagBase(o) && this.TypeExpression_ === o.TypeExpression_;
+  $equals_ast_JSDocThrowsTag(o: JSDocThrowsTag): boolean {
+    return this.$equals_ast_JSDocTagBase(o) && this.TypeExpression_ === o.TypeExpression_;
   }
-  $clone_JSDocThrowsTag(): JSDocThrowsTag {
+  $clone_ast_JSDocThrowsTag(): JSDocThrowsTag {
     const o = new JSDocThrowsTag();
-    o.$copy_JSDocThrowsTag(this);
+    o.$copy_ast_JSDocThrowsTag(this);
     return o;
   }
-  static $cast_JSDocThrowsTag(v: $rt.GoObject | undefined): JSDocThrowsTag {
+  static $cast_ast_JSDocThrowsTag(v: $rt.GoObject | undefined): JSDocThrowsTag {
     if (v instanceof JSDocThrowsTag) return v;
     throw $rt.typeAssertError();
   }
@@ -10140,19 +10216,19 @@ export class JSDocThrowsTag extends JSDocTagBase {
 }
 export class JSDocTypeExpression extends TypeNodeBase {
   Type_: Node | undefined = undefined;
-  $copy_JSDocTypeExpression(src: JSDocTypeExpression): void {
-    this.$copy_TypeNodeBase(src);
+  $copy_ast_JSDocTypeExpression(src: JSDocTypeExpression): void {
+    this.$copy_ast_TypeNodeBase(src);
     this.Type_ = src.Type_;
   }
-  $equals_JSDocTypeExpression(o: JSDocTypeExpression): boolean {
-    return this.$equals_TypeNodeBase(o) && this.Type_ === o.Type_;
+  $equals_ast_JSDocTypeExpression(o: JSDocTypeExpression): boolean {
+    return this.$equals_ast_TypeNodeBase(o) && this.Type_ === o.Type_;
   }
-  $clone_JSDocTypeExpression(): JSDocTypeExpression {
+  $clone_ast_JSDocTypeExpression(): JSDocTypeExpression {
     const o = new JSDocTypeExpression();
-    o.$copy_JSDocTypeExpression(this);
+    o.$copy_ast_JSDocTypeExpression(this);
     return o;
   }
-  static $cast_JSDocTypeExpression(v: $rt.GoObject | undefined): JSDocTypeExpression {
+  static $cast_ast_JSDocTypeExpression(v: $rt.GoObject | undefined): JSDocTypeExpression {
     if (v instanceof JSDocTypeExpression) return v;
     throw $rt.typeAssertError();
   }
@@ -10183,18 +10259,18 @@ export class JSDocTypeLiteral extends JSDocTypeBase {
   DeclarationBase_: DeclarationBase = new DeclarationBase();
   JSDocPropertyTags: (Node | undefined)[] = [];
   IsArrayType: boolean = false;
-  $copy_JSDocTypeLiteral(src: JSDocTypeLiteral): void {
-    this.$copy_JSDocTypeBase(src);
-    this.DeclarationBase_ = src.DeclarationBase_.$clone_DeclarationBase();
+  $copy_ast_JSDocTypeLiteral(src: JSDocTypeLiteral): void {
+    this.$copy_ast_JSDocTypeBase(src);
+    this.DeclarationBase_ = src.DeclarationBase_.$clone_ast_DeclarationBase();
     this.JSDocPropertyTags = src.JSDocPropertyTags;
     this.IsArrayType = src.IsArrayType;
   }
-  $clone_JSDocTypeLiteral(): JSDocTypeLiteral {
+  $clone_ast_JSDocTypeLiteral(): JSDocTypeLiteral {
     const o = new JSDocTypeLiteral();
-    o.$copy_JSDocTypeLiteral(this);
+    o.$copy_ast_JSDocTypeLiteral(this);
     return o;
   }
-  static $cast_JSDocTypeLiteral(v: $rt.GoObject | undefined): JSDocTypeLiteral {
+  static $cast_ast_JSDocTypeLiteral(v: $rt.GoObject | undefined): JSDocTypeLiteral {
     if (v instanceof JSDocTypeLiteral) return v;
     throw $rt.typeAssertError();
   }
@@ -10233,19 +10309,19 @@ export class JSDocTypeLiteral extends JSDocTypeBase {
 }
 export class JSDocTypeTag extends JSDocTagBase {
   TypeExpression_: Node | undefined = undefined;
-  $copy_JSDocTypeTag(src: JSDocTypeTag): void {
-    this.$copy_JSDocTagBase(src);
+  $copy_ast_JSDocTypeTag(src: JSDocTypeTag): void {
+    this.$copy_ast_JSDocTagBase(src);
     this.TypeExpression_ = src.TypeExpression_;
   }
-  $equals_JSDocTypeTag(o: JSDocTypeTag): boolean {
-    return this.$equals_JSDocTagBase(o) && this.TypeExpression_ === o.TypeExpression_;
+  $equals_ast_JSDocTypeTag(o: JSDocTypeTag): boolean {
+    return this.$equals_ast_JSDocTagBase(o) && this.TypeExpression_ === o.TypeExpression_;
   }
-  $clone_JSDocTypeTag(): JSDocTypeTag {
+  $clone_ast_JSDocTypeTag(): JSDocTypeTag {
     const o = new JSDocTypeTag();
-    o.$copy_JSDocTypeTag(this);
+    o.$copy_ast_JSDocTypeTag(this);
     return o;
   }
-  static $cast_JSDocTypeTag(v: $rt.GoObject | undefined): JSDocTypeTag {
+  static $cast_ast_JSDocTypeTag(v: $rt.GoObject | undefined): JSDocTypeTag {
     if (v instanceof JSDocTypeTag) return v;
     throw $rt.typeAssertError();
   }
@@ -10274,20 +10350,20 @@ export class JSDocTypeTag extends JSDocTagBase {
 export class JSDocTypedefTag extends JSDocTagBase {
   TypeExpression_: Node | undefined = undefined;
   name: Node | undefined = undefined;
-  $copy_JSDocTypedefTag(src: JSDocTypedefTag): void {
-    this.$copy_JSDocTagBase(src);
+  $copy_ast_JSDocTypedefTag(src: JSDocTypedefTag): void {
+    this.$copy_ast_JSDocTagBase(src);
     this.TypeExpression_ = src.TypeExpression_;
     this.name = src.name;
   }
-  $equals_JSDocTypedefTag(o: JSDocTypedefTag): boolean {
-    return this.$equals_JSDocTagBase(o) && this.TypeExpression_ === o.TypeExpression_ && this.name === o.name;
+  $equals_ast_JSDocTypedefTag(o: JSDocTypedefTag): boolean {
+    return this.$equals_ast_JSDocTagBase(o) && this.TypeExpression_ === o.TypeExpression_ && this.name === o.name;
   }
-  $clone_JSDocTypedefTag(): JSDocTypedefTag {
+  $clone_ast_JSDocTypedefTag(): JSDocTypedefTag {
     const o = new JSDocTypedefTag();
-    o.$copy_JSDocTypedefTag(this);
+    o.$copy_ast_JSDocTypedefTag(this);
     return o;
   }
-  static $cast_JSDocTypedefTag(v: $rt.GoObject | undefined): JSDocTypedefTag {
+  static $cast_ast_JSDocTypedefTag(v: $rt.GoObject | undefined): JSDocTypedefTag {
     if (v instanceof JSDocTypedefTag) return v;
     throw $rt.typeAssertError();
   }
@@ -10324,18 +10400,18 @@ export class JSDocTypedefTag extends JSDocTagBase {
   }
 }
 export class JSDocUnknownTag extends JSDocTagBase {
-  $copy_JSDocUnknownTag(src: JSDocUnknownTag): void {
-    this.$copy_JSDocTagBase(src);
+  $copy_ast_JSDocUnknownTag(src: JSDocUnknownTag): void {
+    this.$copy_ast_JSDocTagBase(src);
   }
-  $equals_JSDocUnknownTag(o: JSDocUnknownTag): boolean {
-    return this.$equals_JSDocTagBase(o);
+  $equals_ast_JSDocUnknownTag(o: JSDocUnknownTag): boolean {
+    return this.$equals_ast_JSDocTagBase(o);
   }
-  $clone_JSDocUnknownTag(): JSDocUnknownTag {
+  $clone_ast_JSDocUnknownTag(): JSDocUnknownTag {
     const o = new JSDocUnknownTag();
-    o.$copy_JSDocUnknownTag(this);
+    o.$copy_ast_JSDocUnknownTag(this);
     return o;
   }
-  static $cast_JSDocUnknownTag(v: $rt.GoObject | undefined): JSDocUnknownTag {
+  static $cast_ast_JSDocUnknownTag(v: $rt.GoObject | undefined): JSDocUnknownTag {
     if (v instanceof JSDocUnknownTag) return v;
     throw $rt.typeAssertError();
   }
@@ -10358,19 +10434,19 @@ export class JSDocUnknownTag extends JSDocTagBase {
 }
 export class JSDocVariadicType extends JSDocTypeBase {
   Type_: Node | undefined = undefined;
-  $copy_JSDocVariadicType(src: JSDocVariadicType): void {
-    this.$copy_JSDocTypeBase(src);
+  $copy_ast_JSDocVariadicType(src: JSDocVariadicType): void {
+    this.$copy_ast_JSDocTypeBase(src);
     this.Type_ = src.Type_;
   }
-  $equals_JSDocVariadicType(o: JSDocVariadicType): boolean {
-    return this.$equals_JSDocTypeBase(o) && this.Type_ === o.Type_;
+  $equals_ast_JSDocVariadicType(o: JSDocVariadicType): boolean {
+    return this.$equals_ast_JSDocTypeBase(o) && this.Type_ === o.Type_;
   }
-  $clone_JSDocVariadicType(): JSDocVariadicType {
+  $clone_ast_JSDocVariadicType(): JSDocVariadicType {
     const o = new JSDocVariadicType();
-    o.$copy_JSDocVariadicType(this);
+    o.$copy_ast_JSDocVariadicType(this);
     return o;
   }
-  static $cast_JSDocVariadicType(v: $rt.GoObject | undefined): JSDocVariadicType {
+  static $cast_ast_JSDocVariadicType(v: $rt.GoObject | undefined): JSDocVariadicType {
     if (v instanceof JSDocVariadicType) return v;
     throw $rt.typeAssertError();
   }
@@ -10398,28 +10474,28 @@ export class JsxAttribute extends NodeBase {
   CompositeBase_: CompositeBase = new CompositeBase();
   name: Node | undefined = undefined;
   Initializer_: Node | undefined = undefined;
-  $copy_JsxAttribute(src: JsxAttribute): void {
-    this.$copy_NodeBase(src);
-    this.DeclarationBase_ = src.DeclarationBase_.$clone_DeclarationBase();
-    this.CompositeBase_ = src.CompositeBase_.$clone_CompositeBase();
+  $copy_ast_JsxAttribute(src: JsxAttribute): void {
+    this.$copy_ast_NodeBase(src);
+    this.DeclarationBase_ = src.DeclarationBase_.$clone_ast_DeclarationBase();
+    this.CompositeBase_ = src.CompositeBase_.$clone_ast_CompositeBase();
     this.name = src.name;
     this.Initializer_ = src.Initializer_;
   }
-  $equals_JsxAttribute(o: JsxAttribute): boolean {
+  $equals_ast_JsxAttribute(o: JsxAttribute): boolean {
     return (
-      this.$equals_NodeBase(o) &&
-      this.DeclarationBase_.$equals_DeclarationBase(o.DeclarationBase_) &&
-      this.CompositeBase_.$equals_CompositeBase(o.CompositeBase_) &&
+      this.$equals_ast_NodeBase(o) &&
+      this.DeclarationBase_.$equals_ast_DeclarationBase(o.DeclarationBase_) &&
+      this.CompositeBase_.$equals_ast_CompositeBase(o.CompositeBase_) &&
       this.name === o.name &&
       this.Initializer_ === o.Initializer_
     );
   }
-  $clone_JsxAttribute(): JsxAttribute {
+  $clone_ast_JsxAttribute(): JsxAttribute {
     const o = new JsxAttribute();
-    o.$copy_JsxAttribute(this);
+    o.$copy_ast_JsxAttribute(this);
     return o;
   }
-  static $cast_JsxAttribute(v: $rt.GoObject | undefined): JsxAttribute {
+  static $cast_ast_JsxAttribute(v: $rt.GoObject | undefined): JsxAttribute {
     if (v instanceof JsxAttribute) return v;
     throw $rt.typeAssertError();
   }
@@ -10458,26 +10534,26 @@ export class JsxAttributes extends PrimaryExpressionBase {
   DeclarationBase_: DeclarationBase = new DeclarationBase();
   CompositeBase_: CompositeBase = new CompositeBase();
   Properties_: NodeList | undefined = undefined;
-  $copy_JsxAttributes(src: JsxAttributes): void {
-    this.$copy_PrimaryExpressionBase(src);
-    this.DeclarationBase_ = src.DeclarationBase_.$clone_DeclarationBase();
-    this.CompositeBase_ = src.CompositeBase_.$clone_CompositeBase();
+  $copy_ast_JsxAttributes(src: JsxAttributes): void {
+    this.$copy_ast_PrimaryExpressionBase(src);
+    this.DeclarationBase_ = src.DeclarationBase_.$clone_ast_DeclarationBase();
+    this.CompositeBase_ = src.CompositeBase_.$clone_ast_CompositeBase();
     this.Properties_ = src.Properties_;
   }
-  $equals_JsxAttributes(o: JsxAttributes): boolean {
+  $equals_ast_JsxAttributes(o: JsxAttributes): boolean {
     return (
-      this.$equals_PrimaryExpressionBase(o) &&
-      this.DeclarationBase_.$equals_DeclarationBase(o.DeclarationBase_) &&
-      this.CompositeBase_.$equals_CompositeBase(o.CompositeBase_) &&
+      this.$equals_ast_PrimaryExpressionBase(o) &&
+      this.DeclarationBase_.$equals_ast_DeclarationBase(o.DeclarationBase_) &&
+      this.CompositeBase_.$equals_ast_CompositeBase(o.CompositeBase_) &&
       this.Properties_ === o.Properties_
     );
   }
-  $clone_JsxAttributes(): JsxAttributes {
+  $clone_ast_JsxAttributes(): JsxAttributes {
     const o = new JsxAttributes();
-    o.$copy_JsxAttributes(this);
+    o.$copy_ast_JsxAttributes(this);
     return o;
   }
-  static $cast_JsxAttributes(v: $rt.GoObject | undefined): JsxAttributes {
+  static $cast_ast_JsxAttributes(v: $rt.GoObject | undefined): JsxAttributes {
     if (v instanceof JsxAttributes) return v;
     throw $rt.typeAssertError();
   }
@@ -10510,19 +10586,19 @@ export class JsxAttributes extends PrimaryExpressionBase {
 }
 export class JsxClosingElement extends NodeBase {
   TagName_: Node | undefined = undefined;
-  $copy_JsxClosingElement(src: JsxClosingElement): void {
-    this.$copy_NodeBase(src);
+  $copy_ast_JsxClosingElement(src: JsxClosingElement): void {
+    this.$copy_ast_NodeBase(src);
     this.TagName_ = src.TagName_;
   }
-  $equals_JsxClosingElement(o: JsxClosingElement): boolean {
-    return this.$equals_NodeBase(o) && this.TagName_ === o.TagName_;
+  $equals_ast_JsxClosingElement(o: JsxClosingElement): boolean {
+    return this.$equals_ast_NodeBase(o) && this.TagName_ === o.TagName_;
   }
-  $clone_JsxClosingElement(): JsxClosingElement {
+  $clone_ast_JsxClosingElement(): JsxClosingElement {
     const o = new JsxClosingElement();
-    o.$copy_JsxClosingElement(this);
+    o.$copy_ast_JsxClosingElement(this);
     return o;
   }
-  static $cast_JsxClosingElement(v: $rt.GoObject | undefined): JsxClosingElement {
+  static $cast_ast_JsxClosingElement(v: $rt.GoObject | undefined): JsxClosingElement {
     if (v instanceof JsxClosingElement) return v;
     throw $rt.typeAssertError();
   }
@@ -10548,18 +10624,18 @@ export class JsxClosingElement extends NodeBase {
   }
 }
 export class JsxClosingFragment extends ExpressionBase {
-  $copy_JsxClosingFragment(src: JsxClosingFragment): void {
-    this.$copy_ExpressionBase(src);
+  $copy_ast_JsxClosingFragment(src: JsxClosingFragment): void {
+    this.$copy_ast_ExpressionBase(src);
   }
-  $equals_JsxClosingFragment(o: JsxClosingFragment): boolean {
-    return this.$equals_ExpressionBase(o);
+  $equals_ast_JsxClosingFragment(o: JsxClosingFragment): boolean {
+    return this.$equals_ast_ExpressionBase(o);
   }
-  $clone_JsxClosingFragment(): JsxClosingFragment {
+  $clone_ast_JsxClosingFragment(): JsxClosingFragment {
     const o = new JsxClosingFragment();
-    o.$copy_JsxClosingFragment(this);
+    o.$copy_ast_JsxClosingFragment(this);
     return o;
   }
-  static $cast_JsxClosingFragment(v: $rt.GoObject | undefined): JsxClosingFragment {
+  static $cast_ast_JsxClosingFragment(v: $rt.GoObject | undefined): JsxClosingFragment {
     if (v instanceof JsxClosingFragment) return v;
     throw $rt.typeAssertError();
   }
@@ -10577,28 +10653,28 @@ export class JsxElement extends PrimaryExpressionBase {
   OpeningElement: Node | undefined = undefined;
   Children_: NodeList | undefined = undefined;
   ClosingElement: Node | undefined = undefined;
-  $copy_JsxElement(src: JsxElement): void {
-    this.$copy_PrimaryExpressionBase(src);
-    this.CompositeBase_ = src.CompositeBase_.$clone_CompositeBase();
+  $copy_ast_JsxElement(src: JsxElement): void {
+    this.$copy_ast_PrimaryExpressionBase(src);
+    this.CompositeBase_ = src.CompositeBase_.$clone_ast_CompositeBase();
     this.OpeningElement = src.OpeningElement;
     this.Children_ = src.Children_;
     this.ClosingElement = src.ClosingElement;
   }
-  $equals_JsxElement(o: JsxElement): boolean {
+  $equals_ast_JsxElement(o: JsxElement): boolean {
     return (
-      this.$equals_PrimaryExpressionBase(o) &&
-      this.CompositeBase_.$equals_CompositeBase(o.CompositeBase_) &&
+      this.$equals_ast_PrimaryExpressionBase(o) &&
+      this.CompositeBase_.$equals_ast_CompositeBase(o.CompositeBase_) &&
       this.OpeningElement === o.OpeningElement &&
       this.Children_ === o.Children_ &&
       this.ClosingElement === o.ClosingElement
     );
   }
-  $clone_JsxElement(): JsxElement {
+  $clone_ast_JsxElement(): JsxElement {
     const o = new JsxElement();
-    o.$copy_JsxElement(this);
+    o.$copy_ast_JsxElement(this);
     return o;
   }
-  static $cast_JsxElement(v: $rt.GoObject | undefined): JsxElement {
+  static $cast_ast_JsxElement(v: $rt.GoObject | undefined): JsxElement {
     if (v instanceof JsxElement) return v;
     throw $rt.typeAssertError();
   }
@@ -10642,22 +10718,24 @@ export class JsxElement extends PrimaryExpressionBase {
 export class JsxExpression extends ExpressionBase {
   DotDotDotToken: Node | undefined = undefined;
   Expression_: Node | undefined = undefined;
-  $copy_JsxExpression(src: JsxExpression): void {
-    this.$copy_ExpressionBase(src);
+  $copy_ast_JsxExpression(src: JsxExpression): void {
+    this.$copy_ast_ExpressionBase(src);
     this.DotDotDotToken = src.DotDotDotToken;
     this.Expression_ = src.Expression_;
   }
-  $equals_JsxExpression(o: JsxExpression): boolean {
+  $equals_ast_JsxExpression(o: JsxExpression): boolean {
     return (
-      this.$equals_ExpressionBase(o) && this.DotDotDotToken === o.DotDotDotToken && this.Expression_ === o.Expression_
+      this.$equals_ast_ExpressionBase(o) &&
+      this.DotDotDotToken === o.DotDotDotToken &&
+      this.Expression_ === o.Expression_
     );
   }
-  $clone_JsxExpression(): JsxExpression {
+  $clone_ast_JsxExpression(): JsxExpression {
     const o = new JsxExpression();
-    o.$copy_JsxExpression(this);
+    o.$copy_ast_JsxExpression(this);
     return o;
   }
-  static $cast_JsxExpression(v: $rt.GoObject | undefined): JsxExpression {
+  static $cast_ast_JsxExpression(v: $rt.GoObject | undefined): JsxExpression {
     if (v instanceof JsxExpression) return v;
     throw $rt.typeAssertError();
   }
@@ -10687,28 +10765,28 @@ export class JsxFragment extends PrimaryExpressionBase {
   OpeningFragment: Node | undefined = undefined;
   Children_: NodeList | undefined = undefined;
   ClosingFragment: Node | undefined = undefined;
-  $copy_JsxFragment(src: JsxFragment): void {
-    this.$copy_PrimaryExpressionBase(src);
-    this.CompositeBase_ = src.CompositeBase_.$clone_CompositeBase();
+  $copy_ast_JsxFragment(src: JsxFragment): void {
+    this.$copy_ast_PrimaryExpressionBase(src);
+    this.CompositeBase_ = src.CompositeBase_.$clone_ast_CompositeBase();
     this.OpeningFragment = src.OpeningFragment;
     this.Children_ = src.Children_;
     this.ClosingFragment = src.ClosingFragment;
   }
-  $equals_JsxFragment(o: JsxFragment): boolean {
+  $equals_ast_JsxFragment(o: JsxFragment): boolean {
     return (
-      this.$equals_PrimaryExpressionBase(o) &&
-      this.CompositeBase_.$equals_CompositeBase(o.CompositeBase_) &&
+      this.$equals_ast_PrimaryExpressionBase(o) &&
+      this.CompositeBase_.$equals_ast_CompositeBase(o.CompositeBase_) &&
       this.OpeningFragment === o.OpeningFragment &&
       this.Children_ === o.Children_ &&
       this.ClosingFragment === o.ClosingFragment
     );
   }
-  $clone_JsxFragment(): JsxFragment {
+  $clone_ast_JsxFragment(): JsxFragment {
     const o = new JsxFragment();
-    o.$copy_JsxFragment(this);
+    o.$copy_ast_JsxFragment(this);
     return o;
   }
-  static $cast_JsxFragment(v: $rt.GoObject | undefined): JsxFragment {
+  static $cast_ast_JsxFragment(v: $rt.GoObject | undefined): JsxFragment {
     if (v instanceof JsxFragment) return v;
     throw $rt.typeAssertError();
   }
@@ -10745,26 +10823,26 @@ export class JsxNamespacedName extends ExpressionBase {
   CompositeBase_: CompositeBase = new CompositeBase();
   Namespace: Node | undefined = undefined;
   name: Node | undefined = undefined;
-  $copy_JsxNamespacedName(src: JsxNamespacedName): void {
-    this.$copy_ExpressionBase(src);
-    this.CompositeBase_ = src.CompositeBase_.$clone_CompositeBase();
+  $copy_ast_JsxNamespacedName(src: JsxNamespacedName): void {
+    this.$copy_ast_ExpressionBase(src);
+    this.CompositeBase_ = src.CompositeBase_.$clone_ast_CompositeBase();
     this.Namespace = src.Namespace;
     this.name = src.name;
   }
-  $equals_JsxNamespacedName(o: JsxNamespacedName): boolean {
+  $equals_ast_JsxNamespacedName(o: JsxNamespacedName): boolean {
     return (
-      this.$equals_ExpressionBase(o) &&
-      this.CompositeBase_.$equals_CompositeBase(o.CompositeBase_) &&
+      this.$equals_ast_ExpressionBase(o) &&
+      this.CompositeBase_.$equals_ast_CompositeBase(o.CompositeBase_) &&
       this.Namespace === o.Namespace &&
       this.name === o.name
     );
   }
-  $clone_JsxNamespacedName(): JsxNamespacedName {
+  $clone_ast_JsxNamespacedName(): JsxNamespacedName {
     const o = new JsxNamespacedName();
-    o.$copy_JsxNamespacedName(this);
+    o.$copy_ast_JsxNamespacedName(this);
     return o;
   }
-  static $cast_JsxNamespacedName(v: $rt.GoObject | undefined): JsxNamespacedName {
+  static $cast_ast_JsxNamespacedName(v: $rt.GoObject | undefined): JsxNamespacedName {
     if (v instanceof JsxNamespacedName) return v;
     throw $rt.typeAssertError();
   }
@@ -10801,28 +10879,28 @@ export class JsxOpeningElement extends ExpressionBase {
   TagName_: Node | undefined = undefined;
   TypeArguments_: NodeList | undefined = undefined;
   Attributes_: Node | undefined = undefined;
-  $copy_JsxOpeningElement(src: JsxOpeningElement): void {
-    this.$copy_ExpressionBase(src);
-    this.CompositeBase_ = src.CompositeBase_.$clone_CompositeBase();
+  $copy_ast_JsxOpeningElement(src: JsxOpeningElement): void {
+    this.$copy_ast_ExpressionBase(src);
+    this.CompositeBase_ = src.CompositeBase_.$clone_ast_CompositeBase();
     this.TagName_ = src.TagName_;
     this.TypeArguments_ = src.TypeArguments_;
     this.Attributes_ = src.Attributes_;
   }
-  $equals_JsxOpeningElement(o: JsxOpeningElement): boolean {
+  $equals_ast_JsxOpeningElement(o: JsxOpeningElement): boolean {
     return (
-      this.$equals_ExpressionBase(o) &&
-      this.CompositeBase_.$equals_CompositeBase(o.CompositeBase_) &&
+      this.$equals_ast_ExpressionBase(o) &&
+      this.CompositeBase_.$equals_ast_CompositeBase(o.CompositeBase_) &&
       this.TagName_ === o.TagName_ &&
       this.TypeArguments_ === o.TypeArguments_ &&
       this.Attributes_ === o.Attributes_
     );
   }
-  $clone_JsxOpeningElement(): JsxOpeningElement {
+  $clone_ast_JsxOpeningElement(): JsxOpeningElement {
     const o = new JsxOpeningElement();
-    o.$copy_JsxOpeningElement(this);
+    o.$copy_ast_JsxOpeningElement(this);
     return o;
   }
-  static $cast_JsxOpeningElement(v: $rt.GoObject | undefined): JsxOpeningElement {
+  static $cast_ast_JsxOpeningElement(v: $rt.GoObject | undefined): JsxOpeningElement {
     if (v instanceof JsxOpeningElement) return v;
     throw $rt.typeAssertError();
   }
@@ -10863,18 +10941,18 @@ export class JsxOpeningElement extends ExpressionBase {
   }
 }
 export class JsxOpeningFragment extends ExpressionBase {
-  $copy_JsxOpeningFragment(src: JsxOpeningFragment): void {
-    this.$copy_ExpressionBase(src);
+  $copy_ast_JsxOpeningFragment(src: JsxOpeningFragment): void {
+    this.$copy_ast_ExpressionBase(src);
   }
-  $equals_JsxOpeningFragment(o: JsxOpeningFragment): boolean {
-    return this.$equals_ExpressionBase(o);
+  $equals_ast_JsxOpeningFragment(o: JsxOpeningFragment): boolean {
+    return this.$equals_ast_ExpressionBase(o);
   }
-  $clone_JsxOpeningFragment(): JsxOpeningFragment {
+  $clone_ast_JsxOpeningFragment(): JsxOpeningFragment {
     const o = new JsxOpeningFragment();
-    o.$copy_JsxOpeningFragment(this);
+    o.$copy_ast_JsxOpeningFragment(this);
     return o;
   }
-  static $cast_JsxOpeningFragment(v: $rt.GoObject | undefined): JsxOpeningFragment {
+  static $cast_ast_JsxOpeningFragment(v: $rt.GoObject | undefined): JsxOpeningFragment {
     if (v instanceof JsxOpeningFragment) return v;
     throw $rt.typeAssertError();
   }
@@ -10892,28 +10970,28 @@ export class JsxSelfClosingElement extends PrimaryExpressionBase {
   TagName_: Node | undefined = undefined;
   TypeArguments_: NodeList | undefined = undefined;
   Attributes_: Node | undefined = undefined;
-  $copy_JsxSelfClosingElement(src: JsxSelfClosingElement): void {
-    this.$copy_PrimaryExpressionBase(src);
-    this.CompositeBase_ = src.CompositeBase_.$clone_CompositeBase();
+  $copy_ast_JsxSelfClosingElement(src: JsxSelfClosingElement): void {
+    this.$copy_ast_PrimaryExpressionBase(src);
+    this.CompositeBase_ = src.CompositeBase_.$clone_ast_CompositeBase();
     this.TagName_ = src.TagName_;
     this.TypeArguments_ = src.TypeArguments_;
     this.Attributes_ = src.Attributes_;
   }
-  $equals_JsxSelfClosingElement(o: JsxSelfClosingElement): boolean {
+  $equals_ast_JsxSelfClosingElement(o: JsxSelfClosingElement): boolean {
     return (
-      this.$equals_PrimaryExpressionBase(o) &&
-      this.CompositeBase_.$equals_CompositeBase(o.CompositeBase_) &&
+      this.$equals_ast_PrimaryExpressionBase(o) &&
+      this.CompositeBase_.$equals_ast_CompositeBase(o.CompositeBase_) &&
       this.TagName_ === o.TagName_ &&
       this.TypeArguments_ === o.TypeArguments_ &&
       this.Attributes_ === o.Attributes_
     );
   }
-  $clone_JsxSelfClosingElement(): JsxSelfClosingElement {
+  $clone_ast_JsxSelfClosingElement(): JsxSelfClosingElement {
     const o = new JsxSelfClosingElement();
-    o.$copy_JsxSelfClosingElement(this);
+    o.$copy_ast_JsxSelfClosingElement(this);
     return o;
   }
-  static $cast_JsxSelfClosingElement(v: $rt.GoObject | undefined): JsxSelfClosingElement {
+  static $cast_ast_JsxSelfClosingElement(v: $rt.GoObject | undefined): JsxSelfClosingElement {
     if (v instanceof JsxSelfClosingElement) return v;
     throw $rt.typeAssertError();
   }
@@ -10956,24 +11034,24 @@ export class JsxSelfClosingElement extends PrimaryExpressionBase {
 export class JsxSpreadAttribute extends NodeBase {
   ObjectLiteralElementBase_: ObjectLiteralElementBase = new ObjectLiteralElementBase();
   Expression_: Node | undefined = undefined;
-  $copy_JsxSpreadAttribute(src: JsxSpreadAttribute): void {
-    this.$copy_NodeBase(src);
+  $copy_ast_JsxSpreadAttribute(src: JsxSpreadAttribute): void {
+    this.$copy_ast_NodeBase(src);
     this.ObjectLiteralElementBase_ = src.ObjectLiteralElementBase_;
     this.Expression_ = src.Expression_;
   }
-  $equals_JsxSpreadAttribute(o: JsxSpreadAttribute): boolean {
+  $equals_ast_JsxSpreadAttribute(o: JsxSpreadAttribute): boolean {
     return (
-      this.$equals_NodeBase(o) &&
-      this.ObjectLiteralElementBase_.$equals_ObjectLiteralElementBase(o.ObjectLiteralElementBase_) &&
+      this.$equals_ast_NodeBase(o) &&
+      this.ObjectLiteralElementBase_.$equals_ast_ObjectLiteralElementBase(o.ObjectLiteralElementBase_) &&
       this.Expression_ === o.Expression_
     );
   }
-  $clone_JsxSpreadAttribute(): JsxSpreadAttribute {
+  $clone_ast_JsxSpreadAttribute(): JsxSpreadAttribute {
     const o = new JsxSpreadAttribute();
-    o.$copy_JsxSpreadAttribute(this);
+    o.$copy_ast_JsxSpreadAttribute(this);
     return o;
   }
-  static $cast_JsxSpreadAttribute(v: $rt.GoObject | undefined): JsxSpreadAttribute {
+  static $cast_ast_JsxSpreadAttribute(v: $rt.GoObject | undefined): JsxSpreadAttribute {
     if (v instanceof JsxSpreadAttribute) return v;
     throw $rt.typeAssertError();
   }
@@ -11001,24 +11079,24 @@ export class JsxSpreadAttribute extends NodeBase {
 export class JsxText extends ExpressionBase {
   LiteralLikeNodeBase_: LiteralLikeNodeBase = new LiteralLikeNodeBase();
   ContainsOnlyTriviaWhiteSpaces: boolean = false;
-  $copy_JsxText(src: JsxText): void {
-    this.$copy_ExpressionBase(src);
-    this.LiteralLikeNodeBase_ = src.LiteralLikeNodeBase_.$clone_LiteralLikeNodeBase();
+  $copy_ast_JsxText(src: JsxText): void {
+    this.$copy_ast_ExpressionBase(src);
+    this.LiteralLikeNodeBase_ = src.LiteralLikeNodeBase_.$clone_ast_LiteralLikeNodeBase();
     this.ContainsOnlyTriviaWhiteSpaces = src.ContainsOnlyTriviaWhiteSpaces;
   }
-  $equals_JsxText(o: JsxText): boolean {
+  $equals_ast_JsxText(o: JsxText): boolean {
     return (
-      this.$equals_ExpressionBase(o) &&
-      this.LiteralLikeNodeBase_.$equals_LiteralLikeNodeBase(o.LiteralLikeNodeBase_) &&
+      this.$equals_ast_ExpressionBase(o) &&
+      this.LiteralLikeNodeBase_.$equals_ast_LiteralLikeNodeBase(o.LiteralLikeNodeBase_) &&
       this.ContainsOnlyTriviaWhiteSpaces === o.ContainsOnlyTriviaWhiteSpaces
     );
   }
-  $clone_JsxText(): JsxText {
+  $clone_ast_JsxText(): JsxText {
     const o = new JsxText();
-    o.$copy_JsxText(this);
+    o.$copy_ast_JsxText(this);
     return o;
   }
-  static $cast_JsxText(v: $rt.GoObject | undefined): JsxText {
+  static $cast_ast_JsxText(v: $rt.GoObject | undefined): JsxText {
     if (v instanceof JsxText) return v;
     throw $rt.typeAssertError();
   }
@@ -11040,19 +11118,19 @@ export class JsxText extends ExpressionBase {
 }
 export class KeywordExpression extends ExpressionBase {
   FlowNodeBase_: FlowNodeBase = new FlowNodeBase();
-  $copy_KeywordExpression(src: KeywordExpression): void {
-    this.$copy_ExpressionBase(src);
-    this.FlowNodeBase_ = src.FlowNodeBase_.$clone_FlowNodeBase();
+  $copy_ast_KeywordExpression(src: KeywordExpression): void {
+    this.$copy_ast_ExpressionBase(src);
+    this.FlowNodeBase_ = src.FlowNodeBase_.$clone_ast_FlowNodeBase();
   }
-  $equals_KeywordExpression(o: KeywordExpression): boolean {
-    return this.$equals_ExpressionBase(o) && this.FlowNodeBase_.$equals_FlowNodeBase(o.FlowNodeBase_);
+  $equals_ast_KeywordExpression(o: KeywordExpression): boolean {
+    return this.$equals_ast_ExpressionBase(o) && this.FlowNodeBase_.$equals_ast_FlowNodeBase(o.FlowNodeBase_);
   }
-  $clone_KeywordExpression(): KeywordExpression {
+  $clone_ast_KeywordExpression(): KeywordExpression {
     const o = new KeywordExpression();
-    o.$copy_KeywordExpression(this);
+    o.$copy_ast_KeywordExpression(this);
     return o;
   }
-  static $cast_KeywordExpression(v: $rt.GoObject | undefined): KeywordExpression {
+  static $cast_ast_KeywordExpression(v: $rt.GoObject | undefined): KeywordExpression {
     if (v instanceof KeywordExpression) return v;
     throw $rt.typeAssertError();
   }
@@ -11079,18 +11157,18 @@ export class KeywordExpression extends ExpressionBase {
   }
 }
 export class KeywordTypeNode extends TypeNodeBase {
-  $copy_KeywordTypeNode(src: KeywordTypeNode): void {
-    this.$copy_TypeNodeBase(src);
+  $copy_ast_KeywordTypeNode(src: KeywordTypeNode): void {
+    this.$copy_ast_TypeNodeBase(src);
   }
-  $equals_KeywordTypeNode(o: KeywordTypeNode): boolean {
-    return this.$equals_TypeNodeBase(o);
+  $equals_ast_KeywordTypeNode(o: KeywordTypeNode): boolean {
+    return this.$equals_ast_TypeNodeBase(o);
   }
-  $clone_KeywordTypeNode(): KeywordTypeNode {
+  $clone_ast_KeywordTypeNode(): KeywordTypeNode {
     const o = new KeywordTypeNode();
-    o.$copy_KeywordTypeNode(this);
+    o.$copy_ast_KeywordTypeNode(this);
     return o;
   }
-  static $cast_KeywordTypeNode(v: $rt.GoObject | undefined): KeywordTypeNode {
+  static $cast_ast_KeywordTypeNode(v: $rt.GoObject | undefined): KeywordTypeNode {
     if (v instanceof KeywordTypeNode) return v;
     throw $rt.typeAssertError();
   }
@@ -11108,20 +11186,20 @@ export class KeywordTypeNode extends TypeNodeBase {
 export class LabeledStatement extends StatementBase {
   Label_: Node | undefined = undefined;
   Statement_: Node | undefined = undefined;
-  $copy_LabeledStatement(src: LabeledStatement): void {
-    this.$copy_StatementBase(src);
+  $copy_ast_LabeledStatement(src: LabeledStatement): void {
+    this.$copy_ast_StatementBase(src);
     this.Label_ = src.Label_;
     this.Statement_ = src.Statement_;
   }
-  $equals_LabeledStatement(o: LabeledStatement): boolean {
-    return this.$equals_StatementBase(o) && this.Label_ === o.Label_ && this.Statement_ === o.Statement_;
+  $equals_ast_LabeledStatement(o: LabeledStatement): boolean {
+    return this.$equals_ast_StatementBase(o) && this.Label_ === o.Label_ && this.Statement_ === o.Statement_;
   }
-  $clone_LabeledStatement(): LabeledStatement {
+  $clone_ast_LabeledStatement(): LabeledStatement {
     const o = new LabeledStatement();
-    o.$copy_LabeledStatement(this);
+    o.$copy_ast_LabeledStatement(this);
     return o;
   }
-  static $cast_LabeledStatement(v: $rt.GoObject | undefined): LabeledStatement {
+  static $cast_ast_LabeledStatement(v: $rt.GoObject | undefined): LabeledStatement {
     if (v instanceof LabeledStatement) return v;
     throw $rt.typeAssertError();
   }
@@ -11156,19 +11234,19 @@ export class LabeledStatement extends StatementBase {
 export class LiteralLikeNodeBase extends $rt.GoObject {
   Text: string = '';
   TokenFlags_: TokenFlags = 0;
-  $copy_LiteralLikeNodeBase(src: LiteralLikeNodeBase): void {
+  $copy_ast_LiteralLikeNodeBase(src: LiteralLikeNodeBase): void {
     this.Text = src.Text;
     this.TokenFlags_ = src.TokenFlags_;
   }
-  $equals_LiteralLikeNodeBase(o: LiteralLikeNodeBase): boolean {
+  $equals_ast_LiteralLikeNodeBase(o: LiteralLikeNodeBase): boolean {
     return this.Text === o.Text && this.TokenFlags_ === o.TokenFlags_;
   }
-  $clone_LiteralLikeNodeBase(): LiteralLikeNodeBase {
+  $clone_ast_LiteralLikeNodeBase(): LiteralLikeNodeBase {
     const o = new LiteralLikeNodeBase();
-    o.$copy_LiteralLikeNodeBase(this);
+    o.$copy_ast_LiteralLikeNodeBase(this);
     return o;
   }
-  static $cast_LiteralLikeNodeBase(v: $rt.GoObject | undefined): LiteralLikeNodeBase {
+  static $cast_ast_LiteralLikeNodeBase(v: $rt.GoObject | undefined): LiteralLikeNodeBase {
     if (v instanceof LiteralLikeNodeBase) return v;
     throw $rt.typeAssertError();
   }
@@ -11182,19 +11260,19 @@ export class LiteralLikeNodeBase extends $rt.GoObject {
 }
 export class LiteralTypeNode extends TypeNodeBase {
   Literal: Node | undefined = undefined;
-  $copy_LiteralTypeNode(src: LiteralTypeNode): void {
-    this.$copy_TypeNodeBase(src);
+  $copy_ast_LiteralTypeNode(src: LiteralTypeNode): void {
+    this.$copy_ast_TypeNodeBase(src);
     this.Literal = src.Literal;
   }
-  $equals_LiteralTypeNode(o: LiteralTypeNode): boolean {
-    return this.$equals_TypeNodeBase(o) && this.Literal === o.Literal;
+  $equals_ast_LiteralTypeNode(o: LiteralTypeNode): boolean {
+    return this.$equals_ast_TypeNodeBase(o) && this.Literal === o.Literal;
   }
-  $clone_LiteralTypeNode(): LiteralTypeNode {
+  $clone_ast_LiteralTypeNode(): LiteralTypeNode {
     const o = new LiteralTypeNode();
-    o.$copy_LiteralTypeNode(this);
+    o.$copy_ast_LiteralTypeNode(this);
     return o;
   }
-  static $cast_LiteralTypeNode(v: $rt.GoObject | undefined): LiteralTypeNode {
+  static $cast_ast_LiteralTypeNode(v: $rt.GoObject | undefined): LiteralTypeNode {
     if (v instanceof LiteralTypeNode) return v;
     throw $rt.typeAssertError();
   }
@@ -11224,7 +11302,7 @@ export class MappedDiagnosticDirective extends $rt.GoObject {
   UnusedCode: number = 0;
   UnusedMessageText: string = '';
   Source: string = '';
-  $copy_MappedDiagnosticDirective(src: MappedDiagnosticDirective): void {
+  $copy_ast_MappedDiagnosticDirective(src: MappedDiagnosticDirective): void {
     this.OriginalRange = src.OriginalRange;
     this.VirtualRange = src.VirtualRange;
     this.Policy = src.Policy;
@@ -11232,22 +11310,27 @@ export class MappedDiagnosticDirective extends $rt.GoObject {
     this.UnusedMessageText = src.UnusedMessageText;
     this.Source = src.Source;
   }
-  $equals_MappedDiagnosticDirective(o: MappedDiagnosticDirective): boolean {
+  $equals_ast_MappedDiagnosticDirective(o: MappedDiagnosticDirective): boolean {
     return (
-      this.OriginalRange.$equals_TextRange(o.OriginalRange) &&
-      this.VirtualRange.$equals_TextRange(o.VirtualRange) &&
+      this.OriginalRange.$equals_core_TextRange(o.OriginalRange) &&
+      this.VirtualRange.$equals_core_TextRange(o.VirtualRange) &&
       this.Policy === o.Policy &&
       this.UnusedCode === o.UnusedCode &&
       this.UnusedMessageText === o.UnusedMessageText &&
       this.Source === o.Source
     );
   }
-  $clone_MappedDiagnosticDirective(): MappedDiagnosticDirective {
+  $clone_ast_MappedDiagnosticDirective(): MappedDiagnosticDirective {
     const o = new MappedDiagnosticDirective();
-    o.$copy_MappedDiagnosticDirective(this);
+    o.$copy_ast_MappedDiagnosticDirective(this);
     return o;
   }
-  static $cast_MappedDiagnosticDirective(v: $rt.GoObject | undefined): MappedDiagnosticDirective {
+  static $lit_ast_MappedDiagnosticDirective_5(p0: string): MappedDiagnosticDirective {
+    const o = new MappedDiagnosticDirective();
+    o.Source = p0;
+    return o;
+  }
+  static $cast_ast_MappedDiagnosticDirective(v: $rt.GoObject | undefined): MappedDiagnosticDirective {
     if (v instanceof MappedDiagnosticDirective) return v;
     throw $rt.typeAssertError();
   }
@@ -11261,10 +11344,10 @@ export class MappedTypeNode extends TypeNodeBase {
   QuestionToken_: Node | undefined = undefined;
   Type_: Node | undefined = undefined;
   Members_: NodeList | undefined = undefined;
-  $copy_MappedTypeNode(src: MappedTypeNode): void {
-    this.$copy_TypeNodeBase(src);
-    this.DeclarationBase_ = src.DeclarationBase_.$clone_DeclarationBase();
-    this.LocalsContainerBase_ = src.LocalsContainerBase_.$clone_LocalsContainerBase();
+  $copy_ast_MappedTypeNode(src: MappedTypeNode): void {
+    this.$copy_ast_TypeNodeBase(src);
+    this.DeclarationBase_ = src.DeclarationBase_.$clone_ast_DeclarationBase();
+    this.LocalsContainerBase_ = src.LocalsContainerBase_.$clone_ast_LocalsContainerBase();
     this.ReadonlyToken = src.ReadonlyToken;
     this.TypeParameter = src.TypeParameter;
     this.NameType = src.NameType;
@@ -11272,12 +11355,12 @@ export class MappedTypeNode extends TypeNodeBase {
     this.Type_ = src.Type_;
     this.Members_ = src.Members_;
   }
-  $clone_MappedTypeNode(): MappedTypeNode {
+  $clone_ast_MappedTypeNode(): MappedTypeNode {
     const o = new MappedTypeNode();
-    o.$copy_MappedTypeNode(this);
+    o.$copy_ast_MappedTypeNode(this);
     return o;
   }
-  static $cast_MappedTypeNode(v: $rt.GoObject | undefined): MappedTypeNode {
+  static $cast_ast_MappedTypeNode(v: $rt.GoObject | undefined): MappedTypeNode {
     if (v instanceof MappedTypeNode) return v;
     throw $rt.typeAssertError();
   }
@@ -11339,28 +11422,28 @@ export class MetaProperty extends PrimaryExpressionBase {
   CompositeBase_: CompositeBase = new CompositeBase();
   KeywordToken: Kind = 0;
   name: Node | undefined = undefined;
-  $copy_MetaProperty(src: MetaProperty): void {
-    this.$copy_PrimaryExpressionBase(src);
-    this.FlowNodeBase_ = src.FlowNodeBase_.$clone_FlowNodeBase();
-    this.CompositeBase_ = src.CompositeBase_.$clone_CompositeBase();
+  $copy_ast_MetaProperty(src: MetaProperty): void {
+    this.$copy_ast_PrimaryExpressionBase(src);
+    this.FlowNodeBase_ = src.FlowNodeBase_.$clone_ast_FlowNodeBase();
+    this.CompositeBase_ = src.CompositeBase_.$clone_ast_CompositeBase();
     this.KeywordToken = src.KeywordToken;
     this.name = src.name;
   }
-  $equals_MetaProperty(o: MetaProperty): boolean {
+  $equals_ast_MetaProperty(o: MetaProperty): boolean {
     return (
-      this.$equals_PrimaryExpressionBase(o) &&
-      this.FlowNodeBase_.$equals_FlowNodeBase(o.FlowNodeBase_) &&
-      this.CompositeBase_.$equals_CompositeBase(o.CompositeBase_) &&
+      this.$equals_ast_PrimaryExpressionBase(o) &&
+      this.FlowNodeBase_.$equals_ast_FlowNodeBase(o.FlowNodeBase_) &&
+      this.CompositeBase_.$equals_ast_CompositeBase(o.CompositeBase_) &&
       this.KeywordToken === o.KeywordToken &&
       this.name === o.name
     );
   }
-  $clone_MetaProperty(): MetaProperty {
+  $clone_ast_MetaProperty(): MetaProperty {
     const o = new MetaProperty();
-    o.$copy_MetaProperty(this);
+    o.$copy_ast_MetaProperty(this);
     return o;
   }
-  static $cast_MetaProperty(v: $rt.GoObject | undefined): MetaProperty {
+  static $cast_ast_MetaProperty(v: $rt.GoObject | undefined): MetaProperty {
     if (v instanceof MetaProperty) return v;
     throw $rt.typeAssertError();
   }
@@ -11403,22 +11486,22 @@ export class MethodDeclaration extends NodeBase {
   FunctionLikeWithBodyBase_: FunctionLikeWithBodyBase = new FunctionLikeWithBodyBase();
   FlowNodeBase_: FlowNodeBase = new FlowNodeBase();
   CompositeBase_: CompositeBase = new CompositeBase();
-  $copy_MethodDeclaration(src: MethodDeclaration): void {
-    this.$copy_NodeBase(src);
+  $copy_ast_MethodDeclaration(src: MethodDeclaration): void {
+    this.$copy_ast_NodeBase(src);
     this.ClassElementBase_ = src.ClassElementBase_;
     this.ObjectLiteralElementBase_ = src.ObjectLiteralElementBase_;
-    this.DeclarationBase_ = src.DeclarationBase_.$clone_DeclarationBase();
-    this.NamedMemberBase_ = src.NamedMemberBase_.$clone_NamedMemberBase();
-    this.FunctionLikeWithBodyBase_ = src.FunctionLikeWithBodyBase_.$clone_FunctionLikeWithBodyBase();
-    this.FlowNodeBase_ = src.FlowNodeBase_.$clone_FlowNodeBase();
-    this.CompositeBase_ = src.CompositeBase_.$clone_CompositeBase();
+    this.DeclarationBase_ = src.DeclarationBase_.$clone_ast_DeclarationBase();
+    this.NamedMemberBase_ = src.NamedMemberBase_.$clone_ast_NamedMemberBase();
+    this.FunctionLikeWithBodyBase_ = src.FunctionLikeWithBodyBase_.$clone_ast_FunctionLikeWithBodyBase();
+    this.FlowNodeBase_ = src.FlowNodeBase_.$clone_ast_FlowNodeBase();
+    this.CompositeBase_ = src.CompositeBase_.$clone_ast_CompositeBase();
   }
-  $clone_MethodDeclaration(): MethodDeclaration {
+  $clone_ast_MethodDeclaration(): MethodDeclaration {
     const o = new MethodDeclaration();
-    o.$copy_MethodDeclaration(this);
+    o.$copy_ast_MethodDeclaration(this);
     return o;
   }
-  static $cast_MethodDeclaration(v: $rt.GoObject | undefined): MethodDeclaration {
+  static $cast_ast_MethodDeclaration(v: $rt.GoObject | undefined): MethodDeclaration {
     if (v instanceof MethodDeclaration) return v;
     throw $rt.typeAssertError();
   }
@@ -11458,7 +11541,7 @@ export class MethodDeclaration extends NodeBase {
   }
   propagateSubtreeFacts(): SubtreeFacts {
     const node = this;
-    return (((node!.SubtreeFacts_() & 4260970495) >>> 0) | propagateSubtreeFacts(node!.NamedMemberBase_.name)) >>> 0;
+    return (((node!.SubtreeFacts$m() & 4260970495) >>> 0) | propagateSubtreeFacts(node!.NamedMemberBase_.name)) >>> 0;
   }
   ForEachChild(v: Visitor): boolean {
     const node = this;
@@ -11544,20 +11627,20 @@ export class MethodSignatureDeclaration extends NodeBase {
   DeclarationBase_: DeclarationBase = new DeclarationBase();
   NamedMemberBase_: NamedMemberBase = new NamedMemberBase();
   FunctionLikeBase_: FunctionLikeBase = new FunctionLikeBase();
-  $copy_MethodSignatureDeclaration(src: MethodSignatureDeclaration): void {
-    this.$copy_NodeBase(src);
+  $copy_ast_MethodSignatureDeclaration(src: MethodSignatureDeclaration): void {
+    this.$copy_ast_NodeBase(src);
     this.TypeElementBase_ = src.TypeElementBase_;
     this.TypeSyntaxBase_ = src.TypeSyntaxBase_;
-    this.DeclarationBase_ = src.DeclarationBase_.$clone_DeclarationBase();
-    this.NamedMemberBase_ = src.NamedMemberBase_.$clone_NamedMemberBase();
-    this.FunctionLikeBase_ = src.FunctionLikeBase_.$clone_FunctionLikeBase();
+    this.DeclarationBase_ = src.DeclarationBase_.$clone_ast_DeclarationBase();
+    this.NamedMemberBase_ = src.NamedMemberBase_.$clone_ast_NamedMemberBase();
+    this.FunctionLikeBase_ = src.FunctionLikeBase_.$clone_ast_FunctionLikeBase();
   }
-  $clone_MethodSignatureDeclaration(): MethodSignatureDeclaration {
+  $clone_ast_MethodSignatureDeclaration(): MethodSignatureDeclaration {
     const o = new MethodSignatureDeclaration();
-    o.$copy_MethodSignatureDeclaration(this);
+    o.$copy_ast_MethodSignatureDeclaration(this);
     return o;
   }
-  static $cast_MethodSignatureDeclaration(v: $rt.GoObject | undefined): MethodSignatureDeclaration {
+  static $cast_ast_MethodSignatureDeclaration(v: $rt.GoObject | undefined): MethodSignatureDeclaration {
     if (v instanceof MethodSignatureDeclaration) return v;
     throw $rt.typeAssertError();
   }
@@ -11630,24 +11713,24 @@ export class MethodSignatureDeclaration extends NodeBase {
 export class MissingDeclaration extends StatementBase {
   DeclarationBase_: DeclarationBase = new DeclarationBase();
   ModifiersBase_: ModifiersBase = new ModifiersBase();
-  $copy_MissingDeclaration(src: MissingDeclaration): void {
-    this.$copy_StatementBase(src);
-    this.DeclarationBase_ = src.DeclarationBase_.$clone_DeclarationBase();
-    this.ModifiersBase_ = src.ModifiersBase_.$clone_ModifiersBase();
+  $copy_ast_MissingDeclaration(src: MissingDeclaration): void {
+    this.$copy_ast_StatementBase(src);
+    this.DeclarationBase_ = src.DeclarationBase_.$clone_ast_DeclarationBase();
+    this.ModifiersBase_ = src.ModifiersBase_.$clone_ast_ModifiersBase();
   }
-  $equals_MissingDeclaration(o: MissingDeclaration): boolean {
+  $equals_ast_MissingDeclaration(o: MissingDeclaration): boolean {
     return (
-      this.$equals_StatementBase(o) &&
-      this.DeclarationBase_.$equals_DeclarationBase(o.DeclarationBase_) &&
-      this.ModifiersBase_.$equals_ModifiersBase(o.ModifiersBase_)
+      this.$equals_ast_StatementBase(o) &&
+      this.DeclarationBase_.$equals_ast_DeclarationBase(o.DeclarationBase_) &&
+      this.ModifiersBase_.$equals_ast_ModifiersBase(o.ModifiersBase_)
     );
   }
-  $clone_MissingDeclaration(): MissingDeclaration {
+  $clone_ast_MissingDeclaration(): MissingDeclaration {
     const o = new MissingDeclaration();
-    o.$copy_MissingDeclaration(this);
+    o.$copy_ast_MissingDeclaration(this);
     return o;
   }
-  static $cast_MissingDeclaration(v: $rt.GoObject | undefined): MissingDeclaration {
+  static $cast_ast_MissingDeclaration(v: $rt.GoObject | undefined): MissingDeclaration {
     if (v instanceof MissingDeclaration) return v;
     throw $rt.typeAssertError();
   }
@@ -11683,16 +11766,16 @@ export class MissingDeclaration extends StatementBase {
 export class NodeList extends $rt.GoObject {
   Loc: $core.TextRange = new $core.TextRange();
   Nodes: (Node | undefined)[] = [];
-  $copy_NodeList(src: NodeList): void {
+  $copy_ast_NodeList(src: NodeList): void {
     this.Loc = src.Loc;
     this.Nodes = src.Nodes;
   }
-  $clone_NodeList(): NodeList {
+  $clone_ast_NodeList(): NodeList {
     const o = new NodeList();
-    o.$copy_NodeList(this);
+    o.$copy_ast_NodeList(this);
     return o;
   }
-  static $cast_NodeList(v: $rt.GoObject | undefined): NodeList {
+  static $cast_ast_NodeList(v: $rt.GoObject | undefined): NodeList {
     if (v instanceof NodeList) return v;
     throw $rt.typeAssertError();
   }
@@ -11721,16 +11804,16 @@ export class NodeList extends $rt.GoObject {
 }
 export class ModifierList extends NodeList {
   ModifierFlags_: ModifierFlags = 0;
-  $copy_ModifierList(src: ModifierList): void {
-    this.$copy_NodeList(src);
+  $copy_ast_ModifierList(src: ModifierList): void {
+    this.$copy_ast_NodeList(src);
     this.ModifierFlags_ = src.ModifierFlags_;
   }
-  $clone_ModifierList(): ModifierList {
+  $clone_ast_ModifierList(): ModifierList {
     const o = new ModifierList();
-    o.$copy_ModifierList(this);
+    o.$copy_ast_ModifierList(this);
     return o;
   }
-  static $cast_ModifierList(v: $rt.GoObject | undefined): ModifierList {
+  static $cast_ast_ModifierList(v: $rt.GoObject | undefined): ModifierList {
     if (v instanceof ModifierList) return v;
     throw $rt.typeAssertError();
   }
@@ -11745,18 +11828,18 @@ export class ModifierList extends NodeList {
 }
 export class ModifiersBase extends $rt.GoObject {
   modifiers: ModifierList | undefined = undefined;
-  $copy_ModifiersBase(src: ModifiersBase): void {
+  $copy_ast_ModifiersBase(src: ModifiersBase): void {
     this.modifiers = src.modifiers;
   }
-  $equals_ModifiersBase(o: ModifiersBase): boolean {
+  $equals_ast_ModifiersBase(o: ModifiersBase): boolean {
     return this.modifiers === o.modifiers;
   }
-  $clone_ModifiersBase(): ModifiersBase {
+  $clone_ast_ModifiersBase(): ModifiersBase {
     const o = new ModifiersBase();
-    o.$copy_ModifiersBase(this);
+    o.$copy_ast_ModifiersBase(this);
     return o;
   }
-  static $cast_ModifiersBase(v: $rt.GoObject | undefined): ModifiersBase {
+  static $cast_ast_ModifiersBase(v: $rt.GoObject | undefined): ModifiersBase {
     if (v instanceof ModifiersBase) return v;
     throw $rt.typeAssertError();
   }
@@ -11778,24 +11861,24 @@ export class ModifiersBase extends $rt.GoObject {
 export class ModuleBlock extends StatementBase {
   CompositeBase_: CompositeBase = new CompositeBase();
   Statements_: NodeList | undefined = undefined;
-  $copy_ModuleBlock(src: ModuleBlock): void {
-    this.$copy_StatementBase(src);
-    this.CompositeBase_ = src.CompositeBase_.$clone_CompositeBase();
+  $copy_ast_ModuleBlock(src: ModuleBlock): void {
+    this.$copy_ast_StatementBase(src);
+    this.CompositeBase_ = src.CompositeBase_.$clone_ast_CompositeBase();
     this.Statements_ = src.Statements_;
   }
-  $equals_ModuleBlock(o: ModuleBlock): boolean {
+  $equals_ast_ModuleBlock(o: ModuleBlock): boolean {
     return (
-      this.$equals_StatementBase(o) &&
-      this.CompositeBase_.$equals_CompositeBase(o.CompositeBase_) &&
+      this.$equals_ast_StatementBase(o) &&
+      this.CompositeBase_.$equals_ast_CompositeBase(o.CompositeBase_) &&
       this.Statements_ === o.Statements_
     );
   }
-  $clone_ModuleBlock(): ModuleBlock {
+  $clone_ast_ModuleBlock(): ModuleBlock {
     const o = new ModuleBlock();
-    o.$copy_ModuleBlock(this);
+    o.$copy_ast_ModuleBlock(this);
     return o;
   }
-  static $cast_ModuleBlock(v: $rt.GoObject | undefined): ModuleBlock {
+  static $cast_ast_ModuleBlock(v: $rt.GoObject | undefined): ModuleBlock {
     if (v instanceof ModuleBlock) return v;
     throw $rt.typeAssertError();
   }
@@ -11831,29 +11914,29 @@ export class ModuleDeclaration extends StatementBase {
   CompositeBase_: CompositeBase = new CompositeBase();
   Keyword: Kind = 0;
   name: Node | undefined = undefined;
-  $copy_ModuleDeclaration(src: ModuleDeclaration): void {
-    this.$copy_StatementBase(src);
-    this.DeclarationBase_ = src.DeclarationBase_.$clone_DeclarationBase();
-    this.ExportableBase_ = src.ExportableBase_.$clone_ExportableBase();
-    this.ModifiersBase_ = src.ModifiersBase_.$clone_ModifiersBase();
-    this.LocalsContainerBase_ = src.LocalsContainerBase_.$clone_LocalsContainerBase();
-    this.BodyBase_ = src.BodyBase_.$clone_BodyBase();
-    this.CompositeBase_ = src.CompositeBase_.$clone_CompositeBase();
+  $copy_ast_ModuleDeclaration(src: ModuleDeclaration): void {
+    this.$copy_ast_StatementBase(src);
+    this.DeclarationBase_ = src.DeclarationBase_.$clone_ast_DeclarationBase();
+    this.ExportableBase_ = src.ExportableBase_.$clone_ast_ExportableBase();
+    this.ModifiersBase_ = src.ModifiersBase_.$clone_ast_ModifiersBase();
+    this.LocalsContainerBase_ = src.LocalsContainerBase_.$clone_ast_LocalsContainerBase();
+    this.BodyBase_ = src.BodyBase_.$clone_ast_BodyBase();
+    this.CompositeBase_ = src.CompositeBase_.$clone_ast_CompositeBase();
     this.Keyword = src.Keyword;
     this.name = src.name;
   }
-  $clone_ModuleDeclaration(): ModuleDeclaration {
+  $clone_ast_ModuleDeclaration(): ModuleDeclaration {
     const o = new ModuleDeclaration();
-    o.$copy_ModuleDeclaration(this);
+    o.$copy_ast_ModuleDeclaration(this);
     return o;
   }
-  static $cast_ModuleDeclaration(v: $rt.GoObject | undefined): ModuleDeclaration {
+  static $cast_ast_ModuleDeclaration(v: $rt.GoObject | undefined): ModuleDeclaration {
     if (v instanceof ModuleDeclaration) return v;
     throw $rt.typeAssertError();
   }
   computeSubtreeFacts(): SubtreeFacts {
     const node = this;
-    if (!((node!.ModifierFlags_() & 128) === (0 as number))) {
+    if (!((node!.ModifierFlags$m() & 128) === (0 as number))) {
       return 1;
     } else {
       return (
@@ -11868,7 +11951,7 @@ export class ModuleDeclaration extends StatementBase {
   }
   propagateSubtreeFacts(): SubtreeFacts {
     const node = this;
-    return (node!.SubtreeFacts_() & 4261363711) >>> 0;
+    return (node!.SubtreeFacts$m() & 4261363711) >>> 0;
   }
   ForEachChild(v: Visitor): boolean {
     const node = this;
@@ -11931,24 +12014,24 @@ export class ModuleDeclaration extends StatementBase {
 export class NamedExports extends NodeBase {
   CompositeBase_: CompositeBase = new CompositeBase();
   Elements_: NodeList | undefined = undefined;
-  $copy_NamedExports(src: NamedExports): void {
-    this.$copy_NodeBase(src);
-    this.CompositeBase_ = src.CompositeBase_.$clone_CompositeBase();
+  $copy_ast_NamedExports(src: NamedExports): void {
+    this.$copy_ast_NodeBase(src);
+    this.CompositeBase_ = src.CompositeBase_.$clone_ast_CompositeBase();
     this.Elements_ = src.Elements_;
   }
-  $equals_NamedExports(o: NamedExports): boolean {
+  $equals_ast_NamedExports(o: NamedExports): boolean {
     return (
-      this.$equals_NodeBase(o) &&
-      this.CompositeBase_.$equals_CompositeBase(o.CompositeBase_) &&
+      this.$equals_ast_NodeBase(o) &&
+      this.CompositeBase_.$equals_ast_CompositeBase(o.CompositeBase_) &&
       this.Elements_ === o.Elements_
     );
   }
-  $clone_NamedExports(): NamedExports {
+  $clone_ast_NamedExports(): NamedExports {
     const o = new NamedExports();
-    o.$copy_NamedExports(this);
+    o.$copy_ast_NamedExports(this);
     return o;
   }
-  static $cast_NamedExports(v: $rt.GoObject | undefined): NamedExports {
+  static $cast_ast_NamedExports(v: $rt.GoObject | undefined): NamedExports {
     if (v instanceof NamedExports) return v;
     throw $rt.typeAssertError();
   }
@@ -11975,24 +12058,24 @@ export class NamedExports extends NodeBase {
 export class NamedImports extends NodeBase {
   CompositeBase_: CompositeBase = new CompositeBase();
   Elements_: NodeList | undefined = undefined;
-  $copy_NamedImports(src: NamedImports): void {
-    this.$copy_NodeBase(src);
-    this.CompositeBase_ = src.CompositeBase_.$clone_CompositeBase();
+  $copy_ast_NamedImports(src: NamedImports): void {
+    this.$copy_ast_NodeBase(src);
+    this.CompositeBase_ = src.CompositeBase_.$clone_ast_CompositeBase();
     this.Elements_ = src.Elements_;
   }
-  $equals_NamedImports(o: NamedImports): boolean {
+  $equals_ast_NamedImports(o: NamedImports): boolean {
     return (
-      this.$equals_NodeBase(o) &&
-      this.CompositeBase_.$equals_CompositeBase(o.CompositeBase_) &&
+      this.$equals_ast_NodeBase(o) &&
+      this.CompositeBase_.$equals_ast_CompositeBase(o.CompositeBase_) &&
       this.Elements_ === o.Elements_
     );
   }
-  $clone_NamedImports(): NamedImports {
+  $clone_ast_NamedImports(): NamedImports {
     const o = new NamedImports();
-    o.$copy_NamedImports(this);
+    o.$copy_ast_NamedImports(this);
     return o;
   }
-  static $cast_NamedImports(v: $rt.GoObject | undefined): NamedImports {
+  static $cast_ast_NamedImports(v: $rt.GoObject | undefined): NamedImports {
     if (v instanceof NamedImports) return v;
     throw $rt.typeAssertError();
   }
@@ -12019,20 +12102,20 @@ export class NamedImports extends NodeBase {
 export class NamedMemberBase extends ModifiersBase {
   name: Node | undefined = undefined;
   PostfixToken: Node | undefined = undefined;
-  $copy_NamedMemberBase(src: NamedMemberBase): void {
-    this.$copy_ModifiersBase(src);
+  $copy_ast_NamedMemberBase(src: NamedMemberBase): void {
+    this.$copy_ast_ModifiersBase(src);
     this.name = src.name;
     this.PostfixToken = src.PostfixToken;
   }
-  $equals_NamedMemberBase(o: NamedMemberBase): boolean {
-    return this.$equals_ModifiersBase(o) && this.name === o.name && this.PostfixToken === o.PostfixToken;
+  $equals_ast_NamedMemberBase(o: NamedMemberBase): boolean {
+    return this.$equals_ast_ModifiersBase(o) && this.name === o.name && this.PostfixToken === o.PostfixToken;
   }
-  $clone_NamedMemberBase(): NamedMemberBase {
+  $clone_ast_NamedMemberBase(): NamedMemberBase {
     const o = new NamedMemberBase();
-    o.$copy_NamedMemberBase(this);
+    o.$copy_ast_NamedMemberBase(this);
     return o;
   }
-  static $cast_NamedMemberBase(v: $rt.GoObject | undefined): NamedMemberBase {
+  static $cast_ast_NamedMemberBase(v: $rt.GoObject | undefined): NamedMemberBase {
     if (v instanceof NamedMemberBase) return v;
     throw $rt.typeAssertError();
   }
@@ -12055,30 +12138,30 @@ export class NamedTupleMember extends TypeNodeBase {
   name: Node | undefined = undefined;
   QuestionToken_: Node | undefined = undefined;
   Type_: Node | undefined = undefined;
-  $copy_NamedTupleMember(src: NamedTupleMember): void {
-    this.$copy_TypeNodeBase(src);
-    this.DeclarationBase_ = src.DeclarationBase_.$clone_DeclarationBase();
+  $copy_ast_NamedTupleMember(src: NamedTupleMember): void {
+    this.$copy_ast_TypeNodeBase(src);
+    this.DeclarationBase_ = src.DeclarationBase_.$clone_ast_DeclarationBase();
     this.DotDotDotToken = src.DotDotDotToken;
     this.name = src.name;
     this.QuestionToken_ = src.QuestionToken_;
     this.Type_ = src.Type_;
   }
-  $equals_NamedTupleMember(o: NamedTupleMember): boolean {
+  $equals_ast_NamedTupleMember(o: NamedTupleMember): boolean {
     return (
-      this.$equals_TypeNodeBase(o) &&
-      this.DeclarationBase_.$equals_DeclarationBase(o.DeclarationBase_) &&
+      this.$equals_ast_TypeNodeBase(o) &&
+      this.DeclarationBase_.$equals_ast_DeclarationBase(o.DeclarationBase_) &&
       this.DotDotDotToken === o.DotDotDotToken &&
       this.name === o.name &&
       this.QuestionToken_ === o.QuestionToken_ &&
       this.Type_ === o.Type_
     );
   }
-  $clone_NamedTupleMember(): NamedTupleMember {
+  $clone_ast_NamedTupleMember(): NamedTupleMember {
     const o = new NamedTupleMember();
-    o.$copy_NamedTupleMember(this);
+    o.$copy_ast_NamedTupleMember(this);
     return o;
   }
-  static $cast_NamedTupleMember(v: $rt.GoObject | undefined): NamedTupleMember {
+  static $cast_ast_NamedTupleMember(v: $rt.GoObject | undefined): NamedTupleMember {
     if (v instanceof NamedTupleMember) return v;
     throw $rt.typeAssertError();
   }
@@ -12123,24 +12206,24 @@ export class NamedTupleMember extends TypeNodeBase {
 export class NamespaceExport extends NodeBase {
   DeclarationBase_: DeclarationBase = new DeclarationBase();
   name: Node | undefined = undefined;
-  $copy_NamespaceExport(src: NamespaceExport): void {
-    this.$copy_NodeBase(src);
-    this.DeclarationBase_ = src.DeclarationBase_.$clone_DeclarationBase();
+  $copy_ast_NamespaceExport(src: NamespaceExport): void {
+    this.$copy_ast_NodeBase(src);
+    this.DeclarationBase_ = src.DeclarationBase_.$clone_ast_DeclarationBase();
     this.name = src.name;
   }
-  $equals_NamespaceExport(o: NamespaceExport): boolean {
+  $equals_ast_NamespaceExport(o: NamespaceExport): boolean {
     return (
-      this.$equals_NodeBase(o) &&
-      this.DeclarationBase_.$equals_DeclarationBase(o.DeclarationBase_) &&
+      this.$equals_ast_NodeBase(o) &&
+      this.DeclarationBase_.$equals_ast_DeclarationBase(o.DeclarationBase_) &&
       this.name === o.name
     );
   }
-  $clone_NamespaceExport(): NamespaceExport {
+  $clone_ast_NamespaceExport(): NamespaceExport {
     const o = new NamespaceExport();
-    o.$copy_NamespaceExport(this);
+    o.$copy_ast_NamespaceExport(this);
     return o;
   }
-  static $cast_NamespaceExport(v: $rt.GoObject | undefined): NamespaceExport {
+  static $cast_ast_NamespaceExport(v: $rt.GoObject | undefined): NamespaceExport {
     if (v instanceof NamespaceExport) return v;
     throw $rt.typeAssertError();
   }
@@ -12173,28 +12256,28 @@ export class NamespaceExportDeclaration extends StatementBase {
   DeclarationBase_: DeclarationBase = new DeclarationBase();
   ModifiersBase_: ModifiersBase = new ModifiersBase();
   name: Node | undefined = undefined;
-  $copy_NamespaceExportDeclaration(src: NamespaceExportDeclaration): void {
-    this.$copy_StatementBase(src);
+  $copy_ast_NamespaceExportDeclaration(src: NamespaceExportDeclaration): void {
+    this.$copy_ast_StatementBase(src);
     this.TypeSyntaxBase_ = src.TypeSyntaxBase_;
-    this.DeclarationBase_ = src.DeclarationBase_.$clone_DeclarationBase();
-    this.ModifiersBase_ = src.ModifiersBase_.$clone_ModifiersBase();
+    this.DeclarationBase_ = src.DeclarationBase_.$clone_ast_DeclarationBase();
+    this.ModifiersBase_ = src.ModifiersBase_.$clone_ast_ModifiersBase();
     this.name = src.name;
   }
-  $equals_NamespaceExportDeclaration(o: NamespaceExportDeclaration): boolean {
+  $equals_ast_NamespaceExportDeclaration(o: NamespaceExportDeclaration): boolean {
     return (
-      this.$equals_StatementBase(o) &&
-      this.TypeSyntaxBase_.$equals_TypeSyntaxBase(o.TypeSyntaxBase_) &&
-      this.DeclarationBase_.$equals_DeclarationBase(o.DeclarationBase_) &&
-      this.ModifiersBase_.$equals_ModifiersBase(o.ModifiersBase_) &&
+      this.$equals_ast_StatementBase(o) &&
+      this.TypeSyntaxBase_.$equals_ast_TypeSyntaxBase(o.TypeSyntaxBase_) &&
+      this.DeclarationBase_.$equals_ast_DeclarationBase(o.DeclarationBase_) &&
+      this.ModifiersBase_.$equals_ast_ModifiersBase(o.ModifiersBase_) &&
       this.name === o.name
     );
   }
-  $clone_NamespaceExportDeclaration(): NamespaceExportDeclaration {
+  $clone_ast_NamespaceExportDeclaration(): NamespaceExportDeclaration {
     const o = new NamespaceExportDeclaration();
-    o.$copy_NamespaceExportDeclaration(this);
+    o.$copy_ast_NamespaceExportDeclaration(this);
     return o;
   }
-  static $cast_NamespaceExportDeclaration(v: $rt.GoObject | undefined): NamespaceExportDeclaration {
+  static $cast_ast_NamespaceExportDeclaration(v: $rt.GoObject | undefined): NamespaceExportDeclaration {
     if (v instanceof NamespaceExportDeclaration) return v;
     throw $rt.typeAssertError();
   }
@@ -12245,26 +12328,26 @@ export class NamespaceImport extends NodeBase {
   DeclarationBase_: DeclarationBase = new DeclarationBase();
   ExportableBase_: ExportableBase = new ExportableBase();
   name: Node | undefined = undefined;
-  $copy_NamespaceImport(src: NamespaceImport): void {
-    this.$copy_NodeBase(src);
-    this.DeclarationBase_ = src.DeclarationBase_.$clone_DeclarationBase();
-    this.ExportableBase_ = src.ExportableBase_.$clone_ExportableBase();
+  $copy_ast_NamespaceImport(src: NamespaceImport): void {
+    this.$copy_ast_NodeBase(src);
+    this.DeclarationBase_ = src.DeclarationBase_.$clone_ast_DeclarationBase();
+    this.ExportableBase_ = src.ExportableBase_.$clone_ast_ExportableBase();
     this.name = src.name;
   }
-  $equals_NamespaceImport(o: NamespaceImport): boolean {
+  $equals_ast_NamespaceImport(o: NamespaceImport): boolean {
     return (
-      this.$equals_NodeBase(o) &&
-      this.DeclarationBase_.$equals_DeclarationBase(o.DeclarationBase_) &&
-      this.ExportableBase_.$equals_ExportableBase(o.ExportableBase_) &&
+      this.$equals_ast_NodeBase(o) &&
+      this.DeclarationBase_.$equals_ast_DeclarationBase(o.DeclarationBase_) &&
+      this.ExportableBase_.$equals_ast_ExportableBase(o.ExportableBase_) &&
       this.name === o.name
     );
   }
-  $clone_NamespaceImport(): NamespaceImport {
+  $clone_ast_NamespaceImport(): NamespaceImport {
     const o = new NamespaceImport();
-    o.$copy_NamespaceImport(this);
+    o.$copy_ast_NamespaceImport(this);
     return o;
   }
-  static $cast_NamespaceImport(v: $rt.GoObject | undefined): NamespaceImport {
+  static $cast_ast_NamespaceImport(v: $rt.GoObject | undefined): NamespaceImport {
     if (v instanceof NamespaceImport) return v;
     throw $rt.typeAssertError();
   }
@@ -12300,28 +12383,28 @@ export class NewExpression extends PrimaryExpressionBase {
   Expression_: Node | undefined = undefined;
   TypeArguments_: NodeList | undefined = undefined;
   Arguments_: NodeList | undefined = undefined;
-  $copy_NewExpression(src: NewExpression): void {
-    this.$copy_PrimaryExpressionBase(src);
-    this.CompositeBase_ = src.CompositeBase_.$clone_CompositeBase();
+  $copy_ast_NewExpression(src: NewExpression): void {
+    this.$copy_ast_PrimaryExpressionBase(src);
+    this.CompositeBase_ = src.CompositeBase_.$clone_ast_CompositeBase();
     this.Expression_ = src.Expression_;
     this.TypeArguments_ = src.TypeArguments_;
     this.Arguments_ = src.Arguments_;
   }
-  $equals_NewExpression(o: NewExpression): boolean {
+  $equals_ast_NewExpression(o: NewExpression): boolean {
     return (
-      this.$equals_PrimaryExpressionBase(o) &&
-      this.CompositeBase_.$equals_CompositeBase(o.CompositeBase_) &&
+      this.$equals_ast_PrimaryExpressionBase(o) &&
+      this.CompositeBase_.$equals_ast_CompositeBase(o.CompositeBase_) &&
       this.Expression_ === o.Expression_ &&
       this.TypeArguments_ === o.TypeArguments_ &&
       this.Arguments_ === o.Arguments_
     );
   }
-  $clone_NewExpression(): NewExpression {
+  $clone_ast_NewExpression(): NewExpression {
     const o = new NewExpression();
-    o.$copy_NewExpression(this);
+    o.$copy_ast_NewExpression(this);
     return o;
   }
-  static $cast_NewExpression(v: $rt.GoObject | undefined): NewExpression {
+  static $cast_ast_NewExpression(v: $rt.GoObject | undefined): NewExpression {
     if (v instanceof NewExpression) return v;
     throw $rt.typeAssertError();
   }
@@ -12336,7 +12419,7 @@ export class NewExpression extends PrimaryExpressionBase {
   }
   propagateSubtreeFacts(): SubtreeFacts {
     const node = this;
-    return (node!.SubtreeFacts_() & 4261412863) >>> 0;
+    return (node!.SubtreeFacts$m() & 4261412863) >>> 0;
   }
   ForEachChild(v: Visitor): boolean {
     const node = this;
@@ -12366,24 +12449,24 @@ export class NewExpression extends PrimaryExpressionBase {
 export class NoSubstitutionTemplateLiteral extends ExpressionBase {
   TemplateLiteralLikeNodeBase_: TemplateLiteralLikeNodeBase = new TemplateLiteralLikeNodeBase();
   DeclarationBase_: DeclarationBase = new DeclarationBase();
-  $copy_NoSubstitutionTemplateLiteral(src: NoSubstitutionTemplateLiteral): void {
-    this.$copy_ExpressionBase(src);
-    this.TemplateLiteralLikeNodeBase_ = src.TemplateLiteralLikeNodeBase_.$clone_TemplateLiteralLikeNodeBase();
-    this.DeclarationBase_ = src.DeclarationBase_.$clone_DeclarationBase();
+  $copy_ast_NoSubstitutionTemplateLiteral(src: NoSubstitutionTemplateLiteral): void {
+    this.$copy_ast_ExpressionBase(src);
+    this.TemplateLiteralLikeNodeBase_ = src.TemplateLiteralLikeNodeBase_.$clone_ast_TemplateLiteralLikeNodeBase();
+    this.DeclarationBase_ = src.DeclarationBase_.$clone_ast_DeclarationBase();
   }
-  $equals_NoSubstitutionTemplateLiteral(o: NoSubstitutionTemplateLiteral): boolean {
+  $equals_ast_NoSubstitutionTemplateLiteral(o: NoSubstitutionTemplateLiteral): boolean {
     return (
-      this.$equals_ExpressionBase(o) &&
-      this.TemplateLiteralLikeNodeBase_.$equals_TemplateLiteralLikeNodeBase(o.TemplateLiteralLikeNodeBase_) &&
-      this.DeclarationBase_.$equals_DeclarationBase(o.DeclarationBase_)
+      this.$equals_ast_ExpressionBase(o) &&
+      this.TemplateLiteralLikeNodeBase_.$equals_ast_TemplateLiteralLikeNodeBase(o.TemplateLiteralLikeNodeBase_) &&
+      this.DeclarationBase_.$equals_ast_DeclarationBase(o.DeclarationBase_)
     );
   }
-  $clone_NoSubstitutionTemplateLiteral(): NoSubstitutionTemplateLiteral {
+  $clone_ast_NoSubstitutionTemplateLiteral(): NoSubstitutionTemplateLiteral {
     const o = new NoSubstitutionTemplateLiteral();
-    o.$copy_NoSubstitutionTemplateLiteral(this);
+    o.$copy_ast_NoSubstitutionTemplateLiteral(this);
     return o;
   }
-  static $cast_NoSubstitutionTemplateLiteral(v: $rt.GoObject | undefined): NoSubstitutionTemplateLiteral {
+  static $cast_ast_NoSubstitutionTemplateLiteral(v: $rt.GoObject | undefined): NoSubstitutionTemplateLiteral {
     if (v instanceof NoSubstitutionTemplateLiteral) return v;
     throw $rt.typeAssertError();
   }
@@ -12481,7 +12564,7 @@ export class NodeFactory extends $rt.GoObject {
   variableStatementArena: $rt.core_Arena<VariableStatement> = new $rt.core_Arena<VariableStatement>($zf48);
   nodeCount: number = 0;
   textCount: number = 0;
-  $copy_NodeFactory(src: NodeFactory): void {
+  $copy_ast_NodeFactory(src: NodeFactory): void {
     this.hooks = src.hooks;
     this.arrayTypeNodeArena = src.arrayTypeNodeArena.$clone();
     this.binaryExpressionArena = src.binaryExpressionArena.$clone();
@@ -12534,24 +12617,24 @@ export class NodeFactory extends $rt.GoObject {
     this.nodeCount = src.nodeCount;
     this.textCount = src.textCount;
   }
-  $clone_NodeFactory(): NodeFactory {
+  $clone_ast_NodeFactory(): NodeFactory {
     const o = new NodeFactory();
-    o.$copy_NodeFactory(this);
+    o.$copy_ast_NodeFactory(this);
     return o;
   }
-  static $lit_NodeFactory_0(p0: NodeFactoryHooks): NodeFactory {
+  static $lit_ast_NodeFactory_0(p0: NodeFactoryHooks): NodeFactory {
     const o = new NodeFactory();
     o.hooks = p0;
     return o;
   }
-  static $lit_NodeFactory_0_50_49(p0: NodeFactoryHooks, p1: number, p2: number): NodeFactory {
+  static $lit_ast_NodeFactory_0_50_49(p0: NodeFactoryHooks, p1: number, p2: number): NodeFactory {
     const o = new NodeFactory();
     o.hooks = p0;
     o.textCount = p1;
     o.nodeCount = p2;
     return o;
   }
-  static $cast_NodeFactory(v: $rt.GoObject | undefined): NodeFactory {
+  static $cast_ast_NodeFactory(v: $rt.GoObject | undefined): NodeFactory {
     if (v instanceof NodeFactory) return v;
     throw $rt.typeAssertError();
   }
@@ -12611,7 +12694,7 @@ export class NodeFactory extends $rt.GoObject {
     }
     let data: SourceFile | undefined = new SourceFile();
     data!.fileName = opts.FileName;
-    data!.parseOptions = opts;
+    data!.parseOptions = opts.$clone_ast_SourceFileParseOptions();
     data!.text = text;
     data!.Statements_ = statements;
     data!.EndOfFileToken = endOfFileToken;
@@ -12625,7 +12708,7 @@ export class NodeFactory extends $rt.GoObject {
     const f = this;
     if (!(statements === node!.Statements_) || !(endOfFileToken === node!.EndOfFileToken)) {
       let updated: SourceFile | undefined = f!
-        .NewSourceFile(node!.parseOptions, node!.text, statements, endOfFileToken)!
+        .NewSourceFile(node!.parseOptions.$clone_ast_SourceFileParseOptions(), node!.text, statements, endOfFileToken)!
         .AsSourceFile();
       updated!.copyFrom(node);
       return updateNode(updated!.AsNode(), node!.AsNode(), f!.hooks);
@@ -12634,11 +12717,11 @@ export class NodeFactory extends $rt.GoObject {
   }
   NewCommentRange(kind: Kind, pos: number, end: number, hasTrailingNewLine: boolean): CommentRange {
     const f = this;
-    return CommentRange.$lit_CommentRange_0_1_2($core.NewTextRange(pos, end), kind, hasTrailingNewLine);
+    return CommentRange.$lit_ast_CommentRange_0_1_2($core.NewTextRange(pos, end), kind, hasTrailingNewLine);
   }
   ReleaseArenas(): void {
     const f = this;
-    f!.$copy_NodeFactory(NodeFactory.$lit_NodeFactory_0_50_49(f!.hooks, f!.textCount, f!.nodeCount));
+    f!.$copy_ast_NodeFactory(NodeFactory.$lit_ast_NodeFactory_0_50_49(f!.hooks, f!.textCount, f!.nodeCount));
   }
   NewToken(kind: TokenSyntaxKind): Node | undefined {
     const f = this;
@@ -16870,17 +16953,28 @@ export class NodeFactoryHooks extends $rt.GoObject {
   OnCreate: ((p0: Node | undefined) => void) | undefined = undefined;
   OnUpdate: ((p0: Node | undefined, p1: Node | undefined) => void) | undefined = undefined;
   OnClone: ((p0: Node | undefined, p1: Node | undefined) => void) | undefined = undefined;
-  $copy_NodeFactoryHooks(src: NodeFactoryHooks): void {
+  $copy_ast_NodeFactoryHooks(src: NodeFactoryHooks): void {
     this.OnCreate = src.OnCreate;
     this.OnUpdate = src.OnUpdate;
     this.OnClone = src.OnClone;
   }
-  $clone_NodeFactoryHooks(): NodeFactoryHooks {
+  $clone_ast_NodeFactoryHooks(): NodeFactoryHooks {
     const o = new NodeFactoryHooks();
-    o.$copy_NodeFactoryHooks(this);
+    o.$copy_ast_NodeFactoryHooks(this);
     return o;
   }
-  static $cast_NodeFactoryHooks(v: $rt.GoObject | undefined): NodeFactoryHooks {
+  static $lit_ast_NodeFactoryHooks_0_1_2(
+    p0: ((p0: Node | undefined) => void) | undefined,
+    p1: ((p0: Node | undefined, p1: Node | undefined) => void) | undefined,
+    p2: ((p0: Node | undefined, p1: Node | undefined) => void) | undefined,
+  ): NodeFactoryHooks {
+    const o = new NodeFactoryHooks();
+    o.OnCreate = p0;
+    o.OnUpdate = p1;
+    o.OnClone = p2;
+    return o;
+  }
+  static $cast_ast_NodeFactoryHooks(v: $rt.GoObject | undefined): NodeFactoryHooks {
     if (v instanceof NodeFactoryHooks) return v;
     throw $rt.typeAssertError();
   }
@@ -16889,17 +16983,17 @@ export class NodeVisitor extends $rt.GoObject {
   Visit: ((p0: Node | undefined) => Node | undefined) | undefined = undefined;
   Factory: NodeFactory | undefined = undefined;
   Hooks: NodeVisitorHooks = new NodeVisitorHooks();
-  $copy_NodeVisitor(src: NodeVisitor): void {
+  $copy_ast_NodeVisitor(src: NodeVisitor): void {
     this.Visit = src.Visit;
     this.Factory = src.Factory;
     this.Hooks = src.Hooks;
   }
-  $clone_NodeVisitor(): NodeVisitor {
+  $clone_ast_NodeVisitor(): NodeVisitor {
     const o = new NodeVisitor();
-    o.$copy_NodeVisitor(this);
+    o.$copy_ast_NodeVisitor(this);
     return o;
   }
-  static $lit_NodeVisitor_0_1_2(
+  static $lit_ast_NodeVisitor_0_1_2(
     p0: ((p0: Node | undefined) => Node | undefined) | undefined,
     p1: NodeFactory | undefined,
     p2: NodeVisitorHooks,
@@ -16910,7 +17004,7 @@ export class NodeVisitor extends $rt.GoObject {
     o.Hooks = p2;
     return o;
   }
-  static $cast_NodeVisitor(v: $rt.GoObject | undefined): NodeVisitor {
+  static $cast_ast_NodeVisitor(v: $rt.GoObject | undefined): NodeVisitor {
     if (v instanceof NodeVisitor) return v;
     throw $rt.typeAssertError();
   }
@@ -17001,7 +17095,7 @@ export class NodeVisitor extends $rt.GoObject {
         }
         let visited: Node | undefined = v!.Visit!(node);
         if (visited === undefined || !(visited === node)) {
-          let updated: (Node | undefined)[] = $rt.slices_Clone(nodes.slice(0, i));
+          let updated: (Node | undefined)[] = $rt.slices_Clone($rt.reslice(nodes, 0, i, undefined));
           for (;;) {
             {
               $sw1: {
@@ -17141,7 +17235,7 @@ export class NodeVisitorHooks extends $rt.GoObject {
   VisitTopLevelStatements:
     | ((p0: NodeList | undefined, p1: NodeVisitor | undefined) => NodeList | undefined)
     | undefined = undefined;
-  $copy_NodeVisitorHooks(src: NodeVisitorHooks): void {
+  $copy_ast_NodeVisitorHooks(src: NodeVisitorHooks): void {
     this.VisitNode = src.VisitNode;
     this.VisitToken = src.VisitToken;
     this.VisitNodes = src.VisitNodes;
@@ -17152,12 +17246,47 @@ export class NodeVisitorHooks extends $rt.GoObject {
     this.VisitFunctionBody = src.VisitFunctionBody;
     this.VisitTopLevelStatements = src.VisitTopLevelStatements;
   }
-  $clone_NodeVisitorHooks(): NodeVisitorHooks {
+  $clone_ast_NodeVisitorHooks(): NodeVisitorHooks {
     const o = new NodeVisitorHooks();
-    o.$copy_NodeVisitorHooks(this);
+    o.$copy_ast_NodeVisitorHooks(this);
     return o;
   }
-  static $lit_NodeVisitorHooks_2_3(
+  static $lit_ast_NodeVisitorHooks_0_1_2_3(
+    p0: ((p0: Node | undefined, p1: NodeVisitor | undefined) => Node | undefined) | undefined,
+    p1: ((p0: Node | undefined, p1: NodeVisitor | undefined) => Node | undefined) | undefined,
+    p2: ((p0: NodeList | undefined, p1: NodeVisitor | undefined) => NodeList | undefined) | undefined,
+    p3: ((p0: ModifierList | undefined, p1: NodeVisitor | undefined) => ModifierList | undefined) | undefined,
+  ): NodeVisitorHooks {
+    const o = new NodeVisitorHooks();
+    o.VisitNode = p0;
+    o.VisitToken = p1;
+    o.VisitNodes = p2;
+    o.VisitModifiers = p3;
+    return o;
+  }
+  static $lit_ast_NodeVisitorHooks_0_2_1_3(
+    p0: ((p0: Node | undefined, p1: NodeVisitor | undefined) => Node | undefined) | undefined,
+    p1: ((p0: NodeList | undefined, p1: NodeVisitor | undefined) => NodeList | undefined) | undefined,
+    p2: ((p0: Node | undefined, p1: NodeVisitor | undefined) => Node | undefined) | undefined,
+    p3: ((p0: ModifierList | undefined, p1: NodeVisitor | undefined) => ModifierList | undefined) | undefined,
+  ): NodeVisitorHooks {
+    const o = new NodeVisitorHooks();
+    o.VisitNode = p0;
+    o.VisitNodes = p1;
+    o.VisitToken = p2;
+    o.VisitModifiers = p3;
+    return o;
+  }
+  static $lit_ast_NodeVisitorHooks_2_0(
+    p0: ((p0: NodeList | undefined, p1: NodeVisitor | undefined) => NodeList | undefined) | undefined,
+    p1: ((p0: Node | undefined, p1: NodeVisitor | undefined) => Node | undefined) | undefined,
+  ): NodeVisitorHooks {
+    const o = new NodeVisitorHooks();
+    o.VisitNodes = p0;
+    o.VisitNode = p1;
+    return o;
+  }
+  static $lit_ast_NodeVisitorHooks_2_3(
     p0: ((p0: NodeList | undefined, p1: NodeVisitor | undefined) => NodeList | undefined) | undefined,
     p1: ((p0: ModifierList | undefined, p1: NodeVisitor | undefined) => ModifierList | undefined) | undefined,
   ): NodeVisitorHooks {
@@ -17166,26 +17295,41 @@ export class NodeVisitorHooks extends $rt.GoObject {
     o.VisitModifiers = p1;
     return o;
   }
-  static $cast_NodeVisitorHooks(v: $rt.GoObject | undefined): NodeVisitorHooks {
+  static $lit_ast_NodeVisitorHooks_6_7_5_8_4(
+    p0: ((p0: NodeList | undefined, p1: NodeVisitor | undefined) => NodeList | undefined) | undefined,
+    p1: ((p0: Node | undefined, p1: NodeVisitor | undefined) => Node | undefined) | undefined,
+    p2: ((p0: Node | undefined, p1: NodeVisitor | undefined) => Node | undefined) | undefined,
+    p3: ((p0: NodeList | undefined, p1: NodeVisitor | undefined) => NodeList | undefined) | undefined,
+    p4: ((p0: Node | undefined, p1: NodeVisitor | undefined) => Node | undefined) | undefined,
+  ): NodeVisitorHooks {
+    const o = new NodeVisitorHooks();
+    o.VisitParameters = p0;
+    o.VisitFunctionBody = p1;
+    o.VisitIterationBody = p2;
+    o.VisitTopLevelStatements = p3;
+    o.VisitEmbeddedStatement = p4;
+    return o;
+  }
+  static $cast_ast_NodeVisitorHooks(v: $rt.GoObject | undefined): NodeVisitorHooks {
     if (v instanceof NodeVisitorHooks) return v;
     throw $rt.typeAssertError();
   }
 }
 export class NonNullExpression extends LeftHandSideExpressionBase {
   Expression_: Node | undefined = undefined;
-  $copy_NonNullExpression(src: NonNullExpression): void {
-    this.$copy_LeftHandSideExpressionBase(src);
+  $copy_ast_NonNullExpression(src: NonNullExpression): void {
+    this.$copy_ast_LeftHandSideExpressionBase(src);
     this.Expression_ = src.Expression_;
   }
-  $equals_NonNullExpression(o: NonNullExpression): boolean {
-    return this.$equals_LeftHandSideExpressionBase(o) && this.Expression_ === o.Expression_;
+  $equals_ast_NonNullExpression(o: NonNullExpression): boolean {
+    return this.$equals_ast_LeftHandSideExpressionBase(o) && this.Expression_ === o.Expression_;
   }
-  $clone_NonNullExpression(): NonNullExpression {
+  $clone_ast_NonNullExpression(): NonNullExpression {
     const o = new NonNullExpression();
-    o.$copy_NonNullExpression(this);
+    o.$copy_ast_NonNullExpression(this);
     return o;
   }
-  static $cast_NonNullExpression(v: $rt.GoObject | undefined): NonNullExpression {
+  static $cast_ast_NonNullExpression(v: $rt.GoObject | undefined): NonNullExpression {
     if (v instanceof NonNullExpression) return v;
     throw $rt.typeAssertError();
   }
@@ -17211,18 +17355,18 @@ export class NonNullExpression extends LeftHandSideExpressionBase {
   }
 }
 export class NotEmittedStatement extends StatementBase {
-  $copy_NotEmittedStatement(src: NotEmittedStatement): void {
-    this.$copy_StatementBase(src);
+  $copy_ast_NotEmittedStatement(src: NotEmittedStatement): void {
+    this.$copy_ast_StatementBase(src);
   }
-  $equals_NotEmittedStatement(o: NotEmittedStatement): boolean {
-    return this.$equals_StatementBase(o);
+  $equals_ast_NotEmittedStatement(o: NotEmittedStatement): boolean {
+    return this.$equals_ast_StatementBase(o);
   }
-  $clone_NotEmittedStatement(): NotEmittedStatement {
+  $clone_ast_NotEmittedStatement(): NotEmittedStatement {
     const o = new NotEmittedStatement();
-    o.$copy_NotEmittedStatement(this);
+    o.$copy_ast_NotEmittedStatement(this);
     return o;
   }
-  static $cast_NotEmittedStatement(v: $rt.GoObject | undefined): NotEmittedStatement {
+  static $cast_ast_NotEmittedStatement(v: $rt.GoObject | undefined): NotEmittedStatement {
     if (v instanceof NotEmittedStatement) return v;
     throw $rt.typeAssertError();
   }
@@ -17236,19 +17380,19 @@ export class NotEmittedStatement extends StatementBase {
 }
 export class NotEmittedTypeElement extends NodeBase {
   TypeElementBase_: TypeElementBase = new TypeElementBase();
-  $copy_NotEmittedTypeElement(src: NotEmittedTypeElement): void {
-    this.$copy_NodeBase(src);
+  $copy_ast_NotEmittedTypeElement(src: NotEmittedTypeElement): void {
+    this.$copy_ast_NodeBase(src);
     this.TypeElementBase_ = src.TypeElementBase_;
   }
-  $equals_NotEmittedTypeElement(o: NotEmittedTypeElement): boolean {
-    return this.$equals_NodeBase(o) && this.TypeElementBase_.$equals_TypeElementBase(o.TypeElementBase_);
+  $equals_ast_NotEmittedTypeElement(o: NotEmittedTypeElement): boolean {
+    return this.$equals_ast_NodeBase(o) && this.TypeElementBase_.$equals_ast_TypeElementBase(o.TypeElementBase_);
   }
-  $clone_NotEmittedTypeElement(): NotEmittedTypeElement {
+  $clone_ast_NotEmittedTypeElement(): NotEmittedTypeElement {
     const o = new NotEmittedTypeElement();
-    o.$copy_NotEmittedTypeElement(this);
+    o.$copy_ast_NotEmittedTypeElement(this);
     return o;
   }
-  static $cast_NotEmittedTypeElement(v: $rt.GoObject | undefined): NotEmittedTypeElement {
+  static $cast_ast_NotEmittedTypeElement(v: $rt.GoObject | undefined): NotEmittedTypeElement {
     if (v instanceof NotEmittedTypeElement) return v;
     throw $rt.typeAssertError();
   }
@@ -17258,18 +17402,18 @@ export class NotEmittedTypeElement extends NodeBase {
   }
 }
 export class NumericLiteral extends LiteralExpressionBase {
-  $copy_NumericLiteral(src: NumericLiteral): void {
-    this.$copy_LiteralExpressionBase(src);
+  $copy_ast_NumericLiteral(src: NumericLiteral): void {
+    this.$copy_ast_LiteralExpressionBase(src);
   }
-  $equals_NumericLiteral(o: NumericLiteral): boolean {
-    return this.$equals_LiteralExpressionBase(o);
+  $equals_ast_NumericLiteral(o: NumericLiteral): boolean {
+    return this.$equals_ast_LiteralExpressionBase(o);
   }
-  $clone_NumericLiteral(): NumericLiteral {
+  $clone_ast_NumericLiteral(): NumericLiteral {
     const o = new NumericLiteral();
-    o.$copy_NumericLiteral(this);
+    o.$copy_ast_NumericLiteral(this);
     return o;
   }
-  static $cast_NumericLiteral(v: $rt.GoObject | undefined): NumericLiteral {
+  static $cast_ast_NumericLiteral(v: $rt.GoObject | undefined): NumericLiteral {
     if (v instanceof NumericLiteral) return v;
     throw $rt.typeAssertError();
   }
@@ -17286,16 +17430,16 @@ export class NumericLiteral extends LiteralExpressionBase {
   }
 }
 export class ObjectLiteralElementBase extends $rt.GoObject {
-  $copy_ObjectLiteralElementBase(src: ObjectLiteralElementBase): void {}
-  $equals_ObjectLiteralElementBase(o: ObjectLiteralElementBase): boolean {
+  $copy_ast_ObjectLiteralElementBase(src: ObjectLiteralElementBase): void {}
+  $equals_ast_ObjectLiteralElementBase(o: ObjectLiteralElementBase): boolean {
     return true;
   }
-  $clone_ObjectLiteralElementBase(): ObjectLiteralElementBase {
+  $clone_ast_ObjectLiteralElementBase(): ObjectLiteralElementBase {
     const o = new ObjectLiteralElementBase();
-    o.$copy_ObjectLiteralElementBase(this);
+    o.$copy_ast_ObjectLiteralElementBase(this);
     return o;
   }
-  static $cast_ObjectLiteralElementBase(v: $rt.GoObject | undefined): ObjectLiteralElementBase {
+  static $cast_ast_ObjectLiteralElementBase(v: $rt.GoObject | undefined): ObjectLiteralElementBase {
     if (v instanceof ObjectLiteralElementBase) return v;
     throw $rt.typeAssertError();
   }
@@ -17305,34 +17449,34 @@ export class ObjectLiteralExpression extends PrimaryExpressionBase {
   CompositeBase_: CompositeBase = new CompositeBase();
   Properties_: NodeList | undefined = undefined;
   MultiLine: boolean = false;
-  $copy_ObjectLiteralExpression(src: ObjectLiteralExpression): void {
-    this.$copy_PrimaryExpressionBase(src);
-    this.DeclarationBase_ = src.DeclarationBase_.$clone_DeclarationBase();
-    this.CompositeBase_ = src.CompositeBase_.$clone_CompositeBase();
+  $copy_ast_ObjectLiteralExpression(src: ObjectLiteralExpression): void {
+    this.$copy_ast_PrimaryExpressionBase(src);
+    this.DeclarationBase_ = src.DeclarationBase_.$clone_ast_DeclarationBase();
+    this.CompositeBase_ = src.CompositeBase_.$clone_ast_CompositeBase();
     this.Properties_ = src.Properties_;
     this.MultiLine = src.MultiLine;
   }
-  $equals_ObjectLiteralExpression(o: ObjectLiteralExpression): boolean {
+  $equals_ast_ObjectLiteralExpression(o: ObjectLiteralExpression): boolean {
     return (
-      this.$equals_PrimaryExpressionBase(o) &&
-      this.DeclarationBase_.$equals_DeclarationBase(o.DeclarationBase_) &&
-      this.CompositeBase_.$equals_CompositeBase(o.CompositeBase_) &&
+      this.$equals_ast_PrimaryExpressionBase(o) &&
+      this.DeclarationBase_.$equals_ast_DeclarationBase(o.DeclarationBase_) &&
+      this.CompositeBase_.$equals_ast_CompositeBase(o.CompositeBase_) &&
       this.Properties_ === o.Properties_ &&
       this.MultiLine === o.MultiLine
     );
   }
-  $clone_ObjectLiteralExpression(): ObjectLiteralExpression {
+  $clone_ast_ObjectLiteralExpression(): ObjectLiteralExpression {
     const o = new ObjectLiteralExpression();
-    o.$copy_ObjectLiteralExpression(this);
+    o.$copy_ast_ObjectLiteralExpression(this);
     return o;
   }
-  static $cast_ObjectLiteralExpression(v: $rt.GoObject | undefined): ObjectLiteralExpression {
+  static $cast_ast_ObjectLiteralExpression(v: $rt.GoObject | undefined): ObjectLiteralExpression {
     if (v instanceof ObjectLiteralExpression) return v;
     throw $rt.typeAssertError();
   }
   propagateSubtreeFacts(): SubtreeFacts {
     const node = this;
-    return (node!.SubtreeFacts_() & 4261281791) >>> 0;
+    return (node!.SubtreeFacts$m() & 4261281791) >>> 0;
   }
   ForEachChild(v: Visitor): boolean {
     const node = this;
@@ -17362,18 +17506,18 @@ export class ObjectLiteralExpression extends PrimaryExpressionBase {
   }
 }
 export class OmittedExpression extends ExpressionBase {
-  $copy_OmittedExpression(src: OmittedExpression): void {
-    this.$copy_ExpressionBase(src);
+  $copy_ast_OmittedExpression(src: OmittedExpression): void {
+    this.$copy_ast_ExpressionBase(src);
   }
-  $equals_OmittedExpression(o: OmittedExpression): boolean {
-    return this.$equals_ExpressionBase(o);
+  $equals_ast_OmittedExpression(o: OmittedExpression): boolean {
+    return this.$equals_ast_ExpressionBase(o);
   }
-  $clone_OmittedExpression(): OmittedExpression {
+  $clone_ast_OmittedExpression(): OmittedExpression {
     const o = new OmittedExpression();
-    o.$copy_OmittedExpression(this);
+    o.$copy_ast_OmittedExpression(this);
     return o;
   }
-  static $cast_OmittedExpression(v: $rt.GoObject | undefined): OmittedExpression {
+  static $cast_ast_OmittedExpression(v: $rt.GoObject | undefined): OmittedExpression {
     if (v instanceof OmittedExpression) return v;
     throw $rt.typeAssertError();
   }
@@ -17384,19 +17528,19 @@ export class OmittedExpression extends ExpressionBase {
 }
 export class OptionalTypeNode extends TypeNodeBase {
   Type_: Node | undefined = undefined;
-  $copy_OptionalTypeNode(src: OptionalTypeNode): void {
-    this.$copy_TypeNodeBase(src);
+  $copy_ast_OptionalTypeNode(src: OptionalTypeNode): void {
+    this.$copy_ast_TypeNodeBase(src);
     this.Type_ = src.Type_;
   }
-  $equals_OptionalTypeNode(o: OptionalTypeNode): boolean {
-    return this.$equals_TypeNodeBase(o) && this.Type_ === o.Type_;
+  $equals_ast_OptionalTypeNode(o: OptionalTypeNode): boolean {
+    return this.$equals_ast_TypeNodeBase(o) && this.Type_ === o.Type_;
   }
-  $clone_OptionalTypeNode(): OptionalTypeNode {
+  $clone_ast_OptionalTypeNode(): OptionalTypeNode {
     const o = new OptionalTypeNode();
-    o.$copy_OptionalTypeNode(this);
+    o.$copy_ast_OptionalTypeNode(this);
     return o;
   }
-  static $cast_OptionalTypeNode(v: $rt.GoObject | undefined): OptionalTypeNode {
+  static $cast_ast_OptionalTypeNode(v: $rt.GoObject | undefined): OptionalTypeNode {
     if (v instanceof OptionalTypeNode) return v;
     throw $rt.typeAssertError();
   }
@@ -17428,23 +17572,23 @@ export class ParameterDeclaration extends NodeBase {
   QuestionToken_: Node | undefined = undefined;
   Type_: Node | undefined = undefined;
   Initializer_: Node | undefined = undefined;
-  $copy_ParameterDeclaration(src: ParameterDeclaration): void {
-    this.$copy_NodeBase(src);
-    this.DeclarationBase_ = src.DeclarationBase_.$clone_DeclarationBase();
-    this.ModifiersBase_ = src.ModifiersBase_.$clone_ModifiersBase();
-    this.CompositeBase_ = src.CompositeBase_.$clone_CompositeBase();
+  $copy_ast_ParameterDeclaration(src: ParameterDeclaration): void {
+    this.$copy_ast_NodeBase(src);
+    this.DeclarationBase_ = src.DeclarationBase_.$clone_ast_DeclarationBase();
+    this.ModifiersBase_ = src.ModifiersBase_.$clone_ast_ModifiersBase();
+    this.CompositeBase_ = src.CompositeBase_.$clone_ast_CompositeBase();
     this.DotDotDotToken = src.DotDotDotToken;
     this.name = src.name;
     this.QuestionToken_ = src.QuestionToken_;
     this.Type_ = src.Type_;
     this.Initializer_ = src.Initializer_;
   }
-  $equals_ParameterDeclaration(o: ParameterDeclaration): boolean {
+  $equals_ast_ParameterDeclaration(o: ParameterDeclaration): boolean {
     return (
-      this.$equals_NodeBase(o) &&
-      this.DeclarationBase_.$equals_DeclarationBase(o.DeclarationBase_) &&
-      this.ModifiersBase_.$equals_ModifiersBase(o.ModifiersBase_) &&
-      this.CompositeBase_.$equals_CompositeBase(o.CompositeBase_) &&
+      this.$equals_ast_NodeBase(o) &&
+      this.DeclarationBase_.$equals_ast_DeclarationBase(o.DeclarationBase_) &&
+      this.ModifiersBase_.$equals_ast_ModifiersBase(o.ModifiersBase_) &&
+      this.CompositeBase_.$equals_ast_CompositeBase(o.CompositeBase_) &&
       this.DotDotDotToken === o.DotDotDotToken &&
       this.name === o.name &&
       this.QuestionToken_ === o.QuestionToken_ &&
@@ -17452,12 +17596,12 @@ export class ParameterDeclaration extends NodeBase {
       this.Initializer_ === o.Initializer_
     );
   }
-  $clone_ParameterDeclaration(): ParameterDeclaration {
+  $clone_ast_ParameterDeclaration(): ParameterDeclaration {
     const o = new ParameterDeclaration();
-    o.$copy_ParameterDeclaration(this);
+    o.$copy_ast_ParameterDeclaration(this);
     return o;
   }
-  static $cast_ParameterDeclaration(v: $rt.GoObject | undefined): ParameterDeclaration {
+  static $cast_ast_ParameterDeclaration(v: $rt.GoObject | undefined): ParameterDeclaration {
     if (v instanceof ParameterDeclaration) return v;
     throw $rt.typeAssertError();
   }
@@ -17481,7 +17625,7 @@ export class ParameterDeclaration extends NodeBase {
   }
   propagateSubtreeFacts(): SubtreeFacts {
     const node = this;
-    return (node!.SubtreeFacts_() & 4261412863) >>> 0;
+    return (node!.SubtreeFacts$m() & 4261412863) >>> 0;
   }
   ForEachChild(v: Visitor): boolean {
     const node = this;
@@ -17542,19 +17686,19 @@ export class ParameterDeclaration extends NodeBase {
 }
 export class ParenthesizedExpression extends PrimaryExpressionBase {
   Expression_: Node | undefined = undefined;
-  $copy_ParenthesizedExpression(src: ParenthesizedExpression): void {
-    this.$copy_PrimaryExpressionBase(src);
+  $copy_ast_ParenthesizedExpression(src: ParenthesizedExpression): void {
+    this.$copy_ast_PrimaryExpressionBase(src);
     this.Expression_ = src.Expression_;
   }
-  $equals_ParenthesizedExpression(o: ParenthesizedExpression): boolean {
-    return this.$equals_PrimaryExpressionBase(o) && this.Expression_ === o.Expression_;
+  $equals_ast_ParenthesizedExpression(o: ParenthesizedExpression): boolean {
+    return this.$equals_ast_PrimaryExpressionBase(o) && this.Expression_ === o.Expression_;
   }
-  $clone_ParenthesizedExpression(): ParenthesizedExpression {
+  $clone_ast_ParenthesizedExpression(): ParenthesizedExpression {
     const o = new ParenthesizedExpression();
-    o.$copy_ParenthesizedExpression(this);
+    o.$copy_ast_ParenthesizedExpression(this);
     return o;
   }
-  static $cast_ParenthesizedExpression(v: $rt.GoObject | undefined): ParenthesizedExpression {
+  static $cast_ast_ParenthesizedExpression(v: $rt.GoObject | undefined): ParenthesizedExpression {
     if (v instanceof ParenthesizedExpression) return v;
     throw $rt.typeAssertError();
   }
@@ -17581,19 +17725,19 @@ export class ParenthesizedExpression extends PrimaryExpressionBase {
 }
 export class ParenthesizedTypeNode extends TypeNodeBase {
   Type_: Node | undefined = undefined;
-  $copy_ParenthesizedTypeNode(src: ParenthesizedTypeNode): void {
-    this.$copy_TypeNodeBase(src);
+  $copy_ast_ParenthesizedTypeNode(src: ParenthesizedTypeNode): void {
+    this.$copy_ast_TypeNodeBase(src);
     this.Type_ = src.Type_;
   }
-  $equals_ParenthesizedTypeNode(o: ParenthesizedTypeNode): boolean {
-    return this.$equals_TypeNodeBase(o) && this.Type_ === o.Type_;
+  $equals_ast_ParenthesizedTypeNode(o: ParenthesizedTypeNode): boolean {
+    return this.$equals_ast_TypeNodeBase(o) && this.Type_ === o.Type_;
   }
-  $clone_ParenthesizedTypeNode(): ParenthesizedTypeNode {
+  $clone_ast_ParenthesizedTypeNode(): ParenthesizedTypeNode {
     const o = new ParenthesizedTypeNode();
-    o.$copy_ParenthesizedTypeNode(this);
+    o.$copy_ast_ParenthesizedTypeNode(this);
     return o;
   }
-  static $cast_ParenthesizedTypeNode(v: $rt.GoObject | undefined): ParenthesizedTypeNode {
+  static $cast_ast_ParenthesizedTypeNode(v: $rt.GoObject | undefined): ParenthesizedTypeNode {
     if (v instanceof ParenthesizedTypeNode) return v;
     throw $rt.typeAssertError();
   }
@@ -17622,19 +17766,19 @@ export class ParenthesizedTypeNode extends TypeNodeBase {
 }
 export class PartiallyEmittedExpression extends LeftHandSideExpressionBase {
   Expression_: Node | undefined = undefined;
-  $copy_PartiallyEmittedExpression(src: PartiallyEmittedExpression): void {
-    this.$copy_LeftHandSideExpressionBase(src);
+  $copy_ast_PartiallyEmittedExpression(src: PartiallyEmittedExpression): void {
+    this.$copy_ast_LeftHandSideExpressionBase(src);
     this.Expression_ = src.Expression_;
   }
-  $equals_PartiallyEmittedExpression(o: PartiallyEmittedExpression): boolean {
-    return this.$equals_LeftHandSideExpressionBase(o) && this.Expression_ === o.Expression_;
+  $equals_ast_PartiallyEmittedExpression(o: PartiallyEmittedExpression): boolean {
+    return this.$equals_ast_LeftHandSideExpressionBase(o) && this.Expression_ === o.Expression_;
   }
-  $clone_PartiallyEmittedExpression(): PartiallyEmittedExpression {
+  $clone_ast_PartiallyEmittedExpression(): PartiallyEmittedExpression {
     const o = new PartiallyEmittedExpression();
-    o.$copy_PartiallyEmittedExpression(this);
+    o.$copy_ast_PartiallyEmittedExpression(this);
     return o;
   }
-  static $cast_PartiallyEmittedExpression(v: $rt.GoObject | undefined): PartiallyEmittedExpression {
+  static $cast_ast_PartiallyEmittedExpression(v: $rt.GoObject | undefined): PartiallyEmittedExpression {
     if (v instanceof PartiallyEmittedExpression) return v;
     throw $rt.typeAssertError();
   }
@@ -17662,25 +17806,25 @@ export class PartiallyEmittedExpression extends LeftHandSideExpressionBase {
 export class PatternAmbientModule extends $rt.GoObject {
   Pattern_: $core.Pattern = new $core.Pattern();
   Symbol_: Symbol_ | undefined = undefined;
-  $copy_PatternAmbientModule(src: PatternAmbientModule): void {
-    this.Pattern_ = src.Pattern_.$clone_Pattern();
+  $copy_ast_PatternAmbientModule(src: PatternAmbientModule): void {
+    this.Pattern_ = src.Pattern_.$clone_core_Pattern();
     this.Symbol_ = src.Symbol_;
   }
-  $equals_PatternAmbientModule(o: PatternAmbientModule): boolean {
-    return this.Pattern_.$equals_Pattern(o.Pattern_) && this.Symbol_ === o.Symbol_;
+  $equals_ast_PatternAmbientModule(o: PatternAmbientModule): boolean {
+    return this.Pattern_.$equals_core_Pattern(o.Pattern_) && this.Symbol_ === o.Symbol_;
   }
-  $clone_PatternAmbientModule(): PatternAmbientModule {
+  $clone_ast_PatternAmbientModule(): PatternAmbientModule {
     const o = new PatternAmbientModule();
-    o.$copy_PatternAmbientModule(this);
+    o.$copy_ast_PatternAmbientModule(this);
     return o;
   }
-  static $lit_PatternAmbientModule_0_1(p0: $core.Pattern, p1: Symbol_ | undefined): PatternAmbientModule {
+  static $lit_ast_PatternAmbientModule_0_1(p0: $core.Pattern, p1: Symbol_ | undefined): PatternAmbientModule {
     const o = new PatternAmbientModule();
     o.Pattern_ = p0;
     o.Symbol_ = p1;
     return o;
   }
-  static $cast_PatternAmbientModule(v: $rt.GoObject | undefined): PatternAmbientModule {
+  static $cast_ast_PatternAmbientModule(v: $rt.GoObject | undefined): PatternAmbientModule {
     if (v instanceof PatternAmbientModule) return v;
     throw $rt.typeAssertError();
   }
@@ -17688,16 +17832,16 @@ export class PatternAmbientModule extends $rt.GoObject {
 export class PositionMap extends $rt.GoObject {
   asciiOnly: boolean = false;
   entries: positionMapEntry[] = [];
-  $copy_PositionMap(src: PositionMap): void {
+  $copy_ast_PositionMap(src: PositionMap): void {
     this.asciiOnly = src.asciiOnly;
     this.entries = src.entries;
   }
-  $clone_PositionMap(): PositionMap {
+  $clone_ast_PositionMap(): PositionMap {
     const o = new PositionMap();
-    o.$copy_PositionMap(this);
+    o.$copy_ast_PositionMap(this);
     return o;
   }
-  static $cast_PositionMap(v: $rt.GoObject | undefined): PositionMap {
+  static $cast_ast_PositionMap(v: $rt.GoObject | undefined): PositionMap {
     if (v instanceof PositionMap) return v;
     throw $rt.typeAssertError();
   }
@@ -17754,20 +17898,20 @@ export class PositionMap extends $rt.GoObject {
 export class PostfixUnaryExpression extends UpdateExpressionBase {
   Operand: Node | undefined = undefined;
   Operator: Kind = 0;
-  $copy_PostfixUnaryExpression(src: PostfixUnaryExpression): void {
-    this.$copy_UpdateExpressionBase(src);
+  $copy_ast_PostfixUnaryExpression(src: PostfixUnaryExpression): void {
+    this.$copy_ast_UpdateExpressionBase(src);
     this.Operand = src.Operand;
     this.Operator = src.Operator;
   }
-  $equals_PostfixUnaryExpression(o: PostfixUnaryExpression): boolean {
-    return this.$equals_UpdateExpressionBase(o) && this.Operand === o.Operand && this.Operator === o.Operator;
+  $equals_ast_PostfixUnaryExpression(o: PostfixUnaryExpression): boolean {
+    return this.$equals_ast_UpdateExpressionBase(o) && this.Operand === o.Operand && this.Operator === o.Operator;
   }
-  $clone_PostfixUnaryExpression(): PostfixUnaryExpression {
+  $clone_ast_PostfixUnaryExpression(): PostfixUnaryExpression {
     const o = new PostfixUnaryExpression();
-    o.$copy_PostfixUnaryExpression(this);
+    o.$copy_ast_PostfixUnaryExpression(this);
     return o;
   }
-  static $cast_PostfixUnaryExpression(v: $rt.GoObject | undefined): PostfixUnaryExpression {
+  static $cast_ast_PostfixUnaryExpression(v: $rt.GoObject | undefined): PostfixUnaryExpression {
     if (v instanceof PostfixUnaryExpression) return v;
     throw $rt.typeAssertError();
   }
@@ -17795,30 +17939,30 @@ export class PostfixUnaryExpression extends UpdateExpressionBase {
 export class Pragma extends CommentRange {
   Name: string = '';
   Args: Map<string, PragmaArgument> | undefined = undefined;
-  $copy_Pragma(src: Pragma): void {
-    this.$copy_CommentRange(src);
+  $copy_ast_Pragma(src: Pragma): void {
+    this.$copy_ast_CommentRange(src);
     this.Name = src.Name;
     this.Args = src.Args;
   }
-  $clone_Pragma(): Pragma {
+  $clone_ast_Pragma(): Pragma {
     const o = new Pragma();
-    o.$copy_Pragma(this);
+    o.$copy_ast_Pragma(this);
     return o;
   }
-  static $lit_Pragma_0_1(p0: CommentRange, p1: string): Pragma {
+  static $lit_ast_Pragma_0_1(p0: CommentRange, p1: string): Pragma {
     const o = new Pragma();
-    o.$copy_CommentRange(p0);
+    o.$copy_ast_CommentRange(p0);
     o.Name = p1;
     return o;
   }
-  static $lit_Pragma_0_1_2(p0: CommentRange, p1: string, p2: Map<string, PragmaArgument> | undefined): Pragma {
+  static $lit_ast_Pragma_0_1_2(p0: CommentRange, p1: string, p2: Map<string, PragmaArgument> | undefined): Pragma {
     const o = new Pragma();
-    o.$copy_CommentRange(p0);
+    o.$copy_ast_CommentRange(p0);
     o.Name = p1;
     o.Args = p2;
     return o;
   }
-  static $cast_Pragma(v: $rt.GoObject | undefined): Pragma {
+  static $cast_ast_Pragma(v: $rt.GoObject | undefined): Pragma {
     if (v instanceof Pragma) return v;
     throw $rt.typeAssertError();
   }
@@ -17826,27 +17970,27 @@ export class Pragma extends CommentRange {
 export class PragmaArgument extends $core.TextRange {
   Name: string = '';
   Value: string = '';
-  $copy_PragmaArgument(src: PragmaArgument): void {
-    this.$copy_TextRange(src);
+  $copy_ast_PragmaArgument(src: PragmaArgument): void {
+    this.$copy_core_TextRange(src);
     this.Name = src.Name;
     this.Value = src.Value;
   }
-  $equals_PragmaArgument(o: PragmaArgument): boolean {
-    return this.$equals_TextRange(o) && this.Name === o.Name && this.Value === o.Value;
+  $equals_ast_PragmaArgument(o: PragmaArgument): boolean {
+    return this.$equals_core_TextRange(o) && this.Name === o.Name && this.Value === o.Value;
   }
-  $clone_PragmaArgument(): PragmaArgument {
+  $clone_ast_PragmaArgument(): PragmaArgument {
     const o = new PragmaArgument();
-    o.$copy_PragmaArgument(this);
+    o.$copy_ast_PragmaArgument(this);
     return o;
   }
-  static $lit_PragmaArgument_1_2_0(p0: string, p1: string, p2: $core.TextRange): PragmaArgument {
+  static $lit_ast_PragmaArgument_1_2_0(p0: string, p1: string, p2: $core.TextRange): PragmaArgument {
     const o = new PragmaArgument();
     o.Name = p0;
     o.Value = p1;
-    o.$copy_TextRange(p2);
+    o.$copy_core_TextRange(p2);
     return o;
   }
-  static $cast_PragmaArgument(v: $rt.GoObject | undefined): PragmaArgument {
+  static $cast_ast_PragmaArgument(v: $rt.GoObject | undefined): PragmaArgument {
     if (v instanceof PragmaArgument) return v;
     throw $rt.typeAssertError();
   }
@@ -17855,20 +17999,20 @@ export class PragmaArgumentSpecification extends $rt.GoObject {
   Name: string = '';
   Optional: boolean = false;
   CaptureSpan: boolean = false;
-  $copy_PragmaArgumentSpecification(src: PragmaArgumentSpecification): void {
+  $copy_ast_PragmaArgumentSpecification(src: PragmaArgumentSpecification): void {
     this.Name = src.Name;
     this.Optional = src.Optional;
     this.CaptureSpan = src.CaptureSpan;
   }
-  $equals_PragmaArgumentSpecification(o: PragmaArgumentSpecification): boolean {
+  $equals_ast_PragmaArgumentSpecification(o: PragmaArgumentSpecification): boolean {
     return this.Name === o.Name && this.Optional === o.Optional && this.CaptureSpan === o.CaptureSpan;
   }
-  $clone_PragmaArgumentSpecification(): PragmaArgumentSpecification {
+  $clone_ast_PragmaArgumentSpecification(): PragmaArgumentSpecification {
     const o = new PragmaArgumentSpecification();
-    o.$copy_PragmaArgumentSpecification(this);
+    o.$copy_ast_PragmaArgumentSpecification(this);
     return o;
   }
-  static $cast_PragmaArgumentSpecification(v: $rt.GoObject | undefined): PragmaArgumentSpecification {
+  static $cast_ast_PragmaArgumentSpecification(v: $rt.GoObject | undefined): PragmaArgumentSpecification {
     if (v instanceof PragmaArgumentSpecification) return v;
     throw $rt.typeAssertError();
   }
@@ -17876,16 +18020,16 @@ export class PragmaArgumentSpecification extends $rt.GoObject {
 export class PragmaSpecification extends $rt.GoObject {
   Args: PragmaArgumentSpecification[] = [];
   Kind: PragmaKindFlags = 0;
-  $copy_PragmaSpecification(src: PragmaSpecification): void {
+  $copy_ast_PragmaSpecification(src: PragmaSpecification): void {
     this.Args = src.Args;
     this.Kind = src.Kind;
   }
-  $clone_PragmaSpecification(): PragmaSpecification {
+  $clone_ast_PragmaSpecification(): PragmaSpecification {
     const o = new PragmaSpecification();
-    o.$copy_PragmaSpecification(this);
+    o.$copy_ast_PragmaSpecification(this);
     return o;
   }
-  static $cast_PragmaSpecification(v: $rt.GoObject | undefined): PragmaSpecification {
+  static $cast_ast_PragmaSpecification(v: $rt.GoObject | undefined): PragmaSpecification {
     if (v instanceof PragmaSpecification) return v;
     throw $rt.typeAssertError();
   }
@@ -17897,20 +18041,20 @@ export class PragmaSpecification extends $rt.GoObject {
 export class PrefixUnaryExpression extends UpdateExpressionBase {
   Operator: Kind = 0;
   Operand: Node | undefined = undefined;
-  $copy_PrefixUnaryExpression(src: PrefixUnaryExpression): void {
-    this.$copy_UpdateExpressionBase(src);
+  $copy_ast_PrefixUnaryExpression(src: PrefixUnaryExpression): void {
+    this.$copy_ast_UpdateExpressionBase(src);
     this.Operator = src.Operator;
     this.Operand = src.Operand;
   }
-  $equals_PrefixUnaryExpression(o: PrefixUnaryExpression): boolean {
-    return this.$equals_UpdateExpressionBase(o) && this.Operator === o.Operator && this.Operand === o.Operand;
+  $equals_ast_PrefixUnaryExpression(o: PrefixUnaryExpression): boolean {
+    return this.$equals_ast_UpdateExpressionBase(o) && this.Operator === o.Operator && this.Operand === o.Operand;
   }
-  $clone_PrefixUnaryExpression(): PrefixUnaryExpression {
+  $clone_ast_PrefixUnaryExpression(): PrefixUnaryExpression {
     const o = new PrefixUnaryExpression();
-    o.$copy_PrefixUnaryExpression(this);
+    o.$copy_ast_PrefixUnaryExpression(this);
     return o;
   }
-  static $cast_PrefixUnaryExpression(v: $rt.GoObject | undefined): PrefixUnaryExpression {
+  static $cast_ast_PrefixUnaryExpression(v: $rt.GoObject | undefined): PrefixUnaryExpression {
     if (v instanceof PrefixUnaryExpression) return v;
     throw $rt.typeAssertError();
   }
@@ -17937,19 +18081,19 @@ export class PrefixUnaryExpression extends UpdateExpressionBase {
 }
 export class PrivateIdentifier extends PrimaryExpressionBase {
   Text_: string = '';
-  $copy_PrivateIdentifier(src: PrivateIdentifier): void {
-    this.$copy_PrimaryExpressionBase(src);
+  $copy_ast_PrivateIdentifier(src: PrivateIdentifier): void {
+    this.$copy_ast_PrimaryExpressionBase(src);
     this.Text_ = src.Text_;
   }
-  $equals_PrivateIdentifier(o: PrivateIdentifier): boolean {
-    return this.$equals_PrimaryExpressionBase(o) && this.Text_ === o.Text_;
+  $equals_ast_PrivateIdentifier(o: PrivateIdentifier): boolean {
+    return this.$equals_ast_PrimaryExpressionBase(o) && this.Text_ === o.Text_;
   }
-  $clone_PrivateIdentifier(): PrivateIdentifier {
+  $clone_ast_PrivateIdentifier(): PrivateIdentifier {
     const o = new PrivateIdentifier();
-    o.$copy_PrivateIdentifier(this);
+    o.$copy_ast_PrivateIdentifier(this);
     return o;
   }
-  static $cast_PrivateIdentifier(v: $rt.GoObject | undefined): PrivateIdentifier {
+  static $cast_ast_PrivateIdentifier(v: $rt.GoObject | undefined): PrivateIdentifier {
     if (v instanceof PrivateIdentifier) return v;
     throw $rt.typeAssertError();
   }
@@ -17968,30 +18112,30 @@ export class PropertyAccessExpression extends MemberExpressionBase {
   Expression_: Node | undefined = undefined;
   QuestionDotToken_: Node | undefined = undefined;
   name: Node | undefined = undefined;
-  $copy_PropertyAccessExpression(src: PropertyAccessExpression): void {
-    this.$copy_MemberExpressionBase(src);
-    this.FlowNodeBase_ = src.FlowNodeBase_.$clone_FlowNodeBase();
-    this.CompositeBase_ = src.CompositeBase_.$clone_CompositeBase();
+  $copy_ast_PropertyAccessExpression(src: PropertyAccessExpression): void {
+    this.$copy_ast_MemberExpressionBase(src);
+    this.FlowNodeBase_ = src.FlowNodeBase_.$clone_ast_FlowNodeBase();
+    this.CompositeBase_ = src.CompositeBase_.$clone_ast_CompositeBase();
     this.Expression_ = src.Expression_;
     this.QuestionDotToken_ = src.QuestionDotToken_;
     this.name = src.name;
   }
-  $equals_PropertyAccessExpression(o: PropertyAccessExpression): boolean {
+  $equals_ast_PropertyAccessExpression(o: PropertyAccessExpression): boolean {
     return (
-      this.$equals_MemberExpressionBase(o) &&
-      this.FlowNodeBase_.$equals_FlowNodeBase(o.FlowNodeBase_) &&
-      this.CompositeBase_.$equals_CompositeBase(o.CompositeBase_) &&
+      this.$equals_ast_MemberExpressionBase(o) &&
+      this.FlowNodeBase_.$equals_ast_FlowNodeBase(o.FlowNodeBase_) &&
+      this.CompositeBase_.$equals_ast_CompositeBase(o.CompositeBase_) &&
       this.Expression_ === o.Expression_ &&
       this.QuestionDotToken_ === o.QuestionDotToken_ &&
       this.name === o.name
     );
   }
-  $clone_PropertyAccessExpression(): PropertyAccessExpression {
+  $clone_ast_PropertyAccessExpression(): PropertyAccessExpression {
     const o = new PropertyAccessExpression();
-    o.$copy_PropertyAccessExpression(this);
+    o.$copy_ast_PropertyAccessExpression(this);
     return o;
   }
-  static $cast_PropertyAccessExpression(v: $rt.GoObject | undefined): PropertyAccessExpression {
+  static $cast_ast_PropertyAccessExpression(v: $rt.GoObject | undefined): PropertyAccessExpression {
     if (v instanceof PropertyAccessExpression) return v;
     throw $rt.typeAssertError();
   }
@@ -18011,7 +18155,7 @@ export class PropertyAccessExpression extends MemberExpressionBase {
   }
   propagateSubtreeFacts(): SubtreeFacts {
     const node = this;
-    return (node!.SubtreeFacts_() & 4261412863) >>> 0;
+    return (node!.SubtreeFacts$m() & 4261412863) >>> 0;
   }
   ForEachChild(v: Visitor): boolean {
     const node = this;
@@ -18055,32 +18199,32 @@ export class PropertyAssignment extends NodeBase {
   CompositeBase_: CompositeBase = new CompositeBase();
   Type_: Node | undefined = undefined;
   Initializer_: Node | undefined = undefined;
-  $copy_PropertyAssignment(src: PropertyAssignment): void {
-    this.$copy_NodeBase(src);
+  $copy_ast_PropertyAssignment(src: PropertyAssignment): void {
+    this.$copy_ast_NodeBase(src);
     this.ObjectLiteralElementBase_ = src.ObjectLiteralElementBase_;
-    this.DeclarationBase_ = src.DeclarationBase_.$clone_DeclarationBase();
-    this.NamedMemberBase_ = src.NamedMemberBase_.$clone_NamedMemberBase();
-    this.CompositeBase_ = src.CompositeBase_.$clone_CompositeBase();
+    this.DeclarationBase_ = src.DeclarationBase_.$clone_ast_DeclarationBase();
+    this.NamedMemberBase_ = src.NamedMemberBase_.$clone_ast_NamedMemberBase();
+    this.CompositeBase_ = src.CompositeBase_.$clone_ast_CompositeBase();
     this.Type_ = src.Type_;
     this.Initializer_ = src.Initializer_;
   }
-  $equals_PropertyAssignment(o: PropertyAssignment): boolean {
+  $equals_ast_PropertyAssignment(o: PropertyAssignment): boolean {
     return (
-      this.$equals_NodeBase(o) &&
-      this.ObjectLiteralElementBase_.$equals_ObjectLiteralElementBase(o.ObjectLiteralElementBase_) &&
-      this.DeclarationBase_.$equals_DeclarationBase(o.DeclarationBase_) &&
-      this.NamedMemberBase_.$equals_NamedMemberBase(o.NamedMemberBase_) &&
-      this.CompositeBase_.$equals_CompositeBase(o.CompositeBase_) &&
+      this.$equals_ast_NodeBase(o) &&
+      this.ObjectLiteralElementBase_.$equals_ast_ObjectLiteralElementBase(o.ObjectLiteralElementBase_) &&
+      this.DeclarationBase_.$equals_ast_DeclarationBase(o.DeclarationBase_) &&
+      this.NamedMemberBase_.$equals_ast_NamedMemberBase(o.NamedMemberBase_) &&
+      this.CompositeBase_.$equals_ast_CompositeBase(o.CompositeBase_) &&
       this.Type_ === o.Type_ &&
       this.Initializer_ === o.Initializer_
     );
   }
-  $clone_PropertyAssignment(): PropertyAssignment {
+  $clone_ast_PropertyAssignment(): PropertyAssignment {
     const o = new PropertyAssignment();
-    o.$copy_PropertyAssignment(this);
+    o.$copy_ast_PropertyAssignment(this);
     return o;
   }
-  static $cast_PropertyAssignment(v: $rt.GoObject | undefined): PropertyAssignment {
+  static $cast_ast_PropertyAssignment(v: $rt.GoObject | undefined): PropertyAssignment {
     if (v instanceof PropertyAssignment) return v;
     throw $rt.typeAssertError();
   }
@@ -18153,32 +18297,32 @@ export class PropertyDeclaration extends NodeBase {
   CompositeBase_: CompositeBase = new CompositeBase();
   Type_: Node | undefined = undefined;
   Initializer_: Node | undefined = undefined;
-  $copy_PropertyDeclaration(src: PropertyDeclaration): void {
-    this.$copy_NodeBase(src);
+  $copy_ast_PropertyDeclaration(src: PropertyDeclaration): void {
+    this.$copy_ast_NodeBase(src);
     this.ClassElementBase_ = src.ClassElementBase_;
-    this.DeclarationBase_ = src.DeclarationBase_.$clone_DeclarationBase();
-    this.NamedMemberBase_ = src.NamedMemberBase_.$clone_NamedMemberBase();
-    this.CompositeBase_ = src.CompositeBase_.$clone_CompositeBase();
+    this.DeclarationBase_ = src.DeclarationBase_.$clone_ast_DeclarationBase();
+    this.NamedMemberBase_ = src.NamedMemberBase_.$clone_ast_NamedMemberBase();
+    this.CompositeBase_ = src.CompositeBase_.$clone_ast_CompositeBase();
     this.Type_ = src.Type_;
     this.Initializer_ = src.Initializer_;
   }
-  $equals_PropertyDeclaration(o: PropertyDeclaration): boolean {
+  $equals_ast_PropertyDeclaration(o: PropertyDeclaration): boolean {
     return (
-      this.$equals_NodeBase(o) &&
-      this.ClassElementBase_.$equals_ClassElementBase(o.ClassElementBase_) &&
-      this.DeclarationBase_.$equals_DeclarationBase(o.DeclarationBase_) &&
-      this.NamedMemberBase_.$equals_NamedMemberBase(o.NamedMemberBase_) &&
-      this.CompositeBase_.$equals_CompositeBase(o.CompositeBase_) &&
+      this.$equals_ast_NodeBase(o) &&
+      this.ClassElementBase_.$equals_ast_ClassElementBase(o.ClassElementBase_) &&
+      this.DeclarationBase_.$equals_ast_DeclarationBase(o.DeclarationBase_) &&
+      this.NamedMemberBase_.$equals_ast_NamedMemberBase(o.NamedMemberBase_) &&
+      this.CompositeBase_.$equals_ast_CompositeBase(o.CompositeBase_) &&
       this.Type_ === o.Type_ &&
       this.Initializer_ === o.Initializer_
     );
   }
-  $clone_PropertyDeclaration(): PropertyDeclaration {
+  $clone_ast_PropertyDeclaration(): PropertyDeclaration {
     const o = new PropertyDeclaration();
-    o.$copy_PropertyDeclaration(this);
+    o.$copy_ast_PropertyDeclaration(this);
     return o;
   }
-  static $cast_PropertyDeclaration(v: $rt.GoObject | undefined): PropertyDeclaration {
+  static $cast_ast_PropertyDeclaration(v: $rt.GoObject | undefined): PropertyDeclaration {
     if (v instanceof PropertyDeclaration) return v;
     throw $rt.typeAssertError();
   }
@@ -18200,7 +18344,7 @@ export class PropertyDeclaration extends NodeBase {
   }
   propagateSubtreeFacts(): SubtreeFacts {
     const node = this;
-    return (((node!.SubtreeFacts_() & 4261363711) >>> 0) | propagateSubtreeFacts(node!.NamedMemberBase_.name)) >>> 0;
+    return (((node!.SubtreeFacts$m() & 4261363711) >>> 0) | propagateSubtreeFacts(node!.NamedMemberBase_.name)) >>> 0;
   }
   ForEachChild(v: Visitor): boolean {
     const node = this;
@@ -18263,32 +18407,32 @@ export class PropertySignatureDeclaration extends NodeBase {
   NamedMemberBase_: NamedMemberBase = new NamedMemberBase();
   Type_: Node | undefined = undefined;
   Initializer_: Node | undefined = undefined;
-  $copy_PropertySignatureDeclaration(src: PropertySignatureDeclaration): void {
-    this.$copy_NodeBase(src);
+  $copy_ast_PropertySignatureDeclaration(src: PropertySignatureDeclaration): void {
+    this.$copy_ast_NodeBase(src);
     this.TypeElementBase_ = src.TypeElementBase_;
     this.TypeSyntaxBase_ = src.TypeSyntaxBase_;
-    this.DeclarationBase_ = src.DeclarationBase_.$clone_DeclarationBase();
-    this.NamedMemberBase_ = src.NamedMemberBase_.$clone_NamedMemberBase();
+    this.DeclarationBase_ = src.DeclarationBase_.$clone_ast_DeclarationBase();
+    this.NamedMemberBase_ = src.NamedMemberBase_.$clone_ast_NamedMemberBase();
     this.Type_ = src.Type_;
     this.Initializer_ = src.Initializer_;
   }
-  $equals_PropertySignatureDeclaration(o: PropertySignatureDeclaration): boolean {
+  $equals_ast_PropertySignatureDeclaration(o: PropertySignatureDeclaration): boolean {
     return (
-      this.$equals_NodeBase(o) &&
-      this.TypeElementBase_.$equals_TypeElementBase(o.TypeElementBase_) &&
-      this.TypeSyntaxBase_.$equals_TypeSyntaxBase(o.TypeSyntaxBase_) &&
-      this.DeclarationBase_.$equals_DeclarationBase(o.DeclarationBase_) &&
-      this.NamedMemberBase_.$equals_NamedMemberBase(o.NamedMemberBase_) &&
+      this.$equals_ast_NodeBase(o) &&
+      this.TypeElementBase_.$equals_ast_TypeElementBase(o.TypeElementBase_) &&
+      this.TypeSyntaxBase_.$equals_ast_TypeSyntaxBase(o.TypeSyntaxBase_) &&
+      this.DeclarationBase_.$equals_ast_DeclarationBase(o.DeclarationBase_) &&
+      this.NamedMemberBase_.$equals_ast_NamedMemberBase(o.NamedMemberBase_) &&
       this.Type_ === o.Type_ &&
       this.Initializer_ === o.Initializer_
     );
   }
-  $clone_PropertySignatureDeclaration(): PropertySignatureDeclaration {
+  $clone_ast_PropertySignatureDeclaration(): PropertySignatureDeclaration {
     const o = new PropertySignatureDeclaration();
-    o.$copy_PropertySignatureDeclaration(this);
+    o.$copy_ast_PropertySignatureDeclaration(this);
     return o;
   }
-  static $cast_PropertySignatureDeclaration(v: $rt.GoObject | undefined): PropertySignatureDeclaration {
+  static $cast_ast_PropertySignatureDeclaration(v: $rt.GoObject | undefined): PropertySignatureDeclaration {
     if (v instanceof PropertySignatureDeclaration) return v;
     throw $rt.typeAssertError();
   }
@@ -18354,28 +18498,28 @@ export class QualifiedName extends NodeBase {
   CompositeBase_: CompositeBase = new CompositeBase();
   Left: Node | undefined = undefined;
   Right: Node | undefined = undefined;
-  $copy_QualifiedName(src: QualifiedName): void {
-    this.$copy_NodeBase(src);
-    this.FlowNodeBase_ = src.FlowNodeBase_.$clone_FlowNodeBase();
-    this.CompositeBase_ = src.CompositeBase_.$clone_CompositeBase();
+  $copy_ast_QualifiedName(src: QualifiedName): void {
+    this.$copy_ast_NodeBase(src);
+    this.FlowNodeBase_ = src.FlowNodeBase_.$clone_ast_FlowNodeBase();
+    this.CompositeBase_ = src.CompositeBase_.$clone_ast_CompositeBase();
     this.Left = src.Left;
     this.Right = src.Right;
   }
-  $equals_QualifiedName(o: QualifiedName): boolean {
+  $equals_ast_QualifiedName(o: QualifiedName): boolean {
     return (
-      this.$equals_NodeBase(o) &&
-      this.FlowNodeBase_.$equals_FlowNodeBase(o.FlowNodeBase_) &&
-      this.CompositeBase_.$equals_CompositeBase(o.CompositeBase_) &&
+      this.$equals_ast_NodeBase(o) &&
+      this.FlowNodeBase_.$equals_ast_FlowNodeBase(o.FlowNodeBase_) &&
+      this.CompositeBase_.$equals_ast_CompositeBase(o.CompositeBase_) &&
       this.Left === o.Left &&
       this.Right === o.Right
     );
   }
-  $clone_QualifiedName(): QualifiedName {
+  $clone_ast_QualifiedName(): QualifiedName {
     const o = new QualifiedName();
-    o.$copy_QualifiedName(this);
+    o.$copy_ast_QualifiedName(this);
     return o;
   }
-  static $cast_QualifiedName(v: $rt.GoObject | undefined): QualifiedName {
+  static $cast_ast_QualifiedName(v: $rt.GoObject | undefined): QualifiedName {
     if (v instanceof QualifiedName) return v;
     throw $rt.typeAssertError();
   }
@@ -18407,18 +18551,18 @@ export class QualifiedName extends NodeBase {
   }
 }
 export class RegularExpressionLiteral extends LiteralExpressionBase {
-  $copy_RegularExpressionLiteral(src: RegularExpressionLiteral): void {
-    this.$copy_LiteralExpressionBase(src);
+  $copy_ast_RegularExpressionLiteral(src: RegularExpressionLiteral): void {
+    this.$copy_ast_LiteralExpressionBase(src);
   }
-  $equals_RegularExpressionLiteral(o: RegularExpressionLiteral): boolean {
-    return this.$equals_LiteralExpressionBase(o);
+  $equals_ast_RegularExpressionLiteral(o: RegularExpressionLiteral): boolean {
+    return this.$equals_ast_LiteralExpressionBase(o);
   }
-  $clone_RegularExpressionLiteral(): RegularExpressionLiteral {
+  $clone_ast_RegularExpressionLiteral(): RegularExpressionLiteral {
     const o = new RegularExpressionLiteral();
-    o.$copy_RegularExpressionLiteral(this);
+    o.$copy_ast_RegularExpressionLiteral(this);
     return o;
   }
-  static $cast_RegularExpressionLiteral(v: $rt.GoObject | undefined): RegularExpressionLiteral {
+  static $cast_ast_RegularExpressionLiteral(v: $rt.GoObject | undefined): RegularExpressionLiteral {
     if (v instanceof RegularExpressionLiteral) return v;
     throw $rt.typeAssertError();
   }
@@ -18441,13 +18585,13 @@ export class RepopulateDiagnosticInfo extends $rt.GoObject {
   ModuleReference: string = '';
   Mode: $core.ResolutionMode = 0;
   PackageName: string = '';
-  $copy_RepopulateDiagnosticInfo(src: RepopulateDiagnosticInfo): void {
+  $copy_ast_RepopulateDiagnosticInfo(src: RepopulateDiagnosticInfo): void {
     this.Kind = src.Kind;
     this.ModuleReference = src.ModuleReference;
     this.Mode = src.Mode;
     this.PackageName = src.PackageName;
   }
-  $equals_RepopulateDiagnosticInfo(o: RepopulateDiagnosticInfo): boolean {
+  $equals_ast_RepopulateDiagnosticInfo(o: RepopulateDiagnosticInfo): boolean {
     return (
       this.Kind === o.Kind &&
       this.ModuleReference === o.ModuleReference &&
@@ -18455,31 +18599,49 @@ export class RepopulateDiagnosticInfo extends $rt.GoObject {
       this.PackageName === o.PackageName
     );
   }
-  $clone_RepopulateDiagnosticInfo(): RepopulateDiagnosticInfo {
+  $clone_ast_RepopulateDiagnosticInfo(): RepopulateDiagnosticInfo {
     const o = new RepopulateDiagnosticInfo();
-    o.$copy_RepopulateDiagnosticInfo(this);
+    o.$copy_ast_RepopulateDiagnosticInfo(this);
     return o;
   }
-  static $cast_RepopulateDiagnosticInfo(v: $rt.GoObject | undefined): RepopulateDiagnosticInfo {
+  static $lit_ast_RepopulateDiagnosticInfo_0(p0: RepopulateDiagnosticKind): RepopulateDiagnosticInfo {
+    const o = new RepopulateDiagnosticInfo();
+    o.Kind = p0;
+    return o;
+  }
+  static $lit_ast_RepopulateDiagnosticInfo_0_1_2_3(
+    p0: RepopulateDiagnosticKind,
+    p1: string,
+    p2: $core.ResolutionMode,
+    p3: string,
+  ): RepopulateDiagnosticInfo {
+    const o = new RepopulateDiagnosticInfo();
+    o.Kind = p0;
+    o.ModuleReference = p1;
+    o.Mode = p2;
+    o.PackageName = p3;
+    return o;
+  }
+  static $cast_ast_RepopulateDiagnosticInfo(v: $rt.GoObject | undefined): RepopulateDiagnosticInfo {
     if (v instanceof RepopulateDiagnosticInfo) return v;
     throw $rt.typeAssertError();
   }
 }
 export class RestTypeNode extends TypeNodeBase {
   Type_: Node | undefined = undefined;
-  $copy_RestTypeNode(src: RestTypeNode): void {
-    this.$copy_TypeNodeBase(src);
+  $copy_ast_RestTypeNode(src: RestTypeNode): void {
+    this.$copy_ast_TypeNodeBase(src);
     this.Type_ = src.Type_;
   }
-  $equals_RestTypeNode(o: RestTypeNode): boolean {
-    return this.$equals_TypeNodeBase(o) && this.Type_ === o.Type_;
+  $equals_ast_RestTypeNode(o: RestTypeNode): boolean {
+    return this.$equals_ast_TypeNodeBase(o) && this.Type_ === o.Type_;
   }
-  $clone_RestTypeNode(): RestTypeNode {
+  $clone_ast_RestTypeNode(): RestTypeNode {
     const o = new RestTypeNode();
-    o.$copy_RestTypeNode(this);
+    o.$copy_ast_RestTypeNode(this);
     return o;
   }
-  static $cast_RestTypeNode(v: $rt.GoObject | undefined): RestTypeNode {
+  static $cast_ast_RestTypeNode(v: $rt.GoObject | undefined): RestTypeNode {
     if (v instanceof RestTypeNode) return v;
     throw $rt.typeAssertError();
   }
@@ -18505,24 +18667,24 @@ export class RestTypeNode extends TypeNodeBase {
 export class ReturnStatement extends StatementBase {
   CompositeBase_: CompositeBase = new CompositeBase();
   Expression_: Node | undefined = undefined;
-  $copy_ReturnStatement(src: ReturnStatement): void {
-    this.$copy_StatementBase(src);
-    this.CompositeBase_ = src.CompositeBase_.$clone_CompositeBase();
+  $copy_ast_ReturnStatement(src: ReturnStatement): void {
+    this.$copy_ast_StatementBase(src);
+    this.CompositeBase_ = src.CompositeBase_.$clone_ast_CompositeBase();
     this.Expression_ = src.Expression_;
   }
-  $equals_ReturnStatement(o: ReturnStatement): boolean {
+  $equals_ast_ReturnStatement(o: ReturnStatement): boolean {
     return (
-      this.$equals_StatementBase(o) &&
-      this.CompositeBase_.$equals_CompositeBase(o.CompositeBase_) &&
+      this.$equals_ast_StatementBase(o) &&
+      this.CompositeBase_.$equals_ast_CompositeBase(o.CompositeBase_) &&
       this.Expression_ === o.Expression_
     );
   }
-  $clone_ReturnStatement(): ReturnStatement {
+  $clone_ast_ReturnStatement(): ReturnStatement {
     const o = new ReturnStatement();
-    o.$copy_ReturnStatement(this);
+    o.$copy_ast_ReturnStatement(this);
     return o;
   }
-  static $cast_ReturnStatement(v: $rt.GoObject | undefined): ReturnStatement {
+  static $cast_ast_ReturnStatement(v: $rt.GoObject | undefined): ReturnStatement {
     if (v instanceof ReturnStatement) return v;
     throw $rt.typeAssertError();
   }
@@ -18556,20 +18718,20 @@ export class ReturnStatement extends StatementBase {
 export class SatisfiesExpression extends ExpressionBase {
   Expression_: Node | undefined = undefined;
   Type_: Node | undefined = undefined;
-  $copy_SatisfiesExpression(src: SatisfiesExpression): void {
-    this.$copy_ExpressionBase(src);
+  $copy_ast_SatisfiesExpression(src: SatisfiesExpression): void {
+    this.$copy_ast_ExpressionBase(src);
     this.Expression_ = src.Expression_;
     this.Type_ = src.Type_;
   }
-  $equals_SatisfiesExpression(o: SatisfiesExpression): boolean {
-    return this.$equals_ExpressionBase(o) && this.Expression_ === o.Expression_ && this.Type_ === o.Type_;
+  $equals_ast_SatisfiesExpression(o: SatisfiesExpression): boolean {
+    return this.$equals_ast_ExpressionBase(o) && this.Expression_ === o.Expression_ && this.Type_ === o.Type_;
   }
-  $clone_SatisfiesExpression(): SatisfiesExpression {
+  $clone_ast_SatisfiesExpression(): SatisfiesExpression {
     const o = new SatisfiesExpression();
-    o.$copy_SatisfiesExpression(this);
+    o.$copy_ast_SatisfiesExpression(this);
     return o;
   }
-  static $cast_SatisfiesExpression(v: $rt.GoObject | undefined): SatisfiesExpression {
+  static $cast_ast_SatisfiesExpression(v: $rt.GoObject | undefined): SatisfiesExpression {
     if (v instanceof SatisfiesExpression) return v;
     throw $rt.typeAssertError();
   }
@@ -18579,7 +18741,7 @@ export class SatisfiesExpression extends ExpressionBase {
   }
   propagateSubtreeFacts(): SubtreeFacts {
     const node = this;
-    return (node!.SubtreeFacts_() & 4261412863) >>> 0;
+    return (node!.SubtreeFacts$m() & 4261412863) >>> 0;
   }
   ForEachChild(v: Visitor): boolean {
     const node = this;
@@ -18601,24 +18763,24 @@ export class SatisfiesExpression extends ExpressionBase {
 export class SemicolonClassElement extends NodeBase {
   ClassElementBase_: ClassElementBase = new ClassElementBase();
   DeclarationBase_: DeclarationBase = new DeclarationBase();
-  $copy_SemicolonClassElement(src: SemicolonClassElement): void {
-    this.$copy_NodeBase(src);
+  $copy_ast_SemicolonClassElement(src: SemicolonClassElement): void {
+    this.$copy_ast_NodeBase(src);
     this.ClassElementBase_ = src.ClassElementBase_;
-    this.DeclarationBase_ = src.DeclarationBase_.$clone_DeclarationBase();
+    this.DeclarationBase_ = src.DeclarationBase_.$clone_ast_DeclarationBase();
   }
-  $equals_SemicolonClassElement(o: SemicolonClassElement): boolean {
+  $equals_ast_SemicolonClassElement(o: SemicolonClassElement): boolean {
     return (
-      this.$equals_NodeBase(o) &&
-      this.ClassElementBase_.$equals_ClassElementBase(o.ClassElementBase_) &&
-      this.DeclarationBase_.$equals_DeclarationBase(o.DeclarationBase_)
+      this.$equals_ast_NodeBase(o) &&
+      this.ClassElementBase_.$equals_ast_ClassElementBase(o.ClassElementBase_) &&
+      this.DeclarationBase_.$equals_ast_DeclarationBase(o.DeclarationBase_)
     );
   }
-  $clone_SemicolonClassElement(): SemicolonClassElement {
+  $clone_ast_SemicolonClassElement(): SemicolonClassElement {
     const o = new SemicolonClassElement();
-    o.$copy_SemicolonClassElement(this);
+    o.$copy_ast_SemicolonClassElement(this);
     return o;
   }
-  static $cast_SemicolonClassElement(v: $rt.GoObject | undefined): SemicolonClassElement {
+  static $cast_ast_SemicolonClassElement(v: $rt.GoObject | undefined): SemicolonClassElement {
     if (v instanceof SemicolonClassElement) return v;
     throw $rt.typeAssertError();
   }
@@ -18631,15 +18793,15 @@ export class SemicolonClassElement extends NodeBase {
   }
 }
 export class SetAccessorDeclaration extends AccessorDeclarationBase {
-  $copy_SetAccessorDeclaration(src: SetAccessorDeclaration): void {
-    this.$copy_AccessorDeclarationBase(src);
+  $copy_ast_SetAccessorDeclaration(src: SetAccessorDeclaration): void {
+    this.$copy_ast_AccessorDeclarationBase(src);
   }
-  $clone_SetAccessorDeclaration(): SetAccessorDeclaration {
+  $clone_ast_SetAccessorDeclaration(): SetAccessorDeclaration {
     const o = new SetAccessorDeclaration();
-    o.$copy_SetAccessorDeclaration(this);
+    o.$copy_ast_SetAccessorDeclaration(this);
     return o;
   }
-  static $cast_SetAccessorDeclaration(v: $rt.GoObject | undefined): SetAccessorDeclaration {
+  static $cast_ast_SetAccessorDeclaration(v: $rt.GoObject | undefined): SetAccessorDeclaration {
     if (v instanceof SetAccessorDeclaration) return v;
     throw $rt.typeAssertError();
   }
@@ -18723,34 +18885,34 @@ export class ShorthandPropertyAssignment extends NodeBase {
   Type_: Node | undefined = undefined;
   EqualsToken: Node | undefined = undefined;
   ObjectAssignmentInitializer: Node | undefined = undefined;
-  $copy_ShorthandPropertyAssignment(src: ShorthandPropertyAssignment): void {
-    this.$copy_NodeBase(src);
+  $copy_ast_ShorthandPropertyAssignment(src: ShorthandPropertyAssignment): void {
+    this.$copy_ast_NodeBase(src);
     this.ObjectLiteralElementBase_ = src.ObjectLiteralElementBase_;
-    this.DeclarationBase_ = src.DeclarationBase_.$clone_DeclarationBase();
-    this.NamedMemberBase_ = src.NamedMemberBase_.$clone_NamedMemberBase();
-    this.CompositeBase_ = src.CompositeBase_.$clone_CompositeBase();
+    this.DeclarationBase_ = src.DeclarationBase_.$clone_ast_DeclarationBase();
+    this.NamedMemberBase_ = src.NamedMemberBase_.$clone_ast_NamedMemberBase();
+    this.CompositeBase_ = src.CompositeBase_.$clone_ast_CompositeBase();
     this.Type_ = src.Type_;
     this.EqualsToken = src.EqualsToken;
     this.ObjectAssignmentInitializer = src.ObjectAssignmentInitializer;
   }
-  $equals_ShorthandPropertyAssignment(o: ShorthandPropertyAssignment): boolean {
+  $equals_ast_ShorthandPropertyAssignment(o: ShorthandPropertyAssignment): boolean {
     return (
-      this.$equals_NodeBase(o) &&
-      this.ObjectLiteralElementBase_.$equals_ObjectLiteralElementBase(o.ObjectLiteralElementBase_) &&
-      this.DeclarationBase_.$equals_DeclarationBase(o.DeclarationBase_) &&
-      this.NamedMemberBase_.$equals_NamedMemberBase(o.NamedMemberBase_) &&
-      this.CompositeBase_.$equals_CompositeBase(o.CompositeBase_) &&
+      this.$equals_ast_NodeBase(o) &&
+      this.ObjectLiteralElementBase_.$equals_ast_ObjectLiteralElementBase(o.ObjectLiteralElementBase_) &&
+      this.DeclarationBase_.$equals_ast_DeclarationBase(o.DeclarationBase_) &&
+      this.NamedMemberBase_.$equals_ast_NamedMemberBase(o.NamedMemberBase_) &&
+      this.CompositeBase_.$equals_ast_CompositeBase(o.CompositeBase_) &&
       this.Type_ === o.Type_ &&
       this.EqualsToken === o.EqualsToken &&
       this.ObjectAssignmentInitializer === o.ObjectAssignmentInitializer
     );
   }
-  $clone_ShorthandPropertyAssignment(): ShorthandPropertyAssignment {
+  $clone_ast_ShorthandPropertyAssignment(): ShorthandPropertyAssignment {
     const o = new ShorthandPropertyAssignment();
-    o.$copy_ShorthandPropertyAssignment(this);
+    o.$copy_ast_ShorthandPropertyAssignment(this);
     return o;
   }
-  static $cast_ShorthandPropertyAssignment(v: $rt.GoObject | undefined): ShorthandPropertyAssignment {
+  static $cast_ast_ShorthandPropertyAssignment(v: $rt.GoObject | undefined): ShorthandPropertyAssignment {
     if (v instanceof ShorthandPropertyAssignment) return v;
     throw $rt.typeAssertError();
   }
@@ -18870,7 +19032,7 @@ export class SourceFile extends NodeBase {
   ecmaLineMap: $core.TextPos[] = [];
   Hash: $rt.github_com_zeebo_xxh3_Uint128 = new $rt.github_com_zeebo_xxh3_Uint128();
   tokenCacheMu: $rt.sync_Mutex = new $rt.sync_Mutex();
-  tokenCache: Map<string, Node | undefined> | undefined = undefined;
+  tokenCache: $rt.StructMap<TokenCacheKey, Node | undefined> | undefined = undefined;
   tokenFactory: NodeFactory | undefined = undefined;
   declarationMapMu: $rt.sync_Mutex = new $rt.sync_Mutex();
   declarationMap: Map<string, (Node | undefined)[]> | undefined = undefined;
@@ -18878,13 +19040,13 @@ export class SourceFile extends NodeBase {
   nameTable: Map<string, number> | undefined = undefined;
   positionMapOnce: $rt.sync_Once = new $rt.sync_Once();
   positionMap: PositionMap | undefined = undefined;
-  $copy_SourceFile(src: SourceFile): void {
-    this.$copy_NodeBase(src);
-    this.DeclarationBase_ = src.DeclarationBase_.$clone_DeclarationBase();
-    this.LocalsContainerBase_ = src.LocalsContainerBase_.$clone_LocalsContainerBase();
-    this.CompositeBase_ = src.CompositeBase_.$clone_CompositeBase();
+  $copy_ast_SourceFile(src: SourceFile): void {
+    this.$copy_ast_NodeBase(src);
+    this.DeclarationBase_ = src.DeclarationBase_.$clone_ast_DeclarationBase();
+    this.LocalsContainerBase_ = src.LocalsContainerBase_.$clone_ast_LocalsContainerBase();
+    this.CompositeBase_ = src.CompositeBase_.$clone_ast_CompositeBase();
     this.fileName = src.fileName;
-    this.parseOptions = src.parseOptions;
+    this.parseOptions = src.parseOptions.$clone_ast_SourceFileParseOptions();
     this.text = src.text;
     this.contentMapperInfo = src.contentMapperInfo;
     this.Statements_ = src.Statements_;
@@ -18907,7 +19069,7 @@ export class SourceFile extends NodeBase {
     this.jsdocMu = src.jsdocMu;
     this.hasLazyJSDoc = src.hasLazyJSDoc;
     this.identifiersOnce = src.identifiersOnce;
-    this.identifiers = src.identifiers.$clone_Set();
+    this.identifiers = src.identifiers.$clone_collections_Set();
     this.ReparsedClones = src.ReparsedClones;
     this.Pragmas = src.Pragmas;
     this.ReferencedFiles = src.ReferencedFiles;
@@ -18937,18 +19099,18 @@ export class SourceFile extends NodeBase {
     this.positionMapOnce = src.positionMapOnce;
     this.positionMap = src.positionMap;
   }
-  $clone_SourceFile(): SourceFile {
+  $clone_ast_SourceFile(): SourceFile {
     const o = new SourceFile();
-    o.$copy_SourceFile(this);
+    o.$copy_ast_SourceFile(this);
     return o;
   }
-  static $cast_SourceFile(v: $rt.GoObject | undefined): SourceFile {
+  static $cast_ast_SourceFile(v: $rt.GoObject | undefined): SourceFile {
     if (v instanceof SourceFile) return v;
     throw $rt.typeAssertError();
   }
   ParseOptions(): SourceFileParseOptions {
     const node = this;
-    return node!.parseOptions;
+    return node!.parseOptions.$clone_ast_SourceFileParseOptions();
   }
   Text(): string {
     const node = this;
@@ -18971,7 +19133,7 @@ export class SourceFile extends NodeBase {
     }
     return node!.FileName();
   }
-  SpanMap_(): $spanmap.SpanMap | undefined {
+  SpanMap$m(): $spanmap.SpanMap | undefined {
     const node = this;
     if (node!.contentMapperInfo === undefined) {
       return undefined;
@@ -18987,7 +19149,7 @@ export class SourceFile extends NodeBase {
   }
   IsContentMapperFailureStub(): boolean {
     const node = this;
-    return !(node!.ContentMapper() === ('' as string)) && node!.SpanMap_() === undefined;
+    return !(node!.ContentMapper() === ('' as string)) && node!.SpanMap$m() === undefined;
   }
   ContentMapperTransformIdentity(): string {
     const node = this;
@@ -19008,7 +19170,7 @@ export class SourceFile extends NodeBase {
     if (node!.contentMapperInfo === undefined) {
       return new SourceFileParseOptions();
     }
-    return node!.contentMapperInfo!.ParseOptions;
+    return node!.contentMapperInfo!.ParseOptions.$clone_ast_SourceFileParseOptions();
   }
   SetContentMapperInfo(info: ContentMapperSourceFileInfo): void {
     const node = this;
@@ -19053,7 +19215,7 @@ export class SourceFile extends NodeBase {
     const node = this;
     return node!.parseOptions.FileName;
   }
-  Path_(): $tspath.Path {
+  Path$m(): $tspath.Path {
     const node = this;
     return node!.parseOptions.Path_;
   }
@@ -19177,7 +19339,7 @@ export class SourceFile extends NodeBase {
   copyFrom(other: SourceFile | undefined): void {
     const node = this;
     if (!(other!.contentMapperInfo === undefined)) {
-      node!.SetContentMapperInfo(other!.contentMapperInfo!.$clone_ContentMapperSourceFileInfo());
+      node!.SetContentMapperInfo(other!.contentMapperInfo!.$clone_ast_ContentMapperSourceFileInfo());
     }
     node!.LanguageVariant_ = other!.LanguageVariant_;
     node!.ScriptKind_ = other!.ScriptKind_;
@@ -19199,7 +19361,12 @@ export class SourceFile extends NodeBase {
     const node = this;
     let updated: Node | undefined = f!
       .AsNodeFactory()!
-      .NewSourceFile(node!.parseOptions, node!.text, node!.Statements_, node!.EndOfFileToken);
+      .NewSourceFile(
+        node!.parseOptions.$clone_ast_SourceFileParseOptions(),
+        node!.text,
+        node!.Statements_,
+        node!.EndOfFileToken,
+      );
     let newFile: SourceFile | undefined = updated!.AsSourceFile();
     newFile!.copyFrom(node);
     return cloneNode(updated, node!.AsNode(), f!.AsNodeFactory()!.hooks);
@@ -19243,7 +19410,9 @@ export class SourceFile extends NodeBase {
     const file = this;
     file!.nameTableOnce.Do((): void => {
       let nameTable: Map<string, number> | undefined = new Map<string, number>();
-      let walk: ((p0: Node | undefined) => boolean) | undefined = undefined;
+      let walk: ((p0: Node | undefined) => boolean) | undefined = undefined as
+        | ((p0: Node | undefined) => boolean)
+        | undefined;
       walk = (node: Node | undefined): boolean => {
         if (
           (IsIdentifier(node) && !IsTagName(node) && !(node!.Text$Node() === ('' as string))) ||
@@ -19314,20 +19483,17 @@ export class SourceFile extends NodeBase {
         $t2.Unlock();
       });
       let loc: $core.TextRange = $core.NewTextRange(pos, end);
-      let key: TokenCacheKey = TokenCacheKey.$lit_TokenCacheKey_0_1(parent, loc);
+      let key: TokenCacheKey = TokenCacheKey.$lit_ast_TokenCacheKey_0_1(parent, loc);
       {
         const $t3 = node!.tokenCache;
-        const $t4 = $rt.structKey(key);
+        const $t4 = key;
         let token: Node | undefined = $t3?.get($t4) ?? undefined;
         let ok: boolean = $t3 !== undefined && $t3.has($t4);
         if (ok) {
           if (!(token!.Kind_ === kind)) {
             throw $rt.newPanic(
               new $rt.BoxStr(
-                $rt.fmt_Sprintf('Token cache mismatch: %v != %v', [
-                  new $rt.BoxNum(token!.Kind_, 'ast.Kind'),
-                  new $rt.BoxNum(kind, 'ast.Kind'),
-                ]),
+                $rt.fmt_Sprintf('Token cache mismatch: %v != %v', [new Kind$Box(token!.Kind_), new Kind$Box(kind)]),
                 'string',
               ),
             );
@@ -19339,20 +19505,18 @@ export class SourceFile extends NodeBase {
       if (!((parent!.Flags & 8) === (0 as number))) {
         throw $rt.newPanic(
           new $rt.BoxStr(
-            $rt.fmt_Sprintf('Cannot create token from reparsed node of kind %v', [
-              new $rt.BoxNum(parent!.Kind_, 'ast.Kind'),
-            ]),
+            $rt.fmt_Sprintf('Cannot create token from reparsed node of kind %v', [new Kind$Box(parent!.Kind_)]),
             'string',
           ),
         );
       }
       if (node!.tokenCache === undefined) {
-        node!.tokenCache = new Map<string, Node | undefined>();
+        node!.tokenCache = new $rt.StructMap<TokenCacheKey, Node | undefined>($fn1);
       }
       let token$1: Node | undefined = createToken(kind, node, pos, end, flags);
       token$1!.Loc = loc;
       token$1!.Parent = parent;
-      node!.tokenCache!.set($rt.structKey(key), token$1);
+      node!.tokenCache!.set(key, token$1);
       $t1 = token$1;
       break $body;
     } catch ($e) {
@@ -19393,10 +19557,16 @@ export class SourceFile extends NodeBase {
     let addDeclaration: ((p0: Node | undefined) => void) | undefined = (declaration: Node | undefined): void => {
       let name_: string = GetDeclarationName(declaration);
       if (!(name_ === ('' as string))) {
-        (result?.get(name_) ?? []).push(declaration);
+        const $t1 = result;
+        const $t2 = name_;
+        const $t3: (Node | undefined)[] = $t1!.get($t2) ?? [];
+        $t3.push(declaration);
+        $t1!.set($t2, $t3);
       }
     };
-    let visit: ((p0: Node | undefined) => boolean) | undefined = undefined;
+    let visit: ((p0: Node | undefined) => boolean) | undefined = undefined as
+      | ((p0: Node | undefined) => boolean)
+      | undefined;
     visit = (node$1: Node | undefined): boolean => {
       {
         switch (node$1!.Kind_) {
@@ -19407,20 +19577,24 @@ export class SourceFile extends NodeBase {
             let declarationName: string = GetDeclarationName(node$1);
             if (!(declarationName === ('' as string))) {
               let declarations: (Node | undefined)[] = result?.get(declarationName) ?? [];
-              let lastDeclaration: Node | undefined = undefined;
+              let lastDeclaration: Node | undefined = undefined as Node | undefined;
               if (!(declarations.length === (0 as number))) {
                 lastDeclaration = declarations[declarations.length - 1];
               }
               if (
                 !(lastDeclaration === undefined) &&
                 node$1!.Parent === lastDeclaration!.Parent &&
-                node$1!.Symbol_() === lastDeclaration!.Symbol_()
+                node$1!.Symbol$m() === lastDeclaration!.Symbol$m()
               ) {
                 if (!(node$1!.Body() === undefined) && lastDeclaration!.Body() === undefined) {
                   declarations[declarations.length - 1] = node$1;
                 }
               } else {
-                (result?.get(declarationName) ?? []).push(node$1);
+                const $t4 = result;
+                const $t5 = declarationName;
+                const $t6: (Node | undefined)[] = $t4!.get($t5) ?? [];
+                $t6.push(node$1);
+                $t4!.set($t5, $t6);
               }
             }
             node$1!.ForEachChild$Node(visit);
@@ -19480,9 +19654,9 @@ export class SourceFile extends NodeBase {
             if (!(exportClause === undefined)) {
               if (IsNamedExports(exportClause)) {
                 {
-                  const $t1 = exportClause!.Elements();
-                  for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-                    let element = $t1[$t2];
+                  const $t7 = exportClause!.Elements();
+                  for (let $t8 = 0, $n = $t7.length; $t8 < $n; $t8++) {
+                    let element = $t7[$t8];
                     visit!(element);
                   }
                 }
@@ -19504,9 +19678,9 @@ export class SourceFile extends NodeBase {
                   addDeclaration!(namedBindings);
                 } else {
                   {
-                    const $t3 = namedBindings!.Elements();
-                    for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
-                      let element$1 = $t3[$t4];
+                    const $t9 = namedBindings!.Elements();
+                    for (let $t10 = 0, $n = $t9.length; $t10 < $n; $t10++) {
+                      let element$1 = $t9[$t10];
                       visit!(element$1);
                     }
                   }
@@ -19560,16 +19734,16 @@ export class SourceFileDataKey<T> extends $rt.GoObject {
     this.key = 0;
     this.$_1 = $rt.makeArray(0, () => this.$z_T());
   }
-  $copy_SourceFileDataKey(src: SourceFileDataKey<T>): void {
+  $copy_ast_SourceFileDataKey(src: SourceFileDataKey<T>): void {
     this.key = src.key;
     this.$_1 = src.$_1.slice();
   }
-  $clone_SourceFileDataKey(): SourceFileDataKey<T> {
+  $clone_ast_SourceFileDataKey(): SourceFileDataKey<T> {
     const o = new SourceFileDataKey<T>(this.$z_T);
-    o.$copy_SourceFileDataKey(this);
+    o.$copy_ast_SourceFileDataKey(this);
     return o;
   }
-  static $lit_SourceFileDataKey_0<T>($z_T: () => T, p0: sourceFileDataKey): SourceFileDataKey<T> {
+  static $lit_ast_SourceFileDataKey_0<T>($z_T: () => T, p0: sourceFileDataKey): SourceFileDataKey<T> {
     const o = new SourceFileDataKey<T>($z_T);
     o.key = p0;
     return o;
@@ -19579,24 +19753,24 @@ export class SourceFileMetaData extends $rt.GoObject {
   PackageJsonType: string = '';
   PackageJsonDirectory: string = '';
   ImpliedNodeFormat: $core.ResolutionMode = 0;
-  $copy_SourceFileMetaData(src: SourceFileMetaData): void {
+  $copy_ast_SourceFileMetaData(src: SourceFileMetaData): void {
     this.PackageJsonType = src.PackageJsonType;
     this.PackageJsonDirectory = src.PackageJsonDirectory;
     this.ImpliedNodeFormat = src.ImpliedNodeFormat;
   }
-  $equals_SourceFileMetaData(o: SourceFileMetaData): boolean {
+  $equals_ast_SourceFileMetaData(o: SourceFileMetaData): boolean {
     return (
       this.PackageJsonType === o.PackageJsonType &&
       this.PackageJsonDirectory === o.PackageJsonDirectory &&
       this.ImpliedNodeFormat === o.ImpliedNodeFormat
     );
   }
-  $clone_SourceFileMetaData(): SourceFileMetaData {
+  $clone_ast_SourceFileMetaData(): SourceFileMetaData {
     const o = new SourceFileMetaData();
-    o.$copy_SourceFileMetaData(this);
+    o.$copy_ast_SourceFileMetaData(this);
     return o;
   }
-  static $cast_SourceFileMetaData(v: $rt.GoObject | undefined): SourceFileMetaData {
+  static $cast_ast_SourceFileMetaData(v: $rt.GoObject | undefined): SourceFileMetaData {
     if (v instanceof SourceFileMetaData) return v;
     throw $rt.typeAssertError();
   }
@@ -19605,24 +19779,31 @@ export class SourceFileParseOptions extends $rt.GoObject {
   FileName: string = '';
   Path_: $tspath.Path = '';
   ExternalModuleIndicatorOptions_: ExternalModuleIndicatorOptions = new ExternalModuleIndicatorOptions();
-  $copy_SourceFileParseOptions(src: SourceFileParseOptions): void {
+  $copy_ast_SourceFileParseOptions(src: SourceFileParseOptions): void {
     this.FileName = src.FileName;
     this.Path_ = src.Path_;
-    this.ExternalModuleIndicatorOptions_ = src.ExternalModuleIndicatorOptions_;
+    this.ExternalModuleIndicatorOptions_ =
+      src.ExternalModuleIndicatorOptions_.$clone_ast_ExternalModuleIndicatorOptions();
   }
-  $equals_SourceFileParseOptions(o: SourceFileParseOptions): boolean {
+  $equals_ast_SourceFileParseOptions(o: SourceFileParseOptions): boolean {
     return (
       this.FileName === o.FileName &&
       this.Path_ === o.Path_ &&
-      this.ExternalModuleIndicatorOptions_.$equals_ExternalModuleIndicatorOptions(o.ExternalModuleIndicatorOptions_)
+      this.ExternalModuleIndicatorOptions_.$equals_ast_ExternalModuleIndicatorOptions(o.ExternalModuleIndicatorOptions_)
     );
   }
-  $clone_SourceFileParseOptions(): SourceFileParseOptions {
+  $clone_ast_SourceFileParseOptions(): SourceFileParseOptions {
     const o = new SourceFileParseOptions();
-    o.$copy_SourceFileParseOptions(this);
+    o.$copy_ast_SourceFileParseOptions(this);
     return o;
   }
-  static $cast_SourceFileParseOptions(v: $rt.GoObject | undefined): SourceFileParseOptions {
+  static $lit_ast_SourceFileParseOptions_0_1(p0: string, p1: $tspath.Path): SourceFileParseOptions {
+    const o = new SourceFileParseOptions();
+    o.FileName = p0;
+    o.Path_ = p1;
+    return o;
+  }
+  static $cast_ast_SourceFileParseOptions(v: $rt.GoObject | undefined): SourceFileParseOptions {
     if (v instanceof SourceFileParseOptions) return v;
     throw $rt.typeAssertError();
   }
@@ -19631,26 +19812,26 @@ export class SpreadAssignment extends NodeBase {
   ObjectLiteralElementBase_: ObjectLiteralElementBase = new ObjectLiteralElementBase();
   DeclarationBase_: DeclarationBase = new DeclarationBase();
   Expression_: Node | undefined = undefined;
-  $copy_SpreadAssignment(src: SpreadAssignment): void {
-    this.$copy_NodeBase(src);
+  $copy_ast_SpreadAssignment(src: SpreadAssignment): void {
+    this.$copy_ast_NodeBase(src);
     this.ObjectLiteralElementBase_ = src.ObjectLiteralElementBase_;
-    this.DeclarationBase_ = src.DeclarationBase_.$clone_DeclarationBase();
+    this.DeclarationBase_ = src.DeclarationBase_.$clone_ast_DeclarationBase();
     this.Expression_ = src.Expression_;
   }
-  $equals_SpreadAssignment(o: SpreadAssignment): boolean {
+  $equals_ast_SpreadAssignment(o: SpreadAssignment): boolean {
     return (
-      this.$equals_NodeBase(o) &&
-      this.ObjectLiteralElementBase_.$equals_ObjectLiteralElementBase(o.ObjectLiteralElementBase_) &&
-      this.DeclarationBase_.$equals_DeclarationBase(o.DeclarationBase_) &&
+      this.$equals_ast_NodeBase(o) &&
+      this.ObjectLiteralElementBase_.$equals_ast_ObjectLiteralElementBase(o.ObjectLiteralElementBase_) &&
+      this.DeclarationBase_.$equals_ast_DeclarationBase(o.DeclarationBase_) &&
       this.Expression_ === o.Expression_
     );
   }
-  $clone_SpreadAssignment(): SpreadAssignment {
+  $clone_ast_SpreadAssignment(): SpreadAssignment {
     const o = new SpreadAssignment();
-    o.$copy_SpreadAssignment(this);
+    o.$copy_ast_SpreadAssignment(this);
     return o;
   }
-  static $cast_SpreadAssignment(v: $rt.GoObject | undefined): SpreadAssignment {
+  static $cast_ast_SpreadAssignment(v: $rt.GoObject | undefined): SpreadAssignment {
     if (v instanceof SpreadAssignment) return v;
     throw $rt.typeAssertError();
   }
@@ -19680,19 +19861,19 @@ export class SpreadAssignment extends NodeBase {
 }
 export class SpreadElement extends ExpressionBase {
   Expression_: Node | undefined = undefined;
-  $copy_SpreadElement(src: SpreadElement): void {
-    this.$copy_ExpressionBase(src);
+  $copy_ast_SpreadElement(src: SpreadElement): void {
+    this.$copy_ast_ExpressionBase(src);
     this.Expression_ = src.Expression_;
   }
-  $equals_SpreadElement(o: SpreadElement): boolean {
-    return this.$equals_ExpressionBase(o) && this.Expression_ === o.Expression_;
+  $equals_ast_SpreadElement(o: SpreadElement): boolean {
+    return this.$equals_ast_ExpressionBase(o) && this.Expression_ === o.Expression_;
   }
-  $clone_SpreadElement(): SpreadElement {
+  $clone_ast_SpreadElement(): SpreadElement {
     const o = new SpreadElement();
-    o.$copy_SpreadElement(this);
+    o.$copy_ast_SpreadElement(this);
     return o;
   }
-  static $cast_SpreadElement(v: $rt.GoObject | undefined): SpreadElement {
+  static $cast_ast_SpreadElement(v: $rt.GoObject | undefined): SpreadElement {
     if (v instanceof SpreadElement) return v;
     throw $rt.typeAssertError();
   }
@@ -19718,18 +19899,18 @@ export class SpreadElement extends ExpressionBase {
   }
 }
 export class StringLiteral extends LiteralExpressionBase {
-  $copy_StringLiteral(src: StringLiteral): void {
-    this.$copy_LiteralExpressionBase(src);
+  $copy_ast_StringLiteral(src: StringLiteral): void {
+    this.$copy_ast_LiteralExpressionBase(src);
   }
-  $equals_StringLiteral(o: StringLiteral): boolean {
-    return this.$equals_LiteralExpressionBase(o);
+  $equals_ast_StringLiteral(o: StringLiteral): boolean {
+    return this.$equals_ast_LiteralExpressionBase(o);
   }
-  $clone_StringLiteral(): StringLiteral {
+  $clone_ast_StringLiteral(): StringLiteral {
     const o = new StringLiteral();
-    o.$copy_StringLiteral(this);
+    o.$copy_ast_StringLiteral(this);
     return o;
   }
-  static $cast_StringLiteral(v: $rt.GoObject | undefined): StringLiteral {
+  static $cast_ast_StringLiteral(v: $rt.GoObject | undefined): StringLiteral {
     if (v instanceof StringLiteral) return v;
     throw $rt.typeAssertError();
   }
@@ -19749,26 +19930,26 @@ export class SwitchStatement extends StatementBase {
   CompositeBase_: CompositeBase = new CompositeBase();
   Expression_: Node | undefined = undefined;
   CaseBlock: Node | undefined = undefined;
-  $copy_SwitchStatement(src: SwitchStatement): void {
-    this.$copy_StatementBase(src);
-    this.CompositeBase_ = src.CompositeBase_.$clone_CompositeBase();
+  $copy_ast_SwitchStatement(src: SwitchStatement): void {
+    this.$copy_ast_StatementBase(src);
+    this.CompositeBase_ = src.CompositeBase_.$clone_ast_CompositeBase();
     this.Expression_ = src.Expression_;
     this.CaseBlock = src.CaseBlock;
   }
-  $equals_SwitchStatement(o: SwitchStatement): boolean {
+  $equals_ast_SwitchStatement(o: SwitchStatement): boolean {
     return (
-      this.$equals_StatementBase(o) &&
-      this.CompositeBase_.$equals_CompositeBase(o.CompositeBase_) &&
+      this.$equals_ast_StatementBase(o) &&
+      this.CompositeBase_.$equals_ast_CompositeBase(o.CompositeBase_) &&
       this.Expression_ === o.Expression_ &&
       this.CaseBlock === o.CaseBlock
     );
   }
-  $clone_SwitchStatement(): SwitchStatement {
+  $clone_ast_SwitchStatement(): SwitchStatement {
     const o = new SwitchStatement();
-    o.$copy_SwitchStatement(this);
+    o.$copy_ast_SwitchStatement(this);
     return o;
   }
-  static $cast_SwitchStatement(v: $rt.GoObject | undefined): SwitchStatement {
+  static $cast_ast_SwitchStatement(v: $rt.GoObject | undefined): SwitchStatement {
     if (v instanceof SwitchStatement) return v;
     throw $rt.typeAssertError();
   }
@@ -19810,7 +19991,7 @@ export class Symbol_ extends $rt.GoObject {
   id: $rt.sync_atomic_Uint64 = new $rt.sync_atomic_Uint64();
   Parent: Symbol_ | undefined = undefined;
   ExportSymbol: Symbol_ | undefined = undefined;
-  $copy_Symbol(src: Symbol_): void {
+  $copy_ast_Symbol(src: Symbol_): void {
     this.Flags = src.Flags;
     this.CheckFlags_ = src.CheckFlags_;
     this.Name = src.Name;
@@ -19822,18 +20003,18 @@ export class Symbol_ extends $rt.GoObject {
     this.Parent = src.Parent;
     this.ExportSymbol = src.ExportSymbol;
   }
-  $clone_Symbol(): Symbol_ {
+  $clone_ast_Symbol(): Symbol_ {
     const o = new Symbol_();
-    o.$copy_Symbol(this);
+    o.$copy_ast_Symbol(this);
     return o;
   }
-  static $lit_Symbol_2_0(p0: string, p1: SymbolFlags): Symbol_ {
+  static $lit_ast_Symbol_2_0(p0: string, p1: SymbolFlags): Symbol_ {
     const o = new Symbol_();
     o.Name = p0;
     o.Flags = p1;
     return o;
   }
-  static $cast_Symbol(v: $rt.GoObject | undefined): Symbol_ {
+  static $cast_ast_Symbol(v: $rt.GoObject | undefined): Symbol_ {
     if (v instanceof Symbol_) return v;
     throw $rt.typeAssertError();
   }
@@ -19846,7 +20027,7 @@ export class Symbol_ extends $rt.GoObject {
     if (s!.ValueDeclaration === undefined) {
       return false;
     }
-    let modifierFlags: ModifierFlags = s!.ValueDeclaration!.ModifierFlags_();
+    let modifierFlags: ModifierFlags = s!.ValueDeclaration!.ModifierFlags$m();
     return !((modifierFlags & 256) === (0 as number));
   }
   CombinedLocalAndExportSymbolFlags(): SymbolFlags {
@@ -19859,16 +20040,16 @@ export class Symbol_ extends $rt.GoObject {
 }
 export class SyntaxList extends NodeBase {
   Children_: (Node | undefined)[] = [];
-  $copy_SyntaxList(src: SyntaxList): void {
-    this.$copy_NodeBase(src);
+  $copy_ast_SyntaxList(src: SyntaxList): void {
+    this.$copy_ast_NodeBase(src);
     this.Children_ = src.Children_;
   }
-  $clone_SyntaxList(): SyntaxList {
+  $clone_ast_SyntaxList(): SyntaxList {
     const o = new SyntaxList();
-    o.$copy_SyntaxList(this);
+    o.$copy_ast_SyntaxList(this);
     return o;
   }
-  static $cast_SyntaxList(v: $rt.GoObject | undefined): SyntaxList {
+  static $cast_ast_SyntaxList(v: $rt.GoObject | undefined): SyntaxList {
     if (v instanceof SyntaxList) return v;
     throw $rt.typeAssertError();
   }
@@ -19896,26 +20077,26 @@ export class SyntheticExpression extends ExpressionBase {
   Type_: $rt.GoObject | undefined = undefined;
   IsSpread: boolean = false;
   TupleNameSource: Node | undefined = undefined;
-  $copy_SyntheticExpression(src: SyntheticExpression): void {
-    this.$copy_ExpressionBase(src);
+  $copy_ast_SyntheticExpression(src: SyntheticExpression): void {
+    this.$copy_ast_ExpressionBase(src);
     this.Type_ = src.Type_;
     this.IsSpread = src.IsSpread;
     this.TupleNameSource = src.TupleNameSource;
   }
-  $equals_SyntheticExpression(o: SyntheticExpression): boolean {
+  $equals_ast_SyntheticExpression(o: SyntheticExpression): boolean {
     return (
-      this.$equals_ExpressionBase(o) &&
+      this.$equals_ast_ExpressionBase(o) &&
       $rt.ifaceEq(this.Type_, o.Type_) &&
       this.IsSpread === o.IsSpread &&
       this.TupleNameSource === o.TupleNameSource
     );
   }
-  $clone_SyntheticExpression(): SyntheticExpression {
+  $clone_ast_SyntheticExpression(): SyntheticExpression {
     const o = new SyntheticExpression();
-    o.$copy_SyntheticExpression(this);
+    o.$copy_ast_SyntheticExpression(this);
     return o;
   }
-  static $cast_SyntheticExpression(v: $rt.GoObject | undefined): SyntheticExpression {
+  static $cast_ast_SyntheticExpression(v: $rt.GoObject | undefined): SyntheticExpression {
     if (v instanceof SyntheticExpression) return v;
     throw $rt.typeAssertError();
   }
@@ -19944,20 +20125,20 @@ export class SyntheticExpression extends ExpressionBase {
 export class SyntheticReferenceExpression extends ExpressionBase {
   Expression_: Node | undefined = undefined;
   ThisArg: Node | undefined = undefined;
-  $copy_SyntheticReferenceExpression(src: SyntheticReferenceExpression): void {
-    this.$copy_ExpressionBase(src);
+  $copy_ast_SyntheticReferenceExpression(src: SyntheticReferenceExpression): void {
+    this.$copy_ast_ExpressionBase(src);
     this.Expression_ = src.Expression_;
     this.ThisArg = src.ThisArg;
   }
-  $equals_SyntheticReferenceExpression(o: SyntheticReferenceExpression): boolean {
-    return this.$equals_ExpressionBase(o) && this.Expression_ === o.Expression_ && this.ThisArg === o.ThisArg;
+  $equals_ast_SyntheticReferenceExpression(o: SyntheticReferenceExpression): boolean {
+    return this.$equals_ast_ExpressionBase(o) && this.Expression_ === o.Expression_ && this.ThisArg === o.ThisArg;
   }
-  $clone_SyntheticReferenceExpression(): SyntheticReferenceExpression {
+  $clone_ast_SyntheticReferenceExpression(): SyntheticReferenceExpression {
     const o = new SyntheticReferenceExpression();
-    o.$copy_SyntheticReferenceExpression(this);
+    o.$copy_ast_SyntheticReferenceExpression(this);
     return o;
   }
-  static $cast_SyntheticReferenceExpression(v: $rt.GoObject | undefined): SyntheticReferenceExpression {
+  static $cast_ast_SyntheticReferenceExpression(v: $rt.GoObject | undefined): SyntheticReferenceExpression {
     if (v instanceof SyntheticReferenceExpression) return v;
     throw $rt.typeAssertError();
   }
@@ -19992,30 +20173,30 @@ export class TaggedTemplateExpression extends MemberExpressionBase {
   QuestionDotToken_: Node | undefined = undefined;
   TypeArguments_: NodeList | undefined = undefined;
   Template: Node | undefined = undefined;
-  $copy_TaggedTemplateExpression(src: TaggedTemplateExpression): void {
-    this.$copy_MemberExpressionBase(src);
-    this.CompositeBase_ = src.CompositeBase_.$clone_CompositeBase();
+  $copy_ast_TaggedTemplateExpression(src: TaggedTemplateExpression): void {
+    this.$copy_ast_MemberExpressionBase(src);
+    this.CompositeBase_ = src.CompositeBase_.$clone_ast_CompositeBase();
     this.Tag = src.Tag;
     this.QuestionDotToken_ = src.QuestionDotToken_;
     this.TypeArguments_ = src.TypeArguments_;
     this.Template = src.Template;
   }
-  $equals_TaggedTemplateExpression(o: TaggedTemplateExpression): boolean {
+  $equals_ast_TaggedTemplateExpression(o: TaggedTemplateExpression): boolean {
     return (
-      this.$equals_MemberExpressionBase(o) &&
-      this.CompositeBase_.$equals_CompositeBase(o.CompositeBase_) &&
+      this.$equals_ast_MemberExpressionBase(o) &&
+      this.CompositeBase_.$equals_ast_CompositeBase(o.CompositeBase_) &&
       this.Tag === o.Tag &&
       this.QuestionDotToken_ === o.QuestionDotToken_ &&
       this.TypeArguments_ === o.TypeArguments_ &&
       this.Template === o.Template
     );
   }
-  $clone_TaggedTemplateExpression(): TaggedTemplateExpression {
+  $clone_ast_TaggedTemplateExpression(): TaggedTemplateExpression {
     const o = new TaggedTemplateExpression();
-    o.$copy_TaggedTemplateExpression(this);
+    o.$copy_ast_TaggedTemplateExpression(this);
     return o;
   }
-  static $cast_TaggedTemplateExpression(v: $rt.GoObject | undefined): TaggedTemplateExpression {
+  static $cast_ast_TaggedTemplateExpression(v: $rt.GoObject | undefined): TaggedTemplateExpression {
     if (v instanceof TaggedTemplateExpression) return v;
     throw $rt.typeAssertError();
   }
@@ -20073,26 +20254,26 @@ export class TemplateExpression extends PrimaryExpressionBase {
   CompositeBase_: CompositeBase = new CompositeBase();
   Head: Node | undefined = undefined;
   TemplateSpans: NodeList | undefined = undefined;
-  $copy_TemplateExpression(src: TemplateExpression): void {
-    this.$copy_PrimaryExpressionBase(src);
-    this.CompositeBase_ = src.CompositeBase_.$clone_CompositeBase();
+  $copy_ast_TemplateExpression(src: TemplateExpression): void {
+    this.$copy_ast_PrimaryExpressionBase(src);
+    this.CompositeBase_ = src.CompositeBase_.$clone_ast_CompositeBase();
     this.Head = src.Head;
     this.TemplateSpans = src.TemplateSpans;
   }
-  $equals_TemplateExpression(o: TemplateExpression): boolean {
+  $equals_ast_TemplateExpression(o: TemplateExpression): boolean {
     return (
-      this.$equals_PrimaryExpressionBase(o) &&
-      this.CompositeBase_.$equals_CompositeBase(o.CompositeBase_) &&
+      this.$equals_ast_PrimaryExpressionBase(o) &&
+      this.CompositeBase_.$equals_ast_CompositeBase(o.CompositeBase_) &&
       this.Head === o.Head &&
       this.TemplateSpans === o.TemplateSpans
     );
   }
-  $clone_TemplateExpression(): TemplateExpression {
+  $clone_ast_TemplateExpression(): TemplateExpression {
     const o = new TemplateExpression();
-    o.$copy_TemplateExpression(this);
+    o.$copy_ast_TemplateExpression(this);
     return o;
   }
-  static $cast_TemplateExpression(v: $rt.GoObject | undefined): TemplateExpression {
+  static $cast_ast_TemplateExpression(v: $rt.GoObject | undefined): TemplateExpression {
     if (v instanceof TemplateExpression) return v;
     throw $rt.typeAssertError();
   }
@@ -20126,22 +20307,22 @@ export class TemplateExpression extends PrimaryExpressionBase {
 }
 export class TemplateHead extends NodeBase {
   TemplateLiteralLikeNodeBase_: TemplateLiteralLikeNodeBase = new TemplateLiteralLikeNodeBase();
-  $copy_TemplateHead(src: TemplateHead): void {
-    this.$copy_NodeBase(src);
-    this.TemplateLiteralLikeNodeBase_ = src.TemplateLiteralLikeNodeBase_.$clone_TemplateLiteralLikeNodeBase();
+  $copy_ast_TemplateHead(src: TemplateHead): void {
+    this.$copy_ast_NodeBase(src);
+    this.TemplateLiteralLikeNodeBase_ = src.TemplateLiteralLikeNodeBase_.$clone_ast_TemplateLiteralLikeNodeBase();
   }
-  $equals_TemplateHead(o: TemplateHead): boolean {
+  $equals_ast_TemplateHead(o: TemplateHead): boolean {
     return (
-      this.$equals_NodeBase(o) &&
-      this.TemplateLiteralLikeNodeBase_.$equals_TemplateLiteralLikeNodeBase(o.TemplateLiteralLikeNodeBase_)
+      this.$equals_ast_NodeBase(o) &&
+      this.TemplateLiteralLikeNodeBase_.$equals_ast_TemplateLiteralLikeNodeBase(o.TemplateLiteralLikeNodeBase_)
     );
   }
-  $clone_TemplateHead(): TemplateHead {
+  $clone_ast_TemplateHead(): TemplateHead {
     const o = new TemplateHead();
-    o.$copy_TemplateHead(this);
+    o.$copy_ast_TemplateHead(this);
     return o;
   }
-  static $cast_TemplateHead(v: $rt.GoObject | undefined): TemplateHead {
+  static $cast_ast_TemplateHead(v: $rt.GoObject | undefined): TemplateHead {
     if (v instanceof TemplateHead) return v;
     throw $rt.typeAssertError();
   }
@@ -20176,26 +20357,28 @@ export class TemplateHead extends NodeBase {
 export class TemplateLiteralLikeNodeBase extends LiteralLikeNodeBase {
   RawText: string = '';
   TemplateFlags: TokenFlags = 0;
-  $copy_TemplateLiteralLikeNodeBase(src: TemplateLiteralLikeNodeBase): void {
-    this.$copy_LiteralLikeNodeBase(src);
+  $copy_ast_TemplateLiteralLikeNodeBase(src: TemplateLiteralLikeNodeBase): void {
+    this.$copy_ast_LiteralLikeNodeBase(src);
     this.RawText = src.RawText;
     this.TemplateFlags = src.TemplateFlags;
   }
-  $equals_TemplateLiteralLikeNodeBase(o: TemplateLiteralLikeNodeBase): boolean {
-    return this.$equals_LiteralLikeNodeBase(o) && this.RawText === o.RawText && this.TemplateFlags === o.TemplateFlags;
+  $equals_ast_TemplateLiteralLikeNodeBase(o: TemplateLiteralLikeNodeBase): boolean {
+    return (
+      this.$equals_ast_LiteralLikeNodeBase(o) && this.RawText === o.RawText && this.TemplateFlags === o.TemplateFlags
+    );
   }
-  $clone_TemplateLiteralLikeNodeBase(): TemplateLiteralLikeNodeBase {
+  $clone_ast_TemplateLiteralLikeNodeBase(): TemplateLiteralLikeNodeBase {
     const o = new TemplateLiteralLikeNodeBase();
-    o.$copy_TemplateLiteralLikeNodeBase(this);
+    o.$copy_ast_TemplateLiteralLikeNodeBase(this);
     return o;
   }
-  static $cast_TemplateLiteralLikeNodeBase(v: $rt.GoObject | undefined): TemplateLiteralLikeNodeBase {
+  static $cast_ast_TemplateLiteralLikeNodeBase(v: $rt.GoObject | undefined): TemplateLiteralLikeNodeBase {
     if (v instanceof TemplateLiteralLikeNodeBase) return v;
     throw $rt.typeAssertError();
   }
   LiteralLikeData(): LiteralLikeNodeBase | undefined {
     const node = this;
-    return node;
+    return node!;
   }
   TemplateLiteralLikeData(): TemplateLiteralLikeNodeBase | undefined {
     const node = this;
@@ -20205,20 +20388,20 @@ export class TemplateLiteralLikeNodeBase extends LiteralLikeNodeBase {
 export class TemplateLiteralTypeNode extends TypeNodeBase {
   Head: Node | undefined = undefined;
   TemplateSpans: NodeList | undefined = undefined;
-  $copy_TemplateLiteralTypeNode(src: TemplateLiteralTypeNode): void {
-    this.$copy_TypeNodeBase(src);
+  $copy_ast_TemplateLiteralTypeNode(src: TemplateLiteralTypeNode): void {
+    this.$copy_ast_TypeNodeBase(src);
     this.Head = src.Head;
     this.TemplateSpans = src.TemplateSpans;
   }
-  $equals_TemplateLiteralTypeNode(o: TemplateLiteralTypeNode): boolean {
-    return this.$equals_TypeNodeBase(o) && this.Head === o.Head && this.TemplateSpans === o.TemplateSpans;
+  $equals_ast_TemplateLiteralTypeNode(o: TemplateLiteralTypeNode): boolean {
+    return this.$equals_ast_TypeNodeBase(o) && this.Head === o.Head && this.TemplateSpans === o.TemplateSpans;
   }
-  $clone_TemplateLiteralTypeNode(): TemplateLiteralTypeNode {
+  $clone_ast_TemplateLiteralTypeNode(): TemplateLiteralTypeNode {
     const o = new TemplateLiteralTypeNode();
-    o.$copy_TemplateLiteralTypeNode(this);
+    o.$copy_ast_TemplateLiteralTypeNode(this);
     return o;
   }
-  static $cast_TemplateLiteralTypeNode(v: $rt.GoObject | undefined): TemplateLiteralTypeNode {
+  static $cast_ast_TemplateLiteralTypeNode(v: $rt.GoObject | undefined): TemplateLiteralTypeNode {
     if (v instanceof TemplateLiteralTypeNode) return v;
     throw $rt.typeAssertError();
   }
@@ -20252,20 +20435,20 @@ export class TemplateLiteralTypeNode extends TypeNodeBase {
 export class TemplateLiteralTypeSpan extends TypeNodeBase {
   Type_: Node | undefined = undefined;
   Literal: Node | undefined = undefined;
-  $copy_TemplateLiteralTypeSpan(src: TemplateLiteralTypeSpan): void {
-    this.$copy_TypeNodeBase(src);
+  $copy_ast_TemplateLiteralTypeSpan(src: TemplateLiteralTypeSpan): void {
+    this.$copy_ast_TypeNodeBase(src);
     this.Type_ = src.Type_;
     this.Literal = src.Literal;
   }
-  $equals_TemplateLiteralTypeSpan(o: TemplateLiteralTypeSpan): boolean {
-    return this.$equals_TypeNodeBase(o) && this.Type_ === o.Type_ && this.Literal === o.Literal;
+  $equals_ast_TemplateLiteralTypeSpan(o: TemplateLiteralTypeSpan): boolean {
+    return this.$equals_ast_TypeNodeBase(o) && this.Type_ === o.Type_ && this.Literal === o.Literal;
   }
-  $clone_TemplateLiteralTypeSpan(): TemplateLiteralTypeSpan {
+  $clone_ast_TemplateLiteralTypeSpan(): TemplateLiteralTypeSpan {
     const o = new TemplateLiteralTypeSpan();
-    o.$copy_TemplateLiteralTypeSpan(this);
+    o.$copy_ast_TemplateLiteralTypeSpan(this);
     return o;
   }
-  static $cast_TemplateLiteralTypeSpan(v: $rt.GoObject | undefined): TemplateLiteralTypeSpan {
+  static $cast_ast_TemplateLiteralTypeSpan(v: $rt.GoObject | undefined): TemplateLiteralTypeSpan {
     if (v instanceof TemplateLiteralTypeSpan) return v;
     throw $rt.typeAssertError();
   }
@@ -20294,22 +20477,22 @@ export class TemplateLiteralTypeSpan extends TypeNodeBase {
 }
 export class TemplateMiddle extends NodeBase {
   TemplateLiteralLikeNodeBase_: TemplateLiteralLikeNodeBase = new TemplateLiteralLikeNodeBase();
-  $copy_TemplateMiddle(src: TemplateMiddle): void {
-    this.$copy_NodeBase(src);
-    this.TemplateLiteralLikeNodeBase_ = src.TemplateLiteralLikeNodeBase_.$clone_TemplateLiteralLikeNodeBase();
+  $copy_ast_TemplateMiddle(src: TemplateMiddle): void {
+    this.$copy_ast_NodeBase(src);
+    this.TemplateLiteralLikeNodeBase_ = src.TemplateLiteralLikeNodeBase_.$clone_ast_TemplateLiteralLikeNodeBase();
   }
-  $equals_TemplateMiddle(o: TemplateMiddle): boolean {
+  $equals_ast_TemplateMiddle(o: TemplateMiddle): boolean {
     return (
-      this.$equals_NodeBase(o) &&
-      this.TemplateLiteralLikeNodeBase_.$equals_TemplateLiteralLikeNodeBase(o.TemplateLiteralLikeNodeBase_)
+      this.$equals_ast_NodeBase(o) &&
+      this.TemplateLiteralLikeNodeBase_.$equals_ast_TemplateLiteralLikeNodeBase(o.TemplateLiteralLikeNodeBase_)
     );
   }
-  $clone_TemplateMiddle(): TemplateMiddle {
+  $clone_ast_TemplateMiddle(): TemplateMiddle {
     const o = new TemplateMiddle();
-    o.$copy_TemplateMiddle(this);
+    o.$copy_ast_TemplateMiddle(this);
     return o;
   }
-  static $cast_TemplateMiddle(v: $rt.GoObject | undefined): TemplateMiddle {
+  static $cast_ast_TemplateMiddle(v: $rt.GoObject | undefined): TemplateMiddle {
     if (v instanceof TemplateMiddle) return v;
     throw $rt.typeAssertError();
   }
@@ -20344,20 +20527,20 @@ export class TemplateMiddle extends NodeBase {
 export class TemplateSpan extends NodeBase {
   Expression_: Node | undefined = undefined;
   Literal: Node | undefined = undefined;
-  $copy_TemplateSpan(src: TemplateSpan): void {
-    this.$copy_NodeBase(src);
+  $copy_ast_TemplateSpan(src: TemplateSpan): void {
+    this.$copy_ast_NodeBase(src);
     this.Expression_ = src.Expression_;
     this.Literal = src.Literal;
   }
-  $equals_TemplateSpan(o: TemplateSpan): boolean {
-    return this.$equals_NodeBase(o) && this.Expression_ === o.Expression_ && this.Literal === o.Literal;
+  $equals_ast_TemplateSpan(o: TemplateSpan): boolean {
+    return this.$equals_ast_NodeBase(o) && this.Expression_ === o.Expression_ && this.Literal === o.Literal;
   }
-  $clone_TemplateSpan(): TemplateSpan {
+  $clone_ast_TemplateSpan(): TemplateSpan {
     const o = new TemplateSpan();
-    o.$copy_TemplateSpan(this);
+    o.$copy_ast_TemplateSpan(this);
     return o;
   }
-  static $cast_TemplateSpan(v: $rt.GoObject | undefined): TemplateSpan {
+  static $cast_ast_TemplateSpan(v: $rt.GoObject | undefined): TemplateSpan {
     if (v instanceof TemplateSpan) return v;
     throw $rt.typeAssertError();
   }
@@ -20384,22 +20567,22 @@ export class TemplateSpan extends NodeBase {
 }
 export class TemplateTail extends NodeBase {
   TemplateLiteralLikeNodeBase_: TemplateLiteralLikeNodeBase = new TemplateLiteralLikeNodeBase();
-  $copy_TemplateTail(src: TemplateTail): void {
-    this.$copy_NodeBase(src);
-    this.TemplateLiteralLikeNodeBase_ = src.TemplateLiteralLikeNodeBase_.$clone_TemplateLiteralLikeNodeBase();
+  $copy_ast_TemplateTail(src: TemplateTail): void {
+    this.$copy_ast_NodeBase(src);
+    this.TemplateLiteralLikeNodeBase_ = src.TemplateLiteralLikeNodeBase_.$clone_ast_TemplateLiteralLikeNodeBase();
   }
-  $equals_TemplateTail(o: TemplateTail): boolean {
+  $equals_ast_TemplateTail(o: TemplateTail): boolean {
     return (
-      this.$equals_NodeBase(o) &&
-      this.TemplateLiteralLikeNodeBase_.$equals_TemplateLiteralLikeNodeBase(o.TemplateLiteralLikeNodeBase_)
+      this.$equals_ast_NodeBase(o) &&
+      this.TemplateLiteralLikeNodeBase_.$equals_ast_TemplateLiteralLikeNodeBase(o.TemplateLiteralLikeNodeBase_)
     );
   }
-  $clone_TemplateTail(): TemplateTail {
+  $clone_ast_TemplateTail(): TemplateTail {
     const o = new TemplateTail();
-    o.$copy_TemplateTail(this);
+    o.$copy_ast_TemplateTail(this);
     return o;
   }
-  static $cast_TemplateTail(v: $rt.GoObject | undefined): TemplateTail {
+  static $cast_ast_TemplateTail(v: $rt.GoObject | undefined): TemplateTail {
     if (v instanceof TemplateTail) return v;
     throw $rt.typeAssertError();
   }
@@ -20432,18 +20615,18 @@ export class TemplateTail extends NodeBase {
   }
 }
 export class ThisTypeNode extends TypeNodeBase {
-  $copy_ThisTypeNode(src: ThisTypeNode): void {
-    this.$copy_TypeNodeBase(src);
+  $copy_ast_ThisTypeNode(src: ThisTypeNode): void {
+    this.$copy_ast_TypeNodeBase(src);
   }
-  $equals_ThisTypeNode(o: ThisTypeNode): boolean {
-    return this.$equals_TypeNodeBase(o);
+  $equals_ast_ThisTypeNode(o: ThisTypeNode): boolean {
+    return this.$equals_ast_TypeNodeBase(o);
   }
-  $clone_ThisTypeNode(): ThisTypeNode {
+  $clone_ast_ThisTypeNode(): ThisTypeNode {
     const o = new ThisTypeNode();
-    o.$copy_ThisTypeNode(this);
+    o.$copy_ast_ThisTypeNode(this);
     return o;
   }
-  static $cast_ThisTypeNode(v: $rt.GoObject | undefined): ThisTypeNode {
+  static $cast_ast_ThisTypeNode(v: $rt.GoObject | undefined): ThisTypeNode {
     if (v instanceof ThisTypeNode) return v;
     throw $rt.typeAssertError();
   }
@@ -20461,24 +20644,24 @@ export class ThisTypeNode extends TypeNodeBase {
 export class ThrowStatement extends StatementBase {
   CompositeBase_: CompositeBase = new CompositeBase();
   Expression_: Node | undefined = undefined;
-  $copy_ThrowStatement(src: ThrowStatement): void {
-    this.$copy_StatementBase(src);
-    this.CompositeBase_ = src.CompositeBase_.$clone_CompositeBase();
+  $copy_ast_ThrowStatement(src: ThrowStatement): void {
+    this.$copy_ast_StatementBase(src);
+    this.CompositeBase_ = src.CompositeBase_.$clone_ast_CompositeBase();
     this.Expression_ = src.Expression_;
   }
-  $equals_ThrowStatement(o: ThrowStatement): boolean {
+  $equals_ast_ThrowStatement(o: ThrowStatement): boolean {
     return (
-      this.$equals_StatementBase(o) &&
-      this.CompositeBase_.$equals_CompositeBase(o.CompositeBase_) &&
+      this.$equals_ast_StatementBase(o) &&
+      this.CompositeBase_.$equals_ast_CompositeBase(o.CompositeBase_) &&
       this.Expression_ === o.Expression_
     );
   }
-  $clone_ThrowStatement(): ThrowStatement {
+  $clone_ast_ThrowStatement(): ThrowStatement {
     const o = new ThrowStatement();
-    o.$copy_ThrowStatement(this);
+    o.$copy_ast_ThrowStatement(this);
     return o;
   }
-  static $cast_ThrowStatement(v: $rt.GoObject | undefined): ThrowStatement {
+  static $cast_ast_ThrowStatement(v: $rt.GoObject | undefined): ThrowStatement {
     if (v instanceof ThrowStatement) return v;
     throw $rt.typeAssertError();
   }
@@ -20510,18 +20693,18 @@ export class ThrowStatement extends StatementBase {
   }
 }
 export class Token extends NodeBase {
-  $copy_Token(src: Token): void {
-    this.$copy_NodeBase(src);
+  $copy_ast_Token(src: Token): void {
+    this.$copy_ast_NodeBase(src);
   }
-  $equals_Token(o: Token): boolean {
-    return this.$equals_NodeBase(o);
+  $equals_ast_Token(o: Token): boolean {
+    return this.$equals_ast_NodeBase(o);
   }
-  $clone_Token(): Token {
+  $clone_ast_Token(): Token {
     const o = new Token();
-    o.$copy_Token(this);
+    o.$copy_ast_Token(this);
     return o;
   }
-  static $cast_Token(v: $rt.GoObject | undefined): Token {
+  static $cast_ast_Token(v: $rt.GoObject | undefined): Token {
     if (v instanceof Token) return v;
     throw $rt.typeAssertError();
   }
@@ -20595,25 +20778,28 @@ export class Token extends NodeBase {
 export class TokenCacheKey extends $rt.GoObject {
   parent: Node | undefined = undefined;
   loc: $core.TextRange = new $core.TextRange();
-  $copy_TokenCacheKey(src: TokenCacheKey): void {
+  $copy_ast_TokenCacheKey(src: TokenCacheKey): void {
     this.parent = src.parent;
     this.loc = src.loc;
   }
-  $equals_TokenCacheKey(o: TokenCacheKey): boolean {
-    return this.parent === o.parent && this.loc.$equals_TextRange(o.loc);
+  $key_ast_TokenCacheKey(): string {
+    return [$rt.objKey(this.parent), this.loc.$key_core_TextRange()].join('|');
   }
-  $clone_TokenCacheKey(): TokenCacheKey {
+  $equals_ast_TokenCacheKey(o: TokenCacheKey): boolean {
+    return this.parent === o.parent && this.loc.$equals_core_TextRange(o.loc);
+  }
+  $clone_ast_TokenCacheKey(): TokenCacheKey {
     const o = new TokenCacheKey();
-    o.$copy_TokenCacheKey(this);
+    o.$copy_ast_TokenCacheKey(this);
     return o;
   }
-  static $lit_TokenCacheKey_0_1(p0: Node | undefined, p1: $core.TextRange): TokenCacheKey {
+  static $lit_ast_TokenCacheKey_0_1(p0: Node | undefined, p1: $core.TextRange): TokenCacheKey {
     const o = new TokenCacheKey();
     o.parent = p0;
     o.loc = p1;
     return o;
   }
-  static $cast_TokenCacheKey(v: $rt.GoObject | undefined): TokenCacheKey {
+  static $cast_ast_TokenCacheKey(v: $rt.GoObject | undefined): TokenCacheKey {
     if (v instanceof TokenCacheKey) return v;
     throw $rt.typeAssertError();
   }
@@ -20623,28 +20809,28 @@ export class TryStatement extends StatementBase {
   TryBlock: Node | undefined = undefined;
   CatchClause: Node | undefined = undefined;
   FinallyBlock: Node | undefined = undefined;
-  $copy_TryStatement(src: TryStatement): void {
-    this.$copy_StatementBase(src);
-    this.CompositeBase_ = src.CompositeBase_.$clone_CompositeBase();
+  $copy_ast_TryStatement(src: TryStatement): void {
+    this.$copy_ast_StatementBase(src);
+    this.CompositeBase_ = src.CompositeBase_.$clone_ast_CompositeBase();
     this.TryBlock = src.TryBlock;
     this.CatchClause = src.CatchClause;
     this.FinallyBlock = src.FinallyBlock;
   }
-  $equals_TryStatement(o: TryStatement): boolean {
+  $equals_ast_TryStatement(o: TryStatement): boolean {
     return (
-      this.$equals_StatementBase(o) &&
-      this.CompositeBase_.$equals_CompositeBase(o.CompositeBase_) &&
+      this.$equals_ast_StatementBase(o) &&
+      this.CompositeBase_.$equals_ast_CompositeBase(o.CompositeBase_) &&
       this.TryBlock === o.TryBlock &&
       this.CatchClause === o.CatchClause &&
       this.FinallyBlock === o.FinallyBlock
     );
   }
-  $clone_TryStatement(): TryStatement {
+  $clone_ast_TryStatement(): TryStatement {
     const o = new TryStatement();
-    o.$copy_TryStatement(this);
+    o.$copy_ast_TryStatement(this);
     return o;
   }
-  static $cast_TryStatement(v: $rt.GoObject | undefined): TryStatement {
+  static $cast_ast_TryStatement(v: $rt.GoObject | undefined): TryStatement {
     if (v instanceof TryStatement) return v;
     throw $rt.typeAssertError();
   }
@@ -20686,19 +20872,19 @@ export class TryStatement extends StatementBase {
 }
 export class TupleTypeNode extends TypeNodeBase {
   Elements_: NodeList | undefined = undefined;
-  $copy_TupleTypeNode(src: TupleTypeNode): void {
-    this.$copy_TypeNodeBase(src);
+  $copy_ast_TupleTypeNode(src: TupleTypeNode): void {
+    this.$copy_ast_TypeNodeBase(src);
     this.Elements_ = src.Elements_;
   }
-  $equals_TupleTypeNode(o: TupleTypeNode): boolean {
-    return this.$equals_TypeNodeBase(o) && this.Elements_ === o.Elements_;
+  $equals_ast_TupleTypeNode(o: TupleTypeNode): boolean {
+    return this.$equals_ast_TypeNodeBase(o) && this.Elements_ === o.Elements_;
   }
-  $clone_TupleTypeNode(): TupleTypeNode {
+  $clone_ast_TupleTypeNode(): TupleTypeNode {
     const o = new TupleTypeNode();
-    o.$copy_TupleTypeNode(this);
+    o.$copy_ast_TupleTypeNode(this);
     return o;
   }
-  static $cast_TupleTypeNode(v: $rt.GoObject | undefined): TupleTypeNode {
+  static $cast_ast_TupleTypeNode(v: $rt.GoObject | undefined): TupleTypeNode {
     if (v instanceof TupleTypeNode) return v;
     throw $rt.typeAssertError();
   }
@@ -20730,23 +20916,23 @@ export class TypeAliasDeclaration extends StatementBase {
   name: Node | undefined = undefined;
   TypeParameters_: NodeList | undefined = undefined;
   Type_: Node | undefined = undefined;
-  $copy_TypeAliasDeclaration(src: TypeAliasDeclaration): void {
-    this.$copy_StatementBase(src);
+  $copy_ast_TypeAliasDeclaration(src: TypeAliasDeclaration): void {
+    this.$copy_ast_StatementBase(src);
     this.TypeSyntaxBase_ = src.TypeSyntaxBase_;
-    this.DeclarationBase_ = src.DeclarationBase_.$clone_DeclarationBase();
-    this.ExportableBase_ = src.ExportableBase_.$clone_ExportableBase();
-    this.ModifiersBase_ = src.ModifiersBase_.$clone_ModifiersBase();
-    this.LocalsContainerBase_ = src.LocalsContainerBase_.$clone_LocalsContainerBase();
+    this.DeclarationBase_ = src.DeclarationBase_.$clone_ast_DeclarationBase();
+    this.ExportableBase_ = src.ExportableBase_.$clone_ast_ExportableBase();
+    this.ModifiersBase_ = src.ModifiersBase_.$clone_ast_ModifiersBase();
+    this.LocalsContainerBase_ = src.LocalsContainerBase_.$clone_ast_LocalsContainerBase();
     this.name = src.name;
     this.TypeParameters_ = src.TypeParameters_;
     this.Type_ = src.Type_;
   }
-  $clone_TypeAliasDeclaration(): TypeAliasDeclaration {
+  $clone_ast_TypeAliasDeclaration(): TypeAliasDeclaration {
     const o = new TypeAliasDeclaration();
-    o.$copy_TypeAliasDeclaration(this);
+    o.$copy_ast_TypeAliasDeclaration(this);
     return o;
   }
-  static $cast_TypeAliasDeclaration(v: $rt.GoObject | undefined): TypeAliasDeclaration {
+  static $cast_ast_TypeAliasDeclaration(v: $rt.GoObject | undefined): TypeAliasDeclaration {
     if (v instanceof TypeAliasDeclaration) return v;
     throw $rt.typeAssertError();
   }
@@ -20841,20 +21027,20 @@ export class TypeAliasDeclaration extends StatementBase {
 export class TypeAssertion extends UnaryExpressionBase {
   Type_: Node | undefined = undefined;
   Expression_: Node | undefined = undefined;
-  $copy_TypeAssertion(src: TypeAssertion): void {
-    this.$copy_UnaryExpressionBase(src);
+  $copy_ast_TypeAssertion(src: TypeAssertion): void {
+    this.$copy_ast_UnaryExpressionBase(src);
     this.Type_ = src.Type_;
     this.Expression_ = src.Expression_;
   }
-  $equals_TypeAssertion(o: TypeAssertion): boolean {
-    return this.$equals_UnaryExpressionBase(o) && this.Type_ === o.Type_ && this.Expression_ === o.Expression_;
+  $equals_ast_TypeAssertion(o: TypeAssertion): boolean {
+    return this.$equals_ast_UnaryExpressionBase(o) && this.Type_ === o.Type_ && this.Expression_ === o.Expression_;
   }
-  $clone_TypeAssertion(): TypeAssertion {
+  $clone_ast_TypeAssertion(): TypeAssertion {
     const o = new TypeAssertion();
-    o.$copy_TypeAssertion(this);
+    o.$copy_ast_TypeAssertion(this);
     return o;
   }
-  static $cast_TypeAssertion(v: $rt.GoObject | undefined): TypeAssertion {
+  static $cast_ast_TypeAssertion(v: $rt.GoObject | undefined): TypeAssertion {
     if (v instanceof TypeAssertion) return v;
     throw $rt.typeAssertError();
   }
@@ -20864,7 +21050,7 @@ export class TypeAssertion extends UnaryExpressionBase {
   }
   propagateSubtreeFacts(): SubtreeFacts {
     const node = this;
-    return (node!.SubtreeFacts_() & 4261412863) >>> 0;
+    return (node!.SubtreeFacts$m() & 4261412863) >>> 0;
   }
   ForEachChild(v: Visitor): boolean {
     const node = this;
@@ -20884,16 +21070,16 @@ export class TypeAssertion extends UnaryExpressionBase {
   }
 }
 export class TypeElementBase extends $rt.GoObject {
-  $copy_TypeElementBase(src: TypeElementBase): void {}
-  $equals_TypeElementBase(o: TypeElementBase): boolean {
+  $copy_ast_TypeElementBase(src: TypeElementBase): void {}
+  $equals_ast_TypeElementBase(o: TypeElementBase): boolean {
     return true;
   }
-  $clone_TypeElementBase(): TypeElementBase {
+  $clone_ast_TypeElementBase(): TypeElementBase {
     const o = new TypeElementBase();
-    o.$copy_TypeElementBase(this);
+    o.$copy_ast_TypeElementBase(this);
     return o;
   }
-  static $cast_TypeElementBase(v: $rt.GoObject | undefined): TypeElementBase {
+  static $cast_ast_TypeElementBase(v: $rt.GoObject | undefined): TypeElementBase {
     if (v instanceof TypeElementBase) return v;
     throw $rt.typeAssertError();
   }
@@ -20901,24 +21087,24 @@ export class TypeElementBase extends $rt.GoObject {
 export class TypeLiteralNode extends TypeNodeBase {
   DeclarationBase_: DeclarationBase = new DeclarationBase();
   Members_: NodeList | undefined = undefined;
-  $copy_TypeLiteralNode(src: TypeLiteralNode): void {
-    this.$copy_TypeNodeBase(src);
-    this.DeclarationBase_ = src.DeclarationBase_.$clone_DeclarationBase();
+  $copy_ast_TypeLiteralNode(src: TypeLiteralNode): void {
+    this.$copy_ast_TypeNodeBase(src);
+    this.DeclarationBase_ = src.DeclarationBase_.$clone_ast_DeclarationBase();
     this.Members_ = src.Members_;
   }
-  $equals_TypeLiteralNode(o: TypeLiteralNode): boolean {
+  $equals_ast_TypeLiteralNode(o: TypeLiteralNode): boolean {
     return (
-      this.$equals_TypeNodeBase(o) &&
-      this.DeclarationBase_.$equals_DeclarationBase(o.DeclarationBase_) &&
+      this.$equals_ast_TypeNodeBase(o) &&
+      this.DeclarationBase_.$equals_ast_DeclarationBase(o.DeclarationBase_) &&
       this.Members_ === o.Members_
     );
   }
-  $clone_TypeLiteralNode(): TypeLiteralNode {
+  $clone_ast_TypeLiteralNode(): TypeLiteralNode {
     const o = new TypeLiteralNode();
-    o.$copy_TypeLiteralNode(this);
+    o.$copy_ast_TypeLiteralNode(this);
     return o;
   }
-  static $cast_TypeLiteralNode(v: $rt.GoObject | undefined): TypeLiteralNode {
+  static $cast_ast_TypeLiteralNode(v: $rt.GoObject | undefined): TypeLiteralNode {
     if (v instanceof TypeLiteralNode) return v;
     throw $rt.typeAssertError();
   }
@@ -20946,19 +21132,19 @@ export class TypeLiteralNode extends TypeNodeBase {
 }
 export class TypeOfExpression extends UnaryExpressionBase {
   Expression_: Node | undefined = undefined;
-  $copy_TypeOfExpression(src: TypeOfExpression): void {
-    this.$copy_UnaryExpressionBase(src);
+  $copy_ast_TypeOfExpression(src: TypeOfExpression): void {
+    this.$copy_ast_UnaryExpressionBase(src);
     this.Expression_ = src.Expression_;
   }
-  $equals_TypeOfExpression(o: TypeOfExpression): boolean {
-    return this.$equals_UnaryExpressionBase(o) && this.Expression_ === o.Expression_;
+  $equals_ast_TypeOfExpression(o: TypeOfExpression): boolean {
+    return this.$equals_ast_UnaryExpressionBase(o) && this.Expression_ === o.Expression_;
   }
-  $clone_TypeOfExpression(): TypeOfExpression {
+  $clone_ast_TypeOfExpression(): TypeOfExpression {
     const o = new TypeOfExpression();
-    o.$copy_TypeOfExpression(this);
+    o.$copy_ast_TypeOfExpression(this);
     return o;
   }
-  static $cast_TypeOfExpression(v: $rt.GoObject | undefined): TypeOfExpression {
+  static $cast_ast_TypeOfExpression(v: $rt.GoObject | undefined): TypeOfExpression {
     if (v instanceof TypeOfExpression) return v;
     throw $rt.typeAssertError();
   }
@@ -20986,20 +21172,20 @@ export class TypeOfExpression extends UnaryExpressionBase {
 export class TypeOperatorNode extends TypeNodeBase {
   Operator: Kind = 0;
   Type_: Node | undefined = undefined;
-  $copy_TypeOperatorNode(src: TypeOperatorNode): void {
-    this.$copy_TypeNodeBase(src);
+  $copy_ast_TypeOperatorNode(src: TypeOperatorNode): void {
+    this.$copy_ast_TypeNodeBase(src);
     this.Operator = src.Operator;
     this.Type_ = src.Type_;
   }
-  $equals_TypeOperatorNode(o: TypeOperatorNode): boolean {
-    return this.$equals_TypeNodeBase(o) && this.Operator === o.Operator && this.Type_ === o.Type_;
+  $equals_ast_TypeOperatorNode(o: TypeOperatorNode): boolean {
+    return this.$equals_ast_TypeNodeBase(o) && this.Operator === o.Operator && this.Type_ === o.Type_;
   }
-  $clone_TypeOperatorNode(): TypeOperatorNode {
+  $clone_ast_TypeOperatorNode(): TypeOperatorNode {
     const o = new TypeOperatorNode();
-    o.$copy_TypeOperatorNode(this);
+    o.$copy_ast_TypeOperatorNode(this);
     return o;
   }
-  static $cast_TypeOperatorNode(v: $rt.GoObject | undefined): TypeOperatorNode {
+  static $cast_ast_TypeOperatorNode(v: $rt.GoObject | undefined): TypeOperatorNode {
     if (v instanceof TypeOperatorNode) return v;
     throw $rt.typeAssertError();
   }
@@ -21034,34 +21220,34 @@ export class TypeParameterDeclaration extends NodeBase {
   Constraint: Node | undefined = undefined;
   Expression_: Node | undefined = undefined;
   DefaultType: Node | undefined = undefined;
-  $copy_TypeParameterDeclaration(src: TypeParameterDeclaration): void {
-    this.$copy_NodeBase(src);
+  $copy_ast_TypeParameterDeclaration(src: TypeParameterDeclaration): void {
+    this.$copy_ast_NodeBase(src);
     this.TypeSyntaxBase_ = src.TypeSyntaxBase_;
-    this.DeclarationBase_ = src.DeclarationBase_.$clone_DeclarationBase();
-    this.ModifiersBase_ = src.ModifiersBase_.$clone_ModifiersBase();
+    this.DeclarationBase_ = src.DeclarationBase_.$clone_ast_DeclarationBase();
+    this.ModifiersBase_ = src.ModifiersBase_.$clone_ast_ModifiersBase();
     this.name = src.name;
     this.Constraint = src.Constraint;
     this.Expression_ = src.Expression_;
     this.DefaultType = src.DefaultType;
   }
-  $equals_TypeParameterDeclaration(o: TypeParameterDeclaration): boolean {
+  $equals_ast_TypeParameterDeclaration(o: TypeParameterDeclaration): boolean {
     return (
-      this.$equals_NodeBase(o) &&
-      this.TypeSyntaxBase_.$equals_TypeSyntaxBase(o.TypeSyntaxBase_) &&
-      this.DeclarationBase_.$equals_DeclarationBase(o.DeclarationBase_) &&
-      this.ModifiersBase_.$equals_ModifiersBase(o.ModifiersBase_) &&
+      this.$equals_ast_NodeBase(o) &&
+      this.TypeSyntaxBase_.$equals_ast_TypeSyntaxBase(o.TypeSyntaxBase_) &&
+      this.DeclarationBase_.$equals_ast_DeclarationBase(o.DeclarationBase_) &&
+      this.ModifiersBase_.$equals_ast_ModifiersBase(o.ModifiersBase_) &&
       this.name === o.name &&
       this.Constraint === o.Constraint &&
       this.Expression_ === o.Expression_ &&
       this.DefaultType === o.DefaultType
     );
   }
-  $clone_TypeParameterDeclaration(): TypeParameterDeclaration {
+  $clone_ast_TypeParameterDeclaration(): TypeParameterDeclaration {
     const o = new TypeParameterDeclaration();
-    o.$copy_TypeParameterDeclaration(this);
+    o.$copy_ast_TypeParameterDeclaration(this);
     return o;
   }
-  static $cast_TypeParameterDeclaration(v: $rt.GoObject | undefined): TypeParameterDeclaration {
+  static $cast_ast_TypeParameterDeclaration(v: $rt.GoObject | undefined): TypeParameterDeclaration {
     if (v instanceof TypeParameterDeclaration) return v;
     throw $rt.typeAssertError();
   }
@@ -21126,26 +21312,26 @@ export class TypePredicateNode extends TypeNodeBase {
   AssertsModifier: Node | undefined = undefined;
   ParameterName: Node | undefined = undefined;
   Type_: Node | undefined = undefined;
-  $copy_TypePredicateNode(src: TypePredicateNode): void {
-    this.$copy_TypeNodeBase(src);
+  $copy_ast_TypePredicateNode(src: TypePredicateNode): void {
+    this.$copy_ast_TypeNodeBase(src);
     this.AssertsModifier = src.AssertsModifier;
     this.ParameterName = src.ParameterName;
     this.Type_ = src.Type_;
   }
-  $equals_TypePredicateNode(o: TypePredicateNode): boolean {
+  $equals_ast_TypePredicateNode(o: TypePredicateNode): boolean {
     return (
-      this.$equals_TypeNodeBase(o) &&
+      this.$equals_ast_TypeNodeBase(o) &&
       this.AssertsModifier === o.AssertsModifier &&
       this.ParameterName === o.ParameterName &&
       this.Type_ === o.Type_
     );
   }
-  $clone_TypePredicateNode(): TypePredicateNode {
+  $clone_ast_TypePredicateNode(): TypePredicateNode {
     const o = new TypePredicateNode();
-    o.$copy_TypePredicateNode(this);
+    o.$copy_ast_TypePredicateNode(this);
     return o;
   }
-  static $cast_TypePredicateNode(v: $rt.GoObject | undefined): TypePredicateNode {
+  static $cast_ast_TypePredicateNode(v: $rt.GoObject | undefined): TypePredicateNode {
     if (v instanceof TypePredicateNode) return v;
     throw $rt.typeAssertError();
   }
@@ -21179,19 +21365,19 @@ export class TypePredicateNode extends TypeNodeBase {
 }
 export class TypeQueryNode extends NodeWithTypeArgumentsBase {
   ExprName: Node | undefined = undefined;
-  $copy_TypeQueryNode(src: TypeQueryNode): void {
-    this.$copy_NodeWithTypeArgumentsBase(src);
+  $copy_ast_TypeQueryNode(src: TypeQueryNode): void {
+    this.$copy_ast_NodeWithTypeArgumentsBase(src);
     this.ExprName = src.ExprName;
   }
-  $equals_TypeQueryNode(o: TypeQueryNode): boolean {
-    return this.$equals_NodeWithTypeArgumentsBase(o) && this.ExprName === o.ExprName;
+  $equals_ast_TypeQueryNode(o: TypeQueryNode): boolean {
+    return this.$equals_ast_NodeWithTypeArgumentsBase(o) && this.ExprName === o.ExprName;
   }
-  $clone_TypeQueryNode(): TypeQueryNode {
+  $clone_ast_TypeQueryNode(): TypeQueryNode {
     const o = new TypeQueryNode();
-    o.$copy_TypeQueryNode(this);
+    o.$copy_ast_TypeQueryNode(this);
     return o;
   }
-  static $cast_TypeQueryNode(v: $rt.GoObject | undefined): TypeQueryNode {
+  static $cast_ast_TypeQueryNode(v: $rt.GoObject | undefined): TypeQueryNode {
     if (v instanceof TypeQueryNode) return v;
     throw $rt.typeAssertError();
   }
@@ -21220,19 +21406,19 @@ export class TypeQueryNode extends NodeWithTypeArgumentsBase {
 }
 export class TypeReferenceNode extends NodeWithTypeArgumentsBase {
   TypeName: Node | undefined = undefined;
-  $copy_TypeReferenceNode(src: TypeReferenceNode): void {
-    this.$copy_NodeWithTypeArgumentsBase(src);
+  $copy_ast_TypeReferenceNode(src: TypeReferenceNode): void {
+    this.$copy_ast_NodeWithTypeArgumentsBase(src);
     this.TypeName = src.TypeName;
   }
-  $equals_TypeReferenceNode(o: TypeReferenceNode): boolean {
-    return this.$equals_NodeWithTypeArgumentsBase(o) && this.TypeName === o.TypeName;
+  $equals_ast_TypeReferenceNode(o: TypeReferenceNode): boolean {
+    return this.$equals_ast_NodeWithTypeArgumentsBase(o) && this.TypeName === o.TypeName;
   }
-  $clone_TypeReferenceNode(): TypeReferenceNode {
+  $clone_ast_TypeReferenceNode(): TypeReferenceNode {
     const o = new TypeReferenceNode();
-    o.$copy_TypeReferenceNode(this);
+    o.$copy_ast_TypeReferenceNode(this);
     return o;
   }
-  static $cast_TypeReferenceNode(v: $rt.GoObject | undefined): TypeReferenceNode {
+  static $cast_ast_TypeReferenceNode(v: $rt.GoObject | undefined): TypeReferenceNode {
     if (v instanceof TypeReferenceNode) return v;
     throw $rt.typeAssertError();
   }
@@ -21260,16 +21446,16 @@ export class TypeReferenceNode extends NodeWithTypeArgumentsBase {
   }
 }
 export class TypeSyntaxBase extends $rt.GoObject {
-  $copy_TypeSyntaxBase(src: TypeSyntaxBase): void {}
-  $equals_TypeSyntaxBase(o: TypeSyntaxBase): boolean {
+  $copy_ast_TypeSyntaxBase(src: TypeSyntaxBase): void {}
+  $equals_ast_TypeSyntaxBase(o: TypeSyntaxBase): boolean {
     return true;
   }
-  $clone_TypeSyntaxBase(): TypeSyntaxBase {
+  $clone_ast_TypeSyntaxBase(): TypeSyntaxBase {
     const o = new TypeSyntaxBase();
-    o.$copy_TypeSyntaxBase(this);
+    o.$copy_ast_TypeSyntaxBase(this);
     return o;
   }
-  static $cast_TypeSyntaxBase(v: $rt.GoObject | undefined): TypeSyntaxBase {
+  static $cast_ast_TypeSyntaxBase(v: $rt.GoObject | undefined): TypeSyntaxBase {
     if (v instanceof TypeSyntaxBase) return v;
     throw $rt.typeAssertError();
   }
@@ -21283,18 +21469,18 @@ export class TypeSyntaxBase extends $rt.GoObject {
   }
 }
 export class UnionTypeNode extends UnionOrIntersectionTypeNodeBase {
-  $copy_UnionTypeNode(src: UnionTypeNode): void {
-    this.$copy_UnionOrIntersectionTypeNodeBase(src);
+  $copy_ast_UnionTypeNode(src: UnionTypeNode): void {
+    this.$copy_ast_UnionOrIntersectionTypeNodeBase(src);
   }
-  $equals_UnionTypeNode(o: UnionTypeNode): boolean {
-    return this.$equals_UnionOrIntersectionTypeNodeBase(o);
+  $equals_ast_UnionTypeNode(o: UnionTypeNode): boolean {
+    return this.$equals_ast_UnionOrIntersectionTypeNodeBase(o);
   }
-  $clone_UnionTypeNode(): UnionTypeNode {
+  $clone_ast_UnionTypeNode(): UnionTypeNode {
     const o = new UnionTypeNode();
-    o.$copy_UnionTypeNode(this);
+    o.$copy_ast_UnionTypeNode(this);
     return o;
   }
-  static $cast_UnionTypeNode(v: $rt.GoObject | undefined): UnionTypeNode {
+  static $cast_ast_UnionTypeNode(v: $rt.GoObject | undefined): UnionTypeNode {
     if (v instanceof UnionTypeNode) return v;
     throw $rt.typeAssertError();
   }
@@ -21325,34 +21511,34 @@ export class VariableDeclaration extends NodeBase {
   ExclamationToken: Node | undefined = undefined;
   Type_: Node | undefined = undefined;
   Initializer_: Node | undefined = undefined;
-  $copy_VariableDeclaration(src: VariableDeclaration): void {
-    this.$copy_NodeBase(src);
-    this.DeclarationBase_ = src.DeclarationBase_.$clone_DeclarationBase();
-    this.ExportableBase_ = src.ExportableBase_.$clone_ExportableBase();
-    this.CompositeBase_ = src.CompositeBase_.$clone_CompositeBase();
+  $copy_ast_VariableDeclaration(src: VariableDeclaration): void {
+    this.$copy_ast_NodeBase(src);
+    this.DeclarationBase_ = src.DeclarationBase_.$clone_ast_DeclarationBase();
+    this.ExportableBase_ = src.ExportableBase_.$clone_ast_ExportableBase();
+    this.CompositeBase_ = src.CompositeBase_.$clone_ast_CompositeBase();
     this.name = src.name;
     this.ExclamationToken = src.ExclamationToken;
     this.Type_ = src.Type_;
     this.Initializer_ = src.Initializer_;
   }
-  $equals_VariableDeclaration(o: VariableDeclaration): boolean {
+  $equals_ast_VariableDeclaration(o: VariableDeclaration): boolean {
     return (
-      this.$equals_NodeBase(o) &&
-      this.DeclarationBase_.$equals_DeclarationBase(o.DeclarationBase_) &&
-      this.ExportableBase_.$equals_ExportableBase(o.ExportableBase_) &&
-      this.CompositeBase_.$equals_CompositeBase(o.CompositeBase_) &&
+      this.$equals_ast_NodeBase(o) &&
+      this.DeclarationBase_.$equals_ast_DeclarationBase(o.DeclarationBase_) &&
+      this.ExportableBase_.$equals_ast_ExportableBase(o.ExportableBase_) &&
+      this.CompositeBase_.$equals_ast_CompositeBase(o.CompositeBase_) &&
       this.name === o.name &&
       this.ExclamationToken === o.ExclamationToken &&
       this.Type_ === o.Type_ &&
       this.Initializer_ === o.Initializer_
     );
   }
-  $clone_VariableDeclaration(): VariableDeclaration {
+  $clone_ast_VariableDeclaration(): VariableDeclaration {
     const o = new VariableDeclaration();
-    o.$copy_VariableDeclaration(this);
+    o.$copy_ast_VariableDeclaration(this);
     return o;
   }
-  static $cast_VariableDeclaration(v: $rt.GoObject | undefined): VariableDeclaration {
+  static $cast_ast_VariableDeclaration(v: $rt.GoObject | undefined): VariableDeclaration {
     if (v instanceof VariableDeclaration) return v;
     throw $rt.typeAssertError();
   }
@@ -21407,24 +21593,24 @@ export class VariableDeclaration extends NodeBase {
 export class VariableDeclarationList extends NodeBase {
   CompositeBase_: CompositeBase = new CompositeBase();
   Declarations: NodeList | undefined = undefined;
-  $copy_VariableDeclarationList(src: VariableDeclarationList): void {
-    this.$copy_NodeBase(src);
-    this.CompositeBase_ = src.CompositeBase_.$clone_CompositeBase();
+  $copy_ast_VariableDeclarationList(src: VariableDeclarationList): void {
+    this.$copy_ast_NodeBase(src);
+    this.CompositeBase_ = src.CompositeBase_.$clone_ast_CompositeBase();
     this.Declarations = src.Declarations;
   }
-  $equals_VariableDeclarationList(o: VariableDeclarationList): boolean {
+  $equals_ast_VariableDeclarationList(o: VariableDeclarationList): boolean {
     return (
-      this.$equals_NodeBase(o) &&
-      this.CompositeBase_.$equals_CompositeBase(o.CompositeBase_) &&
+      this.$equals_ast_NodeBase(o) &&
+      this.CompositeBase_.$equals_ast_CompositeBase(o.CompositeBase_) &&
       this.Declarations === o.Declarations
     );
   }
-  $clone_VariableDeclarationList(): VariableDeclarationList {
+  $clone_ast_VariableDeclarationList(): VariableDeclarationList {
     const o = new VariableDeclarationList();
-    o.$copy_VariableDeclarationList(this);
+    o.$copy_ast_VariableDeclarationList(this);
     return o;
   }
-  static $cast_VariableDeclarationList(v: $rt.GoObject | undefined): VariableDeclarationList {
+  static $cast_ast_VariableDeclarationList(v: $rt.GoObject | undefined): VariableDeclarationList {
     if (v instanceof VariableDeclarationList) return v;
     throw $rt.typeAssertError();
   }
@@ -21438,7 +21624,7 @@ export class VariableDeclarationList extends NodeBase {
   }
   propagateSubtreeFacts(): SubtreeFacts {
     const node = this;
-    return (node!.SubtreeFacts_() & 4261281791) >>> 0;
+    return (node!.SubtreeFacts$m() & 4261281791) >>> 0;
   }
   ForEachChild(v: Visitor): boolean {
     const node = this;
@@ -21464,26 +21650,26 @@ export class VariableStatement extends StatementBase {
   ModifiersBase_: ModifiersBase = new ModifiersBase();
   CompositeBase_: CompositeBase = new CompositeBase();
   DeclarationList: Node | undefined = undefined;
-  $copy_VariableStatement(src: VariableStatement): void {
-    this.$copy_StatementBase(src);
-    this.ModifiersBase_ = src.ModifiersBase_.$clone_ModifiersBase();
-    this.CompositeBase_ = src.CompositeBase_.$clone_CompositeBase();
+  $copy_ast_VariableStatement(src: VariableStatement): void {
+    this.$copy_ast_StatementBase(src);
+    this.ModifiersBase_ = src.ModifiersBase_.$clone_ast_ModifiersBase();
+    this.CompositeBase_ = src.CompositeBase_.$clone_ast_CompositeBase();
     this.DeclarationList = src.DeclarationList;
   }
-  $equals_VariableStatement(o: VariableStatement): boolean {
+  $equals_ast_VariableStatement(o: VariableStatement): boolean {
     return (
-      this.$equals_StatementBase(o) &&
-      this.ModifiersBase_.$equals_ModifiersBase(o.ModifiersBase_) &&
-      this.CompositeBase_.$equals_CompositeBase(o.CompositeBase_) &&
+      this.$equals_ast_StatementBase(o) &&
+      this.ModifiersBase_.$equals_ast_ModifiersBase(o.ModifiersBase_) &&
+      this.CompositeBase_.$equals_ast_CompositeBase(o.CompositeBase_) &&
       this.DeclarationList === o.DeclarationList
     );
   }
-  $clone_VariableStatement(): VariableStatement {
+  $clone_ast_VariableStatement(): VariableStatement {
     const o = new VariableStatement();
-    o.$copy_VariableStatement(this);
+    o.$copy_ast_VariableStatement(this);
     return o;
   }
-  static $cast_VariableStatement(v: $rt.GoObject | undefined): VariableStatement {
+  static $cast_ast_VariableStatement(v: $rt.GoObject | undefined): VariableStatement {
     if (v instanceof VariableStatement) return v;
     throw $rt.typeAssertError();
   }
@@ -21537,19 +21723,19 @@ export class VariableStatement extends StatementBase {
 }
 export class VoidExpression extends UnaryExpressionBase {
   Expression_: Node | undefined = undefined;
-  $copy_VoidExpression(src: VoidExpression): void {
-    this.$copy_UnaryExpressionBase(src);
+  $copy_ast_VoidExpression(src: VoidExpression): void {
+    this.$copy_ast_UnaryExpressionBase(src);
     this.Expression_ = src.Expression_;
   }
-  $equals_VoidExpression(o: VoidExpression): boolean {
-    return this.$equals_UnaryExpressionBase(o) && this.Expression_ === o.Expression_;
+  $equals_ast_VoidExpression(o: VoidExpression): boolean {
+    return this.$equals_ast_UnaryExpressionBase(o) && this.Expression_ === o.Expression_;
   }
-  $clone_VoidExpression(): VoidExpression {
+  $clone_ast_VoidExpression(): VoidExpression {
     const o = new VoidExpression();
-    o.$copy_VoidExpression(this);
+    o.$copy_ast_VoidExpression(this);
     return o;
   }
-  static $cast_VoidExpression(v: $rt.GoObject | undefined): VoidExpression {
+  static $cast_ast_VoidExpression(v: $rt.GoObject | undefined): VoidExpression {
     if (v instanceof VoidExpression) return v;
     throw $rt.typeAssertError();
   }
@@ -21577,24 +21763,24 @@ export class VoidExpression extends UnaryExpressionBase {
 export class WhileStatement extends IterationStatementBase {
   CompositeBase_: CompositeBase = new CompositeBase();
   Expression_: Node | undefined = undefined;
-  $copy_WhileStatement(src: WhileStatement): void {
-    this.$copy_IterationStatementBase(src);
-    this.CompositeBase_ = src.CompositeBase_.$clone_CompositeBase();
+  $copy_ast_WhileStatement(src: WhileStatement): void {
+    this.$copy_ast_IterationStatementBase(src);
+    this.CompositeBase_ = src.CompositeBase_.$clone_ast_CompositeBase();
     this.Expression_ = src.Expression_;
   }
-  $equals_WhileStatement(o: WhileStatement): boolean {
+  $equals_ast_WhileStatement(o: WhileStatement): boolean {
     return (
-      this.$equals_IterationStatementBase(o) &&
-      this.CompositeBase_.$equals_CompositeBase(o.CompositeBase_) &&
+      this.$equals_ast_IterationStatementBase(o) &&
+      this.CompositeBase_.$equals_ast_CompositeBase(o.CompositeBase_) &&
       this.Expression_ === o.Expression_
     );
   }
-  $clone_WhileStatement(): WhileStatement {
+  $clone_ast_WhileStatement(): WhileStatement {
     const o = new WhileStatement();
-    o.$copy_WhileStatement(this);
+    o.$copy_ast_WhileStatement(this);
     return o;
   }
-  static $cast_WhileStatement(v: $rt.GoObject | undefined): WhileStatement {
+  static $cast_ast_WhileStatement(v: $rt.GoObject | undefined): WhileStatement {
     if (v instanceof WhileStatement) return v;
     throw $rt.typeAssertError();
   }
@@ -21633,26 +21819,26 @@ export class WithStatement extends StatementBase {
   CompositeBase_: CompositeBase = new CompositeBase();
   Expression_: Node | undefined = undefined;
   Statement_: Node | undefined = undefined;
-  $copy_WithStatement(src: WithStatement): void {
-    this.$copy_StatementBase(src);
-    this.CompositeBase_ = src.CompositeBase_.$clone_CompositeBase();
+  $copy_ast_WithStatement(src: WithStatement): void {
+    this.$copy_ast_StatementBase(src);
+    this.CompositeBase_ = src.CompositeBase_.$clone_ast_CompositeBase();
     this.Expression_ = src.Expression_;
     this.Statement_ = src.Statement_;
   }
-  $equals_WithStatement(o: WithStatement): boolean {
+  $equals_ast_WithStatement(o: WithStatement): boolean {
     return (
-      this.$equals_StatementBase(o) &&
-      this.CompositeBase_.$equals_CompositeBase(o.CompositeBase_) &&
+      this.$equals_ast_StatementBase(o) &&
+      this.CompositeBase_.$equals_ast_CompositeBase(o.CompositeBase_) &&
       this.Expression_ === o.Expression_ &&
       this.Statement_ === o.Statement_
     );
   }
-  $clone_WithStatement(): WithStatement {
+  $clone_ast_WithStatement(): WithStatement {
     const o = new WithStatement();
-    o.$copy_WithStatement(this);
+    o.$copy_ast_WithStatement(this);
     return o;
   }
-  static $cast_WithStatement(v: $rt.GoObject | undefined): WithStatement {
+  static $cast_ast_WithStatement(v: $rt.GoObject | undefined): WithStatement {
     if (v instanceof WithStatement) return v;
     throw $rt.typeAssertError();
   }
@@ -21690,22 +21876,22 @@ export class WithStatement extends StatementBase {
 export class YieldExpression extends ExpressionBase {
   AsteriskToken: Node | undefined = undefined;
   Expression_: Node | undefined = undefined;
-  $copy_YieldExpression(src: YieldExpression): void {
-    this.$copy_ExpressionBase(src);
+  $copy_ast_YieldExpression(src: YieldExpression): void {
+    this.$copy_ast_ExpressionBase(src);
     this.AsteriskToken = src.AsteriskToken;
     this.Expression_ = src.Expression_;
   }
-  $equals_YieldExpression(o: YieldExpression): boolean {
+  $equals_ast_YieldExpression(o: YieldExpression): boolean {
     return (
-      this.$equals_ExpressionBase(o) && this.AsteriskToken === o.AsteriskToken && this.Expression_ === o.Expression_
+      this.$equals_ast_ExpressionBase(o) && this.AsteriskToken === o.AsteriskToken && this.Expression_ === o.Expression_
     );
   }
-  $clone_YieldExpression(): YieldExpression {
+  $clone_ast_YieldExpression(): YieldExpression {
     const o = new YieldExpression();
-    o.$copy_YieldExpression(this);
+    o.$copy_ast_YieldExpression(this);
     return o;
   }
-  static $cast_YieldExpression(v: $rt.GoObject | undefined): YieldExpression {
+  static $cast_ast_YieldExpression(v: $rt.GoObject | undefined): YieldExpression {
     if (v instanceof YieldExpression) return v;
     throw $rt.typeAssertError();
   }
@@ -21734,27 +21920,34 @@ export class diagnosticLocationKey extends $rt.GoObject {
   path: $tspath.Path = '';
   loc: $core.TextRange = new $core.TextRange();
   code: number = 0;
-  $copy_diagnosticLocationKey(src: diagnosticLocationKey): void {
+  $copy_ast_diagnosticLocationKey(src: diagnosticLocationKey): void {
     this.path = src.path;
     this.loc = src.loc;
     this.code = src.code;
   }
-  $equals_diagnosticLocationKey(o: diagnosticLocationKey): boolean {
-    return this.path === o.path && this.loc.$equals_TextRange(o.loc) && this.code === o.code;
+  $key_ast_diagnosticLocationKey(): string {
+    return [$rt.strKey(this.path), this.loc.$key_core_TextRange(), $rt.numKey(this.code)].join('|');
   }
-  $clone_diagnosticLocationKey(): diagnosticLocationKey {
+  $equals_ast_diagnosticLocationKey(o: diagnosticLocationKey): boolean {
+    return this.path === o.path && this.loc.$equals_core_TextRange(o.loc) && this.code === o.code;
+  }
+  $clone_ast_diagnosticLocationKey(): diagnosticLocationKey {
     const o = new diagnosticLocationKey();
-    o.$copy_diagnosticLocationKey(this);
+    o.$copy_ast_diagnosticLocationKey(this);
     return o;
   }
-  static $lit_diagnosticLocationKey_0_1_2(p0: $tspath.Path, p1: $core.TextRange, p2: number): diagnosticLocationKey {
+  static $lit_ast_diagnosticLocationKey_0_1_2(
+    p0: $tspath.Path,
+    p1: $core.TextRange,
+    p2: number,
+  ): diagnosticLocationKey {
     const o = new diagnosticLocationKey();
     o.path = p0;
     o.loc = p1;
     o.code = p2;
     return o;
   }
-  static $cast_diagnosticLocationKey(v: $rt.GoObject | undefined): diagnosticLocationKey {
+  static $cast_ast_diagnosticLocationKey(v: $rt.GoObject | undefined): diagnosticLocationKey {
     if (v instanceof diagnosticLocationKey) return v;
     throw $rt.typeAssertError();
   }
@@ -21762,25 +21955,25 @@ export class diagnosticLocationKey extends $rt.GoObject {
 export class hasFileNameImpl extends $rt.GoObject {
   fileName: string = '';
   path: $tspath.Path = '';
-  $copy_hasFileNameImpl(src: hasFileNameImpl): void {
+  $copy_ast_hasFileNameImpl(src: hasFileNameImpl): void {
     this.fileName = src.fileName;
     this.path = src.path;
   }
-  $equals_hasFileNameImpl(o: hasFileNameImpl): boolean {
+  $equals_ast_hasFileNameImpl(o: hasFileNameImpl): boolean {
     return this.fileName === o.fileName && this.path === o.path;
   }
-  $clone_hasFileNameImpl(): hasFileNameImpl {
+  $clone_ast_hasFileNameImpl(): hasFileNameImpl {
     const o = new hasFileNameImpl();
-    o.$copy_hasFileNameImpl(this);
+    o.$copy_ast_hasFileNameImpl(this);
     return o;
   }
-  static $lit_hasFileNameImpl_0_1(p0: string, p1: $tspath.Path): hasFileNameImpl {
+  static $lit_ast_hasFileNameImpl_0_1(p0: string, p1: $tspath.Path): hasFileNameImpl {
     const o = new hasFileNameImpl();
     o.fileName = p0;
     o.path = p1;
     return o;
   }
-  static $cast_hasFileNameImpl(v: $rt.GoObject | undefined): hasFileNameImpl {
+  static $cast_ast_hasFileNameImpl(v: $rt.GoObject | undefined): hasFileNameImpl {
     if (v instanceof hasFileNameImpl) return v;
     throw $rt.typeAssertError();
   }
@@ -21788,7 +21981,7 @@ export class hasFileNameImpl extends $rt.GoObject {
     const h = this;
     return h!.fileName;
   }
-  Path_(): $tspath.Path {
+  Path$m(): $tspath.Path {
     const h = this;
     return h!.path;
   }
@@ -21796,25 +21989,25 @@ export class hasFileNameImpl extends $rt.GoObject {
 export class positionMapEntry extends $rt.GoObject {
   utf8Pos: number = 0;
   delta: number = 0;
-  $copy_positionMapEntry(src: positionMapEntry): void {
+  $copy_ast_positionMapEntry(src: positionMapEntry): void {
     this.utf8Pos = src.utf8Pos;
     this.delta = src.delta;
   }
-  $equals_positionMapEntry(o: positionMapEntry): boolean {
+  $equals_ast_positionMapEntry(o: positionMapEntry): boolean {
     return this.utf8Pos === o.utf8Pos && this.delta === o.delta;
   }
-  $clone_positionMapEntry(): positionMapEntry {
+  $clone_ast_positionMapEntry(): positionMapEntry {
     const o = new positionMapEntry();
-    o.$copy_positionMapEntry(this);
+    o.$copy_ast_positionMapEntry(this);
     return o;
   }
-  static $lit_positionMapEntry_0_1(p0: number, p1: number): positionMapEntry {
+  static $lit_ast_positionMapEntry_0_1(p0: number, p1: number): positionMapEntry {
     const o = new positionMapEntry();
     o.utf8Pos = p0;
     o.delta = p1;
     return o;
   }
-  static $cast_positionMapEntry(v: $rt.GoObject | undefined): positionMapEntry {
+  static $cast_ast_positionMapEntry(v: $rt.GoObject | undefined): positionMapEntry {
     if (v instanceof positionMapEntry) return v;
     throw $rt.typeAssertError();
   }
@@ -21829,13 +22022,16 @@ export class sourceFileDataCell<T> extends $rt.GoObject {
     this.once = new $rt.sync_Once();
     this.value = this.$z_T();
   }
-  $copy_sourceFileDataCell(src: sourceFileDataCell<T>): void {
+  $copy_ast_sourceFileDataCell(src: sourceFileDataCell<T>): void {
     this.once = src.once;
     this.value = src.value;
   }
-  $clone_sourceFileDataCell(): sourceFileDataCell<T> {
+  $equals_ast_sourceFileDataCell(o: sourceFileDataCell<T>): boolean {
+    return this.once === o.once && this.value === o.value;
+  }
+  $clone_ast_sourceFileDataCell(): sourceFileDataCell<T> {
     const o = new sourceFileDataCell<T>(this.$z_T);
-    o.$copy_sourceFileDataCell(this);
+    o.$copy_ast_sourceFileDataCell(this);
     return o;
   }
 }
@@ -22616,6 +22812,61 @@ export const TypePrecedenceTypeOperator: TypePrecedence = 5;
 export const TypePrecedenceUnion: TypePrecedence = 3;
 export const _Kind_name: string =
   'KindUnknownKindEndOfFileKindSingleLineCommentTriviaKindMultiLineCommentTriviaKindNewLineTriviaKindWhitespaceTriviaKindConflictMarkerTriviaKindNonTextFileMarkerTriviaKindNumericLiteralKindBigIntLiteralKindStringLiteralKindJsxTextKindJsxTextAllWhiteSpacesKindRegularExpressionLiteralKindNoSubstitutionTemplateLiteralKindTemplateHeadKindTemplateMiddleKindTemplateTailKindOpenBraceTokenKindCloseBraceTokenKindOpenParenTokenKindCloseParenTokenKindOpenBracketTokenKindCloseBracketTokenKindDotTokenKindDotDotDotTokenKindSemicolonTokenKindCommaTokenKindQuestionDotTokenKindLessThanTokenKindLessThanSlashTokenKindGreaterThanTokenKindLessThanEqualsTokenKindGreaterThanEqualsTokenKindEqualsEqualsTokenKindExclamationEqualsTokenKindEqualsEqualsEqualsTokenKindExclamationEqualsEqualsTokenKindEqualsGreaterThanTokenKindPlusTokenKindMinusTokenKindAsteriskTokenKindAsteriskAsteriskTokenKindSlashTokenKindPercentTokenKindPlusPlusTokenKindMinusMinusTokenKindLessThanLessThanTokenKindGreaterThanGreaterThanTokenKindGreaterThanGreaterThanGreaterThanTokenKindAmpersandTokenKindBarTokenKindCaretTokenKindExclamationTokenKindTildeTokenKindAmpersandAmpersandTokenKindBarBarTokenKindQuestionTokenKindColonTokenKindAtTokenKindQuestionQuestionTokenKindBacktickTokenKindHashTokenKindEqualsTokenKindPlusEqualsTokenKindMinusEqualsTokenKindAsteriskEqualsTokenKindAsteriskAsteriskEqualsTokenKindSlashEqualsTokenKindPercentEqualsTokenKindLessThanLessThanEqualsTokenKindGreaterThanGreaterThanEqualsTokenKindGreaterThanGreaterThanGreaterThanEqualsTokenKindAmpersandEqualsTokenKindBarEqualsTokenKindBarBarEqualsTokenKindAmpersandAmpersandEqualsTokenKindQuestionQuestionEqualsTokenKindCaretEqualsTokenKindIdentifierKindPrivateIdentifierKindJSDocCommentTextTokenKindBreakKeywordKindCaseKeywordKindCatchKeywordKindClassKeywordKindConstKeywordKindContinueKeywordKindDebuggerKeywordKindDefaultKeywordKindDeleteKeywordKindDoKeywordKindElseKeywordKindEnumKeywordKindExportKeywordKindExtendsKeywordKindFalseKeywordKindFinallyKeywordKindForKeywordKindFunctionKeywordKindIfKeywordKindImportKeywordKindInKeywordKindInstanceOfKeywordKindNewKeywordKindNullKeywordKindReturnKeywordKindSuperKeywordKindSwitchKeywordKindThisKeywordKindThrowKeywordKindTrueKeywordKindTryKeywordKindTypeOfKeywordKindVarKeywordKindVoidKeywordKindWhileKeywordKindWithKeywordKindImplementsKeywordKindInterfaceKeywordKindLetKeywordKindPackageKeywordKindPrivateKeywordKindProtectedKeywordKindPublicKeywordKindStaticKeywordKindYieldKeywordKindAbstractKeywordKindAccessorKeywordKindAsKeywordKindAssertsKeywordKindAssertKeywordKindAnyKeywordKindAsyncKeywordKindAwaitKeywordKindBooleanKeywordKindConstructorKeywordKindDeclareKeywordKindGetKeywordKindImmediateKeywordKindInferKeywordKindIntrinsicKeywordKindIsKeywordKindKeyOfKeywordKindModuleKeywordKindNamespaceKeywordKindNeverKeywordKindOutKeywordKindReadonlyKeywordKindRequireKeywordKindNumberKeywordKindObjectKeywordKindSatisfiesKeywordKindSetKeywordKindStringKeywordKindSymbolKeywordKindTypeKeywordKindUndefinedKeywordKindUniqueKeywordKindUnknownKeywordKindUsingKeywordKindFromKeywordKindGlobalKeywordKindBigIntKeywordKindOverrideKeywordKindOfKeywordKindDeferKeywordKindQualifiedNameKindComputedPropertyNameKindTypeParameterKindParameterKindDecoratorKindPropertySignatureKindPropertyDeclarationKindMethodSignatureKindMethodDeclarationKindClassStaticBlockDeclarationKindConstructorKindGetAccessorKindSetAccessorKindCallSignatureKindConstructSignatureKindIndexSignatureKindTypePredicateKindTypeReferenceKindFunctionTypeKindConstructorTypeKindTypeQueryKindTypeLiteralKindArrayTypeKindTupleTypeKindOptionalTypeKindRestTypeKindUnionTypeKindIntersectionTypeKindConditionalTypeKindInferTypeKindParenthesizedTypeKindThisTypeKindTypeOperatorKindIndexedAccessTypeKindMappedTypeKindLiteralTypeKindNamedTupleMemberKindTemplateLiteralTypeKindTemplateLiteralTypeSpanKindImportTypeKindObjectBindingPatternKindArrayBindingPatternKindBindingElementKindArrayLiteralExpressionKindObjectLiteralExpressionKindPropertyAccessExpressionKindElementAccessExpressionKindCallExpressionKindNewExpressionKindTaggedTemplateExpressionKindTypeAssertionExpressionKindParenthesizedExpressionKindFunctionExpressionKindArrowFunctionKindDeleteExpressionKindTypeOfExpressionKindVoidExpressionKindAwaitExpressionKindPrefixUnaryExpressionKindPostfixUnaryExpressionKindBinaryExpressionKindConditionalExpressionKindTemplateExpressionKindYieldExpressionKindSpreadElementKindClassExpressionKindOmittedExpressionKindExpressionWithTypeArgumentsKindAsExpressionKindNonNullExpressionKindMetaPropertyKindSyntheticExpressionKindSatisfiesExpressionKindTemplateSpanKindSemicolonClassElementKindBlockKindEmptyStatementKindVariableStatementKindExpressionStatementKindIfStatementKindDoStatementKindWhileStatementKindForStatementKindForInStatementKindForOfStatementKindContinueStatementKindBreakStatementKindReturnStatementKindWithStatementKindSwitchStatementKindLabeledStatementKindThrowStatementKindTryStatementKindDebuggerStatementKindVariableDeclarationKindVariableDeclarationListKindFunctionDeclarationKindClassDeclarationKindInterfaceDeclarationKindTypeAliasDeclarationKindEnumDeclarationKindModuleDeclarationKindModuleBlockKindCaseBlockKindNamespaceExportDeclarationKindImportEqualsDeclarationKindImportDeclarationKindImportClauseKindNamespaceImportKindNamedImportsKindImportSpecifierKindExportAssignmentKindExportDeclarationKindNamedExportsKindNamespaceExportKindExportSpecifierKindMissingDeclarationKindExternalModuleReferenceKindJsxElementKindJsxSelfClosingElementKindJsxOpeningElementKindJsxClosingElementKindJsxFragmentKindJsxOpeningFragmentKindJsxClosingFragmentKindJsxAttributeKindJsxAttributesKindJsxSpreadAttributeKindJsxExpressionKindJsxNamespacedNameKindCaseClauseKindDefaultClauseKindHeritageClauseKindCatchClauseKindImportAttributesKindImportAttributeKindPropertyAssignmentKindShorthandPropertyAssignmentKindSpreadAssignmentKindEnumMemberKindSourceFileKindJSDocTypeExpressionKindJSDocNameReferenceKindJSDocAllTypeKindJSDocNullableTypeKindJSDocNonNullableTypeKindJSDocOptionalTypeKindJSDocVariadicTypeKindJSDocKindJSDocTextKindJSDocTypeLiteralKindJSDocSignatureKindJSDocLinkKindJSDocLinkCodeKindJSDocLinkPlainKindJSDocUnknownTagKindJSDocAugmentsTagKindJSDocImplementsTagKindJSDocDeprecatedTagKindJSDocPublicTagKindJSDocPrivateTagKindJSDocProtectedTagKindJSDocReadonlyTagKindJSDocOverrideTagKindJSDocCallbackTagKindJSDocOverloadTagKindJSDocParameterTagKindJSDocReturnTagKindJSDocThisTagKindJSDocTypeTagKindJSDocTemplateTagKindJSDocTypedefTagKindJSDocSeeTagKindJSDocPropertyTagKindJSDocThrowsTagKindJSDocSatisfiesTagKindJSDocImportTagKindSyntaxListKindJSTypeAliasDeclarationKindJSImportDeclarationKindNotEmittedStatementKindPartiallyEmittedExpressionKindSyntheticReferenceExpressionKindNotEmittedTypeElementKindCount';
+const $fn0 = (): $rt.GoObject | undefined => {
+  return new $boxes.Box_func_node__ast_Node__bool(newParentInChildrenSetter());
+};
+const $fn1 = (k: TokenCacheKey): string => k.$key_ast_TokenCacheKey();
+const $fn10 = (d: Node | undefined): boolean => {
+  return !(d!.Initializer() === undefined);
+};
+const $fn2 = (k: diagnosticLocationKey): string => k.$key_ast_diagnosticLocationKey();
+const $fn3 = (current: Node | undefined): boolean => {
+  return IsBlockScope(current, current!.Parent);
+};
+const $fn4 = (node$1: Node | undefined): boolean => {
+  {
+    switch (node$1!.Kind_) {
+      case 261 as number:
+      case 262 as number:
+      case 277 as number:
+      case 276 as number:
+      case 275 as number:
+      case 274 as number: {
+        return false;
+      }
+      default: {
+        return true;
+      }
+    }
+  }
+};
+const $fn5 = (d: Node | undefined): boolean => {
+  return !IsExternalModuleAugmentation(d) && !IsGlobalScopeAugmentation(d);
+};
+const $fn6 = (i: Node | undefined): boolean => {
+  {
+    switch (i!.Kind_) {
+      case 295 as number: {
+        return !(i!.Expression() === undefined);
+      }
+      case 11 as number: {
+        return !i!.AsJsxText()!.ContainsOnlyTriviaWhiteSpaces;
+      }
+      default: {
+        return true;
+      }
+    }
+  }
+};
+const $fn7 = (node$1: Node | undefined): boolean => {
+  return IsJSDocNameReference(node$1) || IsJSDocLinkLike(node$1);
+};
+const $fn8 = (n: Node | undefined): boolean => {
+  return n!.Kind_ === (315 as number);
+};
+const $fn9 = (p: Node | undefined): boolean => {
+  return p!.Type$m() === undefined;
+};
 export let _Kind_index: number[] = [
   0, 11, 24, 51, 77, 94, 114, 138, 165, 183, 200, 217, 228, 253, 281, 314, 330, 348, 364, 382, 401, 419, 438, 458, 479,
   491, 509, 527, 541, 561, 578, 600, 620, 643, 669, 690, 716, 743, 775, 801, 814, 828, 845, 870, 884, 900, 917, 936,
@@ -22637,9 +22888,7 @@ export let _Kind_index: number[] = [
   6387, 6405, 6421, 6437, 6457, 6476, 6491, 6511, 6529, 6550, 6568, 6582, 6608, 6631, 6654, 6684, 6716, 6741, 6750,
 ];
 export let isFileForcedToBeModuleByFormatExtensions: string[] = ['.cjs', '.cts', '.mjs', '.mts'];
-export let setParentInChildrenPool: $rt.sync_Pool = new $rt.sync_Pool((): $rt.GoObject | undefined => {
-  return new $boxes.Box_func_node__ast_Node__bool(newParentInChildrenSetter());
-});
+export let setParentInChildrenPool: $rt.sync_Pool = new $rt.sync_Pool($fn0);
 export let nextNodeId: $rt.sync_atomic_Uint64 = new $rt.sync_atomic_Uint64();
 export let nextSymbolId: $rt.sync_atomic_Uint64 = new $rt.sync_atomic_Uint64();
 export let parseJSDocForNode: ((p0: SourceFile | undefined, p1: Node | undefined) => (Node | undefined)[]) | undefined =
@@ -22681,7 +22930,7 @@ export function visitModifiers(v: Visitor, modifiers: ModifierList | undefined):
   return false;
 }
 export function NewNodeFactory(hooks: NodeFactoryHooks): NodeFactory | undefined {
-  return NodeFactory.$lit_NodeFactory_0(hooks);
+  return NodeFactory.$lit_ast_NodeFactory_0(hooks);
 }
 export function newNode(kind: Kind, data: nodeData, hooks: NodeFactoryHooks): Node | undefined {
   let n: Node | undefined = data!.AsNode();
@@ -23092,11 +23341,11 @@ export function GetDeclarationFromName(name_: Node | undefined): Node | undefine
           let leftHasSymbol: boolean = false;
           if (
             !(binExp!.AsBinaryExpression()!.Left === undefined) &&
-            !(binExp!.AsBinaryExpression()!.Left!.Symbol_() === undefined)
+            !(binExp!.AsBinaryExpression()!.Left!.Symbol$m() === undefined)
           ) {
             leftHasSymbol = true;
           }
-          if (leftHasSymbol || !(binExp!.Symbol_() === undefined)) {
+          if (leftHasSymbol || !(binExp!.Symbol$m() === undefined)) {
             if (GetNameOfDeclaration(binExp!.AsNode$Node()) === name_) {
               return binExp!.AsNode$Node();
             }
@@ -23334,7 +23583,7 @@ export function IsAnyExportAssignment(node: Node | undefined): boolean {
   return node!.Kind_ === (278 as number);
 }
 export function NewSourceFileDataKey<T>($z_T: () => T): SourceFileDataKey<T> | undefined {
-  return SourceFileDataKey.$lit_SourceFileDataKey_0<T>($z_T, sourceFileDataKeyCounter.Add(1));
+  return SourceFileDataKey.$lit_ast_SourceFileDataKey_0<T>($z_T, sourceFileDataKeyCounter.Add(1));
 }
 export function GetOrComputeSourceFileData<T>(
   $z_T: () => T,
@@ -23395,7 +23644,9 @@ export function getSourceFileDataCell<T>(
 }
 export function collectIdentifiersForSourceFile(sourceFile: SourceFile | undefined): $collections.Set_<string> {
   let identifiers: $collections.Set_<string> = new $collections.Set_<string>();
-  let collect: ((p0: Node | undefined) => boolean) | undefined = undefined;
+  let collect: ((p0: Node | undefined) => boolean) | undefined = undefined as
+    | ((p0: Node | undefined) => boolean)
+    | undefined;
   collect = (node: Node | undefined): boolean => {
     {
       switch (node!.Kind_) {
@@ -23414,7 +23665,7 @@ export function collectIdentifiersForSourceFile(sourceFile: SourceFile | undefin
     return false;
   };
   collect!(sourceFile!.AsNode());
-  return identifiers.$clone_Set();
+  return identifiers.$clone_collections_Set();
 }
 export function createToken(
   kind: Kind,
@@ -24882,7 +25133,7 @@ export function IsLogicalOrCoalescingAssignmentOperator(kind: Kind): boolean {
   return false;
 }
 export function getDeepCloneVisitor(f: NodeFactory | undefined, syntheticLocation: boolean): NodeVisitor | undefined {
-  let visitor: NodeVisitor | undefined = undefined;
+  let visitor: NodeVisitor | undefined = undefined as NodeVisitor | undefined;
   visitor = NewNodeVisitor(
     (node: Node | undefined): Node | undefined => {
       let visited: Node | undefined = visitor!.VisitEachChild(node);
@@ -24899,13 +25150,13 @@ export function getDeepCloneVisitor(f: NodeFactory | undefined, syntheticLocatio
       return c;
     },
     f,
-    NodeVisitorHooks.$lit_NodeVisitorHooks_2_3(
+    NodeVisitorHooks.$lit_ast_NodeVisitorHooks_2_3(
       (nodes: NodeList | undefined, v: NodeVisitor | undefined): NodeList | undefined => {
         if (nodes === undefined) {
           return undefined;
         }
         let visited$1: NodeList | undefined = v!.VisitNodes(nodes);
-        let newList: NodeList | undefined = undefined;
+        let newList: NodeList | undefined = undefined as NodeList | undefined;
         if (!(visited$1 === nodes)) {
           newList = visited$1;
         } else {
@@ -24924,7 +25175,7 @@ export function getDeepCloneVisitor(f: NodeFactory | undefined, syntheticLocatio
           return undefined;
         }
         let visited$2: ModifierList | undefined = v$1!.VisitModifiers(nodes$1);
-        let newList$1: ModifierList | undefined = undefined;
+        let newList$1: ModifierList | undefined = undefined as ModifierList | undefined;
         if (!(visited$2 === nodes$1)) {
           newList$1 = visited$2;
         } else {
@@ -24955,7 +25206,7 @@ export function NewDiagnosticFromSerialized(
   reportsDeprecated: boolean,
   skippedOnNoEmit: boolean,
 ): Diagnostic | undefined {
-  return Diagnostic.$lit_Diagnostic_0_1_2_3_7_8_9_10_11_12_13(
+  return Diagnostic.$lit_ast_Diagnostic_0_1_2_3_7_8_9_10_11_12_13(
     file,
     loc,
     code,
@@ -24975,13 +25226,13 @@ export function NewDiagnostic(
   message: $diagnostics.Message | undefined,
   args: ($rt.GoObject | undefined)[],
 ): Diagnostic | undefined {
-  return Diagnostic.$lit_Diagnostic_0_1_2_3_5_7_8_11_12(
+  return Diagnostic.$lit_ast_Diagnostic_0_1_2_3_5_7_8_11_12(
     file,
     loc,
     message!.Code(),
-    message!.Category_(),
+    message!.Category$m(),
     message,
-    message!.Key_(),
+    message!.Key$m(),
     $diagnostics.StringifyArgs(args),
     message!.ReportsUnnecessary(),
     message!.ReportsDeprecated(),
@@ -25013,14 +25264,14 @@ export function NewExternalDiagnostic(
   code: number,
   messageText: string,
 ): Diagnostic | undefined {
-  return Diagnostic.$lit_Diagnostic_0_1_2_3_4_6(file, loc, code, category, source, messageText);
+  return Diagnostic.$lit_ast_Diagnostic_0_1_2_3_4_6(file, loc, code, category, source, messageText);
 }
 export function getDiagnosticLocationKey(diagnostic: Diagnostic | undefined): diagnosticLocationKey {
   let path: $tspath.Path = '';
   if (!(diagnostic!.File() === undefined)) {
-    path = diagnostic!.File()!.Path_();
+    path = diagnostic!.File()!.Path$m();
   }
-  return diagnosticLocationKey.$lit_diagnosticLocationKey_0_1_2(path, diagnostic!.Loc(), diagnostic!.Code());
+  return diagnosticLocationKey.$lit_ast_diagnosticLocationKey_0_1_2(path, diagnostic!.Loc(), diagnostic!.Code());
 }
 export function getDiagnosticPath(d: Diagnostic | undefined): string {
   if (!(d!.File() === undefined)) {
@@ -25043,9 +25294,9 @@ export function EqualDiagnosticsNoRelatedInfo(d1: Diagnostic | undefined, d2: Di
   }
   return (
     getDiagnosticPath(d1) === getDiagnosticPath(d2) &&
-    d1!.Loc().$equals_TextRange(d2!.Loc()) &&
+    d1!.Loc().$equals_core_TextRange(d2!.Loc()) &&
     d1!.Code() === d2!.Code() &&
-    d1!.Category_() === d2!.Category_() &&
+    d1!.Category$m() === d2!.Category$m() &&
     d1!.Source() === d2!.Source() &&
     getDiagnosticMessageIdentity(d1) === getDiagnosticMessageIdentity(d2) &&
     $rt.slices_Equal(d1!.MessageArgs(), d2!.MessageArgs()) &&
@@ -25144,7 +25395,7 @@ export function CompareDiagnostics(d1: Diagnostic | undefined, d2: Diagnostic | 
   if (!(c === (0 as number))) {
     return c;
   }
-  c = d1!.Category_() - d2!.Category_();
+  c = d1!.Category$m() - d2!.Category$m();
   if (!(c === (0 as number))) {
     return c;
   }
@@ -25242,13 +25493,13 @@ export function GetExternalModuleIndicatorOptions(
   {
     switch (options!.GetEmitModuleDetectionKind()) {
       case 3 as number: {
-        return ExternalModuleIndicatorOptions.$lit_ExternalModuleIndicatorOptions_1(true);
+        return ExternalModuleIndicatorOptions.$lit_ast_ExternalModuleIndicatorOptions_1(true);
       }
       case 2 as number: {
         return new ExternalModuleIndicatorOptions();
       }
       case 1 as number: {
-        return ExternalModuleIndicatorOptions.$lit_ExternalModuleIndicatorOptions_0_1(
+        return ExternalModuleIndicatorOptions.$lit_ast_ExternalModuleIndicatorOptions_0_1(
           options!.Jsx === (4 as number) || options!.Jsx === (5 as number),
           isFileForcedToBeModuleByFormat(fileName, options, metadata),
         );
@@ -25273,7 +25524,7 @@ export function isFileForcedToBeModuleByFormat(
   return false;
 }
 export function SetExternalModuleIndicator(file: SourceFile | undefined, opts: ExternalModuleIndicatorOptions): void {
-  file!.ExternalModuleIndicator = getExternalModuleIndicator(file, opts);
+  file!.ExternalModuleIndicator = getExternalModuleIndicator(file, opts.$clone_ast_ExternalModuleIndicatorOptions());
 }
 export function getExternalModuleIndicator(
   file: SourceFile | undefined,
@@ -25336,8 +25587,10 @@ export function findChildNode(
   root: Node | undefined,
   check: ((p0: Node | undefined) => boolean) | undefined,
 ): Node | undefined {
-  let result: Node | undefined = undefined;
-  let visit: ((p0: Node | undefined) => boolean) | undefined = undefined;
+  let result: Node | undefined = undefined as Node | undefined;
+  let visit: ((p0: Node | undefined) => boolean) | undefined = undefined as
+    | ((p0: Node | undefined) => boolean)
+    | undefined;
   visit = (node: Node | undefined): boolean => {
     if (check!(node)) {
       result = node;
@@ -25352,13 +25605,15 @@ export function isFileModuleFromUsingJSXTag(file: SourceFile | undefined): Node 
   return walkTreeForJSXTags(file!.AsNode());
 }
 export function walkTreeForJSXTags(node: Node | undefined): Node | undefined {
-  let found: Node | undefined = undefined;
-  let visitor: ((p0: Node | undefined) => boolean) | undefined = undefined;
+  let found: Node | undefined = undefined as Node | undefined;
+  let visitor: ((p0: Node | undefined) => boolean) | undefined = undefined as
+    | ((p0: Node | undefined) => boolean)
+    | undefined;
   visitor = (node$1: Node | undefined): boolean => {
     if (!(found === undefined)) {
       return true;
     }
-    if ((node$1!.SubtreeFacts_$Node() & 2) === (0 as number)) {
+    if ((node$1!.SubtreeFacts$m$Node() & 2) === (0 as number)) {
       return false;
     }
     if (IsJsxOpeningLikeElement(node$1) || IsJsxFragment(node$1)) {
@@ -25388,7 +25643,7 @@ export function ComputePositionMap(text: string): PositionMap | undefined {
         utf16Size = 2;
       }
       delta += size - utf16Size;
-      pm!.entries.push(positionMapEntry.$lit_positionMapEntry_0_1(i + size, delta));
+      pm!.entries.push(positionMapEntry.$lit_ast_positionMapEntry_0_1(i + size, delta));
       i += size;
     }
   }
@@ -25714,7 +25969,7 @@ export function GetTypeNodePrecedence(n: Node | undefined): TypePrecedence {
       }
       default: {
         throw $rt.newPanic(
-          new $rt.BoxStr($rt.fmt_Sprintf('unhandled TypeNode: %v', [new $rt.BoxNum(n!.Kind_, 'ast.Kind')]), 'string'),
+          new $rt.BoxStr($rt.fmt_Sprintf('unhandled TypeNode: %v', [new Kind$Box(n!.Kind_)]), 'string'),
         );
       }
     }
@@ -25764,7 +26019,7 @@ export function propagateModifierListSubtreeFacts(children: ModifierList | undef
   if (children === undefined) {
     return 0;
   }
-  return propagateNodeListSubtreeFacts(children, propagateSubtreeFacts);
+  return propagateNodeListSubtreeFacts(children!, propagateSubtreeFacts);
 }
 export function SymbolName(symbol_: Symbol_ | undefined): string {
   if (
@@ -26588,7 +26843,7 @@ export function IsJSDocTypeAssertion(node: Node | undefined): boolean {
     return false;
   }
   let expr: Node | undefined = node!.Expression();
-  return IsAsExpression(expr) && !(expr!.Type() === undefined) && !((expr!.Type()!.Flags & 8) === (0 as number));
+  return IsAsExpression(expr) && !(expr!.Type$m() === undefined) && !((expr!.Type$m()!.Flags & 8) === (0 as number));
 }
 export function IsPrologueDirective(node: Node | undefined): boolean {
   return node!.Kind_ === (245 as number) && node!.Expression()!.Kind_ === (10 as number);
@@ -26647,7 +26902,7 @@ export function SkipParentheses(node: Node | undefined): Node | undefined {
 }
 export function SkipTypeParentheses(node: Node | undefined): Node | undefined {
   for (; IsParenthesizedTypeNode(node);) {
-    node = node!.Type();
+    node = node!.Type$m();
   }
   return node;
 }
@@ -26861,7 +27116,7 @@ export function ModifiersToFlags(modifiers: (Node | undefined)[]): ModifierFlags
   return flags;
 }
 export function HasSyntacticModifier(node: Node | undefined, flags: ModifierFlags): boolean {
-  return !((node!.ModifierFlags_() & flags) >>> 0 === (0 as number));
+  return !((node!.ModifierFlags$m() & flags) >>> 0 === (0 as number));
 }
 export function HasAccessorModifier(node: Node | undefined): boolean {
   return HasSyntacticModifier(node, 512);
@@ -27039,7 +27294,9 @@ export function ForEachReturnStatement(
   body: Node | undefined,
   visitor: ((p0: Node | undefined) => boolean) | undefined,
 ): boolean {
-  let traverse: ((p0: Node | undefined) => boolean) | undefined = undefined;
+  let traverse: ((p0: Node | undefined) => boolean) | undefined = undefined as
+    | ((p0: Node | undefined) => boolean)
+    | undefined;
   traverse = (node: Node | undefined): boolean => {
     {
       switch (node!.Kind_) {
@@ -27077,16 +27334,16 @@ export function GetRootDeclaration(node: Node | undefined): Node | undefined {
 }
 export function GetCombinedModifierFlags(node: Node | undefined): ModifierFlags {
   node = GetRootDeclaration(node);
-  let flags: ModifierFlags = node!.ModifierFlags_();
+  let flags: ModifierFlags = node!.ModifierFlags$m();
   if (node!.Kind_ === (261 as number)) {
     node = node!.Parent;
   }
   if (!(node === undefined) && node!.Kind_ === (262 as number)) {
-    flags = (flags | node!.ModifierFlags_()) >>> 0;
+    flags = (flags | node!.ModifierFlags$m()) >>> 0;
     node = node!.Parent;
   }
   if (!(node === undefined) && node!.Kind_ === (244 as number)) {
-    flags = (flags | node!.ModifierFlags_()) >>> 0;
+    flags = (flags | node!.ModifierFlags$m()) >>> 0;
   }
   return flags;
 }
@@ -27355,7 +27612,7 @@ export function TryGetClassExtendingExpressionWithTypeArguments(node: Node | und
 export function TryGetClassImplementingOrExtendingHeritageClauseElement(
   node: Node | undefined,
 ): [Node | undefined, boolean] {
-  let class_: Node | undefined = undefined;
+  let class_: Node | undefined = undefined as Node | undefined;
   let isImplements: boolean = false;
   if (
     (IsExpressionWithTypeArguments(node) || IsTypeReferenceNode(node)) &&
@@ -27536,7 +27793,7 @@ export function HasDynamicName(declaration: Node | undefined): boolean {
   return !(name_ === undefined) && IsDynamicName(name_);
 }
 export function IsDynamicName(name_: Node | undefined): boolean {
-  let expr: Node | undefined = undefined;
+  let expr: Node | undefined = undefined as Node | undefined;
   {
     switch (name_!.Kind_) {
       case 168 as number: {
@@ -28175,7 +28432,7 @@ export function isPartOfTypeNodeInParent(node: Node | undefined): boolean {
       case 181 as number:
       case 182 as number:
       case 217 as number: {
-        return node === parent!.Type();
+        return node === parent!.Type$m();
       }
       case 214 as number:
       case 215 as number:
@@ -28317,9 +28574,7 @@ export function GetNewTargetContainer(node: Node | undefined): Node | undefined 
   return undefined;
 }
 export function GetEnclosingBlockScopeContainer(node: Node | undefined): Node | undefined {
-  return FindAncestor(node!.Parent, (current: Node | undefined): boolean => {
-    return IsBlockScope(current, current!.Parent);
-  });
+  return FindAncestor(node!.Parent, $fn3);
 }
 export function IsBlockScope(node: Node | undefined, parentNode: Node | undefined): boolean {
   {
@@ -28449,7 +28704,7 @@ export function popAncestor(
     return [[], node!.Parent];
   }
   let n: number = ancestors.length - 1;
-  return [ancestors.slice(0, n), ancestors[n]];
+  return [$rt.reslice(ancestors, 0, n, undefined), ancestors[n]];
 }
 export function GetModuleInstanceState(node: Node | undefined): ModuleInstanceState {
   return getModuleInstanceState(node, [], undefined);
@@ -28657,7 +28912,7 @@ export function IsConstAssertion(node: Node | undefined): boolean {
     switch (node!.Kind_) {
       case 235 as number:
       case 217 as number: {
-        return IsConstTypeReference(node!.Type());
+        return IsConstTypeReference(node!.Type$m());
       }
     }
   }
@@ -28823,23 +29078,7 @@ export function GetImpliedNodeFormatForEmitWorker(
   return 0;
 }
 export function GetDeclarationContainer(node: Node | undefined): Node | undefined {
-  return FindAncestor(GetRootDeclaration(node), (node$1: Node | undefined): boolean => {
-    {
-      switch (node$1!.Kind_) {
-        case 261 as number:
-        case 262 as number:
-        case 277 as number:
-        case 276 as number:
-        case 275 as number:
-        case 274 as number: {
-          return false;
-        }
-        default: {
-          return true;
-        }
-      }
-    }
-  })!.Parent;
+  return FindAncestor(GetRootDeclaration(node), $fn4)!.Parent;
 }
 export function IsNonLocalAlias(symbol_: Symbol_ | undefined, excludes: SymbolFlags): boolean {
   if (symbol_ === undefined) {
@@ -28896,7 +29135,7 @@ export function GetNodeAtPosition(
 ): Node | undefined {
   let current: Node | undefined = file!.AsNode();
   for (;;) {
-    let child: Node | undefined = undefined;
+    let child: Node | undefined = undefined as Node | undefined;
     if (includeJSDoc) {
       {
         const $t1 = current!.JSDoc(file);
@@ -29053,7 +29292,7 @@ export function GetJSXRuntimeImport(base: string, options: $core.CompilerOptions
   return base + '/' + $core.IfElse<string>(options!.Jsx === (5 as number), 'jsx-dev-runtime', 'jsx-runtime');
 }
 export function GetPragmaFromSourceFile(file: SourceFile | undefined, name_: string): Pragma | undefined {
-  let result: Pragma | undefined = undefined;
+  let result: Pragma | undefined = undefined as Pragma | undefined;
   if (!(file === undefined)) {
     {
       const $t1 = file!.Pragmas;
@@ -29108,8 +29347,8 @@ export function isVariableDeclarationInitializedWithRequireHelper(
     initializer = GetLeftmostAccessExpression(initializer);
   }
   return (
-    (node!.Parent!.Parent!.ModifierFlags_() & 32) === (0 as number) &&
-    node!.Type() === undefined &&
+    (node!.Parent!.Parent!.ModifierFlags$m() & 32) === (0 as number) &&
+    node!.Type$m() === undefined &&
     IsRequireCall(initializer, true)
   );
 }
@@ -29406,7 +29645,7 @@ export function GetTypeAnnotationNode(node: Node | undefined): Node | undefined 
       case 311 as number:
       case 312 as number:
       case 313 as number: {
-        return node!.Type();
+        return node!.Type$m();
       }
       default: {
         let funcLike: FunctionLikeBase | undefined = node!.FunctionLikeData$Node();
@@ -29571,7 +29810,7 @@ export function HasResolutionModeOverride(node: Node | undefined): boolean {
   if (node === undefined) {
     return false;
   }
-  let attributes: Node | undefined = undefined;
+  let attributes: Node | undefined = undefined as Node | undefined;
   {
     switch (node!.Kind_) {
       case 206 as number: {
@@ -29694,7 +29933,7 @@ export function ReplaceModifiers(
           node!.AsParameterDeclaration()!.DotDotDotToken,
           node!.Name$Node(),
           node!.QuestionToken(),
-          node!.Type(),
+          node!.Type$m(),
           node!.Initializer(),
         );
       }
@@ -29704,7 +29943,7 @@ export function ReplaceModifiers(
           modifierArray,
           node!.TypeParameterList(),
           node!.ParameterList(),
-          node!.Type(),
+          node!.Type$m(),
         );
       }
       case 172 as number: {
@@ -29713,7 +29952,7 @@ export function ReplaceModifiers(
           modifierArray,
           node!.Name$Node(),
           node!.PostfixToken(),
-          node!.Type(),
+          node!.Type$m(),
           node!.Initializer(),
         );
       }
@@ -29723,7 +29962,7 @@ export function ReplaceModifiers(
           modifierArray,
           node!.Name$Node(),
           node!.PostfixToken(),
-          node!.Type(),
+          node!.Type$m(),
           node!.Initializer(),
         );
       }
@@ -29735,7 +29974,7 @@ export function ReplaceModifiers(
           node!.PostfixToken(),
           node!.TypeParameterList(),
           node!.ParameterList(),
-          node!.Type(),
+          node!.Type$m(),
         );
       }
       case 175 as number: {
@@ -29747,7 +29986,7 @@ export function ReplaceModifiers(
           node!.PostfixToken(),
           node!.TypeParameterList(),
           node!.ParameterList(),
-          node!.Type(),
+          node!.Type$m(),
           node!.AsMethodDeclaration()!.FunctionLikeWithBodyBase_.FullSignature,
           node!.Body(),
         );
@@ -29758,7 +29997,7 @@ export function ReplaceModifiers(
           modifierArray,
           node!.TypeParameterList(),
           node!.ParameterList(),
-          node!.Type(),
+          node!.Type$m(),
           node!.AsConstructorDeclaration()!.FunctionLikeWithBodyBase_.FullSignature,
           node!.Body(),
         );
@@ -29770,7 +30009,7 @@ export function ReplaceModifiers(
           node!.Name$Node(),
           node!.TypeParameterList(),
           node!.ParameterList(),
-          node!.Type(),
+          node!.Type$m(),
           node!.AsGetAccessorDeclaration()!.FunctionLikeWithBodyBase_.FullSignature,
           node!.Body(),
         );
@@ -29782,7 +30021,7 @@ export function ReplaceModifiers(
           node!.Name$Node(),
           node!.TypeParameterList(),
           node!.ParameterList(),
-          node!.Type(),
+          node!.Type$m(),
           node!.AsSetAccessorDeclaration()!.FunctionLikeWithBodyBase_.FullSignature,
           node!.Body(),
         );
@@ -29792,7 +30031,7 @@ export function ReplaceModifiers(
           node!.AsIndexSignatureDeclaration(),
           modifierArray,
           node!.ParameterList(),
-          node!.Type(),
+          node!.Type$m(),
         );
       }
       case 219 as number: {
@@ -29803,7 +30042,7 @@ export function ReplaceModifiers(
           node!.Name$Node(),
           node!.TypeParameterList(),
           node!.ParameterList(),
-          node!.Type(),
+          node!.Type$m(),
           node!.AsFunctionExpression()!.FunctionLikeWithBodyBase_.FullSignature,
           node!.Body(),
         );
@@ -29814,7 +30053,7 @@ export function ReplaceModifiers(
           modifierArray,
           node!.TypeParameterList(),
           node!.ParameterList(),
-          node!.Type(),
+          node!.Type$m(),
           node!.AsArrowFunction()!.FunctionLikeWithBodyBase_.FullSignature,
           node!.AsArrowFunction()!.EqualsGreaterThanToken,
           node!.Body(),
@@ -29845,7 +30084,7 @@ export function ReplaceModifiers(
           node!.Name$Node(),
           node!.TypeParameterList(),
           node!.ParameterList(),
-          node!.Type(),
+          node!.Type$m(),
           node!.AsFunctionDeclaration()!.FunctionLikeWithBodyBase_.FullSignature,
           node!.Body(),
         );
@@ -29876,7 +30115,7 @@ export function ReplaceModifiers(
           modifierArray,
           node!.Name$Node(),
           node!.TypeParameterList(),
-          node!.Type(),
+          node!.Type$m(),
         );
       }
       case 267 as number: {
@@ -29919,7 +30158,7 @@ export function ReplaceModifiers(
           node!.AsExportAssignment(),
           modifierArray,
           node!.AsExportAssignment()!.IsExportEquals,
-          node!.Type(),
+          node!.Type$m(),
           node!.Expression(),
         );
       }
@@ -29938,7 +30177,7 @@ export function ReplaceModifiers(
   throw $rt.newPanic(
     new $rt.BoxStr(
       $rt.fmt_Sprintf('Node that does not have modifiers tried to have modifier replaced: %d', [
-        new $rt.BoxNum(node!.Kind_, 'ast.Kind'),
+        new Kind$Box(node!.Kind_),
       ]),
       'string',
     ),
@@ -29977,9 +30216,7 @@ export function GetSourceFileOfModule(module_: Symbol_ | undefined): SourceFile 
   return GetSourceFileOfNode(declaration);
 }
 export function GetNonAugmentationDeclaration(symbol_: Symbol_ | undefined): Node | undefined {
-  return $core.Find<Node | undefined>($zf0, symbol_!.Declarations, (d: Node | undefined): boolean => {
-    return !IsExternalModuleAugmentation(d) && !IsGlobalScopeAugmentation(d);
-  });
+  return $core.Find<Node | undefined>($zf0, symbol_!.Declarations, $fn5);
 }
 export function IsTypeDeclaration(node: Node | undefined): boolean {
   {
@@ -30135,7 +30372,7 @@ export function isCalleeWorker(
   includeElementAccess: boolean,
   skipPastOuterExpressions: boolean,
 ): boolean {
-  let target: Node | undefined = undefined;
+  let target: Node | undefined = undefined as Node | undefined;
   if (includeElementAccess) {
     target = climbPastPropertyOrElementAccess(node);
   } else {
@@ -30241,24 +30478,10 @@ export function HasDecorators(node: Node | undefined): boolean {
   return HasSyntacticModifier(node, 32768);
 }
 export function NewHasFileName(fileName: string, path: $tspath.Path): HasFileName {
-  return hasFileNameImpl.$lit_hasFileNameImpl_0_1(fileName, path);
+  return hasFileNameImpl.$lit_ast_hasFileNameImpl_0_1(fileName, path);
 }
 export function GetSemanticJsxChildren(children: (Node | undefined)[]): (Node | undefined)[] {
-  return $core.Filter<Node | undefined>(children, (i: Node | undefined): boolean => {
-    {
-      switch (i!.Kind_) {
-        case 295 as number: {
-          return !(i!.Expression() === undefined);
-        }
-        case 11 as number: {
-          return !i!.AsJsxText()!.ContainsOnlyTriviaWhiteSpaces;
-        }
-        default: {
-          return true;
-        }
-      }
-    }
-  });
+  return $core.Filter<Node | undefined>(children, $fn6);
 }
 export function hasComment(kind: Kind): boolean {
   {
@@ -30389,20 +30612,20 @@ export function TryGetPropertyNameOfBindingOrAssignmentElement(bindingElement: N
   return undefined;
 }
 export function ContainsObjectRestOrSpread(node: Node | undefined): boolean {
-  if (!((node!.SubtreeFacts_$Node() & 131072) === (0 as number))) {
+  if (!((node!.SubtreeFacts$m$Node() & 131072) === (0 as number))) {
     return true;
   }
-  if (!((node!.SubtreeFacts_$Node() & 1024) === (0 as number))) {
+  if (!((node!.SubtreeFacts$m$Node() & 1024) === (0 as number))) {
     {
       const $t1 = GetElementsOfBindingOrAssignmentPattern(node);
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
         let element = $t1[$t2];
         let target: Node | undefined = GetTargetOfBindingOrAssignmentElement(element);
         if (!(target === undefined) && IsAssignmentPattern(target)) {
-          if (!((target!.SubtreeFacts_$Node() & 131072) === (0 as number))) {
+          if (!((target!.SubtreeFacts$m$Node() & 131072) === (0 as number))) {
             return true;
           }
-          if (!((target!.SubtreeFacts_$Node() & 1024) === (0 as number))) {
+          if (!((target!.SubtreeFacts$m$Node() & 1024) === (0 as number))) {
             if (ContainsObjectRestOrSpread(target)) {
               return true;
             }
@@ -30437,19 +30660,10 @@ export function GetRestIndicatorOfBindingOrAssignmentElement(bindingElement: Nod
   return undefined;
 }
 export function IsJSDocNameReferenceContext(node: Node | undefined): boolean {
-  return (
-    !((node!.Flags & 4194304) === (0 as number)) &&
-    !(
-      FindAncestor(node, (node$1: Node | undefined): boolean => {
-        return IsJSDocNameReference(node$1) || IsJSDocLinkLike(node$1);
-      }) === undefined
-    )
-  );
+  return !((node!.Flags & 4194304) === (0 as number)) && !(FindAncestor(node, $fn7) === undefined);
 }
 export function GetJSDocRoot(node: Node | undefined): Node | undefined {
-  return FindAncestor(node!.Parent, (n: Node | undefined): boolean => {
-    return n!.Kind_ === (315 as number);
-  });
+  return FindAncestor(node!.Parent, $fn8);
 }
 export function GetJSDocHost(node: Node | undefined): Node | undefined {
   let jsDoc: Node | undefined = GetJSDocRoot(node);
@@ -30463,8 +30677,8 @@ export function GetHostSignatureFromJSDoc(node: Node | undefined): Node | undefi
   if (host === undefined) {
     return undefined;
   }
-  if (IsPropertySignatureDeclaration(host) && !(host!.Type() === undefined) && IsFunctionLike(host!.Type())) {
-    return host!.Type();
+  if (IsPropertySignatureDeclaration(host) && !(host!.Type$m() === undefined) && IsFunctionLike(host!.Type$m())) {
+    return host!.Type$m();
   }
   if (IsFunctionLike(host)) {
     return host;
@@ -30565,7 +30779,7 @@ export function IsNonContextualKeyword(token: Kind): boolean {
   return IsKeyword(token) && !IsContextualKeyword(token);
 }
 export function HasModifier(node: Node | undefined, flags: ModifierFlags): boolean {
-  return !((node!.ModifierFlags_() & flags) >>> 0 === (0 as number));
+  return !((node!.ModifierFlags$m() & flags) >>> 0 === (0 as number));
 }
 export function IsExpandoInitializer(declaration: Node | undefined, initializer: Node | undefined): boolean {
   if (initializer === undefined) {
@@ -30579,7 +30793,7 @@ export function IsExpandoInitializer(declaration: Node | undefined, initializer:
       IsClassExpression(initializer) ||
       (IsObjectLiteralExpression(initializer) &&
         initializer!.Properties().length === (0 as number) &&
-        declaration!.Type() === undefined)
+        declaration!.Type$m() === undefined)
     );
   }
   return false;
@@ -30638,11 +30852,7 @@ export function IsImplicitlyExportedJSDocDeclaration(node: Node | undefined): bo
 }
 export function HasContextSensitiveParameters(node: Node | undefined): boolean {
   if (node!.TypeParameters().length === 0) {
-    if (
-      $core.Some<Node | undefined>(node!.Parameters(), (p: Node | undefined): boolean => {
-        return p!.Type() === undefined;
-      })
-    ) {
+    if ($core.Some<Node | undefined>(node!.Parameters(), $fn9)) {
       return true;
     }
     if (!IsArrowFunction(node)) {
@@ -30677,9 +30887,7 @@ export function IsPotentiallyExecutableNode(node: Node | undefined): boolean {
         return true;
       }
       let declarations: (Node | undefined)[] = declarationList!.AsVariableDeclarationList()!.Declarations!.Nodes;
-      return $core.Some<Node | undefined>(declarations, (d: Node | undefined): boolean => {
-        return !(d!.Initializer() === undefined);
-      });
+      return $core.Some<Node | undefined>(declarations, $fn10);
     }
     return true;
   }
@@ -30755,10 +30963,10 @@ export function ClassElementOrClassElementParameterIsDecorated(
   node: Node | undefined,
   parent: Node | undefined,
 ): boolean {
-  let parameters: NodeList | undefined = undefined;
+  let parameters: NodeList | undefined = undefined as NodeList | undefined;
   if (IsAccessor(node)) {
     let decls: AllAccessorDeclarations = GetAllAccessorDeclarations(parent!.Members(), node);
-    let firstAccessorWithDecorators: Node | undefined = undefined;
+    let firstAccessorWithDecorators: Node | undefined = undefined as Node | undefined;
     if (HasDecorators(decls.FirstAccessor)) {
       firstAccessorWithDecorators = decls.FirstAccessor;
     } else if (!(decls.SecondAccessor === undefined) && HasDecorators(decls.SecondAccessor)) {
@@ -30848,13 +31056,10 @@ export function GetAllAccessorDeclarationsForDeclaration(
     otherKind = 179;
   } else {
     throw $rt.newPanic(
-      new $rt.BoxStr(
-        $rt.fmt_Sprintf('Unexpected node kind %q', [new $rt.BoxNum(accessor_!.Kind_, 'ast.Kind')]),
-        'string',
-      ),
+      new $rt.BoxStr($rt.fmt_Sprintf('Unexpected node kind %q', [new Kind$Box(accessor_!.Kind_)]), 'string'),
     );
   }
-  let otherAccessor: Node | undefined = undefined;
+  let otherAccessor: Node | undefined = undefined as Node | undefined;
   {
     const $t1 = declarationsOfSymbol;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
@@ -30865,8 +31070,8 @@ export function GetAllAccessorDeclarationsForDeclaration(
       }
     }
   }
-  let firstAccessor: Node | undefined = undefined;
-  let secondAccessor: Node | undefined = undefined;
+  let firstAccessor: Node | undefined = undefined as Node | undefined;
+  let secondAccessor: Node | undefined = undefined as Node | undefined;
   if (!(otherAccessor === undefined) && otherAccessor!.Pos() < accessor_!.Pos()) {
     firstAccessor = otherAccessor;
     secondAccessor = accessor_;
@@ -30874,8 +31079,8 @@ export function GetAllAccessorDeclarationsForDeclaration(
     firstAccessor = accessor_;
     secondAccessor = otherAccessor;
   }
-  let setAccessor: SetAccessorDeclaration | undefined = undefined;
-  let getAccessor: GetAccessorDeclaration | undefined = undefined;
+  let setAccessor: SetAccessorDeclaration | undefined = undefined as SetAccessorDeclaration | undefined;
+  let getAccessor: GetAccessorDeclaration | undefined = undefined as GetAccessorDeclaration | undefined;
   if (accessor_!.Kind_ === (179 as number)) {
     setAccessor = accessor_!.AsSetAccessorDeclaration();
     if (!(otherAccessor === undefined)) {
@@ -30887,7 +31092,7 @@ export function GetAllAccessorDeclarationsForDeclaration(
       setAccessor = otherAccessor!.AsSetAccessorDeclaration();
     }
   }
-  return AllAccessorDeclarations.$lit_AllAccessorDeclarations_0_1_2_3(
+  return AllAccessorDeclarations.$lit_ast_AllAccessorDeclarations_0_1_2_3(
     firstAccessor,
     secondAccessor,
     setAccessor,
@@ -31020,7 +31225,7 @@ export function GetReparsedNodeForNode(node: Node | undefined): Node | undefined
 }
 export function findCloneInNode(node: Node | undefined, original: Node | undefined): Node | undefined {
   for (;;) {
-    if (node!.Kind_ === original!.Kind_ && node!.Loc.$equals_TextRange(original!.Loc)) {
+    if (node!.Kind_ === original!.Kind_ && node!.Loc.$equals_core_TextRange(original!.Loc)) {
       return node;
     }
     let foundContainingChild: boolean = node!.ForEachChild$Node((n: Node | undefined): boolean => {
@@ -31104,5 +31309,5 @@ export function NewNodeVisitor(
   if (factory === undefined) {
     factory = new NodeFactory();
   }
-  return NodeVisitor.$lit_NodeVisitor_0_1_2(visit, factory, hooks);
+  return NodeVisitor.$lit_ast_NodeVisitor_0_1_2(visit, factory, hooks);
 }

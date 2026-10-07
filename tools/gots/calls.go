@@ -9,7 +9,11 @@ import (
 )
 
 func (x *fn) call(e *ast.CallExpr) string {
-	return x.callWithArgs(e, nil)
+	s := x.callWithArgs(e, nil)
+	if x.isStdFunc(unparen(e.Fun)) {
+		return x.stdCast(s, x.info.TypeOf(e))
+	}
+	return s
 }
 
 // callWithArgs translates a call; when args is non-nil it holds already
@@ -42,13 +46,36 @@ func (x *fn) callWithArgs(e *ast.CallExpr, args []string) string {
 	if r, ok := x.suffixCall(fun, e); ok {
 		return r
 	}
+	// maps.Keys/Values/Clone/Copy on struct-keyed maps.
+	if sel, ok := fun.(*ast.SelectorExpr); ok && len(e.Args) > 0 {
+		if id, ok := sel.X.(*ast.Ident); ok {
+			if pn, ok := x.info.Uses[id].(*types.PkgName); ok && pn.Imported().Path() == "maps" {
+				if m, ok := under(x.info.TypeOf(e.Args[0])).(*types.Map); ok && isStructKey(m.Key()) {
+					var as []string
+					for _, a := range e.Args {
+						as = append(as, x.expr(a))
+					}
+					return "$rt.structMap_" + sel.Sel.Name + "(" + strings.Join(as, ", ") + ")"
+				}
+			}
+		}
+	}
 	sig, _ := under(x.info.TypeOf(e.Fun)).(*types.Signature)
 	if args == nil {
 		args = x.args(e, sig)
 	}
+	if x.isStdFunc(fun) {
+		defer func() {}()
+	}
 	if sel, ok := fun.(*ast.SelectorExpr); ok {
 		if s := x.info.Selections[sel]; s != nil && s.Kind() == types.MethodVal {
 			recv := x.expr(sel.X)
+			// (*T)(nil).M(): the method only uses the receiver's type.
+			if conv, ok := unparen(sel.X).(*ast.CallExpr); ok && len(conv.Args) == 1 && isNilType(x.info.TypeOf(conv.Args[0])) {
+				if p, ok := x.info.TypeOf(sel.X).(*types.Pointer); ok && isStructType(p.Elem()) {
+					recv = x.f.zero(p.Elem())
+				}
+			}
 			return x.methodCallOn(sel, recv, args)
 		}
 	}
@@ -157,6 +184,13 @@ func (x *fn) argExpr(e *ast.CallExpr, sig *types.Signature, i int, a ast.Expr) s
 }
 
 func (x *fn) conversion(e *ast.CallExpr, to types.Type, args []string) string {
+	if _, isTP := types.Unalias(to).(*types.TypeParam); isTP && !isIfaceType(to) {
+		return "(" + x.conversionInner(e, to, args) + " as unknown as " + x.f.tsType(to) + ")"
+	}
+	return x.conversionInner(e, to, args)
+}
+
+func (x *fn) conversionInner(e *ast.CallExpr, to types.Type, args []string) string {
 	arg := e.Args[0]
 	from := x.info.TypeOf(arg)
 	var v string
@@ -247,11 +281,20 @@ func (x *fn) builtin(e *ast.CallExpr, name string, pre []string) string {
 		if vw := x.viewOf(e.Args[0]); vw != nil {
 			return vw.n
 		}
+		if sh := x.shadowOf(e.Args[0]); sh != "" {
+			return sh + ".length"
+		}
 		t := under(x.info.TypeOf(e.Args[0]))
-		switch t.(type) {
+		switch tm := t.(type) {
 		case *types.Map:
+			if isStructKey(tm.Key()) {
+				return "$rt.structMapLen(" + arg(0) + ")"
+			}
 			return "$rt.mapLen(" + arg(0) + ")"
 		case *types.Pointer:
+			if isArrayPtr(x.info.TypeOf(e.Args[0])) {
+				return arg(0) + "!.length"
+			}
 			return arg(0) + "!.get().length"
 		case *types.Chan:
 			return x.unsupportedExpr(e, x.f.t.stub(e.Pos(), "len of channel"))
@@ -293,13 +336,13 @@ func (x *fn) builtin(e *ast.CallExpr, name string, pre []string) string {
 			}
 			return fmt.Sprintf("$rt.makeSlice<%s>(%s, %s)", x.f.tsType(u.Elem()), n, z)
 		case *types.Map:
-			return "new Map<" + x.f.keyType(u.Key()) + ", " + x.f.tsType(u.Elem()) + ">()"
+			return x.f.newMap(u)
 		case *types.Chan:
 			return x.unsupportedExpr(e, x.f.t.stub(e.Pos(), "make channel"))
 		}
 	case "new":
 		t := x.info.TypeOf(e.Args[0])
-		if isStructType(t) {
+		if isStructType(t) || isArrayType(t) {
 			return x.f.zero(t)
 		}
 		return "new $rt.Ptr<" + x.f.tsType(t) + ">(" + x.f.zero(t) + ")"
@@ -307,6 +350,22 @@ func (x *fn) builtin(e *ast.CallExpr, name string, pre []string) string {
 		t := under(x.info.TypeOf(e.Args[0])).(*types.Map)
 		return arg(0) + "?.delete(" + x.mapKey(e.Args[1], t.Key()) + ")"
 	case "copy":
+		if sl, ok := unparen(e.Args[0]).(*ast.SliceExpr); ok && !sl.Slice3 {
+			if _, isStr := under(x.info.TypeOf(sl.X)).(*types.Basic); !isStr {
+				src := x.expr(e.Args[1])
+				if b, ok := under(x.info.TypeOf(e.Args[1])).(*types.Basic); ok && b.Info()&types.IsString != 0 {
+					src = "$rt.stringToBytes(" + src + ")"
+				}
+				lo, hi := "0", "-1"
+				if sl.Low != nil {
+					lo = x.expr(sl.Low)
+				}
+				if sl.High != nil {
+					hi = x.expr(sl.High)
+				}
+				return "$rt.copyAt(" + x.expr(sl.X) + ", " + lo + ", " + hi + ", " + src + ")"
+			}
+		}
 		src := arg(1)
 		if b, ok := under(x.info.TypeOf(e.Args[1])).(*types.Basic); ok && b.Info()&types.IsString != 0 {
 			src = "$rt.stringToBytes(" + src + ")"
@@ -327,7 +386,10 @@ func (x *fn) builtin(e *ast.CallExpr, name string, pre []string) string {
 		return "Math." + name + "(" + strings.Join(parts, ", ") + ")"
 	case "clear":
 		t := under(x.info.TypeOf(e.Args[0]))
-		if _, ok := t.(*types.Map); ok {
+		if m, ok := t.(*types.Map); ok {
+			if isStructKey(m.Key()) {
+				return arg(0) + "?.clear()"
+			}
 			return "$rt.clearMap(" + arg(0) + ")"
 		}
 		sl := t.(*types.Slice)
@@ -390,6 +452,12 @@ func (x *fn) suffixCall(fun ast.Expr, e *ast.CallExpr) (string, bool) {
 	if !ok || len(e.Args) == 0 {
 		return "", false
 	}
+	// binary.LittleEndian.PutUintN(b[i:], v) writes into b in place.
+	if inner, ok := sel.X.(*ast.SelectorExpr); ok && inner.Sel.Name == "LittleEndian" && strings.HasPrefix(sel.Sel.Name, "PutUint") && len(e.Args) == 2 {
+		if sl, ok := unparen(e.Args[0]).(*ast.SliceExpr); ok && sl.Low != nil {
+			return "$rt.put" + strings.TrimPrefix(sel.Sel.Name, "Put") + "LE(" + x.expr(sl.X) + ", " + x.expr(sl.Low) + ", " + x.expr(e.Args[1]) + ")", true
+		}
+	}
 	id, ok := sel.X.(*ast.Ident)
 	if !ok {
 		return "", false
@@ -408,6 +476,9 @@ func (x *fn) suffixCall(fun ast.Expr, e *ast.CallExpr) (string, bool) {
 	str, off := x.expr(sl.X), x.expr(sl.Low)
 	switch pn.Imported().Path() + "." + sel.Sel.Name {
 	case "unicode/utf8.DecodeRuneInString":
+		if sh := x.shadowOf(sl.X); sh != "" {
+			return "$rt.utf8_DecodeRuneBytesAt(" + sh + ", " + off + ")", true
+		}
 		return "$rt.utf8_DecodeRuneInStringAt(" + str + ", " + off + ")", true
 	case "strings.HasPrefix":
 		return str + ".startsWith(" + x.expr(e.Args[1]) + ", " + off + ")", true
@@ -438,4 +509,35 @@ func (x *fn) inferredTypeArgs(fun ast.Expr) string {
 		return ""
 	}
 	return x.f.typeArgs(inst.TypeArgs)
+}
+
+// stdCast converts a value produced by library code to the type translated
+// code uses, when the runtime declares it differently (library interfaces
+// that translated types implement are GoObject in the runtime).
+func (x *fn) stdCast(text string, tt types.Type) string {
+	if tt == nil {
+		return text
+	}
+	normal := x.f.tsType(tt)
+	x.f.runtime = true
+	rt := x.f.tsType(tt)
+	x.f.runtime = false
+	if normal == rt {
+		return text
+	}
+	return "(" + text + " as unknown as " + normal + ")"
+}
+
+func (x *fn) isStdFunc(fun ast.Expr) bool {
+	var id *ast.Ident
+	switch f := fun.(type) {
+	case *ast.Ident:
+		id = f
+	case *ast.SelectorExpr:
+		id = f.Sel
+	default:
+		return false
+	}
+	fn, ok := x.info.Uses[id].(*types.Func)
+	return ok && fn.Pkg() != nil && !x.f.t.translated(fn.Pkg())
 }

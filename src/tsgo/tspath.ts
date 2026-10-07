@@ -18,27 +18,38 @@ export type Path = string;
 export class ComparePathsOptions extends $rt.GoObject {
   UseCaseSensitiveFileNames: boolean = false;
   CurrentDirectory: string = '';
-  $copy_ComparePathsOptions(src: ComparePathsOptions): void {
+  $copy_tspath_ComparePathsOptions(src: ComparePathsOptions): void {
     this.UseCaseSensitiveFileNames = src.UseCaseSensitiveFileNames;
     this.CurrentDirectory = src.CurrentDirectory;
   }
-  $equals_ComparePathsOptions(o: ComparePathsOptions): boolean {
+  $equals_tspath_ComparePathsOptions(o: ComparePathsOptions): boolean {
     return (
       this.UseCaseSensitiveFileNames === o.UseCaseSensitiveFileNames && this.CurrentDirectory === o.CurrentDirectory
     );
   }
-  $clone_ComparePathsOptions(): ComparePathsOptions {
+  $clone_tspath_ComparePathsOptions(): ComparePathsOptions {
     const o = new ComparePathsOptions();
-    o.$copy_ComparePathsOptions(this);
+    o.$copy_tspath_ComparePathsOptions(this);
     return o;
   }
-  static $lit_ComparePathsOptions_0_1(p0: boolean, p1: string): ComparePathsOptions {
+  static $lit_tspath_ComparePathsOptions_0(p0: boolean): ComparePathsOptions {
+    const o = new ComparePathsOptions();
+    o.UseCaseSensitiveFileNames = p0;
+    return o;
+  }
+  static $lit_tspath_ComparePathsOptions_0_1(p0: boolean, p1: string): ComparePathsOptions {
     const o = new ComparePathsOptions();
     o.UseCaseSensitiveFileNames = p0;
     o.CurrentDirectory = p1;
     return o;
   }
-  static $cast_ComparePathsOptions(v: $rt.GoObject | undefined): ComparePathsOptions {
+  static $lit_tspath_ComparePathsOptions_1_0(p0: string, p1: boolean): ComparePathsOptions {
+    const o = new ComparePathsOptions();
+    o.CurrentDirectory = p0;
+    o.UseCaseSensitiveFileNames = p1;
+    return o;
+  }
+  static $cast_tspath_ComparePathsOptions(v: $rt.GoObject | undefined): ComparePathsOptions {
     if (v instanceof ComparePathsOptions) return v;
     throw $rt.typeAssertError();
   }
@@ -66,6 +77,12 @@ export const ExtensionTs: string = '.ts';
 export const ExtensionTsBuildInfo: string = '.tsbuildinfo';
 export const ExtensionTsx: string = '.tsx';
 export const urlSchemeSeparator: string = '://';
+const $fn0 = (r: number): number => {
+  if (r === (304 as number)) {
+    return r;
+  }
+  return $rt.unicode_ToLower(r);
+};
 export let SupportedDeclarationExtensions: string[] = ['.d.ts', '.d.cts', '.d.mts'];
 export let SupportedTSImplementationExtensions: string[] = ['.ts', '.tsx', '.mts', '.cts'];
 export let supportedTSExtensionsForExtractExtension: string[] = [
@@ -379,7 +396,7 @@ export function pathComponents(path: string, rootLength: number): string[] {
   let root: string = path.substring(0, rootLength);
   let rest: string[] = $rt.strings_Split(path.substring(rootLength), '/');
   if (rest.length > 0 && rest[rest.length - 1] === ('' as string)) {
-    rest = rest.slice(0, rest.length - 1);
+    rest = $rt.reslice(rest, 0, rest.length - 1, '');
   }
   return $rt.appendCopy([root], rest);
 }
@@ -510,7 +527,7 @@ export function reducePathComponents(components: string[]): string[] {
       if (component === ('..' as string)) {
         if (reduced.length > 1) {
           if (!(reduced[reduced.length - 1] === ('..' as string))) {
-            reduced = reduced.slice(0, reduced.length - 1);
+            reduced = $rt.reslice(reduced, 0, reduced.length - 1, '');
             continue;
           }
         } else if (!(reduced[0] === ('' as string))) {
@@ -565,7 +582,7 @@ export function getNormalizedPathComponentsFromCombined(path: string): string[] 
       if (component === ('..' as string)) {
         if (components.length > 1) {
           if (!(components[components.length - 1] === ('..' as string))) {
-            components = components.slice(0, components.length - 1);
+            components = $rt.reslice(components, 0, components.length - 1, '');
             continue;
           }
         } else if (!(components[0] === ('' as string))) {
@@ -861,12 +878,7 @@ export function ToFileNameLowerCase(fileName: string): string {
     }
     return $rt.bytesToString(b.slice(0, 0 + b.length));
   }
-  return $rt.strings_Map((r: number): number => {
-    if (r === (304 as number)) {
-      return r;
-    }
-    return $rt.unicode_ToLower(r);
-  }, fileName);
+  return $rt.strings_Map($fn0, fileName);
 }
 export function ToPath(fileName: string, basePath: string, useCaseSensitiveFileNames: boolean): Path {
   let nonCanonicalizedPath: string = '';
@@ -1120,10 +1132,10 @@ export function ComparePaths(a: string, b: string, options: ComparePathsOptions)
   return $rt.cmp_Compare(aComponents.length, bComponents.length);
 }
 export function ComparePathsCaseSensitive(a: string, b: string, currentDirectory: string): number {
-  return ComparePaths(a, b, ComparePathsOptions.$lit_ComparePathsOptions_0_1(true, currentDirectory));
+  return ComparePaths(a, b, ComparePathsOptions.$lit_tspath_ComparePathsOptions_0_1(true, currentDirectory));
 }
 export function ComparePathsCaseInsensitive(a: string, b: string, currentDirectory: string): number {
-  return ComparePaths(a, b, ComparePathsOptions.$lit_ComparePathsOptions_0_1(false, currentDirectory));
+  return ComparePaths(a, b, ComparePathsOptions.$lit_tspath_ComparePathsOptions_0_1(false, currentDirectory));
 }
 export function ContainsPath(parent: string, child: string, options: ComparePathsOptions): boolean {
   parent = CombinePaths(options.CurrentDirectory, [parent]);
@@ -1145,7 +1157,9 @@ export function ContainsPath(parent: string, child: string, options: ComparePath
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
       let i = $t2;
       let parentComponent = $t1[$t2];
-      let comparer: ((p0: string, p1: string) => boolean) | undefined = undefined;
+      let comparer: ((p0: string, p1: string) => boolean) | undefined = undefined as
+        | ((p0: string, p1: string) => boolean)
+        | undefined;
       if (i === (0 as number)) {
         comparer = $stringutil.EquateStringCaseInsensitive;
       } else {
@@ -1242,7 +1256,7 @@ export function GetCommonParents(
   options: ComparePathsOptions,
 ): [string[], Map<string, $rt.Empty> | undefined] {
   let parents: string[] = [];
-  let ignored: Map<string, $rt.Empty> | undefined = undefined;
+  let ignored: Map<string, $rt.Empty> | undefined = undefined as Map<string, $rt.Empty> | undefined;
   if (minComponents < 1) {
     throw $rt.newPanic(new $rt.BoxStr('minComponents must be at least 1', 'string'));
   }
@@ -1330,7 +1344,7 @@ export function getCommonParentsWorker(
                 newGroups!.set(
                   key,
                   new $Anon0(
-                    g.slice(0, lastCommonIndex + 1),
+                    $rt.reslice(g, 0, lastCommonIndex + 1, ''),
                     $rt.appendCopy((newGroups?.get(key) ?? new $Anon0()).tails, [g.slice(lastCommonIndex + 1)]),
                   ),
                 );
@@ -1359,12 +1373,12 @@ export function getCommonParentsWorker(
             }
             return result;
           }
-          return [componentGroups[0].slice(0, lastCommonIndex)];
+          return [$rt.reslice(componentGroups[0], 0, lastCommonIndex, '')];
         }
       }
     }
   }
-  return [componentGroups[0].slice(0, maxDepth)];
+  return [$rt.reslice(componentGroups[0], 0, maxDepth, '')];
 }
 export function StartsWithDirectory(
   fileName: string,

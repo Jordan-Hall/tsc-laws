@@ -10,6 +10,10 @@ import {
   imod,
   bytesToString,
   objectId,
+  StructMap,
+  ifaceKey,
+  Chan,
+  Empty,
   toHostString,
   fromHostString,
 } from './base.js';
@@ -1170,7 +1174,15 @@ export class regexp_Regexp extends GoObject {
   constructor(src = '') {
     super();
     this.src = src;
-    this.re = new RegExp(toRegExpSource(src), 'gu');
+    // Leading (?flags) groups become RegExp flags.
+    let pattern = toRegExpSource(src);
+    let flags = 'gu';
+    const m = /^\(\?([imsU]+)\)/.exec(pattern);
+    if (m !== null) {
+      pattern = pattern.substring(m[0].length);
+      for (const f of m[1]) if (f !== 'U' && flags.indexOf(f) < 0) flags += f;
+    }
+    this.re = new RegExp(pattern, flags);
   }
   MatchString(s: string): boolean {
     this.re.lastIndex = 0;
@@ -1191,6 +1203,26 @@ export class regexp_Regexp extends GoObject {
   ReplaceAllString(s: string, repl: string): string {
     const r = toHostString(repl);
     return fromHostString(this.replaceAll(toHostString(s), (m: string[]): string => expandTemplate(r, m)));
+  }
+  FindStringSubmatch(s: string): string[] {
+    return regexp_Regexp_FindStringSubmatch(this, s);
+  }
+  Split(s: string, n: number): string[] {
+    if (n === 0) return [];
+    const h = toHostString(s);
+    const out: string[] = [];
+    let last = 0;
+    this.re.lastIndex = 0;
+    for (let m = this.re.exec(h); m !== null && (n < 0 || out.length < n - 1); m = this.re.exec(h)) {
+      if (m[0].length === 0) {
+        this.re.lastIndex = this.re.lastIndex + 1;
+        if (m.index === 0 || m.index >= h.length) continue;
+      }
+      out.push(fromHostString(h.substring(last, m.index)));
+      last = m.index + m[0].length;
+    }
+    out.push(fromHostString(h.substring(last)));
+    return out;
   }
   ReplaceAllStringFunc(s: string, f: ((m: string) => string) | undefined): string {
     return fromHostString(
@@ -1261,3 +1293,167 @@ export class checker_nodeLinkStore<V> extends GoObject {
   }
 }
 export class checker_symbolArenaLinkStore<V> extends checker_nodeLinkStore<V> {}
+
+export function regexp_Regexp_FindStringSubmatch(re: regexp_Regexp, s: string): string[] {
+  re.re.lastIndex = 0;
+  const m = re.re.exec(toHostString(s));
+  if (m === null) return [];
+  const out: string[] = [];
+  for (let i = 0; i < m.length; i++) out.push(m[i] === undefined ? '' : fromHostString(m[i]));
+  return out;
+}
+
+// xxh3: the checker uses 128-bit hashes of key bytes as map keys. The key
+// bytes themselves serve as an exact, collision-free key. The zero value is
+// distinct from every hash, as in Go.
+export class github_com_zeebo_xxh3_Uint128 extends GoObject {
+  key: string;
+  hashed: boolean;
+  constructor(key = '', hashed = false) {
+    super();
+    this.key = key;
+    this.hashed = hashed;
+  }
+  override String(): string {
+    return this.hashed ? 'h' + this.key : 'z';
+  }
+  $equals(o: github_com_zeebo_xxh3_Uint128): boolean {
+    return this.hashed === o.hashed && this.key === o.key;
+  }
+  Bytes(): number[] {
+    const out: number[] = [];
+    for (let i = 0; i < this.key.length; i++) out.push(this.key.charCodeAt(i));
+    return out;
+  }
+  $clone(): github_com_zeebo_xxh3_Uint128 {
+    return this;
+  }
+}
+// Hashes are interned, so equal keys are the same object; generic containers
+// keyed by object identity then compare them by value, as Go does.
+const hashes = new Map<string, github_com_zeebo_xxh3_Uint128>();
+export function github_com_zeebo_xxh3_HashString128(s: string): github_com_zeebo_xxh3_Uint128 {
+  let h = hashes.get(s);
+  if (h === undefined) {
+    h = new github_com_zeebo_xxh3_Uint128(s, true);
+    hashes.set(s, h);
+  }
+  return h;
+}
+export function github_com_zeebo_xxh3_Hash128(b: number[]): github_com_zeebo_xxh3_Uint128 {
+  return github_com_zeebo_xxh3_HashString128(bytesToString(b));
+}
+
+// maps.* for struct-keyed maps.
+export function structMap_Keys<K, V>(m: StructMap<K, V> | undefined): Seq<K> {
+  return (y: ((k: K) => boolean) | undefined): void => {
+    if (m !== undefined) for (const k of m.keys.values()) if (!y!(k)) return;
+  };
+}
+export function structMap_Values<K, V>(m: StructMap<K, V> | undefined): Seq<V> {
+  return (y: ((v: V) => boolean) | undefined): void => {
+    if (m !== undefined) for (const v of m.vals.values()) if (!y!(v)) return;
+  };
+}
+export function structMap_Clone<K, V>(m: StructMap<K, V> | undefined): StructMap<K, V> | undefined {
+  if (m === undefined) return undefined;
+  const out = new StructMap<K, V>(m.keyOf);
+  for (const [k, v] of m.entryList()) out.set(k, v);
+  return out;
+}
+export function structMap_Copy<K, V>(dst: StructMap<K, V> | undefined, src: StructMap<K, V> | undefined): void {
+  if (src !== undefined) for (const [k, v] of src.entryList()) dst!.set(k, v);
+}
+
+// context: a background context that is never cancelled, with values.
+export class context_Context extends GoObject {
+  parent: context_Context | undefined;
+  key: GoObject | undefined;
+  val: GoObject | undefined;
+  constructor(
+    parent: context_Context | undefined = undefined,
+    key: GoObject | undefined = undefined,
+    val: GoObject | undefined = undefined,
+  ) {
+    super();
+    this.parent = parent;
+    this.key = key;
+    this.val = val;
+  }
+  Done(): Chan<Empty> | undefined {
+    return undefined;
+  }
+  Err(): GoObject | undefined {
+    return undefined;
+  }
+  Value(key: GoObject | undefined): GoObject | undefined {
+    if (this.key !== undefined && ifaceKey(this.key) === ifaceKey(key)) return this.val;
+    return this.parent === undefined ? undefined : this.parent.Value(key);
+  }
+}
+const backgroundContext = new context_Context();
+export function context_Background(): context_Context | undefined {
+  return backgroundContext;
+}
+export function context_TODO(): context_Context | undefined {
+  return backgroundContext;
+}
+export function context_WithValue(
+  parent: context_Context | undefined,
+  key: GoObject | undefined,
+  val: GoObject | undefined,
+): context_Context | undefined {
+  return new context_Context(parent, key, val);
+}
+
+// More slices, strings, bytes, errors and math functions.
+export function slices_Compact<T>(s: T[]): T[] {
+  const out: T[] = [];
+  for (let i = 0; i < s.length; i++) if (i === 0 || s[i] !== s[i - 1]) out.push(s[i]);
+  return out;
+}
+export function slices_CompareFunc<T, U>(a: T[], b: U[], cmp: ((x: T, y: U) => number) | undefined): number {
+  const n = Math.min(a.length, b.length);
+  for (let i = 0; i < n; i++) {
+    const c = cmp!(a[i], b[i]);
+    if (c !== 0) return c;
+  }
+  return a.length < b.length ? -1 : a.length > b.length ? 1 : 0;
+}
+export function slices_DeleteFunc<T>(s: T[], del: ((v: T) => boolean) | undefined): T[] {
+  const out: T[] = [];
+  for (const v of s) if (!del!(v)) out.push(v);
+  return out;
+}
+export function slices_Repeat<T>(s: T[], count: number): T[] {
+  const out: T[] = [];
+  for (let i = 0; i < count; i++) for (const v of s) out.push(v);
+  return out;
+}
+export function slices_Sorted<T>(seq: Seq<T>): T[] {
+  const out = slices_Collect<T>(seq);
+  mergeSort(out, cmp_Compare);
+  return out;
+}
+export function strings_Clone(s: string): string {
+  return s;
+}
+export function strings_ContainsFunc(s: string, f: ((r: number) => boolean) | undefined): boolean {
+  return strings_IndexFunc(s, f) >= 0;
+}
+export function unicode_utf8_RuneStart(b: number): boolean {
+  return (b & 0xc0) !== 0x80;
+}
+export function bytes_Equal(a: number[], b: number[]): boolean {
+  return slices_Equal(a, b);
+}
+export function errors_Join(errs: (GoObject | undefined)[]): GoObject | undefined {
+  const msgs: string[] = [];
+  for (const e of errs) if (e !== undefined) msgs.push(e.Error());
+  return msgs.length === 0 ? undefined : new GoError(msgs.join('\n'));
+}
+export function math_Float64bits(f: number): number {
+  const view = new DataView(new ArrayBuffer(8));
+  view.setFloat64(0, f, true);
+  return view.getUint32(4, true) * 4294967296 + view.getUint32(0, true);
+}

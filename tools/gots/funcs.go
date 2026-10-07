@@ -85,6 +85,8 @@ func (x *fn) name(v *types.Var) string {
 	n := base
 	if c := x.used[base]; c > 0 {
 		n = fmt.Sprintf("%s$%d", base, c)
+	} else if _, isType := x.f.p.p.Types.Scope().Lookup(v.Name()).(*types.TypeName); isType {
+		n = base + "$v"
 	}
 	x.used[base]++
 	x.names[v] = n
@@ -229,7 +231,11 @@ func (x *fn) body(body *ast.BlockStmt, ft *ast.FuncType) {
 		for i := 0; i < res.Len(); i++ {
 			v := res.At(i)
 			n := x.name(v)
-			x.line("let %s: %s = %s;", n, x.f.tsType(v.Type()), x.f.zero(v.Type()))
+			z := x.f.zero(v.Type())
+			if z == "undefined" {
+				z = "undefined as " + x.f.tsType(v.Type())
+			}
+			x.line("let %s: %s = %s;", n, x.f.tsType(v.Type()), z)
 			x.results = append(x.results, n)
 		}
 	}
@@ -505,7 +511,7 @@ func (x *fn) returnStmt(s *ast.ReturnStmt) {
 			x.flushPre()
 			if len(vals) > 1 {
 				t := x.tmp()
-				x.line("const %s = [%s] as const;", t, strings.Join(vals, ", "))
+				x.line("const %s: %s = [%s];", t, x.f.tsType(x.sig.Results()), strings.Join(vals, ", "))
 				for i, r := range x.results {
 					x.line("%s = %s[%d];", r, t, i)
 				}
@@ -533,6 +539,16 @@ func (x *fn) returnValue(results []ast.Expr) string {
 	res := x.sig.Results()
 	if len(results) == 1 {
 		if res.Len() > 1 {
+			// return f(): convert each element when the types differ.
+			if tuple, ok := x.info.TypeOf(results[0]).(*types.Tuple); ok && !types.Identical(tuple, res) {
+				t := x.tmp()
+				x.pre = append(x.pre, fmt.Sprintf("const %s = %s;\n", t, x.expr(results[0])))
+				vals := make([]string, res.Len())
+				for i := range vals {
+					vals[i] = x.convertValue(fmt.Sprintf("%s[%d]", t, i), nil, tuple.At(i).Type(), res.At(i).Type())
+				}
+				return "[" + strings.Join(vals, ", ") + "]"
+			}
 			return x.expr(results[0])
 		}
 		return x.valueExpr(results[0], res.At(0).Type())
@@ -589,7 +605,13 @@ func (x *fn) declStmt(s *ast.DeclStmt) {
 			if len(vs.Values) == 0 {
 				for _, id := range vs.Names {
 					v := x.info.Defs[id].(*types.Var)
-					x.line("let %s: %s = %s;", x.name(v), x.f.tsType(v.Type()), x.f.zero(v.Type()))
+					z := x.f.zero(v.Type())
+					if z == "undefined" {
+						// Avoid TypeScript narrowing the variable to undefined
+						// when it is only assigned inside closures.
+						z = "undefined as " + x.f.tsType(v.Type())
+					}
+					x.line("let %s: %s = %s;", x.name(v), x.f.tsType(v.Type()), z)
 				}
 				continue
 			}
@@ -874,6 +896,10 @@ func (x *fn) rangeStmt(s *ast.RangeStmt, label string) {
 		e := x.expr(s.X)
 		x.flushPre()
 		empty := "new " + strings.TrimSuffix(x.f.tsType(u), " | undefined") + "()"
+		if isStructKey(u.Key()) {
+			e = "(" + e + ")?.entryList()"
+			empty = "[]"
+		}
 		k, v := key.name, val.name
 		if k == "" {
 			k = x.tmp()
@@ -1218,7 +1244,7 @@ func (x *fn) typeSwitch(s *ast.TypeSwitchStmt, label string) {
 	subj := x.tmp()
 	v := x.expr(subject)
 	x.flushPre()
-	x.line("const %s = %s;", subj, v)
+	x.line("const %s: %s = %s;", subj, x.f.tsType(x.info.TypeOf(subject)), v)
 	tsLabel := label
 	if tsLabel == "" {
 		tsLabel = fmt.Sprintf("$sw%d", *x.tmpN+1)
@@ -1229,6 +1255,18 @@ func (x *fn) typeSwitch(s *ast.TypeSwitchStmt, label string) {
 	x.targets = append(x.targets, target{kind: "switch", label: strings.TrimSuffix(label, "_"), ts: tsLabel})
 	var def *ast.CaseClause
 	first := true
+	// Go interfaces can hold typed nil pointers, which match their pointer
+	// case. Nil values here are untyped, so without a nil case they go to
+	// the first pointer case.
+	hasNilCase := false
+	for _, c := range s.Body.List {
+		for _, e := range c.(*ast.CaseClause).List {
+			if isNilType(x.info.TypeOf(e)) {
+				hasNilCase = true
+			}
+		}
+	}
+	nilRouted := hasNilCase
 	for _, c := range s.Body.List {
 		cc := c.(*ast.CaseClause)
 		if cc.List == nil {
@@ -1236,8 +1274,16 @@ func (x *fn) typeSwitch(s *ast.TypeSwitchStmt, label string) {
 			continue
 		}
 		var conds []string
+		routedHere := false
 		for _, e := range cc.List {
 			conds = append(conds, x.typeTest(subj, x.info.TypeOf(e), e))
+			if !nilRouted {
+				if _, isPtr := types.Unalias(x.info.TypeOf(e)).(*types.Pointer); isPtr {
+					conds = append(conds, subj+" === undefined")
+					nilRouted = true
+					routedHere = true
+				}
+			}
 		}
 		kw := "if"
 		if !first {
@@ -1254,6 +1300,9 @@ func (x *fn) typeSwitch(s *ast.TypeSwitchStmt, label string) {
 				}
 				if len(cc.List) == 1 && x.castClass(obj.Type()) != "" && (isStructType(obj.Type()) || isPtrToStruct(obj.Type())) {
 					val = subj
+				}
+				if routedHere && len(cc.List) == 1 {
+					val = subj + " === undefined ? undefined : " + x.unbox(subj, obj.Type())
 				}
 				x.line("const %s: %s = %s;", x.name(obj), x.f.tsType(obj.Type()), val)
 			}
@@ -1338,6 +1387,9 @@ func (x *fn) ifaceTest(v string, n *types.Named, it *types.Interface) string {
 		return fmt.Sprintf("$rt.hasMethods(%s, [%s])", v, strings.Join(names, ", "))
 	}
 	if n != nil {
+		if m := x.f.t.ifaces[n.Origin().Obj()]; m != nil && m.stub {
+			return v + " instanceof " + x.f.qualify(n.Origin().Obj())
+		}
 		if m := x.f.t.ifaces[n.Origin().Obj()]; m != nil {
 			if m.base != nil {
 				return v + " instanceof " + x.f.qualify(m.base)
@@ -1422,9 +1474,12 @@ func (x *fn) castClass(tt types.Type) string {
 	}
 	tn := n.Origin().Obj()
 	if it, ok := n.Underlying().(*types.Interface); ok {
+		if m := x.f.t.ifaces[tn]; m != nil && m.stub {
+			return x.f.qualify(tn) + ".$cast_" + x.f.t.helperKey(tn)
+		}
 		if m := x.f.t.ifaces[tn]; m != nil && m.base != nil && it.NumMethods() > 0 && x.f.dependsOn(m.base.Pkg()) {
 			if bn, ok := m.base.Type().(*types.Named); ok && bn.TypeParams().Len() == 0 {
-				return x.f.qualify(m.base) + ".$cast_" + x.f.t.typeName(m.base)
+				return x.f.qualify(m.base) + ".$cast_" + x.f.t.helperKey(m.base)
 			}
 		}
 		return ""
@@ -1436,7 +1491,7 @@ func (x *fn) castClass(tt types.Type) string {
 		return ""
 	}
 	if c := x.f.t.classOf(tn); c != nil && n.Origin().TypeParams().Len() == 0 {
-		return x.f.qualify(c.name) + ".$cast_" + x.f.t.typeName(c.name)
+		return x.f.qualify(c.name) + ".$cast_" + x.f.t.helperKey(c.name)
 	}
 	return ""
 }
@@ -1444,7 +1499,7 @@ func (x *fn) castClass(tt types.Type) string {
 // unbox extracts a typed value from an interface value known to hold it.
 func (x *fn) unbox(v string, tt types.Type) string {
 	if c := x.castClass(tt); c != "" {
-		if !isIfaceType(tt) && !isStructType(tt) {
+		if isBoxedNamed(x, tt) {
 			return c + "(" + v + ").v"
 		}
 		return c + "(" + v + ")"
@@ -1457,6 +1512,9 @@ func (x *fn) unbox(v string, tt types.Type) string {
 	}
 	if isStructType(tt) || isPtrToStruct(tt) {
 		return "(" + v + " as " + x.f.tsType(tt) + ")"
+	}
+	if _, isTP := types.Unalias(tt).(*types.TypeParam); isTP {
+		return "$rt.unboxAny<" + x.f.tsType(tt) + ">(" + v + ")"
 	}
 	if b, ok := under(tt).(*types.Basic); ok {
 		switch basicKind(b) {
@@ -1517,4 +1575,14 @@ func (x *fn) ifaceClassesReachable(n *types.Named, it *types.Interface) bool {
 func isPtrToStruct(tt types.Type) bool {
 	p, ok := types.Unalias(tt).(*types.Pointer)
 	return ok && isStructType(p.Elem())
+}
+
+// isBoxedNamed reports whether values of tt live in interfaces inside a
+// generated per-type box class (named non-struct types with methods).
+func isBoxedNamed(x *fn, tt types.Type) bool {
+	n, ok := types.Unalias(tt).(*types.Named)
+	if !ok || isStructType(n) || isIfaceType(n) {
+		return false
+	}
+	return x.f.t.translated(n.Obj().Pkg()) && x.f.boxedBy(n.Origin().Obj())
 }

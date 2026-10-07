@@ -2,6 +2,9 @@
 import * as $rt from '../go/runtime.js';
 import type * as $ast from './ast.js';
 import type * as $diagnostics from './diagnostics.js';
+import type * as $json from './json.js';
+import type * as $packagejson from './packagejson.js';
+import type * as $tracing from './tracing.js';
 export class Box__ast_Expression extends $rt.GoObject {
   v: $ast.Node | undefined;
   constructor(v: $ast.Node | undefined) {
@@ -35,6 +38,72 @@ export class Box_____int32 extends $rt.GoObject {
     throw $rt.typeAssertError();
   }
 }
+export class Box___any extends $rt.GoObject {
+  v: ($rt.GoObject | undefined)[];
+  constructor(v: ($rt.GoObject | undefined)[]) {
+    super();
+    this.v = v;
+  }
+  static $cast(v: $rt.GoObject | undefined): Box___any {
+    if (v instanceof Box___any) return v;
+    throw $rt.typeAssertError();
+  }
+}
+export class Box___byte extends $rt.GoObject {
+  v: number[];
+  constructor(v: number[]) {
+    super();
+    this.v = v;
+  }
+  static $cast(v: $rt.GoObject | undefined): Box___byte {
+    if (v instanceof Box___byte) return v;
+    throw $rt.typeAssertError();
+  }
+}
+export class Box___packagejson_ExportsOrImports extends $rt.GoObject {
+  v: $packagejson.ExportsOrImports[];
+  constructor(v: $packagejson.ExportsOrImports[]) {
+    super();
+    this.v = v;
+  }
+  static $cast(v: $rt.GoObject | undefined): Box___packagejson_ExportsOrImports {
+    if (v instanceof Box___packagejson_ExportsOrImports) return v;
+    throw $rt.typeAssertError();
+  }
+}
+export class Box___packagejson_JSONValue extends $rt.GoObject {
+  v: $packagejson.JSONValue[];
+  constructor(v: $packagejson.JSONValue[]) {
+    super();
+    this.v = v;
+  }
+  static $cast(v: $rt.GoObject | undefined): Box___packagejson_JSONValue {
+    if (v instanceof Box___packagejson_JSONValue) return v;
+    throw $rt.typeAssertError();
+  }
+}
+export class Box___string extends $rt.GoObject {
+  v: string[];
+  constructor(v: string[]) {
+    super();
+    this.v = v;
+  }
+  static $cast(v: $rt.GoObject | undefined): Box___string {
+    if (v instanceof Box___string) return v;
+    throw $rt.typeAssertError();
+  }
+}
+export class Box___tracing_TraceRecord extends $rt.GoObject {
+  v: $tracing.TraceRecord[];
+  constructor(v: $tracing.TraceRecord[]) {
+    super();
+    this.v = v;
+  }
+  static $cast(v: $rt.GoObject | undefined): Box___tracing_TraceRecord {
+    if (v instanceof Box___tracing_TraceRecord) return v;
+    throw $rt.typeAssertError();
+  }
+}
 export class Box_func_node__ast_Node__bool extends $rt.GoObject {
   v: ((p0: $ast.Node | undefined) => boolean) | undefined;
   constructor(v: ((p0: $ast.Node | undefined) => boolean) | undefined) {
@@ -46,6 +115,17 @@ export class Box_func_node__ast_Node__bool extends $rt.GoObject {
     throw $rt.typeAssertError();
   }
 }
+export class Box_json_Value extends $rt.GoObject {
+  v: $json.Value;
+  constructor(v: $json.Value) {
+    super();
+    this.v = v;
+  }
+  static $cast(v: $rt.GoObject | undefined): Box_json_Value {
+    if (v instanceof Box_json_Value) return v;
+    throw $rt.typeAssertError();
+  }
+}
 export class Box_map_diagnostics_Key_string extends $rt.GoObject {
   v: Map<$diagnostics.Key, string> | undefined;
   constructor(v: Map<$diagnostics.Key, string> | undefined) {
@@ -54,6 +134,28 @@ export class Box_map_diagnostics_Key_string extends $rt.GoObject {
   }
   static $cast(v: $rt.GoObject | undefined): Box_map_diagnostics_Key_string {
     if (v instanceof Box_map_diagnostics_Key_string) return v;
+    throw $rt.typeAssertError();
+  }
+}
+export class Box_map_string_any extends $rt.GoObject {
+  v: Map<string, $rt.GoObject | undefined> | undefined;
+  constructor(v: Map<string, $rt.GoObject | undefined> | undefined) {
+    super();
+    this.v = v;
+  }
+  static $cast(v: $rt.GoObject | undefined): Box_map_string_any {
+    if (v instanceof Box_map_string_any) return v;
+    throw $rt.typeAssertError();
+  }
+}
+export class Box_struct__ extends $rt.GoObject {
+  v: $rt.Empty;
+  constructor(v: $rt.Empty) {
+    super();
+    this.v = v;
+  }
+  static $cast(v: $rt.GoObject | undefined): Box_struct__ {
+    if (v instanceof Box_struct__) return v;
     throw $rt.typeAssertError();
   }
 }

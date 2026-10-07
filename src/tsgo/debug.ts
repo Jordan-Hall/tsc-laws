@@ -33,16 +33,16 @@ export function AssertNever(member: $rt.GoObject | undefined, message: ($rt.GoOb
   }
   let detail: string = '';
   {
-    const $t1 = member;
-    const $t2 = $rt.hasMethods($t1, ['KindString']);
+    const $t1: $rt.GoObject | undefined = member;
+    const $t2: boolean = $rt.hasMethods($t1, ['KindString']);
     let m: $ast.Node | undefined = $t2 ? ($t1 as $ast.Node | undefined) : undefined;
     let ok: boolean = $t2;
     if (ok) {
       detail = m!.KindString();
     } else {
       {
-        const $t3 = member;
-        const $t4 = $rt.hasMethods($t3, ['String']);
+        const $t3: $rt.GoObject | undefined = member;
+        const $t4: boolean = $rt.hasMethods($t3, ['String']);
         let m$1: $rt.GoObject | undefined = $t4 ? $t3 : undefined;
         let ok$1: boolean = $t4;
         if (ok$1) {

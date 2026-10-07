@@ -20,3 +20,17 @@ if (head.stdout.trim() !== identity.commit) {
 // empty working tree, so always check out the commit.
 git(['-C', root, 'checkout', '--detach', identity.commit]);
 console.log('Pinned upstream: ' + identity.commit);
+
+// TypeScript's own test cases at the commit TypeScript-Go pins, for the
+// checker comparison tests.
+const tsRoot = resolve('upstream/TypeScript');
+const tsCommit = spawnSync('git', ['-C', root, 'rev-parse', 'HEAD:_submodules/TypeScript'], {
+  encoding: 'utf8',
+}).stdout.trim();
+if (!existsSync(tsRoot + '/.git')) {
+  git(['clone', '--filter=blob:none', '--no-checkout', 'https://github.com/microsoft/TypeScript.git', tsRoot]);
+  git(['-C', tsRoot, 'sparse-checkout', 'set', '--cone', 'tests/cases/compiler', 'tests/cases/conformance']);
+}
+git(['-C', tsRoot, 'fetch', '--depth', '1', 'origin', tsCommit]);
+git(['-C', tsRoot, 'checkout', '--detach', tsCommit]);
+console.log('TypeScript test cases: ' + tsCommit);

@@ -17,8 +17,10 @@ const result = spawnSync('go', ['build', '-o', resolve('dist/tsgo-oracle'), './c
 });
 process.exitCode = result.status ?? 1;
 if (result.status === 0) {
-  // References for the translated scanner, parser, and binder.
-  for (const name of ['scan-oracle', 'parse-oracle', 'bind-oracle']) {
+  // References for the translated scanner, parser, binder, and checker.
+  mkdirSync(root + '/internal/tststest', { recursive: true });
+  copyFileSync('tools/checkhost/checkhost.go', root + '/internal/tststest/checkhost.go');
+  for (const name of ['scan-oracle', 'parse-oracle', 'bind-oracle', 'check-oracle']) {
     mkdirSync(root + '/cmd/' + name, { recursive: true });
     copyFileSync('tools/' + name + '/main.go', root + '/cmd/' + name + '/main.go');
     const built = spawnSync('go', ['build', '-o', resolve('dist/' + name), './cmd/' + name], {

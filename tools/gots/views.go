@@ -12,6 +12,7 @@ import (
 
 type view struct {
 	base, off, n string // TypeScript names holding the base string, offset and length
+	bytes        string // byte array of the base, when it is a shadowed field
 }
 
 func (x *fn) findViews(body *ast.BlockStmt) {
@@ -120,6 +121,10 @@ func (x *fn) defineView(vw *view, sl *ast.SliceExpr) {
 		lo = x.expr(sl.Low)
 	}
 	x.flushPre()
+	if sh := x.shadowOf(sl.X); sh != "" {
+		vw.bytes = vw.base + "y"
+		x.line("const %s = %s;", vw.bytes, sh)
+	}
 	x.line("const %s = %s;", vw.base, base)
 	x.line("const %s = %s;", vw.off, lo)
 	if sl.High != nil {

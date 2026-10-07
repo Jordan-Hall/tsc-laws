@@ -491,7 +491,10 @@ export function unboxAny<T>(v: GoObject | undefined): T {
   return v as T;
 }
 
-// fromBytes converts file contents to a byte string.
+// fromBytes converts file contents to a byte string. It remembers the
+// bytes so stringBytes can return them without converting back.
+let lastText = '';
+let lastBytes: Uint8Array = new Uint8Array(0);
 export function fromBytes(bytes: Uint8Array): string {
   const parts: string[] = [];
   for (let i = 0; i < bytes.length; i += 4096) {
@@ -500,7 +503,10 @@ export function fromBytes(bytes: Uint8Array): string {
     for (let j = i; j < end; j++) codes.push(bytes[j]);
     parts.push(String.fromCharCode(...codes));
   }
-  return parts.join('');
+  const text = parts.join('');
+  lastText = text;
+  lastBytes = bytes;
+  return text;
 }
 
 // Map.prototype.clear has no scriptc lowering; delete keys one by one.
@@ -514,4 +520,150 @@ export function clearMap<K, V>(m: Map<K, V> | undefined): void {
 // ptrTo makes a pointer to a variable, field or element.
 export function ptrTo<T>(g: () => T, s: (v: T) => void): Ptr<T> {
   return new Ptr<T>(g(), g, s);
+}
+
+export const EMPTY_BYTES = new Uint8Array(0);
+
+// stringBytes copies a byte string into a Uint8Array for fast indexing.
+export function stringBytes(s: string): Uint8Array {
+  if (s.length === lastBytes.length && s === lastText) return lastBytes;
+  const n = s.length;
+  const out = new Uint8Array(n);
+  for (let i = 0; i < n; i++) out[i] = s.charCodeAt(i);
+  return out;
+}
+
+// utf8_DecodeRuneBytesAt is utf8.DecodeRune(b[i:]).
+export function utf8_DecodeRuneBytesAt(b: Uint8Array, i: number): [number, number] {
+  const n = b.length - i;
+  if (n < 1) return [0xfffd, 0];
+  const c0 = b[i];
+  if (c0 < 0x80) return [c0, 1];
+  if (c0 < 0xc2 || c0 > 0xf4) return [0xfffd, 1];
+  if (c0 < 0xe0) {
+    if (n < 2) return [0xfffd, 1];
+    const c1 = b[i + 1];
+    if ((c1 & 0xc0) !== 0x80) return [0xfffd, 1];
+    return [((c0 & 0x1f) << 6) | (c1 & 0x3f), 2];
+  }
+  if (c0 < 0xf0) {
+    if (n < 3) return [0xfffd, 1];
+    const c1 = b[i + 1];
+    const lo1 = c0 === 0xe0 ? 0xa0 : 0x80;
+    const hi1 = c0 === 0xed ? 0x9f : 0xbf;
+    if (c1 < lo1 || c1 > hi1) return [0xfffd, 1];
+    const c2 = b[i + 2];
+    if ((c2 & 0xc0) !== 0x80) return [0xfffd, 1];
+    return [((c0 & 0x0f) << 12) | ((c1 & 0x3f) << 6) | (c2 & 0x3f), 3];
+  }
+  if (n < 4) return [0xfffd, 1];
+  const c1 = b[i + 1];
+  const lo1 = c0 === 0xf0 ? 0x90 : 0x80;
+  const hi1 = c0 === 0xf4 ? 0x8f : 0xbf;
+  if (c1 < lo1 || c1 > hi1) return [0xfffd, 1];
+  const c2 = b[i + 2];
+  const c3 = b[i + 3];
+  if ((c2 & 0xc0) !== 0x80 || (c3 & 0xc0) !== 0x80) return [0xfffd, 1];
+  return [((c0 & 0x07) << 18) | ((c1 & 0x3f) << 12) | ((c2 & 0x3f) << 6) | (c3 & 0x3f), 4];
+}
+
+// StructMap is a Go map whose keys are structs or arrays: keys compare by
+// value through a key function, and iteration yields the original keys.
+export class StructMap<K, V> extends GoObject {
+  keyOf: (k: K) => string;
+  keys = new Map<string, K>();
+  vals = new Map<string, V>();
+  constructor(keyOf: (k: K) => string) {
+    super();
+    this.keyOf = keyOf;
+  }
+  get size(): number {
+    return this.vals.size;
+  }
+  get(k: K): V | undefined {
+    return this.vals.get(this.keyOf(k));
+  }
+  has(k: K): boolean {
+    return this.vals.has(this.keyOf(k));
+  }
+  set(k: K, v: V): this {
+    const s = this.keyOf(k);
+    if (!this.keys.has(s)) this.keys.set(s, k);
+    this.vals.set(s, v);
+    return this;
+  }
+  delete(k: K): boolean {
+    const s = this.keyOf(k);
+    this.keys.delete(s);
+    return this.vals.delete(s);
+  }
+  entryList(): [K, V][] {
+    const out: [K, V][] = [];
+    for (const [s, k] of this.keys) out.push([k, this.vals.get(s)!]);
+    return out;
+  }
+  clear(): void {
+    this.keys = new Map<string, K>();
+    this.vals = new Map<string, V>();
+  }
+}
+
+// Key fragments for StructMap key functions.
+export function numKey(n: number): string {
+  return String(n);
+}
+export function strKey(s: string): string {
+  return String(s.length) + ':' + s;
+}
+export function numArrayKey(a: number[]): string {
+  return a.join(',');
+}
+
+export function structMapLen<K, V>(m: StructMap<K, V> | undefined): number {
+  return m === undefined ? 0 : m.size;
+}
+export function objKey(o: GoObject | undefined): string {
+  return o === undefined ? 'nil' : String(objectId(o));
+}
+// ifaceKey keys an interface value: boxed basic values by value, objects by
+// identity, as Go compares interface values.
+export function ifaceKey(v: GoObject | undefined): string {
+  if (v === undefined) return 'nil';
+  if (v instanceof BoxNum) return 'n' + v.t + ':' + String(v.v);
+  if (v instanceof BoxStr) return 's' + v.t + ':' + v.v;
+  if (v instanceof BoxBool) return 'b' + v.t + ':' + (v.v ? '1' : '0');
+  return 'o' + String(objectId(v));
+}
+
+// copyAt is copy(dst[lo:hi], src); hi < 0 means len(dst).
+export function copyAt<T>(dst: T[], lo: number, hi: number, src: T[]): number {
+  const end = hi < 0 ? dst.length : hi;
+  const n = Math.min(end - lo, src.length);
+  for (let i = 0; i < n; i++) dst[lo + i] = src[i];
+  return n;
+}
+export function putUint16LE(b: number[], off: number, v: number): void {
+  b[off] = v & 0xff;
+  b[off + 1] = (v >>> 8) & 0xff;
+}
+export function putUint32LE(b: number[], off: number, v: number): void {
+  b[off] = v & 0xff;
+  b[off + 1] = (v >>> 8) & 0xff;
+  b[off + 2] = (v >>> 16) & 0xff;
+  b[off + 3] = (v >>> 24) & 0xff;
+}
+export function putUint64LE(b: number[], off: number, v: number): void {
+  const lo = v >>> 0;
+  const hi = Math.floor(v / 4294967296) >>> 0;
+  putUint32LE(b, off, lo);
+  putUint32LE(b, off + 4, hi);
+}
+
+// reslice is s[lo:hi]. Go may extend into capacity; arrays here have none,
+// so the result is padded with zero.
+export function reslice<T>(s: T[], lo: number, hi: number, zero: T): T[] {
+  if (hi <= s.length) return s.slice(lo, hi);
+  const out = s.slice(lo);
+  while (out.length < hi - lo) out.push(zero);
+  return out;
 }

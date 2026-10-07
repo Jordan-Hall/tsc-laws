@@ -4,24 +4,13 @@ import { performance } from 'node:perf_hooks';
 import * as scanner from '../tsgo/scanner.js';
 import * as core from '../tsgo/core.js';
 import * as classes from '../tsgo/classes.js';
-import { initDone, keepClasses } from '../go/base.js';
+import { initDone, keepClasses, fromBytes } from '../go/base.js';
 
 // Lets scriptc lower every class before use; never runs.
 if (keepClasses()) classes.keepAll();
 
-function byteString(bytes: Uint8Array): string {
-  const parts: string[] = [];
-  for (let i = 0; i < bytes.length; i += 4096) {
-    const end = Math.min(bytes.length, i + 4096);
-    const codes: number[] = [];
-    for (let j = i; j < end; j++) codes.push(bytes[j]);
-    parts.push(String.fromCharCode(...codes));
-  }
-  return parts.join('');
-}
-
 initDone();
-const text = byteString(readFileSync(process.argv[2]));
+const text = fromBytes(readFileSync(process.argv[2]));
 if (process.argv[3] === '--bench') {
   const start = performance.now();
   let count = 0;
@@ -39,7 +28,7 @@ if (process.argv[3] === '--bench') {
   const out: string[] = [];
   for (;;) {
     const k = s.Scan();
-    out.push(`${k} ${s.TokenStart()} ${s.TokenEnd()} ${s.TokenFlags_()}`);
+    out.push(`${k} ${s.TokenStart()} ${s.TokenEnd()} ${s.TokenFlags$m()}`);
     if (k === 1) break;
   }
   console.log(out.join('\n'));

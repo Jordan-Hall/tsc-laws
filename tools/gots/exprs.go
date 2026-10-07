@@ -101,7 +101,18 @@ func (x *fn) convertValue(s string, e ast.Expr, from, to types.Type) string {
 		return x.f.nilFor(to)
 	}
 	if isIfaceType(to) && !isIfaceType(from) {
+		if n, ok := types.Unalias(to).(*types.Named); ok && n.Obj().Pkg() != nil && !x.f.t.translated(n.Obj().Pkg()) {
+			if fn, ok := derefNamed(from); ok && fn.Obj().Pkg() != nil && !x.f.t.translated(fn.Obj().Pkg()) {
+				return "(" + s + " as unknown as " + x.f.tsType(to) + ")"
+			}
+		}
 		return x.box(s, from)
+	}
+	if isIfaceType(to) && isIfaceType(from) {
+		ft, tt := x.f.tsType(from), x.f.tsType(to)
+		if ft != tt && tt != "$rt.GoObject | undefined" {
+			return "(" + s + " as unknown as " + tt + ")"
+		}
 	}
 	if e != nil && x.f.needsCopy(from) && !fresh(e) {
 		return s + x.f.cloneCall(from)
@@ -172,6 +183,9 @@ func (x *fn) box(s string, from types.Type) string {
 			return fmt.Sprintf("new $rt.BoxNum(%s, %q)", s, tag)
 		}
 	}
+	if mentionsTypeParam(from) {
+		return "$rt.boxAny(" + s + ")"
+	}
 	return "new " + x.f.boxRefFor(from) + "(" + s + ")"
 }
 
@@ -187,6 +201,9 @@ func (x *fn) selector(e *ast.SelectorExpr) string {
 			}
 			if c, ok := obj.(*types.Const); ok {
 				return x.f.constValue(c.Val(), c.Type())
+			}
+			if v, ok := obj.(*types.Var); ok && !x.f.t.translated(v.Pkg()) {
+				return x.stdCast(x.f.qualify(obj), v.Type())
 			}
 			return x.f.qualify(obj)
 		}
@@ -207,7 +224,7 @@ func (x *fn) selector(e *ast.SelectorExpr) string {
 		owner := x.embeddedType(sel.Recv(), sel.Index()[:len(sel.Index())-1])
 		if on, ok := derefNamed(owner); ok {
 			if c := x.f.t.classOf(on.Origin().Obj()); c != nil && c.baseAt == sel.Index()[len(sel.Index())-1] {
-				return strings.TrimSuffix(base+path, "!")
+				return base + path
 			}
 		}
 		return base + path + "." + x.f.fieldName(field)
@@ -331,7 +348,13 @@ func (x *fn) index(e *ast.IndexExpr) string {
 		return x.genericRef(e.X, []ast.Expr{e.Index})
 	}
 	if vw := x.viewOf(e.X); vw != nil {
+		if vw.bytes != "" {
+			return vw.bytes + "[" + vw.off + " + " + x.expr(e.Index) + "]"
+		}
 		return vw.base + ".charCodeAt(" + vw.off + " + " + x.expr(e.Index) + ")"
+	}
+	if sh := x.shadowOf(e.X); sh != "" {
+		return sh + "[" + x.expr(e.Index) + "]"
 	}
 	xt := x.info.TypeOf(e.X)
 	switch u := under(xt).(type) {
@@ -340,6 +363,12 @@ func (x *fn) index(e *ast.IndexExpr) string {
 	case *types.Map:
 		return fmt.Sprintf("(%s?.get(%s) ?? %s)", x.expr(e.X), x.mapKey(e.Index, u.Key()), x.f.zero(u.Elem()))
 	case *types.Pointer:
+		if isArrayPtr(xt) {
+			return x.expr(e.X) + "![" + x.expr(e.Index) + "]"
+		}
+		if isArrayPtr(xt) {
+			return x.expr(e.X) + "![" + x.expr(e.Index) + "]"
+		}
 		return x.expr(e.X) + "!.get()[" + x.expr(e.Index) + "]"
 	}
 	return x.expr(e.X) + "[" + x.expr(e.Index) + "]"
@@ -365,14 +394,7 @@ func isGenericFunc(info *types.Info, e ast.Expr) bool {
 
 // mapKey renders a map key, encoding struct keys as strings.
 func (x *fn) mapKey(e ast.Expr, key types.Type) string {
-	s := x.valueExpr(e, key)
-	if _, ok := key.Underlying().(*types.Struct); ok {
-		return "$rt.structKey(" + s + ")"
-	}
-	if _, ok := key.Underlying().(*types.Array); ok {
-		return "$rt.structKey(" + s + ")"
-	}
-	return s
+	return x.valueExpr(e, key)
 }
 
 func (x *fn) slice(e *ast.SliceExpr) string {
@@ -405,7 +427,11 @@ func (x *fn) slice(e *ast.SliceExpr) string {
 		return base + ".substring(" + lo + ", " + hi + ")"
 	}
 	if _, ok := under(xt).(*types.Pointer); ok {
-		base += "!.get()"
+		if isArrayPtr(xt) {
+			base += "!"
+		} else {
+			base += "!.get()"
+		}
 	}
 	if hi == "" {
 		if lo == "0" {
@@ -413,7 +439,19 @@ func (x *fn) slice(e *ast.SliceExpr) string {
 		}
 		return base + ".slice(" + lo + ")"
 	}
-	return base + ".slice(" + lo + ", " + hi + ")"
+	// Go can reslice past the length into capacity; extend with zeros.
+	var elem types.Type = types.Typ[types.Int]
+	switch u := under(xt).(type) {
+	case *types.Slice:
+		elem = u.Elem()
+	case *types.Array:
+		elem = u.Elem()
+	case *types.Pointer:
+		if a, ok := u.Elem().Underlying().(*types.Array); ok {
+			elem = a.Elem()
+		}
+	}
+	return "$rt.reslice(" + base + ", " + lo + ", " + hi + ", " + x.f.zero(elem) + ")"
 }
 
 func (x *fn) deref(e *ast.StarExpr) string {
@@ -422,24 +460,43 @@ func (x *fn) deref(e *ast.StarExpr) string {
 	if !ok {
 		return x.expr(e.X)
 	}
-	if isStructType(p.Elem()) {
+	if isStructType(p.Elem()) || isArrayType(p.Elem()) {
 		return x.expr(e.X) + "!"
 	}
 	return x.expr(e.X) + "!.get()"
 }
 
+func isArrayType(t types.Type) bool {
+	_, ok := t.Underlying().(*types.Array)
+	return ok
+}
+
+func isArrayPtr(t types.Type) bool {
+	p, ok := under(t).(*types.Pointer)
+	return ok && isArrayType(p.Elem())
+}
+
 func isStructType(t types.Type) bool {
+	if tp, ok := types.Unalias(t).(*types.TypeParam); ok {
+		return structTPGlobal[tp.Obj()]
+	}
 	_, ok := under(t).(*types.Struct)
 	return ok
 }
+
+var structTPGlobal map[*types.TypeName]bool
 
 func (x *fn) unary(e *ast.UnaryExpr) string {
 	switch e.Op {
 	case token.AND:
 		if lit, ok := e.X.(*ast.CompositeLit); ok {
-			return x.composite(lit, x.info.TypeOf(lit))
+			lt := x.info.TypeOf(lit)
+			if isStructType(lt) || isArrayType(lt) {
+				return x.composite(lit, lt)
+			}
+			return "new $rt.Ptr<" + x.f.tsType(lt) + ">(" + x.composite(lit, lt) + ")"
 		}
-		if isStructType(x.info.TypeOf(e.X)) {
+		if isStructType(x.info.TypeOf(e.X)) || isArrayType(x.info.TypeOf(e.X)) {
 			return x.expr(e.X)
 		}
 		return x.addrOf(e.X)
@@ -661,7 +718,7 @@ func (x *fn) equalText(l string, lt types.Type, r string, rt types.Type, re ast.
 	if isStructType(lt) {
 		if n, ok := types.Unalias(lt).(*types.Named); ok {
 			if c := x.f.t.classOf(n.Origin().Obj()); c != nil {
-				return l + ".$equals_" + x.f.t.typeName(c.name) + "(" + r + ")"
+				return l + ".$equals_" + x.f.t.helperKey(c.name) + "(" + r + ")"
 			}
 			if !x.f.t.translated(n.Obj().Pkg()) && stdEquals[n.Obj().Pkg().Path()+"."+n.Obj().Name()] {
 				return l + ".$equals(" + r + ")"
@@ -690,7 +747,57 @@ func (x *fn) funcLit(e *ast.FuncLit) string {
 			x.used[k] = v
 		}
 	}
-	return fmt.Sprintf("(%s): %s => {\n%s%s}", strings.Join(params, ", "), x.f.results(sig), b.String(), strings.Repeat("  ", x.indent))
+	text := fmt.Sprintf("(%s): %s => {\n%s%s}", strings.Join(params, ", "), x.f.results(sig), b.String(), strings.Repeat("  ", x.indent))
+	// A literal that captures nothing is created once at module level.
+	if !x.captures(e) && !x.inGeneric() && !strings.Contains(text, "this.") && !strings.Contains(text, "$z_") {
+		return x.f.hoistFn(fmt.Sprintf("(%s): %s => {\n%s}", strings.Join(params, ", "), x.f.results(sig), reindent(b.String(), x.indent+1, 1)))
+	}
+	return text
+}
+
+// captures reports whether a function literal refers to local variables of
+// enclosing functions.
+func (x *fn) captures(e *ast.FuncLit) bool {
+	found := false
+	ast.Inspect(e.Body, func(n ast.Node) bool {
+		id, ok := n.(*ast.Ident)
+		if !ok || found {
+			return !found
+		}
+		v, ok := x.info.Uses[id].(*types.Var)
+		if !ok || v.IsField() {
+			return true
+		}
+		if v.Pkg() != nil && v.Parent() == v.Pkg().Scope() {
+			return true
+		}
+		if v.Pos() < e.Pos() || v.Pos() > e.End() {
+			found = true
+		}
+		return true
+	})
+	return found
+}
+
+func (x *fn) inGeneric() bool {
+	for f := x; f != nil; f = f.parent {
+		if f.sig != nil && (f.sig.TypeParams().Len() > 0 || f.sig.RecvTypeParams().Len() > 0) {
+			return true
+		}
+	}
+	return false
+}
+
+// reindent shifts the indentation of generated lines from depth from to depth to.
+func reindent(s string, from, to int) string {
+	prefix := strings.Repeat("  ", from)
+	lines := strings.Split(s, "\n")
+	for i, l := range lines {
+		if strings.HasPrefix(l, prefix) {
+			lines[i] = strings.Repeat("  ", to) + strings.TrimPrefix(l, prefix)
+		}
+	}
+	return strings.Join(lines, "\n")
 }
 
 func (x *fn) typeAssert(e *ast.TypeAssertExpr) string {
@@ -724,6 +831,9 @@ func (x *fn) checked(v string, tt types.Type, te ast.Expr) string {
 		}
 	}
 	if c := x.castClass(tt); c != "" {
+		if isBoxedNamed(x, tt) {
+			return c + "(" + v + ").v"
+		}
 		return c + "(" + v + ")"
 	}
 	return fmt.Sprintf("(%s ? %s : $rt.typeAssertFail<%s>())", test, x.unbox(v, tt), x.f.tsType(tt))
@@ -763,10 +873,15 @@ func (x *fn) composite(e *ast.CompositeLit, tt types.Type) string {
 		for _, el := range e.Elts {
 			kv := el.(*ast.KeyValueExpr)
 			k := x.compositeElem(kv.Key, u.Key())
-			if isStructType(u.Key()) {
-				k = "$rt.structKey(" + k + ")"
-			}
 			parts = append(parts, "["+k+", "+x.compositeElem(kv.Value, u.Elem())+"]")
+		}
+		if isStructKey(u.Key()) {
+			m := x.f.newMap(u)
+			for _, p := range parts {
+				inner := strings.TrimSuffix(strings.TrimPrefix(p, "["), "]")
+				m += ".set(" + inner + ")"
+			}
+			return m
 		}
 		typ := strings.TrimSuffix(x.f.tsType(u), " | undefined")
 		if len(parts) == 0 {
@@ -969,10 +1084,10 @@ func (x *fn) assign(s *ast.AssignStmt) {
 			t := x.tmp()
 			v := x.expr(r.X)
 			x.flushPre()
-			x.line("const %s = %s;", t, v)
+			x.line("const %s: %s = %s;", t, x.f.tsType(x.info.TypeOf(r.X)), v)
 			tt := x.info.TypeOf(r.Type)
 			ok := x.tmp()
-			x.line("const %s = %s;", ok, x.typeTest(t, tt, r.Type))
+			x.line("const %s: boolean = %s;", ok, x.typeTest(t, tt, r.Type))
 			x.bindTwo(s, define, fmt.Sprintf("(%s ? %s : %s)", ok, x.unbox(t, tt), x.f.zero(tt)), ok)
 			return
 		case *ast.UnaryExpr:
@@ -1078,6 +1193,9 @@ func (x *fn) store(l ast.Expr, define bool, v string, tt types.Type, src ast.Exp
 	if id, ok := l.(*ast.Ident); ok {
 		if define {
 			if obj, ok := x.info.Defs[id].(*types.Var); ok && obj != nil {
+				if v == "undefined" {
+					v = "undefined as " + x.f.tsType(obj.Type())
+				}
 				x.line("let %s: %s = %s;", x.name(obj), x.f.tsType(obj.Type()), v)
 				return
 			}
@@ -1090,7 +1208,7 @@ func (x *fn) store(l ast.Expr, define bool, v string, tt types.Type, src ast.Exp
 			owner := x.embeddedType(s.Recv(), s.Index()[:len(s.Index())-1])
 			if on, ok := derefNamed(owner); ok {
 				if c := x.f.t.classOf(on.Origin().Obj()); c != nil && c.baseAt == s.Index()[len(s.Index())-1] {
-					x.line("%s.$copy_%s(%s);", x.expr(l), x.f.t.typeName(c.base), v)
+					x.line("%s.$copy_%s(%s);", x.expr(l), x.f.t.helperKey(c.base), v)
 					return
 				}
 			}
@@ -1104,7 +1222,11 @@ func (x *fn) store(l ast.Expr, define bool, v string, tt types.Type, src ast.Exp
 			return
 		}
 		if _, ok := under(xt).(*types.Pointer); ok {
-			x.line("%s!.get()[%s] = %s;", x.expr(l.X), x.expr(l.Index), v)
+			if isArrayPtr(xt) {
+				x.line("%s![%s] = %s;", x.expr(l.X), x.expr(l.Index), v)
+			} else {
+				x.line("%s!.get()[%s] = %s;", x.expr(l.X), x.expr(l.Index), v)
+			}
 			return
 		}
 		x.line("%s[%s] = %s;", x.expr(l.X), x.expr(l.Index), v)
@@ -1112,10 +1234,17 @@ func (x *fn) store(l ast.Expr, define bool, v string, tt types.Type, src ast.Exp
 	case *ast.StarExpr:
 		pt := under(x.info.TypeOf(l.X)).(*types.Pointer)
 		if n, ok := types.Unalias(pt.Elem()).(*types.Named); ok && isStructType(n) && x.f.t.classOf(n.Origin().Obj()) != nil {
-			x.line("%s!.$copy_%s(%s);", x.expr(l.X), x.f.t.classOf(n.Origin().Obj()).name.Name(), v)
+			x.line("%s!.$copy_%s(%s);", x.expr(l.X), x.f.t.helperKey(x.f.t.classOf(n.Origin().Obj()).name), v)
 			return
 		}
 		x.line("%s!.set(%s);", x.expr(l.X), v)
+		return
+	}
+	if sh := x.shadowOf(l); sh != "" {
+		t := x.tmp()
+		x.line("const %s = %s;", t, v)
+		x.line("%s = %s;", x.expr(l), t)
+		x.line("%s = $rt.stringBytes(%s);", sh, t)
 		return
 	}
 	x.line("%s = %s;", x.expr(l), v)
@@ -1139,8 +1268,9 @@ func (x *fn) opAssign(l ast.Expr, op string, r ast.Expr, pos token.Pos) {
 		}
 	}
 	// Simple numeric ops on plain number types use compound assignment.
+	_, isDeref := unparen(l).(*ast.StarExpr)
 	kind, isInt := intKind(lt)
-	if b, ok := under(lt).(*types.Basic); ok && (op == "+" || op == "-") && (!isInt || is64(kind)) && (b.Info()&(types.IsNumeric|types.IsString) != 0) {
+	if b, ok := under(lt).(*types.Basic); ok && !isDeref && (op == "+" || op == "-") && (!isInt || is64(kind)) && (b.Info()&(types.IsNumeric|types.IsString) != 0) {
 		target := x.expr(l)
 		val := x.expr(r)
 		x.flushPre()
@@ -1200,7 +1330,22 @@ func (x *fn) isBuiltin(call *ast.CallExpr, name string) bool {
 }
 
 func (x *fn) appendInPlace(l ast.Expr, call *ast.CallExpr) {
-	target := x.expr(l)
+	// m[k] = append(m[k], ...) must store the array back into the map.
+	if idx, ok := unparen(l).(*ast.IndexExpr); ok {
+		if mt, ok := under(x.info.TypeOf(idx.X)).(*types.Map); ok {
+			m, k, a := x.tmp(), x.tmp(), x.tmp()
+			x.line("const %s = %s;", m, x.expr(idx.X))
+			x.line("const %s = %s;", k, x.mapKey(idx.Index, mt.Key()))
+			x.line("const %s: %s = %s!.get(%s) ?? [];", a, x.f.tsType(mt.Elem()), m, k)
+			x.appendTo(a, call)
+			x.line("%s!.set(%s, %s);", m, k, a)
+			return
+		}
+	}
+	x.appendTo(x.expr(l), call)
+}
+
+func (x *fn) appendTo(target string, call *ast.CallExpr) {
 	st := under(x.info.TypeOf(call.Args[0]))
 	elem := types.Type(types.Typ[types.Byte])
 	if sl, ok := st.(*types.Slice); ok {
@@ -1263,7 +1408,7 @@ func (x *fn) addrOf(e ast.Expr) string {
 		if _, isMap := under(x.info.TypeOf(v.X)).(*types.Map); !isMap {
 			a, i := x.tmp(), x.tmp()
 			at := strings.TrimSuffix(x.f.tsType(x.info.TypeOf(v.X)), " | undefined")
-			if p, ok := under(x.info.TypeOf(v.X)).(*types.Pointer); ok {
+			if p, ok := under(x.info.TypeOf(v.X)).(*types.Pointer); ok && !isArrayType(p.Elem()) {
 				return fmt.Sprintf("((%s: %s, %s: number) => $rt.ptrTo<%s>((): %s => %s!.get()[%s], (v: %s): void => { %s!.get()[%s] = v; }))(%s, %s)", a, x.f.tsType(p), i, t, t, a, i, t, a, i, x.expr(v.X), x.expr(v.Index))
 			}
 			return fmt.Sprintf("((%s: %s, %s: number) => $rt.ptrTo<%s>((): %s => %s[%s], (v: %s): void => { %s[%s] = v; }))(%s, %s)", a, at, i, t, t, a, i, t, a, i, x.expr(v.X), x.expr(v.Index))

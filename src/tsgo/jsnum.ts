@@ -4,28 +4,96 @@ import * as $rt from '../go/runtime.js';
 import * as $json from './json.js';
 import * as $stringutil from './stringutil.js';
 export type Number_ = number;
+export class Number_$Box extends $rt.GoObject {
+  v: Number_;
+  constructor(v: Number_) {
+    super();
+    this.v = v;
+  }
+  static $cast(v: $rt.GoObject | undefined): Number_$Box {
+    if (v instanceof Number_$Box) return v;
+    throw $rt.typeAssertError();
+  }
+  IsNaN(): boolean {
+    return Number$IsNaN(this.v);
+  }
+  IsInf(): boolean {
+    return Number$IsInf(this.v);
+  }
+  toUint32(): number {
+    return Number$toUint32(this.v);
+  }
+  toInt32(): number {
+    return Number$toInt32(this.v);
+  }
+  toShiftCount(): number {
+    return Number$toShiftCount(this.v);
+  }
+  SignedRightShift(a0: Number_): Number_ {
+    return Number$SignedRightShift(this.v, a0);
+  }
+  UnsignedRightShift(a0: Number_): Number_ {
+    return Number$UnsignedRightShift(this.v, a0);
+  }
+  LeftShift(a0: Number_): Number_ {
+    return Number$LeftShift(this.v, a0);
+  }
+  BitwiseNOT(): Number_ {
+    return Number$BitwiseNOT(this.v);
+  }
+  BitwiseOR(a0: Number_): Number_ {
+    return Number$BitwiseOR(this.v, a0);
+  }
+  BitwiseAND(a0: Number_): Number_ {
+    return Number$BitwiseAND(this.v, a0);
+  }
+  BitwiseXOR(a0: Number_): Number_ {
+    return Number$BitwiseXOR(this.v, a0);
+  }
+  trunc(): Number_ {
+    return Number$trunc(this.v);
+  }
+  Floor(): Number_ {
+    return Number$Floor(this.v);
+  }
+  Abs(): Number_ {
+    return Number$Abs(this.v);
+  }
+  Remainder(a0: Number_): Number_ {
+    return Number$Remainder(this.v, a0);
+  }
+  Exponentiate(a0: Number_): Number_ {
+    return Number$Exponentiate(this.v, a0);
+  }
+  String(): string {
+    return Number$String(this.v);
+  }
+}
 export class PseudoBigInt extends $rt.GoObject {
   Negative: boolean = false;
   Base10Value: string = '';
-  $copy_PseudoBigInt(src: PseudoBigInt): void {
+  $copy_jsnum_PseudoBigInt(src: PseudoBigInt): void {
     this.Negative = src.Negative;
     this.Base10Value = src.Base10Value;
   }
-  $equals_PseudoBigInt(o: PseudoBigInt): boolean {
+  $key_jsnum_PseudoBigInt(): string {
+    return [this.Negative ? '1' : '0', $rt.strKey(this.Base10Value)].join('|');
+  }
+  $equals_jsnum_PseudoBigInt(o: PseudoBigInt): boolean {
     return this.Negative === o.Negative && this.Base10Value === o.Base10Value;
   }
-  $clone_PseudoBigInt(): PseudoBigInt {
+  $clone_jsnum_PseudoBigInt(): PseudoBigInt {
     const o = new PseudoBigInt();
-    o.$copy_PseudoBigInt(this);
+    o.$copy_jsnum_PseudoBigInt(this);
     return o;
   }
-  static $lit_PseudoBigInt_0_1(p0: boolean, p1: string): PseudoBigInt {
+  static $lit_jsnum_PseudoBigInt_0_1(p0: boolean, p1: string): PseudoBigInt {
     const o = new PseudoBigInt();
     o.Negative = p0;
     o.Base10Value = p1;
     return o;
   }
-  static $cast_PseudoBigInt(v: $rt.GoObject | undefined): PseudoBigInt {
+  static $cast_jsnum_PseudoBigInt(v: $rt.GoObject | undefined): PseudoBigInt {
     if (v instanceof PseudoBigInt) return v;
     throw $rt.typeAssertError();
   }
@@ -176,7 +244,7 @@ export function Number$Exponentiate(base: Number_, exponent: Number_): Number_ {
 }
 export function NewPseudoBigInt(value: string, negative: boolean): PseudoBigInt {
   value = $rt.strings_TrimLeft(value, '0');
-  return PseudoBigInt.$lit_PseudoBigInt_0_1(negative && !(value.length === (0 as number)), value);
+  return PseudoBigInt.$lit_jsnum_PseudoBigInt_0_1(negative && !(value.length === (0 as number)), value);
 }
 export function ParseValidBigInt(text: string): PseudoBigInt {
   const $t1 = $rt.strings_CutPrefix(text, '-');
@@ -326,7 +394,7 @@ export function isStrWhiteSpace(r: number): boolean {
 }
 export function tryParseInt(s: string): [Number_, boolean] {
   let i: number = 0;
-  let err: $rt.GoObject | undefined = undefined;
+  let err: $rt.GoObject | undefined = undefined as $rt.GoObject | undefined;
   let hasIntResult: boolean = false;
   if (s.length > 2) {
     const $t1 = s.substring(0, 2);

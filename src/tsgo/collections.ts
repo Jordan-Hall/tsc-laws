@@ -13,13 +13,13 @@ export class CopyOnWriteMap<K, V> extends $rt.GoObject {
     this.m = undefined;
     this.owned = false;
   }
-  $copy_CopyOnWriteMap(src: CopyOnWriteMap<K, V>): void {
+  $copy_collections_CopyOnWriteMap(src: CopyOnWriteMap<K, V>): void {
     this.m = src.m;
     this.owned = src.owned;
   }
-  $clone_CopyOnWriteMap(): CopyOnWriteMap<K, V> {
+  $clone_collections_CopyOnWriteMap(): CopyOnWriteMap<K, V> {
     const o = new CopyOnWriteMap<K, V>(this.$z_V);
-    o.$copy_CopyOnWriteMap(this);
+    o.$copy_collections_CopyOnWriteMap(this);
     return o;
   }
   Get(k: K): [V, boolean] {
@@ -56,21 +56,21 @@ export class CopyOnWriteMap<K, V> extends $rt.GoObject {
   }
   EnterScope(): (() => void) | undefined {
     const c = this;
-    let saved: CopyOnWriteMap<K, V> = c!.$clone_CopyOnWriteMap();
+    let saved: CopyOnWriteMap<K, V> = c!.$clone_collections_CopyOnWriteMap();
     c!.owned = false;
     return (): void => {
-      c!.$copy_CopyOnWriteMap(saved.$clone_CopyOnWriteMap());
+      c!.$copy_collections_CopyOnWriteMap(saved.$clone_collections_CopyOnWriteMap());
     };
   }
 }
 export class CopyOnWriteSet<K> extends $rt.GoObject {
   m: CopyOnWriteMap<K, $rt.Empty> = new CopyOnWriteMap<K, $rt.Empty>($zf0);
-  $copy_CopyOnWriteSet(src: CopyOnWriteSet<K>): void {
-    this.m = src.m.$clone_CopyOnWriteMap();
+  $copy_collections_CopyOnWriteSet(src: CopyOnWriteSet<K>): void {
+    this.m = src.m.$clone_collections_CopyOnWriteMap();
   }
-  $clone_CopyOnWriteSet(): CopyOnWriteSet<K> {
+  $clone_collections_CopyOnWriteSet(): CopyOnWriteSet<K> {
     const o = new CopyOnWriteSet<K>();
-    o.$copy_CopyOnWriteSet(this);
+    o.$copy_collections_CopyOnWriteSet(this);
     return o;
   }
   Has(k: K): boolean {
@@ -100,16 +100,19 @@ export class MapEntry<K, V> extends $rt.GoObject {
     this.Key = this.$z_K();
     this.Value = this.$z_V();
   }
-  $copy_MapEntry(src: MapEntry<K, V>): void {
+  $copy_collections_MapEntry(src: MapEntry<K, V>): void {
     this.Key = src.Key;
     this.Value = src.Value;
   }
-  $clone_MapEntry(): MapEntry<K, V> {
+  $equals_collections_MapEntry(o: MapEntry<K, V>): boolean {
+    return this.Key === o.Key && this.Value === o.Value;
+  }
+  $clone_collections_MapEntry(): MapEntry<K, V> {
     const o = new MapEntry<K, V>(this.$z_K, this.$z_V);
-    o.$copy_MapEntry(this);
+    o.$copy_collections_MapEntry(this);
     return o;
   }
-  static $lit_MapEntry_0_1<K, V>($z_K: () => K, $z_V: () => V, p0: K, p1: V): MapEntry<K, V> {
+  static $lit_collections_MapEntry_0_1<K, V>($z_K: () => K, $z_V: () => V, p0: K, p1: V): MapEntry<K, V> {
     const o = new MapEntry<K, V>($z_K, $z_V);
     o.Key = p0;
     o.Value = p1;
@@ -118,15 +121,15 @@ export class MapEntry<K, V> extends $rt.GoObject {
 }
 export class MultiMap<K, V> extends $rt.GoObject {
   M: Map<K, V[]> | undefined = undefined;
-  $copy_MultiMap(src: MultiMap<K, V>): void {
+  $copy_collections_MultiMap(src: MultiMap<K, V>): void {
     this.M = src.M;
   }
-  $clone_MultiMap(): MultiMap<K, V> {
+  $clone_collections_MultiMap(): MultiMap<K, V> {
     const o = new MultiMap<K, V>();
-    o.$copy_MultiMap(this);
+    o.$copy_collections_MultiMap(this);
     return o;
   }
-  static $lit_MultiMap_0<K, V>(p0: Map<K, V[]> | undefined): MultiMap<K, V> {
+  static $lit_collections_MultiMap_0<K, V>(p0: Map<K, V[]> | undefined): MultiMap<K, V> {
     const o = new MultiMap<K, V>();
     o.M = p0;
     return o;
@@ -147,7 +150,11 @@ export class MultiMap<K, V> extends $rt.GoObject {
     if (s!.M === undefined) {
       s!.M = new Map<K, V[]>();
     }
-    (s!.M?.get(key) ?? []).push(value);
+    const $t1 = s!.M;
+    const $t2 = key;
+    const $t3: V[] = $t1!.get($t2) ?? [];
+    $t3.push(value);
+    $t1!.set($t2, $t3);
   }
   Remove(key: K, value: V): void {
     const s = this;
@@ -162,7 +169,7 @@ export class MultiMap<K, V> extends $rt.GoObject {
           if (values.length === (1 as number)) {
             s!.M?.delete(key);
           } else {
-            values = $rt.appendCopy(values.slice(0, i), values.slice(i + 1));
+            values = $rt.appendCopy($rt.reslice(values, 0, i, undefined as unknown as V), values.slice(i + 1));
             s!.M!.set(key, values);
           }
         }
@@ -204,17 +211,22 @@ export class OrderedMap<K, V> extends $rt.GoObject {
     this.keys = [];
     this.mp = undefined;
   }
-  $copy_OrderedMap(src: OrderedMap<K, V>): void {
+  $copy_collections_OrderedMap(src: OrderedMap<K, V>): void {
     this.$_0 = src.$_0;
     this.keys = src.keys;
     this.mp = src.mp;
   }
-  $clone_OrderedMap(): OrderedMap<K, V> {
+  $clone_collections_OrderedMap(): OrderedMap<K, V> {
     const o = new OrderedMap<K, V>(this.$z_K, this.$z_V);
-    o.$copy_OrderedMap(this);
+    o.$copy_collections_OrderedMap(this);
     return o;
   }
-  static $lit_OrderedMap_1_2<K, V>($z_K: () => K, $z_V: () => V, p0: K[], p1: Map<K, V> | undefined): OrderedMap<K, V> {
+  static $lit_collections_OrderedMap_1_2<K, V>(
+    $z_K: () => K,
+    $z_V: () => V,
+    p0: K[],
+    p1: Map<K, V> | undefined,
+  ): OrderedMap<K, V> {
     const o = new OrderedMap<K, V>($z_K, $z_V);
     o.keys = p0;
     o.mp = p1;
@@ -287,7 +299,7 @@ export class OrderedMap<K, V> extends $rt.GoObject {
         if (i === end) {
           let zero$2: K = this.$z_K();
           m!.keys[end] = zero$2;
-          m!.keys = m!.keys.slice(0, end);
+          m!.keys = $rt.reslice(m!.keys, 0, end, this.$z_K());
         } else {
           m!.keys = $rt.slices_Delete(m!.keys, i, i + 1);
         }
@@ -344,7 +356,7 @@ export class OrderedMap<K, V> extends $rt.GoObject {
   Clear(): void {
     const m = this;
     $rt.clearSlice(m!.keys, this.$z_K());
-    m!.keys = m!.keys.slice(0, 0);
+    m!.keys = $rt.reslice(m!.keys, 0, 0, this.$z_K());
     $rt.clearMap(m!.mp);
   }
   Size(): number {
@@ -364,7 +376,12 @@ export class OrderedMap<K, V> extends $rt.GoObject {
   }
   clone(): OrderedMap<K, V> {
     const m = this;
-    return OrderedMap.$lit_OrderedMap_1_2<K, V>(this.$z_K, this.$z_V, $rt.slices_Clone(m!.keys), $rt.maps_Clone(m!.mp));
+    return OrderedMap.$lit_collections_OrderedMap_1_2<K, V>(
+      this.$z_K,
+      this.$z_V,
+      $rt.slices_Clone(m!.keys),
+      $rt.maps_Clone(m!.mp),
+    );
   }
   MarshalJSONTo(enc: $rt.github_com_go_json_experiment_json_jsontext_Encoder | undefined): $rt.GoObject | undefined {
     const m = this;
@@ -477,15 +494,15 @@ export class OrderedSet<T> extends $rt.GoObject {
     this.$z_T = $z_T;
     this.m = new OrderedMap<T, $rt.Empty>(this.$z_T, $zf0);
   }
-  $copy_OrderedSet(src: OrderedSet<T>): void {
-    this.m = src.m.$clone_OrderedMap();
+  $copy_collections_OrderedSet(src: OrderedSet<T>): void {
+    this.m = src.m.$clone_collections_OrderedMap();
   }
-  $clone_OrderedSet(): OrderedSet<T> {
+  $clone_collections_OrderedSet(): OrderedSet<T> {
     const o = new OrderedSet<T>(this.$z_T);
-    o.$copy_OrderedSet(this);
+    o.$copy_collections_OrderedSet(this);
     return o;
   }
-  static $lit_OrderedSet_0<T>($z_T: () => T, p0: OrderedMap<T, $rt.Empty>): OrderedSet<T> {
+  static $lit_collections_OrderedSet_0<T>($z_T: () => T, p0: OrderedMap<T, $rt.Empty>): OrderedSet<T> {
     const o = new OrderedSet<T>($z_T);
     o.m = p0;
     return o;
@@ -518,20 +535,20 @@ export class OrderedSet<T> extends $rt.GoObject {
   }
   Clone(): OrderedSet<T> | undefined {
     const s = this;
-    return OrderedSet.$lit_OrderedSet_0<T>(this.$z_T, s!.m.clone());
+    return OrderedSet.$lit_collections_OrderedSet_0<T>(this.$z_T, s!.m.clone());
   }
 }
 export class Set_<T> extends $rt.GoObject {
   M: Map<T, $rt.Empty> | undefined = undefined;
-  $copy_Set(src: Set_<T>): void {
+  $copy_collections_Set(src: Set_<T>): void {
     this.M = src.M;
   }
-  $clone_Set(): Set_<T> {
+  $clone_collections_Set(): Set_<T> {
     const o = new Set_<T>();
-    o.$copy_Set(this);
+    o.$copy_collections_Set(this);
     return o;
   }
-  static $lit_Set_0<T>(p0: Map<T, $rt.Empty> | undefined): Set_<T> {
+  static $lit_collections_Set_0<T>(p0: Map<T, $rt.Empty> | undefined): Set_<T> {
     const o = new Set_<T>();
     o.M = p0;
     return o;
@@ -591,7 +608,7 @@ export class Set_<T> extends $rt.GoObject {
     if (s === undefined) {
       return undefined;
     }
-    let clone: Set_<T> | undefined = Set_.$lit_Set_0<T>($rt.maps_Clone(s!.M));
+    let clone: Set_<T> | undefined = Set_.$lit_collections_Set_0<T>($rt.maps_Clone(s!.M));
     return clone;
   }
   Union(other: Set_<T> | undefined): void {
@@ -674,14 +691,14 @@ export class SyncMap<K, V> extends $rt.GoObject {
     this.$_1 = $rt.makeArray(0, () => this.$z_V());
     this.m = new $rt.sync_Map();
   }
-  $copy_SyncMap(src: SyncMap<K, V>): void {
+  $copy_collections_SyncMap(src: SyncMap<K, V>): void {
     this.$_0 = src.$_0.slice();
     this.$_1 = src.$_1.slice();
     this.m = src.m;
   }
-  $clone_SyncMap(): SyncMap<K, V> {
+  $clone_collections_SyncMap(): SyncMap<K, V> {
     const o = new SyncMap<K, V>(this.$z_K, this.$z_V);
-    o.$copy_SyncMap(this);
+    o.$copy_collections_SyncMap(this);
     return o;
   }
   Load(key: K): [V, boolean] {
@@ -784,12 +801,12 @@ export class SyncSet<T> extends $rt.GoObject {
     this.$z_T = $z_T;
     this.m = new SyncMap<T, $rt.Empty>(this.$z_T, $zf0);
   }
-  $copy_SyncSet(src: SyncSet<T>): void {
-    this.m = src.m.$clone_SyncMap();
+  $copy_collections_SyncSet(src: SyncSet<T>): void {
+    this.m = src.m.$clone_collections_SyncMap();
   }
-  $clone_SyncSet(): SyncSet<T> {
+  $clone_collections_SyncSet(): SyncSet<T> {
     const o = new SyncSet<T>(this.$z_T);
-    o.$copy_SyncSet(this);
+    o.$copy_collections_SyncSet(this);
     return o;
   }
   Has(key: T): boolean {
@@ -859,16 +876,16 @@ export class SyncSet<T> extends $rt.GoObject {
   }
 }
 export class noCopy extends $rt.GoObject {
-  $copy_noCopy(src: noCopy): void {}
-  $equals_noCopy(o: noCopy): boolean {
+  $copy_collections_noCopy(src: noCopy): void {}
+  $equals_collections_noCopy(o: noCopy): boolean {
     return true;
   }
-  $clone_noCopy(): noCopy {
+  $clone_collections_noCopy(): noCopy {
     const o = new noCopy();
-    o.$copy_noCopy(this);
+    o.$copy_collections_noCopy(this);
     return o;
   }
-  static $cast_noCopy(v: $rt.GoObject | undefined): noCopy {
+  static $cast_collections_noCopy(v: $rt.GoObject | undefined): noCopy {
     if (v instanceof noCopy) return v;
     throw $rt.typeAssertError();
   }
@@ -876,7 +893,7 @@ export class noCopy extends $rt.GoObject {
   Unlock(): void {}
 }
 export function NewMultiMapWithSizeHint<K, V>(hint: number): MultiMap<K, V> | undefined {
-  return MultiMap.$lit_MultiMap_0<K, V>(new Map<K, V[]>());
+  return MultiMap.$lit_collections_MultiMap_0<K, V>(new Map<K, V[]>());
 }
 export function GroupBy<K, V>(items: V[], groupId: ((p0: V) => K) | undefined): MultiMap<K, V> | undefined {
   let m: MultiMap<K, V> | undefined = new MultiMap<K, V>();
@@ -898,7 +915,7 @@ export function NewOrderedMapWithSizeHint<K, V>(
   return m;
 }
 export function newMapWithSizeHint<K, V>($z_K: () => K, $z_V: () => V, hint: number): OrderedMap<K, V> {
-  return OrderedMap.$lit_OrderedMap_1_2<K, V>($z_K, $z_V, [] as K[], new Map<K, V>());
+  return OrderedMap.$lit_collections_OrderedMap_1_2<K, V>($z_K, $z_V, [] as K[], new Map<K, V>());
 }
 export function NewOrderedMapFromList<K, V>(
   $z_K: () => K,
@@ -1011,10 +1028,10 @@ export function DiffOrderedMapsFunc<K, V>(
   });
 }
 export function NewOrderedSetWithSizeHint<T>($z_T: () => T, hint: number): OrderedSet<T> | undefined {
-  return OrderedSet.$lit_OrderedSet_0<T>($z_T, newMapWithSizeHint<T, $rt.Empty>($z_T, $zf0, hint));
+  return OrderedSet.$lit_collections_OrderedSet_0<T>($z_T, newMapWithSizeHint<T, $rt.Empty>($z_T, $zf0, hint));
 }
 export function NewSetWithSizeHint<T>(hint: number): Set_<T> | undefined {
-  return Set_.$lit_Set_0<T>(new Map<T, $rt.Empty>());
+  return Set_.$lit_collections_Set_0<T>(new Map<T, $rt.Empty>());
 }
 export function NewSetFromItems<T>(items: T[]): Set_<T> | undefined {
   let s: Set_<T> | undefined = new Set_<T>();

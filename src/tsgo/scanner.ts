@@ -23,7 +23,7 @@ export class ScannerState extends $rt.GoObject {
   tokenFlags: $ast.TokenFlags = 0;
   commentDirectives: $ast.CommentDirective[] = [];
   skipJSDocLeadingAsterisks: number = 0;
-  $copy_ScannerState(src: ScannerState): void {
+  $copy_scanner_ScannerState(src: ScannerState): void {
     this.pos = src.pos;
     this.fullStartPos = src.fullStartPos;
     this.tokenStart = src.tokenStart;
@@ -33,18 +33,19 @@ export class ScannerState extends $rt.GoObject {
     this.commentDirectives = src.commentDirectives;
     this.skipJSDocLeadingAsterisks = src.skipJSDocLeadingAsterisks;
   }
-  $clone_ScannerState(): ScannerState {
+  $clone_scanner_ScannerState(): ScannerState {
     const o = new ScannerState();
-    o.$copy_ScannerState(this);
+    o.$copy_scanner_ScannerState(this);
     return o;
   }
-  static $cast_ScannerState(v: $rt.GoObject | undefined): ScannerState {
+  static $cast_scanner_ScannerState(v: $rt.GoObject | undefined): ScannerState {
     if (v instanceof ScannerState) return v;
     throw $rt.typeAssertError();
   }
 }
 export class Scanner extends ScannerState {
   text: string = '';
+  text$bytes: Uint8Array = $rt.EMPTY_BYTES;
   end: number = 0;
   languageVariant: $core.LanguageVariant = 0;
   scriptTarget: $core.ScriptTarget = 0;
@@ -53,9 +54,10 @@ export class Scanner extends ScannerState {
   numberCache: Map<string, string> | undefined = undefined;
   hexNumberCache: Map<string, string> | undefined = undefined;
   hexDigitCache: Map<string, string> | undefined = undefined;
-  $copy_Scanner(src: Scanner): void {
-    this.$copy_ScannerState(src);
+  $copy_scanner_Scanner(src: Scanner): void {
+    this.$copy_scanner_ScannerState(src);
     this.text = src.text;
+    this.text$bytes = src.text$bytes;
     this.end = src.end;
     this.languageVariant = src.languageVariant;
     this.scriptTarget = src.scriptTarget;
@@ -65,17 +67,17 @@ export class Scanner extends ScannerState {
     this.hexNumberCache = src.hexNumberCache;
     this.hexDigitCache = src.hexDigitCache;
   }
-  $clone_Scanner(): Scanner {
+  $clone_scanner_Scanner(): Scanner {
     const o = new Scanner();
-    o.$copy_Scanner(this);
+    o.$copy_scanner_Scanner(this);
     return o;
   }
-  static $lit_Scanner_5(p0: boolean): Scanner {
+  static $lit_scanner_Scanner_5(p0: boolean): Scanner {
     const o = new Scanner();
     o.skipTrivia = p0;
     return o;
   }
-  static $cast_Scanner(v: $rt.GoObject | undefined): Scanner {
+  static $cast_scanner_Scanner(v: $rt.GoObject | undefined): Scanner {
     if (v instanceof Scanner) return v;
     throw $rt.typeAssertError();
   }
@@ -104,7 +106,7 @@ export class Scanner extends ScannerState {
     let hexDigitCache: Map<string, string> | undefined = cleared<Map<string, string> | undefined, string, string>(
       s!.hexDigitCache,
     );
-    s!.$copy_Scanner(defaultScanner());
+    s!.$copy_scanner_Scanner(defaultScanner());
     s!.numberCache = numberCache;
     s!.hexNumberCache = hexNumberCache;
     s!.hexDigitCache = hexDigitCache;
@@ -117,7 +119,7 @@ export class Scanner extends ScannerState {
     const s = this;
     return s!.token;
   }
-  TokenFlags_(): $ast.TokenFlags {
+  TokenFlags$m(): $ast.TokenFlags {
     const s = this;
     return s!.tokenFlags;
   }
@@ -151,11 +153,11 @@ export class Scanner extends ScannerState {
   }
   Mark(): ScannerState {
     const s = this;
-    return s.$clone_ScannerState();
+    return s!.$clone_scanner_ScannerState();
   }
   Rewind(state: ScannerState): void {
     const s = this;
-    s.$copy_ScannerState(state.$clone_ScannerState());
+    s!.$copy_scanner_ScannerState(state.$clone_scanner_ScannerState());
   }
   ResetPos(pos: number): void {
     const s = this;
@@ -237,9 +239,11 @@ export class Scanner extends ScannerState {
   }
   SetText(text: string): void {
     const s = this;
-    s!.text = text;
+    const $t1 = text;
+    s!.text = $t1;
+    s!.text$bytes = $rt.stringBytes($t1);
     s!.end = text.length;
-    s.$copy_ScannerState(new ScannerState());
+    s!.$copy_scanner_ScannerState(new ScannerState());
   }
   SetOnError(errorCallback: ErrorCallback): void {
     const s = this;
@@ -278,14 +282,14 @@ export class Scanner extends ScannerState {
   char(): number {
     const s = this;
     if (s!.pos < s!.end) {
-      return s!.text.charCodeAt(s!.pos) | 0;
+      return s!.text$bytes[s!.pos] | 0;
     }
     return -1;
   }
   charAt(offset: number): number {
     const s = this;
     if (s!.pos + offset < s!.end) {
-      return s!.text.charCodeAt(s!.pos + offset) | 0;
+      return s!.text$bytes[s!.pos + offset] | 0;
     }
     return -1;
   }
@@ -293,22 +297,23 @@ export class Scanner extends ScannerState {
     const s = this;
     if (s!.pos < s!.end) {
       {
-        let b: number = s!.text.charCodeAt(s!.pos);
+        let b: number = s!.text$bytes[s!.pos];
         if (b < 128) {
           return [b | 0, 1];
         }
       }
     }
-    return $rt.utf8_DecodeRuneInStringAt(s!.text, s!.pos);
+    return $rt.utf8_DecodeRuneBytesAt(s!.text$bytes, s!.pos);
   }
   scanASCIIWhile(pred: ((p0: number) => boolean) | undefined): void {
     const s = this;
+    const text$by = s!.text$bytes;
     const text$b = s!.text;
     const text$o = s!.pos;
     const text$n = s!.end - text$o;
     let i: number = 0;
     for (; i < text$n;) {
-      let b: number = text$b.charCodeAt(text$o + i);
+      let b: number = text$by[text$o + i];
       if (b >= 128 || !pred!(b)) {
         break;
       }
@@ -350,9 +355,7 @@ export class Scanner extends ScannerState {
             s!.tokenFlags = s!.tokenFlags | 1 | 0;
             if (s!.skipTrivia) {
               s!.pos++;
-              s!.scanASCIIWhile((b: number): boolean => {
-                return b === (32 as number) || (b >= 9 && b <= 13);
-              });
+              s!.scanASCIIWhile($fn2);
               continue;
             }
             if (ch === (13 as number) && s!.charAt(1) === (10 as number)) {
@@ -504,9 +507,7 @@ export class Scanner extends ScannerState {
             if (s!.charAt(1) === (47 as number)) {
               s!.pos += 2;
               for (;;) {
-                s!.scanASCIIWhile((b$1: number): boolean => {
-                  return !(b$1 === (10 as number)) && !(b$1 === (13 as number));
-                });
+                s!.scanASCIIWhile($fn3);
                 const $t2 = s!.charAndSize();
                 let ch1: number = $t2[0];
                 let size$1: number = $t2[1];
@@ -528,9 +529,7 @@ export class Scanner extends ScannerState {
               let commentClosed: boolean = false;
               let lastLineStart: number = s!.tokenStart;
               for (;;) {
-                s!.scanASCIIWhile((b$2: number): boolean => {
-                  return !(b$2 === (42 as number)) && !(b$2 === (10 as number)) && !(b$2 === (13 as number));
-                });
+                s!.scanASCIIWhile($fn4);
                 const $t3 = s!.charAndSize();
                 let ch1$1: number = $t3[0];
                 let size$2: number = $t3[1];
@@ -936,7 +935,7 @@ export class Scanner extends ScannerState {
             let size$4: number = $t14[1];
             if (ch$3 === (65533 as number)) {
               s!.errorAt($diagnostics.File_appears_to_be_binary, 0, 0, [] as ($rt.GoObject | undefined)[]);
-              s!.pos = s!.text.length;
+              s!.pos = s!.text$bytes.length;
               s!.token = 7;
               break;
             }
@@ -974,22 +973,22 @@ export class Scanner extends ScannerState {
     const s = this;
     let pos: number = start;
     if (multiline) {
-      for (; pos < end && (s!.text.charCodeAt(pos) === (32 as number) || s!.text.charCodeAt(pos) === (9 as number));) {
+      for (; pos < end && (s!.text$bytes[pos] === (32 as number) || s!.text$bytes[pos] === (9 as number));) {
         pos++;
       }
-      for (; pos < end && (s!.text.charCodeAt(pos) === (47 as number) || s!.text.charCodeAt(pos) === (42 as number));) {
+      for (; pos < end && (s!.text$bytes[pos] === (47 as number) || s!.text$bytes[pos] === (42 as number));) {
         pos++;
       }
     } else {
       pos += 2;
-      for (; pos < end && s!.text.charCodeAt(pos) === (47 as number);) {
+      for (; pos < end && s!.text$bytes[pos] === (47 as number);) {
         pos++;
       }
     }
-    for (; pos < end && (s!.text.charCodeAt(pos) === (32 as number) || s!.text.charCodeAt(pos) === (9 as number));) {
+    for (; pos < end && (s!.text$bytes[pos] === (32 as number) || s!.text$bytes[pos] === (9 as number));) {
       pos++;
     }
-    if (!(pos < end && s!.text.charCodeAt(pos) === (64 as number))) {
+    if (!(pos < end && s!.text$bytes[pos] === (64 as number))) {
       return;
     }
     pos++;
@@ -1005,7 +1004,9 @@ export class Scanner extends ScannerState {
         }
       }
     }
-    s!.commentDirectives.push($ast.CommentDirective.$lit_CommentDirective_0_1($core.NewTextRange(start, end), kind));
+    s!.commentDirectives.push(
+      $ast.CommentDirective.$lit_ast_CommentDirective_0_1($core.NewTextRange(start, end), kind),
+    );
   }
   ReScanLessThanToken(): $ast.Kind {
     const s = this;
@@ -1075,7 +1076,7 @@ export class Scanner extends ScannerState {
           s!.tokenFlags = s!.tokenFlags | 4 | 0;
           break loop;
         }
-        let ch: number = s!.text.charCodeAt(p) | 0;
+        let ch: number = s!.text$bytes[p] | 0;
         {
           $sw1: {
             if ($stringutil.IsLineBreak(ch)) {
@@ -1095,11 +1096,11 @@ export class Scanner extends ScannerState {
               !inCharacterClass &&
               ch === (40 as number) &&
               p + 1 < s!.end &&
-              s!.text.charCodeAt(p + 1) === (63 as number) &&
+              s!.text$bytes[p + 1] === (63 as number) &&
               p + 2 < s!.end &&
-              s!.text.charCodeAt(p + 2) === (60 as number) &&
+              s!.text$bytes[p + 2] === (60 as number) &&
               (p + 3 >= s!.end ||
-                (!(s!.text.charCodeAt(p + 3) === (61 as number)) && !(s!.text.charCodeAt(p + 3) === (33 as number))))
+                (!(s!.text$bytes[p + 3] === (61 as number)) && !(s!.text$bytes[p + 3] === (33 as number))))
             ) {
               namedCaptureGroups = true;
             }
@@ -1115,7 +1116,7 @@ export class Scanner extends ScannerState {
         let inDecimalQuantifier: boolean = false;
         let groupDepth: number = 0;
         for (; p < endOfRegExpBody;) {
-          let ch$1: number = s!.text.charCodeAt(p) | 0;
+          let ch$1: number = s!.text$bytes[p] | 0;
           if (inEscape) {
             inEscape = false;
           } else if (ch$1 === (92 as number)) {
@@ -1161,7 +1162,7 @@ export class Scanner extends ScannerState {
         p++;
         let regExpFlags: regularExpressionFlags = 0;
         for (; p < s!.end;) {
-          const $t3 = $rt.utf8_DecodeRuneInStringAt(s!.text, p);
+          const $t3 = $rt.utf8_DecodeRuneBytesAt(s!.text$bytes, p);
           let ch$3: number = $t3[0];
           let size$1: number = $t3[1];
           if (ch$3 === (65533 as number) || !IsIdentifierPart(ch$3)) {
@@ -1196,7 +1197,7 @@ export class Scanner extends ScannerState {
           let saveTokenPos: number = s!.tokenStart;
           let saveTokenFlags: $ast.TokenFlags = s!.tokenFlags;
           s!.end = endOfRegExpBody;
-          let parser: regExpParser | undefined = regExpParser.$lit_regExpParser_0_1_2_3_4_5_7_10(
+          let parser: regExpParser | undefined = regExpParser.$lit_scanner_regExpParser_0_1_2_3_4_5_7_10(
             s,
             endOfRegExpBody,
             regExpFlags,
@@ -1397,7 +1398,7 @@ export class Scanner extends ScannerState {
     const s = this;
     s!.fullStartPos = s!.pos;
     s!.tokenFlags = 0;
-    if (s!.pos >= s!.text.length) {
+    if (s!.pos >= s!.text$bytes.length) {
       s!.token = 1;
       return s!.token;
     }
@@ -1406,7 +1407,7 @@ export class Scanner extends ScannerState {
       const $t1 = s!.charAndSize();
       let ch: number = $t1[0];
       let size: number = $t1[1];
-      for (; s!.pos < s!.text.length && !$stringutil.IsLineBreak(ch) && !(ch === (96 as number));) {
+      for (; s!.pos < s!.text$bytes.length && !$stringutil.IsLineBreak(ch) && !(ch === (96 as number));) {
         $cont3: {
           if (!inBackticks) {
             if (ch === (123 as number)) {
@@ -1415,7 +1416,7 @@ export class Scanner extends ScannerState {
               const $t4 = $rt.unicode_utf8_DecodeLastRuneInString(s!.text.substring(0, s!.pos));
               let previous: number = $t4[0];
               if ($stringutil.IsWhiteSpaceSingleLine(previous)) {
-                const $t5 = $rt.utf8_DecodeRuneInStringAt(s!.text, s!.pos + size);
+                const $t5 = $rt.utf8_DecodeRuneBytesAt(s!.text$bytes, s!.pos + size);
                 let next: number = $t5[0];
                 if (IsIdentifierStart(next)) {
                   break;
@@ -1439,10 +1440,10 @@ export class Scanner extends ScannerState {
   }
   CanFollowJSDocAt(): boolean {
     const s = this;
-    if (s!.pos >= s!.text.length) {
+    if (s!.pos >= s!.text$bytes.length) {
       return true;
     }
-    const $t1 = $rt.utf8_DecodeRuneInStringAt(s!.text, s!.pos);
+    const $t1 = $rt.utf8_DecodeRuneBytesAt(s!.text$bytes, s!.pos);
     let ch: number = $t1[0];
     return IsIdentifierStart(ch) || $stringutil.IsWhiteSpaceSingleLine(ch) || $stringutil.IsLineBreak(ch);
   }
@@ -1450,7 +1451,7 @@ export class Scanner extends ScannerState {
     const s = this;
     s!.fullStartPos = s!.pos;
     s!.tokenFlags = 0;
-    if (s!.pos >= s!.text.length) {
+    if (s!.pos >= s!.text$bytes.length) {
       s!.token = 1;
       return s!.token;
     }
@@ -1568,7 +1569,7 @@ export class Scanner extends ScannerState {
     if (IsIdentifierStart(ch)) {
       let char: number = ch;
       for (;;) {
-        if (s!.pos >= s!.text.length) {
+        if (s!.pos >= s!.text$bytes.length) {
           break;
         }
         const $t6 = s!.charAndSize();
@@ -1597,15 +1598,7 @@ export class Scanner extends ScannerState {
     let ch: number = s!.char();
     if ($stringutil.IsASCIILetter(ch) || ch === (95 as number) || ch === (36 as number)) {
       s!.pos++;
-      s!.scanASCIIWhile((b: number): boolean => {
-        return (
-          (b >= 97 && b <= 122) ||
-          (b >= 65 && b <= 90) ||
-          (b >= 48 && b <= 57) ||
-          b === (95 as number) ||
-          b === (36 as number)
-        );
-      });
+      s!.scanASCIIWhile($fn5);
       ch = s!.char();
       if (ch < 128 && !(ch === (92 as number))) {
         s!.tokenValue = s!.text.substring(start, s!.pos);
@@ -1721,9 +1714,7 @@ export class Scanner extends ScannerState {
     let parts: string[] = [] as string[];
     let token: $ast.Kind = 0;
     for (;;) {
-      s!.scanASCIIWhile((b: number): boolean => {
-        return !(b === (96 as number)) && !(b === (36 as number)) && !(b === (92 as number)) && !(b === (13 as number));
-      });
+      s!.scanASCIIWhile($fn6);
       let ch: number = s!.char();
       if (ch < 0 || ch === (96 as number)) {
         parts.push(s!.text.substring(start, s!.pos));
@@ -1946,7 +1937,7 @@ export class Scanner extends ScannerState {
           if (ch >= 128) {
             s!.pos--;
             let size: number = 0;
-            const $t5 = $rt.utf8_DecodeRuneInStringAt(s!.text, s!.pos);
+            const $t5 = $rt.utf8_DecodeRuneBytesAt(s!.text$bytes, s!.pos);
             ch = $t5[0];
             size = $t5[1];
             s!.pos += size;
@@ -2149,11 +2140,7 @@ export class Scanner extends ScannerState {
     if (IsIdentifierStart(ch)) {
       let idStart: number = s!.pos;
       let id: string = s!.scanIdentifierParts();
-      if (
-        !(result === (9 as number)) &&
-        id.length === (1 as number) &&
-        s!.text.charCodeAt(idStart) === (110 as number)
-      ) {
+      if (!(result === (9 as number)) && id.length === (1 as number) && s!.text$bytes[idStart] === (110 as number)) {
         if (!((s!.tokenFlags & 16) === (0 as number))) {
           s!.errorAt(
             $diagnostics.A_bigint_literal_cannot_use_exponential_notation,
@@ -2191,9 +2178,7 @@ export class Scanner extends ScannerState {
     let result: $rt.strings_Builder = new $rt.strings_Builder();
     for (;;) {
       let before: number = s!.pos;
-      s!.scanASCIIWhile((b: number): boolean => {
-        return b >= 48 && b <= 57;
-      });
+      s!.scanASCIIWhile($fn7);
       if (s!.pos > before) {
         allowSeparator = true;
         isPreviousTokenSeparator = false;
@@ -2416,34 +2401,39 @@ export class SkipTriviaOptions extends $rt.GoObject {
   StopAfterLineBreak: boolean = false;
   StopAtComments: boolean = false;
   InJSDoc: boolean = false;
-  $copy_SkipTriviaOptions(src: SkipTriviaOptions): void {
+  $copy_scanner_SkipTriviaOptions(src: SkipTriviaOptions): void {
     this.StopAfterLineBreak = src.StopAfterLineBreak;
     this.StopAtComments = src.StopAtComments;
     this.InJSDoc = src.InJSDoc;
   }
-  $equals_SkipTriviaOptions(o: SkipTriviaOptions): boolean {
+  $equals_scanner_SkipTriviaOptions(o: SkipTriviaOptions): boolean {
     return (
       this.StopAfterLineBreak === o.StopAfterLineBreak &&
       this.StopAtComments === o.StopAtComments &&
       this.InJSDoc === o.InJSDoc
     );
   }
-  $clone_SkipTriviaOptions(): SkipTriviaOptions {
+  $clone_scanner_SkipTriviaOptions(): SkipTriviaOptions {
     const o = new SkipTriviaOptions();
-    o.$copy_SkipTriviaOptions(this);
+    o.$copy_scanner_SkipTriviaOptions(this);
     return o;
   }
-  static $lit_SkipTriviaOptions_1(p0: boolean): SkipTriviaOptions {
+  static $lit_scanner_SkipTriviaOptions_0(p0: boolean): SkipTriviaOptions {
+    const o = new SkipTriviaOptions();
+    o.StopAfterLineBreak = p0;
+    return o;
+  }
+  static $lit_scanner_SkipTriviaOptions_1(p0: boolean): SkipTriviaOptions {
     const o = new SkipTriviaOptions();
     o.StopAtComments = p0;
     return o;
   }
-  static $lit_SkipTriviaOptions_2(p0: boolean): SkipTriviaOptions {
+  static $lit_scanner_SkipTriviaOptions_2(p0: boolean): SkipTriviaOptions {
     const o = new SkipTriviaOptions();
     o.InJSDoc = p0;
     return o;
   }
-  static $cast_SkipTriviaOptions(v: $rt.GoObject | undefined): SkipTriviaOptions {
+  static $cast_scanner_SkipTriviaOptions(v: $rt.GoObject | undefined): SkipTriviaOptions {
     if (v instanceof SkipTriviaOptions) return v;
     throw $rt.typeAssertError();
   }
@@ -2452,27 +2442,27 @@ export class decimalEscapeValue extends $rt.GoObject {
   pos: number = 0;
   end: number = 0;
   value: number = 0;
-  $copy_decimalEscapeValue(src: decimalEscapeValue): void {
+  $copy_scanner_decimalEscapeValue(src: decimalEscapeValue): void {
     this.pos = src.pos;
     this.end = src.end;
     this.value = src.value;
   }
-  $equals_decimalEscapeValue(o: decimalEscapeValue): boolean {
+  $equals_scanner_decimalEscapeValue(o: decimalEscapeValue): boolean {
     return this.pos === o.pos && this.end === o.end && this.value === o.value;
   }
-  $clone_decimalEscapeValue(): decimalEscapeValue {
+  $clone_scanner_decimalEscapeValue(): decimalEscapeValue {
     const o = new decimalEscapeValue();
-    o.$copy_decimalEscapeValue(this);
+    o.$copy_scanner_decimalEscapeValue(this);
     return o;
   }
-  static $lit_decimalEscapeValue_0_1_2(p0: number, p1: number, p2: number): decimalEscapeValue {
+  static $lit_scanner_decimalEscapeValue_0_1_2(p0: number, p1: number, p2: number): decimalEscapeValue {
     const o = new decimalEscapeValue();
     o.pos = p0;
     o.end = p1;
     o.value = p2;
     return o;
   }
-  static $cast_decimalEscapeValue(v: $rt.GoObject | undefined): decimalEscapeValue {
+  static $cast_scanner_decimalEscapeValue(v: $rt.GoObject | undefined): decimalEscapeValue {
     if (v instanceof decimalEscapeValue) return v;
     throw $rt.typeAssertError();
   }
@@ -2481,27 +2471,27 @@ export class groupNameReference extends $rt.GoObject {
   pos: number = 0;
   end: number = 0;
   name: string = '';
-  $copy_groupNameReference(src: groupNameReference): void {
+  $copy_scanner_groupNameReference(src: groupNameReference): void {
     this.pos = src.pos;
     this.end = src.end;
     this.name = src.name;
   }
-  $equals_groupNameReference(o: groupNameReference): boolean {
+  $equals_scanner_groupNameReference(o: groupNameReference): boolean {
     return this.pos === o.pos && this.end === o.end && this.name === o.name;
   }
-  $clone_groupNameReference(): groupNameReference {
+  $clone_scanner_groupNameReference(): groupNameReference {
     const o = new groupNameReference();
-    o.$copy_groupNameReference(this);
+    o.$copy_scanner_groupNameReference(this);
     return o;
   }
-  static $lit_groupNameReference_0_1_2(p0: number, p1: number, p2: string): groupNameReference {
+  static $lit_scanner_groupNameReference_0_1_2(p0: number, p1: number, p2: string): groupNameReference {
     const o = new groupNameReference();
     o.pos = p0;
     o.end = p1;
     o.name = p2;
     return o;
   }
-  static $cast_groupNameReference(v: $rt.GoObject | undefined): groupNameReference {
+  static $cast_scanner_groupNameReference(v: $rt.GoObject | undefined): groupNameReference {
     if (v instanceof groupNameReference) return v;
     throw $rt.typeAssertError();
   }
@@ -2522,7 +2512,7 @@ export class regExpParser extends $rt.GoObject {
   decimalEscapes: decimalEscapeValue[] = [];
   namedCapturingGroups: (Map<string, boolean> | undefined)[] = [];
   pendingLowSurrogate: number = 0;
-  $copy_regExpParser(src: regExpParser): void {
+  $copy_scanner_regExpParser(src: regExpParser): void {
     this.scanner = src.scanner;
     this.end = src.end;
     this.regExpFlags = src.regExpFlags;
@@ -2539,12 +2529,12 @@ export class regExpParser extends $rt.GoObject {
     this.namedCapturingGroups = src.namedCapturingGroups;
     this.pendingLowSurrogate = src.pendingLowSurrogate;
   }
-  $clone_regExpParser(): regExpParser {
+  $clone_scanner_regExpParser(): regExpParser {
     const o = new regExpParser();
-    o.$copy_regExpParser(this);
+    o.$copy_scanner_regExpParser(this);
     return o;
   }
-  static $lit_regExpParser_0_1_2_3_4_5_7_10(
+  static $lit_scanner_regExpParser_0_1_2_3_4_5_7_10(
     p0: Scanner | undefined,
     p1: number,
     p2: regularExpressionFlags,
@@ -2565,7 +2555,7 @@ export class regExpParser extends $rt.GoObject {
     o.groupSpecifiers = p7;
     return o;
   }
-  static $cast_regExpParser(v: $rt.GoObject | undefined): regExpParser {
+  static $cast_scanner_regExpParser(v: $rt.GoObject | undefined): regExpParser {
     if (v instanceof regExpParser) return v;
     throw $rt.typeAssertError();
   }
@@ -2605,7 +2595,7 @@ export class regExpParser extends $rt.GoObject {
       p!.scanAlternative(isInGroup);
       let alternativeNames: Map<string, boolean> | undefined =
         p!.namedCapturingGroups[p!.namedCapturingGroups.length - 1];
-      p!.namedCapturingGroups = p!.namedCapturingGroups.slice(0, p!.namedCapturingGroups.length - 1);
+      p!.namedCapturingGroups = $rt.reslice(p!.namedCapturingGroups, 0, p!.namedCapturingGroups.length - 1, undefined);
       for (const [name_, $t1] of alternativeNames ?? new Map<string, boolean>()) {
         disjunctionNames.Add(name_);
       }
@@ -2949,7 +2939,7 @@ export class regExpParser extends $rt.GoObject {
       if (!(err === undefined)) {
         val = 9223372036854775807;
       }
-      p!.decimalEscapes.push(decimalEscapeValue.$lit_decimalEscapeValue_0_1_2(start, p!.pos(), val));
+      p!.decimalEscapes.push(decimalEscapeValue.$lit_scanner_decimalEscapeValue_0_1_2(start, p!.pos(), val));
       return true;
     }
     return false;
@@ -3034,7 +3024,11 @@ export class regExpParser extends $rt.GoObject {
       p!.error($diagnostics.Expected_a_capturing_group_name, p!.pos(), 0, [] as ($rt.GoObject | undefined)[]);
     } else if (isReference) {
       p!.groupNameReferences.push(
-        groupNameReference.$lit_groupNameReference_0_1_2(p!.scanner!.tokenStart, p!.pos(), p!.scanner!.tokenValue),
+        groupNameReference.$lit_scanner_groupNameReference_0_1_2(
+          p!.scanner!.tokenStart,
+          p!.pos(),
+          p!.scanner!.tokenValue,
+        ),
       );
     } else if (p!.namedCapturingGroupsContains(p!.scanner!.tokenValue)) {
       p!.error(
@@ -3966,6 +3960,104 @@ export const regularExpressionFlagsNone: regularExpressionFlags = 0;
 export const regularExpressionFlagsSticky: regularExpressionFlags = 128;
 export const regularExpressionFlagsUnicode: regularExpressionFlags = 32;
 export const regularExpressionFlagsUnicodeSets: regularExpressionFlags = 64;
+const $fn0 = (): Map<string, $ast.Kind> | undefined => {
+  let m: Map<string, $ast.Kind> | undefined = new Map<string, $ast.Kind>([
+    ['{', 18],
+    ['}', 19],
+    ['(', 20],
+    [')', 21],
+    ['[', 22],
+    [']', 23],
+    ['.', 24],
+    ['...', 25],
+    [';', 26],
+    [',', 27],
+    ['<', 29],
+    ['>', 31],
+    ['<=', 32],
+    ['>=', 33],
+    ['==', 34],
+    ['!=', 35],
+    ['===', 36],
+    ['!==', 37],
+    ['=>', 38],
+    ['+', 39],
+    ['-', 40],
+    ['**', 42],
+    ['*', 41],
+    ['/', 43],
+    ['%', 44],
+    ['++', 45],
+    ['--', 46],
+    ['<<', 47],
+    ['</', 30],
+    ['>>', 48],
+    ['>>>', 49],
+    ['&', 50],
+    ['|', 51],
+    ['^', 52],
+    ['!', 53],
+    ['~', 54],
+    ['&&', 55],
+    ['||', 56],
+    ['?', 57],
+    ['??', 60],
+    ['?.', 28],
+    [':', 58],
+    ['=', 63],
+    ['+=', 64],
+    ['-=', 65],
+    ['*=', 66],
+    ['**=', 67],
+    ['/=', 68],
+    ['%=', 69],
+    ['<<=', 70],
+    ['>>=', 71],
+    ['>>>=', 72],
+    ['&=', 73],
+    ['|=', 74],
+    ['^=', 78],
+    ['||=', 75],
+    ['&&=', 76],
+    ['??=', 77],
+    ['@', 59],
+    ['#', 62],
+    ['`', 61],
+  ]);
+  $rt.maps_Copy(m, textToKeyword);
+  return m;
+};
+const $fn1 = (): string[] => {
+  let result: string[] = $rt.makeArray(351, () => '');
+  for (const [text, kind] of textToToken ?? new Map<string, $ast.Kind>()) {
+    result[kind] = text;
+  }
+  return result;
+};
+const $fn2 = (b: number): boolean => {
+  return b === (32 as number) || (b >= 9 && b <= 13);
+};
+const $fn3 = (b$1: number): boolean => {
+  return !(b$1 === (10 as number)) && !(b$1 === (13 as number));
+};
+const $fn4 = (b$2: number): boolean => {
+  return !(b$2 === (42 as number)) && !(b$2 === (10 as number)) && !(b$2 === (13 as number));
+};
+const $fn5 = (b: number): boolean => {
+  return (
+    (b >= 97 && b <= 122) ||
+    (b >= 65 && b <= 90) ||
+    (b >= 48 && b <= 57) ||
+    b === (95 as number) ||
+    b === (36 as number)
+  );
+};
+const $fn6 = (b: number): boolean => {
+  return !(b === (96 as number)) && !(b === (36 as number)) && !(b === (92 as number)) && !(b === (13 as number));
+};
+const $fn7 = (b: number): boolean => {
+  return b >= 48 && b <= 57;
+};
 export let charCodeToRegExpFlag: Map<number, regularExpressionFlags> | undefined = new Map<
   number,
   regularExpressionFlags
@@ -4072,80 +4164,8 @@ export let textToKeyword: Map<string, $ast.Kind> | undefined = new Map<string, $
   ['await', 134],
   ['of', 165],
 ]);
-export let textToToken: Map<string, $ast.Kind> | undefined = ((): Map<string, $ast.Kind> | undefined => {
-  let m: Map<string, $ast.Kind> | undefined = new Map<string, $ast.Kind>([
-    ['{', 18],
-    ['}', 19],
-    ['(', 20],
-    [')', 21],
-    ['[', 22],
-    [']', 23],
-    ['.', 24],
-    ['...', 25],
-    [';', 26],
-    [',', 27],
-    ['<', 29],
-    ['>', 31],
-    ['<=', 32],
-    ['>=', 33],
-    ['==', 34],
-    ['!=', 35],
-    ['===', 36],
-    ['!==', 37],
-    ['=>', 38],
-    ['+', 39],
-    ['-', 40],
-    ['**', 42],
-    ['*', 41],
-    ['/', 43],
-    ['%', 44],
-    ['++', 45],
-    ['--', 46],
-    ['<<', 47],
-    ['</', 30],
-    ['>>', 48],
-    ['>>>', 49],
-    ['&', 50],
-    ['|', 51],
-    ['^', 52],
-    ['!', 53],
-    ['~', 54],
-    ['&&', 55],
-    ['||', 56],
-    ['?', 57],
-    ['??', 60],
-    ['?.', 28],
-    [':', 58],
-    ['=', 63],
-    ['+=', 64],
-    ['-=', 65],
-    ['*=', 66],
-    ['**=', 67],
-    ['/=', 68],
-    ['%=', 69],
-    ['<<=', 70],
-    ['>>=', 71],
-    ['>>>=', 72],
-    ['&=', 73],
-    ['|=', 74],
-    ['^=', 78],
-    ['||=', 75],
-    ['&&=', 76],
-    ['??=', 77],
-    ['@', 59],
-    ['#', 62],
-    ['`', 61],
-  ]);
-  $rt.maps_Copy(m, textToKeyword);
-  return m;
-})();
-export let tokenToText: string[] = ((): string[] => {
-  let result: string[] = $rt.makeArray(351, () => '');
-  for (const [text, kind] of textToToken ?? new Map<string, $ast.Kind>()) {
-    result[kind] = text;
-  }
-  return result;
-})();
+export let textToToken: Map<string, $ast.Kind> | undefined = $fn0();
+export let tokenToText: string[] = $fn1();
 export let mergeConflictMarkerLength: number = 7;
 export let maxAsciiCharacter: number = 127;
 export let nonBinaryUnicodeProperties: Map<string, string> | undefined = new Map<string, string>([
@@ -4702,7 +4722,7 @@ export function compareDecimalStrings(a: string, b: string): number {
   return $rt.strings_Compare(a, b);
 }
 export function defaultScanner(): Scanner {
-  return Scanner.$lit_Scanner_5(true);
+  return Scanner.$lit_scanner_Scanner_5(true);
 }
 export function NewScanner(): Scanner | undefined {
   let s: Scanner = defaultScanner();
@@ -5054,9 +5074,11 @@ export function GetShebang(text: string): string {
 }
 export function GetScannerForSourceFile(sourceFile: $ast.SourceFile | undefined, pos: number): Scanner | undefined {
   let s: Scanner | undefined = NewScanner();
-  s!.text = sourceFile!.Text();
+  const $t1 = sourceFile!.Text();
+  s!.text = $t1;
+  s!.text$bytes = $rt.stringBytes($t1);
   s!.pos = pos;
-  s!.end = s!.text.length;
+  s!.end = s!.text$bytes.length;
   s!.languageVariant = sourceFile!.LanguageVariant_;
   s!.Scan();
   return s;
@@ -5078,7 +5100,7 @@ export function GetTokenPosOfNode(
     return node!.Pos();
   }
   if ($ast.IsJSDocNode(node) || node!.Kind_ === (11 as number)) {
-    return SkipTriviaEx(sourceFile!.Text(), node!.Pos(), SkipTriviaOptions.$lit_SkipTriviaOptions_1(true));
+    return SkipTriviaEx(sourceFile!.Text(), node!.Pos(), SkipTriviaOptions.$lit_scanner_SkipTriviaOptions_1(true));
   }
   if (includeJSDoc && node!.JSDoc(sourceFile).length > 0) {
     return GetTokenPosOfNode(node!.JSDoc(sourceFile)[0], sourceFile, false);
@@ -5086,7 +5108,7 @@ export function GetTokenPosOfNode(
   return SkipTriviaEx(
     sourceFile!.Text(),
     node!.Pos(),
-    SkipTriviaOptions.$lit_SkipTriviaOptions_2(!((node!.Flags & 4194304) === (0 as number))),
+    SkipTriviaOptions.$lit_scanner_SkipTriviaOptions_2(!((node!.Flags & 4194304) === (0 as number))),
   );
 }
 export function getErrorRangeForArrowFunction(
@@ -5117,7 +5139,7 @@ export function findOriginatingJSDocSatisfiesTag(
       if ((current!.Flags & 2097152) === (0 as number)) {
         continue;
       }
-      let firstSatisfiesTag: $ast.Node | undefined = undefined;
+      let firstSatisfiesTag: $ast.Node | undefined = undefined as $ast.Node | undefined;
       {
         const $t1 = current!.EagerJSDoc(sourceFile);
         for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
@@ -5139,8 +5161,8 @@ export function findOriginatingJSDocSatisfiesTag(
                     let typeExpr: $ast.Node | undefined = tag!.AsJSDocSatisfiesTag()!.TypeExpression_;
                     if (!(typeExpr === undefined)) {
                       {
-                        let t: $ast.Node | undefined = typeExpr!.Type();
-                        if (!(t === undefined) && t!.Loc.$equals_TextRange(targetType!.Loc)) {
+                        let t: $ast.Node | undefined = typeExpr!.Type$m();
+                        if (!(t === undefined) && t!.Loc.$equals_core_TextRange(targetType!.Loc)) {
                           return tag;
                         }
                       }

@@ -3,33 +3,43 @@ import * as $b from './base.js';
 import * as $s from './std.js';
 export * from './base.js';
 export * from './std.js';
-export class context_Context extends $b.GoObject {
-  Deadline(): [time_Time, boolean] {
-    throw $b.unsupported('context.Context.Deadline');
-  }
-  Done(): $b.Chan<$b.Empty> | undefined {
-    throw $b.unsupported('context.Context.Done');
-  }
-  Err(): $b.GoObject | undefined {
-    throw $b.unsupported('context.Context.Err');
-  }
-  Value(a0: $b.GoObject | undefined): $b.GoObject | undefined {
-    throw $b.unsupported('context.Context.Value');
-  }
-}
 export class encoding_TextMarshaler extends $b.GoObject {
   MarshalText(): [number[], $b.GoObject | undefined] {
     throw $b.unsupported('encoding.TextMarshaler.MarshalText');
   }
 }
-export class github_com_go_json_experiment_json_MarshalerTo extends $b.GoObject {
-  MarshalJSONTo(a0: github_com_go_json_experiment_json_jsontext_Encoder | undefined): $b.GoObject | undefined {
-    throw $b.unsupported('github.com/go-json-experiment/json.MarshalerTo.MarshalJSONTo');
+export class fmt_ScanState extends $b.GoObject {
+  Read(a0: number[]): [number, $b.GoObject | undefined] {
+    throw $b.unsupported('fmt.ScanState.Read');
+  }
+  ReadRune(): [number, number, $b.GoObject | undefined] {
+    throw $b.unsupported('fmt.ScanState.ReadRune');
+  }
+  SkipSpace(): void {
+    throw $b.unsupported('fmt.ScanState.SkipSpace');
+  }
+  Token(a0: boolean, a1: ((p0: number) => boolean) | undefined): [number[], $b.GoObject | undefined] {
+    throw $b.unsupported('fmt.ScanState.Token');
+  }
+  UnreadRune(): $b.GoObject | undefined {
+    throw $b.unsupported('fmt.ScanState.UnreadRune');
+  }
+  Width(): [number, boolean] {
+    throw $b.unsupported('fmt.ScanState.Width');
   }
 }
-export class github_com_go_json_experiment_json_UnmarshalerFrom extends $b.GoObject {
-  UnmarshalJSONFrom(a0: github_com_go_json_experiment_json_jsontext_Decoder | undefined): $b.GoObject | undefined {
-    throw $b.unsupported('github.com/go-json-experiment/json.UnmarshalerFrom.UnmarshalJSONFrom');
+export class fmt_State extends $b.GoObject {
+  Flag(a0: number): boolean {
+    throw $b.unsupported('fmt.State.Flag');
+  }
+  Precision(): [number, boolean] {
+    throw $b.unsupported('fmt.State.Precision');
+  }
+  Width(): [number, boolean] {
+    throw $b.unsupported('fmt.State.Width');
+  }
+  Write(a0: number[]): [number, $b.GoObject | undefined] {
+    throw $b.unsupported('fmt.State.Write');
   }
 }
 export class github_com_go_json_experiment_json_internal_jsonopts_Options extends $b.GoObject {
@@ -37,14 +47,83 @@ export class github_com_go_json_experiment_json_internal_jsonopts_Options extend
     throw $b.unsupported('github.com/go-json-experiment/json/internal/jsonopts.Options.JSONOptions');
   }
 }
-export class io_Reader extends $b.GoObject {
-  Read(a0: number[]): [number, $b.GoObject | undefined] {
-    throw $b.unsupported('io.Reader.Read');
+export class io_fs_DirEntry extends $b.GoObject {
+  Info(): [io_fs_FileInfo | undefined, $b.GoObject | undefined] {
+    throw $b.unsupported('io/fs.DirEntry.Info');
+  }
+  IsDir(): boolean {
+    throw $b.unsupported('io/fs.DirEntry.IsDir');
+  }
+  Name(): string {
+    throw $b.unsupported('io/fs.DirEntry.Name');
+  }
+  Type(): number {
+    throw $b.unsupported('io/fs.DirEntry.Type');
   }
 }
-export class io_Writer extends $b.GoObject {
+export class io_fs_FileInfo extends $b.GoObject {
+  IsDir(): boolean {
+    throw $b.unsupported('io/fs.FileInfo.IsDir');
+  }
+  ModTime(): time_Time {
+    throw $b.unsupported('io/fs.FileInfo.ModTime');
+  }
+  Mode(): number {
+    throw $b.unsupported('io/fs.FileInfo.Mode');
+  }
+  Name(): string {
+    throw $b.unsupported('io/fs.FileInfo.Name');
+  }
+  Size(): number {
+    throw $b.unsupported('io/fs.FileInfo.Size');
+  }
+  Sys(): $b.GoObject | undefined {
+    throw $b.unsupported('io/fs.FileInfo.Sys');
+  }
+}
+export class net_Addr extends $b.GoObject {
+  Network(): string {
+    throw $b.unsupported('net.Addr.Network');
+  }
+  override String(): string {
+    throw $b.unsupported('net.Addr.String');
+  }
+}
+export class net_Conn extends $b.GoObject {
+  Close(): $b.GoObject | undefined {
+    throw $b.unsupported('net.Conn.Close');
+  }
+  LocalAddr(): net_Addr | undefined {
+    throw $b.unsupported('net.Conn.LocalAddr');
+  }
+  Read(a0: number[]): [number, $b.GoObject | undefined] {
+    throw $b.unsupported('net.Conn.Read');
+  }
+  RemoteAddr(): net_Addr | undefined {
+    throw $b.unsupported('net.Conn.RemoteAddr');
+  }
+  SetDeadline(a0: time_Time): $b.GoObject | undefined {
+    throw $b.unsupported('net.Conn.SetDeadline');
+  }
+  SetReadDeadline(a0: time_Time): $b.GoObject | undefined {
+    throw $b.unsupported('net.Conn.SetReadDeadline');
+  }
+  SetWriteDeadline(a0: time_Time): $b.GoObject | undefined {
+    throw $b.unsupported('net.Conn.SetWriteDeadline');
+  }
   Write(a0: number[]): [number, $b.GoObject | undefined] {
-    throw $b.unsupported('io.Writer.Write');
+    throw $b.unsupported('net.Conn.Write');
+  }
+}
+export class net_Listener extends $b.GoObject {
+  Accept(): [net_Conn | undefined, $b.GoObject | undefined] {
+    throw $b.unsupported('net.Listener.Accept');
+  }
+  Addr(): net_Addr | undefined {
+    throw $b.unsupported('net.Listener.Addr');
+  }
+  Close(): $b.GoObject | undefined {
+    throw $b.unsupported('net.Listener.Close');
   }
 }
 export class reflect_Type extends $b.GoObject {
@@ -166,7 +245,119 @@ export class reflect_Type extends $b.GoObject {
     throw $b.unsupported('reflect.Type.String');
   }
 }
-export class compress_gzip_Reader extends io_Reader {
+export class bufio_Reader extends $b.GoObject {
+  constructor() {
+    super();
+  }
+  Buffered(): number {
+    throw $b.unsupported('bufio.Reader.Buffered');
+  }
+  Discard(a0: number): [number, $b.GoObject | undefined] {
+    throw $b.unsupported('bufio.Reader.Discard');
+  }
+  Peek(a0: number): [number[], $b.GoObject | undefined] {
+    throw $b.unsupported('bufio.Reader.Peek');
+  }
+  Read(a0: number[]): [number, $b.GoObject | undefined] {
+    throw $b.unsupported('bufio.Reader.Read');
+  }
+  ReadByte(): [number, $b.GoObject | undefined] {
+    throw $b.unsupported('bufio.Reader.ReadByte');
+  }
+  ReadBytes(a0: number): [number[], $b.GoObject | undefined] {
+    throw $b.unsupported('bufio.Reader.ReadBytes');
+  }
+  ReadLine(): [number[], boolean, $b.GoObject | undefined] {
+    throw $b.unsupported('bufio.Reader.ReadLine');
+  }
+  ReadRune(): [number, number, $b.GoObject | undefined] {
+    throw $b.unsupported('bufio.Reader.ReadRune');
+  }
+  ReadSlice(a0: number): [number[], $b.GoObject | undefined] {
+    throw $b.unsupported('bufio.Reader.ReadSlice');
+  }
+  ReadString(a0: number): [string, $b.GoObject | undefined] {
+    throw $b.unsupported('bufio.Reader.ReadString');
+  }
+  Reset(a0: $b.GoObject | undefined): void {
+    throw $b.unsupported('bufio.Reader.Reset');
+  }
+  Size(): number {
+    throw $b.unsupported('bufio.Reader.Size');
+  }
+  UnreadByte(): $b.GoObject | undefined {
+    throw $b.unsupported('bufio.Reader.UnreadByte');
+  }
+  UnreadRune(): $b.GoObject | undefined {
+    throw $b.unsupported('bufio.Reader.UnreadRune');
+  }
+  WriteTo(a0: $b.GoObject | undefined): [number, $b.GoObject | undefined] {
+    throw $b.unsupported('bufio.Reader.WriteTo');
+  }
+  $clone(): bufio_Reader {
+    return this;
+  }
+}
+export class bufio_Writer extends $b.GoObject {
+  constructor() {
+    super();
+  }
+  Available(): number {
+    throw $b.unsupported('bufio.Writer.Available');
+  }
+  AvailableBuffer(): number[] {
+    throw $b.unsupported('bufio.Writer.AvailableBuffer');
+  }
+  Buffered(): number {
+    throw $b.unsupported('bufio.Writer.Buffered');
+  }
+  Flush(): $b.GoObject | undefined {
+    throw $b.unsupported('bufio.Writer.Flush');
+  }
+  ReadFrom(a0: $b.GoObject | undefined): [number, $b.GoObject | undefined] {
+    throw $b.unsupported('bufio.Writer.ReadFrom');
+  }
+  Reset(a0: $b.GoObject | undefined): void {
+    throw $b.unsupported('bufio.Writer.Reset');
+  }
+  Size(): number {
+    throw $b.unsupported('bufio.Writer.Size');
+  }
+  Write(a0: number[]): [number, $b.GoObject | undefined] {
+    throw $b.unsupported('bufio.Writer.Write');
+  }
+  WriteByte(a0: number): $b.GoObject | undefined {
+    throw $b.unsupported('bufio.Writer.WriteByte');
+  }
+  WriteRune(a0: number): [number, $b.GoObject | undefined] {
+    throw $b.unsupported('bufio.Writer.WriteRune');
+  }
+  WriteString(a0: string): [number, $b.GoObject | undefined] {
+    throw $b.unsupported('bufio.Writer.WriteString');
+  }
+  $clone(): bufio_Writer {
+    return this;
+  }
+}
+export class compress_gzip_Header extends $b.GoObject {
+  Comment: string;
+  Extra: number[];
+  ModTime: time_Time;
+  Name: string;
+  OS: number;
+  constructor(p0: string = '', p1: number[] = [], p2: time_Time = new time_Time(), p3: string = '', p4: number = 0) {
+    super();
+    this.Comment = p0;
+    this.Extra = p1;
+    this.ModTime = p2;
+    this.Name = p3;
+    this.OS = p4;
+  }
+  $clone(): compress_gzip_Header {
+    return this;
+  }
+}
+export class compress_gzip_Reader extends $b.GoObject {
   Header: compress_gzip_Header;
   constructor(p0: compress_gzip_Header = new compress_gzip_Header()) {
     super();
@@ -181,10 +372,56 @@ export class compress_gzip_Reader extends io_Reader {
   Read(a0: number[]): [number, $b.GoObject | undefined] {
     throw $b.unsupported('compress/gzip.Reader.Read');
   }
-  Reset(a0: io_Reader | undefined): $b.GoObject | undefined {
+  Reset(a0: $b.GoObject | undefined): $b.GoObject | undefined {
     throw $b.unsupported('compress/gzip.Reader.Reset');
   }
   $clone(): compress_gzip_Reader {
+    return this;
+  }
+}
+export class encoding_base64_Encoding extends $b.GoObject {
+  constructor() {
+    super();
+  }
+  Strict(): encoding_base64_Encoding | undefined {
+    throw $b.unsupported('encoding/base64.Encoding.Strict');
+  }
+  WithPadding(a0: number): encoding_base64_Encoding | undefined {
+    throw $b.unsupported('encoding/base64.Encoding.WithPadding');
+  }
+  AppendDecode(a0: number[], a1: number[]): [number[], $b.GoObject | undefined] {
+    throw $b.unsupported('encoding/base64.Encoding.AppendDecode');
+  }
+  AppendEncode(a0: number[], a1: number[]): number[] {
+    throw $b.unsupported('encoding/base64.Encoding.AppendEncode');
+  }
+  Decode(a0: number[], a1: number[]): [number, $b.GoObject | undefined] {
+    throw $b.unsupported('encoding/base64.Encoding.Decode');
+  }
+  DecodeString(a0: string): [number[], $b.GoObject | undefined] {
+    throw $b.unsupported('encoding/base64.Encoding.DecodeString');
+  }
+  DecodedLen(a0: number): number {
+    throw $b.unsupported('encoding/base64.Encoding.DecodedLen');
+  }
+  Encode(a0: number[], a1: number[]): void {
+    throw $b.unsupported('encoding/base64.Encoding.Encode');
+  }
+  EncodeToString(a0: number[]): string {
+    throw $b.unsupported('encoding/base64.Encoding.EncodeToString');
+  }
+  EncodedLen(a0: number): number {
+    throw $b.unsupported('encoding/base64.Encoding.EncodedLen');
+  }
+  $clone(): encoding_base64_Encoding {
+    return this;
+  }
+}
+export class github_com_go_json_experiment_json_internal_NotForPublicUse extends $b.GoObject {
+  constructor() {
+    super();
+  }
+  $clone(): github_com_go_json_experiment_json_internal_NotForPublicUse {
     return this;
   }
 }
@@ -208,7 +445,7 @@ export class github_com_go_json_experiment_json_jsontext_Decoder extends $b.GoOb
     throw $b.unsupported('github.com/go-json-experiment/json/jsontext.Decoder.ReadValue');
   }
   Reset(
-    a0: io_Reader | undefined,
+    a0: $b.GoObject | undefined,
     a1: (github_com_go_json_experiment_json_internal_jsonopts_Options | undefined)[],
   ): void {
     throw $b.unsupported('github.com/go-json-experiment/json/jsontext.Decoder.Reset');
@@ -246,7 +483,7 @@ export class github_com_go_json_experiment_json_jsontext_Encoder extends $b.GoOb
     throw $b.unsupported('github.com/go-json-experiment/json/jsontext.Encoder.OutputOffset');
   }
   Reset(
-    a0: io_Writer | undefined,
+    a0: $b.GoObject | undefined,
     a1: (github_com_go_json_experiment_json_internal_jsonopts_Options | undefined)[],
   ): void {
     throw $b.unsupported('github.com/go-json-experiment/json/jsontext.Encoder.Reset');
@@ -302,18 +539,38 @@ export class github_com_go_json_experiment_json_jsontext_Token extends $b.GoObje
     return this;
   }
 }
-export class github_com_zeebo_xxh3_Uint128 extends $b.GoObject {
-  Hi: number;
-  Lo: number;
-  constructor(p0: number = 0, p1: number = 0) {
+export class github_com_zeebo_xxh3_Hasher extends $b.GoObject {
+  constructor() {
     super();
-    this.Hi = p0;
-    this.Lo = p1;
   }
-  Bytes(): number[] {
-    throw $b.unsupported('github.com/zeebo/xxh3.Uint128.Bytes');
+  BlockSize(): number {
+    throw $b.unsupported('github.com/zeebo/xxh3.Hasher.BlockSize');
   }
-  $clone(): github_com_zeebo_xxh3_Uint128 {
+  Reset(): void {
+    throw $b.unsupported('github.com/zeebo/xxh3.Hasher.Reset');
+  }
+  ResetSeed(a0: number): void {
+    throw $b.unsupported('github.com/zeebo/xxh3.Hasher.ResetSeed');
+  }
+  Size(): number {
+    throw $b.unsupported('github.com/zeebo/xxh3.Hasher.Size');
+  }
+  Sum(a0: number[]): number[] {
+    throw $b.unsupported('github.com/zeebo/xxh3.Hasher.Sum');
+  }
+  Sum128(): $s.github_com_zeebo_xxh3_Uint128 {
+    throw $b.unsupported('github.com/zeebo/xxh3.Hasher.Sum128');
+  }
+  Sum64(): number {
+    throw $b.unsupported('github.com/zeebo/xxh3.Hasher.Sum64');
+  }
+  Write(a0: number[]): [number, $b.GoObject | undefined] {
+    throw $b.unsupported('github.com/zeebo/xxh3.Hasher.Write');
+  }
+  WriteString(a0: string): [number, $b.GoObject | undefined] {
+    throw $b.unsupported('github.com/zeebo/xxh3.Hasher.WriteString');
+  }
+  $clone(): github_com_zeebo_xxh3_Hasher {
     return this;
   }
 }
@@ -688,6 +945,246 @@ export class math_big_Int extends encoding_TextMarshaler {
     return this;
   }
 }
+export class math_big_Rat extends encoding_TextMarshaler {
+  constructor() {
+    super();
+  }
+  Abs(a0: math_big_Rat | undefined): math_big_Rat | undefined {
+    throw $b.unsupported('math/big.Rat.Abs');
+  }
+  Add(a0: math_big_Rat | undefined, a1: math_big_Rat | undefined): math_big_Rat | undefined {
+    throw $b.unsupported('math/big.Rat.Add');
+  }
+  AppendText(a0: number[]): [number[], $b.GoObject | undefined] {
+    throw $b.unsupported('math/big.Rat.AppendText');
+  }
+  Cmp(a0: math_big_Rat | undefined): number {
+    throw $b.unsupported('math/big.Rat.Cmp');
+  }
+  Denom(): math_big_Int | undefined {
+    throw $b.unsupported('math/big.Rat.Denom');
+  }
+  Float32(): [number, boolean] {
+    throw $b.unsupported('math/big.Rat.Float32');
+  }
+  Float64(): [number, boolean] {
+    throw $b.unsupported('math/big.Rat.Float64');
+  }
+  FloatPrec(): [number, boolean] {
+    throw $b.unsupported('math/big.Rat.FloatPrec');
+  }
+  FloatString(a0: number): string {
+    throw $b.unsupported('math/big.Rat.FloatString');
+  }
+  GobDecode(a0: number[]): $b.GoObject | undefined {
+    throw $b.unsupported('math/big.Rat.GobDecode');
+  }
+  GobEncode(): [number[], $b.GoObject | undefined] {
+    throw $b.unsupported('math/big.Rat.GobEncode');
+  }
+  Inv(a0: math_big_Rat | undefined): math_big_Rat | undefined {
+    throw $b.unsupported('math/big.Rat.Inv');
+  }
+  IsInt(): boolean {
+    throw $b.unsupported('math/big.Rat.IsInt');
+  }
+  MarshalText(): [number[], $b.GoObject | undefined] {
+    throw $b.unsupported('math/big.Rat.MarshalText');
+  }
+  Mul(a0: math_big_Rat | undefined, a1: math_big_Rat | undefined): math_big_Rat | undefined {
+    throw $b.unsupported('math/big.Rat.Mul');
+  }
+  Neg(a0: math_big_Rat | undefined): math_big_Rat | undefined {
+    throw $b.unsupported('math/big.Rat.Neg');
+  }
+  Num(): math_big_Int | undefined {
+    throw $b.unsupported('math/big.Rat.Num');
+  }
+  Quo(a0: math_big_Rat | undefined, a1: math_big_Rat | undefined): math_big_Rat | undefined {
+    throw $b.unsupported('math/big.Rat.Quo');
+  }
+  RatString(): string {
+    throw $b.unsupported('math/big.Rat.RatString');
+  }
+  Scan(a0: fmt_ScanState | undefined, a1: number): $b.GoObject | undefined {
+    throw $b.unsupported('math/big.Rat.Scan');
+  }
+  Set(a0: math_big_Rat | undefined): math_big_Rat | undefined {
+    throw $b.unsupported('math/big.Rat.Set');
+  }
+  SetFloat64(a0: number): math_big_Rat | undefined {
+    throw $b.unsupported('math/big.Rat.SetFloat64');
+  }
+  SetFrac(a0: math_big_Int | undefined, a1: math_big_Int | undefined): math_big_Rat | undefined {
+    throw $b.unsupported('math/big.Rat.SetFrac');
+  }
+  SetFrac64(a0: number, a1: number): math_big_Rat | undefined {
+    throw $b.unsupported('math/big.Rat.SetFrac64');
+  }
+  SetInt(a0: math_big_Int | undefined): math_big_Rat | undefined {
+    throw $b.unsupported('math/big.Rat.SetInt');
+  }
+  SetInt64(a0: number): math_big_Rat | undefined {
+    throw $b.unsupported('math/big.Rat.SetInt64');
+  }
+  SetString(a0: string): [math_big_Rat | undefined, boolean] {
+    throw $b.unsupported('math/big.Rat.SetString');
+  }
+  SetUint64(a0: number): math_big_Rat | undefined {
+    throw $b.unsupported('math/big.Rat.SetUint64');
+  }
+  Sign(): number {
+    throw $b.unsupported('math/big.Rat.Sign');
+  }
+  override String(): string {
+    throw $b.unsupported('math/big.Rat.String');
+  }
+  Sub(a0: math_big_Rat | undefined, a1: math_big_Rat | undefined): math_big_Rat | undefined {
+    throw $b.unsupported('math/big.Rat.Sub');
+  }
+  UnmarshalText(a0: number[]): $b.GoObject | undefined {
+    throw $b.unsupported('math/big.Rat.UnmarshalText');
+  }
+  $clone(): math_big_Rat {
+    return this;
+  }
+}
+export class math_rand_Rand extends $b.GoObject {
+  constructor() {
+    super();
+  }
+  ExpFloat64(): number {
+    throw $b.unsupported('math/rand.Rand.ExpFloat64');
+  }
+  Float32(): number {
+    throw $b.unsupported('math/rand.Rand.Float32');
+  }
+  Float64(): number {
+    throw $b.unsupported('math/rand.Rand.Float64');
+  }
+  Int(): number {
+    throw $b.unsupported('math/rand.Rand.Int');
+  }
+  Int31(): number {
+    throw $b.unsupported('math/rand.Rand.Int31');
+  }
+  Int31n(a0: number): number {
+    throw $b.unsupported('math/rand.Rand.Int31n');
+  }
+  Int63(): number {
+    throw $b.unsupported('math/rand.Rand.Int63');
+  }
+  Int63n(a0: number): number {
+    throw $b.unsupported('math/rand.Rand.Int63n');
+  }
+  Intn(a0: number): number {
+    throw $b.unsupported('math/rand.Rand.Intn');
+  }
+  NormFloat64(): number {
+    throw $b.unsupported('math/rand.Rand.NormFloat64');
+  }
+  Perm(a0: number): number[] {
+    throw $b.unsupported('math/rand.Rand.Perm');
+  }
+  Read(a0: number[]): [number, $b.GoObject | undefined] {
+    throw $b.unsupported('math/rand.Rand.Read');
+  }
+  Seed(a0: number): void {
+    throw $b.unsupported('math/rand.Rand.Seed');
+  }
+  Shuffle(a0: number, a1: ((p0: number, p1: number) => void) | undefined): void {
+    throw $b.unsupported('math/rand.Rand.Shuffle');
+  }
+  Uint32(): number {
+    throw $b.unsupported('math/rand.Rand.Uint32');
+  }
+  Uint64(): number {
+    throw $b.unsupported('math/rand.Rand.Uint64');
+  }
+  $clone(): math_rand_Rand {
+    return this;
+  }
+}
+export class reflect_MapIter extends $b.GoObject {
+  constructor() {
+    super();
+  }
+  Key(): reflect_Value {
+    throw $b.unsupported('reflect.MapIter.Key');
+  }
+  Next(): boolean {
+    throw $b.unsupported('reflect.MapIter.Next');
+  }
+  Reset(a0: reflect_Value): void {
+    throw $b.unsupported('reflect.MapIter.Reset');
+  }
+  Value(): reflect_Value {
+    throw $b.unsupported('reflect.MapIter.Value');
+  }
+  $clone(): reflect_MapIter {
+    return this;
+  }
+}
+export class reflect_Method extends $b.GoObject {
+  Name: string;
+  PkgPath: string;
+  Type: reflect_Type | undefined;
+  Func: reflect_Value;
+  Index: number;
+  constructor(
+    p0: string = '',
+    p1: string = '',
+    p2: reflect_Type | undefined = undefined,
+    p3: reflect_Value = new reflect_Value(),
+    p4: number = 0,
+  ) {
+    super();
+    this.Name = p0;
+    this.PkgPath = p1;
+    this.Type = p2;
+    this.Func = p3;
+    this.Index = p4;
+  }
+  IsExported(): boolean {
+    throw $b.unsupported('reflect.Method.IsExported');
+  }
+  $clone(): reflect_Method {
+    return this;
+  }
+}
+export class reflect_StructField extends $b.GoObject {
+  Name: string;
+  PkgPath: string;
+  Type: reflect_Type | undefined;
+  Tag: string;
+  Offset: number;
+  Index: number[];
+  Anonymous: boolean;
+  constructor(
+    p0: string = '',
+    p1: string = '',
+    p2: reflect_Type | undefined = undefined,
+    p3: string = '',
+    p4: number = 0,
+    p5: number[] = [],
+    p6: boolean = false,
+  ) {
+    super();
+    this.Name = p0;
+    this.PkgPath = p1;
+    this.Type = p2;
+    this.Tag = p3;
+    this.Offset = p4;
+    this.Index = p5;
+    this.Anonymous = p6;
+  }
+  IsExported(): boolean {
+    throw $b.unsupported('reflect.StructField.IsExported');
+  }
+  $clone(): reflect_StructField {
+    return this;
+  }
+}
 export class reflect_Value extends $b.GoObject {
   constructor() {
     super();
@@ -933,451 +1430,7 @@ export class reflect_Value extends $b.GoObject {
     return this;
   }
 }
-export function compress_gzip_NewReader(
-  a0: io_Reader | undefined,
-): [compress_gzip_Reader | undefined, $b.GoObject | undefined] {
-  return $b.stubCall<[compress_gzip_Reader | undefined, $b.GoObject | undefined]>('compress/gzip.NewReader', [
-    undefined,
-    undefined,
-  ]);
-}
-export function context_WithValue(
-  a0: context_Context | undefined,
-  a1: $b.GoObject | undefined,
-  a2: $b.GoObject | undefined,
-): context_Context | undefined {
-  return $b.stubCall<context_Context | undefined>('context.WithValue', undefined);
-}
-export function github_com_go_json_experiment_json_Deterministic(
-  a0: boolean,
-): github_com_go_json_experiment_json_internal_jsonopts_Options | undefined {
-  return $b.stubCall<github_com_go_json_experiment_json_internal_jsonopts_Options | undefined>(
-    'github.com/go-json-experiment/json.Deterministic',
-    undefined,
-  );
-}
-export function github_com_go_json_experiment_json_MarshalEncode(
-  a0: github_com_go_json_experiment_json_jsontext_Encoder | undefined,
-  a1: $b.GoObject | undefined,
-  a2: (github_com_go_json_experiment_json_internal_jsonopts_Options | undefined)[],
-): $b.GoObject | undefined {
-  return $b.stubCall<$b.GoObject | undefined>('github.com/go-json-experiment/json.MarshalEncode', undefined);
-}
-export function github_com_go_json_experiment_json_MarshalWrite(
-  a0: io_Writer | undefined,
-  a1: $b.GoObject | undefined,
-  a2: (github_com_go_json_experiment_json_internal_jsonopts_Options | undefined)[],
-): $b.GoObject | undefined {
-  return $b.stubCall<$b.GoObject | undefined>('github.com/go-json-experiment/json.MarshalWrite', undefined);
-}
-export function github_com_go_json_experiment_json_Unmarshal(
-  a0: number[],
-  a1: $b.GoObject | undefined,
-  a2: (github_com_go_json_experiment_json_internal_jsonopts_Options | undefined)[],
-): $b.GoObject | undefined {
-  return $b.stubCall<$b.GoObject | undefined>('github.com/go-json-experiment/json.Unmarshal', undefined);
-}
-export function github_com_go_json_experiment_json_UnmarshalDecode(
-  a0: github_com_go_json_experiment_json_jsontext_Decoder | undefined,
-  a1: $b.GoObject | undefined,
-  a2: (github_com_go_json_experiment_json_internal_jsonopts_Options | undefined)[],
-): $b.GoObject | undefined {
-  return $b.stubCall<$b.GoObject | undefined>('github.com/go-json-experiment/json.UnmarshalDecode', undefined);
-}
-export function github_com_go_json_experiment_json_UnmarshalRead(
-  a0: io_Reader | undefined,
-  a1: $b.GoObject | undefined,
-  a2: (github_com_go_json_experiment_json_internal_jsonopts_Options | undefined)[],
-): $b.GoObject | undefined {
-  return $b.stubCall<$b.GoObject | undefined>('github.com/go-json-experiment/json.UnmarshalRead', undefined);
-}
-export function github_com_go_json_experiment_json_jsontext_AllowDuplicateNames(
-  a0: boolean,
-): github_com_go_json_experiment_json_internal_jsonopts_Options | undefined {
-  return $b.stubCall<github_com_go_json_experiment_json_internal_jsonopts_Options | undefined>(
-    'github.com/go-json-experiment/json/jsontext.AllowDuplicateNames',
-    undefined,
-  );
-}
-export function github_com_go_json_experiment_json_jsontext_AllowInvalidUTF8(
-  a0: boolean,
-): github_com_go_json_experiment_json_internal_jsonopts_Options | undefined {
-  return $b.stubCall<github_com_go_json_experiment_json_internal_jsonopts_Options | undefined>(
-    'github.com/go-json-experiment/json/jsontext.AllowInvalidUTF8',
-    undefined,
-  );
-}
-export function github_com_go_json_experiment_json_jsontext_NewDecoder(
-  a0: io_Reader | undefined,
-  a1: (github_com_go_json_experiment_json_internal_jsonopts_Options | undefined)[],
-): github_com_go_json_experiment_json_jsontext_Decoder | undefined {
-  return $b.stubCall<github_com_go_json_experiment_json_jsontext_Decoder | undefined>(
-    'github.com/go-json-experiment/json/jsontext.NewDecoder',
-    undefined,
-  );
-}
-export function github_com_go_json_experiment_json_jsontext_WithIndent(
-  a0: string,
-): github_com_go_json_experiment_json_internal_jsonopts_Options | undefined {
-  return $b.stubCall<github_com_go_json_experiment_json_internal_jsonopts_Options | undefined>(
-    'github.com/go-json-experiment/json/jsontext.WithIndent',
-    undefined,
-  );
-}
-export function github_com_go_json_experiment_json_jsontext_WithIndentPrefix(
-  a0: string,
-): github_com_go_json_experiment_json_internal_jsonopts_Options | undefined {
-  return $b.stubCall<github_com_go_json_experiment_json_internal_jsonopts_Options | undefined>(
-    'github.com/go-json-experiment/json/jsontext.WithIndentPrefix',
-    undefined,
-  );
-}
-export function golang_org_x_sync_errgroup_WithContext(
-  a0: context_Context | undefined,
-): [golang_org_x_sync_errgroup_Group | undefined, context_Context | undefined] {
-  return $b.stubCall<[golang_org_x_sync_errgroup_Group | undefined, context_Context | undefined]>(
-    'golang.org/x/sync/errgroup.WithContext',
-    [undefined, undefined],
-  );
-}
-export function math_Float64bits(a0: number): number {
-  return $b.stubCall<number>('math.Float64bits', 0);
-}
-export function math_big_NewInt(a0: number): math_big_Int | undefined {
-  return $b.stubCall<math_big_Int | undefined>('math/big.NewInt', undefined);
-}
-export function os_Getenv(a0: string): string {
-  return $b.stubCall<string>('os.Getenv', '');
-}
-export function reflect_TypeAssert<T>(a0: reflect_Value): [T, boolean] {
-  return $b.stubCall<[T, boolean]>('reflect.TypeAssert', [undefined as unknown as T, false]);
-}
-export function reflect_TypeFor<T>(): reflect_Type | undefined {
-  return $b.stubCall<reflect_Type | undefined>('reflect.TypeFor', undefined);
-}
-export function reflect_ValueOf(a0: $b.GoObject | undefined): reflect_Value {
-  return $b.stubCall<reflect_Value>('reflect.ValueOf', new reflect_Value());
-}
-export function runtime_debug_SetMaxStack(a0: number): number {
-  return $b.stubCall<number>('runtime/debug.SetMaxStack', 0);
-}
-export function slices_DeleteFunc<S extends E[], E>(a0: S, a1: ((p0: E) => boolean) | undefined): S {
-  return $b.stubCall<S>('slices.DeleteFunc', undefined as unknown as S);
-}
-export function strings_NewReader(a0: string): strings_Reader | undefined {
-  return $b.stubCall<strings_Reader | undefined>('strings.NewReader', undefined);
-}
-export let github_com_go_json_experiment_json_jsontext_BeginArray: github_com_go_json_experiment_json_jsontext_Token =
-  new github_com_go_json_experiment_json_jsontext_Token();
-export let github_com_go_json_experiment_json_jsontext_BeginObject: github_com_go_json_experiment_json_jsontext_Token =
-  new github_com_go_json_experiment_json_jsontext_Token();
-export let github_com_go_json_experiment_json_jsontext_EndArray: github_com_go_json_experiment_json_jsontext_Token =
-  new github_com_go_json_experiment_json_jsontext_Token();
-export let github_com_go_json_experiment_json_jsontext_EndObject: github_com_go_json_experiment_json_jsontext_Token =
-  new github_com_go_json_experiment_json_jsontext_Token();
-export let github_com_go_json_experiment_json_jsontext_Null: github_com_go_json_experiment_json_jsontext_Token =
-  new github_com_go_json_experiment_json_jsontext_Token();
-export class fmt_ScanState extends $b.GoObject {
-  Read(a0: number[]): [number, $b.GoObject | undefined] {
-    throw $b.unsupported('fmt.ScanState.Read');
-  }
-  ReadRune(): [number, number, $b.GoObject | undefined] {
-    throw $b.unsupported('fmt.ScanState.ReadRune');
-  }
-  SkipSpace(): void {
-    throw $b.unsupported('fmt.ScanState.SkipSpace');
-  }
-  Token(a0: boolean, a1: ((p0: number) => boolean) | undefined): [number[], $b.GoObject | undefined] {
-    throw $b.unsupported('fmt.ScanState.Token');
-  }
-  UnreadRune(): $b.GoObject | undefined {
-    throw $b.unsupported('fmt.ScanState.UnreadRune');
-  }
-  Width(): [number, boolean] {
-    throw $b.unsupported('fmt.ScanState.Width');
-  }
-}
-export class fmt_State extends $b.GoObject {
-  Flag(a0: number): boolean {
-    throw $b.unsupported('fmt.State.Flag');
-  }
-  Precision(): [number, boolean] {
-    throw $b.unsupported('fmt.State.Precision');
-  }
-  Width(): [number, boolean] {
-    throw $b.unsupported('fmt.State.Width');
-  }
-  Write(a0: number[]): [number, $b.GoObject | undefined] {
-    throw $b.unsupported('fmt.State.Write');
-  }
-}
-export class compress_gzip_Header extends $b.GoObject {
-  Comment: string;
-  Extra: number[];
-  ModTime: time_Time;
-  Name: string;
-  OS: number;
-  constructor(p0: string = '', p1: number[] = [], p2: time_Time = new time_Time(), p3: string = '', p4: number = 0) {
-    super();
-    this.Comment = p0;
-    this.Extra = p1;
-    this.ModTime = p2;
-    this.Name = p3;
-    this.OS = p4;
-  }
-  $clone(): compress_gzip_Header {
-    return this;
-  }
-}
-export class github_com_go_json_experiment_json_internal_NotForPublicUse extends $b.GoObject {
-  constructor() {
-    super();
-  }
-  $clone(): github_com_go_json_experiment_json_internal_NotForPublicUse {
-    return this;
-  }
-}
-export class math_big_Rat extends encoding_TextMarshaler {
-  constructor() {
-    super();
-  }
-  Abs(a0: math_big_Rat | undefined): math_big_Rat | undefined {
-    throw $b.unsupported('math/big.Rat.Abs');
-  }
-  Add(a0: math_big_Rat | undefined, a1: math_big_Rat | undefined): math_big_Rat | undefined {
-    throw $b.unsupported('math/big.Rat.Add');
-  }
-  AppendText(a0: number[]): [number[], $b.GoObject | undefined] {
-    throw $b.unsupported('math/big.Rat.AppendText');
-  }
-  Cmp(a0: math_big_Rat | undefined): number {
-    throw $b.unsupported('math/big.Rat.Cmp');
-  }
-  Denom(): math_big_Int | undefined {
-    throw $b.unsupported('math/big.Rat.Denom');
-  }
-  Float32(): [number, boolean] {
-    throw $b.unsupported('math/big.Rat.Float32');
-  }
-  Float64(): [number, boolean] {
-    throw $b.unsupported('math/big.Rat.Float64');
-  }
-  FloatPrec(): [number, boolean] {
-    throw $b.unsupported('math/big.Rat.FloatPrec');
-  }
-  FloatString(a0: number): string {
-    throw $b.unsupported('math/big.Rat.FloatString');
-  }
-  GobDecode(a0: number[]): $b.GoObject | undefined {
-    throw $b.unsupported('math/big.Rat.GobDecode');
-  }
-  GobEncode(): [number[], $b.GoObject | undefined] {
-    throw $b.unsupported('math/big.Rat.GobEncode');
-  }
-  Inv(a0: math_big_Rat | undefined): math_big_Rat | undefined {
-    throw $b.unsupported('math/big.Rat.Inv');
-  }
-  IsInt(): boolean {
-    throw $b.unsupported('math/big.Rat.IsInt');
-  }
-  MarshalText(): [number[], $b.GoObject | undefined] {
-    throw $b.unsupported('math/big.Rat.MarshalText');
-  }
-  Mul(a0: math_big_Rat | undefined, a1: math_big_Rat | undefined): math_big_Rat | undefined {
-    throw $b.unsupported('math/big.Rat.Mul');
-  }
-  Neg(a0: math_big_Rat | undefined): math_big_Rat | undefined {
-    throw $b.unsupported('math/big.Rat.Neg');
-  }
-  Num(): math_big_Int | undefined {
-    throw $b.unsupported('math/big.Rat.Num');
-  }
-  Quo(a0: math_big_Rat | undefined, a1: math_big_Rat | undefined): math_big_Rat | undefined {
-    throw $b.unsupported('math/big.Rat.Quo');
-  }
-  RatString(): string {
-    throw $b.unsupported('math/big.Rat.RatString');
-  }
-  Scan(a0: fmt_ScanState | undefined, a1: number): $b.GoObject | undefined {
-    throw $b.unsupported('math/big.Rat.Scan');
-  }
-  Set(a0: math_big_Rat | undefined): math_big_Rat | undefined {
-    throw $b.unsupported('math/big.Rat.Set');
-  }
-  SetFloat64(a0: number): math_big_Rat | undefined {
-    throw $b.unsupported('math/big.Rat.SetFloat64');
-  }
-  SetFrac(a0: math_big_Int | undefined, a1: math_big_Int | undefined): math_big_Rat | undefined {
-    throw $b.unsupported('math/big.Rat.SetFrac');
-  }
-  SetFrac64(a0: number, a1: number): math_big_Rat | undefined {
-    throw $b.unsupported('math/big.Rat.SetFrac64');
-  }
-  SetInt(a0: math_big_Int | undefined): math_big_Rat | undefined {
-    throw $b.unsupported('math/big.Rat.SetInt');
-  }
-  SetInt64(a0: number): math_big_Rat | undefined {
-    throw $b.unsupported('math/big.Rat.SetInt64');
-  }
-  SetString(a0: string): [math_big_Rat | undefined, boolean] {
-    throw $b.unsupported('math/big.Rat.SetString');
-  }
-  SetUint64(a0: number): math_big_Rat | undefined {
-    throw $b.unsupported('math/big.Rat.SetUint64');
-  }
-  Sign(): number {
-    throw $b.unsupported('math/big.Rat.Sign');
-  }
-  override String(): string {
-    throw $b.unsupported('math/big.Rat.String');
-  }
-  Sub(a0: math_big_Rat | undefined, a1: math_big_Rat | undefined): math_big_Rat | undefined {
-    throw $b.unsupported('math/big.Rat.Sub');
-  }
-  UnmarshalText(a0: number[]): $b.GoObject | undefined {
-    throw $b.unsupported('math/big.Rat.UnmarshalText');
-  }
-  $clone(): math_big_Rat {
-    return this;
-  }
-}
-export class math_rand_Rand extends io_Reader {
-  constructor() {
-    super();
-  }
-  ExpFloat64(): number {
-    throw $b.unsupported('math/rand.Rand.ExpFloat64');
-  }
-  Float32(): number {
-    throw $b.unsupported('math/rand.Rand.Float32');
-  }
-  Float64(): number {
-    throw $b.unsupported('math/rand.Rand.Float64');
-  }
-  Int(): number {
-    throw $b.unsupported('math/rand.Rand.Int');
-  }
-  Int31(): number {
-    throw $b.unsupported('math/rand.Rand.Int31');
-  }
-  Int31n(a0: number): number {
-    throw $b.unsupported('math/rand.Rand.Int31n');
-  }
-  Int63(): number {
-    throw $b.unsupported('math/rand.Rand.Int63');
-  }
-  Int63n(a0: number): number {
-    throw $b.unsupported('math/rand.Rand.Int63n');
-  }
-  Intn(a0: number): number {
-    throw $b.unsupported('math/rand.Rand.Intn');
-  }
-  NormFloat64(): number {
-    throw $b.unsupported('math/rand.Rand.NormFloat64');
-  }
-  Perm(a0: number): number[] {
-    throw $b.unsupported('math/rand.Rand.Perm');
-  }
-  Read(a0: number[]): [number, $b.GoObject | undefined] {
-    throw $b.unsupported('math/rand.Rand.Read');
-  }
-  Seed(a0: number): void {
-    throw $b.unsupported('math/rand.Rand.Seed');
-  }
-  Shuffle(a0: number, a1: ((p0: number, p1: number) => void) | undefined): void {
-    throw $b.unsupported('math/rand.Rand.Shuffle');
-  }
-  Uint32(): number {
-    throw $b.unsupported('math/rand.Rand.Uint32');
-  }
-  Uint64(): number {
-    throw $b.unsupported('math/rand.Rand.Uint64');
-  }
-  $clone(): math_rand_Rand {
-    return this;
-  }
-}
-export class reflect_MapIter extends $b.GoObject {
-  constructor() {
-    super();
-  }
-  Key(): reflect_Value {
-    throw $b.unsupported('reflect.MapIter.Key');
-  }
-  Next(): boolean {
-    throw $b.unsupported('reflect.MapIter.Next');
-  }
-  Reset(a0: reflect_Value): void {
-    throw $b.unsupported('reflect.MapIter.Reset');
-  }
-  Value(): reflect_Value {
-    throw $b.unsupported('reflect.MapIter.Value');
-  }
-  $clone(): reflect_MapIter {
-    return this;
-  }
-}
-export class reflect_Method extends $b.GoObject {
-  Name: string;
-  PkgPath: string;
-  Type: reflect_Type | undefined;
-  Func: reflect_Value;
-  Index: number;
-  constructor(
-    p0: string = '',
-    p1: string = '',
-    p2: reflect_Type | undefined = undefined,
-    p3: reflect_Value = new reflect_Value(),
-    p4: number = 0,
-  ) {
-    super();
-    this.Name = p0;
-    this.PkgPath = p1;
-    this.Type = p2;
-    this.Func = p3;
-    this.Index = p4;
-  }
-  IsExported(): boolean {
-    throw $b.unsupported('reflect.Method.IsExported');
-  }
-  $clone(): reflect_Method {
-    return this;
-  }
-}
-export class reflect_StructField extends $b.GoObject {
-  Name: string;
-  PkgPath: string;
-  Type: reflect_Type | undefined;
-  Tag: string;
-  Offset: number;
-  Index: number[];
-  Anonymous: boolean;
-  constructor(
-    p0: string = '',
-    p1: string = '',
-    p2: reflect_Type | undefined = undefined,
-    p3: string = '',
-    p4: number = 0,
-    p5: number[] = [],
-    p6: boolean = false,
-  ) {
-    super();
-    this.Name = p0;
-    this.PkgPath = p1;
-    this.Type = p2;
-    this.Tag = p3;
-    this.Offset = p4;
-    this.Index = p5;
-    this.Anonymous = p6;
-  }
-  IsExported(): boolean {
-    throw $b.unsupported('reflect.StructField.IsExported');
-  }
-  $clone(): reflect_StructField {
-    return this;
-  }
-}
-export class strings_Reader extends io_Reader {
+export class strings_Reader extends $b.GoObject {
   constructor() {
     super();
   }
@@ -1411,10 +1464,21 @@ export class strings_Reader extends io_Reader {
   UnreadRune(): $b.GoObject | undefined {
     throw $b.unsupported('strings.Reader.UnreadRune');
   }
-  WriteTo(a0: io_Writer | undefined): [number, $b.GoObject | undefined] {
+  WriteTo(a0: $b.GoObject | undefined): [number, $b.GoObject | undefined] {
     throw $b.unsupported('strings.Reader.WriteTo');
   }
   $clone(): strings_Reader {
+    return this;
+  }
+}
+export class time_Location extends $b.GoObject {
+  constructor() {
+    super();
+  }
+  override String(): string {
+    throw $b.unsupported('time.Location.String');
+  }
+  $clone(): time_Location {
     return this;
   }
 }
@@ -1567,14 +1631,251 @@ export class time_Time extends encoding_TextMarshaler {
     return this;
   }
 }
-export class time_Location extends $b.GoObject {
-  constructor() {
-    super();
-  }
-  override String(): string {
-    throw $b.unsupported('time.Location.String');
-  }
-  $clone(): time_Location {
-    return this;
-  }
+export function bufio_NewReader(a0: $b.GoObject | undefined): bufio_Reader | undefined {
+  return $b.stubCall<bufio_Reader | undefined>('bufio.NewReader', undefined);
 }
+export function bufio_NewWriter(a0: $b.GoObject | undefined): bufio_Writer | undefined {
+  return $b.stubCall<bufio_Writer | undefined>('bufio.NewWriter', undefined);
+}
+export function bytes_Cut(a0: number[], a1: number[]): [number[], number[], boolean] {
+  return $b.stubCall<[number[], number[], boolean]>('bytes.Cut', [[], [], false]);
+}
+export function bytes_TrimSpace(a0: number[]): number[] {
+  return $b.stubCall<number[]>('bytes.TrimSpace', []);
+}
+export function compress_gzip_NewReader(
+  a0: $b.GoObject | undefined,
+): [compress_gzip_Reader | undefined, $b.GoObject | undefined] {
+  return $b.stubCall<[compress_gzip_Reader | undefined, $b.GoObject | undefined]>('compress/gzip.NewReader', [
+    undefined,
+    undefined,
+  ]);
+}
+export function context_AfterFunc(
+  a0: $s.context_Context | undefined,
+  a1: (() => void) | undefined,
+): (() => boolean) | undefined {
+  return $b.stubCall<(() => boolean) | undefined>('context.AfterFunc', undefined);
+}
+export function context_WithCancel(
+  a0: $s.context_Context | undefined,
+): [$s.context_Context | undefined, (() => void) | undefined] {
+  return $b.stubCall<[$s.context_Context | undefined, (() => void) | undefined]>('context.WithCancel', [
+    undefined,
+    undefined,
+  ]);
+}
+export function context_WithTimeout(
+  a0: $s.context_Context | undefined,
+  a1: number,
+): [$s.context_Context | undefined, (() => void) | undefined] {
+  return $b.stubCall<[$s.context_Context | undefined, (() => void) | undefined]>('context.WithTimeout', [
+    undefined,
+    undefined,
+  ]);
+}
+export function encoding_base64_NewEncoder(
+  a0: encoding_base64_Encoding | undefined,
+  a1: $b.GoObject | undefined,
+): $b.GoObject | undefined {
+  return $b.stubCall<$b.GoObject | undefined>('encoding/base64.NewEncoder', undefined);
+}
+export function encoding_hex_EncodeToString(a0: number[]): string {
+  return $b.stubCall<string>('encoding/hex.EncodeToString', '');
+}
+export function errors_AsType<E extends $b.GoObject | undefined>(a0: $b.GoObject | undefined): [E, boolean] {
+  return $b.stubCall<[E, boolean]>('errors.AsType', [undefined as unknown as E, false]);
+}
+export function fmt_Fprint(
+  a0: $b.GoObject | undefined,
+  a1: ($b.GoObject | undefined)[],
+): [number, $b.GoObject | undefined] {
+  return $b.stubCall<[number, $b.GoObject | undefined]>('fmt.Fprint', [0, undefined]);
+}
+export function fmt_Fprintf(
+  a0: $b.GoObject | undefined,
+  a1: string,
+  a2: ($b.GoObject | undefined)[],
+): [number, $b.GoObject | undefined] {
+  return $b.stubCall<[number, $b.GoObject | undefined]>('fmt.Fprintf', [0, undefined]);
+}
+export function github_com_go_json_experiment_json_Deterministic(
+  a0: boolean,
+): github_com_go_json_experiment_json_internal_jsonopts_Options | undefined {
+  return $b.stubCall<github_com_go_json_experiment_json_internal_jsonopts_Options | undefined>(
+    'github.com/go-json-experiment/json.Deterministic',
+    undefined,
+  );
+}
+export function github_com_go_json_experiment_json_MarshalEncode(
+  a0: github_com_go_json_experiment_json_jsontext_Encoder | undefined,
+  a1: $b.GoObject | undefined,
+  a2: (github_com_go_json_experiment_json_internal_jsonopts_Options | undefined)[],
+): $b.GoObject | undefined {
+  return $b.stubCall<$b.GoObject | undefined>('github.com/go-json-experiment/json.MarshalEncode', undefined);
+}
+export function github_com_go_json_experiment_json_MarshalWrite(
+  a0: $b.GoObject | undefined,
+  a1: $b.GoObject | undefined,
+  a2: (github_com_go_json_experiment_json_internal_jsonopts_Options | undefined)[],
+): $b.GoObject | undefined {
+  return $b.stubCall<$b.GoObject | undefined>('github.com/go-json-experiment/json.MarshalWrite', undefined);
+}
+export function github_com_go_json_experiment_json_Unmarshal(
+  a0: number[],
+  a1: $b.GoObject | undefined,
+  a2: (github_com_go_json_experiment_json_internal_jsonopts_Options | undefined)[],
+): $b.GoObject | undefined {
+  return $b.stubCall<$b.GoObject | undefined>('github.com/go-json-experiment/json.Unmarshal', undefined);
+}
+export function github_com_go_json_experiment_json_UnmarshalDecode(
+  a0: github_com_go_json_experiment_json_jsontext_Decoder | undefined,
+  a1: $b.GoObject | undefined,
+  a2: (github_com_go_json_experiment_json_internal_jsonopts_Options | undefined)[],
+): $b.GoObject | undefined {
+  return $b.stubCall<$b.GoObject | undefined>('github.com/go-json-experiment/json.UnmarshalDecode', undefined);
+}
+export function github_com_go_json_experiment_json_UnmarshalRead(
+  a0: $b.GoObject | undefined,
+  a1: $b.GoObject | undefined,
+  a2: (github_com_go_json_experiment_json_internal_jsonopts_Options | undefined)[],
+): $b.GoObject | undefined {
+  return $b.stubCall<$b.GoObject | undefined>('github.com/go-json-experiment/json.UnmarshalRead', undefined);
+}
+export function github_com_go_json_experiment_json_jsontext_AllowDuplicateNames(
+  a0: boolean,
+): github_com_go_json_experiment_json_internal_jsonopts_Options | undefined {
+  return $b.stubCall<github_com_go_json_experiment_json_internal_jsonopts_Options | undefined>(
+    'github.com/go-json-experiment/json/jsontext.AllowDuplicateNames',
+    undefined,
+  );
+}
+export function github_com_go_json_experiment_json_jsontext_AllowInvalidUTF8(
+  a0: boolean,
+): github_com_go_json_experiment_json_internal_jsonopts_Options | undefined {
+  return $b.stubCall<github_com_go_json_experiment_json_internal_jsonopts_Options | undefined>(
+    'github.com/go-json-experiment/json/jsontext.AllowInvalidUTF8',
+    undefined,
+  );
+}
+export function github_com_go_json_experiment_json_jsontext_NewDecoder(
+  a0: $b.GoObject | undefined,
+  a1: (github_com_go_json_experiment_json_internal_jsonopts_Options | undefined)[],
+): github_com_go_json_experiment_json_jsontext_Decoder | undefined {
+  return $b.stubCall<github_com_go_json_experiment_json_jsontext_Decoder | undefined>(
+    'github.com/go-json-experiment/json/jsontext.NewDecoder',
+    undefined,
+  );
+}
+export function github_com_go_json_experiment_json_jsontext_Value$Kind(recv: number[]): number {
+  throw $b.unsupported('github.com/go-json-experiment/json/jsontext.Kind');
+}
+export function github_com_go_json_experiment_json_jsontext_WithIndent(
+  a0: string,
+): github_com_go_json_experiment_json_internal_jsonopts_Options | undefined {
+  return $b.stubCall<github_com_go_json_experiment_json_internal_jsonopts_Options | undefined>(
+    'github.com/go-json-experiment/json/jsontext.WithIndent',
+    undefined,
+  );
+}
+export function github_com_go_json_experiment_json_jsontext_WithIndentPrefix(
+  a0: string,
+): github_com_go_json_experiment_json_internal_jsonopts_Options | undefined {
+  return $b.stubCall<github_com_go_json_experiment_json_internal_jsonopts_Options | undefined>(
+    'github.com/go-json-experiment/json/jsontext.WithIndentPrefix',
+    undefined,
+  );
+}
+export function github_com_zeebo_xxh3_New(): github_com_zeebo_xxh3_Hasher | undefined {
+  return $b.stubCall<github_com_zeebo_xxh3_Hasher | undefined>('github.com/zeebo/xxh3.New', undefined);
+}
+export function golang_org_x_sync_errgroup_WithContext(
+  a0: $s.context_Context | undefined,
+): [golang_org_x_sync_errgroup_Group | undefined, $s.context_Context | undefined] {
+  return $b.stubCall<[golang_org_x_sync_errgroup_Group | undefined, $s.context_Context | undefined]>(
+    'golang.org/x/sync/errgroup.WithContext',
+    [undefined, undefined],
+  );
+}
+export function io_ReadFull(a0: $b.GoObject | undefined, a1: number[]): [number, $b.GoObject | undefined] {
+  return $b.stubCall<[number, $b.GoObject | undefined]>('io.ReadFull', [0, undefined]);
+}
+export function math_big_NewInt(a0: number): math_big_Int | undefined {
+  return $b.stubCall<math_big_Int | undefined>('math/big.NewInt', undefined);
+}
+export function net_Listen(a0: string, a1: string): [net_Listener | undefined, $b.GoObject | undefined] {
+  return $b.stubCall<[net_Listener | undefined, $b.GoObject | undefined]>('net.Listen', [undefined, undefined]);
+}
+export function os_Getenv(a0: string): string {
+  return $b.stubCall<string>('os.Getenv', '');
+}
+export function os_Remove(a0: string): $b.GoObject | undefined {
+  return $b.stubCall<$b.GoObject | undefined>('os.Remove', undefined);
+}
+export function os_TempDir(): string {
+  return $b.stubCall<string>('os.TempDir', '');
+}
+export function path_Join(a0: string[]): string {
+  return $b.stubCall<string>('path.Join', '');
+}
+export function reflect_DeepEqual(a0: $b.GoObject | undefined, a1: $b.GoObject | undefined): boolean {
+  return $b.stubCall<boolean>('reflect.DeepEqual', false);
+}
+export function reflect_StructTag$Get(recv: string, a0: string): string {
+  throw $b.unsupported('reflect.Get');
+}
+export function reflect_TypeAssert<T>(a0: reflect_Value): [T, boolean] {
+  return $b.stubCall<[T, boolean]>('reflect.TypeAssert', [undefined as unknown as T, false]);
+}
+export function reflect_TypeFor<T>(): reflect_Type | undefined {
+  return $b.stubCall<reflect_Type | undefined>('reflect.TypeFor', undefined);
+}
+export function reflect_TypeOf(a0: $b.GoObject | undefined): reflect_Type | undefined {
+  return $b.stubCall<reflect_Type | undefined>('reflect.TypeOf', undefined);
+}
+export function reflect_ValueOf(a0: $b.GoObject | undefined): reflect_Value {
+  return $b.stubCall<reflect_Value>('reflect.ValueOf', new reflect_Value());
+}
+export function regexp_Compile(a0: string): [$s.regexp_Regexp | undefined, $b.GoObject | undefined] {
+  return $b.stubCall<[$s.regexp_Regexp | undefined, $b.GoObject | undefined]>('regexp.Compile', [undefined, undefined]);
+}
+export function runtime_debug_SetMaxStack(a0: number): number {
+  return $b.stubCall<number>('runtime/debug.SetMaxStack', 0);
+}
+export function runtime_debug_Stack(): number[] {
+  return $b.stubCall<number[]>('runtime/debug.Stack', []);
+}
+export function strings_NewReader(a0: string): strings_Reader | undefined {
+  return $b.stubCall<strings_Reader | undefined>('strings.NewReader', undefined);
+}
+export function time_Duration$Nanoseconds(recv: number): number {
+  throw $b.unsupported('time.Nanoseconds');
+}
+export function time_Now(): time_Time {
+  return $b.stubCall<time_Time>('time.Now', new time_Time());
+}
+export function time_Since(a0: time_Time): number {
+  return $b.stubCall<number>('time.Since', 0);
+}
+export let context_Canceled: $b.GoObject | undefined = undefined;
+export let context_DeadlineExceeded: $b.GoObject | undefined = undefined;
+export let encoding_base64_StdEncoding: encoding_base64_Encoding | undefined = undefined;
+export let github_com_go_json_experiment_json_jsontext_BeginArray: github_com_go_json_experiment_json_jsontext_Token =
+  new github_com_go_json_experiment_json_jsontext_Token();
+export let github_com_go_json_experiment_json_jsontext_BeginObject: github_com_go_json_experiment_json_jsontext_Token =
+  new github_com_go_json_experiment_json_jsontext_Token();
+export let github_com_go_json_experiment_json_jsontext_EndArray: github_com_go_json_experiment_json_jsontext_Token =
+  new github_com_go_json_experiment_json_jsontext_Token();
+export let github_com_go_json_experiment_json_jsontext_EndObject: github_com_go_json_experiment_json_jsontext_Token =
+  new github_com_go_json_experiment_json_jsontext_Token();
+export let github_com_go_json_experiment_json_jsontext_Null: github_com_go_json_experiment_json_jsontext_Token =
+  new github_com_go_json_experiment_json_jsontext_Token();
+export let io_Discard: $b.GoObject | undefined = undefined;
+export let io_EOF: $b.GoObject | undefined = undefined;
+export let io_fs_ErrClosed: $b.GoObject | undefined = undefined;
+export let io_fs_ErrExist: $b.GoObject | undefined = undefined;
+export let io_fs_ErrInvalid: $b.GoObject | undefined = undefined;
+export let io_fs_ErrNotExist: $b.GoObject | undefined = undefined;
+export let io_fs_ErrPermission: $b.GoObject | undefined = undefined;
+export let io_fs_SkipAll: $b.GoObject | undefined = undefined;
+export let io_fs_SkipDir: $b.GoObject | undefined = undefined;

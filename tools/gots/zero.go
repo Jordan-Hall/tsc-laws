@@ -389,3 +389,29 @@ func mentionsTypeParam(tt types.Type) bool {
 	walk(tt, 0)
 	return found
 }
+
+// hoistFn stores a closure that captures nothing in a module constant.
+func (f *file) hoistFn(text string) string {
+	if f.hoistedFns == nil {
+		f.hoistedFns = map[string]string{}
+	}
+	if name, ok := f.hoistedFns[text]; ok {
+		return name
+	}
+	name := fmt.Sprintf("$fn%d", len(f.hoistedFns))
+	f.hoistedFns[text] = name
+	return name
+}
+
+func (f *file) hoistedFnDecls() string {
+	var keys []string
+	for k := range f.hoistedFns {
+		keys = append(keys, k)
+	}
+	sort.Slice(keys, func(i, j int) bool { return f.hoistedFns[keys[i]] < f.hoistedFns[keys[j]] })
+	var b strings.Builder
+	for _, k := range keys {
+		fmt.Fprintf(&b, "const %s = %s;\n", f.hoistedFns[k], k)
+	}
+	return b.String()
+}
