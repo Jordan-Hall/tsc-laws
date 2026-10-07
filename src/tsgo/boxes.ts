@@ -48,34 +48,6 @@ export class Box__collections_OrderedMap_string__json_Value_ extends $rt.GoObjec
     return o instanceof Box__collections_OrderedMap_string__json_Value_ && o.v === this.v;
   }
 }
-export class Box__collections_OrderedMap_string__packagejson_ExportsOrImports_ extends $rt.GoObject {
-  v: $collections.OrderedMap<string, $packagejson.ExportsOrImports> | undefined;
-  constructor(v: $collections.OrderedMap<string, $packagejson.ExportsOrImports> | undefined) {
-    super();
-    this.v = v;
-  }
-  static $cast(v: $rt.GoObject | undefined): Box__collections_OrderedMap_string__packagejson_ExportsOrImports_ {
-    if (v instanceof Box__collections_OrderedMap_string__packagejson_ExportsOrImports_) return v;
-    throw $rt.typeAssertError();
-  }
-  override $eqv(o: $rt.GoObject): boolean {
-    return o instanceof Box__collections_OrderedMap_string__packagejson_ExportsOrImports_ && o.v === this.v;
-  }
-}
-export class Box__collections_OrderedMap_string__packagejson_JSONValue_ extends $rt.GoObject {
-  v: $collections.OrderedMap<string, $packagejson.JSONValue> | undefined;
-  constructor(v: $collections.OrderedMap<string, $packagejson.JSONValue> | undefined) {
-    super();
-    this.v = v;
-  }
-  static $cast(v: $rt.GoObject | undefined): Box__collections_OrderedMap_string__packagejson_JSONValue_ {
-    if (v instanceof Box__collections_OrderedMap_string__packagejson_JSONValue_) return v;
-    throw $rt.typeAssertError();
-  }
-  override $eqv(o: $rt.GoObject): boolean {
-    return o instanceof Box__collections_OrderedMap_string__packagejson_JSONValue_ && o.v === this.v;
-  }
-}
 export class Box____ast_Expression extends $rt.GoObject {
   v: ($ast.Node | undefined)[];
   constructor(v: ($ast.Node | undefined)[]) {

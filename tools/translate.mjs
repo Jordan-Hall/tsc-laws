@@ -1,7 +1,8 @@
 // Regenerates src/tsgo and src/go/runtime.ts from the pinned TypeScript-Go checkout.
-import { copyFileSync, mkdirSync } from 'node:fs';
+import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { resolve } from 'node:path';
+import { patches } from './scriptc-patches.mjs';
 
 const packages = ['parser', 'binder', 'checker', 'tststest'];
 const run = (cmd, args, cwd) => {
@@ -17,3 +18,9 @@ run(
   resolve('tools/gots'),
 );
 run(resolve('node_modules/.bin/oxfmt'), ['src/tsgo', 'src/go/runtime.ts'], resolve('.'));
+for (const { file, from, to } of patches) {
+  const text = readFileSync(file, 'utf8');
+  const parts = text.split(from);
+  if (parts.length !== 2) throw new Error(`scriptc patch for ${file} matched ${parts.length - 1} times`);
+  writeFileSync(file, parts.join(to));
+}

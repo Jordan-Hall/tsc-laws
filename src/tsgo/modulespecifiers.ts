@@ -1787,7 +1787,7 @@ export function tryGetModuleNameFromPaths(
             candidates.push(specPair.$lit_modulespecifiers_specPair_0_1(ending, result));
           }
         }
-        if ($tspath.TryGetExtensionFromPath(pattern).length > 0) {
+        if (($tspath.TryGetExtensionFromPath(pattern) ?? '').length > 0) {
           candidates.push(specPair.$lit_modulespecifiers_specPair_0_1(2, relativeToBaseUrl));
         }
         if (ok) {

@@ -35,7 +35,9 @@ export function AssertNever(member: $rt.GoObject | undefined, message: ($rt.GoOb
   {
     const $t1: $rt.GoObject | undefined = member;
     const $t2: boolean = $rt.hasMethods($t1, ['KindString']);
-    let m: $ast.Node | undefined = $t2 ? ($t1 as $ast.Node | undefined) : undefined;
+    let m: $ast.Node | undefined = $t2
+      ? $rt.unsupportedConversion<$ast.Node | undefined>('$ast.Node | undefined')
+      : undefined;
     let ok: boolean = $t2;
     if (ok) {
       detail = m!.KindString();

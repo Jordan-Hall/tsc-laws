@@ -23,6 +23,12 @@ var overrides = map[string][]int{
 	"checker.symbolArenaLinkStore": {0},
 }
 
+// funcOverrides replaces package functions with hand-written runtime
+// functions, working around scriptc miscompiling them in context.
+var funcOverrides = map[string]bool{
+	"printer.FormatGeneratedName": true,
+}
+
 func overrideKey(obj types.Object) string {
 	if obj.Pkg() == nil {
 		return ""

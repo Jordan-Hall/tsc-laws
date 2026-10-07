@@ -2567,14 +2567,14 @@ export class NameGenerator extends $rt.GoObject {
     if (simple) {
       tempFlags$v = g!.getTempFlags(privateName);
     } else {
-      key = FormatGeneratedName(privateName, prefix, '', suffix);
+      key = $rt.printer_FormatGeneratedName(privateName, prefix, '', suffix);
       if (privateName) {
         key = ensureLeadingHash(key);
       }
       tempFlags$v = g!.getTempFlagsForFormattedName(privateName, key);
     }
     if (!(flags === (0 as number)) && $rt.and64(tempFlags$v, flags) === (0 as number)) {
-      let fullName: string = FormatGeneratedName(privateName, prefix, '_i', suffix);
+      let fullName: string = $rt.printer_FormatGeneratedName(privateName, prefix, '_i', suffix);
       if (g!.isUniqueName(fullName, privateName)) {
         tempFlags$v = $rt.or64(tempFlags$v, flags);
         g!.reserveName(fullName, privateName, reservedInNestedScopes, true);
@@ -2596,7 +2596,7 @@ export class NameGenerator extends $rt.GoObject {
         } else {
           name_ = $rt.fmt_Sprintf('_%d', [new $rt.BoxNum(count - 26, 'printer.tempFlags')]);
         }
-        let fullName$1: string = FormatGeneratedName(privateName, prefix, name_, suffix);
+        let fullName$1: string = $rt.printer_FormatGeneratedName(privateName, prefix, name_, suffix);
         if (g!.isUniqueName(fullName$1, privateName)) {
           g!.reserveName(fullName$1, privateName, reservedInNestedScopes, true);
           if (simple) {
@@ -2621,18 +2621,18 @@ export class NameGenerator extends $rt.GoObject {
     const g = this;
     baseName = removeLeadingHash(baseName);
     if (optimistic) {
-      let fullName: string = FormatGeneratedName(privateName, prefix, baseName, suffix);
+      let fullName: string = $rt.printer_FormatGeneratedName(privateName, prefix, baseName, suffix);
       if (g!.checkUniqueName(fullName, privateName, checkFn)) {
         g!.reserveName(fullName, privateName, scoped, false);
         return fullName;
       }
     }
     if (baseName.length > 0 && !(baseName.charCodeAt(baseName.length - 1) === (95 as number))) {
-      baseName += '_';
+      baseName = String(baseName) + '_';
     }
     let i: number = 1;
     for (;;) {
-      let fullName$1: string = FormatGeneratedName(
+      let fullName$1: string = $rt.printer_FormatGeneratedName(
         privateName,
         prefix,
         $rt.fmt_Sprintf('%s%d', [new $rt.BoxStr(baseName, 'string'), new $rt.BoxNum(i, 'int')]),
@@ -2759,7 +2759,7 @@ export class NodeFactory extends $ast.NodeFactory {
           }
         }
       }
-      text = FormatGeneratedName(false, options.Prefix, text, options.Suffix);
+      text = $rt.printer_FormatGeneratedName(false, options.Prefix, text, options.Suffix);
     }
     let name_: $ast.Node | undefined = f!.NewIdentifier(text);
     let autoGenerate: AutoGenerateInfo | undefined = AutoGenerateInfo.$lit_printer_AutoGenerateInfo_1_0_2_3_4(
@@ -2832,7 +2832,7 @@ export class NodeFactory extends $ast.NodeFactory {
           }
         }
       }
-      text = FormatGeneratedName(true, options.Prefix, text, options.Suffix);
+      text = $rt.printer_FormatGeneratedName(true, options.Prefix, text, options.Suffix);
     } else if (!$rt.strings_HasPrefix(text, '#')) {
       throw $rt.newPanic(new $rt.BoxStr('First character of private identifier must be #: ' + text, 'string'));
     }
@@ -14509,13 +14509,6 @@ export function ensureLeadingHash(text: string): string {
   } else {
     return '#' + text;
   }
-}
-export function FormatGeneratedName(privateName: boolean, prefix: string, base: string, suffix: string): string {
-  let name_: string = removeLeadingHash(prefix) + removeLeadingHash(base) + removeLeadingHash(suffix);
-  if (privateName) {
-    return ensureLeadingHash(name_);
-  }
-  return name_;
 }
 export function isASCIIWordCharacter(ch: number): boolean {
   return $stringutil.IsASCIILetter(ch) || $stringutil.IsDigit(ch) || ch === (95 as number);

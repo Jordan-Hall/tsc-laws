@@ -469,7 +469,7 @@ export class JSONValue extends $rt.GoObject {
         new $rt.BoxStr($rt.fmt_Sprintf('expected object, got %v', [new JSONValueType$Box(v.Type)]), 'string'),
       );
     }
-    return $boxes.Box__collections_OrderedMap_string__packagejson_JSONValue_.$cast(v.Value).v;
+    return Box__collections_OrderedMap_string__packagejson_JSONValue_.$cast(v.Value).v;
   }
   AsArray(): JSONValue[] {
     const v = this;
@@ -532,7 +532,7 @@ export class ExportsOrImports extends JSONValue {
     if (!(e.Type === (6 as number))) {
       throw $rt.newPanic(new $rt.BoxStr('expected object', 'string'));
     }
-    return $boxes.Box__collections_OrderedMap_string__packagejson_ExportsOrImports_.$cast(e.Value).v;
+    return Box__collections_OrderedMap_string__packagejson_ExportsOrImports_.$cast(e.Value).v;
   }
   AsArray$ExportsOrImports(): ExportsOrImports[] {
     const e = this;
@@ -1049,6 +1049,34 @@ export class typeScriptFields extends $rt.GoObject {
   static $cast_packagejson_typeScriptFields(v: $rt.GoObject | undefined): typeScriptFields {
     if (v instanceof typeScriptFields) return v;
     throw $rt.typeAssertError();
+  }
+}
+export class Box__collections_OrderedMap_string__packagejson_ExportsOrImports_ extends $rt.GoObject {
+  v: $collections.OrderedMap<string, ExportsOrImports> | undefined;
+  constructor(v: $collections.OrderedMap<string, ExportsOrImports> | undefined) {
+    super();
+    this.v = v;
+  }
+  static $cast(v: $rt.GoObject | undefined): Box__collections_OrderedMap_string__packagejson_ExportsOrImports_ {
+    if (v instanceof Box__collections_OrderedMap_string__packagejson_ExportsOrImports_) return v;
+    throw $rt.typeAssertError();
+  }
+  override $eqv(o: $rt.GoObject): boolean {
+    return o instanceof Box__collections_OrderedMap_string__packagejson_ExportsOrImports_ && o.v === this.v;
+  }
+}
+export class Box__collections_OrderedMap_string__packagejson_JSONValue_ extends $rt.GoObject {
+  v: $collections.OrderedMap<string, JSONValue> | undefined;
+  constructor(v: $collections.OrderedMap<string, JSONValue> | undefined) {
+    super();
+    this.v = v;
+  }
+  static $cast(v: $rt.GoObject | undefined): Box__collections_OrderedMap_string__packagejson_JSONValue_ {
+    if (v instanceof Box__collections_OrderedMap_string__packagejson_JSONValue_) return v;
+    throw $rt.typeAssertError();
+  }
+  override $eqv(o: $rt.GoObject): boolean {
+    return o instanceof Box__collections_OrderedMap_string__packagejson_JSONValue_ && o.v === this.v;
   }
 }
 export const JSONValueTypeArray: JSONValueType = 5;

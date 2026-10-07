@@ -1531,7 +1531,11 @@ export class math_big_Int extends GoObject {
     this.v = neg ? -v : v;
     return [this, true];
   }
-  Exp(x: math_big_Int | undefined, y: math_big_Int | undefined, m: math_big_Int | undefined): math_big_Int | undefined {
+  Exp(
+    x: math_big_Int | undefined,
+    y: math_big_Int | undefined,
+    _m: math_big_Int | undefined,
+  ): math_big_Int | undefined {
     // Only m == nil and y >= 0 are used.
     this.v = x!.v ** y!.v;
     return this;
@@ -1629,4 +1633,18 @@ export class collections_SyncMap<K, V> extends GoObject {
   $clone(): collections_SyncMap<K, V> {
     return this;
   }
+}
+
+// printer.FormatGeneratedName, hand-written: scriptc 0.2.5 rejects the
+// translated version, which concatenates calls to removeLeadingHash.
+export function printer_FormatGeneratedName(
+  privateName: boolean,
+  prefix: string,
+  base: string,
+  suffix: string,
+): string {
+  let name = prefix.length > 0 && prefix.charCodeAt(0) === 35 ? prefix.substring(1) : prefix;
+  name += base.length > 0 && base.charCodeAt(0) === 35 ? base.substring(1) : base;
+  name += suffix.length > 0 && suffix.charCodeAt(0) === 35 ? suffix.substring(1) : suffix;
+  return privateName && !(name.length > 0 && name.charCodeAt(0) === 35) ? '#' + name : name;
 }

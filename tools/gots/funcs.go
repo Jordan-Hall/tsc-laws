@@ -6,6 +6,7 @@ import (
 	"go/constant"
 	"go/token"
 	"go/types"
+	"strconv"
 	"strings"
 )
 
@@ -1533,6 +1534,10 @@ func (x *fn) unbox(v string, tt types.Type) string {
 	}
 	if isIfaceType(tt) {
 		if t := x.f.tsType(tt); t != "$rt.GoObject | undefined" {
+			if !x.ifaceReachable(tt) {
+				// The classes behind tt are not importable from here.
+				return "$rt.unsupportedConversion<" + t + ">(" + strconv.Quote(t) + ")"
+			}
 			return "(" + v + " as " + t + ")"
 		}
 		return v
@@ -1665,4 +1670,20 @@ func (x *fn) writeBackCall(call *ast.CallExpr) bool {
 		x.line("$rt.copyAt(%s, %s, -1, %s);", b.base, b.lo, b.tmp)
 	}
 	return true
+}
+
+// ifaceReachable reports whether this module can import the classes that
+// represent interface type tt.
+func (x *fn) ifaceReachable(tt types.Type) bool {
+	it, ok := tt.Underlying().(*types.Interface)
+	if !ok {
+		return true
+	}
+	var m *ifaceMap
+	if n, ok := types.Unalias(tt).(*types.Named); ok {
+		m = x.f.t.ifaces[n.Origin().Obj()]
+	} else {
+		m = x.f.t.anonIfaces[types.TypeString(it, nil)]
+	}
+	return m == nil || m.base == nil || x.f.dependsOn(m.base.Pkg())
 }

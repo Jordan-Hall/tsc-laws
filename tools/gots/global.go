@@ -41,8 +41,65 @@ func boxName(tag string) string {
 }
 
 func (f *file) boxRefFor(tt types.Type) string {
+	name := f.t.boxClass(tt)
+	if owner := f.t.boxOwner(tt); owner != nil {
+		if owner == f.p.p.Types {
+			return name
+		}
+		tp := f.t.pkgs[owner]
+		f.use(tp)
+		return "$" + tp.module + "." + name
+	}
 	f.imports["boxes"] = true
-	return "$boxes." + f.t.boxClass(tt)
+	return "$boxes." + name
+}
+
+// boxOwner returns the package that declares the box for tt, or nil for
+// the shared boxes module. scriptc only resolves a box field typed as a
+// generic instantiation when the box is declared beside its type arguments.
+func (t *translator) boxOwner(tt types.Type) *types.Package {
+	if !isGenericPtr(tt) {
+		return nil
+	}
+	n := types.Unalias(tt.(*types.Pointer).Elem()).(*types.Named)
+	var owner *types.Package
+	for i := 0; i < n.TypeArgs().Len(); i++ {
+		if a, ok := types.Unalias(n.TypeArgs().At(i)).(*types.Named); ok && a.Obj().Pkg() != nil && t.translated(a.Obj().Pkg()) {
+			owner = a.Obj().Pkg()
+		}
+	}
+	return owner
+}
+
+// typeBoxDecl renders the box class for tag in file f.
+func (f *file) typeBoxDecl(tag string) string {
+	var b strings.Builder
+	name := boxName(tag)
+	tt := f.t.boxes[tag]
+	typ := f.tsType(tt)
+	fmt.Fprintf(&b, "export class %s extends $rt.GoObject {\n  v: %s;\n  constructor(v: %s) { super(); this.v = v; }\n", name, typ, typ)
+	fmt.Fprintf(&b, "  static $cast(v: $rt.GoObject | undefined): %s { if (v instanceof %s) return v; throw $rt.typeAssertError(); }\n", name, name)
+	if _, isPtr := tt.(*types.Pointer); isPtr {
+		fmt.Fprintf(&b, "  override $eqv(o: $rt.GoObject): boolean { return o instanceof %s && o.v === this.v; }\n", name)
+	}
+	b.WriteString("}\n")
+	return b.String()
+}
+
+// localBoxes renders the boxes owned by f's package.
+func (f *file) localBoxes() string {
+	var tags []string
+	for tag, tt := range f.t.boxes {
+		if f.t.boxOwner(tt) == f.p.p.Types {
+			tags = append(tags, tag)
+		}
+	}
+	sort.Strings(tags)
+	var b strings.Builder
+	for _, tag := range tags {
+		b.WriteString(f.typeBoxDecl(tag))
+	}
+	return b.String()
 }
 
 func (t *translator) syntheticFile(module string) *file {
@@ -60,14 +117,9 @@ func (t *translator) emitGlobals(out string) {
 	}
 	sort.Strings(tags)
 	for _, tag := range tags {
-		name := boxName(tag)
-		typ := f.tsType(t.boxes[tag])
-		fmt.Fprintf(&body, "export class %s extends $rt.GoObject {\n  v: %s;\n  constructor(v: %s) { super(); this.v = v; }\n", name, typ, typ)
-		fmt.Fprintf(&body, "  static $cast(v: $rt.GoObject | undefined): %s { if (v instanceof %s) return v; throw $rt.typeAssertError(); }\n", name, name)
-		if _, isPtr := t.boxes[tag].(*types.Pointer); isPtr {
-			fmt.Fprintf(&body, "  override $eqv(o: $rt.GoObject): boolean { return o instanceof %s && o.v === this.v; }\n", name)
+		if t.boxOwner(t.boxes[tag]) == nil {
+			body.WriteString(f.typeBoxDecl(tag))
 		}
-		body.WriteString("}\n")
 	}
 	writeModule(filepath.Join(out, "boxes.ts"), f, body.String())
 
