@@ -26,7 +26,7 @@ import type * as $compiler from './compiler.js';
 import type * as $nodebuilder from './nodebuilder.js';
 import { OrderedMap as $collections$OrderedMap } from './collections.js';
 import { Set_ as $collections$Set_ } from './collections.js';
-export class $Anon3 extends $rt.GoObject {
+export class $Anon2 extends $rt.GoObject {
   primitive: string;
   builtin: string;
   constructor(p0: string = '', p1: string = '') {
@@ -34,11 +34,11 @@ export class $Anon3 extends $rt.GoObject {
     this.primitive = p0;
     this.builtin = p1;
   }
-  $clone(): $Anon3 {
-    return new $Anon3(this.primitive, this.builtin);
+  $clone(): $Anon2 {
+    return new $Anon2(this.primitive, this.builtin);
   }
 }
-export class $Anon4 extends $rt.GoObject {
+export class $Anon3 extends $rt.GoObject {
   JSX: string;
   IntrinsicElements: string;
   ElementClass: string;
@@ -73,8 +73,8 @@ export class $Anon4 extends $rt.GoObject {
     this.IntrinsicClassAttributes = p8;
     this.LibraryManagedAttributes = p9;
   }
-  $clone(): $Anon4 {
-    return new $Anon4(
+  $clone(): $Anon3 {
+    return new $Anon3(
       this.JSX,
       this.IntrinsicElements,
       this.ElementClass,
@@ -88,17 +88,17 @@ export class $Anon4 extends $rt.GoObject {
     );
   }
 }
-export class $Anon5 extends $rt.GoObject {
+export class $Anon4 extends $rt.GoObject {
   Fragment: string;
   constructor(p0: string = '') {
     super();
     this.Fragment = p0;
   }
-  $clone(): $Anon5 {
-    return new $Anon5(this.Fragment);
+  $clone(): $Anon4 {
+    return new $Anon4(this.Fragment);
   }
 }
-export class $Anon6 extends $rt.GoObject {
+export class $Anon5 extends $rt.GoObject {
   flag: TypeFlags;
   name: string;
   constructor(p0: TypeFlags = 0, p1: string = '') {
@@ -106,8 +106,8 @@ export class $Anon6 extends $rt.GoObject {
     this.flag = p0;
     this.name = p1;
   }
-  $clone(): $Anon6 {
-    return new $Anon6(this.flag, this.name);
+  $clone(): $Anon5 {
+    return new $Anon5(this.flag, this.name);
   }
 }
 const $zf0 = (): Type | undefined => undefined;
@@ -135,33 +135,32 @@ const $zf28 = (): ArrayLiteralLinks => new ArrayLiteralLinks();
 const $zf29 = (): SwitchStatementLinks => new SwitchStatementLinks();
 const $zf3 = (): $ast.Node | undefined => undefined;
 const $zf30 = (): JsxElementLinks => new JsxElementLinks();
-const $zf31 = (): ComputedNameNodeLinks => new ComputedNameNodeLinks();
-const $zf32 = (): SymbolReferenceLinks => new SymbolReferenceLinks();
-const $zf33 = (): ValueSymbolLinks => new ValueSymbolLinks();
-const $zf34 = (): MappedSymbolLinks => new MappedSymbolLinks();
-const $zf35 = (): DeferredSymbolLinks => new DeferredSymbolLinks();
-const $zf36 = (): AliasSymbolLinks => new AliasSymbolLinks();
-const $zf37 = (): ModuleSymbolLinks => new ModuleSymbolLinks();
-const $zf38 = (): LateBoundLinks => new LateBoundLinks();
-const $zf39 = (): ExportTypeLinks => new ExportTypeLinks();
+const $zf31 = (): SymbolReferenceLinks => new SymbolReferenceLinks();
+const $zf32 = (): ValueSymbolLinks => new ValueSymbolLinks();
+const $zf33 = (): MappedSymbolLinks => new MappedSymbolLinks();
+const $zf34 = (): DeferredSymbolLinks => new DeferredSymbolLinks();
+const $zf35 = (): AliasSymbolLinks => new AliasSymbolLinks();
+const $zf36 = (): ModuleSymbolLinks => new ModuleSymbolLinks();
+const $zf37 = (): LateBoundLinks => new LateBoundLinks();
+const $zf38 = (): ExportTypeLinks => new ExportTypeLinks();
+const $zf39 = (): MembersAndExportsLinks => $rt.makeArray(2, () => undefined);
 const $zf4 = (): string => '';
-const $zf40 = (): MembersAndExportsLinks => $rt.makeArray(2, () => undefined);
-const $zf41 = (): TypeAliasLinks => new TypeAliasLinks();
-const $zf42 = (): DeclaredTypeLinks => new DeclaredTypeLinks();
-const $zf43 = (): SpreadLinks => new SpreadLinks();
-const $zf44 = (): VarianceLinks => new VarianceLinks();
-const $zf45 = (): ReverseMappedSymbolLinks => new ReverseMappedSymbolLinks();
-const $zf46 = (): MarkedAssignmentSymbolLinks => new MarkedAssignmentSymbolLinks();
-const $zf47 = (): ContainingSymbolLinks => new ContainingSymbolLinks();
-const $zf48 = (): SourceFileLinks => new SourceFileLinks();
-const $zf49 = (): JSXLinks => new JSXLinks();
+const $zf40 = (): TypeAliasLinks => new TypeAliasLinks();
+const $zf41 = (): DeclaredTypeLinks => new DeclaredTypeLinks();
+const $zf42 = (): SpreadLinks => new SpreadLinks();
+const $zf43 = (): VarianceLinks => new VarianceLinks();
+const $zf44 = (): ReverseMappedSymbolLinks => new ReverseMappedSymbolLinks();
+const $zf45 = (): MarkedAssignmentSymbolLinks => new MarkedAssignmentSymbolLinks();
+const $zf46 = (): ContainingSymbolLinks => new ContainingSymbolLinks();
+const $zf47 = (): SourceFileLinks => new SourceFileLinks();
+const $zf48 = (): JSXLinks => new JSXLinks();
+const $zf49 = (): DeclarationLinks => new DeclarationLinks();
 const $zf5 = (): Signature | undefined => undefined;
-const $zf50 = (): DeclarationLinks => new DeclarationLinks();
-const $zf51 = (): DeclarationFileLinks => new DeclarationFileLinks();
-const $zf52 = (): $ast.Identifier | undefined => undefined;
-const $zf53 = (): number => 0;
-const $zf54 = (): NodeBuilderLinks => new NodeBuilderLinks();
-const $zf55 = (): NodeBuilderSymbolLinks => new NodeBuilderSymbolLinks();
+const $zf50 = (): DeclarationFileLinks => new DeclarationFileLinks();
+const $zf51 = (): $ast.Identifier | undefined => undefined;
+const $zf52 = (): number => 0;
+const $zf53 = (): NodeBuilderLinks => new NodeBuilderLinks();
+const $zf54 = (): NodeBuilderSymbolLinks => new NodeBuilderSymbolLinks();
 const $zf6 = (): InferenceInfo | undefined => undefined;
 const $zf7 = (): $diagnostics.Message | undefined => undefined;
 const $zf8 = (): IndexInfo | undefined => undefined;
@@ -197,7 +196,6 @@ export type JsxFlags = number;
 export type JsxReferenceKind = number;
 export type MappedTypeModifiers = number;
 export type MappedTypeNameTypeKind = number;
-export type MemberOverrideStatus = number;
 export type MembersAndExportsLinks = $ast.SymbolTable[];
 export type MembersOrExportsResolutionKind = number;
 export type MinArgumentCountFlags = number;
@@ -679,6 +677,7 @@ export class Checker extends $rt.GoObject {
   exactOptionalPropertyTypes: boolean = false;
   canCollectSymbolAliasAccessibilityData: boolean = false;
   wasCanceled: boolean = false;
+  saveDeferredDiagnostics: boolean = false;
   arrayVariances: VarianceFlags[] = [];
   globals: $ast.SymbolTable = undefined;
   evaluate: $evaluator.Evaluator = undefined;
@@ -707,9 +706,6 @@ export class Checker extends $rt.GoObject {
   reverseHomomorphicMappedCache: $rt.StructMap<ReverseMappedTypeKey, Type | undefined> | undefined = undefined;
   iterationTypesCache: $rt.StructMap<IterationTypesKey, IterationTypes> | undefined = undefined;
   markerTypes: $collections.Set_<Type | undefined> = new $collections.Set_<Type | undefined>();
-  resolvingExplicitTypeOfSymbol: $collections.Set_<$ast.Symbol_ | undefined> = new $collections.Set_<
-    $ast.Symbol_ | undefined
-  >();
   undefinedSymbol: $ast.Symbol_ | undefined = undefined;
   argumentsSymbol: $ast.Symbol_ | undefined = undefined;
   requireSymbol: $ast.Symbol_ | undefined = undefined;
@@ -760,7 +756,10 @@ export class Checker extends $rt.GoObject {
     $ast.Node | undefined,
     SignatureLinks
   >($zf23);
-  symbolNodeLinks: $rt.checker_nodeLinkStore<SymbolNodeLinks> = new $rt.checker_nodeLinkStore<SymbolNodeLinks>($zf24);
+  symbolNodeLinks: $rt.core_LinkStore<$ast.Node | undefined, SymbolNodeLinks> = new $rt.core_LinkStore<
+    $ast.Node | undefined,
+    SymbolNodeLinks
+  >($zf24);
   typeNodeLinks: $rt.core_LinkStore<$ast.Node | undefined, TypeNodeLinks> = new $rt.core_LinkStore<
     $ast.Node | undefined,
     TypeNodeLinks
@@ -785,72 +784,70 @@ export class Checker extends $rt.GoObject {
     $ast.Node | undefined,
     JsxElementLinks
   >($zf30);
-  computedNameLinks: $rt.core_LinkStore<$ast.Node | undefined, ComputedNameNodeLinks> = new $rt.core_LinkStore<
-    $ast.Node | undefined,
-    ComputedNameNodeLinks
-  >($zf31);
   symbolReferenceLinks: $rt.core_LinkStore<$ast.Symbol_ | undefined, SymbolReferenceLinks> = new $rt.core_LinkStore<
     $ast.Symbol_ | undefined,
     SymbolReferenceLinks
+  >($zf31);
+  valueSymbolLinks: $rt.core_LinkStore<$ast.Symbol_ | undefined, ValueSymbolLinks> = new $rt.core_LinkStore<
+    $ast.Symbol_ | undefined,
+    ValueSymbolLinks
   >($zf32);
-  valueSymbolLinks: $rt.checker_symbolArenaLinkStore<ValueSymbolLinks> =
-    new $rt.checker_symbolArenaLinkStore<ValueSymbolLinks>($zf33);
   mappedSymbolLinks: $rt.core_LinkStore<$ast.Symbol_ | undefined, MappedSymbolLinks> = new $rt.core_LinkStore<
     $ast.Symbol_ | undefined,
     MappedSymbolLinks
-  >($zf34);
+  >($zf33);
   deferredSymbolLinks: $rt.core_LinkStore<$ast.Symbol_ | undefined, DeferredSymbolLinks> = new $rt.core_LinkStore<
     $ast.Symbol_ | undefined,
     DeferredSymbolLinks
-  >($zf35);
+  >($zf34);
   aliasSymbolLinks: $rt.core_LinkStore<$ast.Symbol_ | undefined, AliasSymbolLinks> = new $rt.core_LinkStore<
     $ast.Symbol_ | undefined,
     AliasSymbolLinks
-  >($zf36);
+  >($zf35);
   moduleSymbolLinks: $rt.core_LinkStore<$ast.Symbol_ | undefined, ModuleSymbolLinks> = new $rt.core_LinkStore<
     $ast.Symbol_ | undefined,
     ModuleSymbolLinks
-  >($zf37);
+  >($zf36);
   lateBoundLinks: $rt.core_LinkStore<$ast.Symbol_ | undefined, LateBoundLinks> = new $rt.core_LinkStore<
     $ast.Symbol_ | undefined,
     LateBoundLinks
-  >($zf38);
+  >($zf37);
   exportTypeLinks: $rt.core_LinkStore<$ast.Symbol_ | undefined, ExportTypeLinks> = new $rt.core_LinkStore<
     $ast.Symbol_ | undefined,
     ExportTypeLinks
-  >($zf39);
+  >($zf38);
   membersAndExportsLinks: $rt.core_LinkStore<$ast.Symbol_ | undefined, MembersAndExportsLinks> = new $rt.core_LinkStore<
     $ast.Symbol_ | undefined,
     MembersAndExportsLinks
-  >($zf40);
+  >($zf39);
   typeAliasLinks: $rt.core_LinkStore<$ast.Symbol_ | undefined, TypeAliasLinks> = new $rt.core_LinkStore<
     $ast.Symbol_ | undefined,
     TypeAliasLinks
-  >($zf41);
+  >($zf40);
   declaredTypeLinks: $rt.core_LinkStore<$ast.Symbol_ | undefined, DeclaredTypeLinks> = new $rt.core_LinkStore<
     $ast.Symbol_ | undefined,
     DeclaredTypeLinks
-  >($zf42);
+  >($zf41);
   spreadLinks: $rt.core_LinkStore<$ast.Symbol_ | undefined, SpreadLinks> = new $rt.core_LinkStore<
     $ast.Symbol_ | undefined,
     SpreadLinks
-  >($zf43);
+  >($zf42);
   varianceLinks: $rt.core_LinkStore<$ast.Symbol_ | undefined, VarianceLinks> = new $rt.core_LinkStore<
     $ast.Symbol_ | undefined,
     VarianceLinks
-  >($zf44);
+  >($zf43);
   ReverseMappedSymbolLinks: $rt.core_LinkStore<$ast.Symbol_ | undefined, ReverseMappedSymbolLinks> =
-    new $rt.core_LinkStore<$ast.Symbol_ | undefined, ReverseMappedSymbolLinks>($zf45);
+    new $rt.core_LinkStore<$ast.Symbol_ | undefined, ReverseMappedSymbolLinks>($zf44);
   markedAssignmentSymbolLinks: $rt.core_LinkStore<$ast.Symbol_ | undefined, MarkedAssignmentSymbolLinks> =
-    new $rt.core_LinkStore<$ast.Symbol_ | undefined, MarkedAssignmentSymbolLinks>($zf46);
+    new $rt.core_LinkStore<$ast.Symbol_ | undefined, MarkedAssignmentSymbolLinks>($zf45);
   symbolContainerLinks: $rt.core_LinkStore<$ast.Symbol_ | undefined, ContainingSymbolLinks> = new $rt.core_LinkStore<
     $ast.Symbol_ | undefined,
     ContainingSymbolLinks
-  >($zf47);
+  >($zf46);
   sourceFileLinks: $rt.core_LinkStore<$ast.SourceFile | undefined, SourceFileLinks> = new $rt.core_LinkStore<
     $ast.SourceFile | undefined,
     SourceFileLinks
-  >($zf48);
+  >($zf47);
   regExpScanner: $scanner.Scanner | undefined = undefined;
   patternForType: Map<Type | undefined, $ast.Node | undefined> | undefined = undefined;
   contextFreeTypes: Map<$ast.Node | undefined, Type | undefined> | undefined = undefined;
@@ -945,7 +942,7 @@ export class Checker extends $rt.GoObject {
   typeofType: Type | undefined = undefined;
   typeResolutions: TypeResolution[] = [];
   resolutionStart: number = 0;
-  varianceStack: VarianceStackEntry[] = [];
+  inVarianceComputation: boolean = false;
   apparentArgumentCount: $rt.Ptr<number> | undefined = undefined;
   lastGetCombinedNodeFlagsNode: $ast.Node | undefined = undefined;
   lastGetCombinedNodeFlagsResult: $ast.NodeFlags = 0;
@@ -1091,6 +1088,7 @@ export class Checker extends $rt.GoObject {
     this.exactOptionalPropertyTypes = src.exactOptionalPropertyTypes;
     this.canCollectSymbolAliasAccessibilityData = src.canCollectSymbolAliasAccessibilityData;
     this.wasCanceled = src.wasCanceled;
+    this.saveDeferredDiagnostics = src.saveDeferredDiagnostics;
     this.arrayVariances = src.arrayVariances;
     this.globals = src.globals;
     this.evaluate = src.evaluate;
@@ -1119,7 +1117,6 @@ export class Checker extends $rt.GoObject {
     this.reverseHomomorphicMappedCache = src.reverseHomomorphicMappedCache;
     this.iterationTypesCache = src.iterationTypesCache;
     this.markerTypes = src.markerTypes.$clone_collections_Set();
-    this.resolvingExplicitTypeOfSymbol = src.resolvingExplicitTypeOfSymbol.$clone_collections_Set();
     this.undefinedSymbol = src.undefinedSymbol;
     this.argumentsSymbol = src.argumentsSymbol;
     this.requireSymbol = src.requireSymbol;
@@ -1153,7 +1150,6 @@ export class Checker extends $rt.GoObject {
     this.arrayLiteralLinks = src.arrayLiteralLinks.$clone();
     this.switchStatementLinks = src.switchStatementLinks.$clone();
     this.jsxElementLinks = src.jsxElementLinks.$clone();
-    this.computedNameLinks = src.computedNameLinks.$clone();
     this.symbolReferenceLinks = src.symbolReferenceLinks.$clone();
     this.valueSymbolLinks = src.valueSymbolLinks.$clone();
     this.mappedSymbolLinks = src.mappedSymbolLinks.$clone();
@@ -1265,7 +1261,7 @@ export class Checker extends $rt.GoObject {
     this.typeofType = src.typeofType;
     this.typeResolutions = src.typeResolutions;
     this.resolutionStart = src.resolutionStart;
-    this.varianceStack = src.varianceStack;
+    this.inVarianceComputation = src.inVarianceComputation;
     this.apparentArgumentCount = src.apparentArgumentCount;
     this.lastGetCombinedNodeFlagsNode = src.lastGetCombinedNodeFlagsNode;
     this.lastGetCombinedNodeFlagsResult = src.lastGetCombinedNodeFlagsResult;
@@ -2029,9 +2025,6 @@ export class Checker extends $rt.GoObject {
     nameNotFoundMessage: $diagnostics.Message | undefined,
   ): void {
     const c = this;
-    if (isConstTypeReferenceName(errorLocation)) {
-      return;
-    }
     if (
       !(errorLocation === undefined) &&
       (errorLocation!.Parent!.Kind_ === (319 as number) ||
@@ -2156,9 +2149,7 @@ export class Checker extends $rt.GoObject {
         c!.resolveName!(errorLocation, name_, 1024, undefined, false, false),
       );
       if (!(symbol_ === undefined)) {
-        if (!isExportAssignmentExpressionName(errorLocation)) {
-          c!.error(errorLocation, $diagnostics.Cannot_use_namespace_0_as_a_value, [new $rt.BoxStr(name_, 'string')]);
-        }
+        c!.error(errorLocation, $diagnostics.Cannot_use_namespace_0_as_a_value, [new $rt.BoxStr(name_, 'string')]);
         return true;
       }
     } else if (!((meaning & 788544) === (0 as number))) {
@@ -2220,9 +2211,6 @@ export class Checker extends $rt.GoObject {
       if (!(symbol_ === undefined)) {
         const allFlags: $ast.SymbolFlags = c!.getSymbolFlags(symbol_);
         if ((allFlags & 111551) === (0 as number)) {
-          if (isExportAssignmentExpressionName(errorLocation)) {
-            return true;
-          }
           if (isES2015OrLaterConstructorName(name_)) {
             c!.error(
               errorLocation,
@@ -2813,6 +2801,7 @@ export class Checker extends $rt.GoObject {
       c!.ctx = ctx;
       const links: SourceFileLinks | undefined = c!.sourceFileLinks.Get(sourceFile);
       if (!links!.typeChecked) {
+        c!.saveDeferredDiagnostics = true;
         {
           const tr: Tracer | undefined = c!.tracer;
           if (!(tr === undefined)) {
@@ -2837,6 +2826,7 @@ export class Checker extends $rt.GoObject {
         if (!sourceFile!.IsDeclarationFile && !c!.isCanceled()) {
           c!.checkUnusedRenamedBindingElements();
         }
+        c!.saveDeferredDiagnostics = false;
         c!.produceDeferredDiagnostics();
         $collections$Set_.Clear$nil<$ast.Node | undefined>(c!.reportedUnreachableNodes);
         links!.typeChecked = true;
@@ -3267,7 +3257,7 @@ export class Checker extends $rt.GoObject {
       c!.checkDeferredNode(node);
       return true;
     });
-    links!.deferredNodes = new $collections.OrderedSet<$ast.Node | undefined>($zf3);
+    links!.deferredNodes.Clear();
   }
   checkDeferredNode(node: $ast.Node | undefined): void {
     const c = this;
@@ -3346,11 +3336,6 @@ export class Checker extends $rt.GoObject {
             if ($ast.IsInstanceOfExpression(node)) {
               c!.resolveUntypedCall(node);
             }
-            break;
-          }
-          case 211 as number:
-          case 293 as number: {
-            c!.checkContextualDeprecations(node);
             break;
           }
         }
@@ -3840,7 +3825,7 @@ export class Checker extends $rt.GoObject {
       return;
     }
     const containingClassDecl: $ast.Node | undefined = node!.Parent;
-    if ($ast.GetClassExtendsHeritageElement(containingClassDecl) === undefined) {
+    if ($ast.GetExtendsHeritageClauseElement(containingClassDecl) === undefined) {
       return;
     }
     const classExtendsNull: boolean = c!.classDeclarationExtendsNull(containingClassDecl);
@@ -4113,7 +4098,6 @@ export class Checker extends $rt.GoObject {
   }
   checkTypePredicate(node: $ast.Node | undefined): void {
     const c = this;
-    c!.checkSourceElement(node!.Type$m());
     const parent: $ast.Node | undefined = c!.getTypePredicateParent(node);
     if (parent === undefined) {
       c!.error(
@@ -4128,6 +4112,7 @@ export class Checker extends $rt.GoObject {
     if (typePredicate === undefined) {
       return;
     }
+    c!.checkSourceElement(node!.Type$m());
     const parameterName: $ast.Node | undefined = node!.AsTypePredicateNode()!.ParameterName;
     if (!(typePredicate!.kind === (0 as number)) && !(typePredicate!.kind === (2 as number))) {
       if (typePredicate!.parameterIndex >= 0) {
@@ -5623,11 +5608,6 @@ export class Checker extends $rt.GoObject {
   }
   checkReturnStatement(node: $ast.Node | undefined): void {
     const c = this;
-    const exprNode: $ast.Node | undefined = node!.Expression();
-    let exprType: Type | undefined = c!.undefinedType;
-    if (!(exprNode === undefined)) {
-      exprType = c!.checkExpressionCached(exprNode);
-    }
     if (c!.checkGrammarStatementInAmbientContext(node)) {
       return;
     }
@@ -5651,7 +5631,12 @@ export class Checker extends $rt.GoObject {
     const signature: Signature | undefined = c!.getSignatureFromDeclaration(container);
     const returnType: Type | undefined = c!.getReturnTypeOfSignature(signature);
     const functionFlags: $ast.FunctionFlags = $ast.GetFunctionFlags(container);
+    const exprNode: $ast.Node | undefined = node!.Expression();
     if (c!.strictNullChecks || !(exprNode === undefined) || !((returnType!.flags & 262144) === (0 as number))) {
+      let exprType: Type | undefined = c!.undefinedType;
+      if (!(exprNode === undefined)) {
+        exprType = c!.checkExpressionCached(exprNode);
+      }
       if ($ast.IsSetAccessorDeclaration(container)) {
         if (!(exprNode === undefined)) {
           c!.error(node, $diagnostics.Setters_cannot_return_a_value, [] as ($rt.GoObject | undefined)[]);
@@ -5958,13 +5943,12 @@ export class Checker extends $rt.GoObject {
     if (!nodeInAmbientContext) {
       c!.checkClassForStaticPropertyNameConflicts(node);
     }
-    const baseTypeNode: $ast.Node | undefined = $ast.GetClassExtendsHeritageElement(node);
+    const baseTypeNode: $ast.Node | undefined = $ast.GetExtendsHeritageClauseElement(node);
     if (!(baseTypeNode === undefined)) {
       c!.checkSourceElements(baseTypeNode!.TypeArguments());
       const baseTypes: (Type | undefined)[] = c!.getBaseTypes(classType);
       if (!(baseTypes.length === (0 as number))) {
         const baseType: Type | undefined = baseTypes[0];
-        c!.checkJSDocAugmentsTagMatchesExtends(node, baseTypeNode, baseType);
         const baseConstructorType: Type | undefined = c!.getBaseConstructorTypeOfClass(classType);
         const staticBaseType: Type | undefined = c!.getApparentType(baseConstructorType);
         c!.checkBaseTypeAccessibility(staticBaseType, baseTypeNode);
@@ -6045,15 +6029,13 @@ export class Checker extends $rt.GoObject {
       const $t3 = implementedTypeNodes;
       for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
         const typeRefNode = $t3[$t4];
-        if ($ast.IsExpressionWithTypeArguments(typeRefNode)) {
-          const expr: $ast.Node | undefined = typeRefNode!.Expression();
-          if (!$ast.IsEntityNameExpression(expr) || $ast.IsOptionalChain(expr)) {
-            c!.error(
-              expr,
-              $diagnostics.A_class_can_only_implement_an_identifier_Slashqualified_name_with_optional_type_arguments,
-              [] as ($rt.GoObject | undefined)[],
-            );
-          }
+        const expr: $ast.Node | undefined = typeRefNode!.Expression();
+        if (!$ast.IsEntityNameExpression(expr) || $ast.IsOptionalChain(expr)) {
+          c!.error(
+            expr,
+            $diagnostics.A_class_can_only_implement_an_identifier_Slashqualified_name_with_optional_type_arguments,
+            [] as ($rt.GoObject | undefined)[],
+          );
         }
         c!.checkTypeReferenceNode(typeRefNode);
         const t: Type | undefined = c!.getReducedType(c!.getTypeFromTypeNode(typeRefNode));
@@ -6086,50 +6068,6 @@ export class Checker extends $rt.GoObject {
     c!.checkIndexConstraints(staticType, symbol_, true);
     c!.checkClassOrInterfaceForDuplicateIndexSignatures(node);
     c!.checkPropertyInitialization(node);
-  }
-  checkJSDocAugmentsTagMatchesExtends(
-    node: $ast.Node | undefined,
-    baseTypeNode: $ast.Node | undefined,
-    baseType: Type | undefined,
-  ): void {
-    const c = this;
-    if (!$ast.IsInJSFile(node)) {
-      return;
-    }
-    const file: $ast.SourceFile | undefined = $ast.GetSourceFileOfNode(node);
-    {
-      const $t1 = node!.EagerJSDoc(file);
-      for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        const j = $t1[$t2];
-        if (j!.AsJSDoc()!.Tags === undefined) {
-          continue;
-        }
-        {
-          const $t3 = j!.AsJSDoc()!.Tags!.Nodes;
-          for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
-            const tag = $t3[$t4];
-            if (!(tag!.Kind_ === (323 as number))) {
-              continue;
-            }
-            const sourceTypeNode: $ast.Node | undefined = tag!.ClassName();
-            if (c!.isTypeIdenticalTo(c!.getTypeFromTypeNode(sourceTypeNode), baseType)) {
-              continue;
-            }
-            const targetName: $ast.Node | undefined = getIdentifierFromEntityNameExpression(baseTypeNode!.Expression());
-            const sourceName: $ast.Node | undefined = getIdentifierFromEntityNameExpression(
-              sourceTypeNode!.Expression(),
-            );
-            if (!(targetName === undefined) && !(sourceName === undefined)) {
-              c!.error(sourceName, $diagnostics.JSDoc_0_1_does_not_match_the_extends_2_clause, [
-                new $rt.BoxStr(tag!.TagName()!.Text$Node(), 'string'),
-                new $rt.BoxStr(sourceName!.Text$Node(), 'string'),
-                new $rt.BoxStr(targetName!.Text$Node(), 'string'),
-              ]);
-            }
-          }
-        }
-      }
-    }
   }
   checkClassForStaticPropertyNameConflicts(node: $ast.Node | undefined): void {
     const c = this;
@@ -6631,7 +6569,7 @@ export class Checker extends $rt.GoObject {
   ): void {
     const c = this;
     let baseWithThis: Type | undefined = undefined as Type | undefined;
-    const baseTypeNode: $ast.Node | undefined = $ast.GetClassExtendsHeritageElement(node);
+    const baseTypeNode: $ast.Node | undefined = $ast.GetExtendsHeritageClauseElement(node);
     if (!(baseTypeNode === undefined)) {
       const baseTypes: (Type | undefined)[] = c!.getBaseTypes(t);
       if (baseTypes.length > 0) {
@@ -6683,188 +6621,12 @@ export class Checker extends $rt.GoObject {
     member: $ast.Node | undefined,
   ): void {
     const c = this;
-    const symbol_: $ast.Symbol_ | undefined = c!.getSymbolOfDeclaration(member);
-    if (symbol_ === undefined) {
-      return;
-    }
-    c!.checkMemberForOverrideModifierWorker(
-      node,
-      staticType,
-      baseStaticType,
-      baseWithThis,
-      t,
-      typeWithThis,
-      hasOverrideModifier(member),
-      $ast.HasAbstractModifier(member),
-      $ast.IsStatic(member),
-      $ast.IsParameterDeclaration(member),
-      symbol_,
-      member,
-    );
-  }
-  getMemberOverrideModifierStatus(
-    node: $ast.Node | undefined,
-    member: $ast.Node | undefined,
-    memberSymbol: $ast.Symbol_ | undefined,
-  ): MemberOverrideStatus {
-    const c = this;
-    if (member!.Name$Node() === undefined || memberSymbol === undefined) {
-      return 0;
-    }
-    const classSymbol: $ast.Symbol_ | undefined = c!.getSymbolOfDeclaration(node);
-    if (classSymbol === undefined) {
-      return 0;
-    }
-    const t: Type | undefined = c!.getDeclaredTypeOfSymbol(classSymbol);
-    const typeWithThis: Type | undefined = c!.getTypeWithThisArgument(t, undefined, false);
-    const staticType: Type | undefined = c!.getTypeOfSymbol(classSymbol);
-    let baseWithThis: Type | undefined = undefined as Type | undefined;
-    if (!($ast.GetClassExtendsHeritageElement(node) === undefined)) {
-      const baseTypes: (Type | undefined)[] = c!.getBaseTypes(t);
-      if (baseTypes.length > 0) {
-        baseWithThis = c!.getTypeWithThisArgument(baseTypes[0], t!.AsInterfaceType$Type()!.thisType, false);
-      }
-    }
-    return c!.checkMemberForOverrideModifierWorker(
-      node,
-      staticType,
-      c!.getBaseConstructorTypeOfClass(t),
-      baseWithThis,
-      t,
-      typeWithThis,
-      $ast.HasSyntacticModifier(member, 16),
-      $ast.HasAbstractModifier(member),
-      $ast.IsStatic(member),
-      false,
-      memberSymbol,
-      undefined,
-    );
-  }
-  checkMemberForOverrideModifierWorker(
-    node: $ast.Node | undefined,
-    staticType: Type | undefined,
-    baseStaticType: Type | undefined,
-    baseWithThis: Type | undefined,
-    t: Type | undefined,
-    typeWithThis: Type | undefined,
-    memberHasOverrideModifier: boolean,
-    memberHasAbstractModifier: boolean,
-    memberIsStatic: boolean,
-    memberIsParameterProperty: boolean,
-    member: $ast.Symbol_ | undefined,
-    errorNode: $ast.Node | undefined,
-  ): MemberOverrideStatus {
-    const c = this;
     const isJs: boolean = $ast.IsInJSFile(node);
-    if (
-      memberHasOverrideModifier &&
-      !(member!.ValueDeclaration === undefined) &&
-      $ast.IsClassElement(member!.ValueDeclaration) &&
-      !(member!.ValueDeclaration!.Name$Node() === undefined) &&
-      c!.isNonBindableDynamicName(member!.ValueDeclaration!.Name$Node())
-    ) {
-      if (!(errorNode === undefined)) {
+    const memberHasOverrideModifier: boolean = hasOverrideModifier(member);
+    if (baseWithThis === undefined) {
+      if (memberHasOverrideModifier) {
         c!.error(
-          errorNode,
-          $core.IfElse<$diagnostics.Message | undefined>(
-            isJs,
-            $diagnostics.This_member_cannot_have_a_JSDoc_comment_with_an_override_tag_because_its_name_is_dynamic,
-            $diagnostics.This_member_cannot_have_an_override_modifier_because_its_name_is_dynamic,
-          ),
-          [] as ($rt.GoObject | undefined)[],
-        );
-      }
-      return 2;
-    }
-    if (
-      !(baseWithThis === undefined) &&
-      (memberHasOverrideModifier || $core.Tristate$IsTrue(c!.compilerOptions!.NoImplicitOverride))
-    ) {
-      const thisType: Type | undefined = $core.IfElse<Type | undefined>(memberIsStatic, staticType, typeWithThis);
-      const baseType: Type | undefined = $core.IfElse<Type | undefined>(memberIsStatic, baseStaticType, baseWithThis);
-      const prop: $ast.Symbol_ | undefined = c!.getPropertyOfType(thisType, member!.Name);
-      const baseProp: $ast.Symbol_ | undefined = c!.getPropertyOfType(baseType, member!.Name);
-      if (!(prop === undefined) && baseProp === undefined && memberHasOverrideModifier) {
-        if (!(errorNode === undefined)) {
-          const suggestion: $ast.Symbol_ | undefined = c!.getSuggestedSymbolForNonexistentClassMember(
-            $ast.SymbolName(member),
-            baseType,
-          );
-          if (!(suggestion === undefined)) {
-            c!.error(
-              errorNode,
-              $core.IfElse<$diagnostics.Message | undefined>(
-                isJs,
-                $diagnostics.This_member_cannot_have_a_JSDoc_comment_with_an_override_tag_because_it_is_not_declared_in_the_base_class_0_Did_you_mean_1,
-                $diagnostics.This_member_cannot_have_an_override_modifier_because_it_is_not_declared_in_the_base_class_0_Did_you_mean_1,
-              ),
-              [
-                new $rt.BoxStr(c!.TypeToString(baseWithThis), 'string'),
-                new $rt.BoxStr(c!.symbolToString(suggestion), 'string'),
-              ],
-            );
-          } else {
-            c!.error(
-              errorNode,
-              $core.IfElse<$diagnostics.Message | undefined>(
-                isJs,
-                $diagnostics.This_member_cannot_have_a_JSDoc_comment_with_an_override_tag_because_it_is_not_declared_in_the_base_class_0,
-                $diagnostics.This_member_cannot_have_an_override_modifier_because_it_is_not_declared_in_the_base_class_0,
-              ),
-              [new $rt.BoxStr(c!.TypeToString(baseWithThis), 'string')],
-            );
-          }
-        }
-        return 2;
-      }
-      if (
-        !(prop === undefined) &&
-        !(baseProp === undefined) &&
-        baseProp!.Declarations.length > 0 &&
-        $core.Tristate$IsTrue(c!.compilerOptions!.NoImplicitOverride) &&
-        (node!.Flags & 8388608) === (0 as number)
-      ) {
-        const baseHasAbstract: boolean = $core.Some<$ast.Node | undefined>(
-          baseProp!.Declarations,
-          $ast.HasAbstractModifier,
-        );
-        if (memberHasOverrideModifier) {
-          return 0;
-        }
-        if (!baseHasAbstract) {
-          if (!(errorNode === undefined)) {
-            const message: $diagnostics.Message | undefined = $core.IfElse<$diagnostics.Message | undefined>(
-              memberIsParameterProperty,
-              $core.IfElse<$diagnostics.Message | undefined>(
-                isJs,
-                $diagnostics.This_parameter_property_must_have_a_JSDoc_comment_with_an_override_tag_because_it_overrides_a_member_in_the_base_class_0,
-                $diagnostics.This_parameter_property_must_have_an_override_modifier_because_it_overrides_a_member_in_base_class_0,
-              ),
-              $core.IfElse<$diagnostics.Message | undefined>(
-                isJs,
-                $diagnostics.This_member_must_have_a_JSDoc_comment_with_an_override_tag_because_it_overrides_a_member_in_the_base_class_0,
-                $diagnostics.This_member_must_have_an_override_modifier_because_it_overrides_a_member_in_the_base_class_0,
-              ),
-            );
-            c!.error(errorNode, message, [new $rt.BoxStr(c!.TypeToString(baseWithThis), 'string')]);
-          }
-          return 1;
-        }
-        if (memberHasAbstractModifier) {
-          if (!(errorNode === undefined)) {
-            c!.error(
-              errorNode,
-              $diagnostics.This_member_must_have_an_override_modifier_because_it_overrides_an_abstract_method_that_is_declared_in_the_base_class_0,
-              [new $rt.BoxStr(c!.TypeToString(baseWithThis), 'string')],
-            );
-          }
-          return 1;
-        }
-      }
-    } else if (memberHasOverrideModifier) {
-      if (!(errorNode === undefined)) {
-        c!.error(
-          errorNode,
+          member,
           $core.IfElse<$diagnostics.Message | undefined>(
             isJs,
             $diagnostics.This_member_cannot_have_a_JSDoc_comment_with_an_override_tag_because_its_containing_class_0_does_not_extend_another_class,
@@ -6873,9 +6635,112 @@ export class Checker extends $rt.GoObject {
           [new $rt.BoxStr(c!.TypeToString(t), 'string')],
         );
       }
-      return 2;
+      return;
     }
-    return 0;
+    {
+      const sym: $ast.Symbol_ | undefined = member!.Symbol$m();
+      if (
+        memberHasOverrideModifier &&
+        !(sym === undefined) &&
+        !(sym!.ValueDeclaration === undefined) &&
+        $ast.IsClassElement(member) &&
+        !(member!.Name$Node() === undefined) &&
+        c!.isNonBindableDynamicName(member!.Name$Node())
+      ) {
+        c!.error(
+          member,
+          $core.IfElse<$diagnostics.Message | undefined>(
+            isJs,
+            $diagnostics.This_member_cannot_have_a_JSDoc_comment_with_an_override_tag_because_its_name_is_dynamic,
+            $diagnostics.This_member_cannot_have_an_override_modifier_because_its_name_is_dynamic,
+          ),
+          [] as ($rt.GoObject | undefined)[],
+        );
+        return;
+      }
+    }
+    if (!memberHasOverrideModifier && !$core.Tristate$IsTrue(c!.compilerOptions!.NoImplicitOverride)) {
+      return;
+    }
+    const symbol_: $ast.Symbol_ | undefined = c!.getSymbolOfDeclaration(member);
+    if (symbol_ === undefined) {
+      return;
+    }
+    const memberIsStatic: boolean = $ast.IsStatic(member);
+    const thisType: Type | undefined = $core.IfElse<Type | undefined>(memberIsStatic, staticType, typeWithThis);
+    const prop: $ast.Symbol_ | undefined = c!.getPropertyOfType(thisType, symbol_!.Name);
+    if (prop === undefined) {
+      return;
+    }
+    const baseType: Type | undefined = $core.IfElse<Type | undefined>(memberIsStatic, baseStaticType, baseWithThis);
+    const baseProp: $ast.Symbol_ | undefined = c!.getPropertyOfType(baseType, symbol_!.Name);
+    if (baseProp === undefined && memberHasOverrideModifier) {
+      const suggestion: $ast.Symbol_ | undefined = c!.getSuggestedSymbolForNonexistentClassMember(
+        $ast.SymbolName(symbol_),
+        baseType,
+      );
+      if (!(suggestion === undefined)) {
+        c!.error(
+          member,
+          $core.IfElse<$diagnostics.Message | undefined>(
+            isJs,
+            $diagnostics.This_member_cannot_have_a_JSDoc_comment_with_an_override_tag_because_it_is_not_declared_in_the_base_class_0_Did_you_mean_1,
+            $diagnostics.This_member_cannot_have_an_override_modifier_because_it_is_not_declared_in_the_base_class_0_Did_you_mean_1,
+          ),
+          [
+            new $rt.BoxStr(c!.TypeToString(baseWithThis), 'string'),
+            new $rt.BoxStr(c!.symbolToString(suggestion), 'string'),
+          ],
+        );
+        return;
+      }
+      c!.error(
+        member,
+        $core.IfElse<$diagnostics.Message | undefined>(
+          isJs,
+          $diagnostics.This_member_cannot_have_a_JSDoc_comment_with_an_override_tag_because_it_is_not_declared_in_the_base_class_0,
+          $diagnostics.This_member_cannot_have_an_override_modifier_because_it_is_not_declared_in_the_base_class_0,
+        ),
+        [new $rt.BoxStr(c!.TypeToString(baseWithThis), 'string')],
+      );
+      return;
+    }
+    if (
+      !(baseProp === undefined) &&
+      !(baseProp!.Declarations.length === (0 as number)) &&
+      !memberHasOverrideModifier &&
+      $core.Tristate$IsTrue(c!.compilerOptions!.NoImplicitOverride) &&
+      (node!.Flags & 8388608) === (0 as number)
+    ) {
+      const baseHasAbstract: boolean = $core.Some<$ast.Node | undefined>(
+        baseProp!.Declarations,
+        $ast.HasAbstractModifier,
+      );
+      if (!baseHasAbstract) {
+        const message: $diagnostics.Message | undefined = $core.IfElse<$diagnostics.Message | undefined>(
+          $ast.IsParameterDeclaration(member),
+          $core.IfElse<$diagnostics.Message | undefined>(
+            isJs,
+            $diagnostics.This_parameter_property_must_have_a_JSDoc_comment_with_an_override_tag_because_it_overrides_a_member_in_the_base_class_0,
+            $diagnostics.This_parameter_property_must_have_an_override_modifier_because_it_overrides_a_member_in_base_class_0,
+          ),
+          $core.IfElse<$diagnostics.Message | undefined>(
+            isJs,
+            $diagnostics.This_member_must_have_a_JSDoc_comment_with_an_override_tag_because_it_overrides_a_member_in_the_base_class_0,
+            $diagnostics.This_member_must_have_an_override_modifier_because_it_overrides_a_member_in_the_base_class_0,
+          ),
+        );
+        c!.error(member, message, [new $rt.BoxStr(c!.TypeToString(baseWithThis), 'string')]);
+        return;
+      }
+      if ($ast.HasAbstractModifier(member) && baseHasAbstract) {
+        c!.error(
+          member,
+          $diagnostics.This_member_must_have_an_override_modifier_because_it_overrides_an_abstract_method_that_is_declared_in_the_base_class_0,
+          [new $rt.BoxStr(c!.TypeToString(baseWithThis), 'string')],
+        );
+      }
+    }
   }
   getSuggestedSymbolForNonexistentClassMember(name_: string, baseType: Type | undefined): $ast.Symbol_ | undefined {
     const c = this;
@@ -7277,15 +7142,13 @@ export class Checker extends $rt.GoObject {
       const $t3 = $ast.GetExtendsHeritageClauseElements(node);
       for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
         const heritageElement = $t3[$t4];
-        if ($ast.IsExpressionWithTypeArguments(heritageElement)) {
-          const expr: $ast.Node | undefined = heritageElement!.Expression();
-          if (!$ast.IsEntityNameExpression(expr) || $ast.IsOptionalChain(expr)) {
-            c!.error(
-              expr,
-              $diagnostics.An_interface_can_only_extend_an_identifier_Slashqualified_name_with_optional_type_arguments,
-              [] as ($rt.GoObject | undefined)[],
-            );
-          }
+        const expr: $ast.Node | undefined = heritageElement!.Expression();
+        if (!$ast.IsEntityNameExpression(expr) || $ast.IsOptionalChain(expr)) {
+          c!.error(
+            expr,
+            $diagnostics.An_interface_can_only_extend_an_identifier_Slashqualified_name_with_optional_type_arguments,
+            [] as ($rt.GoObject | undefined)[],
+          );
         }
         c!.checkTypeReferenceNode(heritageElement);
       }
@@ -7675,7 +7538,6 @@ export class Checker extends $rt.GoObject {
       diagnostic = $diagnostics.An_import_declaration_can_only_be_used_at_the_top_level_of_a_namespace_or_module;
     }
     if (c!.checkGrammarModuleElementContext(node, diagnostic)) {
-      c!.checkExternalModuleNameInGlobalScope(node);
       return;
     }
     if (!c!.checkGrammarModifiers(node) && !(node!.Modifiers$Node() === undefined)) {
@@ -7925,7 +7787,6 @@ export class Checker extends $rt.GoObject {
       $diagnostics.An_import_declaration_can_only_be_used_at_the_top_level_of_a_namespace_or_module,
     );
     if (c!.checkGrammarModuleElementContext(node, diagnostic)) {
-      c!.checkExternalModuleNameInGlobalScope(node);
       return;
     }
     c!.checkGrammarModifiers(node);
@@ -7987,11 +7848,10 @@ export class Checker extends $rt.GoObject {
       $diagnostics.An_export_declaration_can_only_be_used_at_the_top_level_of_a_namespace_or_module,
     );
     if (c!.checkGrammarModuleElementContext(node, diagnostic)) {
-      c!.checkExternalModuleNameInGlobalScope(node);
       return;
     }
     const exportDecl: $ast.ExportDeclaration | undefined = node!.AsExportDeclaration();
-    if (!c!.checkGrammarModifiers(node) && !(exportDecl!.ModifiersBase_.Modifiers$ModifiersBase() === undefined)) {
+    if (!c!.checkGrammarModifiers(node) && !(exportDecl!.ModifiersBase_.Modifiers() === undefined)) {
       c!.grammarErrorOnFirstToken(
         node,
         $diagnostics.An_export_declaration_cannot_have_modifiers,
@@ -8049,21 +7909,6 @@ export class Checker extends $rt.GoObject {
     }
     c!.checkImportAttributes(node);
   }
-  checkExternalModuleNameInGlobalScope(node: $ast.Node | undefined): void {
-    const c = this;
-    if (
-      !(getEnclosingContainer(node)!.Kind_ === (307 as number)) ||
-      ($ast.IsImportDeclarationOrJSImportDeclaration(node) && node!.ImportClause() === undefined)
-    ) {
-      return;
-    }
-    {
-      const moduleName: $ast.Node | undefined = $ast.GetExternalModuleName(node);
-      if (!(moduleName === undefined)) {
-        c!.resolveExternalModuleName(node, moduleName, false);
-      }
-    }
-  }
   checkExportSpecifier(node: $ast.Node | undefined): void {
     const c = this;
     c!.checkAliasSymbol(node);
@@ -8106,7 +7951,6 @@ export class Checker extends $rt.GoObject {
   checkExportAssignment(node: $ast.Node | undefined): void {
     const c = this;
     const isExportEquals: boolean = node!.AsExportAssignment()!.IsExportEquals;
-    const exprType: Type | undefined = c!.checkExpressionCached(node!.Expression());
     const illegalContextMessage: $diagnostics.Message | undefined = $core.IfElse<$diagnostics.Message | undefined>(
       isExportEquals,
       $diagnostics.An_export_assignment_must_be_at_the_top_level_of_a_file_or_module_declaration,
@@ -8126,7 +7970,11 @@ export class Checker extends $rt.GoObject {
         [] as ($rt.GoObject | undefined)[],
       );
     }
-    if (isContainedByNamespace(node)) {
+    let container: $ast.Node | undefined = node!.Parent;
+    if (!$ast.IsSourceFile(container)) {
+      container = container!.Parent;
+    }
+    if ($ast.IsModuleDeclaration(container) && !$ast.IsAmbientModule(container)) {
       if (isExportEquals) {
         c!.error(
           node,
@@ -8145,7 +7993,7 @@ export class Checker extends $rt.GoObject {
     if (
       !c!.checkGrammarModifiers(node) &&
       $ast.IsExportAssignment(node) &&
-      !(node!.AsExportAssignment()!.ModifiersBase_.Modifiers$ModifiersBase() === undefined)
+      !(node!.AsExportAssignment()!.ModifiersBase_.Modifiers() === undefined)
     ) {
       c!.grammarErrorOnFirstToken(
         node,
@@ -8167,6 +8015,7 @@ export class Checker extends $rt.GoObject {
         c!.markLinkedReferences(node, 3, undefined, undefined);
         const typeOnlyDeclaration: $ast.Node | undefined = c!.getTypeOnlyAliasDeclarationEx(sym, 111551);
         if (!((c!.getSymbolFlags(sym) & 111551) === (0 as number))) {
+          c!.checkExpressionCached(id);
           if (
             !isIllegalExportDefaultInCJS &&
             (node!.Flags & 8388608) === (0 as number) &&
@@ -8234,22 +8083,23 @@ export class Checker extends $rt.GoObject {
             );
           }
         }
+      } else {
+        c!.checkExpressionCached(id);
       }
+    } else {
+      c!.checkExpressionCached(node!.Expression());
     }
     if (isIllegalExportDefaultInCJS) {
       c!.error(node, getVerbatimModuleSyntaxErrorMessage(node), [] as ($rt.GoObject | undefined)[]);
-    }
-    let container: $ast.Node | undefined = node!.Parent;
-    if (!$ast.IsSourceFile(container)) {
-      container = container!.Parent;
     }
     c!.checkExternalModuleExports(container);
     {
       const typeNode: $ast.Node | undefined = node!.Type$m();
       if (!(typeNode === undefined) && node!.Kind_ === (278 as number)) {
         const t: Type | undefined = c!.getTypeFromTypeNode(typeNode);
+        const initializerType: Type | undefined = c!.checkExpressionCached(node!.Expression());
         c!.checkTypeAssignableToAndOptionallyElaborate(
-          exprType,
+          initializerType,
           t,
           node!.Expression(),
           node!.Expression(),
@@ -9759,7 +9609,6 @@ export class Checker extends $rt.GoObject {
         c!.moduleKind === (200 as number) &&
         !$ast.IsImportEqualsDeclaration(node) &&
         !$ast.IsVariableDeclaration(node) &&
-        !$ast.IsBindingElement(node) &&
         $rt.nn(c!.program).GetEmitModuleFormatOfFile($ast.GetSourceFileOfNode(node)) === (1 as number)
       ) {
         c!.error(
@@ -11298,7 +11147,7 @@ export class Checker extends $rt.GoObject {
       return c!.anyType;
     }
     const classLikeDeclaration: $ast.Node | undefined = container!.Parent;
-    if ($ast.GetClassExtendsHeritageElement(classLikeDeclaration) === undefined) {
+    if ($ast.GetExtendsHeritageClauseElement(classLikeDeclaration) === undefined) {
       c!.error(
         node,
         $diagnostics.X_super_can_only_be_referenced_in_a_derived_class,
@@ -12066,7 +11915,7 @@ export class Checker extends $rt.GoObject {
         return c!.anySignature;
       }
       if (!c!.isErrorType(superType)) {
-        const baseTypeNode: $ast.Node | undefined = $ast.GetClassExtendsHeritageElement($ast.GetContainingClass(node));
+        const baseTypeNode: $ast.Node | undefined = $ast.GetExtendsHeritageClauseElement($ast.GetContainingClass(node));
         if (!(baseTypeNode === undefined)) {
           const baseConstructors: (Signature | undefined)[] = c!.getInstantiatedConstructorsForTypeArguments(
             superType,
@@ -12379,12 +12228,12 @@ export class Checker extends $rt.GoObject {
     }
     const headMessage: $diagnostics.Message | undefined = c!.getDiagnosticHeadMessageForDecoratorResolution(node);
     if (callSignatures.length === (0 as number)) {
-      let diag: $ast.Diagnostic | undefined = $ast.NewDiagnosticChain(
+      const diag: $ast.Diagnostic | undefined = $ast.NewDiagnosticChain(
         c!.invocationErrorDetails(node!.Expression(), apparentType, 0),
         headMessage,
         [] as ($rt.GoObject | undefined)[],
       );
-      diag = c!.addDiagnostic(diag);
+      c!.addDiagnostic(diag);
       c!.invocationErrorRecovery(apparentType, 0, diag);
       return c!.resolveErrorCall(node);
     }
@@ -14088,11 +13937,11 @@ export class Checker extends $rt.GoObject {
     relatedInformation: $ast.Diagnostic | undefined,
   ): void {
     const c = this;
-    let diagnostic: $ast.Diagnostic | undefined = c!.invocationErrorDetails(errorTarget, apparentType, kind);
+    const diagnostic: $ast.Diagnostic | undefined = c!.invocationErrorDetails(errorTarget, apparentType, kind);
     if (!(relatedInformation === undefined)) {
       diagnostic!.AddRelatedInfo(relatedInformation);
     }
-    diagnostic = c!.addDiagnostic(diagnostic);
+    c!.addDiagnostic(diagnostic);
     c!.invocationErrorRecovery(apparentType, kind, diagnostic);
   }
   invocationErrorRecovery(
@@ -15018,7 +14867,7 @@ export class Checker extends $rt.GoObject {
             !$core.Same<Signature | undefined>(callSignatures, resolved!.CallSignatures()) ||
             !$core.Same<Signature | undefined>(constructSignatures, resolved!.ConstructSignatures())
           ) {
-            const result: Type | undefined = c!.newObjectType(16777232, t$1!.symbol);
+            const result: Type | undefined = c!.newObjectType(16777232, c!.newSymbol(0, '\xfeinstantiationExpression'));
             c!.setStructuredTypeMembers(
               result,
               resolved!.members,
@@ -15402,12 +15251,6 @@ export class Checker extends $rt.GoObject {
   checkYieldExpression(node: $ast.Node | undefined): Type | undefined {
     const c = this;
     c!.checkGrammarYieldExpression(node);
-    let yieldExpressionType: Type | undefined = undefined as Type | undefined;
-    if (!(node!.Expression() === undefined)) {
-      yieldExpressionType = c!.checkExpression(node!.Expression());
-    } else {
-      yieldExpressionType = c!.undefinedWideningType;
-    }
     const fn: $ast.Node | undefined = $ast.GetContainingFunction(node);
     if (fn === undefined) {
       return c!.anyType;
@@ -15442,6 +15285,12 @@ export class Checker extends $rt.GoObject {
       iterationTypes.nextType,
       c!.anyType,
     );
+    let yieldExpressionType: Type | undefined = undefined as Type | undefined;
+    if (!(node!.Expression() === undefined)) {
+      yieldExpressionType = c!.checkExpression(node!.Expression());
+    } else {
+      yieldExpressionType = c!.undefinedWideningType;
+    }
     const yieldedType: Type | undefined = c!.getYieldedTypeOfYieldExpression(
       node,
       yieldExpressionType,
@@ -15958,13 +15807,11 @@ export class Checker extends $rt.GoObject {
           return c!.anyType;
         }
         if (!(right!.Text$Node() === ('' as string)) && !c!.checkAndReportErrorForExtendingInterface(node)) {
-          c!.addDeferredDiagnostic((): void => {
-            c!.reportNonexistentProperty(
-              right,
-              $core.IfElse<Type | undefined>(isThisTypeParameter(leftType), apparentType, leftType),
-              isUncheckedJS,
-            );
-          });
+          c!.reportNonexistentProperty(
+            right,
+            $core.IfElse<Type | undefined>(isThisTypeParameter(leftType), apparentType, leftType),
+            isUncheckedJS,
+          );
         }
         return c!.errorType;
       }
@@ -16471,15 +16318,11 @@ export class Checker extends $rt.GoObject {
     {
       switch (node!.Kind_) {
         case 79 as number:
-        case 167 as number:
         case 212 as number: {
           if (!(node!.Parent === undefined)) {
             return c!.getEntityNameForExtendingInterface(node!.Parent);
           }
           break;
-        }
-        case 184 as number: {
-          return node!.AsTypeReferenceNode()!.TypeName;
         }
         case 234 as number: {
           if ($ast.IsEntityNameExpression(node!.Expression())) {
@@ -17160,7 +17003,7 @@ export class Checker extends $rt.GoObject {
   ): void {
     const c = this;
     const containingClassDecl: $ast.Node | undefined = container!.Parent;
-    const baseTypeNode: $ast.Node | undefined = $ast.GetClassExtendsHeritageElement(containingClassDecl);
+    const baseTypeNode: $ast.Node | undefined = $ast.GetExtendsHeritageClauseElement(containingClassDecl);
     if (!(baseTypeNode === undefined) && !c!.classDeclarationExtendsNull(containingClassDecl)) {
       if (
         !(node!.FlowNodeData$Node() === undefined) &&
@@ -17180,14 +17023,6 @@ export class Checker extends $rt.GoObject {
   checkAssertion(node: $ast.Node | undefined, checkMode: CheckMode): Type | undefined {
     const c = this;
     if (node!.Kind_ === (217 as number)) {
-      const file: $ast.SourceFile | undefined = $ast.GetSourceFileOfNode(node);
-      if (!(file === undefined) && $tspath.FileExtensionIsOneOf(file!.FileName(), ['.mts', '.cts'])) {
-        c!.grammarErrorOnNode(
-          node,
-          $diagnostics.This_syntax_is_reserved_in_files_with_the_mts_or_cts_extension_Use_an_as_expression_instead,
-          [] as ($rt.GoObject | undefined)[],
-        );
-      }
       if (c!.shouldCheckErasableSyntax(node)) {
         c!.addDiagnostic(
           $ast.NewDiagnostic(
@@ -17204,7 +17039,6 @@ export class Checker extends $rt.GoObject {
     }
     const typeNode: $ast.Node | undefined = node!.Type$m();
     const exprType: Type | undefined = c!.checkExpressionEx(node!.Expression(), checkMode);
-    c!.checkSourceElement(typeNode);
     if (isConstTypeReference(typeNode)) {
       if (!c!.isValidConstAssertionArgument(node!.Expression())) {
         c!.error(
@@ -17217,6 +17051,7 @@ export class Checker extends $rt.GoObject {
     }
     const links: AssertionLinks | undefined = c!.assertionLinks.Get(node);
     links!.exprType = exprType;
+    c!.checkSourceElement(typeNode);
     c!.checkNodeDeferred(node);
     return c!.getTypeFromTypeNode(typeNode);
   }
@@ -18282,19 +18117,10 @@ export class Checker extends $rt.GoObject {
                 return 3;
               }
               case 27 as number:
-              case 63 as number: {
-                return c!.getSyntacticNullishnessSemantics(node!.AsBinaryExpression()!.Right);
-              }
+              case 63 as number:
               case 60 as number:
               case 77 as number: {
-                const leftSemantics: PredicateSemantics = c!.getSyntacticNullishnessSemantics(
-                  node!.AsBinaryExpression()!.Left,
-                );
-                let result: PredicateSemantics = leftSemantics & 2;
-                if (!((leftSemantics & 1) === (0 as number))) {
-                  result = (result | c!.getSyntacticNullishnessSemantics(node!.AsBinaryExpression()!.Right)) >>> 0;
-                }
-                return result;
+                return c!.getSyntacticNullishnessSemantics(node!.AsBinaryExpression()!.Right);
               }
             }
           }
@@ -18530,7 +18356,6 @@ export class Checker extends $rt.GoObject {
       }
       return result;
     }
-    c!.checkNodeDeferred(node);
     const inDestructuringPattern: boolean = $ast.IsAssignmentTarget(node);
     c!.checkGrammarObjectLiteralExpression(node!.AsObjectLiteralExpression(), inDestructuringPattern);
     let allPropertiesTable: $ast.SymbolTable = undefined as $ast.SymbolTable;
@@ -18772,35 +18597,6 @@ export class Checker extends $rt.GoObject {
       });
     }
     return createObjectLiteralType!();
-  }
-  checkContextualDeprecations(node: $ast.Node | undefined): void {
-    const c = this;
-    const contextualType: Type | undefined = c!.getApparentTypeOfContextualType(node, 0);
-    {
-      const $t1 = node!.Properties();
-      for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        const property = $t1[$t2];
-        if (c!.isCanceled()) {
-          return;
-        }
-        if (!(property!.Name$Node() === undefined) && !$ast.IsComputedPropertyName(property!.Name$Node())) {
-          c!.checkDeprecatedProperty(property!.Name$Node(), contextualType);
-        }
-      }
-    }
-  }
-  checkDeprecatedProperty(name_: $ast.Node | undefined, contextualType: Type | undefined): void {
-    const c = this;
-    if (contextualType === undefined) {
-      return;
-    }
-    const prop: $ast.Symbol_ | undefined = c!.getPropertyOfType(contextualType, name_!.Text$Node());
-    if (prop === undefined || prop!.Declarations.length === (0 as number)) {
-      return;
-    }
-    if (c!.isDeprecatedSymbol(prop)) {
-      c!.addDeprecatedSuggestion(name_, prop!.Declarations, name_!.Text$Node());
-    }
   }
   checkSpreadPropOverrides(t: Type | undefined, props: $ast.SymbolTable, spread: $ast.Node | undefined): void {
     const c = this;
@@ -19335,16 +19131,8 @@ export class Checker extends $rt.GoObject {
             !hasDotDotDotToken(declaration) &&
             declaration!.Parent!.Elements().length >= 2
           ) {
-            const rootDeclaration: $ast.Node | undefined = $ast.GetRootDeclaration(declaration);
-            const rootInitializer: $ast.Node | undefined = rootDeclaration!.Initializer();
-            if (
-              !(rootInitializer === undefined) &&
-              $ast.IsNodeDescendantOf(location, rootInitializer) &&
-              c!.getControlFlowContainer(declaration) === c!.getControlFlowContainer(location)
-            ) {
-              break $sw1;
-            }
             const parent: $ast.Node | undefined = declaration!.Parent!.Parent;
+            const rootDeclaration: $ast.Node | undefined = $ast.GetRootDeclaration(parent);
             if (
               ($ast.IsVariableDeclaration(rootDeclaration) &&
                 !((c!.getCombinedNodeFlagsCached(rootDeclaration) & 6) === (0 as number))) ||
@@ -19365,7 +19153,6 @@ export class Checker extends $rt.GoObject {
                     )(c),
                   );
                 }
-                links!.flags = (links!.flags & ~4194304) >>> 0;
                 if (
                   !(parentTypeConstraint === undefined) &&
                   !((parentTypeConstraint!.flags & 134217728) === (0 as number)) &&
@@ -19385,6 +19172,7 @@ export class Checker extends $rt.GoObject {
                     t = c!.getBindingElementTypeFromParentType(declaration, narrowedType, true);
                   }
                 }
+                links!.flags = (links!.flags & ~4194304) >>> 0;
               }
             }
           } else if (
@@ -19546,7 +19334,7 @@ export class Checker extends $rt.GoObject {
     if (!(resolvedSymbol === undefined) && !(resolvedSymbol === c!.unknownSymbol)) {
       return resolvedSymbol;
     }
-    return c!.resolveName!(reference, reference!.Text$Node(), 3257279, undefined, false, false);
+    return c!.resolveName!(reference, reference!.Text$Node(), 3257279, undefined, true, false);
   }
   getCannotFindNameDiagnosticForName(node: $ast.Node | undefined): $diagnostics.Message | undefined {
     const c = this;
@@ -19655,7 +19443,7 @@ export class Checker extends $rt.GoObject {
     if (c!.wasCanceled) {
       return [];
     }
-    return collection!.GetDiagnosticsForFile(sourceFile);
+    return collection!.GetDiagnosticsForFile(sourceFile!.FileName());
   }
   GetGlobalDiagnostics(): ($ast.Diagnostic | undefined)[] {
     const c = this;
@@ -19664,7 +19452,9 @@ export class Checker extends $rt.GoObject {
   }
   addDeferredDiagnostic(callback: (() => void) | undefined): void {
     const c = this;
-    c!.deferredDiagnosticCallbacks.push(callback);
+    if (c!.saveDeferredDiagnostics) {
+      c!.deferredDiagnosticCallbacks.push(callback);
+    }
   }
   produceDeferredDiagnostics(): void {
     const c = this;
@@ -19677,19 +19467,17 @@ export class Checker extends $rt.GoObject {
     }
     c!.deferredDiagnosticCallbacks = [];
   }
-  addDiagnostic(diagnostic: $ast.Diagnostic | undefined): $ast.Diagnostic | undefined {
+  addDiagnostic(diagnostic: $ast.Diagnostic | undefined): void {
     const c = this;
     if (c!.serializationLevel < 2) {
-      return c!.diagnostics.Add(diagnostic);
+      c!.diagnostics.Add(diagnostic);
     }
-    return diagnostic;
   }
-  addSuggestionDiagnostic(diagnostic: $ast.Diagnostic | undefined): $ast.Diagnostic | undefined {
+  addSuggestionDiagnostic(diagnostic: $ast.Diagnostic | undefined): void {
     const c = this;
     if (c!.serializationLevel < 2) {
-      return c!.suggestionDiagnostics.Add(diagnostic);
+      c!.suggestionDiagnostics.Add(diagnostic);
     }
-    return diagnostic;
   }
   error(
     location: $ast.Node | undefined,
@@ -19697,7 +19485,9 @@ export class Checker extends $rt.GoObject {
     args: ($rt.GoObject | undefined)[],
   ): $ast.Diagnostic | undefined {
     const c = this;
-    return c!.addDiagnostic(NewDiagnosticForNode(location, message, args));
+    const diagnostic: $ast.Diagnostic | undefined = NewDiagnosticForNode(location, message, args);
+    c!.addDiagnostic(diagnostic);
+    return diagnostic;
   }
   errorSkippedOnNoEmit(
     location: $ast.Node | undefined,
@@ -19780,7 +19570,8 @@ export class Checker extends $rt.GoObject {
         }
       }
     }
-    return c!.addSuggestionDiagnostic(diagnostic);
+    c!.addSuggestionDiagnostic(diagnostic);
+    return diagnostic;
   }
   isDeprecatedSymbol(symbol_: $ast.Symbol_ | undefined): boolean {
     const c = this;
@@ -20083,7 +19874,13 @@ export class Checker extends $rt.GoObject {
     args: ($rt.GoObject | undefined)[],
   ): $ast.Diagnostic | undefined {
     const c = this;
-    return c!.addDiagnostic(NewDiagnosticForNode(location, message, args));
+    const diagnostic: $ast.Diagnostic | undefined = NewDiagnosticForNode(location, message, args);
+    const existing: $ast.Diagnostic | undefined = c!.diagnostics.Lookup(diagnostic);
+    if (!(existing === undefined)) {
+      return existing;
+    }
+    c!.addDiagnostic(diagnostic);
+    return diagnostic;
   }
   cloneSymbol(symbol_: $ast.Symbol_ | undefined): $ast.Symbol_ | undefined {
     const c = this;
@@ -20883,9 +20680,6 @@ export class Checker extends $rt.GoObject {
   }
   getTargetOfExportAssignment(node: $ast.Node | undefined): $ast.Symbol_ | undefined {
     const c = this;
-    if (isContainedByNamespace(node)) {
-      return undefined;
-    }
     const resolved: $ast.Symbol_ | undefined = c!.getTargetOfAliasLikeExpression(node!.Expression());
     c!.markSymbolOfAliasDeclarationIfTypeOnly(node, undefined);
     return resolved;
@@ -21748,7 +21542,6 @@ export class Checker extends $rt.GoObject {
       let syntheticType: Type | undefined = undefined as Type | undefined;
       if (hasSyntheticDefault) {
         const anonymousSymbol: $ast.Symbol_ | undefined = c!.newSymbol(2048, '\xfetype');
-        anonymousSymbol!.Declarations = originalSymbol!.Declarations;
         const defaultContainingObject: Type | undefined = c!.createDefaultPropertyWrapperForModule(
           symbol_,
           originalSymbol,
@@ -21816,10 +21609,6 @@ export class Checker extends $rt.GoObject {
     c!.valueSymbolLinks.Get(newSymbol)!.nameType = c!.getStringLiteralType('default');
     c!.aliasSymbolLinks.Get(newSymbol)!.aliasTarget = c!.resolveSymbol(symbol_);
     memberTable!.set('default', newSymbol);
-    if (anonymousSymbol === undefined && !(originalSymbol === undefined)) {
-      anonymousSymbol = c!.newSymbol(4096, '\xfeobject');
-      anonymousSymbol!.Declarations = originalSymbol!.Declarations;
-    }
     return c!.newAnonymousType(anonymousSymbol, memberTable, [], [], []);
   }
   cloneTypeAsModuleType(
@@ -22862,10 +22651,7 @@ export class Checker extends $rt.GoObject {
         case 172 as number:
         case 261 as number:
         case 209 as number: {
-          result = c!.getWidenedTypeForVariableLikeDeclaration(
-            declaration,
-            !c!.isParameterOfContextSensitiveSignature(symbol_),
-          );
+          result = c!.getWidenedTypeForVariableLikeDeclaration(declaration, true);
           break;
         }
         case 303 as number: {
@@ -23722,10 +23508,9 @@ export class Checker extends $rt.GoObject {
             const $t3 = baseTypeNodes;
             for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
               const node = $t3[$t4];
-              const name_: $ast.Node | undefined = $ast.GetHeritageClauseElementName(node);
-              if ($ast.IsEntityName(name_) || $ast.IsEntityNameExpression(name_)) {
+              if ($ast.IsEntityNameExpression(node!.Expression())) {
                 const baseSymbol: $ast.Symbol_ | undefined = c!.resolveEntityName(
-                  name_,
+                  node!.Expression(),
                   788968,
                   true,
                   false,
@@ -24640,22 +24425,11 @@ export class Checker extends $rt.GoObject {
                 diagnostic =
                   $diagnostics.X_0_implicitly_has_an_1_return_type_but_a_better_type_may_be_inferred_from_usage;
               } else if (!((declaration!.Flags & 8) === (0 as number))) {
-                {
-                  const name_$1: string = $scanner.DeclarationNameToString($ast.GetNameOfDeclaration(declaration));
-                  if (!(name_$1 === ('' as string))) {
-                    c!.error(
-                      declaration,
-                      $diagnostics.X_0_which_lacks_return_type_annotation_implicitly_has_an_1_return_type,
-                      [new $rt.BoxStr(name_$1, 'string'), new $rt.BoxStr(typeAsString, 'string')],
-                    );
-                  } else {
-                    c!.error(
-                      declaration,
-                      $diagnostics.This_overload_implicitly_returns_the_type_0_because_it_lacks_a_return_type_annotation,
-                      [new $rt.BoxStr(typeAsString, 'string')],
-                    );
-                  }
-                }
+                c!.error(
+                  declaration,
+                  $diagnostics.This_overload_implicitly_returns_the_type_0_because_it_lacks_a_return_type_annotation,
+                  [new $rt.BoxStr(typeAsString, 'string')],
+                );
                 return;
               } else if (wideningKind === (3 as number)) {
                 diagnostic = $diagnostics.X_0_which_lacks_return_type_annotation_implicitly_has_an_1_yield_type;
@@ -25165,21 +24939,7 @@ export class Checker extends $rt.GoObject {
         if (!(name_ === ('\xfemissing' as string))) {
           return [name_, true];
         } else if ($ast.IsComputedPropertyName(node)) {
-          const links: ComputedNameNodeLinks | undefined = c!.computedNameLinks.Get(node);
-          if (!(links === undefined) && !(links!.hasName === undefined)) {
-            return [links!.name, links!.hasName!.get()];
-          }
-          const $t2 = c!.tryGetNameFromType(c!.getTypeOfExpression(node!.Expression()));
-          const name_$1: string = $t2[0];
-          let exists: boolean = $t2[1];
-          links!.name = name_$1;
-          links!.hasName = $rt.ptrTo<boolean>(
-            (): boolean => exists,
-            (v: boolean): void => {
-              exists = v;
-            },
-          );
-          return [name_$1, exists];
+          return c!.tryGetNameFromType(c!.getTypeOfExpression(node!.Expression()));
         }
       }
     }
@@ -29770,6 +29530,7 @@ export class Checker extends $rt.GoObject {
     if ((typeParameters ?? []).length === (0 as number)) {
       return t;
     }
+    const combinedMapper: TypeMapper | undefined = c!.combineTypeMappers(t!.Mapper(), m);
     const typeArguments: (Type | undefined)[] = $rt.makeSlice<Type | undefined>(
       (typeParameters ?? []).length,
       undefined,
@@ -29779,7 +29540,7 @@ export class Checker extends $rt.GoObject {
       for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
         const i = $t4;
         const tp$2 = $t3[$t4];
-        typeArguments[i] = c!.mapTypeWithCompositeMapper(tp$2, t!.Mapper(), m);
+        typeArguments[i] = combinedMapper!.Map$TypeMapper(tp$2);
       }
     }
     let newAlias: TypeAlias | undefined = alias;
@@ -30188,7 +29949,7 @@ export class Checker extends $rt.GoObject {
         if (c!.strictNullChecks && !((modifiers & 4) === (0 as number)) && !c!.maybeTypeOfKind(propType, 20)) {
           return c!.getOptionalType(propType, true);
         } else if (c!.strictNullChecks && !((modifiers & 8) === (0 as number)) && isOptional) {
-          return c!.removeMissingOrUndefinedType(propType);
+          return c!.getTypeWithFacts(propType, 524288);
         } else {
           return propType;
         }
@@ -30727,7 +30488,11 @@ export class Checker extends $rt.GoObject {
     const c = this;
     const links: SymbolNodeLinks | undefined = c!.symbolNodeLinks.Get(node);
     if (links!.resolvedSymbol === undefined) {
-      links!.resolvedSymbol = c!.resolveTypeReferenceName(node, 788968, false);
+      if (isConstTypeReference(node) && $ast.IsAssertionExpression(node!.Parent)) {
+        links!.resolvedSymbol = c!.unknownSymbol;
+      } else {
+        links!.resolvedSymbol = c!.resolveTypeReferenceName(node, 788968, false);
+      }
     }
     return links!.resolvedSymbol;
   }
@@ -31397,22 +31162,14 @@ export class Checker extends $rt.GoObject {
   }
   getOuterTypeParametersOfClassOrInterface(symbol_: $ast.Symbol_ | undefined): (Type | undefined)[] {
     const c = this;
-    const declaration: $ast.Node | undefined = c!.getClassOrInterfaceLikeDeclaration(symbol_);
+    let declaration: $ast.Node | undefined = symbol_!.ValueDeclaration;
+    if ((symbol_!.Flags & 48) === (0 as number)) {
+      declaration = $core.Find<$ast.Node | undefined>($zf3, symbol_!.Declarations, $fn77);
+    }
     $debug.Assert(!(declaration === undefined), [
       new $rt.BoxStr('Class was missing valueDeclaration -OR- non-class had no interface declarations', 'string'),
     ]);
     return c!.getOuterTypeParameters(declaration, false);
-  }
-  getClassOrInterfaceLikeDeclaration(symbol_: $ast.Symbol_ | undefined): $ast.Node | undefined {
-    const c = this;
-    if (!((symbol_!.Flags & 48) === (0 as number))) {
-      return symbol_!.ValueDeclaration;
-    }
-    return $core.Find<$ast.Node | undefined>($zf3, symbol_!.Declarations, $fn77);
-  }
-  canGetTypeParametersOfClassOrInterface(symbol_: $ast.Symbol_ | undefined): boolean {
-    const c = this;
-    return !(c!.getClassOrInterfaceLikeDeclaration(symbol_) === undefined);
   }
   getOuterTypeParameters(node: $ast.Node | undefined, includeThisTypes: boolean): (Type | undefined)[] {
     const c = this;
@@ -31592,7 +31349,7 @@ export class Checker extends $rt.GoObject {
               const $t3 = declaration!.Members();
               for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
                 const member = $t3[$t4];
-                if (!$ast.HasDynamicName(member)) {
+                if (c!.hasBindableName(member)) {
                   const memberSymbol: $ast.Symbol_ | undefined = c!.getSymbolOfDeclaration(member);
                   const value: $rt.GoObject | undefined = c!.getEnumMemberValue(member).Value;
                   let memberType: Type | undefined = undefined as Type | undefined;
@@ -33799,7 +33556,7 @@ export class Checker extends $rt.GoObject {
     origin: Type | undefined,
   ): Type | undefined {
     const c = this;
-    const $t1 = c!.addTypesToUnion(types);
+    const $t1 = c!.addTypesToUnion([] as (Type | undefined)[], 0, types);
     let typeSet: (Type | undefined)[] = $t1[0];
     const includes: TypeFlags = $t1[1];
     if (!(unionReduction === (0 as number))) {
@@ -33939,15 +33696,45 @@ export class Checker extends $rt.GoObject {
     const c = this;
     return $rt.structMap_Values(c!.unionTypes);
   }
-  addTypesToUnion(sourceTypes: (Type | undefined)[]): [(Type | undefined)[], TypeFlags] {
+  addTypesToUnion(
+    typeSet: (Type | undefined)[],
+    includes: TypeFlags,
+    types: (Type | undefined)[],
+  ): [(Type | undefined)[], TypeFlags] {
     const c = this;
-    let types: (Type | undefined)[] = [] as (Type | undefined)[];
-    let includes: TypeFlags = 0;
-    const addType: ((p0: Type | undefined) => void) | undefined = (t: Type | undefined): void => {
-      const flags: TypeFlags = t!.flags;
-      if (!((flags & 262144) === (0 as number))) {
-        return;
+    let lastType: Type | undefined = undefined as Type | undefined;
+    {
+      const $t1 = types;
+      for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
+        const t = $t1[$t2];
+        if (!(t === lastType)) {
+          if (!((t!.flags & 134217728) === (0 as number))) {
+            const u: UnionType | undefined = t!.AsUnionType();
+            if (!(t!.alias === undefined) || !(u!.origin === undefined)) {
+              includes = (includes | 134217728) >>> 0;
+            }
+            const $t3 = c!.addTypesToUnion(typeSet, includes, u!.types);
+            typeSet = $t3[0];
+            includes = $t3[1];
+          } else {
+            const $t4 = c!.addTypeToUnion(typeSet, includes, t);
+            typeSet = $t4[0];
+            includes = $t4[1];
+          }
+          lastType = t;
+        }
       }
+    }
+    return [typeSet, includes];
+  }
+  addTypeToUnion(
+    typeSet: (Type | undefined)[],
+    includes: TypeFlags,
+    t: Type | undefined,
+  ): [(Type | undefined)[], TypeFlags] {
+    const c = this;
+    const flags: TypeFlags = t!.flags;
+    if ((flags & 262144) === (0 as number)) {
       includes = (includes | (flags & 416808959)) >>> 0;
       if (!((flags & 132644864) === (0 as number))) {
         includes = (includes | 16777216) >>> 0;
@@ -33965,54 +33752,18 @@ export class Checker extends $rt.GoObject {
         if ((t!.objectFlags & 65536) === (0 as number)) {
           includes = (includes | 2097152) >>> 0;
         }
-        return;
-      }
-      types = $rt.appendCopy(types, [t]);
-    };
-    let lastType: Type | undefined = undefined as Type | undefined;
-    {
-      const $t1 = sourceTypes;
-      for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        const t$1 = $t1[$t2];
-        if (!(t$1 === lastType)) {
-          if (!((t$1!.flags & 134217728) === (0 as number))) {
-            const u: UnionType | undefined = t$1!.AsUnionType();
-            if (!(t$1!.alias === undefined) || !(u!.origin === undefined)) {
-              includes = (includes | 134217728) >>> 0;
-            }
-            {
-              const $t3 = u!.types;
-              for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
-                const s = $t3[$t4];
-                addType!(s);
-              }
-            }
-          } else {
-            addType!(t$1);
-          }
-          lastType = t$1;
-        }
-      }
-    }
-    if (types.length >= 2) {
-      $rt.slices_SortStableFunc(types, CompareTypes);
-      let unique: number = 1;
-      {
-        const $t5 = types.slice(1);
-        for (let $t6 = 0, $n = $t5.length; $t6 < $n; $t6++) {
-          const t$2 = $t5[$t6];
-          if (!(t$2 === types[unique - 1])) {
-            types[unique] = t$2;
-            unique++;
+      } else {
+        {
+          const $t1 = $rt.slices_BinarySearchFunc(typeSet, t, CompareTypes);
+          const index: number = $t1[0];
+          const ok: boolean = $t1[1];
+          if (!ok) {
+            typeSet = $rt.slices_Insert(typeSet, index, [t]);
           }
         }
       }
-      const $t7 = types.slice(unique);
-      $rt.clearSlice($t7, undefined);
-      $rt.copyAt(types, unique, -1, $t7);
-      types = $rt.reslice(types, 0, unique, undefined);
     }
-    return [types, includes];
+    return [typeSet, includes];
   }
   addNamedUnions(namedUnions: (Type | undefined)[], types: (Type | undefined)[]): (Type | undefined)[] {
     const c = this;
@@ -34642,40 +34393,35 @@ export class Checker extends $rt.GoObject {
       const $t1 = unionTypes;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
         const u = $t1[$t2];
-        if (!c!.unionContainsType(u, t, true)) {
-          return false;
+        const types: (Type | undefined)[] = u!.Types$Type();
+        if (!containsType(types, t)) {
+          if (t === c!.missingType) {
+            return containsType(types, c!.undefinedType);
+          }
+          if (t === c!.undefinedType) {
+            return containsType(types, c!.missingType);
+          }
+          let primitive: Type | undefined = undefined as Type | undefined;
+          {
+            $sw3: {
+              if (!((t!.flags & 1024) === (0 as number))) {
+                primitive = c!.stringType;
+              } else if (!((t!.flags & 67584) === (0 as number))) {
+                primitive = c!.numberType;
+              } else if (!((t!.flags & 4096) === (0 as number))) {
+                primitive = c!.bigintType;
+              } else if (!((t!.flags & 16384) === (0 as number))) {
+                primitive = c!.esSymbolType;
+              }
+            }
+          }
+          if (primitive === undefined || !containsType(types, primitive)) {
+            return false;
+          }
         }
       }
     }
     return true;
-  }
-  unionContainsType(union: Type | undefined, t: Type | undefined, matchSymbol: boolean): boolean {
-    const c = this;
-    const types: (Type | undefined)[] = union!.Types$Type();
-    if (containsType(types, t)) {
-      return true;
-    }
-    if (t === c!.missingType) {
-      return containsType(types, c!.undefinedType);
-    }
-    if (t === c!.undefinedType) {
-      return containsType(types, c!.missingType);
-    }
-    let primitive: Type | undefined = undefined as Type | undefined;
-    {
-      $sw1: {
-        if (!((t!.flags & 1024) === (0 as number))) {
-          primitive = c!.stringType;
-        } else if (!((t!.flags & 67584) === (0 as number))) {
-          primitive = c!.numberType;
-        } else if (!((t!.flags & 4096) === (0 as number))) {
-          primitive = c!.bigintType;
-        } else if (!((t!.flags & 16384) === (0 as number)) && matchSymbol) {
-          primitive = c!.esSymbolType;
-        }
-      }
-    }
-    return !(primitive === undefined) && containsType(types, primitive);
   }
   getCrossProductIntersections(types: (Type | undefined)[], flags: IntersectionFlags): (Type | undefined)[] {
     const c = this;
@@ -34834,38 +34580,9 @@ export class Checker extends $rt.GoObject {
   }
   removeType(t: Type | undefined, targetType: Type | undefined): Type | undefined {
     const c = this;
-    if ((t!.flags & 134217728) === (0 as number)) {
-      if (t === targetType) {
-        return c!.neverType;
-      }
-      return t;
-    }
-    {
-      const origin: Type | undefined = t!.AsUnionType()!.origin;
-      if (
-        !(origin === undefined) &&
-        !((origin!.flags & 134217728) === (0 as number)) &&
-        containsType(origin!.Types$Type(), targetType)
-      ) {
-        return c!.filterType(t, (t$1: Type | undefined): boolean => {
-          return !(t$1 === targetType);
-        });
-      }
-    }
-    const types: (Type | undefined)[] = t!.Types$Type();
-    {
-      const $t1 = $rt.slices_BinarySearchFunc(types, targetType, CompareTypes);
-      const i: number = $t1[0];
-      const ok: boolean = $t1[1];
-      if (ok) {
-        if (types.length === (2 as number)) {
-          return types[1 - i];
-        }
-        const filtered: (Type | undefined)[] = $rt.appendCopy($rt.reslice(types, 0, i, undefined), types.slice(i + 1));
-        return c!.getUnionTypeFromSortedList(filtered, t!.AsUnionType()!.objectFlags & 33587200, undefined, undefined);
-      }
-    }
-    return t;
+    return c!.filterType(t, (t$1: Type | undefined): boolean => {
+      return !(t$1 === targetType);
+    });
   }
   isErrorType(t: Type | undefined): boolean {
     const c = this;
@@ -35083,10 +34800,16 @@ export class Checker extends $rt.GoObject {
   }
   checkComputedPropertyName(node: $ast.Node | undefined): Type | undefined {
     const c = this;
-    const links: TypeNodeLinks | undefined = c!.typeNodeLinks.Get(node);
+    const links: TypeNodeLinks | undefined = c!.typeNodeLinks.Get(node!.Expression());
     if (links!.resolvedType === undefined) {
-      links!.resolvedType = c!.circularConstraintType;
-      if (isInvalidComputedPropertyName(node)) {
+      if (
+        ($ast.IsTypeLiteralNode(node!.Parent!.Parent) ||
+          $ast.IsClassLike(node!.Parent!.Parent) ||
+          $ast.IsInterfaceDeclaration(node!.Parent!.Parent)) &&
+        $ast.IsBinaryExpression(node!.Expression()) &&
+        node!.Expression()!.AsBinaryExpression()!.OperatorToken!.Kind_ === (102 as number) &&
+        !$ast.IsAccessor(node!.Parent)
+      ) {
         links!.resolvedType = c!.errorType;
         return links!.resolvedType;
       }
@@ -35745,13 +35468,12 @@ export class Checker extends $rt.GoObject {
     const candidates: ((p0: ((p0: Type | undefined) => boolean) | undefined) => void) | undefined = $core.FilterSeq<
       Type | undefined
     >(target!.Types$Type(), $fn82);
-    return $core.GetSpellingSuggestionWithMaxCandidateCount<Type | undefined>(
+    return $core.GetSpellingSuggestion<Type | undefined>(
       $zf0,
       getStringLiteralValue(source),
       candidates,
       getStringLiteralValue,
       CompareTypes,
-      1000,
     );
   }
   errorIfWritingToReadonlyIndex(
@@ -36446,48 +36168,6 @@ export class Checker extends $rt.GoObject {
     }
     return false;
   }
-  isUniformUnionType(t: Type | undefined): boolean {
-    const c = this;
-    if (!((t!.objectFlags & 32768) === (0 as number))) {
-      if ((t!.objectFlags & 268435456) === (0 as number)) {
-        t!.objectFlags =
-          (t!.objectFlags |
-            ((268435456 | $core.IfElse<ObjectFlags>(c!.computeIsUniformUnionType(t!.Types$Type()), 536870912, 0)) >>>
-              0)) >>>
-          0;
-      }
-      return !((t!.objectFlags & 536870912) === (0 as number));
-    }
-    return false;
-  }
-  computeIsUniformUnionType(types: (Type | undefined)[]): boolean {
-    const c = this;
-    let enumSymbol: $ast.Symbol_ | undefined = undefined as $ast.Symbol_ | undefined;
-    let hasStringOrNumberLiteral: boolean = false;
-    {
-      const $t1 = types;
-      for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        const t = $t1[$t2];
-        if (!((t!.flags & 98304) === (0 as number))) {
-          if (hasStringOrNumberLiteral) {
-            return false;
-          }
-          const parent: $ast.Symbol_ | undefined = c!.getParentOfSymbol(t!.symbol);
-          if (enumSymbol === undefined) {
-            enumSymbol = parent;
-          } else if (!(enumSymbol === parent)) {
-            return false;
-          }
-        } else if (!((t!.flags & 3072) === (0 as number))) {
-          if (!(enumSymbol === undefined)) {
-            return false;
-          }
-          hasStringOrNumberLiteral = true;
-        }
-      }
-    }
-    return true;
-  }
   containsUndefinedType(t: Type | undefined): boolean {
     const c = this;
     if (!((t!.flags & 134217728) === (0 as number))) {
@@ -36948,107 +36628,33 @@ export class Checker extends $rt.GoObject {
           break;
         }
         case 0 as number: {
-          if (!((location!.Flags & 16777216) === (0 as number))) {
-            return;
-          }
           if ($ast.IsJsxTagName(location) && isJsxIntrinsicTagName(location)) {
             return;
           }
-          if ($ast.IsIdentifier(location)) {
-            {
-              const parent: $ast.Node | undefined = location!.Parent;
-              if (
-                $ast.IsShorthandPropertyAssignment(parent) &&
-                parent!.Name$Node() === location &&
-                !(parent!.AsShorthandPropertyAssignment()!.ObjectAssignmentInitializer === undefined) &&
-                !$ast.IsAssignmentTarget(parent!.Parent)
-              ) {
+          if (!($ast.FindAncestor(location, $fn85) === undefined)) {
+            return;
+          }
+          if (
+            $ast.IsIdentifier(location) &&
+            ($ast.IsExpressionNode(location) ||
+              $ast.IsShorthandPropertyAssignment(location!.Parent) ||
+              ($ast.IsImportEqualsDeclaration(location!.Parent) &&
+                location!.Parent!.AsImportEqualsDeclaration()!.ModuleReference === location)) &&
+            shouldMarkIdentifierAliasReferenced(location)
+          ) {
+            if ($ast.IsPropertyAccessOrQualifiedName(location!.Parent)) {
+              let left: $ast.Node | undefined = undefined as $ast.Node | undefined;
+              if ($ast.IsPropertyAccessExpression(location!.Parent)) {
+                left = location!.Parent!.Expression();
+              } else {
+                left = location!.Parent!.AsQualifiedName()!.Left;
+              }
+              if (!(left === location)) {
                 return;
               }
             }
-            const res: ($ast.Node | undefined)[] = $ast.FindManyAncestors(location, [
-              $ast.IsMetaProperty,
-              $ast.IsDecorator,
-              $ast.IsForInOrOfStatement,
-              $ast.IsComputedPropertyName,
-              $ast.IsHeritageClause,
-            ]);
-            const metaProperty: $ast.Node | undefined = res[0];
-            const decorator: $ast.Node | undefined = res[1];
-            const forNode: $ast.Node | undefined = res[2];
-            const computedName: $ast.Node | undefined = res[3];
-            const heritageClause: $ast.Node | undefined = res[4];
-            if (!(metaProperty === undefined)) {
-              return;
-            }
-            if (!(decorator === undefined)) {
-              const decorated: $ast.Node | undefined = decorator!.Parent;
-              if (
-                !(decorated === undefined) &&
-                !$ast.NodeCanBeDecorated(c!.legacyDecorators, decorated, decorated!.Parent, decorated!.Parent!.Parent)
-              ) {
-                return;
-              }
-            }
-            if (!(forNode === undefined)) {
-              const data: $ast.ForInOrOfStatement | undefined = forNode!.AsForInOrOfStatement();
-              if (
-                $ast.IsVariableDeclarationList(data!.Initializer_) &&
-                data!.Initializer_!.AsVariableDeclarationList()!.Declarations!.Nodes.length === (0 as number) &&
-                !(data!.Expression_ === undefined) &&
-                (location === data!.Expression_ || $ast.IsNodeDescendantOf(location, data!.Expression_))
-              ) {
-                return;
-              }
-            }
-            if (!(computedName === undefined)) {
-              if ($ast.IsEnumMember(computedName!.Parent)) {
-                return;
-              }
-              if (isInvalidComputedPropertyName(computedName)) {
-                return;
-              }
-            }
-            if (!(heritageClause === undefined)) {
-              if ($ast.IsInterfaceDeclaration(heritageClause!.Parent)) {
-                return;
-              }
-              if (
-                $ast.IsClassLike(heritageClause!.Parent) &&
-                heritageClause!.AsHeritageClause()!.Token === (95 as number)
-              ) {
-                {
-                  const firstExtends: $ast.Node | undefined = $ast.GetClassExtendsHeritageElement(
-                    heritageClause!.Parent,
-                  );
-                  if (
-                    !(firstExtends === undefined) &&
-                    !(location === firstExtends) &&
-                    !$ast.IsNodeDescendantOf(location, firstExtends)
-                  ) {
-                    return;
-                  }
-                }
-              }
-            }
-            if (
-              ($ast.IsExpressionNode(location) || $ast.IsShorthandPropertyAssignment(location!.Parent)) &&
-              shouldMarkIdentifierAliasReferenced(location)
-            ) {
-              if ($ast.IsPropertyAccessOrQualifiedName(location!.Parent)) {
-                let left: $ast.Node | undefined = undefined as $ast.Node | undefined;
-                if ($ast.IsPropertyAccessExpression(location!.Parent)) {
-                  left = location!.Parent!.Expression();
-                } else {
-                  left = location!.Parent!.AsQualifiedName()!.Left;
-                }
-                if (!(left === location)) {
-                  return;
-                }
-              }
-              c!.markIdentifierAliasReferenced(location);
-              return;
-            }
+            c!.markIdentifierAliasReferenced(location);
+            return;
           }
           if ($ast.IsPropertyAccessOrQualifiedName(location)) {
             let topProp: $ast.Node | undefined = location;
@@ -37105,11 +36711,13 @@ export class Checker extends $rt.GoObject {
   }
   markIdentifierAliasReferenced(location: $ast.Node | undefined): void {
     const c = this;
-    if ($ast.IsThisInTypeQuery(location)) {
-      return;
-    }
     const symbol_: $ast.Symbol_ | undefined = c!.getResolvedSymbol(location);
-    if (!(symbol_ === undefined) && !(symbol_ === c!.argumentsSymbol) && !(symbol_ === c!.unknownSymbol)) {
+    if (
+      !(symbol_ === undefined) &&
+      !(symbol_ === c!.argumentsSymbol) &&
+      !(symbol_ === c!.unknownSymbol) &&
+      !$ast.IsThisInTypeQuery(location)
+    ) {
       c!.markAliasReferenced(symbol_, location);
     }
   }
@@ -38001,7 +37609,7 @@ export class Checker extends $rt.GoObject {
   }
   getTemplateLiteralType(texts: string[], types: (Type | undefined)[]): Type | undefined {
     const c = this;
-    const unionIndex: number = $core.FindIndex<Type | undefined>(types, $fn86);
+    const unionIndex: number = $core.FindIndex<Type | undefined>(types, $fn87);
     if (unionIndex >= 0) {
       if (!c!.checkCrossProductUnion(types)) {
         return c!.errorType;
@@ -38058,8 +37666,8 @@ export class Checker extends $rt.GoObject {
       return c!.getStringLiteralType($stringutil.CombineSurrogatePairs(sb.String()));
     }
     newTexts.push($stringutil.CombineSurrogatePairs(sb.String()));
-    if ($core.Every<string>(newTexts, $fn87)) {
-      if ($core.Every<Type | undefined>(newTypes, $fn88)) {
+    if ($core.Every<string>(newTexts, $fn88)) {
+      if ($core.Every<Type | undefined>(newTypes, $fn89)) {
         return c!.stringType;
       }
       if (newTypes.length === (1 as number) && c!.isPatternLiteralType(newTypes[0])) {
@@ -41188,9 +40796,9 @@ export class Checker extends $rt.GoObject {
     for (; $ast.IsRightSideOfQualifiedNameOrPropertyAccess(name_);) {
       name_ = name_!.Parent;
     }
-    if (isInNameOfExpressionWithTypeArgumentsOrHeritageTypeReference(name_)) {
+    if (isInNameOfExpressionWithTypeArguments(name_)) {
       let meaning: $ast.SymbolFlags = 0;
-      if (name_!.Parent!.Kind_ === (234 as number) || name_!.Parent!.Kind_ === (184 as number)) {
+      if (name_!.Parent!.Kind_ === (234 as number)) {
         meaning = $core.IfElse<$ast.SymbolFlags>($ast.IsPartOfTypeNode(name_), 788968, 111551);
         if ($ast.IsExpressionWithTypeArgumentsInClassExtendsClause(name_!.Parent)) {
           meaning = (meaning | 111551) >>> 0;
@@ -41273,9 +40881,6 @@ export class Checker extends $rt.GoObject {
       if (!(symbol_$2 === undefined) && !(symbol_$2 === c!.unknownSymbol)) {
         return symbol_$2;
       }
-      if ($ast.IsNameOfHeritageClauseTypeReference(name_)) {
-        return undefined;
-      }
       return c!.getUnresolvedSymbolForEntityName(name_);
     }
     if (name_!.Parent!.Kind_ === (183 as number)) {
@@ -41309,7 +40914,7 @@ export class Checker extends $rt.GoObject {
     if (!((node!.Flags & 16777216) === (0 as number))) {
       return c!.errorType;
     }
-    const $t1 = $ast.TryGetClassImplementingOrExtendingHeritageClauseElement(node);
+    const $t1 = $ast.TryGetClassImplementingOrExtendingExpressionWithTypeArguments(node);
     const classDecl: $ast.Node | undefined = $t1[0];
     const isImplements: boolean = $t1[1];
     let classType: Type | undefined = undefined as Type | undefined;
@@ -41604,10 +41209,6 @@ export class Checker extends $rt.GoObject {
     const c = this;
     return c!.esSymbolType;
   }
-  GetNonPrimitiveType(): Type | undefined {
-    const c = this;
-    return c!.nonPrimitiveType;
-  }
   GetBaseTypeOfLiteralType(t: Type | undefined): Type | undefined {
     const c = this;
     return c!.getBaseTypeOfLiteralType(t);
@@ -41623,10 +41224,6 @@ export class Checker extends $rt.GoObject {
   GetArgumentsSymbol(): $ast.Symbol_ | undefined {
     const c = this;
     return c!.argumentsSymbol;
-  }
-  GetUnknownSignature(): Signature | undefined {
-    const c = this;
-    return c!.unknownSignature;
   }
   GetUnionType(types: (Type | undefined)[]): Type | undefined {
     const c = this;
@@ -41837,21 +41434,9 @@ export class Checker extends $rt.GoObject {
     const c = this;
     return c!.getApparentType(t);
   }
-  GetFullyQualifiedName(symbol_: $ast.Symbol_ | undefined): string {
-    const c = this;
-    return c!.getFullyQualifiedName(symbol_, undefined);
-  }
   GetBaseConstructorTypeOfClass(t: Type | undefined): Type | undefined {
     const c = this;
     return c!.getBaseConstructorTypeOfClass(t);
-  }
-  GetMemberOverrideModifierStatus(
-    node: $ast.Node | undefined,
-    member: $ast.Node | undefined,
-    memberSymbol: $ast.Symbol_ | undefined,
-  ): MemberOverrideStatus {
-    const c = this;
-    return c!.getMemberOverrideModifierStatus(node, member, memberSymbol);
   }
   GetRestTypeOfSignature(sig: Signature | undefined): Type | undefined {
     const c = this;
@@ -41974,7 +41559,7 @@ export class Checker extends $rt.GoObject {
     f!.sharedFlowStart = c!.sharedFlows.length;
     c!.flowInvocationCount++;
     const evolvedType: Type | undefined = c!.getTypeAtFlowNode(f, flowNode).t;
-    c!.sharedFlows = $rt.truncate(c!.sharedFlows, f!.sharedFlowStart, SharedFlow$zero);
+    c!.sharedFlows = $rt.truncate(c!.sharedFlows, f!.sharedFlowStart, new SharedFlow());
     c!.putFlowState(f);
     let resultType: Type | undefined = undefined as Type | undefined;
     if (!((evolvedType!.objectFlags & 256) === (0 as number)) && c!.isEvolvingArrayOperationTarget(reference)) {
@@ -42597,24 +42182,12 @@ export class Checker extends $rt.GoObject {
           return c!.nonPrimitiveType;
         }
       }
-      if (!doubleEquals && !((valueType!.flags & 12713980) === (0 as number)) && c!.isUniformUnionType(t)) {
-        const regularType: Type | undefined = c!.getRegularTypeOfLiteralType(valueType);
-        if (c!.unionContainsType(t, regularType, false)) {
-          return regularType;
-        }
-      }
       const filteredType: Type | undefined = c!.filterType(t, (t$1: Type | undefined): boolean => {
         return c!.areTypesComparable(t$1, valueType) || (doubleEquals && isCoercibleUnderDoubleEquals(t$1, valueType));
       });
       return c!.replacePrimitivesWithLiterals(filteredType, valueType);
     }
     if (isUnitType(valueType)) {
-      if (c!.isUniformUnionType(t)) {
-        const filteredType$1: Type | undefined = c!.removeType(t, c!.getRegularTypeOfLiteralType(valueType));
-        if (!(filteredType$1 === t)) {
-          return filteredType$1;
-        }
-      }
       return c!.filterType(t, (t$2: Type | undefined): boolean => {
         return !(c!.isUnitLikeType(t$2) && c!.areTypesComparable(t$2, valueType));
       });
@@ -42810,20 +42383,21 @@ export class Checker extends $rt.GoObject {
   }
   isMatchingConstructorReference(f: FlowState | undefined, expr: $ast.Node | undefined): boolean {
     const c = this;
-    let name_: $ast.Node | undefined = undefined as $ast.Node | undefined;
-    if ($ast.IsPropertyAccessExpression(expr)) {
-      name_ = expr!.AsPropertyAccessExpression()!.Name();
-    } else if (
-      $ast.IsElementAccessExpression(expr) &&
-      $ast.IsStringLiteralLike(expr!.AsElementAccessExpression()!.ArgumentExpression)
-    ) {
-      name_ = expr!.AsElementAccessExpression()!.ArgumentExpression;
+    if ($ast.IsAccessExpression(expr)) {
+      {
+        const $t1 = c!.getAccessedPropertyName(expr);
+        const accessedName: string = $t1[0];
+        const ok: boolean = $t1[1];
+        if (
+          ok &&
+          accessedName === ('constructor' as string) &&
+          c!.isMatchingReference(f!.reference, expr!.Expression())
+        ) {
+          return true;
+        }
+      }
     }
-    return (
-      !(name_ === undefined) &&
-      name_!.Text$Node() === ('constructor' as string) &&
-      c!.isMatchingReference(f!.reference, expr!.Expression())
-    );
+    return false;
   }
   narrowTypeByConstructor(
     t: Type | undefined,
@@ -43226,12 +42800,12 @@ export class Checker extends $rt.GoObject {
         } else {
           if (c!.strictNullChecks) {
             if (c!.optionalChainContainsReference(expr, f!.reference)) {
-              t = c!.narrowTypeBySwitchOptionalChainContainment(t, data, $fn91);
+              t = c!.narrowTypeBySwitchOptionalChainContainment(t, data, $fn92);
             } else if (
               $ast.IsTypeOfExpression(expr) &&
               c!.optionalChainContainsReference(expr!.Expression(), f!.reference)
             ) {
-              t = c!.narrowTypeBySwitchOptionalChainContainment(t, data, $fn92);
+              t = c!.narrowTypeBySwitchOptionalChainContainment(t, data, $fn93);
             }
           }
           const access: $ast.Node | undefined = c!.getDiscriminantPropertyAccess(f, expr, t);
@@ -43282,18 +42856,10 @@ export class Checker extends $rt.GoObject {
     if (!((discriminantType!.flags & 262144) === (0 as number))) {
       caseType = c!.neverType;
     } else {
-      if (!((discriminantType!.flags & 12713980) === (0 as number)) && c!.isUniformUnionType(t)) {
-        const regularType: Type | undefined = c!.getRegularTypeOfLiteralType(discriminantType);
-        if (c!.unionContainsType(t, regularType, false)) {
-          caseType = regularType;
-        }
-      }
-      if (caseType === undefined) {
-        const filtered: Type | undefined = c!.filterType(t, (t$1: Type | undefined): boolean => {
-          return c!.areTypesComparable(discriminantType, t$1);
-        });
-        caseType = c!.replacePrimitivesWithLiterals(filtered, discriminantType);
-      }
+      const filtered: Type | undefined = c!.filterType(t, (t$1: Type | undefined): boolean => {
+        return c!.areTypesComparable(discriminantType, t$1);
+      });
+      caseType = c!.replacePrimitivesWithLiterals(filtered, discriminantType);
     }
     if (!hasDefaultClause) {
       return caseType;
@@ -43323,7 +42889,7 @@ export class Checker extends $rt.GoObject {
     }
     const clauses: ($ast.Node | undefined)[] = data!.SwitchStatement!.AsSwitchStatement()!.CaseBlock!.AsCaseBlock()!
       .Clauses!.Nodes;
-    const defaultIndex: number = $core.FindIndex<$ast.Node | undefined>(clauses, $fn93);
+    const defaultIndex: number = $core.FindIndex<$ast.Node | undefined>(clauses, $fn94);
     const clauseStart: number = data!.ClauseStart;
     const clauseEnd: number = data!.ClauseEnd;
     const hasDefaultClause: boolean =
@@ -43352,7 +42918,7 @@ export class Checker extends $rt.GoObject {
     const c = this;
     const clauses: ($ast.Node | undefined)[] = data!.SwitchStatement!.AsSwitchStatement()!.CaseBlock!.AsCaseBlock()!
       .Clauses!.Nodes;
-    const defaultIndex: number = $core.FindIndex<$ast.Node | undefined>(clauses, $fn93);
+    const defaultIndex: number = $core.FindIndex<$ast.Node | undefined>(clauses, $fn94);
     const clauseStart: number = data!.ClauseStart;
     const clauseEnd: number = data!.ClauseEnd;
     const hasDefaultClause: boolean =
@@ -44579,70 +44145,45 @@ export class Checker extends $rt.GoObject {
     diagnostic: $ast.Diagnostic | undefined,
   ): Type | undefined {
     const c = this;
-    let $t1: Type | undefined = undefined;
-    const $defers: (() => void)[] = [];
-    let $panic: $rt.Panic | undefined = undefined;
-    $body: try {
-      symbol_ = c!.resolveSymbol(symbol_);
-      if (!c!.resolvingExplicitTypeOfSymbol.AddIfAbsent(symbol_)) {
-        $t1 = undefined;
-        break $body;
-      }
-      const $t2 = symbol_;
-      const $t3 = c!.resolvingExplicitTypeOfSymbol;
-      $defers.push(() => {
-        $t3.Delete($t2);
-      });
-      if (!((symbol_!.Flags & 8752) === (0 as number))) {
-        $t1 = c!.getTypeOfSymbol(symbol_);
-        break $body;
-      }
-      if (!((symbol_!.Flags & 7) === (0 as number))) {
-        if (!((symbol_!.CheckFlags_ & 262144) === (0 as number))) {
-          const origin: $ast.Symbol_ | undefined = c!.mappedSymbolLinks.Get(symbol_)!.syntheticOrigin;
-          if (!(origin === undefined) && !(c!.getExplicitTypeOfSymbol(origin, diagnostic) === undefined)) {
-            $t1 = c!.getTypeOfSymbol(symbol_);
-            break $body;
-          }
-        }
-        const declaration: $ast.Node | undefined = symbol_!.ValueDeclaration;
-        if (!(declaration === undefined)) {
-          if (c!.isDeclarationWithExplicitTypeAnnotation(declaration)) {
-            $t1 = c!.getTypeOfSymbol(symbol_);
-            break $body;
-          }
-          if ($ast.IsVariableDeclaration(declaration) && $ast.IsForOfStatement(declaration!.Parent!.Parent)) {
-            const statement: $ast.Node | undefined = declaration!.Parent!.Parent;
-            const expressionType: Type | undefined = c!.getTypeOfDottedName(statement!.Expression(), undefined);
-            if (!(expressionType === undefined)) {
-              let use: IterationUse = 0;
-              if (!(statement!.AsForInOrOfStatement()!.AwaitModifier === undefined)) {
-                use = 15;
-              } else {
-                use = 13;
-              }
-              $t1 = c!.checkIteratedTypeOrElementType(use, expressionType, c!.undefinedType, undefined);
-              break $body;
-            }
-          }
-          if (!(diagnostic === undefined)) {
-            diagnostic!.AddRelatedInfo(
-              createDiagnosticForNode(declaration, $diagnostics.X_0_needs_an_explicit_type_annotation, [
-                new $rt.BoxStr(c!.symbolToString(symbol_), 'string'),
-              ]),
-            );
-          }
-        }
-      }
-      $t1 = undefined;
-      break $body;
-    } catch ($e) {
-      $panic = $rt.toPanic($e);
-    } finally {
-      $panic = $rt.runDefers($defers, $panic);
+    symbol_ = c!.resolveSymbol(symbol_);
+    if (!((symbol_!.Flags & 8752) === (0 as number))) {
+      return c!.getTypeOfSymbol(symbol_);
     }
-    if ($panic !== undefined) throw $panic;
-    return $t1;
+    if (!((symbol_!.Flags & 7) === (0 as number))) {
+      if (!((symbol_!.CheckFlags_ & 262144) === (0 as number))) {
+        const origin: $ast.Symbol_ | undefined = c!.mappedSymbolLinks.Get(symbol_)!.syntheticOrigin;
+        if (!(origin === undefined) && !(c!.getExplicitTypeOfSymbol(origin, diagnostic) === undefined)) {
+          return c!.getTypeOfSymbol(symbol_);
+        }
+      }
+      const declaration: $ast.Node | undefined = symbol_!.ValueDeclaration;
+      if (!(declaration === undefined)) {
+        if (c!.isDeclarationWithExplicitTypeAnnotation(declaration)) {
+          return c!.getTypeOfSymbol(symbol_);
+        }
+        if ($ast.IsVariableDeclaration(declaration) && $ast.IsForOfStatement(declaration!.Parent!.Parent)) {
+          const statement: $ast.Node | undefined = declaration!.Parent!.Parent;
+          const expressionType: Type | undefined = c!.getTypeOfDottedName(statement!.Expression(), undefined);
+          if (!(expressionType === undefined)) {
+            let use: IterationUse = 0;
+            if (!(statement!.AsForInOrOfStatement()!.AwaitModifier === undefined)) {
+              use = 15;
+            } else {
+              use = 13;
+            }
+            return c!.checkIteratedTypeOrElementType(use, expressionType, c!.undefinedType, undefined);
+          }
+        }
+        if (!(diagnostic === undefined)) {
+          diagnostic!.AddRelatedInfo(
+            createDiagnosticForNode(declaration, $diagnostics.X_0_needs_an_explicit_type_annotation, [
+              new $rt.BoxStr(c!.symbolToString(symbol_), 'string'),
+            ]),
+          );
+        }
+      }
+    }
+    return undefined;
   }
   isDeclarationWithExplicitTypeAnnotation(node: $ast.Node | undefined): boolean {
     const c = this;
@@ -44948,11 +44489,8 @@ export class Checker extends $rt.GoObject {
     if ((source!.flags & 134217728) === (0 as number)) {
       return c!.isTypeAssignableTo(source, target);
     }
-    if (containsType(source!.Types$Type(), target)) {
-      return true;
-    }
     {
-      const $t1 = source!.Types$Type();
+      const $t1 = source!.AsUnionType()!.types;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
         const t = $t1[$t2];
         if (c!.isTypeAssignableTo(t, target)) {
@@ -45083,7 +44621,7 @@ export class Checker extends $rt.GoObject {
       }
       const flags: $ast.FlowFlags = flow!.Flags;
       if (!((flags & 4096) === (0 as number))) {
-        if (!noCacheCheck && f!.reduceLabels.length === (0 as number)) {
+        if (!noCacheCheck) {
           {
             const $t1: Map<$ast.FlowNode | undefined, boolean> | undefined = c!.flowNodeReachable;
             const $t2 = flow;
@@ -45470,7 +45008,7 @@ export class Checker extends $rt.GoObject {
             lastError!.AddRelatedInfo(err);
           } else if (lastError === undefined || !(start === lastError!.Pos())) {
             lastError = $ast.NewDiagnostic(sourceFile, $core.NewTextRange(start, start + length_), message, args);
-            lastError = c!.addDiagnostic(lastError);
+            c!.addDiagnostic(lastError);
           }
         },
       );
@@ -46539,7 +46077,7 @@ export class Checker extends $rt.GoObject {
       if (!(useStrictDirective === undefined)) {
         const nonSimpleParameters: ($ast.Node | undefined)[] = $core.Filter<$ast.Node | undefined>(
           node!.Parameters(),
-          $fn94,
+          $fn95,
         );
         if (!(nonSimpleParameters.length === (0 as number))) {
           {
@@ -46629,9 +46167,10 @@ export class Checker extends $rt.GoObject {
       }
     }
     const equalsGreaterThanToken: $ast.Node | undefined = arrowFunc!.EqualsGreaterThanToken;
-    const arrowFullText: string = file!.Text().substring(equalsGreaterThanToken!.Pos(), equalsGreaterThanToken!.End());
+    const startLine: number = $scanner.GetECMALineOfPosition(file, equalsGreaterThanToken!.Pos());
+    const endLine: number = $scanner.GetECMALineOfPosition(file, equalsGreaterThanToken!.End());
     return (
-      $rt.strings_ContainsFunc(arrowFullText, $stringutil.IsLineBreak) &&
+      !(startLine === endLine) &&
       c!.grammarErrorOnNode(
         equalsGreaterThanToken,
         $diagnostics.Line_terminator_not_permitted_before_arrow,
@@ -46668,7 +46207,7 @@ export class Checker extends $rt.GoObject {
         [] as ($rt.GoObject | undefined)[],
       );
     }
-    if (!(parameter!.ModifiersBase_.Modifiers$ModifiersBase() === undefined)) {
+    if (!(parameter!.ModifiersBase_.Modifiers() === undefined)) {
       return c!.grammarErrorOnNode(
         parameter!.Name(),
         $diagnostics.An_index_signature_parameter_cannot_have_an_accessibility_modifier,
@@ -46698,7 +46237,7 @@ export class Checker extends $rt.GoObject {
       );
     }
     const t: Type | undefined = c!.getTypeFromTypeNode(typeNode);
-    if (someType(t, $fn95) || c!.isGenericType(t)) {
+    if (someType(t, $fn96) || c!.isGenericType(t)) {
       return c!.grammarErrorOnNode(
         parameter!.Name(),
         $diagnostics.An_index_signature_parameter_type_cannot_be_a_literal_type_or_generic_type_Consider_using_a_mapped_object_type_instead,
@@ -46842,6 +46381,51 @@ export class Checker extends $rt.GoObject {
                 $diagnostics.Classes_can_only_extend_a_single_class,
                 [] as ($rt.GoObject | undefined)[],
               );
+            }
+            if (typeNodes.length > 0) {
+              {
+                const $t3 = node!.EagerJSDoc(file);
+                for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
+                  const j = $t3[$t4];
+                  if (j!.AsJSDoc()!.Tags === undefined) {
+                    continue;
+                  }
+                  {
+                    const $t5 = j!.AsJSDoc()!.Tags!.Nodes;
+                    for (let $t6 = 0, $n = $t5.length; $t6 < $n; $t6++) {
+                      const tag = $t5[$t6];
+                      if (tag!.Kind_ === (323 as number)) {
+                        const target: $ast.ExpressionWithTypeArguments | undefined =
+                          typeNodes[0]!.AsExpressionWithTypeArguments();
+                        const source: $ast.ExpressionWithTypeArguments | undefined = tag!
+                          .ClassName()!
+                          .AsExpressionWithTypeArguments();
+                        const targetName: $ast.Node | undefined = getIdentifierFromEntityNameExpression(
+                          target!.Expression_,
+                        );
+                        const sourceName: $ast.Node | undefined = getIdentifierFromEntityNameExpression(
+                          source!.Expression_,
+                        );
+                        if (
+                          !(targetName === undefined) &&
+                          !(sourceName === undefined) &&
+                          !(targetName!.Text$Node() === sourceName!.Text$Node())
+                        ) {
+                          return c!.grammarErrorOnNode(
+                            sourceName,
+                            $diagnostics.JSDoc_0_1_does_not_match_the_extends_2_clause,
+                            [
+                              new $rt.BoxStr(tag!.TagName()!.Text$Node(), 'string'),
+                              new $rt.BoxStr(sourceName!.Text$Node(), 'string'),
+                              new $rt.BoxStr(targetName!.Text$Node(), 'string'),
+                            ],
+                          );
+                        }
+                      }
+                    }
+                  }
+                }
+              }
             }
             seenExtendsClause = true;
           } else {
@@ -48794,10 +48378,10 @@ export class Checker extends $rt.GoObject {
       } else {
         sourceTypes$1 = [source];
       }
-      const $t3 = c!.inferFromMatchingTypes(n, sourceTypes$1, target!.Types$Type(), $fn96, false);
+      const $t3 = c!.inferFromMatchingTypes(n, sourceTypes$1, target!.Distributed(), $fn97);
       const tempSources: (Type | undefined)[] = $t3[0];
       const tempTargets: (Type | undefined)[] = $t3[1];
-      const $t4 = c!.inferFromMatchingTypes(n, tempSources, tempTargets, $fn97, true);
+      const $t4 = c!.inferFromMatchingTypes(n, tempSources, tempTargets, $fn98);
       const sources: (Type | undefined)[] = $t4[0];
       const targets: (Type | undefined)[] = $t4[1];
       if (targets.length === (0 as number)) {
@@ -48827,7 +48411,7 @@ export class Checker extends $rt.GoObject {
         } else {
           sourceTypes$2 = [source];
         }
-        const $t6 = c!.inferFromMatchingTypes(n, sourceTypes$2, target!.Types$Type(), $fn98, false);
+        const $t6 = c!.inferFromMatchingTypes(n, sourceTypes$2, target!.Types$Type(), $fn99);
         const sources$1: (Type | undefined)[] = $t6[0];
         const targets$1: (Type | undefined)[] = $t6[1];
         if (sources$1.length === (0 as number) || targets$1.length === (0 as number)) {
@@ -48859,6 +48443,7 @@ export class Checker extends $rt.GoObject {
           }
           if (n!.priority < inference!.priority) {
             inference!.candidates = [];
+            inference!.candidateDepths = [];
             inference!.contraCandidates = [];
             inference!.topLevel = true;
             inference!.priority = n!.priority;
@@ -48869,9 +48454,24 @@ export class Checker extends $rt.GoObject {
                 inference!.contraCandidates.push(candidate);
                 clearCachedInferences(n!.inferences);
               }
-            } else if (!$rt.slices_Contains(inference!.candidates, candidate)) {
-              inference!.candidates.push(candidate);
-              clearCachedInferences(n!.inferences);
+            } else {
+              let index: number = $rt.slices_Index(inference!.candidates, candidate);
+              if (index < 0 || inference!.candidateDepths[index] < n!.depth) {
+                if (index >= 0) {
+                  inference!.candidates = $rt.slices_Delete(inference!.candidates, index, index + 1);
+                  inference!.candidateDepths = $rt.slices_Delete(inference!.candidateDepths, index, index + 1);
+                }
+                index = 0;
+                for (; index < inference!.candidateDepths.length;) {
+                  if (inference!.candidateDepths[index] < n!.depth) {
+                    break;
+                  }
+                  index++;
+                }
+                inference!.candidates = $rt.slices_Insert(inference!.candidates, index, [candidate]);
+                inference!.candidateDepths = $rt.slices_Insert(inference!.candidateDepths, index, [n!.depth]);
+                clearCachedInferences(n!.inferences);
+              }
             }
           }
           if (
@@ -48941,7 +48541,7 @@ export class Checker extends $rt.GoObject {
           c!.inferFromTypes(n, source!.AsSubstitutionType()!.baseType, target);
           c!.inferWithPriority(n, c!.getSubstitutionIntersection(source), target, 4);
         } else if (!((target!.flags & 67108864) === (0 as number))) {
-          c!.invokeOnce(n, source, target, $fn99);
+          c!.invokeOnce(n, source, target, $fn100);
         } else if (!((target!.flags & 402653184) === (0 as number))) {
           c!.inferToMultipleTypes(n, source, target!.Types$Type(), target!.flags);
         } else if (!((source!.flags & 134217728) === (0 as number))) {
@@ -48957,7 +48557,7 @@ export class Checker extends $rt.GoObject {
         } else {
           source = c!.getReducedType(source);
           if (c!.isGenericMappedType(source) && c!.isGenericMappedType(target)) {
-            c!.invokeOnce(n, source, target, $fn100);
+            c!.invokeOnce(n, source, target, $fn101);
           }
           if (!(!((n!.priority & 512) === (0 as number)) && !((source!.flags & 401080320) === (0 as number)))) {
             const apparentSource: Type | undefined = c!.getApparentType(source);
@@ -48968,7 +48568,7 @@ export class Checker extends $rt.GoObject {
             source = apparentSource;
           }
           if (!((source!.flags & 269484032) === (0 as number))) {
-            c!.invokeOnce(n, source, target, $fn101);
+            c!.invokeOnce(n, source, target, $fn102);
           }
         }
       }
@@ -48981,6 +48581,7 @@ export class Checker extends $rt.GoObject {
     variances: VarianceFlags[],
   ): void {
     const c = this;
+    n!.depth++;
     for (let i = 0, $t1 = Math.min(sourceTypes.length, targetTypes.length); i < $t1; i++) {
       if (i < variances.length && (variances[i] & 7) === (2 as number)) {
         c!.inferFromContravariantTypes(n, sourceTypes[i], targetTypes[i]);
@@ -48988,6 +48589,7 @@ export class Checker extends $rt.GoObject {
         c!.inferFromTypes(n, sourceTypes[i], targetTypes[i]);
       }
     }
+    n!.depth--;
   }
   inferWithPriority(
     n: InferenceState | undefined,
@@ -49052,7 +48654,7 @@ export class Checker extends $rt.GoObject {
       }
     }
     if (n!.visited === undefined) {
-      n!.visited = new $rt.StructMap<InferenceKey, InferencePriority>($fn102);
+      n!.visited = new $rt.StructMap<InferenceKey, InferencePriority>($fn103);
     }
     n!.visited!.set(key, -1);
     const saveInferencePriority: InferencePriority = n!.inferencePriority;
@@ -49082,7 +48684,6 @@ export class Checker extends $rt.GoObject {
     sources: (Type | undefined)[],
     targets: (Type | undefined)[],
     matches: ((p0: Checker | undefined, p1: Type | undefined, p2: Type | undefined) => boolean) | undefined,
-    sort: boolean,
   ): [(Type | undefined)[], (Type | undefined)[]] {
     const c = this;
     let matchedSources: (Type | undefined)[] = [];
@@ -49096,9 +48697,7 @@ export class Checker extends $rt.GoObject {
           for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
             const s = $t3[$t4];
             if (matches!(c, s, t)) {
-              if (!sort) {
-                c!.inferFromTypes(n, s, t);
-              }
+              c!.inferFromTypes(n, s, t);
               matchedSources = $core.AppendIfUnique<Type | undefined>(matchedSources, s);
               matchedTargets = $core.AppendIfUnique<Type | undefined>(matchedTargets, t);
             }
@@ -49106,32 +48705,14 @@ export class Checker extends $rt.GoObject {
         }
       }
     }
-    if (sort) {
-      $rt.slices_SortFunc(matchedTargets, compareTypesAndDepth);
-      {
-        const $t5 = matchedTargets;
-        for (let $t6 = 0, $n = $t5.length; $t6 < $n; $t6++) {
-          const t$1 = $t5[$t6];
-          {
-            const $t7 = matchedSources;
-            for (let $t8 = 0, $n = $t7.length; $t8 < $n; $t8++) {
-              const s$1 = $t7[$t8];
-              if (matches!(c, s$1, t$1)) {
-                c!.inferFromTypes(n, s$1, t$1);
-              }
-            }
-          }
-        }
-      }
-    }
     if (!(matchedSources.length === (0 as number))) {
-      sources = $core.Filter<Type | undefined>(sources, (t$2: Type | undefined): boolean => {
-        return !$rt.slices_Contains(matchedSources, t$2);
+      sources = $core.Filter<Type | undefined>(sources, (t$1: Type | undefined): boolean => {
+        return !$rt.slices_Contains(matchedSources, t$1);
       });
     }
     if (!(matchedTargets.length === (0 as number))) {
-      targets = $core.Filter<Type | undefined>(targets, (t$3: Type | undefined): boolean => {
-        return !$rt.slices_Contains(matchedTargets, t$3);
+      targets = $core.Filter<Type | undefined>(targets, (t$2: Type | undefined): boolean => {
+        return !$rt.slices_Contains(matchedTargets, t$2);
       });
     }
     return [sources, targets];
@@ -49273,7 +48854,7 @@ export class Checker extends $rt.GoObject {
     const c = this;
     const matches: (Type | undefined)[] = c!.inferTypesFromTemplateLiteralType(source, target);
     const types: (Type | undefined)[] = target!.types;
-    if (!(matches.length === (0 as number)) || $core.Every<string>(target!.texts, $fn103)) {
+    if (!(matches.length === (0 as number)) || $core.Every<string>(target!.texts, $fn104)) {
       {
         const $t1 = types;
         for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
@@ -49977,12 +49558,12 @@ export class Checker extends $rt.GoObject {
           return c!.inferReverseMappedType(t, target, constraint);
         },
       );
-      if (!$core.Every<Type | undefined>(elementTypes, $fn104)) {
+      if (!$core.Every<Type | undefined>(elementTypes, $fn105)) {
         return undefined;
       }
       let elementInfos: TupleElementInfo[] = source!.TargetTupleType()!.elementInfos;
       if (!((getMappedTypeModifiers(target) & 4) === (0 as number))) {
-        elementInfos = $core.SameMap<TupleElementInfo>($zf14, elementInfos, $fn105);
+        elementInfos = $core.SameMap<TupleElementInfo>($zf14, elementInfos, $fn106);
       }
       return c!.createTupleTypeEx(elementTypes, elementInfos, source!.TargetTupleType()!.readonly);
     }
@@ -50569,7 +50150,7 @@ export class Checker extends $rt.GoObject {
       );
       if (!(objectLiterals.length === (0 as number))) {
         const literalsType: Type | undefined = c!.getUnionTypeEx(objectLiterals, 2, undefined, undefined);
-        const nonLiteralTypes: (Type | undefined)[] = $core.Filter<Type | undefined>(candidates, $fn106);
+        const nonLiteralTypes: (Type | undefined)[] = $core.Filter<Type | undefined>(candidates, $fn107);
         return $core.Concatenate<Type | undefined>(nonLiteralTypes, [literalsType]);
       }
     }
@@ -50629,7 +50210,7 @@ export class Checker extends $rt.GoObject {
     let primaryTypes: (Type | undefined)[] = types;
     if (c!.strictNullChecks) {
       primaryTypes = $core.SameMap<Type | undefined>($zf0, types, (t: Type | undefined): Type | undefined => {
-        return c!.filterType(t, $fn107);
+        return c!.filterType(t, $fn108);
       });
     }
     let supertype: Type | undefined = undefined as Type | undefined;
@@ -50645,7 +50226,7 @@ export class Checker extends $rt.GoObject {
   }
   getSingleCommonSupertype(types: (Type | undefined)[]): Type | undefined {
     const c = this;
-    const candidate: Type | undefined = c!.findLeftmostType(types, $fn108);
+    const candidate: Type | undefined = c!.findLeftmostType(types, $fn109);
     if (
       $core.Every<Type | undefined>(types, (t: Type | undefined): boolean => {
         return t === candidate || c!.isTypeStrictSubtypeOf(t, candidate);
@@ -50653,7 +50234,7 @@ export class Checker extends $rt.GoObject {
     ) {
       return candidate;
     }
-    return c!.findLeftmostType(types, $fn109);
+    return c!.findLeftmostType(types, $fn110);
   }
   findLeftmostType(
     types: (Type | undefined)[],
@@ -50910,7 +50491,6 @@ export class Checker extends $rt.GoObject {
   }
   checkJsxAttributes(node: $ast.Node | undefined, checkMode: CheckMode): Type | undefined {
     const c = this;
-    c!.checkNodeDeferred(node);
     return c!.createJsxAttributesTypeFromAttributesProperty(node!.Parent, checkMode);
   }
   checkJsxOpeningLikeElementOrOpeningFragment(node: $ast.Node | undefined): void {
@@ -51565,11 +51145,11 @@ export class Checker extends $rt.GoObject {
     {
       switch (name_) {
         case 'for' as string: {
-          jsxSpecific = $core.Find<$ast.Symbol_ | undefined>($zf1, properties, $fn110);
+          jsxSpecific = $core.Find<$ast.Symbol_ | undefined>($zf1, properties, $fn111);
           break;
         }
         case 'class' as string: {
-          jsxSpecific = $core.Find<$ast.Symbol_ | undefined>($zf1, properties, $fn111);
+          jsxSpecific = $core.Find<$ast.Symbol_ | undefined>($zf1, properties, $fn112);
           break;
         }
       }
@@ -51902,6 +51482,21 @@ export class Checker extends $rt.GoObject {
             if (attributeDecl!.Name$Node()!.Text$Node() === jsxChildrenPropertyName) {
               explicitlySpecifyChildrenAttribute = true;
             }
+            if (!(contextualType === undefined)) {
+              const prop: $ast.Symbol_ | undefined = c!.getPropertyOfType(contextualType, member!.Name);
+              if (
+                !(prop === undefined) &&
+                !(prop!.Declarations.length === 0) &&
+                c!.isDeprecatedSymbol(prop) &&
+                $ast.IsIdentifier(attributeDecl!.Name$Node())
+              ) {
+                c!.addDeprecatedSuggestion(
+                  attributeDecl!.Name$Node(),
+                  prop!.Declarations,
+                  attributeDecl!.Name$Node()!.Text$Node(),
+                );
+              }
+            }
             if (
               !(contextualType === undefined) &&
               !((checkMode & 2) === (0 as number)) &&
@@ -51951,7 +51546,7 @@ export class Checker extends $rt.GoObject {
         }
       }
     }
-    const parentHasSemanticJsxChildren: ((p0: $ast.Node | undefined) => boolean) | undefined = $fn112;
+    const parentHasSemanticJsxChildren: ((p0: $ast.Node | undefined) => boolean) | undefined = $fn113;
     if (parentHasSemanticJsxChildren!(openingLikeElement)) {
       const childTypes: (Type | undefined)[] = c!.checkJsxChildren(openingLikeElement!.Parent, checkMode);
       if (
@@ -52007,7 +51602,7 @@ export class Checker extends $rt.GoObject {
           undefined,
         );
         childrenPropSymbol!.ValueDeclaration!.Parent = attributeParent;
-        childrenPropSymbol!.ValueDeclaration!.AsPropertySignatureDeclaration()!.DeclarationBase_.Symbol_ =
+        childrenPropSymbol!.ValueDeclaration!.AsPropertySignatureDeclaration()!.NamedMemberBase_.Symbol_ =
           childrenPropSymbol;
         const childPropMap: $ast.SymbolTable = new Map<string, $ast.Symbol_ | undefined>();
         childPropMap!.set(jsxChildrenPropertyName, childrenPropSymbol);
@@ -52592,7 +52187,7 @@ export class Checker extends $rt.GoObject {
           const jsxFragmentPragma: $ast.Pragma | undefined = $ast.GetPragmaFromSourceFile(file, 'jsxfrag');
           if (!(jsxFragmentPragma === undefined)) {
             links!.localJsxFragmentFactory = c!.parseIsolatedEntityName(
-              (jsxFragmentPragma!.Args?.get('factory') ?? $ast.PragmaArgument$zero).Value,
+              (jsxFragmentPragma!.Args?.get('factory') ?? new $ast.PragmaArgument()).Value,
             );
             if (!(links!.localJsxFragmentFactory === undefined)) {
               links!.localJsxFragmentNamespace = $ast.GetFirstIdentifier(links!.localJsxFragmentFactory)!.Text$Node();
@@ -52642,7 +52237,7 @@ export class Checker extends $rt.GoObject {
     const jsxPragma: $ast.Pragma | undefined = $ast.GetPragmaFromSourceFile(file, 'jsx');
     if (!(jsxPragma === undefined)) {
       links!.localJsxFactory = c!.parseIsolatedEntityName(
-        (jsxPragma!.Args?.get('factory') ?? $ast.PragmaArgument$zero).Value,
+        (jsxPragma!.Args?.get('factory') ?? new $ast.PragmaArgument()).Value,
       );
       if (!(links!.localJsxFactory === undefined)) {
         links!.localJsxNamespace = $ast.GetFirstIdentifier(links!.localJsxFactory)!.Text$Node();
@@ -52678,7 +52273,7 @@ export class Checker extends $rt.GoObject {
         const jsxFragPragma: $ast.Pragma | undefined = $ast.GetPragmaFromSourceFile(file, 'jsxfrag');
         if (!(jsxFragPragma === undefined)) {
           links!.localJsxFragmentFactory = c!.parseIsolatedEntityName(
-            (jsxFragPragma!.Args?.get('factory') ?? $ast.PragmaArgument$zero).Value,
+            (jsxFragPragma!.Args?.get('factory') ?? new $ast.PragmaArgument()).Value,
           );
           return links!.localJsxFragmentFactory;
         }
@@ -52699,31 +52294,22 @@ export class Checker extends $rt.GoObject {
   }
   getJsxNamespaceContainerForImplicitImport(location: $ast.Node | undefined): $ast.Symbol_ | undefined {
     const c = this;
-    const file: $ast.SourceFile | undefined = $ast.GetSourceFileOfNode(location);
-    const links: JsxElementLinks | undefined = c!.jsxElementLinks.Get(file!.AsNode());
-    if (!(links!.jsxImplicitImportContainer === undefined)) {
+    let file: $ast.SourceFile | undefined = undefined as $ast.SourceFile | undefined;
+    let links: JsxElementLinks | undefined = undefined as JsxElementLinks | undefined;
+    if (!(location === undefined)) {
+      {
+        file = $ast.GetSourceFileOfNode(location);
+        if (!(file === undefined)) {
+          links = c!.jsxElementLinks.Get(file!.AsNode());
+        }
+      }
+    }
+    if (!(links === undefined) && !(links!.jsxImplicitImportContainer === undefined)) {
       return $core.IfElse<$ast.Symbol_ | undefined>(
         links!.jsxImplicitImportContainer === c!.unknownSymbol,
         undefined,
         links!.jsxImplicitImportContainer,
       );
-    }
-    let canonicalErrorTag: $ast.Node | undefined = links!.firstJSXTagInFile;
-    if (canonicalErrorTag === undefined) {
-      let visit: $ast.Visitor = undefined as $ast.Visitor;
-      visit = (node: $ast.Node | undefined): boolean => {
-        if ($ast.IsJsxElement(node) || $ast.IsJsxSelfClosingElement(node)) {
-          links!.firstJSXTagInFile = node;
-          return true;
-        }
-        if ($ast.IsJsxFragment(node)) {
-          links!.firstJSXTagInFile = node!.AsJsxFragment()!.OpeningFragment;
-          return true;
-        }
-        return node!.ForEachChild$Node(visit);
-      };
-      file!.ForEachChild(visit);
-      canonicalErrorTag = links!.firstJSXTagInFile;
     }
     const $t1 = c!.getJSXRuntimeImportSpecifier(file);
     const moduleReference: string = $t1[0];
@@ -52734,17 +52320,19 @@ export class Checker extends $rt.GoObject {
     const errorMessage: $diagnostics.Message | undefined =
       $diagnostics.This_JSX_tag_requires_the_module_path_0_to_exist_but_none_could_be_found_Make_sure_you_have_types_for_the_appropriate_package_installed;
     const mod: $ast.Symbol_ | undefined = c!.resolveExternalModule(
-      $core.OrElse<$ast.Node | undefined>($zf3, specifier, canonicalErrorTag),
+      $core.OrElse<$ast.Node | undefined>($zf3, specifier, location),
       moduleReference,
       errorMessage,
-      canonicalErrorTag,
+      location,
       false,
     );
     let result: $ast.Symbol_ | undefined = undefined as $ast.Symbol_ | undefined;
     if (!(mod === undefined) && !(mod === c!.unknownSymbol)) {
       result = c!.getMergedSymbol(c!.resolveSymbol(mod));
     }
-    links!.jsxImplicitImportContainer = $core.OrElse<$ast.Symbol_ | undefined>($zf1, result, c!.unknownSymbol);
+    if (!(links === undefined)) {
+      links!.jsxImplicitImportContainer = $core.OrElse<$ast.Symbol_ | undefined>($zf1, result, c!.unknownSymbol);
+    }
     return result;
   }
   getJSXRuntimeImportSpecifier(file: $ast.SourceFile | undefined): [string, $ast.Node | undefined] {
@@ -52760,28 +52348,13 @@ export class Checker extends $rt.GoObject {
     }
     return m2;
   }
-  mapTypeWithCompositeMapper(
-    t: Type | undefined,
-    m1: TypeMapper | undefined,
-    m2: TypeMapper | undefined,
-  ): Type | undefined {
-    const c = this;
-    if (m1 === undefined) {
-      return m2!.Map$TypeMapper(t);
-    }
-    const t1: Type | undefined = m1!.Map$TypeMapper(t);
-    if (!(t1 === t)) {
-      return c!.instantiateType(t1, m2);
-    }
-    return m2!.Map$TypeMapper(t);
-  }
   newBackreferenceMapper(context: InferenceContext | undefined, index: number): TypeMapper | undefined {
     const c = this;
     const forwardInferences: (InferenceInfo | undefined)[] = context!.inferences.slice(index);
     const typeParameters: (Type | undefined)[] = $core.Map_<InferenceInfo | undefined, Type | undefined>(
       $zf0,
       forwardInferences,
-      $fn113,
+      $fn114,
     );
     return newArrayToSingleTypeMapper(typeParameters, c!.unknownType);
   }
@@ -53107,9 +52680,9 @@ export class Checker extends $rt.GoObject {
       }
       let printer_: $printer.Printer | undefined = undefined as $printer.Printer | undefined;
       if (!(enclosingDeclaration === undefined) && enclosingDeclaration!.Kind_ === (307 as number)) {
-        printer_ = createPrinterWithRemoveCommentsOmitTrailingSemicolonNeverAsciiEscape(nodeBuilder!.EmitContext$m());
+        printer_ = createPrinterWithRemoveCommentsNeverAsciiEscape(nodeBuilder!.EmitContext$m());
       } else {
-        printer_ = createPrinterWithRemoveCommentsOmitTrailingSemicolon(nodeBuilder!.EmitContext$m());
+        printer_ = createPrinterWithRemoveComments(nodeBuilder!.EmitContext$m());
       }
       let builder:
         | ((
@@ -53165,7 +52738,7 @@ export class Checker extends $rt.GoObject {
         internalNodeFlags,
         undefined,
       );
-      printer_!.Write(entity, sourceFile, writer, undefined);
+      printer_!.Write(entity, sourceFile, getTrailingSemicolonDeferringWriter(writer), undefined);
       $t1 = $rt.nn(writer).String();
       break $body;
     } catch ($e) {
@@ -53245,7 +52818,7 @@ export class Checker extends $rt.GoObject {
       }
       if (!((flags & 1024) === (0 as number))) {
         const writer: $printer.EmitTextWriter = $printer.NewTextWriter('\n', 0);
-        p!.Write(sig, sourceFile, writer, undefined);
+        p!.Write(sig, sourceFile, getTrailingSemicolonDeferringWriter(writer), undefined);
         $t1 = $rt.nn(writer).String();
         break $body;
       }
@@ -53255,7 +52828,7 @@ export class Checker extends $rt.GoObject {
       $defers.push(() => {
         putWriter!();
       });
-      p!.Write(sig, sourceFile, writer$1, undefined);
+      p!.Write(sig, sourceFile, getTrailingSemicolonDeferringWriter(writer$1), undefined);
       $t1 = $rt.nn(writer$1).String();
       break $body;
     } catch ($e) {
@@ -53901,7 +53474,7 @@ export class Checker extends $rt.GoObject {
     if (r!.overflow) {
       const $t1 = getRelationKey(source, target, 0, relation === c!.identityRelation, false);
       const id: CacheHashKey = $t1[0];
-      relation!.set(id, 34);
+      relation!.set(id, (2 | $core.IfElse<RelationComparisonResult>(r!.relationCount <= 0, 32, 64)) >>> 0);
       {
         const tr: Tracer | undefined = c!.tracer;
         if (!(tr === undefined)) {
@@ -53917,11 +53490,16 @@ export class Checker extends $rt.GoObject {
           );
         }
       }
+      const message: $diagnostics.Message | undefined = $core.IfElse<$diagnostics.Message | undefined>(
+        r!.relationCount <= 0,
+        $diagnostics.Excessive_complexity_comparing_types_0_and_1,
+        $diagnostics.Excessive_stack_depth_comparing_types_0_and_1,
+      );
       if (errorNode === undefined) {
         errorNode = c!.currentNode;
       }
       c!.reportDiagnostic(
-        NewDiagnosticForNode(errorNode, $diagnostics.Excessive_complexity_comparing_types_0_and_1, [
+        NewDiagnosticForNode(errorNode, message, [
           new $rt.BoxStr(c!.TypeToString(source), 'string'),
           new $rt.BoxStr(c!.TypeToString(target), 'string'),
         ]),
@@ -54540,7 +54118,7 @@ export class Checker extends $rt.GoObject {
         resolved!.signatures.length === (0 as number) &&
         resolved!.indexInfos.length === (0 as number) &&
         resolved!.properties.length > 0 &&
-        $core.Every<$ast.Symbol_ | undefined>(resolved!.properties, $fn139)
+        $core.Every<$ast.Symbol_ | undefined>(resolved!.properties, $fn138)
       );
     }
     if (!((t!.flags & 16777216) === (0 as number))) {
@@ -54602,10 +54180,12 @@ export class Checker extends $rt.GoObject {
   isDeeplyNestedType(t: Type | undefined, stack: (Type | undefined)[], maxDepth: number): boolean {
     const c = this;
     if (stack.length >= maxDepth) {
-      const target: Type | undefined = getRecursionIdentityTarget(t);
-      if (!((target!.flags & 268435456) === (0 as number))) {
+      if ((t!.objectFlags & 96) === (96 as number)) {
+        t = c!.getMappedTargetWithSymbol(t);
+      }
+      if (!((t!.flags & 268435456) === (0 as number))) {
         {
-          const $t1 = target!.Types$Type();
+          const $t1 = t!.Types$Type();
           for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
             const t$1 = $t1[$t2];
             if (c!.isDeeplyNestedType(t$1, stack, maxDepth)) {
@@ -54613,28 +54193,64 @@ export class Checker extends $rt.GoObject {
             }
           }
         }
-      } else {
-        const identity: RecursionId = getRecursionIdentityFromTarget(target);
-        let count: number = 0;
-        let lastTypeId: TypeId = 0;
-        {
-          const $t3 = stack;
-          for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
-            const t$2 = $t3[$t4];
-            if (hasMatchingRecursionIdentity(t$2, identity)) {
-              if (t$2!.id >= lastTypeId) {
-                count++;
-                if (count >= maxDepth) {
-                  return true;
-                }
+      }
+      const identity: RecursionId = getRecursionIdentity(t);
+      let count: number = 0;
+      let lastTypeId: TypeId = 0;
+      {
+        const $t3 = stack;
+        for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
+          const t$2 = $t3[$t4];
+          if (c!.hasMatchingRecursionIdentity(t$2, identity)) {
+            if (t$2!.id >= lastTypeId) {
+              count++;
+              if (count >= maxDepth) {
+                return true;
               }
-              lastTypeId = t$2!.id;
             }
+            lastTypeId = t$2!.id;
           }
         }
       }
     }
     return false;
+  }
+  getMappedTargetWithSymbol(t: Type | undefined): Type | undefined {
+    const c = this;
+    for (;;) {
+      if ((t!.objectFlags & 96) === (96 as number)) {
+        const target: Type | undefined = c!.getModifiersTypeFromMappedType(t);
+        if (
+          !(target === undefined) &&
+          (!(target!.symbol === undefined) ||
+            (!((target!.flags & 268435456) === (0 as number)) &&
+              $core.Some<Type | undefined>(target!.Types$Type(), $fn139)))
+        ) {
+          t = target;
+          continue;
+        }
+      }
+      return t;
+    }
+  }
+  hasMatchingRecursionIdentity(t: Type | undefined, identity: RecursionId): boolean {
+    const c = this;
+    if ((t!.objectFlags & 96) === (96 as number)) {
+      t = c!.getMappedTargetWithSymbol(t);
+    }
+    if (!((t!.flags & 268435456) === (0 as number))) {
+      {
+        const $t1 = t!.Types$Type();
+        for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
+          const t$1 = $t1[$t2];
+          if (c!.hasMatchingRecursionIdentity(t$1, identity)) {
+            return true;
+          }
+        }
+      }
+      return false;
+    }
+    return getRecursionIdentity(t).$equals_checker_RecursionId(identity);
   }
   getBestMatchingType(
     source: Type | undefined,
@@ -55246,88 +54862,64 @@ export class Checker extends $rt.GoObject {
             });
           }
         }
-        const stackIndex: number = c!.getVarianceStackIndex(symbol_);
-        if (stackIndex < 0) {
-          const saveResolutionStart: number = c!.resolutionStart;
-          if (c!.varianceStack.length === (0 as number)) {
-            c!.resolutionStart = c!.typeResolutions.length;
-          }
-          c!.varianceStack.push(VarianceStackEntry.$lit_checker_VarianceStackEntry_0_1(symbol_, typeParameters));
-          const variances: VarianceFlags[] | undefined = $rt.makeSlice<VarianceFlags>(typeParameters.length, 0);
-          {
-            const $t4 = typeParameters;
-            for (let $t5 = 0, $n = $t4.length; $t5 < $n; $t5++) {
-              const i$1 = $t5;
-              const tp = $t4[$t5];
-              const modifiers: $ast.ModifierFlags = c!.getTypeParameterModifiers(tp);
-              let variance: VarianceFlags = 0;
-              {
-                $sw6: {
-                  if (!((modifiers & 16384) === (0 as number))) {
-                    if (!((modifiers & 8192) === (0 as number))) {
-                      variance = 0;
-                    } else {
-                      variance = 1;
-                    }
-                  } else if (!((modifiers & 8192) === (0 as number))) {
-                    variance = 2;
+        const oldVarianceComputation: boolean = c!.inVarianceComputation;
+        const saveResolutionStart: number = c!.resolutionStart;
+        if (!c!.inVarianceComputation) {
+          c!.inVarianceComputation = true;
+          c!.resolutionStart = c!.typeResolutions.length;
+        }
+        links!.variances = [] as VarianceFlags[];
+        const variances: VarianceFlags[] | undefined = $rt.makeSlice<VarianceFlags>(typeParameters.length, 0);
+        {
+          const $t4 = typeParameters;
+          for (let $t5 = 0, $n = $t4.length; $t5 < $n; $t5++) {
+            const i$1 = $t5;
+            const tp = $t4[$t5];
+            const modifiers: $ast.ModifierFlags = c!.getTypeParameterModifiers(tp);
+            let variance: VarianceFlags = 0;
+            {
+              $sw6: {
+                if (!((modifiers & 16384) === (0 as number))) {
+                  if (!((modifiers & 8192) === (0 as number))) {
+                    variance = 0;
                   } else {
-                    const saveReliabilityFlags: RelationComparisonResult = c!.reliabilityFlags;
-                    c!.reliabilityFlags = 0;
-                    const typeWithSuper: Type | undefined = c!.createMarkerType(symbol_, tp, c!.markerSuperType);
-                    const typeWithSub: Type | undefined = c!.createMarkerType(symbol_, tp, c!.markerSubType);
-                    variance =
-                      ($core.IfElse<VarianceFlags>(c!.isTypeAssignableTo(typeWithSub, typeWithSuper), 1, 0) |
-                        $core.IfElse<VarianceFlags>(c!.isTypeAssignableTo(typeWithSuper, typeWithSub), 2, 0)) >>>
-                      0;
-                    if (
-                      variance === (3 as number) &&
-                      c!.isTypeAssignableTo(c!.createMarkerType(symbol_, tp, c!.markerOtherType), typeWithSuper)
-                    ) {
-                      variance = 4;
-                    }
-                    if (!((c!.reliabilityFlags & 8) === (0 as number))) {
-                      variance = (variance | 8) >>> 0;
-                    }
-                    if (!((c!.reliabilityFlags & 16) === (0 as number))) {
-                      variance = (variance | 16) >>> 0;
-                    }
-                    c!.reliabilityFlags = saveReliabilityFlags;
+                    variance = 1;
                   }
+                } else if (!((modifiers & 8192) === (0 as number))) {
+                  variance = 2;
+                } else {
+                  const saveReliabilityFlags: RelationComparisonResult = c!.reliabilityFlags;
+                  c!.reliabilityFlags = 0;
+                  const typeWithSuper: Type | undefined = c!.createMarkerType(symbol_, tp, c!.markerSuperType);
+                  const typeWithSub: Type | undefined = c!.createMarkerType(symbol_, tp, c!.markerSubType);
+                  variance =
+                    ($core.IfElse<VarianceFlags>(c!.isTypeAssignableTo(typeWithSub, typeWithSuper), 1, 0) |
+                      $core.IfElse<VarianceFlags>(c!.isTypeAssignableTo(typeWithSuper, typeWithSub), 2, 0)) >>>
+                    0;
+                  if (
+                    variance === (3 as number) &&
+                    c!.isTypeAssignableTo(c!.createMarkerType(symbol_, tp, c!.markerOtherType), typeWithSuper)
+                  ) {
+                    variance = 4;
+                  }
+                  if (!((c!.reliabilityFlags & 8) === (0 as number))) {
+                    variance = (variance | 8) >>> 0;
+                  }
+                  if (!((c!.reliabilityFlags & 16) === (0 as number))) {
+                    variance = (variance | 16) >>> 0;
+                  }
+                  c!.reliabilityFlags = saveReliabilityFlags;
                 }
               }
-              if (!((links!.variances ?? []).length === (0 as number))) {
-                break;
-              }
-              (variances ?? [])[i$1] = variance;
             }
-          }
-          if ((links!.variances ?? []).length === (0 as number)) {
-            links!.variances = variances;
-          }
-          c!.varianceStack = $rt.truncate(c!.varianceStack, c!.varianceStack.length - 1, VarianceStackEntry$zero);
-          if (c!.varianceStack.length === (0 as number)) {
-            c!.resolutionStart = saveResolutionStart;
-          }
-        } else {
-          let minIndex: number = stackIndex;
-          {
-            for (let i$2: number = stackIndex + 1; i$2 < c!.varianceStack.length; i$2++) {
-              if (c!.compareSymbols!(c!.varianceStack[i$2].symbol, c!.varianceStack[minIndex].symbol) < 0) {
-                minIndex = i$2;
-              }
-            }
-          }
-          if (minIndex > stackIndex) {
-            const saveVarianceStack: VarianceStackEntry[] = c!.varianceStack;
-            c!.varianceStack = [];
-            c!.getVariancesWorker(saveVarianceStack[minIndex].symbol, saveVarianceStack[minIndex].typeParameters);
-            c!.varianceStack = saveVarianceStack;
-          }
-          if ((links!.variances ?? []).length === (0 as number)) {
-            links!.variances = [] as VarianceFlags[];
+            (variances ?? [])[i$1] = variance;
           }
         }
+        if (!oldVarianceComputation) {
+          c!.inVarianceComputation = false;
+          c!.resolutionStart = saveResolutionStart;
+        }
+        links!.variances = variances;
       }
       $t1 = links!.variances ?? [];
       break $body;
@@ -55338,20 +54930,6 @@ export class Checker extends $rt.GoObject {
     }
     if ($panic !== undefined) throw $panic;
     return $t1;
-  }
-  getVarianceStackIndex(symbol_: $ast.Symbol_ | undefined): number {
-    const c = this;
-    {
-      const $t1 = c!.varianceStack;
-      for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        const i = $t2;
-        const entry = $t1[$t2];
-        if (entry.symbol === symbol_) {
-          return i;
-        }
-      }
-    }
-    return -1;
   }
   createMarkerType(
     symbol_: $ast.Symbol_ | undefined,
@@ -55766,7 +55344,7 @@ export class Checker extends $rt.GoObject {
         if (isTupleType(restType)) {
           const firstOptionalIndex: number = $core.FindIndex<TupleElementInfo>(
             restType!.TargetTupleType()!.elementInfos,
-            $fn141,
+            $fn140,
           );
           let requiredCount: number = firstOptionalIndex;
           if (firstOptionalIndex < 0) {
@@ -55789,7 +55367,7 @@ export class Checker extends $rt.GoObject {
       {
         for (let i: number = minArgumentCount - 1; i >= 0; i--) {
           const t: Type | undefined = c!.getTypeAtPosition(signature, i);
-          if (!someType(t, $fn142)) {
+          if (!someType(t, $fn141)) {
             break;
           }
           minArgumentCount = i;
@@ -58528,7 +58106,7 @@ export class Checker extends $rt.GoObject {
       ctx.meaning,
     );
     if (links!.accessibleChainCache === undefined) {
-      links!.accessibleChainCache = new $rt.StructMap<accessibleChainCacheKey, ($ast.Symbol_ | undefined)[]>($fn146);
+      links!.accessibleChainCache = new $rt.StructMap<accessibleChainCacheKey, ($ast.Symbol_ | undefined)[]>($fn145);
     }
     const $t1: $rt.StructMap<accessibleChainCacheKey, ($ast.Symbol_ | undefined)[]> | undefined =
       links!.accessibleChainCache;
@@ -58991,7 +58569,7 @@ export class Checker extends $rt.GoObject {
         c!.symbolToStringEx(symbol_, enclosingDeclaration, meaning, 4),
       );
     }
-    return $fn90;
+    return $fn91;
   }
   isOptionalParameter(node: $ast.Node | undefined): boolean {
     const c = this;
@@ -59380,26 +58958,6 @@ export class CompositeTypeMapper extends TypeMapperBase {
       return m!.c!.instantiateType(t1, m!.m2);
     }
     return m!.m2!.Map$TypeMapper(t);
-  }
-}
-export class ComputedNameNodeLinks extends $rt.GoObject {
-  hasName: $rt.Ptr<boolean> | undefined = undefined;
-  name: string = '';
-  $copy_checker_ComputedNameNodeLinks(src: ComputedNameNodeLinks): void {
-    this.hasName = src.hasName;
-    this.name = src.name;
-  }
-  $equals_checker_ComputedNameNodeLinks(o: ComputedNameNodeLinks): boolean {
-    return this.hasName === o.hasName && this.name === o.name;
-  }
-  $clone_checker_ComputedNameNodeLinks(): ComputedNameNodeLinks {
-    const o = new ComputedNameNodeLinks();
-    o.$copy_checker_ComputedNameNodeLinks(this);
-    return o;
-  }
-  static $cast_checker_ComputedNameNodeLinks(v: $rt.GoObject | undefined): ComputedNameNodeLinks {
-    if (v instanceof ComputedNameNodeLinks) return v;
-    throw $rt.typeAssertError();
   }
 }
 export class ConditionalRoot extends $rt.GoObject {
@@ -60145,15 +59703,15 @@ export class EmitResolver extends $rt.GoObject {
   jsxLinks: $rt.core_LinkStore<$ast.Node | undefined, JSXLinks> = new $rt.core_LinkStore<
     $ast.Node | undefined,
     JSXLinks
-  >($zf49);
+  >($zf48);
   declarationLinks: $rt.core_LinkStore<$ast.Node | undefined, DeclarationLinks> = new $rt.core_LinkStore<
     $ast.Node | undefined,
     DeclarationLinks
-  >($zf50);
+  >($zf49);
   declarationFileLinks: $rt.core_LinkStore<$ast.Node | undefined, DeclarationFileLinks> = new $rt.core_LinkStore<
     $ast.Node | undefined,
     DeclarationFileLinks
-  >($zf51);
+  >($zf50);
   $copy_checker_EmitResolver(src: EmitResolver): void {
     this.checker = src.checker;
     this.checkerMu = src.checkerMu;
@@ -60573,7 +60131,7 @@ export class EmitResolver extends $rt.GoObject {
   ): $printer.SymbolAccessibilityResult {
     const r = this;
     if (!$ast.IsParseTreeNode(entityName)) {
-      return $fn89;
+      return $fn90;
     }
     const meaning: $ast.SymbolFlags = getMeaningOfEntityNameReference(entityName);
     const firstIdentifier: $ast.Node | undefined = $ast.GetFirstIdentifier(entityName);
@@ -60590,14 +60148,14 @@ export class EmitResolver extends $rt.GoObject {
       !((symbol_!.Flags & 262144) === (0 as number)) &&
       !((meaning & 788968) === (0 as number))
     ) {
-      return $fn90;
+      return $fn91;
     }
     if (symbol_ === undefined && $ast.IsThisIdentifier(firstIdentifier)) {
       const sym: $ast.Symbol_ | undefined = r!.checker!.getSymbolOfDeclaration(
         r!.checker!.getThisContainer(firstIdentifier, false, false),
       );
       if (r!.isSymbolAccessible(sym, enclosingDeclaration, meaning, false).Accessibility === (0 as number)) {
-        return $fn90;
+        return $fn91;
       }
     }
     if (symbol_ === undefined) {
@@ -60747,12 +60305,7 @@ export class EmitResolver extends $rt.GoObject {
           break $body;
         }
         if (signaturesOfSymbol.length === (1 as number)) {
-          const signature: Signature | undefined = signaturesOfSymbol[0];
-          if (signature === r!.checker!.getSignatureOfFullSignatureType(node)) {
-            $t1 = false;
-            break $body;
-          }
-          const declaration: $ast.Node | undefined = signature!.declaration;
+          const declaration: $ast.Node | undefined = signaturesOfSymbol[0]!.declaration;
           if (!(declaration === node) && (declaration!.Flags & 4194304) === (0 as number)) {
             $t1 = true;
             break $body;
@@ -61027,12 +60580,7 @@ export class EmitResolver extends $rt.GoObject {
         $defers.push(() => {
           $t2!.Unlock();
         });
-        const s: $ast.Symbol_ | undefined = r!.checker!.getSymbolOfDeclaration(node);
-        if (s === undefined) {
-          $t1 = false;
-          break $body;
-        }
-        $t1 = isFreshLiteralType(r!.checker!.getTypeOfSymbol(s));
+        $t1 = isFreshLiteralType(r!.checker!.getTypeOfSymbol(r!.checker!.getSymbolOfDeclaration(node)));
         break $body;
       }
       $t1 = false;
@@ -62911,6 +62459,7 @@ export class InferenceContextInfo extends $rt.GoObject {
 export class InferenceInfo extends $rt.GoObject {
   typeParameter: Type | undefined = undefined;
   candidates: (Type | undefined)[] = [];
+  candidateDepths: number[] = [];
   contraCandidates: (Type | undefined)[] = [];
   inferredType: Type | undefined = undefined;
   priority: InferencePriority = 0;
@@ -62920,6 +62469,7 @@ export class InferenceInfo extends $rt.GoObject {
   $copy_checker_InferenceInfo(src: InferenceInfo): void {
     this.typeParameter = src.typeParameter;
     this.candidates = src.candidates;
+    this.candidateDepths = src.candidateDepths;
     this.contraCandidates = src.contraCandidates;
     this.inferredType = src.inferredType;
     this.priority = src.priority;
@@ -62932,28 +62482,30 @@ export class InferenceInfo extends $rt.GoObject {
     o.$copy_checker_InferenceInfo(this);
     return o;
   }
-  static $lit_checker_InferenceInfo_0_1_2_3_4_5_6_7(
+  static $lit_checker_InferenceInfo_0_1_2_3_4_5_6_7_8(
     p0: Type | undefined,
     p1: (Type | undefined)[],
-    p2: (Type | undefined)[],
-    p3: Type | undefined,
-    p4: InferencePriority,
-    p5: boolean,
+    p2: number[],
+    p3: (Type | undefined)[],
+    p4: Type | undefined,
+    p5: InferencePriority,
     p6: boolean,
-    p7: number,
+    p7: boolean,
+    p8: number,
   ): InferenceInfo {
     const o = new InferenceInfo();
     o.typeParameter = p0;
     o.candidates = p1;
-    o.contraCandidates = p2;
-    o.inferredType = p3;
-    o.priority = p4;
-    o.topLevel = p5;
-    o.isFixed = p6;
-    o.impliedArity = p7;
+    o.candidateDepths = p2;
+    o.contraCandidates = p3;
+    o.inferredType = p4;
+    o.priority = p5;
+    o.topLevel = p6;
+    o.isFixed = p7;
+    o.impliedArity = p8;
     return o;
   }
-  static $lit_checker_InferenceInfo_0_4_5_7(
+  static $lit_checker_InferenceInfo_0_5_6_8(
     p0: Type | undefined,
     p1: InferencePriority,
     p2: boolean,
@@ -63014,6 +62566,7 @@ export class InferenceState extends $rt.GoObject {
   sourceStack: (Type | undefined)[] = [];
   targetStack: (Type | undefined)[] = [];
   next: InferenceState | undefined = undefined;
+  depth: number = 0;
   $copy_checker_InferenceState(src: InferenceState): void {
     this.inferences = src.inferences;
     this.originalSource = src.originalSource;
@@ -63028,6 +62581,7 @@ export class InferenceState extends $rt.GoObject {
     this.sourceStack = src.sourceStack;
     this.targetStack = src.targetStack;
     this.next = src.next;
+    this.depth = src.depth;
   }
   $clone_checker_InferenceState(): InferenceState {
     const o = new InferenceState();
@@ -63589,21 +63143,18 @@ export class JsxElementLinks extends $rt.GoObject {
   resolvedJsxElementAttributesType: Type | undefined = undefined;
   jsxNamespace: $ast.Symbol_ | undefined = undefined;
   jsxImplicitImportContainer: $ast.Symbol_ | undefined = undefined;
-  firstJSXTagInFile: $ast.Node | undefined = undefined;
   $copy_checker_JsxElementLinks(src: JsxElementLinks): void {
     this.jsxFlags = src.jsxFlags;
     this.resolvedJsxElementAttributesType = src.resolvedJsxElementAttributesType;
     this.jsxNamespace = src.jsxNamespace;
     this.jsxImplicitImportContainer = src.jsxImplicitImportContainer;
-    this.firstJSXTagInFile = src.firstJSXTagInFile;
   }
   $equals_checker_JsxElementLinks(o: JsxElementLinks): boolean {
     return (
       this.jsxFlags === o.jsxFlags &&
       this.resolvedJsxElementAttributesType === o.resolvedJsxElementAttributesType &&
       this.jsxNamespace === o.jsxNamespace &&
-      this.jsxImplicitImportContainer === o.jsxImplicitImportContainer &&
-      this.firstJSXTagInFile === o.firstJSXTagInFile
+      this.jsxImplicitImportContainer === o.jsxImplicitImportContainer
     );
   }
   $clone_checker_JsxElementLinks(): JsxElementLinks {
@@ -64027,7 +63578,7 @@ export class NodeBuilder extends $rt.GoObject {
       enclosingDeclaration,
       $ast.GetSourceFileOfNode(enclosingDeclaration),
       [] as (Type | undefined)[],
-      new $rt.StructMap<CompositeSymbolIdentity, number>($fn114),
+      new $rt.StructMap<CompositeSymbolIdentity, number>($fn115),
       [] as (TrackedSymbolArgs | undefined)[],
       [] as ($ast.Symbol_ | undefined)[],
       new Map<$ast.SymbolId, Type | undefined>(),
@@ -64366,12 +63917,12 @@ export class NodeBuilderContext extends $rt.GoObject {
   suppressReportInferenceFallback: boolean = false;
   remappedSymbolReferences: Map<$ast.SymbolId, $ast.Symbol_ | undefined> | undefined = undefined;
   typeParameterNames: $collections.CopyOnWriteMap<TypeId, $ast.Identifier | undefined> =
-    new $collections.CopyOnWriteMap<TypeId, $ast.Identifier | undefined>($zf52);
+    new $collections.CopyOnWriteMap<TypeId, $ast.Identifier | undefined>($zf51);
   typeParameterNamesByText: $collections.CopyOnWriteSet<string> = new $collections.CopyOnWriteSet<string>();
   typeParameterNamesByTextNextNameCount: $collections.CopyOnWriteMap<string, number> = new $collections.CopyOnWriteMap<
     string,
     number
-  >($zf53);
+  >($zf52);
   typeParameterSymbolList: $collections.CopyOnWriteSet<$ast.SymbolId> =
     new $collections.CopyOnWriteSet<$ast.SymbolId>();
   $copy_checker_NodeBuilderContext(src: NodeBuilderContext): void {
@@ -64457,11 +64008,11 @@ export class NodeBuilderImpl extends $rt.GoObject {
   links: $rt.core_LinkStore<$ast.Node | undefined, NodeBuilderLinks> = new $rt.core_LinkStore<
     $ast.Node | undefined,
     NodeBuilderLinks
-  >($zf54);
+  >($zf53);
   symbolLinks: $rt.core_LinkStore<$ast.Symbol_ | undefined, NodeBuilderSymbolLinks> = new $rt.core_LinkStore<
     $ast.Symbol_ | undefined,
     NodeBuilderSymbolLinks
-  >($zf55);
+  >($zf54);
   ctx: NodeBuilderContext | undefined = undefined;
   cloneBindingNameVisitor: $ast.NodeVisitor | undefined = undefined;
   idToSymbol: Map<$ast.Node | undefined, $ast.Symbol_ | undefined> | undefined = undefined;
@@ -64543,7 +64094,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
     b!.ctx!.approximateLength += 9 + name_.length;
     const memberProps: ($ast.Symbol_ | undefined)[] = $core.Filter<$ast.Symbol_ | undefined>(
       b!.ch!.getPropertiesOfType(b!.ch!.getTypeOfSymbol(symbol_)),
-      $fn115,
+      $fn116,
     );
     let members: ($ast.Node | undefined)[] = [];
     {
@@ -64676,7 +64227,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
       const heritageClauses: ($ast.Node | undefined)[] = b!.hoverHeritageClauses(classLikeDeclarations);
       const allProps: ($ast.Symbol_ | undefined)[] = b!.ch!.getPropertiesOfType(classType);
       const symbolProps: ($ast.Symbol_ | undefined)[] = b!.filterInheritedProperties(classType, baseTypes, allProps);
-      const publicProps: ($ast.Symbol_ | undefined)[] = $core.Filter<$ast.Symbol_ | undefined>(symbolProps, $fn116);
+      const publicProps: ($ast.Symbol_ | undefined)[] = $core.Filter<$ast.Symbol_ | undefined>(symbolProps, $fn117);
       const hasPrivate: boolean = $core.Some<$ast.Symbol_ | undefined>(symbolProps, isHashPrivate);
       let instanceMembers: ($ast.Node | undefined)[] = [];
       instanceMembers = b!.serializePropertiesWithTruncation(publicProps, instanceMembers);
@@ -64881,7 +64432,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
     elements: ($ast.Node | undefined)[],
   ): ($ast.Node | undefined)[] {
     const b = this;
-    properties = $core.Filter<$ast.Symbol_ | undefined>(properties, $fn117);
+    properties = $core.Filter<$ast.Symbol_ | undefined>(properties, $fn118);
     {
       const $t1 = properties;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
@@ -64943,7 +64494,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
     const signatures: (Signature | undefined)[] = b!.ch!.getSignaturesOfType(staticType, 1);
     if (!(staticBaseType === undefined)) {
       const baseSigs: (Signature | undefined)[] = b!.ch!.getSignaturesOfType(staticBaseType, 1);
-      if (baseSigs.length === (0 as number) && $core.Every<Signature | undefined>(signatures, $fn118)) {
+      if (baseSigs.length === (0 as number) && $core.Every<Signature | undefined>(signatures, $fn119)) {
         return [];
       }
       if (baseSigs.length === signatures.length) {
@@ -65008,7 +64559,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
           ),
         ];
       }
-    } else if ($core.Every<Signature | undefined>(signatures, $fn119)) {
+    } else if ($core.Every<Signature | undefined>(signatures, $fn120)) {
       return [];
     }
     let result: ($ast.Node | undefined)[] = [];
@@ -65255,7 +64806,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
         }
       }
       const allExported: boolean =
-        bodyStatements.length > 0 && $core.Every<$ast.Node | undefined>(bodyStatements, $fn120);
+        bodyStatements.length > 0 && $core.Every<$ast.Node | undefined>(bodyStatements, $fn121);
       if (allExported) {
         {
           const $t10 = bodyStatements;
@@ -65480,46 +65031,32 @@ export class NodeBuilderImpl extends $rt.GoObject {
   }
   checkTypeExpandability(t: Type | undefined): void {
     const b = this;
-    const $defers: (() => void)[] = [];
-    let $panic: $rt.Panic | undefined = undefined;
-    $body: try {
-      if (b!.ctx!.maxExpansionDepth < 0 || t === undefined || b!.ctx!.canIncreaseExpansionDepth) {
-        break $body;
-      }
-      b!.ctx!.typeStack.push(t);
-      $defers.push((): void => {
-        b!.ctx!.typeStack = $rt.truncate(b!.ctx!.typeStack, b!.ctx!.typeStack.length - 1, undefined);
-      });
-      if (b!.isTypeOnStack(t)) {
-        break $body;
-      }
-      if (!(t!.alias === undefined)) {
-        b!.shouldExpandType(t, true);
-      }
-      if (!b!.ctx!.canIncreaseExpansionDepth) {
-        b!.shouldExpandType(t, false);
-      }
-      if (b!.ctx!.canIncreaseExpansionDepth) {
-        break $body;
-      }
-      if (!((t!.objectFlags & 4) === (0 as number))) {
-        {
-          const $t1 = b!.ch!.getTypeArguments(t);
-          for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-            const arg = $t1[$t2];
-            b!.checkTypeExpandability(arg);
-            if (b!.ctx!.canIncreaseExpansionDepth) {
-              break $body;
-            }
+    if (b!.ctx!.maxExpansionDepth < 0 || t === undefined || b!.ctx!.canIncreaseExpansionDepth) {
+      return;
+    }
+    b!.ctx!.typeStack.push(t);
+    if (!(t!.alias === undefined)) {
+      b!.shouldExpandType(t, true);
+    }
+    if (!b!.ctx!.canIncreaseExpansionDepth) {
+      b!.shouldExpandType(t, false);
+    }
+    b!.ctx!.typeStack = $rt.truncate(b!.ctx!.typeStack, b!.ctx!.typeStack.length - 1, undefined);
+    if (b!.ctx!.canIncreaseExpansionDepth) {
+      return;
+    }
+    if (!((t!.objectFlags & 4) === (0 as number))) {
+      {
+        const $t1 = b!.ch!.getTypeArguments(t);
+        for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
+          const arg = $t1[$t2];
+          b!.checkTypeExpandability(arg);
+          if (b!.ctx!.canIncreaseExpansionDepth) {
+            return;
           }
         }
       }
-    } catch ($e) {
-      $panic = $rt.toPanic($e);
-    } finally {
-      $panic = $rt.runDefers($defers, $panic);
     }
-    if ($panic !== undefined) throw $panic;
   }
   appendReferenceToType(root: $ast.Node | undefined, ref: $ast.Node | undefined): $ast.Node | undefined {
     const b = this;
@@ -65683,7 +65220,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
       let $t3 = false;
       let $t4: $ast.NodeList | undefined = undefined as $ast.NodeList | undefined;
       seenNames!.Values()!((types: mapToTypeNodes$seenName[]): boolean => {
-        if (!arrayIsHomogeneous<mapToTypeNodes$seenName>(types, $fn121)) {
+        if (!arrayIsHomogeneous<mapToTypeNodes$seenName>(types, $fn122)) {
           {
             const $t5 = types;
             for (let $t6 = 0, $n = $t5.length; $t6 < $n; $t6++) {
@@ -65761,7 +65298,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
   }
   tryGetResolvedSymbolFromTypeNode(node: $ast.Node | undefined): $ast.Symbol_ | undefined {
     const b = this;
-    if (node === undefined || node!.Parent === undefined) {
+    if (node === undefined) {
       return undefined;
     }
     b!.ch!.getTypeFromTypeNode(node);
@@ -65830,7 +65367,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
     }
     const constructSignatures: (Signature | undefined)[] = $core.Filter<Signature | undefined>(
       t!.ConstructSignatures(),
-      $fn122,
+      $fn123,
     );
     if (constructSignatures.length === t!.ConstructSignatures().length) {
       t!.objectTypeWithoutAbstractConstructSignatures = t!.AsType();
@@ -66580,7 +66117,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
     );
     const links: NodeBuilderSymbolLinks | undefined = b!.symbolLinks.Get(symbol_);
     if (links!.specifierCache === undefined) {
-      links!.specifierCache = new $rt.StructMap<$module.ModeAwareCacheKey, string>($fn124);
+      links!.specifierCache = new $rt.StructMap<$module.ModeAwareCacheKey, string>($fn125);
     }
     const $t1: $module.ModeAwareCache<string> = links!.specifierCache;
     const $t2 = cacheKey;
@@ -67541,22 +67078,14 @@ export class NodeBuilderImpl extends $rt.GoObject {
       symbol_ = b!.ch!.getSymbolOfDeclaration(declaration);
     }
     if (t === undefined) {
-      if (symbol_ === undefined) {
-        if ($ast.IsVariableLike(declaration)) {
-          t = b!.ch!.getTypeForVariableLikeDeclaration(declaration, false, 0);
+      t = b!.ctx!.enclosingSymbolTypes?.get($ast.GetSymbolId(symbol_)) ?? undefined;
+      if (t === undefined) {
+        if (!((symbol_!.Flags & 98304) === (0 as number)) && declaration!.Kind_ === (179 as number)) {
+          t = b!.ch!.instantiateType(b!.ch!.getWriteTypeOfSymbol(symbol_), b!.ctx!.mapper);
+        } else if (!(symbol_ === undefined) && (symbol_!.Flags & 133120) === (0 as number)) {
+          t = b!.ch!.instantiateType(b!.ch!.getWidenedLiteralType(b!.ch!.getTypeOfSymbol(symbol_)), b!.ctx!.mapper);
         } else {
           t = b!.ch!.errorType;
-        }
-      } else {
-        t = b!.ctx!.enclosingSymbolTypes?.get($ast.GetSymbolId(symbol_)) ?? undefined;
-        if (t === undefined) {
-          if (!((symbol_!.Flags & 98304) === (0 as number)) && declaration!.Kind_ === (179 as number)) {
-            t = b!.ch!.instantiateType(b!.ch!.getWriteTypeOfSymbol(symbol_), b!.ctx!.mapper);
-          } else if (!(symbol_ === undefined) && (symbol_!.Flags & 133120) === (0 as number)) {
-            t = b!.ch!.instantiateType(b!.ch!.getWidenedLiteralType(b!.ch!.getTypeOfSymbol(symbol_)), b!.ctx!.mapper);
-          } else {
-            t = b!.ch!.errorType;
-          }
         }
       }
     }
@@ -67593,21 +67122,14 @@ export class NodeBuilderImpl extends $rt.GoObject {
           !$ast.NodeIsSynthesized(declaration) &&
           (t!.ObjectFlags$m() & 196608) === (0 as number)))
     ) {
-      let remove: (() => void) | undefined = undefined as (() => void) | undefined;
-      if (!(symbol_ === undefined)) {
-        remove = b!.addSymbolTypeToContext(symbol_, t);
-      }
+      const remove: (() => void) | undefined = b!.addSymbolTypeToContext(symbol_, t);
       let pt: $pseudochecker.PseudoType | undefined = undefined as $pseudochecker.PseudoType | undefined;
       if ($ast.IsAccessor(declaration)) {
         pt = b!.pc!.GetTypeOfAccessor(declaration);
       } else {
         pt = b!.pc!.GetTypeOfDeclaration(declaration);
       }
-      if (
-        (pt === undefined || pt!.Kind === (2 as number)) &&
-        $ast.IsBinaryExpression(declaration) &&
-        !(symbol_ === undefined)
-      ) {
+      if ((pt === undefined || pt!.Kind === (2 as number)) && $ast.IsBinaryExpression(declaration)) {
         {
           const decl: $ast.Node | undefined = $core.Find<$ast.Node | undefined>(
             $zf3,
@@ -67664,9 +67186,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
           }
         }
       }
-      if (!(remove === undefined)) {
-        remove!();
-      }
+      remove!();
     }
     if (result === undefined) {
       if (reportedInferenceFallback) {
@@ -67806,10 +67326,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
       !((name_!.AsStringLiteral()!.LiteralLikeNodeBase_.TokenFlags_ & 65536) === (0 as number))
     );
   }
-  getPropertyNameNodeForSymbol(
-    symbol_: $ast.Symbol_ | undefined,
-    enclosingDeclaration: $ast.Node | undefined,
-  ): $ast.Node | undefined {
+  getPropertyNameNodeForSymbol(symbol_: $ast.Symbol_ | undefined): $ast.Node | undefined {
     const b = this;
     if (!(symbol_!.ValueDeclaration === undefined)) {
       const declName: $ast.Node | undefined = symbol_!.ValueDeclaration!.Name$Node();
@@ -67840,7 +67357,6 @@ export class NodeBuilderImpl extends $rt.GoObject {
     const isMethod: boolean = !((symbol_!.Flags & 8192) === (0 as number));
     const fromNameType: $ast.Node | undefined = b!.getPropertyNameNodeForSymbolFromNameType(
       symbol_,
-      enclosingDeclaration,
       singleQuote,
       stringNamed,
       isMethod,
@@ -67859,7 +67375,6 @@ export class NodeBuilderImpl extends $rt.GoObject {
   }
   getPropertyNameNodeForSymbolFromNameType(
     symbol_: $ast.Symbol_ | undefined,
-    enclosingDeclaration: $ast.Node | undefined,
     singleQuote: boolean,
     stringNamed: boolean,
     isMethod: boolean,
@@ -67871,28 +67386,6 @@ export class NodeBuilderImpl extends $rt.GoObject {
     const nameType: Type | undefined = b!.ch!.valueSymbolLinks.TryGet(symbol_)!.nameType;
     if (nameType === undefined) {
       return undefined;
-    }
-    let enumEnclosingDeclaration: $ast.Node | undefined = enclosingDeclaration;
-    if (enumEnclosingDeclaration === undefined && !(b!.ctx!.enclosingFile === undefined)) {
-      enumEnclosingDeclaration = b!.ctx!.enclosingFile!.AsNode();
-    }
-    if (!((nameType!.flags & 32768) === (0 as number))) {
-      let enumSymbol: $ast.Symbol_ | undefined = nameType!.symbol!.Parent;
-      if (enumSymbol === undefined) {
-        enumSymbol = nameType!.symbol;
-      }
-      if (
-        !(enumEnclosingDeclaration === undefined) &&
-        b!.ch!.IsSymbolAccessibleByFlags(enumSymbol, enumEnclosingDeclaration, 111551)
-      ) {
-        const saveEnclosingDeclaration: $ast.Node | undefined = b!.ctx!.enclosingDeclaration;
-        b!.ctx!.enclosingDeclaration = enumEnclosingDeclaration;
-        const result: $ast.Node | undefined = b!.f!.NewComputedPropertyName(
-          b!.symbolToExpression(nameType!.symbol, 111551),
-        );
-        b!.ctx!.enclosingDeclaration = saveEnclosingDeclaration;
-        return result;
-      }
     }
     if (!((nameType!.flags & 3072) === (0 as number))) {
       let name_: string = '';
@@ -67971,10 +67464,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
     } else {
       b!.ctx!.enclosingDeclaration = saveEnclosingDeclaration;
     }
-    const propertyName: $ast.Node | undefined = b!.getPropertyNameNodeForSymbol(
-      propertySymbol,
-      saveEnclosingDeclaration,
-    );
+    const propertyName: $ast.Node | undefined = b!.getPropertyNameNodeForSymbol(propertySymbol);
     b!.ctx!.enclosingDeclaration = saveEnclosingDeclaration;
     b!.ctx!.approximateLength += $ast.SymbolName(propertySymbol).length + 1;
     if (!((propertySymbol!.Flags & 98304) === (0 as number))) {
@@ -68029,7 +67519,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
           !(propertySymbol!.Parent === undefined) &&
           !((propertySymbol!.Parent!.Flags & 32) === (0 as number)) &&
           !(propDeclaration === undefined) &&
-          !($core.Find<$ast.Node | undefined>($zf3, propDeclaration!.ModifierNodes(), $fn125) === undefined)
+          !($core.Find<$ast.Node | undefined>($zf3, propDeclaration!.ModifierNodes(), $fn126) === undefined)
         ) {
           const fakeGetterSignature: Signature | undefined = b!.ch!.newSignature(
             0,
@@ -68082,7 +67572,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
       !b!.ch!.isReadonlySymbol(propertySymbol)
     ) {
       const signatures: (Signature | undefined)[] = b!.ch!.getSignaturesOfType(
-        b!.ch!.filterType(propertyType, $fn126),
+        b!.ch!.filterType(propertyType, $fn127),
         0,
       );
       {
@@ -68289,7 +67779,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
         return signatureNode$1;
       }
     }
-    const abstractSignatures: (Signature | undefined)[] = $core.Filter<Signature | undefined>(ctorSigs, $fn127);
+    const abstractSignatures: (Signature | undefined)[] = $core.Filter<Signature | undefined>(ctorSigs, $fn128);
     if (abstractSignatures.length > 0) {
       let types: (Type | undefined)[] = $core.Map_<Signature | undefined, Type | undefined>(
         $zf0,
@@ -68304,7 +67794,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
         resolved!.indexInfos.length +
         $core.IfElse<number>(
           !((b!.ctx!.flags & 2048) === (0 as number)),
-          $core.CountWhere<$ast.Symbol_ | undefined>(resolved!.properties, $fn117),
+          $core.CountWhere<$ast.Symbol_ | undefined>(resolved!.properties, $fn118),
           resolved!.properties.length,
         );
       if (!(typeElementCount === (0 as number))) {
@@ -68453,7 +67943,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
         if ($collections$Set_.Has$nil<TypeId>(b!.ctx!.visitedTypes, typeId)) {
           return b!.createElidedInformationPlaceholder();
         }
-        return b!.visitAndTransformType(t, $fn128);
+        return b!.visitAndTransformType(t, $fn129);
       }
       let isInstanceType: $ast.SymbolFlags = 0;
       if (isClassInstanceSide(b!.ch, t)) {
@@ -68481,7 +67971,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
           return b!.createElidedInformationPlaceholder();
         }
       } else {
-        return b!.visitAndTransformType(t, $fn128);
+        return b!.visitAndTransformType(t, $fn129);
       }
     } else {
       return b!.createTypeNodeFromObjectType(t);
@@ -68489,9 +67979,6 @@ export class NodeBuilderImpl extends $rt.GoObject {
   }
   getTypeFromTypeNode(node: $ast.Node | undefined, noMappedTypes: boolean): Type | undefined {
     const b = this;
-    if (node!.Parent === undefined) {
-      return b!.ch!.errorType;
-    }
     const t: Type | undefined = b!.ch!.getTypeFromTypeNode(node);
     if (b!.ctx!.mapper === undefined) {
       return t;
@@ -68512,7 +67999,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
         }
         return b!.createElidedInformationPlaceholder();
       }
-      return b!.visitAndTransformType(t, $fn129);
+      return b!.visitAndTransformType(t, $fn130);
     }
     return b!.typeToTypeNode(t);
   }
@@ -68877,7 +68364,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
       const links$1: NodeBuilderLinks | undefined = b!.links.Get(b!.ctx!.enclosingDeclaration);
       if (links$1!.serializedTypes === undefined) {
         links$1!.serializedTypes = new $rt.StructMap<CompositeTypeCacheIdentity, SerializedTypeEntry | undefined>(
-          $fn130,
+          $fn131,
         );
       }
       links$1!.serializedTypes!.set(
@@ -69142,7 +68629,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
           break $body;
         }
         if (!(t!.AsTypeReference$Type()!.node === undefined)) {
-          $t1 = b!.visitAndTransformType(t, $fn131);
+          $t1 = b!.visitAndTransformType(t, $fn132);
           break $body;
         } else {
           $t1 = b!.typeReferenceToTypeNode(t);
@@ -69277,7 +68764,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
         break $body;
       }
       if (!((t!.flags & 67108864) === (0 as number))) {
-        $t1 = b!.visitAndTransformType(t, $fn132);
+        $t1 = b!.visitAndTransformType(t, $fn133);
         break $body;
       }
       if (!((t!.flags & 16777216) === (0 as number))) {
@@ -69367,11 +68854,8 @@ export class NodeBuilderImpl extends $rt.GoObject {
         return undefined;
       }
       let targetSymbol: $ast.Symbol_ | undefined = symbol_;
-      if (!((symbol_!.Flags & 2097152) === (0 as number)) && !b!.ch!.canGetTypeParametersOfClassOrInterface(symbol_)) {
+      if (!((symbol_!.Flags & 2097152) === (0 as number))) {
         targetSymbol = b!.ch!.resolveAlias(symbol_);
-      }
-      if (!b!.ch!.canGetTypeParametersOfClassOrInterface(targetSymbol)) {
-        return undefined;
       }
       let params: (Type | undefined)[] = b!.getTypeParametersOfClassOrInterface(targetSymbol);
       const targetMapper: TypeMapper | undefined = b!.ch!.valueSymbolLinks.Get(nextSymbol)!.mapper;
@@ -69560,7 +69044,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
           return undo;
         }
       };
-      if (expandedParams.length === 0 || !$core.Some<$ast.Symbol_ | undefined>(expandedParams, $fn133)) {
+      if (expandedParams.length === 0 || !$core.Some<$ast.Symbol_ | undefined>(expandedParams, $fn134)) {
         cleanupParams = undefined;
       } else {
         cleanupParams = pushFakeScope!(
@@ -69649,7 +69133,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
       if (
         !((b!.ctx!.flags & 4) === (0 as number)) &&
         !(typeParameters.length === 0) &&
-        $core.Some<Type | undefined>(typeParameters, $fn134)
+        $core.Some<Type | undefined>(typeParameters, $fn135)
       ) {
         cleanupTypeParams = pushFakeScope!(
           'typeParams',
@@ -71808,11 +71292,16 @@ export class Relater extends $rt.GoObject {
       {
         const entry: RelationComparisonResult = r!.relation!.get(id);
         if (!(entry === (0 as number))) {
-          if (reportErrors && !((entry & 2) === (0 as number)) && (entry & 32) === (0 as number)) {
+          if (reportErrors && !((entry & 2) === (0 as number)) && (entry & 96) === (0 as number)) {
           } else {
             r!.c!.reliabilityFlags = (r!.c!.reliabilityFlags | (entry & 24)) >>> 0;
-            if (reportErrors && !((entry & 32) === (0 as number))) {
-              r!.reportError($diagnostics.Excessive_complexity_comparing_types_0_and_1, [
+            if (reportErrors && !((entry & 96) === (0 as number))) {
+              const message: $diagnostics.Message | undefined = $core.IfElse<$diagnostics.Message | undefined>(
+                !((entry & 32) === (0 as number)),
+                $diagnostics.Excessive_complexity_comparing_types_0_and_1,
+                $diagnostics.Excessive_stack_depth_comparing_types_0_and_1,
+              );
+              r!.reportError(message, [
                 new $rt.BoxStr(r!.c!.TypeToString(source), 'string'),
                 new $rt.BoxStr(r!.c!.TypeToString(target), 'string'),
               ]);
@@ -71844,7 +71333,8 @@ export class Relater extends $rt.GoObject {
         }
       }
       if (r!.sourceStack.length === (100 as number) || r!.targetStack.length === (100 as number)) {
-        $t1 = 3;
+        r!.overflow = true;
+        $t1 = 0;
         break $body;
       }
       const maybeStart: number = r!.maybeKeys.length;
@@ -72086,7 +71576,7 @@ export class Relater extends $rt.GoObject {
           return [result, true];
         }
       }
-      if ($core.Some<VarianceFlags>(variances, $fn143)) {
+      if ($core.Some<VarianceFlags>(variances, $fn142)) {
         originalErrorChain = undefined;
         r!.restoreErrorState(saveErrorState);
         return [0, false];
@@ -72094,7 +71584,7 @@ export class Relater extends $rt.GoObject {
       const allowStructuralFallback: boolean = r!.c!.hasCovariantVoidArgument(targetTypeArguments, variances);
       varianceCheckFailed = !allowStructuralFallback;
       if (!(variances.length === (0 as number)) && !allowStructuralFallback) {
-        if (varianceCheckFailed && !(reportErrors && $core.Some<VarianceFlags>(variances, $fn144))) {
+        if (varianceCheckFailed && !(reportErrors && $core.Some<VarianceFlags>(variances, $fn143))) {
           return [0, true];
         }
         originalErrorChain = r!.errorChain;
@@ -72327,7 +71817,7 @@ export class Relater extends $rt.GoObject {
           if (r!.relation === r!.c!.comparableRelation && !((source!.flags & 524288) === (0 as number))) {
             {
               const constraint: Type | undefined = r!.c!.getConstraintOfTypeParameter(source);
-              if (!(constraint === undefined) && someType(constraint, $fn145)) {
+              if (!(constraint === undefined) && someType(constraint, $fn144)) {
                 return r!.isRelatedTo(constraint, target, 1, false);
               }
             }
@@ -72940,7 +72430,7 @@ export class Relater extends $rt.GoObject {
             related = r!.c!.compareTypesIdentical(s, t);
           }
         } else {
-          if (!(r!.c!.varianceStack.length === (0 as number)) && !((varianceFlags & 16) === (0 as number))) {
+          if (r!.c!.inVarianceComputation && !((varianceFlags & 16) === (0 as number))) {
             r!.c!.instantiateType(s, r!.c!.reportUnreliableMapper);
           }
           if (variance === (1 as number)) {
@@ -73180,8 +72670,7 @@ export class Relater extends $rt.GoObject {
         } else {
           sourceRest = true;
         }
-        const targetHasRestElement: boolean = !((target!.TargetTupleType()!.combinedFlags & 4) === (0 as number));
-        const targetHasVariableElement: boolean = !((target!.TargetTupleType()!.combinedFlags & 12) === (0 as number));
+        const targetHasRestElement: boolean = !((target!.TargetTupleType()!.combinedFlags & 12) === (0 as number));
         let sourceMinLength: number = 0;
         if (isTupleType(source)) {
           sourceMinLength = source!.TargetTupleType()!.minLength;
@@ -73198,7 +72687,7 @@ export class Relater extends $rt.GoObject {
           }
           return 0;
         }
-        if (!targetHasVariableElement && targetArity < sourceMinLength) {
+        if (!targetHasRestElement && targetArity < sourceMinLength) {
           if (reportErrors) {
             r!.reportError($diagnostics.Source_has_0_element_s_but_target_allows_only_1, [
               new $rt.BoxNum(sourceMinLength, 'int'),
@@ -73207,7 +72696,7 @@ export class Relater extends $rt.GoObject {
           }
           return 0;
         }
-        if (!targetHasVariableElement && (sourceRest || targetArity < sourceArity)) {
+        if (!targetHasRestElement && (sourceRest || targetArity < sourceArity)) {
           if (reportErrors) {
             if (sourceMinLength < targetMinLength) {
               r!.reportError($diagnostics.Target_requires_0_element_s_but_source_may_have_fewer, [
@@ -73240,14 +72729,6 @@ export class Relater extends $rt.GoObject {
           if (targetHasRestElement && sourcePosition >= targetStartCount) {
             targetPosition = targetArity - 1 - Math.min(sourcePositionFromEnd, targetEndCount);
           } else {
-            if (sourcePosition >= targetArity) {
-              if (reportErrors) {
-                r!.reportError($diagnostics.Target_allows_only_0_element_s_but_source_may_have_more, [
-                  new $rt.BoxNum(targetArity, 'int'),
-                ]);
-              }
-              return 0;
-            }
             targetPosition = sourcePosition;
           }
           let targetFlags: ElementFlags = 0;
@@ -74381,6 +73862,7 @@ export class Relater extends $rt.GoObject {
           return;
         } else if (
           $t5 === $diagnostics.Excessive_complexity_comparing_types_0_and_1 ||
+          $t5 === $diagnostics.Excessive_stack_depth_comparing_types_0_and_1 ||
           $t5 === $diagnostics.The_type_0_is_readonly_and_cannot_be_assigned_to_the_mutable_type_1
         ) {
           if (
@@ -76027,32 +75509,6 @@ export class VarianceLinks extends $rt.GoObject {
     throw $rt.typeAssertError();
   }
 }
-export class VarianceStackEntry extends $rt.GoObject {
-  symbol: $ast.Symbol_ | undefined = undefined;
-  typeParameters: (Type | undefined)[] = [];
-  $copy_checker_VarianceStackEntry(src: VarianceStackEntry): void {
-    this.symbol = src.symbol;
-    this.typeParameters = src.typeParameters;
-  }
-  $clone_checker_VarianceStackEntry(): VarianceStackEntry {
-    const o = new VarianceStackEntry();
-    o.$copy_checker_VarianceStackEntry(this);
-    return o;
-  }
-  static $lit_checker_VarianceStackEntry_0_1(
-    p0: $ast.Symbol_ | undefined,
-    p1: (Type | undefined)[],
-  ): VarianceStackEntry {
-    const o = new VarianceStackEntry();
-    o.symbol = p0;
-    o.typeParameters = p1;
-    return o;
-  }
-  static $cast_checker_VarianceStackEntry(v: $rt.GoObject | undefined): VarianceStackEntry {
-    if (v instanceof VarianceStackEntry) return v;
-    throw $rt.typeAssertError();
-  }
-}
 export class VerbosityContext extends $rt.GoObject {
   Level: number = 0;
   MaxTruncationLength: number = 0;
@@ -76235,13 +75691,12 @@ export class errorState extends $rt.GoObject {
   }
 }
 export class keyBuilder extends $rt.GoObject {
-  inlineLength: number = 0;
-  overflowBuffer: number[] = [];
-  inlineBuffer: number[] = $rt.makeArray(192, () => 0);
+  h: $rt.github_com_zeebo_xxh3_Hasher = new $rt.github_com_zeebo_xxh3_Hasher();
   $copy_checker_keyBuilder(src: keyBuilder): void {
-    this.inlineLength = src.inlineLength;
-    this.overflowBuffer = src.overflowBuffer;
-    this.inlineBuffer = src.inlineBuffer.slice();
+    this.h = src.h;
+  }
+  $equals_checker_keyBuilder(o: keyBuilder): boolean {
+    return this.h === o.h;
   }
   $clone_checker_keyBuilder(): keyBuilder {
     const o = new keyBuilder();
@@ -76254,64 +75709,27 @@ export class keyBuilder extends $rt.GoObject {
   }
   hash(): CacheHashKey {
     const b = this;
-    if (b!.overflowBuffer.length === 0) {
-      return $rt.github_com_zeebo_xxh3_Hash128($rt.reslice(b!.inlineBuffer, 0, b!.inlineLength, 0));
-    }
-    return $rt.github_com_zeebo_xxh3_Hash128(
-      $rt.appendCopy(b!.overflowBuffer, $rt.reslice(b!.inlineBuffer, 0, b!.inlineLength, 0)),
-    );
-  }
-  spill(): void {
-    const b = this;
-    $rt.appendInto(b!.overflowBuffer, $rt.reslice(b!.inlineBuffer, 0, b!.inlineLength, 0));
-    b!.inlineLength = 0;
+    return b!.h.Sum128();
   }
   writeByte(c: number): void {
     const b = this;
-    if (b!.inlineLength === (192 as number)) {
-      b!.spill();
-    }
-    b!.inlineBuffer[b!.inlineLength] = c;
-    b!.inlineLength++;
+    const $t1 = b!.h.Write([c]);
   }
   writeString(s: string): void {
     const b = this;
-    if (b!.inlineLength + s.length > 192) {
-      b!.spill();
-      if (s.length > 192) {
-        $rt.appendInto(b!.overflowBuffer, $rt.stringToBytes(s));
-        return;
-      }
-    }
-    b!.inlineLength += $rt.copyAt(b!.inlineBuffer, b!.inlineLength, -1, $rt.stringToBytes(s));
-  }
-  writeUint32(v: number): void {
-    const b = this;
-    if (b!.inlineLength + 4 > 192) {
-      b!.spill();
-    }
-    $rt.putUint32LE(b!.inlineBuffer, b!.inlineLength, v);
-    b!.inlineLength += 4;
-  }
-  writeUint64(v: number): void {
-    const b = this;
-    if (b!.inlineLength + 8 > 192) {
-      b!.spill();
-    }
-    $rt.putUint64LE(b!.inlineBuffer, b!.inlineLength, v);
-    b!.inlineLength += 8;
+    const $t1 = b!.h.WriteString(s);
   }
   writeInt(value: number): void {
     const b = this;
-    b!.writeUint64(value);
+    hashWrite64<number>(b!.h, value);
   }
   writeSymbol(s: $ast.Symbol_ | undefined): void {
     const b = this;
-    b!.writeUint64($ast.GetSymbolId(s));
+    hashWrite64<$ast.SymbolId>(b!.h, $ast.GetSymbolId(s));
   }
   writeType(t: Type | undefined): void {
     const b = this;
-    b!.writeUint32(t!.id);
+    hashWrite32<TypeId>(b!.h, t!.id);
   }
   writeTypes(types: (Type | undefined)[]): void {
     const b = this;
@@ -76377,7 +75795,7 @@ export class keyBuilder extends $rt.GoObject {
   }
   writeNodeId(id: $ast.NodeId): void {
     const b = this;
-    b!.writeUint64(id);
+    hashWrite64<$ast.NodeId>(b!.h, id);
   }
   writeNode(node: $ast.Node | undefined): void {
     const b = this;
@@ -76555,6 +75973,160 @@ export class recoveryBoundary extends $rt.GoObject {
     b!.hadError = state.hadError;
     b!.ctx!.trackedSymbols = $rt.truncate(b!.ctx!.trackedSymbols, state.trackedSymbolsTop, undefined);
     b!.deferredReports = $rt.truncate(b!.deferredReports, state.unreportedErrorsTop, undefined);
+  }
+}
+export class semicolonRemoverWriter extends $rt.GoObject {
+  hasPendingSemicolon: boolean = false;
+  inner: $printer.EmitTextWriter = undefined;
+  $copy_checker_semicolonRemoverWriter(src: semicolonRemoverWriter): void {
+    this.hasPendingSemicolon = src.hasPendingSemicolon;
+    this.inner = src.inner;
+  }
+  $equals_checker_semicolonRemoverWriter(o: semicolonRemoverWriter): boolean {
+    return this.hasPendingSemicolon === o.hasPendingSemicolon && $rt.ifaceEq(this.inner, o.inner);
+  }
+  $clone_checker_semicolonRemoverWriter(): semicolonRemoverWriter {
+    const o = new semicolonRemoverWriter();
+    o.$copy_checker_semicolonRemoverWriter(this);
+    return o;
+  }
+  static $lit_checker_semicolonRemoverWriter_0_1(p0: boolean, p1: $printer.EmitTextWriter): semicolonRemoverWriter {
+    const o = new semicolonRemoverWriter();
+    o.hasPendingSemicolon = p0;
+    o.inner = p1;
+    return o;
+  }
+  static $cast_checker_semicolonRemoverWriter(v: $rt.GoObject | undefined): semicolonRemoverWriter {
+    if (v instanceof semicolonRemoverWriter) return v;
+    throw $rt.typeAssertError();
+  }
+  commitSemicolon(): void {
+    const s = this;
+    if (s!.hasPendingSemicolon) {
+      $rt.nn(s!.inner).WriteTrailingSemicolon(';');
+      s!.hasPendingSemicolon = false;
+    }
+  }
+  Clear(): void {
+    const s = this;
+    $rt.nn(s!.inner).Clear();
+  }
+  DecreaseIndent(): void {
+    const s = this;
+    s!.commitSemicolon();
+    $rt.nn(s!.inner).DecreaseIndent();
+  }
+  GetColumn(): $core.UTF16Offset {
+    const s = this;
+    return $rt.nn(s!.inner).GetColumn();
+  }
+  GetIndent(): number {
+    const s = this;
+    return $rt.nn(s!.inner).GetIndent();
+  }
+  GetLine(): number {
+    const s = this;
+    return $rt.nn(s!.inner).GetLine();
+  }
+  GetTextPos(): number {
+    const s = this;
+    return $rt.nn(s!.inner).GetTextPos();
+  }
+  HasTrailingComment(): boolean {
+    const s = this;
+    return $rt.nn(s!.inner).HasTrailingComment();
+  }
+  HasTrailingWhitespace(): boolean {
+    const s = this;
+    return $rt.nn(s!.inner).HasTrailingWhitespace();
+  }
+  IncreaseIndent(): void {
+    const s = this;
+    s!.commitSemicolon();
+    $rt.nn(s!.inner).IncreaseIndent();
+  }
+  IsAtStartOfLine(): boolean {
+    const s = this;
+    return $rt.nn(s!.inner).IsAtStartOfLine();
+  }
+  RawWrite(s1: string): void {
+    const s = this;
+    s!.commitSemicolon();
+    $rt.nn(s!.inner).RawWrite(s1);
+  }
+  String(): string {
+    const s = this;
+    s!.commitSemicolon();
+    return $rt.nn(s!.inner).String();
+  }
+  Write(s1: string): void {
+    const s = this;
+    s!.commitSemicolon();
+    $rt.nn(s!.inner).Write(s1);
+  }
+  WriteComment(text: string): void {
+    const s = this;
+    s!.commitSemicolon();
+    $rt.nn(s!.inner).WriteComment(text);
+  }
+  WriteKeyword(text: string): void {
+    const s = this;
+    s!.commitSemicolon();
+    $rt.nn(s!.inner).WriteKeyword(text);
+  }
+  WriteLine(): void {
+    const s = this;
+    s!.commitSemicolon();
+    $rt.nn(s!.inner).WriteLine();
+  }
+  WriteLineForce(force: boolean): void {
+    const s = this;
+    s!.commitSemicolon();
+    $rt.nn(s!.inner).WriteLineForce(force);
+  }
+  WriteLiteral(s1: string): void {
+    const s = this;
+    s!.commitSemicolon();
+    $rt.nn(s!.inner).WriteLiteral(s1);
+  }
+  WriteOperator(text: string): void {
+    const s = this;
+    s!.commitSemicolon();
+    $rt.nn(s!.inner).WriteOperator(text);
+  }
+  WriteParameter(text: string): void {
+    const s = this;
+    s!.commitSemicolon();
+    $rt.nn(s!.inner).WriteParameter(text);
+  }
+  WriteProperty(text: string): void {
+    const s = this;
+    s!.commitSemicolon();
+    $rt.nn(s!.inner).WriteProperty(text);
+  }
+  WritePunctuation(text: string): void {
+    const s = this;
+    s!.commitSemicolon();
+    $rt.nn(s!.inner).WritePunctuation(text);
+  }
+  WriteSpace(text: string): void {
+    const s = this;
+    s!.commitSemicolon();
+    $rt.nn(s!.inner).WriteSpace(text);
+  }
+  WriteStringLiteral(text: string): void {
+    const s = this;
+    s!.commitSemicolon();
+    $rt.nn(s!.inner).WriteStringLiteral(text);
+  }
+  WriteSymbol(text: string, symbol_: $ast.Symbol_ | undefined): void {
+    const s = this;
+    s!.commitSemicolon();
+    $rt.nn(s!.inner).WriteSymbol(text, symbol_);
+  }
+  WriteTrailingSemicolon(text: string): void {
+    const s = this;
+    s!.hasPendingSemicolon = true;
   }
 }
 export class sortedSymbolNamePair extends $rt.GoObject {
@@ -76871,7 +76443,7 @@ export class tracedTypeAdapter extends $rt.GoObject {
         break $body;
       }
       if (!((a!.t!.objectFlags & 16) === (0 as number)) || !((a!.t!.flags & 406862848) === (0 as number))) {
-        $defers.push($fn147);
+        $defers.push($fn146);
         $t1 = a!.checker!.TypeToString(a!.t);
         break $body;
       }
@@ -77149,14 +76721,12 @@ export const PropertiesTypesKey$zero: PropertiesTypesKey = new PropertiesTypesKe
 export const RecursionId$zero: RecursionId = new RecursionId();
 export const ReverseMappedTypeKey$zero: ReverseMappedTypeKey = new ReverseMappedTypeKey();
 export const SerializedTypeEntry$zero: SerializedTypeEntry = new SerializedTypeEntry();
-export const SharedFlow$zero: SharedFlow = new SharedFlow();
 export const SignatureToSignatureDeclarationOptions$zero: SignatureToSignatureDeclarationOptions =
   new SignatureToSignatureDeclarationOptions();
 export const StringMappingKey$zero: StringMappingKey = new StringMappingKey();
 export const SubstitutionTypeKey$zero: SubstitutionTypeKey = new SubstitutionTypeKey();
 export const TrackedSymbolArgs$zero: TrackedSymbolArgs = new TrackedSymbolArgs();
 export const UnionOfUnionKey$zero: UnionOfUnionKey = new UnionOfUnionKey();
-export const VarianceStackEntry$zero: VarianceStackEntry = new VarianceStackEntry();
 export const accessibleChainCacheKey$zero: accessibleChainCacheKey = new accessibleChainCacheKey();
 export const accessibleSymbolChainContext$zero: accessibleSymbolChainContext = new accessibleSymbolChainContext();
 export const errorState$zero: errorState = new errorState();
@@ -77338,9 +76908,6 @@ export const MappedTypeModifiersIncludeReadonly: MappedTypeModifiers = 1;
 export const MappedTypeNameTypeKindFiltering: MappedTypeNameTypeKind = 1;
 export const MappedTypeNameTypeKindNone: MappedTypeNameTypeKind = 0;
 export const MappedTypeNameTypeKindRemapping: MappedTypeNameTypeKind = 2;
-export const MemberOverrideStatusHasInvalidOverride: MemberOverrideStatus = 2;
-export const MemberOverrideStatusNeedsOverride: MemberOverrideStatus = 1;
-export const MemberOverrideStatusNone: MemberOverrideStatus = 0;
 export const MembersOrExportsResolutionKindResolvedExports: MembersOrExportsResolutionKind = 0;
 export const MembersOrExportsResolutionKindResolvedMembers: MembersOrExportsResolutionKind = 1;
 export const MinArgumentCountFlagsNone: MinArgumentCountFlags = 0;
@@ -77383,8 +76950,6 @@ export const ObjectFlagsIsGenericType: number = 25165824;
 export const ObjectFlagsIsGenericTypeComputed: number = 4194304;
 export const ObjectFlagsIsNeverIntersection: number = 67108864;
 export const ObjectFlagsIsNeverIntersectionComputed: number = 33554432;
-export const ObjectFlagsIsUniformEnum: number = 536870912;
-export const ObjectFlagsIsUniformEnumComputed: number = 268435456;
 export const ObjectFlagsIsUnknownLikeUnion: number = 134217728;
 export const ObjectFlagsIsUnknownLikeUnionComputed: number = 67108864;
 export const ObjectFlagsJSLiteral: ObjectFlags = 4096;
@@ -77430,10 +76995,11 @@ export const ReferenceHintUnspecified: ReferenceHint = 0;
 export const RelationComparisonResultComplexityOverflow: RelationComparisonResult = 32;
 export const RelationComparisonResultFailed: RelationComparisonResult = 2;
 export const RelationComparisonResultNone: RelationComparisonResult = 0;
-export const RelationComparisonResultOverflow: RelationComparisonResult = 32;
+export const RelationComparisonResultOverflow: RelationComparisonResult = 96;
 export const RelationComparisonResultReportsMask: RelationComparisonResult = 24;
 export const RelationComparisonResultReportsUnmeasurable: RelationComparisonResult = 8;
 export const RelationComparisonResultReportsUnreliable: RelationComparisonResult = 16;
+export const RelationComparisonResultStackDepthOverflow: RelationComparisonResult = 64;
 export const RelationComparisonResultSucceeded: RelationComparisonResult = 1;
 export const SignatureCheckModeBivariantCallback: SignatureCheckMode = 1;
 export const SignatureCheckModeCallback: SignatureCheckMode = 3;
@@ -77702,12 +77268,12 @@ const $fn0 = (): Map<string, $ast.Symbol_ | undefined> | undefined => {
   const result: Map<string, $ast.Symbol_ | undefined> | undefined = new Map<string, $ast.Symbol_ | undefined>();
   {
     const $t1 = [
-      new $Anon3('string', 'String'),
-      new $Anon3('number', 'Number'),
-      new $Anon3('boolean', 'Boolean'),
-      new $Anon3('object', 'Object'),
-      new $Anon3('bigint', 'BigInt'),
-      new $Anon3('symbol', 'Symbol'),
+      new $Anon2('string', 'String'),
+      new $Anon2('number', 'Number'),
+      new $Anon2('boolean', 'Boolean'),
+      new $Anon2('object', 'Object'),
+      new $Anon2('bigint', 'BigInt'),
+      new $Anon2('symbol', 'Symbol'),
     ];
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
       const e = $t1[$t2].$clone();
@@ -77748,44 +77314,50 @@ const $fn100 = (
   a0: InferenceState | undefined,
   a1: Type | undefined,
   a2: Type | undefined,
-): void => $r!.inferFromGenericMappedTypes(a0, a1, a2);
+): void => $r!.inferToConditionalType(a0, a1, a2);
 const $fn101 = (
   $r: Checker | undefined,
   a0: InferenceState | undefined,
   a1: Type | undefined,
   a2: Type | undefined,
+): void => $r!.inferFromGenericMappedTypes(a0, a1, a2);
+const $fn102 = (
+  $r: Checker | undefined,
+  a0: InferenceState | undefined,
+  a1: Type | undefined,
+  a2: Type | undefined,
 ): void => $r!.inferFromObjectTypes(a0, a1, a2);
-const $fn102 = (k: InferenceKey): string => k.$key_checker_InferenceKey();
-const $fn103 = (s: string): boolean => {
+const $fn103 = (k: InferenceKey): string => k.$key_checker_InferenceKey();
+const $fn104 = (s: string): boolean => {
   return s === ('' as string);
 };
-const $fn104 = (t$1: Type | undefined): boolean => {
+const $fn105 = (t$1: Type | undefined): boolean => {
   return !(t$1 === undefined);
 };
-const $fn105 = (info: TupleElementInfo): TupleElementInfo => {
+const $fn106 = (info: TupleElementInfo): TupleElementInfo => {
   if (!((info.flags & 2) === (0 as number))) {
     return TupleElementInfo.$lit_checker_TupleElementInfo_0_1(1, info.labeledDeclaration);
   }
   return info.$clone_checker_TupleElementInfo();
 };
-const $fn106 = (t: Type | undefined): boolean => {
+const $fn107 = (t: Type | undefined): boolean => {
   return !isObjectOrArrayLiteralType(t);
 };
-const $fn107 = (u: Type | undefined): boolean => {
+const $fn108 = (u: Type | undefined): boolean => {
   return (u!.flags & 12) === (0 as number);
 };
-const $fn108 = ($r: Checker | undefined, a0: Type | undefined, a1: Type | undefined): boolean =>
-  $r!.isTypeStrictSubtypeOf(a0, a1);
 const $fn109 = ($r: Checker | undefined, a0: Type | undefined, a1: Type | undefined): boolean =>
-  $r!.isTypeSubtypeOf(a0, a1);
+  $r!.isTypeStrictSubtypeOf(a0, a1);
 const $fn11 = (k: DiscriminatedContextualTypeKey): string => k.$key_checker_DiscriminatedContextualTypeKey();
-const $fn110 = (x: $ast.Symbol_ | undefined): boolean => {
+const $fn110 = ($r: Checker | undefined, a0: Type | undefined, a1: Type | undefined): boolean =>
+  $r!.isTypeSubtypeOf(a0, a1);
+const $fn111 = (x: $ast.Symbol_ | undefined): boolean => {
   return $ast.SymbolName(x) === ('htmlFor' as string);
 };
-const $fn111 = (x$1: $ast.Symbol_ | undefined): boolean => {
+const $fn112 = (x$1: $ast.Symbol_ | undefined): boolean => {
   return $ast.SymbolName(x$1) === ('className' as string);
 };
-const $fn112 = (openingLikeElement$1: $ast.Node | undefined): boolean => {
+const $fn113 = (openingLikeElement$1: $ast.Node | undefined): boolean => {
   const parent: $ast.Node | undefined = openingLikeElement$1!.Parent;
   if (parent === undefined) {
     return false;
@@ -77806,94 +77378,92 @@ const $fn112 = (openingLikeElement$1: $ast.Node | undefined): boolean => {
   }
   return !($ast.GetSemanticJsxChildren(children).length === (0 as number));
 };
-const $fn113 = (i: InferenceInfo | undefined): Type | undefined => {
+const $fn114 = (i: InferenceInfo | undefined): Type | undefined => {
   return i!.typeParameter;
 };
-const $fn114 = (k: CompositeSymbolIdentity): string => k.$key_checker_CompositeSymbolIdentity();
-const $fn115 = (p: $ast.Symbol_ | undefined): boolean => {
+const $fn115 = (k: CompositeSymbolIdentity): string => k.$key_checker_CompositeSymbolIdentity();
+const $fn116 = (p: $ast.Symbol_ | undefined): boolean => {
   return !((p!.Flags & 8) === (0 as number));
 };
-const $fn116 = (s: $ast.Symbol_ | undefined): boolean => {
+const $fn117 = (s: $ast.Symbol_ | undefined): boolean => {
   return !isHashPrivate(s);
 };
-const $fn117 = (p: $ast.Symbol_ | undefined): boolean => {
+const $fn118 = (p: $ast.Symbol_ | undefined): boolean => {
   return (p!.Flags & 4194304) === (0 as number);
 };
-const $fn118 = (sig: Signature | undefined): boolean => {
+const $fn119 = (sig: Signature | undefined): boolean => {
   return sig!.parameters.length === (0 as number);
 };
-const $fn119 = (sig$2: Signature | undefined): boolean => {
+const $fn12 = (k: InstantiationExpressionKey): string => k.$key_checker_InstantiationExpressionKey();
+const $fn120 = (sig$2: Signature | undefined): boolean => {
   return sig$2!.parameters.length === (0 as number);
 };
-const $fn12 = (k: InstantiationExpressionKey): string => k.$key_checker_InstantiationExpressionKey();
-const $fn120 = (d: $ast.Node | undefined): boolean => {
+const $fn121 = (d: $ast.Node | undefined): boolean => {
   return $ast.HasSyntacticModifier(d, 32);
 };
-const $fn121 = (a: mapToTypeNodes$seenName, b$1: mapToTypeNodes$seenName): boolean => {
+const $fn122 = (a: mapToTypeNodes$seenName, b$1: mapToTypeNodes$seenName): boolean => {
   return typesAreSameReference(a.t, b$1.t);
 };
-const $fn122 = (signature: Signature | undefined): boolean => {
+const $fn123 = (signature: Signature | undefined): boolean => {
   return (signature!.flags & 8) === (0 as number);
 };
-const $fn123 = (node$1: $ast.Node | undefined): boolean => {
+const $fn124 = (node$1: $ast.Node | undefined): boolean => {
   return $ast.IsRequireCall(node$1, true);
 };
-const $fn124 = (k: $module.ModeAwareCacheKey): string => k.$key_module_ModeAwareCacheKey();
-const $fn125 = (m: $ast.Node | undefined): boolean => {
+const $fn125 = (k: $module.ModeAwareCacheKey): string => k.$key_module_ModeAwareCacheKey();
+const $fn126 = (m: $ast.Node | undefined): boolean => {
   return m!.Kind_ === (128 as number);
 };
-const $fn126 = (t: Type | undefined): boolean => {
+const $fn127 = (t: Type | undefined): boolean => {
   return (t!.flags & 4) === (0 as number);
 };
-const $fn127 = (signature$2: Signature | undefined): boolean => {
+const $fn128 = (signature$2: Signature | undefined): boolean => {
   return !((signature$2!.flags & 8) === (0 as number));
 };
-const $fn128 = ($r: NodeBuilderImpl | undefined, a0: Type | undefined): $ast.Node | undefined =>
+const $fn129 = ($r: NodeBuilderImpl | undefined, a0: Type | undefined): $ast.Node | undefined =>
   $r!.createTypeNodeFromObjectType(a0);
-const $fn129 = ($r: NodeBuilderImpl | undefined, a0: Type | undefined): $ast.Node | undefined => $r!.typeToTypeNode(a0);
 const $fn13 = (k: SubstitutionTypeKey): string => k.$key_checker_SubstitutionTypeKey();
-const $fn130 = (k: CompositeTypeCacheIdentity): string => k.$key_checker_CompositeTypeCacheIdentity();
-const $fn131 = ($r: NodeBuilderImpl | undefined, a0: Type | undefined): $ast.Node | undefined =>
-  $r!.typeReferenceToTypeNode(a0);
+const $fn130 = ($r: NodeBuilderImpl | undefined, a0: Type | undefined): $ast.Node | undefined => $r!.typeToTypeNode(a0);
+const $fn131 = (k: CompositeTypeCacheIdentity): string => k.$key_checker_CompositeTypeCacheIdentity();
 const $fn132 = ($r: NodeBuilderImpl | undefined, a0: Type | undefined): $ast.Node | undefined =>
+  $r!.typeReferenceToTypeNode(a0);
+const $fn133 = ($r: NodeBuilderImpl | undefined, a0: Type | undefined): $ast.Node | undefined =>
   $r!.conditionalTypeToTypeNode(a0);
-const $fn133 = (p: $ast.Symbol_ | undefined): boolean => {
+const $fn134 = (p: $ast.Symbol_ | undefined): boolean => {
   return !(p === undefined);
 };
-const $fn134 = (p$2: Type | undefined): boolean => {
+const $fn135 = (p$2: Type | undefined): boolean => {
   return !(p$2 === undefined);
 };
-const $fn135 = $printer.PrinterOptions.$lit_printer_PrinterOptions_0(true);
-const $fn136 = $printer.PrinterOptions.$lit_printer_PrinterOptions_0_2(true, true);
-const $fn137 = $printer.PrinterOptions.$lit_printer_PrinterOptions_0_2_10(true, true, true);
-const $fn138 = $printer.PrinterOptions.$lit_printer_PrinterOptions_0_10(true, true);
-const $fn139 = (p: $ast.Symbol_ | undefined): boolean => {
+const $fn136 = $printer.PrinterOptions.$lit_printer_PrinterOptions_0(true);
+const $fn137 = $printer.PrinterOptions.$lit_printer_PrinterOptions_0_9(true, true);
+const $fn138 = (p: $ast.Symbol_ | undefined): boolean => {
   return !((p!.Flags & 16777216) === (0 as number));
 };
-const $fn14 = (k: ReverseMappedTypeKey): string => k.$key_checker_ReverseMappedTypeKey();
-const $fn140 = (t$1: Type | undefined): boolean => {
+const $fn139 = (t$1: Type | undefined): boolean => {
   return !(t$1!.symbol === undefined);
 };
-const $fn141 = (info: TupleElementInfo): boolean => {
+const $fn14 = (k: ReverseMappedTypeKey): string => k.$key_checker_ReverseMappedTypeKey();
+const $fn140 = (info: TupleElementInfo): boolean => {
   return (info.flags & 1) === (0 as number);
 };
-const $fn142 = (t$1: Type | undefined): boolean => {
+const $fn141 = (t$1: Type | undefined): boolean => {
   return !((t$1!.flags & 16) === (0 as number));
 };
-const $fn143 = (v: VarianceFlags): boolean => {
+const $fn142 = (v: VarianceFlags): boolean => {
   return !((v & 24) === (0 as number));
 };
-const $fn144 = (v$1: VarianceFlags): boolean => {
+const $fn143 = (v$1: VarianceFlags): boolean => {
   return (v$1 & 7) === (0 as number);
 };
-const $fn145 = (c: Type | undefined): boolean => {
+const $fn144 = (c: Type | undefined): boolean => {
   return !((c!.flags & 524288) === (0 as number));
 };
-const $fn146 = (k: accessibleChainCacheKey): string => k.$key_checker_accessibleChainCacheKey();
-const $fn147 = (): void => {
+const $fn145 = (k: accessibleChainCacheKey): string => k.$key_checker_accessibleChainCacheKey();
+const $fn146 = (): void => {
   $rt.recover();
 };
-const $fn148 = (n: $ast.Node | undefined): $ast.FindAncestorResult => {
+const $fn147 = (n: $ast.Node | undefined): $ast.FindAncestorResult => {
   {
     switch (n!.Kind_) {
       case 187 as number: {
@@ -77907,7 +77477,7 @@ const $fn148 = (n: $ast.Node | undefined): $ast.FindAncestorResult => {
   }
   return 2;
 };
-const $fn149 = (n: $ast.Node | undefined): $ast.FindAncestorResult => {
+const $fn148 = (n: $ast.Node | undefined): $ast.FindAncestorResult => {
   if ($ast.IsClassLike(n)) {
     return 2;
   }
@@ -77916,11 +77486,11 @@ const $fn149 = (n: $ast.Node | undefined): $ast.FindAncestorResult => {
   }
   return 0;
 };
-const $fn15 = (k: IterationTypesKey): string => k.$key_checker_IterationTypesKey();
-const $fn150 = (n: $ast.Node | undefined): boolean => {
+const $fn149 = (n: $ast.Node | undefined): boolean => {
   return $ast.IsInterfaceDeclaration(n) || $ast.IsTypeOrJSTypeAliasDeclaration(n) || $ast.IsTypeLiteralNode(n);
 };
-const $fn151 = (n: $ast.Node | undefined): boolean => {
+const $fn15 = (k: IterationTypesKey): string => k.$key_checker_IterationTypesKey();
+const $fn150 = (n: $ast.Node | undefined): boolean => {
   return !(($binder.GetContainerFlags(n) & 1) === (0 as number));
 };
 const $fn16 = (k: UnionOfUnionKey): string => k.$key_checker_UnionOfUnionKey();
@@ -78639,6 +78209,9 @@ const $fn84 = (t$1: Type | undefined): boolean => {
   return (t$1!.TargetTupleType()!.combinedFlags & 12) === (0 as number);
 };
 const $fn85 = (n: $ast.Node | undefined): boolean => {
+  return $ast.IsMetaProperty(n);
+};
+const $fn86 = (n: $ast.Node | undefined): boolean => {
   const parent: $ast.Node | undefined = n!.Parent;
   if (!(parent === undefined)) {
     if ($ast.IsAnyExportAssignment(parent)) {
@@ -78650,31 +78223,31 @@ const $fn85 = (n: $ast.Node | undefined): boolean => {
   }
   return false;
 };
-const $fn86 = (t: Type | undefined): boolean => {
+const $fn87 = (t: Type | undefined): boolean => {
   return !((t!.flags & 134479872) === (0 as number));
 };
-const $fn87 = (t$3: string): boolean => {
+const $fn88 = (t$3: string): boolean => {
   return t$3 === ('' as string);
 };
-const $fn88 = (t$4: Type | undefined): boolean => {
+const $fn89 = (t$4: Type | undefined): boolean => {
   return !((t$4!.flags & 32) === (0 as number));
 };
-const $fn89 = $printer.SymbolAccessibilityResult.$lit_printer_SymbolAccessibilityResult_0(1);
 const $fn9 = (k: NarrowedTypeKey): string => k.$key_checker_NarrowedTypeKey();
-const $fn90 = $printer.SymbolAccessibilityResult.$lit_printer_SymbolAccessibilityResult_0(0);
-const $fn91 = (t$1: Type | undefined): boolean => {
+const $fn90 = $printer.SymbolAccessibilityResult.$lit_printer_SymbolAccessibilityResult_0(1);
+const $fn91 = $printer.SymbolAccessibilityResult.$lit_printer_SymbolAccessibilityResult_0(0);
+const $fn92 = (t$1: Type | undefined): boolean => {
   return (t$1!.flags & 262148) === (0 as number);
 };
-const $fn92 = (t$2: Type | undefined): boolean => {
+const $fn93 = (t$2: Type | undefined): boolean => {
   return !(
     !((t$2!.flags & 262144) === (0 as number)) ||
     (!((t$2!.flags & 1024) === (0 as number)) && getStringLiteralValue(t$2) === ('undefined' as string))
   );
 };
-const $fn93 = (clause: $ast.Node | undefined): boolean => {
+const $fn94 = (clause: $ast.Node | undefined): boolean => {
   return clause!.Kind_ === (298 as number);
 };
-const $fn94 = (n: $ast.Node | undefined): boolean => {
+const $fn95 = (n: $ast.Node | undefined): boolean => {
   const parameter: $ast.ParameterDeclaration | undefined = n!.AsParameterDeclaration();
   return (
     !(parameter!.Initializer_ === undefined) ||
@@ -78682,21 +78255,15 @@ const $fn94 = (n: $ast.Node | undefined): boolean => {
     isRestParameter(parameter!.AsNode())
   );
 };
-const $fn95 = (t$1: Type | undefined): boolean => {
+const $fn96 = (t$1: Type | undefined): boolean => {
   return !((t$1!.flags & 19456) === (0 as number));
 };
-const $fn96 = ($r: Checker | undefined, a0: Type | undefined, a1: Type | undefined): boolean =>
-  $r!.isTypeOrBaseIdenticalTo(a0, a1);
 const $fn97 = ($r: Checker | undefined, a0: Type | undefined, a1: Type | undefined): boolean =>
-  $r!.isTypeCloselyMatchedBy(a0, a1);
+  $r!.isTypeOrBaseIdenticalTo(a0, a1);
 const $fn98 = ($r: Checker | undefined, a0: Type | undefined, a1: Type | undefined): boolean =>
+  $r!.isTypeCloselyMatchedBy(a0, a1);
+const $fn99 = ($r: Checker | undefined, a0: Type | undefined, a1: Type | undefined): boolean =>
   $r!.isTypeIdenticalTo(a0, a1);
-const $fn99 = (
-  $r: Checker | undefined,
-  a0: InferenceState | undefined,
-  a1: Type | undefined,
-  a2: Type | undefined,
-): void => $r!.inferToConditionalType(a0, a1, a2);
 export let SignatureKeyErased: CacheHashKey = $rt.github_com_zeebo_xxh3_HashString128('-');
 export let SignatureKeyCanonical: CacheHashKey = $rt.github_com_zeebo_xxh3_HashString128('*');
 export let SignatureKeyBase: CacheHashKey = $rt.github_com_zeebo_xxh3_HashString128('#');
@@ -78722,7 +78289,7 @@ export let typeofNEFacts: Map<string, TypeFacts> | undefined = new Map<string, T
   ['function', 16384],
 ]);
 export let nonDottedNameCacheKey: CacheHashKey = $rt.github_com_zeebo_xxh3_HashString128('?');
-export let JsxNames: $Anon4 = new $Anon4(
+export let JsxNames: $Anon3 = new $Anon3(
   'JSX',
   'IntrinsicElements',
   'ElementClass',
@@ -78734,7 +78301,7 @@ export let JsxNames: $Anon4 = new $Anon4(
   'IntrinsicClassAttributes',
   'LibraryManagedAttributes',
 );
-export let ReactNames: $Anon5 = new $Anon5('Fragment');
+export let ReactNames: $Anon4 = new $Anon4('Fragment');
 export let knownGenericTypeNames: Map<string, $rt.Empty> | undefined = new Map<string, $rt.Empty>([
   ['Array', $rt.EMPTY],
   ['ArrayLike', $rt.EMPTY],
@@ -78758,36 +78325,36 @@ export let knownGenericTypeNames: Map<string, $rt.Empty> | undefined = new Map<s
   ['NonNullable', $rt.EMPTY],
 ]);
 export let _SignatureKind_index: number[] = [0, 17, 39];
-export let typeFlagNames: $Anon6[] = [
-  new $Anon6(1, 'Any'),
-  new $Anon6(2, 'Unknown'),
-  new $Anon6(4, 'Undefined'),
-  new $Anon6(8, 'Null'),
-  new $Anon6(16, 'Void'),
-  new $Anon6(32, 'String'),
-  new $Anon6(64, 'Number'),
-  new $Anon6(128, 'BigInt'),
-  new $Anon6(256, 'Boolean'),
-  new $Anon6(512, 'ESSymbol'),
-  new $Anon6(1024, 'StringLiteral'),
-  new $Anon6(2048, 'NumberLiteral'),
-  new $Anon6(4096, 'BigIntLiteral'),
-  new $Anon6(8192, 'BooleanLiteral'),
-  new $Anon6(16384, 'UniqueESSymbol'),
-  new $Anon6(32768, 'EnumLiteral'),
-  new $Anon6(65536, 'Enum'),
-  new $Anon6(131072, 'NonPrimitive'),
-  new $Anon6(262144, 'Never'),
-  new $Anon6(524288, 'TypeParameter'),
-  new $Anon6(1048576, 'Object'),
-  new $Anon6(2097152, 'Index'),
-  new $Anon6(4194304, 'TemplateLiteral'),
-  new $Anon6(8388608, 'StringMapping'),
-  new $Anon6(16777216, 'Substitution'),
-  new $Anon6(33554432, 'IndexedAccess'),
-  new $Anon6(67108864, 'Conditional'),
-  new $Anon6(134217728, 'Union'),
-  new $Anon6(268435456, 'Intersection'),
+export let typeFlagNames: $Anon5[] = [
+  new $Anon5(1, 'Any'),
+  new $Anon5(2, 'Unknown'),
+  new $Anon5(4, 'Undefined'),
+  new $Anon5(8, 'Null'),
+  new $Anon5(16, 'Void'),
+  new $Anon5(32, 'String'),
+  new $Anon5(64, 'Number'),
+  new $Anon5(128, 'BigInt'),
+  new $Anon5(256, 'Boolean'),
+  new $Anon5(512, 'ESSymbol'),
+  new $Anon5(1024, 'StringLiteral'),
+  new $Anon5(2048, 'NumberLiteral'),
+  new $Anon5(4096, 'BigIntLiteral'),
+  new $Anon5(8192, 'BooleanLiteral'),
+  new $Anon5(16384, 'UniqueESSymbol'),
+  new $Anon5(32768, 'EnumLiteral'),
+  new $Anon5(65536, 'Enum'),
+  new $Anon5(131072, 'NonPrimitive'),
+  new $Anon5(262144, 'Never'),
+  new $Anon5(524288, 'TypeParameter'),
+  new $Anon5(1048576, 'Object'),
+  new $Anon5(2097152, 'Index'),
+  new $Anon5(4194304, 'TemplateLiteral'),
+  new $Anon5(8388608, 'StringMapping'),
+  new $Anon5(16777216, 'Substitution'),
+  new $Anon5(33554432, 'IndexedAccess'),
+  new $Anon5(67108864, 'Conditional'),
+  new $Anon5(134217728, 'Union'),
+  new $Anon5(268435456, 'Intersection'),
 ];
 export let LanguageFeatureMinimumTarget: LanguageFeatureMinimumTargetMap = $fn1;
 export let getFeatureMap: (() => Map<string, FeatureMapEntry[]> | undefined) | undefined = $rt.sync_OnceValue($fn2);
@@ -79350,13 +78917,6 @@ export function hasTypeJsonImportAttribute(node: $ast.Node | undefined): boolean
     $core.Some<$ast.Node | undefined>(attributes!.AsImportAttributes()!.Attributes_!.Nodes, $fn37)
   );
 }
-export function isContainedByNamespace(node: $ast.Node | undefined): boolean {
-  let container: $ast.Node | undefined = node!.Parent;
-  if (!$ast.IsSourceFile(container)) {
-    container = container!.Parent;
-  }
-  return $ast.IsModuleDeclaration(container) && !$ast.IsAmbientModule(container);
-}
 export function getVerbatimModuleSyntaxErrorMessage(node: $ast.Node | undefined): $diagnostics.Message | undefined {
   const sourceFile: $ast.SourceFile | undefined = $ast.GetSourceFileOfNode(node);
   const fileName: string = sourceFile!.FileName();
@@ -79594,6 +79154,23 @@ export function isNotReplacableByMethod(decl: $ast.Node | undefined): boolean {
 export function signatureHasRestParameter(sig: Signature | undefined): boolean {
   return !((sig!.flags & 1) === (0 as number));
 }
+export function hashWrite32<T extends number>(h: $rt.github_com_zeebo_xxh3_Hasher | undefined, value: T): void {
+  const v: number = value >>> 0;
+  const $t1 = h!.Write([v & 0xff, (v >>> 8) & 0xff, (v >>> 16) & 0xff, (v >>> 24) & 0xff]);
+}
+export function hashWrite64<T extends number>(h: $rt.github_com_zeebo_xxh3_Hasher | undefined, value: T): void {
+  const v: number = value;
+  const $t1 = h!.Write([
+    v & 0xff,
+    $rt.shr64(v, 8) & 0xff,
+    $rt.shr64(v, 16) & 0xff,
+    $rt.shr64(v, 24) & 0xff,
+    $rt.shr64(v, 32) & 0xff,
+    $rt.shr64(v, 40) & 0xff,
+    $rt.shr64(v, 48) & 0xff,
+    $rt.shr64(v, 56) & 0xff,
+  ]);
+}
 export function CacheHashKey$IsZero(k: CacheHashKey): boolean {
   return k.$equals(new $rt.github_com_zeebo_xxh3_Uint128());
 }
@@ -79707,7 +79284,7 @@ export function getIndexedAccessKey(
   const b: keyBuilder = new keyBuilder();
   b.writeType(objectType);
   b.writeType(indexType);
-  b.writeUint32(accessFlags);
+  hashWrite32<AccessFlags>(b.h, accessFlags);
   b.writeAlias(alias);
   return b.hash();
 }
@@ -79768,7 +79345,7 @@ export function getRelationKey(
     b.writeType(source);
     b.writeType(target);
   }
-  b.writeUint32(intersectionState);
+  hashWrite32<IntersectionState>(b.h, intersectionState);
   return [b.hash(), constrained];
 }
 export function getNodeListKey(nodes: ($ast.Node | undefined)[]): CacheHashKey {
@@ -79828,7 +79405,7 @@ export function findIndexInfo(indexInfos: (IndexInfo | undefined)[], keyType: Ty
 export function getBaseTypeNodeOfClass(t: Type | undefined): $ast.Node | undefined {
   const decl: $ast.Node | undefined = $ast.GetClassLikeDeclarationOfSymbol(t!.symbol);
   if (!(decl === undefined)) {
-    return $ast.GetClassExtendsHeritageElement(decl);
+    return $ast.GetExtendsHeritageClauseElement(decl);
   }
   return undefined;
 }
@@ -80207,16 +79784,6 @@ export function countTypes(t: Type | undefined): number {
 export function compareTypeIds(t1: Type | undefined, t2: Type | undefined): number {
   return t1!.id - t2!.id;
 }
-export function isInvalidComputedPropertyName(node: $ast.Node | undefined): boolean {
-  return (
-    ($ast.IsTypeLiteralNode(node!.Parent!.Parent) ||
-      $ast.IsClassLike(node!.Parent!.Parent) ||
-      $ast.IsInterfaceDeclaration(node!.Parent!.Parent)) &&
-    $ast.IsBinaryExpression(node!.Expression()) &&
-    node!.Expression()!.AsBinaryExpression()!.OperatorToken!.Kind_ === (102 as number) &&
-    !$ast.IsAccessor(node!.Parent)
-  );
-}
 export function getIndexNodeForAccessExpression(accessNode: $ast.Node | undefined): $ast.Node | undefined {
   {
     switch (accessNode!.Kind_) {
@@ -80271,7 +79838,7 @@ export function getNameFromIndexInfo(info: IndexInfo | undefined): string {
   return 'x';
 }
 export function isExportOrExportExpression(location: $ast.Node | undefined): boolean {
-  return !($ast.FindAncestor(location, $fn85) === undefined);
+  return !($ast.FindAncestor(location, $fn86) === undefined);
 }
 export function shouldMarkIdentifierAliasReferenced(node: $ast.Node | undefined): boolean {
   const parent: $ast.Node | undefined = node!.Parent;
@@ -80568,44 +80135,6 @@ export function isInitializerBigIntLiteralExpression(expr: $ast.Node | undefined
   }
   return false;
 }
-export function compareTypesAndDepth(t1: Type | undefined, t2: Type | undefined): number {
-  const d1: number = getTypeDepth(t1, 3);
-  const d2: number = getTypeDepth(t2, 3);
-  if (!(d1 === d2)) {
-    return d2 - d1;
-  }
-  return CompareTypes(t1, t2);
-}
-export function getTypeDepth(t: Type | undefined, maxDepth: number): number {
-  if (!(maxDepth === (0 as number))) {
-    if (!(t!.alias === undefined) && !(t!.alias!.typeArguments.length === (0 as number))) {
-      return getTypeListDepth(t!.alias!.typeArguments, maxDepth - 1) + 1;
-    }
-    if (!((t!.objectFlags & 4) === (0 as number))) {
-      {
-        const typeArguments: (Type | undefined)[] = t!.checker!.getTypeArguments(t);
-        if (!(typeArguments.length === (0 as number))) {
-          return getTypeListDepth(typeArguments, maxDepth - 1) + 1;
-        }
-      }
-    }
-    if (!((t!.flags & 402653184) === (0 as number))) {
-      return getTypeListDepth(t!.Types$Type(), maxDepth);
-    }
-  }
-  return 0;
-}
-export function getTypeListDepth(types: (Type | undefined)[], maxDepth: number): number {
-  let depth: number = 0;
-  {
-    const $t1 = types;
-    for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      const t = $t1[$t2];
-      depth = Math.max(depth, getTypeDepth(t, maxDepth));
-    }
-  }
-  return depth;
-}
 export function getSingleTypeVariableFromIntersectionTypes(
   n: InferenceState | undefined,
   types: (Type | undefined)[],
@@ -80657,12 +80186,13 @@ export function getInferenceInfoForType(n: InferenceState | undefined, t: Type |
   return undefined;
 }
 export function newInferenceInfo(typeParameter: Type | undefined): InferenceInfo | undefined {
-  return InferenceInfo.$lit_checker_InferenceInfo_0_4_5_7(typeParameter, 2048, true, -1);
+  return InferenceInfo.$lit_checker_InferenceInfo_0_5_6_8(typeParameter, 2048, true, -1);
 }
 export function cloneInferenceInfo(info: InferenceInfo | undefined): InferenceInfo | undefined {
-  return InferenceInfo.$lit_checker_InferenceInfo_0_1_2_3_4_5_6_7(
+  return InferenceInfo.$lit_checker_InferenceInfo_0_1_2_3_4_5_6_7_8(
     info!.typeParameter,
     $rt.slices_Clone(info!.candidates),
+    $rt.slices_Clone(info!.candidateDepths),
     $rt.slices_Clone(info!.contraCandidates),
     info!.inferredType,
     info!.priority,
@@ -81110,7 +80640,7 @@ export function tryGetModuleSpecifierFromDeclarationWorker(node: $ast.Node | und
     switch (node!.Kind_) {
       case 261 as number:
       case 209 as number: {
-        const requireCall: $ast.Node | undefined = $ast.FindAncestor(node!.Initializer(), $fn123);
+        const requireCall: $ast.Node | undefined = $ast.FindAncestor(node!.Initializer(), $fn124);
         if (requireCall === undefined) {
           return undefined;
         }
@@ -81176,13 +80706,7 @@ export function getEffectiveParameterDeclaration(symbol_: $ast.Symbol_ | undefin
   return undefined;
 }
 export function hasTypeAnnotation(declaration: $ast.Node | undefined): boolean {
-  if (declaration === undefined || declaration!.Type$m() === undefined) {
-    return false;
-  }
-  if ($ast.IsTypeAliasDeclaration(declaration) || $ast.IsJSTypeAliasDeclaration(declaration)) {
-    return false;
-  }
-  return true;
+  return !(declaration === undefined) && !(declaration!.Type$m() === undefined);
 }
 export function classifyPropertyName(name_: string, stringNamed: boolean, isMethod: boolean): propertyNameNodeKind {
   if (isMethod && name_ === ('new' as string)) {
@@ -81926,11 +81450,6 @@ export function createPrinterWithDefaults(emitContext: $printer.EmitContext | un
 export function createPrinterWithRemoveComments(
   emitContext: $printer.EmitContext | undefined,
 ): $printer.Printer | undefined {
-  return $printer.NewPrinter($fn135, new $printer.PrintHandlers(), emitContext);
-}
-export function createPrinterWithRemoveCommentsOmitTrailingSemicolon(
-  emitContext: $printer.EmitContext | undefined,
-): $printer.Printer | undefined {
   return $printer.NewPrinter($fn136, new $printer.PrintHandlers(), emitContext);
 }
 export function createPrinterWithRemoveCommentsOmitTrailingSemicolonNeverAsciiEscape(
@@ -81941,7 +81460,10 @@ export function createPrinterWithRemoveCommentsOmitTrailingSemicolonNeverAsciiEs
 export function createPrinterWithRemoveCommentsNeverAsciiEscape(
   emitContext: $printer.EmitContext | undefined,
 ): $printer.Printer | undefined {
-  return $printer.NewPrinter($fn138, new $printer.PrintHandlers(), emitContext);
+  return $printer.NewPrinter($fn137, new $printer.PrintHandlers(), emitContext);
+}
+export function getTrailingSemicolonDeferringWriter(writer: $printer.EmitTextWriter): $printer.EmitTextWriter {
+  return semicolonRemoverWriter.$lit_checker_semicolonRemoverWriter_0_1(false, writer);
 }
 export function toNodeBuilderFlags(flags: TypeFormatFlags): $nodebuilder.Flags {
   return flags & 1922071919;
@@ -81996,43 +81518,7 @@ export function isExcessPropertyCheckTarget(t: Type | undefined): boolean {
       $core.Every<Type | undefined>(t!.Types$Type(), isExcessPropertyCheckTarget))
   );
 }
-export function hasMatchingRecursionIdentity(t: Type | undefined, identity: RecursionId): boolean {
-  const target: Type | undefined = getRecursionIdentityTarget(t);
-  if (!((target!.flags & 268435456) === (0 as number))) {
-    {
-      const $t1 = target!.Types$Type();
-      for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        const t$1 = $t1[$t2];
-        if (hasMatchingRecursionIdentity(t$1, identity)) {
-          return true;
-        }
-      }
-    }
-    return false;
-  }
-  return getRecursionIdentityFromTarget(target).$equals_checker_RecursionId(identity);
-}
 export function getRecursionIdentity(t: Type | undefined): RecursionId {
-  return getRecursionIdentityFromTarget(getRecursionIdentityTarget(t));
-}
-export function getRecursionIdentityTarget(t: Type | undefined): Type | undefined {
-  if (!((t!.flags & 33554432) === (0 as number))) {
-    return getRecursionIdentityTarget(t!.AsIndexedAccessType()!.objectType);
-  }
-  if ((t!.objectFlags & 96) === (96 as number)) {
-    const target: Type | undefined = t!.checker!.getModifiersTypeFromMappedType(t);
-    if (
-      !(target === undefined) &&
-      (!(target!.symbol === undefined) ||
-        (!((target!.flags & 268435456) === (0 as number)) &&
-          $core.Some<Type | undefined>(target!.Types$Type(), $fn140)))
-    ) {
-      return getRecursionIdentityTarget(target);
-    }
-  }
-  return t;
-}
-export function getRecursionIdentityFromTarget(t: Type | undefined): RecursionId {
   if (!((t!.flags & 1048576) === (0 as number)) && !isObjectOrArrayLiteralType(t)) {
     if (!((t!.objectFlags & 4) === (0 as number)) && !(t!.AsTypeReference$Type()!.node === undefined)) {
       return asRecursionId<$ast.Node | undefined>(t!.AsTypeReference$Type()!.node);
@@ -82050,6 +81536,13 @@ export function getRecursionIdentityFromTarget(t: Type | undefined): RecursionId
   }
   if (!((t!.flags & 524288) === (0 as number)) && !(t!.symbol === undefined)) {
     return asRecursionId<$ast.Symbol_ | undefined>(t!.symbol);
+  }
+  if (!((t!.flags & 33554432) === (0 as number))) {
+    t = t!.AsIndexedAccessType()!.objectType;
+    for (; !((t!.flags & 33554432) === (0 as number));) {
+      t = t!.AsIndexedAccessType()!.objectType;
+    }
+    return asRecursionId<Type | undefined>(t);
   }
   if (!((t!.flags & 67108864) === (0 as number))) {
     return asRecursionId<$ast.Node | undefined>(t!.AsConditionalType()!.root!.node!.AsNode());
@@ -82618,30 +82111,6 @@ export function isConstTypeReference(node: $ast.Node | undefined): boolean {
     node!.AsTypeReferenceNode()!.TypeName!.Text$Node() === ('const' as string)
   );
 }
-export function isConstTypeReferenceName(node: $ast.Node | undefined): boolean {
-  return (
-    !(node === undefined) &&
-    $ast.IsIdentifier(node) &&
-    !(node!.Parent === undefined) &&
-    isConstTypeReference(node!.Parent) &&
-    !(node!.Parent!.Parent === undefined) &&
-    $ast.IsAssertionExpression(node!.Parent!.Parent)
-  );
-}
-export function isExportAssignmentExpressionName(node: $ast.Node | undefined): boolean {
-  if (node === undefined) {
-    return false;
-  }
-  let current: $ast.Node | undefined = node;
-  for (; !(current!.Parent === undefined) && $ast.IsPropertyAccessOrQualifiedName(current!.Parent);) {
-    current = current!.Parent;
-  }
-  return (
-    !(current!.Parent === undefined) &&
-    $ast.IsExportAssignment(current!.Parent) &&
-    current!.Parent!.Expression() === current
-  );
-}
 export function GetSingleVariableOfVariableStatement(node: $ast.Node | undefined): $ast.Node | undefined {
   if (!$ast.IsVariableStatement(node)) {
     return undefined;
@@ -82658,7 +82127,7 @@ export function isTypeReferenceIdentifier(node: $ast.Node | undefined): boolean 
   return $ast.IsTypeReferenceNode(node!.Parent);
 }
 export function IsInTypeQuery(node: $ast.Node | undefined): boolean {
-  return !($ast.FindAncestorOrQuit(node, $fn148) === undefined);
+  return !($ast.FindAncestorOrQuit(node, $fn147) === undefined);
 }
 export function canHaveLocals(node: $ast.Node | undefined): boolean {
   {
@@ -83495,7 +82964,7 @@ export function isObjectOrArrayLiteralType(t: Type | undefined): boolean {
   return !((t!.objectFlags & 16512) === (0 as number));
 }
 export function getContainingClassExcludingClassDecorators(node: $ast.Node | undefined): $ast.Node | undefined {
-  const decorator: $ast.Node | undefined = $ast.FindAncestorOrQuit(node!.Parent, $fn149);
+  const decorator: $ast.Node | undefined = $ast.FindAncestorOrQuit(node!.Parent, $fn148);
   if (!(decorator === undefined) && $ast.IsClassLike(decorator!.Parent)) {
     return $ast.GetContainingClass(decorator!.Parent);
   }
@@ -83543,7 +83012,7 @@ export function isInfinityOrNaNString(name_: string): boolean {
   return name_ === ('Infinity' as string) || name_ === ('-Infinity' as string) || name_ === ('NaN' as string);
 }
 export function isInAmbientOrTypeNode(node: $ast.Node | undefined): boolean {
-  return !((node!.Flags & 8388608) === (0 as number)) || !($ast.FindAncestor(node, $fn150) === undefined);
+  return !((node!.Flags & 8388608) === (0 as number)) || !($ast.FindAncestor(node, $fn149) === undefined);
 }
 export function isLiteralExpressionOfObject(node: $ast.Node | undefined): boolean {
   {
@@ -83627,11 +83096,11 @@ export function isImportTypeQualifierPart(node: $ast.Node | undefined): $ast.Nod
   }
   return undefined;
 }
-export function isInNameOfExpressionWithTypeArgumentsOrHeritageTypeReference(node: $ast.Node | undefined): boolean {
-  for (; node!.Parent!.Kind_ === (212 as number) || node!.Parent!.Kind_ === (167 as number);) {
+export function isInNameOfExpressionWithTypeArguments(node: $ast.Node | undefined): boolean {
+  for (; node!.Parent!.Kind_ === (212 as number);) {
     node = node!.Parent;
   }
-  return node!.Parent!.Kind_ === (234 as number) || $ast.IsNameOfHeritageClauseTypeReference(node);
+  return node!.Parent!.Kind_ === (234 as number);
 }
 export function getIndexSymbolFromSymbolTable(symbolTable: $ast.SymbolTable): $ast.Symbol_ | undefined {
   return symbolTable?.get('\xfeindex') ?? undefined;
@@ -83748,7 +83217,7 @@ export function forEachYieldExpression(
   return traverse!(body);
 }
 export function getEnclosingContainer(node: $ast.Node | undefined): $ast.Node | undefined {
-  return $ast.FindAncestor(node!.Parent, $fn151);
+  return $ast.FindAncestor(node!.Parent, $fn150);
 }
 export function getDeclarationsOfKind(symbol_: $ast.Symbol_ | undefined, kind: $ast.Kind): ($ast.Node | undefined)[] {
   return $core.Filter<$ast.Node | undefined>(symbol_!.Declarations, (d: $ast.Node | undefined): boolean => {

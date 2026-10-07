@@ -42,7 +42,6 @@ export class DeclarationTransformer extends $transformers.Transformer {
   lateStatementReplacementMap: Map<$ast.NodeId, $ast.Node | undefined> | undefined = undefined;
   expandoHosts: Map<$ast.NodeId, $ast.Node | undefined> | undefined = undefined;
   expandoMembers: Map<$ast.NodeId, ($ast.Node | undefined)[]> | undefined = undefined;
-  deferredExpandoAssignments: Map<$ast.NodeId, ($ast.BinaryExpression | undefined)[]> | undefined = undefined;
   seenProperties: $collections.Set_<thisPropertyAssignmentKey> = new $collections.Set_<thisPropertyAssignmentKey>();
   thisPropertyAssignmentsCollected: ($ast.Node | undefined)[] = [];
   rawReferencedFiles: ReferencedFilePair[] = [];
@@ -77,7 +76,6 @@ export class DeclarationTransformer extends $transformers.Transformer {
     this.lateStatementReplacementMap = src.lateStatementReplacementMap;
     this.expandoHosts = src.expandoHosts;
     this.expandoMembers = src.expandoMembers;
-    this.deferredExpandoAssignments = src.deferredExpandoAssignments;
     this.seenProperties = src.seenProperties.$clone_collections_Set();
     this.thisPropertyAssignmentsCollected = src.thisPropertyAssignmentsCollected;
     this.rawReferencedFiles = src.rawReferencedFiles;
@@ -287,7 +285,6 @@ export class DeclarationTransformer extends $transformers.Transformer {
     tx!.lateStatementReplacementMap = new Map<$ast.NodeId, $ast.Node | undefined>();
     tx!.expandoHosts = new Map<$ast.NodeId, $ast.Node | undefined>();
     tx!.expandoMembers = new Map<$ast.NodeId, ($ast.Node | undefined)[]>();
-    tx!.deferredExpandoAssignments = new Map<$ast.NodeId, ($ast.BinaryExpression | undefined)[]>();
     tx!.rawReferencedFiles = [] as ReferencedFilePair[];
     tx!.rawTypeReferenceDirectives = [] as ($ast.FileReference | undefined)[];
     tx!.rawLibReferenceDirectives = [] as ($ast.FileReference | undefined)[];
@@ -565,13 +562,13 @@ export class DeclarationTransformer extends $transformers.Transformer {
   }
   setupDiagnosticContext(input: $ast.Node | undefined): [boolean, (() => void) | undefined] {
     const tx = this;
-    const canProduceDiagnostic: boolean = canProduceDiagnostics(input);
+    const canProdiceDiagnostic: boolean = canProduceDiagnostics(input);
     const oldWithinObjectLiteralType: boolean = tx!.suppressNewDiagnosticContexts;
     const shouldEnterSuppressNewDiagnosticsContextContext: boolean =
       (input!.Kind_ === (188 as number) || input!.Kind_ === (201 as number)) &&
       !(input!.Parent!.Kind_ === (266 as number) || input!.Parent!.Kind_ === (345 as number));
     const oldDiag: GetSymbolAccessibilityDiagnostic = tx!.state!.getSymbolAccessibilityDiagnostic;
-    if (canProduceDiagnostic && !tx!.suppressNewDiagnosticContexts) {
+    if (canProdiceDiagnostic && !tx!.suppressNewDiagnosticContexts) {
       tx!.state!.getSymbolAccessibilityDiagnostic = createGetSymbolAccessibilityDiagnosticForNode(input);
     }
     const oldName: $ast.Node | undefined = tx!.state!.errorNameNode;
@@ -579,7 +576,7 @@ export class DeclarationTransformer extends $transformers.Transformer {
       tx!.suppressNewDiagnosticContexts = true;
     }
     return [
-      canProduceDiagnostic,
+      canProdiceDiagnostic,
       (): void => {
         tx!.state!.getSymbolAccessibilityDiagnostic = oldDiag;
         tx!.state!.errorNameNode = oldName;
@@ -661,7 +658,7 @@ export class DeclarationTransformer extends $transformers.Transformer {
         tx!.enclosingDeclaration = input;
       }
       const $t2 = tx!.setupDiagnosticContext(input);
-      const canProduceDiagnostic: boolean = $t2[0];
+      const canProdiceDiagnostic: boolean = $t2[0];
       const cleanupDiagnosticContext: (() => void) | undefined = $t2[1];
       $defers.push(() => {
         cleanupDiagnosticContext!();
@@ -754,19 +751,6 @@ export class DeclarationTransformer extends $transformers.Transformer {
             result = tx!.Visitor()!.VisitEachChild(input);
             break;
           }
-          case 167 as number: {
-            if (input!.AsQualifiedName()!.Right!.Kind_ === (80 as number)) {
-              tx!.state!.addDiagnostic(
-                createDiagnosticForNode(
-                  input,
-                  $diagnostics.Declaration_emit_elides_private_members_but_0_refers_to_a_private_member_Write_an_explicit_type_here,
-                  [new $rt.BoxStr(input!.AsQualifiedName()!.Right!.Text$Node(), 'string')],
-                ),
-              );
-            }
-            result = tx!.Visitor()!.VisitEachChild(input);
-            break;
-          }
           case 190 as number: {
             result = tx!.Visitor()!.VisitEachChild(input);
             if (!(result === undefined)) {
@@ -814,7 +798,7 @@ export class DeclarationTransformer extends $transformers.Transformer {
           }
         }
       }
-      if (!(result === undefined) && canProduceDiagnostic && $ast.HasDynamicName(input)) {
+      if (!(result === undefined) && canProdiceDiagnostic && $ast.HasDynamicName(input)) {
         tx!.checkName(input);
       }
       tx!.enclosingDeclaration = previousEnclosingDeclaration;
@@ -868,13 +852,9 @@ export class DeclarationTransformer extends $transformers.Transformer {
     const retainedClauses: ($ast.Node | undefined)[] = $core.Filter<$ast.Node | undefined>(
       clause!.Types!.Nodes,
       (t: $ast.Node | undefined): boolean => {
-        const name_: $ast.Node | undefined = $ast.GetHeritageClauseElementName(t);
         return (
-          $ast.IsEntityName(name_) ||
-          $ast.IsEntityNameExpression(name_) ||
-          (clause!.Token === (95 as number) &&
-            $ast.IsExpressionWithTypeArguments(t) &&
-            t!.Expression()!.Kind_ === (105 as number))
+          $ast.IsEntityNameExpression(t!.AsExpressionWithTypeArguments()!.Expression_) ||
+          (clause!.Token === (95 as number) && t!.Expression()!.Kind_ === (105 as number))
         );
       },
     );
@@ -919,9 +899,9 @@ export class DeclarationTransformer extends $transformers.Transformer {
       .Factory()!
       .UpdateConstructorTypeNode(
         input,
-        tx!.ensureModifiers(input!.AsNode()),
+        tx!.ensureModifiers(input!.TypeNodeBase_.AsNode()),
         tx!.Visitor()!.VisitNodes(input!.FunctionLikeBase_.TypeParameters),
-        tx!.updateParamList(input!.AsNode(), input!.FunctionLikeBase_.Parameters),
+        tx!.updateParamList(input!.TypeNodeBase_.AsNode(), input!.FunctionLikeBase_.Parameters),
         tx!.Visitor()!.Visit!(input!.FunctionLikeBase_.Type),
       );
   }
@@ -932,7 +912,7 @@ export class DeclarationTransformer extends $transformers.Transformer {
       .UpdateFunctionTypeNode(
         input,
         tx!.Visitor()!.VisitNodes(input!.FunctionLikeBase_.TypeParameters),
-        tx!.updateParamList(input!.AsNode(), input!.FunctionLikeBase_.Parameters),
+        tx!.updateParamList(input!.TypeNodeBase_.AsNode(), input!.FunctionLikeBase_.Parameters),
         tx!.Visitor()!.Visit!(input!.FunctionLikeBase_.Type),
       );
   }
@@ -969,7 +949,7 @@ export class DeclarationTransformer extends $transformers.Transformer {
         .Factory()!
         .UpdateTypeParameterDeclaration(
           input,
-          input!.ModifiersBase_.Modifiers$ModifiersBase(),
+          input!.ModifiersBase_.Modifiers(),
           input!.Name(),
           undefined,
           input!.Expression_,
@@ -986,7 +966,7 @@ export class DeclarationTransformer extends $transformers.Transformer {
     ) {
       return tx!.transformCjsRequireVariableDeclaration(input);
     }
-    if ($ast.IsBindingPattern(input!.Name()) && hasAnyBindingInitializers(input!.Name()!.AsBindingPattern())) {
+    if ($ast.IsBindingPattern(input!.Name())) {
       return tx!.recreateBindingPattern(input!.Name()!.AsBindingPattern());
     }
     tx!.suppressNewDiagnosticContexts = true;
@@ -994,7 +974,7 @@ export class DeclarationTransformer extends $transformers.Transformer {
       .Factory()!
       .UpdateVariableDeclaration(
         input,
-        tx!.bindingNameVisitor!.VisitNode(input!.Name()),
+        input!.Name(),
         undefined,
         tx!.ensureType(input!.AsNode(), false),
         tx!.ensureNoInitializer(input!.AsNode()),
@@ -1158,13 +1138,14 @@ export class DeclarationTransformer extends $transformers.Transformer {
       .Factory()!
       .UpdateSetAccessorDeclaration(
         input,
-        tx!.ensureModifiers(input!.AsNode()),
+        tx!.ensureModifiers(input!.NodeBase_.AsNode()),
         input!.Name(),
         undefined,
         tx!.updateAccessorParamList(
-          input!.AsNode(),
+          input!.NodeBase_.AsNode(),
           !(
-            tx!.host!.GetEffectiveDeclarationFlags(tx!.EmitContext$m()!.ParseNode(input!.AsNode()), 2) === (0 as number)
+            tx!.host!.GetEffectiveDeclarationFlags(tx!.EmitContext$m()!.ParseNode(input!.NodeBase_.AsNode()), 2) ===
+            (0 as number)
           ),
         ),
         undefined,
@@ -1181,16 +1162,17 @@ export class DeclarationTransformer extends $transformers.Transformer {
       .Factory()!
       .UpdateGetAccessorDeclaration(
         input,
-        tx!.ensureModifiers(input!.AsNode()),
+        tx!.ensureModifiers(input!.NodeBase_.AsNode()),
         input!.Name(),
         undefined,
         tx!.updateAccessorParamList(
-          input!.AsNode(),
+          input!.NodeBase_.AsNode(),
           !(
-            tx!.host!.GetEffectiveDeclarationFlags(tx!.EmitContext$m()!.ParseNode(input!.AsNode()), 2) === (0 as number)
+            tx!.host!.GetEffectiveDeclarationFlags(tx!.EmitContext$m()!.ParseNode(input!.NodeBase_.AsNode()), 2) ===
+            (0 as number)
           ),
         ),
-        tx!.ensureType(input!.AsNode(), false),
+        tx!.ensureType(input!.NodeBase_.AsNode(), false),
         undefined,
         undefined,
       );
@@ -1207,19 +1189,16 @@ export class DeclarationTransformer extends $transformers.Transformer {
     if ($ast.IsSetAccessorDeclaration(input)) {
       let valueParam: $ast.Node | undefined = undefined as $ast.Node | undefined;
       if (!isPrivate) {
-        if (
-          newParams.length === (1 as number) &&
-          input!.AsSetAccessorDeclaration()!.FunctionLikeWithBodyBase_.Parameters!.Nodes.length >= 2
-        ) {
+        if (newParams.length === (1 as number) && input!.AsSetAccessorDeclaration()!.Parameters!.Nodes.length >= 2) {
           valueParam = tx!.ensureParameter(
-            input!.AsSetAccessorDeclaration()!.FunctionLikeWithBodyBase_.Parameters!.Nodes[1]!.AsParameterDeclaration(),
+            input!.AsSetAccessorDeclaration()!.Parameters!.Nodes[1]!.AsParameterDeclaration(),
           );
         } else if (
           newParams.length === (0 as number) &&
-          input!.AsSetAccessorDeclaration()!.FunctionLikeWithBodyBase_.Parameters!.Nodes.length >= 1
+          input!.AsSetAccessorDeclaration()!.Parameters!.Nodes.length >= 1
         ) {
           valueParam = tx!.ensureParameter(
-            input!.AsSetAccessorDeclaration()!.FunctionLikeWithBodyBase_.Parameters!.Nodes[0]!.AsParameterDeclaration(),
+            input!.AsSetAccessorDeclaration()!.Parameters!.Nodes[0]!.AsParameterDeclaration(),
           );
         }
       }
@@ -1452,12 +1431,10 @@ export class DeclarationTransformer extends $transformers.Transformer {
       if (tx!.needsDeclare) {
         mods$1.push(tx!.Factory()!.NewModifier(137));
       }
-      const fullSignatureType: $ast.Node | undefined = assignment!.Type$m();
       const funcDecl: $ast.Node | undefined = tx!.transformFunctionLikeToDeclaration(
         unwrapped,
         newId,
         tx!.Factory()!.NewModifierList(mods$1),
-        fullSignatureType,
       );
       tx!.preserveJsDoc(funcDecl, input);
       const exportAssignment$2: $ast.Node | undefined = tx!
@@ -1512,44 +1489,21 @@ export class DeclarationTransformer extends $transformers.Transformer {
     unwrapped: $ast.Node | undefined,
     funcName: $ast.Node | undefined,
     mods: $ast.ModifierList | undefined,
-    fullSignatureType: $ast.Node | undefined,
   ): $ast.Node | undefined {
     const tx = this;
     const d: $ast.FunctionLikeBase | undefined = unwrapped!.FunctionLikeData$Node();
-    let sig: $ast.Node | undefined = d!.FullSignature;
-    if (sig === undefined) {
-      sig = fullSignatureType;
-    }
-    if (sig === undefined) {
-      return tx!
-        .Factory()!
-        .NewFunctionDeclaration(
-          mods,
-          undefined,
-          funcName,
-          tx!.ensureTypeParams(unwrapped, d!.TypeParameters),
-          tx!.updateParamList(unwrapped, d!.Parameters),
-          tx!.ensureType(unwrapped, false),
-          tx!.Visitor()!.VisitNode(sig),
-          undefined,
-        );
-    } else {
-      return tx!
-        .Factory()!
-        .NewVariableStatement(
-          mods,
-          tx!
-            .Factory()!
-            .NewVariableDeclarationList(
-              tx!
-                .Factory()!
-                .NewNodeList([
-                  tx!.Factory()!.NewVariableDeclaration(funcName, undefined, tx!.Visitor()!.VisitNode(sig), undefined),
-                ]),
-              2,
-            ),
-        );
-    }
+    return tx!
+      .Factory()!
+      .NewFunctionDeclaration(
+        mods,
+        undefined,
+        funcName,
+        tx!.ensureTypeParams(unwrapped, d!.TypeParameters),
+        tx!.updateParamList(unwrapped, d!.Parameters),
+        tx!.ensureType(unwrapped, false),
+        tx!.Visitor()!.VisitNode(d!.FullSignature),
+        undefined,
+      );
   }
   transformBinaryExpressionToExportDeclaration(
     input: $ast.Node | undefined,
@@ -2100,23 +2054,22 @@ export class DeclarationTransformer extends $transformers.Transformer {
     }
     const original: $ast.Node | undefined = tx!.EmitContext$m()!.MostOriginal(input);
     const id: $ast.NodeId = $ast.GetNodeId(original);
-    const $t1: Map<$ast.NodeId, $ast.Node | undefined> | undefined = tx!.expandoHosts;
-    const $t2 = id;
-    const isExpandoHost: boolean = $t1 !== undefined && $t1.has($t2);
-    const $t3: Map<$ast.NodeId, ($ast.BinaryExpression | undefined)[]> | undefined = tx!.deferredExpandoAssignments;
-    const $t4 = id;
-    const hasDeferredExpandoAssignments: boolean = $t3 !== undefined && $t3.has($t4);
-    if (isExpandoHost || hasDeferredExpandoAssignments) {
-      return tx!.createFullExpandoBlock(id);
+    {
+      const $t1: Map<$ast.NodeId, $ast.Node | undefined> | undefined = tx!.expandoHosts;
+      const $t2 = id;
+      const ok: boolean = $t1 !== undefined && $t1.has($t2);
+      if (ok) {
+        return tx!.createFullExpandoBlock(id);
+      }
     }
     const previousEnclosingDeclaration: $ast.Node | undefined = tx!.enclosingDeclaration;
     if (isEnclosingDeclaration(input)) {
       tx!.enclosingDeclaration = input;
     }
-    const canProduceDiagnostic: boolean = canProduceDiagnostics(input);
+    const canProdiceDiagnostic: boolean = canProduceDiagnostics(input);
     const oldDiag: GetSymbolAccessibilityDiagnostic = tx!.state!.getSymbolAccessibilityDiagnostic;
     const oldName: $ast.Node | undefined = tx!.state!.errorNameNode;
-    if (canProduceDiagnostic) {
+    if (canProdiceDiagnostic) {
       tx!.state!.getSymbolAccessibilityDiagnostic = createGetSymbolAccessibilityDiagnosticForNode(input);
     }
     const saveNeedsDeclare: boolean = tx!.needsDeclare;
@@ -2972,7 +2925,7 @@ export class DeclarationTransformer extends $transformers.Transformer {
         .Factory()!
         .UpdateImportEqualsDeclaration(
           decl,
-          decl!.ModifiersBase_.Modifiers$ModifiersBase(),
+          decl!.ModifiersBase_.Modifiers(),
           decl!.IsTypeOnly_,
           decl!.Name(),
           tx!
@@ -2997,7 +2950,7 @@ export class DeclarationTransformer extends $transformers.Transformer {
         .Factory()!
         .UpdateImportDeclaration(
           decl,
-          decl!.ModifiersBase_.Modifiers$ModifiersBase(),
+          decl!.ModifiersBase_.Modifiers(),
           decl!.ImportClause_,
           tx!.rewriteModuleSpecifier(decl!.AsNode(), decl!.ModuleSpecifier_),
           tx!.tryGetResolutionModeOverride(decl!.Attributes_),
@@ -3023,7 +2976,7 @@ export class DeclarationTransformer extends $transformers.Transformer {
         .Factory()!
         .UpdateImportDeclaration(
           decl,
-          decl!.ModifiersBase_.Modifiers$ModifiersBase(),
+          decl!.ModifiersBase_.Modifiers(),
           tx!
             .Factory()!
             .UpdateImportClause(decl!.ImportClause_!.AsImportClause(), phaseModifier, visibleDefaultBinding, undefined),
@@ -3043,7 +2996,7 @@ export class DeclarationTransformer extends $transformers.Transformer {
         .Factory()!
         .UpdateImportDeclaration(
           decl,
-          decl!.ModifiersBase_.Modifiers$ModifiersBase(),
+          decl!.ModifiersBase_.Modifiers(),
           tx!
             .Factory()!
             .UpdateImportClause(
@@ -3076,7 +3029,7 @@ export class DeclarationTransformer extends $transformers.Transformer {
         .Factory()!
         .UpdateImportDeclaration(
           decl,
-          decl!.ModifiersBase_.Modifiers$ModifiersBase(),
+          decl!.ModifiersBase_.Modifiers(),
           tx!
             .Factory()!
             .UpdateImportClause(
@@ -3103,7 +3056,7 @@ export class DeclarationTransformer extends $transformers.Transformer {
         .Factory()!
         .UpdateImportDeclaration(
           decl,
-          decl!.ModifiersBase_.Modifiers$ModifiersBase(),
+          decl!.ModifiersBase_.Modifiers(),
           undefined,
           tx!.rewriteModuleSpecifier(decl!.AsNode(), decl!.ModuleSpecifier_),
           tx!.tryGetResolutionModeOverride(decl!.Attributes_),
@@ -3358,16 +3311,10 @@ export class DeclarationTransformer extends $transformers.Transformer {
       if (property === ('' as string) || !$scanner.IsIdentifierText(property, 0)) {
         break $body;
       }
-      const hostId: $ast.NodeId = tx!.getExpandoHostId(declaration);
       if (
         $ast.IsDeclaration(declaration) &&
         isDeclarationAndNotVisible(tx!.EmitContext$m(), tx!.resolver, declaration)
       ) {
-        const $t1 = tx!.deferredExpandoAssignments;
-        const $t2 = hostId;
-        const $t3: ($ast.BinaryExpression | undefined)[] = $t1!.get($t2) ?? [];
-        $t3.push(node);
-        $t1!.set($t2, $t3);
         break $body;
       }
       if (
@@ -3389,8 +3336,9 @@ export class DeclarationTransformer extends $transformers.Transformer {
       if (localName === undefined || $ast.IsNonContextualKeyword($scanner.StringToToken(localName!.Text$Node()))) {
         localName = tx!.Factory()!.NewGeneratedNameForNode(node!.AsNode());
       }
-      const $t4 = tx!.setupDiagnosticContext(node!.AsNode());
-      const cleanupDiagnosticContext: (() => void) | undefined = $t4[1];
+      const hostId: $ast.NodeId = tx!.getExpandoHostId(declaration);
+      const $t1 = tx!.setupDiagnosticContext(node!.AsNode());
+      const cleanupDiagnosticContext: (() => void) | undefined = $t1[1];
       $defers.push(() => {
         cleanupDiagnosticContext!();
       });
@@ -3399,11 +3347,11 @@ export class DeclarationTransformer extends $transformers.Transformer {
           node!.AsNode(),
           exportName,
         );
-        const $t5 = tx!.expandoMembers;
-        const $t6 = hostId;
-        const $t7: ($ast.Node | undefined)[] = $t5!.get($t6) ?? [];
-        $t7.push(result);
-        $t5!.set($t6, $t7);
+        const $t2 = tx!.expandoMembers;
+        const $t3 = hostId;
+        const $t4: ($ast.Node | undefined)[] = $t2!.get($t3) ?? [];
+        $t4.push(result);
+        $t2!.set($t3, $t4);
         break $body;
       }
       const preexistingExpandoHasExport: boolean = $core.Some<$ast.Node | undefined>(
@@ -3416,9 +3364,9 @@ export class DeclarationTransformer extends $transformers.Transformer {
           $ast.CreateModifiersFromModifierFlags(
             32,
             (
-              ($t8: $printer.NodeFactory | undefined) =>
+              ($t5: $printer.NodeFactory | undefined) =>
               (a0: $ast.Kind): $ast.Node | undefined =>
-                $t8!.NewModifier(a0)
+                $t5!.NewModifier(a0)
             )(tx!.Factory()),
           ),
         );
@@ -3471,9 +3419,9 @@ export class DeclarationTransformer extends $transformers.Transformer {
       }
       if (statements.length > 1 && !preexistingExpandoHasExport) {
         {
-          const $t9 = tx!.expandoMembers?.get(hostId) ?? [];
-          for (let $t10 = 0, $n = $t9.length; $t10 < $n; $t10++) {
-            const decl = $t9[$t10];
+          const $t6 = tx!.expandoMembers?.get(hostId) ?? [];
+          for (let $t7 = 0, $n = $t6.length; $t7 < $n; $t7++) {
+            const decl = $t6[$t7];
             const modifierFlags: $ast.ModifierFlags = (32 | $ast.GetCombinedModifierFlags(decl)) >>> 0;
             $ast.MutableNode$SetModifiers(
               decl!.AsMutable()!,
@@ -3481,9 +3429,9 @@ export class DeclarationTransformer extends $transformers.Transformer {
                 $ast.CreateModifiersFromModifierFlags(
                   modifierFlags,
                   (
-                    ($t11: $printer.NodeFactory | undefined) =>
+                    ($t8: $printer.NodeFactory | undefined) =>
                     (a0: $ast.Kind): $ast.Node | undefined =>
-                      $t11!.NewModifier(a0)
+                      $t8!.NewModifier(a0)
                   )(tx!.Factory()),
                 ),
               ),
@@ -3491,11 +3439,11 @@ export class DeclarationTransformer extends $transformers.Transformer {
           }
         }
       }
-      const $t12 = tx!.expandoMembers;
-      const $t13 = hostId;
-      const $t14: ($ast.Node | undefined)[] = $t12!.get($t13) ?? [];
-      $rt.appendInto($t14, statements);
-      $t12!.set($t13, $t14);
+      const $t9 = tx!.expandoMembers;
+      const $t10 = hostId;
+      const $t11: ($ast.Node | undefined)[] = $t9!.get($t10) ?? [];
+      $rt.appendInto($t11, statements);
+      $t9!.set($t10, $t11);
     } catch ($e) {
       $panic = $rt.toPanic($e);
     } finally {
@@ -3632,35 +3580,19 @@ export class DeclarationTransformer extends $transformers.Transformer {
   }
   createFullExpandoBlock(id: $ast.NodeId): $ast.Node | undefined {
     const tx = this;
-    {
-      const $t1: Map<$ast.NodeId, ($ast.BinaryExpression | undefined)[]> | undefined = tx!.deferredExpandoAssignments;
-      const $t2 = id;
-      const deferred: ($ast.BinaryExpression | undefined)[] = $t1?.get($t2) ?? [];
-      const ok: boolean = $t1 !== undefined && $t1.has($t2);
-      if (ok) {
-        tx!.deferredExpandoAssignments?.delete(id);
-        {
-          const $t3 = deferred;
-          for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
-            const assignment = $t3[$t4];
-            tx!.transformExpandoAssignment(assignment);
-          }
-        }
-      }
-    }
     const n: $ast.Node | undefined = tx!.expandoHosts?.get(id) ?? undefined;
     {
-      const $t5: Map<$ast.NodeId, ($ast.Node | undefined)[]> | undefined = tx!.expandoMembers;
-      const $t6 = id;
-      const addOns: ($ast.Node | undefined)[] = $t5?.get($t6) ?? [];
-      const ok$1: boolean = $t5 !== undefined && $t5.has($t6);
-      if (ok$1) {
+      const $t1: Map<$ast.NodeId, ($ast.Node | undefined)[]> | undefined = tx!.expandoMembers;
+      const $t2 = id;
+      const addOns: ($ast.Node | undefined)[] = $t1?.get($t2) ?? [];
+      const ok: boolean = $t1 !== undefined && $t1.has($t2);
+      if (ok) {
         let modifiers: $ast.ModifierList | undefined = undefined as $ast.ModifierList | undefined;
         let name_: $ast.Node | undefined = undefined as $ast.Node | undefined;
         let host: ($ast.Node | undefined)[] = [];
         if (!(n === undefined) && n!.Kind_ === (344 as number)) {
-          let $t7 = false;
-          let $t8: $ast.Node | undefined = undefined as $ast.Node | undefined;
+          let $t3 = false;
+          let $t4: $ast.Node | undefined = undefined as $ast.Node | undefined;
           n!.AsSyntaxList()!.IterChildren()!((c: $ast.Node | undefined): boolean => {
             if (!(c!.Name$Node() === undefined)) {
               name_ = c!.Name$Node()!.Clone$Node(tx!.Factory());
@@ -3733,78 +3665,6 @@ export class ReferencedFilePair extends $rt.GoObject {
   static $cast_transformers_declarations_ReferencedFilePair(v: $rt.GoObject | undefined): ReferencedFilePair {
     if (v instanceof ReferencedFilePair) return v;
     throw $rt.typeAssertError();
-  }
-}
-export class SupplementalReferencesTransformer extends $rt.GoObject {
-  host: DeclarationEmitHost = undefined;
-  supplementalFiles: ($ast.SourceFile | undefined)[] = [];
-  declarationFilePath: string = '';
-  forceDeclarationPaths: boolean = false;
-  $copy_transformers_declarations_SupplementalReferencesTransformer(src: SupplementalReferencesTransformer): void {
-    this.host = src.host;
-    this.supplementalFiles = src.supplementalFiles;
-    this.declarationFilePath = src.declarationFilePath;
-    this.forceDeclarationPaths = src.forceDeclarationPaths;
-  }
-  $clone_transformers_declarations_SupplementalReferencesTransformer(): SupplementalReferencesTransformer {
-    const o = new SupplementalReferencesTransformer();
-    o.$copy_transformers_declarations_SupplementalReferencesTransformer(this);
-    return o;
-  }
-  static $lit_transformers_declarations_SupplementalReferencesTransformer_0_1_2_3(
-    p0: DeclarationEmitHost,
-    p1: ($ast.SourceFile | undefined)[],
-    p2: string,
-    p3: boolean,
-  ): SupplementalReferencesTransformer {
-    const o = new SupplementalReferencesTransformer();
-    o.host = p0;
-    o.supplementalFiles = p1;
-    o.declarationFilePath = p2;
-    o.forceDeclarationPaths = p3;
-    return o;
-  }
-  static $cast_transformers_declarations_SupplementalReferencesTransformer(
-    v: $rt.GoObject | undefined,
-  ): SupplementalReferencesTransformer {
-    if (v instanceof SupplementalReferencesTransformer) return v;
-    throw $rt.typeAssertError();
-  }
-  TransformSourceFile(sourceFile: $ast.SourceFile | undefined): $ast.SourceFile | undefined {
-    const t = this;
-    {
-      const $t1 = t!.supplementalFiles;
-      for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        const supplemental = $t1[$t2];
-        if (!t!.host!.SourceFileMayBeEmitted(supplemental, t!.forceDeclarationPaths)) {
-          continue;
-        }
-        const declarationPath: string = t!
-          .host!.GetOutputPathsFor(supplemental, t!.forceDeclarationPaths)!
-          .DeclarationFilePath();
-        if (declarationPath === ('' as string)) {
-          continue;
-        }
-        sourceFile!.ReferencedFiles.push(
-          $ast.FileReference.$lit_ast_FileReference_0_1(
-            $core.NewTextRange(-1, -1),
-            $tspath.GetRelativePathFromFile(
-              t!.declarationFilePath,
-              declarationPath,
-              $tspath.ComparePathsOptions.$lit_tspath_ComparePathsOptions_1_0(
-                t!.host!.GetCurrentDirectory(),
-                t!.host!.UseCaseSensitiveFileNames(),
-              ),
-            ),
-          ),
-        );
-      }
-    }
-    return sourceFile;
-  }
-  GetDiagnostics(): ($ast.Diagnostic | undefined)[] {
-    const t = this;
-    return [];
   }
 }
 export class SymbolAccessibilityDiagnostic extends $rt.GoObject {
@@ -4782,9 +4642,7 @@ export function getParameterDeclarationTypeVisibilityDiagnosticMessage(
         break;
       }
       case 263 as number:
-      case 185 as number:
-      case 220 as number:
-      case 219 as number: {
+      case 185 as number: {
         return selectDiagnosticBasedOnModuleName(
           symbolAccessibilityResult,
           $diagnostics.Parameter_0_of_exported_function_has_or_is_using_name_1_from_external_module_2_but_cannot_be_named,
@@ -5040,8 +4898,8 @@ export function createAccessorTypeError(node: $ast.Node | undefined): $ast.Diagn
   if (!(setAccessor === undefined)) {
     diag!.AddRelatedInfo(
       createDiagnosticForNode(
-        setAccessor!.AsNode(),
-        getRelatedSuggestionByDeclarationKind(setAccessor!.Kind_),
+        setAccessor!.NodeBase_.AsNode(),
+        getRelatedSuggestionByDeclarationKind(setAccessor!.NodeBase_.Kind_),
         [] as ($rt.GoObject | undefined)[],
       ),
     );
@@ -5049,8 +4907,8 @@ export function createAccessorTypeError(node: $ast.Node | undefined): $ast.Diagn
   if (!(getAccessor === undefined)) {
     diag!.AddRelatedInfo(
       createDiagnosticForNode(
-        getAccessor!.AsNode(),
-        getRelatedSuggestionByDeclarationKind(getAccessor!.Kind_),
+        getAccessor!.NodeBase_.AsNode(),
+        getRelatedSuggestionByDeclarationKind(getAccessor!.NodeBase_.Kind_),
         [] as ($rt.GoObject | undefined)[],
       ),
     );
@@ -5094,7 +4952,7 @@ export function createReturnTypeError(node: $ast.Node | undefined): $ast.Diagnos
 export function createBindingElementError(node: $ast.Node | undefined): $ast.Diagnostic | undefined {
   return createDiagnosticForNode(
     node,
-    $diagnostics.Binding_elements_with_initializers_can_t_be_exported_directly_with_isolatedDeclarations,
+    $diagnostics.Binding_elements_can_t_be_exported_directly_with_isolatedDeclarations,
     [] as ($rt.GoObject | undefined)[],
   );
 }
@@ -5273,19 +5131,6 @@ export function createGetIsolatedDeclarationErrors(
       }
     }
   };
-}
-export function NewSupplementalReferencesTransformer(
-  host: DeclarationEmitHost,
-  sourceFile: $ast.SourceFile | undefined,
-  declarationFilePath: string,
-  forceDeclarationPaths: boolean,
-): SupplementalReferencesTransformer | undefined {
-  return SupplementalReferencesTransformer.$lit_transformers_declarations_SupplementalReferencesTransformer_0_1_2_3(
-    host,
-    sourceFile!.SupplementalSourceFiles(),
-    declarationFilePath,
-    forceDeclarationPaths,
-  );
 }
 export function createDiagnosticForNode(
   node: $ast.Node | undefined,
@@ -5466,29 +5311,6 @@ export function createEmptyExports(factory: $ast.NodeFactory | undefined): $ast.
     undefined,
   );
 }
-export function hasAnyBindingInitializers(bindingPattern: $ast.BindingPattern | undefined): boolean {
-  {
-    const $t1 = bindingPattern!.Elements_!.Nodes;
-    for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      const elem = $t1[$t2];
-      if (!$ast.IsBindingElement(elem)) {
-        continue;
-      }
-      const e: $ast.BindingElement | undefined = elem!.AsBindingElement();
-      if (!(e!.Initializer_ === undefined)) {
-        return true;
-      }
-      if (
-        !(e!.Name() === undefined) &&
-        $ast.IsBindingPattern(e!.Name()) &&
-        hasAnyBindingInitializers(e!.Name()!.AsBindingPattern())
-      ) {
-        return true;
-      }
-    }
-  }
-  return false;
-}
 export function isCommonJSAliasExport(node: $ast.Node | undefined): boolean {
   if ($ast.IsBinaryExpression(node) && $ast.IsIdentifier(node!.AsBinaryExpression()!.Right)) {
     {
@@ -5504,16 +5326,24 @@ export function isClassExtendingNull(node: $ast.Node | undefined): boolean {
   if (node === undefined) {
     return false;
   }
-  const extendsClause: $ast.Node | undefined = $ast.GetHeritageClause(node, 95);
-  if (extendsClause === undefined) {
+  const heritage: $ast.NodeList | undefined = node!.ClassLikeData$Node()!.HeritageClauses;
+  if (heritage === undefined) {
     return false;
   }
-  const types: $ast.NodeList | undefined = extendsClause!.AsHeritageClause()!.Types;
-  if (types === undefined || !(types!.Nodes.length === (1 as number))) {
+  if (heritage!.Nodes.length > 1 || heritage!.Nodes.length === (0 as number)) {
     return false;
   }
-  const expr: $ast.Node | undefined = types!.Nodes[0]!.AsExpressionWithTypeArguments()!.Expression_;
-  return !(expr === undefined) && expr!.Kind_ === (105 as number);
+  {
+    const $t1 = heritage!.Nodes[0]!.AsHeritageClause()!.Types!.Nodes;
+    for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
+      const expA = $t1[$t2];
+      const expr: $ast.Node | undefined = expA!.AsExpressionWithTypeArguments()!.Expression_;
+      if (!(expr === undefined) && expr!.Kind_ === (105 as number)) {
+        return true;
+      }
+    }
+  }
+  return false;
 }
 export function isNotDeclareModifier(mod: $ast.Node | undefined): boolean {
   return !(mod!.Kind_ === (137 as number));

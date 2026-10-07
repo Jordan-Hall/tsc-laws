@@ -7,9 +7,7 @@ import * as $json from './json.js';
 import * as $jsonrpc from './jsonrpc.js';
 import * as $tspath from './tspath.js';
 import type * as $checkhost from './checkhost.js';
-import type * as $contentmapper from './contentmapper.js';
-import type * as $ipc from './ipc.js';
-export class $Anon7 extends $rt.GoObject {
+export class $Anon6 extends $rt.GoObject {
   JSONRPC: $jsonrpc.JSONRPCVersion;
   Method: Method;
   ID: $jsonrpc.ID | undefined;
@@ -32,11 +30,11 @@ export class $Anon7 extends $rt.GoObject {
     this.Result = p4;
     this.Error_ = p5;
   }
-  $clone(): $Anon7 {
-    return new $Anon7(this.JSONRPC, this.Method, this.ID, this.Params, this.Result, this.Error_);
+  $clone(): $Anon6 {
+    return new $Anon6(this.JSONRPC, this.Method, this.ID, this.Params, this.Result, this.Error_);
   }
 }
-export class $Anon8 extends $rt.GoObject {
+export class $Anon7 extends $rt.GoObject {
   JSONRPC: $jsonrpc.JSONRPCVersion;
   ID: $jsonrpc.ID | undefined;
   Method: Method;
@@ -53,8 +51,8 @@ export class $Anon8 extends $rt.GoObject {
     this.Method = p2;
     this.Params = p3;
   }
-  $clone(): $Anon8 {
-    return new $Anon8(this.JSONRPC, this.ID, this.Method, this.Params);
+  $clone(): $Anon7 {
+    return new $Anon7(this.JSONRPC, this.ID, this.Method, this.Params);
   }
 }
 const $zf0 = (): ImplementationParams | undefined => undefined;
@@ -105,53 +103,51 @@ const $zf138 = (): CustomInitializeAPISessionResponse => undefined;
 const $zf139 = (): ProjectInfoParams | undefined => undefined;
 const $zf14 = (): FoldingRangeRefreshResponse => Null$zero;
 const $zf140 = (): CustomProjectInfoResponse => undefined;
-const $zf141 = (): SetContentMapperContributionsParams | undefined => undefined;
-const $zf142 = (): CustomSetContentMapperContributionsResponse => Null$zero;
-const $zf143 = (): TextDocumentPositionParams | undefined => undefined;
-const $zf144 = (): CustomTextDocumentSourceDefinitionResponse => undefined;
-const $zf145 = (): MultiDocumentHighlightParams | undefined => undefined;
-const $zf146 = (): CustomMultiDocumentHighlightResponse => new MultiDocumentHighlightsOrNull();
-const $zf147 = (): VSOnAutoInsertParams | undefined => undefined;
-const $zf148 = (): VSOnAutoInsertResponse => new VSOnAutoInsertResponseItemOrNull();
-const $zf149 = (): VSReferencesResponse => new VSReferenceItemsOrNull();
+const $zf141 = (): TextDocumentPositionParams | undefined => undefined;
+const $zf142 = (): CustomTextDocumentSourceDefinitionResponse => undefined;
+const $zf143 = (): MultiDocumentHighlightParams | undefined => undefined;
+const $zf144 = (): CustomMultiDocumentHighlightResponse => new MultiDocumentHighlightsOrNull();
+const $zf145 = (): VSOnAutoInsertParams | undefined => undefined;
+const $zf146 = (): VSOnAutoInsertResponse => new VSOnAutoInsertResponseItemOrNull();
+const $zf147 = (): VSReferencesResponse => new VSReferenceItemsOrNull();
+const $zf148 = (): DidChangeWorkspaceFoldersParams | undefined => undefined;
+const $zf149 = (): WorkDoneProgressCancelParams | undefined => undefined;
 const $zf15 = (): DeclarationParams | undefined => undefined;
-const $zf150 = (): DidChangeWorkspaceFoldersParams | undefined => undefined;
-const $zf151 = (): WorkDoneProgressCancelParams | undefined => undefined;
-const $zf152 = (): InitializedParams | undefined => undefined;
-const $zf153 = (): DidChangeConfigurationParams | undefined => undefined;
-const $zf154 = (): ShowMessageParams | undefined => undefined;
-const $zf155 = (): LogMessageParams | undefined => undefined;
-const $zf156 = (): TelemetryEvent =>
+const $zf150 = (): InitializedParams | undefined => undefined;
+const $zf151 = (): DidChangeConfigurationParams | undefined => undefined;
+const $zf152 = (): ShowMessageParams | undefined => undefined;
+const $zf153 = (): LogMessageParams | undefined => undefined;
+const $zf154 = (): TelemetryEvent =>
   new RequestFailureTelemetryEventOrPerformanceStatsTelemetryEventOrProjectInfoTelemetryEventOrNull();
-const $zf157 = (): DidOpenTextDocumentParams | undefined => undefined;
-const $zf158 = (): DidChangeTextDocumentParams | undefined => undefined;
-const $zf159 = (): DidCloseTextDocumentParams | undefined => undefined;
+const $zf155 = (): DidOpenTextDocumentParams | undefined => undefined;
+const $zf156 = (): DidChangeTextDocumentParams | undefined => undefined;
+const $zf157 = (): DidCloseTextDocumentParams | undefined => undefined;
+const $zf158 = (): DidSaveTextDocumentParams | undefined => undefined;
+const $zf159 = (): DidChangeWatchedFilesParams | undefined => undefined;
 const $zf16 = (): DeclarationResponse => new LocationOrLocationsOrDeclarationLinksOrNull();
-const $zf160 = (): DidSaveTextDocumentParams | undefined => undefined;
-const $zf161 = (): DidChangeWatchedFilesParams | undefined => undefined;
-const $zf162 = (): PublishDiagnosticsParams | undefined => undefined;
-const $zf163 = (): SetTraceParams | undefined => undefined;
-const $zf164 = (): LogTraceParams | undefined => undefined;
-const $zf165 = (): CancelParams | undefined => undefined;
-const $zf166 = (): ProgressParams | undefined => undefined;
-const $zf167 = (): SetLogVerbosityParams | undefined => undefined;
-const $zf168 = (): boolean => false;
-const $zf169 = (): ResourceOperationKind[] => [];
+const $zf160 = (): PublishDiagnosticsParams | undefined => undefined;
+const $zf161 = (): SetTraceParams | undefined => undefined;
+const $zf162 = (): LogTraceParams | undefined => undefined;
+const $zf163 = (): CancelParams | undefined => undefined;
+const $zf164 = (): ProgressParams | undefined => undefined;
+const $zf165 = (): SetLogVerbosityParams | undefined => undefined;
+const $zf166 = (): boolean => false;
+const $zf167 = (): ResourceOperationKind[] => [];
+const $zf168 = (): FailureHandlingKind => '';
+const $zf169 = (): SymbolKind[] => [];
 const $zf17 = (): SelectionRangeParams | undefined => undefined;
-const $zf170 = (): FailureHandlingKind => '';
-const $zf171 = (): SymbolKind[] => [];
-const $zf172 = (): MarkupKind[] => [];
-const $zf173 = (): CompletionItemKind[] => [];
-const $zf174 = (): string[] => [];
-const $zf175 = (): InsertTextMode => 0;
-const $zf176 = (): PrepareSupportDefaultBehavior => 0;
-const $zf177 = (): FoldingRangeKind[] => [];
-const $zf178 = (): number => 0;
-const $zf179 = (): BooleanOrEmptyObject => new BooleanOrEmptyObject();
+const $zf170 = (): MarkupKind[] => [];
+const $zf171 = (): CompletionItemKind[] => [];
+const $zf172 = (): string[] => [];
+const $zf173 = (): InsertTextMode => 0;
+const $zf174 = (): PrepareSupportDefaultBehavior => 0;
+const $zf175 = (): FoldingRangeKind[] => [];
+const $zf176 = (): number => 0;
+const $zf177 = (): BooleanOrEmptyObject => new BooleanOrEmptyObject();
+const $zf178 = (): BooleanOrClientSemanticTokensRequestFullDelta => new BooleanOrClientSemanticTokensRequestFullDelta();
+const $zf179 = (): string => '';
 const $zf18 = (): SelectionRangeResponse => new SelectionRangesOrNull();
-const $zf180 = (): BooleanOrClientSemanticTokensRequestFullDelta => new BooleanOrClientSemanticTokensRequestFullDelta();
-const $zf181 = (): string => '';
-const $zf182 = (): PositionEncodingKind[] => [];
+const $zf180 = (): PositionEncodingKind[] => [];
 const $zf19 = (): WorkDoneProgressCreateParams | undefined => undefined;
 const $zf2 = (): TypeDefinitionParams | undefined => undefined;
 const $zf20 = (): WorkDoneProgressCreateResponse => Null$zero;
@@ -453,34 +449,9 @@ export type ConfigurationResponse = ($rt.GoObject | undefined)[];
 export type CustomInitializeAPISessionResponse = InitializeAPISessionResult | undefined;
 export type CustomMultiDocumentHighlightResponse = MultiDocumentHighlightsOrNull;
 export type CustomProjectInfoResponse = ProjectInfoResult | undefined;
-export type CustomSetContentMapperContributionsResponse = Null;
 export type CustomTextDocumentSourceDefinitionResponse = LocationOrLocationsOrDefinitionLinksOrNull | undefined;
 export type DeclarationResponse = LocationOrLocationsOrDeclarationLinksOrNull;
 export type DefinitionResponse = LocationOrLocationsOrDefinitionLinksOrNull;
-export type DiagnosticFlakeLogLevel = number;
-export class DiagnosticFlakeLogLevel$Box extends $rt.GoObject {
-  v: DiagnosticFlakeLogLevel;
-  constructor(v: DiagnosticFlakeLogLevel) {
-    super();
-    this.v = v;
-  }
-  static $cast(v: $rt.GoObject | undefined): DiagnosticFlakeLogLevel$Box {
-    if (v instanceof DiagnosticFlakeLogLevel$Box) return v;
-    throw $rt.typeAssertError();
-  }
-  override $unbox(): unknown {
-    return this.v;
-  }
-  override $eqv(o: $rt.GoObject): boolean {
-    return o instanceof DiagnosticFlakeLogLevel$Box && o.v === this.v;
-  }
-  override $ikey(): string {
-    return 'DiagnosticFlakeLogLevel:' + $rt.numKey(this.v);
-  }
-  String(): string {
-    return DiagnosticFlakeLogLevel$String(this.v);
-  }
-}
 export type DiagnosticRefreshResponse = Null;
 export type DiagnosticSeverity = number;
 export class DiagnosticSeverity$Box extends $rt.GoObject {
@@ -1056,30 +1027,6 @@ export type TypeHierarchySupertypesResponse = TypeHierarchyItemsOrNull;
 export type URI = string;
 export type UniquenessLevel = string;
 export type UnregistrationResponse = Null;
-export type VSContainerElementStyle = number;
-export class VSContainerElementStyle$Box extends $rt.GoObject {
-  v: VSContainerElementStyle;
-  constructor(v: VSContainerElementStyle) {
-    super();
-    this.v = v;
-  }
-  static $cast(v: $rt.GoObject | undefined): VSContainerElementStyle$Box {
-    if (v instanceof VSContainerElementStyle$Box) return v;
-    throw $rt.typeAssertError();
-  }
-  override $unbox(): unknown {
-    return this.v;
-  }
-  override $eqv(o: $rt.GoObject): boolean {
-    return o instanceof VSContainerElementStyle$Box && o.v === this.v;
-  }
-  override $ikey(): string {
-    return 'VSContainerElementStyle:' + $rt.numKey(this.v);
-  }
-  String(): string {
-    return VSContainerElementStyle$String(this.v);
-  }
-}
 export type VSOnAutoInsertResponse = VSOnAutoInsertResponseItemOrNull;
 export type VSReferenceKind = number;
 export class VSReferenceKind$Box extends $rt.GoObject {
@@ -3262,7 +3209,7 @@ export class CallHierarchyClientCapabilities extends $rt.GoObject {
       return new ResolvedCallHierarchyClientCapabilities();
     }
     return ResolvedCallHierarchyClientCapabilities.$lit_lsp_lsproto_ResolvedCallHierarchyClientCapabilities_0(
-      derefOr<boolean>($zf168, v!.DynamicRegistration),
+      derefOr<boolean>($zf166, v!.DynamicRegistration),
     );
   }
   resolve(): ResolvedCallHierarchyClientCapabilities {
@@ -3775,7 +3722,7 @@ export class ChangeAnnotationsSupportOptions extends $rt.GoObject {
       return new ResolvedChangeAnnotationsSupportOptions();
     }
     return ResolvedChangeAnnotationsSupportOptions.$lit_lsp_lsproto_ResolvedChangeAnnotationsSupportOptions_0(
-      derefOr<boolean>($zf168, v!.GroupsOnLabel),
+      derefOr<boolean>($zf166, v!.GroupsOnLabel),
     );
   }
   resolve(): ResolvedChangeAnnotationsSupportOptions {
@@ -3844,11 +3791,11 @@ export class ClientCapabilities extends $rt.GoObject {
       WindowClientCapabilities.resolve$nil(v!.Window),
       GeneralClientCapabilities.resolve$nil(v!.General),
       ExperimentalClientCapabilities.resolve$nil(v!.Experimental),
-      derefOr<boolean>($zf168, v!.VSSupportsVisualStudioExtensions),
-      derefOr<number>($zf178, v!.VSSupportedSnippetVersion),
-      derefOr<boolean>($zf168, v!.VSSupportsNotIncludingTextInTextDocumentDidOpen),
-      derefOr<boolean>($zf168, v!.VSSupportsIconExtensions),
-      derefOr<boolean>($zf168, v!.VSSupportsDiagnosticRequests),
+      derefOr<boolean>($zf166, v!.VSSupportsVisualStudioExtensions),
+      derefOr<number>($zf176, v!.VSSupportedSnippetVersion),
+      derefOr<boolean>($zf166, v!.VSSupportsNotIncludingTextInTextDocumentDidOpen),
+      derefOr<boolean>($zf166, v!.VSSupportsIconExtensions),
+      derefOr<boolean>($zf166, v!.VSSupportsDiagnosticRequests),
     );
   }
   Resolve(): ResolvedClientCapabilities {
@@ -4075,16 +4022,16 @@ export class ClientCompletionItemOptions extends $rt.GoObject {
       return new ResolvedClientCompletionItemOptions();
     }
     return ResolvedClientCompletionItemOptions.$lit_lsp_lsproto_ResolvedClientCompletionItemOptions_0_1_2_3_4_5_6_7_8_9(
-      derefOr<boolean>($zf168, v!.SnippetSupport),
-      derefOr<boolean>($zf168, v!.CommitCharactersSupport),
-      derefOr<MarkupKind[]>($zf172, v!.DocumentationFormat),
-      derefOr<boolean>($zf168, v!.DeprecatedSupport),
-      derefOr<boolean>($zf168, v!.PreselectSupport),
+      derefOr<boolean>($zf166, v!.SnippetSupport),
+      derefOr<boolean>($zf166, v!.CommitCharactersSupport),
+      derefOr<MarkupKind[]>($zf170, v!.DocumentationFormat),
+      derefOr<boolean>($zf166, v!.DeprecatedSupport),
+      derefOr<boolean>($zf166, v!.PreselectSupport),
       CompletionItemTagOptions.resolve$nil(v!.TagSupport),
-      derefOr<boolean>($zf168, v!.InsertReplaceSupport),
+      derefOr<boolean>($zf166, v!.InsertReplaceSupport),
       ClientCompletionItemResolveOptions.resolve$nil(v!.ResolveSupport),
       ClientCompletionItemInsertTextModeOptions.resolve$nil(v!.InsertTextModeSupport),
-      derefOr<boolean>($zf168, v!.LabelDetailsSupport),
+      derefOr<boolean>($zf166, v!.LabelDetailsSupport),
     );
   }
   resolve(): ResolvedClientCompletionItemOptions {
@@ -4121,7 +4068,7 @@ export class ClientCompletionItemOptionsKind extends $rt.GoObject {
       return new ResolvedClientCompletionItemOptionsKind();
     }
     return ResolvedClientCompletionItemOptionsKind.$lit_lsp_lsproto_ResolvedClientCompletionItemOptionsKind_0(
-      derefOr<CompletionItemKind[]>($zf173, v!.ValueSet),
+      derefOr<CompletionItemKind[]>($zf171, v!.ValueSet),
     );
   }
   resolve(): ResolvedClientCompletionItemOptionsKind {
@@ -4220,7 +4167,7 @@ export class ClientFoldingRangeKindOptions extends $rt.GoObject {
       return new ResolvedClientFoldingRangeKindOptions();
     }
     return ResolvedClientFoldingRangeKindOptions.$lit_lsp_lsproto_ResolvedClientFoldingRangeKindOptions_0(
-      derefOr<FoldingRangeKind[]>($zf177, v!.ValueSet),
+      derefOr<FoldingRangeKind[]>($zf175, v!.ValueSet),
     );
   }
   resolve(): ResolvedClientFoldingRangeKindOptions {
@@ -4255,7 +4202,7 @@ export class ClientFoldingRangeOptions extends $rt.GoObject {
       return new ResolvedClientFoldingRangeOptions();
     }
     return ResolvedClientFoldingRangeOptions.$lit_lsp_lsproto_ResolvedClientFoldingRangeOptions_0(
-      derefOr<boolean>($zf168, v!.CollapsedText),
+      derefOr<boolean>($zf166, v!.CollapsedText),
     );
   }
   resolve(): ResolvedClientFoldingRangeOptions {
@@ -4378,8 +4325,8 @@ export class ClientSemanticTokensRequestOptions extends $rt.GoObject {
       return new ResolvedClientSemanticTokensRequestOptions();
     }
     return ResolvedClientSemanticTokensRequestOptions.$lit_lsp_lsproto_ResolvedClientSemanticTokensRequestOptions_0_1(
-      derefOr<BooleanOrEmptyObject>($zf179, $rt.ptrToObject(v!.Range)),
-      derefOr<BooleanOrClientSemanticTokensRequestFullDelta>($zf180, $rt.ptrToObject(v!.Full)),
+      derefOr<BooleanOrEmptyObject>($zf177, $rt.ptrToObject(v!.Range)),
+      derefOr<BooleanOrClientSemanticTokensRequestFullDelta>($zf178, $rt.ptrToObject(v!.Full)),
     );
   }
   resolve(): ResolvedClientSemanticTokensRequestOptions {
@@ -4416,7 +4363,7 @@ export class ClientShowMessageActionItemOptions extends $rt.GoObject {
       return new ResolvedClientShowMessageActionItemOptions();
     }
     return ResolvedClientShowMessageActionItemOptions.$lit_lsp_lsproto_ResolvedClientShowMessageActionItemOptions_0(
-      derefOr<boolean>($zf168, v!.AdditionalPropertiesSupport),
+      derefOr<boolean>($zf166, v!.AdditionalPropertiesSupport),
     );
   }
   resolve(): ResolvedClientShowMessageActionItemOptions {
@@ -4464,10 +4411,10 @@ export class ClientSignatureInformationOptions extends $rt.GoObject {
       return new ResolvedClientSignatureInformationOptions();
     }
     return ResolvedClientSignatureInformationOptions.$lit_lsp_lsproto_ResolvedClientSignatureInformationOptions_0_1_2_3(
-      derefOr<MarkupKind[]>($zf172, v!.DocumentationFormat),
+      derefOr<MarkupKind[]>($zf170, v!.DocumentationFormat),
       ClientSignatureParameterInformationOptions.resolve$nil(v!.ParameterInformation),
-      derefOr<boolean>($zf168, v!.ActiveParameterSupport),
-      derefOr<boolean>($zf168, v!.NoActiveParameterSupport),
+      derefOr<boolean>($zf166, v!.ActiveParameterSupport),
+      derefOr<boolean>($zf166, v!.NoActiveParameterSupport),
     );
   }
   resolve(): ResolvedClientSignatureInformationOptions {
@@ -4508,7 +4455,7 @@ export class ClientSignatureParameterInformationOptions extends $rt.GoObject {
       return new ResolvedClientSignatureParameterInformationOptions();
     }
     return ResolvedClientSignatureParameterInformationOptions.$lit_lsp_lsproto_ResolvedClientSignatureParameterInformationOptions_0(
-      derefOr<boolean>($zf168, v!.LabelOffsetSupport),
+      derefOr<boolean>($zf166, v!.LabelOffsetSupport),
     );
   }
   resolve(): ResolvedClientSignatureParameterInformationOptions {
@@ -4543,7 +4490,7 @@ export class ClientSymbolKindOptions extends $rt.GoObject {
       return new ResolvedClientSymbolKindOptions();
     }
     return ResolvedClientSymbolKindOptions.$lit_lsp_lsproto_ResolvedClientSymbolKindOptions_0(
-      derefOr<SymbolKind[]>($zf171, v!.ValueSet),
+      derefOr<SymbolKind[]>($zf169, v!.ValueSet),
     );
   }
   resolve(): ResolvedClientSymbolKindOptions {
@@ -4714,14 +4661,14 @@ export class CodeActionClientCapabilities extends $rt.GoObject {
       return new ResolvedCodeActionClientCapabilities();
     }
     return ResolvedCodeActionClientCapabilities.$lit_lsp_lsproto_ResolvedCodeActionClientCapabilities_0_1_2_3_4_5_6_7_8(
-      derefOr<boolean>($zf168, v!.DynamicRegistration),
+      derefOr<boolean>($zf166, v!.DynamicRegistration),
       ClientCodeActionLiteralOptions.resolve$nil(v!.CodeActionLiteralSupport),
-      derefOr<boolean>($zf168, v!.IsPreferredSupport),
-      derefOr<boolean>($zf168, v!.DisabledSupport),
-      derefOr<boolean>($zf168, v!.DataSupport),
+      derefOr<boolean>($zf166, v!.IsPreferredSupport),
+      derefOr<boolean>($zf166, v!.DisabledSupport),
+      derefOr<boolean>($zf166, v!.DataSupport),
       ClientCodeActionResolveOptions.resolve$nil(v!.ResolveSupport),
-      derefOr<boolean>($zf168, v!.HonorsChangeAnnotations),
-      derefOr<boolean>($zf168, v!.DocumentationSupport),
+      derefOr<boolean>($zf166, v!.HonorsChangeAnnotations),
+      derefOr<boolean>($zf166, v!.DocumentationSupport),
       CodeActionTagOptions.resolve$nil(v!.TagSupport),
     );
   }
@@ -5046,7 +4993,7 @@ export class CodeLensClientCapabilities extends $rt.GoObject {
       return new ResolvedCodeLensClientCapabilities();
     }
     return ResolvedCodeLensClientCapabilities.$lit_lsp_lsproto_ResolvedCodeLensClientCapabilities_0_1(
-      derefOr<boolean>($zf168, v!.DynamicRegistration),
+      derefOr<boolean>($zf166, v!.DynamicRegistration),
       ClientCodeLensResolveOptions.resolve$nil(v!.ResolveSupport),
     );
   }
@@ -5204,7 +5151,7 @@ export class CodeLensWorkspaceClientCapabilities extends $rt.GoObject {
       return new ResolvedCodeLensWorkspaceClientCapabilities();
     }
     return ResolvedCodeLensWorkspaceClientCapabilities.$lit_lsp_lsproto_ResolvedCodeLensWorkspaceClientCapabilities_0(
-      derefOr<boolean>($zf168, v!.RefreshSupport),
+      derefOr<boolean>($zf166, v!.RefreshSupport),
     );
   }
   resolve(): ResolvedCodeLensWorkspaceClientCapabilities {
@@ -5607,11 +5554,11 @@ export class CompletionClientCapabilities extends $rt.GoObject {
       return new ResolvedCompletionClientCapabilities();
     }
     return ResolvedCompletionClientCapabilities.$lit_lsp_lsproto_ResolvedCompletionClientCapabilities_0_1_2_3_4_5(
-      derefOr<boolean>($zf168, v!.DynamicRegistration),
+      derefOr<boolean>($zf166, v!.DynamicRegistration),
       ClientCompletionItemOptions.resolve$nil(v!.CompletionItem),
       ClientCompletionItemOptionsKind.resolve$nil(v!.CompletionItemKind),
-      derefOr<InsertTextMode>($zf175, v!.InsertTextMode_),
-      derefOr<boolean>($zf168, v!.ContextSupport),
+      derefOr<InsertTextMode>($zf173, v!.InsertTextMode_),
+      derefOr<boolean>($zf166, v!.ContextSupport),
       CompletionListCapabilities.resolve$nil(v!.CompletionList),
     );
   }
@@ -5754,29 +5701,23 @@ export class CompletionItemApplyKinds extends $rt.GoObject {
 export class CompletionItemData extends $rt.GoObject {
   FileName: string = '';
   Position: number = 0;
-  SupplementalFileIndex: $rt.Ptr<number> | undefined = undefined;
   Source: string = '';
   Name: string = '';
   AutoImport: AutoImportFix | undefined = undefined;
-  IsImportStatementCompletion: boolean = false;
   $copy_lsp_lsproto_CompletionItemData(src: CompletionItemData): void {
     this.FileName = src.FileName;
     this.Position = src.Position;
-    this.SupplementalFileIndex = src.SupplementalFileIndex;
     this.Source = src.Source;
     this.Name = src.Name;
     this.AutoImport = src.AutoImport;
-    this.IsImportStatementCompletion = src.IsImportStatementCompletion;
   }
   $equals_lsp_lsproto_CompletionItemData(o: CompletionItemData): boolean {
     return (
       this.FileName === o.FileName &&
       this.Position === o.Position &&
-      this.SupplementalFileIndex === o.SupplementalFileIndex &&
       this.Source === o.Source &&
       this.Name === o.Name &&
-      this.AutoImport === o.AutoImport &&
-      this.IsImportStatementCompletion === o.IsImportStatementCompletion
+      this.AutoImport === o.AutoImport
     );
   }
   $clone_lsp_lsproto_CompletionItemData(): CompletionItemData {
@@ -6019,8 +5960,8 @@ export class CompletionListCapabilities extends $rt.GoObject {
       return new ResolvedCompletionListCapabilities();
     }
     return ResolvedCompletionListCapabilities.$lit_lsp_lsproto_ResolvedCompletionListCapabilities_0_1(
-      derefOr<string[]>($zf174, v!.ItemDefaults),
-      derefOr<boolean>($zf168, v!.ApplyKindSupport),
+      derefOr<string[]>($zf172, v!.ItemDefaults),
+      derefOr<boolean>($zf166, v!.ApplyKindSupport),
     );
   }
   resolve(): ResolvedCompletionListCapabilities {
@@ -6199,62 +6140,6 @@ export class ConfigurationParams extends $rt.GoObject {
     return unmarshalStruct(s, dec);
   }
 }
-export class ContentMapperContribution extends $rt.GoObject {
-  ContributorId: string = '';
-  Extensions: string[] = [];
-  InferredProjectContribution: InferredProjectContentMapperContribution | undefined = undefined;
-  $copy_lsp_lsproto_ContentMapperContribution(src: ContentMapperContribution): void {
-    this.ContributorId = src.ContributorId;
-    this.Extensions = src.Extensions;
-    this.InferredProjectContribution = src.InferredProjectContribution;
-  }
-  $clone_lsp_lsproto_ContentMapperContribution(): ContentMapperContribution {
-    const o = new ContentMapperContribution();
-    o.$copy_lsp_lsproto_ContentMapperContribution(this);
-    return o;
-  }
-  static $cast_lsp_lsproto_ContentMapperContribution(v: $rt.GoObject | undefined): ContentMapperContribution {
-    if (v instanceof ContentMapperContribution) return v;
-    throw $rt.typeAssertError();
-  }
-  UnmarshalJSONFrom(
-    dec: $rt.github_com_go_json_experiment_json_jsontext_Decoder | undefined,
-  ): $rt.GoObject | undefined {
-    const s = this;
-    return unmarshalStruct(s, dec);
-  }
-}
-export class ContentMapperManifest extends $rt.GoObject {
-  Name: string = '';
-  Version: $rt.Ptr<string> | undefined = undefined;
-  Exec: string[] = [];
-  Cwd: $rt.Ptr<string> | undefined = undefined;
-  CompilerOptions: $rt.Ptr<string[]> | undefined = undefined;
-  DynamicConfig: $rt.Ptr<boolean> | undefined = undefined;
-  $copy_lsp_lsproto_ContentMapperManifest(src: ContentMapperManifest): void {
-    this.Name = src.Name;
-    this.Version = src.Version;
-    this.Exec = src.Exec;
-    this.Cwd = src.Cwd;
-    this.CompilerOptions = src.CompilerOptions;
-    this.DynamicConfig = src.DynamicConfig;
-  }
-  $clone_lsp_lsproto_ContentMapperManifest(): ContentMapperManifest {
-    const o = new ContentMapperManifest();
-    o.$copy_lsp_lsproto_ContentMapperManifest(this);
-    return o;
-  }
-  static $cast_lsp_lsproto_ContentMapperManifest(v: $rt.GoObject | undefined): ContentMapperManifest {
-    if (v instanceof ContentMapperManifest) return v;
-    throw $rt.typeAssertError();
-  }
-  UnmarshalJSONFrom(
-    dec: $rt.github_com_go_json_experiment_json_jsontext_Decoder | undefined,
-  ): $rt.GoObject | undefined {
-    const s = this;
-    return unmarshalStruct(s, dec);
-  }
-}
 export class CreateFile extends $rt.GoObject {
   Kind: StringLiteralCreate = StringLiteralCreate$zero;
   AnnotationId: $rt.Ptr<string> | undefined = undefined;
@@ -6367,8 +6252,8 @@ export class DeclarationClientCapabilities extends $rt.GoObject {
       return new ResolvedDeclarationClientCapabilities();
     }
     return ResolvedDeclarationClientCapabilities.$lit_lsp_lsproto_ResolvedDeclarationClientCapabilities_0_1(
-      derefOr<boolean>($zf168, v!.DynamicRegistration),
-      derefOr<boolean>($zf168, v!.LinkSupport),
+      derefOr<boolean>($zf166, v!.DynamicRegistration),
+      derefOr<boolean>($zf166, v!.LinkSupport),
     );
   }
   resolve(): ResolvedDeclarationClientCapabilities {
@@ -6504,8 +6389,8 @@ export class DefinitionClientCapabilities extends $rt.GoObject {
       return new ResolvedDefinitionClientCapabilities();
     }
     return ResolvedDefinitionClientCapabilities.$lit_lsp_lsproto_ResolvedDefinitionClientCapabilities_0_1(
-      derefOr<boolean>($zf168, v!.DynamicRegistration),
-      derefOr<boolean>($zf168, v!.LinkSupport),
+      derefOr<boolean>($zf166, v!.DynamicRegistration),
+      derefOr<boolean>($zf166, v!.LinkSupport),
     );
   }
   resolve(): ResolvedDefinitionClientCapabilities {
@@ -6739,21 +6624,6 @@ export class Diagnostic extends $rt.GoObject {
     const s = this;
     return unmarshalStruct(s, dec);
   }
-  AsString(): string {
-    const elem = this;
-    return $rt.fmt_Sprintf('%v (%v:%v-%v:%v): %v', [
-      new $rt.BoxStr(elem!.Code!.AsString(), 'string'),
-      new $rt.BoxNum(elem!.Range_.Start.Line, 'uint32'),
-      new $rt.BoxNum(elem!.Range_.Start.Character, 'uint32'),
-      new $rt.BoxNum(elem!.Range_.End.Line, 'uint32'),
-      new $rt.BoxNum(elem!.Range_.End.Character, 'uint32'),
-      new $rt.BoxStr(elem!.Message.AsString(), 'string'),
-    ]);
-  }
-  CodeAsString(): string {
-    const elem = this;
-    return $rt.fmt_Sprintf('Code(%v)', [new $rt.BoxStr(elem!.Code!.AsString(), 'string')]);
-  }
 }
 export class DiagnosticClientCapabilities extends $rt.GoObject {
   RelatedInformation: $rt.Ptr<boolean> | undefined = undefined;
@@ -6803,13 +6673,13 @@ export class DiagnosticClientCapabilities extends $rt.GoObject {
       return new ResolvedDiagnosticClientCapabilities();
     }
     return ResolvedDiagnosticClientCapabilities.$lit_lsp_lsproto_ResolvedDiagnosticClientCapabilities_0_1_2_3_4_5_6(
-      derefOr<boolean>($zf168, v!.RelatedInformation),
+      derefOr<boolean>($zf166, v!.RelatedInformation),
       ClientDiagnosticsTagOptions.resolve$nil(v!.TagSupport),
-      derefOr<boolean>($zf168, v!.CodeDescriptionSupport),
-      derefOr<boolean>($zf168, v!.DataSupport),
-      derefOr<boolean>($zf168, v!.DynamicRegistration),
-      derefOr<boolean>($zf168, v!.RelatedDocumentSupport),
-      derefOr<boolean>($zf168, v!.MarkupMessageSupport),
+      derefOr<boolean>($zf166, v!.CodeDescriptionSupport),
+      derefOr<boolean>($zf166, v!.DataSupport),
+      derefOr<boolean>($zf166, v!.DynamicRegistration),
+      derefOr<boolean>($zf166, v!.RelatedDocumentSupport),
+      derefOr<boolean>($zf166, v!.MarkupMessageSupport),
     );
   }
   resolve(): ResolvedDiagnosticClientCapabilities {
@@ -7049,7 +6919,7 @@ export class DiagnosticWorkspaceClientCapabilities extends $rt.GoObject {
       return new ResolvedDiagnosticWorkspaceClientCapabilities();
     }
     return ResolvedDiagnosticWorkspaceClientCapabilities.$lit_lsp_lsproto_ResolvedDiagnosticWorkspaceClientCapabilities_0(
-      derefOr<boolean>($zf168, v!.RefreshSupport),
+      derefOr<boolean>($zf166, v!.RefreshSupport),
     );
   }
   resolve(): ResolvedDiagnosticWorkspaceClientCapabilities {
@@ -7123,7 +6993,7 @@ export class DidChangeConfigurationClientCapabilities extends $rt.GoObject {
       return new ResolvedDidChangeConfigurationClientCapabilities();
     }
     return ResolvedDidChangeConfigurationClientCapabilities.$lit_lsp_lsproto_ResolvedDidChangeConfigurationClientCapabilities_0(
-      derefOr<boolean>($zf168, v!.DynamicRegistration),
+      derefOr<boolean>($zf166, v!.DynamicRegistration),
     );
   }
   resolve(): ResolvedDidChangeConfigurationClientCapabilities {
@@ -7239,8 +7109,8 @@ export class DidChangeWatchedFilesClientCapabilities extends $rt.GoObject {
       return new ResolvedDidChangeWatchedFilesClientCapabilities();
     }
     return ResolvedDidChangeWatchedFilesClientCapabilities.$lit_lsp_lsproto_ResolvedDidChangeWatchedFilesClientCapabilities_0_1(
-      derefOr<boolean>($zf168, v!.DynamicRegistration),
-      derefOr<boolean>($zf168, v!.RelativePatternSupport),
+      derefOr<boolean>($zf166, v!.DynamicRegistration),
+      derefOr<boolean>($zf166, v!.RelativePatternSupport),
     );
   }
   resolve(): ResolvedDidChangeWatchedFilesClientCapabilities {
@@ -7429,7 +7299,7 @@ export class DocumentColorClientCapabilities extends $rt.GoObject {
       return new ResolvedDocumentColorClientCapabilities();
     }
     return ResolvedDocumentColorClientCapabilities.$lit_lsp_lsproto_ResolvedDocumentColorClientCapabilities_0(
-      derefOr<boolean>($zf168, v!.DynamicRegistration),
+      derefOr<boolean>($zf166, v!.DynamicRegistration),
     );
   }
   resolve(): ResolvedDocumentColorClientCapabilities {
@@ -7628,7 +7498,7 @@ export class DocumentFormattingClientCapabilities extends $rt.GoObject {
       return new ResolvedDocumentFormattingClientCapabilities();
     }
     return ResolvedDocumentFormattingClientCapabilities.$lit_lsp_lsproto_ResolvedDocumentFormattingClientCapabilities_0(
-      derefOr<boolean>($zf168, v!.DynamicRegistration),
+      derefOr<boolean>($zf166, v!.DynamicRegistration),
     );
   }
   resolve(): ResolvedDocumentFormattingClientCapabilities {
@@ -7782,7 +7652,7 @@ export class DocumentHighlightClientCapabilities extends $rt.GoObject {
       return new ResolvedDocumentHighlightClientCapabilities();
     }
     return ResolvedDocumentHighlightClientCapabilities.$lit_lsp_lsproto_ResolvedDocumentHighlightClientCapabilities_0(
-      derefOr<boolean>($zf168, v!.DynamicRegistration),
+      derefOr<boolean>($zf166, v!.DynamicRegistration),
     );
   }
   resolve(): ResolvedDocumentHighlightClientCapabilities {
@@ -8000,8 +7870,8 @@ export class DocumentLinkClientCapabilities extends $rt.GoObject {
       return new ResolvedDocumentLinkClientCapabilities();
     }
     return ResolvedDocumentLinkClientCapabilities.$lit_lsp_lsproto_ResolvedDocumentLinkClientCapabilities_0_1(
-      derefOr<boolean>($zf168, v!.DynamicRegistration),
-      derefOr<boolean>($zf168, v!.TooltipSupport),
+      derefOr<boolean>($zf166, v!.DynamicRegistration),
+      derefOr<boolean>($zf166, v!.TooltipSupport),
     );
   }
   resolve(): ResolvedDocumentLinkClientCapabilities {
@@ -8201,7 +8071,7 @@ export class DocumentOnTypeFormattingClientCapabilities extends $rt.GoObject {
       return new ResolvedDocumentOnTypeFormattingClientCapabilities();
     }
     return ResolvedDocumentOnTypeFormattingClientCapabilities.$lit_lsp_lsproto_ResolvedDocumentOnTypeFormattingClientCapabilities_0(
-      derefOr<boolean>($zf168, v!.DynamicRegistration),
+      derefOr<boolean>($zf166, v!.DynamicRegistration),
     );
   }
   resolve(): ResolvedDocumentOnTypeFormattingClientCapabilities {
@@ -8353,8 +8223,8 @@ export class DocumentRangeFormattingClientCapabilities extends $rt.GoObject {
       return new ResolvedDocumentRangeFormattingClientCapabilities();
     }
     return ResolvedDocumentRangeFormattingClientCapabilities.$lit_lsp_lsproto_ResolvedDocumentRangeFormattingClientCapabilities_0_1(
-      derefOr<boolean>($zf168, v!.DynamicRegistration),
-      derefOr<boolean>($zf168, v!.RangesSupport),
+      derefOr<boolean>($zf166, v!.DynamicRegistration),
+      derefOr<boolean>($zf166, v!.RangesSupport),
     );
   }
   resolve(): ResolvedDocumentRangeFormattingClientCapabilities {
@@ -8632,11 +8502,11 @@ export class DocumentSymbolClientCapabilities extends $rt.GoObject {
       return new ResolvedDocumentSymbolClientCapabilities();
     }
     return ResolvedDocumentSymbolClientCapabilities.$lit_lsp_lsproto_ResolvedDocumentSymbolClientCapabilities_0_1_2_3_4(
-      derefOr<boolean>($zf168, v!.DynamicRegistration),
+      derefOr<boolean>($zf166, v!.DynamicRegistration),
       ClientSymbolKindOptions.resolve$nil(v!.SymbolKind),
-      derefOr<boolean>($zf168, v!.HierarchicalDocumentSymbolSupport),
+      derefOr<boolean>($zf166, v!.HierarchicalDocumentSymbolSupport),
       ClientSymbolTagOptions.resolve$nil(v!.TagSupport),
-      derefOr<boolean>($zf168, v!.LabelSupport),
+      derefOr<boolean>($zf166, v!.LabelSupport),
     );
   }
   resolve(): ResolvedDocumentSymbolClientCapabilities {
@@ -8843,7 +8713,7 @@ export class ExecuteCommandClientCapabilities extends $rt.GoObject {
       return new ResolvedExecuteCommandClientCapabilities();
     }
     return ResolvedExecuteCommandClientCapabilities.$lit_lsp_lsproto_ResolvedExecuteCommandClientCapabilities_0(
-      derefOr<boolean>($zf168, v!.DynamicRegistration),
+      derefOr<boolean>($zf166, v!.DynamicRegistration),
     );
   }
   resolve(): ResolvedExecuteCommandClientCapabilities {
@@ -8954,7 +8824,7 @@ export class ExperimentalClientCapabilities extends $rt.GoObject {
       return new ResolvedExperimentalClientCapabilities();
     }
     return ResolvedExperimentalClientCapabilities.$lit_lsp_lsproto_ResolvedExperimentalClientCapabilities_0(
-      derefOr<boolean>($zf168, v!.HoverVerbosityLevel),
+      derefOr<boolean>($zf166, v!.HoverVerbosityLevel),
     );
   }
   resolve(): ResolvedExperimentalClientCapabilities {
@@ -9114,13 +8984,13 @@ export class FileOperationClientCapabilities extends $rt.GoObject {
       return new ResolvedFileOperationClientCapabilities();
     }
     return ResolvedFileOperationClientCapabilities.$lit_lsp_lsproto_ResolvedFileOperationClientCapabilities_0_1_2_3_4_5_6(
-      derefOr<boolean>($zf168, v!.DynamicRegistration),
-      derefOr<boolean>($zf168, v!.DidCreate),
-      derefOr<boolean>($zf168, v!.WillCreate),
-      derefOr<boolean>($zf168, v!.DidRename),
-      derefOr<boolean>($zf168, v!.WillRename),
-      derefOr<boolean>($zf168, v!.DidDelete),
-      derefOr<boolean>($zf168, v!.WillDelete),
+      derefOr<boolean>($zf166, v!.DynamicRegistration),
+      derefOr<boolean>($zf166, v!.DidCreate),
+      derefOr<boolean>($zf166, v!.WillCreate),
+      derefOr<boolean>($zf166, v!.DidRename),
+      derefOr<boolean>($zf166, v!.WillRename),
+      derefOr<boolean>($zf166, v!.DidDelete),
+      derefOr<boolean>($zf166, v!.WillDelete),
     );
   }
   resolve(): ResolvedFileOperationClientCapabilities {
@@ -9404,9 +9274,9 @@ export class FoldingRangeClientCapabilities extends $rt.GoObject {
       return new ResolvedFoldingRangeClientCapabilities();
     }
     return ResolvedFoldingRangeClientCapabilities.$lit_lsp_lsproto_ResolvedFoldingRangeClientCapabilities_0_1_2_3_4(
-      derefOr<boolean>($zf168, v!.DynamicRegistration),
-      derefOr<number>($zf178, v!.RangeLimit),
-      derefOr<boolean>($zf168, v!.LineFoldingOnly),
+      derefOr<boolean>($zf166, v!.DynamicRegistration),
+      derefOr<number>($zf176, v!.RangeLimit),
+      derefOr<boolean>($zf166, v!.LineFoldingOnly),
       ClientFoldingRangeKindOptions.resolve$nil(v!.FoldingRangeKind),
       ClientFoldingRangeOptions.resolve$nil(v!.FoldingRange),
     );
@@ -9541,7 +9411,7 @@ export class FoldingRangeWorkspaceClientCapabilities extends $rt.GoObject {
       return new ResolvedFoldingRangeWorkspaceClientCapabilities();
     }
     return ResolvedFoldingRangeWorkspaceClientCapabilities.$lit_lsp_lsproto_ResolvedFoldingRangeWorkspaceClientCapabilities_0(
-      derefOr<boolean>($zf168, v!.RefreshSupport),
+      derefOr<boolean>($zf166, v!.RefreshSupport),
     );
   }
   resolve(): ResolvedFoldingRangeWorkspaceClientCapabilities {
@@ -9780,7 +9650,7 @@ export class GeneralClientCapabilities extends $rt.GoObject {
       StaleRequestSupportOptions.resolve$nil(v!.StaleRequestSupport),
       RegularExpressionsClientCapabilities.resolve$nil(v!.RegularExpressions),
       MarkdownClientCapabilities.resolve$nil(v!.Markdown),
-      derefOr<PositionEncodingKind[]>($zf182, v!.PositionEncodings),
+      derefOr<PositionEncodingKind[]>($zf180, v!.PositionEncodings),
     );
   }
   resolve(): ResolvedGeneralClientCapabilities {
@@ -9792,19 +9662,16 @@ export class Hover extends $rt.GoObject {
     new MarkupContentOrStringOrMarkedStringWithLanguageOrMarkedStrings();
   Range_: Range | undefined = undefined;
   CanIncreaseVerbosity: boolean = false;
-  VSRawContent: VSContainerElement | undefined = undefined;
   $copy_lsp_lsproto_Hover(src: Hover): void {
     this.Contents = src.Contents.$clone_lsp_lsproto_MarkupContentOrStringOrMarkedStringWithLanguageOrMarkedStrings();
     this.Range_ = src.Range_;
     this.CanIncreaseVerbosity = src.CanIncreaseVerbosity;
-    this.VSRawContent = src.VSRawContent;
   }
   $equals_lsp_lsproto_Hover(o: Hover): boolean {
     return (
       this.Contents.$equals_lsp_lsproto_MarkupContentOrStringOrMarkedStringWithLanguageOrMarkedStrings(o.Contents) &&
       this.Range_ === o.Range_ &&
-      this.CanIncreaseVerbosity === o.CanIncreaseVerbosity &&
-      this.VSRawContent === o.VSRawContent
+      this.CanIncreaseVerbosity === o.CanIncreaseVerbosity
     );
   }
   $clone_lsp_lsproto_Hover(): Hover {
@@ -9853,8 +9720,8 @@ export class HoverClientCapabilities extends $rt.GoObject {
       return new ResolvedHoverClientCapabilities();
     }
     return ResolvedHoverClientCapabilities.$lit_lsp_lsproto_ResolvedHoverClientCapabilities_0_1(
-      derefOr<boolean>($zf168, v!.DynamicRegistration),
-      derefOr<MarkupKind[]>($zf172, v!.ContentFormat),
+      derefOr<boolean>($zf166, v!.DynamicRegistration),
+      derefOr<MarkupKind[]>($zf170, v!.ContentFormat),
     );
   }
   resolve(): ResolvedHoverClientCapabilities {
@@ -10037,8 +9904,8 @@ export class ImplementationClientCapabilities extends $rt.GoObject {
       return new ResolvedImplementationClientCapabilities();
     }
     return ResolvedImplementationClientCapabilities.$lit_lsp_lsproto_ResolvedImplementationClientCapabilities_0_1(
-      derefOr<boolean>($zf168, v!.DynamicRegistration),
-      derefOr<boolean>($zf168, v!.LinkSupport),
+      derefOr<boolean>($zf166, v!.DynamicRegistration),
+      derefOr<boolean>($zf166, v!.LinkSupport),
     );
   }
   resolve(): ResolvedImplementationClientCapabilities {
@@ -10146,50 +10013,18 @@ export class ImplementationRegistrationOptions extends $rt.GoObject {
     return unmarshalStruct(s, dec);
   }
 }
-export class InferredProjectContentMapperContribution extends $rt.GoObject {
-  Options: $rt.Ptr<Map<string, $rt.GoObject | undefined> | undefined> | undefined = undefined;
-  Manifest: ContentMapperManifest | undefined = undefined;
-  $copy_lsp_lsproto_InferredProjectContentMapperContribution(src: InferredProjectContentMapperContribution): void {
-    this.Options = src.Options;
-    this.Manifest = src.Manifest;
-  }
-  $equals_lsp_lsproto_InferredProjectContentMapperContribution(o: InferredProjectContentMapperContribution): boolean {
-    return this.Options === o.Options && this.Manifest === o.Manifest;
-  }
-  $clone_lsp_lsproto_InferredProjectContentMapperContribution(): InferredProjectContentMapperContribution {
-    const o = new InferredProjectContentMapperContribution();
-    o.$copy_lsp_lsproto_InferredProjectContentMapperContribution(this);
-    return o;
-  }
-  static $cast_lsp_lsproto_InferredProjectContentMapperContribution(
-    v: $rt.GoObject | undefined,
-  ): InferredProjectContentMapperContribution {
-    if (v instanceof InferredProjectContentMapperContribution) return v;
-    throw $rt.typeAssertError();
-  }
-  UnmarshalJSONFrom(
-    dec: $rt.github_com_go_json_experiment_json_jsontext_Decoder | undefined,
-  ): $rt.GoObject | undefined {
-    const s = this;
-    return unmarshalStruct(s, dec);
-  }
-}
 export class InitializationOptions extends $rt.GoObject {
   DisablePushDiagnostics: $rt.Ptr<boolean> | undefined = undefined;
   CodeLensShowLocationsCommandName: $rt.Ptr<string> | undefined = undefined;
   UserPreferences: $rt.Ptr<$rt.GoObject | undefined> | undefined = undefined;
   EnableTelemetry: $rt.Ptr<boolean> | undefined = undefined;
   LogVerbosity_: $rt.Ptr<LogVerbosity> | undefined = undefined;
-  RunExternalCode: $rt.Ptr<boolean> | undefined = undefined;
-  TrackFlakyDiagnostics: $rt.Ptr<DiagnosticFlakeLogLevel> | undefined = undefined;
   $copy_lsp_lsproto_InitializationOptions(src: InitializationOptions): void {
     this.DisablePushDiagnostics = src.DisablePushDiagnostics;
     this.CodeLensShowLocationsCommandName = src.CodeLensShowLocationsCommandName;
     this.UserPreferences = src.UserPreferences;
     this.EnableTelemetry = src.EnableTelemetry;
     this.LogVerbosity_ = src.LogVerbosity_;
-    this.RunExternalCode = src.RunExternalCode;
-    this.TrackFlakyDiagnostics = src.TrackFlakyDiagnostics;
   }
   $equals_lsp_lsproto_InitializationOptions(o: InitializationOptions): boolean {
     return (
@@ -10197,9 +10032,7 @@ export class InitializationOptions extends $rt.GoObject {
       this.CodeLensShowLocationsCommandName === o.CodeLensShowLocationsCommandName &&
       this.UserPreferences === o.UserPreferences &&
       this.EnableTelemetry === o.EnableTelemetry &&
-      this.LogVerbosity_ === o.LogVerbosity_ &&
-      this.RunExternalCode === o.RunExternalCode &&
-      this.TrackFlakyDiagnostics === o.TrackFlakyDiagnostics
+      this.LogVerbosity_ === o.LogVerbosity_
     );
   }
   $clone_lsp_lsproto_InitializationOptions(): InitializationOptions {
@@ -10511,7 +10344,7 @@ export class InlayHintClientCapabilities extends $rt.GoObject {
       return new ResolvedInlayHintClientCapabilities();
     }
     return ResolvedInlayHintClientCapabilities.$lit_lsp_lsproto_ResolvedInlayHintClientCapabilities_0_1(
-      derefOr<boolean>($zf168, v!.DynamicRegistration),
+      derefOr<boolean>($zf166, v!.DynamicRegistration),
       ClientInlayHintResolveOptions.resolve$nil(v!.ResolveSupport),
     );
   }
@@ -10698,7 +10531,7 @@ export class InlayHintWorkspaceClientCapabilities extends $rt.GoObject {
       return new ResolvedInlayHintWorkspaceClientCapabilities();
     }
     return ResolvedInlayHintWorkspaceClientCapabilities.$lit_lsp_lsproto_ResolvedInlayHintWorkspaceClientCapabilities_0(
-      derefOr<boolean>($zf168, v!.RefreshSupport),
+      derefOr<boolean>($zf166, v!.RefreshSupport),
     );
   }
   resolve(): ResolvedInlayHintWorkspaceClientCapabilities {
@@ -10783,7 +10616,7 @@ export class InlineCompletionClientCapabilities extends $rt.GoObject {
       return new ResolvedInlineCompletionClientCapabilities();
     }
     return ResolvedInlineCompletionClientCapabilities.$lit_lsp_lsproto_ResolvedInlineCompletionClientCapabilities_0(
-      derefOr<boolean>($zf168, v!.DynamicRegistration),
+      derefOr<boolean>($zf166, v!.DynamicRegistration),
     );
   }
   resolve(): ResolvedInlineCompletionClientCapabilities {
@@ -11061,7 +10894,7 @@ export class InlineValueClientCapabilities extends $rt.GoObject {
       return new ResolvedInlineValueClientCapabilities();
     }
     return ResolvedInlineValueClientCapabilities.$lit_lsp_lsproto_ResolvedInlineValueClientCapabilities_0(
-      derefOr<boolean>($zf168, v!.DynamicRegistration),
+      derefOr<boolean>($zf166, v!.DynamicRegistration),
     );
   }
   resolve(): ResolvedInlineValueClientCapabilities {
@@ -11385,7 +11218,7 @@ export class InlineValueWorkspaceClientCapabilities extends $rt.GoObject {
       return new ResolvedInlineValueWorkspaceClientCapabilities();
     }
     return ResolvedInlineValueWorkspaceClientCapabilities.$lit_lsp_lsproto_ResolvedInlineValueWorkspaceClientCapabilities_0(
-      derefOr<boolean>($zf168, v!.RefreshSupport),
+      derefOr<boolean>($zf166, v!.RefreshSupport),
     );
   }
   resolve(): ResolvedInlineValueWorkspaceClientCapabilities {
@@ -11572,18 +11405,6 @@ export class IntegerOrString extends $rt.GoObject {
       }
     }
   }
-  AsString(): string {
-    const m = this;
-    let codeStr: string = '';
-    if (!(m.String_ === undefined)) {
-      codeStr = m.String_!.get();
-    } else if (!(m.Integer === undefined)) {
-      codeStr = $rt.strconv_Itoa(m.Integer!.get());
-    } else {
-      codeStr = '-1';
-    }
-    return codeStr;
-  }
 }
 export class LSPAnyOrNull extends $rt.GoObject {
   LSPAny: $rt.Ptr<$rt.GoObject | undefined> | undefined = undefined;
@@ -11677,7 +11498,7 @@ export class LinkedEditingRangeClientCapabilities extends $rt.GoObject {
       return new ResolvedLinkedEditingRangeClientCapabilities();
     }
     return ResolvedLinkedEditingRangeClientCapabilities.$lit_lsp_lsproto_ResolvedLinkedEditingRangeClientCapabilities_0(
-      derefOr<boolean>($zf168, v!.DynamicRegistration),
+      derefOr<boolean>($zf166, v!.DynamicRegistration),
     );
   }
   resolve(): ResolvedLinkedEditingRangeClientCapabilities {
@@ -12377,8 +12198,8 @@ export class MarkdownClientCapabilities extends $rt.GoObject {
     }
     return ResolvedMarkdownClientCapabilities.$lit_lsp_lsproto_ResolvedMarkdownClientCapabilities_0_1_2(
       v!.Parser,
-      derefOr<string>($zf181, v!.Version),
-      derefOr<string[]>($zf174, v!.AllowedTags),
+      derefOr<string>($zf179, v!.Version),
+      derefOr<string[]>($zf172, v!.AllowedTags),
     );
   }
   resolve(): ResolvedMarkdownClientCapabilities {
@@ -12571,7 +12392,7 @@ export class Message extends $rt.GoObject {
   }
   UnmarshalJSON(data: number[]): $rt.GoObject | undefined {
     const m = this;
-    let raw: $Anon7 = new $Anon7();
+    let raw: $Anon6 = new $Anon6();
     {
       const err: $rt.GoObject | undefined = $json.Unmarshal(
         data,
@@ -12743,7 +12564,7 @@ export class MonikerClientCapabilities extends $rt.GoObject {
       return new ResolvedMonikerClientCapabilities();
     }
     return ResolvedMonikerClientCapabilities.$lit_lsp_lsproto_ResolvedMonikerClientCapabilities_0(
-      derefOr<boolean>($zf168, v!.DynamicRegistration),
+      derefOr<boolean>($zf166, v!.DynamicRegistration),
     );
   }
   resolve(): ResolvedMonikerClientCapabilities {
@@ -13754,11 +13575,11 @@ export class PublishDiagnosticsClientCapabilities extends $rt.GoObject {
       return new ResolvedPublishDiagnosticsClientCapabilities();
     }
     return ResolvedPublishDiagnosticsClientCapabilities.$lit_lsp_lsproto_ResolvedPublishDiagnosticsClientCapabilities_0_1_2_3_4(
-      derefOr<boolean>($zf168, v!.RelatedInformation),
+      derefOr<boolean>($zf166, v!.RelatedInformation),
       ClientDiagnosticsTagOptions.resolve$nil(v!.TagSupport),
-      derefOr<boolean>($zf168, v!.CodeDescriptionSupport),
-      derefOr<boolean>($zf168, v!.DataSupport),
-      derefOr<boolean>($zf168, v!.VersionSupport),
+      derefOr<boolean>($zf166, v!.CodeDescriptionSupport),
+      derefOr<boolean>($zf166, v!.DataSupport),
+      derefOr<boolean>($zf166, v!.VersionSupport),
     );
   }
   resolve(): ResolvedPublishDiagnosticsClientCapabilities {
@@ -14006,7 +13827,7 @@ export class ReferenceClientCapabilities extends $rt.GoObject {
       return new ResolvedReferenceClientCapabilities();
     }
     return ResolvedReferenceClientCapabilities.$lit_lsp_lsproto_ResolvedReferenceClientCapabilities_0(
-      derefOr<boolean>($zf168, v!.DynamicRegistration),
+      derefOr<boolean>($zf166, v!.DynamicRegistration),
     );
   }
   resolve(): ResolvedReferenceClientCapabilities {
@@ -15427,7 +15248,7 @@ export class RegularExpressionsClientCapabilities extends $rt.GoObject {
     }
     return ResolvedRegularExpressionsClientCapabilities.$lit_lsp_lsproto_ResolvedRegularExpressionsClientCapabilities_0_1(
       v!.Engine,
-      derefOr<string>($zf181, v!.Version),
+      derefOr<string>($zf179, v!.Version),
     );
   }
   resolve(): ResolvedRegularExpressionsClientCapabilities {
@@ -15634,10 +15455,10 @@ export class RenameClientCapabilities extends $rt.GoObject {
       return new ResolvedRenameClientCapabilities();
     }
     return ResolvedRenameClientCapabilities.$lit_lsp_lsproto_ResolvedRenameClientCapabilities_0_1_2_3(
-      derefOr<boolean>($zf168, v!.DynamicRegistration),
-      derefOr<boolean>($zf168, v!.PrepareSupport),
-      derefOr<PrepareSupportDefaultBehavior>($zf176, v!.PrepareSupportDefaultBehavior_),
-      derefOr<boolean>($zf168, v!.HonorsChangeAnnotations),
+      derefOr<boolean>($zf166, v!.DynamicRegistration),
+      derefOr<boolean>($zf166, v!.PrepareSupport),
+      derefOr<PrepareSupportDefaultBehavior>($zf174, v!.PrepareSupportDefaultBehavior_),
+      derefOr<boolean>($zf166, v!.HonorsChangeAnnotations),
     );
   }
   resolve(): ResolvedRenameClientCapabilities {
@@ -16121,7 +15942,7 @@ export class RequestMessage extends $rt.GoObject {
   }
   UnmarshalJSON(data: number[]): $rt.GoObject | undefined {
     const r = this;
-    let raw: $Anon8 = new $Anon8();
+    let raw: $Anon7 = new $Anon7();
     {
       const err: $rt.GoObject | undefined = $json.Unmarshal(
         data,
@@ -16196,7 +16017,7 @@ export class ResolvedChangeAnnotationsSupportOptions extends $rt.GoObject {
 }
 export class ResolvedClientCapabilities extends $rt.GoObject {
   Workspace: ResolvedWorkspaceClientCapabilities = ResolvedWorkspaceClientCapabilities$zero;
-  TextDocument: ResolvedTextDocumentClientCapabilities = ResolvedTextDocumentClientCapabilities$zero;
+  TextDocument: ResolvedTextDocumentClientCapabilities = new ResolvedTextDocumentClientCapabilities();
   Window: ResolvedWindowClientCapabilities = ResolvedWindowClientCapabilities$zero;
   General: ResolvedGeneralClientCapabilities = ResolvedGeneralClientCapabilities$zero;
   Experimental: ResolvedExperimentalClientCapabilities = ResolvedExperimentalClientCapabilities$zero;
@@ -16207,7 +16028,7 @@ export class ResolvedClientCapabilities extends $rt.GoObject {
   VSSupportsDiagnosticRequests: boolean = false;
   $copy_lsp_lsproto_ResolvedClientCapabilities(src: ResolvedClientCapabilities): void {
     this.Workspace = src.Workspace;
-    this.TextDocument = src.TextDocument;
+    this.TextDocument = src.TextDocument.$clone_lsp_lsproto_ResolvedTextDocumentClientCapabilities();
     this.Window = src.Window;
     this.General = src.General;
     this.Experimental = src.Experimental;
@@ -18125,7 +17946,7 @@ export class ResolvedSelectionRangeClientCapabilities extends $rt.GoObject {
 }
 export class ResolvedSemanticTokensClientCapabilities extends $rt.GoObject {
   DynamicRegistration: boolean = false;
-  Requests: ResolvedClientSemanticTokensRequestOptions = ResolvedClientSemanticTokensRequestOptions$zero;
+  Requests: ResolvedClientSemanticTokensRequestOptions = new ResolvedClientSemanticTokensRequestOptions();
   TokenTypes: string[] = [];
   TokenModifiers: string[] = [];
   Formats: TokenFormat[] = [];
@@ -18135,7 +17956,7 @@ export class ResolvedSemanticTokensClientCapabilities extends $rt.GoObject {
   AugmentsSyntaxTokens: boolean = false;
   $copy_lsp_lsproto_ResolvedSemanticTokensClientCapabilities(src: ResolvedSemanticTokensClientCapabilities): void {
     this.DynamicRegistration = src.DynamicRegistration;
-    this.Requests = src.Requests;
+    this.Requests = src.Requests.$clone_lsp_lsproto_ResolvedClientSemanticTokensRequestOptions();
     this.TokenTypes = src.TokenTypes;
     this.TokenModifiers = src.TokenModifiers;
     this.Formats = src.Formats;
@@ -18355,7 +18176,7 @@ export class ResolvedTextDocumentClientCapabilities extends $rt.GoObject {
   SelectionRange: ResolvedSelectionRangeClientCapabilities = ResolvedSelectionRangeClientCapabilities$zero;
   PublishDiagnostics: ResolvedPublishDiagnosticsClientCapabilities = ResolvedPublishDiagnosticsClientCapabilities$zero;
   CallHierarchy: ResolvedCallHierarchyClientCapabilities = ResolvedCallHierarchyClientCapabilities$zero;
-  SemanticTokens: ResolvedSemanticTokensClientCapabilities = ResolvedSemanticTokensClientCapabilities$zero;
+  SemanticTokens: ResolvedSemanticTokensClientCapabilities = new ResolvedSemanticTokensClientCapabilities();
   LinkedEditingRange: ResolvedLinkedEditingRangeClientCapabilities = ResolvedLinkedEditingRangeClientCapabilities$zero;
   Moniker: ResolvedMonikerClientCapabilities = ResolvedMonikerClientCapabilities$zero;
   TypeHierarchy: ResolvedTypeHierarchyClientCapabilities = ResolvedTypeHierarchyClientCapabilities$zero;
@@ -18388,7 +18209,7 @@ export class ResolvedTextDocumentClientCapabilities extends $rt.GoObject {
     this.SelectionRange = src.SelectionRange;
     this.PublishDiagnostics = src.PublishDiagnostics;
     this.CallHierarchy = src.CallHierarchy;
-    this.SemanticTokens = src.SemanticTokens;
+    this.SemanticTokens = src.SemanticTokens.$clone_lsp_lsproto_ResolvedSemanticTokensClientCapabilities();
     this.LinkedEditingRange = src.LinkedEditingRange;
     this.Moniker = src.Moniker;
     this.TypeHierarchy = src.TypeHierarchy;
@@ -19031,7 +18852,7 @@ export class SelectionRangeClientCapabilities extends $rt.GoObject {
       return new ResolvedSelectionRangeClientCapabilities();
     }
     return ResolvedSelectionRangeClientCapabilities.$lit_lsp_lsproto_ResolvedSelectionRangeClientCapabilities_0(
-      derefOr<boolean>($zf168, v!.DynamicRegistration),
+      derefOr<boolean>($zf166, v!.DynamicRegistration),
     );
   }
   resolve(): ResolvedSelectionRangeClientCapabilities {
@@ -19241,15 +19062,15 @@ export class SemanticTokensClientCapabilities extends $rt.GoObject {
       return new ResolvedSemanticTokensClientCapabilities();
     }
     return ResolvedSemanticTokensClientCapabilities.$lit_lsp_lsproto_ResolvedSemanticTokensClientCapabilities_0_1_2_3_4_5_6_7_8(
-      derefOr<boolean>($zf168, v!.DynamicRegistration),
+      derefOr<boolean>($zf166, v!.DynamicRegistration),
       ClientSemanticTokensRequestOptions.resolve$nil(v!.Requests),
       v!.TokenTypes,
       v!.TokenModifiers,
       v!.Formats,
-      derefOr<boolean>($zf168, v!.OverlappingTokenSupport),
-      derefOr<boolean>($zf168, v!.MultilineTokenSupport),
-      derefOr<boolean>($zf168, v!.ServerCancelSupport),
-      derefOr<boolean>($zf168, v!.AugmentsSyntaxTokens),
+      derefOr<boolean>($zf166, v!.OverlappingTokenSupport),
+      derefOr<boolean>($zf166, v!.MultilineTokenSupport),
+      derefOr<boolean>($zf166, v!.ServerCancelSupport),
+      derefOr<boolean>($zf166, v!.AugmentsSyntaxTokens),
     );
   }
   resolve(): ResolvedSemanticTokensClientCapabilities {
@@ -19803,7 +19624,7 @@ export class SemanticTokensWorkspaceClientCapabilities extends $rt.GoObject {
       return new ResolvedSemanticTokensWorkspaceClientCapabilities();
     }
     return ResolvedSemanticTokensWorkspaceClientCapabilities.$lit_lsp_lsproto_ResolvedSemanticTokensWorkspaceClientCapabilities_0(
-      derefOr<boolean>($zf168, v!.RefreshSupport),
+      derefOr<boolean>($zf166, v!.RefreshSupport),
     );
   }
   resolve(): ResolvedSemanticTokensWorkspaceClientCapabilities {
@@ -19986,31 +19807,6 @@ export class ServerInfo extends $rt.GoObject {
   }
   static $cast_lsp_lsproto_ServerInfo(v: $rt.GoObject | undefined): ServerInfo {
     if (v instanceof ServerInfo) return v;
-    throw $rt.typeAssertError();
-  }
-  UnmarshalJSONFrom(
-    dec: $rt.github_com_go_json_experiment_json_jsontext_Decoder | undefined,
-  ): $rt.GoObject | undefined {
-    const s = this;
-    return unmarshalStruct(s, dec);
-  }
-}
-export class SetContentMapperContributionsParams extends $rt.GoObject {
-  Contributions: (ContentMapperContribution | undefined)[] = [];
-  OpenDocuments: TextDocumentIdentifier[] = [];
-  $copy_lsp_lsproto_SetContentMapperContributionsParams(src: SetContentMapperContributionsParams): void {
-    this.Contributions = src.Contributions;
-    this.OpenDocuments = src.OpenDocuments;
-  }
-  $clone_lsp_lsproto_SetContentMapperContributionsParams(): SetContentMapperContributionsParams {
-    const o = new SetContentMapperContributionsParams();
-    o.$copy_lsp_lsproto_SetContentMapperContributionsParams(this);
-    return o;
-  }
-  static $cast_lsp_lsproto_SetContentMapperContributionsParams(
-    v: $rt.GoObject | undefined,
-  ): SetContentMapperContributionsParams {
-    if (v instanceof SetContentMapperContributionsParams) return v;
     throw $rt.typeAssertError();
   }
   UnmarshalJSONFrom(
@@ -20316,9 +20112,9 @@ export class SignatureHelpClientCapabilities extends $rt.GoObject {
       return new ResolvedSignatureHelpClientCapabilities();
     }
     return ResolvedSignatureHelpClientCapabilities.$lit_lsp_lsproto_ResolvedSignatureHelpClientCapabilities_0_1_2(
-      derefOr<boolean>($zf168, v!.DynamicRegistration),
+      derefOr<boolean>($zf166, v!.DynamicRegistration),
       ClientSignatureInformationOptions.resolve$nil(v!.SignatureInformation),
-      derefOr<boolean>($zf168, v!.ContextSupport),
+      derefOr<boolean>($zf166, v!.ContextSupport),
     );
   }
   resolve(): ResolvedSignatureHelpClientCapabilities {
@@ -20753,40 +20549,6 @@ export class StringLiteralClassifiedTextRun extends $rt.GoObject {
     return undefined;
   }
 }
-export class StringLiteralContainerElement extends $rt.GoObject {
-  $copy_lsp_lsproto_StringLiteralContainerElement(src: StringLiteralContainerElement): void {}
-  $equals_lsp_lsproto_StringLiteralContainerElement(o: StringLiteralContainerElement): boolean {
-    return true;
-  }
-  $clone_lsp_lsproto_StringLiteralContainerElement(): StringLiteralContainerElement {
-    const o = new StringLiteralContainerElement();
-    o.$copy_lsp_lsproto_StringLiteralContainerElement(this);
-    return o;
-  }
-  static $cast_lsp_lsproto_StringLiteralContainerElement(v: $rt.GoObject | undefined): StringLiteralContainerElement {
-    if (v instanceof StringLiteralContainerElement) return v;
-    throw $rt.typeAssertError();
-  }
-  MarshalJSONTo(enc: $rt.github_com_go_json_experiment_json_jsontext_Encoder | undefined): $rt.GoObject | undefined {
-    const o = this;
-    return enc!.WriteValue($rt.stringToBytes('"ContainerElement"'));
-  }
-  UnmarshalJSONFrom(
-    dec: $rt.github_com_go_json_experiment_json_jsontext_Decoder | undefined,
-  ): $rt.GoObject | undefined {
-    const o = this;
-    const $t1 = dec!.ReadValue();
-    const v: number[] = $t1[0];
-    const err: $rt.GoObject | undefined = $t1[1];
-    if (!(err === undefined)) {
-      return err;
-    }
-    if (!($rt.bytesToString(v) === ('"ContainerElement"' as string))) {
-      return errLiteralMismatch('StringLiteralContainerElement', '"ContainerElement"', v);
-    }
-    return undefined;
-  }
-}
 export class StringLiteralCreate extends $rt.GoObject {
   $copy_lsp_lsproto_StringLiteralCreate(src: StringLiteralCreate): void {}
   $equals_lsp_lsproto_StringLiteralCreate(o: StringLiteralCreate): boolean {
@@ -20953,74 +20715,6 @@ export class StringLiteralFull extends $rt.GoObject {
     }
     if (!($rt.bytesToString(v) === ('"full"' as string))) {
       return errLiteralMismatch('StringLiteralFull', '"full"', v);
-    }
-    return undefined;
-  }
-}
-export class StringLiteralImageElement extends $rt.GoObject {
-  $copy_lsp_lsproto_StringLiteralImageElement(src: StringLiteralImageElement): void {}
-  $equals_lsp_lsproto_StringLiteralImageElement(o: StringLiteralImageElement): boolean {
-    return true;
-  }
-  $clone_lsp_lsproto_StringLiteralImageElement(): StringLiteralImageElement {
-    const o = new StringLiteralImageElement();
-    o.$copy_lsp_lsproto_StringLiteralImageElement(this);
-    return o;
-  }
-  static $cast_lsp_lsproto_StringLiteralImageElement(v: $rt.GoObject | undefined): StringLiteralImageElement {
-    if (v instanceof StringLiteralImageElement) return v;
-    throw $rt.typeAssertError();
-  }
-  MarshalJSONTo(enc: $rt.github_com_go_json_experiment_json_jsontext_Encoder | undefined): $rt.GoObject | undefined {
-    const o = this;
-    return enc!.WriteValue($rt.stringToBytes('"ImageElement"'));
-  }
-  UnmarshalJSONFrom(
-    dec: $rt.github_com_go_json_experiment_json_jsontext_Decoder | undefined,
-  ): $rt.GoObject | undefined {
-    const o = this;
-    const $t1 = dec!.ReadValue();
-    const v: number[] = $t1[0];
-    const err: $rt.GoObject | undefined = $t1[1];
-    if (!(err === undefined)) {
-      return err;
-    }
-    if (!($rt.bytesToString(v) === ('"ImageElement"' as string))) {
-      return errLiteralMismatch('StringLiteralImageElement', '"ImageElement"', v);
-    }
-    return undefined;
-  }
-}
-export class StringLiteralImageId extends $rt.GoObject {
-  $copy_lsp_lsproto_StringLiteralImageId(src: StringLiteralImageId): void {}
-  $equals_lsp_lsproto_StringLiteralImageId(o: StringLiteralImageId): boolean {
-    return true;
-  }
-  $clone_lsp_lsproto_StringLiteralImageId(): StringLiteralImageId {
-    const o = new StringLiteralImageId();
-    o.$copy_lsp_lsproto_StringLiteralImageId(this);
-    return o;
-  }
-  static $cast_lsp_lsproto_StringLiteralImageId(v: $rt.GoObject | undefined): StringLiteralImageId {
-    if (v instanceof StringLiteralImageId) return v;
-    throw $rt.typeAssertError();
-  }
-  MarshalJSONTo(enc: $rt.github_com_go_json_experiment_json_jsontext_Encoder | undefined): $rt.GoObject | undefined {
-    const o = this;
-    return enc!.WriteValue($rt.stringToBytes('"ImageId"'));
-  }
-  UnmarshalJSONFrom(
-    dec: $rt.github_com_go_json_experiment_json_jsontext_Decoder | undefined,
-  ): $rt.GoObject | undefined {
-    const o = this;
-    const $t1 = dec!.ReadValue();
-    const v: number[] = $t1[0];
-    const err: $rt.GoObject | undefined = $t1[1];
-    if (!(err === undefined)) {
-      return err;
-    }
-    if (!($rt.bytesToString(v) === ('"ImageId"' as string))) {
-      return errLiteralMismatch('StringLiteralImageId', '"ImageId"', v);
     }
     return undefined;
   }
@@ -22347,7 +22041,7 @@ export class TextDocumentContentClientCapabilities extends $rt.GoObject {
       return new ResolvedTextDocumentContentClientCapabilities();
     }
     return ResolvedTextDocumentContentClientCapabilities.$lit_lsp_lsproto_ResolvedTextDocumentContentClientCapabilities_0(
-      derefOr<boolean>($zf168, v!.DynamicRegistration),
+      derefOr<boolean>($zf166, v!.DynamicRegistration),
     );
   }
   resolve(): ResolvedTextDocumentContentClientCapabilities {
@@ -22687,7 +22381,7 @@ export class TextDocumentFilterClientCapabilities extends $rt.GoObject {
       return new ResolvedTextDocumentFilterClientCapabilities();
     }
     return ResolvedTextDocumentFilterClientCapabilities.$lit_lsp_lsproto_ResolvedTextDocumentFilterClientCapabilities_0(
-      derefOr<boolean>($zf168, v!.RelativePatternSupport),
+      derefOr<boolean>($zf166, v!.RelativePatternSupport),
     );
   }
   resolve(): ResolvedTextDocumentFilterClientCapabilities {
@@ -23052,10 +22746,10 @@ export class TextDocumentSyncClientCapabilities extends $rt.GoObject {
       return new ResolvedTextDocumentSyncClientCapabilities();
     }
     return ResolvedTextDocumentSyncClientCapabilities.$lit_lsp_lsproto_ResolvedTextDocumentSyncClientCapabilities_0_1_2_3(
-      derefOr<boolean>($zf168, v!.DynamicRegistration),
-      derefOr<boolean>($zf168, v!.WillSave),
-      derefOr<boolean>($zf168, v!.WillSaveWaitUntil),
-      derefOr<boolean>($zf168, v!.DidSave),
+      derefOr<boolean>($zf166, v!.DynamicRegistration),
+      derefOr<boolean>($zf166, v!.WillSave),
+      derefOr<boolean>($zf166, v!.WillSaveWaitUntil),
+      derefOr<boolean>($zf166, v!.DidSave),
     );
   }
   resolve(): ResolvedTextDocumentSyncClientCapabilities {
@@ -23404,8 +23098,8 @@ export class TypeDefinitionClientCapabilities extends $rt.GoObject {
       return new ResolvedTypeDefinitionClientCapabilities();
     }
     return ResolvedTypeDefinitionClientCapabilities.$lit_lsp_lsproto_ResolvedTypeDefinitionClientCapabilities_0_1(
-      derefOr<boolean>($zf168, v!.DynamicRegistration),
-      derefOr<boolean>($zf168, v!.LinkSupport),
+      derefOr<boolean>($zf166, v!.DynamicRegistration),
+      derefOr<boolean>($zf166, v!.LinkSupport),
     );
   }
   resolve(): ResolvedTypeDefinitionClientCapabilities {
@@ -23543,7 +23237,7 @@ export class TypeHierarchyClientCapabilities extends $rt.GoObject {
       return new ResolvedTypeHierarchyClientCapabilities();
     }
     return ResolvedTypeHierarchyClientCapabilities.$lit_lsp_lsproto_ResolvedTypeHierarchyClientCapabilities_0(
-      derefOr<boolean>($zf168, v!.DynamicRegistration),
+      derefOr<boolean>($zf166, v!.DynamicRegistration),
     );
   }
   resolve(): ResolvedTypeHierarchyClientCapabilities {
@@ -24006,164 +23700,6 @@ export class VSClassifiedTextRun extends $rt.GoObject {
     return unmarshalStruct(s, dec);
   }
 }
-export class VSContainerElement extends $rt.GoObject {
-  Style: VSContainerElementStyle = 0;
-  Elements: VSImageElementOrClassifiedTextElementOrContainerElement[] = [];
-  VSType: StringLiteralContainerElement = StringLiteralContainerElement$zero;
-  $copy_lsp_lsproto_VSContainerElement(src: VSContainerElement): void {
-    this.Style = src.Style;
-    this.Elements = src.Elements;
-    this.VSType = src.VSType;
-  }
-  $clone_lsp_lsproto_VSContainerElement(): VSContainerElement {
-    const o = new VSContainerElement();
-    o.$copy_lsp_lsproto_VSContainerElement(this);
-    return o;
-  }
-  static $cast_lsp_lsproto_VSContainerElement(v: $rt.GoObject | undefined): VSContainerElement {
-    if (v instanceof VSContainerElement) return v;
-    throw $rt.typeAssertError();
-  }
-  UnmarshalJSONFrom(
-    dec: $rt.github_com_go_json_experiment_json_jsontext_Decoder | undefined,
-  ): $rt.GoObject | undefined {
-    const s = this;
-    return unmarshalStruct(s, dec);
-  }
-}
-export class VSImageElement extends $rt.GoObject {
-  ImageId: VSImageId | undefined = undefined;
-  VSType: StringLiteralImageElement = StringLiteralImageElement$zero;
-  $copy_lsp_lsproto_VSImageElement(src: VSImageElement): void {
-    this.ImageId = src.ImageId;
-    this.VSType = src.VSType;
-  }
-  $equals_lsp_lsproto_VSImageElement(o: VSImageElement): boolean {
-    return this.ImageId === o.ImageId && this.VSType.$equals_lsp_lsproto_StringLiteralImageElement(o.VSType);
-  }
-  $clone_lsp_lsproto_VSImageElement(): VSImageElement {
-    const o = new VSImageElement();
-    o.$copy_lsp_lsproto_VSImageElement(this);
-    return o;
-  }
-  static $cast_lsp_lsproto_VSImageElement(v: $rt.GoObject | undefined): VSImageElement {
-    if (v instanceof VSImageElement) return v;
-    throw $rt.typeAssertError();
-  }
-  UnmarshalJSONFrom(
-    dec: $rt.github_com_go_json_experiment_json_jsontext_Decoder | undefined,
-  ): $rt.GoObject | undefined {
-    const s = this;
-    return unmarshalStruct(s, dec);
-  }
-}
-export class VSImageElementOrClassifiedTextElementOrContainerElement extends $rt.GoObject {
-  ImageElement: VSImageElement | undefined = undefined;
-  ClassifiedTextElement: VSClassifiedTextElement | undefined = undefined;
-  ContainerElement: VSContainerElement | undefined = undefined;
-  $copy_lsp_lsproto_VSImageElementOrClassifiedTextElementOrContainerElement(
-    src: VSImageElementOrClassifiedTextElementOrContainerElement,
-  ): void {
-    this.ImageElement = src.ImageElement;
-    this.ClassifiedTextElement = src.ClassifiedTextElement;
-    this.ContainerElement = src.ContainerElement;
-  }
-  $equals_lsp_lsproto_VSImageElementOrClassifiedTextElementOrContainerElement(
-    o: VSImageElementOrClassifiedTextElementOrContainerElement,
-  ): boolean {
-    return (
-      this.ImageElement === o.ImageElement &&
-      this.ClassifiedTextElement === o.ClassifiedTextElement &&
-      this.ContainerElement === o.ContainerElement
-    );
-  }
-  $clone_lsp_lsproto_VSImageElementOrClassifiedTextElementOrContainerElement(): VSImageElementOrClassifiedTextElementOrContainerElement {
-    const o = new VSImageElementOrClassifiedTextElementOrContainerElement();
-    o.$copy_lsp_lsproto_VSImageElementOrClassifiedTextElementOrContainerElement(this);
-    return o;
-  }
-  static $cast_lsp_lsproto_VSImageElementOrClassifiedTextElementOrContainerElement(
-    v: $rt.GoObject | undefined,
-  ): VSImageElementOrClassifiedTextElementOrContainerElement {
-    if (v instanceof VSImageElementOrClassifiedTextElementOrContainerElement) return v;
-    throw $rt.typeAssertError();
-  }
-  MarshalJSONTo(enc: $rt.github_com_go_json_experiment_json_jsontext_Encoder | undefined): $rt.GoObject | undefined {
-    const o = this;
-    return marshalUnion(o, enc, 'VSImageElementOrClassifiedTextElementOrContainerElement', false);
-  }
-  UnmarshalJSONFrom(
-    dec: $rt.github_com_go_json_experiment_json_jsontext_Decoder | undefined,
-  ): $rt.GoObject | undefined {
-    const o = this;
-    o!.$copy_lsp_lsproto_VSImageElementOrClassifiedTextElementOrContainerElement(
-      new VSImageElementOrClassifiedTextElementOrContainerElement(),
-    );
-    const $t1 = dec!.ReadValue();
-    const data: number[] = $t1[0];
-    const err: $rt.GoObject | undefined = $t1[1];
-    if (!(err === undefined)) {
-      return err;
-    }
-    {
-      switch ($rt.bytesToString(jsonObjectRawField(data, '_vs_type'))) {
-        case '"ContainerElement"' as string: {
-          o!.ContainerElement = new VSContainerElement();
-          return $json.Unmarshal(
-            data,
-            o!.ContainerElement,
-            [] as ($rt.github_com_go_json_experiment_json_internal_jsonopts_Options | undefined)[],
-          );
-        }
-        case '"ImageElement"' as string: {
-          o!.ImageElement = new VSImageElement();
-          return $json.Unmarshal(
-            data,
-            o!.ImageElement,
-            [] as ($rt.github_com_go_json_experiment_json_internal_jsonopts_Options | undefined)[],
-          );
-        }
-        case '"ClassifiedTextElement"' as string: {
-          o!.ClassifiedTextElement = new VSClassifiedTextElement();
-          return $json.Unmarshal(
-            data,
-            o!.ClassifiedTextElement,
-            [] as ($rt.github_com_go_json_experiment_json_internal_jsonopts_Options | undefined)[],
-          );
-        }
-      }
-    }
-    return errInvalidValue('VSImageElementOrClassifiedTextElementOrContainerElement', data);
-  }
-}
-export class VSImageId extends $rt.GoObject {
-  Guid: string = '';
-  Id: number = 0;
-  VSType: StringLiteralImageId = StringLiteralImageId$zero;
-  $copy_lsp_lsproto_VSImageId(src: VSImageId): void {
-    this.Guid = src.Guid;
-    this.Id = src.Id;
-    this.VSType = src.VSType;
-  }
-  $equals_lsp_lsproto_VSImageId(o: VSImageId): boolean {
-    return this.Guid === o.Guid && this.Id === o.Id && this.VSType.$equals_lsp_lsproto_StringLiteralImageId(o.VSType);
-  }
-  $clone_lsp_lsproto_VSImageId(): VSImageId {
-    const o = new VSImageId();
-    o.$copy_lsp_lsproto_VSImageId(this);
-    return o;
-  }
-  static $cast_lsp_lsproto_VSImageId(v: $rt.GoObject | undefined): VSImageId {
-    if (v instanceof VSImageId) return v;
-    throw $rt.typeAssertError();
-  }
-  UnmarshalJSONFrom(
-    dec: $rt.github_com_go_json_experiment_json_jsontext_Decoder | undefined,
-  ): $rt.GoObject | undefined {
-    const s = this;
-    return unmarshalStruct(s, dec);
-  }
-}
 export class VSOnAutoInsertOptions extends $rt.GoObject {
   VSTriggerCharacters: string[] = [];
   $copy_lsp_lsproto_VSOnAutoInsertOptions(src: VSOnAutoInsertOptions): void {
@@ -24487,7 +24023,7 @@ export class WindowClientCapabilities extends $rt.GoObject {
       return new ResolvedWindowClientCapabilities();
     }
     return ResolvedWindowClientCapabilities.$lit_lsp_lsproto_ResolvedWindowClientCapabilities_0_1_2(
-      derefOr<boolean>($zf168, v!.WorkDoneProgress),
+      derefOr<boolean>($zf166, v!.WorkDoneProgress),
       ShowMessageRequestClientCapabilities.resolve$nil(v!.ShowMessage),
       ShowDocumentClientCapabilities.resolve$nil(v!.ShowDocument),
     );
@@ -24835,14 +24371,14 @@ export class WorkspaceClientCapabilities extends $rt.GoObject {
       return new ResolvedWorkspaceClientCapabilities();
     }
     return ResolvedWorkspaceClientCapabilities.$lit_lsp_lsproto_ResolvedWorkspaceClientCapabilities_0_1_2_3_4_5_6_7_8_9_10_11_12_13_14_15(
-      derefOr<boolean>($zf168, v!.ApplyEdit),
+      derefOr<boolean>($zf166, v!.ApplyEdit),
       WorkspaceEditClientCapabilities.resolve$nil(v!.WorkspaceEdit),
       DidChangeConfigurationClientCapabilities.resolve$nil(v!.DidChangeConfiguration),
       DidChangeWatchedFilesClientCapabilities.resolve$nil(v!.DidChangeWatchedFiles),
       WorkspaceSymbolClientCapabilities.resolve$nil(v!.Symbol),
       ExecuteCommandClientCapabilities.resolve$nil(v!.ExecuteCommand),
-      derefOr<boolean>($zf168, v!.WorkspaceFolders),
-      derefOr<boolean>($zf168, v!.Configuration),
+      derefOr<boolean>($zf166, v!.WorkspaceFolders),
+      derefOr<boolean>($zf166, v!.Configuration),
       SemanticTokensWorkspaceClientCapabilities.resolve$nil(v!.SemanticTokens),
       CodeLensWorkspaceClientCapabilities.resolve$nil(v!.CodeLens),
       FileOperationClientCapabilities.resolve$nil(v!.FileOperations),
@@ -25010,13 +24546,13 @@ export class WorkspaceEditClientCapabilities extends $rt.GoObject {
       return new ResolvedWorkspaceEditClientCapabilities();
     }
     return ResolvedWorkspaceEditClientCapabilities.$lit_lsp_lsproto_ResolvedWorkspaceEditClientCapabilities_0_1_2_3_4_5_6(
-      derefOr<boolean>($zf168, v!.DocumentChanges),
-      derefOr<ResourceOperationKind[]>($zf169, v!.ResourceOperations),
-      derefOr<FailureHandlingKind>($zf170, v!.FailureHandling),
-      derefOr<boolean>($zf168, v!.NormalizesLineEndings),
+      derefOr<boolean>($zf166, v!.DocumentChanges),
+      derefOr<ResourceOperationKind[]>($zf167, v!.ResourceOperations),
+      derefOr<FailureHandlingKind>($zf168, v!.FailureHandling),
+      derefOr<boolean>($zf166, v!.NormalizesLineEndings),
       ChangeAnnotationsSupportOptions.resolve$nil(v!.ChangeAnnotationSupport),
-      derefOr<boolean>($zf168, v!.MetadataSupport),
-      derefOr<boolean>($zf168, v!.SnippetEditSupport),
+      derefOr<boolean>($zf166, v!.MetadataSupport),
+      derefOr<boolean>($zf166, v!.SnippetEditSupport),
     );
   }
   resolve(): ResolvedWorkspaceEditClientCapabilities {
@@ -25506,7 +25042,7 @@ export class WorkspaceSymbolClientCapabilities extends $rt.GoObject {
       return new ResolvedWorkspaceSymbolClientCapabilities();
     }
     return ResolvedWorkspaceSymbolClientCapabilities.$lit_lsp_lsproto_ResolvedWorkspaceSymbolClientCapabilities_0_1_2_3(
-      derefOr<boolean>($zf168, v!.DynamicRegistration),
+      derefOr<boolean>($zf166, v!.DynamicRegistration),
       ClientSymbolKindOptions.resolve$nil(v!.SymbolKind),
       ClientSymbolTagOptions.resolve$nil(v!.TagSupport),
       ClientSymbolResolveOptions.resolve$nil(v!.ResolveSupport),
@@ -25561,19 +25097,16 @@ export class WorkspaceSymbolParams extends $rt.GoObject {
   WorkDoneToken: IntegerOrString | undefined = undefined;
   PartialResultToken: IntegerOrString | undefined = undefined;
   Query: string = '';
-  TextDocument: TextDocumentIdentifier | undefined = undefined;
   $copy_lsp_lsproto_WorkspaceSymbolParams(src: WorkspaceSymbolParams): void {
     this.WorkDoneToken = src.WorkDoneToken;
     this.PartialResultToken = src.PartialResultToken;
     this.Query = src.Query;
-    this.TextDocument = src.TextDocument;
   }
   $equals_lsp_lsproto_WorkspaceSymbolParams(o: WorkspaceSymbolParams): boolean {
     return (
       this.WorkDoneToken === o.WorkDoneToken &&
       this.PartialResultToken === o.PartialResultToken &&
-      this.Query === o.Query &&
-      this.TextDocument === o.TextDocument
+      this.Query === o.Query
     );
   }
   $clone_lsp_lsproto_WorkspaceSymbolParams(): WorkspaceSymbolParams {
@@ -25745,146 +25278,90 @@ export const ResolvedCallHierarchyClientCapabilities$zero: ResolvedCallHierarchy
   new ResolvedCallHierarchyClientCapabilities();
 export const ResolvedChangeAnnotationsSupportOptions$zero: ResolvedChangeAnnotationsSupportOptions =
   new ResolvedChangeAnnotationsSupportOptions();
-export const ResolvedWorkspaceEditClientCapabilities$zero: ResolvedWorkspaceEditClientCapabilities =
-  new ResolvedWorkspaceEditClientCapabilities();
-export const ResolvedDidChangeConfigurationClientCapabilities$zero: ResolvedDidChangeConfigurationClientCapabilities =
-  new ResolvedDidChangeConfigurationClientCapabilities();
-export const ResolvedDidChangeWatchedFilesClientCapabilities$zero: ResolvedDidChangeWatchedFilesClientCapabilities =
-  new ResolvedDidChangeWatchedFilesClientCapabilities();
-export const ResolvedClientSymbolKindOptions$zero: ResolvedClientSymbolKindOptions =
-  new ResolvedClientSymbolKindOptions();
-export const ResolvedClientSymbolTagOptions$zero: ResolvedClientSymbolTagOptions = new ResolvedClientSymbolTagOptions();
-export const ResolvedClientSymbolResolveOptions$zero: ResolvedClientSymbolResolveOptions =
-  new ResolvedClientSymbolResolveOptions();
-export const ResolvedWorkspaceSymbolClientCapabilities$zero: ResolvedWorkspaceSymbolClientCapabilities =
-  new ResolvedWorkspaceSymbolClientCapabilities();
-export const ResolvedExecuteCommandClientCapabilities$zero: ResolvedExecuteCommandClientCapabilities =
-  new ResolvedExecuteCommandClientCapabilities();
-export const ResolvedSemanticTokensWorkspaceClientCapabilities$zero: ResolvedSemanticTokensWorkspaceClientCapabilities =
-  new ResolvedSemanticTokensWorkspaceClientCapabilities();
-export const ResolvedCodeLensWorkspaceClientCapabilities$zero: ResolvedCodeLensWorkspaceClientCapabilities =
-  new ResolvedCodeLensWorkspaceClientCapabilities();
-export const ResolvedFileOperationClientCapabilities$zero: ResolvedFileOperationClientCapabilities =
-  new ResolvedFileOperationClientCapabilities();
-export const ResolvedInlineValueWorkspaceClientCapabilities$zero: ResolvedInlineValueWorkspaceClientCapabilities =
-  new ResolvedInlineValueWorkspaceClientCapabilities();
-export const ResolvedInlayHintWorkspaceClientCapabilities$zero: ResolvedInlayHintWorkspaceClientCapabilities =
-  new ResolvedInlayHintWorkspaceClientCapabilities();
-export const ResolvedDiagnosticWorkspaceClientCapabilities$zero: ResolvedDiagnosticWorkspaceClientCapabilities =
-  new ResolvedDiagnosticWorkspaceClientCapabilities();
-export const ResolvedFoldingRangeWorkspaceClientCapabilities$zero: ResolvedFoldingRangeWorkspaceClientCapabilities =
-  new ResolvedFoldingRangeWorkspaceClientCapabilities();
-export const ResolvedTextDocumentContentClientCapabilities$zero: ResolvedTextDocumentContentClientCapabilities =
-  new ResolvedTextDocumentContentClientCapabilities();
-export const ResolvedWorkspaceClientCapabilities$zero: ResolvedWorkspaceClientCapabilities =
-  new ResolvedWorkspaceClientCapabilities();
-export const ResolvedTextDocumentSyncClientCapabilities$zero: ResolvedTextDocumentSyncClientCapabilities =
-  new ResolvedTextDocumentSyncClientCapabilities();
-export const ResolvedTextDocumentFilterClientCapabilities$zero: ResolvedTextDocumentFilterClientCapabilities =
-  new ResolvedTextDocumentFilterClientCapabilities();
-export const ResolvedCompletionItemTagOptions$zero: ResolvedCompletionItemTagOptions =
-  new ResolvedCompletionItemTagOptions();
-export const ResolvedClientCompletionItemResolveOptions$zero: ResolvedClientCompletionItemResolveOptions =
-  new ResolvedClientCompletionItemResolveOptions();
-export const ResolvedClientCompletionItemInsertTextModeOptions$zero: ResolvedClientCompletionItemInsertTextModeOptions =
-  new ResolvedClientCompletionItemInsertTextModeOptions();
-export const ResolvedClientCompletionItemOptions$zero: ResolvedClientCompletionItemOptions =
-  new ResolvedClientCompletionItemOptions();
-export const ResolvedClientCompletionItemOptionsKind$zero: ResolvedClientCompletionItemOptionsKind =
-  new ResolvedClientCompletionItemOptionsKind();
-export const ResolvedCompletionListCapabilities$zero: ResolvedCompletionListCapabilities =
-  new ResolvedCompletionListCapabilities();
-export const ResolvedCompletionClientCapabilities$zero: ResolvedCompletionClientCapabilities =
-  new ResolvedCompletionClientCapabilities();
-export const ResolvedHoverClientCapabilities$zero: ResolvedHoverClientCapabilities =
-  new ResolvedHoverClientCapabilities();
-export const ResolvedClientSignatureParameterInformationOptions$zero: ResolvedClientSignatureParameterInformationOptions =
-  new ResolvedClientSignatureParameterInformationOptions();
-export const ResolvedClientSignatureInformationOptions$zero: ResolvedClientSignatureInformationOptions =
-  new ResolvedClientSignatureInformationOptions();
-export const ResolvedSignatureHelpClientCapabilities$zero: ResolvedSignatureHelpClientCapabilities =
-  new ResolvedSignatureHelpClientCapabilities();
-export const ResolvedDeclarationClientCapabilities$zero: ResolvedDeclarationClientCapabilities =
-  new ResolvedDeclarationClientCapabilities();
-export const ResolvedDefinitionClientCapabilities$zero: ResolvedDefinitionClientCapabilities =
-  new ResolvedDefinitionClientCapabilities();
-export const ResolvedTypeDefinitionClientCapabilities$zero: ResolvedTypeDefinitionClientCapabilities =
-  new ResolvedTypeDefinitionClientCapabilities();
-export const ResolvedImplementationClientCapabilities$zero: ResolvedImplementationClientCapabilities =
-  new ResolvedImplementationClientCapabilities();
-export const ResolvedReferenceClientCapabilities$zero: ResolvedReferenceClientCapabilities =
-  new ResolvedReferenceClientCapabilities();
-export const ResolvedDocumentHighlightClientCapabilities$zero: ResolvedDocumentHighlightClientCapabilities =
-  new ResolvedDocumentHighlightClientCapabilities();
-export const ResolvedDocumentSymbolClientCapabilities$zero: ResolvedDocumentSymbolClientCapabilities =
-  new ResolvedDocumentSymbolClientCapabilities();
 export const ResolvedClientCodeActionKindOptions$zero: ResolvedClientCodeActionKindOptions =
   new ResolvedClientCodeActionKindOptions();
 export const ResolvedClientCodeActionLiteralOptions$zero: ResolvedClientCodeActionLiteralOptions =
   new ResolvedClientCodeActionLiteralOptions();
 export const ResolvedClientCodeActionResolveOptions$zero: ResolvedClientCodeActionResolveOptions =
   new ResolvedClientCodeActionResolveOptions();
-export const ResolvedCodeActionTagOptions$zero: ResolvedCodeActionTagOptions = new ResolvedCodeActionTagOptions();
-export const ResolvedCodeActionClientCapabilities$zero: ResolvedCodeActionClientCapabilities =
-  new ResolvedCodeActionClientCapabilities();
 export const ResolvedClientCodeLensResolveOptions$zero: ResolvedClientCodeLensResolveOptions =
   new ResolvedClientCodeLensResolveOptions();
-export const ResolvedCodeLensClientCapabilities$zero: ResolvedCodeLensClientCapabilities =
-  new ResolvedCodeLensClientCapabilities();
-export const ResolvedDocumentLinkClientCapabilities$zero: ResolvedDocumentLinkClientCapabilities =
-  new ResolvedDocumentLinkClientCapabilities();
-export const ResolvedDocumentColorClientCapabilities$zero: ResolvedDocumentColorClientCapabilities =
-  new ResolvedDocumentColorClientCapabilities();
-export const ResolvedDocumentFormattingClientCapabilities$zero: ResolvedDocumentFormattingClientCapabilities =
-  new ResolvedDocumentFormattingClientCapabilities();
-export const ResolvedDocumentRangeFormattingClientCapabilities$zero: ResolvedDocumentRangeFormattingClientCapabilities =
-  new ResolvedDocumentRangeFormattingClientCapabilities();
-export const ResolvedDocumentOnTypeFormattingClientCapabilities$zero: ResolvedDocumentOnTypeFormattingClientCapabilities =
-  new ResolvedDocumentOnTypeFormattingClientCapabilities();
-export const ResolvedRenameClientCapabilities$zero: ResolvedRenameClientCapabilities =
-  new ResolvedRenameClientCapabilities();
+export const ResolvedClientCompletionItemInsertTextModeOptions$zero: ResolvedClientCompletionItemInsertTextModeOptions =
+  new ResolvedClientCompletionItemInsertTextModeOptions();
+export const ResolvedCompletionItemTagOptions$zero: ResolvedCompletionItemTagOptions =
+  new ResolvedCompletionItemTagOptions();
+export const ResolvedClientCompletionItemResolveOptions$zero: ResolvedClientCompletionItemResolveOptions =
+  new ResolvedClientCompletionItemResolveOptions();
+export const ResolvedClientCompletionItemOptions$zero: ResolvedClientCompletionItemOptions =
+  new ResolvedClientCompletionItemOptions();
+export const ResolvedClientCompletionItemOptionsKind$zero: ResolvedClientCompletionItemOptionsKind =
+  new ResolvedClientCompletionItemOptionsKind();
+export const ResolvedClientDiagnosticsTagOptions$zero: ResolvedClientDiagnosticsTagOptions =
+  new ResolvedClientDiagnosticsTagOptions();
 export const ResolvedClientFoldingRangeKindOptions$zero: ResolvedClientFoldingRangeKindOptions =
   new ResolvedClientFoldingRangeKindOptions();
 export const ResolvedClientFoldingRangeOptions$zero: ResolvedClientFoldingRangeOptions =
   new ResolvedClientFoldingRangeOptions();
-export const ResolvedFoldingRangeClientCapabilities$zero: ResolvedFoldingRangeClientCapabilities =
-  new ResolvedFoldingRangeClientCapabilities();
-export const ResolvedSelectionRangeClientCapabilities$zero: ResolvedSelectionRangeClientCapabilities =
-  new ResolvedSelectionRangeClientCapabilities();
-export const ResolvedClientDiagnosticsTagOptions$zero: ResolvedClientDiagnosticsTagOptions =
-  new ResolvedClientDiagnosticsTagOptions();
-export const ResolvedPublishDiagnosticsClientCapabilities$zero: ResolvedPublishDiagnosticsClientCapabilities =
-  new ResolvedPublishDiagnosticsClientCapabilities();
-export const ResolvedClientSemanticTokensRequestOptions$zero: ResolvedClientSemanticTokensRequestOptions =
-  new ResolvedClientSemanticTokensRequestOptions();
-export const ResolvedSemanticTokensClientCapabilities$zero: ResolvedSemanticTokensClientCapabilities =
-  new ResolvedSemanticTokensClientCapabilities();
-export const ResolvedLinkedEditingRangeClientCapabilities$zero: ResolvedLinkedEditingRangeClientCapabilities =
-  new ResolvedLinkedEditingRangeClientCapabilities();
-export const ResolvedMonikerClientCapabilities$zero: ResolvedMonikerClientCapabilities =
-  new ResolvedMonikerClientCapabilities();
-export const ResolvedTypeHierarchyClientCapabilities$zero: ResolvedTypeHierarchyClientCapabilities =
-  new ResolvedTypeHierarchyClientCapabilities();
-export const ResolvedInlineValueClientCapabilities$zero: ResolvedInlineValueClientCapabilities =
-  new ResolvedInlineValueClientCapabilities();
 export const ResolvedClientInlayHintResolveOptions$zero: ResolvedClientInlayHintResolveOptions =
   new ResolvedClientInlayHintResolveOptions();
-export const ResolvedInlayHintClientCapabilities$zero: ResolvedInlayHintClientCapabilities =
-  new ResolvedInlayHintClientCapabilities();
-export const ResolvedDiagnosticClientCapabilities$zero: ResolvedDiagnosticClientCapabilities =
-  new ResolvedDiagnosticClientCapabilities();
-export const ResolvedInlineCompletionClientCapabilities$zero: ResolvedInlineCompletionClientCapabilities =
-  new ResolvedInlineCompletionClientCapabilities();
-export const ResolvedTextDocumentClientCapabilities$zero: ResolvedTextDocumentClientCapabilities =
-  new ResolvedTextDocumentClientCapabilities();
 export const ResolvedClientShowMessageActionItemOptions$zero: ResolvedClientShowMessageActionItemOptions =
   new ResolvedClientShowMessageActionItemOptions();
-export const ResolvedShowMessageRequestClientCapabilities$zero: ResolvedShowMessageRequestClientCapabilities =
-  new ResolvedShowMessageRequestClientCapabilities();
-export const ResolvedShowDocumentClientCapabilities$zero: ResolvedShowDocumentClientCapabilities =
-  new ResolvedShowDocumentClientCapabilities();
-export const ResolvedWindowClientCapabilities$zero: ResolvedWindowClientCapabilities =
-  new ResolvedWindowClientCapabilities();
+export const ResolvedClientSignatureParameterInformationOptions$zero: ResolvedClientSignatureParameterInformationOptions =
+  new ResolvedClientSignatureParameterInformationOptions();
+export const ResolvedClientSignatureInformationOptions$zero: ResolvedClientSignatureInformationOptions =
+  new ResolvedClientSignatureInformationOptions();
+export const ResolvedClientSymbolKindOptions$zero: ResolvedClientSymbolKindOptions =
+  new ResolvedClientSymbolKindOptions();
+export const ResolvedClientSymbolResolveOptions$zero: ResolvedClientSymbolResolveOptions =
+  new ResolvedClientSymbolResolveOptions();
+export const ResolvedClientSymbolTagOptions$zero: ResolvedClientSymbolTagOptions = new ResolvedClientSymbolTagOptions();
+export const ResolvedCodeActionTagOptions$zero: ResolvedCodeActionTagOptions = new ResolvedCodeActionTagOptions();
+export const ResolvedCodeActionClientCapabilities$zero: ResolvedCodeActionClientCapabilities =
+  new ResolvedCodeActionClientCapabilities();
+export const ResolvedCodeLensClientCapabilities$zero: ResolvedCodeLensClientCapabilities =
+  new ResolvedCodeLensClientCapabilities();
+export const ResolvedCodeLensWorkspaceClientCapabilities$zero: ResolvedCodeLensWorkspaceClientCapabilities =
+  new ResolvedCodeLensWorkspaceClientCapabilities();
+export const ResolvedCompletionListCapabilities$zero: ResolvedCompletionListCapabilities =
+  new ResolvedCompletionListCapabilities();
+export const ResolvedCompletionClientCapabilities$zero: ResolvedCompletionClientCapabilities =
+  new ResolvedCompletionClientCapabilities();
+export const ResolvedDeclarationClientCapabilities$zero: ResolvedDeclarationClientCapabilities =
+  new ResolvedDeclarationClientCapabilities();
+export const ResolvedDefinitionClientCapabilities$zero: ResolvedDefinitionClientCapabilities =
+  new ResolvedDefinitionClientCapabilities();
+export const ResolvedDiagnosticClientCapabilities$zero: ResolvedDiagnosticClientCapabilities =
+  new ResolvedDiagnosticClientCapabilities();
+export const ResolvedDiagnosticWorkspaceClientCapabilities$zero: ResolvedDiagnosticWorkspaceClientCapabilities =
+  new ResolvedDiagnosticWorkspaceClientCapabilities();
+export const ResolvedDidChangeConfigurationClientCapabilities$zero: ResolvedDidChangeConfigurationClientCapabilities =
+  new ResolvedDidChangeConfigurationClientCapabilities();
+export const ResolvedDidChangeWatchedFilesClientCapabilities$zero: ResolvedDidChangeWatchedFilesClientCapabilities =
+  new ResolvedDidChangeWatchedFilesClientCapabilities();
+export const ResolvedDocumentColorClientCapabilities$zero: ResolvedDocumentColorClientCapabilities =
+  new ResolvedDocumentColorClientCapabilities();
+export const ResolvedDocumentFormattingClientCapabilities$zero: ResolvedDocumentFormattingClientCapabilities =
+  new ResolvedDocumentFormattingClientCapabilities();
+export const ResolvedDocumentHighlightClientCapabilities$zero: ResolvedDocumentHighlightClientCapabilities =
+  new ResolvedDocumentHighlightClientCapabilities();
+export const ResolvedDocumentLinkClientCapabilities$zero: ResolvedDocumentLinkClientCapabilities =
+  new ResolvedDocumentLinkClientCapabilities();
+export const ResolvedDocumentOnTypeFormattingClientCapabilities$zero: ResolvedDocumentOnTypeFormattingClientCapabilities =
+  new ResolvedDocumentOnTypeFormattingClientCapabilities();
+export const ResolvedDocumentRangeFormattingClientCapabilities$zero: ResolvedDocumentRangeFormattingClientCapabilities =
+  new ResolvedDocumentRangeFormattingClientCapabilities();
+export const ResolvedDocumentSymbolClientCapabilities$zero: ResolvedDocumentSymbolClientCapabilities =
+  new ResolvedDocumentSymbolClientCapabilities();
+export const ResolvedExecuteCommandClientCapabilities$zero: ResolvedExecuteCommandClientCapabilities =
+  new ResolvedExecuteCommandClientCapabilities();
+export const ResolvedExperimentalClientCapabilities$zero: ResolvedExperimentalClientCapabilities =
+  new ResolvedExperimentalClientCapabilities();
+export const ResolvedFileOperationClientCapabilities$zero: ResolvedFileOperationClientCapabilities =
+  new ResolvedFileOperationClientCapabilities();
+export const ResolvedFoldingRangeClientCapabilities$zero: ResolvedFoldingRangeClientCapabilities =
+  new ResolvedFoldingRangeClientCapabilities();
+export const ResolvedFoldingRangeWorkspaceClientCapabilities$zero: ResolvedFoldingRangeWorkspaceClientCapabilities =
+  new ResolvedFoldingRangeWorkspaceClientCapabilities();
 export const ResolvedStaleRequestSupportOptions$zero: ResolvedStaleRequestSupportOptions =
   new ResolvedStaleRequestSupportOptions();
 export const ResolvedRegularExpressionsClientCapabilities$zero: ResolvedRegularExpressionsClientCapabilities =
@@ -25893,21 +25370,67 @@ export const ResolvedMarkdownClientCapabilities$zero: ResolvedMarkdownClientCapa
   new ResolvedMarkdownClientCapabilities();
 export const ResolvedGeneralClientCapabilities$zero: ResolvedGeneralClientCapabilities =
   new ResolvedGeneralClientCapabilities();
-export const ResolvedExperimentalClientCapabilities$zero: ResolvedExperimentalClientCapabilities =
-  new ResolvedExperimentalClientCapabilities();
-export const ResolvedClientCapabilities$zero: ResolvedClientCapabilities = new ResolvedClientCapabilities();
+export const ResolvedHoverClientCapabilities$zero: ResolvedHoverClientCapabilities =
+  new ResolvedHoverClientCapabilities();
+export const ResolvedImplementationClientCapabilities$zero: ResolvedImplementationClientCapabilities =
+  new ResolvedImplementationClientCapabilities();
+export const ResolvedInlayHintClientCapabilities$zero: ResolvedInlayHintClientCapabilities =
+  new ResolvedInlayHintClientCapabilities();
+export const ResolvedInlayHintWorkspaceClientCapabilities$zero: ResolvedInlayHintWorkspaceClientCapabilities =
+  new ResolvedInlayHintWorkspaceClientCapabilities();
+export const ResolvedInlineCompletionClientCapabilities$zero: ResolvedInlineCompletionClientCapabilities =
+  new ResolvedInlineCompletionClientCapabilities();
+export const ResolvedInlineValueClientCapabilities$zero: ResolvedInlineValueClientCapabilities =
+  new ResolvedInlineValueClientCapabilities();
+export const ResolvedInlineValueWorkspaceClientCapabilities$zero: ResolvedInlineValueWorkspaceClientCapabilities =
+  new ResolvedInlineValueWorkspaceClientCapabilities();
+export const ResolvedLinkedEditingRangeClientCapabilities$zero: ResolvedLinkedEditingRangeClientCapabilities =
+  new ResolvedLinkedEditingRangeClientCapabilities();
+export const ResolvedMonikerClientCapabilities$zero: ResolvedMonikerClientCapabilities =
+  new ResolvedMonikerClientCapabilities();
+export const ResolvedPublishDiagnosticsClientCapabilities$zero: ResolvedPublishDiagnosticsClientCapabilities =
+  new ResolvedPublishDiagnosticsClientCapabilities();
+export const ResolvedReferenceClientCapabilities$zero: ResolvedReferenceClientCapabilities =
+  new ResolvedReferenceClientCapabilities();
+export const ResolvedRenameClientCapabilities$zero: ResolvedRenameClientCapabilities =
+  new ResolvedRenameClientCapabilities();
+export const ResolvedSelectionRangeClientCapabilities$zero: ResolvedSelectionRangeClientCapabilities =
+  new ResolvedSelectionRangeClientCapabilities();
+export const ResolvedSemanticTokensWorkspaceClientCapabilities$zero: ResolvedSemanticTokensWorkspaceClientCapabilities =
+  new ResolvedSemanticTokensWorkspaceClientCapabilities();
+export const ResolvedShowDocumentClientCapabilities$zero: ResolvedShowDocumentClientCapabilities =
+  new ResolvedShowDocumentClientCapabilities();
+export const ResolvedShowMessageRequestClientCapabilities$zero: ResolvedShowMessageRequestClientCapabilities =
+  new ResolvedShowMessageRequestClientCapabilities();
+export const ResolvedSignatureHelpClientCapabilities$zero: ResolvedSignatureHelpClientCapabilities =
+  new ResolvedSignatureHelpClientCapabilities();
+export const ResolvedTextDocumentContentClientCapabilities$zero: ResolvedTextDocumentContentClientCapabilities =
+  new ResolvedTextDocumentContentClientCapabilities();
+export const ResolvedTextDocumentFilterClientCapabilities$zero: ResolvedTextDocumentFilterClientCapabilities =
+  new ResolvedTextDocumentFilterClientCapabilities();
+export const ResolvedTextDocumentSyncClientCapabilities$zero: ResolvedTextDocumentSyncClientCapabilities =
+  new ResolvedTextDocumentSyncClientCapabilities();
+export const ResolvedTypeDefinitionClientCapabilities$zero: ResolvedTypeDefinitionClientCapabilities =
+  new ResolvedTypeDefinitionClientCapabilities();
+export const ResolvedTypeHierarchyClientCapabilities$zero: ResolvedTypeHierarchyClientCapabilities =
+  new ResolvedTypeHierarchyClientCapabilities();
+export const ResolvedWindowClientCapabilities$zero: ResolvedWindowClientCapabilities =
+  new ResolvedWindowClientCapabilities();
+export const ResolvedWorkspaceEditClientCapabilities$zero: ResolvedWorkspaceEditClientCapabilities =
+  new ResolvedWorkspaceEditClientCapabilities();
+export const ResolvedWorkspaceSymbolClientCapabilities$zero: ResolvedWorkspaceSymbolClientCapabilities =
+  new ResolvedWorkspaceSymbolClientCapabilities();
+export const ResolvedWorkspaceClientCapabilities$zero: ResolvedWorkspaceClientCapabilities =
+  new ResolvedWorkspaceClientCapabilities();
 export const StringLiteralBegin$zero: StringLiteralBegin = new StringLiteralBegin();
 export const StringLiteralClassifiedTextElement$zero: StringLiteralClassifiedTextElement =
   new StringLiteralClassifiedTextElement();
 export const StringLiteralClassifiedTextRun$zero: StringLiteralClassifiedTextRun = new StringLiteralClassifiedTextRun();
-export const StringLiteralContainerElement$zero: StringLiteralContainerElement = new StringLiteralContainerElement();
 export const StringLiteralCreate$zero: StringLiteralCreate = new StringLiteralCreate();
 export const StringLiteralDelete$zero: StringLiteralDelete = new StringLiteralDelete();
 export const StringLiteralEnd$zero: StringLiteralEnd = new StringLiteralEnd();
 export const StringLiteralError$zero: StringLiteralError = new StringLiteralError();
 export const StringLiteralFull$zero: StringLiteralFull = new StringLiteralFull();
-export const StringLiteralImageElement$zero: StringLiteralImageElement = new StringLiteralImageElement();
-export const StringLiteralImageId$zero: StringLiteralImageId = new StringLiteralImageId();
 export const StringLiteralLanguageServerErrorResponse$zero: StringLiteralLanguageServerErrorResponse =
   new StringLiteralLanguageServerErrorResponse();
 export const StringLiteralLanguageServerPerformanceStats$zero: StringLiteralLanguageServerPerformanceStats =
@@ -25999,9 +25522,6 @@ export const CompletionItemTagDeprecated: CompletionItemTag = 1;
 export const CompletionTriggerKindInvoked: CompletionTriggerKind = 1;
 export const CompletionTriggerKindTriggerCharacter: CompletionTriggerKind = 2;
 export const CompletionTriggerKindTriggerForIncompleteCompletions: CompletionTriggerKind = 3;
-export const DiagnosticFlakeLogLevelLog: DiagnosticFlakeLogLevel = 1;
-export const DiagnosticFlakeLogLevelOff: DiagnosticFlakeLogLevel = 0;
-export const DiagnosticFlakeLogLevelPanic: DiagnosticFlakeLogLevel = 2;
 export const DiagnosticSeverityError: DiagnosticSeverity = 1;
 export const DiagnosticSeverityHint: DiagnosticSeverity = 4;
 export const DiagnosticSeverityInformation: DiagnosticSeverity = 3;
@@ -26136,7 +25656,6 @@ export const MethodCustomProjectInfo: Method = 'custom/projectInfo';
 export const MethodCustomRunGC: Method = 'custom/runGC';
 export const MethodCustomSaveAllocProfile: Method = 'custom/saveAllocProfile';
 export const MethodCustomSaveHeapProfile: Method = 'custom/saveHeapProfile';
-export const MethodCustomSetContentMapperContributions: Method = 'custom/setContentMapperContributions';
 export const MethodCustomSetLogVerbosity: Method = 'custom/setLogVerbosity';
 export const MethodCustomStartCPUProfile: Method = 'custom/startCPUProfile';
 export const MethodCustomStopCPUProfile: Method = 'custom/stopCPUProfile';
@@ -26317,8 +25836,6 @@ export const UniquenessLevelGlobal: UniquenessLevel = 'global';
 export const UniquenessLevelGroup: UniquenessLevel = 'group';
 export const UniquenessLevelProject: UniquenessLevel = 'project';
 export const UniquenessLevelScheme: UniquenessLevel = 'scheme';
-export const VSContainerElementStyleStacked: VSContainerElementStyle = 1;
-export const VSContainerElementStyleWrapped: VSContainerElementStyle = 0;
 export const VSReferenceKindAddressOf: VSReferenceKind = 15;
 export const VSReferenceKindBaseType: VSReferenceKind = 10;
 export const VSReferenceKindComment: VSReferenceKind = 1;
@@ -26349,7 +25866,6 @@ export const _CompletionItemKind_name: string =
   'TextMethodFunctionConstructorFieldVariableClassInterfaceModulePropertyUnitValueEnumKeywordSnippetColorFileReferenceFolderEnumMemberConstantStructEventOperatorTypeParameter';
 export const _CompletionItemTag_name: string = 'Deprecated';
 export const _CompletionTriggerKind_name: string = 'InvokedTriggerCharacterTriggerForIncompleteCompletions';
-export const _DiagnosticFlakeLogLevel_name: string = 'OffLogPanic';
 export const _DiagnosticSeverity_name: string = 'ErrorWarningInformationHint';
 export const _DiagnosticTag_name: string = 'UnnecessaryDeprecated';
 export const _DocumentHighlightKind_name: string = 'TextReadWrite';
@@ -26370,7 +25886,6 @@ export const _SymbolKind_name: string =
 export const _SymbolTag_name: string = 'Deprecated';
 export const _TextDocumentSaveReason_name: string = 'ManualAfterDelayFocusOut';
 export const _TextDocumentSyncKind_name: string = 'NoneFullIncremental';
-export const _VSContainerElementStyle_name: string = 'WrappedStacked';
 export const _VSReferenceKind_name: string =
   'InactiveCommentStringReadWriteReferenceNameQualifiedTypeArgumentTypeConstraintBaseTypeConstructorDestructorImportDeclarationAddressOfNotReferenceUnknown';
 export const _WatchKind_name: string = 'CreateChangeDelete';
@@ -26404,9 +25919,7 @@ export let _ApplyKind_index: number[] = [0, 7, 12];
 export let _SignatureHelpTriggerKind_index: number[] = [0, 7, 23, 36];
 export let _CodeActionTriggerKind_index: number[] = [0, 7, 16];
 export let _PrepareSupportDefaultBehavior_index: number[] = [0, 10];
-export let _VSContainerElementStyle_index: number[] = [0, 7, 14];
 export let _LogVerbosity_index: number[] = [0, 3, 8, 13, 17, 24, 29];
-export let _DiagnosticFlakeLogLevel_index: number[] = [0, 3, 6, 11];
 export let _VSReferenceKind_index: number[] = [
   0, 8, 15, 21, 25, 30, 39, 43, 52, 64, 78, 86, 97, 107, 113, 124, 133, 145, 152,
 ];
@@ -26890,47 +26403,40 @@ export let CustomProjectInfoInfo: RequestInfo<ProjectInfoParams | undefined, Cus
     $zf140,
     'custom/projectInfo',
   );
-export let CustomSetContentMapperContributionsInfo: RequestInfo<
-  SetContentMapperContributionsParams | undefined,
-  CustomSetContentMapperContributionsResponse
-> = RequestInfo.$lit_lsp_lsproto_RequestInfo_2<
-  SetContentMapperContributionsParams | undefined,
-  CustomSetContentMapperContributionsResponse
->($zf141, $zf142, 'custom/setContentMapperContributions');
 export let CustomTextDocumentSourceDefinitionInfo: RequestInfo<
   TextDocumentPositionParams | undefined,
   CustomTextDocumentSourceDefinitionResponse
 > = RequestInfo.$lit_lsp_lsproto_RequestInfo_2<
   TextDocumentPositionParams | undefined,
   CustomTextDocumentSourceDefinitionResponse
->($zf143, $zf144, 'custom/textDocument/sourceDefinition');
+>($zf141, $zf142, 'custom/textDocument/sourceDefinition');
 export let CustomTextDocumentMultiDocumentHighlightInfo: RequestInfo<
   MultiDocumentHighlightParams | undefined,
   CustomMultiDocumentHighlightResponse
 > = RequestInfo.$lit_lsp_lsproto_RequestInfo_2<
   MultiDocumentHighlightParams | undefined,
   CustomMultiDocumentHighlightResponse
->($zf145, $zf146, 'custom/textDocument/multiDocumentHighlight');
+>($zf143, $zf144, 'custom/textDocument/multiDocumentHighlight');
 export let TextDocumentVSOnAutoInsertInfo: RequestInfo<VSOnAutoInsertParams | undefined, VSOnAutoInsertResponse> =
   RequestInfo.$lit_lsp_lsproto_RequestInfo_2<VSOnAutoInsertParams | undefined, VSOnAutoInsertResponse>(
-    $zf147,
-    $zf148,
+    $zf145,
+    $zf146,
     'textDocument/_vs_onAutoInsert',
   );
 export let TextDocumentVSReferencesInfo: RequestInfo<ReferenceParams | undefined, VSReferencesResponse> =
   RequestInfo.$lit_lsp_lsproto_RequestInfo_2<ReferenceParams | undefined, VSReferencesResponse>(
     $zf92,
-    $zf149,
+    $zf147,
     'textDocument/_vs_references',
   );
 export let WorkspaceDidChangeWorkspaceFoldersInfo: NotificationInfo<DidChangeWorkspaceFoldersParams | undefined> =
   NotificationInfo.$lit_lsp_lsproto_NotificationInfo_1<DidChangeWorkspaceFoldersParams | undefined>(
-    $zf150,
+    $zf148,
     'workspace/didChangeWorkspaceFolders',
   );
 export let WindowWorkDoneProgressCancelInfo: NotificationInfo<WorkDoneProgressCancelParams | undefined> =
   NotificationInfo.$lit_lsp_lsproto_NotificationInfo_1<WorkDoneProgressCancelParams | undefined>(
-    $zf151,
+    $zf149,
     'window/workDoneProgress/cancel',
   );
 export let WorkspaceDidCreateFilesInfo: NotificationInfo<CreateFilesParams | undefined> =
@@ -26949,40 +26455,40 @@ export let WorkspaceDidDeleteFilesInfo: NotificationInfo<DeleteFilesParams | und
     'workspace/didDeleteFiles',
   );
 export let InitializedInfo: NotificationInfo<InitializedParams | undefined> =
-  NotificationInfo.$lit_lsp_lsproto_NotificationInfo_1<InitializedParams | undefined>($zf152, 'initialized');
+  NotificationInfo.$lit_lsp_lsproto_NotificationInfo_1<InitializedParams | undefined>($zf150, 'initialized');
 export let ExitInfo: NotificationInfo<NoParams> = NotificationInfo.$lit_lsp_lsproto_NotificationInfo_1<NoParams>(
   $zf4,
   'exit',
 );
 export let WorkspaceDidChangeConfigurationInfo: NotificationInfo<DidChangeConfigurationParams | undefined> =
   NotificationInfo.$lit_lsp_lsproto_NotificationInfo_1<DidChangeConfigurationParams | undefined>(
-    $zf153,
+    $zf151,
     'workspace/didChangeConfiguration',
   );
 export let WindowShowMessageInfo: NotificationInfo<ShowMessageParams | undefined> =
-  NotificationInfo.$lit_lsp_lsproto_NotificationInfo_1<ShowMessageParams | undefined>($zf154, 'window/showMessage');
+  NotificationInfo.$lit_lsp_lsproto_NotificationInfo_1<ShowMessageParams | undefined>($zf152, 'window/showMessage');
 export let WindowLogMessageInfo: NotificationInfo<LogMessageParams | undefined> =
-  NotificationInfo.$lit_lsp_lsproto_NotificationInfo_1<LogMessageParams | undefined>($zf155, 'window/logMessage');
+  NotificationInfo.$lit_lsp_lsproto_NotificationInfo_1<LogMessageParams | undefined>($zf153, 'window/logMessage');
 export let TelemetryEventInfo: NotificationInfo<TelemetryEvent> =
-  NotificationInfo.$lit_lsp_lsproto_NotificationInfo_1<TelemetryEvent>($zf156, 'telemetry/event');
+  NotificationInfo.$lit_lsp_lsproto_NotificationInfo_1<TelemetryEvent>($zf154, 'telemetry/event');
 export let TextDocumentDidOpenInfo: NotificationInfo<DidOpenTextDocumentParams | undefined> =
   NotificationInfo.$lit_lsp_lsproto_NotificationInfo_1<DidOpenTextDocumentParams | undefined>(
-    $zf157,
+    $zf155,
     'textDocument/didOpen',
   );
 export let TextDocumentDidChangeInfo: NotificationInfo<DidChangeTextDocumentParams | undefined> =
   NotificationInfo.$lit_lsp_lsproto_NotificationInfo_1<DidChangeTextDocumentParams | undefined>(
-    $zf158,
+    $zf156,
     'textDocument/didChange',
   );
 export let TextDocumentDidCloseInfo: NotificationInfo<DidCloseTextDocumentParams | undefined> =
   NotificationInfo.$lit_lsp_lsproto_NotificationInfo_1<DidCloseTextDocumentParams | undefined>(
-    $zf159,
+    $zf157,
     'textDocument/didClose',
   );
 export let TextDocumentDidSaveInfo: NotificationInfo<DidSaveTextDocumentParams | undefined> =
   NotificationInfo.$lit_lsp_lsproto_NotificationInfo_1<DidSaveTextDocumentParams | undefined>(
-    $zf160,
+    $zf158,
     'textDocument/didSave',
   );
 export let TextDocumentWillSaveInfo: NotificationInfo<WillSaveTextDocumentParams | undefined> =
@@ -26992,42 +26498,32 @@ export let TextDocumentWillSaveInfo: NotificationInfo<WillSaveTextDocumentParams
   );
 export let WorkspaceDidChangeWatchedFilesInfo: NotificationInfo<DidChangeWatchedFilesParams | undefined> =
   NotificationInfo.$lit_lsp_lsproto_NotificationInfo_1<DidChangeWatchedFilesParams | undefined>(
-    $zf161,
+    $zf159,
     'workspace/didChangeWatchedFiles',
   );
 export let TextDocumentPublishDiagnosticsInfo: NotificationInfo<PublishDiagnosticsParams | undefined> =
   NotificationInfo.$lit_lsp_lsproto_NotificationInfo_1<PublishDiagnosticsParams | undefined>(
-    $zf162,
+    $zf160,
     'textDocument/publishDiagnostics',
   );
 export let SetTraceInfo: NotificationInfo<SetTraceParams | undefined> =
-  NotificationInfo.$lit_lsp_lsproto_NotificationInfo_1<SetTraceParams | undefined>($zf163, '$/setTrace');
+  NotificationInfo.$lit_lsp_lsproto_NotificationInfo_1<SetTraceParams | undefined>($zf161, '$/setTrace');
 export let LogTraceInfo: NotificationInfo<LogTraceParams | undefined> =
-  NotificationInfo.$lit_lsp_lsproto_NotificationInfo_1<LogTraceParams | undefined>($zf164, '$/logTrace');
+  NotificationInfo.$lit_lsp_lsproto_NotificationInfo_1<LogTraceParams | undefined>($zf162, '$/logTrace');
 export let CancelRequestInfo: NotificationInfo<CancelParams | undefined> =
-  NotificationInfo.$lit_lsp_lsproto_NotificationInfo_1<CancelParams | undefined>($zf165, '$/cancelRequest');
+  NotificationInfo.$lit_lsp_lsproto_NotificationInfo_1<CancelParams | undefined>($zf163, '$/cancelRequest');
 export let ProgressInfo: NotificationInfo<ProgressParams | undefined> =
-  NotificationInfo.$lit_lsp_lsproto_NotificationInfo_1<ProgressParams | undefined>($zf166, '$/progress');
+  NotificationInfo.$lit_lsp_lsproto_NotificationInfo_1<ProgressParams | undefined>($zf164, '$/progress');
 export let CustomSetLogVerbosityInfo: NotificationInfo<SetLogVerbosityParams | undefined> =
   NotificationInfo.$lit_lsp_lsproto_NotificationInfo_1<SetLogVerbosityParams | undefined>(
-    $zf167,
+    $zf165,
     'custom/setLogVerbosity',
   );
 export let structSpecCache: $rt.sync_Map = new $rt.sync_Map();
-export function NewBaseReader(
-  r: $ipc.stdioConn | $contentmapper.closeOnceReadWriteCloser | $contentmapper.loggedProcess | undefined,
-): BaseReader | undefined {
+export function NewBaseReader(r: $rt.io_Reader | undefined): BaseReader | undefined {
   return BaseReader.$lit_lsp_lsproto_BaseReader_0($jsonrpc.NewReader(r));
 }
-export function NewBaseWriter(
-  w:
-    | $ipc.stdioConn
-    | $contentmapper.closeOnceReadWriteCloser
-    | $contentmapper.loggedProcess
-    | $contentmapper.stderrLogger
-    | $checkhost.hostWriter
-    | undefined,
-): BaseWriter | undefined {
+export function NewBaseWriter(w: $checkhost.hostWriter | undefined): BaseWriter | undefined {
   return BaseWriter.$lit_lsp_lsproto_BaseWriter_0($jsonrpc.NewWriter(w));
 }
 export function NewID(rawValue: IntegerOrString): $jsonrpc.ID | undefined {
@@ -27152,9 +26648,7 @@ export function jsonKeyCheck(name_: number[], key: string): boolean {
 }
 export function jsonObjectRawField(data: number[], field: string): $json.Value {
   const dec: $rt.github_com_go_json_experiment_json_jsontext_Decoder | undefined = $json.NewDecoder(
-    $rt.unsupportedConversion<
-      $ipc.stdioConn | $contentmapper.closeOnceReadWriteCloser | $contentmapper.loggedProcess | undefined
-    >('$rt.bytes_Buffer | undefined'),
+    $rt.unsupportedConversion<$rt.io_Reader | undefined>('$rt.bytes_Buffer | undefined'),
   );
   if (!(dec!.PeekKind() === (123 as number))) {
     return [];
@@ -27193,9 +26687,7 @@ export function jsonObjectRawField(data: number[], field: string): $json.Value {
 }
 export function jsonObjectHasKey(data: number[], keys: string[]): number {
   const dec: $rt.github_com_go_json_experiment_json_jsontext_Decoder | undefined = $json.NewDecoder(
-    $rt.unsupportedConversion<
-      $ipc.stdioConn | $contentmapper.closeOnceReadWriteCloser | $contentmapper.loggedProcess | undefined
-    >('$rt.bytes_Buffer | undefined'),
+    $rt.unsupportedConversion<$rt.io_Reader | undefined>('$rt.bytes_Buffer | undefined'),
   );
   if (!(dec!.PeekKind() === (123 as number))) {
     return -1;
@@ -27521,26 +27013,12 @@ export function PrepareSupportDefaultBehavior$String(e: PrepareSupportDefaultBeh
   }
   return 'Identifier'.substring(_PrepareSupportDefaultBehavior_index[i], _PrepareSupportDefaultBehavior_index[i + 1]);
 }
-export function VSContainerElementStyle$String(e: VSContainerElementStyle): string {
-  const i: number = e - 0;
-  if (i < 0 || i >= 2) {
-    return $rt.fmt_Sprintf('VSContainerElementStyle(%d)', [new VSContainerElementStyle$Box(e)]);
-  }
-  return 'WrappedStacked'.substring(_VSContainerElementStyle_index[i], _VSContainerElementStyle_index[i + 1]);
-}
 export function LogVerbosity$String(e: LogVerbosity): string {
   const i: number = e - 0;
   if (i < 0 || i >= 6) {
     return $rt.fmt_Sprintf('LogVerbosity(%d)', [new LogVerbosity$Box(e)]);
   }
   return 'OffTraceDebugInfoWarningError'.substring(_LogVerbosity_index[i], _LogVerbosity_index[i + 1]);
-}
-export function DiagnosticFlakeLogLevel$String(e: DiagnosticFlakeLogLevel): string {
-  const i: number = e - 0;
-  if (i < 0 || i >= 3) {
-    return $rt.fmt_Sprintf('DiagnosticFlakeLogLevel(%d)', [new DiagnosticFlakeLogLevel$Box(e)]);
-  }
-  return 'OffLogPanic'.substring(_DiagnosticFlakeLogLevel_index[i], _DiagnosticFlakeLogLevel_index[i + 1]);
 }
 export function VSReferenceKind$String(e: VSReferenceKind): string {
   const i: number = e - 0;
@@ -27794,73 +27272,4 @@ export function CompareRanges(lsRange: Range, other: Range): number {
     }
   }
   return ComparePositions(lsRange.End, other.End);
-}
-export function diagnosticExistsInSlice(elem: Diagnostic | undefined, diags: (Diagnostic | undefined)[]): boolean {
-  {
-    const $t1 = diags;
-    for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      const diag = $t1[$t2];
-      if (diagnosticsEqual(elem, diag)) {
-        return true;
-      }
-    }
-  }
-  return false;
-}
-export function diagnosticsEqual(diag1: Diagnostic | undefined, diag2: Diagnostic | undefined): boolean {
-  if (
-    diagnosticCodesEqual(diag1!.Code, diag2!.Code) &&
-    diagnosticMessagesEqual(diag1!.Message, diag2!.Message) &&
-    CompareRanges(diag1!.Range_, diag2!.Range_) === (0 as number)
-  ) {
-    return true;
-  }
-  return false;
-}
-export function diagnosticCodesEqual(code1: IntegerOrString | undefined, code2: IntegerOrString | undefined): boolean {
-  if (!(code1!.String_ === undefined) && !(code2!.String_ === undefined)) {
-    return code1!.String_!.get() === code2!.String_!.get();
-  }
-  if (!(code1!.Integer === undefined) && !(code2!.Integer === undefined)) {
-    return code1!.Integer!.get() === code2!.Integer!.get();
-  }
-  return false;
-}
-export function diagnosticMessagesEqual(message1: StringOrMarkupContent, message2: StringOrMarkupContent): boolean {
-  if (!(message1.String_ === undefined) && !(message2.String_ === undefined)) {
-    return message1.String_!.get() === message2.String_!.get();
-  }
-  if (!(message1.MarkupContent_ === undefined) && !(message2.MarkupContent_ === undefined)) {
-    return (
-      message1.MarkupContent_!.Kind === message2.MarkupContent_!.Kind &&
-      message1.MarkupContent_!.Value === message2.MarkupContent_!.Value
-    );
-  }
-  return false;
-}
-export function CompareDiagnostics(
-  list1: (Diagnostic | undefined)[],
-  list2: (Diagnostic | undefined)[],
-): [(Diagnostic | undefined)[], (Diagnostic | undefined)[]] {
-  let missingFromList1: (Diagnostic | undefined)[] = [] as (Diagnostic | undefined)[];
-  let missingFromList2: (Diagnostic | undefined)[] = [] as (Diagnostic | undefined)[];
-  {
-    const $t1 = list1;
-    for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      const elem = $t1[$t2];
-      if (!diagnosticExistsInSlice(elem, list2)) {
-        missingFromList2.push(elem);
-      }
-    }
-  }
-  {
-    const $t3 = list2;
-    for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
-      const elem$1 = $t3[$t4];
-      if (!diagnosticExistsInSlice(elem$1, list1)) {
-        missingFromList1.push(elem$1);
-      }
-    }
-  }
-  return [missingFromList1, missingFromList2];
 }

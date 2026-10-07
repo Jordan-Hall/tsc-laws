@@ -2595,27 +2595,14 @@ export class regExpParser extends $rt.GoObject {
   }
   scanDisjunction(isInGroup: boolean): void {
     const p = this;
-    const disjunctionNames: $collections.Set_<string> = new $collections.Set_<string>();
     for (;;) {
       p!.namedCapturingGroups.push(new Map<string, boolean>());
       p!.scanAlternative(isInGroup);
-      const alternativeNames: Map<string, boolean> | undefined =
-        p!.namedCapturingGroups[p!.namedCapturingGroups.length - 1];
       p!.namedCapturingGroups = $rt.truncate(p!.namedCapturingGroups, p!.namedCapturingGroups.length - 1, undefined);
-      for (const [name_, $t1] of alternativeNames ?? new Map<string, boolean>()) {
-        disjunctionNames.Add(name_);
-      }
       if (!(p!.char() === (124 as number))) {
-        break;
+        return;
       }
       p!.incPos(1);
-    }
-    if (isInGroup && p!.namedCapturingGroups.length > 0) {
-      const parentScope: Map<string, boolean> | undefined = p!.namedCapturingGroups[p!.namedCapturingGroups.length - 1];
-      for (const [name_$1, $t2] of $collections$Set_.Keys$nil<string>(disjunctionNames) ??
-        new Map<string, $rt.Empty>()) {
-        parentScope!.set(name_$1, true);
-      }
     }
   }
   scanAlternative(isInGroup: boolean): void {
@@ -2707,14 +2694,6 @@ export class regExpParser extends $rt.GoObject {
                           [] as ($rt.GoObject | undefined)[],
                         );
                       }
-                    }
-                    if (!(p!.pos() === flagsStart) && p!.scanner!.languageVersion() < 12) {
-                      p!.error(
-                        $diagnostics.Regular_expression_pattern_modifiers_are_only_available_when_targeting_0_or_later,
-                        flagsStart,
-                        p!.pos() - flagsStart,
-                        [new $rt.BoxStr($rt.strings_ToLower($core.ScriptTarget$String(12)), 'string')],
-                      );
                     }
                     p!.scanExpectedChar(58);
                     isPreviousTermQuantifiable = true;
@@ -2880,6 +2859,7 @@ export class regExpParser extends $rt.GoObject {
         );
       } else {
         currFlags = currFlags | flag | 0;
+        p!.scanner!.checkRegularExpressionFlagAvailability(flag, p!.pos(), size);
       }
       p!.incPos(size);
     }
@@ -3045,18 +3025,6 @@ export class regExpParser extends $rt.GoObject {
         [] as ($rt.GoObject | undefined)[],
       );
     } else {
-      if (
-        (p!.groupSpecifiers?.get(p!.scanner!.tokenValue) ?? false) &&
-        p!.scanner!.languageVersion() >= 5 &&
-        p!.scanner!.languageVersion() < 12
-      ) {
-        p!.error(
-          $diagnostics.Duplicate_named_capturing_groups_are_only_available_when_targeting_0_or_later,
-          p!.scanner!.tokenStart,
-          p!.pos() - p!.scanner!.tokenStart,
-          [new $rt.BoxStr($rt.strings_ToLower($core.ScriptTarget$String(12)), 'string')],
-        );
-      }
       if (p!.namedCapturingGroups.length > 0) {
         p!.namedCapturingGroups[p!.namedCapturingGroups.length - 1]!.set(p!.scanner!.tokenValue, true);
       }
@@ -3215,6 +3183,10 @@ export class regExpParser extends $rt.GoObject {
             expressionMayContainStrings = p!.mayContainStrings;
             p!.mayContainStrings = !isCharacterComplement && expressionMayContainStrings;
             return;
+          } else {
+            p!.error($diagnostics.Unexpected_0_Did_you_mean_to_escape_it_with_backslash, p!.pos(), 1, [
+              new $rt.BoxStr($rt.runeToString(ch), 'string'),
+            ]);
           }
           break;
         }
@@ -3305,9 +3277,10 @@ export class regExpParser extends $rt.GoObject {
             break;
           }
           case 38 as number: {
-            if (p!.pos() + 1 < p!.end && p!.charAt(p!.pos() + 1) === (38 as number)) {
-              start = p!.pos();
-              p!.incPos(2);
+            start = p!.pos();
+            p!.incPos(1);
+            if (p!.char() === (38 as number)) {
+              p!.incPos(1);
               p!.error(
                 $diagnostics.Operators_must_not_be_mixed_within_a_character_class_Wrap_it_in_a_nested_class_instead,
                 p!.pos() - 2,
@@ -3320,10 +3293,13 @@ export class regExpParser extends $rt.GoObject {
                 ]);
                 p!.incPos(1);
               }
-              operand = p!.text().substring(start, p!.pos());
-              continue;
+            } else {
+              p!.error($diagnostics.Unexpected_0_Did_you_mean_to_escape_it_with_backslash, p!.pos() - 1, 1, [
+                new $rt.BoxStr($rt.runeToString(ch), 'string'),
+              ]);
             }
-            break;
+            operand = p!.text().substring(start, p!.pos());
+            continue;
           }
         }
       }
@@ -3351,15 +3327,6 @@ export class regExpParser extends $rt.GoObject {
           }
           default: {
             operand = p!.scanClassSetOperand();
-            if (isCharacterComplement && p!.mayContainStrings) {
-              p!.error(
-                $diagnostics.Anything_that_would_possibly_match_more_than_a_single_character_is_invalid_inside_a_negated_character_class,
-                start,
-                p!.pos() - start,
-                [] as ($rt.GoObject | undefined)[],
-              );
-            }
-            expressionMayContainStrings = expressionMayContainStrings || p!.mayContainStrings;
             break;
           }
         }
@@ -5310,7 +5277,7 @@ export function ComputeLineOfPosition(lineStarts: $core.TextPos[], pos: number):
   return low - 1;
 }
 export function GetECMALineStarts(sourceFile: $ast.SourceFileLike): $core.TextPos[] {
-  return $rt.nn(sourceFile).ECMALineMap();
+  return sourceFile!.ECMALineMap();
 }
 export function GetECMALineOfPosition(sourceFile: $ast.SourceFileLike, pos: number): number {
   const lineMap: $core.TextPos[] = GetECMALineStarts(sourceFile);
@@ -5324,7 +5291,7 @@ export function GetECMALineAndUTF16CharacterOfPosition(
   let character: $core.UTF16Offset = 0;
   const lineMap: $core.TextPos[] = GetECMALineStarts(sourceFile);
   line = ComputeLineOfPosition(lineMap, pos);
-  character = $core.UTF16Len($rt.nn(sourceFile).Text().substring(lineMap[line], pos));
+  character = $core.UTF16Len(sourceFile!.Text().substring(lineMap[line], pos));
   return [line, character];
 }
 export function GetECMALineAndByteOffsetOfPosition(sourceFile: $ast.SourceFileLike, pos: number): [number, number] {
@@ -5353,7 +5320,7 @@ export function GetECMAPositionOfLineAndUTF16Character(
   character: $core.UTF16Offset,
 ): number {
   const lineStarts: $core.TextPos[] = GetECMALineStarts(sourceFile);
-  return ComputePositionOfLineAndUTF16Character(lineStarts, line, character, $rt.nn(sourceFile).Text(), false);
+  return ComputePositionOfLineAndUTF16Character(lineStarts, line, character, sourceFile!.Text(), false);
 }
 export function GetECMAPositionOfLineAndByteOffset(
   sourceFile: $ast.SourceFileLike,
@@ -5599,55 +5566,6 @@ export function GetSourceTextOfNodeFromSourceFile(
 ): string {
   return GetTextOfNodeFromSourceText(sourceFile!.Text(), node, includeTrivia);
 }
-export function isJSDocTypeExpressionOrChild(node: $ast.Node | undefined): boolean {
-  if ($ast.IsJSDocTypeExpression(node)) {
-    return true;
-  }
-  if ((node!.Flags & 4194312) === (0 as number)) {
-    return false;
-  }
-  {
-    for (let current: $ast.Node | undefined = node; !(current === undefined); current = current!.Parent) {
-      if ($ast.IsTypeNode(current)) {
-        return true;
-      }
-    }
-  }
-  return false;
-}
-export function normalizeJSDocTypeSourceText(text: string): string {
-  const lineStarts: $core.ECMALineStarts = $core.ComputeECMALineStarts(text);
-  if (lineStarts.length === (1 as number)) {
-    return stripLeadingJSDocComment(text);
-  }
-  const result: $rt.strings_Builder = new $rt.strings_Builder();
-  result.Grow(text.length);
-  const newLine: string = $core.NewLineKind$GetNewLineCharacter(2);
-  {
-    const $t1 = lineStarts;
-    for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      const i = $t2;
-      const lineStart = $t1[$t2];
-      if (i > 0) {
-        result.WriteString(newLine);
-      }
-      let lineEnd: number = text.length;
-      if (i + 1 < lineStarts.length) {
-        lineEnd = lineStarts[i + 1];
-      }
-      const line: string = $rt.strings_TrimRightFunc(text.substring(lineStart, lineEnd), $stringutil.IsLineBreak);
-      result.WriteString(stripLeadingJSDocComment(line));
-    }
-  }
-  return result.String();
-}
-export function stripLeadingJSDocComment(line: string): string {
-  line = $rt.strings_TrimLeftFunc(line, $stringutil.IsWhiteSpaceLike);
-  if (line.length > 0 && line.charCodeAt(0) === (42 as number)) {
-    line = line.substring(1);
-  }
-  return $rt.strings_TrimLeftFunc(line, $stringutil.IsWhiteSpaceLike);
-}
 export function GetTextOfNodeFromSourceText(
   sourceText: string,
   node: $ast.Node | undefined,
@@ -5660,10 +5578,7 @@ export function GetTextOfNodeFromSourceText(
   if (!includeTrivia) {
     pos = SkipTrivia(sourceText, pos);
   }
-  let text: string = sourceText.substring(pos, node!.End());
-  if (isJSDocTypeExpressionOrChild(node)) {
-    text = normalizeJSDocTypeSourceText(text);
-  }
+  const text: string = sourceText.substring(pos, node!.End());
   if (!((node!.Flags & 268435456) === (0 as number))) {
     if ($ast.IsStringLiteral(node)) {
       if (!((node!.AsStringLiteral()!.LiteralLikeNodeBase_.TokenFlags_ & 65536) === (0 as number))) {

@@ -8,9 +8,7 @@ import * as $scanner from './scanner.js';
 import * as $tspath from './tspath.js';
 import type * as $checker from './checker.js';
 import type * as $checkhost from './checkhost.js';
-import type * as $contentmapper from './contentmapper.js';
 import type * as $core from './core.js';
-import type * as $ipc from './ipc.js';
 import type * as $vfs from './vfs.js';
 export type Phase = string;
 export type TracedType = $checker.tracedTypeAdapter | undefined;
@@ -813,14 +811,7 @@ export class typeTracer extends $rt.GoObject {
         const descriptor: TypeDescriptor = t!.buildTypeDescriptor(typ, recursionIdentityMap);
         {
           const err: $rt.GoObject | undefined = $json.MarshalWrite(
-            $rt.unsupportedConversion<
-              | $ipc.stdioConn
-              | $contentmapper.closeOnceReadWriteCloser
-              | $contentmapper.loggedProcess
-              | $contentmapper.stderrLogger
-              | $checkhost.hostWriter
-              | undefined
-            >('$rt.strings_Builder | undefined'),
+            $rt.unsupportedConversion<$checkhost.hostWriter | undefined>('$rt.strings_Builder | undefined'),
             descriptor.$clone_tracing_TypeDescriptor(),
             [] as ($rt.github_com_go_json_experiment_json_internal_jsonopts_Options | undefined)[],
           );
@@ -1129,14 +1120,7 @@ export function StartTracing(
 export function writeEventTo(buf: $rt.strings_Builder | undefined, event: traceEvent): void {
   {
     const err: $rt.GoObject | undefined = $json.MarshalWrite(
-      $rt.unsupportedConversion<
-        | $ipc.stdioConn
-        | $contentmapper.closeOnceReadWriteCloser
-        | $contentmapper.loggedProcess
-        | $contentmapper.stderrLogger
-        | $checkhost.hostWriter
-        | undefined
-      >('$rt.strings_Builder | undefined'),
+      $rt.unsupportedConversion<$checkhost.hostWriter | undefined>('$rt.strings_Builder | undefined'),
       event,
       [$json.Deterministic(true)],
     );

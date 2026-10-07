@@ -76,23 +76,6 @@ export class Box__collections_OrderedMap_string__any_ extends $rt.GoObject {
     return o instanceof Box__collections_OrderedMap_string__any_ && o.v === this.v;
   }
 }
-export class Box__collections_OrderedMap_string__json_Value_ extends $rt.GoObject {
-  v: $collections.OrderedMap<string, $json.Value> | undefined;
-  constructor(v: $collections.OrderedMap<string, $json.Value> | undefined) {
-    super();
-    this.v = v;
-  }
-  static $cast(v: $rt.GoObject | undefined): Box__collections_OrderedMap_string__json_Value_ {
-    if (v instanceof Box__collections_OrderedMap_string__json_Value_) return v;
-    throw $rt.typeAssertError();
-  }
-  override $unbox(): unknown {
-    return this.v;
-  }
-  override $eqv(o: $rt.GoObject): boolean {
-    return o instanceof Box__collections_OrderedMap_string__json_Value_ && o.v === this.v;
-  }
-}
 export class Box__core_TextRange extends $rt.GoObject {
   v: $rt.Ptr<$core.TextRange> | undefined;
   constructor(v: $rt.Ptr<$core.TextRange> | undefined) {
@@ -108,20 +91,6 @@ export class Box__core_TextRange extends $rt.GoObject {
   }
   override $eqv(o: $rt.GoObject): boolean {
     return o instanceof Box__core_TextRange && o.v === this.v;
-  }
-}
-export class Box__16_byte extends $rt.GoObject {
-  v: number[];
-  constructor(v: number[]) {
-    super();
-    this.v = v;
-  }
-  static $cast(v: $rt.GoObject | undefined): Box__16_byte {
-    if (v instanceof Box__16_byte) return v;
-    throw $rt.typeAssertError();
-  }
-  override $unbox(): unknown {
-    return this.v;
   }
 }
 export class Box__2_execute_incremental_BuildInfoFileId extends $rt.GoObject {
@@ -174,20 +143,6 @@ export class Box____execute_incremental_BuildInfoDiagnostic extends $rt.GoObject
   }
   static $cast(v: $rt.GoObject | undefined): Box____execute_incremental_BuildInfoDiagnostic {
     if (v instanceof Box____execute_incremental_BuildInfoDiagnostic) return v;
-    throw $rt.typeAssertError();
-  }
-  override $unbox(): unknown {
-    return this.v;
-  }
-}
-export class Box_____int32 extends $rt.GoObject {
-  v: number[][];
-  constructor(v: number[][]) {
-    super();
-    this.v = v;
-  }
-  static $cast(v: $rt.GoObject | undefined): Box_____int32 {
-    if (v instanceof Box_____int32) return v;
     throw $rt.typeAssertError();
   }
   override $unbox(): unknown {

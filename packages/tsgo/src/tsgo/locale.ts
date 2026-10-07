@@ -4,12 +4,6 @@ import * as $rt from '../go/runtime.js';
 export type Locale = $rt.golang_org_x_text_language_Tag;
 export type contextKey = number;
 export let Default: Locale = new $rt.golang_org_x_text_language_Tag();
-export function Locale$String(l: Locale): string {
-  if ($rt.structEq(l, Default)) {
-    return '';
-  }
-  return l.String();
-}
 export function WithLocale(ctx: $rt.context_Context | undefined, locale: Locale): $rt.context_Context | undefined {
   return $rt.context_WithValue(ctx, new $rt.BoxNum(0, 'locale.contextKey'), locale);
 }

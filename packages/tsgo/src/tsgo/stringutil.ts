@@ -5477,6 +5477,14 @@ export function IsHexDigit(ch: number): boolean {
 export function IsASCIILetter(ch: number): boolean {
   return (ch >= 65 && ch <= 90) || (ch >= 97 && ch <= 122);
 }
+export function ContainsNonASCII(s: string): boolean {
+  for (let i = 0, $t1 = s.length; i < $t1; i++) {
+    if (s.charCodeAt(i) >= 128) {
+      return true;
+    }
+  }
+  return false;
+}
 export function SplitLines(text: string): string[] {
   let lines: string[] = [] as string[];
   let start: number = 0;

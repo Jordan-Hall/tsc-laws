@@ -4,14 +4,13 @@ import * as $rt from '../go/runtime.js';
 import * as $ast from './ast.js';
 import * as $binder from './binder.js';
 import * as $checker from './checker.js';
+import * as $compiler from './compiler.js';
 import * as $core from './core.js';
 import * as $execute from './execute.js';
 import * as $parser from './parser.js';
 import * as $tsoptions from './tsoptions.js';
 import * as $tspath from './tspath.js';
 import * as $vfs from './vfs.js';
-import type * as $contentmapper from './contentmapper.js';
-import type * as $ipc from './ipc.js';
 import type * as $module from './module.js';
 import type * as $packagejson from './packagejson.js';
 import type * as $symlinks from './symlinks.js';
@@ -235,6 +234,63 @@ export class Program extends $rt.GoObject {
     return 99;
   }
 }
+export class Project extends $rt.GoObject {
+  Config: $tsoptions.ParsedCommandLine | undefined = undefined;
+  Program_: $compiler.Program | undefined = undefined;
+  Checker_: $checker.Checker | undefined = undefined;
+  $copy_checkhost_Project(src: Project): void {
+    this.Config = src.Config;
+    this.Program_ = src.Program_;
+    this.Checker_ = src.Checker_;
+  }
+  $equals_checkhost_Project(o: Project): boolean {
+    return this.Config === o.Config && this.Program_ === o.Program_ && this.Checker_ === o.Checker_;
+  }
+  $clone_checkhost_Project(): Project {
+    const o = new Project();
+    o.$copy_checkhost_Project(this);
+    return o;
+  }
+  static $lit_checkhost_Project_0_1_2(
+    p0: $tsoptions.ParsedCommandLine | undefined,
+    p1: $compiler.Program | undefined,
+    p2: $checker.Checker | undefined,
+  ): Project {
+    const o = new Project();
+    o.Config = p0;
+    o.Program_ = p1;
+    o.Checker_ = p2;
+    return o;
+  }
+  static $cast_checkhost_Project(v: $rt.GoObject | undefined): Project {
+    if (v instanceof Project) return v;
+    throw $rt.typeAssertError();
+  }
+  Diagnostics(kind: string, file: $ast.SourceFile | undefined): ($ast.Diagnostic | undefined)[] {
+    const p = this;
+    const ctx: $rt.context_Context | undefined = $rt.context_Background();
+    {
+      switch (kind) {
+        case 'config' as string: {
+          return p!.Program_!.GetConfigFileParsingDiagnostics();
+        }
+        case 'program' as string: {
+          return p!.Program_!.GetProgramDiagnostics();
+        }
+        case 'global' as string: {
+          return p!.Program_!.GetGlobalDiagnostics(ctx);
+        }
+        case 'syntactic' as string: {
+          return p!.Program_!.GetSyntacticDiagnostics(ctx, file);
+        }
+        case 'semantic' as string: {
+          return p!.Program_!.GetSemanticDiagnostics(ctx, file);
+        }
+      }
+    }
+    return [];
+  }
+}
 export class hostFS extends $rt.GoObject {
   host: Host | undefined = undefined;
   $copy_checkhost_hostFS(src: hostFS): void {
@@ -417,23 +473,11 @@ export class hostSys extends $rt.GoObject {
     if (v instanceof hostSys) return v;
     throw $rt.typeAssertError();
   }
-  Writer$m():
-    | $ipc.stdioConn
-    | $contentmapper.closeOnceReadWriteCloser
-    | $contentmapper.loggedProcess
-    | $contentmapper.stderrLogger
-    | hostWriter
-    | undefined {
+  Writer$m(): hostWriter | undefined {
     const s = this;
     return hostWriter.$lit_checkhost_hostWriter_0(s!.host);
   }
-  ErrorWriter():
-    | $ipc.stdioConn
-    | $contentmapper.closeOnceReadWriteCloser
-    | $contentmapper.loggedProcess
-    | $contentmapper.stderrLogger
-    | hostWriter
-    | undefined {
+  ErrorWriter(): hostWriter | undefined {
     const s = this;
     return hostWriter.$lit_checkhost_hostWriter_0(s!.host);
   }
@@ -472,17 +516,8 @@ export class hostSys extends $rt.GoObject {
   Spawn(
     command: string[],
     dir: string,
-    stderr:
-      | $ipc.stdioConn
-      | $contentmapper.closeOnceReadWriteCloser
-      | $contentmapper.loggedProcess
-      | $contentmapper.stderrLogger
-      | hostWriter
-      | undefined,
-  ): [
-    $ipc.stdioConn | $contentmapper.closeOnceReadWriteCloser | $contentmapper.loggedProcess | undefined,
-    $rt.GoObject | undefined,
-  ] {
+    stderr: hostWriter | undefined,
+  ): [$rt.io_ReadWriteCloser | undefined, $rt.GoObject | undefined] {
     const s = this;
     return [undefined, $rt.errors_New('spawn is not supported')];
   }
@@ -595,6 +630,36 @@ export function Check(
   $rt.appendInto(diags, c!.GetDiagnostics($rt.context_Background(), file));
   $rt.appendInto(diags, c!.GetGlobalDiagnostics());
   return diags;
+}
+export function OpenProject(host: Host | undefined, configFileName: string): Project | undefined {
+  const compilerHost: $compiler.CompilerHost = $compiler.NewCompilerHost(
+    host!.Cwd,
+    hostFS.$lit_checkhost_hostFS_0(host),
+    host!.LibPath,
+    undefined,
+    undefined,
+  );
+  const $t1 = $tsoptions.GetParsedCommandLineOfConfigFile(
+    configFileName,
+    undefined,
+    undefined,
+    compilerHost as unknown as $tsoptions.ParseConfigHost,
+    undefined,
+  );
+  let config: $tsoptions.ParsedCommandLine | undefined = $t1[0];
+  const errors: ($ast.Diagnostic | undefined)[] = $t1[1];
+  if (config === undefined) {
+    config = new $tsoptions.ParsedCommandLine();
+  }
+  if (errors.length > 0) {
+    $rt.appendInto(config!.Errors, errors);
+  }
+  const program: $compiler.Program | undefined = $compiler.NewProgram(
+    $compiler.ProgramOptions.$lit_compiler_ProgramOptions_1_0_3(config, compilerHost, 2),
+  );
+  const $t2 = program!.GetTypeChecker($rt.context_Background());
+  const c: $checker.Checker | undefined = $t2[0];
+  return Project.$lit_checkhost_Project_0_1_2(config, program, c);
 }
 export function RunTSC(host: Host | undefined, args: string[]): number {
   const sys: hostSys | undefined = hostSys.$lit_checkhost_hostSys_0_1_2(

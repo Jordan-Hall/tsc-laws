@@ -16,7 +16,7 @@ import * as $tspath from './tspath.js';
 import * as $vfs_vfsmatch from './vfs_vfsmatch.js';
 import type * as $checker from './checker.js';
 import type * as $compiler from './compiler.js';
-export class $Anon9 extends $rt.GoObject {
+export class $Anon8 extends $rt.GoObject {
   flag: ScriptElementKindModifier;
   name: string;
   constructor(p0: ScriptElementKindModifier = 0, p1: string = '') {
@@ -24,8 +24,8 @@ export class $Anon9 extends $rt.GoObject {
     this.flag = p0;
     this.name = p1;
   }
-  $clone(): $Anon9 {
-    return new $Anon9(this.flag, this.name);
+  $clone(): $Anon8 {
+    return new $Anon8(this.flag, this.name);
   }
 }
 const $zf0 = (): $ast.Node | undefined => undefined;
@@ -40,7 +40,6 @@ export type QuotePreference = string;
 export type ScriptElementKind = number;
 export type ScriptElementKindModifier = number;
 export type SemicolonPreference = string;
-export type WorkspaceSymbolsScope = string;
 export class CodeLensUserPreferences extends $rt.GoObject {
   ReferencesCodeLensEnabled: $core.Tristate = 0;
   ImplementationsCodeLensEnabled: $core.Tristate = 0;
@@ -348,18 +347,16 @@ export class UserPreferences extends $rt.GoObject {
   UseAliasesForRename: $core.Tristate = 0;
   AllowRenameOfImportPath: $core.Tristate = 0;
   ProvideRefactorNotApplicableReason: $core.Tristate = 0;
-  InlayHints: InlayHintsPreferences = InlayHintsPreferences$zero;
-  CodeLens: CodeLensUserPreferences = CodeLensUserPreferences$zero;
+  InlayHints: InlayHintsPreferences = new InlayHintsPreferences();
+  CodeLens: CodeLensUserPreferences = new CodeLensUserPreferences();
   PreferGoToSourceDefinition: boolean = false;
   ExcludeLibrarySymbolsInNavTo: $core.Tristate = 0;
-  WorkspaceSymbolsScope_: WorkspaceSymbolsScope = '';
   EnableFormatting: $core.Tristate = 0;
   EnableValidation: $core.Tristate = 0;
   DisableSuggestions: $core.Tristate = 0;
   DisableLineTextInReferences: $core.Tristate = 0;
   DisplayPartsForJSDoc: $core.Tristate = 0;
   ReportStyleChecksAsWarnings: $core.Tristate = 0;
-  Locale: string = '';
   DisableAutomaticTypeAcquisition: $core.Tristate = 0;
   AutomaticTypeAcquisitionEnabled: $core.Tristate = 0;
   CustomConfigFileName: string = '';
@@ -395,18 +392,16 @@ export class UserPreferences extends $rt.GoObject {
     this.UseAliasesForRename = src.UseAliasesForRename;
     this.AllowRenameOfImportPath = src.AllowRenameOfImportPath;
     this.ProvideRefactorNotApplicableReason = src.ProvideRefactorNotApplicableReason;
-    this.InlayHints = src.InlayHints;
-    this.CodeLens = src.CodeLens;
+    this.InlayHints = src.InlayHints.$clone_ls_lsutil_InlayHintsPreferences();
+    this.CodeLens = src.CodeLens.$clone_ls_lsutil_CodeLensUserPreferences();
     this.PreferGoToSourceDefinition = src.PreferGoToSourceDefinition;
     this.ExcludeLibrarySymbolsInNavTo = src.ExcludeLibrarySymbolsInNavTo;
-    this.WorkspaceSymbolsScope_ = src.WorkspaceSymbolsScope_;
     this.EnableFormatting = src.EnableFormatting;
     this.EnableValidation = src.EnableValidation;
     this.DisableSuggestions = src.DisableSuggestions;
     this.DisableLineTextInReferences = src.DisableLineTextInReferences;
     this.DisplayPartsForJSDoc = src.DisplayPartsForJSDoc;
     this.ReportStyleChecksAsWarnings = src.ReportStyleChecksAsWarnings;
-    this.Locale = src.Locale;
     this.DisableAutomaticTypeAcquisition = src.DisableAutomaticTypeAcquisition;
     this.AutomaticTypeAcquisitionEnabled = src.AutomaticTypeAcquisitionEnabled;
     this.CustomConfigFileName = src.CustomConfigFileName;
@@ -416,7 +411,7 @@ export class UserPreferences extends $rt.GoObject {
     o.$copy_ls_lsutil_UserPreferences(this);
     return o;
   }
-  static $lit_ls_lsutil_UserPreferences_0_4_5_10_11_12_29_30_36_37_40_39_41_34_35(
+  static $lit_ls_lsutil_UserPreferences_0_4_5_10_11_12_29_30_35_36_39_38_40_34(
     p0: FormatCodeSettings,
     p1: $core.Tristate,
     p2: $core.Tristate,
@@ -431,7 +426,6 @@ export class UserPreferences extends $rt.GoObject {
     p11: $core.Tristate,
     p12: $core.Tristate,
     p13: $core.Tristate,
-    p14: WorkspaceSymbolsScope,
   ): UserPreferences {
     const o = new UserPreferences();
     o.FormatCodeSettings_ = p0;
@@ -448,7 +442,6 @@ export class UserPreferences extends $rt.GoObject {
     o.DisableLineTextInReferences = p11;
     o.ReportStyleChecksAsWarnings = p12;
     o.ExcludeLibrarySymbolsInNavTo = p13;
-    o.WorkspaceSymbolsScope_ = p14;
     return o;
   }
   static $lit_ls_lsutil_UserPreferences_26(p0: OrganizeImportsTypeOrder): UserPreferences {
@@ -756,8 +749,6 @@ export class namedImportSortResult extends $rt.GoObject {
     throw $rt.typeAssertError();
   }
 }
-export const CodeLensUserPreferences$zero: CodeLensUserPreferences = new CodeLensUserPreferences();
-export const InlayHintsPreferences$zero: InlayHintsPreferences = new InlayHintsPreferences();
 export const caseSensitivityDetectionResult$zero: caseSensitivityDetectionResult = new caseSensitivityDetectionResult();
 export const namedImportSortResult$zero: namedImportSortResult = new namedImportSortResult();
 export const IncludeInlayParameterNameHintsAll: IncludeInlayParameterNameHints = 'all';
@@ -852,8 +843,6 @@ export const ScriptElementKindWarning: ScriptElementKind = 1;
 export const SemicolonPreferenceIgnore: SemicolonPreference = 'ignore';
 export const SemicolonPreferenceInsert: SemicolonPreference = 'insert';
 export const SemicolonPreferenceRemove: SemicolonPreference = 'remove';
-export const WorkspaceSymbolsScopeAllOpenProjects: WorkspaceSymbolsScope = 'allOpenProjects';
-export const WorkspaceSymbolsScopeCurrentProject: WorkspaceSymbolsScope = 'currentProject';
 export const importKindOrderDefault: number = 3;
 export const importKindOrderImportEquals: number = 5;
 export const importKindOrderNamed: number = 4;
@@ -1267,28 +1256,28 @@ const $fn9 = (val$9: $rt.GoObject | undefined): $rt.GoObject | undefined => {
   }
   return new $rt.BoxNum(0, 'ls/lsutil.OrganizeImportsTypeOrder');
 };
-export let scriptElementKindModifierNames: $Anon9[] = [
-  new $Anon9(2, 'public'),
-  new $Anon9(4, 'private'),
-  new $Anon9(8, 'protected'),
-  new $Anon9(16, 'export'),
-  new $Anon9(32, 'declare'),
-  new $Anon9(64, 'static'),
-  new $Anon9(128, 'abstract'),
-  new $Anon9(256, 'optional'),
-  new $Anon9(512, 'deprecated'),
-  new $Anon9(1024, '.d.ts'),
-  new $Anon9(2048, '.ts'),
-  new $Anon9(4096, '.tsx'),
-  new $Anon9(8192, '.js'),
-  new $Anon9(16384, '.jsx'),
-  new $Anon9(32768, '.json'),
-  new $Anon9(65536, '.d.mts'),
-  new $Anon9(131072, '.mts'),
-  new $Anon9(262144, '.mjs'),
-  new $Anon9(524288, '.d.cts'),
-  new $Anon9(1048576, '.cts'),
-  new $Anon9(2097152, '.cjs'),
+export let scriptElementKindModifierNames: $Anon8[] = [
+  new $Anon8(2, 'public'),
+  new $Anon8(4, 'private'),
+  new $Anon8(8, 'protected'),
+  new $Anon8(16, 'export'),
+  new $Anon8(32, 'declare'),
+  new $Anon8(64, 'static'),
+  new $Anon8(128, 'abstract'),
+  new $Anon8(256, 'optional'),
+  new $Anon8(512, 'deprecated'),
+  new $Anon8(1024, '.d.ts'),
+  new $Anon8(2048, '.ts'),
+  new $Anon8(4096, '.tsx'),
+  new $Anon8(8192, '.js'),
+  new $Anon8(16384, '.jsx'),
+  new $Anon8(32768, '.json'),
+  new $Anon8(65536, '.d.mts'),
+  new $Anon8(131072, '.mts'),
+  new $Anon8(262144, '.mjs'),
+  new $Anon8(524288, '.d.cts'),
+  new $Anon8(1048576, '.cts'),
+  new $Anon8(2097152, '.cjs'),
 ];
 export let FileExtensionKindModifiers: ScriptElementKindModifier = 4193280;
 export let typeParsers:
@@ -2966,7 +2955,7 @@ export function getNodeModifiers(
   return result;
 }
 export function NewDefaultUserPreferences(): UserPreferences {
-  return UserPreferences.$lit_ls_lsutil_UserPreferences_0_4_5_10_11_12_29_30_36_37_40_39_41_34_35(
+  return UserPreferences.$lit_ls_lsutil_UserPreferences_0_4_5_10_11_12_29_30_35_36_39_38_40_34(
     GetDefaultFormatCodeSettings(),
     2,
     2,
@@ -2981,7 +2970,6 @@ export function NewDefaultUserPreferences(): UserPreferences {
     2,
     2,
     2,
-    'allOpenProjects',
   );
 }
 export function collectFieldInfos(t: $rt.reflect_Type | undefined, indexPath: number[]): fieldInfo[] {
@@ -3293,70 +3281,31 @@ export function ParseUserPreferences(items: Map<string, $rt.GoObject | undefined
           : undefined;
         const ok$1: boolean = $t4;
         if (ok$1) {
-          const normalizedSettings: Map<string, $rt.GoObject | undefined> | undefined = new Map<
-            string,
-            $rt.GoObject | undefined
-          >();
-          $rt.maps_Copy(normalizedSettings, editorSettings);
-          {
-            const $t5: Map<string, $rt.GoObject | undefined> | undefined = normalizedSettings;
-            const $t6 = 'tabSize';
-            const tabSize: $rt.GoObject | undefined = $t5?.get($t6) ?? undefined;
-            const ok$2: boolean = $t5 !== undefined && $t5.has($t6);
-            if (ok$2) {
-              {
-                const $t7: Map<string, $rt.GoObject | undefined> | undefined = normalizedSettings;
-                const $t8 = 'indentSize';
-                const hasIndentSize: boolean = $t7 !== undefined && $t7.has($t8);
-                if (!hasIndentSize) {
-                  normalizedSettings!.set('indentSize', tabSize);
-                }
-              }
-            }
-          }
-          {
-            const $t9: Map<string, $rt.GoObject | undefined> | undefined = normalizedSettings;
-            const $t10 = 'insertSpaces';
-            const insertSpaces: $rt.GoObject | undefined = $t9?.get($t10) ?? undefined;
-            const ok$3: boolean = $t9 !== undefined && $t9.has($t10);
-            if (ok$3) {
-              {
-                const $t11: Map<string, $rt.GoObject | undefined> | undefined = normalizedSettings;
-                const $t12 = 'convertTabsToSpaces';
-                const hasConvertTabsToSpaces: boolean = $t11 !== undefined && $t11.has($t12);
-                if (!hasConvertTabsToSpaces) {
-                  normalizedSettings!.set('convertTabsToSpaces', insertSpaces);
-                }
-              }
-            }
-          }
           prefs = prefs.withConfig(
-            new Map<string, $rt.GoObject | undefined>([
-              ['unstable', new $boxes.Box_map_string_any(normalizedSettings)],
-            ]),
+            new Map<string, $rt.GoObject | undefined>([['unstable', new $boxes.Box_map_string_any(editorSettings)]]),
           );
         }
       }
     }
   }
   {
-    const $t13 = ['javascript', 'typescript', 'js/ts'];
-    for (let $t14 = 0, $n = $t13.length; $t14 < $n; $t14++) {
-      const section = $t13[$t14];
+    const $t5 = ['javascript', 'typescript', 'js/ts'];
+    for (let $t6 = 0, $n = $t5.length; $t6 < $n; $t6++) {
+      const section = $t5[$t6];
       {
-        const $t15: Map<string, $rt.GoObject | undefined> | undefined = items;
-        const $t16 = section;
-        const item: $rt.GoObject | undefined = $t15?.get($t16) ?? undefined;
-        const ok$4: boolean = $t15 !== undefined && $t15.has($t16);
-        if (ok$4 && !(item === undefined)) {
+        const $t7: Map<string, $rt.GoObject | undefined> | undefined = items;
+        const $t8 = section;
+        const item: $rt.GoObject | undefined = $t7?.get($t8) ?? undefined;
+        const ok$2: boolean = $t7 !== undefined && $t7.has($t8);
+        if (ok$2 && !(item === undefined)) {
           {
-            const $t17: $rt.GoObject | undefined = item;
-            const $t18: boolean = $t17 instanceof $boxes.Box_map_string_any;
-            const settings: Map<string, $rt.GoObject | undefined> | undefined = $t18
-              ? $boxes.Box_map_string_any.$cast($t17).v
+            const $t9: $rt.GoObject | undefined = item;
+            const $t10: boolean = $t9 instanceof $boxes.Box_map_string_any;
+            const settings: Map<string, $rt.GoObject | undefined> | undefined = $t10
+              ? $boxes.Box_map_string_any.$cast($t9).v
               : undefined;
-            const ok$5: boolean = $t18;
-            if (ok$5) {
+            const ok$3: boolean = $t10;
+            if (ok$3) {
               prefs = prefs.withConfig(settings);
             }
           }
@@ -3472,7 +3421,7 @@ export function ModuleSymbolToValidIdentifier(
 }
 export function ModuleSpecifierToValidIdentifier(moduleSpecifier: string, forceCapitalize: boolean): string {
   const baseName: string = $tspath.GetBaseFileName(
-    $rt.strings_TrimSuffix($tspath.RemoveAnyFileExtension(moduleSpecifier), '/index'),
+    $rt.strings_TrimSuffix($tspath.RemoveFileExtension(moduleSpecifier), '/index'),
   );
   let res: number[] = [] as number[];
   let lastCharWasValid: boolean = true;

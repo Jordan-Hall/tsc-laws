@@ -272,7 +272,6 @@ export class ResolvedModule extends $rt.GoObject {
   OriginalPath: string = '';
   Extension: string = '';
   ResolvedUsingTsExtension: boolean = false;
-  ResolvedUsingExtraExtensions: boolean = false;
   PackageId_: PackageId = new PackageId();
   IsExternalLibraryImport: boolean = false;
   AlternateResult: string = '';
@@ -282,7 +281,6 @@ export class ResolvedModule extends $rt.GoObject {
     this.OriginalPath = src.OriginalPath;
     this.Extension = src.Extension;
     this.ResolvedUsingTsExtension = src.ResolvedUsingTsExtension;
-    this.ResolvedUsingExtraExtensions = src.ResolvedUsingExtraExtensions;
     this.PackageId_ = src.PackageId_.$clone_module_PackageId();
     this.IsExternalLibraryImport = src.IsExternalLibraryImport;
     this.AlternateResult = src.AlternateResult;
@@ -366,27 +364,24 @@ export class Resolver extends caches {
   compilerOptions: $core.CompilerOptions | undefined = undefined;
   typingsLocation: string = '';
   projectName: string = '';
-  extraExtensions: string[] = [];
   $copy_module_Resolver(src: Resolver): void {
     this.$copy_module_caches(src);
     this.host = src.host;
     this.compilerOptions = src.compilerOptions;
     this.typingsLocation = src.typingsLocation;
     this.projectName = src.projectName;
-    this.extraExtensions = src.extraExtensions;
   }
   $clone_module_Resolver(): Resolver {
     const o = new Resolver();
     o.$copy_module_Resolver(this);
     return o;
   }
-  static $lit_module_Resolver_1_0_2_3_4_5(
+  static $lit_module_Resolver_1_0_2_3_4(
     p0: ResolutionHost,
     p1: caches,
     p2: $core.CompilerOptions | undefined,
     p3: string,
     p4: string,
-    p5: string[],
   ): Resolver {
     const o = new Resolver();
     o.host = p0;
@@ -394,7 +389,6 @@ export class Resolver extends caches {
     o.compilerOptions = p2;
     o.typingsLocation = p3;
     o.projectName = p4;
-    o.extraExtensions = p5;
     return o;
   }
   static $lit_module_Resolver_1_2_3_4(
@@ -2254,7 +2248,6 @@ export class resolutionState extends $rt.GoObject {
       resolvedModule.OriginalPath = resolved$v!.originalPath;
       resolvedModule.IsExternalLibraryImport = isExternalLibraryImport;
       resolvedModule.ResolvedUsingTsExtension = resolved$v!.resolvedUsingTsExtension;
-      resolvedModule.ResolvedUsingExtraExtensions = resolved$v!.resolvedUsingExtraExtensions;
       resolvedModule.Extension = resolved$v!.extension;
       resolvedModule.PackageId_.$copy_module_PackageId(resolved$v!.packageId);
     }
@@ -2584,20 +2577,16 @@ export class resolutionState extends $rt.GoObject {
     }
     let extensionless: string = $tspath.RemoveFileExtension(candidate);
     if (extensionless === candidate) {
-      let extension: string = $tspath.GetLongestExtensionFromPath(candidate, r!.resolver!.extraExtensions, false);
-      if (extension === ('' as string)) {
-        extension = candidate.substring($rt.strings_LastIndex(candidate, '.'));
-      }
-      extensionless = $tspath.RemoveExtension(candidate, extension);
+      extensionless = candidate.substring(0, $rt.strings_LastIndex(candidate, '.'));
     }
-    const extension$1: string = candidate.substring(extensionless.length);
+    const extension: string = candidate.substring(extensionless.length);
     if (!(r!.tracer_ === undefined)) {
       tracer.write$nil(r!.tracer_, $diagnostics.File_name_0_has_a_1_extension_stripping_it, [
         new $rt.BoxStr(candidate, 'string'),
-        new $rt.BoxStr(extension$1, 'string'),
+        new $rt.BoxStr(extension, 'string'),
       ]);
     }
-    return r!.tryAddingExtensions(extensionless, extensions$v, extension$1);
+    return r!.tryAddingExtensions(extensionless, extensions$v, extension);
   }
   tryAddingExtensions(
     extensionless: string,
@@ -2819,27 +2808,18 @@ export class resolutionState extends $rt.GoObject {
           return continueSearching();
         }
         default: {
-          if ($rt.slices_Contains(r!.resolver!.extraExtensions, originalExtension)) {
-            {
-              const resolved$19: resolved | undefined = r!.tryExtension(originalExtension, extensionless, false);
-              if (!resolved.shouldContinueSearching$nil(resolved$19)) {
-                resolved$19!.resolvedUsingExtraExtensions = true;
-                return resolved$19;
-              }
-            }
-          }
           if (
             !((extensions$v & 4) === (0 as number)) &&
             !$tspath.IsDeclarationFileName(extensionless + originalExtension)
           ) {
             {
-              const resolved$20: resolved | undefined = r!.tryExtension(
+              const resolved$19: resolved | undefined = r!.tryExtension(
                 '.d' + originalExtension + '.ts',
                 extensionless,
                 false,
               );
-              if (!resolved.shouldContinueSearching$nil(resolved$20)) {
-                return resolved$20;
+              if (!resolved.shouldContinueSearching$nil(resolved$19)) {
+                return resolved$19;
               }
             }
           }
@@ -3567,14 +3547,12 @@ export class resolved extends $rt.GoObject {
   packageId: PackageId = new PackageId();
   originalPath: string = '';
   resolvedUsingTsExtension: boolean = false;
-  resolvedUsingExtraExtensions: boolean = false;
   $copy_module_resolved(src: resolved): void {
     this.path = src.path;
     this.extension = src.extension;
     this.packageId = src.packageId.$clone_module_PackageId();
     this.originalPath = src.originalPath;
     this.resolvedUsingTsExtension = src.resolvedUsingTsExtension;
-    this.resolvedUsingExtraExtensions = src.resolvedUsingExtraExtensions;
   }
   $equals_module_resolved(o: resolved): boolean {
     return (
@@ -3582,8 +3560,7 @@ export class resolved extends $rt.GoObject {
       this.extension === o.extension &&
       this.packageId.$equals_module_PackageId(o.packageId) &&
       this.originalPath === o.originalPath &&
-      this.resolvedUsingTsExtension === o.resolvedUsingTsExtension &&
-      this.resolvedUsingExtraExtensions === o.resolvedUsingExtraExtensions
+      this.resolvedUsingTsExtension === o.resolvedUsingTsExtension
     );
   }
   $clone_module_resolved(): resolved {
@@ -3785,7 +3762,6 @@ export class typeRefDirectiveResolutionCacheKey extends $rt.GoObject {
 }
 export const DiagAndArgs$zero: DiagAndArgs = new DiagAndArgs();
 export const ModeAwareCacheKey$zero: ModeAwareCacheKey = new ModeAwareCacheKey();
-export const ParsedPatterns$zero: ParsedPatterns = new ParsedPatterns();
 export const ResolverOptions$zero: ResolverOptions = new ResolverOptions();
 export const moduleResolutionCacheKey$zero: moduleResolutionCacheKey = new moduleResolutionCacheKey();
 export const typeRefDirectiveResolutionCacheKey$zero: typeRefDirectiveResolutionCacheKey =
@@ -3902,15 +3878,13 @@ export function NewResolver(
   options: $core.CompilerOptions | undefined,
   typingsLocation: string,
   projectName: string,
-  extraExtensions: string[],
 ): Resolver | undefined {
-  return Resolver.$lit_module_Resolver_1_0_2_3_4_5(
+  return Resolver.$lit_module_Resolver_1_0_2_3_4(
     host,
     newCaches($rt.nn(host).GetCurrentDirectory(), $rt.nn($rt.nn(host).FS$m()).UseCaseSensitiveFileNames(), options),
     options,
     typingsLocation,
     projectName,
-    extraExtensions,
   );
 }
 export function NewResolverWithOptions(
@@ -4116,7 +4090,6 @@ export function ResolveConfig(
     $core.CompilerOptions.$lit_core_CompilerOptions_45(99),
     '',
     '',
-    [],
   );
   return resolver!.resolveConfig(moduleName, containingFile);
 }
@@ -4347,9 +4320,6 @@ export function GetResolutionDiagnostic(
     }
     return $diagnostics.Module_0_was_resolved_to_1_but_allowArbitraryExtensions_is_not_set;
   };
-  if (resolvedModule!.ResolvedUsingExtraExtensions) {
-    return undefined;
-  }
   {
     switch (resolvedModule!.Extension) {
       case '.ts' as string:

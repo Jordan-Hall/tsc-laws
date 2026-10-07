@@ -4,17 +4,14 @@ import * as $rt from '../go/runtime.js';
 import * as $ast from './ast.js';
 import * as $boxes from './boxes.js';
 import * as $collections from './collections.js';
-import * as $contentmapper from './contentmapper.js';
 import * as $core from './core.js';
 import * as $debug from './debug.js';
 import * as $diagnostics from './diagnostics.js';
 import * as $glob from './glob.js';
 import * as $jsnum from './jsnum.js';
-import * as $json from './json.js';
 import * as $locale from './locale.js';
 import * as $module from './module.js';
 import * as $outputpaths from './outputpaths.js';
-import * as $packagejson from './packagejson.js';
 import * as $parser from './parser.js';
 import * as $scanner from './scanner.js';
 import * as $stringutil from './stringutil.js';
@@ -1649,6 +1646,37 @@ export class ExtendedConfigCacheEntry extends $rt.GoObject {
     return [];
   }
 }
+export class FileExtensionInfo extends $rt.GoObject {
+  Extension: string = '';
+  IsMixedContent: boolean = false;
+  ScriptKind_: $core.ScriptKind = 0;
+  $copy_tsoptions_FileExtensionInfo(src: FileExtensionInfo): void {
+    this.Extension = src.Extension;
+    this.IsMixedContent = src.IsMixedContent;
+    this.ScriptKind_ = src.ScriptKind_;
+  }
+  $equals_tsoptions_FileExtensionInfo(o: FileExtensionInfo): boolean {
+    return (
+      this.Extension === o.Extension && this.IsMixedContent === o.IsMixedContent && this.ScriptKind_ === o.ScriptKind_
+    );
+  }
+  $clone_tsoptions_FileExtensionInfo(): FileExtensionInfo {
+    const o = new FileExtensionInfo();
+    o.$copy_tsoptions_FileExtensionInfo(this);
+    return o;
+  }
+  static $lit_tsoptions_FileExtensionInfo_0_1_2(p0: string, p1: boolean, p2: $core.ScriptKind): FileExtensionInfo {
+    const o = new FileExtensionInfo();
+    o.Extension = p0;
+    o.IsMixedContent = p1;
+    o.ScriptKind_ = p2;
+    return o;
+  }
+  static $cast_tsoptions_FileExtensionInfo(v: $rt.GoObject | undefined): FileExtensionInfo {
+    if (v instanceof FileExtensionInfo) return v;
+    throw $rt.typeAssertError();
+  }
+}
 export class NameMap extends $rt.GoObject {
   optionsNames: $collections.OrderedMap<string, CommandLineOption | undefined> | undefined = undefined;
   shortOptionNames: Map<string, string> | undefined = undefined;
@@ -1807,7 +1835,7 @@ export class ParsedBuildCommandLine extends $rt.GoObject {
   }
 }
 export class ParsedCommandLine extends $rt.GoObject {
-  ParsedConfig: ParsedOptions | undefined = undefined;
+  ParsedConfig: $core.ParsedOptions | undefined = undefined;
   ConfigFile: TsConfigSourceFile | undefined = undefined;
   Errors: ($ast.Diagnostic | undefined)[] = [];
   Raw: $rt.GoObject | undefined = undefined;
@@ -1817,6 +1845,7 @@ export class ParsedCommandLine extends $rt.GoObject {
   wildcardDirectories: Map<string, boolean> | undefined = undefined;
   includeGlobsOnce: $rt.sync_Once = new $rt.sync_Once();
   includeGlobs: ($glob.Glob | undefined)[] = [];
+  extraFileExtensions: FileExtensionInfo[] = [];
   sourceAndOutputMapsOnce: $rt.sync_Once = new $rt.sync_Once();
   sourceToProjectReference: Map<$tspath.Path, SourceOutputAndProjectReference | undefined> | undefined = undefined;
   outputDtsToProjectReference: Map<$tspath.Path, SourceOutputAndProjectReference | undefined> | undefined = undefined;
@@ -1840,6 +1869,7 @@ export class ParsedCommandLine extends $rt.GoObject {
     this.wildcardDirectories = src.wildcardDirectories;
     this.includeGlobsOnce = src.includeGlobsOnce;
     this.includeGlobs = src.includeGlobs;
+    this.extraFileExtensions = src.extraFileExtensions;
     this.sourceAndOutputMapsOnce = src.sourceAndOutputMapsOnce;
     this.sourceToProjectReference = src.sourceToProjectReference;
     this.outputDtsToProjectReference = src.outputDtsToProjectReference;
@@ -1858,8 +1888,8 @@ export class ParsedCommandLine extends $rt.GoObject {
     o.$copy_tsoptions_ParsedCommandLine(this);
     return o;
   }
-  static $lit_tsoptions_ParsedCommandLine_0_1_2_3_4_5_7_9_17(
-    p0: ParsedOptions | undefined,
+  static $lit_tsoptions_ParsedCommandLine_0_1_2_3_4_5_7_9_10_18(
+    p0: $core.ParsedOptions | undefined,
     p1: TsConfigSourceFile | undefined,
     p2: ($ast.Diagnostic | undefined)[],
     p3: $rt.GoObject | undefined,
@@ -1867,7 +1897,8 @@ export class ParsedCommandLine extends $rt.GoObject {
     p5: $tspath.ComparePathsOptions,
     p6: Map<string, boolean> | undefined,
     p7: ($glob.Glob | undefined)[],
-    p8: number,
+    p8: FileExtensionInfo[],
+    p9: number,
   ): ParsedCommandLine {
     const o = new ParsedCommandLine();
     o.ParsedConfig = p0;
@@ -1878,15 +1909,16 @@ export class ParsedCommandLine extends $rt.GoObject {
     o.comparePathsOptions = p5;
     o.wildcardDirectories = p6;
     o.includeGlobs = p7;
-    o.literalFileNamesLen = p8;
+    o.extraFileExtensions = p8;
+    o.literalFileNamesLen = p9;
     return o;
   }
-  static $lit_tsoptions_ParsedCommandLine_0_1_3_2_4_5_17(
-    p0: ParsedOptions | undefined,
+  static $lit_tsoptions_ParsedCommandLine_0_1_3_2_10_5_18(
+    p0: $core.ParsedOptions | undefined,
     p1: TsConfigSourceFile | undefined,
     p2: $rt.GoObject | undefined,
     p3: ($ast.Diagnostic | undefined)[],
-    p4: $rt.Ptr<boolean> | undefined,
+    p4: FileExtensionInfo[],
     p5: $tspath.ComparePathsOptions,
     p6: number,
   ): ParsedCommandLine {
@@ -1895,13 +1927,13 @@ export class ParsedCommandLine extends $rt.GoObject {
     o.ConfigFile = p1;
     o.Raw = p2;
     o.Errors = p3;
-    o.CompileOnSave = p4;
+    o.extraFileExtensions = p4;
     o.comparePathsOptions = p5;
     o.literalFileNamesLen = p6;
     return o;
   }
   static $lit_tsoptions_ParsedCommandLine_0_5(
-    p0: ParsedOptions | undefined,
+    p0: $core.ParsedOptions | undefined,
     p1: $tspath.ComparePathsOptions,
   ): ParsedCommandLine {
     const o = new ParsedCommandLine();
@@ -1912,42 +1944,6 @@ export class ParsedCommandLine extends $rt.GoObject {
   static $cast_tsoptions_ParsedCommandLine(v: $rt.GoObject | undefined): ParsedCommandLine {
     if (v instanceof ParsedCommandLine) return v;
     throw $rt.typeAssertError();
-  }
-  fileGlobPatterns(): [string, string] {
-    const p = this;
-    let fileGlob: string = '';
-    let recursiveFileGlob: string = '';
-    const mapperExtensions: string[] = p!.ContentMapperExtensions();
-    if (mapperExtensions.length === (0 as number)) {
-      return ['*.{js,jsx,mjs,cjs,ts,tsx,mts,cts,json}', '**/*.{js,jsx,mjs,cjs,ts,tsx,mts,cts,json}'];
-    }
-    let extensions: string[] = [] as string[];
-    extensions.push('js', 'jsx', 'mjs', 'cjs', 'ts', 'tsx', 'mts', 'cts', 'json');
-    {
-      const $t1 = mapperExtensions;
-      for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        const extension = $t1[$t2];
-        extensions.push($rt.strings_TrimPrefix(extension, '.'));
-      }
-    }
-    fileGlob = '*.{' + $rt.strings_Join(extensions, ',') + '}';
-    return [fileGlob, '**/' + fileGlob];
-  }
-  WithFileNames(fileNames: string[]): ParsedCommandLine | undefined {
-    const p = this;
-    let parsedConfig: ParsedOptions = p!.ParsedConfig!.$clone_tsoptions_ParsedOptions();
-    parsedConfig.FileNames = fileNames;
-    return ParsedCommandLine.$lit_tsoptions_ParsedCommandLine_0_1_2_3_4_5_7_9_17(
-      parsedConfig,
-      p!.ConfigFile,
-      p!.Errors,
-      p!.Raw,
-      p!.CompileOnSave,
-      p!.comparePathsOptions,
-      p!.wildcardDirectories,
-      p!.includeGlobs,
-      p!.literalFileNamesLen,
-    );
   }
   static ConfigName$nil(p: ParsedCommandLine | undefined): string {
     if (p === undefined || p!.ConfigFile === undefined) {
@@ -2124,10 +2120,7 @@ export class ParsedCommandLine extends $rt.GoObject {
               if (!yield_!(dtsFileName)) {
                 return;
               }
-              if (
-                p!.GetContentMapperForFileName(fileName) === undefined &&
-                ParsedCommandLine.CompilerOptions$m$nil(p)!.GetAreDeclarationMapsEnabled()
-              ) {
+              if (ParsedCommandLine.CompilerOptions$m$nil(p)!.GetAreDeclarationMapsEnabled()) {
                 const declarationMap: string = dtsFileName + '.map';
                 if (!yield_!(declarationMap)) {
                   return;
@@ -2169,20 +2162,24 @@ export class ParsedCommandLine extends $rt.GoObject {
     }
     p!.includeGlobsOnce.Do((): void => {
       if (p!.includeGlobs.length === 0) {
-        const $t1 = p!.fileGlobPatterns();
-        const fileGlob: string = $t1[0];
-        const recursiveFileGlob: string = $t1[1];
         let globs: ($glob.Glob | undefined)[] = [] as ($glob.Glob | undefined)[];
         for (const [dir, recursive] of wildcardDirectories ?? new Map<string, boolean>()) {
           {
-            const $t2 = $glob.Parse(
+            const $t1 = $glob.Parse(
               $rt.fmt_Sprintf('%s/%s', [
                 new $rt.BoxStr($tspath.NormalizePath(dir), 'string'),
-                new $rt.BoxStr($core.IfElse<string>(recursive, recursiveFileGlob, fileGlob), 'string'),
+                new $rt.BoxStr(
+                  $core.IfElse<string>(
+                    recursive,
+                    '**/*.{js,jsx,mjs,cjs,ts,tsx,mts,cts,json}',
+                    '*.{js,jsx,mjs,cjs,ts,tsx,mts,cts,json}',
+                  ),
+                  'string',
+                ),
               ]),
             );
-            const parsed: $glob.Glob | undefined = $t2[0];
-            const err: $rt.GoObject | undefined = $t2[1];
+            const parsed: $glob.Glob | undefined = $t1[0];
+            const err: $rt.GoObject | undefined = $t1[1];
             if (err === undefined) {
               globs.push(parsed);
             }
@@ -2202,7 +2199,7 @@ export class ParsedCommandLine extends $rt.GoObject {
   LiteralFileNames(): string[] {
     return ParsedCommandLine.LiteralFileNames$nil(this);
   }
-  SetParsedOptions(o: ParsedOptions | undefined): void {
+  SetParsedOptions(o: $core.ParsedOptions | undefined): void {
     const p = this;
     p!.ParsedConfig = o;
   }
@@ -2249,38 +2246,6 @@ export class ParsedCommandLine extends $rt.GoObject {
   ProjectReferences(): ($core.ProjectReference | undefined)[] {
     const p = this;
     return p!.ParsedConfig!.ProjectReferences;
-  }
-  static ContentMappers$nil(p: ParsedCommandLine | undefined): ($contentmapper.Mapper | undefined)[] {
-    if (p === undefined || p!.ParsedConfig === undefined) {
-      return [];
-    }
-    return p!.ParsedConfig!.ContentMappers;
-  }
-  ContentMappers(): ($contentmapper.Mapper | undefined)[] {
-    return ParsedCommandLine.ContentMappers$nil(this);
-  }
-  ContentMapperExtensions(): string[] {
-    const p = this;
-    return $core.FlatMap<$contentmapper.Mapper | undefined, string>(ParsedCommandLine.ContentMappers$nil(p), $fn18);
-  }
-  GetContentMapperForFileName(fileName: string): $contentmapper.Mapper | undefined {
-    const p = this;
-    const ignoreCase: boolean = !p!.UseCaseSensitiveFileNames();
-    const extension: string = $tspath.GetLongestExtensionFromPath(fileName, p!.ContentMapperExtensions(), ignoreCase);
-    {
-      const $t1 = ParsedCommandLine.ContentMappers$nil(p);
-      for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        const mapper = $t1[$t2];
-        if (
-          $rt.slices_ContainsFunc(mapper!.Extensions, (mapperExtension: string): boolean => {
-            return extension === mapperExtension || (ignoreCase && $rt.strings_EqualFold(extension, mapperExtension));
-          })
-        ) {
-          return mapper;
-        }
-      }
-    }
-    return undefined;
   }
   ResolvedProjectReferencePaths(): string[] {
     const p = this;
@@ -2336,12 +2301,6 @@ export class ParsedCommandLine extends $rt.GoObject {
         }
       }
     }
-    if (!(p!.GetContentMapperForFileName(fileName) === undefined)) {
-      const directoryPath: $tspath.Path = $tspath.Path$GetDirectoryPath(path);
-      if (p!.PossiblyMatchesDirectoryName(directoryPath)) {
-        return true;
-      }
-    }
     {
       const wildcardDirectoryGlobs: ($glob.Glob | undefined)[] = p!.WildcardDirectoryGlobs();
       if (wildcardDirectoryGlobs.length > 0) {
@@ -2394,18 +2353,18 @@ export class ParsedCommandLine extends $rt.GoObject {
   }
   ReloadFileNamesOfParsedCommandLine(fs: $vfs.FS): ParsedCommandLine | undefined {
     const p = this;
-    let parsedConfig: ParsedOptions = p!.ParsedConfig!.$clone_tsoptions_ParsedOptions();
+    let parsedConfig: $core.ParsedOptions = p!.ParsedConfig!.$clone_core_ParsedOptions();
     const $t1 = getFileNamesFromConfigSpecs(
       p!.ConfigFile!.configFileSpecs_!,
       p!.GetCurrentDirectory(),
       ParsedCommandLine.CompilerOptions$m$nil(p),
       fs,
-      p!.ContentMapperExtensions(),
+      p!.extraFileExtensions,
     );
     const fileNames: string[] = $t1[0];
     const literalFileNamesLen: number = $t1[1];
     parsedConfig.FileNames = fileNames;
-    let parsedCommandLine: ParsedCommandLine = ParsedCommandLine.$lit_tsoptions_ParsedCommandLine_0_1_2_3_4_5_7_9_17(
+    let parsedCommandLine: ParsedCommandLine = ParsedCommandLine.$lit_tsoptions_ParsedCommandLine_0_1_2_3_4_5_7_9_10_18(
       parsedConfig,
       p!.ConfigFile,
       p!.Errors,
@@ -2414,6 +2373,7 @@ export class ParsedCommandLine extends $rt.GoObject {
       p!.comparePathsOptions,
       p!.wildcardDirectories,
       p!.includeGlobs,
+      p!.extraFileExtensions,
       literalFileNamesLen,
     );
     return parsedCommandLine;
@@ -2425,52 +2385,6 @@ export class ParsedCommandLine extends $rt.GoObject {
       p!.locale = $t1[0];
     });
     return p!.locale;
-  }
-}
-export class ParsedOptions extends $rt.GoObject {
-  CompilerOptions_: $core.CompilerOptions | undefined = undefined;
-  WatchOptions_: $core.WatchOptions | undefined = undefined;
-  TypeAcquisition_: $core.TypeAcquisition | undefined = undefined;
-  FileNames: string[] = [];
-  ProjectReferences: ($core.ProjectReference | undefined)[] = [];
-  ContentMappers: ($contentmapper.Mapper | undefined)[] = [];
-  $copy_tsoptions_ParsedOptions(src: ParsedOptions): void {
-    this.CompilerOptions_ = src.CompilerOptions_;
-    this.WatchOptions_ = src.WatchOptions_;
-    this.TypeAcquisition_ = src.TypeAcquisition_;
-    this.FileNames = src.FileNames;
-    this.ProjectReferences = src.ProjectReferences;
-    this.ContentMappers = src.ContentMappers;
-  }
-  $clone_tsoptions_ParsedOptions(): ParsedOptions {
-    const o = new ParsedOptions();
-    o.$copy_tsoptions_ParsedOptions(this);
-    return o;
-  }
-  static $lit_tsoptions_ParsedOptions_0_2_3_4_5(
-    p0: $core.CompilerOptions | undefined,
-    p1: $core.TypeAcquisition | undefined,
-    p2: string[],
-    p3: ($core.ProjectReference | undefined)[],
-    p4: ($contentmapper.Mapper | undefined)[],
-  ): ParsedOptions {
-    const o = new ParsedOptions();
-    o.CompilerOptions_ = p0;
-    o.TypeAcquisition_ = p1;
-    o.FileNames = p2;
-    o.ProjectReferences = p3;
-    o.ContentMappers = p4;
-    return o;
-  }
-  static $lit_tsoptions_ParsedOptions_0_3(p0: $core.CompilerOptions | undefined, p1: string[]): ParsedOptions {
-    const o = new ParsedOptions();
-    o.CompilerOptions_ = p0;
-    o.FileNames = p1;
-    return o;
-  }
-  static $cast_tsoptions_ParsedOptions(v: $rt.GoObject | undefined): ParsedOptions {
-    if (v instanceof ParsedOptions) return v;
-    throw $rt.typeAssertError();
   }
 }
 export class SourceOutputAndProjectReference extends $rt.GoObject {
@@ -2605,7 +2519,6 @@ export class commandLineParser extends $rt.GoObject {
   options: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined = undefined;
   fileNames: string[] = [];
   errors: ($ast.Diagnostic | undefined)[] = [];
-  responseFileStack: $collections.Set_<$tspath.Path> = new $collections.Set_<$tspath.Path>();
   $copy_tsoptions_commandLineParser(src: commandLineParser): void {
     this.workerDiagnostics = src.workerDiagnostics;
     this.optionsMap = src.optionsMap;
@@ -2614,7 +2527,6 @@ export class commandLineParser extends $rt.GoObject {
     this.options = src.options;
     this.fileNames = src.fileNames;
     this.errors = src.errors;
-    this.responseFileStack = src.responseFileStack.$clone_collections_Set();
   }
   $clone_tsoptions_commandLineParser(): commandLineParser {
     const o = new commandLineParser();
@@ -2709,84 +2621,61 @@ export class commandLineParser extends $rt.GoObject {
   }
   parseResponseFile(fileName: string): void {
     const p = this;
-    const $defers: (() => void)[] = [];
-    let $panic: $rt.Panic | undefined = undefined;
-    $body: try {
-      fileName = $tspath.GetNormalizedAbsolutePath(fileName, p!.currentDirectory);
-      const path: $tspath.Path = $tspath.ToPath(
-        fileName,
-        p!.currentDirectory,
-        $rt.nn(p!.fs).UseCaseSensitiveFileNames(),
-      );
-      if ($collections$Set_.Has$nil<$tspath.Path>(p!.responseFileStack, path)) {
-        break $body;
-      }
-      p!.responseFileStack.Add(path);
-      const $t1 = path;
-      const $t2 = p!.responseFileStack;
-      $defers.push(() => {
-        $t2.Delete($t1);
-      });
-      const $t4 = tryReadFile(
-        fileName,
-        (fileName$1: string): [string, boolean] => {
-          if (p!.fs === undefined) {
-            return ['', false];
-          }
-          const $t3 = $rt.nn(p!.fs).ReadFile(fileName$1);
-          const read: string = $t3[0];
-          const err: boolean = $t3[1];
-          return [read, err];
-        },
-        p!.errors,
-      );
-      const fileContents: string = $t4[0];
-      const errors: ($ast.Diagnostic | undefined)[] = $t4[1];
-      p!.errors = errors;
-      if (fileContents === ('' as string)) {
-        break $body;
-      }
-      let args: string[] = [];
-      const text: number[] = $rt.stringToRunes(fileContents);
-      const textLength: number = text.length;
-      let pos: number = 0;
-      for (; pos < textLength;) {
-        for (; pos < textLength && text[pos] <= 32;) {
-          pos++;
+    fileName = $tspath.GetNormalizedAbsolutePath(fileName, p!.currentDirectory);
+    const $t2 = tryReadFile(
+      fileName,
+      (fileName$1: string): [string, boolean] => {
+        if (p!.fs === undefined) {
+          return ['', false];
         }
-        if (pos >= textLength) {
-          break;
-        }
-        const start: number = pos;
-        if (text[pos] === (34 as number)) {
-          pos++;
-          for (; pos < textLength && !(text[pos] === (34 as number));) {
-            pos++;
-          }
-          if (pos < textLength) {
-            args.push($rt.runesToString($rt.reslice(text, start + 1, pos, 0)));
-            pos++;
-          } else {
-            p!.errors.push(
-              $ast.NewCompilerDiagnostic($diagnostics.Unterminated_quoted_string_in_response_file_0, [
-                new $rt.BoxStr(fileName, 'string'),
-              ]),
-            );
-          }
-        } else {
-          for (; pos < textLength && text[pos] > 32;) {
-            pos++;
-          }
-          args.push($rt.runesToString($rt.reslice(text, start, pos, 0)));
-        }
-      }
-      p!.parseStrings(args);
-    } catch ($e) {
-      $panic = $rt.toPanic($e);
-    } finally {
-      $panic = $rt.runDefers($defers, $panic);
+        const $t1 = $rt.nn(p!.fs).ReadFile(fileName$1);
+        const read: string = $t1[0];
+        const err: boolean = $t1[1];
+        return [read, err];
+      },
+      p!.errors,
+    );
+    const fileContents: string = $t2[0];
+    const errors: ($ast.Diagnostic | undefined)[] = $t2[1];
+    p!.errors = errors;
+    if (fileContents === ('' as string)) {
+      return;
     }
-    if ($panic !== undefined) throw $panic;
+    let args: string[] = [];
+    const text: number[] = $rt.stringToRunes(fileContents);
+    const textLength: number = text.length;
+    let pos: number = 0;
+    for (; pos < textLength;) {
+      for (; pos < textLength && text[pos] <= 32;) {
+        pos++;
+      }
+      if (pos >= textLength) {
+        break;
+      }
+      const start: number = pos;
+      if (text[pos] === (34 as number)) {
+        pos++;
+        for (; pos < textLength && !(text[pos] === (34 as number));) {
+          pos++;
+        }
+        if (pos < textLength) {
+          args.push($rt.runesToString($rt.reslice(text, start + 1, pos, 0)));
+          pos++;
+        } else {
+          p!.errors.push(
+            $ast.NewCompilerDiagnostic($diagnostics.Unterminated_quoted_string_in_response_file_0, [
+              new $rt.BoxStr(fileName, 'string'),
+            ]),
+          );
+        }
+      } else {
+        for (; text[pos] > 32;) {
+          pos++;
+        }
+        args.push($rt.runesToString($rt.reslice(text, start, pos, 0)));
+      }
+    }
+    p!.parseStrings(args);
   }
   parseOptionValue(
     args: string[],
@@ -2959,8 +2848,6 @@ export class commandLineParser extends $rt.GoObject {
       node,
       sourceFile,
       parser!.AlternateMode(),
-      parser!.UnknownDidYouMeanDiagnostic(),
-      commandLineOptionsToMap(parser!.workerDiagnostics!.didYouMean.OptionDeclarations),
     );
   }
 }
@@ -3127,18 +3014,18 @@ export class configFileSpecs extends $rt.GoObject {
 }
 export class extendsResult extends $rt.GoObject {
   options: $core.CompilerOptions | undefined = undefined;
+  watchOptionsCopied: boolean = false;
   include: ($rt.GoObject | undefined)[] = [];
   exclude: ($rt.GoObject | undefined)[] = [];
   files: ($rt.GoObject | undefined)[] = [];
-  contentMappers: ($rt.GoObject | undefined)[] = [];
   compileOnSave: boolean = false;
   extendedSourceFiles: $collections.Set_<string> = new $collections.Set_<string>();
   $copy_tsoptions_extendsResult(src: extendsResult): void {
     this.options = src.options;
+    this.watchOptionsCopied = src.watchOptionsCopied;
     this.include = src.include;
     this.exclude = src.exclude;
     this.files = src.files;
-    this.contentMappers = src.contentMappers;
     this.compileOnSave = src.compileOnSave;
     this.extendedSourceFiles = src.extendedSourceFiles.$clone_collections_Set();
   }
@@ -3273,38 +3160,6 @@ export class parsedTsconfig extends $rt.GoObject {
   }
   static $cast_tsoptions_parsedTsconfig(v: $rt.GoObject | undefined): parsedTsconfig {
     if (v instanceof parsedTsconfig) return v;
-    throw $rt.typeAssertError();
-  }
-}
-export class projectReferenceParseResult extends $rt.GoObject {
-  reference: $core.ProjectReference = new $core.ProjectReference();
-  hasPath: boolean = false;
-  pathValid: boolean = false;
-  hasCircular: boolean = false;
-  circularValid: boolean = false;
-  $copy_tsoptions_projectReferenceParseResult(src: projectReferenceParseResult): void {
-    this.reference = src.reference.$clone_core_ProjectReference();
-    this.hasPath = src.hasPath;
-    this.pathValid = src.pathValid;
-    this.hasCircular = src.hasCircular;
-    this.circularValid = src.circularValid;
-  }
-  $equals_tsoptions_projectReferenceParseResult(o: projectReferenceParseResult): boolean {
-    return (
-      this.reference.$equals_core_ProjectReference(o.reference) &&
-      this.hasPath === o.hasPath &&
-      this.pathValid === o.pathValid &&
-      this.hasCircular === o.hasCircular &&
-      this.circularValid === o.circularValid
-    );
-  }
-  $clone_tsoptions_projectReferenceParseResult(): projectReferenceParseResult {
-    const o = new projectReferenceParseResult();
-    o.$copy_tsoptions_projectReferenceParseResult(this);
-    return o;
-  }
-  static $cast_tsoptions_projectReferenceParseResult(v: $rt.GoObject | undefined): projectReferenceParseResult {
-    if (v instanceof projectReferenceParseResult) return v;
     throw $rt.typeAssertError();
   }
 }
@@ -3488,6 +3343,7 @@ export class wildcardDirectoryMatch extends $rt.GoObject {
 }
 export const AlternateModeDiagnostics$zero: AlternateModeDiagnostics = new AlternateModeDiagnostics();
 export const DidYouMeanOptionsDiagnostics$zero: DidYouMeanOptionsDiagnostics = new DidYouMeanOptionsDiagnostics();
+export const FileExtensionInfo$zero: FileExtensionInfo = new FileExtensionInfo();
 export const ParseCommandLineWorkerDiagnostics$zero: ParseCommandLineWorkerDiagnostics =
   new ParseCommandLineWorkerDiagnostics();
 export const SourceOutputAndProjectReference$zero: SourceOutputAndProjectReference =
@@ -3529,10 +3385,7 @@ const $fn16 = (option: CommandLineOption | undefined): boolean => {
 const $fn17 = (option: CommandLineOption | undefined): boolean => {
   return option!.AffectsEmit;
 };
-const $fn18 = (m: $contentmapper.Mapper | undefined): string[] => {
-  return m!.Extensions;
-};
-const $fn19 = (v$1: $rt.GoObject | undefined): boolean => {
+const $fn18 = (v$1: $rt.GoObject | undefined): boolean => {
   return (
     !(v$1 === undefined) &&
     !$rt.ifaceEq(v$1, new $rt.BoxBool(false, 'bool')) &&
@@ -3540,35 +3393,29 @@ const $fn19 = (v$1: $rt.GoObject | undefined): boolean => {
     !$rt.ifaceEq(v$1, new $rt.BoxStr('' as string, 'string'))
   );
 };
-const $fn2 = ($r: $core.CompilerOptions | undefined): $core.ModuleResolutionKind => $r!.GetModuleResolutionKind();
-const $fn20 = (option: CommandLineOption | undefined): string => {
-  return option!.Name;
-};
-const $fn21 = (a: CommandLineOption | undefined, b: CommandLineOption | undefined): number => {
-  return $rt.strings_Compare(a!.Name, b!.Name);
-};
-const $fn22 = (element: $rt.GoObject | undefined): boolean => {
+const $fn19 = (element: $rt.GoObject | undefined): boolean => {
   return isOrderedMapJSONValue(element);
 };
-const $fn23 = (property: $ast.PropertyAssignment | undefined): $ast.Node | undefined => {
+const $fn2 = ($r: $core.CompilerOptions | undefined): $core.ModuleResolutionKind => $r!.GetModuleResolutionKind();
+const $fn20 = (element$1: $rt.GoObject | undefined): boolean => {
+  return isStringJSONValue(element$1);
+};
+const $fn21 = (property: $ast.PropertyAssignment | undefined): $ast.Node | undefined => {
   return property!.Initializer_;
 };
-const $fn24 = (element$1: $rt.GoObject | undefined): boolean => {
-  return isOrderedMapJSONValue(element$1);
+const $fn22 = (element$2: $rt.GoObject | undefined): boolean => {
+  return isStringJSONValue(element$2);
 };
-const $fn25 = (mapper$4: $contentmapper.Mapper | undefined): string[] => {
-  return mapper$4!.Extensions;
+const $fn23 = (element$3: $rt.GoObject | undefined): boolean => {
+  return isStringJSONValue(element$3);
 };
-const $fn26 = (element$3: $rt.GoObject | undefined): boolean => {
-  return isOrderedMapJSONValue(element$3);
+const $fn24 = (spec: $rt.GoObject | undefined): boolean => {
+  return isStringJSONValue(spec);
 };
-const $fn27 = (property$1: $ast.PropertyAssignment | undefined): $ast.Node | undefined => {
-  return property$1!.Initializer_;
+const $fn25 = (element$4: $rt.GoObject | undefined): boolean => {
+  return isOrderedMapJSONValue(element$4);
 };
-const $fn28 = (property: $ast.PropertyAssignment | undefined): $ast.Node | undefined => {
-  return property!.Name();
-};
-const $fn29 = (include: string): boolean => {
+const $fn26 = (include: string): boolean => {
   return $rt.strings_HasSuffix(include, '.json');
 };
 const $fn3 = ($r: $core.CompilerOptions | undefined): $core.ModuleDetectionKind => $r!.GetEmitModuleDetectionKind();
@@ -3590,7 +3437,6 @@ export let commandLineOptionElements: Map<string, CommandLineOption | undefined>
   ['customConditions', CommandLineOption.$lit_tsoptions_CommandLineOption_0_2('condition', 'string')],
   ['plugins', CommandLineOption.$lit_tsoptions_CommandLineOption_0_2('plugin', 'object')],
   ['references', CommandLineOption.$lit_tsoptions_CommandLineOption_0_2('references', 'object')],
-  ['contentMappers', CommandLineOption.$lit_tsoptions_CommandLineOption_0_2('contentMappers', 'object')],
   ['files', CommandLineOption.$lit_tsoptions_CommandLineOption_0_2('files', 'string')],
   ['include', CommandLineOption.$lit_tsoptions_CommandLineOption_0_2('include', 'string')],
   ['exclude', CommandLineOption.$lit_tsoptions_CommandLineOption_0_2('exclude', 'string')],
@@ -3898,14 +3744,6 @@ export let commonOptionsWithBuild: (CommandLineOption | undefined)[] = [
     $diagnostics.Set_the_number_of_checkers_per_project,
     $diagnostics.X_4_unless_singleThreaded_is_passed,
     1,
-  ),
-  CommandLineOption.$lit_tsoptions_CommandLineOption_0_2_9_5_6_7(
-    'runExternalCode',
-    'boolean',
-    $diagnostics.Command_line_Options,
-    true,
-    $diagnostics.Allow_loading_external_content_mapper_plugins_that_execute_code_during_compilation,
-    new $rt.BoxBool(false, 'bool'),
   ),
 ];
 export let BuildOpts: (CommandLineOption | undefined)[] = $rt.slices_Concat([commonOptionsWithBuild, OptionsForBuild]);
@@ -6030,7 +5868,6 @@ export let tsconfigRootOptionsMap: CommandLineOption | undefined =
       typeAcquisitionDeclaration,
       extendsOptionDeclaration,
       CommandLineOption.$lit_tsoptions_CommandLineOption_0_2('references', 'list'),
-      CommandLineOption.$lit_tsoptions_CommandLineOption_0_2('contentMappers', 'list'),
       CommandLineOption.$lit_tsoptions_CommandLineOption_0_2('files', 'list'),
       CommandLineOption.$lit_tsoptions_CommandLineOption_0_2('include', 'list'),
       CommandLineOption.$lit_tsoptions_CommandLineOption_0_2('exclude', 'list'),
@@ -6047,18 +5884,18 @@ export function ParseCommandLine(commandLine: string[], host: ParseConfigHost): 
     $rt.nn(host).FS$m(),
     $rt.nn(host).GetCurrentDirectory(),
   );
-  const options: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined =
+  const optionsWithAbsolutePaths: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined =
     convertToOptionsWithAbsolutePaths(
       $collections$OrderedMap.Clone$nil<string, $rt.GoObject | undefined>($zf0, $zf1, parser!.options),
       CommandLineCompilerOptionsMap,
       $rt.nn(host).GetCurrentDirectory(),
     );
   const compilerOptions: $core.CompilerOptions | undefined = convertMapToOptions<compilerOptionsParser | undefined>(
-    options,
+    optionsWithAbsolutePaths,
     compilerOptionsParser.$lit_tsoptions_compilerOptionsParser_0(new $core.CompilerOptions()),
   )!.CompilerOptions_;
   const watchOptions: $core.WatchOptions | undefined = convertMapToOptions<watchOptionsParser | undefined>(
-    options,
+    optionsWithAbsolutePaths,
     watchOptionsParser.$lit_tsoptions_watchOptionsParser_0(new $core.WatchOptions()),
   )!.WatchOptions_;
   const result: ParsedCommandLine | undefined = NewParsedCommandLine(
@@ -6300,109 +6137,6 @@ export function convertJsonOptionOfEnumType(
   }
   return [undefined, [createDiagnosticForInvalidEnumType(opt, sourceFile, valueExpression)]];
 }
-export function resolveContentMapperManifest(
-  host: ParseConfigHost,
-  containingFile: string,
-  packageName: string,
-): [$contentmapper.Manifest, string, $ast.Diagnostic | undefined] {
-  const resolver: $module.Resolver | undefined = $module.NewResolver(
-    host as unknown as $module.ResolutionHost,
-    $core.CompilerOptions.$lit_core_CompilerOptions_45(100),
-    '',
-    '',
-    [],
-  );
-  const resolved: $module.ResolvedModule | undefined = resolver!.ResolvePackageDirectory(
-    packageName,
-    containingFile,
-    0,
-    undefined,
-  );
-  if (resolved === undefined || resolved!.ResolvedFileName === ('' as string)) {
-    return [
-      new $contentmapper.Manifest(),
-      '',
-      $ast.NewCompilerDiagnostic($diagnostics.The_content_mapper_package_0_could_not_be_resolved, [
-        new $rt.BoxStr(packageName, 'string'),
-      ]),
-    ];
-  }
-  const packageDirectory: string = resolved!.ResolvedFileName;
-  const packageJsonPath: string = $tspath.CombinePaths(packageDirectory, ['package.json']);
-  const $t1 = $rt.nn($rt.nn(host).FS$m()).ReadFile(packageJsonPath);
-  const contents: string = $t1[0];
-  let ok: boolean = $t1[1];
-  if (!ok) {
-    return [
-      new $contentmapper.Manifest(),
-      packageDirectory,
-      $ast.NewCompilerDiagnostic($diagnostics.The_content_mapper_package_0_could_not_be_resolved, [
-        new $rt.BoxStr(packageName, 'string'),
-      ]),
-    ];
-  }
-  const $t2 = $packagejson.Parse($rt.stringToBytes(contents));
-  const fields: $packagejson.Fields = $t2[0];
-  const err: $rt.GoObject | undefined = $t2[1];
-  if (!(err === undefined)) {
-    return [
-      new $contentmapper.Manifest(),
-      packageDirectory,
-      $ast.NewCompilerDiagnostic($diagnostics.The_package_json_of_the_content_mapper_package_0_could_not_be_parsed, [
-        new $rt.BoxStr(packageName, 'string'),
-      ]),
-    ];
-  }
-  const $t3 = fields.Name.GetValue();
-  const name_: string = $t3[0];
-  if (name_ === ('' as string)) {
-    return [
-      new $contentmapper.Manifest(),
-      packageDirectory,
-      $ast.NewCompilerDiagnostic(
-        $diagnostics.The_package_json_of_the_content_mapper_package_0_does_not_specify_a_name,
-        [new $rt.BoxStr(packageName, 'string')],
-      ),
-    ];
-  }
-  const $t4 = fields.Version.GetValue();
-  const version: string = $t4[0];
-  const $t5 = fields.ContentMapper.GetValue();
-  const cm: $packagejson.ContentMapperFields = $t5[0];
-  ok = $t5[1];
-  if (!ok) {
-    return [
-      new $contentmapper.Manifest(),
-      packageDirectory,
-      $ast.NewCompilerDiagnostic(
-        $diagnostics.The_package_json_of_the_content_mapper_package_0_does_not_declare_a_typescript_contentMapper_object,
-        [new $rt.BoxStr(packageName, 'string')],
-      ),
-    ];
-  }
-  const $t6 = cm.Exec.GetValue();
-  const exec: string[] = $t6[0];
-  ok = $t6[1];
-  if (!ok || exec.length === (0 as number)) {
-    return [
-      new $contentmapper.Manifest(),
-      packageDirectory,
-      $ast.NewCompilerDiagnostic(
-        $diagnostics.The_typescript_contentMapper_exec_of_the_content_mapper_package_0_must_be_a_non_empty_array_of_strings,
-        [new $rt.BoxStr(packageName, 'string')],
-      ),
-    ];
-  }
-  const $t7 = cm.CompilerOptions.GetValue();
-  const compilerOptions: string[] = $t7[0];
-  const $t8 = cm.DynamicConfig.GetValue();
-  const dynamicConfig: boolean = $t8[0];
-  return [
-    $contentmapper.Manifest.$lit_contentmapper_Manifest_0_1_2_3_4(name_, version, exec, compilerOptions, dynamicConfig),
-    packageDirectory,
-    undefined,
-  ];
-}
 export function optionsHaveChanges(
   oldOptions: $core.CompilerOptions | undefined,
   newOptions: $core.CompilerOptions | undefined,
@@ -6568,8 +6302,6 @@ export function createUnknownOptionError(
   node: $ast.Node | undefined,
   sourceFile: $ast.SourceFile | undefined,
   alternateMode: AlternateModeDiagnostics | undefined,
-  unknownDidYouMeanDiagnostic: $diagnostics.Message | undefined,
-  optionsNameMap: CommandLineOptionNameMap,
 ): $ast.Diagnostic | undefined {
   if (!(alternateMode === undefined) && !(alternateMode!.optionsNameMap === undefined)) {
     const otherOption: CommandLineOption | undefined = alternateMode!.optionsNameMap!.Get(
@@ -6587,20 +6319,6 @@ export function createUnknownOptionError(
   }
   if (unknownOptionErrorText === ('' as string)) {
     unknownOptionErrorText = unknownOption;
-  }
-  if (!(unknownDidYouMeanDiagnostic === undefined) && !(optionsNameMap === undefined)) {
-    {
-      const possibleOption: CommandLineOption | undefined = CommandLineOptionNameMap$GetSpellingSuggestion(
-        optionsNameMap!,
-        unknownOption,
-      );
-      if (!(possibleOption === undefined)) {
-        return CreateDiagnosticForNodeInSourceFileOrCompilerDiagnostic(sourceFile, node, unknownDidYouMeanDiagnostic, [
-          new $rt.BoxStr(unknownOptionErrorText, 'string'),
-          new $rt.BoxStr(possibleOption!.Name, 'string'),
-        ]);
-      }
-    }
   }
   return CreateDiagnosticForNodeInSourceFileOrCompilerDiagnostic(sourceFile, node, unknownOptionDiagnostic, [
     new $rt.BoxStr(unknownOptionErrorText, 'string'),
@@ -6694,7 +6412,7 @@ export function NewParsedCommandLine(
   comparePathsOptions: $tspath.ComparePathsOptions,
 ): ParsedCommandLine | undefined {
   return ParsedCommandLine.$lit_tsoptions_ParsedCommandLine_0_5(
-    ParsedOptions.$lit_tsoptions_ParsedOptions_0_3(compilerOptions, rootFileNames),
+    $core.ParsedOptions.$lit_core_ParsedOptions_0_3(compilerOptions, rootFileNames),
     comparePathsOptions,
   );
 }
@@ -6820,7 +6538,8 @@ export function parseNumber(value: $rt.GoObject | undefined): $rt.Ptr<number> | 
   }
   return undefined;
 }
-export function parseProjectReference(json: $rt.GoObject | undefined): projectReferenceParseResult | undefined {
+export function parseProjectReference(json: $rt.GoObject | undefined): ($core.ProjectReference | undefined)[] {
+  let result: ($core.ProjectReference | undefined)[] = [];
   {
     const $t1: $rt.GoObject | undefined = json;
     const $t2: boolean = $t1 instanceof $boxes.Box__collections_OrderedMap_string__any_;
@@ -6829,176 +6548,27 @@ export function parseProjectReference(json: $rt.GoObject | undefined): projectRe
       : undefined;
     const ok: boolean = $t2;
     if (ok) {
-      const result: projectReferenceParseResult | undefined = new projectReferenceParseResult();
+      let reference: $core.ProjectReference = new $core.ProjectReference();
       {
         const $t3 = v!.Get('path');
-        const value: $rt.GoObject | undefined = $t3[0];
+        const v$1: $rt.GoObject | undefined = $t3[0];
         const ok$1: boolean = $t3[1];
         if (ok$1) {
-          result!.hasPath = true;
-          {
-            const $t4: $rt.GoObject | undefined = value;
-            const $t5: boolean = $rt.isValue($t4, 'string');
-            const path: string = $t5 ? $rt.checkString(true, $t4) : '';
-            const ok$2: boolean = $t5;
-            if (ok$2) {
-              result!.reference.Path = path;
-              result!.pathValid = true;
-            }
-          }
+          reference.Path = $rt.checkString($rt.isValue(v$1, 'string'), v$1);
         }
       }
       {
-        const $t6 = v!.Get('circular');
-        const value$1: $rt.GoObject | undefined = $t6[0];
-        const ok$3: boolean = $t6[1];
-        if (ok$3) {
-          result!.hasCircular = true;
-          {
-            const $t7: $rt.GoObject | undefined = value$1;
-            const $t8: boolean = $rt.isValue($t7, 'bool');
-            const circular: boolean = $t8 ? $rt.checkBool(true, $t7) : false;
-            const ok$4: boolean = $t8;
-            if (ok$4) {
-              result!.reference.Circular = circular;
-              result!.circularValid = true;
-            }
-          }
+        const $t4 = v!.Get('circular');
+        const v$2: $rt.GoObject | undefined = $t4[0];
+        const ok$2: boolean = $t4[1];
+        if (ok$2) {
+          reference.Circular = $rt.checkBool($rt.isValue(v$2, 'bool'), v$2);
         }
       }
-      return result;
+      result.push(reference);
     }
   }
-  return undefined;
-}
-export function parseContentMapper(
-  value: $rt.GoObject | undefined,
-): [$contentmapper.Mapper | undefined, ($ast.Diagnostic | undefined)[]] {
-  const $t1: $rt.GoObject | undefined = value;
-  const $t2: boolean = $t1 instanceof $boxes.Box__collections_OrderedMap_string__any_;
-  const v: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined = $t2
-    ? $boxes.Box__collections_OrderedMap_string__any_.$cast($t1).v
-    : undefined;
-  const ok: boolean = $t2;
-  if (!ok) {
-    return [undefined, []];
-  }
-  let errors: ($ast.Diagnostic | undefined)[] = [];
-  const mapper: $contentmapper.Mapper | undefined = new $contentmapper.Mapper();
-  {
-    const $t3 = v!.Get('package');
-    const pkg: $rt.GoObject | undefined = $t3[0];
-    const ok$1: boolean = $t3[1];
-    if (ok$1) {
-      {
-        const $t4: $rt.GoObject | undefined = pkg;
-        const $t5: boolean = $rt.isValue($t4, 'string');
-        const str: string = $t5 ? $rt.checkString(true, $t4) : '';
-        const isString: boolean = $t5;
-        if (isString && !(str === ('' as string))) {
-          mapper!.Package = str;
-        } else {
-          errors.push(
-            $ast.NewCompilerDiagnostic($diagnostics.Compiler_option_0_requires_a_value_of_type_1, [
-              new $rt.BoxStr('contentMapper.package', 'string'),
-              new $rt.BoxStr('string', 'string'),
-            ]),
-          );
-        }
-      }
-    } else {
-      errors.push(
-        $ast.NewCompilerDiagnostic($diagnostics.Compiler_option_0_requires_a_value_of_type_1, [
-          new $rt.BoxStr('contentMapper.package', 'string'),
-          new $rt.BoxStr('string', 'string'),
-        ]),
-      );
-    }
-  }
-  {
-    const $t6 = v!.Get('extensions');
-    const extensions: $rt.GoObject | undefined = $t6[0];
-    const ok$2: boolean = $t6[1];
-    if (ok$2) {
-      {
-        const $t7 = parseStringArrayStrict(extensions);
-        const strs: string[] = $t7[0];
-        const isStringArray: boolean = $t7[1];
-        if (isStringArray) {
-          mapper!.Extensions = strs;
-        } else {
-          errors.push(
-            $ast.NewCompilerDiagnostic($diagnostics.Compiler_option_0_requires_a_value_of_type_1, [
-              new $rt.BoxStr('contentMapper.extensions', 'string'),
-              new $rt.BoxStr('string[]', 'string'),
-            ]),
-          );
-        }
-      }
-    } else {
-      errors.push(
-        $ast.NewCompilerDiagnostic($diagnostics.Compiler_option_0_requires_a_value_of_type_1, [
-          new $rt.BoxStr('contentMapper.extensions', 'string'),
-          new $rt.BoxStr('string[]', 'string'),
-        ]),
-      );
-    }
-  }
-  {
-    const $t8 = v!.Get('options');
-    const options: $rt.GoObject | undefined = $t8[0];
-    const ok$3: boolean = $t8[1];
-    if (ok$3) {
-      {
-        const $t9: $rt.GoObject | undefined = options;
-        const $t10: boolean = $t9 instanceof $boxes.Box__collections_OrderedMap_string__any_;
-        const isObject: boolean = $t10;
-        if (!isObject) {
-          errors.push(
-            $ast.NewCompilerDiagnostic($diagnostics.Compiler_option_0_requires_a_value_of_type_1, [
-              new $rt.BoxStr('contentMapper.options', 'string'),
-              new $rt.BoxStr('object', 'string'),
-            ]),
-          );
-        } else {
-          const $t11 = $json.Marshal(
-            options,
-            [] as ($rt.github_com_go_json_experiment_json_internal_jsonopts_Options | undefined)[],
-          );
-          mapper!.Options = $t11[0];
-        }
-      }
-    }
-  }
-  if (!(errors.length === (0 as number))) {
-    return [undefined, errors];
-  }
-  return [mapper, errors];
-}
-export function parseStringArrayStrict(value: $rt.GoObject | undefined): [string[], boolean] {
-  const $t1: $rt.GoObject | undefined = value;
-  const $t2: boolean = $t1 instanceof $boxes.Box___any;
-  const arr: ($rt.GoObject | undefined)[] = $t2 ? $boxes.Box___any.$cast($t1).v : [];
-  const ok: boolean = $t2;
-  if (!ok) {
-    return [[], false];
-  }
-  let result: string[] = [] as string[];
-  {
-    const $t3 = arr;
-    for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
-      const v = $t3[$t4];
-      const $t5: $rt.GoObject | undefined = v;
-      const $t6: boolean = $rt.isValue($t5, 'string');
-      const str: string = $t6 ? $rt.checkString(true, $t5) : '';
-      const ok$1: boolean = $t6;
-      if (!ok$1) {
-        return [[], false];
-      }
-      result.push(str);
-    }
-  }
-  return [result, true];
+  return result;
 }
 export function parseJsonToStringKey(
   json: $rt.GoObject | undefined,
@@ -7046,52 +6616,44 @@ export function parseJsonToStringKey(
         }
       }
       {
-        const $t7 = m!.Get('contentMappers');
+        const $t7 = m!.Get('extends');
         const v$4: $rt.GoObject | undefined = $t7[0];
         const ok$5: boolean = $t7[1];
         if (ok$5) {
-          result!.Set('contentMappers', v$4);
-        }
-      }
-      {
-        const $t8 = m!.Get('extends');
-        const v$5: $rt.GoObject | undefined = $t8[0];
-        const ok$6: boolean = $t8[1];
-        if (ok$6) {
           {
-            const $t9: $rt.GoObject | undefined = v$5;
-            const $t10: boolean = $rt.isValue($t9, 'string');
-            const str: string = $t10 ? $rt.checkString(true, $t9) : '';
-            const ok$7: boolean = $t10;
-            if (ok$7) {
+            const $t8: $rt.GoObject | undefined = v$4;
+            const $t9: boolean = $rt.isValue($t8, 'string');
+            const str: string = $t9 ? $rt.checkString(true, $t8) : '';
+            const ok$6: boolean = $t9;
+            if (ok$6) {
               result!.Set('extends', new $boxes.Box___any([new $rt.BoxStr(str, 'string')]));
             }
           }
-          result!.Set('extends', v$5);
+          result!.Set('extends', v$4);
         }
       }
       {
-        const $t11 = m!.Get('compilerOptions');
+        const $t10 = m!.Get('compilerOptions');
+        const v$5: $rt.GoObject | undefined = $t10[0];
+        const ok$7: boolean = $t10[1];
+        if (ok$7) {
+          result!.Set('compilerOptions', v$5);
+        }
+      }
+      {
+        const $t11 = m!.Get('excludes');
         const v$6: $rt.GoObject | undefined = $t11[0];
         const ok$8: boolean = $t11[1];
         if (ok$8) {
-          result!.Set('compilerOptions', v$6);
+          result!.Set('excludes', v$6);
         }
       }
       {
-        const $t12 = m!.Get('excludes');
+        const $t12 = m!.Get('typeAcquisition');
         const v$7: $rt.GoObject | undefined = $t12[0];
         const ok$9: boolean = $t12[1];
         if (ok$9) {
-          result!.Set('excludes', v$7);
-        }
-      }
-      {
-        const $t13 = m!.Get('typeAcquisition');
-        const v$8: $rt.GoObject | undefined = $t13[0];
-        const ok$10: boolean = $t13[1];
-        if (ok$10) {
-          result!.Set('typeAcquisition', v$8);
+          result!.Set('typeAcquisition', v$7);
         }
       }
     }
@@ -7660,10 +7222,6 @@ export function parseCompilerOptions(
         allOptions!.Checkers = parseNumber(value);
         break;
       }
-      case 'runExternalCode' as string: {
-        allOptions!.RunExternalCode = ParseTristate(value);
-        break;
-      }
       default: {
         return false;
       }
@@ -7681,7 +7239,7 @@ export function floatOrInt32ToFlag<T extends number>($z_T: () => T, value: $rt.G
       return v;
     }
   }
-  return (Math.trunc($rt.checkNumber($rt.isValue(value, 'float64'), value)) | 0) as unknown as T;
+  return (Math.trunc($rt.checkNumber($rt.isValue(value, 'float64'), value)) | 0) as T as unknown as T;
 }
 export function ParseWatchOptions(
   key: string,
@@ -8487,11 +8045,6 @@ export function mergeCompilerOptions(
   } else if (!(sourceOptions!.All === (0 as number))) {
     targetOptions!.All = sourceOptions!.All;
   }
-  if ($collections$Set_.Has$nil<string>(explicitNullFields, 'runExternalCode')) {
-    targetOptions!.RunExternalCode = 0;
-  } else if (!(sourceOptions!.RunExternalCode === (0 as number))) {
-    targetOptions!.RunExternalCode = sourceOptions!.RunExternalCode;
-  }
   if ($collections$Set_.Has$nil<string>(explicitNullFields, 'pprofDir')) {
     targetOptions!.PprofDir = '';
   } else if (!(sourceOptions!.PprofDir === ('' as string))) {
@@ -9078,13 +8631,10 @@ export function parseOwnConfigOfJsonSourceFile(
       } else if (!(keyText === ('' as string)) && !(extraKeyDiagnostics(parentOption!.Name) === undefined)) {
         const unknownNameDiag: $diagnostics.Message | undefined = extraKeyDiagnostics(parentOption!.Name);
         if (!(parentOption!.ElementOptions === undefined)) {
-          let possibleOption: CommandLineOption | undefined = CommandLineOptionNameMap$Get(
+          const possibleOption: CommandLineOption | undefined = CommandLineOptionNameMap$Get(
             parentOption!.ElementOptions!,
             keyText,
           );
-          if (possibleOption === undefined) {
-            possibleOption = CommandLineOptionNameMap$GetSpellingSuggestion(parentOption!.ElementOptions!, keyText);
-          }
           if (!(possibleOption === undefined) && !(possibleOption!.Name === keyText)) {
             propertySetErrors = $rt.appendCopy(propertySetErrors, [
               CreateDiagnosticForNodeInSourceFileOrCompilerDiagnostic(
@@ -9096,16 +8646,7 @@ export function parseOwnConfigOfJsonSourceFile(
             ]);
           } else {
             propertySetErrors = $rt.appendCopy(propertySetErrors, [
-              createUnknownOptionError(
-                keyText,
-                unknownNameDiag,
-                '',
-                propertyAssignment!.Name(),
-                sourceFile,
-                undefined,
-                undefined,
-                undefined,
-              ),
+              createUnknownOptionError(keyText, unknownNameDiag, '', propertyAssignment!.Name(), sourceFile, undefined),
             ]);
           }
         } else {
@@ -9141,7 +8682,7 @@ export function parseOwnConfigOfJsonSourceFile(
           !(
             $core.Find<CommandLineOption | undefined>(
               $zf2,
-              optionsForCompiler,
+              OptionsDeclarations,
               (option$1: CommandLineOption | undefined): boolean => {
                 return option$1!.Name === keyText;
               },
@@ -9161,24 +8702,6 @@ export function parseOwnConfigOfJsonSourceFile(
   const json: $rt.GoObject | undefined = $t3[0];
   const err$1: ($ast.Diagnostic | undefined)[] = $t3[1];
   $rt.appendInto(errors, err$1);
-  {
-    const $t4: $rt.GoObject | undefined = json;
-    const $t5: boolean = $t4 instanceof $boxes.Box__collections_OrderedMap_string__any_;
-    const jsonObject: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined = $t5
-      ? $boxes.Box__collections_OrderedMap_string__any_.$cast($t4).v
-      : undefined;
-    const ok: boolean = $t5;
-    if (!(rootCompilerOptions.length === (0 as number)) && ok && !jsonObject!.Has('compilerOptions')) {
-      errors.push(
-        CreateDiagnosticForNodeInSourceFile(
-          sourceFile,
-          rootCompilerOptions[0],
-          $diagnostics.X_0_should_be_set_inside_the_compilerOptions_object_of_the_config_json_file,
-          [new $rt.BoxStr($ast.GetTextOfPropertyName(rootCompilerOptions[0]), 'string')],
-        ),
-      );
-    }
-  }
   return [
     parsedTsconfig.$lit_tsoptions_parsedTsconfig_0_1_2_3(json, compilerOptions, typeAcquisition, extendedConfigPath),
     errors,
@@ -9216,12 +8739,9 @@ export function convertConfigFileToObject(
       baseFileName = 'jsconfig.json';
     }
     const errors: ($ast.Diagnostic | undefined)[] = [
-      CreateDiagnosticForNodeInSourceFile(
-        sourceFile,
-        rootExpression,
-        $diagnostics.The_root_value_of_a_0_file_must_be_an_object,
-        [new $rt.BoxStr(baseFileName, 'string')],
-      ),
+      $ast.NewCompilerDiagnostic($diagnostics.The_root_value_of_a_0_file_must_be_an_object, [
+        new $rt.BoxStr(baseFileName, 'string'),
+      ]),
     ];
     if ($ast.IsArrayLiteralExpression(rootExpression)) {
       const firstObject: $ast.Node | undefined = $core.Find<$ast.Node | undefined>(
@@ -9399,7 +8919,7 @@ export function convertJsonOptionOfListType(
       });
       let filteredValues: ($rt.GoObject | undefined)[] = mappedValues;
       if (!option!.listPreserveFalsyValues) {
-        filteredValues = $core.Filter<$rt.GoObject | undefined>(mappedValues, $fn19);
+        filteredValues = $core.Filter<$rt.GoObject | undefined>(mappedValues, $fn18);
       }
       return [filteredValues, errors];
     }
@@ -9717,12 +9237,6 @@ export function CommandLineOptionNameMap$Get(
   }
   return opt;
 }
-export function CommandLineOptionNameMap$GetSpellingSuggestion(
-  m: CommandLineOptionNameMap,
-  name_: string,
-): CommandLineOption | undefined {
-  return $core.GetSpellingSuggestion<CommandLineOption | undefined>($zf2, name_, $rt.maps_Values(m), $fn20, $fn21);
-}
 export function commandLineOptionsToMap(compilerOptions: (CommandLineOption | undefined)[]): CommandLineOptionNameMap {
   const result: Map<string, CommandLineOption | undefined> | undefined = new Map<
     string,
@@ -9777,37 +9291,61 @@ export function convertOptionsFromJson<O extends optionParser>(
     (key: string, value: $rt.GoObject | undefined): boolean => {
       const opt: CommandLineOption | undefined = CommandLineOptionNameMap$Get(optionsNameMap!, key);
       if (!(opt === undefined) && !(opt!.Name === key)) {
-        errors.push(
+        errors = $rt.appendCopy(errors, [
           CreateDiagnosticForNodeInSourceFileOrCompilerDiagnostic(
             undefined,
             undefined,
             result!.UnknownDidYouMeanDiagnostic(),
             [new $rt.BoxStr(key, 'string'), new $rt.BoxStr(opt!.Name, 'string')],
           ),
-        );
+        ]);
         return true;
       }
       if (opt === undefined) {
-        errors.push(
-          createUnknownOptionError(
-            key,
-            result!.UnknownOptionDiagnostic(),
-            '',
-            undefined,
-            undefined,
-            undefined,
-            result!.UnknownDidYouMeanDiagnostic(),
-            optionsNameMap,
-          ),
-        );
+        errors = $rt.appendCopy(errors, [
+          createUnknownOptionError(key, result!.UnknownOptionDiagnostic(), '', undefined, undefined, undefined),
+        ]);
         return true;
       }
-      const $t5 = convertJsonOption(opt, value, basePath, undefined, undefined, undefined);
-      const convertJson: $rt.GoObject | undefined = $t5[0];
-      const err: ($ast.Diagnostic | undefined)[] = $t5[1];
-      $rt.appendInto(errors, err);
-      const compilerOptionsErr: ($ast.Diagnostic | undefined)[] = result!.ParseOption(key, convertJson);
-      $rt.appendInto(errors, compilerOptionsErr);
+      const commandLineOptionEnumMapVal: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined =
+        opt!.EnumMap();
+      if (!(commandLineOptionEnumMapVal === undefined)) {
+        {
+          const $t5: $rt.GoObject | undefined = value;
+          const $t6: boolean = $rt.isValue($t5, 'string');
+          const value$1: string = $t6 ? $rt.checkString(true, $t5) : '';
+          const ok$1: boolean = $t6;
+          if (ok$1) {
+            const $t7 = commandLineOptionEnumMapVal!.Get($rt.strings_ToLower(value$1));
+            const val: $rt.GoObject | undefined = $t7[0];
+            const ok$2: boolean = $t7[1];
+            if (ok$2) {
+              errors = result!.ParseOption(key, val);
+            }
+          } else {
+            const $t8 = convertJsonOption(
+              opt,
+              new $rt.BoxStr(value$1, 'string'),
+              basePath,
+              undefined,
+              undefined,
+              undefined,
+            );
+            const convertJson: $rt.GoObject | undefined = $t8[0];
+            const err: ($ast.Diagnostic | undefined)[] = $t8[1];
+            errors = $rt.appendCopy(errors, err);
+            const compilerOptionsErr: ($ast.Diagnostic | undefined)[] = result!.ParseOption(key, convertJson);
+            errors = $rt.appendCopy(errors, compilerOptionsErr);
+          }
+        }
+      } else {
+        const $t9 = convertJsonOption(opt, value, basePath, undefined, undefined, undefined);
+        const convertJson$1: $rt.GoObject | undefined = $t9[0];
+        const err$1: ($ast.Diagnostic | undefined)[] = $t9[1];
+        errors = $rt.appendCopy(errors, err$1);
+        const compilerOptionsErr$1: ($ast.Diagnostic | undefined)[] = result!.ParseOption(key, convertJson$1);
+        errors = $rt.appendCopy(errors, compilerOptionsErr$1);
+      }
       return true;
     },
   );
@@ -9878,6 +9416,7 @@ export function ParseJsonSourceFileConfigFileContent(
   existingOptionsRaw: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined,
   configFileName: string,
   resolutionStack: $tspath.Path[],
+  extraFileExtensions: FileExtensionInfo[],
   extendedConfigCache: ExtendedConfigCache,
 ): ParsedCommandLine | undefined {
   const result: ParsedCommandLine | undefined = parseJsonConfigFileContentWorker(
@@ -9889,6 +9428,7 @@ export function ParseJsonSourceFileConfigFileContent(
     existingOptionsRaw,
     configFileName,
     resolutionStack,
+    extraFileExtensions,
     extendedConfigCache,
   );
   return result;
@@ -10103,20 +9643,11 @@ export function ParseJsonConfigFileContent(
   existingOptions: $core.CompilerOptions | undefined,
   configFileName: string,
   resolutionStack: $tspath.Path[],
+  extraFileExtensions: FileExtensionInfo[],
   extendedConfigCache: ExtendedConfigCache,
 ): ParsedCommandLine | undefined {
-  const normalized: $rt.GoObject | undefined = normalizeJsonValue(json);
-  const $t1: $rt.GoObject | undefined = normalized;
-  const $t2: boolean = $t1 instanceof $boxes.Box__collections_OrderedMap_string__any_;
-  let jsonObject: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined = $t2
-    ? $boxes.Box__collections_OrderedMap_string__any_.$cast($t1).v
-    : undefined;
-  const ok: boolean = $t2;
-  if (!ok) {
-    jsonObject = new $collections.OrderedMap<string, $rt.GoObject | undefined>($zf0, $zf1);
-  }
   const result: ParsedCommandLine | undefined = parseJsonConfigFileContentWorker(
-    jsonObject,
+    parseJsonToStringKey(json),
     undefined,
     host,
     basePath,
@@ -10124,75 +9655,10 @@ export function ParseJsonConfigFileContent(
     undefined,
     configFileName,
     resolutionStack,
+    extraFileExtensions,
     extendedConfigCache,
   );
   return result;
-}
-export function normalizeJsonValue(value: $rt.GoObject | undefined): $rt.GoObject | undefined {
-  {
-    const $t1: $rt.GoObject | undefined = value;
-    $sw2: {
-      if ($t1 instanceof $boxes.Box__collections_OrderedMap_string__any_ || $t1 === undefined) {
-        const value$1: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined =
-          $t1 === undefined ? undefined : $boxes.Box__collections_OrderedMap_string__any_.$cast($t1).v;
-        let $t3 = false;
-        let $t4: $rt.GoObject | undefined = undefined as $rt.GoObject | undefined;
-        $collections$OrderedMap.Entries$nil<string, $rt.GoObject | undefined>($zf0, $zf1, value$1)!(
-          (key: string, child: $rt.GoObject | undefined): boolean => {
-            value$1!.Set(key, normalizeJsonValue(child));
-            return true;
-          },
-        );
-        return new $boxes.Box__collections_OrderedMap_string__any_(value$1);
-      } else if ($t1 instanceof $boxes.Box_map_string_any) {
-        const value$2: Map<string, $rt.GoObject | undefined> | undefined = $boxes.Box_map_string_any.$cast($t1).v;
-        const result: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined =
-          $collections.NewOrderedMapWithSizeHint<string, $rt.GoObject | undefined>($zf0, $zf1, $rt.mapLen(value$2));
-        {
-          const $t5 = $rt.slices_Sorted($rt.maps_Keys(value$2));
-          for (let $t6 = 0, $n = $t5.length; $t6 < $n; $t6++) {
-            const key$1 = $t5[$t6];
-            const child$1: $rt.GoObject | undefined = value$2?.get(key$1) ?? undefined;
-            result!.Set(key$1, normalizeJsonValue(child$1));
-          }
-        }
-        return new $boxes.Box__collections_OrderedMap_string__any_(result);
-      } else if ($t1 instanceof $boxes.Box___any) {
-        const value$3: ($rt.GoObject | undefined)[] = $boxes.Box___any.$cast($t1).v;
-        const result$1: ($rt.GoObject | undefined)[] = $rt.makeSlice<$rt.GoObject | undefined>(
-          value$3.length,
-          undefined,
-        );
-        {
-          const $t7 = value$3;
-          for (let $t8 = 0, $n = $t7.length; $t8 < $n; $t8++) {
-            const i = $t8;
-            const child$2 = $t7[$t8];
-            result$1[i] = normalizeJsonValue(child$2);
-          }
-        }
-        return new $boxes.Box___any(result$1);
-      } else if ($t1 instanceof $boxes.Box___string) {
-        const value$4: string[] = $boxes.Box___string.$cast($t1).v;
-        const result$2: ($rt.GoObject | undefined)[] = $rt.makeSlice<$rt.GoObject | undefined>(
-          value$4.length,
-          undefined,
-        );
-        {
-          const $t9 = value$4;
-          for (let $t10 = 0, $n = $t9.length; $t10 < $n; $t10++) {
-            const i$1 = $t10;
-            const child$3 = $t9[$t10];
-            result$2[i$1] = new $rt.BoxStr(child$3, 'string');
-          }
-        }
-        return new $boxes.Box___any(result$2);
-      } else {
-        const value$5: $rt.GoObject | undefined = $t1;
-        return value$5;
-      }
-    }
-  }
 }
 export function convertToObject(
   sourceFile: $ast.SourceFile | undefined,
@@ -10283,30 +9749,11 @@ export function parseOwnConfigOfJson(
   const typeAcquisition: $core.TypeAcquisition | undefined = $t2[0];
   const err2: ($ast.Diagnostic | undefined)[] = $t2[1];
   errors = $rt.appendCopy($rt.appendCopy(errors, err), err2);
-  {
-    const $t3 = json!.Get('compileOnSave');
-    const compileOnSave: $rt.GoObject | undefined = $t3[0];
-    const ok: boolean = $t3[1];
-    if (ok) {
-      const $t4 = convertJsonOption(
-        compileOnSaveCommandLineOption,
-        compileOnSave,
-        basePath,
-        undefined,
-        undefined,
-        undefined,
-      );
-      const converted: $rt.GoObject | undefined = $t4[0];
-      const compileOnSaveErrors: ($ast.Diagnostic | undefined)[] = $t4[1];
-      errors = $rt.appendCopy(errors, compileOnSaveErrors);
-      json!.Set('compileOnSave', converted);
-    }
-  }
   let extendedConfigPath: string[] = [];
   {
     const extends_: $rt.GoObject | undefined = json!.GetOrZero('extends');
     if (!(extends_ === undefined) && !$rt.ifaceEq(extends_, new $rt.BoxStr('' as string, 'string'))) {
-      const $t5 = getExtendsConfigPathOrArray(
+      const $t3 = getExtendsConfigPathOrArray(
         extends_ as unknown as CompilerOptionsValue,
         host,
         basePath,
@@ -10315,8 +9762,8 @@ export function parseOwnConfigOfJson(
         undefined,
         undefined,
       );
-      extendedConfigPath = $t5[0];
-      err = $t5[1];
+      extendedConfigPath = $t3[0];
+      err = $t3[1];
       errors = $rt.appendCopy(errors, err);
     }
   }
@@ -10601,26 +10048,13 @@ export function parseConfig(
           ? $boxes.Box__collections_OrderedMap_string__any_.$cast($t13).v
           : undefined;
         const ok$2: boolean = $t14;
-        if (ok$2 && extendedRawMap!.Has('contentMappers')) {
-          const $t15: $rt.GoObject | undefined = extendedRawMap!.GetOrZero('contentMappers');
-          const $t16: boolean = $t15 instanceof $boxes.Box___any;
-          result$1!.contentMappers = $t16 ? $boxes.Box___any.$cast($t15).v : [];
-        }
-      }
-      {
-        const $t17: $rt.GoObject | undefined = extendsRaw;
-        const $t18: boolean = $t17 instanceof $boxes.Box__collections_OrderedMap_string__any_;
-        const extendedRawMap$1: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined = $t18
-          ? $boxes.Box__collections_OrderedMap_string__any_.$cast($t17).v
-          : undefined;
-        const ok$3: boolean = $t18;
-        if (ok$3 && extendedRawMap$1!.Has('compileOnSave')) {
+        if (ok$2 && extendedRawMap!.Has('compileOnSave')) {
           {
-            const $t19: $rt.GoObject | undefined = extendedRawMap$1!.GetOrZero('compileOnSave');
-            const $t20: boolean = $rt.isValue($t19, 'bool');
-            const compileOnSave: boolean = $t20 ? $rt.checkBool(true, $t19) : false;
-            const ok$4: boolean = $t20;
-            if (ok$4) {
+            const $t15: $rt.GoObject | undefined = extendedRawMap!.GetOrZero('compileOnSave');
+            const $t16: boolean = $rt.isValue($t15, 'bool');
+            const compileOnSave: boolean = $t16 ? $rt.checkBool(true, $t15) : false;
+            const ok$3: boolean = $t16;
+            if (ok$3) {
               result$1!.compileOnSave = compileOnSave;
             }
           }
@@ -10641,15 +10075,15 @@ export function parseConfig(
       );
     } else {
       {
-        const $t21: $rt.GoObject | undefined = ownConfig!.extendedConfigPath;
-        const $t22: boolean = $t21 instanceof $boxes.Box___string;
-        const configPath: string[] = $t22 ? $boxes.Box___string.$cast($t21).v : [];
-        const ok$5: boolean = $t22;
-        if (ok$5) {
+        const $t17: $rt.GoObject | undefined = ownConfig!.extendedConfigPath;
+        const $t18: boolean = $t17 instanceof $boxes.Box___string;
+        const configPath: string[] = $t18 ? $boxes.Box___string.$cast($t17).v : [];
+        const ok$4: boolean = $t18;
+        if (ok$4) {
           {
-            const $t23 = configPath;
-            for (let $t24 = 0, $n = $t23.length; $t24 < $n; $t24++) {
-              const extendedConfigPath$1 = $t23[$t24];
+            const $t19 = configPath;
+            for (let $t20 = 0, $n = $t19.length; $t20 < $n; $t20++) {
+              const extendedConfigPath$1 = $t19[$t20];
               applyExtendedConfig!(result$2, extendedConfigPath$1);
             }
           }
@@ -10675,15 +10109,6 @@ export function parseConfig(
       );
     }
     if (
-      !(result$2!.contentMappers.length === 0) &&
-      !$boxes.Box__collections_OrderedMap_string__any_.$cast(ownConfig!.raw).v!.Has('contentMappers')
-    ) {
-      $boxes.Box__collections_OrderedMap_string__any_.$cast(ownConfig!.raw).v!.Set(
-        'contentMappers',
-        new $boxes.Box___any(result$2!.contentMappers),
-      );
-    }
-    if (
       result$2!.compileOnSave &&
       !$boxes.Box__collections_OrderedMap_string__any_.$cast(ownConfig!.raw).v!.Has('compileOnSave')
     ) {
@@ -10693,7 +10118,7 @@ export function parseConfig(
       );
     }
     if (!(sourceFile === undefined)) {
-      for (const [extendedSourceFile, $t25] of $collections$Set_.Keys$nil<string>(result$2!.extendedSourceFiles) ??
+      for (const [extendedSourceFile, $t21] of $collections$Set_.Keys$nil<string>(result$2!.extendedSourceFiles) ??
         new Map<string, $rt.Empty>()) {
         sourceFile!.ExtendedSourceFiles = $core.InsertSorted<string>(
           sourceFile!.ExtendedSourceFiles,
@@ -10706,12 +10131,6 @@ export function parseConfig(
   }
   return [ownConfig, errors];
 }
-export function isStringValue(value: $rt.GoObject | undefined): boolean {
-  const $t1: $rt.GoObject | undefined = value;
-  const $t2: boolean = $rt.isValue($t1, 'string');
-  const ok: boolean = $t2;
-  return ok;
-}
 export function parseJsonConfigFileContentWorker(
   json: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined,
   sourceFile: TsConfigSourceFile | undefined,
@@ -10721,6 +10140,7 @@ export function parseJsonConfigFileContentWorker(
   existingOptionsRaw: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined,
   configFileName: string,
   resolutionStack: $tspath.Path[],
+  extraFileExtensions: FileExtensionInfo[],
   extendedConfigCache: ExtendedConfigCache,
 ): ParsedCommandLine | undefined {
   $debug.Assert(
@@ -10802,8 +10222,8 @@ export function parseJsonConfigFileContentWorker(
     }
     return propOfRaw.$lit_tsoptions_propOfRaw_0_1([], 'no-prop');
   };
-  const referencesOfRaw: propOfRaw = getPropFromRaw!('references', $fn22, 'object');
-  const fileSpecs: propOfRaw = getPropFromRaw!('files', isStringValue, 'string');
+  const referencesOfRaw: propOfRaw = getPropFromRaw!('references', $fn19, 'object');
+  const fileSpecs: propOfRaw = getPropFromRaw!('files', $fn20, 'string');
   if (!(fileSpecs.sliceValue.length === 0) || fileSpecs.wrongValue === ('' as string)) {
     let hasZeroOrNoReferences: boolean = false;
     if (
@@ -10832,7 +10252,7 @@ export function parseJsonConfigFileContentWorker(
         const nodeValue: $ast.Node | undefined = ForEachTsConfigPropArray<$ast.Node>(
           sourceFile!.SourceFile_,
           'files',
-          $fn23,
+          $fn21,
         );
         errors = $rt.appendCopy(errors, [
           CreateDiagnosticForNodeInSourceFile(sourceFile!.SourceFile_, nodeValue, diagnosticMessage, [
@@ -10848,8 +10268,8 @@ export function parseJsonConfigFileContentWorker(
       }
     }
   }
-  let includeSpecs: propOfRaw = getPropFromRaw!('include', isStringValue, 'string');
-  let excludeSpecs: propOfRaw = getPropFromRaw!('exclude', isStringValue, 'string');
+  let includeSpecs: propOfRaw = getPropFromRaw!('include', $fn22, 'string');
+  let excludeSpecs: propOfRaw = getPropFromRaw!('exclude', $fn23, 'string');
   let isDefaultIncludeSpec: boolean = false;
   if (excludeSpecs.wrongValue === ('no-prop' as string) && !(parsedConfig!.options === undefined)) {
     const outDir: string = parsedConfig!.options!.OutDir;
@@ -10919,19 +10339,19 @@ export function parseJsonConfigFileContentWorker(
   if (!(fileSpecs.sliceValue.length === 0)) {
     const fileSpecs$1: ($rt.GoObject | undefined)[] = $core.Filter<$rt.GoObject | undefined>(
       fileSpecs.sliceValue,
-      isStringValue,
+      $fn24,
     );
     {
       const $t7 = fileSpecs$1;
       for (let $t8 = 0, $n = $t7.length; $t8 < $n; $t8++) {
-        const spec = $t7[$t8];
+        const spec$1 = $t7[$t8];
         {
-          const $t9: $rt.GoObject | undefined = spec;
+          const $t9: $rt.GoObject | undefined = spec$1;
           const $t10: boolean = $rt.isValue($t9, 'string');
-          const spec$1: string = $t10 ? $rt.checkString(true, $t9) : '';
+          const spec$2: string = $t10 ? $rt.checkString(true, $t9) : '';
           const ok$1: boolean = $t10;
           if (ok$1) {
-            validatedFilesSpecBeforeSubstitution.push(spec$1);
+            validatedFilesSpecBeforeSubstitution.push(spec$2);
           }
         }
       }
@@ -10960,179 +10380,17 @@ export function parseJsonConfigFileContentWorker(
   if (!(sourceFile === undefined)) {
     sourceFile!.configFileSpecs_ = configFileSpecs$v;
   }
-  let contentMapperSourceFile: $ast.SourceFile | undefined = undefined as $ast.SourceFile | undefined;
-  if (!(sourceFile === undefined)) {
-    contentMapperSourceFile = sourceFile!.SourceFile_;
-  }
-  let contentMappers: ($contentmapper.Mapper | undefined)[] = [];
-  let contentMapperIndices: number[] = [];
-  const contentMappersOfRaw: propOfRaw = getPropFromRaw!('contentMappers', $fn24, 'object');
-  {
-    const $t11 = contentMappersOfRaw.sliceValue;
-    for (let $t12 = 0, $n = $t11.length; $t12 < $n; $t12++) {
-      const i = $t12;
-      const element$2 = $t11[$t12];
-      const $t13 = parseContentMapper(element$2);
-      const mapper: $contentmapper.Mapper | undefined = $t13[0];
-      const mapperErrors: ($ast.Diagnostic | undefined)[] = $t13[1];
-      {
-        const $t14 = mapperErrors;
-        for (let $t15 = 0, $n = $t14.length; $t15 < $n; $t15++) {
-          const mapperError = $t14[$t15];
-          errors = $rt.appendCopy(errors, [
-            setContentMapperDiagnosticLocation(
-              mapperError,
-              contentMapperSourceFile,
-              getContentMapperSyntax(contentMapperSourceFile, i, ''),
-            ),
-          ]);
-        }
-      }
-      if (!(mapper === undefined)) {
-        contentMappers = $rt.appendCopy(contentMappers, [mapper]);
-        contentMapperIndices.push(i);
-      }
-    }
-  }
-  let totalContentMapperExtensions: number = 0;
-  {
-    const $t16 = contentMappers;
-    for (let $t17 = 0, $n = $t16.length; $t17 < $n; $t17++) {
-      const mapper$1 = $t16[$t17];
-      totalContentMapperExtensions += mapper$1!.Extensions.length;
-    }
-  }
-  const seenContentMapperExtensions: Map<string, $rt.Empty> | undefined = new Map<string, $rt.Empty>();
-  let contentMapperExtensions: string[] = [] as string[];
-  const nativeExtensions: string[] = $core.Flatten<string>($tspath.AllSupportedExtensionsWithJson);
-  {
-    const $t18 = contentMappers;
-    for (let $t19 = 0, $n = $t18.length; $t19 < $n; $t19++) {
-      const j = $t19;
-      const mapper$2 = $t18[$t19];
-      let validExtensions: string[] = [] as string[];
-      {
-        const $t20 = mapper$2!.Extensions;
-        for (let $t21 = 0, $n = $t20.length; $t21 < $n; $t21++) {
-          const ext = $t20[$t21];
-          const extNode: $ast.Node | undefined = getContentMapperExtensionSyntax(
-            contentMapperSourceFile,
-            contentMapperIndices[j],
-            ext,
-          );
-          {
-            $sw22: {
-              if (!$rt.strings_HasPrefix(ext, '.')) {
-                errors = $rt.appendCopy(errors, [
-                  setContentMapperDiagnosticLocation(
-                    $ast.NewCompilerDiagnostic($diagnostics.Content_mapper_file_extension_0_must_begin_with_a, [
-                      new $rt.BoxStr(ext, 'string'),
-                    ]),
-                    contentMapperSourceFile,
-                    extNode,
-                  ),
-                ]);
-              } else if ($rt.slices_Contains(nativeExtensions, ext)) {
-                errors = $rt.appendCopy(errors, [
-                  setContentMapperDiagnosticLocation(
-                    $ast.NewCompilerDiagnostic(
-                      $diagnostics.Content_mapper_file_extension_0_is_a_built_in_extension_and_cannot_be_registered_by_a_content_mapper,
-                      [new $rt.BoxStr(ext, 'string')],
-                    ),
-                    contentMapperSourceFile,
-                    extNode,
-                  ),
-                ]);
-              } else {
-                {
-                  const $t23: Map<string, $rt.Empty> | undefined = seenContentMapperExtensions;
-                  const $t24 = ext;
-                  const seen: boolean = $t23 !== undefined && $t23.has($t24);
-                  if (seen) {
-                    errors = $rt.appendCopy(errors, [
-                      setContentMapperDiagnosticLocation(
-                        $ast.NewCompilerDiagnostic(
-                          $diagnostics.Content_mapper_file_extension_0_is_registered_by_more_than_one_content_mapper,
-                          [new $rt.BoxStr(ext, 'string')],
-                        ),
-                        contentMapperSourceFile,
-                        extNode,
-                      ),
-                    ]);
-                  } else {
-                    seenContentMapperExtensions!.set(ext, $rt.EMPTY);
-                    contentMapperExtensions = $rt.appendCopy(contentMapperExtensions, [ext]);
-                    validExtensions.push(ext);
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-      mapper$2!.Extensions = validExtensions;
-    }
-  }
-  if (
-    contentMappers.length > 0 &&
-    !(!(parsedConfig!.options === undefined) && $core.Tristate$IsTrue(parsedConfig!.options!.RunExternalCode))
-  ) {
-    errors = $rt.appendCopy(errors, [
-      setContentMapperDiagnosticLocation(
-        $ast.NewCompilerDiagnostic(
-          $diagnostics.Content_mappers_require_the_runExternalCode_command_line_flag_to_be_enabled,
-          [] as ($rt.GoObject | undefined)[],
-        ),
-        contentMapperSourceFile,
-        getContentMappersKeySyntax(contentMapperSourceFile),
-      ),
-    ]);
-    contentMappers = [];
-    contentMapperExtensions = [];
-  } else if (contentMappers.length > 0) {
-    let containingFile: string = configFileName;
-    if (containingFile === ('' as string)) {
-      containingFile = $tspath.CombinePaths(basePathForFileNames, ['tsconfig.json']);
-    }
-    let resolvedContentMappers: ($contentmapper.Mapper | undefined)[] = [] as ($contentmapper.Mapper | undefined)[];
-    {
-      const $t25 = contentMappers;
-      for (let $t26 = 0, $n = $t25.length; $t26 < $n; $t26++) {
-        const j$1 = $t26;
-        const mapper$3 = $t25[$t26];
-        const $t27 = resolveContentMapperManifest(host, containingFile, mapper$3!.Package);
-        const manifest: $contentmapper.Manifest = $t27[0];
-        const packageDirectory: string = $t27[1];
-        const diagnostic: $ast.Diagnostic | undefined = $t27[2];
-        mapper$3!.PackageDirectory = packageDirectory;
-        if (!(diagnostic === undefined)) {
-          errors = $rt.appendCopy(errors, [
-            setContentMapperDiagnosticLocation(
-              diagnostic,
-              contentMapperSourceFile,
-              getContentMapperSyntax(contentMapperSourceFile, contentMapperIndices[j$1], 'package'),
-            ),
-          ]);
-          continue;
-        }
-        mapper$3!.Manifest_ = manifest;
-        resolvedContentMappers.push(mapper$3);
-      }
-    }
-    contentMappers = resolvedContentMappers;
-    contentMapperExtensions = $core.FlatMap<$contentmapper.Mapper | undefined, string>(contentMappers, $fn25);
-  }
   const getFileNames: ((p0: string) => [string[], number]) | undefined = (basePath$1: string): [string[], number] => {
     const parsedConfigOptions: $core.CompilerOptions | undefined = parsedConfig!.options;
-    const $t28 = getFileNamesFromConfigSpecs(
+    const $t11 = getFileNamesFromConfigSpecs(
       configFileSpecs$v,
       basePath$1,
       parsedConfigOptions,
       $rt.nn(host).FS$m(),
-      contentMapperExtensions,
+      extraFileExtensions,
     );
-    const fileNames: string[] = $t28[0];
-    const literalFileNamesLen: number = $t28[1];
+    const fileNames: string[] = $t11[0];
+    const literalFileNamesLen: number = $t11[1];
     if (shouldReportNoInputFiles(fileNames, canJsonReportNoInputFiles(rawConfig), resolutionStack)) {
       let includeSpecs$1: $rt.GoObject | undefined = configFileSpecs$v.includeSpecs;
       let excludeSpecs$1: $rt.GoObject | undefined = configFileSpecs$v.excludeSpecs;
@@ -11159,105 +10417,56 @@ export function parseJsonConfigFileContentWorker(
     basePath$2: string,
   ): ($core.ProjectReference | undefined)[] => {
     let projectReferences: ($core.ProjectReference | undefined)[] = [];
-    const newReferencesOfRaw: propOfRaw = getPropFromRaw!('references', $fn26, 'object');
+    const newReferencesOfRaw: propOfRaw = getPropFromRaw!('references', $fn25, 'object');
     if (!(newReferencesOfRaw.sliceValue.length === 0)) {
       projectReferences = [] as ($core.ProjectReference | undefined)[];
       {
-        const $t29 = newReferencesOfRaw.sliceValue;
-        for (let $t30 = 0, $n = $t29.length; $t30 < $n; $t30++) {
-          const index = $t30;
-          const reference = $t29[$t30];
-          const ref: projectReferenceParseResult | undefined = parseProjectReference(reference);
-          if (ref === undefined) {
-            continue;
+        const $t12 = newReferencesOfRaw.sliceValue;
+        for (let $t13 = 0, $n = $t12.length; $t13 < $n; $t13++) {
+          const reference = $t12[$t13];
+          {
+            const $t14 = parseProjectReference(reference);
+            for (let $t15 = 0, $n = $t14.length; $t15 < $n; $t15++) {
+              const ref = $t14[$t15];
+              if (ref!.Path === ('' as string)) {
+                if (sourceFile === undefined) {
+                  errors = $rt.appendCopy(errors, [
+                    $ast.NewCompilerDiagnostic($diagnostics.Compiler_option_0_requires_a_value_of_type_1, [
+                      new $rt.BoxStr('reference.path', 'string'),
+                      new $rt.BoxStr('string', 'string'),
+                    ]),
+                  ]);
+                }
+              } else {
+                projectReferences.push(
+                  $core.ProjectReference.$lit_core_ProjectReference_0_1_2(
+                    $tspath.GetNormalizedAbsolutePath(ref!.Path, basePath$2),
+                    ref!.Path,
+                    ref!.Circular,
+                  ),
+                );
+              }
+            }
           }
-          if (!ref!.hasPath || !ref!.pathValid) {
-            errors = $rt.appendCopy(errors, [
-              createDiagnosticAtProjectReferenceProperty(
-                sourceFile,
-                index,
-                'path',
-                $diagnostics.Compiler_option_0_requires_a_value_of_type_1,
-                [new $rt.BoxStr('reference.path', 'string'), new $rt.BoxStr('string', 'string')],
-              ),
-            ]);
-            continue;
-          }
-          if (ref!.reference.Path === ('' as string)) {
-            errors = $rt.appendCopy(errors, [
-              createDiagnosticAtProjectReferenceProperty(
-                sourceFile,
-                index,
-                'path',
-                $diagnostics.Compiler_option_0_cannot_be_given_an_empty_string,
-                [new $rt.BoxStr('reference.path', 'string')],
-              ),
-            ]);
-            continue;
-          }
-          if (ref!.hasCircular && !ref!.circularValid) {
-            errors = $rt.appendCopy(errors, [
-              createDiagnosticAtProjectReferenceProperty(
-                sourceFile,
-                index,
-                'circular',
-                $diagnostics.Compiler_option_0_requires_a_value_of_type_1,
-                [new $rt.BoxStr('reference.circular', 'string'), new $rt.BoxStr('boolean', 'string')],
-              ),
-            ]);
-          }
-          projectReferences.push(
-            $core.ProjectReference.$lit_core_ProjectReference_0_1_2(
-              $tspath.GetNormalizedAbsolutePath(ref!.reference.Path, basePath$2),
-              ref!.reference.Path,
-              ref!.reference.Circular,
-            ),
-          );
         }
       }
     }
     return projectReferences;
   };
-  const $t31 = getFileNames!(basePathForFileNames);
-  const fileNames$1: string[] = $t31[0];
-  const literalFileNamesLen$1: number = $t31[1];
-  let compileOnSave: $rt.Ptr<boolean> | undefined = new $rt.Ptr<boolean>(false);
-  {
-    const $t32: $rt.GoObject | undefined = parsedConfig!.raw;
-    const $t33: boolean = $t32 instanceof $boxes.Box__collections_OrderedMap_string__any_;
-    const raw: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined = $t33
-      ? $boxes.Box__collections_OrderedMap_string__any_.$cast($t32).v
-      : undefined;
-    const ok$2: boolean = $t33;
-    if (ok$2) {
-      {
-        const $t34: $rt.GoObject | undefined = raw!.GetOrZero('compileOnSave');
-        const $t35: boolean = $rt.isValue($t34, 'bool');
-        let value$1: boolean = $t35 ? $rt.checkBool(true, $t34) : false;
-        const ok$3: boolean = $t35;
-        if (ok$3) {
-          compileOnSave = $rt.ptrTo<boolean>(
-            (): boolean => value$1,
-            (v: boolean): void => {
-              value$1 = v;
-            },
-          );
-        }
-      }
-    }
-  }
-  return ParsedCommandLine.$lit_tsoptions_ParsedCommandLine_0_1_3_2_4_5_17(
-    ParsedOptions.$lit_tsoptions_ParsedOptions_0_2_3_4_5(
+  const $t16 = getFileNames!(basePathForFileNames);
+  const fileNames$1: string[] = $t16[0];
+  const literalFileNamesLen$1: number = $t16[1];
+  return ParsedCommandLine.$lit_tsoptions_ParsedCommandLine_0_1_3_2_10_5_18(
+    $core.ParsedOptions.$lit_core_ParsedOptions_0_2_3_4(
       parsedConfig!.options,
       parsedConfig!.typeAcquisition,
       fileNames$1,
       getProjectReferences!(basePathForFileNames),
-      contentMappers,
     ),
     sourceFile,
     parsedConfig!.raw,
     errors,
-    compileOnSave,
+    extraFileExtensions,
     $tspath.ComparePathsOptions.$lit_tspath_ComparePathsOptions_0_1(
       $rt.nn($rt.nn(host).FS$m()).UseCaseSensitiveFileNames(),
       basePathForFileNames,
@@ -11305,19 +10514,18 @@ export function validateSpecs(
         ? $boxes.Box___any.$cast(specs).v
         : $rt.typeAssertFail<($rt.GoObject | undefined)[]>();
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      const value = $t1[$t2];
-      const $t3: $rt.GoObject | undefined = value;
-      const $t4: boolean = $rt.isValue($t3, 'string');
-      const spec$1: string = $t4 ? $rt.checkString(true, $t3) : '';
-      const ok: boolean = $t4;
-      if (!ok) {
+      const spec$1 = $t1[$t2];
+      if (!isStringJSONValue(spec$1)) {
         continue;
       }
-      const diag: $diagnostics.Message | undefined = specToDiagnostic(spec$1, disallowTrailingRecursion);
+      const diag: $diagnostics.Message | undefined = specToDiagnostic(
+        $rt.checkString($rt.isValue(spec$1, 'string'), spec$1),
+        disallowTrailingRecursion,
+      );
       if (!(diag === undefined)) {
-        errors.push(createDiagnostic!(diag, spec$1));
+        errors.push(createDiagnostic!(diag, $rt.checkString($rt.isValue(spec$1, 'string'), spec$1)));
       } else {
-        finalSpecs.push(spec$1);
+        finalSpecs.push($rt.checkString($rt.isValue(spec$1, 'string'), spec$1));
       }
     }
   }
@@ -11410,42 +10618,6 @@ export function CreateDiagnosticAtReferenceSyntax(
     },
   );
 }
-export function createDiagnosticAtProjectReferenceProperty(
-  sourceFile: TsConfigSourceFile | undefined,
-  index: number,
-  propertyName: string,
-  message: $diagnostics.Message | undefined,
-  args: ($rt.GoObject | undefined)[],
-): $ast.Diagnostic | undefined {
-  let node: $ast.Node | undefined = undefined as $ast.Node | undefined;
-  if (!(sourceFile === undefined)) {
-    node = ForEachTsConfigPropArray<$ast.Node>(
-      sourceFile!.SourceFile_,
-      'references',
-      (property: $ast.PropertyAssignment | undefined): $ast.Node | undefined => {
-        if ($ast.IsArrayLiteralExpression(property!.Initializer_)) {
-          const elements: ($ast.Node | undefined)[] = property!.Initializer_!.Elements();
-          if (elements.length > index && $ast.IsObjectLiteralExpression(elements[index])) {
-            {
-              const propertyNode: $ast.Node | undefined = ForEachPropertyAssignment<$ast.Node>(
-                elements[index]!.AsObjectLiteralExpression(),
-                propertyName,
-                $fn27,
-                [] as string[],
-              );
-              if (!(propertyNode === undefined)) {
-                return propertyNode;
-              }
-            }
-            return elements[index];
-          }
-        }
-        return undefined;
-      },
-    );
-  }
-  return CreateDiagnosticForNodeInSourceFileOrCompilerDiagnostic(tsconfigToSourceFile(sourceFile), node, message, args);
-}
 export function GetCallbackForFindingPropertyAssignmentByValue(
   value: string,
 ): ((p0: $ast.PropertyAssignment | undefined) => $ast.Node | undefined) | undefined {
@@ -11473,130 +10645,6 @@ export function GetOptionsSyntaxByArrayElementValue(
     GetCallbackForFindingPropertyAssignmentByValue(elementValue),
     [] as string[],
   );
-}
-export function getContentMapperSyntax(
-  sourceFile: $ast.SourceFile | undefined,
-  index: number,
-  subKey: string,
-): $ast.Node | undefined {
-  if (sourceFile === undefined) {
-    return undefined;
-  }
-  return ForEachTsConfigPropArray<$ast.Node>(
-    sourceFile,
-    'contentMappers',
-    (property: $ast.PropertyAssignment | undefined): $ast.Node | undefined => {
-      if (!$ast.IsArrayLiteralExpression(property!.Initializer_)) {
-        return property!.Initializer_;
-      }
-      const elements: ($ast.Node | undefined)[] = property!.Initializer_!.Elements();
-      if (index < 0 || index >= elements.length) {
-        return property!.Initializer_;
-      }
-      const element: $ast.Node | undefined = elements[index];
-      if (!(subKey === ('' as string)) && $ast.IsObjectLiteralExpression(element)) {
-        {
-          const node: $ast.Node | undefined = ForEachPropertyAssignment<$ast.Node>(
-            element!.AsObjectLiteralExpression(),
-            subKey,
-            $fn27,
-            [] as string[],
-          );
-          if (!(node === undefined)) {
-            return node;
-          }
-        }
-      }
-      return element;
-    },
-  );
-}
-export function GetContentMapperOptionDiagnosticLocation(
-  config: ParsedCommandLine | undefined,
-  mapper: $contentmapper.Mapper | undefined,
-  path: $contentmapper.OptionPathSegment[],
-): [$ast.SourceFile | undefined, $core.TextRange] {
-  if (config === undefined || config!.ConfigFile === undefined) {
-    return [undefined, $core.UndefinedTextRange()];
-  }
-  const index: number = $rt.slices_Index(ParsedCommandLine.ContentMappers$nil(config), mapper);
-  const mapperNode: $ast.Node | undefined = getContentMapperSyntax(config!.ConfigFile!.SourceFile_, index, '');
-  let node: $ast.Node | undefined = getContentMapperSyntax(config!.ConfigFile!.SourceFile_, index, 'options');
-  if (node === undefined) {
-    node = mapperNode;
-  }
-  {
-    const $t1 = path;
-    for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      const segment = $t1[$t2].$clone_contentmapper_OptionPathSegment();
-      let next: $ast.Node | undefined = undefined as $ast.Node | undefined;
-      {
-        $sw3: {
-          if (segment.IsIndex && $ast.IsArrayLiteralExpression(node)) {
-            const elements: ($ast.Node | undefined)[] = node!.Elements();
-            if (segment.Index < elements.length) {
-              next = elements[segment.Index];
-            }
-          } else if (!segment.IsIndex && $ast.IsObjectLiteralExpression(node)) {
-            next = ForEachPropertyAssignment<$ast.Node>(
-              node!.AsObjectLiteralExpression(),
-              segment.Property,
-              $fn23,
-              [] as string[],
-            );
-          }
-        }
-      }
-      if (next === undefined) {
-        break;
-      }
-      node = next;
-    }
-  }
-  if (node === undefined) {
-    return [undefined, $core.UndefinedTextRange()];
-  }
-  const file: $ast.SourceFile | undefined = config!.ConfigFile!.SourceFile_;
-  return [file, $core.NewTextRange($scanner.SkipTrivia(file!.Text(), node!.Pos()), node!.End())];
-}
-export function getContentMappersKeySyntax(sourceFile: $ast.SourceFile | undefined): $ast.Node | undefined {
-  if (sourceFile === undefined) {
-    return undefined;
-  }
-  return ForEachTsConfigPropArray<$ast.Node>(sourceFile, 'contentMappers', $fn28);
-}
-export function getContentMapperExtensionSyntax(
-  sourceFile: $ast.SourceFile | undefined,
-  index: number,
-  ext: string,
-): $ast.Node | undefined {
-  const node: $ast.Node | undefined = getContentMapperSyntax(sourceFile, index, 'extensions');
-  if (!(node === undefined) && $ast.IsArrayLiteralExpression(node)) {
-    {
-      const element$1: $ast.Node | undefined = $core.Find<$ast.Node | undefined>(
-        $zf10,
-        node!.Elements(),
-        (element: $ast.Node | undefined): boolean => {
-          return $ast.IsStringLiteral(element) && element!.Text$Node() === ext;
-        },
-      );
-      if (!(element$1 === undefined)) {
-        return element$1;
-      }
-    }
-  }
-  return node;
-}
-export function setContentMapperDiagnosticLocation(
-  diagnostic: $ast.Diagnostic | undefined,
-  sourceFile: $ast.SourceFile | undefined,
-  node: $ast.Node | undefined,
-): $ast.Diagnostic | undefined {
-  if (!(sourceFile === undefined) && !(node === undefined)) {
-    diagnostic!.SetFile(sourceFile);
-    diagnostic!.SetLocation($core.NewTextRange($scanner.SkipTrivia(sourceFile!.Text(), node!.Pos()), node!.End()));
-  }
-  return diagnostic;
 }
 export function ForEachPropertyAssignment<T extends $rt.GoObject>(
   objectLiteral: $ast.ObjectLiteralExpression | undefined,
@@ -11814,8 +10862,9 @@ export function getFileNamesFromConfigSpecs(
   basePath: string,
   options: $core.CompilerOptions | undefined,
   host: $vfs.FS,
-  extraExtensions: string[],
+  extraFileExtensions: FileExtensionInfo[],
 ): [string[], number] {
+  extraFileExtensions = [] as FileExtensionInfo[];
   basePath = $tspath.NormalizePath(basePath);
   const keyMappper: ((p0: string) => string) | undefined = (value: string): string => {
     return $tspath.GetCanonicalFileName(value, $rt.nn(host).UseCaseSensitiveFileNames());
@@ -11835,7 +10884,7 @@ export function getFileNamesFromConfigSpecs(
   const validatedFilesSpec: string[] = configFileSpecs$v.validatedFilesSpec;
   const validatedIncludeSpecs: string[] = configFileSpecs$v.validatedIncludeSpecs;
   const validatedExcludeSpecs: string[] = configFileSpecs$v.validatedExcludeSpecs;
-  const supportedExtensions: string[][] = GetSupportedExtensions(options, extraExtensions);
+  const supportedExtensions: string[][] = GetSupportedExtensions(options, extraFileExtensions);
   const supportedExtensionsWithJsonIfResolveJsonModule: string[][] = GetSupportedExtensionsWithJsonIfResolveJsonModule(
     options,
     supportedExtensions,
@@ -11867,7 +10916,7 @@ export function getFileNamesFromConfigSpecs(
         const file$1 = $t3[$t4];
         if ($tspath.FileExtensionIs(file$1, '.json')) {
           if (jsonOnlyIncludeMatchers === undefined) {
-            const includes: string[] = $core.Filter<string>(validatedIncludeSpecs, $fn29);
+            const includes: string[] = $core.Filter<string>(validatedIncludeSpecs, $fn26);
             jsonOnlyIncludeMatchers = $vfs_vfsmatch.NewSpecMatcher(
               includes,
               basePath,
@@ -11926,33 +10975,40 @@ export function getFileNamesFromConfigSpecs(
 }
 export function GetSupportedExtensions(
   compilerOptions: $core.CompilerOptions | undefined,
-  extraExtensions: string[],
+  extraFileExtensions: FileExtensionInfo[],
 ): string[][] {
   const needJSExtensions: boolean = compilerOptions!.GetAllowJS();
+  if (extraFileExtensions.length === (0 as number)) {
+    if (needJSExtensions) {
+      return $tspath.AllSupportedExtensions;
+    } else {
+      return $tspath.SupportedTSExtensions;
+    }
+  }
   let builtins: string[][] = [];
   if (needJSExtensions) {
     builtins = $tspath.AllSupportedExtensions;
   } else {
     builtins = $tspath.SupportedTSExtensions;
   }
-  if (extraExtensions.length === (0 as number)) {
-    return builtins;
-  }
   const flatBuiltins: string[] = $core.Flatten<string>(builtins);
   let result: string[][] = [];
   {
-    const $t1 = extraExtensions;
+    const $t1 = extraFileExtensions;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      const ext = $t1[$t2];
-      if (!$rt.slices_Contains(flatBuiltins, ext)) {
-        result.push([ext]);
+      const x = $t1[$t2];
+      if (
+        x.ScriptKind_ === (7 as number) ||
+        (needJSExtensions &&
+          (x.ScriptKind_ === (1 as number) || x.ScriptKind_ === (2 as number)) &&
+          !$rt.slices_Contains(flatBuiltins, x.Extension))
+      ) {
+        result.push([x.Extension]);
       }
     }
   }
-  if (result.length === (0 as number)) {
-    return builtins;
-  }
-  return $rt.slices_Concat([builtins, result]);
+  const extensions: string[][] = $rt.slices_Concat([builtins, result]);
+  return extensions;
 }
 export function GetSupportedExtensionsWithJsonIfResolveJsonModule(
   compilerOptions: $core.CompilerOptions | undefined,
@@ -12026,6 +11082,7 @@ export function GetParsedCommandLineOfConfigFilePath(
       options,
       optionsRaw,
       configFileName,
+      [],
       [],
       extendedConfigCache,
     ),

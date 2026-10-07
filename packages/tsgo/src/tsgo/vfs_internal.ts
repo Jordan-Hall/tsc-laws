@@ -4,8 +4,6 @@ import * as $rt from '../go/runtime.js';
 import * as $tspath from './tspath.js';
 import * as $vfs from './vfs.js';
 import type * as $checkhost from './checkhost.js';
-import type * as $contentmapper from './contentmapper.js';
-import type * as $ipc from './ipc.js';
 export class Common extends $rt.GoObject {
   RootFor: ((p0: string) => $rt.io_fs_FS | undefined) | undefined = undefined;
   IsReparsePoint: ((p0: string) => boolean) | undefined = undefined;
@@ -258,9 +256,7 @@ export function decodeUtf16(s: string, order: $rt.encoding_binary_ByteOrder | un
   let ints: number[] = $rt.makeSlice<number>(Math.trunc(s.length / 2), 0);
   {
     const err: $rt.GoObject | undefined = $rt.encoding_binary_Read(
-      $rt.unsupportedConversion<
-        $ipc.stdioConn | $contentmapper.closeOnceReadWriteCloser | $contentmapper.loggedProcess | undefined
-      >('$rt.strings_Reader | undefined'),
+      $rt.unsupportedConversion<$rt.io_Reader | undefined>('$rt.strings_Reader | undefined'),
       order,
       $rt.ptrTo<number[]>(
         (): number[] => ints,

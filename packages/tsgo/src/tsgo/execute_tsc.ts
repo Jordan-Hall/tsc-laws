@@ -5,20 +5,18 @@ import * as $ast from './ast.js';
 import * as $boxes from './boxes.js';
 import * as $collections from './collections.js';
 import * as $compiler from './compiler.js';
-import * as $contentmapper from './contentmapper.js';
 import * as $core from './core.js';
 import * as $diagnostics from './diagnostics.js';
 import * as $diagnosticwriter from './diagnosticwriter.js';
-import * as $execute_incremental from './execute_incremental.js';
 import * as $json from './json.js';
-import * as $locale from './locale.js';
 import * as $tracing from './tracing.js';
 import * as $tsoptions from './tsoptions.js';
 import * as $tspath from './tspath.js';
 import type * as $checkhost from './checkhost.js';
 import type * as $execute from './execute.js';
 import type * as $execute_build from './execute_build.js';
-import type * as $ipc from './ipc.js';
+import type * as $execute_incremental from './execute_incremental.js';
+import type * as $locale from './locale.js';
 import { OrderedMap as $collections$OrderedMap } from './collections.js';
 import { Set_ as $collections$Set_ } from './collections.js';
 const $zf0 = (): string => '';
@@ -28,37 +26,15 @@ const $zf3 = (): $tspath.Path => '';
 const $zf4 = (): extendedConfigCacheEntry | undefined => undefined;
 export class CommandLineTesting extends $rt.GoObject {
   GetTrace(
-    a0:
-      | $ipc.stdioConn
-      | $contentmapper.closeOnceReadWriteCloser
-      | $contentmapper.loggedProcess
-      | $contentmapper.stderrLogger
-      | $checkhost.hostWriter
-      | undefined,
+    a0: $checkhost.hostWriter | undefined,
     a1: $locale.Locale,
   ): ((p0: $diagnostics.Message | undefined, p1: ($rt.GoObject | undefined)[]) => void) | undefined {
     throw $rt.unimplementedMethod('GetTrace');
   }
-  OnBuildStatusReportEnd(
-    a0:
-      | $ipc.stdioConn
-      | $contentmapper.closeOnceReadWriteCloser
-      | $contentmapper.loggedProcess
-      | $contentmapper.stderrLogger
-      | $checkhost.hostWriter
-      | undefined,
-  ): void {
+  OnBuildStatusReportEnd(a0: $checkhost.hostWriter | undefined): void {
     throw $rt.unimplementedMethod('OnBuildStatusReportEnd');
   }
-  OnBuildStatusReportStart(
-    a0:
-      | $ipc.stdioConn
-      | $contentmapper.closeOnceReadWriteCloser
-      | $contentmapper.loggedProcess
-      | $contentmapper.stderrLogger
-      | $checkhost.hostWriter
-      | undefined,
-  ): void {
+  OnBuildStatusReportStart(a0: $checkhost.hostWriter | undefined): void {
     throw $rt.unimplementedMethod('OnBuildStatusReportStart');
   }
   OnEmittedFiles(
@@ -67,51 +43,19 @@ export class CommandLineTesting extends $rt.GoObject {
   ): void {
     throw $rt.unimplementedMethod('OnEmittedFiles');
   }
-  OnListFilesEnd(
-    a0:
-      | $ipc.stdioConn
-      | $contentmapper.closeOnceReadWriteCloser
-      | $contentmapper.loggedProcess
-      | $contentmapper.stderrLogger
-      | $checkhost.hostWriter
-      | undefined,
-  ): void {
+  OnListFilesEnd(a0: $checkhost.hostWriter | undefined): void {
     throw $rt.unimplementedMethod('OnListFilesEnd');
   }
-  OnListFilesStart(
-    a0:
-      | $ipc.stdioConn
-      | $contentmapper.closeOnceReadWriteCloser
-      | $contentmapper.loggedProcess
-      | $contentmapper.stderrLogger
-      | $checkhost.hostWriter
-      | undefined,
-  ): void {
+  OnListFilesStart(a0: $checkhost.hostWriter | undefined): void {
     throw $rt.unimplementedMethod('OnListFilesStart');
   }
   OnProgram(a0: $execute_incremental.Program | undefined): void {
     throw $rt.unimplementedMethod('OnProgram');
   }
-  OnStatisticsEnd(
-    a0:
-      | $ipc.stdioConn
-      | $contentmapper.closeOnceReadWriteCloser
-      | $contentmapper.loggedProcess
-      | $contentmapper.stderrLogger
-      | $checkhost.hostWriter
-      | undefined,
-  ): void {
+  OnStatisticsEnd(a0: $checkhost.hostWriter | undefined): void {
     throw $rt.unimplementedMethod('OnStatisticsEnd');
   }
-  OnStatisticsStart(
-    a0:
-      | $ipc.stdioConn
-      | $contentmapper.closeOnceReadWriteCloser
-      | $contentmapper.loggedProcess
-      | $contentmapper.stderrLogger
-      | $checkhost.hostWriter
-      | undefined,
-  ): void {
+  OnStatisticsStart(a0: $checkhost.hostWriter | undefined): void {
     throw $rt.unimplementedMethod('OnStatisticsStart');
   }
   OnWatchStatusReportEnd(): void {
@@ -186,7 +130,6 @@ export class CompileAndEmitResult extends $rt.GoObject {
 export class CompileTimes extends $rt.GoObject {
   ConfigTime: number = 0;
   ParseTime: number = 0;
-  ContentMapperTimes: $contentmapper.Timings = $contentmapper.Timings$zero;
   bindTime: number = 0;
   checkTime: number = 0;
   totalTime: number = 0;
@@ -196,13 +139,24 @@ export class CompileTimes extends $rt.GoObject {
   $copy_execute_tsc_CompileTimes(src: CompileTimes): void {
     this.ConfigTime = src.ConfigTime;
     this.ParseTime = src.ParseTime;
-    this.ContentMapperTimes = src.ContentMapperTimes;
     this.bindTime = src.bindTime;
     this.checkTime = src.checkTime;
     this.totalTime = src.totalTime;
     this.emitTime = src.emitTime;
     this.BuildInfoReadTime = src.BuildInfoReadTime;
     this.ChangesComputeTime = src.ChangesComputeTime;
+  }
+  $equals_execute_tsc_CompileTimes(o: CompileTimes): boolean {
+    return (
+      this.ConfigTime === o.ConfigTime &&
+      this.ParseTime === o.ParseTime &&
+      this.bindTime === o.bindTime &&
+      this.checkTime === o.checkTime &&
+      this.totalTime === o.totalTime &&
+      this.emitTime === o.emitTime &&
+      this.BuildInfoReadTime === o.BuildInfoReadTime &&
+      this.ChangesComputeTime === o.ChangesComputeTime
+    );
   }
   $clone_execute_tsc_CompileTimes(): CompileTimes {
     const o = new CompileTimes();
@@ -221,13 +175,7 @@ export class EmitInput extends $rt.GoObject {
   Config: $tsoptions.ParsedCommandLine | undefined = undefined;
   ReportDiagnostic: DiagnosticReporter = undefined;
   ReportErrorSummary: DiagnosticsReporter = undefined;
-  Writer_:
-    | $ipc.stdioConn
-    | $contentmapper.closeOnceReadWriteCloser
-    | $contentmapper.loggedProcess
-    | $contentmapper.stderrLogger
-    | $checkhost.hostWriter
-    | undefined = undefined;
+  Writer_: $checkhost.hostWriter | undefined = undefined;
   WriteFile_: $compiler.WriteFile = undefined;
   CompileTimes_: CompileTimes | undefined = undefined;
   Testing: CommandLineTesting | undefined = undefined;
@@ -259,13 +207,7 @@ export class EmitInput extends $rt.GoObject {
     p3: $tsoptions.ParsedCommandLine | undefined,
     p4: DiagnosticReporter,
     p5: DiagnosticsReporter,
-    p6:
-      | $ipc.stdioConn
-      | $contentmapper.closeOnceReadWriteCloser
-      | $contentmapper.loggedProcess
-      | $contentmapper.stderrLogger
-      | $checkhost.hostWriter
-      | undefined,
+    p6: $checkhost.hostWriter | undefined,
     p7: $compiler.WriteFile,
     p8: CompileTimes | undefined,
     p9: CommandLineTesting | undefined,
@@ -292,13 +234,7 @@ export class EmitInput extends $rt.GoObject {
     p3: $tsoptions.ParsedCommandLine | undefined,
     p4: DiagnosticReporter,
     p5: DiagnosticsReporter,
-    p6:
-      | $ipc.stdioConn
-      | $contentmapper.closeOnceReadWriteCloser
-      | $contentmapper.loggedProcess
-      | $contentmapper.stderrLogger
-      | $checkhost.hostWriter
-      | undefined,
+    p6: $checkhost.hostWriter | undefined,
     p7: CompileTimes | undefined,
     p8: CommandLineTesting | undefined,
   ): EmitInput {
@@ -321,13 +257,7 @@ export class EmitInput extends $rt.GoObject {
     p3: $tsoptions.ParsedCommandLine | undefined,
     p4: DiagnosticReporter,
     p5: DiagnosticsReporter,
-    p6:
-      | $ipc.stdioConn
-      | $contentmapper.closeOnceReadWriteCloser
-      | $contentmapper.loggedProcess
-      | $contentmapper.stderrLogger
-      | $checkhost.hostWriter
-      | undefined,
+    p6: $checkhost.hostWriter | undefined,
     p7: CompileTimes | undefined,
     p8: CommandLineTesting | undefined,
     p9: $tracing.Tracing | undefined,
@@ -492,16 +422,7 @@ export class Statistics extends $rt.GoObject {
     if (v instanceof Statistics) return v;
     throw $rt.typeAssertError();
   }
-  Report(
-    w:
-      | $ipc.stdioConn
-      | $contentmapper.closeOnceReadWriteCloser
-      | $contentmapper.loggedProcess
-      | $contentmapper.stderrLogger
-      | $checkhost.hostWriter
-      | undefined,
-    testing: CommandLineTesting | undefined,
-  ): void {
+  Report(w: $checkhost.hostWriter | undefined, testing: CommandLineTesting | undefined): void {
     const s = this;
     const $defers: (() => void)[] = [];
     let $panic: $rt.Panic | undefined = undefined;
@@ -514,7 +435,7 @@ export class Statistics extends $rt.GoObject {
           $t2!.OnStatisticsEnd($t1);
         });
       }
-      let table$v: table = new table();
+      const table$v: table = new table();
       let prefix: string = '';
       if (s!.isAggregate) {
         prefix = 'Aggregate ';
@@ -558,7 +479,6 @@ export class Statistics extends $rt.GoObject {
           new $rt.BoxNum(s!.compileTimes!.ChangesComputeTime, 'time.Duration'),
         );
       }
-      s!.addContentMapperStatistics(table$v, prefix);
       table$v.add(prefix + 'Total time', new $rt.BoxNum(s!.compileTimes!.totalTime, 'time.Duration'));
       table$v.print(w);
     } catch ($e) {
@@ -567,46 +487,6 @@ export class Statistics extends $rt.GoObject {
       $panic = $rt.runDefers($defers, $panic);
     }
     if ($panic !== undefined) throw $panic;
-  }
-  addContentMapperStatistics(table$v: table | undefined, prefix: string): void {
-    const s = this;
-    const timings: $contentmapper.Timings = s!.compileTimes!.ContentMapperTimes;
-    if (!(timings.RequestWait === (0 as number))) {
-      table$v!.add(prefix + 'Content mapper request wait time', new $rt.BoxNum(timings.RequestWait, 'time.Duration'));
-    }
-    {
-      const $t1 = $rt.slices_Sorted($rt.maps_Keys(timings.Mappers));
-      for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        const identity = $t1[$t2];
-        const mapper: $contentmapper.MapperTimings =
-          timings.Mappers?.get(identity) ?? $contentmapper.MapperTimings$zero;
-        const initializationCount: number = mapper.Spawn.Count;
-        if (!(initializationCount === (0 as number))) {
-          table$v!.add(
-            prefix + identity + ' initialization time',
-            new $rt.BoxNum(mapper.Spawn.Duration_ + mapper.Initialize.Duration_, 'time.Duration'),
-          );
-        }
-        if (!(mapper.Transform.Count === (0 as number))) {
-          table$v!.add(
-            prefix + identity + ' transform time',
-            new $rt.BoxNum(mapper.Transform.Duration_, 'time.Duration'),
-          );
-        }
-        if (!(mapper.OpenProject.Count === (0 as number))) {
-          table$v!.add(
-            prefix + identity + ' openProject time',
-            new $rt.BoxNum(mapper.OpenProject.Duration_, 'time.Duration'),
-          );
-        }
-        if (!(mapper.CloseProject.Count === (0 as number))) {
-          table$v!.add(
-            prefix + identity + ' closeProject time',
-            new $rt.BoxNum(mapper.CloseProject.Duration_, 'time.Duration'),
-          );
-        }
-      }
-    }
   }
   Aggregate(stat: Statistics | undefined): void {
     const s = this;
@@ -766,15 +646,7 @@ export class table extends $rt.GoObject {
     }
     t!.rows.push(tableRow.$lit_execute_tsc_tableRow_0_1(name_, $rt.fmt_Sprint([value])));
   }
-  print(
-    w:
-      | $ipc.stdioConn
-      | $contentmapper.closeOnceReadWriteCloser
-      | $contentmapper.loggedProcess
-      | $contentmapper.stderrLogger
-      | $checkhost.hostWriter
-      | undefined,
-  ): void {
+  print(w: $checkhost.hostWriter | undefined): void {
     const t = this;
     let nameWidth: number = 0;
     let valueWidth: number = 0;
@@ -899,53 +771,6 @@ const $fn3 = (
   }
   return $rt.bytesToString(b);
 };
-export function newContentMapperLogger(sys: System): $contentmapper.Logger {
-  if (sys!.GetEnvironmentVariable('TS_CONTENT_MAPPER_DEBUG') === ('' as string)) {
-    return undefined;
-  }
-  const writer:
-    | $ipc.stdioConn
-    | $contentmapper.closeOnceReadWriteCloser
-    | $contentmapper.loggedProcess
-    | $contentmapper.stderrLogger
-    | $checkhost.hostWriter
-    | undefined = sys!.ErrorWriter();
-  const mu: $rt.sync_Mutex = new $rt.sync_Mutex();
-  return (message: string): void => {
-    const $defers: (() => void)[] = [];
-    let $panic: $rt.Panic | undefined = undefined;
-    $body: try {
-      mu.Lock();
-      const $t1 = mu;
-      $defers.push(() => {
-        $t1.Unlock();
-      });
-      $rt.nn(writer).Write($rt.stringToBytes($rt.fmt_Sprintln([new $rt.BoxStr(message, 'string')])));
-    } catch ($e) {
-      $panic = $rt.toPanic($e);
-    } finally {
-      $panic = $rt.runDefers($defers, $panic);
-    }
-    if ($panic !== undefined) throw $panic;
-  };
-}
-export function NewContentMapperHost(
-  ctx: $rt.context_Context | undefined,
-  sys: System,
-  options: $core.CompilerOptions | undefined,
-): $contentmapper.Host {
-  if (!$core.Tristate$IsTrue(options!.RunExternalCode)) {
-    return undefined;
-  }
-  const $t1 = $locale.Parse(options!.Locale);
-  const diagnosticLocale: $locale.Locale = $t1[0];
-  return $contentmapper.NewHostWithOptions(
-    ctx,
-    sys as unknown as $contentmapper.Spawner,
-    diagnosticLocale,
-    $contentmapper.HostOptions.$lit_contentmapper_HostOptions_0(newContentMapperLogger(sys)),
-  );
-}
 export function getFormatOptsOfSys(
   sys: System,
   locale: $locale.Locale,
@@ -962,13 +787,7 @@ export function getFormatOptsOfSys(
 export function QuietDiagnosticReporter(diagnostic: $ast.Diagnostic | undefined): void {}
 export function CreateDiagnosticReporter(
   sys: System,
-  w:
-    | $ipc.stdioConn
-    | $contentmapper.closeOnceReadWriteCloser
-    | $contentmapper.loggedProcess
-    | $contentmapper.stderrLogger
-    | $checkhost.hostWriter
-    | undefined,
+  w: $checkhost.hostWriter | undefined,
   locale: $locale.Locale,
   options: $core.CompilerOptions | undefined,
 ): DiagnosticReporter {
@@ -1038,13 +857,7 @@ export function CreateReportErrorSummary(
 }
 export function CreateBuilderStatusReporter(
   sys: System,
-  w:
-    | $ipc.stdioConn
-    | $contentmapper.closeOnceReadWriteCloser
-    | $contentmapper.loggedProcess
-    | $contentmapper.stderrLogger
-    | $checkhost.hostWriter
-    | undefined,
+  w: $checkhost.hostWriter | undefined,
   locale: $locale.Locale,
   options: $core.CompilerOptions | undefined,
   testing: CommandLineTesting | undefined,
@@ -1055,26 +868,14 @@ export function CreateBuilderStatusReporter(
   const formatOpts: $diagnosticwriter.FormattingOptions | undefined = getFormatOptsOfSys(sys, locale);
   const writeStatus:
     | ((
-        p0:
-          | $ipc.stdioConn
-          | $contentmapper.closeOnceReadWriteCloser
-          | $contentmapper.loggedProcess
-          | $contentmapper.stderrLogger
-          | $checkhost.hostWriter
-          | undefined,
+        p0: $checkhost.hostWriter | undefined,
         p1: string,
         p2: $diagnosticwriter.Diagnostic,
         p3: $diagnosticwriter.FormattingOptions | undefined,
       ) => void)
     | undefined = $core.IfElse<
     | ((
-        p0:
-          | $ipc.stdioConn
-          | $contentmapper.closeOnceReadWriteCloser
-          | $contentmapper.loggedProcess
-          | $contentmapper.stderrLogger
-          | $checkhost.hostWriter
-          | undefined,
+        p0: $checkhost.hostWriter | undefined,
         p1: string,
         p2: $diagnosticwriter.Diagnostic,
         p3: $diagnosticwriter.FormattingOptions | undefined,
@@ -1127,26 +928,14 @@ export function CreateWatchStatusReporter(
   const formatOpts: $diagnosticwriter.FormattingOptions | undefined = getFormatOptsOfSys(sys, locale);
   const writeStatus:
     | ((
-        p0:
-          | $ipc.stdioConn
-          | $contentmapper.closeOnceReadWriteCloser
-          | $contentmapper.loggedProcess
-          | $contentmapper.stderrLogger
-          | $checkhost.hostWriter
-          | undefined,
+        p0: $checkhost.hostWriter | undefined,
         p1: string,
         p2: $diagnosticwriter.Diagnostic,
         p3: $diagnosticwriter.FormattingOptions | undefined,
       ) => void)
     | undefined = $core.IfElse<
     | ((
-        p0:
-          | $ipc.stdioConn
-          | $contentmapper.closeOnceReadWriteCloser
-          | $contentmapper.loggedProcess
-          | $contentmapper.stderrLogger
-          | $checkhost.hostWriter
-          | undefined,
+        p0: $checkhost.hostWriter | undefined,
         p1: string,
         p2: $diagnosticwriter.Diagnostic,
         p3: $diagnosticwriter.FormattingOptions | undefined,
@@ -1163,13 +952,7 @@ export function CreateWatchStatusReporter(
     $body: try {
       const writerDiagnostic: $diagnosticwriter.ASTDiagnostic | undefined =
         $diagnosticwriter.WrapASTDiagnostic(diagnostic);
-      const writer:
-        | $ipc.stdioConn
-        | $contentmapper.closeOnceReadWriteCloser
-        | $contentmapper.loggedProcess
-        | $contentmapper.stderrLogger
-        | $checkhost.hostWriter
-        | undefined = sys!.Writer$m();
+      const writer: $checkhost.hostWriter | undefined = sys!.Writer$m();
       if (!(testing === undefined)) {
         testing!.OnWatchStatusReportStart();
         const $t1 = testing;
@@ -1198,13 +981,7 @@ export function CreateWatchStatusReporter(
   };
 }
 export function GetTraceWithWriterFromSys(
-  w:
-    | $ipc.stdioConn
-    | $contentmapper.closeOnceReadWriteCloser
-    | $contentmapper.loggedProcess
-    | $contentmapper.stderrLogger
-    | $checkhost.hostWriter
-    | undefined,
+  w: $checkhost.hostWriter | undefined,
   locale: $locale.Locale,
   testing: CommandLineTesting | undefined,
 ): ((p0: $diagnostics.Message | undefined, p1: ($rt.GoObject | undefined)[]) => void) | undefined {
@@ -1248,7 +1025,7 @@ export function EmitFilesAndReportErrors(input: EmitInput): CompileAndEmitResult
   let allDiagnostics: ($ast.Diagnostic | undefined)[] = $compiler.GetDiagnosticsOfAnyProgram(
     ctx,
     input.ProgramLike_,
-    [],
+    undefined,
     false,
     (ctx$1: $rt.context_Context | undefined, file: $ast.SourceFile | undefined): ($ast.Diagnostic | undefined)[] => {
       let $t1: ($ast.Diagnostic | undefined)[] = [];
@@ -1294,23 +1071,6 @@ export function EmitFilesAndReportErrors(input: EmitInput): CompileAndEmitResult
           .nn(input.ProgramLike_)
           .GetSemanticDiagnostics(ctx$2, file$1);
         result.times!.checkTime = input.Sys!.Now().Sub(checkStart);
-        {
-          const $t3: $compiler.ProgramLike = input.ProgramLike_;
-          const $t4: boolean = $t3 instanceof $execute_incremental.Program;
-          const program: $execute_incremental.Program | undefined = $t4
-            ? $execute_incremental.Program.$cast_execute_incremental_Program($t3)
-            : undefined;
-          const ok: boolean = $t4;
-          if (ok) {
-            const nestedEmitTime: number = program!.TakeNestedEmitTime();
-            if (nestedEmitTime > result.times!.checkTime) {
-              result.times!.checkTime = 0;
-            } else {
-              result.times!.checkTime -= nestedEmitTime;
-            }
-            result.times!.emitTime += nestedEmitTime;
-          }
-        }
         $t2 = diags$1;
         break $body;
       } catch ($e) {
@@ -1330,8 +1090,8 @@ export function EmitFilesAndReportErrors(input: EmitInput): CompileAndEmitResult
     const emitStart: $rt.time_Time = input.Sys!.Now();
     emitResult = $rt
       .nn(input.ProgramLike_)
-      .Emit(ctx, $compiler.EmitOptions.$lit_compiler_EmitOptions_3(input.WriteFile_));
-    result.times!.emitTime += input.Sys!.Now().Sub(emitStart);
+      .Emit(ctx, $compiler.EmitOptions.$lit_compiler_EmitOptions_2(input.WriteFile_));
+    result.times!.emitTime = input.Sys!.Now().Sub(emitStart);
   }
   if (!(emitResult === undefined)) {
     allDiagnostics = $rt.appendCopy(allDiagnostics, emitResult!.Diagnostics);
@@ -1341,9 +1101,9 @@ export function EmitFilesAndReportErrors(input: EmitInput): CompileAndEmitResult
   }
   allDiagnostics = $compiler.SortAndDeduplicateDiagnostics(allDiagnostics);
   {
-    const $t5 = allDiagnostics;
-    for (let $t6 = 0, $n = $t5.length; $t6 < $n; $t6++) {
-      const diagnostic = $t5[$t6];
+    const $t3 = allDiagnostics;
+    for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
+      const diagnostic = $t3[$t4];
       input.ReportDiagnostic!(diagnostic);
     }
   }

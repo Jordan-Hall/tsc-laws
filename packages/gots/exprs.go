@@ -600,6 +600,15 @@ func (x *fn) unary(e *ast.UnaryExpr) string {
 
 // wrap applies Go integer overflow semantics for sized integer types.
 func (x *fn) wrap(s string, tt types.Type) string {
+	w := x.wrapInt(s, tt)
+	// Arithmetic on a type parameter value yields a number, not the parameter.
+	if _, isTP := types.Unalias(tt).(*types.TypeParam); isTP && w != s {
+		return "(" + w + " as " + x.f.tsType(tt) + ")"
+	}
+	return w
+}
+
+func (x *fn) wrapInt(s string, tt types.Type) string {
 	b, ok := under(tt).(*types.Basic)
 	if !ok {
 		return s

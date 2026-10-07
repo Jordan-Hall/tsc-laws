@@ -4,7 +4,7 @@ import { spawnSync } from 'node:child_process';
 import { resolve } from 'node:path';
 import { patches } from './scriptc-patches.mjs';
 
-const packages = ['parser', 'binder', 'checker', 'checkhost'];
+const packages = ['parser', 'binder', 'checker', 'checkhost', 'api/encoder'];
 const run = (cmd, args, cwd) => {
   const result = spawnSync(cmd, args, { cwd, stdio: 'inherit' });
   if (result.status !== 0) process.exit(result.status ?? 1);
@@ -13,7 +13,7 @@ const run = (cmd, args, cwd) => {
 rmSync('../../upstream/typescript-go/internal/checker/relater_oracle.go', { force: true });
 // The test host lives in this repository and is translated with the checker.
 mkdirSync('../../upstream/typescript-go/internal/checkhost', { recursive: true });
-for (const file of ['checkhost.go', 'tsc.go']) {
+for (const file of ['checkhost.go', 'tsc.go', 'project.go']) {
   copyFileSync('checkhost/' + file, '../../upstream/typescript-go/internal/checkhost/' + file);
 }
 run(

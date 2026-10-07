@@ -58,6 +58,7 @@ var patternEdits = []struct{ file, pattern, to string }{
 	// tsconfig parsing classifies JSON values with reflect; use type tests.
 	{"tsoptions/tsconfigparsing.go", `reflect\.TypeOf\(([^()]+)\)\.Kind\(\) == reflect\.Slice`, "isSliceJSONValue($1)"},
 	{"tsoptions/tsconfigparsing.go", `reflect\.TypeOf\(([^()]+)\)\.Kind\(\) == reflect\.String`, "isStringJSONValue($1)"},
+	{"tsoptions/tsconfigparsing.go", `reflect\.TypeOf\(([^()]+)\)\.Kind\(\) != reflect\.String`, "!isStringJSONValue($1)"},
 	{"tsoptions/tsconfigparsing.go", `reflect\.TypeOf\(([^()]+)\)\.Kind\(\) == reflect\.Bool`, "isBoolJSONValue($1)"},
 	{"tsoptions/tsconfigparsing.go", `reflect\.TypeOf\(([^()]+)\)\.Kind\(\) == reflect\.Float64`, "isFloatJSONValue($1)"},
 	{"tsoptions/tsconfigparsing.go", `reflect\.TypeOf\(([^()]+)\) == orderedMapType`, "isOrderedMapJSONValue($1)"},
@@ -76,16 +77,6 @@ func isBoolJSONValue(v any) bool { _, ok := v.(bool); return ok }
 func isFloatJSONValue(v any) bool { _, ok := v.(float64); return ok }
 
 func isOrderedMapJSONValue(v any) bool { _, ok := v.(*collections.OrderedMap[string, any]); return ok }`},
-	{"tsoptions/tsconfigparsing.go", `(?s)\tdefault:\n\t\treflected := reflect\.ValueOf\(value\).*?\t\treturn result\n\t\}\n\}`, `	case []string:
-		result := make([]any, len(value))
-		for i, child := range value {
-			result[i] = child
-		}
-		return result
-	default:
-		return value
-	}
-}`},
 	{"tsoptions/tsconfigparsing.go", `\t"reflect"\n`, ""},
 	// packagejson: Parse is replaced (tsgo overlay/packagejson/parse.go).
 	{"packagejson/packagejson.go", `func Parse\(data \[\]byte\) \(Fields, error\) \{`, "func parseWithJSONLibrary(data []byte) (Fields, error) {"},

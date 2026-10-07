@@ -1,4 +1,4 @@
-// Ported from microsoft/typescript-go 89d5d5b2849a0db0957065889ca58536fa6d2e4a; modified for TypeScript.
+// Ported from microsoft/typescript-go 2bd066d87f5bafd315be9f40889d0a60b9e58e0b; modified for TypeScript.
 // Copyright Microsoft Corporation. Licensed under Apache-2.0.
 export enum TypeFlags {
   None = 0,
@@ -120,8 +120,6 @@ export enum ObjectFlags {
   ContainsIntersections = 33554432,
   IsUnknownLikeUnionComputed = 67108864,
   IsUnknownLikeUnion = 134217728,
-  IsUniformEnumComputed = 268435456,
-  IsUniformEnum = 536870912,
   IsNeverIntersectionComputed = 33554432,
   IsNeverIntersection = 67108864,
   IsConstrainedTypeVariable = 134217728,

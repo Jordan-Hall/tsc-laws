@@ -2,8 +2,6 @@
 // Copyright Microsoft Corporation. Licensed under Apache-2.0.
 import * as $rt from '../go/runtime.js';
 import type * as $checkhost from './checkhost.js';
-import type * as $contentmapper from './contentmapper.js';
-import type * as $ipc from './ipc.js';
 export class CPUProfiler extends $rt.GoObject {
   mu: $rt.sync_Mutex = new $rt.sync_Mutex();
   session: ProfileSession | undefined = undefined;
@@ -61,14 +59,7 @@ export class CPUProfiler extends $rt.GoObject {
       }
       {
         const err$2: $rt.GoObject | undefined = $rt.runtime_pprof_StartCPUProfile(
-          $rt.unsupportedConversion<
-            | $ipc.stdioConn
-            | $contentmapper.closeOnceReadWriteCloser
-            | $contentmapper.loggedProcess
-            | $contentmapper.stderrLogger
-            | $checkhost.hostWriter
-            | undefined
-          >('$rt.os_File | undefined'),
+          $rt.unsupportedConversion<$checkhost.hostWriter | undefined>('$rt.os_File | undefined'),
         );
         if (!(err$2 === undefined)) {
           cpuFile!.Close();
@@ -80,13 +71,7 @@ export class CPUProfiler extends $rt.GoObject {
       c!.session = ProfileSession.$lit_pprof_ProfileSession_0_2_3(
         cpuProfilePath,
         cpuFile,
-        $rt.io_Discard as unknown as
-          | $ipc.stdioConn
-          | $contentmapper.closeOnceReadWriteCloser
-          | $contentmapper.loggedProcess
-          | $contentmapper.stderrLogger
-          | $checkhost.hostWriter
-          | undefined,
+        $rt.io_Discard as unknown as $checkhost.hostWriter | undefined,
       );
       $t1 = undefined;
       break $body;
@@ -136,13 +121,7 @@ export class ProfileSession extends $rt.GoObject {
   cpuFilePath: string = '';
   memFilePath: string = '';
   cpuFile: $rt.os_File | undefined = undefined;
-  logWriter:
-    | $ipc.stdioConn
-    | $contentmapper.closeOnceReadWriteCloser
-    | $contentmapper.loggedProcess
-    | $contentmapper.stderrLogger
-    | $checkhost.hostWriter
-    | undefined = undefined;
+  logWriter: $checkhost.hostWriter | undefined = undefined;
   $copy_pprof_ProfileSession(src: ProfileSession): void {
     this.cpuFilePath = src.cpuFilePath;
     this.memFilePath = src.memFilePath;
@@ -166,13 +145,7 @@ export class ProfileSession extends $rt.GoObject {
     p0: string,
     p1: string,
     p2: $rt.os_File | undefined,
-    p3:
-      | $ipc.stdioConn
-      | $contentmapper.closeOnceReadWriteCloser
-      | $contentmapper.loggedProcess
-      | $contentmapper.stderrLogger
-      | $checkhost.hostWriter
-      | undefined,
+    p3: $checkhost.hostWriter | undefined,
   ): ProfileSession {
     const o = new ProfileSession();
     o.cpuFilePath = p0;
@@ -184,13 +157,7 @@ export class ProfileSession extends $rt.GoObject {
   static $lit_pprof_ProfileSession_0_2_3(
     p0: string,
     p1: $rt.os_File | undefined,
-    p2:
-      | $ipc.stdioConn
-      | $contentmapper.closeOnceReadWriteCloser
-      | $contentmapper.loggedProcess
-      | $contentmapper.stderrLogger
-      | $checkhost.hostWriter
-      | undefined,
+    p2: $checkhost.hostWriter | undefined,
   ): ProfileSession {
     const o = new ProfileSession();
     o.cpuFilePath = p0;
@@ -216,17 +183,7 @@ export class ProfileSession extends $rt.GoObject {
       {
         const err$1: $rt.GoObject | undefined = $rt
           .runtime_pprof_Lookup('allocs')!
-          .WriteTo(
-            $rt.unsupportedConversion<
-              | $ipc.stdioConn
-              | $contentmapper.closeOnceReadWriteCloser
-              | $contentmapper.loggedProcess
-              | $contentmapper.stderrLogger
-              | $checkhost.hostWriter
-              | undefined
-            >('$rt.os_File | undefined'),
-            0,
-          );
+          .WriteTo($rt.unsupportedConversion<$checkhost.hostWriter | undefined>('$rt.os_File | undefined'), 0);
         if (!(err$1 === undefined)) {
           throw $rt.newPanic(err$1);
         }
@@ -243,13 +200,7 @@ export class ProfileSession extends $rt.GoObject {
 }
 export function BeginProfiling(
   profileDir: string,
-  logWriter:
-    | $ipc.stdioConn
-    | $contentmapper.closeOnceReadWriteCloser
-    | $contentmapper.loggedProcess
-    | $contentmapper.stderrLogger
-    | $checkhost.hostWriter
-    | undefined,
+  logWriter: $checkhost.hostWriter | undefined,
 ): ProfileSession | undefined {
   {
     const err: $rt.GoObject | undefined = $rt.os_MkdirAll(profileDir, 493);
@@ -274,14 +225,7 @@ export function BeginProfiling(
   }
   {
     const err$2: $rt.GoObject | undefined = $rt.runtime_pprof_StartCPUProfile(
-      $rt.unsupportedConversion<
-        | $ipc.stdioConn
-        | $contentmapper.closeOnceReadWriteCloser
-        | $contentmapper.loggedProcess
-        | $contentmapper.stderrLogger
-        | $checkhost.hostWriter
-        | undefined
-      >('$rt.os_File | undefined'),
+      $rt.unsupportedConversion<$checkhost.hostWriter | undefined>('$rt.os_File | undefined'),
     );
     if (!(err$2 === undefined)) {
       throw $rt.newPanic(err$2);
@@ -334,17 +278,7 @@ export function SaveHeapProfile(profileDir: string): [string, $rt.GoObject | und
     {
       const err$2: $rt.GoObject | undefined = $rt
         .runtime_pprof_Lookup('heap')!
-        .WriteTo(
-          $rt.unsupportedConversion<
-            | $ipc.stdioConn
-            | $contentmapper.closeOnceReadWriteCloser
-            | $contentmapper.loggedProcess
-            | $contentmapper.stderrLogger
-            | $checkhost.hostWriter
-            | undefined
-          >('$rt.os_File | undefined'),
-          0,
-        );
+        .WriteTo($rt.unsupportedConversion<$checkhost.hostWriter | undefined>('$rt.os_File | undefined'), 0);
       if (!(err$2 === undefined)) {
         $rt.os_Remove(heapProfilePath);
         const $t7: [string, $rt.GoObject | undefined] = [
@@ -412,17 +346,7 @@ export function SaveAllocProfile(profileDir: string): [string, $rt.GoObject | un
     {
       const err$2: $rt.GoObject | undefined = $rt
         .runtime_pprof_Lookup('allocs')!
-        .WriteTo(
-          $rt.unsupportedConversion<
-            | $ipc.stdioConn
-            | $contentmapper.closeOnceReadWriteCloser
-            | $contentmapper.loggedProcess
-            | $contentmapper.stderrLogger
-            | $checkhost.hostWriter
-            | undefined
-          >('$rt.os_File | undefined'),
-          0,
-        );
+        .WriteTo($rt.unsupportedConversion<$checkhost.hostWriter | undefined>('$rt.os_File | undefined'), 0);
       if (!(err$2 === undefined)) {
         $rt.os_Remove(allocProfilePath);
         const $t7: [string, $rt.GoObject | undefined] = [

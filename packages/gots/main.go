@@ -696,6 +696,23 @@ func (t *translator) findMutable() {
 			})
 		}
 	}
+	// A struct held by value changes with its container: pointer methods of
+	// an embedded or field struct (such as Node's) mutate the container's copy.
+	for changed := true; changed; {
+		changed = false
+		for tn, c := range t.classes {
+			if t.mutable[tn] {
+				continue
+			}
+			for i := 0; i < c.st.NumFields(); i++ {
+				if n, ok := types.Unalias(c.st.Field(i).Type()).(*types.Named); ok && t.mutable[n.Origin().Obj()] {
+					t.mutable[tn] = true
+					changed = true
+					break
+				}
+			}
+		}
+	}
 }
 
 func derefNamed(tt types.Type) (*types.Named, bool) {

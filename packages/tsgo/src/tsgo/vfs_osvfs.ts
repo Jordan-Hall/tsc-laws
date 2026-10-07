@@ -3,7 +3,6 @@
 import * as $rt from '../go/runtime.js';
 import * as $core from './core.js';
 import * as $nativepath from './nativepath.js';
-import * as $osutil from './osutil.js';
 import * as $tspath from './tspath.js';
 import * as $vfs from './vfs.js';
 import * as $vfs_internal from './vfs_internal.js';
@@ -335,7 +334,7 @@ const $fn0 = (): boolean => {
   if (true) {
     return true;
   }
-  const $t1 = $osutil.Executable();
+  const $t1 = $rt.os_Executable();
   const exe: string = $t1[0];
   const err: $rt.GoObject | undefined = $t1[1];
   if (!(err === undefined)) {

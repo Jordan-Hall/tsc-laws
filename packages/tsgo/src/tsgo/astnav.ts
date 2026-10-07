@@ -50,15 +50,6 @@ export function getTokenAtPosition(
   let current: $ast.Node | undefined = sourceFile!.AsNode();
   let left: number = 0;
   let nodeAfterLeft: $ast.Node | undefined = undefined as $ast.Node | undefined;
-  const getIncludedPrecedingToken: ((p0: $ast.Node | undefined) => $ast.Node | undefined) | undefined = (
-    subtree: $ast.Node | undefined,
-  ): $ast.Node | undefined => {
-    const child: $ast.Node | undefined = FindPrecedingTokenEx(sourceFile, position, subtree, false);
-    if (!(child === undefined) && child!.End() === position && includePrecedingTokenAtEndPosition!(child)) {
-      return child;
-    }
-    return undefined;
-  };
   const testNode: ((p0: $ast.Node | undefined) => number) | undefined = (node: $ast.Node | undefined): number => {
     if (
       !(node!.Kind_ === (1 as number)) &&
@@ -66,9 +57,6 @@ export function getTokenAtPosition(
       !(includePrecedingTokenAtEndPosition === undefined) &&
       (node!.Flags & 8) === (0 as number)
     ) {
-      if (!(prevSubtree === undefined) && !(getIncludedPrecedingToken!(prevSubtree) === undefined)) {
-        return 0;
-      }
       prevSubtree = node;
     }
     if (
@@ -206,11 +194,9 @@ export function getTokenAtPosition(
   for (;;) {
     VisitEachChildAndJSDoc(current, sourceFile, visitNode, visitNodeList);
     if (!(prevSubtree === undefined)) {
-      {
-        const child$1: $ast.Node | undefined = getIncludedPrecedingToken!(prevSubtree);
-        if (!(child$1 === undefined)) {
-          return child$1;
-        }
+      const child: $ast.Node | undefined = FindPrecedingTokenEx(sourceFile, position, prevSubtree, false);
+      if (!(child === undefined) && child!.End() === position && includePrecedingTokenAtEndPosition!(child)) {
+        return child;
       }
       prevSubtree = undefined;
     }
@@ -596,7 +582,7 @@ export function findRightmostValidToken(
           for (; startPos < Math.min(visitedNode!.Pos(), position);) {
             const token: $ast.Kind = scanNavigationToken(scanner, n);
             const tokenStart: number = scanner!.TokenStart();
-            if (tokenStart >= Math.min(visitedNode!.Pos(), position)) {
+            if (tokenStart >= position) {
               break;
             }
             const tokenFullStart: number = scanner!.TokenFullStart();
@@ -614,7 +600,7 @@ export function findRightmostValidToken(
       for (; startPos < Math.min(endPos$1, position);) {
         const token$1: $ast.Kind = scanNavigationToken(scanner, n);
         const tokenStart$1: number = scanner!.TokenStart();
-        if (tokenStart$1 >= Math.min(endPos$1, position)) {
+        if (tokenStart$1 >= position) {
           break;
         }
         const tokenFullStart$1: number = scanner!.TokenFullStart();

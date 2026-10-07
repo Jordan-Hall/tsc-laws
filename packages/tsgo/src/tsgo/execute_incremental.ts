@@ -15,7 +15,6 @@ import * as $packagejson from './packagejson.js';
 import * as $tracing from './tracing.js';
 import * as $tsoptions from './tsoptions.js';
 import * as $tspath from './tspath.js';
-import type * as $contentmapper from './contentmapper.js';
 import type * as $execute_build from './execute_build.js';
 import type * as $module from './module.js';
 import type * as $vfs from './vfs.js';
@@ -55,7 +54,6 @@ export class BuildInfo extends $rt.GoObject {
   Root: (BuildInfoRoot | undefined)[] = [];
   PackageJsons: string[] = [];
   MissingPackageJsons: string[] = [];
-  ContentMapperIdentities: string[] = [];
   FileNames: string[] = [];
   FileInfos: (BuildInfoFileInfo | undefined)[] = [];
   FileIdsList: BuildInfoFileId[][] = [];
@@ -76,7 +74,6 @@ export class BuildInfo extends $rt.GoObject {
     this.Root = src.Root;
     this.PackageJsons = src.PackageJsons;
     this.MissingPackageJsons = src.MissingPackageJsons;
-    this.ContentMapperIdentities = src.ContentMapperIdentities;
     this.FileNames = src.FileNames;
     this.FileInfos = src.FileInfos;
     this.FileIdsList = src.FileIdsList;
@@ -96,10 +93,9 @@ export class BuildInfo extends $rt.GoObject {
     o.$copy_execute_incremental_BuildInfo(this);
     return o;
   }
-  static $lit_execute_incremental_BuildInfo_0_6(p0: string, p1: string[]): BuildInfo {
+  static $lit_execute_incremental_BuildInfo_0(p0: string): BuildInfo {
     const o = new BuildInfo();
     o.Version = p0;
-    o.ContentMapperIdentities = p1;
     return o;
   }
   static $cast_execute_incremental_BuildInfo(v: $rt.GoObject | undefined): BuildInfo {
@@ -109,10 +105,6 @@ export class BuildInfo extends $rt.GoObject {
   IsValidVersion(): boolean {
     const b = this;
     return b!.Version === $core.Version();
-  }
-  ContentMapperIdentitiesMatch(current: string[]): boolean {
-    const b = this;
-    return $rt.slices_Equal(b!.ContentMapperIdentities, current);
   }
   static IsIncremental$nil(b: BuildInfo | undefined): boolean {
     return !(b === undefined) && !(b!.FileNames.length === (0 as number));
@@ -267,8 +259,6 @@ export class BuildInfoDiagnostic extends $rt.GoObject {
   End: number = 0;
   Code: number = 0;
   Category_: $diagnostics.Category = 0;
-  Source: string = '';
-  MessageText: string = '';
   MessageKey: $diagnostics.Key = '';
   MessageArgs: string[] = [];
   MessageChain: (BuildInfoDiagnostic | undefined)[] = [];
@@ -284,8 +274,6 @@ export class BuildInfoDiagnostic extends $rt.GoObject {
     this.End = src.End;
     this.Code = src.Code;
     this.Category_ = src.Category_;
-    this.Source = src.Source;
-    this.MessageText = src.MessageText;
     this.MessageKey = src.MessageKey;
     this.MessageArgs = src.MessageArgs;
     this.MessageChain = src.MessageChain;
@@ -300,23 +288,21 @@ export class BuildInfoDiagnostic extends $rt.GoObject {
     o.$copy_execute_incremental_BuildInfoDiagnostic(this);
     return o;
   }
-  static $lit_execute_incremental_BuildInfoDiagnostic_0_1_2_3_4_5_6_7_8_9_10_11_12_13_14_15(
+  static $lit_execute_incremental_BuildInfoDiagnostic_0_1_2_3_4_5_6_7_8_9_10_11_12_13(
     p0: BuildInfoFileId,
     p1: boolean,
     p2: number,
     p3: number,
     p4: number,
     p5: $diagnostics.Category,
-    p6: string,
-    p7: string,
-    p8: $diagnostics.Key,
-    p9: string[],
-    p10: (BuildInfoDiagnostic | undefined)[],
-    p11: (BuildInfoDiagnostic | undefined)[],
+    p6: $diagnostics.Key,
+    p7: string[],
+    p8: (BuildInfoDiagnostic | undefined)[],
+    p9: (BuildInfoDiagnostic | undefined)[],
+    p10: boolean,
+    p11: boolean,
     p12: boolean,
-    p13: boolean,
-    p14: boolean,
-    p15: BuildInfoRepopulateInfo | undefined,
+    p13: BuildInfoRepopulateInfo | undefined,
   ): BuildInfoDiagnostic {
     const o = new BuildInfoDiagnostic();
     o.File = p0;
@@ -325,16 +311,14 @@ export class BuildInfoDiagnostic extends $rt.GoObject {
     o.End = p3;
     o.Code = p4;
     o.Category_ = p5;
-    o.Source = p6;
-    o.MessageText = p7;
-    o.MessageKey = p8;
-    o.MessageArgs = p9;
-    o.MessageChain = p10;
-    o.RelatedInformation = p11;
-    o.ReportsUnnecessary = p12;
-    o.ReportsDeprecated = p13;
-    o.SkippedOnNoEmit = p14;
-    o.RepopulateInfo = p15;
+    o.MessageKey = p6;
+    o.MessageArgs = p7;
+    o.MessageChain = p8;
+    o.RelatedInformation = p9;
+    o.ReportsUnnecessary = p10;
+    o.ReportsDeprecated = p11;
+    o.SkippedOnNoEmit = p12;
+    o.RepopulateInfo = p13;
     return o;
   }
   static $cast_execute_incremental_BuildInfoDiagnostic(v: $rt.GoObject | undefined): BuildInfoDiagnostic {
@@ -1443,21 +1427,19 @@ export class Program extends $rt.GoObject {
   program: $compiler.Program | undefined = undefined;
   host: Host = undefined;
   testingData: TestingData | undefined = undefined;
-  nestedEmitMu: $rt.sync_Mutex = new $rt.sync_Mutex();
-  nestedEmitNow: (() => $rt.time_Time) | undefined = undefined;
-  nestedEmitDepth: number = 0;
-  nestedEmitStart: $rt.time_Time = new $rt.time_Time();
-  nestedEmitTime: number = 0;
   $copy_execute_incremental_Program(src: Program): void {
     this.snapshot_ = src.snapshot_;
     this.program = src.program;
     this.host = src.host;
     this.testingData = src.testingData;
-    this.nestedEmitMu = src.nestedEmitMu;
-    this.nestedEmitNow = src.nestedEmitNow;
-    this.nestedEmitDepth = src.nestedEmitDepth;
-    this.nestedEmitStart = src.nestedEmitStart;
-    this.nestedEmitTime = src.nestedEmitTime;
+  }
+  $equals_execute_incremental_Program(o: Program): boolean {
+    return (
+      this.snapshot_ === o.snapshot_ &&
+      this.program === o.program &&
+      $rt.ifaceEq(this.host, o.host) &&
+      this.testingData === o.testingData
+    );
   }
   $clone_execute_incremental_Program(): Program {
     const o = new Program();
@@ -1469,17 +1451,15 @@ export class Program extends $rt.GoObject {
     o.snapshot_ = p0;
     return o;
   }
-  static $lit_execute_incremental_Program_0_1_2_5(
+  static $lit_execute_incremental_Program_0_1_2(
     p0: snapshot | undefined,
     p1: $compiler.Program | undefined,
     p2: Host,
-    p3: (() => $rt.time_Time) | undefined,
   ): Program {
     const o = new Program();
     o.snapshot_ = p0;
     o.program = p1;
     o.host = p2;
-    o.nestedEmitNow = p3;
     return o;
   }
   static $cast_execute_incremental_Program(v: $rt.GoObject | undefined): Program {
@@ -1489,63 +1469,6 @@ export class Program extends $rt.GoObject {
   GetTestingData(): TestingData | undefined {
     const p = this;
     return p!.testingData;
-  }
-  beginNestedEmit(): (() => void) | undefined {
-    const p = this;
-    p!.nestedEmitMu.Lock();
-    const now: (() => $rt.time_Time) | undefined = p!.nestedEmitNow;
-    if (now === undefined) {
-      p!.nestedEmitMu.Unlock();
-      return $fn1;
-    }
-    if (p!.nestedEmitDepth === (0 as number)) {
-      p!.nestedEmitStart = now!();
-    }
-    p!.nestedEmitDepth++;
-    p!.nestedEmitMu.Unlock();
-    return (): void => {
-      const $defers: (() => void)[] = [];
-      let $panic: $rt.Panic | undefined = undefined;
-      $body: try {
-        p!.nestedEmitMu.Lock();
-        const $t1 = p!.nestedEmitMu;
-        $defers.push(() => {
-          $t1.Unlock();
-        });
-        p!.nestedEmitDepth--;
-        if (p!.nestedEmitDepth === (0 as number)) {
-          p!.nestedEmitTime += now!().Sub(p!.nestedEmitStart);
-        }
-      } catch ($e) {
-        $panic = $rt.toPanic($e);
-      } finally {
-        $panic = $rt.runDefers($defers, $panic);
-      }
-      if ($panic !== undefined) throw $panic;
-    };
-  }
-  TakeNestedEmitTime(): number {
-    const p = this;
-    let $t1: number = 0;
-    const $defers: (() => void)[] = [];
-    let $panic: $rt.Panic | undefined = undefined;
-    $body: try {
-      p!.nestedEmitMu.Lock();
-      const $t2 = p!.nestedEmitMu;
-      $defers.push(() => {
-        $t2.Unlock();
-      });
-      const nestedEmitTime: number = p!.nestedEmitTime;
-      p!.nestedEmitTime = 0;
-      $t1 = nestedEmitTime;
-      break $body;
-    } catch ($e) {
-      $panic = $rt.toPanic($e);
-    } finally {
-      $panic = $rt.runDefers($defers, $panic);
-    }
-    if ($panic !== undefined) throw $panic;
-    return $t1;
   }
   panicIfNoProgram(method: string): void {
     const p = this;
@@ -1675,7 +1598,7 @@ export class Program extends $rt.GoObject {
     const result: $compiler.EmitResult | undefined = emitFiles(
       ctx,
       p,
-      $compiler.EmitOptions.$lit_compiler_EmitOptions_0($core.SingleElementSlice<$ast.SourceFile>(file)),
+      $compiler.EmitOptions.$lit_compiler_EmitOptions_0(file),
       true,
     );
     if (!(result === undefined)) {
@@ -1695,22 +1618,16 @@ export class Program extends $rt.GoObject {
     const p = this;
     p!.panicIfNoProgram('Emit');
     let result: $compiler.EmitResult | undefined = undefined as $compiler.EmitResult | undefined;
-    if (!options.ForceEmit && !(options.EmitOnly_ === (3 as number))) {
-      let emitBuildInfo: (() => $compiler.EmitResult | undefined) | undefined = undefined as
-        | (() => $compiler.EmitResult | undefined)
-        | undefined;
-      if ($core.Tristate$IsTrue(p!.Options()!.NoEmit)) {
-        emitBuildInfo = (): $compiler.EmitResult | undefined => {
-          return p!.emitBuildInfo(ctx, options);
-        };
-      }
-      result = $compiler.HandleNoEmitOptions(ctx, p, options.TargetSourceFiles, emitBuildInfo);
+    if ($core.Tristate$IsTrue(p!.snapshot_!.options!.NoEmit)) {
+      result = $compiler.EmitResult.$lit_compiler_EmitResult_0(true);
+    } else {
+      result = $compiler.HandleNoEmitOnError(ctx, p, options.TargetSourceFile);
       if (!(ctx!.Err() === undefined)) {
         return undefined;
       }
     }
     if (!(result === undefined)) {
-      if (!(options.TargetSourceFiles.length === 0) || $core.Tristate$IsTrue(p!.Options()!.NoEmit)) {
+      if (!(options.TargetSourceFile === undefined)) {
         return result;
       }
       const buildInfoResult: $compiler.EmitResult | undefined = p!.emitBuildInfo(ctx, options);
@@ -1836,19 +1753,13 @@ export class Program extends $rt.GoObject {
         $t1 = undefined;
         break $body;
       }
-      const $t2 = snapshotToBuildInfo(p!.snapshot_, p!.program, buildInfoFileName);
-      const buildInfo: BuildInfo | undefined = $t2[0];
-      let err: $rt.GoObject | undefined = $t2[1];
-      if (!(err === undefined)) {
-        $t1 = $compiler.EmitResult.$lit_compiler_EmitResult_0_1(true, [$compiler.ContentMapperProjectDiagnostic(err)]);
-        break $body;
-      }
-      const $t3 = $json.Marshal(
+      const buildInfo: BuildInfo | undefined = snapshotToBuildInfo(p!.snapshot_, p!.program, buildInfoFileName);
+      const $t2 = $json.Marshal(
         buildInfo,
         [] as ($rt.github_com_go_json_experiment_json_internal_jsonopts_Options | undefined)[],
       );
-      const text: number[] = $t3[0];
-      err = $t3[1];
+      const text: number[] = $t2[0];
+      let err: $rt.GoObject | undefined = $t2[1];
       if (!(err === undefined)) {
         throw $rt.newPanic(new $rt.BoxStr($rt.fmt_Sprintf('Failed to marshal build info: %v', [err]), 'string'));
       }
@@ -1899,7 +1810,7 @@ export class Program extends $rt.GoObject {
             hasIncludeProcessingDiagnostics === undefined &&
             p!.program!.GetIncludeProcessorDiagnostics(file).length > 0
           ) {
-            hasIncludeProcessingDiagnostics = $fn2;
+            hasIncludeProcessingDiagnostics = $fn1;
           }
           return false;
         })
@@ -1907,7 +1818,7 @@ export class Program extends $rt.GoObject {
         hasEmitDiagnostics = true;
       }
       if (hasIncludeProcessingDiagnostics === undefined) {
-        hasIncludeProcessingDiagnostics = $fn3;
+        hasIncludeProcessingDiagnostics = $fn2;
       }
     } else {
       hasEmitDiagnostics = p!.snapshot_!.hasEmitDiagnostics;
@@ -2107,40 +2018,24 @@ export class affectedFilesHandler extends $rt.GoObject {
   }
   computeDtsSignature(file: $ast.SourceFile | undefined): string {
     const h = this;
-    let $t1: string = '';
-    const $defers: (() => void)[] = [];
-    let $panic: $rt.Panic | undefined = undefined;
-    $body: try {
-      let signature: string = '';
-      const done: (() => void) | undefined = h!.program!.beginNestedEmit();
-      $defers.push(() => {
-        done!();
-      });
-      h!.program!.program!.Emit(
-        h!.ctx,
-        $compiler.EmitOptions.$lit_compiler_EmitOptions_0_1_3(
-          $core.SingleElementSlice<$ast.SourceFile>(file),
-          3,
-          (fileName: string, text: string, data: $compiler.WriteFileData | undefined): $rt.GoObject | undefined => {
-            if (!$tspath.IsDeclarationFileName(fileName)) {
-              throw $rt.newPanic(
-                new $rt.BoxStr('File extension for signature expected to be dts, got : ' + fileName, 'string'),
-              );
-            }
-            signature = h!.program!.snapshot_!.computeSignatureWithDiagnostics(file, text, data);
-            return undefined;
-          },
-        ),
-      );
-      $t1 = signature;
-      break $body;
-    } catch ($e) {
-      $panic = $rt.toPanic($e);
-    } finally {
-      $panic = $rt.runDefers($defers, $panic);
-    }
-    if ($panic !== undefined) throw $panic;
-    return $t1;
+    let signature: string = '';
+    h!.program!.program!.Emit(
+      h!.ctx,
+      $compiler.EmitOptions.$lit_compiler_EmitOptions_0_1_2(
+        file,
+        3,
+        (fileName: string, text: string, data: $compiler.WriteFileData | undefined): $rt.GoObject | undefined => {
+          if (!$tspath.IsDeclarationFileName(fileName)) {
+            throw $rt.newPanic(
+              new $rt.BoxStr('File extension for signature expected to be dts, got : ' + fileName, 'string'),
+            );
+          }
+          signature = h!.program!.snapshot_!.computeSignatureWithDiagnostics(file, text, data);
+          return undefined;
+        },
+      ),
+    );
+    return signature;
   }
   updateShapeSignature(file: $ast.SourceFile | undefined, useFileVersionAsSignature: boolean): boolean {
     const h = this;
@@ -2202,7 +2097,7 @@ export class affectedFilesHandler extends $rt.GoObject {
       const info: FileInfo | undefined = $t1[0];
       if (info!.affectsGlobalScope) {
         h!.hasAllFilesExcludingDefaultLibraryFile = true;
-        return h!.program!.snapshot_!.getAllFilesExcludingDefaultLibraryFile(h!.program!.program, file);
+        h!.program!.snapshot_!.getAllFilesExcludingDefaultLibraryFile(h!.program!.program, file);
       }
     }
     if ($core.Tristate$IsTrue(h!.program!.snapshot_!.options!.IsolatedModules)) {
@@ -2490,8 +2385,6 @@ export class buildInfoDiagnosticWithFileName extends $rt.GoObject {
   end: number = 0;
   code: number = 0;
   category: $diagnostics.Category = 0;
-  source: string = '';
-  messageText: string = '';
   messageKey: $diagnostics.Key = '';
   messageArgs: string[] = [];
   messageChain: (buildInfoDiagnosticWithFileName | undefined)[] = [];
@@ -2507,8 +2400,6 @@ export class buildInfoDiagnosticWithFileName extends $rt.GoObject {
     this.end = src.end;
     this.code = src.code;
     this.category = src.category;
-    this.source = src.source;
-    this.messageText = src.messageText;
     this.messageKey = src.messageKey;
     this.messageArgs = src.messageArgs;
     this.messageChain = src.messageChain;
@@ -2523,23 +2414,21 @@ export class buildInfoDiagnosticWithFileName extends $rt.GoObject {
     o.$copy_execute_incremental_buildInfoDiagnosticWithFileName(this);
     return o;
   }
-  static $lit_execute_incremental_buildInfoDiagnosticWithFileName_0_1_2_3_4_5_6_7_8_9_10_11_12_13_14_15(
+  static $lit_execute_incremental_buildInfoDiagnosticWithFileName_0_1_2_3_4_5_6_7_8_9_10_11_12_13(
     p0: $tspath.Path,
     p1: boolean,
     p2: number,
     p3: number,
     p4: number,
     p5: $diagnostics.Category,
-    p6: string,
-    p7: string,
-    p8: $diagnostics.Key,
-    p9: string[],
-    p10: (buildInfoDiagnosticWithFileName | undefined)[],
-    p11: (buildInfoDiagnosticWithFileName | undefined)[],
+    p6: $diagnostics.Key,
+    p7: string[],
+    p8: (buildInfoDiagnosticWithFileName | undefined)[],
+    p9: (buildInfoDiagnosticWithFileName | undefined)[],
+    p10: boolean,
+    p11: boolean,
     p12: boolean,
-    p13: boolean,
-    p14: boolean,
-    p15: $ast.RepopulateDiagnosticInfo | undefined,
+    p13: $ast.RepopulateDiagnosticInfo | undefined,
   ): buildInfoDiagnosticWithFileName {
     const o = new buildInfoDiagnosticWithFileName();
     o.file = p0;
@@ -2548,39 +2437,33 @@ export class buildInfoDiagnosticWithFileName extends $rt.GoObject {
     o.end = p3;
     o.code = p4;
     o.category = p5;
-    o.source = p6;
-    o.messageText = p7;
-    o.messageKey = p8;
-    o.messageArgs = p9;
-    o.messageChain = p10;
-    o.relatedInformation = p11;
-    o.reportsUnnecessary = p12;
-    o.reportsDeprecated = p13;
-    o.skippedOnNoEmit = p14;
-    o.repopulateInfo = p15;
+    o.messageKey = p6;
+    o.messageArgs = p7;
+    o.messageChain = p8;
+    o.relatedInformation = p9;
+    o.reportsUnnecessary = p10;
+    o.reportsDeprecated = p11;
+    o.skippedOnNoEmit = p12;
+    o.repopulateInfo = p13;
     return o;
   }
-  static $lit_execute_incremental_buildInfoDiagnosticWithFileName_2_3_4_5_6_7_8_9_15(
+  static $lit_execute_incremental_buildInfoDiagnosticWithFileName_2_3_4_5_6_7_13(
     p0: number,
     p1: number,
     p2: number,
     p3: $diagnostics.Category,
-    p4: string,
-    p5: string,
-    p6: $diagnostics.Key,
-    p7: string[],
-    p8: $ast.RepopulateDiagnosticInfo | undefined,
+    p4: $diagnostics.Key,
+    p5: string[],
+    p6: $ast.RepopulateDiagnosticInfo | undefined,
   ): buildInfoDiagnosticWithFileName {
     const o = new buildInfoDiagnosticWithFileName();
     o.pos = p0;
     o.end = p1;
     o.code = p2;
     o.category = p3;
-    o.source = p4;
-    o.messageText = p5;
-    o.messageKey = p6;
-    o.messageArgs = p7;
-    o.repopulateInfo = p8;
+    o.messageKey = p4;
+    o.messageArgs = p5;
+    o.repopulateInfo = p6;
     return o;
   }
   static $cast_execute_incremental_buildInfoDiagnosticWithFileName(
@@ -2616,7 +2499,7 @@ export class buildInfoDiagnosticWithFileName extends $rt.GoObject {
         relatedInformation.push(info!.toDiagnostic(p, fileForDiagnostic));
       }
     }
-    const diagnostic: $ast.Diagnostic | undefined = $ast.NewDiagnosticFromSerialized(
+    return $ast.NewDiagnosticFromSerialized(
       fileForDiagnostic,
       $core.NewTextRange(b!.pos, b!.end),
       b!.code,
@@ -2629,10 +2512,6 @@ export class buildInfoDiagnosticWithFileName extends $rt.GoObject {
       b!.reportsDeprecated,
       b!.skippedOnNoEmit,
     );
-    if (!(b!.source === ('' as string)) || !(b!.messageText === ('' as string))) {
-      diagnostic!.SetExternalData(b!.source, b!.messageText);
-    }
-    return diagnostic;
   }
   toDiagnosticWithoutRepopulate(
     p: $compiler.Program | undefined,
@@ -2873,17 +2752,12 @@ export class emitFilesHandler extends $rt.GoObject {
     if (h!.program!.snapshot_!.canUseIncrementalState()) {
       const results: ($compiler.EmitResult | undefined)[] = h!.emitFilesIncremental(options);
       if (h!.isForDtsErrors) {
-        if (!(options.TargetSourceFiles.length === 0)) {
+        if (!(options.TargetSourceFile === undefined)) {
+          const $t1 = h!.program!.snapshot_!.emitDiagnosticsPerFile.Load(options.TargetSourceFile!.Path$m());
+          const diagnostics: DiagnosticsOrBuildInfoDiagnosticsWithFileName | undefined = $t1[0];
           const result: $compiler.EmitResult | undefined = $compiler.EmitResult.$lit_compiler_EmitResult_0_1(
             true,
-            $core.FlatMap<$ast.SourceFile | undefined, $ast.Diagnostic | undefined>(
-              options.TargetSourceFiles,
-              (targetFile: $ast.SourceFile | undefined): ($ast.Diagnostic | undefined)[] => {
-                const $t1 = h!.program!.snapshot_!.emitDiagnosticsPerFile.Load(targetFile!.Path$m());
-                const diagnostics: DiagnosticsOrBuildInfoDiagnosticsWithFileName | undefined = $t1[0];
-                return diagnostics!.getDiagnostics(h!.program!.program, targetFile);
-              },
-            ),
+            diagnostics!.getDiagnostics(h!.program!.program, options.TargetSourceFile),
           );
           h!.updateHasEmitDiagnostics(result);
           return result;
@@ -2909,20 +2783,9 @@ export class emitFilesHandler extends $rt.GoObject {
       h!.emitBuildInfo(options, result$3);
       return result$3;
     } else {
-      let diagnostics$1: ($ast.Diagnostic | undefined)[] = [];
-      if (options.TargetSourceFiles.length === 0) {
-        diagnostics$1 = h!.program!.program!.GetDeclarationDiagnostics(h!.ctx, undefined);
-      } else {
-        diagnostics$1 = $core.FlatMap<$ast.SourceFile | undefined, $ast.Diagnostic | undefined>(
-          options.TargetSourceFiles,
-          (targetSourceFile: $ast.SourceFile | undefined): ($ast.Diagnostic | undefined)[] => {
-            return h!.program!.program!.GetDeclarationDiagnostics(h!.ctx, targetSourceFile);
-          },
-        );
-      }
       const result$4: $compiler.EmitResult | undefined = $compiler.EmitResult.$lit_compiler_EmitResult_0_1(
         true,
-        diagnostics$1,
+        h!.program!.program!.GetDeclarationDiagnostics(h!.ctx, options.TargetSourceFile),
       );
       if (!(result$4!.Diagnostics.length === (0 as number))) {
         h!.updateHasEmitDiagnostics(result$4);
@@ -2977,11 +2840,7 @@ export class emitFilesHandler extends $rt.GoObject {
             result = h!.program!.program!.Emit(
               h!.ctx,
               h!.getEmitOptions(
-                $compiler.EmitOptions.$lit_compiler_EmitOptions_0_1_3(
-                  $core.SingleElementSlice<$ast.SourceFile>(affectedFile),
-                  emitOnly,
-                  options.WriteFile_,
-                ),
+                $compiler.EmitOptions.$lit_compiler_EmitOptions_0_1_2(affectedFile, emitOnly, options.WriteFile_),
               ),
             );
           } else {
@@ -3040,20 +2899,19 @@ export class emitFilesHandler extends $rt.GoObject {
       return options;
     }
     const canUseIncrementalState: boolean = h!.program!.snapshot_!.canUseIncrementalState();
-    return $compiler.EmitOptions.$lit_compiler_EmitOptions_0_1_2_3(
-      options.TargetSourceFiles,
+    return $compiler.EmitOptions.$lit_compiler_EmitOptions_0_1_2(
+      options.TargetSourceFile,
       options.EmitOnly_,
-      options.ForceEmit,
       (fileName: string, text: string, data: $compiler.WriteFileData | undefined): $rt.GoObject | undefined => {
         let differsOnlyInMap: boolean = false;
         if ($tspath.IsDeclarationFileName(fileName)) {
           if (canUseIncrementalState) {
             let emitSignature$v: string = '';
-            const $t1 = h!.program!.snapshot_!.fileInfos.Load(data!.SourceFile_!.Path$m());
+            const $t1 = h!.program!.snapshot_!.fileInfos.Load(options.TargetSourceFile!.Path$m());
             const info: FileInfo | undefined = $t1[0];
             if (info!.signature === info!.version) {
               const signature: string = h!.program!.snapshot_!.computeSignatureWithDiagnostics(
-                data!.SourceFile_,
+                options.TargetSourceFile,
                 text,
                 data,
               );
@@ -3061,12 +2919,12 @@ export class emitFilesHandler extends $rt.GoObject {
                 emitSignature$v = signature;
               }
               if (!(signature === info!.version)) {
-                h!.signatures.Store(data!.SourceFile_!.Path$m(), signature);
+                h!.signatures.Store(options.TargetSourceFile!.Path$m(), signature);
               }
             }
             if (
               h!.skipDtsOutputOfComposite(
-                data!.SourceFile_,
+                options.TargetSourceFile,
                 fileName,
                 text,
                 data,
@@ -3396,7 +3254,7 @@ export class referenceMap extends $rt.GoObject {
     if (ok$1) {
       return $rt.maps_Keys($collections$Set_.Keys$nil<$tspath.Path>(refs));
     }
-    return $fn6;
+    return $fn5;
   }
 }
 export class snapshot extends $rt.GoObject {
@@ -3643,7 +3501,7 @@ export class toBuildInfo extends $rt.GoObject {
       )(t),
     );
     $rt.slices_Sort(fileIds);
-    const key: string = $rt.strings_Join($core.Map_<BuildInfoFileId, string>($zf2, fileIds, $fn7), ',');
+    const key: string = $rt.strings_Join($core.Map_<BuildInfoFileId, string>($zf2, fileIds, $fn6), ',');
     let fileIdListId: BuildInfoFileIdListId = t!.fileNamesToFileIdListId?.get(key) ?? 0;
     if (fileIdListId === (0 as number)) {
       t!.buildInfo!.FileIdsList.push(fileIds);
@@ -3704,15 +3562,13 @@ export class toBuildInfo extends $rt.GoObject {
         if (!(d!.file === ('' as string))) {
           file = t!.toFileId(d!.file);
         }
-        return BuildInfoDiagnostic.$lit_execute_incremental_BuildInfoDiagnostic_0_1_2_3_4_5_6_7_8_9_10_11_12_13_14_15(
+        return BuildInfoDiagnostic.$lit_execute_incremental_BuildInfoDiagnostic_0_1_2_3_4_5_6_7_8_9_10_11_12_13(
           file,
           d!.noFile,
           d!.pos,
           d!.end,
           d!.code,
           d!.category,
-          d!.source,
-          d!.messageText,
           d!.messageKey,
           d!.messageArgs,
           t!.toBuildInfoDiagnosticsFromFileNameDiagnostics(d!.messageChain),
@@ -3741,15 +3597,13 @@ export class toBuildInfo extends $rt.GoObject {
         } else if (!(d!.File()!.Path$m() === filePath)) {
           file = t!.toFileId(d!.File()!.Path$m());
         }
-        return BuildInfoDiagnostic.$lit_execute_incremental_BuildInfoDiagnostic_0_1_2_3_4_5_6_7_8_9_10_11_12_13_14_15(
+        return BuildInfoDiagnostic.$lit_execute_incremental_BuildInfoDiagnostic_0_1_2_3_4_5_6_7_8_9_10_11_12_13(
           file,
           noFile,
           $core.TextRange$Pos(d!.Loc()),
           $core.TextRange$End(d!.Loc()),
           d!.Code(),
           d!.Category$m(),
-          d!.Source(),
-          d!.MessageText(),
           d!.MessageKey(),
           d!.MessageArgs(),
           t!.toBuildInfoDiagnosticsFromDiagnostics(filePath, d!.MessageChain()),
@@ -3905,7 +3759,7 @@ export class toBuildInfo extends $rt.GoObject {
     const t = this;
     $tsoptions.ForEachCompilerOptionValue(
       t!.snapshot_!.options,
-      $fn8,
+      $fn7,
       (option$1: $tsoptions.CommandLineOption | undefined, value: $rt.reflect_Value, i: number): boolean => {
         if (value.IsZero()) {
           return false;
@@ -4153,11 +4007,7 @@ export class toProgramSnapshot extends $rt.GoObject {
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
         const file = $t1[$t2];
         $rt.nn(wg).Queue((): void => {
-          let versionText: string = file!.Text();
-          if (!(file!.ContentMapper() === ('' as string))) {
-            versionText = file!.OriginalText() + '\x00' + file!.ContentMapperTransformIdentity();
-          }
-          const version: string = t!.snapshot_!.computeHash(versionText);
+          const version: string = t!.snapshot_!.computeHash(file!.Text());
           const impliedNodeFormat: $core.ResolutionMode = t!.program!.GetSourceFileMetaData(
             file!.Path$m(),
           ).ImpliedNodeFormat;
@@ -4296,37 +4146,6 @@ export class toProgramSnapshot extends $rt.GoObject {
       });
     }
   }
-  handleGlobalScopeChange(): void {
-    const t = this;
-    if (t!.oldProgram === undefined || t!.globalFileRemoved) {
-      return;
-    }
-    let globalScopeLost: boolean = false;
-    t!.oldProgram!.snapshot_!.fileInfos.Range((filePath: $tspath.Path, oldInfo: FileInfo | undefined): boolean => {
-      if (!oldInfo!.affectsGlobalScope) {
-        return true;
-      }
-      {
-        const $t1 = t!.snapshot_!.fileInfos.Load(filePath);
-        const newInfo: FileInfo | undefined = $t1[0];
-        const ok: boolean = $t1[1];
-        if (ok && !newInfo!.affectsGlobalScope) {
-          globalScopeLost = true;
-          return false;
-        }
-      }
-      return true;
-    });
-    if (globalScopeLost) {
-      {
-        const $t2 = t!.snapshot_!.getAllFilesExcludingDefaultLibraryFile(t!.program, undefined);
-        for (let $t3 = 0, $n = $t2.length; $t3 < $n; $t3++) {
-          const file = $t2[$t3];
-          t!.snapshot_!.addFileToChangeSet(file!.Path$m());
-        }
-      }
-    }
-  }
   handlePendingEmit(): void {
     const t = this;
     if (!(t!.oldProgram === undefined) && !t!.globalFileRemoved) {
@@ -4420,15 +4239,13 @@ export class toSnapshot extends $rt.GoObject {
         if (!(d!.File === (0 as number))) {
           file = t!.toFilePath(d!.File);
         }
-        return buildInfoDiagnosticWithFileName.$lit_execute_incremental_buildInfoDiagnosticWithFileName_0_1_2_3_4_5_6_7_8_9_10_11_12_13_14_15(
+        return buildInfoDiagnosticWithFileName.$lit_execute_incremental_buildInfoDiagnosticWithFileName_0_1_2_3_4_5_6_7_8_9_10_11_12_13(
           file,
           d!.NoFile,
           d!.Pos,
           d!.End,
           d!.Code,
           d!.Category_,
-          d!.Source,
-          d!.MessageText,
           d!.MessageKey,
           d!.MessageArgs,
           t!.toBuildInfoDiagnosticsWithFileName(d!.MessageChain),
@@ -4618,7 +4435,6 @@ export class updatedSignature extends $rt.GoObject {
     throw $rt.typeAssertError();
   }
 }
-export const BuildInfoDiagnostic$zero: BuildInfoDiagnostic = new BuildInfoDiagnostic();
 export const BuildInfoRepopulateInfo$zero: BuildInfoRepopulateInfo = new BuildInfoRepopulateInfo();
 export const emitUpdate$zero: emitUpdate = new emitUpdate();
 export const FileEmitKindAll: FileEmitKind = 63;
@@ -4639,24 +4455,23 @@ export const SignatureUpdateKindUsedVersion: SignatureUpdateKind = 2;
 const $fn0 = (file$1: $ast.SourceFile | undefined): boolean => {
   return !(file$1 === undefined);
 };
-const $fn1 = (): void => {};
-const $fn2 = (): boolean => {
+const $fn1 = (): boolean => {
   return true;
 };
-const $fn3 = (): boolean => {
+const $fn2 = (): boolean => {
   return false;
 };
-const $fn4 = (augmentation: $ast.Node | undefined): boolean => {
+const $fn3 = (augmentation: $ast.Node | undefined): boolean => {
   return $ast.IsGlobalScopeAugmentation(augmentation!.Parent);
 };
-const $fn5 = (stmt: $ast.Node | undefined): boolean => {
+const $fn4 = (stmt: $ast.Node | undefined): boolean => {
   return !$ast.IsModuleWithStringLiteralName(stmt);
 };
-const $fn6 = (yield_: ((p0: $tspath.Path) => boolean) | undefined): void => {};
-const $fn7 = (id: BuildInfoFileId): string => {
+const $fn5 = (yield_: ((p0: $tspath.Path) => boolean) | undefined): void => {};
+const $fn6 = (id: BuildInfoFileId): string => {
   return $rt.fmt_Sprintf('%d', [new $rt.BoxNum(id, 'execute/incremental.BuildInfoFileId')]);
 };
-const $fn8 = (option: $tsoptions.CommandLineOption | undefined): boolean => {
+const $fn7 = (option: $tsoptions.CommandLineOption | undefined): boolean => {
   return option!.AffectsBuildInfo;
 };
 export function dtsMayChange$addFileToAffectedFilesPendingEmit(
@@ -4729,12 +4544,6 @@ export function newBuildInfoFileInfo(fileInfo: FileInfo | undefined): BuildInfoF
       fileInfo!.impliedNodeFormat,
     ),
   );
-}
-export function ContentMapperIdentities(project: $contentmapper.Project): [string[], $rt.GoObject | undefined] {
-  if (project === undefined) {
-    return [[], undefined];
-  }
-  return $rt.nn(project).Identities();
 }
 export function IsBuildInfoFileNameDefaultLibrary(fileName: string): boolean {
   return !$tspath.PathIsRelative(fileName) && !$tspath.PathIsAbsolute(fileName);
@@ -4835,7 +4644,7 @@ export function emitFiles(
     program,
     isForDtsErrors,
   );
-  if (!isForDtsErrors && !(options.TargetSourceFiles.length === 0)) {
+  if (!isForDtsErrors && !(options.TargetSourceFile === undefined)) {
     const result: $compiler.EmitResult | undefined = program!.program!.Emit(ctx, emitHandler!.getEmitOptions(options));
     emitHandler!.updateHasEmitDiagnostics(result);
     if (!(ctx!.Err() === undefined)) {
@@ -4869,12 +4678,6 @@ export function ReadBuildInfoProgram(
   if (buildInfo === undefined || !buildInfo!.IsValidVersion() || !BuildInfo.IsIncremental$nil(buildInfo)) {
     return undefined;
   }
-  const $t1 = ContentMapperIdentities($rt.nn(host$v).ContentMapperProject());
-  const contentMapperIdentities: string[] = $t1[0];
-  const err: $rt.GoObject | undefined = $t1[1];
-  if (!(err === undefined) || !buildInfo!.ContentMapperIdentitiesMatch(contentMapperIdentities)) {
-    return undefined;
-  }
   const incrementalProgram: Program | undefined = Program.$lit_execute_incremental_Program_0(
     buildInfoToSnapshot(buildInfo, config, host$v),
   );
@@ -4884,14 +4687,12 @@ export function NewProgram(
   program: $compiler.Program | undefined,
   oldProgram: Program | undefined,
   host$v: Host,
-  nestedEmitNow: (() => $rt.time_Time) | undefined,
   testing: boolean,
 ): Program | undefined {
-  const incrementalProgram: Program | undefined = Program.$lit_execute_incremental_Program_0_1_2_5(
+  const incrementalProgram: Program | undefined = Program.$lit_execute_incremental_Program_0_1_2(
     programToSnapshot(program, oldProgram, testing),
     program,
     host$v,
-    nestedEmitNow,
   );
   if (testing) {
     incrementalProgram!.testingData = new TestingData();
@@ -4939,7 +4740,6 @@ export function programToSnapshot(
     to!.reuseFromOldProgram();
     to!.computeProgramFileChanges();
     to!.handleFileDelete();
-    to!.handleGlobalScopeChange();
     to!.handlePendingEmit();
     to!.handlePendingCheck();
   }
@@ -4947,7 +4747,7 @@ export function programToSnapshot(
 }
 export function fileAffectsGlobalScope(file: $ast.SourceFile | undefined): boolean {
   $binder.BindSourceFile(file);
-  if ($core.Some<$ast.Node | undefined>(file!.ModuleAugmentations, $fn4)) {
+  if ($core.Some<$ast.Node | undefined>(file!.ModuleAugmentations, $fn3)) {
     return true;
   }
   if ($ast.IsExternalOrCommonJSModule(file) || $ast.IsJsonSourceFile(file)) {
@@ -4956,7 +4756,7 @@ export function fileAffectsGlobalScope(file: $ast.SourceFile | undefined): boole
   return (
     !(file!.Statements_ === undefined) &&
     !(file!.Statements_!.Nodes.length === 0) &&
-    $core.Some<$ast.Node | undefined>(file!.Statements_!.Nodes, $fn5)
+    $core.Some<$ast.Node | undefined>(file!.Statements_!.Nodes, $fn4)
   );
 }
 export function addReferencedFilesFromSymbol(
@@ -5145,13 +4945,11 @@ export function repopulateDiagnosticMessageChain(
       const c = $t1[$t2];
       if (!(c!.RepopulateInfo() === undefined)) {
         const b: buildInfoDiagnosticWithFileName | undefined =
-          buildInfoDiagnosticWithFileName.$lit_execute_incremental_buildInfoDiagnosticWithFileName_2_3_4_5_6_7_8_9_15(
+          buildInfoDiagnosticWithFileName.$lit_execute_incremental_buildInfoDiagnosticWithFileName_2_3_4_5_6_7_13(
             c!.Pos(),
             c!.End(),
             c!.Code(),
             c!.Category$m(),
-            c!.Source(),
-            c!.MessageText(),
             c!.MessageKey(),
             c!.MessageArgs(),
             c!.RepopulateInfo(),
@@ -5185,13 +4983,11 @@ export function repopulateDiagnosticMessageChain(
 }
 export function astDiagToBuildInfoDiag(d: $ast.Diagnostic | undefined): buildInfoDiagnosticWithFileName | undefined {
   const b: buildInfoDiagnosticWithFileName | undefined =
-    buildInfoDiagnosticWithFileName.$lit_execute_incremental_buildInfoDiagnosticWithFileName_2_3_4_5_6_7_8_9_15(
+    buildInfoDiagnosticWithFileName.$lit_execute_incremental_buildInfoDiagnosticWithFileName_2_3_4_5_6_7_13(
       d!.Pos(),
       d!.End(),
       d!.Code(),
       d!.Category$m(),
-      d!.Source(),
-      d!.MessageText(),
       d!.MessageKey(),
       d!.MessageArgs(),
       d!.RepopulateInfo(),
@@ -5418,17 +5214,8 @@ export function snapshotToBuildInfo(
   snapshot$v: snapshot | undefined,
   program: $compiler.Program | undefined,
   buildInfoFileName: string,
-): [BuildInfo | undefined, $rt.GoObject | undefined] {
-  const $t1 = ContentMapperIdentities(program!.ContentMapperProject());
-  const contentMapperIdentities: string[] = $t1[0];
-  const err: $rt.GoObject | undefined = $t1[1];
-  if (!(err === undefined)) {
-    return [undefined, err];
-  }
-  const buildInfo: BuildInfo | undefined = BuildInfo.$lit_execute_incremental_BuildInfo_0_6(
-    $core.Version(),
-    contentMapperIdentities,
-  );
+): BuildInfo | undefined {
+  const buildInfo: BuildInfo | undefined = BuildInfo.$lit_execute_incremental_BuildInfo_0($core.Version());
   const to: toBuildInfo | undefined = toBuildInfo.$lit_execute_incremental_toBuildInfo_0_1_2_3_4_5_6_7(
     snapshot$v,
     program,
@@ -5462,7 +5249,7 @@ export function snapshotToBuildInfo(
   buildInfo!.SemanticErrors = snapshot$v!.hasSemanticErrors;
   buildInfo!.CheckPending = snapshot$v!.checkPending;
   to!.setPackageJsons();
-  return [buildInfo, undefined];
+  return buildInfo;
 }
 export function toBuildInfoRepopulateInfo(
   info: $ast.RepopulateDiagnosticInfo | undefined,

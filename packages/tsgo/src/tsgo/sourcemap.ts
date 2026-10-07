@@ -9,9 +9,6 @@ import * as $stringutil from './stringutil.js';
 import * as $tspath from './tspath.js';
 import type * as $ast from './ast.js';
 import type * as $checkhost from './checkhost.js';
-import type * as $contentmapper from './contentmapper.js';
-import type * as $diagnosticwriter from './diagnosticwriter.js';
-import type * as $ipc from './ipc.js';
 const $zf0 = (): string => '';
 const $zf1 = (): Mapping => new Mapping();
 export class Host extends $rt.GoObject {
@@ -30,7 +27,7 @@ export class Host extends $rt.GoObject {
   }
 }
 export type NameIndex = number;
-export type Source = $ast.SourceFile | $diagnosticwriter.originalTextFile | undefined;
+export type Source = $ast.SourceFile | undefined;
 export type SourceIndex = number;
 export type SourceMappedPosition = MappedPosition;
 export class DocumentPosition extends $rt.GoObject {
@@ -583,22 +580,10 @@ export class Generator extends $rt.GoObject {
     let sb: $rt.strings_Builder = new $rt.strings_Builder();
     sb.Grow(29 + $rt.encoding_base64_StdEncoding!.EncodedLen(data.length));
     sb.WriteString('data:application/json;base64,');
-    const encoder: $ipc.stdioConn | $contentmapper.closeOnceReadWriteCloser | $contentmapper.loggedProcess | undefined =
-      $rt.encoding_base64_NewEncoder(
-        $rt.encoding_base64_StdEncoding,
-        $rt.unsupportedConversion<
-          | $ipc.stdioConn
-          | $contentmapper.closeOnceReadWriteCloser
-          | $contentmapper.loggedProcess
-          | $contentmapper.stderrLogger
-          | $checkhost.hostWriter
-          | undefined
-        >('$rt.strings_Builder | undefined'),
-      ) as unknown as
-        | $ipc.stdioConn
-        | $contentmapper.closeOnceReadWriteCloser
-        | $contentmapper.loggedProcess
-        | undefined;
+    const encoder: $rt.io_WriteCloser | undefined = $rt.encoding_base64_NewEncoder(
+      $rt.encoding_base64_StdEncoding,
+      $rt.unsupportedConversion<$checkhost.hostWriter | undefined>('$rt.strings_Builder | undefined'),
+    );
     const $t1 = encoder!.Write(data);
     encoder!.Close();
     return sb.String();

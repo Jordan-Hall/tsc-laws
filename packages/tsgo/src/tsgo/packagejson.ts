@@ -9,42 +9,14 @@ import * as $json from './json.js';
 import * as $semver from './semver.js';
 import * as $tspath from './tspath.js';
 import { OrderedMap as $collections$OrderedMap } from './collections.js';
-export class $Anon2 extends $rt.GoObject {
-  HeaderFields: HeaderFields;
-  PathFields: PathFields;
-  DependencyFields: DependencyFields;
-  TypeScript: Expected<typeScriptFields>;
-  constructor(
-    p0: HeaderFields = new HeaderFields(),
-    p1: PathFields = new PathFields(),
-    p2: DependencyFields = new DependencyFields(),
-    p3: Expected<typeScriptFields> = new Expected<typeScriptFields>($zf9),
-  ) {
-    super();
-    this.HeaderFields = p0;
-    this.PathFields = p1;
-    this.DependencyFields = p2;
-    this.TypeScript = p3;
-  }
-  $clone(): $Anon2 {
-    return new $Anon2(
-      this.HeaderFields.$clone_packagejson_HeaderFields(),
-      this.PathFields.$clone_packagejson_PathFields(),
-      this.DependencyFields.$clone_packagejson_DependencyFields(),
-      this.TypeScript.$clone_packagejson_Expected(),
-    );
-  }
-}
 const $zf0 = (): string => '';
 const $zf1 = (): JSONValue => new JSONValue();
 const $zf2 = (): string[] => [];
 const $zf3 = (): ExportsOrImports => new ExportsOrImports();
 const $zf4 = (): boolean => false;
 const $zf5 = (): Map<string, string> | undefined => undefined;
-const $zf6 = (): ContentMapperFields => new ContentMapperFields();
-const $zf7 = (): $tspath.Path => '';
-const $zf8 = (): InfoCacheEntry | undefined => undefined;
-const $zf9 = (): typeScriptFields => typeScriptFields$zero;
+const $zf6 = (): $tspath.Path => '';
+const $zf7 = (): InfoCacheEntry | undefined => undefined;
 export type JSONValueType = number;
 export class JSONValueType$Box extends $rt.GoObject {
   v: JSONValueType;
@@ -88,25 +60,6 @@ export class TypeValidatedField extends $rt.GoObject {
   }
 }
 export type objectKind = number;
-export class ContentMapperFields extends $rt.GoObject {
-  Exec: Expected<string[]> = new Expected<string[]>($zf2);
-  CompilerOptions: Expected<string[]> = new Expected<string[]>($zf2);
-  DynamicConfig: Expected<boolean> = new Expected<boolean>($zf4);
-  $copy_packagejson_ContentMapperFields(src: ContentMapperFields): void {
-    this.Exec = src.Exec.$clone_packagejson_Expected();
-    this.CompilerOptions = src.CompilerOptions.$clone_packagejson_Expected();
-    this.DynamicConfig = src.DynamicConfig.$clone_packagejson_Expected();
-  }
-  $clone_packagejson_ContentMapperFields(): ContentMapperFields {
-    const o = new ContentMapperFields();
-    o.$copy_packagejson_ContentMapperFields(this);
-    return o;
-  }
-  static $cast_packagejson_ContentMapperFields(v: $rt.GoObject | undefined): ContentMapperFields {
-    if (v instanceof ContentMapperFields) return v;
-    throw $rt.typeAssertError();
-  }
-}
 export class DependencyFields extends $rt.GoObject {
   Dependencies: Expected<Map<string, string> | undefined> = new Expected<Map<string, string> | undefined>($zf5);
   DevDependencies: Expected<Map<string, string> | undefined> = new Expected<Map<string, string> | undefined>($zf5);
@@ -642,29 +595,14 @@ export class HeaderFields extends $rt.GoObject {
 export class Fields extends HeaderFields {
   PathFields_: PathFields = new PathFields();
   DependencyFields_: DependencyFields = new DependencyFields();
-  ContentMapper: Expected<ContentMapperFields> = new Expected<ContentMapperFields>($zf6);
   $copy_packagejson_Fields(src: Fields): void {
     this.$copy_packagejson_HeaderFields(src);
     this.PathFields_ = src.PathFields_.$clone_packagejson_PathFields();
     this.DependencyFields_ = src.DependencyFields_.$clone_packagejson_DependencyFields();
-    this.ContentMapper = src.ContentMapper.$clone_packagejson_Expected();
   }
   $clone_packagejson_Fields(): Fields {
     const o = new Fields();
     o.$copy_packagejson_Fields(this);
-    return o;
-  }
-  static $lit_packagejson_Fields_0_1_2_3(
-    p0: HeaderFields,
-    p1: PathFields,
-    p2: DependencyFields,
-    p3: Expected<ContentMapperFields>,
-  ): Fields {
-    const o = new Fields();
-    o.$copy_packagejson_HeaderFields(p0);
-    o.PathFields_ = p1;
-    o.DependencyFields_ = p2;
-    o.ContentMapper = p3;
     return o;
   }
   static $cast_packagejson_Fields(v: $rt.GoObject | undefined): Fields {
@@ -676,7 +614,7 @@ export class InfoCache extends $rt.GoObject {
   cache: $rt.collections_SyncMap<$tspath.Path, InfoCacheEntry | undefined> = new $rt.collections_SyncMap<
     $tspath.Path,
     InfoCacheEntry | undefined
-  >($zf7, $zf8);
+  >($zf6, $zf7);
   currentDirectory: string = '';
   useCaseSensitiveFileNames: boolean = false;
   $copy_packagejson_InfoCache(src: InfoCache): void {
@@ -1385,23 +1323,7 @@ export class jsonObject extends $rt.GoObject {
     o!.values!.set(key, v);
   }
 }
-export class typeScriptFields extends $rt.GoObject {
-  ContentMapper: Expected<ContentMapperFields> = new Expected<ContentMapperFields>($zf6);
-  $copy_packagejson_typeScriptFields(src: typeScriptFields): void {
-    this.ContentMapper = src.ContentMapper.$clone_packagejson_Expected();
-  }
-  $clone_packagejson_typeScriptFields(): typeScriptFields {
-    const o = new typeScriptFields();
-    o.$copy_packagejson_typeScriptFields(this);
-    return o;
-  }
-  static $cast_packagejson_typeScriptFields(v: $rt.GoObject | undefined): typeScriptFields {
-    if (v instanceof typeScriptFields) return v;
-    throw $rt.typeAssertError();
-  }
-}
 export const diagnosticAndArgs$zero: diagnosticAndArgs = new diagnosticAndArgs();
-export const typeScriptFields$zero: typeScriptFields = new typeScriptFields();
 export class Box__collections_OrderedMap_string__packagejson_ExportsOrImports_ extends $rt.GoObject {
   v: $collections.OrderedMap<string, ExportsOrImports> | undefined;
   constructor(v: $collections.OrderedMap<string, ExportsOrImports> | undefined) {
@@ -1693,24 +1615,14 @@ export function unmarshalJSONValueV2<T extends $rt.GoObject>(
   return undefined;
 }
 export function parseWithJSONLibrary(data: number[]): [Fields, $rt.GoObject | undefined] {
-  let parsed: $Anon2 = new $Anon2();
+  let f: Fields = new Fields();
   {
-    const err: $rt.GoObject | undefined = $json.Unmarshal(data, parsed, [$json.AllowDuplicateNames(true)]);
+    const err: $rt.GoObject | undefined = $json.Unmarshal(data, f, [$json.AllowDuplicateNames(true)]);
     if (!(err === undefined)) {
       return [new Fields(), err];
     }
   }
-  const $t1 = parsed.TypeScript.GetValue();
-  const typeScript: typeScriptFields = $t1[0];
-  return [
-    Fields.$lit_packagejson_Fields_0_1_2_3(
-      parsed.HeaderFields.$clone_packagejson_HeaderFields(),
-      parsed.PathFields.$clone_packagejson_PathFields(),
-      parsed.DependencyFields.$clone_packagejson_DependencyFields(),
-      typeScript.ContentMapper.$clone_packagejson_Expected(),
-    ),
-    undefined,
-  ];
+  return [f.$clone_packagejson_Fields(), undefined];
 }
 export function Parse(data: number[]): [Fields, $rt.GoObject | undefined] {
   const d: jsonDecoder | undefined = jsonDecoder.$lit_packagejson_jsonDecoder_0(data);
@@ -1768,41 +1680,6 @@ export function Parse(data: number[]): [Fields, $rt.GoObject | undefined] {
   f.DependencyFields_.DevDependencies = expectedStringMap(obj, 'devDependencies');
   f.DependencyFields_.PeerDependencies = expectedStringMap(obj, 'peerDependencies');
   f.DependencyFields_.OptionalDependencies = expectedStringMap(obj, 'optionalDependencies');
-  {
-    const $t7 = obj!.get('typescript');
-    const v$3: $rt.GoObject | undefined = $t7[0];
-    const ok$4: boolean = $t7[1];
-    if (ok$4) {
-      {
-        const $t8: $rt.GoObject | undefined = v$3;
-        const $t9: boolean = $t8 instanceof jsonObject;
-        const ts: jsonObject | undefined = $t9 ? jsonObject.$cast_packagejson_jsonObject($t8) : undefined;
-        const ok$5: boolean = $t9;
-        if (ok$5) {
-          {
-            const $t10 = ts!.get('contentMapper');
-            const cm: $rt.GoObject | undefined = $t10[0];
-            const ok$6: boolean = $t10[1];
-            if (ok$6) {
-              f.ContentMapper.actualJSONType = jsonKind(cm);
-              {
-                const $t11: $rt.GoObject | undefined = cm;
-                const $t12: boolean = $t11 instanceof jsonObject;
-                const cmObj: jsonObject | undefined = $t12 ? jsonObject.$cast_packagejson_jsonObject($t11) : undefined;
-                const ok$7: boolean = $t12;
-                if (ok$7) {
-                  f.ContentMapper.Valid = true;
-                  f.ContentMapper.Value.Exec = expectedStrings(cmObj, 'exec');
-                  f.ContentMapper.Value.CompilerOptions = expectedStrings(cmObj, 'compilerOptions');
-                  f.ContentMapper.Value.DynamicConfig = expectedBool(cmObj, 'dynamicConfig');
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  }
   return [f.$clone_packagejson_Fields(), undefined];
 }
 export function jsonKind(v: $rt.GoObject | undefined): string {

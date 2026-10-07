@@ -5,7 +5,7 @@ tsc-ts includes material from the projects below.
 ## TypeScript-Go
 
 - Source: https://github.com/microsoft/typescript-go
-- Revision: `89d5d5b2849a0db0957065889ca58536fa6d2e4a`
+- Revision: `2bd066d87f5bafd315be9f40889d0a60b9e58e0b` (TypeScript 7.0.2)
 - Copyright (c) Microsoft Corporation
 - License: Apache-2.0
 

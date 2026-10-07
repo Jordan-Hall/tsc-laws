@@ -5,8 +5,6 @@ import * as $core from './core.js';
 import * as $fswatch from './fswatch.js';
 import * as $tspath from './tspath.js';
 import type * as $checkhost from './checkhost.js';
-import type * as $contentmapper from './contentmapper.js';
-import type * as $ipc from './ipc.js';
 const $zf0 = (): watchedDir | undefined => undefined;
 const $zf1 = (): boolean => false;
 export class CommandLineTestingWithWatchBackend extends $rt.GoObject {
@@ -21,65 +19,6 @@ export class CommandLineTestingWithWatchBackend extends $rt.GoObject {
   }
 }
 export type WatchBackend = FSWatchBackend | undefined;
-export class DirWatchSet extends $rt.GoObject {
-  opts: $tspath.ComparePathsOptions = $tspath.ComparePathsOptions$zero;
-  dirs: Map<string, boolean> | undefined = undefined;
-  $copy_execute_watchmanager_DirWatchSet(src: DirWatchSet): void {
-    this.opts = src.opts;
-    this.dirs = src.dirs;
-  }
-  $clone_execute_watchmanager_DirWatchSet(): DirWatchSet {
-    const o = new DirWatchSet();
-    o.$copy_execute_watchmanager_DirWatchSet(this);
-    return o;
-  }
-  static $lit_execute_watchmanager_DirWatchSet_0_1(
-    p0: $tspath.ComparePathsOptions,
-    p1: Map<string, boolean> | undefined,
-  ): DirWatchSet {
-    const o = new DirWatchSet();
-    o.opts = p0;
-    o.dirs = p1;
-    return o;
-  }
-  static $cast_execute_watchmanager_DirWatchSet(v: $rt.GoObject | undefined): DirWatchSet {
-    if (v instanceof DirWatchSet) return v;
-    throw $rt.typeAssertError();
-  }
-  canonical(dir: string): string {
-    const s = this;
-    return $tspath.GetCanonicalFileName(dir, s!.opts.UseCaseSensitiveFileNames);
-  }
-  Set(dir: string, recursive: boolean): void {
-    const s = this;
-    dir = s!.canonical(dir);
-    s!.dirs!.set(dir, (s!.dirs?.get(dir) ?? false) || recursive);
-  }
-  Covered(dir: string): boolean {
-    const s = this;
-    dir = s!.canonical(dir);
-    {
-      const $t1: Map<string, boolean> | undefined = s!.dirs;
-      const $t2 = dir;
-      const has: boolean = $t1 !== undefined && $t1.has($t2);
-      if (has) {
-        return true;
-      }
-    }
-    const rootLength: number = $tspath.GetRootLength(dir);
-    for (; dir.length > rootLength;) {
-      dir = $tspath.GetDirectoryPath(dir);
-      if (s!.dirs?.get(dir) ?? false) {
-        return true;
-      }
-    }
-    return false;
-  }
-  Dirs(): Map<string, boolean> | undefined {
-    const s = this;
-    return s!.dirs;
-  }
-}
 export class FSWatchBackend extends $rt.GoObject {
   Inner: $fswatch.Watcher = undefined;
   $copy_execute_watchmanager_FSWatchBackend(src: FSWatchBackend): void {
@@ -107,60 +46,19 @@ export class FSWatchBackend extends $rt.GoObject {
     fn: $fswatch.WatchCallback,
     recursive: boolean,
     ignore: ((p0: string) => boolean) | undefined,
-  ): [
-    (
-      | $ipc.PipeTransport
-      | $ipc.StdioTransport
-      | $ipc.stdioConn
-      | $contentmapper.closeOnceReadWriteCloser
-      | $contentmapper.host
-      | $contentmapper.loggedProcess
-      | $contentmapper.projectLease
-      | $contentmapper.retainedProject
-      | $fswatch.watch
-      | undefined
-    ),
-    $rt.GoObject | undefined,
-  ] {
+  ): [$fswatch.watch | undefined, $rt.GoObject | undefined] {
     const b = this;
     const $t1 = b!.WatchDirectories([
       WatchDirectoryRequest.$lit_execute_watchmanager_WatchDirectoryRequest_0_1_2_3(dir, fn, recursive, ignore),
     ]);
-    const closers: (
-      | $ipc.PipeTransport
-      | $ipc.StdioTransport
-      | $ipc.stdioConn
-      | $contentmapper.closeOnceReadWriteCloser
-      | $contentmapper.host
-      | $contentmapper.loggedProcess
-      | $contentmapper.projectLease
-      | $contentmapper.retainedProject
-      | $fswatch.watch
-      | undefined
-    )[] = $t1[0];
+    const closers: ($fswatch.watch | undefined)[] = $t1[0];
     const err: $rt.GoObject | undefined = $t1[1];
     if (!(err === undefined)) {
       return [undefined, err];
     }
     return [closers[0], undefined];
   }
-  WatchDirectories(
-    requests: WatchDirectoryRequest[],
-  ): [
-    (
-      | $ipc.PipeTransport
-      | $ipc.StdioTransport
-      | $ipc.stdioConn
-      | $contentmapper.closeOnceReadWriteCloser
-      | $contentmapper.host
-      | $contentmapper.loggedProcess
-      | $contentmapper.projectLease
-      | $contentmapper.retainedProject
-      | $fswatch.watch
-      | undefined
-    )[],
-    $rt.GoObject | undefined,
-  ] {
+  WatchDirectories(requests: WatchDirectoryRequest[]): [($fswatch.watch | undefined)[], $rt.GoObject | undefined] {
     const b = this;
     const fswatchRequests: $fswatch.WatchDirectoryRequest[] = $rt.makeSlice<$fswatch.WatchDirectoryRequest>(
       requests.length,
@@ -185,51 +83,22 @@ export class FSWatchBackend extends $rt.GoObject {
         );
       }
     }
-    const $t3 = $rt.nn(b!.Inner).WatchDirectories(fswatchRequests);
+    const $t3 = b!.Inner!.WatchDirectories(fswatchRequests);
     const watches: $fswatch.Watch[] = $t3[0];
     const err: $rt.GoObject | undefined = $t3[1];
     if (!(err === undefined)) {
       return [[], err];
     }
-    const closers: (
-      | $ipc.PipeTransport
-      | $ipc.StdioTransport
-      | $ipc.stdioConn
-      | $contentmapper.closeOnceReadWriteCloser
-      | $contentmapper.host
-      | $contentmapper.loggedProcess
-      | $contentmapper.projectLease
-      | $contentmapper.retainedProject
-      | $fswatch.watch
-      | undefined
-    )[] = $rt.makeSlice<
-      | $ipc.PipeTransport
-      | $ipc.StdioTransport
-      | $ipc.stdioConn
-      | $contentmapper.closeOnceReadWriteCloser
-      | $contentmapper.host
-      | $contentmapper.loggedProcess
-      | $contentmapper.projectLease
-      | $contentmapper.retainedProject
-      | $fswatch.watch
-      | undefined
-    >(watches.length, undefined);
+    const closers: ($fswatch.watch | undefined)[] = $rt.makeSlice<$fswatch.watch | undefined>(
+      watches.length,
+      undefined,
+    );
     {
       const $t4 = watches;
       for (let $t5 = 0, $n = $t4.length; $t5 < $n; $t5++) {
         const i$1 = $t5;
         const watch = $t4[$t5];
-        closers[i$1] = watch as unknown as
-          | $ipc.PipeTransport
-          | $ipc.StdioTransport
-          | $ipc.stdioConn
-          | $contentmapper.closeOnceReadWriteCloser
-          | $contentmapper.host
-          | $contentmapper.loggedProcess
-          | $contentmapper.projectLease
-          | $contentmapper.retainedProject
-          | $fswatch.watch
-          | undefined;
+        closers[i$1] = watch as unknown as $fswatch.watch | undefined;
       }
     }
     return [closers, undefined];
@@ -287,20 +156,8 @@ export class WatchManager extends $rt.GoObject {
   backend: WatchBackend = undefined;
   watchedDirs: Map<string, watchedDir | undefined> | undefined = undefined;
   doCycleCh: $rt.Chan<$rt.Empty> | undefined = undefined;
-  DebugLog:
-    | $ipc.stdioConn
-    | $contentmapper.closeOnceReadWriteCloser
-    | $contentmapper.loggedProcess
-    | $contentmapper.stderrLogger
-    | $checkhost.hostWriter
-    | undefined = undefined;
-  warnWriter:
-    | $ipc.stdioConn
-    | $contentmapper.closeOnceReadWriteCloser
-    | $contentmapper.loggedProcess
-    | $contentmapper.stderrLogger
-    | $checkhost.hostWriter
-    | undefined = undefined;
+  DebugLog: $checkhost.hostWriter | undefined = undefined;
+  warnWriter: $checkhost.hostWriter | undefined = undefined;
   dirExists: ((p0: string) => boolean) | undefined = undefined;
   changedMu: $rt.sync_Mutex = new $rt.sync_Mutex();
   changedPaths: Map<string, $fswatch.EventKind> | undefined = undefined;
@@ -325,13 +182,7 @@ export class WatchManager extends $rt.GoObject {
   static $lit_execute_watchmanager_WatchManager_2_3_5_6(
     p0: Map<string, watchedDir | undefined> | undefined,
     p1: $rt.Chan<$rt.Empty> | undefined,
-    p2:
-      | $ipc.stdioConn
-      | $contentmapper.closeOnceReadWriteCloser
-      | $contentmapper.loggedProcess
-      | $contentmapper.stderrLogger
-      | $checkhost.hostWriter
-      | undefined,
+    p2: $checkhost.hostWriter | undefined,
     p3: ((p0: string) => boolean) | undefined,
   ): WatchManager {
     const o = new WatchManager();
@@ -362,9 +213,7 @@ export class WatchManager extends $rt.GoObject {
         $rt
           .nn(wm!.DebugLog)
           .Write(
-            $rt.stringToBytes(
-              $rt.fmt_Sprintf('[watch] using %s backend\n', [new $rt.BoxStr($rt.nn(fsw).Name(), 'string')]),
-            ),
+            $rt.stringToBytes($rt.fmt_Sprintf('[watch] using %s backend\n', [new $rt.BoxStr(fsw!.Name(), 'string')])),
           );
       }
     }
@@ -479,27 +328,7 @@ export class WatchManager extends $rt.GoObject {
         .nn(wm!.DebugLog)
         .Write($rt.stringToBytes($rt.fmt_Sprintf('[watch] watch terminated: %s\n', [new $rt.BoxStr(dir, 'string')])));
     }
-    let staleCloser:
-      | $ipc.PipeTransport
-      | $ipc.StdioTransport
-      | $ipc.stdioConn
-      | $contentmapper.closeOnceReadWriteCloser
-      | $contentmapper.host
-      | $contentmapper.loggedProcess
-      | $contentmapper.projectLease
-      | $contentmapper.retainedProject
-      | $fswatch.watch
-      | undefined = undefined as
-      | $ipc.PipeTransport
-      | $ipc.StdioTransport
-      | $ipc.stdioConn
-      | $contentmapper.closeOnceReadWriteCloser
-      | $contentmapper.host
-      | $contentmapper.loggedProcess
-      | $contentmapper.projectLease
-      | $contentmapper.retainedProject
-      | $fswatch.watch
-      | undefined;
+    let staleCloser: $fswatch.watch | undefined = undefined as $fswatch.watch | undefined;
     wm!.mu.Lock();
     {
       const $t1: Map<string, watchedDir | undefined> | undefined = wm!.watchedDirs;
@@ -523,29 +352,7 @@ export class WatchManager extends $rt.GoObject {
   CloseAllWatches(): void {
     const wm = this;
     wm!.mu.Lock();
-    let closers: (
-      | $ipc.PipeTransport
-      | $ipc.StdioTransport
-      | $ipc.stdioConn
-      | $contentmapper.closeOnceReadWriteCloser
-      | $contentmapper.host
-      | $contentmapper.loggedProcess
-      | $contentmapper.projectLease
-      | $contentmapper.retainedProject
-      | $fswatch.watch
-      | undefined
-    )[] = [] as (
-      | $ipc.PipeTransport
-      | $ipc.StdioTransport
-      | $ipc.stdioConn
-      | $contentmapper.closeOnceReadWriteCloser
-      | $contentmapper.host
-      | $contentmapper.loggedProcess
-      | $contentmapper.projectLease
-      | $contentmapper.retainedProject
-      | $fswatch.watch
-      | undefined
-    )[];
+    let closers: ($fswatch.watch | undefined)[] = [] as ($fswatch.watch | undefined)[];
     for (const [dir, wd] of wm!.watchedDirs ?? new Map<string, watchedDir | undefined>()) {
       closers.push(wd!.closer);
       wm!.watchedDirs?.delete(dir);
@@ -558,6 +365,29 @@ export class WatchManager extends $rt.GoObject {
         c!.Close();
       }
     }
+  }
+  createDirWatch(dir: string, recursive: boolean): $rt.GoObject | undefined {
+    const wm = this;
+    const entry: watchedDir | undefined = watchedDir.$lit_execute_watchmanager_watchedDir_1(recursive);
+    const request: WatchDirectoryRequest = wm!.createDirWatchRequest(dir, entry);
+    const $t1 = wm!.backend!.WatchDirectory(request.Dir, request.Callback, request.Recursive, request.Ignore);
+    const watch: $fswatch.watch | undefined = $t1[0];
+    const err: $rt.GoObject | undefined = $t1[1];
+    if (!(err === undefined)) {
+      if (!(wm!.DebugLog === undefined)) {
+        $rt
+          .nn(wm!.DebugLog)
+          .Write(
+            $rt.stringToBytes(
+              $rt.fmt_Sprintf('[watch] failed to watch directory %s: %v\n', [new $rt.BoxStr(dir, 'string'), err]),
+            ),
+          );
+      }
+      return $rt.fmt_Errorf('failed to watch directory %s: %w', [new $rt.BoxStr(dir, 'string'), err]);
+    }
+    entry!.closer = watch;
+    wm!.watchedDirs!.set(dir, entry);
+    return undefined;
   }
   createDirWatchRequest(dir: string, entry: watchedDir | undefined): WatchDirectoryRequest {
     const wm = this;
@@ -710,50 +540,43 @@ export class WatchManager extends $rt.GoObject {
       }
     }
     const $t3 = wm!.backend!.WatchDirectories(requests);
-    const closers: (
-      | $ipc.PipeTransport
-      | $ipc.StdioTransport
-      | $ipc.stdioConn
-      | $contentmapper.closeOnceReadWriteCloser
-      | $contentmapper.host
-      | $contentmapper.loggedProcess
-      | $contentmapper.projectLease
-      | $contentmapper.retainedProject
-      | $fswatch.watch
-      | undefined
-    )[] = $t3[0];
+    const closers: ($fswatch.watch | undefined)[] = $t3[0];
     const err: $rt.GoObject | undefined = $t3[1];
-    if (err === undefined) {
+    if (!(err === undefined)) {
       {
         const $t4 = updates;
         for (let $t5 = 0, $n = $t4.length; $t5 < $n; $t5++) {
           const i$1 = $t5;
           const update$1 = $t4[$t5];
-          entries[i$1]!.closer = closers[i$1];
-          wm!.watchedDirs!.set(update$1.dir, entries[i$1]);
+          if (!(wm!.DebugLog === undefined)) {
+            $rt
+              .nn(wm!.DebugLog)
+              .Write(
+                $rt.stringToBytes(
+                  $rt.fmt_Sprintf('[watch] failed to watch directory %s: %v\n', [
+                    new $rt.BoxStr(update$1.dir, 'string'),
+                    err,
+                  ]),
+                ),
+              );
+          }
+          if (i$1 < closers.length && !(closers[i$1] === undefined)) {
+            closers[i$1]!.Close();
+          }
         }
       }
-      return undefined;
+      return err;
     }
-    if (!(wm!.DebugLog === undefined)) {
-      {
-        const $t6 = updates;
-        for (let $t7 = 0, $n = $t6.length; $t7 < $n; $t7++) {
-          const update$2 = $t6[$t7];
-          $rt
-            .nn(wm!.DebugLog)
-            .Write(
-              $rt.stringToBytes(
-                $rt.fmt_Sprintf('[watch] failed to watch directory %s: %v\n', [
-                  new $rt.BoxStr(update$2.dir, 'string'),
-                  err,
-                ]),
-              ),
-            );
-        }
+    {
+      const $t6 = updates;
+      for (let $t7 = 0, $n = $t6.length; $t7 < $n; $t7++) {
+        const i$2 = $t7;
+        const update$2 = $t6[$t7];
+        entries[i$2]!.closer = closers[i$2];
+        wm!.watchedDirs!.set(update$2.dir, entries[i$2]);
       }
     }
-    return err;
+    return undefined;
   }
   IsPathUnderWatch(path: string, opts: $tspath.ComparePathsOptions): boolean {
     const wm = this;
@@ -798,17 +621,7 @@ export class dirWatchUpdate extends $rt.GoObject {
   }
 }
 export class watchedDir extends $rt.GoObject {
-  closer:
-    | $ipc.PipeTransport
-    | $ipc.StdioTransport
-    | $ipc.stdioConn
-    | $contentmapper.closeOnceReadWriteCloser
-    | $contentmapper.host
-    | $contentmapper.loggedProcess
-    | $contentmapper.projectLease
-    | $contentmapper.retainedProject
-    | $fswatch.watch
-    | undefined = undefined;
+  closer: $fswatch.watch | undefined = undefined;
   recursive: boolean = false;
   $copy_execute_watchmanager_watchedDir(src: watchedDir): void {
     this.closer = src.closer;
@@ -886,13 +699,7 @@ export function PerceivedOsRootLengthForWatching(components: string[]): number {
   return indexAfterOsRoot + 2;
 }
 export function NewWatchManager(
-  warnWriter:
-    | $ipc.stdioConn
-    | $contentmapper.closeOnceReadWriteCloser
-    | $contentmapper.loggedProcess
-    | $contentmapper.stderrLogger
-    | $checkhost.hostWriter
-    | undefined,
+  warnWriter: $checkhost.hostWriter | undefined,
   dirExists: ((p0: string) => boolean) | undefined,
 ): WatchManager | undefined {
   return WatchManager.$lit_execute_watchmanager_WatchManager_2_3_5_6(
@@ -902,6 +709,19 @@ export function NewWatchManager(
     dirExists,
   );
 }
-export function NewDirWatchSet(opts: $tspath.ComparePathsOptions): DirWatchSet | undefined {
-  return DirWatchSet.$lit_execute_watchmanager_DirWatchSet_0_1(opts, new Map<string, boolean>());
+export function IsDirCoveredByWatch(
+  dirs: Map<string, boolean> | undefined,
+  dir: string,
+  opts: $tspath.ComparePathsOptions,
+): boolean {
+  for (const [wdir, recursive] of dirs ?? new Map<string, boolean>()) {
+    if (recursive) {
+      if ($tspath.ContainsPath(wdir, dir, opts)) {
+        return true;
+      }
+    } else if ($tspath.ComparePaths(dir, wdir, opts) === (0 as number)) {
+      return true;
+    }
+  }
+  return false;
 }

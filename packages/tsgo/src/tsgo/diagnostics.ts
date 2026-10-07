@@ -4,8 +4,6 @@ import * as $rt from '../go/runtime.js';
 import * as $boxes from './boxes.js';
 import * as $core from './core.js';
 import * as $json from './json.js';
-import type * as $contentmapper from './contentmapper.js';
-import type * as $ipc from './ipc.js';
 import type * as $locale from './locale.js';
 const $zf0 = (): string => '';
 export type Category = number;
@@ -12234,14 +12232,6 @@ export let A_mapped_type_may_not_declare_properties_or_methods: Message | undefi
     'A_mapped_type_may_not_declare_properties_or_methods_7061',
     'A mapped type may not declare properties or methods.',
   );
-export let Declaration_emit_elides_private_members_but_0_refers_to_a_private_member_Write_an_explicit_type_here:
-  | Message
-  | undefined = Message.$lit_diagnostics_Message_0_1_2_3(
-  7080,
-  1,
-  'Declaration_emit_elides_private_members_but_0_refers_to_a_private_member_Write_an_explicit_type_here_7080',
-  "Declaration emit elides private members, but '{0}' refers to a private member. Write an explicit type here.",
-);
 export let You_cannot_rename_this_element: Message | undefined = Message.$lit_diagnostics_Message_0_1_2_3(
   8000,
   1,
@@ -12601,14 +12591,13 @@ export let Arrays_with_spread_elements_can_t_inferred_with_isolatedDeclarations:
     'Arrays_with_spread_elements_can_t_inferred_with_isolatedDeclarations_9018',
     "Arrays with spread elements can't inferred with --isolatedDeclarations.",
   );
-export let Binding_elements_with_initializers_can_t_be_exported_directly_with_isolatedDeclarations:
-  | Message
-  | undefined = Message.$lit_diagnostics_Message_0_1_2_3(
-  9019,
-  1,
-  'Binding_elements_with_initializers_can_t_be_exported_directly_with_isolatedDeclarations_9019',
-  "Binding elements with initializers can't be exported directly with --isolatedDeclarations.",
-);
+export let Binding_elements_can_t_be_exported_directly_with_isolatedDeclarations: Message | undefined =
+  Message.$lit_diagnostics_Message_0_1_2_3(
+    9019,
+    1,
+    'Binding_elements_can_t_be_exported_directly_with_isolatedDeclarations_9019',
+    "Binding elements can't be exported directly with --isolatedDeclarations.",
+  );
 export let Enum_member_initializers_must_be_computable_without_references_to_external_symbols_with_isolatedDeclarations:
   | Message
   | undefined = Message.$lit_diagnostics_Message_0_1_2_3(
@@ -13258,20 +13247,6 @@ export let X_0_is_not_a_valid_meta_property_for_keyword_import_Did_you_mean_meta
     1,
     '_0_is_not_a_valid_meta_property_for_keyword_import_Did_you_mean_meta_or_defer_18061',
     "'{0}' is not a valid meta-property for keyword 'import'. Did you mean 'meta' or 'defer'?",
-  );
-export let Regular_expression_pattern_modifiers_are_only_available_when_targeting_0_or_later: Message | undefined =
-  Message.$lit_diagnostics_Message_0_1_2_3(
-    18062,
-    1,
-    'Regular_expression_pattern_modifiers_are_only_available_when_targeting_0_or_later_18062',
-    "Regular expression pattern modifiers are only available when targeting '{0}' or later.",
-  );
-export let Duplicate_named_capturing_groups_are_only_available_when_targeting_0_or_later: Message | undefined =
-  Message.$lit_diagnostics_Message_0_1_2_3(
-    18063,
-    1,
-    'Duplicate_named_capturing_groups_are_only_available_when_targeting_0_or_later_18063',
-    "Duplicate named capturing groups are only available when targeting '{0}' or later.",
   );
 export let X_nodenext_if_module_is_nodenext_node16_if_module_is_node16_or_node18_otherwise_bundler:
   | Message
@@ -14984,366 +14959,6 @@ export let JSDoc_comment: Message | undefined = Message.$lit_diagnostics_Message
   3,
   'JSDoc_comment_100019',
   'JSDoc comment',
-);
-export let Content_mapper_file_extension_0_must_begin_with_a: Message | undefined =
-  Message.$lit_diagnostics_Message_0_1_2_3(
-    100020,
-    1,
-    'Content_mapper_file_extension_0_must_begin_with_a_100020',
-    "Content mapper file extension '{0}' must begin with a '.'.",
-  );
-export let Content_mapper_file_extension_0_is_a_built_in_extension_and_cannot_be_registered_by_a_content_mapper:
-  | Message
-  | undefined = Message.$lit_diagnostics_Message_0_1_2_3(
-  100021,
-  1,
-  'Content_mapper_file_extension_0_is_a_built_in_extension_and_cannot_be_registered_by_a_content_mapper_100021',
-  "Content mapper file extension '{0}' is a built-in extension and cannot be registered by a content mapper.",
-);
-export let Content_mapper_file_extension_0_is_registered_by_more_than_one_content_mapper: Message | undefined =
-  Message.$lit_diagnostics_Message_0_1_2_3(
-    100022,
-    1,
-    'Content_mapper_file_extension_0_is_registered_by_more_than_one_content_mapper_100022',
-    "Content mapper file extension '{0}' is registered by more than one content mapper.",
-  );
-export let Allow_loading_external_content_mapper_plugins_that_execute_code_during_compilation: Message | undefined =
-  Message.$lit_diagnostics_Message_0_1_2_3(
-    100023,
-    3,
-    'Allow_loading_external_content_mapper_plugins_that_execute_code_during_compilation_100023',
-    'Allow loading external content mapper plugins that execute code during compilation.',
-  );
-export let Content_mappers_require_the_runExternalCode_command_line_flag_to_be_enabled: Message | undefined =
-  Message.$lit_diagnostics_Message_0_1_2_3(
-    100024,
-    1,
-    'Content_mappers_require_the_runExternalCode_command_line_flag_to_be_enabled_100024',
-    "Content mappers require the '--runExternalCode' command line flag to be enabled.",
-  );
-export let The_content_mapper_0_failed_to_transform_this_file: Message | undefined =
-  Message.$lit_diagnostics_Message_0_1_2_3(
-    100025,
-    1,
-    'The_content_mapper_0_failed_to_transform_this_file_100025',
-    "The content mapper '{0}' failed to transform this file.",
-  );
-export let The_content_mapper_0_failed_1_times_and_will_not_be_used: Message | undefined =
-  Message.$lit_diagnostics_Message_0_1_2_3(
-    100026,
-    1,
-    'The_content_mapper_0_failed_1_times_and_will_not_be_used_100026',
-    "The content mapper '{0}' failed {1} times and will not be used.",
-  );
-export let The_content_mapper_0_did_not_provide_the_required_position_mappings: Message | undefined =
-  Message.$lit_diagnostics_Message_0_1_2_3(
-    100027,
-    1,
-    'The_content_mapper_0_did_not_provide_the_required_position_mappings_100027',
-    "The content mapper '{0}' did not provide the required position mappings.",
-  );
-export let The_content_mapper_0_produced_a_position_mapping_that_points_outside_the_original_content_original_offset_1:
-  | Message
-  | undefined = Message.$lit_diagnostics_Message_0_1_2_3(
-  100028,
-  1,
-  'The_content_mapper_0_produced_a_position_mapping_that_points_outside_the_original_content_original_o_100028',
-  "The content mapper '{0}' produced a position mapping that points outside the original content (original offset {1}).",
-);
-export let The_content_mapper_0_produced_a_verbatim_mapping_that_does_not_match_the_original_content_virtual_offset_1_original_offset_2:
-  | Message
-  | undefined = Message.$lit_diagnostics_Message_0_1_2_3(
-  100029,
-  1,
-  'The_content_mapper_0_produced_a_verbatim_mapping_that_does_not_match_the_original_content_virtual_of_100029',
-  "The content mapper '{0}' produced a verbatim mapping that does not match the original content (virtual offset {1}, original offset {2}).",
-);
-export let This_location_is_in_virtual_code_produced_by_the_content_mapper_0_and_has_no_corresponding_location_in_the_original_file:
-  | Message
-  | undefined = Message.$lit_diagnostics_Message_0_1_2_3(
-  100030,
-  3,
-  'This_location_is_in_virtual_code_produced_by_the_content_mapper_0_and_has_no_corresponding_location__100030',
-  "This location is in virtual code produced by the content mapper '{0}' and has no corresponding location in the original file.",
-);
-export let The_content_mapper_package_0_could_not_be_resolved: Message | undefined =
-  Message.$lit_diagnostics_Message_0_1_2_3(
-    100031,
-    1,
-    'The_content_mapper_package_0_could_not_be_resolved_100031',
-    "The content mapper package '{0}' could not be resolved.",
-  );
-export let The_package_json_of_the_content_mapper_package_0_could_not_be_parsed: Message | undefined =
-  Message.$lit_diagnostics_Message_0_1_2_3(
-    100032,
-    1,
-    'The_package_json_of_the_content_mapper_package_0_could_not_be_parsed_100032',
-    "The 'package.json' of the content mapper package '{0}' could not be parsed.",
-  );
-export let The_package_json_of_the_content_mapper_package_0_does_not_specify_a_name: Message | undefined =
-  Message.$lit_diagnostics_Message_0_1_2_3(
-    100033,
-    1,
-    'The_package_json_of_the_content_mapper_package_0_does_not_specify_a_name_100033',
-    "The 'package.json' of the content mapper package '{0}' does not specify a 'name'.",
-  );
-export let The_package_json_of_the_content_mapper_package_0_does_not_declare_a_typescript_contentMapper_object:
-  | Message
-  | undefined = Message.$lit_diagnostics_Message_0_1_2_3(
-  100034,
-  1,
-  'The_package_json_of_the_content_mapper_package_0_does_not_declare_a_typescript_contentMapper_object_100034',
-  "The 'package.json' of the content mapper package '{0}' does not declare a 'typescript.contentMapper' object.",
-);
-export let The_typescript_contentMapper_exec_of_the_content_mapper_package_0_must_be_a_non_empty_array_of_strings:
-  | Message
-  | undefined = Message.$lit_diagnostics_Message_0_1_2_3(
-  100035,
-  1,
-  'The_typescript_contentMapper_exec_of_the_content_mapper_package_0_must_be_a_non_empty_array_of_strin_100035',
-  "The 'typescript.contentMapper.exec' of the content mapper package '{0}' must be a non-empty array of strings.",
-);
-export let Virtual_code_produced_by_the_content_mapper_0_has_problems_with_no_corresponding_location_in_this_file:
-  | Message
-  | undefined = Message.$lit_diagnostics_Message_0_1_2_3(
-  100036,
-  1,
-  'Virtual_code_produced_by_the_content_mapper_0_has_problems_with_no_corresponding_location_in_this_fi_100036',
-  "Virtual code produced by the content mapper '{0}' has problems with no corresponding location in this file.",
-);
-export let The_content_mapper_0_produced_overlapping_or_out_of_order_position_mappings_near_virtual_offset_1:
-  | Message
-  | undefined = Message.$lit_diagnostics_Message_0_1_2_3(
-  100037,
-  1,
-  'The_content_mapper_0_produced_overlapping_or_out_of_order_position_mappings_near_virtual_offset_1_100037',
-  "The content mapper '{0}' produced overlapping or out-of-order position mappings (near virtual offset {1}).",
-);
-export let The_content_mapper_0_produced_overlapping_original_position_mappings_that_are_not_identical_near_original_offset_1:
-  | Message
-  | undefined = Message.$lit_diagnostics_Message_0_1_2_3(
-  100038,
-  1,
-  'The_content_mapper_0_produced_overlapping_original_position_mappings_that_are_not_identical_near_ori_100038',
-  "The content mapper '{0}' produced overlapping original position mappings that are not identical (near original offset {1}).",
-);
-export let The_content_mapper_0_produced_invalid_mapping_features_near_original_offset_1: Message | undefined =
-  Message.$lit_diagnostics_Message_0_1_2_3(
-    100039,
-    1,
-    'The_content_mapper_0_produced_invalid_mapping_features_near_original_offset_1_100039',
-    "The content mapper '{0}' produced invalid mapping features near original offset {1}.",
-  );
-export let The_content_mapper_0_produced_a_position_mapping_with_an_invalid_kind_near_virtual_offset_1:
-  | Message
-  | undefined = Message.$lit_diagnostics_Message_0_1_2_3(
-  100040,
-  1,
-  'The_content_mapper_0_produced_a_position_mapping_with_an_invalid_kind_near_virtual_offset_1_100040',
-  "The content mapper '{0}' produced a position mapping with an invalid kind (near virtual offset {1}).",
-);
-export let The_content_mapper_process_could_not_be_started_or_initialized: Message | undefined =
-  Message.$lit_diagnostics_Message_0_1_2_3(
-    100041,
-    3,
-    'The_content_mapper_process_could_not_be_started_or_initialized_100041',
-    'The content mapper process could not be started or initialized.',
-  );
-export let The_content_mapper_process_failed_while_handling_the_transform_request: Message | undefined =
-  Message.$lit_diagnostics_Message_0_1_2_3(
-    100042,
-    3,
-    'The_content_mapper_process_failed_while_handling_the_transform_request_100042',
-    'The content mapper process failed while handling the transform request.',
-  );
-export let The_content_mapper_returned_an_invalid_transform_response: Message | undefined =
-  Message.$lit_diagnostics_Message_0_1_2_3(
-    100043,
-    3,
-    'The_content_mapper_returned_an_invalid_transform_response_100043',
-    'The content mapper returned an invalid transform response.',
-  );
-export let The_content_mapper_uses_unsupported_protocol_version_0_expected_version_1: Message | undefined =
-  Message.$lit_diagnostics_Message_0_1_2_3(
-    100044,
-    3,
-    'The_content_mapper_uses_unsupported_protocol_version_0_expected_version_1_100044',
-    'The content mapper uses unsupported protocol version {0}; expected version {1}.',
-  );
-export let The_content_mapper_selected_unsupported_position_encoding_0: Message | undefined =
-  Message.$lit_diagnostics_Message_0_1_2_3(
-    100045,
-    3,
-    'The_content_mapper_selected_unsupported_position_encoding_0_100045',
-    "The content mapper selected unsupported position encoding '{0}'.",
-  );
-export let The_content_mapper_diagnostic_source_must_not_be_empty: Message | undefined =
-  Message.$lit_diagnostics_Message_0_1_2_3(
-    100046,
-    3,
-    'The_content_mapper_diagnostic_source_must_not_be_empty_100046',
-    'The content mapper diagnostic source must not be empty.',
-  );
-export let The_content_mapper_diagnostic_source_0_is_reserved_by_TypeScript: Message | undefined =
-  Message.$lit_diagnostics_Message_0_1_2_3(
-    100047,
-    3,
-    'The_content_mapper_diagnostic_source_0_is_reserved_by_TypeScript_100047',
-    "The content mapper diagnostic source '{0}' is reserved by TypeScript.",
-  );
-export let The_content_mapper_returned_a_project_response_that_could_not_be_decoded: Message | undefined =
-  Message.$lit_diagnostics_Message_0_1_2_3(
-    100048,
-    3,
-    'The_content_mapper_returned_a_project_response_that_could_not_be_decoded_100048',
-    'The content mapper returned a project response that could not be decoded.',
-  );
-export let The_content_mapper_process_failed_while_handling_the_project_request: Message | undefined =
-  Message.$lit_diagnostics_Message_0_1_2_3(
-    100049,
-    3,
-    'The_content_mapper_process_failed_while_handling_the_project_request_100049',
-    'The content mapper process failed while handling the project request.',
-  );
-export let The_content_mapper_did_not_return_configIdentity_which_is_required_when_the_content_mapper_has_dynamicConfig_Colon_true_in_its_package_json:
-  | Message
-  | undefined = Message.$lit_diagnostics_Message_0_1_2_3(
-  100050,
-  3,
-  'The_content_mapper_did_not_return_configIdentity_which_is_required_when_the_content_mapper_has_dynam_100050',
-  "The content mapper did not return 'configIdentity', which is required when the content mapper has '\"dynamicConfig\": true' in its package.json.",
-);
-export let The_content_mapper_returned_a_non_absolute_path_in_watchedFiles: Message | undefined =
-  Message.$lit_diagnostics_Message_0_1_2_3(
-    100051,
-    3,
-    'The_content_mapper_returned_a_non_absolute_path_in_watchedFiles_100051',
-    "The content mapper returned a non-absolute path in 'watchedFiles'.",
-  );
-export let The_content_mapper_returned_configIdentity_which_is_only_allowed_when_it_declares_dynamicConfig_Colon_true_in_its_package_json:
-  | Message
-  | undefined = Message.$lit_diagnostics_Message_0_1_2_3(
-  100052,
-  3,
-  'The_content_mapper_returned_configIdentity_which_is_only_allowed_when_it_declares_dynamicConfig_Colo_100052',
-  "The content mapper returned 'configIdentity', which is only allowed when it declares '\"dynamicConfig\": true' in its package.json.",
-);
-export let The_content_mapper_returned_watchedFiles_which_is_only_allowed_when_it_declares_dynamicConfig_Colon_true_in_its_package_json:
-  | Message
-  | undefined = Message.$lit_diagnostics_Message_0_1_2_3(
-  100053,
-  3,
-  'The_content_mapper_returned_watchedFiles_which_is_only_allowed_when_it_declares_dynamicConfig_Colon__100053',
-  "The content mapper returned 'watchedFiles', which is only allowed when it declares '\"dynamicConfig\": true' in its package.json.",
-);
-export let Content_mapper_supplemental_output_file_0_conflicts_with_an_existing_file: Message | undefined =
-  Message.$lit_diagnostics_Message_0_1_2_3(
-    100054,
-    3,
-    'Content_mapper_supplemental_output_file_0_conflicts_with_an_existing_file_100054',
-    "Content mapper supplemental output file '{0}' conflicts with an existing file.",
-  );
-export let Supplemental_virtual_file_produced_by_the_content_mapper_for_file_0: Message | undefined =
-  Message.$lit_diagnostics_Message_0_1_2_3(
-    100055,
-    3,
-    'Supplemental_virtual_file_produced_by_the_content_mapper_for_file_0_100055',
-    "Supplemental virtual file produced by the content mapper for file '{0}'.",
-  );
-export let The_content_mapper_returned_an_output_with_unsupported_virtual_extension_0: Message | undefined =
-  Message.$lit_diagnostics_Message_0_1_2_3(
-    100056,
-    3,
-    'The_content_mapper_returned_an_output_with_unsupported_virtual_extension_0_100056',
-    "The content mapper returned an output with unsupported virtual extension '{0}'.",
-  );
-export let The_content_mapper_0_could_not_be_initialized: Message | undefined =
-  Message.$lit_diagnostics_Message_0_1_2_3(
-    100057,
-    1,
-    'The_content_mapper_0_could_not_be_initialized_100057',
-    "The content mapper '{0}' could not be initialized.",
-  );
-export let The_content_mapper_command_0_could_not_be_started_Colon_1: Message | undefined =
-  Message.$lit_diagnostics_Message_0_1_2_3(
-    100058,
-    3,
-    'The_content_mapper_command_0_could_not_be_started_Colon_1_100058',
-    "The content mapper command '{0}' could not be started: {1}",
-  );
-export let The_content_mapper_process_exited_before_responding_to_the_initialize_request_exit_code_0:
-  | Message
-  | undefined = Message.$lit_diagnostics_Message_0_1_2_3(
-  100059,
-  3,
-  'The_content_mapper_process_exited_before_responding_to_the_initialize_request_exit_code_0_100059',
-  "The content mapper process exited before responding to the 'initialize' request (exit code {0}).",
-);
-export let The_content_mapper_did_not_respond_to_the_initialize_request_within_0_seconds: Message | undefined =
-  Message.$lit_diagnostics_Message_0_1_2_3(
-    100060,
-    3,
-    'The_content_mapper_did_not_respond_to_the_initialize_request_within_0_seconds_100060',
-    "The content mapper did not respond to the 'initialize' request within {0} seconds.",
-  );
-export let The_content_mapper_returned_an_initialize_response_that_could_not_be_decoded_Colon_0: Message | undefined =
-  Message.$lit_diagnostics_Message_0_1_2_3(
-    100061,
-    3,
-    'The_content_mapper_returned_an_initialize_response_that_could_not_be_decoded_Colon_0_100061',
-    "The content mapper returned an 'initialize' response that could not be decoded: {0}",
-  );
-export let The_content_mapper_s_initialize_request_failed_Colon_0: Message | undefined =
-  Message.$lit_diagnostics_Message_0_1_2_3(
-    100062,
-    3,
-    'The_content_mapper_s_initialize_request_failed_Colon_0_100062',
-    "The content mapper's 'initialize' request failed: {0}",
-  );
-export let Diagnostic_directive_0_returned_by_the_content_mapper_has_an_invalid_range: Message | undefined =
-  Message.$lit_diagnostics_Message_0_1_2_3(
-    100063,
-    3,
-    'Diagnostic_directive_0_returned_by_the_content_mapper_has_an_invalid_range_100063',
-    'Diagnostic directive {0} returned by the content mapper has an invalid range.',
-  );
-export let The_content_mapper_returned_a_diagnostic_directive_with_invalid_policy_0: Message | undefined =
-  Message.$lit_diagnostics_Message_0_1_2_3(
-    100064,
-    3,
-    'The_content_mapper_returned_a_diagnostic_directive_with_invalid_policy_0_100064',
-    "The content mapper returned a diagnostic directive with invalid policy '{0}'.",
-  );
-export let Diagnostic_directive_0_returned_by_the_content_mapper_must_specify_unusedExpectDirectiveIndex_when_there_is_not_exactly_one_unusedExpectDirectiveDiagnostics_entry:
-  | Message
-  | undefined = Message.$lit_diagnostics_Message_0_1_2_3(
-  100065,
-  3,
-  'Diagnostic_directive_0_returned_by_the_content_mapper_must_specify_unusedExpectDirectiveIndex_when_t_100065',
-  "Diagnostic directive {0} returned by the content mapper must specify 'unusedExpectDirectiveIndex' when there is not exactly one 'unusedExpectDirectiveDiagnostics' entry.",
-);
-export let The_content_mapper_returned_diagnostic_directives_with_overlapping_virtual_ranges: Message | undefined =
-  Message.$lit_diagnostics_Message_0_1_2_3(
-    100066,
-    3,
-    'The_content_mapper_returned_diagnostic_directives_with_overlapping_virtual_ranges_100066',
-    'The content mapper returned diagnostic directives with overlapping virtual ranges.',
-  );
-export let The_invalid_diagnostic_directive_is_in_supplemental_output_0_returned_by_the_content_mapper:
-  | Message
-  | undefined = Message.$lit_diagnostics_Message_0_1_2_3(
-  100067,
-  3,
-  'The_invalid_diagnostic_directive_is_in_supplemental_output_0_returned_by_the_content_mapper_100067',
-  'The invalid diagnostic directive is in supplemental output {0} returned by the content mapper.',
-);
-export let Diagnostic_directive_0_returned_by_the_content_mapper_has_an_invalid_unusedExpectDirectiveIndex:
-  | Message
-  | undefined = Message.$lit_diagnostics_Message_0_1_2_3(
-  100068,
-  3,
-  'Diagnostic_directive_0_returned_by_the_content_mapper_has_an_invalid_unusedExpectDirectiveIndex_100068',
-  "Diagnostic directive {0} returned by the content mapper has an invalid 'unusedExpectDirectiveIndex'.",
 );
 export let matcher: $rt.golang_org_x_text_language_Matcher | undefined = $rt.golang_org_x_text_language_NewMatcher(
   [
@@ -20723,9 +20338,6 @@ export function keyToMessage(key: Key): Message | undefined {
       case 'A_mapped_type_may_not_declare_properties_or_methods_7061' as string: {
         return A_mapped_type_may_not_declare_properties_or_methods;
       }
-      case 'Declaration_emit_elides_private_members_but_0_refers_to_a_private_member_Write_an_explicit_type_here_7080' as string: {
-        return Declaration_emit_elides_private_members_but_0_refers_to_a_private_member_Write_an_explicit_type_here;
-      }
       case 'You_cannot_rename_this_element_8000' as string: {
         return You_cannot_rename_this_element;
       }
@@ -20879,8 +20491,8 @@ export function keyToMessage(key: Key): Message | undefined {
       case 'Arrays_with_spread_elements_can_t_inferred_with_isolatedDeclarations_9018' as string: {
         return Arrays_with_spread_elements_can_t_inferred_with_isolatedDeclarations;
       }
-      case 'Binding_elements_with_initializers_can_t_be_exported_directly_with_isolatedDeclarations_9019' as string: {
-        return Binding_elements_with_initializers_can_t_be_exported_directly_with_isolatedDeclarations;
+      case 'Binding_elements_can_t_be_exported_directly_with_isolatedDeclarations_9019' as string: {
+        return Binding_elements_can_t_be_exported_directly_with_isolatedDeclarations;
       }
       case 'Enum_member_initializers_must_be_computable_without_references_to_external_symbols_with_isolatedDecl_9020' as string: {
         return Enum_member_initializers_must_be_computable_without_references_to_external_symbols_with_isolatedDeclarations;
@@ -21157,12 +20769,6 @@ export function keyToMessage(key: Key): Message | undefined {
       }
       case '_0_is_not_a_valid_meta_property_for_keyword_import_Did_you_mean_meta_or_defer_18061' as string: {
         return X_0_is_not_a_valid_meta_property_for_keyword_import_Did_you_mean_meta_or_defer;
-      }
-      case 'Regular_expression_pattern_modifiers_are_only_available_when_targeting_0_or_later_18062' as string: {
-        return Regular_expression_pattern_modifiers_are_only_available_when_targeting_0_or_later;
-      }
-      case 'Duplicate_named_capturing_groups_are_only_available_when_targeting_0_or_later_18063' as string: {
-        return Duplicate_named_capturing_groups_are_only_available_when_targeting_0_or_later;
       }
       case 'nodenext_if_module_is_nodenext_node16_if_module_is_node16_or_node18_otherwise_bundler_69010' as string: {
         return X_nodenext_if_module_is_nodenext_node16_if_module_is_node16_or_node18_otherwise_bundler;
@@ -21995,153 +21601,6 @@ export function keyToMessage(key: Key): Message | undefined {
       case 'JSDoc_comment_100019' as string: {
         return JSDoc_comment;
       }
-      case 'Content_mapper_file_extension_0_must_begin_with_a_100020' as string: {
-        return Content_mapper_file_extension_0_must_begin_with_a;
-      }
-      case 'Content_mapper_file_extension_0_is_a_built_in_extension_and_cannot_be_registered_by_a_content_mapper_100021' as string: {
-        return Content_mapper_file_extension_0_is_a_built_in_extension_and_cannot_be_registered_by_a_content_mapper;
-      }
-      case 'Content_mapper_file_extension_0_is_registered_by_more_than_one_content_mapper_100022' as string: {
-        return Content_mapper_file_extension_0_is_registered_by_more_than_one_content_mapper;
-      }
-      case 'Allow_loading_external_content_mapper_plugins_that_execute_code_during_compilation_100023' as string: {
-        return Allow_loading_external_content_mapper_plugins_that_execute_code_during_compilation;
-      }
-      case 'Content_mappers_require_the_runExternalCode_command_line_flag_to_be_enabled_100024' as string: {
-        return Content_mappers_require_the_runExternalCode_command_line_flag_to_be_enabled;
-      }
-      case 'The_content_mapper_0_failed_to_transform_this_file_100025' as string: {
-        return The_content_mapper_0_failed_to_transform_this_file;
-      }
-      case 'The_content_mapper_0_failed_1_times_and_will_not_be_used_100026' as string: {
-        return The_content_mapper_0_failed_1_times_and_will_not_be_used;
-      }
-      case 'The_content_mapper_0_did_not_provide_the_required_position_mappings_100027' as string: {
-        return The_content_mapper_0_did_not_provide_the_required_position_mappings;
-      }
-      case 'The_content_mapper_0_produced_a_position_mapping_that_points_outside_the_original_content_original_o_100028' as string: {
-        return The_content_mapper_0_produced_a_position_mapping_that_points_outside_the_original_content_original_offset_1;
-      }
-      case 'The_content_mapper_0_produced_a_verbatim_mapping_that_does_not_match_the_original_content_virtual_of_100029' as string: {
-        return The_content_mapper_0_produced_a_verbatim_mapping_that_does_not_match_the_original_content_virtual_offset_1_original_offset_2;
-      }
-      case 'This_location_is_in_virtual_code_produced_by_the_content_mapper_0_and_has_no_corresponding_location__100030' as string: {
-        return This_location_is_in_virtual_code_produced_by_the_content_mapper_0_and_has_no_corresponding_location_in_the_original_file;
-      }
-      case 'The_content_mapper_package_0_could_not_be_resolved_100031' as string: {
-        return The_content_mapper_package_0_could_not_be_resolved;
-      }
-      case 'The_package_json_of_the_content_mapper_package_0_could_not_be_parsed_100032' as string: {
-        return The_package_json_of_the_content_mapper_package_0_could_not_be_parsed;
-      }
-      case 'The_package_json_of_the_content_mapper_package_0_does_not_specify_a_name_100033' as string: {
-        return The_package_json_of_the_content_mapper_package_0_does_not_specify_a_name;
-      }
-      case 'The_package_json_of_the_content_mapper_package_0_does_not_declare_a_typescript_contentMapper_object_100034' as string: {
-        return The_package_json_of_the_content_mapper_package_0_does_not_declare_a_typescript_contentMapper_object;
-      }
-      case 'The_typescript_contentMapper_exec_of_the_content_mapper_package_0_must_be_a_non_empty_array_of_strin_100035' as string: {
-        return The_typescript_contentMapper_exec_of_the_content_mapper_package_0_must_be_a_non_empty_array_of_strings;
-      }
-      case 'Virtual_code_produced_by_the_content_mapper_0_has_problems_with_no_corresponding_location_in_this_fi_100036' as string: {
-        return Virtual_code_produced_by_the_content_mapper_0_has_problems_with_no_corresponding_location_in_this_file;
-      }
-      case 'The_content_mapper_0_produced_overlapping_or_out_of_order_position_mappings_near_virtual_offset_1_100037' as string: {
-        return The_content_mapper_0_produced_overlapping_or_out_of_order_position_mappings_near_virtual_offset_1;
-      }
-      case 'The_content_mapper_0_produced_overlapping_original_position_mappings_that_are_not_identical_near_ori_100038' as string: {
-        return The_content_mapper_0_produced_overlapping_original_position_mappings_that_are_not_identical_near_original_offset_1;
-      }
-      case 'The_content_mapper_0_produced_invalid_mapping_features_near_original_offset_1_100039' as string: {
-        return The_content_mapper_0_produced_invalid_mapping_features_near_original_offset_1;
-      }
-      case 'The_content_mapper_0_produced_a_position_mapping_with_an_invalid_kind_near_virtual_offset_1_100040' as string: {
-        return The_content_mapper_0_produced_a_position_mapping_with_an_invalid_kind_near_virtual_offset_1;
-      }
-      case 'The_content_mapper_process_could_not_be_started_or_initialized_100041' as string: {
-        return The_content_mapper_process_could_not_be_started_or_initialized;
-      }
-      case 'The_content_mapper_process_failed_while_handling_the_transform_request_100042' as string: {
-        return The_content_mapper_process_failed_while_handling_the_transform_request;
-      }
-      case 'The_content_mapper_returned_an_invalid_transform_response_100043' as string: {
-        return The_content_mapper_returned_an_invalid_transform_response;
-      }
-      case 'The_content_mapper_uses_unsupported_protocol_version_0_expected_version_1_100044' as string: {
-        return The_content_mapper_uses_unsupported_protocol_version_0_expected_version_1;
-      }
-      case 'The_content_mapper_selected_unsupported_position_encoding_0_100045' as string: {
-        return The_content_mapper_selected_unsupported_position_encoding_0;
-      }
-      case 'The_content_mapper_diagnostic_source_must_not_be_empty_100046' as string: {
-        return The_content_mapper_diagnostic_source_must_not_be_empty;
-      }
-      case 'The_content_mapper_diagnostic_source_0_is_reserved_by_TypeScript_100047' as string: {
-        return The_content_mapper_diagnostic_source_0_is_reserved_by_TypeScript;
-      }
-      case 'The_content_mapper_returned_a_project_response_that_could_not_be_decoded_100048' as string: {
-        return The_content_mapper_returned_a_project_response_that_could_not_be_decoded;
-      }
-      case 'The_content_mapper_process_failed_while_handling_the_project_request_100049' as string: {
-        return The_content_mapper_process_failed_while_handling_the_project_request;
-      }
-      case 'The_content_mapper_did_not_return_configIdentity_which_is_required_when_the_content_mapper_has_dynam_100050' as string: {
-        return The_content_mapper_did_not_return_configIdentity_which_is_required_when_the_content_mapper_has_dynamicConfig_Colon_true_in_its_package_json;
-      }
-      case 'The_content_mapper_returned_a_non_absolute_path_in_watchedFiles_100051' as string: {
-        return The_content_mapper_returned_a_non_absolute_path_in_watchedFiles;
-      }
-      case 'The_content_mapper_returned_configIdentity_which_is_only_allowed_when_it_declares_dynamicConfig_Colo_100052' as string: {
-        return The_content_mapper_returned_configIdentity_which_is_only_allowed_when_it_declares_dynamicConfig_Colon_true_in_its_package_json;
-      }
-      case 'The_content_mapper_returned_watchedFiles_which_is_only_allowed_when_it_declares_dynamicConfig_Colon__100053' as string: {
-        return The_content_mapper_returned_watchedFiles_which_is_only_allowed_when_it_declares_dynamicConfig_Colon_true_in_its_package_json;
-      }
-      case 'Content_mapper_supplemental_output_file_0_conflicts_with_an_existing_file_100054' as string: {
-        return Content_mapper_supplemental_output_file_0_conflicts_with_an_existing_file;
-      }
-      case 'Supplemental_virtual_file_produced_by_the_content_mapper_for_file_0_100055' as string: {
-        return Supplemental_virtual_file_produced_by_the_content_mapper_for_file_0;
-      }
-      case 'The_content_mapper_returned_an_output_with_unsupported_virtual_extension_0_100056' as string: {
-        return The_content_mapper_returned_an_output_with_unsupported_virtual_extension_0;
-      }
-      case 'The_content_mapper_0_could_not_be_initialized_100057' as string: {
-        return The_content_mapper_0_could_not_be_initialized;
-      }
-      case 'The_content_mapper_command_0_could_not_be_started_Colon_1_100058' as string: {
-        return The_content_mapper_command_0_could_not_be_started_Colon_1;
-      }
-      case 'The_content_mapper_process_exited_before_responding_to_the_initialize_request_exit_code_0_100059' as string: {
-        return The_content_mapper_process_exited_before_responding_to_the_initialize_request_exit_code_0;
-      }
-      case 'The_content_mapper_did_not_respond_to_the_initialize_request_within_0_seconds_100060' as string: {
-        return The_content_mapper_did_not_respond_to_the_initialize_request_within_0_seconds;
-      }
-      case 'The_content_mapper_returned_an_initialize_response_that_could_not_be_decoded_Colon_0_100061' as string: {
-        return The_content_mapper_returned_an_initialize_response_that_could_not_be_decoded_Colon_0;
-      }
-      case 'The_content_mapper_s_initialize_request_failed_Colon_0_100062' as string: {
-        return The_content_mapper_s_initialize_request_failed_Colon_0;
-      }
-      case 'Diagnostic_directive_0_returned_by_the_content_mapper_has_an_invalid_range_100063' as string: {
-        return Diagnostic_directive_0_returned_by_the_content_mapper_has_an_invalid_range;
-      }
-      case 'The_content_mapper_returned_a_diagnostic_directive_with_invalid_policy_0_100064' as string: {
-        return The_content_mapper_returned_a_diagnostic_directive_with_invalid_policy_0;
-      }
-      case 'Diagnostic_directive_0_returned_by_the_content_mapper_must_specify_unusedExpectDirectiveIndex_when_t_100065' as string: {
-        return Diagnostic_directive_0_returned_by_the_content_mapper_must_specify_unusedExpectDirectiveIndex_when_there_is_not_exactly_one_unusedExpectDirectiveDiagnostics_entry;
-      }
-      case 'The_content_mapper_returned_diagnostic_directives_with_overlapping_virtual_ranges_100066' as string: {
-        return The_content_mapper_returned_diagnostic_directives_with_overlapping_virtual_ranges;
-      }
-      case 'The_invalid_diagnostic_directive_is_in_supplemental_output_0_returned_by_the_content_mapper_100067' as string: {
-        return The_invalid_diagnostic_directive_is_in_supplemental_output_0_returned_by_the_content_mapper;
-      }
-      case 'Diagnostic_directive_0_returned_by_the_content_mapper_has_an_invalid_unusedExpectDirectiveIndex_100068' as string: {
-        return Diagnostic_directive_0_returned_by_the_content_mapper_has_an_invalid_unusedExpectDirectiveIndex;
-      }
       default: {
         return undefined;
       }
@@ -22154,9 +21613,7 @@ export function loadLocaleData(data: string): Map<Key, string> | undefined {
   let $panic: $rt.Panic | undefined = undefined;
   $body: try {
     const $t2 = $rt.compress_gzip_NewReader(
-      $rt.unsupportedConversion<
-        $ipc.stdioConn | $contentmapper.closeOnceReadWriteCloser | $contentmapper.loggedProcess | undefined
-      >('$rt.strings_Reader | undefined'),
+      $rt.unsupportedConversion<$rt.io_Reader | undefined>('$rt.strings_Reader | undefined'),
     );
     const gr: $rt.compress_gzip_Reader | undefined = $t2[0];
     const err: $rt.GoObject | undefined = $t2[1];
@@ -22170,9 +21627,7 @@ export function loadLocaleData(data: string): Map<Key, string> | undefined {
     let result: Map<Key, string> | undefined = undefined as Map<Key, string> | undefined;
     {
       const err$1: $rt.GoObject | undefined = $json.UnmarshalRead(
-        $rt.unsupportedConversion<
-          $ipc.stdioConn | $contentmapper.closeOnceReadWriteCloser | $contentmapper.loggedProcess | undefined
-        >('$rt.compress_gzip_Reader | undefined'),
+        $rt.unsupportedConversion<$rt.io_Reader | undefined>('$rt.compress_gzip_Reader | undefined'),
         $rt.ptrTo<Map<Key, string> | undefined>(
           (): Map<Key, string> | undefined => result,
           (v: Map<Key, string> | undefined): void => {

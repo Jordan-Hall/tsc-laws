@@ -192,7 +192,7 @@ writeFileSync(
       arch: process.arch,
       platform: process.platform,
       scriptc: '0.2.5',
-      revision: '89d5d5b2849a0db0957065889ca58536fa6d2e4a',
+      revision: oracleBuild.revision,
       portSourceSha256: nativeBuild.sourceSha256,
       oracleSourceSha256: oracleBuild.sourceSha256,
       scope:

@@ -30,7 +30,7 @@ export class EventKind$Box extends $rt.GoObject {
 export type Watch = watch | undefined;
 export type WatchCallback = ((p0: Event[], p1: $rt.GoObject | undefined) => void) | undefined;
 export type WatchOption = ignoreOption | recursiveOption | undefined;
-export type Watcher = fallbackWatcher | watcher | undefined;
+export type Watcher = watcher | undefined;
 export class watcherImpl extends $rt.GoObject {
   closeWatch(a0: dirWatch | undefined): $rt.GoObject | undefined {
     throw $rt.unimplementedMethod('closeWatch');
@@ -1233,107 +1233,6 @@ export class eventList extends $rt.GoObject {
     }
   }
 }
-export class fallbackWatcher extends $rt.GoObject {
-  primary: Watcher = undefined;
-  secondary: Watcher = undefined;
-  $copy_fswatch_fallbackWatcher(src: fallbackWatcher): void {
-    this.primary = src.primary;
-    this.secondary = src.secondary;
-  }
-  $equals_fswatch_fallbackWatcher(o: fallbackWatcher): boolean {
-    return $rt.ifaceEq(this.primary, o.primary) && $rt.ifaceEq(this.secondary, o.secondary);
-  }
-  $clone_fswatch_fallbackWatcher(): fallbackWatcher {
-    const o = new fallbackWatcher();
-    o.$copy_fswatch_fallbackWatcher(this);
-    return o;
-  }
-  static $lit_fswatch_fallbackWatcher_0_1(p0: Watcher, p1: Watcher): fallbackWatcher {
-    const o = new fallbackWatcher();
-    o.primary = p0;
-    o.secondary = p1;
-    return o;
-  }
-  static $cast_fswatch_fallbackWatcher(v: $rt.GoObject | undefined): fallbackWatcher {
-    if (v instanceof fallbackWatcher) return v;
-    throw $rt.typeAssertError();
-  }
-  Name(): string {
-    const w = this;
-    return $rt.nn(w!.primary).Name();
-  }
-  Available(): boolean {
-    const w = this;
-    return $rt.nn(w!.primary).Available();
-  }
-  HasFastRecursiveBackend(): boolean {
-    const w = this;
-    return $rt.nn(w!.primary).HasFastRecursiveBackend();
-  }
-  WatchDirectory(dir: string, fn: WatchCallback, opts: WatchOption[]): [Watch, $rt.GoObject | undefined] {
-    const w = this;
-    const $t1 = w!.WatchDirectories([WatchDirectoryRequest.$lit_fswatch_WatchDirectoryRequest_0_1_2(dir, fn, opts)]);
-    const watches: Watch[] = $t1[0];
-    const err: $rt.GoObject | undefined = $t1[1];
-    if (!(err === undefined)) {
-      return [undefined, err];
-    }
-    return [watches[0], undefined];
-  }
-  WatchDirectories(requests: WatchDirectoryRequest[]): [Watch[], $rt.GoObject | undefined] {
-    const w = this;
-    const $t1 = $rt.nn(w!.primary).WatchDirectories(requests);
-    let watches: Watch[] = $t1[0];
-    const err: $rt.GoObject | undefined = $t1[1];
-    if (err === undefined || !$rt.errors_Is(err, ErrFilesystemUnsupported)) {
-      return [watches, err];
-    }
-    watches = [] as Watch[];
-    const rollback: (() => void) | undefined = (): void => {
-      {
-        for (let i: number = watches.length - 1; i >= 0; i--) {
-          watches[i]!.Close();
-        }
-      }
-    };
-    {
-      const $t2 = requests;
-      for (let $t3 = 0, $n = $t2.length; $t3 < $n; $t3++) {
-        const request = $t2[$t3];
-        const $t4 = $rt.nn(w!.primary).WatchDirectory(request.Dir, request.Callback, request.Options);
-        let watch$v: Watch = $t4[0];
-        let err$1: $rt.GoObject | undefined = $t4[1];
-        if ($rt.errors_Is(err$1, ErrFilesystemUnsupported)) {
-          const $t5 = $rt.nn(w!.secondary).WatchDirectory(request.Dir, request.Callback, request.Options);
-          watch$v = $t5[0];
-          err$1 = $t5[1];
-        }
-        if (!(err$1 === undefined)) {
-          rollback!();
-          return [
-            [],
-            $rt.fmt_Errorf('fswatch: failed to watch directory %q: %w', [new $rt.BoxStr(request.Dir, 'string'), err$1]),
-          ];
-        }
-        watches = $rt.appendCopy(watches, [watch$v]);
-      }
-    }
-    return [watches, undefined];
-  }
-  WatchFile(path: string, fn: WatchCallback): [Watch, $rt.GoObject | undefined] {
-    const w = this;
-    const $t1 = $rt.nn(w!.primary).WatchFile(path, fn);
-    const watch$v: Watch = $t1[0];
-    const err: $rt.GoObject | undefined = $t1[1];
-    if ($rt.errors_Is(err, ErrFilesystemUnsupported)) {
-      return $rt.nn(w!.secondary).WatchFile(path, fn);
-    }
-    return [watch$v, err];
-  }
-  unexported(): void {
-    const w = this;
-  }
-}
 export class ignoreOption extends $rt.GoObject {
   fn: ((p0: string) => boolean) | undefined = undefined;
   $copy_fswatch_ignoreOption(src: ignoreOption): void {
@@ -2113,18 +2012,11 @@ export let errNotAbsolute: $rt.GoObject | undefined = $rt.errors_New('fswatch: p
 export let ErrOverflow: $rt.GoObject | undefined = $rt.errors_New('fswatch: event overflow; some changes were missed');
 export let ErrWatchTerminated: $rt.GoObject | undefined = $rt.errors_New('fswatch: watch terminated');
 export let ErrUnavailable: $rt.GoObject | undefined = $rt.errors_New('fswatch: watcher not available on this platform');
-export let ErrFilesystemUnsupported: $rt.GoObject | undefined = $rt.errors_New(
-  'fswatch: watcher backend unsupported on this filesystem',
-);
 export let inotifyWatcher: watcher | undefined = watcher.$lit_fswatch_watcher_0('inotify');
 export let fseventsWatcher: watcher | undefined = watcher.$lit_fswatch_watcher_0('fsevents');
 export let kqueueWatcher: watcher | undefined = watcher.$lit_fswatch_watcher_0('kqueue');
 export let windowsWatcher: watcher | undefined = watcher.$lit_fswatch_watcher_0('windows');
 export let fanotifyWatcher: watcher | undefined = watcher.$lit_fswatch_watcher_0('fanotify');
-export let fanotifyFallbackWatcher: fallbackWatcher | undefined = fallbackWatcher.$lit_fswatch_fallbackWatcher_0_1(
-  fanotifyWatcher,
-  inotifyWatcher,
-);
 export function canonicalizePath(p: string): string {
   return p;
 }
@@ -2235,7 +2127,7 @@ export function WithRecursive(): WatchOption {
   return new recursiveOption();
 }
 export function AllWatchers(): Watcher[] {
-  return [inotifyWatcher, fseventsWatcher, kqueueWatcher, windowsWatcher, fanotifyFallbackWatcher];
+  return [inotifyWatcher, fseventsWatcher, kqueueWatcher, windowsWatcher, fanotifyWatcher];
 }
 export function Inotify(): Watcher {
   return inotifyWatcher;
@@ -2250,22 +2142,19 @@ export function Windows(): Watcher {
   return windowsWatcher;
 }
 export function Fanotify(): Watcher {
-  return fanotifyFallbackWatcher;
+  return fanotifyWatcher;
 }
 export function Default(): Watcher {
   {
     switch ('wasip1') {
       case 'linux' as string: {
-        if ($rt.nn(Fanotify()).Available()) {
+        if (Fanotify()!.Available()) {
           return Fanotify();
         }
         return Inotify();
       }
-      case 'android' as string: {
-        return Inotify();
-      }
       case 'darwin' as string: {
-        if ($rt.nn(FSEvents()).Available()) {
+        if (FSEvents()!.Available()) {
           return FSEvents();
         }
         return Kqueue();

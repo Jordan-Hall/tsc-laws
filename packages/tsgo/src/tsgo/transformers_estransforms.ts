@@ -402,7 +402,7 @@ export class asyncTransformer extends $transformers.Transformer {
       .Factory()!
       .UpdateConstructorDeclaration(
         decl,
-        tx!.Visitor()!.VisitModifiers(decl!.ModifiersBase_.Modifiers$ModifiersBase()),
+        tx!.Visitor()!.VisitModifiers(decl!.ModifiersBase_.Modifiers()),
         undefined,
         tx!.EmitContext$m()!.VisitParameters(decl!.FunctionLikeWithBodyBase_.Parameters, tx!.Visitor()),
         undefined,
@@ -458,7 +458,7 @@ export class asyncTransformer extends $transformers.Transformer {
         tx!.Visitor()!.VisitModifiers(decl!.NamedMemberBase_.Modifiers()),
         decl!.Name(),
         undefined,
-        tx!.EmitContext$m()!.VisitParameters(decl!.FunctionLikeWithBodyBase_.Parameters, tx!.Visitor()),
+        tx!.EmitContext$m()!.VisitParameters(decl!.Parameters, tx!.Visitor()),
         undefined,
         undefined,
         tx!.transformMethodBody(node),
@@ -479,7 +479,7 @@ export class asyncTransformer extends $transformers.Transformer {
         tx!.Visitor()!.VisitModifiers(decl!.NamedMemberBase_.Modifiers()),
         decl!.Name(),
         undefined,
-        tx!.EmitContext$m()!.VisitParameters(decl!.FunctionLikeWithBodyBase_.Parameters, tx!.Visitor()),
+        tx!.EmitContext$m()!.VisitParameters(decl!.Parameters, tx!.Visitor()),
         undefined,
         undefined,
         tx!.transformMethodBody(node),
@@ -507,7 +507,7 @@ export class asyncTransformer extends $transformers.Transformer {
       .Factory()!
       .UpdateFunctionDeclaration(
         decl,
-        tx!.Visitor()!.VisitModifiers(decl!.ModifiersBase_.Modifiers$ModifiersBase()),
+        tx!.Visitor()!.VisitModifiers(decl!.ModifiersBase_.Modifiers()),
         decl!.FunctionLikeWithBodyBase_.BodyBase_.AsteriskToken,
         tx!.Visitor()!.VisitNode(decl!.Name()),
         undefined,
@@ -539,7 +539,7 @@ export class asyncTransformer extends $transformers.Transformer {
       .Factory()!
       .UpdateFunctionExpression(
         decl,
-        tx!.Visitor()!.VisitModifiers(decl!.ModifiersBase_.Modifiers$ModifiersBase()),
+        tx!.Visitor()!.VisitModifiers(decl!.ModifiersBase_.Modifiers()),
         decl!.FunctionLikeWithBodyBase_.BodyBase_.AsteriskToken,
         tx!.Visitor()!.VisitNode(decl!.Name()),
         undefined,
@@ -580,7 +580,7 @@ export class asyncTransformer extends $transformers.Transformer {
         .Factory()!
         .UpdateArrowFunction(
           decl,
-          tx!.Visitor()!.VisitModifiers(decl!.ModifiersBase_.Modifiers$ModifiersBase()),
+          tx!.Visitor()!.VisitModifiers(decl!.ModifiersBase_.Modifiers()),
           undefined,
           parameters,
           undefined,
@@ -994,10 +994,7 @@ export class asyncTransformer extends $transformers.Transformer {
     } else {
       result = tx!.Factory()!.NewAwaiterHelper(hasLexicalThis, argumentsExpression, innerParameters, asyncBody);
       if (captureLexicalArguments && tx!.lexicalArguments.used) {
-        const block$1: $ast.Node | undefined = tx!.EmitContext$m()!.ConvertToFunctionBlock(result, true);
-        if (!$ast.IsBlock(result)) {
-          tx!.EmitContext$m()!.SetOriginal(block$1!.StatementList()!.Nodes[0], result);
-        }
+        const block$1: $ast.Node | undefined = tx!.convertToFunctionBlock(result);
         result = tx!
           .Factory()!
           .UpdateBlock(
@@ -1042,6 +1039,20 @@ export class asyncTransformer extends $transformers.Transformer {
     list!.Loc = body!.Loc;
     const block: $ast.Node | undefined = tx!.Factory()!.NewBlock(list, false);
     block!.Loc = body!.Loc;
+    return block;
+  }
+  convertToFunctionBlock(node: $ast.Node | undefined): $ast.Node | undefined {
+    const tx = this;
+    if ($ast.IsBlock(node)) {
+      return node;
+    }
+    const ret: $ast.Node | undefined = tx!.Factory()!.NewReturnStatement(node);
+    ret!.Loc = node!.Loc;
+    tx!.EmitContext$m()!.SetOriginal(ret, node);
+    const list: $ast.NodeList | undefined = tx!.Factory()!.NewNodeList([ret]);
+    list!.Loc = node!.Loc;
+    const block: $ast.Node | undefined = tx!.Factory()!.NewBlock(list, true);
+    block!.Loc = node!.Loc;
     return block;
   }
   getOriginalIfFunctionLike(node: $ast.Node | undefined): $ast.Node | undefined {
@@ -3019,7 +3030,7 @@ export class classFieldsTransformer extends $transformers.Transformer {
       tx!.classAliases!.set(tx!.EmitContext$m()!.MostOriginal(node), alias);
     }
     let modifiers: $ast.ModifierList | undefined = tx!.modifierVisitor!.VisitModifiers(
-      classDecl!.ClassLikeBase_.ModifiersBase_.Modifiers$ModifiersBase(),
+      classDecl!.ClassLikeBase_.ModifiersBase_.Modifiers(),
     );
     const heritageClauses: $ast.NodeList | undefined = tx!.heritageClauseVisitor!.VisitNodes(
       classDecl!.ClassLikeBase_.HeritageClauses,
@@ -3148,7 +3159,7 @@ export class classFieldsTransformer extends $transformers.Transformer {
       }
     }
     const modifiers: $ast.ModifierList | undefined = tx!.modifierVisitor!.VisitModifiers(
-      classExpr!.ClassLikeBase_.ModifiersBase_.Modifiers$ModifiersBase(),
+      classExpr!.ClassLikeBase_.ModifiersBase_.Modifiers(),
     );
     const heritageClauses: $ast.NodeList | undefined = tx!.heritageClauseVisitor!.VisitNodes(
       classExpr!.ClassLikeBase_.HeritageClauses,
@@ -5813,7 +5824,7 @@ export class esDecoratorTransformer extends $transformers.Transformer {
       return $transformers.SingleOrMany(statements, f);
     }
     const modifiers$1: $ast.ModifierList | undefined = tx!.modifierVisitor!.VisitModifiers(
-      node!.ClassLikeBase_.ModifiersBase_.Modifiers$ModifiersBase(),
+      node!.ClassLikeBase_.ModifiersBase_.Modifiers(),
     );
     const heritageClauses: $ast.NodeList | undefined = tx!.Visitor()!.VisitNodes(node!.ClassLikeBase_.HeritageClauses);
     tx!.enterClass(undefined);
@@ -5829,7 +5840,7 @@ export class esDecoratorTransformer extends $transformers.Transformer {
       return iife;
     }
     const modifiers: $ast.ModifierList | undefined = tx!.modifierVisitor!.VisitModifiers(
-      node!.ClassLikeBase_.ModifiersBase_.Modifiers$ModifiersBase(),
+      node!.ClassLikeBase_.ModifiersBase_.Modifiers(),
     );
     const heritageClauses: $ast.NodeList | undefined = tx!.Visitor()!.VisitNodes(node!.ClassLikeBase_.HeritageClauses);
     tx!.enterClass(undefined);
@@ -8030,7 +8041,7 @@ export class forawaitTransformer extends $transformers.Transformer {
       .Factory()!
       .UpdateConstructorDeclaration(
         decl,
-        decl!.ModifiersBase_.Modifiers$ModifiersBase(),
+        decl!.ModifiersBase_.Modifiers(),
         undefined,
         tx!.EmitContext$m()!.VisitParameters(decl!.FunctionLikeWithBodyBase_.Parameters, tx!.Visitor()),
         undefined,
@@ -8052,7 +8063,7 @@ export class forawaitTransformer extends $transformers.Transformer {
         decl!.NamedMemberBase_.Modifiers(),
         tx!.Visitor()!.VisitNode(decl!.Name()),
         undefined,
-        tx!.EmitContext$m()!.VisitParameters(decl!.FunctionLikeWithBodyBase_.Parameters, tx!.Visitor()),
+        tx!.EmitContext$m()!.VisitParameters(decl!.Parameters, tx!.Visitor()),
         undefined,
         undefined,
         tx!.EmitContext$m()!.VisitFunctionBody(node!.Body(), tx!.Visitor()),
@@ -8072,7 +8083,7 @@ export class forawaitTransformer extends $transformers.Transformer {
         decl!.NamedMemberBase_.Modifiers(),
         tx!.Visitor()!.VisitNode(decl!.Name()),
         undefined,
-        tx!.EmitContext$m()!.VisitParameters(decl!.FunctionLikeWithBodyBase_.Parameters, tx!.Visitor()),
+        tx!.EmitContext$m()!.VisitParameters(decl!.Parameters, tx!.Visitor()),
         undefined,
         undefined,
         tx!.EmitContext$m()!.VisitFunctionBody(node!.Body(), tx!.Visitor()),
@@ -8133,9 +8144,9 @@ export class forawaitTransformer extends $transformers.Transformer {
     tx!.enclosingFunctionFlags = $ast.GetFunctionFlags(node);
     let modifiers: $ast.ModifierList | undefined = undefined as $ast.ModifierList | undefined;
     if (!((tx!.enclosingFunctionFlags & 1) === (0 as number))) {
-      modifiers = tx!.visitModifiersNoAsync(decl!.ModifiersBase_.Modifiers$ModifiersBase());
+      modifiers = tx!.visitModifiersNoAsync(decl!.ModifiersBase_.Modifiers());
     } else {
-      modifiers = decl!.ModifiersBase_.Modifiers$ModifiersBase();
+      modifiers = decl!.ModifiersBase_.Modifiers();
     }
     let asteriskToken: $ast.Node | undefined = undefined as $ast.Node | undefined;
     if (!((tx!.enclosingFunctionFlags & 2) === (0 as number))) {
@@ -8180,7 +8191,7 @@ export class forawaitTransformer extends $transformers.Transformer {
       .Factory()!
       .UpdateArrowFunction(
         decl,
-        decl!.ModifiersBase_.Modifiers$ModifiersBase(),
+        decl!.ModifiersBase_.Modifiers(),
         undefined,
         tx!.EmitContext$m()!.VisitParameters(decl!.FunctionLikeWithBodyBase_.Parameters, tx!.Visitor()),
         undefined,
@@ -8198,9 +8209,9 @@ export class forawaitTransformer extends $transformers.Transformer {
     tx!.enclosingFunctionFlags = $ast.GetFunctionFlags(node);
     let modifiers: $ast.ModifierList | undefined = undefined as $ast.ModifierList | undefined;
     if (!((tx!.enclosingFunctionFlags & 1) === (0 as number))) {
-      modifiers = tx!.visitModifiersNoAsync(decl!.ModifiersBase_.Modifiers$ModifiersBase());
+      modifiers = tx!.visitModifiersNoAsync(decl!.ModifiersBase_.Modifiers());
     } else {
-      modifiers = decl!.ModifiersBase_.Modifiers$ModifiersBase();
+      modifiers = decl!.ModifiersBase_.Modifiers();
     }
     let asteriskToken: $ast.Node | undefined = undefined as $ast.Node | undefined;
     if (!((tx!.enclosingFunctionFlags & 2) === (0 as number))) {
@@ -8869,7 +8880,7 @@ export class objectRestSpreadTransformer extends $transformers.Transformer {
         .Factory()!
         .UpdateConstructorDeclaration(
           node,
-          node!.ModifiersBase_.Modifiers$ModifiersBase(),
+          node!.ModifiersBase_.Modifiers(),
           undefined,
           ch!.Visitor()!.VisitNodes(node!.FunctionLikeWithBodyBase_.Parameters),
           undefined,
@@ -8891,7 +8902,7 @@ export class objectRestSpreadTransformer extends $transformers.Transformer {
     const $defers: (() => void)[] = [];
     let $panic: $rt.Panic | undefined = undefined;
     $body: try {
-      const old: oldParamScope = ch!.enterParameterListContext(node!.AsNode());
+      const old: oldParamScope = ch!.enterParameterListContext(node!.NodeBase_.AsNode());
       const $t2 = old;
       const $t3 = ch;
       $defers.push(() => {
@@ -8904,10 +8915,10 @@ export class objectRestSpreadTransformer extends $transformers.Transformer {
           node!.NamedMemberBase_.Modifiers(),
           ch!.Visitor()!.VisitNode(node!.Name()),
           undefined,
-          ch!.Visitor()!.VisitNodes(node!.FunctionLikeWithBodyBase_.Parameters),
+          ch!.Visitor()!.VisitNodes(node!.Parameters),
           undefined,
           undefined,
-          ch!.transformFunctionBody(node!.AsNode()),
+          ch!.transformFunctionBody(node!.NodeBase_.AsNode()),
         );
       break $body;
     } catch ($e) {
@@ -8924,7 +8935,7 @@ export class objectRestSpreadTransformer extends $transformers.Transformer {
     const $defers: (() => void)[] = [];
     let $panic: $rt.Panic | undefined = undefined;
     $body: try {
-      const old: oldParamScope = ch!.enterParameterListContext(node!.AsNode());
+      const old: oldParamScope = ch!.enterParameterListContext(node!.NodeBase_.AsNode());
       const $t2 = old;
       const $t3 = ch;
       $defers.push(() => {
@@ -8937,10 +8948,10 @@ export class objectRestSpreadTransformer extends $transformers.Transformer {
           node!.NamedMemberBase_.Modifiers(),
           ch!.Visitor()!.VisitNode(node!.Name()),
           undefined,
-          ch!.Visitor()!.VisitNodes(node!.FunctionLikeWithBodyBase_.Parameters),
+          ch!.Visitor()!.VisitNodes(node!.Parameters),
           undefined,
           undefined,
-          ch!.transformFunctionBody(node!.AsNode()),
+          ch!.transformFunctionBody(node!.NodeBase_.AsNode()),
         );
       break $body;
     } catch ($e) {
@@ -9002,7 +9013,7 @@ export class objectRestSpreadTransformer extends $transformers.Transformer {
         .Factory()!
         .UpdateFunctionDeclaration(
           node,
-          node!.ModifiersBase_.Modifiers$ModifiersBase(),
+          node!.ModifiersBase_.Modifiers(),
           node!.FunctionLikeWithBodyBase_.BodyBase_.AsteriskToken,
           ch!.Visitor()!.VisitNode(node!.Name()),
           undefined,
@@ -9036,7 +9047,7 @@ export class objectRestSpreadTransformer extends $transformers.Transformer {
         .Factory()!
         .UpdateArrowFunction(
           node,
-          node!.ModifiersBase_.Modifiers$ModifiersBase(),
+          node!.ModifiersBase_.Modifiers(),
           undefined,
           ch!.Visitor()!.VisitNodes(node!.FunctionLikeWithBodyBase_.Parameters),
           undefined,
@@ -9069,7 +9080,7 @@ export class objectRestSpreadTransformer extends $transformers.Transformer {
         .Factory()!
         .UpdateFunctionExpression(
           node,
-          node!.ModifiersBase_.Modifiers$ModifiersBase(),
+          node!.ModifiersBase_.Modifiers(),
           node!.FunctionLikeWithBodyBase_.BodyBase_.AsteriskToken,
           ch!.Visitor()!.VisitNode(node!.Name()),
           undefined,
@@ -12084,7 +12095,7 @@ export function injectClassThisAssignmentIfMissing(
     const cd: $ast.ClassDeclaration | undefined = node!.AsClassDeclaration();
     updatedNode = f!.UpdateClassDeclaration(
       cd,
-      cd!.ClassLikeBase_.ModifiersBase_.Modifiers$ModifiersBase(),
+      cd!.ClassLikeBase_.ModifiersBase_.Modifiers(),
       cd!.Name(),
       undefined,
       cd!.ClassLikeBase_.HeritageClauses,
@@ -12094,7 +12105,7 @@ export function injectClassThisAssignmentIfMissing(
     const ce: $ast.ClassExpression | undefined = node!.AsClassExpression();
     updatedNode = f!.UpdateClassExpression(
       ce,
-      ce!.ClassLikeBase_.ModifiersBase_.Modifiers$ModifiersBase(),
+      ce!.ClassLikeBase_.ModifiersBase_.Modifiers(),
       ce!.Name(),
       undefined,
       ce!.ClassLikeBase_.HeritageClauses,
@@ -12910,11 +12921,7 @@ export function convertClassDeclarationToClassExpression(
   node: $ast.ClassDeclaration | undefined,
 ): $ast.Node | undefined {
   const updated: $ast.Node | undefined = emitContext!.Factory!.NewClassExpression(
-    $transformers.ExtractModifiers(
-      emitContext,
-      node!.ClassLikeBase_.ModifiersBase_.Modifiers$ModifiersBase(),
-      4294965215,
-    ),
+    $transformers.ExtractModifiers(emitContext, node!.ClassLikeBase_.ModifiersBase_.Modifiers(), 4294965215),
     node!.Name(),
     node!.ClassLikeBase_.TypeParameters,
     node!.ClassLikeBase_.HeritageClauses,

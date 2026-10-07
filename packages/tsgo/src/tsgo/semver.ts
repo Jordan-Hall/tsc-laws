@@ -2,8 +2,6 @@
 // Copyright Microsoft Corporation. Licensed under Apache-2.0.
 import * as $rt from '../go/runtime.js';
 import type * as $checkhost from './checkhost.js';
-import type * as $contentmapper from './contentmapper.js';
-import type * as $ipc from './ipc.js';
 export type comparatorOperator = string;
 export class SemverParseError extends $rt.GoObject {
   origInput: string = '';
@@ -131,41 +129,20 @@ export class Version extends $rt.GoObject {
     const v = this;
     let sb: $rt.strings_Builder = new $rt.strings_Builder();
     $rt.fmt_Fprintf(
-      $rt.unsupportedConversion<
-        | $ipc.stdioConn
-        | $contentmapper.closeOnceReadWriteCloser
-        | $contentmapper.loggedProcess
-        | $contentmapper.stderrLogger
-        | $checkhost.hostWriter
-        | undefined
-      >('$rt.strings_Builder | undefined'),
+      $rt.unsupportedConversion<$checkhost.hostWriter | undefined>('$rt.strings_Builder | undefined'),
       '%d.%d.%d',
       [new $rt.BoxNum(v!.major, 'uint32'), new $rt.BoxNum(v!.minor, 'uint32'), new $rt.BoxNum(v!.patch, 'uint32')],
     );
     if (v!.prerelease.length > 0) {
       $rt.fmt_Fprintf(
-        $rt.unsupportedConversion<
-          | $ipc.stdioConn
-          | $contentmapper.closeOnceReadWriteCloser
-          | $contentmapper.loggedProcess
-          | $contentmapper.stderrLogger
-          | $checkhost.hostWriter
-          | undefined
-        >('$rt.strings_Builder | undefined'),
+        $rt.unsupportedConversion<$checkhost.hostWriter | undefined>('$rt.strings_Builder | undefined'),
         '-%s',
         [new $rt.BoxStr($rt.strings_Join(v!.prerelease, '.'), 'string')],
       );
     }
     if (v!.build.length > 0) {
       $rt.fmt_Fprintf(
-        $rt.unsupportedConversion<
-          | $ipc.stdioConn
-          | $contentmapper.closeOnceReadWriteCloser
-          | $contentmapper.loggedProcess
-          | $contentmapper.stderrLogger
-          | $checkhost.hostWriter
-          | undefined
-        >('$rt.strings_Builder | undefined'),
+        $rt.unsupportedConversion<$checkhost.hostWriter | undefined>('$rt.strings_Builder | undefined'),
         '+%s',
         [new $rt.BoxStr($rt.strings_Join(v!.build, '.'), 'string')],
       );
@@ -255,7 +232,6 @@ export class versionComparator extends $rt.GoObject {
     throw $rt.typeAssertError();
   }
 }
-export const partialVersion$zero: partialVersion = new partialVersion();
 export const comparisonEqualTo: number = 0;
 export const comparisonGreaterThan: number = 1;
 export const comparisonLessThan: number = -1;
@@ -648,7 +624,7 @@ export function parsePartial(text: string): [partialVersion, boolean] {
     minorStr,
     patchStr,
   );
-  return [result, true];
+  return [result.$clone_semver_partialVersion(), true];
 }
 export function parseComparator(op: string, text: string): [versionComparator[], boolean] {
   let operator: comparatorOperator = op;

@@ -4,13 +4,11 @@ import * as $rt from '../go/runtime.js';
 import type * as $ast from './ast.js';
 import type * as $checker from './checker.js';
 import type * as $checkhost from './checkhost.js';
-import type * as $contentmapper from './contentmapper.js';
 import type * as $core from './core.js';
 import type * as $diagnostics from './diagnostics.js';
 import type * as $diagnosticwriter from './diagnosticwriter.js';
 import type * as $format from './format.js';
 import type * as $fswatch from './fswatch.js';
-import type * as $ipc from './ipc.js';
 import type * as $jsnum from './jsnum.js';
 import type * as $jsonrpc from './jsonrpc.js';
 import type * as $lsp_lsproto from './lsp_lsproto.js';
@@ -40,8 +38,6 @@ export type element =
   | $vfs_vfsmatch.Usage$Box
   | $module.PackageId
   | $module.extensions$Box
-  | $jsonrpc.ID
-  | $jsonrpc.ResponseError
   | Glob
   | anyChar
   | charRange
@@ -54,14 +50,16 @@ export type element =
   | $printer.ChangeTrackerWriter
   | $printer.singleLineStringWriter
   | $printer.textWriter
-  | $printer.trailingSemicolonDeferringWriter
   | $checker.LiteralType
   | $checker.SignatureKind$Box
   | $checker.TypeFlags$Box
   | $checker.VarianceFlags$Box
+  | $checker.semicolonRemoverWriter
   | $diagnosticwriter.ASTDiagnostic
   | $fswatch.EventKind$Box
   | $fswatch.watcher
+  | $jsonrpc.ID
+  | $jsonrpc.ResponseError
   | $lsp_lsproto.AddAsTypeOnly$Box
   | $lsp_lsproto.ApplyKind$Box
   | $lsp_lsproto.AutoImportFixKind$Box
@@ -70,7 +68,6 @@ export type element =
   | $lsp_lsproto.CompletionItemKind$Box
   | $lsp_lsproto.CompletionItemTag$Box
   | $lsp_lsproto.CompletionTriggerKind$Box
-  | $lsp_lsproto.DiagnosticFlakeLogLevel$Box
   | $lsp_lsproto.DiagnosticSeverity$Box
   | $lsp_lsproto.DiagnosticTag$Box
   | $lsp_lsproto.DocumentHighlightKind$Box
@@ -89,7 +86,6 @@ export type element =
   | $lsp_lsproto.SymbolTag$Box
   | $lsp_lsproto.TextDocumentSaveReason$Box
   | $lsp_lsproto.TextDocumentSyncKind$Box
-  | $lsp_lsproto.VSContainerElementStyle$Box
   | $lsp_lsproto.VSReferenceKind$Box
   | $lsp_lsproto.WatchKind$Box
   | $format.ruleImpl
@@ -173,14 +169,7 @@ export class Glob extends $rt.GoObject {
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
         const e = $t1[$t2];
         $rt.fmt_Fprint(
-          $rt.unsupportedConversion<
-            | $ipc.stdioConn
-            | $contentmapper.closeOnceReadWriteCloser
-            | $contentmapper.loggedProcess
-            | $contentmapper.stderrLogger
-            | $checkhost.hostWriter
-            | undefined
-          >('$rt.strings_Builder | undefined'),
+          $rt.unsupportedConversion<$checkhost.hostWriter | undefined>('$rt.strings_Builder | undefined'),
           [e],
         );
       }

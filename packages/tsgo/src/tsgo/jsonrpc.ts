@@ -4,8 +4,6 @@ import * as $rt from '../go/runtime.js';
 import * as $boxes from './boxes.js';
 import * as $json from './json.js';
 import type * as $checkhost from './checkhost.js';
-import type * as $contentmapper from './contentmapper.js';
-import type * as $ipc from './ipc.js';
 export type MessageKind = number;
 export class ID extends $rt.GoObject {
   str: string = '';
@@ -13,9 +11,6 @@ export class ID extends $rt.GoObject {
   $copy_jsonrpc_ID(src: ID): void {
     this.str = src.str;
     this.int = src.int;
-  }
-  $key_jsonrpc_ID(): string {
-    return [$rt.strKey(this.str), $rt.numKey(this.int)].join('|');
   }
   $equals_jsonrpc_ID(o: ID): boolean {
     return this.str === o.str && this.int === o.int;
@@ -261,9 +256,7 @@ export class Reader extends $rt.GoObject {
     const data: number[] = $rt.makeSlice<number>(contentLength, 0);
     {
       const $t4 = $rt.io_ReadFull(
-        $rt.unsupportedConversion<
-          $ipc.stdioConn | $contentmapper.closeOnceReadWriteCloser | $contentmapper.loggedProcess | undefined
-        >('$rt.bufio_Reader | undefined'),
+        $rt.unsupportedConversion<$rt.io_Reader | undefined>('$rt.bufio_Reader | undefined'),
         data,
       );
       const err$1: $rt.GoObject | undefined = $t4[1];
@@ -298,23 +291,6 @@ export class RequestMessage extends $rt.GoObject {
     o.$copy_jsonrpc_RequestMessage(this);
     return o;
   }
-  static $lit_jsonrpc_RequestMessage_1_2_3(
-    p0: ID | undefined,
-    p1: string,
-    p2: $rt.GoObject | undefined,
-  ): RequestMessage {
-    const o = new RequestMessage();
-    o.ID_ = p0;
-    o.Method = p1;
-    o.Params = p2;
-    return o;
-  }
-  static $lit_jsonrpc_RequestMessage_2_3(p0: string, p1: $rt.GoObject | undefined): RequestMessage {
-    const o = new RequestMessage();
-    o.Method = p0;
-    o.Params = p1;
-    return o;
-  }
   static $cast_jsonrpc_RequestMessage(v: $rt.GoObject | undefined): RequestMessage {
     if (v instanceof RequestMessage) return v;
     throw $rt.typeAssertError();
@@ -335,12 +311,6 @@ export class ResponseError extends $rt.GoObject {
   $clone_jsonrpc_ResponseError(): ResponseError {
     const o = new ResponseError();
     o.$copy_jsonrpc_ResponseError(this);
-    return o;
-  }
-  static $lit_jsonrpc_ResponseError_0_1(p0: number, p1: string): ResponseError {
-    const o = new ResponseError();
-    o.Code = p0;
-    o.Message = p1;
     return o;
   }
   static $cast_jsonrpc_ResponseError(v: $rt.GoObject | undefined): ResponseError {
@@ -398,18 +368,6 @@ export class ResponseMessage extends $rt.GoObject {
     o.$copy_jsonrpc_ResponseMessage(this);
     return o;
   }
-  static $lit_jsonrpc_ResponseMessage_1_2(p0: ID | undefined, p1: $rt.GoObject | undefined): ResponseMessage {
-    const o = new ResponseMessage();
-    o.ID_ = p0;
-    o.Result = p1;
-    return o;
-  }
-  static $lit_jsonrpc_ResponseMessage_1_3(p0: ID | undefined, p1: ResponseError | undefined): ResponseMessage {
-    const o = new ResponseMessage();
-    o.ID_ = p0;
-    o.Error_ = p1;
-    return o;
-  }
   static $cast_jsonrpc_ResponseMessage(v: $rt.GoObject | undefined): ResponseMessage {
     if (v instanceof ResponseMessage) return v;
     throw $rt.typeAssertError();
@@ -441,14 +399,7 @@ export class Writer extends $rt.GoObject {
     const w = this;
     {
       const $t1 = $rt.fmt_Fprintf(
-        $rt.unsupportedConversion<
-          | $ipc.stdioConn
-          | $contentmapper.closeOnceReadWriteCloser
-          | $contentmapper.loggedProcess
-          | $contentmapper.stderrLogger
-          | $checkhost.hostWriter
-          | undefined
-        >('$rt.bufio_Writer | undefined'),
+        $rt.unsupportedConversion<$checkhost.hostWriter | undefined>('$rt.bufio_Writer | undefined'),
         'Content-Length: %d\r\n\r\n',
         [new $rt.BoxNum(data.length, 'int')],
       );
@@ -469,8 +420,6 @@ export class Writer extends $rt.GoObject {
 }
 export const IntegerOrString$zero: IntegerOrString = new IntegerOrString();
 export const JSONRPCVersion$zero: JSONRPCVersion = new JSONRPCVersion();
-export const RequestMessage$zero: RequestMessage = new RequestMessage();
-export const ResponseMessage$zero: ResponseMessage = new ResponseMessage();
 export const CodeInternalError: number = -32603;
 export const CodeInvalidParams: number = -32602;
 export const CodeInvalidRequest: number = -32600;
@@ -484,20 +433,10 @@ export let ErrInvalidHeader: $rt.GoObject | undefined = $rt.errors_New('jsonrpc:
 export let ErrInvalidContentLength: $rt.GoObject | undefined = $rt.errors_New('jsonrpc: invalid content length');
 export let ErrNoContentLength: $rt.GoObject | undefined = $rt.errors_New('jsonrpc: no content length');
 export let ErrInvalidJSONRPCVersion: $rt.GoObject | undefined = $rt.errors_New('invalid JSON-RPC version');
-export function NewReader(
-  r: $ipc.stdioConn | $contentmapper.closeOnceReadWriteCloser | $contentmapper.loggedProcess | undefined,
-): Reader | undefined {
+export function NewReader(r: $rt.io_Reader | undefined): Reader | undefined {
   return Reader.$lit_jsonrpc_Reader_0($rt.bufio_NewReader(r));
 }
-export function NewWriter(
-  w:
-    | $ipc.stdioConn
-    | $contentmapper.closeOnceReadWriteCloser
-    | $contentmapper.loggedProcess
-    | $contentmapper.stderrLogger
-    | $checkhost.hostWriter
-    | undefined,
-): Writer | undefined {
+export function NewWriter(w: $checkhost.hostWriter | undefined): Writer | undefined {
   return Writer.$lit_jsonrpc_Writer_0($rt.bufio_NewWriter(w));
 }
 export function NewID(rawValue: IntegerOrString): ID | undefined {

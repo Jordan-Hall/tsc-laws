@@ -548,11 +548,7 @@ export function GetAllowedEndingsInPreferredOrder(
     compilerOptions,
     importingSourceFile!.FileName(),
   );
-  let effectiveSyntaxMode: $core.ResolutionMode = syntaxImpliedNodeFormat;
-  if (effectiveSyntaxMode === (0 as number)) {
-    effectiveSyntaxMode = resolutionMode;
-  }
-  if (effectiveSyntaxMode === (99 as number) && moduleResolutionIsNodeNext) {
+  if (syntaxImpliedNodeFormat === (99 as number) && moduleResolutionIsNodeNext) {
     if (allowImportingTsExtension) {
       return [3, 2];
     }
@@ -2440,7 +2436,10 @@ export function extensionFromPath(path: string): string {
 export function tryGetAnyFileFromPath(host: ModuleSpecifierGenerationHost, path: string): boolean {
   const extGroups: string[][] = $tsoptions.GetSupportedExtensions(
     $core.CompilerOptions.$lit_core_CompilerOptions_1(2),
-    ['.node', '.json'],
+    [
+      $tsoptions.FileExtensionInfo.$lit_tsoptions_FileExtensionInfo_0_1_2('node', false, 5),
+      $tsoptions.FileExtensionInfo.$lit_tsoptions_FileExtensionInfo_0_1_2('json', false, 6),
+    ],
   );
   {
     const $t1 = extGroups;

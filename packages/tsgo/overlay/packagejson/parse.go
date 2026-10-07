@@ -49,19 +49,6 @@ func Parse(data []byte) (Fields, error) {
 	f.DevDependencies = expectedStringMap(obj, "devDependencies")
 	f.PeerDependencies = expectedStringMap(obj, "peerDependencies")
 	f.OptionalDependencies = expectedStringMap(obj, "optionalDependencies")
-	if v, ok := obj.get("typescript"); ok {
-		if ts, ok := v.(*jsonObject); ok {
-			if cm, ok := ts.get("contentMapper"); ok {
-				f.ContentMapper.actualJSONType = jsonKind(cm)
-				if cmObj, ok := cm.(*jsonObject); ok {
-					f.ContentMapper.Valid = true
-					f.ContentMapper.Value.Exec = expectedStrings(cmObj, "exec")
-					f.ContentMapper.Value.CompilerOptions = expectedStrings(cmObj, "compilerOptions")
-					f.ContentMapper.Value.DynamicConfig = expectedBool(cmObj, "dynamicConfig")
-				}
-			}
-		}
-	}
 	return f, nil
 }
 

@@ -6,7 +6,6 @@ import * as $binder from './binder.js';
 import * as $boxes from './boxes.js';
 import * as $checker from './checker.js';
 import * as $collections from './collections.js';
-import * as $contentmapper from './contentmapper.js';
 import * as $core from './core.js';
 import * as $diagnostics from './diagnostics.js';
 import * as $json from './json.js';
@@ -18,7 +17,6 @@ import * as $parser from './parser.js';
 import * as $printer from './printer.js';
 import * as $scanner from './scanner.js';
 import * as $sourcemap from './sourcemap.js';
-import * as $spanmap from './spanmap.js';
 import * as $stringutil from './stringutil.js';
 import * as $symlinks from './symlinks.js';
 import * as $tracing from './tracing.js';
@@ -36,28 +34,27 @@ import type * as $checkhost from './checkhost.js';
 import type * as $execute from './execute.js';
 import type * as $execute_build from './execute_build.js';
 import type * as $execute_incremental from './execute_incremental.js';
-import type * as $ipc from './ipc.js';
 import type * as $locale from './locale.js';
 import type * as $vfs from './vfs.js';
 import { OrderedMap as $collections$OrderedMap } from './collections.js';
 import { Set_ as $collections$Set_ } from './collections.js';
 const $zf0 = (): $ast.Node | undefined => undefined;
-const $zf1 = (): $ast.Diagnostic | undefined => undefined;
-const $zf10 = (): LibFile | undefined => undefined;
-const $zf11 = (): $tspath.Path => '';
-const $zf12 = (): libResolution | undefined => undefined;
-const $zf13 = (): parseTaskData | undefined => undefined;
-const $zf14 = (): FileIncludeReason | undefined => undefined;
-const $zf15 = (): referenceFileLocation | undefined => undefined;
+const $zf1 = (): $ast.SourceFile | undefined => undefined;
+const $zf10 = (): $tspath.Path => '';
+const $zf11 = (): libResolution | undefined => undefined;
+const $zf12 = (): parseTaskData | undefined => undefined;
+const $zf13 = (): FileIncludeReason | undefined => undefined;
+const $zf14 = (): referenceFileLocation | undefined => undefined;
+const $zf15 = (): $ast.Diagnostic | undefined => undefined;
 const $zf16 = (): $tsoptions.SourceOutputAndProjectReference | undefined => undefined;
-const $zf2 = (): $ast.SourceFile | undefined => undefined;
-const $zf3 = (): string => '';
-const $zf4 = (): $ast.PropertyAssignment | undefined => undefined;
-const $zf5 = (): $ast.ObjectLiteralExpression | undefined => undefined;
-const $zf6 = (): string[] => [];
-const $zf7 = (): EmitResult | undefined => undefined;
-const $zf8 = (): projectReferenceParseTask | undefined => undefined;
-const $zf9 = (): ($ast.Diagnostic | undefined)[] => [];
+const $zf2 = (): string => '';
+const $zf3 = (): $ast.PropertyAssignment | undefined => undefined;
+const $zf4 = (): $ast.ObjectLiteralExpression | undefined => undefined;
+const $zf5 = (): string[] => [];
+const $zf6 = (): EmitResult | undefined => undefined;
+const $zf7 = (): projectReferenceParseTask | undefined => undefined;
+const $zf8 = (): ($ast.Diagnostic | undefined)[] => [];
+const $zf9 = (): LibFile | undefined => undefined;
 export type CheckerPool = checkerPool | undefined;
 export type CompilerHost =
   | compilerHost
@@ -72,35 +69,22 @@ export type SourceFileMayBeEmittedHost = Program | emitHost | undefined;
 export type WriteFile =
   | ((p0: string, p1: string, p2: WriteFileData | undefined) => $rt.GoObject | undefined)
   | undefined;
-export type declarationTransformer =
-  | $transformers_declarations.DeclarationTransformer
-  | $transformers_declarations.SupplementalReferencesTransformer
-  | undefined;
 export type fileIncludeKind = number;
 export type processingDiagnosticKind = number;
 export class DuplicateSourceFile extends $rt.GoObject {
-  ParseOptions: $ast.SourceFileParseOptions = new $ast.SourceFileParseOptions();
-  ContentMapperParseOptions: $ast.SourceFileParseOptions = new $ast.SourceFileParseOptions();
+  ParseOptions: $ast.SourceFileParseOptions = $ast.SourceFileParseOptions$zero;
   Hash: $rt.github_com_zeebo_xxh3_Uint128 = new $rt.github_com_zeebo_xxh3_Uint128();
   ScriptKind_: $core.ScriptKind = 0;
-  ContentMapper: string = '';
-  IsContentMapperFailureStub: boolean = false;
   $copy_compiler_DuplicateSourceFile(src: DuplicateSourceFile): void {
-    this.ParseOptions = src.ParseOptions.$clone_ast_SourceFileParseOptions();
-    this.ContentMapperParseOptions = src.ContentMapperParseOptions.$clone_ast_SourceFileParseOptions();
+    this.ParseOptions = src.ParseOptions;
     this.Hash = src.Hash;
     this.ScriptKind_ = src.ScriptKind_;
-    this.ContentMapper = src.ContentMapper;
-    this.IsContentMapperFailureStub = src.IsContentMapperFailureStub;
   }
   $equals_compiler_DuplicateSourceFile(o: DuplicateSourceFile): boolean {
     return (
       this.ParseOptions.$equals_ast_SourceFileParseOptions(o.ParseOptions) &&
-      this.ContentMapperParseOptions.$equals_ast_SourceFileParseOptions(o.ContentMapperParseOptions) &&
       this.Hash.$equals(o.Hash) &&
-      this.ScriptKind_ === o.ScriptKind_ &&
-      this.ContentMapper === o.ContentMapper &&
-      this.IsContentMapperFailureStub === o.IsContentMapperFailureStub
+      this.ScriptKind_ === o.ScriptKind_
     );
   }
   $clone_compiler_DuplicateSourceFile(): DuplicateSourceFile {
@@ -108,21 +92,15 @@ export class DuplicateSourceFile extends $rt.GoObject {
     o.$copy_compiler_DuplicateSourceFile(this);
     return o;
   }
-  static $lit_compiler_DuplicateSourceFile_0_1_2_3_4_5(
+  static $lit_compiler_DuplicateSourceFile_0_1_2(
     p0: $ast.SourceFileParseOptions,
-    p1: $ast.SourceFileParseOptions,
-    p2: $rt.github_com_zeebo_xxh3_Uint128,
-    p3: $core.ScriptKind,
-    p4: string,
-    p5: boolean,
+    p1: $rt.github_com_zeebo_xxh3_Uint128,
+    p2: $core.ScriptKind,
   ): DuplicateSourceFile {
     const o = new DuplicateSourceFile();
     o.ParseOptions = p0;
-    o.ContentMapperParseOptions = p1;
-    o.Hash = p2;
-    o.ScriptKind_ = p3;
-    o.ContentMapper = p4;
-    o.IsContentMapperFailureStub = p5;
+    o.Hash = p1;
+    o.ScriptKind_ = p2;
     return o;
   }
   static $cast_compiler_DuplicateSourceFile(v: $rt.GoObject | undefined): DuplicateSourceFile {
@@ -131,14 +109,12 @@ export class DuplicateSourceFile extends $rt.GoObject {
   }
 }
 export class EmitOptions extends $rt.GoObject {
-  TargetSourceFiles: ($ast.SourceFile | undefined)[] = [];
+  TargetSourceFile: $ast.SourceFile | undefined = undefined;
   EmitOnly_: EmitOnly = 0;
-  ForceEmit: boolean = false;
   WriteFile_: WriteFile = undefined;
   $copy_compiler_EmitOptions(src: EmitOptions): void {
-    this.TargetSourceFiles = src.TargetSourceFiles;
+    this.TargetSourceFile = src.TargetSourceFile;
     this.EmitOnly_ = src.EmitOnly_;
-    this.ForceEmit = src.ForceEmit;
     this.WriteFile_ = src.WriteFile_;
   }
   $clone_compiler_EmitOptions(): EmitOptions {
@@ -146,36 +122,19 @@ export class EmitOptions extends $rt.GoObject {
     o.$copy_compiler_EmitOptions(this);
     return o;
   }
-  static $lit_compiler_EmitOptions_0(p0: ($ast.SourceFile | undefined)[]): EmitOptions {
+  static $lit_compiler_EmitOptions_0(p0: $ast.SourceFile | undefined): EmitOptions {
     const o = new EmitOptions();
-    o.TargetSourceFiles = p0;
+    o.TargetSourceFile = p0;
     return o;
   }
-  static $lit_compiler_EmitOptions_0_1_2_3(
-    p0: ($ast.SourceFile | undefined)[],
-    p1: EmitOnly,
-    p2: boolean,
-    p3: WriteFile,
-  ): EmitOptions {
+  static $lit_compiler_EmitOptions_0_1_2(p0: $ast.SourceFile | undefined, p1: EmitOnly, p2: WriteFile): EmitOptions {
     const o = new EmitOptions();
-    o.TargetSourceFiles = p0;
-    o.EmitOnly_ = p1;
-    o.ForceEmit = p2;
-    o.WriteFile_ = p3;
-    return o;
-  }
-  static $lit_compiler_EmitOptions_0_1_3(
-    p0: ($ast.SourceFile | undefined)[],
-    p1: EmitOnly,
-    p2: WriteFile,
-  ): EmitOptions {
-    const o = new EmitOptions();
-    o.TargetSourceFiles = p0;
+    o.TargetSourceFile = p0;
     o.EmitOnly_ = p1;
     o.WriteFile_ = p2;
     return o;
   }
-  static $lit_compiler_EmitOptions_3(p0: WriteFile): EmitOptions {
+  static $lit_compiler_EmitOptions_2(p0: WriteFile): EmitOptions {
     const o = new EmitOptions();
     o.WriteFile_ = p0;
     return o;
@@ -382,7 +341,7 @@ export class FileIncludeReason extends $rt.GoObject {
       return r!.relativeFileNameDiag;
     } else {
       r!.diagOnce.Do((): void => {
-        r!.diag = r!.computeDiagnostic(program, $fn5);
+        r!.diag = r!.computeDiagnostic(program, $fn2);
       });
       return r!.diag;
     }
@@ -496,15 +455,6 @@ export class FileIncludeReason extends $rt.GoObject {
             }
           }
           break;
-        }
-        case 7 as number: {
-          const canonical: $ast.SourceFile | undefined = program!.GetSourceFileByPath(
-            $rt.checkString($rt.isValue(r!.data, 'tspath.Path'), r!.data),
-          );
-          return $ast.NewCompilerDiagnostic(
-            $diagnostics.Supplemental_virtual_file_produced_by_the_content_mapper_for_file_0,
-            [new $rt.BoxStr(toFileName!(canonical!.FileName()), 'string')],
-          );
         }
         default: {
           throw $rt.newPanic(
@@ -759,9 +709,6 @@ export class FileIncludeReason extends $rt.GoObject {
           }
           break;
         }
-        case 7 as number: {
-          return undefined;
-        }
         default: {
           throw $rt.newPanic(
             new $rt.BoxStr(
@@ -871,7 +818,6 @@ export class processedFiles extends $rt.GoObject {
   outputFileToProjectReferenceSource: Map<$tspath.Path, string> | undefined = undefined;
   redirectTargetsMap: Map<$tspath.Path, string[]> | undefined = undefined;
   redirectFilesByPath: Map<$tspath.Path, redirectsFile | undefined> | undefined = undefined;
-  contentMapperDiagnostics: ($ast.Diagnostic | undefined)[] = [];
   finishedProcessing: boolean = false;
   $copy_compiler_processedFiles(src: processedFiles): void {
     this.resolver = src.resolver;
@@ -891,7 +837,6 @@ export class processedFiles extends $rt.GoObject {
     this.outputFileToProjectReferenceSource = src.outputFileToProjectReferenceSource;
     this.redirectTargetsMap = src.redirectTargetsMap;
     this.redirectFilesByPath = src.redirectFilesByPath;
-    this.contentMapperDiagnostics = src.contentMapperDiagnostics;
     this.finishedProcessing = src.finishedProcessing;
   }
   $clone_compiler_processedFiles(): processedFiles {
@@ -899,7 +844,7 @@ export class processedFiles extends $rt.GoObject {
     o.$copy_compiler_processedFiles(this);
     return o;
   }
-  static $lit_compiler_processedFiles_18_0_1_2_3_4_6_7_8_9_10_12_11_5_13_14_15_16_17(
+  static $lit_compiler_processedFiles_17_0_1_2_3_4_6_7_8_9_10_12_11_5_13_14_15_16(
     p0: boolean,
     p1: $module.Resolver | undefined,
     p2: ($ast.SourceFile | undefined)[],
@@ -918,7 +863,6 @@ export class processedFiles extends $rt.GoObject {
     p15: Map<$tspath.Path, string> | undefined,
     p16: Map<$tspath.Path, string[]> | undefined,
     p17: Map<$tspath.Path, redirectsFile | undefined> | undefined,
-    p18: ($ast.Diagnostic | undefined)[],
   ): processedFiles {
     const o = new processedFiles();
     o.finishedProcessing = p0;
@@ -939,7 +883,6 @@ export class processedFiles extends $rt.GoObject {
     o.outputFileToProjectReferenceSource = p15;
     o.redirectTargetsMap = p16;
     o.redirectFilesByPath = p17;
-    o.contentMapperDiagnostics = p18;
     return o;
   }
   static $cast_compiler_processedFiles(v: $rt.GoObject | undefined): processedFiles {
@@ -956,10 +899,9 @@ export class Program extends processedFiles {
   commonSourceDirectory: string = '';
   commonSourceDirectoryOnce: $rt.sync_Once = new $rt.sync_Once();
   declarationDiagnosticCache: $rt.collections_SyncMap<$ast.SourceFile | undefined, ($ast.Diagnostic | undefined)[]> =
-    new $rt.collections_SyncMap<$ast.SourceFile | undefined, ($ast.Diagnostic | undefined)[]>($zf2, $zf9);
+    new $rt.collections_SyncMap<$ast.SourceFile | undefined, ($ast.Diagnostic | undefined)[]>($zf1, $zf8);
   programDiagnostics: ($ast.Diagnostic | undefined)[] = [];
   hasEmitBlockingDiagnostics: $collections.Set_<$tspath.Path> = new $collections.Set_<$tspath.Path>();
-  contentMapperOptionDiagnostics: ($ast.Diagnostic | undefined)[] = [];
   sourceFilesToEmitOnce: $rt.sync_Once = new $rt.sync_Once();
   sourceFilesToEmit: ($ast.SourceFile | undefined)[] = [];
   unresolvedImports: lazyValue<$collections.Set_<string>> = new lazyValue<$collections.Set_<string>>();
@@ -981,7 +923,6 @@ export class Program extends processedFiles {
     this.declarationDiagnosticCache = src.declarationDiagnosticCache.$clone();
     this.programDiagnostics = src.programDiagnostics;
     this.hasEmitBlockingDiagnostics = src.hasEmitBlockingDiagnostics.$clone_collections_Set();
-    this.contentMapperOptionDiagnostics = src.contentMapperOptionDiagnostics;
     this.sourceFilesToEmitOnce = src.sourceFilesToEmitOnce;
     this.sourceFilesToEmit = src.sourceFilesToEmit;
     this.unresolvedImports = src.unresolvedImports.$clone_compiler_lazyValue();
@@ -1002,14 +943,13 @@ export class Program extends processedFiles {
     o.opts = p0;
     return o;
   }
-  static $lit_compiler_Program_0_3_4_5_9_10_11(
+  static $lit_compiler_Program_0_3_4_5_9_10(
     p0: ProgramOptions,
     p1: $tspath.ComparePathsOptions,
     p2: processedFiles,
     p3: $core.Tristate,
     p4: ($ast.Diagnostic | undefined)[],
     p5: $collections.Set_<$tspath.Path>,
-    p6: ($ast.Diagnostic | undefined)[],
   ): Program {
     const o = new Program();
     o.opts = p0;
@@ -1018,7 +958,6 @@ export class Program extends processedFiles {
     o.usesUriStyleNodeCoreModules = p3;
     o.programDiagnostics = p4;
     o.hasEmitBlockingDiagnostics = p5;
-    o.contentMapperOptionDiagnostics = p6;
     return o;
   }
   static $cast_compiler_Program(v: $rt.GoObject | undefined): Program {
@@ -1032,10 +971,6 @@ export class Program extends processedFiles {
   GetCurrentDirectory(): string {
     const p = this;
     return $rt.nn(p!.Host()).GetCurrentDirectory();
-  }
-  ContentMapperProject(): $contentmapper.Project {
-    const p = this;
-    return $rt.nn(p!.opts.Host).ContentMapperProject();
   }
   GetGlobalTypingsCacheLocation(): string {
     const p = this;
@@ -1156,10 +1091,7 @@ export class Program extends processedFiles {
   ): $ast.SourceFile | undefined {
     const p = this;
     const fileName: string = $tspath.ResolvePath($tspath.GetDirectoryPath(origin!.FileName()), [ref!.FileName]);
-    const supportedExtensionsBase: string[][] = $tsoptions.GetSupportedExtensions(
-      p!.Options(),
-      p!.CommandLine()!.ContentMapperExtensions(),
-    );
+    const supportedExtensionsBase: string[][] = $tsoptions.GetSupportedExtensions(p!.Options(), []);
     const supportedExtensions: string[][] = $tsoptions.GetSupportedExtensionsWithJsonIfResolveJsonModule(
       p!.Options(),
       supportedExtensionsBase,
@@ -1209,119 +1141,40 @@ export class Program extends processedFiles {
     createCheckerPool: ((p0: Program | undefined) => CheckerPool) | undefined,
   ): [Program | undefined, $ast.SourceFile | undefined, boolean] {
     const p = this;
-    {
-      const $t1 = p!.ReuseProgram(changedFilePath, newHost, createCheckerPool);
-      const result: Program | undefined = $t1[0];
-      const newFile: $ast.SourceFile | undefined = $t1[1];
-      const reused: boolean = $t1[2];
-      if (reused) {
-        return [result, newFile, true];
-      } else {
-        const newOpts: ProgramOptions = p!.opts.$clone_compiler_ProgramOptions();
-        newOpts.Host = newHost;
-        if (!(createCheckerPool === undefined)) {
-          newOpts.CreateCheckerPool = createCheckerPool;
-        }
-        return [NewProgram(newOpts.$clone_compiler_ProgramOptions()), newFile, false];
-      }
-    }
-  }
-  ReuseProgram(
-    changedFilePath: $tspath.Path,
-    newHost: CompilerHost,
-    createCheckerPool: ((p0: Program | undefined) => CheckerPool) | undefined,
-  ): [Program | undefined, $ast.SourceFile | undefined, boolean] {
-    const p = this;
     const newOpts: ProgramOptions = p!.opts.$clone_compiler_ProgramOptions();
     newOpts.Host = newHost;
     if (!(createCheckerPool === undefined)) {
       newOpts.CreateCheckerPool = createCheckerPool;
     }
     const oldFile: $ast.SourceFile | undefined = p!.filesByPath?.get(changedFilePath) ?? undefined;
-    let newFile: $ast.SourceFile | undefined = undefined as $ast.SourceFile | undefined;
-    let oldSupplementalFiles: ($ast.SourceFile | undefined)[] = [];
-    let newSupplementalFiles: ($ast.SourceFile | undefined)[] = [];
-    if (!(oldFile!.ContentMapper() === ('' as string))) {
-      const mapper: $contentmapper.Mapper | undefined = newOpts.Config!.GetContentMapperForFileName(
-        oldFile!.FileName(),
-      );
-      let err: $rt.GoObject | undefined = undefined as $rt.GoObject | undefined;
-      const $t1 = $rt.nn(newHost).GetContentMappedSourceFiles(oldFile!.ParseOptions(), mapper);
-      const files: $contentmapper.SourceFiles = $t1[0];
-      const transformErr: $rt.GoObject | undefined = $t1[1];
-      const $t2 = files.Canonical;
-      const $t3 = transformErr;
-      newFile = $t2;
-      err = $t3;
-      if (!(err === undefined)) {
-        return [undefined, undefined, false];
-      }
-      oldSupplementalFiles = oldFile!.SupplementalSourceFiles();
-      newSupplementalFiles = files.Supplemental;
-    } else {
-      newFile = $rt.nn(newHost).GetSourceFile(oldFile!.ParseOptions());
-    }
-    const $t4: Map<$tspath.Path, redirectsFile | undefined> | undefined = p!.redirectFilesByPath;
-    const $t5 = changedFilePath;
-    const inRedirectFiles: boolean = $t4 !== undefined && $t4.has($t5);
-    const $t6: Map<$tspath.Path, string[]> | undefined = p!.redirectTargetsMap;
-    const $t7 = changedFilePath;
-    const isRedirectTarget: boolean = $t6 !== undefined && $t6.has($t7);
+    const newFile: $ast.SourceFile | undefined = $rt.nn(newHost).GetSourceFile(oldFile!.ParseOptions());
+    const $t1: Map<$tspath.Path, redirectsFile | undefined> | undefined = p!.redirectFilesByPath;
+    const $t2 = changedFilePath;
+    const inRedirectFiles: boolean = $t1 !== undefined && $t1.has($t2);
+    const $t3: Map<$tspath.Path, string[]> | undefined = p!.redirectTargetsMap;
+    const $t4 = changedFilePath;
+    const isRedirectTarget: boolean = $t3 !== undefined && $t3.has($t4);
     if (inRedirectFiles || isRedirectTarget) {
-      return [undefined, newFile, false];
+      return [NewProgram(newOpts.$clone_compiler_ProgramOptions()), newFile, false];
     }
-    if (!p!.canReplaceFileInProgram(oldFile, newFile)) {
-      return [undefined, newFile, false];
-    }
-    if (
-      !((p!.importHelpersImportSpecifiers?.get(oldFile!.Path$m()) ?? undefined) === undefined) ||
-      p!.needsImportHelpersImportSpecifier(newFile)
-    ) {
-      return [undefined, newFile, false];
-    }
-    if (
-      !((p!.jsxRuntimeImportSpecifiers?.get(oldFile!.Path$m()) ?? undefined) === undefined) ||
-      !(p!.jsxRuntimeImportSpecifier(newFile) === ('' as string))
-    ) {
-      return [undefined, newFile, false];
-    }
-    if (!(oldSupplementalFiles.length === newSupplementalFiles.length)) {
-      return [undefined, newFile, false];
+    if (!canReplaceFileInProgram(oldFile, newFile)) {
+      return [NewProgram(newOpts.$clone_compiler_ProgramOptions()), newFile, false];
     }
     {
-      const $t8 = oldSupplementalFiles;
-      for (let $t9 = 0, $n = $t8.length; $t9 < $n; $t9++) {
-        const i = $t9;
-        const oldSupplemental = $t8[$t9];
-        const newSupplemental: $ast.SourceFile | undefined = newSupplementalFiles[i];
-        if (
-          !(oldSupplemental!.Path$m() === newSupplemental!.Path$m()) ||
-          !p!.canReplaceFileInProgram(oldSupplemental, newSupplemental)
-        ) {
-          return [undefined, newFile, false];
-        }
-        if (
-          !((p!.importHelpersImportSpecifiers?.get(oldSupplemental!.Path$m()) ?? undefined) === undefined) ||
-          p!.needsImportHelpersImportSpecifier(newSupplemental)
-        ) {
-          return [undefined, newFile, false];
-        }
-        if (
-          !((p!.jsxRuntimeImportSpecifiers?.get(oldSupplemental!.Path$m()) ?? undefined) === undefined) ||
-          !(p!.jsxRuntimeImportSpecifier(newSupplemental) === ('' as string))
-        ) {
-          return [undefined, newFile, false];
-        }
+      const oldNeedsImportHelpers: boolean = !(
+        (p!.importHelpersImportSpecifiers?.get(oldFile!.Path$m()) ?? undefined) === undefined
+      );
+      if (!(oldNeedsImportHelpers === p!.needsImportHelpersImportSpecifier(newFile))) {
+        return [NewProgram(newOpts.$clone_compiler_ProgramOptions()), newFile, false];
       }
     }
-    const result: Program | undefined = Program.$lit_compiler_Program_0_3_4_5_9_10_11(
+    const result: Program | undefined = Program.$lit_compiler_Program_0_3_4_5_9_10(
       newOpts.$clone_compiler_ProgramOptions(),
       p!.comparePathsOptions,
       p!.$clone_compiler_processedFiles(),
       p!.usesUriStyleNodeCoreModules,
       p!.programDiagnostics,
       p!.hasEmitBlockingDiagnostics.$clone_collections_Set(),
-      $rt.slices_Clone(p!.contentMapperOptionDiagnostics),
     );
     result!.unresolvedImports.tryReuse(p!.unresolvedImports);
     result!.knownSymlinks.tryReuse(p!.knownSymlinks);
@@ -1337,24 +1190,6 @@ export class Program extends processedFiles {
     result!.files[index] = newFile;
     result!.filesByPath = $rt.maps_Clone(result!.filesByPath);
     result!.filesByPath!.set(newFile!.Path$m(), newFile);
-    if (!(oldSupplementalFiles.length === (0 as number))) {
-      {
-        const $t10 = oldSupplementalFiles;
-        for (let $t11 = 0, $n = $t10.length; $t11 < $n; $t11++) {
-          const i$1 = $t11;
-          const oldSupplemental$1 = $t10[$t11];
-          const newSupplemental$1: $ast.SourceFile | undefined = newSupplementalFiles[i$1];
-          const supplementalIndex: number = $core.FindIndex<$ast.SourceFile | undefined>(
-            result!.files,
-            (file$1: $ast.SourceFile | undefined): boolean => {
-              return file$1 === oldSupplemental$1;
-            },
-          );
-          result!.files[supplementalIndex] = newSupplemental$1;
-          result!.filesByPath!.set(newSupplemental$1!.Path$m(), newSupplemental$1);
-        }
-      }
-    }
     updateFileIncludeProcessor(result);
     return [result, newFile, true];
   }
@@ -1377,32 +1212,6 @@ export class Program extends processedFiles {
     const p = this;
     return p!.checkerPool;
   }
-  canReplaceFileInProgram(file1: $ast.SourceFile | undefined, file2: $ast.SourceFile | undefined): boolean {
-    const p = this;
-    return (
-      !(file2 === undefined) &&
-      file1!.ParseOptions().$equals_ast_SourceFileParseOptions(file2!.ParseOptions()) &&
-      file1!.ScriptKind_ === file2!.ScriptKind_ &&
-      $ast.IsExternalOrCommonJSModule(file1) === $ast.IsExternalOrCommonJSModule(file2) &&
-      file1!.UsesUriStyleNodeCoreModules === file2!.UsesUriStyleNodeCoreModules &&
-      $rt.slices_EqualFunc(
-        file1!.Imports(),
-        file2!.Imports(),
-        (n1: $ast.Node | undefined, n2: $ast.Node | undefined): boolean => {
-          return (
-            equalModuleSpecifiers(n1, n2) &&
-            p!.GetModeForUsageLocation(file1, n1) === p!.GetModeForUsageLocation(file2, n2)
-          );
-        },
-      ) &&
-      $rt.slices_EqualFunc(file1!.ModuleAugmentations, file2!.ModuleAugmentations, equalModuleAugmentationNames) &&
-      $rt.slices_Equal(file1!.AmbientModuleNames, file2!.AmbientModuleNames) &&
-      $rt.slices_EqualFunc(file1!.ReferencedFiles, file2!.ReferencedFiles, equalFileReferences) &&
-      $rt.slices_EqualFunc(file1!.TypeReferenceDirectives, file2!.TypeReferenceDirectives, equalFileReferences) &&
-      $rt.slices_EqualFunc(file1!.LibReferenceDirectives, file2!.LibReferenceDirectives, equalFileReferences) &&
-      equalCheckJSDirectives(file1!.CheckJsDirective_, file2!.CheckJsDirective_)
-    );
-  }
   needsImportHelpersImportSpecifier(file: $ast.SourceFile | undefined): boolean {
     const p = this;
     const $t1 = p!.projectReferenceFileMapper_!.getRedirectForResolution(file);
@@ -1424,19 +1233,6 @@ export class Program extends processedFiles {
     }
     return true;
   }
-  jsxRuntimeImportSpecifier(file: $ast.SourceFile | undefined): string {
-    const p = this;
-    if (!$ast.IsSourceFileJS(file) && !(file!.ScriptKind_ === (4 as number))) {
-      return '';
-    }
-    const $t1 = p!.projectReferenceFileMapper_!.getRedirectForResolution(file);
-    const redirect: $tsoptions.ParsedCommandLine | undefined = $t1[0];
-    const optionsForFile: $core.CompilerOptions | undefined = $module.GetCompilerOptionsWithRedirect(
-      $tsoptions.ParsedCommandLine.CompilerOptions$m$nil(p!.opts.Config),
-      redirect,
-    );
-    return $ast.GetJSXRuntimeImport($ast.GetJSXImplicitImportBase(optionsForFile, file), optionsForFile);
-  }
   SourceFiles(): ($ast.SourceFile | undefined)[] {
     const p = this;
     return p!.files;
@@ -1448,21 +1244,6 @@ export class Program extends processedFiles {
   Options(): $core.CompilerOptions | undefined {
     const p = this;
     return $tsoptions.ParsedCommandLine.CompilerOptions$m$nil(p!.opts.Config);
-  }
-  GetContentMapper(file: $ast.SourceFile | undefined): $contentmapper.Mapper | undefined {
-    const p = this;
-    if (file!.ContentMapper() === ('' as string)) {
-      return undefined;
-    }
-    const mapper: $contentmapper.Mapper | undefined = p!.opts.Config!.GetContentMapperForFileName(file!.FileName());
-    if (!(mapper === undefined) && mapper!.Identity() === file!.ContentMapper()) {
-      return mapper;
-    }
-    return undefined;
-  }
-  ContentMapperExtensions(): string[] {
-    const p = this;
-    return p!.opts.Config!.ContentMapperExtensions();
   }
   CommandLine(): $tsoptions.ParsedCommandLine | undefined {
     const p = this;
@@ -1677,7 +1458,7 @@ export class Program extends processedFiles {
       );
       result = $rt.slices_Concat(diagnostics);
     }
-    return filterAndSortDiagnostics(result);
+    return SortAndDeduplicateDiagnostics(result);
   }
   collectDiagnosticsFromFiles(
     ctx: $rt.context_Context | undefined,
@@ -1727,9 +1508,11 @@ export class Program extends processedFiles {
       const done: (() => void) | undefined = $t1[1];
       const result: ($ast.Diagnostic | undefined)[] = collect!(ctx, c, sourceFile);
       done!();
-      return filterAndSortDiagnostics(result);
+      return SortAndDeduplicateDiagnostics(result);
     }
-    return filterAndSortDiagnostics($rt.slices_Concat(p!.collectCheckerDiagnosticsFromFiles(ctx, p!.files, collect)));
+    return SortAndDeduplicateDiagnostics(
+      $rt.slices_Concat(p!.collectCheckerDiagnosticsFromFiles(ctx, p!.files, collect)),
+    );
   }
   collectCheckerDiagnosticsFromFiles(
     ctx: $rt.context_Context | undefined,
@@ -1810,7 +1593,7 @@ export class Program extends processedFiles {
     } else {
       p!.BindSourceFiles();
     }
-    return p!.collectDiagnostics(ctx, sourceFile, false, $fn12);
+    return p!.collectDiagnostics(ctx, sourceFile, false, $fn9);
   }
   GetSemanticDiagnostics(
     ctx: $rt.context_Context | undefined,
@@ -1858,7 +1641,7 @@ export class Program extends processedFiles {
       for (let $t3 = 0, $n = $t2.length; $t3 < $n; $t3++) {
         const i = $t3;
         const diags = $t2[$t3];
-        result!.set(sourceFiles[i], filterAndSortDiagnostics(diags));
+        result!.set(sourceFiles[i], SortAndDeduplicateDiagnostics(diags));
       }
     }
     return result;
@@ -1885,34 +1668,10 @@ export class Program extends processedFiles {
   GetProgramDiagnostics(): ($ast.Diagnostic | undefined)[] {
     const p = this;
     return SortAndDeduplicateDiagnostics(
-      $rt.slices_Concat([
+      $core.Concatenate<$ast.Diagnostic | undefined>(
         p!.programDiagnostics,
-        p!.contentMapperDiagnostics,
-        p!.contentMapperOptionDiagnostics,
         p!.includeProcessor_!.getDiagnostics(p)!.GetGlobalDiagnostics(),
-      ]),
-    );
-  }
-  collectContentMapperOptionDiagnostics(): void {
-    const p = this;
-    const project: $contentmapper.Project = p!.ContentMapperProject();
-    if (project === undefined) {
-      return;
-    }
-    const optionDiagnostics: $contentmapper.OptionDiagnostic[] = $rt.nn(project).Diagnostics();
-    p!.contentMapperOptionDiagnostics = $core.Map_<$contentmapper.OptionDiagnostic, $ast.Diagnostic | undefined>(
-      $zf1,
-      optionDiagnostics,
-      (diagnostic: $contentmapper.OptionDiagnostic): $ast.Diagnostic | undefined => {
-        const $t1 = $tsoptions.GetContentMapperOptionDiagnosticLocation(
-          p!.opts.Config,
-          diagnostic.Mapper_,
-          diagnostic.Path,
-        );
-        const file: $ast.SourceFile | undefined = $t1[0];
-        const loc: $core.TextRange = $t1[1];
-        return $ast.NewExternalDiagnostic(file, loc, diagnostic.Source, 1, diagnostic.Code, diagnostic.MessageText);
-      },
+      ),
     );
   }
   GetIncludeProcessorDiagnostics(sourceFile: $ast.SourceFile | undefined): ($ast.Diagnostic | undefined)[] {
@@ -1922,7 +1681,7 @@ export class Program extends processedFiles {
     }
     const $t1 = p!.getDiagnosticsWithPrecedingDirectives(
       sourceFile,
-      p!.includeProcessor_!.getDiagnostics(p)!.GetDiagnosticsForFile(sourceFile),
+      p!.includeProcessor_!.getDiagnostics(p)!.GetDiagnosticsForFile(sourceFile!.FileName()),
     );
     const filtered: ($ast.Diagnostic | undefined)[] = $t1[0];
     return filtered;
@@ -1943,33 +1702,36 @@ export class Program extends processedFiles {
     if (!(sourceFile!.CheckJsDirective_ === undefined) && !sourceFile!.CheckJsDirective_!.Enabled) {
       return false;
     }
-    if (sourceFile!.ScriptKind_ === (3 as number) || sourceFile!.ScriptKind_ === (4 as number)) {
+    if (
+      sourceFile!.ScriptKind_ === (3 as number) ||
+      sourceFile!.ScriptKind_ === (4 as number) ||
+      sourceFile!.ScriptKind_ === (5 as number)
+    ) {
       return true;
     }
     const isJS: boolean = sourceFile!.ScriptKind_ === (1 as number) || sourceFile!.ScriptKind_ === (2 as number);
     const isCheckJS: boolean = isJS && $ast.IsCheckJSEnabledForFile(sourceFile, p!.Options());
     const isPlainJS: boolean = $ast.IsPlainJSFile(sourceFile, p!.Options()!.CheckJs);
-    return isPlainJS || isCheckJS;
+    return isPlainJS || isCheckJS || sourceFile!.ScriptKind_ === (7 as number);
   }
   getSourceFilesToEmit(
-    targetSourceFiles: ($ast.SourceFile | undefined)[],
+    targetSourceFile: $ast.SourceFile | undefined,
     forceDtsEmit: boolean,
-    forceJsEmit: boolean,
   ): ($ast.SourceFile | undefined)[] {
     const p = this;
-    if (targetSourceFiles.length === 0 && !forceDtsEmit && !forceJsEmit) {
+    if (targetSourceFile === undefined && !forceDtsEmit) {
       p!.sourceFilesToEmitOnce.Do((): void => {
-        p!.sourceFilesToEmit = getSourceFilesToEmit(p, [], false, false);
+        p!.sourceFilesToEmit = getSourceFilesToEmit(p, undefined, false);
       });
       return p!.sourceFilesToEmit;
     }
-    return getSourceFilesToEmit(p, targetSourceFiles, forceDtsEmit, forceJsEmit);
+    return getSourceFilesToEmit(p, targetSourceFile, forceDtsEmit);
   }
   verifyCompilerOptions(): void {
     const p = this;
     const options: $core.CompilerOptions | undefined = p!.Options();
     const sourceFile: (() => $ast.SourceFile | undefined) | undefined = $core.Memoize<$ast.SourceFile | undefined>(
-      $zf2,
+      $zf1,
       (): $ast.SourceFile | undefined => {
         const configFile: $tsoptions.TsConfigSourceFile | undefined = p!.opts.Config!.ConfigFile;
         if (configFile === undefined) {
@@ -1978,7 +1740,7 @@ export class Program extends processedFiles {
         return configFile!.SourceFile_;
       },
     );
-    const configFilePath: (() => string) | undefined = $core.Memoize<string>($zf3, (): string => {
+    const configFilePath: (() => string) | undefined = $core.Memoize<string>($zf2, (): string => {
       const file: $ast.SourceFile | undefined = sourceFile!();
       if (!(file === undefined)) {
         return file!.FileName();
@@ -1987,7 +1749,7 @@ export class Program extends processedFiles {
     });
     const getCompilerOptionsPropertySyntax: (() => $ast.PropertyAssignment | undefined) | undefined = $core.Memoize<
       $ast.PropertyAssignment | undefined
-    >($zf4, (): $ast.PropertyAssignment | undefined => {
+    >($zf3, (): $ast.PropertyAssignment | undefined => {
       return $tsoptions.ForEachTsConfigPropArray<$ast.PropertyAssignment>(
         sourceFile!(),
         'compilerOptions',
@@ -1995,7 +1757,7 @@ export class Program extends processedFiles {
       );
     });
     const getCompilerOptionsObjectLiteralSyntax: (() => $ast.ObjectLiteralExpression | undefined) | undefined =
-      $core.Memoize<$ast.ObjectLiteralExpression | undefined>($zf5, (): $ast.ObjectLiteralExpression | undefined => {
+      $core.Memoize<$ast.ObjectLiteralExpression | undefined>($zf4, (): $ast.ObjectLiteralExpression | undefined => {
         const compilerOptionsProperty: $ast.PropertyAssignment | undefined = getCompilerOptionsPropertySyntax!();
         if (
           !(compilerOptionsProperty === undefined) &&
@@ -2298,7 +2060,7 @@ export class Program extends processedFiles {
         for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
           const file$1 = $t3[$t4];
           if (
-            sourceFileMayBeEmitted(file$1, p, false, false) &&
+            sourceFileMayBeEmitted(file$1, p, false) &&
             !$collections$Set_.Has$nil<$tspath.Path>(rootPaths, file$1!.Path$m())
           ) {
             p!.includeProcessor_!.addProcessingDiagnostic([
@@ -2411,7 +2173,7 @@ export class Program extends processedFiles {
     };
     let $t5 = false;
     let $t6: undefined = undefined;
-    $collections$OrderedMap.Entries$nil<string, string[]>($zf3, $zf6, options!.Paths)!(
+    $collections$OrderedMap.Entries$nil<string, string[]>($zf2, $zf5, options!.Paths)!(
       (key$2: string, value$1: string[]): boolean => {
         if (!hasZeroOrOneAsteriskCharacter(key$2)) {
           createDiagnosticForOptionPaths!(true, key$2, $diagnostics.Pattern_0_can_have_at_most_one_Asterisk_character, [
@@ -2539,7 +2301,7 @@ export class Program extends processedFiles {
       if (
         !(options!.OutDir === ('' as string)) &&
         dir === ('' as string) &&
-        $core.Some<$ast.SourceFile | undefined>(p!.files, $fn13)
+        $core.Some<$ast.SourceFile | undefined>(p!.files, $fn10)
       ) {
         createDiagnosticForOptionName!(
           $diagnostics.Cannot_find_the_common_subdirectory_path_for_the_input_files,
@@ -2564,7 +2326,7 @@ export class Program extends processedFiles {
         const $t9 = p!.files;
         for (let $t10 = 0, $n = $t9.length; $t10 < $n; $t10++) {
           const file$2 = $t9[$t10];
-          if (!file$2!.IsDeclarationFile && sourceFileMayBeEmitted(file$2, p, false, false)) {
+          if (!file$2!.IsDeclarationFile && sourceFileMayBeEmitted(file$2, p, false)) {
             emittedFiles.push(file$2!.FileName());
           }
         }
@@ -2865,7 +2627,7 @@ export class Program extends processedFiles {
           verifyEmitFilePath!(emitFileNames!.DeclarationMapPath());
           return false;
         },
-        p!.getSourceFilesToEmit([], false, false),
+        p!.getSourceFilesToEmit(undefined, false),
         false,
       );
       verifyEmitFilePath!(p!.opts.Config!.GetBuildInfoFileName());
@@ -3008,7 +2770,7 @@ export class Program extends processedFiles {
     diags = $rt.appendCopy(diags, fileChecker!.GetDiagnostics(ctx, sourceFile));
     const isPlainJS: boolean = $ast.IsPlainJSFile(sourceFile, compilerOptions!.CheckJs);
     if (isPlainJS) {
-      return $core.Filter<$ast.Diagnostic | undefined>(diags, $fn15);
+      return $core.Filter<$ast.Diagnostic | undefined>(diags, $fn12);
     }
     const isJS: boolean = sourceFile!.ScriptKind_ === (1 as number) || sourceFile!.ScriptKind_ === (2 as number);
     const isCheckJS: boolean = isJS && $ast.IsCheckJSEnabledForFile(sourceFile, compilerOptions);
@@ -3030,7 +2792,6 @@ export class Program extends processedFiles {
         ]);
       }
     }
-    filtered = applyContentMapperDiagnosticDirectives(sourceFile, filtered);
     return filtered;
   }
   getDiagnosticsWithPrecedingDirectives(
@@ -3137,7 +2898,9 @@ export class Program extends processedFiles {
     if (p!.SkipTypeChecking(sourceFile, false)) {
       return [];
     }
-    return fileChecker!.GetSuggestionDiagnostics(ctx, sourceFile);
+    let diags: ($ast.Diagnostic | undefined)[] = $rt.slices_Clip(sourceFile!.BindSuggestionDiagnostics);
+    diags = $rt.appendCopy(diags, fileChecker!.GetSuggestionDiagnostics(ctx, sourceFile));
+    return diags;
   }
   LineCount(): number {
     const p = this;
@@ -3202,7 +2965,7 @@ export class Program extends processedFiles {
   }
   GetSourceFileMetaData(path: $tspath.Path): $ast.SourceFileMetaData {
     const p = this;
-    return (p!.sourceFileMetaDatas?.get(path) ?? new $ast.SourceFileMetaData()).$clone_ast_SourceFileMetaData();
+    return p!.sourceFileMetaDatas?.get(path) ?? $ast.SourceFileMetaData$zero;
   }
   GetEmitModuleFormatOfFile(sourceFile: $ast.HasFileName): $core.ModuleKind {
     const p = this;
@@ -3216,7 +2979,7 @@ export class Program extends processedFiles {
     const p = this;
     return getEmitSyntaxForUsageLocationWorker(
       $rt.nn(sourceFile).FileName(),
-      p!.sourceFileMetaDatas?.get($rt.nn(sourceFile).Path$m()) ?? new $ast.SourceFileMetaData(),
+      p!.sourceFileMetaDatas?.get($rt.nn(sourceFile).Path$m()) ?? $ast.SourceFileMetaData$zero,
       location,
       p!.projectReferenceFileMapper_!.getCompilerOptionsForFile(sourceFile),
     );
@@ -3233,7 +2996,7 @@ export class Program extends processedFiles {
     const p = this;
     return getModeForUsageLocation(
       $rt.nn(sourceFile).FileName(),
-      p!.sourceFileMetaDatas?.get($rt.nn(sourceFile).Path$m()) ?? new $ast.SourceFileMetaData(),
+      p!.sourceFileMetaDatas?.get($rt.nn(sourceFile).Path$m()) ?? $ast.SourceFileMetaData$zero,
       location,
       p!.projectReferenceFileMapper_!.getCompilerOptionsForFile(sourceFile),
     );
@@ -3242,7 +3005,7 @@ export class Program extends processedFiles {
     const p = this;
     return getDefaultResolutionModeForFile(
       $rt.nn(sourceFile).FileName(),
-      p!.sourceFileMetaDatas?.get($rt.nn(sourceFile).Path$m()) ?? new $ast.SourceFileMetaData(),
+      p!.sourceFileMetaDatas?.get($rt.nn(sourceFile).Path$m()) ?? $ast.SourceFileMetaData$zero,
       p!.projectReferenceFileMapper_!.getCompilerOptionsForFile(sourceFile),
     );
   }
@@ -3280,7 +3043,7 @@ export class Program extends processedFiles {
         return $core.MapFiltered<$ast.SourceFile | undefined, string>(
           p!.files,
           (file: $ast.SourceFile | undefined): [string, boolean] => {
-            return [file!.FileName(), sourceFileMayBeEmitted(file, p, false, false) && !file!.IsDeclarationFile];
+            return [file!.FileName(), sourceFileMayBeEmitted(file, p, false) && !file!.IsDeclarationFile];
           },
         );
       };
@@ -3340,8 +3103,8 @@ export class Program extends processedFiles {
           });
         }
       }
-      if (!options.ForceEmit && !(options.EmitOnly_ === (3 as number))) {
-        const result: EmitResult | undefined = HandleNoEmitOptions(ctx, p, options.TargetSourceFiles, undefined);
+      if (!(options.EmitOnly_ === (3 as number))) {
+        const result: EmitResult | undefined = HandleNoEmitOnError(ctx, p, options.TargetSourceFile);
         if (!(result === undefined) || !(ctx!.Err() === undefined)) {
           $t1 = result;
           break $body;
@@ -3353,23 +3116,18 @@ export class Program extends processedFiles {
       });
       const wg: $core.WorkGroup = $core.NewWorkGroup(p!.SingleThreaded());
       let emitters: (emitter | undefined)[] = [];
-      const forceDtsEmit: boolean =
-        options.EmitOnly_ === (3 as number) || (options.ForceEmit && options.EmitOnly_ === (2 as number));
-      const forceJsEmit: boolean = options.ForceEmit && options.EmitOnly_ === (1 as number);
       const sourceFiles: ($ast.SourceFile | undefined)[] = p!.getSourceFilesToEmit(
-        options.TargetSourceFiles,
-        forceDtsEmit,
-        forceJsEmit,
+        options.TargetSourceFile,
+        options.EmitOnly_ === (3 as number),
       );
       {
         const $t2 = sourceFiles;
         for (let $t3 = 0, $n = $t2.length; $t3 < $n; $t3++) {
           const sourceFile = $t2[$t3];
-          const emitter$v: emitter | undefined = emitter.$lit_compiler_emitter_3_5_1_7_8_9(
+          const emitter$v: emitter | undefined = emitter.$lit_compiler_emitter_3_5_1_7_8(
             undefined,
             sourceFile,
             options.EmitOnly_,
-            options.ForceEmit,
             options.WriteFile_,
             p!.opts.Tracing_,
           );
@@ -3389,7 +3147,7 @@ export class Program extends processedFiles {
                 $t5 instanceof $printer.ChangeTrackerWriter ||
                 $t5 instanceof $printer.singleLineStringWriter ||
                 $t5 instanceof $printer.textWriter ||
-                $t5 instanceof $printer.trailingSemicolonDeferringWriter
+                $t5 instanceof $checker.semicolonRemoverWriter
                   ? ($t5 as $printer.EmitTextWriter)
                   : $rt.typeAssertFail<$printer.EmitTextWriter>())(writerPool!.Get());
               $rt.nn(writer).Clear();
@@ -3398,11 +3156,7 @@ export class Program extends processedFiles {
                 sourceFile,
                 host!.Options(),
                 host,
-                $outputpaths.ForceEmitPaths.$lit_outputpaths_ForceEmitPaths_0_1_2(
-                  forceDtsEmit,
-                  forceJsEmit,
-                  options.ForceEmit && options.EmitOnly_ === (2 as number),
-                ),
+                options.EmitOnly_ === (3 as number),
               );
               emitter$v!.emit();
               emitter$v!.writer = undefined as $printer.EmitTextWriter;
@@ -3417,7 +3171,7 @@ export class Program extends processedFiles {
         }
       }
       $rt.nn(wg).RunAndWait();
-      $t1 = CombineEmitResults($core.Map_<emitter | undefined, EmitResult | undefined>($zf7, emitters, $fn16));
+      $t1 = CombineEmitResults($core.Map_<emitter | undefined, EmitResult | undefined>($zf6, emitters, $fn13));
       break $body;
     } catch ($e) {
       $panic = $rt.toPanic($e);
@@ -3458,8 +3212,8 @@ export class Program extends processedFiles {
   HasSameFileNames(other: Program | undefined): boolean {
     const p = this;
     return (
-      $rt.maps_EqualFunc(p!.filesByPath, other!.filesByPath, $fn17) &&
-      $rt.maps_EqualFunc(p!.redirectFilesByPath, other!.redirectFilesByPath, $fn18)
+      $rt.maps_EqualFunc(p!.filesByPath, other!.filesByPath, $fn14) &&
+      $rt.maps_EqualFunc(p!.redirectFilesByPath, other!.redirectFilesByPath, $fn15)
     );
   }
   GetSourceFiles(): ($ast.SourceFile | undefined)[] {
@@ -3476,16 +3230,7 @@ export class Program extends processedFiles {
       return p!.toPath(missingPath) === path;
     });
   }
-  ExplainFiles(
-    w:
-      | $ipc.stdioConn
-      | $contentmapper.closeOnceReadWriteCloser
-      | $contentmapper.loggedProcess
-      | $contentmapper.stderrLogger
-      | $checkhost.hostWriter
-      | undefined,
-    locale: $locale.Locale,
-  ): void {
+  ExplainFiles(w: $checkhost.hostWriter | undefined, locale: $locale.Locale): void {
     const p = this;
     const toRelativeFileName: ((p0: string) => string) | undefined = (fileName: string): string => {
       return $tspath.GetRelativePathFromDirectory(p!.GetCurrentDirectory(), fileName, p!.comparePathsOptions);
@@ -3529,7 +3274,7 @@ export class Program extends processedFiles {
       filesExplained++;
     };
     const redirectFiles: (redirectsFile | undefined)[] = $rt.slices_Collect($rt.maps_Values(p!.redirectFilesByPath));
-    $rt.slices_SortFunc(redirectFiles, $fn19);
+    $rt.slices_SortFunc(redirectFiles, $fn16);
     const files: ($ast.SourceFile | undefined)[] = p!.GetSourceFiles();
     let sourceFileIndex: number = 0;
     const explainSourceFiles: ((p0: number) => void) | undefined = (endIndex: number): void => {
@@ -3635,7 +3380,7 @@ export class Program extends processedFiles {
   }
   SourceFileMayBeEmitted(sourceFile: $ast.SourceFile | undefined, forceDtsEmit: boolean): boolean {
     const p = this;
-    return sourceFileMayBeEmitted(sourceFile, p, forceDtsEmit, false);
+    return sourceFileMayBeEmitted(sourceFile, p, forceDtsEmit);
   }
   ResolvedPackageNames(): $collections.Set_<string> | undefined {
     const p = this;
@@ -3850,10 +3595,7 @@ export class Program extends processedFiles {
               1,
               undefined,
             );
-            if (
-              $module.ResolvedModule.IsResolved$nil(packageResolution) &&
-              !(packageResolution!.OriginalPath === ('' as string))
-            ) {
+            if ($module.ResolvedModule.IsResolved$nil(packageResolution)) {
               knownSymlinks!.ProcessResolution(
                 $tspath.CombinePaths(packageResolution!.OriginalPath, ['package.json']),
                 $tspath.CombinePaths(packageResolution!.ResolvedFileName, ['package.json']),
@@ -3932,6 +3674,17 @@ export class ProgramOptions extends $rt.GoObject {
     o.Host = p1;
     return o;
   }
+  static $lit_compiler_ProgramOptions_1_0_3(
+    p0: $tsoptions.ParsedCommandLine | undefined,
+    p1: CompilerHost,
+    p2: $core.Tristate,
+  ): ProgramOptions {
+    const o = new ProgramOptions();
+    o.Config = p0;
+    o.Host = p1;
+    o.SingleThreaded = p2;
+    return o;
+  }
   static $lit_compiler_ProgramOptions_1_0_7(
     p0: $tsoptions.ParsedCommandLine | undefined,
     p1: CompilerHost,
@@ -3992,38 +3745,26 @@ export class WriteFileData extends $rt.GoObject {
   BuildInfo: $rt.GoObject | undefined = undefined;
   Diagnostics: ($ast.Diagnostic | undefined)[] = [];
   SkippedDtsWrite: boolean = false;
-  SourceFile_: $ast.SourceFile | undefined = undefined;
   $copy_compiler_WriteFileData(src: WriteFileData): void {
     this.SourceMapUrlPos = src.SourceMapUrlPos;
     this.BuildInfo = src.BuildInfo;
     this.Diagnostics = src.Diagnostics;
     this.SkippedDtsWrite = src.SkippedDtsWrite;
-    this.SourceFile_ = src.SourceFile_;
   }
   $clone_compiler_WriteFileData(): WriteFileData {
     const o = new WriteFileData();
     o.$copy_compiler_WriteFileData(this);
     return o;
   }
-  static $lit_compiler_WriteFileData_0_2_4(
-    p0: number,
-    p1: ($ast.Diagnostic | undefined)[],
-    p2: $ast.SourceFile | undefined,
-  ): WriteFileData {
+  static $lit_compiler_WriteFileData_0_2(p0: number, p1: ($ast.Diagnostic | undefined)[]): WriteFileData {
     const o = new WriteFileData();
     o.SourceMapUrlPos = p0;
     o.Diagnostics = p1;
-    o.SourceFile_ = p2;
     return o;
   }
   static $lit_compiler_WriteFileData_1(p0: $rt.GoObject | undefined): WriteFileData {
     const o = new WriteFileData();
     o.BuildInfo = p0;
-    return o;
-  }
-  static $lit_compiler_WriteFileData_4(p0: $ast.SourceFile | undefined): WriteFileData {
-    const o = new WriteFileData();
-    o.SourceFile_ = p0;
     return o;
   }
   static $cast_compiler_WriteFileData(v: $rt.GoObject | undefined): WriteFileData {
@@ -4062,45 +3803,6 @@ export class automaticTypeDirectiveFileData extends $rt.GoObject {
   }
   static $cast_compiler_automaticTypeDirectiveFileData(v: $rt.GoObject | undefined): automaticTypeDirectiveFileData {
     if (v instanceof automaticTypeDirectiveFileData) return v;
-    throw $rt.typeAssertError();
-  }
-}
-export class checkerAssociationPolicy extends $rt.GoObject {
-  prioritizeSourceFiles: boolean = false;
-  sourceFileWeightMultiplier: number = 0;
-  balancePenaltyMultiplier: number = 0;
-  $copy_compiler_checkerAssociationPolicy(src: checkerAssociationPolicy): void {
-    this.prioritizeSourceFiles = src.prioritizeSourceFiles;
-    this.sourceFileWeightMultiplier = src.sourceFileWeightMultiplier;
-    this.balancePenaltyMultiplier = src.balancePenaltyMultiplier;
-  }
-  $equals_compiler_checkerAssociationPolicy(o: checkerAssociationPolicy): boolean {
-    return (
-      this.prioritizeSourceFiles === o.prioritizeSourceFiles &&
-      this.sourceFileWeightMultiplier === o.sourceFileWeightMultiplier &&
-      this.balancePenaltyMultiplier === o.balancePenaltyMultiplier
-    );
-  }
-  $clone_compiler_checkerAssociationPolicy(): checkerAssociationPolicy {
-    const o = new checkerAssociationPolicy();
-    o.$copy_compiler_checkerAssociationPolicy(this);
-    return o;
-  }
-  static $lit_compiler_checkerAssociationPolicy_0_1_2(p0: boolean, p1: number, p2: number): checkerAssociationPolicy {
-    const o = new checkerAssociationPolicy();
-    o.prioritizeSourceFiles = p0;
-    o.sourceFileWeightMultiplier = p1;
-    o.balancePenaltyMultiplier = p2;
-    return o;
-  }
-  static $lit_compiler_checkerAssociationPolicy_1_2(p0: number, p1: number): checkerAssociationPolicy {
-    const o = new checkerAssociationPolicy();
-    o.sourceFileWeightMultiplier = p0;
-    o.balancePenaltyMultiplier = p1;
-    return o;
-  }
-  static $cast_compiler_checkerAssociationPolicy(v: $rt.GoObject | undefined): checkerAssociationPolicy {
-    if (v instanceof checkerAssociationPolicy) return v;
     throw $rt.typeAssertError();
   }
 }
@@ -4204,113 +3906,16 @@ export class checkerPool extends $rt.GoObject {
         });
       }
       $rt.nn(wg).RunAndWait();
-      let associations: number[] = $rt.makeSlice<number>(p!.program!.files.length, 0);
-      if (checkerCount > 1) {
-        const baseWeights: number[] = $rt.makeSlice<number>(p!.program!.files.length, 0);
-        const importCounts: number[] = $rt.makeSlice<number>(p!.program!.files.length, 0);
-        const isDeclarationFile: boolean[] = $rt.makeSlice<boolean>(p!.program!.files.length, false);
-        let totalBaseWeight: number = 0;
-        let declarationBaseWeight: number = 0;
-        {
-          const $t3 = p!.program!.files;
-          for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
-            const i$1 = $t4;
-            const file = $t3[$t4];
-            const baseWeight: number = getCheckerAssociationBaseWeight(file!.NodeCount, file!.Text().length);
-            totalBaseWeight += baseWeight;
-            if (file!.IsDeclarationFile) {
-              declarationBaseWeight += baseWeight;
-            }
-            baseWeights[i$1] = baseWeight;
-            importCounts[i$1] = file!.Imports().length;
-            isDeclarationFile[i$1] = file!.IsDeclarationFile;
-          }
-        }
-        const policy: checkerAssociationPolicy = getCheckerAssociationPolicy(
-          totalBaseWeight,
-          declarationBaseWeight,
-          checkerCount,
-        );
-        if (!(policy.sourceFileWeightMultiplier === (1 as number))) {
-          {
-            const $t5 = isDeclarationFile;
-            for (let $t6 = 0, $n = $t5.length; $t6 < $n; $t6++) {
-              const i$2 = $t6;
-              const declaration = $t5[$t6];
-              if (!declaration) {
-                baseWeights[i$2] = baseWeights[i$2] * policy.sourceFileWeightMultiplier;
-              }
-            }
-          }
-        }
-        const fileWeights: number[] = getCheckerAssociationWeights(baseWeights, importCounts);
-        const adjacentFiles: number[][] = p!.getImportAdjacency();
-        const fileOrder: number[] = getCheckerAssociationOrder(
-          fileWeights,
-          isDeclarationFile,
-          policy.prioritizeSourceFiles,
-        );
-        associations = getCheckerAssociationsInOrder(
-          fileWeights,
-          adjacentFiles,
-          fileOrder,
-          checkerCount,
-          policy.balancePenaltyMultiplier,
-        );
-      }
       p!.fileAssociations = new Map<$ast.SourceFile | undefined, $checker.Checker | undefined>();
       {
-        const $t7 = p!.program!.files;
-        for (let $t8 = 0, $n = $t7.length; $t8 < $n; $t8++) {
-          const i$3 = $t8;
-          const file$1 = $t7[$t8];
-          p!.fileAssociations!.set(file$1, p!.checkers[associations[i$3]]);
+        const $t3 = p!.program!.files;
+        for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
+          const i$1 = $t4;
+          const file = $t3[$t4];
+          p!.fileAssociations!.set(file, p!.checkers[$rt.imod(i$1, checkerCount)]);
         }
       }
     });
-  }
-  getImportAdjacency(): number[][] {
-    const p = this;
-    const fileIndices: Map<$ast.SourceFile | undefined, number> | undefined = new Map<
-      $ast.SourceFile | undefined,
-      number
-    >();
-    {
-      const $t1 = p!.program!.files;
-      for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        const i = $t2;
-        const file = $t1[$t2];
-        fileIndices!.set(file, i);
-      }
-    }
-    const adjacentFiles: number[][] = $rt.makeSlice<number[]>(p!.program!.files.length, []);
-    {
-      const $t3 = p!.program!.files;
-      for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
-        const fileIndex = $t4;
-        const file$1 = $t3[$t4];
-        const resolvedModules: $module.ModeAwareCache<$module.ResolvedModule | undefined> =
-          p!.program!.resolvedModules?.get(file$1!.Path$m()) ?? undefined;
-        for (const [$t5, resolved] of resolvedModules?.entryList() ?? []) {
-          if (resolved === undefined || !$module.ResolvedModule.IsResolved$nil(resolved)) {
-            continue;
-          }
-          const importedFile: $ast.SourceFile | undefined = p!.program!.GetSourceFileForResolvedModule(
-            resolved!.ResolvedFileName,
-          );
-          const $t6: Map<$ast.SourceFile | undefined, number> | undefined = fileIndices;
-          const $t7 = importedFile;
-          const importedIndex: number = $t6?.get($t7) ?? 0;
-          const ok: boolean = $t6 !== undefined && $t6.has($t7);
-          if (!ok || importedIndex === fileIndex) {
-            continue;
-          }
-          adjacentFiles[fileIndex] = $rt.appendCopy(adjacentFiles[fileIndex], [importedIndex]);
-          adjacentFiles[importedIndex] = $rt.appendCopy(adjacentFiles[importedIndex], [fileIndex]);
-        }
-      }
-    }
-    return adjacentFiles;
   }
   forEachCheckerParallel(cb: ((p0: number, p1: $checker.Checker | undefined) => void) | undefined): void {
     const p = this;
@@ -4404,27 +4009,24 @@ export class compilerHost extends $rt.GoObject {
   defaultLibraryPath: string = '';
   extendedConfigCache: $tsoptions.ExtendedConfigCache = undefined;
   trace: ((p0: $diagnostics.Message | undefined, p1: ($rt.GoObject | undefined)[]) => void) | undefined = undefined;
-  contentMapperProject: $contentmapper.Project = undefined;
   $copy_compiler_compilerHost(src: compilerHost): void {
     this.currentDirectory = src.currentDirectory;
     this.fs = src.fs;
     this.defaultLibraryPath = src.defaultLibraryPath;
     this.extendedConfigCache = src.extendedConfigCache;
     this.trace = src.trace;
-    this.contentMapperProject = src.contentMapperProject;
   }
   $clone_compiler_compilerHost(): compilerHost {
     const o = new compilerHost();
     o.$copy_compiler_compilerHost(this);
     return o;
   }
-  static $lit_compiler_compilerHost_0_1_2_3_4_5(
+  static $lit_compiler_compilerHost_0_1_2_3_4(
     p0: string,
     p1: $vfs.FS,
     p2: string,
     p3: $tsoptions.ExtendedConfigCache,
     p4: ((p0: $diagnostics.Message | undefined, p1: ($rt.GoObject | undefined)[]) => void) | undefined,
-    p5: $contentmapper.Project,
   ): compilerHost {
     const o = new compilerHost();
     o.currentDirectory = p0;
@@ -4432,7 +4034,6 @@ export class compilerHost extends $rt.GoObject {
     o.defaultLibraryPath = p2;
     o.extendedConfigCache = p3;
     o.trace = p4;
-    o.contentMapperProject = p5;
     return o;
   }
   static $cast_compiler_compilerHost(v: $rt.GoObject | undefined): compilerHost {
@@ -4463,40 +4064,7 @@ export class compilerHost extends $rt.GoObject {
     if (!ok) {
       return undefined;
     }
-    return $parser.ParseSourceFile(opts, text, $core.EnsureScriptKindFromFileName(opts.FileName));
-  }
-  GetContentMappedSourceFiles(
-    parseOptions: $ast.SourceFileParseOptions,
-    mapper: $contentmapper.Mapper | undefined,
-  ): [$contentmapper.SourceFiles, $rt.GoObject | undefined] {
-    const h = this;
-    if (h!.contentMapperProject === undefined) {
-      return [new $contentmapper.SourceFiles(), $contentmapper.ErrProjectUnavailable];
-    }
-    const $t1 = $rt.nn(h!.FS$m()).ReadFile(parseOptions.FileName);
-    const content: string = $t1[0];
-    const ok: boolean = $t1[1];
-    if (!ok) {
-      return [new $contentmapper.SourceFiles(), undefined];
-    }
-    const $t2 = $contentmapper.TransformAndParse(parseOptions, content, mapper, h!.contentMapperProject);
-    const files: $contentmapper.SourceFiles = $t2[0];
-    let err: $rt.GoObject | undefined = $t2[1];
-    if (err === undefined) {
-      err = $contentmapper.CheckSupplementalFileNameCollisions(
-        files,
-        (
-          ($t3: $vfs.FS) =>
-          (a0: string): boolean =>
-            $rt.nn($t3).FileExists(a0)
-        )(h!.FS$m()),
-      );
-    }
-    return [files.$clone_contentmapper_SourceFiles(), err];
-  }
-  ContentMapperProject(): $contentmapper.Project {
-    const h = this;
-    return h!.contentMapperProject;
+    return $parser.ParseSourceFile(opts, text, $core.GetScriptKindFromFileName(opts.FileName));
   }
   GetResolvedProjectReference(fileName: string, path: $tspath.Path): $tsoptions.ParsedCommandLine | undefined {
     const h = this;
@@ -4590,16 +4158,7 @@ export class emitHost extends $rt.GoObject {
   }
   GetOutputPathsFor(file: $ast.SourceFile | undefined, forceDtsPaths: boolean): $transformers_declarations.OutputPaths {
     const host = this;
-    return $outputpaths.GetOutputPathsFor(
-      file,
-      host!.Options(),
-      host,
-      $outputpaths.ForceEmitPaths.$lit_outputpaths_ForceEmitPaths_0(forceDtsPaths),
-    );
-  }
-  SourceFileMayBeEmitted(file: $ast.SourceFile | undefined, forceDtsEmit: boolean): boolean {
-    const host = this;
-    return sourceFileMayBeEmitted(file, host, forceDtsEmit, false);
+    return $outputpaths.GetOutputPathsFor(file, host!.Options(), host, forceDtsPaths);
   }
   GetResolutionModeOverride(node: $ast.Node | undefined): $core.ResolutionMode {
     const host = this;
@@ -4627,10 +4186,6 @@ export class emitHost extends $rt.GoObject {
   CommonSourceDirectory(): string {
     const host = this;
     return host!.program!.CommonSourceDirectory();
-  }
-  ContentMapperExtensions(): string[] {
-    const host = this;
-    return host!.program!.ContentMapperExtensions();
   }
   UseCaseSensitiveFileNames(): boolean {
     const host = this;
@@ -4675,7 +4230,6 @@ export class emitter extends $rt.GoObject {
   paths: $outputpaths.OutputPaths | undefined = undefined;
   sourceFile: $ast.SourceFile | undefined = undefined;
   emitResult: EmitResult = new EmitResult();
-  forceEmit: boolean = false;
   writeFile: ((p0: string, p1: string, p2: WriteFileData | undefined) => $rt.GoObject | undefined) | undefined =
     undefined;
   tr: $tracing.Tracing | undefined = undefined;
@@ -4687,7 +4241,6 @@ export class emitter extends $rt.GoObject {
     this.paths = src.paths;
     this.sourceFile = src.sourceFile;
     this.emitResult = src.emitResult.$clone_compiler_EmitResult();
-    this.forceEmit = src.forceEmit;
     this.writeFile = src.writeFile;
     this.tr = src.tr;
   }
@@ -4696,21 +4249,19 @@ export class emitter extends $rt.GoObject {
     o.$copy_compiler_emitter(this);
     return o;
   }
-  static $lit_compiler_emitter_3_5_1_7_8_9(
+  static $lit_compiler_emitter_3_5_1_7_8(
     p0: $printer.EmitTextWriter,
     p1: $ast.SourceFile | undefined,
     p2: EmitOnly,
-    p3: boolean,
-    p4: ((p0: string, p1: string, p2: WriteFileData | undefined) => $rt.GoObject | undefined) | undefined,
-    p5: $tracing.Tracing | undefined,
+    p3: ((p0: string, p1: string, p2: WriteFileData | undefined) => $rt.GoObject | undefined) | undefined,
+    p4: $tracing.Tracing | undefined,
   ): emitter {
     const o = new emitter();
     o.writer = p0;
     o.sourceFile = p1;
     o.emitOnly = p2;
-    o.forceEmit = p3;
-    o.writeFile = p4;
-    o.tr = p5;
+    o.writeFile = p3;
+    o.tr = p4;
     return o;
   }
   static $cast_compiler_emitter(v: $rt.GoObject | undefined): emitter {
@@ -4745,27 +4296,19 @@ export class emitter extends $rt.GoObject {
   }
   getDeclarationTransformers(
     emitContext: $printer.EmitContext | undefined,
-    sourceFile: $ast.SourceFile | undefined,
     declarationFilePath: string,
     declarationMapPath: string,
-  ): declarationTransformer[] {
+  ): ($transformers_declarations.DeclarationTransformer | undefined)[] {
     const e = this;
-    const forceDtsEmit: boolean = e!.emitOnly === (3 as number) || (e!.forceEmit && e!.emitOnly === (2 as number));
-    return [
+    const transform: $transformers_declarations.DeclarationTransformer | undefined =
       $transformers_declarations.NewDeclarationTransformer(
         e!.host as unknown as $transformers_declarations.DeclarationEmitHost,
         emitContext,
         e!.host!.Options(),
         declarationFilePath,
         declarationMapPath,
-      ),
-      $transformers_declarations.NewSupplementalReferencesTransformer(
-        e!.host as unknown as $transformers_declarations.DeclarationEmitHost,
-        sourceFile,
-        declarationFilePath,
-        forceDtsEmit,
-      ),
-    ];
+      );
+    return [transform];
   }
   runScriptTransformers(
     emitContext: $printer.EmitContext | undefined,
@@ -4829,11 +4372,11 @@ export class emitter extends $rt.GoObject {
       }
       let diags: ($ast.Diagnostic | undefined)[] = [];
       {
-        const $t3 = e!.getDeclarationTransformers(emitContext, sourceFile, declarationFilePath, declarationMapPath);
+        const $t3 = e!.getDeclarationTransformers(emitContext, declarationFilePath, declarationMapPath);
         for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
           const transformer = $t3[$t4];
-          sourceFile = $rt.nn(transformer).TransformSourceFile(sourceFile);
-          $rt.appendInto(diags, $rt.nn(transformer).GetDiagnostics());
+          sourceFile = transformer!.TransformSourceFile(sourceFile);
+          $rt.appendInto(diags, transformer!.GetDiagnostics());
         }
       }
       const $t5: [$ast.SourceFile | undefined, ($ast.Diagnostic | undefined)[]] = [sourceFile, diags];
@@ -4861,7 +4404,7 @@ export class emitter extends $rt.GoObject {
       ) {
         break $body;
       }
-      if (!e!.forceEmit && (options!.NoEmit === (2 as number) || e!.host!.IsEmitBlocked(jsFilePath))) {
+      if (options!.NoEmit === (2 as number) || e!.host!.IsEmitBlocked(jsFilePath)) {
         e!.emitResult.EmitSkipped = true;
         break $body;
       }
@@ -4883,7 +4426,7 @@ export class emitter extends $rt.GoObject {
         putEmitContext!();
       });
       sourceFile = e!.runScriptTransformers(emitContext, sourceFile);
-      const printerOptions: $printer.PrinterOptions = $printer.PrinterOptions.$lit_printer_PrinterOptions_0_1_3_5_6_7_4(
+      const printerOptions: $printer.PrinterOptions = $printer.PrinterOptions.$lit_printer_PrinterOptions_0_1_2_4_5_6_3(
         $core.Tristate$IsTrue(options!.RemoveComments),
         options!.NewLine,
         $core.Tristate$IsTrue(options!.NoEmitHelpers),
@@ -4925,10 +4468,6 @@ export class emitter extends $rt.GoObject {
       if (sourceFile === undefined || e!.emitOnly === (1 as number) || declarationFilePath.length === (0 as number)) {
         break $body;
       }
-      const emitDeclarationMap: boolean =
-        !(e!.emitOnly === (3 as number)) &&
-        $core.Tristate$IsTrue(options!.DeclarationMap) &&
-        sourceFile!.ContentMapper() === ('' as string);
       if (!(e!.tr === undefined)) {
         $defers.push(() => {
           $tracing.Tracing.Push$nil(
@@ -4959,25 +4498,24 @@ export class emitter extends $rt.GoObject {
         }
       }
       if (
-        !e!.forceEmit &&
         !(e!.emitOnly === (3 as number)) &&
         (options!.NoEmit === (2 as number) || e!.host!.IsEmitBlocked(declarationFilePath))
       ) {
         e!.emitResult.EmitSkipped = true;
         break $body;
       }
-      const declBlocked: boolean = diags.length > 0 && !e!.forceEmit && !(e!.emitOnly === (3 as number));
+      const declBlocked: boolean = diags.length > 0 && !(e!.emitOnly === (3 as number));
       if (declBlocked) {
         e!.emitResult.EmitSkipped = true;
         break $body;
       }
       const printerOptions: $printer.PrinterOptions =
-        $printer.PrinterOptions.$lit_printer_PrinterOptions_0_1_3_4_5_6_9_8(
+        $printer.PrinterOptions.$lit_printer_PrinterOptions_0_1_2_3_4_5_8_7(
           $core.Tristate$IsTrue(options!.RemoveComments),
           options!.NewLine,
           true,
           options!.GetEmitScriptTarget(),
-          emitDeclarationMap,
+          !(e!.emitOnly === (3 as number)) && $core.Tristate$IsTrue(options!.DeclarationMap),
           $core.Tristate$IsTrue(options!.InlineSourceMap),
           true,
           true,
@@ -4989,7 +4527,11 @@ export class emitter extends $rt.GoObject {
       );
       const declarationMapOptions: $core.CompilerOptions | undefined =
         $core.CompilerOptions.$lit_core_CompilerOptions_89_90_43(
-          $core.IfElse<$core.Tristate>(emitDeclarationMap, 2, 1),
+          $core.IfElse<$core.Tristate>(
+            !(e!.emitOnly === (3 as number)) && $core.Tristate$IsTrue(options!.DeclarationMap),
+            2,
+            1,
+          ),
           options!.SourceRoot,
           options!.MapRoot,
         );
@@ -5059,11 +4601,7 @@ export class emitter extends $rt.GoObject {
       }
       if (sourceMapFilePath.length > 0) {
         const sourceMap: string = sourceMapGenerator!.String();
-        const err: $rt.GoObject | undefined = e!.writeText(
-          sourceMapFilePath,
-          sourceMap,
-          WriteFileData.$lit_compiler_WriteFileData_4(e!.sourceFile),
-        );
+        const err: $rt.GoObject | undefined = e!.writeText(sourceMapFilePath, sourceMap, undefined);
         if (!(err === undefined)) {
           e!.emitterDiagnostics.Add(
             $ast.NewCompilerDiagnostic($diagnostics.Could_not_write_file_0_Colon_1, [
@@ -5082,10 +4620,9 @@ export class emitter extends $rt.GoObject {
     if ($core.Tristate$IsTrue(options!.EmitBOM)) {
       text = $stringutil.AddUTF8ByteOrderMark(text);
     }
-    const data: WriteFileData | undefined = WriteFileData.$lit_compiler_WriteFileData_0_2_4(
+    const data: WriteFileData | undefined = WriteFileData.$lit_compiler_WriteFileData_0_2(
       sourceMapUrlPos,
       e!.emitterDiagnostics.GetDiagnostics(),
-      e!.sourceFile,
     );
     const err$1: $rt.GoObject | undefined = e!.writeText(jsFilePath, text, data);
     const skippedDtsWrite: boolean = data!.SkippedDtsWrite;
@@ -5189,7 +4726,6 @@ export class fileLoader extends $rt.GoObject {
   comparePathsOptions: $tspath.ComparePathsOptions = $tspath.ComparePathsOptions$zero;
   supportedExtensions: string[][] = [];
   supportedExtensionsWithJsonIfResolveJsonModule: string[][] = [];
-  contentMapperExtensions: string[] = [];
   filesParser_: filesParser | undefined = undefined;
   rootTasks: (parseTask | undefined)[] = [];
   totalFileCount: number = 0;
@@ -5201,15 +4737,9 @@ export class fileLoader extends $rt.GoObject {
   pathForLibFileCache: $rt.collections_SyncMap<string, LibFile | undefined> = new $rt.collections_SyncMap<
     string,
     LibFile | undefined
-  >($zf3, $zf10);
+  >($zf2, $zf9);
   pathForLibFileResolutions: $rt.collections_SyncMap<$tspath.Path, libResolution | undefined> =
-    new $rt.collections_SyncMap<$tspath.Path, libResolution | undefined>($zf11, $zf12);
-  contentMapperMu: $rt.sync_Mutex = new $rt.sync_Mutex();
-  contentMapperFailures: Map<$contentmapper.Mapper | undefined, number> | undefined = undefined;
-  contentMapperInitFailed: $collections.Set_<$contentmapper.Mapper | undefined> = new $collections.Set_<
-    $contentmapper.Mapper | undefined
-  >();
-  contentMapperDiagnostics: ($ast.Diagnostic | undefined)[] = [];
+    new $rt.collections_SyncMap<$tspath.Path, libResolution | undefined>($zf10, $zf11);
   $copy_compiler_fileLoader(src: fileLoader): void {
     this.opts = src.opts.$clone_compiler_ProgramOptions();
     this.resolver = src.resolver;
@@ -5217,7 +4747,6 @@ export class fileLoader extends $rt.GoObject {
     this.comparePathsOptions = src.comparePathsOptions;
     this.supportedExtensions = src.supportedExtensions;
     this.supportedExtensionsWithJsonIfResolveJsonModule = src.supportedExtensionsWithJsonIfResolveJsonModule;
-    this.contentMapperExtensions = src.contentMapperExtensions;
     this.filesParser_ = src.filesParser_;
     this.rootTasks = src.rootTasks;
     this.totalFileCount = src.totalFileCount;
@@ -5228,17 +4757,13 @@ export class fileLoader extends $rt.GoObject {
     this.dtsDirectories = src.dtsDirectories.$clone_collections_Set();
     this.pathForLibFileCache = src.pathForLibFileCache.$clone();
     this.pathForLibFileResolutions = src.pathForLibFileResolutions.$clone();
-    this.contentMapperMu = src.contentMapperMu;
-    this.contentMapperFailures = src.contentMapperFailures;
-    this.contentMapperInitFailed = src.contentMapperInitFailed.$clone_collections_Set();
-    this.contentMapperDiagnostics = src.contentMapperDiagnostics;
   }
   $clone_compiler_fileLoader(): fileLoader {
     const o = new fileLoader();
     o.$copy_compiler_fileLoader(this);
     return o;
   }
-  static $lit_compiler_fileLoader_0_2_3_7_8_4_5_6(
+  static $lit_compiler_fileLoader_0_2_3_6_7_4_5(
     p0: ProgramOptions,
     p1: string,
     p2: $tspath.ComparePathsOptions,
@@ -5246,7 +4771,6 @@ export class fileLoader extends $rt.GoObject {
     p4: (parseTask | undefined)[],
     p5: string[][],
     p6: string[][],
-    p7: string[],
   ): fileLoader {
     const o = new fileLoader();
     o.opts = p0;
@@ -5256,7 +4780,6 @@ export class fileLoader extends $rt.GoObject {
     o.rootTasks = p4;
     o.supportedExtensions = p5;
     o.supportedExtensionsWithJsonIfResolveJsonModule = p6;
-    o.contentMapperExtensions = p7;
     return o;
   }
   static $cast_compiler_fileLoader(v: $rt.GoObject | undefined): fileLoader {
@@ -5278,7 +4801,7 @@ export class fileLoader extends $rt.GoObject {
       $core.Tristate$IsTrue($tsoptions.ParsedCommandLine.CompilerOptions$m$nil(p!.opts.Config)!.AllowNonTsExtensions) ||
       $tspath.HasExtension(absPath)
     ) {
-      p!.rootTasks.push(parseTask.$lit_compiler_parseTask_0_3_11(absPath, libFile, includeReason));
+      p!.rootTasks.push(parseTask.$lit_compiler_parseTask_0_3_9(absPath, libFile, includeReason));
     }
   }
   addRootFileTask(fileName: string, libFile: LibFile | undefined, includeReason: FileIncludeReason | undefined): void {
@@ -5292,14 +4815,13 @@ export class fileLoader extends $rt.GoObject {
     const $t1 = p!.getSourceFileFromReference(absPath, fileName, containingFile, includeReason);
     const resolvedFile: string = $t1[0];
     const diagnostic: sourceFileFromReferenceDiagnostic | undefined = $t1[1];
-    const rootTask: parseTask | undefined = parseTask.$lit_compiler_parseTask_0_3_11(
+    const rootTask: parseTask | undefined = parseTask.$lit_compiler_parseTask_0_3_9(
       resolvedFile,
       libFile,
       includeReason,
     );
     if (!(diagnostic === undefined)) {
       rootTask!.normalizedFilePath = absPath;
-      rootTask!.failedLookup = true;
       rootTask!.processingDiagnostics = [
         processingDiagnostic.$lit_compiler_processingDiagnostic_0_1(
           1,
@@ -5350,7 +4872,7 @@ export class fileLoader extends $rt.GoObject {
       typeResolutionsInFile = new $rt.StructMap<
         $module.ModeAwareCacheKey,
         $module.ResolvedTypeReferenceDirective | undefined
-      >($fn6);
+      >($fn3);
       {
         const $t1 = automaticTypeDirectiveNames;
         for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
@@ -5515,194 +5037,16 @@ export class fileLoader extends $rt.GoObject {
       }
       const path: $tspath.Path = p!.toPath(t!.normalizedFilePath);
       const options: $core.CompilerOptions | undefined = p!.projectReferenceFileMapper_!.getCompilerOptionsForFile(t);
-      const parseOptions: $ast.SourceFileParseOptions =
-        $ast.SourceFileParseOptions.$lit_ast_SourceFileParseOptions_0_1_2(
-          t!.normalizedFilePath,
-          path,
-          $ast.GetExternalModuleIndicatorOptions(t!.normalizedFilePath, options, t!.metadata),
+      const sourceFile: $ast.SourceFile | undefined = $rt
+        .nn(p!.opts.Host)
+        .GetSourceFile(
+          $ast.SourceFileParseOptions.$lit_ast_SourceFileParseOptions_0_1_2(
+            t!.normalizedFilePath,
+            path,
+            $ast.GetExternalModuleIndicatorOptions(t!.normalizedFilePath, options, t!.metadata),
+          ),
         );
-      if ($tspath.FileExtensionIsOneOf(t!.normalizedFilePath, p!.contentMapperExtensions)) {
-        $t1 = p!.parseContentMappedFile(parseOptions);
-        break $body;
-      }
-      $t1 = $rt.nn(p!.opts.Host).GetSourceFile(parseOptions.$clone_ast_SourceFileParseOptions());
-      break $body;
-    } catch ($e) {
-      $panic = $rt.toPanic($e);
-    } finally {
-      $panic = $rt.runDefers($defers, $panic);
-    }
-    if ($panic !== undefined) throw $panic;
-    return $t1;
-  }
-  parseContentMappedFile(opts: $ast.SourceFileParseOptions): $ast.SourceFile | undefined {
-    const p = this;
-    const mapper: $contentmapper.Mapper | undefined = p!.opts.Config!.GetContentMapperForFileName(opts.FileName);
-    const label: string = mapper!.DiagnosticName();
-    const transformIdentity: string = p!.getContentMapperTransformIdentity(mapper);
-    if (p!.contentMapperUnavailable(mapper)) {
-      return p!.emptyContentMappedFile(opts, mapper!.Identity(), transformIdentity);
-    }
-    const $t1 = $rt.nn(p!.opts.Host).GetContentMappedSourceFiles(opts.$clone_ast_SourceFileParseOptions(), mapper);
-    const files: $contentmapper.SourceFiles = $t1[0];
-    const err: $rt.GoObject | undefined = $t1[1];
-    if (!(err === undefined)) {
-      const sourceFile: $ast.SourceFile | undefined = p!.emptyContentMappedFile(
-        opts,
-        mapper!.Identity(),
-        transformIdentity,
-      );
-      {
-        const $t2 = $rt.errors_AsType<$contentmapper.TransformError | undefined>(err);
-        const transformError: $contentmapper.TransformError | undefined = $t2[0];
-        const ok: boolean = $t2[1];
-        if (ok && transformError!.Kind === (1 as number)) {
-          p!.recordContentMapperInitializationFailure(mapper, label, transformError);
-          return sourceFile;
-        }
-      }
-      if (p!.recordContentMapperFailure(mapper, label)) {
-        let diagnostic: $ast.Diagnostic | undefined = undefined as $ast.Diagnostic | undefined;
-        {
-          const $t3 = $rt.errors_AsType<$spanmap.MappingError | undefined>(err);
-          const problem: $spanmap.MappingError | undefined = $t3[0];
-          const ok$1: boolean = $t3[1];
-          if (ok$1) {
-            diagnostic = contentMapperMappingDiagnostic(sourceFile, label, problem);
-          } else {
-            diagnostic = contentMapperTransformDiagnostic(sourceFile, label, err);
-          }
-        }
-        sourceFile!.SetDiagnostics($rt.appendCopy(sourceFile!.Diagnostics(), [diagnostic]));
-      }
-      return sourceFile;
-    }
-    return files.Canonical;
-  }
-  getContentMapperTransformIdentity(mapper: $contentmapper.Mapper | undefined): string {
-    const p = this;
-    {
-      const project: $contentmapper.Project = $rt.nn(p!.opts.Host).ContentMapperProject();
-      if (!(project === undefined)) {
-        {
-          const $t1 = $rt.nn(project).Identity(mapper);
-          const identity: string = $t1[0];
-          const err: $rt.GoObject | undefined = $t1[1];
-          if (err === undefined) {
-            return identity;
-          }
-        }
-      }
-    }
-    return $rt.fmt_Sprintf('%x', [
-      new $boxes.Box__16_byte(
-        mapper!.TransformIdentity($tsoptions.ParsedCommandLine.CompilerOptions$m$nil(p!.opts.Config)).Bytes(),
-      ),
-    ]);
-  }
-  emptyContentMappedFile(
-    opts: $ast.SourceFileParseOptions,
-    mapperIdentity: string,
-    transformIdentity: string,
-  ): $ast.SourceFile | undefined {
-    const p = this;
-    const $t1 = $rt.nn($rt.nn(p!.opts.Host).FS$m()).ReadFile(opts.FileName);
-    const content: string = $t1[0];
-    const sourceFile: $ast.SourceFile | undefined = $parser.ParseSourceFile(opts, '', 3);
-    sourceFile!.SetContentMapperInfo(
-      $ast.ContentMapperSourceFileInfo.$lit_ast_ContentMapperSourceFileInfo_0_1_2_3_4(
-        mapperIdentity,
-        transformIdentity,
-        opts.$clone_ast_SourceFileParseOptions(),
-        opts.FileName + '.ts',
-        content,
-      ),
-    );
-    return sourceFile;
-  }
-  contentMapperUnavailable(mapper: $contentmapper.Mapper | undefined): boolean {
-    const p = this;
-    let $t1: boolean = false;
-    const $defers: (() => void)[] = [];
-    let $panic: $rt.Panic | undefined = undefined;
-    $body: try {
-      if (mapper === undefined) {
-        $t1 = false;
-        break $body;
-      }
-      p!.contentMapperMu.Lock();
-      const $t2 = p!.contentMapperMu;
-      $defers.push(() => {
-        $t2.Unlock();
-      });
-      $t1 =
-        $collections$Set_.Has$nil<$contentmapper.Mapper | undefined>(p!.contentMapperInitFailed, mapper) ||
-        (p!.contentMapperFailures?.get(mapper) ?? 0) >= 5;
-      break $body;
-    } catch ($e) {
-      $panic = $rt.toPanic($e);
-    } finally {
-      $panic = $rt.runDefers($defers, $panic);
-    }
-    if ($panic !== undefined) throw $panic;
-    return $t1;
-  }
-  recordContentMapperInitializationFailure(
-    mapper: $contentmapper.Mapper | undefined,
-    label: string,
-    err: $rt.GoObject | undefined,
-  ): void {
-    const p = this;
-    const $defers: (() => void)[] = [];
-    let $panic: $rt.Panic | undefined = undefined;
-    $body: try {
-      p!.contentMapperMu.Lock();
-      const $t1 = p!.contentMapperMu;
-      $defers.push(() => {
-        $t1.Unlock();
-      });
-      if ($collections$Set_.Has$nil<$contentmapper.Mapper | undefined>(p!.contentMapperInitFailed, mapper)) {
-        break $body;
-      }
-      p!.contentMapperInitFailed.Add(mapper);
-      p!.contentMapperDiagnostics.push(ContentMapperInitializationDiagnostic(label, err));
-    } catch ($e) {
-      $panic = $rt.toPanic($e);
-    } finally {
-      $panic = $rt.runDefers($defers, $panic);
-    }
-    if ($panic !== undefined) throw $panic;
-  }
-  recordContentMapperFailure(mapper: $contentmapper.Mapper | undefined, label: string): boolean {
-    const p = this;
-    let $t1: boolean = false;
-    const $defers: (() => void)[] = [];
-    let $panic: $rt.Panic | undefined = undefined;
-    $body: try {
-      p!.contentMapperMu.Lock();
-      const $t2 = p!.contentMapperMu;
-      $defers.push(() => {
-        $t2.Unlock();
-      });
-      if (p!.contentMapperFailures === undefined) {
-        p!.contentMapperFailures = new Map<$contentmapper.Mapper | undefined, number>();
-      }
-      if ((p!.contentMapperFailures?.get(mapper) ?? 0) >= 5) {
-        $t1 = false;
-        break $body;
-      }
-      const $t3 = p!.contentMapperFailures;
-      const $t4 = mapper;
-      $t3!.set($t4, ($t3!.get($t4) ?? 0) + 1);
-      if ((p!.contentMapperFailures?.get(mapper) ?? 0) >= 5) {
-        p!.contentMapperDiagnostics.push(
-          $ast.NewCompilerDiagnostic($diagnostics.The_content_mapper_0_failed_1_times_and_will_not_be_used, [
-            new $rt.BoxStr(label, 'string'),
-            new $rt.BoxNum(5, 'int'),
-          ]),
-        );
-      }
-      $t1 = true;
+      $t1 = sourceFile;
       break $body;
     } catch ($e) {
       $panic = $rt.toPanic($e);
@@ -5880,9 +5224,9 @@ export class fileLoader extends $rt.GoObject {
           )!();
         });
       }
-      const meta: $ast.SourceFileMetaData = t!.metadata.$clone_ast_SourceFileMetaData();
+      const meta: $ast.SourceFileMetaData = t!.metadata;
       const typeResolutionsInFile: $module.ModeAwareCache<$module.ResolvedTypeReferenceDirective | undefined> =
-        new $rt.StructMap<$module.ModeAwareCacheKey, $module.ResolvedTypeReferenceDirective | undefined>($fn6);
+        new $rt.StructMap<$module.ModeAwareCacheKey, $module.ResolvedTypeReferenceDirective | undefined>($fn3);
       let typeResolutionsTrace: $module.DiagAndArgs[] = [];
       {
         const $t1 = file!.TypeReferenceDirectives;
@@ -5977,7 +5321,7 @@ export class fileLoader extends $rt.GoObject {
         });
       }
       const file: $ast.SourceFile | undefined = t!.file;
-      const meta: $ast.SourceFileMetaData = t!.metadata.$clone_ast_SourceFileMetaData();
+      const meta: $ast.SourceFileMetaData = t!.metadata;
       let moduleNames: ($ast.Node | undefined)[] = [] as ($ast.Node | undefined)[];
       const isJavaScriptFile: boolean = $ast.IsSourceFileJS(file);
       const isExternalModuleFile: boolean = $ast.IsExternalModule(file);
@@ -5998,7 +5342,7 @@ export class fileLoader extends $rt.GoObject {
           t!.importHelpersImportSpecifier = specifier;
         }
       }
-      if (isJavaScriptFile || file!.ScriptKind_ === (4 as number)) {
+      if (file!.ScriptKind_ === (2 as number) || file!.ScriptKind_ === (4 as number)) {
         const jsxImport: string = $ast.GetJSXRuntimeImport(
           $ast.GetJSXImplicitImportBase(optionsForFile, file),
           optionsForFile,
@@ -6027,7 +5371,7 @@ export class fileLoader extends $rt.GoObject {
         const resolutionsInFile: $module.ModeAwareCache<$module.ResolvedModule | undefined> = new $rt.StructMap<
           $module.ModeAwareCacheKey,
           $module.ResolvedModule | undefined
-        >($fn6);
+        >($fn3);
         let resolutionsTrace: $module.DiagAndArgs[] = [];
         {
           const $t4 = moduleNames;
@@ -6053,7 +5397,6 @@ export class fileLoader extends $rt.GoObject {
             const resolvedFileName: string = resolvedModule!.ResolvedFileName;
             const isFromNodeModulesSearch: boolean = resolvedModule!.IsExternalLibraryImport;
             const isJsFile: boolean =
-              !resolvedModule!.ResolvedUsingExtraExtensions &&
               !$tspath.FileExtensionIsOneOf(resolvedFileName, $tspath.SupportedTSExtensionsWithJsonFlat) &&
               p!.projectReferenceFileMapper_!.getRedirectParsedCommandLineForResolution(
                 $ast.NewHasFileName(resolvedFileName, p!.toPath(resolvedFileName)),
@@ -6211,7 +5554,7 @@ export class filesParser extends $rt.GoObject {
   taskDataByPath: $rt.collections_SyncMap<$tspath.Path, parseTaskData | undefined> = new $rt.collections_SyncMap<
     $tspath.Path,
     parseTaskData | undefined
-  >($zf11, $zf13);
+  >($zf10, $zf12);
   maxDepth: number = 0;
   $copy_compiler_filesParser(src: filesParser): void {
     this.wg = src.wg;
@@ -6375,7 +5718,7 @@ export class filesParser extends $rt.GoObject {
       )
     ) {
       redirectTargetsMap = new Map<$tspath.Path, string[]>();
-      packageIdToSourceFile = new $rt.StructMap<$module.PackageId, $ast.SourceFile | undefined>($fn7);
+      packageIdToSourceFile = new $rt.StructMap<$module.PackageId, $ast.SourceFile | undefined>($fn5);
     }
     let collectFiles:
       | ((p0: (parseTask | undefined)[], p1: Map<parseTaskData | undefined, string> | undefined) => void)
@@ -6421,13 +5764,10 @@ export class filesParser extends $rt.GoObject {
                 }
                 if (dups!.AddIfAbsent(task!.normalizedFilePath)) {
                   duplicateSourceFiles.push(
-                    DuplicateSourceFile.$lit_compiler_DuplicateSourceFile_0_1_2_3_4_5(
+                    DuplicateSourceFile.$lit_compiler_DuplicateSourceFile_0_1_2(
                       task!.file!.ParseOptions(),
-                      task!.file!.ContentMapperParseOptions(),
                       task!.file!.Hash,
                       task!.file!.ScriptKind_,
-                      task!.file!.ContentMapper(),
-                      task!.file!.IsContentMapperFailureStub(),
                     ),
                   );
                 }
@@ -6504,13 +5844,10 @@ export class filesParser extends $rt.GoObject {
               if (exists) {
                 if (!(file === undefined)) {
                   duplicateSourceFiles.push(
-                    DuplicateSourceFile.$lit_compiler_DuplicateSourceFile_0_1_2_3_4_5(
+                    DuplicateSourceFile.$lit_compiler_DuplicateSourceFile_0_1_2(
                       file!.ParseOptions(),
-                      file!.ContentMapperParseOptions(),
                       file!.Hash,
                       file!.ScriptKind_,
-                      file!.ContentMapper(),
-                      file!.IsContentMapperFailureStub(),
                     ),
                   );
                 }
@@ -6577,7 +5914,7 @@ export class filesParser extends $rt.GoObject {
           filesByPath!.set(path, file);
           resolvedModules!.set(path, task!.resolutionsInFile);
           typeResolutionsInFile!.set(path, task!.typeResolutionsInFile);
-          sourceFileMetaDatas!.set(path, task!.metadata.$clone_ast_SourceFileMetaData());
+          sourceFileMetaDatas!.set(path, task!.metadata);
           if (!(task!.jsxRuntimeImportSpecifier_ === undefined)) {
             if (jsxRuntimeImportSpecifiers === undefined) {
               jsxRuntimeImportSpecifiers = new Map<$tspath.Path, jsxRuntimeImportSpecifier | undefined>();
@@ -6612,7 +5949,7 @@ export class filesParser extends $rt.GoObject {
         const value: libResolution | undefined = $t20[0];
         resolvedModules!.set(
           key,
-          new $rt.StructMap<$module.ModeAwareCacheKey, $module.ResolvedModule | undefined>($fn6).set(
+          new $rt.StructMap<$module.ModeAwareCacheKey, $module.ResolvedModule | undefined>($fn3).set(
             $module.ModeAwareCacheKey.$lit_module_ModeAwareCacheKey_0_1(value!.libraryName, 1),
             value!.resolution,
           ),
@@ -6626,7 +5963,7 @@ export class filesParser extends $rt.GoObject {
         }
       }
     }
-    return processedFiles.$lit_compiler_processedFiles_18_0_1_2_3_4_6_7_8_9_10_12_11_5_13_14_15_16_17(
+    return processedFiles.$lit_compiler_processedFiles_17_0_1_2_3_4_6_7_8_9_10_12_11_5_13_14_15_16(
       true,
       loader!.resolver,
       allFiles,
@@ -6645,7 +5982,6 @@ export class filesParser extends $rt.GoObject {
       outputFileToProjectReferenceSource,
       redirectTargetsMap,
       redirectFilesByPath,
-      loader!.contentMapperDiagnostics,
     );
   }
   addIncludeReason(
@@ -6732,11 +6068,11 @@ export class includeProcessor extends $rt.GoObject {
   fileIncludeReasons: Map<$tspath.Path, (FileIncludeReason | undefined)[]> | undefined = undefined;
   processingDiagnostics: (processingDiagnostic | undefined)[] = [];
   reasonToReferenceLocation: $rt.collections_SyncMap<FileIncludeReason | undefined, referenceFileLocation | undefined> =
-    new $rt.collections_SyncMap<FileIncludeReason | undefined, referenceFileLocation | undefined>($zf14, $zf15);
+    new $rt.collections_SyncMap<FileIncludeReason | undefined, referenceFileLocation | undefined>($zf13, $zf14);
   includeReasonToRelatedInfo: $rt.collections_SyncMap<FileIncludeReason | undefined, $ast.Diagnostic | undefined> =
-    new $rt.collections_SyncMap<FileIncludeReason | undefined, $ast.Diagnostic | undefined>($zf14, $zf1);
+    new $rt.collections_SyncMap<FileIncludeReason | undefined, $ast.Diagnostic | undefined>($zf13, $zf15);
   redirectAndFileFormat: $rt.collections_SyncMap<$tspath.Path, ($ast.Diagnostic | undefined)[]> =
-    new $rt.collections_SyncMap<$tspath.Path, ($ast.Diagnostic | undefined)[]>($zf11, $zf9);
+    new $rt.collections_SyncMap<$tspath.Path, ($ast.Diagnostic | undefined)[]>($zf10, $zf8);
   computedDiagnostics: $ast.DiagnosticsCollection | undefined = undefined;
   computedDiagnosticsOnce: $rt.sync_Once = new $rt.sync_Once();
   compilerOptionsSyntax: $ast.ObjectLiteralExpression | undefined = undefined;
@@ -6828,7 +6164,7 @@ export class includeProcessor extends $rt.GoObject {
     const i = this;
     if (
       !FileIncludeReason.isReferencedFile$nil(reason) &&
-      $rt.slices_ContainsFunc(i!.fileIncludeReasons?.get(file) ?? [], $fn9)
+      $rt.slices_ContainsFunc(i!.fileIncludeReasons?.get(file) ?? [], $fn7)
     ) {
       i!.addProcessingDiagnostic([
         processingDiagnostic.$lit_compiler_processingDiagnostic_0_1(
@@ -7144,11 +6480,9 @@ export class parseTask extends $rt.GoObject {
   loaded: boolean = false;
   startedSubTasks: boolean = false;
   isForAutomaticTypeDirective: boolean = false;
-  isContentMapperSupplemental: boolean = false;
-  failedLookup: boolean = false;
   includeReason: FileIncludeReason | undefined = undefined;
   packageId: $module.PackageId = new $module.PackageId();
-  metadata: $ast.SourceFileMetaData = new $ast.SourceFileMetaData();
+  metadata: $ast.SourceFileMetaData = $ast.SourceFileMetaData$zero;
   resolutionsInFile: $module.ModeAwareCache<$module.ResolvedModule | undefined> = undefined;
   resolutionsTrace: $module.DiagAndArgs[] = [];
   typeResolutionsInFile: $module.ModeAwareCache<$module.ResolvedTypeReferenceDirective | undefined> = undefined;
@@ -7171,11 +6505,9 @@ export class parseTask extends $rt.GoObject {
     this.loaded = src.loaded;
     this.startedSubTasks = src.startedSubTasks;
     this.isForAutomaticTypeDirective = src.isForAutomaticTypeDirective;
-    this.isContentMapperSupplemental = src.isContentMapperSupplemental;
-    this.failedLookup = src.failedLookup;
     this.includeReason = src.includeReason;
     this.packageId = src.packageId.$clone_module_PackageId();
-    this.metadata = src.metadata.$clone_ast_SourceFileMetaData();
+    this.metadata = src.metadata;
     this.resolutionsInFile = src.resolutionsInFile;
     this.resolutionsTrace = src.resolutionsTrace;
     this.typeResolutionsInFile = src.typeResolutionsInFile;
@@ -7194,31 +6526,7 @@ export class parseTask extends $rt.GoObject {
     o.$copy_compiler_parseTask(this);
     return o;
   }
-  static $lit_compiler_parseTask_0_2_9_11(
-    p0: string,
-    p1: $ast.SourceFile | undefined,
-    p2: boolean,
-    p3: FileIncludeReason | undefined,
-  ): parseTask {
-    const o = new parseTask();
-    o.normalizedFilePath = p0;
-    o.file = p1;
-    o.isContentMapperSupplemental = p2;
-    o.includeReason = p3;
-    return o;
-  }
-  static $lit_compiler_parseTask_0_3_11(
-    p0: string,
-    p1: LibFile | undefined,
-    p2: FileIncludeReason | undefined,
-  ): parseTask {
-    const o = new parseTask();
-    o.normalizedFilePath = p0;
-    o.libFile = p1;
-    o.includeReason = p2;
-    return o;
-  }
-  static $lit_compiler_parseTask_0_3_22_23_11_12(
+  static $lit_compiler_parseTask_0_3_20_21_9_10(
     p0: string,
     p1: LibFile | undefined,
     p2: boolean,
@@ -7233,6 +6541,17 @@ export class parseTask extends $rt.GoObject {
     o.elideOnDepth = p3;
     o.includeReason = p4;
     o.packageId = p5;
+    return o;
+  }
+  static $lit_compiler_parseTask_0_3_9(
+    p0: string,
+    p1: LibFile | undefined,
+    p2: FileIncludeReason | undefined,
+  ): parseTask {
+    const o = new parseTask();
+    o.normalizedFilePath = p0;
+    o.libFile = p1;
+    o.includeReason = p2;
     return o;
   }
   static $lit_compiler_parseTask_0_8(p0: string, p1: boolean): parseTask {
@@ -7263,9 +6582,6 @@ export class parseTask extends $rt.GoObject {
         t!.loadAutomaticTypeDirectives(loader);
         break $body;
       }
-      if (t!.failedLookup) {
-        break $body;
-      }
       if (!(loader!.opts.Tracing_ === undefined)) {
         $defers.push(() => {
           $tracing.Tracing.Push$nil(
@@ -7282,7 +6598,7 @@ export class parseTask extends $rt.GoObject {
         t!.redirect(loader, redirect);
         break $body;
       }
-      if (!t!.isContentMapperSupplemental && $tspath.HasExtension(t!.normalizedFilePath)) {
+      if ($tspath.HasExtension(t!.normalizedFilePath)) {
         const compilerOptions: $core.CompilerOptions | undefined = $tsoptions.ParsedCommandLine.CompilerOptions$m$nil(
           loader!.opts.Config,
         );
@@ -7329,27 +6645,15 @@ export class parseTask extends $rt.GoObject {
       loader!.totalFileCount = (loader!.totalFileCount + 1) | 0;
       if (!(t!.libFile === undefined)) {
         loader!.libFileCount = (loader!.libFileCount + 1) | 0;
-        t!.metadata = $ast.SourceFileMetaData.$lit_ast_SourceFileMetaData_2(1);
+        t!.metadata = $fn4;
       } else {
         t!.metadata = loader!.loadSourceFileMetaData(t!.normalizedFilePath);
       }
-      let file: $ast.SourceFile | undefined = t!.file;
-      if (file === undefined) {
-        file = loader!.parseSourceFile(t);
-      }
+      const file: $ast.SourceFile | undefined = loader!.parseSourceFile(t);
       if (file === undefined) {
         break $body;
       }
       t!.file = file;
-      {
-        const virtualFileName: string = file!.VirtualFileName();
-        if (!(virtualFileName === ('' as string))) {
-          t!.metadata.ImpliedNodeFormat = $ast.GetImpliedNodeFormatForFile(
-            virtualFileName,
-            t!.metadata.PackageJsonType,
-          );
-        }
-      }
       t!.subTasks = [] as (parseTask | undefined)[];
       const compilerOptions$1: $core.CompilerOptions | undefined = $tsoptions.ParsedCommandLine.CompilerOptions$m$nil(
         loader!.opts.Config,
@@ -7399,20 +6703,6 @@ export class parseTask extends $rt.GoObject {
         }
       }
       loader!.resolveImportsAndModuleAugmentations(t);
-      {
-        const $t7 = file!.SupplementalSourceFiles();
-        for (let $t8 = 0, $n = $t7.length; $t8 < $n; $t8++) {
-          const supplemental = $t7[$t8];
-          t!.subTasks.push(
-            parseTask.$lit_compiler_parseTask_0_2_9_11(
-              supplemental!.FileName(),
-              supplemental,
-              true,
-              FileIncludeReason.$lit_compiler_FileIncludeReason_0_1(7, new $rt.BoxStr(t!.path, 'tspath.Path')),
-            ),
-          );
-        }
-      }
     } catch ($e) {
       $panic = $rt.toPanic($e);
     } finally {
@@ -7422,7 +6712,7 @@ export class parseTask extends $rt.GoObject {
   }
   redirect(loader: fileLoader | undefined, fileName: string): void {
     const t = this;
-    t!.redirectedParseTask = parseTask.$lit_compiler_parseTask_0_3_11(
+    t!.redirectedParseTask = parseTask.$lit_compiler_parseTask_0_3_9(
       $tspath.NormalizePath(fileName),
       t!.libFile,
       t!.includeReason,
@@ -7450,7 +6740,7 @@ export class parseTask extends $rt.GoObject {
       {
         const $t2 = toParseTypeRefs;
         for (let $t3 = 0, $n = $t2.length; $t3 < $n; $t3++) {
-          const typeResolution = $t2[$t3];
+          const typeResolution = $t2[$t3].$clone_compiler_resolvedRef();
           t!.addSubTask(typeResolution, undefined);
         }
       }
@@ -7464,7 +6754,7 @@ export class parseTask extends $rt.GoObject {
   addSubTask(ref: resolvedRef, libFile: LibFile | undefined): void {
     const t = this;
     const normalizedFilePath: string = $tspath.NormalizePath(ref.fileName);
-    const subTask: parseTask | undefined = parseTask.$lit_compiler_parseTask_0_3_22_23_11_12(
+    const subTask: parseTask | undefined = parseTask.$lit_compiler_parseTask_0_3_20_21_9_10(
       normalizedFilePath,
       libFile,
       ref.increaseDepth,
@@ -7640,7 +6930,7 @@ export class processingDiagnostic extends $rt.GoObject {
           processInclude!(reason);
         }
       }
-      redirectInfo = program!.includeProcessor_!.explainRedirectAndImpliedFormat(program, diag!.file, $fn10);
+      redirectInfo = program!.includeProcessor_!.explainRedirectAndImpliedFormat(program, diag!.file, $fn8);
     }
     if (!(diag!.diagnosticReason === undefined)) {
       processInclude!(diag!.diagnosticReason);
@@ -7971,7 +7261,7 @@ export class projectReferenceFileMapper extends $rt.GoObject {
   outputDtsToProjectReference: Map<$tspath.Path, $tsoptions.SourceOutputAndProjectReference | undefined> | undefined =
     undefined;
   realpathDtsToSource: $rt.collections_SyncMap<$tspath.Path, $tsoptions.SourceOutputAndProjectReference | undefined> =
-    new $rt.collections_SyncMap<$tspath.Path, $tsoptions.SourceOutputAndProjectReference | undefined>($zf11, $zf16);
+    new $rt.collections_SyncMap<$tspath.Path, $tsoptions.SourceOutputAndProjectReference | undefined>($zf10, $zf16);
   $copy_compiler_projectReferenceFileMapper(src: projectReferenceFileMapper): void {
     this.opts = src.opts.$clone_compiler_ProgramOptions();
     this.host = src.host;
@@ -8287,7 +7577,7 @@ export class projectReferenceParser extends $rt.GoObject {
   loader: fileLoader | undefined = undefined;
   wg: $core.WorkGroup = undefined;
   tasksByFileName: $rt.collections_SyncMap<$tspath.Path, projectReferenceParseTask | undefined> =
-    new $rt.collections_SyncMap<$tspath.Path, projectReferenceParseTask | undefined>($zf11, $zf8);
+    new $rt.collections_SyncMap<$tspath.Path, projectReferenceParseTask | undefined>($zf10, $zf7);
   $copy_compiler_projectReferenceParser(src: projectReferenceParser): void {
     this.loader = src.loader;
     this.wg = src.wg;
@@ -8674,101 +7964,75 @@ export const DuplicateSourceFile$zero: DuplicateSourceFile = new DuplicateSource
 export const EmitOptions$zero: EmitOptions = new EmitOptions();
 export const LibFile$zero: LibFile = new LibFile();
 export const SourceMapEmitResult$zero: SourceMapEmitResult = new SourceMapEmitResult();
-export const automaticTypeDirectiveFileData$zero: automaticTypeDirectiveFileData = new automaticTypeDirectiveFileData();
-export const checkerAssociationPolicy$zero: checkerAssociationPolicy = new checkerAssociationPolicy();
 export const includeExplainingDiagnostic$zero: includeExplainingDiagnostic = new includeExplainingDiagnostic();
 export const jsxRuntimeImportSpecifier$zero: jsxRuntimeImportSpecifier = new jsxRuntimeImportSpecifier();
 export const libResolution$zero: libResolution = new libResolution();
 export const packageNamesInfo$zero: packageNamesInfo = new packageNamesInfo();
 export const referencedFileData$zero: referencedFileData = new referencedFileData();
-export const resolvedRef$zero: resolvedRef = new resolvedRef();
 export const sourceFileFromReferenceDiagnostic$zero: sourceFileFromReferenceDiagnostic =
   new sourceFileFromReferenceDiagnostic();
 export const EmitAll: EmitOnly = 0;
-export const EmitOnlyBuilderSignature: EmitOnly = 3;
 export const EmitOnlyDts: EmitOnly = 2;
+export const EmitOnlyForcedDts: EmitOnly = 3;
 export const EmitOnlyJs: EmitOnly = 1;
-export const checkerAssociationBalancePenaltyMultiplier: number = 16;
-export const checkerAssociationPrioritizedSourcePenalty: number = 12;
-export const checkerAssociationSourceFileWeightMultiplier: number = 4;
-export const checkerAssociationStrongBalanceMinCheckerCount: number = 4;
-export const checkerAssociationTextWeightDivisor: number = 100;
 export const externalHelpersModuleNameText: string = 'tslib';
 export const fileIncludeKindAutomaticTypeDirectiveFile: number = 6;
-export const fileIncludeKindContentMapperSupplemental: number = 7;
 export const fileIncludeKindImport: number = 0;
 export const fileIncludeKindLibFile: number = 5;
 export const fileIncludeKindLibReferenceDirective: number = 3;
 export const fileIncludeKindReferenceFile: number = 1;
 export const fileIncludeKindRootFile: number = 4;
 export const fileIncludeKindTypeReferenceDirective: number = 2;
-export const maxContentMapperFailures: number = 5;
 export const processingDiagnosticKindExplainingFileInclude: processingDiagnosticKind = 1;
 export const processingDiagnosticKindUnknownReference: processingDiagnosticKind = 0;
 const $fn0 = (): $rt.GoObject | undefined => {
   return parseTaskData.$lit_compiler_parseTaskData_0(new Map<string, parseTask | undefined>());
 };
-const $fn1 = checkerAssociationPolicy.$lit_compiler_checkerAssociationPolicy_0_1_2(true, 1, 12);
-const $fn10 = (fileName: string): string => {
+const $fn1 = (): string[] => {
+  return [];
+};
+const $fn10 = (f: $ast.SourceFile | undefined): boolean => {
+  return $tspath.GetRootLength(f!.FileName()) > 1;
+};
+const $fn11 = (d: $ast.Diagnostic | undefined): boolean => {
+  return !d!.SkippedOnNoEmit();
+};
+const $fn12 = (d: $ast.Diagnostic | undefined): boolean => {
+  return $collections$Set_.Has$nil<number>(plainJSErrors, d!.Code());
+};
+const $fn13 = (e: emitter | undefined): EmitResult | undefined => {
+  return e!.emitResult;
+};
+const $fn14 = (a: $ast.SourceFile | undefined, b: $ast.SourceFile | undefined): boolean => {
+  return a!.FileName() === b!.FileName();
+};
+const $fn15 = (a$1: redirectsFile | undefined, b$1: redirectsFile | undefined): boolean => {
+  return a$1!.FileName() === b$1!.FileName();
+};
+const $fn16 = (a: redirectsFile | undefined, b: redirectsFile | undefined): number => {
+  return a!.index - b!.index;
+};
+const $fn17 = (configName: string): projectReferenceParseTask | undefined => {
+  return projectReferenceParseTask.$lit_compiler_projectReferenceParseTask_0(configName);
+};
+const $fn2 = (fileName$1: string): string => {
+  return fileName$1;
+};
+const $fn3 = (k: $module.ModeAwareCacheKey): string => k.$key_module_ModeAwareCacheKey();
+const $fn4 = $ast.SourceFileMetaData.$lit_ast_SourceFileMetaData_2(1);
+const $fn5 = (k: $module.PackageId): string => k.$key_module_PackageId();
+const $fn6 = (msg: $diagnostics.Message | undefined, args: ($rt.GoObject | undefined)[]): void => {};
+const $fn7 = (r: FileIncludeReason | undefined): boolean => {
+  return FileIncludeReason.isReferencedFile$nil(r);
+};
+const $fn8 = (fileName: string): string => {
   return fileName;
 };
-const $fn11 = (diag: $ast.Diagnostic | undefined): boolean => {
-  const file: $ast.SourceFile | undefined = diag!.File();
-  if (
-    !diag!.ReportsUnnecessary() ||
-    file === undefined ||
-    file!.SpanMap$m() === undefined ||
-    !(diag!.Source() === ('' as string))
-  ) {
-    return true;
-  }
-  const $t1 = $spanmap.SpanMap.VirtualToOriginalSpan$nil(file!.SpanMap$m(), diag!.Loc());
-  const fidelity: $spanmap.Fidelity = $t1[1];
-  return !(fidelity === (3 as number));
-};
-const $fn12 = (
+const $fn9 = (
   $p0: $rt.context_Context | undefined,
   file: $ast.SourceFile | undefined,
 ): ($ast.Diagnostic | undefined)[] => {
   return file!.BindDiagnostics();
-};
-const $fn13 = (f: $ast.SourceFile | undefined): boolean => {
-  return $tspath.GetRootLength(f!.FileName()) > 1;
-};
-const $fn14 = (d: $ast.Diagnostic | undefined): boolean => {
-  return !d!.SkippedOnNoEmit();
-};
-const $fn15 = (d: $ast.Diagnostic | undefined): boolean => {
-  return $collections$Set_.Has$nil<number>(plainJSErrors, d!.Code());
-};
-const $fn16 = (e: emitter | undefined): EmitResult | undefined => {
-  return e!.emitResult;
-};
-const $fn17 = (a: $ast.SourceFile | undefined, b: $ast.SourceFile | undefined): boolean => {
-  return a!.FileName() === b!.FileName();
-};
-const $fn18 = (a$1: redirectsFile | undefined, b$1: redirectsFile | undefined): boolean => {
-  return a$1!.FileName() === b$1!.FileName();
-};
-const $fn19 = (a: redirectsFile | undefined, b: redirectsFile | undefined): number => {
-  return a!.index - b!.index;
-};
-const $fn2 = checkerAssociationPolicy.$lit_compiler_checkerAssociationPolicy_1_2(4, 16);
-const $fn20 = (configName: string): projectReferenceParseTask | undefined => {
-  return projectReferenceParseTask.$lit_compiler_projectReferenceParseTask_0(configName);
-};
-const $fn3 = checkerAssociationPolicy.$lit_compiler_checkerAssociationPolicy_1_2(1, 1);
-const $fn4 = (): string[] => {
-  return [];
-};
-const $fn5 = (fileName$1: string): string => {
-  return fileName$1;
-};
-const $fn6 = (k: $module.ModeAwareCacheKey): string => k.$key_module_ModeAwareCacheKey();
-const $fn7 = (k: $module.PackageId): string => k.$key_module_PackageId();
-const $fn8 = (msg: $diagnostics.Message | undefined, args: ($rt.GoObject | undefined)[]): void => {};
-const $fn9 = (r: FileIncludeReason | undefined): boolean => {
-  return FileIncludeReason.isReferencedFile$nil(r);
 };
 export let parseTaskDataPool: $rt.sync_Pool = new $rt.sync_Pool($fn0);
 export let plainJSErrors: $collections.Set_<number> | undefined = $collections.NewSetFromItems<number>([
@@ -8864,190 +8128,6 @@ export let plainJSErrors: $collections.Set_<number> | undefined = $collections.N
   $diagnostics.Private_field_0_must_be_declared_in_an_enclosing_class!.Code(),
   $diagnostics.This_condition_will_always_return_0_since_JavaScript_compares_objects_by_reference_not_value!.Code(),
 ]);
-export function getCheckerAssociationPolicy(
-  totalWeight: number,
-  declarationWeight: number,
-  checkerCount: number,
-): checkerAssociationPolicy {
-  if (shouldPrioritizeSourceFiles(totalWeight, declarationWeight, checkerCount)) {
-    return $fn1;
-  }
-  if (checkerCount >= 4) {
-    return $fn2;
-  }
-  return $fn3;
-}
-export function getCheckerAssociationsInOrder(
-  fileWeights: number[],
-  adjacentFiles: number[][],
-  fileOrder: number[],
-  checkerCount: number,
-  penaltyMultiplier: number,
-): number[] {
-  if (fileWeights.length === (0 as number)) {
-    return [];
-  }
-  let totalWeight: number = 0;
-  let maxFileWeight: number = 0;
-  let edgeCount: number = 0;
-  {
-    const $t1 = fileWeights;
-    for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      const i = $t2;
-      const weight = $t1[$t2];
-      totalWeight += weight;
-      maxFileWeight = Math.max(maxFileWeight, weight);
-      edgeCount += adjacentFiles[i].length;
-    }
-  }
-  const associations: number[] = $rt.makeSlice<number>(fileWeights.length, 0);
-  {
-    const $t3 = associations;
-    for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
-      const i$1 = $t4;
-      associations[i$1] = -1;
-    }
-  }
-  const checkerWeights: number[] = $rt.makeSlice<number>(checkerCount, 0);
-  const averageCheckerWeight: number = Math.trunc((totalWeight + checkerCount - 1) / checkerCount);
-  const maxCheckerWeight: number = Math.max(
-    maxFileWeight,
-    averageCheckerWeight + Math.trunc(averageCheckerWeight / 100),
-  );
-  const totalWeightFloat: number = totalWeight;
-  const alpha: number =
-    (penaltyMultiplier * Math.trunc(edgeCount / 2) * $rt.math_Sqrt(checkerCount)) /
-    (totalWeightFloat * $rt.math_Sqrt(totalWeightFloat));
-  const neighborCounts: number[] = $rt.makeSlice<number>(checkerCount, 0);
-  {
-    const $t5 = fileWeights;
-    for (let $t6 = 0, $n = $t5.length; $t6 < $n; $t6++) {
-      const position = $t6;
-      let fileIndex: number = position;
-      if (!(fileOrder.length === 0)) {
-        fileIndex = fileOrder[position];
-      }
-      $rt.clearSlice(neighborCounts, 0);
-      {
-        const $t7 = adjacentFiles[fileIndex];
-        for (let $t8 = 0, $n = $t7.length; $t8 < $n; $t8++) {
-          const adjacentFile = $t7[$t8];
-          {
-            const checkerIndex: number = associations[adjacentFile];
-            if (checkerIndex >= 0) {
-              neighborCounts[checkerIndex]++;
-            }
-          }
-        }
-      }
-      let bestChecker: number = -1;
-      let bestScore: number = $rt.math_Inf(-1);
-      {
-        const $t9 = checkerWeights;
-        for (let $t10 = 0, $n = $t9.length; $t10 < $n; $t10++) {
-          const checkerIndex$1 = $t10;
-          const checkerWeight = $t9[$t10];
-          if (checkerWeight + fileWeights[fileIndex] > maxCheckerWeight) {
-            continue;
-          }
-          const oldWeight: number = checkerWeight;
-          const newWeight: number = checkerWeight + fileWeights[fileIndex];
-          const penalty: number = alpha * (newWeight * $rt.math_Sqrt(newWeight) - oldWeight * $rt.math_Sqrt(oldWeight));
-          const score: number = neighborCounts[checkerIndex$1] - penalty;
-          if (
-            score > bestScore ||
-            (score === bestScore && (bestChecker < 0 || checkerWeight < checkerWeights[bestChecker]))
-          ) {
-            bestChecker = checkerIndex$1;
-            bestScore = score;
-          }
-        }
-      }
-      if (bestChecker < 0) {
-        bestChecker = 0;
-        {
-          const $t11 = checkerWeights.slice(1);
-          for (let $t12 = 0, $n = $t11.length; $t12 < $n; $t12++) {
-            const checkerIndex$2 = $t12;
-            const checkerWeight$1 = $t11[$t12];
-            if (checkerWeight$1 < checkerWeights[bestChecker]) {
-              bestChecker = checkerIndex$2 + 1;
-            }
-          }
-        }
-      }
-      associations[fileIndex] = bestChecker;
-      checkerWeights[bestChecker] += fileWeights[fileIndex];
-    }
-  }
-  return associations;
-}
-export function getCheckerAssociationOrder(
-  fileWeights: number[],
-  isDeclarationFile: boolean[],
-  prioritizeSourceFiles: boolean,
-): number[] {
-  if (!prioritizeSourceFiles) {
-    return [];
-  }
-  const fileOrder: number[] = $rt.makeSlice<number>(fileWeights.length, 0);
-  {
-    const $t1 = fileOrder;
-    for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      const i = $t2;
-      fileOrder[i] = i;
-    }
-  }
-  $rt.sort_Slice(new $boxes.Box___int(fileOrder), (i$1: number, j: number): boolean => {
-    const left: number = fileOrder[i$1];
-    const right: number = fileOrder[j];
-    if (!(isDeclarationFile[left] === isDeclarationFile[right])) {
-      return !isDeclarationFile[left];
-    }
-    if (!(fileWeights[left] === fileWeights[right])) {
-      return fileWeights[left] > fileWeights[right];
-    }
-    return left < right;
-  });
-  return fileOrder;
-}
-export function getCheckerAssociationBaseWeight(nodeCount: number, textLength: number): number {
-  return Math.max(nodeCount + Math.trunc(textLength / 100), 1);
-}
-export function shouldPrioritizeSourceFiles(
-  totalWeight: number,
-  declarationWeight: number,
-  checkerCount: number,
-): boolean {
-  return declarationWeight * checkerCount * 2 <= totalWeight;
-}
-export function getCheckerAssociationWeights(baseWeights: number[], importCounts: number[]): number[] {
-  let totalBaseWeight: number = 0;
-  let totalImports: number = 0;
-  {
-    const $t1 = baseWeights;
-    for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      const i = $t2;
-      const baseWeight = $t1[$t2];
-      totalBaseWeight += baseWeight;
-      totalImports += importCounts[i];
-    }
-  }
-  let importWeight: number = 0;
-  if (totalImports > 0) {
-    importWeight = Math.max(Math.trunc(totalBaseWeight / totalImports), 1);
-  }
-  const fileWeights: number[] = $rt.makeSlice<number>(baseWeights.length, 0);
-  {
-    const $t3 = baseWeights;
-    for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
-      const i$1 = $t4;
-      const baseWeight$1 = $t3[$t4];
-      fileWeights[i$1] = baseWeight$1 + importCounts[i$1] * importWeight;
-    }
-  }
-  return fileWeights;
-}
 export function newCheckerPool(program: Program | undefined): checkerPool | undefined {
   return newCheckerPoolWithTracing(program, undefined);
 }
@@ -9193,22 +8273,18 @@ export function sourceFileMayBeEmitted(
   sourceFile: $ast.SourceFile | undefined,
   host: SourceFileMayBeEmittedHost,
   forceDtsEmit: boolean,
-  forceJsEmit: boolean,
 ): boolean {
   const options: $core.CompilerOptions | undefined = $rt.nn(host).Options();
-  if (!forceJsEmit && $core.Tristate$IsTrue(options!.NoEmitForJsFiles) && $ast.IsSourceFileJS(sourceFile)) {
+  if ($core.Tristate$IsTrue(options!.NoEmitForJsFiles) && $ast.IsSourceFileJS(sourceFile)) {
     return false;
   }
   if (sourceFile!.IsDeclarationFile) {
     return false;
   }
-  if (!(sourceFile!.ContentMapper() === ('' as string)) && !forceDtsEmit && !options!.GetEmitDeclarations()) {
-    return false;
-  }
   if ($rt.nn(host).IsSourceFileFromExternalLibrary(sourceFile)) {
     return false;
   }
-  if (forceDtsEmit || forceJsEmit) {
+  if (forceDtsEmit) {
     return true;
   }
   if (!($rt.nn(host).GetProjectReferenceFromSource(sourceFile!.Path$m()) === undefined)) {
@@ -9224,7 +8300,7 @@ export function sourceFileMayBeEmitted(
     const commonDir: string = $tspath.GetNormalizedAbsolutePath(
       $outputpaths.GetCommonSourceDirectory(
         options,
-        $fn4,
+        $fn1,
         $rt.nn(host).GetCurrentDirectory(),
         $rt.nn(host).UseCaseSensitiveFileNames(),
         undefined,
@@ -9255,19 +8331,18 @@ export function sourceFileMayBeEmitted(
 }
 export function getSourceFilesToEmit(
   host: SourceFileMayBeEmittedHost,
-  targetSourceFiles: ($ast.SourceFile | undefined)[],
+  targetSourceFile: $ast.SourceFile | undefined,
   forceDtsEmit: boolean,
-  forceJsEmit: boolean,
 ): ($ast.SourceFile | undefined)[] {
-  if (targetSourceFiles.length === 0) {
-    targetSourceFiles = $rt.nn(host).SourceFiles();
+  let sourceFiles: ($ast.SourceFile | undefined)[] = [];
+  if (!(targetSourceFile === undefined)) {
+    sourceFiles = [targetSourceFile];
+  } else {
+    sourceFiles = $rt.nn(host).SourceFiles();
   }
-  return $core.Filter<$ast.SourceFile | undefined>(
-    targetSourceFiles,
-    (sourceFile: $ast.SourceFile | undefined): boolean => {
-      return sourceFileMayBeEmitted(sourceFile, host, forceDtsEmit, forceJsEmit);
-    },
-  );
+  return $core.Filter<$ast.SourceFile | undefined>(sourceFiles, (sourceFile: $ast.SourceFile | undefined): boolean => {
+    return sourceFileMayBeEmitted(sourceFile, host, forceDtsEmit);
+  });
 }
 export function isSourceFileNotJson(file: $ast.SourceFile | undefined): boolean {
   return !$ast.IsJsonSourceFile(file);
@@ -9277,12 +8352,7 @@ export function getDeclarationDiagnostics(
   file: $ast.SourceFile | undefined,
 ): ($ast.Diagnostic | undefined)[] {
   const fullFiles: ($ast.SourceFile | undefined)[] = $core.Filter<$ast.SourceFile | undefined>(
-    getSourceFilesToEmit(
-      host as unknown as SourceFileMayBeEmittedHost,
-      $core.SingleElementSlice<$ast.SourceFile>(file),
-      false,
-      false,
-    ),
+    getSourceFilesToEmit(host as unknown as SourceFileMayBeEmittedHost, file, false),
     isSourceFileNotJson,
   );
   if (
@@ -9313,10 +8383,7 @@ export function processAllProgramFiles(opts: ProgramOptions, singleThreaded: boo
       opts.Config,
     );
     const rootFiles: string[] = opts.Config!.FileNames();
-    const supportedExtensions: string[][] = $tsoptions.GetSupportedExtensions(
-      compilerOptions,
-      opts.Config!.ContentMapperExtensions(),
-    );
+    const supportedExtensions: string[][] = $tsoptions.GetSupportedExtensions(compilerOptions, []);
     const supportedExtensionsWithJsonIfResolveJsonModule: string[][] =
       $tsoptions.GetSupportedExtensionsWithJsonIfResolveJsonModule(compilerOptions, supportedExtensions);
     let maxNodeModuleJsDepth: number = 0;
@@ -9328,7 +8395,7 @@ export function processAllProgramFiles(opts: ProgramOptions, singleThreaded: boo
         maxNodeModuleJsDepth = p!.get();
       }
     }
-    let loader: fileLoader = fileLoader.$lit_compiler_fileLoader_0_2_3_7_8_4_5_6(
+    let loader: fileLoader = fileLoader.$lit_compiler_fileLoader_0_2_3_6_7_4_5(
       opts.$clone_compiler_ProgramOptions(),
       $tspath.GetNormalizedAbsolutePath(
         $rt.nn(opts.Host).DefaultLibraryPath(),
@@ -9342,7 +8409,6 @@ export function processAllProgramFiles(opts: ProgramOptions, singleThreaded: boo
       [] as (parseTask | undefined)[],
       supportedExtensions,
       supportedExtensionsWithJsonIfResolveJsonModule,
-      opts.Config!.ContentMapperExtensions(),
     );
     loader.addProjectReferenceTasks(singleThreaded);
     loader.resolver = $module.NewResolver(
@@ -9350,7 +8416,6 @@ export function processAllProgramFiles(opts: ProgramOptions, singleThreaded: boo
       compilerOptions,
       opts.TypingsLocation,
       opts.ProjectName,
-      opts.Config!.ContentMapperExtensions(),
     );
     if (!(opts.Tracing_ === undefined)) {
       $defers.push(() => {
@@ -9419,428 +8484,6 @@ export function processAllProgramFiles(opts: ProgramOptions, singleThreaded: boo
   if ($panic !== undefined) throw $panic;
   return $t1;
 }
-export function contentMapperTransformDiagnostic(
-  file: $ast.SourceFile | undefined,
-  label: string,
-  err: $rt.GoObject | undefined,
-): $ast.Diagnostic | undefined {
-  {
-    const $t1 = $rt.errors_AsType<$contentmapper.SupplementalFileCollisionError | undefined>(err);
-    const collision: $contentmapper.SupplementalFileCollisionError | undefined = $t1[0];
-    const ok: boolean = $t1[1];
-    if (ok) {
-      return contentMapperTransformDiagnosticChain(
-        file,
-        label,
-        $diagnostics.Content_mapper_supplemental_output_file_0_conflicts_with_an_existing_file,
-        [new $rt.BoxStr(collision!.FileName, 'string')],
-      );
-    }
-  }
-  {
-    const $t2 = $rt.errors_AsType<$contentmapper.TransformError | undefined>(err);
-    const transformError: $contentmapper.TransformError | undefined = $t2[0];
-    const ok$1: boolean = $t2[1];
-    if (ok$1) {
-      {
-        switch (transformError!.Kind) {
-          case 1 as number: {
-            {
-              const $t3 = $rt.errors_AsType<$contentmapper.InitializeError | undefined>(transformError);
-              const initializeError: $contentmapper.InitializeError | undefined = $t3[0];
-              const ok$2: boolean = $t3[1];
-              if (ok$2) {
-                {
-                  switch (initializeError!.Kind) {
-                    case 5 as number: {
-                      return contentMapperTransformDiagnosticChain(
-                        file,
-                        label,
-                        $diagnostics.The_content_mapper_uses_unsupported_protocol_version_0_expected_version_1,
-                        [new $rt.BoxNum(initializeError!.ProtocolVersion, 'int'), new $rt.BoxNum(1, 'int')],
-                      );
-                    }
-                    case 6 as number: {
-                      return contentMapperTransformDiagnosticChain(
-                        file,
-                        label,
-                        $diagnostics.The_content_mapper_selected_unsupported_position_encoding_0,
-                        [new $rt.BoxStr(initializeError!.PositionEncoding_, 'contentmapper.PositionEncoding')],
-                      );
-                    }
-                    case 7 as number: {
-                      return contentMapperTransformDiagnosticChain(
-                        file,
-                        label,
-                        $diagnostics.The_content_mapper_diagnostic_source_must_not_be_empty,
-                        [] as ($rt.GoObject | undefined)[],
-                      );
-                    }
-                    case 8 as number: {
-                      return contentMapperTransformDiagnosticChain(
-                        file,
-                        label,
-                        $diagnostics.The_content_mapper_diagnostic_source_0_is_reserved_by_TypeScript,
-                        [new $rt.BoxStr(initializeError!.DiagnosticSource, 'string')],
-                      );
-                    }
-                  }
-                }
-              }
-            }
-            return contentMapperTransformDiagnosticChain(
-              file,
-              label,
-              $diagnostics.The_content_mapper_process_could_not_be_started_or_initialized,
-              [] as ($rt.GoObject | undefined)[],
-            );
-          }
-          case 2 as number: {
-            return contentMapperTransformDiagnosticChain(
-              file,
-              label,
-              ContentMapperProjectErrorDiagnostic(transformError),
-              [] as ($rt.GoObject | undefined)[],
-            );
-          }
-          case 3 as number: {
-            return contentMapperTransformDiagnosticChain(
-              file,
-              label,
-              $diagnostics.The_content_mapper_process_failed_while_handling_the_transform_request,
-              [] as ($rt.GoObject | undefined)[],
-            );
-          }
-          case 4 as number: {
-            {
-              const $t4 = $rt.errors_AsType<$contentmapper.InvalidVirtualExtensionError | undefined>(transformError);
-              const extensionError: $contentmapper.InvalidVirtualExtensionError | undefined = $t4[0];
-              const ok$3: boolean = $t4[1];
-              if (ok$3) {
-                return contentMapperTransformDiagnosticChain(
-                  file,
-                  label,
-                  $diagnostics.The_content_mapper_returned_an_output_with_unsupported_virtual_extension_0,
-                  [new $rt.BoxStr(extensionError!.Extension, 'string')],
-                );
-              }
-            }
-            {
-              const $t5 = $rt.errors_AsType<$contentmapper.DiagnosticDirectiveError | undefined>(transformError);
-              const directiveError: $contentmapper.DiagnosticDirectiveError | undefined = $t5[0];
-              const ok$4: boolean = $t5[1];
-              if (ok$4) {
-                let detail: $ast.Diagnostic | undefined = undefined as $ast.Diagnostic | undefined;
-                {
-                  switch (directiveError!.Kind) {
-                    case 0 as number: {
-                      detail = $ast.NewCompilerDiagnostic(
-                        $diagnostics.Diagnostic_directive_0_returned_by_the_content_mapper_has_an_invalid_range,
-                        [new $rt.BoxNum(directiveError!.Index, 'int')],
-                      );
-                      break;
-                    }
-                    case 1 as number: {
-                      detail = $ast.NewCompilerDiagnostic(
-                        $diagnostics.The_content_mapper_returned_a_diagnostic_directive_with_invalid_policy_0,
-                        [new $rt.BoxNum(directiveError!.Policy, 'contentmapper.DiagnosticDirectivePolicy')],
-                      );
-                      break;
-                    }
-                    case 2 as number: {
-                      detail = $ast.NewCompilerDiagnostic(
-                        $diagnostics.Diagnostic_directive_0_returned_by_the_content_mapper_must_specify_unusedExpectDirectiveIndex_when_there_is_not_exactly_one_unusedExpectDirectiveDiagnostics_entry,
-                        [new $rt.BoxNum(directiveError!.Index, 'int')],
-                      );
-                      break;
-                    }
-                    case 3 as number: {
-                      detail = $ast.NewCompilerDiagnostic(
-                        $diagnostics.Diagnostic_directive_0_returned_by_the_content_mapper_has_an_invalid_unusedExpectDirectiveIndex,
-                        [new $rt.BoxNum(directiveError!.Index, 'int')],
-                      );
-                      break;
-                    }
-                    case 4 as number: {
-                      detail = $ast.NewCompilerDiagnostic(
-                        $diagnostics.The_content_mapper_returned_diagnostic_directives_with_overlapping_virtual_ranges,
-                        [] as ($rt.GoObject | undefined)[],
-                      );
-                      break;
-                    }
-                  }
-                }
-                if (!(detail === undefined)) {
-                  if (directiveError!.SupplementalIndex >= 0) {
-                    detail = $ast.NewDiagnosticChain(
-                      detail,
-                      $diagnostics.The_invalid_diagnostic_directive_is_in_supplemental_output_0_returned_by_the_content_mapper,
-                      [new $rt.BoxNum(directiveError!.SupplementalIndex, 'int')],
-                    );
-                  }
-                  return contentMapperTransformDiagnosticWithDetail(file, label, detail);
-                }
-              }
-            }
-            return contentMapperTransformDiagnosticChain(
-              file,
-              label,
-              $diagnostics.The_content_mapper_returned_an_invalid_transform_response,
-              [] as ($rt.GoObject | undefined)[],
-            );
-          }
-          case 5 as number: {
-            return $ast.NewDiagnostic(
-              file,
-              $core.NewTextRange(0, 0),
-              $diagnostics.The_content_mapper_0_did_not_provide_the_required_position_mappings,
-              [new $rt.BoxStr(label, 'string')],
-            );
-          }
-        }
-      }
-    }
-  }
-  return $ast.NewDiagnostic(
-    file,
-    $core.NewTextRange(0, 0),
-    $diagnostics.The_content_mapper_0_failed_to_transform_this_file,
-    [new $rt.BoxStr(label, 'string')],
-  );
-}
-export function ContentMapperProjectErrorDiagnostic(err: $rt.GoObject | undefined): $diagnostics.Message | undefined {
-  {
-    const $t1 = $rt.errors_AsType<$contentmapper.ProjectError | undefined>(err);
-    const projectError: $contentmapper.ProjectError | undefined = $t1[0];
-    const ok: boolean = $t1[1];
-    if (ok) {
-      {
-        switch (projectError!.Kind) {
-          case 0 as number: {
-            return $diagnostics.The_content_mapper_returned_a_project_response_that_could_not_be_decoded;
-          }
-          case 1 as number: {
-            return $diagnostics.The_content_mapper_did_not_return_configIdentity_which_is_required_when_the_content_mapper_has_dynamicConfig_Colon_true_in_its_package_json;
-          }
-          case 2 as number: {
-            return $diagnostics.The_content_mapper_returned_a_non_absolute_path_in_watchedFiles;
-          }
-          case 3 as number: {
-            return $diagnostics.The_content_mapper_returned_configIdentity_which_is_only_allowed_when_it_declares_dynamicConfig_Colon_true_in_its_package_json;
-          }
-          case 4 as number: {
-            return $diagnostics.The_content_mapper_returned_watchedFiles_which_is_only_allowed_when_it_declares_dynamicConfig_Colon_true_in_its_package_json;
-          }
-        }
-      }
-    }
-  }
-  return $diagnostics.The_content_mapper_process_failed_while_handling_the_project_request;
-}
-export function contentMapperTransformDiagnosticChain(
-  file: $ast.SourceFile | undefined,
-  label: string,
-  message: $diagnostics.Message | undefined,
-  args: ($rt.GoObject | undefined)[],
-): $ast.Diagnostic | undefined {
-  return contentMapperTransformDiagnosticWithDetail(file, label, $ast.NewCompilerDiagnostic(message, args));
-}
-export function contentMapperTransformDiagnosticWithDetail(
-  file: $ast.SourceFile | undefined,
-  label: string,
-  detail: $ast.Diagnostic | undefined,
-): $ast.Diagnostic | undefined {
-  return $ast
-    .NewDiagnostic(file, $core.NewTextRange(0, 0), $diagnostics.The_content_mapper_0_failed_to_transform_this_file, [
-      new $rt.BoxStr(label, 'string'),
-    ])!
-    .AddMessageChain(detail);
-}
-export function contentMapperMappingDiagnostic(
-  file: $ast.SourceFile | undefined,
-  label: string,
-  problem: $spanmap.MappingError | undefined,
-): $ast.Diagnostic | undefined {
-  const loc: $core.TextRange = $core.NewTextRange(0, 0);
-  {
-    switch (problem!.Kind) {
-      case 0 as number: {
-        return $ast.NewDiagnostic(
-          file,
-          loc,
-          $diagnostics.The_content_mapper_0_produced_overlapping_or_out_of_order_position_mappings_near_virtual_offset_1,
-          [new $rt.BoxStr(label, 'string'), new $rt.BoxNum(problem!.VirtualPos, 'int')],
-        );
-      }
-      case 1 as number: {
-        return $ast.NewDiagnostic(
-          file,
-          loc,
-          $diagnostics.The_content_mapper_0_produced_a_position_mapping_that_points_outside_the_original_content_original_offset_1,
-          [new $rt.BoxStr(label, 'string'), new $rt.BoxNum(problem!.OriginalPos, 'int')],
-        );
-      }
-      case 2 as number: {
-        return $ast.NewDiagnostic(
-          file,
-          loc,
-          $diagnostics.The_content_mapper_0_produced_a_verbatim_mapping_that_does_not_match_the_original_content_virtual_offset_1_original_offset_2,
-          [
-            new $rt.BoxStr(label, 'string'),
-            new $rt.BoxNum(problem!.VirtualPos, 'int'),
-            new $rt.BoxNum(problem!.OriginalPos, 'int'),
-          ],
-        );
-      }
-      case 3 as number: {
-        return $ast.NewDiagnostic(
-          file,
-          loc,
-          $diagnostics.The_content_mapper_0_produced_a_position_mapping_with_an_invalid_kind_near_virtual_offset_1,
-          [new $rt.BoxStr(label, 'string'), new $rt.BoxNum(problem!.VirtualPos, 'int')],
-        );
-      }
-      case 4 as number: {
-        return $ast.NewDiagnostic(
-          file,
-          loc,
-          $diagnostics.The_content_mapper_0_produced_overlapping_original_position_mappings_that_are_not_identical_near_original_offset_1,
-          [new $rt.BoxStr(label, 'string'), new $rt.BoxNum(problem!.OriginalPos, 'int')],
-        );
-      }
-      case 5 as number: {
-        return $ast.NewDiagnostic(
-          file,
-          loc,
-          $diagnostics.The_content_mapper_0_produced_invalid_mapping_features_near_original_offset_1,
-          [new $rt.BoxStr(label, 'string'), new $rt.BoxNum(problem!.OriginalPos, 'int')],
-        );
-      }
-      default: {
-        return $ast.NewDiagnostic(
-          file,
-          loc,
-          $diagnostics.The_content_mapper_0_did_not_provide_the_required_position_mappings,
-          [new $rt.BoxStr(label, 'string')],
-        );
-      }
-    }
-  }
-}
-export function ContentMapperInitializationDiagnostic(
-  label: string,
-  err: $rt.GoObject | undefined,
-): $ast.Diagnostic | undefined {
-  {
-    const $t1 = $rt.errors_AsType<$contentmapper.InitializeError | undefined>(err);
-    const initializeError: $contentmapper.InitializeError | undefined = $t1[0];
-    const ok: boolean = $t1[1];
-    if (ok && label === ('' as string)) {
-      label = initializeError!.MapperName;
-    }
-  }
-  const diagnostic: $ast.Diagnostic | undefined = $ast.NewCompilerDiagnostic(
-    $diagnostics.The_content_mapper_0_could_not_be_initialized,
-    [new $rt.BoxStr(label, 'string')],
-  );
-  {
-    const $t2 = $rt.errors_AsType<$contentmapper.InitializeError | undefined>(err);
-    const initializeError$1: $contentmapper.InitializeError | undefined = $t2[0];
-    const ok$1: boolean = $t2[1];
-    if (ok$1) {
-      {
-        switch (initializeError$1!.Kind) {
-          case 0 as number: {
-            return diagnostic!.AddMessageChain(
-              $ast.NewCompilerDiagnostic($diagnostics.The_content_mapper_command_0_could_not_be_started_Colon_1, [
-                new $rt.BoxStr(initializeError$1!.Command, 'string'),
-                new $rt.BoxStr(initializeError$1!.Detail, 'string'),
-              ]),
-            );
-          }
-          case 1 as number: {
-            return diagnostic!.AddMessageChain(
-              $ast.NewCompilerDiagnostic(
-                $diagnostics.The_content_mapper_process_exited_before_responding_to_the_initialize_request_exit_code_0,
-                [new $rt.BoxNum(initializeError$1!.ExitCode, 'int')],
-              ),
-            );
-          }
-          case 2 as number: {
-            return diagnostic!.AddMessageChain(
-              $ast.NewCompilerDiagnostic(
-                $diagnostics.The_content_mapper_did_not_respond_to_the_initialize_request_within_0_seconds,
-                [new $rt.BoxNum(initializeError$1!.TimeoutSeconds, 'int')],
-              ),
-            );
-          }
-          case 3 as number: {
-            return diagnostic!.AddMessageChain(
-              $ast.NewCompilerDiagnostic(
-                $diagnostics.The_content_mapper_returned_an_initialize_response_that_could_not_be_decoded_Colon_0,
-                [new $rt.BoxStr(initializeError$1!.Detail, 'string')],
-              ),
-            );
-          }
-          case 4 as number: {
-            return diagnostic!.AddMessageChain(
-              $ast.NewCompilerDiagnostic($diagnostics.The_content_mapper_s_initialize_request_failed_Colon_0, [
-                new $rt.BoxStr(initializeError$1!.Detail, 'string'),
-              ]),
-            );
-          }
-          case 5 as number: {
-            return diagnostic!.AddMessageChain(
-              $ast.NewCompilerDiagnostic(
-                $diagnostics.The_content_mapper_uses_unsupported_protocol_version_0_expected_version_1,
-                [new $rt.BoxNum(initializeError$1!.ProtocolVersion, 'int'), new $rt.BoxNum(1, 'int')],
-              ),
-            );
-          }
-          case 6 as number: {
-            return diagnostic!.AddMessageChain(
-              $ast.NewCompilerDiagnostic($diagnostics.The_content_mapper_selected_unsupported_position_encoding_0, [
-                new $rt.BoxStr(initializeError$1!.PositionEncoding_, 'contentmapper.PositionEncoding'),
-              ]),
-            );
-          }
-          case 7 as number: {
-            return diagnostic!.AddMessageChain(
-              $ast.NewCompilerDiagnostic(
-                $diagnostics.The_content_mapper_diagnostic_source_must_not_be_empty,
-                [] as ($rt.GoObject | undefined)[],
-              ),
-            );
-          }
-          case 8 as number: {
-            return diagnostic!.AddMessageChain(
-              $ast.NewCompilerDiagnostic(
-                $diagnostics.The_content_mapper_diagnostic_source_0_is_reserved_by_TypeScript,
-                [new $rt.BoxStr(initializeError$1!.DiagnosticSource, 'string')],
-              ),
-            );
-          }
-        }
-      }
-    }
-  }
-  return diagnostic!.AddMessageChain(
-    $ast.NewCompilerDiagnostic(
-      $diagnostics.The_content_mapper_process_could_not_be_started_or_initialized,
-      [] as ($rt.GoObject | undefined)[],
-    ),
-  );
-}
-export function ContentMapperProjectDiagnostic(err: $rt.GoObject | undefined): $ast.Diagnostic | undefined {
-  {
-    const $t1 = $rt.errors_AsType<$contentmapper.InitializeError | undefined>(err);
-    const ok: boolean = $t1[1];
-    if (ok) {
-      return ContentMapperInitializationDiagnostic('', err);
-    }
-  }
-  return $ast.NewCompilerDiagnostic(ContentMapperProjectErrorDiagnostic(err), [] as ($rt.GoObject | undefined)[]);
-}
 export function getLibraryNameFromLibFileName(libFileName: string): string {
   const components: string[] = $rt.strings_Split(libFileName, '.');
   const path: $rt.strings_Builder = new $rt.strings_Builder();
@@ -9891,11 +8534,7 @@ export function getDefaultResolutionModeForFile(
   options: $core.CompilerOptions | undefined,
 ): $core.ResolutionMode {
   if (importSyntaxAffectsModuleResolution(options)) {
-    return $ast.GetImpliedNodeFormatForEmitWorker(
-      fileName,
-      options!.GetEmitModuleKind(),
-      meta.$clone_ast_SourceFileMetaData(),
-    );
+    return $ast.GetImpliedNodeFormatForEmitWorker(fileName, options!.GetEmitModuleKind(), meta);
   } else {
     return 0;
   }
@@ -10013,16 +8652,8 @@ export function NewCachedFSCompilerHost(
   defaultLibraryPath: string,
   extendedConfigCache: $tsoptions.ExtendedConfigCache,
   trace: ((p0: $diagnostics.Message | undefined, p1: ($rt.GoObject | undefined)[]) => void) | undefined,
-  contentMapperProject: $contentmapper.Project,
 ): CompilerHost {
-  return NewCompilerHost(
-    currentDirectory,
-    $vfs_cachedvfs.From(fs),
-    defaultLibraryPath,
-    extendedConfigCache,
-    trace,
-    contentMapperProject,
-  );
+  return NewCompilerHost(currentDirectory, $vfs_cachedvfs.From(fs), defaultLibraryPath, extendedConfigCache, trace);
 }
 export function NewCompilerHost(
   currentDirectory: string,
@@ -10030,18 +8661,16 @@ export function NewCompilerHost(
   defaultLibraryPath: string,
   extendedConfigCache: $tsoptions.ExtendedConfigCache,
   trace: ((p0: $diagnostics.Message | undefined, p1: ($rt.GoObject | undefined)[]) => void) | undefined,
-  contentMapperProject: $contentmapper.Project,
 ): CompilerHost {
   if (trace === undefined) {
-    trace = $fn8;
+    trace = $fn6;
   }
-  return compilerHost.$lit_compiler_compilerHost_0_1_2_3_4_5(
+  return compilerHost.$lit_compiler_compilerHost_0_1_2_3_4(
     currentDirectory,
     fs,
     defaultLibraryPath,
     extendedConfigCache,
     trace,
-    contentMapperProject,
   );
 }
 export function updateFileIncludeProcessor(p: Program | undefined): void {
@@ -10077,7 +8706,6 @@ export function NewProgram(opts: ProgramOptions): Program | undefined {
     );
     p!.initCheckerPool();
     p!.verifyCompilerOptions();
-    p!.collectContentMapperOptionDiagnostics();
     $t1 = p;
     break $body;
   } catch ($e) {
@@ -10087,6 +8715,23 @@ export function NewProgram(opts: ProgramOptions): Program | undefined {
   }
   if ($panic !== undefined) throw $panic;
   return $t1;
+}
+export function canReplaceFileInProgram(
+  file1: $ast.SourceFile | undefined,
+  file2: $ast.SourceFile | undefined,
+): boolean {
+  return (
+    !(file2 === undefined) &&
+    file1!.ParseOptions().$equals_ast_SourceFileParseOptions(file2!.ParseOptions()) &&
+    file1!.UsesUriStyleNodeCoreModules === file2!.UsesUriStyleNodeCoreModules &&
+    $rt.slices_EqualFunc(file1!.Imports(), file2!.Imports(), equalModuleSpecifiers) &&
+    $rt.slices_EqualFunc(file1!.ModuleAugmentations, file2!.ModuleAugmentations, equalModuleAugmentationNames) &&
+    $rt.slices_Equal(file1!.AmbientModuleNames, file2!.AmbientModuleNames) &&
+    $rt.slices_EqualFunc(file1!.ReferencedFiles, file2!.ReferencedFiles, equalFileReferences) &&
+    $rt.slices_EqualFunc(file1!.TypeReferenceDirectives, file2!.TypeReferenceDirectives, equalFileReferences) &&
+    $rt.slices_EqualFunc(file1!.LibReferenceDirectives, file2!.LibReferenceDirectives, equalFileReferences) &&
+    equalCheckJSDirectives(file1!.CheckJsDirective_, file2!.CheckJsDirective_)
+  );
 }
 export function equalModuleSpecifiers(n1: $ast.Node | undefined, n2: $ast.Node | undefined): boolean {
   return n1!.Kind_ === n2!.Kind_ && (!$ast.IsStringLiteral(n1) || n1!.Text$Node() === n2!.Text$Node());
@@ -10105,9 +8750,6 @@ export function equalCheckJSDirectives(
     (d1 === undefined && d2 === undefined) ||
     (!(d1 === undefined) && !(d2 === undefined) && d1!.Enabled === d2!.Enabled)
   );
-}
-export function filterAndSortDiagnostics(diags: ($ast.Diagnostic | undefined)[]): ($ast.Diagnostic | undefined)[] {
-  return SortAndDeduplicateDiagnostics($core.Filter<$ast.Diagnostic | undefined>(diags, $fn11));
 }
 export function getAdditionalJSSyntacticDiagnostics(
   file: $ast.SourceFile | undefined,
@@ -10178,65 +8820,7 @@ export function FilterNoEmitSemanticDiagnostics(
   if (!$core.Tristate$IsTrue(options!.NoEmit)) {
     return diagnostics;
   }
-  return $core.Filter<$ast.Diagnostic | undefined>(diagnostics, $fn14);
-}
-export function applyContentMapperDiagnosticDirectives(
-  sourceFile: $ast.SourceFile | undefined,
-  diags: ($ast.Diagnostic | undefined)[],
-): ($ast.Diagnostic | undefined)[] {
-  const directives: $ast.MappedDiagnosticDirective[] = sourceFile!.DiagnosticDirectives();
-  if (directives.length === (0 as number)) {
-    return diags;
-  }
-  const used: boolean[] = $rt.makeSlice<boolean>(directives.length, false);
-  const markUsed: ((p0: $ast.Diagnostic | undefined) => boolean) | undefined = (
-    diag: $ast.Diagnostic | undefined,
-  ): boolean => {
-    if (!(diag!.Source() === ('' as string))) {
-      return false;
-    }
-    {
-      const $t1 = directives;
-      for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        const i = $t2;
-        const directive = $t1[$t2].$clone_ast_MappedDiagnosticDirective();
-        if (
-          diag!.Pos() >= $core.TextRange$Pos(directive.VirtualRange) &&
-          diag!.Pos() < $core.TextRange$End(directive.VirtualRange)
-        ) {
-          used[i] = true;
-          return true;
-        }
-      }
-    }
-    return false;
-  };
-  let filtered: ($ast.Diagnostic | undefined)[] = $core.Filter<$ast.Diagnostic | undefined>(
-    diags,
-    (diag$1: $ast.Diagnostic | undefined): boolean => {
-      return !markUsed!(diag$1);
-    },
-  );
-  {
-    const $t3 = directives;
-    for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
-      const i$1 = $t4;
-      const directive$1 = $t3[$t4].$clone_ast_MappedDiagnosticDirective();
-      if (directive$1.Policy === (1 as number) && !used[i$1]) {
-        filtered = $rt.appendCopy(filtered, [
-          $ast.NewExternalDiagnostic(
-            sourceFile,
-            directive$1.OriginalRange,
-            directive$1.Source,
-            1,
-            directive$1.UnusedCode,
-            directive$1.UnusedMessageText,
-          ),
-        ]);
-      }
-    }
-  }
-  return filtered;
+  return $core.Filter<$ast.Diagnostic | undefined>(diagnostics, $fn11);
 }
 export function isCommentOrBlankLine(text: string, pos: number): boolean {
   for (; pos < text.length && (text.charCodeAt(pos) === (32 as number) || text.charCodeAt(pos) === (9 as number));) {
@@ -10310,52 +8894,39 @@ export function CombineEmitResults(results: (EmitResult | undefined)[]): EmitRes
   }
   return result;
 }
-export function HandleNoEmitOptions(
+export function HandleNoEmitOnError(
   ctx: $rt.context_Context | undefined,
   program: ProgramLike,
-  files: ($ast.SourceFile | undefined)[],
-  emitBuildInfo: (() => EmitResult | undefined) | undefined,
+  file: $ast.SourceFile | undefined,
 ): EmitResult | undefined {
-  if (!$core.Tristate$IsTrue($rt.nn(program).Options()!.NoEmit)) {
-    if (!$core.Tristate$IsTrue($rt.nn(program).Options()!.NoEmitOnError)) {
-      return undefined;
-    }
-    const diagnostics: ($ast.Diagnostic | undefined)[] = GetDiagnosticsOfAnyProgram(
-      ctx,
-      program,
-      files,
-      true,
-      (
-        ($t1: ProgramLike) =>
-        (a0: $rt.context_Context | undefined, a1: $ast.SourceFile | undefined): ($ast.Diagnostic | undefined)[] =>
-          $rt.nn($t1).GetBindDiagnostics(a0, a1)
-      )(program),
-      (
-        ($t2: ProgramLike) =>
-        (a0: $rt.context_Context | undefined, a1: $ast.SourceFile | undefined): ($ast.Diagnostic | undefined)[] =>
-          $rt.nn($t2).GetSemanticDiagnostics(a0, a1)
-      )(program),
-    );
-    if (diagnostics.length === (0 as number)) {
-      return undefined;
-    }
-    return EmitResult.$lit_compiler_EmitResult_1_0(diagnostics, true);
+  if (!$core.Tristate$IsTrue($rt.nn(program).Options()!.NoEmitOnError)) {
+    return undefined;
   }
-  if (!(files.length === 0)) {
-    return EmitResult.$lit_compiler_EmitResult_0(true);
+  const diagnostics: ($ast.Diagnostic | undefined)[] = GetDiagnosticsOfAnyProgram(
+    ctx,
+    program,
+    file,
+    true,
+    (
+      ($t1: ProgramLike) =>
+      (a0: $rt.context_Context | undefined, a1: $ast.SourceFile | undefined): ($ast.Diagnostic | undefined)[] =>
+        $rt.nn($t1).GetBindDiagnostics(a0, a1)
+    )(program),
+    (
+      ($t2: ProgramLike) =>
+      (a0: $rt.context_Context | undefined, a1: $ast.SourceFile | undefined): ($ast.Diagnostic | undefined)[] =>
+        $rt.nn($t2).GetSemanticDiagnostics(a0, a1)
+    )(program),
+  );
+  if (diagnostics.length === (0 as number)) {
+    return undefined;
   }
-  if (!(emitBuildInfo === undefined)) {
-    const result: EmitResult | undefined = emitBuildInfo!();
-    if (!(result === undefined)) {
-      return result;
-    }
-  }
-  return new EmitResult();
+  return EmitResult.$lit_compiler_EmitResult_1_0(diagnostics, true);
 }
 export function GetDiagnosticsOfAnyProgram(
   ctx: $rt.context_Context | undefined,
   program: ProgramLike,
-  files: ($ast.SourceFile | undefined)[],
+  file: $ast.SourceFile | undefined,
   skipNoEmitCheckForDtsDiagnostics: boolean,
   getBindDiagnostics:
     | ((p0: $rt.context_Context | undefined, p1: $ast.SourceFile | undefined) => ($ast.Diagnostic | undefined)[])
@@ -10368,50 +8939,14 @@ export function GetDiagnosticsOfAnyProgram(
     $rt.nn(program).GetConfigFileParsingDiagnostics(),
   );
   const configFileParsingDiagnosticsLength: number = allDiagnostics.length;
-  const appendDiagnosticsForAllFiles:
-    | ((
-        p0: ($ast.Diagnostic | undefined)[],
-        p1:
-          | ((p0: $rt.context_Context | undefined, p1: $ast.SourceFile | undefined) => ($ast.Diagnostic | undefined)[])
-          | undefined,
-      ) => ($ast.Diagnostic | undefined)[])
-    | undefined = (
-    diagnostics: ($ast.Diagnostic | undefined)[],
-    getDiagnostics:
-      | ((p0: $rt.context_Context | undefined, p1: $ast.SourceFile | undefined) => ($ast.Diagnostic | undefined)[])
-      | undefined,
-  ): ($ast.Diagnostic | undefined)[] => {
-    if (files.length === 0) {
-      return $rt.appendCopy(diagnostics, getDiagnostics!(ctx, undefined));
-    }
-    {
-      const $t1 = files;
-      for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        const file = $t1[$t2];
-        diagnostics = $rt.appendCopy(diagnostics, getDiagnostics!(ctx, file));
-      }
-    }
-    return diagnostics;
-  };
-  const syntacticDiagnostics: ($ast.Diagnostic | undefined)[] = appendDiagnosticsForAllFiles!(
-    [],
-    (
-      ($t3: ProgramLike) =>
-      (a0: $rt.context_Context | undefined, a1: $ast.SourceFile | undefined): ($ast.Diagnostic | undefined)[] =>
-        $rt.nn($t3).GetSyntacticDiagnostics(a0, a1)
-    )(program),
-  );
-  if (syntacticDiagnostics.length > 0) {
-    allDiagnostics = $rt.appendCopy(allDiagnostics, $rt.nn(program).Program$m()!.contentMapperDiagnostics);
-  }
-  allDiagnostics = $rt.appendCopy(allDiagnostics, syntacticDiagnostics);
+  allDiagnostics = $rt.appendCopy(allDiagnostics, $rt.nn(program).GetSyntacticDiagnostics(ctx, file));
   if (allDiagnostics.length === configFileParsingDiagnosticsLength) {
     allDiagnostics = $rt.appendCopy(allDiagnostics, $rt.nn(program).GetProgramDiagnostics());
-    appendDiagnosticsForAllFiles!([], getBindDiagnostics);
+    getBindDiagnostics!(ctx, file);
     if ($core.Tristate$IsFalseOrUnknown($rt.nn(program).Options()!.ListFilesOnly)) {
       allDiagnostics = $rt.appendCopy(allDiagnostics, $rt.nn(program).GetGlobalDiagnostics(ctx));
       if (allDiagnostics.length === configFileParsingDiagnosticsLength) {
-        allDiagnostics = appendDiagnosticsForAllFiles!(allDiagnostics, getSemanticDiagnostics);
+        allDiagnostics = $rt.appendCopy(allDiagnostics, getSemanticDiagnostics!(ctx, file));
         allDiagnostics = $rt.appendCopy(allDiagnostics, $rt.nn(program).GetGlobalDiagnostics(ctx));
       }
       if (
@@ -10419,14 +8954,7 @@ export function GetDiagnosticsOfAnyProgram(
         $rt.nn(program).Options()!.GetEmitDeclarations() &&
         allDiagnostics.length === configFileParsingDiagnosticsLength
       ) {
-        allDiagnostics = appendDiagnosticsForAllFiles!(
-          allDiagnostics,
-          (
-            ($t4: ProgramLike) =>
-            (a0: $rt.context_Context | undefined, a1: $ast.SourceFile | undefined): ($ast.Diagnostic | undefined)[] =>
-              $rt.nn($t4).GetDeclarationDiagnostics(a0, a1)
-          )(program),
-        );
+        allDiagnostics = $rt.appendCopy(allDiagnostics, $rt.nn(program).GetDeclarationDiagnostics(ctx, file));
       }
     }
   }
@@ -10474,5 +9002,5 @@ export function newProjectReferenceDtsFakingHost(loader: fileLoader | undefined)
 export function createProjectReferenceParseTasks(
   projectReferences: string[],
 ): (projectReferenceParseTask | undefined)[] {
-  return $core.Map_<string, projectReferenceParseTask | undefined>($zf8, projectReferences, $fn20);
+  return $core.Map_<string, projectReferenceParseTask | undefined>($zf7, projectReferences, $fn17);
 }

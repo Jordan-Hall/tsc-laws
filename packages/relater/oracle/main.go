@@ -79,7 +79,7 @@ func main() {
 	}
 	config, _ := json.Marshal(map[string]any{"compilerOptions": map[string]any{"strict": true, "strictNullChecks": nullChecks, "strictFunctionTypes": functionTypes, "exactOptionalPropertyTypes": in.ExactOptionalPropertyTypes, "target": "es2025", "noEmit": true, "types": []string{}}, "files": []string{"case.ts"}})
 	fs := bundled.WrapFS(vfstest.FromMap(map[string]string{"/case.ts": in.Source, "/tsconfig.json": string(config)}, false))
-	host := compiler.NewCompilerHost("/", fs, bundled.LibPath(), nil, nil, nil)
+	host := compiler.NewCompilerHost("/", fs, bundled.LibPath(), nil, nil)
 	parsed, errors := tsoptions.GetParsedCommandLineOfConfigFile("/tsconfig.json", &core.CompilerOptions{}, nil, host, nil)
 	if len(errors) > 0 {
 		panic(fmt.Sprint(errors))
@@ -98,7 +98,7 @@ func main() {
 		}
 	}
 	exporter := checker.RelaterNewExporter(c)
-	g := graph{Schema: "relater.type-graph.v11", Revision: "89d5d5b2849a0db0957065889ca58536fa6d2e4a", StrictNullChecks: nullChecks, StrictFunctionTypes: functionTypes, ExactOptionalPropertyTypes: in.ExactOptionalPropertyTypes, Queries: []graphQuery{}}
+	g := graph{Schema: "relater.type-graph.v11", Revision: "2bd066d87f5bafd315be9f40889d0a60b9e58e0b", StrictNullChecks: nullChecks, StrictFunctionTypes: functionTypes, ExactOptionalPropertyTypes: in.ExactOptionalPropertyTypes, Queries: []graphQuery{}}
 	sources := make([]*checker.Type, len(in.Queries))
 	targets := make([]*checker.Type, len(in.Queries))
 	for i, q := range in.Queries {

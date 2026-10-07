@@ -1,6 +1,6 @@
 # tsc-ts
 
-An experimental TypeScript port of the [TypeScript-Go](https://github.com/microsoft/typescript-go) (tsgo) compiler front end, compiled to native code with [scriptc](https://scriptc.dev).
+An experimental TypeScript port of the TypeScript 7.0.2 compiler ([TypeScript-Go](https://github.com/microsoft/typescript-go), or tsgo), compiled to native code with [scriptc](https://scriptc.dev).
 
 ## Packages
 

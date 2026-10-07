@@ -160,21 +160,6 @@ export function RemoveFileExtension(path: string): string {
   }
   return path;
 }
-export function RemoveAnyFileExtension(path: string): string {
-  {
-    const withoutExtension: string = RemoveFileExtension(path);
-    if (!(withoutExtension === path)) {
-      return withoutExtension;
-    }
-  }
-  {
-    const extension: string = GetAnyExtensionFromPath(path, [], false);
-    if (!(extension === ('' as string))) {
-      return RemoveExtension(path, extension);
-    }
-  }
-  return path;
-}
 export function TryGetExtensionFromPath(p: string): string {
   {
     const $t1 = extensionsToRemove;
@@ -824,32 +809,6 @@ export function GetCanonicalFileName(fileName: string, useCaseSensitiveFileNames
   }
   return ToFileNameLowerCase(fileName);
 }
-export function TrimFilePathPrefix(
-  path: string,
-  prefix: string,
-  useCaseSensitiveFileNames: boolean,
-): [string, boolean] {
-  if (useCaseSensitiveFileNames) {
-    return $rt.strings_CutPrefix(path, prefix);
-  }
-  const canonicalPrefix: string = GetCanonicalFileName(prefix, false);
-  if (!$rt.strings_HasPrefix(GetCanonicalFileName(path, false), canonicalPrefix)) {
-    return [path, false];
-  }
-  return [trimRuneCount(path, $rt.unicode_utf8_RuneCountInString(canonicalPrefix)), true];
-}
-export function trimRuneCount(s: string, runeCount: number): string {
-  let i: number = 0;
-  for (let $t1 = 0, $t2 = runeCount; $t1 < $t2; $t1++) {
-    if (i >= s.length) {
-      break;
-    }
-    const $t3 = $rt.utf8_DecodeRuneInStringAt(s, i);
-    const size: number = $t3[1];
-    i += size;
-  }
-  return s.substring(i);
-}
 export function ToFileNameLowerCase(fileName: string): string {
   const $c_IWithDot: number = 304;
   let ascii: boolean = true;
@@ -1012,26 +971,6 @@ export function GetAnyExtensionFromPath(path: string, extensions: string[], igno
     return baseFileName.substring(extensionIndex);
   }
   return '';
-}
-export function GetLongestExtensionFromPath(path: string, extensions: string[], ignoreCase: boolean): string {
-  path = RemoveTrailingDirectorySeparator(path);
-  const comparer: ((p0: string, p1: string) => boolean) | undefined = $stringutil.GetStringEqualityComparer(ignoreCase);
-  let longest: string = '';
-  {
-    const $t1 = extensions;
-    for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      const extension = $t1[$t2];
-      if (extension.length > longest.length) {
-        {
-          const matched: string = tryGetExtensionFromPath(path, extension, comparer);
-          if (!(matched === ('' as string))) {
-            longest = matched;
-          }
-        }
-      }
-    }
-  }
-  return longest;
 }
 export function getAnyExtensionFromPathWorker(
   path: string,

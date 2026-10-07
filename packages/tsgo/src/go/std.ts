@@ -1368,6 +1368,23 @@ export class github_com_zeebo_xxh3_Uint128 extends GoObject {
   $clone(): github_com_zeebo_xxh3_Uint128 {
     return this;
   }
+  // The halves are 53-bit hashes of the key: stable identities, not xxh3 values.
+  get Hi(): number {
+    return this.hashed ? fnv53(this.key, 0x811c9dc5) : 0;
+  }
+  get Lo(): number {
+    return this.hashed ? fnv53(this.key, 0x050c5d1f) : 0;
+  }
+}
+function fnv53(s: string, seed: number): number {
+  let a = seed >>> 0;
+  let b = (seed ^ 0x9e3779b9) >>> 0;
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i);
+    a = Math.imul(a ^ c, 0x01000193) >>> 0;
+    b = Math.imul(b ^ c, 0x5bd1e995) >>> 0;
+  }
+  return (b & 0x1fffff) * 0x100000000 + a;
 }
 // Hashes are interned, so equal keys are the same object; generic containers
 // keyed by object identity then compare them by value, as Go does.
@@ -1379,6 +1396,32 @@ export function github_com_zeebo_xxh3_HashString128(s: string): github_com_zeebo
     hashes.set(s, h);
   }
   return h;
+}
+// A streaming hasher whose sum is keyed by the exact bytes written.
+export class github_com_zeebo_xxh3_Hasher extends GoObject {
+  parts: string[] = [];
+  Write(b: number[]): [number, GoObject | undefined] {
+    this.parts.push(bytesToString(b));
+    return [b.length, undefined];
+  }
+  WriteString(s: string): [number, GoObject | undefined] {
+    this.parts.push(s);
+    return [s.length, undefined];
+  }
+  Reset(): void {
+    this.parts = [];
+  }
+  Sum128(): github_com_zeebo_xxh3_Uint128 {
+    return github_com_zeebo_xxh3_HashString128(this.parts.join(''));
+  }
+  Sum64(): number {
+    return fnv53(this.parts.join(''), 0x811c9dc5);
+  }
+  $clone(): github_com_zeebo_xxh3_Hasher {
+    const h = new github_com_zeebo_xxh3_Hasher();
+    h.parts = this.parts.slice();
+    return h;
+  }
 }
 export function github_com_zeebo_xxh3_Hash128(b: number[]): github_com_zeebo_xxh3_Uint128 {
   return github_com_zeebo_xxh3_HashString128(bytesToString(b));

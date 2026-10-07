@@ -96,6 +96,7 @@ export class Binder extends $rt.GoObject {
   inAssignmentPattern: boolean = false;
   seenParseError: boolean = false;
   symbolCount: number = 0;
+  classifiableNames: $collections.Set_<string> = new $collections.Set_<string>();
   notConstEnumOnlyModules: $collections.Set_<$ast.Symbol_ | undefined> = new $collections.Set_<
     $ast.Symbol_ | undefined
   >();
@@ -128,6 +129,7 @@ export class Binder extends $rt.GoObject {
     this.inAssignmentPattern = src.inAssignmentPattern;
     this.seenParseError = src.seenParseError;
     this.symbolCount = src.symbolCount;
+    this.classifiableNames = src.classifiableNames.$clone_collections_Set();
     this.notConstEnumOnlyModules = src.notConstEnumOnlyModules.$clone_collections_Set();
     this.symbolArena = src.symbolArena.$clone();
     this.flowNodeArena = src.flowNodeArena.$clone();
@@ -198,6 +200,9 @@ export class Binder extends $rt.GoObject {
       symbol_ = b!.newSymbol(0, '\xfemissing');
     } else {
       symbol_ = symbolTable?.get(name_) ?? undefined;
+      if (!((includes & 2885600) === (0 as number))) {
+        b!.classifiableNames.Add(name_);
+      }
       if (symbol_ === undefined) {
         symbol_ = b!.newSymbol(0, name_);
         symbolTable!.set(name_, symbol_);
@@ -1246,6 +1251,7 @@ export class Binder extends $rt.GoObject {
           let nameText: string = '\xfeclass';
           if (!(name_ === undefined)) {
             nameText = name_!.Text$Node();
+            b!.classifiableNames.Add(nameText);
           }
           b!.bindAnonymousDeclaration(node, 32, nameText);
           break;
@@ -1825,6 +1831,7 @@ export class Binder extends $rt.GoObject {
       }
       if (node!.Kind_ === (307 as number)) {
         node!.Flags = (node!.Flags | b!.emitFlags) >>> 0;
+        node!.AsSourceFile()!.EndFlowNode = b!.currentFlow;
       }
       if (!(b!.currentReturnTarget === undefined)) {
         b!.addAntecedent(b!.currentReturnTarget, b!.currentFlow);
@@ -2264,17 +2271,11 @@ export class Binder extends $rt.GoObject {
   bindForStatement(node: $ast.Node | undefined): void {
     const b = this;
     const stmt: $ast.ForStatement | undefined = node!.AsForStatement();
-    b!.bind(stmt!.Initializer_);
-    if (b!.currentFlow === b!.unreachableFlow) {
-      b!.bind(stmt!.Condition);
-      b!.bind(stmt!.Statement_);
-      b!.bind(stmt!.Incrementor);
-      return;
-    }
     const preLoopLabel: $ast.FlowNode | undefined = b!.setContinueTarget(node, b!.createLoopLabel());
     const preBodyLabel: $ast.FlowNode | undefined = b!.createBranchLabel();
     const preIncrementorLabel: $ast.FlowNode | undefined = b!.createBranchLabel();
     const postLoopLabel: $ast.FlowNode | undefined = b!.createBranchLabel();
+    b!.bind(stmt!.Initializer_);
     b!.addAntecedent(preLoopLabel, b!.currentFlow);
     b!.currentFlow = preLoopLabel;
     b!.bindCondition(stmt!.Condition, preBodyLabel, postLoopLabel);
@@ -2848,7 +2849,7 @@ export class Binder extends $rt.GoObject {
   bindParameterFlow(node: $ast.Node | undefined): void {
     const b = this;
     const param: $ast.ParameterDeclaration | undefined = node!.AsParameterDeclaration();
-    b!.bindModifiers(param!.ModifiersBase_.Modifiers$ModifiersBase());
+    b!.bindModifiers(param!.ModifiersBase_.Modifiers());
     b!.bind(param!.DotDotDotToken);
     b!.bind(param!.QuestionToken_);
     b!.bind(param!.Type_);
@@ -2914,6 +2915,38 @@ export class Binder extends $rt.GoObject {
     const b = this;
     const span: $core.TextRange = $scanner.GetRangeOfTokenAtPosition(b!.file, node!.Pos());
     b!.addDiagnostic($ast.NewDiagnostic(b!.file, span, message, args));
+  }
+  errorOrSuggestionOnNode(
+    isError: boolean,
+    node: $ast.Node | undefined,
+    message: $diagnostics.Message | undefined,
+  ): void {
+    const b = this;
+    b!.errorOrSuggestionOnRange(isError, node, node, message);
+  }
+  errorOrSuggestionOnRange(
+    isError: boolean,
+    startNode: $ast.Node | undefined,
+    endNode: $ast.Node | undefined,
+    message: $diagnostics.Message | undefined,
+  ): void {
+    const b = this;
+    const textRange: $core.TextRange = $core.NewTextRange(
+      $core.TextRange$Pos($scanner.GetRangeOfTokenAtPosition(b!.file, startNode!.Pos())),
+      endNode!.End(),
+    );
+    const diagnostic: $ast.Diagnostic | undefined = $ast.NewDiagnostic(
+      b!.file,
+      textRange,
+      message,
+      [] as ($rt.GoObject | undefined)[],
+    );
+    if (isError) {
+      b!.addDiagnostic(diagnostic);
+    } else {
+      diagnostic!.SetCategory(2);
+      b!.file!.BindSuggestionDiagnostics.push(diagnostic);
+    }
   }
   createDiagnosticForNode(
     node: $ast.Node | undefined,
@@ -4056,6 +4089,7 @@ export function bindSourceFile(file: $ast.SourceFile | undefined): void {
       b!.bind(file!.AsNode());
       b!.bindDeferredExpandoAssignments();
       file!.SymbolCount = b!.symbolCount;
+      file!.ClassifiableNames = b!.classifiableNames.$clone_collections_Set();
     } catch ($e) {
       $panic = $rt.toPanic($e);
     } finally {

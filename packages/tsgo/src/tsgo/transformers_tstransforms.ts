@@ -79,7 +79,7 @@ export class ImportElisionTransformer extends $transformers.Transformer {
               .Factory()!
               .UpdateImportDeclaration(
                 n,
-                n!.ModifiersBase_.Modifiers$ModifiersBase(),
+                n!.ModifiersBase_.Modifiers(),
                 importClause,
                 n!.ModuleSpecifier_,
                 tx!.Visitor()!.VisitNode(n!.Attributes_),
@@ -339,7 +339,7 @@ export class LegacyDecoratorsTransformer extends $transformers.Transformer {
       .Factory()!
       .UpdateParameterDeclaration(
         node,
-        elideModifiers(tx!.Factory(), node!.ModifiersBase_.Modifiers$ModifiersBase()),
+        elideModifiers(tx!.Factory(), node!.ModifiersBase_.Modifiers()),
         node!.DotDotDotToken,
         tx!.Visitor()!.VisitNode(node!.Name()),
         undefined,
@@ -404,14 +404,14 @@ export class LegacyDecoratorsTransformer extends $transformers.Transformer {
         .UpdateGetAccessorDeclaration(
           node,
           tx!.Visitor()!.VisitModifiers(node!.NamedMemberBase_.Modifiers()),
-          tx!.visitPropertyNameOfClassElement(node!.AsNode()),
+          tx!.visitPropertyNameOfClassElement(node!.NodeBase_.AsNode()),
           undefined,
-          tx!.Visitor()!.VisitNodes(node!.FunctionLikeWithBodyBase_.Parameters),
+          tx!.Visitor()!.VisitNodes(node!.Parameters),
           undefined,
           undefined,
-          tx!.Visitor()!.VisitNode(node!.FunctionLikeWithBodyBase_.BodyBase_.Body),
+          tx!.Visitor()!.VisitNode(node!.BodyBase_.Body),
         ),
-      node!.AsNode(),
+      node!.NodeBase_.AsNode(),
     );
   }
   visitSetAccessorDeclaration(node: $ast.SetAccessorDeclaration | undefined): $ast.Node | undefined {
@@ -422,14 +422,14 @@ export class LegacyDecoratorsTransformer extends $transformers.Transformer {
         .UpdateSetAccessorDeclaration(
           node,
           tx!.Visitor()!.VisitModifiers(node!.NamedMemberBase_.Modifiers()),
-          tx!.visitPropertyNameOfClassElement(node!.AsNode()),
+          tx!.visitPropertyNameOfClassElement(node!.NodeBase_.AsNode()),
           undefined,
-          tx!.Visitor()!.VisitNodes(node!.FunctionLikeWithBodyBase_.Parameters),
+          tx!.Visitor()!.VisitNodes(node!.Parameters),
           undefined,
           undefined,
-          tx!.Visitor()!.VisitNode(node!.FunctionLikeWithBodyBase_.BodyBase_.Body),
+          tx!.Visitor()!.VisitNode(node!.BodyBase_.Body),
         ),
-      node!.AsNode(),
+      node!.NodeBase_.AsNode(),
     );
   }
   visitMethodDeclaration(node: $ast.MethodDeclaration | undefined): $ast.Node | undefined {
@@ -458,7 +458,7 @@ export class LegacyDecoratorsTransformer extends $transformers.Transformer {
       .Factory()!
       .UpdateConstructorDeclaration(
         node,
-        tx!.Visitor()!.VisitModifiers(node!.ModifiersBase_.Modifiers$ModifiersBase()),
+        tx!.Visitor()!.VisitModifiers(node!.ModifiersBase_.Modifiers()),
         undefined,
         tx!.Visitor()!.VisitNodes(node!.FunctionLikeWithBodyBase_.Parameters),
         undefined,
@@ -472,7 +472,7 @@ export class LegacyDecoratorsTransformer extends $transformers.Transformer {
       .Factory()!
       .UpdateClassExpression(
         node,
-        tx!.Visitor()!.VisitModifiers(node!.ClassLikeBase_.ModifiersBase_.Modifiers$ModifiersBase()),
+        tx!.Visitor()!.VisitModifiers(node!.ClassLikeBase_.ModifiersBase_.Modifiers()),
         node!.Name(),
         undefined,
         tx!.Visitor()!.VisitNodes(node!.ClassLikeBase_.HeritageClauses),
@@ -497,7 +497,7 @@ export class LegacyDecoratorsTransformer extends $transformers.Transformer {
     const tx = this;
     const modifiers: $ast.ModifierList | undefined = tx!
       .Visitor()!
-      .VisitModifiers(node!.ClassLikeBase_.ModifiersBase_.Modifiers$ModifiersBase());
+      .VisitModifiers(node!.ClassLikeBase_.ModifiersBase_.Modifiers());
     const heritageClauses: $ast.NodeList | undefined = tx!.Visitor()!.VisitNodes(node!.ClassLikeBase_.HeritageClauses);
     const initialMembers: $ast.NodeList | undefined = tx!.Visitor()!.VisitNodes(node!.ClassLikeBase_.Members);
     const $t1 = tx!.transformDecoratorsOfClassElements(node, initialMembers);
@@ -535,18 +535,18 @@ export class LegacyDecoratorsTransformer extends $transformers.Transformer {
       const isDefault: boolean = $ast.HasSyntacticModifier(node!.AsNode(), 2048);
       let modifiers: $ast.ModifierList | undefined = undefined as $ast.ModifierList | undefined;
       if (
-        !(node!.ClassLikeBase_.ModifiersBase_.Modifiers$ModifiersBase() === undefined) &&
-        node!.ClassLikeBase_.ModifiersBase_.Modifiers$ModifiersBase()!.Nodes.length > 0
+        !(node!.ClassLikeBase_.ModifiersBase_.Modifiers() === undefined) &&
+        node!.ClassLikeBase_.ModifiersBase_.Modifiers()!.Nodes.length > 0
       ) {
         const modifierNodes: ($ast.Node | undefined)[] = $core.Filter<$ast.Node | undefined>(
-          node!.ClassLikeBase_.ModifiersBase_.Modifiers$ModifiersBase()!.Nodes,
+          node!.ClassLikeBase_.ModifiersBase_.Modifiers()!.Nodes,
           isNotExportOrDefaultOrDecorator,
         );
-        if (!(modifierNodes.length === node!.ClassLikeBase_.ModifiersBase_.Modifiers$ModifiersBase()!.Nodes.length)) {
+        if (!(modifierNodes.length === node!.ClassLikeBase_.ModifiersBase_.Modifiers()!.Nodes.length)) {
           modifiers = tx!.Factory()!.NewModifierList(modifierNodes);
-          modifiers!.Loc = node!.ClassLikeBase_.ModifiersBase_.Modifiers$ModifiersBase()!.Loc;
+          modifiers!.Loc = node!.ClassLikeBase_.ModifiersBase_.Modifiers()!.Loc;
         } else {
-          modifiers = node!.ClassLikeBase_.ModifiersBase_.Modifiers$ModifiersBase();
+          modifiers = node!.ClassLikeBase_.ModifiersBase_.Modifiers();
         }
       }
       const location: $core.TextRange = $transformers.MoveRangePastModifiers(node!.AsNode());
@@ -1101,7 +1101,7 @@ export class MetadataTransformer extends $transformers.Transformer {
         break $body;
       }
       const modifiers: $ast.ModifierList | undefined = tx!.injectClassTypeMetadata(
-        tx!.Visitor()!.VisitModifiers(node!.ClassLikeBase_.ModifiersBase_.Modifiers$ModifiersBase()),
+        tx!.Visitor()!.VisitModifiers(node!.ClassLikeBase_.ModifiersBase_.Modifiers()),
         node!.AsNode(),
       );
       $t1 = tx!
@@ -1141,7 +1141,7 @@ export class MetadataTransformer extends $transformers.Transformer {
         break $body;
       }
       const modifiers: $ast.ModifierList | undefined = tx!.injectClassTypeMetadata(
-        tx!.Visitor()!.VisitModifiers(node!.ClassLikeBase_.ModifiersBase_.Modifiers$ModifiersBase()),
+        tx!.Visitor()!.VisitModifiers(node!.ClassLikeBase_.ModifiersBase_.Modifiers()),
         node!.AsNode(),
       );
       $t1 = tx!
@@ -1211,12 +1211,15 @@ export class MetadataTransformer extends $transformers.Transformer {
   }
   visitSetAccessor(node: $ast.SetAccessorDeclaration | undefined): $ast.Node | undefined {
     const tx = this;
-    if (!$ast.HasDecorators(node!.AsNode()) && getDecoratorsOfParameters(node!.AsNode()).length === (0 as number)) {
-      return tx!.Visitor()!.VisitEachChild(node!.AsNode());
+    if (
+      !$ast.HasDecorators(node!.NodeBase_.AsNode()) &&
+      getDecoratorsOfParameters(node!.NodeBase_.AsNode()).length === (0 as number)
+    ) {
+      return tx!.Visitor()!.VisitEachChild(node!.NodeBase_.AsNode());
     }
     const modifiers: $ast.ModifierList | undefined = tx!.injectClassElementTypeMetadata(
       tx!.Visitor()!.VisitModifiers(node!.NamedMemberBase_.Modifiers()),
-      node!.AsNode(),
+      node!.NodeBase_.AsNode(),
       tx!.parent,
     );
     return tx!
@@ -1225,21 +1228,21 @@ export class MetadataTransformer extends $transformers.Transformer {
         node,
         modifiers,
         tx!.Visitor()!.VisitNode(node!.Name()),
-        tx!.Visitor()!.VisitNodes(node!.FunctionLikeWithBodyBase_.TypeParameters),
-        tx!.Visitor()!.VisitNodes(node!.FunctionLikeWithBodyBase_.Parameters),
-        tx!.Visitor()!.VisitNode(node!.FunctionLikeWithBodyBase_.Type),
-        tx!.Visitor()!.VisitNode(node!.FunctionLikeWithBodyBase_.FullSignature),
-        tx!.Visitor()!.VisitNode(node!.FunctionLikeWithBodyBase_.BodyBase_.Body),
+        tx!.Visitor()!.VisitNodes(node!.TypeParameters),
+        tx!.Visitor()!.VisitNodes(node!.Parameters),
+        tx!.Visitor()!.VisitNode(node!.Type),
+        tx!.Visitor()!.VisitNode(node!.FullSignature),
+        tx!.Visitor()!.VisitNode(node!.BodyBase_.Body),
       );
   }
   visitGetAccessor(node: $ast.GetAccessorDeclaration | undefined): $ast.Node | undefined {
     const tx = this;
-    if (!$ast.HasDecorators(node!.AsNode())) {
-      return tx!.Visitor()!.VisitEachChild(node!.AsNode());
+    if (!$ast.HasDecorators(node!.NodeBase_.AsNode())) {
+      return tx!.Visitor()!.VisitEachChild(node!.NodeBase_.AsNode());
     }
     const modifiers: $ast.ModifierList | undefined = tx!.injectClassElementTypeMetadata(
       tx!.Visitor()!.VisitModifiers(node!.NamedMemberBase_.Modifiers()),
-      node!.AsNode(),
+      node!.NodeBase_.AsNode(),
       tx!.parent,
     );
     return tx!
@@ -1248,11 +1251,11 @@ export class MetadataTransformer extends $transformers.Transformer {
         node,
         modifiers,
         tx!.Visitor()!.VisitNode(node!.Name()),
-        tx!.Visitor()!.VisitNodes(node!.FunctionLikeWithBodyBase_.TypeParameters),
-        tx!.Visitor()!.VisitNodes(node!.FunctionLikeWithBodyBase_.Parameters),
-        tx!.Visitor()!.VisitNode(node!.FunctionLikeWithBodyBase_.Type),
-        tx!.Visitor()!.VisitNode(node!.FunctionLikeWithBodyBase_.FullSignature),
-        tx!.Visitor()!.VisitNode(node!.FunctionLikeWithBodyBase_.BodyBase_.Body),
+        tx!.Visitor()!.VisitNodes(node!.TypeParameters),
+        tx!.Visitor()!.VisitNodes(node!.Parameters),
+        tx!.Visitor()!.VisitNode(node!.Type),
+        tx!.Visitor()!.VisitNode(node!.FullSignature),
+        tx!.Visitor()!.VisitNode(node!.BodyBase_.Body),
       );
   }
   injectClassTypeMetadata(
@@ -2213,7 +2216,7 @@ export class RuntimeSyntaxTransformer extends $transformers.Transformer {
         .NewVariableDeclarationList(tx!.Factory()!.NewNodeList([varDecl]), 0);
       const varModifiers: $ast.ModifierList | undefined = $transformers.ExtractModifiers(
         tx!.EmitContext$m(),
-        node!.ModifiersBase_.Modifiers$ModifiersBase(),
+        node!.ModifiersBase_.Modifiers(),
         32,
       );
       const varStatement: $ast.Node | undefined = tx!.Factory()!.NewVariableStatement(varModifiers, varList);
@@ -2315,11 +2318,7 @@ export class RuntimeSyntaxTransformer extends $transformers.Transformer {
           tx!
             .Visitor()!
             .VisitModifiers(
-              $transformers.ExtractModifiers(
-                tx!.EmitContext$m(),
-                node!.ModifiersBase_.Modifiers$ModifiersBase(),
-                4294967263,
-              ),
+              $transformers.ExtractModifiers(tx!.EmitContext$m(), node!.ModifiersBase_.Modifiers(), 4294967263),
             ),
           node!.FunctionLikeWithBodyBase_.BodyBase_.AsteriskToken,
           tx!.Visitor()!.VisitNode(node!.Name()),
@@ -2363,12 +2362,12 @@ export class RuntimeSyntaxTransformer extends $transformers.Transformer {
         .VisitModifiers(
           $transformers.ExtractModifiers(
             tx!.EmitContext$m(),
-            node!.ClassLikeBase_.ModifiersBase_.Modifiers$ModifiersBase(),
+            node!.ClassLikeBase_.ModifiersBase_.Modifiers(),
             4294965215,
           ),
         );
     } else {
-      modifiers = tx!.Visitor()!.VisitModifiers(node!.ClassLikeBase_.ModifiersBase_.Modifiers$ModifiersBase());
+      modifiers = tx!.Visitor()!.VisitModifiers(node!.ClassLikeBase_.ModifiersBase_.Modifiers());
     }
     let name_: $ast.Node | undefined = tx!.Visitor()!.VisitNode(node!.Name());
     if (
@@ -2432,7 +2431,7 @@ export class RuntimeSyntaxTransformer extends $transformers.Transformer {
       .VisitModifiers(
         $transformers.ExtractModifiers(
           tx!.EmitContext$m(),
-          node!.ClassLikeBase_.ModifiersBase_.Modifiers$ModifiersBase(),
+          node!.ClassLikeBase_.ModifiersBase_.Modifiers(),
           4294965215,
         ),
       );
@@ -2473,9 +2472,7 @@ export class RuntimeSyntaxTransformer extends $transformers.Transformer {
   }
   visitConstructorDeclaration(node: $ast.ConstructorDeclaration | undefined): $ast.Node | undefined {
     const tx = this;
-    const modifiers: $ast.ModifierList | undefined = tx!
-      .Visitor()!
-      .VisitModifiers(node!.ModifiersBase_.Modifiers$ModifiersBase());
+    const modifiers: $ast.ModifierList | undefined = tx!.Visitor()!.VisitModifiers(node!.ModifiersBase_.Modifiers());
     const parameters: $ast.NodeList | undefined = tx!
       .EmitContext$m()!
       .VisitParameters(node!.ParameterList(), tx!.Visitor());
@@ -2983,14 +2980,11 @@ export class TypeEraserTransformer extends $transformers.Transformer {
           }
           case 178 as number: {
             const n$5: $ast.GetAccessorDeclaration | undefined = node!.AsGetAccessorDeclaration();
-            if (
-              $ast.NodeIsMissing(n$5!.FunctionLikeWithBodyBase_.BodyBase_.Body) &&
-              $ast.HasSyntacticModifier(node, 64)
-            ) {
+            if ($ast.NodeIsMissing(n$5!.BodyBase_.Body) && $ast.HasSyntacticModifier(node, 64)) {
               $t1 = undefined;
               break $body;
             }
-            let body: $ast.Node | undefined = tx!.Visitor()!.VisitNode(n$5!.FunctionLikeWithBodyBase_.BodyBase_.Body);
+            let body: $ast.Node | undefined = tx!.Visitor()!.VisitNode(n$5!.BodyBase_.Body);
             if (body === undefined) {
               body = tx!.Factory()!.NewBlock(tx!.Factory()!.NewNodeList([]), false);
             }
@@ -3001,7 +2995,7 @@ export class TypeEraserTransformer extends $transformers.Transformer {
                 tx!.Visitor()!.VisitModifiers(n$5!.NamedMemberBase_.Modifiers()),
                 tx!.Visitor()!.VisitNode(n$5!.Name()),
                 undefined,
-                tx!.Visitor()!.VisitNodes(n$5!.FunctionLikeWithBodyBase_.Parameters),
+                tx!.Visitor()!.VisitNodes(n$5!.Parameters),
                 undefined,
                 undefined,
                 body,
@@ -3010,14 +3004,11 @@ export class TypeEraserTransformer extends $transformers.Transformer {
           }
           case 179 as number: {
             const n$6: $ast.SetAccessorDeclaration | undefined = node!.AsSetAccessorDeclaration();
-            if (
-              $ast.NodeIsMissing(n$6!.FunctionLikeWithBodyBase_.BodyBase_.Body) &&
-              $ast.HasSyntacticModifier(node, 64)
-            ) {
+            if ($ast.NodeIsMissing(n$6!.BodyBase_.Body) && $ast.HasSyntacticModifier(node, 64)) {
               $t1 = undefined;
               break $body;
             }
-            let body$1: $ast.Node | undefined = tx!.Visitor()!.VisitNode(n$6!.FunctionLikeWithBodyBase_.BodyBase_.Body);
+            let body$1: $ast.Node | undefined = tx!.Visitor()!.VisitNode(n$6!.BodyBase_.Body);
             if (body$1 === undefined) {
               body$1 = tx!.Factory()!.NewBlock(tx!.Factory()!.NewNodeList([]), false);
             }
@@ -3028,7 +3019,7 @@ export class TypeEraserTransformer extends $transformers.Transformer {
                 tx!.Visitor()!.VisitModifiers(n$6!.NamedMemberBase_.Modifiers()),
                 tx!.Visitor()!.VisitNode(n$6!.Name()),
                 undefined,
-                tx!.Visitor()!.VisitNodes(n$6!.FunctionLikeWithBodyBase_.Parameters),
+                tx!.Visitor()!.VisitNodes(n$6!.Parameters),
                 undefined,
                 undefined,
                 body$1,
@@ -3067,7 +3058,7 @@ export class TypeEraserTransformer extends $transformers.Transformer {
               .Factory()!
               .UpdateClassDeclaration(
                 n$9,
-                tx!.Visitor()!.VisitModifiers(n$9!.ClassLikeBase_.ModifiersBase_.Modifiers$ModifiersBase()),
+                tx!.Visitor()!.VisitModifiers(n$9!.ClassLikeBase_.ModifiersBase_.Modifiers()),
                 tx!.Visitor()!.VisitNode(n$9!.Name()),
                 undefined,
                 tx!.Visitor()!.VisitNodes(n$9!.ClassLikeBase_.HeritageClauses),
@@ -3081,7 +3072,7 @@ export class TypeEraserTransformer extends $transformers.Transformer {
               .Factory()!
               .UpdateClassExpression(
                 n$10,
-                tx!.Visitor()!.VisitModifiers(n$10!.ClassLikeBase_.ModifiersBase_.Modifiers$ModifiersBase()),
+                tx!.Visitor()!.VisitModifiers(n$10!.ClassLikeBase_.ModifiersBase_.Modifiers()),
                 tx!.Visitor()!.VisitNode(n$10!.Name()),
                 undefined,
                 tx!.Visitor()!.VisitNodes(n$10!.ClassLikeBase_.HeritageClauses),
@@ -3099,7 +3090,7 @@ export class TypeEraserTransformer extends $transformers.Transformer {
               .Factory()!
               .UpdateFunctionDeclaration(
                 n$11,
-                tx!.Visitor()!.VisitModifiers(n$11!.ModifiersBase_.Modifiers$ModifiersBase()),
+                tx!.Visitor()!.VisitModifiers(n$11!.ModifiersBase_.Modifiers()),
                 n$11!.FunctionLikeWithBodyBase_.BodyBase_.AsteriskToken,
                 tx!.Visitor()!.VisitNode(n$11!.Name()),
                 undefined,
@@ -3116,7 +3107,7 @@ export class TypeEraserTransformer extends $transformers.Transformer {
               .Factory()!
               .UpdateFunctionExpression(
                 n$12,
-                tx!.Visitor()!.VisitModifiers(n$12!.ModifiersBase_.Modifiers$ModifiersBase()),
+                tx!.Visitor()!.VisitModifiers(n$12!.ModifiersBase_.Modifiers()),
                 n$12!.FunctionLikeWithBodyBase_.BodyBase_.AsteriskToken,
                 tx!.Visitor()!.VisitNode(n$12!.Name()),
                 undefined,
@@ -3133,7 +3124,7 @@ export class TypeEraserTransformer extends $transformers.Transformer {
               .Factory()!
               .UpdateArrowFunction(
                 n$13,
-                tx!.Visitor()!.VisitModifiers(n$13!.ModifiersBase_.Modifiers$ModifiersBase()),
+                tx!.Visitor()!.VisitModifiers(n$13!.ModifiersBase_.Modifiers()),
                 undefined,
                 tx!.Visitor()!.VisitNodes(n$13!.FunctionLikeWithBodyBase_.Parameters),
                 undefined,
@@ -3151,11 +3142,7 @@ export class TypeEraserTransformer extends $transformers.Transformer {
             const n$14: $ast.ParameterDeclaration | undefined = node!.AsParameterDeclaration();
             let modifiers: $ast.ModifierList | undefined = undefined as $ast.ModifierList | undefined;
             if ($ast.IsParameterPropertyDeclaration(node, tx!.parentNode)) {
-              modifiers = $transformers.ExtractModifiers(
-                tx!.EmitContext$m(),
-                n$14!.ModifiersBase_.Modifiers$ModifiersBase(),
-                31,
-              );
+              modifiers = $transformers.ExtractModifiers(tx!.EmitContext$m(), n$14!.ModifiersBase_.Modifiers(), 31);
             }
             if ($ast.HasDecorators(node)) {
               const decorators: ($ast.Node | undefined)[] = node!.Decorators();
@@ -3297,7 +3284,7 @@ export class TypeEraserTransformer extends $transformers.Transformer {
               .Factory()!
               .UpdateImportDeclaration(
                 n$22,
-                n$22!.ModifiersBase_.Modifiers$ModifiersBase(),
+                n$22!.ModifiersBase_.Modifiers(),
                 importClause,
                 n$22!.ModuleSpecifier_,
                 n$22!.Attributes_,
@@ -4306,7 +4293,7 @@ export function getAllDecoratorsOfAccessors(
   const decorators: ($ast.Node | undefined)[] = firstAccessorWithDecorators!.Decorators();
   let parameters: ($ast.Node | undefined)[][] = [];
   if (useLegacyDecorators && !(decls.SetAccessor === undefined)) {
-    parameters = getDecoratorsOfParameters(decls.SetAccessor!.AsNode());
+    parameters = getDecoratorsOfParameters(decls.SetAccessor!.NodeBase_.AsNode());
   }
   if (decorators.length === (0 as number) && parameters.length === (0 as number)) {
     return undefined;
@@ -4470,14 +4457,11 @@ export function newMetadataSerializer(
   );
 }
 export function GetSetAccessorValueParameter(node: $ast.SetAccessorDeclaration | undefined): $ast.Node | undefined {
-  if (!(node === undefined) && node!.FunctionLikeWithBodyBase_.Parameters!.Nodes.length > 0) {
-    if (
-      node!.FunctionLikeWithBodyBase_.Parameters!.Nodes.length >= 2 &&
-      $ast.IsThisParameter(node!.FunctionLikeWithBodyBase_.Parameters!.Nodes[0])
-    ) {
-      return node!.FunctionLikeWithBodyBase_.Parameters!.Nodes[1];
+  if (!(node === undefined) && node!.Parameters!.Nodes.length > 0) {
+    if (node!.Parameters!.Nodes.length >= 2 && $ast.IsThisParameter(node!.Parameters!.Nodes[0])) {
+      return node!.Parameters!.Nodes[1];
     }
-    return node!.FunctionLikeWithBodyBase_.Parameters!.Nodes[0];
+    return node!.Parameters!.Nodes[0];
   }
   return undefined;
 }
@@ -4497,7 +4481,7 @@ export function getAccessorTypeNode(
     return getSetAccessorTypeAnnotationNode(accessors.SetAccessor);
   }
   if (!(accessors.GetAccessor === undefined)) {
-    return accessors.GetAccessor!.FunctionLikeWithBodyBase_.Type;
+    return accessors.GetAccessor!.Type;
   }
   return undefined;
 }
@@ -4508,7 +4492,7 @@ export function getParametersOfDecoratedDeclaration(
   if (!(container === undefined) && node!.Kind_ === (178 as number)) {
     const acc: $ast.AllAccessorDeclarations = $ast.GetAllAccessorDeclarations(container!.Members(), node);
     if (!(acc.SetAccessor === undefined)) {
-      return acc.SetAccessor!.FunctionLikeWithBodyBase_.Parameters;
+      return acc.SetAccessor!.Parameters;
     }
   }
   return node!.ParameterList();

@@ -5,7 +5,6 @@ import * as $ast from './ast.js';
 import * as $boxes from './boxes.js';
 import * as $collections from './collections.js';
 import * as $compiler from './compiler.js';
-import * as $contentmapper from './contentmapper.js';
 import * as $core from './core.js';
 import * as $diagnostics from './diagnostics.js';
 import * as $execute_incremental from './execute_incremental.js';
@@ -16,7 +15,6 @@ import * as $tspath from './tspath.js';
 import * as $vfs_cachedvfs from './vfs_cachedvfs.js';
 import type * as $checkhost from './checkhost.js';
 import type * as $fswatch from './fswatch.js';
-import type * as $ipc from './ipc.js';
 import type * as $vfs from './vfs.js';
 import { Set_ as $collections$Set_ } from './collections.js';
 const $zf0 = (): string => '';
@@ -26,7 +24,7 @@ const $zf3 = (): $rt.GoObject | undefined => undefined;
 const $zf4 = (): BuildTask | undefined => undefined;
 const $zf5 = (): $rt.time_Time => new $rt.time_Time();
 const $zf6 = (): number => 0;
-const $zf7 = (): $ast.SourceFileParseOptions => new $ast.SourceFileParseOptions();
+const $zf7 = (): $ast.SourceFileParseOptions => $ast.SourceFileParseOptions$zero;
 const $zf8 = (): $ast.SourceFile | undefined => undefined;
 const $zf9 = (): $tsoptions.ParsedCommandLine | undefined => undefined;
 export type buildKind = number;
@@ -49,9 +47,6 @@ export class BuildTask extends $rt.GoObject {
   isInitialCycle: boolean = false;
   downStreamUpdateMu: $rt.sync_Mutex = new $rt.sync_Mutex();
   dirty: boolean = false;
-  contentMapperProjectOnce: $rt.sync_Once = new $rt.sync_Once();
-  contentMapperProject: $contentmapper.Project = undefined;
-  contentMapperProjectErr: $rt.GoObject | undefined = undefined;
   $copy_execute_build_BuildTask(src: BuildTask): void {
     this.config = src.config;
     this.resolved = src.resolved;
@@ -70,9 +65,6 @@ export class BuildTask extends $rt.GoObject {
     this.isInitialCycle = src.isInitialCycle;
     this.downStreamUpdateMu = src.downStreamUpdateMu;
     this.dirty = src.dirty;
-    this.contentMapperProjectOnce = src.contentMapperProjectOnce;
-    this.contentMapperProject = src.contentMapperProject;
-    this.contentMapperProjectErr = src.contentMapperProjectErr;
   }
   $clone_execute_build_BuildTask(): BuildTask {
     const o = new BuildTask();
@@ -88,32 +80,6 @@ export class BuildTask extends $rt.GoObject {
   static $cast_execute_build_BuildTask(v: $rt.GoObject | undefined): BuildTask {
     if (v instanceof BuildTask) return v;
     throw $rt.typeAssertError();
-  }
-  getContentMapperProject(orchestrator: Orchestrator | undefined): [$contentmapper.Project, $rt.GoObject | undefined] {
-    const t = this;
-    t!.contentMapperProjectOnce.Do((): void => {
-      if (
-        orchestrator!.contentMapperHost === undefined ||
-        t!.resolved === undefined ||
-        $tsoptions.ParsedCommandLine.ContentMappers$nil(t!.resolved).length === (0 as number)
-      ) {
-        return;
-      }
-      t!.contentMapperProject = orchestrator!.contentMapperHost!.Project$m(
-        $contentmapper.ProjectSpec.$lit_contentmapper_ProjectSpec_0_1_2(
-          $tsoptions.ParsedCommandLine.ConfigName$nil(t!.resolved),
-          $tsoptions.ParsedCommandLine.ContentMappers$nil(t!.resolved),
-          $tsoptions.ParsedCommandLine.CompilerOptions$m$nil(t!.resolved),
-        ),
-      );
-    });
-    return [t!.contentMapperProject, t!.contentMapperProjectErr];
-  }
-  refreshContentMapperProject(orchestrator: Orchestrator | undefined): void {
-    const t = this;
-    if (!(t!.contentMapperProject === undefined)) {
-      t!.contentMapperProjectErr = $rt.nn(t!.contentMapperProject).Refresh();
-    }
   }
   waitOnUpstream(): void {
     const t = this;
@@ -228,32 +194,19 @@ export class BuildTask extends $rt.GoObject {
     if ($core.Tristate$IsTrue(orchestrator!.opts.Command!.BuildOptions_!.StopBuildOnErrors) && t!.status!.isError()) {
       return;
     }
-    if (t!.result!.program === undefined) {
-      {
-        const $t1 = t!.downStream;
-        for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-          const downStream = $t1[$t2];
-          downStream!.downStreamUpdateMu.Lock();
-          downStream!.resetStatus();
-          downStream!.pending = true;
-          downStream!.downStreamUpdateMu.Unlock();
-        }
-      }
-      return;
-    }
     {
-      const $t3 = t!.downStream;
-      for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
-        const downStream$1 = $t3[$t4];
-        downStream$1!.downStreamUpdateMu.Lock();
-        if (!(downStream$1!.status === undefined)) {
+      const $t1 = t!.downStream;
+      for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
+        const downStream = $t1[$t2];
+        downStream!.downStreamUpdateMu.Lock();
+        if (!(downStream!.status === undefined)) {
           {
-            switch (downStream$1!.status!.kind) {
+            switch (downStream!.status!.kind) {
               case 3 as number: {
                 if (!t!.result!.program!.HasChangedDtsFile()) {
-                  downStream$1!.status = upToDateStatus.$lit_execute_build_upToDateStatus_0_1(
+                  downStream!.status = upToDateStatus.$lit_execute_build_upToDateStatus_0_1(
                     4,
-                    downStream$1!.status!.data,
+                    downStream!.status!.data,
                   );
                   break;
                 }
@@ -261,29 +214,29 @@ export class BuildTask extends $rt.GoObject {
               case 4 as number:
               case 5 as number: {
                 if (t!.result!.program!.HasChangedDtsFile()) {
-                  downStream$1!.status = upToDateStatus.$lit_execute_build_upToDateStatus_0_1(
+                  downStream!.status = upToDateStatus.$lit_execute_build_upToDateStatus_0_1(
                     8,
                     inputOutputName.$lit_execute_build_inputOutputName_0_1(
                       t!.config,
-                      downStream$1!.status!.oldestOutputFileName(),
+                      downStream!.status!.oldestOutputFileName(),
                     ),
                   );
                 }
                 break;
               }
               case 2 as number: {
-                const upstreamErrors$v: upstreamErrors | undefined = downStream$1!.status!.upstreamErrors$m();
+                const upstreamErrors$v: upstreamErrors | undefined = downStream!.status!.upstreamErrors$m();
                 const refConfig: string = $core.ResolveConfigFileNameOfProjectReference(upstreamErrors$v!.ref);
                 if (orchestrator!.toPath(refConfig) === path) {
-                  downStream$1!.resetStatus();
+                  downStream!.resetStatus();
                 }
                 break;
               }
             }
           }
         }
-        downStream$1!.pending = true;
-        downStream$1!.downStreamUpdateMu.Unlock();
+        downStream!.pending = true;
+        downStream!.downStreamUpdateMu.Unlock();
       }
     }
   }
@@ -303,38 +256,23 @@ export class BuildTask extends $rt.GoObject {
     compileTimes.ConfigTime = configTime;
     const buildInfoReadStart: $rt.time_Time = orchestrator!.opts.Sys!.Now();
     let oldProgram: $execute_incremental.Program | undefined = undefined as $execute_incremental.Program | undefined;
-    const $t2 = t!.getContentMapperProject(orchestrator);
-    const contentMapperProject: $contentmapper.Project = $t2[0];
-    const err: $rt.GoObject | undefined = $t2[1];
-    if (!(err === undefined)) {
-      t!.reportDiagnostic($compiler.ContentMapperProjectDiagnostic(err));
-      t!.status = upToDateStatus.$lit_execute_build_upToDateStatus_0(1);
-      t!.result!.exitStatus = 1;
-      return;
-    }
-    const compilerHost$v: compilerHost | undefined = compilerHost.$lit_execute_build_compilerHost_0_1_2(
-      orchestrator!.host_,
-      $execute_tsc.GetTraceWithWriterFromSys(
-        $rt.unsupportedConversion<
-          | $ipc.stdioConn
-          | $contentmapper.closeOnceReadWriteCloser
-          | $contentmapper.loggedProcess
-          | $contentmapper.stderrLogger
-          | $checkhost.hostWriter
-          | undefined
-        >('$rt.strings_Builder | undefined'),
-        orchestrator!.opts.Command!.Locale$m(),
-        orchestrator!.opts.Testing,
-      ),
-      contentMapperProject,
-    );
     if (!$core.Tristate$IsTrue(orchestrator!.opts.Command!.BuildOptions_!.Force)) {
-      oldProgram = $execute_incremental.ReadBuildInfoProgram(t!.resolved, orchestrator!.host_, compilerHost$v);
+      oldProgram = $execute_incremental.ReadBuildInfoProgram(t!.resolved, orchestrator!.host_, orchestrator!.host_);
     }
     compileTimes.BuildInfoReadTime = orchestrator!.opts.Sys!.Now().Sub(buildInfoReadStart);
     const parseStart: $rt.time_Time = orchestrator!.opts.Sys!.Now();
     const program: $compiler.Program | undefined = $compiler.NewProgram(
-      $compiler.ProgramOptions.$lit_compiler_ProgramOptions_1_0(t!.resolved, compilerHost$v),
+      $compiler.ProgramOptions.$lit_compiler_ProgramOptions_1_0(
+        t!.resolved,
+        compilerHost.$lit_execute_build_compilerHost_0_1(
+          orchestrator!.host_,
+          $execute_tsc.GetTraceWithWriterFromSys(
+            $rt.unsupportedConversion<$checkhost.hostWriter | undefined>('$rt.strings_Builder | undefined'),
+            orchestrator!.opts.Command!.Locale$m(),
+            orchestrator!.opts.Testing,
+          ),
+        ),
+      ),
     );
     compileTimes.ParseTime = orchestrator!.opts.Sys!.Now().Sub(parseStart);
     const changesComputeStart: $rt.time_Time = orchestrator!.opts.Sys!.Now();
@@ -342,33 +280,22 @@ export class BuildTask extends $rt.GoObject {
       program,
       oldProgram,
       orchestrator!.host_,
-      (
-        ($t3: $execute_tsc.System) => (): $rt.time_Time =>
-          $t3!.Now()
-      )(orchestrator!.opts.Sys),
       !(orchestrator!.opts.Testing === undefined),
     );
     compileTimes.ChangesComputeTime = orchestrator!.opts.Sys!.Now().Sub(changesComputeStart);
-    const $t5 = $execute_tsc.EmitAndReportStatistics(
+    const $t3 = $execute_tsc.EmitAndReportStatistics(
       $execute_tsc.EmitInput.$lit_execute_tsc_EmitInput_0_1_2_3_4_5_6_7_8_9_10(
         orchestrator!.opts.Sys,
         t!.result!.program,
         program,
         t!.resolved,
         (
-          ($t4: BuildTask | undefined) =>
+          ($t2: BuildTask | undefined) =>
           (a0: $ast.Diagnostic | undefined): void =>
-            $t4!.reportDiagnostic(a0)
+            $t2!.reportDiagnostic(a0)
         )(t),
         $execute_tsc.QuietDiagnosticsReporter,
-        $rt.unsupportedConversion<
-          | $ipc.stdioConn
-          | $contentmapper.closeOnceReadWriteCloser
-          | $contentmapper.loggedProcess
-          | $contentmapper.stderrLogger
-          | $checkhost.hostWriter
-          | undefined
-        >('$rt.strings_Builder | undefined'),
+        $rt.unsupportedConversion<$checkhost.hostWriter | undefined>('$rt.strings_Builder | undefined'),
         (fileName: string, text: string, data: $compiler.WriteFileData | undefined): $rt.GoObject | undefined => {
           return t!.writeFile(orchestrator, fileName, text, data);
         },
@@ -377,8 +304,8 @@ export class BuildTask extends $rt.GoObject {
         orchestrator!.host_!.mTimes,
       ),
     );
-    const result: $execute_tsc.CompileAndEmitResult = $t5[0];
-    const statistics: $execute_tsc.Statistics | undefined = $t5[1];
+    const result: $execute_tsc.CompileAndEmitResult = $t3[0];
+    const statistics: $execute_tsc.Statistics | undefined = $t3[1];
     t!.result!.exitStatus = result.Status;
     t!.result!.statistics = statistics;
     t!.packageJsons = t!.result!.program!.PackageJsonLookupPaths();
@@ -523,22 +450,6 @@ export class BuildTask extends $rt.GoObject {
     if (!buildInfo!.IsValidVersion()) {
       return upToDateStatus.$lit_execute_build_upToDateStatus_0_1(13, new $rt.BoxStr(buildInfo!.Version, 'string'));
     }
-    const $t4 = t!.getContentMapperProject(orchestrator);
-    const contentMapperProject: $contentmapper.Project = $t4[0];
-    const err: $rt.GoObject | undefined = $t4[1];
-    const $t5 = $execute_incremental.ContentMapperIdentities(contentMapperProject);
-    const contentMapperIdentities: string[] = $t5[0];
-    const identityErr: $rt.GoObject | undefined = $t5[1];
-    if (!(identityErr === undefined)) {
-      t!.contentMapperProjectErr = identityErr;
-    }
-    if (
-      !(err === undefined) ||
-      !(identityErr === undefined) ||
-      !buildInfo!.ContentMapperIdentitiesMatch(contentMapperIdentities)
-    ) {
-      return upToDateStatus.$lit_execute_build_upToDateStatus_0_1(11, new $rt.BoxStr(buildInfoPath, 'string'));
-    }
     if (
       buildInfo!.Errors ||
       (!$core.Tristate$IsTrue($tsoptions.ParsedCommandLine.CompilerOptions$m$nil(t!.resolved)!.NoCheck) &&
@@ -573,7 +484,7 @@ export class BuildTask extends $rt.GoObject {
       buildInfoPath,
       buildInfoTime,
     );
-    let newestInputFileAndTime: fileAndTime = fileAndTime$zero;
+    let newestInputFileAndTime: fileAndTime = new fileAndTime();
     const seenRoots: $collections.Set_<$tspath.Path> = new $collections.Set_<$tspath.Path>();
     const getBuildInfoRootInfoReader: (() => $execute_incremental.BuildInfoRootInfoReader | undefined) | undefined =
       $core.Memoize<$execute_incremental.BuildInfoRootInfoReader | undefined>(
@@ -583,9 +494,9 @@ export class BuildTask extends $rt.GoObject {
         },
       );
     {
-      const $t6 = t!.resolved!.FileNames();
-      for (let $t7 = 0, $n = $t6.length; $t7 < $n; $t7++) {
-        const inputFile = $t6[$t7];
+      const $t4 = t!.resolved!.FileNames();
+      for (let $t5 = 0, $n = $t4.length; $t5 < $n; $t5++) {
+        const inputFile = $t4[$t5];
         const inputTime: $rt.time_Time = orchestrator!.host_!.GetMTime(inputFile);
         if (inputTime.IsZero()) {
           return upToDateStatus.$lit_execute_build_upToDateStatus_0_1(6, new $rt.BoxStr(inputFile, 'string'));
@@ -595,18 +506,18 @@ export class BuildTask extends $rt.GoObject {
           let version: string = '';
           let currentVersion: string = '';
           if ($execute_incremental.BuildInfo.IsIncremental$nil(buildInfo)) {
-            const $t8 = getBuildInfoRootInfoReader!()!.GetBuildInfoFileInfo(inputPath);
-            const buildInfoFileInfo: $execute_incremental.BuildInfoFileInfo | undefined = $t8[0];
-            const resolvedInputPath: $tspath.Path = $t8[1];
+            const $t6 = getBuildInfoRootInfoReader!()!.GetBuildInfoFileInfo(inputPath);
+            const buildInfoFileInfo: $execute_incremental.BuildInfoFileInfo | undefined = $t6[0];
+            const resolvedInputPath: $tspath.Path = $t6[1];
             {
               const fileInfo: $execute_incremental.FileInfo | undefined =
                 $execute_incremental.BuildInfoFileInfo.GetFileInfo$nil(buildInfoFileInfo);
               if (!(fileInfo === undefined) && !(fileInfo!.Version() === ('' as string))) {
                 version = fileInfo!.Version();
                 {
-                  const $t9 = $rt.nn(orchestrator!.host_!.FS$m()).ReadFile(resolvedInputPath);
-                  const text: string = $t9[0];
-                  const ok: boolean = $t9[1];
+                  const $t7 = $rt.nn(orchestrator!.host_!.FS$m()).ReadFile(resolvedInputPath);
+                  const text: string = $t7[0];
+                  const ok: boolean = $t7[1];
                   if (ok) {
                     currentVersion = $execute_incremental.ComputeHash(
                       text,
@@ -633,28 +544,28 @@ export class BuildTask extends $rt.GoObject {
         seenRoots.Add(inputPath);
       }
     }
-    let $t10 = false;
-    let $t11: upToDateStatus | undefined = undefined as upToDateStatus | undefined;
+    let $t8 = false;
+    let $t9: upToDateStatus | undefined = undefined as upToDateStatus | undefined;
     getBuildInfoRootInfoReader!()!.Roots()!((root: $tspath.Path): boolean => {
       if (!$collections$Set_.Has$nil<$tspath.Path>(seenRoots, root)) {
-        $t11 = upToDateStatus.$lit_execute_build_upToDateStatus_0_1(
+        $t9 = upToDateStatus.$lit_execute_build_upToDateStatus_0_1(
           12,
           inputOutputName.$lit_execute_build_inputOutputName_0_1(root, buildInfoPath),
         );
-        $t10 = true;
+        $t8 = true;
         return false;
       }
       return true;
     });
-    if ($t10) return $t11;
+    if ($t8) return $t9;
     if ($execute_incremental.BuildInfo.IsIncremental$nil(buildInfo)) {
       const resolvedRoots: $collections.Set_<$tspath.Path> = new $collections.Set_<$tspath.Path>();
-      let $t12 = false;
-      let $t13: upToDateStatus | undefined = undefined as upToDateStatus | undefined;
+      let $t10 = false;
+      let $t11: upToDateStatus | undefined = undefined as upToDateStatus | undefined;
       getBuildInfoRootInfoReader!()!.Roots()!((root$1: $tspath.Path): boolean => {
         {
-          const $t14 = getBuildInfoRootInfoReader!()!.GetBuildInfoFileInfo(root$1);
-          const resolved: $tspath.Path = $t14[1];
+          const $t12 = getBuildInfoRootInfoReader!()!.GetBuildInfoFileInfo(root$1);
+          const resolved: $tspath.Path = $t12[1];
           if (!(resolved === ('' as string))) {
             resolvedRoots.Add(resolved);
           }
@@ -662,10 +573,10 @@ export class BuildTask extends $rt.GoObject {
         return true;
       });
       {
-        const $t15 = buildInfo!.FileInfos;
-        for (let $t16 = 0, $n = $t15.length; $t16 < $n; $t16++) {
-          const index = $t16;
-          const buildInfoFileInfo$1 = $t15[$t16];
+        const $t13 = buildInfo!.FileInfos;
+        for (let $t14 = 0, $n = $t13.length; $t14 < $n; $t14++) {
+          const index = $t14;
+          const buildInfoFileInfo$1 = $t13[$t14];
           const buildInfoFileName: string = buildInfo!.FileNames[index];
           if ($execute_incremental.IsBuildInfoFileNameDefaultLibrary(buildInfoFileName)) {
             continue;
@@ -678,9 +589,6 @@ export class BuildTask extends $rt.GoObject {
           ) {
             continue;
           }
-          if (isContentMapperSupplementalBuildInfoPath(inputPath$1, getBuildInfoRootInfoReader!()!.Roots())) {
-            continue;
-          }
           const inputTime$1: $rt.time_Time = orchestrator!.host_!.GetMTime(inputFile$1);
           if (inputTime$1.IsZero()) {
             return upToDateStatus.$lit_execute_build_upToDateStatus_0_1(6, new $rt.BoxStr(inputFile$1, 'string'));
@@ -691,9 +599,9 @@ export class BuildTask extends $rt.GoObject {
               $execute_incremental.BuildInfoFileInfo.GetFileInfo$nil(buildInfoFileInfo$1)!.Version();
             if (!(version$1 === ('' as string))) {
               {
-                const $t17 = $rt.nn(orchestrator!.host_!.FS$m()).ReadFile(inputFile$1);
-                const text$1: string = $t17[0];
-                const ok$1: boolean = $t17[1];
+                const $t15 = $rt.nn(orchestrator!.host_!.FS$m()).ReadFile(inputFile$1);
+                const text$1: string = $t15[0];
+                const ok$1: boolean = $t15[1];
                 if (ok$1) {
                   currentVersion$1 = $execute_incremental.ComputeHash(
                     text$1,
@@ -714,21 +622,21 @@ export class BuildTask extends $rt.GoObject {
       }
     }
     if (!$tsoptions.ParsedCommandLine.CompilerOptions$m$nil(t!.resolved)!.IsIncremental()) {
-      let $t18 = false;
-      let $t19: upToDateStatus | undefined = undefined as upToDateStatus | undefined;
+      let $t16 = false;
+      let $t17: upToDateStatus | undefined = undefined as upToDateStatus | undefined;
       t!.resolved!.GetOutputFileNames()!((outputFile: string): boolean => {
         const outputTime: $rt.time_Time = orchestrator!.host_!.GetMTime(outputFile);
         if (outputTime.IsZero()) {
-          $t19 = upToDateStatus.$lit_execute_build_upToDateStatus_0_1(7, new $rt.BoxStr(outputFile, 'string'));
-          $t18 = true;
+          $t17 = upToDateStatus.$lit_execute_build_upToDateStatus_0_1(7, new $rt.BoxStr(outputFile, 'string'));
+          $t16 = true;
           return false;
         }
         if (outputTime.Before(newestInputFileAndTime.time)) {
-          $t19 = upToDateStatus.$lit_execute_build_upToDateStatus_0_1(
+          $t17 = upToDateStatus.$lit_execute_build_upToDateStatus_0_1(
             8,
             inputOutputName.$lit_execute_build_inputOutputName_0_1(newestInputFileAndTime.file, outputFile),
           );
-          $t18 = true;
+          $t16 = true;
           return false;
         }
         if (outputTime.Before(oldestOutputFileAndTime.time)) {
@@ -736,13 +644,13 @@ export class BuildTask extends $rt.GoObject {
         }
         return true;
       });
-      if ($t18) return $t19;
+      if ($t16) return $t17;
     }
     let refDtsUnchanged: boolean = false;
     {
-      const $t20 = t!.upStream;
-      for (let $t21 = 0, $n = $t20.length; $t21 < $n; $t21++) {
-        const upstream$1 = $t20[$t21];
+      const $t18 = t!.upStream;
+      for (let $t19 = 0, $n = $t18.length; $t19 < $n; $t19++) {
+        const upstream$1 = $t18[$t19];
         if (upstream$1!.task!.status!.kind === (15 as number)) {
           continue;
         }
@@ -795,28 +703,42 @@ export class BuildTask extends $rt.GoObject {
       return configStatus;
     }
     {
-      const $t22 = $tsoptions.ParsedCommandLine.ExtendedSourceFiles$nil(t!.resolved);
-      for (let $t23 = 0, $n = $t22.length; $t23 < $n; $t23++) {
-        const extendedConfig = $t22[$t23];
+      const $t20 = $tsoptions.ParsedCommandLine.ExtendedSourceFiles$nil(t!.resolved);
+      for (let $t21 = 0, $n = $t20.length; $t21 < $n; $t21++) {
+        const extendedConfig = $t20[$t21];
         const extendedConfigStatus: upToDateStatus | undefined = checkInputFileTime!(extendedConfig);
         if (!(extendedConfigStatus === undefined)) {
           return extendedConfigStatus;
         }
       }
     }
-    let $t24 = false;
-    let $t25: upToDateStatus | undefined = undefined as upToDateStatus | undefined;
+    let $t22 = false;
+    let $t23: upToDateStatus | undefined = undefined as upToDateStatus | undefined;
     buildInfo!.GetPackageJsons(getBuildInfoDirectory!())!((packageJson: string): boolean => {
       const packageJsonTime: $rt.time_Time = orchestrator!.host_!.GetMTime(packageJson);
       if (packageJsonTime.IsZero()) {
-        $t25 = upToDateStatus.$lit_execute_build_upToDateStatus_0_1(6, new $rt.BoxStr(packageJson, 'string'));
-        $t24 = true;
+        $t23 = upToDateStatus.$lit_execute_build_upToDateStatus_0_1(6, new $rt.BoxStr(packageJson, 'string'));
+        $t22 = true;
         return false;
       }
       if (packageJsonTime.After(oldestOutputFileAndTime.time)) {
-        $t25 = upToDateStatus.$lit_execute_build_upToDateStatus_0_1(
+        $t23 = upToDateStatus.$lit_execute_build_upToDateStatus_0_1(
           8,
           inputOutputName.$lit_execute_build_inputOutputName_0_1(packageJson, oldestOutputFileAndTime.file),
+        );
+        $t22 = true;
+        return false;
+      }
+      return true;
+    });
+    if ($t22) return $t23;
+    let $t24 = false;
+    let $t25: upToDateStatus | undefined = undefined as upToDateStatus | undefined;
+    buildInfo!.GetMissingPackageJsons(getBuildInfoDirectory!())!((packageJson$1: string): boolean => {
+      if (!orchestrator!.host_!.GetMTime(packageJson$1).IsZero()) {
+        $t25 = upToDateStatus.$lit_execute_build_upToDateStatus_0_1(
+          8,
+          inputOutputName.$lit_execute_build_inputOutputName_0_1(packageJson$1, oldestOutputFileAndTime.file),
         );
         $t24 = true;
         return false;
@@ -824,27 +746,13 @@ export class BuildTask extends $rt.GoObject {
       return true;
     });
     if ($t24) return $t25;
-    let $t26 = false;
-    let $t27: upToDateStatus | undefined = undefined as upToDateStatus | undefined;
-    buildInfo!.GetMissingPackageJsons(getBuildInfoDirectory!())!((packageJson$1: string): boolean => {
-      if (!orchestrator!.host_!.GetMTime(packageJson$1).IsZero()) {
-        $t27 = upToDateStatus.$lit_execute_build_upToDateStatus_0_1(
-          8,
-          inputOutputName.$lit_execute_build_inputOutputName_0_1(packageJson$1, oldestOutputFileAndTime.file),
-        );
-        $t26 = true;
-        return false;
-      }
-      return true;
-    });
-    if ($t26) return $t27;
     t!.packageJsons = $rt.slices_Collect(buildInfo!.GetPackageJsons(getBuildInfoDirectory!()));
     $rt.appendInto(t!.packageJsons, $rt.slices_Collect(buildInfo!.GetMissingPackageJsons(getBuildInfoDirectory!())));
     return upToDateStatus.$lit_execute_build_upToDateStatus_0_1(
       $core.IfElse<upToDateStatusType>(refDtsUnchanged, 4, $core.IfElse<upToDateStatusType>(inputTextUnchanged, 5, 3)),
       inputOutputFileAndTime.$lit_execute_build_inputOutputFileAndTime_0_1_2(
-        newestInputFileAndTime,
-        oldestOutputFileAndTime,
+        newestInputFileAndTime.$clone_execute_build_fileAndTime(),
+        oldestOutputFileAndTime.$clone_execute_build_fileAndTime(),
         buildInfoPath,
       ),
     );
@@ -1388,7 +1296,6 @@ export class Orchestrator extends $rt.GoObject {
   opts: Options = Options$zero;
   comparePathsOptions: $tspath.ComparePathsOptions = $tspath.ComparePathsOptions$zero;
   host_: host | undefined = undefined;
-  contentMapperHost: $contentmapper.Host = undefined;
   tasks: $rt.collections_SyncMap<$tspath.Path, BuildTask | undefined> | undefined = undefined;
   order: string[] = [];
   errors: ($ast.Diagnostic | undefined)[] = [];
@@ -1399,7 +1306,6 @@ export class Orchestrator extends $rt.GoObject {
     this.opts = src.opts;
     this.comparePathsOptions = src.comparePathsOptions;
     this.host_ = src.host_;
-    this.contentMapperHost = src.contentMapperHost;
     this.tasks = src.tasks;
     this.order = src.order;
     this.errors = src.errors;
@@ -1412,7 +1318,7 @@ export class Orchestrator extends $rt.GoObject {
     o.$copy_execute_build_Orchestrator(this);
     return o;
   }
-  static $lit_execute_build_Orchestrator_0_1_4_9(
+  static $lit_execute_build_Orchestrator_0_1_3_8(
     p0: Options,
     p1: $tspath.ComparePathsOptions,
     p2: $rt.collections_SyncMap<$tspath.Path, BuildTask | undefined> | undefined,
@@ -1497,9 +1403,6 @@ export class Orchestrator extends $rt.GoObject {
                 if (!existing!.dirty) {
                   task = existing;
                 } else {
-                  if (!(existing!.contentMapperProject === undefined)) {
-                    $rt.nn(existing!.contentMapperProject).Close();
-                  }
                   buildInfo = existing!.buildInfoEntry_;
                 }
               }
@@ -1612,62 +1515,21 @@ export class Orchestrator extends $rt.GoObject {
         o!.setupBuildTask(project, undefined, false, completed, analyzing, circularityStack);
       }
     }
-    if (!(oldTasks === undefined)) {
-      oldTasks!.Range((path: $tspath.Path, oldTask: BuildTask | undefined): boolean => {
-        {
-          const $t3 = o!.tasks!.Load(path);
-          const task: BuildTask | undefined = $t3[0];
-          const ok: boolean = $t3[1];
-          if (ok && task === oldTask) {
-            return true;
-          }
-        }
-        if (!(oldTask!.contentMapperProject === undefined)) {
-          $rt.nn(oldTask!.contentMapperProject).Close();
-        }
-        return true;
-      });
-    }
   }
   Start(ctx: $rt.context_Context | undefined): $execute_tsc.CommandLineResult {
     const o = this;
-    let $t1: $execute_tsc.CommandLineResult = new $execute_tsc.CommandLineResult();
-    const $defers: (() => void)[] = [];
-    let $panic: $rt.Panic | undefined = undefined;
-    $body: try {
-      o!.contentMapperHost = $execute_tsc.NewContentMapperHost(ctx, o!.opts.Sys, o!.opts.Command!.CompilerOptions_);
-      if (
-        !(o!.contentMapperHost === undefined) &&
-        (!$core.Tristate$IsTrue(o!.opts.Command!.CompilerOptions_!.Watch) || o!.opts.Testing === undefined)
-      ) {
-        const $t2 = o!.contentMapperHost;
-        $defers.push(() => {
-          $t2!.Close();
-        });
-      }
-      if ($core.Tristate$IsTrue(o!.opts.Command!.CompilerOptions_!.Watch)) {
-        o!.watchStatusReporter!(
-          $ast.NewCompilerDiagnostic(
-            $diagnostics.Starting_compilation_in_watch_mode,
-            [] as ($rt.GoObject | undefined)[],
-          ),
-        );
-      }
-      o!.GenerateGraph(undefined);
-      const result: $execute_tsc.CommandLineResult = o!.buildOrClean();
-      if ($core.Tristate$IsTrue(o!.opts.Command!.CompilerOptions_!.Watch)) {
-        o!.Watch(ctx);
-        result.Watcher_ = o;
-      }
-      $t1 = result.$clone_execute_tsc_CommandLineResult();
-      break $body;
-    } catch ($e) {
-      $panic = $rt.toPanic($e);
-    } finally {
-      $panic = $rt.runDefers($defers, $panic);
+    if ($core.Tristate$IsTrue(o!.opts.Command!.CompilerOptions_!.Watch)) {
+      o!.watchStatusReporter!(
+        $ast.NewCompilerDiagnostic($diagnostics.Starting_compilation_in_watch_mode, [] as ($rt.GoObject | undefined)[]),
+      );
     }
-    if ($panic !== undefined) throw $panic;
-    return $t1;
+    o!.GenerateGraph(undefined);
+    const result: $execute_tsc.CommandLineResult = o!.buildOrClean();
+    if ($core.Tristate$IsTrue(o!.opts.Command!.CompilerOptions_!.Watch)) {
+      o!.Watch(ctx);
+      result.Watcher_ = o;
+    }
+    return result.$clone_execute_tsc_CommandLineResult();
   }
   Watch(ctx: $rt.context_Context | undefined): void {
     const o = this;
@@ -1775,79 +1637,23 @@ export class Orchestrator extends $rt.GoObject {
         if (configChanged) {
           continue;
         }
-        {
-          const $t9 = $tsoptions.ParsedCommandLine.ContentMappers$nil(task!.resolved);
-          for (let $t10 = 0, $n = $t9.length; $t10 < $n; $t10++) {
-            const mapper = $t9[$t10];
-            if (mapper!.PackageDirectory === ('' as string) || !(mapper!.ContributionID === ('' as string))) {
-              continue;
-            }
-            const manifestPath: $tspath.Path = o!.toPath(
-              $tspath.CombinePaths(mapper!.PackageDirectory, ['package.json']),
-            );
-            {
-              const $t11: Map<$tspath.Path, $fswatch.EventKind> | undefined = normalizedPaths;
-              const $t12 = manifestPath;
-              const changed$2: boolean = $t11 !== undefined && $t11.has($t12);
-              if (changed$2) {
-                task!.resetConfig(o, path);
-                needsConfigUpdate!.Store(true);
-                needsUpdate!.Store(true);
-                configChanged = true;
-                break;
-              }
-            }
-          }
-        }
-        if (configChanged) {
-          continue;
-        }
         let rootChanged: boolean = false;
-        if (!(task!.contentMapperProject === undefined)) {
-          const $t13 = $rt.nn(task!.contentMapperProject).WatchedFiles();
-          const watchedFiles: string[] = $t13[0];
-          const err: $rt.GoObject | undefined = $t13[1];
-          if (!(err === undefined)) {
-            task!.contentMapperProjectErr = err;
-            task!.resetStatus();
-            needsUpdate!.Store(true);
-            rootChanged = true;
-          }
-          {
-            const $t14 = watchedFiles;
-            for (let $t15 = 0, $n = $t14.length; $t15 < $n; $t15++) {
-              const fileName = $t14[$t15];
-              {
-                const $t16: Map<$tspath.Path, $fswatch.EventKind> | undefined = normalizedPaths;
-                const $t17 = o!.toPath(fileName);
-                const changed$3: boolean = $t16 !== undefined && $t16.has($t17);
-                if (changed$3) {
-                  task!.refreshContentMapperProject(o);
-                  task!.resetStatus();
-                  needsUpdate!.Store(true);
-                  rootChanged = true;
-                  break;
-                }
-              }
-            }
-          }
-        }
         const fileNames: string[] = task!.resolved!.FileNames();
         const roots: $collections.Set_<$tspath.Path> | undefined = $collections.NewSetWithSizeHint<$tspath.Path>(
           fileNames.length,
         );
         {
-          const $t18 = fileNames;
-          for (let $t19 = 0, $n = $t18.length; $t19 < $n; $t19++) {
-            const file$1 = $t18[$t19];
+          const $t9 = fileNames;
+          for (let $t10 = 0, $n = $t9.length; $t10 < $n; $t10++) {
+            const file$1 = $t9[$t10];
             const fp$1: $tspath.Path = o!.toPath(file$1);
             roots!.Add(fp$1);
             if (!rootChanged) {
               {
-                const $t20: Map<$tspath.Path, $fswatch.EventKind> | undefined = normalizedPaths;
-                const $t21 = fp$1;
-                const changed$4: boolean = $t20 !== undefined && $t20.has($t21);
-                if (changed$4) {
+                const $t11: Map<$tspath.Path, $fswatch.EventKind> | undefined = normalizedPaths;
+                const $t12 = fp$1;
+                const changed$2: boolean = $t11 !== undefined && $t11.has($t12);
+                if (changed$2) {
                   task!.resetStatus();
                   needsUpdate!.Store(true);
                   rootChanged = true;
@@ -1863,18 +1669,18 @@ export class Orchestrator extends $rt.GoObject {
           if (!(bi === undefined) && !(bi!.buildInfo === undefined)) {
             const buildInfoDir: string = $tspath.GetDirectoryPath(bi!.path);
             {
-              const $t22 = bi!.buildInfo!.FileNames;
-              for (let $t23 = 0, $n = $t22.length; $t23 < $n; $t23++) {
-                const fileName$1 = $t22[$t23];
-                const fp$2: $tspath.Path = o!.toPath(o!.resolveBuildInfoFileName(fileName$1, buildInfoDir));
+              const $t13 = bi!.buildInfo!.FileNames;
+              for (let $t14 = 0, $n = $t13.length; $t14 < $n; $t14++) {
+                const fileName = $t13[$t14];
+                const fp$2: $tspath.Path = o!.toPath(o!.resolveBuildInfoFileName(fileName, buildInfoDir));
                 if ($collections$Set_.Has$nil<$tspath.Path>(roots, fp$2)) {
                   continue;
                 }
                 {
-                  const $t24: Map<$tspath.Path, $fswatch.EventKind> | undefined = normalizedPaths;
-                  const $t25 = fp$2;
-                  const changed$5: boolean = $t24 !== undefined && $t24.has($t25);
-                  if (changed$5) {
+                  const $t15: Map<$tspath.Path, $fswatch.EventKind> | undefined = normalizedPaths;
+                  const $t16 = fp$2;
+                  const changed$3: boolean = $t15 !== undefined && $t15.has($t16);
+                  if (changed$3) {
                     task!.resetStatus();
                     needsUpdate!.Store(true);
                     break;
@@ -1882,8 +1688,8 @@ export class Orchestrator extends $rt.GoObject {
                 }
               }
             }
-            let $t26 = false;
-            let $t27: undefined = undefined;
+            let $t17 = false;
+            let $t18: undefined = undefined;
             bi!.buildInfo!.GetPackageJsons(buildInfoDir)!((packageJson: string): boolean => {
               if (o!.packageJsonLookupChanged(packageJson, normalizedPaths)) {
                 task!.resetStatus();
@@ -1892,8 +1698,8 @@ export class Orchestrator extends $rt.GoObject {
               }
               return true;
             });
-            let $t28 = false;
-            let $t29: undefined = undefined;
+            let $t19 = false;
+            let $t20: undefined = undefined;
             bi!.buildInfo!.GetMissingPackageJsons(buildInfoDir)!((packageJson$1: string): boolean => {
               if (o!.packageJsonLookupChanged(packageJson$1, normalizedPaths)) {
                 task!.resetStatus();
@@ -1904,9 +1710,9 @@ export class Orchestrator extends $rt.GoObject {
             });
           }
           {
-            const $t30 = task!.packageJsons;
-            for (let $t31 = 0, $n = $t30.length; $t31 < $n; $t31++) {
-              const packageJson$2 = $t30[$t31];
+            const $t21 = task!.packageJsons;
+            for (let $t22 = 0, $n = $t21.length; $t22 < $n; $t22++) {
+              const packageJson$2 = $t21[$t22];
               if (o!.packageJsonLookupChanged(packageJson$2, normalizedPaths)) {
                 task!.resetStatus();
                 needsUpdate!.Store(true);
@@ -1930,7 +1736,7 @@ export class Orchestrator extends $rt.GoObject {
     }
     if (!needsUpdate!.Load()) {
       const opts: $tspath.ComparePathsOptions = o!.comparePathsOptions;
-      for (const [eventPath$1, $t32] of changedPaths ?? new Map<string, $fswatch.EventKind>()) {
+      for (const [eventPath$1, $t23] of changedPaths ?? new Map<string, $fswatch.EventKind>()) {
         if ($rt.nn(o!.host_!.FS$m()).DirectoryExists(eventPath$1)) {
           if (o!.wm!.IsPathUnderWatch(eventPath$1, opts)) {
             o!.rangeTask($fn3);
@@ -1964,9 +1770,7 @@ export class Orchestrator extends $rt.GoObject {
   }
   computeDesiredWatches(): Map<string, boolean> | undefined {
     const o = this;
-    const desiredDirs: $execute_watchmanager.DirWatchSet | undefined = $execute_watchmanager.NewDirWatchSet(
-      o!.comparePathsOptions,
-    );
+    const desiredDirs: Map<string, boolean> | undefined = new Map<string, boolean>();
     {
       const $t1 = o!.order;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
@@ -1976,66 +1780,57 @@ export class Orchestrator extends $rt.GoObject {
         const task: BuildTask | undefined = o!.getTask(path);
         const configDir: string = $tspath.GetDirectoryPath(task!.config);
         const realConfigDir: string = $rt.nn(o!.host_!.FS$m()).Realpath(configDir);
-        desiredDirs!.Set(realConfigDir, false);
+        {
+          const $t3: Map<string, boolean> | undefined = desiredDirs;
+          const $t4 = realConfigDir;
+          const has: boolean = $t3 !== undefined && $t3.has($t4);
+          if (!has) {
+            desiredDirs!.set(realConfigDir, false);
+          }
+        }
         if (task!.resolved === undefined) {
           continue;
         }
         {
-          const $t3 = $tsoptions.ParsedCommandLine.ExtendedSourceFiles$nil(task!.resolved);
-          for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
-            const cfgPath = $t3[$t4];
+          const $t5 = $tsoptions.ParsedCommandLine.ExtendedSourceFiles$nil(task!.resolved);
+          for (let $t6 = 0, $n = $t5.length; $t6 < $n; $t6++) {
+            const cfgPath = $t5[$t6];
             const realPath: string = $rt.nn(o!.host_!.FS$m()).Realpath(cfgPath);
             const dir: string = $tspath.GetDirectoryPath(realPath);
-            desiredDirs!.Set(dir, false);
+            {
+              const $t7: Map<string, boolean> | undefined = desiredDirs;
+              const $t8 = dir;
+              const has$1: boolean = $t7 !== undefined && $t7.has($t8);
+              if (!has$1) {
+                desiredDirs!.set(dir, false);
+              }
+            }
           }
         }
         for (const [dir$1, recursive] of $tsoptions.ParsedCommandLine.WildcardDirectories$nil(task!.resolved) ??
           new Map<string, boolean>()) {
           const realDir: string = $rt.nn(o!.host_!.FS$m()).Realpath(dir$1);
-          desiredDirs!.Set(realDir, recursive);
+          {
+            const $t9: Map<string, boolean> | undefined = desiredDirs;
+            const $t10 = realDir;
+            const existing: boolean = $t9?.get($t10) ?? false;
+            const has$2: boolean = $t9 !== undefined && $t9.has($t10);
+            if (has$2) {
+              desiredDirs!.set(realDir, existing || recursive);
+            } else {
+              desiredDirs!.set(realDir, recursive);
+            }
+          }
         }
         {
-          const $t5 = task!.resolved!.FileNames();
-          for (let $t6 = 0, $n = $t5.length; $t6 < $n; $t6++) {
-            const fileName = $t5[$t6];
+          const $t11 = task!.resolved!.FileNames();
+          for (let $t12 = 0, $n = $t11.length; $t12 < $n; $t12++) {
+            const fileName = $t11[$t12];
             const absPath: string = $tspath.GetNormalizedAbsolutePath(fileName, o!.opts.Sys!.GetCurrentDirectory());
             const dir$2: string = $tspath.GetDirectoryPath(absPath);
-            if (!desiredDirs!.Covered(dir$2) && $execute_watchmanager.CanWatchDirectory(dir$2)) {
-              desiredDirs!.Set(dir$2, false);
-            }
-            {
-              const $t7 = $tsoptions.ParsedCommandLine.ContentMappers$nil(task!.resolved);
-              for (let $t8 = 0, $n = $t7.length; $t8 < $n; $t8++) {
-                const mapper = $t7[$t8];
-                if (mapper!.PackageDirectory === ('' as string) || !(mapper!.ContributionID === ('' as string))) {
-                  continue;
-                }
-                const manifestPath: string = $rt
-                  .nn(o!.host_!.FS$m())
-                  .Realpath($tspath.CombinePaths(mapper!.PackageDirectory, ['package.json']));
-                const dir$3: string = $tspath.GetDirectoryPath(manifestPath);
-                if (!desiredDirs!.Covered(dir$3) && $execute_watchmanager.CanWatchDirectory(dir$3)) {
-                  desiredDirs!.Set(dir$3, false);
-                }
-              }
-            }
-          }
-        }
-        if (!(task!.contentMapperProject === undefined)) {
-          const $t9 = $rt.nn(task!.contentMapperProject).WatchedFiles();
-          const watchedFiles: string[] = $t9[0];
-          const err: $rt.GoObject | undefined = $t9[1];
-          if (!(err === undefined)) {
-            task!.contentMapperProjectErr = err;
-          }
-          {
-            const $t10 = watchedFiles;
-            for (let $t11 = 0, $n = $t10.length; $t11 < $n; $t11++) {
-              const fileName$1 = $t10[$t11];
-              const absPath$1: string = $rt.nn(o!.host_!.FS$m()).Realpath(fileName$1);
-              const dir$4: string = $tspath.GetDirectoryPath(absPath$1);
-              if (!desiredDirs!.Covered(dir$4) && $execute_watchmanager.CanWatchDirectory(dir$4)) {
-                desiredDirs!.Set(dir$4, false);
+            if (!$execute_watchmanager.IsDirCoveredByWatch(desiredDirs, dir$2, o!.comparePathsOptions)) {
+              if ($execute_watchmanager.CanWatchDirectory(dir$2)) {
+                desiredDirs!.set(dir$2, false);
               }
             }
           }
@@ -2050,60 +1845,65 @@ export class Orchestrator extends $rt.GoObject {
               $zf2,
               task!.resolved!.FileNames(),
               (
-                ($t12: Orchestrator | undefined) =>
+                ($t13: Orchestrator | undefined) =>
                 (a0: string): $tspath.Path =>
-                  $t12!.toPath(a0)
+                  $t13!.toPath(a0)
               )(o),
             ),
           );
           {
-            const $t13 = bi!.buildInfo!.FileNames;
-            for (let $t14 = 0, $n = $t13.length; $t14 < $n; $t14++) {
-              const fileName$2 = $t13[$t14];
-              const absPath$2: string = $rt
+            const $t14 = bi!.buildInfo!.FileNames;
+            for (let $t15 = 0, $n = $t14.length; $t15 < $n; $t15++) {
+              const fileName$1 = $t14[$t15];
+              const absPath$1: string = $rt
                 .nn(o!.host_!.FS$m())
-                .Realpath(o!.resolveBuildInfoFileName(fileName$2, buildInfoDir));
-              const fp: $tspath.Path = o!.toPath(absPath$2);
+                .Realpath(o!.resolveBuildInfoFileName(fileName$1, buildInfoDir));
+              const fp: $tspath.Path = o!.toPath(absPath$1);
               if ($collections$Set_.Has$nil<$tspath.Path>(roots, fp)) {
                 continue;
               }
-              const dir$5: string = $tspath.GetDirectoryPath(absPath$2);
-              if (!desiredDirs!.Covered(dir$5) && $execute_watchmanager.CanWatchDirectory(dir$5)) {
-                desiredDirs!.Set(dir$5, false);
+              const dir$3: string = $tspath.GetDirectoryPath(absPath$1);
+              if (!$execute_watchmanager.IsDirCoveredByWatch(desiredDirs, dir$3, o!.comparePathsOptions)) {
+                if ($execute_watchmanager.CanWatchDirectory(dir$3)) {
+                  desiredDirs!.set(dir$3, false);
+                }
               }
             }
           }
-          let $t15 = false;
-          let $t16: Map<string, boolean> | undefined = undefined as Map<string, boolean> | undefined;
+          let $t16 = false;
+          let $t17: Map<string, boolean> | undefined = undefined as Map<string, boolean> | undefined;
           bi!.buildInfo!.GetPackageJsons(buildInfoDir)!((packageJson: string): boolean => {
             o!.addPackageJsonWatchDirs(desiredDirs, packageJson);
             return true;
           });
-          let $t17 = false;
-          let $t18: Map<string, boolean> | undefined = undefined as Map<string, boolean> | undefined;
+          let $t18 = false;
+          let $t19: Map<string, boolean> | undefined = undefined as Map<string, boolean> | undefined;
           bi!.buildInfo!.GetMissingPackageJsons(buildInfoDir)!((packageJson$1: string): boolean => {
             o!.addPackageJsonWatchDirs(desiredDirs, packageJson$1);
             return true;
           });
         }
         {
-          const $t19 = task!.packageJsons;
-          for (let $t20 = 0, $n = $t19.length; $t20 < $n; $t20++) {
-            const packageJson$2 = $t19[$t20];
+          const $t20 = task!.packageJsons;
+          for (let $t21 = 0, $n = $t20.length; $t21 < $n; $t21++) {
+            const packageJson$2 = $t20[$t21];
             o!.addPackageJsonWatchDirs(desiredDirs, packageJson$2);
           }
         }
       }
     }
-    return o!.wm!.ResolveDesiredDirs(desiredDirs!.Dirs());
+    return o!.wm!.ResolveDesiredDirs(desiredDirs);
   }
-  addWatchDir(desiredDirs: $execute_watchmanager.DirWatchSet | undefined, dir: string): void {
+  addWatchDir(desiredDirs: Map<string, boolean> | undefined, dir: string): void {
     const o = this;
-    if (!desiredDirs!.Covered(dir) && $execute_watchmanager.CanWatchDirectory(dir)) {
-      desiredDirs!.Set(dir, false);
+    if (
+      !$execute_watchmanager.IsDirCoveredByWatch(desiredDirs, dir, o!.comparePathsOptions) &&
+      $execute_watchmanager.CanWatchDirectory(dir)
+    ) {
+      desiredDirs!.set(dir, false);
     }
   }
-  addPackageJsonWatchDirs(desiredDirs: $execute_watchmanager.DirWatchSet | undefined, packageJson: string): void {
+  addPackageJsonWatchDirs(desiredDirs: Map<string, boolean> | undefined, packageJson: string): void {
     const o = this;
     const dir: string = $tspath.GetDirectoryPath(packageJson);
     let dirs: string[] = [dir];
@@ -2322,27 +2122,12 @@ export class Orchestrator extends $rt.GoObject {
     }
     task!.report(o, path, buildResult);
   }
-  getWriter(
-    task: BuildTask | undefined,
-  ):
-    | $ipc.stdioConn
-    | $contentmapper.closeOnceReadWriteCloser
-    | $contentmapper.loggedProcess
-    | $contentmapper.stderrLogger
-    | $checkhost.hostWriter
-    | undefined {
+  getWriter(task: BuildTask | undefined): $checkhost.hostWriter | undefined {
     const o = this;
     if (task === undefined) {
       return o!.opts.Sys!.Writer$m();
     }
-    return $rt.unsupportedConversion<
-      | $ipc.stdioConn
-      | $contentmapper.closeOnceReadWriteCloser
-      | $contentmapper.loggedProcess
-      | $contentmapper.stderrLogger
-      | $checkhost.hostWriter
-      | undefined
-    >('$rt.strings_Builder | undefined');
+    return $rt.unsupportedConversion<$checkhost.hostWriter | undefined>('$rt.strings_Builder | undefined');
   }
   createBuilderStatusReporter(task: BuildTask | undefined): $execute_tsc.DiagnosticReporter {
     const o = this;
@@ -2415,26 +2200,22 @@ export class buildInfoEntry extends $rt.GoObject {
 export class compilerHost extends $rt.GoObject {
   host_: host | undefined = undefined;
   trace: ((p0: $diagnostics.Message | undefined, p1: ($rt.GoObject | undefined)[]) => void) | undefined = undefined;
-  contentMapperProject: $contentmapper.Project = undefined;
   $copy_execute_build_compilerHost(src: compilerHost): void {
     this.host_ = src.host_;
     this.trace = src.trace;
-    this.contentMapperProject = src.contentMapperProject;
   }
   $clone_execute_build_compilerHost(): compilerHost {
     const o = new compilerHost();
     o.$copy_execute_build_compilerHost(this);
     return o;
   }
-  static $lit_execute_build_compilerHost_0_1_2(
+  static $lit_execute_build_compilerHost_0_1(
     p0: host | undefined,
     p1: ((p0: $diagnostics.Message | undefined, p1: ($rt.GoObject | undefined)[]) => void) | undefined,
-    p2: $contentmapper.Project,
   ): compilerHost {
     const o = new compilerHost();
     o.host_ = p0;
     o.trace = p1;
-    o.contentMapperProject = p2;
     return o;
   }
   static $cast_execute_build_compilerHost(v: $rt.GoObject | undefined): compilerHost {
@@ -2460,39 +2241,6 @@ export class compilerHost extends $rt.GoObject {
   GetSourceFile(opts: $ast.SourceFileParseOptions): $ast.SourceFile | undefined {
     const h = this;
     return h!.host_!.GetSourceFile(opts);
-  }
-  GetContentMappedSourceFiles(
-    parseOptions: $ast.SourceFileParseOptions,
-    mapper: $contentmapper.Mapper | undefined,
-  ): [$contentmapper.SourceFiles, $rt.GoObject | undefined] {
-    const h = this;
-    if (h!.contentMapperProject === undefined) {
-      return [new $contentmapper.SourceFiles(), $contentmapper.ErrProjectUnavailable];
-    }
-    const $t1 = $rt.nn(h!.FS$m()).ReadFile(parseOptions.FileName);
-    const content: string = $t1[0];
-    const ok: boolean = $t1[1];
-    if (!ok) {
-      return [new $contentmapper.SourceFiles(), undefined];
-    }
-    const $t2 = $contentmapper.TransformAndParse(parseOptions, content, mapper, h!.contentMapperProject);
-    const files: $contentmapper.SourceFiles = $t2[0];
-    let err: $rt.GoObject | undefined = $t2[1];
-    if (err === undefined) {
-      err = $contentmapper.CheckSupplementalFileNameCollisions(
-        files,
-        (
-          ($t3: $vfs.FS) =>
-          (a0: string): boolean =>
-            $rt.nn($t3).FileExists(a0)
-        )(h!.FS$m()),
-      );
-    }
-    return [files.$clone_contentmapper_SourceFiles(), err];
-  }
-  ContentMapperProject(): $contentmapper.Project {
-    const h = this;
-    return h!.contentMapperProject;
   }
   GetResolvedProjectReference(fileName: string, path: $tspath.Path): $tsoptions.ParsedCommandLine | undefined {
     const h = this;
@@ -2586,14 +2334,14 @@ export class host extends $rt.GoObject {
   Trace(msg: $diagnostics.Message | undefined, args: ($rt.GoObject | undefined)[]): void {
     const h = this;
     throw $rt.newPanic(
-      new $rt.BoxStr('build.Orchestrator.host does not support tracing; use a different host for tracing', 'string'),
+      new $rt.BoxStr('build.Orchestrator.host does not support tracing, use a different host for tracing', 'string'),
     );
   }
   GetSourceFile(opts: $ast.SourceFileParseOptions): $ast.SourceFile | undefined {
     const h = this;
     if ($tspath.IsDeclarationFileName(opts.FileName) || $tspath.FileExtensionIs(opts.FileName, '.json')) {
       return h!.sourceFiles.loadOrStore(
-        opts.$clone_ast_SourceFileParseOptions(),
+        opts,
         (
           ($t1: $compiler.CompilerHost) =>
           (a0: $ast.SourceFileParseOptions): $ast.SourceFile | undefined =>
@@ -2602,23 +2350,7 @@ export class host extends $rt.GoObject {
         false,
       );
     }
-    return $rt.nn(h!.host).GetSourceFile(opts.$clone_ast_SourceFileParseOptions());
-  }
-  GetContentMappedSourceFiles(
-    parseOptions: $ast.SourceFileParseOptions,
-    mapper: $contentmapper.Mapper | undefined,
-  ): [$contentmapper.SourceFiles, $rt.GoObject | undefined] {
-    const h = this;
-    return [new $contentmapper.SourceFiles(), $contentmapper.ErrProjectUnavailable];
-  }
-  ContentMapperProject(): $contentmapper.Project {
-    const h = this;
-    throw $rt.newPanic(
-      new $rt.BoxStr(
-        "build.Orchestrator.host does not support content mapper project; use an individual project's compiler host instead",
-        'string',
-      ),
-    );
+    return $rt.nn(h!.host).GetSourceFile(opts);
   }
   GetResolvedProjectReference(fileName: string, path: $tspath.Path): $tsoptions.ParsedCommandLine | undefined {
     const h = this;
@@ -2732,12 +2464,12 @@ export class host extends $rt.GoObject {
   }
 }
 export class inputOutputFileAndTime extends $rt.GoObject {
-  input: fileAndTime = fileAndTime$zero;
-  output: fileAndTime = fileAndTime$zero;
+  input: fileAndTime = new fileAndTime();
+  output: fileAndTime = new fileAndTime();
   buildInfo: string = '';
   $copy_execute_build_inputOutputFileAndTime(src: inputOutputFileAndTime): void {
-    this.input = src.input;
-    this.output = src.output;
+    this.input = src.input.$clone_execute_build_fileAndTime();
+    this.output = src.output.$clone_execute_build_fileAndTime();
     this.buildInfo = src.buildInfo;
   }
   $equals_execute_build_inputOutputFileAndTime(o: inputOutputFileAndTime): boolean {
@@ -3143,8 +2875,6 @@ export class upstreamTask extends $rt.GoObject {
   }
 }
 export const Options$zero: Options = new Options();
-export const fileAndTime$zero: fileAndTime = new fileAndTime();
-export const inputOutputFileAndTime$zero: inputOutputFileAndTime = new inputOutputFileAndTime();
 export const inputOutputName$zero: inputOutputName = new inputOutputName();
 export const upstreamErrors$zero: upstreamErrors = new upstreamErrors();
 export const upstreamTask$zero: upstreamTask = new upstreamTask();
@@ -3181,40 +2911,6 @@ const $fn3 = (path$1: $tspath.Path, task$1: BuildTask | undefined): void => {
   task$1!.reportDone = new $rt.Chan<$rt.Empty>(0, $rt.EMPTY);
   task$1!.done = new $rt.Chan<$rt.Empty>(0, $rt.EMPTY);
 };
-export function isContentMapperSupplementalBuildInfoPath(
-  inputPath: $tspath.Path,
-  roots: ((p0: ((p0: $tspath.Path) => boolean) | undefined) => void) | undefined,
-): boolean {
-  let $t1 = false;
-  let $t2: boolean = false;
-  roots!((root: $tspath.Path): boolean => {
-    const $t3 = $rt.strings_CutPrefix(inputPath, root + '.');
-    const suffix: string = $t3[0];
-    let ok: boolean = $t3[1];
-    if (!ok) {
-      return true;
-    }
-    const $t4 = $rt.strings_Cut(suffix, '.');
-    const index: string = $t4[0];
-    const extension: string = $t4[1];
-    ok = $t4[2];
-    if (!ok || extension === ('' as string)) {
-      return true;
-    }
-    {
-      const $t5 = $rt.strconv_Atoi(index);
-      const err: $rt.GoObject | undefined = $t5[1];
-      if (err === undefined && $contentmapper.IsSupportedVirtualExtension('.' + extension)) {
-        $t2 = true;
-        $t1 = true;
-        return false;
-      }
-    }
-    return true;
-  });
-  if ($t1) return $t2;
-  return false;
-}
 export function NewOrchestrator(opts: Options): Orchestrator | undefined {
   const wm: $execute_watchmanager.WatchManager | undefined = $execute_watchmanager.NewWatchManager(
     opts.Sys!.Writer$m(),
@@ -3224,7 +2920,7 @@ export function NewOrchestrator(opts: Options): Orchestrator | undefined {
         $rt.nn($t1).DirectoryExists(a0)
     )(opts.Sys!.FS$m()),
   );
-  const orchestrator: Orchestrator | undefined = Orchestrator.$lit_execute_build_Orchestrator_0_1_4_9(
+  const orchestrator: Orchestrator | undefined = Orchestrator.$lit_execute_build_Orchestrator_0_1_3_8(
     opts,
     $tspath.ComparePathsOptions.$lit_tspath_ComparePathsOptions_1_0(
       opts.Sys!.GetCurrentDirectory(),
@@ -3239,7 +2935,6 @@ export function NewOrchestrator(opts: Options): Orchestrator | undefined {
       orchestrator!.opts.Sys!.GetCurrentDirectory(),
       orchestrator!.opts.Sys!.FS$m(),
       orchestrator!.opts.Sys!.DefaultLibraryPath(),
-      undefined,
       undefined,
       undefined,
     ),

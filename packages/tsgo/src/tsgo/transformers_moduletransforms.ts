@@ -1250,11 +1250,7 @@ export class CommonJSModuleTransformer extends $transformers.Transformer {
         .Factory()!
         .UpdateFunctionDeclaration(
           node,
-          $transformers.ExtractModifiers(
-            tx!.EmitContext$m(),
-            node!.ModifiersBase_.Modifiers$ModifiersBase(),
-            4294965215,
-          ),
+          $transformers.ExtractModifiers(tx!.EmitContext$m(), node!.ModifiersBase_.Modifiers(), 4294965215),
           node!.FunctionLikeWithBodyBase_.BodyBase_.AsteriskToken,
           tx!.Factory()!.GetDeclarationName(node!.AsNode()),
           undefined,
@@ -1281,7 +1277,7 @@ export class CommonJSModuleTransformer extends $transformers.Transformer {
               .VisitModifiers(
                 $transformers.ExtractModifiers(
                   tx!.EmitContext$m(),
-                  node!.ClassLikeBase_.ModifiersBase_.Modifiers$ModifiersBase(),
+                  node!.ClassLikeBase_.ModifiersBase_.Modifiers(),
                   4294965215,
                 ),
               ),
@@ -1361,7 +1357,7 @@ export class CommonJSModuleTransformer extends $transformers.Transformer {
             if (modifiers === undefined) {
               modifiers = $transformers.ExtractModifiers(
                 tx!.EmitContext$m(),
-                node!.ModifiersBase_.Modifiers$ModifiersBase(),
+                node!.ModifiersBase_.Modifiers(),
                 4294965215,
               );
             }
@@ -2291,7 +2287,7 @@ export class CommonJSModuleTransformer extends $transformers.Transformer {
     const expression: $ast.Node | undefined = tx!.Visitor()!.VisitNode(node!.Expression_);
     let argumentsList: $ast.NodeList | undefined = node!.Arguments_;
     if (node!.Arguments_!.Nodes.length > 0) {
-      let firstArgument: $ast.Node | undefined = tx!.Visitor()!.VisitNode(node!.Arguments_!.Nodes[0]);
+      let firstArgument: $ast.Node | undefined = node!.Arguments_!.Nodes[0];
       let firstArgumentChanged: boolean = false;
       if ($ast.IsStringLiteralLike(firstArgument)) {
         const rewritten: $ast.Node | undefined = rewriteModuleSpecifier(
@@ -3501,7 +3497,7 @@ export function createExternalHelpersImportDeclarationIfNeeded(
           $zf0,
           helperNames,
           (name_: string): $ast.Node | undefined => {
-            if (emitContext!.IsFileLevelUniqueName(sourceFile, name_, undefined)) {
+            if ($printer.IsFileLevelUniqueName(sourceFile, name_, undefined)) {
               return emitContext!.Factory!.NewImportSpecifier(
                 false,
                 undefined,

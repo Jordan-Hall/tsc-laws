@@ -13,40 +13,6 @@ export type OutputPathsHost =
   | $compiler.emitHost
   | $checkhost.Program
   | undefined;
-export class ForceEmitPaths extends $rt.GoObject {
-  Dts: boolean = false;
-  Js: boolean = false;
-  DeclarationMap: boolean = false;
-  $copy_outputpaths_ForceEmitPaths(src: ForceEmitPaths): void {
-    this.Dts = src.Dts;
-    this.Js = src.Js;
-    this.DeclarationMap = src.DeclarationMap;
-  }
-  $equals_outputpaths_ForceEmitPaths(o: ForceEmitPaths): boolean {
-    return this.Dts === o.Dts && this.Js === o.Js && this.DeclarationMap === o.DeclarationMap;
-  }
-  $clone_outputpaths_ForceEmitPaths(): ForceEmitPaths {
-    const o = new ForceEmitPaths();
-    o.$copy_outputpaths_ForceEmitPaths(this);
-    return o;
-  }
-  static $lit_outputpaths_ForceEmitPaths_0(p0: boolean): ForceEmitPaths {
-    const o = new ForceEmitPaths();
-    o.Dts = p0;
-    return o;
-  }
-  static $lit_outputpaths_ForceEmitPaths_0_1_2(p0: boolean, p1: boolean, p2: boolean): ForceEmitPaths {
-    const o = new ForceEmitPaths();
-    o.Dts = p0;
-    o.Js = p1;
-    o.DeclarationMap = p2;
-    return o;
-  }
-  static $cast_outputpaths_ForceEmitPaths(v: $rt.GoObject | undefined): ForceEmitPaths {
-    if (v instanceof ForceEmitPaths) return v;
-    throw $rt.typeAssertError();
-  }
-}
 export class OutputPaths extends $rt.GoObject {
   jsFilePath: string = '';
   sourceMapFilePath: string = '';
@@ -92,7 +58,6 @@ export class OutputPaths extends $rt.GoObject {
     return o!.declarationMapPath;
   }
 }
-export const ForceEmitPaths$zero: ForceEmitPaths = new ForceEmitPaths();
 export function computeCommonSourceDirectoryOfFilenames(
   fileNames: string[],
   currentDirectory: string,
@@ -183,7 +148,7 @@ export function GetOutputPathsFor(
   sourceFile: $ast.SourceFile | undefined,
   options: $core.CompilerOptions | undefined,
   host: OutputPathsHost,
-  force: ForceEmitPaths,
+  forceDtsEmit: boolean,
 ): OutputPaths | undefined {
   const ownOutputFilePath: string = getOwnEmitOutputFilePath(
     sourceFile!.FileName(),
@@ -203,23 +168,15 @@ export function GetOutputPathsFor(
       ),
     ) === (0 as number);
   const paths: OutputPaths | undefined = new OutputPaths();
-  if (
-    sourceFile!.ContentMapper() === ('' as string) &&
-    (force.Js || !(options!.EmitDeclarationOnly === (2 as number))) &&
-    !isJsonEmittedToSameLocation
-  ) {
+  if (!(options!.EmitDeclarationOnly === (2 as number)) && !isJsonEmittedToSameLocation) {
     paths!.jsFilePath = ownOutputFilePath;
     if (!$ast.IsJsonSourceFile(sourceFile)) {
       paths!.sourceMapFilePath = GetSourceMapFilePath(paths!.jsFilePath, options);
     }
   }
-  if (force.Dts || (options!.GetEmitDeclarations() && !isJsonFile)) {
+  if (forceDtsEmit || (options!.GetEmitDeclarations() && !isJsonFile)) {
     paths!.declarationFilePath = GetDeclarationEmitOutputFilePath(sourceFile!.FileName(), options, host);
-    if (
-      sourceFile!.ContentMapper() === ('' as string) &&
-      (options!.GetAreDeclarationMapsEnabled() ||
-        (force.DeclarationMap && $core.Tristate$IsTrue(options!.DeclarationMap)))
-    ) {
+    if (options!.GetAreDeclarationMapsEnabled()) {
       paths!.declarationMapPath = paths!.declarationFilePath + '.map';
     }
   }
@@ -236,12 +193,7 @@ export function ForEachEmittedFile(
     const $t1 = sourceFiles;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
       const sourceFile = $t1[$t2];
-      if (
-        action!(
-          GetOutputPathsFor(sourceFile, options, host, ForceEmitPaths.$lit_outputpaths_ForceEmitPaths_0(forceDtsEmit)),
-          sourceFile,
-        )
-      ) {
+      if (action!(GetOutputPathsFor(sourceFile, options, host, forceDtsEmit), sourceFile)) {
         return true;
       }
     }
@@ -253,7 +205,7 @@ export function GetOutputJSFileName(
   options: $core.CompilerOptions | undefined,
   host: OutputPathsHost,
 ): string {
-  if ($core.Tristate$IsTrue(options!.EmitDeclarationOnly) || isContentMappedFileName(inputFileName, host)) {
+  if ($core.Tristate$IsTrue(options!.EmitDeclarationOnly)) {
     return '';
   }
   const outputFileName: string = GetOutputJSFileNameWorker(inputFileName, options, host);
@@ -274,15 +226,6 @@ export function GetOutputJSFileName(
   }
   return '';
 }
-export function isContentMappedFileName(fileName: string, host: OutputPathsHost): boolean {
-  return !(
-    $tspath.GetLongestExtensionFromPath(
-      fileName,
-      $rt.nn(host).ContentMapperExtensions(),
-      !$rt.nn(host).UseCaseSensitiveFileNames(),
-    ) === ('' as string)
-  );
-}
 export function GetOutputJSFileNameWorker(
   inputFileName: string,
   options: $core.CompilerOptions | undefined,
@@ -302,7 +245,10 @@ export function GetOutputDeclarationFileNameWorker(
   if (dir.length === (0 as number)) {
     dir = options!.OutDir;
   }
-  return ChangeToDeclarationExtension(getOutputPathWithoutChangingExtension(inputFileName, dir, host), host);
+  return $tspath.ChangeExtension(
+    getOutputPathWithoutChangingExtension(inputFileName, dir, host),
+    $tspath.GetDeclarationEmitExtensionForPath(inputFileName),
+  );
 }
 export function GetOutputExtension(fileName: string, jsx: $core.JsxEmit): string {
   {
@@ -356,25 +302,8 @@ export function GetDeclarationEmitOutputFilePath(
   } else {
     path = file;
   }
-  return ChangeToDeclarationExtension(path, host);
-}
-export function ChangeToDeclarationExtension(path: string, host: OutputPathsHost): string {
-  {
-    const extension: string = $tspath.GetLongestExtensionFromPath(path, $rt.nn(host).ContentMapperExtensions(), false);
-    if (!(extension === ('' as string))) {
-      return $tspath.RemoveExtension(path, extension) + '.d' + extension + '.ts';
-    }
-  }
-  let pathWithoutExtension: string = $tspath.RemoveFileExtension(path);
-  if (pathWithoutExtension === path) {
-    {
-      const extension$1: string = $tspath.GetAnyExtensionFromPath(path, [], false);
-      if (!(extension$1 === ('' as string))) {
-        pathWithoutExtension = $tspath.RemoveExtension(path, extension$1);
-      }
-    }
-  }
-  return pathWithoutExtension + $tspath.GetDeclarationEmitExtensionForPath(path);
+  const declarationExtension: string = $tspath.GetDeclarationEmitExtensionForPath(path);
+  return $tspath.RemoveFileExtension(path) + declarationExtension;
 }
 export function GetSourceFilePathInNewDir(
   fileName: string,
@@ -383,13 +312,17 @@ export function GetSourceFilePathInNewDir(
   commonSourceDirectory: string,
   useCaseSensitiveFileNames: boolean,
 ): string {
-  return GetSourceFilePathInNewDirWorker(
-    fileName,
-    newDirPath,
-    currentDirectory,
+  let sourceFilePath: string = $tspath.GetNormalizedAbsolutePath(fileName, currentDirectory);
+  commonSourceDirectory = $tspath.EnsureTrailingDirectorySeparator(commonSourceDirectory);
+  const isSourceFileInCommonSourceDirectory: boolean = $tspath.ContainsPath(
     commonSourceDirectory,
-    useCaseSensitiveFileNames,
+    sourceFilePath,
+    $tspath.ComparePathsOptions.$lit_tspath_ComparePathsOptions_0_1(useCaseSensitiveFileNames, currentDirectory),
   );
+  if (isSourceFileInCommonSourceDirectory) {
+    sourceFilePath = sourceFilePath.substring(commonSourceDirectory.length);
+  }
+  return $tspath.CombinePaths(newDirPath, [sourceFilePath]);
 }
 export function getOutputPathWithoutChangingExtension(
   inputFileName: string,
@@ -418,13 +351,11 @@ export function GetSourceFilePathInNewDirWorker(
   useCaseSensitiveFileNames: boolean,
 ): string {
   let sourceFilePath: string = $tspath.GetNormalizedAbsolutePath(fileName, currentDirectory);
-  {
-    const $t1 = $tspath.TrimFilePathPrefix(sourceFilePath, commonSourceDirectory, useCaseSensitiveFileNames);
-    const trimmed: string = $t1[0];
-    const ok: boolean = $t1[1];
-    if (ok) {
-      sourceFilePath = trimmed;
-    }
+  const commonDir: string = $tspath.GetCanonicalFileName(commonSourceDirectory, useCaseSensitiveFileNames);
+  const canonFile: string = $tspath.GetCanonicalFileName(sourceFilePath, useCaseSensitiveFileNames);
+  const isSourceFileInCommonSourceDirectory: boolean = $rt.strings_HasPrefix(canonFile, commonDir);
+  if (isSourceFileInCommonSourceDirectory) {
+    sourceFilePath = sourceFilePath.substring(commonSourceDirectory.length);
   }
   return $tspath.CombinePaths(newDirPath, [sourceFilePath]);
 }

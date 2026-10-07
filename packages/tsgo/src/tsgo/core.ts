@@ -526,7 +526,6 @@ export class CompilerOptions extends $rt.GoObject {
   Build: Tristate = 0;
   Help: Tristate = 0;
   All: Tristate = 0;
-  RunExternalCode: Tristate = 0;
   PprofDir: string = '';
   SingleThreaded: Tristate = 0;
   Quiet: Tristate = 0;
@@ -659,7 +658,6 @@ export class CompilerOptions extends $rt.GoObject {
     this.Build = src.Build;
     this.Help = src.Help;
     this.All = src.All;
-    this.RunExternalCode = src.RunExternalCode;
     this.PprofDir = src.PprofDir;
     this.SingleThreaded = src.SingleThreaded;
     this.Quiet = src.Quiet;
@@ -965,86 +963,46 @@ export class LimitedSemaphore extends $rt.GoObject {
     return [release, acquired];
   }
 }
-export class PagedLinkStore<V> extends $rt.GoObject {
-  $z_V: () => V;
-  pageMap: Map<number, V[] | undefined> | undefined;
-  pageList: (V[] | undefined)[];
-  constructor($z_V: () => V) {
-    super();
-    this.$z_V = $z_V;
-    this.pageMap = undefined;
-    this.pageList = [];
+export class ParsedOptions extends $rt.GoObject {
+  CompilerOptions_: CompilerOptions | undefined = undefined;
+  WatchOptions_: WatchOptions | undefined = undefined;
+  TypeAcquisition_: TypeAcquisition | undefined = undefined;
+  FileNames: string[] = [];
+  ProjectReferences: (ProjectReference | undefined)[] = [];
+  $copy_core_ParsedOptions(src: ParsedOptions): void {
+    this.CompilerOptions_ = src.CompilerOptions_;
+    this.WatchOptions_ = src.WatchOptions_;
+    this.TypeAcquisition_ = src.TypeAcquisition_;
+    this.FileNames = src.FileNames;
+    this.ProjectReferences = src.ProjectReferences;
   }
-  $copy_core_PagedLinkStore(src: PagedLinkStore<V>): void {
-    this.pageMap = src.pageMap;
-    this.pageList = src.pageList;
-  }
-  $clone_core_PagedLinkStore(): PagedLinkStore<V> {
-    const o = new PagedLinkStore<V>(this.$z_V);
-    o.$copy_core_PagedLinkStore(this);
+  $clone_core_ParsedOptions(): ParsedOptions {
+    const o = new ParsedOptions();
+    o.$copy_core_ParsedOptions(this);
     return o;
   }
-  Get(key$v: number): $rt.Ptr<V> | undefined {
-    const s = this;
-    let page: V[] | undefined = undefined as V[] | undefined;
-    const pageIndex: number = $rt.shr64(key$v, 8);
-    if (pageIndex < 65536) {
-      if (pageIndex >= s!.pageList.length) {
-        s!.pageList = $rt.reslice(
-          $rt.slices_Grow(s!.pageList, pageIndex - s!.pageList.length + 1),
-          0,
-          pageIndex + 1,
-          undefined,
-        );
-      }
-      page = s!.pageList[pageIndex];
-      if (page === undefined) {
-        page = $rt.makeArray(256, () => this.$z_V());
-        s!.pageList[pageIndex] = page;
-      }
-    } else {
-      page = s!.pageMap?.get(pageIndex) ?? undefined;
-      if (page === undefined) {
-        page = $rt.makeArray(256, () => this.$z_V());
-        if (s!.pageMap === undefined) {
-          s!.pageMap = new Map<number, V[] | undefined>();
-        }
-        s!.pageMap!.set(pageIndex, page);
-      }
-    }
-    return (($t1: V[], $t2: number) =>
-      $rt.ptrTo<V>(
-        (): V => $t1[$t2],
-        (v: V): void => {
-          $t1[$t2] = v;
-        },
-      ))(page, $rt.and64(key$v, 255));
+  static $lit_core_ParsedOptions_0_2_3_4(
+    p0: CompilerOptions | undefined,
+    p1: TypeAcquisition | undefined,
+    p2: string[],
+    p3: (ProjectReference | undefined)[],
+  ): ParsedOptions {
+    const o = new ParsedOptions();
+    o.CompilerOptions_ = p0;
+    o.TypeAcquisition_ = p1;
+    o.FileNames = p2;
+    o.ProjectReferences = p3;
+    return o;
   }
-  Has(key$v: number): boolean {
-    const s = this;
-    return !(s!.TryGet(key$v) === undefined);
+  static $lit_core_ParsedOptions_0_3(p0: CompilerOptions | undefined, p1: string[]): ParsedOptions {
+    const o = new ParsedOptions();
+    o.CompilerOptions_ = p0;
+    o.FileNames = p1;
+    return o;
   }
-  TryGet(key$v: number): $rt.Ptr<V> | undefined {
-    const s = this;
-    let page: V[] | undefined = undefined as V[] | undefined;
-    const pageIndex: number = $rt.shr64(key$v, 8);
-    if (pageIndex < 65536) {
-      if (pageIndex < s!.pageList.length) {
-        page = s!.pageList[pageIndex];
-      }
-    } else {
-      page = s!.pageMap?.get(pageIndex) ?? undefined;
-    }
-    if (!(page === undefined)) {
-      return (($t1: V[], $t2: number) =>
-        $rt.ptrTo<V>(
-          (): V => $t1[$t2],
-          (v: V): void => {
-            $t1[$t2] = v;
-          },
-        ))(page, $rt.and64(key$v, 255));
-    }
-    return undefined;
+  static $cast_core_ParsedOptions(v: $rt.GoObject | undefined): ParsedOptions {
+    if (v instanceof ParsedOptions) return v;
+    throw $rt.typeAssertError();
   }
 }
 export class Pattern extends $rt.GoObject {
@@ -1610,7 +1568,6 @@ export class BreadthFirstSearchParallelEx$result<K, N> extends $rt.GoObject {
     return o;
   }
 }
-export const TextChange$zero: TextChange = new TextChange();
 export const UnlimitedSemaphore$zero: UnlimitedSemaphore = new UnlimitedSemaphore();
 export const noCopy$zero: noCopy = new noCopy();
 export const CheckerLifetimeAPI: CheckerLifetime = 2;
@@ -1659,6 +1616,8 @@ export const PollingKindPriorityInterval: PollingKind = 2;
 export const ResolutionModeCommonJS: ModuleKind = 1;
 export const ResolutionModeESM: ModuleKind = 99;
 export const ResolutionModeNone: ModuleKind = 0;
+export const ScriptKindDeferred: ScriptKind = 7;
+export const ScriptKindExternal: ScriptKind = 5;
 export const ScriptKindJS: ScriptKind = 1;
 export const ScriptKindJSON: ScriptKind = 6;
 export const ScriptKindJSX: ScriptKind = 2;
@@ -1701,16 +1660,12 @@ export const _LanguageVariant_name: string = 'LanguageVariantStandardLanguageVar
 export const _ModuleKind_name_0: string = 'NoneCommonJSAMDUMDSystemES2015ES2020ES2022';
 export const _ModuleKind_name_1: string = 'ESNextNode16Node18Node20';
 export const _ModuleKind_name_2: string = 'NodeNextPreserve';
-export const _ScriptKind_name_0: string = 'ScriptKindUnknownScriptKindJSScriptKindJSXScriptKindTSScriptKindTSX';
-export const _ScriptKind_name_1: string = 'ScriptKindJSON';
+export const _ScriptKind_name: string =
+  'ScriptKindUnknownScriptKindJSScriptKindJSXScriptKindTSScriptKindTSXScriptKindExternalScriptKindJSONScriptKindDeferred';
 export const _ScriptTarget_name_0: string = 'NoneES5ES2015ES2016ES2017ES2018ES2019ES2020ES2021ES2022ES2023ES2024ES2025';
 export const _ScriptTarget_name_1: string = 'ESNextJSON';
 export const _Tristate_name: string = 'TSUnknownTSFalseTSTrue';
 export const checkerLifetimeKey: key = 1;
-export const maxPageCount: number = 65536;
-export const pageMask: number = 255;
-export const pageShift: number = 8;
-export const pageSize: number = 256;
 export const requestIDKey: key = 0;
 export const textRangeScale: number = 134217728;
 const $fn0 = (): $rt.GoObject | undefined => {
@@ -1820,11 +1775,11 @@ export let ExclusivelyPrefixedNodeCoreModules: Map<string, boolean> | undefined 
   ['node:test/reporters', true],
 ]);
 export let NodeCoreModules: (() => Map<string, boolean> | undefined) | undefined = $rt.sync_OnceValue($fn1);
-export let _ScriptKind_index_0: number[] = [0, 17, 29, 42, 54, 67];
+export let _ScriptKind_index: number[] = [0, 17, 29, 42, 54, 67, 85, 99, 117];
 export let _ScriptTarget_index_0: number[] = [0, 4, 7, 13, 19, 25, 31, 37, 43, 49, 55, 61, 67, 73];
 export let _ScriptTarget_index_1: number[] = [0, 6, 10];
 export let _Tristate_index: number[] = [0, 9, 16, 22];
-export let version: string = '7.1.0-dev';
+export let version: string = '7.0.2';
 export let versionMajorMinor: string = $fn2();
 export function nextArenaSize(size: number): number {
   size = Math.max(size, 1);
@@ -2806,62 +2761,12 @@ export function GetScriptKindFromFileName(fileName: string): ScriptKind {
   }
   return 0;
 }
-export function GetDefaultExtensionForScriptKind(scriptKind: ScriptKind): string {
-  {
-    switch (scriptKind) {
-      case 1 as number: {
-        return '.js';
-      }
-      case 2 as number: {
-        return '.jsx';
-      }
-      case 4 as number: {
-        return '.tsx';
-      }
-      case 6 as number: {
-        return '.json';
-      }
-      default: {
-        return '.ts';
-      }
-    }
-  }
-}
-export function EnsureScriptKindFromFileName(fileName: string): ScriptKind {
-  {
-    const kind: ScriptKind = GetScriptKindFromFileName(fileName);
-    if (!(kind === (0 as number))) {
-      return kind;
-    }
-  }
-  return 3;
-}
 export function GetSpellingSuggestion<T>(
   $z_T: () => T,
   name_: string,
   candidates: ((p0: ((p0: T) => boolean) | undefined) => void) | undefined,
   getName: ((p0: T) => string) | undefined,
   compare: ((p0: T, p1: T) => number) | undefined,
-): T {
-  return getSpellingSuggestion<T>($z_T, name_, candidates, getName, compare, 0);
-}
-export function GetSpellingSuggestionWithMaxCandidateCount<T>(
-  $z_T: () => T,
-  name_: string,
-  candidates: ((p0: ((p0: T) => boolean) | undefined) => void) | undefined,
-  getName: ((p0: T) => string) | undefined,
-  compare: ((p0: T, p1: T) => number) | undefined,
-  maxCandidates: number,
-): T {
-  return getSpellingSuggestion<T>($z_T, name_, candidates, getName, compare, maxCandidates);
-}
-export function getSpellingSuggestion<T>(
-  $z_T: () => T,
-  name_: string,
-  candidates: ((p0: ((p0: T) => boolean) | undefined) => void) | undefined,
-  getName: ((p0: T) => string) | undefined,
-  compare: ((p0: T, p1: T) => number) | undefined,
-  maxCandidates: number,
 ): T {
   let $t1: T = $z_T();
   const $defers: (() => void)[] = [];
@@ -2879,17 +2784,9 @@ export function getSpellingSuggestion<T>(
     });
     let bestCandidate: T = $z_T();
     let hasBest: boolean = false;
-    let checkedCandidates: number = 0;
     let $t5 = false;
     let $t6: T = $z_T();
     candidates!((candidate: T): boolean => {
-      checkedCandidates++;
-      if (maxCandidates > 0 && checkedCandidates > maxCandidates) {
-        const zero: T = $z_T();
-        $t6 = zero;
-        $t5 = true;
-        return false;
-      }
       const candidateName: string = getName!(candidate);
       const maxLen: number = Math.max(candidateName.length, runeName.length);
       const minLen: number = Math.min(candidateName.length, runeName.length);
@@ -2916,10 +2813,6 @@ export function getSpellingSuggestion<T>(
       }
       return true;
     });
-    if ($t5) {
-      $t1 = $t6;
-      break $body;
-    }
     $t1 = bestCandidate;
     break $body;
   } catch ($e) {
@@ -3041,7 +2934,7 @@ export function ShouldRewriteModuleSpecifier(specifier: string, compilerOptions:
     $tspath.HasTSFileExtension(specifier)
   );
 }
-export function SingleElementSlice<T extends $rt.GoObject>(element: T | undefined): (T | undefined)[] {
+export function SingleElementSlice<T>(element: $rt.Ptr<T> | undefined): ($rt.Ptr<T> | undefined)[] {
   if (element === undefined) {
     return [];
   }
@@ -3310,20 +3203,14 @@ export function ResolveConfigFileNameOfProjectReference(path: string): string {
   return $tspath.CombinePaths(path, ['tsconfig.json']);
 }
 export function ScriptKind$String(i: ScriptKind): string {
-  {
-    $sw1: {
-      if (0 <= i && i <= 4) {
-        return 'ScriptKindUnknownScriptKindJSScriptKindJSXScriptKindTSScriptKindTSX'.substring(
-          _ScriptKind_index_0[i],
-          _ScriptKind_index_0[(i + 1) | 0],
-        );
-      } else if (i === (6 as number)) {
-        return 'ScriptKindJSON';
-      } else {
-        return 'ScriptKind(' + $rt.strconv_FormatInt(i, 10) + ')';
-      }
-    }
+  const idx: number = i - 0;
+  if (i < 0 || idx >= 8) {
+    return 'ScriptKind(' + $rt.strconv_FormatInt(i, 10) + ')';
   }
+  return 'ScriptKindUnknownScriptKindJSScriptKindJSXScriptKindTSScriptKindTSXScriptKindExternalScriptKindJSONScriptKindDeferred'.substring(
+    _ScriptKind_index[idx],
+    _ScriptKind_index[idx + 1],
+  );
 }
 export function ScriptTarget$String(i: ScriptTarget): string {
   {
@@ -3440,7 +3327,7 @@ export function ApplyBulkEdits(text: string, edits: TextChange[]): string {
   {
     const $t1 = edits;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-      const e = $t1[$t2];
+      const e = $t1[$t2].$clone_core_TextChange();
       const start: number = TextRange$Pos(e.TextRange_);
       if (!(start === lastEnd)) {
         b.WriteString(text.substring(lastEnd, TextRange$Pos(e.TextRange_)));

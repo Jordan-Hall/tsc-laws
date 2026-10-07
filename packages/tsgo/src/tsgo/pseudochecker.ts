@@ -193,7 +193,6 @@ export class PseudoChecker extends $rt.GoObject {
     const init: $ast.Node | undefined = declaration!.Initializer_;
     if (
       !(init === undefined) &&
-      !(declaration!.DeclarationBase_.Symbol_ === undefined) &&
       (declaration!.DeclarationBase_.Symbol_!.Declarations.length === (1 as number) ||
         $core.CountWhere<$ast.Node | undefined>(
           declaration!.DeclarationBase_.Symbol_!.Declarations,
@@ -229,11 +228,13 @@ export class PseudoChecker extends $rt.GoObject {
       return NewPseudoTypeDirect(accessorType);
     }
     if (!(accessorDeclarations.GetAccessor === undefined)) {
-      let res: PseudoType | undefined = ch!.createReturnFromSignature(accessorDeclarations.GetAccessor!.AsNode());
+      let res: PseudoType | undefined = ch!.createReturnFromSignature(
+        accessorDeclarations.GetAccessor!.NodeBase_.AsNode(),
+      );
       if (res!.Kind === (1 as number) && res!.AsPseudoTypeInferred()!.ErrorNodes.length === (0 as number)) {
-        let errorNodes: ($ast.Node | undefined)[] = [accessorDeclarations.GetAccessor!.AsNode()];
+        let errorNodes: ($ast.Node | undefined)[] = [accessorDeclarations.GetAccessor!.NodeBase_.AsNode()];
         if (!(accessorDeclarations.SetAccessor === undefined)) {
-          errorNodes.push(accessorDeclarations.SetAccessor!.AsNode());
+          errorNodes.push(accessorDeclarations.SetAccessor!.NodeBase_.AsNode());
         }
         res = NewPseudoTypeInferredWithErrors(
           res!.AsPseudoTypeInferred()!.Expression,
@@ -269,16 +270,13 @@ export class PseudoChecker extends $rt.GoObject {
       return undefined;
     }
     if (node!.Kind_ === (178 as number)) {
-      return node!.AsGetAccessorDeclaration()!.FunctionLikeWithBodyBase_.Type;
+      return node!.AsGetAccessorDeclaration()!.Type;
     }
     const set_: $ast.SetAccessorDeclaration | undefined = node!.AsSetAccessorDeclaration();
-    if (
-      set_!.FunctionLikeWithBodyBase_.Parameters === undefined ||
-      set_!.FunctionLikeWithBodyBase_.Parameters!.Nodes.length < 1
-    ) {
+    if (set_!.Parameters === undefined || set_!.Parameters!.Nodes.length < 1) {
       return undefined;
     }
-    const p: $ast.Node | undefined = set_!.FunctionLikeWithBodyBase_.Parameters!.Nodes[0];
+    const p: $ast.Node | undefined = set_!.Parameters!.Nodes[0];
     if (!$ast.IsParameterDeclaration(p)) {
       return undefined;
     }
@@ -493,13 +491,10 @@ export class PseudoChecker extends $rt.GoObject {
     );
     if (
       !(allAccessors.GetAccessor === undefined) &&
-      !(allAccessors.GetAccessor!.FunctionLikeWithBodyBase_.Type === undefined) &&
+      !(allAccessors.GetAccessor!.Type === undefined) &&
       !(allAccessors.SetAccessor === undefined) &&
-      allAccessors.SetAccessor!.FunctionLikeWithBodyBase_.Parameters!.Nodes.length > 0 &&
-      !(
-        allAccessors.SetAccessor!.FunctionLikeWithBodyBase_.Parameters!.Nodes[0]!.AsParameterDeclaration()!.Type_ ===
-        undefined
-      )
+      allAccessors.SetAccessor!.Parameters!.Nodes.length > 0 &&
+      !(allAccessors.SetAccessor!.Parameters!.Nodes[0]!.AsParameterDeclaration()!.Type_ === undefined)
     ) {
       if ($ast.IsGetAccessorDeclaration(accessor_)) {
         return NewPseudoGetAccessor(accessor_, name_, false, ch!.typeFromAccessor(accessor_));
@@ -508,7 +503,7 @@ export class PseudoChecker extends $rt.GoObject {
           accessor_,
           name_,
           false,
-          ch!.cloneParameters(accessor_!.AsSetAccessorDeclaration()!.FunctionLikeWithBodyBase_.Parameters)[0],
+          ch!.cloneParameters(accessor_!.AsSetAccessorDeclaration()!.Parameters)[0],
         );
       }
     }
@@ -1320,21 +1315,7 @@ export class PseudoTypeUnion extends PseudoTypeBase {
     throw $rt.typeAssertError();
   }
 }
-export const PseudoGetAccessor$zero: PseudoGetAccessor = new PseudoGetAccessor();
-export const PseudoObjectMethod$zero: PseudoObjectMethod = new PseudoObjectMethod();
 export const PseudoParameter$zero: PseudoParameter = new PseudoParameter();
-export const PseudoPropertyAssignment$zero: PseudoPropertyAssignment = new PseudoPropertyAssignment();
-export const PseudoSetAccessor$zero: PseudoSetAccessor = new PseudoSetAccessor();
-export const PseudoTypeBase$zero: PseudoTypeBase = new PseudoTypeBase();
-export const PseudoTypeDirect$zero: PseudoTypeDirect = new PseudoTypeDirect();
-export const PseudoTypeInferred$zero: PseudoTypeInferred = new PseudoTypeInferred();
-export const PseudoTypeLiteral$zero: PseudoTypeLiteral = new PseudoTypeLiteral();
-export const PseudoTypeMaybeConstLocation$zero: PseudoTypeMaybeConstLocation = new PseudoTypeMaybeConstLocation();
-export const PseudoTypeNoResult$zero: PseudoTypeNoResult = new PseudoTypeNoResult();
-export const PseudoTypeObjectLiteral$zero: PseudoTypeObjectLiteral = new PseudoTypeObjectLiteral();
-export const PseudoTypeSingleCallSignature$zero: PseudoTypeSingleCallSignature = new PseudoTypeSingleCallSignature();
-export const PseudoTypeTuple$zero: PseudoTypeTuple = new PseudoTypeTuple();
-export const PseudoTypeUnion$zero: PseudoTypeUnion = new PseudoTypeUnion();
 export const PseudoObjectElementKindGetAccessor: PseudoObjectElementKind = 3;
 export const PseudoObjectElementKindMethod: PseudoObjectElementKind = 0;
 export const PseudoObjectElementKindPropertyAssignment: PseudoObjectElementKind = 1;

@@ -573,7 +573,7 @@ export class formatSpanWorker extends $rt.GoObject {
   ): number {
     const w = this;
     $debug.Assert(!$ast.NodeIsSynthesized(child), [] as ($rt.GoObject | undefined)[]);
-    if ($ast.NodeIsMissing(child) || !((child!.Flags & 8) === (0 as number))) {
+    if ($ast.NodeIsMissing(child) || isGrammarError(parent, child) || !((child!.Flags & 8) === (0 as number))) {
       return inheritedIndentation;
     }
     const childStartPos: number = $scanner.GetTokenPosOfNode(child, w!.sourceFile, false);
@@ -585,10 +585,8 @@ export class formatSpanWorker extends $rt.GoObject {
         getNonDecoratorTokenPosOfNode(child, w!.sourceFile),
       );
     }
-    const isErrorMemberListElement: boolean =
-      !((child!.Flags & 32768) === (0 as number)) && isMemberListElement(parent, child);
     let childIndentationAmount: number = -1;
-    if (!isErrorMemberListElement && isListItem && $core.TextRange$ContainedBy(parent!.Loc, w!.originalRange)) {
+    if (isListItem && $core.TextRange$ContainedBy(parent!.Loc, w!.originalRange)) {
       childIndentationAmount = w!.tryComputeIndentationForListItem(
         childStartPos,
         child!.End(),
@@ -662,22 +660,16 @@ export class formatSpanWorker extends $rt.GoObject {
     if (child!.Kind_ === (171 as number)) {
       effectiveParentStartLine = childStartLine;
     }
-    let childIndentation: number = 0;
-    let delta: number = 0;
-    if (isErrorMemberListElement) {
-      childIndentation = w!.getCurrentIndentationAtPosition(childStartPos);
-    } else {
-      const $t3 = w!.computeIndentation(
-        child,
-        childStartLine,
-        childIndentationAmount,
-        node,
-        parentDynamicIndentation,
-        effectiveParentStartLine,
-      );
-      childIndentation = $t3[0];
-      delta = $t3[1];
-    }
+    const $t3 = w!.computeIndentation(
+      child,
+      childStartLine,
+      childIndentationAmount,
+      node,
+      parentDynamicIndentation,
+      effectiveParentStartLine,
+    );
+    const childIndentation: number = $t3[0];
+    const delta: number = $t3[1];
     w!.processNode(child, w!.childContextNode, childStartLine, undecoratedChildStartLine, childIndentation, delta);
     w!.childContextNode = node;
     if (isFirstListItem && parent!.Kind_ === (210 as number) && inheritedIndentation === (-1 as number)) {
@@ -735,8 +727,15 @@ export class formatSpanWorker extends $rt.GoObject {
           if (!(w!.indentationOnLastIndentedLine === (-1 as number))) {
             indentationOnListStartToken = w!.indentationOnLastIndentedLine;
           } else {
-            indentationOnListStartToken = w!.getCurrentIndentationAtPosition(
+            const startLinePosition: number = GetLineStartPositionForPosition(
               $core.TextRange$Pos(tokenInfo$v.token.Loc),
+              w!.sourceFile,
+            );
+            indentationOnListStartToken = FindFirstNonWhitespaceColumn(
+              startLinePosition,
+              $core.TextRange$Pos(tokenInfo$v.token.Loc),
+              w!.sourceFile,
+              w!.formattingContext!.Options,
             );
           }
           listDynamicIndentation = w!.getDynamicIndentation(
@@ -809,11 +808,6 @@ export class formatSpanWorker extends $rt.GoObject {
     w!.visitingNodeStartLine = oldStart;
     w!.visitingUndecoratedNodeStartLine = oldUndecoratedStart;
   }
-  getCurrentIndentationAtPosition(pos: number): number {
-    const w = this;
-    const startLinePosition: number = GetLineStartPositionForPosition(pos, w!.sourceFile);
-    return FindFirstNonWhitespaceColumn(startLinePosition, pos, w!.sourceFile, w!.formattingContext!.Options);
-  }
   computeIndentation(
     node: $ast.Node | undefined,
     startLine: number,
@@ -870,7 +864,13 @@ export class formatSpanWorker extends $rt.GoObject {
       }
     } else {
       const startLine: number = $scanner.GetECMALineOfPosition(w!.sourceFile, startPos);
-      const column: number = w!.getCurrentIndentationAtPosition(startPos);
+      const startLinePosition: number = GetLineStartPositionForPosition(startPos, w!.sourceFile);
+      const column: number = FindFirstNonWhitespaceColumn(
+        startLinePosition,
+        startPos,
+        w!.sourceFile,
+        w!.formattingContext!.Options,
+      );
       if (!(startLine === parentStartLine) || startPos === column) {
         const baseIndentSize: number = w!.formattingContext!.Options.BaseIndentSize;
         if (baseIndentSize > column) {
@@ -1487,7 +1487,7 @@ export class formattingScanner extends $rt.GoObject {
   endPos: number = 0;
   savedPos: number = 0;
   hasLastTokenInfo: boolean = false;
-  lastTokenInfo: tokenInfo = tokenInfo$zero;
+  lastTokenInfo: tokenInfo = new tokenInfo();
   lastScanAction: scanAction = 0;
   leadingTrivia: TextRangeWithKind[] = [];
   trailingTrivia: TextRangeWithKind[] = [];
@@ -1498,7 +1498,7 @@ export class formattingScanner extends $rt.GoObject {
     this.endPos = src.endPos;
     this.savedPos = src.savedPos;
     this.hasLastTokenInfo = src.hasLastTokenInfo;
-    this.lastTokenInfo = src.lastTokenInfo;
+    this.lastTokenInfo = src.lastTokenInfo.$clone_format_tokenInfo();
     this.lastScanAction = src.lastScanAction;
     this.leadingTrivia = src.leadingTrivia;
     this.trailingTrivia = src.trailingTrivia;
@@ -1582,8 +1582,8 @@ export class formattingScanner extends $rt.GoObject {
       expectedScanAction = 0;
     }
     if (s!.hasLastTokenInfo && expectedScanAction === s!.lastScanAction) {
-      s!.lastTokenInfo = fixTokenKind(s!.lastTokenInfo, n);
-      return s!.lastTokenInfo;
+      s!.lastTokenInfo = fixTokenKind(s!.lastTokenInfo.$clone_format_tokenInfo(), n);
+      return s!.lastTokenInfo.$clone_format_tokenInfo();
     }
     if (!(s!.s!.TokenFullStart() === s!.savedPos)) {
       s!.s!.ResetTokenState(s!.savedPos);
@@ -1610,8 +1610,8 @@ export class formattingScanner extends $rt.GoObject {
       token.$clone_format_TextRangeWithKind(),
       $rt.slices_Clone(s!.trailingTrivia),
     );
-    s!.lastTokenInfo = fixTokenKind(s!.lastTokenInfo, n);
-    return s!.lastTokenInfo;
+    s!.lastTokenInfo = fixTokenKind(s!.lastTokenInfo.$clone_format_tokenInfo(), n);
+    return s!.lastTokenInfo.$clone_format_tokenInfo();
   }
   getNextToken(n: $ast.Node | undefined, expectedScanAction: scanAction): $ast.Kind {
     const s = this;
@@ -1858,7 +1858,6 @@ export class tokenRange extends $rt.GoObject {
 export const ruleImpl$zero: ruleImpl = new ruleImpl();
 export const tokenRange$zero: tokenRange = new tokenRange();
 export const ruleSpec$zero: ruleSpec = new ruleSpec();
-export const tokenInfo$zero: tokenInfo = new tokenInfo();
 export const FormatRequestKindFormatDocument: FormatRequestKind = 0;
 export const FormatRequestKindFormatOnClosingCurlyBrace: FormatRequestKind = 5;
 export const FormatRequestKindFormatOnEnter: FormatRequestKind = 2;
@@ -5075,7 +5074,7 @@ export function fixTokenKind(tokenInfo$v: tokenInfo, container: $ast.Node | unde
   if ($ast.IsTokenKind(container!.Kind_) && !(tokenInfo$v.token.Kind_ === container!.Kind_)) {
     tokenInfo$v.token.Kind_ = container!.Kind_;
   }
-  return tokenInfo$v;
+  return tokenInfo$v.$clone_format_tokenInfo();
 }
 export function findEnclosingNode(r: $core.TextRange, sourceFile: $ast.SourceFile | undefined): $ast.Node | undefined {
   let find: ((p0: $ast.Node | undefined) => $ast.Node | undefined) | undefined = undefined as
@@ -5113,11 +5112,9 @@ export function getScanStartPosition(
   if (start === $core.TextRange$Pos(originalRange) && enclosingNode!.End() === $core.TextRange$End(originalRange)) {
     return start;
   }
-  const precedingToken: $ast.Node | undefined = $astnav.FindPrecedingTokenEx(
+  const precedingToken: $ast.Node | undefined = $astnav.FindPrecedingToken(
     sourceFile,
     $core.TextRange$Pos(originalRange),
-    undefined,
-    true,
   );
   if (precedingToken === undefined) {
     return enclosingNode!.Pos();
@@ -5377,6 +5374,74 @@ export function GetLineStartPositionForPosition(position: number, sourceFile: $a
   const line: number = $scanner.GetECMALineOfPosition(sourceFile, position);
   return lineStarts[line];
 }
+export function isGrammarError(parent: $ast.Node | undefined, child: $ast.Node | undefined): boolean {
+  if ($ast.IsTypeParameterDeclaration(parent)) {
+    return child === parent!.AsTypeParameterDeclaration()!.Expression_;
+  }
+  if ($ast.IsPropertySignatureDeclaration(parent)) {
+    return child === parent!.Initializer();
+  }
+  if ($ast.IsPropertyDeclaration(parent)) {
+    return (
+      $ast.IsAutoAccessorPropertyDeclaration(parent) &&
+      child === parent!.PostfixToken() &&
+      child!.Kind_ === (57 as number)
+    );
+  }
+  if ($ast.IsPropertyAssignment(parent)) {
+    const pa: $ast.PropertyAssignment | undefined = parent!.AsPropertyAssignment();
+    const mods: $ast.ModifierList | undefined = pa!.NamedMemberBase_.Modifiers();
+    return (
+      child === pa!.NamedMemberBase_.PostfixToken ||
+      (!(mods === undefined) && isGrammarErrorElement(mods!, child, $ast.IsModifierLike))
+    );
+  }
+  if ($ast.IsShorthandPropertyAssignment(parent)) {
+    const sp: $ast.ShorthandPropertyAssignment | undefined = parent!.AsShorthandPropertyAssignment();
+    const mods$1: $ast.ModifierList | undefined = sp!.NamedMemberBase_.Modifiers();
+    return (
+      child === sp!.EqualsToken ||
+      child === sp!.NamedMemberBase_.PostfixToken ||
+      (!(mods$1 === undefined) && isGrammarErrorElement(mods$1!, child, $ast.IsModifierLike))
+    );
+  }
+  if ($ast.IsMethodDeclaration(parent)) {
+    return child === parent!.PostfixToken() && child!.Kind_ === (53 as number);
+  }
+  if ($ast.IsConstructorDeclaration(parent)) {
+    return (
+      child === parent!.AsConstructorDeclaration()!.FunctionLikeWithBodyBase_.Type ||
+      isGrammarErrorElement(parent!.TypeParameterList(), child, $ast.IsTypeParameterDeclaration)
+    );
+  }
+  if ($ast.IsGetAccessorDeclaration(parent)) {
+    return isGrammarErrorElement(parent!.TypeParameterList(), child, $ast.IsTypeParameterDeclaration);
+  }
+  if ($ast.IsSetAccessorDeclaration(parent)) {
+    return (
+      child === parent!.AsSetAccessorDeclaration()!.Type ||
+      isGrammarErrorElement(parent!.TypeParameterList(), child, $ast.IsTypeParameterDeclaration)
+    );
+  }
+  if ($ast.IsNamespaceExportDeclaration(parent)) {
+    const mods$2: $ast.ModifierList | undefined = parent!.AsNamespaceExportDeclaration()!.ModifiersBase_.Modifiers();
+    return !(mods$2 === undefined) && isGrammarErrorElement(mods$2!, child, $ast.IsModifierLike);
+  }
+  return false;
+}
+export function isGrammarErrorElement(
+  list: $ast.NodeList | undefined,
+  child: $ast.Node | undefined,
+  isPossibleElement: ((p0: $ast.Node | undefined) => boolean) | undefined,
+): boolean {
+  if (list === undefined || list!.Nodes.length === (0 as number)) {
+    return false;
+  }
+  if (!isPossibleElement!(child)) {
+    return false;
+  }
+  return $rt.slices_Contains(list!.Nodes, child);
+}
 export function findImmediatelyPrecedingTokenOfKind(
   end: number,
   expectedTokenKind: $ast.Kind,
@@ -5427,21 +5492,6 @@ export function isListElement(parent: $ast.Node | undefined, node: $ast.Node | u
       }
       case 300 as number: {
         return $core.TextRange$ContainedBy(node!.Loc, parent!.AsCatchClause()!.Block!.StatementList()!.Loc);
-      }
-    }
-  }
-  return false;
-}
-export function isMemberListElement(parent: $ast.Node | undefined, node: $ast.Node | undefined): boolean {
-  {
-    switch (parent!.Kind_) {
-      case 264 as number:
-      case 232 as number:
-      case 265 as number:
-      case 267 as number:
-      case 188 as number:
-      case 201 as number: {
-        return $core.TextRange$ContainedBy(node!.Loc, parent!.MemberList()!.Loc);
       }
     }
   }

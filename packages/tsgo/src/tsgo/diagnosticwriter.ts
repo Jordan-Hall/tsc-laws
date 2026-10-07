@@ -5,27 +5,12 @@ import * as $ast from './ast.js';
 import * as $core from './core.js';
 import * as $diagnostics from './diagnostics.js';
 import * as $scanner from './scanner.js';
-import * as $spanmap from './spanmap.js';
 import * as $tspath from './tspath.js';
 import type * as $checkhost from './checkhost.js';
-import type * as $contentmapper from './contentmapper.js';
-import type * as $ipc from './ipc.js';
 import type * as $locale from './locale.js';
 export type Diagnostic = ASTDiagnostic | undefined;
-export type FileLike = $ast.SourceFile | originalTextFile | undefined;
-export type FormattedWriter =
-  | ((
-      p0:
-        | $ipc.stdioConn
-        | $contentmapper.closeOnceReadWriteCloser
-        | $contentmapper.loggedProcess
-        | $contentmapper.stderrLogger
-        | $checkhost.hostWriter
-        | undefined,
-      p1: string,
-      p2: string,
-    ) => void)
-  | undefined;
+export type FileLike = $ast.SourceFile | undefined;
+export type FormattedWriter = ((p0: $checkhost.hostWriter | undefined, p1: string, p2: string) => void) | undefined;
 export class ASTDiagnostic extends $rt.GoObject {
   Diagnostic_: $ast.Diagnostic | undefined = undefined;
   $copy_diagnosticwriter_ASTDiagnostic(src: ASTDiagnostic): void {
@@ -64,72 +49,25 @@ export class ASTDiagnostic extends $rt.GoObject {
   }
   File(): FileLike {
     const d = this;
-    const file: $ast.SourceFile | undefined = d!.Diagnostic_!.File();
-    if (file === undefined) {
-      return undefined;
-    }
-    if (d!.resolve().useOriginal) {
-      return newOriginalTextFile(file);
-    }
-    return file;
-  }
-  Source(): string {
-    const d = this;
-    return d!.Diagnostic_!.Source();
-  }
-  Pos(): number {
-    const d = this;
-    return $core.TextRange$Pos(d!.resolve().loc);
-  }
-  End(): number {
-    const d = this;
-    return $core.TextRange$End(d!.resolve().loc);
-  }
-  Len(): number {
-    const d = this;
-    return $core.TextRange$Len(d!.resolve().loc);
-  }
-  resolve(): resolvedLocation {
-    const d = this;
-    const loc: $core.TextRange = d!.Diagnostic_!.Loc();
-    const file: $ast.SourceFile | undefined = d!.Diagnostic_!.File();
     {
-      $sw1: {
-        if (file === undefined) {
-          return resolvedLocation.$lit_diagnosticwriter_resolvedLocation_0(loc);
-        } else if (!(d!.Diagnostic_!.Source() === ('' as string))) {
-          return resolvedLocation.$lit_diagnosticwriter_resolvedLocation_0_1(loc, true);
-        } else if (!(file!.SpanMap$m() === undefined)) {
-          const $t2 = $spanmap.SpanMap.VirtualToOriginalSpan$nil(file!.SpanMap$m(), loc);
-          const mapped: $core.TextRange = $t2[0];
-          const fidelity: $spanmap.Fidelity = $t2[1];
-          if (fidelity === (3 as number)) {
-            return resolvedLocation.$lit_diagnosticwriter_resolvedLocation_0_2(loc, true);
-          }
-          return resolvedLocation.$lit_diagnosticwriter_resolvedLocation_0_1(mapped, true);
-        } else {
-          return resolvedLocation.$lit_diagnosticwriter_resolvedLocation_0(loc);
-        }
+      const file: $ast.SourceFile | undefined = d!.Diagnostic_!.File();
+      if (!(file === undefined)) {
+        return file;
       }
     }
+    return undefined;
   }
   MessageChain(): Diagnostic[] {
     const d = this;
     const chain: ($ast.Diagnostic | undefined)[] = d!.Diagnostic_!.MessageChain();
-    let result: Diagnostic[] = [] as Diagnostic[];
+    const result: Diagnostic[] = $rt.makeSlice<Diagnostic>(chain.length, undefined);
     {
       const $t1 = chain;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
+        const i = $t2;
         const c = $t1[$t2];
-        result.push(ASTDiagnostic.$lit_diagnosticwriter_ASTDiagnostic_0(c));
+        result[i] = ASTDiagnostic.$lit_diagnosticwriter_ASTDiagnostic_0(c);
       }
-    }
-    if (d!.resolve().synthesized) {
-      const note: $ast.Diagnostic | undefined = $ast.NewCompilerDiagnostic(
-        $diagnostics.This_location_is_in_virtual_code_produced_by_the_content_mapper_0_and_has_no_corresponding_location_in_the_original_file,
-        [new $rt.BoxStr(d!.Diagnostic_!.File()!.ContentMapper(), 'string')],
-      );
-      result.push(WrapASTDiagnostic(note));
     }
     return result;
   }
@@ -139,8 +77,17 @@ export class ASTDiagnostic extends $rt.GoObject {
   Code(): number {
     return this.Diagnostic_!.Code();
   }
+  End(): number {
+    return this.Diagnostic_!.End();
+  }
+  Len(): number {
+    return this.Diagnostic_!.Len();
+  }
   Localize(a0: $locale.Locale): string {
     return this.Diagnostic_!.Localize(a0);
+  }
+  Pos(): number {
+    return this.Diagnostic_!.Pos();
   }
   String(): string {
     return this.Diagnostic_!.String();
@@ -212,86 +159,8 @@ export class FormattingOptions extends $tspath.ComparePathsOptions {
     throw $rt.typeAssertError();
   }
 }
-export class originalTextFile extends $rt.GoObject {
-  fileName: string = '';
-  text: string = '';
-  lineMap: $core.TextPos[] = [];
-  $copy_diagnosticwriter_originalTextFile(src: originalTextFile): void {
-    this.fileName = src.fileName;
-    this.text = src.text;
-    this.lineMap = src.lineMap;
-  }
-  $clone_diagnosticwriter_originalTextFile(): originalTextFile {
-    const o = new originalTextFile();
-    o.$copy_diagnosticwriter_originalTextFile(this);
-    return o;
-  }
-  static $lit_diagnosticwriter_originalTextFile_0_1_2(p0: string, p1: string, p2: $core.TextPos[]): originalTextFile {
-    const o = new originalTextFile();
-    o.fileName = p0;
-    o.text = p1;
-    o.lineMap = p2;
-    return o;
-  }
-  static $cast_diagnosticwriter_originalTextFile(v: $rt.GoObject | undefined): originalTextFile {
-    if (v instanceof originalTextFile) return v;
-    throw $rt.typeAssertError();
-  }
-  FileName(): string {
-    const f = this;
-    return f!.fileName;
-  }
-  Text(): string {
-    const f = this;
-    return f!.text;
-  }
-  ECMALineMap(): $core.TextPos[] {
-    const f = this;
-    return f!.lineMap;
-  }
-}
-export class resolvedLocation extends $rt.GoObject {
-  loc: $core.TextRange = 0;
-  useOriginal: boolean = false;
-  synthesized: boolean = false;
-  $copy_diagnosticwriter_resolvedLocation(src: resolvedLocation): void {
-    this.loc = src.loc;
-    this.useOriginal = src.useOriginal;
-    this.synthesized = src.synthesized;
-  }
-  $equals_diagnosticwriter_resolvedLocation(o: resolvedLocation): boolean {
-    return this.loc === o.loc && this.useOriginal === o.useOriginal && this.synthesized === o.synthesized;
-  }
-  $clone_diagnosticwriter_resolvedLocation(): resolvedLocation {
-    const o = new resolvedLocation();
-    o.$copy_diagnosticwriter_resolvedLocation(this);
-    return o;
-  }
-  static $lit_diagnosticwriter_resolvedLocation_0(p0: $core.TextRange): resolvedLocation {
-    const o = new resolvedLocation();
-    o.loc = p0;
-    return o;
-  }
-  static $lit_diagnosticwriter_resolvedLocation_0_1(p0: $core.TextRange, p1: boolean): resolvedLocation {
-    const o = new resolvedLocation();
-    o.loc = p0;
-    o.useOriginal = p1;
-    return o;
-  }
-  static $lit_diagnosticwriter_resolvedLocation_0_2(p0: $core.TextRange, p1: boolean): resolvedLocation {
-    const o = new resolvedLocation();
-    o.loc = p0;
-    o.synthesized = p1;
-    return o;
-  }
-  static $cast_diagnosticwriter_resolvedLocation(v: $rt.GoObject | undefined): resolvedLocation {
-    if (v instanceof resolvedLocation) return v;
-    throw $rt.typeAssertError();
-  }
-}
 export const ErrorSummary$zero: ErrorSummary = new ErrorSummary();
 export const FormattingOptions$zero: FormattingOptions = new FormattingOptions();
-export const resolvedLocation$zero: resolvedLocation = new resolvedLocation();
 export const ellipsis: string = '...';
 export const foregroundColorEscapeBlue: string = '\x1b[94m';
 export const foregroundColorEscapeCyan: string = '\x1b[96m';
@@ -302,20 +171,12 @@ export const gutterSeparator: string = ' ';
 export const gutterStyleSequence: string = '\x1b[7m';
 export const resetEscapeSequence: string = '\x1b[0m';
 const $fn0 = (a: FileLike, b: FileLike): number => {
-  return $rt.strings_Compare($rt.nn(a).FileName(), $rt.nn(b).FileName());
+  return $rt.strings_Compare(a!.FileName(), b!.FileName());
 };
 export let ScreenStartingCodes: number[] = [
   $diagnostics.Starting_compilation_in_watch_mode!.Code(),
   $diagnostics.File_change_detected_Starting_incremental_compilation!.Code(),
 ];
-export function newOriginalTextFile(file: $ast.SourceFile | undefined): originalTextFile | undefined {
-  const text: string = file!.OriginalText();
-  return originalTextFile.$lit_diagnosticwriter_originalTextFile_0_1_2(
-    file!.FileName(),
-    text,
-    $core.ComputeECMALineStarts(text),
-  );
-}
 export function WrapASTDiagnostic(d: $ast.Diagnostic | undefined): ASTDiagnostic | undefined {
   return ASTDiagnostic.$lit_diagnosticwriter_ASTDiagnostic_0(d);
 }
@@ -359,13 +220,7 @@ export function CompareASTDiagnostics(a: ASTDiagnostic | undefined, b: ASTDiagno
   return $ast.CompareDiagnostics(a!.Diagnostic_, b!.Diagnostic_);
 }
 export function FormatDiagnosticsWithColorAndContext(
-  output:
-    | $ipc.stdioConn
-    | $contentmapper.closeOnceReadWriteCloser
-    | $contentmapper.loggedProcess
-    | $contentmapper.stderrLogger
-    | $checkhost.hostWriter
-    | undefined,
+  output: $checkhost.hostWriter | undefined,
   diags: Diagnostic[],
   formatOpts: FormattingOptions | undefined,
 ): void {
@@ -385,13 +240,7 @@ export function FormatDiagnosticsWithColorAndContext(
   }
 }
 export function FormatDiagnosticWithColorAndContext(
-  output:
-    | $ipc.stdioConn
-    | $contentmapper.closeOnceReadWriteCloser
-    | $contentmapper.loggedProcess
-    | $contentmapper.stderrLogger
-    | $checkhost.hostWriter
-    | undefined,
+  output: $checkhost.hostWriter | undefined,
   diagnostic: Diagnostic,
   formatOpts: FormattingOptions | undefined,
 ): void {
@@ -410,9 +259,8 @@ export function FormatDiagnosticWithColorAndContext(
     .nn(output)
     .Write(
       $rt.stringToBytes(
-        $rt.fmt_Sprintf('%s %s%d: %s', [
+        $rt.fmt_Sprintf('%s TS%d: %s', [
           new $rt.BoxStr('\x1b[90m', 'string'),
-          new $rt.BoxStr(diagnosticPrefix(diagnostic), 'string'),
           new $rt.BoxNum(diagnostic!.Code(), 'int32'),
           new $rt.BoxStr('\x1b[0m', 'string'),
         ]),
@@ -453,13 +301,7 @@ export function FormatDiagnosticWithColorAndContext(
   }
 }
 export function writeCodeSnippet(
-  writer:
-    | $ipc.stdioConn
-    | $contentmapper.closeOnceReadWriteCloser
-    | $contentmapper.loggedProcess
-    | $contentmapper.stderrLogger
-    | $checkhost.hostWriter
-    | undefined,
+  writer: $checkhost.hostWriter | undefined,
   sourceFile: FileLike,
   start: number,
   length_: number,
@@ -481,7 +323,7 @@ export function writeCodeSnippet(
   }
   const lastLineOfFile: number = $scanner.GetECMALineOfPosition(
     sourceFile as unknown as $ast.SourceFileLike,
-    $rt.nn(sourceFile).Text().length,
+    sourceFile!.Text().length,
   );
   const hasMoreThanFiveLines: boolean = lastLine - firstLine >= 4;
   let gutterWidth: number = $rt.strconv_Itoa(lastLine + 1).length;
@@ -515,10 +357,10 @@ export function writeCodeSnippet(
       if (i < lastLineOfFile) {
         lineEnd = $scanner.GetECMAPositionOfLineAndByteOffset(sourceFile as unknown as $ast.SourceFileLike, i + 1, 0);
       } else {
-        lineEnd = $rt.nn(sourceFile).Text().length;
+        lineEnd = sourceFile!.Text().length;
       }
       let lineContent: string = $rt.strings_TrimRightFunc(
-        $rt.nn(sourceFile).Text().substring(lineStart, lineEnd),
+        sourceFile!.Text().substring(lineStart, lineEnd),
         $rt.unicode_IsSpace,
       );
       lineContent = $rt.strings_ReplaceAll(lineContent, '\t', ' ');
@@ -589,14 +431,7 @@ export function writeCodeSnippet(
 export function FlattenDiagnosticMessage(d: Diagnostic, newLine: string, locale: $locale.Locale): string {
   let output: $rt.strings_Builder = new $rt.strings_Builder();
   WriteFlattenedDiagnosticMessage(
-    $rt.unsupportedConversion<
-      | $ipc.stdioConn
-      | $contentmapper.closeOnceReadWriteCloser
-      | $contentmapper.loggedProcess
-      | $contentmapper.stderrLogger
-      | $checkhost.hostWriter
-      | undefined
-    >('$rt.strings_Builder | undefined'),
+    $rt.unsupportedConversion<$checkhost.hostWriter | undefined>('$rt.strings_Builder | undefined'),
     d,
     newLine,
     locale,
@@ -604,13 +439,7 @@ export function FlattenDiagnosticMessage(d: Diagnostic, newLine: string, locale:
   return output.String();
 }
 export function WriteFlattenedASTDiagnosticMessage(
-  writer:
-    | $ipc.stdioConn
-    | $contentmapper.closeOnceReadWriteCloser
-    | $contentmapper.loggedProcess
-    | $contentmapper.stderrLogger
-    | $checkhost.hostWriter
-    | undefined,
+  writer: $checkhost.hostWriter | undefined,
   diagnostic: $ast.Diagnostic | undefined,
   newline: string,
   locale: $locale.Locale,
@@ -618,13 +447,7 @@ export function WriteFlattenedASTDiagnosticMessage(
   WriteFlattenedDiagnosticMessage(writer, WrapASTDiagnostic(diagnostic), newline, locale);
 }
 export function WriteFlattenedDiagnosticMessage(
-  writer:
-    | $ipc.stdioConn
-    | $contentmapper.closeOnceReadWriteCloser
-    | $contentmapper.loggedProcess
-    | $contentmapper.stderrLogger
-    | $checkhost.hostWriter
-    | undefined,
+  writer: $checkhost.hostWriter | undefined,
   diagnostic: Diagnostic,
   newline: string,
   locale: $locale.Locale,
@@ -639,13 +462,7 @@ export function WriteFlattenedDiagnosticMessage(
   }
 }
 export function flattenDiagnosticMessageChain(
-  writer:
-    | $ipc.stdioConn
-    | $contentmapper.closeOnceReadWriteCloser
-    | $contentmapper.loggedProcess
-    | $contentmapper.stderrLogger
-    | $checkhost.hostWriter
-    | undefined,
+  writer: $checkhost.hostWriter | undefined,
   chain: Diagnostic,
   newLine: string,
   locale: $locale.Locale,
@@ -663,15 +480,6 @@ export function flattenDiagnosticMessageChain(
       flattenDiagnosticMessageChain(writer, child, newLine, locale, level + 1);
     }
   }
-}
-export function diagnosticPrefix(diagnostic: Diagnostic): string {
-  {
-    const source: string = diagnostic!.Source();
-    if (!(source === ('' as string))) {
-      return source;
-    }
-  }
-  return 'TS';
 }
 export function getCategoryFormat(category: $diagnostics.Category): string {
   {
@@ -693,13 +501,7 @@ export function getCategoryFormat(category: $diagnostics.Category): string {
   throw $rt.newPanic(new $rt.BoxStr('Unhandled diagnostic category', 'string'));
 }
 export function writeWithStyleAndReset(
-  output:
-    | $ipc.stdioConn
-    | $contentmapper.closeOnceReadWriteCloser
-    | $contentmapper.loggedProcess
-    | $contentmapper.stderrLogger
-    | $checkhost.hostWriter
-    | undefined,
+  output: $checkhost.hostWriter | undefined,
   text: string,
   formatStyle: string,
 ): void {
@@ -708,13 +510,7 @@ export function writeWithStyleAndReset(
   $rt.nn(output).Write($rt.stringToBytes($rt.fmt_Sprint([new $rt.BoxStr('\x1b[0m', 'string')])));
 }
 export function WriteLocation(
-  output:
-    | $ipc.stdioConn
-    | $contentmapper.closeOnceReadWriteCloser
-    | $contentmapper.loggedProcess
-    | $contentmapper.stderrLogger
-    | $checkhost.hostWriter
-    | undefined,
+  output: $checkhost.hostWriter | undefined,
   file: FileLike,
   pos: number,
   formatOpts: FormattingOptions | undefined,
@@ -725,9 +521,9 @@ export function WriteLocation(
   const firstChar: $core.UTF16Offset = $t1[1];
   let relativeFileName: string = '';
   if (!(formatOpts === undefined)) {
-    relativeFileName = $tspath.ConvertToRelativePath($rt.nn(file).FileName(), formatOpts!);
+    relativeFileName = $tspath.ConvertToRelativePath(file!.FileName(), formatOpts!);
   } else {
-    relativeFileName = $rt.nn(file).FileName();
+    relativeFileName = file!.FileName();
   }
   writeWithStyleAndReset!(output, relativeFileName, '\x1b[96m');
   $rt.nn(output).Write($rt.stringToBytes($rt.fmt_Sprint([new $rt.BoxStr(':', 'string')])));
@@ -736,13 +532,7 @@ export function WriteLocation(
   writeWithStyleAndReset!(output, $rt.strconv_Itoa(firstChar + 1), '\x1b[93m');
 }
 export function WriteErrorSummaryText(
-  output:
-    | $ipc.stdioConn
-    | $contentmapper.closeOnceReadWriteCloser
-    | $contentmapper.loggedProcess
-    | $contentmapper.stderrLogger
-    | $checkhost.hostWriter
-    | undefined,
+  output: $checkhost.hostWriter | undefined,
   allDiagnostics: Diagnostic[],
   formatOpts: FormattingOptions | undefined,
 ): void {
@@ -840,13 +630,7 @@ export function getErrorSummary(diags: Diagnostic[]): ErrorSummary | undefined {
   );
 }
 export function writeTabularErrorsDisplay(
-  output:
-    | $ipc.stdioConn
-    | $contentmapper.closeOnceReadWriteCloser
-    | $contentmapper.loggedProcess
-    | $contentmapper.stderrLogger
-    | $checkhost.hostWriter
-    | undefined,
+  output: $checkhost.hostWriter | undefined,
   errorSummary: ErrorSummary | undefined,
   formatOpts: FormattingOptions | undefined,
 ): void {
@@ -901,9 +685,9 @@ export function prettyPathForFileError(
     return '';
   }
   const line: number = $scanner.GetECMALineOfPosition(file as unknown as $ast.SourceFileLike, fileErrors[0]!.Pos());
-  let fileName: string = $rt.nn(file).FileName();
+  let fileName: string = file!.FileName();
   if ($tspath.PathIsAbsolute(fileName) && $tspath.PathIsAbsolute(formatOpts!.CurrentDirectory)) {
-    fileName = $tspath.ConvertToRelativePath($rt.nn(file).FileName(), formatOpts!);
+    fileName = $tspath.ConvertToRelativePath(file!.FileName(), formatOpts!);
   }
   return $rt.fmt_Sprintf('%s%s:%d%s', [
     new $rt.BoxStr(fileName, 'string'),
@@ -913,13 +697,7 @@ export function prettyPathForFileError(
   ]);
 }
 export function WriteFormatDiagnostics(
-  output:
-    | $ipc.stdioConn
-    | $contentmapper.closeOnceReadWriteCloser
-    | $contentmapper.loggedProcess
-    | $contentmapper.stderrLogger
-    | $checkhost.hostWriter
-    | undefined,
+  output: $checkhost.hostWriter | undefined,
   diagnostics: Diagnostic[],
   formatOpts: FormattingOptions | undefined,
 ): void {
@@ -932,13 +710,7 @@ export function WriteFormatDiagnostics(
   }
 }
 export function WriteFormatDiagnostic(
-  output:
-    | $ipc.stdioConn
-    | $contentmapper.closeOnceReadWriteCloser
-    | $contentmapper.loggedProcess
-    | $contentmapper.stderrLogger
-    | $checkhost.hostWriter
-    | undefined,
+  output: $checkhost.hostWriter | undefined,
   diagnostic: Diagnostic,
   formatOpts: FormattingOptions | undefined,
 ): void {
@@ -949,7 +721,7 @@ export function WriteFormatDiagnostic(
     );
     const line: number = $t1[0];
     const character: $core.UTF16Offset = $t1[1];
-    const fileName: string = $rt.nn(diagnostic!.File()).FileName();
+    const fileName: string = diagnostic!.File()!.FileName();
     const relativeFileName: string = $tspath.ConvertToRelativePath(fileName, formatOpts!);
     $rt
       .nn(output)
@@ -967,9 +739,8 @@ export function WriteFormatDiagnostic(
     .nn(output)
     .Write(
       $rt.stringToBytes(
-        $rt.fmt_Sprintf('%s %s%d: ', [
+        $rt.fmt_Sprintf('%s TS%d: ', [
           new $rt.BoxStr($diagnostics.Category$Name(diagnostic!.Category$m()), 'string'),
-          new $rt.BoxStr(diagnosticPrefix(diagnostic), 'string'),
           new $rt.BoxNum(diagnostic!.Code(), 'int32'),
         ]),
       ),
@@ -978,13 +749,7 @@ export function WriteFormatDiagnostic(
   $rt.nn(output).Write($rt.stringToBytes($rt.fmt_Sprint([new $rt.BoxStr(formatOpts!.NewLine, 'string')])));
 }
 export function FormatDiagnosticsStatusWithColorAndTime(
-  output:
-    | $ipc.stdioConn
-    | $contentmapper.closeOnceReadWriteCloser
-    | $contentmapper.loggedProcess
-    | $contentmapper.stderrLogger
-    | $checkhost.hostWriter
-    | undefined,
+  output: $checkhost.hostWriter | undefined,
   time: string,
   diag: Diagnostic,
   formatOpts: FormattingOptions | undefined,
@@ -995,13 +760,7 @@ export function FormatDiagnosticsStatusWithColorAndTime(
   WriteFlattenedDiagnosticMessage(output, diag, formatOpts!.NewLine, formatOpts!.Locale_);
 }
 export function FormatDiagnosticsStatusAndTime(
-  output:
-    | $ipc.stdioConn
-    | $contentmapper.closeOnceReadWriteCloser
-    | $contentmapper.loggedProcess
-    | $contentmapper.stderrLogger
-    | $checkhost.hostWriter
-    | undefined,
+  output: $checkhost.hostWriter | undefined,
   time: string,
   diag: Diagnostic,
   formatOpts: FormattingOptions | undefined,
@@ -1012,13 +771,7 @@ export function FormatDiagnosticsStatusAndTime(
   WriteFlattenedDiagnosticMessage(output, diag, formatOpts!.NewLine, formatOpts!.Locale_);
 }
 export function TryClearScreen(
-  output:
-    | $ipc.stdioConn
-    | $contentmapper.closeOnceReadWriteCloser
-    | $contentmapper.loggedProcess
-    | $contentmapper.stderrLogger
-    | $checkhost.hostWriter
-    | undefined,
+  output: $checkhost.hostWriter | undefined,
   diag: Diagnostic,
   options: $core.CompilerOptions | undefined,
 ): boolean {

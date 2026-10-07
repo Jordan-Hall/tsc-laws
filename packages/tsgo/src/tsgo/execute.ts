@@ -5,7 +5,6 @@ import * as $ast from './ast.js';
 import * as $boxes from './boxes.js';
 import * as $collections from './collections.js';
 import * as $compiler from './compiler.js';
-import * as $contentmapper from './contentmapper.js';
 import * as $core from './core.js';
 import * as $diagnostics from './diagnostics.js';
 import * as $execute_build from './execute_build.js';
@@ -24,7 +23,6 @@ import * as $vfs_cachedvfs from './vfs_cachedvfs.js';
 import * as $vfs_trackingvfs from './vfs_trackingvfs.js';
 import type * as $checkhost from './checkhost.js';
 import type * as $fswatch from './fswatch.js';
-import type * as $ipc from './ipc.js';
 import type * as $locale from './locale.js';
 import type * as $vfs from './vfs.js';
 import { Set_ as $collections$Set_ } from './collections.js';
@@ -42,8 +40,6 @@ export class Watcher extends $rt.GoObject {
   reportErrorSummary: $execute_tsc.DiagnosticsReporter = undefined;
   reportWatchStatus: $execute_tsc.DiagnosticReporter = undefined;
   testing: $execute_tsc.CommandLineTesting | undefined = undefined;
-  contentMapperHost: $contentmapper.Host = undefined;
-  contentMapperProject: $contentmapper.Project = undefined;
   program: $execute_incremental.Program | undefined = undefined;
   extendedConfigCache: $execute_tsc.ExtendedConfigCache | undefined = undefined;
   configModified: boolean = false;
@@ -53,11 +49,6 @@ export class Watcher extends $rt.GoObject {
   wm: $execute_watchmanager.WatchManager | undefined = undefined;
   seenFiles: $collections.Set_<$tspath.Path> | undefined = undefined;
   configMtimes: Map<string, $rt.time_Time> | undefined = undefined;
-  watchSetDirty: boolean = false;
-  forceFullRebuild: boolean = false;
-  programReady: boolean = false;
-  fastPathBuilds: number = 0;
-  fullBuilds: number = 0;
   $copy_execute_Watcher(src: Watcher): void {
     this.sys = src.sys;
     this.configFileName = src.configFileName;
@@ -68,8 +59,6 @@ export class Watcher extends $rt.GoObject {
     this.reportErrorSummary = src.reportErrorSummary;
     this.reportWatchStatus = src.reportWatchStatus;
     this.testing = src.testing;
-    this.contentMapperHost = src.contentMapperHost;
-    this.contentMapperProject = src.contentMapperProject;
     this.program = src.program;
     this.extendedConfigCache = src.extendedConfigCache;
     this.configModified = src.configModified;
@@ -79,18 +68,13 @@ export class Watcher extends $rt.GoObject {
     this.wm = src.wm;
     this.seenFiles = src.seenFiles;
     this.configMtimes = src.configMtimes;
-    this.watchSetDirty = src.watchSetDirty;
-    this.forceFullRebuild = src.forceFullRebuild;
-    this.programReady = src.programReady;
-    this.fastPathBuilds = src.fastPathBuilds;
-    this.fullBuilds = src.fullBuilds;
   }
   $clone_execute_Watcher(): Watcher {
     const o = new Watcher();
     o.$copy_execute_Watcher(this);
     return o;
   }
-  static $lit_execute_Watcher_0_2_3_4_5_6_7_8_16_17(
+  static $lit_execute_Watcher_0_2_3_4_5_6_7_8_14_15(
     p0: $execute_tsc.System,
     p1: $tsoptions.ParsedCommandLine | undefined,
     p2: $core.CompilerOptions | undefined,
@@ -121,117 +105,51 @@ export class Watcher extends $rt.GoObject {
   }
   start(ctx: $rt.context_Context | undefined): void {
     const w = this;
-    const $defers: (() => void)[] = [];
-    let $panic: $rt.Panic | undefined = undefined;
-    $body: try {
-      w!.contentMapperHost = $execute_tsc.NewContentMapperHost(
-        ctx,
-        w!.sys,
-        $tsoptions.ParsedCommandLine.CompilerOptions$m$nil(w!.config),
-      );
-      if (!(w!.contentMapperHost === undefined) && w!.testing === undefined) {
-        const $t1 = w!.contentMapperHost;
-        $defers.push(() => {
-          $t1!.Close();
-        });
-      }
-      w!.replaceContentMapperProject(w!.config);
-      w!.wm!.Lock();
-      w!.extendedConfigCache = new $execute_tsc.ExtendedConfigCache();
-      const host: $compiler.CompilerHost = $compiler.NewCompilerHost(
-        w!.sys!.GetCurrentDirectory(),
-        w!.sys!.FS$m(),
-        w!.sys!.DefaultLibraryPath(),
-        w!.extendedConfigCache,
-        getTraceFromSys(w!.sys, w!.config!.Locale$m(), w!.testing),
-        w!.contentMapperProject,
-      );
-      w!.program = $execute_incremental.ReadBuildInfoProgram(
-        w!.config,
-        $execute_incremental.NewBuildInfoReader(host),
-        host,
-      );
-      if (!(w!.configFileName === ('' as string))) {
-        w!.configFilePaths = $rt.appendCopy(
-          [w!.configFileName],
-          $tsoptions.ParsedCommandLine.ExtendedSourceFiles$nil(w!.config),
-        );
-      }
-      if (!(w!.sys!.GetEnvironmentVariable('TS_WATCH_DEBUG') === ('' as string))) {
-        w!.wm!.DebugLog = w!.sys!.Writer$m();
-      }
-      if (w!.testing === undefined) {
-        w!.wm!.EnsureDefaultBackend();
-      }
-      w!.reportWatchStatus!(
-        $ast.NewCompilerDiagnostic($diagnostics.Starting_compilation_in_watch_mode, [] as ($rt.GoObject | undefined)[]),
-      );
-      w!.watchSetDirty = true;
-      {
-        const err: $rt.GoObject | undefined = w!.doBuild();
-        if (!(err === undefined)) {
-          w!.wm!.ForceOverflow();
-        }
-      }
-      w!.wm!.Unlock();
-      if (w!.testing === undefined) {
-        w!.wm!.RunLoop(
-          ctx,
-          (
-            ($t2: Watcher | undefined) => (): void =>
-              $t2!.DoCycle()
-          )(w),
-        );
-      }
-    } catch ($e) {
-      $panic = $rt.toPanic($e);
-    } finally {
-      $panic = $rt.runDefers($defers, $panic);
-    }
-    if ($panic !== undefined) throw $panic;
-  }
-  replaceContentMapperProject(config: $tsoptions.ParsedCommandLine | undefined): void {
-    const w = this;
-    if (w!.contentMapperHost === undefined) {
-      return;
-    }
-    const project: $contentmapper.Project = w!.contentMapperHost!.Project$m(
-      $contentmapper.ProjectSpec.$lit_contentmapper_ProjectSpec_0_1_2(
-        $tsoptions.ParsedCommandLine.ConfigName$nil(config),
-        $tsoptions.ParsedCommandLine.ContentMappers$nil(config),
-        $tsoptions.ParsedCommandLine.CompilerOptions$m$nil(config),
-      ),
+    w!.wm!.Lock();
+    w!.extendedConfigCache = new $execute_tsc.ExtendedConfigCache();
+    const host: $compiler.CompilerHost = $compiler.NewCompilerHost(
+      w!.sys!.GetCurrentDirectory(),
+      w!.sys!.FS$m(),
+      w!.sys!.DefaultLibraryPath(),
+      w!.extendedConfigCache,
+      getTraceFromSys(w!.sys, w!.config!.Locale$m(), w!.testing),
     );
-    if (!(w!.contentMapperProject === undefined)) {
-      $rt.nn(w!.contentMapperProject).Close();
+    w!.program = $execute_incremental.ReadBuildInfoProgram(
+      w!.config,
+      $execute_incremental.NewBuildInfoReader(host),
+      host,
+    );
+    if (!(w!.configFileName === ('' as string))) {
+      w!.configFilePaths = $rt.appendCopy(
+        [w!.configFileName],
+        $tsoptions.ParsedCommandLine.ExtendedSourceFiles$nil(w!.config),
+      );
     }
-    w!.contentMapperProject = project;
-  }
-  contentMapperWatchedFiles(): string[] {
-    const w = this;
-    let files: string[] = [];
+    if (!(w!.sys!.GetEnvironmentVariable('TS_WATCH_DEBUG') === ('' as string))) {
+      w!.wm!.DebugLog = w!.sys!.Writer$m();
+    }
+    if (w!.testing === undefined) {
+      w!.wm!.EnsureDefaultBackend();
+    }
+    w!.reportWatchStatus!(
+      $ast.NewCompilerDiagnostic($diagnostics.Starting_compilation_in_watch_mode, [] as ($rt.GoObject | undefined)[]),
+    );
     {
-      const $t1 = $tsoptions.ParsedCommandLine.ContentMappers$nil(w!.config);
-      for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        const mapper = $t1[$t2];
-        if (!(mapper!.PackageDirectory === ('' as string)) && mapper!.ContributionID === ('' as string)) {
-          files = $rt.appendCopy(files, [$tspath.CombinePaths(mapper!.PackageDirectory, ['package.json'])]);
-        }
-      }
-    }
-    if (!(w!.contentMapperProject === undefined)) {
-      const $t3 = $rt.nn(w!.contentMapperProject).WatchedFiles();
-      const dynamicFiles: string[] = $t3[0];
-      const err: $rt.GoObject | undefined = $t3[1];
+      const err: $rt.GoObject | undefined = w!.doBuild();
       if (!(err === undefined)) {
-        w!.reportDiagnostic!($compiler.ContentMapperProjectDiagnostic(err));
-        return files;
+        w!.wm!.ForceOverflow();
       }
-      files = $rt.appendCopy(files, dynamicFiles);
     }
-    $rt.slices_Sort(files);
-    files = $rt.slices_Compact(files);
-    return files;
+    w!.wm!.Unlock();
+    if (w!.testing === undefined) {
+      w!.wm!.RunLoop(
+        ctx,
+        (
+          ($t1: Watcher | undefined) => (): void =>
+            $t1!.DoCycle()
+        )(w),
+      );
+    }
   }
   computeDesiredWatches(seenFilePaths: string[]): Map<string, boolean> | undefined {
     const w = this;
@@ -284,23 +202,20 @@ export class Watcher extends $rt.GoObject {
       }
     }
     const resolvedDirs: Map<string, boolean> | undefined = w!.wm!.ResolveDesiredDirs(desiredDirs);
-    const coverage: $execute_watchmanager.DirWatchSet | undefined = $execute_watchmanager.NewDirWatchSet(
-      w!.comparePathsOptions(),
-    );
-    for (const [dir$4, recursive$1] of resolvedDirs ?? new Map<string, boolean>()) {
-      coverage!.Set(dir$4, recursive$1);
-    }
+    const opts: $tspath.ComparePathsOptions = w!.comparePathsOptions();
     {
       const $t9 = seenFilePaths;
       for (let $t10 = 0, $n = $t9.length; $t10 < $n; $t10++) {
         const filePath = $t9[$t10];
-        const dir$5: string = $tspath.GetDirectoryPath(filePath);
-        if (!coverage!.Covered(dir$5) && $execute_watchmanager.CanWatchDirectory(dir$5)) {
-          coverage!.Set(dir$5, false);
+        const dir$4: string = $tspath.GetDirectoryPath(filePath);
+        if (!$execute_watchmanager.IsDirCoveredByWatch(resolvedDirs, dir$4, opts)) {
+          if ($execute_watchmanager.CanWatchDirectory(dir$4)) {
+            resolvedDirs!.set(dir$4, false);
+          }
         }
       }
     }
-    return w!.wm!.ResolveDesiredDirs(coverage!.Dirs());
+    return w!.wm!.ResolveDesiredDirs(resolvedDirs);
   }
   reconcileWatches(seenFilePaths: string[]): $rt.GoObject | undefined {
     const w = this;
@@ -328,75 +243,12 @@ export class Watcher extends $rt.GoObject {
       const changedPaths: Map<string, $fswatch.EventKind> | undefined = $t2[0];
       const overflow: boolean = $t2[1];
       const hasEvents: boolean = $rt.mapLen(changedPaths) > 0 || overflow;
-      if (w!.recheckTsConfig(w!.contentMapperManifestChanged(changedPaths))) {
+      if (w!.recheckTsConfig()) {
         break $body;
       }
       if (hasEvents && !overflow && !w!.configModified) {
         if (w!.isRelevantChange(changedPaths)) {
           w!.evictChangedSourceFiles(changedPaths);
-          const caseSensitive: boolean = $rt.nn(w!.sys!.FS$m()).UseCaseSensitiveFileNames();
-          const cwd: string = w!.sys!.GetCurrentDirectory();
-          const programFiles: Map<$tspath.Path, $ast.SourceFile | undefined> | undefined = w!
-            .program!.GetProgram()!
-            .FilesByPath();
-          const contentMapperWatchedFiles: $collections.Set_<$tspath.Path> | undefined =
-            $collections.NewSetFromItems<$tspath.Path>(
-              $core.Map_<string, $tspath.Path>(
-                $zf2,
-                w!.contentMapperWatchedFiles(),
-                (fileName: string): $tspath.Path => {
-                  return $tspath.ToPath(fileName, cwd, caseSensitive);
-                },
-              ),
-            );
-          let contentMapperConfigChanged: boolean = false;
-          for (const [eventPath, $t3] of changedPaths ?? new Map<string, $fswatch.EventKind>()) {
-            if ($rt.nn(w!.sys!.FS$m()).DirectoryExists(eventPath)) {
-              w!.watchSetDirty = true;
-              continue;
-            }
-            const p: $tspath.Path = $tspath.ToPath(eventPath, cwd, caseSensitive);
-            if ($collections$Set_.Has$nil<$tspath.Path>(contentMapperWatchedFiles, p)) {
-              contentMapperConfigChanged = true;
-              w!.forceFullRebuild = true;
-            }
-            if (!(w!.config!.ConfigFile === undefined) && w!.config!.PossiblyMatchesFileName(eventPath)) {
-              if (!$collections$Set_.Has$nil<$tspath.Path>(w!.seenFiles, p)) {
-                w!.watchSetDirty = true;
-                w!.forceFullRebuild = true;
-                continue;
-              }
-            }
-            {
-              const sourceFile: $ast.SourceFile | undefined = programFiles?.get(p) ?? undefined;
-              if (!(sourceFile === undefined) && !(sourceFile!.ContentMapper() === ('' as string))) {
-                w!.forceFullRebuild = true;
-              } else {
-                {
-                  const $t4: Map<$tspath.Path, $ast.SourceFile | undefined> | undefined = programFiles;
-                  const $t5 = p;
-                  const isSource: boolean = $t4 !== undefined && $t4.has($t5);
-                  if (!isSource && $collections$Set_.Has$nil<$tspath.Path>(w!.seenFiles, p)) {
-                    w!.forceFullRebuild = true;
-                  }
-                }
-              }
-            }
-          }
-          if (contentMapperConfigChanged && !(w!.contentMapperProject === undefined)) {
-            {
-              const err: $rt.GoObject | undefined = $rt.nn(w!.contentMapperProject).Refresh();
-              if (!(err === undefined)) {
-                w!.reportDiagnostic!(
-                  $ast.NewCompilerDiagnostic(
-                    $diagnostics.The_content_mapper_process_could_not_be_started_or_initialized,
-                    [] as ($rt.GoObject | undefined)[],
-                  ),
-                );
-                break $body;
-              }
-            }
-          }
         } else {
           if (!(w!.wm!.DebugLog === undefined)) {
             $rt
@@ -416,8 +268,6 @@ export class Watcher extends $rt.GoObject {
         }
       } else if (overflow) {
         w!.sourceFileCache = new $rt.collections_SyncMap<$tspath.Path, cachedSourceFile | undefined>($zf2, $zf3);
-        w!.watchSetDirty = true;
-        w!.forceFullRebuild = true;
       } else if (!hasEvents && !w!.configModified) {
         if (!(w!.wm!.DebugLog === undefined)) {
           $rt
@@ -440,8 +290,8 @@ export class Watcher extends $rt.GoObject {
         ),
       );
       {
-        const err$1: $rt.GoObject | undefined = w!.doBuild();
-        if (!(err$1 === undefined)) {
+        const err: $rt.GoObject | undefined = w!.doBuild();
+        if (!(err === undefined)) {
           w!.wm!.ForceOverflow();
         }
       }
@@ -457,17 +307,8 @@ export class Watcher extends $rt.GoObject {
     const caseSensitive: boolean = $rt.nn(w!.sys!.FS$m()).UseCaseSensitiveFileNames();
     const cwd: string = w!.sys!.GetCurrentDirectory();
     const opts: $tspath.ComparePathsOptions = w!.comparePathsOptions();
-    const contentMapperWatchedFiles: $collections.Set_<$tspath.Path> | undefined =
-      $collections.NewSetFromItems<$tspath.Path>(
-        $core.Map_<string, $tspath.Path>($zf2, w!.contentMapperWatchedFiles(), (fileName: string): $tspath.Path => {
-          return $tspath.ToPath(fileName, cwd, caseSensitive);
-        }),
-      );
     for (const [eventPath, $t1] of changedPaths ?? new Map<string, $fswatch.EventKind>()) {
       const p: $tspath.Path = $tspath.ToPath(eventPath, cwd, caseSensitive);
-      if ($collections$Set_.Has$nil<$tspath.Path>(contentMapperWatchedFiles, p)) {
-        return true;
-      }
       if ($collections$Set_.Has$nil<$tspath.Path>(w!.seenFiles, p)) {
         return true;
       }
@@ -489,163 +330,65 @@ export class Watcher extends $rt.GoObject {
     const w = this;
     if (w!.configModified) {
       w!.sourceFileCache = new $rt.collections_SyncMap<$tspath.Path, cachedSourceFile | undefined>($zf2, $zf3);
-      w!.watchSetDirty = true;
     }
-    let reloadedFileNames: boolean = false;
-    if (w!.watchSetDirty) {
-      if (
-        !(w!.config!.ConfigFile === undefined) &&
-        $rt.mapLen($tsoptions.ParsedCommandLine.WildcardDirectories$nil(w!.config)) > 0
-      ) {
-        const newConfig: $tsoptions.ParsedCommandLine | undefined = w!.config!.ReloadFileNamesOfParsedCommandLine(
-          w!.sys!.FS$m(),
-        );
-        reloadedFileNames = true;
-        if (!$rt.slices_Equal(w!.config!.FileNames(), newConfig!.FileNames())) {
-          w!.config = newConfig;
-        } else {
-          w!.watchSetDirty = false;
-          w!.config = newConfig;
-        }
-      } else if (!w!.configModified) {
-        w!.watchSetDirty = false;
-      }
-    }
-    if (
-      !(w!.program === undefined) &&
-      w!.programReady &&
-      !w!.configModified &&
-      !w!.watchSetDirty &&
-      !w!.forceFullRebuild
-    ) {
-      const cached: $vfs_cachedvfs.FS | undefined = $vfs_cachedvfs.From(w!.sys!.FS$m());
-      const innerHost: $compiler.CompilerHost = $compiler.NewCompilerHost(
-        w!.sys!.GetCurrentDirectory(),
-        cached,
-        w!.sys!.DefaultLibraryPath(),
-        w!.extendedConfigCache,
-        getTraceFromSys(w!.sys, w!.config!.Locale$m(), w!.testing),
-        w!.contentMapperProject,
-      );
-      const host: watchCompilerHost | undefined = watchCompilerHost.$lit_execute_watchCompilerHost_0_1(
-        innerHost,
-        w!.sourceFileCache,
-      );
-      if (w!.tryUpdateProgram(host)) {
-        w!.fastPathBuilds++;
-        const result: $execute_tsc.CompileAndEmitResult = w!.compileAndEmit();
-        cached!.DisableAndClearCache();
-        w!.configMtimes = new Map<string, $rt.time_Time>();
-        {
-          const $t1 = w!.configFilePaths;
-          for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-            const cfgPath = $t1[$t2];
-            {
-              const s: $vfs.FileInfo = $rt.nn(w!.sys!.FS$m()).Stat(cfgPath);
-              if (!(s === undefined)) {
-                w!.configMtimes!.set(cfgPath, s!.ModTime());
-              }
-            }
-          }
-        }
-        w!.configModified = false;
-        const errorCount: number = result.Diagnostics.length;
-        if (errorCount === (1 as number)) {
-          w!.reportWatchStatus!(
-            $ast.NewCompilerDiagnostic(
-              $diagnostics.Found_1_error_Watching_for_file_changes,
-              [] as ($rt.GoObject | undefined)[],
-            ),
-          );
-        } else {
-          w!.reportWatchStatus!(
-            $ast.NewCompilerDiagnostic($diagnostics.Found_0_errors_Watching_for_file_changes, [
-              new $rt.BoxNum(errorCount, 'int'),
-            ]),
-          );
-        }
-        if (!(w!.testing === undefined)) {
-          w!.testing!.OnProgram(w!.program);
-        }
-        return undefined;
-      }
-      cached!.DisableAndClearCache();
-    }
-    const cached$1: $vfs_cachedvfs.FS | undefined = $vfs_cachedvfs.From(w!.sys!.FS$m());
-    const tfs: $vfs_trackingvfs.FS | undefined = $vfs_trackingvfs.FS.$lit_vfs_trackingvfs_FS_0(cached$1);
-    const innerHost$1: $compiler.CompilerHost = $compiler.NewCompilerHost(
+    const cached: $vfs_cachedvfs.FS | undefined = $vfs_cachedvfs.From(w!.sys!.FS$m());
+    const tfs: $vfs_trackingvfs.FS | undefined = $vfs_trackingvfs.FS.$lit_vfs_trackingvfs_FS_0(cached);
+    const innerHost: $compiler.CompilerHost = $compiler.NewCompilerHost(
       w!.sys!.GetCurrentDirectory(),
       tfs,
       w!.sys!.DefaultLibraryPath(),
       w!.extendedConfigCache,
       getTraceFromSys(w!.sys, w!.config!.Locale$m(), w!.testing),
-      w!.contentMapperProject,
     );
-    const host$1: watchCompilerHost | undefined = watchCompilerHost.$lit_execute_watchCompilerHost_0_1(
-      innerHost$1,
+    const host: watchCompilerHost | undefined = watchCompilerHost.$lit_execute_watchCompilerHost_0_1(
+      innerHost,
       w!.sourceFileCache,
     );
+    let wildcardDirs: Map<string, boolean> | undefined = undefined as Map<string, boolean> | undefined;
     if (!(w!.config!.ConfigFile === undefined)) {
-      for (const [dir, $t3] of $tsoptions.ParsedCommandLine.WildcardDirectories$nil(w!.config) ??
-        new Map<string, boolean>()) {
+      wildcardDirs = $tsoptions.ParsedCommandLine.WildcardDirectories$nil(w!.config);
+      for (const [dir, $t1] of wildcardDirs ?? new Map<string, boolean>()) {
         tfs!.SeenFiles.Add(dir);
       }
-      if (
-        !reloadedFileNames &&
-        !w!.watchSetDirty &&
-        $rt.mapLen($tsoptions.ParsedCommandLine.WildcardDirectories$nil(w!.config)) > 0
-      ) {
+      if ($rt.mapLen(wildcardDirs) > 0) {
         w!.config = w!.config!.ReloadFileNamesOfParsedCommandLine(w!.sys!.FS$m());
       }
     }
     {
-      const $t4 = w!.configFilePaths;
-      for (let $t5 = 0, $n = $t4.length; $t5 < $n; $t5++) {
-        const path = $t4[$t5];
+      const $t2 = w!.configFilePaths;
+      for (let $t3 = 0, $n = $t2.length; $t3 < $n; $t3++) {
+        const path = $t2[$t3];
         tfs!.SeenFiles.Add(path);
       }
     }
-    {
-      const $t6 = w!.contentMapperWatchedFiles();
-      for (let $t7 = 0, $n = $t6.length; $t7 < $n; $t7++) {
-        const path$1 = $t6[$t7];
-        tfs!.SeenFiles.Add(path$1);
-      }
-    }
     w!.program = $execute_incremental.NewProgram(
-      $compiler.NewProgram($compiler.ProgramOptions.$lit_compiler_ProgramOptions_1_0(w!.config, host$1)),
+      $compiler.NewProgram($compiler.ProgramOptions.$lit_compiler_ProgramOptions_1_0(w!.config, host)),
       w!.program,
       undefined,
-      (
-        ($t8: $execute_tsc.System) => (): $rt.time_Time =>
-          $t8!.Now()
-      )(w!.sys),
       !(w!.testing === undefined),
     );
-    w!.programReady = true;
-    w!.fullBuilds++;
-    const result$1: $execute_tsc.CompileAndEmitResult = w!.compileAndEmit();
-    cached$1!.DisableAndClearCache();
+    const result: $execute_tsc.CompileAndEmitResult = w!.compileAndEmit();
+    cached!.DisableAndClearCache();
     const caseSensitive: boolean = $rt.nn(w!.sys!.FS$m()).UseCaseSensitiveFileNames();
     const cwd: string = w!.sys!.GetCurrentDirectory();
     const seenSlice: string[] = tfs!.SeenFiles.ToSlice();
     w!.seenFiles = $collections.NewSetWithSizeHint<$tspath.Path>(seenSlice.length);
     {
-      const $t9 = seenSlice;
-      for (let $t10 = 0, $n = $t9.length; $t10 < $n; $t10++) {
-        const p = $t9[$t10];
+      const $t4 = seenSlice;
+      for (let $t5 = 0, $n = $t4.length; $t5 < $n; $t5++) {
+        const p = $t4[$t5];
         w!.seenFiles!.Add($tspath.ToPath(p, cwd, caseSensitive));
       }
     }
     w!.configMtimes = new Map<string, $rt.time_Time>();
     {
-      const $t11 = w!.configFilePaths;
-      for (let $t12 = 0, $n = $t11.length; $t12 < $n; $t12++) {
-        const cfgPath$1 = $t11[$t12];
+      const $t6 = w!.configFilePaths;
+      for (let $t7 = 0, $n = $t6.length; $t7 < $n; $t7++) {
+        const cfgPath = $t6[$t7];
         {
-          const s$1: $vfs.FileInfo = $rt.nn(w!.sys!.FS$m()).Stat(cfgPath$1);
-          if (!(s$1 === undefined)) {
-            w!.configMtimes!.set(cfgPath$1, s$1!.ModTime());
+          const s: $vfs.FileInfo = $rt.nn(w!.sys!.FS$m()).Stat(cfgPath);
+          if (!(s === undefined)) {
+            w!.configMtimes!.set(cfgPath, s!.ModTime());
           }
         }
       }
@@ -657,25 +400,23 @@ export class Watcher extends $rt.GoObject {
         return err;
       }
     }
-    w!.watchSetDirty = false;
     w!.configModified = false;
-    w!.forceFullRebuild = false;
     const programFiles: Map<$tspath.Path, $ast.SourceFile | undefined> | undefined = w!
       .program!.GetProgram()!
       .FilesByPath();
-    w!.sourceFileCache!.Range((path$2: $tspath.Path, $p1: cachedSourceFile | undefined): boolean => {
+    w!.sourceFileCache!.Range((path$1: $tspath.Path, $p1: cachedSourceFile | undefined): boolean => {
       {
-        const $t13: Map<$tspath.Path, $ast.SourceFile | undefined> | undefined = programFiles;
-        const $t14 = path$2;
-        const ok: boolean = $t13 !== undefined && $t13.has($t14);
+        const $t8: Map<$tspath.Path, $ast.SourceFile | undefined> | undefined = programFiles;
+        const $t9 = path$1;
+        const ok: boolean = $t8 !== undefined && $t8.has($t9);
         if (!ok) {
-          w!.sourceFileCache!.Delete(path$2);
+          w!.sourceFileCache!.Delete(path$1);
         }
       }
       return true;
     });
-    const errorCount$1: number = result$1.Diagnostics.length;
-    if (errorCount$1 === (1 as number)) {
+    const errorCount: number = result.Diagnostics.length;
+    if (errorCount === (1 as number)) {
       w!.reportWatchStatus!(
         $ast.NewCompilerDiagnostic(
           $diagnostics.Found_1_error_Watching_for_file_changes,
@@ -685,7 +426,7 @@ export class Watcher extends $rt.GoObject {
     } else {
       w!.reportWatchStatus!(
         $ast.NewCompilerDiagnostic($diagnostics.Found_0_errors_Watching_for_file_changes, [
-          new $rt.BoxNum(errorCount$1, 'int'),
+          new $rt.BoxNum(errorCount, 'int'),
         ]),
       );
     }
@@ -693,68 +434,6 @@ export class Watcher extends $rt.GoObject {
       w!.testing!.OnProgram(w!.program);
     }
     return undefined;
-  }
-  tryUpdateProgram(host: watchCompilerHost | undefined): boolean {
-    const w = this;
-    const oldProgram: $compiler.Program | undefined = w!.program!.GetProgram();
-    let changedPath: $tspath.Path = '';
-    let changedCount: number = 0;
-    for (const [path, file] of oldProgram!.FilesByPath() ?? new Map<$tspath.Path, $ast.SourceFile | undefined>()) {
-      if (!(file!.ContentMapper() === ('' as string))) {
-        continue;
-      }
-      {
-        const $t1 = w!.sourceFileCache!.Load(path);
-        const ok: boolean = $t1[1];
-        if (!ok) {
-          changedPath = path;
-          changedCount++;
-          if (changedCount > 1) {
-            return false;
-          }
-        }
-      }
-    }
-    if (changedCount === (0 as number)) {
-      return false;
-    }
-    {
-      const oldFile: $ast.SourceFile | undefined = oldProgram!.FilesByPath()?.get(changedPath) ?? undefined;
-      if (!(oldFile === undefined)) {
-        {
-          const newFile: $ast.SourceFile | undefined = host!.GetSourceFile(oldFile!.ParseOptions());
-          if (!(newFile === undefined)) {
-            if (!equalJSXImplicitImport(oldProgram!.Options(), oldFile, newFile)) {
-              return false;
-            }
-          }
-        }
-      }
-    }
-    const $t2 = oldProgram!.ReuseProgram(changedPath, host, undefined);
-    const newProgram: $compiler.Program | undefined = $t2[0];
-    const reused: boolean = $t2[2];
-    if (reused) {
-      w!.program = $execute_incremental.NewProgram(
-        newProgram,
-        w!.program,
-        undefined,
-        (
-          ($t3: $execute_tsc.System) => (): $rt.time_Time =>
-            $t3!.Now()
-        )(w!.sys),
-        !(w!.testing === undefined),
-      );
-    }
-    return reused;
-  }
-  FastPathBuilds(): number {
-    const w = this;
-    return w!.fastPathBuilds;
-  }
-  FullBuilds(): number {
-    const w = this;
-    return w!.fullBuilds;
   }
   evictChangedSourceFiles(changedPaths: Map<string, $fswatch.EventKind> | undefined): void {
     const w = this;
@@ -796,33 +475,12 @@ export class Watcher extends $rt.GoObject {
       ),
     );
   }
-  contentMapperManifestChanged(changedPaths: Map<string, $fswatch.EventKind> | undefined): boolean {
-    const w = this;
-    {
-      const $t1 = $tsoptions.ParsedCommandLine.ContentMappers$nil(w!.config);
-      for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        const mapper = $t1[$t2];
-        if (mapper!.PackageDirectory === ('' as string) || !(mapper!.ContributionID === ('' as string))) {
-          continue;
-        }
-        {
-          const $t3: Map<string, $fswatch.EventKind> | undefined = changedPaths;
-          const $t4 = $rt.nn(w!.sys!.FS$m()).Realpath($tspath.CombinePaths(mapper!.PackageDirectory, ['package.json']));
-          const changed: boolean = $t3 !== undefined && $t3.has($t4);
-          if (changed) {
-            return true;
-          }
-        }
-      }
-    }
-    return false;
-  }
-  recheckTsConfig(force: boolean): boolean {
+  recheckTsConfig(): boolean {
     const w = this;
     if (w!.configFileName === ('' as string)) {
       return false;
     }
-    if (!force && !w!.configHasErrors && w!.configFilePaths.length > 0) {
+    if (!w!.configHasErrors && w!.configFilePaths.length > 0) {
       let changed: boolean = false;
       {
         const $t1 = w!.configFilePaths;
@@ -863,7 +521,6 @@ export class Watcher extends $rt.GoObject {
     if (!$rt.reflect_DeepEqual(w!.config!.ParsedConfig, configParseResult!.ParsedConfig)) {
       w!.configModified = true;
     }
-    w!.replaceContentMapperProject(configParseResult);
     w!.config = configParseResult;
     return false;
   }
@@ -976,9 +633,7 @@ export class watchCompilerHost extends $rt.GoObject {
         }
       }
     }
-    const file: $ast.SourceFile | undefined = $rt
-      .nn(h!.CompilerHost_)
-      .GetSourceFile(opts.$clone_ast_SourceFileParseOptions());
+    const file: $ast.SourceFile | undefined = $rt.nn(h!.CompilerHost_).GetSourceFile(opts);
     if (!(file === undefined)) {
       if (!(info === undefined)) {
         h!.cache!.Store(opts.Path_, cachedSourceFile.$lit_execute_cachedSourceFile_0_1(file, info!.ModTime()));
@@ -988,20 +643,11 @@ export class watchCompilerHost extends $rt.GoObject {
     }
     return file;
   }
-  ContentMapperProject(): $contentmapper.Project {
-    return this.CompilerHost_!.ContentMapperProject();
-  }
   DefaultLibraryPath(): string {
     return this.CompilerHost_!.DefaultLibraryPath();
   }
   FS$m(): $vfs.FS {
     return this.CompilerHost_!.FS$m();
-  }
-  GetContentMappedSourceFiles(
-    a0: $ast.SourceFileParseOptions,
-    a1: $contentmapper.Mapper | undefined,
-  ): [$contentmapper.SourceFiles, $rt.GoObject | undefined] {
-    return this.CompilerHost_!.GetContentMappedSourceFiles(a0, a1);
   }
   GetCurrentDirectory(): string {
     return this.CompilerHost_!.GetCurrentDirectory();
@@ -1013,10 +659,6 @@ export class watchCompilerHost extends $rt.GoObject {
     return this.CompilerHost_!.Trace(a0, a1);
   }
 }
-export const cachedSourceFile$zero: cachedSourceFile = new cachedSourceFile();
-const $fn0 = (file: $ast.SourceFile | undefined): boolean => {
-  return file!.ScriptKind_ === (2 as number) || file!.ScriptKind_ === (4 as number);
-};
 export function startTracingIfNeeded(
   sys: $execute_tsc.System,
   config: $tsoptions.ParsedCommandLine | undefined,
@@ -1405,7 +1047,6 @@ export function tscCompilation(
       break $body;
     } else if ($tsoptions.ParsedCommandLine.CompilerOptions$m$nil(configForCompilation)!.IsIncremental()) {
       $t1 = performIncrementalCompilation(
-        ctx,
         sys,
         configForCompilation,
         reportDiagnostic,
@@ -1417,7 +1058,6 @@ export function tscCompilation(
       break $body;
     }
     $t1 = performCompilation(
-      ctx,
       sys,
       configForCompilation,
       reportDiagnostic,
@@ -1462,7 +1102,6 @@ export function getTraceFromSys(
   return $execute_tsc.GetTraceWithWriterFromSys(sys!.Writer$m(), locale, testing);
 }
 export function performIncrementalCompilation(
-  ctx: $rt.context_Context | undefined,
   sys: $execute_tsc.System,
   config: $tsoptions.ParsedCommandLine | undefined,
   reportDiagnostic: $execute_tsc.DiagnosticReporter,
@@ -1471,170 +1110,94 @@ export function performIncrementalCompilation(
   compileTimes: $execute_tsc.CompileTimes | undefined,
   testing: $execute_tsc.CommandLineTesting | undefined,
 ): $execute_tsc.CommandLineResult {
-  let $t1: $execute_tsc.CommandLineResult = new $execute_tsc.CommandLineResult();
-  const $defers: (() => void)[] = [];
-  let $panic: $rt.Panic | undefined = undefined;
-  $body: try {
-    const contentMapperHost: $contentmapper.Host = $execute_tsc.NewContentMapperHost(
-      ctx,
+  const host: $compiler.CompilerHost = $compiler.NewCachedFSCompilerHost(
+    sys!.GetCurrentDirectory(),
+    sys!.FS$m(),
+    sys!.DefaultLibraryPath(),
+    extendedConfigCache,
+    getTraceFromSys(sys, config!.Locale$m(), testing),
+  );
+  const buildInfoReadStart: $rt.time_Time = sys!.Now();
+  const oldProgram: $execute_incremental.Program | undefined = $execute_incremental.ReadBuildInfoProgram(
+    config,
+    $execute_incremental.NewBuildInfoReader(host),
+    host,
+  );
+  compileTimes!.BuildInfoReadTime = sys!.Now().Sub(buildInfoReadStart);
+  const tr: $tracing.Tracing | undefined = startTracingIfNeeded(sys, config, testing);
+  const parseStart: $rt.time_Time = sys!.Now();
+  const program: $compiler.Program | undefined = $compiler.NewProgram(
+    $compiler.ProgramOptions.$lit_compiler_ProgramOptions_1_0_7(config, host, tr),
+  );
+  compileTimes!.ParseTime = sys!.Now().Sub(parseStart);
+  const changesComputeStart: $rt.time_Time = sys!.Now();
+  const incrementalProgram: $execute_incremental.Program | undefined = $execute_incremental.NewProgram(
+    program,
+    oldProgram,
+    $execute_incremental.CreateHost(host),
+    !(testing === undefined),
+  );
+  compileTimes!.ChangesComputeTime = sys!.Now().Sub(changesComputeStart);
+  const $t1 = $execute_tsc.EmitAndReportStatistics(
+    $execute_tsc.EmitInput.$lit_execute_tsc_EmitInput_0_1_2_3_4_5_6_8_9_11(
       sys,
-      $tsoptions.ParsedCommandLine.CompilerOptions$m$nil(config),
-    );
-    const contentMapperProject: $contentmapper.Project = getContentMapperProject(contentMapperHost, config);
-    if (!(contentMapperProject === undefined)) {
-      const $t2 = contentMapperProject;
-      $defers.push(() => {
-        $rt.nn($t2).Close();
-      });
-    }
-    const host: $compiler.CompilerHost = $compiler.NewCachedFSCompilerHost(
-      sys!.GetCurrentDirectory(),
-      sys!.FS$m(),
-      sys!.DefaultLibraryPath(),
-      extendedConfigCache,
-      getTraceFromSys(sys, config!.Locale$m(), testing),
-      contentMapperProject,
-    );
-    const buildInfoReadStart: $rt.time_Time = sys!.Now();
-    const oldProgram: $execute_incremental.Program | undefined = $execute_incremental.ReadBuildInfoProgram(
+      incrementalProgram,
+      incrementalProgram!.GetProgram(),
       config,
-      $execute_incremental.NewBuildInfoReader(host),
-      host,
-    );
-    compileTimes!.BuildInfoReadTime = sys!.Now().Sub(buildInfoReadStart);
-    const tr: $tracing.Tracing | undefined = startTracingIfNeeded(sys, config, testing);
-    const parseStart: $rt.time_Time = sys!.Now();
-    const program: $compiler.Program | undefined = $compiler.NewProgram(
-      $compiler.ProgramOptions.$lit_compiler_ProgramOptions_1_0_7(config, host, tr),
-    );
-    compileTimes!.ParseTime = sys!.Now().Sub(parseStart);
-    const changesComputeStart: $rt.time_Time = sys!.Now();
-    const incrementalProgram: $execute_incremental.Program | undefined = $execute_incremental.NewProgram(
-      program,
-      oldProgram,
-      $execute_incremental.CreateHost(host),
-      (
-        ($t3: $execute_tsc.System) => (): $rt.time_Time =>
-          $t3!.Now()
-      )(sys),
-      !(testing === undefined),
-    );
-    compileTimes!.ChangesComputeTime = sys!.Now().Sub(changesComputeStart);
-    if (!(contentMapperHost === undefined)) {
-      compileTimes!.ContentMapperTimes = contentMapperHost!.Timings$m();
-    }
-    const $t4 = $execute_tsc.EmitAndReportStatistics(
-      $execute_tsc.EmitInput.$lit_execute_tsc_EmitInput_0_1_2_3_4_5_6_8_9_11(
-        sys,
-        incrementalProgram,
-        incrementalProgram!.GetProgram(),
-        config,
-        reportDiagnostic,
-        reportErrorSummary,
-        sys!.Writer$m(),
-        compileTimes,
-        testing,
-        tr,
-      ),
-    );
-    const result: $execute_tsc.CompileAndEmitResult = $t4[0];
-    stopTracing(sys, tr);
-    if (!(testing === undefined)) {
-      testing!.OnProgram(incrementalProgram);
-    }
-    $t1 = $execute_tsc.CommandLineResult.$lit_execute_tsc_CommandLineResult_0(result.Status);
-    break $body;
-  } catch ($e) {
-    $panic = $rt.toPanic($e);
-  } finally {
-    $panic = $rt.runDefers($defers, $panic);
-  }
-  if ($panic !== undefined) throw $panic;
-  return $t1;
-}
-export function performCompilation(
-  ctx: $rt.context_Context | undefined,
-  sys: $execute_tsc.System,
-  config: $tsoptions.ParsedCommandLine | undefined,
-  reportDiagnostic: $execute_tsc.DiagnosticReporter,
-  reportErrorSummary: $execute_tsc.DiagnosticsReporter,
-  extendedConfigCache: $tsoptions.ExtendedConfigCache,
-  compileTimes: $execute_tsc.CompileTimes | undefined,
-  testing: $execute_tsc.CommandLineTesting | undefined,
-): $execute_tsc.CommandLineResult {
-  let $t1: $execute_tsc.CommandLineResult = new $execute_tsc.CommandLineResult();
-  const $defers: (() => void)[] = [];
-  let $panic: $rt.Panic | undefined = undefined;
-  $body: try {
-    const contentMapperHost: $contentmapper.Host = $execute_tsc.NewContentMapperHost(
-      ctx,
-      sys,
-      $tsoptions.ParsedCommandLine.CompilerOptions$m$nil(config),
-    );
-    const contentMapperProject: $contentmapper.Project = getContentMapperProject(contentMapperHost, config);
-    if (!(contentMapperProject === undefined)) {
-      const $t2 = contentMapperProject;
-      $defers.push(() => {
-        $rt.nn($t2).Close();
-      });
-    }
-    const host: $compiler.CompilerHost = $compiler.NewCachedFSCompilerHost(
-      sys!.GetCurrentDirectory(),
-      sys!.FS$m(),
-      sys!.DefaultLibraryPath(),
-      extendedConfigCache,
-      getTraceFromSys(sys, config!.Locale$m(), testing),
-      contentMapperProject,
-    );
-    const tr: $tracing.Tracing | undefined = startTracingIfNeeded(sys, config, testing);
-    const parseStart: $rt.time_Time = sys!.Now();
-    const program: $compiler.Program | undefined = $compiler.NewProgram(
-      $compiler.ProgramOptions.$lit_compiler_ProgramOptions_1_0_7(config, host, tr),
-    );
-    compileTimes!.ParseTime = sys!.Now().Sub(parseStart);
-    if (!(contentMapperHost === undefined)) {
-      compileTimes!.ContentMapperTimes = contentMapperHost!.Timings$m();
-    }
-    const $t3 = $execute_tsc.EmitAndReportStatistics(
-      $execute_tsc.EmitInput.$lit_execute_tsc_EmitInput_0_1_2_3_4_5_6_8_9_11(
-        sys,
-        program,
-        program,
-        config,
-        reportDiagnostic,
-        reportErrorSummary,
-        sys!.Writer$m(),
-        compileTimes,
-        testing,
-        tr,
-      ),
-    );
-    const result: $execute_tsc.CompileAndEmitResult = $t3[0];
-    stopTracing(sys, tr);
-    $t1 = $execute_tsc.CommandLineResult.$lit_execute_tsc_CommandLineResult_0(result.Status);
-    break $body;
-  } catch ($e) {
-    $panic = $rt.toPanic($e);
-  } finally {
-    $panic = $rt.runDefers($defers, $panic);
-  }
-  if ($panic !== undefined) throw $panic;
-  return $t1;
-}
-export function getContentMapperProject(
-  host: $contentmapper.Host,
-  config: $tsoptions.ParsedCommandLine | undefined,
-): $contentmapper.Project {
-  if (host === undefined || $tsoptions.ParsedCommandLine.ContentMappers$nil(config).length === (0 as number)) {
-    return undefined;
-  }
-  return host!.Project$m(
-    $contentmapper.ProjectSpec.$lit_contentmapper_ProjectSpec_0_1_2(
-      $tsoptions.ParsedCommandLine.ConfigName$nil(config),
-      $tsoptions.ParsedCommandLine.ContentMappers$nil(config),
-      $tsoptions.ParsedCommandLine.CompilerOptions$m$nil(config),
+      reportDiagnostic,
+      reportErrorSummary,
+      sys!.Writer$m(),
+      compileTimes,
+      testing,
+      tr,
     ),
   );
+  const result: $execute_tsc.CompileAndEmitResult = $t1[0];
+  stopTracing(sys, tr);
+  if (!(testing === undefined)) {
+    testing!.OnProgram(incrementalProgram);
+  }
+  return $execute_tsc.CommandLineResult.$lit_execute_tsc_CommandLineResult_0(result.Status);
+}
+export function performCompilation(
+  sys: $execute_tsc.System,
+  config: $tsoptions.ParsedCommandLine | undefined,
+  reportDiagnostic: $execute_tsc.DiagnosticReporter,
+  reportErrorSummary: $execute_tsc.DiagnosticsReporter,
+  extendedConfigCache: $tsoptions.ExtendedConfigCache,
+  compileTimes: $execute_tsc.CompileTimes | undefined,
+  testing: $execute_tsc.CommandLineTesting | undefined,
+): $execute_tsc.CommandLineResult {
+  const host: $compiler.CompilerHost = $compiler.NewCachedFSCompilerHost(
+    sys!.GetCurrentDirectory(),
+    sys!.FS$m(),
+    sys!.DefaultLibraryPath(),
+    extendedConfigCache,
+    getTraceFromSys(sys, config!.Locale$m(), testing),
+  );
+  const tr: $tracing.Tracing | undefined = startTracingIfNeeded(sys, config, testing);
+  const parseStart: $rt.time_Time = sys!.Now();
+  const program: $compiler.Program | undefined = $compiler.NewProgram(
+    $compiler.ProgramOptions.$lit_compiler_ProgramOptions_1_0_7(config, host, tr),
+  );
+  compileTimes!.ParseTime = sys!.Now().Sub(parseStart);
+  const $t1 = $execute_tsc.EmitAndReportStatistics(
+    $execute_tsc.EmitInput.$lit_execute_tsc_EmitInput_0_1_2_3_4_5_6_8_9_11(
+      sys,
+      program,
+      program,
+      config,
+      reportDiagnostic,
+      reportErrorSummary,
+      sys!.Writer$m(),
+      compileTimes,
+      testing,
+      tr,
+    ),
+  );
+  const result: $execute_tsc.CompileAndEmitResult = $t1[0];
+  stopTracing(sys, tr);
+  return $execute_tsc.CommandLineResult.$lit_execute_tsc_CommandLineResult_0(result.Status);
 }
 export function showConfig(
   sys: $execute_tsc.System,
@@ -1674,7 +1237,7 @@ export function createWatcher(
       wm!.SetBackend(t!.WatchBackend$m());
     }
   }
-  const w: Watcher | undefined = Watcher.$lit_execute_Watcher_0_2_3_4_5_6_7_8_16_17(
+  const w: Watcher | undefined = Watcher.$lit_execute_Watcher_0_2_3_4_5_6_7_8_14_15(
     sys,
     configParseResult,
     compilerOptionsFromCommandLine,
@@ -1695,17 +1258,4 @@ export function createWatcher(
     w!.configFileName = configParseResult!.ConfigFile!.SourceFile_!.FileName();
   }
   return w;
-}
-export function equalJSXImplicitImport(
-  options: $core.CompilerOptions | undefined,
-  oldFile: $ast.SourceFile | undefined,
-  newFile: $ast.SourceFile | undefined,
-): boolean {
-  const isJSX: ((p0: $ast.SourceFile | undefined) => boolean) | undefined = $fn0;
-  if (!isJSX!(oldFile) && !isJSX!(newFile)) {
-    return true;
-  }
-  const oldImport: string = $ast.GetJSXRuntimeImport($ast.GetJSXImplicitImportBase(options, oldFile), options);
-  const newImport: string = $ast.GetJSXRuntimeImport($ast.GetJSXImplicitImportBase(options, newFile), options);
-  return oldImport === newImport;
 }

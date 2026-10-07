@@ -32,7 +32,7 @@ const emit = (name, values) =>
   '\n];\n';
 const output =
   '// Generated from ' +
-  path +
+  path.replace('../../', '') +
   ' by scripts/generate-case-mappings.mjs.\n' +
   '// Unicode 15.1.0; preserves the pinned tsgo case tables. See THIRD_PARTY_NOTICES.md.\n' +
   '// Copyright Microsoft Corporation. Licensed under Apache-2.0.\n' +

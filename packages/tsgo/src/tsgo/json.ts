@@ -2,8 +2,6 @@
 // Copyright Microsoft Corporation. Licensed under Apache-2.0.
 import * as $rt from '../go/runtime.js';
 import type * as $checkhost from './checkhost.js';
-import type * as $contentmapper from './contentmapper.js';
-import type * as $ipc from './ipc.js';
 import type * as $ls_lsutil from './ls_lsutil.js';
 import type * as $lsp_lsproto from './lsp_lsproto.js';
 import type * as $packagejson from './packagejson.js';
@@ -11,7 +9,6 @@ export type Decoder = $rt.github_com_go_json_experiment_json_jsontext_Decoder;
 export type Encoder = $rt.github_com_go_json_experiment_json_jsontext_Encoder;
 export type Kind = number;
 export type MarshalerTo =
-  | $contentmapper.MappedDiagnosticDirective
   | $lsp_lsproto.BooleanOrCallHierarchyOptionsOrCallHierarchyRegistrationOptions
   | $lsp_lsproto.BooleanOrClientSemanticTokensRequestFullDelta
   | $lsp_lsproto.BooleanOrCodeActionOptions
@@ -86,14 +83,11 @@ export type MarshalerTo =
   | $lsp_lsproto.StringLiteralBegin
   | $lsp_lsproto.StringLiteralClassifiedTextElement
   | $lsp_lsproto.StringLiteralClassifiedTextRun
-  | $lsp_lsproto.StringLiteralContainerElement
   | $lsp_lsproto.StringLiteralCreate
   | $lsp_lsproto.StringLiteralDelete
   | $lsp_lsproto.StringLiteralEnd
   | $lsp_lsproto.StringLiteralError
   | $lsp_lsproto.StringLiteralFull
-  | $lsp_lsproto.StringLiteralImageElement
-  | $lsp_lsproto.StringLiteralImageId
   | $lsp_lsproto.StringLiteralLanguageServerErrorResponse
   | $lsp_lsproto.StringLiteralLanguageServerPerformanceStats
   | $lsp_lsproto.StringLiteralLanguageServerProjectInfo
@@ -122,7 +116,6 @@ export type MarshalerTo =
   | $lsp_lsproto.TextEditsOrNull
   | $lsp_lsproto.TypeHierarchyItemsOrNull
   | $lsp_lsproto.UintegerOrNull
-  | $lsp_lsproto.VSImageElementOrClassifiedTextElementOrContainerElement
   | $lsp_lsproto.VSOnAutoInsertResponseItemOrNull
   | $lsp_lsproto.VSReferenceItemsOrNull
   | $lsp_lsproto.WorkDoneProgressBeginOrReportOrEnd
@@ -135,7 +128,6 @@ export type MarshalerTo =
 export type UnmarshalerFrom =
   | $packagejson.ExportsOrImports
   | $packagejson.JSONValue
-  | $contentmapper.MappedDiagnosticDirective
   | $lsp_lsproto.AnnotatedTextEdit
   | $lsp_lsproto.ApplyWorkspaceEditParams
   | $lsp_lsproto.ApplyWorkspaceEditResult
@@ -247,8 +239,6 @@ export type UnmarshalerFrom =
   | $lsp_lsproto.CompletionRegistrationOptions
   | $lsp_lsproto.ConfigurationItem
   | $lsp_lsproto.ConfigurationParams
-  | $lsp_lsproto.ContentMapperContribution
-  | $lsp_lsproto.ContentMapperManifest
   | $lsp_lsproto.CreateFile
   | $lsp_lsproto.CreateFileOptions
   | $lsp_lsproto.CreateFilesParams
@@ -360,7 +350,6 @@ export type UnmarshalerFrom =
   | $lsp_lsproto.ImplementationOptions
   | $lsp_lsproto.ImplementationParams
   | $lsp_lsproto.ImplementationRegistrationOptions
-  | $lsp_lsproto.InferredProjectContentMapperContribution
   | $lsp_lsproto.InitializationOptions
   | $lsp_lsproto.InitializationOptionsOrNull
   | $lsp_lsproto.InitializeAPISessionParams
@@ -502,7 +491,6 @@ export type UnmarshalerFrom =
   | $lsp_lsproto.ServerCapabilities
   | $lsp_lsproto.ServerCompletionItemOptions
   | $lsp_lsproto.ServerInfo
-  | $lsp_lsproto.SetContentMapperContributionsParams
   | $lsp_lsproto.SetLogVerbosityParams
   | $lsp_lsproto.SetTraceParams
   | $lsp_lsproto.ShowDocumentClientCapabilities
@@ -525,14 +513,11 @@ export type UnmarshalerFrom =
   | $lsp_lsproto.StringLiteralBegin
   | $lsp_lsproto.StringLiteralClassifiedTextElement
   | $lsp_lsproto.StringLiteralClassifiedTextRun
-  | $lsp_lsproto.StringLiteralContainerElement
   | $lsp_lsproto.StringLiteralCreate
   | $lsp_lsproto.StringLiteralDelete
   | $lsp_lsproto.StringLiteralEnd
   | $lsp_lsproto.StringLiteralError
   | $lsp_lsproto.StringLiteralFull
-  | $lsp_lsproto.StringLiteralImageElement
-  | $lsp_lsproto.StringLiteralImageId
   | $lsp_lsproto.StringLiteralLanguageServerErrorResponse
   | $lsp_lsproto.StringLiteralLanguageServerPerformanceStats
   | $lsp_lsproto.StringLiteralLanguageServerProjectInfo
@@ -602,10 +587,6 @@ export type UnmarshalerFrom =
   | $lsp_lsproto.UnregistrationParams
   | $lsp_lsproto.VSClassifiedTextElement
   | $lsp_lsproto.VSClassifiedTextRun
-  | $lsp_lsproto.VSContainerElement
-  | $lsp_lsproto.VSImageElement
-  | $lsp_lsproto.VSImageElementOrClassifiedTextElementOrContainerElement
-  | $lsp_lsproto.VSImageId
   | $lsp_lsproto.VSOnAutoInsertOptions
   | $lsp_lsproto.VSOnAutoInsertParams
   | $lsp_lsproto.VSOnAutoInsertResponseItem
@@ -687,13 +668,7 @@ export function MarshalEncode(
   return $rt.github_com_go_json_experiment_json_MarshalEncode(out_, in_, opts);
 }
 export function MarshalWrite(
-  out_:
-    | $ipc.stdioConn
-    | $contentmapper.closeOnceReadWriteCloser
-    | $contentmapper.loggedProcess
-    | $contentmapper.stderrLogger
-    | $checkhost.hostWriter
-    | undefined,
+  out_: $checkhost.hostWriter | undefined,
   in_: $rt.GoObject | undefined,
   opts: ($rt.github_com_go_json_experiment_json_internal_jsonopts_Options | undefined)[],
 ): $rt.GoObject | undefined {
@@ -721,13 +696,7 @@ export function MarshalIndent(
   ]);
 }
 export function MarshalIndentWrite(
-  out_:
-    | $ipc.stdioConn
-    | $contentmapper.closeOnceReadWriteCloser
-    | $contentmapper.loggedProcess
-    | $contentmapper.stderrLogger
-    | $checkhost.hostWriter
-    | undefined,
+  out_: $checkhost.hostWriter | undefined,
   in_: $rt.GoObject | undefined,
   prefix: string,
   indent: string,
@@ -762,7 +731,7 @@ export function UnmarshalDecode(
   return $rt.github_com_go_json_experiment_json_UnmarshalDecode(in_, out_, opts);
 }
 export function UnmarshalRead(
-  in_: $ipc.stdioConn | $contentmapper.closeOnceReadWriteCloser | $contentmapper.loggedProcess | undefined,
+  in_: $rt.io_Reader | undefined,
   out_: $rt.GoObject | undefined,
   opts: ($rt.github_com_go_json_experiment_json_internal_jsonopts_Options | undefined)[],
 ): $rt.GoObject | undefined {
@@ -785,7 +754,7 @@ export function WithIndent(
   return $rt.github_com_go_json_experiment_json_jsontext_WithIndent(indent);
 }
 export function NewDecoder(
-  r: $ipc.stdioConn | $contentmapper.closeOnceReadWriteCloser | $contentmapper.loggedProcess | undefined,
+  r: $rt.io_Reader | undefined,
 ): $rt.github_com_go_json_experiment_json_jsontext_Decoder | undefined {
   return $rt.github_com_go_json_experiment_json_jsontext_NewDecoder(
     r,
