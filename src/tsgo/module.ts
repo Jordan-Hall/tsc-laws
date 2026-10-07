@@ -1161,7 +1161,7 @@ export class resolutionState extends $rt.GoObject {
           result!.AlternateResult = diagnosticResult!.ResolvedFileName;
         }
       }
-      r!.diagnostics = $rt.reslice(r!.diagnostics, 0, diagnosticsCount, undefined);
+      r!.diagnostics = $rt.truncate(r!.diagnostics, diagnosticsCount, undefined);
     }
     return result;
   }
@@ -2218,7 +2218,7 @@ export class resolutionState extends $rt.GoObject {
       resolvedModule.ResolvedUsingTsExtension = resolved$v!.resolvedUsingTsExtension;
       resolvedModule.ResolvedUsingExtraExtensions = resolved$v!.resolvedUsingExtraExtensions;
       resolvedModule.Extension = resolved$v!.extension;
-      resolvedModule.PackageId_ = resolved$v!.packageId.$clone_module_PackageId();
+      resolvedModule.PackageId_.$copy_module_PackageId(resolved$v!.packageId);
     }
     return resolvedModule;
   }
@@ -2235,7 +2235,7 @@ export class resolutionState extends $rt.GoObject {
       }
       resolvedTypeReferenceDirective.ResolvedFileName = resolved$v!.path;
       resolvedTypeReferenceDirective.Primary = primary;
-      resolvedTypeReferenceDirective.PackageId_ = resolved$v!.packageId.$clone_module_PackageId();
+      resolvedTypeReferenceDirective.PackageId_.$copy_module_PackageId(resolved$v!.packageId);
       resolvedTypeReferenceDirective.IsExternalLibraryImport = $rt.strings_Contains(resolved$v!.path, '/node_modules/');
       if (!(r!.compilerOptions!.PreserveSymlinks === (2 as number))) {
         const $t1 = r!.getOriginalAndResolvedFileName(resolved$v!.path);

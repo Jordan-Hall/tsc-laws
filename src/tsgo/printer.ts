@@ -1277,13 +1277,13 @@ export class EmitContext extends $rt.GoObject {
     let leftHoistedFunctionsEnd: number = findSpanEndWithEmitContext<$ast.Node | undefined>(
       c,
       statements,
-      ($r: EmitContext | undefined, a0: $ast.Node | undefined): boolean => $r!.isHoistedFunction(a0),
+      $fn4,
       leftStandardPrologueEnd,
     );
     let leftHoistedVariablesEnd: number = findSpanEndWithEmitContext<$ast.Node | undefined>(
       c,
       statements,
-      ($r: EmitContext | undefined, a0: $ast.Node | undefined): boolean => $r!.isHoistedVariableStatement(a0),
+      $fn5,
       leftHoistedFunctionsEnd,
     );
     let rightStandardPrologueEnd: number = findSpanEnd<$ast.Node | undefined>(
@@ -1294,19 +1294,19 @@ export class EmitContext extends $rt.GoObject {
     let rightHoistedFunctionsEnd: number = findSpanEndWithEmitContext<$ast.Node | undefined>(
       c,
       declarations,
-      ($r: EmitContext | undefined, a0: $ast.Node | undefined): boolean => $r!.isHoistedFunction(a0),
+      $fn4,
       rightStandardPrologueEnd,
     );
     let rightHoistedVariablesEnd: number = findSpanEndWithEmitContext<$ast.Node | undefined>(
       c,
       declarations,
-      ($r: EmitContext | undefined, a0: $ast.Node | undefined): boolean => $r!.isHoistedVariableStatement(a0),
+      $fn5,
       rightHoistedFunctionsEnd,
     );
     let rightCustomPrologueEnd: number = findSpanEndWithEmitContext<$ast.Node | undefined>(
       c,
       declarations,
-      ($r: EmitContext | undefined, a0: $ast.Node | undefined): boolean => $r!.isCustomPrologue(a0),
+      $fn6,
       rightHoistedVariablesEnd,
     );
     if (!(rightCustomPrologueEnd === declarations.length)) {
@@ -5455,22 +5455,12 @@ export class Printer extends PrintHandlers {
       return parentNode!.Pos();
     }
     if ($core.Every<$ast.Node | undefined>(modifiers!.Nodes, $ast.IsModifier)) {
-      p!.emitList(
-        ($r: Printer | undefined, a0: $ast.Node | undefined): void => $r!.emitKeywordNode(a0),
-        parentNode,
-        modifiers!,
-        2359808,
-      );
+      p!.emitList($fn7, parentNode, modifiers!, 2359808);
     } else if ($core.Every<$ast.Node | undefined>(modifiers!.Nodes, $ast.IsDecorator)) {
       if (!allowDecorators) {
         return parentNode!.Pos();
       }
-      p!.emitList(
-        ($r: Printer | undefined, a0: $ast.Node | undefined): void => $r!.emitModifierLike(a0),
-        parentNode,
-        modifiers!,
-        2146305,
-      );
+      p!.emitList($fn8, parentNode, modifiers!, 2146305);
     } else {
       if (!(p!.OnBeforeEmitNodeList === undefined)) {
         p!.OnBeforeEmitNodeList!(modifiers!);
@@ -5508,7 +5498,7 @@ export class Printer extends PrintHandlers {
         if (allowDecorators || lastMode === (1 as number)) {
           const $t1 = $rt.reslice(modifiers!.Nodes, start, pos, undefined);
           p!.emitListItems(
-            ($r: Printer | undefined, a0: $ast.Node | undefined): void => $r!.emitModifierLike(a0),
+            $fn8,
             parentNode,
             $t1,
             $core.IfElse<ListFormat>(lastMode === (1 as number), 2359808, 2146305),
@@ -5614,7 +5604,7 @@ export class Printer extends PrintHandlers {
       return;
     }
     p!.emitList(
-      ($r: Printer | undefined, a0: $ast.Node | undefined): void => $r!.emitTypeParameterDeclarationNode(a0),
+      $fn9,
       parentNode,
       nodes,
       $rt.or64(53776, $core.IfElse<ListFormat>($ast.IsArrowFunction(parentNode), 64, 0)),
@@ -5642,23 +5632,13 @@ export class Printer extends PrintHandlers {
   emitParameters(parentNode: $ast.Node | undefined, parameters: $ast.NodeList | undefined): void {
     const p = this;
     p!.generateAllNames(parameters);
-    p!.emitList(
-      ($r: Printer | undefined, a0: $ast.Node | undefined): void => $r!.emitParameterDeclarationNode(a0),
-      parentNode,
-      parameters,
-      2576,
-    );
+    p!.emitList($fn10, parentNode, parameters, 2576);
   }
   emitParametersForArrow(parentNode: $ast.Node | undefined, parameters: $ast.NodeList | undefined): void {
     const p = this;
     if (canEmitSimpleArrowHead(parentNode, parameters)) {
       p!.generateAllNames(parameters);
-      p!.emitList(
-        ($r: Printer | undefined, a0: $ast.Node | undefined): void => $r!.emitParameterDeclarationNode(a0),
-        parentNode,
-        parameters,
-        528,
-      );
+      p!.emitList($fn10, parentNode, parameters, 528);
     } else {
       p!.emitParameters(parentNode, parameters);
     }
@@ -5666,12 +5646,7 @@ export class Printer extends PrintHandlers {
   emitParametersForIndexSignature(parentNode: $ast.Node | undefined, parameters: $ast.NodeList | undefined): void {
     const p = this;
     p!.generateAllNames(parameters);
-    p!.emitList(
-      ($r: Printer | undefined, a0: $ast.Node | undefined): void => $r!.emitParameterDeclarationNode(a0),
-      parentNode,
-      parameters,
-      8848,
-    );
+    p!.emitList($fn10, parentNode, parameters, 8848);
   }
   emitSignature(node: $ast.Node | undefined): void {
     const p = this;
@@ -5702,24 +5677,10 @@ export class Printer extends PrintHandlers {
       pos === $rt.nn(p!.writer).GetTextPos()
     ) {
       p!.decreaseIndent();
-      p!.emitListRange(
-        ($r: Printer | undefined, a0: $ast.Node | undefined): void => $r!.emitStatement(a0),
-        body!.AsNode(),
-        body!.Statements_,
-        768,
-        statementOffset,
-        -1,
-      );
+      p!.emitListRange($fn11, body!.AsNode(), body!.Statements_, 768, statementOffset, -1);
       p!.increaseIndent();
     } else {
-      p!.emitListRange(
-        ($r: Printer | undefined, a0: $ast.Node | undefined): void => $r!.emitStatement(a0),
-        body!.AsNode(),
-        body!.Statements_,
-        1,
-        statementOffset,
-        -1,
-      );
+      p!.emitListRange($fn11, body!.AsNode(), body!.Statements_, 1, statementOffset, -1);
     }
     p!.emitDetachedCommentsAfterStatementList(body!.AsNode(), body!.Statements_!.Loc, detachedState);
     p!.decreaseIndent();
@@ -6067,12 +6028,7 @@ export class Printer extends PrintHandlers {
     if (nodes === undefined) {
       return;
     }
-    p!.emitList(
-      ($r: Printer | undefined, a0: $ast.Node | undefined): void => $r!.emitTypeParameterDeclarationNode(a0),
-      parentNode,
-      nodes,
-      53776,
-    );
+    p!.emitList($fn9, parentNode, nodes, 53776);
   }
   emitTypeReference(node: $ast.TypeReferenceNode | undefined): void {
     const p = this;
@@ -6145,12 +6101,7 @@ export class Printer extends PrintHandlers {
     p!.generateAllMemberNames(node!.Members_);
     p!.writePunctuation('{');
     let flags: ListFormat = $core.IfElse<ListFormat>(p!.shouldEmitOnSingleLine(node!.AsNode()), 768, 32897);
-    p!.emitList(
-      ($r: Printer | undefined, a0: $ast.Node | undefined): void => $r!.emitTypeElement(a0),
-      node!.AsNode(),
-      node!.Members_,
-      $rt.or64(flags, 524288),
-    );
+    p!.emitList($fn12, node!.AsNode(), node!.Members_, $rt.or64(flags, 524288));
     p!.writePunctuation('}');
     p!.popNameGenerationScope(node!.AsNode());
     p!.exitNode(node!.AsNode(), state);
@@ -6180,12 +6131,7 @@ export class Printer extends PrintHandlers {
     let state: printerState = p!.enterNode(node!.AsNode());
     p!.emitToken(22, node!.Pos(), 3, node!.AsNode());
     let flags: ListFormat = $core.IfElse<ListFormat>(p!.shouldEmitOnSingleLine(node!.AsNode()), 528, 657);
-    p!.emitList(
-      ($r: Printer | undefined, a0: $ast.Node | undefined): void => $r!.emitTupleElementType(a0),
-      node!.AsNode(),
-      node!.Elements_,
-      $rt.or64(flags, 524288),
-    );
+    p!.emitList($fn13, node!.AsNode(), node!.Elements_, $rt.or64(flags, 524288));
     p!.emitToken(23, node!.Elements_!.End(), 3, node!.AsNode());
     p!.exitNode(node!.AsNode(), state);
   }
@@ -6221,12 +6167,7 @@ export class Printer extends PrintHandlers {
   emitUnionType(node: $ast.UnionTypeNode | undefined): void {
     const p = this;
     let state: printerState = p!.enterNode(node!.AsNode());
-    p!.emitList(
-      ($r: Printer | undefined, a0: $ast.Node | undefined): void => $r!.emitUnionTypeConstituent(a0),
-      node!.AsNode(),
-      node!.Types,
-      516,
-    );
+    p!.emitList($fn14, node!.AsNode(), node!.Types, 516);
     p!.exitNode(node!.AsNode(), state);
   }
   emitIntersectionTypeConstituent(node: $ast.Node | undefined): void {
@@ -6236,12 +6177,7 @@ export class Printer extends PrintHandlers {
   emitIntersectionType(node: $ast.IntersectionTypeNode | undefined): void {
     const p = this;
     let state: printerState = p!.enterNode(node!.AsNode());
-    p!.emitList(
-      ($r: Printer | undefined, a0: $ast.Node | undefined): void => $r!.emitIntersectionTypeConstituent(a0),
-      node!.AsNode(),
-      node!.Types,
-      520,
-    );
+    p!.emitList($fn15, node!.AsNode(), node!.Types, 520);
     p!.exitNode(node!.AsNode(), state);
   }
   emitConditionalType(node: $ast.ConditionalTypeNode | undefined): void {
@@ -6367,12 +6303,7 @@ export class Printer extends PrintHandlers {
         } else {
           p!.writeLine();
         }
-        p!.emitList(
-          ($r: Printer | undefined, a0: $ast.Node | undefined): void => $r!.emitTypeElement(a0),
-          node!.AsNode(),
-          node!.Members_,
-          2,
-        );
+        p!.emitList($fn12, node!.AsNode(), node!.Members_, 2);
       }
     }
     if (singleLine) {
@@ -6405,12 +6336,7 @@ export class Printer extends PrintHandlers {
     const p = this;
     let state: printerState = p!.enterNode(node!.AsNode());
     p!.emitTemplateHead(node!.Head!.AsTemplateHead());
-    p!.emitList(
-      ($r: Printer | undefined, a0: $ast.Node | undefined): void => $r!.emitTemplateTypeSpanNode(a0),
-      node!.AsNode(),
-      node!.TemplateSpans,
-      262144,
-    );
+    p!.emitList($fn16, node!.AsNode(), node!.TemplateSpans, 262144);
     p!.exitNode(node!.AsNode(), state);
   }
   emitImportTypeNodeAttributes(node: $ast.ImportAttributes | undefined): void {
@@ -6421,12 +6347,7 @@ export class Printer extends PrintHandlers {
     p!.writeKeyword($core.IfElse<string>(node!.Token === (131 as number), 'assert', 'with'));
     p!.writePunctuation(':');
     p!.writeSpace();
-    p!.emitList(
-      ($r: Printer | undefined, a0: $ast.Node | undefined): void => $r!.emitImportAttributeNode(a0),
-      node!.AsNode(),
-      node!.Attributes_,
-      526226,
-    );
+    p!.emitList($fn17, node!.AsNode(), node!.Attributes_, 526226);
     p!.writeSpace();
     p!.writePunctuation('}');
     p!.exitNode(node!.AsNode(), state);
@@ -6640,12 +6561,7 @@ export class Printer extends PrintHandlers {
     const p = this;
     let state: printerState = p!.enterNode(node!.AsNode());
     p!.writePunctuation('{');
-    p!.emitList(
-      ($r: Printer | undefined, a0: $ast.Node | undefined): void => $r!.emitBindingElementNode(a0),
-      node!.AsNode(),
-      node!.Elements_,
-      525136,
-    );
+    p!.emitList($fn18, node!.AsNode(), node!.Elements_, 525136);
     p!.writePunctuation('}');
     p!.exitNode(node!.AsNode(), state);
   }
@@ -6653,12 +6569,7 @@ export class Printer extends PrintHandlers {
     const p = this;
     let state: printerState = p!.enterNode(node!.AsNode());
     p!.writePunctuation('[');
-    p!.emitList(
-      ($r: Printer | undefined, a0: $ast.Node | undefined): void => $r!.emitBindingElementNode(a0),
-      node!.AsNode(),
-      node!.Elements_,
-      524880,
-    );
+    p!.emitList($fn18, node!.AsNode(), node!.Elements_, 524880);
     p!.writePunctuation(']');
     p!.exitNode(node!.AsNode(), state);
   }
@@ -6728,7 +6639,7 @@ export class Printer extends PrintHandlers {
     const p = this;
     let state: printerState = p!.enterNode(node!.AsNode());
     p!.emitList(
-      ($r: Printer | undefined, a0: $ast.Node | undefined): void => $r!.emitArrayLiteralExpressionElement(a0),
+      $fn19,
       node!.AsNode(),
       node!.Elements_,
       $rt.or64(8914, $core.IfElse<ListFormat>(node!.MultiLine, 65536, 0)),
@@ -6743,7 +6654,7 @@ export class Printer extends PrintHandlers {
     p!.pushNameGenerationScope(node!.AsNode());
     p!.generateAllMemberNames(node!.Properties_);
     p!.emitList(
-      ($r: Printer | undefined, a0: $ast.Node | undefined): void => $r!.emitObjectLiteralElement(a0),
+      $fn20,
       node!.AsNode(),
       node!.Properties_,
       $rt.or64(
@@ -6847,12 +6758,7 @@ export class Printer extends PrintHandlers {
     p!.emitCallee(node!.Expression_, node!.AsNode());
     p!.emitTokenNode(node!.QuestionDotToken_);
     p!.emitTypeArguments(node!.AsNode(), node!.TypeArguments_);
-    p!.emitList(
-      ($r: Printer | undefined, a0: $ast.Node | undefined): void => $r!.emitArgument(a0),
-      node!.AsNode(),
-      node!.Arguments_,
-      2576,
-    );
+    p!.emitList($fn21, node!.AsNode(), node!.Arguments_, 2576);
     p!.exitNode(node!.AsNode(), state);
   }
   emitNewExpression(node: $ast.NewExpression | undefined): void {
@@ -6866,12 +6772,7 @@ export class Printer extends PrintHandlers {
       p!.emitExpression(node!.Expression_, 20);
     }
     p!.emitTypeArguments(node!.AsNode(), node!.TypeArguments_);
-    p!.emitList(
-      ($r: Printer | undefined, a0: $ast.Node | undefined): void => $r!.emitArgument(a0),
-      node!.AsNode(),
-      node!.Arguments_,
-      18960,
-    );
+    p!.emitList($fn21, node!.AsNode(), node!.Arguments_, 18960);
     p!.exitNode(node!.AsNode(), state);
   }
   emitTemplateLiteral(node: $ast.Node | undefined): void {
@@ -7226,12 +7127,7 @@ export class Printer extends PrintHandlers {
     const p = this;
     let state: printerState = p!.enterNode(node!.AsNode());
     p!.emitTemplateHead(node!.Head!.AsTemplateHead());
-    p!.emitList(
-      ($r: Printer | undefined, a0: $ast.Node | undefined): void => $r!.emitTemplateSpanNode(a0),
-      node!.AsNode(),
-      node!.TemplateSpans,
-      262144,
-    );
+    p!.emitList($fn22, node!.AsNode(), node!.TemplateSpans, 262144);
     p!.exitNode(node!.AsNode(), state);
   }
   emitYieldExpression(node: $ast.YieldExpression | undefined): void {
@@ -7269,22 +7165,12 @@ export class Printer extends PrintHandlers {
     let indented: boolean = p!.shouldEmitIndented(node!.AsNode());
     p!.increaseIndentIf(indented);
     p!.emitTypeParameters(node!.AsNode(), node!.ClassLikeBase_.TypeParameters);
-    p!.emitList(
-      ($r: Printer | undefined, a0: $ast.Node | undefined): void => $r!.emitHeritageClauseNode(a0),
-      node!.AsNode(),
-      node!.ClassLikeBase_.HeritageClauses,
-      0,
-    );
+    p!.emitList($fn23, node!.AsNode(), node!.ClassLikeBase_.HeritageClauses, 0);
     p!.writeSpace();
     p!.writePunctuation('{');
     p!.pushNameGenerationScope(node!.AsNode());
     p!.generateAllMemberNames(node!.ClassLikeBase_.Members);
-    p!.emitList(
-      ($r: Printer | undefined, a0: $ast.Node | undefined): void => $r!.emitClassElement(a0),
-      node!.AsNode(),
-      node!.ClassLikeBase_.Members,
-      129,
-    );
+    p!.emitList($fn24, node!.AsNode(), node!.ClassLikeBase_.Members, 129);
     p!.popNameGenerationScope(node!.AsNode());
     p!.writePunctuation('}');
     p!.decreaseIndentIf(indented);
@@ -7814,12 +7700,7 @@ export class Printer extends PrintHandlers {
       768,
       129,
     );
-    p!.emitList(
-      ($r: Printer | undefined, a0: $ast.Node | undefined): void => $r!.emitStatement(a0),
-      node!.AsNode(),
-      node!.Statements_,
-      format,
-    );
+    p!.emitList($fn11, node!.AsNode(), node!.Statements_, format);
     p!.emitTokenEx(
       19,
       node!.Statements_!.End(),
@@ -7887,12 +7768,7 @@ export class Printer extends PrintHandlers {
     p!.writePunctuation(')');
     p!.emitTokenNode(call!.QuestionDotToken_);
     p!.emitTypeArguments(call!.AsNode(), call!.TypeArguments_);
-    p!.emitList(
-      ($r: Printer | undefined, a0: $ast.Node | undefined): void => $r!.emitArgument(a0),
-      call!.AsNode(),
-      call!.Arguments_,
-      2576,
-    );
+    p!.emitList($fn21, call!.AsNode(), call!.Arguments_, 2576);
     p!.exitNode(call!.AsNode(), state);
   }
   emitIfStatement(node: $ast.IfStatement | undefined): void {
@@ -8167,12 +8043,7 @@ export class Printer extends PrintHandlers {
       }
     }
     p!.writeSpace();
-    p!.emitList(
-      ($r: Printer | undefined, a0: $ast.Node | undefined): void => $r!.emitVariableDeclarationNode(a0),
-      node!.AsNode(),
-      node!.Declarations,
-      528,
-    );
+    p!.emitList($fn25, node!.AsNode(), node!.Declarations, 528);
     p!.exitNode(node!.AsNode(), state);
   }
   emitFunctionDeclaration(node: $ast.FunctionDeclaration | undefined): void {
@@ -8215,22 +8086,12 @@ export class Printer extends PrintHandlers {
     let indented: boolean = p!.shouldEmitIndented(node!.AsNode());
     p!.increaseIndentIf(indented);
     p!.emitTypeParameters(node!.AsNode(), node!.ClassLikeBase_.TypeParameters);
-    p!.emitList(
-      ($r: Printer | undefined, a0: $ast.Node | undefined): void => $r!.emitHeritageClauseNode(a0),
-      node!.AsNode(),
-      node!.ClassLikeBase_.HeritageClauses,
-      0,
-    );
+    p!.emitList($fn23, node!.AsNode(), node!.ClassLikeBase_.HeritageClauses, 0);
     p!.writeSpace();
     p!.writePunctuation('{');
     p!.pushNameGenerationScope(node!.AsNode());
     p!.generateAllMemberNames(node!.ClassLikeBase_.Members);
-    p!.emitList(
-      ($r: Printer | undefined, a0: $ast.Node | undefined): void => $r!.emitClassElement(a0),
-      node!.AsNode(),
-      node!.ClassLikeBase_.Members,
-      129,
-    );
+    p!.emitList($fn24, node!.AsNode(), node!.ClassLikeBase_.Members, 129);
     p!.popNameGenerationScope(node!.AsNode());
     p!.writePunctuation('}');
     p!.decreaseIndentIf(indented);
@@ -8244,22 +8105,12 @@ export class Printer extends PrintHandlers {
     p!.writeSpace();
     p!.emitBindingIdentifier(node!.Name()!.AsIdentifier());
     p!.emitTypeParameters(node!.AsNode(), node!.TypeParameters_);
-    p!.emitList(
-      ($r: Printer | undefined, a0: $ast.Node | undefined): void => $r!.emitHeritageClauseNode(a0),
-      node!.AsNode(),
-      node!.HeritageClauses,
-      512,
-    );
+    p!.emitList($fn23, node!.AsNode(), node!.HeritageClauses, 512);
     p!.writeSpace();
     p!.writePunctuation('{');
     p!.pushNameGenerationScope(node!.AsNode());
     p!.generateAllMemberNames(node!.Members_);
-    p!.emitList(
-      ($r: Printer | undefined, a0: $ast.Node | undefined): void => $r!.emitTypeElement(a0),
-      node!.AsNode(),
-      node!.Members_,
-      129,
-    );
+    p!.emitList($fn12, node!.AsNode(), node!.Members_, 129);
     p!.popNameGenerationScope(node!.AsNode());
     p!.writePunctuation('}');
     p!.exitNode(node!.AsNode(), state);
@@ -8288,12 +8139,7 @@ export class Printer extends PrintHandlers {
     p!.emitBindingIdentifier(node!.Name()!.AsIdentifier());
     p!.writeSpace();
     p!.writePunctuation('{');
-    p!.emitList(
-      ($r: Printer | undefined, a0: $ast.Node | undefined): void => $r!.emitEnumMemberNode(a0),
-      node!.AsNode(),
-      node!.Members_,
-      145,
-    );
+    p!.emitList($fn26, node!.AsNode(), node!.Members_, 145);
     p!.writePunctuation('}');
     p!.exitNode(node!.AsNode(), state);
   }
@@ -8331,12 +8177,7 @@ export class Printer extends PrintHandlers {
       768,
       129,
     );
-    p!.emitList(
-      ($r: Printer | undefined, a0: $ast.Node | undefined): void => $r!.emitStatement(a0),
-      node!.AsNode(),
-      node!.Statements_,
-      format,
-    );
+    p!.emitList($fn11, node!.AsNode(), node!.Statements_, format);
     p!.emitTokenEx(
       19,
       node!.Statements_!.End(),
@@ -8350,12 +8191,7 @@ export class Printer extends PrintHandlers {
     const p = this;
     let state: printerState = p!.enterNode(node!.AsNode());
     p!.emitToken(18, node!.Pos(), 3, node!.AsNode());
-    p!.emitList(
-      ($r: Printer | undefined, a0: $ast.Node | undefined): void => $r!.emitCaseOrDefaultClauseNode(a0),
-      node!.AsNode(),
-      node!.Clauses,
-      129,
-    );
+    p!.emitList($fn27, node!.AsNode(), node!.Clauses, 129);
     p!.emitTokenEx(19, node!.Clauses!.End(), 3, node!.AsNode(), 2);
     p!.exitNode(node!.AsNode(), state);
   }
@@ -8463,12 +8299,7 @@ export class Printer extends PrintHandlers {
     const p = this;
     let state: printerState = p!.enterNode(node!.AsNode());
     p!.writePunctuation('{');
-    p!.emitList(
-      ($r: Printer | undefined, a0: $ast.Node | undefined): void => $r!.emitImportSpecifierNode(a0),
-      node!.AsNode(),
-      node!.Elements_,
-      525136,
-    );
+    p!.emitList($fn28, node!.AsNode(), node!.Elements_, 525136);
     p!.writePunctuation('}');
     p!.exitNode(node!.AsNode(), state);
   }
@@ -8575,12 +8406,7 @@ export class Printer extends PrintHandlers {
     let state: printerState = p!.enterNode(node!.AsNode());
     p!.emitToken(node!.Token, node!.Pos(), 1, node!.AsNode());
     p!.writeSpace();
-    p!.emitList(
-      ($r: Printer | undefined, a0: $ast.Node | undefined): void => $r!.emitImportAttributeNode(a0),
-      node!.AsNode(),
-      node!.Attributes_,
-      526226,
-    );
+    p!.emitList($fn17, node!.AsNode(), node!.Attributes_, 526226);
     p!.exitNode(node!.AsNode(), state);
   }
   emitImportAttribute(node: $ast.ImportAttribute | undefined): void {
@@ -8628,12 +8454,7 @@ export class Printer extends PrintHandlers {
     const p = this;
     let state: printerState = p!.enterNode(node!.AsNode());
     p!.writePunctuation('{');
-    p!.emitList(
-      ($r: Printer | undefined, a0: $ast.Node | undefined): void => $r!.emitExportSpecifierNode(a0),
-      node!.AsNode(),
-      node!.Elements_,
-      525136,
-    );
+    p!.emitList($fn29, node!.AsNode(), node!.Elements_, 525136);
     p!.writePunctuation('}');
     p!.exitNode(node!.AsNode(), state);
   }
@@ -8861,12 +8682,7 @@ export class Printer extends PrintHandlers {
     const p = this;
     let state: printerState = p!.enterNode(node!.AsNode());
     p!.emitJsxOpeningElement(node!.OpeningElement!.AsJsxOpeningElement());
-    p!.emitList(
-      ($r: Printer | undefined, a0: $ast.Node | undefined): void => $r!.emitJsxChild(a0),
-      node!.AsNode(),
-      node!.Children_,
-      262144,
-    );
+    p!.emitList($fn30, node!.AsNode(), node!.Children_, 262144);
     p!.emitJsxClosingElement(node!.ClosingElement!.AsJsxClosingElement());
     p!.exitNode(node!.AsNode(), state);
   }
@@ -8885,12 +8701,7 @@ export class Printer extends PrintHandlers {
     const p = this;
     let state: printerState = p!.enterNode(node!.AsNode());
     p!.emitJsxOpeningFragment(node!.OpeningFragment!.AsJsxOpeningFragment());
-    p!.emitList(
-      ($r: Printer | undefined, a0: $ast.Node | undefined): void => $r!.emitJsxChild(a0),
-      node!.AsNode(),
-      node!.Children_,
-      262144,
-    );
+    p!.emitList($fn30, node!.AsNode(), node!.Children_, 262144);
     p!.emitJsxClosingFragment(node!.ClosingFragment!.AsJsxClosingFragment());
     p!.exitNode(node!.AsNode(), state);
   }
@@ -8941,12 +8752,7 @@ export class Printer extends PrintHandlers {
   emitJsxAttributes(node: $ast.JsxAttributes | undefined): void {
     const p = this;
     let state: printerState = p!.enterNode(node!.AsNode());
-    p!.emitList(
-      ($r: Printer | undefined, a0: $ast.Node | undefined): void => $r!.emitJsxAttributeLike(a0),
-      node!.AsNode(),
-      node!.Properties_,
-      262656,
-    );
+    p!.emitList($fn31, node!.AsNode(), node!.Properties_, 262656);
     p!.exitNode(node!.AsNode(), state);
   }
   emitJsxAttribute(node: $ast.JsxAttribute | undefined): void {
@@ -9150,12 +8956,7 @@ export class Printer extends PrintHandlers {
     } else {
       p!.emitToken(58, colonPos, 3, node!.AsNode());
     }
-    p!.emitList(
-      ($r: Printer | undefined, a0: $ast.Node | undefined): void => $r!.emitStatement(a0),
-      node!.AsNode(),
-      node!.Statements_,
-      format,
-    );
+    p!.emitList($fn11, node!.AsNode(), node!.Statements_, format);
   }
   emitCaseClause(node: $ast.CaseOrDefaultClause | undefined): void {
     const p = this;
@@ -9202,12 +9003,7 @@ export class Printer extends PrintHandlers {
     p!.writeSpace();
     p!.emitToken(node!.Token, node!.Pos(), 1, node!.AsNode());
     p!.writeSpace();
-    p!.emitList(
-      ($r: Printer | undefined, a0: $ast.Node | undefined): void => $r!.emitHeritageClauseElement(a0),
-      node!.AsNode(),
-      node!.Types,
-      528,
-    );
+    p!.emitList($fn32, node!.AsNode(), node!.Types, 528);
     p!.exitNode(node!.AsNode(), state);
   }
   emitHeritageClauseElement(node: $ast.Node | undefined): void {
@@ -9383,14 +9179,7 @@ export class Printer extends PrintHandlers {
     } else {
       state = p!.emitDetachedCommentsBeforeStatementList(node!.AsNode(), node!.Statements_!.Loc);
     }
-    p!.emitListRange(
-      ($r: Printer | undefined, a0: $ast.Node | undefined): void => $r!.emitStatement(a0),
-      node!.AsNode(),
-      node!.Statements_,
-      1,
-      index,
-      -1,
-    );
+    p!.emitListRange($fn11, node!.AsNode(), node!.Statements_, 1, index, -1);
     p!.popNameGenerationScope(node!.AsNode());
     p!.emitDetachedCommentsAfterStatementList(node!.AsNode(), node!.Statements_!.Loc, state);
     p!.currentSourceFile = savedCurrentSourceFile;
@@ -12149,6 +11938,16 @@ const $fn0 = (): $rt.GoObject | undefined => {
 const $fn1 = (makeUniqueName: ((p0: string) => string) | undefined): string => {
   return '\nconst ' + makeUniqueName!('_superIndex') + ' = name => super[name];';
 };
+const $fn10 = ($r: Printer | undefined, a0: $ast.Node | undefined): void => $r!.emitParameterDeclarationNode(a0);
+const $fn11 = ($r: Printer | undefined, a0: $ast.Node | undefined): void => $r!.emitStatement(a0);
+const $fn12 = ($r: Printer | undefined, a0: $ast.Node | undefined): void => $r!.emitTypeElement(a0);
+const $fn13 = ($r: Printer | undefined, a0: $ast.Node | undefined): void => $r!.emitTupleElementType(a0);
+const $fn14 = ($r: Printer | undefined, a0: $ast.Node | undefined): void => $r!.emitUnionTypeConstituent(a0);
+const $fn15 = ($r: Printer | undefined, a0: $ast.Node | undefined): void => $r!.emitIntersectionTypeConstituent(a0);
+const $fn16 = ($r: Printer | undefined, a0: $ast.Node | undefined): void => $r!.emitTemplateTypeSpanNode(a0);
+const $fn17 = ($r: Printer | undefined, a0: $ast.Node | undefined): void => $r!.emitImportAttributeNode(a0);
+const $fn18 = ($r: Printer | undefined, a0: $ast.Node | undefined): void => $r!.emitBindingElementNode(a0);
+const $fn19 = ($r: Printer | undefined, a0: $ast.Node | undefined): void => $r!.emitArrayLiteralExpressionElement(a0);
 const $fn2 = (makeUniqueName: ((p0: string) => string) | undefined): string => {
   return (
     '\nconst ' +
@@ -12159,9 +11958,28 @@ const $fn2 = (makeUniqueName: ((p0: string) => string) | undefined): string => {
     '})(name => super[name], (name, value) => super[name] = value);'
   );
 };
+const $fn20 = ($r: Printer | undefined, a0: $ast.Node | undefined): void => $r!.emitObjectLiteralElement(a0);
+const $fn21 = ($r: Printer | undefined, a0: $ast.Node | undefined): void => $r!.emitArgument(a0);
+const $fn22 = ($r: Printer | undefined, a0: $ast.Node | undefined): void => $r!.emitTemplateSpanNode(a0);
+const $fn23 = ($r: Printer | undefined, a0: $ast.Node | undefined): void => $r!.emitHeritageClauseNode(a0);
+const $fn24 = ($r: Printer | undefined, a0: $ast.Node | undefined): void => $r!.emitClassElement(a0);
+const $fn25 = ($r: Printer | undefined, a0: $ast.Node | undefined): void => $r!.emitVariableDeclarationNode(a0);
+const $fn26 = ($r: Printer | undefined, a0: $ast.Node | undefined): void => $r!.emitEnumMemberNode(a0);
+const $fn27 = ($r: Printer | undefined, a0: $ast.Node | undefined): void => $r!.emitCaseOrDefaultClauseNode(a0);
+const $fn28 = ($r: Printer | undefined, a0: $ast.Node | undefined): void => $r!.emitImportSpecifierNode(a0);
+const $fn29 = ($r: Printer | undefined, a0: $ast.Node | undefined): void => $r!.emitExportSpecifierNode(a0);
 const $fn3 = (): $rt.GoObject | undefined => {
   return new singleLineStringWriter();
 };
+const $fn30 = ($r: Printer | undefined, a0: $ast.Node | undefined): void => $r!.emitJsxChild(a0);
+const $fn31 = ($r: Printer | undefined, a0: $ast.Node | undefined): void => $r!.emitJsxAttributeLike(a0);
+const $fn32 = ($r: Printer | undefined, a0: $ast.Node | undefined): void => $r!.emitHeritageClauseElement(a0);
+const $fn4 = ($r: EmitContext | undefined, a0: $ast.Node | undefined): boolean => $r!.isHoistedFunction(a0);
+const $fn5 = ($r: EmitContext | undefined, a0: $ast.Node | undefined): boolean => $r!.isHoistedVariableStatement(a0);
+const $fn6 = ($r: EmitContext | undefined, a0: $ast.Node | undefined): boolean => $r!.isCustomPrologue(a0);
+const $fn7 = ($r: Printer | undefined, a0: $ast.Node | undefined): void => $r!.emitKeywordNode(a0);
+const $fn8 = ($r: Printer | undefined, a0: $ast.Node | undefined): void => $r!.emitModifierLike(a0);
+const $fn9 = ($r: Printer | undefined, a0: $ast.Node | undefined): void => $r!.emitTypeParameterDeclarationNode(a0);
 export let emitContextPool: $rt.sync_Pool = new $rt.sync_Pool($fn0);
 export let decorateHelper: EmitHelper | undefined = EmitHelper.$lit_printer_EmitHelper_0_6_1_4_2(
   'typescript:decorate',

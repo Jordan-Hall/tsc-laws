@@ -2259,7 +2259,7 @@ export class ParsedCommandLine extends $rt.GoObject {
   }
   ContentMapperExtensions(): string[] {
     const p = this;
-    return $core.FlatMap<$contentmapper.Mapper | undefined, string>(ParsedCommandLine.ContentMappers$nil(p), $fn4);
+    return $core.FlatMap<$contentmapper.Mapper | undefined, string>(ParsedCommandLine.ContentMappers$nil(p), $fn18);
   }
   GetContentMapperForFileName(fileName: string): $contentmapper.Mapper | undefined {
     const p = this;
@@ -3505,37 +3505,25 @@ export const recursiveFileGlobPattern: string = '**/*.{js,jsx,mjs,cjs,ts,tsx,mts
 const $fn0 = (s: $rt.GoObject | undefined): string => {
   return $rt.checkString($rt.isValue(s, 'string'), s);
 };
-const $fn1 = (option: CommandLineOption | undefined): boolean => {
+const $fn1 = ($r: $core.CompilerOptions | undefined): $core.ModuleKind => $r!.GetEmitModuleKind();
+const $fn10 = ($r: $core.CompilerOptions | undefined): boolean => $r!.GetResolvePackageJsonExports();
+const $fn11 = ($r: $core.CompilerOptions | undefined): boolean => $r!.GetResolvePackageJsonImports();
+const $fn12 = ($r: $core.CompilerOptions | undefined): boolean => $r!.GetResolveJsonModule();
+const $fn13 = ($r: $core.CompilerOptions | undefined): boolean => $r!.GetAllowJS();
+const $fn14 = ($r: $core.CompilerOptions | undefined): boolean => $r!.GetAllowImportingTsExtensions();
+const $fn15 = (option: CommandLineOption | undefined): boolean => {
   return option!.AffectsSemanticDiagnostics;
 };
-const $fn10 = (element$1: $rt.GoObject | undefined): boolean => {
-  return $rt.ifaceEq($rt.reflect_TypeOf(element$1), orderedMapType);
-};
-const $fn11 = (mapper$4: $contentmapper.Mapper | undefined): string[] => {
-  return mapper$4!.Extensions;
-};
-const $fn12 = (element$3: $rt.GoObject | undefined): boolean => {
-  return $rt.ifaceEq($rt.reflect_TypeOf(element$3), orderedMapType);
-};
-const $fn13 = (property$1: $ast.PropertyAssignment | undefined): $ast.Node | undefined => {
-  return property$1!.Initializer_;
-};
-const $fn14 = (property: $ast.PropertyAssignment | undefined): $ast.Node | undefined => {
-  return property!.Name();
-};
-const $fn15 = (include: string): boolean => {
-  return $rt.strings_HasSuffix(include, '.json');
-};
-const $fn2 = (option: CommandLineOption | undefined): boolean => {
+const $fn16 = (option: CommandLineOption | undefined): boolean => {
   return option!.AffectsDeclarationPath;
 };
-const $fn3 = (option: CommandLineOption | undefined): boolean => {
+const $fn17 = (option: CommandLineOption | undefined): boolean => {
   return option!.AffectsEmit;
 };
-const $fn4 = (m: $contentmapper.Mapper | undefined): string[] => {
+const $fn18 = (m: $contentmapper.Mapper | undefined): string[] => {
   return m!.Extensions;
 };
-const $fn5 = (v$1: $rt.GoObject | undefined): boolean => {
+const $fn19 = (v$1: $rt.GoObject | undefined): boolean => {
   return (
     !(v$1 === undefined) &&
     !$rt.ifaceEq(v$1, new $rt.BoxBool(false, 'bool')) &&
@@ -3543,18 +3531,44 @@ const $fn5 = (v$1: $rt.GoObject | undefined): boolean => {
     !$rt.ifaceEq(v$1, new $rt.BoxStr('' as string, 'string'))
   );
 };
-const $fn6 = (option: CommandLineOption | undefined): string => {
+const $fn2 = ($r: $core.CompilerOptions | undefined): $core.ModuleResolutionKind => $r!.GetModuleResolutionKind();
+const $fn20 = (option: CommandLineOption | undefined): string => {
   return option!.Name;
 };
-const $fn7 = (a: CommandLineOption | undefined, b: CommandLineOption | undefined): number => {
+const $fn21 = (a: CommandLineOption | undefined, b: CommandLineOption | undefined): number => {
   return $rt.strings_Compare(a!.Name, b!.Name);
 };
-const $fn8 = (element: $rt.GoObject | undefined): boolean => {
+const $fn22 = (element: $rt.GoObject | undefined): boolean => {
   return $rt.ifaceEq($rt.reflect_TypeOf(element), orderedMapType);
 };
-const $fn9 = (property: $ast.PropertyAssignment | undefined): $ast.Node | undefined => {
+const $fn23 = (property: $ast.PropertyAssignment | undefined): $ast.Node | undefined => {
   return property!.Initializer_;
 };
+const $fn24 = (element$1: $rt.GoObject | undefined): boolean => {
+  return $rt.ifaceEq($rt.reflect_TypeOf(element$1), orderedMapType);
+};
+const $fn25 = (mapper$4: $contentmapper.Mapper | undefined): string[] => {
+  return mapper$4!.Extensions;
+};
+const $fn26 = (element$3: $rt.GoObject | undefined): boolean => {
+  return $rt.ifaceEq($rt.reflect_TypeOf(element$3), orderedMapType);
+};
+const $fn27 = (property$1: $ast.PropertyAssignment | undefined): $ast.Node | undefined => {
+  return property$1!.Initializer_;
+};
+const $fn28 = (property: $ast.PropertyAssignment | undefined): $ast.Node | undefined => {
+  return property!.Name();
+};
+const $fn29 = (include: string): boolean => {
+  return $rt.strings_HasSuffix(include, '.json');
+};
+const $fn3 = ($r: $core.CompilerOptions | undefined): $core.ModuleDetectionKind => $r!.GetEmitModuleDetectionKind();
+const $fn4 = ($r: $core.CompilerOptions | undefined): boolean => $r!.GetIsolatedModules();
+const $fn5 = ($r: $core.CompilerOptions | undefined): boolean => $r!.ShouldPreserveConstEnums();
+const $fn6 = ($r: $core.CompilerOptions | undefined): boolean => $r!.GetEmitDeclarations();
+const $fn7 = ($r: $core.CompilerOptions | undefined): boolean => $r!.GetAreDeclarationMapsEnabled();
+const $fn8 = ($r: $core.CompilerOptions | undefined): boolean => $r!.IsIncremental();
+const $fn9 = ($r: $core.CompilerOptions | undefined): boolean => $r!.GetUseDefineForClassFields();
 export let commandLineOptionElements: Map<string, CommandLineOption | undefined> | undefined = new Map<
   string,
   CommandLineOption | undefined
@@ -5925,79 +5939,59 @@ export let CompilerOptionsDidYouMeanDiagnostics: ParseCommandLineWorkerDiagnosti
   getParseCommandLineWorkerDiagnostics(OptionsDeclarations);
 export let WatchNameMap: NameMap | undefined = GetNameMapFromList(OptionsForWatch);
 export let impliedOptions: impliedOption[] = [
-  impliedOption.$lit_tsoptions_impliedOption_0_1_2(
-    'Module',
-    ['Target'],
-    computeFn<$core.ModuleKind>(($r: $core.CompilerOptions | undefined): $core.ModuleKind => $r!.GetEmitModuleKind()),
-  ),
+  impliedOption.$lit_tsoptions_impliedOption_0_1_2('Module', ['Target'], computeFn<$core.ModuleKind>($fn1)),
   impliedOption.$lit_tsoptions_impliedOption_0_1_2(
     'ModuleResolution',
     ['Module', 'Target'],
-    computeFn<$core.ModuleResolutionKind>(($r: $core.CompilerOptions | undefined): $core.ModuleResolutionKind =>
-      $r!.GetModuleResolutionKind(),
-    ),
+    computeFn<$core.ModuleResolutionKind>($fn2),
   ),
   impliedOption.$lit_tsoptions_impliedOption_0_1_2(
     'ModuleDetection',
     ['Module', 'Target'],
-    computeFn<$core.ModuleDetectionKind>(($r: $core.CompilerOptions | undefined): $core.ModuleDetectionKind =>
-      $r!.GetEmitModuleDetectionKind(),
-    ),
+    computeFn<$core.ModuleDetectionKind>($fn3),
   ),
   impliedOption.$lit_tsoptions_impliedOption_0_1_2(
     'IsolatedModules',
     ['VerbatimModuleSyntax'],
-    computeFn<boolean>(($r: $core.CompilerOptions | undefined): boolean => $r!.GetIsolatedModules()),
+    computeFn<boolean>($fn4),
   ),
   impliedOption.$lit_tsoptions_impliedOption_0_1_2(
     'PreserveConstEnums',
     ['IsolatedModules', 'VerbatimModuleSyntax'],
-    computeFn<boolean>(($r: $core.CompilerOptions | undefined): boolean => $r!.ShouldPreserveConstEnums()),
+    computeFn<boolean>($fn5),
   ),
-  impliedOption.$lit_tsoptions_impliedOption_0_1_2(
-    'Declaration',
-    ['Composite'],
-    computeFn<boolean>(($r: $core.CompilerOptions | undefined): boolean => $r!.GetEmitDeclarations()),
-  ),
+  impliedOption.$lit_tsoptions_impliedOption_0_1_2('Declaration', ['Composite'], computeFn<boolean>($fn6)),
   impliedOption.$lit_tsoptions_impliedOption_0_1_2(
     'DeclarationMap',
     ['Declaration', 'Composite'],
-    computeFn<boolean>(($r: $core.CompilerOptions | undefined): boolean => $r!.GetAreDeclarationMapsEnabled()),
+    computeFn<boolean>($fn7),
   ),
-  impliedOption.$lit_tsoptions_impliedOption_0_1_2(
-    'Incremental',
-    ['Composite'],
-    computeFn<boolean>(($r: $core.CompilerOptions | undefined): boolean => $r!.IsIncremental()),
-  ),
+  impliedOption.$lit_tsoptions_impliedOption_0_1_2('Incremental', ['Composite'], computeFn<boolean>($fn8)),
   impliedOption.$lit_tsoptions_impliedOption_0_1_2(
     'UseDefineForClassFields',
     ['Target', 'Module'],
-    computeFn<boolean>(($r: $core.CompilerOptions | undefined): boolean => $r!.GetUseDefineForClassFields()),
+    computeFn<boolean>($fn9),
   ),
   impliedOption.$lit_tsoptions_impliedOption_0_1_2(
     'ResolvePackageJsonExports',
     ['ModuleResolution', 'Module', 'Target'],
-    computeFn<boolean>(($r: $core.CompilerOptions | undefined): boolean => $r!.GetResolvePackageJsonExports()),
+    computeFn<boolean>($fn10),
   ),
   impliedOption.$lit_tsoptions_impliedOption_0_1_2(
     'ResolvePackageJsonImports',
     ['ModuleResolution', 'ResolvePackageJsonExports', 'Module', 'Target'],
-    computeFn<boolean>(($r: $core.CompilerOptions | undefined): boolean => $r!.GetResolvePackageJsonImports()),
+    computeFn<boolean>($fn11),
   ),
   impliedOption.$lit_tsoptions_impliedOption_0_1_2(
     'ResolveJsonModule',
     ['ModuleResolution', 'Module', 'Target'],
-    computeFn<boolean>(($r: $core.CompilerOptions | undefined): boolean => $r!.GetResolveJsonModule()),
+    computeFn<boolean>($fn12),
   ),
-  impliedOption.$lit_tsoptions_impliedOption_0_1_2(
-    'AllowJs',
-    ['CheckJs'],
-    computeFn<boolean>(($r: $core.CompilerOptions | undefined): boolean => $r!.GetAllowJS()),
-  ),
+  impliedOption.$lit_tsoptions_impliedOption_0_1_2('AllowJs', ['CheckJs'], computeFn<boolean>($fn13)),
   impliedOption.$lit_tsoptions_impliedOption_0_1_2(
     'AllowImportingTsExtensions',
     ['RewriteRelativeImportExtensions'],
-    computeFn<boolean>(($r: $core.CompilerOptions | undefined): boolean => $r!.GetAllowImportingTsExtensions()),
+    computeFn<boolean>($fn14),
   ),
 ];
 export let compileOnSaveCommandLineOption: CommandLineOption | undefined =
@@ -6455,19 +6449,19 @@ export function CompilerOptionsAffectSemanticDiagnostics(
   oldOptions: $core.CompilerOptions | undefined,
   newOptions: $core.CompilerOptions | undefined,
 ): boolean {
-  return optionsHaveChanges(oldOptions, newOptions, $fn1);
+  return optionsHaveChanges(oldOptions, newOptions, $fn15);
 }
 export function CompilerOptionsAffectDeclarationPath(
   oldOptions: $core.CompilerOptions | undefined,
   newOptions: $core.CompilerOptions | undefined,
 ): boolean {
-  return optionsHaveChanges(oldOptions, newOptions, $fn2);
+  return optionsHaveChanges(oldOptions, newOptions, $fn16);
 }
 export function CompilerOptionsAffectEmit(
   oldOptions: $core.CompilerOptions | undefined,
   newOptions: $core.CompilerOptions | undefined,
 ): boolean {
-  return optionsHaveChanges(oldOptions, newOptions, $fn3);
+  return optionsHaveChanges(oldOptions, newOptions, $fn17);
 }
 export function getParseCommandLineWorkerDiagnostics(
   decls: (CommandLineOption | undefined)[],
@@ -8714,7 +8708,7 @@ export function convertJsonOptionOfListType(
       });
       let filteredValues: ($rt.GoObject | undefined)[] = mappedValues;
       if (!option!.listPreserveFalsyValues) {
-        filteredValues = $core.Filter<$rt.GoObject | undefined>(mappedValues, $fn5);
+        filteredValues = $core.Filter<$rt.GoObject | undefined>(mappedValues, $fn19);
       }
       return [filteredValues, errors];
     }
@@ -9033,7 +9027,7 @@ export function CommandLineOptionNameMap$GetSpellingSuggestion(
   m: CommandLineOptionNameMap,
   name_: string,
 ): CommandLineOption | undefined {
-  return $core.GetSpellingSuggestion<CommandLineOption | undefined>($zf2, name_, $rt.maps_Values(m), $fn6, $fn7);
+  return $core.GetSpellingSuggestion<CommandLineOption | undefined>($zf2, name_, $rt.maps_Values(m), $fn20, $fn21);
 }
 export function commandLineOptionsToMap(compilerOptions: (CommandLineOption | undefined)[]): CommandLineOptionNameMap {
   let result: Map<string, CommandLineOption | undefined> | undefined = new Map<string, CommandLineOption | undefined>();
@@ -10097,7 +10091,7 @@ export function parseJsonConfigFileContentWorker(
     }
     return propOfRaw.$lit_tsoptions_propOfRaw_0_1([], 'no-prop');
   };
-  let referencesOfRaw: propOfRaw = getPropFromRaw!('references', $fn8, 'object');
+  let referencesOfRaw: propOfRaw = getPropFromRaw!('references', $fn22, 'object');
   let fileSpecs: propOfRaw = getPropFromRaw!('files', isStringValue, 'string');
   if (!(fileSpecs.sliceValue.length === 0) || fileSpecs.wrongValue === ('' as string)) {
     let hasZeroOrNoReferences: boolean = false;
@@ -10126,7 +10120,7 @@ export function parseJsonConfigFileContentWorker(
         let nodeValue: $ast.Node | undefined = ForEachTsConfigPropArray<$ast.Node>(
           sourceFile!.SourceFile_,
           'files',
-          $fn9,
+          $fn23,
         );
         errors = $rt.appendCopy(errors, [
           CreateDiagnosticForNodeInSourceFile(sourceFile!.SourceFile_, nodeValue, diagnosticMessage, [
@@ -10260,7 +10254,7 @@ export function parseJsonConfigFileContentWorker(
   }
   let contentMappers: ($contentmapper.Mapper | undefined)[] = [];
   let contentMapperIndices: number[] = [];
-  let contentMappersOfRaw: propOfRaw = getPropFromRaw!('contentMappers', $fn10, 'object');
+  let contentMappersOfRaw: propOfRaw = getPropFromRaw!('contentMappers', $fn24, 'object');
   {
     const $t11 = contentMappersOfRaw.sliceValue;
     for (let $t12 = 0, $n = $t11.length; $t12 < $n; $t12++) {
@@ -10414,7 +10408,7 @@ export function parseJsonConfigFileContentWorker(
       }
     }
     contentMappers = resolvedContentMappers;
-    contentMapperExtensions = $core.FlatMap<$contentmapper.Mapper | undefined, string>(contentMappers, $fn11);
+    contentMapperExtensions = $core.FlatMap<$contentmapper.Mapper | undefined, string>(contentMappers, $fn25);
   }
   let getFileNames: ((p0: string) => [string[], number]) | undefined = (basePath$1: string): [string[], number] => {
     let parsedConfigOptions: $core.CompilerOptions | undefined = parsedConfig!.options;
@@ -10453,7 +10447,7 @@ export function parseJsonConfigFileContentWorker(
     basePath$2: string,
   ): ($core.ProjectReference | undefined)[] => {
     let projectReferences: ($core.ProjectReference | undefined)[] = [];
-    let newReferencesOfRaw: propOfRaw = getPropFromRaw!('references', $fn12, 'object');
+    let newReferencesOfRaw: propOfRaw = getPropFromRaw!('references', $fn26, 'object');
     if (!(newReferencesOfRaw.sliceValue.length === 0)) {
       projectReferences = [] as ($core.ProjectReference | undefined)[];
       {
@@ -10724,7 +10718,7 @@ export function createDiagnosticAtProjectReferenceProperty(
               let propertyNode: $ast.Node | undefined = ForEachPropertyAssignment<$ast.Node>(
                 elements[index]!.AsObjectLiteralExpression(),
                 propertyName,
-                $fn13,
+                $fn27,
                 [] as string[],
               );
               if (!(propertyNode === undefined)) {
@@ -10793,7 +10787,7 @@ export function getContentMapperSyntax(
           let node: $ast.Node | undefined = ForEachPropertyAssignment<$ast.Node>(
             element!.AsObjectLiteralExpression(),
             subKey,
-            $fn13,
+            $fn27,
             [] as string[],
           );
           if (!(node === undefined)) {
@@ -10835,7 +10829,7 @@ export function GetContentMapperOptionDiagnosticLocation(
             next = ForEachPropertyAssignment<$ast.Node>(
               node!.AsObjectLiteralExpression(),
               segment.Property,
-              $fn9,
+              $fn23,
               [] as string[],
             );
           }
@@ -10857,7 +10851,7 @@ export function getContentMappersKeySyntax(sourceFile: $ast.SourceFile | undefin
   if (sourceFile === undefined) {
     return undefined;
   }
-  return ForEachTsConfigPropArray<$ast.Node>(sourceFile, 'contentMappers', $fn14);
+  return ForEachTsConfigPropArray<$ast.Node>(sourceFile, 'contentMappers', $fn28);
 }
 export function getContentMapperExtensionSyntax(
   sourceFile: $ast.SourceFile | undefined,
@@ -11156,7 +11150,7 @@ export function getFileNamesFromConfigSpecs(
         let file$1 = $t3[$t4];
         if ($tspath.FileExtensionIs(file$1, '.json')) {
           if (jsonOnlyIncludeMatchers === undefined) {
-            let includes: string[] = $core.Filter<string>(validatedIncludeSpecs, $fn15);
+            let includes: string[] = $core.Filter<string>(validatedIncludeSpecs, $fn29);
             jsonOnlyIncludeMatchers = $vfs_vfsmatch.NewSpecMatcher(
               includes,
               basePath,

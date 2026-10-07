@@ -272,7 +272,12 @@ func (x *fn) selector(e *ast.SelectorExpr) string {
 			argList = nil
 		}
 		call := x.methodCallOn(e, "$r", argList)
-		return fmt.Sprintf("(($r: %s%s): %s => %s)", x.f.tsType(sel.Recv()), prefixComma(params), x.f.results(sig), call)
+		text := fmt.Sprintf("(($r: %s%s): %s => %s)", x.f.tsType(sel.Recv()), prefixComma(params), x.f.results(sig), call)
+		// The function captures nothing, so one instance serves every use.
+		if !mentionsTypeParam(sel.Recv()) && !mentionsTypeParam(sig) {
+			return x.f.hoistFn(text)
+		}
+		return text
 	}
 	return x.expr(e.X) + "." + e.Sel.Name
 }
@@ -1203,6 +1208,16 @@ func (x *fn) assign(s *ast.AssignStmt) {
 			x.line("%s;", v)
 			return
 		}
+		// s = s[:n] truncates in place.
+		if se, ok := unparen(s.Rhs[0]).(*ast.SliceExpr); ok && !define && se.High != nil && se.Max == nil && sameExpr(l, se.X) && x.ownedTarget(l) {
+			if st, isSlice := under(x.info.TypeOf(se.X)).(*types.Slice); isSlice && (se.Low == nil || x.isZeroConst(se.Low)) {
+				target := x.rawExpr(l)
+				hi := x.expr(se.High)
+				x.flushPre()
+				x.line("%s = $rt.truncate(%s, %s, %s);", target, target, hi, x.f.zero(st.Elem()))
+				return
+			}
+		}
 		// s = append(s, ...) appends in place.
 		if call, ok := unparen(s.Rhs[0]).(*ast.CallExpr); ok && !define && x.isBuiltin(call, "append") && len(call.Args) > 0 && sameExpr(l, call.Args[0]) && (x.ownedTarget(l) || isMapIndex(x, l)) {
 			x.appendInPlace(l, call)
@@ -1283,8 +1298,21 @@ func (x *fn) store(l ast.Expr, define bool, v string, tt types.Type, src ast.Exp
 			owner := x.embeddedType(s.Recv(), s.Index()[:len(s.Index())-1])
 			if on, ok := derefNamed(owner); ok {
 				if c := x.f.t.classOf(on.Origin().Obj()); c != nil && c.baseAt == s.Index()[len(s.Index())-1] {
+					// $copy copies the fields, so the value needs no clone first.
+					v = strings.TrimSuffix(v, x.f.cloneCall(s.Obj().Type()))
 					x.line("%s.$copy_%s(%s);", x.expr(l), x.f.t.helperKey(c.base), v)
 					return
+				}
+			}
+			// Storing a copy of a struct into a struct field: copy into the
+			// field's object instead of allocating a clone.
+			ft := s.Obj().Type()
+			if n, ok := types.Unalias(ft).(*types.Named); ok && x.f.needsCopy(ft) && n.TypeArgs().Len() == 0 {
+				if c := x.f.t.classOf(n.Origin().Obj()); c != nil && c.name == n.Origin().Obj() {
+					if clone := x.f.cloneCall(ft); strings.HasSuffix(v, clone) {
+						x.line("%s.$copy_%s(%s);", x.expr(l), x.f.t.helperKey(c.name), strings.TrimSuffix(v, clone))
+						return
+					}
 				}
 			}
 		}
@@ -1530,4 +1558,13 @@ func (x *fn) constStructLit(e *ast.CompositeLit, tt types.Type) bool {
 		}
 	}
 	return true
+}
+
+func (x *fn) isZeroConst(e ast.Expr) bool {
+	tv := x.info.Types[e]
+	if tv.Value == nil {
+		return false
+	}
+	v, ok := constant.Int64Val(constant.ToInt(tv.Value))
+	return ok && v == 0
 }

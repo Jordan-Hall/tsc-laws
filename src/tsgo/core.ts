@@ -1119,7 +1119,7 @@ export class Stack<T> extends $rt.GoObject {
     let item: T = s!.data[l - 1];
     let zero: T = this.$z_T();
     s!.data[l - 1] = zero;
-    s!.data = $rt.reslice(s!.data, 0, l - 1, this.$z_T());
+    s!.data = $rt.truncate(s!.data, l - 1, this.$z_T());
     return item;
   }
   Peek(): T {
@@ -1521,7 +1521,7 @@ export class singleThreadedWorkGroup extends $rt.GoObject {
       let end: number = w!.fns.length - 1;
       let fn: (() => void) | undefined = w!.fns[end];
       w!.fns[end] = undefined;
-      w!.fns = $rt.reslice(w!.fns, 0, end, undefined);
+      w!.fns = $rt.truncate(w!.fns, end, undefined);
       $t1 = fn;
       break $body;
     } catch ($e) {

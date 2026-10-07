@@ -299,7 +299,7 @@ export class OrderedMap<K, V> extends $rt.GoObject {
         if (i === end) {
           let zero$2: K = this.$z_K();
           m!.keys[end] = zero$2;
-          m!.keys = $rt.reslice(m!.keys, 0, end, this.$z_K());
+          m!.keys = $rt.truncate(m!.keys, end, this.$z_K());
         } else {
           m!.keys = $rt.slices_Delete(m!.keys, i, i + 1);
         }
@@ -356,7 +356,7 @@ export class OrderedMap<K, V> extends $rt.GoObject {
   Clear(): void {
     const m = this;
     $rt.clearSlice(m!.keys, this.$z_K());
-    m!.keys = $rt.reslice(m!.keys, 0, 0, this.$z_K());
+    m!.keys = $rt.truncate(m!.keys, 0, this.$z_K());
     m!.mp?.clear();
   }
   Size(): number {

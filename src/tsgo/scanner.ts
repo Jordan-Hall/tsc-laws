@@ -157,7 +157,7 @@ export class Scanner extends ScannerState {
   }
   Rewind(state: ScannerState): void {
     const s = this;
-    s!.$copy_scanner_ScannerState(state.$clone_scanner_ScannerState());
+    s!.$copy_scanner_ScannerState(state);
   }
   ResetPos(pos: number): void {
     const s = this;
@@ -2595,7 +2595,7 @@ export class regExpParser extends $rt.GoObject {
       p!.scanAlternative(isInGroup);
       let alternativeNames: Map<string, boolean> | undefined =
         p!.namedCapturingGroups[p!.namedCapturingGroups.length - 1];
-      p!.namedCapturingGroups = $rt.reslice(p!.namedCapturingGroups, 0, p!.namedCapturingGroups.length - 1, undefined);
+      p!.namedCapturingGroups = $rt.truncate(p!.namedCapturingGroups, p!.namedCapturingGroups.length - 1, undefined);
       for (const [name_, $t1] of alternativeNames ?? new Map<string, boolean>()) {
         disjunctionNames.Add(name_);
       }

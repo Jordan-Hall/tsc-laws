@@ -326,12 +326,15 @@ export function imod(a: number, b: number): number {
   return a - Math.trunc(a / b) * b;
 }
 
+const POW2: number[] = [];
+for (let i = 0, p = 1; i < 64; i++, p *= 2) POW2.push(p);
+
 export function shl64(a: number, n: number): number {
-  return n >= 64 ? 0 : a * Math.pow(2, n);
+  return n >= 64 ? 0 : a * POW2[n];
 }
 
 export function shr64(a: number, n: number): number {
-  return n >= 64 ? (a < 0 ? -1 : 0) : Math.floor(a / Math.pow(2, n));
+  return n >= 64 ? (a < 0 ? -1 : 0) : Math.floor(a / POW2[n]);
 }
 
 function hi(a: number): number {
@@ -754,4 +757,13 @@ export function nn<T>(v: T | undefined): T {
 export function swapValue<T>(old: T, set: (v: T) => void, v: T): T {
   set(v);
   return old;
+}
+
+// truncate is s = s[:n] for a slice this code owns: it shortens s in place.
+export function truncate<T>(s: T[], n: number, zero: T): T[] {
+  if (n <= s.length) {
+    s.length = n;
+    return s;
+  }
+  return reslice(s, 0, n, zero);
 }

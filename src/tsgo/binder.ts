@@ -2147,12 +2147,7 @@ export class Binder extends $rt.GoObject {
     falseTarget: $ast.FlowNode | undefined,
   ): void {
     const b = this;
-    b!.doWithConditionalBranches(
-      ($r: Binder | undefined, a0: $ast.Node | undefined): boolean => $r!.bind(a0),
-      node,
-      trueTarget,
-      falseTarget,
-    );
+    b!.doWithConditionalBranches($fn3, node, trueTarget, falseTarget);
     if (
       node === undefined ||
       (!isLogicalAssignmentExpression(node) &&
@@ -2343,19 +2338,11 @@ export class Binder extends $rt.GoObject {
   }
   bindBreakStatement(node: $ast.Node | undefined): void {
     const b = this;
-    b!.bindBreakOrContinueStatement(
-      node!.Label(),
-      b!.currentBreakTarget,
-      ($r: ActiveLabel | undefined): $ast.FlowNode | undefined => $r!.BreakTarget(),
-    );
+    b!.bindBreakOrContinueStatement(node!.Label(), b!.currentBreakTarget, $fn4);
   }
   bindContinueStatement(node: $ast.Node | undefined): void {
     const b = this;
-    b!.bindBreakOrContinueStatement(
-      node!.Label(),
-      b!.currentContinueTarget,
-      ($r: ActiveLabel | undefined): $ast.FlowNode | undefined => $r!.ContinueTarget(),
-    );
+    b!.bindBreakOrContinueStatement(node!.Label(), b!.currentContinueTarget, $fn5);
   }
   bindBreakOrContinueStatement(
     label: $ast.Node | undefined,
@@ -2462,7 +2449,7 @@ export class Binder extends $rt.GoObject {
     b!.preSwitchCaseFlow = b!.currentFlow;
     b!.bind(stmt!.CaseBlock);
     b!.addAntecedent(postSwitchLabel, b!.currentFlow);
-    let hasDefault: boolean = $core.Some<$ast.Node | undefined>(stmt!.CaseBlock!.AsCaseBlock()!.Clauses!.Nodes, $fn3);
+    let hasDefault: boolean = $core.Some<$ast.Node | undefined>(stmt!.CaseBlock!.AsCaseBlock()!.Clauses!.Nodes, $fn6);
     if (!hasDefault) {
       b!.addAntecedent(postSwitchLabel, b!.createFlowSwitchClause(b!.preSwitchCaseFlow, node, 0, 0));
     }
@@ -2652,12 +2639,7 @@ export class Binder extends $rt.GoObject {
     b!.currentFlow = b!.finishFlowLabel(preRightLabel);
     b!.bind(expr!.OperatorToken);
     if ($ast.IsLogicalOrCoalescingAssignmentOperator(expr!.OperatorToken!.Kind_)) {
-      b!.doWithConditionalBranches(
-        ($r: Binder | undefined, a0: $ast.Node | undefined): boolean => $r!.bind(a0),
-        expr!.Right,
-        trueTarget,
-        falseTarget,
-      );
+      b!.doWithConditionalBranches($fn3, expr!.Right, trueTarget, falseTarget);
       b!.bindAssignmentTargetFlow(expr!.Left);
       b!.addAntecedent(trueTarget, b!.createFlowCondition(32, b!.currentFlow, node));
       b!.addAntecedent(falseTarget, b!.createFlowCondition(64, b!.currentFlow, node));
@@ -2775,12 +2757,7 @@ export class Binder extends $rt.GoObject {
     if (!(preChainLabel === undefined)) {
       b!.currentFlow = b!.finishFlowLabel(preChainLabel);
     }
-    b!.doWithConditionalBranches(
-      ($r: Binder | undefined, a0: $ast.Node | undefined): boolean => $r!.bindOptionalChainRest(a0),
-      node,
-      trueTarget,
-      falseTarget,
-    );
+    b!.doWithConditionalBranches($fn7, node, trueTarget, falseTarget);
     if ($ast.IsOutermostOptionalChain(node)) {
       b!.addAntecedent(trueTarget, b!.createFlowCondition(32, b!.currentFlow, node));
       b!.addAntecedent(falseTarget, b!.createFlowCondition(64, b!.currentFlow, node));
@@ -2792,12 +2769,7 @@ export class Binder extends $rt.GoObject {
     falseTarget: $ast.FlowNode | undefined,
   ): void {
     const b = this;
-    b!.doWithConditionalBranches(
-      ($r: Binder | undefined, a0: $ast.Node | undefined): boolean => $r!.bind(a0),
-      node,
-      trueTarget,
-      falseTarget,
-    );
+    b!.doWithConditionalBranches($fn3, node, trueTarget, falseTarget);
     if (!$ast.IsOptionalChain(node) || $ast.IsOutermostOptionalChain(node)) {
       b!.addAntecedent(trueTarget, b!.createFlowCondition(32, b!.currentFlow, node));
       b!.addAntecedent(falseTarget, b!.createFlowCondition(64, b!.currentFlow, node));
@@ -4048,9 +4020,13 @@ const $fn2 = (n: $ast.Node | undefined): boolean => {
     !(parent === undefined) && $ast.IsConditionalTypeNode(parent) && parent!.AsConditionalTypeNode()!.ExtendsType === n
   );
 };
-const $fn3 = (c: $ast.Node | undefined): boolean => {
+const $fn3 = ($r: Binder | undefined, a0: $ast.Node | undefined): boolean => $r!.bind(a0);
+const $fn4 = ($r: ActiveLabel | undefined): $ast.FlowNode | undefined => $r!.BreakTarget();
+const $fn5 = ($r: ActiveLabel | undefined): $ast.FlowNode | undefined => $r!.ContinueTarget();
+const $fn6 = (c: $ast.Node | undefined): boolean => {
   return c!.Kind_ === (298 as number);
 };
+const $fn7 = ($r: Binder | undefined, a0: $ast.Node | undefined): boolean => $r!.bindOptionalChainRest(a0);
 export let binderPool: $rt.sync_Pool = new $rt.sync_Pool($fn0);
 export function BindSourceFile(file: $ast.SourceFile | undefined): void {
   if (!file!.IsBound()) {

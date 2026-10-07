@@ -12716,7 +12716,7 @@ export class NodeFactory extends $rt.GoObject {
     }
     let data: SourceFile | undefined = new SourceFile();
     data!.fileName = opts.FileName;
-    data!.parseOptions = opts.$clone_ast_SourceFileParseOptions();
+    data!.parseOptions.$copy_ast_SourceFileParseOptions(opts);
     data!.text = text;
     data!.Statements_ = statements;
     data!.EndOfFileToken = endOfFileToken;
