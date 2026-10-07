@@ -16,6 +16,16 @@ const result = spawnSync('go', ['build', '-o', resolve('dist/tsgo-oracle'), './c
   env: { ...process.env, GOARCH: process.arch === 'arm64' ? 'arm64' : 'amd64' },
 });
 process.exitCode = result.status ?? 1;
+if (result.status === 0) {
+  // Token stream reference for the translated scanner.
+  mkdirSync(root + '/cmd/scan-oracle', { recursive: true });
+  copyFileSync('tools/scan-oracle/main.go', root + '/cmd/scan-oracle/main.go');
+  const scan = spawnSync('go', ['build', '-o', resolve('dist/scan-oracle'), './cmd/scan-oracle'], {
+    cwd: root,
+    stdio: 'inherit',
+  });
+  if (scan.status !== 0) process.exitCode = scan.status ?? 1;
+}
 if (result.status === 0)
   writeFileSync(
     'dist/oracle-build.json',

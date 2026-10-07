@@ -6,6 +6,7 @@
     "upstream/**",
     "dist/**",
     "src/checker/flags.ts",
-    "src/checker/case-mappings.ts"
+    "src/checker/case-mappings.ts",
+    "tests/fixtures/**"
   ]
 }

@@ -82,6 +82,14 @@ Each file in [`examples`](examples) covers one area of the checker:
 | `patterned-indexes.json` | Template-pattern index signatures                      |
 | `string-mappings.json`   | `Uppercase`, `Lowercase`, `Capitalize`, `Uncapitalize` |
 
+## Translated front end
+
+`tools/gots` translates TypeScript-Go packages to TypeScript in `src/tsgo`, with a small Go runtime in `src/go`. The scanner and its dependencies are translated so far; their token streams match tsgo.
+
+```sh
+npm run translate   # regenerate src/tsgo
+```
+
 ## Testing
 
 ```sh

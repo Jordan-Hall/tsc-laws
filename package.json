@@ -14,11 +14,14 @@
     "test": "node --test tests/*.test.mjs",
     "lint": "oxlint",
     "format": "oxfmt",
-    "format:check": "oxfmt --check"
+    "format:check": "oxfmt --check",
+    "translate": "node tools/translate.mjs"
   },
   "devDependencies": {
+    "@types/node": "^24.19.1",
     "oxfmt": "^0.72.0",
     "oxlint": "^1.87.0",
-    "scriptc": "0.2.5"
+    "scriptc": "0.2.5",
+    "typescript": "5.9"
   }
 }
