@@ -1,21 +1,21 @@
-# tsts
+# tsc-ts
 
-An experimental TypeScript port of the type checker from [TypeScript-Go](https://github.com/microsoft/typescript-go) (tsgo), compiled to a native executable with [scriptc](https://scriptc.dev).
+An experimental TypeScript port of the [TypeScript-Go](https://github.com/microsoft/typescript-go) (tsgo) compiler front end, compiled to native code with [scriptc](https://scriptc.dev).
 
 ## Packages
 
-| Package                          | Description                                                                      |
-| -------------------------------- | -------------------------------------------------------------------------------- |
-| [`packages/tsts`](packages/tsts) | Native assignability checker over a type graph exported by a Go reference build. |
-| [`packages/tsgo`](packages/tsgo) | tsgo's scanner, parser, binder, and checker translated to TypeScript.            |
-| [`packages/gots`](packages/gots) | Go-to-TypeScript translator that generates `packages/tsgo/src/tsgo`.             |
+| Package                          | Description                                                             |
+| -------------------------------- | ----------------------------------------------------------------------- |
+| [`packages/tsgo`](packages/tsgo) | tsgo's scanner, parser, binder, and checker, translated to TypeScript.  |
+| [`packages/gots`](packages/gots) | Go-to-TypeScript translator that generates `packages/tsgo/src/tsgo`.    |
+| [`packages/tsts`](packages/tsts) | Hand-ported assignability checker over a type graph exported from tsgo. |
 
 Tasks run with [Turborepo](https://turborepo.com).
 
 ## Requirements
 
 - Node.js 24+ and npm
-- Go 1.26 (for the reference build)
+- Go 1.26
 - A scriptc host: macOS, Linux, or Windows, with `clang` available for linking
 
 ## Build
@@ -24,14 +24,26 @@ Tasks run with [Turborepo](https://turborepo.com).
 npm ci
 npm run fetch:upstream   # clone tsgo at the pinned commit
 npm run build            # packages/tsts/dist/tsts
-npm run build:oracle     # reference builds in packages/*/dist
+npm run build:oracle     # tsgo reference builds in packages/*/dist
 ```
 
 `package.json` pins scriptc `0.2.5`. The build fails with any other version.
 
-## Usage
+## Checker
 
-An input file has TypeScript declarations and queries naming source and target type aliases:
+`packages/gots` translates tsgo's Go packages to TypeScript in `packages/tsgo/src/tsgo`, with a small Go runtime in `packages/tsgo/src/go`. The output compiles with scriptc.
+
+```sh
+npm run translate                    # regenerate packages/tsgo/src/tsgo
+npm run build:check -w @tsc-ts/tsgo  # packages/tsgo/dist/check
+packages/tsgo/dist/check file.ts upstream/typescript-go/internal/bundled/libs
+```
+
+`check` reports the same diagnostics as tsgo for all 6,537 of TypeScript's compiler test cases and all 5,907 of its conformance test cases. It is currently about 6.5× slower than tsgo.
+
+## Assignability checker
+
+`tsts` answers assignability queries between type aliases. An input file has TypeScript declarations and queries:
 
 ```json
 {
@@ -44,7 +56,7 @@ An input file has TypeScript declarations and queries naming source and target t
 }
 ```
 
-Export a type graph, then check it (from `packages/tsts`):
+Export a type graph, then check it:
 
 ```sh
 cd packages/tsts
@@ -71,7 +83,7 @@ Run the queries repeatedly to measure throughput:
 
 Set options at the top level of the input file.
 
-## Examples
+### Examples
 
 Each file in [`packages/tsts/examples`](packages/tsts/examples) covers one area of the checker:
 
@@ -90,30 +102,7 @@ Each file in [`packages/tsts/examples`](packages/tsts/examples) covers one area 
 | `patterned-indexes.json` | Template-pattern index signatures                      |
 | `string-mappings.json`   | `Uppercase`, `Lowercase`, `Capitalize`, `Uncapitalize` |
 
-## Translated front end
-
-`packages/gots` translates TypeScript-Go packages to TypeScript in `packages/tsgo/src/tsgo`, with a small Go runtime in `packages/tsgo/src/go`. The scanner, parser, binder, and checker are translated, and compile with scriptc.
-
-```sh
-npm run translate                              # regenerate packages/tsgo/src/tsgo
-npm run build:check -w @tsts/tsgo              # packages/tsgo/dist/check
-packages/tsgo/dist/check file.ts upstream/typescript-go/internal/bundled/libs
-```
-
-`dist/check` reports the same diagnostics as tsgo for all 6,537 of TypeScript's compiler test cases and all 5,907 of its conformance test cases. It is currently about 7× slower than tsgo.
-
-## Testing
-
-```sh
-npm test                     # compare both packages with tsgo
-npm run test:corpus          # compare the translated checker with tsgo on TypeScript's test cases
-npm run coverage -w tsts     # check that all statements compile statically
-npm run bench -w tsts        # time tsts against tsgo
-npm run lint                 # oxlint
-npm run format               # oxfmt
-```
-
-## Benchmarks
+### Benchmarks
 
 Median of five runs on an Apple M1 Max, measuring assignability checks only (no parsing, binding, or startup). Values are tsts time divided by tsgo time; below 1× means tsts is faster. Raw data: [`packages/tsts/benchmarks/latest.json`](packages/tsts/benchmarks/latest.json).
 
@@ -136,10 +125,21 @@ Median of five runs on an Apple M1 Max, measuring assignability checks only (no 
 
 These are synthetic, single-threaded benchmarks. They don't predict whole-compiler performance.
 
+## Testing
+
+```sh
+npm test                     # compare both checkers with tsgo
+npm run test:corpus          # compare the translated checker with tsgo on TypeScript's test cases
+npm run coverage -w tsts     # check that all statements compile statically
+npm run bench -w tsts        # time tsts against tsgo
+npm run lint                 # oxlint
+npm run format               # oxfmt
+```
+
 ## Limitations
 
-- `packages/tsgo/dist/check` checks one file at a time against the bundled libs. Module resolution, multi-file programs, and emit are not supported.
-- `packages/tsts/dist/tsts` has no expression checking or control flow analysis, and fails comparisons that need protected-member rules as unsupported.
+- `check` checks one file at a time against the bundled libs. Module resolution, multi-file programs, and emit are not supported.
+- `tsts` has no expression checking or control flow analysis, and fails comparisons that need protected-member rules as unsupported.
 
 ## License
 

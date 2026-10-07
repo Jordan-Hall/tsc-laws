@@ -1,5 +1,5 @@
 {
-  "name": "tsts-monorepo",
+  "name": "tsc-ts",
   "private": true,
   "workspaces": [
     "packages/*"

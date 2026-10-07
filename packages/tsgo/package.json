@@ -1,5 +1,5 @@
 {
-  "name": "@tsts/tsgo",
+  "name": "@tsc-ts/tsgo",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -11,6 +11,6 @@
     "test:corpus": "node scripts/corpus.mjs"
   },
   "devDependencies": {
-    "@tsts/gots": "*"
+    "@tsc-ts/gots": "*"
   }
 }

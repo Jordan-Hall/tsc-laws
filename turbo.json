@@ -24,7 +24,7 @@
       "dependsOn": ["build:oracle"],
       "cache": false
     },
-    "@tsts/gots#build": {
+    "@tsc-ts/gots#build": {
       "outputs": []
     }
   }
