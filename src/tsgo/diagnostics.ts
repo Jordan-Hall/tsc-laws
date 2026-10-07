@@ -19,6 +19,12 @@ export class Category$Box extends $rt.GoObject {
     if (v instanceof Category$Box) return v;
     throw $rt.typeAssertError();
   }
+  override $eqv(o: $rt.GoObject): boolean {
+    return o instanceof Category$Box && o.v === this.v;
+  }
+  override $ikey(): string {
+    return 'Category:' + $rt.numKey(this.v);
+  }
   Name(): string {
     return Category$Name(this.v);
   }

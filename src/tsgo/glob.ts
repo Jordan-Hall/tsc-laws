@@ -81,6 +81,12 @@ export class literal$Box extends $rt.GoObject {
     if (v instanceof literal$Box) return v;
     throw $rt.typeAssertError();
   }
+  override $eqv(o: $rt.GoObject): boolean {
+    return o instanceof literal$Box && o.v === this.v;
+  }
+  override $ikey(): string {
+    return 'literal:' + $rt.strKey(this.v);
+  }
   String(): string {
     return literal$String(this.v);
   }
@@ -485,8 +491,8 @@ export function match(elems: element[], input: string): boolean {
             for (let $t11 = 0, $n = $t10.length; $t11 < $n; $t11++) {
               let m = $t10[$t11];
               branch = $rt.reslice(branch, 0, 0, undefined);
-              $rt.appendInto(branch, m!.elems);
-              $rt.appendInto(branch, elems);
+              branch = $rt.appendCopy(branch, m!.elems);
+              branch = $rt.appendCopy(branch, elems);
               if (match(branch, input)) {
                 return true;
               }

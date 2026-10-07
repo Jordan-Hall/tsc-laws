@@ -191,6 +191,16 @@ func (x *fn) conversion(e *ast.CallExpr, to types.Type, args []string) string {
 }
 
 func (x *fn) conversionInner(e *ast.CallExpr, to types.Type, args []string) string {
+	if from := x.info.TypeOf(e.Args[0]); isWide(to) != isWide(from) && x.info.Types[e].Value == nil {
+		v := x.expr(e.Args[0])
+		if args != nil {
+			v = args[0]
+		}
+		if isWide(to) {
+			return "BigInt(" + v + ")"
+		}
+		return x.wrap("Number("+v+")", to)
+	}
 	arg := e.Args[0]
 	from := x.info.TypeOf(arg)
 	var v string

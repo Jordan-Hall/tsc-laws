@@ -10,6 +10,14 @@ export class GoObject {
   String(): string {
     throw unimplementedMethod('String');
   }
+  // Interface equality and map keys: identity for objects; boxes of basic
+  // values override these to compare by value.
+  $eqv(o: GoObject): boolean {
+    return this === o;
+  }
+  $ikey(): string {
+    return 'o' + String(objectId(this));
+  }
 }
 
 // Ptr is a Go pointer to a non-struct value: either a fresh value (new(T))
@@ -53,6 +61,12 @@ export class BoxNum extends GoObject {
     this.v = v;
     this.t = t;
   }
+  override $eqv(o: GoObject): boolean {
+    return o instanceof BoxNum && o.t === this.t && o.v === this.v;
+  }
+  override $ikey(): string {
+    return 'n' + this.t + ':' + String(this.v);
+  }
 }
 export class BoxStr extends GoObject {
   v: string;
@@ -62,6 +76,12 @@ export class BoxStr extends GoObject {
     this.v = v;
     this.t = t;
   }
+  override $eqv(o: GoObject): boolean {
+    return o instanceof BoxStr && o.t === this.t && o.v === this.v;
+  }
+  override $ikey(): string {
+    return 's' + this.t + ':' + this.v;
+  }
 }
 export class BoxBool extends GoObject {
   v: boolean;
@@ -70,6 +90,12 @@ export class BoxBool extends GoObject {
     super();
     this.v = v;
     this.t = t;
+  }
+  override $eqv(o: GoObject): boolean {
+    return o instanceof BoxBool && o.t === this.t && o.v === this.v;
+  }
+  override $ikey(): string {
+    return 'b' + this.t + ':' + (this.v ? '1' : '0');
   }
 }
 
@@ -96,10 +122,8 @@ export function hasMethods(v: GoObject | undefined, names: string[]): boolean {
 
 export function ifaceEq(a: GoObject | undefined, b: GoObject | undefined): boolean {
   if (a === b) return true;
-  if (a instanceof BoxNum && b instanceof BoxNum) return a.t === b.t && a.v === b.v;
-  if (a instanceof BoxStr && b instanceof BoxStr) return a.t === b.t && a.v === b.v;
-  if (a instanceof BoxBool && b instanceof BoxBool) return a.t === b.t && a.v === b.v;
-  return false;
+  if (a === undefined || b === undefined) return false;
+  return a.$eqv(b);
 }
 
 // Panics.
@@ -628,11 +652,7 @@ export function objKey(o: GoObject | undefined): string {
 // ifaceKey keys an interface value: boxed basic values by value, objects by
 // identity, as Go compares interface values.
 export function ifaceKey(v: GoObject | undefined): string {
-  if (v === undefined) return 'nil';
-  if (v instanceof BoxNum) return 'n' + v.t + ':' + String(v.v);
-  if (v instanceof BoxStr) return 's' + v.t + ':' + v.v;
-  if (v instanceof BoxBool) return 'b' + v.t + ':' + (v.v ? '1' : '0');
-  return 'o' + String(objectId(v));
+  return v === undefined ? 'nil' : v.$ikey();
 }
 
 // copyAt is copy(dst[lo:hi], src); hi < 0 means len(dst).

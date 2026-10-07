@@ -12,6 +12,9 @@ import (
 
 // expr translates an expression without target-type conversion.
 func (x *fn) expr(e ast.Expr) string {
+	if t, ok := x.subst[e]; ok {
+		return t
+	}
 	tv := x.info.Types[e]
 	if tv.Value != nil && !tv.IsType() {
 		return x.f.constValue(tv.Value, tv.Type)
@@ -571,6 +574,20 @@ func (x *fn) binary(e *ast.BinaryExpr) string {
 	}
 	l, r := x.expr(e.X), x.expr(e.Y)
 	resT := x.info.TypeOf(e)
+	if isWide(resT) {
+		// bigint arithmetic; shift counts and mixed operands convert.
+		if !isWide(lt) {
+			l = "BigInt(" + l + ")"
+		}
+		if !isWide(rt) {
+			r = "BigInt(" + r + ")"
+		}
+		op := e.Op.String()
+		if e.Op == token.AND_NOT {
+			return "(" + l + " & ~" + r + ")"
+		}
+		return "(" + l + " " + op + " " + r + ")"
+	}
 	kind, isInt := intKind(resT)
 	switch e.Op {
 	case token.ADD:
@@ -673,7 +690,7 @@ func (x *fn) equalExprs(a ast.Expr, at types.Type, b ast.Expr, bt types.Type) st
 func (x *fn) widened(e ast.Expr) string {
 	s := x.expr(e)
 	tv := x.info.Types[e]
-	if tv.Value == nil {
+	if tv.Value == nil || isWide(tv.Type) {
 		return s
 	}
 	if b, ok := under(tv.Type).(*types.Basic); ok {
@@ -1129,7 +1146,7 @@ func (x *fn) assign(s *ast.AssignStmt) {
 			return
 		}
 		// s = append(s, ...) appends in place.
-		if call, ok := unparen(s.Rhs[0]).(*ast.CallExpr); ok && !define && x.isBuiltin(call, "append") && len(call.Args) > 0 && sameExpr(l, call.Args[0]) {
+		if call, ok := unparen(s.Rhs[0]).(*ast.CallExpr); ok && !define && x.isBuiltin(call, "append") && len(call.Args) > 0 && sameExpr(l, call.Args[0]) && (x.ownedTarget(l) || isMapIndex(x, l)) {
 			x.appendInPlace(l, call)
 			return
 		}
@@ -1417,4 +1434,13 @@ func (x *fn) addrOf(e ast.Expr) string {
 		return x.expr(v.X)
 	}
 	return x.unsupportedExpr(e, x.f.t.stub(e.Pos(), "address of non-struct value"))
+}
+
+func isMapIndex(x *fn, l ast.Expr) bool {
+	idx, ok := unparen(l).(*ast.IndexExpr)
+	if !ok {
+		return false
+	}
+	_, isMap := under(x.info.TypeOf(idx.X)).(*types.Map)
+	return isMap
 }

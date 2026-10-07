@@ -656,7 +656,7 @@ export class SpanMap extends $rt.GoObject {
           s.Kind_,
         ];
         if (!(s.Features === (1048575 as number))) {
-          tuples[i].push(s.Features);
+          tuples[i] = $rt.appendCopy(tuples[i], [s.Features]);
         }
       }
     }

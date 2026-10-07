@@ -220,6 +220,12 @@ export class SignatureKind$Box extends $rt.GoObject {
     if (v instanceof SignatureKind$Box) return v;
     throw $rt.typeAssertError();
   }
+  override $eqv(o: $rt.GoObject): boolean {
+    return o instanceof SignatureKind$Box && o.v === this.v;
+  }
+  override $ikey(): string {
+    return 'SignatureKind:' + $rt.numKey(this.v);
+  }
   String(): string {
     return SignatureKind$String(this.v);
   }
@@ -240,6 +246,12 @@ export class TypeFlags$Box extends $rt.GoObject {
   static $cast(v: $rt.GoObject | undefined): TypeFlags$Box {
     if (v instanceof TypeFlags$Box) return v;
     throw $rt.typeAssertError();
+  }
+  override $eqv(o: $rt.GoObject): boolean {
+    return o instanceof TypeFlags$Box && o.v === this.v;
+  }
+  override $ikey(): string {
+    return 'TypeFlags:' + $rt.numKey(this.v);
   }
   String(): string {
     return TypeFlags$String(this.v);
@@ -265,13 +277,19 @@ export class VarianceFlags$Box extends $rt.GoObject {
     if (v instanceof VarianceFlags$Box) return v;
     throw $rt.typeAssertError();
   }
+  override $eqv(o: $rt.GoObject): boolean {
+    return o instanceof VarianceFlags$Box && o.v === this.v;
+  }
+  override $ikey(): string {
+    return 'VarianceFlags:' + $rt.numKey(this.v);
+  }
   String(): string {
     return VarianceFlags$String(this.v);
   }
 }
 export type WideningKind = number;
 export type propertyNameNodeKind = number;
-export type symbolTableID = number;
+export type symbolTableID = bigint;
 export type thisAssignmentDeclarationKind = number;
 export class AliasSymbolLinks extends $rt.GoObject {
   immediateTarget: $ast.Symbol_ | undefined = undefined;
@@ -13306,7 +13324,7 @@ export class Checker extends $rt.GoObject {
           t = c!.unknownType;
         }
       }
-      typeArguments.push(t);
+      typeArguments = $rt.appendCopy(typeArguments, [t]);
     }
     return typeArguments;
   }
@@ -23137,8 +23155,8 @@ export class Checker extends $rt.GoObject {
           if (!$ast.IsOmittedExpression(e) && c!.hasDefaultValue(e)) {
             elementType = c!.getTypeFromBindingElement(e, false, false);
           }
-          elementTypes.push(elementType);
-          elementInfos.push(TupleElementInfo.$lit_checker_TupleElementInfo_0(2));
+          elementTypes = $rt.appendCopy(elementTypes, [elementType]);
+          elementInfos = $rt.appendCopy(elementInfos, [TupleElementInfo.$lit_checker_TupleElementInfo_0(2)]);
           if (!$ast.IsOmittedExpression(e) && !c!.hasDefaultValue(e)) {
             c!.reportImplicitAny(e, c!.anyType, 0);
           }
@@ -27620,7 +27638,7 @@ export class Checker extends $rt.GoObject {
       indexInfos$2 = c!.getIndexInfosOfIndexSymbol(indexSymbol, $rt.slices_Collect($rt.maps_Values(members$2)));
     } else {
       if (!(baseConstructorIndexInfo === undefined)) {
-        indexInfos$2.push(baseConstructorIndexInfo);
+        indexInfos$2 = $rt.appendCopy(indexInfos$2, [baseConstructorIndexInfo]);
       }
       if (
         !((symbol_!.Flags & 384) === (0 as number)) &&
@@ -27629,7 +27647,7 @@ export class Checker extends $rt.GoObject {
             return !((c!.getTypeOfSymbol(prop)!.flags & 67648) === (0 as number));
           }))
       ) {
-        indexInfos$2.push(c!.enumNumberIndexInfo);
+        indexInfos$2 = $rt.appendCopy(indexInfos$2, [c!.enumNumberIndexInfo]);
       }
     }
     d!.indexInfos = indexInfos$2;
@@ -28129,7 +28147,7 @@ export class Checker extends $rt.GoObject {
                   s = c!.createUnionSignature(signature, unionSignatures);
                   s!.thisParameter = thisParameter;
                 }
-                result.push(s);
+                result = $rt.appendCopy(result, [s]);
               }
             }
           }
@@ -28433,7 +28451,7 @@ export class Checker extends $rt.GoObject {
             );
           })
         ) {
-          signatures.push(sig);
+          signatures = $rt.appendCopy(signatures, [sig]);
         }
       }
     }
@@ -28780,7 +28798,7 @@ export class Checker extends $rt.GoObject {
         if (writeTypes.length === 0) {
           writeTypes = $rt.slices_Clone(propTypes);
         }
-        writeTypes.push(writeType);
+        writeTypes = $rt.appendCopy(writeTypes, [writeType]);
       }
       if (!(t$1 === firstType)) {
         checkFlags = (checkFlags | 64) >>> 0;
@@ -29335,8 +29353,12 @@ export class Checker extends $rt.GoObject {
         result.push(symbol_$1);
       }
     }
-    c!.sortSymbols($rt.reslice(result, 0, containedCount, undefined));
-    c!.sortSymbols(result.slice(containedCount));
+    const $t1 = $rt.reslice(result, 0, containedCount, undefined);
+    c!.sortSymbols($t1);
+    $rt.copyAt(result, 0, -1, $t1);
+    const $t2 = result.slice(containedCount);
+    c!.sortSymbols($t2);
+    $rt.copyAt(result, containedCount, -1, $t2);
     return result;
   }
   isDeclarationContainedBy(symbol_: $ast.Symbol_ | undefined, container: $ast.Symbol_ | undefined): boolean {
@@ -33809,7 +33831,7 @@ export class Checker extends $rt.GoObject {
               return containsType(u!.Types$Type(), t);
             })
           ) {
-            reducedTypes.push(t);
+            reducedTypes = $rt.appendCopy(reducedTypes, [t]);
           }
         }
       }
@@ -33904,7 +33926,7 @@ export class Checker extends $rt.GoObject {
         }
         return;
       }
-      types.push(t);
+      types = $rt.appendCopy(types, [t]);
     };
     let lastType: Type | undefined = undefined as Type | undefined;
     {
@@ -33944,7 +33966,9 @@ export class Checker extends $rt.GoObject {
           }
         }
       }
-      $rt.clearSlice(types.slice(unique), undefined);
+      const $t7 = types.slice(unique);
+      $rt.clearSlice($t7, undefined);
+      $rt.copyAt(types, unique, -1, $t7);
       types = $rt.reslice(types, 0, unique, undefined);
     }
     return [types, includes];
@@ -34534,7 +34558,7 @@ export class Checker extends $rt.GoObject {
     for (; i < types.length;) {
       let t: Type | undefined = types[i];
       if (!((t!.objectFlags & 32768) === (0 as number))) {
-        unionTypes.push(t);
+        unionTypes = $rt.appendCopy(unionTypes, [t]);
         types = $rt.slices_Delete(types, i, i + 1);
       } else {
         i++;
@@ -36308,7 +36332,7 @@ export class Checker extends $rt.GoObject {
         } else {
           links!.resolvedType = t;
         }
-        expanded.push(symbol_);
+        expanded = $rt.appendCopy(expanded, [symbol_]);
       }
     }
     return expanded;
@@ -39119,11 +39143,11 @@ export class Checker extends $rt.GoObject {
                         !((flags & 12) === (0 as number)),
                         elementInfos[i$2].labeledDeclaration,
                       );
-                      effectiveArgs.push(syntheticArg);
+                      effectiveArgs = $rt.appendCopy(effectiveArgs, [syntheticArg]);
                     }
                   }
                 } else {
-                  effectiveArgs.push(arg);
+                  effectiveArgs = $rt.appendCopy(effectiveArgs, [arg]);
                 }
               }
             }
@@ -43179,13 +43203,13 @@ export class Checker extends $rt.GoObject {
           let s = $t1[$t2];
           if (!((s!.flags & 12845052) === (0 as number))) {
             if (!(groundClauseTypes.length === 0)) {
-              groundClauseTypes.push(s);
+              groundClauseTypes = $rt.appendCopy(groundClauseTypes, [s]);
             }
           } else if (!((s!.flags & 1048576) === (0 as number))) {
             if (groundClauseTypes.length === 0) {
               groundClauseTypes = $rt.reslice(clauseTypes, 0, i, undefined);
             }
-            groundClauseTypes.push(c!.nonPrimitiveType);
+            groundClauseTypes = $rt.appendCopy(groundClauseTypes, [c!.nonPrimitiveType]);
           } else {
             return t;
           }
@@ -53916,7 +53940,7 @@ export class Checker extends $rt.GoObject {
     const c = this;
     if (!(diagnostic === undefined)) {
       if (!(diagnosticOutput === undefined)) {
-        diagnosticOutput!.get().push(diagnostic);
+        diagnosticOutput!.set($rt.appendCopy(diagnosticOutput!.get(), [diagnostic]));
       } else {
         c!.addDiagnostic(diagnostic);
       }
@@ -54249,9 +54273,9 @@ export class Checker extends $rt.GoObject {
       specificSource = c!.checkExpressionForMutableLocationWithContextualType(next, sourcePropType);
     }
     if (!(diagnosticFactory === undefined)) {
-      diags.push(diagnosticFactory!(prop));
+      diags = $rt.appendCopy(diags, [diagnosticFactory!(prop)]);
     } else if (c!.exactOptionalPropertyTypes && c!.isExactOptionalPropertyMismatch(specificSource, targetPropType)) {
-      diags.push(
+      diags = $rt.appendCopy(diags, [
         createDiagnosticForNode(
           prop,
           $diagnostics.Type_0_is_not_assignable_to_type_1_with_exactOptionalPropertyTypes_Colon_true_Consider_adding_undefined_to_the_type_of_the_target,
@@ -54260,7 +54284,7 @@ export class Checker extends $rt.GoObject {
             new $rt.BoxStr(c!.TypeToString(targetPropType), 'string'),
           ],
         ),
-      );
+      ]);
     } else {
       let propName: string = c!.getPropertyNameFromIndex(nameType, undefined);
       let targetIsOptional: boolean = !(
@@ -54795,7 +54819,7 @@ export class Checker extends $rt.GoObject {
             if (propsOut === undefined) {
               return targetProp;
             }
-            propsOut!.get().push(targetProp);
+            propsOut!.set($rt.appendCopy(propsOut!.get(), [targetProp]));
           } else if (matchDiscriminantProperties) {
             let targetType: Type | undefined = c!.getTypeOfSymbol(targetProp);
             if (!((targetType!.flags & 97292) === (0 as number))) {
@@ -54809,7 +54833,7 @@ export class Checker extends $rt.GoObject {
                 if (propsOut === undefined) {
                   return targetProp;
                 }
-                propsOut!.get().push(targetProp);
+                propsOut!.set($rt.appendCopy(propsOut!.get(), [targetProp]));
               }
             }
           }
@@ -56575,7 +56599,11 @@ export class Checker extends $rt.GoObject {
       } else {
         let matchTexts: string[] = $rt.makeSlice<string>(s - seg + 1, '');
         matchTexts[0] = sourceTexts[seg].substring(pos);
-        $rt.copyAt(matchTexts, 1, -1, $rt.reslice(sourceTexts, seg + 1, s, ''));
+        const $t1 = matchTexts.slice(1);
+        const $t2 = $rt.reslice(sourceTexts, seg + 1, s, '');
+        $rt.copyAt(matchTexts, 1, -1, $t2);
+        $rt.copyAt(matchTexts, 1, -1, $t1);
+        $rt.copyAt(sourceTexts, seg + 1, -1, $t2);
         matchTexts[s - seg] = getSourceText!(s).substring(0, p);
         matchType = c!.getTemplateLiteralType(matchTexts, $rt.reslice(sourceTypes, seg, s, undefined));
       }
@@ -56607,8 +56635,8 @@ export class Checker extends $rt.GoObject {
           {
             let sourceText: string = getSourceText!(seg);
             if (pos < sourceText.length) {
-              const $t1 = $stringutil.DecodeJSStringRune(sourceText.substring(pos));
-              let size: number = $t1[1];
+              const $t3 = $stringutil.DecodeJSStringRune(sourceText.substring(pos));
+              let size: number = $t3[1];
               addMatch!(seg, pos + size);
             } else if (seg < lastSourceIndex) {
               addMatch!(seg + 1, 0);
@@ -57637,7 +57665,7 @@ export class Checker extends $rt.GoObject {
     if (!(exportEquals === moduleSymbol)) {
       let t: Type | undefined = c!.getTypeOfSymbol(exportEquals);
       if (c!.shouldTreatPropertiesOfExternalModuleAsExports(t)) {
-        $rt.appendInto(exports, c!.getPropertiesOfType(t));
+        exports = $rt.appendCopy(exports, c!.getPropertiesOfType(t));
       }
     }
     return exports;
@@ -57734,7 +57762,7 @@ export class Checker extends $rt.GoObject {
         if (candidatesSet!.Has(candidate)) {
           continue;
         }
-        candidates.push(candidate);
+        candidates = $rt.appendCopy(candidates, [candidate]);
       }
     }
     return candidates;
@@ -58110,7 +58138,7 @@ export class Checker extends $rt.GoObject {
         reexportContainers,
       );
       if (!(objectLiteralContainer === undefined)) {
-        res.push(objectLiteralContainer);
+        res = $rt.appendCopy(res, [objectLiteralContainer]);
       }
       return res;
     }
@@ -58191,7 +58219,7 @@ export class Checker extends $rt.GoObject {
           if (ref === undefined) {
             continue;
           }
-          results.push(resolvedModule);
+          results = $rt.appendCopy(results, [resolvedModule]);
         }
       }
       if (results.length > 0) {
@@ -58215,7 +58243,7 @@ export class Checker extends $rt.GoObject {
         if (ref$1 === undefined) {
           continue;
         }
-        results.push(sym);
+        results = $rt.appendCopy(results, [sym]);
       }
     }
     links!.extendedContainers = $rt.ptrTo<($ast.Symbol_ | undefined)[]>(
@@ -58523,15 +58551,11 @@ export class Checker extends $rt.GoObject {
   }
   getSymbolTableAliases(symbols: $ast.SymbolTable, tableId: symbolTableID): ($ast.Symbol_ | undefined)[] {
     const c = this;
-    let kind: symbolTableID = $rt.and64(tableId, 9223372036854775808);
-    if (kind === (4611686018427387904 as number)) {
+    let kind: symbolTableID = tableId & 9223372036854775808n;
+    if (kind === 4611686018427387904n) {
       return [];
     }
-    if (
-      kind === (6917529027641081856 as number) ||
-      kind === (2305843009213693952 as number) ||
-      kind === (9223372036854775808 as number)
-    ) {
+    if (kind === 6917529027641081856n || kind === 2305843009213693952n || kind === 9223372036854775808n) {
       if (!(c!.symbolTableAliasCache === undefined)) {
         {
           const $t1 = c!.symbolTableAliasCache;
@@ -58550,11 +58574,7 @@ export class Checker extends $rt.GoObject {
         aliases$1.push(sym);
       }
     }
-    if (
-      kind === (6917529027641081856 as number) ||
-      kind === (2305843009213693952 as number) ||
-      kind === (9223372036854775808 as number)
-    ) {
+    if (kind === 6917529027641081856n || kind === 2305843009213693952n || kind === 9223372036854775808n) {
       if (c!.symbolTableAliasCache === undefined) {
         c!.symbolTableAliasCache = new Map<symbolTableID, ($ast.Symbol_ | undefined)[]>();
       }
@@ -58570,7 +58590,7 @@ export class Checker extends $rt.GoObject {
     isLocalNameLookup: boolean,
   ): ($ast.Symbol_ | undefined)[] {
     const c = this;
-    let isGlobals: boolean = tableId === (6917529027641081856 as number);
+    let isGlobals: boolean = tableId === 6917529027641081856n;
     const $t1 = symbols;
     const $t2 = ctx.symbol!.Name;
     let res: $ast.Symbol_ | undefined = $t1?.get($t2) ?? undefined;
@@ -61875,7 +61895,7 @@ export class EmitResolver extends $rt.GoObject {
                         [],
                       );
                       if (info!.isReadonly) {
-                        mods.push(emitContext!.Factory!.NewModifier(148));
+                        mods = $rt.appendCopy(mods, [emitContext!.Factory!.NewModifier(148)]);
                       }
                       let decl: $ast.Node | undefined = emitContext!.Factory!.NewPropertyDeclaration(
                         $core.IfElse<$ast.ModifierList | undefined>(
@@ -64724,7 +64744,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
     }
     let resolved: StructuredType | undefined = b!.ch!.resolveStructuredTypeMembers(interfaceType);
     let members: ($ast.Node | undefined)[] = [];
-    $rt.appendInto(members, b!.serializeIndexSignaturesOfType(interfaceType, baseType));
+    members = $rt.appendCopy(members, b!.serializeIndexSignaturesOfType(interfaceType, baseType));
     {
       const $t1 = resolved!.ConstructSignatures();
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
@@ -64732,14 +64752,14 @@ export class NodeBuilderImpl extends $rt.GoObject {
         if (!((sig!.flags & 8) === (0 as number))) {
           continue;
         }
-        members.push(b!.signatureToSignatureDeclarationHelper(sig, 181, undefined));
+        members = $rt.appendCopy(members, [b!.signatureToSignatureDeclarationHelper(sig, 181, undefined)]);
       }
     }
     {
       const $t3 = resolved!.CallSignatures();
       for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
         let sig$1 = $t3[$t4];
-        members.push(b!.signatureToSignatureDeclarationHelper(sig$1, 180, undefined));
+        members = $rt.appendCopy(members, [b!.signatureToSignatureDeclarationHelper(sig$1, 180, undefined)]);
       }
     }
     let filteredProps: ($ast.Symbol_ | undefined)[] = b!.filterInheritedProperties(
@@ -64804,7 +64824,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
         if (b!.checkTruncationLengthIfExpanding() && i + 3 < properties.length - 1) {
           b!.ctx!.expansionTruncated = true;
           let text: string = $rt.fmt_Sprintf('... %d more ...', [new $rt.BoxNum(properties.length - i - 1, 'int')]);
-          elements.push(
+          elements = $rt.appendCopy(elements, [
             b!.f!.NewPropertySignatureDeclaration(
               undefined,
               b!.f!.NewIdentifier(text),
@@ -64812,7 +64832,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
               undefined,
               undefined,
             ),
-          );
+          ]);
           elements = b!.addPropertyToElementList(properties[properties.length - 1], elements);
           break;
         }
@@ -66322,7 +66342,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
       $debug.Assert(!(chain.length === 0), [] as ($rt.GoObject | undefined)[]);
       $debug.Assert(chain.length > 0, [] as ($rt.GoObject | undefined)[]);
     } else {
-      chain.push(symbol_);
+      chain = $rt.appendCopy(chain, [symbol_]);
     }
     return chain;
   }
@@ -66408,7 +66428,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
                 if (fallback === undefined) {
                   fallback = symbol_;
                 }
-                nextSyms.push(fallback);
+                nextSyms = $rt.appendCopy(nextSyms, [fallback]);
               }
               accessibleSymbolChain = $rt.appendCopy(parentChain, nextSyms);
               break;
@@ -67911,7 +67931,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
                 ),
               );
               b!.setCommentRange(getter, getterDeclaration);
-              typeElements.push(getter);
+              typeElements = $rt.appendCopy(typeElements, [getter]);
             }
           }
           {
@@ -67929,7 +67949,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
                 ),
               );
               b!.setCommentRange(setter, setterDeclaration);
-              typeElements.push(setter);
+              typeElements = $rt.appendCopy(typeElements, [setter]);
             }
           }
           return typeElements;
@@ -67955,7 +67975,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
             SignatureToSignatureDeclarationOptions.$lit_checker_SignatureToSignatureDeclarationOptions_1(propertyName),
           );
           b!.setCommentRange(fakeGetterDeclaration, propDeclaration);
-          typeElements.push(fakeGetterDeclaration);
+          typeElements = $rt.appendCopy(typeElements, [fakeGetterDeclaration]);
           let setterParam: $ast.Symbol_ | undefined = b!.ch!.newSymbol(1, 'arg');
           b!.ch!.valueSymbolLinks.Get(setterParam)!.resolvedType = writeType;
           let fakeSetterSignature: Signature | undefined = b!.ch!.newSignature(
@@ -67973,7 +67993,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
             179,
             SignatureToSignatureDeclarationOptions.$lit_checker_SignatureToSignatureDeclarationOptions_1(propertyName),
           );
-          typeElements.push(fakeSetterDeclaration);
+          typeElements = $rt.appendCopy(typeElements, [fakeSetterDeclaration]);
           return typeElements;
         }
       }
@@ -68009,7 +68029,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
             methodDeclaration,
             $core.Coalesce<$ast.Node | undefined, $ast.Node>(signature!.declaration, propertySymbol!.ValueDeclaration),
           );
-          typeElements.push(methodDeclaration);
+          typeElements = $rt.appendCopy(typeElements, [methodDeclaration]);
         }
       }
       if (!(signatures.length === (0 as number)) || optionalToken === undefined) {
@@ -68050,7 +68070,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
       undefined,
     );
     b!.setCommentRange(propertySignature, propertySymbol!.ValueDeclaration);
-    typeElements.push(propertySignature);
+    typeElements = $rt.appendCopy(typeElements, [propertySignature]);
     return typeElements;
   }
   createTypeNodesFromResolvedType(resolvedType: StructuredType | undefined): $ast.NodeList | undefined {
@@ -68069,7 +68089,9 @@ export class NodeBuilderImpl extends $rt.GoObject {
       const $t1 = resolvedType!.CallSignatures();
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
         let signature = $t1[$t2];
-        typeElements.push(b!.signatureToSignatureDeclarationHelper(signature, 180, undefined));
+        typeElements = $rt.appendCopy(typeElements, [
+          b!.signatureToSignatureDeclarationHelper(signature, 180, undefined),
+        ]);
       }
     }
     {
@@ -68079,7 +68101,9 @@ export class NodeBuilderImpl extends $rt.GoObject {
         if (!((signature$1!.flags & 8) === (0 as number))) {
           continue;
         }
-        typeElements.push(b!.signatureToSignatureDeclarationHelper(signature$1, 181, undefined));
+        typeElements = $rt.appendCopy(typeElements, [
+          b!.signatureToSignatureDeclarationHelper(signature$1, 181, undefined),
+        ]);
       }
     }
     {
@@ -68133,7 +68157,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
             );
           } else {
             let text: string = $rt.fmt_Sprintf('... %d more ...', [new $rt.BoxNum(properties.length - i, 'int')]);
-            typeElements.push(
+            typeElements = $rt.appendCopy(typeElements, [
               b!.f!.NewPropertySignatureDeclaration(
                 undefined,
                 b!.f!.NewIdentifier(text),
@@ -68141,7 +68165,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
                 undefined,
                 undefined,
               ),
-            );
+            ]);
           }
           typeElements = b!.addPropertyToElementList(properties[properties.length - 1], typeElements);
           break;
@@ -68209,7 +68233,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
           resolved!.properties.length,
         );
       if (!(typeElementCount === (0 as number))) {
-        types.push(b!.getResolvedTypeWithoutAbstractConstructSignatures(resolved));
+        types = $rt.appendCopy(types, [b!.getResolvedTypeWithoutAbstractConstructSignatures(resolved)]);
       }
       return b!.typeToTypeNode(b!.ch!.getIntersectionType(types));
     }
@@ -78561,12 +78585,12 @@ export const orderedSetMapThreshold: number = 16;
 export const propertyNameNodeKindIdentifier: propertyNameNodeKind = 0;
 export const propertyNameNodeKindNumericLiteral: propertyNameNodeKind = 1;
 export const propertyNameNodeKindStringLiteral: propertyNameNodeKind = 2;
-export const stKindExports: symbolTableID = 2305843009213693952;
-export const stKindGlobals: symbolTableID = 6917529027641081856;
-export const stKindLocals: symbolTableID = 0;
-export const stKindMask: symbolTableID = 9223372036854775808;
-export const stKindMembers: symbolTableID = 4611686018427387904;
-export const stKindResolvedExports: symbolTableID = 9223372036854775808;
+export const stKindExports: symbolTableID = 2305843009213693952n;
+export const stKindGlobals: symbolTableID = 6917529027641081856n;
+export const stKindLocals: symbolTableID = 0n;
+export const stKindMask: symbolTableID = 9223372036854775808n;
+export const stKindMembers: symbolTableID = 4611686018427387904n;
+export const stKindResolvedExports: symbolTableID = 9223372036854775808n;
 export const stKindShift: number = 61;
 export const thisAssignmentDeclarationConstructor: thisAssignmentDeclarationKind = 2;
 export const thisAssignmentDeclarationMethod: thisAssignmentDeclarationKind = 3;
@@ -80793,7 +80817,9 @@ export function instantiateList<T>(
       let mapped: T = instantiator!(c, value, m);
       if (!(mapped === value)) {
         let result: T[] = $rt.makeSlice<T>(values.length, $z_T());
-        $rt.copySlice(result, $rt.reslice(values, 0, i, $z_T()));
+        const $t3 = $rt.reslice(values, 0, i, $z_T());
+        $rt.copySlice(result, $t3);
+        $rt.copyAt(values, 0, -1, $t3);
         result[i] = mapped;
         {
           for (let j: number = i + 1; j < values.length; j++) {
@@ -82896,7 +82922,7 @@ export function excludeProperties(
       let prop = $t1[$t2];
       if (!excludedProperties.Has(prop!.Name)) {
         if (excluded) {
-          reduced.push(prop);
+          reduced = $rt.appendCopy(reduced, [prop]);
         }
       } else if (!excluded) {
         reduced = $rt.slices_Clip($rt.reslice(properties, 0, i, undefined));
@@ -83180,19 +83206,19 @@ export function hasExternalModuleSymbol(declaration: $ast.Node | undefined): boo
   );
 }
 export function symbolTableIDFromLocals(node: $ast.Node | undefined): symbolTableID {
-  return $rt.or64(0, $ast.GetNodeId(node));
+  return 0n | BigInt($ast.GetNodeId(node));
 }
 export function symbolTableIDFromExports(sym: $ast.Symbol_ | undefined): symbolTableID {
-  return $rt.or64(2305843009213693952, $ast.GetSymbolId(sym));
+  return 2305843009213693952n | BigInt($ast.GetSymbolId(sym));
 }
 export function symbolTableIDFromResolvedExports(sym: $ast.Symbol_ | undefined): symbolTableID {
-  return $rt.or64(9223372036854775808, $ast.GetSymbolId(sym));
+  return 9223372036854775808n | BigInt($ast.GetSymbolId(sym));
 }
 export function symbolTableIDFromMembers(sym: $ast.Symbol_ | undefined): symbolTableID {
-  return $rt.or64(4611686018427387904, $ast.GetSymbolId(sym));
+  return 4611686018427387904n | BigInt($ast.GetSymbolId(sym));
 }
 export function symbolTableIDFromGlobals(): symbolTableID {
-  return 6917529027641081856;
+  return 6917529027641081856n;
 }
 export function isUMDExportSymbol(symbol_: $ast.Symbol_ | undefined): boolean {
   return (

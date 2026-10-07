@@ -6166,7 +6166,9 @@ export function tryReadFile(
   let e: boolean = $t1[1];
   if (!e) {
     text = '';
-    errors.push($ast.NewCompilerDiagnostic($diagnostics.Cannot_read_file_0, [new $rt.BoxStr(fileName, 'string')]));
+    errors = $rt.appendCopy(errors, [
+      $ast.NewCompilerDiagnostic($diagnostics.Cannot_read_file_0, [new $rt.BoxStr(fileName, 'string')]),
+    ]);
   }
   return [text, errors];
 }
@@ -8406,7 +8408,7 @@ export function parseOwnConfigOfJsonSourceFile(
             }
           }
         }
-        $rt.appendInto(propertySetErrors, parseDiagnostics);
+        propertySetErrors = $rt.appendCopy(propertySetErrors, parseDiagnostics);
       } else if (!(keyText === ('' as string)) && !(extraKeyDiagnostics(parentOption!.Name) === undefined)) {
         let unknownNameDiag: $diagnostics.Message | undefined = extraKeyDiagnostics(parentOption!.Name);
         if (!(parentOption!.ElementOptions === undefined)) {
@@ -8418,16 +8420,16 @@ export function parseOwnConfigOfJsonSourceFile(
             possibleOption = CommandLineOptionNameMap$GetSpellingSuggestion(parentOption!.ElementOptions!, keyText);
           }
           if (!(possibleOption === undefined) && !(possibleOption!.Name === keyText)) {
-            propertySetErrors.push(
+            propertySetErrors = $rt.appendCopy(propertySetErrors, [
               CreateDiagnosticForNodeInSourceFileOrCompilerDiagnostic(
                 sourceFile,
                 propertyAssignment!.Name(),
                 extraKeyDidYouMeanDiagnostics(parentOption!.Name),
                 [new $rt.BoxStr(keyText, 'string'), new $rt.BoxStr(possibleOption!.Name, 'string')],
               ),
-            );
+            ]);
           } else {
-            propertySetErrors.push(
+            propertySetErrors = $rt.appendCopy(propertySetErrors, [
               createUnknownOptionError(
                 keyText,
                 unknownNameDiag,
@@ -8438,7 +8440,7 @@ export function parseOwnConfigOfJsonSourceFile(
                 undefined,
                 undefined,
               ),
-            );
+            ]);
           }
         } else {
         }
@@ -8457,17 +8459,17 @@ export function parseOwnConfigOfJsonSourceFile(
         let configPath: string[] = $t2[0];
         let err: ($ast.Diagnostic | undefined)[] = $t2[1];
         extendedConfigPath = new $boxes.Box___string(configPath);
-        $rt.appendInto(propertySetErrors, err);
+        propertySetErrors = $rt.appendCopy(propertySetErrors, err);
       } else if (option === undefined) {
         if (keyText === ('excludes' as string)) {
-          propertySetErrors.push(
+          propertySetErrors = $rt.appendCopy(propertySetErrors, [
             CreateDiagnosticForNodeInSourceFile(
               sourceFile,
               propertyAssignment!.Name(),
               $diagnostics.Unknown_option_excludes_Did_you_mean_exclude,
               [] as ($rt.GoObject | undefined)[],
             ),
-          );
+          ]);
         }
         if (
           !(
@@ -8896,7 +8898,7 @@ export function getExtendsConfigPathOrArray(
           if (!(val$1 === ('' as string))) {
             extendedConfigPathArray.push(val$1);
           }
-          $rt.appendInto(errors$1, err$1);
+          errors$1 = $rt.appendCopy(errors$1, err$1);
         } else {
           const $t6 = convertJsonOption(
             extendsOptionDeclaration!.Elements(),
@@ -8907,7 +8909,7 @@ export function getExtendsConfigPathOrArray(
             sourceFile,
           );
           let err$2: ($ast.Diagnostic | undefined)[] = $t6[1];
-          $rt.appendInto(errors$1, err$2);
+          errors$1 = $rt.appendCopy(errors$1, err$2);
         }
       }
     }
@@ -9550,12 +9552,12 @@ export function parseOwnConfigOfJson(
 ): [parsedTsconfig | undefined, ($ast.Diagnostic | undefined)[]] {
   let errors: ($ast.Diagnostic | undefined)[] = [];
   if (json!.Has('excludes')) {
-    errors.push(
+    errors = $rt.appendCopy(errors, [
       $ast.NewCompilerDiagnostic(
         $diagnostics.Unknown_option_excludes_Did_you_mean_exclude,
         [] as ($rt.GoObject | undefined)[],
       ),
-    );
+    ]);
   }
   const $t1 = convertCompilerOptionsFromJsonWorker(json!.GetOrZero('compilerOptions'), basePath, configFileName);
   let options: $core.CompilerOptions | undefined = $t1[0];
@@ -9579,7 +9581,7 @@ export function parseOwnConfigOfJson(
       );
       let converted: $rt.GoObject | undefined = $t4[0];
       let compileOnSaveErrors: ($ast.Diagnostic | undefined)[] = $t4[1];
-      $rt.appendInto(errors, compileOnSaveErrors);
+      errors = $rt.appendCopy(errors, compileOnSaveErrors);
       json!.Set('compileOnSave', converted);
     }
   }
@@ -9598,7 +9600,7 @@ export function parseOwnConfigOfJson(
       );
       extendedConfigPath = $t5[0];
       err = $t5[1];
-      $rt.appendInto(errors, err);
+      errors = $rt.appendCopy(errors, err);
     }
   }
   let parsedConfig: parsedTsconfig | undefined = parsedTsconfig.$lit_tsoptions_parsedTsconfig_0_1_2_3(
@@ -9905,7 +9907,7 @@ export function parseConfig(
     }
   };
   if (!(ownConfig!.extendedConfigPath === undefined)) {
-    resolutionStack.push(resolvedPath);
+    resolutionStack = $rt.appendCopy(resolutionStack, [resolvedPath]);
     let result$2: extendsResult | undefined = extendsResult.$lit_tsoptions_extendsResult_0(new $core.CompilerOptions());
     if ($rt.reflect_TypeOf(ownConfig!.extendedConfigPath)!.Kind() === (24 as number)) {
       applyExtendedConfig!(
@@ -10062,12 +10064,12 @@ export function parseJsonConfigFileContentWorker(
                 validateElement,
               )
             ) {
-              errors.push(
+              errors = $rt.appendCopy(errors, [
                 $ast.NewCompilerDiagnostic($diagnostics.Compiler_option_0_requires_a_value_of_type_1, [
                   new $rt.BoxStr(prop, 'string'),
                   new $rt.BoxStr(elementTypeName, 'string'),
                 ]),
-              );
+              ]);
             }
           }
         }
@@ -10077,12 +10079,12 @@ export function parseJsonConfigFileContentWorker(
             : $rt.typeAssertFail<($rt.GoObject | undefined)[]>(),
         );
       } else if (sourceFile === undefined) {
-        errors.push(
+        errors = $rt.appendCopy(errors, [
           $ast.NewCompilerDiagnostic($diagnostics.Compiler_option_0_requires_a_value_of_type_1, [
             new $rt.BoxStr(prop, 'string'),
             new $rt.BoxStr('Array', 'string'),
           ]),
-        );
+        ]);
         return propOfRaw.$lit_tsoptions_propOfRaw_0_1([], 'not-array');
       }
     }
@@ -10119,17 +10121,17 @@ export function parseJsonConfigFileContentWorker(
           'files',
           $fn9,
         );
-        errors.push(
+        errors = $rt.appendCopy(errors, [
           CreateDiagnosticForNodeInSourceFile(sourceFile!.SourceFile_, nodeValue, diagnosticMessage, [
             new $rt.BoxStr(fileName, 'string'),
           ]),
-        );
+        ]);
       } else {
-        errors.push(
+        errors = $rt.appendCopy(errors, [
           $ast.NewCompilerDiagnostic($diagnostics.The_files_list_in_config_file_0_is_empty, [
             new $rt.BoxStr(configFileName, 'string'),
           ]),
-        );
+        ]);
       }
     }
   }
@@ -10169,7 +10171,7 @@ export function parseJsonConfigFileContentWorker(
     );
     validatedIncludeSpecsBeforeSubstitution = $t5[0];
     err = $t5[1];
-    $rt.appendInto(errors, err);
+    errors = $rt.appendCopy(errors, err);
     {
       validatedIncludeSpecs = getSubstitutedStringArrayWithConfigDirTemplate(
         validatedIncludeSpecsBeforeSubstitution,
@@ -10190,7 +10192,7 @@ export function parseJsonConfigFileContentWorker(
     );
     validatedExcludeSpecs = $t6[0];
     err$1 = $t6[1];
-    $rt.appendInto(errors, err$1);
+    errors = $rt.appendCopy(errors, err$1);
     {
       let validatedExcludeSpecsWithSubstitution: string[] = getSubstitutedStringArrayWithConfigDirTemplate(
         validatedExcludeSpecs,
@@ -10264,17 +10266,17 @@ export function parseJsonConfigFileContentWorker(
         const $t14 = mapperErrors;
         for (let $t15 = 0, $n = $t14.length; $t15 < $n; $t15++) {
           let mapperError = $t14[$t15];
-          errors.push(
+          errors = $rt.appendCopy(errors, [
             setContentMapperDiagnosticLocation(
               mapperError,
               contentMapperSourceFile,
               getContentMapperSyntax(contentMapperSourceFile, i, ''),
             ),
-          );
+          ]);
         }
       }
       if (!(mapper === undefined)) {
-        contentMappers.push(mapper);
+        contentMappers = $rt.appendCopy(contentMappers, [mapper]);
         contentMapperIndices.push(i);
       }
     }
@@ -10308,7 +10310,7 @@ export function parseJsonConfigFileContentWorker(
           {
             $sw22: {
               if (!$rt.strings_HasPrefix(ext, '.')) {
-                errors.push(
+                errors = $rt.appendCopy(errors, [
                   setContentMapperDiagnosticLocation(
                     $ast.NewCompilerDiagnostic($diagnostics.Content_mapper_file_extension_0_must_begin_with_a, [
                       new $rt.BoxStr(ext, 'string'),
@@ -10316,9 +10318,9 @@ export function parseJsonConfigFileContentWorker(
                     contentMapperSourceFile,
                     extNode,
                   ),
-                );
+                ]);
               } else if ($rt.slices_Contains(nativeExtensions, ext)) {
-                errors.push(
+                errors = $rt.appendCopy(errors, [
                   setContentMapperDiagnosticLocation(
                     $ast.NewCompilerDiagnostic(
                       $diagnostics.Content_mapper_file_extension_0_is_a_built_in_extension_and_cannot_be_registered_by_a_content_mapper,
@@ -10327,14 +10329,14 @@ export function parseJsonConfigFileContentWorker(
                     contentMapperSourceFile,
                     extNode,
                   ),
-                );
+                ]);
               } else {
                 {
                   const $t23 = seenContentMapperExtensions;
                   const $t24 = ext;
                   let seen: boolean = $t23 !== undefined && $t23.has($t24);
                   if (seen) {
-                    errors.push(
+                    errors = $rt.appendCopy(errors, [
                       setContentMapperDiagnosticLocation(
                         $ast.NewCompilerDiagnostic(
                           $diagnostics.Content_mapper_file_extension_0_is_registered_by_more_than_one_content_mapper,
@@ -10343,10 +10345,10 @@ export function parseJsonConfigFileContentWorker(
                         contentMapperSourceFile,
                         extNode,
                       ),
-                    );
+                    ]);
                   } else {
                     seenContentMapperExtensions!.set(ext, $rt.EMPTY);
-                    contentMapperExtensions.push(ext);
+                    contentMapperExtensions = $rt.appendCopy(contentMapperExtensions, [ext]);
                     validExtensions.push(ext);
                   }
                 }
@@ -10362,7 +10364,7 @@ export function parseJsonConfigFileContentWorker(
     contentMappers.length > 0 &&
     !(!(parsedConfig!.options === undefined) && $core.Tristate$IsTrue(parsedConfig!.options!.RunExternalCode))
   ) {
-    errors.push(
+    errors = $rt.appendCopy(errors, [
       setContentMapperDiagnosticLocation(
         $ast.NewCompilerDiagnostic(
           $diagnostics.Content_mappers_require_the_runExternalCode_command_line_flag_to_be_enabled,
@@ -10371,7 +10373,7 @@ export function parseJsonConfigFileContentWorker(
         contentMapperSourceFile,
         getContentMappersKeySyntax(contentMapperSourceFile),
       ),
-    );
+    ]);
     contentMappers = [];
     contentMapperExtensions = [];
   } else if (contentMappers.length > 0) {
@@ -10391,13 +10393,13 @@ export function parseJsonConfigFileContentWorker(
         let diagnostic: $ast.Diagnostic | undefined = $t27[2];
         mapper$3!.PackageDirectory = packageDirectory;
         if (!(diagnostic === undefined)) {
-          errors.push(
+          errors = $rt.appendCopy(errors, [
             setContentMapperDiagnosticLocation(
               diagnostic,
               contentMapperSourceFile,
               getContentMapperSyntax(contentMapperSourceFile, contentMapperIndices[j$1], 'package'),
             ),
-          );
+          ]);
           continue;
         }
         mapper$3!.Manifest_ = manifest;
@@ -10427,7 +10429,7 @@ export function parseJsonConfigFileContentWorker(
       if (excludeSpecs$1 === undefined) {
         excludeSpecs$1 = new $boxes.Box___string([] as string[]);
       }
-      errors.push(
+      errors = $rt.appendCopy(errors, [
         $ast.NewCompilerDiagnostic(
           $diagnostics.No_inputs_were_found_in_config_file_0_Specified_include_paths_were_1_and_exclude_paths_were_2,
           [
@@ -10436,7 +10438,7 @@ export function parseJsonConfigFileContentWorker(
             new $rt.BoxStr($core.Must<string>(...$core.StringifyJson(excludeSpecs$1, '', '')), 'string'),
           ],
         ),
-      );
+      ]);
     }
     return [fileNames, literalFileNamesLen];
   };
@@ -10457,7 +10459,7 @@ export function parseJsonConfigFileContentWorker(
             continue;
           }
           if (!ref!.hasPath || !ref!.pathValid) {
-            errors.push(
+            errors = $rt.appendCopy(errors, [
               createDiagnosticAtProjectReferenceProperty(
                 sourceFile,
                 index,
@@ -10465,11 +10467,11 @@ export function parseJsonConfigFileContentWorker(
                 $diagnostics.Compiler_option_0_requires_a_value_of_type_1,
                 [new $rt.BoxStr('reference.path', 'string'), new $rt.BoxStr('string', 'string')],
               ),
-            );
+            ]);
             continue;
           }
           if (ref!.reference.Path === ('' as string)) {
-            errors.push(
+            errors = $rt.appendCopy(errors, [
               createDiagnosticAtProjectReferenceProperty(
                 sourceFile,
                 index,
@@ -10477,11 +10479,11 @@ export function parseJsonConfigFileContentWorker(
                 $diagnostics.Compiler_option_0_cannot_be_given_an_empty_string,
                 [new $rt.BoxStr('reference.path', 'string')],
               ),
-            );
+            ]);
             continue;
           }
           if (ref!.hasCircular && !ref!.circularValid) {
-            errors.push(
+            errors = $rt.appendCopy(errors, [
               createDiagnosticAtProjectReferenceProperty(
                 sourceFile,
                 index,
@@ -10489,7 +10491,7 @@ export function parseJsonConfigFileContentWorker(
                 $diagnostics.Compiler_option_0_requires_a_value_of_type_1,
                 [new $rt.BoxStr('reference.circular', 'string'), new $rt.BoxStr('boolean', 'string')],
               ),
-            );
+            ]);
           }
           projectReferences.push(
             $core.ProjectReference.$lit_core_ProjectReference_0_1_2(

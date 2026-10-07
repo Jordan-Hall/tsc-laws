@@ -14,6 +14,12 @@ export class Number_$Box extends $rt.GoObject {
     if (v instanceof Number_$Box) return v;
     throw $rt.typeAssertError();
   }
+  override $eqv(o: $rt.GoObject): boolean {
+    return o instanceof Number_$Box && o.v === this.v;
+  }
+  override $ikey(): string {
+    return 'Number_:' + $rt.numKey(this.v);
+  }
   IsNaN(): boolean {
     return Number$IsNaN(this.v);
   }

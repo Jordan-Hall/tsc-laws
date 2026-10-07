@@ -530,7 +530,7 @@ export function findRightmostValidToken(
       if (!shouldVisitNode!(node$1)) {
         return node$1;
       }
-      rightmostVisitedNodes.push(node$1);
+      rightmostVisitedNodes = $rt.appendCopy(rightmostVisitedNodes, [node$1]);
       if (isValidPrecedingNode(node$1, sourceFile)) {
         rightmostValidNode = node$1;
         rightmostVisitedNodes = $rt.reslice(rightmostVisitedNodes, 0, 0, undefined);
@@ -573,7 +573,7 @@ export function findRightmostValidToken(
             if (!shouldVisitNode!(nodeList!.Nodes[i$1])) {
               continue;
             }
-            rightmostVisitedNodes.push(nodeList!.Nodes[i$1]);
+            rightmostVisitedNodes = $rt.appendCopy(rightmostVisitedNodes, [nodeList!.Nodes[i$1]]);
           }
         }
       }

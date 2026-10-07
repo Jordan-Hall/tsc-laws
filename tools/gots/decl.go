@@ -237,6 +237,9 @@ func (f *file) typeDecl(tn *types.TypeName) string {
 	if base := f.t.structAlias[tn]; base != nil {
 		return fmt.Sprintf("export type %s%s = %s;\n", f.declName(tn), tp, f.tsType(base))
 	}
+	if f.t.wide[tn] {
+		return fmt.Sprintf("export type %s = bigint;\n", f.declName(tn))
+	}
 	s := fmt.Sprintf("export type %s%s = %s;\n", f.declName(tn), tp, f.tsType(n.Underlying()))
 	if f.boxedBy(tn) {
 		s += f.boxDecl(tn)
@@ -355,6 +358,11 @@ func (f *file) boxDecl(tn *types.TypeName) string {
 	name := f.declName(tn)
 	fmt.Fprintf(&w, "export class %s$Box extends $rt.GoObject {\n  v: %s;\n  constructor(v: %s) { super(); this.v = v; }\n", name, name, name)
 	fmt.Fprintf(&w, "  static $cast(v: $rt.GoObject | undefined): %s$Box { if (v instanceof %s$Box) return v; throw $rt.typeAssertError(); }\n", name, name)
+	if b, ok := n.Underlying().(*types.Basic); ok {
+		// Interface values of this type compare by value.
+		fmt.Fprintf(&w, "  override $eqv(o: $rt.GoObject): boolean { return o instanceof %s$Box && o.v === this.v; }\n", name)
+		fmt.Fprintf(&w, "  override $ikey(): string { return %q + %s; }\n", name+":", f.valueKey("this.v", b))
+	}
 	for i := 0; i < n.NumMethods(); i++ {
 		m := n.Method(i)
 		sig := m.Type().(*types.Signature)
@@ -737,6 +745,9 @@ func (f *file) fieldName(v *types.Var) string {
 }
 
 func (f *file) constValue(v constant.Value, tt types.Type) string {
+	if isWide(tt) {
+		return constant.ToInt(v).ExactString() + "n"
+	}
 	switch v.Kind() {
 	case constant.Bool:
 		return v.String()
@@ -1011,6 +1022,9 @@ func (f *file) stdIface(n *types.Named, it *types.Interface) string {
 
 // zero returns the zero value expression of a type.
 func (f *file) zero(tt types.Type) string {
+	if isWide(tt) {
+		return "0n"
+	}
 	switch x := tt.Underlying().(type) {
 	case *types.Basic:
 		switch {
@@ -1268,6 +1282,9 @@ func (f *file) keyFn(k types.Type) string {
 
 // valueKey renders a string key for the value expr of type tt.
 func (f *file) valueKey(expr string, tt types.Type) string {
+	if isWide(tt) {
+		return "String(" + expr + ")"
+	}
 	switch u := tt.Underlying().(type) {
 	case *types.Basic:
 		switch basicKind(u) {

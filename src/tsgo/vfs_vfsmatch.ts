@@ -17,6 +17,12 @@ export class Usage$Box extends $rt.GoObject {
     if (v instanceof Usage$Box) return v;
     throw $rt.typeAssertError();
   }
+  override $eqv(o: $rt.GoObject): boolean {
+    return o instanceof Usage$Box && o.v === this.v;
+  }
+  override $ikey(): string {
+    return 'Usage:' + $rt.numKey(this.v);
+  }
   String(): string {
     return Usage$String(this.v);
   }
@@ -495,7 +501,7 @@ export class globVisitor extends $rt.GoObject {
           let idx: number = $t3[0];
           let ok: boolean = $t3[1];
           if (ok) {
-            v!.results[idx].push(pathPrefix + file);
+            v!.results[idx] = $rt.appendCopy(v!.results[idx], [pathPrefix + file]);
           }
         }
       }
@@ -655,7 +661,7 @@ export function compileGlobPattern(
   }
   parts[0] = $tspath.RemoveTrailingDirectorySeparator(parts[0]);
   if (IsImplicitGlob($core.LastOrNil<string>($zf0, parts))) {
-    parts.push('**', '*');
+    parts = $rt.appendCopy(parts, ['**', '*']);
   }
   let p: globPattern = globPattern.$lit_vfs_vfsmatch_globPattern_1_2_3_0(
     usage === (2 as number),

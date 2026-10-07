@@ -151,7 +151,7 @@ export class Parser extends $rt.GoObject {
           let parsed: $ast.Node | undefined = p!.parseJSDocComment(node, comment.Pos(), comment.End(), pos);
           if (!(parsed === undefined)) {
             parsed!.Parent = node;
-            jsdoc.push(parsed);
+            jsdoc = $rt.appendCopy(jsdoc, [parsed]);
             pos = parsed!.End();
           }
         }
@@ -262,7 +262,7 @@ export class Parser extends $rt.GoObject {
       if (margin === (-1 as number)) {
         margin = indent;
       }
-      comments.push(text);
+      comments = $rt.appendCopy(comments, [text]);
       indent += text.length;
     };
     p!.nextTokenJSDoc();
@@ -298,14 +298,14 @@ export class Parser extends $rt.GoObject {
             if (tagsPos === (-1 as number)) {
               tagsPos = tag!.Pos();
             }
-            tags.push(tag);
+            tags = $rt.appendCopy(tags, [tag]);
             tagsEnd = tag!.End();
             state = 0;
             margin = -1;
             break;
           }
           case 4 as number: {
-            comments.push(p!.scanner!.TokenText());
+            comments = $rt.appendCopy(comments, [p!.scanner!.TokenText()]);
             state = 0;
             indent = 0;
             break;
@@ -342,7 +342,7 @@ export class Parser extends $rt.GoObject {
               if (existingIndent < 0) {
                 existingIndent = 0;
               }
-              comments.push(whitespace.substring(existingIndent));
+              comments = $rt.appendCopy(comments, [whitespace.substring(existingIndent)]);
             }
             indent += whitespace.length;
             break;
@@ -390,7 +390,7 @@ export class Parser extends $rt.GoObject {
                 linkEnd,
                 commentEnd,
               );
-              commentParts.push(jsdocText, link);
+              commentParts = $rt.appendCopy(commentParts, [jsdocText, link]);
               comments = $rt.reslice(comments, 0, 0, '');
               linkEnd = p!.scanner!.TokenEnd();
               break;
@@ -426,7 +426,7 @@ export class Parser extends $rt.GoObject {
         linkEnd,
         commentsPos,
       );
-      commentParts.push(jsdocText$1);
+      commentParts = $rt.appendCopy(commentParts, [jsdocText$1]);
     }
     if (commentParts.length > 0 && tags.length > 0 && commentsPos === (-1 as number)) {
       throw $rt.newPanic(
@@ -480,7 +480,7 @@ export class Parser extends $rt.GoObject {
       ;
       (precedingLineBreak && p!.token === (41 as number)) || p!.token === (5 as number) || p!.token === (4 as number);
     ) {
-      indents.push(p!.scanner!.TokenText());
+      indents = $rt.appendCopy(indents, [p!.scanner!.TokenText()]);
       if (p!.token === (4 as number)) {
         precedingLineBreak = true;
         seenLineBreak = true;
@@ -691,7 +691,7 @@ export class Parser extends $rt.GoObject {
       if (margin === (-1 as number)) {
         margin = indent;
       }
-      comments.push(text);
+      comments = $rt.appendCopy(comments, [text]);
       indent += text.length;
     };
     if (!(initialMargin === undefined)) {
@@ -712,7 +712,7 @@ export class Parser extends $rt.GoObject {
         switch (tok) {
           case 4 as number: {
             state = 0;
-            comments.push(p!.scanner!.TokenText());
+            comments = $rt.appendCopy(comments, [p!.scanner!.TokenText()]);
             indent = 0;
             break;
           }
@@ -740,7 +740,7 @@ export class Parser extends $rt.GoObject {
             }
             let whitespace: string = p!.scanner!.TokenText();
             if (margin > -1 && indent + whitespace.length > margin) {
-              comments.push(whitespace.substring(Math.max(margin - indent, 0)));
+              comments = $rt.appendCopy(comments, [whitespace.substring(Math.max(margin - indent, 0))]);
               if (inFencedCodeBlock) {
                 state = 3;
               } else {
@@ -772,8 +772,8 @@ export class Parser extends $rt.GoObject {
                 commentStart,
                 commentEnd,
               );
-              parts.push(text$1);
-              parts.push(link);
+              parts = $rt.appendCopy(parts, [text$1]);
+              parts = $rt.appendCopy(parts, [link]);
               comments = $rt.reslice(comments, 0, 0, '');
               linkEnd = p!.scanner!.TokenEnd();
             } else {
@@ -842,7 +842,7 @@ export class Parser extends $rt.GoObject {
         p!.factory.NewJSDocText(p!.stringSliceArena.Clone(comments)),
         commentStart$1,
       );
-      parts.push(text$2);
+      parts = $rt.appendCopy(parts, [text$2]);
     }
     p!.jsdocTagCommentsPartsSpace = $rt.reslice(parts, 0, 0, undefined);
     if (parts.length > 0) {
@@ -2059,7 +2059,7 @@ export class Parser extends $rt.GoObject {
       throw $rt.newPanic(new $rt.BoxStr('Expected end of file token from scanner.', 'string'));
     }
     if (!(p!.reparseList.length === (0 as number))) {
-      $rt.appendInto(statements, p!.reparseList);
+      statements = $rt.appendCopy(statements, p!.reparseList);
       p!.reparseList = [];
     }
     let node: $ast.Node | undefined = p!.finishNode(
@@ -2279,7 +2279,7 @@ export class Parser extends $rt.GoObject {
                   !(kind === (0 as number)) &&
                   !(kind === (1 as number))
                 ) {
-                  outerReparseList.push(e);
+                  outerReparseList = $rt.appendCopy(outerReparseList, [e]);
                 } else {
                   list.push(e);
                 }
@@ -9739,7 +9739,7 @@ export class Parser extends $rt.GoObject {
           );
         }
         p!.finishReparsedNode(parameter, param);
-        parameters.push(parameter);
+        parameters = $rt.appendCopy(parameters, [parameter]);
         p!.reparseJSDocComment(parameter, param);
       }
     }
@@ -9798,7 +9798,7 @@ export class Parser extends $rt.GoObject {
             );
           }
           p!.finishReparsedNode(property, prop);
-          properties.push(property);
+          properties = $rt.appendCopy(properties, [property]);
           p!.reparseJSDocComment(property, prop);
         }
       }
@@ -9880,7 +9880,7 @@ export class Parser extends $rt.GoObject {
             if (typeParameters.length === 0) {
               typeParameters = p!.nodeSliceArena.NewSlice(0);
             }
-            typeParameters.push(reparse);
+            typeParameters = $rt.appendCopy(typeParameters, [reparse]);
             firstTypeParameter = false;
           }
         }
@@ -11274,13 +11274,13 @@ export function GetJSDocCommentRanges(
         let $t1 = false;
         let $t2: $ast.CommentRange[] | undefined = undefined;
         $scanner.GetTrailingCommentRanges(f, text, node!.Pos())!((commentRange: $ast.CommentRange): boolean => {
-          commentRanges.push(commentRange);
+          commentRanges = $rt.appendCopy(commentRanges, [commentRange]);
           return true;
         });
         let $t3 = false;
         let $t4: $ast.CommentRange[] | undefined = undefined;
         $scanner.GetLeadingCommentRanges(f, text, node!.Pos())!((commentRange$1: $ast.CommentRange): boolean => {
-          commentRanges.push(commentRange$1);
+          commentRanges = $rt.appendCopy(commentRanges, [commentRange$1]);
           return true;
         });
         break;
@@ -11289,7 +11289,7 @@ export function GetJSDocCommentRanges(
         let $t5 = false;
         let $t6: $ast.CommentRange[] | undefined = undefined;
         $scanner.GetLeadingCommentRanges(f, text, node!.Pos())!((commentRange$2: $ast.CommentRange): boolean => {
-          commentRanges.push(commentRange$2);
+          commentRanges = $rt.appendCopy(commentRanges, [commentRange$2]);
           return true;
         });
         break;

@@ -1136,14 +1136,14 @@ export function createDocumentPositionMapper(
       }
       let sourceIndex: SourceIndex = mapping$1!.sourceIndex;
       let list: (MappedPosition | undefined)[] = sourceMappings?.get(sourceIndex) ?? [];
-      list.push(
+      list = $rt.appendCopy(list, [
         MappedPosition.$lit_sourcemap_MappedPosition_0_2_1_3(
           mapping$1!.generatedPosition,
           sourceIndex,
           mapping$1!.sourcePosition,
           mapping$1!.nameIndex,
         ),
-      );
+      ]);
       sourceMappings!.set(sourceIndex, list);
     }
   }

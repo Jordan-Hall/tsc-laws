@@ -295,6 +295,12 @@ export class Kind$Box extends $rt.GoObject {
     if (v instanceof Kind$Box) return v;
     throw $rt.typeAssertError();
   }
+  override $eqv(o: $rt.GoObject): boolean {
+    return o instanceof Kind$Box && o.v === this.v;
+  }
+  override $ikey(): string {
+    return 'Kind:' + $rt.numKey(this.v);
+  }
   String(): string {
     return Kind$String(this.v);
   }
@@ -17101,9 +17107,9 @@ export class NodeVisitor extends $rt.GoObject {
               $sw1: {
                 if (visited === undefined) {
                 } else if (visited!.Kind_ === (344 as number)) {
-                  $rt.appendInto(updated, visited!.AsSyntaxList()!.Children_);
+                  updated = $rt.appendCopy(updated, visited!.AsSyntaxList()!.Children_);
                 } else {
-                  updated.push(visited);
+                  updated = $rt.appendCopy(updated, [visited]);
                 }
               }
             }
@@ -17115,7 +17121,7 @@ export class NodeVisitor extends $rt.GoObject {
               node = nodes[i];
               visited = v!.Visit!(node);
             } else {
-              $rt.appendInto(updated, nodes.slice(i));
+              updated = $rt.appendCopy(updated, nodes.slice(i));
               break;
             }
           }

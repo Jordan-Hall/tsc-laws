@@ -1132,10 +1132,10 @@ export class EmitContext extends $rt.GoObject {
       );
       let varStatement: $ast.Node | undefined = c!.Factory!.NewVariableStatement(undefined, varDeclList);
       c!.SetEmitFlags(varStatement, 65536);
-      statements.push(varStatement);
+      statements = $rt.appendCopy(statements, [varStatement]);
     }
     if (scope!.initializationStatements.length > 0) {
-      $rt.appendInto(statements, scope!.initializationStatements);
+      statements = $rt.appendCopy(statements, scope!.initializationStatements);
     }
     return $rt.appendCopy(statements, c!.EndLexicalEnvironment());
   }
@@ -1955,12 +1955,12 @@ export class EmitContext extends $rt.GoObject {
     let statements: ($ast.Node | undefined)[] = c!.EndLexicalEnvironment();
     if (statements.length > 0) {
       if ($ast.IsBlock(updated)) {
-        $rt.appendInto(statements, updated!.Statements());
+        statements = $rt.appendCopy(statements, updated!.Statements());
         let statementsList: $ast.NodeList | undefined = c!.Factory!.NewNodeList(statements);
         statementsList!.Loc = updated!.StatementList()!.Loc;
         return c!.Factory!.UpdateBlock(updated!.AsBlock(), statementsList, updated!.AsBlock()!.MultiLine);
       }
-      statements.push(updated);
+      statements = $rt.appendCopy(statements, [updated]);
       return c!.Factory!.NewBlock(c!.Factory!.NewNodeList(statements), true);
     }
     return updated;
@@ -5505,14 +5505,16 @@ export class Printer extends PrintHandlers {
           textRange = $core.NewTextRange(textRange.Pos(), modifiers!.End());
         }
         if (allowDecorators || lastMode === (1 as number)) {
+          const $t1 = $rt.reslice(modifiers!.Nodes, start, pos, undefined);
           p!.emitListItems(
             ($r: Printer | undefined, a0: $ast.Node | undefined): void => $r!.emitModifierLike(a0),
             parentNode,
-            $rt.reslice(modifiers!.Nodes, start, pos, undefined),
+            $t1,
             $core.IfElse<ListFormat>(lastMode === (1 as number), 2359808, 2146305),
             false,
             textRange,
           );
+          $rt.copyAt(modifiers!.Nodes, start, -1, $t1);
         }
         start = pos;
         lastMode = mode;
@@ -9492,14 +9494,9 @@ export class Printer extends PrintHandlers {
       }
     } else {
       let end: number = Math.min(start + count, length_);
-      p!.emitListItems(
-        emit,
-        parentNode,
-        $rt.reslice(children!.Nodes, start, end, undefined),
-        format,
-        p!.hasTrailingComma(parentNode, children),
-        children!.Loc,
-      );
+      const $t1 = $rt.reslice(children!.Nodes, start, end, undefined);
+      p!.emitListItems(emit, parentNode, $t1, format, p!.hasTrailingComma(parentNode, children), children!.Loc);
+      $rt.copyAt(children!.Nodes, start, -1, $t1);
     }
     if (!(p!.OnAfterEmitNodeList === undefined)) {
       p!.OnAfterEmitNodeList!(children);
@@ -10565,7 +10562,7 @@ export class Printer extends PrintHandlers {
         $scanner.GetLeadingCommentRanges(p!.emitContext!.Factory!.AsNodeFactory(), text, textRange.Pos())!(
           (comment: $ast.CommentRange): boolean => {
             if (IsPinnedComment(text, comment)) {
-              leadingComments.push(comment);
+              leadingComments = $rt.appendCopy(leadingComments, [comment]);
             }
             return true;
           },
@@ -12395,7 +12392,7 @@ export function flattenCommaElement(
     expressions = flattenCommaElement(node!.AsBinaryExpression()!.Left, expressions);
     expressions = flattenCommaElement(node!.AsBinaryExpression()!.Right, expressions);
   } else {
-    expressions.push(node);
+    expressions = $rt.appendCopy(expressions, [node]);
   }
   return expressions;
 }

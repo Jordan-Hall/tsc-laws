@@ -36,6 +36,12 @@ export class extensions$Box extends $rt.GoObject {
     if (v instanceof extensions$Box) return v;
     throw $rt.typeAssertError();
   }
+  override $eqv(o: $rt.GoObject): boolean {
+    return o instanceof extensions$Box && o.v === this.v;
+  }
+  override $ikey(): string {
+    return 'extensions:' + $rt.numKey(this.v);
+  }
   String(): string {
     return extensions$String(this.v);
   }
@@ -3896,15 +3902,15 @@ export function GetConditions(
   }
   let conditions: string[] = [] as string[];
   if (resolutionMode === (99 as number)) {
-    conditions.push('import');
+    conditions = $rt.appendCopy(conditions, ['import']);
   } else {
-    conditions.push('require');
+    conditions = $rt.appendCopy(conditions, ['require']);
   }
   if (!(options!.NoDtsResolution === (2 as number))) {
-    conditions.push('types');
+    conditions = $rt.appendCopy(conditions, ['types']);
   }
   if (!(moduleResolution === (100 as number))) {
-    conditions.push('node');
+    conditions = $rt.appendCopy(conditions, ['node']);
   }
   conditions = $core.Concatenate<string>(conditions, options!.CustomConditions);
   return conditions;

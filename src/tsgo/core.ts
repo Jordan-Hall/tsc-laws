@@ -21,6 +21,12 @@ export class JsxEmit$Box extends $rt.GoObject {
     if (v instanceof JsxEmit$Box) return v;
     throw $rt.typeAssertError();
   }
+  override $eqv(o: $rt.GoObject): boolean {
+    return o instanceof JsxEmit$Box && o.v === this.v;
+  }
+  override $ikey(): string {
+    return 'JsxEmit:' + $rt.numKey(this.v);
+  }
   String(): string {
     return JsxEmit$String(this.v);
   }
@@ -35,6 +41,12 @@ export class LanguageVariant$Box extends $rt.GoObject {
   static $cast(v: $rt.GoObject | undefined): LanguageVariant$Box {
     if (v instanceof LanguageVariant$Box) return v;
     throw $rt.typeAssertError();
+  }
+  override $eqv(o: $rt.GoObject): boolean {
+    return o instanceof LanguageVariant$Box && o.v === this.v;
+  }
+  override $ikey(): string {
+    return 'LanguageVariant:' + $rt.numKey(this.v);
   }
   String(): string {
     return LanguageVariant$String(this.v);
@@ -51,6 +63,12 @@ export class ModuleKind$Box extends $rt.GoObject {
   static $cast(v: $rt.GoObject | undefined): ModuleKind$Box {
     if (v instanceof ModuleKind$Box) return v;
     throw $rt.typeAssertError();
+  }
+  override $eqv(o: $rt.GoObject): boolean {
+    return o instanceof ModuleKind$Box && o.v === this.v;
+  }
+  override $ikey(): string {
+    return 'ModuleKind:' + $rt.numKey(this.v);
   }
   IsNonNodeESM(): boolean {
     return ModuleKind$IsNonNodeESM(this.v);
@@ -73,6 +91,12 @@ export class ModuleResolutionKind$Box extends $rt.GoObject {
     if (v instanceof ModuleResolutionKind$Box) return v;
     throw $rt.typeAssertError();
   }
+  override $eqv(o: $rt.GoObject): boolean {
+    return o instanceof ModuleResolutionKind$Box && o.v === this.v;
+  }
+  override $ikey(): string {
+    return 'ModuleResolutionKind:' + $rt.numKey(this.v);
+  }
   String(): string {
     return ModuleResolutionKind$String(this.v);
   }
@@ -91,6 +115,12 @@ export class ScriptKind$Box extends $rt.GoObject {
     if (v instanceof ScriptKind$Box) return v;
     throw $rt.typeAssertError();
   }
+  override $eqv(o: $rt.GoObject): boolean {
+    return o instanceof ScriptKind$Box && o.v === this.v;
+  }
+  override $ikey(): string {
+    return 'ScriptKind:' + $rt.numKey(this.v);
+  }
   String(): string {
     return ScriptKind$String(this.v);
   }
@@ -105,6 +135,12 @@ export class ScriptTarget$Box extends $rt.GoObject {
   static $cast(v: $rt.GoObject | undefined): ScriptTarget$Box {
     if (v instanceof ScriptTarget$Box) return v;
     throw $rt.typeAssertError();
+  }
+  override $eqv(o: $rt.GoObject): boolean {
+    return o instanceof ScriptTarget$Box && o.v === this.v;
+  }
+  override $ikey(): string {
+    return 'ScriptTarget:' + $rt.numKey(this.v);
   }
   String(): string {
     return ScriptTarget$String(this.v);
@@ -122,6 +158,12 @@ export class Tristate$Box extends $rt.GoObject {
   static $cast(v: $rt.GoObject | undefined): Tristate$Box {
     if (v instanceof Tristate$Box) return v;
     throw $rt.typeAssertError();
+  }
+  override $eqv(o: $rt.GoObject): boolean {
+    return o instanceof Tristate$Box && o.v === this.v;
+  }
+  override $ikey(): string {
+    return 'Tristate:' + $rt.numKey(this.v);
   }
   IsTrue(): boolean {
     return Tristate$IsTrue(this.v);
@@ -2121,7 +2163,7 @@ export function Filter<T>(slice: T[], f: ((p0: T) => boolean) | undefined): T[] 
           for (; i < slice.length; i++) {
             value = slice[i];
             if (f!(value)) {
-              result.push(value);
+              result = $rt.appendCopy(result, [value]);
             }
           }
         }
@@ -2162,7 +2204,7 @@ export function FilterIndex<T>(slice: T[], f: ((p0: T, p1: number, p2: T[]) => b
           for (; i < slice.length; i++) {
             value = slice[i];
             if (f!(value, i, slice)) {
-              result.push(value);
+              result = $rt.appendCopy(result, [value]);
             }
           }
         }
@@ -2281,7 +2323,9 @@ export function SameMap<T>($z_T: () => T, slice: T[], f: ((p0: T) => T) | undefi
       let mapped: T = f!(value);
       if (!(mapped === value)) {
         let result: T[] = $rt.makeSlice<T>(slice.length, $z_T());
-        $rt.copySlice(result, $rt.reslice(slice, 0, i, $z_T()));
+        const $t3 = $rt.reslice(slice, 0, i, $z_T());
+        $rt.copySlice(result, $t3);
+        $rt.copyAt(slice, 0, -1, $t3);
         result[i] = mapped;
         {
           for (let j: number = i + 1; j < slice.length; j++) {
@@ -2303,7 +2347,9 @@ export function SameMapIndex<T>($z_T: () => T, slice: T[], f: ((p0: T, p1: numbe
       let mapped: T = f!(value, i);
       if (!(mapped === value)) {
         let result: T[] = $rt.makeSlice<T>(slice.length, $z_T());
-        $rt.copySlice(result, $rt.reslice(slice, 0, i, $z_T()));
+        const $t3 = $rt.reslice(slice, 0, i, $z_T());
+        $rt.copySlice(result, $t3);
+        $rt.copyAt(slice, 0, -1, $t3);
         result[i] = mapped;
         {
           for (let j: number = i + 1; j < slice.length; j++) {
@@ -2532,9 +2578,9 @@ export function MinAllFunc<T>(xs: T[], cmp: ((p0: T, p1: T) => number) | undefin
           if (c < 0) {
             m = x;
             mins = $rt.reslice(mins, 0, 0, undefined as unknown as T);
-            mins.push(x);
+            mins = $rt.appendCopy(mins, [x]);
           } else if (c === (0 as number)) {
-            mins.push(x);
+            mins = $rt.appendCopy(mins, [x]);
           }
         }
       }
@@ -3101,7 +3147,7 @@ export function Deduplicate<T>(slice: T[]): T[] {
             for (; i < slice.length; i++) {
               value = slice[i];
               if (!$rt.slices_Contains(result, value)) {
-                result.push(value);
+                result = $rt.appendCopy(result, [value]);
               }
             }
           }
@@ -3124,7 +3170,7 @@ export function DeduplicateSorted<T>(slice: T[], isEqual: ((p0: T, p1: T) => boo
       if (isEqual!(last, next)) {
         continue;
       }
-      deduplicated.push(next);
+      deduplicated = $rt.appendCopy(deduplicated, [next]);
       last = next;
     }
   }

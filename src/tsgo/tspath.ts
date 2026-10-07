@@ -534,7 +534,7 @@ export function reducePathComponents(components: string[]): string[] {
           continue;
         }
       }
-      reduced.push(component);
+      reduced = $rt.appendCopy(reduced, [component]);
     }
   }
   return reduced;
@@ -589,7 +589,7 @@ export function getNormalizedPathComponentsFromCombined(path: string): string[] 
           continue;
         }
       }
-      components.push(component);
+      components = $rt.appendCopy(components, [component]);
     }
   }
   return components;

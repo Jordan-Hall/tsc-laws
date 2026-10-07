@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"go/ast"
+	"go/constant"
 	"go/token"
 	"go/types"
 	"os"
@@ -107,6 +108,9 @@ type translator struct {
 	structTP map[*types.TypeName]bool
 	// keyTypes are struct types used, directly or nested, as map keys.
 	keyTypes map[*types.TypeName]bool
+	// wide marks named 64-bit integer types with constants beyond 2^53;
+	// they are translated as bigint.
+	wide map[*types.TypeName]bool
 	// badMethodNames are method names that equal a type named in the
 	// method's own signature; scriptc can reject such classes.
 	badMethodNames map[string]bool
@@ -390,6 +394,8 @@ func (t *translator) analyze() {
 	t.analyzeZero()
 	t.analyzeStructTP()
 	t.analyzeKeyTypes()
+	t.analyzeWide()
+	wideGlobal = t.wide
 	structTPGlobal = t.structTP
 	localTParamsGlobal = t.localTParams
 }
@@ -1095,4 +1101,43 @@ func (t *translator) analyzeKeyTypes() {
 			}
 		}
 	}
+}
+
+var wideGlobal map[*types.TypeName]bool
+
+func (t *translator) analyzeWide() {
+	t.wide = map[*types.TypeName]bool{}
+	for _, p := range t.order {
+		scope := p.p.Types.Scope()
+		for _, n := range scope.Names() {
+			c, ok := scope.Lookup(n).(*types.Const)
+			if !ok {
+				continue
+			}
+			named, ok := types.Unalias(c.Type()).(*types.Named)
+			if !ok {
+				continue
+			}
+			v := constant.ToInt(c.Val())
+			big := false
+			if u, ok := constant.Uint64Val(v); ok && u > 1<<53 {
+				big = true
+			}
+			if i, ok := constant.Int64Val(v); ok && i < -(1<<53) {
+				big = true
+			}
+			if big {
+				t.wide[named.Origin().Obj()] = true
+			}
+		}
+	}
+}
+
+// isWide reports whether values of tt are represented as bigint.
+func isWide(tt types.Type) bool {
+	if tt == nil {
+		return false
+	}
+	n, ok := types.Unalias(tt).(*types.Named)
+	return ok && wideGlobal[n.Origin().Obj()]
 }

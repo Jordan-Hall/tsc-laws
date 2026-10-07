@@ -27,6 +27,9 @@ type fn struct {
 	// Range-over-func bodies run inside a callback.
 	rangeFunc *rangeFuncCtx
 	views     map[*types.Var]*view
+	notOwned  map[*types.Var]bool
+	// subst replaces expressions with already translated text.
+	subst map[ast.Expr]string
 	indent    int
 	out       *strings.Builder
 }
@@ -47,6 +50,7 @@ func newFunc(f *file, parent *fn) *fn {
 	x := &fn{f: f, info: f.p.p.TypesInfo, parent: parent, names: map[*types.Var]string{}, used: map[string]int{}}
 	if parent != nil {
 		x.views = parent.views
+		x.notOwned = parent.notOwned
 		x.tmpN = parent.tmpN
 		for k, v := range parent.names {
 			x.names[k] = v
@@ -224,6 +228,7 @@ func (x *fn) params(sig *types.Signature) []string {
 // body emits a function body, wrapping it for defer and named results.
 func (x *fn) body(body *ast.BlockStmt, ft *ast.FuncType) {
 	x.findViews(body)
+	x.findOwned(body, x.sig)
 	sig := x.sig
 	res := sig.Results()
 	named := res.Len() > 0 && res.At(0).Name() != ""
@@ -344,6 +349,9 @@ func (x *fn) block(list []ast.Stmt) {
 func (x *fn) stmt(s ast.Stmt) {
 	switch s := s.(type) {
 	case *ast.ExprStmt:
+		if call, ok := unparen(s.X).(*ast.CallExpr); ok && x.writeBackCall(call) {
+			return
+		}
 		e := x.expr(s.X)
 		x.flushPre()
 		if strings.HasPrefix(e, "$rt.panicValue(") {
@@ -1585,4 +1593,57 @@ func isBoxedNamed(x *fn, tt types.Type) bool {
 		return false
 	}
 	return x.f.t.translated(n.Obj().Pkg()) && x.f.boxedBy(n.Origin().Obj())
+}
+
+// writeBackCall handles a call statement that passes subslices s[a:b]: Go
+// passes views, so writes by the callee show in s. The subslice is copied
+// into a temporary and written back after the call.
+func (x *fn) writeBackCall(call *ast.CallExpr) bool {
+	type back struct {
+		tmp, base, lo string
+	}
+	var backs []back
+	for _, a := range call.Args {
+		sl, ok := unparen(a).(*ast.SliceExpr)
+		if !ok || sl.Slice3 || !simpleExpr(sl.X) {
+			continue
+		}
+		if _, isSlice := under(x.info.TypeOf(sl.X)).(*types.Slice); !isSlice {
+			continue
+		}
+		backs = append(backs, back{base: x.expr(sl.X)})
+	}
+	if len(backs) == 0 {
+		return false
+	}
+	// Translate with the subslices replaced by temporaries.
+	saved := map[ast.Expr]string{}
+	i := 0
+	for _, a := range call.Args {
+		sl, ok := unparen(a).(*ast.SliceExpr)
+		if !ok || sl.Slice3 || !simpleExpr(sl.X) {
+			continue
+		}
+		if _, isSlice := under(x.info.TypeOf(sl.X)).(*types.Slice); !isSlice {
+			continue
+		}
+		t := x.tmp()
+		lo := "0"
+		if sl.Low != nil {
+			lo = x.expr(sl.Low)
+		}
+		x.line("const %s = %s;", t, x.expr(sl))
+		backs[i].tmp, backs[i].lo = t, lo
+		saved[a] = t
+		i++
+	}
+	x.subst = saved
+	e := x.expr(call)
+	x.subst = nil
+	x.flushPre()
+	x.line("%s;", e)
+	for _, b := range backs {
+		x.line("$rt.copyAt(%s, %s, -1, %s);", b.base, b.lo, b.tmp)
+	}
+	return true
 }
