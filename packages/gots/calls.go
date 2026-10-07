@@ -113,6 +113,15 @@ func (x *fn) callWithArgs(e *ast.CallExpr, args []string) string {
 		args = append(z, args...)
 	}
 	callee := x.expr(e.Fun)
+	// Calls pass factories themselves, so use the bare instantiation.
+	switch g := fun.(type) {
+	case *ast.IndexExpr:
+		if isGenericFunc(x.info, g.X) {
+			callee = x.genericRef(g.X, []ast.Expr{g.Index})
+		}
+	case *ast.IndexListExpr:
+		callee = x.genericRef(g.X, g.Indices)
+	}
 	if _, isLit := fun.(*ast.FuncLit); isLit {
 		callee = "(" + callee + ")"
 	}

@@ -40,7 +40,7 @@ func (x *fn) expr(e ast.Expr) string {
 	case *ast.IndexExpr:
 		return x.index(e)
 	case *ast.IndexListExpr:
-		return x.genericRef(e.X, e.Indices)
+		return x.genericValue(e, x.genericRef(e.X, e.Indices))
 	case *ast.SliceExpr:
 		return x.slice(e)
 	case *ast.StarExpr:
@@ -407,9 +407,29 @@ func (x *fn) genericRef(fun ast.Expr, indices []ast.Expr) string {
 	return base + "<" + strings.Join(args, ", ") + ">"
 }
 
+// genericValue binds the zero factories of an instantiated generic function
+// used as a value: f[T] becomes (a0) => f<T>(factories, a0).
+func (x *fn) genericValue(e ast.Expr, ref string) string {
+	z := x.callFactories(e)
+	if len(z) == 0 {
+		return ref
+	}
+	sig := x.info.TypeOf(e).(*types.Signature)
+	params, args := x.f.sigParams(sig)
+	if sig.Variadic() {
+		last := sig.Params().Len() - 1
+		params = strings.Replace(params, fmt.Sprintf("a%d: ", last), fmt.Sprintf("...a%d: ", last), 1)
+		args = strings.Replace(args, fmt.Sprintf("a%d", last), fmt.Sprintf("...a%d", last), 1)
+	}
+	return fmt.Sprintf("((%s): %s => %s(%s))", params, x.f.results(sig), ref, strings.Join(append(z, args), ", "))
+}
+
 func (x *fn) index(e *ast.IndexExpr) string {
-	if tv := x.info.Types[e.X]; tv.IsType() || isGenericFunc(x.info, e.X) {
+	if tv := x.info.Types[e.X]; tv.IsType() {
 		return x.genericRef(e.X, []ast.Expr{e.Index})
+	}
+	if isGenericFunc(x.info, e.X) {
+		return x.genericValue(e, x.genericRef(e.X, []ast.Expr{e.Index}))
 	}
 	if vw := x.viewOf(e.X); vw != nil {
 		if vw.bytes != "" {
@@ -1531,8 +1551,8 @@ func (x *fn) addrOf(e ast.Expr) string {
 		if obj != nil && obj.Pkg() != nil && obj.Parent() == obj.Pkg().Scope() && obj.Pkg() != x.f.p.p.Types {
 			break // package variables of other modules are read-only bindings
 		}
-		name := x.expr(v)
-		return fmt.Sprintf("$rt.ptrTo<%s>((): %s => %s, (v: %s): void => { %s = v; })", t, t, name, t, name)
+		// A possibly-nil slice reads as `(s ?? [])` but is assigned as plain `s`.
+		return fmt.Sprintf("$rt.ptrTo<%s>((): %s => %s, (v: %s): void => { %s = v; })", t, t, x.expr(v), t, x.ident(v))
 	case *ast.SelectorExpr:
 		if sel := x.info.Selections[v]; sel != nil && sel.Kind() == types.FieldVal {
 			o := x.tmp()
