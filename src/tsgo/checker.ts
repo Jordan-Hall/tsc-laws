@@ -33754,7 +33754,7 @@ export class Checker extends $rt.GoObject {
       }
       if (unionReduction === (2 as number)) {
         typeSet = c!.removeSubtypes(typeSet, !((includes & 1048576) === (0 as number)));
-        if (typeSet.length === 0) {
+        if (typeSet.length === (1 as number) && typeSet[0] === undefined) {
           return c!.errorType;
         }
       }
@@ -34170,7 +34170,7 @@ export class Checker extends $rt.GoObject {
                     $diagnostics.Expression_produces_a_union_type_that_is_too_complex_to_represent,
                     [] as ($rt.GoObject | undefined)[],
                   );
-                  return [];
+                  return [undefined];
                 }
               }
               count++;

@@ -17,6 +17,10 @@ var sourceEdits = []struct{ file, from, to string }{
 	{"ast/diagnostic.go", "core.TextRange{}", "core.TextRange(0)"},
 	{"module/resolver.go", "core.TextRange{}", "core.TextRange(0)"},
 	{"printer/emitcontext.go", "core.TextRange{}", "core.TextRange(0)"},
+	// removeSubtypes returns nil for a union too complex to represent, which
+	// the translation can't tell from an empty slice; use a sentinel.
+	{"checker/checker.go", "Expression_produces_a_union_type_that_is_too_complex_to_represent)\n\t\t\t\t\t\t\treturn nil", "Expression_produces_a_union_type_that_is_too_complex_to_represent)\n\t\t\t\t\t\t\treturn []*Type{nil}"},
+	{"checker/checker.go", "typeSet = c.removeSubtypes(typeSet, includes&TypeFlagsObject != 0)\n\t\t\tif typeSet == nil {", "typeSet = c.removeSubtypes(typeSet, includes&TypeFlagsObject != 0)\n\t\t\tif len(typeSet) == 1 && typeSet[0] == nil {"},
 }
 
 func loadOverlay(dir, upstream string) map[string][]byte {
