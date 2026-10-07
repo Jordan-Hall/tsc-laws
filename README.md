@@ -92,16 +92,17 @@ npm run build:check   # dist/check
 ./dist/check file.ts upstream/typescript-go/internal/bundled/libs
 ```
 
-`dist/check` reports the same diagnostics as tsgo for all 6,419 of TypeScript's compiler test cases and all 5,907 of its conformance test cases. It is currently about 7× slower than tsgo.
+`dist/check` reports the same diagnostics as tsgo for all 6,537 of TypeScript's compiler test cases and all 5,907 of its conformance test cases. It is currently about 7× slower than tsgo.
 
 ## Testing
 
 ```sh
-npm test          # compare tsts answers with tsgo
-npm run coverage  # check that all statements compile statically
-npm run bench     # time tsts against tsgo
-npm run lint      # oxlint
-npm run format    # oxfmt
+npm test             # compare tsts answers with tsgo
+npm run test:corpus  # compare the translated checker with tsgo on TypeScript's test cases
+npm run coverage     # check that all statements compile statically
+npm run bench        # time tsts against tsgo
+npm run lint         # oxlint
+npm run format       # oxfmt
 ```
 
 ## Benchmarks
