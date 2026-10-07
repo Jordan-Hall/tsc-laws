@@ -13,6 +13,7 @@ import * as $tsoptions from './tsoptions.js';
 import * as $tspath from './tspath.js';
 import type * as $checker from './checker.js';
 import type * as $checkhost from './checkhost.js';
+import type * as $compiler from './compiler.js';
 import type * as $symlinks from './symlinks.js';
 import { OrderedMap as $collections$OrderedMap } from './collections.js';
 const $zf0 = (): string => '';
@@ -24,7 +25,7 @@ export type ImportModuleSpecifierEndingPreference = string;
 export type ImportModuleSpecifierPreference = string;
 export type MatchingMode = number;
 export type ModuleSpecifierEnding = number;
-export type ModuleSpecifierGenerationHost = $checkhost.Program | undefined;
+export type ModuleSpecifierGenerationHost = $compiler.Program | $compiler.emitHost | $checkhost.Program | undefined;
 export type RelativePreferenceKind = number;
 export type ResultKind = number;
 export type SourceFileForSpecifierGeneration = $ast.SourceFile | undefined;
@@ -209,6 +210,17 @@ export class UserPreferences extends $rt.GoObject {
     const o = new UserPreferences();
     o.ImportModuleSpecifierPreference_ = p0;
     o.ImportModuleSpecifierEnding = p1;
+    return o;
+  }
+  static $lit_modulespecifiers_UserPreferences_0_1_2(
+    p0: ImportModuleSpecifierPreference,
+    p1: ImportModuleSpecifierEndingPreference,
+    p2: string[],
+  ): UserPreferences {
+    const o = new UserPreferences();
+    o.ImportModuleSpecifierPreference_ = p0;
+    o.ImportModuleSpecifierEnding = p1;
+    o.AutoImportSpecifierExcludeRegexes = p2;
     return o;
   }
   static $cast_modulespecifiers_UserPreferences(v: $rt.GoObject | undefined): UserPreferences {
@@ -492,7 +504,7 @@ export function getPreferredEnding(
     }
   }
   if (resolutionMode === (0 as number)) {
-    resolutionMode = host!.GetDefaultResolutionModeForFile(importingSourceFile as unknown as $ast.HasFileName);
+    resolutionMode = $rt.nn(host).GetDefaultResolutionModeForFile(importingSourceFile as unknown as $ast.HasFileName);
   }
   return getModuleSpecifierEndingPreference(
     prefs.ImportModuleSpecifierEnding,
@@ -517,9 +529,9 @@ export function GetAllowedEndingsInPreferredOrder(
     oldImportSpecifier,
     0,
   );
-  const resolutionMode: $core.ResolutionMode = host!.GetDefaultResolutionModeForFile(
-    importingSourceFile as unknown as $ast.HasFileName,
-  );
+  const resolutionMode: $core.ResolutionMode = $rt
+    .nn(host)
+    .GetDefaultResolutionModeForFile(importingSourceFile as unknown as $ast.HasFileName);
   if (!(resolutionMode === syntaxImpliedNodeFormat)) {
     preferredEnding = getPreferredEnding(
       prefs,
@@ -675,7 +687,7 @@ export function GetModuleSpecifiersWithInfo(
   if (moduleSourceFile === undefined) {
     return [[], 0];
   }
-  const moduleFileName: string = host!.GetSourceOfProjectReferenceIfOutputIncluded(moduleSourceFile);
+  const moduleFileName: string = $rt.nn(host).GetSourceOfProjectReferenceIfOutputIncluded(moduleSourceFile);
   return GetModuleSpecifiersForFileWithInfo(
     importingSourceFile,
     moduleFileName,
@@ -697,7 +709,7 @@ export function GetModuleSpecifiersForFileWithInfo(
 ): [string[], ResultKind] {
   const modulePaths: ModulePath[] = getAllModulePathsWorker(
     getInfo(
-      host!.GetSourceOfProjectReferenceIfOutputIncluded(importingSourceFile as unknown as $ast.HasFileName),
+      $rt.nn(host).GetSourceOfProjectReferenceIfOutputIncluded(importingSourceFile as unknown as $ast.HasFileName),
       host,
     ),
     moduleFileName,
@@ -777,7 +789,7 @@ export function getInfo(importingSourceFileName: string, host: ModuleSpecifierGe
   return Info.$lit_modulespecifiers_Info_1_2_0(
     importingSourceFileName,
     sourceDirectory,
-    host!.UseCaseSensitiveFileNames(),
+    $rt.nn(host).UseCaseSensitiveFileNames(),
   );
 }
 export function getAllModulePaths(
@@ -857,15 +869,16 @@ export function GetEachFileNameOfModule(
   host: ModuleSpecifierGenerationHost,
   preferSymlinks: boolean,
 ): ModulePath[] {
-  const cwd: string = host!.GetCurrentDirectory();
-  const importedPath: $tspath.Path = $tspath.ToPath(importedFileName, cwd, host!.UseCaseSensitiveFileNames());
+  const cwd: string = $rt.nn(host).GetCurrentDirectory();
+  const importedPath: $tspath.Path = $tspath.ToPath(importedFileName, cwd, $rt.nn(host).UseCaseSensitiveFileNames());
   let referenceRedirect: string = '';
-  const outputAndReference: $tsoptions.SourceOutputAndProjectReference | undefined =
-    host!.GetProjectReferenceFromSource(importedPath);
+  const outputAndReference: $tsoptions.SourceOutputAndProjectReference | undefined = $rt
+    .nn(host)
+    .GetProjectReferenceFromSource(importedPath);
   if (!(outputAndReference === undefined) && !(outputAndReference!.OutputDts === ('' as string))) {
     referenceRedirect = outputAndReference!.OutputDts;
   }
-  const redirects: string[] = host!.GetRedirectTargets(importedPath);
+  const redirects: string[] = $rt.nn(host).GetRedirectTargets(importedPath);
   let importedFileNames: string[] = [] as string[];
   if (referenceRedirect.length > 0) {
     importedFileNames.push(referenceRedirect);
@@ -890,19 +903,19 @@ export function GetEachFileNameOfModule(
       }
     }
   }
-  const symlinkCache: $symlinks.KnownSymlinks | undefined = host!.GetSymlinkCache();
+  const symlinkCache: $symlinks.KnownSymlinks | undefined = $rt.nn(host).GetSymlinkCache();
   const fullImportedFileName: string = $tspath.GetNormalizedAbsolutePath(importedFileName, cwd);
   if (!(symlinkCache === undefined)) {
     $tspath.ForEachAncestorDirectoryStoppingAtGlobalCache<boolean>(
       $zf1,
-      host!.GetGlobalTypingsCacheLocation(),
+      $rt.nn(host).GetGlobalTypingsCacheLocation(),
       $tspath.GetDirectoryPath(fullImportedFileName),
       (realPathDirectory: string): [boolean, boolean] => {
         const $t3 = symlinkCache!
           .DirectoriesByRealpath()!
           .Load(
             $tspath.Path$EnsureTrailingDirectorySeparator(
-              $tspath.ToPath(realPathDirectory, cwd, host!.UseCaseSensitiveFileNames()),
+              $tspath.ToPath(realPathDirectory, cwd, $rt.nn(host).UseCaseSensitiveFileNames()),
             ),
           );
         const symlinkSet: $collections.SyncSet<string> | undefined = $t3[0];
@@ -910,20 +923,25 @@ export function GetEachFileNameOfModule(
         if (!ok) {
           return [false, false];
         }
-        if ($tspath.StartsWithDirectory(importingFileName, realPathDirectory, host!.UseCaseSensitiveFileNames())) {
+        if (
+          $tspath.StartsWithDirectory(importingFileName, realPathDirectory, $rt.nn(host).UseCaseSensitiveFileNames())
+        ) {
           return [false, true];
         }
         {
           const $t4 = targets;
           for (let $t5 = 0, $n = $t4.length; $t5 < $n; $t5++) {
             const target = $t4[$t5];
-            if (!$tspath.StartsWithDirectory(target, realPathDirectory, host!.UseCaseSensitiveFileNames())) {
+            if (!$tspath.StartsWithDirectory(target, realPathDirectory, $rt.nn(host).UseCaseSensitiveFileNames())) {
               continue;
             }
             const relative: string = $tspath.GetRelativePathFromDirectory(
               realPathDirectory,
               target,
-              $tspath.ComparePathsOptions.$lit_tspath_ComparePathsOptions_0_1(host!.UseCaseSensitiveFileNames(), cwd),
+              $tspath.ComparePathsOptions.$lit_tspath_ComparePathsOptions_0_1(
+                $rt.nn(host).UseCaseSensitiveFileNames(),
+                cwd,
+              ),
             );
             symlinkSet!.Range((symlinkDirectory: string): boolean => {
               const option: string = $tspath.ResolvePath(symlinkDirectory, [relative]);
@@ -982,7 +1000,7 @@ export function computeModuleSpecifiers(
       const modulePath = $t1[$t2];
       const targetPath: $tspath.Path = $tspath.ToPath(
         modulePath.FileName,
-        host!.GetCurrentDirectory(),
+        $rt.nn(host).GetCurrentDirectory(),
         info.UseCaseSensitiveFileNames,
       );
       let existingImport: $ast.Node | undefined = undefined as $ast.Node | undefined;
@@ -990,15 +1008,14 @@ export function computeModuleSpecifiers(
         const $t3 = importingSourceFile!.Imports();
         for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
           const importSpecifier = $t3[$t4];
-          const resolvedModule: $module.ResolvedModule | undefined = host!.GetResolvedModuleFromModuleSpecifier(
-            importingSourceFile as unknown as $ast.HasFileName,
-            importSpecifier,
-          );
+          const resolvedModule: $module.ResolvedModule | undefined = $rt
+            .nn(host)
+            .GetResolvedModuleFromModuleSpecifier(importingSourceFile as unknown as $ast.HasFileName, importSpecifier);
           if (
             $module.ResolvedModule.IsResolved$nil(resolvedModule) &&
             $tspath.ToPath(
               resolvedModule!.ResolvedFileName,
-              host!.GetCurrentDirectory(),
+              $rt.nn(host).GetCurrentDirectory(),
               info.UseCaseSensitiveFileNames,
             ) === targetPath
           ) {
@@ -1011,13 +1028,12 @@ export function computeModuleSpecifiers(
         if (preferences.relativePreference === (1 as number) && $tspath.PathIsRelative(existingImport!.Text$Node())) {
           continue;
         }
-        const existingMode: $core.ResolutionMode = host!.GetModeForUsageLocation(
-          importingSourceFile as unknown as $ast.HasFileName,
-          existingImport,
-        );
+        const existingMode: $core.ResolutionMode = $rt
+          .nn(host)
+          .GetModeForUsageLocation(importingSourceFile as unknown as $ast.HasFileName, existingImport);
         let targetMode: $core.ResolutionMode = options.OverrideImportMode;
         if (targetMode === (0 as number)) {
-          targetMode = host!.GetDefaultResolutionModeForFile(importingSourceFile as unknown as $ast.HasFileName);
+          targetMode = $rt.nn(host).GetDefaultResolutionModeForFile(importingSourceFile as unknown as $ast.HasFileName);
         }
         if (!(existingMode === targetMode) && !(existingMode === (0 as number)) && !(targetMode === (0 as number))) {
           continue;
@@ -1060,7 +1076,7 @@ export function computeModuleSpecifiers(
       }
       let importMode: $core.ResolutionMode = options.OverrideImportMode;
       if (importMode === (0 as number)) {
-        importMode = host!.GetDefaultResolutionModeForFile(importingSourceFile as unknown as $ast.HasFileName);
+        importMode = $rt.nn(host).GetDefaultResolutionModeForFile(importingSourceFile as unknown as $ast.HasFileName);
       }
       const local: string = getLocalModuleSpecifier(
         modulePath$1.FileName,
@@ -1132,8 +1148,8 @@ export function getLocalModuleSpecifier(
           sourceDirectory,
           moduleFileName,
           $tspath.ComparePathsOptions.$lit_tspath_ComparePathsOptions_0_1(
-            host!.UseCaseSensitiveFileNames(),
-            host!.GetCurrentDirectory(),
+            $rt.nn(host).UseCaseSensitiveFileNames(),
+            $rt.nn(host).GetCurrentDirectory(),
           ),
         ),
       ),
@@ -1151,12 +1167,12 @@ export function getLocalModuleSpecifier(
     }
     return relativePath;
   }
-  const root: string = compilerOptions!.GetPathsBasePath(host!.GetCurrentDirectory());
-  const baseDirectory: string = $tspath.GetNormalizedAbsolutePath(root, host!.GetCurrentDirectory());
+  const root: string = compilerOptions!.GetPathsBasePath($rt.nn(host).GetCurrentDirectory());
+  const baseDirectory: string = $tspath.GetNormalizedAbsolutePath(root, $rt.nn(host).GetCurrentDirectory());
   const relativeToBaseUrl: string = getRelativePathIfInSameVolume(
     moduleFileName,
     baseDirectory,
-    host!.UseCaseSensitiveFileNames(),
+    $rt.nn(host).UseCaseSensitiveFileNames(),
   );
   if (relativeToBaseUrl.length === (0 as number)) {
     if (pathsOnly) {
@@ -1214,42 +1230,42 @@ export function getLocalModuleSpecifier(
     if (compilerOptions!.ConfigFilePath.length > 0) {
       projectDirectory = $tspath.ToPath(
         $tspath.GetDirectoryPath(compilerOptions!.ConfigFilePath),
-        host!.GetCurrentDirectory(),
-        host!.UseCaseSensitiveFileNames(),
+        $rt.nn(host).GetCurrentDirectory(),
+        $rt.nn(host).UseCaseSensitiveFileNames(),
       );
     } else {
       projectDirectory = $tspath.ToPath(
-        host!.GetCurrentDirectory(),
-        host!.GetCurrentDirectory(),
-        host!.UseCaseSensitiveFileNames(),
+        $rt.nn(host).GetCurrentDirectory(),
+        $rt.nn(host).GetCurrentDirectory(),
+        $rt.nn(host).UseCaseSensitiveFileNames(),
       );
     }
     const canonicalSourceDirectory: $tspath.Path = $tspath.ToPath(
       sourceDirectory,
-      host!.GetCurrentDirectory(),
-      host!.UseCaseSensitiveFileNames(),
+      $rt.nn(host).GetCurrentDirectory(),
+      $rt.nn(host).UseCaseSensitiveFileNames(),
     );
     const modulePath: $tspath.Path = $tspath.ToPath(
       moduleFileName,
       projectDirectory,
-      host!.UseCaseSensitiveFileNames(),
+      $rt.nn(host).UseCaseSensitiveFileNames(),
     );
     const sourceIsInternal: boolean = $tspath.Path$ContainsPath(projectDirectory, canonicalSourceDirectory);
     const targetIsInternal: boolean = $tspath.Path$ContainsPath(projectDirectory, modulePath);
     if ((sourceIsInternal && !targetIsInternal) || (!sourceIsInternal && targetIsInternal)) {
       return maybeNonRelative;
     }
-    const nearestTargetPackageJson: string = host!.GetNearestAncestorDirectoryWithPackageJson(
-      $tspath.GetDirectoryPath(modulePath),
-    );
-    const nearestSourcePackageJson: string = host!.GetNearestAncestorDirectoryWithPackageJson(sourceDirectory);
+    const nearestTargetPackageJson: string = $rt
+      .nn(host)
+      .GetNearestAncestorDirectoryWithPackageJson($tspath.GetDirectoryPath(modulePath));
+    const nearestSourcePackageJson: string = $rt.nn(host).GetNearestAncestorDirectoryWithPackageJson(sourceDirectory);
     if (
       !packageJsonPathsAreEqual(
         nearestTargetPackageJson,
         nearestSourcePackageJson,
         $tspath.ComparePathsOptions.$lit_tspath_ComparePathsOptions_0_1(
-          host!.UseCaseSensitiveFileNames(),
-          host!.GetCurrentDirectory(),
+          $rt.nn(host).UseCaseSensitiveFileNames(),
+          $rt.nn(host).GetCurrentDirectory(),
         ),
       )
     ) {
@@ -1364,7 +1380,7 @@ export function tryGetModuleNameFromRootDirs(
   const normalizedTargetPaths: string[] = getPathsRelativeToRootDirs(
     moduleFileName,
     rootDirs,
-    host!.UseCaseSensitiveFileNames(),
+    $rt.nn(host).UseCaseSensitiveFileNames(),
   );
   if (normalizedTargetPaths.length === (0 as number)) {
     return '';
@@ -1372,7 +1388,7 @@ export function tryGetModuleNameFromRootDirs(
   const normalizedSourcePaths: string[] = getPathsRelativeToRootDirs(
     sourceDirectory,
     rootDirs,
-    host!.UseCaseSensitiveFileNames(),
+    $rt.nn(host).UseCaseSensitiveFileNames(),
   );
   let shortest: string = '';
   let shortestSepCount: number = 0;
@@ -1389,8 +1405,8 @@ export function tryGetModuleNameFromRootDirs(
               sourcePath,
               targetPath,
               $tspath.ComparePathsOptions.$lit_tspath_ComparePathsOptions_0_1(
-                host!.UseCaseSensitiveFileNames(),
-                host!.GetCurrentDirectory(),
+                $rt.nn(host).UseCaseSensitiveFileNames(),
+                $rt.nn(host).GetCurrentDirectory(),
               ),
             ),
           );
@@ -1430,7 +1446,7 @@ export function tryGetModuleNameAsNodeModule(
     '',
   );
   const allowedEndings: ModuleSpecifierEnding[] = preferences.getAllowedEndingsInPreferredOrder!(0);
-  const caseSensitive: boolean = host!.UseCaseSensitiveFileNames();
+  const caseSensitive: boolean = $rt.nn(host).UseCaseSensitiveFileNames();
   let moduleSpecifier: string = pathObj.FileName;
   let isPackageRootPath: boolean = false;
   if (!packageNameOnly) {
@@ -1474,7 +1490,7 @@ export function tryGetModuleNameAsNodeModule(
   if (pathObj.IsRedirect && !isPackageRootPath) {
     return '';
   }
-  const globalTypingsCacheLocation: string = host!.GetGlobalTypingsCacheLocation();
+  const globalTypingsCacheLocation: string = $rt.nn(host).GetGlobalTypingsCacheLocation();
   const pathToTopLevelNodeModules: string = moduleSpecifier.substring(0, parts!.TopLevelNodeModulesIndex);
   if (
     !$stringutil.HasPrefix(info.SourceDirectory, pathToTopLevelNodeModules, caseSensitive) ||
@@ -1503,7 +1519,7 @@ export function tryDirectoryWithPackageJson(
   const packageJsonPath: string = $tspath.CombinePaths(packageRootPath, ['package.json']);
   let moduleFileToTry: string = pathObj.FileName;
   let maybeBlockedByTypesVersions: boolean = false;
-  const packageJson: $packagejson.InfoCacheEntry | undefined = host!.GetPackageJsonInfo(packageJsonPath);
+  const packageJson: $packagejson.InfoCacheEntry | undefined = $rt.nn(host).GetPackageJsonInfo(packageJsonPath);
   if (packageJson === undefined) {
     const fileName: string = moduleFileToTry.substring(parts.PackageRootIndex + 1);
     if (
@@ -1522,7 +1538,7 @@ export function tryDirectoryWithPackageJson(
   }
   let importMode: $core.ResolutionMode = overrideMode;
   if (importMode === (0 as number)) {
-    importMode = host!.GetDefaultResolutionModeForFile(importingSourceFile as unknown as $ast.HasFileName);
+    importMode = $rt.nn(host).GetDefaultResolutionModeForFile(importingSourceFile as unknown as $ast.HasFileName);
   }
   const packageJsonContent: $packagejson.PackageJson | undefined =
     $packagejson.InfoCacheEntry.GetContents$nil(packageJson);
@@ -1596,11 +1612,11 @@ export function tryDirectoryWithPackageJson(
     const mainExportFile: $tspath.Path = $tspath.ToPath(
       mainFileRelative,
       packageRootPath,
-      host!.UseCaseSensitiveFileNames(),
+      $rt.nn(host).UseCaseSensitiveFileNames(),
     );
     const compareOpt: $tspath.ComparePathsOptions = $tspath.ComparePathsOptions.$lit_tspath_ComparePathsOptions_0_1(
-      host!.UseCaseSensitiveFileNames(),
-      host!.GetCurrentDirectory(),
+      $rt.nn(host).UseCaseSensitiveFileNames(),
+      $rt.nn(host).GetCurrentDirectory(),
     );
     if (
       $tspath.ComparePaths(
@@ -1617,7 +1633,7 @@ export function tryDirectoryWithPackageJson(
       packageJsonContent === undefined ||
       (!(packageJsonContent!.Type.Value === ('module' as string)) &&
         !$tspath.FileExtensionIsOneOf(moduleFileToTry, $tspath.ExtensionsNotSupportingExtensionlessResolution) &&
-        $stringutil.HasPrefix(moduleFileToTry, mainExportFile, host!.UseCaseSensitiveFileNames()) &&
+        $stringutil.HasPrefix(moduleFileToTry, mainExportFile, $rt.nn(host).UseCaseSensitiveFileNames()) &&
         $tspath.ComparePaths(
           $tspath.GetDirectoryPath(moduleFileToTry),
           $tspath.RemoveTrailingDirectorySeparator(mainExportFile),
@@ -1702,12 +1718,14 @@ export function tryGetModuleNameFromPackageJsonImports(
   if (!options!.GetResolvePackageJsonImports()) {
     return '';
   }
-  const ancestorDirectoryWithPackageJson: string = host!.GetNearestAncestorDirectoryWithPackageJson(sourceDirectory);
+  const ancestorDirectoryWithPackageJson: string = $rt
+    .nn(host)
+    .GetNearestAncestorDirectoryWithPackageJson(sourceDirectory);
   if (ancestorDirectoryWithPackageJson.length === (0 as number)) {
     return '';
   }
   const packageJsonPath: string = $tspath.CombinePaths(ancestorDirectoryWithPackageJson, ['package.json']);
-  const info: $packagejson.InfoCacheEntry | undefined = host!.GetPackageJsonInfo(packageJsonPath);
+  const info: $packagejson.InfoCacheEntry | undefined = $rt.nn(host).GetPackageJsonInfo(packageJsonPath);
   if (info === undefined) {
     return '';
   }
@@ -1780,7 +1798,7 @@ export function tryGetModuleNameFromPaths(
   host: ModuleSpecifierGenerationHost,
   compilerOptions: $core.CompilerOptions | undefined,
 ): string {
-  const caseSensitive: boolean = host!.UseCaseSensitiveFileNames();
+  const caseSensitive: boolean = $rt.nn(host).UseCaseSensitiveFileNames();
   let $t1 = false;
   let $t2: string = '';
   $collections$OrderedMap.Entries$nil<string, string[]>($zf0, $zf3, paths)!(
@@ -1911,8 +1929,8 @@ export function tryGetModuleNameFromExportsOrImports(
           preferTsExtension && $tspath.HasImplementationTSFileExtension(targetFilePath);
         const compareOpts: $tspath.ComparePathsOptions =
           $tspath.ComparePathsOptions.$lit_tspath_ComparePathsOptions_0_1(
-            host!.UseCaseSensitiveFileNames(),
-            host!.GetCurrentDirectory(),
+            $rt.nn(host).UseCaseSensitiveFileNames(),
+            $rt.nn(host).GetCurrentDirectory(),
           );
         {
           switch (mode) {
@@ -1987,7 +2005,7 @@ export function tryGetModuleNameFromExportsOrImports(
               const $t1 = $rt.strings_Cut(pathOrPattern, '*');
               const leadingSlice: string = $t1[0];
               const trailingSlice: string = $t1[1];
-              const caseSensitive: boolean = host!.UseCaseSensitiveFileNames();
+              const caseSensitive: boolean = $rt.nn(host).UseCaseSensitiveFileNames();
               if (
                 canTryTsExtension &&
                 $stringutil.HasPrefixAndSuffixWithoutOverlap(targetFilePath, leadingSlice, trailingSlice, caseSensitive)
@@ -2195,7 +2213,7 @@ export function getModuleSpecifierWithPreferences(
   );
   let resolutionMode: $core.ResolutionMode = options.OverrideImportMode;
   if (resolutionMode === (0 as number)) {
-    resolutionMode = host!.GetDefaultResolutionModeForFile(importingSourceFile);
+    resolutionMode = $rt.nn(host).GetDefaultResolutionModeForFile(importingSourceFile);
   }
   {
     const $t1 = modulePaths;
@@ -2433,7 +2451,9 @@ export function tryGetAnyFileFromPath(host: ModuleSpecifierGenerationHost, path:
         for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
           const e = $t3[$t4];
           const fullPath: string = path + e;
-          if (host!.FileExists($tspath.GetNormalizedAbsolutePath(fullPath, host!.GetCurrentDirectory()))) {
+          if (
+            $rt.nn(host).FileExists($tspath.GetNormalizedAbsolutePath(fullPath, $rt.nn(host).GetCurrentDirectory()))
+          ) {
             return true;
           }
         }
@@ -2649,7 +2669,7 @@ export function ProcessEntrypointEnding(
       options,
       importingSourceFile,
       '',
-      host!.GetDefaultResolutionModeForFile(importingSourceFile as unknown as $ast.HasFileName),
+      $rt.nn(host).GetDefaultResolutionModeForFile(importingSourceFile as unknown as $ast.HasFileName),
     );
   }
   const preferredEnding: ModuleSpecifierEnding = allowedEndings[0];

@@ -10,12 +10,13 @@ import * as $scanner from './scanner.js';
 import * as $stringutil from './stringutil.js';
 import * as $tspath from './tspath.js';
 import type * as $checker from './checker.js';
+import type * as $compiler from './compiler.js';
+import type * as $diagnosticwriter from './diagnosticwriter.js';
 import type * as $sourcemap from './sourcemap.js';
-import type * as $tsoptions from './tsoptions.js';
 import { Set_ as $collections$Set_ } from './collections.js';
 const $zf0 = (): $ast.Node | undefined => undefined;
 const $zf1 = (): emitPartiallyEmittedExpression$entry => new emitPartiallyEmittedExpression$entry();
-const $zf2 = (): $ast.CommentRange => $ast.CommentRange$zero;
+const $zf2 = (): $ast.CommentRange => new $ast.CommentRange();
 const $zf3 = (): emitNode => new emitNode();
 const $zf4 = (): varScope | undefined => undefined;
 const $zf5 = (): EmitHelper | undefined => undefined;
@@ -24,45 +25,7 @@ const $zf7 = (): commentState => new commentState();
 const $zf8 = (): sourceMapState => new sourceMapState();
 export type AutoGenerateId = number;
 export type EmitFlags = number;
-export class EmitHost extends $rt.GoObject {
-  CommonSourceDirectory(): string {
-    throw $rt.unimplementedMethod('CommonSourceDirectory');
-  }
-  GetCurrentDirectory(): string {
-    throw $rt.unimplementedMethod('GetCurrentDirectory');
-  }
-  GetEmitModuleFormatOfFile(a0: $ast.HasFileName): $core.ModuleKind {
-    throw $rt.unimplementedMethod('GetEmitModuleFormatOfFile');
-  }
-  GetEmitResolver(): EmitResolver {
-    throw $rt.unimplementedMethod('GetEmitResolver');
-  }
-  GetProjectReferenceFromSource(a0: $tspath.Path): $tsoptions.SourceOutputAndProjectReference | undefined {
-    throw $rt.unimplementedMethod('GetProjectReferenceFromSource');
-  }
-  IsEmitBlocked(a0: string): boolean {
-    throw $rt.unimplementedMethod('IsEmitBlocked');
-  }
-  IsSourceFileFromExternalLibrary(a0: $ast.SourceFile | undefined): boolean {
-    throw $rt.unimplementedMethod('IsSourceFileFromExternalLibrary');
-  }
-  Options(): $core.CompilerOptions | undefined {
-    throw $rt.unimplementedMethod('Options');
-  }
-  SourceFiles(): ($ast.SourceFile | undefined)[] {
-    throw $rt.unimplementedMethod('SourceFiles');
-  }
-  UseCaseSensitiveFileNames(): boolean {
-    throw $rt.unimplementedMethod('UseCaseSensitiveFileNames');
-  }
-  WriteFile(a0: string, a1: string): $rt.GoObject | undefined {
-    throw $rt.unimplementedMethod('WriteFile');
-  }
-  static $cast_printer_EmitHost(v: $rt.GoObject | undefined): EmitHost {
-    if (v instanceof EmitHost) return v;
-    throw $rt.typeAssertError();
-  }
-}
+export type EmitHost = $compiler.emitHost | undefined;
 export type EmitResolver = $checker.EmitResolver | undefined;
 export type EmitTextWriter =
   | ChangeTrackerWriter
@@ -317,6 +280,7 @@ export type triviaPositionKey =
   | $ast.WhileStatement
   | $ast.WithStatement
   | $ast.YieldExpression
+  | $diagnosticwriter.ASTDiagnostic
   | undefined;
 export type emitModifierList$Mode = number;
 export class AssignedNameOptions extends $rt.GoObject {
@@ -344,6 +308,11 @@ export class AssignedNameOptions extends $rt.GoObject {
     const o = new AssignedNameOptions();
     o.AllowComments = p0;
     o.AllowSourceMaps = p1;
+    return o;
+  }
+  static $lit_printer_AssignedNameOptions_1(p0: boolean): AssignedNameOptions {
+    const o = new AssignedNameOptions();
+    o.AllowSourceMaps = p0;
     return o;
   }
   static $cast_printer_AssignedNameOptions(v: $rt.GoObject | undefined): AssignedNameOptions {
@@ -418,6 +387,28 @@ export class AutoGenerateOptions extends $rt.GoObject {
   static $lit_printer_AutoGenerateOptions_0(p0: GeneratedIdentifierFlags): AutoGenerateOptions {
     const o = new AutoGenerateOptions();
     o.Flags = p0;
+    return o;
+  }
+  static $lit_printer_AutoGenerateOptions_0_1_2(
+    p0: GeneratedIdentifierFlags,
+    p1: string,
+    p2: string,
+  ): AutoGenerateOptions {
+    const o = new AutoGenerateOptions();
+    o.Flags = p0;
+    o.Prefix = p1;
+    o.Suffix = p2;
+    return o;
+  }
+  static $lit_printer_AutoGenerateOptions_0_2(p0: GeneratedIdentifierFlags, p1: string): AutoGenerateOptions {
+    const o = new AutoGenerateOptions();
+    o.Flags = p0;
+    o.Suffix = p1;
+    return o;
+  }
+  static $lit_printer_AutoGenerateOptions_2(p0: string): AutoGenerateOptions {
+    const o = new AutoGenerateOptions();
+    o.Suffix = p0;
     return o;
   }
   static $cast_printer_AutoGenerateOptions(v: $rt.GoObject | undefined): AutoGenerateOptions {
@@ -2713,6 +2704,11 @@ export class NameOptions extends $rt.GoObject {
     const o = new NameOptions();
     o.AllowComments = p0;
     o.AllowSourceMaps = p1;
+    return o;
+  }
+  static $lit_printer_NameOptions_1(p0: boolean): NameOptions {
+    const o = new NameOptions();
+    o.AllowSourceMaps = p0;
     return o;
   }
   static $cast_printer_NameOptions(v: $rt.GoObject | undefined): NameOptions {
@@ -10207,7 +10203,7 @@ export class Printer extends PrintHandlers {
     $scanner.GetLeadingCommentRanges(p!.emitContext!.Factory!.AsNodeFactory(), p!.currentSourceFile!.Text(), pos)!(
       (comment: $ast.CommentRange): boolean => {
         if (p!.shouldWriteComment(comment) && p!.shouldEmitCommentIfTripleSlash(comment, tripleSlash)) {
-          comments.push(comment);
+          comments.push(comment.$clone_ast_CommentRange());
         }
         return true;
       },
@@ -10272,7 +10268,7 @@ export class Printer extends PrintHandlers {
     $scanner.GetTrailingCommentRanges(p!.emitContext!.Factory!.AsNodeFactory(), p!.currentSourceFile!.Text(), pos)!(
       (comment: $ast.CommentRange): boolean => {
         if (p!.shouldWriteComment(comment)) {
-          comments.push(comment);
+          comments.push(comment.$clone_ast_CommentRange());
         }
         return true;
       },
@@ -10292,7 +10288,7 @@ export class Printer extends PrintHandlers {
     let $t2: undefined = undefined;
     $scanner.GetTrailingCommentRanges(p!.emitContext!.Factory!.AsNodeFactory(), p!.currentSourceFile!.Text(), pos)!(
       (comment: $ast.CommentRange): boolean => {
-        comments.push(comment);
+        comments.push(comment.$clone_ast_CommentRange());
         return true;
       },
     );
@@ -10302,7 +10298,7 @@ export class Printer extends PrintHandlers {
     {
       const $t3 = comments;
       for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
-        const comment$1 = $t3[$t4];
+        const comment$1 = $t3[$t4].$clone_ast_CommentRange();
         if (prefixSpace) {
           if (!p!.shouldWriteComment(comment$1)) {
             continue;
@@ -10367,7 +10363,7 @@ export class Printer extends PrintHandlers {
           $core.TextRange$Pos(textRange),
         )!((comment: $ast.CommentRange): boolean => {
           if (IsPinnedComment(text, comment)) {
-            leadingComments = $rt.appendCopy(leadingComments, [comment]);
+            leadingComments = $rt.appendCopy(leadingComments, [comment.$clone_ast_CommentRange()]);
           }
           return true;
         });
@@ -10383,12 +10379,12 @@ export class Printer extends PrintHandlers {
     }
     if (leadingComments.length > 0) {
       let detachedComments: $ast.CommentRange[] = [];
-      let lastComment: $ast.CommentRange = $ast.CommentRange$zero;
+      let lastComment: $ast.CommentRange = new $ast.CommentRange();
       {
         const $t3 = leadingComments;
         for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
           const i = $t4;
-          const comment$1 = $t3[$t4];
+          const comment$1 = $t3[$t4].$clone_ast_CommentRange();
           if (i > 0) {
             const lastCommentLine: number = $scanner.ComputeLineOfPosition(
               lineMap,
@@ -10402,8 +10398,8 @@ export class Printer extends PrintHandlers {
               break;
             }
           }
-          detachedComments.push(comment$1);
-          lastComment = comment$1;
+          detachedComments.push(comment$1.$clone_ast_CommentRange());
+          lastComment = comment$1.$clone_ast_CommentRange();
         }
       }
       if (detachedComments.length > 0) {
@@ -10420,9 +10416,9 @@ export class Printer extends PrintHandlers {
           {
             const $t5 = detachedComments;
             for (let $t6 = 0, $n = $t5.length; $t6 < $n; $t6++) {
-              const comment$2 = $t5[$t6];
+              const comment$2 = $t5[$t6].$clone_ast_CommentRange();
               if (p!.shouldWriteComment(comment$2)) {
-                commentsToEmit.push(comment$2);
+                commentsToEmit.push(comment$2.$clone_ast_CommentRange());
               }
             }
           }
@@ -10459,7 +10455,7 @@ export class Printer extends PrintHandlers {
     {
       const $t1 = comments;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        const comment = $t1[$t2];
+        const comment = $t1[$t2].$clone_ast_CommentRange();
         if (interveningSeparator) {
           p!.writeSpace();
           interveningSeparator = false;
@@ -10503,16 +10499,16 @@ export class Printer extends PrintHandlers {
       p!.sourceMapSourceIndex = p!.mostRecentSourceMapSourceIndex;
       return;
     }
-    p!.sourceMapSourceIsJson = $tspath.FileExtensionIs(source!.FileName(), '.json');
+    p!.sourceMapSourceIsJson = $tspath.FileExtensionIs($rt.nn(source).FileName(), '.json');
     if (p!.sourceMapSourceIsJson) {
       return;
     }
-    p!.sourceMapSourceIndex = p!.sourceMapGenerator!.AddSource(source!.FileName());
+    p!.sourceMapSourceIndex = p!.sourceMapGenerator!.AddSource($rt.nn(source).FileName());
     if (p!.Options.InlineSources) {
       {
         const err: $rt.GoObject | undefined = p!.sourceMapGenerator!.SetSourceContent(
           p!.sourceMapSourceIndex,
-          source!.Text(),
+          $rt.nn(source).Text(),
         );
         if (!(err === undefined)) {
           throw $rt.newPanic(err);
@@ -10964,6 +10960,46 @@ export class PrinterOptions extends $rt.GoObject {
     const o = new PrinterOptions();
     o.RemoveComments = p0;
     o.NeverAsciiEscape = p1;
+    return o;
+  }
+  static $lit_printer_PrinterOptions_0_1_3_4_5_6_9_8(
+    p0: boolean,
+    p1: $core.NewLineKind,
+    p2: boolean,
+    p3: $core.ScriptTarget,
+    p4: boolean,
+    p5: boolean,
+    p6: boolean,
+    p7: boolean,
+  ): PrinterOptions {
+    const o = new PrinterOptions();
+    o.RemoveComments = p0;
+    o.NewLine = p1;
+    o.NoEmitHelpers = p2;
+    o.Target = p3;
+    o.SourceMap = p4;
+    o.InlineSourceMap = p5;
+    o.OnlyPrintJSDocStyle = p6;
+    o.OmitBraceSourceMapPositions = p7;
+    return o;
+  }
+  static $lit_printer_PrinterOptions_0_1_3_5_6_7_4(
+    p0: boolean,
+    p1: $core.NewLineKind,
+    p2: boolean,
+    p3: boolean,
+    p4: boolean,
+    p5: boolean,
+    p6: $core.ScriptTarget,
+  ): PrinterOptions {
+    const o = new PrinterOptions();
+    o.RemoveComments = p0;
+    o.NewLine = p1;
+    o.NoEmitHelpers = p2;
+    o.SourceMap = p3;
+    o.InlineSourceMap = p4;
+    o.InlineSources = p5;
+    o.Target = p6;
     return o;
   }
   static $lit_printer_PrinterOptions_0_2(p0: boolean, p1: boolean): PrinterOptions {
@@ -13374,6 +13410,7 @@ export function tryGetEnd(
     | $ast.WhileStatement
     | $ast.WithStatement
     | $ast.YieldExpression
+    | $diagnosticwriter.ASTDiagnostic
     | undefined,
 ): [number, boolean] {
   {
@@ -13601,6 +13638,7 @@ export function tryGetEnd(
       | $ast.WhileStatement
       | $ast.WithStatement
       | $ast.YieldExpression
+      | $diagnosticwriter.ASTDiagnostic
       | undefined = node;
     $sw2: {
       if ($t1 instanceof $ast.Node || $t1 === undefined) {
@@ -13851,6 +13889,7 @@ export function tryGetEnd(
           | $ast.WhileStatement
           | $ast.WithStatement
           | $ast.YieldExpression
+          | $diagnosticwriter.ASTDiagnostic
           | undefined = $t1;
         throw $rt.newPanic(new $rt.BoxStr($rt.fmt_Sprintf('unhandled type: %T', [node]), 'string'));
       }
@@ -14084,6 +14123,7 @@ export function greatestEnd(
     | $ast.WhileStatement
     | $ast.WithStatement
     | $ast.YieldExpression
+    | $diagnosticwriter.ASTDiagnostic
     | undefined
   )[],
 ): number {
@@ -14313,6 +14353,7 @@ export function greatestEnd(
         | $ast.WhileStatement
         | $ast.WithStatement
         | $ast.YieldExpression
+        | $diagnosticwriter.ASTDiagnostic
         | undefined = nodes[i];
       {
         const $t1 = tryGetEnd(node);
@@ -14822,5 +14863,5 @@ export function calculateIndent(text: string, pos: number, end: number): number 
   return currentLineIndent;
 }
 export function newLineCharacterCache(source: $sourcemap.Source): lineCharacterCache | undefined {
-  return lineCharacterCache.$lit_printer_lineCharacterCache_0_1(source!.ECMALineMap(), source!.Text());
+  return lineCharacterCache.$lit_printer_lineCharacterCache_0_1($rt.nn(source).ECMALineMap(), $rt.nn(source).Text());
 }

@@ -7,6 +7,7 @@ import * as $json from './json.js';
 import * as $scanner from './scanner.js';
 import * as $tspath from './tspath.js';
 import type * as $checker from './checker.js';
+import type * as $checkhost from './checkhost.js';
 import type * as $contentmapper from './contentmapper.js';
 import type * as $core from './core.js';
 import type * as $ipc from './ipc.js';
@@ -108,7 +109,7 @@ export class TraceRecord extends $rt.GoObject {
   }
 }
 export class Tracing extends $rt.GoObject {
-  fs: $vfs.FS | undefined = undefined;
+  fs: $vfs.FS = undefined;
   traceDir: string = '';
   tracePath: string = '';
   configFilePath: string = '';
@@ -148,7 +149,7 @@ export class Tracing extends $rt.GoObject {
     return o;
   }
   static $lit_tracing_Tracing_0_1_2_3_4_5_8_9_11_13(
-    p0: $vfs.FS | undefined,
+    p0: $vfs.FS,
     p1: string,
     p2: string,
     p3: string,
@@ -198,7 +199,7 @@ export class Tracing extends $rt.GoObject {
       return;
     }
     {
-      const err: $rt.GoObject | undefined = tr!.fs!.AppendFile(tr!.tracePath, tr!.traceContent.String());
+      const err: $rt.GoObject | undefined = $rt.nn(tr!.fs).AppendFile(tr!.tracePath, tr!.traceContent.String());
       if (!(err === undefined)) {
         tr!.flushErr = $rt.fmt_Errorf('failed to flush trace file: %w', [err]);
       }
@@ -464,10 +465,9 @@ export class Tracing extends $rt.GoObject {
           break $body;
         }
         {
-          const err$1: $rt.GoObject | undefined = tr!.fs!.AppendFile(
-            tr!.tracePath,
-            tr!.traceContent.String() + '\n]\n',
-          );
+          const err$1: $rt.GoObject | undefined = $rt
+            .nn(tr!.fs)
+            .AppendFile(tr!.tracePath, tr!.traceContent.String() + '\n]\n');
           if (!(err$1 === undefined)) {
             $t1 = $rt.fmt_Errorf('failed to write trace file: %w', [err$1]);
             break $body;
@@ -486,7 +486,7 @@ export class Tracing extends $rt.GoObject {
         break $body;
       }
       {
-        const err$3: $rt.GoObject | undefined = tr!.fs!.WriteFile(legendPath, $rt.bytesToString(legendData));
+        const err$3: $rt.GoObject | undefined = $rt.nn(tr!.fs).WriteFile(legendPath, $rt.bytesToString(legendData));
         if (!(err$3 === undefined)) {
           $t1 = $rt.fmt_Errorf('failed to write legend file: %w', [err$3]);
           break $body;
@@ -744,7 +744,7 @@ export class traceThreadKey extends $rt.GoObject {
   }
 }
 export class typeTracer extends $rt.GoObject {
-  fs: $vfs.FS | undefined = undefined;
+  fs: $vfs.FS = undefined;
   checkerIndex: number = 0;
   typesPath: string = '';
   types: TracedType[] = [];
@@ -761,12 +761,7 @@ export class typeTracer extends $rt.GoObject {
     o.$copy_tracing_typeTracer(this);
     return o;
   }
-  static $lit_tracing_typeTracer_0_1_2_3(
-    p0: $vfs.FS | undefined,
-    p1: number,
-    p2: string,
-    p3: TracedType[],
-  ): typeTracer {
+  static $lit_tracing_typeTracer_0_1_2_3(p0: $vfs.FS, p1: number, p2: string, p3: TracedType[]): typeTracer {
     const o = new typeTracer();
     o.fs = p0;
     o.checkerIndex = p1;
@@ -823,6 +818,7 @@ export class typeTracer extends $rt.GoObject {
               | $contentmapper.closeOnceReadWriteCloser
               | $contentmapper.loggedProcess
               | $contentmapper.stderrLogger
+              | $checkhost.hostWriter
               | undefined
             >('$rt.strings_Builder | undefined'),
             descriptor.$clone_tracing_TypeDescriptor(),
@@ -838,7 +834,7 @@ export class typeTracer extends $rt.GoObject {
       }
     }
     sb.WriteString(']\n');
-    return t!.fs!.WriteFile(t!.typesPath, sb.String());
+    return $rt.nn(t!.fs).WriteFile(t!.typesPath, sb.String());
   }
   buildTypeDescriptor(
     typ: TracedType,
@@ -1066,7 +1062,7 @@ export let traceThreadArgKeys: string[] = [
   'declarationFilePath',
 ];
 export function StartTracing(
-  fs: $vfs.FS | undefined,
+  fs: $vfs.FS,
   traceDir: string,
   configFilePath: string,
   deterministic: boolean,
@@ -1122,7 +1118,7 @@ export function StartTracing(
     ),
   );
   {
-    const err: $rt.GoObject | undefined = tr!.fs!.WriteFile(tr!.tracePath, tr!.traceContent.String());
+    const err: $rt.GoObject | undefined = $rt.nn(tr!.fs).WriteFile(tr!.tracePath, tr!.traceContent.String());
     if (!(err === undefined)) {
       return [undefined, $rt.fmt_Errorf('failed to write trace file header: %w', [err])];
     }
@@ -1138,6 +1134,7 @@ export function writeEventTo(buf: $rt.strings_Builder | undefined, event: traceE
         | $contentmapper.closeOnceReadWriteCloser
         | $contentmapper.loggedProcess
         | $contentmapper.stderrLogger
+        | $checkhost.hostWriter
         | undefined
       >('$rt.strings_Builder | undefined'),
       event,

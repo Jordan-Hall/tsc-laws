@@ -5,8 +5,14 @@ import * as $ast from './ast.js';
 import * as $core from './core.js';
 import * as $tspath from './tspath.js';
 import type * as $checkhost from './checkhost.js';
+import type * as $compiler from './compiler.js';
 import type * as $tsoptions from './tsoptions.js';
-export type OutputPathsHost = $tsoptions.ParsedCommandLine | $checkhost.Program | undefined;
+export type OutputPathsHost =
+  | $tsoptions.ParsedCommandLine
+  | $compiler.Program
+  | $compiler.emitHost
+  | $checkhost.Program
+  | undefined;
 export class ForceEmitPaths extends $rt.GoObject {
   Dts: boolean = false;
   Js: boolean = false;
@@ -27,6 +33,13 @@ export class ForceEmitPaths extends $rt.GoObject {
   static $lit_outputpaths_ForceEmitPaths_0(p0: boolean): ForceEmitPaths {
     const o = new ForceEmitPaths();
     o.Dts = p0;
+    return o;
+  }
+  static $lit_outputpaths_ForceEmitPaths_0_1_2(p0: boolean, p1: boolean, p2: boolean): ForceEmitPaths {
+    const o = new ForceEmitPaths();
+    o.Dts = p0;
+    o.Js = p1;
+    o.DeclarationMap = p2;
     return o;
   }
   static $cast_outputpaths_ForceEmitPaths(v: $rt.GoObject | undefined): ForceEmitPaths {

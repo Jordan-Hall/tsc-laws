@@ -10,6 +10,8 @@ import * as $locale from './locale.js';
 import * as $spanmap from './spanmap.js';
 import * as $stringutil from './stringutil.js';
 import * as $tspath from './tspath.js';
+import type * as $compiler from './compiler.js';
+import type * as $diagnosticwriter from './diagnosticwriter.js';
 import { Set_ as $collections$Set_ } from './collections.js';
 export class $Anon1 extends $rt.GoObject {
   parent: Node | undefined;
@@ -191,7 +193,7 @@ export type FunctionFlags = number;
 export type FunctionLikeDeclaration = Node;
 export type FunctionTypeNodeNode = Node;
 export type GetAccessorDeclarationNode = Node;
-export type HasFileName = SourceFile | hasFileNameImpl | undefined;
+export type HasFileName = SourceFile | hasFileNameImpl | $compiler.parseTask | $compiler.redirectsFile | undefined;
 export type HeritageClauseElement = Node;
 export type HeritageClauseElementList = NodeList;
 export type HeritageClauseList = NodeList;
@@ -420,7 +422,7 @@ export type ShiftOperator = Kind;
 export type ShiftOperatorOrHigher = Kind;
 export type ShorthandPropertyAssignmentNode = Node;
 export type SignatureDeclaration = Node;
-export type SourceFileLike = SourceFile | undefined;
+export type SourceFileLike = SourceFile | $diagnosticwriter.originalTextFile | undefined;
 export type SourceFileNode = Node;
 export type SpreadAssignmentNode = Node;
 export type SpreadElementNode = Node;
@@ -4595,10 +4597,10 @@ export class CatchClause extends NodeBase {
 }
 export class CheckJsDirective extends $rt.GoObject {
   Enabled: boolean = false;
-  Range: CommentRange = CommentRange$zero;
+  Range: CommentRange = new CommentRange();
   $copy_ast_CheckJsDirective(src: CheckJsDirective): void {
     this.Enabled = src.Enabled;
-    this.Range = src.Range;
+    this.Range = src.Range.$clone_ast_CommentRange();
   }
   $equals_ast_CheckJsDirective(o: CheckJsDirective): boolean {
     return this.Enabled === o.Enabled && this.Range.$equals_ast_CommentRange(o.Range);
@@ -5563,6 +5565,21 @@ export class ContentMapperSourceFileInfo extends $rt.GoObject {
   $clone_ast_ContentMapperSourceFileInfo(): ContentMapperSourceFileInfo {
     const o = new ContentMapperSourceFileInfo();
     o.$copy_ast_ContentMapperSourceFileInfo(this);
+    return o;
+  }
+  static $lit_ast_ContentMapperSourceFileInfo_0_1_2_3_4(
+    p0: string,
+    p1: string,
+    p2: SourceFileParseOptions,
+    p3: string,
+    p4: string,
+  ): ContentMapperSourceFileInfo {
+    const o = new ContentMapperSourceFileInfo();
+    o.ContentMapper = p0;
+    o.TransformIdentity = p1;
+    o.ParseOptions = p2;
+    o.VirtualFileName = p3;
+    o.OriginalText = p4;
     return o;
   }
   static $lit_ast_ContentMapperSourceFileInfo_0_1_2_3_4_5_6_7(
@@ -7108,6 +7125,12 @@ export class FileReference extends $rt.GoObject {
   $clone_ast_FileReference(): FileReference {
     const o = new FileReference();
     o.$copy_ast_FileReference(this);
+    return o;
+  }
+  static $lit_ast_FileReference_0_1(p0: $core.TextRange, p1: string): FileReference {
+    const o = new FileReference();
+    o.TextRange_ = p0;
+    o.FileName = p1;
     return o;
   }
   static $lit_ast_FileReference_0_1_2_3(
@@ -11799,6 +11822,12 @@ export class NodeList extends $rt.GoObject {
   $clone_ast_NodeList(): NodeList {
     const o = new NodeList();
     o.$copy_ast_NodeList(this);
+    return o;
+  }
+  static $lit_ast_NodeList_0_1(p0: $core.TextRange, p1: (Node | undefined)[]): NodeList {
+    const o = new NodeList();
+    o.Loc = p0;
+    o.Nodes = p1;
     return o;
   }
   static $cast_ast_NodeList(v: $rt.GoObject | undefined): NodeList {
@@ -17303,6 +17332,13 @@ export class NodeVisitorHooks extends $rt.GoObject {
     o.VisitModifiers = p3;
     return o;
   }
+  static $lit_ast_NodeVisitorHooks_2(
+    p0: ((p0: NodeList | undefined, p1: NodeVisitor | undefined) => NodeList | undefined) | undefined,
+  ): NodeVisitorHooks {
+    const o = new NodeVisitorHooks();
+    o.VisitNodes = p0;
+    return o;
+  }
   static $lit_ast_NodeVisitorHooks_2_0(
     p0: ((p0: NodeList | undefined, p1: NodeVisitor | undefined) => NodeList | undefined) | undefined,
     p1: ((p0: Node | undefined, p1: NodeVisitor | undefined) => Node | undefined) | undefined,
@@ -19804,6 +19840,18 @@ export class SourceFileMetaData extends $rt.GoObject {
     o.$copy_ast_SourceFileMetaData(this);
     return o;
   }
+  static $lit_ast_SourceFileMetaData_0_1_2(p0: string, p1: string, p2: $core.ResolutionMode): SourceFileMetaData {
+    const o = new SourceFileMetaData();
+    o.PackageJsonType = p0;
+    o.PackageJsonDirectory = p1;
+    o.ImpliedNodeFormat = p2;
+    return o;
+  }
+  static $lit_ast_SourceFileMetaData_2(p0: $core.ResolutionMode): SourceFileMetaData {
+    const o = new SourceFileMetaData();
+    o.ImpliedNodeFormat = p0;
+    return o;
+  }
   static $cast_ast_SourceFileMetaData(v: $rt.GoObject | undefined): SourceFileMetaData {
     if (v instanceof SourceFileMetaData) return v;
     throw $rt.typeAssertError();
@@ -19835,6 +19883,17 @@ export class SourceFileParseOptions extends $rt.GoObject {
     const o = new SourceFileParseOptions();
     o.FileName = p0;
     o.Path_ = p1;
+    return o;
+  }
+  static $lit_ast_SourceFileParseOptions_0_1_2(
+    p0: string,
+    p1: $tspath.Path,
+    p2: ExternalModuleIndicatorOptions,
+  ): SourceFileParseOptions {
+    const o = new SourceFileParseOptions();
+    o.FileName = p0;
+    o.Path_ = p1;
+    o.ExternalModuleIndicatorOptions_ = p2;
     return o;
   }
   static $cast_ast_SourceFileParseOptions(v: $rt.GoObject | undefined): SourceFileParseOptions {
@@ -22070,11 +22129,8 @@ export class sourceFileDataCell<T> extends $rt.GoObject {
   }
 }
 export const AllAccessorDeclarations$zero: AllAccessorDeclarations = new AllAccessorDeclarations();
-export const CommentRange$zero: CommentRange = new CommentRange();
 export const CheckJsDirective$zero: CheckJsDirective = new CheckJsDirective();
 export const ClassElementBase$zero: ClassElementBase = new ClassElementBase();
-export const CommentDirective$zero: CommentDirective = new CommentDirective();
-export const ExpressionBase$zero: ExpressionBase = new ExpressionBase();
 export const FileReference$zero: FileReference = new FileReference();
 export const TypeSyntaxBase$zero: TypeSyntaxBase = new TypeSyntaxBase();
 export const TypeNodeBase$zero: TypeNodeBase = new TypeNodeBase();
@@ -22091,8 +22147,6 @@ export const PragmaArgument$zero: PragmaArgument = new PragmaArgument();
 export const PragmaArgumentSpecification$zero: PragmaArgumentSpecification = new PragmaArgumentSpecification();
 export const PrimaryExpressionBase$zero: PrimaryExpressionBase = new PrimaryExpressionBase();
 export const RepopulateDiagnosticInfo$zero: RepopulateDiagnosticInfo = new RepopulateDiagnosticInfo();
-export const SourceFileMetaData$zero: SourceFileMetaData = new SourceFileMetaData();
-export const StatementBase$zero: StatementBase = new StatementBase();
 export const TokenCacheKey$zero: TokenCacheKey = new TokenCacheKey();
 export const TypeElementBase$zero: TypeElementBase = new TypeElementBase();
 export const diagnosticLocationKey$zero: diagnosticLocationKey = new diagnosticLocationKey();
@@ -25581,7 +25635,11 @@ export function isFileForcedToBeModuleByFormat(
   metadata: SourceFileMetaData,
 ): boolean {
   if (
-    GetImpliedNodeFormatForEmitWorker(fileName, options!.GetEmitModuleKind(), metadata) === (99 as number) ||
+    GetImpliedNodeFormatForEmitWorker(
+      fileName,
+      options!.GetEmitModuleKind(),
+      metadata.$clone_ast_SourceFileMetaData(),
+    ) === (99 as number) ||
     $tspath.FileExtensionIsOneOf(fileName, isFileForcedToBeModuleByFormatExtensions)
   ) {
     return true;
@@ -29117,7 +29175,7 @@ export function GetEmitModuleFormatOfFileWorker(
   const result: $core.ResolutionMode = GetImpliedNodeFormatForEmitWorker(
     fileName,
     options!.GetEmitModuleKind(),
-    sourceFileMetaData,
+    sourceFileMetaData.$clone_ast_SourceFileMetaData(),
   );
   if (!(result === (0 as number))) {
     return result;

@@ -8,13 +8,36 @@ export class encoding_TextMarshaler extends $b.GoObject {
     throw $b.unsupported('encoding.TextMarshaler.MarshalText');
   }
 }
+export class encoding_binary_ByteOrder extends $b.GoObject {
+  PutUint16(a0: number[], a1: number): void {
+    throw $b.unsupported('encoding/binary.ByteOrder.PutUint16');
+  }
+  PutUint32(a0: number[], a1: number): void {
+    throw $b.unsupported('encoding/binary.ByteOrder.PutUint32');
+  }
+  PutUint64(a0: number[], a1: number): void {
+    throw $b.unsupported('encoding/binary.ByteOrder.PutUint64');
+  }
+  override String(): string {
+    throw $b.unsupported('encoding/binary.ByteOrder.String');
+  }
+  Uint16(a0: number[]): number {
+    throw $b.unsupported('encoding/binary.ByteOrder.Uint16');
+  }
+  Uint32(a0: number[]): number {
+    throw $b.unsupported('encoding/binary.ByteOrder.Uint32');
+  }
+  Uint64(a0: number[]): number {
+    throw $b.unsupported('encoding/binary.ByteOrder.Uint64');
+  }
+}
 export class github_com_go_json_experiment_json_internal_jsonopts_Options extends $b.GoObject {
   JSONOptions(a0: github_com_go_json_experiment_json_internal_NotForPublicUse): void {
     throw $b.unsupported('github.com/go-json-experiment/json/internal/jsonopts.Options.JSONOptions');
   }
 }
 export class io_fs_DirEntry extends $b.GoObject {
-  Info(): [io_fs_FileInfo | undefined, $b.GoObject | undefined] {
+  Info(): [$b.GoObject | undefined, $b.GoObject | undefined] {
     throw $b.unsupported('io/fs.DirEntry.Info');
   }
   IsDir(): boolean {
@@ -27,24 +50,20 @@ export class io_fs_DirEntry extends $b.GoObject {
     throw $b.unsupported('io/fs.DirEntry.Type');
   }
 }
-export class io_fs_FileInfo extends $b.GoObject {
-  IsDir(): boolean {
-    throw $b.unsupported('io/fs.FileInfo.IsDir');
+export class io_fs_FS extends $b.GoObject {
+  Open(a0: string): [io_fs_File | undefined, $b.GoObject | undefined] {
+    throw $b.unsupported('io/fs.FS.Open');
   }
-  ModTime(): $s.time_Time {
-    throw $b.unsupported('io/fs.FileInfo.ModTime');
+}
+export class io_fs_File extends $b.GoObject {
+  Close(): $b.GoObject | undefined {
+    throw $b.unsupported('io/fs.File.Close');
   }
-  Mode(): number {
-    throw $b.unsupported('io/fs.FileInfo.Mode');
+  Read(a0: number[]): [number, $b.GoObject | undefined] {
+    throw $b.unsupported('io/fs.File.Read');
   }
-  Name(): string {
-    throw $b.unsupported('io/fs.FileInfo.Name');
-  }
-  Size(): number {
-    throw $b.unsupported('io/fs.FileInfo.Size');
-  }
-  Sys(): $b.GoObject | undefined {
-    throw $b.unsupported('io/fs.FileInfo.Sys');
+  Stat(): [$b.GoObject | undefined, $b.GoObject | undefined] {
+    throw $b.unsupported('io/fs.File.Stat');
   }
 }
 export class net_Addr extends $b.GoObject {
@@ -211,6 +230,17 @@ export class reflect_Type extends $b.GoObject {
     throw $b.unsupported('reflect.Type.String');
   }
 }
+export class syscall_RawConn extends $b.GoObject {
+  Control(a0: ((p0: number) => void) | undefined): $b.GoObject | undefined {
+    throw $b.unsupported('syscall.RawConn.Control');
+  }
+  Read(a0: ((p0: number) => boolean) | undefined): $b.GoObject | undefined {
+    throw $b.unsupported('syscall.RawConn.Read');
+  }
+  Write(a0: ((p0: number) => boolean) | undefined): $b.GoObject | undefined {
+    throw $b.unsupported('syscall.RawConn.Write');
+  }
+}
 export class bufio_Reader extends $b.GoObject {
   constructor() {
     super();
@@ -305,6 +335,86 @@ export class bufio_Writer extends $b.GoObject {
     return this;
   }
 }
+export class bytes_Buffer extends $b.GoObject {
+  constructor() {
+    super();
+  }
+  Available(): number {
+    throw $b.unsupported('bytes.Buffer.Available');
+  }
+  AvailableBuffer(): number[] {
+    throw $b.unsupported('bytes.Buffer.AvailableBuffer');
+  }
+  Bytes(): number[] {
+    throw $b.unsupported('bytes.Buffer.Bytes');
+  }
+  Cap(): number {
+    throw $b.unsupported('bytes.Buffer.Cap');
+  }
+  Grow(a0: number): void {
+    throw $b.unsupported('bytes.Buffer.Grow');
+  }
+  Len(): number {
+    throw $b.unsupported('bytes.Buffer.Len');
+  }
+  Next(a0: number): number[] {
+    throw $b.unsupported('bytes.Buffer.Next');
+  }
+  Peek(a0: number): [number[], $b.GoObject | undefined] {
+    throw $b.unsupported('bytes.Buffer.Peek');
+  }
+  Read(a0: number[]): [number, $b.GoObject | undefined] {
+    throw $b.unsupported('bytes.Buffer.Read');
+  }
+  ReadByte(): [number, $b.GoObject | undefined] {
+    throw $b.unsupported('bytes.Buffer.ReadByte');
+  }
+  ReadBytes(a0: number): [number[], $b.GoObject | undefined] {
+    throw $b.unsupported('bytes.Buffer.ReadBytes');
+  }
+  ReadFrom(a0: $b.GoObject | undefined): [number, $b.GoObject | undefined] {
+    throw $b.unsupported('bytes.Buffer.ReadFrom');
+  }
+  ReadRune(): [number, number, $b.GoObject | undefined] {
+    throw $b.unsupported('bytes.Buffer.ReadRune');
+  }
+  ReadString(a0: number): [string, $b.GoObject | undefined] {
+    throw $b.unsupported('bytes.Buffer.ReadString');
+  }
+  Reset(): void {
+    throw $b.unsupported('bytes.Buffer.Reset');
+  }
+  override String(): string {
+    throw $b.unsupported('bytes.Buffer.String');
+  }
+  Truncate(a0: number): void {
+    throw $b.unsupported('bytes.Buffer.Truncate');
+  }
+  UnreadByte(): $b.GoObject | undefined {
+    throw $b.unsupported('bytes.Buffer.UnreadByte');
+  }
+  UnreadRune(): $b.GoObject | undefined {
+    throw $b.unsupported('bytes.Buffer.UnreadRune');
+  }
+  Write(a0: number[]): [number, $b.GoObject | undefined] {
+    throw $b.unsupported('bytes.Buffer.Write');
+  }
+  WriteByte(a0: number): $b.GoObject | undefined {
+    throw $b.unsupported('bytes.Buffer.WriteByte');
+  }
+  WriteRune(a0: number): [number, $b.GoObject | undefined] {
+    throw $b.unsupported('bytes.Buffer.WriteRune');
+  }
+  WriteString(a0: string): [number, $b.GoObject | undefined] {
+    throw $b.unsupported('bytes.Buffer.WriteString');
+  }
+  WriteTo(a0: $b.GoObject | undefined): [number, $b.GoObject | undefined] {
+    throw $b.unsupported('bytes.Buffer.WriteTo');
+  }
+  $clone(): bytes_Buffer {
+    return this;
+  }
+}
 export class compress_gzip_Header extends $b.GoObject {
   Comment: string;
   Extra: number[];
@@ -386,6 +496,88 @@ export class encoding_base64_Encoding extends $b.GoObject {
     throw $b.unsupported('encoding/base64.Encoding.EncodedLen');
   }
   $clone(): encoding_base64_Encoding {
+    return this;
+  }
+}
+export class encoding_binary_bigEndian extends encoding_binary_ByteOrder {
+  constructor() {
+    super();
+  }
+  AppendUint16(a0: number[], a1: number): number[] {
+    throw $b.unsupported('encoding/binary.bigEndian.AppendUint16');
+  }
+  AppendUint32(a0: number[], a1: number): number[] {
+    throw $b.unsupported('encoding/binary.bigEndian.AppendUint32');
+  }
+  AppendUint64(a0: number[], a1: number): number[] {
+    throw $b.unsupported('encoding/binary.bigEndian.AppendUint64');
+  }
+  GoString(): string {
+    throw $b.unsupported('encoding/binary.bigEndian.GoString');
+  }
+  PutUint16(a0: number[], a1: number): void {
+    throw $b.unsupported('encoding/binary.bigEndian.PutUint16');
+  }
+  PutUint32(a0: number[], a1: number): void {
+    throw $b.unsupported('encoding/binary.bigEndian.PutUint32');
+  }
+  PutUint64(a0: number[], a1: number): void {
+    throw $b.unsupported('encoding/binary.bigEndian.PutUint64');
+  }
+  override String(): string {
+    throw $b.unsupported('encoding/binary.bigEndian.String');
+  }
+  Uint16(a0: number[]): number {
+    throw $b.unsupported('encoding/binary.bigEndian.Uint16');
+  }
+  Uint32(a0: number[]): number {
+    throw $b.unsupported('encoding/binary.bigEndian.Uint32');
+  }
+  Uint64(a0: number[]): number {
+    throw $b.unsupported('encoding/binary.bigEndian.Uint64');
+  }
+  $clone(): encoding_binary_bigEndian {
+    return this;
+  }
+}
+export class encoding_binary_littleEndian extends encoding_binary_ByteOrder {
+  constructor() {
+    super();
+  }
+  AppendUint16(a0: number[], a1: number): number[] {
+    throw $b.unsupported('encoding/binary.littleEndian.AppendUint16');
+  }
+  AppendUint32(a0: number[], a1: number): number[] {
+    throw $b.unsupported('encoding/binary.littleEndian.AppendUint32');
+  }
+  AppendUint64(a0: number[], a1: number): number[] {
+    throw $b.unsupported('encoding/binary.littleEndian.AppendUint64');
+  }
+  GoString(): string {
+    throw $b.unsupported('encoding/binary.littleEndian.GoString');
+  }
+  PutUint16(a0: number[], a1: number): void {
+    throw $b.unsupported('encoding/binary.littleEndian.PutUint16');
+  }
+  PutUint32(a0: number[], a1: number): void {
+    throw $b.unsupported('encoding/binary.littleEndian.PutUint32');
+  }
+  PutUint64(a0: number[], a1: number): void {
+    throw $b.unsupported('encoding/binary.littleEndian.PutUint64');
+  }
+  override String(): string {
+    throw $b.unsupported('encoding/binary.littleEndian.String');
+  }
+  Uint16(a0: number[]): number {
+    throw $b.unsupported('encoding/binary.littleEndian.Uint16');
+  }
+  Uint32(a0: number[]): number {
+    throw $b.unsupported('encoding/binary.littleEndian.Uint32');
+  }
+  Uint64(a0: number[]): number {
+    throw $b.unsupported('encoding/binary.littleEndian.Uint64');
+  }
+  $clone(): encoding_binary_littleEndian {
     return this;
   }
 }
@@ -563,6 +755,190 @@ export class golang_org_x_sync_errgroup_Group extends $b.GoObject {
     throw $b.unsupported('golang.org/x/sync/errgroup.Group.Wait');
   }
   $clone(): golang_org_x_sync_errgroup_Group {
+    return this;
+  }
+}
+export class net_url_URL extends $b.GoObject {
+  Scheme: string;
+  Opaque: string;
+  User: net_url_Userinfo | undefined;
+  Host: string;
+  Path: string;
+  Fragment: string;
+  RawQuery: string;
+  RawPath: string;
+  RawFragment: string;
+  ForceQuery: boolean;
+  OmitHost: boolean;
+  constructor(
+    p0: string = '',
+    p1: string = '',
+    p2: net_url_Userinfo | undefined = undefined,
+    p3: string = '',
+    p4: string = '',
+    p5: string = '',
+    p6: string = '',
+    p7: string = '',
+    p8: string = '',
+    p9: boolean = false,
+    p10: boolean = false,
+  ) {
+    super();
+    this.Scheme = p0;
+    this.Opaque = p1;
+    this.User = p2;
+    this.Host = p3;
+    this.Path = p4;
+    this.Fragment = p5;
+    this.RawQuery = p6;
+    this.RawPath = p7;
+    this.RawFragment = p8;
+    this.ForceQuery = p9;
+    this.OmitHost = p10;
+  }
+  AppendBinary(a0: number[]): [number[], $b.GoObject | undefined] {
+    throw $b.unsupported('net/url.URL.AppendBinary');
+  }
+  EscapedFragment(): string {
+    throw $b.unsupported('net/url.URL.EscapedFragment');
+  }
+  EscapedPath(): string {
+    throw $b.unsupported('net/url.URL.EscapedPath');
+  }
+  Hostname(): string {
+    throw $b.unsupported('net/url.URL.Hostname');
+  }
+  IsAbs(): boolean {
+    throw $b.unsupported('net/url.URL.IsAbs');
+  }
+  JoinPath(a0: string[]): net_url_URL | undefined {
+    throw $b.unsupported('net/url.URL.JoinPath');
+  }
+  MarshalBinary(): [number[], $b.GoObject | undefined] {
+    throw $b.unsupported('net/url.URL.MarshalBinary');
+  }
+  Parse(a0: string): [net_url_URL | undefined, $b.GoObject | undefined] {
+    throw $b.unsupported('net/url.URL.Parse');
+  }
+  Port(): string {
+    throw $b.unsupported('net/url.URL.Port');
+  }
+  Query(): Map<string, string[]> | undefined {
+    throw $b.unsupported('net/url.URL.Query');
+  }
+  Redacted(): string {
+    throw $b.unsupported('net/url.URL.Redacted');
+  }
+  RequestURI(): string {
+    throw $b.unsupported('net/url.URL.RequestURI');
+  }
+  ResolveReference(a0: net_url_URL | undefined): net_url_URL | undefined {
+    throw $b.unsupported('net/url.URL.ResolveReference');
+  }
+  override String(): string {
+    throw $b.unsupported('net/url.URL.String');
+  }
+  UnmarshalBinary(a0: number[]): $b.GoObject | undefined {
+    throw $b.unsupported('net/url.URL.UnmarshalBinary');
+  }
+  $clone(): net_url_URL {
+    return this;
+  }
+}
+export class net_url_Userinfo extends $b.GoObject {
+  constructor() {
+    super();
+  }
+  Password(): [string, boolean] {
+    throw $b.unsupported('net/url.Userinfo.Password');
+  }
+  override String(): string {
+    throw $b.unsupported('net/url.Userinfo.String');
+  }
+  Username(): string {
+    throw $b.unsupported('net/url.Userinfo.Username');
+  }
+  $clone(): net_url_Userinfo {
+    return this;
+  }
+}
+export class os_File extends io_fs_File {
+  constructor() {
+    super();
+  }
+  Chdir(): $b.GoObject | undefined {
+    throw $b.unsupported('os.File.Chdir');
+  }
+  Chmod(a0: number): $b.GoObject | undefined {
+    throw $b.unsupported('os.File.Chmod');
+  }
+  Chown(a0: number, a1: number): $b.GoObject | undefined {
+    throw $b.unsupported('os.File.Chown');
+  }
+  Close(): $b.GoObject | undefined {
+    throw $b.unsupported('os.File.Close');
+  }
+  Fd(): number {
+    throw $b.unsupported('os.File.Fd');
+  }
+  Name(): string {
+    throw $b.unsupported('os.File.Name');
+  }
+  Read(a0: number[]): [number, $b.GoObject | undefined] {
+    throw $b.unsupported('os.File.Read');
+  }
+  ReadAt(a0: number[], a1: number): [number, $b.GoObject | undefined] {
+    throw $b.unsupported('os.File.ReadAt');
+  }
+  ReadDir(a0: number): [(io_fs_DirEntry | undefined)[], $b.GoObject | undefined] {
+    throw $b.unsupported('os.File.ReadDir');
+  }
+  ReadFrom(a0: $b.GoObject | undefined): [number, $b.GoObject | undefined] {
+    throw $b.unsupported('os.File.ReadFrom');
+  }
+  Readdir(a0: number): [($b.GoObject | undefined)[], $b.GoObject | undefined] {
+    throw $b.unsupported('os.File.Readdir');
+  }
+  Readdirnames(a0: number): [string[], $b.GoObject | undefined] {
+    throw $b.unsupported('os.File.Readdirnames');
+  }
+  Seek(a0: number, a1: number): [number, $b.GoObject | undefined] {
+    throw $b.unsupported('os.File.Seek');
+  }
+  SetDeadline(a0: $s.time_Time): $b.GoObject | undefined {
+    throw $b.unsupported('os.File.SetDeadline');
+  }
+  SetReadDeadline(a0: $s.time_Time): $b.GoObject | undefined {
+    throw $b.unsupported('os.File.SetReadDeadline');
+  }
+  SetWriteDeadline(a0: $s.time_Time): $b.GoObject | undefined {
+    throw $b.unsupported('os.File.SetWriteDeadline');
+  }
+  Stat(): [$b.GoObject | undefined, $b.GoObject | undefined] {
+    throw $b.unsupported('os.File.Stat');
+  }
+  Sync(): $b.GoObject | undefined {
+    throw $b.unsupported('os.File.Sync');
+  }
+  SyscallConn(): [syscall_RawConn | undefined, $b.GoObject | undefined] {
+    throw $b.unsupported('os.File.SyscallConn');
+  }
+  Truncate(a0: number): $b.GoObject | undefined {
+    throw $b.unsupported('os.File.Truncate');
+  }
+  Write(a0: number[]): [number, $b.GoObject | undefined] {
+    throw $b.unsupported('os.File.Write');
+  }
+  WriteAt(a0: number[], a1: number): [number, $b.GoObject | undefined] {
+    throw $b.unsupported('os.File.WriteAt');
+  }
+  WriteString(a0: string): [number, $b.GoObject | undefined] {
+    throw $b.unsupported('os.File.WriteString');
+  }
+  WriteTo(a0: $b.GoObject | undefined): [number, $b.GoObject | undefined] {
+    throw $b.unsupported('os.File.WriteTo');
+  }
+  $clone(): os_File {
     return this;
   }
 }
@@ -891,6 +1267,131 @@ export class reflect_Value extends $b.GoObject {
     return this;
   }
 }
+export class runtime_MemStats extends $b.GoObject {
+  Alloc: number;
+  TotalAlloc: number;
+  Sys: number;
+  Lookups: number;
+  Mallocs: number;
+  Frees: number;
+  HeapAlloc: number;
+  HeapSys: number;
+  HeapIdle: number;
+  HeapInuse: number;
+  HeapReleased: number;
+  HeapObjects: number;
+  StackInuse: number;
+  StackSys: number;
+  MSpanInuse: number;
+  MSpanSys: number;
+  MCacheInuse: number;
+  MCacheSys: number;
+  BuckHashSys: number;
+  GCSys: number;
+  OtherSys: number;
+  NextGC: number;
+  LastGC: number;
+  PauseTotalNs: number;
+  PauseNs: number[];
+  PauseEnd: number[];
+  NumGC: number;
+  NumForcedGC: number;
+  GCCPUFraction: number;
+  EnableGC: boolean;
+  DebugGC: boolean;
+  constructor(
+    p0: number = 0,
+    p1: number = 0,
+    p2: number = 0,
+    p3: number = 0,
+    p4: number = 0,
+    p5: number = 0,
+    p6: number = 0,
+    p7: number = 0,
+    p8: number = 0,
+    p9: number = 0,
+    p10: number = 0,
+    p11: number = 0,
+    p12: number = 0,
+    p13: number = 0,
+    p14: number = 0,
+    p15: number = 0,
+    p16: number = 0,
+    p17: number = 0,
+    p18: number = 0,
+    p19: number = 0,
+    p20: number = 0,
+    p21: number = 0,
+    p22: number = 0,
+    p23: number = 0,
+    p24: number[] = $b.makeArray(256, () => 0),
+    p25: number[] = $b.makeArray(256, () => 0),
+    p26: number = 0,
+    p27: number = 0,
+    p28: number = 0,
+    p29: boolean = false,
+    p30: boolean = false,
+  ) {
+    super();
+    this.Alloc = p0;
+    this.TotalAlloc = p1;
+    this.Sys = p2;
+    this.Lookups = p3;
+    this.Mallocs = p4;
+    this.Frees = p5;
+    this.HeapAlloc = p6;
+    this.HeapSys = p7;
+    this.HeapIdle = p8;
+    this.HeapInuse = p9;
+    this.HeapReleased = p10;
+    this.HeapObjects = p11;
+    this.StackInuse = p12;
+    this.StackSys = p13;
+    this.MSpanInuse = p14;
+    this.MSpanSys = p15;
+    this.MCacheInuse = p16;
+    this.MCacheSys = p17;
+    this.BuckHashSys = p18;
+    this.GCSys = p19;
+    this.OtherSys = p20;
+    this.NextGC = p21;
+    this.LastGC = p22;
+    this.PauseTotalNs = p23;
+    this.PauseNs = p24;
+    this.PauseEnd = p25;
+    this.NumGC = p26;
+    this.NumForcedGC = p27;
+    this.GCCPUFraction = p28;
+    this.EnableGC = p29;
+    this.DebugGC = p30;
+  }
+  $clone(): runtime_MemStats {
+    return this;
+  }
+}
+export class runtime_pprof_Profile extends $b.GoObject {
+  constructor() {
+    super();
+  }
+  Add(a0: $b.GoObject | undefined, a1: number): void {
+    throw $b.unsupported('runtime/pprof.Profile.Add');
+  }
+  Count(): number {
+    throw $b.unsupported('runtime/pprof.Profile.Count');
+  }
+  Name(): string {
+    throw $b.unsupported('runtime/pprof.Profile.Name');
+  }
+  Remove(a0: $b.GoObject | undefined): void {
+    throw $b.unsupported('runtime/pprof.Profile.Remove');
+  }
+  WriteTo(a0: $b.GoObject | undefined, a1: number): $b.GoObject | undefined {
+    throw $b.unsupported('runtime/pprof.Profile.WriteTo');
+  }
+  $clone(): runtime_pprof_Profile {
+    return this;
+  }
+}
 export class strings_Reader extends $b.GoObject {
   constructor() {
     super();
@@ -932,6 +1433,20 @@ export class strings_Reader extends $b.GoObject {
     return this;
   }
 }
+export class strings_Replacer extends $b.GoObject {
+  constructor() {
+    super();
+  }
+  Replace(a0: string): string {
+    throw $b.unsupported('strings.Replacer.Replace');
+  }
+  WriteString(a0: $b.GoObject | undefined, a1: string): [number, $b.GoObject | undefined] {
+    throw $b.unsupported('strings.Replacer.WriteString');
+  }
+  $clone(): strings_Replacer {
+    return this;
+  }
+}
 export function bufio_NewReader(a0: $b.GoObject | undefined): bufio_Reader | undefined {
   return $b.stubCall<bufio_Reader | undefined>('bufio.NewReader', undefined);
 }
@@ -940,6 +1455,9 @@ export function bufio_NewWriter(a0: $b.GoObject | undefined): bufio_Writer | und
 }
 export function bytes_Cut(a0: number[], a1: number[]): [number[], number[], boolean] {
   return $b.stubCall<[number[], number[], boolean]>('bytes.Cut', [[], [], false]);
+}
+export function bytes_NewBuffer(a0: number[]): bytes_Buffer | undefined {
+  return $b.stubCall<bytes_Buffer | undefined>('bytes.NewBuffer', undefined);
 }
 export function bytes_TrimSpace(a0: number[]): number[] {
   return $b.stubCall<number[]>('bytes.TrimSpace', []);
@@ -980,6 +1498,13 @@ export function encoding_base64_NewEncoder(
   a1: $b.GoObject | undefined,
 ): $b.GoObject | undefined {
   return $b.stubCall<$b.GoObject | undefined>('encoding/base64.NewEncoder', undefined);
+}
+export function encoding_binary_Read(
+  a0: $b.GoObject | undefined,
+  a1: encoding_binary_ByteOrder | undefined,
+  a2: $b.GoObject | undefined,
+): $b.GoObject | undefined {
+  return $b.stubCall<$b.GoObject | undefined>('encoding/binary.Read', undefined);
 }
 export function encoding_hex_EncodeToString(a0: number[]): string {
   return $b.stubCall<string>('encoding/hex.EncodeToString', '');
@@ -1098,26 +1623,135 @@ export function golang_org_x_sync_errgroup_WithContext(
     [undefined, undefined],
   );
 }
+export function golang_org_x_text_unicode_norm_Form$String(recv: number, a0: string): string {
+  throw $b.unsupported('golang.org/x/text/unicode/norm.String');
+}
 export function io_ReadFull(a0: $b.GoObject | undefined, a1: number[]): [number, $b.GoObject | undefined] {
   return $b.stubCall<[number, $b.GoObject | undefined]>('io.ReadFull', [0, undefined]);
+}
+export function io_fs_FileMode$IsDir(recv: number): boolean {
+  throw $b.unsupported('io/fs.IsDir');
+}
+export function io_fs_FileMode$IsRegular(recv: number): boolean {
+  throw $b.unsupported('io/fs.IsRegular');
+}
+export function io_fs_ReadDir(
+  a0: io_fs_FS | undefined,
+  a1: string,
+): [(io_fs_DirEntry | undefined)[], $b.GoObject | undefined] {
+  return $b.stubCall<[(io_fs_DirEntry | undefined)[], $b.GoObject | undefined]>('io/fs.ReadDir', [[], undefined]);
+}
+export function io_fs_ReadFile(a0: io_fs_FS | undefined, a1: string): [number[], $b.GoObject | undefined] {
+  return $b.stubCall<[number[], $b.GoObject | undefined]>('io/fs.ReadFile', [[], undefined]);
+}
+export function io_fs_Stat(a0: io_fs_FS | undefined, a1: string): [$b.GoObject | undefined, $b.GoObject | undefined] {
+  return $b.stubCall<[$b.GoObject | undefined, $b.GoObject | undefined]>('io/fs.Stat', [undefined, undefined]);
+}
+export function io_fs_WalkDir(
+  a0: io_fs_FS | undefined,
+  a1: string,
+  a2:
+    | ((p0: string, p1: io_fs_DirEntry | undefined, p2: $b.GoObject | undefined) => $b.GoObject | undefined)
+    | undefined,
+): $b.GoObject | undefined {
+  return $b.stubCall<$b.GoObject | undefined>('io/fs.WalkDir', undefined);
+}
+export function maps_EqualFunc<M1 extends Map<K, V1> | undefined, M2 extends Map<K, V2> | undefined, K, V1, V2>(
+  a0: M1,
+  a1: M2,
+  a2: ((p0: V1, p1: V2) => boolean) | undefined,
+): boolean {
+  return $b.stubCall<boolean>('maps.EqualFunc', false);
 }
 export function net_Listen(a0: string, a1: string): [net_Listener | undefined, $b.GoObject | undefined] {
   return $b.stubCall<[net_Listener | undefined, $b.GoObject | undefined]>('net.Listen', [undefined, undefined]);
 }
+export function net_url_Parse(a0: string): [net_url_URL | undefined, $b.GoObject | undefined] {
+  return $b.stubCall<[net_url_URL | undefined, $b.GoObject | undefined]>('net/url.Parse', [undefined, undefined]);
+}
+export function os_Chtimes(a0: string, a1: $s.time_Time, a2: $s.time_Time): $b.GoObject | undefined {
+  return $b.stubCall<$b.GoObject | undefined>('os.Chtimes', undefined);
+}
+export function os_Create(a0: string): [os_File | undefined, $b.GoObject | undefined] {
+  return $b.stubCall<[os_File | undefined, $b.GoObject | undefined]>('os.Create', [undefined, undefined]);
+}
+export function os_DirFS(a0: string): io_fs_FS | undefined {
+  return $b.stubCall<io_fs_FS | undefined>('os.DirFS', undefined);
+}
+export function os_Executable(): [string, $b.GoObject | undefined] {
+  return $b.stubCall<[string, $b.GoObject | undefined]>('os.Executable', ['', undefined]);
+}
 export function os_Getenv(a0: string): string {
   return $b.stubCall<string>('os.Getenv', '');
+}
+export function os_Getpid(): number {
+  return $b.stubCall<number>('os.Getpid', 0);
+}
+export function os_IsNotExist(a0: $b.GoObject | undefined): boolean {
+  return $b.stubCall<boolean>('os.IsNotExist', false);
+}
+export function os_IsPathSeparator(a0: number): boolean {
+  return $b.stubCall<boolean>('os.IsPathSeparator', false);
+}
+export function os_Lstat(a0: string): [$b.GoObject | undefined, $b.GoObject | undefined] {
+  return $b.stubCall<[$b.GoObject | undefined, $b.GoObject | undefined]>('os.Lstat', [undefined, undefined]);
+}
+export function os_MkdirAll(a0: string, a1: number): $b.GoObject | undefined {
+  return $b.stubCall<$b.GoObject | undefined>('os.MkdirAll', undefined);
+}
+export function os_OpenFile(a0: string, a1: number, a2: number): [os_File | undefined, $b.GoObject | undefined] {
+  return $b.stubCall<[os_File | undefined, $b.GoObject | undefined]>('os.OpenFile', [undefined, undefined]);
+}
+export function os_ReadDir(a0: string): [(io_fs_DirEntry | undefined)[], $b.GoObject | undefined] {
+  return $b.stubCall<[(io_fs_DirEntry | undefined)[], $b.GoObject | undefined]>('os.ReadDir', [[], undefined]);
 }
 export function os_Remove(a0: string): $b.GoObject | undefined {
   return $b.stubCall<$b.GoObject | undefined>('os.Remove', undefined);
 }
+export function os_RemoveAll(a0: string): $b.GoObject | undefined {
+  return $b.stubCall<$b.GoObject | undefined>('os.RemoveAll', undefined);
+}
+export function os_Stat(a0: string): [$b.GoObject | undefined, $b.GoObject | undefined] {
+  return $b.stubCall<[$b.GoObject | undefined, $b.GoObject | undefined]>('os.Stat', [undefined, undefined]);
+}
 export function os_TempDir(): string {
   return $b.stubCall<string>('os.TempDir', '');
+}
+export function os_UserCacheDir(): [string, $b.GoObject | undefined] {
+  return $b.stubCall<[string, $b.GoObject | undefined]>('os.UserCacheDir', ['', undefined]);
 }
 export function path_Join(a0: string[]): string {
   return $b.stubCall<string>('path.Join', '');
 }
+export function path_filepath_Abs(a0: string): [string, $b.GoObject | undefined] {
+  return $b.stubCall<[string, $b.GoObject | undefined]>('path/filepath.Abs', ['', undefined]);
+}
+export function path_filepath_Clean(a0: string): string {
+  return $b.stubCall<string>('path/filepath.Clean', '');
+}
+export function path_filepath_Dir(a0: string): string {
+  return $b.stubCall<string>('path/filepath.Dir', '');
+}
+export function path_filepath_EvalSymlinks(a0: string): [string, $b.GoObject | undefined] {
+  return $b.stubCall<[string, $b.GoObject | undefined]>('path/filepath.EvalSymlinks', ['', undefined]);
+}
+export function path_filepath_FromSlash(a0: string): string {
+  return $b.stubCall<string>('path/filepath.FromSlash', '');
+}
+export function path_filepath_IsAbs(a0: string): boolean {
+  return $b.stubCall<boolean>('path/filepath.IsAbs', false);
+}
+export function path_filepath_Join(a0: string[]): string {
+  return $b.stubCall<string>('path/filepath.Join', '');
+}
+export function reflect_Append(a0: reflect_Value, a1: reflect_Value[]): reflect_Value {
+  return $b.stubCall<reflect_Value>('reflect.Append', new reflect_Value());
+}
 export function reflect_DeepEqual(a0: $b.GoObject | undefined, a1: $b.GoObject | undefined): boolean {
   return $b.stubCall<boolean>('reflect.DeepEqual', false);
+}
+export function reflect_MakeSlice(a0: reflect_Type | undefined, a1: number, a2: number): reflect_Value {
+  return $b.stubCall<reflect_Value>('reflect.MakeSlice', new reflect_Value());
 }
 export function reflect_StructTag$Get(recv: string, a0: string): string {
   throw $b.unsupported('reflect.Get');
@@ -1125,7 +1759,7 @@ export function reflect_StructTag$Get(recv: string, a0: string): string {
 export function reflect_TypeAssert<T>(a0: reflect_Value): [T, boolean] {
   return $b.stubCall<[T, boolean]>('reflect.TypeAssert', [undefined as unknown as T, false]);
 }
-export function reflect_TypeFor<T extends $b.GoObject>(): reflect_Type | undefined {
+export function reflect_TypeFor<T>(): reflect_Type | undefined {
   return $b.stubCall<reflect_Type | undefined>('reflect.TypeFor', undefined);
 }
 export function reflect_ValueOf(a0: $b.GoObject | undefined): reflect_Value {
@@ -1134,18 +1768,62 @@ export function reflect_ValueOf(a0: $b.GoObject | undefined): reflect_Value {
 export function regexp_Compile(a0: string): [$s.regexp_Regexp | undefined, $b.GoObject | undefined] {
   return $b.stubCall<[$s.regexp_Regexp | undefined, $b.GoObject | undefined]>('regexp.Compile', [undefined, undefined]);
 }
+export function runtime_Caller(a0: number): [number, string, number, boolean] {
+  return $b.stubCall<[number, string, number, boolean]>('runtime.Caller', [0, '', 0, false]);
+}
+export function runtime_GC(): void {
+  $b.stubCall('runtime.GC', undefined);
+}
+export function runtime_ReadMemStats(a0: runtime_MemStats | undefined): void {
+  $b.stubCall('runtime.ReadMemStats', undefined);
+}
 export function runtime_debug_SetMaxStack(a0: number): number {
   return $b.stubCall<number>('runtime/debug.SetMaxStack', 0);
 }
 export function runtime_debug_Stack(): number[] {
   return $b.stubCall<number[]>('runtime/debug.Stack', []);
 }
+export function runtime_pprof_Lookup(a0: string): runtime_pprof_Profile | undefined {
+  return $b.stubCall<runtime_pprof_Profile | undefined>('runtime/pprof.Lookup', undefined);
+}
+export function runtime_pprof_StartCPUProfile(a0: $b.GoObject | undefined): $b.GoObject | undefined {
+  return $b.stubCall<$b.GoObject | undefined>('runtime/pprof.StartCPUProfile', undefined);
+}
+export function runtime_pprof_StopCPUProfile(): void {
+  $b.stubCall('runtime/pprof.StopCPUProfile', undefined);
+}
+export function slices_CompactFunc<S extends E[], E>(a0: S, a1: ((p0: E, p1: E) => boolean) | undefined): S {
+  return $b.stubCall<S>('slices.CompactFunc', undefined as unknown as S);
+}
+export function slices_SortedFunc<E>(
+  a0: ((p0: ((p0: E) => boolean) | undefined) => void) | undefined,
+  a1: ((p0: E, p1: E) => number) | undefined,
+): E[] {
+  return $b.stubCall<E[]>('slices.SortedFunc', []);
+}
 export function strings_NewReader(a0: string): strings_Reader | undefined {
   return $b.stubCall<strings_Reader | undefined>('strings.NewReader', undefined);
+}
+export function strings_NewReplacer(a0: string[]): strings_Replacer | undefined {
+  return $b.stubCall<strings_Replacer | undefined>('strings.NewReplacer', undefined);
+}
+export function strings_SplitSeq(
+  a0: string,
+  a1: string,
+): ((p0: ((p0: string) => boolean) | undefined) => void) | undefined {
+  return $b.stubCall<((p0: ((p0: string) => boolean) | undefined) => void) | undefined>('strings.SplitSeq', undefined);
+}
+export function testing_Testing(): boolean {
+  return $b.stubCall<boolean>('testing.Testing', false);
+}
+export function unicode_utf16_Decode(a0: number[]): number[] {
+  return $b.stubCall<number[]>('unicode/utf16.Decode', []);
 }
 export let context_Canceled: $b.GoObject | undefined = undefined;
 export let context_DeadlineExceeded: $b.GoObject | undefined = undefined;
 export let encoding_base64_StdEncoding: encoding_base64_Encoding | undefined = undefined;
+export let encoding_binary_BigEndian: encoding_binary_bigEndian = new encoding_binary_bigEndian();
+export let encoding_binary_LittleEndian: encoding_binary_littleEndian = new encoding_binary_littleEndian();
 export let github_com_go_json_experiment_json_jsontext_BeginArray: github_com_go_json_experiment_json_jsontext_Token =
   new github_com_go_json_experiment_json_jsontext_Token();
 export let github_com_go_json_experiment_json_jsontext_BeginObject: github_com_go_json_experiment_json_jsontext_Token =
@@ -1165,3 +1843,5 @@ export let io_fs_ErrNotExist: $b.GoObject | undefined = undefined;
 export let io_fs_ErrPermission: $b.GoObject | undefined = undefined;
 export let io_fs_SkipAll: $b.GoObject | undefined = undefined;
 export let io_fs_SkipDir: $b.GoObject | undefined = undefined;
+export let os_Args: string[] = [];
+export let unicode_Mn: $s.unicode_RangeTable | undefined = undefined;

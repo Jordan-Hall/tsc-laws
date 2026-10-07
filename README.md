@@ -41,6 +41,14 @@ packages/tsgo/dist/check file.ts upstream/typescript-go/internal/bundled/libs
 
 `check` reports the same diagnostics as tsgo for all 6,537 of TypeScript's compiler test cases and all 5,907 of its conformance test cases. It is currently about 6.5× slower than tsgo.
 
+`src/drivers/tsc.ts` runs the translated `tsc` command line, with module resolution, `tsconfig.json`, multi-file programs, and emit:
+
+```sh
+cd packages/tsgo
+npx tsc --outDir dist/js --target es2024 --module nodenext --skipLibCheck --types node src/drivers/tsc.ts
+TSC_TS_LIB_DIR=../../upstream/typescript-go/internal/bundled/libs node --stack-size=16000 dist/js/drivers/tsc.js -p path/to/project
+```
+
 ## Assignability checker
 
 `relater` answers assignability queries between type aliases. An input file has TypeScript declarations and queries:
@@ -138,7 +146,8 @@ npm run format               # oxfmt
 
 ## Limitations
 
-- `check` checks one file at a time against the bundled libs. Module resolution, multi-file programs, and emit are not supported.
+- `check` checks one file at a time against the bundled libs.
+- The `tsc` driver runs on Node only; it doesn't compile with scriptc yet. Watch mode is not supported, and `--build` is untested.
 - `relater` has no expression checking or control flow analysis, and fails comparisons that need protected-member rules as unsupported.
 
 ## License

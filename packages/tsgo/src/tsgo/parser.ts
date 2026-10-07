@@ -144,14 +144,14 @@ export class Parser extends $rt.GoObject {
       node,
       p!.sourceText,
     );
-    p!.jsdocCommentRangesSpace = $rt.reslice(ranges, 0, 0, $ast.CommentRange$zero);
+    p!.jsdocCommentRangesSpace = $rt.reslice(ranges, 0, 0, new $ast.CommentRange());
     p!.hasDeprecatedTag = false;
     let jsdoc: ($ast.Node | undefined)[] = $rt.reslice(p!.nodeSliceArena.NewSlice(ranges.length), 0, 0, undefined);
     let pos: number = node!.Pos();
     {
       const $t1 = ranges;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
-        const comment = $t1[$t2];
+        const comment = $t1[$t2].$clone_ast_CommentRange();
         {
           const parsed: $ast.Node | undefined = p!.parseJSDocComment(
             node,
@@ -8875,7 +8875,7 @@ export class Parser extends $rt.GoObject {
               ) {
                 context!.CheckJsDirective_ = $ast.CheckJsDirective.$lit_ast_CheckJsDirective_0_1(
                   pragma.Name === ('ts-check' as string),
-                  pragma,
+                  pragma.$clone_ast_CommentRange(),
                 );
               }
               break;
@@ -10510,7 +10510,7 @@ export function parseJSDocForNode(
     {
       const $t3 = ranges;
       for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
-        const comment = $t3[$t4];
+        const comment = $t3[$t4].$clone_ast_CommentRange();
         {
           const parsed: $ast.Node | undefined = p!.parseJSDocComment(
             node,
@@ -10856,7 +10856,7 @@ export function extractPragmas(commentRange: $ast.CommentRange, text: string): $
         );
         pos += value.length + 2;
       }
-      return [$ast.Pragma.$lit_ast_Pragma_0_1_2(commentRange, 'reference', args)];
+      return [$ast.Pragma.$lit_ast_Pragma_0_1_2(commentRange.$clone_ast_CommentRange(), 'reference', args)];
     }
     if (match(text, pos, '@')) {
       pos++;
@@ -10864,7 +10864,7 @@ export function extractPragmas(commentRange: $ast.CommentRange, text: string): $
       if (!(pragmaName === ('ts-check' as string) || pragmaName === ('ts-nocheck' as string))) {
         return [];
       }
-      return [$ast.Pragma.$lit_ast_Pragma_0_1(commentRange, pragmaName)];
+      return [$ast.Pragma.$lit_ast_Pragma_0_1(commentRange.$clone_ast_CommentRange(), pragmaName)];
     }
   }
   if (commentRange.Kind_ === (3 as number)) {
@@ -10907,7 +10907,7 @@ export function extractPragmas(commentRange: $ast.CommentRange, text: string): $
               ),
             ),
           );
-          pragmas.push($ast.Pragma.$lit_ast_Pragma_0_1_2(commentRange, pragmaName$1, args$1));
+          pragmas.push($ast.Pragma.$lit_ast_Pragma_0_1_2(commentRange.$clone_ast_CommentRange(), pragmaName$1, args$1));
         }
       }
       pos$1 = lineEnd;
@@ -11197,13 +11197,13 @@ export function GetJSDocCommentRanges(
         let $t1 = false;
         let $t2: $ast.CommentRange[] = [];
         $scanner.GetTrailingCommentRanges(f, text, node!.Pos())!((commentRange: $ast.CommentRange): boolean => {
-          commentRanges = $rt.appendCopy(commentRanges, [commentRange]);
+          commentRanges = $rt.appendCopy(commentRanges, [commentRange.$clone_ast_CommentRange()]);
           return true;
         });
         let $t3 = false;
         let $t4: $ast.CommentRange[] = [];
         $scanner.GetLeadingCommentRanges(f, text, node!.Pos())!((commentRange$1: $ast.CommentRange): boolean => {
-          commentRanges = $rt.appendCopy(commentRanges, [commentRange$1]);
+          commentRanges = $rt.appendCopy(commentRanges, [commentRange$1.$clone_ast_CommentRange()]);
           return true;
         });
         break;
@@ -11212,7 +11212,7 @@ export function GetJSDocCommentRanges(
         let $t5 = false;
         let $t6: $ast.CommentRange[] = [];
         $scanner.GetLeadingCommentRanges(f, text, node!.Pos())!((commentRange$2: $ast.CommentRange): boolean => {
-          commentRanges = $rt.appendCopy(commentRanges, [commentRange$2]);
+          commentRanges = $rt.appendCopy(commentRanges, [commentRange$2.$clone_ast_CommentRange()]);
           return true;
         });
         break;

@@ -5310,7 +5310,7 @@ export function ComputeLineOfPosition(lineStarts: $core.TextPos[], pos: number):
   return low - 1;
 }
 export function GetECMALineStarts(sourceFile: $ast.SourceFileLike): $core.TextPos[] {
-  return sourceFile!.ECMALineMap();
+  return $rt.nn(sourceFile).ECMALineMap();
 }
 export function GetECMALineOfPosition(sourceFile: $ast.SourceFileLike, pos: number): number {
   const lineMap: $core.TextPos[] = GetECMALineStarts(sourceFile);
@@ -5324,7 +5324,7 @@ export function GetECMALineAndUTF16CharacterOfPosition(
   let character: $core.UTF16Offset = 0;
   const lineMap: $core.TextPos[] = GetECMALineStarts(sourceFile);
   line = ComputeLineOfPosition(lineMap, pos);
-  character = $core.UTF16Len(sourceFile!.Text().substring(lineMap[line], pos));
+  character = $core.UTF16Len($rt.nn(sourceFile).Text().substring(lineMap[line], pos));
   return [line, character];
 }
 export function GetECMALineAndByteOffsetOfPosition(sourceFile: $ast.SourceFileLike, pos: number): [number, number] {
@@ -5353,7 +5353,7 @@ export function GetECMAPositionOfLineAndUTF16Character(
   character: $core.UTF16Offset,
 ): number {
   const lineStarts: $core.TextPos[] = GetECMALineStarts(sourceFile);
-  return ComputePositionOfLineAndUTF16Character(lineStarts, line, character, sourceFile!.Text(), false);
+  return ComputePositionOfLineAndUTF16Character(lineStarts, line, character, $rt.nn(sourceFile).Text(), false);
 }
 export function GetECMAPositionOfLineAndByteOffset(
   sourceFile: $ast.SourceFileLike,

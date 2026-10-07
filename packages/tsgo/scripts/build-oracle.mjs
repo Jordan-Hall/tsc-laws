@@ -1,4 +1,4 @@
-// Builds the reference scanner, parser, binder, and checker drivers from upstream.
+// Builds the reference scanner, parser, binder, and checker drivers and the tsgo command line from upstream.
 import { copyFileSync, mkdirSync, readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { resolve } from 'node:path';
@@ -7,7 +7,10 @@ const expected = JSON.parse(readFileSync('../../upstream.json', 'utf8')).commit;
 const revision = spawnSync('git', ['-C', root, 'rev-parse', 'HEAD'], { encoding: 'utf8' });
 if (revision.stdout.trim() !== expected) throw new Error('Upstream revision does not match upstream.json');
 mkdirSync(root + '/internal/checkhost', { recursive: true });
-copyFileSync('checkhost/checkhost.go', root + '/internal/checkhost/checkhost.go');
+for (const file of ['checkhost.go', 'tsc.go']) copyFileSync('checkhost/' + file, root + '/internal/checkhost/' + file);
+// The tsgo command line, the reference for the translated tsc.
+const tsgo = spawnSync('go', ['build', '-o', resolve('dist/tsgo'), './cmd/tsgo'], { cwd: root, stdio: 'inherit' });
+if (tsgo.status !== 0) process.exitCode = tsgo.status ?? 1;
 for (const name of ['scan-oracle', 'parse-oracle', 'bind-oracle', 'check-oracle']) {
   mkdirSync(root + '/cmd/' + name, { recursive: true });
   copyFileSync('oracles/' + name + '/main.go', root + '/cmd/' + name + '/main.go');

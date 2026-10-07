@@ -12,6 +12,8 @@ import * as $locale from './locale.js';
 import * as $parser from './parser.js';
 import * as $spanmap from './spanmap.js';
 import * as $tspath from './tspath.js';
+import type * as $checkhost from './checkhost.js';
+import type * as $fswatch from './fswatch.js';
 import { Set_ as $collections$Set_ } from './collections.js';
 const $zf0 = (): string => '';
 const $zf1 = (): $json.Value => [];
@@ -23,12 +25,12 @@ export type Logger = ((p0: string) => void) | undefined;
 export type PositionEncoding = string;
 export type Project = projectLease | retainedProject | undefined;
 export type ProjectErrorKind = number;
-export type Spawner = SpawnerFunc$Box | undefined;
+export type Spawner = SpawnerFunc$Box | $checkhost.hostSys | undefined;
 export type SpawnerFunc =
   | ((
       p0: string[],
       p1: string,
-      p2: $ipc.stdioConn | closeOnceReadWriteCloser | loggedProcess | stderrLogger | undefined,
+      p2: $ipc.stdioConn | closeOnceReadWriteCloser | loggedProcess | stderrLogger | $checkhost.hostWriter | undefined,
     ) => [$ipc.stdioConn | closeOnceReadWriteCloser | loggedProcess | undefined, $rt.GoObject | undefined])
   | undefined;
 export class SpawnerFunc$Box extends $rt.GoObject {
@@ -47,7 +49,7 @@ export class SpawnerFunc$Box extends $rt.GoObject {
   Spawn(
     a0: string[],
     a1: string,
-    a2: $ipc.stdioConn | closeOnceReadWriteCloser | loggedProcess | stderrLogger | undefined,
+    a2: $ipc.stdioConn | closeOnceReadWriteCloser | loggedProcess | stderrLogger | $checkhost.hostWriter | undefined,
   ): [$ipc.stdioConn | closeOnceReadWriteCloser | loggedProcess | undefined, $rt.GoObject | undefined] {
     return SpawnerFunc$Spawn(this.v, a0, a1, a2);
   }
@@ -69,6 +71,7 @@ export type dialFunc =
         | loggedProcess
         | projectLease
         | retainedProject
+        | $fswatch.watch
         | undefined
       ),
       PositionEncoding,
@@ -214,6 +217,11 @@ export class HostOptions extends $rt.GoObject {
   $clone_contentmapper_HostOptions(): HostOptions {
     const o = new HostOptions();
     o.$copy_contentmapper_HostOptions(this);
+    return o;
+  }
+  static $lit_contentmapper_HostOptions_0(p0: Logger): HostOptions {
+    const o = new HostOptions();
+    o.Logger_ = p0;
     return o;
   }
   static $cast_contentmapper_HostOptions(v: $rt.GoObject | undefined): HostOptions {
@@ -1080,6 +1088,17 @@ export class ProjectSpec extends $rt.GoObject {
     o.$copy_contentmapper_ProjectSpec(this);
     return o;
   }
+  static $lit_contentmapper_ProjectSpec_0_1_2(
+    p0: string,
+    p1: (Mapper | undefined)[],
+    p2: $core.CompilerOptions | undefined,
+  ): ProjectSpec {
+    const o = new ProjectSpec();
+    o.ConfigFileName = p0;
+    o.Mappers = p1;
+    o.CompilerOptions_ = p2;
+    return o;
+  }
   static $lit_contentmapper_ProjectSpec_1_2(
     p0: (Mapper | undefined)[],
     p1: $core.CompilerOptions | undefined,
@@ -1520,6 +1539,7 @@ export class host extends $rt.GoObject {
         | loggedProcess
         | projectLease
         | retainedProject
+        | $fswatch.watch
         | undefined
       )[] = [];
       for (const [$t2, entry] of h!.conns ?? new Map<string, mapperConn | undefined>()) {
@@ -1536,6 +1556,7 @@ export class host extends $rt.GoObject {
           | loggedProcess
           | projectLease
           | retainedProject
+          | $fswatch.watch
           | undefined;
         entry!.err = undefined as $rt.GoObject | undefined;
         entry!.positionEncoding = '';
@@ -1913,6 +1934,7 @@ export class host extends $rt.GoObject {
         | loggedProcess
         | projectLease
         | retainedProject
+        | $fswatch.watch
         | undefined
       )[] = [];
       for (const [$t3, mc] of h!.conns ?? new Map<string, mapperConn | undefined>()) {
@@ -2000,6 +2022,7 @@ export class host extends $rt.GoObject {
       | loggedProcess
       | projectLease
       | retainedProject
+      | $fswatch.watch
       | undefined = $t1[1];
     const positionEncoding: PositionEncoding = $t1[2];
     const diagnosticSource: string = $t1[3];
@@ -2022,6 +2045,7 @@ export class host extends $rt.GoObject {
       | loggedProcess
       | projectLease
       | retainedProject
+      | $fswatch.watch
       | undefined
     )[] = [];
     h!.mu.Lock();
@@ -2203,6 +2227,7 @@ export class mapperConn extends $rt.GoObject {
     | loggedProcess
     | projectLease
     | retainedProject
+    | $fswatch.watch
     | undefined = undefined;
   err: $rt.GoObject | undefined = undefined;
   positionEncoding: PositionEncoding = '';
@@ -3288,7 +3313,7 @@ export function SpawnerFunc$Spawn(
   f: SpawnerFunc,
   command: string[],
   dir: string,
-  stderr: $ipc.stdioConn | closeOnceReadWriteCloser | loggedProcess | stderrLogger | undefined,
+  stderr: $ipc.stdioConn | closeOnceReadWriteCloser | loggedProcess | stderrLogger | $checkhost.hostWriter | undefined,
 ): [$ipc.stdioConn | closeOnceReadWriteCloser | loggedProcess | undefined, $rt.GoObject | undefined] {
   return f!(command, dir, stderr);
 }
@@ -3328,6 +3353,7 @@ export function NewHostWithOptions(
         | loggedProcess
         | projectLease
         | retainedProject
+        | $fswatch.watch
         | undefined
       ),
       PositionEncoding,
@@ -3346,13 +3372,19 @@ export function NewHostWithOptions(
       const mapperTiming: mapperTimingCollector | undefined = timing!.mapper(mapper!.Identity());
       const diagnosticName: string = mapper!.DiagnosticName();
       const spawnStart: $rt.time_Time = $rt.time_Now();
-      let stderr: $ipc.stdioConn | closeOnceReadWriteCloser | loggedProcess | stderrLogger | undefined =
-        $rt.io_Discard as unknown as
-          | $ipc.stdioConn
-          | closeOnceReadWriteCloser
-          | loggedProcess
-          | stderrLogger
-          | undefined;
+      let stderr:
+        | $ipc.stdioConn
+        | closeOnceReadWriteCloser
+        | loggedProcess
+        | stderrLogger
+        | $checkhost.hostWriter
+        | undefined = $rt.io_Discard as unknown as
+        | $ipc.stdioConn
+        | closeOnceReadWriteCloser
+        | loggedProcess
+        | stderrLogger
+        | $checkhost.hostWriter
+        | undefined;
       let stderrLog: stderrLogger | undefined = undefined as stderrLogger | undefined;
       if (!(logger === undefined)) {
         stderrLog = stderrLogger.$lit_contentmapper_stderrLogger_0_1(diagnosticName, logger);
@@ -3467,6 +3499,7 @@ export function NewHostWithOptions(
           | loggedProcess
           | projectLease
           | retainedProject
+          | $fswatch.watch
           | undefined,
         positionEncoding,
         diagnosticSource,
@@ -3502,9 +3535,9 @@ export function newWithDial(
 export function projectSpecKey(spec: ProjectSpec): string {
   let key: $rt.strings_Builder = new $rt.strings_Builder();
   $rt.fmt_Fprintf(
-    $rt.unsupportedConversion<$ipc.stdioConn | closeOnceReadWriteCloser | loggedProcess | stderrLogger | undefined>(
-      '$rt.strings_Builder | undefined',
-    ),
+    $rt.unsupportedConversion<
+      $ipc.stdioConn | closeOnceReadWriteCloser | loggedProcess | stderrLogger | $checkhost.hostWriter | undefined
+    >('$rt.strings_Builder | undefined'),
     '%s\x00%p',
     [new $rt.BoxStr(spec.ConfigFileName, 'string'), spec.CompilerOptions_],
   );
@@ -3513,9 +3546,9 @@ export function projectSpecKey(spec: ProjectSpec): string {
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
       const mapper = $t1[$t2];
       $rt.fmt_Fprintf(
-        $rt.unsupportedConversion<$ipc.stdioConn | closeOnceReadWriteCloser | loggedProcess | stderrLogger | undefined>(
-          '$rt.strings_Builder | undefined',
-        ),
+        $rt.unsupportedConversion<
+          $ipc.stdioConn | closeOnceReadWriteCloser | loggedProcess | stderrLogger | $checkhost.hostWriter | undefined
+        >('$rt.strings_Builder | undefined'),
         '\x00%p',
         [mapper],
       );

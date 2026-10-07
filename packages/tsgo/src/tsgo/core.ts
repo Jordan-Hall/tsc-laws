@@ -700,6 +700,13 @@ export class CompilerOptions extends $rt.GoObject {
     o.NoEmit = p2;
     return o;
   }
+  static $lit_core_CompilerOptions_89_90_43(p0: Tristate, p1: string, p2: string): CompilerOptions {
+    const o = new CompilerOptions();
+    o.SourceMap = p0;
+    o.SourceRoot = p1;
+    o.MapRoot = p2;
+    return o;
+  }
   static $cast_core_CompilerOptions(v: $rt.GoObject | undefined): CompilerOptions {
     if (v instanceof CompilerOptions) return v;
     throw $rt.typeAssertError();
@@ -1178,6 +1185,12 @@ export class TextChange extends $rt.GoObject {
   $clone_core_TextChange(): TextChange {
     const o = new TextChange();
     o.$copy_core_TextChange(this);
+    return o;
+  }
+  static $lit_core_TextChange_1_0(p0: string, p1: TextRange): TextChange {
+    const o = new TextChange();
+    o.NewText = p0;
+    o.TextRange_ = p1;
     return o;
   }
   static $cast_core_TextChange(v: $rt.GoObject | undefined): TextChange {
@@ -3028,7 +3041,7 @@ export function ShouldRewriteModuleSpecifier(specifier: string, compilerOptions:
     $tspath.HasTSFileExtension(specifier)
   );
 }
-export function SingleElementSlice<T>(element: $rt.Ptr<T> | undefined): ($rt.Ptr<T> | undefined)[] {
+export function SingleElementSlice<T extends $rt.GoObject>(element: T | undefined): (T | undefined)[] {
   if (element === undefined) {
     return [];
   }

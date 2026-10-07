@@ -22,6 +22,7 @@ import * as $tracing from './tracing.js';
 import * as $tsoptions from './tsoptions.js';
 import * as $tspath from './tspath.js';
 import type * as $checkhost from './checkhost.js';
+import type * as $compiler from './compiler.js';
 import type * as $nodebuilder from './nodebuilder.js';
 import { OrderedMap as $collections$OrderedMap } from './collections.js';
 import { Set_ as $collections$Set_ } from './collections.js';
@@ -183,7 +184,7 @@ export type ExhaustiveState = number;
 export type ExpandingFlags = number;
 export type ExportCollisionTable = Map<string, ExportCollision | undefined> | undefined;
 export type ExternalEmitHelpers = number;
-export type Host = $checkhost.Program | undefined;
+export type Host = $compiler.Program | $compiler.emitHost | $checkhost.Program | undefined;
 export type IndexFlags = number;
 export type InferenceFlags = number;
 export type InferencePriority = number;
@@ -204,7 +205,7 @@ export type NodeCheckFlags = number;
 export type ObjectFlags = number;
 export type ParseFlags = number;
 export type PredicateSemantics = number;
-export type Program = $checkhost.Program | undefined;
+export type Program = $compiler.Program | $checkhost.Program | undefined;
 export type RecursionFlags = number;
 export type ReferenceHint = number;
 export type RelationComparisonResult = number;
@@ -7545,7 +7546,7 @@ export class Checker extends $rt.GoObject {
         $core.Tristate$IsTrue(c!.compilerOptions!.VerbatimModuleSyntax) &&
         $ast.IsSourceFile(node!.Parent) &&
         !((node!.ModifierFlags$m() & 32) === (0 as number)) &&
-        c!.program!.GetEmitModuleFormatOfFile(node!.Parent!.AsSourceFile()) === (1 as number)
+        $rt.nn(c!.program).GetEmitModuleFormatOfFile(node!.Parent!.AsSourceFile()) === (1 as number)
       ) {
         const exportModifier: $ast.Node | undefined = $core.Find<$ast.Node | undefined>(
           $zf3,
@@ -7697,7 +7698,7 @@ export class Checker extends $rt.GoObject {
         if (!(namedBindings === undefined)) {
           if ($ast.IsNamespaceImport(namedBindings)) {
             c!.checkImportBinding(namedBindings);
-            if (c!.program!.GetEmitModuleFormatOfFile($ast.GetSourceFileOfNode(node)) === (1 as number)) {
+            if ($rt.nn(c!.program).GetEmitModuleFormatOfFile($ast.GetSourceFileOfNode(node)) === (1 as number)) {
               needsImportStar = true;
               c!.checkExternalEmitHelpers(node, 1024);
             }
@@ -7717,7 +7718,7 @@ export class Checker extends $rt.GoObject {
         if (
           !(importClause!.Name$Node() === undefined) &&
           !needsImportStar &&
-          c!.program!.GetEmitModuleFormatOfFile($ast.GetSourceFileOfNode(node)) === (1 as number)
+          $rt.nn(c!.program).GetEmitModuleFormatOfFile($ast.GetSourceFileOfNode(node)) === (1 as number)
         ) {
           c!.checkExternalEmitHelpers(node, 2048);
         }
@@ -7813,7 +7814,7 @@ export class Checker extends $rt.GoObject {
       c!.checkModuleExportName(node!.PropertyName(), true);
       if (
         $ast.ModuleExportNameIsDefault(node!.PropertyNameOrName()) &&
-        c!.program!.GetEmitModuleFormatOfFile($ast.GetSourceFileOfNode(node)) === (1 as number)
+        $rt.nn(c!.program).GetEmitModuleFormatOfFile($ast.GetSourceFileOfNode(node)) === (1 as number)
       ) {
         c!.checkExternalEmitHelpers(node, 2048);
       }
@@ -8037,7 +8038,7 @@ export class Checker extends $rt.GoObject {
           c!.checkAliasSymbol(exportDecl!.ExportClause);
           c!.checkModuleExportName(exportDecl!.ExportClause!.Name$Node(), true);
         }
-        if (c!.program!.GetEmitModuleFormatOfFile($ast.GetSourceFileOfNode(node)) === (1 as number)) {
+        if ($rt.nn(c!.program).GetEmitModuleFormatOfFile($ast.GetSourceFileOfNode(node)) === (1 as number)) {
           if (!(node!.AsExportDeclaration()!.ExportClause === undefined)) {
             c!.checkExternalEmitHelpers(node, 1024);
           } else {
@@ -8096,7 +8097,7 @@ export class Checker extends $rt.GoObject {
         c!.markLinkedReferences(node, 6, undefined, undefined);
       }
     } else if (
-      c!.program!.GetEmitModuleFormatOfFile($ast.GetSourceFileOfNode(node)) === (1 as number) &&
+      $rt.nn(c!.program).GetEmitModuleFormatOfFile($ast.GetSourceFileOfNode(node)) === (1 as number) &&
       $ast.ModuleExportNameIsDefault(node!.PropertyNameOrName())
     ) {
       c!.checkExternalEmitHelpers(node, 2048);
@@ -8156,7 +8157,7 @@ export class Checker extends $rt.GoObject {
       !isExportEquals &&
       (node!.Flags & 8388608) === (0 as number) &&
       $core.Tristate$IsTrue(c!.compilerOptions!.VerbatimModuleSyntax) &&
-      c!.program!.GetEmitModuleFormatOfFile($ast.GetSourceFileOfNode(node)) === (1 as number);
+      $rt.nn(c!.program).GetEmitModuleFormatOfFile($ast.GetSourceFileOfNode(node)) === (1 as number);
     if ($ast.IsIdentifier(node!.Expression())) {
       const id: $ast.Node | undefined = node!.Expression();
       const sym: $ast.Symbol_ | undefined = c!.getExportSymbolOfValueSymbolIfExported(
@@ -8269,9 +8270,9 @@ export class Checker extends $rt.GoObject {
         c!.moduleKind >= 5 &&
         !(c!.moduleKind === (200 as number)) &&
         ((!((node!.Flags & 8388608) === (0 as number)) &&
-          c!.program!.GetImpliedNodeFormatForEmit($ast.GetSourceFileOfNode(node)) === (99 as number)) ||
+          $rt.nn(c!.program).GetImpliedNodeFormatForEmit($ast.GetSourceFileOfNode(node)) === (99 as number)) ||
           ((node!.Flags & 8388608) === (0 as number) &&
-            !(c!.program!.GetImpliedNodeFormatForEmit($ast.GetSourceFileOfNode(node)) === (1 as number))))
+            !($rt.nn(c!.program).GetImpliedNodeFormatForEmit($ast.GetSourceFileOfNode(node)) === (1 as number))))
       ) {
         c!.grammarErrorOnNode(
           node,
@@ -9751,7 +9752,7 @@ export class Checker extends $rt.GoObject {
         $core.Tristate$IsTrue(c!.compilerOptions!.VerbatimModuleSyntax) &&
         !$ast.IsImportEqualsDeclaration(node) &&
         !$ast.IsInJSFile(node) &&
-        c!.program!.GetEmitModuleFormatOfFile($ast.GetSourceFileOfNode(node)) === (1 as number)
+        $rt.nn(c!.program).GetEmitModuleFormatOfFile($ast.GetSourceFileOfNode(node)) === (1 as number)
       ) {
         c!.error(node, getVerbatimModuleSyntaxErrorMessage(node), [] as ($rt.GoObject | undefined)[]);
       } else if (
@@ -9759,7 +9760,7 @@ export class Checker extends $rt.GoObject {
         !$ast.IsImportEqualsDeclaration(node) &&
         !$ast.IsVariableDeclaration(node) &&
         !$ast.IsBindingElement(node) &&
-        c!.program!.GetEmitModuleFormatOfFile($ast.GetSourceFileOfNode(node)) === (1 as number)
+        $rt.nn(c!.program).GetEmitModuleFormatOfFile($ast.GetSourceFileOfNode(node)) === (1 as number)
       ) {
         c!.error(
           node,
@@ -9774,8 +9775,9 @@ export class Checker extends $rt.GoObject {
         !((targetFlags & 128) === (0 as number))
       ) {
         const constEnumDeclaration: $ast.Node | undefined = target!.ValueDeclaration;
-        const redirect: $tsoptions.SourceOutputAndProjectReference | undefined =
-          c!.program!.GetProjectReferenceFromOutputDts($ast.GetSourceFileOfNode(constEnumDeclaration)!.Path$m());
+        const redirect: $tsoptions.SourceOutputAndProjectReference | undefined = $rt
+          .nn(c!.program)
+          .GetProjectReferenceFromOutputDts($ast.GetSourceFileOfNode(constEnumDeclaration)!.Path$m());
         if (
           !((constEnumDeclaration!.Flags & 8388608) === (0 as number)) &&
           (redirect === undefined ||
@@ -10876,8 +10878,9 @@ export class Checker extends $rt.GoObject {
     ) {
       $debug.Assert(!((t!.symbol!.Flags & 128) === (0 as number)), [] as ($rt.GoObject | undefined)[]);
       const constEnumDeclaration: $ast.Node | undefined = t!.symbol!.ValueDeclaration;
-      const redirect: $tsoptions.SourceOutputAndProjectReference | undefined =
-        c!.program!.GetProjectReferenceFromOutputDts($ast.GetSourceFileOfNode(constEnumDeclaration)!.Path$m());
+      const redirect: $tsoptions.SourceOutputAndProjectReference | undefined = $rt
+        .nn(c!.program)
+        .GetProjectReferenceFromOutputDts($ast.GetSourceFileOfNode(constEnumDeclaration)!.Path$m());
       if (
         !((constEnumDeclaration!.Flags & 8388608) === (0 as number)) &&
         !$ast.IsValidTypeOnlyAliasUseSite(node) &&
@@ -14669,7 +14672,7 @@ export class Checker extends $rt.GoObject {
   }
   checkCollisionWithRequireExportsInGeneratedCode(node: $ast.Node | undefined, name_: $ast.Node | undefined): void {
     const c = this;
-    if (c!.program!.GetEmitModuleFormatOfFile($ast.GetSourceFileOfNode(node)) >= 5) {
+    if ($rt.nn(c!.program).GetEmitModuleFormatOfFile($ast.GetSourceFileOfNode(node)) >= 5) {
       return;
     }
     if (
@@ -14706,7 +14709,7 @@ export class Checker extends $rt.GoObject {
     if (
       $ast.IsSourceFile(parent) &&
       $ast.IsExternalOrCommonJSModule(parent!.AsSourceFile()) &&
-      c!.program!.GetEmitModuleFormatOfFile(parent!.AsSourceFile()) === (1 as number)
+      $rt.nn(c!.program).GetEmitModuleFormatOfFile(parent!.AsSourceFile()) === (1 as number)
     ) {
       c!.errorSkippedOnNoEmit(
         name_,
@@ -14881,7 +14884,7 @@ export class Checker extends $rt.GoObject {
     const c = this;
     if (
       name_!.Text$Node() === ('Object' as string) &&
-      c!.program!.GetEmitModuleFormatOfFile($ast.GetSourceFileOfNode(name_)) < 5
+      $rt.nn(c!.program).GetEmitModuleFormatOfFile($ast.GetSourceFileOfNode(name_)) < 5
     ) {
       c!.error(name_, $diagnostics.Class_name_cannot_be_Object_when_targeting_ES5_and_above_with_module_0, [
         new $rt.BoxStr($core.ModuleKind$String(c!.moduleKind), 'string'),
@@ -15138,9 +15141,9 @@ export class Checker extends $rt.GoObject {
   checkImportMetaProperty(node: $ast.Node | undefined): Type | undefined {
     const c = this;
     if (100 <= c!.moduleKind && c!.moduleKind <= 199) {
-      const sourceFileMetaData: $ast.SourceFileMetaData = c!.program!.GetSourceFileMetaData(
-        $ast.GetSourceFileOfNode(node)!.Path$m(),
-      );
+      const sourceFileMetaData: $ast.SourceFileMetaData = $rt
+        .nn(c!.program)
+        .GetSourceFileMetaData($ast.GetSourceFileOfNode(node)!.Path$m());
       if (!(sourceFileMetaData.ImpliedNodeFormat === (99 as number))) {
         c!.error(
           node,
@@ -20323,7 +20326,7 @@ export class Checker extends $rt.GoObject {
       102 <= c!.moduleKind &&
       c!.moduleKind <= 199 &&
       c!.getEmitSyntaxForModuleSpecifierExpression(specifier) === (1 as number) &&
-      c!.program!.GetImpliedNodeFormatForEmit(file!.AsSourceFile()) === (99 as number)
+      $rt.nn(c!.program).GetImpliedNodeFormatForEmit(file!.AsSourceFile()) === (99 as number)
     ) {
       exportModuleDotExportsSymbol = c!.resolveExportByName(moduleSymbol, 'module.exports', node, dontResolveAlias);
     }
@@ -20646,7 +20649,7 @@ export class Checker extends $rt.GoObject {
       usageMode = c!.getEmitSyntaxForModuleSpecifierExpression(usage);
     }
     if (!(file === undefined) && !(usageMode === (0 as number))) {
-      const targetMode: $core.ModuleKind = c!.program!.GetImpliedNodeFormatForEmit(file!.AsSourceFile());
+      const targetMode: $core.ModuleKind = $rt.nn(c!.program).GetImpliedNodeFormatForEmit(file!.AsSourceFile());
       if (
         usageMode === (99 as number) &&
         targetMode === (1 as number) &&
@@ -20660,10 +20663,10 @@ export class Checker extends $rt.GoObject {
       }
       if (targetMode === (0 as number) && file!.AsSourceFile()!.IsDeclarationFile) {
         if (
-          !(c!.program!.GetRedirectForResolution(file!.AsSourceFile()) === undefined) ||
-          !(c!.program!.GetProjectReferenceFromOutputDts(file!.AsSourceFile()!.Path$m()) === undefined)
+          !($rt.nn(c!.program).GetRedirectForResolution(file!.AsSourceFile()) === undefined) ||
+          !($rt.nn(c!.program).GetProjectReferenceFromOutputDts(file!.AsSourceFile()!.Path$m()) === undefined)
         ) {
-          const targetModuleKind: $core.ModuleKind = c!.program!.GetEmitModuleFormatOfFile(file!.AsSourceFile());
+          const targetModuleKind: $core.ModuleKind = $rt.nn(c!.program).GetEmitModuleFormatOfFile(file!.AsSourceFile());
           if (usageMode === (99 as number) && 5 <= targetModuleKind && targetModuleKind <= 99) {
             return false;
           }
@@ -20700,7 +20703,7 @@ export class Checker extends $rt.GoObject {
   getEmitSyntaxForModuleSpecifierExpression(usage: $ast.Node | undefined): $core.ResolutionMode {
     const c = this;
     if ($ast.IsStringLiteralLike(usage)) {
-      return c!.program!.GetEmitSyntaxForUsageLocation($ast.GetSourceFileOfNode(usage), usage);
+      return $rt.nn(c!.program).GetEmitSyntaxForUsageLocation($ast.GetSourceFileOfNode(usage), usage);
     }
     return 0;
   }
@@ -21122,15 +21125,13 @@ export class Checker extends $rt.GoObject {
       }
     }
     if (!(contextSpecifier === undefined) && $ast.IsStringLiteralLike(contextSpecifier)) {
-      mode = c!.program!.GetModeForUsageLocation(importingSourceFile, contextSpecifier);
+      mode = $rt.nn(c!.program).GetModeForUsageLocation(importingSourceFile, contextSpecifier);
     } else {
-      mode = c!.program!.GetDefaultResolutionModeForFile(importingSourceFile);
+      mode = $rt.nn(c!.program).GetDefaultResolutionModeForFile(importingSourceFile);
     }
-    const resolvedModule: $module.ResolvedModule | undefined = c!.program!.GetResolvedModule(
-      importingSourceFile,
-      moduleReference,
-      mode,
-    );
+    const resolvedModule: $module.ResolvedModule | undefined = $rt
+      .nn(c!.program)
+      .GetResolvedModule(importingSourceFile, moduleReference, mode);
     let resolutionDiagnostic: $diagnostics.Message | undefined = undefined as $diagnostics.Message | undefined;
     if (!(errorNode === undefined) && $module.ResolvedModule.IsResolved$nil(resolvedModule)) {
       resolutionDiagnostic = $module.GetResolutionDiagnostic(c!.compilerOptions, resolvedModule, importingSourceFile);
@@ -21141,7 +21142,7 @@ export class Checker extends $rt.GoObject {
       (resolutionDiagnostic === undefined ||
         resolutionDiagnostic === $diagnostics.Module_0_was_resolved_to_1_but_jsx_is_not_set)
     ) {
-      sourceFile = c!.program!.GetSourceFileForResolvedModule(resolvedModule!.ResolvedFileName);
+      sourceFile = $rt.nn(c!.program).GetSourceFileForResolvedModule(resolvedModule!.ResolvedFileName);
     }
     if (!(sourceFile === undefined)) {
       if (!(resolutionDiagnostic === undefined)) {
@@ -21210,11 +21211,14 @@ export class Checker extends $rt.GoObject {
           const shouldRewrite: boolean = $core.ShouldRewriteModuleSpecifier(moduleReference, c!.compilerOptions);
           if (!resolvedModule!.ResolvedUsingTsExtension && shouldRewrite) {
             const relativeToSourceFile: string = $tspath.GetRelativePathFromFile(
-              $tspath.GetNormalizedAbsolutePath(importingSourceFile!.FileName(), c!.program!.GetCurrentDirectory()),
+              $tspath.GetNormalizedAbsolutePath(
+                importingSourceFile!.FileName(),
+                $rt.nn(c!.program).GetCurrentDirectory(),
+              ),
               resolvedModule!.ResolvedFileName,
               $tspath.ComparePathsOptions.$lit_tspath_ComparePathsOptions_0_1(
-                c!.program!.UseCaseSensitiveFileNames(),
-                c!.program!.GetCurrentDirectory(),
+                $rt.nn(c!.program).UseCaseSensitiveFileNames(),
+                $rt.nn(c!.program).GetCurrentDirectory(),
               ),
             );
             c!.error(
@@ -21225,7 +21229,7 @@ export class Checker extends $rt.GoObject {
           } else if (
             resolvedModule!.ResolvedUsingTsExtension &&
             !shouldRewrite &&
-            c!.program!.SourceFileMayBeEmitted(sourceFile, false)
+            $rt.nn(c!.program).SourceFileMayBeEmitted(sourceFile, false)
           ) {
             c!.error(
               errorNode,
@@ -21234,15 +21238,16 @@ export class Checker extends $rt.GoObject {
             );
           } else if (resolvedModule!.ResolvedUsingTsExtension && shouldRewrite) {
             {
-              const redirect: $tsoptions.ParsedCommandLine | undefined =
-                c!.program!.GetRedirectForResolution(sourceFile);
+              const redirect: $tsoptions.ParsedCommandLine | undefined = $rt
+                .nn(c!.program)
+                .GetRedirectForResolution(sourceFile);
               if (!(redirect === undefined)) {
-                const ownRootDir: string = c!.program!.CommonSourceDirectory();
+                const ownRootDir: string = $rt.nn(c!.program).CommonSourceDirectory();
                 const otherRootDir: string = redirect!.CommonSourceDirectory();
                 const compareOptions: $tspath.ComparePathsOptions =
                   $tspath.ComparePathsOptions.$lit_tspath_ComparePathsOptions_0_1(
-                    c!.program!.UseCaseSensitiveFileNames(),
-                    c!.program!.GetCurrentDirectory(),
+                    $rt.nn(c!.program).UseCaseSensitiveFileNames(),
+                    $rt.nn(c!.program).GetCurrentDirectory(),
                   );
                 const rootDirPath: string = $tspath.GetRelativePathFromDirectory(
                   ownRootDir,
@@ -21277,13 +21282,13 @@ export class Checker extends $rt.GoObject {
           }
           if (c!.moduleKind === (100 as number) || c!.moduleKind === (101 as number)) {
             const isSyncImport: boolean =
-              (c!.program!.GetDefaultResolutionModeForFile(importingSourceFile) === (1 as number) &&
+              ($rt.nn(c!.program).GetDefaultResolutionModeForFile(importingSourceFile) === (1 as number) &&
                 $ast.FindAncestor(location, $ast.IsImportCall) === undefined) ||
               !($ast.FindAncestor(location, $ast.IsImportEqualsDeclaration) === undefined);
             const overrideHost: $ast.Node | undefined = $ast.FindAncestor(location, $ast.IsResolutionModeOverrideHost);
             if (
               isSyncImport &&
-              c!.program!.GetDefaultResolutionModeForFile(sourceFile) === (99 as number) &&
+              $rt.nn(c!.program).GetDefaultResolutionModeForFile(sourceFile) === (99 as number) &&
               !$ast.HasResolutionModeOverride(overrideHost)
             ) {
               if (!($ast.FindAncestorKind(location, 272) === undefined)) {
@@ -21378,12 +21383,13 @@ export class Checker extends $rt.GoObject {
     }
     if (!(moduleNotFoundError === undefined)) {
       if ($module.ResolvedModule.IsResolved$nil(resolvedModule)) {
-        const redirect$1: $tsoptions.SourceOutputAndProjectReference | undefined =
-          c!.program!.GetProjectReferenceFromSource(
+        const redirect$1: $tsoptions.SourceOutputAndProjectReference | undefined = $rt
+          .nn(c!.program)
+          .GetProjectReferenceFromSource(
             $tspath.ToPath(
               resolvedModule!.ResolvedFileName,
-              c!.program!.GetCurrentDirectory(),
-              c!.program!.UseCaseSensitiveFileNames(),
+              $rt.nn(c!.program).GetCurrentDirectory(),
+              $rt.nn(c!.program).UseCaseSensitiveFileNames(),
             ),
           );
         if (!(redirect$1 === undefined) && !(redirect$1!.OutputDts === ('' as string))) {
@@ -21478,23 +21484,23 @@ export class Checker extends $rt.GoObject {
     {
       const $t2 = true;
       $sw1: {
-        if ($t2 === c!.program!.FileExists(extensionlessImportPath + '.mts')) {
+        if ($t2 === $rt.nn(c!.program).FileExists(extensionlessImportPath + '.mts')) {
           return '.mjs';
-        } else if ($t2 === c!.program!.FileExists(extensionlessImportPath + '.ts')) {
+        } else if ($t2 === $rt.nn(c!.program).FileExists(extensionlessImportPath + '.ts')) {
           return '.js';
-        } else if ($t2 === c!.program!.FileExists(extensionlessImportPath + '.cts')) {
+        } else if ($t2 === $rt.nn(c!.program).FileExists(extensionlessImportPath + '.cts')) {
           return '.cjs';
-        } else if ($t2 === c!.program!.FileExists(extensionlessImportPath + '.mjs')) {
+        } else if ($t2 === $rt.nn(c!.program).FileExists(extensionlessImportPath + '.mjs')) {
           return '.mjs';
-        } else if ($t2 === c!.program!.FileExists(extensionlessImportPath + '.js')) {
+        } else if ($t2 === $rt.nn(c!.program).FileExists(extensionlessImportPath + '.js')) {
           return '.js';
-        } else if ($t2 === c!.program!.FileExists(extensionlessImportPath + '.cjs')) {
+        } else if ($t2 === $rt.nn(c!.program).FileExists(extensionlessImportPath + '.cjs')) {
           return '.cjs';
-        } else if ($t2 === c!.program!.FileExists(extensionlessImportPath + '.tsx')) {
+        } else if ($t2 === $rt.nn(c!.program).FileExists(extensionlessImportPath + '.tsx')) {
           return $core.IfElse<string>(c!.compilerOptions!.Jsx === (1 as number), '.jsx', '.js');
-        } else if ($t2 === c!.program!.FileExists(extensionlessImportPath + '.jsx')) {
+        } else if ($t2 === $rt.nn(c!.program).FileExists(extensionlessImportPath + '.jsx')) {
           return '.jsx';
-        } else if ($t2 === c!.program!.FileExists(extensionlessImportPath + '.json')) {
+        } else if ($t2 === $rt.nn(c!.program).FileExists(extensionlessImportPath + '.json')) {
           return '.json';
         }
       }
@@ -21659,7 +21665,7 @@ export class Checker extends $rt.GoObject {
           102 <= c!.moduleKind &&
           c!.moduleKind <= 199 &&
           usageMode === (1 as number) &&
-          c!.program!.GetImpliedNodeFormatForEmit(targetFile!.AsSourceFile()) === (99 as number)
+          $rt.nn(c!.program).GetImpliedNodeFormatForEmit(targetFile!.AsSourceFile()) === (99 as number)
         ) {
           exportModuleDotExportsSymbol = c!.getExportOfModule(symbol_, 'module.exports', namespaceImport, true);
         }
@@ -21673,7 +21679,7 @@ export class Checker extends $rt.GoObject {
           !(targetFile === undefined) &&
           isESMFormatImportImportingCommonjsFormatFile(
             usageMode,
-            c!.program!.GetImpliedNodeFormatForEmit(targetFile!.AsSourceFile()),
+            $rt.nn(c!.program).GetImpliedNodeFormatForEmit(targetFile!.AsSourceFile()),
           );
         if (
           c!.hasSignatures(typ) ||
@@ -37436,7 +37442,7 @@ export class Checker extends $rt.GoObject {
     const c = this;
     const links: SourceFileLinks | undefined = c!.sourceFileLinks.Get(file);
     if (links!.externalHelpersModule === undefined) {
-      const location: $ast.Node | undefined = c!.program!.GetImportHelpersImportSpecifier(file!.Path$m());
+      const location: $ast.Node | undefined = $rt.nn(c!.program).GetImportHelpersImportSpecifier(file!.Path$m());
       let helpersModule: $ast.Symbol_ | undefined = c!.resolveExternalModule(
         location,
         'tslib',
@@ -45950,7 +45956,7 @@ export class Checker extends $rt.GoObject {
                   !(node!.Kind_ === (265 as number)) &&
                   !(node!.Kind_ === (268 as number)) &&
                   node!.Parent!.Kind_ === (307 as number) &&
-                  c!.program!.GetEmitModuleFormatOfFile($ast.GetSourceFileOfNode(node)) === (1 as number)
+                  $rt.nn(c!.program).GetEmitModuleFormatOfFile($ast.GetSourceFileOfNode(node)) === (1 as number)
                 ) {
                   return c!.grammarErrorOnNode(
                     modifier,
@@ -47269,9 +47275,9 @@ export class Checker extends $rt.GoObject {
                 case 101 as number:
                 case 102 as number:
                 case 199 as number: {
-                  const sourceFileMetaData: $ast.SourceFileMetaData = c!.program!.GetSourceFileMetaData(
-                    sourceFile!.Path$m(),
-                  );
+                  const sourceFileMetaData: $ast.SourceFileMetaData = $rt
+                    .nn(c!.program)
+                    .GetSourceFileMetaData(sourceFile!.Path$m());
                   if (sourceFileMetaData.ImpliedNodeFormat === (1 as number)) {
                     c!.addDiagnostic(
                       createDiagnosticForNode(
@@ -47829,7 +47835,7 @@ export class Checker extends $rt.GoObject {
       return c!.grammarErrorOnNode(node!.ExclamationToken, message, [] as ($rt.GoObject | undefined)[]);
     }
     if (
-      c!.program!.GetEmitModuleFormatOfFile($ast.GetSourceFileOfNode(node!.AsNode())) < 4 &&
+      $rt.nn(c!.program).GetEmitModuleFormatOfFile($ast.GetSourceFileOfNode(node!.AsNode())) < 4 &&
       (node!.Parent!.Parent!.Flags & 8388608) === (0 as number) &&
       $ast.HasSyntacticModifier(node!.Parent!.Parent, 32)
     ) {
@@ -47989,9 +47995,9 @@ export class Checker extends $rt.GoObject {
               case 101 as number:
               case 102 as number:
               case 199 as number: {
-                const sourceFileMetaData: $ast.SourceFileMetaData = c!.program!.GetSourceFileMetaData(
-                  sourceFile!.Path$m(),
-                );
+                const sourceFileMetaData: $ast.SourceFileMetaData = $rt
+                  .nn(c!.program)
+                  .GetSourceFileMetaData(sourceFile!.Path$m());
                 if (sourceFileMetaData.ImpliedNodeFormat === (1 as number)) {
                   if (!spanCalculated) {
                     span = $scanner.GetRangeOfTokenAtPosition(sourceFile, node!.Pos());
@@ -52745,7 +52751,7 @@ export class Checker extends $rt.GoObject {
     const c = this;
     let moduleReference: string = '';
     let specifier: $ast.Node | undefined = undefined as $ast.Node | undefined;
-    return c!.program!.GetJSXRuntimeImportSpecifier(file!.Path$m());
+    return $rt.nn(c!.program).GetJSXRuntimeImportSpecifier(file!.Path$m());
   }
   combineTypeMappers(m1: TypeMapper | undefined, m2: TypeMapper | undefined): TypeMapper | undefined {
     const c = this;
@@ -54367,7 +54373,7 @@ export class Checker extends $rt.GoObject {
       if (
         !(indexInfo === undefined) &&
         !(indexInfo!.declaration === undefined) &&
-        !c!.program!.IsSourceFileDefaultLibrary($ast.GetSourceFileOfNode(indexInfo!.declaration)!.Path$m())
+        !$rt.nn(c!.program).IsSourceFileDefaultLibrary($ast.GetSourceFileOfNode(indexInfo!.declaration)!.Path$m())
       ) {
         issuedElaboration = true;
         diagnostic!.AddRelatedInfo(
@@ -54393,7 +54399,7 @@ export class Checker extends $rt.GoObject {
       if (propertyName === ('' as string) || !((nameType!.flags & 16384) === (0 as number))) {
         propertyName = c!.TypeToString(nameType);
       }
-      if (!c!.program!.IsSourceFileDefaultLibrary($ast.GetSourceFileOfNode(targetNode)!.Path$m())) {
+      if (!$rt.nn(c!.program).IsSourceFileDefaultLibrary($ast.GetSourceFileOfNode(targetNode)!.Path$m())) {
         diagnostic!.AddRelatedInfo(
           createDiagnosticForNode(
             targetNode,
@@ -58006,7 +58012,7 @@ export class Checker extends $rt.GoObject {
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
         const decl = $t1[$t2];
         const sf: $ast.SourceFile | undefined = $ast.GetSourceFileOfNode(decl);
-        if (!(sf === undefined) && c!.program!.IsSourceFileDefaultLibrary(sf!.Path$m())) {
+        if (!(sf === undefined) && $rt.nn(c!.program).IsSourceFileDefaultLibrary(sf!.Path$m())) {
           return true;
         }
       }
@@ -58267,7 +58273,7 @@ export class Checker extends $rt.GoObject {
     if (!(links!.extendedContainers === undefined)) {
       return links!.extendedContainers!.get();
     }
-    const otherFiles: ($ast.SourceFile | undefined)[] = c!.program!.SourceFiles();
+    const otherFiles: ($ast.SourceFile | undefined)[] = $rt.nn(c!.program).SourceFiles();
     {
       const $t5 = otherFiles;
       for (let $t6 = 0, $n = $t5.length; $t6 < $n; $t6++) {
@@ -59129,7 +59135,7 @@ export class Checker extends $rt.GoObject {
     if (c!.packagesMap === undefined) {
       c!.packagesMap = new Map<string, boolean>();
       const resolvedModules: Map<$tspath.Path, $module.ModeAwareCache<$module.ResolvedModule | undefined>> | undefined =
-        c!.program!.GetResolvedModules();
+        $rt.nn(c!.program).GetResolvedModules();
       for (const [$t1, resolvedModulesInFile] of resolvedModules ??
         new Map<$tspath.Path, $module.ModeAwareCache<$module.ResolvedModule | undefined>>()) {
         for (const [$t2, module_] of resolvedModulesInFile?.entryList() ?? []) {
@@ -65948,10 +65954,10 @@ export class NodeBuilderImpl extends $rt.GoObject {
         if (
           !(targetFile === undefined) &&
           !(contextFile === undefined) &&
-          b!.ch!.program!.GetEmitModuleFormatOfFile(targetFile) === (99 as number) &&
+          $rt.nn(b!.ch!.program).GetEmitModuleFormatOfFile(targetFile) === (99 as number) &&
           !(
-            b!.ch!.program!.GetEmitModuleFormatOfFile(targetFile) ===
-            b!.ch!.program!.GetEmitModuleFormatOfFile(contextFile)
+            $rt.nn(b!.ch!.program).GetEmitModuleFormatOfFile(targetFile) ===
+            $rt.nn(b!.ch!.program).GetEmitModuleFormatOfFile(contextFile)
           )
         ) {
           specifier = b!.getSpecifierForModuleSymbol(chain[0], 99);
@@ -65974,7 +65980,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
           b!.ch!.compilerOptions!.GetModuleResolutionKind() === (99 as number)
         ) {
           let swappedMode: $core.ModuleKind = 99;
-          if (b!.ch!.program!.GetEmitModuleFormatOfFile(contextFile) === (99 as number)) {
+          if ($rt.nn(b!.ch!.program).GetEmitModuleFormatOfFile(contextFile) === (99 as number)) {
             swappedMode = 1;
           }
           specifier = b!.getSpecifierForModuleSymbol(chain[0], swappedMode);
@@ -66564,9 +66570,9 @@ export class NodeBuilderImpl extends $rt.GoObject {
     const contextFile: $ast.SourceFile | undefined = b!.ctx!.enclosingFile;
     let resolutionMode: $core.ResolutionMode = overrideImportMode;
     if (resolutionMode === (0 as number) && !(originalModuleSpecifier === undefined)) {
-      resolutionMode = b!.ch!.program!.GetModeForUsageLocation(contextFile, originalModuleSpecifier);
+      resolutionMode = $rt.nn(b!.ch!.program).GetModeForUsageLocation(contextFile, originalModuleSpecifier);
     } else if (resolutionMode === (0 as number) && !(contextFile === undefined)) {
-      resolutionMode = b!.ch!.program!.GetDefaultResolutionModeForFile(contextFile);
+      resolutionMode = $rt.nn(b!.ch!.program).GetDefaultResolutionModeForFile(contextFile);
     }
     const cacheKey: $module.ModeAwareCacheKey = $module.ModeAwareCacheKey.$lit_module_ModeAwareCacheKey_0_1(
       contextFile!.Path$m(),
@@ -78790,13 +78796,13 @@ export function NewChecker(
   program: Program,
   tracer: Tracer | undefined,
 ): [Checker | undefined, $rt.sync_Mutex | undefined] {
-  program!.BindSourceFiles();
+  $rt.nn(program).BindSourceFiles();
   const c: Checker | undefined = new Checker();
   c!.id = nextCheckerID = (nextCheckerID + 1) >>> 0;
   c!.tracer = tracer;
   c!.program = program;
-  c!.compilerOptions = program!.Options();
-  c!.files = program!.SourceFiles();
+  c!.compilerOptions = $rt.nn(program).Options();
+  c!.files = $rt.nn(program).SourceFiles();
   c!.fileIndexMap = createFileIndexMap(c!.files);
   c!.compareSymbols = (
     ($t1: Checker | undefined) =>
@@ -83957,7 +83963,9 @@ export function CreateModuleNotFoundChain(
   mode: $core.ResolutionMode,
   packageName: string,
 ): DiagnosticDetails {
-  const resolvedModule: $module.ResolvedModule | undefined = program!.GetResolvedModule(file, moduleReference, mode);
+  const resolvedModule: $module.ResolvedModule | undefined = $rt
+    .nn(program)
+    .GetResolvedModule(file, moduleReference, mode);
   if (!(resolvedModule === undefined) && !(resolvedModule!.AlternateResult === ('' as string))) {
     if ($rt.strings_Contains(resolvedModule!.AlternateResult, '/node_modules/@types/')) {
       packageName = '@types/' + $module.MangleScopedPackageName(packageName);
@@ -83967,7 +83975,7 @@ export function CreateModuleNotFoundChain(
       [new $rt.BoxStr(resolvedModule!.AlternateResult, 'string'), new $rt.BoxStr(packageName, 'string')],
     );
   }
-  const packagesMap: Map<string, boolean> | undefined = program!.GetPackagesMap();
+  const packagesMap: Map<string, boolean> | undefined = $rt.nn(program).GetPackagesMap();
   {
     const $t1: Map<string, boolean> | undefined = packagesMap;
     const $t2 = $module.GetTypesPackageName(packageName);
@@ -83997,7 +84005,7 @@ export function CreateModeMismatchDetails(program: Program, file: $ast.SourceFil
     '.mts',
     $core.IfElse<string>(ext === ('.js' as string), '.mjs', ''),
   );
-  const meta: $ast.SourceFileMetaData = program!.GetSourceFileMetaData(file!.Path$m());
+  const meta: $ast.SourceFileMetaData = $rt.nn(program).GetSourceFileMetaData(file!.Path$m());
   const packageJsonType: string = meta.PackageJsonType;
   const packageJsonDirectory: string = meta.PackageJsonDirectory;
   if (!(packageJsonDirectory === ('' as string)) && packageJsonType === ('' as string)) {

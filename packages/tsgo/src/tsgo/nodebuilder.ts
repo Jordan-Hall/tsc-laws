@@ -2,9 +2,14 @@
 // Copyright Microsoft Corporation. Licensed under Apache-2.0.
 import * as $rt from '../go/runtime.js';
 import type * as $checker from './checker.js';
+import type * as $transformers_declarations from './transformers_declarations.js';
 export type Flags = number;
 export type InternalFlags = number;
-export type SymbolTracker = $checker.SymbolTrackerImpl | $checker.wrappingTracker | undefined;
+export type SymbolTracker =
+  | $checker.SymbolTrackerImpl
+  | $checker.wrappingTracker
+  | $transformers_declarations.SymbolTrackerImpl
+  | undefined;
 export const FlagsAllowAnonymousIdentifier: Flags = 131072;
 export const FlagsAllowEmptyIndexInfoType: Flags = 2097152;
 export const FlagsAllowEmptyTuple: Flags = 524288;

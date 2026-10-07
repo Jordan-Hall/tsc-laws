@@ -3,6 +3,7 @@
 import * as $rt from '../go/runtime.js';
 import * as $boxes from './boxes.js';
 import * as $json from './json.js';
+import type * as $checkhost from './checkhost.js';
 import type * as $contentmapper from './contentmapper.js';
 import type * as $ipc from './ipc.js';
 export type MessageKind = number;
@@ -445,6 +446,7 @@ export class Writer extends $rt.GoObject {
           | $contentmapper.closeOnceReadWriteCloser
           | $contentmapper.loggedProcess
           | $contentmapper.stderrLogger
+          | $checkhost.hostWriter
           | undefined
         >('$rt.bufio_Writer | undefined'),
         'Content-Length: %d\r\n\r\n',
@@ -493,6 +495,7 @@ export function NewWriter(
     | $contentmapper.closeOnceReadWriteCloser
     | $contentmapper.loggedProcess
     | $contentmapper.stderrLogger
+    | $checkhost.hostWriter
     | undefined,
 ): Writer | undefined {
   return Writer.$lit_jsonrpc_Writer_0($rt.bufio_NewWriter(w));

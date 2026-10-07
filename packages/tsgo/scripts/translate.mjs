@@ -13,12 +13,19 @@ const run = (cmd, args, cwd) => {
 rmSync('../../upstream/typescript-go/internal/checker/relater_oracle.go', { force: true });
 // The test host lives in this repository and is translated with the checker.
 mkdirSync('../../upstream/typescript-go/internal/checkhost', { recursive: true });
-copyFileSync('checkhost/checkhost.go', '../../upstream/typescript-go/internal/checkhost/checkhost.go');
+for (const file of ['checkhost.go', 'tsc.go']) {
+  copyFileSync('checkhost/' + file, '../../upstream/typescript-go/internal/checkhost/' + file);
+}
 run(
   'go',
   [
     'run',
     '.',
+    // A portable target without embedded files: libs are read from disk at run time.
+    '-goos',
+    'wasip1',
+    '-tags',
+    'noembed',
     '-upstream',
     resolve('../../upstream/typescript-go'),
     '-overlay',

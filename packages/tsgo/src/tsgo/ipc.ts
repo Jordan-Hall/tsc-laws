@@ -4,6 +4,7 @@ import * as $rt from '../go/runtime.js';
 import * as $boxes from './boxes.js';
 import * as $json from './json.js';
 import * as $jsonrpc from './jsonrpc.js';
+import type * as $checkhost from './checkhost.js';
 import type * as $contentmapper from './contentmapper.js';
 export type Conn = AsyncConn | SyncConn | undefined;
 export type Handler = $contentmapper.rejectHandler | undefined;
@@ -566,6 +567,7 @@ export class StdioTransport extends $rt.GoObject {
           | $contentmapper.closeOnceReadWriteCloser
           | $contentmapper.loggedProcess
           | $contentmapper.stderrLogger
+          | $checkhost.hostWriter
           | undefined,
         t!.stdin,
         t!.stdout,
@@ -954,6 +956,7 @@ export class stdioConn extends $rt.GoObject {
     | $contentmapper.closeOnceReadWriteCloser
     | $contentmapper.loggedProcess
     | $contentmapper.stderrLogger
+    | $checkhost.hostWriter
     | undefined = undefined;
   stdin: stdioConn | $contentmapper.closeOnceReadWriteCloser | $contentmapper.loggedProcess | undefined = undefined;
   stdout: stdioConn | $contentmapper.closeOnceReadWriteCloser | $contentmapper.loggedProcess | undefined = undefined;
@@ -983,6 +986,7 @@ export class stdioConn extends $rt.GoObject {
       | $contentmapper.closeOnceReadWriteCloser
       | $contentmapper.loggedProcess
       | $contentmapper.stderrLogger
+      | $checkhost.hostWriter
       | undefined,
     p2: stdioConn | $contentmapper.closeOnceReadWriteCloser | $contentmapper.loggedProcess | undefined,
     p3: stdioConn | $contentmapper.closeOnceReadWriteCloser | $contentmapper.loggedProcess | undefined,
@@ -1192,6 +1196,7 @@ export function NewJSONRPCProtocol(
         | $contentmapper.closeOnceReadWriteCloser
         | $contentmapper.loggedProcess
         | $contentmapper.stderrLogger
+        | $checkhost.hostWriter
         | undefined,
     ),
   );

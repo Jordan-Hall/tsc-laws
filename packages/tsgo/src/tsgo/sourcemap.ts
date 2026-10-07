@@ -8,7 +8,9 @@ import * as $scanner from './scanner.js';
 import * as $stringutil from './stringutil.js';
 import * as $tspath from './tspath.js';
 import type * as $ast from './ast.js';
+import type * as $checkhost from './checkhost.js';
 import type * as $contentmapper from './contentmapper.js';
+import type * as $diagnosticwriter from './diagnosticwriter.js';
 import type * as $ipc from './ipc.js';
 const $zf0 = (): string => '';
 const $zf1 = (): Mapping => new Mapping();
@@ -28,7 +30,7 @@ export class Host extends $rt.GoObject {
   }
 }
 export type NameIndex = number;
-export type Source = $ast.SourceFile | undefined;
+export type Source = $ast.SourceFile | $diagnosticwriter.originalTextFile | undefined;
 export type SourceIndex = number;
 export type SourceMappedPosition = MappedPosition;
 export class DocumentPosition extends $rt.GoObject {
@@ -589,6 +591,7 @@ export class Generator extends $rt.GoObject {
           | $contentmapper.closeOnceReadWriteCloser
           | $contentmapper.loggedProcess
           | $contentmapper.stderrLogger
+          | $checkhost.hostWriter
           | undefined
         >('$rt.strings_Builder | undefined'),
       ) as unknown as

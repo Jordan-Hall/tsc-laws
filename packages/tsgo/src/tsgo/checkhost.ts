@@ -5,12 +5,47 @@ import * as $ast from './ast.js';
 import * as $binder from './binder.js';
 import * as $checker from './checker.js';
 import * as $core from './core.js';
+import * as $execute from './execute.js';
 import * as $parser from './parser.js';
 import * as $tsoptions from './tsoptions.js';
+import * as $tspath from './tspath.js';
+import * as $vfs from './vfs.js';
+import type * as $contentmapper from './contentmapper.js';
+import type * as $ipc from './ipc.js';
 import type * as $module from './module.js';
 import type * as $packagejson from './packagejson.js';
 import type * as $symlinks from './symlinks.js';
-import type * as $tspath from './tspath.js';
+export class Host extends $rt.GoObject {
+  Cwd: string = '';
+  LibPath: string = '';
+  ReadFile: ((p0: string) => [string, boolean]) | undefined = undefined;
+  WriteFile: ((p0: string, p1: string) => boolean) | undefined = undefined;
+  Stat: ((p0: string) => [number, number, number]) | undefined = undefined;
+  ReadDir: ((p0: string) => [string[], string[]]) | undefined = undefined;
+  Realpath: ((p0: string) => string) | undefined = undefined;
+  Write: ((p0: string) => void) | undefined = undefined;
+  Now: (() => number) | undefined = undefined;
+  $copy_checkhost_Host(src: Host): void {
+    this.Cwd = src.Cwd;
+    this.LibPath = src.LibPath;
+    this.ReadFile = src.ReadFile;
+    this.WriteFile = src.WriteFile;
+    this.Stat = src.Stat;
+    this.ReadDir = src.ReadDir;
+    this.Realpath = src.Realpath;
+    this.Write = src.Write;
+    this.Now = src.Now;
+  }
+  $clone_checkhost_Host(): Host {
+    const o = new Host();
+    o.$copy_checkhost_Host(this);
+    return o;
+  }
+  static $cast_checkhost_Host(v: $rt.GoObject | undefined): Host {
+    if (v instanceof Host) return v;
+    throw $rt.typeAssertError();
+  }
+}
 export class Program extends $rt.GoObject {
   options: $core.CompilerOptions | undefined = undefined;
   files: ($ast.SourceFile | undefined)[] = [];
@@ -200,6 +235,287 @@ export class Program extends $rt.GoObject {
     return 99;
   }
 }
+export class hostFS extends $rt.GoObject {
+  host: Host | undefined = undefined;
+  $copy_checkhost_hostFS(src: hostFS): void {
+    this.host = src.host;
+  }
+  $equals_checkhost_hostFS(o: hostFS): boolean {
+    return this.host === o.host;
+  }
+  $clone_checkhost_hostFS(): hostFS {
+    const o = new hostFS();
+    o.$copy_checkhost_hostFS(this);
+    return o;
+  }
+  static $lit_checkhost_hostFS_0(p0: Host | undefined): hostFS {
+    const o = new hostFS();
+    o.host = p0;
+    return o;
+  }
+  static $cast_checkhost_hostFS(v: $rt.GoObject | undefined): hostFS {
+    if (v instanceof hostFS) return v;
+    throw $rt.typeAssertError();
+  }
+  UseCaseSensitiveFileNames(): boolean {
+    const f = this;
+    return true;
+  }
+  FileExists(path: string): boolean {
+    const f = this;
+    const $t1 = f!.host!.Stat!(path);
+    const kind: number = $t1[0];
+    return kind === (1 as number);
+  }
+  DirectoryExists(path: string): boolean {
+    const f = this;
+    const $t1 = f!.host!.Stat!(path);
+    const kind: number = $t1[0];
+    return kind === (2 as number);
+  }
+  ReadFile(path: string): [string, boolean] {
+    const f = this;
+    return f!.host!.ReadFile!(path);
+  }
+  WriteFile(path: string, data: string): $rt.GoObject | undefined {
+    const f = this;
+    if (!f!.host!.WriteFile!(path, data)) {
+      return $rt.errors_New('cannot write ' + path);
+    }
+    return undefined;
+  }
+  AppendFile(path: string, data: string): $rt.GoObject | undefined {
+    const f = this;
+    const $t1 = f!.host!.ReadFile!(path);
+    const old: string = $t1[0];
+    return f!.WriteFile(path, old + data);
+  }
+  Remove(path: string): $rt.GoObject | undefined {
+    const f = this;
+    return $rt.errors_New('remove is not supported');
+  }
+  Chtimes(path: string, aTime: $rt.time_Time, mTime: $rt.time_Time): $rt.GoObject | undefined {
+    const f = this;
+    return undefined;
+  }
+  GetAccessibleEntries(path: string): $vfs.Entries {
+    const f = this;
+    const $t1 = f!.host!.ReadDir!(path);
+    const files: string[] = $t1[0];
+    const dirs: string[] = $t1[1];
+    return $vfs.Entries.$lit_vfs_Entries_0_1(files, dirs);
+  }
+  Stat(path: string): $vfs.FileInfo {
+    const f = this;
+    const $t1 = f!.host!.Stat!(path);
+    const kind: number = $t1[0];
+    const size: number = $t1[1];
+    const mtime: number = $t1[2];
+    if (kind === (0 as number)) {
+      return undefined;
+    }
+    return hostFileInfo.$lit_checkhost_hostFileInfo_0_1_2_3(
+      $tspath.GetBaseFileName(path),
+      kind === (2 as number),
+      size,
+      mtime,
+    );
+  }
+  WalkDir(root: string, walkFn: $vfs.WalkDirFunc): $rt.GoObject | undefined {
+    const f = this;
+    return $rt.errors_New('walking directories is not supported');
+  }
+  Realpath(path: string): string {
+    const f = this;
+    return f!.host!.Realpath!(path);
+  }
+}
+export class hostFileInfo extends $rt.GoObject {
+  name: string = '';
+  dir: boolean = false;
+  size: number = 0;
+  mtime: number = 0;
+  $copy_checkhost_hostFileInfo(src: hostFileInfo): void {
+    this.name = src.name;
+    this.dir = src.dir;
+    this.size = src.size;
+    this.mtime = src.mtime;
+  }
+  $equals_checkhost_hostFileInfo(o: hostFileInfo): boolean {
+    return this.name === o.name && this.dir === o.dir && this.size === o.size && this.mtime === o.mtime;
+  }
+  $clone_checkhost_hostFileInfo(): hostFileInfo {
+    const o = new hostFileInfo();
+    o.$copy_checkhost_hostFileInfo(this);
+    return o;
+  }
+  static $lit_checkhost_hostFileInfo_0_1_2_3(p0: string, p1: boolean, p2: number, p3: number): hostFileInfo {
+    const o = new hostFileInfo();
+    o.name = p0;
+    o.dir = p1;
+    o.size = p2;
+    o.mtime = p3;
+    return o;
+  }
+  static $cast_checkhost_hostFileInfo(v: $rt.GoObject | undefined): hostFileInfo {
+    if (v instanceof hostFileInfo) return v;
+    throw $rt.typeAssertError();
+  }
+  Name(): string {
+    const i = this;
+    return i!.name;
+  }
+  Size(): number {
+    const i = this;
+    return i!.size;
+  }
+  Mode(): number {
+    const i = this;
+    if (i!.dir) {
+      return 2147484141;
+    }
+    return 420;
+  }
+  ModTime(): $rt.time_Time {
+    const i = this;
+    return $rt.time_UnixMilli(Math.trunc(i!.mtime));
+  }
+  IsDir(): boolean {
+    const i = this;
+    return i!.dir;
+  }
+  Sys(): $rt.GoObject | undefined {
+    const i = this;
+    return undefined;
+  }
+}
+export class hostSys extends $rt.GoObject {
+  host: Host | undefined = undefined;
+  fs: hostFS | undefined = undefined;
+  start: number = 0;
+  $copy_checkhost_hostSys(src: hostSys): void {
+    this.host = src.host;
+    this.fs = src.fs;
+    this.start = src.start;
+  }
+  $equals_checkhost_hostSys(o: hostSys): boolean {
+    return this.host === o.host && this.fs === o.fs && this.start === o.start;
+  }
+  $clone_checkhost_hostSys(): hostSys {
+    const o = new hostSys();
+    o.$copy_checkhost_hostSys(this);
+    return o;
+  }
+  static $lit_checkhost_hostSys_0_1_2(p0: Host | undefined, p1: hostFS | undefined, p2: number): hostSys {
+    const o = new hostSys();
+    o.host = p0;
+    o.fs = p1;
+    o.start = p2;
+    return o;
+  }
+  static $cast_checkhost_hostSys(v: $rt.GoObject | undefined): hostSys {
+    if (v instanceof hostSys) return v;
+    throw $rt.typeAssertError();
+  }
+  Writer$m():
+    | $ipc.stdioConn
+    | $contentmapper.closeOnceReadWriteCloser
+    | $contentmapper.loggedProcess
+    | $contentmapper.stderrLogger
+    | hostWriter
+    | undefined {
+    const s = this;
+    return hostWriter.$lit_checkhost_hostWriter_0(s!.host);
+  }
+  ErrorWriter():
+    | $ipc.stdioConn
+    | $contentmapper.closeOnceReadWriteCloser
+    | $contentmapper.loggedProcess
+    | $contentmapper.stderrLogger
+    | hostWriter
+    | undefined {
+    const s = this;
+    return hostWriter.$lit_checkhost_hostWriter_0(s!.host);
+  }
+  FS$m(): $vfs.FS {
+    const s = this;
+    return s!.fs;
+  }
+  DefaultLibraryPath(): string {
+    const s = this;
+    return s!.host!.LibPath;
+  }
+  GetCurrentDirectory(): string {
+    const s = this;
+    return s!.host!.Cwd;
+  }
+  WriteOutputIsTTY(): boolean {
+    const s = this;
+    return false;
+  }
+  GetWidthOfTerminal(): number {
+    const s = this;
+    return 0;
+  }
+  GetEnvironmentVariable(name_: string): string {
+    const s = this;
+    return '';
+  }
+  Now(): $rt.time_Time {
+    const s = this;
+    return $rt.time_UnixMilli(Math.trunc(s!.host!.Now!()));
+  }
+  SinceStart(): number {
+    const s = this;
+    return Math.trunc((s!.host!.Now!() - s!.start) * 1e6);
+  }
+  Spawn(
+    command: string[],
+    dir: string,
+    stderr:
+      | $ipc.stdioConn
+      | $contentmapper.closeOnceReadWriteCloser
+      | $contentmapper.loggedProcess
+      | $contentmapper.stderrLogger
+      | hostWriter
+      | undefined,
+  ): [
+    $ipc.stdioConn | $contentmapper.closeOnceReadWriteCloser | $contentmapper.loggedProcess | undefined,
+    $rt.GoObject | undefined,
+  ] {
+    const s = this;
+    return [undefined, $rt.errors_New('spawn is not supported')];
+  }
+}
+export class hostWriter extends $rt.GoObject {
+  host: Host | undefined = undefined;
+  $copy_checkhost_hostWriter(src: hostWriter): void {
+    this.host = src.host;
+  }
+  $equals_checkhost_hostWriter(o: hostWriter): boolean {
+    return this.host === o.host;
+  }
+  $clone_checkhost_hostWriter(): hostWriter {
+    const o = new hostWriter();
+    o.$copy_checkhost_hostWriter(this);
+    return o;
+  }
+  static $lit_checkhost_hostWriter_0(p0: Host | undefined): hostWriter {
+    const o = new hostWriter();
+    o.host = p0;
+    return o;
+  }
+  static $cast_checkhost_hostWriter(v: $rt.GoObject | undefined): hostWriter {
+    if (v instanceof hostWriter) return v;
+    throw $rt.typeAssertError();
+  }
+  Write(p: number[]): [number, $rt.GoObject | undefined] {
+    const w = this;
+    w!.host!.Write!($rt.bytesToString(p));
+    return [p.length, undefined];
+  }
+}
+export const Host$zero: Host = new Host();
 export const LibDir: string = '/libs/';
 export let libCache: Map<string, $ast.SourceFile | undefined> | undefined = new Map<
   string,
@@ -279,4 +595,12 @@ export function Check(
   $rt.appendInto(diags, c!.GetDiagnostics($rt.context_Background(), file));
   $rt.appendInto(diags, c!.GetGlobalDiagnostics());
   return diags;
+}
+export function RunTSC(host: Host | undefined, args: string[]): number {
+  const sys: hostSys | undefined = hostSys.$lit_checkhost_hostSys_0_1_2(
+    host,
+    hostFS.$lit_checkhost_hostFS_0(host),
+    host!.Now!(),
+  );
+  return $execute.CommandLine($rt.context_Background(), sys, args, undefined).Status;
 }

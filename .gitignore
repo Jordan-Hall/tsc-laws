@@ -6,3 +6,4 @@ upstream/
 packages/relater/benchmarks/generated/
 isolate-*.log
 .turbo/
+!packages/tsgo/tests/fixtures/tsc-project/node_modules/

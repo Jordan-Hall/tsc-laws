@@ -4,9 +4,44 @@ import type * as $ast from './ast.js';
 import type * as $collections from './collections.js';
 import type * as $core from './core.js';
 import type * as $diagnostics from './diagnostics.js';
+import type * as $execute_incremental from './execute_incremental.js';
 import type * as $json from './json.js';
 import type * as $packagejson from './packagejson.js';
 import type * as $tracing from './tracing.js';
+export class Box___2_int extends $rt.GoObject {
+  v: number[] | undefined;
+  constructor(v: number[] | undefined) {
+    super();
+    this.v = v;
+  }
+  static $cast(v: $rt.GoObject | undefined): Box___2_int {
+    if (v instanceof Box___2_int) return v;
+    throw $rt.typeAssertError();
+  }
+  override $unbox(): unknown {
+    return this.v;
+  }
+  override $eqv(o: $rt.GoObject): boolean {
+    return o instanceof Box___2_int && o.v === this.v;
+  }
+}
+export class Box___2_uint32 extends $rt.GoObject {
+  v: number[] | undefined;
+  constructor(v: number[] | undefined) {
+    super();
+    this.v = v;
+  }
+  static $cast(v: $rt.GoObject | undefined): Box___2_uint32 {
+    if (v instanceof Box___2_uint32) return v;
+    throw $rt.typeAssertError();
+  }
+  override $unbox(): unknown {
+    return this.v;
+  }
+  override $eqv(o: $rt.GoObject): boolean {
+    return o instanceof Box___2_uint32 && o.v === this.v;
+  }
+}
 export class Box__ast_Expression extends $rt.GoObject {
   v: $ast.Node | undefined;
   constructor(v: $ast.Node | undefined) {
@@ -75,6 +110,48 @@ export class Box__core_TextRange extends $rt.GoObject {
     return o instanceof Box__core_TextRange && o.v === this.v;
   }
 }
+export class Box__16_byte extends $rt.GoObject {
+  v: number[];
+  constructor(v: number[]) {
+    super();
+    this.v = v;
+  }
+  static $cast(v: $rt.GoObject | undefined): Box__16_byte {
+    if (v instanceof Box__16_byte) return v;
+    throw $rt.typeAssertError();
+  }
+  override $unbox(): unknown {
+    return this.v;
+  }
+}
+export class Box__2_execute_incremental_BuildInfoFileId extends $rt.GoObject {
+  v: $execute_incremental.BuildInfoFileId[];
+  constructor(v: $execute_incremental.BuildInfoFileId[]) {
+    super();
+    this.v = v;
+  }
+  static $cast(v: $rt.GoObject | undefined): Box__2_execute_incremental_BuildInfoFileId {
+    if (v instanceof Box__2_execute_incremental_BuildInfoFileId) return v;
+    throw $rt.typeAssertError();
+  }
+  override $unbox(): unknown {
+    return this.v;
+  }
+}
+export class Box__2_int extends $rt.GoObject {
+  v: number[];
+  constructor(v: number[]) {
+    super();
+    this.v = v;
+  }
+  static $cast(v: $rt.GoObject | undefined): Box__2_int {
+    if (v instanceof Box__2_int) return v;
+    throw $rt.typeAssertError();
+  }
+  override $unbox(): unknown {
+    return this.v;
+  }
+}
 export class Box____ast_Expression extends $rt.GoObject {
   v: ($ast.Node | undefined)[];
   constructor(v: ($ast.Node | undefined)[]) {
@@ -83,6 +160,20 @@ export class Box____ast_Expression extends $rt.GoObject {
   }
   static $cast(v: $rt.GoObject | undefined): Box____ast_Expression {
     if (v instanceof Box____ast_Expression) return v;
+    throw $rt.typeAssertError();
+  }
+  override $unbox(): unknown {
+    return this.v;
+  }
+}
+export class Box____execute_incremental_BuildInfoDiagnostic extends $rt.GoObject {
+  v: ($execute_incremental.BuildInfoDiagnostic | undefined)[];
+  constructor(v: ($execute_incremental.BuildInfoDiagnostic | undefined)[]) {
+    super();
+    this.v = v;
+  }
+  static $cast(v: $rt.GoObject | undefined): Box____execute_incremental_BuildInfoDiagnostic {
+    if (v instanceof Box____execute_incremental_BuildInfoDiagnostic) return v;
     throw $rt.typeAssertError();
   }
   override $unbox(): unknown {
@@ -117,6 +208,20 @@ export class Box___any extends $rt.GoObject {
     return this.v;
   }
 }
+export class Box___ast_Kind extends $rt.GoObject {
+  v: $ast.Kind[];
+  constructor(v: $ast.Kind[]) {
+    super();
+    this.v = v;
+  }
+  static $cast(v: $rt.GoObject | undefined): Box___ast_Kind {
+    if (v instanceof Box___ast_Kind) return v;
+    throw $rt.typeAssertError();
+  }
+  override $unbox(): unknown {
+    return this.v;
+  }
+}
 export class Box___byte extends $rt.GoObject {
   v: number[];
   constructor(v: number[]) {
@@ -125,6 +230,34 @@ export class Box___byte extends $rt.GoObject {
   }
   static $cast(v: $rt.GoObject | undefined): Box___byte {
     if (v instanceof Box___byte) return v;
+    throw $rt.typeAssertError();
+  }
+  override $unbox(): unknown {
+    return this.v;
+  }
+}
+export class Box___execute_incremental_BuildInfoFileId extends $rt.GoObject {
+  v: $execute_incremental.BuildInfoFileId[];
+  constructor(v: $execute_incremental.BuildInfoFileId[]) {
+    super();
+    this.v = v;
+  }
+  static $cast(v: $rt.GoObject | undefined): Box___execute_incremental_BuildInfoFileId {
+    if (v instanceof Box___execute_incremental_BuildInfoFileId) return v;
+    throw $rt.typeAssertError();
+  }
+  override $unbox(): unknown {
+    return this.v;
+  }
+}
+export class Box___int extends $rt.GoObject {
+  v: number[];
+  constructor(v: number[]) {
+    super();
+    this.v = v;
+  }
+  static $cast(v: $rt.GoObject | undefined): Box___int {
+    if (v instanceof Box___int) return v;
     throw $rt.typeAssertError();
   }
   override $unbox(): unknown {
@@ -195,6 +328,20 @@ export class Box_func_node__ast_Node__bool extends $rt.GoObject {
   }
   static $cast(v: $rt.GoObject | undefined): Box_func_node__ast_Node__bool {
     if (v instanceof Box_func_node__ast_Node__bool) return v;
+    throw $rt.typeAssertError();
+  }
+  override $unbox(): unknown {
+    return this.v;
+  }
+}
+export class Box_github_com_go_json_experiment_json_jsontext_Value extends $rt.GoObject {
+  v: number[];
+  constructor(v: number[]) {
+    super();
+    this.v = v;
+  }
+  static $cast(v: $rt.GoObject | undefined): Box_github_com_go_json_experiment_json_jsontext_Value {
+    if (v instanceof Box_github_com_go_json_experiment_json_jsontext_Value) return v;
     throw $rt.typeAssertError();
   }
   override $unbox(): unknown {

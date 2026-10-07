@@ -10,6 +10,10 @@ import * as $semver from './semver.js';
 import * as $stringutil from './stringutil.js';
 import * as $tspath from './tspath.js';
 import * as $vfs_vfsmatch from './vfs_vfsmatch.js';
+import type * as $checkhost from './checkhost.js';
+import type * as $compiler from './compiler.js';
+import type * as $execute from './execute.js';
+import type * as $execute_build from './execute_build.js';
 import type * as $tsoptions from './tsoptions.js';
 import type * as $vfs from './vfs.js';
 import { OrderedMap as $collections$OrderedMap } from './collections.js';
@@ -27,7 +31,15 @@ const $zf9 = (): ResolvedTypeReferenceDirective | undefined => undefined;
 export type Ending = number;
 export type ModeAwareCache<T> = $rt.StructMap<ModeAwareCacheKey, T> | undefined;
 export type NodeResolutionFeatures = number;
-export type ResolutionHost = $tsoptions.resolverHost | undefined;
+export type ResolutionHost =
+  | $tsoptions.resolverHost
+  | $compiler.compilerHost
+  | $compiler.projectReferenceDtsFakingHost
+  | $execute_build.compilerHost
+  | $execute_build.host
+  | $execute.watchCompilerHost
+  | $checkhost.hostSys
+  | undefined;
 export type ResolvedProjectReference = $tsoptions.ParsedCommandLine | undefined;
 export type extensions = number;
 export class extensions$Box extends $rt.GoObject {
@@ -122,6 +134,14 @@ export class PackageId extends $rt.GoObject {
     this.SubModuleName = src.SubModuleName;
     this.Version = src.Version;
     this.PeerDependencies = src.PeerDependencies;
+  }
+  $key_module_PackageId(): string {
+    return [
+      $rt.strKey(this.Name),
+      $rt.strKey(this.SubModuleName),
+      $rt.strKey(this.Version),
+      $rt.strKey(this.PeerDependencies),
+    ].join('|');
   }
   $equals_module_PackageId(o: PackageId): boolean {
     return (
@@ -446,7 +466,7 @@ export class Resolver extends caches {
       r!.compilerOptions,
       redirectedReference,
     );
-    const $t2 = compilerOptions!.GetEffectiveTypeRoots(r!.host!.GetCurrentDirectory());
+    const $t2 = compilerOptions!.GetEffectiveTypeRoots($rt.nn(r!.host).GetCurrentDirectory());
     const typeRoots: string[] = $t2[0];
     const fromConfig: boolean = $t2[1];
     if (!(traceBuilder === undefined)) {
@@ -733,8 +753,8 @@ export class Resolver extends caches {
     }
     if (enableDirectorySearch) {
       const otherFiles: string[] = $vfs_vfsmatch.ReadDirectory(
-        r!.host!.FS$m(),
-        r!.host!.GetCurrentDirectory(),
+        $rt.nn(r!.host).FS$m(),
+        $rt.nn(r!.host).GetCurrentDirectory(),
         packageJson!.PackageDirectory,
         extensions$Array(extensions$v),
         ['node_modules'],
@@ -742,7 +762,9 @@ export class Resolver extends caches {
         9223372036854775807,
       );
       const comparePathsOptions: $tspath.ComparePathsOptions =
-        $tspath.ComparePathsOptions.$lit_tspath_ComparePathsOptions_0(r!.host!.FS$m()!.UseCaseSensitiveFileNames());
+        $tspath.ComparePathsOptions.$lit_tspath_ComparePathsOptions_0(
+          $rt.nn($rt.nn(r!.host).FS$m()).UseCaseSensitiveFileNames(),
+        );
       {
         const $t1 = otherFiles;
         for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
@@ -783,7 +805,7 @@ export class Resolver extends caches {
     let originalFileName: string = '';
     let resolvedFileName: string = fileName;
     {
-      const realPath: string = r!.host!.FS$m()!.Realpath(fileName);
+      const realPath: string = $rt.nn($rt.nn(r!.host).FS$m()).Realpath(fileName);
       if (!(realPath === fileName)) {
         originalFileName = fileName;
         resolvedFileName = realPath;
@@ -983,7 +1005,7 @@ export class resolutionState extends $rt.GoObject {
         for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
           const typeRoot = $t1[$t2];
           const candidate: string = r!.getCandidateFromTypeRoot(typeRoot);
-          const directoryExists: boolean = r!.resolver!.host!.FS$m()!.DirectoryExists(typeRoot);
+          const directoryExists: boolean = $rt.nn($rt.nn(r!.resolver!.host).FS$m()).DirectoryExists(typeRoot);
           if (!directoryExists) {
             if (!(r!.tracer_ === undefined)) {
               tracer.write$nil(r!.tracer_, $diagnostics.Directory_0_does_not_exist_skipping_all_lookups_in_it, [
@@ -1075,7 +1097,7 @@ export class resolutionState extends $rt.GoObject {
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
         const typeRoot = $t1[$t2];
         const candidate: string = r!.getCandidateFromTypeRoot(typeRoot);
-        const directoryExists: boolean = r!.resolver!.host!.FS$m()!.DirectoryExists(typeRoot);
+        const directoryExists: boolean = $rt.nn($rt.nn(r!.resolver!.host).FS$m()).DirectoryExists(typeRoot);
         if (!directoryExists) {
           if (!(r!.tracer_ === undefined)) {
             tracer.write$nil(r!.tracer_, $diagnostics.Directory_0_does_not_exist_skipping_all_lookups_in_it, [
@@ -1244,7 +1266,7 @@ export class resolutionState extends $rt.GoObject {
     const r = this;
     const directoryPath: string = $tspath.GetNormalizedAbsolutePath(
       r!.containingDirectory,
-      r!.resolver!.host!.GetCurrentDirectory(),
+      $rt.nn(r!.resolver!.host).GetCurrentDirectory(),
     );
     const scope: $packagejson.InfoCacheEntry | undefined = r!.getPackageScopeForPath(directoryPath);
     if (!$packagejson.InfoCacheEntry.Exists$nil(scope) || scope!.Contents!.PathFields_.Exports.IsFalsy()) {
@@ -1293,7 +1315,7 @@ export class resolutionState extends $rt.GoObject {
     }
     const directoryPath: string = $tspath.GetNormalizedAbsolutePath(
       r!.containingDirectory,
-      r!.resolver!.host!.GetCurrentDirectory(),
+      $rt.nn(r!.resolver!.host).GetCurrentDirectory(),
     );
     const scope: $packagejson.InfoCacheEntry | undefined = r!.getPackageScopeForPath(directoryPath);
     if (!$packagejson.InfoCacheEntry.Exists$nil(scope)) {
@@ -1647,12 +1669,12 @@ export class resolutionState extends $rt.GoObject {
             if (isPattern) {
               finalPath = $tspath.GetNormalizedAbsolutePath(
                 $rt.strings_ReplaceAll(resolvedTarget, '*', subpath),
-                r!.resolver!.host!.GetCurrentDirectory(),
+                $rt.nn(r!.resolver!.host).GetCurrentDirectory(),
               );
             } else {
               finalPath = $tspath.GetNormalizedAbsolutePath(
                 resolvedTarget + subpath,
-                r!.resolver!.host!.GetCurrentDirectory(),
+                $rt.nn(r!.resolver!.host).GetCurrentDirectory(),
               );
             }
             {
@@ -1843,8 +1865,8 @@ export class resolutionState extends $rt.GoObject {
           $tspath.GetDirectoryPath(packagePath),
           r!.compilerOptions!.ConfigFilePath,
           $tspath.ComparePathsOptions.$lit_tspath_ComparePathsOptions_0_1(
-            r!.resolver!.host!.FS$m()!.UseCaseSensitiveFileNames(),
-            r!.resolver!.host!.GetCurrentDirectory(),
+            $rt.nn($rt.nn(r!.resolver!.host).FS$m()).UseCaseSensitiveFileNames(),
+            $rt.nn(r!.resolver!.host).GetCurrentDirectory(),
           ),
         ))
     ) {
@@ -1880,8 +1902,8 @@ export class resolutionState extends $rt.GoObject {
               candidateDir,
               finalPath,
               $tspath.ComparePathsOptions.$lit_tspath_ComparePathsOptions_0_1(
-                r!.resolver!.host!.FS$m()!.UseCaseSensitiveFileNames(),
-                r!.resolver!.host!.GetCurrentDirectory(),
+                $rt.nn($rt.nn(r!.resolver!.host).FS$m()).UseCaseSensitiveFileNames(),
+                $rt.nn(r!.resolver!.host).GetCurrentDirectory(),
               ),
             )
           ) {
@@ -1908,7 +1930,7 @@ export class resolutionState extends $rt.GoObject {
                         possibleInputBase,
                         possibleExt,
                       );
-                      if (r!.resolver!.host!.FS$m()!.FileExists(possibleInputWithInputExtension)) {
+                      if ($rt.nn($rt.nn(r!.resolver!.host).FS$m()).FileExists(possibleInputWithInputExtension)) {
                         const resolved$v: resolved | undefined = r!.loadFileNameFromPackageJSONField(
                           r!.extensions_,
                           possibleInputWithInputExtension,
@@ -1933,7 +1955,7 @@ export class resolutionState extends $rt.GoObject {
     const r = this;
     const currentDir: string = $core.IfElse<string>(
       !(r!.compilerOptions!.ConfigFilePath === ('' as string)),
-      r!.resolver!.host!.GetCurrentDirectory(),
+      $rt.nn(r!.resolver!.host).GetCurrentDirectory(),
       commonSourceDirGuess,
     );
     let candidateDirectories: string[] = [];
@@ -1941,7 +1963,7 @@ export class resolutionState extends $rt.GoObject {
       candidateDirectories.push(
         $tspath.GetNormalizedAbsolutePath(
           $tspath.CombinePaths(currentDir, [r!.compilerOptions!.DeclarationDir]),
-          r!.resolver!.host!.GetCurrentDirectory(),
+          $rt.nn(r!.resolver!.host).GetCurrentDirectory(),
         ),
       );
     }
@@ -1952,7 +1974,7 @@ export class resolutionState extends $rt.GoObject {
       candidateDirectories.push(
         $tspath.GetNormalizedAbsolutePath(
           $tspath.CombinePaths(currentDir, [r!.compilerOptions!.OutDir]),
-          r!.resolver!.host!.GetCurrentDirectory(),
+          $rt.nn(r!.resolver!.host).GetCurrentDirectory(),
         ),
       );
     }
@@ -2030,7 +2052,7 @@ export class resolutionState extends $rt.GoObject {
   ): resolved | undefined {
     const r = this;
     const nodeModulesFolder: string = $tspath.CombinePaths(directory, ['node_modules']);
-    if (!r!.resolver!.host!.FS$m()!.DirectoryExists(nodeModulesFolder)) {
+    if (!$rt.nn($rt.nn(r!.resolver!.host).FS$m()).DirectoryExists(nodeModulesFolder)) {
       if (!(r!.tracer_ === undefined)) {
         tracer.write$nil(r!.tracer_, $diagnostics.Directory_0_does_not_exist_skipping_all_lookups_in_it, [
           new $rt.BoxStr(nodeModulesFolder, 'string'),
@@ -2052,7 +2074,7 @@ export class resolutionState extends $rt.GoObject {
     }
     if (!((extensions$v & 4) === (0 as number))) {
       const nodeModulesAtTypes: string = $tspath.CombinePaths(nodeModulesFolder, ['@types']);
-      if (!r!.resolver!.host!.FS$m()!.DirectoryExists(nodeModulesAtTypes)) {
+      if (!$rt.nn($rt.nn(r!.resolver!.host).FS$m()).DirectoryExists(nodeModulesAtTypes)) {
         if (!(r!.tracer_ === undefined)) {
           tracer.write$nil(r!.tracer_, $diagnostics.Directory_0_does_not_exist_skipping_all_lookups_in_it, [
             new $rt.BoxStr(nodeModulesAtTypes, 'string'),
@@ -2081,7 +2103,7 @@ export class resolutionState extends $rt.GoObject {
       packageDirectory = candidate;
     }
     if (r!.resolvePackageDirectoryOnly) {
-      if (r!.resolver!.host!.FS$m()!.DirectoryExists(packageDirectory)) {
+      if ($rt.nn($rt.nn(r!.resolver!.host).FS$m()).DirectoryExists(packageDirectory)) {
         return resolved.$lit_module_resolved_0(packageDirectory);
       }
       return continueSearching();
@@ -2270,8 +2292,8 @@ export class resolutionState extends $rt.GoObject {
     const resolvedFileName: string = r!.realPath(fileName);
     const comparePathsOptions: $tspath.ComparePathsOptions =
       $tspath.ComparePathsOptions.$lit_tspath_ComparePathsOptions_0_1(
-        r!.resolver!.host!.FS$m()!.UseCaseSensitiveFileNames(),
-        r!.resolver!.host!.GetCurrentDirectory(),
+        $rt.nn($rt.nn(r!.resolver!.host).FS$m()).UseCaseSensitiveFileNames(),
+        $rt.nn(r!.resolver!.host).GetCurrentDirectory(),
       );
     if ($tspath.ComparePaths(fileName, resolvedFileName, comparePathsOptions) === (0 as number)) {
       return ['', fileName];
@@ -2318,7 +2340,7 @@ export class resolutionState extends $rt.GoObject {
     } else {
       return continueSearching();
     }
-    const baseDirectory: string = r!.compilerOptions!.GetPathsBasePath(r!.resolver!.host!.GetCurrentDirectory());
+    const baseDirectory: string = r!.compilerOptions!.GetPathsBasePath($rt.nn(r!.resolver!.host).GetCurrentDirectory());
     const pathPatterns: ParsedPatterns | undefined = r!.getParsedPatternsForPaths();
     return r!.tryLoadModuleUsingPaths(
       r!.extensions_,
@@ -2503,7 +2525,7 @@ export class resolutionState extends $rt.GoObject {
     }
     if (!$tspath.HasTrailingDirectorySeparator(candidate)) {
       const parentOfCandidate: string = $tspath.GetDirectoryPath(candidate);
-      if (!r!.resolver!.host!.FS$m()!.DirectoryExists(parentOfCandidate)) {
+      if (!$rt.nn($rt.nn(r!.resolver!.host).FS$m()).DirectoryExists(parentOfCandidate)) {
         if (!(r!.tracer_ === undefined)) {
           tracer.write$nil(r!.tracer_, $diagnostics.Directory_0_does_not_exist_skipping_all_lookups_in_it, [
             new $rt.BoxStr(parentOfCandidate, 'string'),
@@ -2527,7 +2549,7 @@ export class resolutionState extends $rt.GoObject {
         return resolvedFromFile;
       }
     }
-    if (!r!.resolver!.host!.FS$m()!.DirectoryExists(candidate)) {
+    if (!$rt.nn($rt.nn(r!.resolver!.host).FS$m()).DirectoryExists(candidate)) {
       if (!(r!.tracer_ === undefined)) {
         tracer.write$nil(r!.tracer_, $diagnostics.Directory_0_does_not_exist_skipping_all_lookups_in_it, [
           new $rt.BoxStr(candidate, 'string'),
@@ -2584,7 +2606,7 @@ export class resolutionState extends $rt.GoObject {
   ): resolved | undefined {
     const r = this;
     const directory: string = $tspath.GetDirectoryPath(extensionless);
-    if (!(directory === ('' as string)) && !r!.resolver!.host!.FS$m()!.DirectoryExists(directory)) {
+    if (!(directory === ('' as string)) && !$rt.nn($rt.nn(r!.resolver!.host).FS$m()).DirectoryExists(directory)) {
       return continueSearching();
     }
     {
@@ -2864,7 +2886,7 @@ export class resolutionState extends $rt.GoObject {
   }
   tryFileLookup(fileName: string): boolean {
     const r = this;
-    if (r!.resolver!.host!.FS$m()!.FileExists(fileName)) {
+    if ($rt.nn($rt.nn(r!.resolver!.host).FS$m()).FileExists(fileName)) {
       if (!(r!.tracer_ === undefined)) {
         tracer.write$nil(r!.tracer_, $diagnostics.File_0_exists_use_it_as_a_name_resolution_result, [
           new $rt.BoxStr(fileName, 'string'),
@@ -2903,7 +2925,7 @@ export class resolutionState extends $rt.GoObject {
           candidate,
           packageInfo!.PackageDirectory,
           $tspath.ComparePathsOptions.$lit_tspath_ComparePathsOptions_0(
-            r!.resolver!.host!.FS$m()!.UseCaseSensitiveFileNames(),
+            $rt.nn($rt.nn(r!.resolver!.host).FS$m()).UseCaseSensitiveFileNames(),
           ),
         ) === (0 as number)
       ) {
@@ -3007,7 +3029,7 @@ export class resolutionState extends $rt.GoObject {
       }
     }
     if (!r!.esmMode) {
-      if (!r!.resolver!.host!.FS$m()!.DirectoryExists(candidate)) {
+      if (!$rt.nn($rt.nn(r!.resolver!.host).FS$m()).DirectoryExists(candidate)) {
         return continueSearching();
       }
       return r!.loadModuleFromFile(ext, indexPath);
@@ -3115,9 +3137,9 @@ export class resolutionState extends $rt.GoObject {
         }
       }
     }
-    const directoryExists: boolean = r!.resolver!.host!.FS$m()!.DirectoryExists(packageDirectory);
-    if (directoryExists && r!.resolver!.host!.FS$m()!.FileExists(packageJsonPath)) {
-      const $t1 = r!.resolver!.host!.FS$m()!.ReadFile(packageJsonPath);
+    const directoryExists: boolean = $rt.nn($rt.nn(r!.resolver!.host).FS$m()).DirectoryExists(packageDirectory);
+    if (directoryExists && $rt.nn($rt.nn(r!.resolver!.host).FS$m()).FileExists(packageJsonPath)) {
+      const $t1 = $rt.nn($rt.nn(r!.resolver!.host).FS$m()).ReadFile(packageJsonPath);
       const contents: string = $t1[0];
       const $t2 = $packagejson.Parse($rt.stringToBytes(contents));
       const packageJsonContent: $packagejson.Fields = $t2[0];
@@ -3228,7 +3250,7 @@ export class resolutionState extends $rt.GoObject {
   }
   realPath(path: string): string {
     const r = this;
-    const rp: string = $tspath.NormalizePath(r!.resolver!.host!.FS$m()!.Realpath(path));
+    const rp: string = $tspath.NormalizePath($rt.nn($rt.nn(r!.resolver!.host).FS$m()).Realpath(path));
     if (!(r!.tracer_ === undefined)) {
       tracer.write$nil(r!.tracer_, $diagnostics.Resolving_real_path_for_0_result_1, [
         new $rt.BoxStr(path, 'string'),
@@ -3345,10 +3367,10 @@ export class resolutionState extends $rt.GoObject {
           const $t1 = $rt.strings_Cut(patternPath, '*');
           const leadingSlice: string = $t1[0];
           const trailingSlice: string = $t1[1];
-          const caseSensitive: boolean = r!.resolver!.host!.FS$m()!.UseCaseSensitiveFileNames();
+          const caseSensitive: boolean = $rt.nn($rt.nn(r!.resolver!.host).FS$m()).UseCaseSensitiveFileNames();
           const files: string[] = $vfs_vfsmatch.ReadDirectory(
-            r!.resolver!.host!.FS$m(),
-            r!.resolver!.host!.GetCurrentDirectory(),
+            $rt.nn(r!.resolver!.host).FS$m(),
+            $rt.nn(r!.resolver!.host).GetCurrentDirectory(),
             packageJson!.PackageDirectory,
             extensions$Array(r!.extensions_),
             [],
@@ -3884,7 +3906,7 @@ export function NewResolver(
 ): Resolver | undefined {
   return Resolver.$lit_module_Resolver_1_0_2_3_4_5(
     host,
-    newCaches(host!.GetCurrentDirectory(), host!.FS$m()!.UseCaseSensitiveFileNames(), options),
+    newCaches($rt.nn(host).GetCurrentDirectory(), $rt.nn($rt.nn(host).FS$m()).UseCaseSensitiveFileNames(), options),
     options,
     typingsLocation,
     projectName,
@@ -3908,7 +3930,11 @@ export function NewResolverWithOptions(
     r!.packageJsonInfoCache = opts.PackageJsonCache;
   } else {
     r!.$copy_module_caches(
-      newCaches(host!.GetCurrentDirectory(), host!.FS$m()!.UseCaseSensitiveFileNames(), compilerOptions),
+      newCaches(
+        $rt.nn(host).GetCurrentDirectory(),
+        $rt.nn($rt.nn(host).FS$m()).UseCaseSensitiveFileNames(),
+        compilerOptions,
+      ),
     );
   }
   return r;
@@ -4105,22 +4131,22 @@ export function GetAutomaticTypeDirectiveNames(
     return [] as string[];
   }
   let wildcardMatches: string[] = [];
-  const $t1 = options!.GetEffectiveTypeRoots(host!.GetCurrentDirectory());
+  const $t1 = options!.GetEffectiveTypeRoots($rt.nn(host).GetCurrentDirectory());
   const typeRoots: string[] = $t1[0];
   {
     const $t2 = typeRoots;
     for (let $t3 = 0, $n = $t2.length; $t3 < $n; $t3++) {
       const root = $t2[$t3];
-      if (host!.FS$m()!.DirectoryExists(root)) {
+      if ($rt.nn($rt.nn(host).FS$m()).DirectoryExists(root)) {
         {
-          const $t4 = host!.FS$m()!.GetAccessibleEntries(root).Directories;
+          const $t4 = $rt.nn($rt.nn(host).FS$m()).GetAccessibleEntries(root).Directories;
           for (let $t5 = 0, $n = $t4.length; $t5 < $n; $t5++) {
             const typeDirectivePath = $t4[$t5];
             const normalized: string = $tspath.NormalizePath(typeDirectivePath);
             const packageJsonPath: string = $tspath.CombinePaths(root, [normalized, 'package.json']);
             let isNotNeededPackage: boolean = false;
-            if (host!.FS$m()!.FileExists(packageJsonPath)) {
-              const $t6 = host!.FS$m()!.ReadFile(packageJsonPath);
+            if ($rt.nn($rt.nn(host).FS$m()).FileExists(packageJsonPath)) {
+              const $t6 = $rt.nn($rt.nn(host).FS$m()).ReadFile(packageJsonPath);
               const contents: string = $t6[0];
               const $t7 = $packagejson.Parse($rt.stringToBytes(contents));
               const packageJsonContent: $packagejson.Fields = $t7[0];

@@ -3,10 +3,10 @@
   "agentGuidance": false,
   "tasks": {
     "build": {
-      "outputs": ["dist/**"]
+      "outputs": ["dist/relater", "dist/build.json", "dist/cli.ll"]
     },
     "build:oracle": {
-      "outputs": ["dist/**"],
+      "outputs": ["dist/*-oracle", "dist/tsgo", "dist/oracle-build.json"],
       "inputs": ["oracle/**", "oracles/**", "checkhost/**", "scripts/build-oracle.mjs", "$TURBO_ROOT$/upstream.json"]
     },
     "translate": {

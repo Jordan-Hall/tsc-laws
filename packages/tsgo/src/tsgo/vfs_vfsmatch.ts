@@ -435,7 +435,7 @@ export class globPattern extends $rt.GoObject {
   }
 }
 export class globVisitor extends $rt.GoObject {
-  host: $vfs.FS | undefined = undefined;
+  host: $vfs.FS = undefined;
   fileMatcher: globMatcher | undefined = undefined;
   directoryMatcher: globMatcher | undefined = undefined;
   extensions: string[] = [];
@@ -457,7 +457,7 @@ export class globVisitor extends $rt.GoObject {
     return o;
   }
   static $lit_vfs_vfsmatch_globVisitor_0_1_2_3_4_6(
-    p0: $vfs.FS | undefined,
+    p0: $vfs.FS,
     p1: globMatcher | undefined,
     p2: globMatcher | undefined,
     p3: string[],
@@ -483,14 +483,14 @@ export class globVisitor extends $rt.GoObject {
     if (!(resolvedRealPath === ('' as string))) {
       realPath = resolvedRealPath;
     } else {
-      realPath = v!.host!.Realpath(absolutePath);
+      realPath = $rt.nn(v!.host).Realpath(absolutePath);
     }
     const canonicalPath: string = $tspath.GetCanonicalFileName(realPath, v!.useCaseSensitiveFileNames);
     if ($collections$Set_.Has$nil<string>(v!.visited, canonicalPath)) {
       return;
     }
     v!.visited.Add(canonicalPath);
-    const entries: $vfs.Entries = v!.host!.GetAccessibleEntries(absolutePath);
+    const entries: $vfs.Entries = $rt.nn(v!.host).GetAccessibleEntries(absolutePath);
     const pathPrefix: string = ensureTrailingSlash(path);
     const absPrefix: string = ensureTrailingSlash(absolutePath);
     {
@@ -597,7 +597,7 @@ export function Usage$String(i: Usage): string {
   return 'FilesDirectoriesExclude'.substring(_Usage_index[idx], _Usage_index[idx + 1]);
 }
 export function ReadDirectory(
-  host: $vfs.FS | undefined,
+  host: $vfs.FS,
   currentDir: string,
   path: string,
   extensions: string[],
@@ -605,7 +605,16 @@ export function ReadDirectory(
   includes: string[],
   depth: number,
 ): string[] {
-  return matchFiles(path, extensions, excludes, includes, host!.UseCaseSensitiveFileNames(), currentDir, depth, host);
+  return matchFiles(
+    path,
+    extensions,
+    excludes,
+    includes,
+    $rt.nn(host).UseCaseSensitiveFileNames(),
+    currentDir,
+    depth,
+    host,
+  );
 }
 export function IsImplicitGlob(lastPathComponent: string): boolean {
   return !$rt.strings_ContainsAny(lastPathComponent, '.*?');
@@ -862,7 +871,7 @@ export function matchFiles(
   useCaseSensitiveFileNames: boolean,
   currentDirectory: string,
   depth: number,
-  host: $vfs.FS | undefined,
+  host: $vfs.FS,
 ): string[] {
   path = $tspath.NormalizePath(path);
   currentDirectory = $tspath.NormalizePath(currentDirectory);

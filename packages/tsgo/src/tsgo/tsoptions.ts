@@ -20,6 +20,11 @@ import * as $scanner from './scanner.js';
 import * as $stringutil from './stringutil.js';
 import * as $tspath from './tspath.js';
 import * as $vfs_vfsmatch from './vfs_vfsmatch.js';
+import type * as $checkhost from './checkhost.js';
+import type * as $compiler from './compiler.js';
+import type * as $execute from './execute.js';
+import type * as $execute_build from './execute_build.js';
+import type * as $execute_tsc from './execute_tsc.js';
 import type * as $vfs from './vfs.js';
 import { MapEntry as $collections$MapEntry } from './collections.js';
 import { OrderedMap as $collections$OrderedMap } from './collections.js';
@@ -38,21 +43,16 @@ const $zf9 = (): $core.NewLineKind => 0;
 export type CommandLineOptionKind = string;
 export type CommandLineOptionNameMap = Map<string, CommandLineOption | undefined> | undefined;
 export type CompilerOptionsValue = $rt.GoObject | undefined;
-export class ExtendedConfigCache extends $rt.GoObject {
-  GetExtendedConfig(
-    a0: string,
-    a1: $tspath.Path,
-    a2: $tspath.Path[],
-    a3: ParseConfigHost,
-  ): ExtendedConfigCacheEntry | undefined {
-    throw $rt.unimplementedMethod('GetExtendedConfig');
-  }
-  static $cast_tsoptions_ExtendedConfigCache(v: $rt.GoObject | undefined): ExtendedConfigCache {
-    if (v instanceof ExtendedConfigCache) return v;
-    throw $rt.typeAssertError();
-  }
-}
-export type ParseConfigHost = resolverHost | undefined;
+export type ExtendedConfigCache = $execute_tsc.ExtendedConfigCache | undefined;
+export type ParseConfigHost =
+  | resolverHost
+  | $compiler.compilerHost
+  | $compiler.projectReferenceDtsFakingHost
+  | $execute_build.compilerHost
+  | $execute_build.host
+  | $execute.watchCompilerHost
+  | $checkhost.hostSys
+  | undefined;
 export type extraValidation = string;
 export type optionParser =
   | buildOptionsParser
@@ -2392,7 +2392,7 @@ export class ParsedCommandLine extends $rt.GoObject {
     }
     return [p!.ConfigFile!.configFileSpecs_!.getMatchedIncludeSpec(fileName, p!.comparePathsOptions), false];
   }
-  ReloadFileNamesOfParsedCommandLine(fs: $vfs.FS | undefined): ParsedCommandLine | undefined {
+  ReloadFileNamesOfParsedCommandLine(fs: $vfs.FS): ParsedCommandLine | undefined {
     const p = this;
     let parsedConfig: ParsedOptions = p!.ParsedConfig!.$clone_tsoptions_ParsedOptions();
     const $t1 = getFileNamesFromConfigSpecs(
@@ -2600,7 +2600,7 @@ export class buildOptionsParser extends $rt.GoObject {
 export class commandLineParser extends $rt.GoObject {
   workerDiagnostics: ParseCommandLineWorkerDiagnostics | undefined = undefined;
   optionsMap: NameMap | undefined = undefined;
-  fs: $vfs.FS | undefined = undefined;
+  fs: $vfs.FS = undefined;
   currentDirectory: string = '';
   options: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined = undefined;
   fileNames: string[] = [];
@@ -2622,7 +2622,7 @@ export class commandLineParser extends $rt.GoObject {
     return o;
   }
   static $lit_tsoptions_commandLineParser_2_3_0_5_4_6(
-    p0: $vfs.FS | undefined,
+    p0: $vfs.FS,
     p1: string,
     p2: ParseCommandLineWorkerDiagnostics | undefined,
     p3: string[],
@@ -2713,7 +2713,11 @@ export class commandLineParser extends $rt.GoObject {
     let $panic: $rt.Panic | undefined = undefined;
     $body: try {
       fileName = $tspath.GetNormalizedAbsolutePath(fileName, p!.currentDirectory);
-      const path: $tspath.Path = $tspath.ToPath(fileName, p!.currentDirectory, p!.fs!.UseCaseSensitiveFileNames());
+      const path: $tspath.Path = $tspath.ToPath(
+        fileName,
+        p!.currentDirectory,
+        $rt.nn(p!.fs).UseCaseSensitiveFileNames(),
+      );
       if ($collections$Set_.Has$nil<$tspath.Path>(p!.responseFileStack, path)) {
         break $body;
       }
@@ -2729,7 +2733,7 @@ export class commandLineParser extends $rt.GoObject {
           if (p!.fs === undefined) {
             return ['', false];
           }
-          const $t3 = p!.fs!.ReadFile(fileName$1);
+          const $t3 = $rt.nn(p!.fs).ReadFile(fileName$1);
           const read: string = $t3[0];
           const err: boolean = $t3[1];
           return [read, err];
@@ -3357,7 +3361,7 @@ export class resolverHost extends $rt.GoObject {
   Trace(msg: string): void {
     const r = this;
   }
-  FS$m(): $vfs.FS | undefined {
+  FS$m(): $vfs.FS {
     return this.ParseConfigHost_!.FS$m();
   }
   GetCurrentDirectory(): string {
@@ -6040,14 +6044,14 @@ export function ParseCommandLine(commandLine: string[], host: ParseConfigHost): 
   const parser: commandLineParser | undefined = parseCommandLineWorker(
     CompilerOptionsDidYouMeanDiagnostics,
     commandLine ?? [],
-    host!.FS$m(),
-    host!.GetCurrentDirectory(),
+    $rt.nn(host).FS$m(),
+    $rt.nn(host).GetCurrentDirectory(),
   );
   const options: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined =
     convertToOptionsWithAbsolutePaths(
       $collections$OrderedMap.Clone$nil<string, $rt.GoObject | undefined>($zf0, $zf1, parser!.options),
       CommandLineCompilerOptionsMap,
-      host!.GetCurrentDirectory(),
+      $rt.nn(host).GetCurrentDirectory(),
     );
   const compilerOptions: $core.CompilerOptions | undefined = convertMapToOptions<compilerOptionsParser | undefined>(
     options,
@@ -6061,8 +6065,8 @@ export function ParseCommandLine(commandLine: string[], host: ParseConfigHost): 
     compilerOptions,
     parser!.fileNames,
     $tspath.ComparePathsOptions.$lit_tspath_ComparePathsOptions_0_1(
-      host!.FS$m()!.UseCaseSensitiveFileNames(),
-      host!.GetCurrentDirectory(),
+      $rt.nn($rt.nn(host).FS$m()).UseCaseSensitiveFileNames(),
+      $rt.nn(host).GetCurrentDirectory(),
     ),
   );
   result!.ParsedConfig!.WatchOptions_ = watchOptions;
@@ -6080,8 +6084,8 @@ export function ParseBuildCommandLine(
   const parser: commandLineParser | undefined = parseCommandLineWorker(
     buildOptionsDidYouMeanDiagnostics,
     commandLine ?? [],
-    host!.FS$m(),
-    host!.GetCurrentDirectory(),
+    $rt.nn(host).FS$m(),
+    $rt.nn(host).GetCurrentDirectory(),
   );
   const compilerOptions: $core.CompilerOptions | undefined = new $core.CompilerOptions();
   let $t1 = false;
@@ -6110,8 +6114,8 @@ export function ParseBuildCommandLine(
       parser!.errors,
       new $boxes.Box__collections_OrderedMap_string__any_(parser!.options),
       $tspath.ComparePathsOptions.$lit_tspath_ComparePathsOptions_0_1(
-        host!.FS$m()!.UseCaseSensitiveFileNames(),
-        host!.GetCurrentDirectory(),
+        $rt.nn($rt.nn(host).FS$m()).UseCaseSensitiveFileNames(),
+        $rt.nn(host).GetCurrentDirectory(),
       ),
     );
   if (result!.Projects.length === (0 as number)) {
@@ -6154,7 +6158,7 @@ export function ParseBuildCommandLine(
 export function parseCommandLineWorker(
   parseCommandLineWithDiagnostics: ParseCommandLineWorkerDiagnostics | undefined,
   commandLine: string[],
-  fs: $vfs.FS | undefined,
+  fs: $vfs.FS,
   currentDirectory: string,
 ): commandLineParser | undefined {
   const parser: commandLineParser | undefined = commandLineParser.$lit_tsoptions_commandLineParser_2_3_0_5_4_6(
@@ -6325,7 +6329,7 @@ export function resolveContentMapperManifest(
   }
   const packageDirectory: string = resolved!.ResolvedFileName;
   const packageJsonPath: string = $tspath.CombinePaths(packageDirectory, ['package.json']);
-  const $t1 = host!.FS$m()!.ReadFile(packageJsonPath);
+  const $t1 = $rt.nn($rt.nn(host).FS$m()).ReadFile(packageJsonPath);
   const contents: string = $t1[0];
   let ok: boolean = $t1[1];
   if (!ok) {
@@ -9647,9 +9651,12 @@ export function getExtendsConfigPath(
     $rt.strings_HasPrefix(extendedConfig, '../')
   ) {
     let extendedConfigPath: string = $tspath.GetNormalizedAbsolutePath(extendedConfig, basePath);
-    if (!host!.FS$m()!.FileExists(extendedConfigPath) && !$rt.strings_HasSuffix(extendedConfigPath, '.json')) {
+    if (
+      !$rt.nn($rt.nn(host).FS$m()).FileExists(extendedConfigPath) &&
+      !$rt.strings_HasSuffix(extendedConfigPath, '.json')
+    ) {
       extendedConfigPath = extendedConfigPath + '.json';
-      if (!host!.FS$m()!.FileExists(extendedConfigPath)) {
+      if (!$rt.nn($rt.nn(host).FS$m()).FileExists(extendedConfigPath)) {
         errors.push(
           CreateDiagnosticForNodeInSourceFileOrCompilerDiagnostic(
             errorFile,
@@ -9871,7 +9878,7 @@ export function ParseJsonSourceFileConfigFileContent(
   existingOptionsRaw: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined,
   configFileName: string,
   resolutionStack: $tspath.Path[],
-  extendedConfigCache: ExtendedConfigCache | undefined,
+  extendedConfigCache: ExtendedConfigCache,
 ): ParsedCommandLine | undefined {
   const result: ParsedCommandLine | undefined = parseJsonConfigFileContentWorker(
     undefined,
@@ -10096,7 +10103,7 @@ export function ParseJsonConfigFileContent(
   existingOptions: $core.CompilerOptions | undefined,
   configFileName: string,
   resolutionStack: $tspath.Path[],
-  extendedConfigCache: ExtendedConfigCache | undefined,
+  extendedConfigCache: ExtendedConfigCache,
 ): ParsedCommandLine | undefined {
   const normalized: $rt.GoObject | undefined = normalizeJsonValue(json);
   const $t1: $rt.GoObject | undefined = normalized;
@@ -10361,14 +10368,14 @@ export function getExtendedConfig(
   extendedConfigFileName: string,
   host: ParseConfigHost,
   resolutionStack: $tspath.Path[],
-  extendedConfigCache: ExtendedConfigCache | undefined,
+  extendedConfigCache: ExtendedConfigCache,
   result: extendsResult | undefined,
 ): [parsedTsconfig | undefined, ($ast.Diagnostic | undefined)[]] {
   let errors: ($ast.Diagnostic | undefined)[] = [];
   const extendedConfigPath: $tspath.Path = $tspath.ToPath(
     extendedConfigFileName,
-    host!.GetCurrentDirectory(),
-    host!.FS$m()!.UseCaseSensitiveFileNames(),
+    $rt.nn(host).GetCurrentDirectory(),
+    $rt.nn($rt.nn(host).FS$m()).UseCaseSensitiveFileNames(),
   );
   let cacheEntry: ExtendedConfigCacheEntry | undefined = undefined as ExtendedConfigCacheEntry | undefined;
   if (!(extendedConfigCache === undefined) && !$rt.slices_Contains(resolutionStack, extendedConfigPath)) {
@@ -10409,16 +10416,16 @@ export function ParseExtendedConfig(
   path: $tspath.Path,
   resolutionStack: $tspath.Path[],
   host: ParseConfigHost,
-  extendedConfigCache: ExtendedConfigCache | undefined,
+  extendedConfigCache: ExtendedConfigCache,
 ): ExtendedConfigCacheEntry | undefined {
   const $t2 = readJsonConfigFile(
     fileName,
     path,
     (
-      ($t1: $vfs.FS | undefined) =>
+      ($t1: $vfs.FS) =>
       (a0: string): [string, boolean] =>
-        $t1!.ReadFile(a0)
-    )(host!.FS$m()),
+        $rt.nn($t1).ReadFile(a0)
+    )($rt.nn(host).FS$m()),
   );
   const extendedResult: TsConfigSourceFile | undefined = $t2[0];
   const readErrors: ($ast.Diagnostic | undefined)[] = $t2[1];
@@ -10457,13 +10464,13 @@ export function parseConfig(
   basePath: string,
   configFileName: string,
   resolutionStack: $tspath.Path[],
-  extendedConfigCache: ExtendedConfigCache | undefined,
+  extendedConfigCache: ExtendedConfigCache,
 ): [parsedTsconfig | undefined, ($ast.Diagnostic | undefined)[]] {
   basePath = $tspath.NormalizeSlashes(basePath);
   const resolvedPath: $tspath.Path = $tspath.ToPath(
     configFileName,
     basePath,
-    host!.FS$m()!.UseCaseSensitiveFileNames(),
+    $rt.nn($rt.nn(host).FS$m()).UseCaseSensitiveFileNames(),
   );
   let errors: ($ast.Diagnostic | undefined)[] = [];
   if ($rt.slices_Contains(resolutionStack, resolvedPath)) {
@@ -10560,7 +10567,7 @@ export function parseConfig(
                       if (relativeDifference === ('' as string)) {
                         const t: $tspath.ComparePathsOptions =
                           $tspath.ComparePathsOptions.$lit_tspath_ComparePathsOptions_0_1(
-                            host!.FS$m()!.UseCaseSensitiveFileNames(),
+                            $rt.nn($rt.nn(host).FS$m()).UseCaseSensitiveFileNames(),
                             basePath,
                           );
                         relativeDifference = $tspath.ConvertToRelativePath(
@@ -10714,7 +10721,7 @@ export function parseJsonConfigFileContentWorker(
   existingOptionsRaw: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined,
   configFileName: string,
   resolutionStack: $tspath.Path[],
-  extendedConfigCache: ExtendedConfigCache | undefined,
+  extendedConfigCache: ExtendedConfigCache,
 ): ParsedCommandLine | undefined {
   $debug.Assert(
     (json === undefined && !(sourceFile === undefined)) || (!(json === undefined) && sourceFile === undefined),
@@ -11121,7 +11128,7 @@ export function parseJsonConfigFileContentWorker(
       configFileSpecs$v,
       basePath$1,
       parsedConfigOptions,
-      host!.FS$m(),
+      $rt.nn(host).FS$m(),
       contentMapperExtensions,
     );
     const fileNames: string[] = $t28[0];
@@ -11252,7 +11259,7 @@ export function parseJsonConfigFileContentWorker(
     errors,
     compileOnSave,
     $tspath.ComparePathsOptions.$lit_tspath_ComparePathsOptions_0_1(
-      host!.FS$m()!.UseCaseSensitiveFileNames(),
+      $rt.nn($rt.nn(host).FS$m()).UseCaseSensitiveFileNames(),
       basePathForFileNames,
     ),
     literalFileNamesLen$1,
@@ -11806,12 +11813,12 @@ export function getFileNamesFromConfigSpecs(
   configFileSpecs$v: configFileSpecs,
   basePath: string,
   options: $core.CompilerOptions | undefined,
-  host: $vfs.FS | undefined,
+  host: $vfs.FS,
   extraExtensions: string[],
 ): [string[], number] {
   basePath = $tspath.NormalizePath(basePath);
   const keyMappper: ((p0: string) => string) | undefined = (value: string): string => {
-    return $tspath.GetCanonicalFileName(value, host!.UseCaseSensitiveFileNames());
+    return $tspath.GetCanonicalFileName(value, $rt.nn(host).UseCaseSensitiveFileNames());
   };
   const literalFileMap: $collections.OrderedMap<string, string> = new $collections.OrderedMap<string, string>(
     $zf0,
@@ -11865,7 +11872,7 @@ export function getFileNamesFromConfigSpecs(
               includes,
               basePath,
               0,
-              host!.UseCaseSensitiveFileNames(),
+              $rt.nn(host).UseCaseSensitiveFileNames(),
             );
           }
           let includeIndex: number = -1;
@@ -11967,12 +11974,16 @@ export function GetParsedCommandLineOfConfigFile(
   options: $core.CompilerOptions | undefined,
   optionsRaw: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined,
   sys: ParseConfigHost,
-  extendedConfigCache: ExtendedConfigCache | undefined,
+  extendedConfigCache: ExtendedConfigCache,
 ): [ParsedCommandLine | undefined, ($ast.Diagnostic | undefined)[]] {
-  configFileName = $tspath.GetNormalizedAbsolutePath(configFileName, sys!.GetCurrentDirectory());
+  configFileName = $tspath.GetNormalizedAbsolutePath(configFileName, $rt.nn(sys).GetCurrentDirectory());
   return GetParsedCommandLineOfConfigFilePath(
     configFileName,
-    $tspath.ToPath(configFileName, sys!.GetCurrentDirectory(), sys!.FS$m()!.UseCaseSensitiveFileNames()),
+    $tspath.ToPath(
+      configFileName,
+      $rt.nn(sys).GetCurrentDirectory(),
+      $rt.nn($rt.nn(sys).FS$m()).UseCaseSensitiveFileNames(),
+    ),
     options,
     optionsRaw,
     sys,
@@ -11985,16 +11996,16 @@ export function GetParsedCommandLineOfConfigFilePath(
   options: $core.CompilerOptions | undefined,
   optionsRaw: $collections.OrderedMap<string, $rt.GoObject | undefined> | undefined,
   sys: ParseConfigHost,
-  extendedConfigCache: ExtendedConfigCache | undefined,
+  extendedConfigCache: ExtendedConfigCache,
 ): [ParsedCommandLine | undefined, ($ast.Diagnostic | undefined)[]] {
   let errors: ($ast.Diagnostic | undefined)[] = [] as ($ast.Diagnostic | undefined)[];
   const $t2 = tryReadFile(
     configFileName,
     (
-      ($t1: $vfs.FS | undefined) =>
+      ($t1: $vfs.FS) =>
       (a0: string): [string, boolean] =>
-        $t1!.ReadFile(a0)
-    )(sys!.FS$m()),
+        $rt.nn($t1).ReadFile(a0)
+    )($rt.nn(sys).FS$m()),
     errors,
   );
   const configFileText: string = $t2[0];
