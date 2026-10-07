@@ -34,7 +34,6 @@ import * as $vfs_vfsmatch from './vfs_vfsmatch.js';
 // keepAll constructs every class so scriptc lowers each before its uses.
 export function keepAll(): $rt.GoObject[] {
   return [
-    new $core.TextRange(),
     new $ast.Node(),
     new $ast.NodeDefault(),
     new $ast.NodeBase(),

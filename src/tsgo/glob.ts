@@ -255,6 +255,7 @@ export class starStar extends $rt.GoObject {
     return '**';
   }
 }
+export const charRange$zero: charRange = new charRange();
 export let errBadRange: $rt.GoObject | undefined = $rt.errors_New("'[' patterns must be of the form [x-y]");
 export let errInvalidUTF8: $rt.GoObject | undefined = $rt.errors_New('invalid UTF-8 encoding');
 export function Parse(pattern: string): [Glob | undefined, $rt.GoObject | undefined] {

@@ -2,6 +2,7 @@
 import * as $rt from '../go/runtime.js';
 import type * as $ast from './ast.js';
 import type * as $collections from './collections.js';
+import type * as $core from './core.js';
 import type * as $diagnostics from './diagnostics.js';
 import type * as $json from './json.js';
 import type * as $packagejson from './packagejson.js';
@@ -46,6 +47,20 @@ export class Box__collections_OrderedMap_string__json_Value_ extends $rt.GoObjec
   }
   override $eqv(o: $rt.GoObject): boolean {
     return o instanceof Box__collections_OrderedMap_string__json_Value_ && o.v === this.v;
+  }
+}
+export class Box__core_TextRange extends $rt.GoObject {
+  v: $rt.Ptr<$core.TextRange> | undefined;
+  constructor(v: $rt.Ptr<$core.TextRange> | undefined) {
+    super();
+    this.v = v;
+  }
+  static $cast(v: $rt.GoObject | undefined): Box__core_TextRange {
+    if (v instanceof Box__core_TextRange) return v;
+    throw $rt.typeAssertError();
+  }
+  override $eqv(o: $rt.GoObject): boolean {
+    return o instanceof Box__core_TextRange && o.v === this.v;
   }
 }
 export class Box____ast_Expression extends $rt.GoObject {

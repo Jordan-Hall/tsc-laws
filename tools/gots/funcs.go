@@ -1510,6 +1510,9 @@ func (x *fn) castClass(tt types.Type) string {
 		return ""
 	}
 	if !isStructType(n) {
+		if _, isPtr := types.Unalias(tt).(*types.Pointer); isPtr {
+			return ""
+		}
 		if x.f.boxedBy(tn) {
 			return x.f.boxRef(tn) + ".$cast"
 		}

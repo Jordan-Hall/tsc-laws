@@ -233,6 +233,7 @@ export class KnownSymlinks extends $rt.GoObject {
     );
   }
 }
+export const KnownDirectoryLink$zero: KnownDirectoryLink = new KnownDirectoryLink();
 export function NewKnownSymlink(
   currentDirectory: string,
   useCaseSensitiveFileNames: boolean,

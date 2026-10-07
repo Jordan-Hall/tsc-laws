@@ -326,6 +326,14 @@ export class specPair extends $rt.GoObject {
     throw $rt.typeAssertError();
   }
 }
+export const Info$zero: Info = new Info();
+export const ModulePath$zero: ModulePath = new ModulePath();
+export const ModuleSpecifierOptions$zero: ModuleSpecifierOptions = new ModuleSpecifierOptions();
+export const ModuleSpecifierPreferences$zero: ModuleSpecifierPreferences = new ModuleSpecifierPreferences();
+export const NodeModulePathParts$zero: NodeModulePathParts = new NodeModulePathParts();
+export const UserPreferences$zero: UserPreferences = new UserPreferences();
+export const pkgJsonDirAttemptResult$zero: pkgJsonDirAttemptResult = new pkgJsonDirAttemptResult();
+export const specPair$zero: specPair = new specPair();
 export const ImportModuleSpecifierEndingPreferenceAuto: ImportModuleSpecifierEndingPreference = 'auto';
 export const ImportModuleSpecifierEndingPreferenceIndex: ImportModuleSpecifierEndingPreference = 'index';
 export const ImportModuleSpecifierEndingPreferenceJs: ImportModuleSpecifierEndingPreference = 'js';

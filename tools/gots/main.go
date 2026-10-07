@@ -22,6 +22,7 @@ const modulePrefix = "github.com/microsoft/typescript-go/internal/"
 func main() {
 	upstream := flag.String("upstream", "upstream/typescript-go", "TypeScript-Go checkout")
 	out := flag.String("out", "src/tsgo", "output directory")
+	overlay := flag.String("overlay", "", "directory of replacement Go files, by path below internal/")
 	flag.Parse()
 	names := flag.Args()
 	if len(names) == 0 {
@@ -33,8 +34,9 @@ func main() {
 		patterns[i] = modulePrefix + name
 	}
 	cfg := &packages.Config{
-		Mode: packages.NeedName | packages.NeedTypes | packages.NeedSyntax | packages.NeedTypesInfo | packages.NeedImports | packages.NeedDeps,
-		Dir:  *upstream,
+		Mode:    packages.NeedName | packages.NeedTypes | packages.NeedSyntax | packages.NeedTypesInfo | packages.NeedImports | packages.NeedDeps,
+		Dir:     *upstream,
+		Overlay: loadOverlay(*overlay, mustAbs(*upstream)),
 	}
 	loaded, err := packages.Load(cfg, patterns...)
 	if err != nil {
@@ -392,10 +394,18 @@ func (t *translator) analyze() {
 	t.findNilSafe()
 	t.findNilSlices()
 	t.findClassTPs()
+	t.findAtomics()
 	nilSliceGlobal = t.nilSlices
 	t.renameMethods()
 	t.renameFields()
 	t.findMutable()
+	if os.Getenv("GOTS_WHY_MUTABLE") != "" {
+		for tn := range t.mutable {
+			if tn.Name() == os.Getenv("GOTS_WHY_MUTABLE") {
+				fmt.Fprintln(os.Stderr, "mutable", tn.Pkg().Path(), tn.Name())
+			}
+		}
+	}
 	t.analyzeZero()
 	t.analyzeStructTP()
 	t.analyzeKeyTypes()
@@ -1145,4 +1155,12 @@ func isWide(tt types.Type) bool {
 	}
 	n, ok := types.Unalias(tt).(*types.Named)
 	return ok && wideGlobal[n.Origin().Obj()]
+}
+
+func mustAbs(path string) string {
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		fatal(err)
+	}
+	return abs
 }

@@ -106,7 +106,7 @@ func (f *file) translate() {
 	}
 	for _, n := range scope.Names() {
 		if v, ok := scope.Lookup(n).(*types.Var); ok && !initialized[v] && v.Name() != "_" {
-			fmt.Fprintf(&w, "export let %s: %s = %s;\n", safeName(v.Name()), f.tsType(v.Type()), f.zero(v.Type()))
+			fmt.Fprintf(&w, "export let %s: %s = %s;\n", safeName(v.Name()), f.varType(v), f.varZero(v))
 		}
 	}
 	f.parts.vars = w.String()
@@ -191,6 +191,7 @@ func (f *file) assemble() string {
 	for _, tn := range structs {
 		emitClass(tn)
 	}
+	classes.WriteString(f.sharedZeros(structs))
 	classText := classes.String()
 	body := f.anonDecls() + f.hoistedDecls() + f.parts.types + classText + f.localBoxes() + f.parts.consts + f.hoistedFnDecls() + f.parts.vars + f.parts.funcs + f.parts.inits
 	var head strings.Builder
@@ -676,6 +677,11 @@ func (f *file) classDecl(tn *types.TypeName) string {
 			sig := fn.Type().(*types.Signature)
 			params, args := f.sigParams(sig)
 			path := f.embedPath(types.NewPointer(tn.Type()), sel.Index()[:len(sel.Index())-1])
+			if rn, ok := derefNamed(sig.Recv().Type()); ok && !isStructType(rn) && !isIfaceType(rn) && f.t.translated(rn.Obj().Pkg()) && f.t.classes[rn.Origin().Obj()] == nil {
+				// A method of an embedded non-struct type is a free function.
+				fmt.Fprintf(&w, "  %s(%s): %s { return %s(this%s%s); }\n", f.t.methodNameStr(name), params, f.results(sig), f.qualifyMethod(rn, fn.Name()), path, prefixComma(args))
+				continue
+			}
 			fmt.Fprintf(&w, "  %s(%s): %s { return this%s.%s(%s); }\n", f.t.methodNameStr(name), params, f.results(sig), path, f.t.methodNameStr(name), args)
 		}
 		w.WriteString("}\n")
@@ -1090,6 +1096,9 @@ func (f *file) zero(tt types.Type) string {
 			if c := f.t.classOf(tn); c != nil && c.name != tn {
 				tn = c.name
 			}
+			if f.t.sharedZero(tn) {
+				return f.qualify(tn) + "$zero"
+			}
 			return "new " + f.qualify(tn) + f.typeArgs(n.TypeArgs()) + "(" + strings.Join(f.factoryArgs(tn, n.TypeArgs()), ", ") + ")"
 		case *types.Alias:
 			return f.zero(types.Unalias(n))
@@ -1470,4 +1479,48 @@ func isEmptyIface(tt types.Type) bool {
 	}
 	it, ok := tt.Underlying().(*types.Interface)
 	return ok && it.NumMethods() == 0
+}
+
+// sharedZero reports whether the zero value of struct class tn can be one
+// shared instance: no code changes its values after construction.
+func (t *translator) sharedZero(tn *types.TypeName) bool {
+	c := t.classes[tn]
+	if c == nil || c.name != tn || t.mutable[tn] || t.overridden(tn) || t.localTypes[tn] != "" {
+		return false
+	}
+	n, ok := tn.Type().(*types.Named)
+	if !ok || n.TypeParams().Len() > 0 || t.localTParams[tn] != nil || len(t.needsFor(tn)) > 0 {
+		return false
+	}
+	return c.st.NumFields() > 0
+}
+
+// sharedZeros declares the shared zero values of this module's classes,
+// each after the shared zeros its field initializers use.
+func (f *file) sharedZeros(structs []*types.TypeName) string {
+	var b strings.Builder
+	done := map[*types.TypeName]bool{}
+	var emit func(tn *types.TypeName)
+	emit = func(tn *types.TypeName) {
+		if done[tn] || !f.t.sharedZero(tn) || tn.Pkg() != f.p.p.Types {
+			return
+		}
+		done[tn] = true
+		for c := f.t.classes[tn]; c != nil; c = f.t.classes[c.base] {
+			for i := 0; i < c.st.NumFields(); i++ {
+				if n, ok := types.Unalias(c.st.Field(i).Type()).(*types.Named); ok {
+					emit(n.Origin().Obj())
+				}
+			}
+			if c.base == nil {
+				break
+			}
+		}
+		name := f.declName(tn)
+		fmt.Fprintf(&b, "export const %s$zero: %s = new %s();\n", name, name, name)
+	}
+	for _, tn := range structs {
+		emit(tn)
+	}
+	return b.String()
 }

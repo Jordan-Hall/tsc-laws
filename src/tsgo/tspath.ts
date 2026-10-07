@@ -62,6 +62,7 @@ export class ComparePathsOptions extends $rt.GoObject {
     return $stringutil.GetStringEqualityComparer(!o.UseCaseSensitiveFileNames);
   }
 }
+export const ComparePathsOptions$zero: ComparePathsOptions = new ComparePathsOptions();
 export const DirectorySeparator: number = 47;
 export const ExtensionCjs: string = '.cjs';
 export const ExtensionCts: string = '.cts';

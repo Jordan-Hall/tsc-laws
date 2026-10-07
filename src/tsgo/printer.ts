@@ -2,6 +2,7 @@
 // Copyright Microsoft Corporation. Licensed under Apache-2.0.
 import * as $rt from '../go/runtime.js';
 import * as $ast from './ast.js';
+import * as $boxes from './boxes.js';
 import * as $collections from './collections.js';
 import * as $core from './core.js';
 import * as $debug from './debug.js';
@@ -13,11 +14,11 @@ import type * as $sourcemap from './sourcemap.js';
 import type * as $tsoptions from './tsoptions.js';
 const $zf0 = (): $ast.Node | undefined => undefined;
 const $zf1 = (): emitPartiallyEmittedExpression$entry => new emitPartiallyEmittedExpression$entry();
-const $zf2 = (): $ast.CommentRange => new $ast.CommentRange();
+const $zf2 = (): $ast.CommentRange => $ast.CommentRange$zero;
 const $zf3 = (): emitNode => new emitNode();
 const $zf4 = (): varScope | undefined => undefined;
 const $zf5 = (): EmitHelper | undefined => undefined;
-const $zf6 = (): detachedCommentsInfo => new detachedCommentsInfo();
+const $zf6 = (): detachedCommentsInfo => detachedCommentsInfo$zero;
 const $zf7 = (): commentState => new commentState();
 const $zf8 = (): sourceMapState => new sourceMapState();
 export type AutoGenerateId = number;
@@ -93,7 +94,7 @@ export type tempFlags = number;
 export type tokenEmitFlags = number;
 export type triviaPositionKey =
   | $core.TextChange
-  | $core.TextRange
+  | $core.TextRange$Box
   | $ast.AccessorDeclarationBase
   | $ast.ArrayLiteralExpression
   | $ast.ArrayTypeNode
@@ -1593,7 +1594,7 @@ export class EmitContext extends $rt.GoObject {
         {
           const $t1 = emitNode$v!.tokenSourceMapRanges;
           const $t2 = kind;
-          let loc: $core.TextRange = $t1?.get($t2) ?? new $core.TextRange();
+          let loc: $core.TextRange = $t1?.get($t2) ?? 0;
           let ok: boolean = $t1 !== undefined && $t1.has($t2);
           if (ok) {
             return [loc, true];
@@ -1601,7 +1602,7 @@ export class EmitContext extends $rt.GoObject {
         }
       }
     }
-    return [new $core.TextRange(), false];
+    return [0, false];
   }
   SetTokenSourceMapRange(node: $ast.Node | undefined, kind: $ast.Kind, loc: $core.TextRange): void {
     const c = this;
@@ -2744,7 +2745,7 @@ export class NodeFactory extends $ast.NodeFactory {
     options: AutoGenerateOptions,
   ): $ast.Node | undefined {
     const f = this;
-    let id: AutoGenerateId = nextAutoGenerateId.Add(1);
+    let id: AutoGenerateId = (nextAutoGenerateId = (nextAutoGenerateId + 1) >>> 0);
     if (text.length === (0 as number)) {
       {
         $sw1: {
@@ -2817,7 +2818,7 @@ export class NodeFactory extends $ast.NodeFactory {
     options: AutoGenerateOptions,
   ): $ast.Node | undefined {
     const f = this;
-    let id: AutoGenerateId = nextAutoGenerateId.Add(1);
+    let id: AutoGenerateId = (nextAutoGenerateId = (nextAutoGenerateId + 1) >>> 0);
     if (text.length === (0 as number)) {
       {
         $sw1: {
@@ -4067,7 +4068,7 @@ export class PrintHandlers extends $rt.GoObject {
   }
 }
 export class Printer extends PrintHandlers {
-  Options: PrinterOptions = new PrinterOptions();
+  Options: PrinterOptions = PrinterOptions$zero;
   emitContext: EmitContext | undefined = undefined;
   currentSourceFile: $ast.SourceFile | undefined = undefined;
   uniqueHelperNames: Map<string, $ast.Node | undefined> | undefined = undefined;
@@ -4621,7 +4622,7 @@ export class Printer extends PrintHandlers {
         (lastChild!.Parent === undefined || lastChild!.Parent === parentNode)
       ) {
         if (p!.Options.PreserveSourceNewlines) {
-          let end: number = greatestEnd(lastChild!.End(), [childrenTextRange]);
+          let end: number = greatestEnd(lastChild!.End(), [new $core.TextRange$Box(childrenTextRange)]);
           return p!.getEffectiveLines((includeComments: boolean): number => {
             return getLinesBetweenPositionAndNextNonWhitespaceCharacter(
               end,
@@ -4653,27 +4654,27 @@ export class Printer extends PrintHandlers {
     }
     let text: string = p!.currentSourceFile!.Text();
     let lineMap: $core.TextPos[] = p!.currentSourceFile!.ECMALineMap();
-    p!.writeCommentRangeWorker(text, lineMap, comment.Kind_, comment);
+    p!.writeCommentRangeWorker(text, lineMap, comment.Kind_, comment.TextRange_);
   }
   writeCommentRangeWorker(text: string, lineMap: $core.TextPos[], kind: $ast.Kind, loc: $core.TextRange): void {
     const p = this;
     if (kind === (3 as number)) {
       let indentSize: number = GetDefaultIndentSize();
-      let firstLine: number = $scanner.ComputeLineOfPosition(lineMap, loc.Pos());
+      let firstLine: number = $scanner.ComputeLineOfPosition(lineMap, $core.TextRange$Pos(loc));
       let lineCount: number = lineMap.length;
       let firstCommentLineIndent: number = -1;
-      let pos: number = loc.Pos();
+      let pos: number = $core.TextRange$Pos(loc);
       let currentLine: number = firstLine;
-      for (; pos < loc.End(); currentLine++) {
+      for (; pos < $core.TextRange$End(loc); currentLine++) {
         let nextLineStart: number = 0;
         if (currentLine + 1 === lineCount) {
           nextLineStart = text.length + 1;
         } else {
           nextLineStart = lineMap[currentLine + 1];
         }
-        if (!(pos === loc.Pos())) {
+        if (!(pos === $core.TextRange$Pos(loc))) {
           if (firstCommentLineIndent === (-1 as number)) {
-            firstCommentLineIndent = calculateIndent(text, lineMap[firstLine], loc.Pos());
+            firstCommentLineIndent = calculateIndent(text, lineMap[firstLine], $core.TextRange$Pos(loc));
           }
           let currentWriterIndentSpacing: number = $rt.nn(p!.writer).GetIndent() * indentSize;
           let spacesToEmit: number =
@@ -4693,7 +4694,7 @@ export class Printer extends PrintHandlers {
             $rt.nn(p!.writer).RawWrite('');
           }
         }
-        let end: number = Math.min(loc.End(), nextLineStart);
+        let end: number = Math.min($core.TextRange$End(loc), nextLineStart);
         {
           for (let scan: number = pos; scan < end;) {
             const $t1 = $rt.unicode_utf8_DecodeRuneInString(text.substring(scan, end));
@@ -4712,7 +4713,7 @@ export class Printer extends PrintHandlers {
         let currentLineText: string = $rt.strings_TrimSpace(text.substring(pos, end));
         if (currentLineText.length > 0) {
           p!.writeComment(currentLineText);
-          if (!(end === loc.End())) {
+          if (!(end === $core.TextRange$End(loc))) {
             p!.writeLine();
           }
         } else {
@@ -4721,7 +4722,7 @@ export class Printer extends PrintHandlers {
         pos = nextLineStart;
       }
     } else {
-      p!.writeComment(text.substring(loc.Pos(), loc.End()));
+      p!.writeComment(text.substring($core.TextRange$Pos(loc), $core.TextRange$End(loc)));
     }
   }
   shouldEmitComments(node: $ast.Node | undefined): boolean {
@@ -5499,10 +5500,10 @@ export class Printer extends PrintHandlers {
         }
         let textRange: $core.TextRange = $core.NewTextRange(-1, -1);
         if (start === (0 as number)) {
-          textRange = $core.NewTextRange(modifiers!.Pos(), textRange.End());
+          textRange = $core.NewTextRange(modifiers!.Pos(), $core.TextRange$End(textRange));
         }
         if (pos === modifiers!.Nodes.length - 1) {
-          textRange = $core.NewTextRange(textRange.Pos(), modifiers!.End());
+          textRange = $core.NewTextRange($core.TextRange$Pos(textRange), modifiers!.End());
         }
         if (allowDecorators || lastMode === (1 as number)) {
           const $t1 = $rt.reslice(modifiers!.Nodes, start, pos, undefined);
@@ -8591,7 +8592,7 @@ export class Printer extends PrintHandlers {
     let value: $ast.Node | undefined = node!.Value;
     if ((p!.emitContext!.EmitFlags$m(node!.Value) & 128) === (0 as number)) {
       let commentRange: $core.TextRange = p!.emitContext!.CommentRange(value);
-      p!.emitTrailingComments(commentRange.Pos(), 2);
+      p!.emitTrailingComments($core.TextRange$Pos(commentRange), 2);
     }
     p!.emitExpression(value, 2);
     p!.exitNode(node!.AsNode(), state.$clone_printer_printerState());
@@ -9259,7 +9260,7 @@ export class Printer extends PrintHandlers {
     let initializer: $ast.Node | undefined = node!.Initializer_;
     if ((p!.emitContext!.EmitFlags$m(initializer) & 128) === (0 as number)) {
       let commentRange: $core.TextRange = p!.emitContext!.CommentRange(initializer);
-      p!.emitTrailingComments(commentRange.Pos(), 2);
+      p!.emitTrailingComments($core.TextRange$Pos(commentRange), 2);
     }
     p!.emitExpression(initializer, 2);
     p!.exitNode(node!.AsNode(), state.$clone_printer_printerState());
@@ -9702,7 +9703,11 @@ export class Printer extends PrintHandlers {
               p!.shouldEmitLeadingComments(child)
             ) {
               let commentRange: $core.TextRange = p!.emitContext!.CommentRange(child);
-              p!.emitTrailingCommentsOfPosition(commentRange.Pos(), !($rt.and64(format, 512) === (0 as number)), true);
+              p!.emitTrailingCommentsOfPosition(
+                $core.TextRange$Pos(commentRange),
+                !($rt.and64(format, 512) === (0 as number)),
+                true,
+              );
             }
             for (let $t5 = 0, $t6 = separatingLineTerminatorCount; $t5 < $t6; $t5++) {
               p!.writeLine();
@@ -9714,7 +9719,7 @@ export class Printer extends PrintHandlers {
         }
         if (shouldEmitInterveningComments && p!.shouldEmitLeadingComments(child)) {
           let commentRange$1: $core.TextRange = p!.emitContext!.CommentRange(child);
-          p!.emitTrailingCommentsOfPosition(commentRange$1.Pos(), false, false);
+          p!.emitTrailingCommentsOfPosition($core.TextRange$Pos(commentRange$1), false, false);
         } else {
           shouldEmitInterveningComments = mayEmitInterveningComments;
         }
@@ -9744,8 +9749,8 @@ export class Printer extends PrintHandlers {
       !skipTrailingComments
     ) {
       let commentsPos: number = 0;
-      if (emitTrailingComma && childrenTextRange.End() > 0) {
-        commentsPos = childrenTextRange.End();
+      if (emitTrailingComma && $core.TextRange$End(childrenTextRange) > 0) {
+        commentsPos = $core.TextRange$End(childrenTextRange);
       } else {
         commentsPos = previousSibling!.End();
       }
@@ -10236,7 +10241,7 @@ export class Printer extends PrintHandlers {
     let containerEnd: number = p!.containerEnd;
     let declarationListContainerEnd: number = p!.declarationListContainerEnd;
     let skipLeadingComments: boolean =
-      $ast.PositionIsSynthesized(detachedRange.Pos()) || !((emitFlags & 128) === (0 as number));
+      $ast.PositionIsSynthesized($core.TextRange$Pos(detachedRange)) || !((emitFlags & 128) === (0 as number));
     if (!skipLeadingComments) {
       p!.emitDetachedCommentsAndUpdateCommentsInfo(detachedRange);
     }
@@ -10262,9 +10267,11 @@ export class Printer extends PrintHandlers {
     }
     let emitFlags: EmitFlags = state!.emitFlags;
     let skipTrailingComments: boolean =
-      p!.commentsDisabled || $ast.PositionIsSynthesized(detachedRange.End()) || !((emitFlags & 256) === (0 as number));
+      p!.commentsDisabled ||
+      $ast.PositionIsSynthesized($core.TextRange$End(detachedRange)) ||
+      !((emitFlags & 256) === (0 as number));
     if (!skipTrailingComments) {
-      let hasWrittenComment: boolean = p!.emitLeadingComments(detachedRange.End(), false);
+      let hasWrittenComment: boolean = p!.emitLeadingComments($core.TextRange$End(detachedRange), false);
       if (hasWrittenComment && !$rt.nn(p!.writer).IsAtStartOfLine()) {
         p!.writeLine();
       }
@@ -10272,8 +10279,8 @@ export class Printer extends PrintHandlers {
   }
   emitLeadingCommentsOfNode(node: $ast.Node | undefined, emitFlags: EmitFlags, commentRange: $core.TextRange): void {
     const p = this;
-    let pos: number = commentRange.Pos();
-    let end: number = commentRange.End();
+    let pos: number = $core.TextRange$Pos(commentRange);
+    let end: number = $core.TextRange$End(commentRange);
     if ((!$ast.PositionIsSynthesized(pos) || !$ast.PositionIsSynthesized(end)) && !(pos === end)) {
       let skipLeadingComments: boolean =
         $ast.PositionIsSynthesized(pos) || !((emitFlags & 128) === (0 as number)) || node!.Kind_ === (11 as number);
@@ -10302,8 +10309,8 @@ export class Printer extends PrintHandlers {
     declarationListContainerEnd: number,
   ): void {
     const p = this;
-    let pos: number = commentRange.Pos();
-    let end: number = commentRange.End();
+    let pos: number = $core.TextRange$Pos(commentRange);
+    let end: number = $core.TextRange$End(commentRange);
     let skipTrailingComments: boolean =
       end < 0 || !((emitFlags & 256) === (0 as number)) || node!.Kind_ === (11 as number);
     if ((!$ast.PositionIsSynthesized(pos) || !$ast.PositionIsSynthesized(end)) && !(pos === end)) {
@@ -10413,7 +10420,10 @@ export class Printer extends PrintHandlers {
         return true;
       },
     );
-    if (comments.length > 0 && p!.shouldEmitNewLineBeforeLeadingCommentOfPosition(pos, comments[0].Pos())) {
+    if (
+      comments.length > 0 &&
+      p!.shouldEmitNewLineBeforeLeadingCommentOfPosition(pos, $core.TextRange$Pos(comments[0].TextRange_))
+    ) {
       p!.writeLine();
     }
     return p!.emitComments(comments, 2);
@@ -10547,7 +10557,7 @@ export class Printer extends PrintHandlers {
   }
   emitDetachedComments(textRange: $core.TextRange): [detachedCommentsInfo, boolean] {
     const p = this;
-    let result: detachedCommentsInfo = new detachedCommentsInfo();
+    let result: detachedCommentsInfo = detachedCommentsInfo$zero;
     let hasResult: boolean = false;
     if (p!.currentSourceFile === undefined) {
       return [result, hasResult];
@@ -10556,34 +10566,46 @@ export class Printer extends PrintHandlers {
     let lineMap: $core.TextPos[] = p!.currentSourceFile!.ECMALineMap();
     let leadingComments: $ast.CommentRange[] = [];
     if (p!.commentsDisabled) {
-      if (textRange.Pos() === (0 as number)) {
+      if ($core.TextRange$Pos(textRange) === (0 as number)) {
         let $t1 = false;
-        let $t2: [detachedCommentsInfo, boolean] = [new detachedCommentsInfo(), false];
-        $scanner.GetLeadingCommentRanges(p!.emitContext!.Factory!.AsNodeFactory(), text, textRange.Pos())!(
-          (comment: $ast.CommentRange): boolean => {
-            if (IsPinnedComment(text, comment)) {
-              leadingComments = $rt.appendCopy(leadingComments, [comment]);
-            }
-            return true;
-          },
-        );
+        let $t2: [detachedCommentsInfo, boolean] = [detachedCommentsInfo$zero, false];
+        $scanner.GetLeadingCommentRanges(
+          p!.emitContext!.Factory!.AsNodeFactory(),
+          text,
+          $core.TextRange$Pos(textRange),
+        )!((comment: $ast.CommentRange): boolean => {
+          if (IsPinnedComment(text, comment)) {
+            leadingComments = $rt.appendCopy(leadingComments, [comment]);
+          }
+          return true;
+        });
       }
     } else {
       leadingComments = $rt.slices_Collect(
-        $scanner.GetLeadingCommentRanges(p!.emitContext!.Factory!.AsNodeFactory(), text, textRange.Pos()),
+        $scanner.GetLeadingCommentRanges(
+          p!.emitContext!.Factory!.AsNodeFactory(),
+          text,
+          $core.TextRange$Pos(textRange),
+        ),
       );
     }
     if (leadingComments.length > 0) {
       let detachedComments: $ast.CommentRange[] = [];
-      let lastComment: $ast.CommentRange = new $ast.CommentRange();
+      let lastComment: $ast.CommentRange = $ast.CommentRange$zero;
       {
         const $t3 = leadingComments;
         for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
           let i = $t4;
           let comment$1 = $t3[$t4];
           if (i > 0) {
-            let lastCommentLine: number = $scanner.ComputeLineOfPosition(lineMap, lastComment.End());
-            let commentLine: number = $scanner.ComputeLineOfPosition(lineMap, comment$1.Pos());
+            let lastCommentLine: number = $scanner.ComputeLineOfPosition(
+              lineMap,
+              $core.TextRange$End(lastComment.TextRange_),
+            );
+            let commentLine: number = $scanner.ComputeLineOfPosition(
+              lineMap,
+              $core.TextRange$Pos(comment$1.TextRange_),
+            );
             if (commentLine >= lastCommentLine + 2) {
               break;
             }
@@ -10595,9 +10617,12 @@ export class Printer extends PrintHandlers {
       if (detachedComments.length > 0) {
         let lastCommentLine$1: number = $scanner.ComputeLineOfPosition(
           lineMap,
-          $core.LastOrNil<$ast.CommentRange>($zf2, detachedComments).End(),
+          $core.TextRange$End($core.LastOrNil<$ast.CommentRange>($zf2, detachedComments).TextRange_),
         );
-        let nodeLine: number = $scanner.ComputeLineOfPosition(lineMap, $scanner.SkipTrivia(text, textRange.Pos()));
+        let nodeLine: number = $scanner.ComputeLineOfPosition(
+          lineMap,
+          $scanner.SkipTrivia(text, $core.TextRange$Pos(textRange)),
+        );
         if (nodeLine >= lastCommentLine$1 + 2) {
           let commentsToEmit: $ast.CommentRange[] = [];
           {
@@ -10610,14 +10635,19 @@ export class Printer extends PrintHandlers {
             }
           }
           if (commentsToEmit.length > 0) {
-            if (p!.shouldEmitNewLineBeforeLeadingCommentOfPosition(textRange.Pos(), commentsToEmit[0].Pos())) {
+            if (
+              p!.shouldEmitNewLineBeforeLeadingCommentOfPosition(
+                $core.TextRange$Pos(textRange),
+                $core.TextRange$Pos(commentsToEmit[0].TextRange_),
+              )
+            ) {
               p!.writeLine();
             }
             p!.emitComments(commentsToEmit, 2);
           }
           result = detachedCommentsInfo.$lit_printer_detachedCommentsInfo_0_1(
-            textRange.Pos(),
-            $core.LastOrNil<$ast.CommentRange>($zf2, detachedComments).End(),
+            $core.TextRange$Pos(textRange),
+            $core.TextRange$End($core.LastOrNil<$ast.CommentRange>($zf2, detachedComments).TextRange_),
           );
           hasResult = true;
         }
@@ -10660,9 +10690,9 @@ export class Printer extends PrintHandlers {
   }
   emitComment(comment: $ast.CommentRange): void {
     const p = this;
-    p!.emitPos(comment.Pos());
+    p!.emitPos($core.TextRange$Pos(comment.TextRange_));
     p!.writeCommentRange(comment);
-    p!.emitPos(comment.End());
+    p!.emitPos($core.TextRange$End(comment.TextRange_));
   }
   isTripleSlashComment(comment: $ast.CommentRange): boolean {
     const p = this;
@@ -10753,9 +10783,9 @@ export class Printer extends PrintHandlers {
       !$ast.IsNotEmittedStatement(node) &&
       (emitFlags & 4) === (0 as number) &&
       !(p!.currentSourceFile === undefined) &&
-      !$ast.PositionIsSynthesized(loc.Pos())
+      !$ast.PositionIsSynthesized($core.TextRange$Pos(loc))
     ) {
-      p!.emitSourcePos(p!.sourceMapSource, $scanner.SkipTrivia(p!.currentSourceFile!.Text(), loc.Pos()));
+      p!.emitSourcePos(p!.sourceMapSource, $scanner.SkipTrivia(p!.currentSourceFile!.Text(), $core.TextRange$Pos(loc)));
     }
     if (!((emitFlags & 16) === (0 as number))) {
       p!.sourceMapsDisabled = true;
@@ -10777,9 +10807,9 @@ export class Printer extends PrintHandlers {
     if (
       !$ast.IsNotEmittedStatement(node) &&
       (emitFlags & 8) === (0 as number) &&
-      !$ast.PositionIsSynthesized(loc.End())
+      !$ast.PositionIsSynthesized($core.TextRange$End(loc))
     ) {
-      p!.emitSourcePos(p!.sourceMapSource, loc.End());
+      p!.emitSourcePos(p!.sourceMapSource, $core.TextRange$End(loc));
     }
   }
   emitSourceMapsBeforeToken(
@@ -10797,7 +10827,7 @@ export class Printer extends PrintHandlers {
     let loc: $core.TextRange = $t1[0];
     let hasLoc: boolean = $t1[1];
     if (hasLoc) {
-      pos = loc.Pos();
+      pos = $core.TextRange$Pos(loc);
     }
     if (pos >= 0 && !(p!.currentSourceFile === undefined)) {
       pos = $scanner.SkipTrivia(p!.currentSourceFile!.Text(), pos);
@@ -10824,7 +10854,7 @@ export class Printer extends PrintHandlers {
     let hasLoc: boolean = previousState!.hasTokenSourceMapRange;
     if ((emitFlags & 64) === (0 as number)) {
       if (hasLoc) {
-        pos = loc.End();
+        pos = $core.TextRange$End(loc);
       }
       if (pos >= 0) {
         p!.emitSourcePos(p!.sourceMapSource, pos);
@@ -11298,7 +11328,7 @@ export class SymbolAccessibilityResult extends $rt.GoObject {
 }
 export class SynthesizedComment extends $rt.GoObject {
   Kind_: $ast.Kind = 0;
-  Loc: $core.TextRange = new $core.TextRange();
+  Loc: $core.TextRange = 0;
   HasLeadingNewLine: boolean = false;
   HasTrailingNewLine: boolean = false;
   Text: string = '';
@@ -11312,7 +11342,7 @@ export class SynthesizedComment extends $rt.GoObject {
   $equals_printer_SynthesizedComment(o: SynthesizedComment): boolean {
     return (
       this.Kind_ === o.Kind_ &&
-      this.Loc.$equals_core_TextRange(o.Loc) &&
+      this.Loc === o.Loc &&
       this.HasLeadingNewLine === o.HasLeadingNewLine &&
       this.HasTrailingNewLine === o.HasTrailingNewLine &&
       this.Text === o.Text
@@ -11343,7 +11373,7 @@ export class SynthesizedComment extends $rt.GoObject {
 }
 export class commentState extends $rt.GoObject {
   emitFlags: EmitFlags = 0;
-  commentRange: $core.TextRange = new $core.TextRange();
+  commentRange: $core.TextRange = 0;
   containerPos: number = 0;
   containerEnd: number = 0;
   declarationListContainerEnd: number = 0;
@@ -11357,7 +11387,7 @@ export class commentState extends $rt.GoObject {
   $equals_printer_commentState(o: commentState): boolean {
     return (
       this.emitFlags === o.emitFlags &&
-      this.commentRange.$equals_core_TextRange(o.commentRange) &&
+      this.commentRange === o.commentRange &&
       this.containerPos === o.containerPos &&
       this.containerEnd === o.containerEnd &&
       this.declarationListContainerEnd === o.declarationListContainerEnd
@@ -11417,8 +11447,8 @@ export class detachedCommentsInfo extends $rt.GoObject {
 export class emitNode extends $rt.GoObject {
   flags: emitNodeFlags = 0;
   emitFlags: EmitFlags = 0;
-  commentRange: $core.TextRange = new $core.TextRange();
-  sourceMapRange: $core.TextRange = new $core.TextRange();
+  commentRange: $core.TextRange = 0;
+  sourceMapRange: $core.TextRange = 0;
   tokenSourceMapRanges: Map<$ast.Kind, $core.TextRange> | undefined = undefined;
   helpers: (EmitHelper | undefined)[] = [];
   externalHelpersModuleName: $ast.Node | undefined = undefined;
@@ -11705,7 +11735,7 @@ export class singleLineStringWriter extends $rt.GoObject {
 }
 export class sourceMapState extends $rt.GoObject {
   emitFlags: EmitFlags = 0;
-  sourceMapRange: $core.TextRange = new $core.TextRange();
+  sourceMapRange: $core.TextRange = 0;
   hasTokenSourceMapRange: boolean = false;
   $copy_printer_sourceMapState(src: sourceMapState): void {
     this.emitFlags = src.emitFlags;
@@ -11715,7 +11745,7 @@ export class sourceMapState extends $rt.GoObject {
   $equals_printer_sourceMapState(o: sourceMapState): boolean {
     return (
       this.emitFlags === o.emitFlags &&
-      this.sourceMapRange.$equals_core_TextRange(o.sourceMapRange) &&
+      this.sourceMapRange === o.sourceMapRange &&
       this.hasTokenSourceMapRange === o.hasTokenSourceMapRange
     );
   }
@@ -11941,6 +11971,15 @@ export class emitPartiallyEmittedExpression$entry extends $rt.GoObject {
     throw $rt.typeAssertError();
   }
 }
+export const AssignedNameOptions$zero: AssignedNameOptions = new AssignedNameOptions();
+export const EmitHelper$zero: EmitHelper = new EmitHelper();
+export const NameOptions$zero: NameOptions = new NameOptions();
+export const PrintHandlers$zero: PrintHandlers = new PrintHandlers();
+export const PrinterOptions$zero: PrinterOptions = new PrinterOptions();
+export const Priority$zero: Priority = new Priority();
+export const SymbolAccessibilityResult$zero: SymbolAccessibilityResult = new SymbolAccessibilityResult();
+export const SynthesizedComment$zero: SynthesizedComment = new SynthesizedComment();
+export const detachedCommentsInfo$zero: detachedCommentsInfo = new detachedCommentsInfo();
 export const EFAsyncFunctionBody: EmitFlags = 2097152;
 export const EFCustomPrologue: EmitFlags = 65536;
 export const EFExportName: EmitFlags = 2048;
@@ -12320,7 +12359,7 @@ export let escapedCharsMap: Map<number, string> | undefined = new Map<number, st
   [8233, '\\u2029'],
   [133, '\\u0085'],
 ]);
-export let nextAutoGenerateId: $rt.sync_atomic_Uint32 = new $rt.sync_atomic_Uint32();
+export let nextAutoGenerateId: number = 0;
 export function NewChangeTrackerWriter(newline: string, indentSize: number): ChangeTrackerWriter | undefined {
   if (indentSize < 0) {
     indentSize = 4;
@@ -12974,33 +13013,41 @@ export function rangeEndPositionsAreOnSameLine(
   range2: $core.TextRange,
   sourceFile: $ast.SourceFile | undefined,
 ): boolean {
-  return PositionsAreOnSameLine(range1.End(), range2.End(), sourceFile);
+  return PositionsAreOnSameLine($core.TextRange$End(range1), $core.TextRange$End(range2), sourceFile);
 }
 export function rangeStartIsOnSameLineAsRangeEnd(
   range1: $core.TextRange,
   range2: $core.TextRange,
   sourceFile: $ast.SourceFile | undefined,
 ): boolean {
-  return PositionsAreOnSameLine(getStartPositionOfRange(range1, sourceFile, false), range2.End(), sourceFile);
+  return PositionsAreOnSameLine(
+    getStartPositionOfRange(range1, sourceFile, false),
+    $core.TextRange$End(range2),
+    sourceFile,
+  );
 }
 export function rangeEndIsOnSameLineAsRangeStart(
   range1: $core.TextRange,
   range2: $core.TextRange,
   sourceFile: $ast.SourceFile | undefined,
 ): boolean {
-  return PositionsAreOnSameLine(range1.End(), getStartPositionOfRange(range2, sourceFile, false), sourceFile);
+  return PositionsAreOnSameLine(
+    $core.TextRange$End(range1),
+    getStartPositionOfRange(range2, sourceFile, false),
+    sourceFile,
+  );
 }
 export function getStartPositionOfRange(
   r: $core.TextRange,
   sourceFile: $ast.SourceFile | undefined,
   includeComments: boolean,
 ): number {
-  if ($ast.PositionIsSynthesized(r.Pos())) {
+  if ($ast.PositionIsSynthesized($core.TextRange$Pos(r))) {
     return -1;
   }
   return $scanner.SkipTriviaEx(
     sourceFile!.Text(),
-    r.Pos(),
+    $core.TextRange$Pos(r),
     $scanner.SkipTriviaOptions.$lit_scanner_SkipTriviaOptions_1(includeComments),
   );
 }
@@ -13030,7 +13077,7 @@ export function getLinesBetweenRangeEndAndRangeStart(
   includeSecondRangeComments: boolean,
 ): number {
   let range2Start: number = getStartPositionOfRange(range2, sourceFile, includeSecondRangeComments);
-  return GetLinesBetweenPositions(sourceFile, range1.End(), range2Start);
+  return GetLinesBetweenPositions(sourceFile, $core.TextRange$End(range1), range2Start);
 }
 export function getLinesBetweenPositionAndPrecedingNonWhitespaceCharacter(
   pos: number,
@@ -13289,7 +13336,7 @@ export function originalNodesHaveSameParent(
 export function tryGetEnd(
   node:
     | $core.TextChange
-    | $core.TextRange
+    | $core.TextRange$Box
     | $ast.AccessorDeclarationBase
     | $ast.ArrayLiteralExpression
     | $ast.ArrayTypeNode
@@ -13516,7 +13563,7 @@ export function tryGetEnd(
   {
     const $t1:
       | $core.TextChange
-      | $core.TextRange
+      | $core.TextRange$Box
       | $ast.AccessorDeclarationBase
       | $ast.ArrayLiteralExpression
       | $ast.ArrayTypeNode
@@ -13755,18 +13802,18 @@ export function tryGetEnd(
         if (!(v$2 === undefined)) {
           return [v$2!.End(), true];
         }
-      } else if ($t1 instanceof $core.TextRange) {
-        const v$3: $core.TextRange | undefined = $core.TextRange.$cast_core_TextRange($t1);
+      } else if ($t1 instanceof $boxes.Box__core_TextRange) {
+        const v$3: $rt.Ptr<$core.TextRange> | undefined = $boxes.Box__core_TextRange.$cast($t1).v;
         if (!(v$3 === undefined)) {
-          return [v$3!.End(), true];
+          return [$core.TextRange$End(v$3!.get()), true];
         }
-      } else if ($t1 instanceof $core.TextRange) {
-        const v$4: $core.TextRange = $core.TextRange.$cast_core_TextRange($t1);
-        return [v$4.End(), true];
+      } else if ($t1 instanceof $core.TextRange$Box) {
+        const v$4: $core.TextRange = $core.TextRange$Box.$cast($t1).v;
+        return [$core.TextRange$End(v$4), true];
       } else {
         const v$5:
           | $core.TextChange
-          | $core.TextRange
+          | $core.TextRange$Box
           | $ast.AccessorDeclarationBase
           | $ast.ArrayLiteralExpression
           | $ast.ArrayTypeNode
@@ -13999,7 +14046,7 @@ export function greatestEnd(
   end: number,
   nodes: (
     | $core.TextChange
-    | $core.TextRange
+    | $core.TextRange$Box
     | $ast.AccessorDeclarationBase
     | $ast.ArrayLiteralExpression
     | $ast.ArrayTypeNode
@@ -14228,7 +14275,7 @@ export function greatestEnd(
     for (let i: number = nodes.length - 1; i >= 0; i--) {
       let node:
         | $core.TextChange
-        | $core.TextRange
+        | $core.TextRange$Box
         | $ast.AccessorDeclarationBase
         | $ast.ArrayLiteralExpression
         | $ast.ArrayTypeNode
@@ -14661,11 +14708,14 @@ export function matchQuotedString(text: string, pos: $rt.Ptr<number> | undefined
 export function IsRecognizedTripleSlashComment(text: string, commentRange: $ast.CommentRange): boolean {
   if (
     commentRange.Kind_ === (2 as number) &&
-    commentRange.Len() > 2 &&
-    text.charCodeAt(commentRange.Pos() + 1) === (47 as number) &&
-    text.charCodeAt(commentRange.Pos() + 2) === (47 as number)
+    $core.TextRange$Len(commentRange.TextRange_) > 2 &&
+    text.charCodeAt($core.TextRange$Pos(commentRange.TextRange_) + 1) === (47 as number) &&
+    text.charCodeAt($core.TextRange$Pos(commentRange.TextRange_) + 2) === (47 as number)
   ) {
-    text = text.substring(commentRange.Pos() + 3, commentRange.End());
+    text = text.substring(
+      $core.TextRange$Pos(commentRange.TextRange_) + 3,
+      $core.TextRange$End(commentRange.TextRange_),
+    );
     let pos: number = 0;
     skipWhiteSpaceSingleLine(
       text,
@@ -14924,13 +14974,17 @@ export function IsRecognizedTripleSlashComment(text: string, commentRange: $ast.
 export function isJSDocLikeText(text: string, comment: $ast.CommentRange): boolean {
   return (
     comment.Kind_ === (3 as number) &&
-    comment.Len() >= 5 &&
-    text.charCodeAt(comment.Pos() + 2) === (42 as number) &&
-    !(text.charCodeAt(comment.Pos() + 3) === (47 as number))
+    $core.TextRange$Len(comment.TextRange_) >= 5 &&
+    text.charCodeAt($core.TextRange$Pos(comment.TextRange_) + 2) === (42 as number) &&
+    !(text.charCodeAt($core.TextRange$Pos(comment.TextRange_) + 3) === (47 as number))
   );
 }
 export function IsPinnedComment(text: string, comment: $ast.CommentRange): boolean {
-  return comment.Kind_ === (3 as number) && comment.Len() > 5 && text.charCodeAt(comment.Pos() + 2) === (33 as number);
+  return (
+    comment.Kind_ === (3 as number) &&
+    $core.TextRange$Len(comment.TextRange_) > 5 &&
+    text.charCodeAt($core.TextRange$Pos(comment.TextRange_) + 2) === (33 as number)
+  );
 }
 export function calculateIndent(text: string, pos: number, end: number): number {
   let currentLineIndent: number = 0;

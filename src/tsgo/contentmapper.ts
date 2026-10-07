@@ -696,7 +696,7 @@ export class MappedResult extends $rt.GoObject {
   }
 }
 export class Mapper extends Definition {
-  Manifest_: Manifest = new Manifest();
+  Manifest_: Manifest = Manifest$zero;
   PackageDirectory: string = '';
   ContributionID: string = '';
   $copy_contentmapper_Mapper(src: Mapper): void {
@@ -810,11 +810,11 @@ export class Mapper extends Definition {
   }
 }
 export class MapperTimings extends $rt.GoObject {
-  Spawn: OperationTiming = new OperationTiming();
-  Initialize: OperationTiming = new OperationTiming();
-  OpenProject: OperationTiming = new OperationTiming();
-  CloseProject: OperationTiming = new OperationTiming();
-  Transform: OperationTiming = new OperationTiming();
+  Spawn: OperationTiming = OperationTiming$zero;
+  Initialize: OperationTiming = OperationTiming$zero;
+  OpenProject: OperationTiming = OperationTiming$zero;
+  CloseProject: OperationTiming = OperationTiming$zero;
+  Transform: OperationTiming = OperationTiming$zero;
   $copy_contentmapper_MapperTimings(src: MapperTimings): void {
     this.Spawn = src.Spawn;
     this.Initialize = src.Initialize;
@@ -1254,7 +1254,7 @@ export class Timings extends $rt.GoObject {
       Math.max(t.RequestWait - previous.RequestWait, 0),
     );
     for (const [identity, current] of t.Mappers ?? new Map<string, MapperTimings>()) {
-      let before: MapperTimings = previous.Mappers?.get(identity) ?? new MapperTimings();
+      let before: MapperTimings = previous.Mappers?.get(identity) ?? MapperTimings$zero;
       result.Mappers!.set(
         identity,
         MapperTimings.$lit_contentmapper_MapperTimings_0_1_2_3_4(
@@ -1688,10 +1688,7 @@ export class host extends $rt.GoObject {
       }
     }
     entry!.watchedFiles = $rt.slices_Clone(result.WatchedFiles);
-    entry!.optionDiagnostics = $rt.makeSliceFn<OptionDiagnostic>(
-      result.OptionDiagnostics.length,
-      () => new OptionDiagnostic(),
-    );
+    entry!.optionDiagnostics = $rt.makeSlice<OptionDiagnostic>(result.OptionDiagnostics.length, OptionDiagnostic$zero);
     {
       const $t6 = result.OptionDiagnostics;
       for (let $t7 = 0, $n = $t6.length; $t7 < $n; $t7++) {
@@ -2287,8 +2284,8 @@ export class mapperTimingCollector extends $rt.GoObject {
   }
 }
 export class operationTiming extends $rt.GoObject {
-  count: $rt.sync_atomic_Uint64 = new $rt.sync_atomic_Uint64();
-  duration: $rt.sync_atomic_Int64 = new $rt.sync_atomic_Int64();
+  count: number = 0;
+  duration: number = 0;
   $copy_contentmapper_operationTiming(src: operationTiming): void {
     this.count = src.count;
     this.duration = src.duration;
@@ -2307,12 +2304,12 @@ export class operationTiming extends $rt.GoObject {
   }
   record(start: $rt.time_Time): void {
     const t = this;
-    t!.count.Add(1);
-    t!.duration.Add($rt.time_Since(start));
+    t!.count = t!.count + 1;
+    t!.duration = t!.duration + $rt.time_Since(start);
   }
   snapshot(): OperationTiming {
     const t = this;
-    return OperationTiming.$lit_contentmapper_OperationTiming_0_1(t!.count.Load(), t!.duration.Load());
+    return OperationTiming.$lit_contentmapper_OperationTiming_0_1(t!.count, t!.duration);
   }
 }
 export class positionNormalizer extends $rt.GoObject {
@@ -2392,7 +2389,7 @@ export class positionNormalizer extends $rt.GoObject {
 }
 export class projectEntry extends $rt.GoObject {
   mapper: Mapper | undefined = undefined;
-  spec: ProjectSpec = new ProjectSpec();
+  spec: ProjectSpec = ProjectSpec$zero;
   projectHandle: string = '';
   opened: boolean = false;
   configIdentity: string = '';
@@ -3175,6 +3172,25 @@ export class normalizeDiagnosticDirectives$indexedDirective extends $rt.GoObject
     throw $rt.typeAssertError();
   }
 }
+export const CloseProjectParams$zero: CloseProjectParams = new CloseProjectParams();
+export const Diagnostic$zero: Diagnostic = new Diagnostic();
+export const DiagnosticDirectives$zero: DiagnosticDirectives = new DiagnosticDirectives();
+export const HostOptions$zero: HostOptions = new HostOptions();
+export const InitializeParams$zero: InitializeParams = new InitializeParams();
+export const Manifest$zero: Manifest = new Manifest();
+export const MappedOutput$zero: MappedOutput = new MappedOutput();
+export const OperationTiming$zero: OperationTiming = new OperationTiming();
+export const MapperTimings$zero: MapperTimings = new MapperTimings();
+export const OpenProjectParams$zero: OpenProjectParams = new OpenProjectParams();
+export const OptionDiagnostic$zero: OptionDiagnostic = new OptionDiagnostic();
+export const OptionDiagnosticResult$zero: OptionDiagnosticResult = new OptionDiagnosticResult();
+export const ProjectSpec$zero: ProjectSpec = new ProjectSpec();
+export const Request$zero: Request = new Request();
+export const SupplementalOutput$zero: SupplementalOutput = new SupplementalOutput();
+export const Timings$zero: Timings = new Timings();
+export const TransformParams$zero: TransformParams = new TransformParams();
+export const UnusedExpectDirectiveDiagnostic$zero: UnusedExpectDirectiveDiagnostic =
+  new UnusedExpectDirectiveDiagnostic();
 export const DiagnosticDirectiveErrorKindExpectMissingUnusedDiagnostic: DiagnosticDirectiveErrorKind = 2;
 export const DiagnosticDirectiveErrorKindInvalidPolicy: DiagnosticDirectiveErrorKind = 1;
 export const DiagnosticDirectiveErrorKindInvalidRange: DiagnosticDirectiveErrorKind = 0;
@@ -3227,7 +3243,7 @@ const $fn1 = (
   a: normalizeDiagnosticDirectives$indexedDirective,
   b: normalizeDiagnosticDirectives$indexedDirective,
 ): number => {
-  return $rt.cmp_Compare(a.directive.VirtualRange.Pos(), b.directive.VirtualRange.Pos());
+  return $rt.cmp_Compare($core.TextRange$Pos(a.directive.VirtualRange), $core.TextRange$Pos(b.directive.VirtualRange));
 };
 export let ErrProjectUnavailable: $rt.GoObject | undefined = $rt.errors_New('content mapper project is unavailable');
 export let supportedVirtualExtensions: $collections.Set_<string> | undefined = $collections.NewSetFromItems<string>([
@@ -3827,7 +3843,10 @@ export function normalizeDiagnosticDirectives(
   $rt.slices_SortFunc(sorted, $fn1);
   {
     for (let i$2: number = 1; i$2 < sorted.length; i$2++) {
-      if (sorted[i$2].directive.VirtualRange.Pos() < sorted[i$2 - 1].directive.VirtualRange.End()) {
+      if (
+        $core.TextRange$Pos(sorted[i$2].directive.VirtualRange) <
+        $core.TextRange$End(sorted[i$2 - 1].directive.VirtualRange)
+      ) {
         return [
           [],
           DiagnosticDirectiveError.$lit_contentmapper_DiagnosticDirectiveError_0_1_2(4, sorted[i$2].index, -1),

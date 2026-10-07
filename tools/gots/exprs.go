@@ -50,6 +50,10 @@ func (x *fn) expr(e ast.Expr) string {
 	case *ast.BinaryExpr:
 		return x.binary(e)
 	case *ast.CompositeLit:
+		if x.constStructLit(e, tv.Type) {
+			// Immutable and constant: share one instance.
+			return x.f.hoistFn(x.composite(e, tv.Type))
+		}
 		return x.composite(e, tv.Type)
 	case *ast.FuncLit:
 		return x.funcLit(e)
@@ -300,6 +304,10 @@ func (x *fn) methodCallOn(e *ast.SelectorExpr, r string, args []string) string {
 		fname := x.f.qualifyMethod(n, fnc.Name())
 		if _, isPtr := declRecv.(*types.Pointer); isPtr && !isStructType(n) {
 			return fmt.Sprintf("%s(%s%s)", fname, x.addrOfText(e.X), prefixComma(argStr))
+		}
+		// A value method called through a pointer to a non-struct value.
+		if _, isPtr := types.Unalias(recvType).(*types.Pointer); isPtr && !isStructType(n) && path == "" {
+			r += ".get()"
 		}
 		return fmt.Sprintf("%s(%s%s%s)", fname, r, path, prefixComma(argStr))
 	}
@@ -1504,4 +1512,22 @@ func (f *file) isUnionIface(tt types.Type) bool {
 	}
 	m := f.t.ifaces[n.Origin().Obj()]
 	return m != nil && m.base == nil && len(m.union) > 0
+}
+
+// constStructLit reports whether e is a literal of an immutable struct
+// type with only constant fields.
+func (x *fn) constStructLit(e *ast.CompositeLit, tt types.Type) bool {
+	n, ok := types.Unalias(tt).(*types.Named)
+	if !ok || len(e.Elts) == 0 || !x.f.t.translated(n.Obj().Pkg()) || !x.f.t.sharedZero(n.Origin().Obj()) {
+		return false
+	}
+	for _, el := range e.Elts {
+		if kv, ok := el.(*ast.KeyValueExpr); ok {
+			el = kv.Value
+		}
+		if x.info.Types[el].Value == nil {
+			return false
+		}
+	}
+	return true
 }

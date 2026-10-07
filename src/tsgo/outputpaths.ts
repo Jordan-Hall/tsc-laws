@@ -79,6 +79,7 @@ export class OutputPaths extends $rt.GoObject {
     return o!.declarationMapPath;
   }
 }
+export const ForceEmitPaths$zero: ForceEmitPaths = new ForceEmitPaths();
 export function computeCommonSourceDirectoryOfFilenames(
   fileNames: string[],
   currentDirectory: string,

@@ -171,6 +171,9 @@ func (x *fn) rawExpr(e ast.Expr) string {
 
 // varType is the declared type of v.
 func (f *file) varType(v *types.Var) string {
+	if atomicGlobal[v.Origin()] {
+		return atomicKind(v.Type())
+	}
 	if nilSliceGlobal[v.Origin()] {
 		return f.tsType(v.Type()) + " | undefined"
 	}
@@ -179,6 +182,9 @@ func (f *file) varType(v *types.Var) string {
 
 // varZero is the zero value of v.
 func (f *file) varZero(v *types.Var) string {
+	if atomicGlobal[v.Origin()] {
+		return atomicZero(v)
+	}
 	if nilSliceGlobal[v.Origin()] {
 		return "undefined"
 	}

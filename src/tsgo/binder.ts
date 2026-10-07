@@ -3735,7 +3735,7 @@ export class ReferenceResolverHooks extends $rt.GoObject {
 export class referenceResolver extends $rt.GoObject {
   resolver: NameResolver | undefined = undefined;
   options: $core.CompilerOptions | undefined = undefined;
-  hooks: ReferenceResolverHooks = new ReferenceResolverHooks();
+  hooks: ReferenceResolverHooks = ReferenceResolverHooks$zero;
   $copy_binder_referenceResolver(src: referenceResolver): void {
     this.resolver = src.resolver;
     this.options = src.options;
@@ -4017,6 +4017,8 @@ export class referenceResolver extends $rt.GoObject {
     return r!.getExportSymbolOfValueSymbolIfExported(s)!.ValueDeclaration;
   }
 }
+export const ExpandoAssignmentInfo$zero: ExpandoAssignmentInfo = new ExpandoAssignmentInfo();
+export const ReferenceResolverHooks$zero: ReferenceResolverHooks = new ReferenceResolverHooks();
 export const ContainerFlagsHasLocals: ContainerFlags = 32;
 export const ContainerFlagsIsBlockScopedContainer: ContainerFlags = 2;
 export const ContainerFlagsIsContainer: ContainerFlags = 1;

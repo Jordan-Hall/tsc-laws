@@ -14,7 +14,7 @@ export class $Anon2 extends $rt.GoObject {
   DependencyFields: DependencyFields;
   TypeScript: Expected<typeScriptFields>;
   constructor(
-    p0: HeaderFields = new HeaderFields(),
+    p0: HeaderFields = HeaderFields$zero,
     p1: PathFields = new PathFields(),
     p2: DependencyFields = new DependencyFields(),
     p3: Expected<typeScriptFields> = new Expected<typeScriptFields>($zf9),
@@ -40,10 +40,10 @@ const $zf2 = (): ExportsOrImports => new ExportsOrImports();
 const $zf3 = (): JSONValue => new JSONValue();
 const $zf4 = (): boolean => false;
 const $zf5 = (): Map<string, string> | undefined => undefined;
-const $zf6 = (): ContentMapperFields => new ContentMapperFields();
+const $zf6 = (): ContentMapperFields => ContentMapperFields$zero;
 const $zf7 = (): $tspath.Path => '';
 const $zf8 = (): InfoCacheEntry | undefined => undefined;
-const $zf9 = (): typeScriptFields => new typeScriptFields();
+const $zf9 = (): typeScriptFields => typeScriptFields$zero;
 export type JSONValueType = number;
 export class JSONValueType$Box extends $rt.GoObject {
   v: JSONValueType;
@@ -1051,6 +1051,10 @@ export class typeScriptFields extends $rt.GoObject {
     throw $rt.typeAssertError();
   }
 }
+export const ContentMapperFields$zero: ContentMapperFields = new ContentMapperFields();
+export const HeaderFields$zero: HeaderFields = new HeaderFields();
+export const diagnosticAndArgs$zero: diagnosticAndArgs = new diagnosticAndArgs();
+export const typeScriptFields$zero: typeScriptFields = new typeScriptFields();
 export class Box__collections_OrderedMap_string__packagejson_ExportsOrImports_ extends $rt.GoObject {
   v: $collections.OrderedMap<string, ExportsOrImports> | undefined;
   constructor(v: $collections.OrderedMap<string, ExportsOrImports> | undefined) {

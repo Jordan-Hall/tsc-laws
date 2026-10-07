@@ -67,6 +67,7 @@ export class Entries extends $rt.GoObject {
     throw $rt.typeAssertError();
   }
 }
+export const Entries$zero: Entries = new Entries();
 export let ErrInvalid: $rt.GoObject | undefined = $rt.io_fs_ErrInvalid;
 export let ErrPermission: $rt.GoObject | undefined = $rt.io_fs_ErrPermission;
 export let ErrExist: $rt.GoObject | undefined = $rt.io_fs_ErrExist;

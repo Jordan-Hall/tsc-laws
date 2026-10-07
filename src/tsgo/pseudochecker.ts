@@ -1320,6 +1320,21 @@ export class PseudoTypeUnion extends PseudoTypeBase {
     throw $rt.typeAssertError();
   }
 }
+export const PseudoGetAccessor$zero: PseudoGetAccessor = new PseudoGetAccessor();
+export const PseudoObjectMethod$zero: PseudoObjectMethod = new PseudoObjectMethod();
+export const PseudoParameter$zero: PseudoParameter = new PseudoParameter();
+export const PseudoPropertyAssignment$zero: PseudoPropertyAssignment = new PseudoPropertyAssignment();
+export const PseudoSetAccessor$zero: PseudoSetAccessor = new PseudoSetAccessor();
+export const PseudoTypeBase$zero: PseudoTypeBase = new PseudoTypeBase();
+export const PseudoTypeDirect$zero: PseudoTypeDirect = new PseudoTypeDirect();
+export const PseudoTypeInferred$zero: PseudoTypeInferred = new PseudoTypeInferred();
+export const PseudoTypeLiteral$zero: PseudoTypeLiteral = new PseudoTypeLiteral();
+export const PseudoTypeMaybeConstLocation$zero: PseudoTypeMaybeConstLocation = new PseudoTypeMaybeConstLocation();
+export const PseudoTypeNoResult$zero: PseudoTypeNoResult = new PseudoTypeNoResult();
+export const PseudoTypeObjectLiteral$zero: PseudoTypeObjectLiteral = new PseudoTypeObjectLiteral();
+export const PseudoTypeSingleCallSignature$zero: PseudoTypeSingleCallSignature = new PseudoTypeSingleCallSignature();
+export const PseudoTypeTuple$zero: PseudoTypeTuple = new PseudoTypeTuple();
+export const PseudoTypeUnion$zero: PseudoTypeUnion = new PseudoTypeUnion();
 export const PseudoObjectElementKindGetAccessor: PseudoObjectElementKind = 3;
 export const PseudoObjectElementKindMethod: PseudoObjectElementKind = 0;
 export const PseudoObjectElementKindPropertyAssignment: PseudoObjectElementKind = 1;

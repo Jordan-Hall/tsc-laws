@@ -42,6 +42,7 @@ export class Result extends $rt.GoObject {
     throw $rt.typeAssertError();
   }
 }
+export const Result$zero: Result = new Result();
 export function NewResult(
   value: $rt.GoObject | undefined,
   isSyntacticallyString: boolean,

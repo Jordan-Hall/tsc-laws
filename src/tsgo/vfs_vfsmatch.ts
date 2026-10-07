@@ -567,6 +567,8 @@ export class segment extends $rt.GoObject {
     throw $rt.typeAssertError();
   }
 }
+export const component$zero: component = new component();
+export const segment$zero: segment = new segment();
 export const UnlimitedDepth: number = 9223372036854775807;
 export const UsageDirectories: Usage = 1;
 export const UsageExclude: Usage = 2;
@@ -578,6 +580,9 @@ export const kindWildcard: componentKind = 1;
 export const segLiteral: segmentKind = 0;
 export const segQuestion: segmentKind = 2;
 export const segStar: segmentKind = 1;
+const $fn0 = component.$lit_vfs_vfsmatch_component_0(2);
+const $fn1 = segment.$lit_vfs_vfsmatch_segment_0(1);
+const $fn2 = segment.$lit_vfs_vfsmatch_segment_0(2);
 export let _Usage_index: number[] = [0, 5, 16, 23];
 export let wildcardCharCodes: number[] = [42, 63];
 export function Usage$String(i: Usage): string {
@@ -680,7 +685,7 @@ export function compileGlobPattern(
 }
 export function parseComponent(s: string, isInclude: boolean): component {
   if (s === ('**' as string)) {
-    return component.$lit_vfs_vfsmatch_component_0(2);
+    return $fn0;
   }
   if (!$rt.strings_ContainsAny(s, '*?')) {
     return component.$lit_vfs_vfsmatch_component_0_1(0, s);
@@ -705,9 +710,9 @@ export function parseSegments(s: string): segment[] {
             result.push(segment.$lit_vfs_vfsmatch_segment_0_1(0, s.substring(start, i$1)));
           }
           if (s.charCodeAt(i$1) === (42 as number)) {
-            result.push(segment.$lit_vfs_vfsmatch_segment_0(1));
+            result.push($fn1);
           } else {
-            result.push(segment.$lit_vfs_vfsmatch_segment_0(2));
+            result.push($fn2);
           }
           start = i$1 + 1;
           break;

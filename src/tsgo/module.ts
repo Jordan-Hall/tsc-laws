@@ -16,9 +16,9 @@ const $zf0 = (): $packagejson.InfoCacheEntry | undefined => undefined;
 const $zf1 = (): string => '';
 const $zf2 = (): resolved | undefined => undefined;
 const $zf3 = (): $core.Pattern => new $core.Pattern();
-const $zf4 = (): moduleResolutionCacheKey => new moduleResolutionCacheKey();
+const $zf4 = (): moduleResolutionCacheKey => moduleResolutionCacheKey$zero;
 const $zf5 = (): ResolvedModule | undefined => undefined;
-const $zf6 = (): typeRefDirectiveResolutionCacheKey => new typeRefDirectiveResolutionCacheKey();
+const $zf6 = (): typeRefDirectiveResolutionCacheKey => typeRefDirectiveResolutionCacheKey$zero;
 const $zf7 = (): ResolvedTypeReferenceDirective | undefined => undefined;
 export type Ending = number;
 export type ModeAwareCache<T> = $rt.StructMap<ModeAwareCacheKey, T> | undefined;
@@ -1849,7 +1849,7 @@ export class resolutionState extends $rt.GoObject {
       } else {
         let diagnostic: $ast.Diagnostic | undefined = $ast.NewDiagnostic(
           undefined,
-          new $core.TextRange(),
+          0,
           $core.IfElse<$diagnostics.Message | undefined>(
             isImports,
             $diagnostics.The_project_root_is_ambiguous_but_is_required_to_resolve_import_map_entry_0_in_file_1_Supply_the_rootDir_compiler_option_to_disambiguate,
@@ -3747,6 +3747,13 @@ export class typeRefDirectiveResolutionCacheKey extends $rt.GoObject {
     throw $rt.typeAssertError();
   }
 }
+export const DiagAndArgs$zero: DiagAndArgs = new DiagAndArgs();
+export const ModeAwareCacheKey$zero: ModeAwareCacheKey = new ModeAwareCacheKey();
+export const ParsedPatterns$zero: ParsedPatterns = new ParsedPatterns();
+export const ResolverOptions$zero: ResolverOptions = new ResolverOptions();
+export const moduleResolutionCacheKey$zero: moduleResolutionCacheKey = new moduleResolutionCacheKey();
+export const typeRefDirectiveResolutionCacheKey$zero: typeRefDirectiveResolutionCacheKey =
+  new typeRefDirectiveResolutionCacheKey();
 export const EndingChangeable: Ending = 2;
 export const EndingExtensionChangeable: Ending = 1;
 export const EndingFixed: Ending = 0;

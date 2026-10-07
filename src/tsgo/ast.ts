@@ -496,8 +496,8 @@ export type sourceFileDataKey = number;
 export class Node extends $rt.GoObject {
   Kind_: Kind = 0;
   Flags: NodeFlags = 0;
-  Loc: $core.TextRange = new $core.TextRange();
-  id: $rt.sync_atomic_Uint64 = new $rt.sync_atomic_Uint64();
+  Loc: $core.TextRange = 0;
+  id: number = 0;
   Parent: Node | undefined = undefined;
   data: nodeData = undefined;
   $copy_ast_Node(src: Node): void {
@@ -512,7 +512,7 @@ export class Node extends $rt.GoObject {
     return (
       this.Kind_ === o.Kind_ &&
       this.Flags === o.Flags &&
-      this.Loc.$equals_core_TextRange(o.Loc) &&
+      this.Loc === o.Loc &&
       this.id === o.id &&
       this.Parent === o.Parent &&
       $rt.ifaceEq(this.data, o.data)
@@ -536,11 +536,11 @@ export class Node extends $rt.GoObject {
   }
   Pos(): number {
     const n = this;
-    return n!.Loc.Pos();
+    return $core.TextRange$Pos(n!.Loc);
   }
   End(): number {
     const n = this;
-    return n!.Loc.End();
+    return $core.TextRange$End(n!.Loc);
   }
   IterChildren(): ((p0: ((p0: Node | undefined) => boolean) | undefined) => void) | undefined {
     const n = this;
@@ -4591,7 +4591,7 @@ export class CatchClause extends NodeBase {
 }
 export class CheckJsDirective extends $rt.GoObject {
   Enabled: boolean = false;
-  Range: CommentRange = new CommentRange();
+  Range: CommentRange = CommentRange$zero;
   $copy_ast_CheckJsDirective(src: CheckJsDirective): void {
     this.Enabled = src.Enabled;
     this.Range = src.Range;
@@ -4959,14 +4959,14 @@ export class ClassStaticBlockDeclaration extends NodeBase {
   }
 }
 export class CommentDirective extends $rt.GoObject {
-  Loc: $core.TextRange = new $core.TextRange();
+  Loc: $core.TextRange = 0;
   Kind: CommentDirectiveKind = 0;
   $copy_ast_CommentDirective(src: CommentDirective): void {
     this.Loc = src.Loc;
     this.Kind = src.Kind;
   }
   $equals_ast_CommentDirective(o: CommentDirective): boolean {
-    return this.Loc.$equals_core_TextRange(o.Loc) && this.Kind === o.Kind;
+    return this.Loc === o.Loc && this.Kind === o.Kind;
   }
   $clone_ast_CommentDirective(): CommentDirective {
     const o = new CommentDirective();
@@ -4984,16 +4984,19 @@ export class CommentDirective extends $rt.GoObject {
     throw $rt.typeAssertError();
   }
 }
-export class CommentRange extends $core.TextRange {
+export class CommentRange extends $rt.GoObject {
+  TextRange_: $core.TextRange = 0;
   Kind_: Kind = 0;
   HasTrailingNewLine: boolean = false;
   $copy_ast_CommentRange(src: CommentRange): void {
-    this.$copy_core_TextRange(src);
+    this.TextRange_ = src.TextRange_;
     this.Kind_ = src.Kind_;
     this.HasTrailingNewLine = src.HasTrailingNewLine;
   }
   $equals_ast_CommentRange(o: CommentRange): boolean {
-    return this.$equals_core_TextRange(o) && this.Kind_ === o.Kind_ && this.HasTrailingNewLine === o.HasTrailingNewLine;
+    return (
+      this.TextRange_ === o.TextRange_ && this.Kind_ === o.Kind_ && this.HasTrailingNewLine === o.HasTrailingNewLine
+    );
   }
   $clone_ast_CommentRange(): CommentRange {
     const o = new CommentRange();
@@ -5002,7 +5005,7 @@ export class CommentRange extends $core.TextRange {
   }
   static $lit_ast_CommentRange_0_1_2(p0: $core.TextRange, p1: Kind, p2: boolean): CommentRange {
     const o = new CommentRange();
-    o.$copy_core_TextRange(p0);
+    o.TextRange_ = p0;
     o.Kind_ = p1;
     o.HasTrailingNewLine = p2;
     return o;
@@ -5011,9 +5014,15 @@ export class CommentRange extends $core.TextRange {
     if (v instanceof CommentRange) return v;
     throw $rt.typeAssertError();
   }
+  End(): number {
+    return $core.TextRange$End(this.TextRange_);
+  }
+  Pos(): number {
+    return $core.TextRange$Pos(this.TextRange_);
+  }
 }
 export class CompositeBase extends $rt.GoObject {
-  facts: $rt.sync_atomic_Uint32 = new $rt.sync_atomic_Uint32();
+  facts: number = 0;
   $copy_ast_CompositeBase(src: CompositeBase): void {
     this.facts = src.facts;
   }
@@ -5031,10 +5040,10 @@ export class CompositeBase extends $rt.GoObject {
   }
   subtreeFactsWorker(self: nodeData): SubtreeFacts {
     const node = this;
-    let facts: SubtreeFacts = node!.facts.Load();
+    let facts: SubtreeFacts = node!.facts;
     if ((facts & 33554432) === (0 as number)) {
       facts = (facts | ((self!.computeSubtreeFacts() | 33554432) >>> 0)) >>> 0;
-      node!.facts.Store(facts);
+      node!.facts = facts;
     }
     return (facts & ~33554432) >>> 0;
   }
@@ -5764,7 +5773,7 @@ export class DeleteExpression extends UnaryExpressionBase {
 }
 export class Diagnostic extends $rt.GoObject {
   file: SourceFile | undefined = undefined;
-  loc: $core.TextRange = new $core.TextRange();
+  loc: $core.TextRange = 0;
   code: number = 0;
   category: $diagnostics.Category = 0;
   source: string = '';
@@ -5877,15 +5886,15 @@ export class Diagnostic extends $rt.GoObject {
   }
   Pos(): number {
     const d = this;
-    return d!.loc.Pos();
+    return $core.TextRange$Pos(d!.loc);
   }
   End(): number {
     const d = this;
-    return d!.loc.End();
+    return $core.TextRange$End(d!.loc);
   }
   Len(): number {
     const d = this;
-    return d!.loc.Len();
+    return $core.TextRange$Len(d!.loc);
   }
   Loc(): $core.TextRange {
     const d = this;
@@ -7073,19 +7082,20 @@ export class ExternalModuleReference extends NodeBase {
     return propagateSubtreeFacts(node!.Expression_);
   }
 }
-export class FileReference extends $core.TextRange {
+export class FileReference extends $rt.GoObject {
+  TextRange_: $core.TextRange = 0;
   FileName: string = '';
   ResolutionMode: $core.ResolutionMode = 0;
   Preserve: boolean = false;
   $copy_ast_FileReference(src: FileReference): void {
-    this.$copy_core_TextRange(src);
+    this.TextRange_ = src.TextRange_;
     this.FileName = src.FileName;
     this.ResolutionMode = src.ResolutionMode;
     this.Preserve = src.Preserve;
   }
   $equals_ast_FileReference(o: FileReference): boolean {
     return (
-      this.$equals_core_TextRange(o) &&
+      this.TextRange_ === o.TextRange_ &&
       this.FileName === o.FileName &&
       this.ResolutionMode === o.ResolutionMode &&
       this.Preserve === o.Preserve
@@ -7103,7 +7113,7 @@ export class FileReference extends $core.TextRange {
     p3: boolean,
   ): FileReference {
     const o = new FileReference();
-    o.$copy_core_TextRange(p0);
+    o.TextRange_ = p0;
     o.FileName = p1;
     o.ResolutionMode = p2;
     o.Preserve = p3;
@@ -7111,7 +7121,7 @@ export class FileReference extends $core.TextRange {
   }
   static $lit_ast_FileReference_0_1_3(p0: $core.TextRange, p1: string, p2: boolean): FileReference {
     const o = new FileReference();
-    o.$copy_core_TextRange(p0);
+    o.TextRange_ = p0;
     o.FileName = p1;
     o.Preserve = p2;
     return o;
@@ -7119,6 +7129,12 @@ export class FileReference extends $core.TextRange {
   static $cast_ast_FileReference(v: $rt.GoObject | undefined): FileReference {
     if (v instanceof FileReference) return v;
     throw $rt.typeAssertError();
+  }
+  End(): number {
+    return $core.TextRange$End(this.TextRange_);
+  }
+  Pos(): number {
+    return $core.TextRange$Pos(this.TextRange_);
   }
 }
 export class FlowList extends $rt.GoObject {
@@ -11302,8 +11318,8 @@ export class LiteralTypeNode extends TypeNodeBase {
   }
 }
 export class MappedDiagnosticDirective extends $rt.GoObject {
-  OriginalRange: $core.TextRange = new $core.TextRange();
-  VirtualRange: $core.TextRange = new $core.TextRange();
+  OriginalRange: $core.TextRange = 0;
+  VirtualRange: $core.TextRange = 0;
   Policy: MappedDiagnosticDirectivePolicy = 0;
   UnusedCode: number = 0;
   UnusedMessageText: string = '';
@@ -11318,8 +11334,8 @@ export class MappedDiagnosticDirective extends $rt.GoObject {
   }
   $equals_ast_MappedDiagnosticDirective(o: MappedDiagnosticDirective): boolean {
     return (
-      this.OriginalRange.$equals_core_TextRange(o.OriginalRange) &&
-      this.VirtualRange.$equals_core_TextRange(o.VirtualRange) &&
+      this.OriginalRange === o.OriginalRange &&
+      this.VirtualRange === o.VirtualRange &&
       this.Policy === o.Policy &&
       this.UnusedCode === o.UnusedCode &&
       this.UnusedMessageText === o.UnusedMessageText &&
@@ -11770,7 +11786,7 @@ export class MissingDeclaration extends StatementBase {
   }
 }
 export class NodeList extends $rt.GoObject {
-  Loc: $core.TextRange = new $core.TextRange();
+  Loc: $core.TextRange = 0;
   Nodes: (Node | undefined)[] = [];
   $copy_ast_NodeList(src: NodeList): void {
     this.Loc = src.Loc;
@@ -11787,11 +11803,11 @@ export class NodeList extends $rt.GoObject {
   }
   Pos(): number {
     const list = this;
-    return list!.Loc.Pos();
+    return $core.TextRange$Pos(list!.Loc);
   }
   End(): number {
     const list = this;
-    return list!.Loc.End();
+    return $core.TextRange$End(list!.Loc);
   }
   HasTrailingComma(): boolean {
     const list = this;
@@ -12507,7 +12523,7 @@ export class NoSubstitutionTemplateLiteral extends ExpressionBase {
   }
 }
 export class NodeFactory extends $rt.GoObject {
-  hooks: NodeFactoryHooks = new NodeFactoryHooks();
+  hooks: NodeFactoryHooks = NodeFactoryHooks$zero;
   arrayTypeNodeArena: $rt.core_Arena<ArrayTypeNode> = new $rt.core_Arena<ArrayTypeNode>($zf1);
   binaryExpressionArena: $rt.core_Arena<BinaryExpression> = new $rt.core_Arena<BinaryExpression>($zf2);
   blockArena: $rt.core_Arena<Block> = new $rt.core_Arena<Block>($zf3);
@@ -16988,7 +17004,7 @@ export class NodeFactoryHooks extends $rt.GoObject {
 export class NodeVisitor extends $rt.GoObject {
   Visit: ((p0: Node | undefined) => Node | undefined) | undefined = undefined;
   Factory: NodeFactory | undefined = undefined;
-  Hooks: NodeVisitorHooks = new NodeVisitorHooks();
+  Hooks: NodeVisitorHooks = NodeVisitorHooks$zero;
   $copy_ast_NodeVisitor(src: NodeVisitor): void {
     this.Visit = src.Visit;
     this.Factory = src.Factory;
@@ -17972,17 +17988,24 @@ export class Pragma extends CommentRange {
     if (v instanceof Pragma) return v;
     throw $rt.typeAssertError();
   }
+  End(): number {
+    return $core.TextRange$End(this.TextRange_);
+  }
+  Pos(): number {
+    return $core.TextRange$Pos(this.TextRange_);
+  }
 }
-export class PragmaArgument extends $core.TextRange {
+export class PragmaArgument extends $rt.GoObject {
+  TextRange_: $core.TextRange = 0;
   Name: string = '';
   Value: string = '';
   $copy_ast_PragmaArgument(src: PragmaArgument): void {
-    this.$copy_core_TextRange(src);
+    this.TextRange_ = src.TextRange_;
     this.Name = src.Name;
     this.Value = src.Value;
   }
   $equals_ast_PragmaArgument(o: PragmaArgument): boolean {
-    return this.$equals_core_TextRange(o) && this.Name === o.Name && this.Value === o.Value;
+    return this.TextRange_ === o.TextRange_ && this.Name === o.Name && this.Value === o.Value;
   }
   $clone_ast_PragmaArgument(): PragmaArgument {
     const o = new PragmaArgument();
@@ -17993,12 +18016,18 @@ export class PragmaArgument extends $core.TextRange {
     const o = new PragmaArgument();
     o.Name = p0;
     o.Value = p1;
-    o.$copy_core_TextRange(p2);
+    o.TextRange_ = p2;
     return o;
   }
   static $cast_ast_PragmaArgument(v: $rt.GoObject | undefined): PragmaArgument {
     if (v instanceof PragmaArgument) return v;
     throw $rt.typeAssertError();
+  }
+  End(): number {
+    return $core.TextRange$End(this.TextRange_);
+  }
+  Pos(): number {
+    return $core.TextRange$Pos(this.TextRange_);
   }
 }
 export class PragmaArgumentSpecification extends $rt.GoObject {
@@ -19028,7 +19057,7 @@ export class SourceFile extends NodeBase {
   TextCount: number = 0;
   CommonJSModuleIndicator: Node | undefined = undefined;
   ExternalModuleIndicator: Node | undefined = undefined;
-  isBound: $rt.sync_atomic_Bool = new $rt.sync_atomic_Bool();
+  isBound: boolean = false;
   bindOnce: $rt.sync_Once = new $rt.sync_Once();
   bindDiagnostics: (Diagnostic | undefined)[] = [];
   SymbolCount: number = 0;
@@ -19455,7 +19484,7 @@ export class SourceFile extends NodeBase {
   }
   IsBound(): boolean {
     const node = this;
-    return node!.isBound.Load();
+    return node!.isBound;
   }
   GetPositionMap(): PositionMap | undefined {
     const file = this;
@@ -19468,7 +19497,7 @@ export class SourceFile extends NodeBase {
     const node = this;
     node!.bindOnce.Do((): void => {
       bind!();
-      node!.isBound.Store(true);
+      node!.isBound = true;
     });
   }
   GetOrCreateToken(
@@ -19994,7 +20023,7 @@ export class Symbol_ extends $rt.GoObject {
   ValueDeclaration: Node | undefined = undefined;
   Members: SymbolTable = undefined;
   Exports: SymbolTable = undefined;
-  id: $rt.sync_atomic_Uint64 = new $rt.sync_atomic_Uint64();
+  id: number = 0;
   Parent: Symbol_ | undefined = undefined;
   ExportSymbol: Symbol_ | undefined = undefined;
   $copy_ast_Symbol(src: Symbol_): void {
@@ -20783,16 +20812,16 @@ export class Token extends NodeBase {
 }
 export class TokenCacheKey extends $rt.GoObject {
   parent: Node | undefined = undefined;
-  loc: $core.TextRange = new $core.TextRange();
+  loc: $core.TextRange = 0;
   $copy_ast_TokenCacheKey(src: TokenCacheKey): void {
     this.parent = src.parent;
     this.loc = src.loc;
   }
   $key_ast_TokenCacheKey(): string {
-    return [$rt.objKey(this.parent), this.loc.$key_core_TextRange()].join('|');
+    return [$rt.objKey(this.parent), $rt.numKey(this.loc)].join('|');
   }
   $equals_ast_TokenCacheKey(o: TokenCacheKey): boolean {
-    return this.parent === o.parent && this.loc.$equals_core_TextRange(o.loc);
+    return this.parent === o.parent && this.loc === o.loc;
   }
   $clone_ast_TokenCacheKey(): TokenCacheKey {
     const o = new TokenCacheKey();
@@ -21924,7 +21953,7 @@ export class YieldExpression extends ExpressionBase {
 }
 export class diagnosticLocationKey extends $rt.GoObject {
   path: $tspath.Path = '';
-  loc: $core.TextRange = new $core.TextRange();
+  loc: $core.TextRange = 0;
   code: number = 0;
   $copy_ast_diagnosticLocationKey(src: diagnosticLocationKey): void {
     this.path = src.path;
@@ -21932,10 +21961,10 @@ export class diagnosticLocationKey extends $rt.GoObject {
     this.code = src.code;
   }
   $key_ast_diagnosticLocationKey(): string {
-    return [$rt.strKey(this.path), this.loc.$key_core_TextRange(), $rt.numKey(this.code)].join('|');
+    return [$rt.strKey(this.path), $rt.numKey(this.loc), $rt.numKey(this.code)].join('|');
   }
   $equals_ast_diagnosticLocationKey(o: diagnosticLocationKey): boolean {
-    return this.path === o.path && this.loc.$equals_core_TextRange(o.loc) && this.code === o.code;
+    return this.path === o.path && this.loc === o.loc && this.code === o.code;
   }
   $clone_ast_diagnosticLocationKey(): diagnosticLocationKey {
     const o = new diagnosticLocationKey();
@@ -22041,6 +22070,30 @@ export class sourceFileDataCell<T> extends $rt.GoObject {
     return o;
   }
 }
+export const AllAccessorDeclarations$zero: AllAccessorDeclarations = new AllAccessorDeclarations();
+export const CommentRange$zero: CommentRange = new CommentRange();
+export const CheckJsDirective$zero: CheckJsDirective = new CheckJsDirective();
+export const CommentDirective$zero: CommentDirective = new CommentDirective();
+export const ExpressionBase$zero: ExpressionBase = new ExpressionBase();
+export const FileReference$zero: FileReference = new FileReference();
+export const TypeNodeBase$zero: TypeNodeBase = new TypeNodeBase();
+export const JSDocTypeBase$zero: JSDocTypeBase = new JSDocTypeBase();
+export const UnaryExpressionBase$zero: UnaryExpressionBase = new UnaryExpressionBase();
+export const UpdateExpressionBase$zero: UpdateExpressionBase = new UpdateExpressionBase();
+export const LeftHandSideExpressionBase$zero: LeftHandSideExpressionBase = new LeftHandSideExpressionBase();
+export const MemberExpressionBase$zero: MemberExpressionBase = new MemberExpressionBase();
+export const NodeFactoryHooks$zero: NodeFactoryHooks = new NodeFactoryHooks();
+export const NodeVisitorHooks$zero: NodeVisitorHooks = new NodeVisitorHooks();
+export const PatternAmbientModule$zero: PatternAmbientModule = new PatternAmbientModule();
+export const PragmaArgument$zero: PragmaArgument = new PragmaArgument();
+export const PragmaArgumentSpecification$zero: PragmaArgumentSpecification = new PragmaArgumentSpecification();
+export const PrimaryExpressionBase$zero: PrimaryExpressionBase = new PrimaryExpressionBase();
+export const RepopulateDiagnosticInfo$zero: RepopulateDiagnosticInfo = new RepopulateDiagnosticInfo();
+export const SourceFileMetaData$zero: SourceFileMetaData = new SourceFileMetaData();
+export const StatementBase$zero: StatementBase = new StatementBase();
+export const TokenCacheKey$zero: TokenCacheKey = new TokenCacheKey();
+export const diagnosticLocationKey$zero: diagnosticLocationKey = new diagnosticLocationKey();
+export const positionMapEntry$zero: positionMapEntry = new positionMapEntry();
 export const AccessKindRead: AccessKind = 0;
 export const AccessKindReadWrite: AccessKind = 2;
 export const AccessKindWrite: AccessKind = 1;
@@ -22895,11 +22948,11 @@ export let _Kind_index: number[] = [
 ];
 export let isFileForcedToBeModuleByFormatExtensions: string[] = ['.cjs', '.cts', '.mjs', '.mts'];
 export let setParentInChildrenPool: $rt.sync_Pool = new $rt.sync_Pool($fn0);
-export let nextNodeId: $rt.sync_atomic_Uint64 = new $rt.sync_atomic_Uint64();
-export let nextSymbolId: $rt.sync_atomic_Uint64 = new $rt.sync_atomic_Uint64();
+export let nextNodeId: number = 0;
+export let nextSymbolId: number = 0;
 export let parseJSDocForNode: ((p0: SourceFile | undefined, p1: Node | undefined) => (Node | undefined)[]) | undefined =
   undefined;
-export let sourceFileDataKeyCounter: $rt.sync_atomic_Uint64 = new $rt.sync_atomic_Uint64();
+export let sourceFileDataKeyCounter: number = 0;
 export function SetParseJSDocForNode(
   fn: ((p0: SourceFile | undefined, p1: Node | undefined) => (Node | undefined)[]) | undefined,
 ): void {
@@ -23589,7 +23642,10 @@ export function IsAnyExportAssignment(node: Node | undefined): boolean {
   return node!.Kind_ === (278 as number);
 }
 export function NewSourceFileDataKey<T>($z_T: () => T): SourceFileDataKey<T> | undefined {
-  return SourceFileDataKey.$lit_ast_SourceFileDataKey_0<T>($z_T, sourceFileDataKeyCounter.Add(1));
+  return SourceFileDataKey.$lit_ast_SourceFileDataKey_0<T>(
+    $z_T,
+    (sourceFileDataKeyCounter = sourceFileDataKeyCounter + 1),
+  );
 }
 export function GetOrComputeSourceFileData<T>(
   $z_T: () => T,
@@ -25254,7 +25310,7 @@ export function NewDiagnosticChain(
       .AddMessageChain(chain)!
       .SetRelatedInfo(chain!.relatedInformation);
   }
-  return NewDiagnostic(undefined, new $core.TextRange(), message, args);
+  return NewDiagnostic(undefined, 0, message, args);
 }
 export function NewCompilerDiagnostic(
   message: $diagnostics.Message | undefined,
@@ -25300,7 +25356,7 @@ export function EqualDiagnosticsNoRelatedInfo(d1: Diagnostic | undefined, d2: Di
   }
   return (
     getDiagnosticPath(d1) === getDiagnosticPath(d2) &&
-    d1!.Loc().$equals_core_TextRange(d2!.Loc()) &&
+    d1!.Loc() === d2!.Loc() &&
     d1!.Code() === d2!.Code() &&
     d1!.Category$m() === d2!.Category$m() &&
     d1!.Source() === d2!.Source() &&
@@ -25389,11 +25445,11 @@ export function CompareDiagnostics(d1: Diagnostic | undefined, d2: Diagnostic | 
   if (!(c === (0 as number))) {
     return c;
   }
-  c = d1!.Loc().Pos() - d2!.Loc().Pos();
+  c = $core.TextRange$Pos(d1!.Loc()) - $core.TextRange$Pos(d2!.Loc());
   if (!(c === (0 as number))) {
     return c;
   }
-  c = d1!.Loc().End() - d2!.Loc().End();
+  c = $core.TextRange$End(d1!.Loc()) - $core.TextRange$End(d2!.Loc());
   if (!(c === (0 as number))) {
     return c;
   }
@@ -26065,21 +26121,21 @@ export function EscapeSymbolName(name_: string): string {
   return name_;
 }
 export function GetNodeId(node: Node | undefined): NodeId {
-  let id: number = node!.id.Load();
+  let id: number = node!.id;
   if (id === (0 as number)) {
-    id = nextNodeId.Add(1);
-    if (!node!.id.CompareAndSwap(0, id)) {
-      id = node!.id.Load();
+    id = nextNodeId = nextNodeId + 1;
+    if (!(node!.id === 0 ? ((node!.id = id), true) : false)) {
+      id = node!.id;
     }
   }
   return id;
 }
 export function GetSymbolId(symbol_: Symbol_ | undefined): SymbolId {
-  let id: number = symbol_!.id.Load();
+  let id: number = symbol_!.id;
   if (id === (0 as number)) {
-    id = nextSymbolId.Add(1);
-    if (!symbol_!.id.CompareAndSwap(0, id)) {
-      id = symbol_!.id.Load();
+    id = nextSymbolId = nextSymbolId + 1;
+    if (!(symbol_!.id === 0 ? ((symbol_!.id = id), true) : false)) {
+      id = symbol_!.id;
     }
   }
   return id;
@@ -26126,17 +26182,19 @@ export function GetLocals(container: Node | undefined): SymbolTable {
 export function NodeIsMissing(node: Node | undefined): boolean {
   return (
     node === undefined ||
-    (node!.Loc.Pos() === node!.Loc.End() && node!.Loc.Pos() >= 0 && !(node!.Kind_ === (1 as number)))
+    ($core.TextRange$Pos(node!.Loc) === $core.TextRange$End(node!.Loc) &&
+      $core.TextRange$Pos(node!.Loc) >= 0 &&
+      !(node!.Kind_ === (1 as number)))
   );
 }
 export function NodeIsPresent(node: Node | undefined): boolean {
   return !NodeIsMissing(node);
 }
 export function NodeIsSynthesized(node: Node | undefined): boolean {
-  return PositionIsSynthesized(node!.Loc.Pos()) || PositionIsSynthesized(node!.Loc.End());
+  return PositionIsSynthesized($core.TextRange$Pos(node!.Loc)) || PositionIsSynthesized($core.TextRange$End(node!.Loc));
 }
 export function RangeIsSynthesized(loc: $core.TextRange): boolean {
-  return PositionIsSynthesized(loc.Pos()) || PositionIsSynthesized(loc.End());
+  return PositionIsSynthesized($core.TextRange$Pos(loc)) || PositionIsSynthesized($core.TextRange$End(loc));
 }
 export function PositionIsSynthesized(pos: number): boolean {
   return pos < 0;
@@ -29317,7 +29375,7 @@ export function GetPragmaArgument(pragma: Pragma | undefined, name_: string): st
     {
       const $t1 = pragma!.Args;
       const $t2 = name_;
-      let arg: PragmaArgument = $t1?.get($t2) ?? new PragmaArgument();
+      let arg: PragmaArgument = $t1?.get($t2) ?? PragmaArgument$zero;
       let ok: boolean = $t1 !== undefined && $t1.has($t2);
       if (ok) {
         return arg.Value;
@@ -31216,7 +31274,7 @@ export function GetReparsedNodeForNode(node: Node | undefined): Node | undefined
           pos--;
         }
         let candidate: Node | undefined = file!.ReparsedClones[pos];
-        if (node!.Loc.ContainedBy(candidate!.Loc)) {
+        if ($core.TextRange$ContainedBy(node!.Loc, candidate!.Loc)) {
           {
             let reparsed: Node | undefined = findCloneInNode(candidate, node);
             if (!(reparsed === undefined)) {
@@ -31231,11 +31289,11 @@ export function GetReparsedNodeForNode(node: Node | undefined): Node | undefined
 }
 export function findCloneInNode(node: Node | undefined, original: Node | undefined): Node | undefined {
   for (;;) {
-    if (node!.Kind_ === original!.Kind_ && node!.Loc.$equals_core_TextRange(original!.Loc)) {
+    if (node!.Kind_ === original!.Kind_ && node!.Loc === original!.Loc) {
       return node;
     }
     let foundContainingChild: boolean = node!.ForEachChild$Node((n: Node | undefined): boolean => {
-      if (original!.Loc.ContainedBy(n!.Loc)) {
+      if ($core.TextRange$ContainedBy(original!.Loc, n!.Loc)) {
         node = n;
         return true;
       }

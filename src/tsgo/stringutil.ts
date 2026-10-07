@@ -56,6 +56,7 @@ export class specialCasingMapping extends $rt.GoObject {
     throw $rt.typeAssertError();
   }
 }
+export const specialCasingMapping$zero: specialCasingMapping = new specialCasingMapping();
 export const ComparisonEqual: Comparison = 0;
 export const ComparisonGreaterThan: Comparison = 1;
 export const ComparisonLessThan: Comparison = -1;
@@ -5286,7 +5287,7 @@ export function ToLowerJS(str: string): string {
         {
           const $t3 = specialCasingMappings;
           const $t4 = r;
-          let mapping: specialCasingMapping = $t3?.get($t4) ?? new specialCasingMapping();
+          let mapping: specialCasingMapping = $t3?.get($t4) ?? specialCasingMapping$zero;
           let ok$1: boolean = $t3 !== undefined && $t3.has($t4);
           if (ok$1) {
             if (mapping.condition === (1 as number) && isFinalSigmaContext(casedBefore, str, i)) {
@@ -5328,7 +5329,7 @@ export function ToUpperJS(str: string): string {
         {
           const $t3 = specialCasingMappings;
           const $t4 = r;
-          let mapping: specialCasingMapping = $t3?.get($t4) ?? new specialCasingMapping();
+          let mapping: specialCasingMapping = $t3?.get($t4) ?? specialCasingMapping$zero;
           let ok$1: boolean = $t3 !== undefined && $t3.has($t4);
           if (ok$1) {
             builder.WriteString(mapping.upper);

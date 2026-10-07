@@ -124,6 +124,7 @@ export class PseudoBigInt extends $rt.GoObject {
     return 1;
   }
 }
+export const PseudoBigInt$zero: PseudoBigInt = new PseudoBigInt();
 export const MaxSafeInteger: Number_ = 9.007199254740991e15;
 export const MinSafeInteger: Number_ = -9.007199254740991e15;
 export let negativeZero: Number_ = $rt.math_Copysign(0, -1);

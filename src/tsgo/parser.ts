@@ -139,7 +139,7 @@ export class Parser extends $rt.GoObject {
       node,
       p!.sourceText,
     );
-    p!.jsdocCommentRangesSpace = $rt.reslice(ranges, 0, 0, new $ast.CommentRange());
+    p!.jsdocCommentRangesSpace = $rt.reslice(ranges, 0, 0, $ast.CommentRange$zero);
     p!.hasDeprecatedTag = false;
     let jsdoc: ($ast.Node | undefined)[] = $rt.reslice(p!.nodeSliceArena.NewSlice(ranges.length), 0, 0, undefined);
     let pos: number = node!.Pos();
@@ -148,7 +148,12 @@ export class Parser extends $rt.GoObject {
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
         let comment = $t1[$t2];
         {
-          let parsed: $ast.Node | undefined = p!.parseJSDocComment(node, comment.Pos(), comment.End(), pos);
+          let parsed: $ast.Node | undefined = p!.parseJSDocComment(
+            node,
+            $core.TextRange$Pos(comment.TextRange_),
+            $core.TextRange$End(comment.TextRange_),
+            pos,
+          );
           if (!(parsed === undefined)) {
             parsed!.Parent = node;
             jsdoc = $rt.appendCopy(jsdoc, [parsed]);
@@ -1953,7 +1958,10 @@ export class Parser extends $rt.GoObject {
   ): $ast.Diagnostic | undefined {
     const p = this;
     let result: $ast.Diagnostic | undefined = undefined as $ast.Diagnostic | undefined;
-    if (p!.diagnostics.length === (0 as number) || !(p!.diagnostics[p!.diagnostics.length - 1]!.Pos() === loc.Pos())) {
+    if (
+      p!.diagnostics.length === (0 as number) ||
+      !(p!.diagnostics[p!.diagnostics.length - 1]!.Pos() === $core.TextRange$Pos(loc))
+    ) {
       result = $ast.NewDiagnostic(undefined, loc, message, args);
       p!.diagnostics.push(result);
     }
@@ -1980,7 +1988,7 @@ export class Parser extends $rt.GoObject {
     p!.contextFlags = state.contextFlags;
     p!.diagnostics = $rt.reslice(p!.diagnostics, 0, state.diagnosticsLen, undefined);
     p!.jsDiagnostics = $rt.reslice(p!.jsDiagnostics, 0, state.jsDiagnosticsLen, undefined);
-    p!.jsdocInfos = $rt.reslice(p!.jsdocInfos, 0, state.jsdocInfosLen, new JSDocInfo());
+    p!.jsdocInfos = $rt.reslice(p!.jsdocInfos, 0, state.jsdocInfosLen, JSDocInfo$zero);
     p!.reparsedClones = $rt.reslice(p!.reparsedClones, 0, state.reparsedClonesLen, undefined);
     p!.statementHasAwaitIdentifier = state.statementHasAwaitIdentifier;
     p!.hasParseError = state.hasParseError;
@@ -5673,7 +5681,7 @@ export class Parser extends $rt.GoObject {
     let name_: $ast.Node | undefined = p!.parseIdentifierOrPatternWithDiagnostic(
       $diagnostics.Private_identifiers_cannot_be_used_as_parameters,
     );
-    if (name_!.Loc.Len() === (0 as number) && modifiers === undefined && $ast.IsModifierKind(p!.token)) {
+    if ($core.TextRange$Len(name_!.Loc) === (0 as number) && modifiers === undefined && $ast.IsModifierKind(p!.token)) {
       p!.nextToken();
     }
     return name_;
@@ -8955,7 +8963,10 @@ export class Parser extends $rt.GoObject {
   }
   skipRangeTrivia(textRange: $core.TextRange): $core.TextRange {
     const p = this;
-    return $core.NewTextRange($scanner.SkipTrivia(p!.sourceText, textRange.Pos()), textRange.End());
+    return $core.NewTextRange(
+      $scanner.SkipTrivia(p!.sourceText, $core.TextRange$Pos(textRange)),
+      $core.TextRange$End(textRange),
+    );
   }
   processPragmasIntoFields(context: $ast.SourceFile | undefined): void {
     const p = this;
@@ -8972,27 +8983,27 @@ export class Parser extends $rt.GoObject {
             case 'reference' as string: {
               const $t3 = pragma.Args;
               const $t4 = 'types';
-              let types: $ast.PragmaArgument = $t3?.get($t4) ?? new $ast.PragmaArgument();
+              let types: $ast.PragmaArgument = $t3?.get($t4) ?? $ast.PragmaArgument$zero;
               let typesOk: boolean = $t3 !== undefined && $t3.has($t4);
               const $t5 = pragma.Args;
               const $t6 = 'lib';
-              let lib: $ast.PragmaArgument = $t5?.get($t6) ?? new $ast.PragmaArgument();
+              let lib: $ast.PragmaArgument = $t5?.get($t6) ?? $ast.PragmaArgument$zero;
               let libOk: boolean = $t5 !== undefined && $t5.has($t6);
               const $t7 = pragma.Args;
               const $t8 = 'path';
-              let path: $ast.PragmaArgument = $t7?.get($t8) ?? new $ast.PragmaArgument();
+              let path: $ast.PragmaArgument = $t7?.get($t8) ?? $ast.PragmaArgument$zero;
               let pathOk: boolean = $t7 !== undefined && $t7.has($t8);
               const $t9 = pragma.Args;
               const $t10 = 'resolution-mode';
-              let resolutionMode: $ast.PragmaArgument = $t9?.get($t10) ?? new $ast.PragmaArgument();
+              let resolutionMode: $ast.PragmaArgument = $t9?.get($t10) ?? $ast.PragmaArgument$zero;
               let resolutionModeOk: boolean = $t9 !== undefined && $t9.has($t10);
               const $t11 = pragma.Args;
               const $t12 = 'preserve';
-              let preserve: $ast.PragmaArgument = $t11?.get($t12) ?? new $ast.PragmaArgument();
+              let preserve: $ast.PragmaArgument = $t11?.get($t12) ?? $ast.PragmaArgument$zero;
               let preserveOk: boolean = $t11 !== undefined && $t11.has($t12);
               const $t13 = pragma.Args;
               const $t14 = 'no-default-lib';
-              let noDefaultLib: $ast.PragmaArgument = $t13?.get($t14) ?? new $ast.PragmaArgument();
+              let noDefaultLib: $ast.PragmaArgument = $t13?.get($t14) ?? $ast.PragmaArgument$zero;
               let noDefaultLibOk: boolean = $t13 !== undefined && $t13.has($t14);
               {
                 $sw15: {
@@ -9000,11 +9011,15 @@ export class Parser extends $rt.GoObject {
                   } else if (typesOk) {
                     let parsed: $core.ResolutionMode = 0;
                     if (resolutionModeOk) {
-                      parsed = p!.parseResolutionMode(resolutionMode.Value, resolutionMode.Pos(), resolutionMode.End());
+                      parsed = p!.parseResolutionMode(
+                        resolutionMode.Value,
+                        $core.TextRange$Pos(resolutionMode.TextRange_),
+                        $core.TextRange$End(resolutionMode.TextRange_),
+                      );
                     }
                     context!.TypeReferenceDirectives.push(
                       $ast.FileReference.$lit_ast_FileReference_0_1_2_3(
-                        types,
+                        types.TextRange_,
                         types.Value,
                         parsed,
                         preserveOk && preserve.Value === ('true' as string),
@@ -9013,7 +9028,7 @@ export class Parser extends $rt.GoObject {
                   } else if (libOk) {
                     context!.LibReferenceDirectives.push(
                       $ast.FileReference.$lit_ast_FileReference_0_1_3(
-                        lib,
+                        lib.TextRange_,
                         lib.Value,
                         preserveOk && preserve.Value === ('true' as string),
                       ),
@@ -9021,14 +9036,14 @@ export class Parser extends $rt.GoObject {
                   } else if (pathOk) {
                     context!.ReferencedFiles.push(
                       $ast.FileReference.$lit_ast_FileReference_0_1_3(
-                        path,
+                        path.TextRange_,
                         path.Value,
                         preserveOk && preserve.Value === ('true' as string),
                       ),
                     );
                   } else {
                     p!.parseErrorAtRange(
-                      pragma,
+                      pragma.TextRange_,
                       $diagnostics.Invalid_reference_directive_syntax,
                       [] as ($rt.GoObject | undefined)[],
                     );
@@ -9039,7 +9054,11 @@ export class Parser extends $rt.GoObject {
             }
             case 'ts-check' as string:
             case 'ts-nocheck' as string: {
-              if (context!.CheckJsDirective_ === undefined || pragma.Pos() > context!.CheckJsDirective_!.Range.Pos()) {
+              if (
+                context!.CheckJsDirective_ === undefined ||
+                $core.TextRange$Pos(pragma.TextRange_) >
+                  $core.TextRange$Pos(context!.CheckJsDirective_!.Range.TextRange_)
+              ) {
                 context!.CheckJsDirective_ = $ast.CheckJsDirective.$lit_ast_CheckJsDirective_0_1(
                   pragma.Name === ('ts-check' as string),
                   pragma,
@@ -9089,7 +9108,7 @@ export class Parser extends $rt.GoObject {
     p!.jsDiagnostics.push(
       $ast.NewDiagnostic(
         undefined,
-        $core.NewTextRange($scanner.SkipTrivia(p!.sourceText, loc.Pos()), loc.End()),
+        $core.NewTextRange($scanner.SkipTrivia(p!.sourceText, $core.TextRange$Pos(loc)), $core.TextRange$End(loc)),
         message,
         args,
       ),
@@ -9143,8 +9162,8 @@ export class Parser extends $rt.GoObject {
                 let diag: $ast.Diagnostic | undefined = $ast.NewDiagnostic(
                   undefined,
                   $core.NewTextRange(
-                    $scanner.SkipTrivia(p!.sourceText, modifiers[trailingDecoratorIndex]!.Loc.Pos()),
-                    modifiers[trailingDecoratorIndex]!.Loc.End(),
+                    $scanner.SkipTrivia(p!.sourceText, $core.TextRange$Pos(modifiers[trailingDecoratorIndex]!.Loc)),
+                    $core.TextRange$End(modifiers[trailingDecoratorIndex]!.Loc),
                   ),
                   $diagnostics.Decorators_may_not_appear_after_export_or_export_default_if_they_also_appear_before_export,
                   [] as ($rt.GoObject | undefined)[],
@@ -9153,8 +9172,8 @@ export class Parser extends $rt.GoObject {
                   $ast.NewDiagnostic(
                     undefined,
                     $core.NewTextRange(
-                      $scanner.SkipTrivia(p!.sourceText, modifiers[decoratorIndex]!.Loc.Pos()),
-                      modifiers[decoratorIndex]!.Loc.End(),
+                      $scanner.SkipTrivia(p!.sourceText, $core.TextRange$Pos(modifiers[decoratorIndex]!.Loc)),
+                      $core.TextRange$End(modifiers[decoratorIndex]!.Loc),
                     ),
                     $diagnostics.Decorator_used_before_export_here,
                     [] as ($rt.GoObject | undefined)[],
@@ -9440,8 +9459,8 @@ export class Parser extends $rt.GoObject {
     const p = this;
     if ($ast.IsIdentifier(name_) && !$scanner.IsValidIdentifier(name_!.AsIdentifier()!.Text_)) {
       let errLoc: $core.TextRange = name_!.Loc;
-      if (errLoc.Len() === (0 as number)) {
-        errLoc = $core.NewTextRange(name_!.Loc.Pos() - 1, name_!.Loc.Pos());
+      if ($core.TextRange$Len(errLoc) === (0 as number)) {
+        errLoc = $core.NewTextRange($core.TextRange$Pos(name_!.Loc) - 1, $core.TextRange$Pos(name_!.Loc));
       }
       p!.parseErrorAtRange(errLoc, $diagnostics.Identifier_expected, [] as ($rt.GoObject | undefined)[]);
     }
@@ -10244,7 +10263,7 @@ export class Parser extends $rt.GoObject {
                 modifier!.Loc = tag!.Loc;
                 modifier!.Flags = (p!.contextFlags | 8) >>> 0;
                 let nodes: ($ast.Node | undefined)[] = [];
-                let loc: $core.TextRange = new $core.TextRange();
+                let loc: $core.TextRange = 0;
                 if (parent!.Modifiers$Node() === undefined) {
                   nodes = p!.nodeSliceArena.NewSlice(1);
                   nodes[0] = modifier;
@@ -10473,6 +10492,7 @@ export class ParserState extends $rt.GoObject {
     throw $rt.typeAssertError();
   }
 }
+export const JSDocInfo$zero: JSDocInfo = new JSDocInfo();
 export const PCArgumentExpressions: ParsingContext = 11;
 export const PCArrayBindingElements: ParsingContext = 10;
 export const PCArrayLiteralMembers: ParsingContext = 15;
@@ -10603,7 +10623,12 @@ export function parseJSDocForNode(
       for (let $t4 = 0, $n = $t3.length; $t4 < $n; $t4++) {
         let comment = $t3[$t4];
         {
-          let parsed: $ast.Node | undefined = p!.parseJSDocComment(node, comment.Pos(), comment.End(), pos);
+          let parsed: $ast.Node | undefined = p!.parseJSDocComment(
+            node,
+            $core.TextRange$Pos(comment.TextRange_),
+            $core.TextRange$End(comment.TextRange_),
+            pos,
+          );
           if (!(parsed === undefined)) {
             parsed!.Parent = node;
             jsdoc.push(parsed);
@@ -10885,7 +10910,10 @@ export function getCommentPragmas(f: $ast.NodeFactory | undefined, sourceText: s
   let $t1 = false;
   let $t2: $ast.Pragma[] = [];
   $scanner.GetLeadingCommentRanges(f, sourceText, 0)!((commentRange: $ast.CommentRange): boolean => {
-    let comment: string = sourceText.substring(commentRange.Pos(), commentRange.End());
+    let comment: string = sourceText.substring(
+      $core.TextRange$Pos(commentRange.TextRange_),
+      $core.TextRange$End(commentRange.TextRange_),
+    );
     $rt.appendInto(pragmas, extractPragmas(commentRange, comment));
     return true;
   });
@@ -10931,7 +10959,10 @@ export function extractPragmas(commentRange: $ast.CommentRange, text: string): $
           $ast.PragmaArgument.$lit_ast_PragmaArgument_1_2_0(
             argName,
             value,
-            $core.NewTextRange(commentRange.Pos() + pos + 1, commentRange.Pos() + pos + 1 + value.length),
+            $core.NewTextRange(
+              $core.TextRange$Pos(commentRange.TextRange_) + pos + 1,
+              $core.TextRange$Pos(commentRange.TextRange_) + pos + 1 + value.length,
+            ),
           ),
         );
         pos += value.length + 2;
@@ -10981,7 +11012,10 @@ export function extractPragmas(commentRange: $ast.CommentRange, text: string): $
             $ast.PragmaArgument.$lit_ast_PragmaArgument_1_2_0(
               'factory',
               text.substring(start, argEnd),
-              $core.NewTextRange(commentRange.Pos() + start, commentRange.Pos() + argEnd),
+              $core.NewTextRange(
+                $core.TextRange$Pos(commentRange.TextRange_) + start,
+                $core.TextRange$Pos(commentRange.TextRange_) + argEnd,
+              ),
             ),
           );
           pragmas.push($ast.Pragma.$lit_ast_Pragma_0_1_2(commentRange, pragmaName$1, args$1));
@@ -11297,10 +11331,10 @@ export function GetJSDocCommentRanges(
     }
   }
   return $rt.slices_DeleteFunc(commentRanges, (comment: $ast.CommentRange): boolean => {
-    let commentStart: number = comment.Pos();
-    let commentLen: number = comment.End() - commentStart;
+    let commentStart: number = $core.TextRange$Pos(comment.TextRange_);
+    let commentLen: number = $core.TextRange$End(comment.TextRange_) - commentStart;
     return (
-      comment.End() > node!.End() ||
+      $core.TextRange$End(comment.TextRange_) > node!.End() ||
       commentLen < 4 ||
       !(text.charCodeAt(commentStart + 1) === (42 as number)) ||
       !(text.charCodeAt(commentStart + 2) === (42 as number)) ||

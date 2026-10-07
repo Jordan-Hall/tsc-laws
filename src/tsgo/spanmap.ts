@@ -40,14 +40,14 @@ export class MappedPosition extends $rt.GoObject {
   }
 }
 export class MappedSpan extends $rt.GoObject {
-  Span: $core.TextRange = new $core.TextRange();
+  Span: $core.TextRange = 0;
   Fidelity_: Fidelity = 0;
   $copy_spanmap_MappedSpan(src: MappedSpan): void {
     this.Span = src.Span;
     this.Fidelity_ = src.Fidelity_;
   }
   $equals_spanmap_MappedSpan(o: MappedSpan): boolean {
-    return this.Span.$equals_core_TextRange(o.Span) && this.Fidelity_ === o.Fidelity_;
+    return this.Span === o.Span && this.Fidelity_ === o.Fidelity_;
   }
   $clone_spanmap_MappedSpan(): MappedSpan {
     const o = new MappedSpan();
@@ -296,8 +296,8 @@ export class SpanMap extends $rt.GoObject {
     if (m === undefined) {
       return [r, 0];
     }
-    let virtualStart: $core.TextPos = r.Pos() | 0;
-    let virtualEnd: $core.TextPos = Math.max(r.End() | 0, virtualStart);
+    let virtualStart: $core.TextPos = $core.TextRange$Pos(r) | 0;
+    let virtualEnd: $core.TextPos = Math.max($core.TextRange$End(r) | 0, virtualStart);
     const $t1 = m!.segmentIndexAt(virtualStart);
     let startIdx: number = $t1[0];
     let startIn: boolean = $t1[1];
@@ -354,8 +354,8 @@ export class SpanMap extends $rt.GoObject {
   }
   virtualSpanSupportsFeature(r: $core.TextRange, feature: Feature): boolean {
     const m = this;
-    let start: $core.TextPos = r.Pos() | 0;
-    let end: $core.TextPos = Math.max(r.End() | 0, start);
+    let start: $core.TextPos = $core.TextRange$Pos(r) | 0;
+    let end: $core.TextPos = Math.max($core.TextRange$End(r) | 0, start);
     if (start === end) {
       const $t1 = m!.segmentIndexAt(start);
       let index: number = $t1[0];
@@ -431,7 +431,7 @@ export class SpanMap extends $rt.GoObject {
     if (m === undefined) {
       return [new Segment(), false];
     }
-    const $t1 = m!.segmentIndexAt(r.Pos() | 0);
+    const $t1 = m!.segmentIndexAt($core.TextRange$Pos(r) | 0);
     let index: number = $t1[0];
     let inside: boolean = $t1[1];
     if (!inside) {
@@ -440,7 +440,9 @@ export class SpanMap extends $rt.GoObject {
     let segment: Segment = m!.segments[index].$clone_spanmap_Segment();
     return [
       segment.$clone_spanmap_Segment(),
-      segment.Kind_ === (2 as number) && r.Pos() === segment.VirtualStart && r.End() === segment.VirtualEnd,
+      segment.Kind_ === (2 as number) &&
+        $core.TextRange$Pos(r) === segment.VirtualStart &&
+        $core.TextRange$End(r) === segment.VirtualEnd,
     ];
   }
   AliasForVirtualSpan(r: $core.TextRange): [Segment, boolean] {
@@ -549,8 +551,8 @@ export class SpanMap extends $rt.GoObject {
     if (m === undefined) {
       return [MappedSpan.$lit_spanmap_MappedSpan_0_1(r, 0)];
     }
-    let start: $core.TextPos = r.Pos() | 0;
-    let end: $core.TextPos = Math.max(r.End() | 0, start);
+    let start: $core.TextPos = $core.TextRange$Pos(r) | 0;
+    let end: $core.TextPos = Math.max($core.TextRange$End(r) | 0, start);
     let lastCharacter: $core.TextPos = end;
     if (end > start) {
       lastCharacter = (lastCharacter - 1) | 0;
@@ -600,7 +602,7 @@ export class SpanMap extends $rt.GoObject {
     if (m === undefined) {
       return [MappedSpan.$lit_spanmap_MappedSpan_0_1(r, 0)];
     }
-    if (r.Pos() === r.End()) {
+    if ($core.TextRange$Pos(r) === $core.TextRange$End(r)) {
       return SpanMap.OriginalToVirtualSpans$nil(m, r, feature);
     }
     let results: MappedSpan[] = [] as MappedSpan[];
@@ -611,8 +613,8 @@ export class SpanMap extends $rt.GoObject {
         if (!supportsFeature(segment.$clone_spanmap_Segment(), feature)) {
           continue;
         }
-        let start: $core.TextPos = Math.max(r.Pos() | 0, segment.OriginalStart);
-        let end: $core.TextPos = Math.min(r.End() | 0, segment.OriginalEnd);
+        let start: $core.TextPos = Math.max($core.TextRange$Pos(r) | 0, segment.OriginalStart);
+        let end: $core.TextPos = Math.min($core.TextRange$End(r) | 0, segment.OriginalEnd);
         if (start >= end) {
           continue;
         }
@@ -700,6 +702,8 @@ export class segmentGroupAtOriginalPosition extends $rt.GoObject {
     throw $rt.typeAssertError();
   }
 }
+export const MappedSpan$zero: MappedSpan = new MappedSpan();
+export const segmentGroupAtOriginalPosition$zero: segmentGroupAtOriginalPosition = new segmentGroupAtOriginalPosition();
 export const FeatureAll: Feature = 1048575;
 export const FeatureAutoInsert: Feature = 131072;
 export const FeatureCallHierarchy: Feature = 512;

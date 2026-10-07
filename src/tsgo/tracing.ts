@@ -115,7 +115,7 @@ export class Tracing extends $rt.GoObject {
   legend: TraceRecord[] = [];
   tracers: (typeTracer | undefined)[] = [];
   traceContent: $rt.strings_Builder = new $rt.strings_Builder();
-  traceStarted: $rt.sync_atomic_Bool = new $rt.sync_atomic_Bool();
+  traceStarted: boolean = false;
   threadIDs: $rt.StructMap<traceThreadKey, number> | undefined = undefined;
   threadKeys: Map<number, traceThreadKey> | undefined = undefined;
   metadataTS: number = 0;
@@ -214,7 +214,7 @@ export class Tracing extends $rt.GoObject {
     const $defers: (() => void)[] = [];
     let $panic: $rt.Panic | undefined = undefined;
     $body: try {
-      if (tr === undefined || !tr!.traceStarted.Load()) {
+      if (tr === undefined || !tr!.traceStarted) {
         break $body;
       }
       tr!.mu.Lock();
@@ -222,7 +222,7 @@ export class Tracing extends $rt.GoObject {
       $defers.push(() => {
         $t1.Unlock();
       });
-      if (!tr!.traceStarted.Load()) {
+      if (!tr!.traceStarted) {
         break $body;
       }
       let ts: number = tr!.timestamp();
@@ -247,12 +247,12 @@ export class Tracing extends $rt.GoObject {
     args: Map<string, $rt.GoObject | undefined> | undefined,
     separateBeginAndEnd: boolean,
   ): (() => void) | undefined {
-    if (tr === undefined || !tr!.traceStarted.Load()) {
+    if (tr === undefined || !tr!.traceStarted) {
       return $fn1;
     }
     if (separateBeginAndEnd) {
       tr!.mu.Lock();
-      if (!tr!.traceStarted.Load()) {
+      if (!tr!.traceStarted) {
         tr!.mu.Unlock();
         return $fn1;
       }
@@ -271,7 +271,7 @@ export class Tracing extends $rt.GoObject {
           $defers.push(() => {
             $t1.Unlock();
           });
-          if (!tr!.traceStarted.Load()) {
+          if (!tr!.traceStarted) {
             break $body;
           }
           let endTs: number = tr!.timestamp();
@@ -306,7 +306,7 @@ export class Tracing extends $rt.GoObject {
         $defers.push(() => {
           $t2.Unlock();
         });
-        if (!tr!.traceStarted.Load()) {
+        if (!tr!.traceStarted) {
           break $body;
         }
         let tid$1: number = tr!.threadIDLocked(args);
@@ -367,7 +367,7 @@ export class Tracing extends $rt.GoObject {
       {
         const $t4 = tr!.threadKeys;
         const $t5 = tid$1;
-        let existingKey: traceThreadKey = $t4?.get($t5) ?? new traceThreadKey();
+        let existingKey: traceThreadKey = $t4?.get($t5) ?? traceThreadKey$zero;
         let ok$2: boolean = $t4 !== undefined && $t4.has($t5);
         if (!ok$2 || existingKey.$equals_tracing_traceThreadKey(key)) {
           break;
@@ -456,10 +456,10 @@ export class Tracing extends $rt.GoObject {
       $defers.push(() => {
         $t4.Unlock();
       });
-      if (tr!.traceStarted.Load()) {
+      if (tr!.traceStarted) {
         if (!(tr!.flushErr === undefined)) {
           tr!.traceContent.Reset();
-          tr!.traceStarted.Store(false);
+          tr!.traceStarted = false;
           $t1 = tr!.flushErr;
           break $body;
         }
@@ -471,7 +471,7 @@ export class Tracing extends $rt.GoObject {
           }
         }
         tr!.traceContent.Reset();
-        tr!.traceStarted.Store(false);
+        tr!.traceStarted = false;
       }
       $rt.slices_SortFunc(tr!.legend, $fn2);
       let legendPath: string = $tspath.CombinePaths(tr!.traceDir, ['legend.json']);
@@ -1029,6 +1029,11 @@ export class typeTracer extends $rt.GoObject {
     return desc.$clone_tracing_TypeDescriptor();
   }
 }
+export const LineAndChar$zero: LineAndChar = new LineAndChar();
+export const Location$zero: Location = new Location();
+export const TraceRecord$zero: TraceRecord = new TraceRecord();
+export const traceEvent$zero: traceEvent = new traceEvent();
+export const traceThreadKey$zero: traceThreadKey = new traceThreadKey();
 export const PhaseBind: Phase = 'bind';
 export const PhaseCheck: Phase = 'check';
 export const PhaseCheckTypes: Phase = 'checkTypes';
@@ -1075,7 +1080,7 @@ export function StartTracing(
     deterministic,
     $rt.time_Now(),
   );
-  tr!.traceStarted.Store(true);
+  tr!.traceStarted = true;
   tr!.traceContent.WriteString('[\n');
   let metaTs: number = tr!.timestamp();
   tr!.metadataTS = metaTs;

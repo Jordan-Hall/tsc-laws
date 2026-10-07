@@ -149,6 +149,66 @@ export class ScriptTarget$Box extends $rt.GoObject {
 }
 export type Semaphore = LimitedSemaphore | UnlimitedSemaphore | undefined;
 export type TextPos = number;
+export type TextRange = number;
+export class TextRange$Box extends $rt.GoObject {
+  v: TextRange;
+  constructor(v: TextRange) {
+    super();
+    this.v = v;
+  }
+  static $cast(v: $rt.GoObject | undefined): TextRange$Box {
+    if (v instanceof TextRange$Box) return v;
+    throw $rt.typeAssertError();
+  }
+  override $eqv(o: $rt.GoObject): boolean {
+    return o instanceof TextRange$Box && o.v === this.v;
+  }
+  override $ikey(): string {
+    return 'TextRange:' + $rt.numKey(this.v);
+  }
+  pos(): TextPos {
+    return TextRange$pos(this.v);
+  }
+  end(): TextPos {
+    return TextRange$end(this.v);
+  }
+  Pos(): number {
+    return TextRange$Pos(this.v);
+  }
+  End(): number {
+    return TextRange$End(this.v);
+  }
+  Len(): number {
+    return TextRange$Len(this.v);
+  }
+  IsValid(): boolean {
+    return TextRange$IsValid(this.v);
+  }
+  Contains(a0: number): boolean {
+    return TextRange$Contains(this.v, a0);
+  }
+  ContainsInclusive(a0: number): boolean {
+    return TextRange$ContainsInclusive(this.v, a0);
+  }
+  ContainsExclusive(a0: number): boolean {
+    return TextRange$ContainsExclusive(this.v, a0);
+  }
+  WithPos(a0: number): TextRange {
+    return TextRange$WithPos(this.v, a0);
+  }
+  WithEnd(a0: number): TextRange {
+    return TextRange$WithEnd(this.v, a0);
+  }
+  ContainedBy(a0: TextRange): boolean {
+    return TextRange$ContainedBy(this.v, a0);
+  }
+  Overlaps(a0: TextRange): boolean {
+    return TextRange$Overlaps(this.v, a0);
+  }
+  Intersects(a0: TextRange): boolean {
+    return TextRange$Intersects(this.v, a0);
+  }
+}
 export type Tristate = number;
 export class Tristate$Box extends $rt.GoObject {
   v: Tristate;
@@ -1075,95 +1135,15 @@ export class Stack<T> extends $rt.GoObject {
     return s!.data.length;
   }
 }
-export class TextRange extends $rt.GoObject {
-  pos: TextPos = 0;
-  end: TextPos = 0;
-  $copy_core_TextRange(src: TextRange): void {
-    this.pos = src.pos;
-    this.end = src.end;
-  }
-  $key_core_TextRange(): string {
-    return [$rt.numKey(this.pos), $rt.numKey(this.end)].join('|');
-  }
-  $equals_core_TextRange(o: TextRange): boolean {
-    return this.pos === o.pos && this.end === o.end;
-  }
-  $clone_core_TextRange(): TextRange {
-    const o = new TextRange();
-    o.$copy_core_TextRange(this);
-    return o;
-  }
-  static $lit_core_TextRange_0_1(p0: TextPos, p1: TextPos): TextRange {
-    const o = new TextRange();
-    o.pos = p0;
-    o.end = p1;
-    return o;
-  }
-  static $cast_core_TextRange(v: $rt.GoObject | undefined): TextRange {
-    if (v instanceof TextRange) return v;
-    throw $rt.typeAssertError();
-  }
-  Pos(): number {
-    const t = this;
-    return t.pos;
-  }
-  End(): number {
-    const t = this;
-    return t.end;
-  }
-  Len(): number {
-    const t = this;
-    return (t.end - t.pos) | 0;
-  }
-  IsValid(): boolean {
-    const t = this;
-    return t.pos >= 0 || t.end >= 0;
-  }
-  Contains(pos: number): boolean {
-    const t = this;
-    return pos >= t.pos && pos < t.end;
-  }
-  ContainsInclusive(pos: number): boolean {
-    const t = this;
-    return pos >= t.pos && pos <= t.end;
-  }
-  ContainsExclusive(pos: number): boolean {
-    const t = this;
-    return t.pos < pos && pos < t.end;
-  }
-  WithPos(pos: number): TextRange {
-    const t = this;
-    return TextRange.$lit_core_TextRange_0_1(pos | 0, t.end);
-  }
-  WithEnd(end: number): TextRange {
-    const t = this;
-    return TextRange.$lit_core_TextRange_0_1(t.pos, end | 0);
-  }
-  ContainedBy(t2: TextRange): boolean {
-    const t = this;
-    return t2.pos <= t.pos && t2.end >= t.end;
-  }
-  Overlaps(t2: TextRange): boolean {
-    const t = this;
-    let start: TextPos = Math.max(t.pos, t2.pos);
-    let end: TextPos = Math.min(t.end, t2.end);
-    return start < end;
-  }
-  Intersects(t2: TextRange): boolean {
-    const t = this;
-    let start: TextPos = Math.max(t.pos, t2.pos);
-    let end: TextPos = Math.min(t.end, t2.end);
-    return start <= end;
-  }
-}
-export class TextChange extends TextRange {
+export class TextChange extends $rt.GoObject {
+  TextRange_: TextRange = 0;
   NewText: string = '';
   $copy_core_TextChange(src: TextChange): void {
-    this.$copy_core_TextRange(src);
+    this.TextRange_ = src.TextRange_;
     this.NewText = src.NewText;
   }
   $equals_core_TextChange(o: TextChange): boolean {
-    return this.$equals_core_TextRange(o) && this.NewText === o.NewText;
+    return this.TextRange_ === o.TextRange_ && this.NewText === o.NewText;
   }
   $clone_core_TextChange(): TextChange {
     const o = new TextChange();
@@ -1176,7 +1156,13 @@ export class TextChange extends TextRange {
   }
   ApplyTo(text: string): string {
     const t = this;
-    return text.substring(0, t.Pos()) + t.NewText + text.substring(t.End());
+    return text.substring(0, TextRange$Pos(t.TextRange_)) + t.NewText + text.substring(TextRange$End(t.TextRange_));
+  }
+  End(): number {
+    return TextRange$End(this.TextRange_);
+  }
+  Pos(): number {
+    return TextRange$Pos(this.TextRange_);
   }
 }
 export class ThrottleGroup extends $rt.GoObject {
@@ -1581,6 +1567,7 @@ export class BreadthFirstSearchParallelEx$result<K, N> extends $rt.GoObject {
     return o;
   }
 }
+export const TextChange$zero: TextChange = new TextChange();
 export const CheckerLifetimeAPI: CheckerLifetime = 2;
 export const CheckerLifetimeDiagnostics: CheckerLifetime = 1;
 export const CheckerLifetimeTemporary: CheckerLifetime = 0;
@@ -1680,6 +1667,7 @@ export const pageMask: number = 255;
 export const pageShift: number = 8;
 export const pageSize: number = 256;
 export const requestIDKey: key = 0;
+export const textRangeScale: number = 134217728;
 const $fn0 = (): $rt.GoObject | undefined => {
   return new levenshteinBuffers();
 };
@@ -1839,7 +1827,7 @@ export function BreadthFirstSearchParallelEx<K, N>(
   ): BreadthFirstSearchParallelEx$result<K, N> => {
     let lowestFallback: $rt.sync_atomic_Int64 = new $rt.sync_atomic_Int64();
     let lowestGoal: $rt.sync_atomic_Int64 = new $rt.sync_atomic_Int64();
-    let nextJobCount: $rt.sync_atomic_Int64 = new $rt.sync_atomic_Int64();
+    let nextJobCount: number = 0;
     lowestGoal.Store(9223372036854775807);
     lowestFallback.Store(9223372036854775807);
     if (!(options.PreprocessLevel === undefined)) {
@@ -1886,7 +1874,7 @@ export function BreadthFirstSearchParallelEx<K, N>(
           }
           let neighborNodes: N[] = neighbors!(j$1!.node);
           if (neighborNodes.length > 0) {
-            nextJobCount.Add(neighborNodes.length);
+            nextJobCount = nextJobCount + neighborNodes.length;
             next[i$1] = Map_<N, breadthFirstSearchJob<N> | undefined>(
               (): breadthFirstSearchJob<N> | undefined => undefined,
               neighborNodes,
@@ -1927,7 +1915,7 @@ export function BreadthFirstSearchParallelEx<K, N>(
       $collections.NewOrderedMapWithSizeHint<K, breadthFirstSearchJob<N> | undefined>(
         $z_K,
         (): breadthFirstSearchJob<N> | undefined => undefined,
-        nextJobCount.Load(),
+        nextJobCount,
       );
     {
       const $t7 = next;
@@ -3306,18 +3294,84 @@ export function NewLimitedSemaphore(maxConcurrency: number): LimitedSemaphore | 
   };
   return s;
 }
+export function makeTextRange(pos: TextPos, end: TextPos): TextRange {
+  const $c_limit: number = 67108864;
+  if (pos <= -67108864 || pos >= 67108864 || end <= -67108864 || end >= 67108864) {
+    throw $rt.newPanic(new $rt.BoxStr('text position out of range', 'string'));
+  }
+  return pos * 134217728 + end;
+}
+export function TextRange$pos(t: TextRange): TextPos {
+  let p: number = Math.trunc(t / 134217728);
+  let e: number = $rt.imod(t, 134217728);
+  if (e >= 67108864) {
+    p++;
+  } else if (e < -67108864) {
+    p--;
+  }
+  return p | 0;
+}
+export function TextRange$end(t: TextRange): TextPos {
+  let e: number = $rt.imod(t, 134217728);
+  if (e >= 67108864) {
+    e -= 134217728;
+  } else if (e < -67108864) {
+    e += 134217728;
+  }
+  return e | 0;
+}
 export function NewTextRange(pos: number, end: number): TextRange {
-  return TextRange.$lit_core_TextRange_0_1(pos | 0, end | 0);
+  return makeTextRange(pos | 0, end | 0);
 }
 export function UndefinedTextRange(): TextRange {
-  return TextRange.$lit_core_TextRange_0_1(-1, -1);
+  return makeTextRange(-1, -1);
+}
+export function TextRange$Pos(t: TextRange): number {
+  return TextRange$pos(t);
+}
+export function TextRange$End(t: TextRange): number {
+  return TextRange$end(t);
+}
+export function TextRange$Len(t: TextRange): number {
+  return (TextRange$end(t) - TextRange$pos(t)) | 0;
+}
+export function TextRange$IsValid(t: TextRange): boolean {
+  return TextRange$pos(t) >= 0 || TextRange$end(t) >= 0;
+}
+export function TextRange$Contains(t: TextRange, pos: number): boolean {
+  return pos >= TextRange$pos(t) && pos < TextRange$end(t);
+}
+export function TextRange$ContainsInclusive(t: TextRange, pos: number): boolean {
+  return pos >= TextRange$pos(t) && pos <= TextRange$end(t);
+}
+export function TextRange$ContainsExclusive(t: TextRange, pos: number): boolean {
+  return TextRange$pos(t) < pos && pos < TextRange$end(t);
+}
+export function TextRange$WithPos(t: TextRange, pos: number): TextRange {
+  return makeTextRange(pos | 0, TextRange$end(t));
+}
+export function TextRange$WithEnd(t: TextRange, end: number): TextRange {
+  return makeTextRange(TextRange$pos(t), end | 0);
+}
+export function TextRange$ContainedBy(t: TextRange, t2: TextRange): boolean {
+  return TextRange$pos(t2) <= TextRange$pos(t) && TextRange$end(t2) >= TextRange$end(t);
+}
+export function TextRange$Overlaps(t: TextRange, t2: TextRange): boolean {
+  let start: TextPos = Math.max(TextRange$pos(t), TextRange$pos(t2));
+  let end: TextPos = Math.min(TextRange$end(t), TextRange$end(t2));
+  return start < end;
+}
+export function TextRange$Intersects(t: TextRange, t2: TextRange): boolean {
+  let start: TextPos = Math.max(TextRange$pos(t), TextRange$pos(t2));
+  let end: TextPos = Math.min(TextRange$end(t), TextRange$end(t2));
+  return start <= end;
 }
 export function CompareTextRanges(r1: TextRange, r2: TextRange): number {
-  let c: number = r1.pos - r2.pos;
+  let c: number = TextRange$pos(r1) - TextRange$pos(r2);
   if (!(c === (0 as number))) {
     return c;
   }
-  return r1.end - r2.end;
+  return TextRange$end(r1) - TextRange$end(r2);
 }
 export function ApplyBulkEdits(text: string, edits: TextChange[]): string {
   let b: $rt.strings_Builder = new $rt.strings_Builder();
@@ -3327,12 +3381,12 @@ export function ApplyBulkEdits(text: string, edits: TextChange[]): string {
     const $t1 = edits;
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
       let e = $t1[$t2];
-      let start: number = e.Pos();
+      let start: number = TextRange$Pos(e.TextRange_);
       if (!(start === lastEnd)) {
-        b.WriteString(text.substring(lastEnd, e.Pos()));
+        b.WriteString(text.substring(lastEnd, TextRange$Pos(e.TextRange_)));
       }
       b.WriteString(e.NewText);
-      lastEnd = e.End();
+      lastEnd = TextRange$End(e.TextRange_);
     }
   }
   b.WriteString(text.substring(lastEnd));

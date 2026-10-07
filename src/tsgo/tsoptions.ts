@@ -1700,7 +1700,7 @@ export class NameMap extends $rt.GoObject {
   }
 }
 export class ParseCommandLineWorkerDiagnostics extends $rt.GoObject {
-  didYouMean: DidYouMeanOptionsDiagnostics = new DidYouMeanOptionsDiagnostics();
+  didYouMean: DidYouMeanOptionsDiagnostics = DidYouMeanOptionsDiagnostics$zero;
   optionsNameMap: NameMap | undefined = undefined;
   optionsNameMapOnce: $rt.sync_Once = new $rt.sync_Once();
   OptionTypeMismatchDiagnostic: $diagnostics.Message | undefined = undefined;
@@ -1738,7 +1738,7 @@ export class ParsedBuildCommandLine extends $rt.GoObject {
   Projects: string[] = [];
   Errors: ($ast.Diagnostic | undefined)[] = [];
   Raw: $rt.GoObject | undefined = undefined;
-  comparePathsOptions: $tspath.ComparePathsOptions = new $tspath.ComparePathsOptions();
+  comparePathsOptions: $tspath.ComparePathsOptions = $tspath.ComparePathsOptions$zero;
   resolvedProjectPaths: string[] = [];
   resolvedProjectPathsOnce: $rt.sync_Once = new $rt.sync_Once();
   locale: $locale.Locale = new $rt.golang_org_x_text_language_Tag();
@@ -1810,7 +1810,7 @@ export class ParsedCommandLine extends $rt.GoObject {
   Errors: ($ast.Diagnostic | undefined)[] = [];
   Raw: $rt.GoObject | undefined = undefined;
   CompileOnSave: $rt.Ptr<boolean> | undefined = undefined;
-  comparePathsOptions: $tspath.ComparePathsOptions = new $tspath.ComparePathsOptions();
+  comparePathsOptions: $tspath.ComparePathsOptions = $tspath.ComparePathsOptions$zero;
   wildcardDirectoriesOnce: $rt.sync_Once = new $rt.sync_Once();
   wildcardDirectories: Map<string, boolean> | undefined = undefined;
   includeGlobsOnce: $rt.sync_Once = new $rt.sync_Once();
@@ -3477,6 +3477,17 @@ export class wildcardDirectoryMatch extends $rt.GoObject {
     throw $rt.typeAssertError();
   }
 }
+export const AlternateModeDiagnostics$zero: AlternateModeDiagnostics = new AlternateModeDiagnostics();
+export const DidYouMeanOptionsDiagnostics$zero: DidYouMeanOptionsDiagnostics = new DidYouMeanOptionsDiagnostics();
+export const ParseCommandLineWorkerDiagnostics$zero: ParseCommandLineWorkerDiagnostics =
+  new ParseCommandLineWorkerDiagnostics();
+export const SourceOutputAndProjectReference$zero: SourceOutputAndProjectReference =
+  new SourceOutputAndProjectReference();
+export const impliedOption$zero: impliedOption = new impliedOption();
+export const jsonConversionNotifier$zero: jsonConversionNotifier = new jsonConversionNotifier();
+export const propOfRaw$zero: propOfRaw = new propOfRaw();
+export const tsConfigOptions$zero: tsConfigOptions = new tsConfigOptions();
+export const wildcardDirectoryMatch$zero: wildcardDirectoryMatch = new wildcardDirectoryMatch();
 export const CommandLineOptionTypeBoolean: CommandLineOptionKind = 'boolean';
 export const CommandLineOptionTypeEnum: CommandLineOptionKind = 'enum';
 export const CommandLineOptionTypeList: CommandLineOptionKind = 'list';
@@ -6593,7 +6604,7 @@ export function CreateDiagnosticForNodeInSourceFile(
 ): $ast.Diagnostic | undefined {
   return $ast.NewDiagnostic(
     sourceFile,
-    $core.NewTextRange($scanner.SkipTrivia(sourceFile!.Text(), node!.Loc.Pos()), node!.End()),
+    $core.NewTextRange($scanner.SkipTrivia(sourceFile!.Text(), $core.TextRange$Pos(node!.Loc)), node!.End()),
     message,
     args,
   );

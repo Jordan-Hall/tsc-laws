@@ -14,7 +14,17 @@ mkdirSync('upstream/typescript-go/internal/tststest', { recursive: true });
 copyFileSync('tools/checkhost/checkhost.go', 'upstream/typescript-go/internal/tststest/checkhost.go');
 run(
   'go',
-  ['run', '.', '-upstream', resolve('upstream/typescript-go'), '-out', resolve('src/tsgo'), ...packages],
+  [
+    'run',
+    '.',
+    '-upstream',
+    resolve('upstream/typescript-go'),
+    '-overlay',
+    resolve('tools/overlay'),
+    '-out',
+    resolve('src/tsgo'),
+    ...packages,
+  ],
   resolve('tools/gots'),
 );
 run(resolve('node_modules/.bin/oxfmt'), ['src/tsgo', 'src/go/runtime.ts'], resolve('.'));

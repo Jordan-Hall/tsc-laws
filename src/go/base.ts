@@ -749,3 +749,9 @@ export function nn<T>(v: T | undefined): T {
     throw new Panic(new BoxStr('runtime error: invalid memory address or nil pointer dereference', 'string'));
   return v;
 }
+
+// swapValue stores v through set and returns old.
+export function swapValue<T>(old: T, set: (v: T) => void, v: T): T {
+  set(v);
+  return old;
+}

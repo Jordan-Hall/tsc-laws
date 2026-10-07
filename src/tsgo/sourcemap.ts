@@ -200,7 +200,7 @@ export class ECMALineInfo extends $rt.GoObject {
   }
 }
 export class Generator extends $rt.GoObject {
-  pathOptions: $tspath.ComparePathsOptions = new $tspath.ComparePathsOptions();
+  pathOptions: $tspath.ComparePathsOptions = $tspath.ComparePathsOptions$zero;
   file: string = '';
   sourceRoot: string = '';
   sourcesDirectoryPath: string = '';
@@ -957,6 +957,8 @@ export class RawSourceMap extends $rt.GoObject {
     throw $rt.typeAssertError();
   }
 }
+export const DocumentPosition$zero: DocumentPosition = new DocumentPosition();
+export const RawSourceMap$zero: RawSourceMap = new RawSourceMap();
 export const MissingLineOrColumn: number = -1;
 export const MissingName: NameIndex = -1;
 export const MissingSource: SourceIndex = -1;

@@ -81,6 +81,9 @@ func (x *fn) callWithArgs(e *ast.CallExpr, args []string) string {
 	}
 	if sel, ok := fun.(*ast.SelectorExpr); ok {
 		if s := x.info.Selections[sel]; s != nil && s.Kind() == types.MethodVal {
+			if call, ok := x.atomicCall(sel, args); ok {
+				return call
+			}
 			recv := x.expr(sel.X)
 			// (*T)(nil).M(): the method only uses the receiver's type.
 			if conv, ok := unparen(sel.X).(*ast.CallExpr); ok && len(conv.Args) == 1 && isNilType(x.info.TypeOf(conv.Args[0])) {

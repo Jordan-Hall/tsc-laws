@@ -3937,6 +3937,8 @@ export class regExpParser extends $rt.GoObject {
     }
   }
 }
+export const decimalEscapeValue$zero: decimalEscapeValue = new decimalEscapeValue();
+export const groupNameReference$zero: groupNameReference = new groupNameReference();
 export const EscapeSequenceScanningFlagsAllowExtendedUnicodeEscape: EscapeSequenceScanningFlags = 17;
 export const EscapeSequenceScanningFlagsAnnexB: EscapeSequenceScanningFlags = 8;
 export const EscapeSequenceScanningFlagsAnyUnicodeMode: EscapeSequenceScanningFlags = 16;
@@ -5162,7 +5164,7 @@ export function findOriginatingJSDocSatisfiesTag(
                     if (!(typeExpr === undefined)) {
                       {
                         let t: $ast.Node | undefined = typeExpr!.Type$m();
-                        if (!(t === undefined) && t!.Loc.$equals_core_TextRange(targetType!.Loc)) {
+                        if (!(t === undefined) && t!.Loc === targetType!.Loc) {
                           return tag;
                         }
                       }

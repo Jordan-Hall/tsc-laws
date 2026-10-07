@@ -1,11 +1,15 @@
 // Prints diagnostics for a file checked against the bundled libs, or times
 // checking with --bench. Usage: check FILE LIBDIR [--bench]
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeSync } from 'node:fs';
 import { performance } from 'node:perf_hooks';
 import * as ast from '../tsgo/ast.js';
 import * as tststest from '../tsgo/tststest.js';
 import * as classes from '../tsgo/classes.js';
 import { initDone, keepClasses, fromBytes, toHostString } from '../go/base.js';
+
+// Native builds: collect cycles less often. The lib ASTs live for the whole
+// run, and each pass walks them.
+process.env.SCR_CYCLE_THRESHOLD = '1000000';
 
 // Lets scriptc lower every class before use; never runs.
 if (keepClasses()) classes.keepAll();
@@ -45,15 +49,17 @@ if (process.argv[4] === '--batch') {
     } catch {
       out.push('!! panic');
     }
-    process.stdout.write(out.join('\n') + '\n');
+    writeSync(1, out.join('\n') + '\n');
   }
 } else if (process.argv[4] === '--bench') {
   const start = performance.now();
   let count = 0;
   for (let round = 0; round < 5; round++) count = tststest.Check('/input.ts', text, readLib).length;
-  console.log(`diagnostics ${count} time ${((performance.now() - start) / 5).toFixed(2)}ms`);
+  writeSync(1, `diagnostics ${count} time ${((performance.now() - start) / 5).toFixed(2)}ms\n`);
 } else {
   const out: string[] = [];
   print(out, tststest.Check('/input.ts', text, readLib));
-  console.log(out.join('\n'));
+  writeSync(1, out.join('\n') + '\n');
 }
+// Output is written synchronously, so skip freeing the heap at exit.
+process.exit(0);

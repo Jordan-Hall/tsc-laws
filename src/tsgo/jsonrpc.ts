@@ -465,6 +465,9 @@ export class Writer extends $rt.GoObject {
     return w!.w!.Flush();
   }
 }
+export const IntegerOrString$zero: IntegerOrString = new IntegerOrString();
+export const RequestMessage$zero: RequestMessage = new RequestMessage();
+export const ResponseMessage$zero: ResponseMessage = new ResponseMessage();
 export const CodeInternalError: number = -32603;
 export const CodeInvalidParams: number = -32602;
 export const CodeInvalidRequest: number = -32600;

@@ -15,7 +15,7 @@ export class AsyncConn extends $rt.GoObject {
   protocol: Protocol = undefined;
   handler: Handler = undefined;
   timing: timingCollector | undefined = undefined;
-  seq: $rt.sync_atomic_Int64 = new $rt.sync_atomic_Int64();
+  seq: number = 0;
   pending: $rt.StructMap<$jsonrpc.ID, $rt.Chan<$jsonrpc.Message | undefined> | undefined> | undefined = undefined;
   pendingMu: $rt.sync_Mutex = new $rt.sync_Mutex();
   terminal: $rt.GoObject | undefined = undefined;
@@ -265,7 +265,7 @@ export class AsyncConn extends $rt.GoObject {
     let $panic: $rt.Panic | undefined = undefined;
     $body: try {
       let id: $jsonrpc.ID | undefined = $jsonrpc.NewIDString(
-        $rt.fmt_Sprintf('api%d', [new $rt.BoxNum(c!.seq.Add(1), 'int64')]),
+        $rt.fmt_Sprintf('api%d', [new $rt.BoxNum((c!.seq = c!.seq + 1), 'int64')]),
       );
       let responseChan: $rt.Chan<$jsonrpc.Message | undefined> | undefined = $rt.unsupportedAs<
         $rt.Chan<$jsonrpc.Message | undefined> | undefined
@@ -1066,7 +1066,7 @@ export class timingCollector extends $rt.GoObject {
   }
   snapshot(): serverTimingInfo {
     const c = this;
-    let $t1: serverTimingInfo = new serverTimingInfo();
+    let $t1: serverTimingInfo = serverTimingInfo$zero;
     const $defers: (() => void)[] = [];
     let $panic: $rt.Panic | undefined = undefined;
     $body: try {
@@ -1114,6 +1114,8 @@ export class timingCollector extends $rt.GoObject {
     if ($panic !== undefined) throw $panic;
   }
 }
+export const serverRequestTiming$zero: serverRequestTiming = new serverRequestTiming();
+export const serverTimingInfo$zero: serverTimingInfo = new serverTimingInfo();
 export const MethodGetServerTiming: string = 'getServerTiming';
 export const MethodResetServerTiming: string = 'resetServerTiming';
 export const serverRecentRequestCapacity: number = 5;

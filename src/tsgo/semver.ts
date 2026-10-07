@@ -251,6 +251,7 @@ export class versionComparator extends $rt.GoObject {
     throw $rt.typeAssertError();
   }
 }
+export const partialVersion$zero: partialVersion = new partialVersion();
 export const comparisonEqualTo: number = 0;
 export const comparisonGreaterThan: number = 1;
 export const comparisonLessThan: number = -1;
