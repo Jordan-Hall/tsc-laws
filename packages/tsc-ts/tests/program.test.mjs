@@ -1,8 +1,8 @@
 // Compares tsconfig.json handling and program construction with tsgo (packages/tsgo/dist/tsgo): fixture projects
 // and projects from TypeScript's test cases, run with --listFilesOnly, --explainFiles, --showConfig and
 // --traceResolution. stdout, stderr and exit status must match exactly.
-// Set TSC_TS_CLI to a native build of src/drivers/cli.ts to test it instead of the JS build, and PROGRAM_FILTER to
-// a substring of project names to run only those.
+// Set TSC_TS_CLI to a native build of src/drivers/cli.ts to test it instead of the JS build, PROGRAM_FILTER to
+// a substring of project names to run only those, and PROGRAM_SHARD to `i/n` to run every nth run starting at the ith.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFile, execFileSync } from 'node:child_process';
@@ -103,8 +103,14 @@ function firstDifference(a, b) {
 async function compare(projects) {
   const filter = process.env.PROGRAM_FILTER;
   if (filter !== undefined) projects = projects.filter((project) => project.name.includes(filter));
-  const runs = [];
+  let runs = [];
   for (const project of projects) for (const args of project.args) runs.push({ project, args });
+  const shard = /^(\d+)\/(\d+)$/.exec(process.env.PROGRAM_SHARD ?? '');
+  if (shard !== null) {
+    const [index, count] = [Number(shard[1]), Number(shard[2])];
+    runs = runs.filter((_, i) => i % count === index - 1);
+    projects = [...new Set(runs.map((r) => r.project))];
+  }
   const counts = { projects: projects.length, runs: runs.length, matched: 0, seam: 0 };
   const failures = [];
   const directories = new Map();

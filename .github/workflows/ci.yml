@@ -23,8 +23,10 @@ jobs:
               npm run lint
               npx turbo run test --filter=@tsc-ts/relater --filter=@tsc-ts/tsgo
               npm run test:corpus
-          - name: tsc-ts program
-            run: npx turbo run build build:oracle && npm exec -w tsc-ts -- node --test tests/program.test.mjs
+          - name: tsc-ts program 1/2
+            run: npx turbo run build build:oracle && PROGRAM_SHARD=1/2 npm exec -w tsc-ts -- node --test tests/program.test.mjs
+          - name: tsc-ts program 2/2
+            run: npx turbo run build build:oracle && PROGRAM_SHARD=2/2 npm exec -w tsc-ts -- node --test tests/program.test.mjs
           - name: tsc-ts command line
             run: npx turbo run build build:oracle && npm exec -w tsc-ts -- node --test tests/command-line.test.mjs
           - name: tsc-ts
