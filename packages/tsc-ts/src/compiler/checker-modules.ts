@@ -1728,7 +1728,8 @@ function isInModuleElementContext(node: Node): boolean {
 }
 
 function getImportAttributes(node: Node): ImportAttributes | undefined {
-  if (node.kind === SyntaxKind.ImportDeclaration) return (node as ImportDeclaration).attributes;
+  if (node.kind === SyntaxKind.ImportDeclaration || node.kind === SyntaxKind.JSImportDeclaration)
+    return (node as ImportDeclaration).attributes;
   if (node.kind === SyntaxKind.ExportDeclaration) return (node as ExportDeclaration).attributes;
   return undefined;
 }

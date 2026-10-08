@@ -761,17 +761,19 @@ export function checkTypeArgumentConstraintsOfReference(c: Checker, node: Node):
   }
 }
 
+export function checkEnumMember(c: Checker, node: Node): void {
+  const name = getName(node);
+  if (name !== undefined && name.kind === SyntaxKind.PrivateIdentifier)
+    c.error(node, Diagnostics.An_enum_member_cannot_be_named_with_a_private_identifier);
+  const initializer = getInitializer(node);
+  if (initializer !== undefined) checkExpression(c, initializer);
+}
+
 export function checkEnumDeclaration(c: Checker, node: Node): void {
   const name = getName(node)!;
   checkTypeNameIsReserved(c, name, Diagnostics.Enum_name_cannot_be_0);
   checkExportsOnMergedDeclarations(c, node);
-  for (const member of (node as EnumDeclaration).members.nodes) {
-    const memberName = getName(member);
-    if (memberName !== undefined && memberName.kind === SyntaxKind.PrivateIdentifier)
-      c.error(member, Diagnostics.An_enum_member_cannot_be_named_with_a_private_identifier);
-    const initializer = getInitializer(member);
-    if (initializer !== undefined) checkExpression(c, initializer);
-  }
+  for (const member of (node as EnumDeclaration).members.nodes) checkSourceElement(c, member);
   if (c.compilerOptions.erasableSyntaxOnly === true && (node.flags & NodeFlags.Ambient) === 0)
     c.error(node, Diagnostics.This_syntax_is_not_allowed_when_erasableSyntaxOnly_is_enabled);
   computeEnumMemberValues(c, node);

@@ -1707,9 +1707,12 @@ function checkAssertion(c: Checker, node: Node, checkMode: CheckMode): Type {
 
 /** Checks that an assertion's operand type and asserted type are comparable. */
 export function checkAssertionDeferred(c: Checker, node: Node): void {
-  const targetType = getTypeFromTypeNode(c, getType(node)!);
+  const typeNode = getType(node)!;
+  const targetType = getTypeFromTypeNode(c, typeNode);
+  // A JSDoc cast reports on its type.
+  const errorNode = (typeNode.flags & NodeFlags.Reparsed) !== 0 ? typeNode : node;
   if (!isErrorType(c, targetType))
-    checkAssertionCompatibility(c, node, c.nodeLinks(node).assertionExpressionType!, targetType);
+    checkAssertionCompatibility(c, errorNode, c.nodeLinks(node).assertionExpressionType!, targetType);
 }
 
 function checkAssertionCompatibility(c: Checker, node: Node, rawExprType: Type, targetType: Type): void {

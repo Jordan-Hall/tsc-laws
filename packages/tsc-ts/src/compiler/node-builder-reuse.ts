@@ -354,7 +354,7 @@ class ExistingNodeReuser extends VisitorBase {
           getSymbolIfSameReference(c, getExportSymbolOfValueSymbolIfExported(c, symAtLocation), sym) === undefined)
       ) {
         if (symAtLocation !== c.unknownSymbol) b.tracker.reportInferenceFallback(node);
-        return new TrackedName(true, b.setTextRange(node.deepClone(), node));
+        return new TrackedName(true, b.setTextRange(b.deepCloneNode(node), node));
       }
       sym = symAtLocation;
     }
@@ -379,7 +379,7 @@ class ExistingNodeReuser extends VisitorBase {
       } else b.trackSymbol(sym, enclosingDeclaration, meaning);
       return new TrackedName(introducesError, this.attachSymbolToLeftmostIdentifier(leftmost, node, sym));
     }
-    return new TrackedName(false, b.setTextRange(node.deepClone(), node));
+    return new TrackedName(false, b.setTextRange(b.deepCloneNode(node), node));
   }
 
   /** A reference to the type `node` names, written from its symbol. */

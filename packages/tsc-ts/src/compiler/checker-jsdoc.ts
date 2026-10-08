@@ -24,7 +24,8 @@ import {
   getText,
   getType,
 } from './ast.js';
-import { isTypeNodeKind } from './binder-utilities.js';
+import { getSourceFileOfNode, isTypeNodeKind } from './binder-utilities.js';
+import { getJSDoc } from './parser.js';
 import { isInJSFile } from './ast-utilities.js';
 import { Diagnostics } from './diagnostics.js';
 import { SyntaxKind } from './syntax-kind.js';
@@ -157,9 +158,10 @@ export function checkJSDocFullSignature(c: Checker, fn: Node): void {
 /** The tags of the last JSDoc comment of `node` or of the declaration or statement it heads. */
 function getAllJSDocTags(node: Node): readonly Node[] {
   if ((node.flags & NodeFlags.JSDoc) !== 0) return [];
+  const file = getSourceFileOfNode(node);
   for (let current: Node | undefined = node; current !== undefined; current = getNextJSDocCommentLocation(current)) {
-    const jsDoc = current.jsDoc;
-    if (jsDoc === undefined || jsDoc.length === 0) continue;
+    const jsDoc = getJSDoc(file, current);
+    if (jsDoc.length === 0) continue;
     const tags = (jsDoc[jsDoc.length - 1]! as JSDoc).tags;
     if (tags !== undefined) return tags.nodes;
   }

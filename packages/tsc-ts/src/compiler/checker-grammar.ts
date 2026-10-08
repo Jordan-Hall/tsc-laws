@@ -350,6 +350,7 @@ function checkGrammarNode(g: GrammarChecker, node: Node): boolean {
     case SyntaxKind.ModuleDeclaration:
       return checkGrammarModuleDeclaration(g, node as ModuleDeclaration);
     case SyntaxKind.ImportDeclaration:
+    case SyntaxKind.JSImportDeclaration:
       checkGrammarImportDeclaration(g, node as ImportDeclaration);
       return false;
     case SyntaxKind.ImportEqualsDeclaration:
@@ -2636,7 +2637,8 @@ function checkExternalImportOrExportDeclaration(g: GrammarChecker, node: Node): 
 }
 
 function getImportAttributes(node: Node): ImportAttributes | undefined {
-  if (node.kind === SyntaxKind.ImportDeclaration) return (node as ImportDeclaration).attributes;
+  if (node.kind === SyntaxKind.ImportDeclaration || node.kind === SyntaxKind.JSImportDeclaration)
+    return (node as ImportDeclaration).attributes;
   if (node.kind === SyntaxKind.ExportDeclaration) return (node as ExportDeclaration).attributes;
   return undefined;
 }
@@ -3098,7 +3100,7 @@ function checkGrammarImportAttributes(g: GrammarChecker, declaration: Node): voi
 
 function isExclusivelyTypeOnlyImportOrExport(node: Node): boolean {
   if (node.kind === SyntaxKind.ExportDeclaration) return (node as ExportDeclaration).isTypeOnly;
-  if (node.kind !== SyntaxKind.ImportDeclaration) return false;
+  if (node.kind !== SyntaxKind.ImportDeclaration && node.kind !== SyntaxKind.JSImportDeclaration) return false;
   const clause = (node as ImportDeclaration).importClause;
   return clause !== undefined && clause.phaseModifier === SyntaxKind.TypeKeyword;
 }

@@ -30,6 +30,7 @@ import {
   getPostfixToken,
   getQuestionToken,
   getText,
+  getSymbol,
 } from './ast.js';
 import { getExternalModuleName, nodeIsPresent } from './ast-utilities.js';
 import {
@@ -80,7 +81,12 @@ import type { ModuleKind } from './options.js';
 import type { EmitContext } from './printer/emit-context.js';
 import { isTypeIdenticalTo } from './relations.js';
 import { CheckFlags, type Symbol, SymbolFlags } from './symbol.js';
-import { isDeclarationVisible, isSymbolAccessible, markDeclarationVisible } from './symbol-accessibility.js';
+import {
+  beginDeclarationEmitVisibility,
+  isDeclarationVisible,
+  isSymbolAccessible,
+  markDeclarationVisible,
+} from './symbol-accessibility.js';
 import { SyntaxKind } from './syntax-kind.js';
 import {
   DeclarationEmitResolver,
@@ -172,6 +178,7 @@ export class CheckerDeclarationEmitResolver extends DeclarationEmitResolver {
   // Visibility
 
   precalculateDeclarationEmitVisibility(file: SourceFile): boolean {
+    beginDeclarationEmitVisibility(this.checker, file);
     if (this.aliasesMarked.has(file)) return false;
     this.aliasesMarked.add(file);
     file.forEachChild(new AliasMarker(this));
@@ -484,7 +491,8 @@ export class CheckerDeclarationEmitResolver extends DeclarationEmitResolver {
   ): Node[] {
     const c = this.checker;
     const container = context.parseNode(containerIn) ?? containerIn;
-    const sym = getSymbolOfDeclaration(c, container);
+    // The declaration's own symbol: members merged in from other files aren't written here.
+    const sym = getSymbol(container);
     if (sym === undefined) return [];
     const staticInfos = getIndexInfosOfType(c, getTypeOfSymbol(c, sym));
     const instanceIndexSymbol = getIndexSymbol(c, sym);

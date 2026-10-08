@@ -144,7 +144,7 @@ import {
   isTypeParameterPossiblyReferenced,
   getRestrictiveInstantiation,
 } from './instantiation.js';
-import { getSuggestedSymbolForNonexistentJSXAttribute, isJsxOpeningLikeElement } from './checker-jsx.js';
+import { getJsxType, getSuggestedSymbolForNonexistentJSXAttribute, isJsxOpeningLikeElement } from './checker-jsx.js';
 import { signatureToString, symbolToString, typeToString, typePredicateToString } from './type-printer.js';
 import {
   getConstraintOfDistributiveConditionalType,
@@ -3107,7 +3107,19 @@ export class Relater extends TypeComparer {
         Diagnostics.The_Object_type_is_assignable_to_very_few_other_types_Did_you_mean_to_use_the_any_type_instead,
         [],
       );
-    else if (
+    else if ((source.objectFlags & ObjectFlags.JsxAttributes) !== 0 && (target.flags & TypeFlags.Intersection) !== 0) {
+      // Attributes failing JSX.IntrinsicAttributes or JSX.IntrinsicClassAttributes report that member's error alone.
+      const targetTypes = typesOf(target);
+      const errorNode = this.errorNode!;
+      const intrinsicAttributes = getJsxType(c, 'IntrinsicAttributes', errorNode);
+      const intrinsicClassAttributes = getJsxType(c, 'IntrinsicClassAttributes', errorNode);
+      if (
+        !isErrorType(c, intrinsicAttributes) &&
+        !isErrorType(c, intrinsicClassAttributes) &&
+        (targetTypes.includes(intrinsicAttributes) || targetTypes.includes(intrinsicClassAttributes))
+      )
+        return;
+    } else if (
       (originalTarget.flags & TypeFlags.Intersection) !== 0 &&
       (originalTarget.objectFlags & ObjectFlags.IsNeverIntersection) !== 0
     ) {

@@ -248,6 +248,7 @@ import {
   pseudoTypeEquivalentToType,
   pseudoTypeToNodeWithCheckerFallback,
   pseudoTypeToType,
+  newPseudoChecker,
   requiresAddingImplicitUndefinedForDeclaration,
 } from './node-builder-pseudo.js';
 import {
@@ -992,8 +993,15 @@ export class NodeBuilder {
       }
       // A use of a type parameter, not its declaration: no constraint or default.
       if (t.symbol !== undefined) return symbolToTypeNode(this, t.symbol, SymbolFlags.Type, undefined);
-      // Variance markers would be `sub-T` and `super-T`; their type parameter isn't kept.
-      return this.typeReference(this.identifier('?'), undefined);
+      const varianceTypeParameter = c.varianceTypeParameter;
+      let name = '?';
+      if (
+        (t === c.markerSuperTypeForCheck || t === c.markerSubTypeForCheck) &&
+        varianceTypeParameter !== undefined &&
+        varianceTypeParameter.symbol !== undefined
+      )
+        name = (t === c.markerSubTypeForCheck ? 'sub-' : 'super-') + varianceTypeParameter.symbol.name;
+      return this.typeReference(this.identifier(name), undefined);
     }
     let u = t;
     if ((flags & TypeFlags.Union) !== 0 && (t as UnionType).origin !== undefined) u = (t as UnionType).origin!;
@@ -3237,6 +3245,7 @@ export function typeToStringFromTypeNode(
   let flags = toNodeBuilderFlags(typeFormatFlags) | NodeBuilderFlags.IgnoreErrors;
   if (noTruncation) flags |= NodeBuilderFlags.NoTruncation;
   const b = new NodeBuilder(c, enclosingDeclaration, flags, NodeBuilderInternalFlags.None, undefined);
+  b.pseudo = newPseudoChecker(c);
   c.serializationLevel++;
   const typeNode = b.finish(b.typeToTypeNode(type));
   c.serializationLevel--;

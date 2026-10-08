@@ -34,19 +34,19 @@ npm run build:oracle     # tsgo reference builds in packages/*/dist
 
 `packages/tsc-ts/src/compiler` is the compiler, ported from tsgo 7.0.2 as idiomatic TypeScript. Each part is compared with tsgo on TypeScript's test corpus (about 12,500 files, 17,000 units after splitting multi-file cases):
 
-| Part                         | Compared with tsgo                                  | Status                           |
-| ---------------------------- | --------------------------------------------------- | -------------------------------- |
-| Scanner                      | tokens, values, errors, rescans, JSDoc              | all files match                  |
-| Parser and AST               | tree, diagnostics, API source file encoding         | all units match                  |
-| Binder                       | symbols, tables, flow graph, name resolution        | all units match                  |
-| Module resolution            | results, package IDs, `--traceResolution`           | all requests match               |
-| `tsconfig.json` and programs | `--showConfig`, `--listFilesOnly`, `--explainFiles` | all cases match                  |
-| Command line and options     | output, errors, exit codes, `--locale`              | all cases match                  |
-| Diagnostics catalog          | messages, 13 translations, output formats           | all match                        |
-| JavaScript emit              | emitted files, 39 option sets                       | all compared units match         |
-| Declaration emit             | `.d.ts` and `.d.ts.map` output, declaration errors  | 99.8% of units match             |
-| `--build`, `--incremental`   | output, `.tsbuildinfo`, emitted files, `--watch`    | all scenarios match              |
-| Type checker                 | diagnostics per file                                | 99.8% of files match             |
+| Part                         | Compared with tsgo                                  | Status                   |
+| ---------------------------- | --------------------------------------------------- | ------------------------ |
+| Scanner                      | tokens, values, errors, rescans, JSDoc              | all files match          |
+| Parser and AST               | tree, diagnostics, API source file encoding         | all units match          |
+| Binder                       | symbols, tables, flow graph, name resolution        | all units match          |
+| Module resolution            | results, package IDs, `--traceResolution`           | all requests match       |
+| `tsconfig.json` and programs | `--showConfig`, `--listFilesOnly`, `--explainFiles` | all cases match          |
+| Command line and options     | output, errors, exit codes, `--locale`              | all cases match          |
+| Diagnostics catalog          | messages, 13 translations, output formats           | all match                |
+| JavaScript emit              | emitted files, 39 option sets                       | all compared units match |
+| Declaration emit             | `.d.ts` and `.d.ts.map` output, declaration errors  | all units match          |
+| `--build`, `--incremental`   | output, `.tsbuildinfo`, emitted files, `--watch`    | all scenarios match      |
+| Type checker                 | diagnostics per file                                | 99.9% of files match     |
 
 The corpus scripts are in `packages/tsc-ts/scripts` (`*-corpus.mjs`).
 

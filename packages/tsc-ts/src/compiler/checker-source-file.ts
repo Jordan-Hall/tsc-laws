@@ -13,6 +13,8 @@ import { resolveUntypedCall } from './checker-calls.js';
 import {
   type ImportTypeNode,
   type MappedTypeNode,
+  type TemplateLiteralTypeNode,
+  type TemplateLiteralTypeSpan,
   type JSDoc,
   type Node,
   type NodeList,
@@ -70,6 +72,7 @@ import {
 } from './checker-statements.js';
 import {
   checkEnumDeclaration,
+  checkEnumMember,
   checkExternalModuleExports,
   checkFunctionDeclaration,
   checkModuleDeclaration,
@@ -204,9 +207,14 @@ function isSourceElementUnreachable(c: Checker, node: Node): boolean {
   return flowNode !== undefined && !isReachableFlowNode(c, flowNode);
 }
 
-function checkSourceElementWorker(c: Checker, node: Node): void {
+/** Resolves the `@link` names of a node's JSDoc, which marks what they name referenced. */
+export function checkJSDocLinksOfNode(c: Checker, node: Node): void {
   const jsDoc = node.jsDoc;
   if (jsDoc !== undefined) for (const d of jsDoc) checkJSDocLinks(c, d);
+}
+
+function checkSourceElementWorker(c: Checker, node: Node): void {
+  checkJSDocLinksOfNode(c, node);
   if (
     !c.withinUnreachableCode &&
     c.compilerOptions.allowUnreachableCode !== true &&
@@ -284,10 +292,14 @@ function checkSourceElementWorker(c: Checker, node: Node): void {
     case SyntaxKind.EnumDeclaration:
       checkEnumDeclaration(c, node);
       return;
+    case SyntaxKind.EnumMember:
+      checkEnumMember(c, node);
+      return;
     case SyntaxKind.ModuleDeclaration:
       checkModuleDeclaration(c, node);
       return;
     case SyntaxKind.ImportDeclaration:
+    case SyntaxKind.JSImportDeclaration:
       checkImportDeclaration(c, node);
       return;
     case SyntaxKind.ImportEqualsDeclaration:
@@ -425,9 +437,25 @@ function checkTypeNodeWorker(c: Checker, node: Node): void {
     checkMappedType(c, node as MappedTypeNode);
     return;
   }
+  if (node.kind === SyntaxKind.TemplateLiteralType) {
+    checkTemplateLiteralType(c, node as TemplateLiteralTypeNode);
+    return;
+  }
   node.forEachChild(c.typeNodeVisitor);
+  // Unions and intersections are resolved after their constituents.
+  if (node.kind === SyntaxKind.UnionType || node.kind === SyntaxKind.IntersectionType) getTypeFromTypeNode(c, node);
   if (node.kind === SyntaxKind.MethodSignature) checkFunctionOrMethodSymbols(c, node);
   else if (node.kind === SyntaxKind.TypeLiteral) checkTypeLiteralMembers(c, node);
+}
+
+/** Checks that each span of a template literal type can be written in a template, then its type. */
+function checkTemplateLiteralType(c: Checker, node: TemplateLiteralTypeNode): void {
+  for (const span of node.templateSpans.nodes) {
+    const spanType = (span as TemplateLiteralTypeSpan).type;
+    checkTypeNode(c, spanType);
+    checkTypeAssignableTo(c, getTypeFromTypeNode(c, spanType), c.templateConstraintType, spanType, undefined);
+  }
+  getTypeFromTypeNode(c, node);
 }
 
 /** Checks a mapped type's parts before its type, which resolves the constraint eagerly. */

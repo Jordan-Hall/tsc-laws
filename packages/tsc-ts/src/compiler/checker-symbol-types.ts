@@ -229,11 +229,9 @@ function getTypeOfVariableOrParameterOrPropertyWorker(c: Checker, symbol: Symbol
   const declaration = symbol.valueDeclaration;
   if (declaration === undefined) return c.errorType;
   if (!pushTypeResolution(c, symbol, TypeSystemPropertyName.Type)) return reportCircularityError(c, symbol);
-  if ((symbol.flags & SymbolFlags.ModuleExports) !== 0) {
-    const t = getTypeOfModuleExportsSymbol(c, symbol);
-    popTypeResolution(c);
-    return t;
-  }
+  // Like tsgo, the type resolution stays pushed: until popped by an enclosing resolution, its cached
+  // type ends cycle detection there, so aliases like `module.exports.b = module.exports.a` resolve.
+  if ((symbol.flags & SymbolFlags.ModuleExports) !== 0) return getTypeOfModuleExportsSymbol(c, symbol);
   let result: Type;
   switch (declaration.kind) {
     case SyntaxKind.Parameter:
@@ -423,7 +421,7 @@ export function getTypeForVariableLikeDeclaration(
   return undefined;
 }
 
-function widenTypeInferredFromInitializer(c: Checker, declaration: Node, t: Type): Type {
+export function widenTypeInferredFromInitializer(c: Checker, declaration: Node, t: Type): Type {
   const widened = getWidenedLiteralTypeForInitializer(c, declaration, t);
   // `null`, `undefined` and `[]` initializers in JavaScript are implicitly `any` and `any[]`.
   if (isInJSFile(declaration)) {
@@ -543,7 +541,8 @@ function reportWideningErrorsInType(c: Checker, t: Type): boolean {
 
 export function reportImplicitAny(c: Checker, declaration: Node, t: Type): void {
   const file = getSourceFileOfNode(declaration);
-  if (file.isJS() && file.checkJsDirective === undefined && c.compilerOptions.checkJs !== true) return;
+  // Only TypeScript files and checked JavaScript files report implicit `any`.
+  if (isInJSFile(declaration) && !isCheckJsEnabledForFile(file, c.compilerOptions)) return;
   const typeAsString = typeToString(c, getWidenedType(c, t));
   let message: DiagnosticMessage;
   switch (declaration.kind) {
@@ -863,6 +862,7 @@ import { checkExpression } from './checker-expressions.js';
 import { getParameterTypeOfFullSignature } from './checker-jsdoc.js';
 import { isInJSFile } from './ast-utilities.js';
 import { isEmptyArrayLiteralType } from './relations.js';
+import { isCheckJsEnabledForFile } from './program-utilities.js';
 
 function getDeclarationModifierFlags(c: Checker, symbol: Symbol): ModifierFlags {
   return getDeclarationModifierFlagsFromSymbol(c, symbol, false);

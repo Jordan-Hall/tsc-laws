@@ -841,7 +841,32 @@ export function isDeclarationVisible(c: Checker, node: Node): boolean {
 }
 
 export function markDeclarationVisible(c: Checker, node: Node): void {
-  caches(c).declarationVisibility.set(getNodeId(node), true);
+  const cache = caches(c);
+  cache.declarationVisibility.set(getNodeId(node), true);
+  let marked = cache.markedVisible.get(cache.markedSlot);
+  if (marked === undefined) {
+    marked = [];
+    cache.markedVisible.set(cache.markedSlot, marked);
+  }
+  marked.push(node);
+}
+
+/** Checkers tsgo spreads a program's files over, round robin. */
+const checkerCount = 4;
+
+/**
+ * Starts the declaration emit of `file`. tsgo emits each file with one of its checkers, so only
+ * declarations marked visible while emitting files of the same checker stay marked.
+ */
+export function beginDeclarationEmitVisibility(c: Checker, file: SourceFile): void {
+  const cache = caches(c);
+  const index = c.fileIndex.get(file);
+  const slot = index === undefined ? -1 : index % Math.max(1, Math.min(checkerCount, c.files.length));
+  if (slot === cache.markedSlot) return;
+  const visibility = cache.declarationVisibility;
+  for (const node of cache.markedVisible.get(cache.markedSlot) ?? []) visibility.delete(getNodeId(node));
+  cache.markedSlot = slot;
+  for (const node of cache.markedVisible.get(slot) ?? []) visibility.set(getNodeId(node), true);
 }
 
 function determineIfDeclarationIsVisible(c: Checker, node: Node): boolean {

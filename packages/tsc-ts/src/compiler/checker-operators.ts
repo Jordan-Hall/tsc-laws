@@ -76,6 +76,7 @@ import { TypeFacts, getNonNullableType, getTypeFacts, hasTypeFacts } from './che
 import {
   areTypesComparable,
   checkTypeAssignableTo,
+  getTypeNamesForErrorDisplay,
   isTypeAssignableTo,
   isTypeComparableTo,
   isTypeSubtypeOf,
@@ -723,12 +724,7 @@ function reportOperatorError(
       }
     }
   }
-  let leftStr = typeToString(c, effectiveLeft);
-  let rightStr = typeToString(c, effectiveRight);
-  if (leftStr === rightStr) {
-    leftStr = typeToString(c, effectiveLeft, undefined, TypeFormatFlags.UseFullyQualifiedType);
-    rightStr = typeToString(c, effectiveRight, undefined, TypeFormatFlags.UseFullyQualifiedType);
-  }
+  const [leftStr, rightStr] = getTypeNamesForErrorDisplay(c, effectiveLeft, effectiveRight);
   switch (operator) {
     case SyntaxKind.EqualsEqualsEqualsToken:
     case SyntaxKind.EqualsEqualsToken:

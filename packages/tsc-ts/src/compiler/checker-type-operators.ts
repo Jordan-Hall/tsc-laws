@@ -1672,7 +1672,7 @@ export function getTypeOfMappedSymbol(c: Checker, symbol: Symbol): Type {
       c.error(
         c.currentNode,
         Diagnostics.Type_of_property_0_circularly_references_itself_in_mapped_type_1,
-        symbol.name,
+        symbolToString(c, symbol),
         typeToString(c, mappedType),
       );
     }

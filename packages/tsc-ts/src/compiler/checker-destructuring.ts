@@ -92,6 +92,7 @@ import {
   getTypeOfSymbol,
   addOptionality,
   getWidenedLiteralTypeForInitializer,
+  widenTypeInferredFromInitializer,
   isReadonlySymbol,
   reportImplicitAny,
   declarationBelongsToPrivateAmbientMember,
@@ -281,7 +282,7 @@ export function getBindingElementTypeFromParentType(
       return getNonUndefinedType(c, t);
     return t;
   }
-  return getWidenedLiteralTypeForInitializer(
+  return widenTypeInferredFromInitializer(
     c,
     declaration,
     getUnionTypeEx(

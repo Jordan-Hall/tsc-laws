@@ -208,6 +208,9 @@ export class SymbolAccessibilityCaches {
   /** The name tables of named class expressions, by node id. */
   readonly classExpressionNames = new Map<number, SymbolTable>();
   readonly declarationVisibility = new Map<number, boolean>();
+  /** Declarations marked visible by declaration emit, by the checker slot of the emitted file. */
+  readonly markedVisible = new Map<number, Node[]>();
+  markedSlot = -1;
 }
 
 export class Checker {

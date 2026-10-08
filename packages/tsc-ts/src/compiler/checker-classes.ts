@@ -73,7 +73,12 @@ import { getOptionalType, getTypeOfSymbol } from './checker-symbol-types.js';
 import { convertAutoToAny, getFlowTypeOfReference } from './checker-narrowing.js';
 import { TypeFacts, hasTypeFacts } from './checker-flow.js';
 import { getIndexInfosOfType, getSignaturesOfType, getTypeOfPropertyOfType } from './checker-members.js';
-import { checkSourceElement, checkTypeNodeIfPresent, checkNodeDeferred } from './checker-source-file.js';
+import {
+  checkJSDocLinksOfNode,
+  checkNodeDeferred,
+  checkSourceElement,
+  checkTypeNodeIfPresent,
+} from './checker-source-file.js';
 import {
   checkVariableLikeDeclaration,
   checkTypeParameters,
@@ -171,6 +176,7 @@ function checkHeritageClauses(c: Checker, clauses: Node[], isClass: boolean): vo
 }
 
 function checkClassMember(c: Checker, member: Node): void {
+  checkJSDocLinksOfNode(c, member);
   switch (member.kind) {
     case SyntaxKind.PropertyDeclaration:
       checkVariableLikeDeclaration(c, member);

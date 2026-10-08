@@ -470,7 +470,7 @@ export function getJsxNamespaceAt(c: Checker, location: Node): Symbol | undefine
   return global === c.unknownSymbol ? undefined : global;
 }
 
-function getJsxType(c: Checker, name: string, location: Node): Type {
+export function getJsxType(c: Checker, name: string, location: Node): Type {
   const namespace = getJsxNamespaceAt(c, location);
   if (namespace !== undefined) {
     const typeSymbol = getSymbolOfMeaning(c, getExportsOfSymbol(c, namespace), name, SymbolFlags.Type);
