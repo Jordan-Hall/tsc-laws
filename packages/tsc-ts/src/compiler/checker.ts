@@ -194,6 +194,21 @@ function stableSort(list: Diagnostic[]): void {
 /** Maximum depth of nested `typeToString` calls before diagnostics are discarded. */
 export const maxSerializationLevel = 100;
 
+/** The checker's caches for symbol accessibility. */
+export class SymbolAccessibilityCaches {
+  /** Accessible chains by symbol id, then by `chainCacheKey`. */
+  readonly accessibleChains = new Map<number, Map<string, Symbol[]>>();
+  /** Alias symbols of large tables (globals and exports), by table id. */
+  readonly tableAliases = new Map<number, Symbol[]>();
+  /** Modules imported by a file that export a symbol, by symbol id then file node id. */
+  readonly containersByFile = new Map<number, Map<number, Symbol[]>>();
+  /** All modules that export a symbol, by symbol id. */
+  readonly containers = new Map<number, Symbol[]>();
+  /** The name tables of named class expressions, by node id. */
+  readonly classExpressionNames = new Map<number, SymbolTable>();
+  readonly declarationVisibility = new Map<number, boolean>();
+}
+
 export class Checker {
   readonly host: CheckerHost;
   readonly compilerOptions: CompilerOptions;
@@ -241,6 +256,8 @@ export class Checker {
   mergedSymbolChanges: TableChanges<number, Symbol> | undefined = undefined;
   /** This checker's copies of shared symbols, and the symbols they stand for. */
   readonly sharedSymbolCopies = new Map<Symbol, Symbol>();
+  /** Accessible symbol chains and declaration visibility, created on first use. */
+  symbolAccessibilityCaches: SymbolAccessibilityCaches | undefined = undefined;
 
   // Symbols
   readonly globals: SymbolTable;
@@ -406,6 +423,8 @@ export class Checker {
   readonly markerTypes = new Set<Type>();
   readonly arrayVariances: VarianceFlags[] = [VarianceFlags.Covariant];
   nanLiteralType: LiteralType | undefined = undefined;
+  /** `{ meta: ImportMeta }`, the type of `import.meta` for symbol queries. */
+  importMetaExpressionType: Type | undefined = undefined;
 
   // Control flow analysis
   flowAnalysisDisabled = false;
@@ -646,8 +665,15 @@ export class Checker {
 
   /** Checks `file` if needed and returns its semantic diagnostics, sorted. */
   getDiagnostics(file: SourceFile): Diagnostic[] {
-    checkSourceFile(this, file);
+    const options = this.compilerOptions;
+    checkSourceFile(this, file, options.noUnusedLocals === true || options.noUnusedParameters === true);
     return this.diagnostics.forFile(file.fileName);
+  }
+
+  /** Checks `file`, including unused identifiers, and returns its suggestion diagnostics. */
+  getSuggestionDiagnostics(file: SourceFile): Diagnostic[] {
+    checkSourceFile(this, file, true);
+    return this.suggestionDiagnostics.forFile(file.fileName);
   }
 
   /** Diagnostics without a file, such as missing global types. */
@@ -767,6 +793,7 @@ export function disposeChecker(c: Checker): void {
     c.globals.clear();
   }
   c.sharedSymbolCopies.clear();
+  c.symbolAccessibilityCaches = undefined;
   c.unresolvedSymbols.clear();
   c.undefinedProperties.clear();
   c.stringLiteralTypes.clear();

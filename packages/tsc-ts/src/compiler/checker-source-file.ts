@@ -100,13 +100,27 @@ import { checkGrammarSourceFile } from './checker-grammar.js';
 import { Diagnostics } from './diagnostic-messages.js';
 import { getTypeOfSymbol, reportImplicitAny } from './checker-symbol-types.js';
 import { getSymbolOfDeclaration } from './checker-symbols.js';
+import { checkUnusedIdentifiers } from './checker-unused.js';
+import { checkDeprecatedTypeReference } from './checker-deprecation.js';
 
-/** Checks `file` once; diagnostics accumulate in the checker. */
-export function checkSourceFile(c: Checker, file: SourceFile): void {
+/**
+ * Checks `file` once; diagnostics accumulate in the checker. `checkUnused` also reports unused
+ * identifiers, which need the whole file checked first. Default library files have no errors and
+ * are only checked for suggestions.
+ */
+export function checkSourceFile(c: Checker, file: SourceFile, checkUnused = false): void {
   const links = c.nodeLinks(file);
-  if ((links.flags & NodeCheckFlags.TypeChecked) !== 0) return;
-  links.flags |= NodeCheckFlags.TypeChecked;
-  if (c.host.isSourceFileDefaultLibrary(file)) return;
+  if ((links.flags & NodeCheckFlags.TypeChecked) === 0 && (checkUnused || !c.host.isSourceFileDefaultLibrary(file))) {
+    links.flags |= NodeCheckFlags.TypeChecked;
+    checkSourceFileWorker(c, file);
+  }
+  if (checkUnused && (links.flags & NodeCheckFlags.UnusedChecked) === 0) {
+    links.flags |= NodeCheckFlags.UnusedChecked;
+    checkUnusedIdentifiers(c, file);
+  }
+}
+
+function checkSourceFileWorker(c: Checker, file: SourceFile): void {
   c.saveDeferredDiagnostics = true;
   for (const statement of getStatements(file)!.nodes) checkSourceElement(c, statement);
   checkDeferredNodes(c);
@@ -303,9 +317,14 @@ function checkTypeNodeWorker(c: Checker, node: Node): void {
     case SyntaxKind.ConstructorType:
       checkTypeParameters(c, getTypeParameters(node));
       break;
-    case SyntaxKind.TypeReference:
-      getTypeFromTypeNode(c, node);
+    case SyntaxKind.TypeReference: {
+      const type = getTypeFromTypeNode(c, node);
       checkTypeArgumentConstraintsOfReference(c, node);
+      checkDeprecatedTypeReference(c, node, type);
+      break;
+    }
+    case SyntaxKind.ImportType:
+      checkDeprecatedTypeReference(c, node, getTypeFromTypeNode(c, node));
       break;
     case SyntaxKind.IndexedAccessType:
       checkIndexedAccessIndexType(c, getTypeFromTypeNode(c, node), node);
@@ -322,7 +341,6 @@ function checkTypeNodeWorker(c: Checker, node: Node): void {
       }
       break;
     case SyntaxKind.TypeQuery:
-    case SyntaxKind.ImportType:
     case SyntaxKind.TypeOperator:
     case SyntaxKind.ConditionalType:
     case SyntaxKind.LiteralType:

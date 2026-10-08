@@ -212,6 +212,29 @@ export class Program implements OutputPathsHost {
     return this.processed.resolvedModules.get(file.path)?.get(modeAwareKey(moduleName, mode));
   }
 
+  /** The program file a module name in `file` resolved to, in any resolution mode. */
+  getSourceFileForModuleName(file: SourceFile, moduleName: string): SourceFile | undefined {
+    const resolutions = this.processed.resolvedModules.get(file.path);
+    if (resolutions === undefined) return undefined;
+    const suffix = '|' + moduleName;
+    for (const [key, resolved] of resolutions) {
+      if (!key.endsWith(suffix) || key.indexOf('|') !== key.length - suffix.length) continue;
+      if (resolved.resolvedFileName === '') continue;
+      const target = this.getSourceFile(resolved.resolvedFileName);
+      if (target !== undefined) return target;
+      const redirect = this.processed.projectReferenceMapper.getParseFileRedirect(
+        this.toPath(resolved.resolvedFileName),
+      );
+      if (redirect !== '') return this.getSourceFile(redirect);
+    }
+    return undefined;
+  }
+
+  /** The specifier of the implicit JSX runtime import of `file`, if any. */
+  jsxRuntimeImportSpecifier(path: string): Node | undefined {
+    return this.processed.jsxRuntimeImports.get(path)?.specifier;
+  }
+
   getResolvedModuleFromModuleSpecifier(file: SourceFile, specifier: Node): ResolvedModule | undefined {
     const text = specifierText(specifier);
     return this.getResolvedModule(file, text, this.getModeForUsageLocation(file, specifier));
@@ -297,15 +320,15 @@ export class Program implements OutputPathsHost {
     return this.commandLine.configFileParsingDiagnostics();
   }
 
-  /** Parse errors of every file, sorted. */
-  getSyntacticDiagnostics(): Diagnostic[] {
+  /** Parse errors of `file`, or of every file, sorted. */
+  getSyntacticDiagnostics(file?: SourceFile): Diagnostic[] {
     const result: Diagnostic[] = [];
-    for (const file of this.processed.files) {
-      for (const diagnostic of file.diagnostics) result.push(diagnostic);
-      for (const diagnostic of file.jsDiagnostics) result.push(diagnostic);
+    for (const f of file === undefined ? this.processed.files : [file]) {
+      for (const diagnostic of f.diagnostics) result.push(diagnostic);
+      for (const diagnostic of f.jsDiagnostics) result.push(diagnostic);
       // Unchecked JavaScript still gets option-dependent syntax errors.
-      if (isSourceFileJS(file) && !isCheckJsEnabledForFile(file, this.options)) {
-        for (const diagnostic of getAdditionalJSSyntacticDiagnostics(file, this.options)) result.push(diagnostic);
+      if (isSourceFileJS(f) && !isCheckJsEnabledForFile(f, this.options)) {
+        for (const diagnostic of getAdditionalJSSyntacticDiagnostics(f, this.options)) result.push(diagnostic);
       }
     }
     return sortAndDeduplicateDiagnostics(result);

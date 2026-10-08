@@ -235,7 +235,7 @@ export abstract class NodeFactoryBase {
     parameters: NodeList,
     typeNode: TypeNode | undefined,
     fullSignature: TypeNode | undefined,
-    equalsGreaterThanToken: Token,
+    equalsGreaterThanToken: Token | undefined,
     body: ConciseBody,
   ): ArrowFunction {
     if (

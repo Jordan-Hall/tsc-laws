@@ -1402,6 +1402,7 @@ function checkGrammarArrowFunction(g: GrammarChecker, node: Node): boolean {
       );
   }
   const arrowToken = arrow.equalsGreaterThanToken;
+  if (arrowToken === undefined) return false;
   const lineStarts = g.file.lineStarts();
   return (
     computeLineOfPosition(lineStarts, arrowToken.pos) !== computeLineOfPosition(lineStarts, arrowToken.end) &&

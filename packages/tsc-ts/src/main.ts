@@ -1,7 +1,8 @@
 // tsc-ts: `--api` serves the TypeScript API; anything else runs tsc.
 import { dirname } from 'node:path';
-import { runTsc } from './api/backend.js';
 import { runServer } from './api/server.js';
+import { runTsc } from './drivers/node-system.js';
+import './drivers/lowering.js';
 
 // Lib files come from TSC_TS_LIB_DIR, or the executable's directory as in tsc.
 const defaultLibraryPath =

@@ -1,4 +1,5 @@
 // Decorators: their applicability, resolution as calls and return types.
+import { checkDeprecatedSignature } from './checker-deprecation.js';
 import {
   type Decorator,
   type Node,
@@ -73,6 +74,7 @@ export function checkDecorators(c: Checker, node: Node): void {
 
 function checkDecorator(c: Checker, node: Decorator): void {
   const signature = getResolvedSignature(c, node, CheckMode.Normal);
+  checkDeprecatedSignature(c, signature, node);
   const returnType = getReturnTypeOfSignature(c, signature);
   if ((returnType.flags & TypeFlags.Any) !== 0) return;
   // Without a signature, the grammar checks reported an error.

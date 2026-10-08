@@ -252,7 +252,7 @@ export function checkObjectLiteral(c: Checker, node: Node, checkMode: CheckMode)
   return builder.createType(c);
 }
 
-function checkPropertyAssignment(c: Checker, node: PropertyAssignment, checkMode: CheckMode): Type {
+export function checkPropertyAssignment(c: Checker, node: PropertyAssignment, checkMode: CheckMode): Type {
   if (node.name.kind === SyntaxKind.ComputedPropertyName) checkComputedPropertyName(c, node.name);
   const initializerType = checkExpressionForMutableLocationEx(c, node.initializer, checkMode);
   const typeNode = getType(node);
@@ -262,7 +262,7 @@ function checkPropertyAssignment(c: Checker, node: PropertyAssignment, checkMode
   return t;
 }
 
-function checkShorthandPropertyAssignment(
+export function checkShorthandPropertyAssignment(
   c: Checker,
   node: ShorthandPropertyAssignment,
   inDestructuringPattern: boolean,

@@ -61,6 +61,8 @@ import { getSymbolNameForPrivateIdentifier } from './binder.js';
 import { checkPropertyNotUsedBeforeDeclaration } from './checker-declaration-order.js';
 import { grammarErrorOnNode } from './checker-operators.js';
 import { markPropertyAliasReferenced } from './checker-modules.js';
+import { checkDeprecatedIndexSignature, checkDeprecatedProperty } from './checker-deprecation.js';
+import { isSelfTypeAccess, markPropertyAsReferenced } from './checker-unused.js';
 import {
   getContextualThisParameterType,
   getFlowTypeOfAccessExpression,
@@ -76,6 +78,7 @@ export function checkPropertyAccessExpressionOrQualifiedName(
   right: Node,
   writeOnly: boolean,
 ): Type {
+  const parentSymbol = c.nodeLinks(left).resolvedSymbol;
   const assignmentKind = getAssignmentTargetKind(node);
   const widenedType =
     assignmentKind !== AssignmentKind.None || isMethodAccessForCall(node) ? getWidenedType(c, leftType) : leftType;
@@ -164,8 +167,11 @@ export function checkPropertyAccessExpressionOrQualifiedName(
       node.kind === SyntaxKind.PropertyAccessExpression
     )
       c.error(right, Diagnostics.Property_0_comes_from_an_index_signature_so_it_must_be_accessed_with_0, name);
+    checkDeprecatedIndexSignature(c, right, indexInfo.declaration);
   } else {
+    checkDeprecatedProperty(c, node, right, prop);
     checkPropertyNotUsedBeforeDeclaration(c, prop, node, right);
+    markPropertyAsReferenced(c, prop, node, isSelfTypeAccess(c, left, parentSymbol));
     c.nodeLinks(node).resolvedSymbol = prop;
     checkPropertyAccessibility(
       c,
@@ -210,7 +216,8 @@ function isThisInitializedDeclaration(node: Node): boolean {
 
 /** A private name used as an expression, as in `#x in obj`; records its declaration. */
 export function checkPrivateIdentifierExpression(c: Checker, node: Node): Type {
-  getSymbolForPrivateIdentifierExpression(c, node);
+  const symbol = getSymbolForPrivateIdentifierExpression(c, node);
+  if (symbol !== undefined) markPropertyAsReferenced(c, symbol, undefined, false);
   return c.anyType;
 }
 

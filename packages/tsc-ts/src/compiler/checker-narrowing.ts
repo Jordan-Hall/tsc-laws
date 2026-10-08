@@ -2319,7 +2319,7 @@ function getReferenceCandidate(node: Node): Node {
   return node;
 }
 
-function hasMatchingArgument(c: Checker, call: Node, reference: Node): boolean {
+export function hasMatchingArgument(c: Checker, call: Node, reference: Node): boolean {
   const args = getArguments(call);
   if (args !== undefined) {
     for (const argument of args.nodes)

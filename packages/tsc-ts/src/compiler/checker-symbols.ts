@@ -1488,7 +1488,7 @@ function addDeclarationToLateBoundSymbol(c: Checker, symbol: Symbol, member: Nod
   if ((symbolFlags & SymbolFlags.Value) !== 0) setValueDeclaration(symbol, member);
 }
 
-function isReservedMemberName(name: string): boolean {
+export function isReservedMemberName(name: string): boolean {
   if (name.length < 2 || name.charCodeAt(0) !== 0xfffe) return false;
   const second = name.charCodeAt(1);
   return second !== 0x40 && second !== 0x23;

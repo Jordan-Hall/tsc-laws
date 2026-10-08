@@ -360,8 +360,7 @@ export function getContextualTypeEx(c: Checker, node: Node, contextFlags: Contex
       return getContextualTypeForBinaryOperand(c, parent as BinaryExpression, node, contextFlags);
     case SyntaxKind.PropertyAssignment:
     case SyntaxKind.ShorthandPropertyAssignment:
-      if (parent.kind === SyntaxKind.PropertyAssignment && (parent as PropertyAssignment).initializer !== node)
-        return undefined;
+      // The property's name gets the property's contextual type too.
       return getContextualTypeForObjectLiteralElement(c, parent, contextFlags);
     case SyntaxKind.ObjectLiteralExpression:
       return node.kind === SyntaxKind.MethodDeclaration
@@ -385,7 +384,9 @@ export function getContextualTypeEx(c: Checker, node: Node, contextFlags: Contex
     }
     case SyntaxKind.ConditionalExpression: {
       const cond = parent as ConditionalExpression;
-      return node === cond.condition ? undefined : getContextualTypeEx(c, parent, contextFlags);
+      return node === cond.whenTrue || node === cond.whenFalse
+        ? getContextualTypeEx(c, parent, contextFlags)
+        : undefined;
     }
     case SyntaxKind.TemplateSpan: {
       const template = parent.parent!;

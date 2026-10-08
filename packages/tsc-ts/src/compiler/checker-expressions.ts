@@ -1,9 +1,7 @@
 // Expression checking: types of expressions and the errors they produce.
-import {
-  checkMetaProperty,
-  markIdentifierAliasReferencedInExpression,
-  resolveAliasOfReference,
-} from './checker-modules.js';
+import { checkMetaProperty, markIdentifierAliasReferencedInExpression } from './checker-modules.js';
+import { checkDeprecatedIdentifier } from './checker-deprecation.js';
+import { isWriteOnlyAccess } from './checker-unused.js';
 import {
   type ArrayLiteralExpression,
   type CallExpression,
@@ -506,7 +504,7 @@ export function getResolvedSymbol(c: Checker, node: Node): Symbol {
         text,
         SymbolFlags.Value | SymbolFlags.ExportValue,
         getCannotFindNameDiagnosticForName(c, node),
-        true,
+        !isWriteOnlyAccess(node),
         false,
       );
       if (found !== undefined) symbol = found;
@@ -645,7 +643,7 @@ export function checkIdentifier(c: Checker, node: Identifier): Type {
   }
   markIdentifierAliasReferencedInExpression(c, node);
   const localOrExportSymbol = getExportSymbolOfValueSymbolIfExported(c, symbol);
-  resolveAliasOfReference(c, localOrExportSymbol);
+  checkDeprecatedIdentifier(c, node, localOrExportSymbol);
   let declaration = localOrExportSymbol.valueDeclaration;
   const immediateDeclaration = declaration;
   // In `const [a, b = a + 1] = [2]`, `a` is `any` while computing the contextual type of `[2]`.
@@ -1423,7 +1421,7 @@ export function checkPropertyAccessExpression(c: Checker, node: PropertyAccessEx
   return propagateOptionalTypeMarker(c, t, node, nonOptional !== leftType);
 }
 
-function checkQualifiedName(c: Checker, node: QualifiedName): Type {
+export function checkQualifiedName(c: Checker, node: QualifiedName): Type {
   const leftType = checkNonNullExpressionOfEntity(c, node.left);
   return checkPropertyAccessExpressionOrQualifiedName(c, node, node.left, leftType, node.right, false);
 }

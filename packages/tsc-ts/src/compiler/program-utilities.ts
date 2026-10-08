@@ -387,7 +387,7 @@ function walkUpParenthesizedExpressions(node: Node | undefined): Node | undefine
   return node;
 }
 
-function getEmitSyntaxForUsageLocation(
+export function getEmitSyntaxForUsageLocation(
   fileName: string,
   metadata: SourceFileMetadata,
   usage: Node,

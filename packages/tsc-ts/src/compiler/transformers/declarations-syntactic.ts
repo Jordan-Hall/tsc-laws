@@ -1612,7 +1612,7 @@ function getFirstIdentifier(node: Node): Node {
 }
 
 /** What a reference to an entity name means: a value, a namespace or a type. */
-function getMeaningOfEntityNameReference(entityName: Node): SymbolFlags {
+export function getMeaningOfEntityNameReference(entityName: Node): SymbolFlags {
   const parent = entityName.parent!;
   if (
     parent.kind === SyntaxKind.TypeQuery ||
@@ -1669,7 +1669,7 @@ function isDeclarationKind(kind: SyntaxKind): boolean {
   return false;
 }
 
-function getAnyImportSyntax(node: Node): Node | undefined {
+export function getAnyImportSyntax(node: Node): Node | undefined {
   switch (node.kind) {
     case SyntaxKind.ImportEqualsDeclaration:
       return node;
@@ -1683,7 +1683,7 @@ function getAnyImportSyntax(node: Node): Node | undefined {
   return undefined;
 }
 
-function isLateVisibilityPaintedStatement(node: Node): boolean {
+export function isLateVisibilityPaintedStatement(node: Node): boolean {
   switch (node.kind) {
     case SyntaxKind.ImportDeclaration:
     case SyntaxKind.JSImportDeclaration:
@@ -1702,7 +1702,7 @@ function isLateVisibilityPaintedStatement(node: Node): boolean {
 }
 
 /** The node whose scope holds a declaration: a source file, module block or other container. */
-function getDeclarationContainer(node: Node): Node {
+export function getDeclarationContainer(node: Node): Node {
   let current: Node | undefined = getRootDeclaration(node);
   while (current !== undefined) {
     switch (current.kind) {
@@ -1730,7 +1730,7 @@ function isGlobalScopeAugmentation(node: Node): boolean {
   return node instanceof ModuleDeclaration && node.keyword === SyntaxKind.GlobalKeyword;
 }
 
-function isExternalModuleAugmentation(node: Node): boolean {
+export function isExternalModuleAugmentation(node: Node): boolean {
   return isAmbientModule(node) && isModuleAugmentationExternal(node);
 }
 

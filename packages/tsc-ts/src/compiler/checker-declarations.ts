@@ -1,4 +1,5 @@
 // Declarations: variables, parameters, functions, type aliases, enums, namespaces, imports, exports.
+import { markPropertyAsReferenced } from './checker-unused.js';
 import {
   type BindingElement,
   type EnumDeclaration,
@@ -415,6 +416,7 @@ function checkBindingElement(c: Checker, element: BindingElement): void {
     if (exprType !== undefined && isTypeUsableAsPropertyName(exprType)) {
       const property = getPropertyOfType(c, parentType, getPropertyNameFromType(exprType));
       if (property !== undefined) {
+        markPropertyAsReferenced(c, property, undefined, false);
         const initializer = getInitializer(parent);
         checkPropertyAccessibility(
           c,

@@ -2198,7 +2198,10 @@ class TypeArgumentMapper extends TypeMapper {
   }
 }
 
-/** The constraint an `infer T` position implies, e.g. `unknown[]` in a rest position. */
+/**
+ * The constraint an `infer T` position implies, e.g. `unknown[]` in a rest position; with
+ * `omitTypeReferences`, `Foo<infer T>` implies none.
+ */
 export function getInferredTypeParameterConstraint(c: Checker, t: Type, omitTypeReferences = false): Type | undefined {
   const inferences: Type[] = [];
   const symbol = t.symbol;
@@ -2214,8 +2217,8 @@ export function getInferredTypeParameterConstraint(c: Checker, t: Type, omitType
       if (parent === undefined) continue;
       switch (parent.kind) {
         case SyntaxKind.TypeReference: {
-          // `Foo<infer T>` takes the constraint of Foo's corresponding type parameter.
           if (omitTypeReferences) break;
+          // `Foo<infer T>` takes the constraint of Foo's corresponding type parameter.
           const typeArgumentNodes = (parent as TypeReferenceNode).typeArguments;
           const typeParameters = getTypeParametersForTypeReference(c, parent);
           if (typeArgumentNodes === undefined || typeParameters === undefined) break;

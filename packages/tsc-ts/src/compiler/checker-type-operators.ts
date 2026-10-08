@@ -1,5 +1,7 @@
 // Type operators: `keyof`, indexed access, mapped, conditional, substitution and string mapping
 // types, and genericity tests.
+import { checkDeprecatedIndexedAccess } from './checker-deprecation.js';
+import { isSelfTypeAccess, markPropertyAsReferenced } from './checker-unused.js';
 import {
   ModifierFlags,
   type Node,
@@ -664,7 +666,15 @@ function getPropertyTypeForIndexType(
   if (propName !== undefined) {
     const prop = getPropertyOfType(c, objectType, propName);
     if (prop !== undefined) {
+      if ((accessFlags & AccessFlags.ReportDeprecated) !== 0 && accessNode !== undefined)
+        checkDeprecatedIndexedAccess(c, accessNode, prop, propName);
       if (accessExpression !== undefined) {
+        markPropertyAsReferenced(
+          c,
+          prop,
+          accessExpression,
+          isSelfTypeAccess(c, getExpression(accessExpression)!, objectType.symbol),
+        );
         if (isAssignmentToReadonlyEntity(c, accessExpression, prop, getAssignmentTargetKind(accessExpression))) {
           c.error(
             (accessExpression as ElementAccessExpression).argumentExpression,

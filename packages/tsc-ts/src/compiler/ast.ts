@@ -3223,7 +3223,7 @@ export class ArrowFunction extends Node {
   parameters: NodeList;
   type: TypeNode | undefined;
   fullSignature: TypeNode | undefined;
-  equalsGreaterThanToken: Token;
+  equalsGreaterThanToken: Token | undefined;
   body: ConciseBody;
   // Set by the binder.
   symbol: Symbol | undefined;
@@ -3238,7 +3238,7 @@ export class ArrowFunction extends Node {
     parameters: NodeList,
     type: TypeNode | undefined,
     fullSignature: TypeNode | undefined,
-    equalsGreaterThanToken: Token,
+    equalsGreaterThanToken: Token | undefined,
     body: ConciseBody,
   ) {
     super(SyntaxKind.ArrowFunction);
@@ -3262,7 +3262,7 @@ export class ArrowFunction extends Node {
     if (v.visitList(this.parameters)) return true;
     if (this.type !== undefined && v.visitNode(this.type)) return true;
     if (this.fullSignature !== undefined && v.visitNode(this.fullSignature)) return true;
-    if (v.visitNode(this.equalsGreaterThanToken)) return true;
+    if (this.equalsGreaterThanToken !== undefined && v.visitNode(this.equalsGreaterThanToken)) return true;
     return v.visitNode(this.body);
   }
 
@@ -3277,7 +3277,7 @@ export class ArrowFunction extends Node {
       cloneList(this.parameters),
       this.type === undefined ? undefined : this.type.deepClone(),
       this.fullSignature === undefined ? undefined : this.fullSignature.deepClone(),
-      this.equalsGreaterThanToken.copy(),
+      this.equalsGreaterThanToken === undefined ? undefined : this.equalsGreaterThanToken.copy(),
       this.body.deepClone(),
     );
     node.flags = this.flags;

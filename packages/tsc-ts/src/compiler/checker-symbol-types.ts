@@ -20,6 +20,8 @@ import {
   getPostfixToken,
   getQuestionToken,
   getText,
+  type PropertyAssignment,
+  type ShorthandPropertyAssignment,
 } from './ast.js';
 import {
   declarationNameToString,
@@ -103,13 +105,14 @@ import {
   getSignatureFromDeclaration,
   getTypeOfParameter as getTypeOfParameterOfSignature,
 } from './checker-signatures.js';
-import { getReturnTypeFromBody } from './checker-functions.js';
+import { getReturnTypeFromBody, getTypeOfObjectLiteralMethod } from './checker-functions.js';
 import { getTypeOfReverseMappedSymbol } from './checker-inference.js';
 import {
   checkDeclarationInitializer,
   getContextuallyTypedParameterType,
   checkExpressionCached,
 } from './checker-expressions.js';
+import { checkPropertyAssignment, checkShorthandPropertyAssignment } from './checker-object-literals.js';
 import { getTypeForBindingElement, getTypeFromBindingPattern } from './checker-destructuring.js';
 import { checkRightHandSideOfForOf } from './checker-statements.js';
 import { getTypeWithFacts, TypeFacts, hasTypeFacts, getNonNullableType } from './checker-flow.js';
@@ -239,7 +242,17 @@ function getTypeOfVariableOrParameterOrPropertyWorker(c: Checker, symbol: Symbol
     case SyntaxKind.PropertyAssignment:
     case SyntaxKind.ShorthandPropertyAssignment:
     case SyntaxKind.MethodDeclaration:
-      result = checkExpressionCached(c, declaration);
+      // The declared symbol of an object literal member, as opposed to the checked literal's property.
+      if (declaration.kind === SyntaxKind.PropertyAssignment)
+        result = checkPropertyAssignment(c, declaration as PropertyAssignment, CheckMode.Normal);
+      else if (declaration.kind === SyntaxKind.ShorthandPropertyAssignment)
+        result = checkShorthandPropertyAssignment(
+          c,
+          declaration as ShorthandPropertyAssignment,
+          true,
+          CheckMode.Normal,
+        );
+      else result = getTypeOfObjectLiteralMethod(c, declaration, CheckMode.Normal);
       break;
     case SyntaxKind.JsxAttribute:
       result = checkJsxAttribute(c, declaration, CheckMode.Normal);
@@ -785,7 +798,7 @@ function getDeclarationNodeFlagsFromSymbol(symbol: Symbol): NodeFlags {
 
 // ---- Accessors
 
-function getAnnotatedAccessorTypeNode(accessor: Node | undefined): Node | undefined {
+export function getAnnotatedAccessorTypeNode(accessor: Node | undefined): Node | undefined {
   if (accessor === undefined) return undefined;
   if (accessor.kind === SyntaxKind.GetAccessor || accessor.kind === SyntaxKind.PropertyDeclaration)
     return getType(accessor);
@@ -862,7 +875,7 @@ function getTypeOfAccessors(c: Checker, symbol: Symbol): Type {
   return links.type;
 }
 
-function getWriteTypeOfAccessors(c: Checker, symbol: Symbol): Type {
+export function getWriteTypeOfAccessors(c: Checker, symbol: Symbol): Type {
   const links = c.symbolLinks(symbol);
   if (links.writeType !== undefined) return links.writeType;
   if (!pushTypeResolution(c, symbol, TypeSystemPropertyName.WriteType)) return c.errorType;

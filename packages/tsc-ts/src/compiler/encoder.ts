@@ -1359,7 +1359,8 @@ function writeFileReferences(out: ByteWriter, refs: readonly FileReference[]): n
 
 /** Walks the tree in the API's order and writes node records. */
 class Encoder extends NodeVisitor {
-  readonly file: SourceFile;
+  /** The file whose JSDoc comments are encoded, if any. */
+  readonly file: SourceFile | undefined;
   readonly strings: StringTable;
   readonly nodes: ByteWriter;
   readonly extended: ByteWriter;
@@ -1370,11 +1371,11 @@ class Encoder extends NodeVisitor {
   parentIndex: number;
   prevIndex: number;
 
-  constructor(file: SourceFile, fileText: Uint8Array) {
+  constructor(file: SourceFile | undefined, text: string, fileText: Uint8Array, nodeCount: number) {
     super();
     this.file = file;
-    this.strings = new StringTable(file.text, fileText);
-    this.nodes = new ByteWriter((file.nodeCount + 2) * nodeSize);
+    this.strings = new StringTable(text, fileText);
+    this.nodes = new ByteWriter((nodeCount + 2) * nodeSize);
     this.extended = new ByteWriter(256);
     this.structured = new ByteWriter(64);
     this.tracked = new Map<Node, number>();
@@ -1429,9 +1430,53 @@ class Encoder extends NodeVisitor {
       if (node.typeExpression !== undefined) this.visitNode(node.typeExpression);
       if (node.comment !== undefined) this.visitList(node.comment);
     } else node.forEachChild(this);
-    const jsDoc = getJSDoc(this.file, node);
-    for (let i = 0; i < jsDoc.length; i++) this.visitNode(jsDoc[i]!);
+    const file = this.file;
+    if (file !== undefined) {
+      const jsDoc = getJSDoc(file, node);
+      for (let i = 0; i < jsDoc.length; i++) this.visitNode(jsDoc[i]!);
+    }
     return false;
+  }
+
+  /** Writes the nil record and the root, then the root's descendants. */
+  encodeRoot(root: Node): void {
+    const nodes = this.nodes;
+    nodes.node(0, 0, 0, 0, 0, 0);
+    this.nodeCount = 1;
+    this.parentIndex = 1;
+    nodes.node(root.kind, root.pos, root.end, 0, this.nodeData(root), root.flags);
+    this.visitChildren(root);
+  }
+
+  /** The encoding: header, string table, extended and structured data, then node records. */
+  finish(fileText: Uint8Array, hash: Uint8Array | undefined, parseOptions: number): Uint8Array {
+    const strings = this.strings;
+    const extended = this.extended;
+    const structured = this.structured;
+    const nodes = this.nodes;
+    const offsetStringOffsets = headerSize;
+    const offsetStringData = offsetStringOffsets + strings.offsets.length;
+    const offsetExtended = offsetStringData + fileText.length + strings.others.length;
+    const offsetStructured = offsetExtended + extended.length;
+    const offsetNodes = offsetStructured + structured.length;
+
+    const out = new ByteWriter(offsetNodes + nodes.length);
+    out.u32((protocolVersion << 24) >>> 0);
+    if (hash !== undefined) out.append(hash);
+    else for (let i = 0; i < 4; i++) out.u32(0);
+    out.u32(parseOptions);
+    out.u32(offsetStringOffsets);
+    out.u32(offsetStringData);
+    out.u32(offsetExtended);
+    out.u32(offsetStructured);
+    out.u32(offsetNodes);
+    out.append(strings.offsets.view());
+    out.append(fileText);
+    out.append(strings.others.view());
+    out.append(extended.view());
+    out.append(structured.view());
+    out.append(nodes.view());
+    return out.view();
   }
 
   nodeData(node: Node): number {
@@ -1519,56 +1564,96 @@ class Encoder extends NodeVisitor {
 /** The API's binary encoding of `file`. */
 export function encodeSourceFile(file: SourceFile): Uint8Array {
   const fileText = utf8Encoder.encode(file.text);
-  const encoder = new Encoder(file, fileText);
+  const encoder = new Encoder(file, file.text, fileText, file.nodeCount);
   const tracked = encoder.tracked;
   for (const node of file.imports) tracked.set(node, 0);
   for (const node of file.moduleAugmentations) tracked.set(node, 0);
   const indicator = file.externalModuleIndicator;
   if (indicator !== undefined && indicator !== file) tracked.set(indicator, 0);
 
-  // Record 0 is the nil node; record 1 is the root.
-  const nodes = encoder.nodes;
-  nodes.node(0, 0, 0, 0, 0, 0);
-  encoder.nodeCount = 1;
-  encoder.parentIndex = 1;
-  const rootData = encoder.extended.length;
-  nodes.node(file.kind, file.pos, file.end, 0, encoder.nodeData(file), file.flags);
-  encoder.visitChildren(file);
+  // The root's extended data starts its section.
+  encoder.encodeRoot(file);
 
   const extended = encoder.extended;
-  extended.setU32(rootData + 32, encoder.writeNodeIndices(file.imports));
-  extended.setU32(rootData + 36, encoder.writeNodeIndices(file.moduleAugmentations));
-  extended.setU32(rootData + 40, encoder.writeStrings(file.ambientModuleNames));
+  extended.setU32(32, encoder.writeNodeIndices(file.imports));
+  extended.setU32(36, encoder.writeNodeIndices(file.moduleAugmentations));
+  extended.setU32(40, encoder.writeStrings(file.ambientModuleNames));
   let indicatorIndex = 0;
   if (indicator === file) indicatorIndex = 1;
   else if (indicator !== undefined) {
     const index = tracked.get(indicator);
     if (index !== undefined) indicatorIndex = index;
   }
-  extended.setU32(rootData + 44, indicatorIndex);
+  extended.setU32(44, indicatorIndex);
 
-  const strings = encoder.strings;
-  const offsetStringOffsets = headerSize;
-  const offsetStringData = offsetStringOffsets + strings.offsets.length;
-  const offsetExtended = offsetStringData + fileText.length + strings.others.length;
-  const offsetStructured = offsetExtended + extended.length;
-  const offsetNodes = offsetStructured + encoder.structured.length;
-
-  const out = new ByteWriter(offsetNodes + nodes.length);
-  out.u32((protocolVersion << 24) >>> 0);
-  out.append(hash128(fileText));
   const options = file.externalModuleIndicatorOptions;
-  out.u32((options.jsx ? 1 : 0) | (options.force ? 2 : 0));
-  out.u32(offsetStringOffsets);
-  out.u32(offsetStringData);
-  out.u32(offsetExtended);
-  out.u32(offsetStructured);
-  out.u32(offsetNodes);
-  out.append(strings.offsets.view());
-  out.append(fileText);
-  out.append(strings.others.view());
-  out.append(extended.view());
-  out.append(encoder.structured.view());
-  out.append(nodes.view());
-  return out.view();
+  return encoder.finish(fileText, hash128(fileText), (options.jsx ? 1 : 0) | (options.force ? 2 : 0));
+}
+
+/**
+ * The nodes of a source file by their index in its encoding, which node handles name. Node lists
+ * take an index but have no entry.
+ */
+export class NodeIndexTable extends NodeVisitor {
+  /** Index 0 is the nil node and index 1 the file. */
+  readonly nodes: (Node | undefined)[];
+  private readonly indices = new Map<Node, number>();
+
+  constructor(readonly file: SourceFile) {
+    super();
+    this.nodes = [undefined];
+    this.add(file);
+    this.visitChildren(file);
+  }
+
+  /** The index of `node`, or 0 if it isn't in the file. */
+  indexOf(node: Node): number {
+    return this.indices.get(node) ?? 0;
+  }
+
+  private add(node: Node): void {
+    this.indices.set(node, this.nodes.length);
+    this.nodes.push(node);
+  }
+
+  visitNode(node: Node): boolean {
+    this.add(node);
+    this.visitChildren(node);
+    return false;
+  }
+
+  visitList(list: NodeList): boolean {
+    this.nodes.push(undefined);
+    const nodes = list.nodes;
+    for (let i = 0; i < nodes.length; i++) this.visitNode(nodes[i]!);
+    return false;
+  }
+
+  visitModifiers(list: ModifierList): boolean {
+    if (list.nodes.length > 0) this.visitList(list);
+    return false;
+  }
+
+  /** The same order as the encoder's. */
+  private visitChildren(node: Node): void {
+    if (node instanceof JSDocParameterOrPropertyTag) {
+      this.visitNode(node.tagName);
+      this.visitNode(node.name);
+      if (node.typeExpression !== undefined) this.visitNode(node.typeExpression);
+      if (node.comment !== undefined) this.visitList(node.comment);
+    } else node.forEachChild(this);
+    const jsDoc = getJSDoc(this.file, node);
+    for (let i = 0; i < jsDoc.length; i++) this.visitNode(jsDoc[i]!);
+  }
+}
+
+/**
+ * The encoding of a node that isn't part of a parsed file, such as one the node builder created:
+ * no hash, parse options or JSDoc, every string appended to the string data, and positions as they are.
+ */
+export function encodeNode(node: Node): Uint8Array {
+  const fileText = new Uint8Array(0);
+  const encoder = new Encoder(undefined, '', fileText, 64);
+  encoder.encodeRoot(node);
+  return encoder.finish(fileText, undefined, 0);
 }

@@ -3,6 +3,7 @@
 //
 // Module-not-found errors are reported on every resolution with an error node, as tsgo does: an
 // unresolved `import { a } from "m"` reports once for the declaration and again for each use of `a`.
+import { checkDeprecatedImportSpecifier } from './checker-deprecation.js';
 import {
   type BinaryExpression,
   type CallExpression,
@@ -499,7 +500,7 @@ function isExternalModuleImportEquals(node: Node): boolean {
  * Resolves the entity name of `import a = b.c`: `b` alone or the left part of a longer name is a
  * namespace, the whole name any meaning.
  */
-function getSymbolOfPartOfRightHandSideOfImportEquals(c: Checker, entityName: Node): Symbol | undefined {
+export function getSymbolOfPartOfRightHandSideOfImportEquals(c: Checker, entityName: Node): Symbol | undefined {
   if (
     entityName.kind === SyntaxKind.Identifier &&
     entityName.parent !== undefined &&
@@ -682,7 +683,7 @@ function getTargetOfImportSpecifier(c: Checker, node: Node): Symbol | undefined 
 }
 
 /** The export `specifier` names from the module of the import or export declaration `node`. */
-function getExternalModuleMember(
+export function getExternalModuleMember(
   c: Checker,
   node: Node,
   specifier: Node,
@@ -1644,7 +1645,7 @@ export function resolveJSDocMemberName(c: Checker, name: Node | undefined): Symb
   return getPropertyOfType(c, type ?? getDeclaredTypeOfSymbol(c, left), (name as QualifiedName).right.text);
 }
 
-function getHostSignatureFromJSDoc(node: Node): Node | undefined {
+export function getHostSignatureFromJSDoc(node: Node): Node | undefined {
   let current: Node | undefined = node;
   while (current !== undefined && current.kind !== SyntaxKind.JSDoc) current = current.parent;
   const host = current?.parent;
@@ -1674,7 +1675,7 @@ export function checkMetaProperty(c: Checker, node: Node): Type {
   return meta.name.text === 'meta' ? getCachedGlobalType(c, 'ImportMeta', 0, true) : c.errorType;
 }
 
-function checkNewTargetMetaProperty(c: Checker, node: Node): Type {
+export function checkNewTargetMetaProperty(c: Checker, node: Node): Type {
   const container = getThisContainer(node, false, false);
   if (
     container.kind !== SyntaxKind.Constructor &&
@@ -2082,6 +2083,7 @@ export function checkAliasSymbol(c: Checker, node: Node): void {
     );
   if (c.isolatedModules && !isTypeOnlyImportOrExportDeclaration(node) && (node.flags & NodeFlags.Ambient) === 0)
     checkIsolatedModulesAlias(c, node, symbol, target, targetFlags);
+  if (node.kind === SyntaxKind.ImportSpecifier) checkDeprecatedImportSpecifier(c, node, symbol);
 }
 
 function reportJSTypeAlias(c: Checker, node: Node, symbol: Symbol): void {

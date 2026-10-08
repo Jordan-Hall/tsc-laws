@@ -284,6 +284,7 @@ export const enum TypePredicateKind {
 export const enum NodeCheckFlags {
   None = 0,
   TypeChecked = 1 << 0,
+  UnusedChecked = 1 << 1,
   ContextChecked = 1 << 6,
   EnumValuesComputed = 1 << 10,
   AssignmentsMarked = 1 << 17,

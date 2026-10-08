@@ -1,4 +1,5 @@
 // JSX: element and fragment types, the `JSX` namespace, intrinsic elements, attributes and children.
+import { checkDeprecatedJsxAttribute, checkDeprecatedSignature } from './checker-deprecation.js';
 import {
   type BinaryExpression,
   type JsxAttribute,
@@ -561,7 +562,7 @@ function getJsxLibraryManagedAttributes(c: Checker, ns: Symbol | undefined): Sym
  * The `JSX.IntrinsicElements` property or index signature for an intrinsic tag, recording which in the
  * element's flags; `unknownSymbol` when neither exists.
  */
-function getIntrinsicTagSymbol(c: Checker, node: Node): Symbol {
+export function getIntrinsicTagSymbol(c: Checker, node: Node): Symbol {
   const links = elementLinks(c, node);
   if (links.resolvedSymbol !== undefined) return links.resolvedSymbol;
   const intrinsicElementsType = getJsxType(c, jsxIntrinsicElementsName, node);
@@ -897,6 +898,7 @@ export function createJsxAttributesTypeFromAttributesProperty(
     const attributes = getAttributesOf(openingLikeElement);
     attributesSymbol = attributes.symbol;
     attributeParent = attributes;
+    const contextualType = getContextualType(c, attributes);
     for (const attributeDecl of attributes.properties.nodes) {
       if (attributeDecl.kind === SyntaxKind.JsxAttribute) {
         const member = getSymbol(attributeDecl)!;
@@ -913,6 +915,7 @@ export function createJsxAttributesTypeFromAttributesProperty(
         if (allAttributesTable !== undefined) allAttributesTable.set(attributeSymbol.name, attributeSymbol);
         if (jsxNameText((attributeDecl as JsxAttribute).name) === jsxChildrenPropertyName)
           explicitlySpecifyChildrenAttribute = true;
+        if (contextualType !== undefined) checkDeprecatedJsxAttribute(c, contextualType, attributeDecl as JsxAttribute);
       } else {
         if (attributesTable.size !== 0) {
           // Attribute objects are fresh, and so are spreads after the first one.
@@ -1318,6 +1321,7 @@ function checkJsxOpeningLikeElementOrOpeningFragment(c: Checker, node: Node): vo
   checkJsxPreconditions(c, node);
   markJsxAliasReferenced(c, node);
   const sig = getResolvedJsxSignature(c, node);
+  checkDeprecatedSignature(c, sig, node);
   if (!isNodeOpeningLikeElement) return;
   const elementTypeConstraint = getJsxElementTypeTypeAt(c, node);
   if (elementTypeConstraint !== undefined) {

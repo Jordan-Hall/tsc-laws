@@ -326,7 +326,7 @@ export abstract class VisitorBase extends VisitorHooks {
             this.visitParameters(node.parameters)!,
             this.visitNode(node.type),
             this.visitNode(node.fullSignature),
-            asToken(this.visitNode(node.equalsGreaterThanToken), node.equalsGreaterThanToken),
+            asOptionalToken(this.visitNode(node.equalsGreaterThanToken)),
             required(this.visitFunctionBody(node.body), node.body),
           );
         break;

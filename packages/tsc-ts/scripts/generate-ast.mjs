@@ -34,6 +34,8 @@ const nullable = new Set([
   'IndexSignatureDeclaration.Type',
   'JSDocSeeTag.NameExpression',
   'JSDocNameReference.name',
+  // tsgo's node builder leaves it unset.
+  'ArrowFunction.EqualsGreaterThanToken',
 ]);
 // Checker-only nodes.
 const skipNodes = new Set(['SyntheticExpression']);

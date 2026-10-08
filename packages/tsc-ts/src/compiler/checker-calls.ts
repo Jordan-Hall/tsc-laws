@@ -1,5 +1,6 @@
 // Calls, `new` and tagged templates: signature resolution with type argument inference and overload
 // selection, argument checks and resolution errors.
+import { checkDeprecatedSignature } from './checker-deprecation.js';
 import {
   type CallExpression,
   type Decorator,
@@ -217,6 +218,7 @@ export function checkCallExpression(c: Checker, node: Node, checkMode: CheckMode
   const signature = getResolvedSignature(c, node, checkMode);
   // A deferred call to a generic function returning a function, under SkipGenericFunctions.
   if (signature === c.resolvingSignature) return c.silentNeverType;
+  checkDeprecatedSignature(c, signature, node);
   if (callee.kind === SyntaxKind.SuperKeyword) return c.voidType;
   if (isInJSFile(node) && isCommonJSRequire(c, node))
     return resolveExternalModuleTypeByLiteral(c, call.arguments.nodes[0]!);
@@ -264,6 +266,7 @@ export function isSymbolOrSymbolForCall(c: Checker, node: CallExpression): boole
 export function checkNewExpression(c: Checker, node: Node, checkMode: CheckMode): Type {
   const signature = getResolvedSignature(c, node, checkMode);
   if (signature === c.resolvingSignature) return c.silentNeverType;
+  checkDeprecatedSignature(c, signature, node);
   const declaration = signature.declaration;
   if (
     declaration !== undefined &&
@@ -282,6 +285,7 @@ export function checkNewExpression(c: Checker, node: Node, checkMode: CheckMode)
 export function checkTaggedTemplateExpression(c: Checker, node: Node, checkMode: CheckMode): Type {
   const signature = getResolvedSignature(c, node, checkMode);
   if (signature === c.resolvingSignature) return c.silentNeverType;
+  checkDeprecatedSignature(c, signature, node);
   return getReturnTypeOfSignature(c, signature);
 }
 
@@ -1584,7 +1588,7 @@ function createCombinedSymbolFromTypes(c: Checker, sources: Symbol[], types: Typ
   return createSymbolWithType(c, sources[0]!, getUnionTypeEx(c, types, UnionReduction.Subtype, undefined, undefined));
 }
 
-function tryGetRestTypeOfSignature(c: Checker, signature: Signature): Type | undefined {
+export function tryGetRestTypeOfSignature(c: Checker, signature: Signature): Type | undefined {
   if (!signature.hasRestParameter()) return undefined;
   let restType: Type | undefined = getTypeOfSymbol(c, signature.parameters[signature.parameters.length - 1]!);
   if (isTupleType(restType)) {

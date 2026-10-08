@@ -1,4 +1,5 @@
 // Destructuring: types of binding elements and the types implied by binding patterns.
+import { markDestructuredPropertyAsReferenced } from './checker-unused.js';
 import {
   type BinaryExpression,
   type BindingElement,
@@ -570,11 +571,12 @@ function checkObjectLiteralDestructuringPropertyAssignment(
   properties: readonly Node[],
   objectLiteralType: Type,
   propertyIndex: number,
-  _rightIsThis: boolean,
+  rightIsThis: boolean,
 ): void {
   const property = properties[propertyIndex]!;
   if (property.kind === SyntaxKind.PropertyAssignment || property.kind === SyntaxKind.ShorthandPropertyAssignment) {
     const name = getName(property)!;
+    markDestructuredPropertyAsReferenced(c, objectLiteralType, name, property, rightIsThis);
     const exprType = getLiteralTypeFromPropertyName(c, name) ?? c.errorType;
     if (isTypeUsableAsPropertyName(exprType)) {
       const prop = getPropertyOfType(c, objectLiteralType, getPropertyNameFromType(exprType));

@@ -28,8 +28,7 @@
       "outputs": []
     },
     "tsc-ts#build": {
-      "outputs": ["dist/**"],
-      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/packages/tsgo/src/**"]
+      "outputs": ["dist/**"]
     }
   }
 }

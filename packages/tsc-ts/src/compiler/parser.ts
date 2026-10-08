@@ -7370,7 +7370,7 @@ function nodeContainsPosition(node: Node, position: number): boolean {
 }
 
 /** The innermost node containing `position`, stopping at meta properties. */
-function getNodeAtPosition(file: SourceFile, position: number, includeJSDoc: boolean): Node {
+export function getNodeAtPosition(file: SourceFile, position: number, includeJSDoc: boolean): Node {
   const finder = new PositionFinder();
   finder.position = position;
   let current: Node = file;

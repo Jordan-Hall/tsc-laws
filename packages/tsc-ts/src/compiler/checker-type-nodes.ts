@@ -305,7 +305,7 @@ function getTypeFromTypeNodeWorker(c: Checker, node: Node): Type {
   return c.errorType;
 }
 
-function getTypeFromThisTypeNode(c: Checker, node: Node): Type {
+export function getTypeFromThisTypeNode(c: Checker, node: Node): Type {
   const links = c.nodeLinks(node);
   if (links.resolvedType === undefined) links.resolvedType = getThisType(c, node);
   return links.resolvedType;
@@ -495,7 +495,7 @@ export function resolveTypeReferenceName(
   return getUnresolvedSymbolForEntityName(c, name);
 }
 
-function getUnresolvedSymbolForEntityName(c: Checker, name: Node): Symbol {
+export function getUnresolvedSymbolForEntityName(c: Checker, name: Node): Symbol {
   let identifier: Node;
   if (name.kind === SyntaxKind.QualifiedName) identifier = (name as QualifiedName).right;
   else if (name.kind === SyntaxKind.PropertyAccessExpression) identifier = getName(name)!;
@@ -574,7 +574,7 @@ export function getTypeFromClassOrInterfaceReference(c: Checker, node: Node, sym
     node.kind === SyntaxKind.TypeReference &&
     isDeferredTypeReferenceNode(c, node, numTypeArguments !== typeParameters.length)
   )
-    return createDeferredTypeReference(c, t, node, undefined, undefined);
+    return createDeferredTypeReference(c, t, node, undefined, getAliasForTypeNode(c, node));
   // Outer type parameters are supplied automatically; the reference gives the local ones.
   const localTypeArguments = fillMissingTypeArguments(
     c,
@@ -885,7 +885,7 @@ function getTypeFromArrayOrTupleTypeNode(c: Checker, node: Node): Type {
     links.resolvedType =
       node.kind === SyntaxKind.TupleType && (node as TupleTypeNode).elements.nodes.length === 0
         ? target
-        : createDeferredTypeReference(c, target, node, undefined, undefined);
+        : createDeferredTypeReference(c, target, node, undefined, getAliasForTypeNode(c, node));
   else {
     const elementTypes =
       node.kind === SyntaxKind.ArrayType

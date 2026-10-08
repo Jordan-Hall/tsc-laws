@@ -250,7 +250,7 @@ export function getSignatureFromDeclaration(c: Checker, declaration: Node): Sign
   return signature;
 }
 
-function getTypeParametersFromDeclaration(c: Checker, declaration: Node): Type[] {
+export function getTypeParametersFromDeclaration(c: Checker, declaration: Node): Type[] {
   const fullSignature = getSignatureOfFullSignatureType(c, declaration);
   if (fullSignature !== undefined) return fullSignature.typeParameters ?? emptyTypes;
   const nodes = getTypeParameterNodes(declaration);
@@ -447,7 +447,11 @@ function createTypePredicateFromTypePredicateNode(c: Checker, node: Node, signat
   );
 }
 
-function instantiateTypePredicate(c: Checker, predicate: TypePredicate, mapper: TypeMapper | undefined): TypePredicate {
+export function instantiateTypePredicate(
+  c: Checker,
+  predicate: TypePredicate,
+  mapper: TypeMapper | undefined,
+): TypePredicate {
   if (predicate.type === undefined) return predicate;
   const t = instantiateType(c, predicate.type, mapper);
   return t === predicate.type

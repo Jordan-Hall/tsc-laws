@@ -828,8 +828,14 @@ export class Session {
   private printNode(params: proto.PrintNodeParams): string {
     const data = decodeBase64(params.data ?? '');
     if (!data.ok) throw new ClientError(`invalid base64 data: illegal base64 data at input byte ${data.offset}`);
+    let node: Node;
+    try {
+      node = backend.decodeNode(data.bytes);
+    } catch (e) {
+      throw new ClientError(`failed to decode AST: ${e instanceof Error ? e.message : String(e)}`);
+    }
     return backend.printNode(
-      data.bytes,
+      node,
       params.preserveSourceNewlines === true,
       params.neverAsciiEscape === true,
       params.terminateUnterminatedLiterals === true,

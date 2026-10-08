@@ -68,7 +68,7 @@ TSC_TS_LIB_DIR=upstream/typescript-go/internal/bundled/libs packages/tsc-ts/dist
 
 `TSC_TS_BIN=packages/tsc-ts/dist/tsc` runs the `tsc-ts` and `tsc` tests against a native build.
 
-The server is checked against `tsc --api` 7.0.2 response by response, and scriptc builds the same programs with either. The compiler behind it is currently the translated tsgo in `packages/tsgo`. Language service methods (completions, references, JSDoc queries) are not supported yet.
+The server is checked against `tsc --api` 7.0.2 response by response, and scriptc builds the same programs with either. It runs on the tsc-ts compiler, natively or under Node. Language service methods (completions, references, JSDoc queries) are not supported yet.
 
 ## Checker
 
