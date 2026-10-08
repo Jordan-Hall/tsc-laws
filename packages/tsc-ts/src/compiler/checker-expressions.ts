@@ -33,6 +33,7 @@ import {
   ForInOrOfStatement,
   VariableDeclarationList,
   TypeQueryNode,
+  type ImportEqualsDeclaration,
   getTagName,
   getType,
 } from './ast.js';
@@ -62,14 +63,18 @@ import {
 } from './checker-super.js';
 import {
   AccessFlags,
+  NodeCheckFlags,
   CheckMode,
   ObjectFlags,
+  SignatureKind,
   type Type,
   TypeFlags,
   UnionType,
   TypeParameter,
   type MappedType,
   type TypeReference,
+  IndexFlags,
+  type IndexedAccessType,
 } from './checker-types.js';
 import {
   createTupleTypeEx,
@@ -104,6 +109,9 @@ import {
   getTypeOfPropertyOfType,
   isArrayLikeType,
   getBaseConstraintOrType,
+  isApplicableIndexType,
+  getDeclarationModifierFlagsFromSymbol,
+  getApparentType,
 } from './checker-members.js';
 import {
   getExportSymbolOfValueSymbolIfExported,
@@ -113,6 +121,10 @@ import {
   resolveName,
   getCannotFindNameDiagnosticForName,
   getDeclarationOfAliasSymbol,
+  TypeSystemPropertyName,
+  popTypeResolution,
+  pushTypeResolution,
+  reportCircularityError,
 } from './checker-symbols.js';
 import {
   getTypeOfSymbol,
@@ -131,9 +143,16 @@ import {
   isGenericIndexType,
   isGenericMappedType,
   isGenericType,
+  getMappedTypeNameTypeKind,
+  MappedTypeNameTypeKind,
+  getIndexForMappedType,
+  getIndexTypeEx,
+  getMappedTypeModifiers,
+  MappedTypeModifiers,
+  getPropertyNameFromIndex,
 } from './checker-type-operators.js';
-import { TypeFacts, getTypeFacts, getNonNullableType } from './checker-flow.js';
-import { checkTypeAssignableTo, checkTypeComparableTo, isTypeAssignableTo, isTypeComparableTo } from './relations.js';
+import { TypeFacts, getTypeFacts, getNonNullableType, getTypeWithFacts, hasTypeFacts } from './checker-flow.js';
+import { checkTypeComparableTo, isTypeAssignableTo, isTypeComparableTo } from './relations.js';
 import { isTypeAssignableToKindEx as isTypeAssignableToKind } from './checker-type-operators.js';
 import { typeToString, symbolToString } from './type-printer.js';
 import { isTypeUsableAsPropertyName, getPropertyNameFromType, maybeTypeOfKind } from './checker-utilities.js';
@@ -149,18 +168,24 @@ import {
   checkTaggedTemplateExpression,
   getOptionalExpressionType,
   instantiateTypeWithSingleGenericCallSignature,
-  propagateOptionalTypeMarker,
   isSymbolOrSymbolForCall,
+  propagateOptionalTypeMarker,
 } from './checker-calls.js';
 import {
   checkAwaitExpression,
   checkFunctionExpressionOrObjectLiteralMethod,
   checkYieldExpression,
 } from './checker-functions.js';
-import { IterationUse, checkIteratedTypeOrElementType, getIteratedTypeOrElementType } from './checker-iteration.js';
+import {
+  IterationUse,
+  checkIteratedTypeOrElementType,
+  getAwaitedType,
+  getIteratedTypeOrElementType,
+} from './checker-iteration.js';
 import { checkClassExpression } from './checker-classes.js';
 import { padParameterInitializerType } from './checker-destructuring.js';
-import { checkNodeDeferred } from './checker-source-file.js';
+import { checkNodeDeferred, checkTypeNodeIfPresent } from './checker-source-file.js';
+import { isInPropertyInitializerOrClassStaticBlock } from './checker-declaration-order.js';
 import { checkObjectLiteral } from './checker-object-literals.js';
 import { EvaluatedKind, evaluate } from './checker-evaluator.js';
 import {
@@ -185,8 +210,6 @@ import {
 } from './checker-signatures.js';
 import { isFunctionLike, isImportCall, isInJSFile, isRequireCall } from './ast-utilities.js';
 import { isLiteralKind } from './printer/utilities.js';
-import { getAwaitedType } from './checker-iteration.js';
-import { SignatureKind } from './checker-types.js';
 import {
   AssignmentKind,
   convertAutoToAny,
@@ -231,8 +254,37 @@ export function checkExpressionEx(c: Checker, node: Node, checkMode: CheckMode):
     checkExpressionWorker(c, node, checkMode),
     checkMode,
   );
+  if (isConstEnumObjectTypeLocal(t)) checkConstEnumAccess(c, node);
   c.currentNode = saveCurrentNode;
   return t;
+}
+
+/** A const enum object can only be accessed, imported, exported or queried. */
+function checkConstEnumAccess(c: Checker, node: Node): void {
+  const parent = node.parent!;
+  const ok =
+    ((parent.kind === SyntaxKind.PropertyAccessExpression || parent.kind === SyntaxKind.ElementAccessExpression) &&
+      getExpression(parent) === node) ||
+    ((node.kind === SyntaxKind.Identifier || node.kind === SyntaxKind.QualifiedName) &&
+      isInRightSideOfImportOrExportAssignment(node)) ||
+    (parent.kind === SyntaxKind.TypeQuery && (parent as TypeQueryNode).exprName === node) ||
+    parent.kind === SyntaxKind.ExportSpecifier;
+  if (!ok)
+    c.error(
+      node,
+      Diagnostics.X_const_enums_can_only_be_used_in_property_or_index_access_expressions_or_the_right_hand_side_of_an_import_declaration_or_export_assignment_or_type_query,
+    );
+}
+
+function isInRightSideOfImportOrExportAssignment(name: Node): boolean {
+  let node = name;
+  while (node.parent!.kind === SyntaxKind.QualifiedName) node = node.parent!;
+  const parent = node.parent!;
+  return (
+    (parent.kind === SyntaxKind.ImportEqualsDeclaration &&
+      (parent as ImportEqualsDeclaration).moduleReference === node) ||
+    (parent.kind === SyntaxKind.ExportAssignment && getExpression(parent) === node)
+  );
 }
 
 /** The type of `node`, computed once. */
@@ -261,6 +313,21 @@ export function checkDeclarationInitializer(c: Checker, declaration: Node): Type
   const initializer = getInitializer(declaration)!;
   const t = getQuickTypeOfExpression(c, initializer) ?? checkExpressionCached(c, initializer);
   return padParameterInitializerType(c, declaration, t);
+}
+
+/**
+ * The type of an expression where only the type matters, which skips some checks. Types that
+ * needed control flow analysis are cached; other expressions are checked again.
+ */
+export function getTypeOfExpression(c: Checker, node: Node): Type {
+  const quickType = getQuickTypeOfExpression(c, node);
+  if (quickType !== undefined) return quickType;
+  const cached = c.flowTypeCache.get(node);
+  if (cached !== undefined) return cached;
+  const startInvocationCount = c.flowInvocationCount;
+  const t = checkExpressionEx(c, node, CheckMode.TypeOnly);
+  if (c.flowInvocationCount !== startInvocationCount) c.flowTypeCache.set(node, t);
+  return t;
 }
 
 /**
@@ -324,16 +391,83 @@ function getReturnTypeOfSingleNonGenericSignature(c: Checker, funcType: Type, ki
 export function checkComputedPropertyName(c: Checker, node: Node): Type {
   const links = c.nodeLinks((node as ComputedPropertyName).expression);
   if (links.resolvedType === undefined) {
-    const t = checkExpression(c, (node as ComputedPropertyName).expression);
-    links.resolvedType = t;
+    const expression = (node as ComputedPropertyName).expression;
+    const container = node.parent!.parent!;
+    // `[x in y]` in a type member is a mapped type written in the wrong place, reported by the parser.
     if (
-      (t.flags & TypeFlags.Any) === 0 &&
-      !isTypeAssignableToKind(c, t, TypeFlags.StringLike | TypeFlags.NumberLike | TypeFlags.ESSymbolLike, false) &&
-      !isTypeAssignableTo(c, t, c.stringNumberSymbolType)
+      (container.kind === SyntaxKind.TypeLiteral ||
+        isClassLike(container) ||
+        container.kind === SyntaxKind.InterfaceDeclaration) &&
+      expression.kind === SyntaxKind.BinaryExpression &&
+      (expression as BinaryExpression).operatorToken.kind === SyntaxKind.InKeyword &&
+      node.parent!.kind !== SyntaxKind.GetAccessor &&
+      node.parent!.kind !== SyntaxKind.SetAccessor
+    ) {
+      links.resolvedType = c.errorType;
+      return links.resolvedType;
+    }
+    const t = checkExpression(c, expression);
+    links.resolvedType = t;
+    // Allows string, number, symbol and any, as well as enums, unknown and unions of them.
+    if (
+      (t.flags & TypeFlags.Nullable) !== 0 ||
+      (!isTypeAssignableToKind(c, t, TypeFlags.StringLike | TypeFlags.NumberLike | TypeFlags.ESSymbolLike, false) &&
+        !isTypeAssignableTo(c, t, c.stringNumberSymbolType))
     )
       c.error(node, Diagnostics.A_computed_property_name_must_be_of_type_string_number_symbol_or_any);
   }
   return links.resolvedType;
+}
+
+/** A parameter's declared type without `undefined` when its initializer can't be `undefined`. */
+function removeOptionalityFromDeclaredType(c: Checker, declaredType: Type, declaration: Node): Type {
+  const removeUndefined =
+    c.strictNullChecks &&
+    declaration.kind === SyntaxKind.Parameter &&
+    getInitializer(declaration) !== undefined &&
+    hasTypeFacts(c, declaredType, TypeFacts.IsUndefined) &&
+    !parameterInitializerContainsUndefined(c, declaration);
+  return removeUndefined ? getTypeWithFacts(c, declaredType, TypeFacts.NEUndefined) : declaredType;
+}
+
+function parameterInitializerContainsUndefined(c: Checker, declaration: Node): boolean {
+  const links = c.nodeLinks(declaration);
+  if ((links.flags & NodeCheckFlags.InitializerIsUndefinedComputed) === 0) {
+    if (!pushTypeResolution(c, declaration, TypeSystemPropertyName.InitializerIsUndefined)) {
+      reportCircularityError(c, getSymbolOfDeclaration(c, declaration)!);
+      return true;
+    }
+    const containsUndefined = hasTypeFacts(c, checkDeclarationInitializer(c, declaration), TypeFacts.IsUndefined);
+    if (!popTypeResolution(c)) {
+      reportCircularityError(c, getSymbolOfDeclaration(c, declaration)!);
+      return true;
+    }
+    if ((links.flags & NodeCheckFlags.InitializerIsUndefinedComputed) === 0)
+      links.flags |=
+        NodeCheckFlags.InitializerIsUndefinedComputed | (containsUndefined ? NodeCheckFlags.InitializerIsUndefined : 0);
+  }
+  return (links.flags & NodeCheckFlags.InitializerIsUndefined) !== 0;
+}
+
+/** Whether `node` is the operand of a spread in an object destructuring assignment, as in `({ ...x } = obj)`. */
+function isSpreadDestructuringAssignmentTarget(node: Node): boolean {
+  const parent = node.parent!;
+  if (parent.kind !== SyntaxKind.SpreadAssignment || parent.parent === undefined) return false;
+  const pattern = parent.parent;
+  const grandparent = pattern.parent!;
+  return (
+    (grandparent.kind === SyntaxKind.BinaryExpression && (grandparent as BinaryExpression).left === pattern) ||
+    (grandparent.kind === SyntaxKind.ForOfStatement && (grandparent as ForInOrOfStatement).initializer === pattern)
+  );
+}
+
+/** Whether `node` is in a binding element of the same declaration as the binding element `declaration`. */
+function isSameScopedBindingElement(node: Node, declaration: Node): boolean {
+  if (declaration.kind !== SyntaxKind.BindingElement) return false;
+  let bindingElement = node.parent;
+  while (bindingElement !== undefined && bindingElement.kind !== SyntaxKind.BindingElement)
+    bindingElement = bindingElement.parent;
+  return bindingElement !== undefined && getRootDeclaration(bindingElement) === getRootDeclaration(declaration);
 }
 
 /** Whether `node` is the `this` of `typeof this` or `typeof this.x`, which parses as an identifier. */
@@ -411,7 +545,7 @@ function checkExpressionWorker(c: Checker, node: Node, checkMode: CheckMode): Ty
     case SyntaxKind.ObjectLiteralExpression:
       return checkObjectLiteral(c, node, checkMode);
     case SyntaxKind.PropertyAccessExpression:
-      return checkPropertyAccessExpression(c, node as PropertyAccessExpression, checkMode);
+      return checkPropertyAccessExpression(c, node as PropertyAccessExpression, false);
     case SyntaxKind.QualifiedName:
       return checkQualifiedName(c, node as QualifiedName);
     case SyntaxKind.ElementAccessExpression:
@@ -494,7 +628,16 @@ export function checkIdentifier(c: Checker, node: Identifier): Type {
   if (isThisInTypeQuery(node)) return checkThisExpression(c, node);
   const symbol = getResolvedSymbol(c, node);
   if (symbol === c.unknownSymbol) return c.errorType;
-  if (symbol === c.argumentsSymbol) return getTypeOfSymbol(c, symbol);
+  if (symbol === c.argumentsSymbol) {
+    if (isInPropertyInitializerOrClassStaticBlock(node, true)) {
+      c.error(
+        node,
+        Diagnostics.X_arguments_cannot_be_referenced_in_property_initializers_or_class_static_initialization_blocks,
+      );
+      return c.errorType;
+    }
+    return getTypeOfSymbol(c, symbol);
+  }
   markIdentifierAliasReferencedInExpression(c, node);
   const localOrExportSymbol = getExportSymbolOfValueSymbolIfExported(c, symbol);
   resolveAliasOfReference(c, localOrExportSymbol);
@@ -569,8 +712,9 @@ export function checkIdentifier(c: Checker, node: Identifier): Type {
     isParameter ||
     isAlias ||
     (isOuterVariable && !isNeverInitialized) ||
+    isSpreadDestructuringAssignmentTarget(node) ||
     isModuleExports ||
-    declaration.kind === SyntaxKind.BindingElement ||
+    isSameScopedBindingElement(node, declaration) ||
     (t !== c.autoType &&
       t !== c.autoArrayType &&
       (!c.strictNullChecks ||
@@ -584,6 +728,7 @@ export function checkIdentifier(c: Checker, node: Identifier): Type {
     (declaration.flags & NodeFlags.Ambient) !== 0;
   let initialType: Type;
   if (isAutomaticTypeInNonNull) initialType = c.undefinedType;
+  else if (assumeInitialized && isParameter) initialType = removeOptionalityFromDeclaredType(c, t, declaration);
   else if (assumeInitialized) initialType = t;
   else if (typeIsAutomatic) initialType = c.undefinedType;
   else initialType = getOptionalType(c, t, false);
@@ -638,7 +783,7 @@ function isConstraintPosition(c: Checker, t: Type, node: Node): boolean {
       getExpression(parent) === node &&
       !(
         someType(t, (u) => isGenericTypeWithoutNullableConstraint(c, u)) &&
-        isGenericIndexType(c, checkExpressionCached(c, (parent as ElementAccessExpression).argumentExpression))
+        isGenericIndexType(c, getTypeOfExpression(c, (parent as ElementAccessExpression).argumentExpression))
       ))
   );
 }
@@ -1124,6 +1269,11 @@ export function checkNonNullExpression(c: Checker, node: Node): Type {
 }
 
 export function checkNonNullType(c: Checker, t: Type, node: Node): Type {
+  return checkNonNullTypeEx(c, t, node, false);
+}
+
+/** `checkNonNullType`, reporting a possibly nullish callee of a call when `isCallee`. */
+export function checkNonNullTypeEx(c: Checker, t: Type, node: Node, isCallee: boolean): Type {
   if (c.strictNullChecks && (t.flags & TypeFlags.Unknown) !== 0) {
     if (isEntityNameExpression(node, false)) {
       const nodeText = entityNameToString(node);
@@ -1137,11 +1287,23 @@ export function checkNonNullType(c: Checker, t: Type, node: Node): Type {
   }
   const facts = getTypeFacts(c, t, TypeFacts.IsUndefinedOrNull);
   if ((facts & TypeFacts.IsUndefinedOrNull) !== 0) {
-    reportObjectPossiblyNullOrUndefinedError(c, node, facts);
+    if (isCallee) reportCannotInvokePossiblyNullOrUndefinedError(c, node, facts);
+    else reportObjectPossiblyNullOrUndefinedError(c, node, facts);
     const nonNullable = getNonNullableType(c, t);
     return (nonNullable.flags & (TypeFlags.Nullable | TypeFlags.Never)) !== 0 ? c.errorType : nonNullable;
   }
   return t;
+}
+
+function reportCannotInvokePossiblyNullOrUndefinedError(c: Checker, node: Node, facts: TypeFacts): void {
+  c.error(
+    node,
+    (facts & TypeFacts.IsUndefined) !== 0
+      ? (facts & TypeFacts.IsNull) !== 0
+        ? Diagnostics.Cannot_invoke_an_object_which_is_possibly_null_or_undefined
+        : Diagnostics.Cannot_invoke_an_object_which_is_possibly_undefined
+      : Diagnostics.Cannot_invoke_an_object_which_is_possibly_null,
+  );
 }
 
 function reportObjectPossiblyNullOrUndefinedError(c: Checker, node: Node, facts: TypeFacts): void {
@@ -1213,7 +1375,8 @@ export function entityNameToString(node: Node): string {
   return getText(node);
 }
 
-function checkPropertyAccessExpression(c: Checker, node: PropertyAccessExpression, _checkMode: CheckMode): Type {
+/** The type of `obj.name`; `writeOnly` gives the type it can be assigned, as for compound assignments. */
+export function checkPropertyAccessExpression(c: Checker, node: PropertyAccessExpression, writeOnly: boolean): Type {
   if (!isOptionalChain(node))
     return checkPropertyAccessExpressionOrQualifiedName(
       c,
@@ -1221,6 +1384,7 @@ function checkPropertyAccessExpression(c: Checker, node: PropertyAccessExpressio
       node.expression,
       checkNonNullExpression(c, node.expression),
       node.name,
+      writeOnly,
     );
   const leftType = checkExpression(c, node.expression);
   const nonOptional = getOptionalExpressionType(c, leftType, node.expression);
@@ -1230,13 +1394,14 @@ function checkPropertyAccessExpression(c: Checker, node: PropertyAccessExpressio
     node.expression,
     checkNonNullType(c, nonOptional, node.expression),
     node.name,
+    writeOnly,
   );
   return propagateOptionalTypeMarker(c, t, node, nonOptional !== leftType);
 }
 
 function checkQualifiedName(c: Checker, node: QualifiedName): Type {
   const leftType = checkNonNullExpressionOfEntity(c, node.left);
-  return checkPropertyAccessExpressionOrQualifiedName(c, node, node.left, leftType, node.right);
+  return checkPropertyAccessExpressionOrQualifiedName(c, node, node.left, leftType, node.right, false);
 }
 
 function checkNonNullExpressionOfEntity(c: Checker, node: Node): Type {
@@ -1332,14 +1497,79 @@ function checkElementAccessExpression(c: Checker, node: ElementAccessExpression,
     : AccessFlags.ExpressionPosition;
   const indexedAccessType =
     getIndexedAccessTypeOrUndefinedEx(c, objectType, effectiveIndexType, accessFlags, node, undefined) ?? c.errorType;
-  const t = getFlowTypeOfAccessExpression(
+  const t = checkIndexedAccessIndexType(
     c,
+    getFlowTypeOfAccessExpression(c, node, c.nodeLinks(node).resolvedSymbol, indexedAccessType, indexExpression),
     node,
-    c.nodeLinks(node).resolvedSymbol,
-    indexedAccessType,
-    indexExpression,
   );
   return propagateOptionalTypeMarker(c, t, node, wasOptional);
+}
+
+/** Checks that the index of a generic indexed access is assignable to `keyof` its object type. */
+export function checkIndexedAccessIndexType(c: Checker, t: Type, accessNode: Node): Type {
+  if ((t.flags & TypeFlags.IndexedAccess) === 0) return t;
+  const objectType = (t as IndexedAccessType).objectType;
+  const indexType = (t as IndexedAccessType).indexType;
+  // Remapping mapped types don't defer their index types.
+  const objectIndexType =
+    isGenericMappedType(c, objectType) &&
+    getMappedTypeNameTypeKind(c, objectType as MappedType) === MappedTypeNameTypeKind.Remapping
+      ? getIndexForMappedType(c, objectType as MappedType, IndexFlags.None)
+      : getIndexTypeEx(c, objectType, IndexFlags.None);
+  const hasNumberIndexInfo = getIndexInfoOfType(c, objectType, c.numberType) !== undefined;
+  if (
+    everyType(
+      indexType,
+      (u) =>
+        isTypeAssignableTo(c, u, objectIndexType) || (hasNumberIndexInfo && isApplicableIndexType(c, u, c.numberType)),
+    )
+  ) {
+    if (
+      accessNode.kind === SyntaxKind.ElementAccessExpression &&
+      isAssignmentTarget(accessNode) &&
+      (objectType.objectFlags & ObjectFlags.Mapped) !== 0 &&
+      (getMappedTypeModifiers(objectType as MappedType) & MappedTypeModifiers.IncludeReadonly) !== 0
+    )
+      c.error(accessNode, Diagnostics.Index_signature_in_type_0_only_permits_reading, typeToString(c, objectType));
+    return t;
+  }
+  if (isGenericObjectType(c, objectType)) {
+    const propertyName = getPropertyNameFromIndex(indexType);
+    if (propertyName !== undefined) {
+      const propertySymbol = getConstituentProperty(c, objectType, propertyName);
+      if (
+        propertySymbol !== undefined &&
+        (getDeclarationModifierFlagsFromSymbol(c, propertySymbol, false) &
+          ModifierFlags.NonPublicAccessibilityModifier) !==
+          0
+      ) {
+        c.error(
+          accessNode,
+          Diagnostics.Private_or_protected_member_0_cannot_be_accessed_on_a_type_parameter,
+          propertyName,
+        );
+        return c.errorType;
+      }
+    }
+  }
+  c.error(
+    accessNode,
+    Diagnostics.Type_0_cannot_be_used_to_index_type_1,
+    typeToString(c, indexType),
+    typeToString(c, objectType),
+  );
+  return c.errorType;
+}
+
+function getConstituentProperty(c: Checker, objectType: Type, propertyName: string): Symbol | undefined {
+  const apparentType = getApparentType(c, objectType);
+  const constituents =
+    (apparentType.flags & TypeFlags.UnionOrIntersection) !== 0 ? typesOf(apparentType) : [apparentType];
+  for (const t of constituents) {
+    const prop = getPropertyOfType(c, t, propertyName);
+    if (prop !== undefined) return prop;
+  }
+  return undefined;
 }
 
 function isStringLiteralLike(node: Node): boolean {
@@ -1371,7 +1601,7 @@ function isForInVariableForNumericPropertyNames(c: Checker, expr: Node): boolean
       if (
         child === statement.statement &&
         getForInVariableSymbol(c, statement) === symbol &&
-        hasNumericPropertyNames(c, checkExpressionCached(c, statement.expression))
+        hasNumericPropertyNames(c, getTypeOfExpression(c, statement.expression))
       )
         return true;
     }
@@ -1409,6 +1639,7 @@ function checkAssertion(c: Checker, node: Node, checkMode: CheckMode): Type {
   const exprType = checkExpressionEx(c, getExpression(node)!, checkMode);
   // The operand is compared with the asserted type once, after the last check of the operand.
   c.nodeLinks(node).assertionExpressionType = exprType;
+  checkTypeNodeIfPresent(c, getType(node));
   checkNodeDeferred(c, node);
   return getTypeFromTypeNode(c, getType(node)!);
 }
@@ -1438,7 +1669,16 @@ function checkSatisfiesExpression(c: Checker, node: Node, checkMode: CheckMode):
   const exprType = checkExpressionEx(c, expr, checkMode);
   const targetType = getTypeFromTypeNode(c, getType(node)!);
   if (!isErrorType(c, targetType))
-    checkTypeAssignableTo(c, exprType, targetType, node, Diagnostics.Type_0_does_not_satisfy_the_expected_type_1);
+    checkTypeRelatedToAndOptionallyElaborate(
+      c,
+      exprType,
+      targetType,
+      c.assignableRelation,
+      node,
+      expr,
+      Diagnostics.Type_0_does_not_satisfy_the_expected_type_1,
+      undefined,
+    );
   return exprType;
 }
 

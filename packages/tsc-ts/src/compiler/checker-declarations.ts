@@ -31,7 +31,8 @@ import {
 import { isExternalModuleNameRelative } from './path.js';
 import { shouldPreserveConstEnums } from './options.js';
 import { checkTypeNameIsReserved } from './checker-classes.js';
-import { isBindingPattern } from './checker-utilities.js';
+import { getPropertyNameFromType, isBindingPattern, isTypeUsableAsPropertyName } from './checker-utilities.js';
+import { checkPropertyAccessibility } from './checker-property-access.js';
 import {
   declarationNameToString,
   getNameOfDeclaration,
@@ -58,9 +59,9 @@ import { Diagnostic, type DiagnosticMessage, Diagnostics } from './diagnostics.j
 import { InternalSymbolName, type Symbol, SymbolFlags } from './symbol.js';
 import { SyntaxKind } from './syntax-kind.js';
 import { type Checker, createDiagnosticForNode } from './checker.js';
-import { IntrinsicTypeKind, intrinsicTypeKind } from './checker-type-operators.js';
-import { type Type, TypeFlags, newTypeMapper } from './checker-types.js';
-import { isErrorType } from './checker-type-factory.js';
+import { IntrinsicTypeKind, getLiteralTypeFromPropertyName, intrinsicTypeKind } from './checker-type-operators.js';
+import { ObjectFlags, type Type, TypeFlags, newTypeMapper } from './checker-types.js';
+import { getUnionType, isErrorType } from './checker-type-factory.js';
 import { getTypeFromTypeNode } from './checker-type-nodes.js';
 import {
   computeEnumMemberValues,
@@ -79,14 +80,17 @@ import {
   getSymbolOfDeclaration,
   resolveAlias,
   resolveName,
+  getCachedGlobalType,
 } from './checker-symbols.js';
 import {
   getTypeOfSymbol,
   getWidenedTypeForVariableLikeDeclaration,
+  widenTypeForVariableLikeDeclaration,
   isOptionalDeclaration,
 } from './checker-symbol-types.js';
 import {
   checkComputedPropertyName,
+  checkExpression,
   checkExpressionCached,
   checkNonNullNonVoidType,
   checkTypeAssignableToAndOptionallyElaborate,
@@ -94,10 +98,10 @@ import {
 } from './checker-expressions.js';
 import { IterationUse, checkIteratedTypeOrElementType } from './checker-iteration.js';
 import { isTypeAssignableTo, isTypeIdenticalTo, checkTypeAssignableTo } from './relations.js';
-import { getReducedType } from './checker-members.js';
+import { getPropertyOfType, getReducedType } from './checker-members.js';
 import { instantiateType } from './instantiation.js';
 import { symbolToString, typeToString } from './type-printer.js';
-import { checkSourceElement, checkTypeNodeIfPresent } from './checker-source-file.js';
+import { checkNodeDeferred, checkSourceElement, checkTypeNodeIfPresent } from './checker-source-file.js';
 import { checkFunctionLikeBody } from './checker-functions.js';
 import { ContainerFlags, getContainerFlags } from './binder.js';
 import {
@@ -121,6 +125,33 @@ export function checkVariableStatement(c: Checker, node: Node): void {
 
 export function checkVariableDeclarationList(c: Checker, node: Node): void {
   for (const d of (node as VariableDeclarationList).declarations.nodes) checkVariableLikeDeclaration(c, d);
+}
+
+/** The initializer of a `using` or `await using` declaration must be disposable, `null` or `undefined`. */
+function checkUsingDeclarationInitializer(c: Checker, node: Node, initializer: Node, initType: Type): void {
+  const blockScopeKind = getCombinedNodeFlags(node) & NodeFlags.BlockScoped;
+  if (blockScopeKind === NodeFlags.AwaitUsing) {
+    const globalAsyncDisposableType = getCachedGlobalType(c, 'AsyncDisposable', 0, true);
+    const globalDisposableType = getCachedGlobalType(c, 'Disposable', 0, true);
+    if (globalAsyncDisposableType !== c.emptyObjectType && globalDisposableType !== c.emptyObjectType)
+      checkTypeAssignableTo(
+        c,
+        widenTypeForVariableLikeDeclaration(c, initType, node, false),
+        getUnionType(c, [globalAsyncDisposableType, globalDisposableType, c.nullType, c.undefinedType]),
+        initializer,
+        Diagnostics.The_initializer_of_an_await_using_declaration_must_be_either_an_object_with_a_Symbol_asyncDispose_or_Symbol_dispose_method_or_be_null_or_undefined,
+      );
+  } else if (blockScopeKind === NodeFlags.Using) {
+    const globalDisposableType = getCachedGlobalType(c, 'Disposable', 0, true);
+    if (globalDisposableType !== c.emptyObjectType)
+      checkTypeAssignableTo(
+        c,
+        widenTypeForVariableLikeDeclaration(c, initType, node, false),
+        getUnionType(c, [globalDisposableType, c.nullType, c.undefinedType]),
+        initializer,
+        Diagnostics.The_initializer_of_a_using_declaration_must_be_either_an_object_with_a_Symbol_dispose_method_or_be_null_or_undefined,
+      );
+  }
 }
 
 /** Checks a variable, parameter, property or binding element declaration. */
@@ -178,6 +209,7 @@ export function checkVariableLikeDeclaration(c: Checker, node: Node): void {
       const initType = checkExpressionCached(c, initializer);
       if (typeNode !== undefined && !isErrorType(c, t))
         checkTypeAssignableToAndOptionallyElaborate(c, initType, t, node, initializer);
+      checkUsingDeclarationInitializer(c, node, initializer, initType);
     }
     if (
       name !== undefined &&
@@ -375,15 +407,44 @@ function checkBindingElement(c: Checker, element: BindingElement): void {
   }
   if (element.propertyName !== undefined && element.propertyName.kind === SyntaxKind.ComputedPropertyName)
     checkComputedPropertyName(c, element.propertyName);
-  // Like tsgo, the parent type is computed here (for accessibility checks) as well as for the symbol.
-  getTypeForBindingElementParent(c, element.parent!.parent!);
+  // Private and protected properties can't be destructured outside their classes.
+  const parent = element.parent!.parent!;
+  const parentType = getTypeForBindingElementParent(c, parent);
+  const propertyName = element.propertyName ?? element.name;
+  if (parentType !== undefined && !isBindingPattern(propertyName)) {
+    const exprType = getLiteralTypeFromPropertyName(c, propertyName);
+    if (exprType !== undefined && isTypeUsableAsPropertyName(exprType)) {
+      const property = getPropertyOfType(c, parentType, getPropertyNameFromType(exprType));
+      if (property !== undefined) {
+        const initializer = getInitializer(parent);
+        checkPropertyAccessibility(
+          c,
+          element,
+          initializer !== undefined && initializer.kind === SyntaxKind.SuperKeyword,
+          false,
+          parentType,
+          property,
+        );
+      }
+    }
+  }
   const name = element.name;
   if (
     name !== undefined &&
     (name.kind === SyntaxKind.ObjectBindingPattern || name.kind === SyntaxKind.ArrayBindingPattern)
   ) {
     for (const e of getElements(name)!.nodes) checkBindingElement(c, e as BindingElement);
-  } else {
+  }
+  // Initializers in parameters need an implementation.
+  if (
+    element.initializer !== undefined &&
+    isPartOfParameterDeclaration(element) &&
+    nodeIsMissing(getBody(getRootDeclaration(element).parent!))
+  ) {
+    c.error(element, Diagnostics.A_parameter_initializer_is_only_allowed_in_a_function_or_constructor_implementation);
+    return;
+  }
+  if (name.kind !== SyntaxKind.ObjectBindingPattern && name.kind !== SyntaxKind.ArrayBindingPattern) {
     const symbol = getSymbolOfDeclaration(c, element);
     if (
       symbol !== undefined &&
@@ -394,8 +455,27 @@ function checkBindingElement(c: Checker, element: BindingElement): void {
       return;
     }
     if (symbol !== undefined) {
-      getTypeOfSymbol(c, symbol);
+      const t = getTypeOfSymbol(c, symbol);
       checkExportsOnMergedDeclarations(c, element);
+      checkVarDeclaredNamesNotShadowed(c, element, symbol);
+      // A redeclaration must have the type of the first declaration.
+      if (element !== symbol.valueDeclaration && symbol.valueDeclaration !== undefined) {
+        if (!areDeclarationFlagsIdentical(element, symbol.valueDeclaration)) reportNonIdenticalModifiers(c, name);
+        const declarationType = getWidenedTypeForVariableLikeDeclaration(c, element, false);
+        if (
+          !isErrorType(c, t) &&
+          !isErrorType(c, declarationType) &&
+          !isTypeIdenticalTo(c, t, declarationType) &&
+          (symbol.flags & SymbolFlags.Assignment) === 0
+        )
+          errorNextVariableOrPropertyDeclarationMustHaveSameType(
+            c,
+            symbol.valueDeclaration,
+            t,
+            element,
+            declarationType,
+          );
+      }
     }
   }
   if (element.initializer !== undefined) checkExpressionCached(c, element.initializer);
@@ -457,6 +537,24 @@ export function checkTypeParameter(c: Checker, node: Node): void {
         Diagnostics.Type_0_does_not_satisfy_the_constraint_1,
       );
   }
+  checkTypeNameIsReserved(c, tp.name, Diagnostics.Type_parameter_name_cannot_be_0);
+  checkNodeDeferred(c, node);
+}
+
+/** Variance annotations are only allowed on type aliases of object, function, constructor and mapped types. */
+export function checkTypeParameterDeferred(c: Checker, node: Node): void {
+  const parent = node.parent!;
+  if (parent.kind !== SyntaxKind.TypeAliasDeclaration) return;
+  if ((getCombinedModifierFlags(node) & (ModifierFlags.In | ModifierFlags.Out)) === 0) return;
+  const symbol = getSymbolOfDeclaration(c, parent);
+  if (
+    symbol !== undefined &&
+    (getDeclaredTypeOfSymbol(c, symbol).objectFlags & (ObjectFlags.Anonymous | ObjectFlags.Mapped)) === 0
+  )
+    c.error(
+      node,
+      Diagnostics.Variance_annotations_are_only_supported_in_type_aliases_for_object_function_constructor_and_mapped_types,
+    );
 }
 
 /** Checks a type parameter list: each parameter, default ordering and duplicate names. */
@@ -583,10 +681,10 @@ export function checkEnumDeclaration(c: Checker, node: Node): void {
   checkExportsOnMergedDeclarations(c, node);
   for (const member of (node as EnumDeclaration).members.nodes) {
     const memberName = getName(member);
-    if (memberName === undefined) continue;
-    if (memberName.kind === SyntaxKind.ComputedPropertyName) checkComputedPropertyName(c, memberName);
-    else if (memberName.kind === SyntaxKind.PrivateIdentifier)
+    if (memberName !== undefined && memberName.kind === SyntaxKind.PrivateIdentifier)
       c.error(member, Diagnostics.An_enum_member_cannot_be_named_with_a_private_identifier);
+    const initializer = getInitializer(member);
+    if (initializer !== undefined) checkExpression(c, initializer);
   }
   if (c.compilerOptions.erasableSyntaxOnly === true && (node.flags & NodeFlags.Ambient) === 0)
     c.error(node, Diagnostics.This_syntax_is_not_allowed_when_erasableSyntaxOnly_is_enabled);

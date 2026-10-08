@@ -1,6 +1,9 @@
 // Control flow analysis: the type of a reference at a position, walking the binder's flow graph
 // backwards from the reference through assignments, conditions, calls and labels.
 import {
+  getParameters,
+  type ForInOrOfStatement,
+  type ShorthandPropertyAssignment,
   type MetaProperty,
   type BindingElement,
   getName,
@@ -75,6 +78,7 @@ import {
   typesOf,
   createArrayType,
   newObjectType,
+  isTupleType,
 } from './checker-type-factory.js';
 import {
   areTypesComparable,
@@ -86,7 +90,21 @@ import {
   isTypeSubsetOf,
   isTypeSubtypeOf,
 } from './relations.js';
-import { checkExpressionCached, checkExpressionEx, getResolvedSymbol } from './checker-expressions.js';
+import {
+  checkExpression,
+  checkExpressionCached,
+  checkExpressionEx,
+  checkNonNullExpression,
+  checkNonNullType,
+  getResolvedSymbol,
+  getTypeOfExpression,
+} from './checker-expressions.js';
+import { getSymbolHasInstanceMethodOfObjectType } from './checker-operators.js';
+import { checkSuperExpression } from './checker-super.js';
+import { isBlockScopedNameDeclaredBeforeUse } from './checker-declaration-order.js';
+import { isEntityNameExpression } from './binder-utilities.js';
+import { getSymbolNameForPrivateIdentifier } from './binder.js';
+import { getOptionalExpressionType } from './checker-calls.js';
 import { isTypeAssignableToKindEx } from './checker-type-operators.js';
 import { getRegularTypeOfObjectLiteral } from './checker-literals.js';
 import { checkRightHandSideOfForOf } from './checker-statements.js';
@@ -119,7 +137,7 @@ import {
   getRangeOfTokenAtPosition,
   getSourceFileOfNode,
 } from './binder-utilities.js';
-import { getDeclaredTypeOfSymbol } from './checker-declared-types.js';
+import { getDeclaredTypeOfSymbol, isConstructorType } from './checker-declared-types.js';
 import {
   getErasedSignature,
   getReturnTypeFromAnnotation,
@@ -142,7 +160,14 @@ import { Diagnostic } from './diagnostics.js';
 import { Diagnostics } from './diagnostic-messages.js';
 import { getResolvedSignature } from './checker-calls.js';
 import { getLiteralTypeFromPropertyName } from './checker-type-operators.js';
-import { getBindingElementTypeFromParentType, getTypeForBindingElementParent } from './checker-destructuring.js';
+import {
+  getBindingElementTypeFromParentType,
+  getNonUndefinedType,
+  getTypeForBindingElementParent,
+} from './checker-destructuring.js';
+import { IterationUse, checkIteratedTypeOrElementType } from './checker-iteration.js';
+import { getTupleElementTypeOutOfStartCount } from './checker-type-operators.js';
+import { isTupleLikeType } from './checker-expressions.js';
 
 /** The state of one `getFlowTypeOfReference` walk. `incomplete` describes the last returned type. */
 export class FlowState {
@@ -201,6 +226,7 @@ export function getFlowTypeOfReferenceAt(
   if (flowNode === undefined) return declaredType;
   const f = new FlowState(reference, declaredType, initialType, flowContainer);
   f.sharedFlowStart = c.sharedFlowNodes.length;
+  c.flowInvocationCount++;
   const evolvedType = getTypeAtFlowNode(c, f, flowNode);
   c.sharedFlowNodes.length = f.sharedFlowStart;
   c.sharedFlowTypes.length = f.sharedFlowStart;
@@ -406,14 +432,30 @@ function getInitialOrAssignedType(c: Checker, flow: FlowNode): Type {
 function getInitialType(c: Checker, node: Node): Type {
   if (node.kind === SyntaxKind.VariableDeclaration) {
     const initializer = getInitializer(node);
-    if (initializer !== undefined) return getTypeOfExpression(c, initializer);
+    if (initializer !== undefined) return getTypeOfInitializer(c, initializer);
     const statement = node.parent!.parent!;
     if (statement.kind === SyntaxKind.ForInStatement) return c.stringType;
     if (statement.kind === SyntaxKind.ForOfStatement) return checkRightHandSideOfForOf(c, statement);
     return c.errorType;
   }
-  // Binding elements aren't destructured yet.
-  return c.anyType;
+  return getInitialTypeOfBindingElement(c, node as BindingElement);
+}
+
+/** The type of an initializer: the type a variable was inferred from, else computed without caching. */
+function getTypeOfInitializer(c: Checker, node: Node): Type {
+  return c.nodeLinks(node).resolvedType ?? getTypeOfExpression(c, node);
+}
+
+function getInitialTypeOfBindingElement(c: Checker, node: BindingElement): Type {
+  const pattern = node.parent!;
+  const parentType = getInitialType(c, pattern.parent!);
+  let t: Type;
+  if (pattern.kind === SyntaxKind.ObjectBindingPattern)
+    t = getTypeOfDestructuredProperty(c, parentType, (node.propertyName ?? node.name)!);
+  else if (node.dotDotDotToken === undefined)
+    t = getTypeOfDestructuredArrayElement(c, parentType, getElements(pattern)!.nodes.indexOf(node));
+  else t = getTypeOfDestructuredSpreadExpression(c, parentType);
+  return getTypeWithDefault(c, t, node.initializer);
 }
 
 function getAssignedType(c: Checker, node: Node): Type {
@@ -423,21 +465,97 @@ function getAssignedType(c: Checker, node: Node): Type {
       return c.stringType;
     case SyntaxKind.ForOfStatement:
       return checkRightHandSideOfForOf(c, parent);
-    case SyntaxKind.BinaryExpression: {
-      const binary = parent as BinaryExpression;
-      if (binary.left !== node) return c.anyType;
-      if (
-        parent.parent!.kind === SyntaxKind.ArrayLiteralExpression ||
-        parent.parent!.kind === SyntaxKind.PropertyAssignment
-      )
-        return c.anyType;
-      return getTypeOfExpression(c, binary.right);
-    }
+    case SyntaxKind.BinaryExpression:
+      return getAssignedTypeOfBinaryExpression(c, parent as BinaryExpression);
     case SyntaxKind.DeleteExpression:
       return c.undefinedType;
+    case SyntaxKind.ArrayLiteralExpression:
+      return getTypeOfDestructuredArrayElement(c, getAssignedType(c, parent), getElements(parent)!.nodes.indexOf(node));
+    case SyntaxKind.SpreadElement:
+      return getTypeOfDestructuredSpreadExpression(c, getAssignedType(c, parent.parent!));
+    case SyntaxKind.PropertyAssignment:
+      return getAssignedTypeOfPropertyAssignment(c, parent);
+    case SyntaxKind.ShorthandPropertyAssignment:
+      return getTypeWithDefault(
+        c,
+        getAssignedTypeOfPropertyAssignment(c, parent),
+        (parent as ShorthandPropertyAssignment).objectAssignmentInitializer,
+      );
   }
-  // Destructuring assignments aren't resolved yet.
-  return c.anyType;
+  return c.errorType;
+}
+
+function getAssignedTypeOfBinaryExpression(c: Checker, node: BinaryExpression): Type {
+  const parent = node.parent!;
+  const isDestructuringDefaultAssignment =
+    (parent.kind === SyntaxKind.ArrayLiteralExpression && isDestructuringAssignmentTarget(parent)) ||
+    (parent.kind === SyntaxKind.PropertyAssignment && isDestructuringAssignmentTarget(parent.parent!));
+  if (isDestructuringDefaultAssignment) return getTypeWithDefault(c, getAssignedType(c, node), node.right);
+  return getTypeOfExpression(c, node.right);
+}
+
+function isDestructuringAssignmentTarget(parent: Node): boolean {
+  const grandparent = parent.parent!;
+  return (
+    (grandparent.kind === SyntaxKind.BinaryExpression && (grandparent as BinaryExpression).left === parent) ||
+    (grandparent.kind === SyntaxKind.ForOfStatement && (grandparent as ForInOrOfStatement).initializer === parent)
+  );
+}
+
+function getAssignedTypeOfPropertyAssignment(c: Checker, node: Node): Type {
+  return getTypeOfDestructuredProperty(c, getAssignedType(c, node.parent!), getName(node)!);
+}
+
+function getTypeOfDestructuredArrayElement(c: Checker, t: Type, index: number): Type {
+  if (everyType(t, (u) => isTupleLikeType(c, u))) {
+    const elementType = getTupleElementType(c, t, index);
+    if (elementType !== undefined) return elementType;
+  }
+  return includeUndefinedInIndexSignature(
+    c,
+    checkIteratedTypeOrElementType(c, IterationUse.Destructuring, t, c.undefinedType, undefined),
+  );
+}
+
+function getTupleElementType(c: Checker, t: Type, index: number): Type | undefined {
+  const propType = getTypeOfPropertyOfType(c, t, String(index));
+  if (propType !== undefined) return propType;
+  if (everyType(t, isTupleType))
+    return getTupleElementTypeOutOfStartCount(
+      c,
+      t,
+      index,
+      c.compilerOptions.noUncheckedIndexedAccess === true ? c.undefinedType : undefined,
+    );
+  return undefined;
+}
+
+function includeUndefinedInIndexSignature(c: Checker, t: Type): Type {
+  return c.compilerOptions.noUncheckedIndexedAccess === true ? getUnionType(c, [t, c.missingType]) : t;
+}
+
+function getTypeOfDestructuredSpreadExpression(c: Checker, t: Type): Type {
+  return createArrayType(
+    c,
+    checkIteratedTypeOrElementType(c, IterationUse.Destructuring, t, c.undefinedType, undefined),
+  );
+}
+
+function getTypeOfDestructuredProperty(c: Checker, t: Type, name: Node): Type {
+  const nameType = getLiteralTypeFromPropertyName(c, name);
+  if (nameType === undefined || !isTypeUsableAsPropertyName(nameType)) return c.errorType;
+  const text = getPropertyNameFromType(nameType);
+  const propType = getTypeOfPropertyOfType(c, t, text);
+  if (propType !== undefined) return propType;
+  const indexInfo = getApplicableIndexInfoForName(c, t, text);
+  if (indexInfo !== undefined) return includeUndefinedInIndexSignature(c, indexInfo.valueType);
+  return c.errorType;
+}
+
+function getTypeWithDefault(c: Checker, t: Type, defaultExpression: Node | undefined): Type {
+  return defaultExpression !== undefined
+    ? getUnionType(c, [getNonUndefinedType(c, t), getTypeOfExpression(c, defaultExpression)])
+    : t;
 }
 
 /** The constituents of `declaredType` that some constituent of `assignedType` is assignable to. */
@@ -514,14 +632,16 @@ export function getEffectsSignature(c: Checker, node: Node): Signature | undefin
   let signature = links.effectsSignature;
   if (signature === undefined) {
     let funcType: Type | undefined = undefined;
-    if (node.kind === SyntaxKind.BinaryExpression) funcType = undefined;
+    if (node.kind === SyntaxKind.BinaryExpression)
+      funcType = getSymbolHasInstanceMethodOfObjectType(c, checkNonNullExpression(c, (node as BinaryExpression).right));
     else {
       const callee = getExpression(node)!;
+      // Assertions resolve their target without inference, to avoid circularities in flow analysis.
       if (node.parent!.kind === SyntaxKind.ExpressionStatement) funcType = getTypeOfDottedName(c, callee);
       else if (callee.kind !== SyntaxKind.SuperKeyword)
         funcType = isOptionalChain(node)
-          ? getNonNullableType(c, checkExpressionCached(c, callee))
-          : checkExpressionCached(c, callee);
+          ? checkNonNullType(c, getOptionalExpressionType(c, checkExpression(c, callee), callee), callee)
+          : checkNonNullExpression(c, callee);
     }
     const signatures = getSignaturesOfType(
       c,
@@ -555,12 +675,19 @@ function getTypeOfDottedName(c: Checker, node: Node): Type | undefined {
       return getExplicitTypeOfSymbol(c, getExportSymbolOfValueSymbolIfExported(c, getResolvedSymbol(c, node)));
     case SyntaxKind.ThisKeyword:
       return getExplicitThisType(c, node);
+    case SyntaxKind.SuperKeyword:
+      return checkSuperExpression(c, node);
     case SyntaxKind.PropertyAccessExpression: {
       const t = getTypeOfDottedName(c, getExpression(node)!);
       if (t === undefined) return undefined;
       const name = (node as PropertyAccessExpression).name;
-      if (name.kind === SyntaxKind.PrivateIdentifier) return undefined;
-      const prop = getPropertyOfType(c, t, getText(name));
+      let prop: Symbol | undefined;
+      if (name.kind === SyntaxKind.PrivateIdentifier)
+        prop =
+          t.symbol !== undefined
+            ? getPropertyOfType(c, t, getSymbolNameForPrivateIdentifier(t.symbol, getText(name)))
+            : undefined;
+      else prop = getPropertyOfType(c, t, getText(name));
       return prop !== undefined ? getExplicitTypeOfSymbol(c, prop) : undefined;
     }
     case SyntaxKind.ParenthesizedExpression:
@@ -778,9 +905,18 @@ function writeFlowCacheKey(
     case SyntaxKind.PropertyAccessExpression:
     case SyntaxKind.ElementAccessExpression: {
       const name = getAccessedPropertyName(c, node);
-      if (name === undefined) return undefined;
+      if (name !== undefined) {
+        const left = writeFlowCacheKey(c, getExpression(node)!, declaredType, initialType, flowContainer);
+        return left === undefined ? undefined : left + '.' + name;
+      }
+      // `obj[key]` for a key that isn't reassigned.
+      if (node.kind !== SyntaxKind.ElementAccessExpression) return undefined;
+      const argument = (node as ElementAccessExpression).argumentExpression;
+      if (argument.kind !== SyntaxKind.Identifier) return undefined;
+      const symbol = getResolvedSymbol(c, argument);
+      if (!isUnreassignedVariable(c, symbol)) return undefined;
       const left = writeFlowCacheKey(c, getExpression(node)!, declaredType, initialType, flowContainer);
-      return left === undefined ? undefined : left + '.' + name;
+      return left === undefined ? undefined : left + '.@' + getSymbolId(symbol);
     }
   }
   return undefined;
@@ -961,6 +1097,8 @@ function narrowTypeByBinaryExpression(
       const rightAccess = getDiscriminantPropertyAccess(c, f, right, t);
       if (rightAccess !== undefined)
         return narrowTypeByDiscriminantProperty(c, t, rightAccess, operator, left, assumeTrue);
+      if (isMatchingConstructorReference(c, f, left)) return narrowTypeByConstructor(c, t, operator, right, assumeTrue);
+      if (isMatchingConstructorReference(c, f, right)) return narrowTypeByConstructor(c, t, operator, left, assumeTrue);
       if (isBooleanLiteral(right) && !isAccessExpression(left))
         return narrowTypeByBooleanComparison(c, f, t, left, right, operator, assumeTrue);
       if (isBooleanLiteral(left) && !isAccessExpression(right))
@@ -1780,6 +1918,16 @@ export function isMatchingReference(c: Checker, source: Node, target: Node): boo
         if (targetName !== undefined)
           return targetName === sourceName && isMatchingReference(c, getExpression(source)!, getExpression(target)!);
       }
+      // `obj[key]` matches `obj[key]` for a key that isn't reassigned.
+      if (source.kind === SyntaxKind.ElementAccessExpression && target.kind === SyntaxKind.ElementAccessExpression) {
+        const sourceArg = (source as ElementAccessExpression).argumentExpression;
+        const targetArg = (target as ElementAccessExpression).argumentExpression;
+        if (sourceArg.kind === SyntaxKind.Identifier && targetArg.kind === SyntaxKind.Identifier) {
+          const symbol = getResolvedSymbol(c, sourceArg);
+          if (symbol === getResolvedSymbol(c, targetArg) && isUnreassignedVariable(c, symbol))
+            return isMatchingReference(c, getExpression(source)!, getExpression(target)!);
+        }
+      }
       return false;
     }
     case SyntaxKind.QualifiedName:
@@ -1802,6 +1950,62 @@ export function isMatchingReference(c: Checker, source: Node, target: Node): boo
 }
 
 /** The property name an access expression reads, if it's a constant. */
+/** Whether `expr` is `reference.constructor`. */
+function isMatchingConstructorReference(c: Checker, f: FlowState, expr: Node): boolean {
+  return (
+    isAccessExpression(expr) &&
+    getAccessedPropertyName(c, expr) === 'constructor' &&
+    isMatchingReference(c, f.reference, getExpression(expr)!)
+  );
+}
+
+/** Narrows by `x.constructor === C` to the constituents constructed by `C`. */
+function narrowTypeByConstructor(
+  c: Checker,
+  t: Type,
+  operator: SyntaxKind,
+  identifier: Node,
+  assumeTrue: boolean,
+): Type {
+  // Inequality doesn't narrow.
+  if (
+    assumeTrue
+      ? operator !== SyntaxKind.EqualsEqualsToken && operator !== SyntaxKind.EqualsEqualsEqualsToken
+      : operator !== SyntaxKind.ExclamationEqualsToken && operator !== SyntaxKind.ExclamationEqualsEqualsToken
+  )
+    return t;
+  const identifierType = getTypeOfExpression(c, identifier);
+  if (
+    !(
+      (identifierType.flags & TypeFlags.Object) !== 0 &&
+      getSignaturesOfType(c, identifierType, SignatureKind.Call).length > 0
+    ) &&
+    !isConstructorType(c, identifierType)
+  )
+    return t;
+  const prototypeProperty = getPropertyOfType(c, identifierType, 'prototype');
+  if (prototypeProperty === undefined) return t;
+  const prototypeType = getTypeOfSymbol(c, prototypeProperty);
+  if (
+    (prototypeType.flags & TypeFlags.Any) !== 0 ||
+    prototypeType === c.globalObjectType ||
+    prototypeType === c.globalFunctionType
+  )
+    return t;
+  if ((t.flags & TypeFlags.Any) !== 0) return prototypeType;
+  return filterType(c, t, (u) => isConstructedBy(c, u, prototypeType));
+}
+
+function isConstructedBy(c: Checker, source: Type, target: Type): boolean {
+  // Class instances are only constructed by their own class, even when structurally identical to another.
+  if (
+    ((source.flags & TypeFlags.Object) !== 0 && (source.objectFlags & ObjectFlags.Class) !== 0) ||
+    ((target.flags & TypeFlags.Object) !== 0 && (target.objectFlags & ObjectFlags.Class) !== 0)
+  )
+    return source.symbol === target.symbol;
+  return isTypeSubtypeOf(c, source, target);
+}
+
 export function getAccessedPropertyName(c: Checker, access: Node): string | undefined {
   if (access.kind === SyntaxKind.PropertyAccessExpression) return getText((access as PropertyAccessExpression).name);
   if (access.kind === SyntaxKind.BindingElement) return getDestructuringPropertyName(c, access);
@@ -1809,19 +2013,49 @@ export function getAccessedPropertyName(c: Checker, access: Node): string | unde
     const argument = (access as ElementAccessExpression).argumentExpression;
     if (isStringLiteralLike(argument)) return getText(argument);
     if (argument.kind === SyntaxKind.NumericLiteral) return String(Number(getText(argument)));
-    if (argument.kind === SyntaxKind.Identifier || argument.kind === SyntaxKind.PropertyAccessExpression) {
-      const symbol = resolveEntityName(c, argument, SymbolFlags.Value, true, false, undefined);
-      if (symbol === undefined || !(isConstantVariable(c, symbol) || (symbol.flags & SymbolFlags.EnumMember) !== 0))
-        return undefined;
-      const declaration = symbol.valueDeclaration;
-      if (declaration === undefined) return undefined;
-      const typeNode = getType(declaration);
-      const t = typeNode !== undefined ? getTypeFromTypeNode(c, typeNode) : getTypeOfSymbol(c, symbol);
-      if ((t.flags & (TypeFlags.StringOrNumberLiteral | TypeFlags.UniqueESSymbol)) !== 0)
-        return getPropertyNameFromType(t);
+    if (isEntityNameExpression(argument, false)) return tryGetNameFromEntityNameExpression(c, argument);
+  }
+  if (access.kind === SyntaxKind.Parameter) return String(getParameters(access.parent!)!.nodes.indexOf(access));
+  return undefined;
+}
+
+/** The property name a constant or enum member used as an index stands for. */
+function tryGetNameFromEntityNameExpression(c: Checker, node: Node): string | undefined {
+  const symbol = resolveEntityName(c, node, SymbolFlags.Value, true, false, undefined);
+  if (symbol === undefined || !(isConstantVariable(c, symbol) || (symbol.flags & SymbolFlags.EnumMember) !== 0))
+    return undefined;
+  const declaration = symbol.valueDeclaration;
+  if (declaration === undefined) return undefined;
+  const typeNode = getType(declaration);
+  if (typeNode !== undefined) {
+    const name = tryGetNameFromType(getTypeFromTypeNode(c, typeNode));
+    if (name !== undefined) return name;
+  }
+  // Binding elements are excluded: their initializers don't alone determine their types, and resolving
+  // their full types can be circular.
+  if (
+    (declaration.kind === SyntaxKind.VariableDeclaration ||
+      declaration.kind === SyntaxKind.PropertyDeclaration ||
+      declaration.kind === SyntaxKind.PropertyAssignment ||
+      declaration.kind === SyntaxKind.Parameter ||
+      declaration.kind === SyntaxKind.EnumMember) &&
+    isBlockScopedNameDeclaredBeforeUse(c, declaration, node)
+  ) {
+    const initializer = getInitializer(declaration);
+    if (initializer !== undefined) return tryGetNameFromType(getTypeOfExpression(c, initializer));
+    if (declaration.kind === SyntaxKind.EnumMember) {
+      const name = getName(declaration)!;
+      if (isStringLiteralLike(name) || name.kind === SyntaxKind.NumericLiteral || name.kind === SyntaxKind.Identifier)
+        return getText(name);
     }
   }
   return undefined;
+}
+
+function tryGetNameFromType(t: Type): string | undefined {
+  return (t.flags & (TypeFlags.UniqueESSymbol | TypeFlags.StringOrNumberLiteral)) !== 0
+    ? getPropertyNameFromType(t)
+    : undefined;
 }
 
 /** The property name or element index a destructuring element reads. */
@@ -1938,11 +2172,6 @@ function hasMatchingArgument(c: Checker, call: Node, reference: Node): boolean {
 
 function isOrContainsMatchingReference(c: Checker, source: Node, target: Node): boolean {
   return isMatchingReference(c, source, target) || containsMatchingReference(c, source, target);
-}
-
-/** The type of an expression for narrowing; computed once per node. */
-function getTypeOfExpression(c: Checker, node: Node): Type {
-  return checkExpressionCached(c, node);
 }
 
 function isCallChain(node: Node): boolean {
@@ -2081,6 +2310,12 @@ function isShiftOperatorOrHigher(kind: SyntaxKind): boolean {
       return true;
   }
   return false;
+}
+
+function isUnreassignedVariable(c: Checker, symbol: Symbol): boolean {
+  return (
+    isConstantVariable(c, symbol) || (isParameterOrMutableLocalVariable(c, symbol) && !isSymbolAssigned(c, symbol))
+  );
 }
 
 export function isConstantVariable(_c: Checker, symbol: Symbol): boolean {
@@ -2321,7 +2556,7 @@ export function isEvolvingArrayOperationTarget(c: Checker, node: Node): boolean 
     !isAssignmentTarget(grandparent) &&
     isTypeAssignableToKindEx(
       c,
-      checkExpressionCached(c, (parent as ElementAccessExpression).argumentExpression),
+      getTypeOfExpression(c, (parent as ElementAccessExpression).argumentExpression),
       TypeFlags.NumberLike,
       false,
     )

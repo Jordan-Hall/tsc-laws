@@ -18,8 +18,14 @@ import {
   type NodeList,
   NodeVisitor,
   type SourceFile,
+  type TypePredicateNode,
+  type TupleTypeNode,
   getComment,
+  getElements,
+  getExpression,
   getName,
+  getParameters,
+  getText,
   getNodeId,
   getStatements,
   getType,
@@ -30,10 +36,13 @@ import {
 import { SyntaxKind } from './syntax-kind.js';
 import { isExternalOrCommonJSModule } from './binder-utilities.js';
 import type { Checker } from './checker.js';
-import { type MappedType, NodeCheckFlags } from './checker-types.js';
+import { ElementFlags, type MappedType, NodeCheckFlags, TypePredicateKind } from './checker-types.js';
+import { getSignatureFromDeclaration, getTypePredicateOfSignature } from './checker-signatures.js';
 import { getConstraintTypeFromMappedType, getNameTypeFromMappedType } from './checker-type-operators.js';
-import { checkTypeAssignableTo } from './relations.js';
-import { getTypeFromTypeNode } from './checker-type-nodes.js';
+import { checkTypeAssignableTo, checkTypeRelatedTo } from './relations.js';
+import { type Diagnostic, chainDiagnostic } from './diagnostics.js';
+import { getTupleElementFlags, getTypeFromTypeNode } from './checker-type-nodes.js';
+import { isArrayLikeType } from './checker-members.js';
 import {
   checkBlock,
   checkDoStatement,
@@ -57,6 +66,7 @@ import {
   checkTypeAliasDeclaration,
   checkTypeArgumentConstraintsOfReference,
   checkTypeParameter,
+  checkTypeParameterDeferred,
   checkTypeParameters,
   checkVariableStatement,
   checkVariableLikeDeclaration,
@@ -76,11 +86,16 @@ import {
   checkInterfaceDeclaration,
 } from './checker-classes.js';
 import { checkJsxElementDeferred } from './checker-jsx.js';
-import { checkAssertionDeferred } from './checker-expressions.js';
+import {
+  checkAssertionDeferred,
+  checkComputedPropertyName,
+  checkExpression,
+  checkIndexedAccessIndexType,
+} from './checker-expressions.js';
 import { checkFunctionLikeBody } from './checker-functions.js';
 import { produceDeferredIterationErrors } from './checker-iteration.js';
 import { checkFunctionOrMethodSymbols } from './checker-overloads.js';
-import { checkTypeLiteralMembers } from './checker-heritage.js';
+import { checkInferTypeParameterDeclarations, checkTypeLiteralMembers } from './checker-heritage.js';
 import { checkGrammarSourceFile } from './checker-grammar.js';
 import { Diagnostics } from './diagnostic-messages.js';
 import { getTypeOfSymbol, reportImplicitAny } from './checker-symbol-types.js';
@@ -169,6 +184,8 @@ function checkSourceElementWorker(c: Checker, node: Node): void {
       checkTryStatement(c, node);
       return;
     case SyntaxKind.WithStatement:
+      // The body isn't checked: every name in it has type `any`.
+      checkExpression(c, getExpression(node)!);
       return;
     // Declarations
     case SyntaxKind.FunctionDeclaration:
@@ -270,12 +287,18 @@ function isTypeReferenceHeritageElement(node: Node): boolean {
 
 function checkTypeNodeWorker(c: Checker, node: Node): void {
   switch (node.kind) {
+    case SyntaxKind.TypePredicate:
+      checkTypePredicate(c, node as TypePredicateNode);
+      return;
     case SyntaxKind.MethodSignature:
     case SyntaxKind.CallSignature:
-    case SyntaxKind.ConstructSignature:
+    case SyntaxKind.ConstructSignature: {
       checkTypeParameters(c, getTypeParameters(node));
       checkSignatureMember(c, node);
+      const name = getName(node);
+      if (name !== undefined && name.kind === SyntaxKind.ComputedPropertyName) checkComputedPropertyName(c, name);
       break;
+    }
     case SyntaxKind.FunctionType:
     case SyntaxKind.ConstructorType:
       checkTypeParameters(c, getTypeParameters(node));
@@ -284,6 +307,12 @@ function checkTypeNodeWorker(c: Checker, node: Node): void {
       getTypeFromTypeNode(c, node);
       checkTypeArgumentConstraintsOfReference(c, node);
       break;
+    case SyntaxKind.IndexedAccessType:
+      checkIndexedAccessIndexType(c, getTypeFromTypeNode(c, node), node);
+      break;
+    case SyntaxKind.TupleType:
+      checkTupleRestElements(c, node as TupleTypeNode);
+      getTypeFromTypeNode(c, node);
     case SyntaxKind.ExpressionWithTypeArguments:
       // Implemented types and interface base types are type references; class base types are
       // checked with the base constructor's type parameters.
@@ -294,11 +323,10 @@ function checkTypeNodeWorker(c: Checker, node: Node): void {
       break;
     case SyntaxKind.TypeQuery:
     case SyntaxKind.ImportType:
-    case SyntaxKind.IndexedAccessType:
     case SyntaxKind.TypeOperator:
     case SyntaxKind.ConditionalType:
-    case SyntaxKind.TupleType:
     case SyntaxKind.LiteralType:
+    case SyntaxKind.ThisType:
       getTypeFromTypeNode(c, node);
       break;
   }
@@ -338,6 +366,117 @@ function checkMappedType(c: Checker, node: MappedTypeNode): void {
     );
 }
 
+function checkTypePredicate(c: Checker, node: TypePredicateNode): void {
+  const parent = getTypePredicateParent(node);
+  if (parent === undefined) {
+    c.error(node, Diagnostics.A_type_predicate_is_only_allowed_in_return_type_position_for_functions_and_methods);
+    return;
+  }
+  const signature = getSignatureFromDeclaration(c, parent);
+  const typePredicate = getTypePredicateOfSignature(c, signature);
+  if (typePredicate === undefined) return;
+  checkTypeNodeIfPresent(c, node.type);
+  if (typePredicate.kind === TypePredicateKind.This || typePredicate.kind === TypePredicateKind.AssertsThis) return;
+  const parameterName = node.parameterName;
+  if (typePredicate.parameterIndex >= 0) {
+    if (signature.hasRestParameter() && typePredicate.parameterIndex === signature.parameters.length - 1)
+      c.error(parameterName, Diagnostics.A_type_predicate_cannot_reference_a_rest_parameter);
+    else if (typePredicate.type !== undefined) {
+      const diagnostics: Diagnostic[] = [];
+      if (
+        !checkTypeRelatedTo(
+          c,
+          typePredicate.type,
+          getTypeOfSymbol(c, signature.parameters[typePredicate.parameterIndex]),
+          c.assignableRelation,
+          node.type,
+          undefined,
+          diagnostics,
+        )
+      )
+        c.addDiagnostic(
+          chainDiagnostic(
+            diagnostics[0],
+            Diagnostics.A_type_predicate_s_type_must_be_assignable_to_its_parameter_s_type,
+          ),
+        );
+    }
+    return;
+  }
+  for (const param of getParameters(parent)!.nodes) {
+    const name = getName(param)!;
+    if (
+      (name.kind === SyntaxKind.ObjectBindingPattern || name.kind === SyntaxKind.ArrayBindingPattern) &&
+      checkIfTypePredicateVariableIsDeclaredInBindingPattern(c, name, parameterName, typePredicate.parameterName)
+    )
+      return;
+  }
+  c.error(parameterName, Diagnostics.Cannot_find_parameter_0, typePredicate.parameterName);
+}
+
+/** The signature whose return type is the type predicate, if it is in a valid position. */
+function getTypePredicateParent(node: Node): Node | undefined {
+  const parent = node.parent!;
+  switch (parent.kind) {
+    case SyntaxKind.ArrowFunction:
+    case SyntaxKind.CallSignature:
+    case SyntaxKind.FunctionDeclaration:
+    case SyntaxKind.FunctionExpression:
+    case SyntaxKind.FunctionType:
+    case SyntaxKind.MethodDeclaration:
+    case SyntaxKind.MethodSignature:
+      if (getType(parent) === node) return parent;
+  }
+  return undefined;
+}
+
+function checkIfTypePredicateVariableIsDeclaredInBindingPattern(
+  c: Checker,
+  pattern: Node,
+  predicateVariableNode: Node,
+  predicateVariableName: string,
+): boolean {
+  for (const element of getElements(pattern)!.nodes) {
+    const name = getName(element);
+    if (name === undefined) continue;
+    if (name.kind === SyntaxKind.Identifier && getText(name) === predicateVariableName) {
+      c.error(
+        predicateVariableNode,
+        Diagnostics.A_type_predicate_cannot_reference_element_0_in_a_binding_pattern,
+        predicateVariableName,
+      );
+      return true;
+    }
+    if (
+      (name.kind === SyntaxKind.ArrayBindingPattern || name.kind === SyntaxKind.ObjectBindingPattern) &&
+      checkIfTypePredicateVariableIsDeclaredInBindingPattern(c, name, predicateVariableNode, predicateVariableName)
+    )
+      return true;
+  }
+  return false;
+}
+
+/** Checks an accessor of a type literal or interface. */
+function checkTypeMemberAccessor(c: Checker, node: Node): void {
+  const name = getName(node);
+  if (name !== undefined && name.kind === SyntaxKind.ComputedPropertyName) checkComputedPropertyName(c, name);
+  const symbol = getSymbolOfDeclaration(c, node);
+  if (symbol !== undefined) getTypeOfSymbol(c, symbol);
+  checkFunctionLikeBody(c, node);
+  checkAccessorDeclaration(c, node);
+}
+
+/** Variadic tuple elements must be array-like. */
+function checkTupleRestElements(c: Checker, node: TupleTypeNode): void {
+  for (const e of node.elements.nodes) {
+    if ((getTupleElementFlags(c, e) & ElementFlags.Variadic) === 0) continue;
+    if (!isArrayLikeType(c, getTypeFromTypeNode(c, getType(e)!))) {
+      c.error(e, Diagnostics.A_rest_element_type_must_be_an_array_type);
+      return;
+    }
+  }
+}
+
 /** Visits the children of a type node; owned by the checker to avoid per-node allocation. */
 export class TypeNodeVisitor extends NodeVisitor {
   readonly c: Checker;
@@ -365,6 +504,10 @@ export class TypeNodeVisitor extends NodeVisitor {
       case SyntaxKind.PropertySignature:
         checkVariableLikeDeclaration(this.c, node);
         return false;
+      case SyntaxKind.GetAccessor:
+      case SyntaxKind.SetAccessor:
+        checkTypeMemberAccessor(this.c, node);
+        return false;
       case SyntaxKind.IndexSignature:
         node.forEachChild(this);
         return false;
@@ -372,6 +515,10 @@ export class TypeNodeVisitor extends NodeVisitor {
         // Lists of signatures are checked as a whole; `infer` and mapped type parameters alone.
         if (node.parent!.kind === SyntaxKind.InferType || node.parent!.kind === SyntaxKind.MappedType)
           checkTypeParameter(this.c, node);
+        if (node.parent!.kind === SyntaxKind.InferType) {
+          const symbol = getSymbolOfDeclaration(this.c, node);
+          if (symbol !== undefined) checkInferTypeParameterDeclarations(this.c, symbol);
+        }
         return false;
     }
     if (node.kind >= SyntaxKind.FirstTypeNode && node.kind <= SyntaxKind.LastTypeNode) checkTypeNode(this.c, node);
@@ -430,6 +577,9 @@ function checkDeferredNode(c: Checker, node: Node): void {
     case SyntaxKind.AsExpression:
     case SyntaxKind.TypeAssertionExpression:
       checkAssertionDeferred(c, node);
+      break;
+    case SyntaxKind.TypeParameter:
+      checkTypeParameterDeferred(c, node);
       break;
     case SyntaxKind.JsxElement:
     case SyntaxKind.JsxSelfClosingElement:

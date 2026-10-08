@@ -116,7 +116,7 @@ import {
 import { findUseStrictPrologue } from './binder.js';
 import { type Checker, createDiagnosticForNode } from './checker.js';
 import { ElementFlags, type Type, TypeFlags, type UnionType } from './checker-types.js';
-import { checkComputedPropertyName, checkExpressionCached } from './checker-expressions.js';
+import { checkComputedPropertyName, checkExpressionCached, getTypeOfExpression } from './checker-expressions.js';
 import { isArrayLikeType } from './checker-members.js';
 import { getNullableType } from './checker-symbol-types.js';
 import { getTupleElementFlags, getTypeFromTypeNode } from './checker-type-nodes.js';
@@ -3324,7 +3324,7 @@ function getEffectivePropertyNameForPropertyNameNode(c: Checker, name: Node): st
           break;
         }
       }
-      const t = checkExpressionCached(c, expression);
+      const t = getTypeOfExpression(c, expression);
       return (t.flags & (TypeFlags.UniqueESSymbol | TypeFlags.StringLiteral | TypeFlags.NumberLiteral)) !== 0
         ? getPropertyNameFromType(t)
         : undefined;

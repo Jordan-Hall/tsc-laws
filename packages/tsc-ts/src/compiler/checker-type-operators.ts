@@ -1090,17 +1090,22 @@ function getSimplifiedIndexedAccessType(c: Checker, t: IndexedAccessType, writin
   const objectType = getSimplifiedType(c, t.objectType, writing);
   const indexType = getSimplifiedType(c, t.indexType, writing);
   let result: Type = t;
-  // T[A | B] -> T[A] | T[B] (reading), T[A] & T[B] (writing).
-  if ((indexType.flags & TypeFlags.Union) !== 0 && !isGenericMappedType(c, objectType)) {
+  if ((indexType.flags & TypeFlags.Union) !== 0) {
+    // T[A | B] -> T[A] | T[B] (reading), T[A] & T[B] (writing).
     const types = typesOf(indexType).map((u) => getSimplifiedType(c, getIndexedAccessType(c, objectType, u), writing));
     result = writing ? getIntersectionType(c, types) : getUnionType(c, types);
   } else if (
+    // Inner distributions only once the index can't be instantiated to distribute again:
+    // (T | U)[K] -> T[K] | U[K] (reading), T[K] & U[K] (writing); (T & U)[K] -> T[K] & U[K].
     (indexType.flags & TypeFlags.Instantiable) === 0 &&
-    (objectType.flags & TypeFlags.Union) !== 0 &&
-    !writing
+    ((objectType.flags & TypeFlags.Union) !== 0 ||
+      ((objectType.flags & TypeFlags.Intersection) !== 0 && !shouldDeferIndexType(c, objectType, IndexFlags.None)))
   ) {
     const types = typesOf(objectType).map((u) => getSimplifiedType(c, getIndexedAccessType(c, u, indexType), writing));
-    result = getUnionType(c, types);
+    result =
+      (objectType.flags & TypeFlags.Intersection) !== 0 || writing
+        ? getIntersectionType(c, types)
+        : getUnionType(c, types);
   } else if (isGenericTupleType(objectType) && (indexType.flags & TypeFlags.NumberLike) !== 0) {
     const elementType = getElementTypeOfSliceOfTupleType(
       c,
@@ -1114,7 +1119,7 @@ function getSimplifiedIndexedAccessType(c: Checker, t: IndexedAccessType, writin
   } else if (isGenericMappedType(c, objectType)) {
     // { [P in K]: E }[X] -> E with X for P, unless the mapped type remaps its keys.
     if (getMappedTypeNameTypeKind(c, objectType as MappedType) !== MappedTypeNameTypeKind.Remapping)
-      result = mapType(c, substituteIndexedMappedType(c, objectType as MappedType, indexType), (u) =>
+      result = mapType(c, substituteIndexedMappedType(c, objectType as MappedType, t.indexType), (u) =>
         getSimplifiedType(c, u, writing),
       );
   }

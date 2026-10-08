@@ -9,6 +9,8 @@ import {
   getInitializer,
   getPostfixToken,
   getText,
+  getName,
+  getMembers,
 } from './ast.js';
 import {
   declarationNameToString,
@@ -28,6 +30,9 @@ import { type Checker, createDiagnosticForNode } from './checker.js';
 import { type Diagnostic, Diagnostics } from './diagnostics.js';
 import { ScriptTarget } from './options.js';
 import { type Symbol, SymbolFlags } from './symbol.js';
+import { getSymbolOfDeclaration } from './checker-symbols.js';
+import { getTypeOfSymbol } from './checker-symbol-types.js';
+import { isPropertyInitializedInStaticBlocks } from './checker-classes.js';
 import { SyntaxKind } from './syntax-kind.js';
 import { getExportSymbolOfValueSymbolIfExported } from './checker-symbols.js';
 import { getBaseTypes, getDeclaredTypeOfSymbol } from './checker-declared-types.js';
@@ -78,7 +83,7 @@ export function checkPropertyNotUsedBeforeDeclaration(c: Checker, prop: Symbol, 
   const declarationName = getText(right);
   let diagnostic: Diagnostic | undefined = undefined;
   if (
-    isInPropertyInitializerOrClassStaticBlock(node) &&
+    isInPropertyInitializerOrClassStaticBlock(node, false) &&
     !isOptionalPropertyDeclaration(valueDeclaration) &&
     !(isAccessExpression(node) && isAccessExpression(getExpression(node)!)) &&
     !isBlockScopedNameDeclaredBeforeUse(c, valueDeclaration, right) &&
@@ -99,7 +104,7 @@ export function checkPropertyNotUsedBeforeDeclaration(c: Checker, prop: Symbol, 
     );
 }
 
-function isInPropertyInitializerOrClassStaticBlock(node: Node): boolean {
+export function isInPropertyInitializerOrClassStaticBlock(node: Node, ignoreArrowFunctions: boolean): boolean {
   for (let current: Node | undefined = node; current !== undefined; current = current.parent) {
     switch (current.kind) {
       case SyntaxKind.PropertyDeclaration:
@@ -107,8 +112,10 @@ function isInPropertyInitializerOrClassStaticBlock(node: Node): boolean {
         return true;
       case SyntaxKind.TypeQuery:
       case SyntaxKind.JsxClosingElement:
-      case SyntaxKind.ArrowFunction:
         return false;
+      case SyntaxKind.ArrowFunction:
+        if (!ignoreArrowFunctions) return false;
+        break;
       case SyntaxKind.Block: {
         const parent = current.parent!;
         if (isFunctionLike(parent) && parent.kind !== SyntaxKind.ArrowFunction) return false;
@@ -183,7 +190,7 @@ export function isBlockScopedNameDeclaredBeforeUse(c: Checker, declaration: Node
       return !(
         getEmitStandardClassFields(c) &&
         getContainingClass(declaration) === getContainingClass(usage) &&
-        isUsedInFunctionOrInstanceProperty(usage, declaration, declContainer)
+        isUsedInFunctionOrInstanceProperty(c, usage, declaration, declContainer)
       );
     return true;
   }
@@ -191,7 +198,7 @@ export function isBlockScopedNameDeclaredBeforeUse(c: Checker, declaration: Node
   // functions, and instance property initializers referencing other members.
   const parent = usage.parent!;
   if (parent.kind === SyntaxKind.ExportSpecifier || isExportEquals(parent) || isExportEquals(usage)) return true;
-  if (isUsedInFunctionOrInstanceProperty(usage, declaration, declContainer)) {
+  if (isUsedInFunctionOrInstanceProperty(c, usage, declaration, declContainer)) {
     if (
       getEmitStandardClassFields(c) &&
       getContainingClass(declaration) !== undefined &&
@@ -296,7 +303,12 @@ function getEnclosingBlockScopeContainer(node: Node): Node | undefined {
   return undefined;
 }
 
-function isUsedInFunctionOrInstanceProperty(usage: Node, declaration: Node, declContainer: Node | undefined): boolean {
+function isUsedInFunctionOrInstanceProperty(
+  c: Checker,
+  usage: Node,
+  declaration: Node,
+  declContainer: Node | undefined,
+): boolean {
   for (let current: Node | undefined = usage; current !== undefined; current = current.parent) {
     if (current === declContainer) return false;
     if (isFunctionLike(current)) {
@@ -311,6 +323,31 @@ function isUsedInFunctionOrInstanceProperty(usage: Node, declaration: Node, decl
     if (parent !== undefined && parent.kind === SyntaxKind.PropertyDeclaration && getInitializer(parent) === current) {
       if (isStatic(parent)) {
         if (declaration.kind === SyntaxKind.MethodDeclaration) return true;
+        // A static property assigned in a static block before the initializer.
+        if (
+          declaration.kind === SyntaxKind.PropertyDeclaration &&
+          getContainingClass(usage) === getContainingClass(declaration)
+        ) {
+          const propName = getName(declaration)!;
+          if (propName.kind === SyntaxKind.Identifier || propName.kind === SyntaxKind.PrivateIdentifier) {
+            const symbol = getSymbolOfDeclaration(c, declaration);
+            const staticBlocks = getMembers(declaration.parent!)!.nodes.filter(
+              (m) => m.kind === SyntaxKind.ClassStaticBlockDeclaration,
+            );
+            if (
+              symbol !== undefined &&
+              isPropertyInitializedInStaticBlocks(
+                c,
+                propName,
+                getTypeOfSymbol(c, symbol),
+                staticBlocks,
+                declaration.parent!.pos,
+                current.pos,
+              )
+            )
+              return true;
+          }
+        }
       } else {
         const isDeclarationInstanceProperty =
           declaration.kind === SyntaxKind.PropertyDeclaration && !isStatic(declaration);
@@ -321,9 +358,9 @@ function isUsedInFunctionOrInstanceProperty(usage: Node, declaration: Node, decl
     if (parent !== undefined && parent.kind === SyntaxKind.Decorator && getExpression(parent) === current) {
       const decorated = parent.parent!;
       if (decorated.kind === SyntaxKind.Parameter)
-        return isUsedInFunctionOrInstanceProperty(decorated.parent!.parent!, declaration, declContainer);
+        return isUsedInFunctionOrInstanceProperty(c, decorated.parent!.parent!, declaration, declContainer);
       if (decorated.kind === SyntaxKind.MethodDeclaration)
-        return isUsedInFunctionOrInstanceProperty(decorated.parent!, declaration, declContainer);
+        return isUsedInFunctionOrInstanceProperty(c, decorated.parent!, declaration, declContainer);
     }
   }
   return false;

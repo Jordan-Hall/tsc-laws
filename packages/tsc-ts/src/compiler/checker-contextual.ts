@@ -19,6 +19,7 @@ import {
   getImmediatelyInvokedFunctionExpression,
   isFunctionExpressionOrArrowFunction,
   isObjectLiteralMethod,
+  isStatic,
 } from './binder-utilities.js';
 import { SyntaxKind } from './syntax-kind.js';
 import type { Checker } from './checker.js';
@@ -74,6 +75,7 @@ import {
   findResolutionCycleStartIndex,
   getCachedGlobalType,
   getGlobalType,
+  getSymbolOfDeclaration,
 } from './checker-symbols.js';
 import { isImportCall } from './ast-utilities.js';
 import { CompositeSignature, Ternary, type TypeReference } from './checker-types.js';
@@ -119,6 +121,7 @@ import {
 } from './checker-signatures.js';
 import {
   checkExpressionCached,
+  getTypeOfExpression,
   checkComputedPropertyName,
   getPropertyNameOfObjectLiteralElement,
   isConstTypeReference,
@@ -410,7 +413,7 @@ function getContextualTypeForInitializerExpression(
   declaration: Node,
   contextFlags: ContextFlags,
 ): Type | undefined {
-  const result = getContextualTypeForInitializer(c, declaration);
+  const result = getContextualTypeForInitializer(c, declaration, contextFlags);
   if (result !== undefined) return result;
   // A binding pattern implies a type, such as a tuple for an array pattern.
   const name = getName(declaration);
@@ -424,11 +427,22 @@ function getContextualTypeForInitializerExpression(
   return undefined;
 }
 
-function getContextualTypeForInitializer(c: Checker, declaration: Node): Type | undefined {
+function getContextualTypeForInitializer(c: Checker, declaration: Node, contextFlags: ContextFlags): Type | undefined {
   const typeNode = getType(declaration);
   if (typeNode !== undefined) return getTypeFromTypeNode(c, typeNode);
   if (declaration.kind === SyntaxKind.Parameter) return getContextuallyTypedParameterTypeOrUndefined(c, declaration);
   if (declaration.kind === SyntaxKind.BindingElement) return getContextualTypeForBindingElement(c, declaration);
+  // A static property of a class expression takes the type of the same property of the class's contextual type.
+  if (
+    declaration.kind === SyntaxKind.PropertyDeclaration &&
+    isStatic(declaration) &&
+    declaration.parent!.kind === SyntaxKind.ClassExpression
+  ) {
+    const parentType = getContextualTypeEx(c, declaration.parent!, contextFlags);
+    const symbol = getSymbolOfDeclaration(c, declaration);
+    if (parentType !== undefined && symbol !== undefined)
+      return getTypeOfPropertyOfContextualType(c, parentType, symbol.name);
+  }
   return undefined;
 }
 
@@ -444,7 +458,7 @@ function getContextualTypeForBindingElement(c: Checker, declaration: Node): Type
   )
     return undefined;
   const parent = declaration.parent!.parent!;
-  let parentType = getContextualTypeForInitializer(c, parent);
+  let parentType = getContextualTypeForInitializer(c, parent, ContextFlags.None);
   if (parentType === undefined && parent.kind !== SyntaxKind.BindingElement && getInitializer(parent) !== undefined)
     parentType = checkDeclarationInitializer(c, parent);
   if (parentType === undefined) return undefined;
@@ -893,7 +907,7 @@ function getContextualTypeForBinaryOperand(
       const t = getContextualTypeEx(c, binary, contextFlags);
       // A contextual type implied by a binding pattern gives way to the left operand's type.
       return node === binary.right && (t === undefined || c.patternForType.has(t))
-        ? checkExpressionCached(c, binary.left)
+        ? getTypeOfExpression(c, binary.left)
         : t;
     }
     case SyntaxKind.AmpersandAmpersandToken:

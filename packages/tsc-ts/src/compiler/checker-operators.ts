@@ -18,6 +18,7 @@ import {
 import {
   getContainingClass,
   getSourceFileOfNode,
+  getSourceTextOfNode,
   isAccessExpression,
   isEntityNameExpression,
   skipParentheses,
@@ -29,7 +30,25 @@ import { tokenToString } from './scanner.js';
 import { type Symbol, SymbolFlags, internalSymbolNamePrefix } from './symbol.js';
 import { SyntaxKind } from './syntax-kind.js';
 import { type Checker, createDiagnosticForNode } from './checker.js';
-import { CheckMode, type LiteralType, SignatureKind, type Type, TypeFlags, TypeFormatFlags } from './checker-types.js';
+import {
+  CheckMode,
+  type LiteralType,
+  type Signature,
+  SignatureFlags,
+  SignatureKind,
+  type Type,
+  TypeFlags,
+  TypeFormatFlags,
+} from './checker-types.js';
+import {
+  getResolvedSignature,
+  isUntypedFunctionCall,
+  resolveCall,
+  resolveErrorCall,
+  resolveUntypedCall,
+} from './checker-calls.js';
+import { getReturnTypeOfSignature } from './checker-signatures.js';
+import { getApparentType } from './checker-members.js';
 import {
   filterType,
   getBaseTypeOfLiteralType,
@@ -70,12 +89,14 @@ import {
   checkExpressionCached,
   checkExpressionEx,
   checkNonNullType,
+  checkPropertyAccessExpression,
   checkTypeAssignableToAndOptionallyElaborate,
   entityNameToString,
   getResolvedSymbol,
   parseBigIntText,
 } from './checker-expressions.js';
 import { checkDestructuringAssignment } from './checker-destructuring.js';
+import { EvaluatedKind, evaluate } from './checker-evaluator.js';
 import { reportNonexistentProperty } from './checker-property-access.js';
 import { isUndefinedAssignmentToCommonJSExport } from './checker-javascript.js';
 
@@ -328,11 +349,7 @@ export function checkBinaryExpression(c: Checker, node: BinaryExpression, checkM
       checkMode,
       right.kind === SyntaxKind.ThisKeyword,
     );
-  // Assignment targets and logical operands are cached: contextual typing of the right side reads them too.
-  const leftType =
-    isAssignmentOperator(operator) || isLogicalOrCoalescingOperator(operator)
-      ? checkExpressionCached(c, left)
-      : checkExpressionEx(c, left, checkMode);
+  const leftType = checkExpressionEx(c, left, checkMode);
   const rightType = checkExpressionEx(c, right, checkMode);
   if (isLogicalOrCoalescingOperator(operator)) {
     let parent = node.parent!;
@@ -453,7 +470,10 @@ function checkBinaryLikeExpressionWorker(
         reportOperatorError(c, leftType, operator, rightType, errorNode, RelatedCheck.BothBigIntLike);
         resultType = c.errorType;
       }
-      if (leftOk && rightOk) checkAssignmentOperator(c, left, operator, right, leftType, resultType);
+      if (leftOk && rightOk) {
+        checkAssignmentOperator(c, left, operator, right, leftType, resultType);
+        if (isShiftOperator(operator)) checkShiftAmount(c, left, operator, right, errorNode);
+      }
       return resultType;
     }
     case SyntaxKind.PlusToken:
@@ -531,7 +551,7 @@ function checkBinaryLikeExpressionWorker(
       }
       return c.booleanType;
     case SyntaxKind.InstanceOfKeyword:
-      return checkInstanceOfExpression(c, left, right, leftType, rightType);
+      return checkInstanceOfExpression(c, left, right, leftType, rightType, checkMode);
     case SyntaxKind.InKeyword:
       return checkInExpression(c, left, right, leftType, rightType);
     case SyntaxKind.AmpersandAmpersandToken:
@@ -742,6 +762,14 @@ function checkAssignmentOperator(
 ): void {
   if (!isAssignmentOperator(operator)) return;
   if (isUndefinedAssignmentToCommonJSExport(c, left, rightType)) return;
+  // A getter's type can be a subtype of its setter's, so compound assignments check against the setter.
+  let targetType = leftType;
+  if (
+    operator >= SyntaxKind.FirstCompoundAssignment &&
+    operator <= SyntaxKind.LastCompoundAssignment &&
+    left.kind === SyntaxKind.PropertyAccessExpression
+  )
+    targetType = checkPropertyAccessExpression(c, left as PropertyAccessExpression, true);
   // Assignability is only checked when the target is a reference, to avoid cascading errors.
   if (
     checkReferenceExpression(
@@ -751,7 +779,7 @@ function checkAssignmentOperator(
       Diagnostics.The_left_hand_side_of_an_assignment_expression_may_not_be_an_optional_property_access,
     )
   )
-    checkTypeAssignableToAndOptionallyElaborate(c, rightType, leftType, left, right);
+    checkTypeAssignableToAndOptionallyElaborate(c, rightType, targetType, left, right);
 }
 
 function isLiteralExpressionOfObject(node: Node): boolean {
@@ -761,8 +789,6 @@ function isLiteralExpressionOfObject(node: Node): boolean {
     case SyntaxKind.RegularExpressionLiteral:
     case SyntaxKind.ClassExpression:
     case SyntaxKind.FunctionExpression:
-    case SyntaxKind.ArrowFunction:
-    case SyntaxKind.NewExpression:
       return true;
   }
   return false;
@@ -796,7 +822,44 @@ function isGlobalNaN(c: Checker, expr: Node): boolean {
   return globalNaNSymbol !== undefined && getResolvedSymbol(c, expr) === getMergedSymbol(c, globalNaNSymbol);
 }
 
-function checkInstanceOfExpression(c: Checker, left: Node, right: Node, leftType: Type, rightType: Type): Type {
+function isShiftOperator(operator: SyntaxKind): boolean {
+  switch (operator) {
+    case SyntaxKind.LessThanLessThanToken:
+    case SyntaxKind.LessThanLessThanEqualsToken:
+    case SyntaxKind.GreaterThanGreaterThanToken:
+    case SyntaxKind.GreaterThanGreaterThanEqualsToken:
+    case SyntaxKind.GreaterThanGreaterThanGreaterThanToken:
+    case SyntaxKind.GreaterThanGreaterThanGreaterThanEqualsToken:
+      return true;
+  }
+  return false;
+}
+
+/** Shifts by 32 or more wrap around; that's an error in enum members and a suggestion elsewhere. */
+function checkShiftAmount(c: Checker, left: Node, operator: SyntaxKind, right: Node, errorNode: Node): void {
+  const result = evaluate(c, right, right);
+  if (result.kind !== EvaluatedKind.Number || Math.abs(result.numberValue) < 32) return;
+  let container = right.parent!.parent!;
+  while (container.kind === SyntaxKind.ParenthesizedExpression) container = container.parent!;
+  const file = getSourceFileOfNode(left);
+  c.addErrorOrSuggestion(
+    container.kind === SyntaxKind.EnumMember,
+    createDiagnosticForNode(errorNode, Diagnostics.This_operation_can_be_simplified_This_shift_is_identical_to_0_1_2, [
+      getSourceTextOfNode(file, left),
+      tokenToString(operator),
+      String(result.numberValue % 32),
+    ]),
+  );
+}
+
+function checkInstanceOfExpression(
+  c: Checker,
+  left: Node,
+  right: Node,
+  leftType: Type,
+  rightType: Type,
+  checkMode: CheckMode,
+): Type {
   if (leftType === c.silentNeverType || rightType === c.silentNeverType) return c.silentNeverType;
   // Unknown left operands already reported an error.
   if (!isTypeAny(leftType) && allTypesAssignableToKind(c, leftType, TypeFlags.Primitive))
@@ -804,17 +867,56 @@ function checkInstanceOfExpression(c: Checker, left: Node, right: Node, leftType
       left,
       Diagnostics.The_left_hand_side_of_an_instanceof_expression_must_be_of_type_any_an_object_type_or_a_type_parameter,
     );
-  if (
-    !isTypeAny(rightType) &&
-    getSymbolHasInstanceMethodOfObjectType(c, rightType) === undefined &&
-    !typeHasCallOrConstructSignatures(c, rightType) &&
-    !isTypeSubtypeOf(c, rightType, c.globalFunctionType)
-  )
-    c.error(
-      right,
-      Diagnostics.The_right_hand_side_of_an_instanceof_expression_must_be_either_of_type_any_a_class_function_or_other_type_assignable_to_the_Function_interface_type_or_an_object_type_with_a_Symbol_hasInstance_method,
-    );
+  // `x instanceof C` is checked as the call `C[Symbol.hasInstance](x)`.
+  const signature = getResolvedSignature(c, left.parent!, checkMode);
+  if (signature === c.resolvingSignature) return c.silentNeverType;
+  checkTypeAssignableTo(
+    c,
+    getReturnTypeOfSignature(c, signature),
+    c.booleanType,
+    right,
+    Diagnostics.An_object_s_Symbol_hasInstance_method_must_return_a_boolean_value_for_it_to_be_used_on_the_right_hand_side_of_an_instanceof_expression,
+  );
   return c.booleanType;
+}
+
+/** The signature of `right[Symbol.hasInstance]` that `left instanceof right` calls, if any. */
+export function resolveInstanceofExpression(c: Checker, node: BinaryExpression, checkMode: CheckMode): Signature {
+  const right = node.right;
+  const rightType = checkExpression(c, right);
+  if (!isTypeAny(rightType)) {
+    const hasInstanceMethodType = getSymbolHasInstanceMethodOfObjectType(c, rightType);
+    if (hasInstanceMethodType !== undefined) {
+      const apparentType = getApparentType(c, hasInstanceMethodType);
+      if (isErrorType(c, apparentType)) return resolveErrorCall(c, node);
+      const callSignatures = getSignaturesOfType(c, apparentType, SignatureKind.Call);
+      const constructSignatures = getSignaturesOfType(c, apparentType, SignatureKind.Construct);
+      if (
+        isUntypedFunctionCall(c, hasInstanceMethodType, apparentType, callSignatures.length, constructSignatures.length)
+      )
+        return resolveUntypedCall(c, node);
+      // Argument errors explain how `left instanceof right` became `right[Symbol.hasInstance](left)`.
+      if (callSignatures.length !== 0)
+        return resolveCall(
+          c,
+          node,
+          callSignatures,
+          checkMode,
+          SignatureFlags.None,
+          Diagnostics.The_left_hand_side_of_an_instanceof_expression_must_be_assignable_to_the_first_argument_of_the_right_hand_side_s_Symbol_hasInstance_method,
+        );
+    } else if (
+      !typeHasCallOrConstructSignatures(c, rightType) &&
+      !isTypeSubtypeOf(c, rightType, c.globalFunctionType)
+    ) {
+      c.error(
+        right,
+        Diagnostics.The_right_hand_side_of_an_instanceof_expression_must_be_either_of_type_any_a_class_function_or_other_type_assignable_to_the_Function_interface_type_or_an_object_type_with_a_Symbol_hasInstance_method,
+      );
+      return resolveErrorCall(c, node);
+    }
+  }
+  return c.anySignature;
 }
 
 function typeHasCallOrConstructSignatures(c: Checker, t: Type): boolean {
@@ -824,7 +926,7 @@ function typeHasCallOrConstructSignatures(c: Checker, t: Type): boolean {
   );
 }
 
-function getSymbolHasInstanceMethodOfObjectType(c: Checker, t: Type): Type | undefined {
+export function getSymbolHasInstanceMethodOfObjectType(c: Checker, t: Type): Type | undefined {
   if (!allTypesAssignableToKind(c, t, TypeFlags.NonPrimitive)) return undefined;
   const prop = getPropertyOfType(c, t, getPropertyNameForKnownSymbolName(c, 'hasInstance'));
   if (prop === undefined) return undefined;

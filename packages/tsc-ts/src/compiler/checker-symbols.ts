@@ -20,6 +20,7 @@ import {
   HeritageClause,
   getProperties,
   getType,
+  getLocals,
 } from './ast.js';
 import { isAmbientModule, isGlobalScopeAugmentation, nodeIsMissing } from './ast-utilities.js';
 import { codePoints, levenshteinWithMax } from './spelling.js';
@@ -28,6 +29,7 @@ import { checkResolvedBlockScopedVariable } from './checker-declaration-order.js
 import {
   declarationNameToString,
   getNameOfDeclaration,
+  getRootDeclaration,
   getSourceFileOfNode,
   getSourceTextOfNode,
   getThisContainer,
@@ -120,9 +122,10 @@ export class CheckerNameResolver extends NameResolver {
     result: Symbol,
     meaning: SymbolFlags,
     _lastLocation: Node | undefined,
-    _associatedDeclarationForContainingInitializerOrBindingName: Node | undefined,
-    _withinDeferredContext: boolean,
+    associatedDeclarationForContainingInitializerOrBindingName: Node | undefined,
+    withinDeferredContext: boolean,
   ): void {
+    const c = this.checker;
     // Only names in value positions check block-scoped declaration order: a symbol may be both a
     // block-scoped variable and a namespace, as in `const foo: foo.bar`.
     if (
@@ -132,6 +135,36 @@ export class CheckerNameResolver extends NameResolver {
           (meaning & SymbolFlags.Value) === SymbolFlags.Value))
     )
       checkResolvedBlockScopedVariable(this.checker, result, location);
+    // A parameter initializer or binding name can't reference its own parameter or the ones after it.
+    const associated = associatedDeclarationForContainingInitializerOrBindingName;
+    if (
+      location !== undefined &&
+      associated !== undefined &&
+      !withinDeferredContext &&
+      (meaning & SymbolFlags.Value) === SymbolFlags.Value
+    ) {
+      const candidate = getMergedSymbol(c, getLateBoundSymbol(c, result));
+      const root = getRootDeclaration(associated);
+      const file = getSourceFileOfNode(associated);
+      if (candidate === getSymbolOfDeclaration(c, associated))
+        c.error(
+          location,
+          Diagnostics.Parameter_0_cannot_reference_itself,
+          declarationNameToString(file, getName(associated)),
+        );
+      else if (
+        candidate.valueDeclaration !== undefined &&
+        candidate.valueDeclaration.pos > associated.pos &&
+        getLocals(root.parent!) !== undefined &&
+        getSymbolOfMeaning(c, getLocals(root.parent!)!, candidate.name, meaning) === candidate
+      )
+        c.error(
+          location,
+          Diagnostics.Parameter_0_cannot_reference_identifier_1_declared_after_it,
+          declarationNameToString(file, getName(associated)),
+          declarationNameToString(file, location),
+        );
+    }
     if (location !== undefined && (meaning & SymbolFlags.Value) !== 0)
       checkTypeOnlyAliasUse(this.checker, location, result, result.name);
   }

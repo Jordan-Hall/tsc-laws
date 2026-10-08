@@ -31,8 +31,10 @@ import {
   isExpressionOfOptionalChainRoot,
   isOptionalChain,
   isOutermostOptionalChain,
+  isDottedName,
 } from './binder-utilities.js';
 import { Diagnostic, type DiagnosticMessage, Diagnostics, chainDiagnostic } from './diagnostics.js';
+import { resolveInstanceofExpression } from './checker-operators.js';
 import { skipTrivia } from './scanner.js';
 import { SyntaxKind } from './syntax-kind.js';
 import { InternalSymbolName, type Symbol, SymbolFlags } from './symbol.js';
@@ -117,7 +119,9 @@ import {
   hasEffectiveRestParameter,
   cloneSignature,
   tryGetTypeAtPosition,
+  getTypePredicateOfSignature,
 } from './checker-signatures.js';
+import { getEffectsSignature } from './checker-narrowing.js';
 import {
   addOptionalTypeMarker,
   getOptionalType,
@@ -130,6 +134,7 @@ import {
   checkExpression,
   checkExpressionCached,
   checkNonNullType,
+  checkNonNullTypeEx,
   checkTypeQueryExpression,
 } from './checker-expressions.js';
 import { IterationUse, checkIteratedTypeOrElementType } from './checker-iteration.js';
@@ -219,6 +224,21 @@ export function checkCallExpression(c: Checker, node: Node, checkMode: CheckMode
   // A call of the global `Symbol` in a const or readonly declaration is a fresh unique symbol.
   if ((returnType.flags & TypeFlags.ESSymbolLike) !== 0 && isSymbolOrSymbolForCall(c, call))
     return getESSymbolLikeTypeForNode(c, walkUpParenthesizedExpressions(node.parent!));
+  // An assertion call must name its target through explicitly typed declarations.
+  if (
+    call.questionDotToken === undefined &&
+    node.parent!.kind === SyntaxKind.ExpressionStatement &&
+    (returnType.flags & TypeFlags.Void) !== 0 &&
+    getTypePredicateOfSignature(c, signature) !== undefined
+  ) {
+    if (!isDottedName(callee))
+      c.error(callee, Diagnostics.Assertions_require_the_call_target_to_be_an_identifier_or_qualified_name);
+    else if (getEffectsSignature(c, node) === undefined)
+      c.error(
+        callee,
+        Diagnostics.Assertions_require_every_name_in_the_call_target_to_be_declared_with_an_explicit_type_annotation,
+      );
+  }
   return returnType;
 }
 
@@ -307,6 +327,8 @@ function resolveSignature(c: Checker, node: Node, checkMode: CheckMode): Signatu
       return resolveJsxOpeningLikeElement(c, node, checkMode);
     case SyntaxKind.Decorator:
       return resolveDecorator(c, node as Decorator, checkMode);
+    case SyntaxKind.BinaryExpression:
+      return resolveInstanceofExpression(c, node as BinaryExpression, checkMode);
   }
   return resolveUntypedCall(c, node);
 }
@@ -479,7 +501,7 @@ function resolveDecorator(c: Checker, node: Decorator, checkMode: CheckMode): Si
 }
 
 /** Whether a call is untyped: to `any`, or to a `Function` without signatures. */
-function isUntypedFunctionCall(
+export function isUntypedFunctionCall(
   c: Checker,
   funcType: Type,
   apparentFuncType: Type,
@@ -498,6 +520,14 @@ function isUntypedFunctionCall(
 }
 
 export function resolveUntypedCall(c: Checker, node: Node): Signature {
+  // Type arguments are checked even though untyped calls can't accept them.
+  if (
+    node.kind === SyntaxKind.CallExpression ||
+    node.kind === SyntaxKind.NewExpression ||
+    node.kind === SyntaxKind.TaggedTemplateExpression ||
+    isJsxOpeningLikeElement(node)
+  )
+    for (const t of getCallTypeArguments(node)) checkSourceElement(c, t);
   if (node.kind === SyntaxKind.TaggedTemplateExpression) {
     const template = (node as TaggedTemplateExpression).template;
     if (template.kind === SyntaxKind.TemplateExpression)
@@ -506,7 +536,7 @@ export function resolveUntypedCall(c: Checker, node: Node): Signature {
   return c.anySignature;
 }
 
-function resolveErrorCall(c: Checker, node: Node): Signature {
+export function resolveErrorCall(c: Checker, node: Node): Signature {
   resolveUntypedCall(c, node);
   return c.unknownSignature;
 }
@@ -587,7 +617,7 @@ function getInvocationErrorDetails(c: Checker, target: Node, apparentType: Type,
 }
 
 function checkNonNullTypeForCall(c: Checker, t: Type, node: Node): Type {
-  return checkNonNullType(c, t, node);
+  return checkNonNullTypeEx(c, t, node, true);
 }
 
 function skippedGenericFunction(c: Checker, node: Node, checkMode: CheckMode): void {
@@ -634,6 +664,7 @@ export class SyntheticExpression extends Node {
 }
 
 function getCallArgumentNodes(node: Node): Node[] {
+  if (node.kind === SyntaxKind.BinaryExpression) return [(node as BinaryExpression).left];
   if (node.kind === SyntaxKind.TaggedTemplateExpression) {
     const template = (node as TaggedTemplateExpression).template;
     const args: Node[] = [template];

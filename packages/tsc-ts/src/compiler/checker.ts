@@ -414,6 +414,9 @@ export class Checker {
   readonly flowNodePostSuper = new Map<FlowNode, boolean>();
   lastFlowNode: FlowNode | undefined = undefined;
   lastFlowNodeReachable = false;
+  /** Types from `getTypeOfExpression` that needed control flow analysis. */
+  readonly flowTypeCache = new Map<Node, Type>();
+  flowInvocationCount = 0;
   readonly assignmentMarker: AssignmentMarker;
   readonly primitiveTypeAliasSuggestions = new Map<string, Symbol>();
 

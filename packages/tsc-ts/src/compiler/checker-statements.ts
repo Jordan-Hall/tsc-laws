@@ -15,6 +15,7 @@ import {
   type WhileStatement,
   getExpression,
   getStatements,
+  getName,
 } from './ast.js';
 import { Diagnostics } from './diagnostics.js';
 import { SyntaxKind } from './syntax-kind.js';
@@ -39,16 +40,17 @@ import {
   checkTruthinessExpression,
   isTypeEqualityComparableTo,
 } from './checker-operators.js';
-import { checkTypeComparableTo } from './relations.js';
+import { checkTypeComparableTo, isTypeAssignableTo } from './relations.js';
 import { isReachableFlowNode } from './checker-narrowing.js';
-import { isTypeAssignableToKindEx as isTypeAssignableToKind } from './checker-type-operators.js';
+import { getIndexType, isTypeAssignableToKindEx as isTypeAssignableToKind } from './checker-type-operators.js';
+import { getExtractStringType } from './checker-symbol-types.js';
 import { checkSourceElement } from './checker-source-file.js';
 import { checkVariableDeclarationList, checkVariableLikeDeclaration } from './checker-declarations.js';
 import { checkReturnExpression, isUnwrappedReturnTypeUndefinedVoidOrAny } from './checker-functions.js';
 import { unwrapReturnType } from './checker-iteration.js';
-import { getFunctionFlags } from './checker-utilities.js';
+import { getFunctionFlags, isBindingPattern } from './checker-utilities.js';
 import { typeToString } from './type-printer.js';
-import { getNonNullableType } from './checker-flow.js';
+import { TypeFacts, getNonNullableType, hasTypeFacts } from './checker-flow.js';
 
 export function checkBlock(c: Checker, node: Node): void {
   for (const s of getStatements(node)!.nodes) checkSourceElement(c, s);
@@ -94,10 +96,34 @@ export function checkForStatement(c: Checker, node: Node): void {
 
 export function checkForInStatement(c: Checker, node: Node): void {
   const s = node as ForInOrOfStatement;
+  const expressionType = checkExpression(c, s.expression);
+  const rightType = hasTypeFacts(c, expressionType, TypeFacts.IsUndefinedOrNull)
+    ? getNonNullableType(c, expressionType)
+    : expressionType;
   if (s.initializer.kind === SyntaxKind.VariableDeclarationList) {
-    for (const d of (s.initializer as VariableDeclarationList).declarations.nodes) checkVariableLikeDeclaration(c, d);
-  } else checkExpression(c, s.initializer);
-  const rightType = getNonNullableType(c, checkExpression(c, s.expression));
+    const declarations = (s.initializer as VariableDeclarationList).declarations.nodes;
+    if (declarations.length !== 0 && isBindingPattern(getName(declarations[0])))
+      c.error(
+        getName(declarations[0])!,
+        Diagnostics.The_left_hand_side_of_a_for_in_statement_cannot_be_a_destructuring_pattern,
+      );
+    for (const d of declarations) checkVariableLikeDeclaration(c, d);
+  } else {
+    // The variable must be a reference that the keys of the object, as strings, are assignable to.
+    const varExpr = s.initializer;
+    const leftType = checkExpression(c, varExpr);
+    if (varExpr.kind === SyntaxKind.ArrayLiteralExpression || varExpr.kind === SyntaxKind.ObjectLiteralExpression)
+      c.error(varExpr, Diagnostics.The_left_hand_side_of_a_for_in_statement_cannot_be_a_destructuring_pattern);
+    else if (!isTypeAssignableTo(c, getIndexTypeOrString(c, rightType), leftType))
+      c.error(varExpr, Diagnostics.The_left_hand_side_of_a_for_in_statement_must_be_of_type_string_or_any);
+    else
+      checkReferenceExpression(
+        c,
+        varExpr,
+        Diagnostics.The_left_hand_side_of_a_for_in_statement_must_be_a_variable_or_a_property_access,
+        Diagnostics.The_left_hand_side_of_a_for_in_statement_may_not_be_an_optional_property_access,
+      );
+  }
   if (
     (rightType.flags & TypeFlags.Never) !== 0 ||
     !isTypeAssignableToKind(c, rightType, TypeFlags.NonPrimitive | TypeFlags.InstantiableNonPrimitive, false)
@@ -108,6 +134,11 @@ export function checkForInStatement(c: Checker, node: Node): void {
       typeToString(c, rightType),
     );
   checkSourceElement(c, s.statement);
+}
+
+function getIndexTypeOrString(c: Checker, t: Type): Type {
+  const indexType = getExtractStringType(c, getIndexType(c, t));
+  return (indexType.flags & TypeFlags.Never) !== 0 ? c.stringType : indexType;
 }
 
 export function checkForOfStatement(c: Checker, node: Node): void {
@@ -146,10 +177,7 @@ export function checkReturnStatement(c: Checker, node: Node): void {
   const s = node as ReturnStatement;
   const container = getContainingFunction(node);
   // Returns outside functions and in static blocks are grammar errors.
-  if (container === undefined) {
-    if (s.expression !== undefined) checkExpressionCached(c, s.expression);
-    return;
-  }
+  if (container === undefined) return;
   const signature = getSignatureFromDeclaration(c, container);
   const returnType = getReturnTypeOfSignature(c, signature);
   const functionFlags = getFunctionFlags(container);

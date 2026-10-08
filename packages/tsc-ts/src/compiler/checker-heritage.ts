@@ -58,6 +58,7 @@ import {
   isEntityNameExpression,
   isMixinConstructorType,
   isValidBaseType,
+  getDeclaredTypeOfTypeParameter,
 } from './checker-declared-types.js';
 import {
   getFullyQualifiedName,
@@ -89,7 +90,7 @@ import {
 } from './checker-members.js';
 import { getLiteralTypeFromProperty } from './checker-type-operators.js';
 import { getTypeFromTypeNode } from './checker-type-nodes.js';
-import { checkComputedPropertyName } from './checker-expressions.js';
+import { getTypeOfExpression } from './checker-expressions.js';
 import { hasDynamicName, hasLateBindableName, isBindingPattern } from './checker-utilities.js';
 import {
   checkTypeAssignableTo,
@@ -778,18 +779,45 @@ export function checkTypeParameterListsIdentical(c: Checker, symbol: Symbol): vo
   if (declarations.length <= 1) return;
   const t = getDeclaredTypeOfSymbol(c, symbol) as InterfaceType;
   if ((t.flags & TypeFlags.Object) === 0) return;
-  if (areTypeParametersIdentical(c, declarations, t.localTypeParameters())) return;
+  const lists: (readonly Node[])[] = [];
+  for (const d of declarations) {
+    const list = getTypeParameters(d);
+    lists.push(list !== undefined ? list.nodes : []);
+  }
+  if (areTypeParametersIdentical(c, lists, t.localTypeParameters())) return;
   const name = symbolToString(c, symbol);
   for (const d of declarations)
     c.error(getName(d), Diagnostics.All_declarations_of_0_must_have_identical_type_parameters, name);
 }
 
-function areTypeParametersIdentical(c: Checker, declarations: Node[], targetParameters: readonly Type[]): boolean {
+/** Reports the declarations of an `infer` type parameter declared more than once with different constraints. */
+export function checkInferTypeParameterDeclarations(c: Checker, symbol: Symbol): void {
+  if (symbol.declarations.length <= 1) return;
+  const links = c.symbolLinks(symbol);
+  if (links.typeParametersChecked) return;
+  links.typeParametersChecked = true;
+  const declarations = symbol.declarations.filter((d) => d.kind === SyntaxKind.TypeParameter);
+  if (
+    areTypeParametersIdentical(
+      c,
+      declarations.map((d) => [d]),
+      [getDeclaredTypeOfTypeParameter(c, symbol)],
+    )
+  )
+    return;
+  const name = symbolToString(c, symbol);
+  for (const d of declarations)
+    c.error(getName(d), Diagnostics.All_declarations_of_0_must_have_identical_constraints, name);
+}
+
+function areTypeParametersIdentical(
+  c: Checker,
+  lists: readonly (readonly Node[])[],
+  targetParameters: readonly Type[],
+): boolean {
   const maxTypeArgumentCount = targetParameters.length;
   const minTypeArgumentCount = getMinTypeArgumentCount(c, targetParameters);
-  for (const declaration of declarations) {
-    const list = getTypeParameters(declaration);
-    const sourceParameters = list !== undefined ? list.nodes : [];
+  for (const sourceParameters of lists) {
     if (sourceParameters.length < minTypeArgumentCount || sourceParameters.length > maxTypeArgumentCount) return false;
     for (let i = 0; i < sourceParameters.length; i++) {
       const source = sourceParameters[i] as TypeParameterDeclaration;
@@ -952,7 +980,7 @@ export function checkIndexConstraints(c: Checker, t: Type, symbol: Symbol, isSta
         c,
         t,
         memberSymbol,
-        checkComputedPropertyName(c, getName(member)!),
+        getTypeOfExpression(c, getExpression(getName(member)!)!),
         getNonMissingTypeOfSymbol(c, memberSymbol),
       );
     }

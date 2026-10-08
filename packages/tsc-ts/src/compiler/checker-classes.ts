@@ -80,7 +80,7 @@ import {
   checkExportsOnMergedDeclarations,
 } from './checker-declarations.js';
 import { checkFunctionLikeBody } from './checker-functions.js';
-import { checkExpression } from './checker-expressions.js';
+import { checkComputedPropertyName } from './checker-expressions.js';
 import { checkFunctionOrConstructorSymbol, checkFunctionOrMethodSymbols } from './checker-overloads.js';
 import {
   checkClassHeritage,
@@ -171,7 +171,7 @@ function checkClassMember(c: Checker, member: Node): void {
     case SyntaxKind.SetAccessor: {
       checkDecorators(c, member);
       const name = getName(member);
-      if (name !== undefined && name.kind === SyntaxKind.ComputedPropertyName) checkExpression(c, getExpression(name)!);
+      if (name !== undefined && name.kind === SyntaxKind.ComputedPropertyName) checkComputedPropertyName(c, name);
       const symbol = getSymbolOfDeclaration(c, member);
       if (symbol !== undefined && member.kind !== SyntaxKind.Constructor) getTypeOfSymbol(c, symbol);
       checkFunctionLikeBody(c, member);
@@ -420,6 +420,29 @@ export function isPropertyInitializedInConstructor(
   reference.parent = constructor;
   const flowType = getFlowTypeOfReference(c, reference, propType, getOptionalType(c, propType, false), undefined);
   return !containsUndefinedType(flowType);
+}
+
+/** Whether a static block between `startPos` and `endPos` definitely assigns `this.name`. */
+export function isPropertyInitializedInStaticBlocks(
+  c: Checker,
+  propName: Node,
+  propType: Type,
+  staticBlocks: readonly Node[],
+  startPos: number,
+  endPos: number,
+): boolean {
+  // Static blocks run in document order, unlike constructors.
+  for (const staticBlock of staticBlocks) {
+    if (staticBlock.pos < startPos || staticBlock.pos > endPos) continue;
+    const thisExpression = new KeywordExpression(SyntaxKind.ThisKeyword);
+    const reference = new PropertyAccessExpression(thisExpression, undefined, propName, NodeFlags.None);
+    reference.flowNode = (staticBlock as ClassStaticBlockDeclaration).returnFlowNode;
+    thisExpression.parent = reference;
+    reference.parent = staticBlock;
+    const flowType = getFlowTypeOfReference(c, reference, propType, getOptionalType(c, propType, false), undefined);
+    if (!containsUndefinedType(flowType)) return true;
+  }
+  return false;
 }
 
 /** The type of an unannotated, uninitialized property from its `this` assignments in the constructor. */

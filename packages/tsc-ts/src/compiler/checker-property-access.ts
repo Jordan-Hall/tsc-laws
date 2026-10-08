@@ -12,6 +12,9 @@ import {
   getSymbol,
   getText,
   getType,
+  type BindingElement,
+  type BinaryExpression,
+  getInitializer,
 } from './ast.js';
 import {
   declarationNameToString,
@@ -71,6 +74,7 @@ export function checkPropertyAccessExpressionOrQualifiedName(
   left: Node,
   leftType: Type,
   right: Node,
+  writeOnly: boolean,
 ): Type {
   const assignmentKind = getAssignmentTargetKind(node);
   const widenedType =
@@ -177,9 +181,29 @@ export function checkPropertyAccessExpressionOrQualifiedName(
     }
     if (isThisPropertyAccessInConstructor(c, node, prop)) propType = c.autoType;
     else
-      propType = assignmentKind === AssignmentKind.Definite ? getWriteTypeOfSymbol(c, prop) : getTypeOfSymbol(c, prop);
+      propType =
+        writeOnly || assignmentKind === AssignmentKind.Definite
+          ? getWriteTypeOfSymbol(c, prop)
+          : getTypeOfSymbol(c, prop);
   }
   return getFlowTypeOfAccessExpression(c, node, prop, propType, right);
+}
+
+/** Whether `node` is a property of an object destructuring assignment from `this`. */
+function isThisInitializedObjectBindingExpression(node: Node): boolean {
+  if (node.kind !== SyntaxKind.ShorthandPropertyAssignment && node.kind !== SyntaxKind.PropertyAssignment) return false;
+  const binary = node.parent!.parent!;
+  return (
+    binary.kind === SyntaxKind.BinaryExpression &&
+    (binary as BinaryExpression).operatorToken.kind === SyntaxKind.EqualsToken &&
+    (binary as BinaryExpression).right.kind === SyntaxKind.ThisKeyword
+  );
+}
+
+function isThisInitializedDeclaration(node: Node): boolean {
+  if (node.kind !== SyntaxKind.VariableDeclaration) return false;
+  const initializer = getInitializer(node);
+  return initializer !== undefined && initializer.kind === SyntaxKind.ThisKeyword;
 }
 
 // ---- Private names
@@ -372,6 +396,9 @@ export function checkPropertyAccessibility(
   let errorNode: Node | undefined;
   if (node.kind === SyntaxKind.PropertyAccessExpression) errorNode = (node as PropertyAccessExpression).name;
   else if (node.kind === SyntaxKind.QualifiedName) errorNode = (node as QualifiedName).right;
+  else if (node.kind === SyntaxKind.ImportType) errorNode = node;
+  else if (node.kind === SyntaxKind.BindingElement)
+    errorNode = (node as BindingElement).propertyName ?? (node as BindingElement).name!;
   else errorNode = getName(node) ?? node;
   return checkPropertyAccessibilityAtLocation(c, node, isSuper, writing, containingType, prop, errorNode);
 }
@@ -408,7 +435,14 @@ function checkPropertyAccessibilityAtLocation(
     }
   }
   // Abstract properties can't be read during initialization of their class.
-  if ((flags & ModifierFlags.Abstract) !== 0 && symbolHasNonMethodDeclaration(c, prop) && isThisProperty(location)) {
+  if (
+    (flags & ModifierFlags.Abstract) !== 0 &&
+    symbolHasNonMethodDeclaration(c, prop) &&
+    (isThisProperty(location) ||
+      isThisInitializedObjectBindingExpression(location) ||
+      (location.parent!.kind === SyntaxKind.ObjectBindingPattern &&
+        isThisInitializedDeclaration(location.parent!.parent!)))
+  ) {
     const parentSymbol = getParentOfSymbol(c, prop);
     if (
       parentSymbol !== undefined &&

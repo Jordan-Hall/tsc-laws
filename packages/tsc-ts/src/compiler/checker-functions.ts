@@ -21,13 +21,11 @@ import {
   getSymbol,
   getType,
   getTypeParameters,
-  ModifierFlags,
   getName,
 } from './ast.js';
 import {
   isFunctionExpressionOrArrowFunction,
   isObjectLiteralMethod,
-  hasSyntacticModifier,
   isTypeNodeKind,
   skipParentheses,
 } from './binder-utilities.js';
@@ -45,7 +43,7 @@ import {
   someType,
   UnionReduction,
 } from './checker-type-factory.js';
-import { getTypeOfSymbol, getWidenedType, reportImplicitAny } from './checker-symbol-types.js';
+import { getTypeOfSymbol, getWidenedType, isPrivateWithinAmbient, reportImplicitAny } from './checker-symbol-types.js';
 import { getMergedSymbol, getSymbolOfDeclaration } from './checker-symbols.js';
 import {
   getReturnTypeFromAnnotation,
@@ -348,14 +346,14 @@ export function checkFunctionLikeBody(c: Checker, node: Node): void {
   // Function and class method declarations without a body or return type return `any`.
   if (
     returnTypeNode === undefined &&
-    body === undefined &&
+    nodeIsMissing(body) &&
     (node.kind === SyntaxKind.FunctionDeclaration ||
       (node.kind === SyntaxKind.MethodDeclaration && node.parent!.kind !== SyntaxKind.ObjectLiteralExpression)) &&
     !isPrivateWithinAmbient(node)
   )
     reportImplicitAny(c, node, c.anyType);
   if (body === undefined) return;
-  const returnType = returnTypeNode !== undefined ? getReturnTypeFromAnnotation(c, node) : undefined;
+  const returnType = node.kind !== SyntaxKind.Constructor ? getReturnTypeFromAnnotation(c, node) : undefined;
   // Errors only found while inferring the return type (such as of yielded values) need it resolved.
   if (
     returnTypeNode === undefined &&
@@ -370,7 +368,7 @@ export function checkFunctionLikeBody(c: Checker, node: Node): void {
       checkAllCodePathsInNonVoidFunctionReturnOrThrow(c, node, returnType);
   } else {
     // An async arrow function's awaited body is checked against the promised type.
-    const exprType = checkExpressionCached(c, body);
+    const exprType = checkExpression(c, body);
     if (returnType !== undefined)
       checkReturnExpression(c, node, unwrapReturnType(c, returnType, functionFlags), body, body, exprType, false);
   }
@@ -1101,18 +1099,19 @@ class ReturnVisitor extends NodeVisitor {
   }
 }
 
-function isPrivateWithinAmbient(node: Node): boolean {
-  return (
-    (hasSyntacticModifier(node, ModifierFlags.Private) || node.kind === SyntaxKind.PrivateIdentifier) &&
-    (node.flags & NodeFlags.Ambient) !== 0
-  );
-}
-
 function assignParameterType(c: Checker, declaration: Node): void {
   const symbol = getSymbolOfDeclaration(c, declaration);
   if (symbol !== undefined) {
     const symbolLinks = c.symbolLinks(symbol);
-    if (symbolLinks.type === undefined) symbolLinks.type = getTypeOfSymbol(c, symbol);
+    if (symbolLinks.type === undefined) {
+      const t = getTypeOfSymbol(c, symbol);
+      symbolLinks.type = addOptionality(
+        c,
+        t,
+        false,
+        getInitializer(declaration) === undefined && isOptionalDeclaration(declaration),
+      );
+    }
   }
   const name = getName(declaration);
   if (

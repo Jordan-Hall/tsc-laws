@@ -453,7 +453,7 @@ export function declarationBelongsToPrivateAmbientMember(declaration: Node): boo
   return isPrivateWithinAmbient(member);
 }
 
-function isPrivateWithinAmbient(node: Node): boolean {
+export function isPrivateWithinAmbient(node: Node): boolean {
   return (
     ((getCombinedModifierFlags(node) & ModifierFlags.Private) !== 0 || isPrivateIdentifierClassElement(node)) &&
     (node.flags & NodeFlags.Ambient) !== 0
@@ -535,6 +535,14 @@ export function reportImplicitAny(c: Checker, declaration: Node, t: Type): void 
         c.error(
           declaration,
           Diagnostics.Function_expression_which_lacks_return_type_annotation_implicitly_has_an_0_return_type,
+          typeAsString,
+        );
+        return;
+      }
+      if (c.noImplicitAny && (declaration.flags & NodeFlags.Reparsed) !== 0) {
+        c.error(
+          declaration,
+          Diagnostics.This_overload_implicitly_returns_the_type_0_because_it_lacks_a_return_type_annotation,
           typeAsString,
         );
         return;

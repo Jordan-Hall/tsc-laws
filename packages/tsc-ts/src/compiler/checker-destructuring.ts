@@ -110,6 +110,7 @@ import { checkBinaryExpression, checkReferenceExpression, removeDefinitelyFalsyT
 import { TypeFacts, getNonNullableType, getTypeWithFacts, hasTypeFacts } from './checker-flow.js';
 import { sliceTupleType } from './checker-signatures.js';
 import { getPropertyNameFromType, isTypeUsableAsPropertyName, maybeTypeOfKind } from './checker-utilities.js';
+import { checkPropertyAccessibility } from './checker-property-access.js';
 
 function isBindingPatternNode(node: Node | undefined): boolean {
   return (
@@ -574,6 +575,10 @@ function checkObjectLiteralDestructuringPropertyAssignment(
   if (property.kind === SyntaxKind.PropertyAssignment || property.kind === SyntaxKind.ShorthandPropertyAssignment) {
     const name = getName(property)!;
     const exprType = getLiteralTypeFromPropertyName(c, name) ?? c.errorType;
+    if (isTypeUsableAsPropertyName(exprType)) {
+      const prop = getPropertyOfType(c, objectLiteralType, getPropertyNameFromType(exprType));
+      if (prop !== undefined) checkPropertyAccessibility(c, property, false, true, objectLiteralType, prop);
+    }
     const elementType = getIndexedAccessTypeEx(
       c,
       objectLiteralType,

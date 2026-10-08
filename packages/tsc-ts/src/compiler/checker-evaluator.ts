@@ -5,7 +5,7 @@ import {
   getInitializer,
   getText,
   getType,
-  getSymbol,
+  getName,
   type BinaryExpression,
   type TemplateExpression,
   type TemplateSpan,
@@ -18,7 +18,7 @@ import { SyntaxKind } from './syntax-kind.js';
 import type { Checker } from './checker.js';
 import { computeEnumMemberValues } from './checker-declared-types.js';
 import { getGlobalSymbol, resolveEntityName } from './checker-symbols.js';
-import { symbolToString } from './type-printer.js';
+import { declarationNameToString, getSourceFileOfNode } from './binder-utilities.js';
 import { isConstantVariable } from './checker-narrowing.js';
 import { isBlockScopedNameDeclaredBeforeUse } from './checker-declaration-order.js';
 
@@ -187,19 +187,21 @@ function evaluateEnumMemberReference(
   location: Node,
 ): EvaluatorResult {
   if (declaration === undefined || declaration === location) {
+    const name = declaration !== undefined ? getName(declaration) : undefined;
     c.error(
       expr,
       Diagnostics.Property_0_is_used_before_being_assigned,
-      declaration !== undefined && getSymbol(declaration) !== undefined
-        ? symbolToString(c, getSymbol(declaration)!)
-        : '',
+      name !== undefined ? declarationNameToString(getSourceFileOfNode(name), name) : '',
     );
     return none();
   }
-  // Members of the same enum must be declared earlier.
-  if (declaration.parent === location.parent && declaration.pos > location.pos) {
-    c.error(expr, Diagnostics.Property_0_is_used_before_being_assigned, symbolToString(c, getSymbol(declaration)!));
-    return none();
+  // Referenced members must be declared earlier, in this enum or another.
+  if (!isBlockScopedNameDeclaredBeforeUse(c, declaration, location)) {
+    c.error(
+      expr,
+      Diagnostics.A_member_initializer_in_a_enum_declaration_cannot_reference_members_declared_after_it_including_members_defined_in_other_enums,
+    );
+    return EvaluatorResult.number(0);
   }
   computeEnumMemberValues(c, declaration.parent!);
   const links = c.nodeLinks(declaration);

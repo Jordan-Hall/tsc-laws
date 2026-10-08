@@ -2162,6 +2162,39 @@ export class InferenceCaches {
 
 // ---- Constraints of `infer` type parameters
 
+/**
+ * Maps the type parameters of a type reference to its type arguments, resolving them (and filling
+ * in defaults) only when a type parameter is mapped.
+ */
+class TypeArgumentMapper extends TypeMapper {
+  readonly c: Checker;
+  readonly typeArgumentNodes: readonly Node[];
+  readonly typeParameters: readonly Type[];
+  filled: Type[] | undefined = undefined;
+
+  constructor(c: Checker, typeArgumentNodes: readonly Node[], typeParameters: readonly Type[]) {
+    super();
+    this.c = c;
+    this.typeArgumentNodes = typeArgumentNodes;
+    this.typeParameters = typeParameters;
+  }
+
+  map(t: Type): Type {
+    const index = this.typeParameters.indexOf(t);
+    if (index < 0) return t;
+    if (index < this.typeArgumentNodes.length) return getTypeFromTypeNode(this.c, this.typeArgumentNodes[index]);
+    if (this.filled === undefined)
+      this.filled = fillMissingTypeArguments(
+        this.c,
+        this.typeArgumentNodes.map((n) => getTypeFromTypeNode(this.c, n)),
+        this.typeParameters,
+        getMinTypeArgumentCount(this.c, this.typeParameters),
+        false,
+      );
+    return this.filled[index];
+  }
+}
+
 /** The constraint an `infer T` position implies, e.g. `unknown[]` in a rest position. */
 export function getInferredTypeParameterConstraint(c: Checker, t: Type, omitTypeReferences = false): Type | undefined {
   const inferences: Type[] = [];
@@ -2187,16 +2220,12 @@ export function getInferredTypeParameterConstraint(c: Checker, t: Type, omitType
           if (index < 0 || index >= typeParameters.length) break;
           const declaredConstraint = getConstraintOfTypeParameter(c, typeParameters[index]);
           if (declaredConstraint === undefined) break;
-          const typeArguments = typeArgumentNodes.nodes.map((n) => getTypeFromTypeNode(c, n));
-          const filled = fillMissingTypeArguments(
-            c,
-            typeArguments,
-            typeParameters,
-            getMinTypeArgumentCount(c, typeParameters),
-            false,
-          );
           // Constraints referencing the type parameter itself are discarded.
-          const constraint = instantiateType(c, declaredConstraint, newTypeMapper(typeParameters.slice(), filled));
+          const constraint = instantiateType(
+            c,
+            declaredConstraint,
+            new TypeArgumentMapper(c, typeArgumentNodes.nodes, typeParameters),
+          );
           if (constraint !== t) inferences.push(constraint);
           break;
         }

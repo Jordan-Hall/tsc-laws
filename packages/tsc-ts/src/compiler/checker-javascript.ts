@@ -52,7 +52,12 @@ import {
 } from './checker-contextual.js';
 import { getPropertyNameFromType, isTypeUsableAsPropertyName } from './checker-utilities.js';
 import { getReturnTypeOfSignature, getSingleCallSignature, getTypeAtPosition } from './checker-signatures.js';
-import { checkExpressionCached, checkExpressionForMutableLocation, getResolvedSymbol } from './checker-expressions.js';
+import {
+  checkExpressionCached,
+  checkExpressionForMutableLocation,
+  getResolvedSymbol,
+  getTypeOfExpression,
+} from './checker-expressions.js';
 import { getFlowTypeOfReference, isMatchingReference } from './checker-narrowing.js';
 import { isEmptyArrayLiteralType } from './relations.js';
 import { getTypeOfSymbol, getWidenedType, reportImplicitAny } from './checker-symbol-types.js';
@@ -337,14 +342,14 @@ export function getContextualTypeForAssignmentExpression(c: Checker, binary: Bin
             getTypeFromTypeNode(c, typeNode),
             getPropertyNameFromType(nameType),
           );
-        return checkExpressionCached(c, left);
+        return getTypeOfExpression(c, left);
       }
       case SyntaxKind.PropertyAccessExpression:
       case SyntaxKind.ElementAccessExpression:
         if (binary.symbol !== undefined) return undefined;
         break;
       case SyntaxKind.ThisKeyword: {
-        const thisType = checkExpressionCached(c, expr);
+        const thisType = getTypeOfExpression(c, expr);
         let symbol: Symbol | undefined;
         if (left instanceof PropertyAccessExpression) {
           const name = left.name;
@@ -377,7 +382,7 @@ export function getContextualTypeForAssignmentExpression(c: Checker, binary: Bin
       }
     }
   }
-  return checkExpressionCached(c, left);
+  return getTypeOfExpression(c, left);
 }
 
 // ---- CommonJS `require`

@@ -25,6 +25,7 @@ import {
   getImmediatelyInvokedFunctionExpression,
   getSourceFileOfNode,
   hasSyntacticModifier,
+  getNameOfDeclaration,
 } from './binder-utilities.js';
 import { Diagnostics } from './diagnostics.js';
 import { InternalSymbolName, type Symbol, SymbolFlags } from './symbol.js';
@@ -270,7 +271,7 @@ export function getReturnTypeOfSignature(c: Checker, sig: Signature): Type {
       const typeNode = getType(declaration);
       if (typeNode !== undefined) c.error(typeNode, Diagnostics.Return_type_annotation_circularly_references_itself);
       else if (c.noImplicitAny) {
-        const name = getName(declaration);
+        const name = getNameOfDeclaration(declaration);
         if (name !== undefined)
           c.error(
             name,
