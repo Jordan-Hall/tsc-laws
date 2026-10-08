@@ -1,0 +1,296 @@
+// Emits JavaScript for source files: runs the transforms, prints, and writes the output,
+// source map and `//# sourceMappingURL` comment.
+import { ScriptKind, type SourceFile } from './ast.js';
+import { type CompilerOptions, ModuleKind, NewLineKind, getEmitModuleKind, getEmitScriptTarget } from './options.js';
+import { type OutputPathsHost, getOutputPathsFor } from './output-paths.js';
+import {
+  combinePaths,
+  fileExtensionIs,
+  getBaseFileName,
+  getDirectoryPath,
+  getRootLength,
+  normalizePath,
+  normalizeSlashes,
+  ensureTrailingDirectorySeparator,
+  containsPath,
+  getNormalizedAbsolutePath,
+} from './path.js';
+import { EmitContext } from './printer/emit-context.js';
+import { Printer, PrinterOptions } from './printer/printer.js';
+import { TextWriter } from './printer/text-writer.js';
+import { SourceMapGenerator, getRelativePathToDirectoryOrUrl } from './sourcemap.js';
+import type { EmitResolver } from './transformers/emit-resolver.js';
+import { ImportElision } from './transformers/import-elision.js';
+import { ESModuleTransformer, type ModuleFormatHost, UseStrictTransformer } from './transformers/module.js';
+import type { Transformer } from './transformers/transformer.js';
+import { TypeEraser } from './transformers/type-eraser.js';
+import { TypeScriptFacts } from './transformers/subtree-facts.js';
+import { RuntimeSyntax } from './transformers/runtime-syntax.js';
+
+/** The program as emit sees it. */
+export abstract class EmitHost implements OutputPathsHost {
+  readonly options: CompilerOptions;
+  readonly currentDirectory: string;
+  readonly useCaseSensitiveFileNames: boolean;
+  private readonly commonSourceDirectoryPath: string;
+  readonly resolver: EmitResolver;
+  readonly formats: ModuleFormatHost;
+
+  constructor(
+    options: CompilerOptions,
+    resolver: EmitResolver,
+    formats: ModuleFormatHost,
+    commonSourceDirectory: string,
+    currentDirectory: string,
+    useCaseSensitiveFileNames: boolean,
+  ) {
+    this.options = options;
+    this.resolver = resolver;
+    this.formats = formats;
+    this.currentDirectory = currentDirectory;
+    this.useCaseSensitiveFileNames = useCaseSensitiveFileNames;
+    this.commonSourceDirectoryPath = commonSourceDirectory;
+  }
+
+  /** With a trailing `/`. */
+  commonSourceDirectory(): string {
+    return this.commonSourceDirectoryPath;
+  }
+
+  /** Writes an output file; returns an error message, or `''`. */
+  abstract writeFile(fileName: string, text: string): string;
+}
+
+export class EmitResult {
+  readonly emittedFiles: string[];
+  readonly errors: string[];
+  /** Files not emitted because they use syntax emit doesn't support yet, with the reason. */
+  readonly unsupported: string[];
+  emitSkipped: boolean;
+
+  constructor() {
+    this.emittedFiles = [];
+    this.errors = [];
+    this.unsupported = [];
+    this.emitSkipped = false;
+  }
+}
+
+export function sourceFileMayBeEmitted(file: SourceFile, options: CompilerOptions): boolean {
+  if (file.isDeclarationFile) return false;
+  if (file.scriptKind === ScriptKind.JSON) return options.outDir !== undefined && options.outDir !== '';
+  return true;
+}
+
+export function emitFiles(host: EmitHost, files: readonly SourceFile[]): EmitResult {
+  const result = new EmitResult();
+  const options = host.options;
+  if (options.noEmit === true) {
+    result.emitSkipped = true;
+    return result;
+  }
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    if (!sourceFileMayBeEmitted(file, options)) continue;
+    const paths = getOutputPathsFor(file.fileName, file.scriptKind === ScriptKind.JSON, options, host, false);
+    if (paths.jsFilePath !== '') emitJSFile(host, file, paths.jsFilePath, paths.sourceMapFilePath, result);
+  }
+  return result;
+}
+
+function getScriptTransformers(host: EmitHost, context: EmitContext, file: SourceFile): Transformer[] {
+  const options = host.options;
+  const facts = new TypeScriptFacts();
+  const transformers: Transformer[] = [new TypeEraser(context, options, facts)];
+  if (options.verbatimModuleSyntax !== true && !file.isJS())
+    transformers.push(new ImportElision(context, options, host.resolver));
+  transformers.push(new RuntimeSyntax(context, options, facts));
+  transformers.push(new UseStrictTransformer(context, options, host.formats));
+  const moduleKind = getEmitModuleKind(options);
+  const esm =
+    moduleKind === ModuleKind.Preserve || host.formats.getEmitModuleFormat(file.fileName) >= ModuleKind.ES2015;
+  const moduleTransformer = new ESModuleTransformer(context, options);
+  if (!esm) moduleTransformer.unsupported = 'CommonJS module output is not supported yet';
+  transformers.push(moduleTransformer);
+  return transformers;
+}
+
+function emitJSFile(
+  host: EmitHost,
+  file: SourceFile,
+  jsFilePath: string,
+  sourceMapFilePath: string,
+  result: EmitResult,
+): boolean {
+  const options = host.options;
+  const context = new EmitContext();
+  let transformed = file;
+  const transformers = getScriptTransformers(host, context, file);
+  for (let i = 0; i < transformers.length; i++) {
+    const transformer = transformers[i];
+    if (transformer.unsupported === '') transformed = transformer.transformSourceFile(transformed);
+    if (transformer.unsupported !== '') {
+      result.unsupported.push(file.fileName + ': ' + transformer.unsupported);
+      return false;
+    }
+  }
+  const printerOptions = new PrinterOptions();
+  printerOptions.removeComments = options.removeComments === true;
+  printerOptions.newLine = options.newLine === NewLineKind.CRLF ? '\r\n' : '\n';
+  printerOptions.noEmitHelpers = options.noEmitHelpers === true;
+  printerOptions.sourceMap = options.sourceMap === true;
+  printerOptions.inlineSourceMap = options.inlineSourceMap === true;
+  printerOptions.inlineSources = options.inlineSources === true;
+  printerOptions.target = getEmitScriptTarget(options);
+  const printer = new Printer(printerOptions, context);
+  const emitSourceMaps =
+    (options.sourceMap === true || options.inlineSourceMap === true) && !fileExtensionIs(file.fileName, '.json');
+  return printSourceFile(host, jsFilePath, sourceMapFilePath, transformed, printer, emitSourceMaps, result);
+}
+
+function printSourceFile(
+  host: EmitHost,
+  jsFilePath: string,
+  sourceMapFilePath: string,
+  file: SourceFile,
+  printer: Printer,
+  emitSourceMaps: boolean,
+  result: EmitResult,
+): boolean {
+  const options = host.options;
+  const writer = new TextWriter(printer.options.newLine, 4);
+  const generator = emitSourceMaps
+    ? new SourceMapGenerator(
+        getBaseFileName(normalizeSlashes(jsFilePath)),
+        getSourceRoot(options),
+        getSourceMapDirectory(host, jsFilePath, file),
+        host.useCaseSensitiveFileNames,
+        host.currentDirectory,
+      )
+    : undefined;
+  printer.write(file, file, writer, generator);
+  if (generator !== undefined) {
+    const url = getSourceMappingURL(host, generator, jsFilePath, sourceMapFilePath, file);
+    if (url !== '') {
+      if (!writer.isAtStartOfLine()) writer.rawWrite(options.newLine === NewLineKind.CRLF ? '\r\n' : '\n');
+      writer.writeComment('//# sourceMappingURL=');
+      writer.writeComment(url);
+    }
+    if (sourceMapFilePath !== '') {
+      const error = host.writeFile(sourceMapFilePath, generator.toJSON());
+      if (error !== '') result.errors.push(error);
+      else result.emittedFiles.push(sourceMapFilePath);
+    }
+  } else writer.writeLine(false);
+  let text = writer.getText();
+  if (options.emitBOM === true) text = '\uFEFF' + text;
+  const error = host.writeFile(jsFilePath, text);
+  if (error !== '') result.errors.push(error);
+  else result.emittedFiles.push(jsFilePath);
+  return error === '';
+}
+
+/** `fileName` moved from the common source directory to `newDirectory`. */
+function getSourceFilePathInNewDir(
+  fileName: string,
+  newDirectory: string,
+  currentDirectory: string,
+  commonSourceDirectory: string,
+  useCaseSensitiveFileNames: boolean,
+): string {
+  let path = getNormalizedAbsolutePath(fileName, currentDirectory);
+  const common = ensureTrailingDirectorySeparator(commonSourceDirectory);
+  if (containsPath(common, path, useCaseSensitiveFileNames, currentDirectory)) path = path.slice(common.length);
+  return combinePaths(newDirectory, path);
+}
+
+function getSourceRoot(options: CompilerOptions): string {
+  const root = normalizeSlashes(options.sourceRoot !== undefined ? options.sourceRoot : '');
+  return root !== '' ? ensureTrailingDirectorySeparator(root) : root;
+}
+
+function mapRootDirectory(host: EmitHost, mapRoot: string, file: SourceFile): string {
+  let directory = normalizeSlashes(mapRoot);
+  directory = getDirectoryPath(
+    getSourceFilePathInNewDir(
+      file.fileName,
+      directory,
+      host.currentDirectory,
+      host.commonSourceDirectory(),
+      host.useCaseSensitiveFileNames,
+    ),
+  );
+  return directory;
+}
+
+function getSourceMapDirectory(host: EmitHost, jsFilePath: string, file: SourceFile): string {
+  const options = host.options;
+  if (options.sourceRoot !== undefined && options.sourceRoot !== '') return host.commonSourceDirectory();
+  if (options.mapRoot !== undefined && options.mapRoot !== '') {
+    const directory = mapRootDirectory(host, options.mapRoot, file);
+    return getRootLength(directory) === 0 ? combinePaths(host.commonSourceDirectory(), directory) : directory;
+  }
+  return getDirectoryPath(normalizePath(jsFilePath));
+}
+
+function getSourceMappingURL(
+  host: EmitHost,
+  generator: SourceMapGenerator,
+  jsFilePath: string,
+  sourceMapFilePath: string,
+  file: SourceFile,
+): string {
+  const options = host.options;
+  if (options.inlineSourceMap === true) return generator.toBase64DataURL();
+  const mapFile = getBaseFileName(normalizeSlashes(sourceMapFilePath));
+  if (options.mapRoot !== undefined && options.mapRoot !== '') {
+    const directory = mapRootDirectory(host, options.mapRoot, file);
+    if (getRootLength(directory) === 0)
+      return encodeURI(
+        getRelativePathToDirectoryOrUrl(
+          getDirectoryPath(normalizePath(jsFilePath)),
+          combinePaths(combinePaths(host.commonSourceDirectory(), directory), mapFile),
+          host.useCaseSensitiveFileNames,
+          host.currentDirectory,
+        ),
+      );
+    return encodeURI(combinePaths(directory, mapFile));
+  }
+  return encodeURI(mapFile);
+}
+
+const hexDigits = '0123456789ABCDEF';
+
+/** Percent-encodes the bytes of `s` that `encodeURI` would, by UTF-8 byte as tsgo does. */
+function encodeURI(s: string): string {
+  let out = '';
+  for (let i = 0; i < s.length; i++) {
+    const ch = s.charCodeAt(i);
+    if (
+      (ch >= 0x41 && ch <= 0x5a) ||
+      (ch >= 0x61 && ch <= 0x7a) ||
+      (ch >= 0x30 && ch <= 0x39) ||
+      ";,/?:@&=+$-_.!~*'()#".indexOf(String.fromCharCode(ch)) >= 0
+    ) {
+      out += String.fromCharCode(ch);
+      continue;
+    }
+    const bytes = utf8Of(s, i);
+    if (ch >= 0xd800 && ch <= 0xdbff && i + 1 < s.length) i++;
+    for (let b = 0; b < bytes.length; b++)
+      out += '%' + hexDigits.charAt(bytes[b] >> 4) + hexDigits.charAt(bytes[b] & 15);
+  }
+  return out;
+}
+
+function utf8Of(s: string, i: number): number[] {
+  let c = s.charCodeAt(i);
+  if (c >= 0xd800 && c <= 0xdbff && i + 1 < s.length) {
+    const low = s.charCodeAt(i + 1);
+    if (low >= 0xdc00 && low <= 0xdfff) c = (c - 0xd800) * 0x400 + (low - 0xdc00) + 0x10000;
+  }
+  if (c < 0x80) return [c];
+  if (c < 0x800) return [0xc0 | (c >> 6), 0x80 | (c & 63)];
+  if (c < 0x10000) return [0xe0 | (c >> 12), 0x80 | ((c >> 6) & 63), 0x80 | (c & 63)];
+  return [0xf0 | (c >> 18), 0x80 | ((c >> 12) & 63), 0x80 | ((c >> 6) & 63), 0x80 | (c & 63)];
+}
