@@ -10,8 +10,28 @@ permissions:
 
 jobs:
   test:
+    name: test (${{ matrix.name }})
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: checks
+            run: |
+              npm run format:check
+              npm run lint
+              npx turbo run test --filter=@tsc-ts/relater --filter=@tsc-ts/tsgo
+              npm run test:corpus
+          - name: tsc-ts program
+            run: npx turbo run build build:oracle && npm exec -w tsc-ts -- node --test tests/program.test.mjs
+          - name: tsc-ts command line
+            run: npx turbo run build build:oracle && npm exec -w tsc-ts -- node --test tests/command-line.test.mjs
+          - name: tsc-ts
+            run: |
+              npx turbo run build build:oracle
+              cd packages/tsc-ts
+              node --test $(ls tests/*.test.mjs | grep -v -e program.test -e command-line.test)
     steps:
       - uses: actions/checkout@v4
 
@@ -34,7 +54,4 @@ jobs:
 
       - run: npm ci
       - run: npm run fetch:upstream
-      - run: npm run format:check
-      - run: npm run lint
-      - run: npm test
-      - run: npm run test:corpus
+      - run: ${{ matrix.run }}
