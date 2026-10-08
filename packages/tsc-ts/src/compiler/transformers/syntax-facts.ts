@@ -98,6 +98,16 @@ export class SyntaxFacts extends NodeVisitor {
     return (this.of(node) & facts) !== 0;
   }
 
+  /** Whether the subtree has a `...` in a pattern or literal. */
+  hasRestOrSpread(node: Node): boolean {
+    return this.has(node, SubtreeFacts.ContainsRestOrSpread | SubtreeFacts.ContainsObjectRestOrSpread);
+  }
+
+  /** Whether the subtree has a `{ ...x }` in a pattern or literal, outside nested scopes. */
+  hasObjectRestOrSpread(node: Node): boolean {
+    return this.has(node, SubtreeFacts.ContainsObjectRestOrSpread);
+  }
+
   /** The facts `node` contributes to its parent. */
   propagate(node: Node | undefined): SubtreeFacts {
     if (node === undefined) return SubtreeFacts.None;

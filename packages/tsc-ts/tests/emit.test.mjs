@@ -31,6 +31,11 @@ test(
       ['--module', 'commonjs', '--sourceMap'],
       ['--module', 'commonjs', '--importHelpers'],
       ['--module', 'nodenext'],
+      ['--target', 'es2015'],
+      ['--target', 'es2020', '--sourceMap'],
+      ['--target', 'es2022', '--useDefineForClassFields', 'false'],
+      ['--jsx', 'react'],
+      ['--jsx', 'react-jsx', '--module', 'commonjs'],
       ['--experimentalDecorators', '--emitDecoratorMetadata', '--module', 'commonjs', '--sourceMap'],
     ]) {
       const result = await compareEmits(command, root, paths, flags, 8);

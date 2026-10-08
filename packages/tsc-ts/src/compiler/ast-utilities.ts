@@ -12,6 +12,7 @@ import {
   ModuleDeclaration,
   type Node,
   NodeFlags,
+  PartiallyEmittedExpression,
   PropertyAccessExpression,
   StringLiteral,
   getModuleSpecifier,
@@ -284,9 +285,12 @@ function isLeftHandSideExpressionKind(kind: SyntaxKind): boolean {
   return false;
 }
 
-/** Like tsgo's, except partially emitted expressions (created by transforms) aren't skipped yet. */
+/** Partially emitted expressions, created by transforms, are skipped. */
 export function isLeftHandSideExpression(node: Node): boolean {
-  return isLeftHandSideExpressionKind(node.kind);
+  let expression = node;
+  while (expression.kind === SyntaxKind.PartiallyEmittedExpression)
+    expression = (expression as PartiallyEmittedExpression).expression;
+  return isLeftHandSideExpressionKind(expression.kind);
 }
 
 export function isFunctionLikeDeclarationKind(kind: SyntaxKind): boolean {

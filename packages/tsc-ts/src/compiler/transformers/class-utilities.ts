@@ -1,7 +1,6 @@
 // Expression and class-element utilities shared by the class transforms: outer expressions,
 // `super` accesses, constructor bodies, `_classThis` blocks and auto-accessor backing fields.
 import {
-  AsExpression,
   BinaryExpression,
   Block,
   ClassDeclaration,
@@ -12,142 +11,27 @@ import {
   ExportDeclaration,
   ExportSpecifier,
   ExpressionStatement,
-  ExpressionWithTypeArguments,
   HeritageClause,
   Identifier,
   type ModifierList,
   NamedExports,
   type Node,
-  NodeFlags,
   NodeList,
-  NonNullExpression,
-  ObjectLiteralExpression,
   ParenthesizedExpression,
-  PartiallyEmittedExpression,
   PostfixUnaryExpression,
   PrefixUnaryExpression,
   PropertyAccessExpression,
   PropertyDeclaration,
-  SatisfiesExpression,
-  SetAccessorDeclaration,
   TryStatement,
-  TypeAssertion,
   CallExpression,
-  ArrowFunction,
   ComputedPropertyName,
 } from '../ast.js';
 import { isAssignmentExpression, isClassLike } from '../binder-utilities.js';
 import type { EmitContext } from '../printer/emit-context.js';
 import type { NodeFactory } from '../printer/factory.js';
-import { isPrologueDirective, nodeIsSynthesized, positionIsSynthesized } from '../printer/utilities.js';
+import { isPrologueDirective } from '../printer/utilities.js';
 import { SyntaxKind } from '../syntax-kind.js';
-
-export const enum OuterExpressionKinds {
-  None = 0,
-  Parentheses = 1 << 0,
-  TypeAssertions = 1 << 1,
-  NonNullAssertions = 1 << 2,
-  PartiallyEmittedExpressions = 1 << 3,
-  ExpressionsWithTypeArguments = 1 << 4,
-  Satisfies = 1 << 5,
-  Assertions = TypeAssertions | NonNullAssertions | Satisfies,
-  All = Parentheses | Assertions | PartiallyEmittedExpressions | ExpressionsWithTypeArguments,
-}
-
-export function isOuterExpression(node: Node, kinds: OuterExpressionKinds): boolean {
-  switch (node.kind) {
-    case SyntaxKind.ParenthesizedExpression:
-      return (kinds & OuterExpressionKinds.Parentheses) !== 0;
-    case SyntaxKind.TypeAssertionExpression:
-    case SyntaxKind.AsExpression:
-      return (kinds & OuterExpressionKinds.TypeAssertions) !== 0;
-    case SyntaxKind.SatisfiesExpression:
-      return (kinds & (OuterExpressionKinds.ExpressionsWithTypeArguments | OuterExpressionKinds.Satisfies)) !== 0;
-    case SyntaxKind.ExpressionWithTypeArguments:
-      return (kinds & OuterExpressionKinds.ExpressionsWithTypeArguments) !== 0;
-    case SyntaxKind.NonNullExpression:
-      return (kinds & OuterExpressionKinds.NonNullAssertions) !== 0;
-    case SyntaxKind.PartiallyEmittedExpression:
-      return (kinds & OuterExpressionKinds.PartiallyEmittedExpressions) !== 0;
-  }
-  return false;
-}
-
-/** The expression inside any outer expressions of `kinds`. */
-export function skipOuterExpressions(node: Node, kinds: OuterExpressionKinds): Node {
-  for (;;) {
-    if (!isOuterExpression(node, kinds)) return node;
-    if (node instanceof ParenthesizedExpression) node = node.expression;
-    else if (node instanceof AsExpression) node = node.expression;
-    else if (node instanceof TypeAssertion) node = node.expression;
-    else if (node instanceof SatisfiesExpression) node = node.expression;
-    else if (node instanceof NonNullExpression) node = node.expression;
-    else if (node instanceof PartiallyEmittedExpression) node = node.expression;
-    else if (node instanceof ExpressionWithTypeArguments) node = node.expression;
-    else return node;
-  }
-}
-
-/** `inner` wrapped again in the outer expressions of `outer`, except synthesized parentheses. */
-export function restoreOuterExpressions(
-  context: EmitContext,
-  outer: Node | undefined,
-  inner: Node,
-  kinds: OuterExpressionKinds,
-): Node {
-  if (outer === undefined || !isOuterExpression(outer, kinds) || isIgnorableParen(context, outer)) return inner;
-  const factory = context.factory;
-  if (outer instanceof ParenthesizedExpression)
-    return factory.updateParenthesizedExpression(
-      outer,
-      restoreOuterExpressions(context, outer.expression, inner, OuterExpressionKinds.All),
-    );
-  if (outer instanceof TypeAssertion)
-    return factory.updateTypeAssertion(
-      outer,
-      outer.type,
-      restoreOuterExpressions(context, outer.expression, inner, OuterExpressionKinds.All),
-    );
-  if (outer instanceof AsExpression)
-    return factory.updateAsExpression(
-      outer,
-      restoreOuterExpressions(context, outer.expression, inner, OuterExpressionKinds.All),
-      outer.type,
-    );
-  if (outer instanceof SatisfiesExpression)
-    return factory.updateSatisfiesExpression(
-      outer,
-      restoreOuterExpressions(context, outer.expression, inner, OuterExpressionKinds.All),
-      outer.type,
-    );
-  if (outer instanceof NonNullExpression)
-    return factory.updateNonNullExpression(
-      outer,
-      restoreOuterExpressions(context, outer.expression, inner, OuterExpressionKinds.All),
-      outer.flags,
-    );
-  if (outer instanceof ExpressionWithTypeArguments)
-    return factory.updateExpressionWithTypeArguments(
-      outer,
-      restoreOuterExpressions(context, outer.expression, inner, OuterExpressionKinds.All),
-      outer.typeArguments,
-    );
-  if (outer instanceof PartiallyEmittedExpression)
-    return factory.updatePartiallyEmittedExpression(
-      outer,
-      restoreOuterExpressions(context, outer.expression, inner, OuterExpressionKinds.All),
-    );
-  return inner;
-}
-
-function isIgnorableParen(context: EmitContext, node: Node): boolean {
-  return (
-    node instanceof ParenthesizedExpression &&
-    nodeIsSynthesized(node) &&
-    (positionIsSynthesized(context.sourceMapPos(node)) || positionIsSynthesized(context.sourceMapEnd(node))) &&
-    (positionIsSynthesized(context.commentPos(node)) || positionIsSynthesized(context.commentEnd(node)))
-  );
-}
+import { OuterExpressionKinds, skipOuterExpressions } from './utilities.js';
 
 /** `super.x` or `super[x]` */
 export function isSuperProperty(node: Node): boolean {
@@ -416,91 +300,6 @@ export function expandPreOrPostfixIncrementOrDecrementExpression(
     expression.end = node.end;
   }
   return expression;
-}
-
-/** `object.method(args)` */
-export function createMethodCall(factory: NodeFactory, object: Node, method: string, args: Node[]): CallExpression {
-  const flags =
-    object instanceof CallExpression && (object.flags & NodeFlags.OptionalChain) !== 0
-      ? NodeFlags.OptionalChain
-      : NodeFlags.None;
-  return factory.created(
-    new CallExpression(
-      factory.createPropertyAccessExpression(object, factory.createIdentifier(method)),
-      undefined,
-      undefined,
-      factory.createNodeList(args),
-      flags,
-    ),
-  );
-}
-
-/** `target.call(thisArg, args)` */
-export function createFunctionCallCall(
-  factory: NodeFactory,
-  target: Node,
-  thisArg: Node,
-  args: Node[],
-): CallExpression {
-  return createMethodCall(factory, target, 'call', [thisArg].concat(args));
-}
-
-/** `target.bind(thisArg, args)` */
-export function createFunctionBindCall(
-  factory: NodeFactory,
-  target: Node,
-  thisArg: Node,
-  args: Node[],
-): CallExpression {
-  return createMethodCall(factory, target, 'bind', [thisArg].concat(args));
-}
-
-/** `Reflect.get(target, key, receiver)` */
-export function createReflectGetCall(factory: NodeFactory, target: Node, key: Node, receiver: Node): CallExpression {
-  return factory.createCallExpression(
-    factory.createPropertyAccessExpression(factory.createIdentifier('Reflect'), factory.createIdentifier('get')),
-    [target, key, receiver],
-  );
-}
-
-/** `Reflect.set(target, key, value, receiver)` */
-export function createReflectSetCall(
-  factory: NodeFactory,
-  target: Node,
-  key: Node,
-  value: Node,
-  receiver: Node,
-): CallExpression {
-  return factory.createCallExpression(
-    factory.createPropertyAccessExpression(factory.createIdentifier('Reflect'), factory.createIdentifier('set')),
-    [target, key, value, receiver],
-  );
-}
-
-/** `(() => { statements })()` */
-export function createImmediatelyInvokedArrowFunction(factory: NodeFactory, statements: Node[]): CallExpression {
-  const arrow: ArrowFunction = factory.createArrowFunction([], factory.createBlock(statements, true));
-  return factory.createCallExpression(factory.createParenthesizedExpression(arrow), []);
-}
-
-/** `({ set value(paramName) { expression; } }).value`, an assignment target that runs `expression`. */
-export function createAssignmentTargetWrapper(factory: NodeFactory, paramName: Identifier, expression: Node): Node {
-  const setter = factory.created(
-    new SetAccessorDeclaration(
-      undefined,
-      factory.createIdentifier('value'),
-      undefined,
-      factory.createNodeList([factory.createParameter(paramName)]),
-      undefined,
-      undefined,
-      factory.createBlock([factory.createExpressionStatement(expression)], false),
-    ),
-  );
-  const literal = factory.created(new ObjectLiteralExpression(factory.createNodeList([setter]), false));
-  return factory.createPropertyAccessExpression(
-    factory.createParenthesizedExpression(literal),
-    factory.createIdentifier('value'),
-  );
 }
 
 /** `export default expression;` */

@@ -43,8 +43,8 @@ npm run build:oracle     # tsgo reference builds in packages/*/dist
 | `tsconfig.json` and programs | `--showConfig`, `--listFilesOnly`, `--explainFiles` | all cases match                  |
 | Command line and options     | output, errors, exit codes, `--locale`              | all cases match                  |
 | Diagnostics catalog          | messages, 13 translations, output formats           | all match                        |
-| JavaScript emit              | emitted files byte for byte, 12 option sets         | all compared units match         |
-| Declaration emit             | `.d.ts` and `.d.ts.map` byte for byte               | 99% of units with explicit types |
+| JavaScript emit              | emitted files, 39 option sets                       | all compared units match         |
+| Declaration emit             | `.d.ts` and `.d.ts.map` output                      | 99% of units with explicit types |
 | Type checker                 | diagnostics per file                                | in progress (59% of files match) |
 
 The corpus scripts are in `packages/tsc-ts/scripts` (`*-corpus.mjs`).

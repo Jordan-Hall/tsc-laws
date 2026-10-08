@@ -2,7 +2,8 @@
 // the output, source map and `//# sourceMappingURL` comment.
 import { ScriptKind, type SourceFile } from './ast.js';
 import type { Diagnostic } from './diagnostics.js';
-import { type CompilerOptions, NewLineKind, getEmitScriptTarget, getIsolatedModules } from './options.js';
+import { type CompilerOptions, JsxEmit, NewLineKind, getEmitScriptTarget, getIsolatedModules } from './options.js';
+import { LanguageVariant } from './types.js';
 import { type OutputPathsHost, getOutputPathsFor } from './output-paths.js';
 import {
   combinePaths,
@@ -31,6 +32,7 @@ import { TypeScriptFacts } from './transformers/subtree-facts.js';
 import { RuntimeSyntax } from './transformers/runtime-syntax.js';
 import { ConstEnumInliner } from './transformers/const-enum-inliner.js';
 import { addDownlevelTransformers } from './transformers/downlevel.js';
+import { JsxTransformer } from './transformers/jsx.js';
 import { SyntaxFacts } from './transformers/syntax-facts.js';
 import { LegacyDecorators } from './transformers/legacy-decorators.js';
 import { DecoratorMetadata } from './transformers/decorator-metadata.js';
@@ -179,11 +181,18 @@ function getScriptTransformers(host: EmitHost, context: EmitContext, file: Sourc
   transformers.push(new RuntimeSyntax(context, options, facts, host.resolver));
   if (options.experimentalDecorators === true)
     transformers.push(new LegacyDecorators(context, options, host.resolver, syntax));
-  addDownlevelTransformers(transformers, context, options, syntax);
+  if (isJsxTransformEnabled(options) && file.languageVariant === LanguageVariant.JSX)
+    transformers.push(new JsxTransformer(context, options, syntax, host.resolver));
+  addDownlevelTransformers(transformers, context, options, syntax, host.resolver);
   transformers.push(new UseStrictTransformer(context, options, host.formats));
   transformers.push(createModuleTransformer(context, options, host.resolver, host.formats));
   if (!getIsolatedModules(options)) transformers.push(new ConstEnumInliner(context, options, host.resolver));
   return transformers;
+}
+
+function isJsxTransformEnabled(options: CompilerOptions): boolean {
+  const jsx = options.jsx;
+  return jsx === JsxEmit.React || jsx === JsxEmit.ReactJSX || jsx === JsxEmit.ReactJSXDev;
 }
 
 function emitJSFile(

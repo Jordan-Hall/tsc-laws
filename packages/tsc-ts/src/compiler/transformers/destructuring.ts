@@ -1,5 +1,5 @@
-// Flattens destructuring assignments into assignments of each target, for exported names that
-// must be assigned through `exports.x` or `ns.x`.
+// Flattens destructuring into assignments or declarations of each target: for exported names
+// that must be assigned through `exports.x` or `ns.x`, and for lowering object rest elements.
 import {
   ArrayLiteralExpression,
   BinaryExpression,
@@ -9,7 +9,6 @@ import {
   ElementAccessExpression,
   Identifier,
   type Node,
-  NodeFlags,
   NumericLiteral,
   ObjectLiteralExpression,
   OmittedExpression,
@@ -24,10 +23,12 @@ import {
   NoSubstitutionTemplateLiteral,
   BigIntLiteral,
 } from '../ast.js';
-import { isAssignmentExpression, isDestructuringAssignment } from '../binder-utilities.js';
+import { isAssignmentExpression, isDestructuringAssignment, isPropertyNameLiteral } from '../binder-utilities.js';
 import { restHelper } from '../printer/helpers.js';
+import { nodeIsSynthesized } from '../printer/utilities.js';
 import { SyntaxKind } from '../syntax-kind.js';
 import { TokenFlags } from '../types.js';
+import type { SyntaxFacts } from './syntax-facts.js';
 import type { VisitorHooks } from './visitor-hooks.js';
 
 /** Creates the assignment of a flattened value to an identifier, such as `exports.x = value`. */
@@ -42,18 +43,77 @@ export function flattenDestructuringAssignment(
   needsValue: boolean,
   assignments: AssignmentFactory | undefined,
 ): Node {
-  return new Flattener(visitor, assignments).flattenAssignment(node, needsValue);
+  const flattener = new Flattener(visitor, undefined, false, true);
+  flattener.assignments = assignments;
+  return flattener.flattenAssignment(node, needsValue);
+}
+
+/** Flattens a destructuring assignment only as far as needed to lower its object rest elements. */
+export function flattenObjectRestAssignment(
+  visitor: VisitorHooks,
+  facts: SyntaxFacts,
+  node: Node,
+  needsValue: boolean,
+): Node {
+  return new Flattener(visitor, facts, false, true).flattenAssignment(node, needsValue);
+}
+
+/**
+ * Flattens the binding pattern of a variable declaration, parameter or binding element into
+ * variable declarations: a `VariableDeclaration`, a `SyntaxList` of them, or undefined. With
+ * `facts`, patterns are only decomposed as far as needed to lower object rest elements.
+ */
+export function flattenDestructuringBinding(
+  visitor: VisitorHooks,
+  facts: SyntaxFacts | undefined,
+  node: Node,
+  rval: Node | undefined,
+  hoistTempVariables: boolean,
+  skipInitializer: boolean,
+): Node | undefined {
+  return new Flattener(visitor, facts, true, hoistTempVariables).flattenBinding(node, rval, skipInitializer);
+}
+
+/** A declaration waiting for the expressions before it to be inlined into its value. */
+class PendingDeclaration {
+  readonly pendingExpressions: Node[];
+  readonly name: Node;
+  value: Node;
+  readonly pos: number;
+  readonly end: number;
+  readonly original: Node | undefined;
+
+  constructor(name: Node, value: Node, pos: number, end: number, original: Node | undefined) {
+    this.pendingExpressions = [];
+    this.name = name;
+    this.value = value;
+    this.pos = pos;
+    this.end = end;
+    this.original = original;
+  }
 }
 
 class Flattener {
   readonly visitor: VisitorHooks;
-  readonly assignments: AssignmentFactory | undefined;
-  readonly expressions: Node[];
+  /** Set to flatten only patterns with object rest elements. */
+  readonly facts: SyntaxFacts | undefined;
+  /** Emits variable declarations rather than assignments. */
+  readonly binding: boolean;
+  readonly hoistTempVariables: boolean;
+  assignments: AssignmentFactory | undefined;
+  expressions: Node[];
+  readonly declarations: PendingDeclaration[];
+  private hasTransformedPriorElement: boolean;
 
-  constructor(visitor: VisitorHooks, assignments: AssignmentFactory | undefined) {
+  constructor(visitor: VisitorHooks, facts: SyntaxFacts | undefined, binding: boolean, hoistTempVariables: boolean) {
     this.visitor = visitor;
-    this.assignments = assignments;
+    this.facts = facts;
+    this.binding = binding;
+    this.hoistTempVariables = hoistTempVariables;
+    this.assignments = undefined;
     this.expressions = [];
+    this.declarations = [];
+    this.hasTransformedPriorElement = false;
   }
 
   flattenAssignment(start: Node, needsValue: boolean): Node {
@@ -84,7 +144,7 @@ class Flattener {
       )
         value = this.ensureIdentifier(value, false, pos, end);
       else if (needsValue) value = this.ensureIdentifier(value, true, pos, end);
-      else if ((node.flags & NodeFlags.Synthesized) !== 0) {
+      else if (nodeIsSynthesized(node)) {
         pos = value.pos;
         end = value.end;
       }
@@ -96,6 +156,70 @@ class Flattener {
     }
     const result = factory.inlineExpressions(this.expressions);
     return result !== undefined ? result : factory.created(new OmittedExpression());
+  }
+
+  flattenBinding(start: Node, rval: Node | undefined, skipInitializer: boolean): Node | undefined {
+    const factory = this.visitor.factory;
+    let node = start;
+    if (node instanceof VariableDeclaration) {
+      let initializer = node.initializer;
+      if (
+        initializer !== undefined &&
+        ((initializer instanceof Identifier && elementAssignsToName(node, initializer.text)) ||
+          elementContainsNonLiteralComputedName(node))
+      ) {
+        initializer = this.ensureIdentifier(
+          this.visitor.visitNode(initializer)!,
+          false,
+          initializer.pos,
+          initializer.end,
+        );
+        node = factory.updateVariableDeclaration(
+          node as VariableDeclaration,
+          node.name,
+          undefined,
+          undefined,
+          initializer,
+        );
+      }
+    }
+    this.flattenElement(node, rval, node.pos, node.end, skipInitializer);
+    if (this.expressions.length > 0) {
+      const temp = factory.createTempVariable(0);
+      if (this.hoistTempVariables) {
+        const value = factory.inlineExpressions(this.expressions)!;
+        this.expressions = [];
+        this.emitBinding(temp, value, -1, -1, undefined);
+      } else {
+        this.visitor.context.addVariableDeclaration(temp);
+        const last = this.declarations[this.declarations.length - 1];
+        last.pendingExpressions.push(factory.createAssignment(temp, last.value));
+        for (let i = 0; i < this.expressions.length; i++) last.pendingExpressions.push(this.expressions[i]);
+        last.value = temp;
+      }
+    }
+    const declarations: Node[] = [];
+    for (let i = 0; i < this.declarations.length; i++) {
+      const pending = this.declarations[i];
+      let value = pending.value;
+      if (pending.pendingExpressions.length > 0) {
+        pending.pendingExpressions.push(pending.value);
+        value = factory.inlineExpressions(pending.pendingExpressions)!;
+      }
+      const declaration = factory.createVariableDeclaration(pending.name, undefined, undefined, value);
+      declaration.pos = pending.pos;
+      declaration.end = pending.end;
+      if (pending.original !== undefined) this.visitor.context.setOriginal(declaration, pending.original);
+      declarations.push(declaration);
+    }
+    if (declarations.length === 0) return undefined;
+    if (declarations.length === 1) return declarations[0];
+    return factory.createSyntaxList(declarations);
+  }
+
+  private emitBindingOrAssignment(target: Node, value: Node, pos: number, end: number, original: Node | undefined) {
+    if (this.binding) return this.emitBinding(target, value, pos, end, original);
+    return this.emitAssignment(target, value, pos, end, original);
   }
 
   private emitAssignment(target: Node, value: Node, pos: number, end: number, original: Node | undefined): boolean {
@@ -112,15 +236,44 @@ class Flattener {
     return true;
   }
 
+  private emitBinding(target: Node, start: Node, pos: number, end: number, original: Node | undefined): boolean {
+    let value = start;
+    if (this.expressions.length > 0) {
+      this.expressions.push(value);
+      value = this.visitor.factory.inlineExpressions(this.expressions)!;
+      this.expressions = [];
+    }
+    this.declarations.push(new PendingDeclaration(target, value, pos, end, original));
+    return true;
+  }
+
+  private createPattern(object: boolean, elements: Node[]): Node {
+    const factory = this.visitor.factory;
+    const list = factory.createNodeList(elements);
+    if (this.binding)
+      return factory.created(
+        new BindingPattern(object ? SyntaxKind.ObjectBindingPattern : SyntaxKind.ArrayBindingPattern, list),
+      );
+    if (object) return factory.created(new ObjectLiteralExpression(list, false));
+    return factory.created(new ArrayLiteralExpression(list, false));
+  }
+
+  private createArrayElement(expression: Node): Node {
+    if (!this.binding) return expression;
+    return this.visitor.factory.created(new BindingElement(undefined, undefined, expression, undefined));
+  }
+
   private ensureIdentifier(value: Node, reuseIdentifierExpressions: boolean, pos: number, end: number): Node {
     if (reuseIdentifierExpressions && value instanceof Identifier) return value;
     const factory = this.visitor.factory;
     const temp = factory.createTempVariable(0);
-    this.visitor.context.addVariableDeclaration(temp);
-    const assignment = factory.createAssignment(temp, value);
-    assignment.pos = pos;
-    assignment.end = end;
-    this.expressions.push(assignment);
+    if (this.hoistTempVariables) {
+      this.visitor.context.addVariableDeclaration(temp);
+      const assignment = factory.createAssignment(temp, value);
+      assignment.pos = pos;
+      assignment.end = end;
+      this.expressions.push(assignment);
+    } else this.emitBindingOrAssignment(temp, value, pos, end, undefined);
     return temp;
   }
 
@@ -179,44 +332,82 @@ class Flattener {
       return this.flattenObjectPattern(element, target, value!, pos, end);
     if (target instanceof ArrayLiteralExpression || target.kind === SyntaxKind.ArrayBindingPattern)
       return this.flattenArrayPattern(element, target, value!, pos, end);
-    return this.emitAssignment(target, value!, pos, end, element);
+    return this.emitBindingOrAssignment(target, value!, pos, end, element);
   }
 
   private flattenObjectPattern(parent: Node, pattern: Node, start: Node, pos: number, end: number): boolean {
     const elements = getElementsOfBindingOrAssignmentPattern(pattern);
+    const facts = this.facts;
     let value = start;
     if (elements.length !== 1)
       value = this.ensureIdentifier(value, !isDeclarationBindingElement(parent) || elements.length !== 0, pos, end);
+    let bindingElements: Node[] = [];
     const computedTempVariables: Node[] = [];
     for (let i = 0; i < elements.length; i++) {
       const element = elements[i];
       if (getRestIndicatorOfBindingOrAssignmentElement(element) === undefined) {
         const propertyName = tryGetPropertyNameOfBindingOrAssignmentElement(element);
+        if (
+          facts !== undefined &&
+          !facts.hasRestOrSpread(element) &&
+          !facts.hasRestOrSpread(getTargetOfBindingOrAssignmentElement(element)!) &&
+          !(propertyName instanceof ComputedPropertyName)
+        ) {
+          bindingElements.push(this.visitor.visitNode(element)!);
+          continue;
+        }
         if (propertyName === undefined) continue;
+        if (bindingElements.length > 0) {
+          this.emitBindingOrAssignment(this.createPattern(true, bindingElements), value, pos, end, pattern);
+          bindingElements = [];
+        }
         const rhs = this.createPropertyAccess(value, propertyName);
         if (propertyName instanceof ComputedPropertyName && rhs instanceof ElementAccessExpression)
           computedTempVariables.push(rhs.argumentExpression);
         this.flattenElement(element, rhs, element.pos, element.end, false);
       } else if (i === elements.length - 1) {
+        if (bindingElements.length > 0) {
+          this.emitBindingOrAssignment(this.createPattern(true, bindingElements), value, pos, end, pattern);
+          bindingElements = [];
+        }
         const rhs = this.createRestHelper(value, elements, computedTempVariables, pattern.pos, pattern.end);
         this.flattenElement(element, rhs, element.pos, element.end, false);
       }
     }
+    if (bindingElements.length > 0)
+      this.emitBindingOrAssignment(this.createPattern(true, bindingElements), value, pos, end, pattern);
     return true;
   }
 
   private flattenArrayPattern(parent: Node, pattern: Node, start: Node, pos: number, end: number): boolean {
     const factory = this.visitor.factory;
+    const facts = this.facts;
     const elements = getElementsOfBindingOrAssignmentPattern(pattern);
     let value = start;
     let allOmitted = true;
     for (let i = 0; i < elements.length; i++) if (!(elements[i] instanceof OmittedExpression)) allOmitted = false;
-    if (elements.length !== 1 || allOmitted)
+    if ((elements.length !== 1 && (facts === undefined || elements.length === 0)) || allOmitted)
       value = this.ensureIdentifier(value, !isDeclarationBindingElement(parent) || elements.length !== 0, pos, end);
+    const bindingElements: Node[] = [];
+    // Elements bound to temporaries in the pattern, flattened after it.
+    const restTemps: Node[] = [];
+    const restElements: Node[] = [];
     for (let i = 0; i < elements.length; i++) {
       const element = elements[i];
-      if (element instanceof OmittedExpression) continue;
-      if (getRestIndicatorOfBindingOrAssignmentElement(element) === undefined) {
+      if (facts !== undefined) {
+        if (
+          facts.hasObjectRestOrSpread(element) ||
+          (this.hasTransformedPriorElement && !isSimpleBindingOrAssignmentElement(element))
+        ) {
+          this.hasTransformedPriorElement = true;
+          const temp = factory.createTempVariable(0);
+          if (this.hoistTempVariables) this.visitor.context.addVariableDeclaration(temp);
+          restTemps.push(temp);
+          restElements.push(element);
+          bindingElements.push(this.createArrayElement(temp));
+        } else bindingElements.push(element);
+      } else if (element instanceof OmittedExpression) continue;
+      else if (getRestIndicatorOfBindingOrAssignmentElement(element) === undefined) {
         const rhs = factory.createElementAccessExpression(value, factory.createNumericLiteral(String(i)));
         this.flattenElement(element, rhs, element.pos, element.end, false);
       } else if (i === elements.length - 1) {
@@ -228,6 +419,10 @@ class Flattener {
         this.flattenElement(element, rhs, element.pos, element.end, false);
       }
     }
+    if (bindingElements.length > 0)
+      this.emitBindingOrAssignment(this.createPattern(false, bindingElements), value, pos, end, pattern);
+    for (let i = 0; i < restElements.length; i++)
+      this.flattenElement(restElements[i], restTemps[i], restElements[i].pos, restElements[i].end, false);
     return true;
   }
 
@@ -302,6 +497,23 @@ function isDeclarationBindingElement(node: Node): boolean {
     node.kind === SyntaxKind.Parameter ||
     node.kind === SyntaxKind.BindingElement
   );
+}
+
+/** Whether an element binds identifiers to literal property names with simple defaults. */
+function isSimpleBindingOrAssignmentElement(element: Node): boolean {
+  const target = getTargetOfBindingOrAssignmentElement(element);
+  if (target === undefined || target instanceof OmittedExpression) return true;
+  const propertyName = tryGetPropertyNameOfBindingOrAssignmentElement(element);
+  if (propertyName !== undefined && !isPropertyNameLiteral(propertyName)) return false;
+  const initializer = getInitializerOfBindingOrAssignmentElement(element);
+  if (initializer !== undefined && (initializer instanceof Identifier || !isSimpleCopiableExpression(initializer)))
+    return false;
+  if (isPattern(target)) {
+    const elements = getElementsOfBindingOrAssignmentPattern(target);
+    for (let i = 0; i < elements.length; i++) if (!isSimpleBindingOrAssignmentElement(elements[i])) return false;
+    return true;
+  }
+  return target instanceof Identifier;
 }
 
 export function getElementsOfBindingOrAssignmentPattern(node: Node): Node[] {
@@ -422,7 +634,7 @@ export function convertVariableDeclarationToAssignment(
   return assignment;
 }
 
-/** A binding name as an assignment target: binding patterns become object or array literals. */
+/** A binding name as an assignment target, with binding patterns as assignment patterns. */
 export function convertBindingNameToTarget(visitor: VisitorHooks, name: Node): Node {
   if (!(name instanceof BindingPattern)) return name;
   const factory = visitor.factory;

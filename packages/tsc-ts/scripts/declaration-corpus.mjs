@@ -1,5 +1,5 @@
-// Compares declaration emit with tsgo's on TypeScript's test cases: every `.d.ts` and `.d.ts.map`
-// byte for byte, and the declaration errors. Units are emitted in batches without type checking
+// Compares declaration emit with tsgo's on TypeScript's test cases: every `.d.ts` and `.d.ts.map` file
+// and the declaration errors. Units are emitted in batches without type checking
 // or module resolution, as ECMAScript modules targeting ESNext.
 //
 // Reports, per option set, the match rate overall and on units whose declarations all have

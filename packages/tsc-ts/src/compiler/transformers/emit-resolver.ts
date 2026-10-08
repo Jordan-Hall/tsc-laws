@@ -9,12 +9,18 @@ import {
   ImportEqualsDeclaration,
   ImportSpecifier,
   NamespaceImport,
+  type EntityName,
   type Node,
+  type Pragma,
+  ScriptKind,
   SourceFile,
   getSymbol,
   ModifierFlags,
 } from '../ast.js';
 import type { CompilerOptions } from '../options.js';
+import { parseIsolatedEntityName } from '../parser.js';
+import { getJSXImplicitImportBase, getJSXRuntimeImport } from '../program-utilities.js';
+import { isParseTreeNode } from '../printer/utilities.js';
 import type { Symbol } from '../symbol.js';
 import { SyntaxKind } from '../syntax-kind.js';
 import { nodeIsMissing } from '../ast-utilities.js';
@@ -45,6 +51,12 @@ export abstract class EmitResolver {
   abstract getReferencedValueDeclarations(node: Identifier): Node[] | undefined;
   /** The constant value of an enum member. */
   abstract getEnumMemberValue(member: Node): Evaluation;
+  /** Records the import a generated name such as the JSX transform's `_jsx` refers to. */
+  abstract setReferencedImportDeclaration(name: Identifier, declaration: Node): void;
+  /** The JSX factory from an `@jsx` pragma or `jsxFactory`, if either is an entity name. */
+  abstract getJsxFactoryEntity(file: SourceFile): EntityName | undefined;
+  /** The JSX fragment factory from an `@jsxFrag` pragma or `jsxFragmentFactory`. */
+  abstract getJsxFragmentFactoryEntity(file: SourceFile): EntityName | undefined;
   /** The value to inline for a const enum member access such as `E.A`. */
   abstract getConstantValue(node: Node): Evaluation;
 }
@@ -55,6 +67,8 @@ export class SyntacticEmitResolver extends EmitResolver {
   private file: SourceFile | undefined;
   /** Aliases of the current file used as values. */
   private referenced: Set<Symbol>;
+  /** Imports referenced by generated names. */
+  private readonly generatedImports: Map<Node, Node>;
 
   constructor(options: CompilerOptions, referenceResolver: ReferenceResolver) {
     super();
@@ -62,6 +76,7 @@ export class SyntacticEmitResolver extends EmitResolver {
     this.referenceResolver = referenceResolver;
     this.file = undefined;
     this.referenced = new Set<Symbol>();
+    this.generatedImports = new Map<Node, Node>();
   }
 
   markLinkedReferences(file: SourceFile): boolean {
@@ -72,10 +87,17 @@ export class SyntacticEmitResolver extends EmitResolver {
       this.referenceResolver,
       jsxNamespace(file, this.options),
       jsxFragmentNamespace(file, this.options),
+      this.jsxRuntimeResolves(file),
     );
     marker.markFile(file);
     this.referenced = marker.referenced;
     return true;
+  }
+
+  private jsxRuntimeResolves(file: SourceFile): boolean {
+    if (file.scriptKind !== ScriptKind.JSX && file.scriptKind !== ScriptKind.TSX) return false;
+    const runtime = getJSXRuntimeImport(getJSXImplicitImportBase(this.options, file), this.options);
+    return runtime !== '' && this.referenceResolver.resolveImplicitImport(file, runtime) !== undefined;
   }
 
   isReferencedAliasDeclaration(node: Node): boolean {
@@ -141,6 +163,7 @@ export class SyntacticEmitResolver extends EmitResolver {
   }
 
   getReferencedImportDeclaration(node: Identifier): Node | undefined {
+    if (!isParseTreeNode(node)) return this.generatedImports.get(node as Node);
     return this.referenceResolver.getReferencedImportDeclaration(node);
   }
 
@@ -158,6 +181,27 @@ export class SyntacticEmitResolver extends EmitResolver {
 
   getConstantValue(node: Node): Evaluation {
     return this.referenceResolver.getConstantValue(node);
+  }
+
+  setReferencedImportDeclaration(name: Identifier, declaration: Node): void {
+    this.generatedImports.set(name, declaration);
+  }
+
+  getJsxFactoryEntity(file: SourceFile): EntityName | undefined {
+    const pragma = lastPragma(file, 'jsx');
+    if (pragma !== undefined) {
+      const entity = parseIsolatedEntityName(pragmaArgument(pragma, 'factory'));
+      if (entity !== undefined) return entity;
+    }
+    const option = this.options.jsxFactory;
+    return option !== undefined && option !== '' ? parseIsolatedEntityName(option) : undefined;
+  }
+
+  getJsxFragmentFactoryEntity(file: SourceFile): EntityName | undefined {
+    const pragma = lastPragma(file, 'jsxfrag');
+    if (pragma !== undefined) return parseIsolatedEntityName(pragmaArgument(pragma, 'factory'));
+    const option = this.options.jsxFragmentFactory;
+    return option !== undefined && option !== '' ? parseIsolatedEntityName(option) : undefined;
   }
 }
 
@@ -190,6 +234,19 @@ function pragmaFactory(file: SourceFile, name: string): string | undefined {
     if (factory !== undefined) return factory.value;
   }
   return undefined;
+}
+
+/** The last pragma named `name`, which wins over earlier ones. */
+function lastPragma(file: SourceFile, name: string): Pragma | undefined {
+  let result: Pragma | undefined = undefined;
+  for (let i = 0; i < file.pragmas.length; i++) if (file.pragmas[i].name === name) result = file.pragmas[i];
+  return result;
+}
+
+function pragmaArgument(pragma: Pragma | undefined, name: string): string {
+  if (pragma === undefined) return '';
+  const argument = pragma.args.get(name);
+  return argument !== undefined ? argument.value : '';
 }
 
 function isEntityName(text: string): boolean {

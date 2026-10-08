@@ -63,6 +63,7 @@ import {
   getParameters,
   getSymbol,
   getType,
+  type EntityName,
 } from '../ast.js';
 import { isAmbientModule, isFunctionLike, nodeIsPresent } from '../ast-utilities.js';
 import { ContainerFlags, getContainerFlags } from '../binder.js';
@@ -690,6 +691,18 @@ export class SyntacticDeclarationEmitResolver extends DeclarationEmitResolver {
 
   getConstantValue(node: Node): Evaluation {
     return this.emitResolver.getConstantValue(node);
+  }
+
+  setReferencedImportDeclaration(name: Identifier, declaration: Node): void {
+    this.emitResolver.setReferencedImportDeclaration(name, declaration);
+  }
+
+  getJsxFactoryEntity(file: SourceFile): EntityName | undefined {
+    return this.emitResolver.getJsxFactoryEntity(file);
+  }
+
+  getJsxFragmentFactoryEntity(file: SourceFile): EntityName | undefined {
+    return this.emitResolver.getJsxFragmentFactoryEntity(file);
   }
 
   getTypeReferenceSerializationKind(typeName: Node, location: Node | undefined): TypeReferenceSerializationKind {

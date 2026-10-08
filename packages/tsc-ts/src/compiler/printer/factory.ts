@@ -2,6 +2,14 @@
 // `Synthesized` and have no range; updated nodes keep the original's flags, range and emit data.
 import {
   ArrowFunction,
+  AsExpression,
+  DeleteExpression,
+  ExpressionWithTypeArguments,
+  NonNullExpression,
+  PartiallyEmittedExpression,
+  SatisfiesExpression,
+  SyntheticReferenceExpression,
+  TypeAssertion,
   BinaryExpression,
   ElementAccessExpression,
   FunctionExpression,
@@ -27,6 +35,7 @@ import {
   PrivateIdentifier,
   PropertyAccessExpression,
   ReturnStatement,
+  SetAccessorDeclaration,
   SourceFile,
   StringLiteral,
   SyntaxList,
@@ -46,12 +55,19 @@ import { AutoGenerateInfo, newAutoGenerateId } from './emit-context.js';
 import { EmitFlags, GeneratedIdentifierFlags } from './emit-flags.js';
 import { NodeFactoryBase } from './factory-base.js';
 import {
+  addDisposableResourceHelper,
+  classPrivateFieldGetHelper,
+  classPrivateFieldInHelper,
+  classPrivateFieldSetHelper,
+  disposeResourcesHelper,
   exportStarHelper,
   importDefaultHelper,
   importStarHelper,
+  makeTemplateObjectHelper,
   rewriteRelativeImportExtensionsHelper,
 } from './helpers.js';
-import { formatGeneratedName, isMemberName } from './utilities.js';
+import { formatGeneratedName, isMemberName, nodeIsSynthesized } from './utilities.js';
+import { OuterExpressionKinds, isOuterExpression, outerExpressionOperand } from '../transformers/utilities.js';
 
 export class NodeFactory extends NodeFactoryBase {
   readonly context: EmitContext;
@@ -504,6 +520,217 @@ export class NodeFactory extends NodeFactoryBase {
       (this.context.getEmitFlags(callee) & EmitFlags.HelperName) !== 0 &&
       callee.text === helperName
     );
+  }
+
+  // Downlevel expressions
+
+  /** `__makeTemplateObject(cooked, raw)` */
+  createTemplateObjectHelper(cooked: Node, raw: Node): CallExpression {
+    this.context.requestEmitHelper(makeTemplateObjectHelper);
+    return this.createCallExpression(this.createUnscopedHelperName('__makeTemplateObject'), [cooked, raw]);
+  }
+
+  createThisExpression(): KeywordExpression {
+    return this.createKeywordExpression(SyntaxKind.ThisKeyword);
+  }
+
+  createDeleteExpression(expression: Node): DeleteExpression {
+    return this.created(new DeleteExpression(expression));
+  }
+
+  createSyntheticReferenceExpression(expression: Node, thisArg: Node): SyntheticReferenceExpression {
+    return this.created(new SyntheticReferenceExpression(expression, thisArg));
+  }
+
+  /** `object.method(...args)`, keeping an optional call chain `object` optional. */
+  createMethodCall(object: Node, method: string, args: Node[]): CallExpression {
+    const callee = this.createPropertyAccessExpression(object, this.createIdentifier(method));
+    const flags = object instanceof CallExpression ? object.flags & NodeFlags.OptionalChain : NodeFlags.None;
+    return this.created(new CallExpression(callee, undefined, undefined, this.createNodeList(args), flags));
+  }
+
+  /** `Global.method(...args)`, such as `Math.pow(a, b)`. */
+  createGlobalMethodCall(global: string, method: string, args: Node[]): CallExpression {
+    return this.createMethodCall(this.createIdentifier(global), method, args);
+  }
+
+  /** `target.call(thisArg, ...args)` */
+  createFunctionCallCall(target: Node, thisArg: Node, args: Node[]): CallExpression {
+    const all: Node[] = [thisArg];
+    for (let i = 0; i < args.length; i++) all.push(args[i]);
+    return this.createMethodCall(target, 'call', all);
+  }
+
+  /** `left !== null && right !== void 0`, or with `invert`, `left === null || right === void 0`. */
+  createNotNullCondition(left: Node, right: Node, invert: boolean): BinaryExpression {
+    const equality = invert ? SyntaxKind.EqualsEqualsEqualsToken : SyntaxKind.ExclamationEqualsEqualsToken;
+    return this.createBinaryExpression(
+      this.createBinaryExpression(left, equality, this.createKeywordExpression(SyntaxKind.NullKeyword)),
+      invert ? SyntaxKind.BarBarToken : SyntaxKind.AmpersandAmpersandToken,
+      this.createBinaryExpression(right, equality, this.createVoidZero()),
+    );
+  }
+
+  /** `inner` wrapped again in the outer expressions of `kinds` that wrapped what it replaces in `outer`. */
+  restoreOuterExpressions(outer: Node | undefined, inner: Node, kinds: OuterExpressionKinds): Node {
+    if (outer === undefined || !isOuterExpression(outer, kinds) || this.isIgnorableParen(outer)) return inner;
+    return this.updateOuterExpression(
+      outer,
+      this.restoreOuterExpressions(outerExpressionOperand(outer), inner, OuterExpressionKinds.All),
+    );
+  }
+
+  /** A synthesized parenthesized expression without ranges, which the printer recreates as needed. */
+  private isIgnorableParen(node: Node): boolean {
+    const context = this.context;
+    return (
+      node instanceof ParenthesizedExpression &&
+      nodeIsSynthesized(node) &&
+      (context.sourceMapPos(node) < 0 || context.sourceMapEnd(node) < 0) &&
+      (context.commentPos(node) < 0 || context.commentEnd(node) < 0)
+    );
+  }
+
+  private updateOuterExpression(outer: Node, expression: Node): Node {
+    if (outer instanceof ParenthesizedExpression)
+      return this.updateParenthesizedExpression(outer as ParenthesizedExpression, expression);
+    if (outer instanceof TypeAssertion) return this.updateTypeAssertion(outer as TypeAssertion, outer.type, expression);
+    if (outer instanceof AsExpression) return this.updateAsExpression(outer as AsExpression, expression, outer.type);
+    if (outer instanceof SatisfiesExpression)
+      return this.updateSatisfiesExpression(outer as SatisfiesExpression, expression, outer.type);
+    if (outer instanceof NonNullExpression)
+      return this.updateNonNullExpression(outer as NonNullExpression, expression, outer.flags);
+    if (outer instanceof ExpressionWithTypeArguments)
+      return this.updateExpressionWithTypeArguments(
+        outer as ExpressionWithTypeArguments,
+        expression,
+        outer.typeArguments,
+      );
+    if (outer instanceof PartiallyEmittedExpression)
+      return this.updatePartiallyEmittedExpression(outer as PartiallyEmittedExpression, expression);
+    throw new Error('Unexpected outer expression');
+  }
+
+  // Class fields
+
+  /** A unique name based on `text`, with `suffix` added when the name is made unique. */
+  createUniqueNameWithSuffix(text: string, flags: GeneratedIdentifierFlags, suffix: string): Identifier {
+    return this.createGeneratedIdentifier(GeneratedIdentifierFlags.Unique, text, undefined, flags, '', suffix);
+  }
+
+  /** The modifiers for `flags`, in canonical order. */
+  createModifiersFromFlags(flags: ModifierFlags): ModifierList {
+    const kinds: SyntaxKind[] = [];
+    if ((flags & ModifierFlags.Export) !== 0) kinds.push(SyntaxKind.ExportKeyword);
+    if ((flags & ModifierFlags.Ambient) !== 0) kinds.push(SyntaxKind.DeclareKeyword);
+    if ((flags & ModifierFlags.Default) !== 0) kinds.push(SyntaxKind.DefaultKeyword);
+    if ((flags & ModifierFlags.Const) !== 0) kinds.push(SyntaxKind.ConstKeyword);
+    if ((flags & ModifierFlags.Public) !== 0) kinds.push(SyntaxKind.PublicKeyword);
+    if ((flags & ModifierFlags.Private) !== 0) kinds.push(SyntaxKind.PrivateKeyword);
+    if ((flags & ModifierFlags.Protected) !== 0) kinds.push(SyntaxKind.ProtectedKeyword);
+    if ((flags & ModifierFlags.Abstract) !== 0) kinds.push(SyntaxKind.AbstractKeyword);
+    if ((flags & ModifierFlags.Static) !== 0) kinds.push(SyntaxKind.StaticKeyword);
+    if ((flags & ModifierFlags.Override) !== 0) kinds.push(SyntaxKind.OverrideKeyword);
+    if ((flags & ModifierFlags.Readonly) !== 0) kinds.push(SyntaxKind.ReadonlyKeyword);
+    if ((flags & ModifierFlags.Accessor) !== 0) kinds.push(SyntaxKind.AccessorKeyword);
+    if ((flags & ModifierFlags.Async) !== 0) kinds.push(SyntaxKind.AsyncKeyword);
+    if ((flags & ModifierFlags.In) !== 0) kinds.push(SyntaxKind.InKeyword);
+    if ((flags & ModifierFlags.Out) !== 0) kinds.push(SyntaxKind.OutKeyword);
+    const nodes: Node[] = [];
+    for (let i = 0; i < kinds.length; i++) nodes.push(this.createToken(kinds[i]));
+    return this.createModifierList(nodes);
+  }
+
+  /** `target.bind(thisArg, ...args)` */
+  createFunctionBindCall(target: Node, thisArg: Node, args: Node[]): CallExpression {
+    return this.createMethodCall(target, 'bind', [thisArg].concat(args));
+  }
+
+  /** `Object.defineProperty(target, name, descriptor)` */
+  createObjectDefinePropertyCall(target: Node, name: Node, descriptor: Node): CallExpression {
+    return this.createMethodCall(this.createIdentifier('Object'), 'defineProperty', [target, name, descriptor]);
+  }
+
+  /** `Reflect.get(target, propertyKey, receiver)` */
+  createReflectGetCall(target: Node, propertyKey: Node, receiver: Node): CallExpression {
+    return this.createMethodCall(this.createIdentifier('Reflect'), 'get', [target, propertyKey, receiver]);
+  }
+
+  /** `Reflect.set(target, propertyKey, value, receiver)` */
+  createReflectSetCall(target: Node, propertyKey: Node, value: Node, receiver: Node): CallExpression {
+    return this.createMethodCall(this.createIdentifier('Reflect'), 'set', [target, propertyKey, value, receiver]);
+  }
+
+  /** `(() => { ...statements })()` */
+  createImmediatelyInvokedArrowFunction(statements: Node[]): CallExpression {
+    const arrow = this.createArrowFunction([], this.createBlock(statements, true));
+    return this.createCallExpression(this.createParenthesizedExpression(arrow), []);
+  }
+
+  /** `({ set value(parameter) { expression; } }).value`, a destructuring target running `expression`. */
+  createAssignmentTargetWrapper(parameter: Identifier, expression: Node): PropertyAccessExpression {
+    const setter = this.created(
+      new SetAccessorDeclaration(
+        undefined,
+        this.createIdentifier('value'),
+        undefined,
+        this.createNodeList([this.createParameter(parameter)]),
+        undefined,
+        undefined,
+        this.createBlock([this.createExpressionStatement(expression)], false),
+      ),
+    );
+    // Parenthesized for a V8 bug: https://bugs.chromium.org/p/v8/issues/detail?id=9560
+    return this.createPropertyAccessExpression(
+      this.createParenthesizedExpression(this.createObjectLiteral([setter], false)),
+      this.createIdentifier('value'),
+    );
+  }
+
+  /** `__classPrivateFieldGet(receiver, state, kind, f)`; `kind` is `"f"`, `"m"` or `"a"`. */
+  createClassPrivateFieldGetHelper(receiver: Node, state: Node, kind: string, f: Node | undefined): CallExpression {
+    this.context.requestEmitHelper(classPrivateFieldGetHelper);
+    const args: Node[] = [receiver, state, this.createStringLiteral(kind, TokenFlags.None)];
+    if (f !== undefined) args.push(f);
+    return this.createCallExpression(this.createUnscopedHelperName('__classPrivateFieldGet'), args);
+  }
+
+  /** `__classPrivateFieldSet(receiver, state, value, kind, f)` */
+  createClassPrivateFieldSetHelper(
+    receiver: Node,
+    state: Node,
+    value: Node,
+    kind: string,
+    f: Node | undefined,
+  ): CallExpression {
+    this.context.requestEmitHelper(classPrivateFieldSetHelper);
+    const args: Node[] = [receiver, state, value, this.createStringLiteral(kind, TokenFlags.None)];
+    if (f !== undefined) args.push(f);
+    return this.createCallExpression(this.createUnscopedHelperName('__classPrivateFieldSet'), args);
+  }
+
+  /** `__classPrivateFieldIn(state, receiver)` */
+  createClassPrivateFieldInHelper(state: Node, receiver: Node): CallExpression {
+    this.context.requestEmitHelper(classPrivateFieldInHelper);
+    return this.createCallExpression(this.createUnscopedHelperName('__classPrivateFieldIn'), [state, receiver]);
+  }
+
+  // `using` helpers
+
+  /** `__addDisposableResource(env, value, async)` */
+  createAddDisposableResourceHelper(env: Node, value: Node, async: boolean): CallExpression {
+    this.context.requestEmitHelper(addDisposableResourceHelper);
+    return this.createCallExpression(this.createUnscopedHelperName('__addDisposableResource'), [
+      env,
+      value,
+      this.createKeywordExpression(async ? SyntaxKind.TrueKeyword : SyntaxKind.FalseKeyword),
+    ]);
+  }
+
+  /** `__disposeResources(env)` */
+  createDisposeResourcesHelper(env: Node): CallExpression {
+    this.context.requestEmitHelper(disposeResourcesHelper);
+    return this.createCallExpression(this.createUnscopedHelperName('__disposeResources'), [env]);
   }
 }
 

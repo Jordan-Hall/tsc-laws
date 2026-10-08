@@ -1,6 +1,12 @@
 // Node predicates the transforms share.
 import {
   AsExpression,
+  BinaryExpression,
+  ExpressionWithTypeArguments,
+  NonNullExpression,
+  PartiallyEmittedExpression,
+  SatisfiesExpression,
+  TypeAssertion,
   ExportDeclaration,
   ExportSpecifier,
   Identifier,
@@ -21,6 +27,9 @@ import {
   ConditionalExpression,
   TaggedTemplateExpression,
   ImportAttribute,
+  LabeledStatement,
+  VariableDeclaration,
+  VariableDeclarationList,
   getArguments,
   getBody,
   getExpression,
@@ -312,4 +321,101 @@ export function isSameNode(a: Node | undefined, b: Node | undefined): boolean {
   if (a === undefined) return b === undefined;
   if (b === undefined) return false;
   return a === b;
+}
+
+/** The statement binding a `for...of` head to `boundValue`: a declaration or an assignment. */
+export function createForOfBindingStatement(factory: NodeFactory, node: Node, boundValue: Node): Node {
+  if (node instanceof VariableDeclarationList) {
+    const first = node.declarations.nodes[0] as VariableDeclaration;
+    const declaration = factory.updateVariableDeclaration(first, first.name, undefined, undefined, boundValue);
+    const statement = factory.createVariableStatement(
+      undefined,
+      factory.updateVariableDeclarationList(
+        node as VariableDeclarationList,
+        factory.createNodeList([declaration as Node]),
+        node.flags,
+      ),
+    );
+    statement.pos = node.pos;
+    statement.end = node.end;
+    return statement;
+  }
+  const assignment = factory.createAssignment(node, boundValue);
+  assignment.pos = node.pos;
+  assignment.end = node.end;
+  const statement = factory.createExpressionStatement(assignment);
+  statement.pos = node.pos;
+  statement.end = node.end;
+  return statement;
+}
+
+/** `node` wrapped in the labels of `outermost` and the labeled statements nested in it. */
+export function restoreEnclosingLabel(factory: NodeFactory, node: Node, outermost: LabeledStatement | undefined): Node {
+  if (outermost === undefined) return node;
+  const inner =
+    outermost.statement instanceof LabeledStatement ? restoreEnclosingLabel(factory, node, outermost.statement) : node;
+  return factory.updateLabeledStatement(outermost, outermost.label, inner);
+}
+
+/** Kinds of expressions wrapping another that `skipOuterExpressions` looks through. */
+export const enum OuterExpressionKinds {
+  None = 0,
+  Parentheses = 1 << 0,
+  TypeAssertions = 1 << 1,
+  NonNullAssertions = 1 << 2,
+  PartiallyEmittedExpressions = 1 << 3,
+  ExpressionsWithTypeArguments = 1 << 4,
+  Satisfies = 1 << 5,
+  ExcludeJSDocTypeAssertion = 1 << 6,
+  Assignments = 1 << 7,
+  Comma = 1 << 8,
+  Assertions = TypeAssertions | NonNullAssertions | Satisfies,
+  All = Parentheses | Assertions | PartiallyEmittedExpressions | ExpressionsWithTypeArguments,
+}
+
+export function isOuterExpression(node: Node, kinds: OuterExpressionKinds): boolean {
+  switch (node.kind) {
+    case SyntaxKind.ParenthesizedExpression:
+      return (
+        (kinds & OuterExpressionKinds.Parentheses) !== 0 &&
+        !((kinds & OuterExpressionKinds.ExcludeJSDocTypeAssertion) !== 0 && isJSDocTypeAssertion(node))
+      );
+    case SyntaxKind.TypeAssertionExpression:
+    case SyntaxKind.AsExpression:
+      return (kinds & OuterExpressionKinds.TypeAssertions) !== 0;
+    case SyntaxKind.SatisfiesExpression:
+      return (kinds & (OuterExpressionKinds.ExpressionsWithTypeArguments | OuterExpressionKinds.Satisfies)) !== 0;
+    case SyntaxKind.ExpressionWithTypeArguments:
+      return (kinds & OuterExpressionKinds.ExpressionsWithTypeArguments) !== 0;
+    case SyntaxKind.NonNullExpression:
+      return (kinds & OuterExpressionKinds.NonNullAssertions) !== 0;
+    case SyntaxKind.PartiallyEmittedExpression:
+      return (kinds & OuterExpressionKinds.PartiallyEmittedExpressions) !== 0;
+    case SyntaxKind.BinaryExpression:
+      if (node instanceof BinaryExpression) {
+        const operator = node.operatorToken.kind;
+        if (operator === SyntaxKind.EqualsToken) return (kinds & OuterExpressionKinds.Assignments) !== 0;
+        if (operator === SyntaxKind.CommaToken) return (kinds & OuterExpressionKinds.Comma) !== 0;
+      }
+  }
+  return false;
+}
+
+/** The expression wrapped by `node`, past the outer expressions of `kinds`. */
+export function skipOuterExpressions(node: Node, kinds: OuterExpressionKinds): Node {
+  while (isOuterExpression(node, kinds)) node = outerExpressionOperand(node);
+  return node;
+}
+
+/** The operand of an outer expression. */
+export function outerExpressionOperand(node: Node): Node {
+  if (node instanceof ParenthesizedExpression) return node.expression;
+  if (node instanceof TypeAssertion) return node.expression;
+  if (node instanceof AsExpression) return node.expression;
+  if (node instanceof SatisfiesExpression) return node.expression;
+  if (node instanceof ExpressionWithTypeArguments) return node.expression;
+  if (node instanceof NonNullExpression) return node.expression;
+  if (node instanceof PartiallyEmittedExpression) return node.expression;
+  if (node instanceof BinaryExpression) return node.right;
+  return node;
 }

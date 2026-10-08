@@ -64,12 +64,15 @@ export class AliasReferences extends NodeVisitor {
   readonly referenced: Set<Symbol>;
   private readonly jsxNamespace: string;
   private readonly jsxFragmentNamespace: string;
+  /** Whether the JSX runtime's module resolves, so JSX doesn't use the factory's names. */
+  private readonly jsxRuntimeResolved: boolean;
 
   constructor(
     options: CompilerOptions,
     resolver: ReferenceResolver,
     jsxNamespace: string,
     jsxFragmentNamespace: string,
+    jsxRuntimeResolved: boolean,
   ) {
     super();
     this.options = options;
@@ -77,6 +80,7 @@ export class AliasReferences extends NodeVisitor {
     this.referenced = new Set<Symbol>();
     this.jsxNamespace = jsxNamespace;
     this.jsxFragmentNamespace = jsxFragmentNamespace;
+    this.jsxRuntimeResolved = jsxRuntimeResolved;
   }
 
   markFile(file: SourceFile): boolean {
@@ -349,7 +353,7 @@ export class AliasReferences extends NodeVisitor {
   }
 
   private markJsx(node: Node): boolean {
-    if (this.options.jsx === JsxEmit.ReactJSX || this.options.jsx === JsxEmit.ReactJSXDev) return false;
+    if (this.jsxRuntimeResolved) return false;
     const fragment = node.kind === SyntaxKind.JsxOpeningFragment;
     const location = fragment ? node : jsxTagName(node);
     const namespace = fragment ? this.jsxFragmentNamespace : this.jsxNamespace;

@@ -1,5 +1,5 @@
-// Shared by the emit test and scripts/emit-corpus.mjs: builds the emit driver and compares its
-// output with tsgo's on batches of files, every output file byte for byte.
+// Shared by the emit test and scripts/emit-corpus.mjs: builds the emit driver and compares every
+// output file with tsgo's on batches of files.
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, normalize, relative, resolve } from 'node:path';
@@ -123,15 +123,15 @@ const unitOf = (path) => path.split('/')[0];
 
 /**
  * Emits `paths` (each in its own unit directory under `unitsRoot`) with tsgo and `command` in
- * batches. Returns `{ units, unsupported, crashed, failures }`: unit directories whose outputs differ;
- * units tsgo crashes on are left out.
+ * batches. Returns `{ units, unsupported, crashes, failures }`: counts of units and of units using
+ * unsupported syntax, and the unit directories tsgo crashes on or whose outputs differ.
  */
 export async function compareEmits(command, unitsRoot, paths, flags, jobs, batchSize = 150) {
   const dir = tempDir('tsc-ts-emit-out-');
   const failures = new Set();
   const unsupported = new Set();
+  const crashes = new Set();
   const units = new Set();
-  const crashed = new Set();
   const batches = [];
   for (let start = 0; start < paths.length; start += batchSize) batches.push(paths.slice(start, start + batchSize));
   let next = 0;
@@ -158,23 +158,29 @@ export async function compareEmits(command, unitsRoot, paths, flags, jobs, batch
           .join('\n'),
       );
       const skipped = new Set();
-      // A tsgo crash loses the batch's other outputs: emit its files one at a time instead, and
-      // leave out the units tsgo crashes on.
-      if (theirs.stderr.includes('panic:'))
-        for (const path of batch) {
-          const solo = await run([tsgo, ...args, '--outDir', expected, path]);
-          if (solo.stderr.includes('panic:')) {
-            const unit = unitOf(relative(unitsRoot, path));
+      let mineOutput = mine.stdout.toString();
+      // tsgo panics on some files, leaving the batch's output incomplete, and tsc-ts throws on
+      // them as tsgo does: emit the batch's units one by one with both.
+      if (theirs.stderr.includes('panic:')) {
+        const byUnit = Map.groupBy(batch, (path) => unitOf(relative(unitsRoot, path)));
+        for (const [unit, unitPaths] of byUnit) {
+          const [alone, mineAlone] = await Promise.all([
+            run([tsgo, ...args, '--outDir', expected, ...unitPaths]),
+            mine.code !== 0 ? run([...command, ...args, '--outDir', actual, ...unitPaths]) : undefined,
+          ]);
+          if (mineAlone !== undefined) mineOutput += mineAlone.stdout.toString();
+          if (alone.stderr.includes('panic:')) {
+            crashes.add(unit);
             skipped.add(unit);
-            crashed.add(unit);
           }
         }
-      for (const line of mine.stdout.toString().split('\n')) {
+      }
+      for (const line of mineOutput.split('\n')) {
         const match = /^unsupported (.*?): /.exec(line);
         if (match) skipped.add(unitOf(relative(unitsRoot, match[1])));
       }
       for (const path of batch) units.add(unitOf(relative(unitsRoot, path)));
-      for (const unit of skipped) if (!crashed.has(unit)) unsupported.add(unit);
+      for (const unit of skipped) if (!crashes.has(unit)) unsupported.add(unit);
       const expectedFiles = listOutputs(expected);
       const actualFiles = listOutputs(actual);
       const all = new Set([...expectedFiles, ...actualFiles]);
@@ -190,6 +196,10 @@ export async function compareEmits(command, unitsRoot, paths, flags, jobs, batch
     }
   };
   await Promise.all(Array.from({ length: jobs }, worker));
-  for (const unit of crashed) units.delete(unit);
-  return { units: units.size, unsupported: unsupported.size, crashed: crashed.size, failures: [...failures].sort() };
+  return {
+    units: units.size,
+    unsupported: unsupported.size,
+    crashes: [...crashes].sort(),
+    failures: [...failures].sort(),
+  };
 }

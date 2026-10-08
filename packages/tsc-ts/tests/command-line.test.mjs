@@ -1,5 +1,5 @@
 // Runs `tsc` argument lists through tsgo (packages/tsgo/dist/tsgo) and the tsc-ts command line,
-// comparing stdout, stderr, exit status and any written tsconfig.json byte for byte.
+// comparing stdout, stderr, exit status and any written tsconfig.json.
 // Set TSC_TS_CLI to a native build of src/drivers/cli.ts to test it instead of the JS build.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

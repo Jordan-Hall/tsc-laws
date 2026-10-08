@@ -89,20 +89,13 @@ import { isIdentifierText } from '../scanner.js';
 import { SyntaxKind } from '../syntax-kind.js';
 import { TokenFlags } from '../types.js';
 import {
-  OuterExpressionKinds,
   countPrologueDirectives,
   createAccessorPropertyBackingField,
-  createAssignmentTargetWrapper,
   createExportDefault,
   createExternalModuleExport,
-  createFunctionBindCall,
-  createFunctionCallCall,
-  createImmediatelyInvokedArrowFunction,
   getClassHeritageClauses,
   getClassMembers,
   getClassName,
-  createReflectGetCall,
-  createReflectSetCall,
   expandPreOrPostfixIncrementOrDecrementExpression,
   findComputedPropertyNameCacheAssignment,
   findSuperStatementIndexPath,
@@ -112,8 +105,6 @@ import {
   isClassThisAssignmentBlock,
   isCompoundAssignment,
   isSuperProperty,
-  restoreOuterExpressions,
-  skipOuterExpressions,
 } from './class-utilities.js';
 import {
   childIsDecorated,
@@ -136,7 +127,7 @@ import {
 } from './named-evaluation.js';
 import { SubtreeFacts, type SyntaxFacts } from './syntax-facts.js';
 import { Transformer } from './transformer.js';
-import { hasDecorators, singleOrMany } from './utilities.js';
+import { hasDecorators, singleOrMany, OuterExpressionKinds, skipOuterExpressions } from './utilities.js';
 import { VisitorBase } from './visitor-base.js';
 
 const enum LexicalEntryKind {
@@ -1090,8 +1081,7 @@ export class ESDecorators extends Transformer {
         if (isStaticPrivateOrAutoAccessor(classMembers[i]))
           context.addEmitFlags(classMembers[i], EmitFlags.TransformPrivateStaticElements);
     }
-    return createImmediatelyInvokedArrowFunction(
-      factory,
+    return factory.createImmediatelyInvokedArrowFunction(
       context.mergeEnvironment(classDefinitionStatements, lexicalEnvironment),
     );
   }
@@ -1652,7 +1642,7 @@ export class ESDecorators extends Transformer {
     const declarations = context.endVariableEnvironment();
     if (declarations.length > 0) {
       declarations.push(factory.createReturnStatement(initializer));
-      initializer = createImmediatelyInvokedArrowFunction(factory, declarations);
+      initializer = factory.createImmediatelyInvokedArrowFunction(declarations);
     }
     if (info !== undefined) {
       if (isStatic(node)) {
@@ -1742,7 +1732,7 @@ export class ESDecorators extends Transformer {
     if (isSuperProperty(node.expression) && this.classThis !== undefined) {
       const expression = this.visitNode(node.expression)!;
       const args = this.visitNodes(node.arguments)!;
-      const invocation = createFunctionCallCall(this.factory, expression, this.classThis, args.nodes);
+      const invocation = this.factory.createFunctionCallCall(expression, this.classThis, args.nodes);
       this.context.setOriginal(invocation, node);
       invocation.pos = node.pos;
       invocation.end = node.end;
@@ -1754,7 +1744,7 @@ export class ESDecorators extends Transformer {
   private visitTaggedTemplateExpression(node: TaggedTemplateExpression): Node {
     if (isSuperProperty(node.tag) && this.classThis !== undefined) {
       const tag = this.visitNode(node.tag)!;
-      const boundTag = createFunctionBindCall(this.factory, tag, this.classThis, []);
+      const boundTag = this.factory.createFunctionBindCall(tag, this.classThis, []);
       this.context.setOriginal(boundTag, node);
       boundTag.pos = node.pos;
       boundTag.end = node.end;
@@ -1771,8 +1761,7 @@ export class ESDecorators extends Transformer {
       this.classThis !== undefined &&
       this.classSuper !== undefined
     ) {
-      const superProperty = createReflectGetCall(
-        this.factory,
+      const superProperty = this.factory.createReflectGetCall(
         this.classSuper,
         this.factory.createStringLiteralFromNode(node.name),
         this.classThis,
@@ -1787,8 +1776,7 @@ export class ESDecorators extends Transformer {
 
   private visitElementAccessExpression(node: ElementAccessExpression): Node {
     if (isSuperProperty(node) && this.classThis !== undefined && this.classSuper !== undefined) {
-      const superProperty = createReflectGetCall(
-        this.factory,
+      const superProperty = this.factory.createReflectGetCall(
         this.classSuper,
         this.visitNode(node.argumentExpression)!,
         this.classThis,
@@ -1881,7 +1869,7 @@ export class ESDecorators extends Transformer {
               getterName = temp;
               setterName = factory.createAssignment(temp, setterName);
             }
-            const superPropertyGet = createReflectGetCall(factory, this.classSuper, getterName, this.classThis);
+            const superPropertyGet = factory.createReflectGetCall(this.classSuper, getterName, this.classThis);
             context.setOriginal(superPropertyGet, left);
             superPropertyGet.pos = left.pos;
             superPropertyGet.end = left.end;
@@ -1901,7 +1889,7 @@ export class ESDecorators extends Transformer {
             expression.pos = node.pos;
             expression.end = node.end;
           }
-          expression = createReflectSetCall(factory, this.classSuper, setterName, expression, this.classThis);
+          expression = factory.createReflectSetCall(this.classSuper, setterName, expression, this.classThis);
           context.setOriginal(expression, node);
           expression.pos = node.pos;
           expression.end = node.end;
@@ -1952,7 +1940,7 @@ export class ESDecorators extends Transformer {
             getterName = temp;
             setterName = factory.createAssignment(temp, setterName);
           }
-          let expression: Node = createReflectGetCall(factory, this.classSuper, getterName, this.classThis);
+          let expression: Node = factory.createReflectGetCall(this.classSuper, getterName, this.classThis);
           context.setOriginal(expression, node);
           expression.pos = node.pos;
           expression.end = node.end;
@@ -1965,7 +1953,7 @@ export class ESDecorators extends Transformer {
             context.addVariableDeclaration(temp);
           }
           expression = expandPreOrPostfixIncrementOrDecrementExpression(context, node, expression, temp);
-          expression = createReflectSetCall(factory, this.classSuper, setterName, expression, this.classThis);
+          expression = factory.createReflectSetCall(this.classSuper, setterName, expression, this.classThis);
           context.setOriginal(expression, node);
           expression.pos = node.pos;
           expression.end = node.end;
@@ -2031,10 +2019,9 @@ export class ESDecorators extends Transformer {
         propertyName = factory.createStringLiteralFromNode(node.name);
       if (propertyName !== undefined) {
         const paramName = factory.createTempVariable(0);
-        const expression = createAssignmentTargetWrapper(
-          factory,
+        const expression = factory.createAssignmentTargetWrapper(
           paramName,
-          createReflectSetCall(factory, this.classSuper, propertyName, paramName, this.classThis),
+          factory.createReflectSetCall(this.classSuper, propertyName, paramName, this.classThis),
         );
         this.context.setOriginal(expression, node);
         expression.pos = node.pos;
@@ -2209,10 +2196,9 @@ export class ESDecorators extends Transformer {
     const inner = skipOuterExpressions(expression, OuterExpressionKinds.All);
     if (inner instanceof PropertyAccessExpression || inner instanceof ElementAccessExpression) {
       const bound = this.createCallBinding(expression);
-      return restoreOuterExpressions(
-        this.context,
+      return this.context.factory.restoreOuterExpressions(
         expression,
-        createFunctionBindCall(this.factory, bound.target, bound.thisArg, []),
+        this.factory.createFunctionBindCall(bound.target, bound.thisArg, []),
         OuterExpressionKinds.All,
       );
     }
@@ -2413,8 +2399,7 @@ export class ESDecorators extends Transformer {
         factory.createBlock(
           [
             factory.createReturnStatement(
-              createFunctionCallCall(
-                factory,
+              factory.createFunctionCallCall(
                 factory.createPropertyAccessExpression(descriptorName, factory.createIdentifier('get')),
                 factory.createKeywordExpression(SyntaxKind.ThisKeyword),
                 [],
@@ -2445,8 +2430,7 @@ export class ESDecorators extends Transformer {
         factory.createBlock(
           [
             factory.createReturnStatement(
-              createFunctionCallCall(
-                factory,
+              factory.createFunctionCallCall(
                 factory.createPropertyAccessExpression(descriptorName, factory.createIdentifier('set')),
                 factory.createKeywordExpression(SyntaxKind.ThisKeyword),
                 [factory.createIdentifier('value')],

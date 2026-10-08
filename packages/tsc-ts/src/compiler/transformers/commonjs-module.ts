@@ -1398,11 +1398,15 @@ export class CommonJSModuleTransformer extends Transformer {
     )
       return node;
     const location = context.mostOriginal(node);
-    if (!(location instanceof Identifier) || (location.flags & NodeFlags.Synthesized) !== 0) return node;
-    const container = this.resolver.getReferencedExportContainer(
-      location as Identifier,
-      (context.getEmitFlags(node) & EmitFlags.ExportName) !== 0,
-    );
+    if (!(location instanceof Identifier)) return node;
+    // Generated names, such as the JSX transform's `_jsx`, may still refer to an import.
+    const synthesized = (location.flags & NodeFlags.Synthesized) !== 0;
+    const container = synthesized
+      ? undefined
+      : this.resolver.getReferencedExportContainer(
+          location as Identifier,
+          (context.getEmitFlags(node) & EmitFlags.ExportName) !== 0,
+        );
     if (container instanceof SourceFile) {
       const reference = factory.createPropertyAccessExpression(
         factory.createIdentifier('exports'),

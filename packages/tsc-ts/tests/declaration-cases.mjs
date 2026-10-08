@@ -1,5 +1,5 @@
 // Shared by the declaration test and scripts/declaration-corpus.mjs: emits declarations of
-// batches of files with tsgo and the emit driver, and compares every output file byte for byte
+// batches of files with tsgo and the emit driver, and compares every output file
 // and the declaration errors (TS4xxx and TS9xxx) of each unit.
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';

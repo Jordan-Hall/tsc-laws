@@ -1,10 +1,12 @@
 // Compares JavaScript emit with tsgo's on TypeScript's test cases, comparing every output file.
 // Files are emitted in batches without type checking or resolving other files, targeting
-// ESNext, as ES modules, CommonJS or node16/nodenext. Most sets put each file of a test case
-// in a directory of its own; the `packages` sets keep a test case's files together at the
-// paths it gives them, so package.json `type` and imports between its files apply.
+// ESNext unless a set names a target, as ES modules, CommonJS or node16/nodenext, with JSX
+// preserved unless a set transforms it. Most sets put each file of a test case in a directory
+// of its own; the `packages` sets keep a test case's files together at the paths it gives
+// them, so package.json `type` and imports between its files apply.
 //
 // Usage: node scripts/emit-corpus.mjs [--native BINARY] [--jobs N] [--limit N] [--sets A,B] [DIR|FILE ...]
+// A native BINARY needs a large stack for the deeply nested cases: run `ulimit -s unlimited` first.
 import { writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { cases, listFiles, materialize } from '../tests/parser-cases.mjs';
@@ -59,10 +61,20 @@ for (const [label, flags] of [
   ['commonjsPackages', ['--module', 'commonjs']],
   ['node16Packages', ['--module', 'node16']],
   ['nodenextPackages', ['--module', 'nodenext', '--sourceMap']],
-  ['es2017', ['--target', 'es2017']],
-  ['es2016', ['--target', 'es2016', '--sourceMap']],
-  ['es2015', ['--target', 'es2015', '--module', 'commonjs']],
+  ['es2015', ['--target', 'es2015']],
+  ['es2015Commonjs', ['--target', 'es2015', '--module', 'commonjs']],
   ['es2015Helpers', ['--target', 'es2015', '--module', 'commonjs', '--importHelpers', '--removeComments']],
+  ['es2016', ['--target', 'es2016', '--sourceMap']],
+  ['es2017', ['--target', 'es2017', '--sourceMap']],
+  ['es2018', ['--target', 'es2018']],
+  ['es2019', ['--target', 'es2019']],
+  ['es2020', ['--target', 'es2020', '--sourceMap']],
+  ['es2021', ['--target', 'es2021']],
+  ['es2021Define', ['--target', 'es2021', '--useDefineForClassFields', 'true']],
+  ['es2022', ['--target', 'es2022', '--sourceMap']],
+  ['es2022NoDefine', ['--target', 'es2022', '--useDefineForClassFields', 'false']],
+  ['esnextNoDefine', ['--target', 'esnext', '--useDefineForClassFields', 'false']],
+  ['es2017Helpers', ['--target', 'es2017', '--module', 'commonjs', '--importHelpers']],
   ['legacyDecorators', ['--experimentalDecorators', '--sourceMap']],
   ['legacyDecoratorsCommonjs', ['--experimentalDecorators', '--module', 'commonjs', '--importHelpers']],
   ['decoratorMetadata', ['--experimentalDecorators', '--emitDecoratorMetadata']],
@@ -71,8 +83,14 @@ for (const [label, flags] of [
     ['--experimentalDecorators', '--emitDecoratorMetadata', '--module', 'commonjs', '--sourceMap'],
   ],
   ['legacyDecoratorsES2015', ['--experimentalDecorators', '--target', 'es2015']],
-  ['esDecorators', ['--target', 'es2022', '--sourceMap']],
   ['esDecoratorsNoDefine', ['--useDefineForClassFields', 'false', '--module', 'commonjs']],
+  ['react', ['--jsx', 'react', '--sourceMap']],
+  ['reactCommonjs', ['--jsx', 'react', '--module', 'commonjs']],
+  ['reactJsx', ['--jsx', 'react-jsx']],
+  ['reactJsxCommonjs', ['--jsx', 'react-jsx', '--module', 'commonjs', '--sourceMap']],
+  ['reactJsxDev', ['--jsx', 'react-jsxdev']],
+  ['reactNative', ['--jsx', 'react-native']],
+  ['reactEs2017', ['--jsx', 'react', '--target', 'es2017']],
 ]) {
   if (sets !== undefined && !sets.split(',').includes(label)) continue;
   const commonJS = flags.includes('--module');
@@ -89,9 +107,9 @@ for (const [label, flags] of [
   const byUnit = new Map(setUnits.map((u) => [u.path.slice(root.length + 1).split('/')[0], u.source]));
   const failures = result.failures.filter((unit) => checkerDependentReason(byUnit.get(unit)) === undefined);
   const dependent = result.failures.filter((unit) => checkerDependentReason(byUnit.get(unit)) !== undefined);
-  const compared = result.units - result.unsupported - dependent.length;
+  const compared = result.units - result.unsupported - dependent.length - result.crashes.length;
   console.log(
-    `${label}: ${compared - failures.length}/${compared} match (${result.unsupported} units use unsupported syntax, ${dependent.length} need the checker, tsgo crashes on ${result.crashed})`,
+    `${label}: ${compared - failures.length}/${compared} match (${result.unsupported} units use unsupported syntax, ${dependent.length} need the checker, ${result.crashes.length} crash tsgo)`,
   );
   for (const unit of dependent)
     console.log(`  needs the checker (${checkerDependentReason(byUnit.get(unit))}): ${byUnit.get(unit)}`);

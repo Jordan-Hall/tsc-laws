@@ -10,6 +10,7 @@ import {
   ExportSpecifier,
   Identifier,
   ImportClause,
+  ImportDeclaration,
   ImportEqualsDeclaration,
   ImportSpecifier,
   ModuleDeclaration,
@@ -53,6 +54,7 @@ import { pathIsRelative } from '../path.js';
 import { type CompilerOptions, shouldPreserveConstEnums } from '../options.js';
 import { InternalSymbolName, Symbol, SymbolFlags, type SymbolTable } from '../symbol.js';
 import { SyntaxKind } from '../syntax-kind.js';
+import { TokenFlags } from '../types.js';
 
 export const enum ConstantKind {
   None,
@@ -655,6 +657,15 @@ export class ReferenceResolver {
       return getSymbol(node);
     }
     return undefined;
+  }
+
+  /** The module an implicit import of `file`, such as the JSX runtime, refers to. */
+  resolveImplicitImport(file: SourceFile, name: string): Symbol | undefined {
+    const specifier = new StringLiteral(name, TokenFlags.None);
+    const declaration = new ImportDeclaration(SyntaxKind.ImportDeclaration, undefined, undefined, specifier, undefined);
+    specifier.parent = declaration;
+    declaration.parent = file;
+    return this.resolveModuleSpecifier(specifier, specifier);
   }
 
   private resolveModuleSpecifier(location: Node, specifier: Node | undefined): Symbol | undefined {

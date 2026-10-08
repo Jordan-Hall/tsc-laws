@@ -28,15 +28,8 @@ import { createPropKeyHelper, createSetFunctionNameHelper } from '../printer/dec
 import type { EmitContext } from '../printer/emit-context.js';
 import { SyntaxKind } from '../syntax-kind.js';
 import { TokenFlags } from '../types.js';
-import {
-  OuterExpressionKinds,
-  getClassMembers,
-  getClassName,
-  isClassThisAssignmentBlock,
-  restoreOuterExpressions,
-  skipOuterExpressions,
-  updateClassMembers,
-} from './class-utilities.js';
+import { getClassMembers, getClassName, isClassThisAssignmentBlock, updateClassMembers } from './class-utilities.js';
+import { OuterExpressionKinds, skipOuterExpressions } from './utilities.js';
 
 /** Further narrows which anonymous function definitions a transform names. */
 export abstract class AnonymousFunctionFilter {
@@ -241,7 +234,7 @@ function finishTransformNamedEvaluation(
     inner instanceof ClassExpression
       ? injectClassNamedEvaluationHelperBlockIfMissing(context, inner, assignedName, undefined)
       : createSetFunctionNameHelper(context.factory, inner, assignedName, '');
-  return restoreOuterExpressions(context, expression, updated, OuterExpressionKinds.All);
+  return context.factory.restoreOuterExpressions(expression, updated, OuterExpressionKinds.All);
 }
 
 function assignedNameOf(context: EmitContext, text: string, name: Node, expression: Node): Node {
