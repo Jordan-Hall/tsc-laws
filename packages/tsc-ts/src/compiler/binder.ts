@@ -354,6 +354,12 @@ class Binder extends NodeVisitor {
   blockScopeContainer: Node;
   lastContainer: Node | undefined;
   currentFlow: FlowNode;
+  /**
+   * `currentFlow` as an optional value, shared by the nodes that store it: natively, converting a
+   * `FlowNode` to `FlowNode | undefined` allocates.
+   */
+  private storedFlow: FlowNode;
+  private storedFlowValue: FlowNode | undefined;
   currentBreakTarget: FlowNode | undefined;
   currentContinueTarget: FlowNode | undefined;
   currentReturnTarget: FlowNode | undefined;
@@ -381,6 +387,8 @@ class Binder extends NodeVisitor {
     this.blockScopeContainer = file;
     this.lastContainer = undefined;
     this.currentFlow = this.unreachableFlow;
+    this.storedFlow = this.unreachableFlow;
+    this.storedFlowValue = this.unreachableFlow;
     this.currentBreakTarget = undefined;
     this.currentContinueTarget = undefined;
     this.currentReturnTarget = undefined;
@@ -405,6 +413,15 @@ class Binder extends NodeVisitor {
     return false;
   }
 
+  /** `currentFlow`, for storing in a node's `flowNode`. */
+  currentFlowValue(): FlowNode | undefined {
+    if (this.storedFlow !== this.currentFlow) {
+      this.storedFlow = this.currentFlow;
+      this.storedFlowValue = this.currentFlow;
+    }
+    return this.storedFlowValue;
+  }
+
   newSymbol(flags: SymbolFlags, name: string): Symbol {
     this.symbolCount++;
     return new Symbol(flags, name);
@@ -415,6 +432,8 @@ class Binder extends NodeVisitor {
   /**
    * Declares `node` in `symbolTable` with flags `includes`, merging with an existing symbol
    * of the same name unless its flags intersect `excludes`, which is reported as a duplicate.
+   * Callers pass `parent` as read from the container rather than narrowed, so that its members
+   * share the stored value (see `storedFlow`).
    */
   declareSymbol(
     symbolTable: SymbolTable,
@@ -614,25 +633,25 @@ class Binder extends NodeVisitor {
         node.kind === SyntaxKind.ExportSpecifier ||
         (node.kind === SyntaxKind.ImportEqualsDeclaration && hasExportModifier)
       ) {
-        const containerSymbol = getSymbol(container)!;
-        return this.declareSymbol(getExports(containerSymbol), containerSymbol, node, symbolFlags, symbolExcludes);
+        const containerSymbol = getSymbol(container);
+        return this.declareSymbol(getExports(containerSymbol!), containerSymbol, node, symbolFlags, symbolExcludes);
       }
       return this.declareSymbol(this.localsOf(container), undefined, node, symbolFlags, symbolExcludes);
     }
     // Nested ambient modules (module augmentations) stay local so they never merge globally.
     if (!isAmbientModule(node) && (hasExportModifier || (container.flags & NodeFlags.ExportContext) !== 0)) {
-      const containerSymbol = getSymbol(container)!;
+      const containerSymbol = getSymbol(container);
       // An unnamed default export has no local symbol.
       if (
         !isLocalsContainer(container) ||
         (hasSyntacticModifier(node, ModifierFlags.Default) &&
           this.getDeclarationName(node) === InternalSymbolName.Missing)
       )
-        return this.declareSymbol(getExports(containerSymbol), containerSymbol, node, symbolFlags, symbolExcludes);
+        return this.declareSymbol(getExports(containerSymbol!), containerSymbol, node, symbolFlags, symbolExcludes);
       const exportKind = (symbolFlags & SymbolFlags.Value) !== 0 ? SymbolFlags.ExportValue : SymbolFlags.None;
       const local = this.declareSymbol(this.localsOf(container), undefined, node, exportKind, symbolExcludes);
       local.exportSymbol = this.declareSymbol(
-        getExports(containerSymbol),
+        getExports(containerSymbol!),
         containerSymbol,
         node,
         symbolFlags,
@@ -645,8 +664,8 @@ class Binder extends NodeVisitor {
   }
 
   declareClassMember(node: Node, symbolFlags: SymbolFlags, symbolExcludes: SymbolFlags): Symbol {
-    const classSymbol = getSymbol(this.container)!;
-    const table = isStatic(node) ? getExports(classSymbol) : getMembers(classSymbol);
+    const classSymbol = getSymbol(this.container);
+    const table = isStatic(node) ? getExports(classSymbol!) : getMembers(classSymbol!);
     return this.declareSymbol(table, classSymbol, node, symbolFlags, symbolExcludes);
   }
 
@@ -666,15 +685,15 @@ class Binder extends NodeVisitor {
       case SyntaxKind.ClassDeclaration:
         return this.declareClassMember(node, symbolFlags, symbolExcludes);
       case SyntaxKind.EnumDeclaration: {
-        const enumSymbol = getSymbol(container)!;
-        return this.declareSymbol(getExports(enumSymbol), enumSymbol, node, symbolFlags, symbolExcludes);
+        const enumSymbol = getSymbol(container);
+        return this.declareSymbol(getExports(enumSymbol!), enumSymbol, node, symbolFlags, symbolExcludes);
       }
       case SyntaxKind.TypeLiteral:
       case SyntaxKind.ObjectLiteralExpression:
       case SyntaxKind.InterfaceDeclaration:
       case SyntaxKind.JsxAttributes: {
-        const containerSymbol = getSymbol(container)!;
-        return this.declareSymbol(getMembers(containerSymbol), containerSymbol, node, symbolFlags, symbolExcludes);
+        const containerSymbol = getSymbol(container);
+        return this.declareSymbol(getMembers(containerSymbol!), containerSymbol, node, symbolFlags, symbolExcludes);
       }
       case SyntaxKind.FunctionType:
       case SyntaxKind.ConstructorType:
@@ -775,26 +794,26 @@ class Binder extends NodeVisitor {
     // the container's locals; anonymous declarations like type literals go in no table.
     switch (node.kind) {
       case SyntaxKind.Identifier:
-        (node as Identifier).flowNode = this.currentFlow;
+        (node as Identifier).flowNode = this.currentFlowValue();
         this.checkContextualIdentifier(node as Identifier);
         break;
       case SyntaxKind.ThisKeyword:
       case SyntaxKind.SuperKeyword:
         if (node.kind === SyntaxKind.ThisKeyword) this.seenThisKeyword = true;
-        if (node instanceof KeywordExpression) node.flowNode = this.currentFlow;
+        if (node instanceof KeywordExpression) node.flowNode = this.currentFlowValue();
         break;
       case SyntaxKind.QualifiedName:
-        if (isPartOfTypeQuery(node)) (node as QualifiedName).flowNode = this.currentFlow;
+        if (isPartOfTypeQuery(node)) (node as QualifiedName).flowNode = this.currentFlowValue();
         break;
       case SyntaxKind.MetaProperty:
-        (node as MetaProperty).flowNode = this.currentFlow;
+        (node as MetaProperty).flowNode = this.currentFlowValue();
         break;
       case SyntaxKind.PrivateIdentifier:
         this.checkPrivateIdentifier(node);
         break;
       case SyntaxKind.PropertyAccessExpression:
       case SyntaxKind.ElementAccessExpression:
-        if (isNarrowableReference(node)) setFlowNode(node, this.currentFlow);
+        if (isNarrowableReference(node)) setFlowNode(node, this.currentFlowValue());
         break;
       case SyntaxKind.BinaryExpression:
         switch (getAssignmentDeclarationKind(node)) {
@@ -850,7 +869,7 @@ class Binder extends NodeVisitor {
         this.bindVariableDeclarationOrBindingElement(node);
         break;
       case SyntaxKind.BindingElement:
-        (node as BindingElement).flowNode = this.currentFlow;
+        (node as BindingElement).flowNode = this.currentFlowValue();
         this.bindVariableDeclarationOrBindingElement(node);
         break;
       case SyntaxKind.PropertyDeclaration:
@@ -1149,7 +1168,7 @@ class Binder extends NodeVisitor {
       return;
     }
     if (node.kind >= SyntaxKind.FirstStatement && node.kind <= SyntaxKind.LastStatement)
-      setFlowNode(node, this.currentFlow);
+      setFlowNode(node, this.currentFlowValue());
     switch (node.kind) {
       case SyntaxKind.WhileStatement:
         this.bindWhileStatement(node as WhileStatement);
@@ -1671,7 +1690,8 @@ class Binder extends NodeVisitor {
   /** A top-level or comma call with a dotted callee may be an assertion, so it joins the flow graph. */
   maybeBindExpressionFlowIfCall(node: Node): void {
     if (node instanceof CallExpression) {
-      const callee = node.expression;
+      const call: CallExpression = node;
+      const callee = call.expression;
       if (callee.kind !== SyntaxKind.SuperKeyword && isDottedName(callee))
         this.currentFlow = this.createFlowCall(this.currentFlow, node);
     }
@@ -1872,11 +1892,13 @@ class Binder extends NodeVisitor {
       }
     }
     const callee = node.expression;
+    if (!(callee instanceof PropertyAccessExpression)) return;
+    // Typed locals keep scriptc's field reads static after `instanceof`.
+    const access: PropertyAccessExpression = callee;
     if (
-      callee instanceof PropertyAccessExpression &&
-      callee.name.kind === SyntaxKind.Identifier &&
-      isNarrowableOperand(callee.expression) &&
-      isPushOrUnshiftIdentifier(callee.name)
+      access.name.kind === SyntaxKind.Identifier &&
+      isNarrowableOperand(access.expression) &&
+      isPushOrUnshiftIdentifier(access.name)
     )
       this.currentFlow = this.createFlowMutation(FlowFlags.ArrayMutation, this.currentFlow, node);
   }
@@ -2033,7 +2055,7 @@ class Binder extends NodeVisitor {
   bindFunctionExpression(node: Node): void {
     if (!this.file.isDeclarationFile && (node.flags & NodeFlags.Ambient) === 0 && isAsyncFunction(node))
       this.emitFlags |= NodeFlags.HasAsyncFunctions;
-    setFlowNode(node, this.currentFlow);
+    setFlowNode(node, this.currentFlowValue());
     let bindingName: string = InternalSymbolName.Function;
     if (node instanceof FunctionExpression && node.name !== undefined) {
       this.checkStrictModeFunctionName(node);
@@ -2068,7 +2090,7 @@ class Binder extends NodeVisitor {
   bindPropertyOrMethodOrAccessor(node: Node, symbolFlags: SymbolFlags, symbolExcludes: SymbolFlags): void {
     if (!this.file.isDeclarationFile && (node.flags & NodeFlags.Ambient) === 0 && isAsyncFunction(node))
       this.emitFlags |= NodeFlags.HasAsyncFunctions;
-    if (isObjectLiteralOrClassExpressionMethodOrAccessor(node)) setFlowNode(node, this.currentFlow);
+    if (isObjectLiteralOrClassExpressionMethodOrAccessor(node)) setFlowNode(node, this.currentFlowValue());
     if (hasDynamicName(node)) this.bindAnonymousDeclaration(node, symbolFlags, InternalSymbolName.Computed);
     else this.declareSymbolAndAddToSymbolTable(node, symbolFlags, symbolExcludes);
   }

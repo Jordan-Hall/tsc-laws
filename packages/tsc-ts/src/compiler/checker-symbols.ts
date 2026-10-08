@@ -378,7 +378,9 @@ export function getSpellingSuggestionForName(
   for (const candidate of symbols) {
     const candidateName = getCandidateName(c, candidate, meaning);
     if (candidateName === '') continue;
-    // tsgo measures candidates in bytes and the name in code points.
+    // tsgo measures candidates in bytes and the name in code points. A candidate has at least as
+    // many bytes as UTF-16 units, so most long candidates are out without measuring them.
+    if (candidateName.length - nameCodePoints.length > maximumLengthDifference) continue;
     const candidateLength = utf8Length(candidateName);
     if (
       Math.max(candidateLength, nameCodePoints.length) - Math.min(candidateLength, nameCodePoints.length) >
@@ -611,12 +613,32 @@ function mergeFileGlobals(c: Checker, file: SourceFile): void {
   for (const pattern of file.patternAmbientModules) c.patternAmbientModules.push(pattern);
   if (file.symbol !== undefined && file.globalExports !== undefined)
     // UMD exports, first in wins.
-    for (const [name, symbol] of file.globalExports) if (!c.globals.has(name)) c.globals.set(name, symbol);
+    for (const [name, symbol] of file.globalExports) if (!c.globals.has(name)) setGlobal(c, name, symbol);
+}
+
+/** Changes to a map, recorded so that they can be undone. */
+export class TableChanges<K, V> {
+  private readonly added = new Set<K>();
+  private readonly replaced = new Map<K, V>();
+
+  set(table: Map<K, V>, key: K, value: V): void {
+    const previous = table.get(key);
+    if (previous === undefined) this.added.add(key);
+    else if (!this.added.has(key) && !this.replaced.has(key)) this.replaced.set(key, previous);
+    table.set(key, value);
+  }
+
+  /** Restores `table`, or a copy of it, to its state before the changes. */
+  undo(table: Map<K, V>): void {
+    for (const key of this.added) table.delete(key);
+    for (const [key, value] of this.replaced) table.set(key, value);
+  }
 }
 
 /**
  * Globals merged from the locals of a program's leading default libraries. Checkers of programs
  * with the same libraries start from them; a later merge into a shared symbol merges into a copy.
+ * One checker at a time borrows the tables and changes them in place; the others copy them.
  */
 export class LibGlobals {
   readonly files: SourceFile[];
@@ -626,6 +648,8 @@ export class LibGlobals {
   readonly patternAmbientModules: PatternAmbientModule[];
   /** Ids of the symbols merged into each shared symbol. */
   readonly sources = new Map<Symbol, number[]>();
+  /** The checker using `globals` and `mergedSymbols` in place. */
+  borrower: Checker | undefined = undefined;
 
   constructor(c: Checker, files: SourceFile[]) {
     this.files = files;
@@ -643,6 +667,18 @@ export class LibGlobals {
       }
       ids.push(id);
     }
+  }
+
+  copyGlobals(): SymbolTable {
+    const globals = new Map(this.globals);
+    if (this.borrower !== undefined) this.borrower.globalChanges!.undo(globals);
+    return globals;
+  }
+
+  copyMergedSymbols(): Map<number, Symbol> {
+    const mergedSymbols = new Map(this.mergedSymbols);
+    if (this.borrower !== undefined) this.borrower.mergedSymbolChanges!.undo(mergedSymbols);
+    return mergedSymbols;
   }
 
   /** Whether `files` starts with exactly these `count` libraries. */
@@ -668,6 +704,32 @@ export function findLibGlobals(c: Checker): LibGlobals | undefined {
   const count = getLibraryCount(c);
   if (count > 0) for (const libs of libGlobalsCache) if (libs.matches(c.files, count)) return libs;
   return undefined;
+}
+
+export function borrowLibGlobals(c: Checker, libs: LibGlobals): void {
+  libs.borrower = c;
+  c.globalChanges = new TableChanges<string, Symbol>();
+  c.mergedSymbolChanges = new TableChanges<number, Symbol>();
+}
+
+/** Undoes a disposed checker's changes to the tables it borrowed. */
+export function returnLibGlobals(c: Checker): void {
+  const libs = c.libGlobals!;
+  c.globalChanges!.undo(libs.globals);
+  c.mergedSymbolChanges!.undo(libs.mergedSymbols);
+  c.globalChanges = undefined;
+  c.mergedSymbolChanges = undefined;
+  libs.borrower = undefined;
+}
+
+export function setGlobal(c: Checker, name: string, symbol: Symbol): void {
+  if (c.globalChanges !== undefined) c.globalChanges.set(c.globals, name, symbol);
+  else c.globals.set(name, symbol);
+}
+
+function setMergedSymbol(c: Checker, id: number, target: Symbol): void {
+  if (c.mergedSymbolChanges !== undefined) c.mergedSymbolChanges.set(c.mergedSymbols, id, target);
+  else c.mergedSymbols.set(id, target);
 }
 
 /** Merges script locals into globals; ambient modules and augmentations wait for global types. */
@@ -705,7 +767,7 @@ export function initializeGlobals(c: Checker): void {
             ['undefined'],
           ),
         );
-  } else globals.set('undefined', c.undefinedSymbol);
+  } else setGlobal(c, 'undefined', c.undefinedSymbol);
 }
 
 export function mergeAmbientModulesAndAugmentations(c: Checker): void {
@@ -740,7 +802,8 @@ function isTypeDeclaration(node: Node): boolean {
 
 function mergeGlobalSymbol(c: Checker, symbol: Symbol): void {
   const globalSymbol = c.globals.get(symbol.name);
-  c.globals.set(
+  setGlobal(
+    c,
     symbol.name,
     globalSymbol !== undefined ? mergeSymbol(c, globalSymbol, symbol, false) : getMergedSymbol(c, symbol),
   );
@@ -795,7 +858,8 @@ export function mergeSymbolTable(
     // A merged symbol takes the parent that initiated the merge of its exports.
     if (mergedParent !== undefined && targetSymbol !== undefined && (merged.flags & SymbolFlags.Transient) !== 0)
       merged.parent = mergedParent;
-    target.set(id, merged);
+    if (target === c.globals) setGlobal(c, id, merged);
+    else target.set(id, merged);
   }
 }
 
@@ -963,13 +1027,13 @@ function copySharedSymbol(c: Checker, shared: Symbol): Symbol {
 }
 
 function recordMergedSymbol(c: Checker, target: Symbol, source: Symbol): void {
-  c.mergedSymbols.set(getSymbolId(source), target);
+  setMergedSymbol(c, getSymbolId(source), target);
   // Merging a copy merges what it stands for.
   const libs = c.libGlobals;
   const shared = libs !== undefined ? c.sharedSymbolCopies.get(source) : undefined;
   if (shared !== undefined) {
-    c.mergedSymbols.set(getSymbolId(shared), target);
-    for (const id of libs!.sources.get(shared)!) c.mergedSymbols.set(id, target);
+    setMergedSymbol(c, getSymbolId(shared), target);
+    for (const id of libs!.sources.get(shared)!) setMergedSymbol(c, id, target);
   }
 }
 
@@ -1418,9 +1482,18 @@ export function getNamedMembers(c: Checker, members: SymbolTable | undefined, co
     if (isClassOrInterface && isDeclarationContainedBy(symbol, container!)) contained.push(symbol);
     else rest.push(symbol);
   }
-  contained.sort((a, b) => compareSymbols(c, a, b));
-  rest.sort((a, b) => compareSymbols(c, a, b));
+  sortSymbols(c, contained);
+  sortSymbols(c, rest);
   return contained.length === 0 ? rest : contained.concat(rest);
+}
+
+/** Sorts symbols by declaration order; members are usually in that order already. */
+function sortSymbols(c: Checker, symbols: Symbol[]): void {
+  for (let i = 1; i < symbols.length; i++)
+    if (compareSymbols(c, symbols[i - 1], symbols[i]) > 0) {
+      symbols.sort((a, b) => compareSymbols(c, a, b));
+      return;
+    }
 }
 
 // ---- Entity names

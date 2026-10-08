@@ -528,7 +528,9 @@ export function getImmediatelyInvokedFunctionExpression(fn: Node): Node | undefi
     prev = parent;
     parent = parent.parent!;
   }
-  return parent instanceof CallExpression && parent.expression === prev ? parent : undefined;
+  if (!(parent instanceof CallExpression)) return undefined;
+  const call: CallExpression = parent;
+  return call.expression === prev ? call : undefined;
 }
 
 /** `x as const` or `<const>x`. */

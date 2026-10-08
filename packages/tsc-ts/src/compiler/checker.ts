@@ -79,7 +79,11 @@ import {
 import {
   CheckerNameResolver,
   type LibGlobals,
+  TableChanges,
+  borrowLibGlobals,
   findLibGlobals,
+  returnLibGlobals,
+  setGlobal,
   SuggestionNameResolver,
   getGlobalStrictFunctionType,
   getGlobalType,
@@ -224,6 +228,12 @@ export class Checker {
   readonly mergedSymbols: Map<number, Symbol>;
   /** Globals merged from the default libraries, shared with other checkers. */
   libGlobals: LibGlobals | undefined;
+  /**
+   * This checker's changes to `globals` and `mergedSymbols` when it uses the tables of
+   * `libGlobals` in place rather than copies; they are undone when it is disposed.
+   */
+  globalChanges: TableChanges<string, Symbol> | undefined = undefined;
+  mergedSymbolChanges: TableChanges<number, Symbol> | undefined = undefined;
   /** This checker's copies of shared symbols, and the symbols they stand for. */
   readonly sharedSymbolCopies = new Map<Symbol, Symbol>();
 
@@ -451,12 +461,21 @@ export class Checker {
     this.unknownSymbol = this.newSymbol(SymbolFlags.Property, 'unknown');
     const libs = findLibGlobals(this);
     this.libGlobals = libs;
-    this.globals = libs !== undefined ? new Map(libs.globals) : new Map<string, Symbol>();
-    this.mergedSymbols = libs !== undefined ? new Map(libs.mergedSymbols) : new Map<number, Symbol>();
+    if (libs === undefined) {
+      this.globals = new Map<string, Symbol>();
+      this.mergedSymbols = new Map<number, Symbol>();
+    } else if (libs.borrower === undefined) {
+      borrowLibGlobals(this, libs);
+      this.globals = libs.globals;
+      this.mergedSymbols = libs.mergedSymbols;
+    } else {
+      this.globals = libs.copyGlobals();
+      this.mergedSymbols = libs.copyMergedSymbols();
+    }
     this.globalThisSymbol = this.newSymbol(SymbolFlags.Module, 'globalThis');
     this.globalThisSymbol.checkFlags = CheckFlags.Readonly;
     this.globalThisSymbol.exports = this.globals;
-    this.globals.set(this.globalThisSymbol.name, this.globalThisSymbol);
+    setGlobal(this, this.globalThisSymbol.name, this.globalThisSymbol);
     this.resolver = new CheckerNameResolver(this);
     this.suggestionResolver = new SuggestionNameResolver(this);
     this.typeNodeVisitor = new TypeNodeVisitor(this);
@@ -729,8 +748,11 @@ export class Checker {
 export function disposeChecker(c: Checker): void {
   c.symbolLinkStore.clear();
   c.nodeLinkStore.clear();
-  c.mergedSymbols.clear();
-  c.globals.clear();
+  if (c.globalChanges !== undefined) returnLibGlobals(c);
+  else {
+    c.mergedSymbols.clear();
+    c.globals.clear();
+  }
   c.sharedSymbolCopies.clear();
   c.unresolvedSymbols.clear();
   c.undefinedProperties.clear();

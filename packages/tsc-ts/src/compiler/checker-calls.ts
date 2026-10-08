@@ -887,7 +887,7 @@ export function resolveCall(
 
 function reorderCandidates(c: Checker, signatures: Signature[], callChainFlags: SignatureFlags): Signature[] {
   let lastParent: Node | undefined = undefined;
-  let lastSymbol: object | undefined = undefined;
+  let lastSymbol: Symbol | undefined = undefined;
   let index = 0;
   let cutoffIndex = 0;
   let spliceIndex: number;

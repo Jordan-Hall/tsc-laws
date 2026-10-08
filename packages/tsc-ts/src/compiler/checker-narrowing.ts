@@ -254,19 +254,21 @@ export function getTypeAtFlowNode(c: Checker, f: FlowState, start: FlowNode): Ty
       }
       sharedFlow = flow;
     }
-    let t: Type | undefined;
+    let t: Type;
     if ((flags & FlowFlags.Assignment) !== 0) {
-      t = getTypeAtFlowAssignment(c, f, flow);
-      if (t === undefined) {
+      const assigned = getTypeAtFlowAssignment(c, f, flow);
+      if (assigned === undefined) {
         flow = flow.antecedent!;
         continue;
       }
+      t = assigned;
     } else if ((flags & FlowFlags.Call) !== 0) {
-      t = getTypeAtFlowCall(c, f, flow);
-      if (t === undefined) {
+      const narrowed = getTypeAtFlowCall(c, f, flow);
+      if (narrowed === undefined) {
         flow = flow.antecedent!;
         continue;
       }
+      t = narrowed;
     } else if ((flags & FlowFlags.Condition) !== 0) t = getTypeAtFlowCondition(c, f, flow);
     else if ((flags & FlowFlags.SwitchClause) !== 0) t = getTypeAtSwitchClause(c, f, flow as FlowSwitchClause);
     else if ((flags & FlowFlags.BranchLabel) !== 0) {
@@ -284,11 +286,12 @@ export function getTypeAtFlowNode(c: Checker, f: FlowState, start: FlowNode): Ty
       }
       t = getTypeAtFlowLoopLabel(c, f, flow);
     } else if ((flags & FlowFlags.ArrayMutation) !== 0) {
-      t = getTypeAtFlowArrayMutation(c, f, flow);
-      if (t === undefined) {
+      const mutated = getTypeAtFlowArrayMutation(c, f, flow);
+      if (mutated === undefined) {
         flow = flow.antecedent!;
         continue;
       }
+      t = mutated;
     } else if ((flags & FlowFlags.ReduceLabel) !== 0) {
       f.reduceLabels.push(flow as FlowReduceLabel);
       t = getTypeAtFlowNode(c, f, flow.antecedent!);

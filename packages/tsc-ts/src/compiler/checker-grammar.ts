@@ -2183,7 +2183,8 @@ function checkGrammarForEsModuleMarkerInBindingName(g: GrammarChecker, name: Nod
 
 function checkGrammarNameInLetOrConstDeclarations(g: GrammarChecker, name: Node): boolean {
   if (name instanceof Identifier) {
-    if (name.text === 'let')
+    const identifier: Identifier = name;
+    if (identifier.text === 'let')
       return grammarErrorOnNode(
         g,
         name,

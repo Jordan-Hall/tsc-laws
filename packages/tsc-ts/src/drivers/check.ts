@@ -184,8 +184,7 @@ function inputName(path: string, text: string): string {
  * Parse, bind, semantic and global diagnostics of the input file, in that order. JS files add their
  * JS-only syntactic and JSDoc diagnostics as a program does for a checked JS file.
  */
-function check(path: string, text: string, loader: LibLoader, defaults: CompilerOptions): Diagnostic[] {
-  const name = inputName(path, text);
+function check(name: string, text: string, loader: LibLoader, defaults: CompilerOptions): Diagnostic[] {
   let options = defaults;
   if (name === '/input.tsx') options = createJsxOptions(text);
   else if (name === '/input.js') options = createJSOptions();
@@ -227,8 +226,8 @@ function utf8Offsets(text: string): Int32Array {
   return offsets;
 }
 
-function format(diagnostics: Diagnostic[], path: string, text: string, out: string[]): void {
-  const input = inputName(path, text);
+/** Prints diagnostics with UTF-8 offsets in the input file `input`. */
+function format(diagnostics: Diagnostic[], input: string, text: string, out: string[]): void {
   const offsets = utf8Offsets(text);
   for (const d of diagnostics) {
     const name = d.file !== undefined ? d.file.fileName : '';
@@ -264,7 +263,8 @@ function main(): void {
       out.push('== ' + line);
       const start = out.length;
       try {
-        format(check(line, input, loader, options), line, input, out);
+        const name = inputName(line, input);
+        format(check(name, input, loader, options), name, input, out);
       } catch {
         out.length = start;
         out.push('!! panic');
@@ -274,12 +274,14 @@ function main(): void {
     const text = readFileSync(path, 'utf8');
     let count = 0;
     const start = performance.now();
-    for (let i = 0; i < 5; i++) count = check(path, text, loader, options).length;
+    const name = inputName(path, text);
+    for (let i = 0; i < 5; i++) count = check(name, text, loader, options).length;
     const ms = (performance.now() - start) / 5;
     out.push(`diagnostics ${count} time ${ms.toFixed(2)}ms`);
   } else {
     const text = readFileSync(path, 'utf8');
-    format(check(path, text, loader, options), path, text, out);
+    const name = inputName(path, text);
+    format(check(name, text, loader, options), name, text, out);
   }
   if (out.length > 0) write(out.join('\n') + '\n');
 }

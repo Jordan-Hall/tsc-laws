@@ -480,8 +480,11 @@ export function isJSLiteralType(c: Checker, t: Type): boolean {
 /** `exports.x = undefined` is ignored when x has other assignment declarations. */
 export function isUndefinedAssignmentToCommonJSExport(c: Checker, left: Node, rightType: Type): boolean {
   const parent = left.parent!;
-  if (!(parent instanceof BinaryExpression) || parent.symbol === undefined) return false;
-  if (getAssignmentDeclarationKind(parent) !== JSDeclarationKind.ExportsProperty) return false;
+  if (!(parent instanceof BinaryExpression)) return false;
+  // Typed locals keep scriptc's field reads static after `instanceof`.
+  const assignment: BinaryExpression = parent;
+  if (assignment.symbol === undefined) return false;
+  if (getAssignmentDeclarationKind(assignment) !== JSDeclarationKind.ExportsProperty) return false;
   const symbol = c.nodeLinks(left).resolvedSymbol;
   return symbol !== undefined && symbol.declarations.length > 1 && (rightType.flags & TypeFlags.Undefined) !== 0;
 }

@@ -16,24 +16,25 @@ function toLower(ch: number): number {
 
 // Levenshtein distance where a case-only substitution costs 0.1; -1 if above `max`.
 export function levenshteinWithMax(s1: number[], s2: number[], max: number): number {
-  let previous: number[] = [];
-  let current: number[] = [];
-  for (let i = 0; i <= s2.length; i++) {
-    previous.push(i);
-    current.push(0);
-  }
+  let previous = new Float64Array(s2.length + 1);
+  let current = new Float64Array(s2.length + 1);
+  for (let i = 0; i <= s2.length; i++) previous[i] = i;
   const big = max + 0.01;
   for (let i = 1; i <= s1.length; i++) {
     const c1 = s1[i - 1];
+    const lower1 = toLower(c1);
     const minJ = Math.max(Math.ceil(i - max), 1);
     const maxJ = Math.min(Math.floor(max + i), s2.length);
     let colMin = i;
     current[0] = i;
     for (let j = 1; j < minJ; j++) current[j] = big;
     for (let j = minJ; j <= maxJ; j++) {
-      const substitution = toLower(c1) === toLower(s2[j - 1]) ? previous[j - 1] + 0.1 : previous[j - 1] + 2;
-      const dist =
-        c1 === s2[j - 1] ? previous[j - 1] : Math.min(previous[j] + 1, Math.min(current[j - 1] + 1, substitution));
+      const c2 = s2[j - 1];
+      let dist = previous[j - 1];
+      if (c1 !== c2) {
+        const substitution = dist + (lower1 === toLower(c2) ? 0.1 : 2);
+        dist = Math.min(previous[j] + 1, current[j - 1] + 1, substitution);
+      }
       current[j] = dist;
       colMin = Math.min(colMin, dist);
     }
