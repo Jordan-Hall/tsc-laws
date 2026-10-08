@@ -1289,6 +1289,8 @@ function isSuperProperty(node: Node): boolean {
 
 /** The `this` argument of `x.f(...)` and `x[f](...)`. */
 function getThisArgumentOfCall(c: Checker, node: Node): Node | undefined {
+  // `x instanceof C` calls `C[Symbol.hasInstance](x)`.
+  if (node.kind === SyntaxKind.BinaryExpression) return (node as BinaryExpression).right;
   let expression: Node | undefined = undefined;
   if (node.kind === SyntaxKind.CallExpression) expression = (node as CallExpression).expression;
   else if (node.kind === SyntaxKind.TaggedTemplateExpression) expression = (node as TaggedTemplateExpression).tag;

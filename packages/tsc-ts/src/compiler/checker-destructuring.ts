@@ -589,7 +589,13 @@ function checkObjectLiteralDestructuringPropertyAssignment(
     );
     const expr =
       property.kind === SyntaxKind.PropertyAssignment ? (property as PropertyAssignment).initializer : property;
-    checkDestructuringAssignment(c, expr, elementType, CheckMode.Normal, false);
+    checkDestructuringAssignment(
+      c,
+      expr,
+      getFlowTypeOfDestructuring(c, property, elementType),
+      CheckMode.Normal,
+      false,
+    );
     return;
   }
   if (property.kind === SyntaxKind.SpreadAssignment) {
@@ -648,7 +654,7 @@ function checkArrayLiteralDestructuringElementAssignment(
       const t =
         getIndexedAccessTypeOrUndefinedEx(c, sourceType, indexType, accessFlags, accessNode, undefined) ?? c.errorType;
       const assigned = hasDefaultValue(element) ? getTypeWithFacts(c, t, TypeFacts.NEUndefined) : t;
-      checkDestructuringAssignment(c, element, assigned, checkMode, false);
+      checkDestructuringAssignment(c, element, getFlowTypeOfDestructuring(c, element, assigned), checkMode, false);
       return;
     }
     checkDestructuringAssignment(c, element, elementType, checkMode, false);

@@ -1,9 +1,7 @@
 // Control flow analysis: the type of a reference at a position, walking the binder's flow graph
 // backwards from the reference through assignments, conditions, calls and labels.
 import {
-  getParameters,
   type ForInOrOfStatement,
-  type ShorthandPropertyAssignment,
   type MetaProperty,
   type BindingElement,
   getName,
@@ -14,6 +12,7 @@ import {
   type PropertyAccessExpression,
   type QualifiedName,
   type SwitchStatement,
+  type ShorthandPropertyAssignment,
   type CaseOrDefaultClause,
   getExpression,
   getFlowNode,
@@ -25,6 +24,8 @@ import {
   NodeFlags,
   NodeVisitor,
   getArguments,
+  getDotDotDotToken,
+  getParameters,
   getElements,
   getType,
   getStatements,
@@ -33,6 +34,7 @@ import { FlowFlags, type FlowNode, FlowReduceLabel, FlowSwitchClause } from './f
 import { SyntaxKind } from './syntax-kind.js';
 import type { Checker } from './checker.js';
 import {
+  type LiteralType,
   type Type,
   TypeFlags,
   type UnionType,
@@ -76,9 +78,11 @@ import {
   removeType,
   someType,
   typesOf,
+  containsMissingType,
+  getNumberLiteralType,
   createArrayType,
-  newObjectType,
   isTupleType,
+  newObjectType,
 } from './checker-type-factory.js';
 import {
   areTypesComparable,
@@ -96,15 +100,22 @@ import {
   checkExpressionEx,
   checkNonNullExpression,
   checkNonNullType,
+  getNarrowableTypeForReference,
   getResolvedSymbol,
   getTypeOfExpression,
+  isThisInTypeQuery,
+  isTupleLikeType,
 } from './checker-expressions.js';
-import { getSymbolHasInstanceMethodOfObjectType } from './checker-operators.js';
-import { checkSuperExpression } from './checker-super.js';
 import { isBlockScopedNameDeclaredBeforeUse } from './checker-declaration-order.js';
-import { isEntityNameExpression } from './binder-utilities.js';
+import {
+  getContextualSignature,
+  getInferenceContext,
+  isContextSensitiveFunctionOrObjectLiteralMethod,
+} from './checker-contextual.js';
+import { instantiateType } from './instantiation.js';
+import { IterationUse, checkIteratedTypeOrElementType } from './checker-iteration.js';
+import { checkSuperExpression } from './checker-super.js';
 import { getSymbolNameForPrivateIdentifier } from './binder.js';
-import { getOptionalExpressionType } from './checker-calls.js';
 import { isTypeAssignableToKindEx } from './checker-type-operators.js';
 import { getRegularTypeOfObjectLiteral } from './checker-literals.js';
 import { checkRightHandSideOfForOf } from './checker-statements.js';
@@ -114,6 +125,7 @@ import {
   getBaseConstraintOfType,
   getPropertiesOfType,
   getPropertyOfType,
+  getReducedApparentType,
   getSignaturesOfType,
   getTypeOfPropertyOfType,
 } from './checker-members.js';
@@ -122,12 +134,15 @@ import {
   isAssignmentTarget,
   isPushOrUnshiftIdentifier,
   getCombinedModifierFlags,
+  hasStaticModifier,
   getCombinedNodeFlags,
   getImmediatelyInvokedFunctionExpression,
   getRootDeclaration,
   getThisContainer,
   isAssignmentExpression,
   isClassLike,
+  isEntityNameExpression,
+  isObjectLiteralMethod,
   isExpressionOfOptionalChainRoot,
   isGlobalSourceFile,
   isLogicalOrCoalescingAssignmentOperator,
@@ -158,16 +173,19 @@ import { getTypeFromTypeNode, getTypeAliasInstantiation } from './checker-type-n
 import { isFunctionLike } from './ast-utilities.js';
 import { Diagnostic } from './diagnostics.js';
 import { Diagnostics } from './diagnostic-messages.js';
-import { getResolvedSignature } from './checker-calls.js';
-import { getLiteralTypeFromPropertyName } from './checker-type-operators.js';
+import { getOptionalExpressionType, getResolvedSignature } from './checker-calls.js';
+import { getSymbolHasInstanceMethodOfObjectType } from './checker-operators.js';
+import { getSymbolForPrivateIdentifierExpression } from './checker-property-access.js';
+import {
+  getIndexedAccessType,
+  getLiteralTypeFromPropertyName,
+  getTupleElementTypeOutOfStartCount,
+} from './checker-type-operators.js';
 import {
   getBindingElementTypeFromParentType,
   getNonUndefinedType,
   getTypeForBindingElementParent,
 } from './checker-destructuring.js';
-import { IterationUse, checkIteratedTypeOrElementType } from './checker-iteration.js';
-import { getTupleElementTypeOutOfStartCount } from './checker-type-operators.js';
-import { isTupleLikeType } from './checker-expressions.js';
 
 /** The state of one `getFlowTypeOfReference` walk. `incomplete` describes the last returned type. */
 export class FlowState {
@@ -377,13 +395,13 @@ function getTypeAtFlowAssignment(c: Checker, f: FlowState, flow: FlowNode): Type
     }
     if (f.declaredType === c.autoType || f.declaredType === c.autoArrayType) {
       if (isEmptyArrayAssignment(node)) return complete(f, getEvolvingArrayType(c, c.neverType));
-      const assignedType = getWidenedLiteralType(c, getInitialOrAssignedType(c, flow));
+      const assignedType = getWidenedLiteralType(c, getInitialOrAssignedType(c, f, flow));
       return complete(f, isTypeAssignableTo(c, assignedType, f.declaredType) ? assignedType : c.anyArrayType);
     }
     let t = f.declaredType;
     if (isInCompoundLikeAssignment(node)) t = getBaseTypeOfLiteralType(c, t);
     if ((t.flags & TypeFlags.Union) !== 0)
-      return complete(f, getAssignmentReducedType(c, t, getInitialOrAssignedType(c, flow)));
+      return complete(f, getAssignmentReducedType(c, t, getInitialOrAssignedType(c, f, flow)));
     return complete(f, t);
   }
   // An assignment to a prefix of a dotted name resets it to the declared type.
@@ -422,11 +440,13 @@ function isEmptyArrayLiteral(node: Node): boolean {
   return node.kind === SyntaxKind.ArrayLiteralExpression && getElements(node)!.nodes.length === 0;
 }
 
-function getInitialOrAssignedType(c: Checker, flow: FlowNode): Type {
+function getInitialOrAssignedType(c: Checker, f: FlowState, flow: FlowNode): Type {
   const node = flow.node!;
-  if (node.kind === SyntaxKind.VariableDeclaration || node.kind === SyntaxKind.BindingElement)
-    return getInitialType(c, node);
-  return getAssignedType(c, node);
+  const t =
+    node.kind === SyntaxKind.VariableDeclaration || node.kind === SyntaxKind.BindingElement
+      ? getInitialType(c, node)
+      : getAssignedType(c, node);
+  return getNarrowableTypeForReference(c, t, f.reference);
 }
 
 function getInitialType(c: Checker, node: Node): Type {
@@ -631,6 +651,7 @@ export function getEffectsSignature(c: Checker, node: Node): Signature | undefin
   const links = c.nodeLinks(node);
   let signature = links.effectsSignature;
   if (signature === undefined) {
+    // Assertion calls resolve their target with getTypeOfDottedName to avoid circularities.
     let funcType: Type | undefined = undefined;
     if (node.kind === SyntaxKind.BinaryExpression)
       funcType = getSymbolHasInstanceMethodOfObjectType(c, checkNonNullExpression(c, (node as BinaryExpression).right));
@@ -701,18 +722,48 @@ function getExplicitTypeOfSymbol(c: Checker, original: Symbol): Type | undefined
   if ((symbol.flags & (SymbolFlags.Function | SymbolFlags.Method | SymbolFlags.Class | SymbolFlags.ValueModule)) !== 0)
     return getTypeOfSymbol(c, symbol);
   if ((symbol.flags & (SymbolFlags.Variable | SymbolFlags.Property)) !== 0) {
+    if ((symbol.checkFlags & CheckFlags.Mapped) !== 0) {
+      const origin = c.symbolLinks(symbol).syntheticOrigin;
+      if (origin !== undefined && getExplicitTypeOfSymbol(c, origin) !== undefined) return getTypeOfSymbol(c, symbol);
+    }
     const declaration = symbol.valueDeclaration;
     if (declaration !== undefined) {
-      switch (declaration.kind) {
-        case SyntaxKind.VariableDeclaration:
-        case SyntaxKind.PropertyDeclaration:
-        case SyntaxKind.PropertySignature:
-        case SyntaxKind.Parameter:
-          if (getType(declaration) !== undefined) return getTypeOfSymbol(c, symbol);
+      if (isDeclarationWithExplicitTypeAnnotation(declaration)) return getTypeOfSymbol(c, symbol);
+      // `for (const x of xs)` where `xs` has an explicit type.
+      if (
+        declaration.kind === SyntaxKind.VariableDeclaration &&
+        declaration.parent!.parent!.kind === SyntaxKind.ForOfStatement
+      ) {
+        const statement = declaration.parent!.parent! as ForInOrOfStatement;
+        const expressionType = getTypeOfDottedName(c, statement.expression);
+        if (expressionType !== undefined)
+          return checkIteratedTypeOrElementType(
+            c,
+            statement.awaitModifier !== undefined ? IterationUse.ForAwaitOf : IterationUse.ForOf,
+            expressionType,
+            c.undefinedType,
+            undefined,
+          );
       }
     }
   }
   return undefined;
+}
+
+function isDeclarationWithExplicitTypeAnnotation(node: Node): boolean {
+  switch (node.kind) {
+    case SyntaxKind.VariableDeclaration:
+    case SyntaxKind.PropertyDeclaration:
+    case SyntaxKind.PropertySignature:
+    case SyntaxKind.Parameter:
+      return getType(node) !== undefined;
+    case SyntaxKind.BinaryExpression: {
+      // An expando property assigned a function with a return type annotation.
+      const right = (node as BinaryExpression).right;
+      return isFunctionLike(right) && getType(right) !== undefined;
+    }
+  }
+  return false;
 }
 
 function getExplicitThisType(c: Checker, node: Node): Type | undefined {
@@ -849,7 +900,10 @@ function getTypeAtFlowLoopLabel(c: Checker, f: FlowState, flow: FlowNode): Type 
       first = false;
     } else {
       c.flowLoopStack.push(new FlowLoopInfo(flow, key, antecedentTypes));
+      const saveFlowTypeCache = c.flowTypeCache;
+      c.flowTypeCache = undefined;
       flowType = getTypeAtFlowNode(c, f, antecedent);
+      c.flowTypeCache = saveFlowTypeCache;
       c.flowLoopStack.pop();
       const restarted = cache.get(key);
       if (restarted !== undefined) return complete(f, restarted);
@@ -885,7 +939,7 @@ function writeFlowCacheKey(
     case SyntaxKind.Identifier:
     case SyntaxKind.ThisKeyword: {
       let key = '';
-      if (node.kind === SyntaxKind.Identifier) {
+      if (node.kind === SyntaxKind.Identifier && !isThisInTypeQuery(node)) {
         const symbol = getResolvedSymbol(c, node);
         if (symbol === c.unknownSymbol) return undefined;
         key = String(getSymbolId(symbol));
@@ -918,6 +972,14 @@ function writeFlowCacheKey(
       const left = writeFlowCacheKey(c, getExpression(node)!, declaredType, initialType, flowContainer);
       return left === undefined ? undefined : left + '.@' + getSymbolId(symbol);
     }
+    // Pseudo-references of getNarrowedTypeOfSymbol.
+    case SyntaxKind.ObjectBindingPattern:
+    case SyntaxKind.ArrayBindingPattern:
+    case SyntaxKind.FunctionDeclaration:
+    case SyntaxKind.FunctionExpression:
+    case SyntaxKind.ArrowFunction:
+    case SyntaxKind.MethodDeclaration:
+      return '#' + getNodeId(node) + '#' + declaredType.id;
   }
   return undefined;
 }
@@ -1007,6 +1069,23 @@ function narrowTypeByCallExpression(c: Checker, f: FlowState, t: Type, call: Nod
       (predicate.kind === TypePredicateKind.This || predicate.kind === TypePredicateKind.Identifier)
     )
       return narrowTypeByTypePredicate(c, f, t, predicate, call, assumeTrue);
+  }
+  // `obj.hasOwnProperty("p")` narrows an optional `obj.p` under exactOptionalPropertyTypes.
+  if (containsMissingType(c, t) && isAccessExpression(f.reference)) {
+    const callee = getExpression(call)!;
+    if (callee.kind === SyntaxKind.PropertyAccessExpression) {
+      const name = (callee as PropertyAccessExpression).name;
+      const args = getArguments(call)!.nodes;
+      if (
+        isMatchingReference(c, getExpression(f.reference)!, getReferenceCandidate(getExpression(callee)!)) &&
+        name.kind === SyntaxKind.Identifier &&
+        getText(name) === 'hasOwnProperty' &&
+        args.length === 1 &&
+        isStringLiteralLike(args[0]) &&
+        getAccessedPropertyName(c, f.reference) === getText(args[0])
+      )
+        return getTypeWithFacts(c, t, assumeTrue ? TypeFacts.NEUndefined : TypeFacts.EQUndefined);
+    }
   }
   return t;
 }
@@ -1108,8 +1187,21 @@ function narrowTypeByBinaryExpression(
     case SyntaxKind.InstanceOfKeyword:
       return narrowTypeByInstanceof(c, f, t, expr, assumeTrue);
     case SyntaxKind.InKeyword: {
-      if (expr.left.kind === SyntaxKind.PrivateIdentifier) return t;
+      if (expr.left.kind === SyntaxKind.PrivateIdentifier)
+        return narrowTypeByPrivateIdentifierInInExpression(c, f, t, expr, assumeTrue);
       const target = getReferenceCandidate(expr.right);
+      if (
+        containsMissingType(c, t) &&
+        isAccessExpression(f.reference) &&
+        isMatchingReference(c, getExpression(f.reference)!, target)
+      ) {
+        const leftType = getTypeOfExpression(c, expr.left);
+        if (
+          isTypeUsableAsPropertyName(leftType) &&
+          getAccessedPropertyName(c, f.reference) === getPropertyNameFromType(leftType)
+        )
+          return getTypeWithFacts(c, t, assumeTrue ? TypeFacts.NEUndefined : TypeFacts.EQUndefined);
+      }
       if (isMatchingReference(c, f.reference, target)) {
         const leftType = getTypeOfExpression(c, expr.left);
         if (isTypeUsableAsPropertyName(leftType)) return narrowTypeByInKeyword(c, t, leftType, assumeTrue);
@@ -1127,6 +1219,23 @@ function narrowTypeByBinaryExpression(
       return narrowType(c, f, narrowType(c, f, t, expr.left, false), expr.right, false);
   }
   return t;
+}
+
+function narrowTypeByPrivateIdentifierInInExpression(
+  c: Checker,
+  f: FlowState,
+  t: Type,
+  expr: BinaryExpression,
+  assumeTrue: boolean,
+): Type {
+  if (!isMatchingReference(c, f.reference, getReferenceCandidate(expr.right))) return t;
+  const symbol = getSymbolForPrivateIdentifierExpression(c, expr.left);
+  if (symbol === undefined) return t;
+  const classSymbol = symbol.parent!;
+  const targetType = hasStaticModifier(symbol.valueDeclaration!)
+    ? getTypeOfSymbol(c, classSymbol)
+    : getDeclaredTypeOfSymbol(c, classSymbol);
+  return getNarrowedType(c, t, targetType, assumeTrue, true);
 }
 
 function isBooleanLiteral(node: Node): boolean {
@@ -1372,6 +1481,11 @@ function narrowTypeByInstanceof(c: Checker, f: FlowState, t: Type, expr: BinaryE
   }
   const rightType = getTypeOfExpression(c, expr.right);
   if (!isTypeDerivedFrom(c, rightType, c.globalObjectType)) return t;
+  // A `[Symbol.hasInstance]` method with a type predicate narrows like a type guard call.
+  const signature = getEffectsSignature(c, expr);
+  const predicate = signature !== undefined ? getTypePredicateOfSignature(c, signature) : undefined;
+  if (predicate !== undefined && predicate.kind === TypePredicateKind.Identifier && predicate.parameterIndex === 0)
+    return getNarrowedType(c, t, predicate.type!, assumeTrue, true);
   if (!isTypeDerivedFrom(c, rightType, c.globalFunctionType)) return t;
   const instanceType = mapType(c, rightType, (u) => getInstanceType(c, u));
   if (
@@ -1512,16 +1626,24 @@ function getDiscriminantPropertyAccess(c: Checker, f: FlowState, expr: Node, com
 
 function getCandidateDiscriminantPropertyAccess(c: Checker, f: FlowState, expr: Node): Node | undefined {
   const reference = f.reference;
-  if (reference.kind === SyntaxKind.ObjectBindingPattern || reference.kind === SyntaxKind.ArrayBindingPattern) {
-    // A binding pattern pseudo-reference from getNarrowedTypeOfSymbol: a sibling destructured variable is a candidate.
+  if (
+    reference.kind === SyntaxKind.ObjectBindingPattern ||
+    reference.kind === SyntaxKind.ArrayBindingPattern ||
+    reference.kind === SyntaxKind.FunctionExpression ||
+    reference.kind === SyntaxKind.ArrowFunction ||
+    isObjectLiteralMethod(reference)
+  ) {
+    // A pseudo-reference from getNarrowedTypeOfSymbol: a sibling destructured variable or parameter is a candidate.
     if (expr.kind !== SyntaxKind.Identifier) return undefined;
     const declaration = getExportSymbolOfValueSymbolIfExported(c, getResolvedSymbol(c, expr)).valueDeclaration;
     if (
       declaration !== undefined &&
-      declaration.kind === SyntaxKind.BindingElement &&
+      (declaration.kind === SyntaxKind.BindingElement || declaration.kind === SyntaxKind.Parameter) &&
       declaration.parent === reference &&
       getInitializer(declaration) === undefined &&
-      (declaration as BindingElement).dotDotDotToken === undefined
+      (declaration.kind === SyntaxKind.BindingElement
+        ? (declaration as BindingElement).dotDotDotToken
+        : getDotDotDotToken(declaration)) === undefined
     )
       return declaration;
     return undefined;
@@ -1587,7 +1709,7 @@ function narrowTypeByDiscriminant(c: Checker, t: Type, access: Node, narrow: (t:
 }
 
 function isNonNullAccess(node: Node): boolean {
-  return isAccessExpression(node) && node.parent !== undefined && node.parent.kind === SyntaxKind.NonNullExpression;
+  return isAccessExpression(node) && getExpression(node)!.kind === SyntaxKind.NonNullExpression;
 }
 
 function getTypeOfPropertyOrIndexSignatureOfType(c: Checker, t: Type, name: string): Type | undefined {
@@ -1692,20 +1814,60 @@ function getTypeAtSwitchClause(c: Checker, f: FlowState, flow: FlowSwitchClause)
     t = narrowTypeBySwitchOnTypeOf(c, t, flow);
   else if (expr.kind === SyntaxKind.TrueKeyword) t = narrowTypeBySwitchOnTrue(c, f, t, flow);
   else {
-    if (
-      c.strictNullChecks &&
-      optionalChainContainsReference(c, expr, f.reference) &&
-      flow.clauseStart !== flow.clauseEnd
-    ) {
-      const clauseTypes = getSwitchClauseTypes(c, statement).slice(flow.clauseStart, flow.clauseEnd);
-      if (clauseTypes.every((u) => (u.flags & (TypeFlags.Undefined | TypeFlags.Never)) === 0))
-        t = getTypeWithFacts(c, t, TypeFacts.NEUndefinedOrNull);
+    if (c.strictNullChecks) {
+      if (optionalChainContainsReference(c, expr, f.reference))
+        t = narrowTypeBySwitchOptionalChainContainment(
+          c,
+          t,
+          flow,
+          (u) => (u.flags & (TypeFlags.Undefined | TypeFlags.Never)) === 0,
+        );
+      else if (
+        expr.kind === SyntaxKind.TypeOfExpression &&
+        optionalChainContainsReference(c, getExpression(expr)!, f.reference)
+      )
+        t = narrowTypeBySwitchOptionalChainContainment(
+          c,
+          t,
+          flow,
+          (u) =>
+            !(
+              (u.flags & TypeFlags.Never) !== 0 ||
+              ((u.flags & TypeFlags.StringLiteral) !== 0 && (u as LiteralType).stringValue === 'undefined')
+            ),
+        );
     }
     const access = getDiscriminantPropertyAccess(c, f, expr, t);
-    if (access !== undefined)
-      t = narrowTypeByDiscriminant(c, t, access, (u) => narrowTypeBySwitchOnDiscriminant(c, u, flow));
+    if (access !== undefined) t = narrowTypeBySwitchOnDiscriminantProperty(c, t, access, flow);
   }
   return newFlowType(c, f, t, incomplete);
+}
+
+function narrowTypeBySwitchOptionalChainContainment(
+  c: Checker,
+  t: Type,
+  flow: FlowSwitchClause,
+  clauseCheck: (t: Type) => boolean,
+): Type {
+  if (flow.clauseStart === flow.clauseEnd) return t;
+  const clauseTypes = getSwitchClauseTypes(c, flow.switchStatement);
+  for (let i = flow.clauseStart; i < flow.clauseEnd; i++) if (!clauseCheck(clauseTypes[i])) return t;
+  return getTypeWithFacts(c, t, TypeFacts.NEUndefinedOrNull);
+}
+
+function narrowTypeBySwitchOnDiscriminantProperty(c: Checker, t: Type, access: Node, flow: FlowSwitchClause): Type {
+  if (flow.clauseStart < flow.clauseEnd && (t.flags & TypeFlags.Union) !== 0) {
+    const accessedName = getAccessedPropertyName(c, access);
+    if (accessedName !== undefined && accessedName !== '' && getKeyPropertyName(c, t as UnionType) === accessedName) {
+      const clauseTypes = getSwitchClauseTypes(c, flow.switchStatement).slice(flow.clauseStart, flow.clauseEnd);
+      const candidate = getUnionType(
+        c,
+        clauseTypes.map((s) => getConstituentTypeForKeyType(c, t as UnionType, s) ?? c.unknownType),
+      );
+      if (candidate !== c.unknownType) return candidate;
+    }
+  }
+  return narrowTypeByDiscriminant(c, t, access, (u) => narrowTypeBySwitchOnDiscriminant(c, u, flow));
 }
 
 function getClauses(statement: Node): Node[] {
@@ -1890,6 +2052,8 @@ export function isMatchingReference(c: Checker, source: Node, target: Node): boo
   }
   switch (source.kind) {
     case SyntaxKind.Identifier:
+    case SyntaxKind.PrivateIdentifier:
+      if (isThisInTypeQuery(source)) return target.kind === SyntaxKind.ThisKeyword;
       if (target.kind === SyntaxKind.Identifier) return getResolvedSymbol(c, source) === getResolvedSymbol(c, target);
       if (target.kind === SyntaxKind.VariableDeclaration || target.kind === SyntaxKind.BindingElement)
         return (
@@ -1949,7 +2113,6 @@ export function isMatchingReference(c: Checker, source: Node, target: Node): boo
   return false;
 }
 
-/** The property name an access expression reads, if it's a constant. */
 /** Whether `expr` is `reference.constructor`. */
 function isMatchingConstructorReference(c: Checker, f: FlowState, expr: Node): boolean {
   return (
@@ -2080,6 +2243,7 @@ export function isConstantReference(c: Checker, node: Node): boolean {
     case SyntaxKind.ThisKeyword:
       return true;
     case SyntaxKind.Identifier: {
+      if (isThisInTypeQuery(node)) return false;
       const symbol = getResolvedSymbol(c, node);
       return (
         isConstantVariable(c, symbol) ||
@@ -2650,6 +2814,14 @@ export function getNarrowedTypeOfSymbol(c: Checker, symbol: Symbol, location: No
   const t = getTypeOfSymbol(c, symbol);
   const declaration = symbol.valueDeclaration;
   if (
+    declaration !== undefined &&
+    declaration.kind === SyntaxKind.Parameter &&
+    getType(declaration) === undefined &&
+    getInitializer(declaration) === undefined &&
+    getDotDotDotToken(declaration) === undefined
+  )
+    return getNarrowedTypeOfDependentParameter(c, t, declaration, location);
+  if (
     declaration === undefined ||
     declaration.kind !== SyntaxKind.BindingElement ||
     getInitializer(declaration) !== undefined ||
@@ -2697,6 +2869,47 @@ export function getNarrowedTypeOfSymbol(c: Checker, symbol: Symbol, location: No
   }
   links.flags &= ~NodeCheckFlags.InCheckIdentifier;
   return result;
+}
+
+/**
+ * A parameter of a function contextually typed by a rest union of tuples, as in
+ * `const f: (...args: [1, string] | [2, number]) => void = (kind, data) => ...`, narrowed by checks of its
+ * sibling parameters: the function is the pseudo-reference for the tuple.
+ */
+function getNarrowedTypeOfDependentParameter(c: Checker, t: Type, declaration: Node, location: Node): Type {
+  const fn = declaration.parent!;
+  const parameters = getParameters(fn)!.nodes;
+  if (parameters.length < 2 || !isContextSensitiveFunctionOrObjectLiteralMethod(c, fn)) return t;
+  const contextualSignature = getContextualSignature(c, fn);
+  if (
+    contextualSignature === undefined ||
+    contextualSignature.parameters.length !== 1 ||
+    !contextualSignature.hasRestParameter()
+  )
+    return t;
+  const context = getInferenceContext(c, fn);
+  const restType = getReducedApparentType(
+    c,
+    instantiateType(
+      c,
+      getTypeOfSymbol(c, contextualSignature.parameters[0]),
+      context !== undefined ? context.nonFixingMapper : undefined,
+    ),
+  );
+  if (
+    (restType.flags & TypeFlags.Union) === 0 ||
+    !everyType(restType, isTupleType) ||
+    parameters.some((p) => isSomeSymbolAssigned(c, getName(p)!))
+  )
+    return t;
+  const narrowedType = getFlowTypeOfReferenceAt(c, fn, restType, restType, undefined, getFlowNode(location));
+  const index = parameters.indexOf(declaration) - (isThisParameter(parameters[0]) ? 1 : 0);
+  return getIndexedAccessType(c, narrowedType, getNumberLiteralType(c, index));
+}
+
+function isThisParameter(parameter: Node): boolean {
+  const name = getName(parameter);
+  return name !== undefined && name.kind === SyntaxKind.Identifier && getText(name) === 'this';
 }
 
 function isSomeSymbolAssigned(c: Checker, name: Node): boolean {

@@ -290,8 +290,28 @@ function isInRightSideOfImportOrExportAssignment(name: Node): boolean {
 /** The type of `node`, computed once. */
 export function checkExpressionCached(c: Checker, node: Node): Type {
   const links = c.nodeLinks(node);
-  if (links.resolvedType === undefined) links.resolvedType = checkExpression(c, node);
+  if (links.resolvedType === undefined) {
+    const saveFlowTypeCache = c.flowTypeCache;
+    c.flowTypeCache = undefined;
+    links.resolvedType = checkExpression(c, node);
+    c.flowTypeCache = saveFlowTypeCache;
+  }
   return links.resolvedType;
+}
+
+/** The type of an expression, cached when computing it needed flow analysis; may skip some diagnostics. */
+export function getTypeOfExpression(c: Checker, node: Node): Type {
+  const quickType = getQuickTypeOfExpression(c, node);
+  if (quickType !== undefined) return quickType;
+  const cachedType = c.flowTypeCache?.get(node);
+  if (cachedType !== undefined) return cachedType;
+  const startInvocationCount = c.flowInvocationCount;
+  const t = checkExpressionEx(c, node, CheckMode.TypeOnly);
+  if (c.flowInvocationCount !== startInvocationCount) {
+    if (c.flowTypeCache === undefined) c.flowTypeCache = new Map<Node, Type>();
+    c.flowTypeCache.set(node, t);
+  }
+  return t;
 }
 
 /** The type of an initializer in a position where literals widen unless the context wants them. */
@@ -313,21 +333,6 @@ export function checkDeclarationInitializer(c: Checker, declaration: Node): Type
   const initializer = getInitializer(declaration)!;
   const t = getQuickTypeOfExpression(c, initializer) ?? checkExpressionCached(c, initializer);
   return padParameterInitializerType(c, declaration, t);
-}
-
-/**
- * The type of an expression where only the type matters, which skips some checks. Types that
- * needed control flow analysis are cached; other expressions are checked again.
- */
-export function getTypeOfExpression(c: Checker, node: Node): Type {
-  const quickType = getQuickTypeOfExpression(c, node);
-  if (quickType !== undefined) return quickType;
-  const cached = c.flowTypeCache.get(node);
-  if (cached !== undefined) return cached;
-  const startInvocationCount = c.flowInvocationCount;
-  const t = checkExpressionEx(c, node, CheckMode.TypeOnly);
-  if (c.flowInvocationCount !== startInvocationCount) c.flowTypeCache.set(node, t);
-  return t;
 }
 
 /**
@@ -471,7 +476,7 @@ function isSameScopedBindingElement(node: Node, declaration: Node): boolean {
 }
 
 /** Whether `node` is the `this` of `typeof this` or `typeof this.x`, which parses as an identifier. */
-function isThisInTypeQuery(node: Node): boolean {
+export function isThisInTypeQuery(node: Node): boolean {
   if (node.kind !== SyntaxKind.Identifier || getText(node) !== 'this') return false;
   let current = node;
   while (current.parent!.kind === SyntaxKind.QualifiedName && (current.parent as QualifiedName).left === current)
@@ -764,7 +769,7 @@ export function checkIdentifier(c: Checker, node: Identifier): Type {
  * constraint matters, so narrowing can apply: in constraint positions like `x.p`, or with a
  * non-generic contextual type.
  */
-function getNarrowableTypeForReference(c: Checker, t: Type, reference: Node): Type {
+export function getNarrowableTypeForReference(c: Checker, t: Type, reference: Node): Type {
   const substituteConstraints =
     someType(t, (u) => isGenericTypeWithUnionConstraint(c, u)) &&
     (isConstraintPosition(c, t, reference) || hasContextualTypeWithNoGenericTypes(c, reference));
@@ -895,15 +900,17 @@ function tryGetThisTypeAt(c: Checker, node: Node, container: Node): Type | undef
         c,
         getSignatureOfFullSignatureType(c, container) ?? getSignatureFromDeclaration(c, container),
       ) ?? getContextualThisParameterType(c, container);
-    if (thisType !== undefined) return thisType;
+    if (thisType !== undefined) return getFlowTypeOfReference(c, node, thisType, thisType, undefined);
   }
   const parent = container.parent;
   if (parent !== undefined && isClassLike(parent)) {
     const classSymbol = getSymbolOfDeclaration(c, parent);
     if (classSymbol === undefined) return c.anyType;
-    if (isStatic(container) || container.kind === SyntaxKind.ClassStaticBlockDeclaration)
-      return getTypeOfSymbol(c, classSymbol);
-    return getDeclaredTypeOfClassOrInterface(c, getMergedSymbol(c, classSymbol)).thisType ?? c.anyType;
+    const t =
+      isStatic(container) || container.kind === SyntaxKind.ClassStaticBlockDeclaration
+        ? getTypeOfSymbol(c, classSymbol)
+        : getDeclaredTypeOfClassOrInterface(c, getMergedSymbol(c, classSymbol)).thisType;
+    return t !== undefined ? getFlowTypeOfReference(c, node, t, t, undefined) : c.anyType;
   }
   if (container.kind === SyntaxKind.SourceFile) {
     if ((container as SourceFile).externalModuleIndicator !== undefined) return c.undefinedType;

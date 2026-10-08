@@ -19,13 +19,14 @@ import {
   getText,
   ExpressionWithTypeArguments,
 } from './ast.js';
-import { isInJSFile, nodeIsMissing } from './ast-utilities.js';
+import { isFunctionLikeDeclarationKind, isInJSFile, nodeIsMissing } from './ast-utilities.js';
 import {
   declarationNameToString,
   getImmediatelyInvokedFunctionExpression,
   getSourceFileOfNode,
   hasSyntacticModifier,
   getNameOfDeclaration,
+  getDeclarationOfKind,
 } from './binder-utilities.js';
 import { Diagnostics } from './diagnostics.js';
 import { InternalSymbolName, type Symbol, SymbolFlags } from './symbol.js';
@@ -87,6 +88,7 @@ import {
   getDeclaredTypeOfTypeParameter,
   getExtendsHeritageClauseElement,
   getMinTypeArgumentCount,
+  hasBindableName,
 } from './checker-declared-types.js';
 import { getTypeOfSymbol, addOptionality } from './checker-symbol-types.js';
 import { getTypeFromTypeNode } from './checker-type-nodes.js';
@@ -98,7 +100,7 @@ import {
   isTypeAssignableToKind,
 } from './checker-type-operators.js';
 import { isTypeAssignableTo, type TypeComparer } from './relations.js';
-import { getReturnTypeFromBody } from './checker-functions.js';
+import { getReturnTypeFromBody, getTypePredicateFromBody } from './checker-functions.js';
 import { checkComputedPropertyName } from './checker-expressions.js';
 import { hasLateBindableIndexSignature } from './checker-utilities.js';
 
@@ -157,6 +159,15 @@ export function isOptionalDeclaration(node: Node): boolean {
   return getQuestionToken(node) !== undefined;
 }
 
+function getAnnotatedAccessorThisParameter(accessor: Node): Symbol | undefined {
+  const params = getParameters(accessor)!.nodes;
+  if (params.length !== (accessor.kind === SyntaxKind.GetAccessor ? 1 : 2)) return undefined;
+  const name = getName(params[0]);
+  return name !== undefined && name.kind === SyntaxKind.Identifier && getText(name) === 'this'
+    ? getSymbol(params[0])
+    : undefined;
+}
+
 export function getSignatureFromDeclaration(c: Checker, declaration: Node): Signature {
   const links = c.nodeLinks(declaration);
   if (links.resolvedSignature !== undefined) return links.resolvedSignature;
@@ -191,6 +202,22 @@ export function getSignatureFromDeclaration(c: Checker, declaration: Node): Sign
       isRestParameter(param) ||
       (iife !== undefined && parameters.length > iifeArgs && typeNode === undefined);
     if (!isOptionalParameter) minArgumentCount = parameters.length;
+  }
+  // An accessor without a `this` annotation takes the one of its counterpart.
+  if (
+    (declaration.kind === SyntaxKind.GetAccessor || declaration.kind === SyntaxKind.SetAccessor) &&
+    hasBindableName(declaration) &&
+    thisParameter === undefined
+  ) {
+    const symbol = getSymbol(declaration);
+    const other =
+      symbol !== undefined
+        ? getDeclarationOfKind(
+            symbol,
+            declaration.kind === SyntaxKind.GetAccessor ? SyntaxKind.SetAccessor : SyntaxKind.GetAccessor,
+          )
+        : undefined;
+    if (other !== undefined) thisParameter = getAnnotatedAccessorThisParameter(other);
   }
   const classType =
     declaration.kind === SyntaxKind.Constructor
@@ -344,8 +371,17 @@ export function getTypePredicateOfSignature(c: Checker, sig: Signature): TypePre
       );
     else if (sig.declaration !== undefined) {
       const typeNode = getType(sig.declaration);
-      if (typeNode !== undefined && typeNode.kind === SyntaxKind.TypePredicate)
-        sig.resolvedTypePredicate = createTypePredicateFromTypePredicateNode(c, typeNode, sig);
+      if (typeNode !== undefined) {
+        if (typeNode.kind === SyntaxKind.TypePredicate)
+          sig.resolvedTypePredicate = createTypePredicateFromTypePredicateNode(c, typeNode, sig);
+      } else if (
+        isFunctionLikeDeclarationKind(sig.declaration.kind) &&
+        (sig.resolvedReturnType === undefined || (sig.resolvedReturnType.flags & TypeFlags.Boolean) !== 0) &&
+        getParameterCount(c, sig) > 0
+      ) {
+        sig.resolvedTypePredicate = c.noTypePredicate; // Breaks cycles through the body.
+        sig.resolvedTypePredicate = getTypePredicateFromBody(c, sig.declaration);
+      }
     }
     if (sig.resolvedTypePredicate === undefined) sig.resolvedTypePredicate = c.noTypePredicate;
   }

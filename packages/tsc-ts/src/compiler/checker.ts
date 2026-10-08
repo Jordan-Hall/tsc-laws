@@ -410,13 +410,13 @@ export class Checker {
   readonly sharedFlowIncomplete: boolean[] = [];
   readonly flowLoopCaches = new Map<FlowNode, Map<string, Type>>();
   readonly flowLoopStack: FlowLoopInfo[] = [];
+  /** Types of expressions whose computation needed flow analysis, outside loop back edges. */
+  flowTypeCache: Map<Node, Type> | undefined = undefined;
+  flowInvocationCount = 0;
   readonly flowNodeReachable = new Map<FlowNode, boolean>();
   readonly flowNodePostSuper = new Map<FlowNode, boolean>();
   lastFlowNode: FlowNode | undefined = undefined;
   lastFlowNodeReachable = false;
-  /** Types from `getTypeOfExpression` that needed control flow analysis. */
-  readonly flowTypeCache = new Map<Node, Type>();
-  flowInvocationCount = 0;
   readonly assignmentMarker: AssignmentMarker;
   readonly primitiveTypeAliasSuggestions = new Map<string, Symbol>();
 

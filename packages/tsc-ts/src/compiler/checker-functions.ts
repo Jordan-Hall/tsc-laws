@@ -11,7 +11,10 @@ import {
   type ReturnStatement,
   type YieldExpression,
   getBody,
+  getDotDotDotToken,
   getEndFlowNode,
+  getFlowNode,
+  getText,
   getExpression,
   getInitializer,
   getParameters,
@@ -32,7 +35,7 @@ import {
 import { Diagnostics } from './diagnostics.js';
 import { SyntaxKind } from './syntax-kind.js';
 import { type Checker, createDiagnosticForNode } from './checker.js';
-import { type Type, TypeFlags, NodeCheckFlags } from './checker-types.js';
+import { type Type, TypeFlags, NodeCheckFlags, TypePredicate, TypePredicateKind } from './checker-types.js';
 import {
   filterType,
   getIntersectionType,
@@ -68,7 +71,7 @@ import { getFunctionFlags, FunctionFlags, maybeTypeOfKind } from './checker-util
 import { CheckMode, ObjectFlags, type Signature, SignatureFlags, SignatureKind } from './checker-types.js';
 import type { Symbol } from './symbol.js';
 import { createAnonymousType, getWidenedLiteralType } from './checker-type-factory.js';
-import { createSymbolWithType, getSignaturesOfType } from './checker-members.js';
+import { createSymbolWithType, getReducedType, getSignaturesOfType } from './checker-members.js';
 import {
   getEffectiveRestType,
   getRestTypeAtPosition,
@@ -95,7 +98,13 @@ import {
 } from './checker-contextual.js';
 import { checkJSDocFullSignature, checkUnmatchedJSDocParameters, getFullSignatureTypeNode } from './checker-jsdoc.js';
 import { isFunctionLike, nodeIsMissing } from './ast-utilities.js';
-import { isConstantReference, isReachableFlowNode } from './checker-narrowing.js';
+import {
+  getFlowTypeOfReferenceAt,
+  isConstantReference,
+  isReachableFlowNode,
+  isSymbolAssigned,
+} from './checker-narrowing.js';
+import { FlowFlags, FlowNode } from './flow.js';
 import {
   IterationTypeKind,
   IterationUse,
@@ -691,6 +700,78 @@ function isContextSensitiveFunctionLikeDeclaration(c: Checker, node: Node): bool
     hasContextSensitiveReturnExpression(c, node) ||
     hasContextSensitiveYieldExpression(c, node)
   );
+}
+
+/**
+ * The type predicate a function without a return type annotation implies, as `x is string` for
+ * `(x: string | number) => typeof x === "string"`: its single return expression must narrow a parameter
+ * to a type in the true branch and to `never` from that type in the false branch.
+ */
+export function getTypePredicateFromBody(c: Checker, fn: Node): TypePredicate | undefined {
+  switch (fn.kind) {
+    case SyntaxKind.Constructor:
+    case SyntaxKind.GetAccessor:
+    case SyntaxKind.SetAccessor:
+      return undefined;
+  }
+  if (getFunctionFlags(fn) !== FunctionFlags.Normal) return undefined;
+  const body = getBody(fn);
+  let singleReturn: Node | undefined = undefined;
+  if (body !== undefined && body.kind !== SyntaxKind.Block) singleReturn = body;
+  else {
+    if (body === undefined) return undefined;
+    const collector = new ReturnCollector();
+    collector.visitStatements(body as Block);
+    if (collector.returns.length !== 1) return undefined;
+    singleReturn = collector.returns[0].expression;
+    if (singleReturn === undefined || functionHasImplicitReturn(c, fn)) return undefined;
+  }
+  return checkIfExpressionRefinesAnyParameter(c, fn, singleReturn);
+}
+
+function checkIfExpressionRefinesAnyParameter(c: Checker, fn: Node, exprIn: Node): TypePredicate | undefined {
+  const expr = skipParentheses(exprIn);
+  const returnType = checkExpressionCached(c, expr);
+  if ((returnType.flags & TypeFlags.Boolean) === 0) return undefined;
+  const parameters = getParameters(fn)!.nodes;
+  for (let i = 0; i < parameters.length; i++) {
+    const param = parameters[i];
+    const symbol = getSymbol(param);
+    const name = getName(param);
+    if (symbol === undefined || name === undefined) continue;
+    const initType = getTypeOfSymbol(c, symbol);
+    // Refining `x: boolean` to `x is true` or `x is false` isn't useful.
+    if (
+      (initType.flags & TypeFlags.Boolean) !== 0 ||
+      name.kind !== SyntaxKind.Identifier ||
+      isSymbolAssigned(c, symbol) ||
+      getDotDotDotToken(param) !== undefined
+    )
+      continue;
+    const trueType = checkIfExpressionRefinesParameter(c, fn, expr, name, initType);
+    if (trueType !== undefined) return new TypePredicate(TypePredicateKind.Identifier, getText(name), i, trueType);
+  }
+  return undefined;
+}
+
+function checkIfExpressionRefinesParameter(
+  c: Checker,
+  fn: Node,
+  expr: Node,
+  name: Node,
+  initType: Type,
+): Type | undefined {
+  let antecedent = getFlowNode(expr);
+  if (antecedent === undefined && expr.parent!.kind === SyntaxKind.ReturnStatement)
+    antecedent = getFlowNode(expr.parent!);
+  if (antecedent === undefined) antecedent = new FlowNode(FlowFlags.Start, undefined, undefined);
+  const trueCondition = new FlowNode(FlowFlags.TrueCondition, expr, antecedent);
+  const trueType = getFlowTypeOfReferenceAt(c, name, initType, initType, fn, trueCondition);
+  if (trueType === initType) return undefined;
+  // `x is T` also means x isn't T when the function returns false, so nothing of T may remain there.
+  const falseCondition = new FlowNode(FlowFlags.FalseCondition, expr, antecedent);
+  const falseSubtype = getReducedType(c, getFlowTypeOfReferenceAt(c, name, initType, trueType, fn, falseCondition));
+  return (falseSubtype.flags & TypeFlags.Never) !== 0 ? trueType : undefined;
 }
 
 function hasContextSensitiveReturnExpression(c: Checker, node: Node): boolean {

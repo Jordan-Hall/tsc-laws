@@ -378,7 +378,7 @@ export function getDeclaredTypeOfEnum(c: Checker, symbol: Symbol): Type {
   return enumType;
 }
 
-function hasBindableName(node: Node): boolean {
+export function hasBindableName(node: Node): boolean {
   const name = getName(node);
   return name === undefined || name.kind !== SyntaxKind.ComputedPropertyName || isLiteralComputed(name);
 }

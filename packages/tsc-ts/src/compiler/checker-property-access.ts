@@ -210,10 +210,15 @@ function isThisInitializedDeclaration(node: Node): boolean {
 
 /** A private name used as an expression, as in `#x in obj`; records its declaration. */
 export function checkPrivateIdentifierExpression(c: Checker, node: Node): Type {
+  getSymbolForPrivateIdentifierExpression(c, node);
+  return c.anyType;
+}
+
+export function getSymbolForPrivateIdentifierExpression(c: Checker, node: Node): Symbol | undefined {
   const links = c.nodeLinks(node);
   if (links.resolvedSymbol === undefined)
     links.resolvedSymbol = lookupSymbolForPrivateIdentifierDeclaration(getText(node), node);
-  return c.anyType;
+  return links.resolvedSymbol;
 }
 
 /** The declaration of a private name in the enclosing classes, innermost first. */

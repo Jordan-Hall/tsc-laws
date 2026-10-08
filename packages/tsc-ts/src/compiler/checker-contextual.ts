@@ -121,9 +121,9 @@ import {
 } from './checker-signatures.js';
 import {
   checkExpressionCached,
-  getTypeOfExpression,
   checkComputedPropertyName,
   getPropertyNameOfObjectLiteralElement,
+  getTypeOfExpression,
   isConstTypeReference,
 } from './checker-expressions.js';
 import { getEffectiveCallArguments, getRestArgumentsType, resolveCallSignatureForContext } from './checker-calls.js';

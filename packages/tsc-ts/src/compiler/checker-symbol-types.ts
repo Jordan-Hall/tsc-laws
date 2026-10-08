@@ -360,7 +360,16 @@ export function getTypeForVariableLikeDeclaration(
     if (fn.kind === SyntaxKind.SetAccessor) {
       const fnSymbol = getSymbolOfDeclaration(c, fn);
       const getter = fnSymbol?.declarations.find((d) => d.kind === SyntaxKind.GetAccessor);
-      if (getter !== undefined) return getReturnTypeOfSignature(c, getSignatureFromDeclaration(c, getter));
+      if (getter !== undefined) {
+        const getterSignature = getSignatureFromDeclaration(c, getter);
+        // An unannotated `this` of a setter takes the getter's `this` type.
+        const params = getParameters(fn)!.nodes;
+        if (params.length === 2 && params[0] === declaration && getSymbol(declaration)!.name === 'this')
+          return getterSignature.thisParameter !== undefined
+            ? getTypeOfSymbol(c, getterSignature.thisParameter)
+            : c.anyType;
+        return getReturnTypeOfSignature(c, getterSignature);
+      }
     }
     const fullSignatureType = getParameterTypeOfFullSignature(c, fn, declaration);
     if (fullSignatureType !== undefined) return fullSignatureType;
