@@ -1,8 +1,10 @@
-// Emits JavaScript for the files on a tsc-style command line, without type checking.
-// Usage: emit [compiler options] FILE...
+// Emits JavaScript and declarations for the files on a tsc-style command line, without type
+// checking. Usage: emit [compiler options] FILE...
 // The files are loaded as a program, which decides each file's module format from its
 // extension and nearest package.json, then bound; imports resolve between the program's files.
-// Prints `unsupported FILE: REASON` for files using syntax emit doesn't support yet.
+// Prints `unsupported FILE: REASON` for files using syntax emit doesn't support yet, declaration
+// errors as tsc does, and `inferred FILE: N M` for files with N declaration types that needed
+// inference, M of which were written as `any`.
 import {
   existsSync,
   lstatSync,
@@ -16,16 +18,18 @@ import {
 import type { Node, SourceFile } from '../compiler/ast.js';
 import { bindSourceFile } from '../compiler/binder.js';
 import { CommandLineHost, parseCommandLine } from '../compiler/command-line.js';
+import { Locale, formatDiagnostics } from '../compiler/diagnostics.js';
 import { EmitHost, emitFiles, sourceFileMayBeEmitted } from '../compiler/emitter.js';
 import { CompilerHost } from '../compiler/file-loader.js';
 import { CachedFileSystem, DirectoryEntries, FileSystem } from '../compiler/file-system.js';
 import { Resolver } from '../compiler/module-resolution.js';
 import type { CompilerOptions, ModuleKind } from '../compiler/options.js';
 import { getDirectoryPath, getNormalizedAbsolutePath } from '../compiler/path.js';
-import { Program } from '../compiler/program.js';
+import { Program, sortAndDeduplicateDiagnostics } from '../compiler/program.js';
 import { getEmitModuleFormatOfFile } from '../compiler/program-utilities.js';
 import { ParsedCommandLine } from '../compiler/tsconfig.js';
-import { SyntacticEmitResolver } from '../compiler/transformers/emit-resolver.js';
+import { SyntacticDeclarationEmitResolver } from '../compiler/transformers/declarations-syntactic.js';
+import { type EmitResolver, SyntacticEmitResolver } from '../compiler/transformers/emit-resolver.js';
 import { ModuleFormatHost } from '../compiler/transformers/module.js';
 import { ModuleLookup, ReferenceResolver } from '../compiler/transformers/reference-resolver.js';
 
@@ -109,7 +113,7 @@ class ProgramModules extends ModuleLookup {
 class DiskEmitHost extends EmitHost {
   readonly program: Program;
 
-  constructor(program: Program, resolver: SyntacticEmitResolver, formats: ModuleFormatHost) {
+  constructor(program: Program, resolver: EmitResolver, formats: ModuleFormatHost) {
     super(program.options, resolver, formats, program.commonSourceDirectory(), program.currentDirectory, true);
     this.program = program;
   }
@@ -140,15 +144,31 @@ function main(): number {
     if (sourceFileMayBeEmitted(all[i], options)) files.push(all[i]);
   }
   const references = new ReferenceResolver(options, all, new ProgramModules(program, host));
-  const emitHost = new DiskEmitHost(
-    program,
-    new SyntacticEmitResolver(options, references),
-    new ProgramFormats(program),
-  );
+  const emitResolver = new SyntacticEmitResolver(options, references);
+  let resolver: EmitResolver = emitResolver;
+  let declarationResolver: SyntacticDeclarationEmitResolver | undefined = undefined;
+  if (options.declaration === true || options.composite === true) {
+    const syntactic = new SyntacticDeclarationEmitResolver(options, all, cwd, emitResolver);
+    declarationResolver = syntactic;
+    resolver = syntactic;
+  }
+  const emitHost = new DiskEmitHost(program, resolver, new ProgramFormats(program));
   const result = emitFiles(emitHost, files);
   for (const error of result.errors) console.error(error);
   for (const unsupported of result.unsupported) console.log('unsupported ' + unsupported);
-  return result.errors.length > 0 ? 1 : 0;
+  if (result.diagnostics.length > 0)
+    process.stdout.write(
+      formatDiagnostics(sortAndDeduplicateDiagnostics(result.diagnostics), {
+        locale: Locale.Default,
+        currentDirectory: cwd,
+        useCaseSensitiveFileNames: true,
+        newLine: '\n',
+      }),
+    );
+  if (declarationResolver !== undefined)
+    for (const [file, counts] of declarationResolver.inference)
+      console.log('inferred ' + file.fileName + ': ' + counts.fallbacks + ' ' + counts.unresolved);
+  return result.errors.length > 0 || result.diagnostics.length > 0 ? 1 : 0;
 }
 
 process.exitCode = main();

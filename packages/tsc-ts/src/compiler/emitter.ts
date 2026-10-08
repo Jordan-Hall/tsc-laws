@@ -1,6 +1,7 @@
-// Emits JavaScript for source files: runs the transforms, prints, and writes the output,
-// source map and `//# sourceMappingURL` comment.
+// Emits JavaScript and declarations for source files: runs the transforms, prints, and writes
+// the output, source map and `//# sourceMappingURL` comment.
 import { ScriptKind, type SourceFile } from './ast.js';
+import type { Diagnostic } from './diagnostics.js';
 import { type CompilerOptions, NewLineKind, getEmitScriptTarget, getIsolatedModules } from './options.js';
 import { type OutputPathsHost, getOutputPathsFor } from './output-paths.js';
 import {
@@ -19,6 +20,8 @@ import { EmitContext } from './printer/emit-context.js';
 import { Printer, PrinterOptions } from './printer/printer.js';
 import { TextWriter } from './printer/text-writer.js';
 import { SourceMapGenerator, getRelativePathToDirectoryOrUrl } from './sourcemap.js';
+import { DeclarationEmitResolver } from './transformers/declarations-resolver.js';
+import { DeclarationTransformer } from './transformers/declarations.js';
 import type { EmitResolver } from './transformers/emit-resolver.js';
 import { ImportElision } from './transformers/import-elision.js';
 import { type ModuleFormatHost, UseStrictTransformer, createModuleTransformer } from './transformers/module.js';
@@ -72,12 +75,15 @@ export class EmitResult {
   readonly errors: string[];
   /** Files not emitted because they use syntax emit doesn't support yet, with the reason. */
   readonly unsupported: string[];
+  /** Declaration emit errors; a file with any gets no declaration file. */
+  readonly diagnostics: Diagnostic[];
   emitSkipped: boolean;
 
   constructor() {
     this.emittedFiles = [];
     this.errors = [];
     this.unsupported = [];
+    this.diagnostics = [];
     this.emitSkipped = false;
   }
 }
@@ -99,14 +105,61 @@ export function emitFiles(host: EmitHost, files: readonly SourceFile[]): EmitRes
     const file = files[i];
     if (!sourceFileMayBeEmitted(file, options)) continue;
     const paths = getOutputPathsFor(file.fileName, file.scriptKind === ScriptKind.JSON, options, host, false);
-    if (paths.jsFilePath === '') continue;
-    if (host.isEmitBlocked(paths.jsFilePath)) {
-      result.emitSkipped = true;
-      continue;
+    if (paths.jsFilePath !== '') {
+      if (host.isEmitBlocked(paths.jsFilePath)) result.emitSkipped = true;
+      else emitJSFile(host, file, paths.jsFilePath, paths.sourceMapFilePath, result);
     }
-    emitJSFile(host, file, paths.jsFilePath, paths.sourceMapFilePath, result);
+    if (paths.declarationFilePath !== '') {
+      if (host.isEmitBlocked(paths.declarationFilePath)) result.emitSkipped = true;
+      else emitDeclarationFile(host, file, paths.declarationFilePath, paths.declarationMapPath, result);
+    }
   }
   return result;
+}
+
+/** Emits a declaration file; the host's resolver must be a `DeclarationEmitResolver`. */
+function emitDeclarationFile(
+  host: EmitHost,
+  file: SourceFile,
+  declarationFilePath: string,
+  declarationMapPath: string,
+  result: EmitResult,
+): boolean {
+  const resolver = host.resolver;
+  if (!(resolver instanceof DeclarationEmitResolver)) {
+    result.errors.push(file.fileName + ': declaration emit needs a declaration resolver');
+    return false;
+  }
+  const options = host.options;
+  const context = new EmitContext();
+  const transformer = new DeclarationTransformer(context, host, options, resolver, declarationFilePath);
+  const transformed = transformer.transformSourceFile(file);
+  const diagnostics = transformer.diagnostics;
+  for (let i = 0; i < diagnostics.length; i++) result.diagnostics.push(diagnostics[i]);
+  if (diagnostics.length > 0) {
+    result.emitSkipped = true;
+    return false;
+  }
+  const printerOptions = new PrinterOptions();
+  printerOptions.removeComments = options.removeComments === true;
+  printerOptions.newLine = options.newLine === NewLineKind.CRLF ? '\r\n' : '\n';
+  printerOptions.noEmitHelpers = true;
+  printerOptions.target = getEmitScriptTarget(options);
+  printerOptions.sourceMap = options.declarationMap === true;
+  printerOptions.onlyPrintJSDocStyle = true;
+  printerOptions.omitBraceSourceMapPositions = true;
+  const printer = new Printer(printerOptions, context);
+  const emitSourceMaps = options.declarationMap === true && !fileExtensionIs(file.fileName, '.json');
+  return printSourceFile(
+    host,
+    declarationFilePath,
+    declarationMapPath,
+    transformed,
+    printer,
+    emitSourceMaps,
+    false,
+    result,
+  );
 }
 
 function getScriptTransformers(host: EmitHost, context: EmitContext, file: SourceFile): Transformer[] {
@@ -152,7 +205,8 @@ function emitJSFile(
   const printer = new Printer(printerOptions, context);
   const emitSourceMaps =
     (options.sourceMap === true || options.inlineSourceMap === true) && !fileExtensionIs(file.fileName, '.json');
-  return printSourceFile(host, jsFilePath, sourceMapFilePath, transformed, printer, emitSourceMaps, result);
+  const inline = options.inlineSourceMap === true;
+  return printSourceFile(host, jsFilePath, sourceMapFilePath, transformed, printer, emitSourceMaps, inline, result);
 }
 
 function printSourceFile(
@@ -162,6 +216,7 @@ function printSourceFile(
   file: SourceFile,
   printer: Printer,
   emitSourceMaps: boolean,
+  inlineSourceMap: boolean,
   result: EmitResult,
 ): boolean {
   const options = host.options;
@@ -177,7 +232,7 @@ function printSourceFile(
     : undefined;
   printer.write(file, file, writer, generator);
   if (generator !== undefined) {
-    const url = getSourceMappingURL(host, generator, jsFilePath, sourceMapFilePath, file);
+    const url = getSourceMappingURL(host, generator, jsFilePath, sourceMapFilePath, file, inlineSourceMap);
     if (url !== '') {
       if (!writer.isAtStartOfLine()) writer.rawWrite(options.newLine === NewLineKind.CRLF ? '\r\n' : '\n');
       writer.writeComment('//# sourceMappingURL=');
@@ -246,9 +301,10 @@ function getSourceMappingURL(
   jsFilePath: string,
   sourceMapFilePath: string,
   file: SourceFile,
+  inlineSourceMap: boolean,
 ): string {
   const options = host.options;
-  if (options.inlineSourceMap === true) return generator.toBase64DataURL();
+  if (inlineSourceMap) return generator.toBase64DataURL();
   const mapFile = getBaseFileName(normalizeSlashes(sourceMapFilePath));
   if (options.mapRoot !== undefined && options.mapRoot !== '') {
     const directory = mapRootDirectory(host, options.mapRoot, file);
