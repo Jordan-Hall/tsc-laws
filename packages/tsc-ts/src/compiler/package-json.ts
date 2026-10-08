@@ -645,8 +645,9 @@ export class PackageJsonInfoCache {
     return info;
   }
 
-  entries(): IterableIterator<[Path, PackageJsonInfo]> {
-    return this.cache.entries();
+  /** The lookups made, in order. */
+  infos(): PackageJsonInfo[] {
+    return [...this.cache.values()];
   }
 }
 

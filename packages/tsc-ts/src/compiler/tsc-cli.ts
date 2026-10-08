@@ -65,10 +65,21 @@ export abstract class System extends CommandLineHost {
   abstract getAccessibleEntries(path: string): DirectoryEntries;
   /** The path with symlinks resolved, or `path` itself if it does not exist. */
   abstract realpath(path: string): string;
+  /** Modification time in milliseconds, or `undefined` if the file doesn't exist. */
+  abstract getMTime(path: string): number | undefined;
+  abstract setMTime(path: string, time: number): boolean;
+  abstract removeFile(path: string): boolean;
+
+  private readonly startTime = performance.now();
+
+  /** Milliseconds since the system was created. */
+  sinceStart(): number {
+    return performance.now() - this.startTime;
+  }
 }
 
 /** The file system of a `System`. */
-class SystemFileSystem extends FileSystem {
+export class SystemFileSystem extends FileSystem {
   constructor(private readonly sys: System) {
     super(sys.useCaseSensitiveFileNames);
   }
@@ -117,6 +128,9 @@ export type CommandLineResult =
       readonly kind: 'compile';
       readonly program: Program;
       readonly incremental: boolean;
+      /** Milliseconds spent reading the config and building the program. */
+      readonly configTime: number;
+      readonly parseTime: number;
       readonly reporter: DiagnosticReporter;
       readonly errorSummary: ErrorSummaryReporter;
     }
@@ -308,6 +322,7 @@ function executeCompile(sys: System, commandLine: ParsedCommandLine): CommandLin
     sys.useCaseSensitiveFileNames,
     0,
   );
+  const configStart = performance.now();
   if (configFileName !== '') {
     const errors: Diagnostic[] = [];
     const parsed = new ConfigParser(fs, sys.currentDirectory).parseConfigFile(
@@ -329,15 +344,26 @@ function executeCompile(sys: System, commandLine: ParsedCommandLine): CommandLin
     sys.write(showConfig(showConfigInput(config, sys), configFileName));
     return exit(ExitStatus.Success);
   }
+  const configTime = configFileName !== '' ? performance.now() - configStart : 0;
   if (config.options.watch === true) return { kind: 'watch', config, commandLine };
 
+  const parseStart = performance.now();
   const program = new Program(config, new SystemCompilerHost(sys, fs, locale));
+  const parseTime = performance.now() - parseStart;
   // Statistics need checking and emit timings.
   const statistics = config.options.diagnostics === true || config.options.extendedDiagnostics === true;
   if (config.options.listFilesOnly === true && !statistics) {
     return exit(listFilesOnly(sys, program, locale, reporter, errorSummary));
   }
-  return { kind: 'compile', program, incremental: isIncremental(config.options), reporter, errorSummary };
+  return {
+    kind: 'compile',
+    program,
+    incremental: isIncremental(config.options),
+    configTime,
+    parseTime,
+    reporter,
+    errorSummary,
+  };
 }
 
 /** What `--showConfig` prints for a project. */

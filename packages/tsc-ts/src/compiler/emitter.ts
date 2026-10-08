@@ -67,14 +67,21 @@ export abstract class EmitHost implements OutputPathsHost {
     return this.commonSourceDirectoryPath;
   }
 
-  /** Writes an output file; returns an error message, or `''`. */
-  abstract writeFile(fileName: string, text: string): string;
+  /**
+   * Writes an output file; returns an error message, or `''`. `declarationDiagnostics` are the
+   * declaration emit errors of a declaration file written by a forced declaration emit.
+   * Returning `skippedWrite` leaves a file unwritten without an error.
+   */
+  abstract writeFile(fileName: string, text: string, declarationDiagnostics?: readonly Diagnostic[]): string;
 
   /** Whether writing a file is blocked, as when it would overwrite an input; false by default. */
   isEmitBlocked(_fileName: string): boolean {
     return false;
   }
 }
+
+/** What `EmitHost.writeFile` returns for a file it chose not to write. */
+export const skippedWrite = '\u0000';
 
 export class EmitResult {
   readonly emittedFiles: string[];
@@ -100,24 +107,37 @@ export function sourceFileMayBeEmitted(file: SourceFile, options: CompilerOption
   return true;
 }
 
-export function emitFiles(host: EmitHost, files: readonly SourceFile[]): EmitResult {
+/** Which outputs to emit. */
+export const enum EmitOnly {
+  All,
+  Js,
+  Dts,
+  /**
+   * The declaration file alone, even without `declaration` and despite errors, for the shape
+   * signature of incremental builds; it is written with its errors and without a map.
+   */
+  ForcedDts,
+}
+
+export function emitFiles(host: EmitHost, files: readonly SourceFile[], emitOnly: EmitOnly = EmitOnly.All): EmitResult {
   const result = new EmitResult();
   const options = host.options;
-  if (options.noEmit === true) {
+  const forced = emitOnly === EmitOnly.ForcedDts;
+  if (options.noEmit === true && !forced) {
     result.emitSkipped = true;
     return result;
   }
   for (let i = 0; i < files.length; i++) {
     const file = files[i];
     if (!sourceFileMayBeEmitted(file, options)) continue;
-    const paths = getOutputPathsFor(file.fileName, file.scriptKind === ScriptKind.JSON, options, host, false);
-    if (paths.jsFilePath !== '') {
+    const paths = getOutputPathsFor(file.fileName, file.scriptKind === ScriptKind.JSON, options, host, forced);
+    if (paths.jsFilePath !== '' && (emitOnly === EmitOnly.All || emitOnly === EmitOnly.Js)) {
       if (host.isEmitBlocked(paths.jsFilePath)) result.emitSkipped = true;
       else emitJSFile(host, file, paths.jsFilePath, paths.sourceMapFilePath, result);
     }
-    if (paths.declarationFilePath !== '') {
-      if (host.isEmitBlocked(paths.declarationFilePath)) result.emitSkipped = true;
-      else emitDeclarationFile(host, file, paths.declarationFilePath, paths.declarationMapPath, result);
+    if (paths.declarationFilePath !== '' && emitOnly !== EmitOnly.Js) {
+      if (!forced && host.isEmitBlocked(paths.declarationFilePath)) result.emitSkipped = true;
+      else emitDeclarationFile(host, file, paths.declarationFilePath, paths.declarationMapPath, result, forced);
     }
   }
   return result;
@@ -130,6 +150,7 @@ function emitDeclarationFile(
   declarationFilePath: string,
   declarationMapPath: string,
   result: EmitResult,
+  forced: boolean,
 ): boolean {
   const resolver = host.resolver;
   if (!(resolver instanceof DeclarationEmitResolver)) {
@@ -142,7 +163,7 @@ function emitDeclarationFile(
   const transformed = transformer.transformSourceFile(file);
   const diagnostics = transformer.diagnostics;
   for (let i = 0; i < diagnostics.length; i++) result.diagnostics.push(diagnostics[i]);
-  if (diagnostics.length > 0) {
+  if (diagnostics.length > 0 && !forced) {
     result.emitSkipped = true;
     return false;
   }
@@ -151,20 +172,22 @@ function emitDeclarationFile(
   printerOptions.newLine = options.newLine === NewLineKind.CRLF ? '\r\n' : '\n';
   printerOptions.noEmitHelpers = true;
   printerOptions.target = getEmitScriptTarget(options);
-  printerOptions.sourceMap = options.declarationMap === true;
+  const declarationMap = options.declarationMap === true && !forced;
+  printerOptions.sourceMap = declarationMap;
   printerOptions.onlyPrintJSDocStyle = true;
   printerOptions.omitBraceSourceMapPositions = true;
   const printer = new Printer(printerOptions, context);
-  const emitSourceMaps = options.declarationMap === true && !fileExtensionIs(file.fileName, '.json');
+  const emitSourceMaps = declarationMap && !fileExtensionIs(file.fileName, '.json');
   return printSourceFile(
     host,
     declarationFilePath,
-    declarationMapPath,
+    forced ? '' : declarationMapPath,
     transformed,
     printer,
     emitSourceMaps,
     false,
     result,
+    diagnostics,
   );
 }
 
@@ -238,6 +261,7 @@ function printSourceFile(
   emitSourceMaps: boolean,
   inlineSourceMap: boolean,
   result: EmitResult,
+  declarationDiagnostics: readonly Diagnostic[] = [],
 ): boolean {
   const options = host.options;
   const writer = new TextWriter(printer.options.newLine, 4);
@@ -266,7 +290,8 @@ function printSourceFile(
   } else writer.writeLine(false);
   let text = writer.getText();
   if (options.emitBOM === true) text = '\uFEFF' + text;
-  const error = host.writeFile(jsFilePath, text);
+  const error = host.writeFile(jsFilePath, text, declarationDiagnostics);
+  if (error === skippedWrite) return true;
   if (error !== '') result.errors.push(error);
   else result.emittedFiles.push(jsFilePath);
   return error === '';

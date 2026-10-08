@@ -98,6 +98,11 @@ export class CheckedProgram {
     });
   }
 
+  /** The bind and check diagnostics of `file` before `noEmit` filtering and without include errors. */
+  getSemanticDiagnosticsWithoutNoEmitFiltering(file: SourceFile): Diagnostic[] {
+    return this.skipTypeChecking(file) ? [] : sortAndDeduplicateDiagnostics(this.getBindAndCheckDiagnostics(file));
+  }
+
   getSuggestionDiagnostics(file: SourceFile | undefined): Diagnostic[] {
     return this.collectChecked(file, (f) => this.checker.getSuggestionDiagnostics(f));
   }
@@ -160,7 +165,7 @@ export class CheckedProgram {
     return filtered;
   }
 
-  private getIncludeProcessorDiagnostics(file: SourceFile): Diagnostic[] {
+  getIncludeProcessorDiagnostics(file: SourceFile): Diagnostic[] {
     if (this.skipTypeChecking(file)) return [];
     return new Directives(file).filter(this.program.getIncludeProcessorDiagnostics(file));
   }

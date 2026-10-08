@@ -1,149 +1,265 @@
 /**
  * The `tsc` compile step after the command line: bind and check the program, emit it, then report
- * diagnostics, listed files and the error summary like tsgo's `EmitFilesAndReportErrors`.
+ * diagnostics, listed files, the error summary and statistics like tsgo's `EmitFilesAndReportErrors`.
  */
-import type { Node, SourceFile } from './ast.js';
-import type { Diagnostic } from './diagnostics.js';
-import { EmitHost, emitFiles, EmitResult } from './emitter.js';
-import { Resolver } from './module-resolution.js';
-import { getEmitDeclarations, type ModuleKind } from './options.js';
+import {
+  CheckedProgram,
+  CompilerProgram,
+  CompileTimes,
+  getDiagnosticsOfProgram,
+  OutputWriter,
+  PlainProgram,
+} from './compile-program.js';
+import type { Diagnostic, Locale } from './diagnostics.js';
+import { EmitResult } from './emitter.js';
+import { FileBuildInfoReader, IncrementalProgram, readBuildInfoProgram, TimeStampHost } from './incremental.js';
 import { getNormalizedAbsolutePath } from './path.js';
-import { Program, sortAndDeduplicateDiagnostics } from './program.js';
-import { CheckedProgram } from './program-checker.js';
-import { getEmitModuleFormatOfFile } from './program-utilities.js';
-import { SyntacticDeclarationEmitResolver } from './transformers/declarations-syntactic.js';
-import { type EmitResolver, SyntacticEmitResolver } from './transformers/emit-resolver.js';
-import { ModuleFormatHost } from './transformers/module.js';
-import { ModuleLookup, ReferenceResolver } from './transformers/reference-resolver.js';
-import { type CommandLineResult, ExitStatus, type System } from './tsc-cli.js';
+import { sortAndDeduplicateDiagnostics } from './program.js';
+import {
+  type CommandLineResult,
+  type DiagnosticReporter,
+  type ErrorSummaryReporter,
+  ExitStatus,
+  outputLocale,
+  type System,
+  SystemFileSystem,
+} from './tsc-cli.js';
 
 type CompileWork = Extract<CommandLineResult, { kind: 'compile' }>;
+
+/** Writes outputs to the system. */
+export class SystemWriter extends OutputWriter {
+  constructor(private readonly sys: System) {
+    super();
+  }
+
+  write(fileName: string, text: string, _declarationDiagnostics: readonly Diagnostic[]): string {
+    return this.sys.writeFile(fileName, text) ? '' : `Could not write file '${fileName}'.`;
+  }
+}
+
+/** File times of the system. */
+export class SystemTimeStamps extends TimeStampHost {
+  constructor(private readonly sys: System) {
+    super();
+  }
+
+  getMTime(fileName: string): number | undefined {
+    return this.sys.getMTime(fileName);
+  }
+
+  setMTime(fileName: string, time: number): void {
+    this.sys.setMTime(fileName, time);
+  }
+}
 
 /** Binds, checks and emits the program of `work`; returns the exit status. */
 export function compile(sys: System, work: CompileWork): ExitStatus {
   const program = work.program;
-  const options = program.options;
+  const times = new CompileTimes();
+  times.configTime = work.configTime;
+  times.parseTime = work.parseTime;
+  const bindStart = performance.now();
   const checked = new CheckedProgram(program);
-  const diagnostics = getProgramDiagnostics(checked);
+  times.bindTime = performance.now() - bindStart;
+  let compilerProgram: CompilerProgram;
+  if (work.incremental) {
+    const readStart = performance.now();
+    const old = readBuildInfoProgram(
+      program.commandLine,
+      new FileBuildInfoReader(new SystemFileSystem(sys)),
+      sys.defaultLibraryPath,
+      sys.currentDirectory,
+    );
+    times.buildInfoReadTime = performance.now() - readStart;
+    const changesStart = performance.now();
+    compilerProgram = new IncrementalProgram(checked, times, old, new SystemTimeStamps(sys));
+    times.changesComputeTime = performance.now() - changesStart;
+  } else compilerProgram = new PlainProgram(checked, times);
+  const result = emitFilesAndReportErrors(
+    sys,
+    compilerProgram,
+    work.reporter,
+    work.errorSummary,
+    new SystemWriter(sys),
+    outputLocale(program.options),
+  );
+  return emitStatusAndReportStatistics(sys, compilerProgram, result);
+}
 
-  let emitResult: EmitResult | undefined = undefined;
-  if (options.listFilesOnly !== true) {
-    if (options.noEmitOnError === true && diagnostics.length > 0) {
-      emitResult = new EmitResult();
-      emitResult.emitSkipped = true;
-    } else emitResult = emitProgram(sys, program);
-    for (const diagnostic of emitResult.diagnostics) diagnostics.push(diagnostic);
+export class CompileResult {
+  constructor(
+    readonly diagnostics: Diagnostic[],
+    readonly emitResult: EmitResult,
+  ) {}
+}
+
+/** Reports diagnostics, emits, and lists files. */
+export function emitFilesAndReportErrors(
+  sys: System,
+  program: CompilerProgram,
+  reporter: DiagnosticReporter,
+  errorSummary: ErrorSummaryReporter,
+  writer: OutputWriter,
+  locale: Locale,
+): CompileResult {
+  const diagnostics = getDiagnosticsOfProgram(program, false);
+  let emitResult = new EmitResult();
+  emitResult.emitSkipped = true;
+  if (program.options.listFilesOnly !== true) {
+    const emitStart = performance.now();
+    emitResult = program.emit(writer);
+    program.times.emitTime = performance.now() - emitStart;
   }
+  for (const diagnostic of emitResult.diagnostics) diagnostics.push(diagnostic);
   const all = sortAndDeduplicateDiagnostics(diagnostics);
-  work.reporter.reportAll(all);
-  listFiles(sys, program, emitResult);
-  work.errorSummary.report(all);
+  reporter.reportAll(all);
+  listFiles(sys, program, emitResult, locale);
+  errorSummary.report(all);
+  return new CompileResult(all, emitResult);
+}
 
-  if (all.length === 0) return ExitStatus.Success;
-  return emitResult === undefined || emitResult.emitSkipped
+/** The exit status of a compilation, after printing `--diagnostics` statistics. */
+export function emitStatusAndReportStatistics(
+  sys: System,
+  program: CompilerProgram,
+  result: CompileResult,
+): ExitStatus {
+  const options = program.options;
+  if (options.diagnostics === true || options.extendedDiagnostics === true) {
+    program.times.totalTime = sys.sinceStart();
+    statisticsOf(program).report(sys);
+  }
+  return exitStatusOf(result);
+}
+
+export function exitStatusOf(result: CompileResult): ExitStatus {
+  if (result.diagnostics.length === 0) return ExitStatus.Success;
+  return result.emitResult.emitSkipped
     ? ExitStatus.DiagnosticsPresent_OutputsSkipped
     : ExitStatus.DiagnosticsPresent_OutputsGenerated;
 }
 
-/** Config and syntax errors; without them, option, global and semantic errors too. */
-function getProgramDiagnostics(checked: CheckedProgram): Diagnostic[] {
-  const program = checked.program;
-  const result: Diagnostic[] = [...program.getConfigFileParsingDiagnostics()];
-  const configCount = result.length;
-  for (const d of program.getSyntacticDiagnostics()) result.push(d);
-  if (result.length !== configCount) return result;
-  for (const d of program.getProgramDiagnostics()) result.push(d);
-  if (program.options.listFilesOnly === true) return result;
-  for (const d of checked.getGlobalDiagnostics()) result.push(d);
-  if (result.length === configCount) {
-    for (const d of checked.getSemanticDiagnostics(undefined)) result.push(d);
-    // Checking may have found more, such as missing global types.
-    for (const d of checked.getGlobalDiagnostics()) result.push(d);
-  }
-  return result;
-}
-
-function listFiles(sys: System, program: Program, emitResult: EmitResult | undefined): void {
+function listFiles(sys: System, compilerProgram: CompilerProgram, emitResult: EmitResult, locale: Locale): void {
+  const program = compilerProgram.program;
   const options = program.options;
-  if (options.listEmittedFiles === true && emitResult !== undefined) {
+  if (options.listEmittedFiles === true) {
     let out = '';
     for (const file of emitResult.emittedFiles) {
       out += 'TSFILE: ' + getNormalizedAbsolutePath(file, program.currentDirectory) + '\n';
     }
     sys.write(out);
   }
-  if (options.listFiles === true || options.listFilesOnly === true) {
+  if (options.explainFiles === true) sys.write(program.explainFiles(locale));
+  else if (options.listFiles === true || options.listFilesOnly === true) {
     let out = '';
     for (const file of program.getSourceFiles()) out += file.fileName + '\n';
     sys.write(out);
   }
 }
 
-function emitProgram(sys: System, program: Program): EmitResult {
-  const options = program.options;
+// ---- Statistics
+
+/** What `--diagnostics` and `--extendedDiagnostics` print. */
+export class Statistics {
+  isAggregate = false;
+  projects = 0;
+  projectsBuilt = 0;
+  timestampUpdates = 0;
+  files = 0;
+  lines = 0;
+  identifiers = 0;
+  symbols = 0;
+  types = 0;
+  instantiations = 0;
+  memoryUsed = 0;
+  memoryAllocs = 0;
+  readonly times = new CompileTimes();
+
+  aggregate(other: Statistics): void {
+    this.isAggregate = true;
+    this.files += other.files;
+    this.lines += other.lines;
+    this.identifiers += other.identifiers;
+    this.symbols += other.symbols;
+    this.types += other.types;
+    this.instantiations += other.instantiations;
+    this.memoryUsed += other.memoryUsed;
+    this.memoryAllocs += other.memoryAllocs;
+    const t = this.times;
+    const o = other.times;
+    t.configTime += o.configTime;
+    t.buildInfoReadTime += o.buildInfoReadTime;
+    t.parseTime += o.parseTime;
+    t.bindTime += o.bindTime;
+    t.checkTime += o.checkTime;
+    t.emitTime += o.emitTime;
+    t.changesComputeTime += o.changesComputeTime;
+  }
+
+  report(sys: System): void {
+    const rows: [string, string][] = [];
+    const prefix = this.isAggregate ? 'Aggregate ' : '';
+    if (this.isAggregate) {
+      rows.push(['Projects in scope', String(this.projects)]);
+      rows.push(['Projects built', String(this.projectsBuilt)]);
+      rows.push(['Timestamps only updates', String(this.timestampUpdates)]);
+    }
+    rows.push([prefix + 'Files', String(this.files)]);
+    rows.push([prefix + 'Lines', String(this.lines)]);
+    rows.push([prefix + 'Identifiers', String(this.identifiers)]);
+    rows.push([prefix + 'Symbols', String(this.symbols)]);
+    rows.push([prefix + 'Types', String(this.types)]);
+    rows.push([prefix + 'Instantiations', String(this.instantiations)]);
+    rows.push([prefix + 'Memory used', `${Math.floor(this.memoryUsed / 1024)}K`]);
+    rows.push([prefix + 'Memory allocs', String(this.memoryAllocs)]);
+    const t = this.times;
+    if (t.configTime !== 0) rows.push([prefix + 'Config time', formatDuration(t.configTime)]);
+    if (t.buildInfoReadTime !== 0) rows.push([prefix + 'BuildInfo read time', formatDuration(t.buildInfoReadTime)]);
+    rows.push([prefix + 'Parse time', formatDuration(t.parseTime)]);
+    if (t.bindTime !== 0) rows.push([prefix + 'Bind time', formatDuration(t.bindTime)]);
+    if (t.checkTime !== 0) rows.push([prefix + 'Check time', formatDuration(t.checkTime)]);
+    if (t.emitTime !== 0) rows.push([prefix + 'Emit time', formatDuration(t.emitTime)]);
+    if (t.changesComputeTime !== 0) rows.push([prefix + 'Changes compute time', formatDuration(t.changesComputeTime)]);
+    rows.push([prefix + 'Total time', formatDuration(t.totalTime)]);
+    let nameWidth = 0;
+    let valueWidth = 0;
+    for (const [name, value] of rows) {
+      nameWidth = Math.max(nameWidth, name.length);
+      valueWidth = Math.max(valueWidth, value.length);
+    }
+    let out = '';
+    for (const [name, value] of rows) {
+      out += (name + ':').padEnd(nameWidth + 1) + ' ' + value.padStart(valueWidth) + '\n';
+    }
+    sys.write(out);
+  }
+}
+
+function formatDuration(milliseconds: number): string {
+  return (milliseconds / 1000).toFixed(3) + 's';
+}
+
+export function statisticsOf(compilerProgram: CompilerProgram): Statistics {
+  const program = compilerProgram.program;
+  const statistics = new Statistics();
   const files = program.getSourceFiles();
-  const references = new ReferenceResolver(options, files, new ProgramModules(program));
-  const emitResolver = new SyntacticEmitResolver(options, references);
-  let resolver: EmitResolver = emitResolver;
-  if (getEmitDeclarations(options)) {
-    resolver = new SyntacticDeclarationEmitResolver(options, files, program.currentDirectory, emitResolver);
+  statistics.files = files.length;
+  for (const file of files) {
+    statistics.lines += file.diagnosticFile().getLineStarts().length;
+    statistics.identifiers += file.identifierCount;
+    statistics.symbols += file.symbolCount;
   }
-  const host = new SystemEmitHost(sys, program, resolver);
-  const result = emitFiles(host, files);
-  // Emit is skipped only for files that would have been emitted.
-  if (options.noEmit === true) result.emitSkipped = files.some((file) => program.sourceFileMayBeEmitted(file, false));
-  return result;
-}
-
-/** Module formats from the program's file metadata. */
-class ProgramFormats extends ModuleFormatHost {
-  constructor(private readonly program: Program) {
-    super();
-  }
-
-  getEmitModuleFormat(fileName: string): ModuleKind {
-    const program = this.program;
-    return getEmitModuleFormatOfFile(fileName, program.options, program.sourceFileMetadata(program.toPath(fileName)));
-  }
-}
-
-/** Module specifiers resolved to files of the program. */
-class ProgramModules extends ModuleLookup {
-  private readonly resolver: Resolver;
-
-  constructor(private readonly program: Program) {
-    super();
-    this.resolver = new Resolver(program.host, program.options);
-  }
-
-  resolveModule(location: Node, file: SourceFile, specifier: string): SourceFile | undefined {
-    const mode = this.program.getModeForUsageLocation(file, location);
-    const resolved = this.resolver.resolveModuleName(specifier, file.fileName, mode).resolvedFileName;
-    return resolved === '' ? undefined : this.program.getSourceFile(resolved);
-  }
-}
-
-class SystemEmitHost extends EmitHost {
-  constructor(
-    private readonly sys: System,
-    private readonly program: Program,
-    resolver: EmitResolver,
-  ) {
-    super(
-      program.options,
-      resolver,
-      new ProgramFormats(program),
-      program.commonSourceDirectory(),
-      program.currentDirectory,
-      program.useCaseSensitiveFileNames,
-    );
-  }
-
-  isEmitBlocked(fileName: string): boolean {
-    return this.program.isEmitBlocked(fileName);
-  }
-
-  writeFile(fileName: string, text: string): string {
-    return this.sys.writeFile(fileName, text) ? '' : `Could not write file '${fileName}'.`;
-  }
+  statistics.types = compilerProgram.checked.checker.typeCount;
+  const t = statistics.times;
+  const source = compilerProgram.times;
+  t.configTime = source.configTime;
+  t.buildInfoReadTime = source.buildInfoReadTime;
+  t.parseTime = source.parseTime;
+  t.bindTime = source.bindTime;
+  t.checkTime = source.checkTime;
+  t.emitTime = source.emitTime;
+  t.changesComputeTime = source.changesComputeTime;
+  t.totalTime = source.totalTime;
+  return statistics;
 }

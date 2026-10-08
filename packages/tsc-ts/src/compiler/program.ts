@@ -28,7 +28,15 @@ import {
   type DiagnosticMessage,
   type Locale,
 } from './diagnostics.js';
-import { FileLoader, modeAwareKey, type CompilerHost, type ProcessedFiles, type RedirectFile } from './file-loader.js';
+import {
+  FileLoader,
+  modeAwareKey,
+  type CompilerHost,
+  type LibFile,
+  type ProcessedFiles,
+  type RedirectFile,
+} from './file-loader.js';
+import type { PackageJsonInfo } from './package-json.js';
 import { ProcessingDiagnostic, type IncludeProcessor } from './file-include.js';
 import type { ResolvedModule } from './module-resolution-types.js';
 import { moduleResolutionKindName } from './module-resolution-types.js';
@@ -159,6 +167,33 @@ export class Program implements OutputPathsHost {
 
   isSourceFileDefaultLibrary(path: string): boolean {
     return this.processed.libFiles.has(path);
+  }
+
+  /** The bundled library loaded as `path`, if any. */
+  getDefaultLibFile(path: string): LibFile | undefined {
+    return this.processed.libFiles.get(path);
+  }
+
+  /** The declaration output loaded instead of a source of a referenced project, or `''`. */
+  getParseFileRedirect(fileName: string): string {
+    return this.processed.projectReferenceMapper.getParseFileRedirect(this.toPath(fileName));
+  }
+
+  /** Files the type reference directives of a file resolved to. */
+  getResolvedTypeReferenceDirectiveFiles(path: string): string[] {
+    const result: string[] = [];
+    const resolutions = this.processed.typeResolutionsInFile.get(path);
+    if (resolutions !== undefined) {
+      for (const resolved of resolutions.values()) {
+        if (resolved.resolvedFileName !== '') result.push(resolved.resolvedFileName);
+      }
+    }
+    return result;
+  }
+
+  /** The `package.json` lookups of module resolution. */
+  packageJsonLookups(): PackageJsonInfo[] {
+    return this.processed.resolver.packageJsonInfoCache.infos();
   }
 
   sourceFileMetadata(path: string): SourceFileMetadata {

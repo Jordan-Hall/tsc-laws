@@ -1,11 +1,23 @@
 // The tsc command line on the disk, for `tsc-ts` and the cli driver.
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, readdirSync, readFileSync, realpathSync, statSync, writeFileSync, writeSync } from 'node:fs';
+import {
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  realpathSync,
+  statSync,
+  unlinkSync,
+  utimesSync,
+  writeFileSync,
+  writeSync,
+} from 'node:fs';
 import { dirname } from 'node:path';
 import { DirectoryEntries } from '../compiler/file-system.js';
 import { normalizePath } from '../compiler/path.js';
-import { ExitStatus, System, executeCommandLine } from '../compiler/tsc-cli.js';
+import { System, executeCommandLine } from '../compiler/tsc-cli.js';
 import { compile } from '../compiler/tsc-compile.js';
+import { build } from '../compiler/tsc-build.js';
+import { watch, watchBuild } from '../compiler/tsc-watch.js';
 
 const bundledPrefix = 'bundled:///libs/';
 
@@ -120,6 +132,33 @@ class NodeSystem extends System {
       return path;
     }
   }
+
+  getMTime(path: string): number | undefined {
+    try {
+      return statSync(this.toOsPath(path)).mtimeMs;
+    } catch {
+      return undefined;
+    }
+  }
+
+  setMTime(path: string, time: number): boolean {
+    try {
+      const date = new Date(time);
+      utimesSync(path, date, date);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  removeFile(path: string): boolean {
+    try {
+      unlinkSync(path);
+      return true;
+    } catch {
+      return false;
+    }
+  }
 }
 
 /** Orders names by UTF-8 bytes, as Go's directory listing does. */
@@ -152,12 +191,24 @@ export function createNodeSystem(libraryPath: string, bundledLibs: string): Syst
   );
 }
 
-/** Runs the tsc command line `args` and returns the exit status. */
+/** What `runTsc` returns when it keeps watching for changes instead of exiting. */
+export const watching = -1;
+
+/** Runs the tsc command line `args` and returns the exit status, or `watching`. */
 export function runTsc(args: readonly string[], libraryPath: string): number {
-  const sys = createNodeSystem(libraryPath, '');
+  // With TSC_TS_BUNDLED_LIBS set, lib files are read from there as `bundled:///libs/`, like tsgo's embedded ones.
+  const bundledLibs = process.env.TSC_TS_BUNDLED_LIBS ?? '';
+  const sys = createNodeSystem(bundledLibs !== '' ? 'bundled:///libs' : libraryPath, bundledLibs);
   const result = executeCommandLine(sys, args);
   if (result.kind === 'exit') return result.status;
   if (result.kind === 'compile') return compile(sys, result);
-  process.stderr.write(`tsc-ts: ${result.kind} is not implemented yet\n`);
-  return ExitStatus.NotImplemented;
+  if (result.kind === 'build') {
+    if (result.commandLine.compilerOptions.watch === true) {
+      watchBuild(sys, result.commandLine);
+      return watching;
+    }
+    return build(sys, result.commandLine);
+  }
+  watch(sys, result.config, result.commandLine);
+  return watching;
 }

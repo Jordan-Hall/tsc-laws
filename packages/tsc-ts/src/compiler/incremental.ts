@@ -1,0 +1,1758 @@
+/**
+ * Incremental compilation: the state of a program between builds (file versions and shape
+ * signatures, references, cached diagnostics and pending emit), what a change affects, and the
+ * `.tsbuildinfo` that stores it, like tsgo's `incremental` package.
+ *
+ * ```ts
+ * const old = readBuildInfoProgram(config, reader, defaultLibraryPath);
+ * const program = new IncrementalProgram(checked, times, old, host);
+ * ```
+ */
+import type { Node, SourceFile } from './ast.js';
+import { SyntaxKind } from './syntax-kind.js';
+import { isAmbientModule, isGlobalScopeAugmentation } from './ast-utilities.js';
+import { getSourceFileOfNode, isExternalOrCommonJSModule, isJsonSourceFile } from './binder-utilities.js';
+import {
+  BuildInfo,
+  BuildInfoDiagnostic,
+  BuildInfoDiagnosticsOfFile,
+  BuildInfoEmitSignature,
+  BuildInfoFileInfo,
+  BuildInfoFilePendingEmit,
+  BuildInfoOption,
+  BuildInfoReference,
+  BuildInfoResolvedRoot,
+  BuildInfoRoot,
+  BuildInfoSemanticDiagnostic,
+  buildInfoToJson,
+  compilerOptionDeclarationsInFieldOrder,
+  compilerOptionValue,
+  FileEmitKind,
+  FileInfoForm,
+  getFileEmitKind,
+  getPendingEmitKind,
+  getPendingEmitKindWithOptions,
+  isBuildInfoFileNameDefaultLibrary,
+  parseBuildInfo,
+} from './build-info.js';
+import { resolveExternalModuleName } from './checker-modules.js';
+import { getMergedSymbol, resolveAlias } from './checker-symbols.js';
+import {
+  CompilerProgram,
+  CompileTimes,
+  combineEmitResults,
+  handleNoEmitOnError,
+  OutputWriter,
+  type CheckedProgram,
+} from './compile-program.js';
+import {
+  categoryName,
+  createCompilerDiagnostic,
+  Diagnostic,
+  Diagnostics,
+  messageForKey,
+  messageKey,
+} from './diagnostics.js';
+import { EmitOnly, EmitResult, skippedWrite } from './emitter.js';
+import type { FileSystem } from './file-system.js';
+import { version } from './help.js';
+import { Affects, type OptionDeclaration } from './option-declarations.js';
+import {
+  getAllowJS,
+  getEmitDeclarations,
+  getStrictOptionValue,
+  isIncremental,
+  ModuleKind,
+  type CompilerOptions,
+  type CompilerOptionValue,
+} from './options.js';
+import type { Program } from './program.js';
+import {
+  combinePaths,
+  ensurePathIsNonModuleName,
+  getDirectoryPath,
+  getNormalizedAbsolutePath,
+  getRelativePathFromDirectory,
+  isDeclarationFileName,
+  toPath,
+} from './path.js';
+import { SymbolFlags, type Symbol } from './symbol.js';
+import type { ParsedCommandLine } from './tsconfig.js';
+import { hash128String, toHex } from './xxh3.js';
+
+/** The hash of file text that build info records as a version or signature. */
+export function computeHash(text: string): string {
+  return toHex(hash128String(text));
+}
+
+export class FileInfo {
+  constructor(
+    readonly version: string,
+    public signature: string,
+    readonly affectsGlobalScope: boolean,
+    readonly impliedNodeFormat: number,
+  ) {}
+}
+
+/** The file info a build info records; `undefined` stays `undefined`. */
+export function fileInfoFromBuildInfo(info: BuildInfoFileInfo): FileInfo {
+  switch (info.form) {
+    case FileInfoForm.Short:
+      return new FileInfo(info.version, info.version, false, ModuleKind.CommonJS);
+    case FileInfoForm.NoSignature:
+      return new FileInfo(info.version, '', info.affectsGlobalScope, info.impliedNodeFormat);
+    default:
+      return new FileInfo(
+        info.version,
+        info.signature === '' ? info.version : info.signature,
+        info.affectsGlobalScope,
+        info.impliedNodeFormat,
+      );
+  }
+}
+
+function toBuildInfoFileInfo(info: FileInfo): BuildInfoFileInfo {
+  if (info.version === info.signature) {
+    if (!info.affectsGlobalScope && info.impliedNodeFormat === ModuleKind.CommonJS) {
+      return new BuildInfoFileInfo(FileInfoForm.Short, info.signature, info.signature, false, ModuleKind.CommonJS);
+    }
+  } else if (info.signature === '') {
+    return new BuildInfoFileInfo(
+      FileInfoForm.NoSignature,
+      info.version,
+      '',
+      info.affectsGlobalScope,
+      info.impliedNodeFormat,
+    );
+  }
+  return new BuildInfoFileInfo(
+    FileInfoForm.Full,
+    info.version,
+    info.signature === info.version ? '' : info.signature,
+    info.affectsGlobalScope,
+    info.impliedNodeFormat,
+  );
+}
+
+/** The hash of a declaration file, recorded for composite projects to tell whether it changed. */
+class EmitSignature {
+  constructor(
+    /** `''` when emitted with different `declarationMap`. */
+    readonly signature: string,
+    /** The signature when emitted with different `declarationMap`, else `undefined`. */
+    readonly signatureWithDifferentOptions: string | undefined,
+  ) {}
+
+  /** This signature as seen with `newOptions`: the forms swap when `declarationMap` changed. */
+  getNewEmitSignature(oldOptions: CompilerOptions, newOptions: CompilerOptions): EmitSignature {
+    if ((oldOptions.declarationMap === true) === (newOptions.declarationMap === true)) return this;
+    const different = this.signatureWithDifferentOptions;
+    if (different === undefined) return new EmitSignature('', this.signature);
+    return new EmitSignature(different, undefined);
+  }
+}
+
+/** A diagnostic read from build info, resolved against the program when needed. */
+class StoredDiagnostic {
+  constructor(
+    /** Path of the file if not the one it is stored for. */
+    readonly file: string,
+    readonly stored: BuildInfoDiagnostic,
+    readonly messageChain: StoredDiagnostic[],
+    readonly relatedInformation: StoredDiagnostic[],
+  ) {}
+
+  toDiagnostic(program: Program, file: SourceFile | undefined): Diagnostic | undefined {
+    let fileForDiagnostic: SourceFile | undefined = undefined;
+    if (this.file !== '') fileForDiagnostic = program.getSourceFileByPath(this.file);
+    else if (!this.stored.noFile) fileForDiagnostic = file;
+    const message = messageForKey(this.stored.messageKey);
+    if (message === undefined) return undefined;
+    const d = this.stored;
+    const result = new Diagnostic(
+      fileForDiagnostic === undefined ? undefined : fileForDiagnostic.diagnosticFile(),
+      d.pos,
+      d.end,
+      message,
+      d.messageArgs,
+    );
+    result.code = d.code;
+    result.category = d.category;
+    result.skippedOnNoEmit = d.skippedOnNoEmit;
+    for (const chain of this.messageChain) result.addMessageChain(chain.toDiagnostic(program, fileForDiagnostic));
+    for (const related of this.relatedInformation) {
+      result.addRelatedInfo(related.toDiagnostic(program, fileForDiagnostic));
+    }
+    return result;
+  }
+}
+
+/** Diagnostics of a file: computed, or still as read from build info. */
+class FileDiagnostics {
+  constructor(
+    private diagnostics: Diagnostic[] | undefined,
+    readonly stored: StoredDiagnostic[] | undefined,
+  ) {}
+
+  static of(diagnostics: Diagnostic[]): FileDiagnostics {
+    return new FileDiagnostics(diagnostics, undefined);
+  }
+
+  get computed(): Diagnostic[] | undefined {
+    return this.diagnostics;
+  }
+
+  isEmpty(): boolean {
+    const diagnostics = this.diagnostics;
+    if (diagnostics !== undefined) return diagnostics.length === 0;
+    const stored = this.stored;
+    return stored === undefined || stored.length === 0;
+  }
+
+  getDiagnostics(program: Program, file: SourceFile): Diagnostic[] {
+    const existing = this.diagnostics;
+    if (existing !== undefined) return existing;
+    const result: Diagnostic[] = [];
+    const stored = this.stored;
+    if (stored !== undefined) {
+      for (const d of stored) {
+        const diagnostic = d.toDiagnostic(program, file);
+        if (diagnostic !== undefined) result.push(diagnostic);
+      }
+    }
+    this.diagnostics = result;
+    return result;
+  }
+}
+
+/** Files and the files they reference, for finding what a change affects. */
+class ReferenceMap {
+  readonly references = new Map<string, Set<string>>();
+  private referencedBy: Map<string, Set<string>> | undefined = undefined;
+
+  getReferencedBy(path: string): string[] {
+    let referencedBy = this.referencedBy;
+    if (referencedBy === undefined) {
+      referencedBy = new Map();
+      for (const [key, references] of this.references) {
+        for (const reference of references) {
+          let set = referencedBy.get(reference);
+          if (set === undefined) {
+            set = new Set();
+            referencedBy.set(reference, set);
+          }
+          set.add(key);
+        }
+      }
+      this.referencedBy = referencedBy;
+    }
+    const result = referencedBy.get(path);
+    return result === undefined ? [] : [...result];
+  }
+}
+
+function sameSet(a: ReadonlySet<string> | undefined, b: ReadonlySet<string> | undefined): boolean {
+  if (a === undefined || b === undefined) return a === b;
+  if (a.size !== b.size) return false;
+  for (const value of a) if (!b.has(value)) return false;
+  return true;
+}
+
+function compareStrings(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
+/** True, false or not computed yet. */
+const enum Tristate {
+  Unknown,
+  False,
+  True,
+}
+
+/** The state of an incremental program. */
+export class Snapshot {
+  readonly fileInfos = new Map<string, FileInfo>();
+  options: CompilerOptions;
+  readonly referencedMap = new ReferenceMap();
+  readonly semanticDiagnosticsPerFile = new Map<string, FileDiagnostics>();
+  readonly emitDiagnosticsPerFile = new Map<string, FileDiagnostics>();
+  changedFilesSet = new Set<string>();
+  readonly affectedFilesPendingEmit = new Map<string, number>();
+  latestChangedDtsFile = '';
+  readonly emitSignatures = new Map<string, EmitSignature>();
+  hasErrors = Tristate.Unknown;
+  hasSemanticErrors = false;
+  checkPending = false;
+  packageJsons: string[] | undefined = undefined;
+  missingPackageJsons: string[] = [];
+
+  buildInfoEmitPending = false;
+  hasErrorsFromOldState = Tristate.Unknown;
+  hasSemanticErrorsFromOldState = false;
+  packageJsonsFromOldState: string[] = [];
+  missingPackageJsonsFromOldState: string[] = [];
+  private allFilesExcludingDefaultLibraryFile: SourceFile[] | undefined = undefined;
+  hasChangedDtsFile = false;
+  hasEmitDiagnostics = false;
+
+  constructor(options: CompilerOptions) {
+    this.options = options;
+  }
+
+  addFileToChangeSet(path: string): void {
+    this.changedFilesSet.add(path);
+    this.buildInfoEmitPending = true;
+  }
+
+  addFileToAffectedFilesPendingEmit(path: string, emitKind: number): void {
+    const existing = this.affectedFilesPendingEmit.get(path) ?? 0;
+    this.affectedFilesPendingEmit.set(path, existing | emitKind);
+    if ((emitKind & FileEmitKind.DtsErrors) !== 0) this.emitDiagnosticsPerFile.delete(path);
+    this.buildInfoEmitPending = true;
+  }
+
+  getAllFilesExcludingDefaultLibraryFile(program: Program, firstSourceFile: SourceFile | undefined): SourceFile[] {
+    let result = this.allFilesExcludingDefaultLibraryFile;
+    if (result === undefined) {
+      result = [];
+      if (firstSourceFile !== undefined && !program.isSourceFileDefaultLibrary(firstSourceFile.path)) {
+        result.push(firstSourceFile);
+      }
+      for (const file of program.getSourceFiles()) {
+        if (file !== firstSourceFile && !program.isSourceFileDefaultLibrary(file.path)) result.push(file);
+      }
+      this.allFilesExcludingDefaultLibraryFile = result;
+    }
+    return result;
+  }
+
+  /** Without `incremental`, `tsc -b` only records whether there were errors. */
+  canUseIncrementalState(): boolean {
+    return isIncremental(this.options) || this.options.build !== true;
+  }
+}
+
+/** The signature of a declaration emit: its text up to the source map comment, and its errors. */
+function computeSignatureWithDiagnostics(
+  file: SourceFile,
+  text: string,
+  diagnostics: readonly Diagnostic[],
+  options: CompilerOptions,
+): string {
+  let result = getTextHandlingSourceMapForSignature(text, options);
+  for (const d of diagnostics) result += diagnosticToString(d, file);
+  return computeHash(result);
+}
+
+function getTextHandlingSourceMapForSignature(text: string, options: CompilerOptions): string {
+  if (options.declarationMap !== true) return text;
+  const pos = text.lastIndexOf('//# sourceMappingURL=');
+  return pos < 0 ? text : text.slice(0, pos);
+}
+
+function diagnosticToString(d: Diagnostic, file: SourceFile): string {
+  let result = '\n';
+  const diagnosticFile = d.file;
+  if (diagnosticFile !== undefined && diagnosticFile !== file.diagnosticFile()) {
+    result += ensurePathIsNonModuleName(
+      getRelativePathFromDirectory(getDirectoryPath(file.path), diagnosticFile.fileName, true),
+    );
+  }
+  if (diagnosticFile !== undefined) result += `(${d.pos},${d.end - d.pos}): `;
+  result += categoryName(d.category) + String(d.code) + ': ' + messageKey(d.message) + '\n';
+  for (const arg of d.args) result += arg + '\n';
+  for (const chain of d.messageChain) result += diagnosticToString(chain, file);
+  for (const related of d.relatedInformation) result += diagnosticToString(related, file);
+  return result;
+}
+
+// ---- Option comparisons
+
+function optionValuesEqual(a: CompilerOptionValue | undefined, b: CompilerOptionValue | undefined): boolean {
+  if (Array.isArray(a) || Array.isArray(b)) {
+    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+    return true;
+  }
+  return a === b;
+}
+
+function pathsEqual(a: CompilerOptions, b: CompilerOptions): boolean {
+  const x = a.paths;
+  const y = b.paths;
+  if (x === undefined || y === undefined) return x === y;
+  if (x.size !== y.size) return false;
+  const keysX = [...x.keys()];
+  const keysY = [...y.keys()];
+  for (let i = 0; i < keysX.length; i++) {
+    if (keysX[i] !== keysY[i]) return false;
+    const valueX = x.get(keysX[i]);
+    const valueY = y.get(keysY[i]);
+    if (valueX === undefined || valueY === undefined) {
+      if (valueX !== valueY) return false;
+    } else if (!optionValuesEqual(valueX, valueY)) return false;
+  }
+  return true;
+}
+
+function optionsHaveChanges(oldOptions: CompilerOptions, newOptions: CompilerOptions, affects: Affects): boolean {
+  if (oldOptions === newOptions) return false;
+  for (const option of compilerOptionDeclarationsInFieldOrder()) {
+    if (((option.affects ?? 0) & affects) === 0) continue;
+    if (option.strictFlag === true) {
+      const oldValue = compilerOptionValue(oldOptions, option.name);
+      const newValue = compilerOptionValue(newOptions, option.name);
+      if (
+        getStrictOptionValue(oldOptions, typeof oldValue === 'boolean' ? oldValue : undefined) !==
+        getStrictOptionValue(newOptions, typeof newValue === 'boolean' ? newValue : undefined)
+      ) {
+        return true;
+      }
+      continue;
+    }
+    if (option.allowJsFlag === true) {
+      if (getAllowJS(oldOptions) !== getAllowJS(newOptions)) return true;
+      continue;
+    }
+    if (option.name === 'paths') {
+      if (!pathsEqual(oldOptions, newOptions)) return true;
+      continue;
+    }
+    if (
+      !optionValuesEqual(compilerOptionValue(oldOptions, option.name), compilerOptionValue(newOptions, option.name))
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+export function compilerOptionsAffectSemanticDiagnostics(a: CompilerOptions, b: CompilerOptions): boolean {
+  return optionsHaveChanges(a, b, Affects.SemanticDiagnostics);
+}
+
+export function compilerOptionsAffectDeclarationPath(a: CompilerOptions, b: CompilerOptions): boolean {
+  return optionsHaveChanges(a, b, Affects.DeclarationPath);
+}
+
+export function compilerOptionsAffectEmit(a: CompilerOptions, b: CompilerOptions): boolean {
+  return optionsHaveChanges(a, b, Affects.Emit);
+}
+
+// ---- Reading build info
+
+/** Reads the build info of a project. */
+export abstract class BuildInfoReader {
+  abstract readBuildInfo(config: ParsedCommandLine): BuildInfo | undefined;
+}
+
+/** Reads build info files from a file system. */
+export class FileBuildInfoReader extends BuildInfoReader {
+  constructor(private readonly fs: FileSystem) {
+    super();
+  }
+
+  readBuildInfo(config: ParsedCommandLine): BuildInfo | undefined {
+    const fileName = config.buildInfoFileName();
+    if (fileName === '') return undefined;
+    const text = this.fs.readFile(fileName);
+    return text === undefined ? undefined : parseBuildInfo(text);
+  }
+}
+
+/** The state recorded by the previous build, if it can be used. */
+export function readBuildInfoProgram(
+  config: ParsedCommandLine,
+  reader: BuildInfoReader,
+  defaultLibraryPath: string,
+  currentDirectory: string,
+): Snapshot | undefined {
+  const buildInfo = reader.readBuildInfo(config);
+  if (buildInfo === undefined || !buildInfo.isValidVersion() || !buildInfo.isIncremental()) return undefined;
+  return buildInfoToSnapshot(buildInfo, config, defaultLibraryPath, currentDirectory);
+}
+
+function storedDiagnostics(
+  diagnostics: readonly BuildInfoDiagnostic[],
+  filePaths: readonly string[],
+): StoredDiagnostic[] {
+  return diagnostics.map(
+    (d) =>
+      new StoredDiagnostic(
+        d.file !== 0 && d.file <= filePaths.length ? filePaths[d.file - 1] : '',
+        d,
+        storedDiagnostics(d.messageChain, filePaths),
+        storedDiagnostics(d.relatedInformation, filePaths),
+      ),
+  );
+}
+
+function buildInfoToSnapshot(
+  buildInfo: BuildInfo,
+  config: ParsedCommandLine,
+  defaultLibraryPath: string,
+  currentDirectory: string,
+): Snapshot {
+  const useCaseSensitiveFileNames = config.useCaseSensitiveFileNames;
+  const buildInfoDirectory = getDirectoryPath(getNormalizedAbsolutePath(config.buildInfoFileName(), currentDirectory));
+  const filePaths = buildInfo.fileNames.map((fileName) =>
+    isBuildInfoFileNameDefaultLibrary(fileName)
+      ? toPath(combinePaths(defaultLibraryPath, fileName), currentDirectory, useCaseSensitiveFileNames)
+      : toPath(fileName, buildInfoDirectory, useCaseSensitiveFileNames),
+  );
+  const filePath = (fileId: number): string => (fileId >= 1 && fileId <= filePaths.length ? filePaths[fileId - 1] : '');
+  const fileSets = buildInfo.fileIdsList.map((ids) => new Set(ids.map(filePath)));
+  const snapshot = new Snapshot(buildInfo.getCompilerOptions(buildInfoDirectory));
+
+  const isComposite = snapshot.options.composite === true;
+  for (let i = 0; i < buildInfo.fileInfos.length; i++) {
+    const path = filePath(i + 1);
+    const info = fileInfoFromBuildInfo(buildInfo.fileInfos[i]);
+    snapshot.fileInfos.set(path, info);
+    if (info.signature !== '' && isComposite)
+      snapshot.emitSignatures.set(path, new EmitSignature(info.signature, undefined));
+  }
+  for (const value of buildInfo.emitSignatures) {
+    const path = filePath(value.fileId);
+    if (value.noEmitSignature()) snapshot.emitSignatures.delete(path);
+    else if (value.differsOnlyInDtsMap) {
+      const existing = snapshot.emitSignatures.get(path);
+      snapshot.emitSignatures.set(path, new EmitSignature('', existing === undefined ? '' : existing.signature));
+    } else if (value.differsInOptions) snapshot.emitSignatures.set(path, new EmitSignature('', value.signature));
+    else snapshot.emitSignatures.set(path, new EmitSignature(value.signature, undefined));
+  }
+  for (const entry of buildInfo.referencedMap) {
+    const set =
+      entry.fileIdListId >= 1 && entry.fileIdListId <= fileSets.length ? fileSets[entry.fileIdListId - 1] : undefined;
+    if (set !== undefined) snapshot.referencedMap.references.set(filePath(entry.fileId), set);
+  }
+  for (const fileId of buildInfo.changeFileSet) snapshot.changedFilesSet.add(filePath(fileId));
+  for (const path of snapshot.fileInfos.keys()) {
+    if (!snapshot.changedFilesSet.has(path)) snapshot.semanticDiagnosticsPerFile.set(path, FileDiagnostics.of([]));
+  }
+  for (const diagnostic of buildInfo.semanticDiagnosticsPerFile) {
+    const ofFile = diagnostic.diagnostics;
+    if (ofFile === undefined) snapshot.semanticDiagnosticsPerFile.delete(filePath(diagnostic.fileId));
+    else {
+      snapshot.semanticDiagnosticsPerFile.set(
+        filePath(ofFile.fileId),
+        new FileDiagnostics(undefined, storedDiagnostics(ofFile.diagnostics, filePaths)),
+      );
+    }
+  }
+  for (const ofFile of buildInfo.emitDiagnosticsPerFile) {
+    snapshot.emitDiagnosticsPerFile.set(
+      filePath(ofFile.fileId),
+      new FileDiagnostics(undefined, storedDiagnostics(ofFile.diagnostics, filePaths)),
+    );
+  }
+  if (buildInfo.affectedFilesPendingEmit.length > 0) {
+    const ownOptionsEmitKind = getFileEmitKind(snapshot.options);
+    for (const pending of buildInfo.affectedFilesPendingEmit) {
+      snapshot.affectedFilesPendingEmit.set(
+        filePath(pending.fileId),
+        pending.emitKind === 0 ? ownOptionsEmitKind : pending.emitKind,
+      );
+    }
+  }
+  if (buildInfo.latestChangedDtsFile !== '') {
+    snapshot.latestChangedDtsFile = getNormalizedAbsolutePath(buildInfo.latestChangedDtsFile, buildInfoDirectory);
+  }
+  snapshot.hasErrors = buildInfo.errors ? Tristate.True : Tristate.False;
+  snapshot.hasSemanticErrors = buildInfo.semanticErrors;
+  snapshot.checkPending = buildInfo.checkPending;
+  snapshot.packageJsons = buildInfo.packageJsons.map((p) => getNormalizedAbsolutePath(p, buildInfoDirectory));
+  snapshot.missingPackageJsons = buildInfo.missingPackageJsons.map((p) =>
+    getNormalizedAbsolutePath(p, buildInfoDirectory),
+  );
+  return snapshot;
+}
+
+// ---- The new state from the program and the old state
+
+function fileAffectsGlobalScope(file: SourceFile): boolean {
+  for (const augmentation of file.moduleAugmentations) {
+    const parent = augmentation.parent;
+    if (parent !== undefined && isGlobalScopeAugmentation(parent)) return true;
+  }
+  if (isExternalOrCommonJSModule(file) || isJsonSourceFile(file)) return false;
+  for (const statement of file.statements.nodes) {
+    if (!isModuleWithStringLiteralName(statement)) return true;
+  }
+  return false;
+}
+
+function isModuleWithStringLiteralName(node: Node): boolean {
+  return node.kind === SyntaxKind.ModuleDeclaration && isAmbientModule(node) && !isGlobalScopeAugmentation(node);
+}
+
+function addReferencedFilesFromSymbol(file: SourceFile, referenced: Set<string>, symbol: Symbol | undefined): void {
+  if (symbol === undefined) return;
+  for (const declaration of symbol.declarations) {
+    const declarationFile = getSourceFileOfNode(declaration);
+    if (declarationFile !== file) referenced.add(declarationFile.path);
+  }
+}
+
+function addReferencedFileFromFileName(
+  program: Program,
+  fileName: string,
+  referenced: Set<string>,
+  sourceFileDirectory: string,
+): void {
+  const redirect = program.getParseFileRedirect(fileName);
+  if (redirect !== '') referenced.add(toPath(redirect, program.currentDirectory, program.useCaseSensitiveFileNames));
+  else referenced.add(toPath(fileName, sourceFileDirectory, program.useCaseSensitiveFileNames));
+}
+
+/** The files `file` depends on: imports, references, type references, augmentations, ambient modules. */
+function getReferencedFiles(
+  checked: CheckedProgram,
+  file: SourceFile,
+  ambientModules: readonly Symbol[],
+): Set<string> | undefined {
+  const program = checked.program;
+  const checker = checked.checker;
+  const referenced = new Set<string>();
+  for (const importName of file.imports) {
+    addReferencedFilesFromSymbol(file, referenced, resolveExternalModuleName(checker, importName, importName, true));
+  }
+  const sourceFileDirectory = getDirectoryPath(file.fileName);
+  for (const reference of file.referencedFiles) {
+    addReferencedFileFromFileName(program, reference.fileName, referenced, sourceFileDirectory);
+  }
+  for (const resolved of program.getResolvedTypeReferenceDirectiveFiles(file.path)) {
+    addReferencedFileFromFileName(program, resolved, referenced, sourceFileDirectory);
+  }
+  for (const moduleName of file.moduleAugmentations) {
+    if (moduleName.kind !== SyntaxKind.StringLiteral) continue;
+    addReferencedFilesFromSymbol(file, referenced, resolveExternalModuleName(checker, moduleName, moduleName, true));
+  }
+  for (const ambientModule of ambientModules) addReferencedFilesFromSymbol(file, referenced, ambientModule);
+  return referenced.size > 0 ? referenced : undefined;
+}
+
+/** The ambient module symbols (`declare module "x"`) of the program. */
+function getAmbientModules(checked: CheckedProgram): Symbol[] {
+  const result: Symbol[] = [];
+  for (const [name, symbol] of checked.checker.globals) {
+    if (name.length >= 2 && name.charCodeAt(0) === 0x22 && name.charCodeAt(name.length - 1) === 0x22) {
+      result.push(getMergedSymbol(checked.checker, symbol));
+    }
+  }
+  return result;
+}
+
+function programToSnapshot(checked: CheckedProgram, oldSnapshot: Snapshot | undefined): Snapshot {
+  const program = checked.program;
+  const options = program.options;
+  const snapshot = new Snapshot(options);
+  snapshot.checkPending = options.noCheck === true;
+  if (!snapshot.canUseIncrementalState()) return snapshot;
+
+  // Reuse from the old state.
+  if (oldSnapshot !== undefined) {
+    if (options.composite === true) snapshot.latestChangedDtsFile = oldSnapshot.latestChangedDtsFile;
+    for (const path of oldSnapshot.changedFilesSet) snapshot.changedFilesSet.add(path);
+    for (const [path, kind] of oldSnapshot.affectedFilesPendingEmit) snapshot.affectedFilesPendingEmit.set(path, kind);
+    snapshot.buildInfoEmitPending = oldSnapshot.buildInfoEmitPending;
+    snapshot.hasErrorsFromOldState = oldSnapshot.hasErrors;
+    snapshot.hasSemanticErrorsFromOldState = oldSnapshot.hasSemanticErrors;
+    const oldPackageJsons = oldSnapshot.packageJsons;
+    if (oldPackageJsons !== undefined) snapshot.packageJsonsFromOldState = oldPackageJsons;
+    snapshot.missingPackageJsonsFromOldState = oldSnapshot.missingPackageJsons;
+  } else {
+    snapshot.buildInfoEmitPending = isIncremental(options);
+  }
+
+  // Changes of files.
+  const canCopySemanticDiagnostics =
+    oldSnapshot !== undefined && !compilerOptionsAffectSemanticDiagnostics(oldSnapshot.options, options);
+  const canCopyEmitSignatures =
+    options.composite === true &&
+    oldSnapshot !== undefined &&
+    !compilerOptionsAffectDeclarationPath(oldSnapshot.options, options);
+  const copyDeclarationFileDiagnostics =
+    canCopySemanticDiagnostics &&
+    oldSnapshot !== undefined &&
+    (options.skipLibCheck === true) === (oldSnapshot.options.skipLibCheck === true);
+  const copyLibFileDiagnostics =
+    copyDeclarationFileDiagnostics &&
+    oldSnapshot !== undefined &&
+    (options.skipDefaultLibCheck === true) === (oldSnapshot.options.skipDefaultLibCheck === true);
+
+  const ambientModules = getAmbientModules(checked);
+  for (const file of program.getSourceFiles()) {
+    const path = file.path;
+    const version = computeHash(file.text);
+    const impliedNodeFormat: number = program.sourceFileMetadata(path).impliedNodeFormat;
+    const affectsGlobalScope = fileAffectsGlobalScope(file);
+    let signature = '';
+    const newReferences = getReferencedFiles(checked, file, ambientModules);
+    if (newReferences !== undefined) snapshot.referencedMap.references.set(path, newReferences);
+    if (oldSnapshot !== undefined) {
+      const oldInfo = oldSnapshot.fileInfos.get(path);
+      if (oldInfo !== undefined) {
+        signature = oldInfo.signature;
+        if (
+          oldInfo.version !== version ||
+          oldInfo.affectsGlobalScope !== affectsGlobalScope ||
+          oldInfo.impliedNodeFormat !== impliedNodeFormat
+        ) {
+          snapshot.addFileToChangeSet(path);
+        } else if (!sameSet(newReferences, oldSnapshot.referencedMap.references.get(path))) {
+          snapshot.addFileToChangeSet(path);
+        } else if (newReferences !== undefined) {
+          for (const reference of newReferences) {
+            if (program.getSourceFileByPath(reference) === undefined && oldSnapshot.fileInfos.has(reference)) {
+              snapshot.addFileToChangeSet(path);
+              break;
+            }
+          }
+        }
+      } else snapshot.addFileToChangeSet(path);
+      if (!snapshot.changedFilesSet.has(path)) {
+        const emitDiagnostics = oldSnapshot.emitDiagnosticsPerFile.get(path);
+        if (emitDiagnostics !== undefined) snapshot.emitDiagnosticsPerFile.set(path, emitDiagnostics);
+        if (
+          canCopySemanticDiagnostics &&
+          (!file.isDeclarationFile || copyDeclarationFileDiagnostics) &&
+          (!program.isSourceFileDefaultLibrary(path) || copyLibFileDiagnostics)
+        ) {
+          const diagnostics = oldSnapshot.semanticDiagnosticsPerFile.get(path);
+          if (diagnostics !== undefined) snapshot.semanticDiagnosticsPerFile.set(path, diagnostics);
+        }
+      }
+      if (canCopyEmitSignatures) {
+        const oldEmitSignature = oldSnapshot.emitSignatures.get(path);
+        if (oldEmitSignature !== undefined) {
+          snapshot.emitSignatures.set(path, oldEmitSignature.getNewEmitSignature(oldSnapshot.options, options));
+        }
+      }
+    } else {
+      snapshot.addFileToAffectedFilesPendingEmit(path, getFileEmitKind(options));
+      signature = version;
+    }
+    snapshot.fileInfos.set(path, new FileInfo(version, signature, affectsGlobalScope, impliedNodeFormat));
+  }
+
+  // Deleted files.
+  let globalFileRemoved = false;
+  if (oldSnapshot !== undefined) {
+    for (const [path, oldInfo] of oldSnapshot.fileInfos) {
+      if (snapshot.fileInfos.has(path)) continue;
+      if (oldInfo.affectsGlobalScope) {
+        for (const file of snapshot.getAllFilesExcludingDefaultLibraryFile(program, undefined)) {
+          snapshot.addFileToChangeSet(file.path);
+        }
+        globalFileRemoved = true;
+      } else snapshot.buildInfoEmitPending = true;
+      break;
+    }
+  }
+
+  // Pending emit from changed options.
+  if (oldSnapshot !== undefined && !globalFileRemoved) {
+    const pendingEmitKind = compilerOptionsAffectEmit(oldSnapshot.options, options)
+      ? getFileEmitKind(options)
+      : getPendingEmitKindWithOptions(options, oldSnapshot.options);
+    if (pendingEmitKind !== FileEmitKind.None) {
+      for (const file of program.getSourceFiles()) {
+        if (!snapshot.changedFilesSet.has(file.path))
+          snapshot.addFileToAffectedFilesPendingEmit(file.path, pendingEmitKind);
+      }
+      snapshot.buildInfoEmitPending = true;
+    }
+  }
+
+  // Pending check.
+  if (
+    oldSnapshot !== undefined &&
+    snapshot.semanticDiagnosticsPerFile.size !== program.getSourceFiles().length &&
+    oldSnapshot.checkPending !== snapshot.checkPending
+  ) {
+    snapshot.buildInfoEmitPending = true;
+  }
+  return snapshot;
+}
+
+// ---- Affected files
+
+class AffectedFilesHandler {
+  private hasAllFilesExcludingDefaultLibraryFile = false;
+  private readonly updatedSignatures = new Map<string, string>();
+  private readonly dtsMayChange: Map<string, number>[] = [];
+  private readonly filesToRemoveDiagnostics = new Set<string>();
+  private cleanedDiagnosticsOfLibFiles = false;
+  private readonly seenFileAndReferences = new Map<string, boolean>();
+
+  constructor(private readonly incremental: IncrementalProgram) {}
+
+  private get snapshot(): Snapshot {
+    return this.incremental.snapshot;
+  }
+
+  private get program(): Program {
+    return this.incremental.program;
+  }
+
+  getDtsMayChange(affectedFilePath: string, emitKind: number): Map<string, number> {
+    const result = new Map<string, number>();
+    result.set(affectedFilePath, emitKind);
+    this.dtsMayChange.push(result);
+    return result;
+  }
+
+  private isChangedSignature(path: string): boolean {
+    const newSignature = this.updatedSignatures.get(path);
+    const oldInfo = this.snapshot.fileInfos.get(path);
+    return newSignature !== (oldInfo === undefined ? undefined : oldInfo.signature);
+  }
+
+  private removeSemanticDiagnosticsOf(path: string): void {
+    this.filesToRemoveDiagnostics.add(path);
+  }
+
+  private removeDiagnosticsOfLibraryFiles(): void {
+    if (this.cleanedDiagnosticsOfLibFiles) return;
+    this.cleanedDiagnosticsOfLibFiles = true;
+    for (const file of this.program.getSourceFiles()) {
+      if (this.program.isSourceFileDefaultLibrary(file.path) && !this.incremental.checked.skipTypeChecking(file)) {
+        this.removeSemanticDiagnosticsOf(file.path);
+      }
+    }
+  }
+
+  private computeDtsSignature(file: SourceFile): string {
+    const emitted = this.incremental.emitter.forcedDeclaration(file);
+    if (emitted.text === '') return '';
+    return computeSignatureWithDiagnostics(file, emitted.text, emitted.diagnostics, this.snapshot.options);
+  }
+
+  updateShapeSignature(file: SourceFile, useFileVersionAsSignature: boolean): boolean {
+    if (this.updatedSignatures.has(file.path)) return false;
+    const info = this.snapshot.fileInfos.get(file.path);
+    if (info === undefined) return false;
+    const previous = info.signature;
+    let signature = '';
+    if (!file.isDeclarationFile && !useFileVersionAsSignature) signature = this.computeDtsSignature(file);
+    if (signature === '') signature = info.version;
+    this.updatedSignatures.set(file.path, signature);
+    return signature !== previous;
+  }
+
+  getFilesAffectedBy(path: string): SourceFile[] {
+    const file = this.program.getSourceFileByPath(path);
+    if (file === undefined) return [];
+    if (!this.updateShapeSignature(file, false)) return [file];
+    const info = this.snapshot.fileInfos.get(file.path);
+    if (info !== undefined && info.affectsGlobalScope) {
+      this.hasAllFilesExcludingDefaultLibraryFile = true;
+      this.snapshot.getAllFilesExcludingDefaultLibraryFile(this.program, file);
+    }
+    if (this.snapshot.options.isolatedModules === true) return [file];
+    const seen = this.forEachFileReferencedBy(file, (currentFile) =>
+      currentFile !== undefined && this.updateShapeSignature(currentFile, false) ? 1 : 0,
+    );
+    const result: SourceFile[] = [];
+    for (const value of seen.values()) if (value !== undefined) result.push(value);
+    return result;
+  }
+
+  /** Walks the files referencing `file`; `visit` returns 1 to walk on from a file, 2 to stop. */
+  private forEachFileReferencedBy(
+    file: SourceFile,
+    visit: (currentFile: SourceFile | undefined, currentPath: string) => number,
+  ): Map<string, SourceFile | undefined> {
+    const seen = new Map<string, SourceFile | undefined>();
+    seen.set(file.path, file);
+    const queue = this.snapshot.referencedMap.getReferencedBy(file.path);
+    while (queue.length > 0) {
+      const currentPath = queue.pop();
+      if (currentPath === undefined) break;
+      if (seen.has(currentPath)) continue;
+      const currentFile = this.program.getSourceFileByPath(currentPath);
+      seen.set(currentPath, currentFile);
+      const result = visit(currentFile, currentPath);
+      if (result === 2) return seen;
+      if (result === 1 && currentFile !== undefined) {
+        for (const reference of this.snapshot.referencedMap.getReferencedBy(currentFile.path)) queue.push(reference);
+      }
+    }
+    return seen;
+  }
+
+  handleDtsMayChangeOfAffectedFile(dtsMayChange: Map<string, number>, affectedFile: SourceFile): void {
+    this.removeSemanticDiagnosticsOf(affectedFile.path);
+    if (this.hasAllFilesExcludingDefaultLibraryFile) {
+      this.removeDiagnosticsOfLibraryFiles();
+      this.updateShapeSignature(affectedFile, false);
+      return;
+    }
+    const options = this.snapshot.options;
+    if (options.assumeChangesOnlyAffectDirectDependencies === true) return;
+    if (!this.snapshot.changedFilesSet.has(affectedFile.path) || !this.isChangedSignature(affectedFile.path)) return;
+
+    if (options.isolatedModules === true) {
+      this.forEachFileReferencedBy(affectedFile, (_currentFile, currentPath) => {
+        if (this.handleDtsMayChangeOfGlobalScope(dtsMayChange, currentPath, false)) return 2;
+        this.handleDtsMayChangeOf(dtsMayChange, currentPath, false);
+        return this.isChangedSignature(currentPath) ? 1 : 0;
+      });
+    }
+
+    let invalidateJsFiles = false;
+    const symbol = affectedFile.symbol;
+    const exports = symbol === undefined ? undefined : symbol.exports;
+    if (exports !== undefined) {
+      const checker = this.incremental.checked.checker;
+      for (const exported of exports.values()) {
+        if ((exported.flags & SymbolFlags.ConstEnum) !== 0) {
+          invalidateJsFiles = true;
+          break;
+        }
+        if ((exported.flags & SymbolFlags.Alias) === 0) continue;
+        const aliased = resolveAlias(checker, exported);
+        if (aliased === exported) continue;
+        if ((aliased.flags & SymbolFlags.ConstEnum) !== 0) {
+          if (aliased.declarations.some((d) => getSourceFileOfNode(d) === affectedFile)) {
+            invalidateJsFiles = true;
+            break;
+          }
+        }
+      }
+    }
+
+    for (const fileReferencingChangedFile of this.snapshot.referencedMap.getReferencedBy(affectedFile.path)) {
+      if (this.handleDtsMayChangeOfGlobalScope(dtsMayChange, fileReferencingChangedFile, invalidateJsFiles)) return;
+      for (const fileReferencingAffectedFile of this.snapshot.referencedMap.getReferencedBy(
+        fileReferencingChangedFile,
+      )) {
+        if (this.handleDtsMayChangeOfFileAndReferences(dtsMayChange, fileReferencingAffectedFile, invalidateJsFiles)) {
+          return;
+        }
+      }
+    }
+  }
+
+  private handleDtsMayChangeOfFileAndReferences(
+    dtsMayChange: Map<string, number>,
+    path: string,
+    invalidateJsFiles: boolean,
+  ): boolean {
+    const existing = this.seenFileAndReferences.get(path);
+    if (existing !== undefined && (existing || !invalidateJsFiles)) return false;
+    this.seenFileAndReferences.set(path, invalidateJsFiles);
+    if (this.handleDtsMayChangeOfGlobalScope(dtsMayChange, path, invalidateJsFiles)) return true;
+    this.handleDtsMayChangeOf(dtsMayChange, path, invalidateJsFiles);
+    for (const referencingFilePath of this.snapshot.referencedMap.getReferencedBy(path)) {
+      if (this.handleDtsMayChangeOfFileAndReferences(dtsMayChange, referencingFilePath, invalidateJsFiles)) return true;
+    }
+    return false;
+  }
+
+  private handleDtsMayChangeOfGlobalScope(
+    dtsMayChange: Map<string, number>,
+    path: string,
+    invalidateJsFiles: boolean,
+  ): boolean {
+    const info = this.snapshot.fileInfos.get(path);
+    if (info === undefined || !info.affectsGlobalScope) return false;
+    for (const file of this.snapshot.getAllFilesExcludingDefaultLibraryFile(this.program, undefined)) {
+      this.handleDtsMayChangeOf(dtsMayChange, file.path, invalidateJsFiles);
+    }
+    this.removeDiagnosticsOfLibraryFiles();
+    return true;
+  }
+
+  private handleDtsMayChangeOf(dtsMayChange: Map<string, number>, path: string, invalidateJsFiles: boolean): void {
+    if (this.snapshot.changedFilesSet.has(path)) return;
+    const file = this.program.getSourceFileByPath(path);
+    if (file === undefined) return;
+    this.removeSemanticDiagnosticsOf(path);
+    this.updateShapeSignature(file, true);
+    const options = this.snapshot.options;
+    if (invalidateJsFiles) dtsMayChange.set(path, getFileEmitKind(options));
+    else if (getEmitDeclarations(options)) {
+      dtsMayChange.set(path, options.declarationMap === true ? FileEmitKind.AllDts : FileEmitKind.Dts);
+    }
+  }
+
+  updateSnapshot(): void {
+    const snapshot = this.snapshot;
+    for (const [path, signature] of this.updatedSignatures) {
+      const info = snapshot.fileInfos.get(path);
+      if (info !== undefined) info.signature = signature;
+    }
+    for (const path of this.filesToRemoveDiagnostics) snapshot.semanticDiagnosticsPerFile.delete(path);
+    for (const change of this.dtsMayChange) {
+      for (const [path, emitKind] of change) snapshot.addFileToAffectedFilesPendingEmit(path, emitKind);
+    }
+    snapshot.changedFilesSet = new Set();
+    snapshot.buildInfoEmitPending = true;
+  }
+}
+
+function collectAllAffectedFiles(program: IncrementalProgram): void {
+  const snapshot = program.snapshot;
+  if (snapshot.changedFilesSet.size === 0) return;
+  const handler = new AffectedFilesHandler(program);
+  const affected = new Set<SourceFile>();
+  for (const path of snapshot.changedFilesSet) {
+    for (const file of handler.getFilesAffectedBy(path)) affected.add(file);
+  }
+  const emitKind = getFileEmitKind(snapshot.options);
+  for (const file of affected) {
+    handler.handleDtsMayChangeOfAffectedFile(handler.getDtsMayChange(file.path, emitKind), file);
+  }
+  handler.updateSnapshot();
+}
+
+// ---- Emit
+
+/** Writes declaration files, recording their signatures and skipping unchanged ones of composite projects. */
+class SignatureRecordingWriter extends OutputWriter {
+  file: SourceFile | undefined = undefined;
+
+  constructor(
+    private readonly handler: EmitFilesHandler,
+    private readonly writer: OutputWriter,
+  ) {
+    super();
+  }
+
+  write(fileName: string, text: string, declarationDiagnostics: readonly Diagnostic[]): string {
+    const file = this.file;
+    let differsOnlyInMap = false;
+    if (
+      file !== undefined &&
+      isDeclarationFileName(fileName) &&
+      this.handler.program.snapshot.canUseIncrementalState()
+    ) {
+      const snapshot = this.handler.program.snapshot;
+      let emitSignature = '';
+      const info = snapshot.fileInfos.get(file.path);
+      if (info !== undefined && info.signature === info.version) {
+        const signature = computeSignatureWithDiagnostics(file, text, declarationDiagnostics, snapshot.options);
+        if (declarationDiagnostics.length === 0) emitSignature = signature;
+        if (signature !== info.version) this.handler.signatures.set(file.path, signature);
+      }
+      const skip = this.handler.skipDtsOutputOfComposite(file, fileName, text, emitSignature);
+      if (skip === 1) return skippedWrite;
+      differsOnlyInMap = skip === 2;
+    }
+    const mtime = differsOnlyInMap ? this.handler.program.host.getMTime(fileName) : undefined;
+    const error = this.writer.write(fileName, text, declarationDiagnostics);
+    if (error === '' && mtime !== undefined) this.handler.program.host.setMTime(fileName, mtime);
+    return error;
+  }
+}
+
+class EmitUpdate {
+  constructor(
+    readonly pendingKind: number,
+    readonly result: EmitResult | undefined,
+    readonly dtsErrorsFromCache: boolean,
+  ) {}
+}
+
+class EmitFilesHandler {
+  readonly signatures = new Map<string, string>();
+  private readonly emitSignatures = new Map<string, EmitSignature>();
+  private readonly latestChangedDtsFiles = new Map<string, string>();
+  private readonly deletedPendingKinds = new Set<string>();
+  private readonly emitUpdates = new Map<string, EmitUpdate>();
+  hasEmitDiagnostics = false;
+
+  constructor(
+    readonly program: IncrementalProgram,
+    private readonly isForDtsErrors: boolean,
+  ) {}
+
+  private updateHasEmitDiagnostics(result: EmitResult): void {
+    if (result.diagnostics.length !== 0) this.hasEmitDiagnostics = true;
+  }
+
+  emitAllAffectedFiles(writer: OutputWriter): EmitResult {
+    const program = this.program;
+    const snapshot = program.snapshot;
+    if (snapshot.canUseIncrementalState()) {
+      const results = this.emitFilesIncremental(writer);
+      for (const result of results) this.updateHasEmitDiagnostics(result);
+      const result = combineEmitResults(results);
+      if (!this.isForDtsErrors) this.emitBuildInfo(writer, result);
+      return result;
+    }
+    if (!this.isForDtsErrors) {
+      const result = program.emitter.emit(program.program.getSourceFiles(), EmitOnly.All, this.wrap(writer));
+      this.updateHasEmitDiagnostics(result);
+      this.updateSnapshot();
+      this.emitBuildInfo(writer, result);
+      return result;
+    }
+    const result = new EmitResult();
+    result.emitSkipped = true;
+    for (const d of program.emitDeclarationDiagnostics(program.program.getSourceFiles())) result.diagnostics.push(d);
+    if (result.diagnostics.length !== 0) {
+      this.updateHasEmitDiagnostics(result);
+      snapshot.hasEmitDiagnostics = true;
+    }
+    return result;
+  }
+
+  private emitBuildInfo(writer: OutputWriter, result: EmitResult): void {
+    const buildInfoResult = this.program.emitBuildInfo(writer);
+    if (buildInfoResult !== undefined) {
+      for (const d of buildInfoResult.diagnostics) result.diagnostics.push(d);
+      for (const f of buildInfoResult.emittedFiles) result.emittedFiles.push(f);
+    }
+  }
+
+  /** Records declaration signatures when declarations are emitted. */
+  private wrap(writer: OutputWriter): OutputWriter {
+    return getEmitDeclarations(this.program.snapshot.options) ? new SignatureRecordingWriter(this, writer) : writer;
+  }
+
+  private emitFilesIncremental(writer: OutputWriter): EmitResult[] {
+    const program = this.program;
+    const snapshot = program.snapshot;
+    collectAllAffectedFiles(program);
+    const wrapped = this.wrap(writer);
+    for (const [path, emitKind] of snapshot.affectedFilesPendingEmit) {
+      const affectedFile = program.program.getSourceFileByPath(path);
+      if (affectedFile === undefined || !program.program.sourceFileMayBeEmitted(affectedFile, false)) {
+        this.deletedPendingKinds.add(path);
+        continue;
+      }
+      let pendingKind = getPendingEmitKind(emitKind, 0);
+      if (this.isForDtsErrors) pendingKind &= FileEmitKind.DtsErrors;
+      if (pendingKind === 0) continue;
+      let result: EmitResult;
+      if (!this.isForDtsErrors) {
+        let emitOnly = EmitOnly.All;
+        const js = (pendingKind & FileEmitKind.AllJs) !== 0;
+        const dts = (pendingKind & FileEmitKind.AllDts) !== 0;
+        if (js && !dts) emitOnly = EmitOnly.Js;
+        else if (dts && !js) emitOnly = EmitOnly.Dts;
+        if (wrapped instanceof SignatureRecordingWriter) wrapped.file = affectedFile;
+        result = program.emitter.emit([affectedFile], emitOnly, wrapped);
+      } else {
+        result = new EmitResult();
+        result.emitSkipped = true;
+        for (const d of program.emitDeclarationDiagnostics([affectedFile])) result.diagnostics.push(d);
+      }
+      this.updateHasEmitDiagnostics(result);
+      this.emitUpdates.set(path, new EmitUpdate(getPendingEmitKind(emitKind, pendingKind), result, false));
+    }
+
+    // Errors of files not emitted now, from the cache.
+    for (const [path, diagnostics] of snapshot.emitDiagnosticsPerFile) {
+      if (this.emitUpdates.has(path)) continue;
+      const affectedFile = program.program.getSourceFileByPath(path);
+      if (affectedFile === undefined || !program.program.sourceFileMayBeEmitted(affectedFile, false)) {
+        this.deletedPendingKinds.add(path);
+        continue;
+      }
+      const result = new EmitResult();
+      result.emitSkipped = true;
+      for (const d of diagnostics.getDiagnostics(program.program, affectedFile)) result.diagnostics.push(d);
+      this.emitUpdates.set(path, new EmitUpdate(snapshot.affectedFilesPendingEmit.get(path) ?? 0, result, true));
+    }
+    return this.updateSnapshot();
+  }
+
+  /** 1 to skip writing an unchanged declaration file, 2 to keep its time stamp, 0 to write it. */
+  skipDtsOutputOfComposite(file: SourceFile, outputFileName: string, text: string, newSignature: string): number {
+    const snapshot = this.program.snapshot;
+    if (snapshot.options.composite !== true) return 0;
+    let oldSignature = '';
+    const oldSignatureFormat = snapshot.emitSignatures.get(file.path);
+    if (oldSignatureFormat !== undefined) {
+      oldSignature =
+        oldSignatureFormat.signature !== ''
+          ? oldSignatureFormat.signature
+          : (oldSignatureFormat.signatureWithDifferentOptions ?? '');
+    }
+    let signature = newSignature;
+    if (signature === '') signature = computeHash(getTextHandlingSourceMapForSignature(text, snapshot.options));
+    let result = 0;
+    if (signature === oldSignature) {
+      if (oldSignatureFormat !== undefined && oldSignatureFormat.signature === oldSignature) return 1;
+      if (snapshot.options.build === true) result = 2;
+    } else this.latestChangedDtsFiles.set(file.path, outputFileName);
+    this.emitSignatures.set(file.path, new EmitSignature(signature, undefined));
+    return result;
+  }
+
+  private updateSnapshot(): EmitResult[] {
+    const program = this.program;
+    const snapshot = program.snapshot;
+    const results: EmitResult[] = [];
+    if (snapshot.canUseIncrementalState()) {
+      for (const [path, signature] of this.signatures) {
+        const info = snapshot.fileInfos.get(path);
+        if (info !== undefined) info.signature = signature;
+        snapshot.buildInfoEmitPending = true;
+      }
+      for (const [path, signature] of this.emitSignatures) {
+        snapshot.emitSignatures.set(path, signature);
+        snapshot.buildInfoEmitPending = true;
+      }
+      for (const path of this.deletedPendingKinds) {
+        snapshot.affectedFilesPendingEmit.delete(path);
+        snapshot.buildInfoEmitPending = true;
+      }
+      for (const file of program.program.getSourceFiles()) {
+        const latest = this.latestChangedDtsFiles.get(file.path);
+        if (latest !== undefined) {
+          snapshot.latestChangedDtsFile = latest;
+          snapshot.buildInfoEmitPending = true;
+          snapshot.hasChangedDtsFile = true;
+        }
+        const update = this.emitUpdates.get(file.path);
+        if (update === undefined) continue;
+        if (!update.dtsErrorsFromCache) {
+          if (update.pendingKind === 0) snapshot.affectedFilesPendingEmit.delete(file.path);
+          else snapshot.affectedFilesPendingEmit.set(file.path, update.pendingKind);
+          snapshot.buildInfoEmitPending = true;
+        }
+        const result = update.result;
+        if (result !== undefined) {
+          results.push(result);
+          if (result.diagnostics.length !== 0) {
+            snapshot.emitDiagnosticsPerFile.set(file.path, FileDiagnostics.of(result.diagnostics.slice()));
+          }
+        }
+      }
+    } else if (this.hasEmitDiagnostics) snapshot.hasEmitDiagnostics = true;
+    return results;
+  }
+}
+
+// ---- Writing build info
+
+class ToBuildInfo {
+  readonly buildInfo = new BuildInfo();
+  private readonly buildInfoDirectory: string;
+  private readonly fileNameToFileId = new Map<string, number>();
+  private readonly fileNamesToFileIdListId = new Map<string, number>();
+  private readonly roots = new Map<SourceFile, string>();
+
+  constructor(
+    private readonly snapshot: Snapshot,
+    private readonly program: Program,
+    buildInfoFileName: string,
+  ) {
+    this.buildInfoDirectory = getDirectoryPath(buildInfoFileName);
+  }
+
+  private relativeToBuildInfo(path: string): string {
+    return ensurePathIsNonModuleName(
+      getRelativePathFromDirectory(
+        this.buildInfoDirectory,
+        path,
+        this.program.useCaseSensitiveFileNames,
+        this.program.currentDirectory,
+      ),
+    );
+  }
+
+  private toFileId(path: string): number {
+    let fileId = this.fileNameToFileId.get(path);
+    if (fileId === undefined) {
+      const libFile = this.program.getDefaultLibFile(path);
+      if (libFile !== undefined && !libFile.replaced) this.buildInfo.fileNames.push(libFile.name);
+      else this.buildInfo.fileNames.push(this.relativeToBuildInfo(path));
+      fileId = this.buildInfo.fileNames.length;
+      this.fileNameToFileId.set(path, fileId);
+    }
+    return fileId;
+  }
+
+  private toFileIdListId(set: ReadonlySet<string>): number {
+    const fileIds = [...set].map((path) => this.toFileId(path)).sort((a, b) => a - b);
+    const key = fileIds.join(',');
+    let id = this.fileNamesToFileIdListId.get(key);
+    if (id === undefined) {
+      this.buildInfo.fileIdsList.push(fileIds);
+      id = this.buildInfo.fileIdsList.length;
+      this.fileNamesToFileIdListId.set(key, id);
+    }
+    return id;
+  }
+
+  private toBuildInfoDiagnostics(filePath: string, diagnostics: readonly Diagnostic[]): BuildInfoDiagnostic[] {
+    return diagnostics.map((d) => {
+      const result = new BuildInfoDiagnostic();
+      const file = d.file;
+      if (file === undefined) result.noFile = true;
+      else {
+        const path = toPath(file.fileName, this.program.currentDirectory, this.program.useCaseSensitiveFileNames);
+        if (path !== filePath) result.file = this.toFileId(path);
+      }
+      result.pos = d.pos;
+      result.end = d.end;
+      result.code = d.code;
+      result.category = d.category;
+      result.messageKey = messageKey(d.message);
+      result.messageArgs = d.args.slice();
+      result.messageChain = this.toBuildInfoDiagnostics(filePath, d.messageChain);
+      result.relatedInformation = this.toBuildInfoDiagnostics(filePath, d.relatedInformation);
+      result.reportsUnnecessary = d.reportsUnnecessary;
+      result.reportsDeprecated = d.reportsDeprecated;
+      result.skippedOnNoEmit = d.skippedOnNoEmit;
+      return result;
+    });
+  }
+
+  private storedToBuildInfoDiagnostics(diagnostics: readonly StoredDiagnostic[]): BuildInfoDiagnostic[] {
+    return diagnostics.map((d) => {
+      const result = new BuildInfoDiagnostic();
+      const stored = d.stored;
+      result.file = d.file !== '' ? this.toFileId(d.file) : 0;
+      result.noFile = stored.noFile;
+      result.pos = stored.pos;
+      result.end = stored.end;
+      result.code = stored.code;
+      result.category = stored.category;
+      result.messageKey = stored.messageKey;
+      result.messageArgs = stored.messageArgs;
+      result.messageChain = this.storedToBuildInfoDiagnostics(d.messageChain);
+      result.relatedInformation = this.storedToBuildInfoDiagnostics(d.relatedInformation);
+      result.reportsUnnecessary = stored.reportsUnnecessary;
+      result.reportsDeprecated = stored.reportsDeprecated;
+      result.skippedOnNoEmit = stored.skippedOnNoEmit;
+      return result;
+    });
+  }
+
+  private toDiagnosticsOfFile(path: string, diagnostics: FileDiagnostics): BuildInfoDiagnosticsOfFile | undefined {
+    const computed = diagnostics.computed;
+    if (computed !== undefined && computed.length > 0) {
+      return new BuildInfoDiagnosticsOfFile(this.toFileId(path), this.toBuildInfoDiagnostics(path, computed));
+    }
+    const stored = diagnostics.stored;
+    if (computed === undefined && stored !== undefined && stored.length > 0) {
+      return new BuildInfoDiagnosticsOfFile(this.toFileId(path), this.storedToBuildInfoDiagnostics(stored));
+    }
+    return undefined;
+  }
+
+  build(): BuildInfo {
+    const snapshot = this.snapshot;
+    const buildInfo = this.buildInfo;
+    const program = this.program;
+    buildInfo.version = version;
+    if (isIncremental(snapshot.options)) {
+      this.collectRootFiles();
+      this.setFileInfoAndEmitSignatures();
+      this.setRootOfIncrementalProgram();
+      this.setCompilerOptions();
+      this.setReferencedMap();
+      const changed = [...snapshot.changedFilesSet].sort(compareStrings);
+      buildInfo.changeFileSet = changed.map((path) => this.toFileId(path));
+      this.setSemanticDiagnostics();
+      const emitDiagnostics = [...snapshot.emitDiagnosticsPerFile.keys()].sort(compareStrings);
+      for (const path of emitDiagnostics) {
+        const diagnostics = snapshot.emitDiagnosticsPerFile.get(path);
+        if (diagnostics === undefined) continue;
+        const ofFile = this.toDiagnosticsOfFile(path, diagnostics);
+        if (ofFile !== undefined) buildInfo.emitDiagnosticsPerFile.push(ofFile);
+      }
+      this.setAffectedFilesPendingEmit();
+      if (snapshot.latestChangedDtsFile !== '') {
+        buildInfo.latestChangedDtsFile = this.relativeToBuildInfo(snapshot.latestChangedDtsFile);
+      }
+    } else {
+      for (const fileName of program.commandLine.fileNames) {
+        buildInfo.root.push(
+          new BuildInfoRoot(
+            0,
+            0,
+            this.relativeToBuildInfo(toPath(fileName, program.currentDirectory, program.useCaseSensitiveFileNames)),
+          ),
+        );
+      }
+    }
+    buildInfo.errors = snapshot.hasErrors === Tristate.True;
+    buildInfo.semanticErrors = snapshot.hasSemanticErrors;
+    buildInfo.checkPending = snapshot.checkPending;
+    const packageJsons = snapshot.packageJsons;
+    if (packageJsons !== undefined) buildInfo.packageJsons = packageJsons.map((p) => this.relativeToBuildInfo(p));
+    buildInfo.missingPackageJsons = snapshot.missingPackageJsons.map((p) => this.relativeToBuildInfo(p));
+    return buildInfo;
+  }
+
+  private collectRootFiles(): void {
+    const program = this.program;
+    for (const fileName of program.commandLine.fileNames) {
+      const redirect = program.getParseFileRedirect(fileName);
+      const file = program.getSourceFile(redirect !== '' ? redirect : fileName);
+      if (file !== undefined) {
+        this.roots.set(file, toPath(fileName, program.currentDirectory, program.useCaseSensitiveFileNames));
+      }
+    }
+  }
+
+  private setFileInfoAndEmitSignatures(): void {
+    const snapshot = this.snapshot;
+    const program = this.program;
+    for (const file of program.getSourceFiles()) {
+      const info = snapshot.fileInfos.get(file.path);
+      const fileId = this.toFileId(file.path);
+      if (info === undefined) continue;
+      if (
+        snapshot.options.composite === true &&
+        !isJsonSourceFile(file) &&
+        program.sourceFileMayBeEmitted(file, false)
+      ) {
+        const emitSignature = snapshot.emitSignatures.get(file.path);
+        if (emitSignature === undefined) {
+          this.buildInfo.emitSignatures.push(new BuildInfoEmitSignature(fileId, '', false, false));
+        } else if (emitSignature.signature !== info.signature) {
+          if (emitSignature.signature !== '') {
+            this.buildInfo.emitSignatures.push(
+              new BuildInfoEmitSignature(fileId, emitSignature.signature, false, false),
+            );
+          } else if (emitSignature.signatureWithDifferentOptions === info.signature) {
+            this.buildInfo.emitSignatures.push(new BuildInfoEmitSignature(fileId, '', true, false));
+          } else {
+            this.buildInfo.emitSignatures.push(
+              new BuildInfoEmitSignature(fileId, emitSignature.signatureWithDifferentOptions ?? '', false, true),
+            );
+          }
+        }
+      }
+      this.buildInfo.fileInfos.push(toBuildInfoFileInfo(info));
+    }
+  }
+
+  private setRootOfIncrementalProgram(): void {
+    const files = [...this.roots.keys()].sort((a, b) => this.toFileId(a.path) - this.toFileId(b.path));
+    const roots = this.buildInfo.root;
+    for (const file of files) {
+      const rootPath = this.roots.get(file);
+      if (rootPath === undefined) continue;
+      const root = this.toFileId(rootPath);
+      const resolved = this.toFileId(file.path);
+      const last = roots.length > 0 ? roots[roots.length - 1] : undefined;
+      if (last === undefined) roots.push(new BuildInfoRoot(resolved, 0, ''));
+      else if (last.end === resolved - 1) last.end = resolved;
+      else if (last.end === 0 && last.start === resolved - 1) last.end = resolved;
+      else roots.push(new BuildInfoRoot(resolved, 0, ''));
+      if (root !== resolved) this.buildInfo.resolvedRoot.push(new BuildInfoResolvedRoot(resolved, root));
+    }
+  }
+
+  private setCompilerOptions(): void {
+    const options = this.snapshot.options;
+    let result: BuildInfoOption[] | undefined = undefined;
+    for (const option of compilerOptionDeclarationsInFieldOrder()) {
+      if (((option.affects ?? 0) & Affects.BuildInfo) === 0) continue;
+      const value = compilerOptionValue(options, option.name);
+      if (value === undefined || value === '' || value === 0) continue;
+      if (result === undefined) result = [];
+      result.push(new BuildInfoOption(option.name, this.relativeOptionValue(option, value)));
+    }
+    this.buildInfo.options = result;
+  }
+
+  private relativeOptionValue(option: OptionDeclaration, value: CompilerOptionValue): CompilerOptionValue {
+    if (option.kind === 'list') {
+      if (option.element?.isFilePath === true && Array.isArray(value)) {
+        return value.map((v) => this.relativeToBuildInfo(v));
+      }
+    } else if (option.isFilePath === true && typeof value === 'string' && value !== '') {
+      return this.relativeToBuildInfo(value);
+    }
+    return value;
+  }
+
+  private setReferencedMap(): void {
+    const references = this.snapshot.referencedMap.references;
+    const keys = [...references.keys()].sort(compareStrings);
+    for (const path of keys) {
+      const set = references.get(path);
+      if (set === undefined) continue;
+      this.buildInfo.referencedMap.push(new BuildInfoReference(this.toFileId(path), this.toFileIdListId(set)));
+    }
+  }
+
+  private setSemanticDiagnostics(): void {
+    const snapshot = this.snapshot;
+    for (const file of this.program.getSourceFiles()) {
+      const value = snapshot.semanticDiagnosticsPerFile.get(file.path);
+      if (value === undefined) {
+        if (!snapshot.changedFilesSet.has(file.path)) {
+          this.buildInfo.semanticDiagnosticsPerFile.push(
+            new BuildInfoSemanticDiagnostic(this.toFileId(file.path), undefined),
+          );
+        }
+      } else {
+        const diagnostics = this.toDiagnosticsOfFile(file.path, value);
+        if (diagnostics !== undefined) {
+          this.buildInfo.semanticDiagnosticsPerFile.push(new BuildInfoSemanticDiagnostic(0, diagnostics));
+        }
+      }
+    }
+  }
+
+  private setAffectedFilesPendingEmit(): void {
+    const snapshot = this.snapshot;
+    const files = [...snapshot.affectedFilesPendingEmit.keys()].sort(compareStrings);
+    const fullEmitKind = getFileEmitKind(snapshot.options);
+    for (const path of files) {
+      const file = this.program.getSourceFileByPath(path);
+      if (file === undefined || !this.program.sourceFileMayBeEmitted(file, false)) continue;
+      const pending = snapshot.affectedFilesPendingEmit.get(path) ?? 0;
+      this.buildInfo.affectedFilesPendingEmit.push(
+        new BuildInfoFilePendingEmit(this.toFileId(path), pending === fullEmitKind ? 0 : pending),
+      );
+    }
+  }
+}
+
+// ---- The incremental program
+
+/** File time stamps, for `--build`'s up-to-date checks. */
+export abstract class TimeStampHost {
+  /** Modification time in milliseconds, or `undefined` if the file doesn't exist. */
+  abstract getMTime(fileName: string): number | undefined;
+  abstract setMTime(fileName: string, time: number): void;
+}
+
+export class IncrementalProgram extends CompilerProgram {
+  readonly snapshot: Snapshot;
+
+  constructor(
+    checked: CheckedProgram,
+    times: CompileTimes,
+    oldSnapshot: Snapshot | undefined,
+    readonly host: TimeStampHost,
+  ) {
+    super(checked, times);
+    this.snapshot = programToSnapshot(checked, oldSnapshot);
+  }
+
+  get hasChangedDtsFile(): boolean {
+    return this.snapshot.hasChangedDtsFile;
+  }
+
+  getSemanticDiagnostics(): Diagnostic[] {
+    const options = this.snapshot.options;
+    if (options.noCheck === true) return [];
+    this.collectSemanticDiagnosticsOfAffectedFiles();
+    const result: Diagnostic[] = [];
+    for (const file of this.program.getSourceFiles()) {
+      for (const d of this.getSemanticDiagnosticsOfFile(file)) result.push(d);
+    }
+    return result;
+  }
+
+  private getSemanticDiagnosticsOfFile(file: SourceFile): Diagnostic[] {
+    const cached = this.snapshot.semanticDiagnosticsPerFile.get(file.path);
+    const result: Diagnostic[] = [];
+    if (cached !== undefined) {
+      const noEmit = this.snapshot.options.noEmit === true;
+      for (const d of cached.getDiagnostics(this.program, file)) if (!noEmit || !d.skippedOnNoEmit) result.push(d);
+    }
+    for (const d of this.checked.getIncludeProcessorDiagnostics(file)) result.push(d);
+    return result;
+  }
+
+  getDeclarationDiagnostics(): Diagnostic[] {
+    return new EmitFilesHandler(this, true).emitAllAffectedFiles(new DiscardWriter()).diagnostics;
+  }
+
+  /** Declaration emit errors of `files`, without writing. */
+  emitDeclarationDiagnostics(files: readonly SourceFile[]): Diagnostic[] {
+    return this.emitter.emit(files, EmitOnly.ForcedDts, new DiscardWriter()).diagnostics;
+  }
+
+  emit(writer: OutputWriter): EmitResult {
+    const options = this.snapshot.options;
+    let result: EmitResult | undefined;
+    if (options.noEmit === true) {
+      result = new EmitResult();
+      result.emitSkipped = true;
+    } else result = handleNoEmitOnError(this);
+    if (result !== undefined) {
+      const buildInfoResult = this.emitBuildInfo(writer);
+      if (buildInfoResult !== undefined) {
+        for (const d of buildInfoResult.diagnostics) result.diagnostics.push(d);
+        for (const f of buildInfoResult.emittedFiles) result.emittedFiles.push(f);
+      }
+      return result;
+    }
+    return new EmitFilesHandler(this, false).emitAllAffectedFiles(writer);
+  }
+
+  private collectSemanticDiagnosticsOfAffectedFiles(): void {
+    const snapshot = this.snapshot;
+    const files = this.program.getSourceFiles();
+    if (snapshot.canUseIncrementalState()) {
+      collectAllAffectedFiles(this);
+      if (snapshot.semanticDiagnosticsPerFile.size === files.length) return;
+    }
+    for (const file of files) {
+      if (snapshot.semanticDiagnosticsPerFile.has(file.path)) continue;
+      snapshot.semanticDiagnosticsPerFile.set(
+        file.path,
+        FileDiagnostics.of(this.checked.getSemanticDiagnosticsWithoutNoEmitFiltering(file)),
+      );
+    }
+    if (
+      snapshot.semanticDiagnosticsPerFile.size === files.length &&
+      snapshot.checkPending &&
+      snapshot.options.noCheck !== true
+    ) {
+      snapshot.checkPending = false;
+    }
+    snapshot.buildInfoEmitPending = true;
+  }
+
+  /** Writes the build info if it changed; `undefined` if nothing was written. */
+  emitBuildInfo(writer: OutputWriter): EmitResult | undefined {
+    const snapshot = this.snapshot;
+    const program = this.program;
+    const buildInfoFileName = program.commandLine.buildInfoFileName();
+    if (buildInfoFileName === '' || program.isEmitBlocked(buildInfoFileName)) return undefined;
+    if (snapshot.hasErrors === Tristate.Unknown) {
+      this.ensureHasErrorsForState();
+      if (
+        snapshot.hasErrors !== snapshot.hasErrorsFromOldState ||
+        snapshot.hasSemanticErrors !== snapshot.hasSemanticErrorsFromOldState
+      ) {
+        snapshot.buildInfoEmitPending = true;
+      }
+    }
+    if (snapshot.packageJsons === undefined) {
+      this.ensurePackageJsonsForState();
+      if (
+        !sameList(snapshot.packageJsons ?? noStrings, snapshot.packageJsonsFromOldState) ||
+        !sameList(snapshot.missingPackageJsons, snapshot.missingPackageJsonsFromOldState)
+      ) {
+        snapshot.buildInfoEmitPending = true;
+      }
+    }
+    if (!snapshot.buildInfoEmitPending) return undefined;
+    const absolute = getNormalizedAbsolutePath(buildInfoFileName, program.currentDirectory);
+    const buildInfo = new ToBuildInfo(snapshot, program, absolute).build();
+    const text = buildInfoToJson(buildInfo);
+    const error = writer.write(buildInfoFileName, text, []);
+    const result = new EmitResult();
+    if (error !== '' && error !== skippedWrite) {
+      result.emitSkipped = true;
+      result.diagnostics.push(
+        createCompilerDiagnostic(Diagnostics.Could_not_write_file_0_Colon_1, buildInfoFileName, error),
+      );
+      return result;
+    }
+    this.lastBuildInfo = buildInfo;
+    snapshot.buildInfoEmitPending = false;
+    result.emittedFiles.push(buildInfoFileName);
+    return result;
+  }
+
+  /** The build info written last, for `--build`. */
+  lastBuildInfo: BuildInfo | undefined = undefined;
+
+  private ensureHasErrorsForState(): void {
+    const snapshot = this.snapshot;
+    const program = this.program;
+    const files = program.getSourceFiles();
+    let hasEmitDiagnostics = false;
+    let hasIncludeProcessingDiagnostics = false;
+    if (snapshot.canUseIncrementalState()) {
+      for (const file of files) {
+        if (snapshot.emitDiagnosticsPerFile.has(file.path)) {
+          hasEmitDiagnostics = true;
+          break;
+        }
+        if (!hasIncludeProcessingDiagnostics && program.getIncludeProcessorDiagnostics(file).length > 0) {
+          hasIncludeProcessingDiagnostics = true;
+        }
+      }
+    } else {
+      hasEmitDiagnostics = snapshot.hasEmitDiagnostics;
+      hasIncludeProcessingDiagnostics = files.some((file) => program.getIncludeProcessorDiagnostics(file).length > 0);
+    }
+    if (hasEmitDiagnostics) {
+      snapshot.hasErrors = isIncremental(snapshot.options) ? Tristate.False : Tristate.True;
+      snapshot.hasSemanticErrors = false;
+      return;
+    }
+    if (
+      hasIncludeProcessingDiagnostics ||
+      program.getConfigFileParsingDiagnostics().length > 0 ||
+      program.getSyntacticDiagnostics().length > 0 ||
+      program.getProgramDiagnostics().length > 0 ||
+      this.checked.getGlobalDiagnostics().length > 0
+    ) {
+      snapshot.hasErrors = Tristate.True;
+      snapshot.hasSemanticErrors = false;
+      return;
+    }
+    snapshot.hasErrors = Tristate.False;
+    const incremental = isIncremental(snapshot.options);
+    for (const file of files) {
+      const diagnostics = snapshot.semanticDiagnosticsPerFile.get(file.path);
+      if (diagnostics === undefined ? incremental : !diagnostics.isEmpty()) {
+        snapshot.hasSemanticErrors = !incremental;
+        break;
+      }
+    }
+  }
+
+  private ensurePackageJsonsForState(): void {
+    const snapshot = this.snapshot;
+    const program = this.program;
+    const packageJsons: string[] = [];
+    const missing: string[] = [];
+    if (program.commandLine.configName !== '') {
+      for (const info of program.packageJsonLookups()) {
+        let packageJson = combinePaths(info.packageDirectory, 'package.json');
+        const exists = info.contents !== undefined;
+        if (exists || info.directoryExists) packageJson = program.host.fs.realpath(packageJson);
+        if (exists) packageJsons.push(packageJson);
+        else if (packageJson.includes('/node_modules/')) missing.push(packageJson);
+      }
+    }
+    snapshot.packageJsons = normalizePackageJsons(packageJsons);
+    snapshot.missingPackageJsons = normalizePackageJsons(missing);
+  }
+
+  /** The `package.json` files module resolution looked up, for watching. */
+  packageJsonLookupPaths(): string[] {
+    const program = this.program;
+    if (program.commandLine.configName === '') return [];
+    const result: string[] = [];
+    for (const info of program.packageJsonLookups()) {
+      let packageJson = combinePaths(info.packageDirectory, 'package.json');
+      if (info.contents !== undefined || info.directoryExists) packageJson = program.host.fs.realpath(packageJson);
+      result.push(packageJson);
+    }
+    return normalizePackageJsons(result);
+  }
+}
+
+class DiscardWriter extends OutputWriter {
+  write(_fileName: string, _text: string, _declarationDiagnostics: readonly Diagnostic[]): string {
+    return skippedWrite;
+  }
+}
+
+const noStrings: string[] = [];
+
+function normalizePackageJsons(packageJsons: string[]): string[] {
+  packageJsons.sort(compareStrings);
+  const result: string[] = [];
+  for (const p of packageJsons) if (result.length === 0 || result[result.length - 1] !== p) result.push(p);
+  return result;
+}
+
+function sameList(a: readonly string[], b: readonly string[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
+}
