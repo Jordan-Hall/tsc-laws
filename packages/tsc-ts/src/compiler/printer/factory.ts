@@ -443,6 +443,24 @@ export class NodeFactory extends NodeFactoryBase {
     return this.createGeneratedIdentifier(GeneratedIdentifierFlags.Node, '', node, flags, prefix, suffix);
   }
 
+  /** A private name such as `#x_accessor_storage`, unique within its class and based on `node`. */
+  createGeneratedPrivateNameForNode(node: Node, prefix: string, suffix: string): PrivateIdentifier {
+    const id = newAutoGenerateId();
+    const text = formatGeneratedName(
+      true,
+      prefix,
+      isMemberName(node) ? textOfLiteralLike(node) : '(generated@' + id + ')',
+      suffix,
+    );
+    const name = this.created(new PrivateIdentifier(text));
+    const flags = prefix.length > 0 || suffix.length > 0 ? GeneratedIdentifierFlags.Optimistic : 0;
+    this.context.autoGenerate.set(
+      name,
+      new AutoGenerateInfo(GeneratedIdentifierFlags.Node | flags, id, prefix, suffix, node),
+    );
+    return name;
+  }
+
   /** The name of an unscoped emit helper such as `__decorate`. */
   createUnscopedHelperName(name: string): Identifier {
     const node = this.createIdentifier(name);

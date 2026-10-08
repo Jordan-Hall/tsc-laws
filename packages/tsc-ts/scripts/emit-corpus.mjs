@@ -59,6 +59,20 @@ for (const [label, flags] of [
   ['commonjsPackages', ['--module', 'commonjs']],
   ['node16Packages', ['--module', 'node16']],
   ['nodenextPackages', ['--module', 'nodenext', '--sourceMap']],
+  ['es2017', ['--target', 'es2017']],
+  ['es2016', ['--target', 'es2016', '--sourceMap']],
+  ['es2015', ['--target', 'es2015', '--module', 'commonjs']],
+  ['es2015Helpers', ['--target', 'es2015', '--module', 'commonjs', '--importHelpers', '--removeComments']],
+  ['legacyDecorators', ['--experimentalDecorators', '--sourceMap']],
+  ['legacyDecoratorsCommonjs', ['--experimentalDecorators', '--module', 'commonjs', '--importHelpers']],
+  ['decoratorMetadata', ['--experimentalDecorators', '--emitDecoratorMetadata']],
+  [
+    'decoratorMetadataCommonjs',
+    ['--experimentalDecorators', '--emitDecoratorMetadata', '--module', 'commonjs', '--sourceMap'],
+  ],
+  ['legacyDecoratorsES2015', ['--experimentalDecorators', '--target', 'es2015']],
+  ['esDecorators', ['--target', 'es2022', '--sourceMap']],
+  ['esDecoratorsNoDefine', ['--useDefineForClassFields', 'false', '--module', 'commonjs']],
 ]) {
   if (sets !== undefined && !sets.split(',').includes(label)) continue;
   const commonJS = flags.includes('--module');
@@ -77,7 +91,7 @@ for (const [label, flags] of [
   const dependent = result.failures.filter((unit) => checkerDependentReason(byUnit.get(unit)) !== undefined);
   const compared = result.units - result.unsupported - dependent.length;
   console.log(
-    `${label}: ${compared - failures.length}/${compared} match (${result.unsupported} units use unsupported syntax, ${dependent.length} need the checker)`,
+    `${label}: ${compared - failures.length}/${compared} match (${result.unsupported} units use unsupported syntax, ${dependent.length} need the checker, tsgo crashes on ${result.crashed})`,
   );
   for (const unit of dependent)
     console.log(`  needs the checker (${checkerDependentReason(byUnit.get(unit))}): ${byUnit.get(unit)}`);

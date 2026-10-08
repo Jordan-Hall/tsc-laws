@@ -5,6 +5,7 @@
 // namespace, enum or module counts as a use.
 import {
   BinaryExpression,
+  ConditionalTypeNode,
   ExportAssignment,
   ExportDeclaration,
   ExportSpecifier,
@@ -14,6 +15,7 @@ import {
   Identifier,
   ImportEqualsDeclaration,
   ImportTypeNode,
+  LiteralTypeNode,
   MetaProperty,
   ModifierFlags,
   type Node,
@@ -24,19 +26,36 @@ import {
   ShorthandPropertyAssignment,
   type SourceFile,
   TypeParameterDeclaration,
+  TypeReferenceNode,
   VariableDeclarationList,
+  IntersectionTypeNode,
+  UnionTypeNode,
+  getDotDotDotToken,
   getExpression,
   getInitializer,
+  getParameters,
   getTagName,
   getType,
   getTypeArguments,
 } from '../ast.js';
-import { isImportCall } from '../ast-utilities.js';
-import { type CompilerOptions, JsxEmit, getIsolatedModules, shouldPreserveConstEnums } from '../options.js';
+import { canHaveDecorators, isImportCall } from '../ast-utilities.js';
+import {
+  type CompilerOptions,
+  JsxEmit,
+  getIsolatedModules,
+  getStrictOptionValue,
+  shouldPreserveConstEnums,
+} from '../options.js';
 import { type Symbol, SymbolFlags } from '../symbol.js';
 import { SyntaxKind } from '../syntax-kind.js';
 import { getDeclarationOfAliasSymbol, type ReferenceResolver } from './reference-resolver.js';
-import { hasSyntacticModifier } from './utilities.js';
+import {
+  getFirstConstructorWithBody,
+  getRestParameterElementType,
+  getSetAccessorValueParameter,
+  nodeCanBeDecorated,
+} from './decorator-utilities.js';
+import { hasDecorators, hasSyntacticModifier } from './utilities.js';
 
 export class AliasReferences extends NodeVisitor {
   readonly options: CompilerOptions;
@@ -128,7 +147,132 @@ export class AliasReferences extends NodeVisitor {
       return true;
     }
     if (node instanceof ExportSpecifier) return this.markExportSpecifier(node);
+    if (
+      this.options.emitDecoratorMetadata === true &&
+      canHaveDecorators(node) &&
+      hasDecorators(node) &&
+      nodeCanBeDecorated(
+        this.options.experimentalDecorators === true,
+        node,
+        node.parent,
+        node.parent === undefined ? undefined : node.parent.parent,
+      )
+    )
+      return this.markDecoratorMetadata(node);
     return false;
+  }
+
+  /** Type references that decorator metadata serializes as values use the aliases they name. */
+  private markDecoratorMetadata(node: Node): boolean {
+    switch (node.kind) {
+      case SyntaxKind.ClassDeclaration: {
+        const constructor = getFirstConstructorWithBody(node);
+        if (constructor !== undefined) this.markParameterTypes(constructor);
+        break;
+      }
+      case SyntaxKind.GetAccessor:
+      case SyntaxKind.SetAccessor: {
+        let annotation = getAnnotatedAccessorTypeNode(node);
+        if (annotation === undefined) {
+          const other = this.getOtherAccessor(node);
+          if (other !== undefined) annotation = getAnnotatedAccessorTypeNode(other);
+        }
+        this.markMetadataTypeNode(annotation);
+        break;
+      }
+      case SyntaxKind.MethodDeclaration:
+        this.markParameterTypes(node);
+        this.markMetadataTypeNode(getType(node));
+        break;
+      case SyntaxKind.PropertyDeclaration:
+        this.markMetadataTypeNode(getType(node));
+        break;
+      case SyntaxKind.Parameter:
+        this.markMetadataTypeNode(getParameterTypeNodeForDecoratorCheck(node));
+        if (node.parent !== undefined) {
+          this.markParameterTypes(node.parent);
+          this.markMetadataTypeNode(getType(node.parent));
+        }
+        break;
+    }
+    return true;
+  }
+
+  private markParameterTypes(node: Node): boolean {
+    const parameters = getParameters(node);
+    if (parameters === undefined) return false;
+    for (let i = 0; i < parameters.nodes.length; i++)
+      this.markMetadataTypeNode(getParameterTypeNodeForDecoratorCheck(parameters.nodes[i]!));
+    return true;
+  }
+
+  private getOtherAccessor(node: Node): Node | undefined {
+    const symbol = this.resolver.getSymbolOfDeclaration(node);
+    if (symbol === undefined) return undefined;
+    const kind = node.kind === SyntaxKind.SetAccessor ? SyntaxKind.GetAccessor : SyntaxKind.SetAccessor;
+    for (let i = 0; i < symbol.declarations.length; i++)
+      if (symbol.declarations[i]!.kind === kind) return symbol.declarations[i];
+    return undefined;
+  }
+
+  private markMetadataTypeNode(node: Node | undefined): boolean {
+    const name = this.getEntityNameForDecoratorMetadata(node);
+    if (name === undefined || !(name instanceof Identifier || name instanceof QualifiedName)) return false;
+    const root = firstIdentifier(name);
+    const meaning = (name instanceof Identifier ? SymbolFlags.Type : SymbolFlags.Namespace) | SymbolFlags.Alias;
+    const symbol = this.resolver.resolveName(root, root.text, meaning);
+    if (symbol === undefined || (symbol.flags & SymbolFlags.Alias) === 0) return false;
+    const target = this.resolver.resolveAlias(symbol);
+    if (
+      (this.resolver.getSymbolFlags(symbol, true, false) & SymbolFlags.Value) !== 0 &&
+      (target === undefined || !isConstEnumOrConstEnumOnlyModule(target)) &&
+      !this.resolver.isTypeOnlyAliasChain(symbol)
+    )
+      this.markAliasSymbol(symbol);
+    return true;
+  }
+
+  /** The entity name a type serializes to, if it serializes to one: `A` of `A | null`, but nothing for `A | B`. */
+  private getEntityNameForDecoratorMetadata(node: Node | undefined): Node | undefined {
+    if (node === undefined) return undefined;
+    switch (node.kind) {
+      case SyntaxKind.IntersectionType:
+      case SyntaxKind.UnionType:
+        return this.getEntityNameForDecoratorMetadataFromTypeList(getTypes(node));
+      case SyntaxKind.ConditionalType:
+        if (node instanceof ConditionalTypeNode)
+          return this.getEntityNameForDecoratorMetadataFromTypeList([node.trueType, node.falseType]);
+        break;
+      case SyntaxKind.ParenthesizedType:
+      case SyntaxKind.NamedTupleMember:
+        return this.getEntityNameForDecoratorMetadata(getType(node));
+      case SyntaxKind.TypeReference:
+        if (node instanceof TypeReferenceNode) return node.typeName;
+        break;
+    }
+    return undefined;
+  }
+
+  private getEntityNameForDecoratorMetadataFromTypeList(types: Node[]): Node | undefined {
+    const strictNullChecks = getStrictOptionValue(this.options, this.options.strictNullChecks);
+    let common: Node | undefined = undefined;
+    for (let i = 0; i < types.length; i++) {
+      const type = types[i]!;
+      if (type.kind === SyntaxKind.NeverKeyword) continue;
+      if (
+        !strictNullChecks &&
+        ((type instanceof LiteralTypeNode && type.literal.kind === SyntaxKind.NullKeyword) ||
+          type.kind === SyntaxKind.UndefinedKeyword)
+      )
+        continue;
+      const name = this.getEntityNameForDecoratorMetadata(type);
+      // Something like `string`, serialized as itself or `Object`.
+      if (name === undefined) return undefined;
+      if (common === undefined) common = name;
+      else if (!(common instanceof Identifier) || !(name instanceof Identifier) || common.text !== name.text)
+        return undefined;
+    }
+    return common;
   }
 
   private markIdentifier(node: Identifier): boolean {
@@ -589,4 +733,22 @@ function isPartOfTypeExpressionWithTypeArguments(node: Node): boolean {
     parent !== undefined &&
     (parent.kind === SyntaxKind.JSDocImplementsTag || parent.kind === SyntaxKind.JSDocAugmentsTag)
   );
+}
+
+function getParameterTypeNodeForDecoratorCheck(node: Node): Node | undefined {
+  const type = getType(node);
+  return getDotDotDotToken(node) !== undefined ? getRestParameterElementType(type) : type;
+}
+
+/** The type annotation of a getter, or of a setter's parameter. */
+function getAnnotatedAccessorTypeNode(node: Node): Node | undefined {
+  if (node.kind === SyntaxKind.GetAccessor) return getType(node);
+  const parameter = getSetAccessorValueParameter(node);
+  return parameter === undefined ? undefined : getType(parameter);
+}
+
+function getTypes(node: Node): Node[] {
+  if (node instanceof UnionTypeNode) return node.types.nodes;
+  if (node instanceof IntersectionTypeNode) return node.types.nodes;
+  return [];
 }

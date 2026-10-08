@@ -30,6 +30,10 @@ import { TypeEraser } from './transformers/type-eraser.js';
 import { TypeScriptFacts } from './transformers/subtree-facts.js';
 import { RuntimeSyntax } from './transformers/runtime-syntax.js';
 import { ConstEnumInliner } from './transformers/const-enum-inliner.js';
+import { addDownlevelTransformers } from './transformers/downlevel.js';
+import { SyntaxFacts } from './transformers/syntax-facts.js';
+import { LegacyDecorators } from './transformers/legacy-decorators.js';
+import { DecoratorMetadata } from './transformers/decorator-metadata.js';
 
 /** The program as emit sees it. */
 export abstract class EmitHost implements OutputPathsHost {
@@ -165,10 +169,17 @@ function emitDeclarationFile(
 function getScriptTransformers(host: EmitHost, context: EmitContext, file: SourceFile): Transformer[] {
   const options = host.options;
   const facts = new TypeScriptFacts();
-  const transformers: Transformer[] = [new TypeEraser(context, options, facts)];
+  const syntax = new SyntaxFacts();
+  const transformers: Transformer[] = [];
+  if (options.emitDecoratorMetadata === true)
+    transformers.push(new DecoratorMetadata(context, options, host.resolver, syntax));
+  transformers.push(new TypeEraser(context, options, facts));
   if (options.verbatimModuleSyntax !== true && !file.isJS())
     transformers.push(new ImportElision(context, options, host.resolver));
   transformers.push(new RuntimeSyntax(context, options, facts, host.resolver));
+  if (options.experimentalDecorators === true)
+    transformers.push(new LegacyDecorators(context, options, host.resolver, syntax));
+  addDownlevelTransformers(transformers, context, options, syntax);
   transformers.push(new UseStrictTransformer(context, options, host.formats));
   transformers.push(createModuleTransformer(context, options, host.resolver, host.formats));
   if (!getIsolatedModules(options)) transformers.push(new ConstEnumInliner(context, options, host.resolver));

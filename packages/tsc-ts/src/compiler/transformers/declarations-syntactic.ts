@@ -92,6 +92,7 @@ import { Symbol, SymbolFlags, type SymbolTable } from '../symbol.js';
 import { SyntaxKind } from '../syntax-kind.js';
 import { TokenFlags } from '../types.js';
 import type { SyntacticEmitResolver } from './emit-resolver.js';
+import type { TypeReferenceSerializationKind } from './type-serialization.js';
 import type { Evaluation } from './reference-resolver.js';
 import {
   DeclarationEmitResolver,
@@ -689,6 +690,10 @@ export class SyntacticDeclarationEmitResolver extends DeclarationEmitResolver {
 
   getConstantValue(node: Node): Evaluation {
     return this.emitResolver.getConstantValue(node);
+  }
+
+  getTypeReferenceSerializationKind(typeName: Node, location: Node | undefined): TypeReferenceSerializationKind {
+    return this.emitResolver.getTypeReferenceSerializationKind(typeName, location);
   }
 
   getResolutionModeOverride(node: Node): ModuleKind | undefined {

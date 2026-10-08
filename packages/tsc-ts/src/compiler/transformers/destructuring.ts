@@ -183,7 +183,7 @@ class Flattener {
   }
 
   private flattenObjectPattern(parent: Node, pattern: Node, start: Node, pos: number, end: number): boolean {
-    const elements = getElementsOfPattern(pattern);
+    const elements = getElementsOfBindingOrAssignmentPattern(pattern);
     let value = start;
     if (elements.length !== 1)
       value = this.ensureIdentifier(value, !isDeclarationBindingElement(parent) || elements.length !== 0, pos, end);
@@ -207,7 +207,7 @@ class Flattener {
 
   private flattenArrayPattern(parent: Node, pattern: Node, start: Node, pos: number, end: number): boolean {
     const factory = this.visitor.factory;
-    const elements = getElementsOfPattern(pattern);
+    const elements = getElementsOfBindingOrAssignmentPattern(pattern);
     let value = start;
     let allOmitted = true;
     for (let i = 0; i < elements.length; i++) if (!(elements[i] instanceof OmittedExpression)) allOmitted = false;
@@ -304,7 +304,7 @@ function isDeclarationBindingElement(node: Node): boolean {
   );
 }
 
-function getElementsOfPattern(node: Node): Node[] {
+export function getElementsOfBindingOrAssignmentPattern(node: Node): Node[] {
   if (node instanceof BindingPattern) return node.elements.nodes;
   if (node instanceof ArrayLiteralExpression) return node.elements.nodes;
   if (node instanceof ObjectLiteralExpression) return node.properties.nodes;
@@ -387,7 +387,7 @@ function elementAssignsToName(element: Node, name: string): boolean {
   const target = getTargetOfBindingOrAssignmentElement(element);
   if (target === undefined) return false;
   if (isPattern(target)) {
-    const elements = getElementsOfPattern(target);
+    const elements = getElementsOfBindingOrAssignmentPattern(target);
     for (let i = 0; i < elements.length; i++) if (elementAssignsToName(elements[i], name)) return true;
     return false;
   }
@@ -399,7 +399,7 @@ function elementContainsNonLiteralComputedName(element: Node): boolean {
   if (propertyName instanceof ComputedPropertyName && !isLiteralKind(propertyName.expression.kind)) return true;
   const target = getTargetOfBindingOrAssignmentElement(element);
   if (target === undefined || !isPattern(target)) return false;
-  const elements = getElementsOfPattern(target);
+  const elements = getElementsOfBindingOrAssignmentPattern(target);
   for (let i = 0; i < elements.length; i++) if (elementContainsNonLiteralComputedName(elements[i])) return true;
   return false;
 }
@@ -422,7 +422,8 @@ export function convertVariableDeclarationToAssignment(
   return assignment;
 }
 
-function convertBindingNameToTarget(visitor: VisitorHooks, name: Node): Node {
+/** A binding name as an assignment target: binding patterns become object or array literals. */
+export function convertBindingNameToTarget(visitor: VisitorHooks, name: Node): Node {
   if (!(name instanceof BindingPattern)) return name;
   const factory = visitor.factory;
   const context = visitor.context;

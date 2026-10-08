@@ -20,6 +20,7 @@ import { SyntaxKind } from '../syntax-kind.js';
 import { nodeIsMissing } from '../ast-utilities.js';
 import { AliasReferences } from './alias-references.js';
 import type { Evaluation, ReferenceResolver } from './reference-resolver.js';
+import { type TypeReferenceSerializationKind, getTypeReferenceSerializationKind } from './type-serialization.js';
 import { hasSyntacticModifier } from './utilities.js';
 
 export abstract class EmitResolver {
@@ -31,6 +32,11 @@ export abstract class EmitResolver {
   abstract isValueAliasDeclaration(node: Node): boolean;
   /** Whether `import x = a.b` at the top level names a value. */
   abstract isTopLevelValueImportEqualsWithEntityName(node: Node): boolean;
+  /** How decorator metadata serializes a reference to `typeName`, resolved from `location`. */
+  abstract getTypeReferenceSerializationKind(
+    typeName: Node,
+    location: Node | undefined,
+  ): TypeReferenceSerializationKind;
   /** The source file, namespace or enum exporting what `node` refers to; with `prefixLocals`, also exports with a local name. */
   abstract getReferencedExportContainer(node: Identifier, prefixLocals: boolean): Node | undefined;
   /** The import declaring the alias `node` refers to. */
@@ -124,6 +130,10 @@ export class SyntacticEmitResolver extends EmitResolver {
       return false;
     // An unresolved target might be a value.
     return this.isAliasOfValue(node, true);
+  }
+
+  getTypeReferenceSerializationKind(typeName: Node, location: Node | undefined): TypeReferenceSerializationKind {
+    return getTypeReferenceSerializationKind(this.referenceResolver, typeName, location);
   }
 
   getReferencedExportContainer(node: Identifier, prefixLocals: boolean): Node | undefined {

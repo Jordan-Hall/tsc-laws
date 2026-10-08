@@ -31,6 +31,7 @@ test(
       ['--module', 'commonjs', '--sourceMap'],
       ['--module', 'commonjs', '--importHelpers'],
       ['--module', 'nodenext'],
+      ['--experimentalDecorators', '--emitDecoratorMetadata', '--module', 'commonjs', '--sourceMap'],
     ]) {
       const result = await compareEmits(command, root, paths, flags, 8);
       assert.deepEqual(result.failures, [], `emitting with ${flags.join(' ')}`);
