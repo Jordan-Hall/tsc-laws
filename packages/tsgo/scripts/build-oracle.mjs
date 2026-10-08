@@ -12,7 +12,15 @@ for (const file of ['checkhost.go', 'tsc.go', 'project.go', 'api.go'])
 // The tsgo command line, the reference for the translated tsc.
 const tsgo = spawnSync('go', ['build', '-o', resolve('dist/tsgo'), './cmd/tsgo'], { cwd: root, stdio: 'inherit' });
 if (tsgo.status !== 0) process.exitCode = tsgo.status ?? 1;
-for (const name of ['scan-oracle', 'parse-oracle', 'bind-oracle', 'check-oracle', 'resolve-oracle', 'diag-oracle']) {
+for (const name of [
+  'scan-oracle',
+  'parse-oracle',
+  'bind-oracle',
+  'check-oracle',
+  'resolve-oracle',
+  'diag-oracle',
+  'encode-oracle',
+]) {
   mkdirSync(root + '/cmd/' + name, { recursive: true });
   copyFileSync('oracles/' + name + '/main.go', root + '/cmd/' + name + '/main.go');
   const built = spawnSync('go', ['build', '-o', resolve('dist/' + name), './cmd/' + name], {

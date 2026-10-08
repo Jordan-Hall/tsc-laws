@@ -446,6 +446,8 @@ export class Scanner {
   private valueEnd: number;
   private commentDirectives: CommentDirective[];
   private skipJSDocLeadingAsterisks: number;
+  // The code units zeroed by `setTextEnd`.
+  private readonly cutUnits: Uint16Array;
 
   constructor(text = '') {
     this.text = text;
@@ -465,6 +467,7 @@ export class Scanner {
     this.valueEnd = -1;
     this.commentDirectives = [];
     this.skipJSDocLeadingAsterisks = 0;
+    this.cutUnits = new Uint16Array(4);
   }
 
   /** Sets the text to scan and resets the token state. */
@@ -480,6 +483,28 @@ export class Scanner {
     this.tokenValue = '';
     this.valueStart = -1;
     this.commentDirectives = [];
+    this.skipJSDocLeadingAsterisks = 0;
+  }
+
+  /** @internal Like `setText(text.substring(0, end))` without copying, but keeps comment directives; pass the text length to undo. */
+  setTextEnd(end: number): void {
+    const chars = this.chars;
+    const cut = this.cutUnits;
+    // Restore the units zeroed by the previous call, then zero the units past `end`.
+    if (this.end < this.text.length) for (let i = 0; i < 4; i++) chars[this.end + i] = cut[i];
+    if (end < this.text.length)
+      for (let i = 0; i < 4; i++) {
+        cut[i] = chars[end + i];
+        chars[end + i] = 0;
+      }
+    this.end = end;
+    this.pos = 0;
+    this.fullStartPos = 0;
+    this.tokenStart = 0;
+    this.token = SyntaxKind.Unknown;
+    this.tokenFlags = TokenFlags.None;
+    this.tokenValue = '';
+    this.valueStart = -1;
     this.skipJSDocLeadingAsterisks = 0;
   }
 
@@ -2119,11 +2144,10 @@ export class Scanner {
   scanJSDocCommentTextToken(inBackticks: boolean): SyntaxKind {
     this.fullStartPos = this.pos;
     this.tokenFlags = TokenFlags.None;
-    const text = this.text;
-    if (this.pos >= text.length) return (this.token = SyntaxKind.EndOfFile);
+    if (this.pos >= this.end) return (this.token = SyntaxKind.EndOfFile);
     this.tokenStart = this.pos;
-    while (this.pos < text.length) {
-      const ch = this.codePointAt(this.pos, text.length);
+    while (this.pos < this.end) {
+      const ch = this.codePointAt(this.pos, this.end);
       if (isLineBreak(ch) || ch === CharacterCodes.backtick) break;
       const size = charSize(ch);
       if (!inBackticks) {
@@ -2132,7 +2156,7 @@ export class Scanner {
         if (
           ch === CharacterCodes.at &&
           isWhiteSpaceSingleLine(this.codePointBefore(this.pos)) &&
-          isIdentifierStart(this.codePointAt(this.pos + size, text.length))
+          isIdentifierStart(this.codePointAt(this.pos + size, this.end))
         )
           break;
       }
@@ -2145,8 +2169,8 @@ export class Scanner {
 
   /** After `@`: whether a tag name (or an incomplete tag) can follow. */
   canFollowJSDocAt(): boolean {
-    if (this.pos >= this.text.length) return true;
-    const ch = this.codePointAt(this.pos, this.text.length);
+    if (this.pos >= this.end) return true;
+    const ch = this.codePointAt(this.pos, this.end);
     return isIdentifierStart(ch) || isWhiteSpaceSingleLine(ch) || isLineBreak(ch);
   }
 
@@ -2155,16 +2179,16 @@ export class Scanner {
     this.tokenFlags = TokenFlags.None;
     const text = this.text;
     const chars = this.chars;
-    if (this.pos >= text.length) return (this.token = SyntaxKind.EndOfFile);
+    if (this.pos >= this.end) return (this.token = SyntaxKind.EndOfFile);
     this.tokenStart = this.pos;
-    const ch = this.codePointAt(this.pos, text.length);
+    const ch = this.codePointAt(this.pos, this.end);
     this.pos += charSize(ch);
     switch (ch) {
       case CharacterCodes.tab:
       case CharacterCodes.verticalTab:
       case CharacterCodes.formFeed:
       case CharacterCodes.space:
-        while (this.pos < text.length && isWhiteSpaceSingleLine(chars[this.pos])) this.pos++;
+        while (this.pos < this.end && isWhiteSpaceSingleLine(chars[this.pos])) this.pos++;
         return (this.token = SyntaxKind.WhitespaceTrivia);
       case CharacterCodes.at:
         return (this.token = SyntaxKind.AtToken);
@@ -2215,8 +2239,8 @@ export class Scanner {
     }
     if (!isIdentifierStart(ch)) return (this.token = SyntaxKind.Unknown);
     let last = ch;
-    while (this.pos < text.length) {
-      last = this.codePointAt(this.pos, text.length);
+    while (this.pos < this.end) {
+      last = this.codePointAt(this.pos, this.end);
       if (!isIdentifierPart(last) && last !== CharacterCodes.minus) break;
       this.pos += charSize(last);
     }

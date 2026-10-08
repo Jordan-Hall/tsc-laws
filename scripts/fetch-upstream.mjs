@@ -16,8 +16,8 @@ function checkout(dir, url, commit, paths) {
     mkdirSync(dir, { recursive: true });
     git(['-C', dir, 'init', '-q']);
     git(['-C', dir, 'remote', 'add', 'origin', url]);
-    git(['-C', dir, 'sparse-checkout', 'set', '--cone', ...paths]);
   }
+  git(['-C', dir, 'sparse-checkout', 'set', '--cone', ...paths]);
   const head = spawnSync('git', ['-C', dir, 'rev-parse', 'HEAD'], { encoding: 'utf8' });
   if (head.stdout.trim() !== commit) {
     git(['-C', dir, 'fetch', '--depth', '1', '--filter=blob:none', 'origin', commit]);
@@ -26,7 +26,8 @@ function checkout(dir, url, commit, paths) {
 }
 
 const root = resolve('upstream/typescript-go');
-checkout(root, identity.repository, identity.commit, ['internal', 'cmd']);
+// _scripts holds ast.json, the AST schema scripts/generate-ast.mjs reads.
+checkout(root, identity.repository, identity.commit, ['internal', 'cmd', '_scripts']);
 console.log('Pinned upstream: ' + identity.commit);
 
 const tsCommit = spawnSync('git', ['-C', root, 'rev-parse', 'HEAD:_submodules/TypeScript'], {

@@ -1,0 +1,475 @@
+// Predicates and helpers over syntax kinds and nodes, as in tsgo's ast/utilities.go.
+import {
+  CallExpression,
+  ExternalModuleReference,
+  Identifier,
+  ImportEqualsDeclaration,
+  ImportTypeNode,
+  JsxNamespacedName,
+  LiteralTypeNode,
+  MetaProperty,
+  ModifierFlags,
+  ModuleDeclaration,
+  type Node,
+  NodeFlags,
+  PropertyAccessExpression,
+  StringLiteral,
+  getModuleSpecifier,
+  getText,
+} from './ast.js';
+import { skipTrivia } from './scanner.js';
+import { SyntaxKind } from './syntax-kind.js';
+import { TokenFlags } from './types.js';
+
+export const enum OperatorPrecedence {
+  Invalid = -1,
+  Comma = 0,
+  Spread,
+  Yield,
+  Assignment,
+  Conditional,
+  LogicalOR,
+  LogicalAND,
+  BitwiseOR,
+  BitwiseXOR,
+  BitwiseAND,
+  Equality,
+  Relational,
+  Shift,
+  Additive,
+  Multiplicative,
+  Exponentiation,
+  Unary,
+  Update,
+  LeftHandSide,
+  OptionalChain,
+  Member,
+  Primary,
+  Parentheses,
+  Lowest = Comma,
+  Highest = Parentheses,
+  DisallowComma = Yield,
+  Coalesce = LogicalOR,
+}
+
+export function getBinaryOperatorPrecedence(kind: SyntaxKind): OperatorPrecedence {
+  switch (kind) {
+    case SyntaxKind.QuestionQuestionToken:
+      return OperatorPrecedence.Coalesce;
+    case SyntaxKind.BarBarToken:
+      return OperatorPrecedence.LogicalOR;
+    case SyntaxKind.AmpersandAmpersandToken:
+      return OperatorPrecedence.LogicalAND;
+    case SyntaxKind.BarToken:
+      return OperatorPrecedence.BitwiseOR;
+    case SyntaxKind.CaretToken:
+      return OperatorPrecedence.BitwiseXOR;
+    case SyntaxKind.AmpersandToken:
+      return OperatorPrecedence.BitwiseAND;
+    case SyntaxKind.EqualsEqualsToken:
+    case SyntaxKind.ExclamationEqualsToken:
+    case SyntaxKind.EqualsEqualsEqualsToken:
+    case SyntaxKind.ExclamationEqualsEqualsToken:
+      return OperatorPrecedence.Equality;
+    case SyntaxKind.LessThanToken:
+    case SyntaxKind.GreaterThanToken:
+    case SyntaxKind.LessThanEqualsToken:
+    case SyntaxKind.GreaterThanEqualsToken:
+    case SyntaxKind.InstanceOfKeyword:
+    case SyntaxKind.InKeyword:
+    case SyntaxKind.AsKeyword:
+    case SyntaxKind.SatisfiesKeyword:
+      return OperatorPrecedence.Relational;
+    case SyntaxKind.LessThanLessThanToken:
+    case SyntaxKind.GreaterThanGreaterThanToken:
+    case SyntaxKind.GreaterThanGreaterThanGreaterThanToken:
+      return OperatorPrecedence.Shift;
+    case SyntaxKind.PlusToken:
+    case SyntaxKind.MinusToken:
+      return OperatorPrecedence.Additive;
+    case SyntaxKind.AsteriskToken:
+    case SyntaxKind.SlashToken:
+    case SyntaxKind.PercentToken:
+      return OperatorPrecedence.Multiplicative;
+    case SyntaxKind.AsteriskAsteriskToken:
+      return OperatorPrecedence.Exponentiation;
+  }
+  // Lower than every precedence, so binary expression parsing stops.
+  return OperatorPrecedence.Invalid;
+}
+
+// Tokens
+
+export function isKeyword(token: SyntaxKind): boolean {
+  return token >= SyntaxKind.FirstKeyword && token <= SyntaxKind.LastKeyword;
+}
+
+export function isPunctuation(token: SyntaxKind): boolean {
+  return token >= SyntaxKind.FirstPunctuation && token <= SyntaxKind.LastPunctuation;
+}
+
+export function isKeywordOrPunctuation(token: SyntaxKind): boolean {
+  return isKeyword(token) || isPunctuation(token);
+}
+
+export function isReservedWord(token: SyntaxKind): boolean {
+  return token >= SyntaxKind.FirstReservedWord && token <= SyntaxKind.LastReservedWord;
+}
+
+export function tokenIsIdentifierOrKeyword(token: SyntaxKind): boolean {
+  return token >= SyntaxKind.Identifier;
+}
+
+export function tokenIsIdentifierOrKeywordOrGreaterThan(token: SyntaxKind): boolean {
+  return token === SyntaxKind.GreaterThanToken || tokenIsIdentifierOrKeyword(token);
+}
+
+export function isModifierKind(kind: SyntaxKind): boolean {
+  switch (kind) {
+    case SyntaxKind.AbstractKeyword:
+    case SyntaxKind.AccessorKeyword:
+    case SyntaxKind.AsyncKeyword:
+    case SyntaxKind.ConstKeyword:
+    case SyntaxKind.DeclareKeyword:
+    case SyntaxKind.DefaultKeyword:
+    case SyntaxKind.ExportKeyword:
+    case SyntaxKind.InKeyword:
+    case SyntaxKind.PrivateKeyword:
+    case SyntaxKind.ProtectedKeyword:
+    case SyntaxKind.PublicKeyword:
+    case SyntaxKind.ReadonlyKeyword:
+    case SyntaxKind.OutKeyword:
+    case SyntaxKind.OverrideKeyword:
+    case SyntaxKind.StaticKeyword:
+      return true;
+  }
+  return false;
+}
+
+export function modifierToFlag(kind: SyntaxKind): ModifierFlags {
+  switch (kind) {
+    case SyntaxKind.StaticKeyword:
+      return ModifierFlags.Static;
+    case SyntaxKind.PublicKeyword:
+      return ModifierFlags.Public;
+    case SyntaxKind.ProtectedKeyword:
+      return ModifierFlags.Protected;
+    case SyntaxKind.PrivateKeyword:
+      return ModifierFlags.Private;
+    case SyntaxKind.AbstractKeyword:
+      return ModifierFlags.Abstract;
+    case SyntaxKind.AccessorKeyword:
+      return ModifierFlags.Accessor;
+    case SyntaxKind.ExportKeyword:
+      return ModifierFlags.Export;
+    case SyntaxKind.DeclareKeyword:
+      return ModifierFlags.Ambient;
+    case SyntaxKind.ConstKeyword:
+      return ModifierFlags.Const;
+    case SyntaxKind.DefaultKeyword:
+      return ModifierFlags.Default;
+    case SyntaxKind.AsyncKeyword:
+      return ModifierFlags.Async;
+    case SyntaxKind.ReadonlyKeyword:
+      return ModifierFlags.Readonly;
+    case SyntaxKind.OverrideKeyword:
+      return ModifierFlags.Override;
+    case SyntaxKind.InKeyword:
+      return ModifierFlags.In;
+    case SyntaxKind.OutKeyword:
+      return ModifierFlags.Out;
+    case SyntaxKind.Decorator:
+      return ModifierFlags.Decorator;
+  }
+  return ModifierFlags.None;
+}
+
+export function modifiersToFlags(modifiers: readonly Node[]): ModifierFlags {
+  let flags = ModifierFlags.None;
+  for (let i = 0; i < modifiers.length; i++) flags |= modifierToFlag(modifiers[i].kind);
+  return flags;
+}
+
+export function isParameterPropertyModifier(kind: SyntaxKind): boolean {
+  return (modifierToFlag(kind) & ModifierFlags.ParameterPropertyModifier) !== 0;
+}
+
+export function isClassMemberModifier(token: SyntaxKind): boolean {
+  return (
+    isParameterPropertyModifier(token) ||
+    token === SyntaxKind.StaticKeyword ||
+    token === SyntaxKind.OverrideKeyword ||
+    token === SyntaxKind.AccessorKeyword
+  );
+}
+
+export function isAssignmentOperator(kind: SyntaxKind): boolean {
+  switch (kind) {
+    case SyntaxKind.EqualsToken:
+    case SyntaxKind.PlusEqualsToken:
+    case SyntaxKind.MinusEqualsToken:
+    case SyntaxKind.AsteriskAsteriskEqualsToken:
+    case SyntaxKind.AsteriskEqualsToken:
+    case SyntaxKind.SlashEqualsToken:
+    case SyntaxKind.PercentEqualsToken:
+    case SyntaxKind.AmpersandEqualsToken:
+    case SyntaxKind.BarEqualsToken:
+    case SyntaxKind.CaretEqualsToken:
+    case SyntaxKind.LessThanLessThanEqualsToken:
+    case SyntaxKind.GreaterThanGreaterThanGreaterThanEqualsToken:
+    case SyntaxKind.GreaterThanGreaterThanEqualsToken:
+    case SyntaxKind.BarBarEqualsToken:
+    case SyntaxKind.AmpersandAmpersandEqualsToken:
+    case SyntaxKind.QuestionQuestionEqualsToken:
+      return true;
+  }
+  return false;
+}
+
+// Nodes
+
+/** Whether the node has an empty, non-synthesized range (and isn't the end of file token). */
+export function nodeIsMissing(node: Node | undefined): boolean {
+  return node === undefined || (node.pos === node.end && node.pos >= 0 && node.kind !== SyntaxKind.EndOfFile);
+}
+
+export function nodeIsPresent(node: Node | undefined): boolean {
+  return !nodeIsMissing(node);
+}
+
+export function isInJSFile(node: Node | undefined): boolean {
+  return node !== undefined && (node.flags & NodeFlags.JavaScriptFile) !== 0;
+}
+
+export function compareNodePositions(a: Node, b: Node): number {
+  const c = a.pos - b.pos;
+  return c !== 0 ? c : a.end - b.end;
+}
+
+function isLeftHandSideExpressionKind(kind: SyntaxKind): boolean {
+  switch (kind) {
+    case SyntaxKind.PropertyAccessExpression:
+    case SyntaxKind.ElementAccessExpression:
+    case SyntaxKind.NewExpression:
+    case SyntaxKind.CallExpression:
+    case SyntaxKind.JsxElement:
+    case SyntaxKind.JsxSelfClosingElement:
+    case SyntaxKind.JsxFragment:
+    case SyntaxKind.TaggedTemplateExpression:
+    case SyntaxKind.ArrayLiteralExpression:
+    case SyntaxKind.ParenthesizedExpression:
+    case SyntaxKind.ObjectLiteralExpression:
+    case SyntaxKind.ClassExpression:
+    case SyntaxKind.FunctionExpression:
+    case SyntaxKind.Identifier:
+    case SyntaxKind.PrivateIdentifier:
+    case SyntaxKind.RegularExpressionLiteral:
+    case SyntaxKind.NumericLiteral:
+    case SyntaxKind.BigIntLiteral:
+    case SyntaxKind.StringLiteral:
+    case SyntaxKind.NoSubstitutionTemplateLiteral:
+    case SyntaxKind.TemplateExpression:
+    case SyntaxKind.FalseKeyword:
+    case SyntaxKind.NullKeyword:
+    case SyntaxKind.ThisKeyword:
+    case SyntaxKind.TrueKeyword:
+    case SyntaxKind.SuperKeyword:
+    case SyntaxKind.NonNullExpression:
+    case SyntaxKind.ExpressionWithTypeArguments:
+    case SyntaxKind.MetaProperty:
+    case SyntaxKind.ImportKeyword:
+    case SyntaxKind.MissingDeclaration:
+      return true;
+  }
+  return false;
+}
+
+/** Like tsgo's, except partially emitted expressions (created by transforms) aren't skipped yet. */
+export function isLeftHandSideExpression(node: Node): boolean {
+  return isLeftHandSideExpressionKind(node.kind);
+}
+
+export function isFunctionLikeDeclarationKind(kind: SyntaxKind): boolean {
+  switch (kind) {
+    case SyntaxKind.FunctionDeclaration:
+    case SyntaxKind.MethodDeclaration:
+    case SyntaxKind.Constructor:
+    case SyntaxKind.GetAccessor:
+    case SyntaxKind.SetAccessor:
+    case SyntaxKind.FunctionExpression:
+    case SyntaxKind.ArrowFunction:
+      return true;
+  }
+  return false;
+}
+
+export function isFunctionLikeKind(kind: SyntaxKind): boolean {
+  switch (kind) {
+    case SyntaxKind.MethodSignature:
+    case SyntaxKind.CallSignature:
+    case SyntaxKind.JSDocSignature:
+    case SyntaxKind.ConstructSignature:
+    case SyntaxKind.IndexSignature:
+    case SyntaxKind.FunctionType:
+    case SyntaxKind.ConstructorType:
+      return true;
+  }
+  return isFunctionLikeDeclarationKind(kind);
+}
+
+export function isFunctionLike(node: Node | undefined): boolean {
+  return node !== undefined && isFunctionLikeKind(node.kind);
+}
+
+export function canHaveIllegalDecorators(node: Node): boolean {
+  switch (node.kind) {
+    case SyntaxKind.PropertyAssignment:
+    case SyntaxKind.ShorthandPropertyAssignment:
+    case SyntaxKind.FunctionDeclaration:
+    case SyntaxKind.Constructor:
+    case SyntaxKind.IndexSignature:
+    case SyntaxKind.ClassStaticBlockDeclaration:
+    case SyntaxKind.MissingDeclaration:
+    case SyntaxKind.VariableStatement:
+    case SyntaxKind.InterfaceDeclaration:
+    case SyntaxKind.TypeAliasDeclaration:
+    case SyntaxKind.EnumDeclaration:
+    case SyntaxKind.ModuleDeclaration:
+    case SyntaxKind.ImportEqualsDeclaration:
+    case SyntaxKind.ImportDeclaration:
+    case SyntaxKind.JSImportDeclaration:
+    case SyntaxKind.NamespaceExportDeclaration:
+    case SyntaxKind.ExportDeclaration:
+    case SyntaxKind.ExportAssignment:
+      return true;
+  }
+  return false;
+}
+
+export function canHaveDecorators(node: Node): boolean {
+  switch (node.kind) {
+    case SyntaxKind.Parameter:
+    case SyntaxKind.PropertyDeclaration:
+    case SyntaxKind.MethodDeclaration:
+    case SyntaxKind.GetAccessor:
+    case SyntaxKind.SetAccessor:
+    case SyntaxKind.ClassExpression:
+    case SyntaxKind.ClassDeclaration:
+      return true;
+  }
+  return false;
+}
+
+export function isStringLiteralLike(node: Node): boolean {
+  return node.kind === SyntaxKind.StringLiteral || node.kind === SyntaxKind.NoSubstitutionTemplateLiteral;
+}
+
+/** Whether two JSX tag names (identifiers, `this`, namespaced names or property accesses) are the same. */
+export function tagNamesAreEquivalent(lhs: Node, rhs: Node): boolean {
+  if (lhs.kind !== rhs.kind) return false;
+  if (lhs instanceof Identifier && rhs instanceof Identifier) return lhs.text === rhs.text;
+  if (lhs.kind === SyntaxKind.ThisKeyword) return true;
+  if (lhs instanceof JsxNamespacedName && rhs instanceof JsxNamespacedName)
+    return lhs.namespace.text === rhs.namespace.text && lhs.name.text === rhs.name.text;
+  if (lhs instanceof PropertyAccessExpression && rhs instanceof PropertyAccessExpression)
+    return getText(lhs.name) === getText(rhs.name) && tagNamesAreEquivalent(lhs.expression, rhs.expression);
+  throw new Error('Unhandled case in tagNamesAreEquivalent');
+}
+
+/** The source text of a node, without leading trivia. */
+export function getTextOfNodeFromSourceText(sourceText: string, node: Node): string {
+  if (nodeIsMissing(node)) return '';
+  const text = sourceText.substring(skipTrivia(sourceText, node.pos), node.end);
+  if ((node.flags & NodeFlags.ReparserTransformedLiteral) !== 0) {
+    if (node instanceof StringLiteral)
+      return (node.tokenFlags & TokenFlags.SingleQuote) !== 0 ? "'" + text + "'" : '"' + text + '"';
+    if (node instanceof Identifier) return node.text;
+    throw new Error('Unexpected reparser-transformed node kind');
+  }
+  return text;
+}
+
+export function isImportMeta(node: Node): boolean {
+  return node instanceof MetaProperty && node.keywordToken === SyntaxKind.ImportKeyword && node.name.text === 'meta';
+}
+
+/** `import(…)` or `import.defer(…)`. */
+export function isImportCall(node: Node): boolean {
+  if (!(node instanceof CallExpression)) return false;
+  const e = node.expression;
+  return (
+    e.kind === SyntaxKind.ImportKeyword ||
+    (e instanceof MetaProperty && e.keywordToken === SyntaxKind.ImportKeyword && e.name.text === 'defer')
+  );
+}
+
+/** `require(x)` with one argument, a string literal if `requireStringLiteralLikeArgument`. */
+export function isRequireCall(node: Node, requireStringLiteralLikeArgument: boolean): boolean {
+  if (!(node instanceof CallExpression)) return false;
+  const callee = node.expression;
+  if (!(callee instanceof Identifier) || callee.text !== 'require') return false;
+  const args = node.arguments.nodes;
+  if (args.length !== 1) return false;
+  return !requireStringLiteralLikeArgument || isStringLiteralLike(args[0]);
+}
+
+/** The string literal of `import("x")` types. */
+export function getImportTypeNodeLiteral(node: Node): Node | undefined {
+  if (node instanceof ImportTypeNode) {
+    const argument = node.argument;
+    if (argument instanceof LiteralTypeNode && argument.literal.kind === SyntaxKind.StringLiteral)
+      return argument.literal;
+  }
+  return undefined;
+}
+
+export function isLiteralImportTypeNode(node: Node): boolean {
+  return getImportTypeNodeLiteral(node) !== undefined;
+}
+
+export function isAnyImportOrReExport(node: Node): boolean {
+  switch (node.kind) {
+    case SyntaxKind.ImportDeclaration:
+    case SyntaxKind.ImportEqualsDeclaration:
+    case SyntaxKind.JSImportDeclaration:
+    case SyntaxKind.ExportDeclaration:
+      return true;
+  }
+  return false;
+}
+
+export function getExternalModuleName(node: Node): Node | undefined {
+  switch (node.kind) {
+    case SyntaxKind.ImportDeclaration:
+    case SyntaxKind.JSImportDeclaration:
+    case SyntaxKind.ExportDeclaration:
+      return getModuleSpecifier(node);
+    case SyntaxKind.ImportEqualsDeclaration:
+      if (node instanceof ImportEqualsDeclaration && node.moduleReference instanceof ExternalModuleReference)
+        return node.moduleReference.expression;
+      return undefined;
+    case SyntaxKind.ImportType:
+      return getImportTypeNodeLiteral(node);
+    case SyntaxKind.CallExpression:
+      if (node instanceof CallExpression) {
+        const args = node.arguments.nodes;
+        return args.length > 0 ? args[0] : undefined;
+      }
+      return undefined;
+    case SyntaxKind.ModuleDeclaration:
+      if (node instanceof ModuleDeclaration && node.name.kind === SyntaxKind.StringLiteral) return node.name;
+      return undefined;
+  }
+  throw new Error('Unhandled case in getExternalModuleName');
+}
+
+export function isGlobalScopeAugmentation(node: Node): boolean {
+  return node instanceof ModuleDeclaration && node.keyword === SyntaxKind.GlobalKeyword;
+}
+
+export function isAmbientModule(node: Node): boolean {
+  return (
+    node instanceof ModuleDeclaration &&
+    (node.name.kind === SyntaxKind.StringLiteral || node.keyword === SyntaxKind.GlobalKeyword)
+  );
+}
