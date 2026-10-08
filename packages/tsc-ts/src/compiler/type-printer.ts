@@ -13,7 +13,12 @@ import {
   getQuestionToken,
   getText,
 } from './ast.js';
-import { getCombinedModifierFlags } from './binder-utilities.js';
+import {
+  declarationNameToString,
+  getCombinedModifierFlags,
+  getNameOfDeclaration,
+  getSourceFileOfNode,
+} from './binder-utilities.js';
 import { isIdentifierText } from './scanner.js';
 import { CheckFlags, InternalSymbolName, type Symbol, SymbolFlags } from './symbol.js';
 import { SyntaxKind } from './syntax-kind.js';
@@ -260,7 +265,26 @@ class TypePrinter {
       this.approximateLength += 2;
       result.push(this.typeAt(types[i], precedence));
     }
+    if ((this.flags & PrintFlags.UseFullyQualifiedType) === 0) this.qualifyCollidingNames(types, result, precedence);
     return result;
+  }
+
+  /** Reprints plain names that occur more than once for different types, like `Foo.Yep | Bar.Yep`. */
+  qualifyCollidingNames(types: readonly Type[], result: string[], precedence: Precedence): void {
+    // Only entries printed one-to-one; truncation markers aren't types.
+    if (result.length !== types.length) return;
+    for (let i = 0; i < result.length; i++) {
+      if (!isIdentifierText(result[i])) continue;
+      let collides = false;
+      for (let j = 0; j < result.length; j++)
+        if (j !== i && result[j] === result[i] && !typesAreSameReference(types[i], types[j])) collides = true;
+      if (!collides) continue;
+      const saveFlags = this.flags;
+      this.flags |= PrintFlags.UseFullyQualifiedType;
+      const name = result[i];
+      for (let j = i; j < result.length; j++) if (result[j] === name) result[j] = this.typeAt(types[j], precedence);
+      this.flags = saveFlags;
+    }
   }
 
   typeArguments(types: readonly Type[]): string {
@@ -623,6 +647,8 @@ class TypePrinter {
 
   symbolChainText(symbol: Symbol, meaning: SymbolFlags): string {
     const c = this.c;
+    // Without an enclosing declaration, names are qualified only on request.
+    if ((this.flags & PrintFlags.UseFullyQualifiedType) === 0) return initialSymbolName(symbol);
     let text = symbolNameForChain(symbol);
     let current = symbol;
     for (;;) {
@@ -637,8 +663,22 @@ class TypePrinter {
       text = symbolNameForChain(parent) + '.' + text;
       current = parent;
     }
-    return text;
+    return current === symbol ? initialSymbolName(symbol) : text;
   }
+}
+
+/** The first name of a chain: a default export goes by its declared name. */
+function initialSymbolName(symbol: Symbol): string {
+  if (symbol.name === InternalSymbolName.Default)
+    for (const d of symbol.declarations) {
+      const name = getNameOfDeclaration(d);
+      if (name !== undefined) return declarationNameToString(getSourceFileOfNode(name), name);
+    }
+  return symbolNameForChain(symbol);
+}
+
+function typesAreSameReference(a: Type, b: Type): boolean {
+  return a === b || (a.symbol !== undefined && a.symbol === b.symbol) || (a.alias !== undefined && a.alias === b.alias);
 }
 
 function isQualifyingParent(symbol: Symbol): boolean {
@@ -673,7 +713,8 @@ function internalNameText(symbol: Symbol): string {
     const at = name.indexOf('@', 2);
     return '[' + name.substring(2, at < 0 ? name.length : at) + ']';
   }
-  if (name.startsWith('￾#')) return name.substring(1);
+  // Private names are `#<class id>@#name`.
+  if (name.startsWith('￾#')) return name.substring(name.indexOf('@') + 1);
   return '__' + name.substring(1);
 }
 
@@ -944,7 +985,21 @@ export function symbolToString(c: Checker, symbol: Symbol): string {
   return printer.symbolChainText(symbol, SymbolFlags.All);
 }
 
+/** A member's name as written in its first named declaration, else from its name type or symbol name. */
 function memberNameText(c: Checker, symbol: Symbol): string {
+  for (const d of symbol.declarations) {
+    const name = getNameOfDeclaration(d);
+    if (name === undefined) continue;
+    const literalNameType = c.symbolLinks(symbol).nameType;
+    if (
+      name.kind !== SyntaxKind.ComputedPropertyName ||
+      (symbol.checkFlags & CheckFlags.Late) !== 0 ||
+      literalNameType === undefined ||
+      (literalNameType.flags & TypeFlags.StringOrNumberLiteral) === 0
+    )
+      return declarationNameToString(getSourceFileOfNode(name), name);
+    break;
+  }
   const nameType = c.symbolLinks(symbol).nameType;
   if (nameType !== undefined && (nameType.flags & TypeFlags.UniqueESSymbol) !== 0 && nameType.symbol !== undefined)
     return '[' + symbolToString(c, nameType.symbol) + ']';

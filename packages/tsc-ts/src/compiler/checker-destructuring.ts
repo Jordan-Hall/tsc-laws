@@ -1,10 +1,33 @@
 // Destructuring: types of binding elements and the types implied by binding patterns.
-import { type BindingElement, type Node, getElements, getInitializer } from './ast.js';
-import { SymbolFlags, type Symbol } from './symbol.js';
+import {
+  type BinaryExpression,
+  type BindingElement,
+  type Node,
+  type PropertyAssignment,
+  type ShorthandPropertyAssignment,
+  type SpreadAssignment,
+  type SpreadElement,
+  ModifierFlags,
+  NodeFlags,
+  getElements,
+  getInitializer,
+  getName,
+  getProperties,
+  getSymbol,
+  getType,
+} from './ast.js';
+import {
+  isClassLike,
+  isPartOfParameterDeclaration,
+  isPrivateIdentifierClassElementDeclaration,
+} from './binder-utilities.js';
+import { Diagnostics } from './diagnostics.js';
+import { CheckFlags, SymbolFlags, type Symbol } from './symbol.js';
 import { SyntaxKind } from './syntax-kind.js';
 import type { Checker } from './checker.js';
 import {
   AccessFlags,
+  CheckMode,
   ElementFlags,
   type IndexInfo,
   ObjectFlags,
@@ -16,28 +39,60 @@ import {
   createAnonymousType,
   createArrayType,
   createTupleTypeEx,
+  everyType,
+  filterType,
   getNumberLiteralType,
+  getUnionType,
   getUnionTypeEx,
   isTupleType,
+  mapType,
   newIndexInfo,
+  someType,
+  typesOf,
   UnionReduction,
 } from './checker-type-factory.js';
 import {
   getIndexedAccessTypeEx,
   getIndexedAccessTypeOrUndefinedEx,
+  getLiteralTypeFromProperty,
   getLiteralTypeFromPropertyName,
+  isGenericIndexType,
+  isGenericObjectType,
 } from './checker-type-operators.js';
-import { isArrayLikeType } from './checker-members.js';
-import { getSymbolOfDeclaration } from './checker-symbols.js';
-import { getTypeForVariableLikeDeclaration, reportImplicitAny, getWidenedType } from './checker-symbol-types.js';
+import {
+  getBaseConstraintOfType,
+  getBaseConstraintOrType,
+  getDeclarationModifierFlagsFromSymbol,
+  getReducedType,
+  getIndexInfosOfType,
+  getPropertiesOfType,
+  isArrayLikeType,
+} from './checker-members.js';
+import { getGlobalTypeAliasSymbol, getSymbolOfDeclaration } from './checker-symbols.js';
+import {
+  getTypeForVariableLikeDeclaration,
+  getTypeOfSymbol,
+  getWidenedLiteralTypeForInitializer,
+  isReadonlySymbol,
+  reportImplicitAny,
+  getWidenedType,
+} from './checker-symbol-types.js';
+import { getTypeAliasInstantiation } from './checker-type-nodes.js';
+import { isTypeAssignableTo } from './relations.js';
 import {
   checkDeclarationInitializer,
+  checkExpression,
+  checkExpressionCached,
+  checkExpressionEx,
+  checkNonNullType,
+  checkTypeAssignableToAndOptionallyElaborate,
   getIteratedTypeOrElementType,
   getWidenedLiteralLikeTypeForContextualType,
 } from './checker-expressions.js';
-import { TypeFacts, getTypeWithFacts, hasTypeFacts } from './checker-flow.js';
+import { checkBinaryExpression, checkReferenceExpression, removeDefinitelyFalsyTypes } from './checker-operators.js';
+import { TypeFacts, getNonNullableType, getTypeWithFacts, hasTypeFacts } from './checker-flow.js';
 import { sliceTupleType } from './checker-signatures.js';
-import { getPropertyNameFromType, isTypeUsableAsPropertyName } from './checker-utilities.js';
+import { getPropertyNameFromType, isTypeUsableAsPropertyName, maybeTypeOfKind } from './checker-utilities.js';
 
 function isBindingPatternNode(node: Node | undefined): boolean {
   return (
@@ -68,7 +123,10 @@ function getBindingElementTypeFromParentType(c: Checker, declaration: BindingEle
   let parentType = parentTypeIn;
   const pattern = declaration.parent!;
   const parentInitializer = getInitializer(pattern.parent!);
-  if (
+  // Ambient destructuring parameters are documentation only, so nullability isn't checked.
+  if (c.strictNullChecks && (declaration.flags & NodeFlags.Ambient) !== 0 && isPartOfParameterDeclaration(declaration))
+    parentType = getNonNullableType(c, parentType);
+  else if (
     c.strictNullChecks &&
     parentInitializer !== undefined &&
     !hasTypeFacts(c, checkDeclarationInitializer(c, pattern.parent!), TypeFacts.EQUndefined)
@@ -78,23 +136,41 @@ function getBindingElementTypeFromParentType(c: Checker, declaration: BindingEle
     AccessFlags.ExpressionPosition | (declaration.initializer !== undefined ? AccessFlags.AllowMissing : 0);
   let t: Type;
   if (pattern.kind === SyntaxKind.ObjectBindingPattern) {
-    // Object rest elements aren't computed yet.
-    if (declaration.dotDotDotToken !== undefined) return c.anyType;
-    const name = declaration.propertyName ?? declaration.name!;
-    t = getIndexedAccessTypeEx(
-      c,
-      parentType,
-      getLiteralTypeFromPropertyName(c, name) ?? c.errorType,
-      accessFlags,
-      name,
-      undefined,
-    );
+    if (declaration.dotDotDotToken !== undefined) {
+      parentType = getReducedType(c, parentType);
+      if ((parentType.flags & TypeFlags.Unknown) !== 0 || !isValidSpreadType(c, parentType)) {
+        c.error(declaration, Diagnostics.Rest_types_may_only_be_created_from_object_types);
+        return c.errorType;
+      }
+      const literalMembers: Node[] = [];
+      for (const e of getElements(pattern)!.nodes) {
+        const element = e as BindingElement;
+        if (element.dotDotDotToken === undefined) literalMembers.push(element.propertyName ?? element.name!);
+      }
+      t = getRestType(c, parentType, literalMembers, getSymbol(declaration));
+    } else {
+      const name = declaration.propertyName ?? declaration.name!;
+      t = getIndexedAccessTypeEx(
+        c,
+        parentType,
+        getLiteralTypeFromPropertyName(c, name) ?? c.errorType,
+        accessFlags,
+        name,
+        undefined,
+      );
+    }
   } else {
     const elementType = getIteratedTypeOrElementType(c, parentType);
     const index = getElements(pattern)!.nodes.indexOf(declaration);
-    if (declaration.dotDotDotToken !== undefined)
-      t = isTupleType(parentType) ? sliceTupleType(c, parentType, index, 0) : createArrayType(c, elementType);
-    else if (isArrayLikeType(c, parentType))
+    if (declaration.dotDotDotToken !== undefined) {
+      // A rest element of a tuple gets the remaining elements; of an array, the same array type.
+      const baseConstraint = mapType(c, parentType, (u) =>
+        (u.flags & TypeFlags.InstantiableNonPrimitive) !== 0 ? getBaseConstraintOrType(c, u) : u,
+      );
+      t = everyType(baseConstraint, isTupleType)
+        ? mapType(c, baseConstraint, (u) => sliceTupleType(c, u, index, 0))
+        : createArrayType(c, elementType);
+    } else if (isArrayLikeType(c, parentType))
       t =
         getIndexedAccessTypeOrUndefinedEx(
           c,
@@ -107,10 +183,44 @@ function getBindingElementTypeFromParentType(c: Checker, declaration: BindingEle
     else t = elementType;
   }
   if (declaration.initializer === undefined) return t;
-  const initializerType = checkDeclarationInitializer(c, declaration);
-  if (c.strictNullChecks && !hasTypeFacts(c, initializerType, TypeFacts.IsUndefined))
-    t = getTypeWithFacts(c, t, TypeFacts.NEUndefined);
-  return getUnionTypeEx(c, [t, initializerType], UnionReduction.Subtype, undefined, undefined);
+  if (getType(walkUpBindingElementsAndPatterns(declaration)) !== undefined) {
+    // A default without undefined removes undefined from an annotated type.
+    if (c.strictNullChecks && !hasTypeFacts(c, checkDeclarationInitializer(c, declaration), TypeFacts.IsUndefined))
+      return getNonUndefinedType(c, t);
+    return t;
+  }
+  return getWidenedLiteralTypeForInitializer(
+    c,
+    declaration,
+    getUnionTypeEx(
+      c,
+      [getNonUndefinedType(c, t), checkDeclarationInitializer(c, declaration)],
+      UnionReduction.Subtype,
+      undefined,
+      undefined,
+    ),
+  );
+}
+
+/** The binding pattern's root declaration: the variable or parameter it destructures. */
+function walkUpBindingElementsAndPatterns(node: Node): Node {
+  let current = node.parent!;
+  while (current.kind === SyntaxKind.BindingElement || isBindingPatternNode(current)) current = current.parent!;
+  return current;
+}
+
+/** `t` without undefined, also when it's a generic type whose constraint includes undefined. */
+export function getNonUndefinedType(c: Checker, t: Type): Type {
+  const typeOrConstraint = someType(t, (u) => isGenericTypeWithUndefinedConstraint(c, u))
+    ? mapType(c, t, (u) => ((u.flags & TypeFlags.Instantiable) !== 0 ? getBaseConstraintOrType(c, u) : u))
+    : t;
+  return getTypeWithFacts(c, typeOrConstraint, TypeFacts.NEUndefined);
+}
+
+function isGenericTypeWithUndefinedConstraint(c: Checker, t: Type): boolean {
+  if ((t.flags & TypeFlags.Instantiable) === 0) return false;
+  const constraint = getBaseConstraintOfType(c, t);
+  return constraint !== undefined && maybeTypeOfKind(constraint, TypeFlags.Undefined);
 }
 
 /** The type implied by a binding pattern, for declarations without annotations or initializers. */
@@ -208,4 +318,278 @@ function getTypeFromBindingElement(
     return getTypeFromBindingPattern(c, element.name!, includePatternInType, reportErrors);
   if (reportErrors && c.noImplicitAny) reportImplicitAny(c, element, c.anyType);
   return includePatternInType ? c.nonInferrableAnyType : c.anyType;
+}
+
+// ---- Destructuring assignments
+
+/** Checks an assignment of `sourceType` to a target, which may be an object or array literal pattern. */
+export function checkDestructuringAssignment(
+  c: Checker,
+  node: Node,
+  sourceTypeIn: Type,
+  checkMode: CheckMode,
+  rightIsThis: boolean,
+): Type {
+  let sourceType = sourceTypeIn;
+  let target = node;
+  if (node.kind === SyntaxKind.ShorthandPropertyAssignment) {
+    const shorthand = node as ShorthandPropertyAssignment;
+    const initializer = shorthand.objectAssignmentInitializer;
+    if (initializer !== undefined) {
+      // A default of a type without undefined removes undefined from the assigned type.
+      if (c.strictNullChecks && !hasTypeFacts(c, checkExpression(c, initializer), TypeFacts.IsUndefined))
+        sourceType = getTypeWithFacts(c, sourceType, TypeFacts.NEUndefined);
+      checkShorthandDefault(c, shorthand, initializer, checkMode);
+    }
+    target = shorthand.name;
+  }
+  if (
+    target.kind === SyntaxKind.BinaryExpression &&
+    (target as BinaryExpression).operatorToken.kind === SyntaxKind.EqualsToken
+  ) {
+    checkBinaryExpression(c, target as BinaryExpression, checkMode);
+    target = (target as BinaryExpression).left;
+    if (c.strictNullChecks) sourceType = getTypeWithFacts(c, sourceType, TypeFacts.NEUndefined);
+  }
+  if (target.kind === SyntaxKind.ObjectLiteralExpression)
+    return checkObjectLiteralAssignment(c, target, sourceType, rightIsThis);
+  if (target.kind === SyntaxKind.ArrayLiteralExpression)
+    return checkArrayLiteralAssignment(c, target, sourceType, checkMode);
+  return checkReferenceAssignment(c, target, sourceType, checkMode);
+}
+
+/** Checks `name = initializer` in a shorthand property of an assignment pattern. */
+function checkShorthandDefault(
+  c: Checker,
+  node: ShorthandPropertyAssignment,
+  initializer: Node,
+  checkMode: CheckMode,
+): void {
+  const leftType = checkExpressionCached(c, node.name);
+  const rightType = checkExpressionEx(c, initializer, checkMode);
+  if (
+    checkReferenceExpression(
+      c,
+      node.name,
+      Diagnostics.The_left_hand_side_of_an_assignment_expression_must_be_a_variable_or_a_property_access,
+      Diagnostics.The_left_hand_side_of_an_assignment_expression_may_not_be_an_optional_property_access,
+    )
+  )
+    checkTypeAssignableToAndOptionallyElaborate(c, rightType, leftType, node.name, initializer);
+}
+
+function checkObjectLiteralAssignment(c: Checker, node: Node, sourceType: Type, rightIsThis: boolean): Type {
+  const properties = getProperties(node)!.nodes;
+  if (c.strictNullChecks && properties.length === 0) return checkNonNullType(c, sourceType, node);
+  for (let i = 0; i < properties.length; i++)
+    checkObjectLiteralDestructuringPropertyAssignment(c, properties, sourceType, i, rightIsThis);
+  return sourceType;
+}
+
+function checkObjectLiteralDestructuringPropertyAssignment(
+  c: Checker,
+  properties: readonly Node[],
+  objectLiteralType: Type,
+  propertyIndex: number,
+  _rightIsThis: boolean,
+): void {
+  const property = properties[propertyIndex];
+  if (property.kind === SyntaxKind.PropertyAssignment || property.kind === SyntaxKind.ShorthandPropertyAssignment) {
+    const name = getName(property)!;
+    const exprType = getLiteralTypeFromPropertyName(c, name) ?? c.errorType;
+    const elementType = getIndexedAccessTypeEx(
+      c,
+      objectLiteralType,
+      exprType,
+      AccessFlags.ExpressionPosition | (hasDefaultValue(property) ? AccessFlags.AllowMissing : 0),
+      name,
+      undefined,
+    );
+    const expr =
+      property.kind === SyntaxKind.PropertyAssignment ? (property as PropertyAssignment).initializer : property;
+    checkDestructuringAssignment(c, expr, elementType, CheckMode.Normal, false);
+    return;
+  }
+  if (property.kind === SyntaxKind.SpreadAssignment) {
+    if (propertyIndex < properties.length - 1) {
+      c.error(property, Diagnostics.A_rest_element_must_be_last_in_a_destructuring_pattern);
+      return;
+    }
+    const nonRestNames: Node[] = [];
+    for (const other of properties) if (other.kind !== SyntaxKind.SpreadAssignment) nonRestNames.push(getName(other)!);
+    const t = getRestType(c, objectLiteralType, nonRestNames, objectLiteralType.symbol);
+    checkDestructuringAssignment(c, (property as SpreadAssignment).expression, t, CheckMode.Normal, false);
+    return;
+  }
+  c.error(property, Diagnostics.Property_assignment_expected);
+}
+
+function checkArrayLiteralAssignment(c: Checker, node: Node, sourceType: Type, checkMode: CheckMode): Type {
+  const elements = getElements(node)!.nodes;
+  const elementType = getIteratedTypeOrElementType(c, sourceType);
+  for (let i = 0; i < elements.length; i++)
+    checkArrayLiteralDestructuringElementAssignment(c, elements, sourceType, i, elementType, checkMode);
+  return sourceType;
+}
+
+function checkArrayLiteralDestructuringElementAssignment(
+  c: Checker,
+  elements: readonly Node[],
+  sourceType: Type,
+  elementIndex: number,
+  elementType: Type,
+  checkMode: CheckMode,
+): void {
+  const element = elements[elementIndex];
+  if (element.kind === SyntaxKind.OmittedExpression) return;
+  if (element.kind !== SyntaxKind.SpreadElement) {
+    if (isArrayLikeType(c, sourceType)) {
+      const indexType = getNumberLiteralType(c, elementIndex);
+      const accessFlags = AccessFlags.ExpressionPosition | (hasDefaultValue(element) ? AccessFlags.AllowMissing : 0);
+      // Element access targets would be mistaken for the access itself.
+      const accessNode = element.kind === SyntaxKind.ElementAccessExpression ? undefined : element;
+      const t =
+        getIndexedAccessTypeOrUndefinedEx(c, sourceType, indexType, accessFlags, accessNode, undefined) ?? c.errorType;
+      const assigned = hasDefaultValue(element) ? getTypeWithFacts(c, t, TypeFacts.NEUndefined) : t;
+      checkDestructuringAssignment(c, element, assigned, checkMode, false);
+      return;
+    }
+    checkDestructuringAssignment(c, element, elementType, checkMode, false);
+    return;
+  }
+  if (elementIndex < elements.length - 1) {
+    c.error(element, Diagnostics.A_rest_element_must_be_last_in_a_destructuring_pattern);
+    return;
+  }
+  const restExpression = (element as SpreadElement).expression;
+  if (
+    restExpression.kind === SyntaxKind.BinaryExpression &&
+    (restExpression as BinaryExpression).operatorToken.kind === SyntaxKind.EqualsToken
+  ) {
+    c.error((restExpression as BinaryExpression).operatorToken, Diagnostics.A_rest_element_cannot_have_an_initializer);
+    return;
+  }
+  const t = everyType(sourceType, isTupleType)
+    ? mapType(c, sourceType, (u) => sliceTupleType(c, u, elementIndex, 0))
+    : createArrayType(c, elementType);
+  checkDestructuringAssignment(c, restExpression, t, checkMode, false);
+}
+
+function checkReferenceAssignment(c: Checker, target: Node, sourceType: Type, checkMode: CheckMode): Type {
+  const targetType = checkExpressionEx(c, target, checkMode);
+  const inRest = target.parent!.kind === SyntaxKind.SpreadAssignment;
+  if (
+    checkReferenceExpression(
+      c,
+      target,
+      inRest
+        ? Diagnostics.The_target_of_an_object_rest_assignment_must_be_a_variable_or_a_property_access
+        : Diagnostics.The_left_hand_side_of_an_assignment_expression_must_be_a_variable_or_a_property_access,
+      inRest
+        ? Diagnostics.The_target_of_an_object_rest_assignment_may_not_be_an_optional_property_access
+        : Diagnostics.The_left_hand_side_of_an_assignment_expression_may_not_be_an_optional_property_access,
+    )
+  )
+    checkTypeAssignableToAndOptionallyElaborate(c, sourceType, targetType, target, target);
+  return sourceType;
+}
+
+/** Whether a destructuring element has a default value. */
+export function hasDefaultValue(node: Node): boolean {
+  switch (node.kind) {
+    case SyntaxKind.BindingElement:
+      return (node as BindingElement).initializer !== undefined;
+    case SyntaxKind.PropertyAssignment:
+      return hasDefaultValue((node as PropertyAssignment).initializer);
+    case SyntaxKind.ShorthandPropertyAssignment:
+      return (node as ShorthandPropertyAssignment).objectAssignmentInitializer !== undefined;
+    case SyntaxKind.BinaryExpression:
+      return (node as BinaryExpression).operatorToken.kind === SyntaxKind.EqualsToken;
+  }
+  return false;
+}
+
+// ---- Rest types
+
+/** The type of an object rest element: `source` without the named properties. */
+export function getRestType(c: Checker, sourceIn: Type, properties: readonly Node[], symbol: Symbol | undefined): Type {
+  const source = filterType(c, sourceIn, (t) => (t.flags & TypeFlags.Nullable) === 0);
+  if ((source.flags & TypeFlags.Never) !== 0) return c.emptyObjectType;
+  if ((source.flags & TypeFlags.Union) !== 0) return mapType(c, source, (t) => getRestType(c, t, properties, symbol));
+  const omitKeys: Type[] = [];
+  for (const p of properties) omitKeys.push(getLiteralTypeFromPropertyName(c, p) ?? c.errorType);
+  let omitKeyType = getUnionType(c, omitKeys);
+  const spreadable: Symbol[] = [];
+  const unspreadableKeys: Type[] = [];
+  for (const prop of getPropertiesOfType(c, source)) {
+    const literal = getLiteralTypeFromProperty(c, prop, TypeFlags.StringOrNumberLiteralOrUnique, false);
+    if (
+      !isTypeAssignableTo(c, literal, omitKeyType) &&
+      (getDeclarationModifierFlagsFromSymbol(c, prop, false) & (ModifierFlags.Private | ModifierFlags.Protected)) ===
+        0 &&
+      isSpreadableProperty(prop)
+    )
+      spreadable.push(prop);
+    else unspreadableKeys.push(literal);
+  }
+  if (isGenericObjectType(c, source) || isGenericIndexType(c, omitKeyType)) {
+    // Members a rest element never receives, like methods, are omitted explicitly as well.
+    if (unspreadableKeys.length !== 0) omitKeyType = getUnionType(c, [omitKeyType, ...unspreadableKeys]);
+    if ((omitKeyType.flags & TypeFlags.Never) !== 0) return source;
+    const omit = getGlobalTypeAliasSymbol(c, 'Omit', 2, true);
+    if (omit === undefined) return c.errorType;
+    return getTypeAliasInstantiation(c, omit, [source, omitKeyType], undefined);
+  }
+  const members = new Map<string, Symbol>();
+  for (const prop of spreadable) members.set(prop.name, getSpreadSymbol(c, prop, false));
+  const result = createAnonymousType(c, symbol, members, [], [], getIndexInfosOfType(c, source));
+  result.objectFlags |= ObjectFlags.ObjectRestType;
+  return result;
+}
+
+/** Approximates own properties: non-methods, plus methods declared outside classes. */
+export function isSpreadableProperty(prop: Symbol): boolean {
+  const notMethodOrAccessor =
+    (prop.flags & (SymbolFlags.Method | SymbolFlags.GetAccessor | SymbolFlags.SetAccessor)) === 0;
+  let hasPrivateName = false;
+  let inClass = false;
+  for (const d of prop.declarations) {
+    if (isPrivateIdentifierClassElementDeclaration(d)) hasPrivateName = true;
+    if (d.parent !== undefined && isClassLike(d.parent)) inClass = true;
+  }
+  return (!hasPrivateName && notMethodOrAccessor) || !inClass;
+}
+
+/** `prop` as a member of a spread or rest type, with the given readonlyness. */
+export function getSpreadSymbol(c: Checker, prop: Symbol, readonly: boolean): Symbol {
+  const isSetonlyAccessor =
+    (prop.flags & SymbolFlags.SetAccessor) !== 0 && (prop.flags & SymbolFlags.GetAccessor) === 0;
+  if (!isSetonlyAccessor && readonly === isReadonlySymbol(c, prop)) return prop;
+  const result = c.newSymbolWithCheckFlags(
+    SymbolFlags.Property | (prop.flags & SymbolFlags.Optional),
+    prop.name,
+    (prop.checkFlags & CheckFlags.Late) | (readonly ? CheckFlags.Readonly : 0),
+  );
+  const links = c.symbolLinks(result);
+  links.type = isSetonlyAccessor ? c.undefinedType : getTypeOfSymbol(c, prop);
+  result.declarations = prop.declarations;
+  links.nameType = c.symbolLinks(prop).nameType;
+  links.syntheticOrigin = prop;
+  return result;
+}
+
+/** Whether a type may be spread into an object or destructured by an object rest element. */
+export function isValidSpreadType(c: Checker, t: Type): boolean {
+  const s = removeDefinitelyFalsyTypes(
+    c,
+    mapType(c, t, (u) => getBaseConstraintOrType(c, u)),
+  );
+  if (
+    (s.flags & (TypeFlags.Any | TypeFlags.NonPrimitive | TypeFlags.Object | TypeFlags.InstantiableNonPrimitive)) !==
+    0
+  )
+    return true;
+  if ((s.flags & TypeFlags.UnionOrIntersection) === 0) return false;
+  for (const u of typesOf(s)) if (!isValidSpreadType(c, u)) return false;
+  return true;
 }

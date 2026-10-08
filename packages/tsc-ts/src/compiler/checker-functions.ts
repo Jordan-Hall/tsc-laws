@@ -49,7 +49,7 @@ import {
   isContextSensitiveFunctionOrObjectLiteralMethod,
 } from './checker-contextual.js';
 import { checkNodeDeferred, checkSourceElement, checkTypeNodeIfPresent } from './checker-source-file.js';
-import { checkVariableLikeDeclaration } from './checker-declarations.js';
+import { checkTypeParameters, checkVariableLikeDeclaration } from './checker-declarations.js';
 import { getFunctionFlags, FunctionFlags } from './checker-utilities.js';
 import { CheckMode } from './checker-types.js';
 
@@ -68,7 +68,7 @@ export function getTypeOfObjectLiteralMethod(c: Checker, node: Node, checkMode: 
 /** Checks a function-like declaration's parameters, return type annotation and body. */
 export function checkFunctionLikeBody(c: Checker, node: Node): void {
   const typeParameters = getTypeParameters(node);
-  if (typeParameters !== undefined) for (const tp of typeParameters.nodes) checkSourceElement(c, tp);
+  checkTypeParameters(c, typeParameters);
   const params = getParameters(node);
   if (params !== undefined) for (const p of params.nodes) checkVariableLikeDeclaration(c, p);
   const returnTypeNode = getType(node);

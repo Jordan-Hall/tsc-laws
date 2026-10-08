@@ -19,7 +19,9 @@
 // | checker-calls.ts                | call resolution                                         |
 // | checker-statements.ts           | statements                                              |
 // | checker-declarations.ts         | variable, function and type declarations                |
+// | checker-overloads.ts            | overloads and implementations                           |
 // | checker-classes.ts              | classes and interfaces                                  |
+// | checker-heritage.ts             | base types, overrides, index constraints, duplicates    |
 // | checker-jsx.ts                  | JSX                                                     |
 // | checker-grammar.ts              | grammar checks                                          |
 // | checker-flow.ts                 | control flow narrowing                                  |
@@ -32,7 +34,13 @@ import {
   compareDiagnostics,
   createCompilerDiagnostic,
 } from './diagnostics.js';
-import { type CompilerOptions, ScriptTarget, getEmitScriptTarget, getStrictOptionValue } from './options.js';
+import {
+  type CompilerOptions,
+  ModuleKind,
+  ScriptTarget,
+  getEmitScriptTarget,
+  getStrictOptionValue,
+} from './options.js';
 import { CheckFlags, Symbol, SymbolFlags, type SymbolTable, getSymbolId } from './symbol.js';
 import {
   IndexInfo,
@@ -77,6 +85,7 @@ import { Relation, RelationKey, TypeComparer } from './relations.js';
 import { TypeNodeVisitor, checkSourceFile } from './checker-source-file.js';
 import { AssignmentMarker, type FlowLoopInfo } from './checker-narrowing.js';
 import type { FlowNode } from './flow.js';
+import type { SourceFileMetadata } from './program-utilities.js';
 
 /** What the checker needs from a program. */
 export abstract class CheckerHost {
@@ -86,6 +95,14 @@ export abstract class CheckerHost {
   abstract isSourceFileDefaultLibrary(file: SourceFile): boolean;
   /** The source file of a resolved module specifier, if any. */
   abstract getSourceFileForModuleName(file: SourceFile, moduleName: string): SourceFile | undefined;
+  /** The format `file` is emitted in when it differs from `module`, else `None`. */
+  getImpliedNodeFormatForEmit(_file: SourceFile): ModuleKind {
+    return ModuleKind.None;
+  }
+  /** The `package.json` scope and implied module format of a file, if known. */
+  getSourceFileMetadata(_file: SourceFile): SourceFileMetadata | undefined {
+    return undefined;
+  }
 }
 
 /** Per-file and global diagnostics, sorted on read like tsgo's DiagnosticsCollection. */

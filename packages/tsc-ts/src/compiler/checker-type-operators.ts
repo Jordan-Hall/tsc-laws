@@ -95,6 +95,7 @@ import {
   getApplicableIndexInfo,
   getDeclarationModifierFlagsFromSymbol,
   getIndexInfoOfType,
+  getPropertyOfObjectType,
   getIndexInfosOfType,
   getPropertiesOfType,
   getPropertyOfType,
@@ -109,6 +110,7 @@ import {
   popTypeResolution,
   pushTypeResolution,
   TypeSystemPropertyName,
+  getParentOfSymbol,
 } from './checker-symbols.js';
 import {
   getConstraintOfTypeParameter,
@@ -135,7 +137,17 @@ import {
   isTypeParameterPossiblyReferenced,
 } from './instantiation.js';
 import { isTypeAssignableTo, isTypeSubtypeOf } from './relations.js';
-import { typeToString } from './type-printer.js';
+import { symbolToString, typeToString } from './type-printer.js';
+import { getSourceFileOfNode, isAssignmentTarget, isEntityNameExpression } from './binder-utilities.js';
+import { getTextOfNodeFromSourceText } from './ast-utilities.js';
+import { getMinArgumentCount, getSingleCallSignature, getTypeAtPosition } from './checker-signatures.js';
+import { getAssignmentTargetKind } from './checker-narrowing.js';
+import {
+  getSuggestedSymbolForNonexistentProperty,
+  isAssignmentToReadonlyEntity,
+  isDeleteTarget,
+  typeHasStaticProperty,
+} from './checker-property-access.js';
 import { checkComputedPropertyName, checkExpression } from './checker-expressions.js';
 import {
   getPropertyNameFromType,
@@ -143,6 +155,7 @@ import {
   isTypeUsableAsPropertyName,
   isValidIndexKeyType,
   maybeTypeOfKind,
+  isLateBoundName,
 } from './checker-utilities.js';
 import { inferTypesForConditional } from './checker-inference.js';
 
@@ -634,6 +647,8 @@ function getPropertyTypeForIndexType(
   accessNode: Node | undefined,
   accessFlags: AccessFlags,
 ): Type | undefined {
+  const accessExpression =
+    accessNode !== undefined && accessNode.kind === SyntaxKind.ElementAccessExpression ? accessNode : undefined;
   const propName =
     accessNode !== undefined && accessNode.kind === SyntaxKind.PrivateIdentifier
       ? undefined
@@ -641,8 +656,17 @@ function getPropertyTypeForIndexType(
   if (propName !== undefined) {
     const prop = getPropertyOfType(c, objectType, propName);
     if (prop !== undefined) {
-      if (accessNode !== undefined && (accessFlags & AccessFlags.CacheSymbol) !== 0)
-        c.nodeLinks(accessNode).resolvedSymbol = prop;
+      if (accessExpression !== undefined) {
+        if (isAssignmentToReadonlyEntity(c, accessExpression, prop, getAssignmentTargetKind(accessExpression))) {
+          c.error(
+            (accessExpression as ElementAccessExpression).argumentExpression,
+            Diagnostics.Cannot_assign_to_0_because_it_is_a_read_only_property,
+            isLateBoundName(prop.name) ? symbolToString(c, prop) : prop.name,
+          );
+          return undefined;
+        }
+        if ((accessFlags & AccessFlags.CacheSymbol) !== 0) c.nodeLinks(accessExpression).resolvedSymbol = prop;
+      }
       const propType =
         (accessFlags & AccessFlags.Writing) !== 0 ? getWriteTypeOfSymbol(c, prop) : getTypeOfSymbol(c, prop);
       if (accessNode !== undefined && accessNode.kind === SyntaxKind.IndexedAccessType && containsMissing(c, propType))
@@ -672,13 +696,15 @@ function getPropertyTypeForIndexType(
         } else
           c.error(indexNode, Diagnostics.Property_0_does_not_exist_on_type_1, propName, typeToString(c, objectType));
       }
-      if (index >= 0)
+      if (index >= 0) {
+        errorIfWritingToReadonlyIndex(c, getIndexInfoOfType(c, objectType, c.numberType), objectType, accessExpression);
         return getTupleElementTypeOutOfStartCount(
           c,
           objectType,
           index,
           (accessFlags & AccessFlags.IncludeUndefined) !== 0 ? c.missingType : undefined,
         );
+      }
     }
   }
   if (
@@ -690,15 +716,55 @@ function getPropertyTypeForIndexType(
     const indexInfo =
       getApplicableIndexInfo(c, objectType, indexType) ?? getIndexInfoOfType(c, objectType, c.stringType);
     if (indexInfo !== undefined) {
-      if ((accessFlags & AccessFlags.NoIndexSignatures) !== 0 && indexInfo.keyType !== c.numberType) return undefined;
-      if ((accessFlags & AccessFlags.IncludeUndefined) !== 0)
+      if ((accessFlags & AccessFlags.NoIndexSignatures) !== 0 && indexInfo.keyType !== c.numberType) {
+        if (accessExpression !== undefined) {
+          if ((accessFlags & AccessFlags.Writing) !== 0)
+            c.error(
+              accessExpression,
+              Diagnostics.Type_0_is_generic_and_can_only_be_indexed_for_reading,
+              typeToString(c, originalObjectType),
+            );
+          else
+            c.error(
+              accessExpression,
+              Diagnostics.Type_0_cannot_be_used_to_index_type_1,
+              typeToString(c, indexType),
+              typeToString(c, originalObjectType),
+            );
+        }
+        return undefined;
+      }
+      if (
+        accessNode !== undefined &&
+        indexInfo.keyType === c.stringType &&
+        !isTypeAssignableToKind(c, indexType, TypeFlags.String | TypeFlags.Number)
+      ) {
+        c.error(
+          getIndexNodeForAccessExpression(accessNode),
+          Diagnostics.Type_0_cannot_be_used_as_an_index_type,
+          typeToString(c, indexType),
+        );
+        return (accessFlags & AccessFlags.IncludeUndefined) !== 0
+          ? getUnionType(c, [indexInfo.valueType, c.missingType])
+          : indexInfo.valueType;
+      }
+      errorIfWritingToReadonlyIndex(c, indexInfo, objectType, accessExpression);
+      // An enum object indexed with its own members, as in `E[E.A]`, can't be out of bounds.
+      if (
+        (accessFlags & AccessFlags.IncludeUndefined) !== 0 &&
+        !(
+          objectType.symbol !== undefined &&
+          (objectType.symbol.flags & (SymbolFlags.RegularEnum | SymbolFlags.ConstEnum)) !== 0 &&
+          indexType.symbol !== undefined &&
+          (indexType.flags & TypeFlags.EnumLiteral) !== 0 &&
+          getParentOfSymbol(c, indexType.symbol) === objectType.symbol
+        )
+      )
         return getUnionType(c, [indexInfo.valueType, c.missingType]);
       return indexInfo.valueType;
     }
     if ((indexType.flags & TypeFlags.Never) !== 0) return c.neverType;
     if ((objectType.objectFlags & ObjectFlags.JSLiteral) !== 0) return c.anyType;
-    const accessExpression =
-      accessNode !== undefined && accessNode.kind === SyntaxKind.ElementAccessExpression ? accessNode : undefined;
     if (accessExpression !== undefined && !isConstEnumObjectType(objectType)) {
       if (isObjectLiteralType(objectType)) {
         if (c.noImplicitAny && (indexType.flags & (TypeFlags.StringLiteral | TypeFlags.NumberLiteral)) !== 0) {
@@ -716,17 +782,71 @@ function getPropertyTypeForIndexType(
           return getUnionType(c, types);
         }
       }
-      if (c.noImplicitAny && (accessFlags & AccessFlags.SuppressNoImplicitAnyError) === 0) {
+      const globalSymbol =
+        objectType.symbol === c.globalThisSymbol && propName !== undefined
+          ? c.globalThisSymbol.exports?.get(propName)
+          : undefined;
+      if (globalSymbol !== undefined && (globalSymbol.flags & SymbolFlags.BlockScoped) !== 0)
+        c.error(
+          accessExpression,
+          Diagnostics.Property_0_does_not_exist_on_type_1,
+          propName!,
+          typeToString(c, objectType),
+        );
+      else if (c.noImplicitAny && (accessFlags & AccessFlags.SuppressNoImplicitAnyError) === 0) {
         const argument = (accessExpression as ElementAccessExpression).argumentExpression;
         const objectText = typeToString(c, objectType);
-        if (getIndexTypeOfType(c, objectType, c.numberType) !== undefined)
+        const suggestion =
+          propName !== undefined ? getSuggestedSymbolForNonexistentProperty(c, propName, objectType) : undefined;
+        if (propName !== undefined && typeHasStaticProperty(c, propName, objectType))
+          c.error(
+            accessExpression,
+            Diagnostics.Property_0_does_not_exist_on_type_1_Did_you_mean_to_access_the_static_member_2_instead,
+            propName,
+            objectText,
+            objectText + '[' + getTextOfNodeFromSourceText(getSourceFileOfNode(argument).text, argument) + ']',
+          );
+        else if (getIndexTypeOfType(c, objectType, c.numberType) !== undefined)
           c.error(
             argument,
             Diagnostics.Element_implicitly_has_an_any_type_because_index_expression_is_not_of_type_number,
           );
+        else if (suggestion !== undefined)
+          c.error(
+            argument,
+            Diagnostics.Property_0_does_not_exist_on_type_1_Did_you_mean_2,
+            propName!,
+            objectText,
+            suggestion.name,
+          );
         else {
+          const methodSuggestion = getSuggestionForNonexistentIndexSignature(
+            c,
+            objectType,
+            accessExpression,
+            indexType,
+          );
+          if (methodSuggestion !== '') {
+            c.error(
+              accessExpression,
+              Diagnostics.Element_implicitly_has_an_any_type_because_type_0_has_no_index_signature_Did_you_mean_to_call_1,
+              objectText,
+              methodSuggestion,
+            );
+            return undefined;
+          }
           let head: Diagnostic | undefined = undefined;
-          if ((indexType.flags & (TypeFlags.StringLiteral | TypeFlags.NumberLiteral)) !== 0)
+          if ((indexType.flags & TypeFlags.EnumLiteral) !== 0)
+            head = createDiagnosticForNode(accessExpression, Diagnostics.Property_0_does_not_exist_on_type_1, [
+              '[' + typeToString(c, indexType) + ']',
+              objectText,
+            ]);
+          else if ((indexType.flags & TypeFlags.UniqueESSymbol) !== 0)
+            head = createDiagnosticForNode(accessExpression, Diagnostics.Property_0_does_not_exist_on_type_1, [
+              '[' + symbolToString(c, indexType.symbol!) + ']',
+              objectText,
+            ]);
+          else if ((indexType.flags & (TypeFlags.StringLiteral | TypeFlags.NumberLiteral)) !== 0)
             head = createDiagnosticForNode(accessExpression, Diagnostics.Property_0_does_not_exist_on_type_1, [
               getPropertyNameFromType(indexType),
               objectText,
@@ -779,6 +899,40 @@ function getPropertyTypeForIndexType(
   }
   if ((indexType.flags & TypeFlags.Any) !== 0) return indexType;
   return undefined;
+}
+
+function errorIfWritingToReadonlyIndex(
+  c: Checker,
+  indexInfo: IndexInfo | undefined,
+  objectType: Type,
+  accessExpression: Node | undefined,
+): void {
+  if (
+    indexInfo !== undefined &&
+    indexInfo.isReadonly &&
+    accessExpression !== undefined &&
+    (isAssignmentTarget(accessExpression) || isDeleteTarget(accessExpression))
+  )
+    c.error(accessExpression, Diagnostics.Index_signature_in_type_0_only_permits_reading, typeToString(c, objectType));
+}
+
+/** `obj.get` or `obj.set` for keyed access to a type with such methods instead of an index signature. */
+function getSuggestionForNonexistentIndexSignature(c: Checker, objectType: Type, expr: Node, keyedType: Type): string {
+  const suggestedMethod = isAssignmentTarget(expr) ? 'set' : 'get';
+  const prop = getPropertyOfObjectType(c, objectType, suggestedMethod);
+  if (prop === undefined) return '';
+  const signature = getSingleCallSignature(c, getTypeOfSymbol(c, prop));
+  if (
+    signature === undefined ||
+    getMinArgumentCount(c, signature) < 1 ||
+    !isTypeAssignableTo(c, keyedType, getTypeAtPosition(c, signature, 0))
+  )
+    return '';
+  const target = getExpression(expr)!;
+  if (target.kind === SyntaxKind.Identifier) return getText(target) + '.' + suggestedMethod;
+  if (target.kind === SyntaxKind.PropertyAccessExpression && isEntityNameExpression(target, false))
+    return getTextOfNodeFromSourceText(getSourceFileOfNode(target).text, target) + '.' + suggestedMethod;
+  return suggestedMethod;
 }
 
 function isObjectLiteralType(t: Type): boolean {

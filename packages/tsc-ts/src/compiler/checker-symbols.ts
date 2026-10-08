@@ -25,6 +25,7 @@ import {
 import { isAmbientModule, isGlobalScopeAugmentation, nodeIsMissing } from './ast-utilities.js';
 import { codePoints, levenshteinWithMax } from './spelling.js';
 import { setValueDeclaration } from './binder.js';
+import { checkResolvedBlockScopedVariable } from './checker-declaration-order.js';
 import {
   declarationNameToString,
   getNameOfDeclaration,
@@ -92,6 +93,23 @@ export class CheckerNameResolver extends NameResolver {
 
   onFailedToResolveSymbol(location: Node, name: string, meaning: SymbolFlags, message: DiagnosticMessage): void {
     onFailedToResolveSymbol(this.checker, location, name, meaning, message);
+  }
+
+  onSuccessfullyResolvedSymbol(
+    location: Node,
+    result: Symbol,
+    meaning: SymbolFlags,
+    _lastLocation: Node | undefined,
+    _associatedDeclarationForContainingInitializerOrBindingName: Node | undefined,
+    _withinDeferredContext: boolean,
+  ): void {
+    // Only names in value positions check block-scoped declaration order: a symbol may be both a
+    // block-scoped variable and a namespace, as in `const foo: foo.bar`.
+    if (
+      (meaning & SymbolFlags.BlockScopedVariable) !== 0 ||
+      ((meaning & (SymbolFlags.Class | SymbolFlags.Enum)) !== 0 && (meaning & SymbolFlags.Value) === SymbolFlags.Value)
+    )
+      checkResolvedBlockScopedVariable(this.checker, result, location);
   }
 }
 

@@ -1,8 +1,10 @@
-// Constant evaluation of enum member initializers.
+// Constant evaluation of enum member initializers and template expressions.
 import {
   type Node,
   getExpression,
+  getInitializer,
   getText,
+  getType,
   getSymbol,
   type BinaryExpression,
   type TemplateExpression,
@@ -17,6 +19,8 @@ import type { Checker } from './checker.js';
 import { computeEnumMemberValues } from './checker-declared-types.js';
 import { getGlobalSymbol, resolveEntityName } from './checker-symbols.js';
 import { symbolToString } from './type-printer.js';
+import { isConstantVariable } from './checker-narrowing.js';
+import { isBlockScopedNameDeclaredBeforeUse } from './checker-declaration-order.js';
 
 export const enum EvaluatedKind {
   None = 0,
@@ -54,7 +58,8 @@ export function evaluateEnumMember(c: Checker, expr: Node, member: Node): Evalua
   return evaluate(c, expr, member);
 }
 
-function evaluate(c: Checker, expr: Node, location: Node): EvaluatorResult {
+/** The constant value of `expr`, evaluated at `location`. */
+export function evaluate(c: Checker, expr: Node, location: Node): EvaluatorResult {
   switch (expr.kind) {
     case SyntaxKind.PrefixUnaryExpression: {
       const operand = evaluate(c, (expr as PrefixUnaryExpression).operand, location);
@@ -147,6 +152,18 @@ function evaluate(c: Checker, expr: Node, location: Node): EvaluatorResult {
       }
       if ((symbol.flags & SymbolFlags.EnumMember) !== 0)
         return evaluateEnumMemberReference(c, expr, symbol.valueDeclaration, location);
+      // Constants without annotations evaluate to their initializers, when declared before the use.
+      const declaration = symbol.valueDeclaration;
+      if (
+        isConstantVariable(c, symbol) &&
+        declaration !== undefined &&
+        declaration.kind === SyntaxKind.VariableDeclaration &&
+        getType(declaration) === undefined &&
+        getInitializer(declaration) !== undefined &&
+        declaration !== location &&
+        isBlockScopedNameDeclaredBeforeUse(c, declaration, location)
+      )
+        return evaluate(c, getInitializer(declaration)!, declaration);
       return none();
     }
     case SyntaxKind.ElementAccessExpression: {

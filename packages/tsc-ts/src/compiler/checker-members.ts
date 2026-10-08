@@ -293,7 +293,7 @@ export function instantiateSymbolTable(
   return result;
 }
 
-function isNamedMember(c: Checker, symbol: Symbol, id: string): boolean {
+export function isNamedMember(c: Checker, symbol: Symbol, id: string): boolean {
   if (id.length >= 2 && id.charCodeAt(0) === 0xfffe) {
     const second = id.charCodeAt(1);
     if (second !== 0x40 && second !== 0x23) return false;

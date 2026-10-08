@@ -1,12 +1,15 @@
 // Classes and interfaces.
 import {
+  type ConstructorDeclaration,
+  ElementAccessExpression,
   type HeritageClause,
   type InterfaceDeclaration,
+  KeywordExpression,
   ModifierFlags,
   type Node,
   NodeFlags,
   NodeVisitor,
-  type PropertyAccessExpression,
+  PropertyAccessExpression,
   type PropertyDeclaration,
   getBody,
   getName,
@@ -17,31 +20,52 @@ import {
   getMembers,
   getText,
   getTypeParameters,
+  getInitializer,
+  getParameters,
 } from './ast.js';
 import {
   declarationNameToString,
   findConstructorDeclaration,
+  getDeclarationOfKind,
+  getModifierFlags,
   getSourceFileOfNode,
   hasSyntacticModifier,
+  isClassLike,
+  isPrivateIdentifierClassElementDeclaration,
   isStatic,
 } from './binder-utilities.js';
-import { Diagnostics } from './diagnostics.js';
+import { isFunctionLike, nodeIsMissing, nodeIsPresent } from './ast-utilities.js';
+import { ScriptTarget, getEmitScriptTarget, getUseDefineForClassFields } from './options.js';
+import { hasDynamicName, hasLateBindableName } from './checker-utilities.js';
+import { type DiagnosticMessage, Diagnostics } from './diagnostics.js';
 import { SyntaxKind } from './syntax-kind.js';
 import type { Checker } from './checker.js';
-import { type InterfaceType, type Type, TypeFlags } from './checker-types.js';
+import { type InterfaceType, NodeCheckFlags, type Type, TypeFlags } from './checker-types.js';
 import { typesOf } from './checker-type-factory.js';
-import { getBaseConstructorTypeOfClass, getBaseTypes, getDeclaredTypeOfSymbol } from './checker-declared-types.js';
+import {
+  getBaseConstructorTypeOfClass,
+  getBaseTypes,
+  getDeclaredTypeOfSymbol,
+  getExtendsHeritageClauseElement,
+} from './checker-declared-types.js';
 import { getSymbolOfDeclaration } from './checker-symbols.js';
-import { getTypeOfSymbol } from './checker-symbol-types.js';
+import { getOptionalType, getTypeOfSymbol } from './checker-symbol-types.js';
+import { getFlowTypeOfReference } from './checker-narrowing.js';
 import { getIndexInfosOfType } from './checker-members.js';
 import { checkSourceElement, checkTypeNodeIfPresent, checkNodeDeferred } from './checker-source-file.js';
 import {
   checkVariableLikeDeclaration,
-  checkTypeParameter,
+  checkTypeParameters,
   checkExportsOnMergedDeclarations,
 } from './checker-declarations.js';
 import { checkFunctionLikeBody } from './checker-functions.js';
 import { checkExpression } from './checker-expressions.js';
+import { checkFunctionOrConstructorSymbol, checkFunctionOrMethodSymbols } from './checker-overloads.js';
+import {
+  checkClassHeritage,
+  checkClassOrInterfaceForDuplicateIndexSignatures,
+  checkInterfaceHeritage,
+} from './checker-heritage.js';
 
 export function checkClassDeclaration(c: Checker, node: Node): void {
   checkClassLikeDeclaration(c, node);
@@ -60,7 +84,7 @@ export function checkClassLikeDeferred(c: Checker, node: Node): void {
 function checkClassLikeDeclaration(c: Checker, node: Node): void {
   if (node.kind === SyntaxKind.ClassDeclaration) checkExportsOnMergedDeclarations(c, node);
   const typeParameters = getTypeParameters(node);
-  if (typeParameters !== undefined) for (const tp of typeParameters.nodes) checkTypeParameter(c, tp);
+  checkTypeParameters(c, typeParameters);
   const symbol = getSymbolOfDeclaration(c, node);
   if (symbol !== undefined) {
     const t = getDeclaredTypeOfSymbol(c, symbol) as InterfaceType;
@@ -70,10 +94,31 @@ function checkClassLikeDeclaration(c: Checker, node: Node): void {
       getBaseTypes(c, t);
     }
   }
+  const name = getName(node);
+  if (name !== undefined) checkTypeNameIsReserved(c, name, Diagnostics.Class_name_cannot_be_0);
   const heritageClauses = getHeritageClauses(node);
   if (heritageClauses !== undefined) checkHeritageClauses(c, heritageClauses.nodes, true);
+  checkClassHeritage(c, node);
   for (const member of getMembers(node)!.nodes) checkClassMember(c, member);
   checkPropertyInitialization(c, node);
+}
+
+/** Reports a class, interface, enum or type alias named after a predefined type. */
+export function checkTypeNameIsReserved(c: Checker, name: Node, message: DiagnosticMessage): void {
+  switch (getText(name)) {
+    case 'any':
+    case 'unknown':
+    case 'never':
+    case 'number':
+    case 'bigint':
+    case 'boolean':
+    case 'string':
+    case 'symbol':
+    case 'void':
+    case 'object':
+    case 'undefined':
+      c.error(name, message, getText(name));
+  }
 }
 
 function checkHeritageClauses(c: Checker, clauses: Node[], isClass: boolean): void {
@@ -90,6 +135,12 @@ function checkClassMember(c: Checker, member: Node): void {
   switch (member.kind) {
     case SyntaxKind.PropertyDeclaration:
       checkVariableLikeDeclaration(c, member);
+      if (hasSyntacticModifier(member, ModifierFlags.Abstract) && getInitializer(member) !== undefined)
+        c.error(
+          member,
+          Diagnostics.Property_0_cannot_have_an_initializer_because_it_is_marked_abstract,
+          declarationNameToString(getSourceFileOfNode(member), getName(member)),
+        );
       return;
     case SyntaxKind.MethodDeclaration:
     case SyntaxKind.Constructor:
@@ -100,6 +151,18 @@ function checkClassMember(c: Checker, member: Node): void {
       const symbol = getSymbolOfDeclaration(c, member);
       if (symbol !== undefined && member.kind !== SyntaxKind.Constructor) getTypeOfSymbol(c, symbol);
       checkFunctionLikeBody(c, member);
+      if (member.kind === SyntaxKind.MethodDeclaration) {
+        checkFunctionOrMethodSymbols(c, member);
+        if (hasSyntacticModifier(member, ModifierFlags.Abstract) && getBody(member) !== undefined)
+          c.error(
+            member,
+            Diagnostics.Method_0_cannot_have_an_implementation_because_it_is_marked_abstract,
+            declarationNameToString(getSourceFileOfNode(member), name),
+          );
+      } else if (member.kind === SyntaxKind.Constructor) {
+        if (symbol !== undefined) checkFunctionOrConstructorSymbol(c, symbol);
+        checkConstructorSuperCall(c, member);
+      } else checkAccessorDeclaration(c, member);
       return;
     }
     case SyntaxKind.IndexSignature:
@@ -111,6 +174,164 @@ function checkClassMember(c: Checker, member: Node): void {
       return;
     }
   }
+}
+
+/** Accessor checks beyond the body: returns, `constructor` names and getter/setter agreement. */
+export function checkAccessorDeclaration(c: Checker, node: Node): void {
+  const name = getName(node)!;
+  if (name.kind === SyntaxKind.Identifier && getText(name) === 'constructor' && isClassLike(node.parent!))
+    c.error(name, Diagnostics.Class_constructor_may_not_be_an_accessor);
+  if (
+    node.kind === SyntaxKind.GetAccessor &&
+    (node.flags & NodeFlags.Ambient) === 0 &&
+    nodeIsPresent(getBody(node)) &&
+    (node.flags & NodeFlags.HasImplicitReturn) !== 0 &&
+    (node.flags & NodeFlags.HasExplicitReturn) === 0
+  )
+    c.error(name, Diagnostics.A_get_accessor_must_return_a_value);
+  if (hasDynamicName(node) && !hasLateBindableName(c, node)) return;
+  // Accessors of one member must agree on accessibility and abstractness; checked once, at the getter.
+  const symbol = getSymbolOfDeclaration(c, node);
+  if (symbol === undefined) return;
+  const getter = getDeclarationOfKind(symbol, SyntaxKind.GetAccessor);
+  const setter = getDeclarationOfKind(symbol, SyntaxKind.SetAccessor);
+  if (getter === undefined || setter === undefined) return;
+  const links = c.nodeLinks(getter);
+  if ((links.flags & NodeCheckFlags.TypeChecked) !== 0) return;
+  links.flags |= NodeCheckFlags.TypeChecked;
+  const getterFlags = getModifierFlags(getter);
+  const setterFlags = getModifierFlags(setter);
+  if ((getterFlags & ModifierFlags.Abstract) !== (setterFlags & ModifierFlags.Abstract)) {
+    c.error(getName(getter), Diagnostics.Accessors_must_both_be_abstract_or_non_abstract);
+    c.error(getName(setter), Diagnostics.Accessors_must_both_be_abstract_or_non_abstract);
+  }
+  if (
+    ((getterFlags & ModifierFlags.Protected) !== 0 &&
+      (setterFlags & (ModifierFlags.Protected | ModifierFlags.Private)) === 0) ||
+    ((getterFlags & ModifierFlags.Private) !== 0 && (setterFlags & ModifierFlags.Private) === 0)
+  ) {
+    c.error(getName(getter), Diagnostics.A_get_accessor_must_be_at_least_as_accessible_as_the_setter);
+    c.error(getName(setter), Diagnostics.A_get_accessor_must_be_at_least_as_accessible_as_the_setter);
+  }
+}
+
+/** Derived class constructors must call `super`, at the root when properties are initialized. */
+function checkConstructorSuperCall(c: Checker, node: Node): void {
+  const body = getBody(node);
+  if (nodeIsMissing(body)) return;
+  const classDecl = node.parent!;
+  if (getExtendsHeritageClauseElement(classDecl) === undefined) return;
+  const classSymbol = getSymbolOfDeclaration(c, classDecl);
+  const classType = classSymbol !== undefined ? getDeclaredTypeOfSymbol(c, classSymbol) : undefined;
+  const classExtendsNull =
+    classType !== undefined &&
+    (classType.flags & TypeFlags.Object) !== 0 &&
+    getBaseConstructorTypeOfClass(c, classType as InterfaceType) === c.nullWideningType;
+  const finder = new SuperCallFinder();
+  body!.forEachChild(finder);
+  const superCall = finder.superCall;
+  if (superCall === undefined) {
+    if (!classExtendsNull) c.error(node, Diagnostics.Constructors_for_derived_classes_must_contain_a_super_call);
+    return;
+  }
+  if (classExtendsNull)
+    c.error(superCall, Diagnostics.A_constructor_cannot_contain_a_super_call_when_its_class_extends_null);
+  const emitStandardClassFields =
+    getUseDefineForClassFields(c.compilerOptions) && getEmitScriptTarget(c.compilerOptions) >= ScriptTarget.ES2022;
+  if (emitStandardClassFields) return;
+  // Until there's better flow analysis, the super call must be a root statement when properties are initialized.
+  const needsRootLevelSuperCall =
+    getMembers(classDecl)!.nodes.some(isInstancePropertyWithInitializerOrPrivateIdentifierProperty) ||
+    getParameters(node)!.nodes.some((p) => hasSyntacticModifier(p, ModifierFlags.ParameterPropertyModifier));
+  if (!needsRootLevelSuperCall) return;
+  let parent = superCall.parent!;
+  while (parent.kind === SyntaxKind.ParenthesizedExpression) parent = parent.parent!;
+  if (parent.kind !== SyntaxKind.ExpressionStatement || parent.parent !== body) {
+    c.error(
+      superCall,
+      Diagnostics.A_super_call_must_be_a_root_level_statement_within_a_constructor_of_a_derived_class_that_contains_initialized_properties_parameter_properties_or_private_identifiers,
+    );
+    return;
+  }
+  for (const statement of getStatements(body!)!.nodes) {
+    if (
+      statement.kind === SyntaxKind.ExpressionStatement &&
+      isSuperCall(skipOuterExpressions(getExpression(statement)!))
+    )
+      return;
+    if (nodeImmediatelyReferencesSuperOrThis(statement)) break;
+  }
+  c.error(
+    node,
+    Diagnostics.A_super_call_must_be_the_first_statement_in_the_constructor_to_refer_to_super_or_this_when_a_derived_class_contains_initialized_properties_parameter_properties_or_private_identifiers,
+  );
+}
+
+function isSuperCall(node: Node): boolean {
+  return node.kind === SyntaxKind.CallExpression && getExpression(node)!.kind === SyntaxKind.SuperKeyword;
+}
+
+function skipOuterExpressions(node: Node): Node {
+  let n = node;
+  while (
+    n.kind === SyntaxKind.ParenthesizedExpression ||
+    n.kind === SyntaxKind.AsExpression ||
+    n.kind === SyntaxKind.SatisfiesExpression ||
+    n.kind === SyntaxKind.TypeAssertionExpression ||
+    n.kind === SyntaxKind.NonNullExpression
+  )
+    n = getExpression(n)!;
+  return n;
+}
+
+function isInstancePropertyWithInitializerOrPrivateIdentifierProperty(n: Node): boolean {
+  return (
+    isPrivateIdentifierClassElementDeclaration(n) ||
+    (n.kind === SyntaxKind.PropertyDeclaration && !isStatic(n) && getInitializer(n) !== undefined)
+  );
+}
+
+/** Finds the first `super(...)` call outside nested functions. */
+class SuperCallFinder extends NodeVisitor {
+  superCall: Node | undefined = undefined;
+
+  visitNode(node: Node): boolean {
+    if (isSuperCall(node)) {
+      this.superCall = node;
+      return true;
+    }
+    if (isFunctionLike(node)) return false;
+    return node.forEachChild(this);
+  }
+}
+
+/** Finds `super` or `this` outside nested functions, properties and member bodies. */
+class SuperOrThisReferenceFinder extends NodeVisitor {
+  visitNode(node: Node): boolean {
+    switch (node.kind) {
+      case SyntaxKind.SuperKeyword:
+      case SyntaxKind.ThisKeyword:
+        return true;
+      case SyntaxKind.ArrowFunction:
+      case SyntaxKind.FunctionDeclaration:
+      case SyntaxKind.FunctionExpression:
+      case SyntaxKind.PropertyDeclaration:
+        return false;
+      case SyntaxKind.Block:
+        switch (node.parent!.kind) {
+          case SyntaxKind.Constructor:
+          case SyntaxKind.MethodDeclaration:
+          case SyntaxKind.GetAccessor:
+          case SyntaxKind.SetAccessor:
+            return false;
+        }
+    }
+    return node.forEachChild(this);
+  }
+}
+
+function nodeImmediatelyReferencesSuperOrThis(node: Node): boolean {
+  return new SuperOrThisReferenceFinder().visitNode(node);
 }
 
 function checkSignatureDeclarationTypes(c: Checker, node: Node): void {
@@ -142,13 +363,8 @@ function checkPropertyInitialization(c: Checker, node: Node): void {
     const symbol = getSymbolOfDeclaration(c, member);
     if (symbol === undefined) continue;
     const t = getTypeOfSymbol(c, symbol);
-    if ((t.flags & TypeFlags.AnyOrUnknown) !== 0 || containsUndefinedType(c, t)) continue;
-    if (
-      constructor !== undefined &&
-      (propName.kind === SyntaxKind.ComputedPropertyName ||
-        isAssignedInConstructor(constructor, getTextOfMemberName(propName)))
-    )
-      continue;
+    if ((t.flags & TypeFlags.AnyOrUnknown) !== 0 || containsUndefinedType(t)) continue;
+    if (constructor !== undefined && isPropertyInitializedInConstructor(c, propName, t, constructor)) continue;
     c.error(
       propName,
       Diagnostics.Property_0_has_no_initializer_and_is_not_definitely_assigned_in_the_constructor,
@@ -157,77 +373,54 @@ function checkPropertyInitialization(c: Checker, node: Node): void {
   }
 }
 
-function containsUndefinedType(c: Checker, t: Type): boolean {
-  if ((t.flags & TypeFlags.Union) !== 0) {
-    for (const u of typesOf(t)) if ((u.flags & (TypeFlags.Undefined | TypeFlags.Void)) !== 0) return true;
-    return false;
+/** Whether `this.name` is definitely assigned at the end of the constructor, by control flow. */
+export function isPropertyInitializedInConstructor(
+  c: Checker,
+  propName: Node,
+  propType: Type,
+  constructor: Node,
+): boolean {
+  const thisExpression = new KeywordExpression(SyntaxKind.ThisKeyword);
+  const returnFlowNode = (constructor as ConstructorDeclaration).returnFlowNode;
+  let reference: Node;
+  if (propName.kind === SyntaxKind.ComputedPropertyName) {
+    const access = new ElementAccessExpression(thisExpression, undefined, getExpression(propName)!, NodeFlags.None);
+    access.flowNode = returnFlowNode;
+    reference = access;
+  } else {
+    const access = new PropertyAccessExpression(thisExpression, undefined, propName, NodeFlags.None);
+    access.flowNode = returnFlowNode;
+    reference = access;
   }
-  return (t.flags & (TypeFlags.Undefined | TypeFlags.Void)) !== 0;
+  thisExpression.parent = reference;
+  reference.parent = constructor;
+  const flowType = getFlowTypeOfReference(c, reference, propType, getOptionalType(c, propType, false), undefined);
+  return !containsUndefinedType(flowType);
 }
 
-function getTextOfMemberName(name: Node): string {
-  return getText(name);
-}
-
-/** Whether the constructor assigns `this.name` anywhere (an approximation of definite assignment). */
-function isAssignedInConstructor(constructor: Node, name: string): boolean {
-  const body = getBody(constructor);
-  if (body === undefined) return true;
-  const finder = new ThisAssignmentFinder(name);
-  body.forEachChild(finder);
-  return finder.found;
-}
-
-class ThisAssignmentFinder extends NodeVisitor {
-  readonly name: string;
-  found = false;
-
-  constructor(name: string) {
-    super();
-    this.name = name;
-  }
-
-  visitNode(node: Node): boolean {
-    if (node.kind === SyntaxKind.PropertyAccessExpression) {
-      const access = node as PropertyAccessExpression;
-      if (
-        access.expression.kind === SyntaxKind.ThisKeyword &&
-        access.name.kind === SyntaxKind.Identifier &&
-        getText(access.name) === this.name
-      ) {
-        this.found = true;
-        return true;
-      }
-    }
-    // Any call through `this` may initialize it.
-    if (node.kind === SyntaxKind.CallExpression) {
-      const callee = getExpression(node)!;
-      if (
-        callee.kind === SyntaxKind.PropertyAccessExpression &&
-        (callee as PropertyAccessExpression).expression.kind === SyntaxKind.ThisKeyword
-      ) {
-        this.found = true;
-        return true;
-      }
-    }
-    return node.forEachChild(this);
-  }
+function containsUndefinedType(t: Type): boolean {
+  const first = (t.flags & TypeFlags.Union) !== 0 ? typesOf(t)[0] : t;
+  return (first.flags & TypeFlags.Undefined) !== 0;
 }
 
 // ---- Interfaces
 
 export function checkInterfaceDeclaration(c: Checker, node: Node): void {
   const decl = node as InterfaceDeclaration;
+  checkTypeParameters(c, decl.typeParameters);
+  checkTypeNameIsReserved(c, decl.name, Diagnostics.Interface_name_cannot_be_0);
   checkExportsOnMergedDeclarations(c, node);
-  if (decl.typeParameters !== undefined) for (const tp of decl.typeParameters.nodes) checkTypeParameter(c, tp);
   const symbol = getSymbolOfDeclaration(c, node);
   if (symbol !== undefined) {
     const t = getDeclaredTypeOfSymbol(c, symbol);
     getBaseTypes(c, t);
     getIndexInfosOfType(c, t);
   }
+  checkInterfaceHeritage(c, node);
   if (decl.heritageClauses !== undefined) checkHeritageClauses(c, decl.heritageClauses.nodes, false);
   for (const member of decl.members.nodes) {
-    checkTypeNodeIfPresent(c, member);
+    if (member.kind === SyntaxKind.PropertySignature) checkVariableLikeDeclaration(c, member);
+    else checkTypeNodeIfPresent(c, member);
   }
+  checkClassOrInterfaceForDuplicateIndexSignatures(c, node);
 }

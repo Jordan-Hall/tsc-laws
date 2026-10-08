@@ -13,6 +13,7 @@ import {
   getDotDotDotToken,
   getElements,
   getExpression,
+  getPostfixToken,
   getQuestionToken,
   getText,
 } from './ast.js';
@@ -248,8 +249,12 @@ export function getWidenedTypeForVariableLikeDeclaration(c: Checker, declaration
   );
 }
 
+/** Whether a parameter, property or method is declared with `?`. */
 export function isOptionalDeclaration(node: Node): boolean {
-  return getQuestionToken(node) !== undefined;
+  if (getQuestionToken(node) !== undefined) return true;
+  // Properties and methods mark optionality with a `?` postfix token.
+  const postfix = getPostfixToken(node);
+  return postfix !== undefined && postfix.kind === SyntaxKind.QuestionToken;
 }
 
 function isEmptyArrayLiteral(node: Node): boolean {

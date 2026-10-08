@@ -30,6 +30,8 @@ import {
   type Type,
   TypeFlags,
   type UnionType,
+  CheckMode,
+  type EvolvingArrayType,
   InterfaceType,
   NodeCheckFlags,
   ObjectFlags,
@@ -68,6 +70,8 @@ import {
   removeType,
   someType,
   typesOf,
+  createArrayType,
+  newObjectType,
 } from './checker-type-factory.js';
 import {
   areTypesComparable,
@@ -79,7 +83,9 @@ import {
   isTypeSubsetOf,
   isTypeSubtypeOf,
 } from './relations.js';
-import { checkExpressionCached, getResolvedSymbol } from './checker-expressions.js';
+import { checkExpressionCached, checkExpressionEx, getResolvedSymbol } from './checker-expressions.js';
+import { isTypeAssignableToKindEx } from './checker-type-operators.js';
+import { getRegularTypeOfObjectLiteral } from './checker-literals.js';
 import { checkRightHandSideOfForOf } from './checker-statements.js';
 import {
   getApparentType,
@@ -92,6 +98,8 @@ import {
 } from './checker-members.js';
 import {
   getAssignmentTarget,
+  isAssignmentTarget,
+  isPushOrUnshiftIdentifier,
   getCombinedModifierFlags,
   getCombinedNodeFlags,
   getImmediatelyInvokedFunctionExpression,
@@ -179,7 +187,12 @@ export function getFlowTypeOfReference(
   c.sharedFlowNodes.length = f.sharedFlowStart;
   c.sharedFlowTypes.length = f.sharedFlowStart;
   c.sharedFlowIncomplete.length = f.sharedFlowStart;
-  const resultType = evolvedType === c.autoArrayType ? c.anyArrayType : evolvedType;
+  // `x` in `x.length`, `x.push(v)`, `x.unshift(v)` or `x[n] = v` stays `any[]` so empty arrays may be
+  // operated on and new element types inferred without implicit any or mismatch errors.
+  const resultType =
+    (evolvedType.objectFlags & ObjectFlags.EvolvingArray) !== 0 && isEvolvingArrayOperationTarget(c, reference)
+      ? c.autoArrayType
+      : finalizeEvolvingArrayType(c, evolvedType);
   if (
     resultType === c.unreachableNeverType ||
     (reference.parent !== undefined &&
@@ -316,7 +329,7 @@ function getTypeAtFlowAssignment(c: Checker, f: FlowState, flow: FlowNode): Type
       return newFlowType(c, f, getBaseTypeOfLiteralType(c, flowType), f.incomplete);
     }
     if (f.declaredType === c.autoType || f.declaredType === c.autoArrayType) {
-      if (isEmptyArrayAssignment(node)) return complete(f, c.autoArrayType);
+      if (isEmptyArrayAssignment(node)) return complete(f, getEvolvingArrayType(c, c.neverType));
       const assignedType = getWidenedLiteralType(c, getInitialOrAssignedType(c, flow));
       return complete(f, isTypeAssignableTo(c, assignedType, f.declaredType) ? assignedType : c.anyArrayType);
     }
@@ -339,7 +352,7 @@ function getTypeAtFlowAssignment(c: Checker, f: FlowState, flow: FlowNode): Type
       optionalChainContainsReference(c, statementExpression, f.reference)
     ) {
       const antecedentType = getTypeAtFlowNode(c, f, flow.antecedent!);
-      return complete(f, getNonNullableType(c, convertAutoToAny(c, antecedentType)));
+      return complete(f, getNonNullableType(c, finalizeEvolvingArrayType(c, antecedentType)));
     }
   }
   return undefined;
@@ -440,7 +453,7 @@ function getTypeAtFlowCall(c: Checker, f: FlowState, flow: FlowNode): Type | und
   ) {
     const flowType = getTypeAtFlowNode(c, f, flow.antecedent!);
     const incomplete = f.incomplete;
-    const t = convertAutoToAny(c, flowType);
+    const t = finalizeEvolvingArrayType(c, flowType);
     let narrowedType = t;
     const args = getArguments(call)!.nodes;
     if (predicate.type !== undefined) narrowedType = narrowTypeByTypePredicate(c, f, t, predicate, call, true);
@@ -576,7 +589,7 @@ function getTypeAtFlowCondition(c: Checker, f: FlowState, flow: FlowNode): Type 
   const incomplete = f.incomplete;
   if ((flowType.flags & TypeFlags.Never) !== 0) return newFlowType(c, f, flowType, incomplete);
   const assumeTrue = (flow.flags & FlowFlags.TrueCondition) !== 0;
-  const nonEvolvingType = convertAutoToAny(c, flowType);
+  const nonEvolvingType = finalizeEvolvingArrayType(c, flowType);
   const narrowedType = narrowType(c, f, nonEvolvingType, flow.node!, assumeTrue);
   if (narrowedType === nonEvolvingType) {
     f.incomplete = incomplete;
@@ -629,8 +642,20 @@ function getTypeAtFlowBranchLabel(c: Checker, f: FlowState, antecedents: FlowNod
   );
 }
 
+/**
+ * The union of the types at a junction: an evolving array when every path has one, otherwise the
+ * union with evolving arrays finalized.
+ */
 function getUnionOfFlowTypes(c: Checker, f: FlowState, types: Type[], reduction: UnionReduction): Type {
-  const finalized = types.map((t) => convertAutoToAny(c, t));
+  if (isEvolvingArrayTypeList(types))
+    return getEvolvingArrayType(
+      c,
+      getUnionType(
+        c,
+        types.map((t) => getElementTypeOfEvolvingArrayType(c, t)),
+      ),
+    );
+  const finalized = types.map((t) => finalizeEvolvingArrayType(c, t));
   const result = recombineUnknownType(c, getUnionTypeEx(c, finalized, reduction, undefined, undefined));
   const declared = f.declaredType;
   if (result !== declared && (result.flags & declared.flags & TypeFlags.Union) !== 0) {
@@ -2125,8 +2150,132 @@ function getTypeAtFlowArrayMutation(c: Checker, f: FlowState, flow: FlowNode): T
       ? getExpression(getExpression(node)!)!
       : getExpression((node as BinaryExpression).left)!;
   if (!isMatchingReference(c, f.reference, getReferenceCandidate(expr))) return undefined;
-  // Evolving element types aren't tracked; the walk continues through the mutation.
-  return getTypeAtFlowNode(c, f, flow.antecedent!);
+  const flowType = getTypeAtFlowNode(c, f, flow.antecedent!);
+  if ((flowType.objectFlags & ObjectFlags.EvolvingArray) === 0) return flowType;
+  const incomplete = f.incomplete;
+  let evolvedType = flowType;
+  if (node.kind === SyntaxKind.CallExpression) {
+    for (const arg of getArguments(node)!.nodes) evolvedType = addEvolvingArrayElementType(c, evolvedType, arg);
+  } else {
+    // The context-free type avoids rechecking the left side without caching, which blows up.
+    const binary = node as BinaryExpression;
+    const indexType = getContextFreeTypeOfExpression(c, (binary.left as ElementAccessExpression).argumentExpression);
+    if (isTypeAssignableToKindEx(c, indexType, TypeFlags.NumberLike, false))
+      evolvedType = addEvolvingArrayElementType(c, evolvedType, binary.right);
+  }
+  return newFlowType(c, f, evolvedType, incomplete);
+}
+
+// ---- Evolving arrays
+
+/** The evolving array type of `let x = []` with the element types added so far. */
+export function getEvolvingArrayType(c: Checker, elementType: Type): Type {
+  const key = 'evolvingArray' + elementType.id;
+  const cached = c.cachedTypes.get(key);
+  if (cached !== undefined) return cached;
+  const evolving = newObjectType(c, ObjectFlags.EvolvingArray, undefined) as EvolvingArrayType;
+  evolving.elementType = elementType;
+  c.cachedTypes.set(key, evolving);
+  return evolving;
+}
+
+function getElementTypeOfEvolvingArrayType(c: Checker, t: Type): Type {
+  return (t.objectFlags & ObjectFlags.EvolvingArray) !== 0 ? (t as EvolvingArrayType).elementType! : c.neverType;
+}
+
+function isEvolvingArrayTypeList(types: readonly Type[]): boolean {
+  let hasEvolvingArrayType = false;
+  for (const t of types) {
+    if ((t.flags & TypeFlags.Never) !== 0) continue;
+    if ((t.objectFlags & ObjectFlags.EvolvingArray) === 0) return false;
+    hasEvolvingArrayType = true;
+  }
+  return hasEvolvingArrayType;
+}
+
+/**
+ * Whether `node` is `x` in `x.length`, `x.push(v)`, `x.unshift(v)` or `x[n] = v` with a numeric,
+ * undefined or any `n`.
+ */
+export function isEvolvingArrayOperationTarget(c: Checker, node: Node): boolean {
+  const root = getReferenceRoot(node);
+  const parent = root.parent!;
+  if (parent.kind === SyntaxKind.PropertyAccessExpression) {
+    const name = (parent as PropertyAccessExpression).name;
+    return (
+      getText(name) === 'length' ||
+      (parent.parent!.kind === SyntaxKind.CallExpression &&
+        name.kind === SyntaxKind.Identifier &&
+        isPushOrUnshiftIdentifier(name))
+    );
+  }
+  if (parent.kind !== SyntaxKind.ElementAccessExpression || getExpression(parent) !== root) return false;
+  const grandparent = parent.parent!;
+  return (
+    grandparent.kind === SyntaxKind.BinaryExpression &&
+    (grandparent as BinaryExpression).operatorToken.kind === SyntaxKind.EqualsToken &&
+    (grandparent as BinaryExpression).left === parent &&
+    !isAssignmentTarget(grandparent) &&
+    isTypeAssignableToKindEx(
+      c,
+      checkExpressionCached(c, (parent as ElementAccessExpression).argumentExpression),
+      TypeFlags.NumberLike,
+      false,
+    )
+  );
+}
+
+function getReferenceRoot(node: Node): Node {
+  const parent = node.parent!;
+  if (parent.kind === SyntaxKind.ParenthesizedExpression) return getReferenceRoot(parent);
+  if (parent.kind === SyntaxKind.BinaryExpression) {
+    const binary = parent as BinaryExpression;
+    if (
+      (binary.operatorToken.kind === SyntaxKind.EqualsToken && binary.left === node) ||
+      (binary.operatorToken.kind === SyntaxKind.CommaToken && binary.right === node)
+    )
+      return getReferenceRoot(parent);
+  }
+  return node;
+}
+
+/** Adds the type of `node` to an evolving array; subtype reduction waits until it's finalized. */
+function addEvolvingArrayElementType(c: Checker, evolvingArrayType: Type, node: Node): Type {
+  const newElementType = getRegularTypeOfObjectLiteral(
+    c,
+    getBaseTypeOfLiteralType(c, getContextFreeTypeOfExpression(c, node)),
+  );
+  const elementType = (evolvingArrayType as EvolvingArrayType).elementType!;
+  if (isTypeSubsetOf(c, newElementType, elementType)) return evolvingArrayType;
+  return getEvolvingArrayType(c, getUnionType(c, [elementType, newElementType]));
+}
+
+/** The array type an evolving array settles on; `any[]` while it has no elements. */
+export function finalizeEvolvingArrayType(c: Checker, t: Type): Type {
+  if ((t.objectFlags & ObjectFlags.EvolvingArray) === 0) return t;
+  const evolving = t as EvolvingArrayType;
+  if (evolving.finalArrayType !== undefined) return evolving.finalArrayType;
+  const elementType = evolving.elementType!;
+  const finalArrayType =
+    (elementType.flags & TypeFlags.Never) !== 0
+      ? c.autoArrayType
+      : createArrayType(
+          c,
+          (elementType.flags & TypeFlags.Union) !== 0
+            ? getUnionTypeEx(c, (elementType as UnionType).types, UnionReduction.Subtype, undefined, undefined)
+            : elementType,
+        );
+  evolving.finalArrayType = finalArrayType;
+  return finalArrayType;
+}
+
+/** The type of an expression checked without contextual types, computed once. */
+function getContextFreeTypeOfExpression(c: Checker, node: Node): Type {
+  const links = c.nodeLinks(node);
+  if (links.contextFreeType !== undefined) return links.contextFreeType;
+  const t = checkExpressionEx(c, node, CheckMode.SkipContextSensitive);
+  links.contextFreeType = t;
+  return t;
 }
 
 function reportFlowControlError(c: Checker, node: Node): void {

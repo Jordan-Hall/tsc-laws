@@ -10,15 +10,14 @@ import {
   type PrefixUnaryExpression,
   type PostfixUnaryExpression,
   type PropertyAccessExpression,
-  type PropertyAssignment,
   type QualifiedName,
   type SpreadElement,
   type TemplateExpression,
+  type TemplateSpan,
   type TypeReferenceNode,
   getExpression,
   getInitializer,
   getName,
-  getSymbol,
   getText,
   SourceFile,
   ModifierFlags,
@@ -28,13 +27,10 @@ import {
   ForInOrOfStatement,
   VariableDeclarationList,
   TypeQueryNode,
-  getProperties,
+  getTagName,
   getType,
 } from './ast.js';
 import {
-  declarationNameToString,
-  getAssignmentTarget,
-  getSourceFileOfNode,
   getThisContainer,
   isEntityNameExpression,
   isStatic,
@@ -47,26 +43,24 @@ import {
   isObjectLiteralOrClassExpressionMethodOrAccessor,
   isPartOfTypeQuery,
   isOptionalChain,
+  isAssignmentTarget,
 } from './binder-utilities.js';
-import { type DiagnosticMessage, Diagnostics } from './diagnostics.js';
-import { getSpellingSuggestion } from './spelling.js';
-import { CheckFlags, type Symbol, SymbolFlags } from './symbol.js';
+import { Diagnostics } from './diagnostics.js';
+import { type Symbol, SymbolFlags } from './symbol.js';
 import { SyntaxKind } from './syntax-kind.js';
-import { type Checker, createDiagnosticForNode } from './checker.js';
+import { type Checker } from './checker.js';
 import {
   AccessFlags,
   CheckMode,
-  type IndexInfo,
-  type LiteralType,
   ObjectFlags,
   type Type,
   TypeFlags,
   UnionType,
   TypeParameter,
+  type MappedType,
+  type TypeReference,
 } from './checker-types.js';
 import {
-  createAnonymousType,
-  createArrayType,
   createTupleTypeEx,
   getBigIntLiteralType,
   getFreshTypeOfLiteralType,
@@ -78,22 +72,29 @@ import {
   getWidenedLiteralType,
   isErrorType,
   isTupleType,
-  newIndexInfo,
   someType,
   typesOf,
   UnionReduction,
-  getPropagatingFlagsOfTypes,
   getBaseTypeOfLiteralType,
+  cloneTypeReference,
+  createArrayTypeEx,
+  everyType,
+  getTemplateLiteralType,
+  isMutableArrayOrTuple,
+  mapType,
 } from './checker-type-factory.js';
 import { ElementFlags, TupleElementInfo } from './checker-types.js';
 import {
   getApparentType,
   getApplicableIndexInfoForName,
   getBaseConstraintOfType,
-  getPropertiesOfType,
   getPropertyOfType,
   getIndexInfoOfType,
   getIndexInfosOfType,
+  getIndexTypeOfType,
+  getTypeOfPropertyOfType,
+  isArrayLikeType,
+  getBaseConstraintOrType,
 } from './checker-members.js';
 import {
   getExportSymbolOfValueSymbolIfExported,
@@ -109,6 +110,7 @@ import {
   isReadonlySymbol,
   getOptionalType,
   removeMissingType,
+  addOptionality,
 } from './checker-symbol-types.js';
 import { getDeclaredTypeOfClassOrInterface } from './checker-declared-types.js';
 import { getTypeFromTypeNode } from './checker-type-nodes.js';
@@ -116,13 +118,21 @@ import {
   getIndexedAccessTypeEx,
   isGenericObjectType,
   getIndexedAccessTypeOrUndefinedEx,
+  getHomomorphicTypeVariable,
+  isGenericIndexType,
+  isGenericMappedType,
+  isGenericType,
 } from './checker-type-operators.js';
-import { TypeFacts, getTypeFacts, getTypeWithFacts, getNonNullableType } from './checker-flow.js';
+import { TypeFacts, getTypeFacts, getNonNullableType } from './checker-flow.js';
 import { checkTypeAssignableTo, checkTypeComparableTo, isTypeAssignableTo, isTypeComparableTo } from './relations.js';
 import { isTypeAssignableToKindEx as isTypeAssignableToKind } from './checker-type-operators.js';
 import { typeToString, symbolToString } from './type-printer.js';
 import { isTypeUsableAsPropertyName, getPropertyNameFromType, maybeTypeOfKind } from './checker-utilities.js';
-import { getContextualType, getContextualSignatureForFunctionLikeDeclaration } from './checker-contextual.js';
+import {
+  getApparentTypeOfContextualType,
+  getContextualType,
+  getContextualSignatureForFunctionLikeDeclaration,
+} from './checker-contextual.js';
 import {
   checkCallExpression,
   checkNewExpression,
@@ -130,19 +140,29 @@ import {
   getOptionalExpressionType,
   propagateOptionalTypeMarker,
 } from './checker-calls.js';
-import {
-  checkFunctionExpressionOrObjectLiteralMethod,
-  checkAwaitExpression,
-  getTypeOfObjectLiteralMethod,
-} from './checker-functions.js';
+import { checkFunctionExpressionOrObjectLiteralMethod, checkAwaitExpression } from './checker-functions.js';
 import { checkClassExpression } from './checker-classes.js';
+import { checkObjectLiteral } from './checker-object-literals.js';
+import { EvaluatedKind, evaluate } from './checker-evaluator.js';
+import {
+  checkPrivateIdentifierExpression,
+  checkPropertyAccessExpressionOrQualifiedName,
+} from './checker-property-access.js';
+import {
+  checkBinaryExpression,
+  checkConditionalExpression,
+  checkDeleteExpression,
+  checkPostfixUnaryExpression,
+  checkPrefixUnaryExpression,
+} from './checker-operators.js';
 import { checkJsxExpression } from './checker-jsx.js';
 import { getRegularTypeOfObjectLiteral } from './checker-literals.js';
 import { getSignatureFromDeclaration, getThisTypeOfSignature } from './checker-signatures.js';
-import { isAssignmentOperator, isFunctionLike } from './ast-utilities.js';
+import { isFunctionLike } from './ast-utilities.js';
 import {
   AssignmentKind,
   convertAutoToAny,
+  isEvolvingArrayOperationTarget,
   getAssignmentTargetKind,
   getControlFlowContainer,
   isConstantVariable,
@@ -246,7 +266,7 @@ function checkExpressionWorker(c: Checker, node: Node, checkMode: CheckMode): Ty
     case SyntaxKind.Identifier:
       return checkIdentifier(c, node as Identifier);
     case SyntaxKind.PrivateIdentifier:
-      return c.errorType;
+      return checkPrivateIdentifierExpression(c, node);
     case SyntaxKind.ThisKeyword:
       return checkThisExpression(c, node);
     case SyntaxKind.SuperKeyword:
@@ -306,8 +326,7 @@ function checkExpressionWorker(c: Checker, node: Node, checkMode: CheckMode): Ty
     case SyntaxKind.MetaProperty:
       return c.anyType;
     case SyntaxKind.DeleteExpression:
-      checkExpression(c, getExpression(node)!);
-      return c.booleanType;
+      return checkDeleteExpression(c, node);
     case SyntaxKind.VoidExpression:
       checkExpression(c, getExpression(node)!);
       return c.undefinedWideningType;
@@ -343,7 +362,7 @@ function checkExpressionWorker(c: Checker, node: Node, checkMode: CheckMode): Ty
   return c.errorType;
 }
 
-function parseBigIntText(text: string): string {
+export function parseBigIntText(text: string): string {
   let digits = text.endsWith('n') ? text.substring(0, text.length - 1) : text;
   digits = digits.split('_').join('');
   if (digits.length > 2 && digits.charCodeAt(0) === 0x30) {
@@ -364,7 +383,7 @@ export function checkIdentifier(c: Checker, node: Identifier): Type {
   const localOrExportSymbol = getExportSymbolOfValueSymbolIfExported(c, symbol);
   let declaration = localOrExportSymbol.valueDeclaration;
   const immediateDeclaration = declaration;
-  let t = getTypeOfSymbol(c, localOrExportSymbol);
+  let t = getNarrowableTypeForReference(c, getTypeOfSymbol(c, localOrExportSymbol), node);
   const assignmentKind = getAssignmentTargetKind(node);
   if (assignmentKind !== AssignmentKind.None) {
     if ((localOrExportSymbol.flags & SymbolFlags.Variable) === 0) {
@@ -442,7 +461,7 @@ export function checkIdentifier(c: Checker, node: Identifier): Type {
   else initialType = getOptionalType(c, t, false);
   let flowType = getFlowTypeOfReference(c, node, t, initialType, flowContainer);
   if (isAutomaticTypeInNonNull) flowType = getNonNullableType(c, flowType);
-  if (typeIsAutomatic) {
+  if (!isEvolvingArrayOperationTarget(c, node) && typeIsAutomatic) {
     if (flowType === c.autoType || flowType === c.autoArrayType) {
       if (c.noImplicitAny) {
         c.error(
@@ -465,6 +484,69 @@ export function checkIdentifier(c: Checker, node: Identifier): Type {
     return t;
   }
   return assignmentKind !== AssignmentKind.None ? getBaseTypeOfLiteralType(c, flowType) : flowType;
+}
+
+/**
+ * A reference's type with union constraints substituted for generic types where only the
+ * constraint matters, so narrowing can apply: in constraint positions like `x.p`, or with a
+ * non-generic contextual type.
+ */
+function getNarrowableTypeForReference(c: Checker, t: Type, reference: Node): Type {
+  const substituteConstraints =
+    someType(t, (u) => isGenericTypeWithUnionConstraint(c, u)) &&
+    (isConstraintPosition(c, t, reference) || hasContextualTypeWithNoGenericTypes(c, reference));
+  return substituteConstraints ? mapType(c, t, (u) => getBaseConstraintOrType(c, u)) : t;
+}
+
+function isConstraintPosition(c: Checker, t: Type, node: Node): boolean {
+  const parent = node.parent!;
+  // `obj[x]` keeps `T[K]` when both are generic and obj's constraint isn't nullable.
+  return (
+    parent.kind === SyntaxKind.PropertyAccessExpression ||
+    parent.kind === SyntaxKind.QualifiedName ||
+    ((parent.kind === SyntaxKind.CallExpression || parent.kind === SyntaxKind.NewExpression) &&
+      getExpression(parent) === node) ||
+    (parent.kind === SyntaxKind.ElementAccessExpression &&
+      getExpression(parent) === node &&
+      !(
+        someType(t, (u) => isGenericTypeWithoutNullableConstraint(c, u)) &&
+        isGenericIndexType(c, checkExpressionCached(c, (parent as ElementAccessExpression).argumentExpression))
+      ))
+  );
+}
+
+function isGenericTypeWithUnionConstraint(c: Checker, t: Type): boolean {
+  if ((t.flags & TypeFlags.Intersection) !== 0) return typesOf(t).some((u) => isGenericTypeWithUnionConstraint(c, u));
+  return (
+    (t.flags & TypeFlags.Instantiable) !== 0 &&
+    (getBaseConstraintOrType(c, t).flags & (TypeFlags.Nullable | TypeFlags.Union)) !== 0
+  );
+}
+
+function isGenericTypeWithoutNullableConstraint(c: Checker, t: Type): boolean {
+  if ((t.flags & TypeFlags.Intersection) !== 0)
+    return typesOf(t).some((u) => isGenericTypeWithoutNullableConstraint(c, u));
+  return (
+    (t.flags & TypeFlags.Instantiable) !== 0 && !maybeTypeOfKind(getBaseConstraintOrType(c, t), TypeFlags.Nullable)
+  );
+}
+
+function hasContextualTypeWithNoGenericTypes(c: Checker, node: Node): boolean {
+  // JSX tag names are excluded: their contextual type resolves the tag itself.
+  if (
+    node.kind !== SyntaxKind.Identifier &&
+    node.kind !== SyntaxKind.PropertyAccessExpression &&
+    node.kind !== SyntaxKind.ElementAccessExpression
+  )
+    return false;
+  const parent = node.parent!;
+  if (
+    (parent.kind === SyntaxKind.JsxOpeningElement || parent.kind === SyntaxKind.JsxSelfClosingElement) &&
+    getTagName(parent) === node
+  )
+    return false;
+  const contextualType = getContextualType(c, node);
+  return contextualType !== undefined && !isGenericType(c, contextualType);
 }
 
 function containsUndefinedType(c: Checker, t: Type): boolean {
@@ -526,7 +608,7 @@ function tryGetThisTypeAt(c: Checker, node: Node, container: Node): Type | undef
 }
 
 /** The `this` type of a function expression or method from its context, such as its object literal. */
-function getContextualThisParameterType(c: Checker, func: Node): Type | undefined {
+export function getContextualThisParameterType(c: Checker, func: Node): Type | undefined {
   if (func.kind === SyntaxKind.ArrowFunction) return undefined;
   if (
     func.kind !== SyntaxKind.FunctionExpression &&
@@ -564,8 +646,51 @@ function getContainingObjectLiteral(func: Node): Node | undefined {
 // ---- Literals
 
 function checkTemplateExpression(c: Checker, node: TemplateExpression): Type {
-  for (const span of node.templateSpans.nodes) checkExpression(c, getExpression(span)!);
+  const texts = [getText(node.head)];
+  const types: Type[] = [];
+  for (const span of node.templateSpans.nodes) {
+    const expression = getExpression(span)!;
+    const t = checkExpression(c, expression);
+    if (
+      maybeTypeOfKind(t, TypeFlags.ESSymbolLike) ||
+      maybeTypeOfKind(getBaseConstraintOrType(c, t), TypeFlags.ESSymbolLike)
+    )
+      c.error(
+        expression,
+        Diagnostics.Implicit_conversion_of_a_symbol_to_a_string_will_fail_at_runtime_Consider_wrapping_this_expression_in_String,
+      );
+    texts.push(getText((span as TemplateSpan).literal));
+    types.push(isTypeAssignableTo(c, t, c.templateConstraintType) ? t : c.stringType);
+  }
+  if (node.parent!.kind !== SyntaxKind.TaggedTemplateExpression) {
+    const evaluated = evaluate(c, node, node);
+    if (evaluated.kind === EvaluatedKind.String)
+      return getFreshTypeOfLiteralType(c, getStringLiteralType(c, evaluated.stringValue));
+  }
+  if (
+    isConstContext(node) ||
+    isTemplateLiteralContext(node) ||
+    someType(getContextualType(c, node) ?? c.unknownType, (t) => isTemplateLiteralContextualType(c, t))
+  )
+    return getTemplateLiteralType(c, texts, types);
   return c.stringType;
+}
+
+function isTemplateLiteralContext(node: Node): boolean {
+  const parent = node.parent!;
+  return (
+    (parent.kind === SyntaxKind.ParenthesizedExpression && isTemplateLiteralContext(parent)) ||
+    (parent.kind === SyntaxKind.ElementAccessExpression &&
+      (parent as ElementAccessExpression).argumentExpression === node)
+  );
+}
+
+function isTemplateLiteralContextualType(c: Checker, t: Type): boolean {
+  return (
+    (t.flags & (TypeFlags.StringLiteral | TypeFlags.TemplateLiteral)) !== 0 ||
+    ((t.flags & TypeFlags.InstantiableNonPrimitive) !== 0 &&
+      maybeTypeOfKind(getBaseConstraintOfType(c, t) ?? c.unknownType, TypeFlags.StringLike))
+  );
 }
 
 function checkSpreadExpression(c: Checker, node: SpreadElement, checkMode: CheckMode): Type {
@@ -593,56 +718,99 @@ export function getIteratedTypeOrElementType(c: Checker, t: Type): Type {
 function checkArrayLiteral(c: Checker, node: ArrayLiteralExpression, checkMode: CheckMode): Type {
   const elements = node.elements.nodes;
   const elementTypes: Type[] = [];
-  const elementFlags: ElementFlags[] = [];
+  const elementInfos: TupleElementInfo[] = [];
+  const inDestructuringPattern = isAssignmentTarget(node);
   const inConstContext = isConstContext(node);
-  const contextualType = getContextualType(c, node);
+  const contextualType = getApparentTypeOfContextualType(c, node);
   const inTupleContext =
-    inConstContext || (contextualType !== undefined && someType(contextualType, isTupleLikeContext));
+    isSpreadIntoCallOrNew(node) ||
+    (contextualType !== undefined && someType(contextualType, (t) => isTupleLikeContext(c, t)));
+  let hasOmittedExpression = false;
   for (const e of elements) {
     if (e.kind === SyntaxKind.SpreadElement) {
       const spreadType = checkExpressionEx(c, (e as SpreadElement).expression, checkMode);
-      if (isTupleType(spreadType)) {
+      if (isArrayLikeType(c, spreadType)) {
         elementTypes.push(spreadType);
-        elementFlags.push(ElementFlags.Variadic);
+        elementInfos.push(new TupleElementInfo(ElementFlags.Variadic, undefined));
+      } else if (inDestructuringPattern) {
+        // `[...c] = ...` makes `c` a rest target that only provides a contextual type, so it's not
+        // checked as iterable.
+        const restElementType =
+          getIndexTypeOfType(c, spreadType, c.numberType) ?? getIteratedTypeOrElementType(c, spreadType);
+        elementTypes.push(restElementType);
+        elementInfos.push(new TupleElementInfo(ElementFlags.Rest, undefined));
       } else {
         elementTypes.push(getIteratedTypeOrElementType(c, spreadType));
-        elementFlags.push(ElementFlags.Rest);
+        elementInfos.push(new TupleElementInfo(ElementFlags.Rest, undefined));
       }
-      continue;
+    } else if (c.exactOptionalPropertyTypes && e.kind === SyntaxKind.OmittedExpression) {
+      hasOmittedExpression = true;
+      elementTypes.push(c.undefinedOrMissingType);
+      elementInfos.push(new TupleElementInfo(ElementFlags.Optional, undefined));
+    } else {
+      const t =
+        e.kind === SyntaxKind.OmittedExpression ? c.undefinedWideningType : checkExpressionForMutableLocation(c, e);
+      elementTypes.push(addOptionality(c, t, true, hasOmittedExpression));
+      elementInfos.push(
+        new TupleElementInfo(hasOmittedExpression ? ElementFlags.Optional : ElementFlags.Required, undefined),
+      );
     }
-    const t =
-      e.kind === SyntaxKind.OmittedExpression ? c.undefinedWideningType : checkExpressionForMutableLocation(c, e);
-    elementTypes.push(t);
-    elementFlags.push(ElementFlags.Required);
   }
-  if (inTupleContext)
+  if (inDestructuringPattern) return createTupleTypeEx(c, elementTypes, elementInfos, false);
+  if (inConstContext || inTupleContext)
     return createArrayLiteralType(
       c,
       createTupleTypeEx(
         c,
         elementTypes,
-        elementFlags.map((f) => new TupleElementInfo(f, undefined)),
-        inConstContext,
+        elementInfos,
+        inConstContext &&
+          !(contextualType !== undefined && someType(contextualType, (t) => isMutableArrayLikeType(c, t))),
       ),
     );
-  const types: Type[] = [];
-  for (let i = 0; i < elementTypes.length; i++) {
-    if ((elementFlags[i] & ElementFlags.Variadic) !== 0)
-      types.push(getIndexedAccessTypeEx(c, elementTypes[i], c.numberType, AccessFlags.None, undefined, undefined));
-    else types.push(elementTypes[i]);
-  }
-  const elementType =
-    types.length > 0
-      ? getUnionTypeEx(c, types, UnionReduction.Subtype, undefined, undefined)
-      : c.strictNullChecks
-        ? c.implicitNeverType
-        : c.undefinedWideningType;
-  return createArrayLiteralType(c, createArrayType(c, elementType));
+  let elementType: Type;
+  if (elementTypes.length > 0) {
+    for (let i = 0; i < elementTypes.length; i++)
+      if ((elementInfos[i].flags & ElementFlags.Variadic) !== 0)
+        elementTypes[i] =
+          getIndexedAccessTypeOrUndefinedEx(c, elementTypes[i], c.numberType, AccessFlags.None, undefined, undefined) ??
+          c.anyType;
+    elementType = getUnionTypeEx(c, elementTypes, UnionReduction.Subtype, undefined, undefined);
+  } else elementType = c.strictNullChecks ? c.implicitNeverType : c.undefinedWideningType;
+  return createArrayLiteralType(c, createArrayTypeEx(c, elementType, inConstContext));
 }
 
-function isTupleLikeContext(t: Type): boolean {
-  if ((t.flags & TypeFlags.Intersection) !== 0) return typesOf(t).some(isTupleLikeContext);
-  return isTupleType(t);
+function isSpreadIntoCallOrNew(node: Node): boolean {
+  let parent = node.parent!;
+  while (parent.kind === SyntaxKind.ParenthesizedExpression) parent = parent.parent!;
+  return (
+    parent.kind === SyntaxKind.SpreadElement &&
+    (parent.parent!.kind === SyntaxKind.CallExpression || parent.parent!.kind === SyntaxKind.NewExpression)
+  );
+}
+
+function isTupleLikeContext(c: Checker, t: Type): boolean {
+  if (isTupleLikeType(c, t)) return true;
+  if (!isGenericMappedType(c, t)) return false;
+  const mapped = t as MappedType;
+  if (mapped.nameType !== undefined) return false;
+  const target = mapped.target;
+  return getHomomorphicTypeVariable(c, target !== undefined ? (target as MappedType) : mapped) !== undefined;
+}
+
+export function isTupleLikeType(c: Checker, t: Type): boolean {
+  if (isTupleType(t) || getPropertyOfType(c, t, '0') !== undefined) return true;
+  if (!isArrayLikeType(c, t)) return false;
+  const lengthType = getTypeOfPropertyOfType(c, t, 'length');
+  return lengthType !== undefined && everyType(lengthType, (u) => (u.flags & TypeFlags.NumberLiteral) !== 0);
+}
+
+/** Whether `t` is a mutable array, a mutable tuple, or assignable to `any[]`. */
+export function isMutableArrayLikeType(c: Checker, t: Type): boolean {
+  return (
+    isMutableArrayOrTuple(c, t) ||
+    ((t.flags & (TypeFlags.Any | TypeFlags.Nullable)) === 0 && isTypeAssignableTo(c, t, c.anyArrayType))
+  );
 }
 
 function createArrayLiteralType(c: Checker, t: Type): Type {
@@ -650,8 +818,7 @@ function createArrayLiteralType(c: Checker, t: Type): Type {
   const key = 'arrayLiteral' + t.id;
   let literal = c.cachedTypes.get(key);
   if (literal === undefined) {
-    // Array literal types share the reference but are marked so widening can find them.
-    literal = t;
+    literal = cloneTypeReference(c, t as TypeReference);
     literal.objectFlags |= ObjectFlags.ArrayLiteral | ObjectFlags.ContainsObjectOrArrayLiteral;
     c.cachedTypes.set(key, literal);
   }
@@ -678,98 +845,6 @@ export function getPropertyNameOfObjectLiteralElement(c: Checker, element: Node)
     }
   }
   return undefined;
-}
-
-function checkObjectLiteral(c: Checker, node: Node, checkMode: CheckMode): Type {
-  const inConstContext = isConstContext(node);
-  const members = new Map<string, Symbol>();
-  const propertyTypes: Type[] = [];
-  let objectFlags = ObjectFlags.FreshLiteral;
-  let hasComputedString = false;
-  let hasComputedNumber = false;
-  let hasComputedSymbol = false;
-  let spread: Type | undefined = undefined;
-  const nodeSymbol = getSymbol(node);
-  for (const member of getProperties(node)!.nodes) {
-    let memberSymbol = getSymbol(member);
-    if (
-      member.kind === SyntaxKind.PropertyAssignment ||
-      member.kind === SyntaxKind.ShorthandPropertyAssignment ||
-      member.kind === SyntaxKind.MethodDeclaration
-    ) {
-      let t: Type;
-      if (member.kind === SyntaxKind.PropertyAssignment)
-        t = checkPropertyAssignment(c, member as PropertyAssignment, checkMode);
-      else if (member.kind === SyntaxKind.ShorthandPropertyAssignment) {
-        const name = getName(member)!;
-        t = checkExpressionForMutableLocationOf(c, name, checkIdentifier(c, name as Identifier), member);
-      } else t = getTypeOfObjectLiteralMethod(c, member, checkMode);
-      objectFlags |= t.objectFlags & ObjectFlags.PropagatingFlags;
-      const name = getName(member)!;
-      const computedType =
-        name.kind === SyntaxKind.ComputedPropertyName ? checkComputedPropertyName(c, name) : undefined;
-      if (computedType !== undefined && !isTypeUsableAsPropertyName(computedType)) {
-        if (isTypeAssignableTo(c, computedType, c.stringNumberSymbolType)) {
-          if (isTypeAssignableTo(c, computedType, c.numberType)) hasComputedNumber = true;
-          else if (isTypeAssignableTo(c, computedType, c.esSymbolType)) hasComputedSymbol = true;
-          else hasComputedString = true;
-          propertyTypes.push(t);
-        }
-        continue;
-      }
-      if (memberSymbol === undefined) continue;
-      const prop = c.newSymbolWithCheckFlags(
-        SymbolFlags.Property | (memberSymbol.flags & SymbolFlags.Optional),
-        memberSymbol.name,
-        inConstContext ? CheckFlags.Readonly : 0,
-      );
-      prop.declarations = memberSymbol.declarations;
-      prop.parent = memberSymbol.parent;
-      prop.valueDeclaration = memberSymbol.valueDeclaration;
-      const links = c.symbolLinks(prop);
-      links.type = t;
-      links.target = memberSymbol;
-      if (computedType !== undefined) links.nameType = computedType;
-      members.set(prop.name, prop);
-      propertyTypes.push(t);
-    } else if (member.kind === SyntaxKind.SpreadAssignment) {
-      const spreadType = checkExpression(c, getExpression(member)!);
-      spread = spread === undefined ? spreadType : c.anyType;
-      if ((spreadType.flags & (TypeFlags.Object | TypeFlags.Intersection)) === 0 || isGenericObjectType(c, spreadType))
-        spread = c.anyType;
-      else spread = c.anyType;
-    } else if (member.kind === SyntaxKind.GetAccessor || member.kind === SyntaxKind.SetAccessor) {
-      checkFunctionExpressionOrObjectLiteralMethod(c, member, checkMode);
-      if (memberSymbol === undefined) continue;
-      memberSymbol = getMergedSymbol(c, memberSymbol);
-      if (!members.has(memberSymbol.name)) {
-        members.set(memberSymbol.name, memberSymbol);
-        propertyTypes.push(getTypeOfSymbol(c, memberSymbol));
-      }
-    }
-  }
-  if (spread !== undefined) return spread;
-  const indexInfos: IndexInfo[] = [];
-  if (hasComputedString)
-    indexInfos.push(newIndexInfo(c.stringType, getUnionType(c, propertyTypes), inConstContext, undefined));
-  if (hasComputedNumber)
-    indexInfos.push(newIndexInfo(c.numberType, getUnionType(c, propertyTypes), inConstContext, undefined));
-  if (hasComputedSymbol)
-    indexInfos.push(newIndexInfo(c.esSymbolType, getUnionType(c, propertyTypes), inConstContext, undefined));
-  const result = createAnonymousType(c, nodeSymbol, members, [], [], indexInfos);
-  result.objectFlags |= objectFlags | ObjectFlags.ObjectLiteral | ObjectFlags.ContainsObjectOrArrayLiteral;
-  result.objectFlags |= getPropagatingFlagsOfTypes(propertyTypes, TypeFlags.None) & ObjectFlags.PropagatingFlags;
-  return result;
-}
-
-function checkPropertyAssignment(c: Checker, node: PropertyAssignment, _checkMode: CheckMode): Type {
-  if (node.name.kind === SyntaxKind.ComputedPropertyName) checkComputedPropertyName(c, node.name);
-  return checkExpressionForMutableLocation(c, node.initializer);
-}
-
-function checkExpressionForMutableLocationOf(c: Checker, _expr: Node, t: Type, position: Node): Type {
-  if (isConstContext(position)) return getRegularTypeOfLiteralType(c, t);
-  return getWidenedLiteralLikeTypeForContextualType(c, t, getContextualType(c, position));
 }
 
 /** Whether `node` is in an `as const` context, where literals keep their types. */
@@ -905,7 +980,7 @@ function reportObjectPossiblyNullOrUndefinedError(c: Checker, node: Node, facts:
   }
 }
 
-function entityNameToString(node: Node): string {
+export function entityNameToString(node: Node): string {
   switch (node.kind) {
     case SyntaxKind.Identifier:
       return getText(node);
@@ -925,10 +1000,16 @@ function entityNameToString(node: Node): string {
 
 function checkPropertyAccessExpression(c: Checker, node: PropertyAccessExpression, _checkMode: CheckMode): Type {
   if (!isOptionalChain(node))
-    return checkPropertyAccessWorker(c, node, node.expression, checkNonNullExpression(c, node.expression), node.name);
+    return checkPropertyAccessExpressionOrQualifiedName(
+      c,
+      node,
+      node.expression,
+      checkNonNullExpression(c, node.expression),
+      node.name,
+    );
   const leftType = checkExpression(c, node.expression);
   const nonOptional = getOptionalExpressionType(c, leftType, node.expression);
-  const t = checkPropertyAccessWorker(
+  const t = checkPropertyAccessExpressionOrQualifiedName(
     c,
     node,
     node.expression,
@@ -940,7 +1021,7 @@ function checkPropertyAccessExpression(c: Checker, node: PropertyAccessExpressio
 
 function checkQualifiedName(c: Checker, node: QualifiedName): Type {
   const leftType = checkNonNullExpressionOfEntity(c, node.left);
-  return checkPropertyAccessWorker(c, node, node.left, leftType, node.right);
+  return checkPropertyAccessExpressionOrQualifiedName(c, node, node.left, leftType, node.right);
 }
 
 function checkNonNullExpressionOfEntity(c: Checker, node: Node): Type {
@@ -948,54 +1029,14 @@ function checkNonNullExpressionOfEntity(c: Checker, node: Node): Type {
   return checkNonNullType(c, checkQualifiedName(c, node as QualifiedName), node);
 }
 
-function checkPropertyAccessWorker(c: Checker, node: Node, left: Node, leftType: Type, right: Node): Type {
-  if (isErrorType(c, leftType) || (leftType.flags & TypeFlags.Any) !== 0)
-    return leftType === c.errorType ? c.errorType : c.anyType;
-  if (right.kind === SyntaxKind.PrivateIdentifier) return c.anyType;
-  const assignmentTarget = getAssignmentTarget(node);
-  const apparentType = getApparentType(
-    c,
-    assignmentTarget !== undefined || isMethodAccessForCall(node) ? getWidenedType(c, leftType) : leftType,
-  );
-  if (isErrorType(c, apparentType) || (apparentType.flags & TypeFlags.Any) !== 0) return apparentType;
-  const name = getText(right);
-  const prop = getPropertyOfType(c, apparentType, name);
-  if (prop === undefined) {
-    const indexInfo = getApplicableIndexInfoForName(c, apparentType, name);
-    if (indexInfo !== undefined) {
-      c.nodeLinks(node).resolvedSymbol = undefined;
-      if (indexInfo.isReadonly && assignmentTarget !== undefined)
-        c.error(node, Diagnostics.Index_signature_in_type_0_only_permits_reading, typeToString(c, apparentType));
-      return indexInfo.valueType;
-    }
-    if ((leftType.flags & TypeFlags.Never) !== 0 && left.kind !== SyntaxKind.ThisKeyword) {
-      c.error(right, Diagnostics.Property_0_does_not_exist_on_type_1, name, typeToString(c, leftType));
-      return c.errorType;
-    }
-    if (leftType.symbol === c.globalThisSymbol) return c.anyType;
-    if (isTypeParameterLike(leftType)) return c.anyType;
-    reportNonexistentProperty(c, right, isThisTypeParameterLike(leftType) ? apparentType : leftType);
-    return c.errorType;
-  }
-  if (
-    assignmentTarget !== undefined &&
-    isReadonlySymbol(c, prop) &&
-    !isAssignmentToReadonlyInConstructor(c, node, prop)
-  ) {
-    c.error(right, Diagnostics.Cannot_assign_to_0_because_it_is_a_read_only_property, name);
-    return c.errorType;
-  }
-  return getFlowTypeOfAccessExpression(c, node, prop, getTypeOfSymbol(c, prop), right);
-}
-
-function getFlowTypeOfAccessExpression(
+export function getFlowTypeOfAccessExpression(
   c: Checker,
   node: Node,
   prop: Symbol | undefined,
   propTypeIn: Type,
   errorNode: Node,
 ): Type {
-  const propType = propTypeIn;
+  let propType = propTypeIn;
   const assignmentKind = getAssignmentTargetKind(node);
   if (assignmentKind === AssignmentKind.Definite)
     return removeMissingType(c, propType, prop !== undefined && (prop.flags & SymbolFlags.Optional) !== 0);
@@ -1006,6 +1047,7 @@ function getFlowTypeOfAccessExpression(
   )
     return propType;
   if (propType === c.autoType) return c.anyType;
+  propType = getNarrowableTypeForReference(c, propType, node);
   // `this.x` in the constructor of x's class starts out uninitialized under strictPropertyInitialization.
   let assumeUninitialized = false;
   const expression = getExpression(node);
@@ -1041,78 +1083,6 @@ function isPropertyWithoutInitializer(node: Node): boolean {
     (node as PropertyDeclaration).postfixToken === undefined &&
     getInitializer(node) === undefined
   );
-}
-
-function isTypeParameterLike(t: Type): boolean {
-  return (t.flags & TypeFlags.TypeParameter) !== 0 && (t.flags & TypeFlags.Any) === 0 && false;
-}
-
-function isThisTypeParameterLike(t: Type): boolean {
-  return (t.flags & TypeFlags.TypeParameter) !== 0;
-}
-
-function isAssignmentToReadonlyInConstructor(c: Checker, node: Node, prop: Symbol): boolean {
-  // Readonly properties may be assigned through `this` in their class's constructor.
-  if ((prop.flags & (SymbolFlags.Property | SymbolFlags.Accessor)) === 0) return false;
-  const expr = getExpression(node);
-  if (expr === undefined || expr.kind !== SyntaxKind.ThisKeyword) return false;
-  let container = getThisContainer(node, true, false);
-  while (container.kind === SyntaxKind.ArrowFunction) container = getThisContainer(container, true, false);
-  if (container.kind !== SyntaxKind.Constructor && container.kind !== SyntaxKind.PropertyDeclaration) return false;
-  const decl = prop.valueDeclaration;
-  if (decl === undefined) return false;
-  const declClass = decl.kind === SyntaxKind.Parameter ? decl.parent!.parent : decl.parent;
-  return declClass === container.parent;
-}
-
-function isMethodAccessForCall(node: Node): boolean {
-  let current = node;
-  while (current.parent !== undefined && current.parent.kind === SyntaxKind.ParenthesizedExpression)
-    current = current.parent;
-  return (
-    current.parent !== undefined &&
-    current.parent.kind === SyntaxKind.CallExpression &&
-    getExpression(current.parent) === current
-  );
-}
-
-function reportNonexistentProperty(c: Checker, propNode: Node, containingType: Type): void {
-  const links = c.nodeLinks(propNode);
-  if ((links.flags & 1) !== 0) return;
-  links.flags |= 1;
-  const name = declarationNameToString(getSourceFileOfNode(propNode), propNode);
-  const container = typeToString(c, containingType);
-  const suggestion = getSuggestedSymbolForNonexistentProperty(c, getText(propNode), containingType);
-  if (suggestion !== undefined) {
-    const diagnostic = createDiagnosticForNode(
-      propNode,
-      Diagnostics.Property_0_does_not_exist_on_type_1_Did_you_mean_2,
-      [name, container, suggestion.name],
-    );
-    if (suggestion.valueDeclaration !== undefined)
-      diagnostic.addRelatedInfo(
-        createDiagnosticForNode(suggestion.valueDeclaration, Diagnostics.X_0_is_declared_here, [suggestion.name]),
-      );
-    c.addDiagnostic(diagnostic);
-    return;
-  }
-  c.error(propNode, Diagnostics.Property_0_does_not_exist_on_type_1, name, container);
-}
-
-function getSuggestedSymbolForNonexistentProperty(c: Checker, name: string, containingType: Type): Symbol | undefined {
-  const props = getPropertiesOfType(c, containingType);
-  const candidates: string[] = [];
-  const symbols: Symbol[] = [];
-  for (const p of props) {
-    const n = p.name;
-    if (n.length === 0 || n.charCodeAt(0) === 0x22 || n.charCodeAt(0) === 0xfffe) continue;
-    if ((p.flags & SymbolFlags.Value) === 0) continue;
-    candidates.push(n);
-    symbols.push(p);
-  }
-  const best = getSpellingSuggestion(name, candidates);
-  if (best === '') return undefined;
-  return symbols[candidates.indexOf(best)];
 }
 
 function checkElementAccessExpression(c: Checker, node: ElementAccessExpression, _checkMode: CheckMode): Type {
@@ -1244,583 +1214,6 @@ function checkSatisfiesExpression(c: Checker, node: Node, checkMode: CheckMode):
   return exprType;
 }
 
-// ---- Operators
-
-function checkPrefixUnaryExpression(c: Checker, node: PrefixUnaryExpression): Type {
-  const operandType = checkExpression(c, node.operand);
-  if (operandType === c.silentNeverType) return c.silentNeverType;
-  switch (node.operand.kind) {
-    case SyntaxKind.NumericLiteral:
-      if (node.operator === SyntaxKind.MinusToken)
-        return getFreshTypeOfLiteralType(c, getNumberLiteralType(c, -Number(getText(node.operand))));
-      if (node.operator === SyntaxKind.PlusToken)
-        return getFreshTypeOfLiteralType(c, getNumberLiteralType(c, Number(getText(node.operand))));
-      break;
-    case SyntaxKind.BigIntLiteral:
-      if (node.operator === SyntaxKind.MinusToken) {
-        const value = parseBigIntText(getText(node.operand));
-        return getFreshTypeOfLiteralType(c, getBigIntLiteralType(c, value === '0' ? '0' : '-' + value));
-      }
-      break;
-  }
-  switch (node.operator) {
-    case SyntaxKind.PlusToken:
-    case SyntaxKind.MinusToken:
-    case SyntaxKind.TildeToken:
-      if (maybeTypeOfKind(operandType, TypeFlags.ESSymbolLike))
-        c.error(node.operand, Diagnostics.The_0_operator_cannot_be_applied_to_type_symbol, tokenText(node.operator));
-      if (node.operator === SyntaxKind.PlusToken) {
-        if (maybeTypeOfKind(operandType, TypeFlags.BigIntLike))
-          c.error(
-            node.operand,
-            Diagnostics.Operator_0_cannot_be_applied_to_type_1,
-            tokenText(node.operator),
-            typeToString(c, getBaseTypeOfLiteralTypeForAssertion(c, operandType)),
-          );
-        return c.numberType;
-      }
-      return getUnaryResultType(c, operandType);
-    case SyntaxKind.ExclamationToken: {
-      const facts = getTypeFacts(c, operandType, TypeFacts.Truthy | TypeFacts.Falsy);
-      if (facts === TypeFacts.Truthy) return c.falseType;
-      if (facts === TypeFacts.Falsy) return c.trueType;
-      return c.booleanType;
-    }
-    case SyntaxKind.PlusPlusToken:
-    case SyntaxKind.MinusMinusToken:
-      if (
-        checkArithmeticOperandType(
-          c,
-          node.operand,
-          getNonNullableType(c, operandType),
-          Diagnostics.An_arithmetic_operand_must_be_of_type_any_number_bigint_or_an_enum_type,
-        )
-      )
-        checkReferenceExpression(c, node.operand);
-      return getUnaryResultType(c, operandType);
-  }
-  return c.errorType;
-}
-
-function checkPostfixUnaryExpression(c: Checker, node: PostfixUnaryExpression): Type {
-  const operandType = checkExpression(c, node.operand);
-  if (operandType === c.silentNeverType) return c.silentNeverType;
-  if (
-    checkArithmeticOperandType(
-      c,
-      node.operand,
-      getNonNullableType(c, operandType),
-      Diagnostics.An_arithmetic_operand_must_be_of_type_any_number_bigint_or_an_enum_type,
-    )
-  )
-    checkReferenceExpression(c, node.operand);
-  return getUnaryResultType(c, operandType);
-}
-
-function checkReferenceExpression(c: Checker, expr: Node): boolean {
-  const node = skipParentheses(expr);
-  if (
-    node.kind !== SyntaxKind.Identifier &&
-    node.kind !== SyntaxKind.PropertyAccessExpression &&
-    node.kind !== SyntaxKind.ElementAccessExpression
-  ) {
-    c.error(
-      expr,
-      Diagnostics.The_operand_of_an_increment_or_decrement_operator_must_be_a_variable_or_a_property_access,
-    );
-    return false;
-  }
-  return true;
-}
-
-function getUnaryResultType(c: Checker, operandType: Type): Type {
-  if (maybeTypeOfKind(operandType, TypeFlags.BigIntLike)) {
-    return isTypeAssignableToKind(c, operandType, TypeFlags.AnyOrUnknown, false) ||
-      maybeTypeOfKind(operandType, TypeFlags.NumberLike)
-      ? c.numberOrBigIntType
-      : c.bigintType;
-  }
-  return c.numberType;
-}
-
-function checkArithmeticOperandType(c: Checker, operand: Node, t: Type, message: DiagnosticMessage): boolean {
-  if (!isTypeAssignableTo(c, t, c.numberOrBigIntType)) {
-    checkTypeAssignableTo(c, t, c.numberOrBigIntType, operand, message);
-    return false;
-  }
-  return true;
-}
-
-function tokenText(kind: SyntaxKind): string {
-  switch (kind) {
-    case SyntaxKind.PlusToken:
-      return '+';
-    case SyntaxKind.MinusToken:
-      return '-';
-    case SyntaxKind.TildeToken:
-      return '~';
-    case SyntaxKind.ExclamationToken:
-      return '!';
-    case SyntaxKind.AsteriskToken:
-      return '*';
-    case SyntaxKind.SlashToken:
-      return '/';
-    case SyntaxKind.PercentToken:
-      return '%';
-    case SyntaxKind.AsteriskAsteriskToken:
-      return '**';
-    case SyntaxKind.LessThanLessThanToken:
-      return '<<';
-    case SyntaxKind.GreaterThanGreaterThanToken:
-      return '>>';
-    case SyntaxKind.GreaterThanGreaterThanGreaterThanToken:
-      return '>>>';
-    case SyntaxKind.AmpersandToken:
-      return '&';
-    case SyntaxKind.BarToken:
-      return '|';
-    case SyntaxKind.CaretToken:
-      return '^';
-    case SyntaxKind.LessThanToken:
-      return '<';
-    case SyntaxKind.GreaterThanToken:
-      return '>';
-    case SyntaxKind.LessThanEqualsToken:
-      return '<=';
-    case SyntaxKind.GreaterThanEqualsToken:
-      return '>=';
-    case SyntaxKind.EqualsEqualsToken:
-      return '==';
-    case SyntaxKind.ExclamationEqualsToken:
-      return '!=';
-    case SyntaxKind.EqualsEqualsEqualsToken:
-      return '===';
-    case SyntaxKind.ExclamationEqualsEqualsToken:
-      return '!==';
-    case SyntaxKind.PlusEqualsToken:
-      return '+=';
-    case SyntaxKind.MinusEqualsToken:
-      return '-=';
-    case SyntaxKind.AsteriskEqualsToken:
-      return '*=';
-    case SyntaxKind.SlashEqualsToken:
-      return '/=';
-    case SyntaxKind.PercentEqualsToken:
-      return '%=';
-    case SyntaxKind.AsteriskAsteriskEqualsToken:
-      return '**=';
-    case SyntaxKind.LessThanLessThanEqualsToken:
-      return '<<=';
-    case SyntaxKind.GreaterThanGreaterThanEqualsToken:
-      return '>>=';
-    case SyntaxKind.GreaterThanGreaterThanGreaterThanEqualsToken:
-      return '>>>=';
-    case SyntaxKind.AmpersandEqualsToken:
-      return '&=';
-    case SyntaxKind.BarEqualsToken:
-      return '|=';
-    case SyntaxKind.CaretEqualsToken:
-      return '^=';
-    case SyntaxKind.InKeyword:
-      return 'in';
-    case SyntaxKind.InstanceOfKeyword:
-      return 'instanceof';
-  }
-  return '';
-}
-
-function checkBinaryExpression(c: Checker, node: BinaryExpression, checkMode: CheckMode): Type {
-  const operator = node.operatorToken.kind;
-  if (
-    operator === SyntaxKind.EqualsToken &&
-    (node.left.kind === SyntaxKind.ObjectLiteralExpression || node.left.kind === SyntaxKind.ArrayLiteralExpression)
-  ) {
-    const rightType = checkExpressionEx(c, node.right, checkMode);
-    return rightType;
-  }
-  if (
-    operator === SyntaxKind.AmpersandAmpersandToken ||
-    operator === SyntaxKind.BarBarToken ||
-    operator === SyntaxKind.QuestionQuestionToken
-  ) {
-    const leftType = checkExpressionCached(c, node.left);
-    const rightType = checkExpressionEx(c, node.right, checkMode);
-    return checkLogicalOperator(c, operator, leftType, rightType);
-  }
-  // Assignment targets are cached: contextual typing of the right side reads them too.
-  const leftType = isAssignmentOperator(operator)
-    ? checkExpressionCached(c, node.left)
-    : checkExpressionEx(c, node.left, checkMode);
-  const rightType = checkExpressionEx(c, node.right, checkMode);
-  return checkBinaryLikeExpressionWorker(c, node, node.left, operator, node.right, leftType, rightType);
-}
-
-function checkLogicalOperator(c: Checker, operator: SyntaxKind, leftType: Type, rightType: Type): Type {
-  switch (operator) {
-    case SyntaxKind.AmpersandAmpersandToken: {
-      if ((getTypeFacts(c, leftType, TypeFacts.Truthy) & TypeFacts.Truthy) === 0) return leftType;
-      return getUnionType(c, [
-        extractDefinitelyFalsyTypes(c, c.strictNullChecks ? leftType : getWidenedLiteralType(c, rightType)),
-        rightType,
-      ]);
-    }
-    case SyntaxKind.BarBarToken: {
-      if ((getTypeFacts(c, leftType, TypeFacts.Falsy) & TypeFacts.Falsy) === 0) return leftType;
-      return getUnionTypeEx(
-        c,
-        [getNonUndefinedType(c, removeDefinitelyFalsyTypes(c, leftType)), rightType],
-        UnionReduction.Subtype,
-        undefined,
-        undefined,
-      );
-    }
-    case SyntaxKind.QuestionQuestionToken: {
-      if ((getTypeFacts(c, leftType, TypeFacts.EQUndefinedOrNull) & TypeFacts.EQUndefinedOrNull) === 0) return leftType;
-      return getUnionTypeEx(
-        c,
-        [getNonNullableType(c, leftType), rightType],
-        UnionReduction.Subtype,
-        undefined,
-        undefined,
-      );
-    }
-  }
-  return c.errorType;
-}
-
-function getNonUndefinedType(_c: Checker, t: Type): Type {
-  return t;
-}
-
-function removeDefinitelyFalsyTypes(c: Checker, t: Type): Type {
-  return getTypeWithFacts(c, t, TypeFacts.Truthy);
-}
-
-function extractDefinitelyFalsyTypes(c: Checker, t: Type): Type {
-  if ((t.flags & TypeFlags.Union) !== 0) {
-    const types: Type[] = [];
-    for (const u of typesOf(t)) types.push(getDefinitelyFalsyPartOfType(c, u));
-    return getUnionType(c, types);
-  }
-  return getDefinitelyFalsyPartOfType(c, t);
-}
-
-function getDefinitelyFalsyPartOfType(c: Checker, t: Type): Type {
-  if ((t.flags & TypeFlags.String) !== 0) return c.emptyStringType;
-  if ((t.flags & TypeFlags.Number) !== 0) return c.zeroType;
-  if ((t.flags & TypeFlags.BigInt) !== 0) return c.zeroBigIntType;
-  if (
-    t === c.regularFalseType ||
-    t === c.falseType ||
-    (t.flags & (TypeFlags.Void | TypeFlags.Undefined | TypeFlags.Null | TypeFlags.AnyOrUnknown)) !== 0
-  )
-    return t;
-  if ((t.flags & TypeFlags.StringLiteral) !== 0 && (t as LiteralType).stringValue === '') return t;
-  if ((t.flags & TypeFlags.NumberLiteral) !== 0 && (t as LiteralType).numberValue === 0) return t;
-  if ((t.flags & TypeFlags.BigIntLiteral) !== 0 && (t as LiteralType).stringValue === '0') return t;
-  return c.neverType;
-}
-
-function isArithmeticOperator(op: SyntaxKind): boolean {
-  switch (op) {
-    case SyntaxKind.AsteriskToken:
-    case SyntaxKind.AsteriskEqualsToken:
-    case SyntaxKind.AsteriskAsteriskToken:
-    case SyntaxKind.AsteriskAsteriskEqualsToken:
-    case SyntaxKind.SlashToken:
-    case SyntaxKind.SlashEqualsToken:
-    case SyntaxKind.PercentToken:
-    case SyntaxKind.PercentEqualsToken:
-    case SyntaxKind.MinusToken:
-    case SyntaxKind.MinusEqualsToken:
-    case SyntaxKind.LessThanLessThanToken:
-    case SyntaxKind.LessThanLessThanEqualsToken:
-    case SyntaxKind.GreaterThanGreaterThanToken:
-    case SyntaxKind.GreaterThanGreaterThanEqualsToken:
-    case SyntaxKind.GreaterThanGreaterThanGreaterThanToken:
-    case SyntaxKind.GreaterThanGreaterThanGreaterThanEqualsToken:
-    case SyntaxKind.BarToken:
-    case SyntaxKind.BarEqualsToken:
-    case SyntaxKind.CaretToken:
-    case SyntaxKind.CaretEqualsToken:
-    case SyntaxKind.AmpersandToken:
-    case SyntaxKind.AmpersandEqualsToken:
-      return true;
-  }
-  return false;
-}
-
-function isCompoundAssignment(op: SyntaxKind): boolean {
-  return op >= SyntaxKind.FirstCompoundAssignment && op <= SyntaxKind.LastCompoundAssignment;
-}
-
-function checkBinaryLikeExpressionWorker(
-  c: Checker,
-  node: Node,
-  left: Node,
-  operator: SyntaxKind,
-  right: Node,
-  leftType: Type,
-  rightType: Type,
-): Type {
-  if (isArithmeticOperator(operator)) {
-    if (leftType === c.silentNeverType || rightType === c.silentNeverType) return c.silentNeverType;
-    leftType = checkNonNullType(c, leftType, left);
-    rightType = checkNonNullType(c, rightType, right);
-    if ((leftType.flags & TypeFlags.BooleanLike) !== 0 && (rightType.flags & TypeFlags.BooleanLike) !== 0) {
-      const suggested = getSuggestedBooleanOperator(operator);
-      if (suggested !== '') {
-        c.error(
-          node,
-          Diagnostics.The_0_operator_is_not_allowed_for_boolean_types_Consider_using_1_instead,
-          tokenText(operator),
-          suggested,
-        );
-        return c.numberType;
-      }
-    }
-    const leftOk = checkArithmeticOperandType(
-      c,
-      left,
-      leftType,
-      Diagnostics.The_left_hand_side_of_an_arithmetic_operation_must_be_of_type_any_number_bigint_or_an_enum_type,
-    );
-    const rightOk = checkArithmeticOperandType(
-      c,
-      right,
-      rightType,
-      Diagnostics.The_right_hand_side_of_an_arithmetic_operation_must_be_of_type_any_number_bigint_or_an_enum_type,
-    );
-    let resultType: Type;
-    if (
-      (isTypeAssignableToKind(c, leftType, TypeFlags.AnyOrUnknown, false) &&
-        isTypeAssignableToKind(c, rightType, TypeFlags.AnyOrUnknown, false)) ||
-      !(maybeTypeOfKind(leftType, TypeFlags.BigIntLike) || maybeTypeOfKind(rightType, TypeFlags.BigIntLike))
-    ) {
-      resultType = c.numberType;
-    } else if (bothAreBigIntLike(c, leftType, rightType)) {
-      if (
-        operator === SyntaxKind.GreaterThanGreaterThanGreaterThanToken ||
-        operator === SyntaxKind.GreaterThanGreaterThanGreaterThanEqualsToken
-      ) {
-        reportOperatorError(c, node, operator, leftType, rightType);
-      }
-      resultType = c.bigintType;
-    } else {
-      if (leftOk && rightOk) reportOperatorError(c, node, operator, leftType, rightType);
-      resultType = c.errorType;
-    }
-    if (isCompoundAssignment(operator)) checkAssignmentOperatorResult(c, left, leftType, resultType);
-    return resultType;
-  }
-  switch (operator) {
-    case SyntaxKind.PlusToken:
-    case SyntaxKind.PlusEqualsToken: {
-      if (leftType === c.silentNeverType || rightType === c.silentNeverType) return c.silentNeverType;
-      if (
-        !isTypeAssignableToKind(c, leftType, TypeFlags.StringLike, false) &&
-        !isTypeAssignableToKind(c, rightType, TypeFlags.StringLike, false)
-      ) {
-        leftType = checkNonNullType(c, leftType, left);
-        rightType = checkNonNullType(c, rightType, right);
-      }
-      let resultType: Type | undefined = undefined;
-      if (
-        isTypeAssignableToKind(c, leftType, TypeFlags.NumberLike, true) &&
-        isTypeAssignableToKind(c, rightType, TypeFlags.NumberLike, true)
-      )
-        resultType = c.numberType;
-      else if (
-        isTypeAssignableToKind(c, leftType, TypeFlags.BigIntLike, true) &&
-        isTypeAssignableToKind(c, rightType, TypeFlags.BigIntLike, true)
-      )
-        resultType = c.bigintType;
-      else if (
-        isTypeAssignableToKind(c, leftType, TypeFlags.StringLike, true) ||
-        isTypeAssignableToKind(c, rightType, TypeFlags.StringLike, true)
-      )
-        resultType = c.stringType;
-      else if (isTypeAny(leftType) || isTypeAny(rightType))
-        resultType = isErrorType(c, leftType) || isErrorType(c, rightType) ? c.errorType : c.anyType;
-      if (resultType === undefined) {
-        reportOperatorError(c, node, operator, leftType, rightType);
-        return c.anyType;
-      }
-      if (operator === SyntaxKind.PlusEqualsToken) checkAssignmentOperatorResult(c, left, leftType, resultType);
-      return resultType;
-    }
-    case SyntaxKind.LessThanToken:
-    case SyntaxKind.GreaterThanToken:
-    case SyntaxKind.LessThanEqualsToken:
-    case SyntaxKind.GreaterThanEqualsToken:
-      checkNonNullType(c, leftType, left);
-      checkNonNullType(c, rightType, right);
-      return c.booleanType;
-    case SyntaxKind.EqualsEqualsToken:
-    case SyntaxKind.ExclamationEqualsToken:
-    case SyntaxKind.EqualsEqualsEqualsToken:
-    case SyntaxKind.ExclamationEqualsEqualsToken:
-      if (isLiteralExpressionOfObject(left) || isLiteralExpressionOfObject(right)) {
-        const eqType = operator === SyntaxKind.EqualsEqualsToken || operator === SyntaxKind.EqualsEqualsEqualsToken;
-        c.error(
-          node,
-          Diagnostics.This_condition_will_always_return_0_since_JavaScript_compares_objects_by_reference_not_value,
-          eqType ? 'false' : 'true',
-        );
-      }
-      checkNaNEquality(c, node, operator, left, right);
-      reportOperatorErrorUnless(c, node, operator, leftType, rightType);
-      return c.booleanType;
-    case SyntaxKind.InstanceOfKeyword:
-      return c.booleanType;
-    case SyntaxKind.InKeyword:
-      return c.booleanType;
-    case SyntaxKind.CommaToken:
-      if (c.compilerOptions.allowUnreachableCode !== true && isSideEffectFree(left) && !isIndirectCall(left.parent!))
-        c.error(left, Diagnostics.Left_side_of_comma_operator_is_unused_and_has_no_side_effects);
-      return rightType;
-    case SyntaxKind.EqualsToken:
-      checkAssignmentOperator(c, left, right, leftType, rightType);
-      return rightType;
-    case SyntaxKind.AmpersandAmpersandEqualsToken:
-    case SyntaxKind.BarBarEqualsToken:
-    case SyntaxKind.QuestionQuestionEqualsToken:
-      return getUnionType(c, [leftType, rightType]);
-  }
-  return c.errorType;
-}
-
-function isLiteralExpressionOfObject(node: Node): boolean {
-  switch (node.kind) {
-    case SyntaxKind.ObjectLiteralExpression:
-    case SyntaxKind.ArrayLiteralExpression:
-    case SyntaxKind.RegularExpressionLiteral:
-    case SyntaxKind.ClassExpression:
-    case SyntaxKind.FunctionExpression:
-    case SyntaxKind.ArrowFunction:
-    case SyntaxKind.NewExpression:
-      return true;
-  }
-  return false;
-}
-
-function checkNaNEquality(c: Checker, errorNode: Node, operator: SyntaxKind, left: Node, right: Node): void {
-  const isLeftNaN = isGlobalNaN(c, skipParentheses(left));
-  const isRightNaN = isGlobalNaN(c, skipParentheses(right));
-  if (isLeftNaN || isRightNaN) {
-    const err = c.error(
-      errorNode,
-      Diagnostics.This_condition_will_always_return_0,
-      operator === SyntaxKind.EqualsEqualsEqualsToken || operator === SyntaxKind.EqualsEqualsToken ? 'false' : 'true',
-    );
-    if (isLeftNaN && isRightNaN) return;
-    const operatorString =
-      operator === SyntaxKind.ExclamationEqualsEqualsToken || operator === SyntaxKind.ExclamationEqualsToken ? '!' : '';
-    const location = isLeftNaN ? right : left;
-    const expression = skipParentheses(location);
-    err.addRelatedInfo(
-      createDiagnosticForNode(location, Diagnostics.Did_you_mean_0, [
-        operatorString +
-          'Number.isNaN(' +
-          (isEntityNameExpression(expression, false) ? entityNameToString(expression) : '...') +
-          ')',
-      ]),
-    );
-  }
-}
-
-function isGlobalNaN(c: Checker, expr: Node): boolean {
-  if (expr.kind === SyntaxKind.Identifier && getText(expr) === 'NaN') {
-    const globalNaNSymbol = c.globals.get('NaN');
-    return globalNaNSymbol !== undefined && getResolvedSymbol(c, expr) === getMergedSymbol(c, globalNaNSymbol);
-  }
-  return false;
-}
-
-function bothAreBigIntLike(c: Checker, left: Type, right: Type): boolean {
-  return (
-    isTypeAssignableToKind(c, left, TypeFlags.BigIntLike, false) &&
-    isTypeAssignableToKind(c, right, TypeFlags.BigIntLike, false)
-  );
-}
-
-function isTypeAny(t: Type): boolean {
-  return (t.flags & TypeFlags.Any) !== 0;
-}
-
-function getSuggestedBooleanOperator(operator: SyntaxKind): string {
-  switch (operator) {
-    case SyntaxKind.BarToken:
-    case SyntaxKind.BarEqualsToken:
-      return '||';
-    case SyntaxKind.CaretToken:
-    case SyntaxKind.CaretEqualsToken:
-      return '!==';
-    case SyntaxKind.AmpersandToken:
-    case SyntaxKind.AmpersandEqualsToken:
-      return '&&';
-  }
-  return '';
-}
-
-function reportOperatorErrorUnless(
-  c: Checker,
-  node: Node,
-  operator: SyntaxKind,
-  leftType: Type,
-  rightType: Type,
-): void {
-  if (!isTypeEqualityComparableTo(c, leftType, rightType) && !isTypeEqualityComparableTo(c, rightType, leftType))
-    reportOperatorError(c, node, operator, leftType, rightType);
-}
-
-function isTypeEqualityComparableTo(c: Checker, source: Type, target: Type): boolean {
-  return (target.flags & TypeFlags.Nullable) !== 0 || isTypeComparableTo(c, source, target);
-}
-
-function reportOperatorError(c: Checker, node: Node, operator: SyntaxKind, leftType: Type, rightType: Type): void {
-  let leftStr = typeToString(c, leftType);
-  let rightStr = typeToString(c, rightType);
-  if (leftStr === rightStr) {
-    leftStr = typeToString(c, leftType, undefined, 1 << 5);
-    rightStr = typeToString(c, rightType, undefined, 1 << 5);
-  }
-  const errNode =
-    (node as BinaryExpression).operatorToken !== undefined && node.kind === SyntaxKind.BinaryExpression ? node : node;
-  switch (operator) {
-    case SyntaxKind.EqualsEqualsEqualsToken:
-    case SyntaxKind.EqualsEqualsToken:
-    case SyntaxKind.ExclamationEqualsEqualsToken:
-    case SyntaxKind.ExclamationEqualsToken:
-      c.error(
-        errNode,
-        Diagnostics.This_comparison_appears_to_be_unintentional_because_the_types_0_and_1_have_no_overlap,
-        leftStr,
-        rightStr,
-      );
-      return;
-  }
-  c.error(errNode, Diagnostics.Operator_0_cannot_be_applied_to_types_1_and_2, tokenText(operator), leftStr, rightStr);
-}
-
-function checkAssignmentOperator(c: Checker, left: Node, right: Node, leftType: Type, rightType: Type): void {
-  if (isErrorType(c, leftType)) return;
-  if (
-    left.kind === SyntaxKind.Identifier ||
-    left.kind === SyntaxKind.PropertyAccessExpression ||
-    left.kind === SyntaxKind.ElementAccessExpression ||
-    left.kind === SyntaxKind.ParenthesizedExpression
-  ) {
-    checkTypeAssignableToAndOptionallyElaborate(c, rightType, leftType, left, right);
-  }
-}
-
-function checkAssignmentOperatorResult(c: Checker, left: Node, leftType: Type, resultType: Type): void {
-  if (isErrorType(c, resultType)) return;
-  if (isErrorType(c, leftType)) return;
-  checkTypeAssignableTo(c, resultType, leftType, left, undefined);
-}
-
 /** Reports `source` not assignable to `target` at `errorNode`. */
 export function checkTypeAssignableToAndOptionallyElaborate(
   c: Checker,
@@ -1830,89 +1223,4 @@ export function checkTypeAssignableToAndOptionallyElaborate(
   _expr: Node | undefined,
 ): boolean {
   return checkTypeAssignableTo(c, source, target, errorNode, undefined);
-}
-
-function checkConditionalExpression(c: Checker, node: ConditionalExpression, checkMode: CheckMode): Type {
-  checkTruthinessExpression(c, node.condition);
-  const type1 = checkExpressionEx(c, node.whenTrue, checkMode);
-  const type2 = checkExpressionEx(c, node.whenFalse, checkMode);
-  return getUnionTypeEx(c, [type1, type2], UnionReduction.Subtype, undefined, undefined);
-}
-
-export function checkTruthinessExpression(c: Checker, node: Node): Type {
-  const t = checkExpression(c, node);
-  if ((t.flags & TypeFlags.Void) !== 0)
-    c.error(node, Diagnostics.An_expression_of_type_void_cannot_be_tested_for_truthiness);
-  return t;
-}
-
-function isSideEffectFree(expr: Node): boolean {
-  const node = skipParentheses(expr);
-  switch (node.kind) {
-    case SyntaxKind.Identifier:
-    case SyntaxKind.StringLiteral:
-    case SyntaxKind.RegularExpressionLiteral:
-    case SyntaxKind.TaggedTemplateExpression:
-    case SyntaxKind.TemplateExpression:
-    case SyntaxKind.NoSubstitutionTemplateLiteral:
-    case SyntaxKind.NumericLiteral:
-    case SyntaxKind.BigIntLiteral:
-    case SyntaxKind.TrueKeyword:
-    case SyntaxKind.FalseKeyword:
-    case SyntaxKind.NullKeyword:
-    case SyntaxKind.UndefinedKeyword:
-    case SyntaxKind.FunctionExpression:
-    case SyntaxKind.ClassExpression:
-    case SyntaxKind.ArrowFunction:
-    case SyntaxKind.ArrayLiteralExpression:
-    case SyntaxKind.ObjectLiteralExpression:
-    case SyntaxKind.TypeOfExpression:
-    case SyntaxKind.NonNullExpression:
-    case SyntaxKind.JsxSelfClosingElement:
-    case SyntaxKind.JsxElement:
-      return true;
-    case SyntaxKind.ConditionalExpression: {
-      const cond = node as ConditionalExpression;
-      return isSideEffectFree(cond.whenTrue) && isSideEffectFree(cond.whenFalse);
-    }
-    case SyntaxKind.BinaryExpression: {
-      const binary = node as BinaryExpression;
-      if (isAssignmentOperator(binary.operatorToken.kind)) return false;
-      return isSideEffectFree(binary.left) && isSideEffectFree(binary.right);
-    }
-    case SyntaxKind.PrefixUnaryExpression:
-      switch ((node as PrefixUnaryExpression).operator) {
-        case SyntaxKind.ExclamationToken:
-        case SyntaxKind.PlusToken:
-        case SyntaxKind.MinusToken:
-        case SyntaxKind.TildeToken:
-          return true;
-      }
-      return false;
-  }
-  return false;
-}
-
-/** `(0, x.f)(...)` or `(0, eval)(...)`, which call without passing `this`. */
-function isIndirectCall(node: Node): boolean {
-  const binary = node as BinaryExpression;
-  const left = binary.left;
-  const right = binary.right;
-  const parent = node.parent!;
-  if (
-    parent.kind !== SyntaxKind.ParenthesizedExpression ||
-    left.kind !== SyntaxKind.NumericLiteral ||
-    getText(left) !== '0'
-  )
-    return false;
-  const grand = parent.parent!;
-  const called =
-    (grand.kind === SyntaxKind.CallExpression && getExpression(grand) === parent) ||
-    grand.kind === SyntaxKind.TaggedTemplateExpression;
-  return (
-    called &&
-    (right.kind === SyntaxKind.PropertyAccessExpression ||
-      right.kind === SyntaxKind.ElementAccessExpression ||
-      (right.kind === SyntaxKind.Identifier && getText(right) === 'eval'))
-  );
 }

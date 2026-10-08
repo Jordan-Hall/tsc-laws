@@ -20,15 +20,11 @@ import {
 import { Diagnostics } from './diagnostics.js';
 import { SyntaxKind } from './syntax-kind.js';
 import type { Checker } from './checker.js';
-import { type Type, TypeFlags } from './checker-types.js';
+import { CheckMode, type Type, TypeFlags } from './checker-types.js';
 import { isErrorType } from './checker-type-factory.js';
 import { getReturnTypeOfSignature, getSignatureFromDeclaration } from './checker-signatures.js';
-import {
-  checkExpression,
-  checkExpressionCached,
-  checkTruthinessExpression,
-  getIteratedTypeOrElementType,
-} from './checker-expressions.js';
+import { checkExpression, checkExpressionCached, getIteratedTypeOrElementType } from './checker-expressions.js';
+import { checkTestingKnownTruthyType, checkTruthinessExpression } from './checker-operators.js';
 import { checkTypeAssignableTo } from './relations.js';
 import { isTypeAssignableToKindEx as isTypeAssignableToKind } from './checker-type-operators.js';
 import { checkSourceElement } from './checker-source-file.js';
@@ -48,20 +44,23 @@ export function checkExpressionStatement(c: Checker, node: Node): void {
 
 export function checkIfStatement(c: Checker, node: Node): void {
   const s = node as IfStatement;
-  checkTruthinessExpression(c, s.expression);
+  const t = checkTruthinessExpression(c, s.expression, CheckMode.Normal);
+  checkTestingKnownTruthyType(c, s.expression, t, s.thenStatement);
   checkSourceElement(c, s.thenStatement);
+  if (s.thenStatement.kind === SyntaxKind.EmptyStatement)
+    c.error(s.thenStatement, Diagnostics.The_body_of_an_if_statement_cannot_be_the_empty_statement);
   checkSourceElement(c, s.elseStatement);
 }
 
 export function checkDoStatement(c: Checker, node: Node): void {
   const s = node as DoStatement;
   checkSourceElement(c, s.statement);
-  checkTruthinessExpression(c, s.expression);
+  checkTruthinessExpression(c, s.expression, CheckMode.Normal);
 }
 
 export function checkWhileStatement(c: Checker, node: Node): void {
   const s = node as WhileStatement;
-  checkTruthinessExpression(c, s.expression);
+  checkTruthinessExpression(c, s.expression, CheckMode.Normal);
   checkSourceElement(c, s.statement);
 }
 
@@ -72,7 +71,7 @@ export function checkForStatement(c: Checker, node: Node): void {
     if (initializer.kind === SyntaxKind.VariableDeclarationList) checkVariableDeclarationList(c, initializer);
     else checkExpression(c, initializer);
   }
-  if (s.condition !== undefined) checkTruthinessExpression(c, s.condition);
+  if (s.condition !== undefined) checkTruthinessExpression(c, s.condition, CheckMode.Normal);
   if (s.incrementor !== undefined) checkExpression(c, s.incrementor);
   checkSourceElement(c, s.statement);
 }
@@ -117,6 +116,19 @@ export function checkReturnStatement(c: Checker, node: Node): void {
   const func = getContainingFunction(node);
   if (s.expression === undefined) return;
   const exprType = checkExpressionCached(c, s.expression);
+  if (func !== undefined && func.kind === SyntaxKind.SetAccessor) {
+    c.error(node, Diagnostics.Setters_cannot_return_a_value);
+    return;
+  }
+  if (func !== undefined && func.kind === SyntaxKind.Constructor) {
+    const instanceType = getReturnTypeOfSignature(c, getSignatureFromDeclaration(c, func));
+    if (!checkTypeAssignableTo(c, exprType, instanceType, node, undefined))
+      c.error(
+        node,
+        Diagnostics.Return_type_of_constructor_signature_must_be_assignable_to_the_instance_type_of_the_class,
+      );
+    return;
+  }
   if (func === undefined || getType(func) === undefined) return;
   const flags = getFunctionFlags(func);
   if ((flags & FunctionFlags.Generator) !== 0) return;

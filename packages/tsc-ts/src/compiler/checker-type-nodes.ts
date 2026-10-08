@@ -698,7 +698,7 @@ function getTypeFromTypeQueryNode(c: Checker, node: Node): Type {
   return links.resolvedType;
 }
 
-function getTupleElementFlags(c: Checker, node: Node): ElementFlags {
+export function getTupleElementFlags(c: Checker, node: Node): ElementFlags {
   switch (node.kind) {
     case SyntaxKind.OptionalType:
       return ElementFlags.Optional;

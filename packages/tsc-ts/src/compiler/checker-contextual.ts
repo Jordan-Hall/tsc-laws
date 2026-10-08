@@ -165,11 +165,6 @@ function getContextualTypeForBinaryOperand(c: Checker, binary: BinaryExpression,
     case SyntaxKind.BarBarEqualsToken:
     case SyntaxKind.QuestionQuestionEqualsToken:
       if (node !== binary.right) return undefined;
-      if (
-        binary.left.kind === SyntaxKind.ObjectLiteralExpression ||
-        binary.left.kind === SyntaxKind.ArrayLiteralExpression
-      )
-        return undefined;
       return checkExpressionCached(c, binary.left);
     case SyntaxKind.BarBarToken:
     case SyntaxKind.QuestionQuestionToken: {
