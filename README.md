@@ -28,7 +28,7 @@ npm run build            # packages/relater/dist/relater
 npm run build:oracle     # tsgo reference builds in packages/*/dist
 ```
 
-`package.json` pins scriptc `0.2.5`. The build fails with any other version.
+`package.json` pins scriptc `0.2.6`. The build fails with any other version.
 
 ## API server
 

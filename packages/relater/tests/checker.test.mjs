@@ -67,8 +67,9 @@ export function runCase(source, queries, options = {}) {
   return go.graph;
 }
 
-test('static executable was built using scriptc 0.2.5', () => {
-  assert.match(execFileSync(native, ['--version'], { encoding: 'utf8' }), /scriptc 0\.2\.5/);
+test('static executable was built using the pinned scriptc', () => {
+  const pinned = JSON.parse(readFileSync('../../package.json', 'utf8')).devDependencies.scriptc;
+  assert.ok(execFileSync(native, ['--version'], { encoding: 'utf8' }).includes(`scriptc ${pinned}`));
 });
 test('primitive, literal, union, and empty-object matrix agrees with tsgo', () => {
   runCase(primitives, matrix(primitiveNames));

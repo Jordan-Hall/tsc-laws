@@ -191,7 +191,7 @@ writeFileSync(
       cpu: cpus()[0].model,
       arch: process.arch,
       platform: process.platform,
-      scriptc: '0.2.5',
+      scriptc: nativeBuild.scriptc,
       revision: oracleBuild.revision,
       portSourceSha256: nativeBuild.sourceSha256,
       oracleSourceSha256: oracleBuild.sourceSha256,

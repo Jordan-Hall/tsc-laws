@@ -4,9 +4,10 @@ import { resolve } from 'node:path';
 import { checkerSources, sourceIdentity } from './source-identity.mjs';
 
 const compiler = resolve('../../node_modules/scriptc/bin/scriptc.exe');
+const pinned = JSON.parse(readFileSync('../../package.json', 'utf8')).devDependencies.scriptc;
 const version = spawnSync(compiler, ['--version'], { encoding: 'utf8' });
-if (version.status !== 0 || version.stdout.trim() !== '0.2.5') {
-  throw new Error('This port requires scriptc v0.2.5. Run npm install.');
+if (version.status !== 0 || version.stdout.trim() !== pinned) {
+  throw new Error(`This port requires scriptc v${pinned}. Run npm install.`);
 }
 mkdirSync('dist', { recursive: true });
 const result = spawnSync(compiler, ['build', 'src/cli.ts', '--optimization=release', '--strip', '-o', 'dist/relater'], {
@@ -118,6 +119,6 @@ if (result.status === 0) {
     }
   writeFileSync(
     'dist/build.json',
-    JSON.stringify({ scriptc: '0.2.5', sourceSha256: sourceIdentity(checkerSources), arch: process.arch }) + '\n',
+    JSON.stringify({ scriptc: pinned, sourceSha256: sourceIdentity(checkerSources), arch: process.arch }) + '\n',
   );
 }
