@@ -1,5 +1,6 @@
 // Error elaboration: assignability errors reported on the innermost part of an expression (an
 // object literal property, an array literal element or an arrow function's returned expression).
+import { getEffectiveCheckNode } from './ast-utilities.js';
 import {
   type ArrowFunction,
   type BinaryExpression,
@@ -283,13 +284,6 @@ function elaborateArrayLiteral(
       ) || reportedError;
   }
   return reportedError;
-}
-
-function getEffectiveCheckNode(argument: Node): Node {
-  let node = argument;
-  while (node.kind === SyntaxKind.ParenthesizedExpression || node.kind === SyntaxKind.SatisfiesExpression)
-    node = getExpression(node)!;
-  return node;
 }
 
 /**

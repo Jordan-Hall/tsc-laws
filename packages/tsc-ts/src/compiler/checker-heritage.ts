@@ -16,6 +16,7 @@ import {
   getText,
   getType,
   getTypeParameters,
+  getTypeArguments,
 } from './ast.js';
 import {
   findConstructorDeclaration,
@@ -43,6 +44,9 @@ import {
   TypeFlags,
   emptyIndexInfos,
   emptySignatures,
+  type Signature,
+  type TypeMapper,
+  newTypeMapper,
 } from './checker-types.js';
 import { createAnonymousType, getIntersectionType, isErrorType, typesOf } from './checker-type-factory.js';
 import {
@@ -59,7 +63,13 @@ import {
   isMixinConstructorType,
   isValidBaseType,
   getDeclaredTypeOfTypeParameter,
+  fillMissingTypeArguments,
+  getInstantiatedConstructorsForTypeArguments,
 } from './checker-declared-types.js';
+import { getReturnTypeOfSignature } from './checker-signatures.js';
+import { instantiateType } from './instantiation.js';
+import { checkSourceElement } from './checker-source-file.js';
+import { isInJSFile } from './ast-utilities.js';
 import {
   getFullyQualifiedName,
   getParentOfSymbol,
@@ -166,6 +176,12 @@ function checkBaseClass(
   const staticBaseType = getApparentType(c, baseConstructorType);
   const baseTypeNode = getExtendsHeritageClauseElement(node)!;
   checkBaseTypeAccessibility(c, staticBaseType, baseTypeNode);
+  const typeArgumentNodes = getTypeArguments(baseTypeNode);
+  if (typeArgumentNodes !== undefined && typeArgumentNodes.nodes.length !== 0) {
+    for (const n of typeArgumentNodes.nodes) checkSourceElement(c, n);
+    for (const constructor of getConstructorsForTypeArguments(c, staticBaseType, typeArgumentNodes.nodes))
+      if (!checkTypeArgumentConstraints(c, baseTypeNode, constructor.typeParameters)) break;
+  }
   const baseWithThis = getTypeWithThisArgument(c, baseType, classType.thisType, false);
   const errorNode = getName(node) ?? node;
   if (!checkTypeAssignableTo(c, typeWithThis, baseWithThis, undefined, undefined))
@@ -193,16 +209,76 @@ function checkBaseClass(
         Diagnostics.A_mixin_class_that_extends_from_a_type_variable_containing_an_abstract_construct_signature_must_also_be_declared_abstract,
       );
   }
+  // A class-like constructor function that isn't a class must return the same type from every
+  // instantiated construct signature.
+  if (
+    !(staticBaseType.symbol !== undefined && (staticBaseType.symbol.flags & SymbolFlags.Class) !== 0) &&
+    (baseConstructorType.flags & TypeFlags.TypeVariable) === 0
+  ) {
+    const constructors = getInstantiatedConstructorsForTypeArguments(
+      c,
+      staticBaseType,
+      getTypeArguments(baseTypeNode)?.nodes,
+      baseTypeNode,
+    );
+    if (!constructors.every((sig) => isTypeIdenticalTo(c, getReturnTypeOfSignature(c, sig), baseType)))
+      c.error(getExpression(baseTypeNode), Diagnostics.Base_constructors_must_all_have_the_same_return_type);
+  }
   checkKindsOfPropertyMemberOverrides(c, classType, baseType);
+}
+
+function getConstructorsForTypeArguments(c: Checker, t: Type, typeArgumentNodes: readonly Node[]): Signature[] {
+  const count = typeArgumentNodes.length;
+  return getSignaturesOfType(c, t, SignatureKind.Construct).filter(
+    (sig) => count >= getMinTypeArgumentCount(c, sig.typeParameters) && count <= sig.typeParameters.length,
+  );
+}
+
+/** Checks the type arguments of `node` against the constraints of `typeParameters`. */
+function checkTypeArgumentConstraints(c: Checker, node: Node, typeParameters: readonly Type[]): boolean {
+  let typeArguments: Type[] | undefined = undefined;
+  let mapper: TypeMapper | undefined = undefined;
+  const typeArgumentNodes = getTypeArguments(node)?.nodes ?? [];
+  let result = true;
+  for (let i = 0; i < typeParameters.length; i++) {
+    const constraint = getConstraintOfTypeParameter(c, typeParameters[i]!);
+    if (constraint === undefined) continue;
+    if (typeArguments === undefined) {
+      const explicit: Type[] = [];
+      for (const n of typeArgumentNodes) explicit.push(getTypeFromTypeNode(c, n));
+      typeArguments = fillMissingTypeArguments(
+        c,
+        explicit,
+        typeParameters,
+        getMinTypeArgumentCount(c, typeParameters),
+        isInJSFile(node),
+      );
+      mapper = newTypeMapper(typeParameters.slice(), typeArguments);
+    }
+    result =
+      result &&
+      checkTypeAssignableTo(
+        c,
+        typeArguments![i]!,
+        instantiateType(c, constraint, mapper),
+        i < typeArgumentNodes.length ? typeArgumentNodes[i] : undefined,
+        Diagnostics.Type_0_does_not_satisfy_the_constraint_1,
+      );
+  }
+  return result;
 }
 
 function getImplementsHeritageClauseElements(node: Node): Node[] {
   const result: Node[] = [];
   const clauses = getHeritageClauses(node);
   if (clauses === undefined) return result;
+  // Only the first `implements` clause counts; others are syntax errors.
   for (const clause of clauses.nodes) {
     const heritage = clause as HeritageClause;
-    if (heritage.token === SyntaxKind.ImplementsKeyword) for (const t of heritage.types.nodes) result.push(t);
+    if (heritage.token === SyntaxKind.ImplementsKeyword) {
+      for (const t of heritage.types.nodes) result.push(t);
+      break;
+    }
   }
   return result;
 }

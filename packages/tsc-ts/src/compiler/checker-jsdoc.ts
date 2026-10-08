@@ -190,8 +190,6 @@ function getNextJSDocCommentLocation(node: Node): Node | undefined {
  * without a parent `@param {object}`.
  */
 export function checkUnmatchedJSDocParameters(c: Checker, node: Node): void {
-  // In TypeScript files these are only suggestions.
-  if (!isInJSFile(node)) return;
   const jsdocParameters: JSDocParameterOrPropertyTag[] = [];
   for (const tag of getAllJSDocTags(node)) {
     if (tag.kind !== SyntaxKind.JSDocParameterTag) continue;
@@ -200,6 +198,8 @@ export function checkUnmatchedJSDocParameters(c: Checker, node: Node): void {
     jsdocParameters.push(tag as JSDocParameterOrPropertyTag);
   }
   if (jsdocParameters.length === 0) return;
+  // In TypeScript files the errors are only suggestions.
+  const isJs = isInJSFile(node);
   const parameters = new Set<string>();
   const excludedParameters = new Set<number>();
   const params = getParameters(node)!.nodes;
@@ -210,6 +210,7 @@ export function checkUnmatchedJSDocParameters(c: Checker, node: Node): void {
       excludedParameters.add(i);
   }
   if (containsArgumentsReference(c, node)) {
+    if (!isJs) return;
     const lastIndex = jsdocParameters.length - 1;
     const last = jsdocParameters[lastIndex]!;
     if (last.name.kind !== SyntaxKind.Identifier) return;
@@ -224,6 +225,7 @@ export function checkUnmatchedJSDocParameters(c: Checker, node: Node): void {
     );
     return;
   }
+  if (!isJs) return;
   for (let index = 0; index < jsdocParameters.length; index++) {
     const tag = jsdocParameters[index]!;
     const name = tag.name;

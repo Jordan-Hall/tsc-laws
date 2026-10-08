@@ -14,6 +14,8 @@ import {
   getSymbol,
   getTypeParameters,
   NodeFlags,
+  JsxAttribute,
+  JsxElement,
 } from './ast.js';
 import {
   getImmediatelyInvokedFunctionExpression,
@@ -112,7 +114,13 @@ import {
 } from './ast.js';
 import type { Symbol } from './symbol.js';
 import { isDiscriminantProperty, isTypeAssignableTo } from './relations.js';
-import { getPropertyNameFromType, isNumericLiteralName, isTypeUsableAsPropertyName } from './checker-utilities.js';
+import {
+  getPropertyNameFromType,
+  hasDynamicName,
+  hasLateBindableName,
+  isNumericLiteralName,
+  isTypeUsableAsPropertyName,
+} from './checker-utilities.js';
 import {
   getReturnTypeOfSignature,
   getRestTypeAtPosition,
@@ -160,6 +168,9 @@ import {
   getContextualJsxElementAttributesType,
   getContextualTypeForJsxAttribute,
   getContextualTypeForJsxExpression,
+  getJsxElementChildrenPropertyName,
+  getJsxNamespaceAt,
+  getSemanticJsxChildren,
 } from './checker-jsx.js';
 import { getDecoratorCallSignature } from './checker-decorators.js';
 
@@ -180,6 +191,11 @@ export function pushContextualType(c: Checker, node: Node, t: Type | undefined, 
   caches.contextualNodes.push(node);
   caches.contextualTypes.push(t);
   caches.contextualIsCache.push(isCache);
+}
+
+/** Caches the contextual type of `node` for the contextual types of its elements. */
+export function pushCachedContextualType(c: Checker, node: Node): void {
+  pushContextualType(c, node, getContextualTypeEx(c, node, ContextFlags.None), true);
 }
 
 export function popContextualType(c: Checker): void {
@@ -461,7 +477,11 @@ function getContextualTypeForBindingElement(c: Checker, declaration: Node): Type
   const parent = declaration.parent!.parent!;
   let parentType = getContextualTypeForInitializer(c, parent, ContextFlags.None);
   if (parentType === undefined && parent.kind !== SyntaxKind.BindingElement && getInitializer(parent) !== undefined)
-    parentType = checkDeclarationInitializer(c, parent);
+    parentType = checkDeclarationInitializer(
+      c,
+      parent,
+      element.dotDotDotToken !== undefined ? CheckMode.RestBindingElement : CheckMode.Normal,
+    );
   if (parentType === undefined) return undefined;
   const parentName = getName(parent)!;
   if (parentName.kind === SyntaxKind.ArrayBindingPattern) {
@@ -731,15 +751,25 @@ function getContextualTypeForObjectLiteralElement(
   const objectLiteral = element.parent!;
   const t = getApparentTypeOfContextualTypeEx(c, objectLiteral, contextFlags);
   if (t === undefined) return undefined;
-  const name = getPropertyNameOfObjectLiteralElement(c, element);
-  if (name !== undefined) {
-    const symbol = getSymbol(element);
-    let nameType = symbol !== undefined ? c.symbolLinks(symbol).nameType : undefined;
-    // Late-bound members are named by the type of their computed name, like a unique symbol.
-    const nameNode = getName(element)!;
-    if (nameType === undefined && nameNode.kind === SyntaxKind.ComputedPropertyName)
-      nameType = checkComputedPropertyName(c, nameNode);
-    return getTypeOfPropertyOfContextualTypeEx(c, t, name, nameType);
+  const isDynamic = hasDynamicName(element);
+  if (!isDynamic || hasLateBindableName(c, element)) {
+    const name = getPropertyNameOfObjectLiteralElement(c, element);
+    if (name !== undefined) {
+      const symbol = getSymbol(element);
+      let nameType = symbol !== undefined ? c.symbolLinks(symbol).nameType : undefined;
+      // Late-bound members are named by the type of their computed name, like a unique symbol.
+      const nameNode = getName(element)!;
+      if (nameType === undefined && nameNode.kind === SyntaxKind.ComputedPropertyName)
+        nameType = checkComputedPropertyName(c, nameNode);
+      return getTypeOfPropertyOfContextualTypeEx(c, t, name, nameType);
+    }
+  } else {
+    // Other computed names are checked again, uncached.
+    const exprType = checkExpression(c, getExpression(getName(element)!)!);
+    if (isTypeUsableAsPropertyName(exprType)) {
+      const propType = getTypeOfPropertyOfContextualType(c, t, getPropertyNameFromType(exprType));
+      if (propType !== undefined) return propType;
+    }
   }
   const nameNode = getName(element);
   if (nameNode === undefined) return undefined;
@@ -943,6 +973,8 @@ export function getApparentTypeOfContextualTypeEx(
   if (apparentType === undefined) return undefined;
   if ((apparentType.flags & TypeFlags.Union) !== 0 && node.kind === SyntaxKind.ObjectLiteralExpression)
     return discriminateContextualTypeByObjectMembers(c, node, apparentType as UnionType);
+  if ((apparentType.flags & TypeFlags.Union) !== 0 && node.kind === SyntaxKind.JsxAttributes)
+    return discriminateContextualTypeByJSXAttributes(c, node, apparentType as UnionType);
   return apparentType;
 }
 
@@ -976,6 +1008,44 @@ function discriminateContextualTypeByObjectMembers(c: Checker, node: Node, conte
     );
     discriminated = discriminateTypeByObjectLiteral(c, contextualType, props, members);
   }
+  cache.set(key, discriminated);
+  return discriminated;
+}
+
+function discriminateContextualTypeByJSXAttributes(c: Checker, node: Node, contextualType: UnionType): Type {
+  const key = getNodeId(node) + ',' + contextualType.id;
+  const cache = c.inferenceCaches.discriminatedContextualTypes;
+  const cached = cache.get(key);
+  if (cached !== undefined) return cached;
+  const childrenPropertyName = getJsxElementChildrenPropertyName(c, getJsxNamespaceAt(c, node));
+  const props: Node[] = [];
+  for (const p of getProperties(node)!.nodes) {
+    const symbol = getSymbol(p);
+    if (symbol === undefined || !(p instanceof JsxAttribute)) continue;
+    const initializer = p.initializer;
+    if (
+      (initializer === undefined || isPossiblyDiscriminantValue(initializer)) &&
+      isDiscriminantProperty(c, contextualType, symbol.name)
+    )
+      props.push(p);
+  }
+  const nodeSymbol = getSymbol(node);
+  const element = node.parent!.parent!;
+  const members = getPropertiesOfType(c, contextualType).filter((s) => {
+    if ((s.flags & SymbolFlags.Optional) === 0 || nodeSymbol === undefined) return false;
+    // Children given in the body aren't missing.
+    if (
+      s.name === childrenPropertyName &&
+      element instanceof JsxElement &&
+      getSemanticJsxChildren(element.children.nodes).length !== 0
+    )
+      return false;
+    return (
+      (nodeSymbol.members === undefined || !nodeSymbol.members.has(s.name)) &&
+      isDiscriminantProperty(c, contextualType, s.name)
+    );
+  });
+  const discriminated = discriminateTypeByObjectLiteral(c, contextualType, props, members);
   cache.set(key, discriminated);
   return discriminated;
 }
@@ -1017,6 +1087,10 @@ function isPossiblyDiscriminantValue(node: Node): boolean {
     case SyntaxKind.PropertyAccessExpression:
     case SyntaxKind.ParenthesizedExpression:
       return isPossiblyDiscriminantValue(getExpression(node)!);
+    case SyntaxKind.JsxExpression: {
+      const expression = getExpression(node);
+      return expression === undefined || isPossiblyDiscriminantValue(expression);
+    }
   }
   return false;
 }
@@ -1069,10 +1143,12 @@ function discriminantMatches(c: Checker, props: Node[], index: number, t: Type):
   let propType: Type;
   if (index < props.length) {
     const prop = props[index]!;
-    propType =
-      prop.kind === SyntaxKind.PropertyAssignment
-        ? getContextFreeTypeOfExpression(c, (prop as PropertyAssignment).initializer)
-        : getContextFreeTypeOfExpression(c, getName(prop)!);
+    if (prop.kind === SyntaxKind.PropertyAssignment)
+      propType = getContextFreeTypeOfExpression(c, (prop as PropertyAssignment).initializer);
+    else if (prop instanceof JsxAttribute)
+      // An attribute without an initializer is `true`.
+      propType = prop.initializer !== undefined ? getContextFreeTypeOfExpression(c, prop.initializer) : c.trueType;
+    else propType = getContextFreeTypeOfExpression(c, getName(prop)!);
   } else propType = c.undefinedType;
   const sources = (propType.flags & TypeFlags.Union) !== 0 ? typesOf(propType) : [propType];
   for (const s of sources) if (isTypeAssignableTo(c, s, t)) return true;

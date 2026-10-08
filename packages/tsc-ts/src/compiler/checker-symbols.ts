@@ -1,5 +1,6 @@
 // Symbols: merging globals and augmentations, merged and late-bound symbols, aliases, exports,
 // entity names and the checker's name resolver.
+import { isTypeAssignableToKindEx } from './checker-type-operators.js';
 import {
   type ElementAccessExpression,
   type Identifier,
@@ -23,7 +24,7 @@ import {
   getLocals,
 } from './ast.js';
 import { isAmbientModule, isGlobalScopeAugmentation, nodeIsMissing } from './ast-utilities.js';
-import { codePoints, levenshteinWithMax } from './spelling.js';
+import { codePoints, levenshteinWithMax, utf8Length } from './spelling.js';
 import { setValueDeclaration } from './binder.js';
 import { checkResolvedBlockScopedVariable } from './checker-declaration-order.js';
 import {
@@ -45,7 +46,14 @@ import { NameResolver } from './name-resolver.js';
 import { CheckFlags, InternalSymbolName, Symbol, SymbolFlags, type SymbolTable, getSymbolId } from './symbol.js';
 import { SyntaxKind } from './syntax-kind.js';
 import { type Checker, createDiagnosticForNode } from './checker.js';
-import { InterfaceType, type Type, type Signature, TypeReference, UnionOrIntersectionType } from './checker-types.js';
+import {
+  InterfaceType,
+  type Type,
+  TypeFlags,
+  type Signature,
+  TypeReference,
+  UnionOrIntersectionType,
+} from './checker-types.js';
 import { compareSymbols } from './checker-type-factory.js';
 import { getDeclaredTypeOfSymbol } from './checker-declared-types.js';
 import { symbolToString } from './type-printer.js';
@@ -432,20 +440,6 @@ export function getSpellingSuggestionForName(
   return best;
 }
 
-function utf8Length(s: string): number {
-  let n = 0;
-  for (let i = 0; i < s.length; i++) {
-    const ch = s.charCodeAt(i);
-    if (ch < 0x80) n += 1;
-    else if (ch < 0x800) n += 2;
-    else if (ch >= 0xd800 && ch <= 0xdbff) {
-      n += 4;
-      i++;
-    } else n += 3;
-  }
-  return n;
-}
-
 function getCandidateName(c: Checker, candidate: Symbol, meaning: SymbolFlags): string {
   const name = candidate.name;
   if (name.length === 0 || name.charCodeAt(0) === 0x22 || name.charCodeAt(0) === 0xfffe) return '';
@@ -596,11 +590,9 @@ function maybeMappedType(c: Checker, node: Node, symbol: Symbol): boolean {
   const members = getMemberNodes(container);
   if (members === undefined || members.nodes.length !== 1) return false;
   const type = getDeclaredTypeOfSymbol(c, symbol);
-  return (type.flags & 1048576) !== 0 && allTypesAreStringLiterals(type);
-}
-
-function allTypesAreStringLiterals(type: Type): boolean {
-  for (const t of (type as UnionOrIntersectionType).types) if ((t.flags & 1024) === 0) return false;
+  if ((type.flags & TypeFlags.Union) === 0) return false;
+  for (const t of (type as UnionOrIntersectionType).types)
+    if (!isTypeAssignableToKindEx(c, t, TypeFlags.StringOrNumberLiteral, true)) return false;
   return true;
 }
 

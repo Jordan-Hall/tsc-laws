@@ -25,6 +25,7 @@ import {
   getType,
   getTypeParameters,
   getName,
+  type BindingElement,
 } from './ast.js';
 import {
   isFunctionExpressionOrArrowFunction,
@@ -80,7 +81,7 @@ import {
   tryGetTypeAtPosition,
 } from './checker-signatures.js';
 import { addOptionality } from './checker-symbol-types.js';
-import { getTypeFromBindingPattern } from './checker-destructuring.js';
+import { getBindingElementTypeFromParentType, getTypeFromBindingPattern } from './checker-destructuring.js';
 import { getTypeFromTypeNode } from './checker-type-nodes.js';
 import {
   checkDeclarationInitializer,
@@ -97,7 +98,7 @@ import {
   instantiateContextualType,
 } from './checker-contextual.js';
 import { checkJSDocFullSignature, checkUnmatchedJSDocParameters, getFullSignatureTypeNode } from './checker-jsdoc.js';
-import { isFunctionLike, nodeIsMissing } from './ast-utilities.js';
+import { getEffectiveCheckNode, isFunctionLike, nodeIsMissing } from './ast-utilities.js';
 import {
   getFlowTypeOfReferenceAt,
   isConstantReference,
@@ -127,6 +128,11 @@ import {
   unwrapReturnType,
 } from './checker-iteration.js';
 import { typeToString } from './type-printer.js';
+import {
+  checkGrammarAwaitExpression,
+  checkGrammarFunctionExpression,
+  checkGrammarYieldOfExpression,
+} from './checker-grammar.js';
 
 export function checkFunctionExpressionOrObjectLiteralMethod(c: Checker, node: Node, checkMode: CheckMode): Type {
   checkNodeDeferred(c, node);
@@ -167,6 +173,8 @@ export function checkFunctionExpressionOrObjectLiteralMethod(c: Checker, node: N
     }
     return c.anyFunctionType;
   }
+  if (node.kind === SyntaxKind.FunctionExpression || node.kind === SyntaxKind.ArrowFunction)
+    checkGrammarFunctionExpression(c, node);
   checkJSDocFullSignature(c, node);
   contextuallyCheckFunctionExpressionOrObjectLiteralMethod(c, node, checkMode);
   const symbol = getSymbolOfDeclaration(c, node);
@@ -325,7 +333,11 @@ function assignParameterSymbolType(c: Checker, parameter: Symbol, contextualType
     (name.kind === SyntaxKind.ObjectBindingPattern || name.kind === SyntaxKind.ArrayBindingPattern)
   )
     links.type = getTypeFromBindingPattern(c, name, false, false);
-  assignParameterType(c, declaration);
+  if (
+    name !== undefined &&
+    (name.kind === SyntaxKind.ObjectBindingPattern || name.kind === SyntaxKind.ArrayBindingPattern)
+  )
+    assignBindingElementTypes(c, name, links.type);
 }
 
 export function getTypeOfObjectLiteralMethod(c: Checker, node: Node, checkMode: CheckMode): Type {
@@ -508,14 +520,9 @@ export function checkReturnExpression(
 }
 
 /** `node` without parentheses and `satisfies`. */
-function getEffectiveCheckNode(node: Node): Node {
-  let current = node;
-  while (current.kind === SyntaxKind.ParenthesizedExpression || current.kind === SyntaxKind.SatisfiesExpression)
-    current = getExpression(current)!;
-  return current;
-}
 
 export function checkAwaitExpression(c: Checker, node: Node): Type {
+  checkGrammarAwaitExpression(c, node);
   const operandType = checkExpression(c, getExpression(node)!);
   const awaitedType = checkAwaitedType(
     c,
@@ -534,6 +541,7 @@ export function checkAwaitExpression(c: Checker, node: Node): Type {
 // ---- Generators
 
 export function checkYieldExpression(c: Checker, node: Node): Type {
+  checkGrammarYieldOfExpression(c, node);
   const yieldExpr = node as YieldExpression;
   const func = getContainingFunctionLike(node);
   if (func === undefined) return c.anyType;
@@ -1182,23 +1190,35 @@ class ReturnVisitor extends NodeVisitor {
 
 function assignParameterType(c: Checker, declaration: Node): void {
   const symbol = getSymbolOfDeclaration(c, declaration);
-  if (symbol !== undefined) {
-    const symbolLinks = c.symbolLinks(symbol);
-    if (symbolLinks.type === undefined) {
-      const t = getTypeOfSymbol(c, symbol);
-      symbolLinks.type = addOptionality(
-        c,
-        t,
-        false,
-        getInitializer(declaration) === undefined && isOptionalDeclaration(declaration),
-      );
-    }
-  }
+  if (symbol === undefined) return;
+  const symbolLinks = c.symbolLinks(symbol);
+  if (symbolLinks.type !== undefined) return;
+  const t = getTypeOfSymbol(c, symbol);
+  symbolLinks.type = addOptionality(
+    c,
+    t,
+    false,
+    getInitializer(declaration) === undefined && isOptionalDeclaration(declaration),
+  );
   const name = getName(declaration);
   if (
     name !== undefined &&
     (name.kind === SyntaxKind.ObjectBindingPattern || name.kind === SyntaxKind.ArrayBindingPattern)
-  )
-    for (const element of getElements(name)!.nodes)
-      if (element.kind === SyntaxKind.BindingElement) assignParameterType(c, element);
+  ) {
+    // Without a better inference than `unknown`, a binding pattern implies the type.
+    if (symbolLinks.type === c.unknownType) symbolLinks.type = getTypeFromBindingPattern(c, name, false, false);
+    assignBindingElementTypes(c, name, symbolLinks.type);
+  }
+}
+
+/** Pushes a contextually assigned parameter type into the binding elements of its pattern. */
+function assignBindingElementTypes(c: Checker, pattern: Node, parentType: Type): void {
+  for (const element of getElements(pattern)!.nodes) {
+    if (element.kind !== SyntaxKind.BindingElement) continue;
+    const name = getName(element);
+    if (name === undefined) continue;
+    const t = getBindingElementTypeFromParentType(c, element as BindingElement, parentType, false);
+    if (name.kind === SyntaxKind.Identifier) c.symbolLinks(getSymbolOfDeclaration(c, element)!).type = t;
+    else assignBindingElementTypes(c, name, t);
+  }
 }

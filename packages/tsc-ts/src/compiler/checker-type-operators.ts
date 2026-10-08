@@ -1,5 +1,6 @@
 // Type operators: `keyof`, indexed access, mapped, conditional, substitution and string mapping
 // types, and genericity tests.
+import { getTypeOfPropertyOfContextualType } from './checker-contextual.js';
 import { checkDeprecatedIndexedAccess } from './checker-deprecation.js';
 import { isSelfTypeAccess, markPropertyAsReferenced } from './checker-unused.js';
 import {
@@ -80,6 +81,8 @@ import {
   isReadonlyArrayType,
   isTupleType,
   mapType,
+  mapTypeEx,
+  intersectTypes,
   mapTypeWithAlias,
   newIndexType,
   newIndexedAccessType,
@@ -113,6 +116,7 @@ import {
   pushTypeResolution,
   TypeSystemPropertyName,
   getParentOfSymbol,
+  findResolutionCycleStartIndex,
 } from './checker-symbols.js';
 import {
   getConstraintOfTypeParameter,
@@ -120,6 +124,7 @@ import {
   getElementTypeOfArrayType,
   getInferTypeParameters,
   getOuterTypeParameters,
+  hasNonCircularBaseConstraint,
 } from './checker-declared-types.js';
 import {
   addOptionality,
@@ -146,7 +151,7 @@ import { getTextOfNodeFromSourceText } from './ast-utilities.js';
 import { getMinArgumentCount, getSingleCallSignature, getTypeAtPosition } from './checker-signatures.js';
 import { getAssignmentTargetKind } from './checker-narrowing.js';
 import {
-  getSuggestedSymbolForNonexistentProperty,
+  getSuggestionForNonexistentProperty,
   isAssignmentToReadonlyEntity,
   isDeleteTarget,
   typeHasStaticProperty,
@@ -430,6 +435,28 @@ function forEachMappedTypePropertyKeyTypeAndIndexSignatureKeyType(
       if (!stringsOnly || (info.keyType.flags & (TypeFlags.String | TypeFlags.TemplateLiteral)) !== 0) cb(info.keyType);
 }
 
+/** The keys a generic mapped type with an `as` clause maps the apparent keys of its modifiers type to. */
+export function getApparentMappedTypeKeys(c: Checker, nameType: Type, targetType: MappedType): Type {
+  const modifiersType = getApparentType(c, getModifiersTypeFromMappedType(c, targetType));
+  const mappedKeys: Type[] = [];
+  forEachMappedTypePropertyKeyTypeAndIndexSignatureKeyType(
+    c,
+    modifiersType,
+    TypeFlags.StringOrNumberLiteralOrUnique,
+    false,
+    (t) => {
+      mappedKeys.push(
+        instantiateType(
+          c,
+          nameType,
+          appendTypeMapping(targetType.mapper, getTypeParameterFromMappedType(c, targetType), t),
+        ),
+      );
+    },
+  );
+  return getUnionType(c, mappedKeys);
+}
+
 /** Keys known to always be present, e.g. from constraints of type parameters. */
 function getLowerBoundOfKeyType(c: Checker, t: Type): Type {
   if ((t.flags & TypeFlags.Index) !== 0) {
@@ -452,7 +479,7 @@ function getLowerBoundOfKeyType(c: Checker, t: Type): Type {
     }
     return t;
   }
-  if ((t.flags & TypeFlags.Union) !== 0) return mapType(c, t, (u) => getLowerBoundOfKeyType(c, u));
+  if ((t.flags & TypeFlags.Union) !== 0) return mapTypeEx(c, t, (u) => getLowerBoundOfKeyType(c, u), true)!;
   if ((t.flags & TypeFlags.Intersection) !== 0) {
     const types = typesOf(t);
     // Keep `string & {}` and friends, which prevent subtype reduction.
@@ -664,6 +691,9 @@ function getPropertyTypeForIndexType(
       ? undefined
       : getPropertyNameFromIndex(indexType);
   if (propName !== undefined) {
+    // Contextual accesses read the property without reducing a union of its types.
+    if ((accessFlags & AccessFlags.Contextual) !== 0)
+      return getTypeOfPropertyOfContextualType(c, objectType, propName) ?? c.anyType;
     const prop = getPropertyOfType(c, objectType, propName);
     if (prop !== undefined) {
       if ((accessFlags & AccessFlags.ReportDeprecated) !== 0 && accessNode !== undefined)
@@ -816,7 +846,7 @@ function getPropertyTypeForIndexType(
         const argument = (accessExpression as ElementAccessExpression).argumentExpression;
         const objectText = typeToString(c, objectType);
         const suggestion =
-          propName !== undefined ? getSuggestedSymbolForNonexistentProperty(c, propName, objectType) : undefined;
+          propName !== undefined ? getSuggestionForNonexistentProperty(c, propName, objectType) : undefined;
         if (propName !== undefined && typeHasStaticProperty(c, propName, objectType))
           c.error(
             accessExpression,
@@ -1025,11 +1055,7 @@ export function getElementTypeOfSliceOfTupleType(
 }
 
 export function getConstraintOfIndexedAccess(c: Checker, t: IndexedAccessType): Type | undefined {
-  return hasNonCircularBaseConstraintLocal(c, t) ? getConstraintFromIndexedAccess(c, t) : undefined;
-}
-
-function hasNonCircularBaseConstraintLocal(c: Checker, t: Type): boolean {
-  return getBaseConstraintOfType(c, t) !== undefined || t.resolvedBaseConstraint !== c.circularConstraintType;
+  return hasNonCircularBaseConstraint(c, t) ? getConstraintFromIndexedAccess(c, t) : undefined;
 }
 
 function getConstraintFromIndexedAccess(c: Checker, t: IndexedAccessType): Type | undefined {
@@ -1079,8 +1105,46 @@ export function substituteIndexedMappedType(c: Checker, objectType: MappedType, 
     getTemplateTypeFromMappedType(c, mappedTypeTarget(objectType)),
     templateMapper,
   );
-  const isOptional = getMappedTypeOptionality(objectType) > 0;
+  let isOptional = getMappedTypeOptionality(objectType) > 0;
+  if (!isOptional)
+    isOptional = isGenericType(c, objectType)
+      ? getCombinedMappedTypeOptionality(c, getModifiersTypeFromMappedType(c, objectType)) > 0
+      : couldAccessOptionalProperty(c, objectType, index);
   return addOptionality(c, instantiatedTemplateType, true, isOptional);
+}
+
+/** The optionality modifiers of a mapped type or its modifiers type, or of all the types of an intersection. */
+export function getCombinedMappedTypeOptionality(c: Checker, t: Type): number {
+  if ((t.objectFlags & ObjectFlags.Mapped) !== 0) {
+    const optionality = getMappedTypeOptionality(t as MappedType);
+    return optionality !== 0
+      ? optionality
+      : getCombinedMappedTypeOptionality(c, getModifiersTypeFromMappedType(c, t as MappedType));
+  }
+  if ((t.flags & TypeFlags.Intersection) !== 0) {
+    const types = typesOf(t);
+    const optionality = getCombinedMappedTypeOptionality(c, types[0]!);
+    for (let i = 1; i < types.length; i++) if (getCombinedMappedTypeOptionality(c, types[i]!) !== optionality) return 0;
+    return optionality;
+  }
+  return 0;
+}
+
+/** Whether an indexed access with the given object and index types could access an optional property. */
+function couldAccessOptionalProperty(c: Checker, objectType: Type, indexType: Type): boolean {
+  const indexConstraint = getBaseConstraintOfType(c, indexType);
+  if (indexConstraint === undefined) return false;
+  for (const p of getPropertiesOfType(c, objectType))
+    if (
+      (p.flags & SymbolFlags.Optional) !== 0 &&
+      isTypeAssignableTo(
+        c,
+        getLiteralTypeFromProperty(c, p, TypeFlags.StringOrNumberLiteralOrUnique, false),
+        indexConstraint,
+      )
+    )
+      return true;
+  return false;
 }
 
 // ---- Simplification
@@ -1088,7 +1152,44 @@ export function substituteIndexedMappedType(c: Checker, objectType: MappedType, 
 export function getSimplifiedType(c: Checker, t: Type, writing: boolean): Type {
   if ((t.flags & TypeFlags.IndexedAccess) !== 0)
     return getSimplifiedIndexedAccessType(c, t as IndexedAccessType, writing);
+  if ((t.flags & TypeFlags.Conditional) !== 0) return getSimplifiedConditionalType(c, t as ConditionalType, writing);
   return t;
+}
+
+/** Simplifies `T extends U ? T : never` and `T extends U ? never : T` when the outcome is known. */
+function getSimplifiedConditionalType(c: Checker, t: ConditionalType, writing: boolean): Type {
+  const checkType = t.checkType;
+  const extendsType = t.extendsType;
+  const trueType = getTrueTypeFromConditionalType(c, t);
+  const falseType = getFalseTypeFromConditionalType(c, t);
+  if (
+    (falseType.flags & TypeFlags.Never) !== 0 &&
+    getActualTypeVariable(c, trueType) === getActualTypeVariable(c, checkType)
+  ) {
+    if (
+      (checkType.flags & TypeFlags.Any) !== 0 ||
+      isTypeAssignableTo(c, getRestrictiveInstantiation(c, checkType), getRestrictiveInstantiation(c, extendsType))
+    )
+      return getSimplifiedType(c, trueType, writing);
+    if (isIntersectionEmpty(c, checkType, extendsType)) return c.neverType;
+  } else if (
+    (trueType.flags & TypeFlags.Never) !== 0 &&
+    getActualTypeVariable(c, falseType) === getActualTypeVariable(c, checkType)
+  ) {
+    if (
+      (checkType.flags & TypeFlags.Any) === 0 &&
+      isTypeAssignableTo(c, getRestrictiveInstantiation(c, checkType), getRestrictiveInstantiation(c, extendsType))
+    )
+      return c.neverType;
+    if ((checkType.flags & TypeFlags.Any) !== 0 || isIntersectionEmpty(c, checkType, extendsType))
+      return getSimplifiedType(c, falseType, writing);
+  }
+  return t;
+}
+
+/** Whether the intersection of two types reduces to `never` as a union constituent. */
+function isIntersectionEmpty(c: Checker, type1: Type, type2: Type): boolean {
+  return (getUnionType(c, [intersectTypes(c, type1, type2)!, c.neverType]).flags & TypeFlags.Never) !== 0;
 }
 
 function getSimplifiedIndexedAccessType(c: Checker, t: IndexedAccessType, writing: boolean): Type {
@@ -1597,7 +1698,12 @@ export function instantiateMappedType(
     )
       return s;
     if (mappedNameTypeNode(t) === undefined) {
-      if (isArrayType(c, s) || ((s.flags & TypeFlags.Any) !== 0 && hasArrayOrTupleConstraint(c, typeVariable!)))
+      if (
+        isArrayType(c, s) ||
+        ((s.flags & TypeFlags.Any) !== 0 &&
+          findResolutionCycleStartIndex(c, typeVariable!, TypeSystemPropertyName.ResolvedBaseConstraint) < 0 &&
+          hasArrayOrTupleConstraint(c, typeVariable!))
+      )
         return instantiateMappedArrayType(c, s, t, prependTypeMapping(typeVariable!, s, mapper));
       if (isTupleType(s)) return instantiateMappedTupleType(c, s, t, typeVariable!, mapper);
       if ((s.flags & TypeFlags.Intersection) !== 0 && typesOf(s).every((u) => isArrayType(c, u) || isTupleType(u)))
@@ -2009,7 +2115,7 @@ export function getDefaultConstraintOfConditionalType(c: Checker, t: Conditional
 }
 
 export function getConstraintOfConditionalType(c: Checker, t: Type): Type | undefined {
-  return getBaseConstraintOfType(c, t) !== undefined ? getConstraintFromConditionalType(c, t) : undefined;
+  return hasNonCircularBaseConstraint(c, t) ? getConstraintFromConditionalType(c, t) : undefined;
 }
 
 export function getConstraintFromConditionalType(c: Checker, t: Type): Type {

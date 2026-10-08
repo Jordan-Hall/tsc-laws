@@ -75,3 +75,18 @@ export function getSpellingSuggestion(name: string, candidates: readonly string[
   }
   return best;
 }
+
+/** The length of `s` in UTF-8 bytes. */
+export function utf8Length(s: string): number {
+  let n = 0;
+  for (let i = 0; i < s.length; i++) {
+    const ch = s.charCodeAt(i);
+    if (ch < 0x80) n += 1;
+    else if (ch < 0x800) n += 2;
+    else if (ch >= 0xd800 && ch <= 0xdbff) {
+      n += 4;
+      i++;
+    } else n += 3;
+  }
+  return n;
+}

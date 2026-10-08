@@ -1,4 +1,5 @@
 // Destructuring: types of binding elements and the types implied by binding patterns.
+import { checkGrammarRestTrailingComma } from './checker-grammar.js';
 import { markDestructuredPropertyAsReferenced } from './checker-unused.js';
 import {
   type BinaryExpression,
@@ -23,7 +24,7 @@ import {
 } from './ast.js';
 import { isLeftHandSideExpression } from './ast-utilities.js';
 import { TokenFlags } from './types.js';
-import { getFlowTypeOfReference, getDestructuringPropertyName } from './checker-narrowing.js';
+import { getFlowTypeOfReference, getDestructuringPropertyName, getTypeOfInitializer } from './checker-narrowing.js';
 import {
   getRootDeclaration,
   isClassLike,
@@ -94,6 +95,7 @@ import {
   isReadonlySymbol,
   reportImplicitAny,
   declarationBelongsToPrivateAmbientMember,
+  isOptionalDeclaration,
 } from './checker-symbol-types.js';
 import { getTypeAliasInstantiation } from './checker-type-nodes.js';
 import { isTypeAssignableTo } from './relations.js';
@@ -124,7 +126,9 @@ function isBindingPatternNode(node: Node | undefined): boolean {
 /** The type of a binding element, from the type of the declaration it destructures. */
 export function getTypeForBindingElement(c: Checker, declaration: Node): Type | undefined {
   const pattern = declaration.parent!;
-  const parentType = getTypeForBindingElementParent(c, pattern.parent!);
+  const checkMode =
+    (declaration as BindingElement).dotDotDotToken !== undefined ? CheckMode.RestBindingElement : CheckMode.Normal;
+  const parentType = getTypeForBindingElementParent(c, pattern.parent!, checkMode);
   if (parentType === undefined || parentType === c.errorType) return parentType;
   return getBindingElementTypeFromParentType(c, declaration as BindingElement, parentType, false);
 }
@@ -179,13 +183,16 @@ function getParentElementAccess(c: Checker, node: Node): Node | undefined {
   return undefined;
 }
 
-export function getTypeForBindingElementParent(c: Checker, node: Node): Type | undefined {
-  const symbol = getSymbolOfDeclaration(c, node);
-  if (symbol !== undefined) {
-    const cached = c.symbolLinks(symbol).type;
-    if (cached !== undefined) return cached;
+export function getTypeForBindingElementParent(c: Checker, node: Node, checkMode: CheckMode): Type | undefined {
+  if (checkMode === CheckMode.Normal) {
+    // A resolved type can be used when it includes no optionality.
+    const symbol = getSymbolOfDeclaration(c, node);
+    if (symbol !== undefined) {
+      const cached = c.symbolLinks(symbol).type;
+      if (cached !== undefined && !(c.strictNullChecks && isOptionalDeclaration(node))) return cached;
+    }
   }
-  return getTypeForVariableLikeDeclaration(c, node, false);
+  return getTypeForVariableLikeDeclaration(c, node, false, checkMode);
 }
 
 export function getBindingElementTypeFromParentType(
@@ -204,7 +211,7 @@ export function getBindingElementTypeFromParentType(
   else if (
     c.strictNullChecks &&
     parentInitializer !== undefined &&
-    !hasTypeFacts(c, checkDeclarationInitializer(c, pattern.parent!), TypeFacts.EQUndefined)
+    !hasTypeFacts(c, getTypeOfInitializer(c, parentInitializer), TypeFacts.EQUndefined)
   )
     parentType = getTypeWithFacts(c, parentType, TypeFacts.NEUndefined);
   const accessFlags =
@@ -609,6 +616,7 @@ function checkObjectLiteralDestructuringPropertyAssignment(
     const nonRestNames: Node[] = [];
     for (const other of properties) if (other.kind !== SyntaxKind.SpreadAssignment) nonRestNames.push(getName(other)!);
     const t = getRestType(c, objectLiteralType, nonRestNames, objectLiteralType.symbol);
+    checkGrammarRestTrailingComma(c, property.parent!, getProperties(property.parent!)!);
     checkDestructuringAssignment(c, (property as SpreadAssignment).expression, t, CheckMode.Normal, false);
     return;
   }
@@ -675,6 +683,7 @@ function checkArrayLiteralDestructuringElementAssignment(
     c.error((restExpression as BinaryExpression).operatorToken, Diagnostics.A_rest_element_cannot_have_an_initializer);
     return;
   }
+  checkGrammarRestTrailingComma(c, element, getElements(element.parent!)!);
   const t = everyType(sourceType, isTupleType)
     ? mapType(c, sourceType, (u) => sliceTupleType(c, u, elementIndex, 0))
     : createArrayType(c, elementType);

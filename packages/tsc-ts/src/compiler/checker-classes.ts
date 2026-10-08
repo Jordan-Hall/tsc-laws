@@ -91,16 +91,23 @@ import { checkDecorators } from './checker-decorators.js';
 
 export function checkClassDeclaration(c: Checker, node: Node): void {
   checkClassLikeDeclaration(c, node);
+  checkClassMembers(c, node);
 }
 
+/** Checks a class expression each time it is checked; its members are checked deferred. */
 export function checkClassExpression(c: Checker, node: Node): Type {
+  checkClassLikeDeclaration(c, node);
   checkNodeDeferred(c, node);
   const symbol = getSymbolOfDeclaration(c, node);
   return symbol !== undefined ? getTypeOfSymbol(c, symbol) : c.anyType;
 }
 
 export function checkClassLikeDeferred(c: Checker, node: Node): void {
-  checkClassLikeDeclaration(c, node);
+  checkClassMembers(c, node);
+}
+
+function checkClassMembers(c: Checker, node: Node): void {
+  for (const member of getMembers(node)!.nodes) checkClassMember(c, member);
 }
 
 function checkClassLikeDeclaration(c: Checker, node: Node): void {
@@ -122,7 +129,6 @@ function checkClassLikeDeclaration(c: Checker, node: Node): void {
   const heritageClauses = getHeritageClauses(node);
   if (heritageClauses !== undefined) checkHeritageClauses(c, heritageClauses.nodes, true);
   checkClassHeritage(c, node);
-  for (const member of getMembers(node)!.nodes) checkClassMember(c, member);
   checkPropertyInitialization(c, node);
 }
 
@@ -145,7 +151,17 @@ export function checkTypeNameIsReserved(c: Checker, name: Node, message: Diagnos
 }
 
 function checkHeritageClauses(c: Checker, clauses: Node[], isClass: boolean): void {
+  // Only the first clause of each kind counts; others are syntax errors.
+  let seenExtends = false;
+  let seenImplements = false;
   for (const clause of clauses) {
+    if ((clause as HeritageClause).token === SyntaxKind.ImplementsKeyword) {
+      if (seenImplements) continue;
+      seenImplements = true;
+    } else {
+      if (seenExtends) continue;
+      seenExtends = true;
+    }
     for (const t of (clause as HeritageClause).types.nodes) {
       const args = getTypeArguments(t);
       if (args !== undefined) for (const a of args.nodes) checkSourceElement(c, a);

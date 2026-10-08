@@ -21,6 +21,7 @@ import {
   getTagName,
   getText,
   getTypeArguments,
+  getExpression,
 } from './ast.js';
 import { getSourceFileOfNode, getSourceTextOfNode } from './binder-utilities.js';
 import { Diagnostic, type DiagnosticMessage, Diagnostics, chainDiagnostic } from './diagnostics.js';
@@ -106,7 +107,7 @@ import {
   checkExpression,
   checkExpressionCached,
   checkExpressionEx,
-  checkExpressionForMutableLocation,
+  checkExpressionForMutableLocationEx,
 } from './checker-expressions.js';
 import {
   checkExpressionWithContextualType,
@@ -114,10 +115,17 @@ import {
   getApparentTypeOfContextualType,
   getContextualType,
   getTypeOfPropertyOfContextualType,
+  getInferenceContext,
 } from './checker-contextual.js';
 import { checkNodeDeferred, checkSourceElement } from './checker-source-file.js';
 import { getResolvedSignature, resolveCall } from './checker-calls.js';
-import { type InferenceContext, InferencePriority, getInferredTypes, inferTypes } from './checker-inference.js';
+import {
+  type InferenceContext,
+  InferencePriority,
+  addIntraExpressionInferenceSite,
+  getInferredTypes,
+  inferTypes,
+} from './checker-inference.js';
 import { isContextSensitive } from './checker-functions.js';
 import { checkSpreadPropOverrides, getSpreadType } from './checker-object-literals.js';
 import { isValidSpreadType } from './checker-destructuring.js';
@@ -838,20 +846,20 @@ function getJSXFragmentType(c: Checker, node: Node): Type {
 
 // ---- Attributes and children
 
-export function checkJsxAttribute(c: Checker, node: Node, _checkMode: CheckMode): Type {
+export function checkJsxAttribute(c: Checker, node: Node, checkMode: CheckMode): Type {
   const initializer = (node as JsxAttribute).initializer;
   // `<Elem attr />` is `<Elem attr={true} />`.
-  return initializer !== undefined ? checkExpressionForMutableLocation(c, initializer) : c.trueType;
+  return initializer !== undefined ? checkExpressionForMutableLocationEx(c, initializer, checkMode) : c.trueType;
 }
 
-export function checkJsxChildren(c: Checker, node: Node, _checkMode: CheckMode): Type[] {
+export function checkJsxChildren(c: Checker, node: Node, checkMode: CheckMode): Type[] {
   const childTypes: Type[] = [];
   for (const child of getChildrenOf(node)) {
     // Whitespace-only text isn't a child in React.
     if (child.kind === SyntaxKind.JsxText) {
       if (!(child as JsxText).containsOnlyTriviaWhiteSpaces) childTypes.push(c.stringType);
     } else if (child.kind === SyntaxKind.JsxExpression && (child as JsxExpression).expression === undefined) continue;
-    else childTypes.push(checkExpressionForMutableLocation(c, child));
+    else childTypes.push(checkExpressionForMutableLocationEx(c, child, checkMode));
   }
   return childTypes;
 }
@@ -916,6 +924,18 @@ export function createJsxAttributesTypeFromAttributesProperty(
         if (jsxNameText((attributeDecl as JsxAttribute).name) === jsxChildrenPropertyName)
           explicitlySpecifyChildrenAttribute = true;
         if (contextualType !== undefined) checkDeprecatedJsxAttribute(c, contextualType, attributeDecl as JsxAttribute);
+        if (
+          contextualType !== undefined &&
+          (checkMode & CheckMode.Inferential) !== 0 &&
+          (checkMode & CheckMode.SkipContextSensitive) === 0 &&
+          isContextSensitive(c, attributeDecl)
+        ) {
+          // Inferences flowing between context-sensitive attributes are made before fixing.
+          const inferenceContext = getInferenceContext(c, attributes);
+          const initializer = (attributeDecl as JsxAttribute).initializer;
+          if (inferenceContext !== undefined && initializer !== undefined)
+            addIntraExpressionInferenceSite(inferenceContext, getExpression(initializer)!, exprType);
+        }
       } else {
         if (attributesTable.size !== 0) {
           // Attribute objects are fresh, and so are spreads after the first one.

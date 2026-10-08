@@ -32,15 +32,25 @@ import {
   getTypeParameters,
   type HeritageClause,
   getHeritageClauses,
+  getFlowNode,
+  NodeFlags,
 } from './ast.js';
 import { SyntaxKind } from './syntax-kind.js';
-import { isExternalOrCommonJSModule } from './binder-utilities.js';
+import {
+  getSourceFileOfNode,
+  isEnumConst,
+  isExternalOrCommonJSModule,
+  isPotentiallyExecutableNode,
+} from './binder-utilities.js';
 import type { Checker } from './checker.js';
 import { ElementFlags, type MappedType, NodeCheckFlags, TypePredicateKind } from './checker-types.js';
 import { getSignatureFromDeclaration, getTypePredicateOfSignature } from './checker-signatures.js';
 import { getConstraintTypeFromMappedType, getNameTypeFromMappedType } from './checker-type-operators.js';
 import { checkTypeAssignableTo, checkTypeRelatedTo } from './relations.js';
-import { type Diagnostic, chainDiagnostic } from './diagnostics.js';
+import { Diagnostic, chainDiagnostic } from './diagnostics.js';
+import { skipTrivia } from './scanner.js';
+import { shouldPreserveConstEnums } from './options.js';
+import { isReachableFlowNode } from './checker-narrowing.js';
 import { getTupleElementFlags, getTypeFromTypeNode } from './checker-type-nodes.js';
 import { isArrayLikeType } from './checker-members.js';
 import {
@@ -71,6 +81,7 @@ import {
   checkVariableStatement,
   checkVariableLikeDeclaration,
   checkUnusedRenamedBindingElements,
+  isInstantiatedModule,
 } from './checker-declarations.js';
 import {
   checkExportAssignment,
@@ -139,14 +150,69 @@ function checkSourceFileWorker(c: Checker, file: SourceFile): void {
 export function checkSourceElement(c: Checker, node: Node | undefined): void {
   if (node === undefined) return;
   const saveCurrentNode = c.currentNode;
+  const saveWithinUnreachableCode = c.withinUnreachableCode;
   c.currentNode = node;
+  c.instantiationCount = 0;
   checkSourceElementWorker(c, node);
   c.currentNode = saveCurrentNode;
+  c.withinUnreachableCode = saveWithinUnreachableCode;
+}
+
+/** Reports a statement that can't be reached, with the unreachable statements after it. */
+function checkSourceElementUnreachable(c: Checker, node: Node): boolean {
+  if (!isPotentiallyExecutableNode(node)) return false;
+  if (c.reportedUnreachableNodes.has(node)) return true;
+  if (!isSourceElementUnreachable(c, node)) return false;
+  c.reportedUnreachableNodes.add(node);
+  const file = getSourceFileOfNode(node);
+  let endNode = node;
+  const parent = node.parent!;
+  const statements = getStatements(parent)?.nodes;
+  if (statements !== undefined) {
+    const offset = statements.indexOf(node);
+    if (offset >= 0)
+      for (let i = offset + 1; i < statements.length; i++) {
+        const next = statements[i]!;
+        if (!isPotentiallyExecutableNode(next) || !isSourceElementUnreachable(c, next)) break;
+        endNode = next;
+        c.reportedUnreachableNodes.add(next);
+      }
+  }
+  const start = skipTrivia(file.text, node.pos);
+  const diagnostic = new Diagnostic(
+    file.diagnosticFile(),
+    start,
+    endNode.end,
+    Diagnostics.Unreachable_code_detected,
+    [],
+  );
+  c.addErrorOrSuggestion(c.compilerOptions.allowUnreachableCode === false, diagnostic);
+  return true;
+}
+
+function isSourceElementUnreachable(c: Checker, node: Node): boolean {
+  if ((node.flags & NodeFlags.Unreachable) !== 0) {
+    // The binder knows the code is unreachable; const enums only count when preserved.
+    if (node.kind === SyntaxKind.EnumDeclaration)
+      return !isEnumConst(node) || shouldPreserveConstEnums(c.compilerOptions);
+    if (node.kind === SyntaxKind.ModuleDeclaration)
+      return isInstantiatedModule(node, shouldPreserveConstEnums(c.compilerOptions));
+    return true;
+  }
+  // Otherwise control flow decides, through assertion calls for example.
+  const flowNode = getFlowNode(node);
+  return flowNode !== undefined && !isReachableFlowNode(c, flowNode);
 }
 
 function checkSourceElementWorker(c: Checker, node: Node): void {
   const jsDoc = node.jsDoc;
   if (jsDoc !== undefined) for (const d of jsDoc) checkJSDocLinks(c, d);
+  if (
+    !c.withinUnreachableCode &&
+    c.compilerOptions.allowUnreachableCode !== true &&
+    checkSourceElementUnreachable(c, node)
+  )
+    c.withinUnreachableCode = true;
   switch (node.kind) {
     // Statements
     case SyntaxKind.Block:
@@ -283,6 +349,7 @@ function checkSignatureMember(c: Checker, node: Node): void {
 function checkTypeNode(c: Checker, node: Node): void {
   const saveCurrentNode = c.currentNode;
   c.currentNode = node;
+  c.instantiationCount = 0;
   checkTypeNodeWorker(c, node);
   c.currentNode = saveCurrentNode;
 }
@@ -342,7 +409,6 @@ function checkTypeNodeWorker(c: Checker, node: Node): void {
       break;
     case SyntaxKind.TypeQuery:
     case SyntaxKind.TypeOperator:
-    case SyntaxKind.ConditionalType:
     case SyntaxKind.LiteralType:
     case SyntaxKind.ThisType:
       getTypeFromTypeNode(c, node);
@@ -370,7 +436,6 @@ function checkMappedType(c: Checker, node: MappedTypeNode): void {
   checkTypeNodeIfPresent(c, node.nameType);
   checkTypeNodeIfPresent(c, node.type);
   if (node.type === undefined) reportImplicitAny(c, node, c.anyType);
-  if (node.members !== undefined) for (const m of node.members.nodes) checkSourceElement(c, m);
   const t = getTypeFromTypeNode(c, node) as MappedType;
   const nameType = getNameTypeFromMappedType(c, t);
   if (nameType !== undefined) checkTypeAssignableTo(c, nameType, c.stringNumberSymbolType, node.nameType, undefined);
@@ -571,6 +636,7 @@ function checkObjectLiteralAccessorType(c: Checker, node: Node): void {
 function checkDeferredNode(c: Checker, node: Node): void {
   const saveCurrentNode = c.currentNode;
   c.currentNode = node;
+  c.instantiationCount = 0;
   switch (node.kind) {
     case SyntaxKind.CallExpression:
     case SyntaxKind.NewExpression:
@@ -602,6 +668,9 @@ function checkDeferredNode(c: Checker, node: Node): void {
     case SyntaxKind.JsxElement:
     case SyntaxKind.JsxSelfClosingElement:
       checkJsxElementDeferred(c, node);
+      break;
+    case SyntaxKind.VoidExpression:
+      checkExpression(c, getExpression(node)!);
       break;
   }
   c.currentNode = saveCurrentNode;

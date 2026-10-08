@@ -9,6 +9,7 @@ import {
   ModifierFlags,
   NodeFlags,
   type TypeParameterDeclaration,
+  type ConditionalTypeNode,
 } from './ast.js';
 import { hasSyntacticModifier } from './binder-utilities.js';
 import { CheckFlags, type Symbol, SymbolFlags } from './symbol.js';
@@ -46,6 +47,7 @@ import {
   type UnionType,
   VarianceFlags,
   newTypeMapper,
+  SimpleTypeMapper,
 } from './checker-types.js';
 import {
   UnionReduction,
@@ -92,6 +94,7 @@ import {
   getConstraintOfTypeParameter,
   getDefaultFromTypeParameter,
   getMinTypeArgumentCount,
+  getDeclaredTypeOfTypeParameter,
 } from './checker-declared-types.js';
 import {
   MappedTypeModifiers,
@@ -180,7 +183,7 @@ import {
 } from './relations.js';
 import { maybeTypeOfKind } from './checker-utilities.js';
 import { getTypeFromTypeNode } from './checker-type-nodes.js';
-import { getMergedSymbol } from './checker-symbols.js';
+import { getMergedSymbol, getSymbolOfDeclaration } from './checker-symbols.js';
 import { parsePseudoBigInt } from './pseudo-bigint.js';
 import { getContextualTypeForInference } from './checker-contextual.js';
 
@@ -2253,6 +2256,32 @@ export function getInferredTypeParameterConstraint(c: Checker, t: Type, omitType
           if (parent.parent !== undefined && parent.parent.kind === SyntaxKind.MappedType)
             inferences.push(c.stringNumberSymbolType);
           break;
+        case SyntaxKind.MappedType: {
+          // `{ [P in K]: X } extends { [Q in L]: infer U }` constrains U to X with P replaced by K.
+          const mapped = parent as MappedTypeNode;
+          const conditional = parent.parent;
+          if (
+            mapped.type !== undefined &&
+            mapped.type === declaration.parent &&
+            conditional !== undefined &&
+            conditional.kind === SyntaxKind.ConditionalType &&
+            (conditional as ConditionalTypeNode).extendsType === parent &&
+            (conditional as ConditionalTypeNode).checkType.kind === SyntaxKind.MappedType &&
+            ((conditional as ConditionalTypeNode).checkType as MappedTypeNode).type !== undefined
+          ) {
+            const checkMappedType = (conditional as ConditionalTypeNode).checkType as MappedTypeNode;
+            const nodeType = getTypeFromTypeNode(c, checkMappedType.type!);
+            const checkMappedTypeParameter = checkMappedType.typeParameter;
+            const mapper = new SimpleTypeMapper(
+              getDeclaredTypeOfTypeParameter(c, getSymbolOfDeclaration(c, checkMappedTypeParameter)!),
+              checkMappedTypeParameter.constraint !== undefined
+                ? getTypeFromTypeNode(c, checkMappedTypeParameter.constraint)
+                : c.stringNumberSymbolType,
+            );
+            inferences.push(instantiateType(c, nodeType, mapper));
+          }
+          break;
+        }
       }
     }
   return inferences.length !== 0 ? getIntersectionType(c, inferences) : undefined;

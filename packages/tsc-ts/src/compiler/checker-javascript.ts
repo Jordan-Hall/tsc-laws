@@ -428,7 +428,13 @@ export function isJSAliasDeclaration(node: Node): boolean {
 export function getThisTypeOfAssignedFunction(c: Checker, func: Node): Type | undefined {
   let parent = func.parent!;
   while (parent.kind === SyntaxKind.ParenthesizedExpression) parent = parent.parent!;
-  if (!(parent instanceof BinaryExpression) || parent.operatorToken.kind !== SyntaxKind.EqualsToken) return undefined;
+  // Compound assignments like `??=` count too.
+  if (
+    !(parent instanceof BinaryExpression) ||
+    parent.operatorToken.kind < SyntaxKind.FirstAssignment ||
+    parent.operatorToken.kind > SyntaxKind.LastAssignment
+  )
+    return undefined;
   const target = parent.left;
   if (!isAccessExpression(target)) return undefined;
   const expression = getExpression(target)!;

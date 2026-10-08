@@ -102,6 +102,7 @@ import { JsxState } from './checker-jsx.js';
 import type { DeferredIterationError, IterationTypes } from './checker-iteration.js';
 import type { SpreadIndices } from './checker-contextual.js';
 import type { SourceFileMetadata } from './program-utilities.js';
+import type { GrammarChecker } from './checker-grammar.js';
 
 /** What the checker needs from a program. */
 export abstract class CheckerHost {
@@ -450,6 +451,13 @@ export class Checker {
   readonly deferredNodes: Node[] = [];
   /** Renamed binding elements in parameters of bodiless signatures, checked for use with their file. */
   readonly renamedBindingElementsInTypes: Node[] = [];
+  /** The type parameter whose variance annotation is being checked, to name its marker types. */
+  varianceTypeParameter: Type | undefined = undefined;
+  /** Whether the statement being checked is unreachable, to report unreachable code once. */
+  withinUnreachableCode = false;
+  readonly reportedUnreachableNodes = new Set<Node>();
+  /** The grammar checker of the file whose expressions are being checked. */
+  grammarChecker: GrammarChecker | undefined = undefined;
   readonly deferredNodeIds = new Set<number>();
   readonly typeNodeVisitor: TypeNodeVisitor;
 

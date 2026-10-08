@@ -262,6 +262,16 @@ class TypePrinter {
       (flags & TypeFlags.TypeParameter) !== 0 ||
       ((flags & TypeFlags.Object) !== 0 && (objectFlags & ObjectFlags.ClassOrInterface) !== 0)
     ) {
+      const varianceTypeParameter = c.varianceTypeParameter;
+      if (
+        (t === c.markerSuperTypeForCheck || t === c.markerSubTypeForCheck) &&
+        varianceTypeParameter !== undefined &&
+        varianceTypeParameter.symbol !== undefined
+      ) {
+        const name = (t === c.markerSubTypeForCheck ? 'sub-' : 'super-') + varianceTypeParameter.symbol.name;
+        this.approximateLength += name.length;
+        return name;
+      }
       if (t.symbol !== undefined) return this.symbolReference(t.symbol, SymbolFlags.Type);
       return '?';
     }

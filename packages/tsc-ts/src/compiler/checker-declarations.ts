@@ -1,4 +1,5 @@
 // Declarations: variables, parameters, functions, type aliases, enums, namespaces, imports, exports.
+import { convertAutoToAny } from './checker-narrowing.js';
 import { markPropertyAsReferenced } from './checker-unused.js';
 import {
   type BindingElement,
@@ -54,13 +55,22 @@ import {
   isExternalModule,
   isModuleAugmentationExternal,
   isVariableDeclarationInitializedToRequire,
+  isClassLike,
 } from './binder-utilities.js';
 import { Diagnostic, type DiagnosticMessage, Diagnostics } from './diagnostics.js';
 import { InternalSymbolName, type Symbol, SymbolFlags } from './symbol.js';
 import { SyntaxKind } from './syntax-kind.js';
 import { type Checker, createDiagnosticForNode } from './checker.js';
 import { IntrinsicTypeKind, getLiteralTypeFromPropertyName, intrinsicTypeKind } from './checker-type-operators.js';
-import { ObjectFlags, type Type, TypeFlags, newTypeMapper } from './checker-types.js';
+import {
+  CheckMode,
+  ObjectFlags,
+  SimpleTypeMapper,
+  type Type,
+  TypeFlags,
+  type TypeParameter,
+  newTypeMapper,
+} from './checker-types.js';
 import { getUnionType, isErrorType } from './checker-type-factory.js';
 import { getTypeFromTypeNode } from './checker-type-nodes.js';
 import {
@@ -71,6 +81,8 @@ import {
   getDeclaredTypeOfTypeParameter,
   fillMissingTypeArguments,
   getMinTypeArgumentCount,
+  getDefaultFromTypeParameter,
+  getResolvedTypeParameterDefault,
 } from './checker-declared-types.js';
 import {
   getDeclarationOfAliasSymbol,
@@ -97,8 +109,19 @@ import {
   isInAmbientOrTypeNode,
 } from './checker-expressions.js';
 import { IterationUse, checkIteratedTypeOrElementType } from './checker-iteration.js';
-import { isTypeAssignableTo, isTypeIdenticalTo, checkTypeAssignableTo } from './relations.js';
-import { getPropertyOfType, getReducedType } from './checker-members.js';
+import {
+  isTypeAssignableTo,
+  isTypeIdenticalTo,
+  checkTypeAssignableTo,
+  createMarkerType,
+  getTypeParameterModifiers,
+} from './relations.js';
+import {
+  getBaseConstraintOfType,
+  getPropertyOfType,
+  getReducedType,
+  getTypeWithThisArgument,
+} from './checker-members.js';
 import { instantiateType } from './instantiation.js';
 import { symbolToString, typeToString } from './type-printer.js';
 import { checkNodeDeferred, checkSourceElement, checkTypeNodeIfPresent } from './checker-source-file.js';
@@ -174,7 +197,6 @@ export function checkVariableLikeDeclaration(c: Checker, node: Node): void {
   ) {
     if (initializerNotAllowed)
       c.error(node, Diagnostics.A_parameter_initializer_is_only_allowed_in_a_function_or_constructor_implementation);
-    else if (initializer !== undefined) checkExpressionCached(c, initializer);
     for (const element of getElements(name)!.nodes) checkBindingElement(c, element as BindingElement);
     if (!initializerNotAllowed) checkBindingPatternInitializer(c, node, name, initializer);
     return;
@@ -195,7 +217,7 @@ export function checkVariableLikeDeclaration(c: Checker, node: Node): void {
     checkAliasSymbol(c, node);
     return;
   }
-  const t = getTypeOfSymbol(c, symbol);
+  const t = convertAutoToAny(c, getTypeOfSymbol(c, symbol));
   if (
     node.kind !== SyntaxKind.PropertyDeclaration &&
     node.kind !== SyntaxKind.PropertySignature &&
@@ -205,10 +227,10 @@ export function checkVariableLikeDeclaration(c: Checker, node: Node): void {
     if (node.kind === SyntaxKind.VariableDeclaration) checkVarDeclaredNamesNotShadowed(c, node, symbol);
   }
   if (node === symbol.valueDeclaration) {
-    if (initializer !== undefined) {
+    // A for-in initializer is already an error.
+    if (initializer !== undefined && node.parent!.parent!.kind !== SyntaxKind.ForInStatement) {
       const initType = checkExpressionCached(c, initializer);
-      if (typeNode !== undefined && !isErrorType(c, t))
-        checkTypeAssignableToAndOptionallyElaborate(c, initType, t, node, initializer);
+      checkTypeAssignableToAndOptionallyElaborate(c, initType, t, node, initializer);
       checkUsingDeclarationInitializer(c, node, initializer, initType);
     }
     if (
@@ -226,7 +248,7 @@ export function checkVariableLikeDeclaration(c: Checker, node: Node): void {
   )
     reportNonIdenticalModifiers(c, name);
   // A redeclaration: types must be identical.
-  const declarationType = getWidenedTypeForVariableLikeDeclaration(c, node, false);
+  const declarationType = convertAutoToAny(c, getWidenedTypeForVariableLikeDeclaration(c, node, false));
   if (
     !isErrorType(c, t) &&
     !isErrorType(c, declarationType) &&
@@ -409,7 +431,11 @@ function checkBindingElement(c: Checker, element: BindingElement): void {
     checkComputedPropertyName(c, element.propertyName);
   // Private and protected properties can't be destructured outside their classes.
   const parent = element.parent!.parent!;
-  const parentType = getTypeForBindingElementParent(c, parent);
+  const parentType = getTypeForBindingElementParent(
+    c,
+    parent,
+    element.dotDotDotToken !== undefined ? CheckMode.RestBindingElement : CheckMode.Normal,
+  );
   const propertyName = element.propertyName ?? element.name;
   if (parentType !== undefined && !isBindingPattern(propertyName)) {
     const exprType = getLiteralTypeFromPropertyName(c, propertyName);
@@ -445,7 +471,11 @@ function checkBindingElement(c: Checker, element: BindingElement): void {
     c.error(element, Diagnostics.A_parameter_initializer_is_only_allowed_in_a_function_or_constructor_implementation);
     return;
   }
-  if (name.kind !== SyntaxKind.ObjectBindingPattern && name.kind !== SyntaxKind.ArrayBindingPattern) {
+  if (name.kind === SyntaxKind.ObjectBindingPattern || name.kind === SyntaxKind.ArrayBindingPattern) {
+    checkBindingPatternInitializer(c, element, name, element.initializer);
+    return;
+  }
+  {
     const symbol = getSymbolOfDeclaration(c, element);
     if (
       symbol !== undefined &&
@@ -456,13 +486,21 @@ function checkBindingElement(c: Checker, element: BindingElement): void {
       return;
     }
     if (symbol !== undefined) {
-      const t = getTypeOfSymbol(c, symbol);
-      checkExportsOnMergedDeclarations(c, element);
-      checkVarDeclaredNamesNotShadowed(c, element, symbol);
-      // A redeclaration must have the type of the first declaration.
-      if (element !== symbol.valueDeclaration && symbol.valueDeclaration !== undefined) {
-        if (!areDeclarationFlagsIdentical(element, symbol.valueDeclaration)) reportNonIdenticalModifiers(c, name);
-        const declarationType = getWidenedTypeForVariableLikeDeclaration(c, element, false);
+      const t = convertAutoToAny(c, getTypeOfSymbol(c, symbol));
+      const initializer = element.initializer;
+      if (element === symbol.valueDeclaration) {
+        // A for-in initializer is already an error.
+        if (initializer !== undefined && getRootDeclaration(element).parent!.parent!.kind !== SyntaxKind.ForInStatement)
+          checkTypeAssignableToAndOptionallyElaborate(
+            c,
+            checkExpressionCached(c, initializer),
+            t,
+            element,
+            initializer,
+          );
+      } else if (symbol.valueDeclaration !== undefined) {
+        // A redeclaration must have the type of the first declaration.
+        const declarationType = convertAutoToAny(c, getWidenedTypeForVariableLikeDeclaration(c, element, false));
         if (
           !isErrorType(c, t) &&
           !isErrorType(c, declarationType) &&
@@ -476,7 +514,19 @@ function checkBindingElement(c: Checker, element: BindingElement): void {
             element,
             declarationType,
           );
+        if (initializer !== undefined)
+          checkTypeAssignableToAndOptionallyElaborate(
+            c,
+            checkExpressionCached(c, initializer),
+            declarationType,
+            element,
+            initializer,
+          );
+        if (!areDeclarationFlagsIdentical(element, symbol.valueDeclaration)) reportNonIdenticalModifiers(c, name);
       }
+      checkExportsOnMergedDeclarations(c, element);
+      checkVarDeclaredNamesNotShadowed(c, element, symbol);
+      return;
     }
   }
   if (element.initializer !== undefined) checkExpressionCached(c, element.initializer);
@@ -525,19 +575,25 @@ export function checkTypeParameter(c: Checker, node: Node): void {
   const symbol = getSymbol(node);
   if (symbol === undefined) return;
   const typeParameter = getDeclaredTypeOfTypeParameter(c, symbol);
-  getConstraintOfTypeParameter(c, typeParameter);
-  if (tp.defaultType !== undefined) {
-    const constraint = getConstraintOfTypeParameter(c, typeParameter);
-    const defaultType = getTypeFromTypeNode(c, tp.defaultType);
-    if (constraint !== undefined && !isErrorType(c, defaultType))
-      checkTypeAssignableTo(
+  // Resolving the base constraint reveals circularities.
+  getBaseConstraintOfType(c, typeParameter);
+  if (getResolvedTypeParameterDefault(c, typeParameter as TypeParameter) === c.circularConstraintType)
+    c.error(tp.defaultType, Diagnostics.Type_parameter_0_has_a_circular_default, typeToString(c, typeParameter));
+  const constraintType = getConstraintOfTypeParameter(c, typeParameter);
+  const defaultType = getDefaultFromTypeParameter(c, typeParameter);
+  if (constraintType !== undefined && defaultType !== undefined)
+    checkTypeAssignableTo(
+      c,
+      defaultType,
+      getTypeWithThisArgument(
         c,
+        instantiateType(c, constraintType, new SimpleTypeMapper(typeParameter, defaultType)),
         defaultType,
-        instantiateTypeWithSelf(c, constraint),
-        tp.defaultType,
-        Diagnostics.Type_0_does_not_satisfy_the_constraint_1,
-      );
-  }
+        false,
+      ),
+      tp.defaultType,
+      Diagnostics.Type_0_does_not_satisfy_the_constraint_1,
+    );
   checkTypeNameIsReserved(c, tp.name, Diagnostics.Type_parameter_name_cannot_be_0);
   checkNodeDeferred(c, node);
 }
@@ -545,17 +601,50 @@ export function checkTypeParameter(c: Checker, node: Node): void {
 /** Variance annotations are only allowed on type aliases of object, function, constructor and mapped types. */
 export function checkTypeParameterDeferred(c: Checker, node: Node): void {
   const parent = node.parent!;
-  if (parent.kind !== SyntaxKind.TypeAliasDeclaration) return;
-  if ((getCombinedModifierFlags(node) & (ModifierFlags.In | ModifierFlags.Out)) === 0) return;
+  const isTypeAlias =
+    parent.kind === SyntaxKind.TypeAliasDeclaration || parent.kind === SyntaxKind.JSTypeAliasDeclaration;
+  if (!isTypeAlias && parent.kind !== SyntaxKind.InterfaceDeclaration && !isClassLike(parent)) return;
+  const typeParameterSymbol = getSymbolOfDeclaration(c, node);
+  if (typeParameterSymbol === undefined) return;
+  const typeParameter = getDeclaredTypeOfTypeParameter(c, typeParameterSymbol);
+  const modifiers = getTypeParameterModifiers(typeParameter) & (ModifierFlags.In | ModifierFlags.Out);
+  if (modifiers === 0) return;
   const symbol = getSymbolOfDeclaration(c, parent);
+  if (symbol === undefined) return;
   if (
-    symbol !== undefined &&
+    isTypeAlias &&
     (getDeclaredTypeOfSymbol(c, symbol).objectFlags & (ObjectFlags.Anonymous | ObjectFlags.Mapped)) === 0
   )
     c.error(
       node,
       Diagnostics.Variance_annotations_are_only_supported_in_type_aliases_for_object_function_constructor_and_mapped_types,
     );
+  else if (modifiers === ModifierFlags.In || modifiers === ModifierFlags.Out) {
+    // The declared variance must hold between instantiations with marker sub- and supertypes.
+    const isOut = modifiers === ModifierFlags.Out;
+    const source = createMarkerType(
+      c,
+      symbol,
+      typeParameter,
+      isOut ? c.markerSubTypeForCheck : c.markerSuperTypeForCheck,
+    );
+    const target = createMarkerType(
+      c,
+      symbol,
+      typeParameter,
+      isOut ? c.markerSuperTypeForCheck : c.markerSubTypeForCheck,
+    );
+    const saveVarianceTypeParameter = c.varianceTypeParameter;
+    c.varianceTypeParameter = typeParameter;
+    checkTypeAssignableTo(
+      c,
+      source,
+      target,
+      node,
+      Diagnostics.Type_0_is_not_assignable_to_type_1_as_implied_by_variance_annotation,
+    );
+    c.varianceTypeParameter = saveVarianceTypeParameter;
+  }
 }
 
 /** Checks a type parameter list: each parameter, default ordering and duplicate names. */
@@ -607,10 +696,6 @@ class LaterTypeParameterReferenceFinder extends NodeVisitor {
     }
     return node.forEachChild(this);
   }
-}
-
-function instantiateTypeWithSelf(_c: Checker, t: Type): Type {
-  return t;
 }
 
 export function checkTypeAliasDeclaration(c: Checker, node: Node): void {
@@ -783,7 +868,7 @@ export function checkModuleDeclaration(c: Checker, node: Node): void {
   } else c.error(module.name, Diagnostics.Ambient_modules_cannot_be_nested_in_other_modules_or_namespaces);
 }
 
-function isInstantiatedModule(node: Node, preserveConstEnums: boolean): boolean {
+export function isInstantiatedModule(node: Node, preserveConstEnums: boolean): boolean {
   const state = getModuleInstanceState(node);
   return (
     state === ModuleInstanceState.Instantiated || (preserveConstEnums && state === ModuleInstanceState.ConstEnumOnly)

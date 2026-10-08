@@ -21,7 +21,6 @@ import {
   type ForInOrOfStatement,
   type ForStatement,
   type HeritageClause,
-  type IfStatement,
   Identifier,
   type ImportAttribute,
   type ImportAttributes,
@@ -94,14 +93,15 @@ import {
   isStringLiteralLike,
   modifierToFlag,
   nodeIsPresent,
+  isInJSFile,
 } from './ast-utilities.js';
 import {
   getCombinedModifierFlags,
   getCombinedNodeFlags,
   getContainingClass,
   getRangeOfTokenAtPosition,
+  getSourceFileOfNode,
   hasSyntacticModifier,
-  isAssignmentTarget,
   isAutoAccessorPropertyDeclaration,
   isClassLike,
   isDynamicName,
@@ -143,8 +143,55 @@ export function checkGrammarSourceFile(c: Checker, file: SourceFile): void {
   file.forEachChild(g);
 }
 
+/** The grammar checker of the file of `node`, for grammar checks run while checking expressions. */
+function grammarCheckerOf(c: Checker, node: Node): GrammarChecker {
+  const file = getSourceFileOfNode(node);
+  const cached = c.grammarChecker;
+  if (cached !== undefined && cached.file === file) return cached;
+  const g = new GrammarChecker(c, file);
+  c.grammarChecker = g;
+  return g;
+}
+
+/** Checks the grammar of an object literal each time it is checked, as tsgo does. */
+export function checkGrammarObjectLiteralOfExpression(
+  c: Checker,
+  node: ObjectLiteralExpression,
+  inDestructuring: boolean,
+): void {
+  // Destructuring targets are checked with the grammar walk.
+  if (!isDestructuringAssignmentTarget(node))
+    checkGrammarObjectLiteralExpression(grammarCheckerOf(c, node), node, inDestructuring);
+}
+
+/** Reports a trailing comma after the rest element of a destructuring assignment. */
+export function checkGrammarRestTrailingComma(c: Checker, node: Node, list: NodeList): void {
+  checkGrammarForDisallowedTrailingComma(
+    grammarCheckerOf(c, node),
+    list,
+    Diagnostics.A_rest_parameter_or_binding_pattern_may_not_have_a_trailing_comma,
+  );
+}
+
+/** Checks the grammar of a function expression or arrow function each time it is checked. */
+export function checkGrammarFunctionExpression(c: Checker, node: Node): void {
+  const g = grammarCheckerOf(c, node);
+  if (!checkGrammarFunctionLikeDeclaration(g, node) && node.kind === SyntaxKind.FunctionExpression)
+    checkGrammarForGenerator(g, node);
+}
+
+/** Checks the grammar of an `await` expression each time it is checked. */
+export function checkGrammarAwaitExpression(c: Checker, node: Node): void {
+  checkGrammarAwaitOrAwaitUsing(grammarCheckerOf(c, node), node);
+}
+
+/** Checks the grammar of a `yield` expression each time it is checked. */
+export function checkGrammarYieldOfExpression(c: Checker, node: Node): void {
+  checkGrammarYieldExpression(grammarCheckerOf(c, node), node);
+}
+
 /** Per-file state of the grammar walk. */
-class GrammarChecker extends NodeVisitor {
+export class GrammarChecker extends NodeVisitor {
   readonly c: Checker;
   readonly file: SourceFile;
   /** Grammar errors are only reported in files without parse errors. */
@@ -244,8 +291,6 @@ function checkGrammarNode(g: GrammarChecker, node: Node): boolean {
       checkGrammarDecorators(g, node);
       return true;
     case SyntaxKind.PropertySignature:
-      if (getName(node)!.kind === SyntaxKind.PrivateIdentifier)
-        g.c.error(node, Diagnostics.Private_identifiers_are_not_allowed_outside_class_bodies);
       checkGrammarPropertyDeclaration(g, node);
       return true;
     case SyntaxKind.PropertyDeclaration:
@@ -334,9 +379,6 @@ function checkGrammarNode(g: GrammarChecker, node: Node): boolean {
       return true;
     case SyntaxKind.IfStatement: {
       checkGrammarStatementInAmbientContext(g, node);
-      const thenStatement = (node as IfStatement).thenStatement;
-      if (thenStatement.kind === SyntaxKind.EmptyStatement)
-        g.c.error(thenStatement, Diagnostics.The_body_of_an_if_statement_cannot_be_the_empty_statement);
       return true;
     }
     case SyntaxKind.VariableStatement:
@@ -427,14 +469,11 @@ function checkGrammarNode(g: GrammarChecker, node: Node): boolean {
       return true;
     case SyntaxKind.FunctionExpression:
     case SyntaxKind.ArrowFunction:
-      if (!checkGrammarFunctionLikeDeclaration(g, node) && node.kind === SyntaxKind.FunctionExpression)
-        checkGrammarForGenerator(g, node);
+      // Checked by the checker each time the function is checked.
       return true;
     case SyntaxKind.ObjectLiteralExpression:
-      checkGrammarObjectLiteral(g, node as ObjectLiteralExpression);
-      return true;
-    case SyntaxKind.ArrayLiteralExpression:
-      if (isDestructuringAssignmentTarget(node)) checkGrammarArrayDestructuringTarget(g, node);
+      // Other object literals are checked by the checker.
+      if (isDestructuringAssignmentTarget(node)) checkGrammarObjectLiteral(g, node as ObjectLiteralExpression);
       return true;
     case SyntaxKind.CallExpression:
       checkGrammarCallExpression(g, node as CallExpression);
@@ -450,13 +489,9 @@ function checkGrammarNode(g: GrammarChecker, node: Node): boolean {
       checkGrammarMetaProperty(g, node as MetaProperty);
       return true;
     case SyntaxKind.AwaitExpression:
-      checkGrammarAwaitOrAwaitUsing(g, node);
-      return true;
     case SyntaxKind.YieldExpression:
-      checkGrammarYieldExpression(g, node);
-      return true;
     case SyntaxKind.BinaryExpression:
-      checkGrammarBinaryExpression(g, node as BinaryExpression);
+      // Checked by the checker each time the expression is checked.
       return true;
     case SyntaxKind.PrivateIdentifier:
       checkGrammarPrivateIdentifierExpression(g, node);
@@ -1782,8 +1817,6 @@ function checkGrammarAccessorDeclaration(g: GrammarChecker, node: Node): void {
   const name = getName(node)!;
   if (!checkGrammarFunctionLikeDeclaration(g, node) && !checkGrammarAccessor(g, node))
     checkGrammarComputedPropertyName(g, name);
-  if (name instanceof Identifier && name.text === 'constructor' && isClassLike(node.parent!))
-    g.c.error(name, Diagnostics.Class_constructor_may_not_be_an_accessor);
   checkGrammarDecorators(g, node);
 }
 
@@ -2543,11 +2576,10 @@ function checkGrammarModuleElementContext(g: GrammarChecker, node: Node, message
 }
 
 function checkGrammarModuleDeclaration(g: GrammarChecker, node: ModuleDeclaration): boolean {
-  const message = isAmbientModule(node)
-    ? Diagnostics.An_ambient_module_declaration_is_only_allowed_at_the_top_level_in_a_file
-    : Diagnostics.A_namespace_declaration_is_only_allowed_at_the_top_level_of_a_namespace_or_module;
-  // The body is checked first, so it's checked even in an illegal context.
-  if (checkGrammarModuleElementContext(g, node, message)) return true;
+  // The declaration check reports an illegal context and skips the rest.
+  const parent = node.parent!.kind;
+  if (parent !== SyntaxKind.SourceFile && parent !== SyntaxKind.ModuleBlock && parent !== SyntaxKind.ModuleDeclaration)
+    return true;
   if (
     !checkGrammarModifiers(g, node) &&
     (node.flags & NodeFlags.Ambient) === 0 &&
@@ -2614,7 +2646,9 @@ function checkGrammarImportDeclaration(g: GrammarChecker, node: ImportDeclaratio
     checkGrammarModuleElementContext(
       g,
       node,
-      Diagnostics.An_import_declaration_can_only_be_used_at_the_top_level_of_a_namespace_or_module,
+      isInJSFile(node)
+        ? Diagnostics.An_import_declaration_can_only_be_used_at_the_top_level_of_a_module
+        : Diagnostics.An_import_declaration_can_only_be_used_at_the_top_level_of_a_namespace_or_module,
     )
   )
     return;
@@ -2670,7 +2704,9 @@ function checkGrammarImportEqualsDeclaration(g: GrammarChecker, node: ImportEqua
     checkGrammarModuleElementContext(
       g,
       node,
-      Diagnostics.An_import_declaration_can_only_be_used_at_the_top_level_of_a_namespace_or_module,
+      isInJSFile(node)
+        ? Diagnostics.An_import_declaration_can_only_be_used_at_the_top_level_of_a_module
+        : Diagnostics.An_import_declaration_can_only_be_used_at_the_top_level_of_a_namespace_or_module,
     )
   )
     return;
@@ -3132,45 +3168,10 @@ function getContextualCheckCountOfDestructuringTarget(node: Node): number {
 }
 
 function checkGrammarObjectLiteral(g: GrammarChecker, node: ObjectLiteralExpression): void {
-  if (!isDestructuringAssignmentTarget(node)) {
-    checkGrammarObjectLiteralExpression(g, node, isAssignmentTarget(node));
-    return;
-  }
   // Destructuring targets are checked as literals only when the contextual type of a literal on
   // the right is computed: twice for an object literal, once for an array literal.
   const count = getContextualCheckCountOfDestructuringTarget(node);
   for (let i = 0; i < count; i++) checkGrammarObjectLiteralExpression(g, node, true);
-  const properties = node.properties;
-  const length = properties.nodes.length;
-  if (length > 0 && properties.nodes[length - 1]!.kind === SyntaxKind.SpreadAssignment)
-    checkGrammarForDisallowedTrailingComma(
-      g,
-      properties,
-      Diagnostics.A_rest_parameter_or_binding_pattern_may_not_have_a_trailing_comma,
-    );
-}
-
-function checkGrammarArrayDestructuringTarget(g: GrammarChecker, node: Node): void {
-  const elements = getElements(node)!;
-  const count = elements.nodes.length;
-  if (count === 0) return;
-  const last = elements.nodes[count - 1]!;
-  if (last.kind !== SyntaxKind.SpreadElement) return;
-  const restExpression = getExpression(last)!;
-  if (
-    restExpression.kind === SyntaxKind.BinaryExpression &&
-    (restExpression as BinaryExpression).operatorToken.kind === SyntaxKind.EqualsToken
-  )
-    g.c.error(
-      (restExpression as BinaryExpression).operatorToken,
-      Diagnostics.A_rest_element_cannot_have_an_initializer,
-    );
-  else
-    checkGrammarForDisallowedTrailingComma(
-      g,
-      elements,
-      Diagnostics.A_rest_parameter_or_binding_pattern_may_not_have_a_trailing_comma,
-    );
 }
 
 function checkGrammarObjectLiteralExpression(
@@ -3553,46 +3554,6 @@ function isInParameterInitializerBeforeContainingFunction(node: Node): boolean {
     current = parent;
   }
   return false;
-}
-
-function checkGrammarBinaryExpression(g: GrammarChecker, node: BinaryExpression): void {
-  if (node.operatorToken.kind !== SyntaxKind.QuestionQuestionToken) return;
-  // `??` can't be mixed with `||` or `&&` without parentheses.
-  const left = node.left;
-  const right = node.right;
-  const parent = node.parent!;
-  if (parent.kind === SyntaxKind.BinaryExpression) {
-    const grandparentLeft = (parent as BinaryExpression).left;
-    const grandparentOperator = (parent as BinaryExpression).operatorToken.kind;
-    if (grandparentLeft.kind === SyntaxKind.BinaryExpression && grandparentOperator === SyntaxKind.BarBarToken)
-      grammarErrorOnNode(
-        g,
-        grandparentLeft,
-        Diagnostics.X_0_and_1_operations_cannot_be_mixed_without_parentheses,
-        tokenToString(SyntaxKind.QuestionQuestionToken),
-        tokenToString(grandparentOperator),
-      );
-  } else if (left.kind === SyntaxKind.BinaryExpression) {
-    const operator = (left as BinaryExpression).operatorToken.kind;
-    if (operator === SyntaxKind.BarBarToken || operator === SyntaxKind.AmpersandAmpersandToken)
-      grammarErrorOnNode(
-        g,
-        left,
-        Diagnostics.X_0_and_1_operations_cannot_be_mixed_without_parentheses,
-        tokenToString(operator),
-        tokenToString(SyntaxKind.QuestionQuestionToken),
-      );
-  } else if (right.kind === SyntaxKind.BinaryExpression) {
-    const operator = (right as BinaryExpression).operatorToken.kind;
-    if (operator === SyntaxKind.AmpersandAmpersandToken)
-      grammarErrorOnNode(
-        g,
-        right,
-        Diagnostics.X_0_and_1_operations_cannot_be_mixed_without_parentheses,
-        tokenToString(SyntaxKind.QuestionQuestionToken),
-        tokenToString(operator),
-      );
-  }
 }
 
 /** A private name in an expression, which is only valid as `#x in obj`. */

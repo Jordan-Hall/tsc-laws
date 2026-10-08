@@ -157,6 +157,7 @@ import { isTypeUsableAsPropertyName, getPropertyNameFromType, maybeTypeOfKind } 
 import {
   getApparentTypeOfContextualType,
   getContextualType,
+  getContextualTypeEx,
   getContextualSignatureForFunctionLikeDeclaration,
 } from './checker-contextual.js';
 import {
@@ -226,7 +227,13 @@ import {
 import { getFlowTypeOfAutoTypedProperty, getThisTypeOfAssignedFunction } from './checker-javascript.js';
 import { getThisTypeOfObjectLiteralMember } from './checker-contextual.js';
 
-import { ContextFlags, getInferenceContext, instantiateContextualType } from './checker-contextual.js';
+import {
+  ContextFlags,
+  getInferenceContext,
+  instantiateContextualType,
+  popContextualType,
+  pushCachedContextualType,
+} from './checker-contextual.js';
 import { addIntraExpressionInferenceSite, isConstTypeVariable } from './checker-inference.js';
 import { isContextSensitiveFunctionOrObjectLiteralMethod } from './checker-contextual.js';
 import { checkTypeRelatedToAndOptionallyElaborate } from './checker-elaboration.js';
@@ -246,6 +253,7 @@ export function checkExpression(c: Checker, node: Node): Type {
 export function checkExpressionEx(c: Checker, node: Node, checkMode: CheckMode): Type {
   const saveCurrentNode = c.currentNode;
   c.currentNode = node;
+  c.instantiationCount = 0;
   const t = instantiateTypeWithSingleGenericCallSignature(
     c,
     node,
@@ -327,9 +335,17 @@ export function checkExpressionForMutableLocationEx(c: Checker, node: Node, chec
   );
 }
 
-export function checkDeclarationInitializer(c: Checker, declaration: Node): Type {
+export function checkDeclarationInitializer(
+  c: Checker,
+  declaration: Node,
+  checkMode: CheckMode = CheckMode.Normal,
+): Type {
   const initializer = getInitializer(declaration)!;
-  const t = getQuickTypeOfExpression(c, initializer) ?? checkExpressionCached(c, initializer);
+  const t =
+    getQuickTypeOfExpression(c, initializer) ??
+    (checkMode === CheckMode.Normal
+      ? checkExpressionCached(c, initializer)
+      : checkExpressionEx(c, initializer, checkMode));
   return padParameterInitializerType(c, declaration, t);
 }
 
@@ -519,7 +535,7 @@ export function getResolvedSymbol(c: Checker, node: Node): Symbol {
 function checkExpressionWorker(c: Checker, node: Node, checkMode: CheckMode): Type {
   switch (node.kind) {
     case SyntaxKind.Identifier:
-      return checkIdentifier(c, node as Identifier);
+      return checkIdentifier(c, node as Identifier, checkMode);
     case SyntaxKind.PrivateIdentifier:
       return checkPrivateIdentifierExpression(c, node);
     case SyntaxKind.ThisKeyword:
@@ -548,7 +564,7 @@ function checkExpressionWorker(c: Checker, node: Node, checkMode: CheckMode): Ty
     case SyntaxKind.ObjectLiteralExpression:
       return checkObjectLiteral(c, node, checkMode);
     case SyntaxKind.PropertyAccessExpression:
-      return checkPropertyAccessExpression(c, node as PropertyAccessExpression, false);
+      return checkPropertyAccessExpression(c, node as PropertyAccessExpression, false, checkMode);
     case SyntaxKind.QualifiedName:
       return checkQualifiedName(c, node as QualifiedName);
     case SyntaxKind.ElementAccessExpression:
@@ -583,7 +599,8 @@ function checkExpressionWorker(c: Checker, node: Node, checkMode: CheckMode): Ty
     case SyntaxKind.DeleteExpression:
       return checkDeleteExpression(c, node);
     case SyntaxKind.VoidExpression:
-      checkExpression(c, getExpression(node)!);
+      // The operand is checked deferred.
+      checkNodeDeferred(c, node);
       return c.undefinedWideningType;
     case SyntaxKind.AwaitExpression:
       return checkAwaitExpression(c, node);
@@ -627,7 +644,7 @@ export function parseBigIntText(text: string): string {
 
 // ---- Identifiers and `this`
 
-export function checkIdentifier(c: Checker, node: Identifier): Type {
+export function checkIdentifier(c: Checker, node: Identifier, checkMode: CheckMode = CheckMode.Normal): Type {
   if (isThisInTypeQuery(node)) return checkThisExpression(c, node);
   const symbol = getResolvedSymbol(c, node);
   if (symbol === c.unknownSymbol) return c.errorType;
@@ -654,7 +671,7 @@ export function checkIdentifier(c: Checker, node: Identifier): Type {
     isDescendantOf(node, declaration.parent!)
   )
     return c.nonInferrableAnyType;
-  let t = getNarrowableTypeForReference(c, getNarrowedTypeOfSymbol(c, localOrExportSymbol, node), node);
+  let t = getNarrowableTypeForReference(c, getNarrowedTypeOfSymbol(c, localOrExportSymbol, node), node, checkMode);
   const assignmentKind = getAssignmentTargetKind(node);
   if (assignmentKind !== AssignmentKind.None) {
     if ((localOrExportSymbol.flags & SymbolFlags.Variable) === 0) {
@@ -767,10 +784,16 @@ export function checkIdentifier(c: Checker, node: Identifier): Type {
  * constraint matters, so narrowing can apply: in constraint positions like `x.p`, or with a
  * non-generic contextual type.
  */
-export function getNarrowableTypeForReference(c: Checker, t: Type, reference: Node): Type {
+export function getNarrowableTypeForReference(
+  c: Checker,
+  t: Type,
+  reference: Node,
+  checkMode: CheckMode = CheckMode.Normal,
+): Type {
   const substituteConstraints =
+    (checkMode & CheckMode.Inferential) === 0 &&
     someTypeIsGenericWithUnionConstraint(c, t) &&
-    (isConstraintPosition(c, t, reference) || hasContextualTypeWithNoGenericTypes(c, reference));
+    (isConstraintPosition(c, t, reference) || hasContextualTypeWithNoGenericTypes(c, reference, checkMode));
   return substituteConstraints ? mapToBaseConstraintOrType(c, t) : t;
 }
 
@@ -818,7 +841,7 @@ function isGenericTypeWithoutNullableConstraint(c: Checker, t: Type): boolean {
   );
 }
 
-function hasContextualTypeWithNoGenericTypes(c: Checker, node: Node): boolean {
+function hasContextualTypeWithNoGenericTypes(c: Checker, node: Node, checkMode: CheckMode): boolean {
   // JSX tag names are excluded: their contextual type resolves the tag itself.
   if (
     node.kind !== SyntaxKind.Identifier &&
@@ -832,7 +855,12 @@ function hasContextualTypeWithNoGenericTypes(c: Checker, node: Node): boolean {
     getTagName(parent) === node
   )
     return false;
-  const contextualType = getContextualType(c, node);
+  // Rest elements skip binding pattern contextual types, so their type stays generic when possible.
+  const contextualType = getContextualTypeEx(
+    c,
+    node,
+    (checkMode & CheckMode.RestBindingElement) !== 0 ? ContextFlags.SkipBindingPatterns : ContextFlags.None,
+  );
   return contextualType !== undefined && !isGenericType(c, contextualType);
 }
 
@@ -1015,6 +1043,8 @@ function checkArrayLiteral(c: Checker, node: ArrayLiteralExpression, checkMode: 
   const elements = node.elements.nodes;
   const elementTypes: Type[] = [];
   const elementInfos: TupleElementInfo[] = [];
+  // The elements' contextual types come from the literal's, computed once.
+  pushCachedContextualType(c, node);
   const inDestructuringPattern = isAssignmentTarget(node);
   const inConstContext = isConstContext(c, node);
   const contextualType = getApparentTypeOfContextualType(c, node);
@@ -1074,6 +1104,7 @@ function checkArrayLiteral(c: Checker, node: ArrayLiteralExpression, checkMode: 
       );
     }
   }
+  popContextualType(c);
   if (inDestructuringPattern) return createTupleTypeEx(c, elementTypes, elementInfos, false);
   if (inConstContext || inTupleContext || (checkMode & CheckMode.ForceTuple) !== 0)
     return createArrayLiteralType(
@@ -1398,7 +1429,12 @@ export function entityNameToString(node: Node): string {
 }
 
 /** The type of `obj.name`; `writeOnly` gives the type it can be assigned, as for compound assignments. */
-export function checkPropertyAccessExpression(c: Checker, node: PropertyAccessExpression, writeOnly: boolean): Type {
+export function checkPropertyAccessExpression(
+  c: Checker,
+  node: PropertyAccessExpression,
+  writeOnly: boolean,
+  checkMode: CheckMode = CheckMode.Normal,
+): Type {
   if (!isOptionalChain(node))
     return checkPropertyAccessExpressionOrQualifiedName(
       c,
@@ -1407,6 +1443,7 @@ export function checkPropertyAccessExpression(c: Checker, node: PropertyAccessEx
       checkNonNullExpression(c, node.expression),
       node.name,
       writeOnly,
+      checkMode,
     );
   const leftType = checkExpression(c, node.expression);
   const nonOptional = getOptionalExpressionType(c, leftType, node.expression);
@@ -1417,6 +1454,7 @@ export function checkPropertyAccessExpression(c: Checker, node: PropertyAccessEx
     checkNonNullType(c, nonOptional, node.expression),
     node.name,
     writeOnly,
+    checkMode,
   );
   return propagateOptionalTypeMarker(c, t, node, nonOptional !== leftType);
 }
@@ -1437,6 +1475,7 @@ export function getFlowTypeOfAccessExpression(
   prop: Symbol | undefined,
   propTypeIn: Type,
   errorNode: Node,
+  checkMode: CheckMode = CheckMode.Normal,
 ): Type {
   let propType = propTypeIn;
   const assignmentKind = getAssignmentTargetKind(node);
@@ -1449,7 +1488,7 @@ export function getFlowTypeOfAccessExpression(
   )
     return propType;
   if (propType === c.autoType) return getFlowTypeOfAutoTypedProperty(c, node, prop);
-  propType = getNarrowableTypeForReference(c, propType, node);
+  propType = getNarrowableTypeForReference(c, propType, node, checkMode);
   // `this.x` in the constructor of x's class starts out uninitialized under strictPropertyInitialization.
   let assumeUninitialized = false;
   const expression = getExpression(node);

@@ -19,6 +19,7 @@ import {
   type IntersectionType,
   type LiteralType,
   type MappedType,
+  type ReverseMappedType,
   ObjectFlags,
   type Signature,
   SignatureFlags,
@@ -44,6 +45,8 @@ import {
   IntersectionFlags,
   containsType,
   createArrayTypeEx,
+  compareTypes,
+  containsMissingType,
   createTypeReference,
   everyType,
   filterType,
@@ -109,7 +112,13 @@ import {
   isConflictingPrivateProperty,
   resolveStructuredTypeMembers,
 } from './checker-members.js';
-import { getParentOfSymbol, getMergedSymbol, getMembersOfSymbol } from './checker-symbols.js';
+import {
+  getParentOfSymbol,
+  getMergedSymbol,
+  getMembersOfSymbol,
+  getSpellingSuggestionForName,
+} from './checker-symbols.js';
+import { codePoints, levenshteinWithMax, utf8Length } from './spelling.js';
 import {
   getConstraintFromTypeParameter,
   getDeclaredTypeOfSymbol,
@@ -147,7 +156,7 @@ import {
   getIndexedAccessType,
   getIndexedAccessTypeOrUndefined,
   getMappedTypeModifiers,
-  getMappedTypeOptionality,
+  getCombinedMappedTypeOptionality,
   getModifiersTypeFromMappedType,
   getNameTypeFromMappedType,
   getPermissiveInstantiation,
@@ -162,6 +171,9 @@ import {
   isMappedTypeGenericIndexedAccess,
   isTypeMatchedByTemplateLiteralType,
   isMemberOfStringMapping,
+  getApparentMappedTypeKeys,
+  shouldDeferIndexType,
+  isMappedTypeWithKeyofConstraintDeclaration,
   MappedTypeModifiers,
 } from './checker-type-operators.js';
 import {
@@ -184,7 +196,12 @@ import {
   tryGetTypeAtPosition,
 } from './checker-signatures.js';
 import { getNonNullableType, getTypeFacts, TypeFacts } from './checker-flow.js';
-import { getPropertyNameFromType, isLateBoundName, isNumericLiteralName } from './checker-utilities.js';
+import {
+  getPropertyNameFromType,
+  isLateBoundName,
+  isNumericLiteralName,
+  maybeTypeOfKind,
+} from './checker-utilities.js';
 
 // ---- Results and caches
 
@@ -1051,18 +1068,34 @@ export class Relater extends TypeComparer {
               ? source.symbol.declarations[0]!
               : undefined;
           const valueDeclaration = prop.valueDeclaration;
+          let suggestion: Symbol | undefined = undefined;
           if (
             valueDeclaration !== undefined &&
             isObjectLiteralElement(valueDeclaration) &&
             objectLiteralDeclaration !== undefined &&
             isAncestor(valueDeclaration, objectLiteralDeclaration) &&
             sameFile(objectLiteralDeclaration, this.errorNode)
-          )
-            this.errorNode = getName(valueDeclaration)!;
-          this.reportError(
-            Diagnostics.Object_literal_may_only_specify_known_properties_and_0_does_not_exist_in_type_1,
-            [symbolToString(c, prop), typeToString(c, errorTarget)],
-          );
+          ) {
+            const name = getName(valueDeclaration)!;
+            this.errorNode = name;
+            if (name.kind === SyntaxKind.Identifier)
+              suggestion = getSpellingSuggestionForName(
+                c,
+                getText(name),
+                getPropertiesOfType(c, errorTarget),
+                SymbolFlags.Value,
+              );
+          }
+          if (suggestion !== undefined)
+            this.reportError(
+              Diagnostics.Object_literal_may_only_specify_known_properties_but_0_does_not_exist_in_type_1_Did_you_mean_to_write_2,
+              [symbolToString(c, prop), typeToString(c, errorTarget), suggestion.name],
+            );
+          else
+            this.reportError(
+              Diagnostics.Object_literal_may_only_specify_known_properties_and_0_does_not_exist_in_type_1,
+              [symbolToString(c, prop), typeToString(c, errorTarget)],
+            );
         }
         return true;
       }
@@ -1750,7 +1783,12 @@ export class Relater extends TypeComparer {
         } else if (isGenericMappedType(c, targetType)) {
           const nameType = getNameTypeFromMappedType(c, targetType as MappedType);
           const constraintType = getConstraintTypeFromMappedType(c, targetType as MappedType);
-          const targetKeys = nameType ?? constraintType;
+          // Keys missing from the constraint may still be mapped from the apparent keys of the
+          // modifiers type; the still generic name type is kept too.
+          const targetKeys =
+            nameType !== undefined && isMappedTypeWithKeyofConstraintDeclaration(c, targetType as MappedType)
+              ? getUnionType(c, [getApparentMappedTypeKeys(c, nameType, targetType as MappedType), nameType])
+              : (nameType ?? constraintType);
           if (this.isRelatedTo(source, targetKeys, RecursionFlags.Target, reportErrors) === Ternary.True)
             return Ternary.True;
         }
@@ -1857,8 +1895,28 @@ export class Relater extends TypeComparer {
         }
       }
     } else if ((source.flags & TypeFlags.Index) !== 0) {
-      result = this.isRelatedTo(c.stringNumberSymbolType, target, RecursionFlags.Source, reportErrors);
+      const sourceIndex = source as IndexType;
+      const isDeferredMappedIndex =
+        shouldDeferIndexType(c, sourceIndex.target, sourceIndex.indexFlags) &&
+        (sourceIndex.target.objectFlags & ObjectFlags.Mapped) !== 0;
+      result = this.isRelatedTo(
+        c.stringNumberSymbolType,
+        target,
+        RecursionFlags.Source,
+        reportErrors && !isDeferredMappedIndex,
+      );
       if (result !== Ternary.False) return result;
+      if (isDeferredMappedIndex) {
+        // The source keys come from the name type alone; its generic part could be anything.
+        const mappedType = sourceIndex.target as MappedType;
+        const nameType = getNameTypeFromMappedType(c, mappedType);
+        const sourceMappedKeys =
+          nameType !== undefined && isMappedTypeWithKeyofConstraintDeclaration(c, mappedType)
+            ? getApparentMappedTypeKeys(c, nameType, mappedType)
+            : (nameType ?? getConstraintTypeFromMappedType(c, mappedType));
+        result = this.isRelatedTo(sourceMappedKeys, target, RecursionFlags.Source, reportErrors);
+        if (result !== Ternary.False) return result;
+      }
     } else if ((source.flags & TypeFlags.Conditional) !== 0) {
       if (isDeeplyNestedType(c, source, this.sourceStack, 10)) return Ternary.Maybe;
       const s = source as ConditionalType;
@@ -2247,13 +2305,14 @@ export class Relater extends TypeComparer {
     const modifiersRelated =
       this.relation === c.comparableRelation ||
       (this.relation === c.identityRelation && getMappedTypeModifiers(source) === getMappedTypeModifiers(target)) ||
-      (this.relation !== c.identityRelation && getMappedTypeOptionality(source) <= getMappedTypeOptionality(target));
+      (this.relation !== c.identityRelation &&
+        getCombinedMappedTypeOptionality(c, source) <= getCombinedMappedTypeOptionality(c, target));
     if (!modifiersRelated) return Ternary.False;
     const targetConstraint = getConstraintTypeFromMappedType(c, target);
     const sourceConstraint = instantiateType(
       c,
       getConstraintTypeFromMappedType(c, source),
-      getMappedTypeOptionality(source) < 0 ? c.reportUnmeasurableMapper : c.reportUnreliableMapper,
+      getCombinedMappedTypeOptionality(c, source) < 0 ? c.reportUnmeasurableMapper : c.reportUnreliableMapper,
     );
     const result = this.isRelatedTo(targetConstraint, sourceConstraint, RecursionFlags.Both, reportErrors);
     if (result === Ternary.False) return Ternary.False;
@@ -3130,8 +3189,30 @@ export class Relater extends TypeComparer {
       else if (sourceType === targetType)
         message =
           Diagnostics.Type_0_is_not_assignable_to_type_1_Two_different_types_with_this_name_exist_but_they_are_unrelated;
-      else message = Diagnostics.Type_0_is_not_assignable_to_type_1;
-    }
+      else if (c.exactOptionalPropertyTypes && getExactOptionalUnassignableProperties(c, source, target).length !== 0)
+        message =
+          Diagnostics.Type_0_is_not_assignable_to_type_1_with_exactOptionalPropertyTypes_Colon_true_Consider_adding_undefined_to_the_types_of_the_target_s_properties;
+      else {
+        if ((source.flags & TypeFlags.StringLiteral) !== 0 && (target.flags & TypeFlags.Union) !== 0) {
+          const suggested = getSuggestedTypeForNonexistentStringLiteralType(c, source, target);
+          if (suggested !== undefined) {
+            this.reportError(Diagnostics.Type_0_is_not_assignable_to_type_1_Did_you_mean_2, [
+              generalizedSourceType,
+              targetType,
+              typeToString(c, suggested),
+            ]);
+            return;
+          }
+        }
+        message = Diagnostics.Type_0_is_not_assignable_to_type_1;
+      }
+    } else if (
+      message === Diagnostics.Argument_of_type_0_is_not_assignable_to_parameter_of_type_1 &&
+      c.exactOptionalPropertyTypes &&
+      getExactOptionalUnassignableProperties(c, source, target).length !== 0
+    )
+      message =
+        Diagnostics.Argument_of_type_0_is_not_assignable_to_parameter_of_type_1_with_exactOptionalPropertyTypes_Colon_true_Consider_adding_undefined_to_the_types_of_the_target_s_properties;
     switch (this.getChainMessage(0)) {
       // Suppressed after an excess property error.
       case Diagnostics.Object_literal_may_only_specify_known_properties_and_0_does_not_exist_in_type_1:
@@ -3667,12 +3748,35 @@ function getDeclaringClass(c: Checker, prop: Symbol): Type | undefined {
 }
 
 /** Whether `sourceProp`'s class derives from `targetProp`'s, for protected members. */
+/** Whether every protected constituent of `targetProp` is declared in a base of a class declaring `sourceProp`. */
 function isValidOverrideOf(c: Checker, sourceProp: Symbol, targetProp: Symbol): boolean {
-  const targetClass = getDeclaringClass(c, targetProp);
-  const sourceClass = getDeclaringClass(c, sourceProp);
-  if (targetClass === undefined) return true;
-  if (sourceClass === undefined) return false;
-  return sourceClass === targetClass || hasBaseType(c, sourceClass, targetClass);
+  return !forEachProperty(
+    c,
+    targetProp,
+    (tp) =>
+      (getDeclarationModifierFlagsFromSymbol(c, tp, false) & ModifierFlags.Protected) !== 0 &&
+      !isPropertyInClassDerivedFrom(c, sourceProp, getDeclaringClass(c, tp)),
+  );
+}
+
+/** Whether some underlying property of `prop` is declared in a class deriving from `baseClass`. */
+function isPropertyInClassDerivedFrom(c: Checker, prop: Symbol, baseClass: Type | undefined): boolean {
+  return forEachProperty(c, prop, (sp) => {
+    const sourceClass = getDeclaringClass(c, sp);
+    return sourceClass !== undefined && baseClass !== undefined && hasBaseType(c, sourceClass, baseClass);
+  });
+}
+
+/** Calls `callback` with a property, or with the underlying properties of a synthetic one, until it returns true. */
+function forEachProperty(c: Checker, prop: Symbol, callback: (p: Symbol) => boolean): boolean {
+  if ((prop.checkFlags & CheckFlags.Synthetic) === 0) return callback(prop);
+  const containingType = c.symbolLinks(prop).containingType;
+  if (containingType === undefined) return false;
+  for (const t of typesOf(containingType)) {
+    const p = getPropertyOfType(c, t, prop.name);
+    if (p !== undefined && forEachProperty(c, p, callback)) return true;
+  }
+  return false;
 }
 
 export function isObjectTypeWithInferableIndex(c: Checker, t: Type): boolean {
@@ -3684,7 +3788,11 @@ export function isObjectTypeWithInferableIndex(c: Checker, t: Type): boolean {
         0 &&
       (t.symbol.flags & SymbolFlags.Class) === 0 &&
       !typeHasCallOrConstructSignatures(c, t)) ||
-    (t.objectFlags & (ObjectFlags.JSLiteral | ObjectFlags.ObjectRestType)) !== 0
+    (t.objectFlags & (ObjectFlags.JSLiteral | ObjectFlags.ObjectRestType)) !== 0 ||
+    // A reverse mapped type has an inferable index when its source does.
+    ((t.objectFlags & ObjectFlags.ReverseMapped) !== 0 &&
+      (t as ReverseMappedType).source !== undefined &&
+      isObjectTypeWithInferableIndex(c, (t as ReverseMappedType).source!))
   );
 }
 
@@ -3885,7 +3993,7 @@ function getVariancesWorker(c: Checker, symbol: Symbol, typeParameters: readonly
   return variances;
 }
 
-function createMarkerType(c: Checker, symbol: Symbol, source: Type, target: Type): Type {
+export function createMarkerType(c: Checker, symbol: Symbol, source: Type, target: Type): Type {
   const mapper = new SimpleTypeMapper(source, target);
   const t = getDeclaredTypeOfSymbol(c, symbol);
   if (isErrorType(c, t)) return t;
@@ -3909,7 +4017,7 @@ function createMarkerType(c: Checker, symbol: Symbol, source: Type, target: Type
 
 import { getTypeAliasInstantiation } from './checker-type-nodes.js';
 
-function getTypeParameterModifiers(tp: Type): ModifierFlags {
+export function getTypeParameterModifiers(tp: Type): ModifierFlags {
   let flags = 0;
   if (tp.symbol !== undefined) for (const d of tp.symbol.declarations) flags |= getCombinedModifierFlags(d);
   return flags & (ModifierFlags.In | ModifierFlags.Out | ModifierFlags.Const);
@@ -4451,3 +4559,44 @@ function isFunctionObjectType(c: Checker, t: Type): boolean {
 }
 
 export { findApplicableIndexInfo, getMergedSymbol, typeListKey, getPropertyNameFromType };
+
+/** The target properties that accept `undefined` only through `?`, under exactOptionalPropertyTypes. */
+export function getExactOptionalUnassignableProperties(c: Checker, source: Type, target: Type): Symbol[] {
+  if (isTupleType(source) && isTupleType(target)) return [];
+  const result: Symbol[] = [];
+  for (const targetProp of getPropertiesOfType(c, target)) {
+    const sourceType = getTypeOfPropertyOfType(c, source, targetProp.name);
+    if (
+      sourceType !== undefined &&
+      maybeTypeOfKind(sourceType, TypeFlags.Undefined) &&
+      containsMissingType(c, getTypeOfSymbol(c, targetProp))
+    )
+      result.push(targetProp);
+  }
+  return result;
+}
+
+/** The string literal member of `target` closest to the string literal `source`. */
+function getSuggestedTypeForNonexistentStringLiteralType(c: Checker, source: Type, target: Type): Type | undefined {
+  const value = (source as LiteralType).stringValue;
+  const valueCodePoints = codePoints(value);
+  const maximumLengthDifference = Math.max(2, Math.floor(valueCodePoints.length * 0.34));
+  let bestDistance = Math.floor(valueCodePoints.length * 0.4) + 0.9;
+  let best: Type | undefined = undefined;
+  const lowerValue = value.toLowerCase();
+  for (const t of typesOf(target)) {
+    if ((t.flags & TypeFlags.StringLiteral) === 0) continue;
+    const name = (t as LiteralType).stringValue;
+    const nameLength = utf8Length(name);
+    if (name === '' || Math.abs(nameLength - valueCodePoints.length) > maximumLengthDifference || name === value)
+      continue;
+    if (nameLength < 3 && name.toLowerCase() !== lowerValue) continue;
+    const distance = levenshteinWithMax(valueCodePoints, codePoints(name), bestDistance);
+    if (distance < 0) continue;
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      best = t;
+    } else if (best === undefined || compareTypes(c, t, best) < 0) best = t;
+  }
+  return best;
+}

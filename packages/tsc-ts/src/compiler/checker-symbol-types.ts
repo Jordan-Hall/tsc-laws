@@ -78,6 +78,7 @@ import {
   TypeSystemPropertyName,
   getGlobalTypeAliasSymbol,
   resolveName,
+  getGlobalSymbol,
 } from './checker-symbols.js';
 import {
   getBaseConstructorTypeOfClass,
@@ -85,7 +86,7 @@ import {
   getDeclaredTypeOfEnumMember,
   getDeclaredTypeOfSymbol,
 } from './checker-declared-types.js';
-import { getTypeFromTypeNode, getTypeAliasInstantiation } from './checker-type-nodes.js';
+import { getESSymbolLikeTypeForNode, getTypeFromTypeNode, getTypeAliasInstantiation } from './checker-type-nodes.js';
 import {
   getFlowTypeInConstructor,
   getFlowTypeInStaticBlocks,
@@ -97,6 +98,7 @@ import {
   getPropertiesOfObjectType,
   getPropertiesOfType,
   getPropertyOfObjectType,
+  isObjectLiteralType,
 } from './checker-members.js';
 import { typeToString, symbolToString } from './type-printer.js';
 import { getTypeOfMappedSymbol, getIndexType } from './checker-type-operators.js';
@@ -111,6 +113,7 @@ import {
   checkDeclarationInitializer,
   getContextuallyTypedParameterType,
   checkExpressionCached,
+  checkExpressionEx,
 } from './checker-expressions.js';
 import { checkPropertyAssignment, checkShorthandPropertyAssignment } from './checker-object-literals.js';
 import { getTypeForBindingElement, getTypeFromBindingPattern } from './checker-destructuring.js';
@@ -323,12 +326,13 @@ export function getTypeForVariableLikeDeclaration(
   c: Checker,
   declaration: Node,
   includeOptionality: boolean,
+  checkMode: CheckMode = CheckMode.Normal,
 ): Type | undefined {
   if (declaration.kind === SyntaxKind.VariableDeclaration) {
     const grandParent = declaration.parent!.parent!;
     if (grandParent.kind === SyntaxKind.ForInStatement) {
       // `for (k in x)` declares k as string, or keyof T for generic x.
-      let objectType = checkExpressionCached(c, getExpression(grandParent)!);
+      let objectType = checkExpressionEx(c, getExpression(grandParent)!, checkMode);
       if (hasTypeFacts(c, objectType, TypeFacts.IsUndefinedOrNull)) objectType = getNonNullableType(c, objectType);
       const indexType = getIndexType(c, objectType);
       return (indexType.flags & (TypeFlags.TypeParameter | TypeFlags.Index)) !== 0
@@ -391,7 +395,7 @@ export function getTypeForVariableLikeDeclaration(
   }
   const initializer = getInitializer(declaration);
   if (initializer !== undefined) {
-    const t = widenTypeInferredFromInitializer(c, declaration, checkDeclarationInitializer(c, declaration));
+    const t = widenTypeInferredFromInitializer(c, declaration, checkDeclarationInitializer(c, declaration, checkMode));
     return addOptionality(c, t, isProperty, isOptional);
   }
   if (c.noImplicitAny && declaration.kind === SyntaxKind.PropertyDeclaration) {
@@ -445,6 +449,11 @@ function isDeclarationReadonly(declaration: Node): boolean {
   );
 }
 
+function isGlobalSymbolConstructor(c: Checker, node: Node): boolean {
+  const symbol = getSymbolOfDeclaration(c, node);
+  return symbol !== undefined && symbol === getGlobalSymbol(c, 'SymbolConstructor', SymbolFlags.Type, undefined);
+}
+
 export function widenTypeForVariableLikeDeclaration(
   c: Checker,
   t: Type | undefined,
@@ -452,6 +461,10 @@ export function widenTypeForVariableLikeDeclaration(
   reportErrors: boolean,
 ): Type {
   if (t !== undefined) {
+    // `symbol` properties merged into the global SymbolConstructor are unique symbols, as libraries
+    // that predate `unique symbol` declare them.
+    if ((t.flags & TypeFlags.ESSymbol) !== 0 && isGlobalSymbolConstructor(c, declaration.parent!))
+      t = getESSymbolLikeTypeForNode(c, declaration);
     if (reportErrors) reportErrorsFromWidening(c, declaration, t);
     // A unique symbol type from another declaration widens.
     if (
@@ -488,7 +501,44 @@ function isPrivateIdentifierClassElement(node: Node): boolean {
 }
 
 /** Implicit-any widening of null/undefined, which strictNullChecks avoids. */
-function reportErrorsFromWidening(_c: Checker, _declaration: Node, _t: Type): void {}
+function reportErrorsFromWidening(c: Checker, declaration: Node, t: Type): void {
+  // Implicit any errors are reported within the type where possible, else on the declaration.
+  if (c.noImplicitAny && (t.objectFlags & ObjectFlags.ContainsWideningType) !== 0 && !reportWideningErrorsInType(c, t))
+    reportImplicitAny(c, declaration, t);
+}
+
+function reportWideningErrorsInType(c: Checker, t: Type): boolean {
+  let errorReported = false;
+  if ((t.objectFlags & ObjectFlags.ContainsWideningType) === 0) return false;
+  if ((t.flags & TypeFlags.Union) !== 0) {
+    if (typesOf(t).some((u) => isEmptyObjectType(c, u))) errorReported = true;
+    else for (const s of typesOf(t)) errorReported = errorReported || reportWideningErrorsInType(c, s);
+  } else if (isArrayOrTupleType(c, t)) {
+    for (const s of getTypeArguments(c, t)) errorReported = errorReported || reportWideningErrorsInType(c, s);
+  } else if (isObjectLiteralType(t)) {
+    for (const p of getPropertiesOfObjectType(c, t)) {
+      const s = getTypeOfSymbol(c, p);
+      if ((s.objectFlags & ObjectFlags.ContainsWideningType) === 0) continue;
+      errorReported = reportWideningErrorsInType(c, s);
+      if (errorReported) continue;
+      // Property types can come from object literal normalization in unions.
+      const valueDeclaration = p.declarations.find((d) => {
+        const v = getSymbol(d)?.valueDeclaration;
+        return v !== undefined && v.parent === t.symbol?.valueDeclaration;
+      });
+      if (valueDeclaration !== undefined) {
+        c.error(
+          valueDeclaration,
+          Diagnostics.Object_literal_s_property_0_implicitly_has_an_1_type,
+          symbolToString(c, p),
+          typeToString(c, getWidenedType(c, s)),
+        );
+        errorReported = true;
+      }
+    }
+  }
+  return errorReported;
+}
 
 export function reportImplicitAny(c: Checker, declaration: Node, t: Type): void {
   const file = getSourceFileOfNode(declaration);

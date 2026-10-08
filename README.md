@@ -46,7 +46,7 @@ npm run build:oracle     # tsgo reference builds in packages/*/dist
 | JavaScript emit              | emitted files, 39 option sets                       | all compared units match         |
 | Declaration emit             | `.d.ts` and `.d.ts.map` output                      | 99% of units with explicit types |
 | `--build`, `--incremental`   | output, `.tsbuildinfo`, emitted files, `--watch`    | all scenarios match              |
-| Type checker                 | diagnostics per file                                | in progress (99% of files match) |
+| Type checker                 | diagnostics per file                                | 99.8% of files match |
 
 The corpus scripts are in `packages/tsc-ts/scripts` (`*-corpus.mjs`).
 

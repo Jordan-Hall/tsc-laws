@@ -23,8 +23,16 @@ import {
   getTypeArguments as getTypeArgumentList,
   type BinaryExpression,
   getNodeId,
+  getBody,
+  getSymbol,
 } from './ast.js';
-import { canHaveDecorators, isImportCall } from './ast-utilities.js';
+import {
+  canHaveDecorators,
+  getEffectiveCheckNode,
+  isFunctionLikeDeclarationKind,
+  isImportCall,
+  nodeIsPresent,
+} from './ast-utilities.js';
 import {
   getContainingClass,
   getSourceFileOfNode,
@@ -121,6 +129,7 @@ import {
   cloneSignature,
   tryGetTypeAtPosition,
   getTypePredicateOfSignature,
+  getSignatureFromDeclaration,
 } from './checker-signatures.js';
 import { getEffectsSignature } from './checker-narrowing.js';
 import {
@@ -1329,13 +1338,6 @@ function getThisArgumentType(c: Checker, node: Node | undefined): Type {
   return thisArgumentType;
 }
 
-function getEffectiveCheckNode(argument: Node): Node {
-  let node = argument;
-  while (node.kind === SyntaxKind.ParenthesizedExpression || node.kind === SyntaxKind.SatisfiesExpression)
-    node = getExpression(node)!;
-  return node;
-}
-
 // ---- Type argument inference
 
 function inferTypeArguments(
@@ -1620,6 +1622,7 @@ function reportCallResolutionErrors(
         diagnostic.addRelatedInfo(
           createDiagnosticForNode(last.declaration, Diagnostics.The_last_overload_is_declared_here, []),
         );
+      addImplementationSuccessElaboration(c, s, last, diagnostic);
       c.addDiagnostic(diagnostic);
     }
   } else if (s.candidateForArgumentArityError !== undefined)
@@ -1634,6 +1637,36 @@ function reportCallResolutionErrors(
       c.addDiagnostic(getTypeArgumentArityError(c, s.node, signatures, s.typeArguments, headMessage));
     else c.addDiagnostic(getArgumentArityError(c, s.node, withCorrectTypeArgumentArity, s.args, headMessage));
   }
+}
+
+/** Notes when the call would have resolved to the implementation signature of the overloads. */
+function addImplementationSuccessElaboration(
+  c: Checker,
+  s: CallState,
+  failed: Signature,
+  diagnostic: Diagnostic,
+): void {
+  const symbol = failed.declaration !== undefined ? getSymbol(failed.declaration) : undefined;
+  if (symbol === undefined || symbol.declarations.length <= 1) return;
+  const implementation = symbol.declarations.find(
+    (d) => isFunctionLikeDeclarationKind(d.kind) && nodeIsPresent(getBody(d)),
+  );
+  if (implementation === undefined) return;
+  const candidate = getSignatureFromDeclaration(c, implementation);
+  const localState = new CallState(s.node, s.typeArguments, s.args, [candidate]);
+  localState.argCheckMode = s.argCheckMode;
+  localState.isSingleNonGenericCandidate = candidate.typeParameters.length === 0;
+  localState.candidatesForArgumentError = s.candidatesForArgumentError.slice();
+  localState.candidateForArgumentArityError = s.candidateForArgumentArityError;
+  localState.candidateForTypeArgumentError = s.candidateForTypeArgumentError;
+  if (chooseOverload(c, localState, c.assignableRelation) !== undefined)
+    diagnostic.addRelatedInfo(
+      createDiagnosticForNode(
+        implementation,
+        Diagnostics.The_call_would_have_succeeded_against_this_implementation_but_implementation_signatures_of_overloads_are_not_externally_visible,
+        [],
+      ),
+    );
 }
 
 function withHeadMessage(diagnostic: Diagnostic, headMessage: DiagnosticMessage | undefined): Diagnostic {

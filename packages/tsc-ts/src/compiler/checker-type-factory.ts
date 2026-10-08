@@ -69,6 +69,7 @@ import {
 } from './checker-type-operators.js';
 import { addOptionality } from './checker-symbol-types.js';
 import { getSourceFileOfNode } from './binder-utilities.js';
+import { isPartOfTypeNode } from './transformers/alias-references.js';
 
 export const enum UnionReduction {
   None = 0,
@@ -1863,7 +1864,12 @@ class TupleNormalizer {
       else if (isTupleType(t)) {
         const spreadTypes = getElementTypes(c, t);
         if (spreadTypes.length + this.types.length >= 10000) {
-          c.error(c.currentNode, Diagnostics.Expression_produces_a_tuple_type_that_is_too_large_to_represent);
+          c.error(
+            c.currentNode,
+            c.currentNode !== undefined && isPartOfTypeNode(c.currentNode)
+              ? Diagnostics.Type_produces_a_tuple_type_that_is_too_large_to_represent
+              : Diagnostics.Expression_produces_a_tuple_type_that_is_too_large_to_represent,
+          );
           return false;
         }
         const spreadInfos = tupleTargetOf(t).elementInfos;

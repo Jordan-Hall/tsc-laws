@@ -15,8 +15,10 @@ import {
   PartiallyEmittedExpression,
   PropertyAccessExpression,
   StringLiteral,
+  getExpression,
   getModuleSpecifier,
   getText,
+  getType,
 } from './ast.js';
 import { skipTrivia } from './scanner.js';
 import { SyntaxKind } from './syntax-kind.js';
@@ -476,4 +478,25 @@ export function isAmbientModule(node: Node): boolean {
     node instanceof ModuleDeclaration &&
     (node.name.kind === SyntaxKind.StringLiteral || node.keyword === SyntaxKind.GlobalKeyword)
   );
+}
+
+/** Whether `node` is a JavaScript `/** @type {T} *\/ (x)` cast, reparsed as a parenthesized `as` expression. */
+export function isJSDocTypeAssertion(node: Node): boolean {
+  if (node.kind !== SyntaxKind.ParenthesizedExpression || !isInJSFile(node)) return false;
+  const expression = getExpression(node);
+  if (expression === undefined || expression.kind !== SyntaxKind.AsExpression) return false;
+  const type = getType(expression);
+  return type !== undefined && (type.flags & NodeFlags.Reparsed) !== 0;
+}
+
+/** The expression a check applies to: parentheses and `satisfies` are skipped, but not JavaScript casts. */
+export function getEffectiveCheckNode(argument: Node): Node {
+  const inJS = isInJSFile(argument);
+  let node = argument;
+  for (;;) {
+    if (node.kind === SyntaxKind.ParenthesizedExpression && !(inJS && isJSDocTypeAssertion(node)))
+      node = getExpression(node)!;
+    else if (node.kind === SyntaxKind.SatisfiesExpression) node = getExpression(node)!;
+    else return node;
+  }
 }

@@ -13,7 +13,7 @@ import {
   getText,
   getType,
   type BindingElement,
-  type BinaryExpression,
+  BinaryExpression,
   getInitializer,
 } from './ast.js';
 import {
@@ -25,16 +25,34 @@ import {
   hasSyntacticModifier,
   isClassLike,
   isStatic,
+  isOptionalChain,
+  isPrivateIdentifierClassElementDeclaration,
   skipParentheses,
+  getElementOrPropertyAccessName,
+  isBindableStaticAccessExpression,
+  isBindableStaticNameExpression,
 } from './binder-utilities.js';
-import { isFunctionLike } from './ast-utilities.js';
+import { isFunctionLike, isInJSFile } from './ast-utilities.js';
 import { type Checker, createDiagnosticForNode } from './checker.js';
 import { type Diagnostic, Diagnostics } from './diagnostics.js';
-import { getSpellingSuggestion } from './spelling.js';
 import { CheckFlags, type Symbol, SymbolFlags } from './symbol.js';
 import { SyntaxKind } from './syntax-kind.js';
-import { ObjectFlags, type Type, TypeFlags, type TypeParameter, type TypeReference } from './checker-types.js';
-import { getTargetType, getUnionType, isErrorType, typesOf } from './checker-type-factory.js';
+import {
+  CheckMode,
+  ObjectFlags,
+  type Type,
+  TypeFlags,
+  type TypeParameter,
+  type TypeReference,
+} from './checker-types.js';
+import {
+  everyContainedType,
+  getTargetType,
+  getUnionType,
+  isEmptyObjectType,
+  isErrorType,
+  typesOf,
+} from './checker-type-factory.js';
 import {
   getApparentType,
   getApplicableIndexInfoForName,
@@ -43,7 +61,13 @@ import {
   getPropertyOfType,
   getPropertyOfTypeEx,
 } from './checker-members.js';
-import { getDeclarationOfAliasSymbol, getParentOfSymbol, getSymbolOfDeclaration } from './checker-symbols.js';
+import {
+  getDeclarationOfAliasSymbol,
+  getParentOfSymbol,
+  getSpellingSuggestionForName,
+  getSymbolOfDeclaration,
+} from './checker-symbols.js';
+import { isNodeDescendantOf } from './instantiation.js';
 import { getTypeOfSymbol, getWidenedType, getWriteTypeOfSymbol, isReadonlySymbol } from './checker-symbol-types.js';
 import {
   getClassLikeDeclarationOfSymbol,
@@ -77,6 +101,7 @@ export function checkPropertyAccessExpressionOrQualifiedName(
   leftType: Type,
   right: Node,
   writeOnly: boolean,
+  checkMode: CheckMode = CheckMode.Normal,
 ): Type {
   const parentSymbol = c.nodeLinks(left).resolvedSymbol;
   const assignmentKind = getAssignmentTargetKind(node);
@@ -192,7 +217,7 @@ export function checkPropertyAccessExpressionOrQualifiedName(
           ? getWriteTypeOfSymbol(c, prop)
           : getTypeOfSymbol(c, prop);
   }
-  return getFlowTypeOfAccessExpression(c, node, prop, propType, right);
+  return getFlowTypeOfAccessExpression(c, node, prop, propType, right, checkMode);
 }
 
 /** Whether `node` is a property of an object destructuring assignment from `this`. */
@@ -422,27 +447,29 @@ function checkPropertyAccessibilityAtLocation(
   writing: boolean,
   containingTypeIn: Type,
   prop: Symbol,
-  errorNode: Node,
+  errorNode: Node | undefined,
 ): boolean {
   const flags = getDeclarationModifierFlagsFromSymbol(c, prop, writing);
   if (isSuper) {
     // Abstract methods can't be reached through `super`.
     if ((flags & ModifierFlags.Abstract) !== 0) {
-      c.error(
-        errorNode,
-        Diagnostics.Abstract_method_0_in_class_1_cannot_be_accessed_via_super_expression,
-        symbolToString(c, prop),
-        typeToString(c, getDeclaringClass(c, prop)!),
-      );
+      if (errorNode !== undefined)
+        c.error(
+          errorNode,
+          Diagnostics.Abstract_method_0_in_class_1_cannot_be_accessed_via_super_expression,
+          symbolToString(c, prop),
+          typeToString(c, getDeclaringClass(c, prop)!),
+        );
       return false;
     }
     // Class fields of the parent aren't on the prototype.
     if ((flags & ModifierFlags.Static) === 0 && prop.declarations.some(isClassInstanceProperty)) {
-      c.error(
-        errorNode,
-        Diagnostics.Class_field_0_defined_by_the_parent_class_is_not_accessible_in_the_child_class_via_super,
-        symbolToString(c, prop),
-      );
+      if (errorNode !== undefined)
+        c.error(
+          errorNode,
+          Diagnostics.Class_field_0_defined_by_the_parent_class_is_not_accessible_in_the_child_class_via_super,
+          symbolToString(c, prop),
+        );
       return false;
     }
   }
@@ -461,12 +488,13 @@ function checkPropertyAccessibilityAtLocation(
       (parentSymbol.flags & SymbolFlags.Class) !== 0 &&
       isNodeUsedDuringClassInitialization(location)
     ) {
-      c.error(
-        errorNode,
-        Diagnostics.Abstract_property_0_in_class_1_cannot_be_accessed_in_the_constructor,
-        symbolToString(c, prop),
-        symbolToString(c, parentSymbol),
-      );
+      if (errorNode !== undefined)
+        c.error(
+          errorNode,
+          Diagnostics.Abstract_property_0_in_class_1_cannot_be_accessed_in_the_constructor,
+          symbolToString(c, prop),
+          symbolToString(c, parentSymbol),
+        );
       return false;
     }
   }
@@ -476,12 +504,13 @@ function checkPropertyAccessibilityAtLocation(
     const parent = getParentOfSymbol(c, prop);
     const declaringClassDeclaration = parent !== undefined ? getClassLikeDeclarationOfSymbol(parent) : undefined;
     if (!isNodeWithinClass(location, declaringClassDeclaration)) {
-      c.error(
-        errorNode,
-        Diagnostics.Property_0_is_private_and_only_accessible_within_class_1,
-        symbolToString(c, prop),
-        typeToString(c, getDeclaringClass(c, prop)!),
-      );
+      if (errorNode !== undefined)
+        c.error(
+          errorNode,
+          Diagnostics.Property_0_is_private_and_only_accessible_within_class_1,
+          symbolToString(c, prop),
+          typeToString(c, getDeclaringClass(c, prop)!),
+        );
       return false;
     }
     return true;
@@ -509,12 +538,13 @@ function checkPropertyAccessibilityAtLocation(
     if (thisClass !== undefined && isClassDerivedFromDeclaringClasses(c, thisClass, prop, writing))
       enclosingClass = thisClass;
     if ((flags & ModifierFlags.Static) !== 0 || enclosingClass === undefined) {
-      c.error(
-        errorNode,
-        Diagnostics.Property_0_is_protected_and_only_accessible_within_class_1_and_its_subclasses,
-        symbolToString(c, prop),
-        typeToString(c, getDeclaringClass(c, prop) ?? containingTypeIn),
-      );
+      if (errorNode !== undefined)
+        c.error(
+          errorNode,
+          Diagnostics.Property_0_is_protected_and_only_accessible_within_class_1_and_its_subclasses,
+          symbolToString(c, prop),
+          typeToString(c, getDeclaringClass(c, prop) ?? containingTypeIn),
+        );
       return false;
     }
   }
@@ -525,7 +555,7 @@ function checkPropertyAccessibilityAtLocation(
       ? getConstraintOfTypeParameter(c, containingType)
       : getBaseConstraintOfType(c, containingType);
   if (containingType === undefined || !hasBaseType(c, containingType, enclosingClass)) {
-    if (containingType !== undefined)
+    if (containingType !== undefined && errorNode !== undefined)
       c.error(
         errorNode,
         Diagnostics.Property_0_is_protected_and_only_accessible_through_an_instance_of_class_1_This_is_an_instance_of_class_2,
@@ -539,6 +569,14 @@ function checkPropertyAccessibilityAtLocation(
 }
 
 function isClassInstanceProperty(node: Node): boolean {
+  // `this.x = v` in JavaScript declares a field, but `C.prototype.x = v` and `C.x = v` don't.
+  if (isInJSFile(node) && node instanceof BinaryExpression) {
+    const left = node.left;
+    return (
+      (!isBindableStaticAccessExpression(left, false) || !isPrototypeAccess(getExpression(left)!)) &&
+      !isBindableStaticNameExpression(left, true)
+    );
+  }
   return (
     node.parent !== undefined &&
     isClassLike(node.parent) &&
@@ -546,6 +584,12 @@ function isClassInstanceProperty(node: Node): boolean {
     !isStatic(node) &&
     !hasSyntacticModifier(node, ModifierFlags.Accessor)
   );
+}
+
+function isPrototypeAccess(node: Node): boolean {
+  if (!isBindableStaticAccessExpression(node, false)) return false;
+  const name = getElementOrPropertyAccessName(node);
+  return name !== undefined && getText(name) === 'prototype';
 }
 
 function isThisProperty(node: Node): boolean {
@@ -677,7 +721,7 @@ export function reportNonexistentProperty(c: Checker, propNode: Node, containing
       ]);
       diagnostic.addRelatedInfo(createDiagnosticForNode(propNode, Diagnostics.Did_you_forget_to_use_await, []));
     } else {
-      const suggestion = getSuggestedSymbolForNonexistentProperty(c, name, containingType);
+      const suggestion = getSuggestedSymbolForNonexistentProperty(c, propNode, containingType);
       if (suggestion !== undefined) {
         diagnostic = createDiagnosticForNode(propNode, Diagnostics.Property_0_does_not_exist_on_type_1_Did_you_mean_2, [
           missingProperty,
@@ -689,14 +733,37 @@ export function reportNonexistentProperty(c: Checker, propNode: Node, containing
             createDiagnosticForNode(suggestion.valueDeclaration, Diagnostics.X_0_is_declared_here, [suggestion.name]),
           );
       } else
-        diagnostic = createDiagnosticForNode(propNode, Diagnostics.Property_0_does_not_exist_on_type_1, [
-          missingProperty,
-          container,
-        ]);
+        diagnostic = createDiagnosticForNode(
+          propNode,
+          containerSeemsToBeEmptyDomElement(c, containingType)
+            ? Diagnostics.Property_0_does_not_exist_on_type_1_Try_changing_the_lib_compiler_option_to_include_dom
+            : Diagnostics.Property_0_does_not_exist_on_type_1,
+          [missingProperty, container],
+        );
     }
   }
   if (chain !== undefined) diagnostic.addMessageChain(chain);
   c.addDiagnostic(diagnostic);
+}
+
+/** Whether the type looks like an empty DOM type, as when the DOM lib is missing. */
+function containerSeemsToBeEmptyDomElement(c: Checker, containingType: Type): boolean {
+  return (
+    !(c.compilerOptions.lib ?? []).includes('lib.dom.d.ts') &&
+    everyContainedType(containingType, hasCommonDomTypeName) &&
+    isEmptyObjectType(c, containingType)
+  );
+}
+
+function hasCommonDomTypeName(t: Type): boolean {
+  if (t.symbol === undefined) return false;
+  const name = t.symbol.name;
+  return (
+    name === 'EventTarget' ||
+    name === 'Node' ||
+    name === 'Element' ||
+    (name.startsWith('HTML') && name.endsWith('Element'))
+  );
 }
 
 /** Whether the type's symbol has a static member `name`, as when an instance member was expected. */
@@ -709,19 +776,35 @@ export function typeHasStaticProperty(c: Checker, name: string, containingType: 
 /** The value member with the closest name, for "Did you mean" suggestions. */
 export function getSuggestedSymbolForNonexistentProperty(
   c: Checker,
+  name: Node,
+  containingType: Type,
+): Symbol | undefined {
+  let props = getPropertiesOfType(c, containingType);
+  const parent = name.parent!;
+  if (parent.kind === SyntaxKind.PropertyAccessExpression)
+    props = props.filter((prop) => isValidPropertyAccessForCompletions(c, parent, containingType, prop));
+  return getSpellingSuggestionForName(c, getText(name), props, SymbolFlags.Value);
+}
+
+/** The value property of `containingType` with the closest name to `name`. */
+export function getSuggestionForNonexistentProperty(
+  c: Checker,
   name: string,
   containingType: Type,
 ): Symbol | undefined {
-  const candidates: string[] = [];
-  const symbols: Symbol[] = [];
-  for (const p of getPropertiesOfType(c, containingType)) {
-    const n = p.name;
-    if (n.length === 0 || n.charCodeAt(0) === 0x22 || n.charCodeAt(0) === 0xfffe) continue;
-    if ((p.flags & SymbolFlags.Value) === 0) continue;
-    candidates.push(n);
-    symbols.push(p);
+  return getSpellingSuggestionForName(c, name, getPropertiesOfType(c, containingType), SymbolFlags.Value);
+}
+
+/** Whether `property` of `t` may be accessed at `node` without an error, as completions decide. */
+function isValidPropertyAccessForCompletions(c: Checker, node: Node, t: Type, property: Symbol): boolean {
+  const isSuper =
+    node.kind === SyntaxKind.PropertyAccessExpression && getExpression(node)!.kind === SyntaxKind.SuperKeyword;
+  if ((t.flags & TypeFlags.Any) !== 0) return true;
+  // `#private` access in an optional chain is a parse error.
+  const declaration = property.valueDeclaration;
+  if (declaration !== undefined && isPrivateIdentifierClassElementDeclaration(declaration)) {
+    const declClass = getContainingClass(declaration);
+    return !isOptionalChain(node) && declClass !== undefined && isNodeDescendantOf(node, declClass);
   }
-  const best = getSpellingSuggestion(name, candidates);
-  if (best === '') return undefined;
-  return symbols[candidates.indexOf(best)]!;
+  return checkPropertyAccessibilityAtLocation(c, node, isSuper, false, t, property, undefined);
 }

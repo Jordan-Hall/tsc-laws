@@ -775,7 +775,7 @@ export function getDefaultFromTypeParameter(c: Checker, t: Type): Type | undefin
   return defaultType !== c.noConstraintType && defaultType !== c.circularConstraintType ? defaultType : undefined;
 }
 
-function getResolvedTypeParameterDefault(c: Checker, t: TypeParameter): Type {
+export function getResolvedTypeParameterDefault(c: Checker, t: TypeParameter): Type {
   if (t.resolvedDefaultType === undefined) {
     if (t.target !== undefined) {
       const targetDefault = getResolvedTypeParameterDefault(c, t.target as TypeParameter);
@@ -806,8 +806,16 @@ export function getDefaultOrUnknownFromTypeParameter(c: Checker, t: Type): Type 
 export function getMinTypeArgumentCount(c: Checker, typeParameters: readonly Type[]): number {
   let minTypeArgumentCount = 0;
   for (let i = 0; i < typeParameters.length; i++)
-    if (getDefaultFromTypeParameter(c, typeParameters[i]!) === undefined) minTypeArgumentCount = i + 1;
+    if (!hasTypeParameterDefault(typeParameters[i]!)) minTypeArgumentCount = i + 1;
   return minTypeArgumentCount;
+}
+
+/** Whether a type parameter is declared with a default, without resolving it. */
+function hasTypeParameterDefault(t: Type): boolean {
+  if (t.symbol === undefined) return false;
+  for (const d of t.symbol.declarations)
+    if (d.kind === SyntaxKind.TypeParameter && (d as TypeParameterDeclaration).defaultType !== undefined) return true;
+  return false;
 }
 
 export function fillMissingTypeArguments(

@@ -1,6 +1,8 @@
 // Object literals: their types, computed members and spreads.
+import { checkGrammarObjectLiteralOfExpression } from './checker-grammar.js';
 import {
   type Node,
+  type ObjectLiteralExpression,
   type PropertyAssignment,
   type ShorthandPropertyAssignment,
   ModifierFlags,
@@ -57,7 +59,12 @@ import {
   getTypeOfObjectLiteralMethod,
   isContextSensitive,
 } from './checker-functions.js';
-import { getApparentTypeOfContextualType, getInferenceContext } from './checker-contextual.js';
+import {
+  getApparentTypeOfContextualType,
+  getInferenceContext,
+  popContextualType,
+  pushCachedContextualType,
+} from './checker-contextual.js';
 import { addIntraExpressionInferenceSite } from './checker-inference.js';
 import { isEmptyObjectType } from './checker-type-factory.js';
 import { getTypeOfExpandoObjectLiteral, isJSObjectLiteral } from './checker-javascript.js';
@@ -114,7 +121,10 @@ export function checkObjectLiteral(c: Checker, node: Node, checkMode: CheckMode)
   const expandoType = getTypeOfExpandoObjectLiteral(c, node);
   if (expandoType !== undefined) return expandoType;
   const inDestructuringPattern = isAssignmentTarget(node);
+  checkGrammarObjectLiteralOfExpression(c, node as ObjectLiteralExpression, inDestructuringPattern);
   const allProperties = c.strictNullChecks ? new Map<string, Symbol>() : undefined;
+  // The members' contextual types come from the literal's, computed once.
+  pushCachedContextualType(c, node);
   const inConstContext = isConstContext(c, node);
   const checkFlags = inConstContext ? CheckFlags.Readonly : 0;
   const builder = new ObjectLiteralBuilder(node, inDestructuringPattern);
@@ -240,6 +250,7 @@ export function checkObjectLiteral(c: Checker, node: Node, checkMode: CheckMode)
     } else builder.members.set(member.name, member);
     builder.properties.push(member);
   }
+  popContextualType(c);
   if (isErrorType(c, spread)) return c.errorType;
   if (spread !== c.emptyObjectType) {
     if (builder.properties.length > 0) {

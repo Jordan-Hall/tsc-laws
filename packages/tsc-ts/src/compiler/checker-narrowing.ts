@@ -171,7 +171,7 @@ import {
 import { getOptionalType, getTypeOfSymbol, isReadonlySymbol } from './checker-symbol-types.js';
 import { getPropertyNameFromType, isTypeUsableAsPropertyName, maybeTypeOfKind } from './checker-utilities.js';
 import { getTypeFromTypeNode, getTypeAliasInstantiation } from './checker-type-nodes.js';
-import { isFunctionLike } from './ast-utilities.js';
+import { isFunctionLike, isInJSFile } from './ast-utilities.js';
 import { Diagnostic } from './diagnostics.js';
 import { Diagnostics } from './diagnostic-messages.js';
 import { getOptionalExpressionType, getResolvedSignature } from './checker-calls.js';
@@ -409,6 +409,21 @@ function getTypeAtFlowAssignment(c: Checker, f: FlowState, flow: FlowNode): Type
   // An assignment to a prefix of a dotted name resets it to the declared type.
   if (containsMatchingReference(c, f.reference, node)) {
     if (!isReachableFlowNode(c, flow)) return complete(f, c.unreachableNeverType);
+    // The dotted name may be an expando property of a function expression; its flow continues
+    // back past the function's declaration.
+    if (node.kind === SyntaxKind.VariableDeclaration) {
+      const blockScope = getCombinedNodeFlags(node) & NodeFlags.BlockScoped;
+      const initializer = getInitializer(node);
+      if (
+        (isInJSFile(node) ||
+          blockScope === NodeFlags.Const ||
+          blockScope === NodeFlags.Using ||
+          blockScope === NodeFlags.AwaitUsing) &&
+        initializer !== undefined &&
+        (initializer.kind === SyntaxKind.FunctionExpression || initializer.kind === SyntaxKind.ArrowFunction)
+      )
+        return getTypeAtFlowNode(c, f, flow.antecedent!);
+    }
     return complete(f, f.declaredType);
   }
   // `for (const _ in ref)` acts as a non-null check of `ref`.
@@ -419,7 +434,11 @@ function getTypeAtFlowAssignment(c: Checker, f: FlowState, flow: FlowNode): Type
       optionalChainContainsReference(c, statementExpression, f.reference)
     ) {
       const antecedentType = getTypeAtFlowNode(c, f, flow.antecedent!);
-      return complete(f, getNonNullableType(c, finalizeEvolvingArrayType(c, antecedentType)));
+      const finalType = finalizeEvolvingArrayType(c, antecedentType);
+      return complete(
+        f,
+        hasTypeFacts(c, finalType, TypeFacts.IsUndefinedOrNull) ? getNonNullableType(c, finalType) : finalType,
+      );
     }
   }
   return undefined;
@@ -464,7 +483,7 @@ function getInitialType(c: Checker, node: Node): Type {
 }
 
 /** The type of an initializer: the type a variable was inferred from, else computed without caching. */
-function getTypeOfInitializer(c: Checker, node: Node): Type {
+export function getTypeOfInitializer(c: Checker, node: Node): Type {
   return c.nodeLinks(node).resolvedType ?? getTypeOfExpression(c, node);
 }
 
@@ -2842,7 +2861,7 @@ export function getNarrowedTypeOfSymbol(c: Checker, symbol: Symbol, location: No
   if ((links.flags & NodeCheckFlags.InCheckIdentifier) !== 0) return t;
   links.flags |= NodeCheckFlags.InCheckIdentifier;
   let result = t;
-  const parentType = getTypeForBindingElementParent(c, parent);
+  const parentType = getTypeForBindingElementParent(c, parent, CheckMode.Normal);
   const parentTypeConstraint = parentType !== undefined ? mapToBaseConstraintOrType(c, parentType) : undefined;
   if (
     parentTypeConstraint !== undefined &&
