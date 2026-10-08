@@ -116,7 +116,7 @@ import { getIndexedAccessTypeEx } from './checker-type-operators.js';
 import { getIteratedTypeOrElementType } from './checker-expressions.js';
 import { getTypeOfSymbol } from './checker-symbol-types.js';
 import { maybeTypeOfKind } from './checker-utilities.js';
-import { getFunctionFlags, FunctionFlags } from './checker-utilities.js';
+import { getFunctionFlags, FunctionFlags, indexOfNode } from './checker-utilities.js';
 import { getAwaitedTypeNoAlias, isContextSensitive } from './checker-functions.js';
 import {
   getContextualJsxElementAttributesType,
@@ -327,7 +327,7 @@ export function getContextualTypeEx(c: Checker, node: Node, contextFlags: Contex
       return getContextualTypeEx(c, parent.parent!, contextFlags);
     case SyntaxKind.ArrayLiteralExpression: {
       const elements = (parent as ArrayLiteralExpression).elements.nodes;
-      const index = elements.indexOf(node);
+      const index = indexOfNode(elements, node);
       if (index < 0) return undefined;
       const spreads = getSpreadIndices(elements);
       return getContextualTypeForElementExpression(

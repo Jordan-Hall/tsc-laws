@@ -109,10 +109,17 @@ export class NameResolver {
     return false;
   }
 
-  onFailedToResolveSymbol(_location: Node, _name: string, _meaning: SymbolFlags, _message: DiagnosticMessage): void {}
+  /** Reports a failed lookup; `location` is undefined for global lookups. */
+  onFailedToResolveSymbol(
+    _location: Node | undefined,
+    _name: string,
+    _meaning: SymbolFlags,
+    _message: DiagnosticMessage,
+  ): void {}
 
+  /** Checks a successful lookup; `location` is undefined for global lookups. */
   onSuccessfullyResolvedSymbol(
-    _location: Node,
+    _location: Node | undefined,
     _result: Symbol,
     _meaning: SymbolFlags,
     _lastLocation: Node | undefined,
@@ -470,10 +477,10 @@ export class NameResolver {
         this.onPropertyWithInvalidInitializer(originalLocation!, name, propertyWithInvalidInitializer, result)
       )
         return undefined;
-      if (result === undefined) this.onFailedToResolveSymbol(originalLocation!, name, meaning, nameNotFoundMessage);
+      if (result === undefined) this.onFailedToResolveSymbol(originalLocation, name, meaning, nameNotFoundMessage);
       else
         this.onSuccessfullyResolvedSymbol(
-          originalLocation!,
+          originalLocation,
           result,
           meaning,
           lastLocation,

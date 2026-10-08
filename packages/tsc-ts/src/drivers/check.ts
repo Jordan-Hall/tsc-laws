@@ -5,7 +5,7 @@
 // Usage: check FILE LIBDIR [--batch|--bench]
 //   --batch  FILE lists input files, one per line; each is printed after `== <path>`
 //   --bench  times parsing, binding and checking FILE
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeSync } from 'node:fs';
 import { performance } from 'node:perf_hooks';
 import {
   ExternalModuleIndicatorOptions,
@@ -15,7 +15,7 @@ import {
   type SourceFile,
 } from '../compiler/ast.js';
 import { bindSourceFile } from '../compiler/binder.js';
-import { Checker, CheckerHost } from '../compiler/checker.js';
+import { Checker, CheckerHost, disposeChecker } from '../compiler/checker.js';
 import { type Diagnostic, Locale } from '../compiler/diagnostics.js';
 import { type CompilerOptions, JsxEmit, ScriptTarget } from '../compiler/options.js';
 import { parseSourceFile } from '../compiler/parser.js';
@@ -162,6 +162,7 @@ function check(path: string, text: string, loader: LibLoader, defaults: Compiler
   for (const d of file.bindDiagnostics) result.push(d);
   for (const d of checker.getDiagnostics(file)) result.push(d);
   for (const d of checker.getGlobalDiagnostics()) result.push(d);
+  disposeChecker(checker);
   return result;
 }
 
@@ -241,7 +242,25 @@ function main(): void {
     const text = readFileSync(path, 'utf8');
     format(check(path, text, loader, options), path, text, out);
   }
-  if (out.length > 0) process.stdout.write(out.join('\n') + '\n');
+  if (out.length > 0) write(out.join('\n') + '\n');
+}
+
+/** Writes to stdout synchronously, so exiting right after loses nothing. */
+function write(text: string): void {
+  // A pipe may be non-blocking (EAGAIN): retry a while until everything is written.
+  const bytes = Buffer.from(text);
+  let offset = 0;
+  let failures = 0;
+  while (offset < bytes.length) {
+    try {
+      offset += writeSync(1, bytes, offset);
+      failures = 0;
+    } catch {
+      if (++failures > 100000) throw new Error('cannot write to stdout');
+    }
+  }
 }
 
 main();
+// Exit without tearing down the libraries and programs: process.exit skips the final cycle collection.
+process.exit(0);

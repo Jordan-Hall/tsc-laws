@@ -123,9 +123,14 @@ export function isGlobalSourceFile(node: Node): boolean {
 }
 
 export function getSourceFileOfNode(node: Node): SourceFile {
-  let current = node;
-  while (current.parent !== undefined) current = current.parent;
-  return current as SourceFile;
+  // Walks parents without rebinding `node`, which native builds would box at every step.
+  let parent = node.parent;
+  if (parent === undefined) return node as SourceFile;
+  for (;;) {
+    const next: Node | undefined = parent.parent;
+    if (next === undefined) return parent as SourceFile;
+    parent = next;
+  }
 }
 
 // Kinds

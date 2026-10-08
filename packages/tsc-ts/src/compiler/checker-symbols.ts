@@ -5,6 +5,7 @@ import {
   ModuleDeclaration,
   type Node,
   NodeFlags,
+  type PatternAmbientModule,
   type QualifiedName,
   type SourceFile,
   Tristate,
@@ -41,7 +42,7 @@ import {
 } from './binder-utilities.js';
 import { type Diagnostic, type DiagnosticMessage, Diagnostics, compareDiagnostics } from './diagnostics.js';
 import { NameResolver } from './name-resolver.js';
-import { CheckFlags, InternalSymbolName, type Symbol, SymbolFlags, type SymbolTable, getSymbolId } from './symbol.js';
+import { CheckFlags, InternalSymbolName, Symbol, SymbolFlags, type SymbolTable, getSymbolId } from './symbol.js';
 import { SyntaxKind } from './syntax-kind.js';
 import { type Checker, createDiagnosticForNode } from './checker.js';
 import { InterfaceType, type Type, type Signature, TypeReference, UnionOrIntersectionType } from './checker-types.js';
@@ -91,12 +92,17 @@ export class CheckerNameResolver extends NameResolver {
     this.checker.nodeLinks(node).declarationRequiresScopeChange = value;
   }
 
-  onFailedToResolveSymbol(location: Node, name: string, meaning: SymbolFlags, message: DiagnosticMessage): void {
+  onFailedToResolveSymbol(
+    location: Node | undefined,
+    name: string,
+    meaning: SymbolFlags,
+    message: DiagnosticMessage,
+  ): void {
     onFailedToResolveSymbol(this.checker, location, name, meaning, message);
   }
 
   onSuccessfullyResolvedSymbol(
-    location: Node,
+    location: Node | undefined,
     result: Symbol,
     meaning: SymbolFlags,
     _lastLocation: Node | undefined,
@@ -106,8 +112,10 @@ export class CheckerNameResolver extends NameResolver {
     // Only names in value positions check block-scoped declaration order: a symbol may be both a
     // block-scoped variable and a namespace, as in `const foo: foo.bar`.
     if (
-      (meaning & SymbolFlags.BlockScopedVariable) !== 0 ||
-      ((meaning & (SymbolFlags.Class | SymbolFlags.Enum)) !== 0 && (meaning & SymbolFlags.Value) === SymbolFlags.Value)
+      location !== undefined &&
+      ((meaning & SymbolFlags.BlockScopedVariable) !== 0 ||
+        ((meaning & (SymbolFlags.Class | SymbolFlags.Enum)) !== 0 &&
+          (meaning & SymbolFlags.Value) === SymbolFlags.Value))
     )
       checkResolvedBlockScopedVariable(this.checker, result, location);
   }
@@ -166,25 +174,27 @@ function isES2015OrLaterConstructorName(name: string): boolean {
 
 function onFailedToResolveSymbol(
   c: Checker,
-  location: Node,
+  location: Node | undefined,
   name: string,
   meaning: SymbolFlags,
   message: DiagnosticMessage,
 ): void {
-  if (location.parent !== undefined && location.parent.kind === SyntaxKind.JSDocLink) return;
-  if (
-    checkAndReportErrorForMissingPrefix(c, location, name) ||
-    checkAndReportErrorForExtendingInterface(c, location) ||
-    checkAndReportErrorForUsingTypeAsNamespace(c, location, name, meaning) ||
-    checkAndReportErrorForExportingPrimitiveType(c, location, name) ||
-    checkAndReportErrorForUsingNamespaceAsTypeOrValue(c, location, name, meaning) ||
-    checkAndReportErrorForUsingTypeAsValue(c, location, name, meaning) ||
-    checkAndReportErrorForUsingValueAsType(c, location, name, meaning)
-  )
-    return;
   let declarationName = name;
-  if (location.kind === SyntaxKind.Identifier && getText(location) === name)
-    declarationName = declarationNameToString(getSourceFileOfNode(location), location);
+  if (location !== undefined) {
+    if (location.parent !== undefined && location.parent.kind === SyntaxKind.JSDocLink) return;
+    if (
+      checkAndReportErrorForMissingPrefix(c, location, name) ||
+      checkAndReportErrorForExtendingInterface(c, location) ||
+      checkAndReportErrorForUsingTypeAsNamespace(c, location, name, meaning) ||
+      checkAndReportErrorForExportingPrimitiveType(c, location, name) ||
+      checkAndReportErrorForUsingNamespaceAsTypeOrValue(c, location, name, meaning) ||
+      checkAndReportErrorForUsingTypeAsValue(c, location, name, meaning) ||
+      checkAndReportErrorForUsingValueAsType(c, location, name, meaning)
+    )
+      return;
+    if (location.kind === SyntaxKind.Identifier && getText(location) === name)
+      declarationName = declarationNameToString(getSourceFileOfNode(location), location);
+  }
   const suggestion = c.suggestionResolver.resolve(location, name, meaning, undefined, false, false);
   if (
     suggestion !== undefined &&
@@ -299,7 +309,12 @@ export class SuggestionNameResolver extends CheckerNameResolver {
 
   symbolReferenced(_symbol: Symbol, _meaning: SymbolFlags): void {}
 
-  onFailedToResolveSymbol(_location: Node, _name: string, _meaning: SymbolFlags, _message: DiagnosticMessage): void {}
+  onFailedToResolveSymbol(
+    _location: Node | undefined,
+    _name: string,
+    _meaning: SymbolFlags,
+    _message: DiagnosticMessage,
+  ): void {}
 }
 
 /** The primitive type alias suggested for a misspelled builtin wrapper name, or ''. */
@@ -558,33 +573,106 @@ function checkAndReportErrorForUsingValueAsType(
 
 // ---- Merging
 
+function mergeFileGlobals(c: Checker, file: SourceFile): void {
+  if (!isExternalOrCommonJSModule(file)) {
+    const locals = file.locals;
+    if (locals !== undefined) {
+      const fileGlobalThis = locals.get('globalThis');
+      if (fileGlobalThis !== undefined)
+        for (const d of fileGlobalThis.declarations)
+          c.addDiagnostic(
+            createDiagnosticForNode(d, Diagnostics.Declaration_name_conflicts_with_built_in_global_identifier_0, [
+              'globalThis',
+            ]),
+          );
+      for (const symbol of locals.values()) {
+        if ((symbol.flags & SymbolFlags.Module) !== 0 && isAmbientModuleSymbolName(symbol.name))
+          c.ambientModuleSymbols.push(symbol);
+        else mergeGlobalSymbol(c, symbol);
+      }
+    }
+  }
+  for (const pattern of file.patternAmbientModules) c.patternAmbientModules.push(pattern);
+  if (file.symbol !== undefined && file.globalExports !== undefined)
+    // UMD exports, first in wins.
+    for (const [name, symbol] of file.globalExports) if (!c.globals.has(name)) c.globals.set(name, symbol);
+}
+
+/**
+ * Globals merged from the locals of a program's leading default libraries. Checkers of programs
+ * with the same libraries start from them; a later merge into a shared symbol merges into a copy.
+ */
+export class LibGlobals {
+  readonly files: SourceFile[];
+  readonly globals: SymbolTable;
+  readonly mergedSymbols: Map<number, Symbol>;
+  readonly ambientModuleSymbols: Symbol[];
+  readonly patternAmbientModules: PatternAmbientModule[];
+  /** Ids of the symbols merged into each shared symbol. */
+  readonly sources = new Map<Symbol, number[]>();
+
+  constructor(c: Checker, files: SourceFile[]) {
+    this.files = files;
+    this.globals = new Map(c.globals);
+    // Each checker sets its own `globalThis`, keeping it first.
+    this.globals.set(c.globalThisSymbol.name, new Symbol(SymbolFlags.None, 'globalThis'));
+    this.mergedSymbols = new Map(c.mergedSymbols);
+    this.ambientModuleSymbols = c.ambientModuleSymbols.slice();
+    this.patternAmbientModules = c.patternAmbientModules.slice();
+    for (const [id, target] of this.mergedSymbols) {
+      let ids = this.sources.get(target);
+      if (ids === undefined) {
+        ids = [];
+        this.sources.set(target, ids);
+      }
+      ids.push(id);
+    }
+  }
+
+  /** Whether `files` starts with exactly these `count` libraries. */
+  matches(files: readonly SourceFile[], count: number): boolean {
+    if (count !== this.files.length) return false;
+    for (let i = 0; i < count; i++) if (files[i] !== this.files[i]) return false;
+    return true;
+  }
+}
+
+const libGlobalsCache: LibGlobals[] = [];
+
+/** Number of leading default library files, whose merged locals can be shared. */
+function getLibraryCount(c: Checker): number {
+  const files = c.files;
+  let count = 0;
+  while (count < files.length && c.host.isSourceFileDefaultLibrary(files[count])) count++;
+  return count;
+}
+
+/** The shared globals of the checker's default libraries, if another checker merged them. */
+export function findLibGlobals(c: Checker): LibGlobals | undefined {
+  const count = getLibraryCount(c);
+  if (count > 0) for (const libs of libGlobalsCache) if (libs.matches(c.files, count)) return libs;
+  return undefined;
+}
+
 /** Merges script locals into globals; ambient modules and augmentations wait for global types. */
 export function initializeGlobals(c: Checker): void {
   const globals = c.globals;
-  for (const file of c.files) {
-    if (!isExternalOrCommonJSModule(file)) {
-      const locals = file.locals;
-      if (locals !== undefined) {
-        const fileGlobalThis = locals.get('globalThis');
-        if (fileGlobalThis !== undefined)
-          for (const d of fileGlobalThis.declarations)
-            c.addDiagnostic(
-              createDiagnosticForNode(d, Diagnostics.Declaration_name_conflicts_with_built_in_global_identifier_0, [
-                'globalThis',
-              ]),
-            );
-        for (const symbol of locals.values()) {
-          if ((symbol.flags & SymbolFlags.Module) !== 0 && isAmbientModuleSymbolName(symbol.name))
-            c.ambientModuleSymbols.push(symbol);
-          else mergeGlobalSymbol(c, symbol);
-        }
-      }
+  const libraryCount = getLibraryCount(c);
+  const libs = c.libGlobals;
+  if (libs !== undefined) {
+    // The constructor copied the globals and merged symbols.
+    for (const symbol of libs.ambientModuleSymbols) c.ambientModuleSymbols.push(symbol);
+    for (const pattern of libs.patternAmbientModules) c.patternAmbientModules.push(pattern);
+  } else if (libraryCount > 0) {
+    const diagnosticCount = c.diagnostics.count();
+    for (let i = 0; i < libraryCount; i++) mergeFileGlobals(c, c.files[i]);
+    // Diagnostics belong to one checker, so libraries that report any aren't shared.
+    if (c.diagnostics.count() === diagnosticCount) {
+      c.libGlobals = new LibGlobals(c, c.files.slice(0, libraryCount));
+      libGlobalsCache.push(c.libGlobals);
     }
-    for (const pattern of file.patternAmbientModules) c.patternAmbientModules.push(pattern);
-    if (file.symbol !== undefined && file.globalExports !== undefined)
-      // UMD exports, first in wins.
-      for (const [name, symbol] of file.globalExports) if (!globals.has(name)) globals.set(name, symbol);
   }
+  for (let i = libraryCount; i < c.files.length; i++) mergeFileGlobals(c, c.files[i]);
   for (const file of c.files)
     for (const augmentation of file.moduleAugmentations)
       if (augmentation.parent !== undefined && isGlobalScopeAugmentation(augmentation.parent))
@@ -714,7 +802,7 @@ export function mergeSymbol(c: Checker, target: Symbol, source: Symbol, unidirec
         reportMergeSymbolError(c, target, source);
         return source;
       }
-    }
+    } else if (c.libGlobals !== undefined && c.libGlobals.sources.has(target)) target = copySharedSymbol(c, target);
     if (
       (source.flags & SymbolFlags.ValueModule) !== 0 &&
       (target.flags & SymbolFlags.ValueModule) !== 0 &&
@@ -842,17 +930,37 @@ export function cloneSymbol(c: Checker, symbol: Symbol): Symbol {
   return result;
 }
 
+/**
+ * A checker's own copy of a symbol shared through `LibGlobals`, which stands for it: the symbols
+ * merged into the shared one, and the shared one itself, now merge into the copy.
+ */
+function copySharedSymbol(c: Checker, shared: Symbol): Symbol {
+  const result = c.newSymbol(shared.flags, shared.name);
+  result.declarations = shared.declarations.slice();
+  result.parent = shared.parent;
+  result.valueDeclaration = shared.valueDeclaration;
+  if (shared.members !== undefined) result.members = new Map(shared.members);
+  if (shared.exports !== undefined) result.exports = new Map(shared.exports);
+  c.sharedSymbolCopies.set(result, shared);
+  recordMergedSymbol(c, result, result);
+  return result;
+}
+
 function recordMergedSymbol(c: Checker, target: Symbol, source: Symbol): void {
-  const id = getSymbolId(source);
-  const merged = c.mergedSymbols;
-  while (merged.length <= id) merged.push(undefined);
-  merged[id] = target;
+  c.mergedSymbols.set(getSymbolId(source), target);
+  // Merging a copy merges what it stands for.
+  const libs = c.libGlobals;
+  const shared = libs !== undefined ? c.sharedSymbolCopies.get(source) : undefined;
+  if (shared !== undefined) {
+    c.mergedSymbols.set(getSymbolId(shared), target);
+    for (const id of libs!.sources.get(shared)!) c.mergedSymbols.set(id, target);
+  }
 }
 
 export function getMergedSymbol(c: Checker, symbol: Symbol): Symbol {
   const id = symbol.id;
-  if (id !== 0 && id < c.mergedSymbols.length) {
-    const merged = c.mergedSymbols[id];
+  if (id !== 0) {
+    const merged = c.mergedSymbols.get(id);
     if (merged !== undefined) return merged;
   }
   return symbol;
@@ -893,10 +1001,8 @@ export function getGlobalSymbol(
   meaning: SymbolFlags,
   diagnostic: DiagnosticMessage | undefined,
 ): Symbol | undefined {
-  // Without a location the resolver can't report; missing globals are global diagnostics.
-  const symbol = resolveName(c, undefined, name, meaning, undefined, false, false);
-  if (symbol === undefined && diagnostic !== undefined) c.error(undefined, diagnostic, name);
-  return symbol;
+  // Without a location, missing globals are global diagnostics.
+  return resolveName(c, undefined, name, meaning, diagnostic, false, false);
 }
 
 function getGlobalTypeDeclaration(symbol: Symbol): Node | undefined {

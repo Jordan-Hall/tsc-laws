@@ -539,8 +539,9 @@ function mayResolveTypeAlias(c: Checker, node: Node): boolean {
       return t.kind !== SyntaxKind.ArrayType || mayResolveTypeAlias(c, (t as ArrayTypeNode).elementType);
     }
     case SyntaxKind.UnionType:
-    case SyntaxKind.IntersectionType:
       return (node as UnionTypeNode).types.nodes.some((t) => mayResolveTypeAlias(c, t));
+    case SyntaxKind.IntersectionType:
+      return (node as IntersectionTypeNode).types.nodes.some((t) => mayResolveTypeAlias(c, t));
     case SyntaxKind.IndexedAccessType:
       return (
         mayResolveTypeAlias(c, (node as IndexedAccessTypeNode).objectType) ||

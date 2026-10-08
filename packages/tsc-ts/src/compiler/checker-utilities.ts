@@ -132,3 +132,21 @@ export function isBindingPattern(node: Node | undefined): boolean {
     (node.kind === SyntaxKind.ObjectBindingPattern || node.kind === SyntaxKind.ArrayBindingPattern)
   );
 }
+
+/** The index of the node with `node`'s range among `nodes`, which are in source order; -1 if none. */
+export function indexOfNode(nodes: readonly Node[], node: Node): number {
+  let low = 0;
+  let high = nodes.length;
+  while (low < high) {
+    const middle = (low + high) >>> 1;
+    const n = nodes[middle];
+    const order = n.pos !== node.pos ? n.pos - node.pos : n.end - node.end;
+    if (order < 0) low = middle + 1;
+    else high = middle;
+  }
+  if (low < nodes.length) {
+    const n = nodes[low];
+    if (n.pos === node.pos && n.end === node.end) return low;
+  }
+  return -1;
+}

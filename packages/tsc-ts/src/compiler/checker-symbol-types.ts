@@ -686,8 +686,8 @@ function getAnnotatedAccessorTypeNode(accessor: Node | undefined): Node | undefi
     return getType(accessor);
   if (accessor.kind === SyntaxKind.SetAccessor) {
     const params = getParameters(accessor)?.nodes ?? [];
-    const valueParam = params.length === 2 ? params[1] : params[0];
-    return valueParam !== undefined ? getType(valueParam) : undefined;
+    if (params.length === 0) return undefined;
+    return getType(params.length === 2 ? params[1] : params[0]);
   }
   return undefined;
 }

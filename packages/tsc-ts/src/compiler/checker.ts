@@ -75,6 +75,8 @@ import {
 } from './checker-type-factory.js';
 import {
   CheckerNameResolver,
+  type LibGlobals,
+  findLibGlobals,
   SuggestionNameResolver,
   getGlobalStrictFunctionType,
   getGlobalType,
@@ -145,6 +147,12 @@ class DiagnosticCollection {
     return list.slice();
   }
 
+  count(): number {
+    let count = this.global.length;
+    for (const list of this.byFile.values()) count += list.length;
+    return count;
+  }
+
   /** An already reported diagnostic equal to `diagnostic`, if any. */
   lookup(diagnostic: Diagnostic): Diagnostic | undefined {
     const file = diagnostic.file;
@@ -199,13 +207,18 @@ export class Checker {
   readonly suggestionDiagnostics = new DiagnosticCollection();
 
   // Links, indexed by symbol and node ids.
-  private readonly symbolLinkStore: (SymbolLinks | undefined)[] = [];
-  private readonly nodeLinkStore: (NodeLinks | undefined)[] = [];
+  // Maps rather than arrays by id: ids grow across programs, and maps are faster natively.
+  readonly symbolLinkStore = new Map<number, SymbolLinks>();
+  readonly nodeLinkStore = new Map<number, NodeLinks>();
   /** Merged symbols, indexed by the id of the symbol merged into them. */
-  readonly mergedSymbols: (Symbol | undefined)[] = [];
+  readonly mergedSymbols: Map<number, Symbol>;
+  /** Globals merged from the default libraries, shared with other checkers. */
+  libGlobals: LibGlobals | undefined;
+  /** This checker's copies of shared symbols, and the symbols they stand for. */
+  readonly sharedSymbolCopies = new Map<Symbol, Symbol>();
 
   // Symbols
-  readonly globals: SymbolTable = new Map<string, Symbol>();
+  readonly globals: SymbolTable;
   readonly resolver: CheckerNameResolver;
   readonly undefinedSymbol: Symbol;
   readonly argumentsSymbol: Symbol;
@@ -407,6 +420,10 @@ export class Checker {
     this.argumentsSymbol = this.newSymbol(SymbolFlags.Property, 'arguments');
     this.requireSymbol = this.newSymbol(SymbolFlags.Property, 'require');
     this.unknownSymbol = this.newSymbol(SymbolFlags.Property, 'unknown');
+    const libs = findLibGlobals(this);
+    this.libGlobals = libs;
+    this.globals = libs !== undefined ? new Map(libs.globals) : new Map<string, Symbol>();
+    this.mergedSymbols = libs !== undefined ? new Map(libs.mergedSymbols) : new Map<number, Symbol>();
     this.globalThisSymbol = this.newSymbol(SymbolFlags.Module, 'globalThis');
     this.globalThisSymbol.checkFlags = CheckFlags.Readonly;
     this.globalThisSymbol.exports = this.globals;
@@ -581,24 +598,20 @@ export class Checker {
 
   symbolLinks(symbol: Symbol): SymbolLinks {
     const id = getSymbolId(symbol);
-    const store = this.symbolLinkStore;
-    while (store.length <= id) store.push(undefined);
-    let links = store[id];
+    let links = this.symbolLinkStore.get(id);
     if (links === undefined) {
       links = new SymbolLinks();
-      store[id] = links;
+      this.symbolLinkStore.set(id, links);
     }
     return links;
   }
 
   nodeLinks(node: Node): NodeLinks {
     const id = getNodeId(node);
-    const store = this.nodeLinkStore;
-    while (store.length <= id) store.push(undefined);
-    let links = store[id];
+    let links = this.nodeLinkStore.get(id);
     if (links === undefined) {
       links = new NodeLinks();
-      store[id] = links;
+      this.nodeLinkStore.set(id, links);
     }
     return links;
   }
@@ -677,6 +690,46 @@ export class Checker {
     if (isError) this.addDiagnostic(diagnostic);
     else this.addSuggestion(diagnostic);
   }
+}
+
+/**
+ * Drops a checker's links and type caches. Native builds free memory by reference counting, and
+ * the checker's caches, types and mappers reference each other; releasing them early lets most of
+ * them go without a cycle collection.
+ */
+export function disposeChecker(c: Checker): void {
+  c.symbolLinkStore.clear();
+  c.nodeLinkStore.clear();
+  c.mergedSymbols.clear();
+  c.globals.clear();
+  c.sharedSymbolCopies.clear();
+  c.unresolvedSymbols.clear();
+  c.undefinedProperties.clear();
+  c.stringLiteralTypes.clear();
+  c.numberLiteralTypes.clear();
+  c.bigintLiteralTypes.clear();
+  c.enumLiteralTypes.clear();
+  c.uniqueESSymbolTypes.clear();
+  c.unionTypes.clear();
+  c.unionOfUnionTypes.clear();
+  c.intersectionTypes.clear();
+  c.tupleTypes.clear();
+  c.indexedAccessTypes.clear();
+  c.templateLiteralTypes.clear();
+  c.stringMappingTypes.clear();
+  c.substitutionTypes.clear();
+  c.subtypeReductionCache.clear();
+  c.cachedTypes.clear();
+  c.errorTypes.clear();
+  c.globalTypeCache.clear();
+  c.globalSymbolCache.clear();
+  c.markerTypes.clear();
+  c.flowLoopCaches.clear();
+  c.flowNodeReachable.clear();
+  c.primitiveTypeAliasSuggestions.clear();
+  c.patternAmbientModuleAugmentations.clear();
+  c.sharedFlowTypes.length = 0;
+  c.relationComparers = [];
 }
 
 export const enum VarianceReporting {
