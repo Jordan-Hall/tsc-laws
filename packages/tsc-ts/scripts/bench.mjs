@@ -1,5 +1,6 @@
 // Times tsc-ts against tsgo and TypeScript's JavaScript compiler on the same
 // inputs. Usage: node scripts/bench.mjs [--runs N] [--json FILE]
+// SCRIPTC selects the scriptc executable used for native builds.
 import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, statSync, writeFileSync } from 'node:fs';
 import { cpus } from 'node:os';
@@ -17,11 +18,11 @@ const jsonFile = option('--json', undefined);
 const repo = resolve('../..');
 const libs = join(repo, 'upstream/typescript-go/internal/bundled/libs');
 const cases = join(repo, 'upstream/TypeScript/tests/cases');
-const scriptc = join(repo, 'node_modules/.bin/scriptc');
+const scriptc = process.env.SCRIPTC ?? join(repo, 'node_modules/.bin/scriptc');
 const scanOracle = join(repo, 'packages/tsgo/dist/scan-oracle');
 const tsgo = join(repo, 'packages/tsgo/dist/tsgo');
 const ts = createRequire(import.meta.url)('typescript');
-const out = resolve('dist/bench');
+const out = resolve(process.env.SCRIPTC === undefined ? 'dist/bench' : 'dist/bench-custom');
 mkdirSync(out, { recursive: true });
 
 const files = [
