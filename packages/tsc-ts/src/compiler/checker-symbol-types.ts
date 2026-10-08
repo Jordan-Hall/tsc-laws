@@ -1,6 +1,7 @@
 // Types of value symbols: variables, parameters, properties, accessors, functions, classes,
 // enums, modules and aliases; optionality and widening.
 import { checkJsxAttribute } from './checker-jsx.js';
+import { getTargetOfAliasDeclaration, resolveExternalModuleSymbol } from './checker-modules.js';
 import { CheckMode } from './checker-types.js';
 import {
   ModifierFlags,
@@ -67,9 +68,7 @@ import {
   pushTypeResolution,
   reportCircularityError,
   resolveAlias,
-  resolveExternalModuleSymbol,
   TypeSystemPropertyName,
-  getTargetOfAliasDeclaration,
 } from './checker-symbols.js';
 import {
   getBaseConstructorTypeOfClass,
@@ -797,7 +796,7 @@ function getTypeOfFuncClassEnumModuleWorker(c: Checker, symbol: Symbol): Type {
     symbol.valueDeclaration.kind === SyntaxKind.SourceFile
   ) {
     const resolvedModule = resolveExternalModuleSymbol(c, symbol, false);
-    if (resolvedModule !== symbol) return getTypeOfSymbol(c, resolvedModule);
+    if (resolvedModule !== undefined && resolvedModule !== symbol) return getTypeOfSymbol(c, resolvedModule);
   }
   const t = newObjectType(c, ObjectFlags.Anonymous, symbol);
   if ((symbol.flags & SymbolFlags.Class) !== 0) {
@@ -832,8 +831,7 @@ function getTypeOfAlias(c: Checker, symbol: Symbol): Type {
   if (links.type !== undefined) return links.type;
   if (!pushTypeResolution(c, symbol, TypeSystemPropertyName.Type)) return c.errorType;
   const targetSymbol = resolveAlias(c, symbol);
-  const declaration = getDeclarationOfAliasSymbol(symbol);
-  const exportSymbol = declaration !== undefined ? getTargetOfAliasDeclaration(c, declaration) : undefined;
+  const exportSymbol = getTargetOfAliasDeclaration(c, getDeclarationOfAliasSymbol(symbol));
   // Only values have types.
   if (links.type === undefined)
     links.type =

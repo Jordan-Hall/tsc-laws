@@ -314,15 +314,6 @@ export function compareTypesEqual(_c: Checker, s: Type, t: Type): Ternary {
   return s === t ? Ternary.True : Ternary.False;
 }
 
-type CompareFunction = (c: Checker, s: Type, t: Type) => Ternary;
-
-function comparerKindOf(f: CompareFunction): ComparerKind {
-  if (f === compareTypesIdentical) return ComparerKind.Identical;
-  if (f === compareTypesSubtypeOf) return ComparerKind.SubtypeOf;
-  if (f === compareTypesAssignable) return ComparerKind.Assignable;
-  return ComparerKind.Equal;
-}
-
 // ---- Entry points
 
 export function isTypeIdenticalTo(c: Checker, source: Type, target: Type): boolean {
@@ -3797,13 +3788,8 @@ export function isEmptyArrayLiteralType(c: Checker, t: Type): boolean {
   return c.strictNullChecks ? elementType === c.implicitNeverType : elementType === c.undefinedWideningType;
 }
 
-export function compareProperties(
-  c: Checker,
-  sourceProp: Symbol,
-  targetProp: Symbol,
-  compare: CompareFunction,
-): Ternary {
-  return comparePropertiesWith(c, sourceProp, targetProp, getComparer(c, comparerKindOf(compare)));
+export function compareProperties(c: Checker, sourceProp: Symbol, targetProp: Symbol, compare: ComparerKind): Ternary {
+  return comparePropertiesWith(c, sourceProp, targetProp, getComparer(c, compare));
 }
 
 /** Public properties match on name, optionality and type; non-public ones must share a declaration. */
@@ -4078,7 +4064,7 @@ export function compareSignaturesIdentical(
   partialMatch: boolean,
   ignoreThisTypes: boolean,
   ignoreReturnTypes: boolean,
-  compare: CompareFunction,
+  compare: ComparerKind,
 ): Ternary {
   return compareSignaturesIdenticalWith(
     c,
@@ -4087,7 +4073,7 @@ export function compareSignaturesIdentical(
     partialMatch,
     ignoreThisTypes,
     ignoreReturnTypes,
-    getComparer(c, comparerKindOf(compare)),
+    getComparer(c, compare),
   );
 }
 

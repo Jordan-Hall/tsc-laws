@@ -75,11 +75,11 @@ import {
   getSymbolOfMeaning,
   resolveAlias,
   resolveEntityName,
-  resolveExternalModule,
   getSpellingSuggestionForName,
   resolveName,
   resolveSymbol,
 } from './checker-symbols.js';
+import { resolveExternalModule } from './checker-modules.js';
 import {
   fillMissingTypeArguments,
   getDeclaredTypeOfSymbol,

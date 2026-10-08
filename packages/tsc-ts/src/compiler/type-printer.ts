@@ -3,6 +3,7 @@
 import {
   ModifierFlags,
   type Node,
+  type SourceFile,
   getName,
   getSymbol,
   type BindingElement,
@@ -407,8 +408,14 @@ class TypePrinter {
         if (
           (symbol.flags & (SymbolFlags.Enum | SymbolFlags.ValueModule)) !== 0 &&
           (t.objectFlags & ObjectFlags.Anonymous) !== 0
-        )
+        ) {
+          const specifier = getExternalModuleSpecifierText(symbol);
+          if (specifier !== undefined) {
+            this.approximateLength += specifier.length + 16;
+            return 'typeof import("' + specifier + '")';
+          }
           return 'typeof ' + this.symbolReference(symbol, SymbolFlags.Value);
+        }
       }
       if (this.visited.has(t.id)) {
         const alias = getTypeAliasForTypeLiteral(c, t);
@@ -692,6 +699,19 @@ class TypePrinter {
   }
 }
 
+/** The specifier an external module is printed with in `import("…")`: its ambient name or extensionless path. */
+function getExternalModuleSpecifierText(symbol: Symbol): string | undefined {
+  const name = symbol.name;
+  if (name.length >= 2 && name.charCodeAt(0) === 0x22 && name.charCodeAt(name.length - 1) === 0x22)
+    return name.substring(1, name.length - 1);
+  const d = symbol.valueDeclaration;
+  if (d === undefined || d.kind !== SyntaxKind.SourceFile) return undefined;
+  const fileName = (d as SourceFile).fileName;
+  for (const extension of ['.d.ts', '.d.mts', '.d.cts', '.ts', '.tsx', '.mts', '.cts', '.js', '.jsx', '.mjs', '.cjs'])
+    if (fileName.endsWith(extension)) return fileName.substring(0, fileName.length - extension.length);
+  return fileName;
+}
+
 /** The first name of a chain: a default export goes by its declared name. */
 function initialSymbolName(symbol: Symbol): string {
   if (symbol.name === InternalSymbolName.Default)
@@ -749,6 +769,11 @@ function internalNameText(symbol: Symbol): string {
     return name === InternalSymbolName.Class ? '(Anonymous class)' : '(Anonymous function)';
   }
   if (name === InternalSymbolName.Type || name === InternalSymbolName.Object) return '__type';
+  // `declare global` prints its keyword name.
+  if (name === InternalSymbolName.Global && symbol.declarations.length > 0) {
+    const n = getName(symbol.declarations[0]);
+    if (n !== undefined && n.kind === SyntaxKind.Identifier) return getText(n);
+  }
   if (name.startsWith('￾@')) {
     // A unique symbol name: `[Symbol.iterator]` style for well-known symbols.
     const at = name.indexOf('@', 2);
@@ -907,64 +932,64 @@ function parenthesizeForArray(text: string): string {
 // ---- Literals
 
 export function quoteString(s: string): string {
+  // Unescaped runs are copied as slices, which keeps surrogate pairs whole in native builds.
   let result = '"';
+  let start = 0;
   for (let i = 0; i < s.length; i++) {
-    const ch = s.charCodeAt(i);
-    switch (ch) {
-      case 0x22:
-        result += '\\"';
-        break;
-      case 0x5c:
-        result += '\\\\';
-        break;
-      case 0x0a:
-        result += '\\n';
-        break;
-      case 0x0d:
-        result += '\\r';
-        break;
-      case 0x09:
-        result += '\\t';
-        break;
-      case 0x08:
-        result += '\\b';
-        break;
-      case 0x0b:
-        result += '\\v';
-        break;
-      case 0x0c:
-        result += '\\f';
-        break;
-      case 0x2028:
-        result += '\\u2028';
-        break;
-      case 0x2029:
-        result += '\\u2029';
-        break;
-      case 0x85:
-        result += '\\u0085';
-        break;
-      default:
-        if (ch < 0x20) result += '\\u' + ch.toString(16).toUpperCase().padStart(4, '0');
-        else result += String.fromCharCode(ch);
-    }
+    const escape = stringEscape(s.charCodeAt(i));
+    if (escape === '') continue;
+    result += s.slice(start, i) + escape;
+    start = i + 1;
   }
-  return result + '"';
+  return result + s.slice(start) + '"';
+}
+
+/** The escape sequence of a code unit in a double-quoted string, or '' if it needs none. */
+function stringEscape(ch: number): string {
+  switch (ch) {
+    case 0x22:
+      return '\\"';
+    case 0x5c:
+      return '\\\\';
+    case 0x0a:
+      return '\\n';
+    case 0x0d:
+      return '\\r';
+    case 0x09:
+      return '\\t';
+    case 0x08:
+      return '\\b';
+    case 0x0b:
+      return '\\v';
+    case 0x0c:
+      return '\\f';
+    case 0x2028:
+      return '\\u2028';
+    case 0x2029:
+      return '\\u2029';
+    case 0x85:
+      return '\\u0085';
+  }
+  return ch < 0x20 ? '\\u' + ch.toString(16).toUpperCase().padStart(4, '0') : '';
 }
 
 function escapeTemplate(s: string): string {
   let result = '';
+  let start = 0;
   for (let i = 0; i < s.length; i++) {
     const ch = s.charCodeAt(i);
-    if (ch === 0x60) result += '\\`';
-    else if (ch === 0x5c) result += '\\\\';
-    else if (ch === 0x24 && s.charCodeAt(i + 1) === 0x7b) result += '\\$';
-    else if (ch === 0x0a) result += '\\n';
-    else if (ch === 0x0d) result += '\\r';
-    else if (ch === 0x09) result += '\\t';
-    else result += String.fromCharCode(ch);
+    let escape = '';
+    if (ch === 0x60) escape = '\\`';
+    else if (ch === 0x5c) escape = '\\\\';
+    else if (ch === 0x24 && s.charCodeAt(i + 1) === 0x7b) escape = '\\$';
+    else if (ch === 0x0a) escape = '\\n';
+    else if (ch === 0x0d) escape = '\\r';
+    else if (ch === 0x09) escape = '\\t';
+    if (escape === '') continue;
+    result += s.slice(start, i) + escape;
+    start = i + 1;
   }
-  return result;
+  return result + s.slice(start);
 }
 
 export function numberText(n: number): string {

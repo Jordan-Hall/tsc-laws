@@ -75,6 +75,7 @@ import {
   resolveAlias,
   resolveEntityName,
 } from './checker-symbols.js';
+import { getTypeFromImportTypeNode } from './checker-modules.js';
 import {
   fillMissingTypeArguments,
   getDeclaredTypeOfClassOrInterface,
@@ -196,7 +197,7 @@ function getTypeFromTypeNodeWorker(c: Checker, node: Node): Type {
       return links.resolvedType;
     }
     case SyntaxKind.ImportType:
-      return c.errorType;
+      return getTypeFromImportTypeNode(c, node);
   }
   return c.errorType;
 }
@@ -409,7 +410,7 @@ function getSymbolPath(symbol: Symbol): string {
   return symbol.parent !== undefined ? getSymbolPath(symbol.parent) + '.' + symbol.name : symbol.name;
 }
 
-function getTypeReferenceType(c: Checker, node: Node, symbol: Symbol): Type {
+export function getTypeReferenceType(c: Checker, node: Node, symbol: Symbol): Type {
   if (symbol === c.unknownSymbol) return c.errorType;
   if ((symbol.flags & (SymbolFlags.Class | SymbolFlags.Interface)) !== 0)
     return getTypeFromClassOrInterfaceReference(c, node, symbol);

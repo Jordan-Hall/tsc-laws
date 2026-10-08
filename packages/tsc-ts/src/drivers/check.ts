@@ -17,7 +17,7 @@ import {
 import { bindSourceFile } from '../compiler/binder.js';
 import { Checker, CheckerHost, disposeChecker } from '../compiler/checker.js';
 import { type Diagnostic, Locale } from '../compiler/diagnostics.js';
-import { type CompilerOptions, JsxEmit, ScriptTarget } from '../compiler/options.js';
+import { type CompilerOptions, JsxEmit, ModuleKind, ScriptTarget } from '../compiler/options.js';
 import { parseSourceFile } from '../compiler/parser.js';
 import { getDefaultLibFileName, getLibFileName } from '../compiler/program-utilities.js';
 import './lowering.js';
@@ -54,6 +54,10 @@ class CheckHost extends CheckerHost {
 
   getJSXRuntimeImportSpecifier(_file: SourceFile): Node | undefined {
     return undefined;
+  }
+
+  getEmitSyntaxForUsageLocation(_file: SourceFile, _usage: Node): ModuleKind {
+    return ModuleKind.ESNext;
   }
 }
 

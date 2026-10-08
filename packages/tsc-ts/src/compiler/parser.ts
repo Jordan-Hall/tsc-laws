@@ -7456,6 +7456,15 @@ function setExternalModuleIndicator(file: SourceFile): void {
   file.externalModuleIndicator = getExternalModuleIndicator(file);
 }
 
+/** Whether `moduleName` names a Node.js core module, with or without the `node:` prefix. */
+export function isNodeCoreModule(moduleName: string): boolean {
+  return (
+    unprefixedNodeCoreModules.has(moduleName) ||
+    exclusivelyPrefixedNodeCoreModules.has(moduleName) ||
+    (moduleName.startsWith('node:') && unprefixedNodeCoreModules.has(moduleName.substring(5)))
+  );
+}
+
 // `require('module').builtinModules`, without and with only the `node:` prefix.
 const unprefixedNodeCoreModules = new Set<string>([
   'assert',

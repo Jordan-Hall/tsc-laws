@@ -95,7 +95,7 @@ import {
   checkTypeAssignableTo,
   checkTypeRelatedTo,
   compareProperties,
-  compareTypesIdentical,
+  ComparerKind,
   isTypeAssignableTo,
   isTypeIdenticalTo,
 } from './relations.js';
@@ -739,7 +739,7 @@ function checkInheritedPropertiesAreIdentical(c: Checker, t: InterfaceType, type
       }
       if (
         existing.containingType !== t &&
-        compareProperties(c, existing.prop, prop, compareTypesIdentical) === Ternary.False
+        compareProperties(c, existing.prop, prop, ComparerKind.Identical) === Ternary.False
       ) {
         identical = false;
         const typeName1 = typeToString(c, existing.containingType);

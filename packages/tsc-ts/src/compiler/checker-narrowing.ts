@@ -1,6 +1,7 @@
 // Control flow analysis: the type of a reference at a position, walking the binder's flow graph
 // backwards from the reference through assignments, conditions, calls and labels.
 import {
+  type MetaProperty,
   type BinaryExpression,
   type ElementAccessExpression,
   type Node,
@@ -1702,6 +1703,12 @@ export function isMatchingReference(c: Checker, source: Node, target: Node): boo
       return target.kind === SyntaxKind.ThisKeyword;
     case SyntaxKind.SuperKeyword:
       return target.kind === SyntaxKind.SuperKeyword;
+    case SyntaxKind.MetaProperty:
+      return (
+        target.kind === SyntaxKind.MetaProperty &&
+        (source as MetaProperty).keywordToken === (target as MetaProperty).keywordToken &&
+        (source as MetaProperty).name.text === (target as MetaProperty).name.text
+      );
     case SyntaxKind.NonNullExpression:
     case SyntaxKind.ParenthesizedExpression:
     case SyntaxKind.SatisfiesExpression:

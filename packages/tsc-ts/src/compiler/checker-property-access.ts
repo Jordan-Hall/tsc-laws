@@ -56,6 +56,7 @@ import { AssignmentKind, getAssignmentTargetKind, getControlFlowContainer } from
 import { getSymbolNameForPrivateIdentifier } from './binder.js';
 import { checkPropertyNotUsedBeforeDeclaration } from './checker-declaration-order.js';
 import { grammarErrorOnNode } from './checker-operators.js';
+import { markPropertyAliasReferenced } from './checker-modules.js';
 import {
   getContextualThisParameterType,
   getFlowTypeOfAccessExpression,
@@ -109,7 +110,11 @@ export function checkPropertyAccessExpressionOrQualifiedName(
     )
       c.error(node, Diagnostics.Private_accessor_was_defined_without_a_getter);
   } else {
-    if (isAnyLike) return isErrorType(c, apparentType) ? c.errorType : apparentType;
+    if (isAnyLike) {
+      if (left.kind === SyntaxKind.Identifier && c.nodeLinks(left).resolvedSymbol !== undefined)
+        markPropertyAliasReferenced(c, node, undefined, leftType);
+      return isErrorType(c, apparentType) ? c.errorType : apparentType;
+    }
     prop = getPropertyOfTypeEx(
       c,
       apparentType,
@@ -118,6 +123,7 @@ export function checkPropertyAccessExpressionOrQualifiedName(
       node.kind === SyntaxKind.QualifiedName,
     );
   }
+  markPropertyAliasReferenced(c, node, prop, leftType);
   let propType: Type;
   if (prop === undefined) {
     const indexInfo =

@@ -2,15 +2,9 @@
 import {
   type BindingElement,
   type EnumDeclaration,
-  type ExportAssignment,
-  type ExportDeclaration,
-  type ImportClause,
-  type ImportDeclaration,
   type ImportEqualsDeclaration,
   type ModuleDeclaration,
   type SourceFile,
-  type NamedExports,
-  type NamedImports,
   type Node,
   type NodeList,
   NodeVisitor,
@@ -35,7 +29,7 @@ import {
   getText,
 } from './ast.js';
 import { isExternalModuleNameRelative } from './path.js';
-import { ModuleKind, getEmitModuleKind, shouldPreserveConstEnums } from './options.js';
+import { shouldPreserveConstEnums } from './options.js';
 import { checkTypeNameIsReserved } from './checker-classes.js';
 import { isBindingPattern } from './checker-utilities.js';
 import {
@@ -82,8 +76,6 @@ import {
   getSymbolOfDeclaration,
   resolveAlias,
   resolveName,
-  resolveExternalModuleName,
-  resolveExternalModuleNameWorker,
 } from './checker-symbols.js';
 import {
   getTypeOfSymbol,
@@ -715,127 +707,6 @@ function grammarErrorOnFirstToken(c: Checker, node: Node, message: DiagnosticMes
 
 // ---- Imports and exports
 
-export function checkImportDeclaration(c: Checker, node: Node): void {
-  const decl = node as ImportDeclaration;
-  if (checkModuleElementContext(c, node, importContextMessage(node))) return;
-  if (!checkExternalImportOrExportDeclaration(c, node, decl.moduleSpecifier)) return;
-  const clause: ImportClause | undefined = decl.importClause;
-  if (clause === undefined) {
-    if (c.compilerOptions.noUncheckedSideEffectImports !== false)
-      resolveExternalModuleNameWorker(
-        c,
-        node,
-        decl.moduleSpecifier,
-        Diagnostics.Cannot_find_module_or_type_declarations_for_side_effect_import_of_0,
-        false,
-        false,
-      );
-    return;
-  }
-  if (clause.name !== undefined) checkAliasSymbol(c, clause);
-  const bindings = clause.namedBindings;
-  if (bindings !== undefined) {
-    if (bindings.kind === SyntaxKind.NamespaceImport) checkAliasSymbol(c, bindings);
-    else for (const specifier of (bindings as NamedImports).elements.nodes) checkAliasSymbol(c, specifier);
-  }
-}
-
-export function checkImportEqualsDeclaration(c: Checker, node: Node): void {
-  const decl = node as ImportEqualsDeclaration;
-  if (checkModuleElementContext(c, node, importContextMessage(node))) return;
-  if (c.compilerOptions.erasableSyntaxOnly === true && (node.flags & NodeFlags.Ambient) === 0)
-    c.error(node, Diagnostics.This_syntax_is_not_allowed_when_erasableSyntaxOnly_is_enabled);
-  const reference = decl.moduleReference;
-  const isExternal = reference.kind === SyntaxKind.ExternalModuleReference;
-  if (isExternal && !checkExternalImportOrExportDeclaration(c, node, getExpression(reference))) return;
-  checkAliasSymbol(c, node);
-  if (!isExternal) {
-    if (decl.isTypeOnly) grammarErrorOnNode(c, node, Diagnostics.An_import_alias_cannot_use_import_type);
-    return;
-  }
-  // `import x = require("m")` can't be emitted as ESM.
-  const moduleKind = getEmitModuleKind(c.compilerOptions);
-  if (
-    ModuleKind.ES2015 <= moduleKind &&
-    moduleKind <= ModuleKind.ESNext &&
-    !decl.isTypeOnly &&
-    (node.flags & NodeFlags.Ambient) === 0
-  )
-    grammarErrorOnNode(
-      c,
-      node,
-      Diagnostics.Import_assignment_cannot_be_used_when_targeting_ECMAScript_modules_Consider_using_import_Asterisk_as_ns_from_mod_import_a_from_mod_import_d_from_mod_or_another_module_format_instead,
-    );
-}
-
-export function checkExportDeclaration(c: Checker, node: Node): void {
-  const decl = node as ExportDeclaration;
-  const contextMessage =
-    (node.flags & NodeFlags.JavaScriptFile) !== 0
-      ? Diagnostics.An_export_declaration_can_only_be_used_at_the_top_level_of_a_module
-      : Diagnostics.An_export_declaration_can_only_be_used_at_the_top_level_of_a_namespace_or_module;
-  if (checkModuleElementContext(c, node, contextMessage)) return;
-  if (decl.moduleSpecifier !== undefined && !checkExternalImportOrExportDeclaration(c, node, decl.moduleSpecifier))
-    return;
-  if (decl.moduleSpecifier !== undefined) resolveExternalModuleName(c, node, decl.moduleSpecifier, false);
-  const clause = decl.exportClause;
-  if (clause === undefined) return;
-  if (clause.kind === SyntaxKind.NamespaceExport) {
-    checkAliasSymbol(c, clause);
-    return;
-  }
-  for (const specifier of (clause as NamedExports).elements.nodes) checkAliasSymbol(c, specifier);
-  const parent = node.parent!;
-  const inAmbientExternalModule = parent.kind === SyntaxKind.ModuleBlock && isAmbientModule(parent.parent!);
-  const inAmbientNamespaceDeclaration =
-    !inAmbientExternalModule &&
-    parent.kind === SyntaxKind.ModuleBlock &&
-    decl.moduleSpecifier === undefined &&
-    (node.flags & NodeFlags.Ambient) !== 0;
-  if (parent.kind !== SyntaxKind.SourceFile && !inAmbientExternalModule && !inAmbientNamespaceDeclaration)
-    c.error(node, Diagnostics.Export_declarations_are_not_permitted_in_a_namespace);
-}
-
-function importContextMessage(node: Node): DiagnosticMessage {
-  return (node.flags & NodeFlags.JavaScriptFile) !== 0
-    ? Diagnostics.An_import_declaration_can_only_be_used_at_the_top_level_of_a_module
-    : Diagnostics.An_import_declaration_can_only_be_used_at_the_top_level_of_a_namespace_or_module;
-}
-
-/** Checks the module specifier of an import or export, which must be a string at a module's top level. */
-function checkExternalImportOrExportDeclaration(c: Checker, node: Node, moduleName: Node | undefined): boolean {
-  // A missing name is a syntax error.
-  if (moduleName === undefined || nodeIsMissing(moduleName)) return false;
-  if (moduleName.kind !== SyntaxKind.StringLiteral) {
-    c.error(moduleName, Diagnostics.String_literal_expected);
-    return false;
-  }
-  const parent = node.parent!;
-  const inAmbientExternalModule = parent.kind === SyntaxKind.ModuleBlock && isAmbientModule(parent.parent!);
-  if (parent.kind !== SyntaxKind.SourceFile && !inAmbientExternalModule) {
-    c.error(
-      moduleName,
-      node.kind === SyntaxKind.ExportDeclaration
-        ? Diagnostics.Export_declarations_are_not_permitted_in_a_namespace
-        : Diagnostics.Import_declarations_in_a_namespace_cannot_reference_a_module,
-    );
-    return false;
-  }
-  // Augmentation imports are reported by `checkModuleDeclaration`.
-  if (
-    inAmbientExternalModule &&
-    isExternalModuleNameRelative(getText(moduleName)) &&
-    !isTopLevelInExternalModuleAugmentation(node)
-  ) {
-    c.error(
-      node,
-      Diagnostics.Import_or_export_declaration_in_an_ambient_module_declaration_cannot_reference_module_through_relative_module_name,
-    );
-    return false;
-  }
-  return true;
-}
-
 /**
  * Reports a module element (import, export, namespace) outside a file, namespace or module body.
  * Callers stop checking the element when this returns true.
@@ -846,53 +717,6 @@ function checkModuleElementContext(c: Checker, node: Node, message: DiagnosticMe
     return false;
   grammarErrorOnFirstToken(c, node, message);
   return true;
-}
-
-/** Reports `message` at `node` unless the file has syntax errors. */
-function grammarErrorOnNode(c: Checker, node: Node, message: DiagnosticMessage): void {
-  if (getSourceFileOfNode(node).diagnostics.length === 0) c.error(node, message);
-}
-
-export function checkExportAssignment(c: Checker, node: Node): void {
-  const isExportEquals = (node as ExportAssignment).isExportEquals;
-  const contextMessage = isExportEquals
-    ? Diagnostics.An_export_assignment_must_be_at_the_top_level_of_a_file_or_module_declaration
-    : Diagnostics.A_default_export_must_be_at_the_top_level_of_a_file_or_module_declaration;
-  if (checkModuleElementContext(c, node, contextMessage)) return;
-  let container = node.parent!;
-  if (container.kind !== SyntaxKind.SourceFile) container = container.parent!;
-  if (container.kind === SyntaxKind.ModuleDeclaration && !isAmbientModule(container)) {
-    c.error(
-      node,
-      isExportEquals
-        ? Diagnostics.An_export_assignment_cannot_be_used_in_a_namespace
-        : Diagnostics.A_default_export_can_only_be_used_in_an_ECMAScript_style_module,
-    );
-    return;
-  }
-  const expr = getExpression(node)!;
-  if (expr.kind === SyntaxKind.Identifier) {
-    const symbol = getSymbolOfDeclaration(c, node);
-    if (symbol !== undefined) resolveAlias(c, symbol);
-  } else checkExpressionCached(c, expr);
-  checkExternalModuleExports(c, container);
-  const ambient = (node.flags & NodeFlags.Ambient) !== 0;
-  if (ambient && !isEntityNameExpression(expr, false))
-    grammarErrorOnNode(
-      c,
-      expr,
-      Diagnostics.The_expression_of_an_export_assignment_must_be_an_identifier_or_qualified_name_in_an_ambient_context,
-    );
-  // `export =` can't be emitted as ESM, nor appear in ESM declaration files.
-  const moduleKind = getEmitModuleKind(c.compilerOptions);
-  if (!isExportEquals || moduleKind < ModuleKind.ES2015 || moduleKind === ModuleKind.Preserve) return;
-  const format = c.host.getImpliedNodeFormatForEmit(getSourceFileOfNode(node));
-  if (ambient ? format === ModuleKind.ESNext : format !== ModuleKind.CommonJS)
-    grammarErrorOnNode(
-      c,
-      node,
-      Diagnostics.Export_assignment_cannot_be_used_when_targeting_ECMAScript_modules_Consider_using_export_default_or_another_module_format_instead,
-    );
 }
 
 /** Reports `export =` mixed with other exports, and names exported by more than one declaration. */
@@ -963,29 +787,6 @@ function isTopLevelInExternalModuleAugmentation(node: Node): boolean {
   if (parent === undefined || parent.kind !== SyntaxKind.ModuleBlock) return false;
   const module = parent.parent!;
   return isAmbientModule(module) && isModuleAugmentationExternal(module);
-}
-
-function checkAliasSymbol(c: Checker, node: Node): void {
-  const aliasSymbol = getSymbolOfDeclaration(c, node);
-  if (aliasSymbol === undefined) return;
-  const target = resolveAlias(c, aliasSymbol);
-  if (target === c.unknownSymbol) return;
-  // The local symbol merges other local (and exported) declarations, whose meanings the target can't have.
-  const symbol = getMergedSymbol(c, aliasSymbol.exportSymbol ?? aliasSymbol);
-  const targetFlags = getSymbolFlags(c, target);
-  if ((node.flags & NodeFlags.JavaScriptFile) !== 0 && (targetFlags & SymbolFlags.Value) === 0) return;
-  const excludedMeanings =
-    ((symbol.flags & (SymbolFlags.Value | SymbolFlags.ExportValue)) !== 0 ? SymbolFlags.Value : 0) |
-    ((symbol.flags & SymbolFlags.Type) !== 0 ? SymbolFlags.Type : 0) |
-    ((symbol.flags & SymbolFlags.Namespace) !== 0 ? SymbolFlags.Namespace : 0);
-  if ((targetFlags & excludedMeanings) !== 0)
-    c.error(
-      node,
-      node.kind === SyntaxKind.ExportSpecifier
-        ? Diagnostics.Export_declaration_conflicts_with_exported_declaration_of_0
-        : Diagnostics.Import_declaration_conflicts_with_local_declaration_of_0,
-      symbolToString(c, symbol),
-    );
 }
 
 // ---- Merged declarations

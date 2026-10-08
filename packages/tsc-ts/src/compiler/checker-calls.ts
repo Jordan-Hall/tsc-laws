@@ -11,6 +11,7 @@ import {
   type TemplateSpan,
   NodeVisitor,
   type NoSubstitutionTemplateLiteral,
+  type TemplateTail,
   Node,
   getArguments as getArgumentList,
   getExpression,
@@ -50,7 +51,6 @@ import {
   type TypeParameter,
 } from './checker-types.js';
 import { getGlobalTemplateStringsArrayType } from './checker-globals.js';
-import { createPromiseType } from './checker-iteration.js';
 import {
   UnionReduction,
   createArrayType,
@@ -159,7 +159,9 @@ import {
 import { couldContainTypeVariables } from './instantiation.js';
 import { typeToString } from './type-printer.js';
 import { checkTypeRelatedToAndOptionallyElaborate } from './checker-elaboration.js';
-import { resolveExternalModuleName, getSymbolOfDeclaration } from './checker-symbols.js';
+import { getSymbolOfDeclaration } from './checker-symbols.js';
+import { checkImportCallExpression } from './checker-modules.js';
+import { isImportCall } from './ast-utilities.js';
 import {
   checkApplicableSignatureForJsxCallLikeElement,
   getAttributesOf,
@@ -186,16 +188,7 @@ export function propagateOptionalTypeMarker(c: Checker, t: Type, node: Node, was
 export function checkCallExpression(c: Checker, node: Node, checkMode: CheckMode): Type {
   const call = node as CallExpression;
   const callee = call.expression;
-  if (callee.kind === SyntaxKind.ImportKeyword) {
-    for (const arg of call.arguments.nodes) checkExpressionCached(c, arg);
-    const specifier = call.arguments.nodes.length > 0 ? call.arguments.nodes[0] : undefined;
-    if (
-      specifier !== undefined &&
-      (specifier.kind === SyntaxKind.StringLiteral || specifier.kind === SyntaxKind.NoSubstitutionTemplateLiteral)
-    )
-      resolveExternalModuleName(c, node, specifier, false);
-    return createPromiseType(c, c.anyType);
-  }
+  if (isImportCall(node)) return checkImportCallExpression(c, node);
   const signature = getResolvedSignature(c, node, checkMode);
   // A deferred call to a generic function returning a function, under SkipGenericFunctions.
   if (signature === c.resolvingSignature) return c.silentNeverType;
@@ -1158,10 +1151,11 @@ function isSignatureApplicable(
 }
 
 function isUnterminatedLiteral(node: Node): boolean {
-  return (
-    (node.kind === SyntaxKind.NoSubstitutionTemplateLiteral || node.kind === SyntaxKind.TemplateTail) &&
-    ((node as NoSubstitutionTemplateLiteral).templateFlags & TokenFlags.Unterminated) !== 0
-  );
+  if (node.kind === SyntaxKind.NoSubstitutionTemplateLiteral)
+    return ((node as NoSubstitutionTemplateLiteral).templateFlags & TokenFlags.Unterminated) !== 0;
+  if (node.kind === SyntaxKind.TemplateTail)
+    return ((node as TemplateTail).templateFlags & TokenFlags.Unterminated) !== 0;
+  return false;
 }
 
 function isSuperProperty(node: Node): boolean {

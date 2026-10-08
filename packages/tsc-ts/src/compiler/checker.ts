@@ -7,6 +7,7 @@
 // | ------------------------------- | ------------------------------------------------------- |
 // | checker-type-factory.ts         | creating and interning types (unions, literals, tuples) |
 // | checker-symbols.ts              | merging, aliases, exports, name resolution              |
+// | checker-modules.ts              | module resolution, import and export aliases            |
 // | checker-declared-types.ts       | declared types of classes, interfaces, aliases, enums   |
 // | checker-type-nodes.ts           | `getTypeFromTypeNode`                                   |
 // | checker-symbol-types.ts         | types of values: variables, parameters, properties      |
@@ -107,6 +108,10 @@ export abstract class CheckerHost {
   }
   /** The format `file` is emitted in when it differs from `module`, else `None`. */
   getImpliedNodeFormatForEmit(_file: SourceFile): ModuleKind {
+    return ModuleKind.None;
+  }
+  /** The module syntax (`ESNext` or `CommonJS`) of the import or export with module specifier `usage`. */
+  getEmitSyntaxForUsageLocation(_file: SourceFile, _usage: Node): ModuleKind {
     return ModuleKind.None;
   }
   /** The `package.json` scope and implied module format of a file, if known. */
@@ -347,6 +352,8 @@ export class Checker {
   globalThisType: Type;
   /** Lazily resolved global types and symbols, by name. */
   readonly globalTypeCache = new Map<string, Type>();
+  /** Module namespace types with synthetic defaults, by kind and type id. */
+  readonly moduleTypeCache = new Map<string, Type>();
   readonly globalSymbolCache = new Map<string, Symbol | null>();
 
   // Resolution stacks for cycle detection (see pushTypeResolution).

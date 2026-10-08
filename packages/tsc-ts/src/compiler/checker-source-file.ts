@@ -2,7 +2,8 @@
 //
 // Extension points, by syntactic area:
 // - statements: checker-statements.ts (`checkBlock`, `checkIfStatement`, ...)
-// - declarations: checker-declarations.ts (variables, functions, aliases, enums, modules, imports)
+// - declarations: checker-declarations.ts (variables, functions, aliases, enums, namespaces)
+// - imports and exports: checker-modules.ts
 // - classes and interfaces: checker-classes.ts
 // - expressions: checker-expressions.ts (`checkExpression`), calls in checker-calls.ts
 // - JSX: checker-jsx.ts
@@ -10,9 +11,14 @@
 // - type nodes: `checkTypeNode` below
 import { resolveUntypedCall } from './checker-calls.js';
 import {
+  type ImportTypeNode,
+  type JSDoc,
   type Node,
+  type NodeList,
   NodeVisitor,
   type SourceFile,
+  getComment,
+  getName,
   getNodeId,
   getStatements,
   getTypeArguments,
@@ -41,12 +47,8 @@ import {
 } from './checker-statements.js';
 import {
   checkEnumDeclaration,
-  checkExportAssignment,
-  checkExportDeclaration,
   checkExternalModuleExports,
   checkFunctionDeclaration,
-  checkImportDeclaration,
-  checkImportEqualsDeclaration,
   checkModuleDeclaration,
   checkTypeAliasDeclaration,
   checkTypeArgumentConstraintsOfReference,
@@ -55,6 +57,13 @@ import {
   checkVariableStatement,
   checkVariableLikeDeclaration,
 } from './checker-declarations.js';
+import {
+  checkExportAssignment,
+  checkExportDeclaration,
+  checkImportDeclaration,
+  checkImportEqualsDeclaration,
+  resolveJSDocMemberName,
+} from './checker-modules.js';
 import {
   checkAccessorDeclaration,
   checkClassDeclaration,
@@ -99,6 +108,8 @@ export function checkSourceElement(c: Checker, node: Node | undefined): void {
 }
 
 function checkSourceElementWorker(c: Checker, node: Node): void {
+  const jsDoc = node.jsDoc;
+  if (jsDoc !== undefined) for (const d of jsDoc) checkJSDocLinks(c, d);
   switch (node.kind) {
     // Statements
     case SyntaxKind.Block:
@@ -192,6 +203,26 @@ function checkSourceElementWorker(c: Checker, node: Node): void {
   checkTypeNode(c, node);
 }
 
+// ---- JSDoc
+
+/** Resolves the names of `{@link}` tags in a JSDoc comment and its tags, which references them. */
+function checkJSDocLinks(c: Checker, jsDoc: Node): void {
+  checkJSDocCommentLinks(c, getComment(jsDoc));
+  const tags = jsDoc.kind === SyntaxKind.JSDoc ? (jsDoc as JSDoc).tags : undefined;
+  if (tags !== undefined) for (const tag of tags.nodes) checkJSDocCommentLinks(c, getComment(tag));
+}
+
+function checkJSDocCommentLinks(c: Checker, comments: NodeList | undefined): void {
+  if (comments === undefined) return;
+  for (const comment of comments.nodes)
+    if (
+      comment.kind === SyntaxKind.JSDocLink ||
+      comment.kind === SyntaxKind.JSDocLinkCode ||
+      comment.kind === SyntaxKind.JSDocLinkPlain
+    )
+      resolveJSDocMemberName(c, getName(comment));
+}
+
 // ---- Type nodes
 
 /** Resolves every type reference in a type annotation, reporting unresolved names and constraint errors. */
@@ -226,6 +257,7 @@ function checkTypeNode(c: Checker, node: Node): void {
       checkTypeArgumentConstraintsOfReference(c, node);
       break;
     case SyntaxKind.TypeQuery:
+    case SyntaxKind.ImportType:
     case SyntaxKind.IndexedAccessType:
     case SyntaxKind.TypeOperator:
     case SyntaxKind.MappedType:
@@ -234,6 +266,11 @@ function checkTypeNode(c: Checker, node: Node): void {
     case SyntaxKind.LiteralType:
       getTypeFromTypeNode(c, node);
       break;
+  }
+  // Type arguments of an import type are only resolved with its type.
+  if (node.kind === SyntaxKind.ImportType) {
+    checkTypeNode(c, (node as ImportTypeNode).argument);
+    return;
   }
   if (node.kind === SyntaxKind.TypeQuery) {
     const args = getTypeArguments(node);

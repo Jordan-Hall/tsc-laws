@@ -12,14 +12,11 @@ import {
   getExpression,
   getInitializer,
   getMembers as getMemberNodes,
-  getModuleSpecifier,
   getName,
   getSymbol,
   getText,
   getIsTypeOnly,
-  getPropertyName,
   HeritageClause,
-  ImportEqualsDeclaration,
   getProperties,
   getType,
 } from './ast.js';
@@ -51,8 +48,17 @@ import { getDeclaredTypeOfSymbol } from './checker-declared-types.js';
 import { symbolToString } from './type-printer.js';
 import { getTypeOfSymbol } from './checker-symbol-types.js';
 import { getPropertyOfType } from './checker-members.js';
-import { checkComputedPropertyName } from './checker-expressions.js';
+import { checkComputedPropertyName, entityNameToString } from './checker-expressions.js';
 import { getPropertyNameFromType, isTypeUsableAsPropertyName, hasLateBindableName } from './checker-utilities.js';
+import {
+  checkTypeOnlyAliasUse,
+  markAliasDeclarationOfNameIfTypeOnly,
+  getExportsOfModuleWorker,
+  getTargetOfAliasDeclaration,
+  resolveExternalModuleNameWorker,
+  resolveExternalModuleSymbol,
+  resolveIndirectionAlias,
+} from './checker-modules.js';
 
 // ---- Name resolution
 
@@ -118,6 +124,8 @@ export class CheckerNameResolver extends NameResolver {
           (meaning & SymbolFlags.Value) === SymbolFlags.Value))
     )
       checkResolvedBlockScopedVariable(this.checker, result, location);
+    if (location !== undefined && (meaning & SymbolFlags.Value) !== 0)
+      checkTypeOnlyAliasUse(this.checker, location, result, result.name);
   }
 }
 
@@ -400,8 +408,8 @@ function getCandidateName(c: Checker, candidate: Symbol, meaning: SymbolFlags): 
   if (name.length === 0 || name.charCodeAt(0) === 0x22 || name.charCodeAt(0) === 0xfffe) return '';
   if ((candidate.flags & meaning) !== 0) return name;
   if ((candidate.flags & SymbolFlags.Alias) !== 0) {
-    const target = resolveAlias(c, candidate);
-    if (target !== c.unknownSymbol && (target.flags & meaning) !== 0) return name;
+    const target = tryResolveAlias(c, candidate);
+    if (target !== undefined && (target.flags & meaning) !== 0) return name;
   }
   return '';
 }
@@ -746,7 +754,7 @@ function mergeModuleAugmentation(c: Checker, moduleName: Node): void {
       : undefined;
   let mainModule = resolveExternalModuleNameWorker(c, moduleName, moduleName, moduleNotFoundError, false, true);
   if (mainModule === undefined) return;
-  mainModule = resolveExternalModuleSymbol(c, mainModule, false);
+  mainModule = resolveExternalModuleSymbol(c, mainModule, false)!;
   if ((mainModule.flags & SymbolFlags.Namespace) !== 0) {
     for (const pattern of c.patternAmbientModules)
       if (pattern.symbol === mainModule) {
@@ -1165,15 +1173,26 @@ function isEntityNameExpressionNode(node: Node): boolean {
   return false;
 }
 
+/** The alias target, unless resolving it now would be circular. */
+export function tryResolveAlias(c: Checker, symbol: Symbol): Symbol | undefined {
+  if (
+    c.symbolLinks(symbol).aliasTarget !== undefined ||
+    findResolutionCycleStartIndex(c, symbol, TypeSystemPropertyName.AliasTarget) < 0
+  )
+    return resolveAlias(c, symbol);
+  return undefined;
+}
+
 export function resolveAlias(c: Checker, symbol: Symbol): Symbol {
   const links = c.symbolLinks(symbol);
   let target = links.aliasTarget;
   if (target !== undefined) return target;
   if (!pushTypeResolution(c, symbol, TypeSystemPropertyName.AliasTarget)) return c.unknownSymbol;
   const node = getDeclarationOfAliasSymbol(symbol);
-  let resolved = node !== undefined ? getTargetOfAliasDeclaration(c, node) : undefined;
-  if (isNonLocalAlias(resolved, SymbolFlags.Value | SymbolFlags.Type | SymbolFlags.Namespace))
-    resolved = getMergedSymbol(c, resolveAlias(c, resolved!));
+  let resolved = getTargetOfAliasDeclaration(c, node);
+  // A pure alias target is resolved transitively, carrying over its type-only declaration.
+  if (resolved !== undefined && isNonLocalAlias(resolved, SymbolFlags.Value | SymbolFlags.Type | SymbolFlags.Namespace))
+    resolved = resolveIndirectionAlias(c, symbol, resolved);
   target = resolved ?? c.unknownSymbol;
   links.aliasTarget = target;
   if (!popTypeResolution(c)) {
@@ -1201,227 +1220,6 @@ export function getSymbolFlags(c: Checker, symbol: Symbol): SymbolFlags {
   return flags;
 }
 
-export function getTargetOfAliasDeclaration(c: Checker, node: Node): Symbol | undefined {
-  switch (node.kind) {
-    case SyntaxKind.ImportEqualsDeclaration: {
-      const reference = (node as ImportEqualsDeclaration).moduleReference;
-      if (reference.kind === SyntaxKind.ExternalModuleReference) {
-        const expression = getExpression(reference)!;
-        return resolveExternalModuleSymbol(c, resolveExternalModuleName(c, node, expression, false), true);
-      }
-      return getSymbolOfPartOfRightHandSideOfImportEquals(c, reference);
-    }
-    case SyntaxKind.ImportClause:
-    case SyntaxKind.NamespaceImport:
-    case SyntaxKind.ImportSpecifier: {
-      let declaration: Node | undefined = node;
-      while (declaration !== undefined && declaration.kind !== SyntaxKind.ImportDeclaration)
-        declaration = declaration.parent;
-      if (declaration === undefined) return undefined;
-      const moduleSymbol = resolveExternalModuleName(c, node, getModuleSpecifier(declaration)!, false);
-      if (moduleSymbol === undefined) return undefined;
-      if (node.kind === SyntaxKind.NamespaceImport) return resolveExternalModuleSymbol(c, moduleSymbol, false);
-      const exportName = node.kind === SyntaxKind.ImportClause ? 'default' : importSpecifierName(node);
-      const resolvedModule = resolveExternalModuleSymbol(c, moduleSymbol, false);
-      const exported = getExportsOfSymbol(c, resolvedModule).get(exportName);
-      if (exported === undefined) {
-        const message =
-          node.kind === SyntaxKind.ImportClause
-            ? Diagnostics.Module_0_has_no_default_export
-            : Diagnostics.Module_0_has_no_exported_member_1;
-        const errorNode =
-          node.kind === SyntaxKind.ImportClause ? getName(node)! : (getPropertyNameOrName(node) as Node);
-        c.error(errorNode, message, symbolToString(c, resolvedModule), exportName);
-        return undefined;
-      }
-      return exported;
-    }
-    case SyntaxKind.ExportSpecifier: {
-      const exportDeclaration = node.parent!.parent!;
-      const specifier = getModuleSpecifier(exportDeclaration);
-      const name = (getPropertyNameOrName(node) as Node) ?? getName(node)!;
-      if (specifier !== undefined) {
-        const moduleSymbol = resolveExternalModuleName(c, node, specifier, false);
-        if (moduleSymbol === undefined) return undefined;
-        return getExportsOfSymbol(c, resolveExternalModuleSymbol(c, moduleSymbol, false)).get(getText(name));
-      }
-      if (name.kind === SyntaxKind.StringLiteral) return undefined;
-      return resolveEntityName(
-        c,
-        name,
-        SymbolFlags.Value | SymbolFlags.Type | SymbolFlags.Namespace,
-        false,
-        true,
-        undefined,
-      );
-    }
-    case SyntaxKind.ExportAssignment: {
-      const expression = getExpression(node)!;
-      if (isEntityNameExpressionNode(expression))
-        return resolveEntityName(
-          c,
-          expression,
-          SymbolFlags.Value | SymbolFlags.Type | SymbolFlags.Namespace,
-          true,
-          true,
-          undefined,
-        );
-      return undefined;
-    }
-    case SyntaxKind.NamespaceExportDeclaration:
-      return resolveExternalModuleSymbol(c, getSymbol(node.parent!), true);
-    case SyntaxKind.NamespaceExport: {
-      const specifier = getModuleSpecifier(node.parent!);
-      if (specifier === undefined) return undefined;
-      return resolveExternalModuleSymbol(c, resolveExternalModuleName(c, node, specifier, false), false);
-    }
-  }
-  return undefined;
-}
-
-function importSpecifierName(node: Node): string {
-  const name = getPropertyNameOrName(node);
-  return name === undefined ? '' : getText(name);
-}
-
-function getPropertyNameOrName(node: Node): Node | undefined {
-  const propertyName = getPropertyName(node);
-  return propertyName ?? getName(node);
-}
-
-function getSymbolOfPartOfRightHandSideOfImportEquals(c: Checker, entityName: Node): Symbol | undefined {
-  if (
-    entityName.kind === SyntaxKind.Identifier &&
-    entityName.parent !== undefined &&
-    entityName.parent.kind === SyntaxKind.QualifiedName &&
-    (entityName.parent as QualifiedName).right === entityName
-  )
-    entityName = entityName.parent;
-  if (entityName.kind === SyntaxKind.Identifier || entityName.parent!.kind === SyntaxKind.QualifiedName)
-    return resolveEntityName(c, entityName, SymbolFlags.Namespace, false, true, undefined);
-  return resolveEntityName(
-    c,
-    entityName,
-    SymbolFlags.Value | SymbolFlags.Type | SymbolFlags.Namespace,
-    false,
-    true,
-    undefined,
-  );
-}
-
-// ---- Modules
-
-export function resolveExternalModuleName(
-  c: Checker,
-  location: Node,
-  moduleReference: Node,
-  ignoreErrors: boolean,
-): Symbol | undefined {
-  const isClassic = false;
-  const message = isClassic
-    ? Diagnostics.Cannot_find_module_0_Did_you_mean_to_set_the_moduleResolution_option_to_nodenext_or_to_add_aliases_to_the_paths_option
-    : Diagnostics.Cannot_find_module_0_or_its_corresponding_type_declarations;
-  return resolveExternalModuleNameWorker(
-    c,
-    location,
-    moduleReference,
-    ignoreErrors ? undefined : message,
-    ignoreErrors,
-    false,
-  );
-}
-
-export function resolveExternalModuleNameWorker(
-  c: Checker,
-  location: Node,
-  moduleReference: Node,
-  moduleNotFoundError: DiagnosticMessage | undefined,
-  ignoreErrors: boolean,
-  isForAugmentation: boolean,
-): Symbol | undefined {
-  if (
-    moduleReference.kind !== SyntaxKind.StringLiteral &&
-    moduleReference.kind !== SyntaxKind.NoSubstitutionTemplateLiteral
-  )
-    return undefined;
-  return resolveExternalModule(
-    c,
-    location,
-    getText(moduleReference),
-    moduleNotFoundError,
-    ignoreErrors ? undefined : moduleReference,
-    isForAugmentation,
-  );
-}
-
-export function resolveExternalModule(
-  c: Checker,
-  location: Node,
-  moduleReference: string,
-  moduleNotFoundError: DiagnosticMessage | undefined,
-  errorNode: Node | undefined,
-  _isForAugmentation: boolean,
-): Symbol | undefined {
-  if (errorNode !== undefined && moduleReference.startsWith('@types/'))
-    c.error(
-      errorNode,
-      Diagnostics.Cannot_import_type_declaration_files_Consider_importing_0_instead_of_1,
-      moduleReference.substring(7),
-      moduleReference,
-    );
-  const ambient = tryFindAmbientModule(c, moduleReference, true);
-  if (ambient !== undefined) return ambient;
-  const importingFile = getSourceFileOfNode(location);
-  const file = c.host.getSourceFileForModuleName(importingFile, moduleReference);
-  if (file !== undefined) {
-    if (file.symbol !== undefined) return getMergedSymbol(c, file.symbol);
-    if (errorNode !== undefined && moduleNotFoundError !== undefined)
-      c.error(errorNode, Diagnostics.File_0_is_not_a_module, file.fileName);
-    return undefined;
-  }
-  let best: Symbol | undefined;
-  let bestPrefix = -1;
-  for (const pattern of c.patternAmbientModules) {
-    if (pattern.matches(moduleReference) && pattern.starIndex > bestPrefix) {
-      bestPrefix = pattern.starIndex;
-      best = pattern.symbol;
-    }
-  }
-  if (best !== undefined) {
-    const augmentation = c.patternAmbientModuleAugmentations.get(moduleReference);
-    return getMergedSymbol(c, augmentation ?? best);
-  }
-  if (errorNode === undefined) return undefined;
-  if (moduleNotFoundError !== undefined) {
-    if (moduleReference.endsWith('.json') && c.compilerOptions.resolveJsonModule !== true)
-      c.error(
-        errorNode,
-        Diagnostics.Cannot_find_module_0_Consider_using_resolveJsonModule_to_import_module_with_json_extension,
-        moduleReference,
-      );
-    else c.error(errorNode, moduleNotFoundError, moduleReference);
-  }
-  return undefined;
-}
-
-export function tryFindAmbientModule(c: Checker, moduleName: string, withAugmentations: boolean): Symbol | undefined {
-  if (moduleName.length === 0 || moduleName.charCodeAt(0) === 0x2e) return undefined;
-  const symbol = getSymbolOfMeaning(c, c.globals, '"' + moduleName + '"', SymbolFlags.ValueModule);
-  return symbol !== undefined && withAugmentations ? getMergedSymbol(c, symbol) : symbol;
-}
-
-/** The `export =` target of a module, or the module itself. */
-export function resolveExternalModuleSymbol(
-  c: Checker,
-  moduleSymbol: Symbol | undefined,
-  dontResolveAlias: boolean,
-): Symbol {
-  if (moduleSymbol === undefined) return c.unknownSymbol;
-  const exportEquals = moduleSymbol.exports?.get(InternalSymbolName.ExportEquals);
-  if (exportEquals === undefined) return moduleSymbol;
-  return getMergedSymbol(c, resolveSymbolEx(c, exportEquals, dontResolveAlias));
-}
-
 // ---- Members and exports
 
 export function getExportsOfSymbol(c: Checker, symbol: Symbol): SymbolTable {
@@ -1433,6 +1231,9 @@ export function getExportsOfSymbol(c: Checker, symbol: Symbol): SymbolTable {
 export const emptySymbolTable: SymbolTable = new Map<string, Symbol>();
 
 export function getExportsOfModule(c: Checker, moduleSymbol: Symbol): SymbolTable {
+  // Late-bound members share the cache.
+  if ((moduleSymbol.flags & SymbolFlags.LateBindingContainer) !== 0)
+    return getResolvedMembersOrExports(c, moduleSymbol, true);
   const links = c.symbolLinks(moduleSymbol);
   let exports = links.resolvedExports;
   if (exports === undefined) {
@@ -1440,33 +1241,6 @@ export function getExportsOfModule(c: Checker, moduleSymbol: Symbol): SymbolTabl
     links.resolvedExports = exports;
   }
   return exports;
-}
-
-/** Own exports plus those re-exported with `export *`, which own exports shadow. */
-function getExportsOfModuleWorker(c: Checker, moduleSymbol: Symbol): SymbolTable {
-  const visited = new Set<Symbol>();
-  return collectModuleExports(c, moduleSymbol, visited) ?? emptySymbolTable;
-}
-
-function collectModuleExports(c: Checker, symbol: Symbol, visited: Set<Symbol>): SymbolTable | undefined {
-  if (visited.has(symbol)) return undefined;
-  visited.add(symbol);
-  const own = symbol.exports;
-  if (own === undefined) return undefined;
-  const exportStars = own.get(InternalSymbolName.ExportStar);
-  if (exportStars === undefined) return own;
-  const result = new Map(own);
-  for (const node of exportStars.declarations) {
-    const specifier = getModuleSpecifier(node);
-    if (specifier === undefined) continue;
-    const resolved = resolveExternalModuleName(c, node, specifier, false);
-    if (resolved === undefined) continue;
-    const nested = collectModuleExports(c, resolveExternalModuleSymbol(c, resolved, false), visited);
-    if (nested === undefined) continue;
-    for (const [name, s] of nested) if (name !== 'default' && !result.has(name)) result.set(name, s);
-  }
-  result.delete(InternalSymbolName.ExportStar);
-  return result;
 }
 
 export function getMembersOfSymbol(c: Checker, symbol: Symbol): SymbolTable {
@@ -1650,6 +1424,13 @@ export function resolveEntityName(
     symbol = resolveQualifiedName(c, name, getExpression(name)!, getName(name)!, meaning, ignoreErrors, location);
   } else return undefined;
   if (symbol !== undefined && symbol !== c.unknownSymbol) {
+    if (
+      (name.flags & NodeFlags.Synthesized) === 0 &&
+      name.kind !== SyntaxKind.PropertyAccessExpression &&
+      ((symbol.flags & SymbolFlags.Alias) !== 0 ||
+        (name.parent !== undefined && name.parent.kind === SyntaxKind.ExportAssignment))
+    )
+      markAliasDeclarationOfNameIfTypeOnly(c, name);
     // Resolve along the alias chain to the symbol with the meaning.
     while ((symbol.flags & meaning) === 0 && !dontResolveAlias && (symbol.flags & SymbolFlags.Alias) !== 0)
       symbol = resolveAlias(c, symbol);
@@ -1671,31 +1452,81 @@ function resolveQualifiedName(
   if (namespace === c.unknownSymbol) return namespace;
   const text = getText(right);
   let found = getSymbolOfMeaning(c, getExportsOfSymbol(c, namespace), text, meaning);
+  // A namespace merged with a re-export resolves further.
   if (found === undefined && (namespace.flags & SymbolFlags.Alias) !== 0)
     found = getSymbolOfMeaning(c, getExportsOfSymbol(c, resolveAlias(c, namespace)), text, meaning);
-  if (found === undefined && !ignoreErrors) {
-    const namespaceName = getFullyQualifiedName(c, namespace);
-    const declarationName = declarationNameToString(getSourceFileOfNode(right), right);
-    if (
-      (meaning & SymbolFlags.Namespace) !== 0 &&
-      name.parent !== undefined &&
-      name.parent.kind === SyntaxKind.QualifiedName
-    ) {
-      const exportedType = getSymbolOfMeaning(c, getExportsOfSymbol(c, namespace), text, SymbolFlags.Type);
-      if (exportedType !== undefined) {
-        const qualified = name.parent as QualifiedName;
-        c.error(
-          qualified.right,
-          Diagnostics.Cannot_access_0_1_because_0_is_a_type_but_not_a_namespace_Did_you_mean_to_retrieve_the_type_of_the_property_1_in_0_with_0_1,
-          symbolToString(c, exportedType),
-          qualified.right.text,
-        );
-        return undefined;
-      }
-    }
-    c.error(right, Diagnostics.Namespace_0_has_no_exported_member_1, namespaceName, declarationName);
+  if (found !== undefined) return getMergedSymbol(c, found);
+  if (ignoreErrors) return undefined;
+  const namespaceName = getFullyQualifiedName(c, namespace);
+  const declarationName = declarationNameToString(getSourceFileOfNode(right), right);
+  const suggestion = getSpellingSuggestionForName(
+    c,
+    text,
+    Array.from(getExportsOfModule(c, namespace).values()),
+    SymbolFlags.ModuleMember,
+  );
+  if (suggestion !== undefined) {
+    c.error(
+      right,
+      Diagnostics.X_0_has_no_exported_member_named_1_Did_you_mean_2,
+      namespaceName,
+      declarationName,
+      symbolToString(c, suggestion),
+    );
+    return undefined;
   }
-  return found !== undefined ? getMergedSymbol(c, found) : undefined;
+  let containingQualifiedName: Node | undefined;
+  if (name.kind === SyntaxKind.QualifiedName) {
+    containingQualifiedName = name;
+    while (containingQualifiedName.parent!.kind === SyntaxKind.QualifiedName)
+      containingQualifiedName = containingQualifiedName.parent!;
+  }
+  if (
+    (meaning & SymbolFlags.Type) !== 0 &&
+    containingQualifiedName !== undefined &&
+    containingQualifiedName.parent!.kind !== SyntaxKind.TypeOfExpression &&
+    tryGetQualifiedNameAsValue(c, containingQualifiedName) !== undefined
+  ) {
+    c.error(
+      containingQualifiedName,
+      Diagnostics.X_0_refers_to_a_value_but_is_being_used_as_a_type_here_Did_you_mean_typeof_0,
+      entityNameToString(containingQualifiedName),
+    );
+    return undefined;
+  }
+  if (
+    (meaning & SymbolFlags.Namespace) !== 0 &&
+    name.parent !== undefined &&
+    name.parent.kind === SyntaxKind.QualifiedName
+  ) {
+    const exportedType = getSymbolOfMeaning(c, getExportsOfSymbol(c, namespace), text, SymbolFlags.Type);
+    if (exportedType !== undefined) {
+      const qualified = name.parent as QualifiedName;
+      c.error(
+        qualified.right,
+        Diagnostics.Cannot_access_0_1_because_0_is_a_type_but_not_a_namespace_Did_you_mean_to_retrieve_the_type_of_the_property_1_in_0_with_0_1,
+        symbolToString(c, getMergedSymbol(c, exportedType)),
+        qualified.right.text,
+      );
+      return undefined;
+    }
+  }
+  c.error(right, Diagnostics.Namespace_0_has_no_exported_member_1, namespaceName, declarationName);
+  return undefined;
+}
+
+/** The value a qualified name denotes as a property access, if any. */
+function tryGetQualifiedNameAsValue(c: Checker, node: Node): Symbol | undefined {
+  const id = getFirstIdentifier(node);
+  let symbol = resolveName(c, id, getText(id), SymbolFlags.Value, undefined, true, false);
+  if (symbol === undefined) return undefined;
+  let current: Node = id;
+  while (current.parent!.kind === SyntaxKind.QualifiedName) {
+    symbol = getPropertyOfType(c, getTypeOfSymbol(c, symbol), (current.parent as QualifiedName).right.text);
+    if (symbol === undefined) return undefined;
+    current = current.parent!;
+  }
+  return symbol;
 }
 
 export function getFullyQualifiedName(c: Checker, symbol: Symbol): string {

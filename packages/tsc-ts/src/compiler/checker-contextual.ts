@@ -69,9 +69,10 @@ import {
 } from './checker-members.js';
 import { getTypeFromTypeNode } from './checker-type-nodes.js';
 import { SymbolFlags } from './symbol.js';
-import { TypeSystemPropertyName, findResolutionCycleStartIndex } from './checker-symbols.js';
+import { TypeSystemPropertyName, findResolutionCycleStartIndex, getCachedGlobalType } from './checker-symbols.js';
+import { isImportCall } from './ast-utilities.js';
 import { CompositeSignature, Ternary } from './checker-types.js';
-import { compareSignaturesIdentical, compareTypesIdentical } from './relations.js';
+import { ComparerKind, compareSignaturesIdentical } from './relations.js';
 import { cloneSignature, getParameterCount, hasEffectiveRestParameter } from './checker-signatures.js';
 import {
   MappedTypeNameTypeKind,
@@ -138,7 +139,6 @@ import {
   getIterationTypesOfGeneratorFunctionReturnType,
 } from './checker-iteration.js';
 import { isFunctionLike } from './ast-utilities.js';
-import { getCachedGlobalType } from './checker-symbols.js';
 import { getTypeFromBindingPattern } from './checker-destructuring.js';
 import {
   getContextualJsxElementAttributesType,
@@ -582,10 +582,13 @@ function getContextualTypeForArgument(c: Checker, call: Node, arg: Node): Type |
 }
 
 export function getContextualTypeForArgumentAtIndex(c: Checker, call: Node, argIndex: number): Type {
-  if (call.kind === SyntaxKind.CallExpression && getExpression(call)!.kind === SyntaxKind.ImportKeyword) {
-    if (argIndex === 0) return c.stringType;
-    return argIndex === 1 ? getCachedGlobalType(c, 'ImportCallOptions', 0, false) : c.anyType;
-  }
+  // `import(specifier, options)`.
+  if (isImportCall(call))
+    return argIndex === 0
+      ? c.stringType
+      : argIndex === 1
+        ? getCachedGlobalType(c, 'ImportCallOptions', 0, false)
+        : c.anyType;
   // While resolving the call's signature, arguments get the resolving signature's `any`.
   const signature = resolveCallSignatureForContext(c, call);
   const restIndex = signature.parameters.length - 1;
@@ -1065,7 +1068,7 @@ export function getContextualSignature(c: Checker, node: Node): Signature | unde
     if (signature === undefined) continue;
     if (
       signatureList.length !== 0 &&
-      compareSignaturesIdentical(c, signatureList[0], signature, false, true, true, compareTypesIdentical) ===
+      compareSignaturesIdentical(c, signatureList[0], signature, false, true, true, ComparerKind.Identical) ===
         Ternary.False
     )
       return undefined;

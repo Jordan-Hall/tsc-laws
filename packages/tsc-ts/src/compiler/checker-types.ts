@@ -1052,6 +1052,8 @@ export class SymbolLinks {
   // Modules and late-bound containers
   resolvedExports: SymbolTable | undefined;
   resolvedMembers: SymbolTable | undefined;
+  /** Exports reached only through `export type *`, by name. */
+  typeOnlyExportStarMap: Map<string, Node> | undefined;
   exportsChecked: boolean;
   lateSymbol: Symbol | undefined;
   // Declared types
@@ -1097,6 +1099,7 @@ export class SymbolLinks {
     this.typeOnlyDeclaration = undefined;
     this.resolvedExports = undefined;
     this.resolvedMembers = undefined;
+    this.typeOnlyExportStarMap = undefined;
     this.exportsChecked = false;
     this.lateSymbol = undefined;
     this.declaredType = undefined;

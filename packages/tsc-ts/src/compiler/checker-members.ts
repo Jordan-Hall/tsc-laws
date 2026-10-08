@@ -102,9 +102,8 @@ import {
 import {
   compareProperties,
   compareSignaturesIdentical,
-  compareTypesEqual,
+  ComparerKind,
   compareTypesIdentical,
-  compareTypesSubtypeOf,
   getRecursionIdentity,
   isTypeAssignableTo,
   type RecursionId,
@@ -564,7 +563,7 @@ export function findMatchingSignature(
         partialMatch,
         ignoreThisTypes,
         ignoreReturnTypes,
-        partialMatch ? compareTypesSubtypeOf : compareTypesIdentical,
+        partialMatch ? ComparerKind.SubtypeOf : ComparerKind.Identical,
       ) !== Ternary.False
     )
       return s;
@@ -795,7 +794,7 @@ function appendSignatures(c: Checker, signatures: Signature[], newSignatures: re
   for (const sig of newSignatures) {
     let unique = true;
     for (const s of signatures)
-      if (compareSignaturesIdentical(c, s, sig, false, false, false, compareTypesIdentical) !== Ternary.False) {
+      if (compareSignaturesIdentical(c, s, sig, false, false, false, ComparerKind.Identical) !== Ternary.False) {
         unique = false;
         break;
       }
@@ -1016,7 +1015,7 @@ function createUnionOrIntersectionProperty(
       } else if (prop !== singleProp) {
         const isInstantiation = getTargetSymbol(c, prop) === getTargetSymbol(c, singleProp);
         // Instantiations with identical types are equivalent; keep the first.
-        if (isInstantiation && compareProperties(c, singleProp, prop, compareTypesEqual) === Ternary.True) {
+        if (isInstantiation && compareProperties(c, singleProp, prop, ComparerKind.Equal) === Ternary.True) {
           mergedInstantiations =
             singleProp.parent !== undefined &&
             getLocalTypeParametersOfClassOrInterfaceOrTypeAlias(c, singleProp.parent).length !== 0;

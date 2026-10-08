@@ -1,5 +1,10 @@
 // Expression checking: types of expressions and the errors they produce.
 import {
+  checkMetaProperty,
+  markIdentifierAliasReferencedInExpression,
+  resolveAliasOfReference,
+} from './checker-modules.js';
+import {
   type ArrayLiteralExpression,
   type BinaryExpression,
   type ComputedPropertyName,
@@ -257,6 +262,15 @@ export function checkComputedPropertyName(c: Checker, node: Node): Type {
   return links.resolvedType;
 }
 
+/** Whether `node` is the `this` of `typeof this` or `typeof this.x`, which parses as an identifier. */
+function isThisInTypeQuery(node: Node): boolean {
+  if (node.kind !== SyntaxKind.Identifier || getText(node) !== 'this') return false;
+  let current = node;
+  while (current.parent!.kind === SyntaxKind.QualifiedName && (current.parent as QualifiedName).left === current)
+    current = current.parent!;
+  return current.parent!.kind === SyntaxKind.TypeQuery;
+}
+
 /** The type of the expression in a `typeof` type query. */
 export function checkTypeQueryExpression(c: Checker, node: Node): Type {
   const exprName = (node as TypeQueryNode).exprName;
@@ -354,7 +368,7 @@ function checkExpressionWorker(c: Checker, node: Node, checkMode: CheckMode): Ty
     case SyntaxKind.SatisfiesExpression:
       return checkSatisfiesExpression(c, node, checkMode);
     case SyntaxKind.MetaProperty:
-      return c.anyType;
+      return checkMetaProperty(c, node);
     case SyntaxKind.DeleteExpression:
       return checkDeleteExpression(c, node);
     case SyntaxKind.VoidExpression:
@@ -403,10 +417,13 @@ export function parseBigIntText(text: string): string {
 // ---- Identifiers and `this`
 
 export function checkIdentifier(c: Checker, node: Identifier): Type {
+  if (isThisInTypeQuery(node)) return checkThisExpression(c, node);
   const symbol = getResolvedSymbol(c, node);
   if (symbol === c.unknownSymbol) return c.errorType;
   if (symbol === c.argumentsSymbol) return getTypeOfSymbol(c, symbol);
+  markIdentifierAliasReferencedInExpression(c, node);
   const localOrExportSymbol = getExportSymbolOfValueSymbolIfExported(c, symbol);
+  resolveAliasOfReference(c, localOrExportSymbol);
   let declaration = localOrExportSymbol.valueDeclaration;
   const immediateDeclaration = declaration;
   // In `const [a, b = a + 1] = [2]`, `a` is `any` while computing the contextual type of `[2]`.
