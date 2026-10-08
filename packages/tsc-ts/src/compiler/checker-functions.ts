@@ -336,12 +336,12 @@ export function checkFunctionLikeBody(c: Checker, node: Node): void {
   const functionFlags = getFunctionFlags(node);
   if (returnTypeNode !== undefined) checkSignatureReturnType(c, node, returnTypeNode, functionFlags);
   const body = getBody(node);
+  // Function and class method declarations without a body or return type return `any`.
   if (
     returnTypeNode === undefined &&
     body === undefined &&
-    node.kind !== SyntaxKind.Constructor &&
-    node.kind !== SyntaxKind.GetAccessor &&
-    node.kind !== SyntaxKind.SetAccessor &&
+    (node.kind === SyntaxKind.FunctionDeclaration ||
+      (node.kind === SyntaxKind.MethodDeclaration && node.parent!.kind !== SyntaxKind.ObjectLiteralExpression)) &&
     !isPrivateWithinAmbient(node)
   )
     reportImplicitAny(c, node, c.anyType);

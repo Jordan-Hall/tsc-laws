@@ -402,6 +402,8 @@ export class Checker {
 
   // Deferred checks of function bodies and class expressions.
   readonly deferredNodes: Node[] = [];
+  /** Renamed binding elements in parameters of bodiless signatures, checked for use with their file. */
+  readonly renamedBindingElementsInTypes: Node[] = [];
   readonly deferredNodeIds = new Set<number>();
   readonly typeNodeVisitor: TypeNodeVisitor;
 

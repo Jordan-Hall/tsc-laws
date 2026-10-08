@@ -670,7 +670,7 @@ function isRelated(c: Checker, check: RelatedCheck, left: Type, right: Type): bo
   return false;
 }
 
-function isTypeEqualityComparableTo(c: Checker, source: Type, target: Type): boolean {
+export function isTypeEqualityComparableTo(c: Checker, source: Type, target: Type): boolean {
   return (target.flags & TypeFlags.Nullable) !== 0 || isTypeComparableTo(c, source, target);
 }
 

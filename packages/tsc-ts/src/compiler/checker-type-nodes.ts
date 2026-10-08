@@ -25,6 +25,7 @@ import {
   getType,
   getSymbol,
   type ConditionalTypeNode,
+  type MappedTypeNode,
   TypePredicateNode,
   getBody,
   getTypeArguments,
@@ -35,6 +36,7 @@ import {
   getThisContainer,
   isClassLike,
   isStatic,
+  isDeclarationStatementKind,
 } from './binder-utilities.js';
 import { Diagnostics } from './diagnostics.js';
 import { CheckFlags, type Symbol, SymbolFlags, getSymbolId } from './symbol.js';
@@ -43,6 +45,7 @@ import type { Checker } from './checker.js';
 import {
   ElementFlags,
   type InterfaceType,
+  type MappedType,
   ObjectFlags,
   TupleElementInfo,
   type TupleType,
@@ -66,6 +69,9 @@ import {
   getTemplateLiteralType,
   getTupleTargetType,
   getUnionTypeEx,
+  getIntersectionType,
+  everyType,
+  isArrayOrTupleType,
   isPatternLiteralType,
   newObjectType,
   typeListKey,
@@ -83,6 +89,7 @@ import {
   getDeclaredTypeOfClassOrInterface,
   getDeclaredTypeOfSymbol,
   getDeclaredTypeOfTypeParameter,
+  getConstraintOfTypeParameter,
   getLocalTypeParametersOfClassOrInterfaceOrTypeAlias,
   getMinTypeArgumentCount,
   tryGetDeclaredTypeOfSymbol,
@@ -99,6 +106,10 @@ import {
   getTypeFromMappedTypeNode,
   intrinsicTypeKind,
   IntrinsicTypeKind,
+  getSubstitutionType,
+  getActualTypeVariable,
+  getHomomorphicTypeVariable,
+  getTypeParameterFromMappedType,
 } from './checker-type-operators.js';
 import {
   checkExpression,
@@ -110,7 +121,97 @@ import { getIntendedTypeFromJSDocTypeReference } from './checker-jsdoc.js';
 import { getCombinedNodeFlags, hasSyntacticModifier } from './binder-utilities.js';
 
 export function getTypeFromTypeNode(c: Checker, node: Node): Type {
-  return getTypeFromTypeNodeWorker(c, node);
+  return getConditionalFlowTypeOfType(c, getTypeFromTypeNodeWorker(c, node), node);
+}
+
+/**
+ * `t` with the constraints implied by enclosing conditional types, as a substitution type: in
+ * `T extends string ? X : Y`, references to T in X are known to be strings.
+ */
+function getConditionalFlowTypeOfType(c: Checker, t: Type, start: Node): Type {
+  let constraints: Type[] | undefined;
+  let covariant = true;
+  for (let node: Node | undefined = start; node !== undefined && !isStatementLike(node); node = node.parent) {
+    const parent: Node | undefined = node.parent;
+    if (parent === undefined) break;
+    // Only parameter positions flip variance; `keyof` is mostly used invariantly in indexed accesses.
+    if (parent.kind === SyntaxKind.Parameter) covariant = !covariant;
+    // Type variables always substitute, as even contravariant positions may rely on their constraints.
+    if (
+      (covariant || (t.flags & TypeFlags.TypeVariable) !== 0) &&
+      parent.kind === SyntaxKind.ConditionalType &&
+      node === (parent as ConditionalTypeNode).trueType
+    ) {
+      const conditional = parent as ConditionalTypeNode;
+      const constraint = getImpliedConstraint(c, t, conditional.checkType, conditional.extendsType);
+      if (constraint !== undefined) (constraints ??= []).push(constraint);
+    } else if (
+      (t.flags & TypeFlags.TypeParameter) !== 0 &&
+      parent.kind === SyntaxKind.MappedType &&
+      (parent as MappedTypeNode).nameType === undefined &&
+      node === (parent as MappedTypeNode).type
+    ) {
+      // Homomorphic mapped types over arrays and tuples map numeric keys only.
+      const mappedType = getTypeFromTypeNode(c, parent) as MappedType;
+      if (getTypeParameterFromMappedType(c, mappedType) === getActualTypeVariable(c, t)) {
+        const typeParameter = getHomomorphicTypeVariable(c, mappedType);
+        if (typeParameter !== undefined) {
+          const constraint = getConstraintOfTypeParameter(c, typeParameter);
+          if (constraint !== undefined && everyType(constraint, (u) => isArrayOrTupleType(c, u)))
+            (constraints ??= []).push(
+              getUnionTypeEx(c, [c.numberType, c.numericStringType], UnionReduction.Literal, undefined, undefined),
+            );
+        }
+      }
+    }
+  }
+  return constraints !== undefined ? getSubstitutionType(c, t, getIntersectionType(c, constraints)) : t;
+}
+
+function getImpliedConstraint(c: Checker, t: Type, checkNode: Node, extendsNode: Node): Type | undefined {
+  if (isUnaryTupleTypeNode(checkNode) && isUnaryTupleTypeNode(extendsNode))
+    return getImpliedConstraint(
+      c,
+      t,
+      (checkNode as TupleTypeNode).elements.nodes[0],
+      (extendsNode as TupleTypeNode).elements.nodes[0],
+    );
+  if (getActualTypeVariable(c, getTypeFromTypeNode(c, checkNode)) === getActualTypeVariable(c, t))
+    return getTypeFromTypeNode(c, extendsNode);
+  return undefined;
+}
+
+function isUnaryTupleTypeNode(node: Node): boolean {
+  return node.kind === SyntaxKind.TupleType && (node as TupleTypeNode).elements.nodes.length === 1;
+}
+
+/** A statement, declaration statement or block, which ends the search for enclosing conditional types. */
+function isStatementLike(node: Node): boolean {
+  switch (node.kind) {
+    case SyntaxKind.Block:
+    case SyntaxKind.BreakStatement:
+    case SyntaxKind.ContinueStatement:
+    case SyntaxKind.DebuggerStatement:
+    case SyntaxKind.DoStatement:
+    case SyntaxKind.ExpressionStatement:
+    case SyntaxKind.EmptyStatement:
+    case SyntaxKind.ForInStatement:
+    case SyntaxKind.ForOfStatement:
+    case SyntaxKind.ForStatement:
+    case SyntaxKind.IfStatement:
+    case SyntaxKind.LabeledStatement:
+    case SyntaxKind.ReturnStatement:
+    case SyntaxKind.SwitchStatement:
+    case SyntaxKind.ThrowStatement:
+    case SyntaxKind.TryStatement:
+    case SyntaxKind.VariableStatement:
+    case SyntaxKind.WhileStatement:
+    case SyntaxKind.WithStatement:
+    case SyntaxKind.NotEmittedStatement:
+    case SyntaxKind.JSDoc:
+      return true;
+  }
+  return isDeclarationStatementKind(node.kind);
 }
 
 function getTypeFromTypeNodeWorker(c: Checker, node: Node): Type {

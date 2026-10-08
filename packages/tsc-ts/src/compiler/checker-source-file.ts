@@ -56,6 +56,7 @@ import {
   checkTypeParameters,
   checkVariableStatement,
   checkVariableLikeDeclaration,
+  checkUnusedRenamedBindingElements,
 } from './checker-declarations.js';
 import {
   checkExportAssignment,
@@ -90,6 +91,8 @@ export function checkSourceFile(c: Checker, file: SourceFile): void {
   for (const statement of getStatements(file)!.nodes) checkSourceElement(c, statement);
   checkDeferredNodes(c);
   if (isExternalOrCommonJSModule(file)) checkExternalModuleExports(c, file);
+  if (!file.isDeclarationFile) checkUnusedRenamedBindingElements(c);
+  else c.renamedBindingElementsInTypes.length = 0;
   // Grammar checks run last so the types they need are created in tsgo's order.
   checkGrammarSourceFile(c, file);
   // Expressions first checked by grammar checks may defer more nodes.

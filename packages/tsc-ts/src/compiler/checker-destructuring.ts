@@ -15,7 +15,14 @@ import {
   getProperties,
   getSymbol,
   getType,
+  getFlowNode,
+  StringLiteral,
+  ParenthesizedExpression,
+  ElementAccessExpression,
 } from './ast.js';
+import { isLeftHandSideExpression } from './ast-utilities.js';
+import { TokenFlags } from './types.js';
+import { getFlowTypeOfReference, getDestructuringPropertyName } from './checker-narrowing.js';
 import {
   isClassLike,
   isPartOfParameterDeclaration,
@@ -79,6 +86,7 @@ import {
   isReadonlySymbol,
   reportImplicitAny,
   getWidenedType,
+  declarationBelongsToPrivateAmbientMember,
 } from './checker-symbol-types.js';
 import { getTypeAliasInstantiation } from './checker-type-nodes.js';
 import { isTypeAssignableTo } from './relations.js';
@@ -110,7 +118,57 @@ export function getTypeForBindingElement(c: Checker, declaration: Node): Type | 
   const pattern = declaration.parent!;
   const parentType = getTypeForBindingElementParent(c, pattern.parent!);
   if (parentType === undefined || parentType === c.errorType) return parentType;
-  return getBindingElementTypeFromParentType(c, declaration as BindingElement, parentType);
+  return getBindingElementTypeFromParentType(c, declaration as BindingElement, parentType, false);
+}
+
+/** The type of a destructured element narrowed like `init["name"]` at the position of its initializer. */
+function getFlowTypeOfDestructuring(c: Checker, node: Node, declaredType: Type): Type {
+  const reference = getSyntheticElementAccess(c, node);
+  return reference !== undefined
+    ? getFlowTypeOfReference(c, reference, declaredType, declaredType, undefined)
+    : declaredType;
+}
+
+function getSyntheticElementAccess(c: Checker, node: Node): Node | undefined {
+  const parentAccess = getParentElementAccess(c, node);
+  if (parentAccess === undefined) return undefined;
+  const flowNode = getFlowNode(parentAccess);
+  if (flowNode === undefined) return undefined;
+  const propName = getDestructuringPropertyName(c, node);
+  if (propName === undefined) return undefined;
+  const literal = new StringLiteral(propName, TokenFlags.None);
+  literal.pos = node.pos;
+  literal.end = node.end;
+  let lhs = parentAccess;
+  if (!isLeftHandSideExpression(parentAccess)) {
+    lhs = new ParenthesizedExpression(parentAccess);
+    lhs.pos = node.pos;
+    lhs.end = node.end;
+  }
+  const result = new ElementAccessExpression(lhs, undefined, literal, NodeFlags.None);
+  result.pos = node.pos;
+  result.end = node.end;
+  literal.parent = result;
+  result.parent = node;
+  if (lhs !== parentAccess) lhs.parent = result;
+  result.flowNode = flowNode;
+  return result;
+}
+
+function getParentElementAccess(c: Checker, node: Node): Node | undefined {
+  const ancestor = node.parent!.parent!;
+  switch (ancestor.kind) {
+    case SyntaxKind.BindingElement:
+    case SyntaxKind.PropertyAssignment:
+      return getSyntheticElementAccess(c, ancestor);
+    case SyntaxKind.ArrayLiteralExpression:
+      return getSyntheticElementAccess(c, node.parent!);
+    case SyntaxKind.VariableDeclaration:
+      return getInitializer(ancestor);
+    case SyntaxKind.BinaryExpression:
+      return (ancestor as BinaryExpression).right;
+  }
+  return undefined;
 }
 
 export function getTypeForBindingElementParent(c: Checker, node: Node): Type | undefined {
@@ -122,7 +180,12 @@ export function getTypeForBindingElementParent(c: Checker, node: Node): Type | u
   return getTypeForVariableLikeDeclaration(c, node, false);
 }
 
-function getBindingElementTypeFromParentType(c: Checker, declaration: BindingElement, parentTypeIn: Type): Type {
+export function getBindingElementTypeFromParentType(
+  c: Checker,
+  declaration: BindingElement,
+  parentTypeIn: Type,
+  noTupleBoundsCheck: boolean,
+): Type {
   if ((parentTypeIn.flags & TypeFlags.Any) !== 0) return parentTypeIn;
   let parentType = parentTypeIn;
   const pattern = declaration.parent!;
@@ -137,7 +200,8 @@ function getBindingElementTypeFromParentType(c: Checker, declaration: BindingEle
   )
     parentType = getTypeWithFacts(c, parentType, TypeFacts.NEUndefined);
   const accessFlags =
-    AccessFlags.ExpressionPosition | (declaration.initializer !== undefined ? AccessFlags.AllowMissing : 0);
+    AccessFlags.ExpressionPosition |
+    (noTupleBoundsCheck || declaration.initializer !== undefined ? AccessFlags.AllowMissing : 0);
   let t: Type;
   if (pattern.kind === SyntaxKind.ObjectBindingPattern) {
     if (declaration.dotDotDotToken !== undefined) {
@@ -154,7 +218,7 @@ function getBindingElementTypeFromParentType(c: Checker, declaration: BindingEle
       t = getRestType(c, parentType, literalMembers, getSymbol(declaration));
     } else {
       const name = declaration.propertyName ?? declaration.name!;
-      t = getIndexedAccessTypeEx(
+      const declaredType = getIndexedAccessTypeEx(
         c,
         parentType,
         getLiteralTypeFromPropertyName(c, name) ?? c.errorType,
@@ -162,6 +226,7 @@ function getBindingElementTypeFromParentType(c: Checker, declaration: BindingEle
         name,
         undefined,
       );
+      t = getFlowTypeOfDestructuring(c, declaration, declaredType);
     }
   } else {
     // Used when the tuple element for the index is missing; also checks that the parent is iterable.
@@ -181,8 +246,8 @@ function getBindingElementTypeFromParentType(c: Checker, declaration: BindingEle
       t = everyType(baseConstraint, isTupleType)
         ? mapType(c, baseConstraint, (u) => sliceTupleType(c, u, index, 0))
         : createArrayType(c, elementType);
-    } else if (isArrayLikeType(c, parentType))
-      t =
+    } else if (isArrayLikeType(c, parentType)) {
+      const declaredType =
         getIndexedAccessTypeOrUndefinedEx(
           c,
           parentType,
@@ -191,7 +256,8 @@ function getBindingElementTypeFromParentType(c: Checker, declaration: BindingEle
           declaration.name,
           undefined,
         ) ?? c.errorType;
-    else t = elementType;
+      t = getFlowTypeOfDestructuring(c, declaration, declaredType);
+    } else t = elementType;
   }
   if (declaration.initializer === undefined) return t;
   if (getType(walkUpBindingElementsAndPatterns(declaration)) !== undefined) {
@@ -299,7 +365,7 @@ function getTypeFromArrayBindingPattern(
   let minLength = 0;
   for (let i = elements.length - 1; i >= 0; i--) {
     const e = elements[i];
-    if (!(e === restElement || e.kind === SyntaxKind.OmittedExpression || getInitializer(e) !== undefined)) {
+    if (!(e === restElement || getName(e) === undefined || getInitializer(e) !== undefined)) {
       minLength = i + 1;
       break;
     }
@@ -309,7 +375,8 @@ function getTypeFromArrayBindingPattern(
   for (let i = 0; i < elements.length; i++) {
     const e = elements[i];
     types.push(
-      e.kind === SyntaxKind.OmittedExpression
+      // Omitted elements are binding elements without a name.
+      getName(e) === undefined
         ? c.anyType
         : getTypeFromBindingElement(c, e as BindingElement, includePatternInType, reportErrors),
     );
@@ -337,7 +404,8 @@ function getTypeFromBindingElement(
   }
   if (isBindingPatternNode(element.name))
     return getTypeFromBindingPattern(c, element.name!, includePatternInType, reportErrors);
-  if (reportErrors && c.noImplicitAny) reportImplicitAny(c, element, c.anyType);
+  if (reportErrors && c.noImplicitAny && !declarationBelongsToPrivateAmbientMember(element))
+    reportImplicitAny(c, element, c.anyType);
   return includePatternInType ? c.nonInferrableAnyType : c.anyType;
 }
 

@@ -42,6 +42,7 @@ import {
   getCombinedModifierFlags,
   getCombinedNodeFlags,
   isPartOfParameterDeclaration,
+  getRootDeclaration,
   getDeclarationOfKind,
   getModifierFlags,
   getModuleInstanceState,
@@ -142,10 +143,7 @@ export function checkVariableLikeDeclaration(c: Checker, node: Node): void {
     if (initializerNotAllowed)
       c.error(node, Diagnostics.A_parameter_initializer_is_only_allowed_in_a_function_or_constructor_implementation);
     else if (initializer !== undefined) checkExpressionCached(c, initializer);
-    for (const element of getElements(name)!.nodes) {
-      if (element.kind === SyntaxKind.OmittedExpression) continue;
-      checkBindingElement(c, element as BindingElement);
-    }
+    for (const element of getElements(name)!.nodes) checkBindingElement(c, element as BindingElement);
     if (!initializerNotAllowed) checkBindingPatternInitializer(c, node, name, initializer);
     return;
   }
@@ -361,6 +359,19 @@ function reportNonIdenticalModifiers(c: Checker, name: Node): void {
 }
 
 function checkBindingElement(c: Checker, element: BindingElement): void {
+  // Missing array binding elements have no name.
+  if (element.name === undefined) return;
+  if (
+    element.propertyName !== undefined &&
+    element.name.kind === SyntaxKind.Identifier &&
+    isPartOfParameterDeclaration(element) &&
+    nodeIsMissing(getBody(getRootDeclaration(element).parent!))
+  ) {
+    // Renaming in `type F = ({ a: string }) => void` is confusing, so it's an error once the file is
+    // checked if the name is unused, even without noUnusedLocals.
+    c.renamedBindingElementsInTypes.push(element);
+    return;
+  }
   if (element.propertyName !== undefined && element.propertyName.kind === SyntaxKind.ComputedPropertyName)
     checkComputedPropertyName(c, element.propertyName);
   // Like tsgo, the parent type is computed here (for accessibility checks) as well as for the symbol.
@@ -370,8 +381,7 @@ function checkBindingElement(c: Checker, element: BindingElement): void {
     name !== undefined &&
     (name.kind === SyntaxKind.ObjectBindingPattern || name.kind === SyntaxKind.ArrayBindingPattern)
   ) {
-    for (const e of getElements(name)!.nodes)
-      if (e.kind !== SyntaxKind.OmittedExpression) checkBindingElement(c, e as BindingElement);
+    for (const e of getElements(name)!.nodes) checkBindingElement(c, e as BindingElement);
   } else {
     const symbol = getSymbolOfDeclaration(c, element);
     if (
@@ -927,4 +937,33 @@ export function getEffectiveDeclarationFlags(node: Node, flagsToCheck: ModifierF
     flags |= ModifierFlags.Ambient;
   }
   return flags & flagsToCheck;
+}
+
+/** Reports renamings in parameters of bodiless signatures whose new names are unused. */
+export function checkUnusedRenamedBindingElements(c: Checker): void {
+  for (const element of c.renamedBindingElementsInTypes) {
+    const symbol = getSymbolOfDeclaration(c, element);
+    if (symbol !== undefined && c.symbolLinks(symbol).referenceKinds !== 0) continue;
+    const file = getSourceFileOfNode(element);
+    const name = (element as BindingElement).name!;
+    const propertyName = declarationNameToString(file, (element as BindingElement).propertyName);
+    const diagnostic = c.error(
+      name,
+      Diagnostics.X_0_is_an_unused_renaming_of_1_Did_you_intend_to_use_it_as_a_type_annotation,
+      declarationNameToString(file, name),
+      propertyName,
+    );
+    const parameter = getRootDeclaration(element);
+    if (getType(parameter) === undefined)
+      diagnostic.addRelatedInfo(
+        new Diagnostic(
+          file.diagnosticFile(),
+          parameter.end,
+          parameter.end,
+          Diagnostics.We_can_only_write_a_type_for_0_by_adding_a_type_for_the_entire_parameter_here,
+          [propertyName],
+        ),
+      );
+  }
+  c.renamedBindingElementsInTypes.length = 0;
 }

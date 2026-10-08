@@ -119,6 +119,7 @@ import {
 } from './checker-signatures.js';
 import {
   checkExpressionCached,
+  checkComputedPropertyName,
   getPropertyNameOfObjectLiteralElement,
   isConstTypeReference,
 } from './checker-expressions.js';
@@ -703,7 +704,11 @@ function getContextualTypeForObjectLiteralElement(
   const name = getPropertyNameOfObjectLiteralElement(c, element);
   if (name !== undefined) {
     const symbol = getSymbol(element);
-    const nameType = symbol !== undefined ? c.symbolLinks(symbol).nameType : undefined;
+    let nameType = symbol !== undefined ? c.symbolLinks(symbol).nameType : undefined;
+    // Late-bound members are named by the type of their computed name, like a unique symbol.
+    const nameNode = getName(element)!;
+    if (nameType === undefined && nameNode.kind === SyntaxKind.ComputedPropertyName)
+      nameType = checkComputedPropertyName(c, nameNode);
     return getTypeOfPropertyOfContextualTypeEx(c, t, name, nameType);
   }
   const nameNode = getName(element);

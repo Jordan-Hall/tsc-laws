@@ -67,11 +67,11 @@ import {
   someType,
   tupleTargetOf,
   typesOf,
+  countTypes,
   getStartElementCount,
   getEndElementCount,
   createNormalizedTypeReference,
   typeListKey,
-  countTypes,
 } from './checker-type-factory.js';
 import {
   findApplicableIndexInfo,
@@ -1989,8 +1989,8 @@ export class Relater extends TypeComparer {
           else if (this.errorChain === undefined) this.errorChain = saveChain;
         }
       }
-      // An object is related to a discriminated union when every combination of its discriminants
-      // matches a constituent. Errors come from the constituent checks.
+      // An object source relates to a discriminated union target when every combination of its
+      // discriminant types matches some constituent. Errors come from checking each constituent.
       if (
         (source.flags & (TypeFlags.Object | TypeFlags.Intersection)) !== 0 &&
         (target.flags & TypeFlags.Union) !== 0
@@ -1998,10 +1998,10 @@ export class Relater extends TypeComparer {
         const objectOnlyTarget = filterType(
           c,
           target,
-          (t) => (t.flags & (TypeFlags.Object | TypeFlags.Intersection | TypeFlags.Substitution)) !== 0,
+          (u) => (u.flags & (TypeFlags.Object | TypeFlags.Intersection | TypeFlags.Substitution)) !== 0,
         );
         if ((objectOnlyTarget.flags & TypeFlags.Union) !== 0) {
-          const related = this.typeRelatedToDiscriminatedType(source, objectOnlyTarget);
+          const related = this.typeRelatedToDiscriminatedType(source, objectOnlyTarget as UnionType);
           if (related !== Ternary.False) return related;
         }
       }
@@ -2009,53 +2009,55 @@ export class Relater extends TypeComparer {
     return Ternary.False;
   }
 
-  typeRelatedToDiscriminatedType(source: Type, target: Type): Ternary {
+  typeRelatedToDiscriminatedType(source: Type, target: UnionType): Ternary {
     const c = this.c;
-    const sourceProperties = getPropertiesOfType(c, source).filter((p) => isDiscriminantProperty(c, target, p.name));
-    if (sourceProperties.length === 0) return Ternary.False;
-    // Too many combinations make the comparison too complex.
-    let numCombinations = 1;
-    for (const sourceProperty of sourceProperties) {
-      numCombinations *= countTypes(getNonMissingTypeOfSymbol(c, sourceProperty));
-      if (numCombinations > 25 || numCombinations === 0) return Ternary.False;
+    const discriminants = getPropertiesOfType(c, source).filter((p) => isDiscriminantProperty(c, target, p.name));
+    if (discriminants.length === 0) return Ternary.False;
+    // Check the number of combinations before building them.
+    let combinations = 1;
+    for (const prop of discriminants) {
+      combinations *= countTypes(getNonMissingTypeOfSymbol(c, prop));
+      if (combinations > 25 || combinations === 0) return Ternary.False;
     }
-    const sourceDiscriminantTypes: Type[][] = [];
+    const discriminantTypes: Type[][] = [];
     const excludedProperties = new Set<string>();
-    for (const sourceProperty of sourceProperties) {
-      const t = getNonMissingTypeOfSymbol(c, sourceProperty);
-      sourceDiscriminantTypes.push((t.flags & TypeFlags.Union) !== 0 ? typesOf(t) : [t]);
-      excludedProperties.add(sourceProperty.name);
+    for (const prop of discriminants) {
+      const t = getNonMissingTypeOfSymbol(c, prop);
+      discriminantTypes.push((t.flags & TypeFlags.Union) !== 0 ? typesOf(t) : [t]);
+      excludedProperties.add(prop.name);
     }
+    // Each combination of discriminant types must match one or more constituents of the target.
+    const skipOptional = c.strictNullChecks || this.relation === c.comparableRelation;
     const matchingTypes: Type[] = [];
-    const targetTypes = typesOf(target);
-    for (let i = 0; i < numCombinations; i++) {
-      // The i-th element of the cartesian product of the discriminant types.
-      const combination: Type[] = [];
+    const combination: Type[] = discriminantTypes.map((types) => types[0]);
+    for (let i = 0; i < combinations; i++) {
       let n = i;
-      for (let j = sourceDiscriminantTypes.length - 1; j >= 0; j--) {
-        const types = sourceDiscriminantTypes[j];
-        combination.unshift(types[n % types.length]);
+      for (let j = discriminantTypes.length - 1; j >= 0; j--) {
+        const types = discriminantTypes[j];
+        combination[j] = types[n % types.length];
         n = Math.floor(n / types.length);
       }
       let hasMatch = false;
-      for (const t of targetTypes) {
+      for (const t of target.types) {
         let matches = true;
-        for (let k = 0; k < sourceProperties.length; k++) {
-          const sourceProperty = sourceProperties[k];
-          const targetProperty = getPropertyOfType(c, t, sourceProperty.name);
-          if (targetProperty === undefined) {
+        for (let k = 0; k < discriminants.length; k++) {
+          const sourceProp = discriminants[k];
+          const targetProp = getPropertyOfType(c, t, sourceProp.name);
+          if (targetProp === undefined) {
             matches = false;
             break;
           }
-          if (sourceProperty === targetProperty) continue;
+          if (sourceProp === targetProp) continue;
           // The source property is compared in the context of a single discriminant type.
-          const related = this.discriminantPropertyRelatedTo(
+          const related = this.propertyRelatedToEx(
             source,
             target,
+            sourceProp,
+            targetProp,
             combination[k],
-            sourceProperty,
-            targetProperty,
-            c.strictNullChecks || this.relation === c.comparableRelation,
+            false,
+            IntersectionState.None,
+            skipOptional,
           );
           if (related === Ternary.False) {
             matches = false;
@@ -2068,7 +2070,7 @@ export class Relater extends TypeComparer {
       }
       if (!hasMatch) return Ternary.False;
     }
-    // The remaining non-discriminant properties of each match.
+    // The remaining non-discriminant properties of each match must relate.
     let result = Ternary.True;
     for (const t of matchingTypes) {
       result &= this.propertiesRelatedTo(source, t, false, excludedProperties, false, IntersectionState.None);
@@ -2076,6 +2078,7 @@ export class Relater extends TypeComparer {
         result &= this.signaturesRelatedTo(source, t, SignatureKind.Call, false, IntersectionState.None);
         if (result !== Ternary.False) {
           result &= this.signaturesRelatedTo(source, t, SignatureKind.Construct, false, IntersectionState.None);
+          // Tuple element types are covered by their properties.
           if (result !== Ternary.False && !(isTupleType(source) && isTupleType(t)))
             result &= this.indexSignaturesRelatedTo(source, t, false, false, IntersectionState.None);
         }
@@ -2083,54 +2086,6 @@ export class Relater extends TypeComparer {
       if (result === Ternary.False) return result;
     }
     return result;
-  }
-
-  /** `propertyRelatedTo` with `sourcePropType` standing for the type of `sourceProp`. */
-  discriminantPropertyRelatedTo(
-    source: Type,
-    target: Type,
-    sourcePropType: Type,
-    sourceProp: Symbol,
-    targetProp: Symbol,
-    skipOptional: boolean,
-  ): Ternary {
-    const c = this.c;
-    const sourcePropFlags = getDeclarationModifierFlagsFromSymbol(c, sourceProp, false);
-    const targetPropFlags = getDeclarationModifierFlagsFromSymbol(c, targetProp, false);
-    if ((sourcePropFlags & ModifierFlags.Private) !== 0 || (targetPropFlags & ModifierFlags.Private) !== 0) {
-      if (sourceProp.valueDeclaration !== targetProp.valueDeclaration) return Ternary.False;
-    } else if ((targetPropFlags & ModifierFlags.Protected) !== 0) {
-      if (!isValidOverrideOf(c, sourceProp, targetProp)) return Ternary.False;
-    } else if ((sourcePropFlags & ModifierFlags.Protected) !== 0) return Ternary.False;
-    if (
-      this.relation === c.strictSubtypeRelation &&
-      isReadonlySymbol(c, sourceProp) &&
-      !isReadonlySymbol(c, targetProp)
-    )
-      return Ternary.False;
-    const targetIsOptional = c.strictNullChecks && (targetProp.checkFlags & CheckFlags.Partial) !== 0;
-    const effectiveTarget = addOptionality(c, getNonMissingTypeOfSymbol(c, targetProp), false, targetIsOptional);
-    const related =
-      (effectiveTarget.flags & (this.relation === c.strictSubtypeRelation ? TypeFlags.Any : TypeFlags.AnyOrUnknown)) !==
-      0
-        ? Ternary.True
-        : this.isRelatedToEx(
-            sourcePropType,
-            effectiveTarget,
-            RecursionFlags.Both,
-            false,
-            undefined,
-            IntersectionState.None,
-          );
-    if (related === Ternary.False) return Ternary.False;
-    if (
-      !skipOptional &&
-      (sourceProp.flags & SymbolFlags.Optional) !== 0 &&
-      (targetProp.flags & SymbolFlags.ClassMember) !== 0 &&
-      (targetProp.flags & SymbolFlags.Optional) === 0
-    )
-      return Ternary.False;
-    return related;
   }
 
   relateToGenericMappedType(source: Type, target: MappedType, reportErrors: boolean): Ternary {
@@ -2476,6 +2431,29 @@ export class Relater extends TypeComparer {
     intersectionState: IntersectionState,
     skipOptional: boolean,
   ): Ternary {
+    return this.propertyRelatedToEx(
+      source,
+      target,
+      sourceProp,
+      targetProp,
+      undefined,
+      reportErrors,
+      intersectionState,
+      skipOptional,
+    );
+  }
+
+  /** `propertyRelatedTo` with `sourcePropType` in place of the source property's type when given. */
+  propertyRelatedToEx(
+    source: Type,
+    target: Type,
+    sourceProp: Symbol,
+    targetProp: Symbol,
+    sourcePropType: Type | undefined,
+    reportErrors: boolean,
+    intersectionState: IntersectionState,
+    skipOptional: boolean,
+  ): Ternary {
     const c = this.c;
     const sourcePropFlags = getDeclarationModifierFlagsFromSymbol(c, sourceProp, false);
     const targetPropFlags = getDeclarationModifierFlagsFromSymbol(c, targetProp, false);
@@ -2523,7 +2501,13 @@ export class Relater extends TypeComparer {
       !isReadonlySymbol(c, targetProp)
     )
       return Ternary.False;
-    const related = this.isPropertySymbolTypeRelated(sourceProp, targetProp, reportErrors, intersectionState);
+    const related = this.isPropertySymbolTypeRelated(
+      sourceProp,
+      targetProp,
+      sourcePropType,
+      reportErrors,
+      intersectionState,
+    );
     if (related === Ternary.False) {
       if (reportErrors)
         this.reportError(Diagnostics.Types_of_property_0_are_incompatible, [symbolToString(c, targetProp)]);
@@ -2549,6 +2533,7 @@ export class Relater extends TypeComparer {
   isPropertySymbolTypeRelated(
     sourceProp: Symbol,
     targetProp: Symbol,
+    sourcePropType: Type | undefined,
     reportErrors: boolean,
     intersectionState: IntersectionState,
   ): Ternary {
@@ -2560,7 +2545,7 @@ export class Relater extends TypeComparer {
       0
     )
       return Ternary.True;
-    const effectiveSource = getNonMissingTypeOfSymbol(c, sourceProp);
+    const effectiveSource = sourcePropType ?? getNonMissingTypeOfSymbol(c, sourceProp);
     return this.isRelatedToEx(
       effectiveSource,
       effectiveTarget,

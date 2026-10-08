@@ -2,6 +2,8 @@
 // backwards from the reference through assignments, conditions, calls and labels.
 import {
   type MetaProperty,
+  type BindingElement,
+  getName,
   type BinaryExpression,
   type ElementAccessExpression,
   type Node,
@@ -130,13 +132,17 @@ import {
   getSymbolOfDeclaration,
   resolveEntityName,
   resolveSymbol,
+  getGlobalTypeAliasSymbol,
 } from './checker-symbols.js';
 import { getOptionalType, getTypeOfSymbol, isReadonlySymbol } from './checker-symbol-types.js';
 import { getPropertyNameFromType, isTypeUsableAsPropertyName, maybeTypeOfKind } from './checker-utilities.js';
-import { getTypeFromTypeNode } from './checker-type-nodes.js';
+import { getTypeFromTypeNode, getTypeAliasInstantiation } from './checker-type-nodes.js';
 import { isFunctionLike } from './ast-utilities.js';
 import { Diagnostic } from './diagnostics.js';
 import { Diagnostics } from './diagnostic-messages.js';
+import { getResolvedSignature } from './checker-calls.js';
+import { getLiteralTypeFromPropertyName } from './checker-type-operators.js';
+import { getBindingElementTypeFromParentType, getTypeForBindingElementParent } from './checker-destructuring.js';
 
 /** The state of one `getFlowTypeOfReference` walk. `incomplete` describes the last returned type. */
 export class FlowState {
@@ -179,8 +185,19 @@ export function getFlowTypeOfReference(
   initialType: Type,
   flowContainer: Node | undefined,
 ): Type {
+  return getFlowTypeOfReferenceAt(c, reference, declaredType, initialType, flowContainer, getFlowNode(reference));
+}
+
+/** `getFlowTypeOfReference` at `flowNode`, for pseudo-references such as binding patterns. */
+export function getFlowTypeOfReferenceAt(
+  c: Checker,
+  reference: Node,
+  declaredType: Type,
+  initialType: Type,
+  flowContainer: Node | undefined,
+  flowNode: FlowNode | undefined,
+): Type {
   if (c.flowAnalysisDisabled) return c.errorType;
-  const flowNode = getFlowNode(reference);
   if (flowNode === undefined) return declaredType;
   const f = new FlowState(reference, declaredType, initialType, flowContainer);
   f.sharedFlowStart = c.sharedFlowNodes.length;
@@ -510,7 +527,9 @@ export function getEffectsSignature(c: Checker, node: Node): Signature | undefin
     );
     let candidate: Signature | undefined = undefined;
     if (signatures.length === 1 && signatures[0].typeParameters.length === 0) candidate = signatures[0];
-    else if (signatures.length === 1 && hasTypePredicateOrNeverReturnType(c, signatures[0])) candidate = signatures[0];
+    // Generic or overloaded predicates and assertions take effect through the resolved signature.
+    else if (signatures.some((sig) => hasTypePredicateOrNeverReturnType(c, sig)))
+      candidate = getResolvedSignature(c, node, CheckMode.Normal);
     signature =
       candidate !== undefined && hasTypePredicateOrNeverReturnType(c, candidate) ? candidate : c.unknownSignature;
     links.effectsSignature = signature;
@@ -1239,7 +1258,12 @@ function narrowTypeByInKeyword(c: Checker, t: Type, nameType: Type, assumeTrue: 
   const name = getPropertyNameFromType(nameType);
   if (someType(t, (u) => isTypePresencePossible(c, u, name, true)))
     return filterType(c, t, (u) => isTypePresencePossible(c, u, name, assumeTrue));
-  // Unknown properties would intersect with Record<K, unknown>; leave the type as is.
+  // `"x" in t` for an unknown property x narrows t to `t & Record<"x", unknown>`.
+  if (assumeTrue) {
+    const record = getGlobalTypeAliasSymbol(c, 'Record', 2, true);
+    if (record !== undefined)
+      return getIntersectionType(c, [t, getTypeAliasInstantiation(c, record, [nameType, c.unknownType], undefined)]);
+  }
   return t;
 }
 
@@ -1346,26 +1370,58 @@ function getDiscriminantPropertyAccess(c: Checker, f: FlowState, expr: Node, com
 }
 
 function getCandidateDiscriminantPropertyAccess(c: Checker, f: FlowState, expr: Node): Node | undefined {
-  if (isAccessExpression(expr)) return isMatchingReference(c, f.reference, getExpression(expr)!) ? expr : undefined;
+  const reference = f.reference;
+  if (reference.kind === SyntaxKind.ObjectBindingPattern || reference.kind === SyntaxKind.ArrayBindingPattern) {
+    // A binding pattern pseudo-reference from getNarrowedTypeOfSymbol: a sibling destructured variable is a candidate.
+    if (expr.kind !== SyntaxKind.Identifier) return undefined;
+    const declaration = getExportSymbolOfValueSymbolIfExported(c, getResolvedSymbol(c, expr)).valueDeclaration;
+    if (
+      declaration !== undefined &&
+      declaration.kind === SyntaxKind.BindingElement &&
+      declaration.parent === reference &&
+      getInitializer(declaration) === undefined &&
+      (declaration as BindingElement).dotDotDotToken === undefined
+    )
+      return declaration;
+    return undefined;
+  }
+  if (isAccessExpression(expr)) return isMatchingReference(c, reference, getExpression(expr)!) ? expr : undefined;
   if (expr.kind === SyntaxKind.Identifier) {
     const symbol = getResolvedSymbol(c, expr);
     if (isConstantVariable(c, symbol)) {
       const declaration = symbol.valueDeclaration;
       // `const x = obj.kind` makes `x` an alias of `obj.kind`.
+      const initializer = getCandidateVariableDeclarationInitializer(declaration);
+      if (
+        initializer !== undefined &&
+        isAccessExpression(initializer) &&
+        isMatchingReference(c, reference, getExpression(initializer)!)
+      )
+        return initializer;
+      // `const { kind: x } = obj` makes `x` an alias of `obj.kind`.
       if (
         declaration !== undefined &&
-        declaration.kind === SyntaxKind.VariableDeclaration &&
-        getType(declaration) === undefined
+        declaration.kind === SyntaxKind.BindingElement &&
+        getInitializer(declaration) === undefined
       ) {
-        const initializer = getInitializer(declaration);
-        if (initializer !== undefined) {
-          const init = skipParentheses(initializer);
-          if (isAccessExpression(init) && isMatchingReference(c, f.reference, getExpression(init)!)) return init;
-        }
+        const parentInitializer = getCandidateVariableDeclarationInitializer(declaration.parent!.parent!);
+        if (
+          parentInitializer !== undefined &&
+          (parentInitializer.kind === SyntaxKind.Identifier || isAccessExpression(parentInitializer)) &&
+          isMatchingReference(c, reference, parentInitializer)
+        )
+          return declaration;
       }
     }
   }
   return undefined;
+}
+
+function getCandidateVariableDeclarationInitializer(node: Node | undefined): Node | undefined {
+  if (node === undefined || node.kind !== SyntaxKind.VariableDeclaration || getType(node) !== undefined)
+    return undefined;
+  const initializer = getInitializer(node);
+  return initializer !== undefined ? skipParentheses(initializer) : undefined;
 }
 
 function narrowTypeByDiscriminant(c: Checker, t: Type, access: Node, narrow: (t: Type) => Type): Type {
@@ -1745,6 +1801,7 @@ export function isMatchingReference(c: Checker, source: Node, target: Node): boo
 /** The property name an access expression reads, if it's a constant. */
 export function getAccessedPropertyName(c: Checker, access: Node): string | undefined {
   if (access.kind === SyntaxKind.PropertyAccessExpression) return getText((access as PropertyAccessExpression).name);
+  if (access.kind === SyntaxKind.BindingElement) return getDestructuringPropertyName(c, access);
   if (access.kind === SyntaxKind.ElementAccessExpression) {
     const argument = (access as ElementAccessExpression).argumentExpression;
     if (isStringLiteralLike(argument)) return getText(argument);
@@ -1764,6 +1821,23 @@ export function getAccessedPropertyName(c: Checker, access: Node): string | unde
   return undefined;
 }
 
+/** The property name or element index a destructuring element reads. */
+export function getDestructuringPropertyName(c: Checker, node: Node): string | undefined {
+  const parent = node.parent!;
+  let name: Node | undefined;
+  if (node.kind === SyntaxKind.BindingElement && parent.kind === SyntaxKind.ObjectBindingPattern)
+    name = (node as BindingElement).propertyName ?? (node as BindingElement).name;
+  else if (node.kind === SyntaxKind.PropertyAssignment || node.kind === SyntaxKind.ShorthandPropertyAssignment)
+    name = getName(node);
+  else if (parent.kind === SyntaxKind.ArrayLiteralExpression || parent.kind === SyntaxKind.ArrayBindingPattern)
+    return String(getElements(parent)!.nodes.indexOf(node));
+  if (name === undefined) return undefined;
+  const t = getLiteralTypeFromPropertyName(c, name);
+  return t !== undefined && (t.flags & (TypeFlags.StringLiteral | TypeFlags.NumberLiteral)) !== 0
+    ? getPropertyNameFromType(t)
+    : undefined;
+}
+
 export function isConstantReference(c: Checker, node: Node): boolean {
   switch (node.kind) {
     case SyntaxKind.ThisKeyword:
@@ -1781,6 +1855,24 @@ export function isConstantReference(c: Checker, node: Node): boolean {
       if (!isConstantReference(c, getExpression(node)!)) return false;
       const symbol = c.nodeLinks(node).resolvedSymbol;
       return symbol !== undefined && isReadonlySymbol(c, symbol);
+    }
+    case SyntaxKind.ObjectBindingPattern:
+    case SyntaxKind.ArrayBindingPattern: {
+      // A destructuring pseudo-reference is constant when none of its variables are reassigned.
+      const rootDeclaration = getRootDeclaration(node.parent!);
+      if (
+        rootDeclaration.kind === SyntaxKind.Parameter ||
+        (rootDeclaration.kind === SyntaxKind.VariableDeclaration &&
+          rootDeclaration.parent!.kind === SyntaxKind.CatchClause)
+      )
+        return !isSomeSymbolAssigned(c, getName(rootDeclaration)!);
+      if (rootDeclaration.kind !== SyntaxKind.VariableDeclaration) return false;
+      const blockScopeKind = getCombinedNodeFlags(rootDeclaration) & NodeFlags.BlockScoped;
+      return (
+        blockScopeKind === NodeFlags.Const ||
+        blockScopeKind === NodeFlags.Using ||
+        blockScopeKind === NodeFlags.AwaitUsing
+      );
     }
   }
   return false;
@@ -2309,4 +2401,73 @@ function isFunctionOrModuleBlock(node: Node): boolean {
     node.kind === SyntaxKind.ModuleBlock ||
     (node.kind === SyntaxKind.Block && node.parent !== undefined && isFunctionLike(node.parent))
   );
+}
+
+/**
+ * The type of `symbol` at `location`. A destructured variable of a const declaration or unassigned
+ * parameter is narrowed by checks of its siblings: in `const { kind, payload } = action`, testing
+ * `kind` narrows `payload`.
+ */
+export function getNarrowedTypeOfSymbol(c: Checker, symbol: Symbol, location: Node): Type {
+  const t = getTypeOfSymbol(c, symbol);
+  const declaration = symbol.valueDeclaration;
+  if (
+    declaration === undefined ||
+    declaration.kind !== SyntaxKind.BindingElement ||
+    getInitializer(declaration) !== undefined ||
+    (declaration as BindingElement).dotDotDotToken !== undefined ||
+    getElements(declaration.parent!)!.nodes.length < 2
+  )
+    return t;
+  const pattern = declaration.parent!;
+  const parent = pattern.parent!;
+  const rootDeclaration = getRootDeclaration(parent);
+  const isParameter = rootDeclaration.kind === SyntaxKind.Parameter;
+  if (
+    !isParameter &&
+    !(
+      rootDeclaration.kind === SyntaxKind.VariableDeclaration &&
+      (getCombinedNodeFlags(rootDeclaration) & NodeFlags.Constant) !== 0
+    )
+  )
+    return t;
+  const links = c.nodeLinks(parent);
+  if ((links.flags & NodeCheckFlags.InCheckIdentifier) !== 0) return t;
+  links.flags |= NodeCheckFlags.InCheckIdentifier;
+  let result = t;
+  const parentType = getTypeForBindingElementParent(c, parent);
+  const parentTypeConstraint =
+    parentType !== undefined ? mapType(c, parentType, (u) => getBaseConstraintOrType(c, u)) : undefined;
+  if (
+    parentTypeConstraint !== undefined &&
+    (parentTypeConstraint.flags & TypeFlags.Union) !== 0 &&
+    !(isParameter && isSomeSymbolAssigned(c, getName(rootDeclaration)!))
+  ) {
+    const narrowedType = getFlowTypeOfReferenceAt(
+      c,
+      pattern,
+      parentTypeConstraint,
+      parentTypeConstraint,
+      undefined,
+      getFlowNode(location),
+    );
+    // Tuple bounds aren't checked, as the narrowed parent may have fewer elements than the declared one.
+    result =
+      (narrowedType.flags & TypeFlags.Never) !== 0
+        ? c.neverType
+        : getBindingElementTypeFromParentType(c, declaration as BindingElement, narrowedType, true);
+  }
+  links.flags &= ~NodeCheckFlags.InCheckIdentifier;
+  return result;
+}
+
+function isSomeSymbolAssigned(c: Checker, name: Node): boolean {
+  if (name.kind === SyntaxKind.Identifier) {
+    const symbol = getSymbolOfDeclaration(c, name.parent!);
+    return symbol !== undefined && isSymbolAssigned(c, symbol);
+  }
+  return getElements(name)!.nodes.some((e) => {
+    const elementName = getName(e);
+    return elementName !== undefined && isSomeSymbolAssigned(c, elementName);
+  });
 }

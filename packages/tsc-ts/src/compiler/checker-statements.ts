@@ -37,7 +37,10 @@ import {
   checkReferenceExpression,
   checkTestingKnownTruthyType,
   checkTruthinessExpression,
+  isTypeEqualityComparableTo,
 } from './checker-operators.js';
+import { checkTypeComparableTo } from './relations.js';
+import { isReachableFlowNode } from './checker-narrowing.js';
 import { isTypeAssignableToKindEx as isTypeAssignableToKind } from './checker-type-operators.js';
 import { checkSourceElement } from './checker-source-file.js';
 import { checkVariableDeclarationList, checkVariableLikeDeclaration } from './checker-declarations.js';
@@ -200,11 +203,22 @@ function getContainingFunction(node: Node): Node | undefined {
 
 export function checkSwitchStatement(c: Checker, node: Node): void {
   const s = node as SwitchStatement;
-  checkExpression(c, s.expression);
+  const expressionType = checkExpression(c, s.expression);
   for (const clause of s.caseBlock.clauses.nodes) {
     const caseClause = clause as CaseOrDefaultClause;
-    if (caseClause.expression !== undefined) checkExpression(c, caseClause.expression);
+    if (caseClause.expression !== undefined) {
+      const caseType = checkExpression(c, caseClause.expression);
+      // Without equality comparability, the reversed comparison reports the error.
+      if (!isTypeEqualityComparableTo(c, expressionType, caseType))
+        checkTypeComparableTo(c, caseType, expressionType, caseClause.expression, undefined);
+    }
     for (const statement of caseClause.statements.nodes) checkSourceElement(c, statement);
+    if (
+      c.compilerOptions.noFallthroughCasesInSwitch === true &&
+      caseClause.fallthroughFlowNode !== undefined &&
+      isReachableFlowNode(c, caseClause.fallthroughFlowNode)
+    )
+      c.error(clause, Diagnostics.Fallthrough_case_in_switch);
   }
 }
 

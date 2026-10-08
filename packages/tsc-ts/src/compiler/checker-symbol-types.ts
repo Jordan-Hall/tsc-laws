@@ -13,10 +13,10 @@ import {
   getType,
   getBody,
   getSymbol,
+  getMembers,
   getDotDotDotToken,
   getElements,
   getExpression,
-  getMembers,
   getPostfixToken,
   getQuestionToken,
   getText,
@@ -32,7 +32,9 @@ import {
   hasStaticModifier,
   hasSyntacticModifier,
   isCatchClauseVariableDeclarationOrBindingElement,
+  isTypeNodeKind,
 } from './binder-utilities.js';
+import { identifierToKeywordKind } from './scanner.js';
 import { type DiagnosticMessage, Diagnostics } from './diagnostics.js';
 import { CheckFlags, type Symbol, SymbolFlags } from './symbol.js';
 import { SyntaxKind } from './syntax-kind.js';
@@ -72,6 +74,8 @@ import {
   reportCircularityError,
   resolveAlias,
   TypeSystemPropertyName,
+  getGlobalTypeAliasSymbol,
+  resolveName,
 } from './checker-symbols.js';
 import {
   getBaseConstructorTypeOfClass,
@@ -79,7 +83,7 @@ import {
   getDeclaredTypeOfEnumMember,
   getDeclaredTypeOfSymbol,
 } from './checker-declared-types.js';
-import { getTypeFromTypeNode } from './checker-type-nodes.js';
+import { getTypeFromTypeNode, getTypeAliasInstantiation } from './checker-type-nodes.js';
 import {
   getFlowTypeInConstructor,
   getFlowTypeInStaticBlocks,
@@ -108,7 +112,7 @@ import {
 } from './checker-expressions.js';
 import { getTypeForBindingElement, getTypeFromBindingPattern } from './checker-destructuring.js';
 import { checkRightHandSideOfForOf } from './checker-statements.js';
-import { getTypeWithFacts, TypeFacts } from './checker-flow.js';
+import { getTypeWithFacts, TypeFacts, hasTypeFacts, getNonNullableType } from './checker-flow.js';
 import { getTypeOfModuleExportsSymbol, getWidenedTypeForAssignmentDeclaration } from './checker-javascript.js';
 
 export function getTypeOfSymbol(c: Checker, symbol: Symbol): Type {
@@ -311,8 +315,12 @@ export function getTypeForVariableLikeDeclaration(
     const grandParent = declaration.parent!.parent!;
     if (grandParent.kind === SyntaxKind.ForInStatement) {
       // `for (k in x)` declares k as string, or keyof T for generic x.
-      const indexType = getIndexType(c, checkExpressionCached(c, getExpression(grandParent)!));
-      return (indexType.flags & (TypeFlags.TypeParameter | TypeFlags.Index)) !== 0 ? c.stringType : c.stringType;
+      let objectType = checkExpressionCached(c, getExpression(grandParent)!);
+      if (hasTypeFacts(c, objectType, TypeFacts.IsUndefinedOrNull)) objectType = getNonNullableType(c, objectType);
+      const indexType = getIndexType(c, objectType);
+      return (indexType.flags & (TypeFlags.TypeParameter | TypeFlags.Index)) !== 0
+        ? getExtractStringType(c, indexType)
+        : c.stringType;
     }
     if (grandParent.kind === SyntaxKind.ForOfStatement) return checkRightHandSideOfForOf(c, grandParent);
   } else if (declaration.kind === SyntaxKind.BindingElement) return getTypeForBindingElement(c, declaration);
@@ -439,7 +447,7 @@ export function widenTypeForVariableLikeDeclaration(
   return result;
 }
 
-function declarationBelongsToPrivateAmbientMember(declaration: Node): boolean {
+export function declarationBelongsToPrivateAmbientMember(declaration: Node): boolean {
   const root = getRootDeclaration(declaration);
   const member = root.kind === SyntaxKind.Parameter ? root.parent! : root;
   return isPrivateWithinAmbient(member);
@@ -475,6 +483,33 @@ export function reportImplicitAny(c: Checker, declaration: Node, t: Type): void 
       break;
     case SyntaxKind.Parameter: {
       const isRest = getDotDotDotToken(declaration) !== undefined;
+      // `(string) => void` most likely meant a parameter of type `string`.
+      const name = getName(declaration);
+      const parent = declaration.parent!;
+      if (
+        name !== undefined &&
+        name.kind === SyntaxKind.Identifier &&
+        (parent.kind === SyntaxKind.CallSignature ||
+          parent.kind === SyntaxKind.MethodSignature ||
+          parent.kind === SyntaxKind.FunctionType)
+      ) {
+        const index = getParameters(parent)!.nodes.indexOf(declaration);
+        const text = getText(name);
+        if (
+          index >= 0 &&
+          (isTypeNodeKind(identifierToKeywordKind(text)) ||
+            resolveName(c, declaration, text, SymbolFlags.Type, undefined, true, false) !== undefined)
+        ) {
+          c.addErrorOrSuggestion(
+            c.noImplicitAny,
+            createDiagnosticForNode(declaration, Diagnostics.Parameter_has_a_name_but_no_type_Did_you_mean_0_Colon_1, [
+              'arg' + index,
+              declarationNameToString(file, name) + (isRest ? '[]' : ''),
+            ]),
+          );
+          return;
+        }
+      }
       if (isRest)
         message = c.noImplicitAny
           ? Diagnostics.Rest_parameter_0_implicitly_has_an_any_type
@@ -911,3 +946,9 @@ function getTypeOfPrototypeProperty(c: Checker, prototype: Symbol): Type {
 
 export { getDeclarationOfAliasSymbol, filterType, hasStaticModifier };
 export type { UnionType };
+
+/** `Extract<t, string>`, or string without the global `Extract`. */
+export function getExtractStringType(c: Checker, t: Type): Type {
+  const extract = getGlobalTypeAliasSymbol(c, 'Extract', 2, true);
+  return extract !== undefined ? getTypeAliasInstantiation(c, extract, [t, c.stringType], undefined) : c.stringType;
+}

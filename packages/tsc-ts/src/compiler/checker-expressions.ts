@@ -186,12 +186,14 @@ import {
   isPastLastAssignment,
   isSymbolAssignedDefinitely,
   getFlowTypeOfReference,
+  getNarrowedTypeOfSymbol,
 } from './checker-narrowing.js';
 import { getFlowTypeOfAutoTypedProperty, getThisTypeOfAssignedFunction } from './checker-javascript.js';
 import { getThisTypeOfObjectLiteralMember } from './checker-contextual.js';
 
 import { ContextFlags, getInferenceContext, instantiateContextualType } from './checker-contextual.js';
 import { addIntraExpressionInferenceSite } from './checker-inference.js';
+import { isContextSensitiveFunctionOrObjectLiteralMethod } from './checker-contextual.js';
 import { checkTypeRelatedToAndOptionallyElaborate } from './checker-elaboration.js';
 import { isContextSensitive } from './checker-functions.js';
 import { getSignatureOfFullSignatureType } from './checker-jsdoc.js';
@@ -443,7 +445,7 @@ export function checkIdentifier(c: Checker, node: Identifier): Type {
     isDescendantOf(node, declaration.parent!)
   )
     return c.nonInferrableAnyType;
-  let t = getNarrowableTypeForReference(c, getTypeOfSymbol(c, localOrExportSymbol), node);
+  let t = getNarrowableTypeForReference(c, getNarrowedTypeOfSymbol(c, localOrExportSymbol, node), node);
   const assignmentKind = getAssignmentTargetKind(node);
   if (assignmentKind !== AssignmentKind.None) {
     if ((localOrExportSymbol.flags & SymbolFlags.Variable) === 0) {
@@ -705,17 +707,10 @@ function tryGetThisTypeAt(c: Checker, node: Node, container: Node): Type | undef
 /** The `this` type of a function expression or method from its context, such as its object literal. */
 export function getContextualThisParameterType(c: Checker, func: Node): Type | undefined {
   if (func.kind === SyntaxKind.ArrowFunction) return undefined;
-  if (
-    func.kind !== SyntaxKind.FunctionExpression &&
-    func.kind !== SyntaxKind.MethodDeclaration &&
-    func.kind !== SyntaxKind.GetAccessor &&
-    func.kind !== SyntaxKind.SetAccessor
-  )
-    return undefined;
-  const signature = getContextualSignatureForFunctionLikeDeclaration(c, func);
-  if (signature !== undefined) {
-    const thisType = getThisTypeOfSignature(c, signature);
-    if (thisType !== undefined) return thisType;
+  if (isContextSensitiveFunctionOrObjectLiteralMethod(c, func)) {
+    const signature = getContextualSignatureForFunctionLikeDeclaration(c, func);
+    if (signature !== undefined && signature.thisParameter !== undefined)
+      return getTypeOfSymbol(c, signature.thisParameter);
   }
   if (!c.noImplicitThis && !isInJSFile(func)) return undefined;
   const literal = getContainingObjectLiteral(func);
