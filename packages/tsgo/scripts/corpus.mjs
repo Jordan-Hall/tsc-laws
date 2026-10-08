@@ -8,6 +8,7 @@ import { readdirSync, statSync, writeFileSync } from 'node:fs';
 import { spawn, spawnSync } from 'node:child_process';
 import { availableParallelism } from 'node:os';
 import { join, resolve } from 'node:path';
+import { isCheckedJs } from '../tests/cases.mjs';
 import { tempDir } from '../tests/temp.mjs';
 
 const args = process.argv.slice(2);
@@ -18,12 +19,14 @@ const suites = args.filter((a, i) => !a.startsWith('--') && args[i - 1] !== '--j
 const libs = resolve('../../upstream/typescript-go/internal/bundled/libs');
 const work = tempDir('tsc-ts-corpus-');
 
+// TypeScript files, without .tsx: the oracle checks those with JSX options the translated checker
+// doesn't support.
 function files(dir) {
   const out = [];
   for (const name of readdirSync(dir)) {
     const path = join(dir, name);
     if (statSync(path).isDirectory()) out.push(...files(path));
-    else if (/\.tsx?$/.test(name)) out.push(path);
+    else if (name.endsWith('.ts')) out.push(path);
   }
   return out.sort();
 }
@@ -79,7 +82,7 @@ async function runAll(command, list) {
 
 let failed = false;
 for (const suite of suites.length ? suites : ['compiler', 'conformance']) {
-  const list = files(resolve('../../upstream/TypeScript/tests/cases', suite));
+  const list = files(resolve('../../upstream/TypeScript/tests/cases', suite)).filter((f) => !isCheckedJs(f));
   const [expected, actual] = await Promise.all([runAll([resolve('dist/check-oracle')], list), runAll(check, list)]);
   const differ = list.filter(
     (f) => expected.has(f) && JSON.stringify(expected.get(f)) !== JSON.stringify(actual.get(f)),
