@@ -74,6 +74,7 @@ function joined(texts) {
   // Invisible control and bidirectional formatting characters are escaped so the
   // generated source shows them.
   return JSON.stringify(texts.join(separator)).replace(
+    // oxlint-disable-next-line no-control-regex -- matching these characters is the point
     /[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]/g,
     (c) => '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0'),
   );
