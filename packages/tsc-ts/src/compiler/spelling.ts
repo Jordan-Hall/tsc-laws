@@ -1,4 +1,4 @@
-function codePoints(text: string): number[] {
+export function codePoints(text: string): number[] {
   const result: number[] = [];
   for (let i = 0; i < text.length;) {
     const ch = text.codePointAt(i)!;
@@ -15,7 +15,7 @@ function toLower(ch: number): number {
 }
 
 // Levenshtein distance where a case-only substitution costs 0.1; -1 if above `max`.
-function levenshteinWithMax(s1: number[], s2: number[], max: number): number {
+export function levenshteinWithMax(s1: number[], s2: number[], max: number): number {
   let previous: number[] = [];
   let current: number[] = [];
   for (let i = 0; i <= s2.length; i++) {

@@ -175,6 +175,8 @@ export abstract class Node {
   /** JSDoc comments attached by the parser (eagerly in JS files, on demand in TS files). */
   /** `JSDoc` nodes. */
   jsDoc: Node[] | undefined;
+  /** Assigned on first use by `getNodeId`; 0 until then. */
+  id: number;
 
   constructor(kind: SyntaxKind) {
     this.kind = kind;
@@ -183,6 +185,7 @@ export abstract class Node {
     this.end = -1;
     this.parent = undefined;
     this.jsDoc = undefined;
+    this.id = 0;
   }
 
   /** Calls `visitor` for each child in order; returns `true` if the visitor stopped. */
@@ -190,6 +193,18 @@ export abstract class Node {
 
   /** A copy of this subtree with the same positions and flags; parents are not set. */
   abstract deepClone(): Node;
+}
+
+let nextNodeId = 0;
+
+/** A program-wide id, assigned to each node when first requested. */
+export function getNodeId(node: Node): number {
+  let id = node.id;
+  if (id === 0) {
+    id = ++nextNodeId;
+    node.id = id;
+  }
+  return id;
 }
 
 /** A list of child nodes with its own text range. */

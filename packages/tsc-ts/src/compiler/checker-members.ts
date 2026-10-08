@@ -1,0 +1,1606 @@
+// Members of types: resolving properties, signatures and index infos of object, union and
+// intersection types; apparent types, reduced types and base constraints.
+import type { Node } from './ast.js';
+import { getCombinedModifierFlags } from './binder-utilities.js';
+import { Diagnostics } from './diagnostics.js';
+import { ModifierFlags, getSymbol, MappedTypeNode, getName } from './ast.js';
+import { CheckFlags, InternalSymbolName, type Symbol, SymbolFlags, type SymbolTable } from './symbol.js';
+import { SyntaxKind } from './syntax-kind.js';
+import type { Checker } from './checker.js';
+import {
+  CompositeSignature,
+  ElementFlags,
+  IndexInfo,
+  type IndexType,
+  type IndexedAccessType,
+  type InterfaceType,
+  type IntersectionType,
+  type MappedType,
+  ObjectFlags,
+  type ObjectType,
+  type Signature,
+  SignatureFlags,
+  SignatureKind,
+  type StringMappingType,
+  type StructuredType,
+  type TemplateLiteralType,
+  Ternary,
+  type Type,
+  TypeFlags,
+  type TypeMapper,
+  type TypeParameter,
+  type TypeReference,
+  type UnionOrIntersectionType,
+  type UnionType,
+  emptyIndexInfos,
+  emptySignatures,
+  emptySymbols,
+  emptyTypes,
+  newTypeMapper,
+  prependTypeMapping,
+  LiteralType,
+} from './checker-types.js';
+import {
+  UnionReduction,
+  createArrayTypeEx,
+  createTupleTypeEx,
+  createTypeReference,
+  everyType,
+  getElementTypes,
+  getIntersectionType,
+  getStringLiteralType,
+  getTemplateLiteralType,
+  getTypeArguments,
+  getUnionOrIntersectionType,
+  getUnionType,
+  getUnionTypeEx,
+  isArrayOrTupleType,
+  isErrorType,
+  isGenericTupleType,
+  isLiteralType,
+  isPatternLiteralType,
+  isReadonlyArrayType,
+  isTupleType,
+  mapType,
+  setStructuredTypeMembers,
+  someType,
+  tupleTargetOf,
+  typesOf,
+} from './checker-type-factory.js';
+import { getRestTypeOfTupleType, mappedTypeTarget } from './checker-type-operators.js';
+import { isAmbientModule } from './ast-utilities.js';
+import {
+  getExportsOfSymbol,
+  getLateBoundSymbol,
+  getMembersOfSymbol,
+  getMergedSymbol,
+  getSymbolOfDeclaration,
+  popTypeResolution,
+  pushTypeResolution,
+  symbolIsValue,
+  TypeSystemPropertyName,
+} from './checker-symbols.js';
+import {
+  getBaseConstructorTypeOfClass,
+  getBaseTypes,
+  getConstraintDeclaration,
+  getConstraintFromTypeParameter,
+  getDeclaredTypeOfClassOrInterface,
+  getDeclaredTypeOfSymbol,
+  getLocalTypeParametersOfClassOrInterfaceOrTypeAlias,
+  isMixinConstructorType,
+} from './checker-declared-types.js';
+import { getTypeOfSymbol, getWriteTypeOfSymbol, isReadonlySymbol } from './checker-symbol-types.js';
+import { getTypeFromTypeNode } from './checker-type-nodes.js';
+import {
+  instantiateIndexInfos,
+  instantiateSignatures,
+  instantiateSymbol,
+  instantiateType,
+  instantiateTypes,
+} from './instantiation.js';
+import {
+  compareProperties,
+  compareSignaturesIdentical,
+  compareTypesEqual,
+  compareTypesIdentical,
+  compareTypesSubtypeOf,
+  getRecursionIdentity,
+  isTypeAssignableTo,
+  type RecursionId,
+} from './relations.js';
+import { typeToString } from './type-printer.js';
+import {
+  cloneSignature,
+  createSignatureInstantiation,
+  getDefaultConstructSignatures,
+  getIndexInfosOfIndexSymbol,
+  getMinArgumentCount,
+  getParameterCount,
+  getParameterNameAtPosition,
+  getReturnTypeOfSignature,
+  getSignaturesOfSymbol,
+  getTypeAtPosition,
+  hasEffectiveRestParameter,
+  tryGetTypeAtPosition,
+} from './checker-signatures.js';
+import {
+  getConstraintFromConditionalType,
+  getHomomorphicTypeVariable,
+  getIndexForMappedType,
+  getIndexedAccessTypeOrUndefined,
+  getModifiersTypeFromMappedType,
+  getNameTypeFromMappedType,
+  getSimplifiedType,
+  getStringMappingType,
+  getSubstitutionIntersection,
+  isGenericMappedType,
+  isMappedTypeGenericIndexedAccess,
+  isMappedTypeWithKeyofConstraintDeclaration,
+  resolveMappedTypeMembers,
+  resolveReverseMappedTypeMembers,
+  substituteIndexedMappedType,
+} from './checker-type-operators.js';
+import { getGlobalBigIntType, getGlobalESSymbolType } from './checker-globals.js';
+import { isLateBoundName, isNumericLiteralName } from './checker-utilities.js';
+
+// ---- Resolution
+
+export function resolveStructuredTypeMembers(c: Checker, t: Type): StructuredType {
+  if ((t.objectFlags & ObjectFlags.MembersResolved) === 0) {
+    if ((t.flags & TypeFlags.Object) !== 0) {
+      const objectFlags = t.objectFlags;
+      if ((objectFlags & ObjectFlags.Reference) !== 0) resolveTypeReferenceMembers(c, t as TypeReference);
+      else if ((objectFlags & ObjectFlags.ClassOrInterface) !== 0)
+        resolveObjectTypeMembers(c, t as StructuredType, t as InterfaceType, emptyTypes, emptyTypes);
+      else if ((objectFlags & ObjectFlags.ReverseMapped) !== 0) resolveReverseMappedTypeMembers(c, t);
+      else if ((objectFlags & ObjectFlags.Anonymous) !== 0) resolveAnonymousTypeMembers(c, t as ObjectType);
+      else if ((objectFlags & ObjectFlags.Mapped) !== 0) resolveMappedTypeMembers(c, t as MappedType);
+    } else if ((t.flags & TypeFlags.Union) !== 0) resolveUnionTypeMembers(c, t as UnionType);
+    else if ((t.flags & TypeFlags.Intersection) !== 0) resolveIntersectionTypeMembers(c, t as IntersectionType);
+  }
+  return t as StructuredType;
+}
+
+function resolveTypeReferenceMembers(c: Checker, t: TypeReference): void {
+  const source = t.target as InterfaceType;
+  const typeParameters = source.allTypeParameters;
+  const typeArguments = getTypeArguments(c, t);
+  let padded = typeArguments;
+  if (typeArguments.length === typeParameters.length - 1) {
+    // The reference itself is the `this` type argument.
+    padded = typeArguments.slice();
+    padded.push(t as Type);
+  }
+  resolveObjectTypeMembers(c, t, source, typeParameters, padded);
+}
+
+function sameTypes(a: readonly Type[], b: readonly Type[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
+}
+
+function resolveObjectTypeMembers(
+  c: Checker,
+  t: StructuredType,
+  source: InterfaceType,
+  typeParameters: Type[],
+  typeArguments: Type[],
+): void {
+  resolveDeclaredMembers(c, source);
+  let mapper: TypeMapper | undefined;
+  let members: SymbolTable | undefined;
+  let callSignatures: Signature[];
+  let constructSignatures: Signature[];
+  let indexInfos: IndexInfo[];
+  let instantiated = false;
+  if (sameTypes(typeParameters, typeArguments)) {
+    members = source.declaredMembers;
+    callSignatures = source.declaredCallSignatures;
+    constructSignatures = source.declaredConstructSignatures;
+    indexInfos = source.declaredIndexInfos;
+  } else {
+    instantiated = true;
+    mapper = newTypeMapper(typeParameters, typeArguments);
+    members = instantiateSymbolTable(c, source.declaredMembers, mapper);
+    callSignatures = instantiateSignatures(c, source.declaredCallSignatures, mapper);
+    constructSignatures = instantiateSignatures(c, source.declaredConstructSignatures, mapper);
+    indexInfos = instantiateIndexInfos(c, source.declaredIndexInfos, mapper);
+  }
+  const baseTypes = getBaseTypes(c, source);
+  if (baseTypes.length !== 0) {
+    members = !instantiated || members === undefined ? new Map(members ?? []) : members;
+    setStructuredTypeMembers(c, t, members, callSignatures, constructSignatures, indexInfos);
+    const thisArgument = typeArguments.length !== 0 ? typeArguments[typeArguments.length - 1] : undefined;
+    t.objectFlags |= ObjectFlags.UnresolvedMembers;
+    for (const baseType of baseTypes) {
+      const instantiatedBaseType =
+        thisArgument !== undefined
+          ? getTypeWithThisArgument(c, instantiateType(c, baseType, mapper), thisArgument, false)
+          : baseType;
+      addInheritedMembers(members, getPropertiesOfType(c, instantiatedBaseType));
+      callSignatures = callSignatures.concat(getSignaturesOfType(c, instantiatedBaseType, SignatureKind.Call));
+      constructSignatures = constructSignatures.concat(
+        getSignaturesOfType(c, instantiatedBaseType, SignatureKind.Construct),
+      );
+      const inherited =
+        instantiatedBaseType !== c.anyType ? getIndexInfosOfType(c, instantiatedBaseType) : [c.anyBaseTypeIndexInfo];
+      const added: IndexInfo[] = [];
+      for (const info of inherited) if (findIndexInfo(indexInfos, info.keyType) === undefined) added.push(info);
+      if (added.length !== 0) indexInfos = indexInfos.concat(added);
+    }
+    t.objectFlags &= ~ObjectFlags.UnresolvedMembers;
+  }
+  setStructuredTypeMembers(c, t, members, callSignatures, constructSignatures, indexInfos);
+}
+
+export function findIndexInfo(indexInfos: readonly IndexInfo[], keyType: Type): IndexInfo | undefined {
+  for (const info of indexInfos) if (info.keyType === keyType) return info;
+  return undefined;
+}
+
+export function resolveDeclaredMembers(c: Checker, t: InterfaceType): InterfaceType {
+  if (!t.declaredMembersResolved) {
+    const members = getMembersOfSymbol(c, t.symbol!);
+    t.declaredMembersResolved = true;
+    t.declaredMembers = members;
+    t.declaredCallSignatures = getSignaturesOfSymbol(c, members.get(InternalSymbolName.Call));
+    t.declaredConstructSignatures = getSignaturesOfSymbol(c, members.get(InternalSymbolName.New));
+    t.declaredIndexInfos = getIndexInfosOfSymbol(c, t.symbol!);
+  }
+  return t;
+}
+
+export function getIndexSymbol(c: Checker, symbol: Symbol): Symbol | undefined {
+  return getMembersOfSymbol(c, symbol).get(InternalSymbolName.Index);
+}
+
+export function getIndexInfosOfSymbol(c: Checker, symbol: Symbol): IndexInfo[] {
+  const indexSymbol = getIndexSymbol(c, symbol);
+  if (indexSymbol === undefined) return emptyIndexInfos;
+  return getIndexInfosOfIndexSymbol(c, indexSymbol, [...getMembersOfSymbol(c, symbol).values()]);
+}
+
+function isStaticPrivateIdentifierProperty(symbol: Symbol): boolean {
+  const d = symbol.valueDeclaration;
+  if (d === undefined) return false;
+  const name = getName(d);
+  return (
+    name !== undefined &&
+    name.kind === SyntaxKind.PrivateIdentifier &&
+    (getCombinedModifierFlags(d) & ModifierFlags.Static) !== 0
+  );
+}
+
+export function addInheritedMembers(symbols: SymbolTable, baseSymbols: readonly Symbol[]): void {
+  for (const base of baseSymbols) {
+    if (isStaticPrivateIdentifierProperty(base)) continue;
+    const existing = symbols.get(base.name);
+    if (existing === undefined || (existing.flags & SymbolFlags.Value) === 0) symbols.set(base.name, base);
+  }
+}
+
+export function instantiateSymbolTable(
+  c: Checker,
+  symbols: SymbolTable | undefined,
+  mapper: TypeMapper,
+): SymbolTable | undefined {
+  if (symbols === undefined || symbols.size === 0) return undefined;
+  const result = new Map<string, Symbol>();
+  for (const [id, symbol] of symbols)
+    if (isNamedMember(c, symbol, id)) result.set(id, instantiateSymbol(c, symbol, mapper));
+  return result;
+}
+
+function isNamedMember(c: Checker, symbol: Symbol, id: string): boolean {
+  if (id.length >= 2 && id.charCodeAt(0) === 0xfffe) {
+    const second = id.charCodeAt(1);
+    if (second !== 0x40 && second !== 0x23) return false;
+  }
+  return symbolIsValue(c, symbol);
+}
+
+function createInstantiatedSymbolTable(
+  c: Checker,
+  symbols: readonly Symbol[],
+  mapper: TypeMapper | undefined,
+): SymbolTable | undefined {
+  if (symbols.length === 0) return undefined;
+  const result = new Map<string, Symbol>();
+  for (const symbol of symbols)
+    result.set(symbol.name, mapper !== undefined ? instantiateSymbol(c, symbol, mapper) : symbol);
+  return result;
+}
+
+function resolveAnonymousTypeMembers(c: Checker, t: ObjectType): void {
+  if (t.target !== undefined) {
+    setStructuredTypeMembers(c, t, undefined, emptySignatures, emptySignatures, emptyIndexInfos);
+    const target = t.target;
+    const members = createInstantiatedSymbolTable(c, getPropertiesOfObjectType(c, target), t.mapper);
+    const callSignatures = instantiateSignatures(c, getSignaturesOfType(c, target, SignatureKind.Call), t.mapper!);
+    const constructSignatures = instantiateSignatures(
+      c,
+      getSignaturesOfType(c, target, SignatureKind.Construct),
+      t.mapper!,
+    );
+    const indexInfos = instantiateIndexInfos(c, getIndexInfosOfType(c, target), t.mapper!);
+    setStructuredTypeMembers(c, t, members, callSignatures, constructSignatures, indexInfos);
+    return;
+  }
+  const symbol = getMergedSymbol(c, t.symbol!);
+  if ((symbol.flags & SymbolFlags.TypeLiteral) !== 0) {
+    setStructuredTypeMembers(c, t, undefined, emptySignatures, emptySignatures, emptyIndexInfos);
+    const members = getMembersOfSymbol(c, symbol);
+    const callSignatures = getSignaturesOfSymbol(c, members.get(InternalSymbolName.Call));
+    const constructSignatures = getSignaturesOfSymbol(c, members.get(InternalSymbolName.New));
+    const indexInfos = getIndexInfosOfSymbol(c, symbol);
+    setStructuredTypeMembers(c, t, members, callSignatures, constructSignatures, indexInfos);
+    return;
+  }
+  // Combinations of function, class, enum and module.
+  let members = getExportsOfSymbol(c, symbol);
+  if (symbol === c.globalThisSymbol) {
+    const varsOnly = new Map<string, Symbol>();
+    for (const p of members.values()) {
+      if ((p.flags & SymbolFlags.BlockScoped) !== 0) continue;
+      if (
+        (p.flags & SymbolFlags.ValueModule) !== 0 &&
+        p.declarations.length !== 0 &&
+        p.declarations.every(isAmbientModuleDeclaration)
+      )
+        continue;
+      varsOnly.set(p.name, p);
+    }
+    members = varsOnly;
+  }
+  let baseConstructorIndexInfo: IndexInfo | undefined;
+  setStructuredTypeMembers(c, t, members, emptySignatures, emptySignatures, emptyIndexInfos);
+  if ((symbol.flags & SymbolFlags.Class) !== 0) {
+    const classType = getDeclaredTypeOfClassOrInterface(c, symbol);
+    const baseConstructorType = getBaseConstructorTypeOfClass(c, classType);
+    if ((baseConstructorType.flags & (TypeFlags.Object | TypeFlags.Intersection | TypeFlags.TypeVariable)) !== 0) {
+      members = new Map(members);
+      addInheritedMembers(members, getPropertiesOfType(c, baseConstructorType));
+      setStructuredTypeMembers(c, t, members, emptySignatures, emptySignatures, emptyIndexInfos);
+    } else if (baseConstructorType === c.anyType) baseConstructorIndexInfo = c.anyBaseTypeIndexInfo;
+  }
+  let indexInfos: IndexInfo[] = [];
+  const indexSymbol = members.get(InternalSymbolName.Index);
+  if (indexSymbol !== undefined) indexInfos = getIndexInfosOfIndexSymbol(c, indexSymbol, [...members.values()]);
+  else {
+    if (baseConstructorIndexInfo !== undefined) indexInfos.push(baseConstructorIndexInfo);
+    if ((symbol.flags & SymbolFlags.Enum) !== 0) {
+      let numberLike = (getDeclaredTypeOfSymbol(c, symbol).flags & TypeFlags.Enum) !== 0;
+      if (!numberLike)
+        for (const prop of t.properties)
+          if ((getTypeOfSymbol(c, prop).flags & TypeFlags.NumberLike) !== 0) {
+            numberLike = true;
+            break;
+          }
+      if (numberLike) indexInfos.push(c.enumNumberIndexInfo);
+    }
+  }
+  t.indexInfos = indexInfos;
+  // Members are resolved before signatures, which may use `typeof` on this type (#6072).
+  if ((symbol.flags & (SymbolFlags.Function | SymbolFlags.Method)) !== 0)
+    t.callSignatures = getSignaturesOfSymbol(c, symbol);
+  if ((symbol.flags & SymbolFlags.Class) !== 0) {
+    const classType = getDeclaredTypeOfClassOrInterface(c, symbol);
+    let constructSignatures = getSignaturesOfSymbol(c, symbol.members?.get(InternalSymbolName.Constructor));
+    if (constructSignatures.length === 0) constructSignatures = getDefaultConstructSignatures(c, classType);
+    t.constructSignatures = constructSignatures;
+  }
+}
+
+function isAmbientModuleDeclaration(node: Node): boolean {
+  return node.kind === SyntaxKind.ModuleDeclaration && isAmbientModule(node);
+}
+
+function resolveUnionTypeMembers(c: Checker, t: UnionType): void {
+  // Members and properties are empty for unions; getPropertiesOfType computes them.
+  const callLists: Signature[][] = [];
+  const constructLists: Signature[][] = [];
+  for (const u of t.types) {
+    callLists.push(u === c.globalFunctionType ? [c.unknownSignature] : getSignaturesOfType(c, u, SignatureKind.Call));
+    constructLists.push(getSignaturesOfType(c, u, SignatureKind.Construct));
+  }
+  let callSignatures = getUnionSignatures(c, callLists);
+  if (callSignatures.length === 0) callSignatures = getArrayMemberCallSignatures(c, t);
+  const constructSignatures = getUnionSignatures(c, constructLists);
+  const indexInfos = getUnionIndexInfos(c, t.types);
+  setStructuredTypeMembers(c, t, undefined, callSignatures, constructSignatures, indexInfos);
+}
+
+function getArrayMemberCallSignatures(c: Checker, t: UnionType): Signature[] {
+  // A union of instantiations of one Array or ReadonlyArray member: `(A[] | B[])["m"]` is `(A | B)[]["m"]`.
+  let memberName = '';
+  for (let i = 0; i < t.types.length; i++) {
+    const u = t.types[i];
+    if (
+      (u.objectFlags & ObjectFlags.Instantiated) === 0 ||
+      u.symbol === undefined ||
+      u.symbol.parent === undefined ||
+      !isArrayOrTupleSymbol(c, u.symbol.parent)
+    )
+      return emptySignatures;
+    if (i === 0) memberName = u.symbol.name;
+    else if (memberName !== u.symbol.name) return emptySignatures;
+  }
+  const arrayArg = mapType(c, t, (u) => {
+    const generic = isReadonlyArraySymbol(c, u.symbol!.parent!) ? c.globalReadonlyArrayType : c.globalArrayType;
+    return (u as ObjectType).mapper!.map((generic as InterfaceType).typeParameters()[0]);
+  });
+  const arrayType = createArrayTypeEx(
+    c,
+    arrayArg,
+    someType(t, (u) => isReadonlyArraySymbol(c, u.symbol!.parent!)),
+  );
+  const memberType = getTypeOfPropertyOfType(c, arrayType, memberName);
+  return memberType !== undefined ? getSignaturesOfType(c, memberType, SignatureKind.Call) : emptySignatures;
+}
+
+function isArrayOrTupleSymbol(c: Checker, symbol: Symbol): boolean {
+  if (c.globalArrayType.symbol === undefined || c.globalReadonlyArrayType.symbol === undefined) return false;
+  return (
+    sameReference(c, symbol, c.globalArrayType.symbol) || sameReference(c, symbol, c.globalReadonlyArrayType.symbol)
+  );
+}
+
+function isReadonlyArraySymbol(c: Checker, symbol: Symbol): boolean {
+  return c.globalReadonlyArrayType.symbol !== undefined && sameReference(c, symbol, c.globalReadonlyArrayType.symbol);
+}
+
+function sameReference(c: Checker, s1: Symbol, s2: Symbol): boolean {
+  return getMergedSymbol(c, s1) === getMergedSymbol(c, s2);
+}
+
+/**
+ * The signatures present in every constituent: generic ones must match exactly; others may have
+ * extra optional parameters and differing return types, which are unioned.
+ */
+export function getUnionSignatures(c: Checker, signatureLists: Signature[][]): Signature[] {
+  let result: Signature[] | undefined;
+  let indexWithLengthOverOne = 0;
+  let countLengthOverOne = 0;
+  for (let i = 0; i < signatureLists.length; i++) {
+    const list = signatureLists[i];
+    if (list.length === 0) return emptySignatures;
+    if (list.length > 1) {
+      indexWithLengthOverOne = i;
+      countLengthOverOne++;
+    }
+    for (const signature of list) {
+      if (result !== undefined && findMatchingSignature(c, result, signature, false, false, true) !== undefined)
+        continue;
+      const unionSignatures = findMatchingSignatures(c, signatureLists, signature, i);
+      if (unionSignatures === undefined) continue;
+      let s = signature;
+      if (unionSignatures.length > 1) {
+        let thisParameter = signature.thisParameter;
+        let firstThisParameter: Symbol | undefined;
+        for (const sig of unionSignatures)
+          if (sig.thisParameter !== undefined) {
+            firstThisParameter = sig.thisParameter;
+            break;
+          }
+        if (firstThisParameter !== undefined) {
+          const thisTypes: Type[] = [];
+          for (const sig of unionSignatures)
+            if (sig.thisParameter !== undefined) thisTypes.push(getTypeOfSymbol(c, sig.thisParameter));
+          thisParameter = createSymbolWithType(c, firstThisParameter, getIntersectionType(c, thisTypes));
+        }
+        s = createUnionSignature(c, signature, unionSignatures);
+        s.thisParameter = thisParameter;
+      }
+      if (result === undefined) result = [];
+      result.push(s);
+    }
+  }
+  if ((result === undefined || result.length === 0) && countLengthOverOne <= 1) {
+    // One constituent has overloads: try a single signature that handles all of them.
+    const masterList = signatureLists[indexWithLengthOverOne];
+    let results: Signature[] | undefined = masterList.slice();
+    for (const signatures of signatureLists) {
+      if (signatures === masterList) continue;
+      const signature = signatures[0];
+      if (
+        signature.typeParameters.length !== 0 &&
+        results.some(
+          (s) =>
+            s.typeParameters.length !== 0 &&
+            !compareTypeParametersIdentical(c, signature.typeParameters, s.typeParameters),
+        )
+      )
+        results = undefined;
+      else results = results.map((sig) => combineUnionOrIntersectionMemberSignatures(c, sig, signature, true));
+      if (results === undefined) break;
+    }
+    result = results;
+  }
+  return result ?? emptySignatures;
+}
+
+function findMatchingSignatures(
+  c: Checker,
+  signatureLists: Signature[][],
+  signature: Signature,
+  listIndex: number,
+): Signature[] | undefined {
+  if (signature.typeParameters.length !== 0) {
+    // Generic signatures need exact matches in the other lists.
+    if (listIndex > 0) return undefined;
+    for (let i = 1; i < signatureLists.length; i++)
+      if (findMatchingSignature(c, signatureLists[i], signature, false, false, false) === undefined) return undefined;
+    return [signature];
+  }
+  const result: Signature[] = [];
+  for (let i = 0; i < signatureLists.length; i++) {
+    const match =
+      i === listIndex
+        ? signature
+        : (findMatchingSignature(c, signatureLists[i], signature, false, false, true) ??
+          findMatchingSignature(c, signatureLists[i], signature, true, false, true));
+    if (match === undefined) return undefined;
+    if (!result.includes(match)) result.push(match);
+  }
+  return result;
+}
+
+export function findMatchingSignature(
+  c: Checker,
+  signatureList: readonly Signature[],
+  signature: Signature,
+  partialMatch: boolean,
+  ignoreThisTypes: boolean,
+  ignoreReturnTypes: boolean,
+): Signature | undefined {
+  for (const s of signatureList)
+    if (
+      compareSignaturesIdentical(
+        c,
+        s,
+        signature,
+        partialMatch,
+        ignoreThisTypes,
+        ignoreReturnTypes,
+        partialMatch ? compareTypesSubtypeOf : compareTypesIdentical,
+      ) !== Ternary.False
+    )
+      return s;
+  return undefined;
+}
+
+function compareTypeParametersIdentical(c: Checker, sourceParams: Type[], targetParams: Type[]): boolean {
+  if (sourceParams.length !== targetParams.length) return false;
+  const mapper = newTypeMapper(targetParams, sourceParams);
+  for (let i = 0; i < sourceParams.length; i++) {
+    const source = sourceParams[i];
+    const target = targetParams[i];
+    if (source === target) continue;
+    // A type parameter matches another one with an identical (instantiated) constraint.
+    const sourceConstraint = getConstraintFromTypeParameter(c, source) ?? c.unknownType;
+    const targetConstraint = getConstraintFromTypeParameter(c, target);
+    if (
+      !compareTypesIdenticalBool(
+        c,
+        sourceConstraint,
+        targetConstraint !== undefined ? instantiateType(c, targetConstraint, mapper) : c.unknownType,
+      )
+    )
+      return false;
+  }
+  return true;
+}
+
+function compareTypesIdenticalBool(c: Checker, s: Type, t: Type): boolean {
+  return compareTypesIdentical(c, s, t) !== Ternary.False;
+}
+
+function createUnionSignature(c: Checker, sig: Signature, unionSignatures: Signature[]): Signature {
+  const result = cloneSignature(c, sig);
+  result.composite = new CompositeSignature(true, unionSignatures);
+  result.target = undefined;
+  result.mapper = undefined;
+  return result;
+}
+
+export function combineUnionOrIntersectionMemberSignatures(
+  c: Checker,
+  left: Signature,
+  right: Signature,
+  isUnion: boolean,
+): Signature {
+  const typeParams = left.typeParameters.length !== 0 ? left.typeParameters : right.typeParameters;
+  // Use the type parameter defaults from the first signature.
+  const paramMapper =
+    left.typeParameters.length !== 0 && right.typeParameters.length !== 0
+      ? newTypeMapper(right.typeParameters, left.typeParameters)
+      : undefined;
+  let flags = (left.flags | right.flags) & (SignatureFlags.PropagatingFlags & ~SignatureFlags.HasRestParameter);
+  const params = combineUnionOrIntersectionParameters(c, left, right, paramMapper, isUnion);
+  const lastParam = params.length !== 0 ? params[params.length - 1] : undefined;
+  if (lastParam !== undefined && (lastParam.checkFlags & CheckFlags.RestParameter) !== 0)
+    flags |= SignatureFlags.HasRestParameter;
+  const thisParam = combineUnionOrIntersectionThisParam(
+    c,
+    left.thisParameter,
+    right.thisParameter,
+    paramMapper,
+    isUnion,
+  );
+  const minArgCount = Math.max(left.minArgumentCount, right.minArgumentCount);
+  const result = c.newSignature(flags, left.declaration, typeParams, thisParam, params, undefined, minArgCount);
+  const leftSignatures = left.composite !== undefined && left.composite.isUnion ? left.composite.signatures : [left];
+  result.composite = new CompositeSignature(isUnion, leftSignatures.concat([right]));
+  if (paramMapper !== undefined) {
+    result.mapper =
+      left.composite !== undefined && left.composite.isUnion === isUnion && left.mapper !== undefined
+        ? combineMappers(c, left.mapper, paramMapper)
+        : paramMapper;
+  } else if (left.composite !== undefined && left.composite.isUnion === isUnion) result.mapper = left.mapper;
+  return result;
+}
+
+import { combineTypeMappers as combineMappers } from './instantiation.js';
+
+function combineUnionOrIntersectionParameters(
+  c: Checker,
+  left: Signature,
+  right: Signature,
+  mapper: TypeMapper | undefined,
+  isUnion: boolean,
+): Symbol[] {
+  const leftCount = getParameterCount(c, left);
+  const rightCount = getParameterCount(c, right);
+  const longest = leftCount >= rightCount ? left : right;
+  const shorter = longest === left ? right : left;
+  const longestCount = longest === left ? leftCount : rightCount;
+  const eitherHasEffectiveRest = hasEffectiveRestParameter(c, left) || hasEffectiveRestParameter(c, right);
+  const needsExtraRestElement = eitherHasEffectiveRest && !hasEffectiveRestParameter(c, longest);
+  const params: Symbol[] = [];
+  for (let i = 0; i < longestCount; i++) {
+    let longestParamType = tryGetTypeAtPosition(c, longest, i)!;
+    if (longest === right) longestParamType = instantiateType(c, longestParamType, mapper);
+    let shorterParamType = tryGetTypeAtPosition(c, shorter, i) ?? c.unknownType;
+    if (shorter === right) shorterParamType = instantiateType(c, shorterParamType, mapper);
+    const combinedParamType = getUnionOrIntersectionType(
+      c,
+      [longestParamType, shorterParamType],
+      !isUnion,
+      UnionReduction.Literal,
+    );
+    const isRestParam = eitherHasEffectiveRest && !needsExtraRestElement && i === longestCount - 1;
+    const isOptional = i >= getMinArgumentCount(c, longest) && i >= getMinArgumentCount(c, shorter);
+    const leftName = i < leftCount ? getParameterNameAtPosition(c, left, i) : '';
+    const rightName = i < rightCount ? getParameterNameAtPosition(c, right, i) : '';
+    let paramName = leftName === rightName ? leftName : leftName === '' ? rightName : rightName === '' ? leftName : '';
+    if (paramName === '') paramName = 'arg' + i;
+    const paramSymbol = c.newSymbolWithCheckFlags(
+      SymbolFlags.FunctionScopedVariable | (isOptional && !isRestParam ? SymbolFlags.Optional : 0),
+      paramName,
+      isRestParam ? CheckFlags.RestParameter : isOptional ? CheckFlags.OptionalParameter : CheckFlags.None,
+    );
+    c.symbolLinks(paramSymbol).type = isRestParam ? createArrayTypeEx(c, combinedParamType, false) : combinedParamType;
+    params.push(paramSymbol);
+  }
+  if (needsExtraRestElement) {
+    const restParamSymbol = c.newSymbolWithCheckFlags(
+      SymbolFlags.FunctionScopedVariable,
+      'args',
+      CheckFlags.RestParameter,
+    );
+    let restType = createArrayTypeEx(c, getTypeAtPosition(c, shorter, longestCount), false);
+    if (shorter === right) restType = instantiateType(c, restType, mapper);
+    c.symbolLinks(restParamSymbol).type = restType;
+    params.push(restParamSymbol);
+  }
+  return params;
+}
+
+function combineUnionOrIntersectionThisParam(
+  c: Checker,
+  left: Symbol | undefined,
+  right: Symbol | undefined,
+  mapper: TypeMapper | undefined,
+  isUnion: boolean,
+): Symbol | undefined {
+  if (left === undefined) return right;
+  if (right === undefined) return left;
+  // Intersected like parameter types, to be permissive when calling.
+  const thisType = getUnionOrIntersectionType(
+    c,
+    [getTypeOfSymbol(c, left), instantiateType(c, getTypeOfSymbol(c, right), mapper)],
+    !isUnion,
+    UnionReduction.Literal,
+  );
+  return createSymbolWithType(c, left, thisType);
+}
+
+export function getUnionIndexInfos(c: Checker, types: readonly Type[]): IndexInfo[] {
+  const sourceInfos = getIndexInfosOfType(c, types[0]);
+  const result: IndexInfo[] = [];
+  for (const info of sourceInfos) {
+    const indexType = info.keyType;
+    let everyHas = true;
+    for (const t of types)
+      if (getIndexInfoOfType(c, t, indexType) === undefined) {
+        everyHas = false;
+        break;
+      }
+    if (!everyHas) continue;
+    const valueTypes: Type[] = [];
+    let isReadonly = false;
+    for (const t of types) {
+      const i = getIndexInfoOfType(c, t, indexType)!;
+      valueTypes.push(i.valueType);
+      if (i.isReadonly) isReadonly = true;
+    }
+    result.push(new IndexInfo(indexType, getUnionType(c, valueTypes), isReadonly, undefined, []));
+  }
+  return result;
+}
+
+function resolveIntersectionTypeMembers(c: Checker, t: IntersectionType): void {
+  let callSignatures: Signature[] = [];
+  let constructSignatures: Signature[] = [];
+  let indexInfos: IndexInfo[] = [];
+  const types = t.types;
+  const mixinFlags: boolean[] = [];
+  for (const u of types) mixinFlags.push(isMixinConstructorType(c, u));
+  let constructorTypeCount = 0;
+  let mixinCount = 0;
+  let firstMixinIndex = -1;
+  for (let i = 0; i < types.length; i++) {
+    if (getSignaturesOfType(c, types[i], SignatureKind.Construct).length > 0) constructorTypeCount++;
+    if (mixinFlags[i]) {
+      if (firstMixinIndex < 0) firstMixinIndex = i;
+      mixinCount++;
+    }
+  }
+  if (constructorTypeCount > 0 && constructorTypeCount === mixinCount) {
+    mixinFlags[firstMixinIndex] = false;
+    mixinCount--;
+  }
+  for (let i = 0; i < types.length; i++) {
+    const u = types[i];
+    // Mixin construct signatures are dropped; their return types mix into the others.
+    if (!mixinFlags[i]) {
+      let signatures = getSignaturesOfType(c, u, SignatureKind.Construct);
+      if (signatures.length !== 0 && mixinCount > 0)
+        signatures = signatures.map((s) => {
+          const clone = cloneSignature(c, s);
+          clone.resolvedReturnType = includeMixinType(c, getReturnTypeOfSignature(c, s), types, mixinFlags, i);
+          return clone;
+        });
+      constructSignatures = appendSignatures(c, constructSignatures, signatures);
+    }
+    callSignatures = appendSignatures(c, callSignatures, getSignaturesOfType(c, u, SignatureKind.Call));
+    for (const info of getIndexInfosOfType(c, u)) indexInfos = appendIndexInfo(c, indexInfos, info, false);
+  }
+  setStructuredTypeMembers(c, t, undefined, callSignatures, constructSignatures, indexInfos);
+}
+
+function includeMixinType(c: Checker, t: Type, types: readonly Type[], mixinFlags: boolean[], index: number): Type {
+  const mixed: Type[] = [];
+  for (let i = 0; i < types.length; i++) {
+    if (i === index) mixed.push(t);
+    else if (mixinFlags[i])
+      mixed.push(getReturnTypeOfSignature(c, getSignaturesOfType(c, types[i], SignatureKind.Construct)[0]));
+  }
+  return getIntersectionType(c, mixed);
+}
+
+function appendSignatures(c: Checker, signatures: Signature[], newSignatures: readonly Signature[]): Signature[] {
+  for (const sig of newSignatures) {
+    let unique = true;
+    for (const s of signatures)
+      if (compareSignaturesIdentical(c, s, sig, false, false, false, compareTypesIdentical) !== Ternary.False) {
+        unique = false;
+        break;
+      }
+    if (signatures.length === 0 || unique) signatures.push(sig);
+  }
+  return signatures;
+}
+
+export function appendIndexInfo(c: Checker, indexInfos: IndexInfo[], newInfo: IndexInfo, union: boolean): IndexInfo[] {
+  for (let i = 0; i < indexInfos.length; i++) {
+    const info = indexInfos[i];
+    if (info.keyType !== newInfo.keyType) continue;
+    const valueType = union
+      ? getUnionType(c, [info.valueType, newInfo.valueType])
+      : getIntersectionType(c, [info.valueType, newInfo.valueType]);
+    const isReadonly = union ? info.isReadonly || newInfo.isReadonly : info.isReadonly && newInfo.isReadonly;
+    indexInfos[i] = new IndexInfo(info.keyType, valueType, isReadonly, undefined, []);
+    return indexInfos;
+  }
+  indexInfos.push(newInfo);
+  return indexInfos;
+}
+
+// ---- Properties
+
+export function getPropertiesOfType(c: Checker, t: Type): Symbol[] {
+  t = getReducedApparentType(c, t);
+  if ((t.flags & TypeFlags.UnionOrIntersection) !== 0)
+    return getPropertiesOfUnionOrIntersectionType(c, t as UnionOrIntersectionType);
+  return getPropertiesOfObjectType(c, t);
+}
+
+export function getPropertiesOfObjectType(c: Checker, t: Type): Symbol[] {
+  return (t.flags & TypeFlags.Object) !== 0 ? resolveStructuredTypeMembers(c, t).properties : emptySymbols;
+}
+
+export function getPropertiesOfUnionOrIntersectionType(c: Checker, t: UnionOrIntersectionType): Symbol[] {
+  if (t.resolvedProperties === undefined) {
+    const checked = new Set<string>();
+    const props: Symbol[] = [];
+    for (const current of t.types) {
+      for (const prop of getPropertiesOfType(c, current)) {
+        if (checked.has(prop.name)) continue;
+        checked.add(prop.name);
+        const combined = getPropertyOfUnionOrIntersectionType(
+          c,
+          t,
+          prop.name,
+          (t.flags & TypeFlags.Intersection) !== 0,
+        );
+        if (combined !== undefined) props.push(combined);
+      }
+      // Union properties are in every constituent: the first without index signatures suffices.
+      if ((t.flags & TypeFlags.Union) !== 0 && getIndexInfosOfType(c, current).length === 0) break;
+    }
+    t.resolvedProperties = props;
+  }
+  return t.resolvedProperties;
+}
+
+export function getPropertyOfType(c: Checker, t: Type, name: string): Symbol | undefined {
+  return getPropertyOfTypeEx(c, t, name, false, false);
+}
+
+/**
+ * The property `name` of `t`: synthesizes union and intersection properties, uses apparent types of
+ * primitives and type parameters, and falls back to Object and Function members.
+ */
+export function getPropertyOfTypeEx(
+  c: Checker,
+  t: Type,
+  name: string,
+  skipObjectFunctionPropertyAugment: boolean,
+  includeTypeOnlyMembers: boolean,
+): Symbol | undefined {
+  t = getReducedApparentType(c, t);
+  if ((t.flags & TypeFlags.Object) !== 0) {
+    const resolved = resolveStructuredTypeMembers(c, t);
+    const symbol = resolved.members?.get(name);
+    if (symbol !== undefined && (includeTypeOnlyMembers || symbolIsValue(c, symbol))) return symbol;
+    if (symbol !== undefined && includeTypeOnlyMembers) return symbol;
+    if (skipObjectFunctionPropertyAugment) return undefined;
+    let functionType: Type | undefined;
+    if (t === c.anyFunctionType) functionType = c.globalFunctionType;
+    else if (resolved.callSignatures.length !== 0) functionType = c.globalCallableFunctionType;
+    else if (resolved.constructSignatures.length !== 0) functionType = c.globalNewableFunctionType;
+    if (functionType !== undefined) {
+      const found = getPropertyOfObjectType(c, functionType, name);
+      if (found !== undefined) return found;
+    }
+    return getPropertyOfObjectType(c, c.globalObjectType, name);
+  }
+  if ((t.flags & TypeFlags.Intersection) !== 0) {
+    const prop = getPropertyOfUnionOrIntersectionType(c, t as UnionOrIntersectionType, name, true);
+    if (prop !== undefined) return prop;
+    if (!skipObjectFunctionPropertyAugment)
+      return getPropertyOfUnionOrIntersectionType(c, t as UnionOrIntersectionType, name, false);
+    return undefined;
+  }
+  if ((t.flags & TypeFlags.Union) !== 0)
+    return getPropertyOfUnionOrIntersectionType(
+      c,
+      t as UnionOrIntersectionType,
+      name,
+      skipObjectFunctionPropertyAugment,
+    );
+  return undefined;
+}
+
+export function getPropertyOfObjectType(c: Checker, t: Type, name: string): Symbol | undefined {
+  if ((t.flags & TypeFlags.Object) === 0) return undefined;
+  const symbol = resolveStructuredTypeMembers(c, t).members?.get(name);
+  return symbol !== undefined && symbolIsValue(c, symbol) ? symbol : undefined;
+}
+
+export function getTypeOfPropertyOfType(c: Checker, t: Type, name: string): Type | undefined {
+  const prop = getPropertyOfType(c, t, name);
+  return prop !== undefined ? getTypeOfSymbol(c, prop) : undefined;
+}
+
+export function getPropertyOfUnionOrIntersectionType(
+  c: Checker,
+  t: UnionOrIntersectionType,
+  name: string,
+  skipObjectFunctionPropertyAugment: boolean,
+): Symbol | undefined {
+  const prop = getUnionOrIntersectionProperty(c, t, name, skipObjectFunctionPropertyAugment);
+  // Partial union properties are filtered out.
+  return prop !== undefined && (prop.checkFlags & CheckFlags.ReadPartial) !== 0 ? undefined : prop;
+}
+
+/** The (possibly partial) property `name` of a union or intersection, cached on the type. */
+export function getUnionOrIntersectionProperty(
+  c: Checker,
+  t: UnionOrIntersectionType,
+  name: string,
+  skipObjectFunctionPropertyAugment: boolean,
+): Symbol | undefined {
+  let cache = skipObjectFunctionPropertyAugment ? t.propertyCacheWithoutFunctionPropertyAugment : t.propertyCache;
+  const cached = cache?.get(name);
+  if (cached !== undefined) return cached;
+  const prop = createUnionOrIntersectionProperty(c, t, name, skipObjectFunctionPropertyAugment);
+  if (prop !== undefined) {
+    if (cache === undefined) {
+      cache = new Map<string, Symbol>();
+      if (skipObjectFunctionPropertyAugment) t.propertyCacheWithoutFunctionPropertyAugment = cache;
+      else t.propertyCache = cache;
+    }
+    cache.set(name, prop);
+    // Non-partial results also serve the augmented cache.
+    if (skipObjectFunctionPropertyAugment && (prop.checkFlags & CheckFlags.Partial) === 0) {
+      let augmented = t.propertyCache;
+      if (augmented === undefined) {
+        augmented = new Map<string, Symbol>();
+        t.propertyCache = augmented;
+      }
+      if (!augmented.has(name)) augmented.set(name, prop);
+    }
+  }
+  return prop;
+}
+
+export function getDeclarationModifierFlagsFromSymbol(c: Checker, s: Symbol, isWrite: boolean): ModifierFlags {
+  if (s.valueDeclaration !== undefined) {
+    let declaration: Node | undefined;
+    if (isWrite) declaration = s.declarations.find((d) => d.kind === SyntaxKind.SetAccessor);
+    if (declaration === undefined && (s.flags & SymbolFlags.GetAccessor) !== 0)
+      declaration = s.declarations.find((d) => d.kind === SyntaxKind.GetAccessor);
+    if (declaration === undefined) declaration = s.valueDeclaration;
+    const flags = getCombinedModifierFlags(declaration);
+    return s.parent !== undefined && (s.parent.flags & SymbolFlags.Class) !== 0
+      ? flags
+      : flags & ~ModifierFlags.AccessibilityModifier;
+  }
+  if ((s.checkFlags & CheckFlags.Synthetic) !== 0) {
+    const access =
+      (s.checkFlags & CheckFlags.ContainsPrivate) !== 0
+        ? ModifierFlags.Private
+        : (s.checkFlags & CheckFlags.ContainsPublic) !== 0
+          ? ModifierFlags.Public
+          : ModifierFlags.Protected;
+    const staticModifier = (s.checkFlags & CheckFlags.ContainsStatic) !== 0 ? ModifierFlags.Static : 0;
+    return access | staticModifier;
+  }
+  if ((s.flags & SymbolFlags.Prototype) !== 0) return ModifierFlags.Public | ModifierFlags.Static;
+  return 0;
+}
+
+function createUnionOrIntersectionProperty(
+  c: Checker,
+  containingType: UnionOrIntersectionType,
+  name: string,
+  skipObjectFunctionPropertyAugment: boolean,
+): Symbol | undefined {
+  let propFlags = SymbolFlags.None;
+  let singleProp: Symbol | undefined;
+  let propSet: Symbol[] | undefined;
+  const indexTypes: Type[] = [];
+  const isUnion = (containingType.flags & TypeFlags.Union) !== 0;
+  // Flags propagated when present in every constituent.
+  let checkFlags = isUnion ? CheckFlags.None : CheckFlags.Readonly;
+  let optionalFlag = isUnion ? SymbolFlags.None : SymbolFlags.Optional;
+  let syntheticFlag = CheckFlags.SyntheticMethod;
+  let mergedInstantiations = false;
+  for (const current of containingType.types) {
+    const t = getApparentType(c, current);
+    if (isErrorType(c, t) || (t.flags & TypeFlags.Never) !== 0) continue;
+    const prop = getPropertyOfTypeEx(c, t, name, skipObjectFunctionPropertyAugment, false);
+    if (prop !== undefined) {
+      const modifiers = getDeclarationModifierFlagsFromSymbol(c, prop, false);
+      if ((prop.flags & SymbolFlags.ClassMember) !== 0) {
+        if (isUnion) optionalFlag |= prop.flags & SymbolFlags.Optional;
+        else optionalFlag &= prop.flags;
+      }
+      if (singleProp === undefined) {
+        singleProp = prop;
+        propFlags = prop.flags & SymbolFlags.Accessor || SymbolFlags.Property;
+      } else if (prop !== singleProp) {
+        const isInstantiation = getTargetSymbol(c, prop) === getTargetSymbol(c, singleProp);
+        // Instantiations with identical types are equivalent; keep the first.
+        if (isInstantiation && compareProperties(c, singleProp, prop, compareTypesEqual) === Ternary.True) {
+          mergedInstantiations =
+            singleProp.parent !== undefined &&
+            getLocalTypeParametersOfClassOrInterfaceOrTypeAlias(c, singleProp.parent).length !== 0;
+        } else {
+          if (propSet === undefined) propSet = [singleProp];
+          if (!propSet.includes(prop)) propSet.push(prop);
+        }
+        // Accessor flags survive only when the same in all constituents.
+        if (
+          (propFlags & SymbolFlags.Accessor) !== 0 &&
+          (prop.flags & SymbolFlags.Accessor) !== (propFlags & SymbolFlags.Accessor)
+        )
+          propFlags = (propFlags & ~SymbolFlags.Accessor) | SymbolFlags.Property;
+      }
+      if (isUnion && isReadonlySymbol(c, prop)) checkFlags |= CheckFlags.Readonly;
+      else if (!isUnion && !isReadonlySymbol(c, prop)) checkFlags &= ~CheckFlags.Readonly;
+      if ((modifiers & ModifierFlags.NonPublicAccessibilityModifier) === 0) checkFlags |= CheckFlags.ContainsPublic;
+      if ((modifiers & ModifierFlags.Protected) !== 0) checkFlags |= CheckFlags.ContainsProtected;
+      if ((modifiers & ModifierFlags.Private) !== 0) checkFlags |= CheckFlags.ContainsPrivate;
+      if ((modifiers & ModifierFlags.Static) !== 0) checkFlags |= CheckFlags.ContainsStatic;
+      if (!isPrototypeProperty(prop)) syntheticFlag = CheckFlags.SyntheticProperty;
+    } else if (isUnion) {
+      const indexInfo = !isLateBoundName(name) ? getApplicableIndexInfoForName(c, t, name) : undefined;
+      if (indexInfo !== undefined) {
+        propFlags = (propFlags & ~SymbolFlags.Accessor) | SymbolFlags.Property;
+        checkFlags |= CheckFlags.WritePartial | (indexInfo.isReadonly ? CheckFlags.Readonly : 0);
+        indexTypes.push(isTupleType(t) ? (getRestTypeOfTupleType(c, t) ?? c.undefinedType) : indexInfo.valueType);
+      } else if (isObjectLiteralType(t) && (t.objectFlags & ObjectFlags.ContainsSpread) === 0) {
+        checkFlags |= CheckFlags.WritePartial;
+        indexTypes.push(c.undefinedType);
+      } else checkFlags |= CheckFlags.ReadPartial;
+    }
+  }
+  if (
+    singleProp === undefined ||
+    (isUnion &&
+      (propSet !== undefined || (checkFlags & CheckFlags.Partial) !== 0) &&
+      (checkFlags & (CheckFlags.ContainsPrivate | CheckFlags.ContainsProtected)) !== 0 &&
+      !(propSet !== undefined && hasCommonDeclaration(propSet)))
+  )
+    // Missing, or private/protected in one constituent but missing or different in another.
+    return undefined;
+  if (propSet === undefined && (checkFlags & CheckFlags.ReadPartial) === 0 && indexTypes.length === 0) {
+    if (!mergedInstantiations) return singleProp;
+    // Merged instantiations get a clone without a union parent, so `Array<T>.length` prints as such.
+    let singlePropType: Type | undefined;
+    let singlePropMapper: TypeMapper | undefined;
+    if ((singleProp.flags & SymbolFlags.Transient) !== 0) {
+      const links = c.symbolLinks(singleProp);
+      singlePropType = links.type;
+      singlePropMapper = links.mapper;
+    }
+    const clone = createSymbolWithType(c, singleProp, singlePropType);
+    if (singleProp.valueDeclaration !== undefined) clone.parent = getSymbol(singleProp.valueDeclaration)?.parent;
+    const links = c.symbolLinks(clone);
+    links.containingType = containingType;
+    links.mapper = singlePropMapper;
+    links.writeType = getWriteTypeOfSymbol(c, singleProp);
+    return clone;
+  }
+  const props = propSet ?? [singleProp];
+  const declarations: Node[] = [];
+  let firstType: Type | undefined;
+  let nameType: Type | undefined;
+  const propTypes: Type[] = [];
+  let writeTypes: Type[] | undefined;
+  let firstValueDeclaration: Node | undefined;
+  let hasNonUniformValueDeclaration = false;
+  for (const prop of props) {
+    if (firstValueDeclaration === undefined) firstValueDeclaration = prop.valueDeclaration;
+    else if (prop.valueDeclaration !== undefined && prop.valueDeclaration !== firstValueDeclaration)
+      hasNonUniformValueDeclaration = true;
+    for (const d of prop.declarations) declarations.push(d);
+    const t = getTypeOfSymbol(c, prop);
+    if (firstType === undefined) {
+      firstType = t;
+      nameType = c.symbolLinks(prop).nameType;
+    }
+    const writeType = getWriteTypeOfSymbol(c, prop);
+    if (writeTypes !== undefined || writeType !== t) {
+      if (writeTypes === undefined) writeTypes = propTypes.slice();
+      writeTypes.push(writeType);
+    }
+    if (t !== firstType) checkFlags |= CheckFlags.HasNonUniformType;
+    if (isLiteralType(t) || isPatternLiteralType(c, t)) checkFlags |= CheckFlags.HasLiteralType;
+    if ((t.flags & TypeFlags.Never) !== 0 && t !== c.uniqueLiteralType) checkFlags |= CheckFlags.HasNeverType;
+    propTypes.push(t);
+  }
+  for (const t of indexTypes) propTypes.push(t);
+  const result = c.newSymbolWithCheckFlags(propFlags | optionalFlag, name, checkFlags | syntheticFlag);
+  result.declarations = declarations;
+  if (!hasNonUniformValueDeclaration && firstValueDeclaration !== undefined) {
+    result.valueDeclaration = firstValueDeclaration;
+    result.parent = getSymbol(firstValueDeclaration)?.parent;
+  }
+  const links = c.symbolLinks(result);
+  links.containingType = containingType;
+  links.nameType = nameType;
+  if (propTypes.length > 2) {
+    // Defer normalization of possibly large constituent lists.
+    result.checkFlags |= CheckFlags.DeferredType;
+    links.deferralParent = containingType;
+    links.deferralConstituents = propTypes;
+    links.deferralWriteConstituents = writeTypes;
+    return result;
+  }
+  links.type = isUnion ? getUnionType(c, propTypes) : getIntersectionType(c, propTypes);
+  if (writeTypes !== undefined)
+    links.writeType = isUnion ? getUnionType(c, writeTypes) : getIntersectionType(c, writeTypes);
+  return result;
+}
+
+export function isObjectLiteralType(t: Type): boolean {
+  return (t.objectFlags & ObjectFlags.ObjectLiteral) !== 0;
+}
+
+export function getTargetSymbol(c: Checker, s: Symbol): Symbol {
+  return (s.checkFlags & CheckFlags.Instantiated) !== 0 ? c.symbolLinks(s).target! : s;
+}
+
+export function isPrototypeProperty(symbol: Symbol): boolean {
+  return (symbol.flags & SymbolFlags.Method) !== 0 || (symbol.checkFlags & CheckFlags.SyntheticMethod) !== 0;
+}
+
+function hasCommonDeclaration(symbols: Symbol[]): boolean {
+  let common: Set<Node> | undefined;
+  for (const symbol of symbols) {
+    if (symbol.declarations.length === 0) return false;
+    if (common === undefined) {
+      common = new Set(symbol.declarations);
+      continue;
+    }
+    const next = new Set<Node>();
+    for (const d of symbol.declarations) if (common.has(d)) next.add(d);
+    if (next.size === 0) return false;
+    common = next;
+  }
+  return common !== undefined && common.size !== 0;
+}
+
+export function createSymbolWithType(c: Checker, source: Symbol, t: Type | undefined): Symbol {
+  const symbol = c.newSymbolWithCheckFlags(source.flags, source.name, source.checkFlags & CheckFlags.Readonly);
+  symbol.declarations = source.declarations;
+  symbol.parent = source.parent;
+  symbol.valueDeclaration = source.valueDeclaration;
+  const links = c.symbolLinks(symbol);
+  links.type = t;
+  links.target = source;
+  links.nameType = c.symbolLinks(source).nameType;
+  return symbol;
+}
+
+// ---- Signatures and index infos
+
+export function getSignaturesOfType(c: Checker, t: Type, kind: SignatureKind): Signature[] {
+  return getSignaturesOfStructuredType(c, getReducedApparentType(c, t), kind);
+}
+
+export function getSignaturesOfStructuredType(c: Checker, t: Type, kind: SignatureKind): Signature[] {
+  if ((t.flags & TypeFlags.StructuredType) === 0) return emptySignatures;
+  const resolved = resolveStructuredTypeMembers(c, t);
+  return kind === SignatureKind.Call ? resolved.callSignatures : resolved.constructSignatures;
+}
+
+export function getIndexInfosOfType(c: Checker, t: Type): IndexInfo[] {
+  return getIndexInfosOfStructuredType(c, getReducedApparentType(c, t));
+}
+
+export function getIndexInfosOfStructuredType(c: Checker, t: Type): IndexInfo[] {
+  return (t.flags & TypeFlags.StructuredType) !== 0 ? resolveStructuredTypeMembers(c, t).indexInfos : emptyIndexInfos;
+}
+
+export function getIndexInfoOfType(c: Checker, t: Type, keyType: Type): IndexInfo | undefined {
+  return findIndexInfo(getIndexInfosOfType(c, t), keyType);
+}
+
+export function getIndexTypeOfType(c: Checker, t: Type, keyType: Type): Type | undefined {
+  const info = getIndexInfoOfType(c, t, keyType);
+  return info !== undefined ? info.valueType : undefined;
+}
+
+export function getApplicableIndexInfo(c: Checker, t: Type, keyType: Type): IndexInfo | undefined {
+  return findApplicableIndexInfo(c, getIndexInfosOfType(c, t), keyType);
+}
+
+export function getApplicableIndexInfoForName(c: Checker, t: Type, name: string): IndexInfo | undefined {
+  return getApplicableIndexInfo(c, t, isLateBoundName(name) ? c.esSymbolType : getStringLiteralType(c, name));
+}
+
+export function findApplicableIndexInfo(
+  c: Checker,
+  indexInfos: readonly IndexInfo[],
+  keyType: Type,
+): IndexInfo | undefined {
+  // `string` index signatures apply only when no other one does.
+  let stringIndexInfo: IndexInfo | undefined;
+  const applicable: IndexInfo[] = [];
+  for (const info of indexInfos) {
+    if (info.keyType === c.stringType) stringIndexInfo = info;
+    else if (isApplicableIndexType(c, keyType, info.keyType)) applicable.push(info);
+  }
+  if (applicable.length === 0)
+    return stringIndexInfo !== undefined && isApplicableIndexType(c, keyType, c.stringType)
+      ? stringIndexInfo
+      : undefined;
+  if (applicable.length === 1) return applicable[0];
+  // Several apply: a synthetic info; its key type is unused.
+  let isReadonly = true;
+  const types: Type[] = [];
+  for (const info of applicable) {
+    types.push(info.valueType);
+    if (!info.isReadonly) isReadonly = false;
+  }
+  return new IndexInfo(c.unknownType, getIntersectionType(c, types), isReadonly, undefined, []);
+}
+
+export function isApplicableIndexType(c: Checker, source: Type, target: Type): boolean {
+  // `string` applies to keys assignable to string or number; `number` to numeric strings too.
+  return (
+    isTypeAssignableTo(c, source, target) ||
+    (target === c.stringType && isTypeAssignableTo(c, source, c.numberType)) ||
+    (target === c.numberType &&
+      (source === c.numericStringType ||
+        ((source.flags & TypeFlags.StringLiteral) !== 0 && isNumericLiteralName((source as LiteralType).stringValue))))
+  );
+}
+
+export function isArrayLikeType(c: Checker, t: Type): boolean {
+  // Readonly arrays are array-like: anything assignable to `readonly any[]`.
+  return (
+    isArrayType(c, t) || ((t.flags & TypeFlags.Nullable) === 0 && isTypeAssignableTo(c, t, c.anyReadonlyArrayType))
+  );
+}
+
+function isArrayType(c: Checker, t: Type): boolean {
+  if ((t.objectFlags & ObjectFlags.Reference) === 0) return false;
+  const target = (t as TypeReference).target;
+  return target === c.globalArrayType || target === c.globalReadonlyArrayType;
+}
+
+// ---- Apparent and reduced types
+
+/** Type parameters' base constraints; primitives' wrapper object types; otherwise the type itself. */
+export function getApparentType(c: Checker, t: Type): Type {
+  const originalType = t;
+  if ((t.flags & TypeFlags.Instantiable) !== 0) t = getBaseConstraintOfType(c, t) ?? c.unknownType;
+  const flags = t.flags;
+  if ((t.objectFlags & ObjectFlags.Mapped) !== 0 && (flags & TypeFlags.Object) !== 0)
+    return getApparentTypeOfMappedType(c, t as MappedType);
+  if ((t.objectFlags & ObjectFlags.Reference) !== 0 && (flags & TypeFlags.Object) !== 0 && t !== originalType)
+    return getTypeWithThisArgument(c, t, originalType, false);
+  if ((flags & TypeFlags.Intersection) !== 0)
+    return getApparentTypeOfIntersectionType(c, t as IntersectionType, originalType);
+  if ((flags & TypeFlags.StringLike) !== 0) return c.globalStringType;
+  if ((flags & TypeFlags.NumberLike) !== 0) return c.globalNumberType;
+  if ((flags & TypeFlags.BigIntLike) !== 0) return getGlobalBigIntType(c);
+  if ((flags & TypeFlags.BooleanLike) !== 0) return c.globalBooleanType;
+  if ((flags & TypeFlags.ESSymbolLike) !== 0) return getGlobalESSymbolType(c);
+  if ((flags & TypeFlags.NonPrimitive) !== 0) return c.emptyObjectType;
+  if ((flags & TypeFlags.Index) !== 0) return c.stringNumberSymbolType;
+  if ((flags & TypeFlags.Unknown) !== 0 && !c.strictNullChecks) return c.emptyObjectType;
+  return t;
+}
+
+function getApparentTypeOfMappedType(c: Checker, t: MappedType): Type {
+  if (t.resolvedApparentType === undefined) t.resolvedApparentType = getResolvedApparentTypeOfMappedType(c, t);
+  return t.resolvedApparentType;
+}
+
+function getResolvedApparentTypeOfMappedType(c: Checker, t: MappedType): Type {
+  const target = mappedTypeTarget(t);
+  const typeVariable = getHomomorphicTypeVariable(c, target);
+  if (typeVariable !== undefined && (target.declaration as MappedTypeNode).nameType === undefined) {
+    // A homomorphic mapped type over an array or tuple constraint maps the constraint.
+    const modifiersType = getModifiersTypeFromMappedType(c, t);
+    const baseConstraint = isGenericMappedType(c, modifiersType)
+      ? getApparentTypeOfMappedType(c, modifiersType as MappedType)
+      : getBaseConstraintOfType(c, modifiersType);
+    if (
+      baseConstraint !== undefined &&
+      everyType(baseConstraint, (u) => isArrayOrTupleType(c, u) || isArrayOrTupleOrIntersection(c, u))
+    )
+      return instantiateType(c, target, prependTypeMapping(typeVariable, baseConstraint, t.mapper));
+  }
+  return t;
+}
+
+export function isArrayOrTupleOrIntersection(c: Checker, t: Type): boolean {
+  return (t.flags & TypeFlags.Intersection) !== 0 && typesOf(t).every((u) => isArrayOrTupleType(c, u));
+}
+
+function getApparentTypeOfIntersectionType(c: Checker, t: IntersectionType, thisArgument: Type): Type {
+  if (t.id === thisArgument.id) {
+    if (t.resolvedApparentType === undefined)
+      t.resolvedApparentType = getTypeWithThisArgument(c, t, thisArgument, true);
+    return t.resolvedApparentType;
+  }
+  const key = 'apparent' + thisArgument.id;
+  let result = c.cachedTypes.get(key);
+  if (result === undefined) {
+    result = getTypeWithThisArgument(c, t, thisArgument, true);
+    c.cachedTypes.set(key, result);
+  }
+  return result;
+}
+
+export function getTypeWithThisArgument(
+  c: Checker,
+  t: Type,
+  thisArgument: Type | undefined,
+  needApparentType: boolean,
+): Type {
+  if ((t.objectFlags & ObjectFlags.Reference) !== 0 && (t.flags & TypeFlags.Object) !== 0) {
+    const target = (t as TypeReference).target as InterfaceType;
+    const typeArguments = getTypeArguments(c, t);
+    if (target.typeParameters().length === typeArguments.length)
+      return createTypeReference(c, target, typeArguments.concat([thisArgument ?? target.thisType!]));
+    return t;
+  }
+  if ((t.flags & TypeFlags.Intersection) !== 0) {
+    const types = typesOf(t);
+    let changed = false;
+    const newTypes: Type[] = [];
+    for (const u of types) {
+      const n = getTypeWithThisArgument(c, u, thisArgument, needApparentType);
+      if (n !== u) changed = true;
+      newTypes.push(n);
+    }
+    return changed ? getIntersectionType(c, newTypes) : t;
+  }
+  return needApparentType ? getApparentType(c, t) : t;
+}
+
+/**
+ * Unions with reducible intersections are reduced; intersections with mutually exclusive
+ * discriminants are `never`.
+ */
+export function getReducedType(c: Checker, t: Type): Type {
+  if ((t.flags & TypeFlags.Union) !== 0) {
+    if ((t.objectFlags & ObjectFlags.ContainsIntersections) !== 0) {
+      const union = t as UnionType;
+      if (union.resolvedReducedType !== undefined) return union.resolvedReducedType;
+      const reduced = getReducedUnionType(c, union);
+      union.resolvedReducedType = reduced;
+      return reduced;
+    }
+  } else if ((t.flags & TypeFlags.Intersection) !== 0) {
+    if ((t.objectFlags & ObjectFlags.IsNeverIntersectionComputed) === 0) {
+      t.objectFlags |= ObjectFlags.IsNeverIntersectionComputed;
+      for (const p of getPropertiesOfUnionOrIntersectionType(c, t as IntersectionType))
+        if (isNeverReducedProperty(c, p)) {
+          t.objectFlags |= ObjectFlags.IsNeverIntersection;
+          break;
+        }
+    }
+    if ((t.objectFlags & ObjectFlags.IsNeverIntersection) !== 0) return c.neverType;
+  }
+  return t;
+}
+
+function getReducedUnionType(c: Checker, union: UnionType): Type {
+  let changed = false;
+  const reducedTypes: Type[] = [];
+  for (const u of union.types) {
+    const r = getReducedType(c, u);
+    if (r !== u) changed = true;
+    reducedTypes.push(r);
+  }
+  if (!changed) return union;
+  const reduced = getUnionType(c, reducedTypes);
+  if ((reduced.flags & TypeFlags.Union) !== 0) (reduced as UnionType).resolvedReducedType = reduced;
+  return reduced;
+}
+
+function isNeverReducedProperty(c: Checker, prop: Symbol): boolean {
+  return isDiscriminantWithNeverType(c, prop) || isConflictingPrivateProperty(prop);
+}
+
+export function isDiscriminantWithNeverType(c: Checker, prop: Symbol): boolean {
+  // A synthetic required property with non-uniform literal types, none never, reducing to never.
+  return (
+    (prop.flags & SymbolFlags.Optional) === 0 &&
+    (prop.checkFlags & (CheckFlags.NonUniformAndLiteral | CheckFlags.HasNeverType)) ===
+      CheckFlags.NonUniformAndLiteral &&
+    (getTypeOfSymbol(c, prop).flags & TypeFlags.Never) !== 0
+  );
+}
+
+export function isConflictingPrivateProperty(prop: Symbol): boolean {
+  return prop.valueDeclaration === undefined && (prop.checkFlags & CheckFlags.ContainsPrivate) !== 0;
+}
+
+export function getReducedApparentType(c: Checker, t: Type): Type {
+  // Apparent types may be unreduced, so reduce before and after.
+  return getReducedType(c, getApparentType(c, getReducedType(c, t)));
+}
+
+// ---- Base constraints
+
+export function getBaseConstraintOfType(c: Checker, t: Type): Type | undefined {
+  if (
+    (t.flags &
+      (TypeFlags.InstantiableNonPrimitive |
+        TypeFlags.UnionOrIntersection |
+        TypeFlags.TemplateLiteral |
+        TypeFlags.StringMapping |
+        TypeFlags.Index)) !==
+      0 ||
+    isGenericTupleType(t)
+  ) {
+    const constraint = getResolvedBaseConstraint(c, t);
+    return constraint !== c.noConstraintType && constraint !== c.circularConstraintType ? constraint : undefined;
+  }
+  return undefined;
+}
+
+export function getBaseConstraintOrType(c: Checker, t: Type): Type {
+  return getBaseConstraintOfType(c, t) ?? t;
+}
+
+function hasConstrainedTypeData(t: Type): boolean {
+  return (
+    (t.flags & (TypeFlags.Intrinsic | TypeFlags.Literal | TypeFlags.UniqueESSymbol | TypeFlags.Enum)) === 0 ||
+    (t.flags & TypeFlags.StructuredOrInstantiable) !== 0
+  );
+}
+
+export function getResolvedBaseConstraint(c: Checker, t: Type, stack?: RecursionId[]): Type {
+  if (!hasConstrainedTypeData(t)) return t;
+  if (t.resolvedBaseConstraint !== undefined) return t.resolvedBaseConstraint;
+  if (!pushTypeResolution(c, t, TypeSystemPropertyName.ResolvedBaseConstraint)) return c.circularConstraintType;
+  let constraint: Type | undefined;
+  // At least 10 levels; up to 50 without deeply nested types on the stack.
+  const identity = getRecursionIdentity(t);
+  const current = stack ?? [];
+  if (current.length < 10 || (current.length < 50 && !current.includes(identity)))
+    constraint = computeBaseConstraint(c, getSimplifiedType(c, t, false), current.concat([identity]));
+  if (!popTypeResolution(c)) {
+    if ((t.flags & TypeFlags.TypeParameter) !== 0) {
+      const errorNode = getConstraintDeclaration(t);
+      if (errorNode !== undefined)
+        c.error(errorNode, Diagnostics.Type_parameter_0_has_a_circular_constraint, typeToString(c, t));
+    }
+    constraint = c.circularConstraintType;
+  }
+  if (constraint === undefined) constraint = c.noConstraintType;
+  if (t.resolvedBaseConstraint === undefined) t.resolvedBaseConstraint = constraint;
+  return constraint;
+}
+
+function computeBaseConstraint(c: Checker, t: Type, stack: RecursionId[]): Type | undefined {
+  const flags = t.flags;
+  if ((flags & TypeFlags.TypeParameter) !== 0) {
+    const constraint = getConstraintFromTypeParameter(c, t);
+    return (t as TypeParameter).isThisType ? constraint : getNextBaseConstraint(c, constraint, stack);
+  }
+  if ((flags & TypeFlags.UnionOrIntersection) !== 0) {
+    const types = typesOf(t);
+    const constraints: Type[] = [];
+    let different = false;
+    for (const s of types) {
+      const constraint = getNextBaseConstraint(c, s, stack);
+      if (constraint !== undefined) {
+        if (constraint !== s) different = true;
+        constraints.push(constraint);
+      } else different = true;
+    }
+    if (!different) return t;
+    if ((flags & TypeFlags.Union) !== 0 && constraints.length === types.length) return getUnionType(c, constraints);
+    if ((flags & TypeFlags.Intersection) !== 0 && constraints.length !== 0) return getIntersectionType(c, constraints);
+    return undefined;
+  }
+  if ((flags & TypeFlags.Index) !== 0) {
+    const target = (t as IndexType).target;
+    if (isGenericMappedType(c, target)) {
+      if (
+        getNameTypeFromMappedType(c, target as MappedType) !== undefined &&
+        !isMappedTypeWithKeyofConstraintDeclaration(c, target as MappedType)
+      )
+        return getNextBaseConstraint(c, getIndexForMappedType(c, target as MappedType), stack);
+    }
+    return c.stringNumberSymbolType;
+  }
+  if ((flags & TypeFlags.TemplateLiteral) !== 0) {
+    const template = t as TemplateLiteralType;
+    const constraints: Type[] = [];
+    for (const s of template.types) {
+      const constraint = getNextBaseConstraint(c, s, stack);
+      if (constraint !== undefined) constraints.push(constraint);
+    }
+    return constraints.length === template.types.length
+      ? getTemplateLiteralType(c, template.texts, constraints)
+      : c.stringType;
+  }
+  if ((flags & TypeFlags.StringMapping) !== 0) {
+    const target = (t as StringMappingType).target;
+    const constraint = getNextBaseConstraint(c, target, stack);
+    return constraint !== undefined && constraint !== target
+      ? getStringMappingType(c, t.symbol!, constraint)
+      : c.stringType;
+  }
+  if ((flags & TypeFlags.IndexedAccess) !== 0) {
+    const access = t as IndexedAccessType;
+    if (isMappedTypeGenericIndexedAccess(c, t))
+      return getNextBaseConstraint(
+        c,
+        substituteIndexedMappedType(c, access.objectType as MappedType, access.indexType),
+        stack,
+      );
+    const baseObjectType = getNextBaseConstraint(c, access.objectType, stack);
+    const baseIndexType = getNextBaseConstraint(c, access.indexType, stack);
+    if (baseObjectType === undefined || baseIndexType === undefined) return undefined;
+    return getNextBaseConstraint(
+      c,
+      getIndexedAccessTypeOrUndefined(c, baseObjectType, baseIndexType, access.accessFlags),
+      stack,
+    );
+  }
+  if ((flags & TypeFlags.Conditional) !== 0) {
+    if (c.conditionalConstraintDepth >= 100) return undefined;
+    c.conditionalConstraintDepth++;
+    const constraint = getConstraintFromConditionalType(c, t);
+    c.conditionalConstraintDepth--;
+    return getNextBaseConstraint(c, constraint, stack);
+  }
+  if ((flags & TypeFlags.Substitution) !== 0) return getNextBaseConstraint(c, getSubstitutionIntersection(c, t), stack);
+  if (isGenericTupleType(t)) {
+    // Substitute constraints of variadic elements only when they're arrays or non-variadic tuples.
+    const elementTypes = getElementTypes(c, t);
+    const infos = tupleTargetOf(t).elementInfos;
+    const newElements: Type[] = [];
+    for (let i = 0; i < elementTypes.length; i++) {
+      const v = elementTypes[i];
+      let element = v;
+      if ((v.flags & TypeFlags.TypeParameter) !== 0 && (infos[i].flags & ElementFlags.Variadic) !== 0) {
+        const constraint = getNextBaseConstraint(c, v, stack);
+        if (
+          constraint !== undefined &&
+          constraint !== v &&
+          everyType(constraint, (n) => isArrayOrTupleType(c, n) && !isGenericTupleType(n))
+        )
+          element = constraint;
+      }
+      newElements.push(element);
+    }
+    return createTupleTypeEx(c, newElements, infos, tupleTargetOf(t).readonly);
+  }
+  return t;
+}
+
+function getNextBaseConstraint(c: Checker, t: Type | undefined, stack: RecursionId[]): Type | undefined {
+  if (t === undefined) return undefined;
+  const constraint = getResolvedBaseConstraint(c, t, stack);
+  return constraint === c.noConstraintType || constraint === c.circularConstraintType ? undefined : constraint;
+}
+
+export function getConstraintOfType(c: Checker, t: Type): Type | undefined {
+  if ((t.flags & TypeFlags.TypeParameter) !== 0) return getConstraintOfTypeParameterGuarded(c, t);
+  if ((t.flags & TypeFlags.IndexedAccess) !== 0) return getConstraintOfIndexedAccess(c, t as IndexedAccessType);
+  if ((t.flags & TypeFlags.Conditional) !== 0) return getConstraintOfConditionalTypeLazy(c, t);
+  return getBaseConstraintOfType(c, t);
+}
+
+import { getConstraintOfTypeParameter as getConstraintOfTypeParameterGuarded } from './checker-declared-types.js';
+import {
+  getConstraintOfIndexedAccess,
+  getConstraintOfConditionalType as getConstraintOfConditionalTypeLazy,
+} from './checker-type-operators.js';
+
+export function isReadonlyArray(c: Checker, t: Type): boolean {
+  return isReadonlyArrayType(c, t);
+}
+
+export function getTypeFromNodeOrUndefined(c: Checker, node: Node | undefined): Type | undefined {
+  return node !== undefined ? getTypeFromTypeNode(c, node) : undefined;
+}
+
+export {
+  getReturnTypeOfSignature,
+  getSymbolOfDeclaration,
+  getLateBoundSymbol,
+  instantiateTypes,
+  createSignatureInstantiation,
+  getUnionTypeEx,
+  mapType,
+};
+export type { Symbol };

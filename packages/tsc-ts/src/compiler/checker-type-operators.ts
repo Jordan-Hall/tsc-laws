@@ -1,0 +1,1904 @@
+// Type operators: `keyof`, indexed access, mapped, conditional, substitution and string mapping
+// types, and genericity tests.
+import {
+  ModifierFlags,
+  type Node,
+  getName,
+  getQuestionToken,
+  getType,
+  getSymbol,
+  ElementAccessExpression,
+  type ConditionalTypeNode,
+  type MappedTypeNode,
+  IndexedAccessTypeNode,
+  PrefixUnaryExpression,
+  TypeParameterDeclaration,
+  getDotDotDotToken,
+  getElements,
+  getExpression,
+  getText,
+} from './ast.js';
+import { Diagnostics, Diagnostic } from './diagnostics.js';
+import { CheckFlags, InternalSymbolName, type Symbol, SymbolFlags } from './symbol.js';
+import { SyntaxKind } from './syntax-kind.js';
+import type { Checker } from './checker.js';
+import {
+  AccessFlags,
+  ConditionalRoot,
+  ConditionalType,
+  ElementFlags,
+  IndexFlags,
+  IndexInfo,
+  type IndexType,
+  IndexedAccessType,
+  type IntersectionType,
+  type LiteralType,
+  type MappedType,
+  ObjectFlags,
+  type ObjectType,
+  StringMappingType,
+  type SubstitutionType,
+  type TemplateLiteralType,
+  type Type,
+  type TypeAlias,
+  TypeFlags,
+  type TypeMapper,
+  type TypeParameter,
+  type TupleType,
+  type UnionType,
+  appendTypeMapping,
+  prependTypeMapping,
+  newTypeMapper,
+  IntrinsicType,
+} from './checker-types.js';
+import {
+  UnionReduction,
+  IntersectionFlags,
+  aliasKey,
+  createArrayTypeEx,
+  createTupleTypeEx,
+  everyType,
+  filterType,
+  getElementTypes,
+  getIntersectionType,
+  getIntersectionTypeEx,
+  getRegularTypeOfLiteralType,
+  getStringLiteralType,
+  getTemplateLiteralType,
+  getTotalFixedElementCount,
+  getTypeArguments,
+  getUnionType,
+  getUnionTypeEx,
+  isArrayType,
+  isEmptyAnonymousObjectType,
+  isErrorType,
+  isGenericStringLikeType,
+  isGenericTupleType,
+  isPatternLiteralType,
+  isReadonlyArrayType,
+  isTupleType,
+  mapType,
+  mapTypeWithAlias,
+  newIndexType,
+  newIndexedAccessType,
+  newObjectType,
+  newSubstitutionType,
+  setStructuredTypeMembers,
+  someType,
+  tupleTargetOf,
+  typeListKey,
+  typesOf,
+} from './checker-type-factory.js';
+import {
+  appendIndexInfo,
+  getApparentType,
+  getApplicableIndexInfo,
+  getDeclarationModifierFlagsFromSymbol,
+  getIndexInfoOfType,
+  getIndexInfosOfType,
+  getPropertiesOfType,
+  getPropertyOfType,
+  getReducedApparentType,
+  getReducedType,
+  getBaseConstraintOfType,
+  getIndexTypeOfType,
+} from './checker-members.js';
+import {
+  getLateBoundSymbol,
+  getSymbolOfDeclaration,
+  popTypeResolution,
+  pushTypeResolution,
+  TypeSystemPropertyName,
+} from './checker-symbols.js';
+import {
+  getConstraintOfTypeParameter,
+  getDeclaredTypeOfTypeParameter,
+  getElementTypeOfArrayType,
+  getInferTypeParameters,
+  getOuterTypeParameters,
+} from './checker-declared-types.js';
+import {
+  addOptionality,
+  getOptionalType,
+  getTypeOfSymbol,
+  getWriteTypeOfSymbol,
+  isReadonlySymbol,
+  removeMissingOrUndefinedType,
+} from './checker-symbol-types.js';
+import { getTypeFromTypeNode, getAliasForTypeNode } from './checker-type-nodes.js';
+import {
+  combineTypeMappers,
+  getRestrictiveInstantiation,
+  instantiateAnonymousType,
+  instantiateType,
+  instantiateTypeAlias,
+  isTypeParameterPossiblyReferenced,
+} from './instantiation.js';
+import { isTypeAssignableTo, isTypeSubtypeOf } from './relations.js';
+import { typeToString } from './type-printer.js';
+import { checkComputedPropertyName, checkExpression } from './checker-expressions.js';
+import {
+  getPropertyNameFromType,
+  isNumericLiteralName,
+  isTypeUsableAsPropertyName,
+  isValidIndexKeyType,
+  maybeTypeOfKind,
+} from './checker-utilities.js';
+import { inferTypesForConditional } from './checker-inference.js';
+
+// ---- Genericity
+
+export function isGenericType(c: Checker, t: Type): boolean {
+  return getGenericObjectFlags(c, t) !== 0;
+}
+
+export function isGenericObjectType(c: Checker, t: Type): boolean {
+  return (getGenericObjectFlags(c, t) & ObjectFlags.IsGenericObjectType) !== 0;
+}
+
+export function isGenericIndexType(c: Checker, t: Type): boolean {
+  return (getGenericObjectFlags(c, t) & ObjectFlags.IsGenericIndexType) !== 0;
+}
+
+function getGenericObjectFlags(c: Checker, t: Type): ObjectFlags {
+  if ((t.flags & (TypeFlags.UnionOrIntersection | TypeFlags.Substitution)) !== 0) {
+    if ((t.objectFlags & ObjectFlags.IsGenericTypeComputed) === 0) {
+      let combined = 0;
+      if ((t.flags & TypeFlags.UnionOrIntersection) !== 0)
+        for (const u of typesOf(t)) combined |= getGenericObjectFlags(c, u);
+      else {
+        const s = t as SubstitutionType;
+        combined = getGenericObjectFlags(c, s.baseType) | getGenericObjectFlags(c, s.constraint);
+      }
+      t.objectFlags |= ObjectFlags.IsGenericTypeComputed | combined;
+    }
+    return t.objectFlags & ObjectFlags.IsGenericType;
+  }
+  let combined = 0;
+  if ((t.flags & TypeFlags.InstantiableNonPrimitive) !== 0 || isGenericMappedType(c, t) || isGenericTupleType(t))
+    combined |= ObjectFlags.IsGenericObjectType;
+  if ((t.flags & (TypeFlags.InstantiableNonPrimitive | TypeFlags.Index)) !== 0 || isGenericStringLikeType(c, t))
+    combined |= ObjectFlags.IsGenericIndexType;
+  return combined;
+}
+
+export function isGenericMappedType(c: Checker, t: Type): boolean {
+  if ((t.objectFlags & ObjectFlags.Mapped) === 0 || (t.flags & TypeFlags.Object) === 0) return false;
+  const mapped = t as MappedType;
+  const constraint = getConstraintTypeFromMappedType(c, mapped);
+  if (isGenericIndexType(c, constraint)) return true;
+  // Generic when the `as` clause references generic types other than the iteration type.
+  const nameType = getNameTypeFromMappedType(c, mapped);
+  return (
+    nameType !== undefined &&
+    isGenericIndexType(
+      c,
+      instantiateType(c, nameType, newTypeMapper([getTypeParameterFromMappedType(c, mapped)], [constraint])),
+    )
+  );
+}
+
+/** Unions reducible on instantiation stay generic so the reduction flows through. */
+export function isGenericReducibleType(c: Checker, t: Type): boolean {
+  if ((t.flags & TypeFlags.Union) !== 0)
+    return (
+      (t.objectFlags & ObjectFlags.ContainsIntersections) !== 0 && typesOf(t).some((u) => isGenericReducibleType(c, u))
+    );
+  return (t.flags & TypeFlags.Intersection) !== 0 && isReducibleIntersection(c, t as IntersectionType);
+}
+
+function isReducibleIntersection(c: Checker, t: IntersectionType): boolean {
+  if (t.uniqueLiteralFilledInstantiation === undefined)
+    t.uniqueLiteralFilledInstantiation = instantiateType(c, t, c.uniqueLiteralMapper);
+  return getReducedType(c, t.uniqueLiteralFilledInstantiation) !== t.uniqueLiteralFilledInstantiation;
+}
+
+// ---- keyof
+
+export function getIndexType(c: Checker, t: Type): Type {
+  return getIndexTypeEx(c, t, IndexFlags.None);
+}
+
+export function getIndexTypeEx(c: Checker, t: Type, indexFlags: IndexFlags): Type {
+  t = getReducedType(c, t);
+  if (isNoInferType(c, t)) return getNoInferType(c, getIndexTypeEx(c, (t as SubstitutionType).baseType, indexFlags));
+  if (shouldDeferIndexType(c, t, indexFlags)) return getIndexTypeForGenericType(c, t, indexFlags);
+  if ((t.flags & TypeFlags.Union) !== 0)
+    return getIntersectionType(
+      c,
+      typesOf(t).map((u) => getIndexTypeEx(c, u, indexFlags)),
+    );
+  if ((t.flags & TypeFlags.Intersection) !== 0)
+    return getUnionType(
+      c,
+      typesOf(t).map((u) => getIndexTypeEx(c, u, indexFlags)),
+    );
+  if ((t.objectFlags & ObjectFlags.Mapped) !== 0 && (t.flags & TypeFlags.Object) !== 0)
+    return getIndexForMappedType(c, t as MappedType, indexFlags);
+  if (t === c.wildcardType) return c.wildcardType;
+  if ((t.flags & TypeFlags.Unknown) !== 0) return c.neverType;
+  if ((t.flags & (TypeFlags.Any | TypeFlags.Never)) !== 0) return c.stringNumberSymbolType;
+  const include =
+    ((indexFlags & IndexFlags.NoIndexSignatures) !== 0 ? TypeFlags.StringLiteral : TypeFlags.StringLike) |
+    ((indexFlags & IndexFlags.StringsOnly) !== 0 ? 0 : TypeFlags.NumberLike | TypeFlags.ESSymbolLike);
+  return getLiteralTypeFromProperties(c, t, include, indexFlags === IndexFlags.None);
+}
+
+function shouldDeferIndexType(c: Checker, t: Type, indexFlags: IndexFlags): boolean {
+  return (
+    (t.flags & TypeFlags.InstantiableNonPrimitive) !== 0 ||
+    isGenericTupleType(t) ||
+    (isGenericMappedType(c, t) && getNameTypeFromMappedType(c, t as MappedType) !== undefined) ||
+    ((t.flags & TypeFlags.Union) !== 0 &&
+      (indexFlags & IndexFlags.NoReducibleCheck) === 0 &&
+      isGenericReducibleType(c, t)) ||
+    ((t.flags & TypeFlags.Intersection) !== 0 &&
+      maybeTypeOfKind(t, TypeFlags.Instantiable) &&
+      typesOf(t).some((u) => isEmptyAnonymousObjectType(c, u)))
+  );
+}
+
+function getIndexTypeForGenericType(c: Checker, t: Type, indexFlags: IndexFlags): Type {
+  const key = ((indexFlags & IndexFlags.StringsOnly) !== 0 ? 'stringIndex' : 'index') + t.id;
+  let indexType = c.cachedTypes.get(key);
+  if (indexType === undefined) {
+    indexType = newIndexType(c, t, indexFlags & IndexFlags.StringsOnly);
+    c.cachedTypes.set(key, indexType);
+  }
+  return indexType;
+}
+
+export function getLiteralTypeFromProperties(c: Checker, t: Type, include: TypeFlags, includeOrigin: boolean): Type {
+  const key =
+    'props' +
+    t.id +
+    ':' +
+    include +
+    (includeOrigin ? 'o' : '') +
+    ((t.objectFlags & ObjectFlags.UnresolvedMembers) !== 0 ? 'u' : '');
+  const cached = c.cachedTypes.get(key);
+  if (cached !== undefined) return cached;
+  const origin =
+    (includeOrigin && (t.objectFlags & (ObjectFlags.ClassOrInterface | ObjectFlags.Reference)) !== 0) ||
+    t.alias !== undefined
+      ? newIndexType(c, t, IndexFlags.None)
+      : undefined;
+  const types: Type[] = [];
+  for (const prop of getPropertiesOfType(c, t)) types.push(getLiteralTypeFromProperty(c, prop, include, false));
+  for (const info of getIndexInfosOfType(c, t))
+    if (info !== c.enumNumberIndexInfo && isKeyTypeIncluded(info.keyType, include))
+      types.push(
+        info.keyType === c.stringType && (include & TypeFlags.Number) !== 0 ? c.stringOrNumberType : info.keyType,
+      );
+  const result = getUnionTypeEx(c, types, UnionReduction.Literal, undefined, origin);
+  c.cachedTypes.set(key, result);
+  return result;
+}
+
+export function getLiteralTypeFromProperty(
+  c: Checker,
+  prop: Symbol,
+  include: TypeFlags,
+  includeNonPublic: boolean,
+): Type {
+  if (
+    includeNonPublic ||
+    (getDeclarationModifierFlagsFromSymbol(c, prop, false) & ModifierFlags.NonPublicAccessibilityModifier) === 0
+  ) {
+    let t = c.symbolLinks(getLateBoundSymbol(c, prop)).nameType;
+    if (t === undefined) {
+      if (prop.name === InternalSymbolName.Default) t = getStringLiteralType(c, 'default');
+      else {
+        const name = prop.valueDeclaration !== undefined ? getName(prop.valueDeclaration) : undefined;
+        if (name !== undefined) t = getLiteralTypeFromPropertyName(c, name);
+        if (t === undefined && !isKnownSymbol(prop)) t = getStringLiteralType(c, symbolNameText(prop));
+      }
+    }
+    if (t !== undefined && (t.flags & include) !== 0) return t;
+  }
+  return c.neverType;
+}
+
+function isKnownSymbol(symbol: Symbol): boolean {
+  return symbol.name.startsWith('￾@');
+}
+
+function symbolNameText(symbol: Symbol): string {
+  return symbol.name;
+}
+
+export function getLiteralTypeFromPropertyName(c: Checker, name: Node): Type | undefined {
+  if (name.kind === SyntaxKind.PrivateIdentifier) return c.neverType;
+  if (name.kind === SyntaxKind.NumericLiteral) return getRegularTypeOfLiteralType(c, checkExpression(c, name));
+  if (name.kind === SyntaxKind.ComputedPropertyName)
+    return getRegularTypeOfLiteralType(c, checkComputedPropertyName(c, name));
+  if (
+    name.kind === SyntaxKind.Identifier ||
+    name.kind === SyntaxKind.StringLiteral ||
+    name.kind === SyntaxKind.NoSubstitutionTemplateLiteral
+  )
+    return getStringLiteralType(c, getText(name));
+  if (name.kind === SyntaxKind.BigIntLiteral) return getRegularTypeOfLiteralType(c, checkExpression(c, name));
+  return c.neverType;
+}
+
+function isKeyTypeIncluded(keyType: Type, include: TypeFlags): boolean {
+  if ((keyType.flags & include) !== 0) return true;
+  return (keyType.flags & TypeFlags.Intersection) !== 0 && typesOf(keyType).some((t) => isKeyTypeIncluded(t, include));
+}
+
+/** The keys of a mapped type, without resolving its properties. */
+export function getIndexForMappedType(c: Checker, t: MappedType, indexFlags: IndexFlags = IndexFlags.None): Type {
+  const typeParameter = getTypeParameterFromMappedType(c, t);
+  const constraintType = getConstraintTypeFromMappedType(c, t);
+  const nameType = getNameTypeFromMappedType(c, mappedTypeTarget(t));
+  if (nameType === undefined && (indexFlags & IndexFlags.NoIndexSignatures) === 0) return constraintType;
+  const keyTypes: Type[] = [];
+  const add = (keyType: Type): void => {
+    const propNameType =
+      nameType !== undefined
+        ? instantiateType(c, nameType, appendTypeMapping(t.mapper, typeParameter, keyType))
+        : keyType;
+    // `keyof` of a string index signature is `string | number`.
+    keyTypes.push(propNameType === c.stringType ? c.stringOrNumberType : propNameType);
+  };
+  if (isGenericIndexType(c, constraintType)) {
+    if (isMappedTypeWithKeyofConstraintDeclaration(c, t)) return getIndexTypeForGenericType(c, t, indexFlags);
+    forEachType(constraintType, add);
+  } else if (isMappedTypeWithKeyofConstraintDeclaration(c, t)) {
+    const modifiersType = getApparentType(c, getModifiersTypeFromMappedType(c, t));
+    forEachMappedTypePropertyKeyTypeAndIndexSignatureKeyType(
+      c,
+      modifiersType,
+      TypeFlags.StringOrNumberLiteralOrUnique,
+      (indexFlags & IndexFlags.StringsOnly) !== 0,
+      add,
+    );
+  } else forEachType(getLowerBoundOfKeyType(c, constraintType), add);
+  const result =
+    (indexFlags & IndexFlags.NoIndexSignatures) !== 0
+      ? filterType(c, getUnionType(c, keyTypes), (u) => (u.flags & (TypeFlags.Any | TypeFlags.String)) === 0)
+      : getUnionType(c, keyTypes);
+  if (
+    (result.flags & TypeFlags.Union) !== 0 &&
+    (constraintType.flags & TypeFlags.Union) !== 0 &&
+    typeListKey(typesOf(result)) === typeListKey(typesOf(constraintType))
+  )
+    return constraintType;
+  return result;
+}
+
+export function forEachType(t: Type, f: (t: Type) => void): void {
+  if ((t.flags & TypeFlags.Union) !== 0) for (const u of typesOf(t)) f(u);
+  else f(t);
+}
+
+function forEachMappedTypePropertyKeyTypeAndIndexSignatureKeyType(
+  c: Checker,
+  t: Type,
+  include: TypeFlags,
+  stringsOnly: boolean,
+  cb: (keyType: Type) => void,
+): void {
+  for (const prop of getPropertiesOfType(c, t)) cb(getLiteralTypeFromProperty(c, prop, include, false));
+  if ((t.flags & TypeFlags.Any) !== 0) cb(c.stringType);
+  else
+    for (const info of getIndexInfosOfType(c, t))
+      if (!stringsOnly || (info.keyType.flags & (TypeFlags.String | TypeFlags.TemplateLiteral)) !== 0) cb(info.keyType);
+}
+
+/** Keys known to always be present, e.g. from constraints of type parameters. */
+function getLowerBoundOfKeyType(c: Checker, t: Type): Type {
+  if ((t.flags & TypeFlags.Index) !== 0) {
+    const target = getApparentType(c, (t as IndexType).target);
+    return isGenericTupleType(target) ? getKnownKeysOfTupleType(c, target) : getIndexType(c, target);
+  }
+  if ((t.flags & TypeFlags.Conditional) !== 0) {
+    const conditional = t as ConditionalType;
+    if (conditional.root.isDistributive) {
+      const checkType = conditional.checkType;
+      const constraint = getLowerBoundOfKeyType(c, checkType);
+      if (constraint !== checkType)
+        return getConditionalTypeInstantiation(
+          c,
+          conditional,
+          prependTypeMapping(conditional.root.checkType, constraint, conditional.mapper),
+          false,
+          undefined,
+        );
+    }
+    return t;
+  }
+  if ((t.flags & TypeFlags.Union) !== 0) return mapType(c, t, (u) => getLowerBoundOfKeyType(c, u));
+  if ((t.flags & TypeFlags.Intersection) !== 0) {
+    const types = typesOf(t);
+    // Keep `string & {}` and friends, which prevent subtype reduction.
+    if (
+      types.length === 2 &&
+      (types[0].flags & (TypeFlags.String | TypeFlags.Number | TypeFlags.BigInt)) !== 0 &&
+      types[1] === c.emptyTypeLiteralType
+    )
+      return t;
+    return getIntersectionType(
+      c,
+      types.map((u) => getLowerBoundOfKeyType(c, u)),
+    );
+  }
+  return t;
+}
+
+function getKnownKeysOfTupleType(c: Checker, t: Type): Type {
+  const target = tupleTargetOf(t);
+  const keys: Type[] = [];
+  for (let i = 0; i < target.fixedLength; i++) keys.push(getStringLiteralType(c, String(i)));
+  keys.push(getIndexType(c, target.readonly ? c.globalReadonlyArrayType : c.globalArrayType));
+  return getUnionType(c, keys);
+}
+
+// ---- Indexed access
+
+export function getIndexedAccessType(c: Checker, objectType: Type, indexType: Type): Type {
+  return getIndexedAccessTypeEx(c, objectType, indexType, AccessFlags.None, undefined, undefined);
+}
+
+export function getIndexedAccessTypeEx(
+  c: Checker,
+  objectType: Type,
+  indexType: Type,
+  accessFlags: AccessFlags,
+  accessNode: Node | undefined,
+  alias: TypeAlias | undefined,
+): Type {
+  return (
+    getIndexedAccessTypeOrUndefinedEx(c, objectType, indexType, accessFlags, accessNode, alias) ??
+    (accessNode !== undefined ? c.errorType : c.unknownType)
+  );
+}
+
+export function getIndexedAccessTypeOrUndefined(
+  c: Checker,
+  objectType: Type,
+  indexType: Type,
+  accessFlags: AccessFlags,
+): Type | undefined {
+  return getIndexedAccessTypeOrUndefinedEx(c, objectType, indexType, accessFlags, undefined, undefined);
+}
+
+export function getIndexedAccessTypeOrUndefinedEx(
+  c: Checker,
+  objectType: Type,
+  indexType: Type,
+  accessFlags: AccessFlags,
+  accessNode: Node | undefined,
+  alias: TypeAlias | undefined,
+): Type | undefined {
+  if (objectType === c.wildcardType || indexType === c.wildcardType) return c.wildcardType;
+  objectType = getReducedType(c, objectType);
+  // A type with only a string index signature always yields that signature's type.
+  if (
+    isStringIndexSignatureOnlyType(c, objectType) &&
+    (indexType.flags & TypeFlags.Nullable) === 0 &&
+    isTypeAssignableToKind(c, indexType, TypeFlags.String | TypeFlags.Number)
+  )
+    indexType = c.stringType;
+  if (c.compilerOptions.noUncheckedIndexedAccess === true && (accessFlags & AccessFlags.ExpressionPosition) !== 0)
+    accessFlags |= AccessFlags.IncludeUndefined;
+  // Generic index or object types defer to an indexed access type.
+  if (shouldDeferIndexedAccessType(c, objectType, indexType, accessNode)) {
+    if ((objectType.flags & TypeFlags.AnyOrUnknown) !== 0) return objectType;
+    const persistent = accessFlags & AccessFlags.Persistent;
+    const key = objectType.id + ',' + indexType.id + ',' + accessFlags + aliasKey(alias);
+    let t = c.indexedAccessTypes.get(key);
+    if (t === undefined) {
+      t = newIndexedAccessType(c, objectType, indexType, persistent);
+      t.alias = alias;
+      c.indexedAccessTypes.set(key, t);
+    }
+    return t;
+  }
+  // `boolean` stays whole for better errors.
+  const apparentObjectType = getReducedApparentType(c, objectType);
+  if ((indexType.flags & TypeFlags.Union) !== 0 && (indexType.flags & TypeFlags.Boolean) === 0) {
+    const propTypes: Type[] = [];
+    let wasMissingProp = false;
+    for (const t of typesOf(indexType)) {
+      const propType = getPropertyTypeForIndexType(
+        c,
+        objectType,
+        apparentObjectType,
+        t,
+        indexType,
+        accessNode,
+        accessFlags | (wasMissingProp ? AccessFlags.SuppressNoImplicitAnyError : 0),
+      );
+      if (propType !== undefined) propTypes.push(propType);
+      else if (accessNode === undefined) return undefined;
+      else wasMissingProp = true;
+    }
+    if (wasMissingProp) return undefined;
+    if ((accessFlags & AccessFlags.Writing) !== 0)
+      return getIntersectionTypeEx(c, propTypes, IntersectionFlags.None, alias);
+    return getUnionTypeEx(c, propTypes, UnionReduction.Literal, alias, undefined);
+  }
+  return getPropertyTypeForIndexType(
+    c,
+    objectType,
+    apparentObjectType,
+    indexType,
+    indexType,
+    accessNode,
+    accessFlags | AccessFlags.CacheSymbol | AccessFlags.ReportDeprecated,
+  );
+}
+
+function shouldDeferIndexedAccessType(
+  c: Checker,
+  objectType: Type,
+  indexType: Type,
+  accessNode: Node | undefined,
+): boolean {
+  if (isGenericIndexType(c, indexType)) return true;
+  if (accessNode !== undefined && accessNode.kind !== SyntaxKind.IndexedAccessType)
+    return (
+      isGenericTupleType(objectType) &&
+      !indexTypeLessThan(indexType, getTotalFixedElementCount(tupleTargetOf(objectType)))
+    );
+  return (
+    (isGenericObjectType(c, objectType) &&
+      !(
+        isTupleType(objectType) && indexTypeLessThan(indexType, getTotalFixedElementCount(tupleTargetOf(objectType)))
+      )) ||
+    isGenericReducibleType(c, objectType)
+  );
+}
+
+function indexTypeLessThan(indexType: Type, limit: number): boolean {
+  return everyType(indexType, (t) => {
+    if ((t.flags & TypeFlags.StringOrNumberLiteral) !== 0) {
+      const name = getPropertyNameFromType(t);
+      if (isNumericLiteralName(name)) {
+        const index = Number(name);
+        return index >= 0 && index < limit;
+      }
+    }
+    return false;
+  });
+}
+
+export function isStringIndexSignatureOnlyType(c: Checker, t: Type): boolean {
+  return (
+    ((t.flags & TypeFlags.Object) !== 0 &&
+      !isGenericMappedType(c, t) &&
+      getPropertiesOfType(c, t).length === 0 &&
+      getIndexInfosOfType(c, t).length === 1 &&
+      getIndexInfoOfType(c, t, c.stringType) !== undefined) ||
+    ((t.flags & TypeFlags.UnionOrIntersection) !== 0 &&
+      typesOf(t).every((u) => isStringIndexSignatureOnlyType(c, u))) ||
+    false
+  );
+}
+
+export function isTypeAssignableToKind(c: Checker, source: Type, kind: TypeFlags): boolean {
+  return isTypeAssignableToKindEx(c, source, kind, false);
+}
+
+export function isTypeAssignableToKindEx(c: Checker, source: Type, kind: TypeFlags, strict: boolean): boolean {
+  if ((source.flags & kind) !== 0) return true;
+  if (strict && (source.flags & (TypeFlags.AnyOrUnknown | TypeFlags.Void | TypeFlags.Undefined | TypeFlags.Null)) !== 0)
+    return false;
+  return (
+    ((kind & TypeFlags.NumberLike) !== 0 && isTypeAssignableTo(c, source, c.numberType)) ||
+    ((kind & TypeFlags.BigIntLike) !== 0 && isTypeAssignableTo(c, source, c.bigintType)) ||
+    ((kind & TypeFlags.StringLike) !== 0 && isTypeAssignableTo(c, source, c.stringType)) ||
+    ((kind & TypeFlags.BooleanLike) !== 0 && isTypeAssignableTo(c, source, c.booleanType)) ||
+    ((kind & TypeFlags.Void) !== 0 && isTypeAssignableTo(c, source, c.voidType)) ||
+    ((kind & TypeFlags.Never) !== 0 && isTypeAssignableTo(c, source, c.neverType)) ||
+    ((kind & TypeFlags.Null) !== 0 && isTypeAssignableTo(c, source, c.nullType)) ||
+    ((kind & TypeFlags.Undefined) !== 0 && isTypeAssignableTo(c, source, c.undefinedType)) ||
+    ((kind & TypeFlags.ESSymbol) !== 0 && isTypeAssignableTo(c, source, c.esSymbolType)) ||
+    ((kind & TypeFlags.NonPrimitive) !== 0 && isTypeAssignableTo(c, source, c.nonPrimitiveType))
+  );
+}
+
+export function getPropertyNameFromIndex(indexType: Type): string | undefined {
+  return isTypeUsableAsPropertyName(indexType) ? getPropertyNameFromType(indexType) : undefined;
+}
+
+/** The type of the property `indexType` selects; reporting of access errors happens in element access checks. */
+function getPropertyTypeForIndexType(
+  c: Checker,
+  originalObjectType: Type,
+  objectType: Type,
+  indexType: Type,
+  fullIndexType: Type,
+  accessNode: Node | undefined,
+  accessFlags: AccessFlags,
+): Type | undefined {
+  const propName =
+    accessNode !== undefined && accessNode.kind === SyntaxKind.PrivateIdentifier
+      ? undefined
+      : getPropertyNameFromIndex(indexType);
+  if (propName !== undefined) {
+    const prop = getPropertyOfType(c, objectType, propName);
+    if (prop !== undefined) {
+      if (accessNode !== undefined && (accessFlags & AccessFlags.CacheSymbol) !== 0)
+        c.nodeLinks(accessNode).resolvedSymbol = prop;
+      const propType =
+        (accessFlags & AccessFlags.Writing) !== 0 ? getWriteTypeOfSymbol(c, prop) : getTypeOfSymbol(c, prop);
+      if (accessNode !== undefined && accessNode.kind === SyntaxKind.IndexedAccessType && containsMissing(c, propType))
+        return getUnionType(c, [propType, c.undefinedType]);
+      return propType;
+    }
+    if (everyType(objectType, isTupleType) && isNumericLiteralName(propName)) {
+      const index = Number(propName);
+      if (
+        accessNode !== undefined &&
+        everyType(objectType, (t) => (tupleTargetOf(t).combinedFlags & ElementFlags.Variable) === 0) &&
+        (accessFlags & AccessFlags.AllowMissing) === 0
+      ) {
+        const indexNode = getIndexNodeForAccessExpression(accessNode);
+        if (isTupleType(objectType)) {
+          if (index < 0) {
+            c.error(indexNode, Diagnostics.A_tuple_type_cannot_be_indexed_with_a_negative_value);
+            return c.undefinedType;
+          }
+          c.error(
+            indexNode,
+            Diagnostics.Tuple_type_0_of_length_1_has_no_element_at_index_2,
+            typeToString(c, objectType),
+            String(tupleTargetOf(objectType).typeParameters().length),
+            propName,
+          );
+        } else
+          c.error(indexNode, Diagnostics.Property_0_does_not_exist_on_type_1, propName, typeToString(c, objectType));
+      }
+      if (index >= 0)
+        return getTupleElementTypeOutOfStartCount(
+          c,
+          objectType,
+          index,
+          (accessFlags & AccessFlags.IncludeUndefined) !== 0 ? c.missingType : undefined,
+        );
+    }
+  }
+  if (
+    (indexType.flags & TypeFlags.Nullable) === 0 &&
+    isTypeAssignableToKind(c, indexType, TypeFlags.StringLike | TypeFlags.NumberLike | TypeFlags.ESSymbolLike)
+  ) {
+    if ((objectType.flags & (TypeFlags.Any | TypeFlags.Never)) !== 0) return objectType;
+    // The string index signature applies even to symbol-like keys when nothing else does.
+    const indexInfo =
+      getApplicableIndexInfo(c, objectType, indexType) ?? getIndexInfoOfType(c, objectType, c.stringType);
+    if (indexInfo !== undefined) {
+      if ((accessFlags & AccessFlags.NoIndexSignatures) !== 0 && indexInfo.keyType !== c.numberType) return undefined;
+      if ((accessFlags & AccessFlags.IncludeUndefined) !== 0)
+        return getUnionType(c, [indexInfo.valueType, c.missingType]);
+      return indexInfo.valueType;
+    }
+    if ((indexType.flags & TypeFlags.Never) !== 0) return c.neverType;
+    if ((objectType.objectFlags & ObjectFlags.JSLiteral) !== 0) return c.anyType;
+    const accessExpression =
+      accessNode !== undefined && accessNode.kind === SyntaxKind.ElementAccessExpression ? accessNode : undefined;
+    if (accessExpression !== undefined && !isConstEnumObjectType(objectType)) {
+      if (isObjectLiteralType(objectType)) {
+        if (c.noImplicitAny && (indexType.flags & (TypeFlags.StringLiteral | TypeFlags.NumberLiteral)) !== 0) {
+          c.error(
+            accessExpression,
+            Diagnostics.Property_0_does_not_exist_on_type_1,
+            getPropertyNameFromType(indexType),
+            typeToString(c, objectType),
+          );
+          return c.undefinedType;
+        }
+        if ((indexType.flags & (TypeFlags.Number | TypeFlags.String)) !== 0) {
+          const types = getPropertiesOfType(c, objectType).map((p) => getTypeOfSymbol(c, p));
+          types.push(c.undefinedType);
+          return getUnionType(c, types);
+        }
+      }
+      if (c.noImplicitAny && (accessFlags & AccessFlags.SuppressNoImplicitAnyError) === 0) {
+        const argument = (accessExpression as ElementAccessExpression).argumentExpression;
+        const objectText = typeToString(c, objectType);
+        if (getIndexTypeOfType(c, objectType, c.numberType) !== undefined)
+          c.error(
+            argument,
+            Diagnostics.Element_implicitly_has_an_any_type_because_index_expression_is_not_of_type_number,
+          );
+        else {
+          let head: Diagnostic | undefined = undefined;
+          if ((indexType.flags & (TypeFlags.StringLiteral | TypeFlags.NumberLiteral)) !== 0)
+            head = createDiagnosticForNode(accessExpression, Diagnostics.Property_0_does_not_exist_on_type_1, [
+              getPropertyNameFromType(indexType),
+              objectText,
+            ]);
+          else if ((indexType.flags & (TypeFlags.Number | TypeFlags.String)) !== 0)
+            head = createDiagnosticForNode(
+              accessExpression,
+              Diagnostics.No_index_signature_with_a_parameter_of_type_0_was_found_on_type_1,
+              [typeToString(c, indexType), objectText],
+            );
+          const diagnostic = createDiagnosticForNode(
+            accessExpression,
+            Diagnostics.Element_implicitly_has_an_any_type_because_expression_of_type_0_can_t_be_used_to_index_type_1,
+            [typeToString(c, fullIndexType), objectText],
+          );
+          if (head !== undefined) diagnostic.addMessageChain(head);
+          c.addDiagnostic(diagnostic);
+        }
+      }
+      return undefined;
+    }
+  }
+  if ((accessFlags & AccessFlags.AllowMissing) !== 0 && isObjectLiteralType(objectType)) return c.undefinedType;
+  if ((objectType.objectFlags & ObjectFlags.JSLiteral) !== 0) return c.anyType;
+  if (accessNode !== undefined) {
+    const indexNode = getIndexNodeForAccessExpression(accessNode);
+    if (
+      indexNode.kind !== SyntaxKind.BigIntLiteral &&
+      (indexType.flags & (TypeFlags.StringLiteral | TypeFlags.NumberLiteral)) !== 0
+    )
+      c.error(
+        indexNode,
+        Diagnostics.Property_0_does_not_exist_on_type_1,
+        getPropertyNameFromType(indexType),
+        typeToString(c, objectType),
+      );
+    else if ((indexType.flags & (TypeFlags.String | TypeFlags.Number)) !== 0)
+      c.error(
+        indexNode,
+        Diagnostics.Type_0_has_no_matching_index_signature_for_type_1,
+        typeToString(c, objectType),
+        typeToString(c, indexType),
+      );
+    else
+      c.error(
+        indexNode,
+        Diagnostics.Type_0_cannot_be_used_as_an_index_type,
+        indexNode.kind === SyntaxKind.BigIntLiteral ? 'bigint' : typeToString(c, indexType),
+      );
+  }
+  if ((indexType.flags & TypeFlags.Any) !== 0) return indexType;
+  return undefined;
+}
+
+function isObjectLiteralType(t: Type): boolean {
+  return (t.objectFlags & ObjectFlags.ObjectLiteral) !== 0;
+}
+
+function isConstEnumObjectType(t: Type): boolean {
+  return (
+    (t.objectFlags & ObjectFlags.Anonymous) !== 0 &&
+    t.symbol !== undefined &&
+    (t.symbol.flags & SymbolFlags.ConstEnum) !== 0
+  );
+}
+
+function containsMissing(c: Checker, t: Type): boolean {
+  return t === c.missingType || ((t.flags & TypeFlags.Union) !== 0 && typesOf(t)[0] === c.missingType);
+}
+
+function getIndexNodeForAccessExpression(accessNode: Node): Node {
+  if (accessNode.kind === SyntaxKind.ElementAccessExpression)
+    return (accessNode as ElementAccessExpression).argumentExpression;
+  if (accessNode.kind === SyntaxKind.IndexedAccessType) return (accessNode as IndexedAccessTypeNode).indexType;
+  if (accessNode.kind === SyntaxKind.ComputedPropertyName) return getExpression(accessNode)!;
+  return accessNode;
+}
+
+export function getTupleElementTypeOutOfStartCount(
+  c: Checker,
+  t: Type,
+  index: number,
+  undefinedLikeType: Type | undefined,
+): Type {
+  return mapType(c, t, (u) => {
+    const restType = getRestTypeOfTupleType(c, u);
+    if (restType === undefined) return c.undefinedType;
+    if (undefinedLikeType !== undefined && index >= getTotalFixedElementCount(tupleTargetOf(u)))
+      return getUnionType(c, [restType, undefinedLikeType]);
+    return restType;
+  });
+}
+
+export function getRestTypeOfTupleType(c: Checker, t: Type): Type | undefined {
+  return getElementTypeOfSliceOfTupleType(c, t, tupleTargetOf(t).fixedLength, 0, false, false);
+}
+
+export function getElementTypeOfSliceOfTupleType(
+  c: Checker,
+  t: Type,
+  index: number,
+  endSkipCount: number,
+  writing: boolean,
+  noReductions: boolean,
+): Type | undefined {
+  const length = tupleTargetOf(t).typeParameters().length - endSkipCount;
+  const infos = tupleTargetOf(t).elementInfos;
+  if (index >= length) return undefined;
+  const typeArguments = getTypeArguments(c, t);
+  const elementTypes: Type[] = [];
+  for (let i = index; i < length; i++) {
+    const e = typeArguments[i];
+    elementTypes.push((infos[i].flags & ElementFlags.Variadic) !== 0 ? getIndexedAccessType(c, e, c.numberType) : e);
+  }
+  if (writing) return getIntersectionType(c, elementTypes);
+  return getUnionTypeEx(
+    c,
+    elementTypes,
+    noReductions ? UnionReduction.None : UnionReduction.Literal,
+    undefined,
+    undefined,
+  );
+}
+
+export function getConstraintOfIndexedAccess(c: Checker, t: IndexedAccessType): Type | undefined {
+  return hasNonCircularBaseConstraintLocal(c, t) ? getConstraintFromIndexedAccess(c, t) : undefined;
+}
+
+function hasNonCircularBaseConstraintLocal(c: Checker, t: Type): boolean {
+  return getBaseConstraintOfType(c, t) !== undefined || t.resolvedBaseConstraint !== c.circularConstraintType;
+}
+
+function getConstraintFromIndexedAccess(c: Checker, t: IndexedAccessType): Type | undefined {
+  if (isMappedTypeGenericIndexedAccess(c, t))
+    return substituteIndexedMappedType(c, t.objectType as MappedType, t.indexType);
+  const indexConstraint = getSimplifiedTypeOrConstraint(c, t.indexType);
+  if (indexConstraint !== undefined && indexConstraint !== t.indexType) {
+    const indexed = getIndexedAccessTypeOrUndefined(c, t.objectType, indexConstraint, t.accessFlags);
+    if (indexed !== undefined) return indexed;
+  }
+  const objectConstraint = getSimplifiedTypeOrConstraint(c, t.objectType);
+  if (objectConstraint !== undefined && objectConstraint !== t.objectType)
+    return getIndexedAccessTypeOrUndefined(c, objectConstraint, t.indexType, t.accessFlags);
+  return undefined;
+}
+
+function getSimplifiedTypeOrConstraint(c: Checker, t: Type): Type | undefined {
+  const simplified = getSimplifiedType(c, t, false);
+  return simplified !== t ? simplified : getConstraintOfTypeLocal(c, t);
+}
+
+function getConstraintOfTypeLocal(c: Checker, t: Type): Type | undefined {
+  if ((t.flags & TypeFlags.TypeParameter) !== 0) return getConstraintOfTypeParameter(c, t);
+  if ((t.flags & TypeFlags.IndexedAccess) !== 0) return getConstraintOfIndexedAccess(c, t as IndexedAccessType);
+  if ((t.flags & TypeFlags.Conditional) !== 0) return getConstraintOfConditionalType(c, t);
+  return getBaseConstraintOfType(c, t);
+}
+
+export function isMappedTypeGenericIndexedAccess(c: Checker, t: Type): boolean {
+  if ((t.flags & TypeFlags.IndexedAccess) === 0) return false;
+  const objectType = (t as IndexedAccessType).objectType;
+  return (
+    (objectType.objectFlags & ObjectFlags.Mapped) !== 0 &&
+    !isGenericMappedType(c, objectType) &&
+    isGenericIndexType(c, (t as IndexedAccessType).indexType) &&
+    (getMappedTypeModifiers(objectType as MappedType) & MappedTypeModifiers.ExcludeOptional) === 0 &&
+    mappedNameTypeNode(objectType as MappedType) === undefined
+  );
+}
+
+/** For `{ [P in K]: E }[X]`, E with P replaced by X. */
+export function substituteIndexedMappedType(c: Checker, objectType: MappedType, index: Type): Type {
+  const mapper = newTypeMapper([getTypeParameterFromMappedType(c, objectType)], [index]);
+  const templateMapper = combineTypeMappers(c, objectType.mapper, mapper);
+  const instantiatedTemplateType = instantiateType(
+    c,
+    getTemplateTypeFromMappedType(c, mappedTypeTarget(objectType)),
+    templateMapper,
+  );
+  const isOptional = getMappedTypeOptionality(objectType) > 0;
+  return addOptionality(c, instantiatedTemplateType, true, isOptional);
+}
+
+// ---- Simplification
+
+export function getSimplifiedType(c: Checker, t: Type, writing: boolean): Type {
+  if ((t.flags & TypeFlags.IndexedAccess) !== 0)
+    return getSimplifiedIndexedAccessType(c, t as IndexedAccessType, writing);
+  return t;
+}
+
+function getSimplifiedIndexedAccessType(c: Checker, t: IndexedAccessType, writing: boolean): Type {
+  const key = (writing ? 'simplifiedWrite' : 'simplifiedRead') + t.id;
+  const cached = c.cachedTypes.get(key);
+  if (cached !== undefined) return cached === c.circularConstraintType ? t : cached;
+  const self: Type = t;
+  c.cachedTypes.set(key, self);
+  const objectType = getSimplifiedType(c, t.objectType, writing);
+  const indexType = getSimplifiedType(c, t.indexType, writing);
+  let result: Type = t;
+  // T[A | B] -> T[A] | T[B] (reading), T[A] & T[B] (writing).
+  if ((indexType.flags & TypeFlags.Union) !== 0 && !isGenericMappedType(c, objectType)) {
+    const types = typesOf(indexType).map((u) => getSimplifiedType(c, getIndexedAccessType(c, objectType, u), writing));
+    result = writing ? getIntersectionType(c, types) : getUnionType(c, types);
+  } else if (
+    (indexType.flags & TypeFlags.Instantiable) === 0 &&
+    (objectType.flags & TypeFlags.Union) !== 0 &&
+    !writing
+  ) {
+    const types = typesOf(objectType).map((u) => getSimplifiedType(c, getIndexedAccessType(c, u, indexType), writing));
+    result = getUnionType(c, types);
+  } else if (isGenericTupleType(objectType) && (indexType.flags & TypeFlags.NumberLike) !== 0) {
+    const elementType = getElementTypeOfSliceOfTupleType(
+      c,
+      objectType,
+      (indexType.flags & TypeFlags.Number) !== 0 ? 0 : tupleTargetOf(objectType).fixedLength,
+      0,
+      writing,
+      false,
+    );
+    if (elementType !== undefined) result = elementType;
+  } else if (isGenericMappedType(c, objectType)) {
+    // { [P in K]: E }[X] -> E with X for P, when the template doesn't depend on the iteration in other ways.
+    if (mappedNameTypeNode(objectType as MappedType) === undefined) {
+      const constraint = getConstraintTypeFromMappedType(c, objectType as MappedType);
+      if (
+        !(getMappedTypeModifiers(objectType as MappedType) & MappedTypeModifiers.ExcludeOptional) &&
+        isTypeAssignableTo(c, indexType, constraint)
+      )
+        result = getSimplifiedType(c, substituteIndexedMappedType(c, objectType as MappedType, indexType), writing);
+    }
+  }
+  if (result.id !== t.id) {
+    const self: Type = t;
+    result = filterType(c, result, (u) => u.id !== self.id);
+    c.cachedTypes.set(key, result);
+  }
+  return result;
+}
+
+// ---- Substitution and NoInfer
+
+export function isNoInferType(c: Checker, t: Type): boolean {
+  // NoInfer<T> is a substitution type with an `unknown` constraint.
+  return (
+    (t.flags & TypeFlags.Substitution) !== 0 && ((t as SubstitutionType).constraint.flags & TypeFlags.Unknown) !== 0
+  );
+}
+
+export function getNoInferType(c: Checker, t: Type): Type {
+  return isNoInferTargetType(c, t) ? getOrCreateSubstitutionType(c, t, c.unknownType) : t;
+}
+
+function isNoInferTargetType(c: Checker, t: Type): boolean {
+  if ((t.flags & TypeFlags.UnionOrIntersection) !== 0) return typesOf(t).some((u) => isNoInferTargetType(c, u));
+  if ((t.flags & TypeFlags.Substitution) !== 0)
+    return !isNoInferType(c, t) && isNoInferTargetType(c, (t as SubstitutionType).baseType);
+  if ((t.flags & TypeFlags.Object) !== 0) return !isEmptyAnonymousObjectType(c, t);
+  return (t.flags & (TypeFlags.Instantiable & ~TypeFlags.Substitution)) !== 0 && !isPatternLiteralType(c, t);
+}
+
+export function getSubstitutionType(c: Checker, baseType: Type, constraint: Type): Type {
+  if (
+    (constraint.flags & TypeFlags.AnyOrUnknown) !== 0 ||
+    constraint === baseType ||
+    (baseType.flags & TypeFlags.Any) !== 0
+  )
+    return baseType;
+  return getOrCreateSubstitutionType(c, baseType, constraint);
+}
+
+function getOrCreateSubstitutionType(c: Checker, baseType: Type, constraint: Type): Type {
+  const key = baseType.id + '>' + constraint.id;
+  let t = c.substitutionTypes.get(key);
+  if (t === undefined) {
+    t = newSubstitutionType(c, baseType, constraint);
+    c.substitutionTypes.set(key, t);
+  }
+  return t;
+}
+
+export function getSubstitutionIntersection(c: Checker, t: Type): Type {
+  const s = t as SubstitutionType;
+  return isNoInferType(c, t) ? s.baseType : getIntersectionType(c, [s.constraint, s.baseType]);
+}
+
+// ---- String mappings
+
+export const enum IntrinsicTypeKind {
+  Unknown = 0,
+  Uppercase = 1,
+  Lowercase = 2,
+  Capitalize = 3,
+  Uncapitalize = 4,
+  NoInfer = 5,
+}
+
+export function intrinsicTypeKind(name: string): IntrinsicTypeKind {
+  switch (name) {
+    case 'Uppercase':
+      return IntrinsicTypeKind.Uppercase;
+    case 'Lowercase':
+      return IntrinsicTypeKind.Lowercase;
+    case 'Capitalize':
+      return IntrinsicTypeKind.Capitalize;
+    case 'Uncapitalize':
+      return IntrinsicTypeKind.Uncapitalize;
+    case 'NoInfer':
+      return IntrinsicTypeKind.NoInfer;
+  }
+  return IntrinsicTypeKind.Unknown;
+}
+
+function applyStringMapping(symbol: Symbol, s: string): string {
+  switch (intrinsicTypeKind(symbol.name)) {
+    case IntrinsicTypeKind.Uppercase:
+      return s.toUpperCase();
+    case IntrinsicTypeKind.Lowercase:
+      return s.toLowerCase();
+    case IntrinsicTypeKind.Capitalize: {
+      const size = s.length > 1 && s.charCodeAt(0) >= 0xd800 && s.charCodeAt(0) <= 0xdbff ? 2 : 1;
+      return s.substring(0, size).toUpperCase() + s.substring(size);
+    }
+    case IntrinsicTypeKind.Uncapitalize: {
+      const size = s.length > 1 && s.charCodeAt(0) >= 0xd800 && s.charCodeAt(0) <= 0xdbff ? 2 : 1;
+      return s.substring(0, size).toLowerCase() + s.substring(size);
+    }
+  }
+  return s;
+}
+
+export function getStringMappingType(c: Checker, symbol: Symbol, t: Type): Type {
+  if ((t.flags & (TypeFlags.Union | TypeFlags.Never)) !== 0)
+    return mapType(c, t, (u) => getStringMappingType(c, symbol, u));
+  if ((t.flags & TypeFlags.StringLiteral) !== 0)
+    return getStringLiteralType(c, applyStringMapping(symbol, (t as LiteralType).stringValue));
+  if ((t.flags & TypeFlags.TemplateLiteral) !== 0) {
+    const template = t as TemplateLiteralType;
+    const [texts, types] = applyTemplateStringMapping(c, symbol, template.texts, template.types);
+    return getTemplateLiteralType(c, texts, types);
+  }
+  if ((t.flags & TypeFlags.StringMapping) !== 0 && symbol === t.symbol) return t;
+  if ((t.flags & (TypeFlags.Any | TypeFlags.String | TypeFlags.StringMapping)) !== 0 || isGenericIndexType(c, t))
+    return getStringMappingTypeForGenericType(c, symbol, t);
+  if (isPatternLiteralPlaceholder(c, t))
+    return getStringMappingTypeForGenericType(c, symbol, getTemplateLiteralType(c, ['', ''], [t]));
+  return t;
+}
+
+function isPatternLiteralPlaceholder(c: Checker, t: Type): boolean {
+  return (
+    (t.flags & (TypeFlags.Any | TypeFlags.String | TypeFlags.Number | TypeFlags.BigInt)) !== 0 ||
+    isPatternLiteralType(c, t)
+  );
+}
+
+function applyTemplateStringMapping(c: Checker, symbol: Symbol, texts: string[], types: Type[]): [string[], Type[]] {
+  const kind = intrinsicTypeKind(symbol.name);
+  if (kind === IntrinsicTypeKind.Uppercase || kind === IntrinsicTypeKind.Lowercase)
+    return [texts.map((t) => applyStringMapping(symbol, t)), types.map((t) => getStringMappingType(c, symbol, t))];
+  if (kind === IntrinsicTypeKind.Capitalize || kind === IntrinsicTypeKind.Uncapitalize) {
+    if (texts[0] === '') return [texts, [getStringMappingType(c, symbol, types[0])].concat(types.slice(1))];
+    return [[applyStringMapping(symbol, texts[0])].concat(texts.slice(1)), types];
+  }
+  return [texts, types];
+}
+
+function getStringMappingTypeForGenericType(c: Checker, symbol: Symbol, t: Type): Type {
+  const key = symbol.id + ',' + t.id;
+  let result = c.stringMappingTypes.get(key);
+  if (result === undefined) {
+    result = new StringMappingType(c.nextTypeId(), symbol, t);
+    c.stringMappingTypes.set(key, result);
+  }
+  return result;
+}
+
+// ---- Mapped types
+
+export const enum MappedTypeModifiers {
+  IncludeReadonly = 1 << 0,
+  ExcludeReadonly = 1 << 1,
+  IncludeOptional = 1 << 2,
+  ExcludeOptional = 1 << 3,
+}
+
+function mappedDeclaration(t: MappedType): MappedTypeNode {
+  return t.declaration as MappedTypeNode;
+}
+
+function mappedNameTypeNode(t: MappedType): Node | undefined {
+  return mappedDeclaration(t).nameType;
+}
+
+export function getMappedTypeModifiers(t: MappedType): MappedTypeModifiers {
+  const declaration = mappedDeclaration(t);
+  let modifiers = 0;
+  if (declaration.readonlyToken !== undefined)
+    modifiers |=
+      declaration.readonlyToken.kind === SyntaxKind.MinusToken
+        ? MappedTypeModifiers.ExcludeReadonly
+        : MappedTypeModifiers.IncludeReadonly;
+  if (declaration.questionToken !== undefined)
+    modifiers |=
+      declaration.questionToken.kind === SyntaxKind.MinusToken
+        ? MappedTypeModifiers.ExcludeOptional
+        : MappedTypeModifiers.IncludeOptional;
+  return modifiers;
+}
+
+export function getMappedTypeOptionality(t: MappedType): number {
+  const modifiers = getMappedTypeModifiers(t);
+  if ((modifiers & MappedTypeModifiers.ExcludeOptional) !== 0) return -1;
+  if ((modifiers & MappedTypeModifiers.IncludeOptional) !== 0) return 1;
+  return 0;
+}
+
+export function getTypeFromMappedTypeNode(c: Checker, node: Node): Type {
+  const links = c.nodeLinks(node);
+  if (links.resolvedType === undefined) {
+    const t = newObjectType(c, ObjectFlags.Mapped, getSymbol(node)) as MappedType;
+    t.declaration = node;
+    t.alias = getAliasForTypeNode(c, node);
+    links.resolvedType = t;
+    // Resolve the constraint eagerly to report circular aliases.
+    getConstraintTypeFromMappedType(c, t);
+  }
+  return links.resolvedType;
+}
+
+export function getTypeParameterFromMappedType(c: Checker, t: MappedType): TypeParameter {
+  if (t.typeParameter === undefined)
+    t.typeParameter = getDeclaredTypeOfTypeParameter(c, getSymbolOfDeclaration(c, mappedDeclaration(t).typeParameter)!);
+  return t.typeParameter as TypeParameter;
+}
+
+export function getConstraintTypeFromMappedType(c: Checker, t: MappedType): Type {
+  if (t.constraintType === undefined)
+    t.constraintType = getConstraintOfTypeParameter(c, getTypeParameterFromMappedType(c, t)) ?? c.errorType;
+  return t.constraintType;
+}
+
+export function getNameTypeFromMappedType(c: Checker, t: MappedType): Type | undefined {
+  const node = mappedNameTypeNode(t);
+  if (node === undefined) return undefined;
+  if (t.nameType === undefined) t.nameType = instantiateType(c, getTypeFromTypeNode(c, node), t.mapper);
+  return t.nameType;
+}
+
+export function getTemplateTypeFromMappedType(c: Checker, t: MappedType): Type {
+  if (t.templateType === undefined) {
+    const typeNode = mappedDeclaration(t).type;
+    t.templateType =
+      typeNode !== undefined
+        ? instantiateType(
+            c,
+            addOptionality(
+              c,
+              getTypeFromTypeNode(c, typeNode),
+              true,
+              (getMappedTypeModifiers(t) & MappedTypeModifiers.IncludeOptional) !== 0,
+            ),
+            t.mapper,
+          )
+        : c.errorType;
+  }
+  return t.templateType;
+}
+
+function getConstraintDeclarationForMappedType(t: MappedType): Node | undefined {
+  return (mappedDeclaration(t).typeParameter as TypeParameterDeclaration).constraint;
+}
+
+export function isMappedTypeWithKeyofConstraintDeclaration(c: Checker, t: MappedType): boolean {
+  const constraint = getConstraintDeclarationForMappedType(t);
+  return (
+    constraint !== undefined &&
+    constraint.kind === SyntaxKind.TypeOperator &&
+    (constraint as PrefixUnaryExpression).operator === SyntaxKind.KeyOfKeyword
+  );
+}
+
+export function getModifiersTypeFromMappedType(c: Checker, t: MappedType): Type {
+  if (t.modifiersType === undefined) {
+    if (isMappedTypeWithKeyofConstraintDeclaration(c, t)) {
+      // For `keyof T`, the modifiers type is T, read from the node since `keyof` of a concrete T resolves eagerly.
+      t.modifiersType = instantiateType(
+        c,
+        getTypeFromTypeNode(c, getType(getConstraintDeclarationForMappedType(t)!)!),
+        t.mapper,
+      );
+    } else {
+      const declaredType = getTypeFromMappedTypeNode(c, t.declaration!) as MappedType;
+      const constraint = getConstraintTypeFromMappedType(c, declaredType);
+      const extended =
+        (constraint.flags & TypeFlags.TypeParameter) !== 0 ? getConstraintOfTypeParameter(c, constraint) : constraint;
+      t.modifiersType =
+        extended !== undefined && (extended.flags & TypeFlags.Index) !== 0
+          ? instantiateType(c, (extended as IndexType).target, t.mapper)
+          : c.unknownType;
+    }
+  }
+  return t.modifiersType;
+}
+
+export function getHomomorphicTypeVariable(c: Checker, t: MappedType): TypeParameter | undefined {
+  const constraintType = getConstraintTypeFromMappedType(c, t);
+  if ((constraintType.flags & TypeFlags.Index) !== 0) {
+    const typeVariable = getActualTypeVariable(c, (constraintType as IndexType).target);
+    if ((typeVariable.flags & TypeFlags.TypeParameter) !== 0) return typeVariable as TypeParameter;
+  }
+  return undefined;
+}
+
+export function getActualTypeVariable(c: Checker, t: Type): Type {
+  if ((t.flags & TypeFlags.Substitution) !== 0) return getActualTypeVariable(c, (t as SubstitutionType).baseType);
+  if ((t.flags & TypeFlags.IndexedAccess) !== 0) {
+    const access = t as IndexedAccessType;
+    if (
+      (access.objectType.flags & TypeFlags.Substitution) !== 0 ||
+      (access.indexType.flags & TypeFlags.Substitution) !== 0
+    )
+      return getIndexedAccessType(
+        c,
+        getActualTypeVariable(c, access.objectType),
+        getActualTypeVariable(c, access.indexType),
+      );
+  }
+  return t;
+}
+
+const enum MappedTypeNameTypeKind {
+  None = 0,
+  Filtering = 1,
+  Remapping = 2,
+}
+
+function getMappedTypeNameTypeKind(c: Checker, t: MappedType): MappedTypeNameTypeKind {
+  const nameType = getNameTypeFromMappedType(c, t);
+  if (nameType === undefined) return MappedTypeNameTypeKind.None;
+  return isTypeAssignableTo(c, nameType, getTypeParameterFromMappedType(c, t))
+    ? MappedTypeNameTypeKind.Filtering
+    : MappedTypeNameTypeKind.Remapping;
+}
+
+export function resolveMappedTypeMembers(c: Checker, t: MappedType): void {
+  const members = new Map<string, Symbol>();
+  let indexInfos: IndexInfo[] = [];
+  // Recursive references see an empty object type.
+  setStructuredTypeMembers(c, t, undefined, [], [], []);
+  const typeParameter = getTypeParameterFromMappedType(c, t);
+  const constraintType = getConstraintTypeFromMappedType(c, t);
+  const mappedType = mappedTypeTarget(t);
+  const nameType = getNameTypeFromMappedType(c, mappedType);
+  const shouldLinkPropDeclarations = getMappedTypeNameTypeKind(c, mappedType) !== MappedTypeNameTypeKind.Remapping;
+  const templateType = getTemplateTypeFromMappedType(c, mappedType);
+  const modifiersType = getApparentType(c, getModifiersTypeFromMappedType(c, t));
+  const templateModifiers = getMappedTypeModifiers(t);
+  const addForPropName = (keyType: Type, propNameType: Type): void => {
+    if (isTypeUsableAsPropertyName(propNameType)) {
+      const propName = getPropertyNameFromType(propNameType);
+      const existing = members.get(propName);
+      if (existing !== undefined) {
+        // Same-valued string enum members from different enums share a property.
+        const links = c.symbolLinks(existing);
+        links.nameType = getUnionType(c, [links.nameType!, propNameType]);
+        links.keyType = getUnionType(c, [links.keyType!, keyType]);
+        return;
+      }
+      const modifiersProp = isTypeUsableAsPropertyName(keyType)
+        ? getPropertyOfType(c, modifiersType, getPropertyNameFromType(keyType))
+        : undefined;
+      const isOptional =
+        (templateModifiers & MappedTypeModifiers.IncludeOptional) !== 0 ||
+        ((templateModifiers & MappedTypeModifiers.ExcludeOptional) === 0 &&
+          modifiersProp !== undefined &&
+          (modifiersProp.flags & SymbolFlags.Optional) !== 0);
+      const isReadonly =
+        (templateModifiers & MappedTypeModifiers.IncludeReadonly) !== 0 ||
+        ((templateModifiers & MappedTypeModifiers.ExcludeReadonly) === 0 &&
+          modifiersProp !== undefined &&
+          isReadonlySymbol(c, modifiersProp));
+      const stripOptional =
+        c.strictNullChecks &&
+        !isOptional &&
+        modifiersProp !== undefined &&
+        (modifiersProp.flags & SymbolFlags.Optional) !== 0;
+      const lateFlag = modifiersProp !== undefined ? modifiersProp.checkFlags & CheckFlags.Late : 0;
+      const prop = c.newSymbol(SymbolFlags.Property | (isOptional ? SymbolFlags.Optional : 0), propName);
+      prop.checkFlags =
+        lateFlag |
+        CheckFlags.Mapped |
+        (isReadonly ? CheckFlags.Readonly : 0) |
+        (stripOptional ? CheckFlags.StripOptional : 0);
+      const links = c.symbolLinks(prop);
+      links.containingType = t;
+      links.nameType = propNameType;
+      links.keyType = keyType;
+      if (modifiersProp !== undefined) {
+        links.syntheticOrigin = modifiersProp;
+        if (shouldLinkPropDeclarations) prop.declarations = modifiersProp.declarations;
+      }
+      members.set(propName, prop);
+    } else if (isValidIndexKeyType(c, propNameType) || (propNameType.flags & (TypeFlags.Any | TypeFlags.Enum)) !== 0) {
+      const indexKeyType =
+        (propNameType.flags & (TypeFlags.Any | TypeFlags.String)) !== 0
+          ? c.stringType
+          : (propNameType.flags & (TypeFlags.Number | TypeFlags.Enum)) !== 0
+            ? c.numberType
+            : propNameType;
+      const propType = instantiateType(c, templateType, appendTypeMapping(t.mapper, typeParameter, keyType));
+      const modifiersIndexInfo = getApplicableIndexInfo(c, modifiersType, propNameType);
+      const isReadonly =
+        (templateModifiers & MappedTypeModifiers.IncludeReadonly) !== 0 ||
+        ((templateModifiers & MappedTypeModifiers.ExcludeReadonly) === 0 &&
+          modifiersIndexInfo !== undefined &&
+          modifiersIndexInfo.isReadonly);
+      indexInfos = appendIndexInfo(
+        c,
+        indexInfos,
+        new IndexInfo(indexKeyType, propType, isReadonly, undefined, []),
+        true,
+      );
+    }
+  };
+  const add = (keyType: Type): void => {
+    const propNameType =
+      nameType !== undefined
+        ? instantiateType(c, nameType, appendTypeMapping(t.mapper, typeParameter, keyType))
+        : keyType;
+    forEachType(propNameType, (u) => addForPropName(keyType, u));
+  };
+  if (isMappedTypeWithKeyofConstraintDeclaration(c, t))
+    forEachMappedTypePropertyKeyTypeAndIndexSignatureKeyType(
+      c,
+      modifiersType,
+      TypeFlags.StringOrNumberLiteralOrUnique,
+      false,
+      add,
+    );
+  else forEachType(getLowerBoundOfKeyType(c, constraintType), add);
+  setStructuredTypeMembers(c, t, members, [], [], indexInfos);
+}
+
+export function getTypeOfMappedSymbol(c: Checker, symbol: Symbol): Type {
+  const links = c.symbolLinks(symbol);
+  if (links.type === undefined) {
+    const mappedType = links.containingType as MappedType;
+    if (!pushTypeResolution(c, symbol, TypeSystemPropertyName.Type)) {
+      mappedType.containsError = true;
+      return c.errorType;
+    }
+    const templateType = getTemplateTypeFromMappedType(c, mappedTypeTarget(mappedType));
+    const mapper = appendTypeMapping(mappedType.mapper, getTypeParameterFromMappedType(c, mappedType), links.keyType!);
+    let propType = instantiateType(c, templateType, mapper);
+    // Optional properties get `undefined`; stripped optionality removes it.
+    if (
+      c.strictNullChecks &&
+      (symbol.flags & SymbolFlags.Optional) !== 0 &&
+      !maybeTypeOfKind(propType, TypeFlags.Undefined | TypeFlags.Void)
+    )
+      propType = getOptionalType(c, propType, true);
+    else if ((symbol.checkFlags & CheckFlags.StripOptional) !== 0) propType = removeMissingOrUndefinedType(c, propType);
+    if (popTypeResolution(c)) {
+      if (links.type === undefined) links.type = propType;
+    } else {
+      if (links.type === undefined) links.type = c.errorType;
+      c.error(
+        c.currentNode,
+        Diagnostics.Type_of_property_0_circularly_references_itself_in_mapped_type_1,
+        symbol.name,
+        typeToString(c, mappedType),
+      );
+    }
+  }
+  return links.type;
+}
+
+export function instantiateMappedType(
+  c: Checker,
+  t: MappedType,
+  mapper: TypeMapper,
+  alias: TypeAlias | undefined,
+): Type {
+  // For homomorphic `{ [P in keyof T]: X }`, the mapping depends on what T becomes.
+  const typeVariable = getHomomorphicTypeVariable(c, t);
+  const instantiateConstituent = (s: Type): Type => {
+    if (
+      (s.flags &
+        (TypeFlags.AnyOrUnknown | TypeFlags.InstantiableNonPrimitive | TypeFlags.Object | TypeFlags.Intersection)) ===
+        0 ||
+      s === c.wildcardType ||
+      isErrorType(c, s)
+    )
+      return s;
+    if (mappedNameTypeNode(t) === undefined) {
+      if (isArrayType(c, s) || ((s.flags & TypeFlags.Any) !== 0 && hasArrayOrTupleConstraint(c, typeVariable!)))
+        return instantiateMappedArrayType(c, s, t, prependTypeMapping(typeVariable!, s, mapper));
+      if (isTupleType(s)) return instantiateMappedTupleType(c, s, t, typeVariable!, mapper);
+      if ((s.flags & TypeFlags.Intersection) !== 0 && typesOf(s).every((u) => isArrayType(c, u) || isTupleType(u)))
+        return getIntersectionType(c, typesOf(s).map(instantiateConstituent));
+    }
+    return instantiateAnonymousType(c, t, prependTypeMapping(typeVariable!, s, mapper), undefined);
+  };
+  if (typeVariable !== undefined) {
+    const mappedTypeVariable = instantiateType(c, typeVariable, mapper);
+    if (typeVariable.id !== mappedTypeVariable.id)
+      return mapTypeWithAlias(c, getReducedType(c, mappedTypeVariable), instantiateConstituent, alias);
+  }
+  if (instantiateType(c, getConstraintTypeFromMappedType(c, t), mapper) === c.wildcardType) return c.wildcardType;
+  return instantiateAnonymousType(c, t, mapper, alias);
+}
+
+function hasArrayOrTupleConstraint(c: Checker, typeVariable: Type): boolean {
+  const constraint = getConstraintOfTypeParameter(c, typeVariable);
+  return constraint !== undefined && everyType(constraint, (u) => isArrayType(c, u) || isTupleType(u));
+}
+
+function getModifiedReadonlyState(state: boolean, modifiers: MappedTypeModifiers): boolean {
+  if ((modifiers & MappedTypeModifiers.IncludeReadonly) !== 0) return true;
+  if ((modifiers & MappedTypeModifiers.ExcludeReadonly) !== 0) return false;
+  return state;
+}
+
+function instantiateMappedArrayType(c: Checker, arrayType: Type, mappedType: MappedType, mapper: TypeMapper): Type {
+  const elementType = instantiateMappedTypeTemplate(c, mappedType, c.numberType, true, mapper);
+  if (isErrorType(c, elementType)) return c.errorType;
+  return createArrayTypeEx(
+    c,
+    elementType,
+    getModifiedReadonlyState(isReadonlyArrayType(c, arrayType), getMappedTypeModifiers(mappedType)),
+  );
+}
+
+function instantiateMappedTupleType(
+  c: Checker,
+  tupleType: Type,
+  mappedType: MappedType,
+  typeVariable: Type,
+  mapper: TypeMapper,
+): Type {
+  const target = tupleTargetOf(tupleType);
+  const infos = target.elementInfos;
+  const fixedLength = target.fixedLength;
+  const fixedMapper = fixedLength !== 0 ? prependTypeMapping(typeVariable, tupleType, mapper) : mapper;
+  const modifiers = getMappedTypeModifiers(mappedType);
+  const elementTypes = getElementTypes(c, tupleType);
+  const newElementTypes: Type[] = [];
+  const newInfos = infos.slice();
+  for (let i = 0; i < elementTypes.length; i++) {
+    const flags = infos[i].flags;
+    let mapped: Type;
+    if (i < fixedLength)
+      mapped = instantiateMappedTypeTemplate(
+        c,
+        mappedType,
+        getStringLiteralType(c, String(i)),
+        (flags & ElementFlags.Optional) !== 0,
+        fixedMapper,
+      );
+    else if ((flags & ElementFlags.Variadic) !== 0)
+      mapped = instantiateType(c, mappedType, prependTypeMapping(typeVariable, elementTypes[i], mapper));
+    else
+      mapped =
+        getElementTypeOfArrayType(
+          c,
+          instantiateType(
+            c,
+            mappedType,
+            prependTypeMapping(typeVariable, createArrayTypeEx(c, elementTypes[i], false), mapper),
+          ),
+        ) ?? c.unknownType;
+    if ((modifiers & MappedTypeModifiers.IncludeOptional) !== 0) {
+      if ((flags & ElementFlags.Required) !== 0) newInfos[i] = withFlags(newInfos[i], ElementFlags.Optional);
+    } else if ((modifiers & MappedTypeModifiers.ExcludeOptional) !== 0) {
+      if ((flags & ElementFlags.Optional) !== 0) newInfos[i] = withFlags(newInfos[i], ElementFlags.Required);
+    }
+    newElementTypes.push(mapped);
+  }
+  if (newElementTypes.includes(c.errorType)) return c.errorType;
+  return createTupleTypeEx(c, newElementTypes, newInfos, getModifiedReadonlyState(target.readonly, modifiers));
+}
+
+import { TupleElementInfo } from './checker-types.js';
+import { createDiagnosticForNode } from './checker.js';
+
+function withFlags(info: TupleElementInfo, flags: ElementFlags): TupleElementInfo {
+  return new TupleElementInfo(flags, info.labeledDeclaration);
+}
+
+function instantiateMappedTypeTemplate(
+  c: Checker,
+  t: MappedType,
+  key: Type,
+  isOptional: boolean,
+  mapper: TypeMapper,
+): Type {
+  const templateMapper = appendTypeMapping(mapper, getTypeParameterFromMappedType(c, t), key);
+  const propType = instantiateType(c, getTemplateTypeFromMappedType(c, mappedTypeTarget(t)), templateMapper);
+  const modifiers = getMappedTypeModifiers(t);
+  if (
+    c.strictNullChecks &&
+    (modifiers & MappedTypeModifiers.IncludeOptional) !== 0 &&
+    !maybeTypeOfKind(propType, TypeFlags.Undefined | TypeFlags.Void)
+  )
+    return getOptionalType(c, propType, true);
+  if (c.strictNullChecks && (modifiers & MappedTypeModifiers.ExcludeOptional) !== 0 && isOptional)
+    return filterType(c, propType, (u) => (u.flags & TypeFlags.Undefined) === 0);
+  return propType;
+}
+
+/** Reverse mapped types come from inference; instantiation leaves them as is for now. */
+export function instantiateReverseMappedType(_c: Checker, t: Type, _mapper: TypeMapper): Type {
+  return t;
+}
+
+export function resolveReverseMappedTypeMembers(c: Checker, t: Type): void {
+  setStructuredTypeMembers(c, t as ObjectType, undefined, [], [], []);
+}
+
+// ---- Conditional types
+
+export function getTypeFromConditionalTypeNode(c: Checker, node: Node): Type {
+  const links = c.nodeLinks(node);
+  if (links.resolvedType === undefined) {
+    const shape = node as ConditionalTypeNode;
+    const checkType = getTypeFromTypeNode(c, shape.checkType);
+    const alias = getAliasForTypeNode(c, node);
+    const all = getOuterTypeParameters(c, node, true);
+    const outerTypeParameters =
+      alias !== undefined && alias.typeArguments.length !== 0
+        ? all
+        : all.filter((tp) => isTypeParameterPossiblyReferenced(c, tp, node));
+    const root = new ConditionalRoot(
+      node,
+      checkType,
+      getTypeFromTypeNode(c, shape.extendsType),
+      (checkType.flags & TypeFlags.TypeParameter) !== 0,
+      getInferTypeParameters(c, node),
+      outerTypeParameters,
+      alias,
+    );
+    links.resolvedType = getConditionalType(c, root, undefined, false, undefined);
+    root.instantiations.set(conditionalKey(outerTypeParameters, undefined, false), links.resolvedType);
+  }
+  return links.resolvedType;
+}
+
+function conditionalKey(typeArguments: Type[], alias: TypeAlias | undefined, forConstraint: boolean): string {
+  return typeListKey(typeArguments) + aliasKey(alias) + (forConstraint ? '!' : '');
+}
+
+function conditionalNode(root: ConditionalRoot): ConditionalTypeNode {
+  return root.node as ConditionalTypeNode;
+}
+
+export function getConditionalTypeInstantiation(
+  c: Checker,
+  t: ConditionalType,
+  mapper: TypeMapper,
+  forConstraint: boolean,
+  alias: TypeAlias | undefined,
+): Type {
+  const root = t.root;
+  if (root.outerTypeParameters.length === 0) return t;
+  const typeArguments = root.outerTypeParameters.map((tp) => mapper.map(tp));
+  const key = conditionalKey(typeArguments, alias, forConstraint);
+  let result = root.instantiations.get(key);
+  if (result === undefined) {
+    const newMapper = newTypeMapper(root.outerTypeParameters, typeArguments);
+    const checkType = root.checkType;
+    const distributionType = root.isDistributive ? getReducedType(c, newMapper.map(checkType)) : undefined;
+    // Distributive conditional types distribute over unions.
+    if (
+      distributionType !== undefined &&
+      checkType !== distributionType &&
+      (distributionType.flags & (TypeFlags.Union | TypeFlags.Never)) !== 0
+    )
+      result = mapTypeWithAlias(
+        c,
+        distributionType,
+        (u) => getConditionalType(c, root, prependTypeMapping(checkType, u, newMapper), forConstraint, undefined),
+        alias,
+      );
+    else result = getConditionalType(c, root, newMapper, forConstraint, alias);
+    root.instantiations.set(key, result);
+  }
+  return result;
+}
+
+function skipTypeParentheses(node: Node): Node {
+  while (node.kind === SyntaxKind.ParenthesizedType) node = getType(node)!;
+  return node;
+}
+
+function isSimpleTupleType(node: Node): boolean {
+  if (node.kind !== SyntaxKind.TupleType) return false;
+  const elements = getElements(node)!.nodes;
+  if (elements.length === 0) return false;
+  for (const e of elements) {
+    if (e.kind === SyntaxKind.OptionalType || e.kind === SyntaxKind.RestType) return false;
+    if (
+      e.kind === SyntaxKind.NamedTupleMember &&
+      (getQuestionToken(e) !== undefined || getDotDotDotToken(e) !== undefined)
+    )
+      return false;
+  }
+  return true;
+}
+
+function isDeferredType(c: Checker, t: Type, checkTuples: boolean): boolean {
+  return (
+    isGenericType(c, t) || (checkTuples && isTupleType(t) && getElementTypes(c, t).some((u) => isGenericType(c, u)))
+  );
+}
+
+export function getPermissiveInstantiation(c: Checker, t: Type): Type {
+  if ((t.flags & (TypeFlags.Primitive | TypeFlags.AnyOrUnknown | TypeFlags.Never)) !== 0) return t;
+  const key = 'permissive' + t.id;
+  let result = c.cachedTypes.get(key);
+  if (result === undefined) {
+    result = instantiateType(c, t, c.permissiveMapper);
+    c.cachedTypes.set(key, result);
+  }
+  return result;
+}
+
+export function getConditionalType(
+  c: Checker,
+  root: ConditionalRoot,
+  mapper: TypeMapper | undefined,
+  forConstraint: boolean,
+  alias: TypeAlias | undefined,
+): Type {
+  let result: Type | undefined;
+  let extraTypes: Type[] | undefined;
+  let tailCount = 0;
+  // Loops over nested conditional types in the false branch and tail-recursive resolutions.
+  for (;;) {
+    if (tailCount === 1000) {
+      c.error(c.currentNode, Diagnostics.Type_instantiation_is_excessively_deep_and_possibly_infinite);
+      return c.errorType;
+    }
+    const checkType = instantiateType(c, getActualTypeVariable(c, root.checkType), mapper);
+    const extendsType = instantiateType(c, root.extendsType, mapper);
+    if (checkType === c.errorType || extendsType === c.errorType) return c.errorType;
+    if (checkType === c.wildcardType || extendsType === c.wildcardType) return c.wildcardType;
+    const nodes = conditionalNode(root);
+    const checkTypeNode = skipTypeParentheses(nodes.checkType);
+    const extendsTypeNode = skipTypeParentheses(nodes.extendsType);
+    const checkTuples =
+      isSimpleTupleType(checkTypeNode) &&
+      isSimpleTupleType(extendsTypeNode) &&
+      getElements(checkTypeNode)!.nodes.length === getElements(extendsTypeNode)!.nodes.length;
+    const checkTypeDeferred = isDeferredType(c, checkType, checkTuples);
+    let combinedMapper: TypeMapper | undefined;
+    if (root.inferTypeParameters.length !== 0) {
+      const inferenceMapper = inferTypesForConditional(c, root, checkType, extendsType, mapper, checkTypeDeferred);
+      if (inferenceMapper === undefined) return c.errorType;
+      combinedMapper = mapper !== undefined ? combineTypeMappers(c, inferenceMapper, mapper) : inferenceMapper;
+    }
+    const inferredExtendsType =
+      combinedMapper !== undefined ? instantiateType(c, root.extendsType, combinedMapper) : extendsType;
+    if (!checkTypeDeferred && !isDeferredType(c, inferredExtendsType, checkTuples)) {
+      // Definitely false when even permissive instantiations aren't related.
+      if (
+        (inferredExtendsType.flags & TypeFlags.AnyOrUnknown) === 0 &&
+        ((checkType.flags & TypeFlags.Any) !== 0 ||
+          !isTypeAssignableTo(
+            c,
+            getPermissiveInstantiation(c, checkType),
+            getPermissiveInstantiation(c, inferredExtendsType),
+          ))
+      ) {
+        if (
+          (checkType.flags & TypeFlags.Any) !== 0 ||
+          (forConstraint &&
+            (inferredExtendsType.flags & TypeFlags.Never) === 0 &&
+            someType(getPermissiveInstantiation(c, inferredExtendsType), (u) =>
+              isTypeAssignableTo(c, u, getPermissiveInstantiation(c, checkType)),
+            ))
+        ) {
+          if (extraTypes === undefined) extraTypes = [];
+          extraTypes.push(instantiateType(c, getTypeFromTypeNode(c, nodes.trueType), combinedMapper ?? mapper));
+        }
+        const falseType = getTypeFromTypeNode(c, nodes.falseType);
+        if ((falseType.flags & TypeFlags.Conditional) !== 0) {
+          const newRoot = (falseType as ConditionalType).root;
+          if (newRoot.node.parent === root.node && (!newRoot.isDistributive || newRoot.checkType === root.checkType)) {
+            root = newRoot;
+            continue;
+          }
+          const tail = getTailRecursionRoot(c, falseType, mapper);
+          if (tail !== undefined) {
+            root = tail.root;
+            mapper = tail.mapper;
+            alias = undefined;
+            if (tail.root.alias !== undefined) tailCount++;
+            continue;
+          }
+        }
+        result = instantiateType(c, falseType, mapper);
+        break;
+      }
+      // Definitely true when restrictive instantiations are related.
+      if (
+        (inferredExtendsType.flags & TypeFlags.AnyOrUnknown) !== 0 ||
+        isTypeAssignableTo(
+          c,
+          getRestrictiveInstantiation(c, checkType),
+          getRestrictiveInstantiation(c, inferredExtendsType),
+        )
+      ) {
+        const trueType = getTypeFromTypeNode(c, nodes.trueType);
+        const trueMapper = combinedMapper ?? mapper;
+        const tail = getTailRecursionRoot(c, trueType, trueMapper);
+        if (tail !== undefined) {
+          root = tail.root;
+          mapper = tail.mapper;
+          alias = undefined;
+          if (tail.root.alias !== undefined) tailCount++;
+          continue;
+        }
+        result = instantiateType(c, trueType, trueMapper);
+        break;
+      }
+    }
+    // Neither definitely true nor false: defer.
+    const deferred = new ConditionalType(
+      c.nextTypeId(),
+      root,
+      instantiateType(c, root.checkType, mapper),
+      instantiateType(c, root.extendsType, mapper),
+      mapper,
+      combinedMapper,
+    );
+    deferred.alias = alias ?? (mapper !== undefined ? instantiateTypeAlias(c, root.alias, mapper) : root.alias);
+    result = deferred;
+    break;
+  }
+  return extraTypes !== undefined ? getUnionType(c, extraTypes.concat([result])) : result;
+}
+
+class TailRoot {
+  readonly root: ConditionalRoot;
+  readonly mapper: TypeMapper;
+
+  constructor(root: ConditionalRoot, mapper: TypeMapper) {
+    this.root = root;
+    this.mapper = mapper;
+  }
+}
+
+function getTailRecursionRoot(c: Checker, newType: Type, newMapper: TypeMapper | undefined): TailRoot | undefined {
+  if ((newType.flags & TypeFlags.Conditional) === 0 || newMapper === undefined) return undefined;
+  const conditional = newType as ConditionalType;
+  const newRoot = conditional.root;
+  if (newRoot.outerTypeParameters.length === 0) return undefined;
+  const typeParamMapper = combineTypeMappers(c, conditional.mapper, newMapper);
+  const typeArguments = newRoot.outerTypeParameters.map((t) => typeParamMapper.map(t));
+  const newRootMapper = newTypeMapper(newRoot.outerTypeParameters, typeArguments);
+  const newCheckType = newRoot.isDistributive ? newRootMapper.map(newRoot.checkType) : undefined;
+  if (
+    newCheckType === undefined ||
+    newCheckType === newRoot.checkType ||
+    (newCheckType.flags & (TypeFlags.Union | TypeFlags.Never)) === 0
+  )
+    return new TailRoot(newRoot, newRootMapper);
+  return undefined;
+}
+
+export function getTrueTypeFromConditionalType(c: Checker, t: ConditionalType): Type {
+  if (t.resolvedTrueType === undefined)
+    t.resolvedTrueType = instantiateType(c, getTypeFromTypeNode(c, conditionalNode(t.root).trueType), t.mapper);
+  return t.resolvedTrueType;
+}
+
+export function getFalseTypeFromConditionalType(c: Checker, t: ConditionalType): Type {
+  if (t.resolvedFalseType === undefined)
+    t.resolvedFalseType = instantiateType(c, getTypeFromTypeNode(c, conditionalNode(t.root).falseType), t.mapper);
+  return t.resolvedFalseType;
+}
+
+export function getInferredTrueTypeFromConditionalType(c: Checker, t: ConditionalType): Type {
+  if (t.resolvedInferredTrueType === undefined)
+    t.resolvedInferredTrueType =
+      t.combinedMapper !== undefined
+        ? instantiateType(c, getTypeFromTypeNode(c, conditionalNode(t.root).trueType), t.combinedMapper)
+        : getTrueTypeFromConditionalType(c, t);
+  return t.resolvedInferredTrueType;
+}
+
+function getDefaultConstraintOfConditionalType(c: Checker, t: ConditionalType): Type {
+  if (t.resolvedDefaultConstraint === undefined) {
+    // The default constraint is the union of the branches, ignoring `never` branches from the check.
+    const trueConstraint = getInferredTrueTypeFromConditionalType(c, t);
+    const falseConstraint = getFalseTypeFromConditionalType(c, t);
+    t.resolvedDefaultConstraint =
+      (trueConstraint.flags & TypeFlags.Any) !== 0
+        ? falseConstraint
+        : (falseConstraint.flags & TypeFlags.Any) !== 0
+          ? trueConstraint
+          : getUnionType(c, [trueConstraint, falseConstraint]);
+  }
+  return t.resolvedDefaultConstraint;
+}
+
+export function getConstraintOfConditionalType(c: Checker, t: Type): Type | undefined {
+  return getBaseConstraintOfType(c, t) !== undefined ? getConstraintFromConditionalType(c, t) : undefined;
+}
+
+export function getConstraintFromConditionalType(c: Checker, t: Type): Type {
+  return getDefaultConstraintOfConditionalType(c, t as ConditionalType);
+}
+
+// ---- Template literal matching
+
+/** Whether `source` (a string literal) matches the pattern of `target`. */
+export function isTypeMatchedByTemplateLiteralType(c: Checker, source: Type, target: TemplateLiteralType): boolean {
+  if ((source.flags & TypeFlags.StringLiteral) === 0) return false;
+  const value = (source as LiteralType).stringValue;
+  const texts = target.texts;
+  const types = target.types;
+  if (!value.startsWith(texts[0]) || !value.endsWith(texts[texts.length - 1])) return false;
+  if (value.length < texts[0].length + texts[texts.length - 1].length) return false;
+  return matchSpans(c, value, texts[0].length, value.length - texts[texts.length - 1].length, texts, types, 0);
+}
+
+function matchSpans(
+  c: Checker,
+  value: string,
+  pos: number,
+  end: number,
+  texts: string[],
+  types: Type[],
+  index: number,
+): boolean {
+  if (index === types.length) return pos === end;
+  const nextText = texts[index + 1];
+  const isLast = index === types.length - 1;
+  for (let i = isLast ? end : pos; i <= end; i++) {
+    if (!isLast && !value.startsWith(nextText, i)) continue;
+    const segment = value.substring(pos, i);
+    if (!isValidTypeForTemplateLiteralPlaceholder(c, getStringLiteralType(c, segment), types[index])) continue;
+    if (matchSpans(c, value, isLast ? i : i + nextText.length, end, texts, types, index + 1)) return true;
+    if (isLast) break;
+  }
+  return false;
+}
+
+function isValidTypeForTemplateLiteralPlaceholder(c: Checker, source: Type, target: Type): boolean {
+  if (source === target || (target.flags & (TypeFlags.Any | TypeFlags.String)) !== 0) return true;
+  if ((source.flags & TypeFlags.StringLiteral) !== 0) {
+    const value = (source as LiteralType).stringValue;
+    if ((target.flags & TypeFlags.Number) !== 0)
+      return (
+        value.trim() !== '' && String(Number(value)) !== 'NaN' && isFinite(Number(value)) && value.trim() === value
+      );
+    if ((target.flags & TypeFlags.BigInt) !== 0) return /^-?(0|[1-9]\d*)$/.test(value);
+    if ((target.flags & (TypeFlags.BooleanLiteral | TypeFlags.Nullable)) !== 0)
+      return value === (target as LiteralType).stringValue || value === (target as IntrinsicType).intrinsicName;
+    if ((target.flags & TypeFlags.StringMapping) !== 0) return false;
+    if ((target.flags & TypeFlags.TemplateLiteral) !== 0)
+      return isTypeMatchedByTemplateLiteralType(c, source, target as TemplateLiteralType);
+  }
+  return isTypeSubtypeOf(c, source, target);
+}
+
+export type { TupleType, UnionType };
+
+/** The generic mapped type an instantiated mapped type came from, or the type itself. */
+export function mappedTypeTarget(t: MappedType): MappedType {
+  const target = t.target;
+  return target !== undefined ? (target as MappedType) : t;
+}

@@ -1,0 +1,680 @@
+// The type checker: one `Checker` per program (or per partition of its files), holding the
+// type system's caches and the diagnostics it reports.
+//
+// The checker's logic lives in free functions taking the checker first, grouped by area:
+//
+// | Module                          | Area                                                    |
+// | ------------------------------- | ------------------------------------------------------- |
+// | checker-type-factory.ts         | creating and interning types (unions, literals, tuples) |
+// | checker-symbols.ts              | merging, aliases, exports, name resolution              |
+// | checker-declared-types.ts       | declared types of classes, interfaces, aliases, enums   |
+// | checker-type-nodes.ts           | `getTypeFromTypeNode`                                   |
+// | checker-symbol-types.ts         | types of values: variables, parameters, properties      |
+// | checker-members.ts              | members, signatures, index infos, apparent types        |
+// | instantiation.ts                | mappers and `instantiateType`                           |
+// | relations.ts                    | assignability, comparability, subtype, identity         |
+// | type-printer.ts                 | `typeToString`, `symbolToString`, `signatureToString`   |
+// | checker-source-file.ts          | `checkSourceFile` and statement dispatch                |
+// | checker-expressions.ts          | expressions                                             |
+// | checker-calls.ts                | call resolution                                         |
+// | checker-statements.ts           | statements                                              |
+// | checker-declarations.ts         | variable, function and type declarations                |
+// | checker-classes.ts              | classes and interfaces                                  |
+// | checker-jsx.ts                  | JSX                                                     |
+// | checker-grammar.ts              | grammar checks                                          |
+// | checker-flow.ts                 | control flow narrowing                                  |
+import { type Node, type PatternAmbientModule, type SourceFile, getNodeId } from './ast.js';
+import { getErrorRangeForNode, getSourceFileOfNode } from './binder-utilities.js';
+import {
+  Diagnostic,
+  type DiagnosticMessage,
+  Diagnostics,
+  compareDiagnostics,
+  createCompilerDiagnostic,
+} from './diagnostics.js';
+import { type CompilerOptions, ScriptTarget, getEmitScriptTarget, getStrictOptionValue } from './options.js';
+import { CheckFlags, Symbol, SymbolFlags, type SymbolTable, getSymbolId } from './symbol.js';
+import {
+  IndexInfo,
+  IntrinsicType,
+  LiteralType,
+  NodeLinks,
+  ObjectFlags,
+  ObjectType,
+  Signature,
+  SignatureFlags,
+  SymbolLinks,
+  type Type,
+  TypeFlags,
+  TypeMapper,
+  TypeParameter,
+  TypePredicate,
+  TypePredicateKind,
+  emptyTypes,
+  VarianceFlags,
+} from './checker-types.js';
+import {
+  createArrayType,
+  createTypeFromGenericGlobalType,
+  getBigIntLiteralType,
+  getNumberLiteralType,
+  getStringLiteralType,
+  getTemplateLiteralType,
+  getUnionType,
+  newAnonymousType,
+  newObjectType,
+} from './checker-type-factory.js';
+import {
+  CheckerNameResolver,
+  SuggestionNameResolver,
+  getGlobalStrictFunctionType,
+  getGlobalType,
+  initializeGlobals,
+  mergeAmbientModulesAndAugmentations,
+} from './checker-symbols.js';
+import { PermissiveMapper, ReportingMapper, RestrictiveMapper, UniqueLiteralMapper } from './instantiation.js';
+import { Relation, RelationKey, TypeComparer } from './relations.js';
+import { TypeNodeVisitor, checkSourceFile } from './checker-source-file.js';
+import { AssignmentMarker, type FlowLoopInfo } from './checker-narrowing.js';
+import type { FlowNode } from './flow.js';
+
+/** What the checker needs from a program. */
+export abstract class CheckerHost {
+  abstract getCompilerOptions(): CompilerOptions;
+  /** Every file of the program, libraries first, in program order. */
+  abstract getSourceFiles(): readonly SourceFile[];
+  abstract isSourceFileDefaultLibrary(file: SourceFile): boolean;
+  /** The source file of a resolved module specifier, if any. */
+  abstract getSourceFileForModuleName(file: SourceFile, moduleName: string): SourceFile | undefined;
+}
+
+/** Per-file and global diagnostics, sorted on read like tsgo's DiagnosticsCollection. */
+class DiagnosticCollection {
+  private readonly byFile = new Map<string, Diagnostic[]>();
+  private readonly sortedFiles = new Set<string>();
+  private readonly global: Diagnostic[] = [];
+  private globalSorted = true;
+
+  add(diagnostic: Diagnostic): void {
+    const file = diagnostic.file;
+    if (file === undefined) {
+      this.global.push(diagnostic);
+      this.globalSorted = false;
+      return;
+    }
+    let list = this.byFile.get(file.fileName);
+    if (list === undefined) {
+      list = [];
+      this.byFile.set(file.fileName, list);
+    }
+    list.push(diagnostic);
+    this.sortedFiles.delete(file.fileName);
+  }
+
+  forFile(fileName: string): Diagnostic[] {
+    const list = this.byFile.get(fileName);
+    if (list === undefined) return [];
+    if (!this.sortedFiles.has(fileName)) {
+      stableSort(list);
+      this.sortedFiles.add(fileName);
+    }
+    return list.slice();
+  }
+
+  /** An already reported diagnostic equal to `diagnostic`, if any. */
+  lookup(diagnostic: Diagnostic): Diagnostic | undefined {
+    const file = diagnostic.file;
+    const list = file === undefined ? this.global : this.byFile.get(file.fileName);
+    if (list === undefined) return undefined;
+    for (const d of list) if (compareDiagnostics(d, diagnostic) === 0) return d;
+    return undefined;
+  }
+
+  globals(): Diagnostic[] {
+    if (!this.globalSorted) {
+      stableSort(this.global);
+      this.globalSorted = true;
+    }
+    return this.global.slice();
+  }
+}
+
+function stableSort(list: Diagnostic[]): void {
+  // Array.prototype.sort is stable.
+  list.sort(compareDiagnostics);
+}
+
+/** Maximum depth of nested `typeToString` calls before diagnostics are discarded. */
+export const maxSerializationLevel = 100;
+
+export class Checker {
+  readonly host: CheckerHost;
+  readonly compilerOptions: CompilerOptions;
+  readonly files: readonly SourceFile[];
+  readonly fileIndex: Map<SourceFile, number>;
+  readonly languageVersion: ScriptTarget;
+  readonly strictNullChecks: boolean;
+  readonly strictFunctionTypes: boolean;
+  readonly strictBindCallApply: boolean;
+  readonly strictPropertyInitialization: boolean;
+  readonly strictBuiltinIteratorReturn: boolean;
+  readonly noImplicitAny: boolean;
+  readonly noImplicitThis: boolean;
+  readonly useUnknownInCatchVariables: boolean;
+  readonly exactOptionalPropertyTypes: boolean;
+
+  // Counters for type and signature ids.
+  typeCount = 0;
+  signatureCount = 0;
+  /** Number of `typeToString` calls in progress. */
+  serializationLevel = 0;
+  /** The node being checked, for errors with no better location. */
+  currentNode: Node | undefined = undefined;
+
+  readonly diagnostics = new DiagnosticCollection();
+  readonly suggestionDiagnostics = new DiagnosticCollection();
+
+  // Links, indexed by symbol and node ids.
+  private readonly symbolLinkStore: (SymbolLinks | undefined)[] = [];
+  private readonly nodeLinkStore: (NodeLinks | undefined)[] = [];
+  /** Merged symbols, indexed by the id of the symbol merged into them. */
+  readonly mergedSymbols: (Symbol | undefined)[] = [];
+
+  // Symbols
+  readonly globals: SymbolTable = new Map<string, Symbol>();
+  readonly resolver: CheckerNameResolver;
+  readonly undefinedSymbol: Symbol;
+  readonly argumentsSymbol: Symbol;
+  readonly requireSymbol: Symbol;
+  readonly unknownSymbol: Symbol;
+  readonly globalThisSymbol: Symbol;
+  readonly unresolvedSymbols = new Map<string, Symbol>();
+  readonly undefinedProperties = new Map<string, Symbol>();
+
+  // Interning tables.
+  readonly stringLiteralTypes = new Map<string, LiteralType>();
+  readonly numberLiteralTypes = new Map<number, LiteralType>();
+  readonly bigintLiteralTypes = new Map<string, LiteralType>();
+  readonly enumLiteralTypes = new Map<string, LiteralType>();
+  readonly uniqueESSymbolTypes = new Map<Symbol, Type>();
+  readonly unionTypes = new Map<string, Type>();
+  readonly unionOfUnionTypes = new Map<string, Type>();
+  readonly intersectionTypes = new Map<string, Type>();
+  readonly tupleTypes = new Map<string, Type>();
+  readonly indexedAccessTypes = new Map<string, Type>();
+  readonly templateLiteralTypes = new Map<string, Type>();
+  readonly stringMappingTypes = new Map<string, Type>();
+  readonly substitutionTypes = new Map<string, Type>();
+  readonly subtypeReductionCache = new Map<string, Type[]>();
+  readonly cachedTypes = new Map<string, Type>();
+  readonly errorTypes = new Map<string, Type>();
+
+  // Intrinsic types, created in tsgo's order so ids (the last-resort union order) match.
+  readonly anyType: IntrinsicType;
+  readonly autoType: IntrinsicType;
+  readonly wildcardType: IntrinsicType;
+  readonly blockedStringType: IntrinsicType;
+  readonly errorType: IntrinsicType;
+  readonly unresolvedType: IntrinsicType;
+  readonly nonInferrableAnyType: IntrinsicType;
+  readonly intrinsicMarkerType: IntrinsicType;
+  readonly unknownType: IntrinsicType;
+  readonly undefinedType: IntrinsicType;
+  readonly undefinedWideningType: IntrinsicType;
+  readonly missingType: IntrinsicType;
+  readonly undefinedOrMissingType: IntrinsicType;
+  readonly optionalType: IntrinsicType;
+  readonly nullType: IntrinsicType;
+  readonly nullWideningType: IntrinsicType;
+  readonly stringType: IntrinsicType;
+  readonly numberType: IntrinsicType;
+  readonly bigintType: IntrinsicType;
+  readonly regularFalseType: LiteralType;
+  readonly falseType: LiteralType;
+  readonly regularTrueType: LiteralType;
+  readonly trueType: LiteralType;
+  readonly booleanType: Type;
+  readonly esSymbolType: IntrinsicType;
+  readonly voidType: IntrinsicType;
+  readonly neverType: IntrinsicType;
+  readonly silentNeverType: IntrinsicType;
+  readonly implicitNeverType: IntrinsicType;
+  readonly unreachableNeverType: IntrinsicType;
+  readonly nonPrimitiveType: IntrinsicType;
+  readonly stringOrNumberType: Type;
+  readonly stringNumberSymbolType: Type;
+  readonly numberOrBigIntType: Type;
+  readonly numericStringType: Type;
+  readonly templateConstraintType: Type;
+  readonly uniqueLiteralType: IntrinsicType;
+  readonly emptyObjectType: ObjectType;
+  readonly emptyJsxObjectType: ObjectType;
+  readonly emptyFreshJsxObjectType: ObjectType;
+  readonly emptyTypeLiteralType: ObjectType;
+  readonly unknownEmptyObjectType: ObjectType;
+  readonly unknownUnionType: Type;
+  readonly emptyGenericType: ObjectType;
+  readonly anyFunctionType: ObjectType;
+  readonly noConstraintType: ObjectType;
+  readonly circularConstraintType: ObjectType;
+  readonly resolvingDefaultType: ObjectType;
+  readonly markerSuperType: TypeParameter;
+  readonly markerSubType: TypeParameter;
+  readonly markerOtherType: TypeParameter;
+  readonly markerSuperTypeForCheck: TypeParameter;
+  readonly markerSubTypeForCheck: TypeParameter;
+  readonly noTypePredicate: TypePredicate;
+  readonly anySignature: Signature;
+  readonly unknownSignature: Signature;
+  readonly resolvingSignature: Signature;
+  readonly silentNeverSignature: Signature;
+  readonly enumNumberIndexInfo: IndexInfo;
+  readonly anyBaseTypeIndexInfo: IndexInfo;
+  readonly emptyStringType: Type;
+  readonly zeroType: Type;
+  readonly zeroBigIntType: Type;
+  readonly typeofType: Type;
+
+  // Mappers that observe the types they map.
+  readonly reportUnreliableMapper: TypeMapper;
+  readonly reportUnmeasurableMapper: TypeMapper;
+  readonly restrictiveMapper: TypeMapper;
+  readonly permissiveMapper: TypeMapper;
+  readonly uniqueLiteralMapper: TypeMapper;
+  /** Set by the reporting mappers during variance measurement. */
+  reliabilityFlags = 0;
+
+  // Relations
+  readonly subtypeRelation = new Relation();
+  readonly strictSubtypeRelation = new Relation();
+  readonly assignableRelation = new Relation();
+  readonly comparableRelation = new Relation();
+  readonly identityRelation = new Relation();
+  readonly enumRelation = new Map<string, number>();
+
+  // Global types, set by `initializeChecker`.
+  globalArrayType: Type;
+  globalObjectType: Type;
+  globalFunctionType: Type;
+  globalCallableFunctionType: Type;
+  globalNewableFunctionType: Type;
+  globalStringType: Type;
+  globalNumberType: Type;
+  globalBooleanType: Type;
+  globalRegExpType: Type;
+  anyArrayType: Type;
+  autoArrayType: Type;
+  globalReadonlyArrayType: Type;
+  anyReadonlyArrayType: Type;
+  globalThisType: Type;
+  /** Lazily resolved global types and symbols, by name. */
+  readonly globalTypeCache = new Map<string, Type>();
+  readonly globalSymbolCache = new Map<string, Symbol | null>();
+
+  // Resolution stacks for cycle detection (see pushTypeResolution).
+  resolutionStart = 0;
+  inVarianceComputation = false;
+
+  // Instantiation
+  instantiationDepth = 0;
+  instantiationCount = 0;
+  readonly activeMappers: TypeMapper[] = [];
+  readonly activeMapperCaches: Map<string, Type>[] = [];
+  conditionalConstraintDepth = 0;
+
+  readonly suggestionResolver: SuggestionNameResolver;
+  readonly awaitedTypeStack: number[] = [];
+  relationComparers: TypeComparer[] = [];
+  readonly relationScratchKey = new RelationKey();
+  readonly markerTypes = new Set<Type>();
+  readonly arrayVariances: VarianceFlags[] = [VarianceFlags.Covariant];
+  nanLiteralType: LiteralType | undefined = undefined;
+
+  // Control flow analysis
+  flowAnalysisDisabled = false;
+  inlineLevel = 0;
+  readonly sharedFlowNodes: FlowNode[] = [];
+  readonly sharedFlowTypes: Type[] = [];
+  readonly sharedFlowIncomplete: boolean[] = [];
+  readonly flowLoopCaches = new Map<FlowNode, Map<string, Type>>();
+  readonly flowLoopStack: FlowLoopInfo[] = [];
+  readonly flowNodeReachable = new Map<FlowNode, boolean>();
+  lastFlowNode: FlowNode | undefined = undefined;
+  lastFlowNodeReachable = false;
+  readonly assignmentMarker: AssignmentMarker;
+  readonly primitiveTypeAliasSuggestions = new Map<string, Symbol>();
+
+  // Deferred checks of function bodies and class expressions.
+  readonly deferredNodes: Node[] = [];
+  readonly deferredNodeIds = new Set<number>();
+  readonly typeNodeVisitor: TypeNodeVisitor;
+
+  // Ambient modules
+  readonly ambientModuleSymbols: Symbol[] = [];
+  readonly patternAmbientModules: PatternAmbientModule[] = [];
+  readonly patternAmbientModuleAugmentations = new Map<string, Symbol>();
+
+  readonly resolutionTargets: (Symbol | Type | Signature | Node)[] = [];
+  readonly resolutionResults: boolean[] = [];
+  readonly resolutionPropertyNames: number[] = [];
+
+  constructor(host: CheckerHost) {
+    this.host = host;
+    const options = host.getCompilerOptions();
+    this.compilerOptions = options;
+    this.files = host.getSourceFiles();
+    this.fileIndex = new Map<SourceFile, number>();
+    for (let i = 0; i < this.files.length; i++) this.fileIndex.set(this.files[i], i);
+    this.languageVersion = getEmitScriptTarget(options);
+    this.strictNullChecks = getStrictOptionValue(options, options.strictNullChecks);
+    this.strictFunctionTypes = getStrictOptionValue(options, options.strictFunctionTypes);
+    this.strictBindCallApply = getStrictOptionValue(options, options.strictBindCallApply);
+    this.strictPropertyInitialization = getStrictOptionValue(options, options.strictPropertyInitialization);
+    this.strictBuiltinIteratorReturn = getStrictOptionValue(options, options.strictBuiltinIteratorReturn);
+    this.noImplicitAny = getStrictOptionValue(options, options.noImplicitAny);
+    this.noImplicitThis = getStrictOptionValue(options, options.noImplicitThis);
+    this.useUnknownInCatchVariables = getStrictOptionValue(options, options.useUnknownInCatchVariables);
+    this.exactOptionalPropertyTypes = options.exactOptionalPropertyTypes === true;
+
+    this.undefinedSymbol = this.newSymbol(SymbolFlags.Property, 'undefined');
+    this.argumentsSymbol = this.newSymbol(SymbolFlags.Property, 'arguments');
+    this.requireSymbol = this.newSymbol(SymbolFlags.Property, 'require');
+    this.unknownSymbol = this.newSymbol(SymbolFlags.Property, 'unknown');
+    this.globalThisSymbol = this.newSymbol(SymbolFlags.Module, 'globalThis');
+    this.globalThisSymbol.checkFlags = CheckFlags.Readonly;
+    this.globalThisSymbol.exports = this.globals;
+    this.globals.set(this.globalThisSymbol.name, this.globalThisSymbol);
+    this.resolver = new CheckerNameResolver(this);
+    this.suggestionResolver = new SuggestionNameResolver(this);
+    this.typeNodeVisitor = new TypeNodeVisitor(this);
+    this.assignmentMarker = new AssignmentMarker(this);
+
+    this.anyType = this.newIntrinsicType(TypeFlags.Any, 'any', ObjectFlags.None);
+    this.autoType = this.newIntrinsicType(TypeFlags.Any, 'any', ObjectFlags.NonInferrableType);
+    this.wildcardType = this.newIntrinsicType(TypeFlags.Any, 'any', ObjectFlags.None);
+    this.blockedStringType = this.newIntrinsicType(TypeFlags.Any, 'any', ObjectFlags.None);
+    this.errorType = this.newIntrinsicType(TypeFlags.Any, 'error', ObjectFlags.None);
+    this.unresolvedType = this.newIntrinsicType(TypeFlags.Any, 'unresolved', ObjectFlags.None);
+    this.nonInferrableAnyType = this.newIntrinsicType(TypeFlags.Any, 'any', ObjectFlags.ContainsWideningType);
+    this.intrinsicMarkerType = this.newIntrinsicType(TypeFlags.Any, 'intrinsic', ObjectFlags.None);
+    this.unknownType = this.newIntrinsicType(TypeFlags.Unknown, 'unknown', ObjectFlags.None);
+    this.undefinedType = this.newIntrinsicType(TypeFlags.Undefined, 'undefined', ObjectFlags.None);
+    this.undefinedWideningType = this.strictNullChecks
+      ? this.undefinedType
+      : this.newIntrinsicType(TypeFlags.Undefined, 'undefined', ObjectFlags.ContainsWideningType);
+    this.missingType = this.newIntrinsicType(TypeFlags.Undefined, 'undefined', ObjectFlags.None);
+    this.undefinedOrMissingType = this.exactOptionalPropertyTypes ? this.missingType : this.undefinedType;
+    this.optionalType = this.newIntrinsicType(TypeFlags.Undefined, 'undefined', ObjectFlags.None);
+    this.nullType = this.newIntrinsicType(TypeFlags.Null, 'null', ObjectFlags.None);
+    this.nullWideningType = this.strictNullChecks
+      ? this.nullType
+      : this.newIntrinsicType(TypeFlags.Null, 'null', ObjectFlags.ContainsWideningType);
+    this.stringType = this.newIntrinsicType(TypeFlags.String, 'string', ObjectFlags.None);
+    this.numberType = this.newIntrinsicType(TypeFlags.Number, 'number', ObjectFlags.None);
+    this.bigintType = this.newIntrinsicType(TypeFlags.BigInt, 'bigint', ObjectFlags.None);
+    this.regularFalseType = this.newLiteralType(TypeFlags.BooleanLiteral, 'false', 0, undefined);
+    this.falseType = this.newLiteralType(TypeFlags.BooleanLiteral, 'false', 0, undefined);
+    this.falseType.regularType = this.regularFalseType;
+    this.regularFalseType.freshType = this.falseType;
+    this.falseType.freshType = this.falseType;
+    this.regularTrueType = this.newLiteralType(TypeFlags.BooleanLiteral, 'true', 0, undefined);
+    this.trueType = this.newLiteralType(TypeFlags.BooleanLiteral, 'true', 0, undefined);
+    this.trueType.regularType = this.regularTrueType;
+    this.regularTrueType.freshType = this.trueType;
+    this.trueType.freshType = this.trueType;
+    this.booleanType = getUnionType(this, [this.regularFalseType, this.regularTrueType]);
+    this.esSymbolType = this.newIntrinsicType(TypeFlags.ESSymbol, 'symbol', ObjectFlags.None);
+    this.voidType = this.newIntrinsicType(TypeFlags.Void, 'void', ObjectFlags.None);
+    this.neverType = this.newIntrinsicType(TypeFlags.Never, 'never', ObjectFlags.None);
+    this.silentNeverType = this.newIntrinsicType(TypeFlags.Never, 'never', ObjectFlags.NonInferrableType);
+    this.implicitNeverType = this.newIntrinsicType(TypeFlags.Never, 'never', ObjectFlags.None);
+    this.unreachableNeverType = this.newIntrinsicType(TypeFlags.Never, 'never', ObjectFlags.None);
+    this.nonPrimitiveType = this.newIntrinsicType(TypeFlags.NonPrimitive, 'object', ObjectFlags.None);
+    this.stringOrNumberType = getUnionType(this, [this.stringType, this.numberType]);
+    this.stringNumberSymbolType = getUnionType(this, [this.stringType, this.numberType, this.esSymbolType]);
+    this.numberOrBigIntType = getUnionType(this, [this.numberType, this.bigintType]);
+    this.numericStringType = getTemplateLiteralType(this, ['', ''], [this.numberType]);
+    this.templateConstraintType = getUnionType(this, [
+      this.stringType,
+      this.numberType,
+      this.booleanType,
+      this.bigintType,
+      this.nullType,
+      this.undefinedType,
+    ]);
+    this.uniqueLiteralType = this.newIntrinsicType(TypeFlags.Never, 'never', ObjectFlags.None);
+    this.reportUnreliableMapper = new ReportingMapper(this, VarianceReporting.Unreliable);
+    this.reportUnmeasurableMapper = new ReportingMapper(this, VarianceReporting.Unmeasurable);
+    this.restrictiveMapper = new RestrictiveMapper(this);
+    this.permissiveMapper = new PermissiveMapper(this);
+    this.uniqueLiteralMapper = new UniqueLiteralMapper(this);
+    this.emptyObjectType = newAnonymousType(this, undefined);
+    this.emptyJsxObjectType = newAnonymousType(this, undefined);
+    this.emptyFreshJsxObjectType = newAnonymousType(this, undefined);
+    this.emptyTypeLiteralType = newAnonymousType(this, this.newSymbol(SymbolFlags.TypeLiteral, '￾type'));
+    this.unknownEmptyObjectType = newAnonymousType(this, undefined);
+    this.unknownUnionType = this.strictNullChecks
+      ? getUnionType(this, [this.undefinedType, this.nullType, this.unknownEmptyObjectType])
+      : this.unknownType;
+    this.emptyGenericType = newAnonymousType(this, undefined);
+    this.emptyGenericType.instantiations = new Map<string, Type>();
+    this.anyFunctionType = newAnonymousType(this, undefined);
+    this.anyFunctionType.objectFlags |= ObjectFlags.NonInferrableType;
+    this.noConstraintType = newAnonymousType(this, undefined);
+    this.circularConstraintType = newAnonymousType(this, undefined);
+    this.resolvingDefaultType = newAnonymousType(this, undefined);
+    this.markerSuperType = this.newTypeParameter(undefined);
+    this.markerSubType = this.newTypeParameter(undefined);
+    this.markerSubType.constraint = this.markerSuperType;
+    this.markerOtherType = this.newTypeParameter(undefined);
+    this.markerSuperTypeForCheck = this.newTypeParameter(undefined);
+    this.markerSubTypeForCheck = this.newTypeParameter(undefined);
+    this.markerSubTypeForCheck.constraint = this.markerSuperTypeForCheck;
+    this.noTypePredicate = new TypePredicate(TypePredicateKind.Identifier, '<<unresolved>>', 0, this.anyType);
+    this.anySignature = this.newSignature(SignatureFlags.None, undefined, emptyTypes, undefined, [], this.anyType, 0);
+    this.unknownSignature = this.newSignature(
+      SignatureFlags.None,
+      undefined,
+      emptyTypes,
+      undefined,
+      [],
+      this.errorType,
+      0,
+    );
+    this.resolvingSignature = this.newSignature(
+      SignatureFlags.None,
+      undefined,
+      emptyTypes,
+      undefined,
+      [],
+      this.anyType,
+      0,
+    );
+    this.silentNeverSignature = this.newSignature(
+      SignatureFlags.None,
+      undefined,
+      emptyTypes,
+      undefined,
+      [],
+      this.silentNeverType,
+      0,
+    );
+    this.enumNumberIndexInfo = new IndexInfo(this.numberType, this.stringType, true, undefined, []);
+    this.anyBaseTypeIndexInfo = new IndexInfo(this.stringType, this.anyType, false, undefined, []);
+    this.emptyStringType = getStringLiteralType(this, '');
+    this.zeroType = getNumberLiteralType(this, 0);
+    this.zeroBigIntType = getBigIntLiteralType(this, '0');
+    const typeofNames = ['bigint', 'boolean', 'function', 'number', 'object', 'string', 'symbol', 'undefined'];
+    const typeofTypes: Type[] = [];
+    for (const name of typeofNames) typeofTypes.push(getStringLiteralType(this, name));
+    this.typeofType = getUnionType(this, typeofTypes);
+
+    // initializeChecker
+    initializeGlobals(this);
+    this.symbolLinks(this.undefinedSymbol).type = this.undefinedWideningType;
+    this.symbolLinks(this.argumentsSymbol).type = getGlobalType(this, 'IArguments', 0, true);
+    this.symbolLinks(this.unknownSymbol).type = this.errorType;
+    this.symbolLinks(this.globalThisSymbol).type = newObjectType(this, ObjectFlags.Anonymous, this.globalThisSymbol);
+    this.globalArrayType = getGlobalType(this, 'Array', 1, true);
+    this.globalObjectType = getGlobalType(this, 'Object', 0, true);
+    this.globalFunctionType = getGlobalType(this, 'Function', 0, true);
+    this.globalCallableFunctionType = getGlobalStrictFunctionType(this, 'CallableFunction');
+    this.globalNewableFunctionType = getGlobalStrictFunctionType(this, 'NewableFunction');
+    this.globalStringType = getGlobalType(this, 'String', 0, true);
+    this.globalNumberType = getGlobalType(this, 'Number', 0, true);
+    this.globalBooleanType = getGlobalType(this, 'Boolean', 0, true);
+    this.globalRegExpType = getGlobalType(this, 'RegExp', 0, true);
+    this.anyArrayType = createArrayType(this, this.anyType);
+    let autoArrayType = createArrayType(this, this.autoType);
+    // autoArrayType is a marker, so it must be unique even without a global Array type.
+    if (autoArrayType === this.emptyObjectType) autoArrayType = newAnonymousType(this, undefined);
+    this.autoArrayType = autoArrayType;
+    let readonlyArrayType = getGlobalType(this, 'ReadonlyArray', 1, false);
+    if (readonlyArrayType === this.emptyGenericType) readonlyArrayType = this.globalArrayType;
+    this.globalReadonlyArrayType = readonlyArrayType;
+    this.anyReadonlyArrayType = createTypeFromGenericGlobalType(this, readonlyArrayType, [this.anyType]);
+    this.globalThisType = getGlobalType(this, 'ThisType', 1, false);
+    mergeAmbientModulesAndAugmentations(this);
+  }
+
+  // ---- Public API
+
+  /** Checks `file` if needed and returns its semantic diagnostics, sorted. */
+  getDiagnostics(file: SourceFile): Diagnostic[] {
+    checkSourceFile(this, file);
+    return this.diagnostics.forFile(file.fileName);
+  }
+
+  /** Diagnostics without a file, such as missing global types. */
+  getGlobalDiagnostics(): Diagnostic[] {
+    return this.diagnostics.globals();
+  }
+
+  // ---- Links
+
+  symbolLinks(symbol: Symbol): SymbolLinks {
+    const id = getSymbolId(symbol);
+    const store = this.symbolLinkStore;
+    while (store.length <= id) store.push(undefined);
+    let links = store[id];
+    if (links === undefined) {
+      links = new SymbolLinks();
+      store[id] = links;
+    }
+    return links;
+  }
+
+  nodeLinks(node: Node): NodeLinks {
+    const id = getNodeId(node);
+    const store = this.nodeLinkStore;
+    while (store.length <= id) store.push(undefined);
+    let links = store[id];
+    if (links === undefined) {
+      links = new NodeLinks();
+      store[id] = links;
+    }
+    return links;
+  }
+
+  // ---- Constructors for types, symbols and signatures
+
+  nextTypeId(): number {
+    return ++this.typeCount;
+  }
+
+  newIntrinsicType(flags: TypeFlags, name: string, objectFlags: ObjectFlags): IntrinsicType {
+    return new IntrinsicType(flags, objectFlags, this.nextTypeId(), name);
+  }
+
+  newLiteralType(flags: TypeFlags, stringValue: string, numberValue: number, symbol: Symbol | undefined): LiteralType {
+    return new LiteralType(flags, this.nextTypeId(), symbol, stringValue, numberValue);
+  }
+
+  newTypeParameter(symbol: Symbol | undefined): TypeParameter {
+    return new TypeParameter(this.nextTypeId(), symbol);
+  }
+
+  newSymbol(flags: SymbolFlags, name: string): Symbol {
+    const symbol = new Symbol(flags | SymbolFlags.Transient, name);
+    return symbol;
+  }
+
+  newSymbolWithCheckFlags(flags: SymbolFlags, name: string, checkFlags: CheckFlags): Symbol {
+    const symbol = new Symbol(flags | SymbolFlags.Transient, name);
+    symbol.checkFlags = checkFlags;
+    return symbol;
+  }
+
+  newSignature(
+    flags: SignatureFlags,
+    declaration: Node | undefined,
+    typeParameters: Type[],
+    thisParameter: Symbol | undefined,
+    parameters: Symbol[],
+    resolvedReturnType: Type | undefined,
+    minArgumentCount: number,
+  ): Signature {
+    return new Signature(
+      ++this.signatureCount,
+      flags,
+      declaration,
+      typeParameters,
+      thisParameter,
+      parameters,
+      resolvedReturnType,
+      undefined,
+      minArgumentCount,
+    );
+  }
+
+  // ---- Diagnostics
+
+  /** Reports `message` at `node`, or as a global diagnostic without a node. */
+  error(node: Node | undefined, message: DiagnosticMessage, ...args: string[]): Diagnostic {
+    const diagnostic = createDiagnosticForNode(node, message, args);
+    this.addDiagnostic(diagnostic);
+    return diagnostic;
+  }
+
+  addDiagnostic(diagnostic: Diagnostic): void {
+    // Discard diagnostics created while at the maximum number of nested typeToString calls.
+    if (this.serializationLevel < maxSerializationLevel) this.diagnostics.add(diagnostic);
+  }
+
+  addSuggestion(diagnostic: Diagnostic): void {
+    this.suggestionDiagnostics.add(diagnostic);
+  }
+
+  /** Reports an error, or a suggestion when `isError` is false. */
+  addErrorOrSuggestion(isError: boolean, diagnostic: Diagnostic): void {
+    if (isError) this.addDiagnostic(diagnostic);
+    else this.addSuggestion(diagnostic);
+  }
+}
+
+export const enum VarianceReporting {
+  Unreliable = 1 << 4,
+  Unmeasurable = 1 << 3,
+}
+
+/** A diagnostic at `node`'s error range, or a global one without a node. */
+export function createDiagnosticForNode(
+  node: Node | undefined,
+  message: DiagnosticMessage,
+  args: string[],
+): Diagnostic {
+  if (node === undefined) {
+    const diagnostic = createCompilerDiagnostic(message);
+    return new Diagnostic(diagnostic.file, diagnostic.pos, diagnostic.end, message, args);
+  }
+  const file = getSourceFileOfNode(node);
+  const range = getErrorRangeForNode(file, node);
+  return new Diagnostic(file.diagnosticFile(), range.pos, range.end, message, args);
+}
+
+/** A message for `chainDiagnostic`-style elaboration; the location is taken from the head. */
+export function messageDiagnostic(message: DiagnosticMessage, args: string[]): Diagnostic {
+  return new Diagnostic(undefined, 0, 0, message, args);
+}
+
+export { Diagnostics, ScriptTarget };
