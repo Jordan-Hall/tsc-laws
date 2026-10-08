@@ -16,18 +16,21 @@ import {
   getDotDotDotToken,
   getElements,
   getExpression,
+  getMembers,
   getPostfixToken,
   getQuestionToken,
   getText,
 } from './ast.js';
 import {
   declarationNameToString,
+  findConstructorDeclaration,
   getCombinedModifierFlags,
   getCombinedNodeFlags,
   getNameOfDeclaration,
   getRootDeclaration,
   getSourceFileOfNode,
   hasStaticModifier,
+  hasSyntacticModifier,
   isCatchClauseVariableDeclarationOrBindingElement,
 } from './binder-utilities.js';
 import { type DiagnosticMessage, Diagnostics } from './diagnostics.js';
@@ -77,6 +80,11 @@ import {
   getDeclaredTypeOfSymbol,
 } from './checker-declared-types.js';
 import { getTypeFromTypeNode } from './checker-type-nodes.js';
+import {
+  getFlowTypeInConstructor,
+  getFlowTypeInStaticBlocks,
+  getTypeOfPropertyInBaseClass,
+} from './checker-classes.js';
 import { instantiateType } from './instantiation.js';
 import {
   getIndexInfosOfType,
@@ -344,6 +352,25 @@ export function getTypeForVariableLikeDeclaration(
   if (initializer !== undefined) {
     const t = widenTypeInferredFromInitializer(c, declaration, checkDeclarationInitializer(c, declaration));
     return addOptionality(c, t, isProperty, isOptional);
+  }
+  if (c.noImplicitAny && declaration.kind === SyntaxKind.PropertyDeclaration) {
+    // Without an annotation or initializer, the type comes from `this` assignments in the
+    // constructor or static blocks.
+    const symbol = getSymbol(declaration)!;
+    const isAmbient = hasSyntacticModifier(declaration, ModifierFlags.Ambient);
+    let t: Type | undefined;
+    if (!hasStaticModifier(declaration)) {
+      const constructor = findConstructorDeclaration(declaration.parent!);
+      if (constructor !== undefined) t = getFlowTypeInConstructor(c, symbol, constructor);
+      else if (isAmbient) t = getTypeOfPropertyInBaseClass(c, symbol);
+    } else {
+      const staticBlocks: Node[] = [];
+      for (const member of getMembers(declaration.parent!)!.nodes)
+        if (member.kind === SyntaxKind.ClassStaticBlockDeclaration) staticBlocks.push(member);
+      if (staticBlocks.length !== 0) t = getFlowTypeInStaticBlocks(c, symbol, staticBlocks);
+      else if (isAmbient) t = getTypeOfPropertyInBaseClass(c, symbol);
+    }
+    return t !== undefined ? addOptionality(c, t, true, isOptional) : undefined;
   }
   if (declaration.kind === SyntaxKind.JsxAttribute) return c.trueType;
   if (isBindingPattern(getName(declaration))) return getTypeFromBindingPattern(c, getName(declaration)!, false, true);
@@ -812,7 +839,7 @@ function isShorthandAmbientModuleSymbol(symbol: Symbol): boolean {
   return d !== undefined && d.kind === SyntaxKind.ModuleDeclaration && getBody(d) === undefined;
 }
 
-function getBaseTypeVariableOfClass(c: Checker, symbol: Symbol): Type | undefined {
+export function getBaseTypeVariableOfClass(c: Checker, symbol: Symbol): Type | undefined {
   const baseConstructorType = getBaseConstructorTypeOfClass(c, getDeclaredTypeOfClassOrInterface(c, symbol));
   if ((baseConstructorType.flags & TypeFlags.TypeVariable) !== 0) return baseConstructorType;
   if ((baseConstructorType.flags & TypeFlags.Intersection) !== 0)

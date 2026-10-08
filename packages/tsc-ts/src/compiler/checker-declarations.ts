@@ -106,6 +106,7 @@ import {
 } from './ast-utilities.js';
 import { getTypeForBindingElementParent } from './checker-destructuring.js';
 import { checkFunctionOrMethodSymbols } from './checker-overloads.js';
+import { checkDecorators } from './checker-decorators.js';
 
 // ---- Variables and parameters
 
@@ -119,6 +120,7 @@ export function checkVariableDeclarationList(c: Checker, node: Node): void {
 
 /** Checks a variable, parameter, property or binding element declaration. */
 export function checkVariableLikeDeclaration(c: Checker, node: Node): void {
+  checkDecorators(c, node);
   if (node.kind === SyntaxKind.Parameter) checkParameter(c, node);
   const typeNode = getType(node);
   checkTypeNodeIfPresent(c, typeNode);

@@ -49,7 +49,12 @@ import { symbolToString } from './type-printer.js';
 import { getTypeOfSymbol } from './checker-symbol-types.js';
 import { getPropertyOfType } from './checker-members.js';
 import { checkComputedPropertyName, entityNameToString } from './checker-expressions.js';
-import { getPropertyNameFromType, isTypeUsableAsPropertyName, hasLateBindableName } from './checker-utilities.js';
+import {
+  getPropertyNameFromType,
+  isTypeUsableAsPropertyName,
+  hasLateBindableName,
+  hasLateBindableIndexSignature,
+} from './checker-utilities.js';
 import {
   checkTypeOnlyAliasUse,
   markAliasDeclarationOfNameIfTypeOnly,
@@ -1267,6 +1272,9 @@ function getResolvedMembersOrExports(c: Checker, symbol: Symbol, isStatic: boole
       if (hasLateBindableName(c, member)) {
         if (late === undefined) late = new Map<string, Symbol>();
         lateBindMember(c, symbol, early, late, member);
+      } else if (hasLateBindableIndexSignature(c, member)) {
+        if (late === undefined) late = new Map<string, Symbol>();
+        lateBindIndexSignature(c, early, late, member);
       }
     }
   }
@@ -1330,6 +1338,24 @@ function lateBindMember(c: Checker, parent: Symbol, early: SymbolTable, late: Sy
     links.resolvedSymbol = lateSymbol;
   }
   return links.resolvedSymbol!;
+}
+
+/** Adds a member whose computed name has a non-literal key type to the index symbol. */
+function lateBindIndexSignature(c: Checker, early: SymbolTable, late: SymbolTable, decl: Node): void {
+  let indexSymbol = late.get(InternalSymbolName.Index);
+  if (indexSymbol === undefined) {
+    const earlyIndex = early.get(InternalSymbolName.Index);
+    if (earlyIndex === undefined)
+      indexSymbol = c.newSymbolWithCheckFlags(SymbolFlags.None, InternalSymbolName.Index, CheckFlags.Late);
+    else {
+      indexSymbol = cloneSymbol(c, earlyIndex);
+      indexSymbol.checkFlags |= CheckFlags.Late;
+    }
+    late.set(InternalSymbolName.Index, indexSymbol);
+  }
+  // Unlike late-bound members, `decl` gets no late symbol: the index symbol isn't one property.
+  if (indexSymbol.declarations.length === 0 || (getSymbol(decl)!.flags & SymbolFlags.ReplaceableByMethod) === 0)
+    indexSymbol.declarations.push(decl);
 }
 
 function addDeclarationToLateBoundSymbol(c: Checker, symbol: Symbol, member: Node, symbolFlags: SymbolFlags): void {

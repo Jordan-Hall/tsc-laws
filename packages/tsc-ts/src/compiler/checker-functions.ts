@@ -337,6 +337,8 @@ export function checkFunctionLikeBody(c: Checker, node: Node): void {
     returnTypeNode === undefined &&
     body === undefined &&
     node.kind !== SyntaxKind.Constructor &&
+    node.kind !== SyntaxKind.GetAccessor &&
+    node.kind !== SyntaxKind.SetAccessor &&
     !isPrivateWithinAmbient(node)
   )
     reportImplicitAny(c, node, c.anyType);

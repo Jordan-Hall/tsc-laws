@@ -1153,6 +1153,8 @@ export class NodeLinks {
   switchWitnessesValid: boolean;
   /** 0 unknown, 1 computing, 2 not exhaustive, 3 exhaustive. */
   exhaustiveState: number;
+  /** The signature the runtime calls a decorator of this declaration with. */
+  decoratorSignature: Signature | undefined;
 
   constructor() {
     this.flags = NodeCheckFlags.None;
@@ -1174,6 +1176,7 @@ export class NodeLinks {
     this.switchWitnesses = undefined;
     this.switchWitnessesValid = false;
     this.exhaustiveState = 0;
+    this.decoratorSignature = undefined;
     this.deferredNodeSet = undefined;
   }
 }

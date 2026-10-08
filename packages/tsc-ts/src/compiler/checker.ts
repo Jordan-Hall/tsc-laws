@@ -198,6 +198,7 @@ export class Checker {
   readonly strictBuiltinIteratorReturn: boolean;
   readonly noImplicitAny: boolean;
   readonly noImplicitThis: boolean;
+  readonly legacyDecorators: boolean;
   readonly useUnknownInCatchVariables: boolean;
   readonly exactOptionalPropertyTypes: boolean;
 
@@ -391,6 +392,7 @@ export class Checker {
   readonly flowLoopCaches = new Map<FlowNode, Map<string, Type>>();
   readonly flowLoopStack: FlowLoopInfo[] = [];
   readonly flowNodeReachable = new Map<FlowNode, boolean>();
+  readonly flowNodePostSuper = new Map<FlowNode, boolean>();
   lastFlowNode: FlowNode | undefined = undefined;
   lastFlowNodeReachable = false;
   readonly assignmentMarker: AssignmentMarker;
@@ -428,6 +430,7 @@ export class Checker {
     this.strictBuiltinIteratorReturn = getStrictOptionValue(options, options.strictBuiltinIteratorReturn);
     this.noImplicitAny = getStrictOptionValue(options, options.noImplicitAny);
     this.noImplicitThis = getStrictOptionValue(options, options.noImplicitThis);
+    this.legacyDecorators = options.experimentalDecorators === true;
     this.useUnknownInCatchVariables = getStrictOptionValue(options, options.useUnknownInCatchVariables);
     this.exactOptionalPropertyTypes = options.exactOptionalPropertyTypes === true;
 
@@ -743,6 +746,7 @@ export function disposeChecker(c: Checker): void {
   c.markerTypes.clear();
   c.flowLoopCaches.clear();
   c.flowNodeReachable.clear();
+  c.flowNodePostSuper.clear();
   c.primitiveTypeAliasSuggestions.clear();
   c.patternAmbientModuleAugmentations.clear();
   c.sharedFlowTypes.length = 0;

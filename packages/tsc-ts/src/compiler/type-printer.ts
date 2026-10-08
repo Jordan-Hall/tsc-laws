@@ -66,6 +66,7 @@ import {
   getDefaultFromTypeParameter,
 } from './checker-declared-types.js';
 import {
+  getBaseTypeVariableOfClass,
   getNonMissingTypeOfSymbol,
   getTypeOfSymbol,
   getWriteTypeOfSymbol,
@@ -402,7 +403,7 @@ class TypePrinter {
           (symbol.flags & SymbolFlags.Class) !== 0 &&
           t.objectFlags & ObjectFlags.Anonymous &&
           (t.objectFlags & ObjectFlags.Instantiated) === 0 &&
-          !isClassExpression(symbol)
+          getBaseTypeVariableOfClass(c, symbol) === undefined
         )
           return 'typeof ' + this.symbolReference(symbol, SymbolFlags.Value);
         if (
@@ -782,11 +783,6 @@ function internalNameText(symbol: Symbol): string {
   // Private names are `#<class id>@#name`.
   if (name.startsWith('￾#')) return name.substring(name.indexOf('@') + 1);
   return '__' + name.substring(1);
-}
-
-function isClassExpression(symbol: Symbol): boolean {
-  const d = symbol.valueDeclaration;
-  return d !== undefined && d.kind === SyntaxKind.ClassExpression;
 }
 
 function getTypeAliasForTypeLiteral(c: Checker, t: Type): Symbol | undefined {

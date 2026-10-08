@@ -2,6 +2,7 @@
 // selection, argument checks and resolution errors.
 import {
   type CallExpression,
+  type Decorator,
   type NewExpression,
   type ParameterDeclaration,
   type SpreadElement,
@@ -20,6 +21,7 @@ import {
   getText,
   getTypeArguments as getTypeArgumentList,
 } from './ast.js';
+import { canHaveDecorators, isImportCall } from './ast-utilities.js';
 import {
   getContainingClass,
   getSourceFileOfNode,
@@ -34,12 +36,20 @@ import { SyntaxKind } from './syntax-kind.js';
 import { type Symbol, SymbolFlags } from './symbol.js';
 import { TokenFlags } from './types.js';
 import { type Checker, createDiagnosticForNode } from './checker.js';
+import { checkSuperExpression } from './checker-super.js';
+import { isConstructorAccessible } from './checker-classes.js';
+import {
+  getDecoratorArgumentCount,
+  getDecoratorCallSignature,
+  getDiagnosticHeadMessageForDecoratorResolution,
+  getEffectiveDecoratorArgumentTypes,
+  getUncalledDecoratorText,
+  isPotentiallyUncalledDecorator,
+} from './checker-decorators.js';
 import {
   AccessFlags,
   CheckMode,
   ElementFlags,
-  type InterfaceType,
-  ObjectFlags,
   type Signature,
   SignatureFlags,
   SignatureKind,
@@ -112,9 +122,6 @@ import { checkExpression, checkExpressionCached, checkNonNullType } from './chec
 import { IterationUse, checkIteratedTypeOrElementType } from './checker-iteration.js';
 import { isContextSensitive } from './checker-functions.js';
 import {
-  getBaseConstructorTypeOfClass,
-  getBaseTypes,
-  getDeclaredTypeOfSymbol,
   getExtendsHeritageClauseElement,
   getInstantiatedConstructorsForTypeArguments,
   fillMissingTypeArguments,
@@ -122,7 +129,7 @@ import {
   getDefaultFromTypeParameter,
   getMinTypeArgumentCount,
 } from './checker-declared-types.js';
-import { getTypeFromTypeNode } from './checker-type-nodes.js';
+import { getESSymbolLikeTypeForNode, getTypeFromTypeNode } from './checker-type-nodes.js';
 import { getIndexedAccessTypeEx, getRestTypeOfTupleType } from './checker-type-operators.js';
 import { instantiateType } from './instantiation.js';
 import { maybeTypeOfKind } from './checker-utilities.js';
@@ -159,9 +166,8 @@ import {
 import { couldContainTypeVariables } from './instantiation.js';
 import { typeToString } from './type-printer.js';
 import { checkTypeRelatedToAndOptionallyElaborate } from './checker-elaboration.js';
-import { getSymbolOfDeclaration } from './checker-symbols.js';
+import { getGlobalValueSymbol, getSymbolOfDeclaration, resolveName } from './checker-symbols.js';
 import { checkImportCallExpression } from './checker-modules.js';
-import { isImportCall } from './ast-utilities.js';
 import {
   checkApplicableSignatureForJsxCallLikeElement,
   getAttributesOf,
@@ -193,7 +199,30 @@ export function checkCallExpression(c: Checker, node: Node, checkMode: CheckMode
   // A deferred call to a generic function returning a function, under SkipGenericFunctions.
   if (signature === c.resolvingSignature) return c.silentNeverType;
   if (callee.kind === SyntaxKind.SuperKeyword) return c.voidType;
-  return getReturnTypeOfSignature(c, signature);
+  const returnType = getReturnTypeOfSignature(c, signature);
+  // A call of the global `Symbol` in a const or readonly declaration is a fresh unique symbol.
+  if ((returnType.flags & TypeFlags.ESSymbolLike) !== 0 && isSymbolOrSymbolForCall(c, call))
+    return getESSymbolLikeTypeForNode(c, walkUpParenthesizedExpressions(node.parent!));
+  return returnType;
+}
+
+function walkUpParenthesizedExpressions(node: Node): Node {
+  let current = node;
+  while (current.kind === SyntaxKind.ParenthesizedExpression) current = current.parent!;
+  return current;
+}
+
+/** Whether `node` calls the global `Symbol` or `Symbol.for`. */
+function isSymbolOrSymbolForCall(c: Checker, node: CallExpression): boolean {
+  let left = node.expression;
+  if (left.kind === SyntaxKind.PropertyAccessExpression && getText(getName(left)!) === 'for')
+    left = getExpression(left)!;
+  if (left.kind !== SyntaxKind.Identifier || getText(left) !== 'Symbol') return false;
+  const globalESSymbol = getGlobalValueSymbol(c, 'Symbol', false);
+  return (
+    globalESSymbol !== undefined &&
+    globalESSymbol === resolveName(c, left, 'Symbol', SymbolFlags.Value, undefined, false, false)
+  );
 }
 
 export function checkNewExpression(c: Checker, node: Node, checkMode: CheckMode): Type {
@@ -260,6 +289,8 @@ function resolveSignature(c: Checker, node: Node, checkMode: CheckMode): Signatu
     case SyntaxKind.JsxSelfClosingElement:
     case SyntaxKind.JsxOpeningFragment:
       return resolveJsxOpeningLikeElement(c, node, checkMode);
+    case SyntaxKind.Decorator:
+      return resolveDecorator(c, node as Decorator, checkMode);
   }
   return resolveUntypedCall(c, node);
 }
@@ -311,30 +342,27 @@ function resolveCallExpression(c: Checker, node: CallExpression, checkMode: Chec
 
 /** A `super(...)` call resolves against the base constructors instantiated with the `extends` type arguments. */
 function resolveSuperCall(c: Checker, node: CallExpression, checkMode: CheckMode): Signature {
-  const classDeclaration = getContainingClass(node);
-  const symbol = classDeclaration !== undefined ? getSymbolOfDeclaration(c, classDeclaration) : undefined;
-  const baseTypeNode = classDeclaration !== undefined ? getExtendsHeritageClauseElement(classDeclaration) : undefined;
-  if (symbol === undefined || baseTypeNode === undefined) return resolveUntypedCall(c, node);
-  const classType = getDeclaredTypeOfSymbol(c, symbol);
-  if (
-    (classType.objectFlags & ObjectFlags.ClassOrInterface) === 0 ||
-    getBaseTypes(c, classType as InterfaceType).length === 0
-  )
-    return resolveUntypedCall(c, node);
-  const superType = getBaseConstructorTypeOfClass(c, classType as InterfaceType);
-  if ((superType.flags & TypeFlags.Any) !== 0 && !isErrorType(c, superType)) {
+  const superType = checkSuperExpression(c, node.expression);
+  if ((superType.flags & TypeFlags.Any) !== 0) {
+    // Arguments are still checked.
     for (const arg of node.arguments.nodes) checkExpression(c, arg);
     return c.anySignature;
   }
-  if (isErrorType(c, superType)) return resolveUntypedCall(c, node);
-  const typeArguments = getTypeArgumentList(baseTypeNode);
-  const baseConstructors = getInstantiatedConstructorsForTypeArguments(
-    c,
-    superType,
-    typeArguments !== undefined ? typeArguments.nodes : undefined,
-    baseTypeNode,
-  );
-  return resolveCall(c, node, baseConstructors, checkMode, SignatureFlags.None, undefined);
+  if (!isErrorType(c, superType)) {
+    const classDeclaration = getContainingClass(node);
+    const baseTypeNode = classDeclaration !== undefined ? getExtendsHeritageClauseElement(classDeclaration) : undefined;
+    if (baseTypeNode !== undefined) {
+      const typeArguments = getTypeArgumentList(baseTypeNode);
+      const baseConstructors = getInstantiatedConstructorsForTypeArguments(
+        c,
+        superType,
+        typeArguments !== undefined ? typeArguments.nodes : undefined,
+        baseTypeNode,
+      );
+      return resolveCall(c, node, baseConstructors, checkMode, SignatureFlags.None, undefined);
+    }
+  }
+  return resolveUntypedCall(c, node);
 }
 
 function resolveNewExpression(c: Checker, node: NewExpression, checkMode: CheckMode): Signature {
@@ -349,6 +377,7 @@ function resolveNewExpression(c: Checker, node: NewExpression, checkMode: CheckM
   }
   const constructSignatures = getSignaturesOfType(c, expressionType, SignatureKind.Construct);
   if (constructSignatures.length !== 0) {
+    if (!isConstructorAccessible(c, node, constructSignatures[0])) return resolveErrorCall(c, node);
     if (someSignature(constructSignatures, (s) => (s.flags & SignatureFlags.Abstract) !== 0)) {
       c.error(node, Diagnostics.Cannot_create_an_instance_of_an_abstract_class);
       return resolveErrorCall(c, node);
@@ -400,6 +429,37 @@ function resolveTaggedTemplateExpression(c: Checker, node: TaggedTemplateExpress
     return resolveErrorCall(c, node);
   }
   return resolveCall(c, node, callSignatures, checkMode, SignatureFlags.None, undefined);
+}
+
+/** A decorator is called with the arguments the runtime passes for its declaration. */
+function resolveDecorator(c: Checker, node: Decorator, checkMode: CheckMode): Signature {
+  if (!canHaveDecorators(node.parent!)) return resolveErrorCall(c, node);
+  const expression = node.expression;
+  const funcType = checkExpression(c, expression);
+  const apparentType = getApparentType(c, funcType);
+  if (isErrorType(c, apparentType)) return resolveErrorCall(c, node);
+  const callSignatures = getSignaturesOfType(c, apparentType, SignatureKind.Call);
+  const numConstructSignatures = getSignaturesOfType(c, apparentType, SignatureKind.Construct).length;
+  if (isUntypedFunctionCall(c, funcType, apparentType, callSignatures.length, numConstructSignatures))
+    return resolveUntypedCall(c, node);
+  if (
+    isPotentiallyUncalledDecorator(c, node, callSignatures) &&
+    expression.kind !== SyntaxKind.ParenthesizedExpression
+  ) {
+    c.error(
+      node,
+      Diagnostics.X_0_accepts_too_few_arguments_to_be_used_as_a_decorator_here_Did_you_mean_to_call_it_first_and_write_0,
+      getUncalledDecoratorText(node),
+    );
+    return resolveErrorCall(c, node);
+  }
+  const headMessage = getDiagnosticHeadMessageForDecoratorResolution(node);
+  if (callSignatures.length === 0) {
+    c.addDiagnostic(chainDiagnostic(getInvocationErrorDetails(c, expression, apparentType, true), headMessage));
+    return resolveErrorCall(c, node);
+  }
+  if (getDecoratorCallSignature(c, node) === undefined) return resolveErrorCall(c, node);
+  return resolveCall(c, node, callSignatures, checkMode, SignatureFlags.None, headMessage);
 }
 
 /** Whether a call is untyped: to `any`, or to a `Function` without signatures. */
@@ -575,6 +635,14 @@ export function getEffectiveCallArguments(c: Checker, node: Node): Node[] {
   if (node.kind === SyntaxKind.JsxOpeningFragment)
     return [new SyntheticExpression(node, c.emptyFreshJsxObjectType, false, undefined)];
   if (isJsxOpeningLikeElement(node)) return getEffectiveJsxArguments(node);
+  if (node.kind === SyntaxKind.Decorator) {
+    // One synthetic argument per parameter of the decorator's call signature.
+    const expression = (node as Decorator).expression;
+    const args: Node[] = [];
+    for (const t of getEffectiveDecoratorArgumentTypes(c, node))
+      args.push(new SyntheticExpression(expression, t, false, undefined));
+    return args;
+  }
   if (node.kind === SyntaxKind.TaggedTemplateExpression) {
     const template = (node as TaggedTemplateExpression).template;
     const args: Node[] = [new SyntheticExpression(template, getGlobalTemplateStringsArrayType(c), false, undefined)];
@@ -759,7 +827,7 @@ class CallState {
 }
 
 function getCallTypeArguments(node: Node): Node[] {
-  if (node.kind === SyntaxKind.JsxOpeningFragment) return [];
+  if (node.kind === SyntaxKind.JsxOpeningFragment || node.kind === SyntaxKind.Decorator) return [];
   if (node.kind === SyntaxKind.CallExpression && (node as CallExpression).expression.kind === SyntaxKind.SuperKeyword)
     return [];
   const list = getTypeArgumentList(node);
@@ -782,7 +850,12 @@ export function resolveCall(
   // Context-sensitive arguments are excluded from a first inference and applicability pass, then
   // included in a second pass with their contextual types fixed.
   s.isSingleNonGenericCandidate = candidates.length === 1 && candidates[0].typeParameters.length === 0;
-  if (!s.isSingleNonGenericCandidate && s.args.some((a) => isContextSensitive(c, a)))
+  // Decorator arguments are synthetic, so never context sensitive.
+  if (
+    node.kind !== SyntaxKind.Decorator &&
+    !s.isSingleNonGenericCandidate &&
+    s.args.some((a) => isContextSensitive(c, a))
+  )
     s.argCheckMode = CheckMode.SkipContextSensitive;
   // A subtype pass picks the best overload; assignability decides whether the call is an error.
   let result: Signature | undefined = undefined;
@@ -969,6 +1042,8 @@ function hasCorrectArity(c: Checker, node: Node, args: Node[], signature: Signat
       const literal = (spans[spans.length - 1] as TemplateSpan).literal;
       callIsIncomplete = literal.end === literal.pos || isUnterminatedLiteral(literal);
     } else callIsIncomplete = isUnterminatedLiteral(template);
+  } else if (node.kind === SyntaxKind.Decorator) {
+    argCount = getDecoratorArgumentCount(c, node, signature);
   } else if (node.kind === SyntaxKind.NewExpression && (node as NewExpression).arguments === undefined) {
     // `new C`
     return getMinArgumentCount(c, signature) === 0;
@@ -1073,7 +1148,7 @@ function isSignatureApplicable(
     )
   ) {
     // Without an `x.f` callee the `this` argument is `void`.
-    const thisArgumentNode = getThisArgumentOfCall(node);
+    const thisArgumentNode = getThisArgumentOfCall(c, node);
     const thisArgumentType = getThisArgumentType(c, thisArgumentNode);
     const errorNode = reportErrors ? (thisArgumentNode ?? node) : undefined;
     if (
@@ -1166,10 +1241,11 @@ function isSuperProperty(node: Node): boolean {
 }
 
 /** The `this` argument of `x.f(...)` and `x[f](...)`. */
-function getThisArgumentOfCall(node: Node): Node | undefined {
+function getThisArgumentOfCall(c: Checker, node: Node): Node | undefined {
   let expression: Node | undefined = undefined;
   if (node.kind === SyntaxKind.CallExpression) expression = (node as CallExpression).expression;
   else if (node.kind === SyntaxKind.TaggedTemplateExpression) expression = (node as TaggedTemplateExpression).tag;
+  else if (node.kind === SyntaxKind.Decorator && !c.legacyDecorators) expression = (node as Decorator).expression;
   if (expression === undefined) return undefined;
   const callee = skipOuterExpressionsForCall(expression);
   return isAccessExpression(callee) ? getExpression(callee) : undefined;
@@ -1220,11 +1296,11 @@ function inferTypeArguments(
   // Infer from the contextual type to the return type, e.g. from the declared type of `f` in
   // `let f: (x: string) => number = wrap(s => s.length)`.
   const skipBindingPatterns = signature.typeParameters.every((p) => getDefaultFromTypeParameter(c, p) !== undefined);
-  const contextualType = getContextualTypeEx(
-    c,
-    node,
-    skipBindingPatterns ? ContextFlags.SkipBindingPatterns : ContextFlags.None,
-  );
+  // Decorators have no contextual type.
+  const contextualType =
+    node.kind === SyntaxKind.Decorator
+      ? undefined
+      : getContextualTypeEx(c, node, skipBindingPatterns ? ContextFlags.SkipBindingPatterns : ContextFlags.None);
   if (contextualType !== undefined) {
     const inferenceTargetType = getReturnTypeOfSignature(c, signature);
     if (couldContainTypeVariables(c, inferenceTargetType)) {
@@ -1286,7 +1362,7 @@ function inferTypeArguments(
     inferTypes(
       c,
       context.inferences,
-      getThisArgumentType(c, getThisArgumentOfCall(node)),
+      getThisArgumentType(c, getThisArgumentOfCall(c, node)),
       thisType,
       InferencePriority.None,
       false,
@@ -1548,9 +1624,14 @@ function getArgumentArityError(
       ? minCount + '-' + maxCount
       : String(minCount);
   const errorNode = getErrorNodeForCallNode(node);
-  const message = hasRestParameter
-    ? Diagnostics.Expected_at_least_0_arguments_but_got_1
-    : Diagnostics.Expected_0_arguments_but_got_1;
+  const message =
+    node.kind === SyntaxKind.Decorator
+      ? hasRestParameter
+        ? Diagnostics.The_runtime_will_invoke_the_decorator_with_1_arguments_but_the_decorator_expects_at_least_0
+        : Diagnostics.The_runtime_will_invoke_the_decorator_with_1_arguments_but_the_decorator_expects_0
+      : hasRestParameter
+        ? Diagnostics.Expected_at_least_0_arguments_but_got_1
+        : Diagnostics.Expected_0_arguments_but_got_1;
   if (minCount < args.length && args.length < maxCount)
     // Between min and max, but no overload matches.
     return withHeadMessage(

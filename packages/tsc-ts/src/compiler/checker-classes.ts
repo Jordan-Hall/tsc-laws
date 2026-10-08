@@ -1,6 +1,11 @@
 // Classes and interfaces.
 import {
+  type ClassStaticBlockDeclaration,
   type ConstructorDeclaration,
+  Identifier,
+  PrivateIdentifier,
+  getType,
+  getSymbol,
   ElementAccessExpression,
   type HeritageClause,
   type InterfaceDeclaration,
@@ -26,6 +31,7 @@ import {
 import {
   declarationNameToString,
   findConstructorDeclaration,
+  getContainingClass,
   getDeclarationOfKind,
   getModifierFlags,
   getSourceFileOfNode,
@@ -40,18 +46,33 @@ import { hasDynamicName, hasLateBindableName } from './checker-utilities.js';
 import { type DiagnosticMessage, Diagnostics } from './diagnostics.js';
 import { SyntaxKind } from './syntax-kind.js';
 import type { Checker } from './checker.js';
-import { type InterfaceType, NodeCheckFlags, type Type, TypeFlags } from './checker-types.js';
-import { typesOf } from './checker-type-factory.js';
+import {
+  type InterfaceType,
+  NodeCheckFlags,
+  ObjectFlags,
+  type Signature,
+  SignatureKind,
+  type Type,
+  TypeFlags,
+} from './checker-types.js';
+import { everyType, getTargetType, typesOf } from './checker-type-factory.js';
+import { type Symbol } from './symbol.js';
+import type { FlowNode } from './flow.js';
+import { symbolToString, typeToString } from './type-printer.js';
+import { getDeclaringClass } from './checker-property-access.js';
 import {
   getBaseConstructorTypeOfClass,
   getBaseTypes,
   getDeclaredTypeOfSymbol,
+  getClassLikeDeclarationOfSymbol,
   getExtendsHeritageClauseElement,
+  isMixinConstructorType,
 } from './checker-declared-types.js';
 import { getSymbolOfDeclaration } from './checker-symbols.js';
 import { getOptionalType, getTypeOfSymbol } from './checker-symbol-types.js';
-import { getFlowTypeOfReference } from './checker-narrowing.js';
-import { getIndexInfosOfType } from './checker-members.js';
+import { convertAutoToAny, getFlowTypeOfReference } from './checker-narrowing.js';
+import { TypeFacts, hasTypeFacts } from './checker-flow.js';
+import { getIndexInfosOfType, getSignaturesOfType, getTypeOfPropertyOfType } from './checker-members.js';
 import { checkSourceElement, checkTypeNodeIfPresent, checkNodeDeferred } from './checker-source-file.js';
 import {
   checkVariableLikeDeclaration,
@@ -66,6 +87,7 @@ import {
   checkClassOrInterfaceForDuplicateIndexSignatures,
   checkInterfaceHeritage,
 } from './checker-heritage.js';
+import { checkDecorators } from './checker-decorators.js';
 
 export function checkClassDeclaration(c: Checker, node: Node): void {
   checkClassLikeDeclaration(c, node);
@@ -82,6 +104,7 @@ export function checkClassLikeDeferred(c: Checker, node: Node): void {
 }
 
 function checkClassLikeDeclaration(c: Checker, node: Node): void {
+  checkDecorators(c, node);
   if (node.kind === SyntaxKind.ClassDeclaration) checkExportsOnMergedDeclarations(c, node);
   const typeParameters = getTypeParameters(node);
   checkTypeParameters(c, typeParameters);
@@ -146,6 +169,7 @@ function checkClassMember(c: Checker, member: Node): void {
     case SyntaxKind.Constructor:
     case SyntaxKind.GetAccessor:
     case SyntaxKind.SetAccessor: {
+      checkDecorators(c, member);
       const name = getName(member);
       if (name !== undefined && name.kind === SyntaxKind.ComputedPropertyName) checkExpression(c, getExpression(name)!);
       const symbol = getSymbolOfDeclaration(c, member);
@@ -398,9 +422,169 @@ export function isPropertyInitializedInConstructor(
   return !containsUndefinedType(flowType);
 }
 
+/** The type of an unannotated, uninitialized property from its `this` assignments in the constructor. */
+export function getFlowTypeInConstructor(c: Checker, symbol: Symbol, constructor: Node): Type | undefined {
+  const reference = newThisPropertyReference(
+    symbol,
+    constructor,
+    (constructor as ConstructorDeclaration).returnFlowNode,
+  );
+  const flowType = getFlowTypeOfProperty(c, reference, symbol);
+  if (c.noImplicitAny && (flowType === c.autoType || flowType === c.autoArrayType))
+    c.error(
+      symbol.valueDeclaration,
+      Diagnostics.Member_0_implicitly_has_an_1_type,
+      symbolToString(c, symbol),
+      typeToString(c, flowType),
+    );
+  // Assignments of only null or undefined infer nothing.
+  if (everyType(flowType, (t) => hasTypeFacts(c, t, TypeFacts.IsUndefinedOrNull))) return undefined;
+  return convertAutoToAny(c, flowType);
+}
+
+/** The type of an unannotated, uninitialized static property from its `this` assignments in static blocks. */
+export function getFlowTypeInStaticBlocks(c: Checker, symbol: Symbol, staticBlocks: Node[]): Type | undefined {
+  for (const staticBlock of staticBlocks) {
+    const reference = newThisPropertyReference(
+      symbol,
+      staticBlock,
+      (staticBlock as ClassStaticBlockDeclaration).returnFlowNode,
+    );
+    const flowType = getFlowTypeOfProperty(c, reference, symbol);
+    if (c.noImplicitAny && (flowType === c.autoType || flowType === c.autoArrayType))
+      c.error(
+        symbol.valueDeclaration,
+        Diagnostics.Member_0_implicitly_has_an_1_type,
+        symbolToString(c, symbol),
+        typeToString(c, flowType),
+      );
+    if (everyType(flowType, (t) => hasTypeFacts(c, t, TypeFacts.IsUndefinedOrNull))) continue;
+    return convertAutoToAny(c, flowType);
+  }
+  return undefined;
+}
+
+/** A synthetic `this.name` at the end of `container`. */
+function newThisPropertyReference(symbol: Symbol, container: Node, flowNode: FlowNode | undefined): Node {
+  const name = symbol.name;
+  let accessName: Node;
+  if (name.startsWith('\ufffe#')) accessName = new PrivateIdentifier(name.substring(name.indexOf('@') + 1));
+  else accessName = new Identifier(name);
+  const thisExpression = new KeywordExpression(SyntaxKind.ThisKeyword);
+  const reference = new PropertyAccessExpression(thisExpression, undefined, accessName, NodeFlags.None);
+  thisExpression.parent = reference;
+  accessName.parent = reference;
+  reference.parent = container;
+  reference.flowNode = flowNode;
+  return reference;
+}
+
+function getFlowTypeOfProperty(c: Checker, reference: Node, prop: Symbol): Type {
+  let initialType: Type = c.undefinedType;
+  const declaration = prop.valueDeclaration;
+  if (
+    declaration !== undefined &&
+    (!isAutoTypedProperty(c, prop) || hasSyntacticModifier(declaration, ModifierFlags.Ambient))
+  ) {
+    const baseType = getTypeOfPropertyInBaseClass(c, prop);
+    if (baseType !== undefined) initialType = baseType;
+  }
+  return getFlowTypeOfReference(c, reference, c.autoType, initialType, undefined);
+}
+
+/** Whether a property's type comes from its assignments: it has no annotation or initializer. */
+function isAutoTypedProperty(c: Checker, symbol: Symbol): boolean {
+  const declaration = symbol.valueDeclaration;
+  return (
+    declaration !== undefined &&
+    declaration.kind === SyntaxKind.PropertyDeclaration &&
+    getType(declaration) === undefined &&
+    getInitializer(declaration) === undefined &&
+    c.noImplicitAny
+  );
+}
+
+/** The type of the property in the first base class, if it has one. */
+export function getTypeOfPropertyInBaseClass(c: Checker, property: Symbol): Type | undefined {
+  const classType = getDeclaringClass(c, property);
+  if (classType === undefined) return undefined;
+  const baseClassTypes = getBaseTypes(c, classType);
+  return baseClassTypes.length > 0 ? getTypeOfPropertyOfType(c, baseClassTypes[0], property.name) : undefined;
+}
+
 function containsUndefinedType(t: Type): boolean {
   const first = (t.flags & TypeFlags.Union) !== 0 ? typesOf(t)[0] : t;
   return (first.flags & TypeFlags.Undefined) !== 0;
+}
+
+/** Whether `new` at `node` may call a constructor, reporting private and protected ones out of reach. */
+export function isConstructorAccessible(c: Checker, node: Node, signature: Signature | undefined): boolean {
+  if (signature === undefined || signature.declaration === undefined) return true;
+  const declaration = signature.declaration;
+  const modifiers = getModifierFlags(declaration) & ModifierFlags.NonPublicAccessibilityModifier;
+  // Public constructors and constructor functions are always accessible.
+  if (modifiers === 0 || declaration.kind !== SyntaxKind.Constructor) return true;
+  const classSymbol = getSymbol(declaration.parent!)!;
+  const declaringClassDeclaration = getClassLikeDeclarationOfSymbol(classSymbol);
+  const declaringClass = getDeclaredTypeOfSymbol(c, classSymbol);
+  // Private and protected constructors are only callable within their class, or subclasses if protected.
+  for (let container = getContainingClass(node); container !== undefined; container = getContainingClass(container))
+    if (container === declaringClassDeclaration) return true;
+  const containingClass = getContainingClass(node);
+  if (containingClass !== undefined && (modifiers & ModifierFlags.Protected) !== 0) {
+    const containingType = getDeclaredTypeOfSymbol(c, getSymbol(containingClass)!);
+    if (typeHasProtectedAccessibleBase(c, classSymbol, containingType)) return true;
+  }
+  if ((modifiers & ModifierFlags.Private) !== 0)
+    c.error(
+      node,
+      Diagnostics.Constructor_of_class_0_is_private_and_only_accessible_within_the_class_declaration,
+      typeToString(c, declaringClass),
+    );
+  if ((modifiers & ModifierFlags.Protected) !== 0)
+    c.error(
+      node,
+      Diagnostics.Constructor_of_class_0_is_protected_and_only_accessible_within_the_class_declaration,
+      typeToString(c, declaringClass),
+    );
+  return false;
+}
+
+/** Whether `target` is a base class of `t`, through bases that aren't mixins. */
+function typeHasProtectedAccessibleBase(c: Checker, target: Symbol, t: Type): boolean {
+  const baseTypes = getBaseTypes(c, getTargetType(t));
+  if (baseTypes.length === 0) return false;
+  const firstBase = baseTypes[0];
+  if ((firstBase.flags & TypeFlags.Intersection) !== 0) {
+    const types = typesOf(firstBase);
+    const mixinFlags = findMixins(c, types);
+    for (let i = 0; i < types.length; i++) {
+      const member = types[i];
+      if (mixinFlags[i] || (member.objectFlags & (ObjectFlags.Class | ObjectFlags.Interface)) === 0) continue;
+      if (member.symbol === target || typeHasProtectedAccessibleBase(c, target, member)) return true;
+    }
+    return false;
+  }
+  return firstBase.symbol === target || typeHasProtectedAccessibleBase(c, target, firstBase);
+}
+
+/** Which of an intersection's constituents are mixin constructors; one stays if all constructors are. */
+function findMixins(c: Checker, types: Type[]): boolean[] {
+  const mixinFlags: boolean[] = [];
+  let constructorTypeCount = 0;
+  let mixinCount = 0;
+  let firstMixinIndex = -1;
+  for (let i = 0; i < types.length; i++) {
+    const isMixin = isMixinConstructorType(c, types[i]);
+    mixinFlags.push(isMixin);
+    if (getSignaturesOfType(c, types[i], SignatureKind.Construct).length > 0) constructorTypeCount++;
+    if (isMixin) {
+      if (firstMixinIndex < 0) firstMixinIndex = i;
+      mixinCount++;
+    }
+  }
+  if (constructorTypeCount > 0 && constructorTypeCount === mixinCount) mixinFlags[firstMixinIndex] = false;
+  return mixinFlags;
 }
 
 // ---- Interfaces

@@ -19,6 +19,7 @@ import {
   getSourceFileOfNode,
   getThisContainer,
   isAccessExpression,
+  hasSyntacticModifier,
   isClassLike,
   isStatic,
   skipParentheses,
@@ -482,7 +483,8 @@ function isClassInstanceProperty(node: Node): boolean {
     node.parent !== undefined &&
     isClassLike(node.parent) &&
     node.kind === SyntaxKind.PropertyDeclaration &&
-    !isStatic(node)
+    !isStatic(node) &&
+    !hasSyntacticModifier(node, ModifierFlags.Accessor)
   );
 }
 

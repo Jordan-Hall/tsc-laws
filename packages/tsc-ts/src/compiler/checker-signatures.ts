@@ -91,7 +91,11 @@ import { getTypeOfSymbol, addOptionality } from './checker-symbol-types.js';
 import { getTypeFromTypeNode } from './checker-type-nodes.js';
 import { instantiateSignatureEx, instantiateType, instantiateTypes } from './instantiation.js';
 import { getIndexInfosOfType, getSignaturesOfType, resolveStructuredTypeMembers } from './checker-members.js';
-import { getIndexedAccessType, getElementTypeOfSliceOfTupleType } from './checker-type-operators.js';
+import {
+  getIndexedAccessType,
+  getElementTypeOfSliceOfTupleType,
+  isTypeAssignableToKind,
+} from './checker-type-operators.js';
 import { isTypeAssignableTo, type TypeComparer } from './relations.js';
 import { getReturnTypeFromBody } from './checker-functions.js';
 import { checkComputedPropertyName } from './checker-expressions.js';
@@ -862,14 +866,39 @@ export function getIndexInfosOfIndexSymbol(c: Checker, indexSymbol: Symbol, sibl
 
 import { isValidIndexKeyType as isValidIndexKeyTypeLocal, isNumericLiteralName } from './checker-utilities.js';
 
+/** Whether `symbol` is a known symbol or has a computed name of a symbol type. */
+function isSymbolWithSymbolName(c: Checker, symbol: Symbol): boolean {
+  if (symbol.name.startsWith('\ufffe@')) return true;
+  const name = symbol.declarations.length !== 0 ? getName(symbol.declarations[0]) : undefined;
+  return (
+    name !== undefined &&
+    name.kind === SyntaxKind.ComputedPropertyName &&
+    isTypeAssignableToKind(c, checkComputedPropertyName(c, name), TypeFlags.ESSymbol)
+  );
+}
+
+/** Whether `symbol` has a numeric name, or a computed name of a number type. */
+function isSymbolWithNumericName(c: Checker, symbol: Symbol): boolean {
+  if (isNumericLiteralName(symbol.name)) return true;
+  const name = symbol.declarations.length !== 0 ? getName(symbol.declarations[0]) : undefined;
+  if (name === undefined) return false;
+  if (name.kind === SyntaxKind.ComputedPropertyName)
+    return isTypeAssignableToKind(c, checkComputedPropertyName(c, name), TypeFlags.NumberLike);
+  return (
+    (name.kind === SyntaxKind.Identifier ||
+      name.kind === SyntaxKind.StringLiteral ||
+      name.kind === SyntaxKind.NumericLiteral) &&
+    isNumericLiteralName(getText(name))
+  );
+}
+
 function getObjectLiteralIndexInfo(c: Checker, isReadonly: boolean, properties: Symbol[], keyType: Type): IndexInfo {
   const propTypes: Type[] = [];
   for (const prop of properties) {
-    const symbolNamed = prop.name.startsWith('￾@');
     if (
-      (keyType === c.stringType && !symbolNamed) ||
-      (keyType === c.numberType && isNumericLiteralName(prop.name)) ||
-      (keyType === c.esSymbolType && symbolNamed)
+      (keyType === c.stringType && !isSymbolWithSymbolName(c, prop)) ||
+      (keyType === c.numberType && isSymbolWithNumericName(c, prop)) ||
+      (keyType === c.esSymbolType && isSymbolWithSymbolName(c, prop))
     )
       propTypes.push(getTypeOfSymbol(c, prop));
   }

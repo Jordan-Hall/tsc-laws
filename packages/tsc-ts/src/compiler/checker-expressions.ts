@@ -55,6 +55,11 @@ import { type Symbol, SymbolFlags } from './symbol.js';
 import { SyntaxKind } from './syntax-kind.js';
 import { type Checker } from './checker.js';
 import {
+  checkSuperExpression,
+  checkThisBeforeSuper,
+  checkThisInStaticClassFieldInitializerInDecoratedClass,
+} from './checker-super.js';
+import {
   AccessFlags,
   CheckMode,
   ObjectFlags,
@@ -314,7 +319,7 @@ function checkExpressionWorker(c: Checker, node: Node, checkMode: CheckMode): Ty
     case SyntaxKind.ThisKeyword:
       return checkThisExpression(c, node);
     case SyntaxKind.SuperKeyword:
-      return c.anyType;
+      return checkSuperExpression(c, node);
     case SyntaxKind.NullKeyword:
       return c.nullWideningType;
     case SyntaxKind.TrueKeyword:
@@ -625,12 +630,36 @@ export function isInAmbientOrTypeNode(node: Node): boolean {
 }
 
 export function checkThisExpression(c: Checker, node: Node): Type {
+  // Stop at the first arrow function to tell whether `this` is captured.
   let container = getThisContainer(node, true, true);
   let capturedByArrowFunction = false;
-  if (container.kind === SyntaxKind.ArrowFunction) {
-    container = getThisContainer(container, false, true);
-    capturedByArrowFunction = true;
+  let thisInComputedPropertyName = false;
+  if (container.kind === SyntaxKind.Constructor)
+    checkThisBeforeSuper(
+      c,
+      node,
+      container,
+      Diagnostics.X_super_must_be_called_before_accessing_this_in_the_constructor_of_a_derived_class,
+    );
+  for (;;) {
+    // Skip arrow functions to the real owner of `this`.
+    if (container.kind === SyntaxKind.ArrowFunction) {
+      container = getThisContainer(container, false, !thisInComputedPropertyName);
+      capturedByArrowFunction = true;
+    }
+    if (container.kind === SyntaxKind.ComputedPropertyName) {
+      container = getThisContainer(container, !capturedByArrowFunction, false);
+      thisInComputedPropertyName = true;
+      continue;
+    }
+    break;
   }
+  checkThisInStaticClassFieldInitializerInDecoratedClass(c, node, container);
+  if (thisInComputedPropertyName) c.error(node, Diagnostics.X_this_cannot_be_referenced_in_a_computed_property_name);
+  else if (container.kind === SyntaxKind.ModuleDeclaration)
+    c.error(node, Diagnostics.X_this_cannot_be_referenced_in_a_module_or_namespace_body);
+  else if (container.kind === SyntaxKind.EnumDeclaration)
+    c.error(node, Diagnostics.X_this_cannot_be_referenced_in_current_location);
   const t = tryGetThisTypeAt(c, node, container);
   if (c.noImplicitThis) {
     const globalThisType = getTypeOfSymbol(c, c.globalThisSymbol);

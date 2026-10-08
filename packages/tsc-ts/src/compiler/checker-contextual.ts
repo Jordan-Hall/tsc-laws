@@ -73,7 +73,12 @@ import { TypeSystemPropertyName, findResolutionCycleStartIndex, getCachedGlobalT
 import { isImportCall } from './ast-utilities.js';
 import { CompositeSignature, Ternary } from './checker-types.js';
 import { ComparerKind, compareSignaturesIdentical } from './relations.js';
-import { cloneSignature, getParameterCount, hasEffectiveRestParameter } from './checker-signatures.js';
+import {
+  cloneSignature,
+  getOrCreateTypeFromSignature,
+  getParameterCount,
+  hasEffectiveRestParameter,
+} from './checker-signatures.js';
 import {
   MappedTypeNameTypeKind,
   getActualTypeVariable,
@@ -145,6 +150,7 @@ import {
   getContextualTypeForJsxAttribute,
   getContextualTypeForJsxExpression,
 } from './checker-jsx.js';
+import { getDecoratorCallSignature } from './checker-decorators.js';
 
 export const enum ContextFlags {
   None = 0,
@@ -320,6 +326,11 @@ export function getContextualTypeEx(c: Checker, node: Node, contextFlags: Contex
     case SyntaxKind.CallExpression:
     case SyntaxKind.NewExpression:
       return getContextualTypeForArgument(c, parent, node);
+    case SyntaxKind.Decorator: {
+      // A decorator expression is contextually typed by the call the runtime makes.
+      const signature = getDecoratorCallSignature(c, parent);
+      return signature !== undefined ? getOrCreateTypeFromSignature(c, signature) : undefined;
+    }
     case SyntaxKind.AsExpression:
     case SyntaxKind.TypeAssertionExpression: {
       const typeNode = getType(parent)!;
