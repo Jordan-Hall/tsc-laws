@@ -54,6 +54,7 @@ const multiKinds = {
   CaseOrDefaultClause: ['CaseClause', 'DefaultClause'],
   BindingPattern: ['ObjectBindingPattern', 'ArrayBindingPattern'],
   JSDocParameterOrPropertyTag: ['JSDocParameterTag', 'JSDocPropertyTag'],
+  KeywordExpression: ['NullKeyword', 'TrueKeyword', 'FalseKeyword', 'ThisKeyword', 'SuperKeyword', 'ImportKeyword'],
 };
 // Literal flags the factory masks, as tsgo's NodeFactory does.
 const flagMasks = {
@@ -104,6 +105,18 @@ const tokenTypes = new Set([
 ]);
 const scalarTypes = new Set(['bool', 'string', 'TokenFlags', 'NodeFlags', 'ImportPhaseModifierSyntaxKind']);
 
+// Fields the binder sets, which the schema marks Go-only, and their types.
+const binderFieldTypes = {
+  Symbol: 'Symbol',
+  LocalSymbol: 'Symbol',
+  Locals: 'SymbolTable',
+  NextContainer: 'Node',
+  FlowNode: 'FlowNode',
+  EndFlowNode: 'FlowNode',
+  ReturnFlowNode: 'FlowNode',
+  FallthroughFlowNode: 'FlowNode',
+};
+
 function fieldName(name) {
   if (name.startsWith('JSDoc')) return 'jsdoc' + name.slice(5);
   return name.charAt(0).toLowerCase() + name.slice(1);
@@ -136,6 +149,29 @@ function tsType(type) {
   if (t.startsWith('SyntaxKind.') || t === 'ImportPhaseModifierSyntaxKind') return 'SyntaxKind';
   if (tokenTypes.has(t)) return 'Token';
   return t;
+}
+
+/** The binder fields of a node definition, from its bases and its own members. */
+function binderFields(def) {
+  const result = [];
+  const add = (name) => {
+    const type = binderFieldTypes[name];
+    if (type !== undefined && !result.some((f) => f.name === fieldName(name)))
+      result.push({ name: fieldName(name), type });
+  };
+  const seen = new Set();
+  const visit = (names) => {
+    for (const bn of names) {
+      const b = bases[bn];
+      if (b === undefined || seen.has(bn)) continue;
+      seen.add(bn);
+      visit(b.extends ?? []);
+      for (const [name, field] of Object.entries(b.fields ?? {})) if (field.goOnly) add(name);
+    }
+  };
+  visit(def.extends ?? []);
+  for (const m of def.members ?? []) if (m.goOnly) add(m.name);
+  return result;
 }
 
 /** The node classes, with their kinds and members in factory/visitor order. */
@@ -188,7 +224,7 @@ function nodeClasses() {
       const optional = field.optional === true || nullable.has(`${name}.${m.name}`);
       members.push({ name: fieldName(m.name), type, optional, child });
     }
-    classes.push({ name, kinds, members, hasKindParam });
+    classes.push({ name, kinds, members, hasKindParam, binder: binderFields(def) });
   }
   return classes;
 }
@@ -203,7 +239,11 @@ function emitClass(c) {
   for (const m of c.members) params.push(m.isFlags ? 'flags: NodeFlags' : `${paramName(m.name)}: ${type(m)}`);
   lines.push(`export class ${c.name} extends Node {`);
   for (const m of fields) lines.push(`  ${m.name}: ${type(m)};`);
-  if (fields.length > 0) lines.push('');
+  if (c.binder.length > 0) {
+    lines.push('  // Set by the binder.');
+    for (const f of c.binder) lines.push(`  ${f.name}: ${f.type} | undefined;`);
+  }
+  if (fields.length > 0 || c.binder.length > 0) lines.push('');
   lines.push(`  constructor(${params.join(', ')}) {`);
   lines.push(`    super(${kindLiteral ? 'SyntaxKind.' + c.kinds[0] : 'kind'});`);
   for (const m of c.members) {
@@ -217,6 +257,7 @@ function emitClass(c) {
       lines.push(`    this.${m.name} = ${paramName(m.name)} & TokenFlags.${flagMasks[c.name]};`);
     else lines.push(`    this.${m.name} = ${paramName(m.name)};`);
   }
+  for (const f of c.binder) lines.push(`    this.${f.name} = undefined;`);
   lines.push('  }');
   lines.push('');
   const children = fields.filter((m) => m.child !== undefined);
@@ -334,7 +375,12 @@ function emitAccessors(classes) {
     const lines = [`export function ${fn}(node: Node): ${ret} {`, '  switch (node.kind) {'];
     for (const c of holders) {
       for (const k of c.kinds) lines.push(`    case SyntaxKind.${k}:`);
-      lines.push(`      if (node instanceof ${c.name}) return node.${field};`);
+      lines.push(
+        `      if (node instanceof ${c.name}) {`,
+        `        const holder: ${c.name} = node;`,
+        `        return holder.${field};`,
+        '      }',
+      );
       lines.push('      break;');
     }
     lines.push('  }', `  return ${fallback};`, '}');
@@ -350,6 +396,58 @@ function replaceRegion(text, name, body) {
   const stop = text.indexOf(end);
   if (start < 0 || stop < start) throw new Error(`missing region ${name} in ast.ts`);
   return text.substring(0, start + begin.length) + '\n' + body + '\n\n' + text.substring(stop);
+}
+
+/** Getters and setters for the binder fields, and predicates for the classes that have them. */
+function emitBinderAccessors(classes) {
+  const result = [];
+  const holdersOf = (field) =>
+    classes.filter((c) => !transformOnly.has(c.name) && c.binder.some((f) => f.name === field));
+  const caseLines = (holders) => holders.flatMap((c) => c.kinds.map((k) => `    case SyntaxKind.${k}:`));
+  const predicates = { isDeclarationNode: 'symbol', isLocalsContainer: 'locals' };
+  for (const [fn, field] of Object.entries(predicates)) {
+    result.push(
+      [
+        `export function ${fn}(node: Node): boolean {`,
+        '  switch (node.kind) {',
+        ...caseLines(holdersOf(field)),
+        '      return true;',
+        '  }',
+        '  return false;',
+        '}',
+      ].join('\n'),
+    );
+  }
+  for (const field of Object.keys(binderFieldTypes).map(fieldName)) {
+    const holders = holdersOf(field);
+    if (holders.length < 2) continue;
+    const type = holders[0].binder.find((f) => f.name === field).type;
+    const suffix = field.charAt(0).toUpperCase() + field.slice(1);
+    const getter = [`export function get${suffix}(node: Node): ${type} | undefined {`, '  switch (node.kind) {'];
+    const setter = [
+      `export function set${suffix}(node: Node, value: ${type} | undefined): void {`,
+      '  switch (node.kind) {',
+    ];
+    for (const c of holders) {
+      for (const k of c.kinds) {
+        getter.push(`    case SyntaxKind.${k}:`);
+        setter.push(`    case SyntaxKind.${k}:`);
+      }
+      getter.push(`      if (node instanceof ${c.name}) return node.${field};`, '      break;');
+      // Through a typed local: scriptc writes fields of a narrowed parameter dynamically.
+      setter.push(
+        `      if (node instanceof ${c.name}) {`,
+        `        const target: ${c.name} = node;`,
+        `        target.${field} = value;`,
+        '      }',
+        '      break;',
+      );
+    }
+    getter.push('  }', '  return undefined;', '}');
+    setter.push('  }', '}');
+    result.push(getter.join('\n'), setter.join('\n'));
+  }
+  return result.join('\n\n');
 }
 
 const classes = nodeClasses();
@@ -374,6 +472,6 @@ text = replaceRegion(
     .map(emitClass)
     .join('\n\n'),
 );
-text = replaceRegion(text, 'accessors', emitAccessors(classes));
+text = replaceRegion(text, 'accessors', emitAccessors(classes) + '\n\n' + emitBinderAccessors(classes));
 writeFileSync(astPath, text);
 execFileSync(resolve(root, '../../node_modules/.bin/oxfmt'), [astPath], { stdio: 'inherit' });
