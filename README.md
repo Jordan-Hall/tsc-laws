@@ -44,7 +44,7 @@ npm run build:oracle     # tsgo reference builds in packages/*/dist
 | Command line and options     | output, errors, exit codes, `--locale`              | all cases match                  |
 | Diagnostics catalog          | messages, 13 translations, output formats           | all match                        |
 | JavaScript emit              | emitted files, 39 option sets                       | all compared units match         |
-| Declaration emit             | `.d.ts` and `.d.ts.map` output                      | 99% of units with explicit types |
+| Declaration emit             | `.d.ts` and `.d.ts.map` output, declaration errors  | 99.8% of units match             |
 | `--build`, `--incremental`   | output, `.tsbuildinfo`, emitted files, `--watch`    | all scenarios match              |
 | Type checker                 | diagnostics per file                                | 99.8% of files match             |
 
@@ -69,7 +69,9 @@ TSC_TS_LIB_DIR=upstream/typescript-go/internal/bundled/libs packages/tsc-ts/dist
 
 `TSC_TS_BIN=packages/tsc-ts/dist/tsc` runs the `tsc-ts` and `tsc` tests against a native build.
 
-The server is checked against `tsc --api` 7.0.2 response by response, and scriptc builds the same programs with either. It runs on the tsc-ts compiler, natively or under Node. Language service methods (completions, references, JSDoc queries) are not supported yet.
+The server is checked against `tsc --api` 7.0.2 response by response, and scriptc builds the same programs with either. It runs on the tsc-ts compiler, natively or under Node.
+
+Language service methods are supported: `getCompletionsAtPosition`, `getJsDocTags`, `getDocumentationComment`, `getReferencesToSymbolInFile`, `getReferencedSymbolsForNode` and `getSignatureUsages`. Like `tsc --api`, completions that need auto imports (global identifiers, import statements, exhaustive `switch` cases) report `completion list needs auto imports`. The profiling methods (`startCPUProfile`, `stopCPUProfile`, `saveHeapProfile`) are not supported.
 
 ## Checker
 

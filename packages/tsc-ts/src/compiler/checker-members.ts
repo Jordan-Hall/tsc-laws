@@ -983,7 +983,7 @@ export function getDeclarationModifierFlagsFromSymbol(c: Checker, s: Symbol, isW
   return 0;
 }
 
-function createUnionOrIntersectionProperty(
+export function createUnionOrIntersectionProperty(
   c: Checker,
   containingType: UnionOrIntersectionType,
   name: string,

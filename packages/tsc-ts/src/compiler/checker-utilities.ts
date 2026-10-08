@@ -76,7 +76,12 @@ function isLateBindableAST(node: Node): boolean {
 /** A computed name of entity-name form whose type is a literal or unique symbol. */
 export function hasLateBindableName(c: Checker, node: Node): boolean {
   const name = getLateBindableNameOfDeclaration(node);
-  if (name === undefined || !isLateBindableAST(name)) return false;
+  return name !== undefined && isLateBindableName(c, name);
+}
+
+/** Whether a computed name or `F[name]` target has a unique symbol or literal type. */
+export function isLateBindableName(c: Checker, name: Node): boolean {
+  if (!isLateBindableAST(name)) return false;
   if (name.kind === SyntaxKind.ComputedPropertyName)
     return isTypeUsableAsPropertyName(checkComputedPropertyName(c, name));
   return isTypeUsableAsPropertyName(checkExpressionCached(c, (name as ElementAccessExpression).argumentExpression));

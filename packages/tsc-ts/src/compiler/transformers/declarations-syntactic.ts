@@ -1478,7 +1478,7 @@ function classifyPropertyName(name: string, stringNamed: boolean, isMethod: bool
     : PropertyNameKind.StringLiteral;
 }
 
-function tryGetTextOfPropertyName(name: Node): string | undefined {
+export function tryGetTextOfPropertyName(name: Node): string | undefined {
   switch (name.kind) {
     case SyntaxKind.Identifier:
     case SyntaxKind.PrivateIdentifier:

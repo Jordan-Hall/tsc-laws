@@ -1,8 +1,28 @@
 // Reusing type nodes from source in built nodes: a copy of an existing type node with its names
 // checked to be accessible, or undefined if they aren't and it can't be rewritten.
 import {
+  ArrayTypeNode,
+  CallSignatureDeclaration,
+  ConstructSignatureDeclaration,
+  ConstructorTypeNode,
+  FunctionTypeNode,
+  IndexSignatureDeclaration,
+  MethodSignatureDeclaration,
+  ParameterDeclaration,
+  PropertyDeclaration,
   ComputedPropertyName,
   ConditionalTypeNode,
+  JSDocNonNullableType,
+  JSDocNullableType,
+  JSDocOptionalType,
+  JSDocParameterOrPropertyTag,
+  JSDocTypeExpression,
+  JSDocTypeLiteral,
+  JSDocVariadicType,
+  PropertySignatureDeclaration,
+  QualifiedName,
+  TypeLiteralNode,
+  UnionTypeNode,
   Identifier,
   ImportAttributes,
   ImportTypeNode,
@@ -29,6 +49,7 @@ import {
   getThisContainer,
   hasDynamicName,
   isExportsIdentifier,
+  isIdentifierNamed,
   isModuleExportsAccessExpression,
   isPartOfParameterDeclaration,
 } from './binder-utilities.js';
@@ -213,7 +234,8 @@ class ExistingNodeReuser extends VisitorBase {
     }
     let result = this.visitWorker(node);
     if (exit !== undefined) exit();
-    if (result === node && result !== undefined) result = node.deepClone();
+    // As tsgo, an unchanged subtree is copied without positions; the root gets them back below.
+    if (result === node && result !== undefined) result = node.pos < 0 ? node.deepClone() : b.deepCloneNode(node);
     if (result !== undefined) result = b.setTextRange(result, node);
     if (bound.hadError) {
       if (isTypeNode(node) && node.kind !== SyntaxKind.TypePredicate) {
@@ -226,6 +248,52 @@ class ExistingNodeReuser extends VisitorBase {
       return b.setTextRange(node, node);
     }
     return result;
+  }
+
+  /** JSDoc type syntax as TypeScript types, or undefined for other nodes. */
+  private visitJSDocType(node: Node): Node | undefined {
+    const b = this.b;
+    if (node instanceof JSDocTypeExpression) return this.visitNode(node.type);
+    if (node.kind === SyntaxKind.JSDocAllType) return b.keyword(SyntaxKind.AnyKeyword);
+    if (node instanceof JSDocNullableType)
+      return b.created(
+        new UnionTypeNode(
+          b.list([
+            this.visitNode(node.type)!,
+            b.created(new LiteralTypeNode(b.factory.createKeywordExpression(SyntaxKind.NullKeyword))),
+          ]),
+        ),
+      );
+    if (node instanceof JSDocOptionalType)
+      return b.created(new UnionTypeNode(b.list([this.visitNode(node.type)!, b.keyword(SyntaxKind.UndefinedKeyword)])));
+    if (node instanceof JSDocNonNullableType) return this.visitNode(node.type);
+    if (node instanceof JSDocVariadicType) return b.created(new ArrayTypeNode(this.visitNode(node.type)!));
+    if (node instanceof JSDocTypeLiteral) {
+      const members: Node[] = [];
+      for (const t of node.jsdocPropertyTags ?? []) {
+        if (!(t instanceof JSDocParameterOrPropertyTag)) continue;
+        if (t.kind !== SyntaxKind.JSDocPropertyTag && t.kind !== SyntaxKind.JSDocParameterTag) continue;
+        const n = t.name;
+        const targetName = n instanceof QualifiedName ? n.right : n;
+        const name = this.visitNode(targetName)!;
+        const optional =
+          t.isBracketed || (t.typeExpression !== undefined && t.typeExpression.kind === SyntaxKind.JSDocOptionalType);
+        const type = t.typeExpression === undefined ? undefined : this.visitNode(t.typeExpression);
+        members.push(
+          b.created(
+            new PropertySignatureDeclaration(
+              undefined,
+              name,
+              optional ? b.token(SyntaxKind.QuestionToken) : undefined,
+              type,
+              undefined,
+            ),
+          ),
+        );
+      }
+      return b.created(new TypeLiteralNode(b.list(members)));
+    }
+    return undefined;
   }
 
   private attachSymbolToLeftmostIdentifier(leftmost: Node, node: Node, symbol: Symbol | undefined): Node {
@@ -251,12 +319,16 @@ class ExistingNodeReuser extends VisitorBase {
     const c = b.c;
     const enclosingDeclaration = b.enclosingDeclaration;
     const leftmost = getFirstIdentifier(node);
+    const leftmostParent = leftmost.parent;
     if (
       isInJSFile(node) &&
       (isExportsIdentifier(leftmost) ||
-        (leftmost.parent !== undefined && isModuleExportsAccessExpression(leftmost.parent)))
+        (leftmostParent !== undefined && isModuleExportsAccessExpression(leftmostParent)) ||
+        (leftmostParent instanceof QualifiedName &&
+          isIdentifierNamed(leftmostParent.left, 'module') &&
+          isExportsIdentifier(leftmostParent.right)))
     )
-      return new TrackedName(true, b.setTextRange(node.deepClone(), node));
+      return new TrackedName(true, b.setTextRange(b.deepCloneNode(node), node));
     const meaning = getMeaningOfEntityNameReference(node);
     if (leftmost.kind === SyntaxKind.ThisKeyword || getText(leftmost) === 'this') {
       // `this` isn't bound: find its symbol directly.
@@ -373,7 +445,8 @@ class ExistingNodeReuser extends VisitorBase {
   }
 
   private tryVisitSimpleTypeNode(node: Node): Node | undefined {
-    const inner = skipParenthesizedTypes(node);
+    // As tsgo, parenthesized types are kept.
+    const inner = node;
     if (inner instanceof TypeReferenceNode) return this.tryVisitTypeReference(inner);
     if (inner instanceof TypeQueryNode) return this.tryVisitTypeQuery(inner);
     if (inner instanceof IndexedAccessTypeNode) return this.tryVisitIndexedAccess(inner);
@@ -386,6 +459,8 @@ class ExistingNodeReuser extends VisitorBase {
     const b = this.b;
     const factory = this.factory;
     const bound = this.bound;
+    const jsdoc = this.visitJSDocType(node);
+    if (jsdoc !== undefined) return jsdoc;
     if (node instanceof TypeReferenceNode && node.typeName instanceof Identifier && node.typeName.text === '') {
       const replacement = b.keyword(SyntaxKind.AnyKeyword);
       this.context.setOriginal(replacement, node);
@@ -471,9 +546,11 @@ class ExistingNodeReuser extends VisitorBase {
         getType(node) === undefined &&
         getInitializer(node) === undefined)
     ) {
-      // Untyped declarations get `any`; rare in type nodes.
-      bound.markError(undefined);
-      return node;
+      // Untyped declarations get `any`.
+      let visited = this.visitEachChild(node);
+      if (visited === node) visited = b.setTextRange(node.deepClone(), node);
+      withAnyType(b, visited);
+      return visited;
     }
     if (node instanceof ComputedPropertyName && isEntityNameExpressionNode(node.expression)) {
       const tracked = this.trackExistingEntityName(node.expression);
@@ -551,6 +628,29 @@ class LeftmostRenamer extends VisitorBase {
   }
 }
 
+/** Gives a copied declaration or signature without a type the type `any`; false for other kinds. */
+function withAnyType(b: NodeBuilder, node: Node): boolean {
+  const any = b.keyword(SyntaxKind.AnyKeyword);
+  if (node instanceof PropertyDeclaration) {
+    node.type = any;
+    node.initializer = undefined;
+  } else if (node instanceof PropertySignatureDeclaration) {
+    node.type = any;
+    node.initializer = undefined;
+  } else if (node instanceof ParameterDeclaration) {
+    node.modifiers = undefined;
+    node.type = any;
+    node.initializer = undefined;
+  } else if (node instanceof MethodSignatureDeclaration) node.type = any;
+  else if (node instanceof CallSignatureDeclaration) node.type = any;
+  else if (node instanceof ConstructSignatureDeclaration) node.type = any;
+  else if (node instanceof IndexSignatureDeclaration) node.type = any;
+  else if (node instanceof FunctionTypeNode) node.type = any;
+  else if (node instanceof ConstructorTypeNode) node.type = any;
+  else return false;
+  return true;
+}
+
 function asImportAttributes(node: Node | undefined): ImportAttributes | undefined {
   if (node === undefined) return undefined;
   if (node instanceof ImportAttributes) return node as ImportAttributes;
@@ -561,12 +661,6 @@ function asToken(node: Node | undefined): Token | undefined {
   if (node === undefined) return undefined;
   if (node instanceof Token) return node as Token;
   return undefined;
-}
-
-function skipParenthesizedTypes(node: Node): Node {
-  let current = node;
-  while (current.kind === SyntaxKind.ParenthesizedType) current = getType(current)!;
-  return current;
 }
 
 function isConstTypeReference(node: TypeReferenceNode): boolean {

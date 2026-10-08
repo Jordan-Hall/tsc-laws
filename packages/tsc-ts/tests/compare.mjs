@@ -32,6 +32,7 @@ const results = {
   getIndexInfosOfType: 'indexInfo',
   getTypePredicateOfSignature: 'predicate',
   getWellKnownSymbols: 'wellKnown',
+  getReferencedSymbolsForNode: 'referencedSymbols',
 };
 
 // Request fields that hold ids, by kind.
@@ -84,7 +85,8 @@ export class IdMap {
 
   // Throws if actual differs from expected beyond id numbering.
   compare(method, expected, actual) {
-    walk(this, resultKind(method), expected, actual, method);
+    if (method === 'getCompletionsAtPosition') compareCompletions(this, expected, actual, method);
+    else walk(this, resultKind(method), expected, actual, method);
   }
 }
 
@@ -179,6 +181,11 @@ function walk(ids, kind, expected, actual, where) {
       delete rest.type;
       delete restActual.type;
       break;
+    case 'referencedSymbols':
+      if (expected.symbol !== undefined) walk(ids, 'symbol', expected.symbol, actual.symbol, `${where}.symbol`);
+      delete rest.symbol;
+      delete restActual.symbol;
+      break;
     case 'wellKnown':
       take('unknown', 'symbol');
       take('undefined', 'symbol');
@@ -188,6 +195,31 @@ function walk(ids, kind, expected, actual, where) {
   if (!isDeepStrictEqual(rest, restActual)) {
     throw new Error(`${where}: expected ${JSON.stringify(rest)}, received ${JSON.stringify(restActual)}`);
   }
+}
+
+// Completion entries come in symbol table order, which tsgo doesn't fix; editors sort them
+// by sortText and name anyway.
+function compareCompletions(ids, expected, actual, where) {
+  if (expected === null || actual === null || typeof expected !== 'object' || typeof actual !== 'object') {
+    walk(ids, 'raw', expected, actual, where);
+    return;
+  }
+  walk(ids, 'raw', expected.isIncomplete, actual.isIncomplete, `${where}.isIncomplete`);
+  const key = (e) => [e.sortText ?? '', e.name, e.kind ?? 0, e.insertText ?? '', e.filterText ?? ''].join('\u0000');
+  const sorted = (entries) => [...(entries ?? [])].sort((x, y) => (key(x) < key(y) ? -1 : key(x) > key(y) ? 1 : 0));
+  const e = sorted(expected.entries);
+  const a = sorted(actual.entries);
+  if (e.length !== a.length) {
+    const names = (list) => list.map((x) => x.name).join(',');
+    throw new Error(`${where}: expected ${names(e)}, received ${names(a)}`);
+  }
+  e.forEach((entry, i) => {
+    const { symbol, ...rest } = entry;
+    const { symbol: actualSymbol, ...actualRest } = a[i];
+    walk(ids, 'raw', rest, actualRest, `${where}.entries[${i}]`);
+    if (symbol !== undefined || actualSymbol !== undefined)
+      walk(ids, 'symbol', symbol, actualSymbol, `${where}.entries[${i}].symbol`);
+  });
 }
 
 // Source file encodings must match except for the content hash (bytes 4-19).

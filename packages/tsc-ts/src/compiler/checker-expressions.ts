@@ -1729,17 +1729,17 @@ function checkSatisfiesExpression(c: Checker, node: Node, checkMode: CheckMode):
   const expr = getExpression(node)!;
   const exprType = checkExpressionEx(c, expr, checkMode);
   const targetType = getTypeFromTypeNode(c, getType(node)!);
-  if (!isErrorType(c, targetType))
-    checkTypeRelatedToAndOptionallyElaborate(
-      c,
-      exprType,
-      targetType,
-      c.assignableRelation,
-      node,
-      expr,
-      Diagnostics.Type_0_does_not_satisfy_the_expected_type_1,
-      undefined,
-    );
+  if (isErrorType(c, targetType)) return targetType;
+  checkTypeRelatedToAndOptionallyElaborate(
+    c,
+    exprType,
+    targetType,
+    c.assignableRelation,
+    node,
+    expr,
+    Diagnostics.Type_0_does_not_satisfy_the_expected_type_1,
+    undefined,
+  );
   return exprType;
 }
 

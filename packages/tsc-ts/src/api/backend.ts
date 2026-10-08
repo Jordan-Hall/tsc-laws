@@ -93,7 +93,17 @@ import type { SyntaxKind } from '../compiler/syntax-kind.js';
 import { ConfigParser, ParsedCommandLine } from '../compiler/tsconfig.js';
 import { isTypeAssignableTo } from '../compiler/relations.js';
 import { typeToString } from '../compiler/type-printer.js';
+import { type CompletionList, getCompletionsAtPosition } from '../services/completions.js';
+import {
+  getReferencedSymbolsForNode,
+  getReferencesToSymbolInFile,
+  getSignatureUsages,
+} from '../services/find-references.js';
+import { getSymbolDocumentationComment, getSymbolJSDocTags, type JSDocTagInfo } from '../services/jsdoc.js';
 import type { ClientFileSystem } from './fs.js';
+
+export type { CompletionEntry, CompletionList } from '../services/completions.js';
+export { NeedsAutoImports } from '../services/completions.js';
 
 // Opaque references. Callers compare them by identity and pass them back.
 export type Type = CheckerType;
@@ -116,6 +126,17 @@ export type LiteralValue = string | number | boolean | BigIntLiteral | null;
 // A bigint literal, sent as decimal text.
 export interface BigIntLiteral {
   bigint: string;
+}
+
+export interface ReferencedSymbol {
+  definition: Node;
+  symbol: Symbol | undefined;
+  references: Node[];
+}
+
+export interface SignatureUsage {
+  name: Node;
+  call: Node | undefined;
 }
 
 export interface SourceFileMetadata {
@@ -443,6 +464,16 @@ export class Project {
     }
   }
 
+  /** Completions at a UTF-16 position; throws `NeedsAutoImports` where tsgo needs its auto-import registry. */
+  completionsAtPosition(
+    file: SourceFile,
+    position: number,
+    triggerCharacter: string | undefined,
+    includeSymbols: boolean,
+  ): CompletionList | undefined {
+    return getCompletionsAtPosition(this.checker, this.program, file, position, triggerCharacter, includeSymbols);
+  }
+
   // The node at a UTF-16 position: the touching property name or token.
   nodeAtPosition(file: SourceFile, position: number): Node | undefined {
     return getTouchingPropertyName(file, position);
@@ -670,6 +701,40 @@ export class Project {
       case 'symbol':
         return c.esSymbolType;
     }
+  }
+
+  jsDocTags(symbol: Symbol): JSDocTagInfo[] {
+    return getSymbolJSDocTags(symbol);
+  }
+
+  documentationComment(symbol: Symbol): string {
+    return getSymbolDocumentationComment(this.checker, symbol);
+  }
+
+  referencesToSymbolInFile(file: SourceFile, symbol: Symbol): Node[] {
+    return getReferencesToSymbolInFile(this.checker, file, symbol);
+  }
+
+  referencedSymbolsForNode(node: Node, position: number): ReferencedSymbol[] {
+    const result: ReferencedSymbol[] = [];
+    for (const entry of getReferencedSymbolsForNode(
+      this.checker,
+      this.program,
+      position,
+      node,
+      this.program.getSourceFiles(),
+    )) {
+      const definition = entry.definitionNode();
+      if (definition === undefined) continue;
+      const references: Node[] = [];
+      for (const ref of entry.references) if (ref.node !== undefined) references.push(ref.node);
+      result.push({ definition, symbol: entry.definition.symbol, references });
+    }
+    return result;
+  }
+
+  signatureUsages(declaration: Node): SignatureUsage[] {
+    return getSignatureUsages(this.checker, this.program, declaration);
   }
 
   unknownSymbol(): Symbol {

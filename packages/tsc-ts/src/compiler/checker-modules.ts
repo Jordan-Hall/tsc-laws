@@ -902,7 +902,7 @@ function reportInvalidImportEqualsExportMember(
     );
 }
 
-function getTargetOfExportSpecifier(
+export function getTargetOfExportSpecifier(
   c: Checker,
   node: Node,
   meaning: SymbolFlags,

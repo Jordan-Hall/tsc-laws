@@ -50,8 +50,8 @@ function errorsByUnit(stdout, cwd, unitsRoot) {
  * Emits declarations of `paths` (each in its own unit directory under `unitsRoot`) with tsgo and
  * `command` in batches. `flags` ending in `--declarationDir` get the output directory there
  * instead of `--outDir`. A batch tsgo panics on is split until the unit it panics on is alone;
- * those units are skipped. Returns `{ units, mismatched, errorMismatched, skipped, inferred }`:
- * sets of unit directories, and `inferred` mapping a unit to `{ fallbacks, unresolved }`.
+ * those units are skipped. Returns `{ units, mismatched, errorMismatched, skipped }`: sets of
+ * unit directories.
  */
 export async function compareDeclarations(command, unitsRoot, paths, flags, jobs, batchSize = 150) {
   const dir = tempDir('tsc-ts-declarations-out-');
@@ -59,7 +59,6 @@ export async function compareDeclarations(command, unitsRoot, paths, flags, jobs
   const mismatched = new Set();
   const errorMismatched = new Set();
   const skipped = new Set();
-  const inferred = new Map();
   const queue = [];
   for (let start = 0; start < paths.length; start += batchSize) queue.push(paths.slice(start, start + batchSize));
   for (const path of paths) units.add(unitOf(relative(unitsRoot, path)));
@@ -96,16 +95,8 @@ export async function compareDeclarations(command, unitsRoot, paths, flags, jobs
       if (mine.stderr !== '') console.error(`batch ${n}: ${mine.stderr.slice(0, 2000)}`);
       const unsupported = new Set();
       for (const line of mine.stdout.toString().split('\n')) {
-        let match = /^unsupported (.*?): /.exec(line);
+        const match = /^unsupported (.*?): /.exec(line);
         if (match) unsupported.add(unitOf(relative(unitsRoot, match[1])));
-        match = /^inferred (.*?): (\d+) (\d+)$/.exec(line);
-        if (match) {
-          const unit = unitOf(relative(unitsRoot, match[1]));
-          const counts = inferred.get(unit) ?? { fallbacks: 0, unresolved: 0 };
-          counts.fallbacks += Number(match[2]);
-          counts.unresolved += Number(match[3]);
-          inferred.set(unit, counts);
-        }
       }
       for (const unit of unsupported) skipped.add(unit);
       const all = new Set([...listOutputs(expected), ...listOutputs(actual)]);
@@ -126,26 +117,18 @@ export async function compareDeclarations(command, unitsRoot, paths, flags, jobs
     }
   };
   await Promise.all(Array.from({ length: jobs }, worker));
-  return { units, mismatched, errorMismatched, skipped, inferred };
+  return { units, mismatched, errorMismatched, skipped };
 }
 
-/** Match rates of a comparison: all units, units needing no inference, and checker-dependent mismatches. */
+/** Match rates of a comparison: of the output files and of the declaration errors. */
 export function summarize(result) {
   const compared = [...result.units].filter((unit) => !result.skipped.has(unit));
-  const explicit = compared.filter((unit) => (result.inferred.get(unit)?.fallbacks ?? 0) === 0);
-  const ok = (unit) => !result.mismatched.has(unit);
-  const failures = compared.filter((unit) => !ok(unit));
-  const needsChecker = failures.filter((unit) => (result.inferred.get(unit)?.unresolved ?? 0) > 0);
   return {
     skipped: result.skipped.size,
     compared: compared.length,
-    matched: compared.filter(ok).length,
-    explicit: explicit.length,
-    explicitMatched: explicit.filter(ok).length,
-    failures: failures.sort(),
-    needsChecker: needsChecker.length,
+    matched: compared.filter((unit) => !result.mismatched.has(unit)).length,
+    failures: compared.filter((unit) => result.mismatched.has(unit)).sort(),
     errorsMatched: compared.filter((unit) => !result.errorMismatched.has(unit)).length,
     errorFailures: compared.filter((unit) => result.errorMismatched.has(unit)).sort(),
-    explicitFailures: explicit.filter((unit) => !ok(unit)).sort(),
   };
 }

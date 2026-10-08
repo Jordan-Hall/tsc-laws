@@ -246,7 +246,7 @@ export function tokenToString(kind: SyntaxKind): string {
 }
 
 export function stringToToken(text: string): SyntaxKind {
-  return textToToken.get(text) ?? SyntaxKind.Unknown;
+  return textToToken.get(text) ?? textToKeyword.get(text) ?? SyntaxKind.Unknown;
 }
 
 /** Keywords longer than two characters, for spelling suggestions. */

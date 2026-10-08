@@ -7,6 +7,7 @@ import {
   ModifierFlags,
   type Node,
   NodeFlags,
+  getArguments,
   getInitializer,
   getName,
   getParameters,
@@ -829,11 +830,36 @@ export function isReadonlySymbol(c: Checker, symbol: Symbol): boolean {
     ((symbol.flags & SymbolFlags.Variable) !== 0 &&
       (getDeclarationNodeFlagsFromSymbol(symbol) & NodeFlags.Constant) !== 0) ||
     ((symbol.flags & SymbolFlags.Accessor) !== 0 && (symbol.flags & SymbolFlags.SetAccessor) === 0) ||
-    (symbol.flags & SymbolFlags.EnumMember) !== 0
+    (symbol.flags & SymbolFlags.EnumMember) !== 0 ||
+    symbol.declarations.some((d) => isReadonlyAssignmentDeclaration(c, d))
   );
 }
 
-import { getDeclarationModifierFlagsFromSymbol } from './checker-members.js';
+/** An `Object.defineProperty` call with a value and no `writable: true`, or without a setter. */
+function isReadonlyAssignmentDeclaration(c: Checker, node: Node): boolean {
+  if (node.kind !== SyntaxKind.CallExpression) return false;
+  const args = getArguments(node);
+  if (args === undefined || args.nodes.length < 3) return false;
+  const descriptorType = checkExpressionCached(c, args.nodes[2]);
+  if (getTypeOfPropertyOfType(c, descriptorType, 'value') !== undefined) {
+    const writable = getPropertyOfType(c, descriptorType, 'writable');
+    if (writable === undefined) return true;
+    const declaration = writable.valueDeclaration;
+    const writableType =
+      declaration !== undefined && declaration.kind === SyntaxKind.PropertyAssignment
+        ? checkExpression(c, getInitializer(declaration)!)
+        : getTypeOfSymbol(c, writable);
+    return writableType === c.falseType || writableType === c.regularFalseType;
+  }
+  return getTypeOfPropertyOfType(c, descriptorType, 'set') === undefined;
+}
+
+import {
+  getDeclarationModifierFlagsFromSymbol,
+  getPropertyOfType,
+  getTypeOfPropertyOfType,
+} from './checker-members.js';
+import { checkExpression } from './checker-expressions.js';
 import { getParameterTypeOfFullSignature } from './checker-jsdoc.js';
 import { isInJSFile } from './ast-utilities.js';
 import { isEmptyArrayLiteralType } from './relations.js';

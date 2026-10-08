@@ -235,6 +235,8 @@ export class Checker {
   signatureCount = 0;
   /** Number of `typeToString` calls in progress. */
   serializationLevel = 0;
+  /** Whether `globalObjectType` is set; global type lookups before it can't suggest `typeof`. */
+  hasGlobalObjectType = false;
   /** The node being checked, for errors with no better location. */
   currentNode: Node | undefined = undefined;
 
@@ -649,6 +651,7 @@ export class Checker {
     this.symbolLinks(this.globalThisSymbol).type = newObjectType(this, ObjectFlags.Anonymous, this.globalThisSymbol);
     this.globalArrayType = getGlobalType(this, 'Array', 1, true);
     this.globalObjectType = getGlobalType(this, 'Object', 0, true);
+    this.hasGlobalObjectType = true;
     this.globalFunctionType = getGlobalType(this, 'Function', 0, true);
     this.globalCallableFunctionType = getGlobalStrictFunctionType(this, 'CallableFunction');
     this.globalNewableFunctionType = getGlobalStrictFunctionType(this, 'NewableFunction');

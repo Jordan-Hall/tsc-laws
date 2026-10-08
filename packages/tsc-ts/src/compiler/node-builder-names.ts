@@ -35,7 +35,17 @@ import { getExportsOfSymbol, getMembersOfSymbol, isAmbientModuleSymbolName, reso
 import { compareSymbols } from './checker-type-factory.js';
 import { TypeFlags, type LiteralType } from './checker-types.js';
 import { isLateBoundName } from './checker-utilities.js';
-import { getDirectoryPath, getRelativePathFromDirectory, isExternalModuleNameRelative } from './path.js';
+import {
+  getDirectoryPath,
+  getNormalizedAbsolutePath,
+  getRelativePathFromDirectory,
+  isExternalModuleNameRelative,
+  removeFileExtension,
+} from './path.js';
+import type { Checker } from './checker.js';
+import { getAllowedEndingsInPreferredOrder, processEnding } from './module-specifier-endings.js';
+import { ModuleKind } from './options.js';
+import { getDefaultResolutionModeForFile } from './program-utilities.js';
 import { EmitFlags } from './printer/emit-flags.js';
 import { isIdentifierText } from './scanner.js';
 import {
@@ -752,14 +762,37 @@ export function getSpecifierForModuleSymbol(b: NodeBuilder, symbol: Symbol): str
   const key = getSymbolId(getMergedSymbol(b.c, symbol)) + ':' + b.enclosingFile.path;
   const cached = b.specifierCache.get(key);
   if (cached !== undefined) return cached;
-  let specifier = getRelativePathFromDirectory(
-    getDirectoryPath(b.enclosingFile.fileName),
-    removeExtension(moduleFile.fileName),
-    true,
+  const c = b.c;
+  const options = c.compilerOptions;
+  const metadata = c.host.getSourceFileMetadata(b.enclosingFile);
+  const mode =
+    metadata === undefined
+      ? ModuleKind.None
+      : getDefaultResolutionModeForFile(b.enclosingFile.fileName, metadata, options);
+  // Declaration emit prefers `.js` extensions in ES modules.
+  const allowedEndings = getAllowedEndingsInPreferredOrder(
+    mode === ModuleKind.ESNext,
+    options,
+    b.enclosingFile,
+    mode,
+    mode,
   );
-  if (!specifier.startsWith('.')) specifier = './' + specifier;
+  let relative = getRelativePathFromDirectory(getDirectoryPath(b.enclosingFile.fileName), moduleFile.fileName, true);
+  if (!relative.startsWith('.')) relative = './' + relative;
+  const specifier = processEnding(relative, allowedEndings, options, (path) =>
+    isProgramFile(c, getNormalizedAbsolutePath(path, getDirectoryPath(b.enclosingFile!.fileName))),
+  );
   b.specifierCache.set(key, specifier);
   return specifier;
+}
+
+/** Whether a file of the program has the path `withoutExtension` with some extension. */
+function isProgramFile(c: Checker, withoutExtension: string): boolean {
+  for (const file of c.files) {
+    const name = file.fileName;
+    if (name.startsWith(withoutExtension + '.') && removeFileExtension(name) === withoutExtension) return true;
+  }
+  return false;
 }
 
 function asSourceFile(node: Node | undefined): SourceFile | undefined {
@@ -771,10 +804,4 @@ function asSourceFile(node: Node | undefined): SourceFile | undefined {
 function getSourceFileOfModule(symbol: Symbol): SourceFile | undefined {
   const d = symbol.valueDeclaration ?? (symbol.declarations.length > 0 ? symbol.declarations[0] : undefined);
   return d === undefined ? undefined : getSourceFileOfNode(d);
-}
-
-function removeExtension(fileName: string): string {
-  for (const extension of ['.d.ts', '.d.mts', '.d.cts', '.ts', '.tsx', '.mts', '.cts', '.js', '.jsx', '.mjs', '.cjs'])
-    if (fileName.endsWith(extension)) return fileName.substring(0, fileName.length - extension.length);
-  return fileName;
 }

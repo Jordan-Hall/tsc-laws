@@ -4,6 +4,9 @@
 // "inferred" and needs the checker.
 import {
   ArrayLiteralExpression,
+  ArrowFunction,
+  FunctionExpression,
+  MethodDeclaration,
   ModifierFlags,
   type NodeList,
   GetAccessorDeclaration,
@@ -28,7 +31,6 @@ import {
   getParameters,
   getPostfixToken,
   getSymbol,
-  getText,
   getType,
   getTypeParameters,
 } from '../ast.js';
@@ -501,14 +503,28 @@ export class PseudoChecker {
   private typeFromObjectLiteral(node: ObjectLiteralExpression): PseudoType {
     const errorNodes = objectLiteralErrorNodes(node);
     if (errorNodes.length > 0) return new InferredType(node, false, errorNodes);
-    // Duplicate names merge into one property, which needs the checker.
-    if (hasDuplicatePropertyNames(node)) return inferred(node, false);
     const members: PseudoMember[] = [];
     for (const property of node.properties.nodes) {
       switch (property.kind) {
         case SyntaxKind.MethodDeclaration: {
           const postfix = getPostfixToken(property);
           const optional = postfix !== undefined && postfix.kind === SyntaxKind.QuestionToken;
+          const fullSignature = getFullSignature(property);
+          if (fullSignature !== undefined) {
+            members.push(
+              new PseudoMember(
+                PseudoMemberKind.Property,
+                getName(property)!,
+                optional,
+                false,
+                undefined,
+                [],
+                [],
+                new DirectType(fullSignature),
+              ),
+            );
+            break;
+          }
           members.push(
             new PseudoMember(
               PseudoMemberKind.Method,
@@ -605,6 +621,8 @@ export class PseudoChecker {
   }
 
   private typeFromFunctionLikeExpression(node: Node): PseudoType {
+    const fullSignature = getFullSignature(node);
+    if (fullSignature !== undefined) return new DirectType(fullSignature);
     return new SignatureType(
       node,
       this.cloneParameters(getParameters(node)!.nodes),
@@ -848,45 +866,6 @@ function isPrimitiveLiteral(node: Node): boolean {
   return false;
 }
 
-function hasDuplicatePropertyNames(node: ObjectLiteralExpression): boolean {
-  const seen = new Set<string>();
-  for (const property of node.properties.nodes) {
-    const name = getName(property);
-    if (name === undefined) continue;
-    const key = propertyNameKey(name);
-    if (key === undefined) continue;
-    // Accessor pairs share a name.
-    const prefix =
-      property.kind === SyntaxKind.GetAccessor ? 'get:' : property.kind === SyntaxKind.SetAccessor ? 'set:' : '';
-    if (seen.has(prefix + key) || (prefix === '' && (seen.has('get:' + key) || seen.has('set:' + key)))) return true;
-    if (prefix !== '' && seen.has(key)) return true;
-    seen.add(prefix + key);
-  }
-  return false;
-}
-
-/** The property a literal name declares: `1`, `"1"` and `[+1]` are the same. */
-function propertyNameKey(name: Node): string | undefined {
-  let node = name;
-  if (node.kind === SyntaxKind.ComputedPropertyName) node = getExpression(node)!;
-  switch (node.kind) {
-    case SyntaxKind.Identifier:
-    case SyntaxKind.PrivateIdentifier:
-    case SyntaxKind.StringLiteral:
-    case SyntaxKind.NoSubstitutionTemplateLiteral:
-      return getText(node);
-    case SyntaxKind.NumericLiteral:
-      return String(Number(getText(node)));
-    case SyntaxKind.PrefixUnaryExpression: {
-      const unary = node as PrefixUnaryExpression;
-      if (unary.operand.kind !== SyntaxKind.NumericLiteral) return undefined;
-      const value = Number(getText(unary.operand));
-      return String(unary.operator === SyntaxKind.MinusToken ? -value : value);
-    }
-  }
-  return undefined;
-}
-
 /** The index just past the last parameter without `?`, initializer or `...`. */
 export function lastRequiredParameterIndex(parameters: Node[]): number {
   for (let i = parameters.length - 1; i >= 0; i--) {
@@ -976,4 +955,12 @@ export function typesOf(node: Node): Node[] {
   if (node instanceof UnionTypeNode) return node.types.nodes;
   if (node instanceof IntersectionTypeNode) return node.types.nodes;
   return [];
+}
+
+/** The JSDoc `@type` signature of a function expression, arrow function or method. */
+function getFullSignature(node: Node): Node | undefined {
+  if (node instanceof ArrowFunction) return node.fullSignature;
+  if (node instanceof FunctionExpression) return node.fullSignature;
+  if (node instanceof MethodDeclaration) return node.fullSignature;
+  return undefined;
 }

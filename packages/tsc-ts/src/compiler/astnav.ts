@@ -19,12 +19,12 @@ import { SyntaxKind } from './syntax-kind.js';
 
 /** The property name or token touching `position`. */
 export function getTouchingPropertyName(file: SourceFile, position: number): Node | undefined {
-  return getTokenAtPosition(file, position, false, true);
+  return findTokenAtPosition(file, position, false, true);
 }
 
 /** The token touching `position`. */
 export function getTouchingToken(file: SourceFile, position: number): Node | undefined {
-  return getTokenAtPosition(file, position, false, false);
+  return findTokenAtPosition(file, position, false, false);
 }
 
 /** Whether a token ending at a touched position counts as touching it. */
@@ -145,12 +145,31 @@ function scanNavigationToken(scanner: Scanner, containingNode: Node): SyntaxKind
   return token;
 }
 
+// Tokens made from the scanner, by parent and range, so repeated lookups in a file give the
+// same node. Only the most recently navigated file is cached.
+let tokenCacheFile: SourceFile | undefined;
+let tokenCache = new Map<Node, Map<number, Node>>();
+
 /** A token the parser doesn't store, made from the scanner's current token. */
 function createToken(kind: SyntaxKind, pos: number, end: number, parent: Node): Node {
+  const file = navigationScannerFile;
+  if (file !== tokenCacheFile) {
+    tokenCacheFile = file;
+    tokenCache = new Map<Node, Map<number, Node>>();
+  }
+  let byRange = tokenCache.get(parent);
+  if (byRange === undefined) {
+    byRange = new Map<number, Node>();
+    tokenCache.set(parent, byRange);
+  }
+  const key = pos * 0x4000000 + (end - pos);
+  const cached = byRange.get(key);
+  if (cached !== undefined && cached.kind === kind) return cached;
   const token = new Token(kind);
   token.pos = pos;
   token.end = end;
   token.parent = parent;
+  byRange.set(key, token);
   return token;
 }
 
@@ -290,7 +309,7 @@ function isSingleCommentNode(node: Node): boolean {
  * `allowPositionInLeadingTrivia`, a position in trivia gives the innermost node containing it.
  * With `includePrecedingToken`, a property name or keyword ending at `position` also counts.
  */
-function getTokenAtPosition(
+function findTokenAtPosition(
   file: SourceFile,
   position: number,
   allowPositionInLeadingTrivia: boolean,
@@ -587,4 +606,186 @@ function findRightmostValidToken(
     n = rightmostValid;
   }
   return undefined;
+}
+
+/** The token at `position`, counting leading trivia as part of the token that follows it. */
+export function getTokenAtPosition(file: SourceFile, position: number): Node | undefined {
+  return findTokenAtPosition(file, position, true, false);
+}
+
+/** Like `findPrecedingToken`, searching from `startNode`. */
+export function findPrecedingTokenEx(
+  file: SourceFile,
+  position: number,
+  startNode: Node | undefined,
+  excludeJSDoc: boolean,
+): Node | undefined {
+  return findPrecedingTokenIn(file, position, startNode ?? file, excludeJSDoc);
+}
+
+/** The start of a node's first token. */
+export function getStartOfNode(node: Node, file: SourceFile, includeJSDoc: boolean): number {
+  return getTokenPosOfNode(node, file, includeJSDoc);
+}
+
+// Collects the children of a node, skipping reparsed nodes and lone JSDoc comments.
+class ChildListVisitor extends NodeVisitor {
+  readonly children: Node[] = [];
+
+  visitNode(node: Node): boolean {
+    if (!isReparsed(node) && !isSingleCommentNode(node)) this.children.push(node);
+    return false;
+  }
+
+  visitList(list: NodeList): boolean {
+    if (isSingleCommentList(list)) return false;
+    const nodes = list.nodes;
+    for (let i = 0; i < nodes.length; i++) if (!isReparsed(nodes[i])) this.children.push(nodes[i]);
+    return false;
+  }
+
+  visitModifiers(list: ModifierList): boolean {
+    return this.visitList(list);
+  }
+}
+
+/** The JSDoc and children of a node that navigation visits, in order. */
+export function getVisitedChildren(node: Node, file: SourceFile): Node[] {
+  const visitor = new ChildListVisitor();
+  visitChildrenAndJSDoc(node, file, visitor);
+  return visitor.children;
+}
+
+/** The last visited child of a node; tokens the parser doesn't store aren't included. */
+export function getLastVisitedChild(node: Node, file: SourceFile): Node | undefined {
+  const children = getVisitedChildren(node, file);
+  return children.length > 0 ? children[children.length - 1] : undefined;
+}
+
+/** The last child of a node, including tokens the parser doesn't store. */
+export function getLastChild(node: Node, file: SourceFile): Node | undefined {
+  const lastChildNode = getLastVisitedChild(node, file);
+  if (lastChildNode === undefined && isSingleCommentNode(node)) return undefined;
+  const tokenStartPos = lastChildNode !== undefined ? lastChildNode.end : node.pos;
+  let lastToken: Node | undefined;
+  if (tokenStartPos < node.end) {
+    const scanner = getScannerAt(file, tokenStartPos);
+    for (let startPos = tokenStartPos; startPos < node.end;) {
+      const tokenEnd = scanner.getTokenEnd();
+      lastToken = createToken(scanner.getToken(), scanner.getTokenFullStart(), tokenEnd, node);
+      startPos = tokenEnd;
+      scanner.scan();
+    }
+  }
+  return lastToken ?? lastChildNode;
+}
+
+/** The last token of a node; undefined for tokens and identifiers. */
+export function getLastToken(node: Node | undefined, file: SourceFile): Node | undefined {
+  if (node === undefined || isTokenKind(node.kind)) return undefined;
+  const lastChild = getLastChild(node, file);
+  if (lastChild === undefined) return undefined;
+  return isTokenKind(lastChild.kind) ? lastChild : getLastToken(lastChild, file);
+}
+
+// Finds the first child of a node.
+class FirstChildVisitor extends NodeVisitor {
+  first: Node | undefined = undefined;
+
+  visitNode(node: Node): boolean {
+    this.first = node;
+    return true;
+  }
+}
+
+/** The first token of a node; undefined for tokens and identifiers. */
+export function getFirstToken(node: Node, file: SourceFile): Node | undefined {
+  if (isTokenKind(node.kind)) return undefined;
+  const visitor = new FirstChildVisitor();
+  if ((node.flags & NodeFlags.Reparsed) === 0) node.forEachChild(visitor);
+  const firstChild = visitor.first;
+  const tokenEndPosition = firstChild !== undefined ? firstChild.pos : node.end;
+  if (node.pos < tokenEndPosition) {
+    const scanner = getScannerAt(file, node.pos);
+    return createToken(scanner.getToken(), scanner.getTokenFullStart(), scanner.getTokenEnd(), node);
+  }
+  if (firstChild === undefined) return undefined;
+  return isTokenKind(firstChild.kind) ? firstChild : getFirstToken(firstChild, file);
+}
+
+// Collects a node's children without filtering, for scanning the tokens between them.
+class AllChildrenVisitor extends NodeVisitor {
+  readonly children: Node[] = [];
+
+  visitNode(node: Node): boolean {
+    this.children.push(node);
+    return false;
+  }
+}
+
+/** The first child or token of `kind` in a node. */
+export function findChildOfKind(containingNode: Node, kind: SyntaxKind, file: SourceFile): Node | undefined {
+  let lastNodePos = containingNode.pos;
+  const scanner = getScannerAt(file, lastNodePos);
+  const visitor = new AllChildrenVisitor();
+  const jsDoc = getJSDoc(file, containingNode);
+  for (let i = 0; i < jsDoc.length; i++) visitor.children.push(jsDoc[i]);
+  containingNode.forEachChild(visitor);
+  const children = visitor.children;
+  for (let i = 0; i < children.length; i++) {
+    const node = children[i];
+    if (isReparsed(node)) continue;
+    for (let startPos = lastNodePos; startPos < node.pos;) {
+      const tokenEnd = scanner.getTokenEnd();
+      if (scanner.getToken() === kind) return createToken(kind, scanner.getTokenFullStart(), tokenEnd, containingNode);
+      startPos = tokenEnd;
+      scanner.scan();
+    }
+    if (node.kind === kind) return node;
+    lastNodePos = node.end;
+    scanner.resetTokenState(lastNodePos);
+    scanner.scan();
+  }
+  for (let startPos = lastNodePos; startPos < containingNode.end;) {
+    const tokenEnd = scanner.getTokenEnd();
+    if (scanner.getToken() === kind) return createToken(kind, scanner.getTokenFullStart(), tokenEnd, containingNode);
+    startPos = tokenEnd;
+    scanner.scan();
+  }
+  return undefined;
+}
+
+/** The nodes of a list and the tokens between them, such as separating commas. */
+export function getTokensOfNodeList(list: NodeList, parent: Node, file: SourceFile): Node[] {
+  const tokens: Node[] = [];
+  const nodes = list.nodes;
+  let left = list.pos;
+  let index = 0;
+  while (left < list.end) {
+    if (index < nodes.length && left === nodes[index].pos) {
+      tokens.push(nodes[index]);
+      left = nodes[index].end;
+      index++;
+    } else {
+      const scanner = getScannerAt(file, left);
+      const tokenEnd = scanner.getTokenEnd();
+      tokens.push(createToken(scanner.getToken(), scanner.getTokenFullStart(), tokenEnd, parent));
+      left = tokenEnd;
+    }
+  }
+  return tokens;
+}
+
+/** The tokens in `[startPos, endPos)` of `parent`'s text, made from the scanner. */
+export function scanTokens(parent: Node, startPos: number, endPos: number, file: SourceFile): Node[] {
+  const tokens: Node[] = [];
+  if (startPos >= endPos) return tokens;
+  const scanner = getScannerAt(file, startPos);
+  for (let pos = startPos; pos < endPos;) {
+    const tokenEnd = scanner.getTokenEnd();
+    tokens.push(createToken(scanner.getToken(), scanner.getTokenFullStart(), tokenEnd, parent));
+    pos = tokenEnd;
+    scanner.scan();
+  }
+  return tokens;
 }

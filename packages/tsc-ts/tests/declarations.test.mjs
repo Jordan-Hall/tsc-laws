@@ -78,6 +78,37 @@ test('declarations keep exported shapes and drop implementations', async () => {
   );
 });
 
+test('declarations write inferred types from the checker', async () => {
+  const { read, stdout } = await emit({
+    'e.ts': [
+      'function make() { return { a: 1, b: "x" }; }',
+      'export const made = make();',
+      'export function pick(x: number) { return x > 1 ? "a" : 3; }',
+      'class Hidden {}',
+      'export const hidden = new Hidden();',
+      'export const tuple = [1, "s"] as const;',
+      '',
+    ].join('\n'),
+  });
+  assert.equal(
+    read('e.d.ts'),
+    [
+      'export declare const made: {',
+      '    a: number;',
+      '    b: string;',
+      '};',
+      'export declare function pick(x: number): "a" | 3;',
+      'declare class Hidden {',
+      '}',
+      'export declare const hidden: Hidden;',
+      'export declare const tuple: readonly [1, "s"];',
+      'export {};',
+      '',
+    ].join('\n'),
+  );
+  assert.equal(stdout, '');
+});
+
 test('declarations evaluate enums and keep overload signatures', async () => {
   const { read } = await emit({
     'b.ts': [
@@ -148,10 +179,9 @@ test(
     const paths = units.map((unit) => unit.path);
     for (const [label, flags] of declarationFlagSets) {
       const s = summarize(await compareDeclarations(command, root, paths, flags, 8));
-      // Units whose declarations all have explicit types match; the rest need the checker.
-      assert.ok(s.explicitFailures.length <= 6, `${label}: ${s.explicitFailures.join(', ')}`);
-      assert.ok(s.explicit > 250, `${label}: enough units with explicit types`);
-      assert.ok(s.matched > s.compared * 0.6, `${label}: ${s.matched}/${s.compared} match`);
+      assert.ok(s.compared > 500, `${label}: enough units`);
+      assert.ok(s.matched >= s.compared * 0.97, `${label}: ${s.matched}/${s.compared} match: ${s.failures.join(', ')}`);
+      assert.ok(s.errorsMatched >= s.compared * 0.98, `${label}: ${s.errorFailures.join(', ')}`);
     }
   },
 );

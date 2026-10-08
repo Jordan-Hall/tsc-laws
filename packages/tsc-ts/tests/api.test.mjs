@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import test from 'node:test';
-import { Differential, explore } from './differential.mjs';
+import { Differential, explore, exploreServices } from './differential.mjs';
 import { typescriptLib as bundledLib, tscTs, tscTsMissing } from './toolchain.mjs';
 import { tempDir } from './temp.mjs';
 
@@ -154,6 +154,69 @@ test('tsc-ts --api tracks projects and open files like tsc --api', { skip, timeo
   }
   report(d);
 });
+
+// Completions at every position of each user file, and with symbols and trigger characters
+// where a trigger character was just typed.
+async function compareCompletions(d, base, file) {
+  const text = readFileSync(file, 'utf8');
+  for (let position = 0; position <= text.length; position++) {
+    await d.call('getCompletionsAtPosition', { ...base, file, position });
+    const before = text[position - 1];
+    if (before !== undefined && '.\'"`<#@/ *'.includes(before)) {
+      await d.call('getCompletionsAtPosition', { ...base, file, position, includeSymbol: true });
+      await d.call('getCompletionsAtPosition', { ...base, file, position, triggerCharacter: before });
+    }
+  }
+}
+
+test('tsc-ts --api completes like tsc --api', { skip, timeout: 600_000 }, async () => {
+  for (const fixture of ['completions', 'services', 'project']) {
+    const dir = tempDir('tsc-ts-api-');
+    cpSync(resolve('tests/fixtures', fixture), dir, { recursive: true });
+    const d = new Differential([realTsc], tscTs, dir, env);
+    try {
+      await d.call('initialize');
+      const update = await d.call('updateSnapshot', { openProjects: [join(dir, 'tsconfig.json')] });
+      const base = { snapshot: update.snapshot, project: update.projects[0].id };
+      for (const file of await d.call('getSourceFileNames', base))
+        if (file.startsWith(dir)) await compareCompletions(d, base, file);
+      await d.call('getCompletionsAtPosition', { ...base, file: join(dir, 'missing.ts'), position: 0 });
+    } finally {
+      await d.close();
+    }
+    console.log(`compared ${d.count} completions in ${fixture}`);
+    report(d);
+  }
+});
+
+for (const fixture of ['services', 'project']) {
+  test(
+    `tsc-ts --api answers language service queries like tsc --api (${fixture})`,
+    { skip, timeout: 600_000 },
+    async () => {
+      const dir = tempDir('tsc-ts-api-');
+      cpSync(resolve('tests/fixtures', fixture), dir, { recursive: true });
+      const d = new Differential([realTsc], tscTs, dir, env);
+      try {
+        await d.call('initialize');
+        const update = await d.call('updateSnapshot', { openProjects: [join(dir, 'tsconfig.json')] });
+        const base = { snapshot: update.snapshot, project: update.projects[0].id };
+        const files = [];
+        for (const file of await d.call('getSourceFileNames', base)) {
+          if (!file.startsWith(dir)) continue;
+          const encoded = await d.call('getSourceFile', { ...base, file });
+          files.push({ file, length: readFileSync(file, 'utf8').length, encoded });
+        }
+        const symbols = await exploreServices(d, base.snapshot, base.project, files);
+        assert.ok(symbols > 100, `explored ${symbols} symbols`);
+      } finally {
+        await d.close();
+      }
+      console.log(`compared ${d.count} responses`);
+      report(d);
+    },
+  );
+}
 
 test('tsc-ts runs tsc without --api', { skip, timeout: 300_000 }, () => {
   const dir = copyProject();

@@ -24,9 +24,9 @@ import {
   isAccessExpression,
   hasSyntacticModifier,
   isClassLike,
-  isStatic,
   isOptionalChain,
   isPrivateIdentifierClassElementDeclaration,
+  isStatic,
   skipParentheses,
   getElementOrPropertyAccessName,
   isBindableStaticAccessExpression,
@@ -438,6 +438,25 @@ export function checkPropertyAccessibility(
     errorNode = (node as BindingElement).propertyName ?? (node as BindingElement).name!;
   else errorNode = getName(node) ?? node;
   return checkPropertyAccessibilityAtLocation(c, node, isSuper, writing, containingType, prop, errorNode);
+}
+
+/** Whether `prop` of `containingType` may be accessed at `node`, without reporting errors. */
+export function isPropertyAccessible(
+  c: Checker,
+  node: Node,
+  isSuper: boolean,
+  isWrite: boolean,
+  containingType: Type,
+  prop: Symbol,
+): boolean {
+  if ((containingType.flags & TypeFlags.Any) !== 0) return true;
+  // A #private property access in an optional chain is an error the parser reports.
+  const declaration = prop.valueDeclaration;
+  if (declaration !== undefined && isPrivateIdentifierClassElementDeclaration(declaration)) {
+    const declaringClass = getContainingClass(declaration);
+    return !isOptionalChain(node) && declaringClass !== undefined && isNodeDescendantOf(node, declaringClass);
+  }
+  return checkPropertyAccessibilityAtLocation(c, node, isSuper, isWrite, containingType, prop, undefined);
 }
 
 function checkPropertyAccessibilityAtLocation(

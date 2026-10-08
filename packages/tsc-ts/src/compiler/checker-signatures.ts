@@ -948,19 +948,28 @@ function isSymbolWithNumericName(c: Checker, symbol: Symbol): boolean {
 
 function getObjectLiteralIndexInfo(c: Checker, isReadonly: boolean, properties: Symbol[], keyType: Type): IndexInfo {
   const propTypes: Type[] = [];
+  const components: Node[] = [];
   for (const prop of properties) {
     if (
       (keyType === c.stringType && !isSymbolWithSymbolName(c, prop)) ||
       (keyType === c.numberType && isSymbolWithNumericName(c, prop)) ||
       (keyType === c.esSymbolType && isSymbolWithSymbolName(c, prop))
-    )
+    ) {
       propTypes.push(getTypeOfSymbol(c, prop));
+      if (isSymbolWithComputedName(prop)) components.push(prop.declarations[0]!);
+    }
   }
   const unionType =
     propTypes.length !== 0
       ? getUnionTypeEx(c, propTypes, UnionReduction.Subtype, undefined, undefined)
       : c.undefinedType;
-  return new IndexInfo(keyType, unionType, isReadonly, undefined, []);
+  return new IndexInfo(keyType, unionType, isReadonly, undefined, components);
+}
+
+function isSymbolWithComputedName(symbol: Symbol): boolean {
+  if (symbol.declarations.length === 0) return false;
+  const name = getName(symbol.declarations[0]);
+  return name !== undefined && name.kind === SyntaxKind.ComputedPropertyName;
 }
 
 export {

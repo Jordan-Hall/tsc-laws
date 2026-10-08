@@ -929,7 +929,7 @@ export function resolveCall(
   return result;
 }
 
-function reorderCandidates(c: Checker, signatures: Signature[], callChainFlags: SignatureFlags): Signature[] {
+export function reorderCandidates(c: Checker, signatures: Signature[], callChainFlags: SignatureFlags): Signature[] {
   let lastParent: Node | undefined = undefined;
   let lastSymbol: Symbol | undefined = undefined;
   let index = 0;

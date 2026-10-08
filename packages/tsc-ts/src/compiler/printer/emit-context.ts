@@ -179,6 +179,19 @@ export class EmitContext {
     this.factory = new NodeFactory(this);
   }
 
+  /**
+   * Gives `node` everything emit knows about `source`: its flags, ranges and synthesized
+   * comments, as if it were the same node.
+   */
+  copyEmitNode(node: Node, source: Node): void {
+    const emitNode = this.emitNodes.get(source);
+    if (emitNode === undefined) return;
+    const target = this.emitNode(node).copyFrom(emitNode);
+    target.leadingComments = emitNode.leadingComments === undefined ? undefined : emitNode.leadingComments.slice();
+    target.trailingComments = emitNode.trailingComments === undefined ? undefined : emitNode.trailingComments.slice();
+    target.typeNode = emitNode.typeNode;
+  }
+
   private emitNode(node: Node): EmitNode {
     let emitNode = this.emitNodes.get(node);
     if (emitNode === undefined) {

@@ -651,7 +651,7 @@ export function queryContextualType(c: Checker, node: Node): Type | undefined {
  * The node a JSDoc node was reparsed into, if any: types and declarations written in JSDoc are
  * checked as clones in the tree.
  */
-function getReparsedNodeForNode(node: Node): Node {
+export function getReparsedNodeForNode(node: Node): Node {
   if ((node.flags & NodeFlags.JSDoc) === 0 || (node.flags & NodeFlags.Reparsed) !== 0) return node;
   const clones = getSourceFileOfNode(node).reparsedClones;
   if (clones.length === 0) return node;
@@ -712,7 +712,7 @@ class ChildCollector extends NodeVisitor {
   }
 }
 
-function isEntityName(node: Node): boolean {
+export function isEntityName(node: Node): boolean {
   return node.kind === SyntaxKind.Identifier || node.kind === SyntaxKind.QualifiedName;
 }
 
@@ -740,12 +740,12 @@ function isJSDocLinkLike(node: Node): boolean {
   );
 }
 
-function isDeclaration(node: Node): boolean {
+export function isDeclaration(node: Node): boolean {
   if (node.kind === SyntaxKind.TypeParameter) return node.parent !== undefined;
   return isDeclarationNode(node);
 }
 
-function isDeclarationName(name: Node): boolean {
+export function isDeclarationName(name: Node): boolean {
   return (
     name.kind !== SyntaxKind.SourceFile &&
     !isBindingPattern(name) &&
@@ -761,7 +761,7 @@ function isDeclarationNameOrImportPropertyName(name: Node): boolean {
   return isDeclarationName(name);
 }
 
-function isLiteralComputedPropertyDeclarationName(node: Node): boolean {
+export function isLiteralComputedPropertyDeclarationName(node: Node): boolean {
   return (
     (isStringLiteralLike(node) || node.kind === SyntaxKind.NumericLiteral) &&
     node.parent!.kind === SyntaxKind.ComputedPropertyName &&
@@ -776,7 +776,7 @@ function isExternalModuleImportEqualsDeclaration(node: Node): boolean {
   );
 }
 
-function isInRightSideOfImportOrExportAssignment(nodeIn: Node): boolean {
+export function isInRightSideOfImportOrExportAssignment(nodeIn: Node): boolean {
   let node = nodeIn;
   while (node.parent!.kind === SyntaxKind.QualifiedName) node = node.parent!;
   const parent = node.parent!;
@@ -806,7 +806,7 @@ function isInNameOfExpressionWithTypeArguments(nodeIn: Node): boolean {
   return node.parent!.kind === SyntaxKind.ExpressionWithTypeArguments;
 }
 
-function isRightSideOfQualifiedNameOrPropertyAccess(node: Node): boolean {
+export function isRightSideOfQualifiedNameOrPropertyAccess(node: Node): boolean {
   const parent = node.parent!;
   switch (parent.kind) {
     case SyntaxKind.QualifiedName:
@@ -839,7 +839,7 @@ function isJsxTagName(node: Node): boolean {
   return false;
 }
 
-function isJSDocNameReferenceContext(node: Node): boolean {
+export function isJSDocNameReferenceContext(node: Node): boolean {
   if ((node.flags & NodeFlags.JSDoc) === 0) return false;
   for (let current: Node | undefined = node; current !== undefined; current = current.parent)
     if (current.kind === SyntaxKind.JSDocNameReference || isJSDocLinkLike(current)) return true;
@@ -892,7 +892,7 @@ function isTypeReferenceIdentifier(nodeIn: Node): boolean {
   return node.parent!.kind === SyntaxKind.TypeReference;
 }
 
-function isPartOfTypeNode(node: Node): boolean {
+export function isPartOfTypeNode(node: Node): boolean {
   const kind = node.kind;
   if (kind >= SyntaxKind.FirstTypeNode && kind <= SyntaxKind.LastTypeNode) return true;
   switch (kind) {
@@ -978,7 +978,7 @@ function isPartOfTypeNodeInParent(node: Node): boolean {
   return false;
 }
 
-function isExpressionNode(nodeIn: Node): boolean {
+export function isExpressionNode(nodeIn: Node): boolean {
   let node = nodeIn;
   switch (node.kind) {
     case SyntaxKind.SuperKeyword:

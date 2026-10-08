@@ -9,6 +9,7 @@ import { Resolver } from './module-resolution.js';
 import { getEmitDeclarations, type CompilerOptions, type ModuleKind } from './options.js';
 import type { Program } from './program.js';
 import { CheckedProgram } from './program-checker.js';
+import { CheckerDeclarationEmitResolver } from './checker-emit-resolver.js';
 import { getEmitModuleFormatOfFile } from './program-utilities.js';
 import { SyntacticDeclarationEmitResolver } from './transformers/declarations-syntactic.js';
 import { type EmitResolver, SyntacticEmitResolver } from './transformers/emit-resolver.js';
@@ -108,7 +109,11 @@ class ProgramEmitHost extends EmitHost {
 export class ProgramEmitter {
   private host: ProgramEmitHost | undefined = undefined;
 
-  constructor(readonly program: Program) {}
+  readonly program: Program;
+
+  constructor(readonly checked: CheckedProgram) {
+    this.program = checked.program;
+  }
 
   private getHost(): ProgramEmitHost {
     let host = this.host;
@@ -119,10 +124,11 @@ export class ProgramEmitter {
       const references = new ReferenceResolver(options, files, new ProgramModules(program));
       const emitResolver = new SyntacticEmitResolver(options, references);
       // Declaration emit is also needed for the shape signatures of incremental builds.
-      const resolver: EmitResolver =
-        getEmitDeclarations(options) || options.incremental === true || options.composite === true
-          ? new SyntacticDeclarationEmitResolver(options, files, program.currentDirectory, emitResolver)
-          : emitResolver;
+      let resolver: EmitResolver = emitResolver;
+      if (getEmitDeclarations(options) || options.incremental === true || options.composite === true) {
+        const syntactic = new SyntacticDeclarationEmitResolver(options, files, program.currentDirectory, emitResolver);
+        resolver = new CheckerDeclarationEmitResolver(this.checked.checker, syntactic);
+      }
       host = new ProgramEmitHost(program, resolver);
       this.host = host;
     }
@@ -153,7 +159,7 @@ export abstract class CompilerProgram {
     readonly checked: CheckedProgram,
     readonly times: CompileTimes,
   ) {
-    this.emitter = new ProgramEmitter(checked.program);
+    this.emitter = new ProgramEmitter(checked);
   }
 
   get program(): Program {

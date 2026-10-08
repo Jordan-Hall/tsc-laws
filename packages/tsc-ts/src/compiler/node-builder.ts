@@ -197,7 +197,12 @@ import {
   newTypeMapper,
   prependTypeMapping,
 } from './checker-types.js';
-import { hasLateBindableIndexSignature, hasLateBindableName, isLateBoundName } from './checker-utilities.js';
+import {
+  hasLateBindableIndexSignature,
+  hasLateBindableName,
+  isLateBindableName,
+  isLateBoundName,
+} from './checker-utilities.js';
 import { instantiateSignature, instantiateType } from './instantiation.js';
 import { EmitContext } from './printer/emit-context.js';
 import { EmitFlags } from './printer/emit-flags.js';
@@ -234,6 +239,26 @@ import {
   appendReferenceToType,
 } from './node-builder-names.js';
 import { tryReuseExistingNode } from './node-builder-reuse.js';
+import {
+  containsNonMissingUndefinedType,
+  hasInferredTypeKind,
+  hasQuestionToken,
+  isAccessorKind,
+  pseudoReturnTypeMatchesPredicate,
+  pseudoTypeEquivalentToType,
+  pseudoTypeToNodeWithCheckerFallback,
+  pseudoTypeToType,
+  requiresAddingImplicitUndefinedForDeclaration,
+} from './node-builder-pseudo.js';
+import {
+  InferredType,
+  type PseudoChecker,
+  type PseudoType,
+  PseudoTypeKind,
+  UnionType as PseudoUnionType,
+  couldAlreadyReferToUndefined,
+  undefinedType as pseudoUndefinedType,
+} from './transformers/declarations-pseudo.js';
 
 const defaultMaximumTruncationLength = 160;
 const noTruncationMaximumTruncationLength = 1_000_000;
@@ -362,7 +387,7 @@ class SignatureDeclarationOptions {
   }
 }
 
-const enum PropertyNameKind {
+export const enum PropertyNameKind {
   Identifier,
   NumericLiteral,
   StringLiteral,
@@ -416,6 +441,11 @@ export class NodeBuilder {
   readonly fakeScopes = new Map<Node, string>();
   /** Module specifiers by module symbol id and resolution mode. */
   readonly specifierCache = new Map<string, string>();
+  /**
+   * Declaration emit's pseudochecker: with it, types of declarations are written from what the
+   * source wrote where that denotes the checker's type.
+   */
+  pseudo: PseudoChecker | undefined = undefined;
 
   constructor(
     c: Checker,
@@ -423,9 +453,10 @@ export class NodeBuilder {
     flags: NodeBuilderFlags,
     internalFlags: NodeBuilderInternalFlags,
     tracker: SymbolTracker | undefined,
+    context: EmitContext | undefined = undefined,
   ) {
     this.c = c;
-    this.context = new EmitContext();
+    this.context = context ?? new EmitContext();
     this.factory = this.context.factory;
     this.flags = flags;
     this.internalFlags = internalFlags;
@@ -1052,7 +1083,7 @@ export class NodeBuilder {
           this.trackSymbol(tracked.symbol, tracked.enclosingDeclaration, tracked.meaning);
         if (cached.truncating) this.truncating = true;
         this.approximateLength += cached.addedLength;
-        return cached.node.deepClone();
+        return this.deepCloneNode(cached.node);
       }
     }
     let depth = 0;
@@ -2314,7 +2345,7 @@ export class NodeBuilder {
     return parameterNode;
   }
 
-  private parameterToParameterDeclarationName(parameterSymbol: Symbol, parameterDeclaration: Node | undefined): Node {
+  parameterToParameterDeclarationName(parameterSymbol: Symbol, parameterDeclaration: Node | undefined): Node {
     const name = parameterDeclaration === undefined ? undefined : getName(parameterDeclaration);
     if (name === undefined) return this.identifier(parameterSymbol.name);
     switch (name.kind) {
@@ -2332,6 +2363,17 @@ export class NodeBuilder {
     return cloneBindingName(this, name);
   }
 
+  /**
+   * A copy of `node`'s subtree without positions, as tsgo's `DeepCloneNode`: each copy has its
+   * node as original, and so its emit flags.
+   */
+  deepCloneNode(node: Node): Node {
+    const clone = node.deepClone();
+    clearPositions(clone);
+    linkClones(this.context, clone, node);
+    return clone;
+  }
+
   /** A copy of `node` without positions. */
   cloneSynthesized(node: Node): Node {
     const clone = node.deepClone();
@@ -2347,7 +2389,7 @@ export class NodeBuilder {
     declaration: Node | undefined,
     type: Type | undefined,
     symbol: Symbol | undefined,
-    _tryReuse: boolean,
+    tryReuse: boolean,
   ): Node {
     const c = this.c;
     if (declaration === undefined && symbol !== undefined)
@@ -2369,6 +2411,7 @@ export class NodeBuilder {
       }
     }
     if (t === undefined) t = c.errorType;
+    if (this.pseudo !== undefined) return this.serializeTypeForDeclarationReusing(declaration, t, symbol, tryReuse);
     if (
       declaration !== undefined &&
       declaration.kind === SyntaxKind.Parameter &&
@@ -2389,8 +2432,115 @@ export class NodeBuilder {
     return result ?? this.keyword(SyntaxKind.AnyKeyword);
   }
 
+  /** `serializeTypeForDeclaration` with declaration emit's reuse of what the source wrote. */
+  private serializeTypeForDeclarationReusing(
+    declaration: Node | undefined,
+    typeIn: Type,
+    symbol: Symbol | undefined,
+    tryReuse: boolean,
+  ): Node {
+    const c = this.c;
+    const pseudo = this.pseudo!;
+    let t = typeIn;
+    const isPropertyLike =
+      declaration !== undefined &&
+      (declaration.kind === SyntaxKind.Parameter ||
+        declaration.kind === SyntaxKind.PropertySignature ||
+        declaration.kind === SyntaxKind.PropertyDeclaration);
+    const requiresAddingUndefined =
+      isPropertyLike &&
+      requiresAddingImplicitUndefinedForDeclaration(c, declaration!, symbol, this.enclosingDeclaration);
+    if (requiresAddingUndefined && declaration!.kind === SyntaxKind.Parameter) t = getOptionalType(c, t, false);
+    const savedFlags = this.flags;
+    if (
+      (t.flags & TypeFlags.UniqueESSymbol) !== 0 &&
+      symbol !== undefined &&
+      t.symbol === symbol &&
+      (this.enclosingDeclaration === undefined ||
+        symbol.declarations.some((d) => getSourceFileOfNode(d) === this.enclosingFile))
+    )
+      this.flags |= NodeBuilderFlags.AllowUniqueESSymbolType;
+    let result: Node | undefined = undefined;
+    let reportedInferenceFallback = false;
+    if (
+      tryReuse &&
+      this.enclosingDeclaration !== undefined &&
+      declaration !== undefined &&
+      symbol !== undefined &&
+      (isAccessorKind(declaration) ||
+        (hasInferredTypeKind(declaration) &&
+          (declaration.flags & NodeFlags.Synthesized) === 0 &&
+          (t.objectFlags & ObjectFlags.RequiresWidening) === 0))
+    ) {
+      const remove = this.addSymbolTypeToContext(symbol, t);
+      let pt: PseudoType = isAccessorKind(declaration)
+        ? pseudo.getTypeOfAccessor(declaration)
+        : pseudo.getTypeOfDeclaration(declaration);
+      if (pt.kind === PseudoTypeKind.NoResult && declaration.kind === SyntaxKind.BinaryExpression) {
+        // The first annotated assignment declares the type for the rest.
+        for (const d of symbol.declarations)
+          if (getType(d) !== undefined) {
+            pt = pseudo.getTypeOfDeclaration(d);
+            break;
+          }
+      }
+      const reportErrors = !this.suppressReportInferenceFallback;
+      if (
+        pseudoTypeEquivalentToType(
+          this,
+          pt,
+          t,
+          !requiresAddingUndefined && isPropertyLike && hasQuestionToken(declaration),
+          reportErrors,
+        )
+      ) {
+        const ptt = pseudoTypeToType(this, pt);
+        if (
+          ptt !== undefined &&
+          requiresAddingUndefined &&
+          containsNonMissingUndefinedType(c, t) &&
+          !containsNonMissingUndefinedType(c, ptt)
+        )
+          pt = new PseudoUnionType([pt, pseudoUndefinedType]);
+        result = pseudoTypeToNodeWithCheckerFallback(this, pt, t);
+      } else {
+        // Errors reported inside an inferred pseudo-type aren't reported again by the fallback.
+        reportedInferenceFallback = reportErrors && pt instanceof InferredType && pt.errorNodes.length > 0;
+        let shouldAddUndefined = false;
+        if (requiresAddingUndefined) {
+          const ptt = pseudoTypeToType(this, pt);
+          shouldAddUndefined =
+            ptt !== undefined ? !containsNonMissingUndefinedType(c, ptt) : !couldAlreadyReferToUndefined(pt);
+        }
+        if (shouldAddUndefined) {
+          pt = new PseudoUnionType([pt, pseudoUndefinedType]);
+          if (pseudoTypeEquivalentToType(this, pt, t, false, reportErrors)) {
+            result = pseudoTypeToNodeWithCheckerFallback(this, pt, t);
+            reportedInferenceFallback = false;
+          }
+        }
+      }
+      remove();
+    }
+    if (result === undefined) {
+      if (reportedInferenceFallback) {
+        const oldSuppress = this.suppressReportInferenceFallback;
+        this.suppressReportInferenceFallback = true;
+        result = this.typeToTypeNode(t);
+        this.suppressReportInferenceFallback = oldSuppress;
+      } else result = this.typeToTypeNode(t);
+    }
+    this.flags = savedFlags;
+    return result ?? this.keyword(SyntaxKind.AnyKeyword);
+  }
+
   /** The return type node of `signature`; `any` is omitted with `SuppressAnyReturnType`. */
   serializeReturnTypeForSignature(signature: Signature): Node | undefined {
+    return this.serializeReturnTypeForSignatureEx(signature, true);
+  }
+
+  /** `serializeReturnTypeForSignature`; with `tryReuse` and a pseudochecker, the source's return type where it matches. */
+  serializeReturnTypeForSignatureEx(signature: Signature, tryReuse: boolean): Node | undefined {
     const c = this.c;
     const suppressAny = (this.flags & NodeBuilderFlags.SuppressAnyReturnType) !== 0;
     const savedFlags = this.flags;
@@ -2404,11 +2554,40 @@ export class NodeBuilder {
       returnType = known ?? instantiateType(c, getReturnTypeOfSignature(c, signature), this.mapper);
     } else returnType = getReturnTypeOfSignature(c, signature);
     let returnTypeNode: Node | undefined = undefined;
-    if (!(suppressAny && (returnType.flags & TypeFlags.Any) !== 0))
-      returnTypeNode = this.serializeInferredReturnTypeForSignature(signature, returnType);
+    if (!(suppressAny && (returnType.flags & TypeFlags.Any) !== 0)) {
+      if (
+        this.pseudo !== undefined &&
+        tryReuse &&
+        this.enclosingDeclaration !== undefined &&
+        declaration !== undefined &&
+        (declaration.flags & NodeFlags.Synthesized) === 0
+      )
+        returnTypeNode = this.serializeReturnTypeReusing(signature, declaration, returnType);
+      if (returnTypeNode === undefined)
+        returnTypeNode = this.serializeInferredReturnTypeForSignature(signature, returnType);
+    }
     if (returnTypeNode === undefined && !suppressAny) returnTypeNode = this.keyword(SyntaxKind.AnyKeyword);
     this.flags = savedFlags;
     return returnTypeNode;
+  }
+
+  private serializeReturnTypeReusing(signature: Signature, declaration: Node, returnType: Type): Node | undefined {
+    const declarationSymbol = getSymbolOfDeclaration(this.c, declaration);
+    if (declarationSymbol === undefined) return undefined;
+    const restore = this.addSymbolTypeToContext(declarationSymbol, returnType);
+    let result: Node | undefined = undefined;
+    let pt: PseudoType | undefined = this.pseudo!.getReturnTypeOfSignature(declaration);
+    if (pseudoTypeEquivalentToType(this, pt, returnType, false, !this.suppressReportInferenceFallback)) {
+      // The pseudochecker doesn't infer type predicates, which the checker may have.
+      const typePredicate = getTypePredicateOfSignature(this.c, signature);
+      if (typePredicate !== undefined && !pseudoReturnTypeMatchesPredicate(this, pt, typePredicate)) {
+        if (!this.suppressReportInferenceFallback) this.tracker.reportInferenceFallback(declaration);
+        pt = undefined;
+      }
+      if (pt !== undefined) result = pseudoTypeToNodeWithCheckerFallback(this, pt, returnType);
+    }
+    restore();
+    return result;
   }
 
   private serializeInferredReturnTypeForSignature(signature: Signature, returnType: Type): Node | undefined {
@@ -2479,10 +2658,13 @@ export class NodeBuilder {
    * being written, with `location` as its original.
    */
   setTextRange(range: Node, location: Node | undefined): Node {
-    // Always a copy, so positions from other files never leak into the result.
+    // Always a copy, so positions from other files never leak into the result. As tsgo's
+    // shallow clone, the copy and its descendants keep their emit flags.
     const result = range.deepClone();
+    copyEmitNodes(this.context, result, range, true);
     result.pos = -1;
     result.end = -1;
+    this.context.setOriginal(result, range);
     if (location === undefined || result === location) return result;
     let original = this.context.getOriginal(result);
     while (original !== undefined && original !== location) original = this.context.getOriginal(original);
@@ -2620,31 +2802,116 @@ export function canReuseExistingJSTypeNode(b: NodeBuilder, existing: Node, t: Ty
   return written >= getMinTypeArgumentCount(c, (existingTarget as InterfaceType).typeParameters());
 }
 
+/** Copies the emit nodes of `original`'s descendants to the same nodes of its deep clone `clone`. */
+function copyEmitNodes(context: EmitContext, clone: Node, original: Node, isRoot: boolean): void {
+  // The root is a copy, which gets the original's emit node without its comments when the
+  // original is set; the descendants stand for the original's own.
+  if (!isRoot) context.copyEmitNode(clone, original);
+  const cloneChildren = new ChildCollector();
+  clone.forEachChild(cloneChildren);
+  const originalChildren = new ChildCollector();
+  original.forEachChild(originalChildren);
+  const count = Math.min(cloneChildren.nodes.length, originalChildren.nodes.length);
+  for (let i = 0; i < count; i++) copyEmitNodes(context, cloneChildren.nodes[i], originalChildren.nodes[i], false);
+}
+
+class ChildCollector extends NodeVisitor {
+  readonly nodes: Node[] = [];
+  readonly lists: NodeList[] = [];
+
+  visitNode(node: Node): boolean {
+    this.nodes.push(node);
+    return false;
+  }
+
+  visitList(list: NodeList): boolean {
+    this.lists.push(list);
+    return super.visitList(list);
+  }
+}
+
+/** Sets each node of `original`'s subtree as the original of its copy in `clone`, keeping trailing commas. */
+function linkClones(context: EmitContext, clone: Node, original: Node): void {
+  if (context.getOriginal(clone) === undefined) context.setOriginal(clone, original);
+  const cloneChildren = new ChildCollector();
+  clone.forEachChild(cloneChildren);
+  const originalChildren = new ChildCollector();
+  original.forEachChild(originalChildren);
+  const lists = Math.min(cloneChildren.lists.length, originalChildren.lists.length);
+  for (let i = 0; i < lists; i++) {
+    const list = cloneChildren.lists[i];
+    if (originalChildren.lists[i].hasTrailingComma() && list.nodes.length > 0) {
+      const last = list.nodes[list.nodes.length - 1];
+      last.pos = -2;
+      last.end = -2;
+    }
+  }
+  const count = Math.min(cloneChildren.nodes.length, originalChildren.nodes.length);
+  for (let i = 0; i < count; i++) linkClones(context, cloneChildren.nodes[i], originalChildren.nodes[i]);
+}
+
 /** A copy of a binding name without initializers, written on one line. */
 function cloneBindingName(b: NodeBuilder, node: Node): Node {
+  node.forEachChild(new ComputedNameTracker(b));
   const clone = node.deepClone();
-  removeBindingInitializers(b, clone);
+  removeBindingInitializers(clone);
   clearPositions(clone);
+  keepTrailingCommas(clone, node);
   b.context.setEmitFlags(clone, EmitFlags.SingleLine | EmitFlags.NoAsciiEscaping);
   return clone;
 }
 
-function removeBindingInitializers(b: NodeBuilder, node: Node): void {
+/**
+ * Marks the element lists of `clone` that have a trailing comma in `original`, which the printer
+ * keeps: tsgo's copy keeps the lists' positions.
+ */
+function keepTrailingCommas(clone: Node, original: Node): void {
+  if (!(clone instanceof BindingPattern) || !(original instanceof BindingPattern)) return;
+  // As tsgo's deep clone: a last element ending before the list's end.
+  if (original.elements.hasTrailingComma() && clone.elements.nodes.length > 0) {
+    const last = clone.elements.nodes[clone.elements.nodes.length - 1];
+    last.pos = -2;
+    last.end = -2;
+  }
+  const elements = clone.elements.nodes;
+  const originals = original.elements.nodes;
+  for (let i = 0; i < elements.length && i < originals.length; i++) {
+    const element = elements[i];
+    const originalElement = originals[i];
+    if (
+      element instanceof BindingElement &&
+      originalElement instanceof BindingElement &&
+      element.name !== undefined &&
+      originalElement.name !== undefined
+    )
+      keepTrailingCommas(element.name, originalElement.name);
+  }
+}
+
+function removeBindingInitializers(node: Node): void {
   if (node instanceof BindingPattern) {
-    for (const e of node.elements.nodes) removeBindingInitializers(b, e);
+    for (const e of node.elements.nodes) removeBindingInitializers(e);
     return;
   }
   if (node instanceof BindingElement) {
     node.initializer = undefined;
-    const name = node.name;
-    if (name !== undefined) {
-      if (name.kind === SyntaxKind.ComputedPropertyName && hasLateBindableName(b.c, node))
-        b.trackComputedName(getExpression(name)!, b.enclosingDeclaration);
-      removeBindingInitializers(b, name);
-    }
-    const propertyName = node.propertyName;
-    if (propertyName !== undefined && propertyName.kind === SyntaxKind.ComputedPropertyName)
-      b.trackComputedName(getExpression(propertyName)!, b.enclosingDeclaration);
+    if (node.name !== undefined) removeBindingInitializers(node.name);
+  }
+}
+
+/** Tracks the late-bound computed names of a binding name, which the copy writes. */
+class ComputedNameTracker extends NodeVisitor {
+  readonly b: NodeBuilder;
+
+  constructor(b: NodeBuilder) {
+    super();
+    this.b = b;
+  }
+
+  visitNode(node: Node): boolean {
+    if (node.kind === SyntaxKind.ComputedPropertyName && isLateBindableName(this.b.c, node))
+      this.b.trackComputedName(getExpression(node)!, this.b.enclosingDeclaration);
+    return node.forEachChild(this);
   }
 }
 
@@ -2752,6 +3019,7 @@ export function isEntityNameVisible(
   c: Checker,
   entityName: Node,
   enclosingDeclaration: Node,
+  shouldComputeAliasesToMakeVisible: boolean = false,
 ): SymbolAccessibilityResult {
   if ((entityName.flags & NodeFlags.Synthesized) !== 0)
     return new SymbolAccessibilityResult(SymbolAccessibility.NotAccessible, [], '', undefined, '');
@@ -2771,7 +3039,7 @@ export function isEntityNameVisible(
   }
   if (symbol === undefined)
     return new SymbolAccessibilityResult(SymbolAccessibility.NotResolved, [], text, firstIdentifier, '');
-  const visible = hasVisibleDeclarations(c, symbol, false);
+  const visible = hasVisibleDeclarations(c, symbol, shouldComputeAliasesToMakeVisible);
   if (visible !== undefined) return visible;
   return new SymbolAccessibilityResult(SymbolAccessibility.NotAccessible, [], text, firstIdentifier, '');
 }

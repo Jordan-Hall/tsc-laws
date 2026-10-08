@@ -10,6 +10,8 @@ export class Differential {
     this.ids = new IdMap();
     this.count = 0;
     this.failures = [];
+    // Encoded source files by path, to name nodes.
+    this.files = new Map();
   }
 
   // Sends a request (params use the reference server's ids) to both servers,
@@ -34,10 +36,16 @@ export class Differential {
       }
       if (isBinary(method)) {
         compareSourceFile(a.payload, b.payload, where);
+        if (method === 'getSourceFile') this.files.set(params.file, a.payload);
         return a.payload;
       }
       const expected = JSON.parse(a.payload.toString());
-      this.ids.compare(method, expected, JSON.parse(b.payload.toString()));
+      const actual = JSON.parse(b.payload.toString());
+      if (returnsNodes(method)) {
+        this.ids.compare(method, this.canonicalNodes(expected), this.canonicalNodes(actual));
+      } else {
+        this.ids.compare(method, expected, actual);
+      }
       return expected;
     } catch (e) {
       this.failures.push(`${where.slice(0, 300)}\n  ${e.message.slice(0, 1000)}`);
@@ -48,7 +56,58 @@ export class Differential {
   async close() {
     await Promise.all([this.expected.close(), this.actual.close()]);
   }
+
+  // JSDoc reparsing in JavaScript files shares nodes between a JSDoc comment and the
+  // declaration made from it, so they appear twice in the node table, and tsc names
+  // them by either index. Such handles are compared by the first index.
+  canonicalNodes(value) {
+    if (typeof value === 'string') return this.canonicalNode(value);
+    if (Array.isArray(value)) return value.map((v) => this.canonicalNodes(v));
+    if (value !== null && typeof value === 'object') {
+      const out = {};
+      for (const [k, v] of Object.entries(value)) out[k] = k === 'symbol' ? v : this.canonicalNodes(v);
+      return out;
+    }
+    return value;
+  }
+
+  canonicalNode(handle) {
+    const match = /^(\d+)\.(\d+)\.(.*)$/.exec(handle);
+    const encoded = match && this.files.get(match[3]);
+    if (!encoded) return handle;
+    const view = new DataView(encoded.buffer, encoded.byteOffset, encoded.byteLength);
+    const nodes = view.getUint32(40, true);
+    const record = (i) => nodes + i * 28;
+    const index = Number(match[1]);
+    if (record(index + 1) > encoded.length) return handle;
+    const at = record(index);
+    if ((view.getUint32(at + 24, true) & NodeFlags.JSDoc) === 0) return handle;
+    const kind = view.getUint32(at, true);
+    const pos = view.getUint32(at + 4, true);
+    const end = view.getUint32(at + 8, true);
+    for (let i = 1; i < index; i++) {
+      const other = record(i);
+      if (
+        view.getUint32(other, true) === kind &&
+        view.getUint32(other + 4, true) === pos &&
+        view.getUint32(other + 8, true) === end &&
+        (view.getUint32(other + 24, true) & NodeFlags.JSDoc) !== 0
+      )
+        return `${i}.${kind}.${match[3]}`;
+    }
+    return handle;
+  }
 }
+
+function returnsNodes(method) {
+  return (
+    method === 'getReferencesToSymbolInFile' ||
+    method === 'getReferencedSymbolsForNode' ||
+    method === 'getSignatureUsages'
+  );
+}
+
+const NodeFlags = { JSDoc: 1 << 22 };
 
 function isBinary(method) {
   return method === 'getSourceFile' || method === 'typeToTypeNode' || method === 'signatureToSignatureDeclaration';
@@ -75,6 +134,7 @@ const Kind = {
   CallExpression: 214,
   NewExpression: 215,
   TaggedTemplate: 216,
+  SourceFile: 307,
   NodeList: 0xffffffff,
 };
 
@@ -246,4 +306,33 @@ export async function explore(d, snapshot, project, files, limit) {
     }
   }
   return seen.size;
+}
+
+// Calls the language service methods on every symbol and node of the given files.
+export async function exploreServices(d, snapshot, project, files) {
+  const base = { snapshot, project };
+  const symbols = new Map();
+  for (const { file, length } of files) {
+    const positions = Array.from({ length }, (_, i) => i);
+    for (const symbol of (await d.call('getSymbolsAtPositions', { ...base, file, positions })) ?? []) {
+      if (symbol !== null) symbols.set(symbol.id, symbol);
+    }
+  }
+  for (const symbol of symbols.values()) {
+    await d.call('getJsDocTags', { ...base, symbol: symbol.id });
+    await d.call('getDocumentationComment', { ...base, symbol: symbol.id });
+    for (const { file } of files) await d.call('getReferencesToSymbolInFile', { ...base, file, symbol: symbol.id });
+    for (const signatureDecl of symbol.declarations ?? []) {
+      await d.call('getSignatureUsages', { ...base, signatureDecl });
+    }
+  }
+  for (const { file, length, encoded } of files) {
+    for (const node of nodeHandles(encoded, file)) {
+      await d.call('getReferencedSymbolsForNode', { ...base, node, position: 0 });
+    }
+    for (let position = 0; position < length; position += 7) {
+      await d.call('getReferencedSymbolsForNode', { ...base, node: `1.${Kind.SourceFile}.${file}`, position });
+    }
+  }
+  return symbols.size;
 }

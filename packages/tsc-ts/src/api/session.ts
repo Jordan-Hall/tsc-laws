@@ -398,12 +398,18 @@ export class Session {
         return JSON.stringify(this.projectDiagnostics('program', JSON.parse(params) as proto.ProjectParams));
       case 'getGlobalDiagnostics':
         return JSON.stringify(this.projectDiagnostics('global', JSON.parse(params) as proto.ProjectParams));
-      case 'getJsDocTags':
-      case 'getDocumentationComment':
-      case 'getReferencesToSymbolInFile':
-      case 'getReferencedSymbolsForNode':
-      case 'getSignatureUsages':
       case 'getCompletionsAtPosition':
+        return JSON.stringify(this.completionsAtPosition(JSON.parse(params) as proto.CompletionsParams));
+      case 'getJsDocTags':
+        return JSON.stringify(this.jsDocTags(JSON.parse(params) as proto.SymbolParams));
+      case 'getDocumentationComment':
+        return JSON.stringify(this.documentationComment(JSON.parse(params) as proto.SymbolParams));
+      case 'getReferencesToSymbolInFile':
+        return JSON.stringify(this.referencesToSymbolInFile(JSON.parse(params) as proto.SymbolFileParams));
+      case 'getReferencedSymbolsForNode':
+        return JSON.stringify(this.referencedSymbolsForNode(JSON.parse(params) as proto.ReferencedSymbolsParams));
+      case 'getSignatureUsages':
+        return JSON.stringify(this.signatureUsages(JSON.parse(params) as proto.SignatureUsagesParams));
       case 'startCPUProfile':
       case 'stopCPUProfile':
       case 'saveHeapProfile':
@@ -653,6 +659,38 @@ export class Session {
   private typeAtLocations(params: proto.LocationsParams): (proto.TypeResponse | null)[] {
     const q = this.query(params);
     return (params.locations ?? []).map((handle) => q.typeResponse(q.project.typeAtLocation(q.node(handle))));
+  }
+
+  private completionsAtPosition(params: proto.CompletionsParams): proto.CompletionInfoResponse | null {
+    const q = this.query(params);
+    const file = q.project.sourceFile(documentFileName(params.file));
+    if (file === undefined) return null;
+    let list: backend.CompletionList | undefined;
+    try {
+      list = q.project.completionsAtPosition(
+        file,
+        params.position ?? 0,
+        params.triggerCharacter,
+        params.includeSymbol === true,
+      );
+    } catch (e) {
+      if (e instanceof backend.NeedsAutoImports) throw new ApiError(e.message);
+      throw e;
+    }
+    if (list === undefined) return null;
+    return {
+      isIncomplete: list.isIncomplete,
+      entries: list.entries.map((entry) => {
+        const response: proto.CompletionEntryResponse = { name: entry.name, kind: entry.kind };
+        response.sortText = entry.sortText;
+        if (entry.insertText !== undefined) response.insertText = entry.insertText;
+        if (entry.filterText !== undefined) response.filterText = entry.filterText;
+        if (entry.detail !== undefined) response.detail = entry.detail;
+        if (entry.labelDetails !== undefined) response.labelDetails = entry.labelDetails;
+        if (entry.symbol !== undefined) response.symbol = q.symbolResponse(entry.symbol) ?? undefined;
+        return response;
+      }),
+    };
   }
 
   private typeAtPosition(params: proto.PositionParams): proto.TypeResponse | null {
@@ -936,6 +974,45 @@ export class Session {
   private memberInModuleExports(params: proto.NamedSymbolParams): proto.SymbolResponse | null {
     const q = this.query(params);
     return q.symbolResponse(q.project.memberInModuleExports(q.symbol(params.symbol), params.name ?? ''));
+  }
+
+  private jsDocTags(params: proto.SymbolParams): proto.JSDocTagInfo[] {
+    const q = this.query(params);
+    const tags = q.project.jsDocTags(q.symbol(params.symbol));
+    return tags.map((t) => (t.text === '' ? { name: t.name } : { name: t.name, text: t.text }));
+  }
+
+  private documentationComment(params: proto.SymbolParams): string {
+    const q = this.query(params);
+    return q.project.documentationComment(q.symbol(params.symbol));
+  }
+
+  private referencesToSymbolInFile(params: proto.SymbolFileParams): proto.NodeHandle[] {
+    const q = this.query(params);
+    const symbol = q.symbol(params.symbol);
+    return q.project.referencesToSymbolInFile(q.sourceFile(params.file), symbol).map(nodeHandle);
+  }
+
+  private referencedSymbolsForNode(params: proto.ReferencedSymbolsParams): proto.ReferencedSymbolEntry[] {
+    const q = this.query(params);
+    const node = q.node(params.node);
+    return q.project.referencedSymbolsForNode(node, params.position ?? 0).map((entry) => {
+      const response: proto.ReferencedSymbolEntry = { definition: nodeHandle(entry.definition) };
+      if (entry.symbol !== undefined) response.symbol = q.symbolResponse(entry.symbol)!;
+      response.references = entry.references.map(nodeHandle);
+      return response;
+    });
+  }
+
+  private signatureUsages(params: proto.SignatureUsagesParams): proto.SignatureUsageResponse[] {
+    const q = this.query(params);
+    return q.project
+      .signatureUsages(q.node(params.signatureDecl))
+      .map((usage) =>
+        usage.call === undefined
+          ? { name: nodeHandle(usage.name) }
+          : { name: nodeHandle(usage.name), call: nodeHandle(usage.call) },
+      );
   }
 
   private intrinsicType(name: backend.IntrinsicTypeName, params: proto.ProjectParams): proto.TypeResponse | null {

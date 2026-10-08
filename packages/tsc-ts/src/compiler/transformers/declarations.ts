@@ -1,6 +1,7 @@
 // The declaration transform: turns a source file into its declaration file. Keeps exported and
 // referenced declarations without their implementations, writes the types of declarations from
 // their annotations or the resolver, and elides imports the output doesn't use.
+import { getJSDoc } from '../parser.js';
 import {
   BindingElement,
   BindingPattern,
@@ -72,6 +73,8 @@ import {
   PrivateIdentifier,
   PropertyDeclaration,
   PropertySignatureDeclaration,
+  JSDoc,
+  JSDocText,
   ScriptKind,
   SetAccessorDeclaration,
   SourceFile,
@@ -118,6 +121,7 @@ import {
   getThisContainer,
   isVariableDeclarationInitializedToRequire,
   getSourceFileOfNode,
+  getSourceTextOfNode,
   hasDynamicName,
   hasSyntacticModifier,
   isEntityNameExpression,
@@ -913,7 +917,7 @@ export class DeclarationTransformer extends Transformer {
 
   private transformPropertySignature(input: PropertySignatureDeclaration): Node | undefined {
     if (input.name instanceof PrivateIdentifier) return undefined;
-    return this.factory.updatePropertySignatureDeclaration(
+    const result = this.factory.updatePropertySignatureDeclaration(
       input,
       this.ensureModifiers(input),
       input.name,
@@ -921,6 +925,20 @@ export class DeclarationTransformer extends Transformer {
       this.ensureType(input, false),
       this.ensureNoInitializer(input),
     );
+    this.preservePartialJsDoc(result, input);
+    return result;
+  }
+
+  /** Writes the description of a property from a JSDoc `@property` tag as its comment. */
+  private preservePartialJsDoc(updated: Node, original: Node): boolean {
+    if ((original.flags & NodeFlags.Reparsed) === 0) return false;
+    const docs = getJSDoc(getSourceFileOfNode(original), original);
+    if (docs.length === 0 || !(docs[0] instanceof JSDoc)) return false;
+    const description = getTextOfJSDocComment(docs[0].comment);
+    if (description === '') return false;
+    const comment = '*\n * ' + description.split('\n').join('\n * ') + '\n ';
+    this.context.addSyntheticLeadingComment(updated, SyntaxKind.MultiLineCommentTrivia, comment, true);
+    return true;
   }
 
   private transformPropertyDeclaration(input: PropertyDeclaration): Node | undefined {
@@ -1241,8 +1259,9 @@ export class DeclarationTransformer extends Transformer {
     if (input instanceof ImportDeclaration) {
       const result = this.transformImportDeclaration(input);
       // `import x = require()` in JavaScript is written as an import declaration.
-      if (result !== undefined && result.kind !== SyntaxKind.ImportDeclaration)
-        return this.factory.created(
+      if (result !== undefined && result.kind !== SyntaxKind.ImportDeclaration) {
+        // A copy of the declaration, as tsgo's clone: with its position and emit node.
+        const clone = this.factory.created(
           new ImportDeclaration(
             SyntaxKind.ImportDeclaration,
             result.modifiers,
@@ -1251,6 +1270,11 @@ export class DeclarationTransformer extends Transformer {
             result.attributes,
           ),
         );
+        clone.pos = result.pos;
+        clone.end = result.end;
+        this.context.setOriginal(clone, result);
+        return clone;
+      }
       return result;
     }
     if (isDeclaration(input) && this.isDeclarationAndNotVisible(input)) return undefined;
@@ -2363,7 +2387,25 @@ export class DeclarationTransformer extends Transformer {
 
   private ensureTypeParams(node: Node, params: NodeList | undefined): NodeList | undefined {
     if (this.isPrivate(this.parseNode(node))) return undefined;
-    return this.visitNodes(params);
+    const typeParameters = this.visitNodes(params);
+    if (typeParameters !== undefined || getFullSignature(node) === undefined) return typeParameters;
+    // A JSDoc `@type` signature declares the type parameters.
+    const tracker = this.tracker;
+    const oldErrorNameNode = tracker.errorNameNode;
+    tracker.errorNameNode = getName(node);
+    const oldContext = tracker.diagnosticContext;
+    if (!this.suppressNewDiagnosticContexts && canProduceDiagnostics(node))
+      tracker.diagnosticContext = declarationContext(node);
+    const nodes = this.resolver.createTypeParametersOfSignatureDeclaration(
+      this.context,
+      node,
+      this.enclosingDeclaration,
+      NodeBuilderFlags.DeclarationEmit,
+      tracker,
+    );
+    tracker.errorNameNode = oldErrorNameNode;
+    if (!this.suppressNewDiagnosticContexts) tracker.diagnosticContext = oldContext;
+    return nodes === undefined ? undefined : this.factory.createNodeList(nodes);
   }
 
   private updateParamList(node: Node, params: NodeList): NodeList {
@@ -2946,11 +2988,15 @@ function appendFlattened(result: Node[], node: Node): boolean {
   return true;
 }
 
+/** The JSDoc `@type` signature of a function-like declaration. */
 function getFullSignature(node: Node): Node | undefined {
   if (node instanceof FunctionExpression) return node.fullSignature;
   if (node instanceof ArrowFunction) return node.fullSignature;
   if (node instanceof FunctionDeclaration) return node.fullSignature;
   if (node instanceof MethodDeclaration) return node.fullSignature;
+  if (node instanceof ConstructorDeclaration) return node.fullSignature;
+  if (node instanceof GetAccessorDeclaration) return node.fullSignature;
+  if (node instanceof SetAccessorDeclaration) return node.fullSignature;
   return undefined;
 }
 
@@ -3055,4 +3101,20 @@ class ThisPropertyWalker extends NodeVisitor {
     this.transformer.visitThisPropertyAssignment(node, this.classNode);
     return node.forEachChild(this);
   }
+}
+
+/** The text of a JSDoc comment: its text and links, without trailing whitespace. */
+function getTextOfJSDocComment(comment: NodeList | undefined): string {
+  if (comment === undefined) return '';
+  let text = '';
+  for (const n of comment.nodes) {
+    if (n instanceof JSDocText) text += n.text;
+    else if (
+      n.kind === SyntaxKind.JSDocLink ||
+      n.kind === SyntaxKind.JSDocLinkCode ||
+      n.kind === SyntaxKind.JSDocLinkPlain
+    )
+      text += getSourceTextOfNode(getSourceFileOfNode(n), n);
+  }
+  return text.trimEnd();
 }

@@ -1629,6 +1629,8 @@ function resolveQualifiedName(
       containingQualifiedName = containingQualifiedName.parent!;
   }
   if (
+    // Not while the checker is being created, before global types are known.
+    c.hasGlobalObjectType &&
     (meaning & SymbolFlags.Type) !== 0 &&
     containingQualifiedName !== undefined &&
     containingQualifiedName.parent!.kind !== SyntaxKind.TypeOfExpression &&

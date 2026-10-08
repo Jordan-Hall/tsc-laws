@@ -2204,7 +2204,7 @@ export function getAccessedPropertyName(c: Checker, access: Node): string | unde
 }
 
 /** The property name a constant or enum member used as an index stands for. */
-function tryGetNameFromEntityNameExpression(c: Checker, node: Node): string | undefined {
+export function tryGetNameFromEntityNameExpression(c: Checker, node: Node): string | undefined {
   const symbol = resolveEntityName(c, node, SymbolFlags.Value, true, false, undefined);
   if (symbol === undefined || !(isConstantVariable(c, symbol) || (symbol.flags & SymbolFlags.EnumMember) !== 0))
     return undefined;

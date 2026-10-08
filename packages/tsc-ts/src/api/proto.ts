@@ -54,6 +54,28 @@ export interface PositionParams extends ProjectFileParams {
   position?: number;
 }
 
+export interface CompletionsParams extends ProjectFileParams {
+  position?: number;
+  triggerCharacter?: string;
+  includeSymbol?: boolean;
+}
+
+export interface CompletionEntryResponse {
+  name: string;
+  kind?: number;
+  sortText?: string;
+  insertText?: string;
+  filterText?: string;
+  detail?: string;
+  labelDetails?: { detail?: string; description?: string };
+  symbol?: SymbolResponse;
+}
+
+export interface CompletionInfoResponse {
+  isIncomplete: boolean;
+  entries: CompletionEntryResponse[];
+}
+
 export interface PositionsParams extends ProjectFileParams {
   positions?: number[];
 }
@@ -272,4 +294,33 @@ export interface DiagnosticResponse {
 export function literalValueResponse(value: LiteralValue): LiteralValueResponse {
   if (value !== null && typeof value === 'object') return value.bigint;
   return value;
+}
+
+export interface JSDocTagInfo {
+  name: string;
+  text?: string;
+}
+
+export interface SymbolFileParams extends SymbolParams {
+  file: DocumentIdentifier;
+}
+
+export interface ReferencedSymbolsParams extends ProjectParams {
+  node?: NodeHandle;
+  position?: number;
+}
+
+export interface ReferencedSymbolEntry {
+  definition: NodeHandle;
+  symbol?: SymbolResponse;
+  references?: NodeHandle[];
+}
+
+export interface SignatureUsagesParams extends ProjectParams {
+  signatureDecl?: NodeHandle;
+}
+
+export interface SignatureUsageResponse {
+  name: NodeHandle;
+  call?: NodeHandle;
 }

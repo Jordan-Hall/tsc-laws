@@ -840,7 +840,7 @@ export function isDeclarationVisible(c: Checker, node: Node): boolean {
   return visible;
 }
 
-function markDeclarationVisible(c: Checker, node: Node): void {
+export function markDeclarationVisible(c: Checker, node: Node): void {
   caches(c).declarationVisibility.set(getNodeId(node), true);
 }
 
@@ -917,6 +917,13 @@ function determineIfDeclarationIsVisible(c: Checker, node: Node): boolean {
       return true;
     case SyntaxKind.ExportAssignment:
       return false;
+    // `export { x }` without a module specifier re-exports `x` visibly.
+    case SyntaxKind.ExportSpecifier: {
+      const exportDeclaration = node.parent!.parent!;
+      if (exportDeclaration instanceof ExportDeclaration && exportDeclaration.moduleSpecifier === undefined)
+        return isDeclarationVisible(c, exportDeclaration.parent!);
+      return false;
+    }
   }
   return false;
 }

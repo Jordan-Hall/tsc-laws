@@ -2,9 +2,8 @@
 // checking. Usage: emit [compiler options] FILE...
 // The files are loaded as a program, which decides each file's module format from its
 // extension and nearest package.json, then bound; imports resolve between the program's files.
-// Prints `unsupported FILE: REASON` for files using syntax emit doesn't support yet, declaration
-// errors as tsc does, and `inferred FILE: N M` for files with N declaration types that needed
-// inference, M of which were written as `any`.
+// Prints `unsupported FILE: REASON` for files using syntax emit doesn't support yet and
+// declaration errors as tsc does. Declaration types come from the checker.
 import {
   existsSync,
   lstatSync,
@@ -18,7 +17,7 @@ import {
 import type { Node, SourceFile } from '../compiler/ast.js';
 import { bindSourceFile } from '../compiler/binder.js';
 import { CommandLineHost, parseCommandLine } from '../compiler/command-line.js';
-import { Locale, formatDiagnostics } from '../compiler/diagnostics.js';
+import { type Diagnostic, Locale, formatDiagnostics } from '../compiler/diagnostics.js';
 import { EmitHost, emitFiles, sourceFileMayBeEmitted } from '../compiler/emitter.js';
 import { CompilerHost } from '../compiler/file-loader.js';
 import { CachedFileSystem, DirectoryEntries, FileSystem } from '../compiler/file-system.js';
@@ -28,6 +27,9 @@ import { getDirectoryPath, getNormalizedAbsolutePath } from '../compiler/path.js
 import { Program, sortAndDeduplicateDiagnostics } from '../compiler/program.js';
 import { getEmitModuleFormatOfFile } from '../compiler/program-utilities.js';
 import { ParsedCommandLine } from '../compiler/tsconfig.js';
+import { CheckerDeclarationEmitResolver } from '../compiler/checker-emit-resolver.js';
+import { Checker } from '../compiler/checker.js';
+import { ProgramCheckerHost } from '../compiler/program-checker.js';
 import { SyntacticDeclarationEmitResolver } from '../compiler/transformers/declarations-syntactic.js';
 import { type EmitResolver, SyntacticEmitResolver } from '../compiler/transformers/emit-resolver.js';
 import { ModuleFormatHost } from '../compiler/transformers/module.js';
@@ -122,7 +124,7 @@ class DiskEmitHost extends EmitHost {
     return this.program.isEmitBlocked(fileName);
   }
 
-  writeFile(fileName: string, text: string): string {
+  writeFile(fileName: string, text: string, _declarationDiagnostics?: readonly Diagnostic[]): string {
     mkdirSync(getDirectoryPath(fileName), { recursive: true });
     writeFileSync(fileName, text);
     return '';
@@ -146,11 +148,10 @@ function main(): number {
   const references = new ReferenceResolver(options, all, new ProgramModules(program, host));
   const emitResolver = new SyntacticEmitResolver(options, references);
   let resolver: EmitResolver = emitResolver;
-  let declarationResolver: SyntacticDeclarationEmitResolver | undefined = undefined;
   if (options.declaration === true || options.composite === true) {
+    // Declaration emit asks the checker for types, as tsc does even without type checking.
     const syntactic = new SyntacticDeclarationEmitResolver(options, all, cwd, emitResolver);
-    declarationResolver = syntactic;
-    resolver = syntactic;
+    resolver = new CheckerDeclarationEmitResolver(new Checker(new ProgramCheckerHost(program)), syntactic);
   }
   const emitHost = new DiskEmitHost(program, resolver, new ProgramFormats(program));
   const result = emitFiles(emitHost, files);
@@ -165,9 +166,6 @@ function main(): number {
         newLine: '\n',
       }),
     );
-  if (declarationResolver !== undefined)
-    for (const [file, counts] of declarationResolver.inference)
-      console.log('inferred ' + file.fileName + ': ' + counts.fallbacks + ' ' + counts.unresolved);
   return result.errors.length > 0 || result.diagnostics.length > 0 ? 1 : 0;
 }
 
