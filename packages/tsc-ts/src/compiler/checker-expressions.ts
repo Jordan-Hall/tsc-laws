@@ -156,7 +156,7 @@ import {
   checkPostfixUnaryExpression,
   checkPrefixUnaryExpression,
 } from './checker-operators.js';
-import { checkJsxExpression } from './checker-jsx.js';
+import { checkJsx } from './checker-jsx.js';
 import { getRegularTypeOfObjectLiteral } from './checker-literals.js';
 import { getSignatureFromDeclaration, getThisTypeOfSignature } from './checker-signatures.js';
 import { isFunctionLike } from './ast-utilities.js';
@@ -374,8 +374,7 @@ function checkExpressionWorker(c: Checker, node: Node, checkMode: CheckMode): Ty
     case SyntaxKind.JsxSelfClosingElement:
     case SyntaxKind.JsxFragment:
     case SyntaxKind.JsxAttributes:
-    case SyntaxKind.JsxOpeningElement:
-      return checkJsxExpression(c, node);
+      return checkJsx(c, node, checkMode);
   }
   return c.errorType;
 }

@@ -1,4 +1,5 @@
 // Operator checking: unary, binary, conditional, `delete`, and truthiness and nullishness tests.
+import { skipTrivia } from './scanner.js';
 import {
   type BinaryExpression,
   type ConditionalExpression,
@@ -587,12 +588,23 @@ function checkBinaryLikeExpressionWorker(
       if (
         c.compilerOptions.allowUnreachableCode !== true &&
         isSideEffectFree(left) &&
-        !isIndirectCall(left.parent as BinaryExpression)
+        !isIndirectCall(left.parent as BinaryExpression) &&
+        !isInMultipleJsxRootsError(left)
       )
         c.error(left, Diagnostics.Left_side_of_comma_operator_is_unused_and_has_no_side_effects);
       return rightType;
   }
   return c.errorType;
+}
+
+/** Whether `left` starts inside an "expressions must have one parent element" parse error. */
+function isInMultipleJsxRootsError(left: Node): boolean {
+  const file = getSourceFileOfNode(left);
+  const start = skipTrivia(file.text, left.pos);
+  for (const d of file.diagnostics)
+    if (d.message === Diagnostics.JSX_expressions_must_have_one_parent_element && d.pos <= start && start < d.end)
+      return true;
+  return false;
 }
 
 function getSuggestedBooleanOperator(operator: SyntaxKind): SyntaxKind {

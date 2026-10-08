@@ -1095,7 +1095,7 @@ export function getSymbolFlags(c: Checker, symbol: Symbol): SymbolFlags {
   return flags;
 }
 
-function getTargetOfAliasDeclaration(c: Checker, node: Node): Symbol | undefined {
+export function getTargetOfAliasDeclaration(c: Checker, node: Node): Symbol | undefined {
   switch (node.kind) {
     case SyntaxKind.ImportEqualsDeclaration: {
       const reference = (node as ImportEqualsDeclaration).moduleReference;
@@ -1248,7 +1248,7 @@ export function resolveExternalModuleNameWorker(
   );
 }
 
-function resolveExternalModule(
+export function resolveExternalModule(
   c: Checker,
   location: Node,
   moduleReference: string,

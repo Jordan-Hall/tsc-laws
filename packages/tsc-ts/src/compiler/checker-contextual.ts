@@ -117,6 +117,11 @@ import { getTypeOfSymbol } from './checker-symbol-types.js';
 import { maybeTypeOfKind } from './checker-utilities.js';
 import { getFunctionFlags, FunctionFlags } from './checker-utilities.js';
 import { getAwaitedTypeNoAlias, isContextSensitive } from './checker-functions.js';
+import {
+  getContextualJsxElementAttributesType,
+  getContextualTypeForJsxAttribute,
+  getContextualTypeForJsxExpression,
+} from './checker-jsx.js';
 
 export const enum ContextFlags {
   None = 0,
@@ -144,7 +149,8 @@ export function popContextualType(c: Checker): void {
   caches.contextualIsCache.pop();
 }
 
-function findContextualNode(c: Checker, node: Node, includeCaches: boolean): number {
+/** The index of the contextual type pushed onto `node`, or -1. */
+export function findContextualNode(c: Checker, node: Node, includeCaches: boolean): number {
   const caches = c.inferenceCaches;
   const nodes = caches.contextualNodes;
   for (let i = 0; i < nodes.length; i++)
@@ -170,6 +176,13 @@ export function getInferenceContext(c: Checker, node: Node): InferenceContext | 
   return undefined;
 }
 
+/** The node a contextual type for `node` is pushed onto: an element for its attributes, which spans its children. */
+function getContextNode(node: Node): Node {
+  if (node.kind === SyntaxKind.JsxAttributes && node.parent!.kind !== SyntaxKind.JsxSelfClosingElement)
+    return node.parent!.parent!;
+  return node;
+}
+
 /** Checks `node` with `contextualType` as its contextual type, inferring into `inferenceContext`. */
 export function checkExpressionWithContextualType(
   c: Checker,
@@ -178,8 +191,9 @@ export function checkExpressionWithContextualType(
   inferenceContext: InferenceContext | undefined,
   checkMode: CheckMode,
 ): Type {
-  pushContextualType(c, node, contextualType, false);
-  pushInferenceContext(c, node, inferenceContext);
+  const contextNode = getContextNode(node);
+  pushContextualType(c, contextNode, contextualType, false);
+  pushInferenceContext(c, contextNode, inferenceContext);
   let t = checkExpressionEx(
     c,
     node,
@@ -337,6 +351,14 @@ export function getContextualTypeEx(c: Checker, node: Node, contextFlags: Contex
     case SyntaxKind.ParenthesizedExpression:
     case SyntaxKind.NonNullExpression:
       return getContextualTypeEx(c, parent, contextFlags);
+    case SyntaxKind.JsxExpression:
+      return getContextualTypeForJsxExpression(c, parent);
+    case SyntaxKind.JsxAttribute:
+    case SyntaxKind.JsxSpreadAttribute:
+      return getContextualTypeForJsxAttribute(c, parent);
+    case SyntaxKind.JsxOpeningElement:
+    case SyntaxKind.JsxSelfClosingElement:
+      return getContextualJsxElementAttributesType(c, parent);
   }
   return undefined;
 }

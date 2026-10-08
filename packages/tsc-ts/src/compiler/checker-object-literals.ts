@@ -301,7 +301,7 @@ function isSymbolWithComputedName(symbol: Symbol): boolean {
 }
 
 /** Reports earlier properties that a spread always overwrites. */
-function checkSpreadPropOverrides(c: Checker, t: Type, props: Map<string, Symbol>, spread: Node): void {
+export function checkSpreadPropOverrides(c: Checker, t: Type, props: Map<string, Symbol>, spread: Node): void {
   for (const right of getPropertiesOfType(c, t)) {
     if ((right.flags & SymbolFlags.Optional) !== 0 || (right.checkFlags & CheckFlags.Partial) !== 0) continue;
     const left = props.get(right.name);

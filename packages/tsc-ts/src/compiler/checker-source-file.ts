@@ -60,6 +60,7 @@ import {
   checkClassLikeDeferred,
   checkInterfaceDeclaration,
 } from './checker-classes.js';
+import { checkJsxElementDeferred } from './checker-jsx.js';
 import { checkFunctionLikeBody } from './checker-functions.js';
 import { checkFunctionOrMethodSymbols } from './checker-overloads.js';
 import { checkTypeLiteralMembers } from './checker-heritage.js';
@@ -321,6 +322,10 @@ function checkDeferredNode(c: Checker, node: Node): void {
       break;
     case SyntaxKind.ClassExpression:
       checkClassLikeDeferred(c, node);
+      break;
+    case SyntaxKind.JsxElement:
+    case SyntaxKind.JsxSelfClosingElement:
+      checkJsxElementDeferred(c, node);
       break;
   }
   c.currentNode = saveCurrentNode;

@@ -162,6 +162,14 @@ import { couldContainTypeVariables } from './instantiation.js';
 import { typeToString } from './type-printer.js';
 import { checkTypeRelatedToAndOptionallyElaborate } from './checker-elaboration.js';
 import { resolveExternalModuleName, getSymbolOfDeclaration } from './checker-symbols.js';
+import {
+  checkApplicableSignatureForJsxCallLikeElement,
+  getAttributesOf,
+  getEffectiveJsxArguments,
+  inferJsxTypeArguments,
+  isJsxOpeningLikeElement,
+  resolveJsxOpeningLikeElement,
+} from './checker-jsx.js';
 
 /** The type of an optional chain's expression with the chain's `undefined` removed. */
 export function getOptionalExpressionType(c: Checker, exprType: Type, expression: Node): Type {
@@ -257,6 +265,10 @@ function resolveSignature(c: Checker, node: Node, checkMode: CheckMode): Signatu
       return resolveNewExpression(c, node as NewExpression, checkMode);
     case SyntaxKind.TaggedTemplateExpression:
       return resolveTaggedTemplateExpression(c, node as TaggedTemplateExpression, checkMode);
+    case SyntaxKind.JsxOpeningElement:
+    case SyntaxKind.JsxSelfClosingElement:
+    case SyntaxKind.JsxOpeningFragment:
+      return resolveJsxOpeningLikeElement(c, node, checkMode);
   }
   return resolveUntypedCall(c, node);
 }
@@ -503,6 +515,10 @@ function getCallArgumentNodes(node: Node): Node[] {
 
 /** The arguments of a call, with spreads of tuples expanded and a tagged template's strings first. */
 export function getEffectiveCallArguments(c: Checker, node: Node): Node[] {
+  // A fragment's attributes have no `children` yet, like those of `<React.Fragment>`.
+  if (node.kind === SyntaxKind.JsxOpeningFragment)
+    return [new SyntheticExpression(node, c.emptyFreshJsxObjectType, false, undefined)];
+  if (isJsxOpeningLikeElement(node)) return getEffectiveJsxArguments(node);
   if (node.kind === SyntaxKind.TaggedTemplateExpression) {
     const template = (node as TaggedTemplateExpression).template;
     const args: Node[] = [new SyntheticExpression(template, getGlobalTemplateStringsArrayType(c), false, undefined)];
@@ -674,13 +690,14 @@ class CallState {
 }
 
 function getCallTypeArguments(node: Node): Node[] {
+  if (node.kind === SyntaxKind.JsxOpeningFragment) return [];
   if (node.kind === SyntaxKind.CallExpression && (node as CallExpression).expression.kind === SyntaxKind.SuperKeyword)
     return [];
   const list = getTypeArgumentList(node);
   return list !== undefined ? list.nodes : [];
 }
 
-function resolveCall(
+export function resolveCall(
   c: Checker,
   node: Node,
   signatures: Signature[],
@@ -861,11 +878,20 @@ function isInJSFile(node: Node | undefined): boolean {
 }
 
 function hasCorrectArity(c: Checker, node: Node, args: Node[], signature: Signature): boolean {
+  if (node.kind === SyntaxKind.JsxOpeningFragment) return true;
   let argCount: number;
   let callIsIncomplete = false;
-  const effectiveParameterCount = getParameterCount(c, signature);
-  const effectiveMinimumArguments = getMinArgumentCount(c, signature);
-  if (node.kind === SyntaxKind.TaggedTemplateExpression) {
+  let effectiveParameterCount = getParameterCount(c, signature);
+  let effectiveMinimumArguments = getMinArgumentCount(c, signature);
+  if (isJsxOpeningLikeElement(node)) {
+    // An incomplete element is lenient.
+    if (getAttributesOf(node).end === node.end) return true;
+    argCount = effectiveMinimumArguments === 0 ? args.length : 1;
+    // Class components may have argumentless constructors; their props come from the instance.
+    if (args.length !== 0) effectiveParameterCount = 1;
+    // A component's extra parameters, such as a legacy context, are provided by the library.
+    effectiveMinimumArguments = Math.min(effectiveMinimumArguments, 1);
+  } else if (node.kind === SyntaxKind.TaggedTemplateExpression) {
     argCount = args.length;
     const template = (node as TaggedTemplateExpression).template;
     if (template.kind === SyntaxKind.TemplateExpression) {
@@ -958,6 +984,16 @@ function isSignatureApplicable(
   reportErrors: boolean,
   diagnosticOutput: Diagnostic[] | undefined,
 ): boolean {
+  if (isJsxOpeningLikeElement(node) || node.kind === SyntaxKind.JsxOpeningFragment)
+    return checkApplicableSignatureForJsxCallLikeElement(
+      c,
+      node,
+      signature,
+      relation,
+      checkMode,
+      reportErrors,
+      diagnosticOutput,
+    );
   const thisType = getThisTypeOfSignature(c, signature);
   if (
     thisType !== undefined &&
@@ -1167,6 +1203,7 @@ function inferTypeArguments(
         : undefined;
     }
   }
+  if (isJsxOpeningLikeElement(node)) return inferJsxTypeArguments(c, node, signature, checkMode, context);
   const restType = getNonArrayRestType(c, signature);
   const argCount = restType !== undefined ? Math.min(getParameterCount(c, signature) - 1, args.length) : args.length;
   if (restType !== undefined && (restType.flags & TypeFlags.TypeParameter) !== 0) {
@@ -1391,7 +1428,7 @@ function reportCallResolutionErrors(
     c.addDiagnostic(getArgumentArityError(c, s.node, [s.candidateForArgumentArityError], s.args, headMessage));
   else if (s.candidateForTypeArgumentError !== undefined)
     checkTypeArguments(c, s.candidateForTypeArgumentError, getCallTypeArguments(s.node), true, headMessage);
-  else {
+  else if (node.kind !== SyntaxKind.JsxOpeningFragment) {
     const withCorrectTypeArgumentArity = signatures.filter((sig) =>
       hasCorrectTypeArgumentArity(c, sig, s.typeArguments),
     );
@@ -1399,7 +1436,6 @@ function reportCallResolutionErrors(
       c.addDiagnostic(getTypeArgumentArityError(c, s.node, signatures, s.typeArguments, headMessage));
     else c.addDiagnostic(getArgumentArityError(c, s.node, withCorrectTypeArgumentArity, s.args, headMessage));
   }
-  void node;
 }
 
 function withHeadMessage(diagnostic: Diagnostic, headMessage: DiagnosticMessage | undefined): Diagnostic {

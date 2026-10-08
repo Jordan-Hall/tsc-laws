@@ -40,8 +40,18 @@ func parseFile(fileName string, text string) *ast.SourceFile {
 // NewProgram parses fileName and the lib files it needs. readLib returns the
 // text of a bundled lib file by name.
 func NewProgram(fileName string, text string, readLib func(name string) (string, bool)) *Program {
+	return NewProgramWithOptions(fileName, text, DefaultOptions(), readLib)
+}
+
+// DefaultOptions returns the options of a checked file: strict, ESNext, no emit.
+func DefaultOptions() *core.CompilerOptions {
+	return &core.CompilerOptions{Strict: core.TSTrue, Target: core.ScriptTargetESNext, NoEmit: core.TSTrue}
+}
+
+// NewProgramWithOptions is NewProgram with the given compiler options.
+func NewProgramWithOptions(fileName string, text string, options *core.CompilerOptions, readLib func(name string) (string, bool)) *Program {
 	p := &Program{
-		options: &core.CompilerOptions{Strict: core.TSTrue, Target: core.ScriptTargetESNext, NoEmit: core.TSTrue},
+		options: options,
 		byPath:  map[tspath.Path]*ast.SourceFile{},
 		libs:    map[tspath.Path]bool{},
 	}
@@ -79,7 +89,12 @@ func NewProgram(fileName string, text string, readLib func(name string) (string,
 // Check returns the diagnostics of fileName: syntactic, bind, semantic, and
 // global diagnostics, in that order.
 func Check(fileName string, text string, readLib func(name string) (string, bool)) []*ast.Diagnostic {
-	p := NewProgram(fileName, text, readLib)
+	return CheckWithOptions(fileName, text, DefaultOptions(), readLib)
+}
+
+// CheckWithOptions is Check with the given compiler options.
+func CheckWithOptions(fileName string, text string, options *core.CompilerOptions, readLib func(name string) (string, bool)) []*ast.Diagnostic {
+	p := NewProgramWithOptions(fileName, text, options, readLib)
 	p.BindSourceFiles()
 	c, _ := checker.NewChecker(p, nil)
 	file := p.byPath[tspath.Path(fileName)]

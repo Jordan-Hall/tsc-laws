@@ -1,15 +1,23 @@
 // Checks a file against the bundled libs and prints its diagnostics in the format of the reference
 // check oracle: `<file> <code> <pos> <len> <message>` with UTF-8 offsets.
+// A .tsx file is checked as `/input.tsx` with the JSX options of its `@jsx`, `@jsxFactory`,
+// `@jsxFragmentFactory` and `@jsxImportSource` directives.
 // Usage: check FILE LIBDIR [--batch|--bench]
 //   --batch  FILE lists input files, one per line; each is printed after `== <path>`
 //   --bench  times parsing, binding and checking FILE
 import { readFileSync } from 'node:fs';
 import { performance } from 'node:perf_hooks';
-import { ExternalModuleIndicatorOptions, ParseOptions, ScriptKind, type SourceFile } from '../compiler/ast.js';
+import {
+  ExternalModuleIndicatorOptions,
+  type Node,
+  ParseOptions,
+  ScriptKind,
+  type SourceFile,
+} from '../compiler/ast.js';
 import { bindSourceFile } from '../compiler/binder.js';
 import { Checker, CheckerHost } from '../compiler/checker.js';
 import { type Diagnostic, Locale } from '../compiler/diagnostics.js';
-import { type CompilerOptions, ScriptTarget } from '../compiler/options.js';
+import { type CompilerOptions, JsxEmit, ScriptTarget } from '../compiler/options.js';
 import { parseSourceFile } from '../compiler/parser.js';
 import { getDefaultLibFileName, getLibFileName } from '../compiler/program-utilities.js';
 import './lowering.js';
@@ -41,6 +49,10 @@ class CheckHost extends CheckerHost {
   }
 
   getSourceFileForModuleName(_file: SourceFile, _moduleName: string): SourceFile | undefined {
+    return undefined;
+  }
+
+  getJSXRuntimeImportSpecifier(_file: SourceFile): Node | undefined {
     return undefined;
   }
 }
@@ -93,9 +105,54 @@ function createOptions(): CompilerOptions {
   return options;
 }
 
-/** Parse, bind, semantic and global diagnostics of `/input.ts`, in that order. */
-function check(text: string, loader: LibLoader, options: CompilerOptions): Diagnostic[] {
-  const file = parse('/input.ts', text);
+function jsxEmit(value: string): JsxEmit | undefined {
+  switch (value) {
+    case 'preserve':
+      return JsxEmit.Preserve;
+    case 'react-native':
+      return JsxEmit.ReactNative;
+    case 'react':
+      return JsxEmit.React;
+    case 'react-jsx':
+      return JsxEmit.ReactJSX;
+    case 'react-jsxdev':
+      return JsxEmit.ReactJSXDev;
+  }
+  return undefined;
+}
+
+/** The options of a .tsx test case: the defaults and the first value of each JSX directive. */
+function createJsxOptions(text: string): CompilerOptions {
+  const options = createOptions();
+  for (const m of text.matchAll(/^[ \t]*\/\/[ \t]*@(\w+)[ \t]*:([^\r\n]*)/gim)) {
+    const value = m[2].split(',')[0].trim();
+    switch (m[1].toLowerCase()) {
+      case 'jsx':
+        options.jsx = jsxEmit(value.toLowerCase());
+        break;
+      case 'jsxfactory':
+        options.jsxFactory = value;
+        break;
+      case 'jsxfragmentfactory':
+        options.jsxFragmentFactory = value;
+        break;
+      case 'jsximportsource':
+        options.jsxImportSource = value;
+        break;
+    }
+  }
+  return options;
+}
+
+function inputName(path: string): string {
+  return path.endsWith('.tsx') ? '/input.tsx' : '/input.ts';
+}
+
+/** Parse, bind, semantic and global diagnostics of `/input.ts` (or `/input.tsx`), in that order. */
+function check(path: string, text: string, loader: LibLoader, defaults: CompilerOptions): Diagnostic[] {
+  const name = inputName(path);
+  const options = name === '/input.tsx' ? createJsxOptions(text) : defaults;
+  const file = parse(name, text);
   bindSourceFile(file);
   const files = loader.files.slice();
   files.push(file);
@@ -130,13 +187,14 @@ function utf8Offsets(text: string): Int32Array {
   return offsets;
 }
 
-function format(diagnostics: Diagnostic[], text: string, out: string[]): void {
+function format(diagnostics: Diagnostic[], path: string, text: string, out: string[]): void {
+  const input = inputName(path);
   const offsets = utf8Offsets(text);
   for (const d of diagnostics) {
     const name = d.file !== undefined ? d.file.fileName : '';
     let pos = d.pos;
     let len = d.end - d.pos;
-    if (d.file !== undefined && d.file.fileName === '/input.ts') {
+    if (d.file !== undefined && d.file.fileName === input) {
       const start = offsets[Math.min(d.pos, text.length)];
       pos = start;
       len = offsets[Math.min(d.end, text.length)] - start;
@@ -166,7 +224,7 @@ function main(): void {
       out.push('== ' + line);
       const start = out.length;
       try {
-        format(check(input, loader, options), input, out);
+        format(check(line, input, loader, options), line, input, out);
       } catch {
         out.length = start;
         out.push('!! panic');
@@ -176,12 +234,12 @@ function main(): void {
     const text = readFileSync(path, 'utf8');
     let count = 0;
     const start = performance.now();
-    for (let i = 0; i < 5; i++) count = check(text, loader, options).length;
+    for (let i = 0; i < 5; i++) count = check(path, text, loader, options).length;
     const ms = (performance.now() - start) / 5;
     out.push(`diagnostics ${count} time ${ms.toFixed(2)}ms`);
   } else {
     const text = readFileSync(path, 'utf8');
-    format(check(text, loader, options), text, out);
+    format(check(path, text, loader, options), path, text, out);
   }
   if (out.length > 0) process.stdout.write(out.join('\n') + '\n');
 }

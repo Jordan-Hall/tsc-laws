@@ -1,5 +1,7 @@
 // Command check-oracle prints TypeScript-Go's diagnostics for a file checked
-// against the bundled libs, or times checking with --bench.
+// against the bundled libs, or times checking with --bench. A .tsx file is
+// checked as /input.tsx with the JSX options of its @jsx, @jsxFactory,
+// @jsxFragmentFactory and @jsxImportSource directives.
 package main
 
 import (
@@ -7,12 +9,45 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
 	"github.com/microsoft/typescript-go/internal/ast"
 	"github.com/microsoft/typescript-go/internal/checkhost"
+	"github.com/microsoft/typescript-go/internal/core"
 )
+
+var directive = regexp.MustCompile(`(?im)^[ \t]*//[ \t]*@(\w+)[ \t]*:([^\r\n]*)`)
+
+var jsxEmits = map[string]core.JsxEmit{
+	"preserve":     core.JsxEmitPreserve,
+	"react-native": core.JsxEmitReactNative,
+	"react":        core.JsxEmitReact,
+	"react-jsx":    core.JsxEmitReactJSX,
+	"react-jsxdev": core.JsxEmitReactJSXDev,
+}
+
+func check(path string, text string, readLib func(name string) (string, bool)) []*ast.Diagnostic {
+	if !strings.HasSuffix(path, ".tsx") {
+		return checkhost.Check("/input.ts", text, readLib)
+	}
+	options := checkhost.DefaultOptions()
+	for _, m := range directive.FindAllStringSubmatch(text, -1) {
+		value := strings.TrimSpace(strings.Split(m[2], ",")[0])
+		switch strings.ToLower(m[1]) {
+		case "jsx":
+			options.Jsx = jsxEmits[strings.ToLower(value)]
+		case "jsxfactory":
+			options.JsxFactory = value
+		case "jsxfragmentfactory":
+			options.JsxFragmentFactory = value
+		case "jsximportsource":
+			options.JsxImportSource = value
+		}
+	}
+	return checkhost.CheckWithOptions("/input.tsx", text, options, readLib)
+}
 
 func main() {
 	data, err := os.ReadFile(os.Args[1])
@@ -44,7 +79,7 @@ func main() {
 						fmt.Fprintf(w, "!! panic\n")
 					}
 				}()
-				print(w, checkhost.Check("/input.ts", string(input), readLib))
+				print(w, check(line, string(input), readLib))
 			}()
 		}
 		return
@@ -53,14 +88,14 @@ func main() {
 		start := time.Now()
 		var diags []*ast.Diagnostic
 		for range 5 {
-			diags = checkhost.Check("/input.ts", text, readLib)
+			diags = check(os.Args[1], text, readLib)
 		}
 		fmt.Printf("diagnostics %d time %.2fms\n", len(diags), float64(time.Since(start).Microseconds())/1000/5)
 		return
 	}
 	w := bufio.NewWriter(os.Stdout)
 	defer w.Flush()
-	print(w, checkhost.Check("/input.ts", text, readLib))
+	print(w, check(os.Args[1], text, readLib))
 }
 
 func print(w *bufio.Writer, diags []*ast.Diagnostic) {

@@ -23,6 +23,7 @@
 // | checker-classes.ts              | classes and interfaces                                  |
 // | checker-heritage.ts             | base types, overrides, index constraints, duplicates    |
 // | checker-jsx.ts                  | JSX                                                     |
+// | checker-elaboration.ts          | reporting relation errors at the failing subexpression  |
 // | checker-grammar.ts              | grammar checks                                          |
 // | checker-flow.ts                 | control flow narrowing                                  |
 import { type Node, type PatternAmbientModule, type SourceFile, getNodeId } from './ast.js';
@@ -86,6 +87,7 @@ import { TypeNodeVisitor, checkSourceFile } from './checker-source-file.js';
 import { InferenceCaches } from './checker-inference.js';
 import { AssignmentMarker, type FlowLoopInfo } from './checker-narrowing.js';
 import type { FlowNode } from './flow.js';
+import { JsxState } from './checker-jsx.js';
 import type { SourceFileMetadata } from './program-utilities.js';
 
 /** What the checker needs from a program. */
@@ -96,6 +98,10 @@ export abstract class CheckerHost {
   abstract isSourceFileDefaultLibrary(file: SourceFile): boolean;
   /** The source file of a resolved module specifier, if any. */
   abstract getSourceFileForModuleName(file: SourceFile, moduleName: string): SourceFile | undefined;
+  /** The synthetic specifier of a file's implicit JSX runtime import, such as `react/jsx-runtime`, if any. */
+  getJSXRuntimeImportSpecifier(_file: SourceFile): Node | undefined {
+    return undefined;
+  }
   /** The format `file` is emitted in when it differs from `module`, else `None`. */
   getImpliedNodeFormatForEmit(_file: SourceFile): ModuleKind {
     return ModuleKind.None;
@@ -366,6 +372,8 @@ export class Checker {
   readonly deferredNodes: Node[] = [];
   readonly deferredNodeIds = new Set<number>();
   readonly typeNodeVisitor: TypeNodeVisitor;
+
+  readonly jsx = new JsxState();
 
   // Ambient modules
   readonly ambientModuleSymbols: Symbol[] = [];

@@ -1534,7 +1534,7 @@ class TemplateMatcher {
   }
 
   sourceText(index: number): string {
-    return index < this.lastSourceIndex ? this.sourceTexts[index] : this.remainingEndText;
+    return index < this.lastSourceIndex ? this.sourceTexts[index]! : this.remainingEndText;
   }
 
   addMatch(s: number, p: number): void {
@@ -1757,7 +1757,7 @@ export function inferReverseMappedType(
   const caches = c.inferenceCaches;
   if (caches.reverseMapped.has(key)) return caches.reverseMapped.get(key) ?? c.unknownType;
   caches.reverseSourceStack.push(source);
-  caches.reverseTargetStack.push(target);
+  caches.reverseTargetStack.push(target as Type);
   const saveExpandingFlags = caches.reverseExpandingFlags;
   if (isDeeplyNestedType(c, source, caches.reverseSourceStack, 2))
     caches.reverseExpandingFlags |= ExpandingFlags.Source;
@@ -1879,14 +1879,13 @@ export function instantiateReverseMappedType(c: Checker, t: ReverseMappedType, m
   if ((innerMappedType.objectFlags & ObjectFlags.Mapped) === 0) return t;
   const innerIndexType = instantiateType(c, t.constraintType!, mapper);
   if ((innerIndexType.flags & TypeFlags.Index) === 0) return t;
-  return (
-    inferTypeForHomomorphicMappedType(
-      c,
-      instantiateType(c, t.source!, mapper),
-      innerMappedType as MappedType,
-      innerIndexType as IndexType,
-    ) ?? t
+  const inferred = inferTypeForHomomorphicMappedType(
+    c,
+    instantiateType(c, t.source!, mapper),
+    innerMappedType as MappedType,
+    innerIndexType as IndexType,
   );
+  return inferred === undefined ? t : (inferred as Type);
 }
 
 // ---- Inferred types

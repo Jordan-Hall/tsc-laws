@@ -1,4 +1,5 @@
 // Functions: function expressions and arrows, bodies, inferred return types, `await`.
+import { isJsxAttributesContextSensitive } from './checker-jsx.js';
 import {
   type Block,
   type ConditionalExpression,
@@ -388,6 +389,17 @@ export function isContextSensitive(c: Checker, node: Node): boolean {
       return isContextSensitive(c, getInitializer(node)!);
     case SyntaxKind.ParenthesizedExpression:
       return isContextSensitive(c, getExpression(node)!);
+    case SyntaxKind.JsxAttributes:
+      return isJsxAttributesContextSensitive(c, node);
+    case SyntaxKind.JsxAttribute: {
+      // Without an initializer an attribute is `true`.
+      const initializer = getInitializer(node);
+      return initializer !== undefined && isContextSensitive(c, initializer);
+    }
+    case SyntaxKind.JsxExpression: {
+      const expression = getExpression(node);
+      return expression !== undefined && isContextSensitive(c, expression);
+    }
   }
   return false;
 }

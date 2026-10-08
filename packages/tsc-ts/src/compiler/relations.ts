@@ -127,6 +127,7 @@ import {
   isTypeParameterPossiblyReferenced,
   getRestrictiveInstantiation,
 } from './instantiation.js';
+import { getSuggestedSymbolForNonexistentJSXAttribute, isJsxOpeningLikeElement } from './checker-jsx.js';
 import { signatureToString, symbolToString, typeToString, typePredicateToString } from './type-printer.js';
 import {
   getConstraintFromConditionalType,
@@ -1010,6 +1011,35 @@ export class Relater extends TypeComparer {
         if (reportErrors) {
           // Report in terms of the object types we check in isKnownProperty, at the property.
           const errorTarget = filterType(c, reducedTarget, isExcessPropertyCheckTarget);
+          const errorNode = this.errorNode!;
+          if (
+            errorNode.kind === SyntaxKind.JsxAttributes ||
+            isJsxOpeningLikeElement(errorNode) ||
+            (errorNode.parent !== undefined && isJsxOpeningLikeElement(errorNode.parent))
+          ) {
+            // Attributes are checked like object literals but reported as attributes, at the attribute.
+            const valueDeclaration = prop.valueDeclaration;
+            if (
+              valueDeclaration !== undefined &&
+              valueDeclaration.kind === SyntaxKind.JsxAttribute &&
+              sameFile(valueDeclaration, errorNode)
+            )
+              this.errorNode = getName(valueDeclaration)!;
+            const propName = symbolToString(c, prop);
+            const suggestion = getSuggestedSymbolForNonexistentJSXAttribute(c, propName, errorTarget);
+            if (suggestion !== undefined)
+              this.reportError(Diagnostics.Property_0_does_not_exist_on_type_1_Did_you_mean_2, [
+                propName,
+                typeToString(c, errorTarget),
+                symbolToString(c, suggestion),
+              ]);
+            else
+              this.reportError(Diagnostics.Property_0_does_not_exist_on_type_1, [
+                propName,
+                typeToString(c, errorTarget),
+              ]);
+            return true;
+          }
           const objectLiteralDeclaration =
             source.symbol !== undefined && source.symbol.declarations.length !== 0
               ? source.symbol.declarations[0]

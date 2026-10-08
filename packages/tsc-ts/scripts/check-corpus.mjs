@@ -4,7 +4,7 @@
 // Usage: node scripts/check-corpus.mjs [--native BINARY] [--jobs N] [--limit N] [--cache FILE]
 //                                      [--save FILE] [--list] [--show CODE] [compiler|conformance|DIR|FILE ...]
 //
-// Test cases are checked whole, as `/input.ts`. Without --native, the checker runs under Node from
+// Test cases are checked whole, as `/input.ts`, or as `/input.tsx` with their JSX directives. Without --native, the checker runs under Node from
 // a tsc build. --cache stores the oracle's output, which only changes with the reference build.
 // --save writes the checker's output as JSON. --list prints the differing files; --show CODE prints
 // the files with mismatches of that code.
@@ -96,6 +96,9 @@ async function expectedResults(paths) {
     cacheFile !== undefined && existsSync(cacheFile)
       ? new Map(Object.entries(JSON.parse(readFileSync(cacheFile, 'utf8'))))
       : new Map();
+  // Entries from before .tsx cases were checked as JSX are stale.
+  if (!cached.has('#jsx')) for (const key of cached.keys()) if (key.endsWith('.tsx')) cached.delete(key);
+  cached.set('#jsx', []);
   const missing = paths.filter((p) => !cached.has(p));
   if (missing.length > 0) {
     for (const [file, diags] of await runAll([oracle], missing)) cached.set(file, diags);
@@ -117,6 +120,8 @@ let matched = 0;
 let clean = 0;
 let cleanMatched = 0;
 let crashed = 0;
+let jsxCompared = 0;
+let jsxMatched = 0;
 const missingByCode = new Map();
 const extraByCode = new Map();
 const filesByCode = new Map();
@@ -126,10 +131,13 @@ for (const file of paths) {
   const want = expected.get(file);
   if (want === undefined || want.includes('!! panic')) continue;
   compared++;
+  const isJsx = file.endsWith('.tsx');
+  if (isJsx) jsxCompared++;
   const got = actual.get(file);
   if (want.length === 0) clean++;
   if (got !== undefined && JSON.stringify(want) === JSON.stringify(got)) {
     matched++;
+    if (isJsx) jsxMatched++;
     if (want.length === 0) cleanMatched++;
     continue;
   }
@@ -160,6 +168,7 @@ for (const file of paths) {
 const pct = (a, b) => (b === 0 ? '0.0' : ((100 * a) / b).toFixed(1));
 console.log(`${matched} of ${compared} files match tsgo (${pct(matched, compared)}%) in ${seconds}s`);
 console.log(`${cleanMatched} of ${clean} files without diagnostics match (${pct(cleanMatched, clean)}%)`);
+console.log(`${jsxMatched} of ${jsxCompared} .tsx files match (${pct(jsxMatched, jsxCompared)}%)`);
 console.log(`${crashed} files crashed`);
 const top = (map) =>
   [...map]

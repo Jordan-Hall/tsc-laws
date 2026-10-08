@@ -1,5 +1,7 @@
 // Types of value symbols: variables, parameters, properties, accessors, functions, classes,
 // enums, modules and aliases; optionality and widening.
+import { checkJsxAttribute } from './checker-jsx.js';
+import { CheckMode } from './checker-types.js';
 import {
   ModifierFlags,
   type Node,
@@ -67,6 +69,7 @@ import {
   resolveAlias,
   resolveExternalModuleSymbol,
   TypeSystemPropertyName,
+  getTargetOfAliasDeclaration,
 } from './checker-symbols.js';
 import {
   getBaseConstructorTypeOfClass,
@@ -214,8 +217,10 @@ function getTypeOfVariableOrParameterOrPropertyWorker(c: Checker, symbol: Symbol
     case SyntaxKind.PropertyAssignment:
     case SyntaxKind.ShorthandPropertyAssignment:
     case SyntaxKind.MethodDeclaration:
-    case SyntaxKind.JsxAttribute:
       result = checkExpressionCached(c, declaration);
+      break;
+    case SyntaxKind.JsxAttribute:
+      result = checkJsxAttribute(c, declaration, CheckMode.Normal);
       break;
     case SyntaxKind.ExportAssignment: {
       const typeNode = getType(declaration);
@@ -749,12 +754,14 @@ function getTypeOfAlias(c: Checker, symbol: Symbol): Type {
   if (links.type !== undefined) return links.type;
   if (!pushTypeResolution(c, symbol, TypeSystemPropertyName.Type)) return c.errorType;
   const targetSymbol = resolveAlias(c, symbol);
+  const declaration = getDeclarationOfAliasSymbol(symbol);
+  const exportSymbol = declaration !== undefined ? getTargetOfAliasDeclaration(c, declaration) : undefined;
   // Only values have types.
   if (links.type === undefined)
     links.type =
       (getSymbolFlags(c, targetSymbol) & SymbolFlags.Value) !== 0 ? getTypeOfSymbol(c, targetSymbol) : c.errorType;
   if (!popTypeResolution(c)) {
-    reportCircularityError(c, symbol);
+    reportCircularityError(c, exportSymbol ?? symbol);
     if (links.type === undefined) links.type = c.errorType;
   }
   return links.type;

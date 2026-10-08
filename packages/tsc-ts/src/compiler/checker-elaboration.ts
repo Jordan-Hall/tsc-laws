@@ -41,6 +41,7 @@ import { createPromiseType } from './checker-globals.js';
 import { FunctionFlags, getFunctionFlags } from './checker-utilities.js';
 import { typeToString } from './type-printer.js';
 import { CheckMode } from './checker-types.js';
+import { elaborateJsxComponents } from './checker-jsx.js';
 
 /** Checks that `source` relates to `target`, elaborating into `expr` when possible. */
 export function checkTypeRelatedToAndOptionallyElaborate(
@@ -101,6 +102,7 @@ export function elaborateError(
     case SyntaxKind.AsExpression:
       if (!isConstAssertion(node)) break;
       return elaborateError(c, getExpression(node), source, target, relation, headMessage, diagnosticOutput);
+    case SyntaxKind.JsxExpression:
     case SyntaxKind.ParenthesizedExpression:
       return elaborateError(c, getExpression(node), source, target, relation, headMessage, diagnosticOutput);
     case SyntaxKind.BinaryExpression: {
@@ -116,6 +118,8 @@ export function elaborateError(
       return elaborateArrayLiteral(c, node, source, target, relation, diagnosticOutput);
     case SyntaxKind.ArrowFunction:
       return elaborateArrowFunction(c, node as ArrowFunction, source, target, relation, diagnosticOutput);
+    case SyntaxKind.JsxAttributes:
+      return elaborateJsxComponents(c, node, source, target, relation, diagnosticOutput);
   }
   return false;
 }
@@ -197,6 +201,8 @@ function elaborateObjectLiteral(
             undefined,
             nameType,
             undefined,
+            undefined,
+            [],
             diagnosticOutput,
           ) || reportedError;
         break;
@@ -215,6 +221,8 @@ function elaborateObjectLiteral(
             (prop as PropertyAssignment).initializer,
             nameType,
             message,
+            undefined,
+            [],
             diagnosticOutput,
           ) || reportedError;
         break;
@@ -269,6 +277,8 @@ function elaborateArrayLiteral(
         checkNode,
         getNumberLiteralType(c, i),
         undefined,
+        undefined,
+        [],
         diagnosticOutput,
       ) || reportedError;
   }
@@ -282,7 +292,11 @@ function getEffectiveCheckNode(argument: Node): Node {
   return node;
 }
 
-function elaborateElement(
+/**
+ * Elaborates the element `nameType` of `source` against `target`, reporting at `prop`. With `customMessage`,
+ * that message is reported instead of the relation error.
+ */
+export function elaborateElement(
   c: Checker,
   source: Type,
   target: Type,
@@ -291,6 +305,8 @@ function elaborateElement(
   next: Node | undefined,
   nameType: Type,
   errorMessage: DiagnosticMessage | undefined,
+  customMessage: DiagnosticMessage | undefined,
+  customArgs: string[],
   diagnosticOutput: Diagnostic[] | undefined,
 ): boolean {
   let targetPropType = getBestMatchIndexedAccessTypeOrUndefined(c, source, target, nameType);
@@ -311,17 +327,20 @@ function elaborateElement(
   const diagnostics: Diagnostic[] = [];
   const specificSource =
     next !== undefined ? checkExpressionForMutableLocationWithContextualType(c, next, sourcePropType) : sourcePropType;
-  const propName = getPropertyNameFromIndex(nameType);
-  const targetProperty = propName !== undefined ? getPropertyOfType(c, target, propName) : undefined;
-  const sourceProperty = propName !== undefined ? getPropertyOfType(c, source, propName) : undefined;
-  const targetIsOptional = targetProperty !== undefined && (targetProperty.flags & SymbolFlags.Optional) !== 0;
-  const sourceIsOptional = sourceProperty !== undefined && (sourceProperty.flags & SymbolFlags.Optional) !== 0;
-  targetPropType = removeMissingType(c, targetPropType, targetIsOptional);
-  sourcePropType = removeMissingType(c, sourcePropType, targetIsOptional && sourceIsOptional);
-  const result = checkTypeRelatedTo(c, specificSource, targetPropType, relation, prop, errorMessage, diagnostics);
-  // When the expression type doesn't fail, the property type still must.
-  if (result && specificSource !== sourcePropType)
-    checkTypeRelatedTo(c, sourcePropType, targetPropType, relation, prop, errorMessage, diagnostics);
+  if (customMessage !== undefined) diagnostics.push(createDiagnosticForNode(prop, customMessage, customArgs));
+  else {
+    const propName = getPropertyNameFromIndex(nameType);
+    const targetProperty = propName !== undefined ? getPropertyOfType(c, target, propName) : undefined;
+    const sourceProperty = propName !== undefined ? getPropertyOfType(c, source, propName) : undefined;
+    const targetIsOptional = targetProperty !== undefined && (targetProperty.flags & SymbolFlags.Optional) !== 0;
+    const sourceIsOptional = sourceProperty !== undefined && (sourceProperty.flags & SymbolFlags.Optional) !== 0;
+    targetPropType = removeMissingType(c, targetPropType, targetIsOptional);
+    sourcePropType = removeMissingType(c, sourcePropType, targetIsOptional && sourceIsOptional);
+    const result = checkTypeRelatedTo(c, specificSource, targetPropType, relation, prop, errorMessage, diagnostics);
+    // When the expression type doesn't fail, the property type still must.
+    if (result && specificSource !== sourcePropType)
+      checkTypeRelatedTo(c, sourcePropType, targetPropType, relation, prop, errorMessage, diagnostics);
+  }
   if (diagnostics.length === 0) return false;
   const diagnostic = diagnostics[0];
   let propertyName = '';
@@ -372,7 +391,7 @@ function elaborateElement(
   return true;
 }
 
-function getBestMatchIndexedAccessTypeOrUndefined(
+export function getBestMatchIndexedAccessTypeOrUndefined(
   c: Checker,
   source: Type,
   target: Type,
@@ -387,7 +406,11 @@ function getBestMatchIndexedAccessTypeOrUndefined(
   return undefined;
 }
 
-function checkExpressionForMutableLocationWithContextualType(c: Checker, next: Node, sourcePropType: Type): Type {
+export function checkExpressionForMutableLocationWithContextualType(
+  c: Checker,
+  next: Node,
+  sourcePropType: Type,
+): Type {
   pushContextualType(c, next, sourcePropType, false);
   const result = checkExpressionForMutableLocationEx(c, next, CheckMode.Contextual);
   popContextualType(c);
