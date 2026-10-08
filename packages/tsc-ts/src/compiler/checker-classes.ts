@@ -286,10 +286,7 @@ function checkConstructorSuperCall(c: Checker, node: Node): void {
     getUseDefineForClassFields(c.compilerOptions) && getEmitScriptTarget(c.compilerOptions) >= ScriptTarget.ES2022;
   if (emitStandardClassFields) return;
   // Until there's better flow analysis, the super call must be a root statement when properties are initialized.
-  const needsRootLevelSuperCall =
-    getMembers(classDecl)!.nodes.some(isInstancePropertyWithInitializerOrPrivateIdentifierProperty) ||
-    getParameters(node)!.nodes.some((p) => hasSyntacticModifier(p, ModifierFlags.ParameterPropertyModifier));
-  if (!needsRootLevelSuperCall) return;
+  if (!needsRootLevelSuperCall(classDecl, node)) return;
   let parent = superCall.parent!;
   while (parent.kind === SyntaxKind.ParenthesizedExpression) parent = parent.parent!;
   if (parent.kind !== SyntaxKind.ExpressionStatement || parent.parent !== body) {
@@ -328,6 +325,14 @@ function skipOuterExpressions(node: Node): Node {
   )
     n = getExpression(n)!;
   return n;
+}
+
+function needsRootLevelSuperCall(classDecl: Node, constructor: Node): boolean {
+  for (const m of getMembers(classDecl)!.nodes)
+    if (isInstancePropertyWithInitializerOrPrivateIdentifierProperty(m)) return true;
+  for (const p of getParameters(constructor)!.nodes)
+    if (hasSyntacticModifier(p, ModifierFlags.ParameterPropertyModifier)) return true;
+  return false;
 }
 
 function isInstancePropertyWithInitializerOrPrivateIdentifierProperty(n: Node): boolean {

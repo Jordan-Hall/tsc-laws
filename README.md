@@ -2,6 +2,26 @@
 
 An experimental TypeScript port of the TypeScript 7.0.2 compiler ([TypeScript-Go](https://github.com/microsoft/typescript-go), or tsgo), compiled to native code with [scriptc](https://scriptc.dev).
 
+## Installation
+
+The packages aren't published to npm yet.
+
+```sh
+npm install -D tsc-ts
+npx tsc-ts -p tsconfig.json
+```
+
+The `tsc-ts` package runs a native executable from a per-platform optional dependency (`@tsc-ts/darwin-arm64`, `@tsc-ts/linux-x64-gnu`, …). See [`packages/tsc-ts`](packages/tsc-ts/README.md).
+
+To build the packages for the current platform:
+
+```sh
+npm run pack:npm -w tsc-ts             # packages/tsc-ts/dist/npm/*.tgz
+npm run pack:npm -w tsc-ts -- --check  # also install the tarballs and compile a project
+```
+
+`-- --binary dist/tsc` packs an existing native build, relative to `packages/tsc-ts`, instead of building one.
+
 ## Packages
 
 | Package                                | Description                                                                             |
@@ -46,7 +66,7 @@ npm run build:oracle     # tsgo reference builds in packages/*/dist
 | JavaScript emit              | emitted files, 39 option sets                       | all compared units match |
 | Declaration emit             | `.d.ts` and `.d.ts.map` output, declaration errors  | all units match          |
 | `--build`, `--incremental`   | output, `.tsbuildinfo`, emitted files, `--watch`    | all scenarios match      |
-| Type checker                 | diagnostics per file                                | 99.9% of files match     |
+| Type checker                 | diagnostics per file                                | all files match          |
 
 The corpus scripts are in `packages/tsc-ts/scripts` (`*-corpus.mjs`).
 

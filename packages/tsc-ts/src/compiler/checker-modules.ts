@@ -378,7 +378,7 @@ function canHaveSyntheticDefault(
   if (file === undefined || file.isDeclarationFile) {
     // A syntactic default export or an `__esModule` marker rules it out.
     const defaultExport = resolveExportByName(c, moduleSymbol, InternalSymbolName.Default, undefined, true);
-    if (defaultExport !== undefined && defaultExport.declarations.some(isSyntacticDefault)) return false;
+    if (defaultExport !== undefined && hasSyntacticDefault(defaultExport)) return false;
     return resolveExportByName(c, moduleSymbol, '__esModule', undefined, dontResolveAlias) === undefined;
   }
   // TypeScript files are emitted with `__esModule` unless they use `export =`.
@@ -388,6 +388,11 @@ function canHaveSyntheticDefault(
     (file.externalModuleIndicator === undefined || file.externalModuleIndicator === file) &&
     resolveExportByName(c, moduleSymbol, '__esModule', undefined, dontResolveAlias) === undefined
   );
+}
+
+function hasSyntacticDefault(symbol: Symbol): boolean {
+  for (const d of symbol.declarations) if (isSyntacticDefault(d)) return true;
+  return false;
 }
 
 function isSyntacticDefault(node: Node): boolean {

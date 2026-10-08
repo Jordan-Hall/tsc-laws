@@ -62,8 +62,14 @@ export function getTypeReferenceSerializationKind(
   let isTypeOnly = false;
   if (typeName instanceof QualifiedName) {
     const root = resolveEntityName(resolver, getFirstIdentifier(typeName), SymbolFlags.Value, true, location);
-    if (root !== undefined && root !== unknownSymbol && root.declarations.length > 0)
-      isTypeOnly = root.declarations.every(isTypeOnlyImportOrExportDeclaration);
+    if (root !== undefined && root !== unknownSymbol && root.declarations.length > 0) {
+      isTypeOnly = true;
+      for (const declaration of root.declarations)
+        if (!isTypeOnlyImportOrExportDeclaration(declaration)) {
+          isTypeOnly = false;
+          break;
+        }
+    }
   }
   const valueSymbol = resolveEntityName(resolver, typeName, SymbolFlags.Value, true, location);
   const resolvedValue = valueSymbol === undefined ? undefined : resolveAlias(resolver, valueSymbol);
@@ -198,7 +204,7 @@ class TypeClassifier {
       return TypeReferenceSerializationKind.ObjectType;
     }
     if ((flags & SymbolFlags.TypeParameter) !== 0) {
-      const declaration = symbol.declarations.length > 0 ? symbol.declarations[0] : undefined;
+      const declaration = symbol.declarations.length > 0 ? symbol.declarations[0]! : undefined;
       if (declaration instanceof TypeParameterDeclaration && declaration.constraint !== undefined)
         return this.ofTypeNode(declaration.constraint, declaration, depth + 1);
       return TypeReferenceSerializationKind.ObjectType;

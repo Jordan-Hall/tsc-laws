@@ -11,7 +11,7 @@ export function getRelativePathToDirectoryOrUrl(
   currentDirectory: string,
 ): string {
   const components = getPathComponentsRelativeTo(directory, path, useCaseSensitiveFileNames, currentDirectory);
-  const first = components[0];
+  const first = components[0]!;
   if (isRootedDiskPath(first)) components[0] = (first.charCodeAt(0) === 0x2f ? 'file://' : 'file:///') + first;
   return getPathFromPathComponents(components);
 }
@@ -264,10 +264,10 @@ export class SourceMapGenerator {
       jsonString(mappings);
     if (this.sourcesContent.length > 0) {
       json += ',"sourcesContent":[';
-      for (let i = 0; i < this.sourcesContent.length; i++) {
-        if (i > 0) json += ',';
-        const content = this.sourcesContent[i];
-        json += content === undefined ? 'null' : jsonString(content);
+      let separator = '';
+      for (const content of this.sourcesContent) {
+        json += separator + (content === undefined ? 'null' : jsonString(content));
+        separator = ',';
       }
       json += ']';
     }
@@ -307,7 +307,7 @@ function jsonStrings(values: readonly string[]): string {
   let out = '[';
   for (let i = 0; i < values.length; i++) {
     if (i > 0) out += ',';
-    out += jsonString(values[i]);
+    out += jsonString(values[i]!);
   }
   return out + ']';
 }

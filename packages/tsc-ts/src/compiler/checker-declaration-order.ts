@@ -49,9 +49,13 @@ export function checkResolvedBlockScopedVariable(c: Checker, resolved: Symbol, e
     (result.flags & SymbolFlags.Class) !== 0
   )
     return;
-  const declaration = result.declarations.find(
-    (d) => isBlockOrCatchScoped(d) || isClassLike(d) || d.kind === SyntaxKind.EnumDeclaration,
-  );
+  let declaration: Node | undefined;
+  for (const d of result.declarations) {
+    if (isBlockOrCatchScoped(d) || isClassLike(d) || d.kind === SyntaxKind.EnumDeclaration) {
+      declaration = d;
+      break;
+    }
+  }
   if (
     declaration === undefined ||
     (declaration.flags & NodeFlags.Ambient) !== 0 ||
@@ -331,9 +335,9 @@ function isUsedInFunctionOrInstanceProperty(
           const propName = getName(declaration)!;
           if (propName.kind === SyntaxKind.Identifier || propName.kind === SyntaxKind.PrivateIdentifier) {
             const symbol = getSymbolOfDeclaration(c, declaration);
-            const staticBlocks = getMembers(declaration.parent!)!.nodes.filter(
-              (m) => m.kind === SyntaxKind.ClassStaticBlockDeclaration,
-            );
+            const staticBlocks: Node[] = [];
+            for (const m of getMembers(declaration.parent!)!.nodes)
+              if (m.kind === SyntaxKind.ClassStaticBlockDeclaration) staticBlocks.push(m);
             if (
               symbol !== undefined &&
               isPropertyInitializedInStaticBlocks(

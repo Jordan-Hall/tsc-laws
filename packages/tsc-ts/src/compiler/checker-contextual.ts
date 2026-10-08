@@ -71,7 +71,7 @@ import {
   getSignaturesOfType,
 } from './checker-members.js';
 import { getTypeFromTypeNode } from './checker-type-nodes.js';
-import { SymbolFlags } from './symbol.js';
+import { CheckFlags, SymbolFlags } from './symbol.js';
 import {
   TypeSystemPropertyName,
   findResolutionCycleStartIndex,
@@ -141,7 +141,11 @@ import {
   checkExpressionEx,
   isLiteralOfContextualType,
 } from './checker-expressions.js';
-import { type InferenceContext, getMapperFromContext, hasInferenceCandidatesOrDefault } from './checker-inference.js';
+import {
+  type InferenceContext,
+  getMapperFromContext,
+  someInferenceHasCandidatesOrDefault,
+} from './checker-inference.js';
 import { instantiateType, isNodeDescendantOf } from './instantiation.js';
 import { getIndexedAccessTypeEx } from './checker-type-operators.js';
 import { getTypeOfSymbol } from './checker-symbol-types.js';
@@ -228,7 +232,7 @@ export function popInferenceContext(c: Checker): void {
 export function getInferenceContext(c: Checker, node: Node): InferenceContext | undefined {
   const caches = c.inferenceCaches;
   for (let i = caches.inferenceNodes.length - 1; i >= 0; i--)
-    if (isNodeDescendantOf(node, caches.inferenceNodes[i]!)) return caches.inferenceContexts[i];
+    if (isNodeDescendantOf(node, caches.inferenceNodes[i]!)) return caches.inferenceContexts.at(i);
   return undefined;
 }
 
@@ -281,7 +285,7 @@ export function instantiateContextualType(
   if (inferenceContext === undefined) return contextualType;
   if (
     (contextFlags & ContextFlags.Signature) !== 0 &&
-    inferenceContext.inferences.some(hasInferenceCandidatesOrDefault)
+    someInferenceHasCandidatesOrDefault(inferenceContext.inferences)
   ) {
     // Contextual signatures use all inferences so far, from return types and earlier arguments.
     const t = instantiateInstantiableTypes(c, contextualType, inferenceContext.nonFixingMapper);
@@ -308,20 +312,12 @@ export function instantiateContextualType(
 /** Like instantiateType, but only for instantiable types and without reducing unions. */
 function instantiateInstantiableTypes(c: Checker, t: Type, mapper: TypeMapper): Type {
   if ((t.flags & TypeFlags.Instantiable) !== 0) return instantiateType(c, t, mapper);
-  if ((t.flags & TypeFlags.Union) !== 0)
-    return getUnionTypeEx(
-      c,
-      typesOf(t).map((u) => instantiateInstantiableTypes(c, u, mapper)),
-      UnionReduction.None,
-      undefined,
-      undefined,
-    );
-  if ((t.flags & TypeFlags.Intersection) !== 0)
-    return getIntersectionType(
-      c,
-      typesOf(t).map((u) => instantiateInstantiableTypes(c, u, mapper)),
-    );
-  return t;
+  if ((t.flags & TypeFlags.UnionOrIntersection) === 0) return t;
+  const types: Type[] = [];
+  for (const u of typesOf(t)) types.push(instantiateInstantiableTypes(c, u, mapper));
+  return (t.flags & TypeFlags.Union) !== 0
+    ? getUnionTypeEx(c, types, UnionReduction.None, undefined, undefined)
+    : getIntersectionType(c, types);
 }
 
 /** The type implied by `node`'s position, if any. */
@@ -332,7 +328,7 @@ export function getContextualType(c: Checker, node: Node): Type | undefined {
 export function getContextualTypeEx(c: Checker, node: Node, contextFlags: ContextFlags): Type | undefined {
   // Cached contextual types were obtained without flags.
   const index = findContextualNode(c, node, contextFlags === ContextFlags.None);
-  if (index >= 0) return c.inferenceCaches.contextualTypes[index];
+  if (index >= 0) return c.inferenceCaches.contextualTypes.at(index);
   const parent = node.parent;
   if (parent === undefined) return undefined;
   switch (parent.kind) {
@@ -623,7 +619,8 @@ export function getContextualReturnType(c: Checker, func: Node): Type | undefine
 
 function isResolvingReturnTypeOfSignature(c: Checker, signature: Signature): boolean {
   const composite = signature.composite;
-  if (composite !== undefined && composite.signatures.some((s) => isResolvingReturnTypeOfSignature(c, s))) return true;
+  if (composite !== undefined)
+    for (const s of composite.signatures) if (isResolvingReturnTypeOfSignature(c, s)) return true;
   return (
     signature.resolvedReturnType === undefined &&
     findResolutionCycleStartIndex(c, signature, TypeSystemPropertyName.ResolvedReturnType) >= 0
@@ -882,14 +879,23 @@ function isExcludedMappedPropertyName(c: Checker, t: Type, propertyNameType: Typ
     );
   }
   if ((t.flags & TypeFlags.Intersection) !== 0)
-    return typesOf(t).some((u) => isExcludedMappedPropertyName(c, u, propertyNameType));
+    for (const u of typesOf(t)) if (isExcludedMappedPropertyName(c, u, propertyNameType)) return true;
   return false;
 }
 
 function getTypeOfConcretePropertyOfContextualType(c: Checker, t: Type, name: string): Type | undefined {
   const prop = getPropertyOfType(c, t, name);
-  if (prop === undefined) return undefined;
+  if (prop === undefined || isCircularMappedProperty(c, prop)) return undefined;
   return removeMissingType(c, getTypeOfSymbol(c, prop), (prop.flags & SymbolFlags.Optional) !== 0);
+}
+
+/** Whether the type of a mapped type property is being resolved. */
+function isCircularMappedProperty(c: Checker, symbol: Symbol): boolean {
+  return (
+    (symbol.checkFlags & CheckFlags.Mapped) !== 0 &&
+    c.symbolLinks(symbol).type === undefined &&
+    findResolutionCycleStartIndex(c, symbol, TypeSystemPropertyName.Type) >= 0
+  );
 }
 
 function getTypeFromIndexInfosOfContextualType(
@@ -1053,15 +1059,19 @@ function discriminateContextualTypeByJSXAttributes(c: Checker, node: Node, conte
 function getMatchingUnionConstituentForObjectLiteral(c: Checker, unionType: UnionType, node: Node): Type | undefined {
   const keyPropertyName = getKeyPropertyName(c, unionType);
   if (keyPropertyName === '') return undefined;
-  const propNode = getProperties(node)!.nodes.find((p) => {
+  let propNode: Node | undefined;
+  for (const p of getProperties(node)!.nodes) {
     const symbol = getSymbol(p);
-    return (
+    if (
       symbol !== undefined &&
       p.kind === SyntaxKind.PropertyAssignment &&
       symbol.name === keyPropertyName &&
       isPossiblyDiscriminantValue((p as PropertyAssignment).initializer)
-    );
-  });
+    ) {
+      propNode = p;
+      break;
+    }
+  }
   if (propNode === undefined) return undefined;
   return getConstituentTypeForKeyType(
     c,
@@ -1226,7 +1236,8 @@ export function getContextualSignature(c: Checker, node: Node): Signature | unde
 /** The single call signature of `t` with at least as many parameters as `node`. */
 export function getContextualCallSignature(c: Checker, t: Type, node: Node): Signature | undefined {
   const signatures = getSignaturesOfType(c, t, SignatureKind.Call);
-  const applicableByArity = signatures.filter((s) => !isAritySmaller(c, s, node));
+  const applicableByArity: Signature[] = [];
+  for (const s of signatures) if (!isAritySmaller(c, s, node)) applicableByArity.push(s);
   return applicableByArity.length === 1 ? applicableByArity[0]! : getIntersectedSignatures(c, applicableByArity);
 }
 

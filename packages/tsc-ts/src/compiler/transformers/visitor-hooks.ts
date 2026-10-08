@@ -34,7 +34,7 @@ export abstract class VisitorHooks {
     const visited = this.visit(node);
     if (visited instanceof SyntaxList) {
       if (visited.children.length !== 1) throw new Error('Expected only a single node to be written to output');
-      return visited.children[0];
+      return visited.children[0]!;
     }
     return visited;
   }
@@ -46,16 +46,16 @@ export abstract class VisitorHooks {
   /** The visited nodes, or `nodes` itself if nothing changed. */
   visitArray(nodes: Node[]): Node[] {
     for (let i = 0; i < nodes.length; i++) {
-      const node = nodes[i];
+      const node = nodes[i]!;
       let visited = this.visit(node);
       if (visited === node) continue;
       const updated = nodes.slice(0, i);
       for (;;) {
         if (visited instanceof SyntaxList)
-          for (let j = 0; j < visited.children.length; j++) updated.push(visited.children[j]);
+          for (let j = 0; j < visited.children.length; j++) updated.push(visited.children[j]!);
         else if (visited !== undefined) updated.push(visited);
         if (++i >= nodes.length) break;
-        visited = this.visit(nodes[i]);
+        visited = this.visit(nodes[i]!);
       }
       return updated;
     }
@@ -80,7 +80,7 @@ export abstract class VisitorHooks {
 
   liftToBlock(node: Node | undefined): Node {
     if (node instanceof SyntaxList) {
-      if (node.children.length === 1) return node.children[0];
+      if (node.children.length === 1) return node.children[0]!;
       return this.factory.createBlock(node.children, true);
     }
     if (node === undefined) return this.factory.createBlock([], true);
@@ -168,7 +168,7 @@ export abstract class VisitorHooks {
   private addDefaultValueAssignments(list: NodeList): NodeList {
     let result: Node[] | undefined = undefined;
     for (let i = 0; i < list.nodes.length; i++) {
-      const parameter = list.nodes[i];
+      const parameter = list.nodes[i]!;
       if (!(parameter instanceof ParameterDeclaration)) continue;
       const updated = this.addDefaultValueAssignment(parameter as ParameterDeclaration);
       if (updated !== parameter) {

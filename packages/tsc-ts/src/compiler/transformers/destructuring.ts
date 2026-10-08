@@ -192,7 +192,7 @@ class Flattener {
         this.emitBinding(temp, value, -1, -1, undefined);
       } else {
         this.visitor.context.addVariableDeclaration(temp);
-        const last = this.declarations[this.declarations.length - 1];
+        const last = this.declarations[this.declarations.length - 1]!;
         last.pendingExpressions.push(factory.createAssignment(temp, last.value));
         for (let i = 0; i < this.expressions.length; i++) last.pendingExpressions.push(this.expressions[i]);
         last.value = temp;
@@ -200,7 +200,7 @@ class Flattener {
     }
     const declarations: Node[] = [];
     for (let i = 0; i < this.declarations.length; i++) {
-      const pending = this.declarations[i];
+      const pending = this.declarations[i]!;
       let value = pending.value;
       if (pending.pendingExpressions.length > 0) {
         pending.pendingExpressions.push(pending.value);
@@ -213,7 +213,7 @@ class Flattener {
       declarations.push(declaration);
     }
     if (declarations.length === 0) return undefined;
-    if (declarations.length === 1) return declarations[0];
+    if (declarations.length === 1) return declarations[0]!;
     return factory.createSyntaxList(declarations);
   }
 
@@ -344,7 +344,7 @@ class Flattener {
     let bindingElements: Node[] = [];
     const computedTempVariables: Node[] = [];
     for (let i = 0; i < elements.length; i++) {
-      const element = elements[i];
+      const element = elements[i]!;
       if (getRestIndicatorOfBindingOrAssignmentElement(element) === undefined) {
         const propertyName = tryGetPropertyNameOfBindingOrAssignmentElement(element);
         if (
@@ -385,7 +385,7 @@ class Flattener {
     const elements = getElementsOfBindingOrAssignmentPattern(pattern);
     let value = start;
     let allOmitted = true;
-    for (let i = 0; i < elements.length; i++) if (!(elements[i] instanceof OmittedExpression)) allOmitted = false;
+    for (const element of elements) if (!(element instanceof OmittedExpression)) allOmitted = false;
     if ((elements.length !== 1 && (facts === undefined || elements.length === 0)) || allOmitted)
       value = this.ensureIdentifier(value, !isDeclarationBindingElement(parent) || elements.length !== 0, pos, end);
     const bindingElements: Node[] = [];
@@ -393,7 +393,7 @@ class Flattener {
     const restTemps: Node[] = [];
     const restElements: Node[] = [];
     for (let i = 0; i < elements.length; i++) {
-      const element = elements[i];
+      const element = elements[i]!;
       if (facts !== undefined) {
         if (
           facts.hasObjectRestOrSpread(element) ||
@@ -421,8 +421,10 @@ class Flattener {
     }
     if (bindingElements.length > 0)
       this.emitBindingOrAssignment(this.createPattern(false, bindingElements), value, pos, end, pattern);
-    for (let i = 0; i < restElements.length; i++)
-      this.flattenElement(restElements[i], restTemps[i], restElements[i].pos, restElements[i].end, false);
+    for (let i = 0; i < restElements.length; i++) {
+      const element = restElements[i]!;
+      this.flattenElement(element, restTemps[i]!, element.pos, element.end, false);
+    }
     return true;
   }
 
@@ -433,10 +435,10 @@ class Flattener {
     const names: Node[] = [];
     let computedOffset = 0;
     for (let i = 0; i < elements.length - 1; i++) {
-      const propertyName = tryGetPropertyNameOfBindingOrAssignmentElement(elements[i]);
+      const propertyName = tryGetPropertyNameOfBindingOrAssignmentElement(elements[i]!);
       if (propertyName === undefined) continue;
       if (propertyName instanceof ComputedPropertyName) {
-        const temp = computed[computedOffset++];
+        const temp = computed[computedOffset++]!;
         names.push(
           factory.createConditionalExpression(
             factory.createTypeCheck(temp, 'symbol'),
@@ -510,7 +512,7 @@ function isSimpleBindingOrAssignmentElement(element: Node): boolean {
     return false;
   if (isPattern(target)) {
     const elements = getElementsOfBindingOrAssignmentPattern(target);
-    for (let i = 0; i < elements.length; i++) if (!isSimpleBindingOrAssignmentElement(elements[i])) return false;
+    for (const child of elements) if (!isSimpleBindingOrAssignmentElement(child)) return false;
     return true;
   }
   return target instanceof Identifier;
@@ -600,7 +602,7 @@ function elementAssignsToName(element: Node, name: string): boolean {
   if (target === undefined) return false;
   if (isPattern(target)) {
     const elements = getElementsOfBindingOrAssignmentPattern(target);
-    for (let i = 0; i < elements.length; i++) if (elementAssignsToName(elements[i], name)) return true;
+    for (const child of elements) if (elementAssignsToName(child, name)) return true;
     return false;
   }
   return target instanceof Identifier && target.text === name;
@@ -612,7 +614,7 @@ function elementContainsNonLiteralComputedName(element: Node): boolean {
   const target = getTargetOfBindingOrAssignmentElement(element);
   if (target === undefined || !isPattern(target)) return false;
   const elements = getElementsOfBindingOrAssignmentPattern(target);
-  for (let i = 0; i < elements.length; i++) if (elementContainsNonLiteralComputedName(elements[i])) return true;
+  for (const child of elements) if (elementContainsNonLiteralComputedName(child)) return true;
   return false;
 }
 
@@ -642,8 +644,7 @@ export function convertBindingNameToTarget(visitor: VisitorHooks, name: Node): N
   const elements = name.elements.nodes;
   const converted: Node[] = [];
   const object = name.kind === SyntaxKind.ObjectBindingPattern;
-  for (let i = 0; i < elements.length; i++) {
-    const element = elements[i];
+  for (const element of elements) {
     if (element instanceof BindingElement)
       converted.push(
         object

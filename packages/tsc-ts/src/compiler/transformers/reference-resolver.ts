@@ -146,16 +146,14 @@ export class MergedGlobals {
   /** Merges the globals of `files`, resolving aliases they merge with through `aliases`. */
   merge(files: readonly SourceFile[], aliases: ReferenceResolver): boolean {
     this.aliases = aliases;
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
+    for (const file of files) {
       if (isExternalOrCommonJSModule(file)) continue;
       const locals = getLocals(file);
       if (locals !== undefined) this.mergeTable(this.table, locals, undefined);
     }
-    for (let i = 0; i < files.length; i++) {
-      const augmentations = files[i].moduleAugmentations;
-      for (let j = 0; j < augmentations.length; j++) {
-        const declaration = augmentations[j].parent;
+    for (const file of files) {
+      for (const augmentation of file.moduleAugmentations) {
+        const declaration = augmentation.parent;
         if (!(declaration instanceof ModuleDeclaration) || declaration.keyword !== SyntaxKind.GlobalKeyword) continue;
         const symbol = getSymbol(declaration);
         if (symbol !== undefined && symbol.exports !== undefined)
@@ -460,10 +458,8 @@ export class ReferenceResolver {
     if (resolved === undefined) return undefined;
     const symbol = this.getExportSymbolOfValueSymbolIfExported(resolved);
     const declarations: Node[] = [];
-    for (let i = 0; i < symbol.declarations.length; i++) {
-      const declaration = symbol.declarations[i];
+    for (const declaration of symbol.declarations)
       if (isValueDeclarationKind(declaration.kind)) declarations.push(declaration);
-    }
     return declarations;
   }
 
@@ -511,8 +507,7 @@ export class ReferenceResolver {
     if (exports === undefined || exports.has(name) || name === InternalSymbolName.Default) return false;
     const star = exports.get(InternalSymbolName.ExportStar);
     if (star === undefined) return false;
-    for (let i = 0; i < star.declarations.length; i++) {
-      const declaration = star.declarations[i];
+    for (const declaration of star.declarations) {
       if (!(declaration instanceof ExportDeclaration)) continue;
       const target = this.resolveExternalModuleSymbol(
         this.resolveModuleSpecifier(declaration, declaration.moduleSpecifier),
@@ -526,7 +521,7 @@ export class ReferenceResolver {
   /** Whether a symbol is declared in the global scope. */
   isGlobalSymbol(symbol: Symbol): boolean {
     if (symbol.declarations.length === 0) return false;
-    const container = getDeclarationContainer(symbol.declarations[0]);
+    const container = getDeclarationContainer(symbol.declarations[0]!);
     return container instanceof SourceFile && !isExternalOrCommonJSModule(container as SourceFile);
   }
 
@@ -710,8 +705,7 @@ export class ReferenceResolver {
     if (name === InternalSymbolName.Default) return undefined;
     const star = exports.get(InternalSymbolName.ExportStar);
     if (star === undefined) return undefined;
-    for (let i = 0; i < star.declarations.length; i++) {
-      const declaration = star.declarations[i];
+    for (const declaration of star.declarations) {
       if (!(declaration instanceof ExportDeclaration)) continue;
       const target = this.resolveExternalModuleSymbol(
         this.resolveModuleSpecifier(declaration, declaration.moduleSpecifier),
@@ -792,8 +786,7 @@ export class ReferenceResolver {
     const members = node.members.nodes;
     let hasAutoValue = true;
     let autoValue = 0;
-    for (let i = 0; i < members.length; i++) {
-      const member = members[i];
+    for (const member of members) {
       let result = noEvaluation;
       if (member instanceof EnumMember) {
         if (member.initializer !== undefined) result = this.evaluate(member.initializer, member);
@@ -866,8 +859,7 @@ export class ReferenceResolver {
     let resolvedOtherFiles = false;
     let hasExternalReferences = false;
     const spans = expression.templateSpans.nodes;
-    for (let i = 0; i < spans.length; i++) {
-      const span = spans[i];
+    for (const span of spans) {
       if (!(span instanceof TemplateSpan)) return noValue(true, false, false);
       const value = this.evaluate(span.expression, location);
       if (value.kind === ConstantKind.None) return noValue(true, false, false);
@@ -1079,8 +1071,10 @@ function isAliasSymbolDeclaration(node: Node): boolean {
 }
 
 export function getDeclarationOfAliasSymbol(symbol: Symbol): Node | undefined {
-  for (let i = symbol.declarations.length - 1; i >= 0; i--)
-    if (isAliasSymbolDeclaration(symbol.declarations[i])) return symbol.declarations[i];
+  for (let i = symbol.declarations.length - 1; i >= 0; i--) {
+    const declaration = symbol.declarations[i]!;
+    if (isAliasSymbolDeclaration(declaration)) return declaration;
+  }
   return undefined;
 }
 

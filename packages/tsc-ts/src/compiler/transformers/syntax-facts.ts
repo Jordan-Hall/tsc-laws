@@ -298,8 +298,8 @@ export class SyntaxFacts extends NodeVisitor {
     const elements = node.elements.nodes;
     const object = node.kind === SyntaxKind.ObjectBindingPattern;
     let facts = SubtreeFacts.None;
-    for (let i = 0; i < elements.length; i++) {
-      let element = this.propagate(elements[i]);
+    for (const child of elements) {
+      let element = this.propagate(child);
       if ((element & SubtreeFacts.ContainsRestOrSpread) !== 0) {
         element &= ~SubtreeFacts.ContainsRestOrSpread;
         if (object) element |= SubtreeFacts.ContainsObjectRestOrSpread | SubtreeFacts.ContainsESObjectRestOrSpread;
@@ -329,8 +329,8 @@ export class SyntaxFacts extends NodeVisitor {
     if ((facts & SubtreeFacts.ContainsESObjectRestOrSpread) === 0) return false;
     // Nested spreads, as in `{ x: { a, ...b } = foo } = c`.
     const elements = getElementsOfBindingOrAssignmentPattern(node);
-    for (let i = 0; i < elements.length; i++) {
-      const target = getTargetOfBindingOrAssignmentElement(elements[i]);
+    for (const element of elements) {
+      const target = getTargetOfBindingOrAssignmentElement(element);
       if (
         target !== undefined &&
         (target.kind === SyntaxKind.ObjectLiteralExpression || target.kind === SyntaxKind.ArrayLiteralExpression) &&

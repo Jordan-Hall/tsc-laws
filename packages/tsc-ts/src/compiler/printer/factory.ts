@@ -304,11 +304,11 @@ export class NodeFactory extends NodeFactoryBase {
   /** The expressions joined with commas, or undefined if there are none. */
   inlineExpressions(expressions: Node[]): Node | undefined {
     if (expressions.length === 0) return undefined;
-    if (expressions.length === 1) return expressions[0];
+    if (expressions.length === 1) return expressions[0]!;
     const flattened: Node[] = [];
-    for (let i = 0; i < expressions.length; i++) flattenCommaElement(expressions[i], flattened);
-    let expression = flattened[0];
-    for (let i = 1; i < flattened.length; i++) expression = this.createCommaExpression(expression, flattened[i]);
+    for (const e of expressions) flattenCommaElement(e, flattened);
+    let expression = flattened[0]!;
+    for (let i = 1; i < flattened.length; i++) expression = this.createCommaExpression(expression, flattened[i]!);
     return expression;
   }
 
@@ -557,7 +557,7 @@ export class NodeFactory extends NodeFactoryBase {
   /** `target.call(thisArg, ...args)` */
   createFunctionCallCall(target: Node, thisArg: Node, args: Node[]): CallExpression {
     const all: Node[] = [thisArg];
-    for (let i = 0; i < args.length; i++) all.push(args[i]);
+    for (const arg of args) all.push(arg);
     return this.createMethodCall(target, 'call', all);
   }
 
@@ -637,7 +637,7 @@ export class NodeFactory extends NodeFactoryBase {
     if ((flags & ModifierFlags.In) !== 0) kinds.push(SyntaxKind.InKeyword);
     if ((flags & ModifierFlags.Out) !== 0) kinds.push(SyntaxKind.OutKeyword);
     const nodes: Node[] = [];
-    for (let i = 0; i < kinds.length; i++) nodes.push(this.createToken(kinds[i]));
+    for (const kind of kinds) nodes.push(this.createToken(kind));
     return this.createModifierList(nodes);
   }
 

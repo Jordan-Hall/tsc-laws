@@ -222,7 +222,7 @@ function getSymbolAtLocationWorker(c: Checker, node: Node, ignoreErrors: boolean
       if (
         parent.kind === SyntaxKind.CallExpression &&
         isBindableObjectDefinePropertyCall(parent) &&
-        getArguments(parent)!.nodes[1] === node
+        getArguments(parent)!.nodes[1]! === node
       )
         return getSymbolOfDeclaration(c, parent);
       return getSymbolOfLiteralIndex(c, node);
@@ -395,7 +395,7 @@ function getApplicableIndexSymbol(c: Checker, t: Type, keyType: Type): Symbol | 
     if (declarations.length !== 0) {
       const symbol = c.newSymbolWithCheckFlags(SymbolFlags.Property, InternalSymbolName.Index, CheckFlags.IndexSymbol);
       symbol.declarations = declarations;
-      symbol.valueDeclaration = declarations[0];
+      symbol.valueDeclaration = declarations[0]!;
       symbol.parent = t.symbol;
       c.symbolLinks(symbol).type = info.valueType;
       info.indexSymbol = symbol;
@@ -450,7 +450,7 @@ function getTypeOfNode(c: Checker, node: Node): Type {
   if (classType !== undefined && !isImplementsExpression(node)) {
     // An expression with type arguments in a class `extends` clause is the base type.
     const baseTypes = getBaseTypes(c, classType);
-    return baseTypes.length > 0 ? getTypeWithThisArgument(c, baseTypes[0], classType.thisType, false) : c.errorType;
+    return baseTypes.length > 0 ? getTypeWithThisArgument(c, baseTypes[0]!, classType.thisType, false) : c.errorType;
   }
   if (isTypeDeclaration(node)) return getDeclaredTypeOfSymbol(c, getSymbolOfDeclaration(c, node)!);
   if (isTypeDeclarationName(node)) {
@@ -660,7 +660,7 @@ export function getReparsedNodeForNode(node: Node): Node {
   let index = -1;
   while (low <= high) {
     const middle = low + ((high - low) >> 1);
-    const cmp = compareNodePositions(clones[middle], node);
+    const cmp = compareNodePositions(clones[middle]!, node);
     if (cmp < 0) low = middle + 1;
     else if (cmp > 0) high = middle - 1;
     else {
@@ -669,7 +669,7 @@ export function getReparsedNodeForNode(node: Node): Node {
     }
   }
   if (index < 0) index = low > 0 ? low - 1 : 0;
-  const candidate = clones[index];
+  const candidate = clones[index]!;
   if (candidate.pos <= node.pos && node.end <= candidate.end) {
     const clone = findCloneInNode(candidate, node);
     if (clone !== undefined) return clone;

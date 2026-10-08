@@ -147,7 +147,7 @@ export function isValidLocale(tag: string): boolean {
   const subtags = lower.split('-');
   for (const subtag of subtags) if (!isSubtag(subtag)) return false;
   const t = getTables();
-  const first = subtags[0];
+  const first = subtags[0]!;
   if (first.length === 1) return first === 'x' && validExtensions(t, subtags, 0);
   if (first.length >= 4) return false;
   const end = languageTagEnd(t, subtags, 0, true);
@@ -161,22 +161,22 @@ export function isValidLocale(tag: string): boolean {
  * returns the index after them, or -1 for unknown subtags.
  */
 function languageTagEnd(t: Tables, subtags: readonly string[], start: number, checkExtlang: boolean): number {
-  if (!t.isLanguage(subtags[start])) return -1;
+  if (!t.isLanguage(subtags[start]!)) return -1;
   let i = start + 1;
-  while (i < subtags.length && subtags[i].length === 3 && startsAlpha(subtags[i])) {
-    if (checkExtlang && !t.isLanguage(subtags[i])) return -1;
+  while (i < subtags.length && subtags[i].length === 3 && startsAlpha(subtags[i]!)) {
+    if (checkExtlang && !t.isLanguage(subtags[i]!)) return -1;
     i++;
   }
-  if (i < subtags.length && subtags[i].length === 4 && startsAlpha(subtags[i])) {
-    if (!t.scripts.has(subtags[i])) return -1;
+  if (i < subtags.length && subtags[i].length === 4 && startsAlpha(subtags[i]!)) {
+    if (!t.scripts.has(subtags[i]!)) return -1;
     i++;
   }
   if (i < subtags.length && (subtags[i].length === 2 || subtags[i].length === 3)) {
-    if (!t.regions.has(subtags[i])) return -1;
+    if (!t.regions.has(subtags[i]!)) return -1;
     i++;
   }
   while (i < subtags.length && subtags[i].length >= 4) {
-    if (!t.variants.has(subtags[i])) return -1;
+    if (!t.variants.has(subtags[i]!)) return -1;
     i++;
   }
   return i;
@@ -186,7 +186,7 @@ function languageTagEnd(t: Tables, subtags: readonly string[], start: number, ch
 function validExtensions(t: Tables, subtags: readonly string[], start: number): boolean {
   let i = start;
   while (i < subtags.length && subtags[i].length === 1) {
-    const singleton = subtags[i];
+    const singleton = subtags[i]!;
     i++;
     const bodyStart = i;
     if (singleton === 'x') return i < subtags.length;
@@ -216,10 +216,10 @@ function unicodeExtensionEnd(subtags: readonly string[], start: number): number 
   while (i < subtags.length && subtags[i].length > 2) i++;
   const keys = new Map<string, string>();
   while (i < subtags.length && subtags[i].length === 2) {
-    const key = subtags[i];
+    const key = subtags[i]!;
     i++;
     let value = '';
-    while (i < subtags.length && subtags[i].length > 2) value += '-' + subtags[i++];
+    while (i < subtags.length && subtags[i].length > 2) value += '-' + subtags[i++]!;
     const previous = keys.get(key);
     if (previous !== undefined && previous !== value) return -1;
     keys.set(key, value);
@@ -258,24 +258,24 @@ export function parseLocale(tag: string): Locale {
 
   // An unknown language parses as `und`.
   let language = 'und';
-  if (t.isLanguage(subtags[0])) language = subtags[0];
+  if (t.isLanguage(subtags[0]!)) language = subtags[0]!;
   else error = true;
   let i = 1;
   // Extended language subtags replace the language.
   for (; i < subtags.length && subtags[i].length === 3 && !isDigit(subtags[i].charCodeAt(0)); i++) {
-    if (t.isLanguage(subtags[i])) language = subtags[i];
+    if (t.isLanguage(subtags[i]!)) language = subtags[i]!;
     else error = true;
   }
   // Unknown scripts and regions are dropped.
   let script = '';
   if (i < subtags.length && subtags[i].length === 4 && !isDigit(subtags[i].charCodeAt(0))) {
-    if (t.scripts.has(subtags[i])) script = subtags[i].slice(0, 1).toUpperCase() + subtags[i].slice(1);
+    if (t.scripts.has(subtags[i]!)) script = subtags[i].slice(0, 1).toUpperCase() + subtags[i].slice(1);
     else error = true;
     i++;
   }
   let region = '';
   if (i < subtags.length && (subtags[i].length === 2 || subtags[i].length === 3)) {
-    if (isMatchableRegion(t, subtags[i])) region = subtags[i].toUpperCase();
+    if (isMatchableRegion(t, subtags[i]!)) region = subtags[i].toUpperCase();
     else error = true;
   }
 

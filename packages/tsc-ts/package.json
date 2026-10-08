@@ -2,16 +2,34 @@
   "name": "tsc-ts",
   "version": "0.0.0",
   "private": true,
+  "description": "The TypeScript 7 compiler, ported to TypeScript and compiled to a native executable.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vercel-labs/tsc-ts.git",
+    "directory": "packages/tsc-ts"
+  },
+  "bin": {
+    "tsc-ts": "bin/tsc-ts.js"
+  },
+  "files": [
+    "bin",
+    "README.md"
+  ],
   "type": "module",
   "scripts": {
     "build": "tsc --outDir dist --rootDir .. --target es2024 --module nodenext --moduleResolution nodenext --strict --skipLibCheck --types node src/main.ts",
     "build:native": "scriptc build src/main.ts -o dist/tsc",
     "build:native:dev": "scriptc build src/main.ts --optimization=dev -o dist/tsc",
     "generate": "node scripts/generate.mjs && node scripts/generate-diagnostics.mjs && node scripts/generate-ast.mjs",
+    "pack:npm": "node scripts/pack.mjs",
     "test": "node --test tests/*.test.mjs",
     "bench": "node scripts/bench.mjs"
   },
   "devDependencies": {
     "@tsc-ts/tsgo": "*"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }

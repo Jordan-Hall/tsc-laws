@@ -506,22 +506,12 @@ export class CheckerDeclarationEmitResolver extends DeclarationEmitResolver {
     const lists = [staticInfos, instanceInfos];
     for (let i = 0; i < lists.length; i++) {
       const isStatic = i === 0;
-      for (const info of lists[i]) {
+      for (const info of lists[i]!) {
         if (info.declaration !== undefined) continue;
         // Inherited, but looks late-bound as it has no declarations.
         if (info === c.anyBaseTypeIndexInfo) continue;
         if (info.components.length > 0) {
-          const allSerializable = info.components.every((component) => {
-            const name = getName(component);
-            return (
-              name !== undefined &&
-              name.kind === SyntaxKind.ComputedPropertyName &&
-              isEntityNameExpressionNode(getExpression(name)!) &&
-              isEntityNameVisible(c, getExpression(name)!, enclosingDeclaration, false).accessibility ===
-                SymbolAccessibility.Accessible
-            );
-          });
-          if (allSerializable) {
+          if (areComponentsSerializable(c, info.components, enclosingDeclaration)) {
             for (const component of info.components) {
               // Late-bound members of the index signature are kept as members.
               if (hasLateBindableName(c, component)) continue;
@@ -628,6 +618,21 @@ function isEntityNameExpressionNode(node: Node): boolean {
     node.name.kind === SyntaxKind.Identifier &&
     isEntityNameExpressionNode(node.expression)
   );
+}
+
+function areComponentsSerializable(c: Checker, components: readonly Node[], enclosingDeclaration: Node): boolean {
+  for (const component of components) {
+    const name = getName(component);
+    if (
+      name === undefined ||
+      name.kind !== SyntaxKind.ComputedPropertyName ||
+      !isEntityNameExpressionNode(getExpression(name)!) ||
+      isEntityNameVisible(c, getExpression(name)!, enclosingDeclaration, false).accessibility !==
+        SymbolAccessibility.Accessible
+    )
+      return false;
+  }
+  return true;
 }
 
 function getQuestionTokenOf(node: Node): Token | undefined {

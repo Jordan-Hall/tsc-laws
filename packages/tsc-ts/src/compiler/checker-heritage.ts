@@ -199,9 +199,7 @@ function checkBaseClass(
     if (!isMixinConstructorType(c, staticType))
       c.error(errorNode, Diagnostics.A_mixin_class_must_have_a_constructor_with_a_single_rest_parameter_of_type_any);
     else if (
-      getSignaturesOfType(c, baseConstructorType, SignatureKind.Construct).some(
-        (s) => (s.flags & SignatureFlags.Abstract) !== 0,
-      ) &&
+      hasAbstractSignature(getSignaturesOfType(c, baseConstructorType, SignatureKind.Construct)) &&
       !hasSyntacticModifier(node, ModifierFlags.Abstract)
     )
       c.error(
@@ -221,17 +219,27 @@ function checkBaseClass(
       getTypeArguments(baseTypeNode)?.nodes,
       baseTypeNode,
     );
-    if (!constructors.every((sig) => isTypeIdenticalTo(c, getReturnTypeOfSignature(c, sig), baseType)))
-      c.error(getExpression(baseTypeNode), Diagnostics.Base_constructors_must_all_have_the_same_return_type);
+    for (const sig of constructors) {
+      if (!isTypeIdenticalTo(c, getReturnTypeOfSignature(c, sig), baseType)) {
+        c.error(getExpression(baseTypeNode), Diagnostics.Base_constructors_must_all_have_the_same_return_type);
+        break;
+      }
+    }
   }
   checkKindsOfPropertyMemberOverrides(c, classType, baseType);
 }
 
+function hasAbstractSignature(signatures: readonly Signature[]): boolean {
+  for (const s of signatures) if ((s.flags & SignatureFlags.Abstract) !== 0) return true;
+  return false;
+}
+
 function getConstructorsForTypeArguments(c: Checker, t: Type, typeArgumentNodes: readonly Node[]): Signature[] {
   const count = typeArgumentNodes.length;
-  return getSignaturesOfType(c, t, SignatureKind.Construct).filter(
-    (sig) => count >= getMinTypeArgumentCount(c, sig.typeParameters) && count <= sig.typeParameters.length,
-  );
+  const result: Signature[] = [];
+  for (const sig of getSignaturesOfType(c, t, SignatureKind.Construct))
+    if (count >= getMinTypeArgumentCount(c, sig.typeParameters) && count <= sig.typeParameters.length) result.push(sig);
+  return result;
 }
 
 /** Checks the type arguments of `node` against the constraints of `typeParameters`. */
@@ -261,7 +269,7 @@ function checkTypeArgumentConstraints(c: Checker, node: Node, typeParameters: re
         c,
         typeArguments![i]!,
         instantiateType(c, constraint, mapper),
-        i < typeArgumentNodes.length ? typeArgumentNodes[i] : undefined,
+        i < typeArgumentNodes.length ? typeArgumentNodes[i]! : undefined,
         Diagnostics.Type_0_does_not_satisfy_the_constraint_1,
       );
   }
@@ -504,17 +512,21 @@ function checkPropertyOverwritesBase(
   baseDeclarationFlags: ModifierFlags,
   derivedDeclarationFlags: ModifierFlags,
 ): void {
-  const uninitialized = derived.declarations.find(
-    (d) => d.kind === SyntaxKind.PropertyDeclaration && getInitializer(d) === undefined,
-  );
+  let uninitialized: Node | undefined;
+  for (const d of derived.declarations) {
+    if (d.kind === SyntaxKind.PropertyDeclaration && getInitializer(d) === undefined) {
+      uninitialized = d;
+      break;
+    }
+  }
   if (
     uninitialized === undefined ||
     (derived.flags & SymbolFlags.Transient) !== 0 ||
     (baseDeclarationFlags & ModifierFlags.Abstract) !== 0 ||
-    (derivedDeclarationFlags & ModifierFlags.Abstract) !== 0 ||
-    derived.declarations.some((d) => (d.flags & NodeFlags.Ambient) !== 0)
+    (derivedDeclarationFlags & ModifierFlags.Abstract) !== 0
   )
     return;
+  for (const d of derived.declarations) if ((d.flags & NodeFlags.Ambient) !== 0) return;
   const constructor = findConstructorDeclaration(getClassLikeDeclarationOfSymbol(t.symbol!)!);
   const propName = getName(uninitialized)!;
   const postfix = getPostfixToken(uninitialized);
@@ -721,7 +733,13 @@ function checkMemberForOverrideModifier(
     (node.flags & NodeFlags.Ambient) !== 0
   )
     return;
-  const baseHasAbstract = baseProp.declarations.some((d) => hasSyntacticModifier(d, ModifierFlags.Abstract));
+  let baseHasAbstract = false;
+  for (const d of baseProp.declarations) {
+    if (hasSyntacticModifier(d, ModifierFlags.Abstract)) {
+      baseHasAbstract = true;
+      break;
+    }
+  }
   if (!baseHasAbstract) {
     let message: DiagnosticMessage;
     if (member.kind === SyntaxKind.Parameter)
@@ -872,15 +890,15 @@ export function checkInferTypeParameterDeclarations(c: Checker, symbol: Symbol):
   const links = c.symbolLinks(symbol);
   if (links.typeParametersChecked) return;
   links.typeParametersChecked = true;
-  const declarations = symbol.declarations.filter((d) => d.kind === SyntaxKind.TypeParameter);
-  if (
-    areTypeParametersIdentical(
-      c,
-      declarations.map((d) => [d]),
-      [getDeclaredTypeOfTypeParameter(c, symbol)],
-    )
-  )
-    return;
+  const declarations: Node[] = [];
+  const typeParameterLists: Node[][] = [];
+  for (const d of symbol.declarations) {
+    if (d.kind === SyntaxKind.TypeParameter) {
+      declarations.push(d);
+      typeParameterLists.push([d]);
+    }
+  }
+  if (areTypeParametersIdentical(c, typeParameterLists, [getDeclaredTypeOfTypeParameter(c, symbol)])) return;
   const name = symbolToString(c, symbol);
   for (const d of declarations)
     c.error(getName(d), Diagnostics.All_declarations_of_0_must_have_identical_constraints, name);
@@ -1100,11 +1118,7 @@ function checkIndexConstraintForProperty(c: Checker, t: Type, prop: Symbol, prop
     if (
       errorNode === undefined &&
       interfaceDeclaration !== undefined &&
-      !getBaseTypes(c, t).some(
-        (base) =>
-          getPropertyOfObjectType(c, base, prop.name) !== undefined &&
-          getIndexTypeOfType(c, base, info.keyType) !== undefined,
-      )
+      !someBaseHasPropertyAndIndexType(c, t, prop.name, info.keyType)
     )
       errorNode = interfaceDeclaration;
     if (errorNode === undefined || isTypeAssignableTo(c, propType, info.valueType)) continue;
@@ -1126,6 +1140,20 @@ function checkIndexConstraintForProperty(c: Checker, t: Type, prop: Symbol, prop
   }
 }
 
+function someBaseHasPropertyAndIndexType(c: Checker, t: Type, name: string, keyType: Type): boolean {
+  for (const base of getBaseTypes(c, t))
+    if (getPropertyOfObjectType(c, base, name) !== undefined && getIndexTypeOfType(c, base, keyType) !== undefined)
+      return true;
+  return false;
+}
+
+function someBaseHasIndexTypes(c: Checker, t: Type, checkKeyType: Type, keyType: Type): boolean {
+  for (const base of getBaseTypes(c, t))
+    if (getIndexInfoOfType(c, base, checkKeyType) !== undefined && getIndexTypeOfType(c, base, keyType) !== undefined)
+      return true;
+  return false;
+}
+
 function checkIndexConstraintForIndexSignature(c: Checker, t: Type, checkInfo: IndexInfo): void {
   const indexInfos = getApplicableIndexInfos(c, t, checkInfo.keyType);
   if (indexInfos.length === 0) return;
@@ -1140,11 +1168,7 @@ function checkIndexConstraintForIndexSignature(c: Checker, t: Type, checkInfo: I
     if (
       errorNode === undefined &&
       interfaceDeclaration !== undefined &&
-      !getBaseTypes(c, t).some(
-        (base) =>
-          getIndexInfoOfType(c, base, checkInfo.keyType) !== undefined &&
-          getIndexTypeOfType(c, base, info.keyType) !== undefined,
-      )
+      !someBaseHasIndexTypes(c, t, checkInfo.keyType, info.keyType)
     )
       errorNode = interfaceDeclaration;
     if (errorNode !== undefined && !isTypeAssignableTo(c, checkInfo.valueType, info.valueType))

@@ -178,7 +178,8 @@ import {
   createOuterReturnMapper,
   getInferredTypes,
   getMapperFromContext,
-  hasInferenceCandidates,
+  everyInferenceHasCandidates,
+  someInferenceHasCandidates,
   inferTypes,
   isConstTypeVariable,
   isMutableArrayLikeType,
@@ -383,7 +384,7 @@ function resolveCallExpression(c: Checker, node: CallExpression, checkMode: Chec
   if (
     (checkMode & CheckMode.SkipGenericFunctions) !== 0 &&
     node.typeArguments === undefined &&
-    callSignatures.some((s) => isGenericFunctionReturningFunction(c, s))
+    someGenericFunctionReturningFunction(c, callSignatures)
   ) {
     skippedGenericFunction(c, node, checkMode);
     return c.resolvingSignature;
@@ -454,8 +455,22 @@ function resolveNewExpression(c: Checker, node: NewExpression, checkMode: CheckM
 function someSignature(signatures: Signature[], f: (s: Signature) => boolean): boolean {
   for (const sig of signatures) {
     const composite = sig.composite;
-    if (composite !== undefined ? composite.isUnion && composite.signatures.some(f) : f(sig)) return true;
+    if (composite === undefined) {
+      if (f(sig)) return true;
+    } else if (composite.isUnion) {
+      for (const s of composite.signatures) if (f(s)) return true;
+    }
   }
+  return false;
+}
+
+function someGenericFunctionReturningFunction(c: Checker, signatures: Signature[]): boolean {
+  for (const s of signatures) if (isGenericFunctionReturningFunction(c, s)) return true;
+  return false;
+}
+
+function someContextSensitive(c: Checker, nodes: Node[]): boolean {
+  for (const n of nodes) if (isContextSensitive(c, n)) return true;
   return false;
 }
 
@@ -911,11 +926,7 @@ export function resolveCall(
   // included in a second pass with their contextual types fixed.
   s.isSingleNonGenericCandidate = candidates.length === 1 && candidates[0]!.typeParameters.length === 0;
   // Decorator arguments are synthetic, so never context sensitive.
-  if (
-    node.kind !== SyntaxKind.Decorator &&
-    !s.isSingleNonGenericCandidate &&
-    s.args.some((a) => isContextSensitive(c, a))
-  )
+  if (node.kind !== SyntaxKind.Decorator && !s.isSingleNonGenericCandidate && someContextSensitive(c, s.args))
     s.argCheckMode = CheckMode.SkipContextSensitive;
   // A subtype pass picks the best overload; assignability decides whether the call is an error.
   let result: Signature | undefined = undefined;
@@ -1147,9 +1158,11 @@ function checkTypeArguments(
   headMessage: DiagnosticMessage | undefined,
 ): Type[] | undefined {
   const typeParameters = signature.typeParameters;
+  const typeArguments: Type[] = [];
+  for (const n of typeArgumentNodes) typeArguments.push(getTypeFromTypeNode(c, n));
   const typeArgumentTypes = fillMissingTypeArguments(
     c,
-    typeArgumentNodes.map((n) => getTypeFromTypeNode(c, n)),
+    typeArguments,
     typeParameters,
     getMinTypeArgumentCount(c, typeParameters),
     isInJSFile(signature.declaration),
@@ -1350,7 +1363,13 @@ function inferTypeArguments(
 ): Type[] {
   // Infer from the contextual type to the return type, e.g. from the declared type of `f` in
   // `let f: (x: string) => number = wrap(s => s.length)`.
-  const skipBindingPatterns = signature.typeParameters.every((p) => getDefaultFromTypeParameter(c, p) !== undefined);
+  let skipBindingPatterns = true;
+  for (const p of signature.typeParameters) {
+    if (getDefaultFromTypeParameter(c, p) === undefined) {
+      skipBindingPatterns = false;
+      break;
+    }
+  }
   // Decorators have no contextual type.
   const contextualType =
     node.kind === SyntaxKind.Decorator
@@ -1399,7 +1418,7 @@ function inferTypeArguments(
       const outerReturnMapper = outerContext !== undefined ? createOuterReturnMapper(c, outerContext) : undefined;
       const returnSourceType = instantiateType(c, contextualType, outerReturnMapper);
       inferTypes(c, returnContext.inferences, returnSourceType, inferenceTargetType, InferencePriority.None, false);
-      context.returnMapper = returnContext.inferences.some(hasInferenceCandidates)
+      context.returnMapper = someInferenceHasCandidates(returnContext.inferences)
         ? getMapperFromContext(cloneInferredPartOfContext(c, returnContext))
         : undefined;
     }
@@ -1409,8 +1428,7 @@ function inferTypeArguments(
   const argCount = restType !== undefined ? Math.min(getParameterCount(c, signature) - 1, args.length) : args.length;
   if (restType !== undefined && (restType.flags & TypeFlags.TypeParameter) !== 0) {
     const info = context.inferences.find((i) => i.typeParameter === restType);
-    if (info !== undefined && args.slice(argCount).findIndex(isSpreadArgument) < 0)
-      info.impliedArity = args.length - argCount;
+    if (info !== undefined && !hasSpreadArgumentFrom(args, argCount)) info.impliedArity = args.length - argCount;
   }
   const thisType = getThisTypeOfSignature(c, signature);
   if (thisType !== undefined && couldContainTypeVariables(c, thisType))
@@ -1512,8 +1530,17 @@ function getLongestCandidateIndex(c: Checker, candidates: Signature[], argsCount
   return maxParamsIndex;
 }
 
+function hasSpreadArgumentFrom(args: Node[], start: number): boolean {
+  for (let i = start; i < args.length; i++) if (isSpreadArgument(args[i]!)) return true;
+  return false;
+}
+
 function getTypeArgumentsFromNodes(c: Checker, typeArgumentNodes: Node[], typeParameters: Type[]): Type[] {
-  const typeArguments = typeArgumentNodes.slice(0, typeParameters.length).map((n) => getTypeFromTypeNode(c, n));
+  const typeArguments: Type[] = [];
+  for (const n of typeArgumentNodes) {
+    if (typeArguments.length === typeParameters.length) break;
+    typeArguments.push(getTypeFromTypeNode(c, n));
+  }
   while (typeArguments.length < typeParameters.length) {
     const tp = typeParameters[typeArguments.length]!;
     typeArguments.push(getDefaultFromTypeParameter(c, tp) ?? getConstraintOfTypeParameter(c, tp) ?? c.unknownType);
@@ -1523,15 +1550,15 @@ function getTypeArgumentsFromNodes(c: Checker, typeArgumentNodes: Node[], typePa
 
 function createUnionOfSignaturesForOverloadFailure(c: Checker, candidates: Signature[]): Signature {
   const thisParameters: Symbol[] = [];
-  for (const s of candidates) if (s.thisParameter !== undefined) thisParameters.push(s.thisParameter);
+  const thisTypes: Type[] = [];
+  for (const s of candidates) {
+    if (s.thisParameter !== undefined) {
+      thisParameters.push(s.thisParameter);
+      thisTypes.push(getTypeOfParameter(c, s.thisParameter));
+    }
+  }
   const thisParameter =
-    thisParameters.length !== 0
-      ? createCombinedSymbolFromTypes(
-          c,
-          thisParameters,
-          thisParameters.map((p) => getTypeOfParameter(c, p)),
-        )
-      : undefined;
+    thisParameters.length !== 0 ? createCombinedSymbolFromTypes(c, thisParameters, thisTypes) : undefined;
   let minArgumentCount = Number.MAX_SAFE_INTEGER;
   let maxNonRestParam = 0;
   for (const s of candidates) {
@@ -1572,16 +1599,15 @@ function createUnionOfSignaturesForOverloadFailure(c: Checker, candidates: Signa
     flags |= SignatureFlags.HasRestParameter;
   }
   if (candidates.some((s) => (s.flags & SignatureFlags.HasLiteralTypes) !== 0)) flags |= SignatureFlags.HasLiteralTypes;
+  const returnTypes: Type[] = [];
+  for (const s of candidates) returnTypes.push(getReturnTypeOfSignature(c, s));
   return c.newSignature(
     flags,
     candidates[0]!.declaration,
     [],
     thisParameter,
     parameters,
-    getIntersectionType(
-      c,
-      candidates.map((s) => getReturnTypeOfSignature(c, s)),
-    ),
+    getIntersectionType(c, returnTypes),
     minArgumentCount,
   );
 }
@@ -1630,9 +1656,9 @@ function reportCallResolutionErrors(
   else if (s.candidateForTypeArgumentError !== undefined)
     checkTypeArguments(c, s.candidateForTypeArgumentError, getCallTypeArguments(s.node), true, headMessage);
   else if (s.node.kind !== SyntaxKind.JsxOpeningFragment) {
-    const withCorrectTypeArgumentArity = signatures.filter((sig) =>
-      hasCorrectTypeArgumentArity(c, sig, s.typeArguments),
-    );
+    const withCorrectTypeArgumentArity: Signature[] = [];
+    for (const sig of signatures)
+      if (hasCorrectTypeArgumentArity(c, sig, s.typeArguments)) withCorrectTypeArgumentArity.push(sig);
     if (withCorrectTypeArgumentArity.length === 0)
       c.addDiagnostic(getTypeArgumentArityError(c, s.node, signatures, s.typeArguments, headMessage));
     else c.addDiagnostic(getArgumentArityError(c, s.node, withCorrectTypeArgumentArity, s.args, headMessage));
@@ -1648,9 +1674,13 @@ function addImplementationSuccessElaboration(
 ): void {
   const symbol = failed.declaration !== undefined ? getSymbol(failed.declaration) : undefined;
   if (symbol === undefined || symbol.declarations.length <= 1) return;
-  const implementation = symbol.declarations.find(
-    (d) => isFunctionLikeDeclarationKind(d.kind) && nodeIsPresent(getBody(d)),
-  );
+  let implementation: Node | undefined;
+  for (const d of symbol.declarations) {
+    if (isFunctionLikeDeclarationKind(d.kind) && nodeIsPresent(getBody(d))) {
+      implementation = d;
+      break;
+    }
+  }
   if (implementation === undefined) return;
   const candidate = getSignatureFromDeclaration(c, implementation);
   const localState = new CallState(s.node, s.typeArguments, s.args, [candidate]);
@@ -1703,7 +1733,13 @@ function getArgumentArityError(
     if (minParameter < args.length && minParameter > maxBelow) maxBelow = minParameter;
     if (args.length < maxParameter && maxParameter < minAbove) minAbove = maxParameter;
   }
-  const hasRestParameter = signatures.some((sig) => hasEffectiveRestParameter(c, sig));
+  let hasRestParameter = false;
+  for (const sig of signatures) {
+    if (hasEffectiveRestParameter(c, sig)) {
+      hasRestParameter = true;
+      break;
+    }
+  }
   const parameterRange = hasRestParameter
     ? String(minCount)
     : minCount < maxCount
@@ -1879,7 +1915,7 @@ export function instantiateTypeWithSingleGenericCallSignature(
   if (
     returnSignature !== undefined &&
     returnSignature.typeParameters.length === 0 &&
-    !context.inferences.every(hasInferenceCandidates)
+    !everyInferenceHasCandidates(context.inferences)
   ) {
     // Instantiate with its own type parameters, renamed to be unique where needed.
     const uniqueTypeParameters = getUniqueTypeParameters(c, context, signature.typeParameters);
@@ -1893,7 +1929,7 @@ export function instantiateTypeWithSingleGenericCallSignature(
     applyToParameterTypes(c, instantiatedSignature, contextualSignature, (source, target) =>
       inferTypes(c, inferences, source, target, InferencePriority.None, true),
     );
-    if (inferences.some(hasInferenceCandidates)) {
+    if (someInferenceHasCandidates(inferences)) {
       // Type parameters are referenced by the contextual parameters; also infer from the return type.
       applyToReturnTypes(c, instantiatedSignature, contextualSignature, (source, target) =>
         inferTypes(c, inferences, source, target, InferencePriority.None, false),

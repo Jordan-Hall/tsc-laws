@@ -60,12 +60,22 @@ export function isDeprecatedSymbol(c: Checker, symbol: Symbol): boolean {
   const parentSymbol = getParentOfSymbol(c, symbol);
   if (parentSymbol !== undefined && declarations.length > 1)
     return (parentSymbol.flags & SymbolFlags.Interface) !== 0
-      ? declarations.some(isDeprecatedDeclaration)
-      : declarations.every(isDeprecatedDeclaration);
+      ? someDeprecatedDeclaration(declarations)
+      : everyDeprecatedDeclaration(declarations);
   return (
     (symbol.valueDeclaration !== undefined && isDeprecatedDeclaration(symbol.valueDeclaration)) ||
-    (declarations.length !== 0 && declarations.every(isDeprecatedDeclaration))
+    (declarations.length !== 0 && everyDeprecatedDeclaration(declarations))
   );
+}
+
+function someDeprecatedDeclaration(declarations: readonly Node[]): boolean {
+  for (const d of declarations) if (isDeprecatedDeclaration(d)) return true;
+  return false;
+}
+
+function everyDeprecatedDeclaration(declarations: readonly Node[]): boolean {
+  for (const d of declarations) if (!isDeprecatedDeclaration(d)) return false;
+  return true;
 }
 
 export function addDeprecatedSuggestion(
@@ -198,7 +208,8 @@ function isUncalledFunctionReference(c: Checker, node: Node, symbol: Symbol): bo
       node.kind === SyntaxKind.Identifier &&
       hasMatchingArgument(c, parent, node)
     );
-  return symbol.declarations.every((d) => !isFunctionLikeKind(d.kind) || isDeprecatedDeclaration(d));
+  for (const d of symbol.declarations) if (isFunctionLikeKind(d.kind) && !isDeprecatedDeclaration(d)) return false;
+  return true;
 }
 
 function isCallLikeExpression(node: Node): boolean {
@@ -323,8 +334,12 @@ export function checkDeprecatedTypeReference(c: Checker, node: Node, type: Type)
   if (isErrorType(c, type)) return;
   const symbol = c.nodeLinks(node).resolvedSymbol;
   if (symbol === undefined) return;
-  if (symbol.declarations.some((d) => isTypeDeclaration(d) && isDeprecatedDeclaration(d)))
-    addDeprecatedSuggestion(c, getDeprecatedSuggestionNode(node), symbol.declarations, symbol.name);
+  for (const d of symbol.declarations) {
+    if (isTypeDeclaration(d) && isDeprecatedDeclaration(d)) {
+      addDeprecatedSuggestion(c, getDeprecatedSuggestionNode(node), symbol.declarations, symbol.name);
+      return;
+    }
+  }
 }
 
 function isTypeDeclaration(node: Node): boolean {

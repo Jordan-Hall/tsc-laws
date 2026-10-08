@@ -47,13 +47,11 @@ export function maybeTypeOfKind(t: Type, kind: TypeFlags): boolean {
 }
 
 export function isValidIndexKeyType(c: Checker, t: Type): boolean {
-  return (
-    (t.flags & (TypeFlags.String | TypeFlags.Number | TypeFlags.ESSymbol)) !== 0 ||
-    isPatternLiteralType(c, t) ||
-    ((t.flags & TypeFlags.Intersection) !== 0 &&
-      !isGenericType(c, t) &&
-      typesOf(t).some((u) => isValidIndexKeyType(c, u)))
-  );
+  if ((t.flags & (TypeFlags.String | TypeFlags.Number | TypeFlags.ESSymbol)) !== 0 || isPatternLiteralType(c, t))
+    return true;
+  if ((t.flags & TypeFlags.Intersection) !== 0 && !isGenericType(c, t))
+    for (const u of typesOf(t)) if (isValidIndexKeyType(c, u)) return true;
+  return false;
 }
 
 function isEntityNameExpression(node: Node): boolean {

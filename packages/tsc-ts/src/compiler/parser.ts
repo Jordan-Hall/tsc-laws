@@ -6500,7 +6500,7 @@ export class Parser extends ScannerErrorReporter {
       }
       case SyntaxKind.Parameter: {
         const modifiers = getModifiers(node);
-        if (modifiers !== undefined && modifiers.nodes.some(isModifierNode))
+        if (modifiers !== undefined && hasModifierNode(modifiers.nodes))
           this.jsErrorAt(
             modifiers.pos,
             modifiers.end,
@@ -6773,8 +6773,9 @@ function hasNonReparsedNode(nodes: readonly Node[]): boolean {
   return false;
 }
 
-function isModifierNode(node: Node): boolean {
-  return isModifierKind(node.kind);
+function hasModifierNode(nodes: readonly Node[]): boolean {
+  for (const n of nodes) if (isModifierKind(n.kind)) return true;
+  return false;
 }
 
 /** Go's Node.QuestionToken(): a question token field, or a postfix `?`. */

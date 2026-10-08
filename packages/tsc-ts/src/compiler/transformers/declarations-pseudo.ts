@@ -578,7 +578,7 @@ export class PseudoChecker {
       getter.type !== undefined &&
       setter instanceof SetAccessorDeclaration &&
       setter.parameters.nodes.length > 0 &&
-      getType(setter.parameters.nodes[0]) !== undefined
+      getType(setter.parameters.nodes[0]!) !== undefined
     ) {
       if (accessor.kind === SyntaxKind.GetAccessor)
         return new PseudoMember(
@@ -665,7 +665,7 @@ export class PseudoChecker {
     const result: PseudoParameter[] = [];
     const lastRequired = lastRequiredParameterIndex(nodes);
     for (let i = 0; i < nodes.length; i++) {
-      const parameter = nodes[i] as ParameterDeclaration;
+      const parameter = nodes[i]! as ParameterDeclaration;
       let optional = parameter.questionToken !== undefined;
       // An initialized parameter is optional when no required one follows.
       if (!optional && parameter.initializer !== undefined) optional = i >= lastRequired - 1;
@@ -690,7 +690,7 @@ function accessorAnnotation(node: Node): Node | undefined {
   if (node instanceof GetAccessorDeclaration) return node.type;
   if (node instanceof SetAccessorDeclaration) {
     const parameters = node.parameters.nodes;
-    return parameters.length > 0 ? getType(parameters[0]) : undefined;
+    return parameters.length > 0 ? getType(parameters[0]!) : undefined;
   }
   return undefined;
 }
@@ -869,7 +869,7 @@ function isPrimitiveLiteral(node: Node): boolean {
 /** The index just past the last parameter without `?`, initializer or `...`. */
 export function lastRequiredParameterIndex(parameters: Node[]): number {
   for (let i = parameters.length - 1; i >= 0; i--) {
-    const parameter = parameters[i] as ParameterDeclaration;
+    const parameter = parameters[i]! as ParameterDeclaration;
     if (
       parameter.dotDotDotToken === undefined &&
       parameter.initializer === undefined &&

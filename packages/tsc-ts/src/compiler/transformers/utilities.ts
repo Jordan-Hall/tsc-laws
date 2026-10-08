@@ -156,8 +156,7 @@ class ModuleInstanceStates {
           const clause: Node = node.exportClause;
           const inner = ancestors.concat([declaration, clause]);
           const elements = node.exportClause.elements.nodes;
-          for (let i = 0; i < elements.length; i++) {
-            const specifier = elements[i];
+          for (const specifier of elements) {
             if (!(specifier instanceof ExportSpecifier)) continue;
             const specifierState = this.ofAliasTarget(specifier as ExportSpecifier, inner);
             if (specifierState > state) state = specifierState;
@@ -172,8 +171,8 @@ class ModuleInstanceStates {
           const block: Node = node;
           const inner = ancestors.concat([block]);
           const statements = node.statements.nodes;
-          for (let i = 0; i < statements.length; i++) {
-            const child = this.cached(statements[i], inner);
+          for (const statement of statements) {
+            const child = this.cached(statement, inner);
             if (child === ModuleInstanceState.ConstEnumOnly) state = child;
             else if (child === ModuleInstanceState.Instantiated) return child;
           }
@@ -191,15 +190,14 @@ class ModuleInstanceStates {
     const name = specifier.propertyName !== undefined ? specifier.propertyName : specifier.name;
     if (!(name instanceof Identifier)) return ModuleInstanceState.Instantiated;
     for (let a = ancestors.length - 1; a >= 0; a--) {
-      const p = ancestors[a];
+      const p = ancestors[a]!;
       const statementList = getStatements(p);
       if (statementList === undefined || !(p instanceof Block || p instanceof ModuleBlock || p instanceof SourceFile))
         continue;
       let found = ModuleInstanceState.Unknown;
       const inner = ancestors.slice(0, a + 1);
       const statements = statementList.nodes;
-      for (let i = 0; i < statements.length; i++) {
-        const statement = statements[i];
+      for (const statement of statements) {
         if (!nodeHasName(statement, name.text)) continue;
         const state = this.cached(statement, inner);
         if (found === ModuleInstanceState.Unknown || state > found) found = state;
@@ -217,7 +215,7 @@ function nodeHasName(statement: Node, text: string): boolean {
   if (name !== undefined) return name instanceof Identifier && name.text === text;
   if (statement instanceof VariableStatement) {
     const declarations = statement.declarationList.declarations.nodes;
-    for (let i = 0; i < declarations.length; i++) if (nodeHasName(declarations[i], text)) return true;
+    for (const declaration of declarations) if (nodeHasName(declaration, text)) return true;
   }
   return false;
 }
@@ -312,7 +310,7 @@ export function isIdentifierReference(name: Node, parent: Node | undefined): boo
 /** The node itself for one node, else a syntax list of them; undefined for none. */
 export function singleOrMany(nodes: Node[], factory: NodeFactory): Node | undefined {
   if (nodes.length === 0) return undefined;
-  if (nodes.length === 1) return nodes[0];
+  if (nodes.length === 1) return nodes[0]!;
   return factory.createSyntaxList(nodes);
 }
 
@@ -326,7 +324,7 @@ export function isSameNode(a: Node | undefined, b: Node | undefined): boolean {
 /** The statement binding a `for...of` head to `boundValue`: a declaration or an assignment. */
 export function createForOfBindingStatement(factory: NodeFactory, node: Node, boundValue: Node): Node {
   if (node instanceof VariableDeclarationList) {
-    const first = node.declarations.nodes[0] as VariableDeclaration;
+    const first = node.declarations.nodes[0]! as VariableDeclaration;
     const declaration = factory.updateVariableDeclaration(first, first.name, undefined, undefined, boundValue);
     const statement = factory.createVariableStatement(
       undefined,

@@ -214,8 +214,7 @@ export class AliasReferences extends NodeVisitor {
     const symbol = this.resolver.getSymbolOfDeclaration(node);
     if (symbol === undefined) return undefined;
     const kind = node.kind === SyntaxKind.SetAccessor ? SyntaxKind.GetAccessor : SyntaxKind.SetAccessor;
-    for (let i = 0; i < symbol.declarations.length; i++)
-      if (symbol.declarations[i]!.kind === kind) return symbol.declarations[i];
+    for (const declaration of symbol.declarations) if (declaration.kind === kind) return declaration;
     return undefined;
   }
 

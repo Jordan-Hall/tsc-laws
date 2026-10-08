@@ -487,11 +487,11 @@ export class SyntacticDeclarationEmitResolver extends DeclarationEmitResolver {
     const signatures: Node[] = [];
     const declarations = symbol.declarations;
     for (let i = 0; i < declarations.length; i++) {
-      const declaration = declarations[i];
+      const declaration = declarations[i]!;
       if (!isFunctionLike(declaration)) continue;
       // An implementation directly after an overload of the same kind isn't a signature.
       if (i > 0 && getBody(declaration) !== undefined) {
-        const previous = declarations[i - 1];
+        const previous = declarations[i - 1]!;
         if (
           declaration.parent === previous.parent &&
           declaration.kind === previous.kind &&
@@ -524,7 +524,7 @@ export class SyntacticDeclarationEmitResolver extends DeclarationEmitResolver {
       const symbol = this.resolveName(node, node.text, SymbolFlags.Value | SymbolFlags.ExportValue);
       if (symbol === undefined) return undefined;
       const resolved = symbol.exportSymbol ?? symbol;
-      return resolved.valueDeclaration ?? (resolved.declarations.length > 0 ? resolved.declarations[0] : undefined);
+      return resolved.valueDeclaration ?? (resolved.declarations.length > 0 ? resolved.declarations[0]! : undefined);
     }
     if (!(node instanceof PropertyAccessExpression) || !(node.name instanceof Identifier)) return undefined;
     const name = node.name.text;
@@ -997,7 +997,7 @@ class PseudoTypeWriter {
     if (type instanceof InferredType) {
       if (type.errorNodes.length > 0) {
         for (const node of type.errorNodes) this.tracker.reportInferenceFallback(node);
-        return this.resolver.countFallback(type.errorNodes[0], unresolved);
+        return this.resolver.countFallback(type.errorNodes[0]!, unresolved);
       }
       const expression = type.expression;
       const parent = expression.parent;
@@ -1105,7 +1105,7 @@ class PseudoTypeWriter {
       else appendUnionMember(result, node);
     }
     if (failed) return undefined;
-    if (result.length === 1) return result[0];
+    if (result.length === 1) return result[0]!;
     if (result.length === 0) return this.keyword(hasElided ? SyntaxKind.AnyKeyword : SyntaxKind.NeverKeyword);
     return this.context.factory.created(new UnionTypeNode(this.context.factory.createNodeList(result)));
   }

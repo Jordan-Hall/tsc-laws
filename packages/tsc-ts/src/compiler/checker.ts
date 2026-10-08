@@ -193,7 +193,7 @@ function stableSort(list: Diagnostic[]): void {
 }
 
 /** Maximum depth of nested `typeToString` calls before diagnostics are discarded. */
-export const maxSerializationLevel = 100;
+export const maxSerializationLevel = 2;
 
 /** The checker's caches for symbol accessibility. */
 export class SymbolAccessibilityCaches {

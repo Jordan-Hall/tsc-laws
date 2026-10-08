@@ -195,7 +195,7 @@ export function getPathComponents(path: string, currentDirectory = ''): string[]
   if (rest !== '') {
     const parts = rest.split('/');
     const count = parts[parts.length - 1] === '' ? parts.length - 1 : parts.length;
-    for (let i = 0; i < count; i++) components.push(parts[i]);
+    for (let i = 0; i < count; i++) components.push(parts[i]!);
   }
   return components;
 }
@@ -203,9 +203,9 @@ export function getPathComponents(path: string, currentDirectory = ''): string[]
 /** Removes `.`, empty and resolvable `..` components. */
 export function reducePathComponents(components: readonly string[]): string[] {
   if (components.length === 0) return [];
-  const reduced = [components[0]];
+  const reduced = [components[0]!];
   for (let i = 1; i < components.length; i++) {
-    const component = components[i];
+    const component = components[i]!;
     if (component === '' || component === '.') continue;
     if (component === '..') {
       if (reduced.length > 1) {
@@ -224,7 +224,7 @@ export function reducePathComponents(components: readonly string[]): string[] {
 
 export function getPathFromPathComponents(components: readonly string[]): string {
   if (components.length === 0) return '';
-  let root = components[0];
+  let root = components[0]!;
   if (root !== '') root = ensureTrailingDirectorySeparator(root);
   return root + components.slice(1).join('/');
 }
@@ -504,7 +504,7 @@ export function comparePaths(a: string, b: string, useCaseSensitiveFileNames: bo
   const bComponents = reducePathComponents(getPathComponents(b));
   const shared = Math.min(aComponents.length, bComponents.length);
   for (let i = 1; i < shared; i++) {
-    const result = compareStrings(aComponents[i], bComponents[i], ignoreCase);
+    const result = compareStrings(aComponents[i]!, bComponents[i]!, ignoreCase);
     if (result !== 0) return result;
   }
   return aComponents.length === bComponents.length ? 0 : aComponents.length < bComponents.length ? -1 : 1;
@@ -528,8 +528,8 @@ export function containsPath(
   for (let i = 0; i < parentComponents.length; i++) {
     const equal =
       i === 0
-        ? equateStringsCaseInsensitive(parentComponents[i], childComponents[i])
-        : equateStrings(parentComponents[i], childComponents[i], ignoreCase);
+        ? equateStringsCaseInsensitive(parentComponents[i]!, childComponents[i]!)
+        : equateStrings(parentComponents[i]!, childComponents[i]!, ignoreCase);
     if (!equal) return false;
   }
   return true;
@@ -549,14 +549,14 @@ export function getPathComponentsRelativeTo(
   for (; start < maxCommon; start++) {
     const equal =
       start === 0
-        ? equateStringsCaseInsensitive(fromComponents[start], toComponents[start])
-        : equateStrings(fromComponents[start], toComponents[start], ignoreCase);
+        ? equateStringsCaseInsensitive(fromComponents[start]!, toComponents[start]!)
+        : equateStrings(fromComponents[start]!, toComponents[start]!, ignoreCase);
     if (!equal) break;
   }
   if (start === 0) return toComponents;
   const result = [''];
   for (let i = start; i < fromComponents.length; i++) result.push('..');
-  for (let i = start; i < toComponents.length; i++) result.push(toComponents[i]);
+  for (let i = start; i < toComponents.length; i++) result.push(toComponents[i]!);
   return result;
 }
 
@@ -626,8 +626,8 @@ export function removeFileExtension(path: string): string {
 
 /** The known extension of `path`, or `''`. */
 export function tryGetExtensionFromPath(path: string): string {
-  for (let i = 0; i < extensionsToRemove.length; i++) {
-    if (fileExtensionIs(path, extensionsToRemove[i])) return extensionsToRemove[i];
+  for (const extension of extensionsToRemove) {
+    if (fileExtensionIs(path, extension)) return extension;
   }
   return '';
 }
@@ -638,8 +638,8 @@ export function removeExtension(path: string, extension: string): string {
 
 /** The TypeScript or declaration extension of `fileName`, or `''`. */
 export function tryExtractTSExtension(fileName: string): string {
-  for (let i = 0; i < tsExtensionsForExtract.length; i++) {
-    if (fileExtensionIs(fileName, tsExtensionsForExtract[i])) return tsExtensionsForExtract[i];
+  for (const extension of tsExtensionsForExtract) {
+    if (fileExtensionIs(fileName, extension)) return extension;
   }
   return '';
 }
@@ -683,8 +683,7 @@ export function getAnyExtensionFromPath(path: string): string {
 /** Replaces a known extension of `path` with `newExtension`. */
 export function changeExtension(path: string, newExtension: string): string {
   const trimmed = removeTrailingDirectorySeparator(path);
-  for (let i = 0; i < extensionsToRemove.length; i++) {
-    const ext = extensionsToRemove[i];
+  for (const ext of extensionsToRemove) {
     if (trimmed.length >= ext.length && trimmed.endsWith(ext)) {
       const result = path.slice(0, path.length - ext.length);
       if (newExtension === '') return result;

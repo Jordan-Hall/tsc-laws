@@ -743,7 +743,7 @@ function checkIfExpressionRefinesAnyParameter(c: Checker, fn: Node, exprIn: Node
   if ((returnType.flags & TypeFlags.Boolean) === 0) return undefined;
   const parameters = getParameters(fn)!.nodes;
   for (let i = 0; i < parameters.length; i++) {
-    const param = parameters[i];
+    const param = parameters[i]!;
     const symbol = getSymbol(param);
     const name = getName(param);
     if (symbol === undefined || name === undefined) continue;

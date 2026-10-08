@@ -482,7 +482,7 @@ function checkPropertyAccessibilityAtLocation(
       return false;
     }
     // Class fields of the parent aren't on the prototype.
-    if ((flags & ModifierFlags.Static) === 0 && prop.declarations.some(isClassInstanceProperty)) {
+    if ((flags & ModifierFlags.Static) === 0 && hasClassInstancePropertyDeclaration(prop)) {
       if (errorNode !== undefined)
         c.error(
           errorNode,
@@ -587,6 +587,11 @@ function checkPropertyAccessibilityAtLocation(
   return true;
 }
 
+function hasClassInstancePropertyDeclaration(symbol: Symbol): boolean {
+  for (const d of symbol.declarations) if (isClassInstanceProperty(d)) return true;
+  return false;
+}
+
 function isClassInstanceProperty(node: Node): boolean {
   // `this.x = v` in JavaScript declares a field, but `C.prototype.x = v` and `C.x = v` don't.
   if (isInJSFile(node) && node instanceof BinaryExpression) {
@@ -656,7 +661,8 @@ function getUnderlyingProperties(c: Checker, prop: Symbol, out: Symbol[]): void 
 function symbolHasNonMethodDeclaration(c: Checker, symbol: Symbol): boolean {
   const props: Symbol[] = [];
   getUnderlyingProperties(c, symbol, props);
-  return props.some((p) => (p.flags & SymbolFlags.Method) === 0);
+  for (const p of props) if ((p.flags & SymbolFlags.Method) === 0) return true;
+  return false;
 }
 
 function isClassDerivedFromDeclaringClasses(c: Checker, checkClass: Type, prop: Symbol, writing: boolean): boolean {
@@ -800,8 +806,12 @@ export function getSuggestedSymbolForNonexistentProperty(
 ): Symbol | undefined {
   let props = getPropertiesOfType(c, containingType);
   const parent = name.parent!;
-  if (parent.kind === SyntaxKind.PropertyAccessExpression)
-    props = props.filter((prop) => isValidPropertyAccessForCompletions(c, parent, containingType, prop));
+  if (parent.kind === SyntaxKind.PropertyAccessExpression) {
+    const valid: Symbol[] = [];
+    for (const prop of props)
+      if (isValidPropertyAccessForCompletions(c, parent, containingType, prop)) valid.push(prop);
+    props = valid;
+  }
   return getSpellingSuggestionForName(c, getText(name), props, SymbolFlags.Value);
 }
 

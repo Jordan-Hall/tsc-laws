@@ -1290,7 +1290,9 @@ export class Relater extends TypeComparer {
       ) {
         // A literal relates to a primitive union only via its base primitive or other freshness form.
         const literal = source as LiteralType;
-        const alternateForm = source === literal.regularType ? literal.freshType : literal.regularType;
+        // Typed: scriptc can't pass the narrowed LiteralType field as a Type.
+        const alternateForm: Type | undefined =
+          source === literal.regularType ? literal.freshType : literal.regularType;
         let primitive: Type | undefined;
         if ((source.flags & TypeFlags.StringLiteral) !== 0) primitive = c.stringType;
         else if ((source.flags & TypeFlags.NumberLiteral) !== 0) primitive = c.numberType;
@@ -2118,7 +2120,9 @@ export class Relater extends TypeComparer {
 
   typeRelatedToDiscriminatedType(source: Type, target: UnionType): Ternary {
     const c = this.c;
-    const discriminants = getPropertiesOfType(c, source).filter((p) => isDiscriminantProperty(c, target, p.name));
+    const discriminants: Symbol[] = [];
+    for (const p of getPropertiesOfType(c, source))
+      if (isDiscriminantProperty(c, target, p.name)) discriminants.push(p);
     if (discriminants.length === 0) return Ternary.False;
     // Check the number of combinations before building them.
     let combinations = 1;
@@ -2708,17 +2712,14 @@ export class Relater extends TypeComparer {
         this.reportError(Diagnostics.Type_0_is_missing_the_following_properties_from_type_1_Colon_2_and_3_more, [
           names[0],
           names[1],
-          props
-            .slice(0, 4)
-            .map((p) => symbolToString(c, p))
-            .join(', '),
+          symbolNames(c, props.slice(0, 4)),
           String(props.length - 4),
         ]);
       else
         this.reportError(Diagnostics.Type_0_is_missing_the_following_properties_from_type_1_Colon_2, [
           names[0],
           names[1],
-          props.map((p) => symbolToString(c, p)).join(', '),
+          symbolNames(c, props),
         ]);
     }
   }
@@ -3126,11 +3127,22 @@ export class Relater extends TypeComparer {
       const props = getPropertiesOfUnionOrIntersectionType(c, originalTarget as IntersectionType);
       let message =
         Diagnostics.The_intersection_0_was_reduced_to_never_because_property_1_has_conflicting_types_in_some_constituents;
-      let prop = props.find((p) => isDiscriminantWithNeverType(c, p));
+      let prop: Symbol | undefined;
+      for (const p of props) {
+        if (isDiscriminantWithNeverType(c, p)) {
+          prop = p;
+          break;
+        }
+      }
       if (prop === undefined) {
         message =
           Diagnostics.The_intersection_0_was_reduced_to_never_because_property_1_exists_in_multiple_constituents_and_is_private_in_some;
-        prop = props.find(isConflictingPrivateProperty);
+        for (const p of props) {
+          if (isConflictingPrivateProperty(p)) {
+            prop = p;
+            break;
+          }
+        }
       }
       if (prop !== undefined)
         this.reportError(message, [typeToString(c, originalTarget, undefined, 1 << 29), symbolToString(c, prop)]);
@@ -3442,7 +3454,10 @@ export function isWeakType(c: Checker, t: Type): boolean {
     );
   }
   if ((t.flags & TypeFlags.Substitution) !== 0) return isWeakType(c, (t as SubstitutionType).baseType);
-  if ((t.flags & TypeFlags.Intersection) !== 0) return typesOf(t).every((u) => isWeakType(c, u));
+  if ((t.flags & TypeFlags.Intersection) !== 0) {
+    for (const u of typesOf(t)) if (!isWeakType(c, u)) return false;
+    return true;
+  }
   return false;
 }
 
@@ -3480,8 +3495,14 @@ function isExcessPropertyCheckTarget(t: Type): boolean {
     return (t.objectFlags & ObjectFlags.ObjectLiteralPatternWithComputedProperties) === 0;
   if ((t.flags & TypeFlags.NonPrimitive) !== 0) return true;
   if ((t.flags & TypeFlags.Substitution) !== 0) return isExcessPropertyCheckTarget((t as SubstitutionType).baseType);
-  if ((t.flags & TypeFlags.Union) !== 0) return typesOf(t).some(isExcessPropertyCheckTarget);
-  if ((t.flags & TypeFlags.Intersection) !== 0) return typesOf(t).every(isExcessPropertyCheckTarget);
+  if ((t.flags & TypeFlags.Union) !== 0) {
+    for (const u of typesOf(t)) if (isExcessPropertyCheckTarget(u)) return true;
+    return false;
+  }
+  if ((t.flags & TypeFlags.Intersection) !== 0) {
+    for (const u of typesOf(t)) if (!isExcessPropertyCheckTarget(u)) return false;
+    return true;
+  }
   return false;
 }
 
@@ -3583,17 +3604,22 @@ function findMatchingDiscriminantType(c: Checker, source: Type, target: Type, re
     return undefined;
   const match = getMatchingUnionConstituentForType(c, target as UnionType, source);
   if (match !== undefined) return match;
-  const discriminants = getPropertiesOfType(c, source).filter((p) => isDiscriminantProperty(c, target, p.name));
+  const discriminants: Symbol[] = [];
+  for (const p of getPropertiesOfType(c, source)) if (isDiscriminantProperty(c, target, p.name)) discriminants.push(p);
   if (discriminants.length === 0) return undefined;
   // Constituents whose discriminant types the source's values relate to.
   let types = typesOf(target);
   for (const prop of discriminants) {
     const propType = getTypeOfSymbol(c, prop);
-    const filtered = types.filter((t) => {
+    const filtered: Type[] = [];
+    for (const t of types) {
       const targetPropType = getTypeOfPropertyOfType(c, t, prop.name);
-      if (targetPropType === undefined) return true;
-      return someType(propType, (s) => relater.isRelatedToSimple(s, targetPropType) !== Ternary.False);
-    });
+      if (
+        targetPropType === undefined ||
+        someType(propType, (s) => relater.isRelatedToSimple(s, targetPropType) !== Ternary.False)
+      )
+        filtered.push(t);
+    }
     if (filtered.length !== 0) types = filtered;
   }
   if (types.length === typesOf(target).length) return undefined;
@@ -3667,7 +3693,8 @@ function findMatchingTypeReferenceOrTypeAliasReference(source: Type, unionTarget
 
 function findBestTypeForInvokable(c: Checker, source: Type, unionTarget: Type, kind: SignatureKind): Type | undefined {
   if (getSignaturesOfType(c, source, kind).length === 0) return undefined;
-  return typesOf(unionTarget).find((t) => getSignaturesOfType(c, t, kind).length !== 0);
+  for (const t of typesOf(unionTarget)) if (getSignaturesOfType(c, t, kind).length !== 0) return t;
+  return undefined;
 }
 
 function findMostOverlappyType(c: Checker, source: Type, unionTarget: Type): Type | undefined {
@@ -3679,7 +3706,7 @@ function findMostOverlappyType(c: Checker, source: Type, unionTarget: Type): Typ
     const overlap = getIntersectionType(c, [getIndexType(c, source), getIndexType(c, target)]);
     if ((overlap.flags & TypeFlags.Index) !== 0) return target;
     if (isUnitType(overlap) || (overlap.flags & TypeFlags.Union) !== 0) {
-      const length = (overlap.flags & TypeFlags.Union) !== 0 ? typesOf(overlap).filter(isUnitType).length : 1;
+      const length = (overlap.flags & TypeFlags.Union) !== 0 ? countUnitTypes(typesOf(overlap)) : 1;
       if (length >= matchingCount) {
         bestMatch = target;
         matchingCount = length;
@@ -3689,9 +3716,21 @@ function findMostOverlappyType(c: Checker, source: Type, unionTarget: Type): Typ
   return bestMatch;
 }
 
+function symbolNames(c: Checker, symbols: Symbol[]): string {
+  const names: string[] = [];
+  for (const s of symbols) names.push(symbolToString(c, s));
+  return names.join(', ');
+}
+
+function countUnitTypes(types: Type[]): number {
+  let count = 0;
+  for (const t of types) if (isUnitType(t)) count++;
+  return count;
+}
+
 function findBestTypeForObjectLiteral(c: Checker, source: Type, unionTarget: Type): Type | undefined {
   if ((source.objectFlags & ObjectFlags.ObjectLiteral) !== 0 && someType(unionTarget, (t) => isArrayLikeType(c, t)))
-    return typesOf(unionTarget).find((t) => !isArrayLikeType(c, t));
+    for (const t of typesOf(unionTarget)) if (!isArrayLikeType(c, t)) return t;
   return undefined;
 }
 
@@ -3792,7 +3831,10 @@ function forEachProperty(c: Checker, prop: Symbol, callback: (p: Symbol) => bool
 }
 
 export function isObjectTypeWithInferableIndex(c: Checker, t: Type): boolean {
-  if ((t.flags & TypeFlags.Intersection) !== 0) return typesOf(t).every((u) => isObjectTypeWithInferableIndex(c, u));
+  if ((t.flags & TypeFlags.Intersection) !== 0) {
+    for (const u of typesOf(t)) if (!isObjectTypeWithInferableIndex(c, u)) return false;
+    return true;
+  }
   return (
     (t.symbol !== undefined &&
       (t.symbol.flags &
@@ -3845,8 +3887,10 @@ function contextFreeExpressionDeclaration(c: Checker, t: Type): Node | undefined
 
 function typeCouldHaveTopLevelSingletonTypes(c: Checker, t: Type): boolean {
   if ((t.flags & TypeFlags.Boolean) !== 0) return false;
-  if ((t.flags & TypeFlags.UnionOrIntersection) !== 0)
-    return typesOf(t).some((u) => typeCouldHaveTopLevelSingletonTypes(c, u));
+  if ((t.flags & TypeFlags.UnionOrIntersection) !== 0) {
+    for (const u of typesOf(t)) if (typeCouldHaveTopLevelSingletonTypes(c, u)) return true;
+    return false;
+  }
   if ((t.flags & TypeFlags.Instantiable) !== 0) {
     const constraint = getConstraintOfType(c, t);
     if (constraint !== undefined && constraint !== t) return typeCouldHaveTopLevelSingletonTypes(c, constraint);
@@ -4009,20 +4053,16 @@ export function createMarkerType(c: Checker, symbol: Symbol, source: Type, targe
   const mapper = new SimpleTypeMapper(source, target);
   const t = getDeclaredTypeOfSymbol(c, symbol);
   if (isErrorType(c, t)) return t;
-  let result: Type;
-  if ((symbol.flags & SymbolFlags.TypeAlias) !== 0)
-    result = getTypeAliasInstantiation(
-      c,
-      symbol,
-      (c.symbolLinks(symbol).typeParameters ?? emptyTypes).map((p) => instantiateType(c, p, mapper)),
-      undefined,
-    );
-  else
-    result = createTypeReference(
-      c,
-      t,
-      (t as InterfaceType).typeParameters().map((p) => instantiateType(c, p, mapper)),
-    );
+  const typeArguments: Type[] = [];
+  const typeParameters =
+    (symbol.flags & SymbolFlags.TypeAlias) !== 0
+      ? (c.symbolLinks(symbol).typeParameters ?? emptyTypes)
+      : (t as InterfaceType).typeParameters();
+  for (const p of typeParameters) typeArguments.push(instantiateType(c, p, mapper));
+  const result =
+    (symbol.flags & SymbolFlags.TypeAlias) !== 0
+      ? getTypeAliasInstantiation(c, symbol, typeArguments, undefined)
+      : createTypeReference(c, t, typeArguments);
   c.markerTypes.add(result);
   return result;
 }
@@ -4541,10 +4581,18 @@ function isMatchingSignature(c: Checker, source: Signature, target: Signature, p
  * `{}`, Object and Function are less derived than object-like types.
  */
 export function isTypeDerivedFrom(c: Checker, source: Type, target: Type): boolean {
-  if ((source.flags & TypeFlags.Union) !== 0) return typesOf(source).every((t) => isTypeDerivedFrom(c, t, target));
-  if ((target.flags & TypeFlags.Union) !== 0) return typesOf(target).some((t) => isTypeDerivedFrom(c, source, t));
-  if ((source.flags & TypeFlags.Intersection) !== 0)
-    return typesOf(source).some((t) => isTypeDerivedFrom(c, t, target));
+  if ((source.flags & TypeFlags.Union) !== 0) {
+    for (const t of typesOf(source)) if (!isTypeDerivedFrom(c, t, target)) return false;
+    return true;
+  }
+  if ((target.flags & TypeFlags.Union) !== 0) {
+    for (const t of typesOf(target)) if (isTypeDerivedFrom(c, source, t)) return true;
+    return false;
+  }
+  if ((source.flags & TypeFlags.Intersection) !== 0) {
+    for (const t of typesOf(source)) if (isTypeDerivedFrom(c, t, target)) return true;
+    return false;
+  }
   if ((source.flags & TypeFlags.InstantiableNonPrimitive) !== 0)
     return isTypeDerivedFrom(c, getBaseConstraintOfType(c, source) ?? c.unknownType, target);
   if (isEmptyAnonymousObjectType(c, target)) return (source.flags & (TypeFlags.Object | TypeFlags.NonPrimitive)) !== 0;

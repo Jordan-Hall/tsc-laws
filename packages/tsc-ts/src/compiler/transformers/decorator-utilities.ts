@@ -237,7 +237,7 @@ export function moveRangePastModifiers(node: Node): TextRange {
     return new TextRange(getName(node)!.pos, node.end);
   const modifiers = getModifiers(node);
   if (modifiers !== undefined && modifiers.nodes.length > 0) {
-    const last = modifiers.nodes[modifiers.nodes.length - 1];
+    const last = modifiers.nodes[modifiers.nodes.length - 1]!;
     if (!positionIsSynthesized(last.end)) return new TextRange(last.end, node.end);
   }
   return moveRangePastDecorators(node);
@@ -265,14 +265,15 @@ export function isSimpleInlineableExpression(node: Node): boolean {
 export function getSetAccessorValueParameter(node: Node): Node | undefined {
   const parameters = getParameters(node)!.nodes;
   if (parameters.length === 0) return undefined;
-  if (parameters.length >= 2 && isThisParameter(parameters[0]!)) return parameters[1];
-  return parameters[0];
+  if (parameters.length >= 2 && isThisParameter(parameters[0]!)) return parameters[1]!;
+  return parameters[0]!;
 }
 
 /** `T` of a rest parameter's `T[]` or `Array<T>`. */
 export function getRestParameterElementType(node: Node | undefined): Node | undefined {
   if (node instanceof ArrayTypeNode) return node.elementType;
-  if (node instanceof TypeReferenceNode && node.typeArguments !== undefined) return node.typeArguments.nodes[0];
+  if (node instanceof TypeReferenceNode && node.typeArguments !== undefined && node.typeArguments.nodes.length > 0)
+    return node.typeArguments.nodes[0]!;
   return undefined;
 }
 

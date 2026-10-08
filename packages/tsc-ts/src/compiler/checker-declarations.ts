@@ -233,12 +233,14 @@ export function checkVariableLikeDeclaration(c: Checker, node: Node): void {
       checkTypeAssignableToAndOptionallyElaborate(c, initType, t, node, initializer);
       checkUsingDeclarationInitializer(c, node, initializer, initType);
     }
-    if (
-      name !== undefined &&
-      symbol.declarations.length > 1 &&
-      symbol.declarations.some((d) => d !== node && isVariableLike(d) && !areDeclarationFlagsIdentical(d, node))
-    )
-      reportNonIdenticalModifiers(c, name);
+    if (name !== undefined && symbol.declarations.length > 1) {
+      for (const d of symbol.declarations) {
+        if (d !== node && isVariableLike(d) && !areDeclarationFlagsIdentical(d, node)) {
+          reportNonIdenticalModifiers(c, name);
+          break;
+        }
+      }
+    }
     return;
   }
   if (
@@ -268,7 +270,13 @@ function checkBindingPatternInitializer(c: Checker, node: Node, name: Node, init
   if (isInAmbientOrTypeNode(node)) return;
   // A for-in initializer is already an error.
   const needCheckInitializer = initializer !== undefined && node.parent!.parent!.kind !== SyntaxKind.ForInStatement;
-  const needCheckWidenedType = !getElements(name)!.nodes.some((e) => getName(e) !== undefined);
+  let needCheckWidenedType = true;
+  for (const e of getElements(name)!.nodes) {
+    if (getName(e) !== undefined) {
+      needCheckWidenedType = false;
+      break;
+    }
+  }
   if (!needCheckInitializer && !needCheckWidenedType) return;
   const widenedType = getWidenedTypeForVariableLikeDeclaration(c, node, false);
   if (needCheckInitializer) {

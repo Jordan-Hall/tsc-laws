@@ -39,7 +39,7 @@ export function categoryName(category: DiagnosticCategory): string {
 }
 
 export function messageCode(message: DiagnosticMessage): number {
-  return messageCodes[message];
+  return messageCodes[message]!;
 }
 
 export function messageCategory(message: DiagnosticMessage): DiagnosticCategory {
@@ -93,7 +93,7 @@ export function messageForKey(key: string): DiagnosticMessage | undefined {
   if (messagesByKey === undefined) {
     messagesByKey = new Map();
     const all = keyList();
-    for (let i = 0; i < all.length; i++) messagesByKey.set(all[i], i as DiagnosticMessage);
+    for (let i = 0; i < all.length; i++) messagesByKey.set(all[i]!, i as DiagnosticMessage);
   }
   return messagesByKey.get(key);
 }
@@ -505,8 +505,8 @@ function codeSnippet(
       result += indent + gutterStyle + ellipsis.padStart(gutterWidth) + reset + gutterSeparator + newLine;
       i = lastLine - 1;
     }
-    const lineStart = lineStarts[i];
-    const lineEnd = i < lastLineOfFile ? lineStarts[i + 1] : text.length;
+    const lineStart = lineStarts[i]!;
+    const lineEnd = i < lastLineOfFile ? lineStarts[i + 1]! : text.length;
     const lineContent = trimEndSpace(text.slice(lineStart, lineEnd)).replaceAll('\t', ' ');
 
     result += indent + gutterStyle + String(i + 1).padStart(gutterWidth) + reset + gutterSeparator;
@@ -624,7 +624,7 @@ export function formatErrorSummary(diagnostics: readonly Diagnostic[], options: 
   if (totalErrorCount === 0) return '';
 
   const sorted = [...byFile.values()].sort((a, b) => compareCodePoints(a.file.fileName, b.file.fileName));
-  const firstFileName = prettyPathForFileError(sorted.length > 0 ? sorted[0] : undefined, options);
+  const firstFileName = prettyPathForFileError(sorted.length > 0 ? sorted[0]! : undefined, options);
   const fileCount = sorted.length;
   let message: string;
   if (totalErrorCount === 1) {
@@ -650,7 +650,7 @@ export function formatErrorSummary(diagnostics: readonly Diagnostic[], options: 
     let maxErrors = 0;
     for (const entry of sorted) maxErrors = Math.max(maxErrors, entry.errors.length);
     const headerRow = localizeMessage(locale, Diagnostics.Errors_Files, []);
-    const leftColumnHeadingLength = utf8Length(headerRow.split(' ')[0]);
+    const leftColumnHeadingLength = utf8Length(headerRow.split(' ')[0]!);
     const lengthOfBiggestErrorCount = String(maxErrors).length;
     const leftPaddingGoal = Math.max(leftColumnHeadingLength, lengthOfBiggestErrorCount);
     const headerPadding = Math.max(lengthOfBiggestErrorCount - leftColumnHeadingLength, 0);

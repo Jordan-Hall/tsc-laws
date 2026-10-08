@@ -159,9 +159,7 @@ export function checkGrammarObjectLiteralOfExpression(
   node: ObjectLiteralExpression,
   inDestructuring: boolean,
 ): void {
-  // Destructuring targets are checked with the grammar walk.
-  if (!isDestructuringAssignmentTarget(node))
-    checkGrammarObjectLiteralExpression(grammarCheckerOf(c, node), node, inDestructuring);
+  checkGrammarObjectLiteralExpression(grammarCheckerOf(c, node), node, inDestructuring);
 }
 
 /** Reports a trailing comma after the rest element of a destructuring assignment. */
@@ -473,8 +471,7 @@ function checkGrammarNode(g: GrammarChecker, node: Node): boolean {
       // Checked by the checker each time the function is checked.
       return true;
     case SyntaxKind.ObjectLiteralExpression:
-      // Other object literals are checked by the checker.
-      if (isDestructuringAssignmentTarget(node)) checkGrammarObjectLiteral(g, node as ObjectLiteralExpression);
+      // Checked by the checker each time the literal is checked.
       return true;
     case SyntaxKind.CallExpression:
       checkGrammarCallExpression(g, node as CallExpression);
@@ -3122,58 +3119,6 @@ const enum DeclarationMeaning {
   PropertyAssignment = 1 << 2,
   Method = 1 << 3,
   GetOrSetAccessor = GetAccessor | SetAccessor,
-}
-
-/**
- * Whether an object or array literal is the target of a destructuring assignment, which is
- * checked as a pattern rather than as a literal.
- */
-function isDestructuringAssignmentTarget(node: Node): boolean {
-  const parent = node.parent!;
-  switch (parent.kind) {
-    case SyntaxKind.BinaryExpression: {
-      const binary = parent as BinaryExpression;
-      return binary.left === node && binary.operatorToken.kind === SyntaxKind.EqualsToken;
-    }
-    case SyntaxKind.ForOfStatement:
-      return (parent as ForInOrOfStatement).initializer === node;
-    case SyntaxKind.ArrayLiteralExpression:
-      return isDestructuringAssignmentTarget(parent);
-    case SyntaxKind.SpreadElement:
-    case SyntaxKind.SpreadAssignment:
-    case SyntaxKind.PropertyAssignment: {
-      const literal = parent.parent!;
-      return (
-        (literal.kind === SyntaxKind.ArrayLiteralExpression || literal.kind === SyntaxKind.ObjectLiteralExpression) &&
-        isDestructuringAssignmentTarget(literal)
-      );
-    }
-  }
-  return false;
-}
-
-function getContextualCheckCountOfDestructuringTarget(node: Node): number {
-  let current = node;
-  for (;;) {
-    const parent = current.parent!;
-    if (parent.kind === SyntaxKind.BinaryExpression && (parent as BinaryExpression).left === current) {
-      const right = skipParentheses((parent as BinaryExpression).right);
-      return right.kind === SyntaxKind.ObjectLiteralExpression
-        ? 2
-        : right.kind === SyntaxKind.ArrayLiteralExpression
-          ? 1
-          : 0;
-    }
-    if (parent.kind === SyntaxKind.ForOfStatement) return 0;
-    current = parent.kind === SyntaxKind.ArrayLiteralExpression ? parent : parent.parent!;
-  }
-}
-
-function checkGrammarObjectLiteral(g: GrammarChecker, node: ObjectLiteralExpression): void {
-  // Destructuring targets are checked as literals only when the contextual type of a literal on
-  // the right is computed: twice for an object literal, once for an array literal.
-  const count = getContextualCheckCountOfDestructuringTarget(node);
-  for (let i = 0; i < count; i++) checkGrammarObjectLiteralExpression(g, node, true);
 }
 
 function checkGrammarObjectLiteralExpression(

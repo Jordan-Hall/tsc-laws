@@ -33,7 +33,7 @@ import { isAmbientModule } from './ast-utilities.js';
 import { checkExpression } from './checker-expressions.js';
 import { getExportsOfSymbol, getMembersOfSymbol, isAmbientModuleSymbolName, resolveAlias } from './checker-symbols.js';
 import { compareSymbols } from './checker-type-factory.js';
-import { TypeFlags, type LiteralType } from './checker-types.js';
+import { TypeFlags, type LiteralType, type Type } from './checker-types.js';
 import { isLateBoundName } from './checker-utilities.js';
 import {
   getDirectoryPath,
@@ -63,7 +63,7 @@ import {
   getFileSymbolIfFileSymbolExportEqualsContainer,
   getQualifiedLeftMeaning,
   getSymbolIfSameReference,
-  hasNonGlobalAugmentationExternalModuleSymbol,
+  hasNonGlobalAugmentationExternalModuleDeclaration,
   needsQualification,
 } from './symbol-accessibility.js';
 import { SyntaxKind } from './syntax-kind.js';
@@ -109,18 +109,20 @@ function getSymbolChain(
     (b.flags & NodeBuilderFlags.UseOnlyExternalAliasing) !== 0,
   );
   const qualifierMeaning = chain.length > 1 ? getQualifiedLeftMeaning(meaning) : meaning;
-  if (chain.length === 0 || needsQualification(c, chain[0], b.enclosingDeclaration, qualifierMeaning)) {
+  if (chain.length === 0 || needsQualification(c, chain[0]!, b.enclosingDeclaration, qualifierMeaning)) {
     // Go up and add the parent.
-    const root = chain.length > 0 ? chain[0] : symbol;
+    const root = chain.length > 0 ? chain[0]! : symbol;
     const parents = getContainersOfSymbol(c, root, b.enclosingDeclaration, meaning);
     if (parents.length > 0) {
-      const specifiers = parents.map((p) =>
-        p.declarations.some(hasNonGlobalAugmentationExternalModuleSymbol) ? getSpecifierForModuleSymbol(b, p) : '',
-      );
-      const order = parents.map((_p, i) => i);
-      order.sort((x, y) => compareByBestName(b, parents[x], specifiers[x], parents[y], specifiers[y]) || x - y);
+      const specifiers: string[] = [];
+      const order: number[] = [];
+      for (const p of parents) {
+        order.push(specifiers.length);
+        specifiers.push(hasNonGlobalAugmentationExternalModuleDeclaration(p) ? getSpecifierForModuleSymbol(b, p) : '');
+      }
+      order.sort((x, y) => compareByBestName(b, parents[x]!, specifiers[x]!, parents[y]!, specifiers[y]!) || x - y);
       for (const index of order) {
-        const parent = parents[index];
+        const parent = parents[index]!;
         const parentChain = getSymbolChain(b, parent, getQualifiedLeftMeaning(meaning), false, yieldModuleSymbol);
         if (parentChain === undefined || parentChain.length === 0) continue;
         const exportEquals = parent.exports?.get(InternalSymbolName.ExportEquals);
@@ -139,7 +141,7 @@ function getSymbolChain(
   // The end of a chain is always written; an anonymous type parent never is.
   if (endOfChain || (symbol.flags & (SymbolFlags.TypeLiteral | SymbolFlags.ObjectLiteral)) === 0) {
     // An external module parent isn't written: `x` rather than `"foo/bar".x`.
-    if (!endOfChain && !yieldModuleSymbol && symbol.declarations.some(hasNonGlobalAugmentationExternalModuleSymbol))
+    if (!endOfChain && !yieldModuleSymbol && hasNonGlobalAugmentationExternalModuleDeclaration(symbol))
       return undefined;
     return [symbol];
   }
@@ -181,12 +183,12 @@ export function symbolToTypeNode(
   );
   if (chain.length === 0) return undefined;
   const isTypeOf = mask === SymbolFlags.Value;
-  if (chain[0].declarations.some(hasNonGlobalAugmentationExternalModuleSymbol)) {
+  if (hasNonGlobalAugmentationExternalModuleDeclaration(chain[0]!)) {
     // A module root needs an `import` type.
     const nonRootParts =
       chain.length > 1 ? createAccessFromSymbolChain(b, chain, chain.length - 1, 1, typeArguments) : undefined;
     const typeParameterNodes = typeArguments ?? lookupTypeParameterNodes(b, chain, 0);
-    const specifier = getSpecifierForModuleSymbol(b, chain[0]);
+    const specifier = getSpecifierForModuleSymbol(b, chain[0]!);
     let attributes: ImportAttributes | undefined = undefined;
     if ((b.flags & NodeBuilderFlags.AllowNodeModulesRelativePaths) === 0 && specifier.includes('/node_modules/')) {
       // A reference into `node_modules` is likely to break when published.
@@ -238,8 +240,8 @@ function createAccessFromSymbolChain(
   const c = b.c;
   const typeParameterNodes =
     index !== chain.length - 1 ? lookupTypeParameterNodes(b, chain, index) : overrideTypeArguments;
-  const symbol = chain[index];
-  const parent = index > 0 ? chain[index - 1] : undefined;
+  const symbol = chain[index]!;
+  const parent = index > 0 ? chain[index - 1]! : undefined;
   let symbolName = '';
   if (index === 0) {
     b.flags |= NodeBuilderFlags.InInitialEntityName;
@@ -272,8 +274,8 @@ function createAccessFromSymbolChain(
       if (candidates.length > 0) {
         let best = 0;
         for (let i = 1; i < candidates.length; i++)
-          if (compareSymbols(c, candidates[i], candidates[best]) < 0) best = i;
-        symbolName = names[best];
+          if (compareSymbols(c, candidates[i]!, candidates[best]!) < 0) best = i;
+        symbolName = names[best]!;
       }
     }
   }
@@ -415,7 +417,7 @@ export function symbolToName(b: NodeBuilder, symbol: Symbol, meaning: SymbolFlag
 }
 
 function createEntityNameFromSymbolChain(b: NodeBuilder, chain: Symbol[], index: number): Node {
-  const symbol = chain[index];
+  const symbol = chain[index]!;
   if (index === 0) b.flags |= NodeBuilderFlags.InInitialEntityName;
   const symbolName = getNameOfSymbolAsWritten(b, symbol);
   if (index === 0) b.flags ^= NodeBuilderFlags.InInitialEntityName;
@@ -440,11 +442,11 @@ export function symbolToExpression(b: NodeBuilder, symbol: Symbol, meaning: Symb
 
 function createExpressionFromSymbolChain(b: NodeBuilder, chain: Symbol[], index: number): Node {
   const typeParameterNodes = lookupExpressionChainTypeArgumentNodes(b, chain, index);
-  const symbol = chain[index];
+  const symbol = chain[index]!;
   if (index === 0) b.flags |= NodeBuilderFlags.InInitialEntityName;
   let symbolName = getNameOfSymbolAsWritten(b, symbol);
   if (index === 0) b.flags ^= NodeBuilderFlags.InInitialEntityName;
-  if (startsWithQuote(symbolName) && symbol.declarations.some(hasNonGlobalAugmentationExternalModuleSymbol)) {
+  if (startsWithQuote(symbolName) && hasNonGlobalAugmentationExternalModuleDeclaration(symbol)) {
     const specifier = getSpecifierForModuleSymbol(b, symbol);
     b.approximateLength += 2 + specifier.length;
     return b.stringLiteral(specifier, false);
@@ -524,13 +526,13 @@ function shouldWriteTypeParametersInQualifiedName(b: NodeBuilder, chain: Symbol[
 }
 
 function lookupTypeParameterNodes(b: NodeBuilder, chain: Symbol[], index: number): NodeList | undefined {
-  const symbolId = getSymbolId(chain[index]);
+  const symbolId = getSymbolId(chain[index]!);
   if (b.typeParameterSymbolList.has(symbolId)) return undefined;
   b.typeParameterSymbolList.add(symbolId);
   if (shouldWriteTypeParametersInQualifiedName(b, chain, index)) {
     const typeArgumentNodes = lookupInstantiatedTypeArgumentNodes(b, chain, index);
     if (typeArgumentNodes !== undefined) return typeArgumentNodes;
-    const typeParameterNodes = b.typeParametersToTypeParameterDeclarations(chain[index]);
+    const typeParameterNodes = b.typeParametersToTypeParameterDeclarations(chain[index]!);
     return typeParameterNodes.length > 0 ? b.list(typeParameterNodes) : undefined;
   }
   return undefined;
@@ -538,24 +540,28 @@ function lookupTypeParameterNodes(b: NodeBuilder, chain: Symbol[], index: number
 
 function lookupInstantiatedTypeArgumentNodes(b: NodeBuilder, chain: Symbol[], index: number): NodeList | undefined {
   if (!shouldWriteTypeParametersInQualifiedName(b, chain, index)) return undefined;
-  const symbol = chain[index];
-  const nextSymbol = chain[index + 1];
+  const symbol = chain[index]!;
+  const nextSymbol = chain[index + 1]!;
   if ((nextSymbol.checkFlags & CheckFlags.Instantiated) === 0) return undefined;
   const target = (symbol.flags & SymbolFlags.Alias) !== 0 ? resolveAlias(b.c, symbol) : symbol;
   let params = b.getTypeParametersOfClassOrInterface(target);
   const mapper = b.c.symbolLinks(nextSymbol).mapper;
-  if (mapper !== undefined) params = params.map((p) => mapper.map(p));
+  if (mapper !== undefined) {
+    const mapped: Type[] = [];
+    for (const p of params) mapped.push(mapper.map(p));
+    params = mapped;
+  }
   return b.mapToTypeNodes(params, false);
 }
 
 function lookupExpressionChainTypeArgumentNodes(b: NodeBuilder, chain: Symbol[], index: number): NodeList | undefined {
   if (!shouldWriteTypeParametersInQualifiedName(b, chain, index)) return undefined;
-  const symbolId = getSymbolId(chain[index]);
+  const symbolId = getSymbolId(chain[index]!);
   if (b.typeParameterSymbolList.has(symbolId)) return undefined;
   b.typeParameterSymbolList.add(symbolId);
   const typeArgumentNodes = lookupInstantiatedTypeArgumentNodes(b, chain, index);
   if (typeArgumentNodes !== undefined) return typeArgumentNodes;
-  const typeParameterNodes = b.typeParametersToTypeParameterDeclarations(chain[index]);
+  const typeParameterNodes = b.typeParametersToTypeParameterDeclarations(chain[index]!);
   return typeParameterNodes.length > 0 ? b.list(typeParameterNodes) : undefined;
 }
 
@@ -606,7 +612,7 @@ export function getNameOfSymbolAsWritten(b: NodeBuilder, symbol: Symbol): string
     ((b.flags & NodeBuilderFlags.InInitialEntityName) === 0 ||
       symbol.declarations.length === 0 ||
       (b.enclosingDeclaration !== undefined &&
-        findDefaultBindingContext(symbol.declarations[0]) !== findDefaultBindingContext(b.enclosingDeclaration)))
+        findDefaultBindingContext(symbol.declarations[0]!) !== findDefaultBindingContext(b.enclosingDeclaration)))
   )
     return 'default';
   if (symbol.declarations.length > 0) {
@@ -625,7 +631,7 @@ export function getNameOfSymbolAsWritten(b: NodeBuilder, symbol: Symbol): string
       }
       return declarationNameToString(getSourceFileOfNode(name), name);
     }
-    const declaration = symbol.declarations[0];
+    const declaration = symbol.declarations[0]!;
     const parent = declaration.parent;
     if (parent !== undefined && parent.kind === SyntaxKind.VariableDeclaration) {
       const parentName = getName(parent)!;
@@ -672,8 +678,18 @@ export function getPropertyNameNodeForSymbol(b: NodeBuilder, symbol: Symbol): No
       return b.cloneSynthesized(declarationName);
   }
   const declarations = symbol.declarations;
-  const stringNamed = declarations.length !== 0 && declarations.every((d) => isStringNamed(b, d));
-  const singleQuote = declarations.length !== 0 && declarations.every(isSingleQuotedStringNamed);
+  let stringNamed = declarations.length !== 0;
+  for (const d of declarations)
+    if (!isStringNamed(b, d)) {
+      stringNamed = false;
+      break;
+    }
+  let singleQuote = declarations.length !== 0;
+  for (const d of declarations)
+    if (!isSingleQuotedStringNamed(d)) {
+      singleQuote = false;
+      break;
+    }
   const isMethod = (symbol.flags & SymbolFlags.Method) !== 0;
   const fromNameType = getPropertyNameNodeForSymbolFromNameType(b, symbol, singleQuote, stringNamed, isMethod);
   if (fromNameType !== undefined) return fromNameType;
@@ -802,6 +818,6 @@ function asSourceFile(node: Node | undefined): SourceFile | undefined {
 }
 
 function getSourceFileOfModule(symbol: Symbol): SourceFile | undefined {
-  const d = symbol.valueDeclaration ?? (symbol.declarations.length > 0 ? symbol.declarations[0] : undefined);
+  const d = symbol.valueDeclaration ?? (symbol.declarations.length > 0 ? symbol.declarations[0]! : undefined);
   return d === undefined ? undefined : getSourceFileOfNode(d);
 }

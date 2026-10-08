@@ -192,10 +192,10 @@ function isAnySymbolAccessible(
     const chain = getAccessibleSymbolChain(c, symbol, enclosingDeclaration, meaning, false);
     if (chain.length > 0) {
       hadAccessibleChain = symbol;
-      const visible = hasVisibleDeclarations(c, chain[0], shouldComputeAliasesToMakeVisible);
+      const visible = hasVisibleDeclarations(c, chain[0]!, shouldComputeAliasesToMakeVisible);
       if (visible !== undefined) return visible;
     }
-    if (allowModules && symbol.declarations.some(hasNonGlobalAugmentationExternalModuleSymbol)) {
+    if (allowModules && hasNonGlobalAugmentationExternalModuleDeclaration(symbol)) {
       if (shouldComputeAliasesToMakeVisible) {
         // Prefer existing aliases of the module, which declaration emit must keep.
         earlyModuleBail = true;
@@ -227,6 +227,11 @@ function isAnySymbolAccessible(
       hadAccessibleChain !== initialSymbol ? symbolToString(c, hadAccessibleChain) : '',
     );
   return undefined;
+}
+
+export function hasNonGlobalAugmentationExternalModuleDeclaration(symbol: Symbol): boolean {
+  for (const d of symbol.declarations) if (hasNonGlobalAugmentationExternalModuleSymbol(d)) return true;
+  return false;
 }
 
 export function hasNonGlobalAugmentationExternalModuleSymbol(declaration: Node): boolean {
@@ -348,7 +353,8 @@ function getAlternativeContainingModules(c: Checker, symbol: Symbol, enclosingDe
   // Search every module; expensive, but independent of the location.
   for (const file of c.host.getSourceFiles()) {
     if (!isExternalModule(file)) continue;
-    const fileSymbol = getSymbolOfDeclaration(c, file);
+    // `as`: scriptc passes a for-of element of a subclass array only as that class.
+    const fileSymbol = getSymbolOfDeclaration(c, file as Node);
     if (fileSymbol === undefined || getAliasForSymbolInContainer(c, fileSymbol, symbol) === undefined) continue;
     results.push(fileSymbol);
   }
@@ -359,7 +365,7 @@ function getAlternativeContainingModules(c: Checker, symbol: Symbol, enclosingDe
 /** The variable `var a = { x: 1 }` declares, for the anonymous `__object` symbol of its literal. */
 function getVariableDeclarationOfObjectLiteral(c: Checker, symbol: Symbol, meaning: SymbolFlags): Symbol | undefined {
   if ((meaning & SymbolFlags.Value) === 0 || symbol.declarations.length === 0) return undefined;
-  const firstDecl = symbol.declarations[0];
+  const firstDecl = symbol.declarations[0]!;
   const parent = firstDecl.parent;
   if (parent === undefined || !(parent instanceof VariableDeclaration)) return undefined;
   if (
@@ -449,8 +455,8 @@ export function getContainersOfSymbol(
     if (getAliasForSymbolInContainer(c, candidate, symbol) === undefined) continue;
     const all = getWithAlternativeContainers(c, candidate, symbol, enclosingDeclaration, meaning);
     if (all.length === 0) continue;
-    best.push(all[0]);
-    for (let i = 1; i < all.length; i++) alternatives.push(all[i]);
+    best.push(all[0]!);
+    for (let i = 1; i < all.length; i++) alternatives.push(all[i]!);
   }
   for (const s of alternatives) best.push(s);
   return best;
@@ -473,7 +479,7 @@ export function getAliasForSymbolInContainer(c: Checker, container: Symbol, symb
     if (getSymbolIfSameReference(c, exported, symbol) !== undefined) candidates.push(exported);
   if (candidates.length === 0) return undefined;
   candidates.sort((a, b) => compareSymbols(c, a, b));
-  return candidates[0];
+  return candidates[0]!;
 }
 
 // ---- Accessible symbol chains
@@ -520,10 +526,11 @@ class ChainSearch {
       byKey = new Map<string, Symbol[]>();
       cache.accessibleChains.set(symbolId, byKey);
     }
+    // `!`: scriptc keeps the callback's optional scope optional after narrowing.
     const location: Node | undefined = firstRelevantLocation;
     const key =
       (this.useOnlyExternalAliasing ? '1:' : '0:') +
-      (location === undefined ? 0 : getNodeId(location)) +
+      (location === undefined ? 0 : getNodeId(location!)) +
       ':' +
       this.meaning;
     const existing = byKey.get(key);
@@ -575,8 +582,8 @@ class ChainSearch {
         (isUMDExportSymbol(fromTable) &&
           this.enclosingDeclaration !== undefined &&
           isExternalModule(getSourceFileOfNode(this.enclosingDeclaration))) ||
-        (this.useOnlyExternalAliasing && !fromTable.declarations.some(isExternalModuleImportEqualsDeclaration)) ||
-        (isLocalNameLookup && fromTable.declarations.some(isNamespaceReexportDeclaration)) ||
+        (this.useOnlyExternalAliasing && !hasExternalModuleImportEqualsDeclaration(fromTable)) ||
+        (isLocalNameLookup && hasNamespaceReexportDeclaration(fromTable)) ||
         // Exports are in scope, but export specifiers aren't.
         (!ignoreQualification && fromTable.declarations.some((d) => d.kind === SyntaxKind.ExportSpecifier))
       )
@@ -587,9 +594,9 @@ class ChainSearch {
     }
     if (candidateChains.length > 0) {
       // The first of the shortest.
-      let best = candidateChains[0];
+      let best = candidateChains[0]!;
       for (let i = 1; i < candidateChains.length; i++)
-        if (compareSymbolChains(c, candidateChains[i], best) < 0) best = candidateChains[i];
+        if (compareSymbolChains(c, candidateChains[i]!, best) < 0) best = candidateChains[i]!;
       return best;
     }
     // Treat `globalThis` like an alias in the global table.
@@ -624,7 +631,7 @@ class ChainSearch {
     if (!likeSymbols) return false;
     // An external module in the global table isn't accessible by name; otherwise the name must be qualifiable.
     return (
-      !fromTable.declarations.some(hasNonGlobalAugmentationExternalModuleSymbol) &&
+      !hasNonGlobalAugmentationExternalModuleDeclaration(fromTable) &&
       (ignoreQualification || this.canQualifySymbol(getMergedSymbol(c, fromTable), this.meaning))
     );
   }
@@ -687,7 +694,7 @@ function getSymbolTableAliases(c: Checker, table: SymbolTable, id: number): Symb
 function compareSymbolChains(c: Checker, a: Symbol[], b: Symbol[]): number {
   if (a.length !== b.length) return a.length - b.length;
   for (let i = 0; i < a.length; i++) {
-    const comparison = compareSymbols(c, a[i], b[i]);
+    const comparison = compareSymbols(c, a[i]!, b[i]!);
     if (comparison !== 0) return comparison;
   }
   return 0;
@@ -697,12 +704,22 @@ function isUMDExportSymbol(symbol: Symbol): boolean {
   return symbol.declarations.length > 0 && symbol.declarations[0].kind === SyntaxKind.NamespaceExportDeclaration;
 }
 
+function hasNamespaceReexportDeclaration(symbol: Symbol): boolean {
+  for (const d of symbol.declarations) if (isNamespaceReexportDeclaration(d)) return true;
+  return false;
+}
+
 function isNamespaceReexportDeclaration(node: Node): boolean {
   return (
     node.kind === SyntaxKind.NamespaceExport &&
     node.parent instanceof ExportDeclaration &&
     node.parent.moduleSpecifier !== undefined
   );
+}
+
+function hasExternalModuleImportEqualsDeclaration(symbol: Symbol): boolean {
+  for (const d of symbol.declarations) if (isExternalModuleImportEqualsDeclaration(d)) return true;
+  return false;
 }
 
 function isExternalModuleImportEqualsDeclaration(node: Node): boolean {

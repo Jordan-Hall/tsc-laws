@@ -555,7 +555,7 @@ export class NodeBuilder {
 
   /** Enters the scope of a signature, returning its exit; `expandedParameters` holds its parameters. */
   enterSignatureScope(signature: Signature): () => void {
-    const expandedParams = getExpandedParameters(this.c, signature, true)[0];
+    const expandedParams = getExpandedParameters(this.c, signature, true)[0]!;
     this.expandedParameters = expandedParams;
     return this.enterNewScope(
       signature.declaration,
@@ -598,9 +598,9 @@ export class NodeBuilder {
       if (expandedParams !== undefined && expandedParams.length > 0) {
         const table = new Map<string, Symbol>();
         for (let i = 0; i < expandedParams.length; i++) {
-          const param = expandedParams[i];
+          const param = expandedParams[i]!;
           const originalParam =
-            originalParameters !== undefined && i < originalParameters.length ? originalParameters[i] : undefined;
+            originalParameters !== undefined && i < originalParameters.length ? originalParameters[i]! : undefined;
           if (originalParameters !== undefined && originalParam !== param) {
             // An expanded parameter can't be named; the original can.
             if (originalParam !== undefined) table.set(originalParam.name, originalParam);
@@ -727,10 +727,10 @@ export class NodeBuilder {
       }
       if (list.length > 2) {
         const nodes: Node[] = [];
-        const first = this.typeToTypeNode(list[0]);
+        const first = this.typeToTypeNode(list[0]!);
         if (first !== undefined) nodes.push(first);
         nodes.push(this.elidedCount(list.length - 2, noTruncation));
-        const last = this.typeToTypeNode(list[list.length - 1]);
+        const last = this.typeToTypeNode(list[list.length - 1]!);
         if (last !== undefined) nodes.push(last);
         return this.list(nodes);
       }
@@ -742,11 +742,11 @@ export class NodeBuilder {
     const seenIndexes: number[] = [];
     const result: Node[] = [];
     for (let i = 0; i < list.length; i++) {
-      const t = list[i];
+      const t = list[i]!;
       const displayIndex = i + 1;
       if (this.checkTruncationLength() && displayIndex + 2 < list.length - 1) {
         result.push(this.elidedCount(list.length - displayIndex, noTruncation));
-        const last = this.typeToTypeNode(list[list.length - 1]);
+        const last = this.typeToTypeNode(list[list.length - 1]!);
         if (last !== undefined) result.push(last);
         break;
       }
@@ -774,11 +774,11 @@ export class NodeBuilder {
       for (const indexes of seenNames.values()) {
         let homogeneous = true;
         for (let k = 1; k < indexes.length; k++)
-          if (!typesAreSameReference(seenTypes[indexes[0]], seenTypes[indexes[k]])) homogeneous = false;
+          if (!typesAreSameReference(seenTypes[indexes[0]!]!, seenTypes[indexes[k]!]!)) homogeneous = false;
         if (homogeneous) continue;
         for (const k of indexes) {
-          const node = this.typeToTypeNode(seenTypes[k]);
-          if (node !== undefined) result[seenIndexes[k]] = node;
+          const node = this.typeToTypeNode(seenTypes[k]!);
+          if (node !== undefined) result[seenIndexes[k]!] = node;
         }
       }
       this.flags = savedFlags;
@@ -960,7 +960,7 @@ export class NodeBuilder {
         typeArgumentNodes.nodes.length === 1 &&
         symbol === c.globalArrayType.symbol
       )
-        return this.created(new ArrayTypeNode(typeArgumentNodes.nodes[0]));
+        return this.created(new ArrayTypeNode(typeArgumentNodes.nodes[0]!));
       return symbolToTypeNode(this, symbol, SymbolFlags.Type, typeArgumentNodes);
     }
     const objectFlags = t.objectFlags;
@@ -1010,7 +1010,7 @@ export class NodeBuilder {
         (u.flags & TypeFlags.Union) !== 0
           ? formatUnionTypes(c, (u as UnionOrIntersectionType).types, false)
           : (u as UnionOrIntersectionType).types;
-      if (types.length === 1) return this.typeToTypeNode(types[0]);
+      if (types.length === 1) return this.typeToTypeNode(types[0]!);
       const typeNodes = this.mapToTypeNodes(types, true);
       if (typeNodes !== undefined && typeNodes.nodes.length > 0)
         return (u.flags & TypeFlags.Union) !== 0
@@ -1030,15 +1030,15 @@ export class NodeBuilder {
     if ((u.flags & TypeFlags.TemplateLiteral) !== 0) {
       const texts = (u as TemplateLiteralType).texts;
       const types = (u as TemplateLiteralType).types;
-      const head = this.created(new TemplateHead(texts[0], '', TokenFlags.None));
+      const head = this.created(new TemplateHead(texts[0]!, '', TokenFlags.None));
       this.context.addEmitFlags(head, EmitFlags.NoAsciiEscaping);
       const spans: Node[] = [];
       for (let i = 0; i < types.length; i++) {
         let literal: Node;
-        if (i < types.length - 1) literal = this.created(new TemplateMiddle(texts[i + 1], '', TokenFlags.None));
-        else literal = this.created(new TemplateTail(texts[i + 1], '', TokenFlags.None));
+        if (i < types.length - 1) literal = this.created(new TemplateMiddle(texts[i + 1]!, '', TokenFlags.None));
+        else literal = this.created(new TemplateTail(texts[i + 1]!, '', TokenFlags.None));
         this.context.addEmitFlags(literal, EmitFlags.NoAsciiEscaping);
-        spans.push(this.created(new TemplateLiteralTypeSpan(this.typeToTypeNode(types[i])!, literal)));
+        spans.push(this.created(new TemplateLiteralTypeSpan(this.typeToTypeNode(types[i]!)!, literal)));
       }
       this.approximateLength += 2;
       return this.created(new TemplateLiteralTypeNode(head, this.list(spans)));
@@ -1231,13 +1231,13 @@ export class NodeBuilder {
     const target = t.target!;
     if (target === c.globalArrayType || target === c.globalReadonlyArrayType) {
       if ((this.flags & NodeBuilderFlags.WriteArrayAsGenericType) !== 0) {
-        const typeArgumentNode = this.typeToTypeNode(typeArguments[0])!;
+        const typeArgumentNode = this.typeToTypeNode(typeArguments[0]!)!;
         return this.typeReference(
           this.identifier(target === c.globalArrayType ? 'Array' : 'ReadonlyArray'),
           this.list([typeArgumentNode]),
         );
       }
-      const elementType = this.typeToTypeNode(typeArguments[0])!;
+      const elementType = this.typeToTypeNode(typeArguments[0]!)!;
       const arrayType = this.created(new ArrayTypeNode(elementType));
       return target === c.globalArrayType
         ? arrayType
@@ -1251,8 +1251,8 @@ export class NodeBuilder {
         elementTypes.push(
           removeMissingType(
             c,
-            typeArguments[i],
-            i < elementInfos.length && (elementInfos[i].flags & ElementFlags.Optional) !== 0,
+            typeArguments[i]!,
+            i < elementInfos.length && (elementInfos[i]!.flags & ElementFlags.Optional) !== 0,
           ),
         );
       typeArguments = elementTypes;
@@ -1264,7 +1264,7 @@ export class NodeBuilder {
           for (let i = 0; i < elements.length; i++) {
             const flags = elementInfos[i].flags;
             const labeledDeclaration = elementInfos[i].labeledDeclaration;
-            const element = elements[i];
+            const element = elements[i]!;
             if (labeledDeclaration !== undefined)
               elements[i] = this.created(
                 new NamedTupleMember(
@@ -1315,9 +1315,9 @@ export class NodeBuilder {
     while (i < length) {
       // A group of type arguments for type parameters of one declaring container.
       const start = i;
-      const parent = this.getParentSymbolOfTypeParameter(outerTypeParameters[i]);
+      const parent = this.getParentSymbolOfTypeParameter(outerTypeParameters[i]!);
       do i++;
-      while (i < length && this.getParentSymbolOfTypeParameter(outerTypeParameters[i]) === parent);
+      while (i < length && this.getParentSymbolOfTypeParameter(outerTypeParameters[i]!) === parent);
       // A group of its own type parameters (the default outer type arguments) isn't written.
       let same = true;
       for (let k = start; k < i; k++) if (outerTypeParameters[k] !== typeArguments[k]) same = false;
@@ -1346,8 +1346,8 @@ export class NodeBuilder {
           node instanceof TypeReferenceNode && node.typeArguments !== undefined ? node.typeArguments.nodes.length : -1;
         if (written < typeParameterCount)
           while (typeParameterCount > 0) {
-            const typeArgument = typeArguments[typeParameterCount - 1];
-            const defaultType = getDefaultFromTypeParameter(c, typeParameters[typeParameterCount - 1]);
+            const typeArgument = typeArguments[typeParameterCount - 1]!;
+            const defaultType = getDefaultFromTypeParameter(c, typeParameters[typeParameterCount - 1]!);
             if (defaultType === undefined || !isTypeIdenticalTo(c, typeArgument, defaultType)) break;
             typeParameterCount--;
           }
@@ -1506,13 +1506,14 @@ export class NodeBuilder {
         return result;
       }
       if (callSignatures.length === 1 && constructSignatures.length === 0)
-        return this.signatureToSignatureDeclaration(callSignatures[0], SyntaxKind.FunctionType, undefined);
+        return this.signatureToSignatureDeclaration(callSignatures[0]!, SyntaxKind.FunctionType, undefined);
       if (constructSignatures.length === 1 && callSignatures.length === 0)
-        return this.signatureToSignatureDeclaration(constructSignatures[0], SyntaxKind.ConstructorType, undefined);
+        return this.signatureToSignatureDeclaration(constructSignatures[0]!, SyntaxKind.ConstructorType, undefined);
     }
     const abstractSignatures = constructSignatures.filter((s) => (s.flags & SignatureFlags.Abstract) !== 0);
     if (abstractSignatures.length > 0) {
-      const types = abstractSignatures.map((s) => getOrCreateTypeFromSignature(c, s));
+      const types: Type[] = [];
+      for (const s of abstractSignatures) types.push(getOrCreateTypeFromSignature(c, s));
       // Type elements other than abstract construct signatures.
       let propertyCount = resolved.properties.length;
       if ((this.flags & NodeBuilderFlags.WriteClassExpressionAsTypeLiteral) !== 0) {
@@ -1589,7 +1590,7 @@ export class NodeBuilder {
         if ((this.flags & NodeBuilderFlags.NoTruncation) !== 0) {
           if (typeElements.length > 0)
             this.context.addSyntheticTrailingComment(
-              typeElements[typeElements.length - 1],
+              typeElements[typeElements.length - 1]!,
               SyntaxKind.MultiLineCommentTrivia,
               '... ' + (properties.length - i) + ' more elided ...',
               false,
@@ -1606,7 +1607,7 @@ export class NodeBuilder {
               ),
             ),
           );
-        this.addPropertyToElementList(properties[properties.length - 1], typeElements);
+        this.addPropertyToElementList(properties[properties.length - 1]!, typeElements);
         break;
       }
       this.addPropertyToElementList(propertySymbol, typeElements);
@@ -1621,7 +1622,7 @@ export class NodeBuilder {
     const stack = this.reverseMappedStack;
     if (stack.indexOf(propertySymbol) >= 0) return true;
     if (stack.length > 0) {
-      const propertyType = this.c.symbolLinks(stack[stack.length - 1]).reverseMappedPropertyType;
+      const propertyType = this.c.symbolLinks(stack[stack.length - 1]!).reverseMappedPropertyType;
       if (propertyType !== undefined && (propertyType.objectFlags & ObjectFlags.Anonymous) === 0) return true;
     }
     if (stack.length < maxReverseMappedNestingInspectionDepth) return false;
@@ -1629,7 +1630,7 @@ export class NodeBuilder {
     if (propMappedType === undefined || propMappedType.symbol === undefined) return false;
     for (let i = 0; i < stack.length; i++) {
       if (i > maxReverseMappedNestingInspectionDepth) break;
-      const mappedType = this.c.symbolLinks(stack[stack.length - 1 - i]).reverseMappedMappedType;
+      const mappedType = this.c.symbolLinks(stack[stack.length - 1 - i]!).reverseMappedMappedType;
       if (mappedType !== undefined && mappedType.symbol === propMappedType.symbol) return true;
     }
     return false;
@@ -1674,7 +1675,7 @@ export class NodeBuilder {
     this.enclosingDeclaration = undefined;
     if (isLateBoundName(propertySymbol.name)) {
       if (propertySymbol.declarations.length > 0) {
-        const decl = propertySymbol.declarations[0];
+        const decl = propertySymbol.declarations[0]!;
         if (hasLateBindableName(c, decl)) {
           if (decl instanceof BinaryExpression) {
             const name = getNameOfDeclaration(decl);
@@ -1689,7 +1690,7 @@ export class NodeBuilder {
     }
     this.enclosingDeclaration =
       propertySymbol.valueDeclaration ??
-      (propertySymbol.declarations.length > 0 ? propertySymbol.declarations[0] : saveEnclosingDeclaration);
+      (propertySymbol.declarations.length > 0 ? propertySymbol.declarations[0]! : saveEnclosingDeclaration);
     const propertyName = getPropertyNameNodeForSymbol(this, propertySymbol);
     this.enclosingDeclaration = saveEnclosingDeclaration;
     this.approximateLength += symbolName(propertySymbol).length + 1;
@@ -1815,6 +1816,16 @@ export class NodeBuilder {
       this.context.assignCommentRange(node, range);
   }
 
+  private isDeclaredInEnclosingFile(symbol: Symbol): boolean {
+    for (const d of symbol.declarations) if (getSourceFileOfNode(d) === this.enclosingFile) return true;
+    return false;
+  }
+
+  private areTriviallySerializableComputedNames(components: readonly Node[]): boolean {
+    for (const e of components) if (!this.isTriviallySerializableComputedName(e)) return false;
+    return true;
+  }
+
   private isTriviallySerializableComputedName(e: Node): boolean {
     const name = getName(e);
     if (name === undefined || name.kind !== SyntaxKind.ComputedPropertyName) return false;
@@ -1835,7 +1846,7 @@ export class NodeBuilder {
     if (
       components.length > 0 &&
       this.enclosingDeclaration !== undefined &&
-      components.every((e) => this.isTriviallySerializableComputedName(e))
+      this.areTriviallySerializableComputedNames(components)
     ) {
       const results: Node[] = [];
       let bailed = false;
@@ -2043,7 +2054,7 @@ export class NodeBuilder {
     if (!(result instanceof Identifier)) return this.identifier('(Missing type parameter)');
     const symbol = typeParameter.symbol;
     if (symbol !== undefined && symbol.declarations.length > 0) {
-      const decl = symbol.declarations[0];
+      const decl = symbol.declarations[0]!;
       if (decl.kind === SyntaxKind.TypeParameter) result = this.setTextRange(result, getName(decl)) as Identifier;
     }
     if (generateNames) {
@@ -2401,7 +2412,7 @@ export class NodeBuilder {
   ): Node {
     const c = this.c;
     if (declaration === undefined && symbol !== undefined)
-      declaration = symbol.valueDeclaration ?? (symbol.declarations.length > 0 ? symbol.declarations[0] : undefined);
+      declaration = symbol.valueDeclaration ?? (symbol.declarations.length > 0 ? symbol.declarations[0]! : undefined);
     if (symbol === undefined && declaration !== undefined) symbol = getSymbolOfDeclaration(c, declaration);
     let t = type;
     if (t === undefined && symbol !== undefined) {
@@ -2431,8 +2442,7 @@ export class NodeBuilder {
       (t.flags & TypeFlags.UniqueESSymbol) !== 0 &&
       symbol !== undefined &&
       t.symbol === symbol &&
-      (this.enclosingDeclaration === undefined ||
-        symbol.declarations.some((d) => getSourceFileOfNode(d) === this.enclosingFile))
+      (this.enclosingDeclaration === undefined || this.isDeclaredInEnclosingFile(symbol))
     )
       this.flags |= NodeBuilderFlags.AllowUniqueESSymbolType;
     const result = this.typeToTypeNode(t);
@@ -2464,8 +2474,7 @@ export class NodeBuilder {
       (t.flags & TypeFlags.UniqueESSymbol) !== 0 &&
       symbol !== undefined &&
       t.symbol === symbol &&
-      (this.enclosingDeclaration === undefined ||
-        symbol.declarations.some((d) => getSourceFileOfNode(d) === this.enclosingFile))
+      (this.enclosingDeclaration === undefined || this.isDeclaredInEnclosingFile(symbol))
     )
       this.flags |= NodeBuilderFlags.AllowUniqueESSymbolType;
     let result: Node | undefined = undefined;
@@ -2735,7 +2744,7 @@ function getTypeAliasForTypeLiteral(c: Checker, t: Type): Symbol | undefined {
   const symbol = t.symbol;
   if (symbol === undefined || (symbol.flags & SymbolFlags.TypeLiteral) === 0 || symbol.declarations.length === 0)
     return undefined;
-  let node = symbol.declarations[0].parent;
+  let node = symbol.declarations[0]!.parent;
   while (node !== undefined && node.kind === SyntaxKind.ParenthesizedType) node = node.parent;
   if (node !== undefined && node.kind === SyntaxKind.TypeAliasDeclaration) return getSymbolOfDeclaration(c, node);
   return undefined;
@@ -2766,7 +2775,7 @@ function getNameFromIndexInfo(info: IndexInfo): string {
   const declaration = info.declaration;
   if (declaration === undefined) return 'x';
   const parameters = getParameters(declaration);
-  const name = parameters !== undefined && parameters.nodes.length > 0 ? getName(parameters.nodes[0]) : undefined;
+  const name = parameters !== undefined && parameters.nodes.length > 0 ? getName(parameters.nodes[0]!) : undefined;
   return name === undefined ? 'x' : declarationNameToString(getSourceFileOfNode(name), name);
 }
 
@@ -2820,7 +2829,7 @@ function copyEmitNodes(context: EmitContext, clone: Node, original: Node, isRoot
   const originalChildren = new ChildCollector();
   original.forEachChild(originalChildren);
   const count = Math.min(cloneChildren.nodes.length, originalChildren.nodes.length);
-  for (let i = 0; i < count; i++) copyEmitNodes(context, cloneChildren.nodes[i], originalChildren.nodes[i], false);
+  for (let i = 0; i < count; i++) copyEmitNodes(context, cloneChildren.nodes[i]!, originalChildren.nodes[i]!, false);
 }
 
 class ChildCollector extends NodeVisitor {
@@ -2847,15 +2856,15 @@ function linkClones(context: EmitContext, clone: Node, original: Node): void {
   original.forEachChild(originalChildren);
   const lists = Math.min(cloneChildren.lists.length, originalChildren.lists.length);
   for (let i = 0; i < lists; i++) {
-    const list = cloneChildren.lists[i];
-    if (originalChildren.lists[i].hasTrailingComma() && list.nodes.length > 0) {
-      const last = list.nodes[list.nodes.length - 1];
+    const list = cloneChildren.lists[i]!;
+    if (originalChildren.lists[i]!.hasTrailingComma() && list.nodes.length > 0) {
+      const last = list.nodes[list.nodes.length - 1]!;
       last.pos = -2;
       last.end = -2;
     }
   }
   const count = Math.min(cloneChildren.nodes.length, originalChildren.nodes.length);
-  for (let i = 0; i < count; i++) linkClones(context, cloneChildren.nodes[i], originalChildren.nodes[i]);
+  for (let i = 0; i < count; i++) linkClones(context, cloneChildren.nodes[i]!, originalChildren.nodes[i]!);
 }
 
 /** A copy of a binding name without initializers, written on one line. */
@@ -2877,15 +2886,15 @@ function keepTrailingCommas(clone: Node, original: Node): void {
   if (!(clone instanceof BindingPattern) || !(original instanceof BindingPattern)) return;
   // As tsgo's deep clone: a last element ending before the list's end.
   if (original.elements.hasTrailingComma() && clone.elements.nodes.length > 0) {
-    const last = clone.elements.nodes[clone.elements.nodes.length - 1];
+    const last = clone.elements.nodes[clone.elements.nodes.length - 1]!;
     last.pos = -2;
     last.end = -2;
   }
   const elements = clone.elements.nodes;
   const originals = original.elements.nodes;
   for (let i = 0; i < elements.length && i < originals.length; i++) {
-    const element = elements[i];
-    const originalElement = originals[i];
+    const element = elements[i]!;
+    const originalElement = originals[i]!;
     if (
       element instanceof BindingElement &&
       originalElement instanceof BindingElement &&
@@ -2957,7 +2966,7 @@ export function isOptionalParameter(c: Checker, node: Node): boolean {
     // Without treating `void` parameters as optional, as grammar checks use this.
     let minArgumentCount = signature.minArgumentCount;
     if (signature.hasRestParameter()) {
-      const restType = getTypeOfSymbol(c, signature.parameters[signature.parameters.length - 1]);
+      const restType = getTypeOfSymbol(c, signature.parameters[signature.parameters.length - 1]!);
       if (isTupleType(restType)) {
         const tuple = (restType as TypeReference).target as TupleType;
         let requiredCount = tuple.fixedLength;
@@ -3059,18 +3068,18 @@ export function isEntityNameVisible(
 export function getExpandedParameters(c: Checker, signature: Signature, skipUnionExpanding: boolean): Symbol[][] {
   if (signature.hasRestParameter()) {
     const restIndex = signature.parameters.length - 1;
-    const restSymbol = signature.parameters[restIndex];
+    const restSymbol = signature.parameters[restIndex]!;
     const restType = getTypeOfSymbol(c, restSymbol);
     if (isTupleType(restType))
       return [expandSignatureParametersWithTupleMembers(c, signature, restType, restIndex, restSymbol)];
-    if (
-      !skipUnionExpanding &&
-      (restType.flags & TypeFlags.Union) !== 0 &&
-      (restType as UnionType).types.every(isTupleType)
-    )
-      return (restType as UnionType).types.map((t) =>
-        expandSignatureParametersWithTupleMembers(c, signature, t, restIndex, restSymbol),
-      );
+    if (!skipUnionExpanding && (restType.flags & TypeFlags.Union) !== 0) {
+      const types = (restType as UnionType).types;
+      for (const t of types) if (!isTupleType(t)) return [signature.parameters];
+      const lists: Symbol[][] = [];
+      for (const t of types)
+        lists.push(expandSignatureParametersWithTupleMembers(c, signature, t, restIndex, restSymbol));
+      return lists;
+    }
   }
   return [signature.parameters];
 }
@@ -3087,13 +3096,13 @@ function expandSignatureParametersWithTupleMembers(
   const names = getUniqueAssociatedNamesFromTupleType(c, tuple, restSymbol);
   const result = signature.parameters.slice(0, restIndex);
   for (let i = 0; i < elementTypes.length; i++) {
-    const flags = tuple.elementInfos[i].flags;
+    const flags = tuple.elementInfos[i]!.flags;
     let checkFlags = CheckFlags.None;
     if ((flags & ElementFlags.Variable) !== 0) checkFlags = CheckFlags.RestParameter;
     else if ((flags & ElementFlags.Optional) !== 0) checkFlags = CheckFlags.OptionalParameter;
-    const symbol = c.newSymbolWithCheckFlags(SymbolFlags.FunctionScopedVariable, names[i], checkFlags);
-    c.symbolLinks(symbol).type =
-      (flags & ElementFlags.Rest) !== 0 ? createArrayType(c, elementTypes[i]) : elementTypes[i];
+    const symbol = c.newSymbolWithCheckFlags(SymbolFlags.FunctionScopedVariable, names[i]!, checkFlags);
+    const elementType = elementTypes[i]!;
+    c.symbolLinks(symbol).type = (flags & ElementFlags.Rest) !== 0 ? createArrayType(c, elementType) : elementType;
     result.push(symbol);
   }
   return result;
@@ -3102,22 +3111,24 @@ function expandSignatureParametersWithTupleMembers(
 function getUniqueAssociatedNamesFromTupleType(c: Checker, tuple: TupleType, restSymbol: Symbol): string[] {
   const names: string[] = [];
   for (let i = 0; i < tuple.elementInfos.length; i++) {
-    const info = tuple.elementInfos[i];
+    const info = tuple.elementInfos[i]!;
     names.push(getTupleElementLabel(c, info.flags, info.labeledDeclaration, restSymbol, i));
   }
   if (names.length === 0) return names;
   const duplicates: number[] = [];
   const uniqueNames = new Set<string>();
   for (let i = 0; i < names.length; i++) {
-    if (uniqueNames.has(names[i])) duplicates.push(i);
-    else uniqueNames.add(names[i]);
+    const name = names[i]!;
+    if (uniqueNames.has(name)) duplicates.push(i);
+    else uniqueNames.add(name);
   }
   const counters = new Map<string, number>();
   for (const i of duplicates) {
-    let counter = counters.get(names[i]) ?? 1;
+    const base = names[i]!;
+    let counter = counters.get(base) ?? 1;
     let name: string;
     for (;;) {
-      name = names[i] + '_' + counter;
+      name = base + '_' + counter;
       if (uniqueNames.has(name)) {
         counter++;
         continue;
@@ -3126,7 +3137,7 @@ function getUniqueAssociatedNamesFromTupleType(c: Checker, tuple: TupleType, res
       break;
     }
     names[i] = name;
-    counters.set(names[i], counter + 1);
+    counters.set(name, counter + 1);
   }
   return names;
 }
@@ -3159,11 +3170,11 @@ function getTupleElementLabelFromBindingElement(node: Node, index: number, eleme
     }
     if (name.kind === SyntaxKind.ArrayBindingPattern && hasDotDotDot) {
       const elements = (name as BindingPattern).elements.nodes;
-      const lastElement = elements.length > 0 ? elements[elements.length - 1] : undefined;
+      const lastElement = elements.length > 0 ? elements[elements.length - 1]! : undefined;
       const lastIsRest = lastElement instanceof BindingElement && lastElement.dotDotDotToken !== undefined;
       const elementCount = elements.length - (lastIsRest ? 1 : 0);
       if (index < elementCount) {
-        const element = elements[index];
+        const element = elements[index]!;
         if (element instanceof BindingElement)
           return getTupleElementLabelFromBindingElement(element, index, elementFlags);
       } else if (lastIsRest)

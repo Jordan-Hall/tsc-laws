@@ -541,8 +541,10 @@ function typeArgumentNodesOf(node: Node): Node[] {
 const emptyNodes: Node[] = [];
 
 export function getTypeArgumentsFromNode(c: Checker, node: Node): Type[] {
-  const nodes = typeArgumentNodesOf(node);
-  if (nodes.length === 0) return [];
+  return getTypesFromTypeNodes(c, typeArgumentNodesOf(node));
+}
+
+export function getTypesFromTypeNodes(c: Checker, nodes: readonly Node[]): Type[] {
   const result: Type[] = [];
   for (const n of nodes) result.push(getTypeFromTypeNode(c, n));
   return result;
@@ -604,9 +606,9 @@ function isDeferredTypeReferenceNode(c: Checker, node: Node, hasDefaultTypeArgum
     case SyntaxKind.ArrayType:
       return mayResolveTypeAlias(c, (node as ArrayTypeNode).elementType);
     case SyntaxKind.TupleType:
-      return (node as TupleTypeNode).elements.nodes.some((e) => mayResolveTypeAlias(c, e));
+      return someMayResolveTypeAlias(c, (node as TupleTypeNode).elements.nodes);
     case SyntaxKind.TypeReference:
-      return hasDefaultTypeArguments || typeArgumentNodesOf(node).some((e) => mayResolveTypeAlias(c, e));
+      return hasDefaultTypeArguments || someMayResolveTypeAlias(c, typeArgumentNodesOf(node));
   }
   return false;
 }
@@ -652,9 +654,9 @@ function mayResolveTypeAlias(c: Checker, node: Node): boolean {
       return t.kind !== SyntaxKind.ArrayType || mayResolveTypeAlias(c, (t as ArrayTypeNode).elementType);
     }
     case SyntaxKind.UnionType:
-      return (node as UnionTypeNode).types.nodes.some((t) => mayResolveTypeAlias(c, t));
+      return someMayResolveTypeAlias(c, (node as UnionTypeNode).types.nodes);
     case SyntaxKind.IntersectionType:
-      return (node as IntersectionTypeNode).types.nodes.some((t) => mayResolveTypeAlias(c, t));
+      return someMayResolveTypeAlias(c, (node as IntersectionTypeNode).types.nodes);
     case SyntaxKind.IndexedAccessType:
       return (
         mayResolveTypeAlias(c, (node as IndexedAccessTypeNode).objectType) ||
@@ -670,6 +672,11 @@ function mayResolveTypeAlias(c: Checker, node: Node): boolean {
       );
     }
   }
+  return false;
+}
+
+function someMayResolveTypeAlias(c: Checker, nodes: readonly Node[]): boolean {
+  for (const n of nodes) if (mayResolveTypeAlias(c, n)) return true;
   return false;
 }
 
@@ -697,7 +704,13 @@ export function getAliasSymbolForTypeNode(c: Checker, node: Node): Symbol | unde
 }
 
 function isLocalTypeAlias(symbol: Symbol): boolean {
-  const declaration = symbol.declarations.find(isTypeAlias);
+  let declaration: Node | undefined;
+  for (const d of symbol.declarations) {
+    if (isTypeAlias(d)) {
+      declaration = d;
+      break;
+    }
+  }
   if (declaration === undefined) return false;
   for (let n = declaration.parent; n !== undefined; n = n.parent) {
     switch (n.kind) {
@@ -717,10 +730,7 @@ function isLocalTypeAlias(symbol: Symbol): boolean {
 function getTypeFromTypeAliasReference(c: Checker, node: Node, symbol: Symbol): Type {
   const typeArgumentNodes = typeArgumentNodesOf(node);
   if ((symbol.checkFlags & CheckFlags.Unresolved) !== 0) {
-    const alias = new TypeAlias(
-      symbol,
-      typeArgumentNodes.map((n) => getTypeFromTypeNode(c, n)),
-    );
+    const alias = new TypeAlias(symbol, getTypesFromTypeNodes(c, typeArgumentNodes));
     const key = aliasKey(alias);
     let errorType = c.errorTypes.get(key);
     if (errorType === undefined) {
@@ -863,11 +873,9 @@ function getArrayOrTupleTargetType(c: Checker, node: Node): Type {
   const readonly =
     parent.kind === SyntaxKind.TypeOperator && (parent as TypeOperatorNode).operator === SyntaxKind.ReadonlyKeyword;
   if (getArrayElementTypeNode(node) !== undefined) return readonly ? c.globalReadonlyArrayType : c.globalArrayType;
-  return getTupleTargetType(
-    c,
-    (node as TupleTypeNode).elements.nodes.map((e) => getTupleElementInfo(c, e)),
-    readonly,
-  );
+  const elementInfos: TupleElementInfo[] = [];
+  for (const e of (node as TupleTypeNode).elements.nodes) elementInfos.push(getTupleElementInfo(c, e));
+  return getTupleTargetType(c, elementInfos, readonly);
 }
 
 function getTypeFromArrayOrTupleTypeNode(c: Checker, node: Node): Type {
@@ -876,10 +884,7 @@ function getTypeFromArrayOrTupleTypeNode(c: Checker, node: Node): Type {
   const target = getArrayOrTupleTargetType(c, node);
   if (target === c.emptyGenericType) links.resolvedType = c.emptyObjectType;
   else if (
-    !(
-      node.kind === SyntaxKind.TupleType &&
-      (node as TupleTypeNode).elements.nodes.some((e) => (getTupleElementFlags(c, e) & ElementFlags.Variadic) !== 0)
-    ) &&
+    !(node.kind === SyntaxKind.TupleType && hasVariadicTupleElement(c, node as TupleTypeNode)) &&
     isDeferredTypeReferenceNode(c, node, false)
   )
     links.resolvedType =
@@ -890,13 +895,18 @@ function getTypeFromArrayOrTupleTypeNode(c: Checker, node: Node): Type {
     const elementTypes =
       node.kind === SyntaxKind.ArrayType
         ? [getTypeFromTypeNode(c, (node as ArrayTypeNode).elementType)]
-        : (node as TupleTypeNode).elements.nodes.map((e) => getTypeFromTypeNode(c, e));
+        : getTypesFromTypeNodes(c, (node as TupleTypeNode).elements.nodes);
     links.resolvedType =
       (target.objectFlags & ObjectFlags.Tuple) !== 0
         ? createNormalizedTupleType(c, target as TupleType, elementTypes, ObjectFlags.FromTypeNode)
         : createTypeReferenceEx(c, target, elementTypes, ObjectFlags.FromTypeNode);
   }
   return links.resolvedType;
+}
+
+function hasVariadicTupleElement(c: Checker, node: TupleTypeNode): boolean {
+  for (const e of node.elements.nodes) if ((getTupleElementFlags(c, e) & ElementFlags.Variadic) !== 0) return true;
+  return false;
 }
 
 /** Type arguments of a deferred reference from its node. */
@@ -917,7 +927,7 @@ export function getTypeArgumentsOfDeferredReference(c: Checker, node: Node, targ
     case SyntaxKind.ArrayType:
       return [getTypeFromTypeNode(c, (node as ArrayTypeNode).elementType)];
     case SyntaxKind.TupleType:
-      return (node as TupleTypeNode).elements.nodes.map((e) => getTypeFromTypeNode(c, e));
+      return getTypesFromTypeNodes(c, (node as TupleTypeNode).elements.nodes);
   }
   return [];
 }
@@ -942,7 +952,7 @@ function getTypeFromUnionTypeNode(c: Checker, node: UnionTypeNode): Type {
   if (links.resolvedType === undefined)
     links.resolvedType = getUnionTypeEx(
       c,
-      node.types.nodes.map((t) => getTypeFromTypeNode(c, t)),
+      getTypesFromTypeNodes(c, node.types.nodes),
       UnionReduction.Literal,
       getAliasForTypeNode(c, node),
       undefined,
@@ -954,7 +964,7 @@ function getTypeFromIntersectionTypeNode(c: Checker, node: IntersectionTypeNode)
   const links = c.nodeLinks(node);
   if (links.resolvedType === undefined) {
     const alias = getAliasForTypeNode(c, node);
-    const types = node.types.nodes.map((t) => getTypeFromTypeNode(c, t));
+    const types = getTypesFromTypeNodes(c, node.types.nodes);
     // `string & {}` and friends keep literal completions in unions.
     let noSupertypeReduction = false;
     if (types.length === 2) {

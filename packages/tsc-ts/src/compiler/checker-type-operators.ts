@@ -228,10 +228,11 @@ export function isGenericMappedType(c: Checker, t: Type): boolean {
 
 /** Unions reducible on instantiation stay generic so the reduction flows through. */
 export function isGenericReducibleType(c: Checker, t: Type): boolean {
-  if ((t.flags & TypeFlags.Union) !== 0)
-    return (
-      (t.objectFlags & ObjectFlags.ContainsIntersections) !== 0 && typesOf(t).some((u) => isGenericReducibleType(c, u))
-    );
+  if ((t.flags & TypeFlags.Union) !== 0) {
+    if ((t.objectFlags & ObjectFlags.ContainsIntersections) === 0) return false;
+    for (const u of typesOf(t)) if (isGenericReducibleType(c, u)) return true;
+    return false;
+  }
   return (t.flags & TypeFlags.Intersection) !== 0 && isReducibleIntersection(c, t as IntersectionType);
 }
 
@@ -251,16 +252,11 @@ export function getIndexTypeEx(c: Checker, t: Type, indexFlags: IndexFlags): Typ
   t = getReducedType(c, t);
   if (isNoInferType(c, t)) return getNoInferType(c, getIndexTypeEx(c, (t as SubstitutionType).baseType, indexFlags));
   if (shouldDeferIndexType(c, t, indexFlags)) return getIndexTypeForGenericType(c, t, indexFlags);
-  if ((t.flags & TypeFlags.Union) !== 0)
-    return getIntersectionType(
-      c,
-      typesOf(t).map((u) => getIndexTypeEx(c, u, indexFlags)),
-    );
-  if ((t.flags & TypeFlags.Intersection) !== 0)
-    return getUnionType(
-      c,
-      typesOf(t).map((u) => getIndexTypeEx(c, u, indexFlags)),
-    );
+  if ((t.flags & TypeFlags.UnionOrIntersection) !== 0) {
+    const types: Type[] = [];
+    for (const u of typesOf(t)) types.push(getIndexTypeEx(c, u, indexFlags));
+    return (t.flags & TypeFlags.Union) !== 0 ? getIntersectionType(c, types) : getUnionType(c, types);
+  }
   if ((t.objectFlags & ObjectFlags.Mapped) !== 0 && (t.flags & TypeFlags.Object) !== 0)
     return getIndexForMappedType(c, t as MappedType, indexFlags);
   if (t === c.wildcardType) return c.wildcardType;
@@ -282,8 +278,13 @@ export function shouldDeferIndexType(c: Checker, t: Type, indexFlags: IndexFlags
       isGenericReducibleType(c, t)) ||
     ((t.flags & TypeFlags.Intersection) !== 0 &&
       maybeTypeOfKind(t, TypeFlags.Instantiable) &&
-      typesOf(t).some((u) => isEmptyAnonymousObjectType(c, u)))
+      someEmptyAnonymousObjectType(c, typesOf(t)))
   );
+}
+
+function someEmptyAnonymousObjectType(c: Checker, types: Type[]): boolean {
+  for (const t of types) if (isEmptyAnonymousObjectType(c, t)) return true;
+  return false;
 }
 
 function getIndexTypeForGenericType(c: Checker, t: Type, indexFlags: IndexFlags): Type {
@@ -372,7 +373,9 @@ export function getLiteralTypeFromPropertyName(c: Checker, name: Node): Type | u
 
 function isKeyTypeIncluded(keyType: Type, include: TypeFlags): boolean {
   if ((keyType.flags & include) !== 0) return true;
-  return (keyType.flags & TypeFlags.Intersection) !== 0 && typesOf(keyType).some((t) => isKeyTypeIncluded(t, include));
+  if ((keyType.flags & TypeFlags.Intersection) === 0) return false;
+  for (const t of typesOf(keyType)) if (isKeyTypeIncluded(t, include)) return true;
+  return false;
 }
 
 /** The keys of a mapped type, without resolving its properties. */
@@ -489,10 +492,9 @@ function getLowerBoundOfKeyType(c: Checker, t: Type): Type {
       types[1]! === c.emptyTypeLiteralType
     )
       return t;
-    return getIntersectionType(
-      c,
-      types.map((u) => getLowerBoundOfKeyType(c, u)),
-    );
+    const bounds: Type[] = [];
+    for (const u of types) bounds.push(getLowerBoundOfKeyType(c, u));
+    return getIntersectionType(c, bounds);
   }
   return t;
 }
@@ -642,10 +644,13 @@ export function isStringIndexSignatureOnlyType(c: Checker, t: Type): boolean {
       getPropertiesOfType(c, t).length === 0 &&
       getIndexInfosOfType(c, t).length === 1 &&
       getIndexInfoOfType(c, t, c.stringType) !== undefined) ||
-    ((t.flags & TypeFlags.UnionOrIntersection) !== 0 &&
-      typesOf(t).every((u) => isStringIndexSignatureOnlyType(c, u))) ||
-    false
+    ((t.flags & TypeFlags.UnionOrIntersection) !== 0 && everyStringIndexSignatureOnlyType(c, typesOf(t)))
   );
+}
+
+function everyStringIndexSignatureOnlyType(c: Checker, types: Type[]): boolean {
+  for (const t of types) if (!isStringIndexSignatureOnlyType(c, t)) return false;
+  return true;
 }
 
 export function isTypeAssignableToKind(c: Checker, source: Type, kind: TypeFlags): boolean {
@@ -826,7 +831,8 @@ function getPropertyTypeForIndexType(
           return c.undefinedType;
         }
         if ((indexType.flags & (TypeFlags.Number | TypeFlags.String)) !== 0) {
-          const types = getPropertiesOfType(c, objectType).map((p) => getTypeOfSymbol(c, p));
+          const types: Type[] = [];
+          for (const p of getPropertiesOfType(c, objectType)) types.push(getTypeOfSymbol(c, p));
           types.push(c.undefinedType);
           return getUnionType(c, types);
         }
@@ -1203,7 +1209,9 @@ function getSimplifiedIndexedAccessType(c: Checker, t: IndexedAccessType, writin
   let result: Type = t;
   if ((indexType.flags & TypeFlags.Union) !== 0) {
     // T[A | B] -> T[A] | T[B] (reading), T[A] & T[B] (writing).
-    const types = typesOf(indexType).map((u) => getSimplifiedType(c, getIndexedAccessType(c, objectType, u), writing));
+    const types: Type[] = [];
+    for (const u of typesOf(indexType))
+      types.push(getSimplifiedType(c, getIndexedAccessType(c, objectType, u), writing));
     result = writing ? getIntersectionType(c, types) : getUnionType(c, types);
   } else if (
     // Inner distributions only once the index can't be instantiated to distribute again:
@@ -1212,7 +1220,9 @@ function getSimplifiedIndexedAccessType(c: Checker, t: IndexedAccessType, writin
     ((objectType.flags & TypeFlags.Union) !== 0 ||
       ((objectType.flags & TypeFlags.Intersection) !== 0 && !shouldDeferIndexType(c, objectType, IndexFlags.None)))
   ) {
-    const types = typesOf(objectType).map((u) => getSimplifiedType(c, getIndexedAccessType(c, u, indexType), writing));
+    const types: Type[] = [];
+    for (const u of typesOf(objectType))
+      types.push(getSimplifiedType(c, getIndexedAccessType(c, u, indexType), writing));
     result =
       (objectType.flags & TypeFlags.Intersection) !== 0 || writing
         ? getIntersectionType(c, types)
@@ -1256,7 +1266,10 @@ export function getNoInferType(c: Checker, t: Type): Type {
 }
 
 function isNoInferTargetType(c: Checker, t: Type): boolean {
-  if ((t.flags & TypeFlags.UnionOrIntersection) !== 0) return typesOf(t).some((u) => isNoInferTargetType(c, u));
+  if ((t.flags & TypeFlags.UnionOrIntersection) !== 0) {
+    for (const u of typesOf(t)) if (isNoInferTargetType(c, u)) return true;
+    return false;
+  }
   if ((t.flags & TypeFlags.Substitution) !== 0)
     return !isNoInferType(c, t) && isNoInferTargetType(c, (t as SubstitutionType).baseType);
   if ((t.flags & TypeFlags.Object) !== 0) return !isEmptyAnonymousObjectType(c, t);
@@ -1360,8 +1373,13 @@ function isPatternLiteralPlaceholder(c: Checker, t: Type): boolean {
 
 function applyTemplateStringMapping(c: Checker, symbol: Symbol, texts: string[], types: Type[]): [string[], Type[]] {
   const kind = intrinsicTypeKind(symbol.name);
-  if (kind === IntrinsicTypeKind.Uppercase || kind === IntrinsicTypeKind.Lowercase)
-    return [texts.map((t) => applyStringMapping(symbol, t)), types.map((t) => getStringMappingType(c, symbol, t))];
+  if (kind === IntrinsicTypeKind.Uppercase || kind === IntrinsicTypeKind.Lowercase) {
+    const mappedTexts: string[] = [];
+    for (const t of texts) mappedTexts.push(applyStringMapping(symbol, t));
+    const mappedTypes: Type[] = [];
+    for (const t of types) mappedTypes.push(getStringMappingType(c, symbol, t));
+    return [mappedTexts, mappedTypes];
+  }
   if (kind === IntrinsicTypeKind.Capitalize || kind === IntrinsicTypeKind.Uncapitalize) {
     if (texts[0]! === '') return [texts, [getStringMappingType(c, symbol, types[0]!)].concat(types.slice(1))];
     return [[applyStringMapping(symbol, texts[0]!)].concat(texts.slice(1)), types];
@@ -1680,14 +1698,18 @@ export function getTypeOfMappedSymbol(c: Checker, symbol: Symbol): Type {
   return links.type;
 }
 
-export function instantiateMappedType(
+function everyArrayOrTupleType(c: Checker, types: Type[]): boolean {
+  for (const t of types) if (!isArrayType(c, t) && !isTupleType(t)) return false;
+  return true;
+}
+
+/** Instantiates homomorphic mapped type `t` for each constituent its type variable becomes. */
+function homomorphicMappedTypeInstantiator(
   c: Checker,
   t: MappedType,
+  typeVariable: Type,
   mapper: TypeMapper,
-  alias: TypeAlias | undefined,
-): Type {
-  // For homomorphic `{ [P in keyof T]: X }`, the mapping depends on what T becomes.
-  const typeVariable = getHomomorphicTypeVariable(c, t);
+): (s: Type) => Type {
   const instantiateConstituent = (s: Type): Type => {
     if (
       (s.flags &
@@ -1701,20 +1723,39 @@ export function instantiateMappedType(
       if (
         isArrayType(c, s) ||
         ((s.flags & TypeFlags.Any) !== 0 &&
-          findResolutionCycleStartIndex(c, typeVariable!, TypeSystemPropertyName.ResolvedBaseConstraint) < 0 &&
-          hasArrayOrTupleConstraint(c, typeVariable!))
+          findResolutionCycleStartIndex(c, typeVariable, TypeSystemPropertyName.ResolvedBaseConstraint) < 0 &&
+          hasArrayOrTupleConstraint(c, typeVariable))
       )
-        return instantiateMappedArrayType(c, s, t, prependTypeMapping(typeVariable!, s, mapper));
-      if (isTupleType(s)) return instantiateMappedTupleType(c, s, t, typeVariable!, mapper);
-      if ((s.flags & TypeFlags.Intersection) !== 0 && typesOf(s).every((u) => isArrayType(c, u) || isTupleType(u)))
-        return getIntersectionType(c, typesOf(s).map(instantiateConstituent));
+        return instantiateMappedArrayType(c, s, t, prependTypeMapping(typeVariable, s, mapper));
+      if (isTupleType(s)) return instantiateMappedTupleType(c, s, t, typeVariable, mapper);
+      if ((s.flags & TypeFlags.Intersection) !== 0 && everyArrayOrTupleType(c, typesOf(s))) {
+        const types: Type[] = [];
+        for (const u of typesOf(s)) types.push(instantiateConstituent(u));
+        return getIntersectionType(c, types);
+      }
     }
-    return instantiateAnonymousType(c, t, prependTypeMapping(typeVariable!, s, mapper), undefined);
+    return instantiateAnonymousType(c, t, prependTypeMapping(typeVariable, s, mapper), undefined);
   };
+  return instantiateConstituent;
+}
+
+export function instantiateMappedType(
+  c: Checker,
+  t: MappedType,
+  mapper: TypeMapper,
+  alias: TypeAlias | undefined,
+): Type {
+  // For homomorphic `{ [P in keyof T]: X }`, the mapping depends on what T becomes.
+  const typeVariable = getHomomorphicTypeVariable(c, t);
   if (typeVariable !== undefined) {
     const mappedTypeVariable = instantiateType(c, typeVariable, mapper);
     if (typeVariable.id !== mappedTypeVariable.id)
-      return mapTypeWithAlias(c, getReducedType(c, mappedTypeVariable), instantiateConstituent, alias);
+      return mapTypeWithAlias(
+        c,
+        getReducedType(c, mappedTypeVariable),
+        homomorphicMappedTypeInstantiator(c, t, typeVariable, mapper),
+        alias,
+      );
   }
   if (instantiateType(c, getConstraintTypeFromMappedType(c, t), mapper) === c.wildcardType) return c.wildcardType;
   return instantiateAnonymousType(c, t, mapper, alias);
@@ -1836,10 +1877,11 @@ export function getTypeFromConditionalTypeNode(c: Checker, node: Node): Type {
     const checkType = getTypeFromTypeNode(c, shape.checkType);
     const alias = getAliasForTypeNode(c, node);
     const all = getOuterTypeParameters(c, node, true);
-    const outerTypeParameters =
-      alias !== undefined && alias.typeArguments.length !== 0
-        ? all
-        : all.filter((tp) => isTypeParameterPossiblyReferenced(c, tp, node));
+    let outerTypeParameters = all;
+    if (alias === undefined || alias.typeArguments.length === 0) {
+      outerTypeParameters = [];
+      for (const tp of all) if (isTypeParameterPossiblyReferenced(c, tp, node)) outerTypeParameters.push(tp);
+    }
     const root = new ConditionalRoot(
       node,
       checkType,
@@ -1872,7 +1914,8 @@ export function getConditionalTypeInstantiation(
 ): Type {
   const root = t.root;
   if (root.outerTypeParameters.length === 0) return t;
-  const typeArguments = root.outerTypeParameters.map((tp) => mapper.map(tp));
+  const typeArguments: Type[] = [];
+  for (const tp of root.outerTypeParameters) typeArguments.push(mapper.map(tp));
   const key = conditionalKey(typeArguments, alias, forConstraint);
   let result = root.instantiations.get(key);
   if (result === undefined) {
@@ -1918,9 +1961,9 @@ function isSimpleTupleType(node: Node): boolean {
 }
 
 function isDeferredType(c: Checker, t: Type, checkTuples: boolean): boolean {
-  return (
-    isGenericType(c, t) || (checkTuples && isTupleType(t) && getElementTypes(c, t).some((u) => isGenericType(c, u)))
-  );
+  if (isGenericType(c, t)) return true;
+  if (checkTuples && isTupleType(t)) for (const u of getElementTypes(c, t)) if (isGenericType(c, u)) return true;
+  return false;
 }
 
 export function getPermissiveInstantiation(c: Checker, t: Type): Type {
@@ -2066,7 +2109,8 @@ function getTailRecursionRoot(c: Checker, newType: Type, newMapper: TypeMapper |
   const newRoot = conditional.root;
   if (newRoot.outerTypeParameters.length === 0) return undefined;
   const typeParamMapper = combineTypeMappers(c, conditional.mapper, newMapper);
-  const typeArguments = newRoot.outerTypeParameters.map((t) => typeParamMapper.map(t));
+  const typeArguments: Type[] = [];
+  for (const t of newRoot.outerTypeParameters) typeArguments.push(typeParamMapper.map(t));
   const newRootMapper = newTypeMapper(newRoot.outerTypeParameters, typeArguments);
   const newCheckType = newRoot.isDistributive ? newRootMapper.map(newRoot.checkType) : undefined;
   if (
@@ -2177,10 +2221,12 @@ function isValidTypeForTemplateLiteralPlaceholder(
   target: Type,
   compare: TemplateTypeComparer,
 ): boolean {
-  if ((target.flags & TypeFlags.Intersection) !== 0)
-    return typesOf(target).every(
-      (t) => t === c.emptyTypeLiteralType || isValidTypeForTemplateLiteralPlaceholder(c, source, t, compare),
-    );
+  if ((target.flags & TypeFlags.Intersection) !== 0) {
+    for (const t of typesOf(target))
+      if (t !== c.emptyTypeLiteralType && !isValidTypeForTemplateLiteralPlaceholder(c, source, t, compare))
+        return false;
+    return true;
+  }
   if ((target.flags & TypeFlags.String) !== 0 || compare(source, target)) return true;
   if ((source.flags & TypeFlags.StringLiteral) !== 0) {
     const value = (source as LiteralType).stringValue;

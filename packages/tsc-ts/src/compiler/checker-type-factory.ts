@@ -1335,7 +1335,7 @@ export function getIntersectionTypeEx(
       if (intersectUnionsOfPrimitiveTypes(c, typeSet)) {
         // Restart with fresh flags; reduction happens at most once.
         result = getIntersectionTypeEx(c, typeSet, flags, alias);
-      } else if (typeSet.every(isUnionWithUndefined)) {
+      } else if (everyIsUnionWithUndefined(typeSet)) {
         let containedUndefinedType: Type = c.undefinedType;
         for (const t of typeSet) if (containsMissingType(c, t)) containedUndefinedType = c.missingType;
         for (let i = 0; i < typeSet.length; i++)
@@ -1347,7 +1347,7 @@ export function getIntersectionTypeEx(
           alias,
           undefined,
         );
-      } else if (typeSet.every(isUnionWithNull)) {
+      } else if (everyIsUnionWithNull(typeSet)) {
         for (let i = 0; i < typeSet.length; i++)
           typeSet[i] = filterType(c, typeSet[i]!, (t) => (t.flags & TypeFlags.Null) === 0);
         result = getUnionTypeEx(
@@ -1374,7 +1374,7 @@ export function getIntersectionTypeEx(
         const constituents = getCrossProductIntersections(c, typeSet, flags);
         let origin: Type | undefined;
         if (
-          constituents.some((t) => (t.flags & TypeFlags.Intersection) !== 0) &&
+          someHasFlags(constituents, TypeFlags.Intersection) &&
           getConstituentCountOfTypes(constituents) > getConstituentCountOfTypes(typeSet)
         )
           origin = newIntersectionType(c, ObjectFlags.None, typeSet);
@@ -1395,6 +1395,21 @@ export function isPrimitiveOrObjectOrEmptyType(c: Checker, t: Type): boolean {
 
 export function containsMissingType(c: Checker, t: Type): boolean {
   return t === c.missingType || ((t.flags & TypeFlags.Union) !== 0 && typesOf(t)[0]! === c.missingType);
+}
+
+function someHasFlags(types: readonly Type[], flags: TypeFlags): boolean {
+  for (const t of types) if ((t.flags & flags) !== 0) return true;
+  return false;
+}
+
+function everyIsUnionWithUndefined(types: readonly Type[]): boolean {
+  for (const t of types) if (!isUnionWithUndefined(t)) return false;
+  return true;
+}
+
+function everyIsUnionWithNull(types: readonly Type[]): boolean {
+  for (const t of types) if (!isUnionWithNull(t)) return false;
+  return true;
 }
 
 function isUnionWithUndefined(t: Type): boolean {
@@ -1445,8 +1460,9 @@ function extractRedundantTemplateLiterals(c: Checker, types: Type[]): boolean {
 }
 
 function intersectUnionsOfPrimitiveTypes(c: Checker, types: Type[]): boolean {
-  const index = types.findIndex((t) => (t.objectFlags & ObjectFlags.PrimitiveUnion) !== 0);
-  if (index < 0) return false;
+  let index = 0;
+  while (index < types.length && (types[index]!.objectFlags & ObjectFlags.PrimitiveUnion) === 0) index++;
+  if (index === types.length) return false;
   const unionTypes: Type[] = [types[index]!];
   let i = index + 1;
   while (i < types.length) {
@@ -1952,9 +1968,16 @@ export function getTypeArguments(c: Checker, t: Type): Type[] {
 
 // ---- Template literals
 
+function everyHasFlags(types: readonly Type[], flags: TypeFlags): boolean {
+  for (const t of types) if ((t.flags & flags) === 0) return false;
+  return true;
+}
+
 export function getTemplateLiteralType(c: Checker, texts: string[], types: Type[]): Type {
-  const unionIndex = types.findIndex((t) => (t.flags & (TypeFlags.Never | TypeFlags.Union)) !== 0);
-  if (unionIndex >= 0) {
+  let unionIndex = 0;
+  while (unionIndex < types.length && (types[unionIndex]!.flags & (TypeFlags.Never | TypeFlags.Union)) === 0)
+    unionIndex++;
+  if (unionIndex < types.length) {
     if (!checkCrossProductUnion(c, types)) return c.errorType;
     return mapType(c, types[unionIndex]!, (t) => {
       const replaced = types.slice();
@@ -1970,7 +1993,7 @@ export function getTemplateLiteralType(c: Checker, texts: string[], types: Type[
   const newTexts = builder.newTexts;
   const newTypes = builder.newTypes;
   if (newTexts.every((t) => t === '')) {
-    if (newTypes.every((t) => (t.flags & TypeFlags.String) !== 0)) return c.stringType;
+    if (everyHasFlags(newTypes, TypeFlags.String)) return c.stringType;
     // `${Mapping<xxx>}` is Mapping<xxx>.
     if (newTypes.length === 1 && isPatternLiteralType(c, newTypes[0]!)) return newTypes[0]!;
   }

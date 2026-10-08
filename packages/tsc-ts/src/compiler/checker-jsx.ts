@@ -1560,7 +1560,7 @@ export function getContextualJsxElementAttributesType(c: Checker, node: Node): T
   if (node.kind === SyntaxKind.JsxOpeningElement) {
     // Contextual types of an element's attributes are pushed onto the element, which spans the children.
     const index = findContextualNode(c, node.parent!, true);
-    if (index >= 0) return c.inferenceCaches.contextualTypes[index];
+    if (index >= 0) return c.inferenceCaches.contextualTypes.at(index);
   }
   const links = c.nodeLinks(node);
   const signature =

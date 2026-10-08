@@ -379,12 +379,22 @@ function getObjectTypeInstantiation(
     // On first instantiation, record the type parameters in scope, reduced to those possibly referenced.
     typeParameters = getOuterTypeParameters(c, declaration, true);
     if (target.alias === undefined || target.alias.typeArguments.length === 0) {
-      if ((type.objectFlags & (ObjectFlags.Reference | ObjectFlags.InstantiationExpressionType)) !== 0)
-        typeParameters = typeParameters.filter((tp) => isTypeParameterPossiblyReferenced(c, tp, declaration));
-      else if ((target.symbol!.flags & (SymbolFlags.Method | SymbolFlags.TypeLiteral)) !== 0)
-        typeParameters = typeParameters.filter((tp) =>
-          type.symbol!.declarations.some((d) => isTypeParameterPossiblyReferenced(c, tp, d)),
-        );
+      if ((type.objectFlags & (ObjectFlags.Reference | ObjectFlags.InstantiationExpressionType)) !== 0) {
+        const referenced: Type[] = [];
+        for (const tp of typeParameters) if (isTypeParameterPossiblyReferenced(c, tp, declaration)) referenced.push(tp);
+        typeParameters = referenced;
+      } else if ((target.symbol!.flags & (SymbolFlags.Method | SymbolFlags.TypeLiteral)) !== 0) {
+        const referenced: Type[] = [];
+        for (const tp of typeParameters) {
+          for (const d of type.symbol!.declarations) {
+            if (isTypeParameterPossiblyReferenced(c, tp, d)) {
+              referenced.push(tp);
+              break;
+            }
+          }
+        }
+        typeParameters = referenced;
+      }
     }
     links.outerTypeParameters = typeParameters;
   }

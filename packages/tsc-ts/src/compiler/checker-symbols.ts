@@ -33,6 +33,7 @@ import {
   getRootDeclaration,
   getSourceFileOfNode,
   getSourceTextOfNode,
+  getDeclarationOfKind,
   getThisContainer,
   hasStaticModifier,
   isClassLike,
@@ -985,13 +986,14 @@ export function addDuplicateDeclarationError(
     const leading = createDiagnosticForNode(adjusted, Diagnostics.X_0_was_also_declared_here, [name]);
     const followOn = createDiagnosticForNode(adjusted, Diagnostics.X_and_here, []);
     const related = error.relatedInformation;
-    if (
-      related.length >= 5 ||
-      related.some((d: Diagnostic) => compareDiagnostics(d, followOn) === 0 || compareDiagnostics(d, leading) === 0)
-    )
-      continue;
+    if (related.length >= 5 || hasMatchingDiagnostic(related, leading, followOn)) continue;
     error.addRelatedInfo(related.length === 0 ? leading : followOn);
   }
+}
+
+function hasMatchingDiagnostic(diagnostics: readonly Diagnostic[], a: Diagnostic, b: Diagnostic): boolean {
+  for (const d of diagnostics) if (compareDiagnostics(d, b) === 0 || compareDiagnostics(d, a) === 0) return true;
+  return false;
 }
 
 function lookupOrIssueError(c: Checker, location: Node, message: DiagnosticMessage, args: string[]) {
@@ -1085,13 +1087,18 @@ export function getSymbolOfDeclaration(c: Checker, node: Node): Symbol | undefin
   return symbol !== undefined ? getMergedSymbol(c, getLateBoundSymbol(c, symbol)) : undefined;
 }
 
+function hasStaticDeclaration(symbol: Symbol): boolean {
+  for (const d of symbol.declarations) if (hasStaticModifier(d)) return true;
+  return false;
+}
+
 export function getLateBoundSymbol(c: Checker, symbol: Symbol): Symbol {
   if ((symbol.flags & SymbolFlags.ClassMember) === 0 || symbol.name !== InternalSymbolName.Computed) return symbol;
   const links = c.symbolLinks(symbol);
   if (links.lateSymbol === undefined && hasLateBindableDeclaration(c, symbol)) {
     // Force late binding of the parent's members or exports, which sets lateSymbol.
     const parent = getMergedSymbol(c, symbol.parent!);
-    if (symbol.declarations.some(hasStaticModifier)) getExportsOfSymbol(c, parent);
+    if (hasStaticDeclaration(symbol)) getExportsOfSymbol(c, parent);
     else getMembersOfSymbol(c, parent);
   }
   if (links.lateSymbol === undefined) links.lateSymbol = symbol;
@@ -1188,8 +1195,12 @@ export function getGlobalTypeAliasSymbol(
     const typeParameters = c.symbolLinks(symbol).typeParameters;
     if ((typeParameters === undefined ? 0 : typeParameters.length) !== arity) {
       if (reportErrors) {
-        const decl = symbol.declarations.find((d) => d.kind === SyntaxKind.TypeAliasDeclaration);
-        c.error(decl, Diagnostics.Global_type_0_must_have_1_type_parameter_s, symbol.name, String(arity));
+        c.error(
+          getDeclarationOfKind(symbol, SyntaxKind.TypeAliasDeclaration),
+          Diagnostics.Global_type_0_must_have_1_type_parameter_s,
+          symbol.name,
+          String(arity),
+        );
       }
       symbol = undefined;
     }

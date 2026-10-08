@@ -794,9 +794,9 @@ function skipAttribute(text: string, pos: number, names: readonly string[]): num
   if (next === pos) return -1;
   pos = next;
   let matched = false;
-  for (let i = 0; i < names.length; i++) {
-    if (text.startsWith(names[i], pos)) {
-      pos += names[i].length;
+  for (const name of names) {
+    if (text.startsWith(name, pos)) {
+      pos += name.length;
       matched = true;
       break;
     }

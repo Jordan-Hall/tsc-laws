@@ -215,7 +215,7 @@ function forDeclaration(node: Node, result: SymbolAccessibilityResult): SymbolAc
     }
     case SyntaxKind.CallExpression: {
       // `Object.defineProperty(exports, "name", …)` in JavaScript.
-      const name = node instanceof CallExpression ? node.arguments.nodes[1] : node;
+      const name = node instanceof CallExpression ? node.arguments.nodes[1]! : node;
       return new SymbolAccessibilityDiagnostic(
         name,
         byModuleName(
@@ -693,7 +693,7 @@ function accessorTypeError(node: Node): Diagnostic {
   const parameters = getParameters(node);
   const target =
     node instanceof SetAccessorDeclaration && parameters !== undefined && parameters.nodes.length > 0
-      ? parameters.nodes[0]
+      ? parameters.nodes[0]!
       : node;
   const diagnostic = createDiagnosticForNode(target, errorByDeclarationKind(node.kind), []);
   if (accessors.setAccessor !== undefined)

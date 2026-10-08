@@ -30,8 +30,8 @@ const enum SpanKind {
 /** `left` with `right[start:end]` inserted at `at`. */
 function splice(left: Node[], at: number, right: Node[], start: number, end: number): Node[] {
   const result = left.slice(0, at);
-  for (let i = start; i < end; i++) result.push(right[i]);
-  for (let i = at; i < left.length; i++) result.push(left[i]);
+  for (let i = start; i < end; i++) result.push(right[i]!);
+  for (let i = at; i < left.length; i++) result.push(left[i]!);
   return result;
 }
 
@@ -457,7 +457,7 @@ export class EmitContext {
 
   requestEmitHelper(helper: EmitHelper): EmitHelper {
     if (helper.scoped) throw new Error('Cannot request a scoped emit helper');
-    for (let i = 0; i < helper.dependencies.length; i++) this.requestEmitHelper(helper.dependencies[i]);
+    for (const dependency of helper.dependencies) this.requestEmitHelper(dependency);
     if (this.emitHelpers.indexOf(helper) < 0) this.emitHelpers.push(helper);
     return helper;
   }
@@ -527,9 +527,9 @@ export class EmitContext {
       this.setEmitFlags(statement, EmitFlags.CustomPrologue);
       statements.push(statement);
     }
-    for (let i = 0; i < scope.initializationStatements.length; i++) statements.push(scope.initializationStatements[i]);
+    for (const statement of scope.initializationStatements) statements.push(statement);
     const lexical = this.endLexicalEnvironment();
-    for (let i = 0; i < lexical.length; i++) statements.push(lexical[i]);
+    for (const statement of lexical) statements.push(statement);
     return statements;
   }
 
@@ -558,7 +558,7 @@ export class EmitContext {
   addVariableDeclaration(name: Identifier): Identifier {
     const declaration = this.factory.createVariableDeclaration(name, undefined, undefined, undefined);
     this.setEmitFlags(declaration, EmitFlags.NoNestedSourceMaps);
-    const scope = this.varScopes[this.varScopes.length - 1];
+    const scope = this.varScopes[this.varScopes.length - 1]!;
     scope.variables.push(declaration);
     if ((scope.flags & EnvironmentFlags.InParameters) !== 0)
       scope.flags |= EnvironmentFlags.VariablesHoistedInParameters;
@@ -589,7 +589,7 @@ export class EmitContext {
 
   /** Marks the current variable scope as visiting parameters; returns the previous flags. */
   enterParameters(): number {
-    const scope = this.varScopes[this.varScopes.length - 1];
+    const scope = this.varScopes[this.varScopes.length - 1]!;
     const flags = scope.flags;
     scope.flags |= EnvironmentFlags.InParameters;
     return flags;
@@ -597,7 +597,7 @@ export class EmitContext {
 
   /** Restores the scope flags; returns whether a variable was hoisted while visiting the parameters. */
   exitParameters(previousFlags: number): boolean {
-    const scope = this.varScopes[this.varScopes.length - 1];
+    const scope = this.varScopes[this.varScopes.length - 1]!;
     const hoisted = (scope.flags & EnvironmentFlags.VariablesHoistedInParameters) !== 0;
     scope.flags = previousFlags;
     return hoisted;
@@ -635,9 +635,11 @@ export class EmitContext {
       if (leftPrologueEnd === 0) left = splice(left, 0, declarations, 0, rightPrologueEnd);
       else {
         const existing = new Set<string>();
-        for (let i = 0; i < leftPrologueEnd; i++) existing.add(prologueText(statements[i]));
-        for (let i = rightPrologueEnd - 1; i >= 0; i--)
-          if (!existing.has(prologueText(declarations[i]))) left = [declarations[i]].concat(left);
+        for (let i = 0; i < leftPrologueEnd; i++) existing.add(prologueText(statements[i]!));
+        for (let i = rightPrologueEnd - 1; i >= 0; i--) {
+          const declaration = declarations[i]!;
+          if (!existing.has(prologueText(declaration))) left = [declaration].concat(left);
+        }
       }
     }
     return left;
@@ -645,7 +647,7 @@ export class EmitContext {
 
   private spanEnd(nodes: Node[], start: number, kind: SpanKind): number {
     let i = start;
-    while (i < nodes.length && this.isSpanKind(nodes[i], kind)) i++;
+    while (i < nodes.length && this.isSpanKind(nodes[i]!, kind)) i++;
     return i;
   }
 

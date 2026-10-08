@@ -464,14 +464,14 @@ function isTypeDeclaration(node: Node): boolean {
 }
 
 function reportUnusedVariables(c: Checker, node: Node, declarations: readonly Node[]): void {
-  if (declarations.length > 1 && declarations.every((d) => isUnreferencedVariableDeclaration(c, d)))
+  if (declarations.length > 1 && areUnreferencedVariableDeclarations(c, declarations))
     reportUnusedVariable(c, node, createDiagnosticForNode(node, Diagnostics.All_variables_are_unused, []));
   else reportUnusedVariableDeclarations(c, declarations);
 }
 
 function reportUnusedBindingElements(c: Checker, node: Node): void {
   const declarations = getElements(node)!.nodes;
-  if (declarations.length > 1 && declarations.every((d) => isUnreferencedVariableDeclaration(c, d)))
+  if (declarations.length > 1 && areUnreferencedVariableDeclarations(c, declarations))
     reportUnusedVariable(c, node, createDiagnosticForNode(node, Diagnostics.All_destructured_elements_are_unused, []));
   else reportUnusedVariableDeclarations(c, declarations);
 }
@@ -502,17 +502,22 @@ function isThisParameter(node: Node): boolean {
   return name !== undefined && name.kind === SyntaxKind.Identifier && getText(name) === 'this';
 }
 
+function areUnreferencedVariableDeclarations(c: Checker, declarations: readonly Node[]): boolean {
+  for (const d of declarations) if (!isUnreferencedVariableDeclaration(c, d)) return false;
+  return true;
+}
+
 function isUnreferencedVariableDeclaration(c: Checker, node: Node): boolean {
   const name = getName(node);
   if (name === undefined) return true;
   if (name.kind === SyntaxKind.ObjectBindingPattern || name.kind === SyntaxKind.ArrayBindingPattern)
-    return getElements(name)!.nodes.every((e) => isUnreferencedVariableDeclaration(c, e));
+    return areUnreferencedVariableDeclarations(c, getElements(name)!.nodes);
   if ((referenceKindsOfDeclaration(c, node) & SymbolFlags.Variable) !== 0) return false;
   const parent = node.parent!;
   if (node.kind === SyntaxKind.BindingElement && parent.kind === SyntaxKind.ObjectBindingPattern) {
     // In `{ a, ...b }`, `a` counts as used: it removes a property from `b`.
     const elements = getElements(parent)!.nodes;
-    const lastElement = elements[elements.length - 1];
+    const lastElement = elements[elements.length - 1]!;
     if (node !== lastElement && getDotDotDotToken(lastElement) !== undefined) return false;
   }
   const underscoreExempt =
@@ -572,13 +577,18 @@ function checkUnusedInferTypeParameter(c: Checker, node: InferTypeNode): void {
     );
 }
 
+function areUnreferencedTypeParameters(c: Checker, typeParameters: readonly Node[]): boolean {
+  for (const p of typeParameters) if (!isUnreferencedTypeParameter(c, p)) return false;
+  return true;
+}
+
 function checkUnusedTypeParameters(c: Checker, node: Node): void {
   const symbol = getSymbolOfDeclaration(c, node);
   if (symbol !== undefined && !allDeclarationsInSameSourceFile(symbol)) return;
   const typeParameterList = getTypeParameters(node);
   if (typeParameterList === undefined) return;
   const typeParameters = typeParameterList.nodes;
-  if (typeParameters.length > 1 && typeParameters.every((p) => isUnreferencedTypeParameter(c, p))) {
+  if (typeParameters.length > 1 && areUnreferencedTypeParameters(c, typeParameters)) {
     const file = getSourceFileOfNode(node);
     const text = file.text;
     const end = Math.min(text.length, skipTrivia(text, typeParameterList.end) + 1);
@@ -613,7 +623,7 @@ function isUnreferencedTypeParameter(c: Checker, typeParameter: Node): boolean {
 function allDeclarationsInSameSourceFile(symbol: Symbol): boolean {
   const declarations = symbol.declarations;
   if (declarations.length <= 1) return true;
-  const file = getSourceFileOfNode(declarations[0]);
-  for (let i = 1; i < declarations.length; i++) if (getSourceFileOfNode(declarations[i]) !== file) return false;
+  const file = getSourceFileOfNode(declarations[0]!);
+  for (let i = 1; i < declarations.length; i++) if (getSourceFileOfNode(declarations[i]!) !== file) return false;
   return true;
 }

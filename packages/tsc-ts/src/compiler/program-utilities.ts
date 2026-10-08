@@ -319,7 +319,7 @@ function getResolutionModeOverride(attributes: ImportAttributes | undefined): Mo
   if (attributes === undefined) return ModuleKind.None;
   const elements = attributes.attributes.nodes;
   if (elements.length !== 1) return ModuleKind.None;
-  const attribute = elements[0];
+  const attribute = elements[0]!;
   if (!(attribute instanceof ImportAttribute)) return ModuleKind.None;
   const name = attribute.name;
   if (name === undefined || !isStringLiteralLike(name) || literalText(name) !== 'resolution-mode')

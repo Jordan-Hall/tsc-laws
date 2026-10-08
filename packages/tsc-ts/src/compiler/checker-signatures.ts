@@ -162,9 +162,9 @@ export function isOptionalDeclaration(node: Node): boolean {
 function getAnnotatedAccessorThisParameter(accessor: Node): Symbol | undefined {
   const params = getParameters(accessor)!.nodes;
   if (params.length !== (accessor.kind === SyntaxKind.GetAccessor ? 1 : 2)) return undefined;
-  const name = getName(params[0]);
+  const name = getName(params[0]!);
   return name !== undefined && name.kind === SyntaxKind.Identifier && getText(name) === 'this'
-    ? getSymbol(params[0])
+    ? getSymbol(params[0]!)
     : undefined;
 }
 
@@ -327,8 +327,8 @@ export function getReturnTypeOfSignature(c: Checker, sig: Signature): Type {
 import { getOptionalType as getOptionalTypeLocal, addOptionalTypeMarker } from './checker-symbol-types.js';
 
 export function isResolvingReturnTypeOfSignature(c: Checker, sig: Signature): boolean {
-  if (sig.composite !== undefined && sig.composite.signatures.some((s) => isResolvingReturnTypeOfSignature(c, s)))
-    return true;
+  if (sig.composite !== undefined)
+    for (const s of sig.composite.signatures) if (isResolvingReturnTypeOfSignature(c, s)) return true;
   return (
     sig.resolvedReturnType === undefined &&
     findResolutionCycleStartIndex(c, sig, TypeSystemPropertyName.ResolvedReturnType) >= 0
@@ -354,9 +354,15 @@ export function getReturnTypeFromAnnotation(c: Checker, declaration: Node): Type
     if (symbol !== undefined) {
       const setter = symbol.declarations.find((d) => d.kind === SyntaxKind.SetAccessor);
       if (setter !== undefined) {
-        const param = getParameters(setter)?.nodes.find((p) => !isThisParameterDeclaration(p));
-        const typeNode = param !== undefined ? getType(param) : undefined;
-        if (typeNode !== undefined) return getTypeFromTypeNode(c, typeNode);
+        const parameters = getParameters(setter);
+        if (parameters !== undefined) {
+          for (const param of parameters.nodes) {
+            if (isThisParameterDeclaration(param)) continue;
+            const typeNode = getType(param);
+            if (typeNode !== undefined) return getTypeFromTypeNode(c, typeNode);
+            break;
+          }
+        }
       }
     }
   }
@@ -725,7 +731,8 @@ export function getSignatureInstantiationWithoutFillingInTypeArguments(
 }
 
 export function createSignatureInstantiation(c: Checker, sig: Signature, typeArguments: Type[]): Signature {
-  const typeParameters = sig.typeParameters.map((tp) => instantiateType(c, tp, (tp as TypeParameter).mapper));
+  const typeParameters: Type[] = [];
+  for (const tp of sig.typeParameters) typeParameters.push(instantiateType(c, tp, (tp as TypeParameter).mapper));
   return instantiateSignatureEx(c, sig, newTypeMapper(typeParameters, typeArguments), true);
 }
 
@@ -745,10 +752,11 @@ export function getErasedSignature(c: Checker, signature: Signature): Signature 
 export function getCanonicalSignature(c: Checker, signature: Signature): Signature {
   if (signature.typeParameters.length === 0) return signature;
   if (signature.canonicalSignatureCache === undefined) {
-    const typeArguments = signature.typeParameters.map((tp) => {
+    const typeArguments: Type[] = [];
+    for (const tp of signature.typeParameters) {
       const target = (tp as TypeParameter).target;
-      return target !== undefined && getConstraintOfTypeParameter(c, target) === undefined ? target : tp;
-    });
+      typeArguments.push(target !== undefined && getConstraintOfTypeParameter(c, target) === undefined ? target : tp);
+    }
     signature.canonicalSignatureCache = getSignatureInstantiation(
       c,
       signature,
@@ -833,7 +841,8 @@ export function getDefaultConstructSignatures(c: Checker, classType: InterfaceTy
   const isJavaScript = declaration !== undefined && (declaration.flags & NodeFlags.JavaScriptFile) !== 0;
   const typeArgumentNodes =
     baseTypeNode !== undefined ? ((baseTypeNode as ExpressionWithTypeArguments).typeArguments?.nodes ?? []) : [];
-  const typeArguments = typeArgumentNodes.map((n) => getTypeFromTypeNode(c, n));
+  const typeArguments: Type[] = [];
+  for (const n of typeArgumentNodes) typeArguments.push(getTypeFromTypeNode(c, n));
   const typeArgCount = typeArguments.length;
   const result: Signature[] = [];
   for (const baseSig of baseSignatures) {
@@ -968,7 +977,7 @@ function getObjectLiteralIndexInfo(c: Checker, isReadonly: boolean, properties: 
 
 function isSymbolWithComputedName(symbol: Symbol): boolean {
   if (symbol.declarations.length === 0) return false;
-  const name = getName(symbol.declarations[0]);
+  const name = getName(symbol.declarations[0]!);
   return name !== undefined && name.kind === SyntaxKind.ComputedPropertyName;
 }
 

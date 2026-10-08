@@ -869,15 +869,13 @@ function getTypeAtFlowBranchLabel(c: Checker, f: FlowState, antecedents: FlowNod
  * union with evolving arrays finalized.
  */
 function getUnionOfFlowTypes(c: Checker, f: FlowState, types: Type[], reduction: UnionReduction): Type {
-  if (isEvolvingArrayTypeList(types))
-    return getEvolvingArrayType(
-      c,
-      getUnionType(
-        c,
-        types.map((t) => getElementTypeOfEvolvingArrayType(c, t)),
-      ),
-    );
-  const finalized = types.map((t) => finalizeEvolvingArrayType(c, t));
+  if (isEvolvingArrayTypeList(types)) {
+    const elementTypes: Type[] = [];
+    for (const t of types) elementTypes.push(getElementTypeOfEvolvingArrayType(c, t));
+    return getEvolvingArrayType(c, getUnionType(c, elementTypes));
+  }
+  const finalized: Type[] = [];
+  for (const t of types) finalized.push(finalizeEvolvingArrayType(c, t));
   const result = recombineUnknownType(c, getUnionTypeEx(c, finalized, reduction, undefined, undefined));
   const declared = f.declaredType;
   if (result !== declared && (result.flags & declared.flags & TypeFlags.Union) !== 0) {
@@ -1102,8 +1100,8 @@ function narrowTypeByCallExpression(c: Checker, f: FlowState, t: Type, call: Nod
         name.kind === SyntaxKind.Identifier &&
         getText(name) === 'hasOwnProperty' &&
         args.length === 1 &&
-        isStringLiteralLike(args[0]) &&
-        getAccessedPropertyName(c, f.reference) === getText(args[0])
+        isStringLiteralLike(args[0]!) &&
+        getAccessedPropertyName(c, f.reference) === getText(args[0]!)
       )
         return getTypeWithFacts(c, t, assumeTrue ? TypeFacts.NEUndefined : TypeFacts.EQUndefined);
     }
@@ -1332,13 +1330,14 @@ function isCoercibleUnderDoubleEquals(source: Type, target: Type): boolean {
 }
 
 function isUnitLikeType(t: Type): boolean {
-  if ((t.flags & TypeFlags.Intersection) !== 0) return typesOf(t).some(isUnitType);
-  return isUnitType(t);
+  return extractUnitType(t) !== undefined;
 }
 
-function extractUnitType(t: Type): Type {
-  if ((t.flags & TypeFlags.Intersection) !== 0) return typesOf(t).find(isUnitType) ?? t;
-  return t;
+/** `t`, or the first unit type of intersection `t`; undefined when `t` isn't unit-like. */
+function extractUnitType(t: Type): Type | undefined {
+  if ((t.flags & TypeFlags.Intersection) === 0) return isUnitType(t) ? t : undefined;
+  for (const u of typesOf(t)) if (isUnitType(u)) return u;
+  return undefined;
 }
 
 function replacePrimitivesWithLiterals(c: Checker, typeWithPrimitives: Type, typeWithLiterals: Type): Type {
@@ -1522,12 +1521,10 @@ function getInstanceType(c: Checker, constructorType: Type): Type {
   const prototypeType = getTypeOfPropertyOfType(c, constructorType, 'prototype');
   if (prototypeType !== undefined && (prototypeType.flags & TypeFlags.Any) === 0) return prototypeType;
   const signatures = getSignaturesOfType(c, constructorType, SignatureKind.Construct);
-  if (signatures.length !== 0)
-    return getUnionType(
-      c,
-      signatures.map((s) => getReturnTypeOfSignature(c, getErasedSignature(c, s))),
-    );
-  return c.emptyObjectType;
+  if (signatures.length === 0) return c.emptyObjectType;
+  const types: Type[] = [];
+  for (const s of signatures) types.push(getReturnTypeOfSignature(c, getErasedSignature(c, s)));
+  return getUnionType(c, types);
 }
 
 function narrowTypeByInKeyword(c: Checker, t: Type, nameType: Type, assumeTrue: boolean): Type {
@@ -1880,11 +1877,11 @@ function narrowTypeBySwitchOnDiscriminantProperty(c: Checker, t: Type, access: N
   if (flow.clauseStart < flow.clauseEnd && (t.flags & TypeFlags.Union) !== 0) {
     const accessedName = getAccessedPropertyName(c, access);
     if (accessedName !== undefined && accessedName !== '' && getKeyPropertyName(c, t as UnionType) === accessedName) {
-      const clauseTypes = getSwitchClauseTypes(c, flow.switchStatement).slice(flow.clauseStart, flow.clauseEnd);
-      const candidate = getUnionType(
-        c,
-        clauseTypes.map((s) => getConstituentTypeForKeyType(c, t as UnionType, s) ?? c.unknownType),
-      );
+      const clauseTypes = getSwitchClauseTypes(c, flow.switchStatement);
+      const types: Type[] = [];
+      for (let i = flow.clauseStart; i < flow.clauseEnd && i < clauseTypes.length; i++)
+        types.push(getConstituentTypeForKeyType(c, t as UnionType, clauseTypes[i]!) ?? c.unknownType);
+      const candidate = getUnionType(c, types);
       if (candidate !== c.unknownType) return candidate;
     }
   }
@@ -1933,10 +1930,11 @@ function narrowTypeBySwitchOnDiscriminant(c: Checker, t: Type, flow: FlowSwitchC
         );
   if (!hasDefaultClause) return caseType;
   const defaultType = filterType(c, t, (u) => {
-    if (!isUnitLikeType(u)) return true;
-    const v =
-      (u.flags & TypeFlags.Undefined) !== 0 ? c.undefinedType : getRegularTypeOfLiteralType(c, extractUnitType(u));
-    return !switchTypes.some((st) => isUnitType(st) && areTypesComparable(c, st, v));
+    const unit = extractUnitType(u);
+    if (unit === undefined) return true;
+    const v = (u.flags & TypeFlags.Undefined) !== 0 ? c.undefinedType : getRegularTypeOfLiteralType(c, unit);
+    for (const st of switchTypes) if (isUnitType(st) && areTypesComparable(c, st, v)) return false;
+    return true;
   });
   if ((caseType.flags & TypeFlags.Never) !== 0) return defaultType;
   return getUnionType(c, [caseType, defaultType]);
@@ -2045,8 +2043,8 @@ function computeExhaustiveSwitchStatement(c: Checker, statement: Node): boolean 
   const t = getBaseConstraintOrType(c, checkExpressionCached(c, expression));
   if (!isLiteralType(t)) return false;
   const switchTypes = getSwitchClauseTypes(c, statement);
-  if (switchTypes.length === 0 || switchTypes.some((s) => !isUnitType(s) && (s.flags & TypeFlags.Never) === 0))
-    return false;
+  if (switchTypes.length === 0) return false;
+  for (const s of switchTypes) if (!isUnitType(s) && (s.flags & TypeFlags.Never) === 0) return false;
   const regular = mapType(c, t, (u) => getRegularTypeOfLiteralType(c, u));
   if ((regular.flags & TypeFlags.Union) !== 0) return typesOf(regular).every((u) => switchTypes.includes(u));
   return switchTypes.includes(regular);
@@ -2907,18 +2905,18 @@ function getNarrowedTypeOfDependentParameter(c: Checker, t: Type, declaration: N
     c,
     instantiateType(
       c,
-      getTypeOfSymbol(c, contextualSignature.parameters[0]),
+      getTypeOfSymbol(c, contextualSignature.parameters[0]!),
       context !== undefined ? context.nonFixingMapper : undefined,
     ),
   );
   if (
     (restType.flags & TypeFlags.Union) === 0 ||
     !everyType(restType, isTupleType) ||
-    parameters.some((p) => isSomeSymbolAssigned(c, getName(p)!))
+    someParameterAssigned(c, parameters)
   )
     return t;
   const narrowedType = getFlowTypeOfReferenceAt(c, fn, restType, restType, undefined, getFlowNode(location));
-  const index = parameters.indexOf(declaration) - (isThisParameter(parameters[0]) ? 1 : 0);
+  const index = parameters.indexOf(declaration) - (isThisParameter(parameters[0]!) ? 1 : 0);
   return getIndexedAccessType(c, narrowedType, getNumberLiteralType(c, index));
 }
 
@@ -2927,13 +2925,19 @@ function isThisParameter(parameter: Node): boolean {
   return name !== undefined && name.kind === SyntaxKind.Identifier && getText(name) === 'this';
 }
 
+function someParameterAssigned(c: Checker, parameters: Node[]): boolean {
+  for (const p of parameters) if (isSomeSymbolAssigned(c, getName(p)!)) return true;
+  return false;
+}
+
 function isSomeSymbolAssigned(c: Checker, name: Node): boolean {
   if (name.kind === SyntaxKind.Identifier) {
     const symbol = getSymbolOfDeclaration(c, name.parent!);
     return symbol !== undefined && isSymbolAssigned(c, symbol);
   }
-  return getElements(name)!.nodes.some((e) => {
+  for (const e of getElements(name)!.nodes) {
     const elementName = getName(e);
-    return elementName !== undefined && isSomeSymbolAssigned(c, elementName);
-  });
+    if (elementName !== undefined && isSomeSymbolAssigned(c, elementName)) return true;
+  }
+  return false;
 }

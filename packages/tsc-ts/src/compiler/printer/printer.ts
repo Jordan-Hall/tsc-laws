@@ -651,8 +651,8 @@ export class Printer extends NameGeneratorHost {
   private writeLinesOfText(text: string): boolean {
     const lines = splitLines(text);
     const indentation = guessIndentation(lines);
-    for (let i = 0; i < lines.length; i++) {
-      const line = indentation > 0 ? lines[i].substring(indentation) : lines[i];
+    for (const text of lines) {
+      const line = indentation > 0 ? text.substring(indentation) : text;
       if (line.length > 0) {
         this.line();
         this.write1(line);
@@ -937,21 +937,21 @@ export class Printer extends NameGeneratorHost {
     if (
       this.getLeadingLineTerminatorCount(
         body,
-        statements.length > 0 ? statements[0] : undefined,
+        statements.length > 0 ? statements[0]! : undefined,
         ListFormat.PreserveLines,
       ) > 0 ||
       this.getClosingLineTerminatorCount(
         body,
-        statements.length > 0 ? statements[statements.length - 1] : undefined,
+        statements.length > 0 ? statements[statements.length - 1]! : undefined,
         ListFormat.PreserveLines,
         body.statements.end,
       ) > 0
     )
       return false;
     let previous: Node | undefined = undefined;
-    for (let i = 0; i < statements.length; i++) {
-      if (this.getSeparatingLineTerminatorCount(previous, statements[i], ListFormat.PreserveLines) > 0) return false;
-      previous = statements[i];
+    for (const statement of statements) {
+      if (this.getSeparatingLineTerminatorCount(previous, statement, ListFormat.PreserveLines) > 0) return false;
+      previous = statement;
     }
     return true;
   }
@@ -1154,10 +1154,10 @@ export class Printer extends NameGeneratorHost {
     const nodes = modifiers.nodes;
     let allModifiers = true;
     let allDecorators = true;
-    for (let i = 0; i < nodes.length; i++) {
-      if (nodes[i].kind === SyntaxKind.Decorator) allModifiers = false;
+    for (const n of nodes) {
+      if (n.kind === SyntaxKind.Decorator) allModifiers = false;
       else allDecorators = false;
-      if (!isModifier(nodes[i])) allModifiers = false;
+      if (!isModifier(n)) allModifiers = false;
     }
     if (allModifiers) this.emitList(ListItem.Keyword, parent, modifiers, ListFormat.Modifiers);
     else if (allDecorators) {
@@ -1198,7 +1198,7 @@ export class Printer extends NameGeneratorHost {
         pos++;
       }
     }
-    const last = nodes[nodes.length - 1];
+    const last = nodes[nodes.length - 1]!;
     return last.end > parent.pos ? last.end : parent.pos;
   }
 
@@ -1274,7 +1274,7 @@ export class Printer extends NameGeneratorHost {
 
   private canEmitSimpleArrowHead(parent: Node, parameters: NodeList): boolean {
     if (!(parent instanceof ArrowFunction) || parameters.nodes.length !== 1) return false;
-    const parameter = parameters.nodes[0];
+    const parameter = parameters.nodes[0]!;
     return (
       parameter instanceof ParameterDeclaration &&
       parameter.pos === parent.pos &&
@@ -2557,8 +2557,8 @@ export class Printer extends NameGeneratorHost {
     for (let i = nodes.length - 1; i >= 0; i--) {
       if (!this.hasEmitFlag(node, EmitFlags.NoTrailingComments) && node.end !== node.expression.end)
         this.emitLeadingCommentsOfPosition(node.expression.end);
-      this.exitNode(node, states[i]);
-      node = nodes[i];
+      this.exitNode(node, states[i]!);
+      node = nodes[i]!;
     }
     return true;
   }
@@ -2572,7 +2572,7 @@ export class Printer extends NameGeneratorHost {
     const comments = getLeadingCommentRanges(this.sourceText, node.pos);
     let hasNewLineComment = false;
     if (comments !== undefined) {
-      for (let i = 0; i < comments.length; i++) if (this.commentWillEmitNewLine(comments[i])) hasNewLineComment = true;
+      for (const comment of comments) if (this.commentWillEmitNewLine(comment)) hasNewLineComment = true;
       const parseNode = this.context.parseNode(node);
       if (
         parseNode !== undefined &&
@@ -2591,7 +2591,7 @@ export class Printer extends NameGeneratorHost {
       if (node.pos !== node.expression.pos) {
         const trailing = getTrailingCommentRanges(this.sourceText, node.expression.pos);
         if (trailing !== undefined)
-          for (let i = 0; i < trailing.length; i++) if (this.commentWillEmitNewLine(trailing[i])) return true;
+          for (const comment of trailing) if (this.commentWillEmitNewLine(comment)) return true;
       }
       return this.willEmitLeadingNewLine(node.expression);
     }
@@ -3732,8 +3732,8 @@ export class Printer extends NameGeneratorHost {
       statements.length === 1 &&
       (this.currentSourceFile === undefined ||
         nodeIsSynthesized(node) ||
-        nodeIsSynthesized(statements[0]) ||
-        this.positionsAreOnSameLine(this.rangeStart(node.pos), this.rangeStart(statements[0].pos)));
+        nodeIsSynthesized(statements[0]!) ||
+        this.positionsAreOnSameLine(this.rangeStart(node.pos), this.rangeStart(statements[0]!.pos)));
     let format = ListFormat.CaseOrDefaultClauseStatements;
     if (single) {
       // The statement list emits the colon's trailing comments.
@@ -3819,9 +3819,10 @@ export class Printer extends NameGeneratorHost {
   private emitPrologueDirectives(statements: NodeList): number {
     const nodes = statements.nodes;
     for (let i = 0; i < nodes.length; i++) {
-      if (!isPrologueDirective(nodes[i])) return i;
+      const node = nodes[i]!;
+      if (!isPrologueDirective(node)) return i;
       this.line();
-      this.emitStatement(nodes[i]);
+      this.emitStatement(node);
     }
     return nodes.length;
   }
@@ -3835,8 +3836,7 @@ export class Printer extends NameGeneratorHost {
     const helpers = nodeHelpers.slice();
     helpers.sort(compareEmitHelpers);
     let emitted = false;
-    for (let i = 0; i < helpers.length; i++) {
-      const helper = helpers[i];
+    for (const helper of helpers) {
       if (!helper.scoped && shouldSkip) continue;
       let text = helper.text;
       if (helper.uniqueName.length > 0)
@@ -3885,8 +3885,7 @@ export class Printer extends NameGeneratorHost {
   }
 
   private emitDirectives(kind: string, refs: readonly FileReference[]): boolean {
-    for (let i = 0; i < refs.length; i++) {
-      const ref = refs[i];
+    for (const ref of refs) {
       let mode = '';
       if (ref.resolutionMode !== 0)
         mode = 'resolution-mode="' + (ref.resolutionMode === 99 ? 'import' : 'require') + '" ';
@@ -4120,7 +4119,7 @@ export class Printer extends NameGeneratorHost {
     const mayEmitInterveningComments = (format & ListFormat.NoInterveningComments) === 0;
     let shouldEmitInterveningComments = mayEmitInterveningComments;
     const leadingLineTerminatorCount =
-      end > start ? this.getLeadingLineTerminatorCount(parent, nodes[start], format) : 0;
+      end > start ? this.getLeadingLineTerminatorCount(parent, nodes[start]!, format) : 0;
     if (leadingLineTerminatorCount > 0) {
       this.lines(leadingLineTerminatorCount);
       shouldEmitInterveningComments = false;
@@ -4130,7 +4129,7 @@ export class Printer extends NameGeneratorHost {
     let previous: Node | undefined = undefined;
     let shouldDecreaseIndentAfterEmit = false;
     for (let i = start; i < end; i++) {
-      const child = nodes[i];
+      const child = nodes[i]!;
       if ((format & ListFormat.AsteriskDelimited) !== 0) {
         this.line();
         this.writeDelimiter(format);
@@ -4195,7 +4194,7 @@ export class Printer extends NameGeneratorHost {
     if ((format & ListFormat.Indented) !== 0) this.writer.indent--;
     const closing = this.getClosingLineTerminatorCount(
       parent,
-      end > start ? nodes[end - 1] : undefined,
+      end > start ? nodes[end - 1]! : undefined,
       format,
       childrenEnd,
     );
@@ -4339,8 +4338,7 @@ export class Printer extends NameGeneratorHost {
     this.emitLeadingCommentsOfNode(node, flags, pos, end);
     if ((flags & EmitFlags.NoLeadingComments) === 0) {
       const synthesized = this.context.getSyntheticLeadingComments(node);
-      if (synthesized !== undefined)
-        for (let i = 0; i < synthesized.length; i++) this.emitLeadingSynthesizedComment(synthesized[i]);
+      if (synthesized !== undefined) for (const comment of synthesized) this.emitLeadingSynthesizedComment(comment);
     }
     if ((flags & EmitFlags.NoNestedComments) !== 0) this.commentsDisabled = true;
     return true;
@@ -4360,8 +4358,7 @@ export class Printer extends NameGeneratorHost {
     if ((flags & EmitFlags.NoNestedComments) !== 0) this.commentsDisabled = false;
     if ((flags & EmitFlags.NoTrailingComments) === 0) {
       const synthesized = this.context.getSyntheticTrailingComments(node);
-      if (synthesized !== undefined)
-        for (let i = 0; i < synthesized.length; i++) this.emitTrailingSynthesizedComment(synthesized[i]);
+      if (synthesized !== undefined) for (const comment of synthesized) this.emitTrailingSynthesizedComment(comment);
     }
     this.emitTrailingCommentsOfNode(node, flags, pos, end, containerPos, containerEnd, declarationListContainerEnd);
     // Comments after an erased type annotation.
@@ -4414,7 +4411,7 @@ export class Printer extends NameGeneratorHost {
   private emitDetachedCommentsBeforeStatementList(node: Node, pos: number): number {
     if (node instanceof SourceFile) {
       const statements = node.statements.nodes;
-      if (statements.length > 0 && isPrologueDirective(statements[0]) && !nodeIsSynthesized(statements[0])) return -1;
+      if (statements.length > 0 && isPrologueDirective(statements[0]!) && !nodeIsSynthesized(statements[0]!)) return -1;
     }
     const flags = this.context.getEmitFlags(node);
     if (!positionIsSynthesized(pos) && (flags & EmitFlags.NoLeadingComments) === 0)
@@ -4504,8 +4501,7 @@ export class Printer extends NameGeneratorHost {
     const ranges = getLeadingCommentRanges(this.sourceText, pos);
     if (ranges === undefined) return false;
     let comments: CommentRange[] | undefined = undefined;
-    for (let i = 0; i < ranges.length; i++) {
-      const comment = ranges[i];
+    for (const comment of ranges) {
       if (!this.shouldWriteComment(comment)) continue;
       if (tripleSlash !== 0 && isRecognizedTripleSlashComment(this.sourceText, comment) !== (tripleSlash === 1))
         continue;
@@ -4513,7 +4509,7 @@ export class Printer extends NameGeneratorHost {
       comments.push(comment);
     }
     if (comments === undefined) return false;
-    if (this.shouldEmitNewLineBeforeLeadingComment(pos, comments[0].pos)) this.line();
+    if (this.shouldEmitNewLineBeforeLeadingComment(pos, comments[0]!.pos)) this.line();
     return this.emitComments(comments, CommentSeparator.After);
   }
 
@@ -4540,10 +4536,10 @@ export class Printer extends NameGeneratorHost {
     const ranges = getTrailingCommentRanges(this.sourceText, pos);
     if (ranges === undefined) return false;
     let comments: CommentRange[] | undefined = undefined;
-    for (let i = 0; i < ranges.length; i++) {
-      if (!this.shouldWriteComment(ranges[i])) continue;
+    for (const comment of ranges) {
+      if (!this.shouldWriteComment(comment)) continue;
       if (comments === undefined) comments = [];
-      comments.push(ranges[i]);
+      comments.push(comment);
     }
     return comments !== undefined && this.emitComments(comments, separator);
   }
@@ -4554,8 +4550,7 @@ export class Printer extends NameGeneratorHost {
       return false;
     const comments = getTrailingCommentRanges(this.sourceText, pos);
     if (comments === undefined) return false;
-    for (let i = 0; i < comments.length; i++) {
-      const comment = comments[i];
+    for (const comment of comments) {
       if (prefixSpace) {
         if (!this.shouldWriteComment(comment)) continue;
         if (!this.writer.isAtStartOfLine()) this.space();
@@ -4589,10 +4584,10 @@ export class Printer extends NameGeneratorHost {
       if (pos === 0) {
         const ranges = getLeadingCommentRanges(text, pos);
         if (ranges !== undefined)
-          for (let i = 0; i < ranges.length; i++)
-            if (isPinnedComment(text, ranges[i])) {
+          for (const range of ranges)
+            if (isPinnedComment(text, range)) {
               if (leading === undefined) leading = [];
-              leading.push(ranges[i]);
+              leading.push(range);
             }
       }
     } else leading = getLeadingCommentRanges(text, pos);
@@ -4614,9 +4609,10 @@ export class Printer extends NameGeneratorHost {
     if (nodeLine < lastLine + 2) return -1;
     let toEmit: CommentRange[] | undefined = undefined;
     for (let i = 0; i < count; i++) {
-      if (!this.shouldWriteComment(leading[i])) continue;
+      const comment = leading[i]!;
+      if (!this.shouldWriteComment(comment)) continue;
       if (toEmit === undefined) toEmit = [];
-      toEmit.push(leading[i]);
+      toEmit.push(comment);
     }
     if (toEmit !== undefined) {
       if (this.shouldEmitNewLineBeforeLeadingComment(pos, toEmit[0].pos)) this.line();
@@ -4629,8 +4625,7 @@ export class Printer extends NameGeneratorHost {
     if (comments.length === 0) return false;
     let interveningSeparator = false;
     if (separator === CommentSeparator.Before) this.space();
-    for (let i = 0; i < comments.length; i++) {
-      const comment = comments[i];
+    for (const comment of comments) {
       if (interveningSeparator) {
         this.space();
         interveningSeparator = false;
@@ -4771,7 +4766,7 @@ export class Printer extends NameGeneratorHost {
 
   private generateAllNames(nodes: NodeList | undefined): boolean {
     if (nodes === undefined) return false;
-    for (let i = 0; i < nodes.nodes.length; i++) this.generateNames(nodes.nodes[i]);
+    for (const node of nodes.nodes) this.generateNames(node);
     return true;
   }
 
@@ -4838,8 +4833,7 @@ export class Printer extends NameGeneratorHost {
 
   private generateAllMemberNames(nodes: NodeList | undefined): boolean {
     if (nodes === undefined || this.context.autoGenerate.size === 0) return false;
-    for (let i = 0; i < nodes.nodes.length; i++) {
-      const node = nodes.nodes[i];
+    for (const node of nodes.nodes) {
       switch (node.kind) {
         case SyntaxKind.PropertyAssignment:
         case SyntaxKind.ShorthandPropertyAssignment:
@@ -4947,8 +4941,7 @@ function splitLines(text: string): string[] {
 /** The smallest leading whitespace of the non-blank lines. */
 function guessIndentation(lines: readonly string[]): number {
   let indentation = 0x7fffffff;
-  for (let l = 0; l < lines.length; l++) {
-    const line = lines[l];
+  for (const line of lines) {
     if (line.length === 0) continue;
     let i = 0;
     while (i < line.length && i < indentation) {

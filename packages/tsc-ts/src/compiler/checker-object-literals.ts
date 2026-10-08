@@ -453,7 +453,8 @@ export function getSpreadType(
     links.nameType = c.symbolLinks(leftProp).nameType;
     members.set(leftProp.name, result);
   }
-  const spreadIndexInfos = indexInfos.map((info) => getIndexInfoWithReadonly(info, readonly));
+  const spreadIndexInfos: IndexInfo[] = [];
+  for (const info of indexInfos) spreadIndexInfos.push(getIndexInfoWithReadonly(info, readonly));
   const spread = createAnonymousType(c, symbol, members, [], [], spreadIndexInfos);
   spread.objectFlags |=
     ObjectFlags.ObjectLiteral | ObjectFlags.ContainsObjectOrArrayLiteral | ObjectFlags.ContainsSpread | objectFlags;
@@ -470,13 +471,19 @@ function getUnionIndexInfos(c: Checker, types: Type[]): IndexInfo[] {
   const result: IndexInfo[] = [];
   for (const info of getIndexInfosOfType(c, types[0]!)) {
     const indexType = info.keyType;
-    if (!types.every((t) => getIndexInfoOfType(c, t, indexType) !== undefined)) continue;
     const valueTypes: Type[] = [];
     let isReadonly = false;
+    let all = true;
     for (const t of types) {
+      const typeInfo = getIndexInfoOfType(c, t, indexType);
+      if (typeInfo === undefined) {
+        all = false;
+        break;
+      }
       valueTypes.push(getIndexTypeOfType(c, t, indexType)!);
-      if (getIndexInfoOfType(c, t, indexType)!.isReadonly) isReadonly = true;
+      if (typeInfo.isReadonly) isReadonly = true;
     }
+    if (!all) continue;
     result.push(new IndexInfo(indexType, getUnionType(c, valueTypes), isReadonly, undefined, []));
   }
   return result;
@@ -507,11 +514,15 @@ function isEmptyObjectTypeOrSpreadsIntoEmptyObject(c: Checker, t: Type): boolean
 function tryMergeUnionOfObjectTypeAndEmptyObject(c: Checker, t: Type, readonly: boolean): Type {
   if ((t.flags & TypeFlags.Union) === 0) return t;
   const types = typesOf(t);
-  if (types.every((u) => isEmptyObjectTypeOrSpreadsIntoEmptyObject(c, u)))
-    return types.find((u) => isEmptyObjectType(c, u)) ?? c.emptyObjectType;
-  const firstType = types.find((u) => !isEmptyObjectTypeOrSpreadsIntoEmptyObject(c, u));
-  if (firstType === undefined) return t;
-  if (types.some((u) => u !== firstType && !isEmptyObjectTypeOrSpreadsIntoEmptyObject(c, u))) return t;
+  let firstType: Type | undefined;
+  let emptyType: Type | undefined;
+  for (const u of types) {
+    if (isEmptyObjectTypeOrSpreadsIntoEmptyObject(c, u)) {
+      if (emptyType === undefined && isEmptyObjectType(c, u)) emptyType = u;
+    } else if (firstType === undefined) firstType = u;
+    else return t;
+  }
+  if (firstType === undefined) return emptyType ?? c.emptyObjectType;
   const members = new Map<string, Symbol>();
   for (const prop of getPropertiesOfType(c, firstType)) {
     if (

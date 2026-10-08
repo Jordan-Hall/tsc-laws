@@ -131,10 +131,10 @@ function isConstAssertion(node: Node): boolean {
 }
 
 function isOrHasGenericConditional(t: Type): boolean {
-  return (
-    (t.flags & TypeFlags.Conditional) !== 0 ||
-    ((t.flags & TypeFlags.Intersection) !== 0 && typesOf(t).some(isOrHasGenericConditional))
-  );
+  if ((t.flags & TypeFlags.Conditional) !== 0) return true;
+  if ((t.flags & TypeFlags.Intersection) !== 0)
+    for (const u of typesOf(t)) if (isOrHasGenericConditional(u)) return true;
+  return false;
 }
 
 function elaborateDidYouMeanToCallOrConstruct(
@@ -147,13 +147,17 @@ function elaborateDidYouMeanToCallOrConstruct(
   headMessage: DiagnosticMessage | undefined,
   diagnosticOutput: Diagnostic[] | undefined,
 ): boolean {
-  const callable = getSignaturesOfType(c, source, kind).some((s) => {
+  let callable = false;
+  for (const s of getSignaturesOfType(c, source, kind)) {
     const returnType = getReturnTypeOfSignature(c, s);
-    return (
+    if (
       (returnType.flags & (TypeFlags.Any | TypeFlags.Never)) === 0 &&
       checkTypeRelatedTo(c, returnType, target, relation, undefined, undefined, undefined)
-    );
-  });
+    ) {
+      callable = true;
+      break;
+    }
+  }
   if (!callable) return false;
   const diagnostics: Diagnostic[] = [];
   if (checkTypeRelatedTo(c, source, target, relation, node, headMessage, diagnostics)) return false;
@@ -420,18 +424,17 @@ function elaborateArrowFunction(
   diagnosticOutput: Diagnostic[] | undefined,
 ): boolean {
   // Blocks and functions with annotated parameters aren't elaborated.
-  if (node.body.kind === SyntaxKind.Block || getParameters(node)!.nodes.some((p) => getType(p) !== undefined))
-    return false;
+  if (node.body.kind === SyntaxKind.Block) return false;
+  for (const p of getParameters(node)!.nodes) if (getType(p) !== undefined) return false;
   const sourceSig = getSingleCallSignature(c, source);
   if (sourceSig === undefined) return false;
   const targetSignatures = getSignaturesOfType(c, target, SignatureKind.Call);
   if (targetSignatures.length === 0) return false;
   const returnExpression = node.body;
   const sourceReturn = getReturnTypeOfSignature(c, sourceSig);
-  const targetReturn = getUnionType(
-    c,
-    targetSignatures.map((s) => getReturnTypeOfSignature(c, s)),
-  );
+  const targetReturnTypes: Type[] = [];
+  for (const s of targetSignatures) targetReturnTypes.push(getReturnTypeOfSignature(c, s));
+  const targetReturn = getUnionType(c, targetReturnTypes);
   if (checkTypeRelatedTo(c, sourceReturn, targetReturn, relation, undefined, undefined, undefined)) return false;
   if (elaborateError(c, returnExpression, sourceReturn, targetReturn, relation, undefined, diagnosticOutput))
     return true;

@@ -323,7 +323,8 @@ export function getIteratedTypeOrElementType(
   if ((use & IterationUse.AllowsStringInputFlag) !== 0) {
     if ((arrayType.flags & TypeFlags.Union) !== 0) {
       const arrayTypes = typesOf(inputType);
-      const filtered = arrayTypes.filter((t) => (t.flags & TypeFlags.StringLike) === 0);
+      const filtered: Type[] = [];
+      for (const t of arrayTypes) if ((t.flags & TypeFlags.StringLike) === 0) filtered.push(t);
       if (filtered.length !== arrayTypes.length)
         arrayType = getUnionTypeEx(c, filtered, UnionReduction.Subtype, undefined, undefined);
     } else if ((arrayType.flags & TypeFlags.StringLike) !== 0) arrayType = c.neverType;
@@ -1133,10 +1134,7 @@ function getPromisedTypeOfPromiseWorker(c: Checker, t: Type, errorNode: Node | u
   }
   const onfulfilledParameterType = getTypeWithFacts(
     c,
-    getUnionType(
-      c,
-      candidates.map((s) => getTypeOfFirstParameterOfSignature(c, s)),
-    ),
+    getUnionType(c, getTypesOfFirstParameterOfSignatures(c, candidates)),
     TypeFacts.NEUndefinedOrNull,
   );
   if ((onfulfilledParameterType.flags & TypeFlags.Any) !== 0) return noPromisedType();
@@ -1148,13 +1146,19 @@ function getPromisedTypeOfPromiseWorker(c: Checker, t: Type, errorNode: Node | u
   }
   const result = getUnionTypeEx(
     c,
-    onfulfilledParameterSignatures.map((s) => getTypeOfFirstParameterOfSignature(c, s)),
+    getTypesOfFirstParameterOfSignatures(c, onfulfilledParameterSignatures),
     UnionReduction.Subtype,
     undefined,
     undefined,
   );
   c.cachedTypes.set(key, result);
   return new PromisedType(result, undefined);
+}
+
+function getTypesOfFirstParameterOfSignatures(c: Checker, signatures: readonly Signature[]): Type[] {
+  const result: Type[] = [];
+  for (const s of signatures) result.push(getTypeOfFirstParameterOfSignature(c, s));
+  return result;
 }
 
 export function getTypeOfFirstParameterOfSignature(c: Checker, signature: Signature): Type {

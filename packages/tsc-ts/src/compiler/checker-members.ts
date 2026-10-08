@@ -1,7 +1,7 @@
 // Members of types: resolving properties, signatures and index infos of object, union and
 // intersection types; apparent types, reduced types and base constraints.
 import type { Node } from './ast.js';
-import { getCombinedModifierFlags } from './binder-utilities.js';
+import { getCombinedModifierFlags, getDeclarationOfKind } from './binder-utilities.js';
 import { Diagnostics } from './diagnostics.js';
 import { ModifierFlags, getSymbol, MappedTypeNode, getName } from './ast.js';
 import { CheckFlags, InternalSymbolName, type Symbol, SymbolFlags, type SymbolTable } from './symbol.js';
@@ -343,12 +343,7 @@ function resolveAnonymousTypeMembers(c: Checker, t: ObjectType): void {
     const varsOnly = new Map<string, Symbol>();
     for (const p of members.values()) {
       if ((p.flags & SymbolFlags.BlockScoped) !== 0) continue;
-      if (
-        (p.flags & SymbolFlags.ValueModule) !== 0 &&
-        p.declarations.length !== 0 &&
-        p.declarations.every(isAmbientModuleDeclaration)
-      )
-        continue;
+      if ((p.flags & SymbolFlags.ValueModule) !== 0 && isOnlyAmbientModuleDeclarations(p.declarations)) continue;
       varsOnly.set(p.name, p);
     }
     members = varsOnly;
@@ -392,8 +387,10 @@ function resolveAnonymousTypeMembers(c: Checker, t: ObjectType): void {
   }
 }
 
-function isAmbientModuleDeclaration(node: Node): boolean {
-  return node.kind === SyntaxKind.ModuleDeclaration && isAmbientModule(node);
+function isOnlyAmbientModuleDeclarations(declarations: readonly Node[]): boolean {
+  if (declarations.length === 0) return false;
+  for (const d of declarations) if (d.kind !== SyntaxKind.ModuleDeclaration || !isAmbientModule(d)) return false;
+  return true;
 }
 
 function resolveUnionTypeMembers(c: Checker, t: UnionType): void {
@@ -503,17 +500,13 @@ export function getUnionSignatures(c: Checker, signatureLists: Signature[][]): S
     for (const signatures of signatureLists) {
       if (signatures === masterList) continue;
       const signature = signatures[0]!;
-      if (
-        signature.typeParameters.length !== 0 &&
-        results.some(
-          (s) =>
-            s.typeParameters.length !== 0 &&
-            !compareTypeParametersIdentical(c, signature.typeParameters, s.typeParameters),
-        )
-      )
+      if (signature.typeParameters.length !== 0 && hasNonIdenticalTypeParameters(c, results, signature)) {
         results = undefined;
-      else results = results.map((sig) => combineUnionOrIntersectionMemberSignatures(c, sig, signature, true));
-      if (results === undefined) break;
+        break;
+      }
+      const combined: Signature[] = [];
+      for (const sig of results) combined.push(combineUnionOrIntersectionMemberSignatures(c, sig, signature, true));
+      results = combined;
     }
     result = results;
   }
@@ -568,6 +561,13 @@ export function findMatchingSignature(
     )
       return s;
   return undefined;
+}
+
+function hasNonIdenticalTypeParameters(c: Checker, signatures: readonly Signature[], signature: Signature): boolean {
+  for (const s of signatures)
+    if (s.typeParameters.length !== 0 && !compareTypeParametersIdentical(c, signature.typeParameters, s.typeParameters))
+      return true;
+  return false;
 }
 
 export function compareTypeParametersIdentical(c: Checker, sourceParams: Type[], targetParams: Type[]): boolean {
@@ -764,14 +764,17 @@ function resolveIntersectionTypeMembers(c: Checker, t: IntersectionType): void {
   for (let i = 0; i < types.length; i++) {
     const u = types[i]!;
     // Mixin construct signatures are dropped; their return types mix into the others.
-    if (!mixinFlags[i]) {
+    if (!mixinFlags[i]!) {
       let signatures = getSignaturesOfType(c, u, SignatureKind.Construct);
-      if (signatures.length !== 0 && mixinCount > 0)
-        signatures = signatures.map((s) => {
+      if (signatures.length !== 0 && mixinCount > 0) {
+        const clones: Signature[] = [];
+        for (const s of signatures) {
           const clone = cloneSignature(c, s);
           clone.resolvedReturnType = includeMixinType(c, getReturnTypeOfSignature(c, s), types, mixinFlags, i);
-          return clone;
-        });
+          clones.push(clone);
+        }
+        signatures = clones;
+      }
       constructSignatures = appendSignatures(c, constructSignatures, signatures);
     }
     callSignatures = appendSignatures(c, callSignatures, getSignaturesOfType(c, u, SignatureKind.Call));
@@ -960,9 +963,9 @@ export function getUnionOrIntersectionProperty(
 export function getDeclarationModifierFlagsFromSymbol(c: Checker, s: Symbol, isWrite: boolean): ModifierFlags {
   if (s.valueDeclaration !== undefined) {
     let declaration: Node | undefined;
-    if (isWrite) declaration = s.declarations.find((d) => d.kind === SyntaxKind.SetAccessor);
+    if (isWrite) declaration = getDeclarationOfKind(s, SyntaxKind.SetAccessor);
     if (declaration === undefined && (s.flags & SymbolFlags.GetAccessor) !== 0)
-      declaration = s.declarations.find((d) => d.kind === SyntaxKind.GetAccessor);
+      declaration = getDeclarationOfKind(s, SyntaxKind.GetAccessor);
     if (declaration === undefined) declaration = s.valueDeclaration;
     const flags = getCombinedModifierFlags(declaration);
     return s.parent !== undefined && (s.parent.flags & SymbolFlags.Class) !== 0
@@ -1304,7 +1307,9 @@ function getResolvedApparentTypeOfMappedType(c: Checker, t: MappedType): Type {
 }
 
 export function isArrayOrTupleOrIntersection(c: Checker, t: Type): boolean {
-  return (t.flags & TypeFlags.Intersection) !== 0 && typesOf(t).every((u) => isArrayOrTupleType(c, u));
+  if ((t.flags & TypeFlags.Intersection) === 0) return false;
+  for (const u of typesOf(t)) if (!isArrayOrTupleType(c, u)) return false;
+  return true;
 }
 
 function getApparentTypeOfIntersectionType(c: Checker, t: IntersectionType, thisArgument: Type): Type {

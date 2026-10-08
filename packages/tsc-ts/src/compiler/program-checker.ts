@@ -92,7 +92,11 @@ export class CheckedProgram {
   getSemanticDiagnostics(file: SourceFile | undefined): Diagnostic[] {
     return this.collectChecked(file, (f) => {
       const diagnostics = this.getBindAndCheckDiagnostics(f);
-      const result = this.program.options.noEmit === true ? diagnostics.filter((d) => !d.skippedOnNoEmit) : diagnostics;
+      let result = diagnostics;
+      if (this.program.options.noEmit === true) {
+        result = [];
+        for (const d of diagnostics) if (!d.skippedOnNoEmit) result.push(d);
+      }
       for (const d of this.getIncludeProcessorDiagnostics(f)) result.push(d);
       return result;
     });
@@ -146,7 +150,11 @@ export class CheckedProgram {
     const options = this.program.options;
     const diagnostics = file.bindDiagnostics.slice();
     for (const d of this.checker.getDiagnostics(file)) diagnostics.push(d);
-    if (isPlainJSFile(file, options)) return diagnostics.filter((d) => plainJSErrors.has(d.code));
+    if (isPlainJSFile(file, options)) {
+      const result: Diagnostic[] = [];
+      for (const d of diagnostics) if (plainJSErrors.has(d.code)) result.push(d);
+      return result;
+    }
     if (isJSFile(file) && isCheckJsEnabledForFile(file, options)) {
       for (const d of file.jsDocDiagnostics) diagnostics.push(d);
     }
@@ -198,7 +206,7 @@ class Directives {
           directive.kind = CommentDirectiveKind.Ignore;
           break;
         }
-        if (!isCommentOrBlankLine(text, lineStarts[line])) break;
+        if (!isCommentOrBlankLine(text, lineStarts[line]!)) break;
       }
       if (!ignored) result.push(diagnostic);
     }

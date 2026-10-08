@@ -88,7 +88,7 @@ export class TextWriter {
   private indentString(level: number): string {
     const strings = this.indentStrings;
     while (strings.length <= level) strings.push(strings[strings.length - 1] + ' '.repeat(this.indentSize));
-    return strings[level];
+    return strings[level]!;
   }
 
   private append(s: string): boolean {

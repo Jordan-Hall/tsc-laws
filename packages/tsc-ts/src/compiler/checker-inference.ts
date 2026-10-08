@@ -358,15 +358,10 @@ export function cloneInferenceContext(
 }
 
 export function cloneInferredPartOfContext(c: Checker, context: InferenceContext): InferenceContext | undefined {
-  const inferences = context.inferences.filter(hasInferenceCandidates);
+  const inferences: InferenceInfo[] = [];
+  for (const i of context.inferences) if (hasInferenceCandidates(i)) inferences.push(i.clone());
   if (inferences.length === 0) return undefined;
-  return new InferenceContext(
-    c,
-    inferences.map((i) => i.clone()),
-    context.signature,
-    context.flags,
-    context.compareTypes,
-  );
+  return new InferenceContext(c, inferences, context.signature, context.flags, context.compareTypes);
 }
 
 export function getMapperFromContext(context: InferenceContext | undefined): TypeMapper | undefined {
@@ -397,6 +392,21 @@ export function hasInferenceCandidates(info: InferenceInfo): boolean {
 
 export function hasInferenceCandidatesOrDefault(info: InferenceInfo): boolean {
   return hasInferenceCandidates(info) || hasTypeParameterDefault(info.typeParameter);
+}
+
+export function someInferenceHasCandidates(inferences: InferenceInfo[]): boolean {
+  for (const info of inferences) if (hasInferenceCandidates(info)) return true;
+  return false;
+}
+
+export function everyInferenceHasCandidates(inferences: InferenceInfo[]): boolean {
+  for (const info of inferences) if (!hasInferenceCandidates(info)) return false;
+  return true;
+}
+
+export function someInferenceHasCandidatesOrDefault(inferences: InferenceInfo[]): boolean {
+  for (const info of inferences) if (hasInferenceCandidatesOrDefault(info)) return true;
+  return false;
 }
 
 function hasTypeParameterDefault(tp: Type): boolean {
@@ -541,10 +551,7 @@ class InferenceState {
         return;
       }
       source = getUnionType(c, matched.sources);
-    } else if (
-      (target.flags & TypeFlags.Intersection) !== 0 &&
-      !typesOf(target).every((t) => isNonGenericObjectType(c, t))
-    ) {
+    } else if ((target.flags & TypeFlags.Intersection) !== 0 && !everyNonGenericObjectType(c, typesOf(target))) {
       // Reduce intersections unless they're simple combinations of object types.
       if ((source.flags & TypeFlags.Union) === 0) {
         const sourceTypes = (source.flags & TypeFlags.Intersection) !== 0 ? typesOf(source) : [source];
@@ -846,7 +853,13 @@ class InferenceState {
     let typeVariable: Type | undefined = undefined;
     for (const t of types) {
       if ((t.flags & TypeFlags.Intersection) === 0) return undefined;
-      const v = typesOf(t).find((u) => this.infoFor(u) !== undefined);
+      let v: Type | undefined;
+      for (const u of typesOf(t)) {
+        if (this.infoFor(u) !== undefined) {
+          v = u;
+          break;
+        }
+      }
       if (v === undefined || (typeVariable !== undefined && v !== typeVariable)) return undefined;
       typeVariable = v;
     }
@@ -1239,7 +1252,8 @@ function distributeIndexOverObjectType(c: Checker, objectType: Type, indexType: 
     (objectType.flags & TypeFlags.Union) !== 0 ||
     ((objectType.flags & TypeFlags.Intersection) !== 0 && !shouldDeferIndexType(c, objectType, IndexFlags.None))
   ) {
-    const types = typesOf(objectType).map((t) => getSimplifiedType(c, getIndexedAccessType(c, t, indexType), false));
+    const types: Type[] = [];
+    for (const t of typesOf(objectType)) types.push(getSimplifiedType(c, getIndexedAccessType(c, t, indexType), false));
     return (objectType.flags & TypeFlags.Intersection) !== 0 ? getIntersectionType(c, types) : getUnionType(c, types);
   }
   return undefined;
@@ -1266,8 +1280,10 @@ function createEmptyObjectTypeFromStringLiteral(c: Checker, t: Type): Type {
 
 export function isTypeParameterAtTopLevel(c: Checker, t: Type, tp: Type, depth: number): boolean {
   if (t === tp) return true;
-  if ((t.flags & TypeFlags.UnionOrIntersection) !== 0)
-    return typesOf(t).some((u) => isTypeParameterAtTopLevel(c, u, tp, depth));
+  if ((t.flags & TypeFlags.UnionOrIntersection) !== 0) {
+    for (const u of typesOf(t)) if (isTypeParameterAtTopLevel(c, u, tp, depth)) return true;
+    return false;
+  }
   return (
     depth < 3 &&
     (t.flags & TypeFlags.Conditional) !== 0 &&
@@ -1333,8 +1349,11 @@ function isTupleTypeStructureMatching(t1: Type, t2: Type): boolean {
 
 export function isConstTypeVariable(c: Checker, t: Type | undefined, depth: number): boolean {
   if (depth >= 5 || t === undefined) return false;
-  if ((t.flags & TypeFlags.TypeParameter) !== 0)
-    return t.symbol !== undefined && t.symbol.declarations.some((d) => hasSyntacticModifier(d, ModifierFlags.Const));
+  if ((t.flags & TypeFlags.TypeParameter) !== 0) {
+    if (t.symbol === undefined) return false;
+    for (const d of t.symbol.declarations) if (hasSyntacticModifier(d, ModifierFlags.Const)) return true;
+    return false;
+  }
   if ((t.flags & TypeFlags.UnionOrIntersection) !== 0) {
     for (const s of typesOf(t)) if (isConstTypeVariable(c, s, depth)) return true;
     return false;
@@ -1427,11 +1446,11 @@ export function getBaseSignature(c: Checker, signature: Signature): Signature {
   const typeParameters = signature.typeParameters;
   if (typeParameters.length === 0) return signature;
   if (signature.baseSignatureCache !== undefined) return signature.baseSignatureCache;
-  const baseConstraintMapper = newTypeMapper(
-    typeParameters,
-    typeParameters.map((tp) => getConstraintOfTypeParameter(c, tp) ?? c.unknownType),
-  );
-  let baseConstraints = typeParameters.map((tp) => instantiateType(c, tp, baseConstraintMapper));
+  const constraints: Type[] = [];
+  for (const tp of typeParameters) constraints.push(getConstraintOfTypeParameter(c, tp) ?? c.unknownType);
+  const baseConstraintMapper = newTypeMapper(typeParameters, constraints);
+  let baseConstraints: Type[] = [];
+  for (const tp of typeParameters) baseConstraints.push(instantiateType(c, tp, baseConstraintMapper));
   // Resolve non-circular interdependent constraints, then erase what remains circular.
   for (let i = 0; i < typeParameters.length - 1; i++)
     baseConstraints = instantiateTypes(c, baseConstraints, baseConstraintMapper);
@@ -1442,7 +1461,9 @@ export function getBaseSignature(c: Checker, signature: Signature): Signature {
 }
 
 export function getTypeParametersForMapper(c: Checker, signature: Signature): Type[] {
-  return signature.typeParameters.map((tp) => instantiateType(c, tp, (tp as TypeParameter).mapper));
+  const result: Type[] = [];
+  for (const tp of signature.typeParameters) result.push(instantiateType(c, tp, (tp as TypeParameter).mapper));
+  return result;
 }
 
 /** The generic `signature` instantiated in the context of the non-generic `contextualSignature`. */
@@ -1498,12 +1519,18 @@ export function inferTypesFromTemplateLiteralType(
     return inferFromLiteralPartsToTemplateLiteral(c, [(source as LiteralType).stringValue], [], target);
   if ((source.flags & TypeFlags.TemplateLiteral) !== 0) {
     const s = source as TemplateLiteralType;
-    if (arraysEqual(s.texts, target.texts))
-      return s.types.map((t, i) =>
-        isTypeAssignableTo(c, getBaseConstraintOrType(c, t), getBaseConstraintOrType(c, target.types[i]!))
-          ? t
-          : getStringLikeTypeForType(c, t),
-      );
+    if (arraysEqual(s.texts, target.texts)) {
+      const result: Type[] = [];
+      for (let i = 0; i < s.types.length; i++) {
+        const t = s.types[i]!;
+        result.push(
+          isTypeAssignableTo(c, getBaseConstraintOrType(c, t), getBaseConstraintOrType(c, target.types[i]!))
+            ? t
+            : getStringLikeTypeForType(c, t),
+        );
+      }
+      return result;
+    }
     return inferFromLiteralPartsToTemplateLiteral(c, s.texts, s.types, target);
   }
   return undefined;
@@ -1747,12 +1774,11 @@ function createReverseMappedType(
 
 /** Not marked non-inferable, or an object literal or tuple with some inferable part. */
 function isPartiallyInferableType(c: Checker, t: Type): boolean {
-  return (
-    (t.objectFlags & ObjectFlags.NonInferrableType) === 0 ||
-    (isObjectLiteralType(t) &&
-      getPropertiesOfType(c, t).some((p) => isPartiallyInferableType(c, getTypeOfSymbol(c, p)))) ||
-    (isTupleType(t) && getElementTypes(c, t).some((e) => isPartiallyInferableType(c, e)))
-  );
+  if ((t.objectFlags & ObjectFlags.NonInferrableType) === 0) return true;
+  if (isObjectLiteralType(t))
+    for (const p of getPropertiesOfType(c, t)) if (isPartiallyInferableType(c, getTypeOfSymbol(c, p))) return true;
+  if (isTupleType(t)) for (const e of getElementTypes(c, t)) if (isPartiallyInferableType(c, e)) return true;
+  return false;
 }
 
 export function inferReverseMappedType(
@@ -1926,13 +1952,8 @@ export function getInferredType(c: Checker, context: InferenceContext, index: nu
         covariant !== undefined &&
         (contravariant === undefined ||
           ((covariant.flags & (TypeFlags.Never | TypeFlags.Any)) === 0 &&
-            inference.contraCandidates.some((t) => isTypeAssignableTo(c, covariant, t)) &&
-            context.inferences.every(
-              (other) =>
-                (other !== inference &&
-                  getConstraintOfTypeParameter(c, other.typeParameter) !== inference.typeParameter) ||
-                other.candidates.every((t) => isTypeAssignableTo(c, t, covariant)),
-            )));
+            someTypeAssignableFrom(c, covariant, inference.contraCandidates) &&
+            noConflictingConstrainedInference(c, context, inference, covariant)));
       if (preferCovariantType) {
         inferredType = covariant;
         fallbackType = contravariant;
@@ -2016,11 +2037,12 @@ function getCovariantInference(c: Checker, inference: InferenceInfo, signature: 
     !primitiveConstraint &&
     inference.topLevel &&
     (inference.isFixed || !isTypeParameterAtTopLevelInReturnType(c, signature, inference.typeParameter));
-  const baseCandidates = primitiveConstraint
-    ? candidates.map((t) => getRegularTypeOfLiteralType(c, t))
-    : widenLiteralTypes
-      ? candidates.map((t) => getWidenedLiteralType(c, t))
-      : candidates;
+  let baseCandidates = candidates;
+  if (primitiveConstraint || widenLiteralTypes) {
+    baseCandidates = [];
+    for (const t of candidates)
+      baseCandidates.push(primitiveConstraint ? getRegularTypeOfLiteralType(c, t) : getWidenedLiteralType(c, t));
+  }
   // Positions implying a combined result infer a union, others a common supertype.
   const unwidenedType =
     (inference.priority & InferencePriority.PriorityImpliesCombination) !== 0
@@ -2035,17 +2057,45 @@ function getContravariantInference(c: Checker, inference: InferenceInfo): Type {
     : getCommonSubtype(c, inference.contraCandidates);
 }
 
+function someTypeAssignableFrom(c: Checker, source: Type, targets: Type[]): boolean {
+  for (const t of targets) if (isTypeAssignableTo(c, source, t)) return true;
+  return false;
+}
+
+/** No other inference constrained to `inference`'s type parameter has a candidate not assignable to `covariant`. */
+function noConflictingConstrainedInference(
+  c: Checker,
+  context: InferenceContext,
+  inference: InferenceInfo,
+  covariant: Type,
+): boolean {
+  for (const other of context.inferences) {
+    if (other !== inference && getConstraintOfTypeParameter(c, other.typeParameter) !== inference.typeParameter)
+      continue;
+    for (const t of other.candidates) if (!isTypeAssignableTo(c, t, covariant)) return false;
+  }
+  return true;
+}
+
+function everyNonGenericObjectType(c: Checker, types: Type[]): boolean {
+  for (const t of types) if (!isNonGenericObjectType(c, t)) return false;
+  return true;
+}
+
 function isObjectOrArrayLiteralType(t: Type): boolean {
   return (t.objectFlags & (ObjectFlags.ObjectLiteral | ObjectFlags.ArrayLiteral)) !== 0;
 }
 
 function unionObjectAndArrayLiteralCandidates(c: Checker, candidates: Type[]): Type[] {
   if (candidates.length > 1) {
-    const objectLiterals = candidates.filter(isObjectOrArrayLiteralType);
+    const objectLiterals: Type[] = [];
+    const result: Type[] = [];
+    for (const t of candidates) {
+      if (isObjectOrArrayLiteralType(t)) objectLiterals.push(t);
+      else result.push(t);
+    }
     if (objectLiterals.length !== 0) {
-      const literalsType = getUnionTypeEx(c, objectLiterals, UnionReduction.Subtype, undefined, undefined);
-      const result = candidates.filter((t) => !isObjectOrArrayLiteralType(t));
-      result.push(literalsType);
+      result.push(getUnionTypeEx(c, objectLiterals, UnionReduction.Subtype, undefined, undefined));
       return result;
     }
   }
@@ -2072,9 +2122,11 @@ export function getTypeFromInference(c: Checker, inference: InferenceInfo): Type
 export function getCommonSupertype(c: Checker, types: Type[]): Type {
   if (types.length === 1) return types[0]!;
   // Remove nullable types, find the supertype, and add them back.
-  const primaryTypes = c.strictNullChecks
-    ? types.map((t) => filterType(c, t, (u) => (u.flags & TypeFlags.Nullable) === 0))
-    : types;
+  let primaryTypes = types;
+  if (c.strictNullChecks) {
+    primaryTypes = [];
+    for (const t of types) primaryTypes.push(filterType(c, t, (u) => (u.flags & TypeFlags.Nullable) === 0));
+  }
   const supertype = literalTypesWithSameBaseType(c, primaryTypes)
     ? getUnionType(c, primaryTypes)
     : getSingleCommonSupertype(c, primaryTypes);
@@ -2089,7 +2141,14 @@ function getSingleCommonSupertype(c: Checker, types: Type[]): Type {
   // all others; otherwise the same with regular supertypes.
   let candidate: Type | undefined = undefined;
   for (const t of types) if (candidate === undefined || isTypeStrictSubtypeOf(c, candidate, t)) candidate = t;
-  if (types.every((t) => t === candidate || isTypeStrictSubtypeOf(c, t, candidate!))) return candidate!;
+  let strictSupertype = true;
+  for (const t of types) {
+    if (t !== candidate && !isTypeStrictSubtypeOf(c, t, candidate!)) {
+      strictSupertype = false;
+      break;
+    }
+  }
+  if (strictSupertype) return candidate!;
   candidate = undefined;
   for (const t of types) if (candidate === undefined || isTypeSubtypeOf(c, candidate, t)) candidate = t;
   return candidate!;
@@ -2189,14 +2248,17 @@ class TypeArgumentMapper extends TypeMapper {
     const index = this.typeParameters.indexOf(t);
     if (index < 0) return t;
     if (index < this.typeArgumentNodes.length) return getTypeFromTypeNode(this.c, this.typeArgumentNodes[index]!);
-    if (this.filled === undefined)
+    if (this.filled === undefined) {
+      const typeArguments: Type[] = [];
+      for (const n of this.typeArgumentNodes) typeArguments.push(getTypeFromTypeNode(this.c, n));
       this.filled = fillMissingTypeArguments(
         this.c,
-        this.typeArgumentNodes.map((n) => getTypeFromTypeNode(this.c, n)),
+        typeArguments,
         this.typeParameters,
         getMinTypeArgumentCount(this.c, this.typeParameters),
         false,
       );
+    }
     return this.filled[index]!;
   }
 }

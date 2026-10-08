@@ -138,7 +138,7 @@ function getContainingFunction(node: Node): Node | undefined {
 }
 
 export function containsNonMissingUndefinedType(c: Checker, t: Type): boolean {
-  const candidate = (t.flags & TypeFlags.Union) !== 0 ? typesOfUnion(t)[0] : t;
+  const candidate = (t.flags & TypeFlags.Union) !== 0 ? typesOfUnion(t)[0]! : t;
   return (candidate.flags & TypeFlags.Undefined) !== 0 && candidate !== c.missingType;
 }
 
@@ -270,7 +270,7 @@ export function pseudoTypeToNode(b: NodeBuilder, t: PseudoType): Node | undefine
         }
         append(pseudoTypeToNode(b, m));
       }
-      if (res.length === 1) return res[0];
+      if (res.length === 1) return res[0]!;
       if (res.length === 0) return keyword(b, hasElidedType ? SyntaxKind.AnyKeyword : SyntaxKind.NeverKeyword);
       return b.created(new UnionTypeNode(b.list(res)));
     }
@@ -296,7 +296,7 @@ export function pseudoTypeToNode(b: NodeBuilder, t: PseudoType): Node | undefine
     case PseudoTypeKind.SingleCallSignature: {
       const d = t as SignatureType;
       const signature = getSignatureFromDeclaration(c, d.signature);
-      const expandedParams = getExpandedParameters(c, signature, true)[0];
+      const expandedParams = getExpandedParameters(c, signature, true)[0]!;
       const cleanup = b.enterNewScope(
         d.signature,
         expandedParams,
@@ -355,7 +355,7 @@ function objectLiteralToNode(b: NodeBuilder, t: ObjectLiteralType): Node {
     let cleanup: (() => void) | undefined = undefined;
     if (e.kind !== PseudoMemberKind.Property && e.signature !== undefined) {
       const signature = getSignatureFromDeclaration(c, e.signature);
-      const expandedParams = getExpandedParameters(c, signature, true)[0];
+      const expandedParams = getExpandedParameters(c, signature, true)[0]!;
       cleanup = b.enterNewScope(
         e.signature,
         expandedParams,
@@ -415,7 +415,7 @@ function objectLiteralToNode(b: NodeBuilder, t: ObjectLiteralType): Node {
             undefined,
             reuseName(b, e.name, false),
             undefined,
-            b.list(e.parameters.length > 0 ? [pseudoParameterToNode(b, e.parameters[0])] : []),
+            b.list(e.parameters.length > 0 ? [pseudoParameterToNode(b, e.parameters[0]!)] : []),
             undefined,
             undefined,
             undefined,
@@ -643,7 +643,7 @@ export function pseudoTypeEquivalentToType(
       const elementTypes = getTypeArguments(c, undefinedStripped as TypeReference);
       if (pt.elements.length !== elementTypes.length) return false;
       for (let i = 0; i < pt.elements.length; i++)
-        if (!pseudoTypeEquivalentToType(b, pt.elements[i], elementTypes[i], false, reportErrors)) return false;
+        if (!pseudoTypeEquivalentToType(b, pt.elements[i]!, elementTypes[i]!, false, reportErrors)) return false;
       return true;
     }
     case PseudoTypeKind.SingleCallSignature: {
@@ -706,8 +706,8 @@ function pseudoParametersEquivalentToParameters(
     return false;
   }
   for (let i = 0; i < params.length; i++) {
-    const p = params[i];
-    const targetParam = targetSig.parameters[i];
+    const p = params[i]!;
+    const targetParam = targetSig.parameters[i]!;
     const vd = targetParam.valueDeclaration;
     if (p.optional !== (vd !== undefined && isOptionalParameter(c, vd))) {
       if (reportErrors) b.tracker.reportInferenceFallback(p.name.parent!);
@@ -796,7 +796,7 @@ export function pseudoTypeToType(b: NodeBuilder, t: PseudoType): Type | undefine
         if (mt === undefined) return undefined;
         res.push(mt);
       }
-      if (res.length === 1) return res[0];
+      if (res.length === 1) return res[0]!;
       if (res.length === 0) return hasElidedType ? c.anyType : c.neverType;
       return getUnionType(c, res);
     }

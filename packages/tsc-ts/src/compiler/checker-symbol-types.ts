@@ -510,7 +510,7 @@ function reportWideningErrorsInType(c: Checker, t: Type): boolean {
   let errorReported = false;
   if ((t.objectFlags & ObjectFlags.ContainsWideningType) === 0) return false;
   if ((t.flags & TypeFlags.Union) !== 0) {
-    if (typesOf(t).some((u) => isEmptyObjectType(c, u))) errorReported = true;
+    if (someEmptyObjectType(c, typesOf(t))) errorReported = true;
     else for (const s of typesOf(t)) errorReported = errorReported || reportWideningErrorsInType(c, s);
   } else if (isArrayOrTupleType(c, t)) {
     for (const s of getTypeArguments(c, t)) errorReported = errorReported || reportWideningErrorsInType(c, s);
@@ -521,10 +521,14 @@ function reportWideningErrorsInType(c: Checker, t: Type): boolean {
       errorReported = reportWideningErrorsInType(c, s);
       if (errorReported) continue;
       // Property types can come from object literal normalization in unions.
-      const valueDeclaration = p.declarations.find((d) => {
+      let valueDeclaration: Node | undefined;
+      for (const d of p.declarations) {
         const v = getSymbol(d)?.valueDeclaration;
-        return v !== undefined && v.parent === t.symbol?.valueDeclaration;
-      });
+        if (v !== undefined && v.parent === t.symbol?.valueDeclaration) {
+          valueDeclaration = d;
+          break;
+        }
+      }
       if (valueDeclaration !== undefined) {
         c.error(
           valueDeclaration,
@@ -671,30 +675,33 @@ function getWidenedTypeWithContext(c: Checker, t: Type, context: WideningContext
     result = getWidenedTypeOfObjectLiteral(c, t, context);
   else if ((t.flags & TypeFlags.Union) !== 0) {
     const unionContext = context ?? new WideningContext(undefined, '', typesOf(t));
-    const widened = typesOf(t).map((u) =>
-      (u.flags & TypeFlags.Nullable) !== 0 ? u : getWidenedTypeWithContext(c, u, unionContext),
-    );
+    const widened: Type[] = [];
+    for (const u of typesOf(t))
+      widened.push((u.flags & TypeFlags.Nullable) !== 0 ? u : getWidenedTypeWithContext(c, u, unionContext));
     // Widened empty object literals reduce subtypes, e.g. {} | string to {}.
     result = getUnionTypeEx(
       c,
       widened,
-      widened.some((u) => isEmptyObjectType(c, u)) ? UnionReduction.Subtype : UnionReduction.Literal,
+      someEmptyObjectType(c, widened) ? UnionReduction.Subtype : UnionReduction.Literal,
       undefined,
       undefined,
     );
-  } else if ((t.flags & TypeFlags.Intersection) !== 0)
-    result = getIntersectionType(
-      c,
-      typesOf(t).map((u) => getWidenedType(c, u)),
-    );
+  } else if ((t.flags & TypeFlags.Intersection) !== 0) result = getIntersectionType(c, getWidenedTypes(c, typesOf(t)));
   else if (isArrayOrTupleType(c, t))
-    result = createTypeReference(
-      c,
-      (t as TypeReference).target!,
-      getTypeArguments(c, t).map((u) => getWidenedType(c, u)),
-    );
+    result = createTypeReference(c, (t as TypeReference).target!, getWidenedTypes(c, getTypeArguments(c, t)));
   if (result !== undefined && context === undefined) c.cachedTypes.set(key, result);
   return result ?? t;
+}
+
+function getWidenedTypes(c: Checker, types: Type[]): Type[] {
+  const result: Type[] = [];
+  for (const t of types) result.push(getWidenedType(c, t));
+  return result;
+}
+
+function someEmptyObjectType(c: Checker, types: Type[]): boolean {
+  for (const t of types) if (isEmptyObjectType(c, t)) return true;
+  return false;
 }
 
 function getWidenedTypeOfObjectLiteral(c: Checker, t: Type, context: WideningContext | undefined): Type {
@@ -830,8 +837,13 @@ export function isReadonlySymbol(c: Checker, symbol: Symbol): boolean {
       (getDeclarationNodeFlagsFromSymbol(symbol) & NodeFlags.Constant) !== 0) ||
     ((symbol.flags & SymbolFlags.Accessor) !== 0 && (symbol.flags & SymbolFlags.SetAccessor) === 0) ||
     (symbol.flags & SymbolFlags.EnumMember) !== 0 ||
-    symbol.declarations.some((d) => isReadonlyAssignmentDeclaration(c, d))
+    someReadonlyAssignmentDeclaration(c, symbol.declarations)
   );
+}
+
+function someReadonlyAssignmentDeclaration(c: Checker, declarations: Node[]): boolean {
+  for (const d of declarations) if (isReadonlyAssignmentDeclaration(c, d)) return true;
+  return false;
 }
 
 /** An `Object.defineProperty` call with a value and no `writable: true`, or without a setter. */
@@ -839,7 +851,7 @@ function isReadonlyAssignmentDeclaration(c: Checker, node: Node): boolean {
   if (node.kind !== SyntaxKind.CallExpression) return false;
   const args = getArguments(node);
   if (args === undefined || args.nodes.length < 3) return false;
-  const descriptorType = checkExpressionCached(c, args.nodes[2]);
+  const descriptorType = checkExpressionCached(c, args.nodes[2]!);
   if (getTypeOfPropertyOfType(c, descriptorType, 'value') !== undefined) {
     const writable = getPropertyOfType(c, descriptorType, 'writable');
     if (writable === undefined) return true;
@@ -891,15 +903,21 @@ function getAnnotatedAccessorType(c: Checker, accessor: Node | undefined): Type 
   return node !== undefined ? getTypeFromTypeNode(c, node) : undefined;
 }
 
+/** The `accessor` property declaration of `symbol`, if any. */
+function getAutoAccessorDeclaration(symbol: Symbol): Node | undefined {
+  for (const d of symbol.declarations)
+    if (d.kind === SyntaxKind.PropertyDeclaration && (getCombinedModifierFlags(d) & ModifierFlags.Accessor) !== 0)
+      return d;
+  return undefined;
+}
+
 function getTypeOfAccessors(c: Checker, symbol: Symbol): Type {
   const links = c.symbolLinks(symbol);
   if (links.type !== undefined) return links.type;
   if (!pushTypeResolution(c, symbol, TypeSystemPropertyName.Type)) return c.errorType;
   const getter = symbol.declarations.find((d) => d.kind === SyntaxKind.GetAccessor);
   const setter = symbol.declarations.find((d) => d.kind === SyntaxKind.SetAccessor);
-  const accessor = symbol.declarations.find(
-    (d) => d.kind === SyntaxKind.PropertyDeclaration && (getCombinedModifierFlags(d) & ModifierFlags.Accessor) !== 0,
-  );
+  const accessor = getAutoAccessorDeclaration(symbol);
   // Getter annotation, setter annotation, accessor annotation, then getter body.
   let t =
     getAnnotatedAccessorType(c, getter) ?? getAnnotatedAccessorType(c, setter) ?? getAnnotatedAccessorType(c, accessor);
@@ -956,10 +974,7 @@ export function getWriteTypeOfAccessors(c: Checker, symbol: Symbol): Type {
   if (links.writeType !== undefined) return links.writeType;
   if (!pushTypeResolution(c, symbol, TypeSystemPropertyName.WriteType)) return c.errorType;
   const setter =
-    symbol.declarations.find((d) => d.kind === SyntaxKind.SetAccessor) ??
-    symbol.declarations.find(
-      (d) => d.kind === SyntaxKind.PropertyDeclaration && (getCombinedModifierFlags(d) & ModifierFlags.Accessor) !== 0,
-    );
+    symbol.declarations.find((d) => d.kind === SyntaxKind.SetAccessor) ?? getAutoAccessorDeclaration(symbol);
   let writeType = getAnnotatedAccessorType(c, setter);
   if (!popTypeResolution(c)) {
     if (getAnnotatedAccessorTypeNode(setter) !== undefined)

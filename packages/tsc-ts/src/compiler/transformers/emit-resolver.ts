@@ -227,8 +227,7 @@ function defaultJsxNamespace(options: CompilerOptions): string {
 }
 
 function pragmaFactory(file: SourceFile, name: string): string | undefined {
-  for (let i = 0; i < file.pragmas.length; i++) {
-    const pragma = file.pragmas[i];
+  for (const pragma of file.pragmas) {
     if (pragma.name !== name) continue;
     const factory = pragma.args.get('factory');
     if (factory !== undefined) return factory.value;
@@ -239,7 +238,7 @@ function pragmaFactory(file: SourceFile, name: string): string | undefined {
 /** The last pragma named `name`, which wins over earlier ones. */
 function lastPragma(file: SourceFile, name: string): Pragma | undefined {
   let result: Pragma | undefined = undefined;
-  for (let i = 0; i < file.pragmas.length; i++) if (file.pragmas[i].name === name) result = file.pragmas[i];
+  for (const pragma of file.pragmas) if (pragma.name === name) result = pragma;
   return result;
 }
 
