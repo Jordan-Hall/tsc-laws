@@ -1615,7 +1615,8 @@ function getTemplatePlaceholderInference(c: Checker, source: LiteralType, constr
   const str = source.stringValue;
   if ((allTypeFlags & TypeFlags.NumberLike) !== 0 && !isValidNumberString(str, true))
     allTypeFlags &= ~TypeFlags.NumberLike;
-  if ((allTypeFlags & TypeFlags.BigIntLike) !== 0 && !isValidBigIntString(str)) allTypeFlags &= ~TypeFlags.BigIntLike;
+  if ((allTypeFlags & TypeFlags.BigIntLike) !== 0 && !isValidBigIntString(str, true))
+    allTypeFlags &= ~TypeFlags.BigIntLike;
   let matching: Type = c.neverType;
   for (const t of distributedTypes(constraint))
     matching = choosePlaceholderType(c, matching, t, source, str, allTypeFlags);
@@ -1665,15 +1666,16 @@ function choosePlaceholderType(
   return left;
 }
 
-function isValidNumberString(s: string, roundTripOnly: boolean): boolean {
+export function isValidNumberString(s: string, roundTripOnly: boolean): boolean {
   if (s === '') return false;
   const n = Number(s);
   return isFinite(n) && (!roundTripOnly || String(n) === s);
 }
 
-function isValidBigIntString(s: string): boolean {
-  // Round-trippable decimal integers, as `${bigint}` would print them.
-  return /^-?(0|[1-9][0-9]*)$/.test(s) && s !== '-0';
+/** Whether `s` scans as a bigint literal without separators; round-trippable ones print as written. */
+export function isValidBigIntString(s: string, roundTripOnly: boolean): boolean {
+  if (roundTripOnly) return /^-?(0|[1-9][0-9]*)$/.test(s) && s !== '-0';
+  return /^-?(0|[1-9][0-9]*|0[xX][0-9a-fA-F]+|0[bB][01]+|0[oO][0-7]+)$/.test(s);
 }
 
 // ---- Reverse mapped types
@@ -2161,7 +2163,7 @@ export class InferenceCaches {
 // ---- Constraints of `infer` type parameters
 
 /** The constraint an `infer T` position implies, e.g. `unknown[]` in a rest position. */
-export function getInferredTypeParameterConstraint(c: Checker, t: Type): Type | undefined {
+export function getInferredTypeParameterConstraint(c: Checker, t: Type, omitTypeReferences = false): Type | undefined {
   const inferences: Type[] = [];
   const symbol = t.symbol;
   if (symbol !== undefined)
@@ -2177,6 +2179,7 @@ export function getInferredTypeParameterConstraint(c: Checker, t: Type): Type | 
       switch (parent.kind) {
         case SyntaxKind.TypeReference: {
           // `Foo<infer T>` takes the constraint of Foo's corresponding type parameter.
+          if (omitTypeReferences) break;
           const typeArgumentNodes = (parent as TypeReferenceNode).typeArguments;
           const typeParameters = getTypeParametersForTypeReference(c, parent);
           if (typeArgumentNodes === undefined || typeParameters === undefined) break;

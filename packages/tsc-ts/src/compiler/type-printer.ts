@@ -13,15 +13,63 @@ import {
   getParameters,
   getQuestionToken,
   getText,
+  type StringLiteral,
   type TypeReferenceNode,
+  type ArrayTypeNode,
+  type ComputedPropertyName,
+  type ConditionalTypeNode,
+  type ConstructorTypeNode,
+  type IndexedAccessTypeNode,
+  type InferTypeNode,
+  type IntersectionTypeNode,
+  type JSDocNonNullableType,
+  type JSDocNullableType,
+  type JSDocOptionalType,
+  type JSDocTypeExpression,
+  type JSDocVariadicType,
+  type LiteralTypeNode,
+  type MappedTypeNode,
+  type NamedTupleMember,
+  type NodeList,
+  type OptionalTypeNode,
+  type ParameterDeclaration,
+  type ParenthesizedTypeNode,
+  type PrefixUnaryExpression,
+  type RestTypeNode,
+  type TemplateLiteralTypeNode,
+  type TemplateLiteralTypeSpan,
+  type TemplateMiddle,
+  type TemplateTail,
+  type TupleTypeNode,
+  type TypeLiteralNode,
+  type TypeOperatorNode,
+  type TypeParameterDeclaration,
+  type TypePredicateNode,
+  type TypeQueryNode,
+  type UnionTypeNode,
+  getModifiers,
+  getPostfixToken,
+  getType,
+  getTypeParameters,
 } from './ast.js';
+import { nodeIsSynthesized } from './printer/utilities.js';
+import { getSymbolFromTypeReference, getTypeFromTypeNode } from './checker-type-nodes.js';
+import { instantiateType } from './instantiation.js';
+import { getTypeWithFacts, TypeFacts } from './checker-flow.js';
+import { getInferredTypeParameterConstraint } from './checker-inference.js';
+import { entityNameToString, isConstTypeReference } from './checker-expressions.js';
+import { isEntityNameExpression } from './checker-declared-types.js';
+import { getIntendedTypeFromJSDocTypeReference } from './checker-jsdoc.js';
+import { TokenFlags } from './types.js';
+import { isNumericLiteralName } from './checker-utilities.js';
 import {
   declarationNameToString,
   getCombinedModifierFlags,
   getNameOfDeclaration,
   getSourceFileOfNode,
+  isStatic,
 } from './binder-utilities.js';
-import { isIdentifierText } from './scanner.js';
+import { isIdentifierText, tokenToString } from './scanner.js';
 import { CheckFlags, InternalSymbolName, type Symbol, SymbolFlags } from './symbol.js';
 import { SyntaxKind } from './syntax-kind.js';
 import type { Checker } from './checker.js';
@@ -49,6 +97,7 @@ import {
   type TypePredicate,
   TypePredicateKind,
   type TypeReference,
+  type TypeMapper,
   type UnionType,
 } from './checker-types.js';
 import {
@@ -58,12 +107,14 @@ import {
   typesOf,
   filterType,
 } from './checker-type-factory.js';
-import { getParentOfSymbol } from './checker-symbols.js';
+import { getMergedSymbol, getParentOfSymbol } from './checker-symbols.js';
 import {
   getDeclaredTypeOfClassOrInterface,
   getDeclaredTypeOfSymbol,
   getConstraintOfTypeParameter,
   getDefaultFromTypeParameter,
+  getConstraintDeclaration,
+  getMinTypeArgumentCount,
 } from './checker-declared-types.js';
 import {
   getBaseTypeVariableOfClass,
@@ -99,6 +150,7 @@ const enum PrintFlags {
   None = 0,
   WriteArrayAsGenericType = 1 << 1,
   UseFullyQualifiedType = 1 << 6,
+  AllowUniqueESSymbolType = 1 << 20,
   InObjectTypeLiteral = 1 << 22,
   NoTypeReduction = 1 << 29,
 }
@@ -111,11 +163,18 @@ class TypePrinter {
   truncating = false;
   readonly visited = new Set<number>();
   readonly noTruncation: boolean;
+  /** Where the text appears; with one, declared type annotations are reused as written. */
+  readonly enclosingDeclaration: Node | undefined;
+  /** The mapper of the signature being printed, under which its declared type nodes are read. */
+  mapper: TypeMapper | undefined = undefined;
+  /** The `infer` type parameters of the extends type being printed. */
+  inferTypeParameters: readonly Type[] = [];
 
-  constructor(c: Checker, flags: number, noTruncation: boolean) {
+  constructor(c: Checker, flags: number, noTruncation: boolean, enclosingDeclaration?: Node) {
     this.c = c;
     this.flags = flags;
     this.noTruncation = noTruncation;
+    this.enclosingDeclaration = enclosingDeclaration;
   }
 
   checkTruncationLength(): boolean {
@@ -176,6 +235,11 @@ class TypePrinter {
       return value;
     }
     if ((flags & TypeFlags.UniqueESSymbol) !== 0) {
+      // Outside declarations, a unique symbol goes by its declaration.
+      if ((this.flags & PrintFlags.AllowUniqueESSymbolType) === 0 && t.symbol !== undefined) {
+        this.approximateLength += 6;
+        return 'typeof ' + this.uniqueSymbolReference(t.symbol);
+      }
       this.approximateLength += 13;
       return 'unique symbol';
     }
@@ -193,6 +257,7 @@ class TypePrinter {
     const objectFlags = t.objectFlags;
     if ((flags & TypeFlags.Object) !== 0 && (objectFlags & ObjectFlags.Reference) !== 0)
       return this.typeReference(t as TypeReference);
+    if ((flags & TypeFlags.TypeParameter) !== 0 && this.inferTypeParameters.includes(t)) return this.inferType(t);
     if (
       (flags & TypeFlags.TypeParameter) !== 0 ||
       ((flags & TypeFlags.Object) !== 0 && (objectFlags & ObjectFlags.ClassOrInterface) !== 0)
@@ -208,10 +273,13 @@ class TypePrinter {
       const parts = this.typeList(
         types,
         true,
-        (u.flags & TypeFlags.Union) !== 0 ? Precedence.Union : Precedence.Intersection,
+        // Union and intersection constituents are parenthesized when they are themselves either.
+        Precedence.TypeOperator,
       );
       return parts.join((u.flags & TypeFlags.Union) !== 0 ? ' | ' : ' & ');
     }
+    // A union whose origin is a `keyof` prints as that.
+    if (u !== t) return this.type(u);
     if ((flags & TypeFlags.Object) !== 0 && (objectFlags & (ObjectFlags.Anonymous | ObjectFlags.Mapped)) !== 0)
       return this.anonymousType(t as ObjectType);
     if ((flags & TypeFlags.Index) !== 0) {
@@ -301,7 +369,9 @@ class TypePrinter {
     const c = this.c;
     if (typeArguments.length === 1 && symbol === c.globalArrayType.symbol)
       return this.typeAt(typeArguments[0], Precedence.Postfix) + '[]';
-    return this.symbolReference(symbol, SymbolFlags.Type) + this.typeArguments(typeArguments);
+    // Arguments are printed first; the name counts toward truncation after them.
+    const args = this.typeArguments(typeArguments);
+    return this.symbolReference(symbol, SymbolFlags.Type) + args;
   }
 
   typeReference(t: TypeReference): string {
@@ -389,8 +459,9 @@ class TypePrinter {
         typeParameterCount--;
       }
     const args = typeArguments.length > 0 ? typeArguments.slice(i, typeParameterCount) : [];
-    if (prefix !== '') return prefix + t.symbol!.name + this.typeArguments(args);
-    return this.symbolReference(t.symbol!, SymbolFlags.Type) + this.typeArguments(args);
+    const argsText = this.typeArguments(args);
+    if (prefix !== '') return prefix + t.symbol!.name + argsText;
+    return this.symbolReference(t.symbol!, SymbolFlags.Type) + argsText;
   }
 
   anonymousType(t: ObjectType): string {
@@ -419,6 +490,9 @@ class TypePrinter {
         }
       }
       if (this.visited.has(t.id)) {
+        // A function whose type refers to itself prints as `typeof` its name.
+        const functionSymbol = typeOfFunctionSymbol(c, symbol, this.enclosingDeclaration);
+        if (functionSymbol !== undefined) return 'typeof ' + this.symbolReference(functionSymbol, SymbolFlags.Value);
         const alias = getTypeAliasForTypeLiteral(c, t);
         if (alias !== undefined) return this.symbolReference(alias, SymbolFlags.Type);
         this.approximateLength += 3;
@@ -533,9 +607,14 @@ class TypePrinter {
       for (const s of signatures) result.push(this.signature(s, SyntaxKind.MethodSignature, name + optional) + ';');
       if (signatures.length !== 0 || optional === '') return;
     }
+    const typeText =
+      this.declaredTypeText(
+        prop.valueDeclaration ?? (prop.declarations.length !== 0 ? prop.declarations[0] : undefined),
+        propertyType,
+      ) ?? this.type(propertyType);
     const readonly = isReadonlySymbol(c, prop) ? 'readonly ' : '';
     if (readonly !== '') this.approximateLength += 9;
-    result.push(readonly + name + optional + ': ' + this.type(propertyType) + ';');
+    result.push(readonly + name + optional + ': ' + typeText + ';');
   }
 
   mappedType(t: MappedType): string {
@@ -578,16 +657,44 @@ class TypePrinter {
     const c = this.c;
     if (this.checkTruncationLength()) return '...';
     const checkText = this.typeAt(t.checkType, Precedence.Conditional + 1);
+    const saveInferTypeParameters = this.inferTypeParameters;
+    this.inferTypeParameters = t.root.inferTypeParameters;
     const extendsText = this.typeAt(t.extendsType, Precedence.Conditional + 1);
+    this.inferTypeParameters = saveInferTypeParameters;
     const trueText = this.type(getTrueTypeLazy(c, t));
     const falseText = this.type(getFalseTypeLazy(c, t));
     this.approximateLength += 15;
     return checkText + ' extends ' + extendsText + ' ? ' + trueText + ' : ' + falseText;
   }
 
+  /** A type parameter its conditional type infers, with the constraint its position doesn't already imply. */
+  inferType(t: Type): string {
+    const c = this.c;
+    const name = t.symbol!.name;
+    this.approximateLength += name.length + 6;
+    let text = 'infer ' + name;
+    const constraint = getConstraintOfTypeParameter(c, t);
+    if (constraint !== undefined) {
+      const inferred = getInferredTypeParameterConstraint(c, t, true);
+      if (inferred === undefined || !isTypeIdenticalTo(c, constraint, inferred)) {
+        this.approximateLength += 9;
+        text += ' extends ' + this.typeAt(constraint, Precedence.Conditional + 1);
+      }
+    }
+    return text;
+  }
+
   // ---- Signatures
 
   signature(s: Signature, kind: SyntaxKind, name: string): string {
+    const saveMapper = this.mapper;
+    if (s.mapper !== undefined) this.mapper = s.mapper;
+    const result = this.signatureWorker(s, kind, name);
+    this.mapper = saveMapper;
+    return result;
+  }
+
+  signatureWorker(s: Signature, kind: SyntaxKind, name: string): string {
     const c = this.c;
     this.approximateLength += 3;
     let typeParameters = '';
@@ -624,7 +731,14 @@ class TypePrinter {
     const c = this.c;
     const predicate = getTypePredicateOfSignature(c, s);
     if (predicate !== undefined) return this.typePredicate(predicate);
-    return this.type(getReturnTypeOfSignature(c, s));
+    const returnType = getReturnTypeOfSignature(c, s);
+    const declaration = s.declaration;
+    if (this.enclosingDeclaration !== undefined && declaration !== undefined && !nodeIsSynthesized(declaration)) {
+      const annotation = getType(declaration);
+      if (annotation !== undefined && this.annotationDenotes(annotation, returnType, false))
+        return this.reuseExistingTypeNode(annotation);
+    }
+    return this.type(returnType);
   }
 
   typePredicate(p: TypePredicate): string {
@@ -654,32 +768,447 @@ class TypePrinter {
       const n = getName(declaration);
       if (n !== undefined && n.kind !== SyntaxKind.Identifier) name = bindingPatternText(n);
     }
+    // Synthetic rest parameters of type `any` take any arguments.
+    const typeText =
+      this.declaredTypeText(declaration, t) ??
+      this.type(rest && t === c.anyType && declaration === undefined ? c.anyArrayType : t);
     this.approximateLength += name.length + 3;
-    if (rest && t === c.anyType) t = c.anyArrayType;
-    return (rest ? '...' : '') + name + (optional ? '?' : '') + ': ' + this.type(t);
+    return (rest ? '...' : '') + name + (optional ? '?' : '') + ': ' + typeText;
   }
 
   typeParameterDeclaration(tp: Type): string {
     const c = this.c;
     let text = tp.symbol?.name ?? 'T';
     const constraint = getConstraintOfTypeParameter(c, tp);
-    if (constraint !== undefined) text += ' extends ' + this.type(constraint);
+    if (constraint !== undefined) {
+      const declaration = getConstraintDeclaration(tp);
+      text +=
+        ' extends ' +
+        (declaration !== undefined && this.typeFromTypeNode(declaration) === constraint
+          ? this.reuseExistingTypeNode(declaration)
+          : this.type(constraint));
+    }
     const defaultType = getDefaultFromTypeParameter(c, tp);
     if (defaultType !== undefined) text += ' = ' + this.type(defaultType);
     return text;
   }
 
+  // ---- Reusing declared type nodes
+
+  /** A type node's type, read under the mapper of the signature being printed. */
+  typeFromTypeNode(node: Node): Type {
+    const t = getTypeFromTypeNode(this.c, node);
+    return this.mapper !== undefined ? instantiateType(this.c, t, this.mapper) : t;
+  }
+
+  /** Whether a declaration's annotation still denotes `t`, which an optional declaration widens with `undefined`. */
+  annotationDenotes(annotation: Node, t: Type, isOptionalAnnotated: boolean): boolean {
+    const c = this.c;
+    if ((t.flags & TypeFlags.Any) !== 0 && t === c.errorType) return true;
+    const annotated = getTypeFromTypeNode(c, annotation);
+    if (annotated === t) return true;
+    if (isOptionalAnnotated) {
+      const stripped = getTypeWithFacts(c, t, TypeFacts.NEUndefined);
+      if (stripped === annotated) return true;
+      if ((annotated.flags & TypeFlags.Union) !== 0 && (stripped.flags & TypeFlags.Union) !== 0)
+        if (isTypeIdenticalTo(c, annotated, stripped)) return true;
+    }
+    if (getRegularTypeOfLiteralType(c, annotated) === getRegularTypeOfLiteralType(c, t)) return true;
+    return (
+      (annotated.flags & TypeFlags.Union) !== 0 &&
+      (t.flags & TypeFlags.Union) !== 0 &&
+      isTypeIdenticalTo(c, annotated, t)
+    );
+  }
+
+  /** The annotation of a parameter or property declaration, reused when it still denotes the declared type. */
+  declaredTypeText(declaration: Node | undefined, t: Type): string | undefined {
+    if (this.enclosingDeclaration === undefined || declaration === undefined || nodeIsSynthesized(declaration))
+      return undefined;
+    if ((t.objectFlags & ObjectFlags.RequiresWidening) !== 0) return undefined;
+    let annotation: Node | undefined;
+    let isOptionalAnnotated = false;
+    switch (declaration.kind) {
+      case SyntaxKind.Parameter: {
+        // Initialized parameters may need `undefined` added, which the annotation doesn't say.
+        if (getInitializer(declaration) !== undefined) return undefined;
+        annotation = getType(declaration);
+        isOptionalAnnotated = hasQuestionToken(declaration);
+        break;
+      }
+      case SyntaxKind.PropertySignature:
+      case SyntaxKind.PropertyDeclaration:
+        annotation = getType(declaration);
+        isOptionalAnnotated = hasQuestionToken(declaration);
+        break;
+      case SyntaxKind.VariableDeclaration:
+        annotation = getType(declaration);
+        break;
+      case SyntaxKind.GetAccessor:
+        annotation = getType(declaration);
+        break;
+      case SyntaxKind.SetAccessor: {
+        const params = getParameters(declaration)!.nodes;
+        annotation = params.length !== 0 ? getType(params[0]) : undefined;
+        break;
+      }
+    }
+    if (annotation === undefined || !this.annotationDenotes(annotation, t, isOptionalAnnotated)) return undefined;
+    return this.reuseExistingTypeNode(annotation);
+  }
+
+  /** An existing type node printed as written; its length counts as its source span. */
+  reuseExistingTypeNode(node: Node): string {
+    const saveLength = this.approximateLength;
+    const text = this.existingTypeNode(node);
+    this.approximateLength = saveLength + node.end - node.pos;
+    return text;
+  }
+
+  /** A type node as written, or its type printed where it can't be reused. */
+  existingTypeNode(node: Node): string {
+    return this.existingTypeNodeText(node) ?? this.type(this.typeFromTypeNode(node));
+  }
+
+  /** `existingTypeNode` parenthesized when it binds looser than `precedence`. */
+  existingTypeNodeAt(node: Node, precedence: Precedence): string {
+    const text = this.existingTypeNode(node);
+    return typeTextPrecedence(text) < precedence ? '(' + text + ')' : text;
+  }
+
+  existingTypeNodes(list: NodeList | undefined, precedence: Precedence): string[] {
+    const result: string[] = [];
+    if (list !== undefined) for (const n of list.nodes) result.push(this.existingTypeNodeAt(n, precedence));
+    return result;
+  }
+
+  /** The text of a reusable type node, or undefined when part of it can't be reused. */
+  existingTypeNodeText(node: Node): string | undefined {
+    switch (node.kind) {
+      case SyntaxKind.AnyKeyword:
+      case SyntaxKind.UnknownKeyword:
+      case SyntaxKind.NumberKeyword:
+      case SyntaxKind.BigIntKeyword:
+      case SyntaxKind.ObjectKeyword:
+      case SyntaxKind.BooleanKeyword:
+      case SyntaxKind.StringKeyword:
+      case SyntaxKind.SymbolKeyword:
+      case SyntaxKind.VoidKeyword:
+      case SyntaxKind.UndefinedKeyword:
+      case SyntaxKind.NeverKeyword:
+      case SyntaxKind.IntrinsicKeyword:
+        return tokenToString(node.kind);
+      case SyntaxKind.ThisType:
+        return 'this';
+      case SyntaxKind.TypeReference:
+        return this.existingTypeReference(node as TypeReferenceNode);
+      case SyntaxKind.ArrayType:
+        return this.existingTypeNodeAt((node as ArrayTypeNode).elementType, Precedence.Postfix) + '[]';
+      case SyntaxKind.TupleType:
+        return '[' + this.existingTypeNodes((node as TupleTypeNode).elements, Precedence.Lowest).join(', ') + ']';
+      case SyntaxKind.NamedTupleMember: {
+        const member = node as NamedTupleMember;
+        return (
+          (member.dotDotDotToken !== undefined ? '...' : '') +
+          getText(member.name) +
+          (member.questionToken !== undefined ? '?' : '') +
+          ': ' +
+          this.existingTypeNode(member.type)
+        );
+      }
+      case SyntaxKind.OptionalType:
+        return this.existingTypeNodeAt((node as OptionalTypeNode).type, Precedence.Postfix) + '?';
+      case SyntaxKind.RestType:
+        return '...' + this.existingTypeNode((node as RestTypeNode).type);
+      case SyntaxKind.UnionType:
+        return this.existingTypeNodes((node as UnionTypeNode).types, Precedence.TypeOperator).join(' | ');
+      case SyntaxKind.IntersectionType:
+        return this.existingTypeNodes((node as IntersectionTypeNode).types, Precedence.TypeOperator).join(' & ');
+      case SyntaxKind.ParenthesizedType:
+        return '(' + this.existingTypeNode((node as ParenthesizedTypeNode).type) + ')';
+      case SyntaxKind.FunctionType:
+      case SyntaxKind.ConstructorType: {
+        const text = this.existingSignature(node);
+        if (text === undefined) return undefined;
+        if (node.kind === SyntaxKind.FunctionType)
+          return text.typeParameters + text.parameters + ' => ' + text.returnType;
+        const modifiers = (node as ConstructorTypeNode).modifiers;
+        const isAbstract =
+          modifiers !== undefined && modifiers.nodes.some((m) => m.kind === SyntaxKind.AbstractKeyword);
+        return (
+          (isAbstract ? 'abstract ' : '') + 'new ' + text.typeParameters + text.parameters + ' => ' + text.returnType
+        );
+      }
+      case SyntaxKind.TypeLiteral: {
+        const members: string[] = [];
+        for (const member of (node as TypeLiteralNode).members.nodes) {
+          const text = this.existingTypeElement(member);
+          if (text === undefined) return undefined;
+          members.push(text);
+        }
+        return members.length === 0 ? '{}' : '{ ' + members.join(' ') + ' }';
+      }
+      case SyntaxKind.LiteralType:
+        return existingLiteralText((node as LiteralTypeNode).literal);
+      case SyntaxKind.TemplateLiteralType: {
+        const template = node as TemplateLiteralTypeNode;
+        let text = '`' + template.head.rawText;
+        for (const span of template.templateSpans.nodes) {
+          const typeSpan = span as TemplateLiteralTypeSpan;
+          const literal = typeSpan.literal;
+          const rawText =
+            literal.kind === SyntaxKind.TemplateTail
+              ? (literal as TemplateTail).rawText
+              : (literal as TemplateMiddle).rawText;
+          text += '${' + this.existingTypeNode(typeSpan.type) + '}' + rawText;
+        }
+        return text + '`';
+      }
+      case SyntaxKind.TypeOperator: {
+        const operator = node as TypeOperatorNode;
+        // A `unique symbol` annotation only means its own declaration's symbol.
+        if (operator.operator === SyntaxKind.UniqueKeyword) return undefined;
+        return tokenToString(operator.operator) + ' ' + this.existingTypeNodeAt(operator.type, Precedence.TypeOperator);
+      }
+      case SyntaxKind.IndexedAccessType: {
+        const access = node as IndexedAccessTypeNode;
+        return (
+          this.existingTypeNodeAt(access.objectType, Precedence.Postfix) +
+          '[' +
+          this.existingTypeNode(access.indexType) +
+          ']'
+        );
+      }
+      case SyntaxKind.MappedType: {
+        const mapped = node as MappedTypeNode;
+        if (mapped.members !== undefined && mapped.members.nodes.length !== 0) return undefined;
+        const readonlyToken = mapped.readonlyToken;
+        const questionToken = mapped.questionToken;
+        const typeParameter = mapped.typeParameter;
+        if (typeParameter.constraint === undefined) return undefined;
+        return (
+          '{ ' +
+          (readonlyToken === undefined
+            ? ''
+            : readonlyToken.kind === SyntaxKind.ReadonlyKeyword
+              ? 'readonly '
+              : tokenToString(readonlyToken.kind) + 'readonly ') +
+          '[' +
+          getText(typeParameter.name) +
+          ' in ' +
+          this.existingTypeNode(typeParameter.constraint) +
+          (mapped.nameType !== undefined ? ' as ' + this.existingTypeNode(mapped.nameType) : '') +
+          ']' +
+          (questionToken === undefined
+            ? ''
+            : questionToken.kind === SyntaxKind.QuestionToken
+              ? '?'
+              : tokenToString(questionToken.kind) + '?') +
+          ': ' +
+          (mapped.type !== undefined ? this.existingTypeNode(mapped.type) : 'any') +
+          '; }'
+        );
+      }
+      case SyntaxKind.ConditionalType: {
+        const conditional = node as ConditionalTypeNode;
+        return (
+          this.existingTypeNodeAt(conditional.checkType, Precedence.Conditional + 1) +
+          ' extends ' +
+          this.existingTypeNodeAt(conditional.extendsType, Precedence.Conditional + 1) +
+          ' ? ' +
+          this.existingTypeNode(conditional.trueType) +
+          ' : ' +
+          this.existingTypeNode(conditional.falseType)
+        );
+      }
+      case SyntaxKind.InferType: {
+        const typeParameter = (node as InferTypeNode).typeParameter;
+        return (
+          'infer ' +
+          getText(typeParameter.name) +
+          (typeParameter.constraint !== undefined
+            ? ' extends ' + this.existingTypeNodeAt(typeParameter.constraint, Precedence.Conditional + 1)
+            : '')
+        );
+      }
+      case SyntaxKind.TypeQuery: {
+        const query = node as TypeQueryNode;
+        const args = this.existingTypeNodes(query.typeArguments, Precedence.Lowest);
+        return 'typeof ' + entityNameToString(query.exprName) + (args.length !== 0 ? '<' + args.join(', ') + '>' : '');
+      }
+      case SyntaxKind.JSDocTypeExpression:
+        return this.existingTypeNode((node as JSDocTypeExpression).type);
+      case SyntaxKind.JSDocAllType:
+        return 'any';
+      case SyntaxKind.JSDocNullableType:
+        return this.existingTypeNodeAt((node as JSDocNullableType).type, Precedence.TypeOperator) + ' | null';
+      case SyntaxKind.JSDocOptionalType:
+        return this.existingTypeNodeAt((node as JSDocOptionalType).type, Precedence.TypeOperator) + ' | undefined';
+      case SyntaxKind.JSDocNonNullableType:
+        return this.existingTypeNode((node as JSDocNonNullableType).type);
+      case SyntaxKind.JSDocVariadicType:
+        return this.existingTypeNodeAt((node as JSDocVariadicType).type, Precedence.Postfix) + '[]';
+    }
+    return undefined;
+  }
+
+  existingTypeReference(node: TypeReferenceNode): string | undefined {
+    const c = this.c;
+    if (isConstTypeReference(node)) return undefined;
+    const typeName = node.typeName;
+    if (typeName.kind === SyntaxKind.Identifier && getText(typeName) === '') return 'any';
+    const t = this.typeFromTypeNode(node);
+    const symbol = getSymbolFromTypeReference(c, node);
+    if ((symbol.flags & SymbolFlags.TypeParameter) !== 0 && this.mapper !== undefined) {
+      // A type parameter the signature being printed maps to another type reads as that type.
+      const declared = getDeclaredTypeOfSymbol(c, symbol);
+      if (this.mapper.map(declared) !== declared) return undefined;
+    }
+    // JavaScript-style names, and references that leave out type arguments, print their types.
+    if (getIntendedTypeFromJSDocTypeReference(c, node) !== undefined) return undefined;
+    if ((t.objectFlags & ObjectFlags.Reference) !== 0 && symbol !== c.unknownSymbol) {
+      const target = getDeclaredTypeOfSymbol(c, symbol);
+      if (target === (t as TypeReference).target) {
+        const count = node.typeArguments !== undefined ? node.typeArguments.nodes.length : 0;
+        if (count < getMinTypeArgumentCount(c, (target as InterfaceType).typeParameters())) return undefined;
+      }
+    }
+    const args = this.existingTypeNodes(node.typeArguments, Precedence.Lowest);
+    return entityNameToString(typeName) + (args.length !== 0 ? '<' + args.join(', ') + '>' : '');
+  }
+
+  /** The parts of an existing signature node; missing parameter and return types are `any`. */
+  existingSignature(node: Node): { typeParameters: string; parameters: string; returnType: string } | undefined {
+    let typeParameters = '';
+    const typeParameterList = getTypeParameters(node);
+    if (typeParameterList !== undefined && typeParameterList.nodes.length !== 0) {
+      const parts: string[] = [];
+      for (const tp of typeParameterList.nodes) parts.push(this.existingTypeParameter(tp as TypeParameterDeclaration));
+      typeParameters = '<' + parts.join(', ') + '>';
+    }
+    const parameters: string[] = [];
+    for (const p of getParameters(node)!.nodes) {
+      const param = p as ParameterDeclaration;
+      const name = param.name;
+      let nameText: string;
+      if (name.kind === SyntaxKind.Identifier) nameText = getText(name);
+      else if (name.kind === SyntaxKind.ObjectBindingPattern || name.kind === SyntaxKind.ArrayBindingPattern)
+        nameText = bindingPatternText(name);
+      else return undefined;
+      const modifiers = param.modifiers;
+      let modifierText = '';
+      if (modifiers !== undefined) for (const m of modifiers.nodes) modifierText += tokenToString(m.kind) + ' ';
+      parameters.push(
+        modifierText +
+          (param.dotDotDotToken !== undefined ? '...' : '') +
+          nameText +
+          (param.questionToken !== undefined ? '?' : '') +
+          ': ' +
+          (param.type !== undefined ? this.existingTypeNode(param.type) : 'any'),
+      );
+    }
+    const returnTypeNode = getType(node);
+    return {
+      typeParameters,
+      parameters: '(' + parameters.join(', ') + ')',
+      returnType: returnTypeNode !== undefined ? this.existingTypePredicateOrType(returnTypeNode) : 'any',
+    };
+  }
+
+  existingTypePredicateOrType(node: Node): string {
+    if (node.kind !== SyntaxKind.TypePredicate) return this.existingTypeNode(node);
+    const predicate = node as TypePredicateNode;
+    return (
+      (predicate.assertsModifier !== undefined ? 'asserts ' : '') +
+      (predicate.parameterName.kind === SyntaxKind.ThisType ? 'this' : getText(predicate.parameterName)) +
+      (predicate.type !== undefined ? ' is ' + this.existingTypeNode(predicate.type) : '')
+    );
+  }
+
+  existingTypeParameter(tp: TypeParameterDeclaration): string {
+    let text = '';
+    if (tp.modifiers !== undefined) for (const m of tp.modifiers.nodes) text += tokenToString(m.kind) + ' ';
+    text += getText(tp.name);
+    if (tp.constraint !== undefined) text += ' extends ' + this.existingTypeNode(tp.constraint);
+    if (tp.defaultType !== undefined) text += ' = ' + this.existingTypeNode(tp.defaultType);
+    return text;
+  }
+
+  /** A member of an existing type literal, ending in `;`. */
+  existingTypeElement(member: Node): string | undefined {
+    const nameNode = getName(member);
+    let name = '';
+    if (nameNode !== undefined) {
+      const text = existingPropertyNameText(nameNode);
+      if (text === undefined) return undefined;
+      name = text;
+    }
+    let modifiers = '';
+    const modifierList = getModifiers(member);
+    if (modifierList !== undefined) for (const m of modifierList.nodes) modifiers += tokenToString(m.kind) + ' ';
+    const question = hasQuestionToken(member) ? '?' : '';
+    switch (member.kind) {
+      case SyntaxKind.PropertySignature: {
+        const type = getType(member);
+        return modifiers + name + question + ': ' + (type !== undefined ? this.existingTypeNode(type) : 'any') + ';';
+      }
+      case SyntaxKind.MethodSignature:
+      case SyntaxKind.CallSignature:
+      case SyntaxKind.ConstructSignature:
+      case SyntaxKind.GetAccessor:
+      case SyntaxKind.SetAccessor: {
+        const text = this.existingSignature(member);
+        if (text === undefined) return undefined;
+        const head = text.typeParameters + text.parameters;
+        switch (member.kind) {
+          case SyntaxKind.MethodSignature:
+            return modifiers + name + question + head + ': ' + text.returnType + ';';
+          case SyntaxKind.CallSignature:
+            return head + ': ' + text.returnType + ';';
+          case SyntaxKind.ConstructSignature:
+            return 'new ' + head + ': ' + text.returnType + ';';
+          case SyntaxKind.GetAccessor:
+            return (
+              modifiers + 'get ' + name + head + (getType(member) !== undefined ? ': ' + text.returnType : '') + ';'
+            );
+          default:
+            return modifiers + 'set ' + name + head + ';';
+        }
+      }
+      case SyntaxKind.IndexSignature: {
+        const text = this.existingSignature(member);
+        if (text === undefined) return undefined;
+        return modifiers + '[' + text.parameters.slice(1, -1) + ']: ' + text.returnType + ';';
+      }
+    }
+    return undefined;
+  }
+
   // ---- Symbols
+
+  uniqueSymbolReference(symbol: Symbol): string {
+    const parent = getParentOfSymbol(this.c, symbol);
+    if (parent !== undefined && parent.name === 'SymbolConstructor' && (symbol.flags & SymbolFlags.Property) !== 0) {
+      this.approximateLength += symbol.name.length + 7;
+      return 'Symbol.' + symbol.name;
+    }
+    return this.symbolReference(symbol, SymbolFlags.Value);
+  }
 
   /** The (qualified) name of a symbol as a type or value reference. */
   symbolReference(symbol: Symbol, meaning: SymbolFlags): string {
     const name = this.symbolChainText(symbol, meaning);
-    this.approximateLength += name.length;
+    this.approximateLength += name.length + 1;
     return name;
   }
 
   symbolChainText(symbol: Symbol, meaning: SymbolFlags): string {
     const c = this.c;
+    // Unresolved names print as written.
+    if ((symbol.checkFlags & CheckFlags.Unresolved) !== 0)
+      return symbol.parent !== undefined
+        ? this.symbolChainText(symbol.parent, meaning) + '.' + symbol.name
+        : symbol.name;
     // Without an enclosing declaration, names are qualified only on request.
     if ((this.flags & PrintFlags.UseFullyQualifiedType) === 0) return initialSymbolName(symbol);
     let text = symbolNameForChain(symbol);
@@ -698,6 +1227,87 @@ class TypePrinter {
     }
     return current === symbol ? initialSymbolName(symbol) : text;
   }
+}
+
+function hasQuestionToken(node: Node): boolean {
+  const token = getQuestionToken(node) ?? getPostfixToken(node);
+  return token !== undefined && token.kind === SyntaxKind.QuestionToken;
+}
+
+/** A literal of an existing literal type node, quoted as written. */
+function existingLiteralText(literal: Node): string | undefined {
+  switch (literal.kind) {
+    case SyntaxKind.StringLiteral:
+      return quoteString(
+        (literal as StringLiteral).text,
+        ((literal as StringLiteral).tokenFlags & TokenFlags.SingleQuote) !== 0,
+      );
+    case SyntaxKind.NumericLiteral:
+    case SyntaxKind.BigIntLiteral:
+      return getText(literal);
+    case SyntaxKind.NoSubstitutionTemplateLiteral:
+      return '`' + escapeTemplate(getText(literal)) + '`';
+    case SyntaxKind.TrueKeyword:
+      return 'true';
+    case SyntaxKind.FalseKeyword:
+      return 'false';
+    case SyntaxKind.NullKeyword:
+      return 'null';
+    case SyntaxKind.PrefixUnaryExpression: {
+      const unary = literal as PrefixUnaryExpression;
+      const operand = existingLiteralText(unary.operand);
+      return operand === undefined ? undefined : tokenToString(unary.operator) + operand;
+    }
+  }
+  return undefined;
+}
+
+/** The name of a member of an existing type literal, or undefined for names computed from other expressions. */
+function existingPropertyNameText(name: Node): string | undefined {
+  switch (name.kind) {
+    case SyntaxKind.Identifier:
+    case SyntaxKind.PrivateIdentifier:
+    case SyntaxKind.NumericLiteral:
+      return getText(name);
+    case SyntaxKind.StringLiteral:
+      return existingLiteralText(name);
+    case SyntaxKind.ComputedPropertyName: {
+      const expression = (name as ComputedPropertyName).expression;
+      if (expression.kind === SyntaxKind.Identifier || expression.kind === SyntaxKind.PropertyAccessExpression)
+        return '[' + entityNameToString(expression) + ']';
+      return undefined;
+    }
+  }
+  return undefined;
+}
+
+/** The symbol a static method or non-local function's type can be named by with `typeof`, if it can be. */
+function typeOfFunctionSymbol(c: Checker, symbol: Symbol, enclosingDeclaration: Node | undefined): Symbol | undefined {
+  const isStaticMethod = (symbol.flags & SymbolFlags.Method) !== 0 && symbol.declarations.some((d) => isStatic(d));
+  if (isStaticMethod) return symbol;
+  if ((symbol.flags & SymbolFlags.Function) === 0) return undefined;
+  if (symbol.parent !== undefined) return symbol;
+  for (const d of symbol.declarations) {
+    const parent = d.parent!;
+    if (parent.kind === SyntaxKind.SourceFile || parent.kind === SyntaxKind.ModuleBlock) return symbol;
+    if (
+      (d.kind === SyntaxKind.FunctionExpression || d.kind === SyntaxKind.ArrowFunction) &&
+      parent.kind === SyntaxKind.VariableDeclaration &&
+      parent.parent!.kind === SyntaxKind.VariableDeclarationList &&
+      parent.parent!.parent!.kind === SyntaxKind.VariableStatement &&
+      parent.parent!.parent!.parent !== undefined &&
+      (parent.parent!.parent!.parent.kind === SyntaxKind.SourceFile ||
+        parent.parent!.parent!.parent.kind === SyntaxKind.ModuleBlock)
+    ) {
+      const valueParent = symbol.valueDeclaration?.parent;
+      if (valueParent !== undefined && valueParent !== enclosingDeclaration) {
+        const variable = getSymbol(valueParent);
+        return variable !== undefined ? getMergedSymbol(c, variable) : symbol;
+      }
+      return symbol;
+    }
+  }
+  return undefined;
 }
 
 /** The specifier an external module is printed with in `import("…")`: its ambient name or extensionless path. */
@@ -761,11 +1371,15 @@ function symbolNameForChain(symbol: Symbol): string {
 function internalNameText(symbol: Symbol): string {
   const name = symbol.name;
   if (name === InternalSymbolName.Class || name === InternalSymbolName.Function) {
-    // Anonymous class or function expressions print their variable's name or `(Anonymous …)`.
-    const d = symbol.valueDeclaration;
+    // Class and function expressions print the name they're assigned to, else `(Anonymous …)`.
+    for (const d of symbol.declarations) {
+      const n = getNameOfDeclaration(d);
+      if (n !== undefined) return declarationNameToString(getSourceFileOfNode(n), n);
+    }
+    const d = symbol.declarations.length !== 0 ? symbol.declarations[0] : symbol.valueDeclaration;
     if (d !== undefined && d.parent !== undefined && d.parent.kind === SyntaxKind.VariableDeclaration) {
       const n = getName(d.parent);
-      if (n !== undefined && n.kind === SyntaxKind.Identifier) return getText(n);
+      if (n !== undefined) return declarationNameToString(getSourceFileOfNode(n), n);
     }
     return name === InternalSymbolName.Class ? '(Anonymous class)' : '(Anonymous function)';
   }
@@ -822,7 +1436,7 @@ function bindingPatternText(node: Node): string {
     }
     const shape = e as BindingElement;
     let text = (shape.dotDotDotToken !== undefined ? '...' : '') + bindingPatternText(shape.name!);
-    if (shape.propertyName !== undefined) text = getText(shape.propertyName) + ': ' + text;
+    if (shape.propertyName !== undefined) text = bindingPropertyNameText(shape.propertyName) + ': ' + text;
     parts.push(text);
   }
   return node.kind === SyntaxKind.ObjectBindingPattern
@@ -830,6 +1444,12 @@ function bindingPatternText(node: Node): string {
       ? '{}'
       : '{ ' + parts.join(', ') + ' }'
     : '[' + parts.join(', ') + ']';
+}
+
+function bindingPropertyNameText(name: Node): string {
+  if (name.kind !== SyntaxKind.ComputedPropertyName) return getText(name);
+  const expression = (name as ComputedPropertyName).expression;
+  return '[' + (isEntityNameExpression(expression) ? entityNameToString(expression) : getText(expression)) + ']';
 }
 
 /** The name of a unique symbol: well-known symbols are members of the global `Symbol`, such as `Symbol.iterator`. */
@@ -840,22 +1460,59 @@ function uniqueSymbolNameText(c: Checker, symbol: Symbol): string {
   return symbolToString(c, symbol);
 }
 
+/** A property's name in an object type: as an identifier, a number, or a string quoted as declared. */
 function propertyNameText(c: Checker, prop: Symbol): string {
+  const declarationName = prop.valueDeclaration !== undefined ? getName(prop.valueDeclaration) : undefined;
+  if (declarationName !== undefined && declarationName.kind === SyntaxKind.PrivateIdentifier)
+    return getText(declarationName);
+  const declarations = prop.declarations;
+  const stringNamed = declarations.length !== 0 && declarations.every((d) => isStringNamed(c, d));
+  const singleQuote = declarations.length !== 0 && declarations.every(isSingleQuotedStringNamed);
+  const isMethod = (prop.flags & SymbolFlags.Method) !== 0;
   const nameType = c.symbolLinks(prop).nameType;
   if (nameType !== undefined) {
-    if ((nameType.flags & TypeFlags.StringLiteral) !== 0) {
-      const s = (nameType as LiteralType).stringValue;
-      return isIdentifierText(s) ? s : quoteString(s);
+    if ((nameType.flags & (TypeFlags.StringLiteral | TypeFlags.NumberLiteral)) !== 0) {
+      const name =
+        (nameType.flags & TypeFlags.StringLiteral) !== 0
+          ? (nameType as LiteralType).stringValue
+          : numberText((nameType as LiteralType).numberValue);
+      if (!isIdentifierText(name) && (stringNamed || !isNumericLiteralName(name)))
+        return quoteString(name, singleQuote);
+      if (isNumericLiteralName(name) && name.charCodeAt(0) === 0x2d) return '[-' + name.substring(1) + ']';
+      return identifierOrLiteralName(name, singleQuote, stringNamed, isMethod);
     }
-    if ((nameType.flags & TypeFlags.NumberLiteral) !== 0) return numberText((nameType as LiteralType).numberValue);
     if ((nameType.flags & TypeFlags.UniqueESSymbol) !== 0 && nameType.symbol !== undefined)
       return '[' + uniqueSymbolNameText(c, nameType.symbol) + ']';
   }
   const name = prop.name;
   if (name.charCodeAt(0) === 0xfffe) return internalNameText(prop);
+  return identifierOrLiteralName(name, singleQuote, stringNamed, isMethod);
+}
+
+function identifierOrLiteralName(name: string, singleQuote: boolean, stringNamed: boolean, isMethod: boolean): string {
+  if (isMethod && name === 'new') return quoteString(name, singleQuote);
   if (isIdentifierText(name)) return name;
-  if (isNumericName(name)) return name;
-  return quoteString(name);
+  if (!stringNamed && isNumericLiteralName(name) && Number(name) >= 0) return name;
+  return quoteString(name, singleQuote);
+}
+
+function isStringNamed(c: Checker, d: Node): boolean {
+  const name = getNameOfDeclaration(d);
+  if (name === undefined) return false;
+  if (name.kind === SyntaxKind.ComputedPropertyName || name.kind === SyntaxKind.ElementAccessExpression) {
+    const nameType = getSymbol(d) !== undefined ? c.symbolLinks(getSymbol(d)!).nameType : undefined;
+    return nameType !== undefined && (nameType.flags & TypeFlags.StringLike) !== 0;
+  }
+  return name.kind === SyntaxKind.StringLiteral;
+}
+
+function isSingleQuotedStringNamed(d: Node): boolean {
+  const name = getNameOfDeclaration(d);
+  return (
+    name !== undefined &&
+    name.kind === SyntaxKind.StringLiteral &&
+    ((name as StringLiteral).tokenFlags & TokenFlags.SingleQuote) !== 0
+  );
 }
 
 function isNumericName(name: string): boolean {
@@ -927,24 +1584,27 @@ function parenthesizeForArray(text: string): string {
 
 // ---- Literals
 
-export function quoteString(s: string): string {
+export function quoteString(s: string, singleQuote = false): string {
   // Unescaped runs are copied as slices, which keeps surrogate pairs whole in native builds.
-  let result = '"';
+  const quote = singleQuote ? "'" : '"';
+  let result = quote;
   let start = 0;
   for (let i = 0; i < s.length; i++) {
-    const escape = stringEscape(s.charCodeAt(i));
+    const escape = stringEscape(s.charCodeAt(i), singleQuote);
     if (escape === '') continue;
     result += s.slice(start, i) + escape;
     start = i + 1;
   }
-  return result + s.slice(start) + '"';
+  return result + s.slice(start) + quote;
 }
 
-/** The escape sequence of a code unit in a double-quoted string, or '' if it needs none. */
-function stringEscape(ch: number): string {
+/** The escape sequence of a code unit in a quoted string, or '' if it needs none. */
+function stringEscape(ch: number, singleQuote: boolean): string {
   switch (ch) {
     case 0x22:
-      return '\\"';
+      return singleQuote ? '' : '\\"';
+    case 0x27:
+      return singleQuote ? "\\'" : '';
     case 0x5c:
       return '\\\\';
     case 0x0a:
@@ -1029,7 +1689,8 @@ export function formatUnionTypes(c: Checker, types: readonly Type[], expandingEn
 export function typeToString(c: Checker, t: Type, enclosingDeclaration?: Node, flags?: number): string {
   if (c.serializationLevel >= 100) return '?';
   const noTruncation = c.compilerOptions.noErrorTruncation === true || ((flags ?? 0) & 1) !== 0;
-  const printer = new TypePrinter(c, flags ?? 0, noTruncation);
+  // Without explicit flags, unique symbols print as such, like tsgo's typeToString.
+  const printer = new TypePrinter(c, flags ?? PrintFlags.AllowUniqueESSymbolType, noTruncation, enclosingDeclaration);
   c.serializationLevel++;
   const result = printer.type(t);
   c.serializationLevel--;

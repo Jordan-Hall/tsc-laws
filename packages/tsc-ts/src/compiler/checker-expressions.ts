@@ -6,6 +6,7 @@ import {
 } from './checker-modules.js';
 import {
   type ArrayLiteralExpression,
+  type CallExpression,
   BinaryExpression,
   type ComputedPropertyName,
   type ConditionalExpression,
@@ -149,6 +150,7 @@ import {
   getOptionalExpressionType,
   instantiateTypeWithSingleGenericCallSignature,
   propagateOptionalTypeMarker,
+  isSymbolOrSymbolForCall,
 } from './checker-calls.js';
 import {
   checkAwaitExpression,
@@ -175,8 +177,16 @@ import {
 } from './checker-operators.js';
 import { checkJsx } from './checker-jsx.js';
 import { getRegularTypeOfObjectLiteral } from './checker-literals.js';
-import { getSignatureFromDeclaration, getThisTypeOfSignature } from './checker-signatures.js';
-import { isFunctionLike, isInJSFile } from './ast-utilities.js';
+import {
+  getReturnTypeOfSignature,
+  getSignatureFromDeclaration,
+  getSingleSignature,
+  getThisTypeOfSignature,
+} from './checker-signatures.js';
+import { isFunctionLike, isImportCall, isInJSFile, isRequireCall } from './ast-utilities.js';
+import { isLiteralKind } from './printer/utilities.js';
+import { getAwaitedType } from './checker-iteration.js';
+import { SignatureKind } from './checker-types.js';
 import {
   AssignmentKind,
   convertAutoToAny,
@@ -249,7 +259,66 @@ export function checkExpressionForMutableLocationEx(c: Checker, node: Node, chec
 
 export function checkDeclarationInitializer(c: Checker, declaration: Node): Type {
   const initializer = getInitializer(declaration)!;
-  return padParameterInitializerType(c, declaration, checkExpressionCached(c, initializer));
+  const t = getQuickTypeOfExpression(c, initializer) ?? checkExpressionCached(c, initializer);
+  return padParameterInitializerType(c, declaration, t);
+}
+
+/**
+ * The type of an expression whose type doesn't need its arguments checked: a call or `new` of a single
+ * non-generic signature, an assertion, or a literal.
+ */
+function getQuickTypeOfExpression(c: Checker, node: Node): Type | undefined {
+  const expr = skipParentheses(node);
+  switch (expr.kind) {
+    case SyntaxKind.AwaitExpression: {
+      const t = getQuickTypeOfExpression(c, getExpression(expr)!);
+      return t !== undefined ? getAwaitedType(c, t) : undefined;
+    }
+    case SyntaxKind.CallExpression: {
+      const call = expr as CallExpression;
+      if (
+        call.expression.kind === SyntaxKind.SuperKeyword ||
+        isRequireCall(call, true) ||
+        isSymbolOrSymbolForCall(c, call) ||
+        isImportCall(call)
+      )
+        return undefined;
+      if (isOptionalChain(call)) {
+        const funcType = checkExpression(c, call.expression);
+        const nonOptionalType = getOptionalExpressionType(c, funcType, call.expression);
+        const returnType = getReturnTypeOfSingleNonGenericSignature(c, funcType, SignatureKind.Call);
+        return returnType !== undefined
+          ? propagateOptionalTypeMarker(c, returnType, call, nonOptionalType !== funcType)
+          : undefined;
+      }
+      return getReturnTypeOfSingleNonGenericSignature(
+        c,
+        checkNonNullExpression(c, call.expression),
+        SignatureKind.Call,
+      );
+    }
+    case SyntaxKind.NewExpression:
+      return getReturnTypeOfSingleNonGenericSignature(
+        c,
+        checkNonNullExpression(c, getExpression(expr)!),
+        SignatureKind.Construct,
+      );
+    case SyntaxKind.AsExpression:
+    case SyntaxKind.TypeAssertionExpression: {
+      const typeNode = getType(expr)!;
+      return isConstTypeReference(typeNode) ? undefined : getTypeFromTypeNode(c, typeNode);
+    }
+  }
+  if (isLiteralKind(node.kind) || node.kind === SyntaxKind.TrueKeyword || node.kind === SyntaxKind.FalseKeyword)
+    return checkExpression(c, node);
+  return undefined;
+}
+
+function getReturnTypeOfSingleNonGenericSignature(c: Checker, funcType: Type, kind: SignatureKind): Type | undefined {
+  const signature = getSingleSignature(c, funcType, kind, true);
+  return signature !== undefined && signature.typeParameters.length === 0
+    ? getReturnTypeOfSignature(c, signature)
+    : undefined;
 }
 
 export function checkComputedPropertyName(c: Checker, node: Node): Type {

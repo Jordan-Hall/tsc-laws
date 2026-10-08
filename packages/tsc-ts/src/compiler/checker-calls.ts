@@ -229,7 +229,7 @@ function walkUpParenthesizedExpressions(node: Node): Node {
 }
 
 /** Whether `node` calls the global `Symbol` or `Symbol.for`. */
-function isSymbolOrSymbolForCall(c: Checker, node: CallExpression): boolean {
+export function isSymbolOrSymbolForCall(c: Checker, node: CallExpression): boolean {
   let left = node.expression;
   if (left.kind === SyntaxKind.PropertyAccessExpression && getText(getName(left)!) === 'for')
     left = getExpression(left)!;

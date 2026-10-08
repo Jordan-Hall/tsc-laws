@@ -137,7 +137,7 @@ import {
   instantiateTypeAlias,
   isTypeParameterPossiblyReferenced,
 } from './instantiation.js';
-import { isTypeAssignableTo, isTypeSubtypeOf } from './relations.js';
+import { isTypeAssignableTo } from './relations.js';
 import { symbolToString, typeToString } from './type-printer.js';
 import { getSourceFileOfNode, isAssignmentTarget, isEntityNameExpression } from './binder-utilities.js';
 import { getTextOfNodeFromSourceText } from './ast-utilities.js';
@@ -160,6 +160,9 @@ import {
 } from './checker-utilities.js';
 import {
   inferTypesForConditional,
+  inferTypesFromTemplateLiteralType,
+  isValidBigIntString,
+  isValidNumberString,
   instantiateReverseMappedType as instantiateReverseMappedTypeOfInference,
   resolveReverseMappedTypeMembers as resolveReverseMappedTypeMembersOfInference,
 } from './checker-inference.js';
@@ -2029,55 +2032,78 @@ export function getConstraintOfDistributiveConditionalType(c: Checker, t: Condit
 
 // ---- Template literal matching
 
-/** Whether `source` (a string literal) matches the pattern of `target`. */
-export function isTypeMatchedByTemplateLiteralType(c: Checker, source: Type, target: TemplateLiteralType): boolean {
-  if ((source.flags & TypeFlags.StringLiteral) === 0) return false;
-  const value = (source as LiteralType).stringValue;
-  const texts = target.texts;
-  const types = target.types;
-  if (!value.startsWith(texts[0]) || !value.endsWith(texts[texts.length - 1])) return false;
-  if (value.length < texts[0].length + texts[texts.length - 1].length) return false;
-  return matchSpans(c, value, texts[0].length, value.length - texts[texts.length - 1].length, texts, types, 0);
+/** Relates a template placeholder's inferred type to the placeholder type. */
+export type TemplateTypeComparer = (source: Type, target: Type) => boolean;
+
+/** Whether `source` matches the pattern of `target`, with placeholders related by `compareTypes`. */
+export function isTypeMatchedByTemplateLiteralType(
+  c: Checker,
+  source: Type,
+  target: TemplateLiteralType,
+  compareTypes?: TemplateTypeComparer,
+): boolean {
+  const inferences = inferTypesFromTemplateLiteralType(c, source, target);
+  if (inferences === undefined) return false;
+  const compare = compareTypes ?? ((s: Type, t: Type) => isTypeAssignableTo(c, s, t));
+  for (let i = 0; i < inferences.length; i++)
+    if (!isValidTypeForTemplateLiteralPlaceholder(c, inferences[i], target.types[i], compare)) return false;
+  return true;
 }
 
-function matchSpans(
+function isValidTypeForTemplateLiteralPlaceholder(
   c: Checker,
-  value: string,
-  pos: number,
-  end: number,
-  texts: string[],
-  types: Type[],
-  index: number,
+  source: Type,
+  target: Type,
+  compare: TemplateTypeComparer,
 ): boolean {
-  if (index === types.length) return pos === end;
-  const nextText = texts[index + 1];
-  const isLast = index === types.length - 1;
-  for (let i = isLast ? end : pos; i <= end; i++) {
-    if (!isLast && !value.startsWith(nextText, i)) continue;
-    const segment = value.substring(pos, i);
-    if (!isValidTypeForTemplateLiteralPlaceholder(c, getStringLiteralType(c, segment), types[index])) continue;
-    if (matchSpans(c, value, isLast ? i : i + nextText.length, end, texts, types, index + 1)) return true;
-    if (isLast) break;
+  if ((target.flags & TypeFlags.Intersection) !== 0)
+    return typesOf(target).every(
+      (t) => t === c.emptyTypeLiteralType || isValidTypeForTemplateLiteralPlaceholder(c, source, t, compare),
+    );
+  if ((target.flags & TypeFlags.String) !== 0 || compare(source, target)) return true;
+  if ((source.flags & TypeFlags.StringLiteral) !== 0) {
+    const value = (source as LiteralType).stringValue;
+    return (
+      ((target.flags & TypeFlags.Number) !== 0 && isValidNumberString(value, false)) ||
+      ((target.flags & TypeFlags.BigInt) !== 0 && isValidBigIntString(value, false)) ||
+      ((target.flags & (TypeFlags.BooleanLiteral | TypeFlags.Nullable)) !== 0 &&
+        value === (target as IntrinsicType).intrinsicName) ||
+      ((target.flags & TypeFlags.StringMapping) !== 0 && isMemberOfStringMapping(c, source, target)) ||
+      ((target.flags & TypeFlags.TemplateLiteral) !== 0 &&
+        isTypeMatchedByTemplateLiteralType(c, source, target as TemplateLiteralType, compare))
+    );
+  }
+  if ((source.flags & TypeFlags.TemplateLiteral) !== 0) {
+    const texts = (source as TemplateLiteralType).texts;
+    return (
+      texts.length === 2 &&
+      texts[0] === '' &&
+      texts[1] === '' &&
+      compare((source as TemplateLiteralType).types[0], target)
+    );
   }
   return false;
 }
 
-function isValidTypeForTemplateLiteralPlaceholder(c: Checker, source: Type, target: Type): boolean {
-  if (source === target || (target.flags & (TypeFlags.Any | TypeFlags.String)) !== 0) return true;
-  if ((source.flags & TypeFlags.StringLiteral) !== 0) {
-    const value = (source as LiteralType).stringValue;
-    if ((target.flags & TypeFlags.Number) !== 0)
-      return (
-        value.trim() !== '' && String(Number(value)) !== 'NaN' && isFinite(Number(value)) && value.trim() === value
-      );
-    if ((target.flags & TypeFlags.BigInt) !== 0) return /^-?(0|[1-9]\d*)$/.test(value);
-    if ((target.flags & (TypeFlags.BooleanLiteral | TypeFlags.Nullable)) !== 0)
-      return value === (target as LiteralType).stringValue || value === (target as IntrinsicType).intrinsicName;
-    if ((target.flags & TypeFlags.StringMapping) !== 0) return false;
-    if ((target.flags & TypeFlags.TemplateLiteral) !== 0)
-      return isTypeMatchedByTemplateLiteralType(c, source, target as TemplateLiteralType);
+/** Whether `source` is a member of a string mapping type such as `Uppercase<string>`. */
+export function isMemberOfStringMapping(c: Checker, source: Type, target: Type): boolean {
+  if ((target.flags & TypeFlags.Any) !== 0) return true;
+  if ((target.flags & (TypeFlags.String | TypeFlags.TemplateLiteral)) !== 0)
+    return isTypeAssignableTo(c, source, target);
+  if ((target.flags & TypeFlags.StringMapping) !== 0) {
+    // Applying the target's mappings must leave the source unchanged, and the source must belong
+    // to the innermost unmapped type.
+    const mappings: Symbol[] = [];
+    let inner = target;
+    while ((inner.flags & TypeFlags.StringMapping) !== 0) {
+      mappings.push(inner.symbol!);
+      inner = (inner as StringMappingType).target;
+    }
+    let mapped = source;
+    for (let i = mappings.length - 1; i >= 0; i--) mapped = getStringMappingType(c, mappings[i], mapped);
+    return mapped === source && isMemberOfStringMapping(c, source, inner);
   }
-  return isTypeSubtypeOf(c, source, target);
+  return false;
 }
 
 export type { TupleType, UnionType };

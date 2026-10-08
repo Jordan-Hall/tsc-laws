@@ -3,7 +3,7 @@
 import { type Node, getNodeId, getName, getText, SourceFile } from './ast.js';
 import { symbolToString } from './type-printer.js';
 import { instantiateTypes } from './instantiation.js';
-import { getTypeArgumentsOfDeferredReference } from './checker-type-nodes.js';
+import { getAliasForTypeNode, getTypeArgumentsOfDeferredReference } from './checker-type-nodes.js';
 import { TypeSystemPropertyName, popTypeResolution, pushTypeResolution } from './checker-symbols.js';
 import { isGenericIndexType } from './checker-type-operators.js';
 import { compareCodePoints } from './diagnostics.js';
@@ -32,7 +32,7 @@ import {
   TupleElementInfo,
   TupleType,
   type Type,
-  type TypeAlias,
+  TypeAlias,
   TypeFlags,
   TypeMapper,
   TypeMapperKind,
@@ -65,6 +65,7 @@ import {
   getIndexedAccessType,
   isGenericMappedType,
   isTypeMatchedByTemplateLiteralType,
+  isMemberOfStringMapping,
 } from './checker-type-operators.js';
 import { addOptionality } from './checker-symbol-types.js';
 import { getSourceFileOfNode } from './binder-utilities.js';
@@ -987,11 +988,6 @@ function isTypeMatchedByTemplateLiteralOrStringMapping(c: Checker, t: Type, temp
   return isMemberOfStringMapping(c, t, template);
 }
 
-/** Stub until string mappings are implemented: no literal is known to be a member. */
-export function isMemberOfStringMapping(_c: Checker, _t: Type, _mapping: Type): boolean {
-  return false;
-}
-
 function constrainedTypeVariableIndex(t: Type): number {
   return ((t as IntersectionType).types[0].flags & TypeFlags.TypeVariable) === 0 ? 1 : 0;
 }
@@ -1594,6 +1590,12 @@ export function createDeferredTypeReference(
   mapper: TypeMapper | undefined,
   alias: TypeAlias | undefined,
 ): TypeReference {
+  if (alias === undefined) {
+    // A reference written as a type alias's whole type goes by the alias.
+    alias = getAliasForTypeNode(c, node);
+    if (alias !== undefined && mapper !== undefined)
+      alias = new TypeAlias(alias.symbol, instantiateTypes(c, alias.typeArguments, mapper));
+  }
   const type = newObjectType(c, ObjectFlags.Reference, target.symbol) as TypeReference;
   type.alias = alias;
   type.target = target;

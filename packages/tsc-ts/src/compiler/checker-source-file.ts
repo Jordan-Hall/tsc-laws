@@ -24,6 +24,8 @@ import {
   getStatements,
   getType,
   getTypeParameters,
+  type HeritageClause,
+  getHeritageClauses,
 } from './ast.js';
 import { SyntaxKind } from './syntax-kind.js';
 import { isExternalOrCommonJSModule } from './binder-utilities.js';
@@ -254,6 +256,18 @@ function checkTypeNode(c: Checker, node: Node): void {
   c.currentNode = saveCurrentNode;
 }
 
+function isTypeReferenceHeritageElement(node: Node): boolean {
+  const clause = node.parent;
+  if (clause === undefined || clause.kind !== SyntaxKind.HeritageClause) return false;
+  const token = (clause as HeritageClause).token;
+  if ((token === SyntaxKind.ImplementsKeyword) === (clause.parent!.kind === SyntaxKind.InterfaceDeclaration))
+    return false;
+  // Only the first clause of each kind counts.
+  for (const other of getHeritageClauses(clause.parent!)!.nodes)
+    if ((other as HeritageClause).token === token) return other === clause;
+  return false;
+}
+
 function checkTypeNodeWorker(c: Checker, node: Node): void {
   switch (node.kind) {
     case SyntaxKind.MethodSignature:
@@ -269,6 +283,14 @@ function checkTypeNodeWorker(c: Checker, node: Node): void {
     case SyntaxKind.TypeReference:
       getTypeFromTypeNode(c, node);
       checkTypeArgumentConstraintsOfReference(c, node);
+      break;
+    case SyntaxKind.ExpressionWithTypeArguments:
+      // Implemented types and interface base types are type references; class base types are
+      // checked with the base constructor's type parameters.
+      if (isTypeReferenceHeritageElement(node)) {
+        getTypeFromTypeNode(c, node);
+        checkTypeArgumentConstraintsOfReference(c, node);
+      }
       break;
     case SyntaxKind.TypeQuery:
     case SyntaxKind.ImportType:

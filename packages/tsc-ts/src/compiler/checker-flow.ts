@@ -12,6 +12,8 @@ import {
 import { getBaseConstraintOfType, resolveStructuredTypeMembers } from './checker-members.js';
 import { isTypeSubtypeOf } from './relations.js';
 import { maybeTypeOfKind } from './checker-utilities.js';
+import { getGlobalTypeAliasSymbol } from './checker-symbols.js';
+import { getTypeAliasInstantiation } from './checker-type-nodes.js';
 
 export const enum TypeFacts {
   None = 0,
@@ -351,10 +353,18 @@ export function getAdjustedTypeWithFacts(c: Checker, t: Type, facts: TypeFacts):
     case TypeFacts.NEUndefinedOrNull:
     case TypeFacts.Truthy:
       return mapType(c, reduced, (u) =>
-        hasTypeFacts(c, u, TypeFacts.EQUndefinedOrNull) ? getIntersectionType(c, [u, c.emptyObjectType]) : u,
+        hasTypeFacts(c, u, TypeFacts.EQUndefinedOrNull) ? getGlobalNonNullableTypeInstantiation(c, u) : u,
       );
   }
   return reduced;
+}
+
+/** `NonNullable<T>`, or `T & {}` without the global alias. */
+function getGlobalNonNullableTypeInstantiation(c: Checker, t: Type): Type {
+  const alias = getGlobalTypeAliasSymbol(c, 'NonNullable', 1, false);
+  return alias !== undefined
+    ? getTypeAliasInstantiation(c, alias, [t], undefined)
+    : getIntersectionType(c, [t, c.emptyObjectType]);
 }
 
 function removeNullableByIntersection(

@@ -1,10 +1,12 @@
 // Type relations: identity, subtype, strict subtype, assignability and comparability, with
 // tsgo's result caching, recursion limits, variance measurement and error elaboration.
-import { ModifierFlags, type Node, type ConditionalTypeNode, getName } from './ast.js';
+import { ModifierFlags, type Node, type ConditionalTypeNode, getExpression, getName, getText } from './ast.js';
+import { getSymbolNameForPrivateIdentifier } from './binder.js';
 import { getCombinedModifierFlags } from './binder-utilities.js';
 import { Diagnostic, type DiagnosticMessage, Diagnostics, messageElidedInCompatibilityPyramid } from './diagnostics.js';
 import { CheckFlags, type Symbol, SymbolFlags, getSymbolId } from './symbol.js';
 import { SyntaxKind } from './syntax-kind.js';
+import { isContextSensitive } from './checker-functions.js';
 import { type Checker, createDiagnosticForNode } from './checker.js';
 import {
   type ConditionalType,
@@ -107,7 +109,7 @@ import {
   isConflictingPrivateProperty,
   resolveStructuredTypeMembers,
 } from './checker-members.js';
-import { getParentOfSymbol, getMergedSymbol } from './checker-symbols.js';
+import { getParentOfSymbol, getMergedSymbol, getMembersOfSymbol } from './checker-symbols.js';
 import {
   getConstraintFromTypeParameter,
   getDeclaredTypeOfSymbol,
@@ -117,6 +119,8 @@ import {
   hasBaseType,
   hasNonCircularBaseConstraint,
   computeEnumMemberValues,
+  getBaseTypes,
+  getExtendsHeritageClauseElement,
 } from './checker-declared-types.js';
 import {
   getNonMissingTypeOfSymbol,
@@ -157,6 +161,7 @@ import {
   isGenericObjectType,
   isMappedTypeGenericIndexedAccess,
   isTypeMatchedByTemplateLiteralType,
+  isMemberOfStringMapping,
   MappedTypeModifiers,
 } from './checker-type-operators.js';
 import {
@@ -1798,9 +1803,18 @@ export class Relater extends TypeComparer {
             : Ternary.True;
         instantiateType(c, source, c.reportUnreliableMapper);
       }
-      if (isTypeMatchedByTemplateLiteralType(c, source, target as TemplateLiteralType)) return Ternary.True;
+      if (
+        isTypeMatchedByTemplateLiteralType(
+          c,
+          source,
+          target as TemplateLiteralType,
+          (s, t) => this.isRelatedTo(s, t, RecursionFlags.Both, false) !== Ternary.False,
+        )
+      )
+        return Ternary.True;
     } else if ((target.flags & TypeFlags.StringMapping) !== 0) {
-      // Membership in string mappings isn't modeled yet.
+      if ((source.flags & TypeFlags.StringMapping) === 0 && isMemberOfStringMapping(c, source, target))
+        return Ternary.True;
     } else if (isGenericMappedType(c, target) && this.relation !== c.identityRelation) {
       const r = this.relateToGenericMappedType(source, target as MappedType, reportErrors);
       if (r !== Ternary.False) return r;
@@ -2593,6 +2607,24 @@ export class Relater extends TypeComparer {
     requireOptionalProperties: boolean,
   ): void {
     const c = this.c;
+    // A private name of the same description in the source class is a different member.
+    const declarationName =
+      unmatchedProperty.valueDeclaration !== undefined ? getName(unmatchedProperty.valueDeclaration) : undefined;
+    if (
+      declarationName !== undefined &&
+      declarationName.kind === SyntaxKind.PrivateIdentifier &&
+      source.symbol !== undefined &&
+      (source.symbol.flags & SymbolFlags.Class) !== 0
+    ) {
+      const description = getText(declarationName);
+      if (getPropertyOfType(c, source, getSymbolNameForPrivateIdentifier(source.symbol, description)) !== undefined) {
+        this.reportError(
+          Diagnostics.Property_0_in_type_1_refers_to_a_different_member_that_cannot_be_accessed_from_within_type_2,
+          [description, symbolToString(c, source.symbol), symbolToString(c, target.symbol!)],
+        );
+        return;
+      }
+    }
     const props = getUnmatchedProperties(c, source, target, requireOptionalProperties);
     if (props.length === 1) {
       const names = getTypeNamesForErrorDisplay(c, source, target);
@@ -2998,8 +3030,10 @@ export class Relater extends TypeComparer {
     headMessage: DiagnosticMessage | undefined,
   ): void {
     const c = this.c;
-    if (originalSource.alias !== undefined) source = originalSource;
-    if (originalTarget.alias !== undefined) target = originalTarget;
+    if (originalSource.alias !== undefined || getSingleBaseForNonAugmentingSubtype(c, originalSource) !== undefined)
+      source = originalSource;
+    if (originalTarget.alias !== undefined || getSingleBaseForNonAugmentingSubtype(c, originalTarget) !== undefined)
+      target = originalTarget;
     if ((source.flags & TypeFlags.Object) !== 0 && (target.flags & TypeFlags.Object) !== 0)
       this.tryElaborateArrayLikeErrors(source, target, true);
     if ((source.flags & TypeFlags.Object) !== 0 && (target.flags & TypeFlags.Primitive) !== 0)
@@ -3207,7 +3241,7 @@ export function getNormalizedType(c: Checker, t: Type, writing: boolean): Type {
       n =
         (t as TypeReference).node !== undefined
           ? createTypeReference(c, (t as TypeReference).target!, getTypeArguments(c, t))
-          : t;
+          : (getSingleBaseForNonAugmentingSubtype(c, t) ?? t);
     else if ((t.flags & TypeFlags.UnionOrIntersection) !== 0) n = getNormalizedUnionOrIntersectionType(c, t, writing);
     else if ((t.flags & TypeFlags.Substitution) !== 0)
       n = writing ? (t as SubstitutionType).baseType : getSubstitutionIntersection(c, t);
@@ -3216,6 +3250,45 @@ export function getNormalizedType(c: Checker, t: Type, writing: boolean): Type {
     if (n === t) return n;
     t = n;
   }
+}
+
+/** The one base of a class or interface reference that declares no members of its own, which it relates as. */
+export function getSingleBaseForNonAugmentingSubtype(c: Checker, t: Type): Type | undefined {
+  if ((t.objectFlags & ObjectFlags.Reference) === 0 || (t.flags & TypeFlags.Object) === 0) return undefined;
+  const reference = t as TypeReference;
+  if ((reference.target!.objectFlags & ObjectFlags.ClassOrInterface) === 0) return undefined;
+  const target = reference.target as InterfaceType;
+  const key = 'equivalentBaseType' + t.id;
+  if ((t.objectFlags & ObjectFlags.IdenticalBaseTypeCalculated) !== 0) return c.cachedTypes.get(key);
+  t.objectFlags |= ObjectFlags.IdenticalBaseTypeCalculated;
+  if ((target.objectFlags & ObjectFlags.Class) !== 0) {
+    // Only base types named by simple qualified names; others may refer back to the class.
+    const declaration = target.symbol?.valueDeclaration;
+    const baseTypeNode = declaration !== undefined ? getExtendsHeritageClauseElement(declaration) : undefined;
+    if (baseTypeNode !== undefined) {
+      const expression = getExpression(baseTypeNode)!;
+      if (expression.kind !== SyntaxKind.Identifier && expression.kind !== SyntaxKind.PropertyAccessExpression)
+        return undefined;
+    }
+  }
+  const bases = getBaseTypes(c, target);
+  if (bases.length !== 1) return undefined;
+  // Members of its own may subtype members of the base, which needs a structural comparison.
+  if (t.symbol !== undefined && getMembersOfSymbol(c, t.symbol).size !== 0) return undefined;
+  const typeParameters = target.typeParameters();
+  const typeArguments = getTypeArguments(c, t);
+  let instantiatedBase =
+    typeParameters.length === 0
+      ? bases[0]
+      : instantiateType(
+          c,
+          bases[0],
+          newTypeMapper(typeParameters.slice(), typeArguments.slice(0, typeParameters.length)),
+        );
+  if (typeArguments.length > typeParameters.length)
+    instantiatedBase = getTypeWithThisArgument(c, instantiatedBase, typeArguments[typeArguments.length - 1], false);
+  c.cachedTypes.set(key, instantiatedBase);
+  return instantiatedBase;
 }
 
 function getNormalizedUnionOrIntersectionType(c: Checker, t: Type, writing: boolean): Type {
@@ -3618,13 +3691,31 @@ export function typeHasCallOrConstructSignatures(c: Checker, t: Type): boolean {
 
 /** Both names of the pair, fully qualified when they print the same. */
 export function getTypeNamesForErrorDisplay(c: Checker, left: Type, right: Type): [string, string] {
-  let leftStr = typeToString(c, left);
-  let rightStr = typeToString(c, right);
+  // The type of an expression that isn't context sensitive prints as written there.
+  let leftStr = typeToString(c, left, contextFreeExpressionDeclaration(c, left));
+  let rightStr = typeToString(c, right, contextFreeExpressionDeclaration(c, right));
   if (leftStr === rightStr) {
     leftStr = typeToString(c, left, undefined, 1 << 6);
     rightStr = typeToString(c, right, undefined, 1 << 6);
   }
   return [leftStr, rightStr];
+}
+
+function contextFreeExpressionDeclaration(c: Checker, t: Type): Node | undefined {
+  const declaration = t.symbol?.valueDeclaration;
+  if (declaration === undefined) return undefined;
+  switch (declaration.kind) {
+    case SyntaxKind.ArrowFunction:
+    case SyntaxKind.FunctionExpression:
+    case SyntaxKind.ClassExpression:
+    case SyntaxKind.ObjectLiteralExpression:
+    case SyntaxKind.BinaryExpression:
+    case SyntaxKind.PropertyAccessExpression:
+    case SyntaxKind.ElementAccessExpression:
+    case SyntaxKind.CallExpression:
+      return isContextSensitive(c, declaration) ? undefined : declaration;
+  }
+  return undefined;
 }
 
 function typeCouldHaveTopLevelSingletonTypes(c: Checker, t: Type): boolean {
