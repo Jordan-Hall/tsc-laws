@@ -22,7 +22,7 @@ import {
   isEntityNameExpression,
   skipParentheses,
 } from './binder-utilities.js';
-import { type DiagnosticMessage, Diagnostics } from './diagnostics.js';
+import { type Diagnostic, type DiagnosticMessage, Diagnostics } from './diagnostics.js';
 import { isAssignmentOperator, isInJSFile } from './ast-utilities.js';
 import { ScriptTarget } from './options.js';
 import { tokenToString } from './scanner.js';
@@ -64,7 +64,7 @@ import {
 import { isTypeAssignableToKindEx } from './checker-type-operators.js';
 import { typeToString } from './type-printer.js';
 import { getPropertyNameFromType, isTypeUsableAsPropertyName, maybeTypeOfKind } from './checker-utilities.js';
-import { getAwaitedTypeNoAlias, getPromisedTypeOfPromise } from './checker-functions.js';
+import { getAwaitedTypeNoAlias, getAwaitedTypeOfPromise } from './checker-iteration.js';
 import {
   checkExpression,
   checkExpressionCached,
@@ -213,7 +213,7 @@ function isTypeAssignableToKind(c: Checker, t: Type, kind: TypeFlags): boolean {
   return isTypeAssignableToKindEx(c, t, kind, false);
 }
 
-function allTypesAssignableToKind(c: Checker, t: Type, kind: TypeFlags): boolean {
+export function allTypesAssignableToKind(c: Checker, t: Type, kind: TypeFlags): boolean {
   if ((t.flags & TypeFlags.Union) !== 0) {
     for (const u of typesOf(t)) if (!allTypesAssignableToKind(c, u, kind)) return false;
     return true;
@@ -229,23 +229,18 @@ function isTypeAny(t: Type): boolean {
   return (t.flags & TypeFlags.Any) !== 0;
 }
 
-/** The type a promise-like resolves to, or undefined for other types. */
-function getAwaitedTypeOfPromise(c: Checker, t: Type): Type | undefined {
-  const promised = getPromisedTypeOfPromise(c, t);
-  return promised !== undefined ? getAwaitedTypeNoAlias(c, promised) : undefined;
-}
-
-function errorAndMaybeSuggestAwait(
+export function errorAndMaybeSuggestAwait(
   c: Checker,
   location: Node,
   maybeMissingAwait: boolean,
   message: DiagnosticMessage,
   args: string[],
-): void {
+): Diagnostic {
   const diagnostic = createDiagnosticForNode(location, message, args);
   if (maybeMissingAwait)
     diagnostic.addRelatedInfo(createDiagnosticForNode(location, Diagnostics.Did_you_forget_to_use_await, []));
   c.addDiagnostic(diagnostic);
+  return diagnostic;
 }
 
 function checkArithmeticOperandType(
@@ -693,7 +688,10 @@ function reportOperatorError(
     const awaitedLeft = getAwaitedTypeNoAlias(c, leftType);
     const awaitedRight = getAwaitedTypeNoAlias(c, rightType);
     wouldWorkWithAwait =
-      !(awaitedLeft === leftType && awaitedRight === rightType) && isRelated(c, check, awaitedLeft, awaitedRight);
+      !(awaitedLeft === leftType && awaitedRight === rightType) &&
+      awaitedLeft !== undefined &&
+      awaitedRight !== undefined &&
+      isRelated(c, check, awaitedLeft, awaitedRight);
     if (!wouldWorkWithAwait) {
       // Literal operands display as their base types when those are unrelated too.
       const leftBase = getBaseTypeOfLiteralType(c, leftType);

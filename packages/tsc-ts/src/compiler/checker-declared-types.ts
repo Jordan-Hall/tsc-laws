@@ -333,6 +333,9 @@ export function getDeclaredTypeOfTypeAlias(c: Checker, symbol: Symbol): Type {
       links.instantiations = new Map<string, Type>();
       links.instantiations.set(typeListKey(typeParameters), type);
     }
+    // `BuiltinIteratorReturn` is `undefined` with `strictBuiltinIteratorReturn`, else `any`.
+    if (type === c.intrinsicMarkerType && symbol.name === 'BuiltinIteratorReturn')
+      type = c.strictBuiltinIteratorReturn ? c.undefinedType : c.anyType;
   } else {
     const errorNode = declaration !== undefined ? (getName(declaration) ?? declaration) : undefined;
     c.error(errorNode, Diagnostics.Type_alias_0_circularly_references_itself, symbolToString(c, symbol));

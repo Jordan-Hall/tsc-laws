@@ -39,6 +39,9 @@ import {
   createAnonymousType,
   createArrayType,
   createTupleTypeEx,
+  getElementTypes,
+  getTypeReferenceArity,
+  tupleTargetOf,
   everyType,
   filterType,
   getNumberLiteralType,
@@ -86,9 +89,10 @@ import {
   checkExpressionEx,
   checkNonNullType,
   checkTypeAssignableToAndOptionallyElaborate,
-  getIteratedTypeOrElementType,
   getWidenedLiteralLikeTypeForContextualType,
 } from './checker-expressions.js';
+import { IterationUse, checkIteratedTypeOrElementType } from './checker-iteration.js';
+import { checkExpressionWithContextualType } from './checker-contextual.js';
 import { checkBinaryExpression, checkReferenceExpression, removeDefinitelyFalsyTypes } from './checker-operators.js';
 import { TypeFacts, getNonNullableType, getTypeWithFacts, hasTypeFacts } from './checker-flow.js';
 import { sliceTupleType } from './checker-signatures.js';
@@ -160,7 +164,14 @@ function getBindingElementTypeFromParentType(c: Checker, declaration: BindingEle
       );
     }
   } else {
-    const elementType = getIteratedTypeOrElementType(c, parentType);
+    // Used when the tuple element for the index is missing; also checks that the parent is iterable.
+    const elementType = checkIteratedTypeOrElementType(
+      c,
+      IterationUse.Destructuring | (declaration.dotDotDotToken !== undefined ? 0 : IterationUse.PossiblyOutOfBounds),
+      parentType,
+      c.undefinedType,
+      pattern,
+    );
     const index = getElements(pattern)!.nodes.indexOf(declaration);
     if (declaration.dotDotDotToken !== undefined) {
       // A rest element of a tuple gets the remaining elements; of an array, the same array type.
@@ -230,9 +241,14 @@ export function getTypeFromBindingPattern(
   includePatternInType: boolean,
   reportErrors: boolean,
 ): Type {
-  return pattern.kind === SyntaxKind.ObjectBindingPattern
-    ? getTypeFromObjectBindingPattern(c, pattern, includePatternInType, reportErrors)
-    : getTypeFromArrayBindingPattern(c, pattern, includePatternInType, reportErrors);
+  // References to the pattern's own elements in its initializers are `any` while its type is a contextual type.
+  if (includePatternInType) c.contextualBindingPatterns.push(pattern);
+  const result =
+    pattern.kind === SyntaxKind.ObjectBindingPattern
+      ? getTypeFromObjectBindingPattern(c, pattern, includePatternInType, reportErrors)
+      : getTypeFromArrayBindingPattern(c, pattern, includePatternInType, reportErrors);
+  if (includePatternInType) c.contextualBindingPatterns.pop();
+  return result;
 }
 
 function getTypeFromObjectBindingPattern(
@@ -311,13 +327,46 @@ function getTypeFromBindingElement(
   reportErrors: boolean,
 ): Type {
   if (element.initializer !== undefined) {
-    const t = checkDeclarationInitializer(c, element);
+    // The implied type doesn't depend on context: the initializer is checked without a contextual
+    // type, or with the type implied by the element's own pattern.
+    const contextualType = isBindingPatternNode(element.name)
+      ? getTypeFromBindingPattern(c, element.name!, true, false)
+      : c.unknownType;
+    const t = checkExpressionWithContextualType(c, element.initializer, contextualType, undefined, CheckMode.Normal);
     return getWidenedType(c, getWidenedLiteralLikeTypeForContextualType(c, t, undefined));
   }
   if (isBindingPatternNode(element.name))
     return getTypeFromBindingPattern(c, element.name!, includePatternInType, reportErrors);
   if (reportErrors && c.noImplicitAny) reportImplicitAny(c, element, c.anyType);
   return includePatternInType ? c.nonInferrableAnyType : c.anyType;
+}
+
+/**
+ * A parameter's tuple initializer type, padded with optional elements for the pattern's elements
+ * past its end, so `([x, y] = [1])` gets `[number, any?]`.
+ */
+export function padTupleType(c: Checker, t: Type, pattern: Node): Type {
+  const patternElements = getElements(pattern)!.nodes;
+  const target = tupleTargetOf(t);
+  const arity = getTypeReferenceArity(t);
+  if ((target.combinedFlags & ElementFlags.Variable) !== 0 || arity >= patternElements.length) return t;
+  const elementTypes = getElementTypes(c, t).slice();
+  const elementInfos = target.elementInfos.slice();
+  for (let i = arity; i < patternElements.length; i++) {
+    const e = patternElements[i];
+    if (
+      i < patternElements.length - 1 ||
+      !(e.kind === SyntaxKind.BindingElement && (e as BindingElement).dotDotDotToken !== undefined)
+    ) {
+      const omitted = e.kind === SyntaxKind.OmittedExpression;
+      elementTypes.push(
+        !omitted && hasDefaultValue(e) ? getTypeFromBindingElement(c, e as BindingElement, false, false) : c.anyType,
+      );
+      elementInfos.push(new TupleElementInfo(ElementFlags.Optional, undefined));
+      if (!omitted && !hasDefaultValue(e)) reportImplicitAny(c, e, c.anyType);
+    }
+  }
+  return createTupleTypeEx(c, elementTypes, elementInfos, target.readonly);
 }
 
 // ---- Destructuring assignments
@@ -426,9 +475,24 @@ function checkObjectLiteralDestructuringPropertyAssignment(
 
 function checkArrayLiteralAssignment(c: Checker, node: Node, sourceType: Type, checkMode: CheckMode): Type {
   const elements = getElements(node)!.nodes;
-  const elementType = getIteratedTypeOrElementType(c, sourceType);
-  for (let i = 0; i < elements.length; i++)
-    checkArrayLiteralDestructuringElementAssignment(c, elements, sourceType, i, elementType, checkMode);
+  // Used when the tuple element for an index is missing; also checks that the source is iterable.
+  const possiblyOutOfBoundsType = checkIteratedTypeOrElementType(
+    c,
+    IterationUse.Destructuring | IterationUse.PossiblyOutOfBounds,
+    sourceType,
+    c.undefinedType,
+    node,
+  );
+  let inBoundsType = c.compilerOptions.noUncheckedIndexedAccess === true ? undefined : possiblyOutOfBoundsType;
+  for (let i = 0; i < elements.length; i++) {
+    let t = possiblyOutOfBoundsType;
+    if (elements[i].kind === SyntaxKind.SpreadElement) {
+      if (inBoundsType === undefined)
+        inBoundsType = checkIteratedTypeOrElementType(c, IterationUse.Destructuring, sourceType, c.undefinedType, node);
+      t = inBoundsType;
+    }
+    checkArrayLiteralDestructuringElementAssignment(c, elements, sourceType, i, t, checkMode);
+  }
   return sourceType;
 }
 

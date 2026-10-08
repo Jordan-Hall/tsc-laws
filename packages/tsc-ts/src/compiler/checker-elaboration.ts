@@ -37,7 +37,7 @@ import { type Relation, checkTypeRelatedTo, getBestMatchingTypeForElaboration, i
 import { checkExpressionEx, checkExpressionForMutableLocationEx, isConstTypeReference } from './checker-expressions.js';
 import { popContextualType, pushContextualType } from './checker-contextual.js';
 import { getSymbolOfDeclaration } from './checker-symbols.js';
-import { createPromiseType } from './checker-globals.js';
+import { createPromiseType } from './checker-iteration.js';
 import { FunctionFlags, getFunctionFlags } from './checker-utilities.js';
 import { typeToString } from './type-printer.js';
 import { CheckMode } from './checker-types.js';

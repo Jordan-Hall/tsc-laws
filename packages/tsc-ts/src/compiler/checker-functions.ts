@@ -1,50 +1,75 @@
-// Functions: function expressions and arrows, bodies, inferred return types, `await`.
+// Functions: function expressions and arrows, bodies, inferred return types, generators, `await`.
 import { isJsxAttributesContextSensitive } from './checker-jsx.js';
 import {
   type Block,
   type ConditionalExpression,
   type BinaryExpression,
+  type ForStatement,
   type Node,
   NodeVisitor,
   NodeFlags,
   type ReturnStatement,
+  type YieldExpression,
   getBody,
+  getEndFlowNode,
   getExpression,
   getInitializer,
   getParameters,
   getProperties,
   getElements,
   getStatements,
+  getSymbol,
   getType,
   getTypeParameters,
   ModifierFlags,
   getName,
 } from './ast.js';
-import { hasSyntacticModifier, isFunctionExpressionOrArrowFunction } from './binder-utilities.js';
+import {
+  isFunctionExpressionOrArrowFunction,
+  isObjectLiteralMethod,
+  hasSyntacticModifier,
+  isTypeNodeKind,
+  skipParentheses,
+} from './binder-utilities.js';
 import { Diagnostics } from './diagnostics.js';
 import { SyntaxKind } from './syntax-kind.js';
-import type { Checker } from './checker.js';
-import { type Type, TypeFlags, type TypeReference, NodeCheckFlags } from './checker-types.js';
+import { type Checker, createDiagnosticForNode } from './checker.js';
+import { type Type, TypeFlags, NodeCheckFlags } from './checker-types.js';
 import {
+  filterType,
+  getIntersectionType,
+  getRegularTypeOfLiteralType,
   getUnionTypeEx,
   isErrorType,
+  isUnitType,
+  someType,
   UnionReduction,
-  getTypeArguments,
-  typesOf,
-  mapType,
 } from './checker-type-factory.js';
 import { getTypeOfSymbol, getWidenedType, reportImplicitAny } from './checker-symbol-types.js';
 import { getMergedSymbol, getSymbolOfDeclaration } from './checker-symbols.js';
-import { getReturnTypeOfSignature, getSignatureFromDeclaration } from './checker-signatures.js';
-import { getGlobalPromiseLikeType, getGlobalPromiseType, createPromiseType } from './checker-globals.js';
-import { checkExpressionCached, getWidenedLiteralLikeTypeForContextualType } from './checker-expressions.js';
-import { hasContextSensitiveParameters } from './checker-contextual.js';
+import {
+  getReturnTypeFromAnnotation,
+  getReturnTypeOfSignature,
+  getSignatureFromDeclaration,
+} from './checker-signatures.js';
+import {
+  checkExpression,
+  checkExpressionCached,
+  getWidenedLiteralLikeTypeForContextualType,
+  isConstContext,
+} from './checker-expressions.js';
+import {
+  getContextualIterationType,
+  getContextualReturnType,
+  getContextualType,
+  hasContextSensitiveParameters,
+} from './checker-contextual.js';
 import { checkNodeDeferred, checkSourceElement, checkTypeNodeIfPresent } from './checker-source-file.js';
 import { checkTypeParameters, checkVariableLikeDeclaration } from './checker-declarations.js';
-import { getFunctionFlags, FunctionFlags } from './checker-utilities.js';
+import { getFunctionFlags, FunctionFlags, maybeTypeOfKind } from './checker-utilities.js';
 import { CheckMode, ObjectFlags, type Signature, SignatureFlags, SignatureKind } from './checker-types.js';
 import type { Symbol } from './symbol.js';
-import { createAnonymousType, getWidenedLiteralType, isUnitType, someType } from './checker-type-factory.js';
+import { createAnonymousType, getWidenedLiteralType } from './checker-type-factory.js';
 import { createSymbolWithType, getSignaturesOfType } from './checker-members.js';
 import {
   getEffectiveRestType,
@@ -66,11 +91,34 @@ import { type InferenceContext, InferencePriority, inferTypes } from './checker-
 import { couldContainTypeVariables, instantiateSignature } from './instantiation.js';
 import {
   ContextFlags,
-  getContextualReturnType,
   getContextualSignatureForFunctionLikeDeclaration,
   getInferenceContext,
   instantiateContextualType,
 } from './checker-contextual.js';
+import { isFunctionLike, nodeIsMissing } from './ast-utilities.js';
+import { isConstantReference, isReachableFlowNode } from './checker-narrowing.js';
+import {
+  IterationTypeKind,
+  IterationUse,
+  checkAwaitedType,
+  checkGeneratorInstantiationAssignabilityToReturnType,
+  checkIteratedTypeOrElementType,
+  createGeneratorType,
+  createPromiseReturnType,
+  createPromiseType,
+  getAwaitedTypeEx,
+  getAwaitedTypeNoAlias,
+  getGlobalPromiseTypeChecked,
+  getIterationTypeOfGeneratorFunctionReturnType,
+  getIterationTypeOfIterable,
+  getIterationTypesOfGeneratorFunctionReturnType,
+  getIterationTypesOfIterable,
+  getPromisedTypeOfPromise,
+  isReferenceToType,
+  unwrapAwaitedType,
+  unwrapReturnType,
+} from './checker-iteration.js';
+import { typeToString } from './type-printer.js';
 
 export function checkFunctionExpressionOrObjectLiteralMethod(c: Checker, node: Node, checkMode: CheckMode): Type {
   checkNodeDeferred(c, node);
@@ -282,6 +330,8 @@ export function checkFunctionLikeBody(c: Checker, node: Node): void {
   if (params !== undefined) for (const p of params.nodes) checkVariableLikeDeclaration(c, p);
   const returnTypeNode = getType(node);
   checkTypeNodeIfPresent(c, returnTypeNode);
+  const functionFlags = getFunctionFlags(node);
+  if (returnTypeNode !== undefined) checkSignatureReturnType(c, node, returnTypeNode, functionFlags);
   const body = getBody(node);
   if (
     returnTypeNode === undefined &&
@@ -291,82 +341,289 @@ export function checkFunctionLikeBody(c: Checker, node: Node): void {
   )
     reportImplicitAny(c, node, c.anyType);
   if (body === undefined) return;
+  const returnType = returnTypeNode !== undefined ? getReturnTypeFromAnnotation(c, node) : undefined;
+  // Errors only found while inferring the return type (such as of yielded values) need it resolved.
+  if (
+    returnTypeNode === undefined &&
+    (isFunctionExpressionOrArrowFunction(node) ||
+      isObjectLiteralMethod(node) ||
+      ((functionFlags & FunctionFlags.Generator) !== 0 && node.kind !== SyntaxKind.Constructor))
+  )
+    getReturnTypeOfSignature(c, getSignatureFromDeclaration(c, node));
   if (body.kind === SyntaxKind.Block) {
     for (const s of getStatements(body)!.nodes) checkSourceElement(c, s);
-    if (returnTypeNode !== undefined) checkAllCodePathsReturn(c, node, returnTypeNode, body as Block);
+    if (node.kind !== SyntaxKind.Constructor && node.kind !== SyntaxKind.SetAccessor)
+      checkAllCodePathsInNonVoidFunctionReturnOrThrow(c, node, returnType);
   } else {
+    // An async arrow function's awaited body is checked against the promised type.
     const exprType = checkExpressionCached(c, body);
-    if (returnTypeNode !== undefined) {
-      const flags = getFunctionFlags(node);
-      if ((flags & FunctionFlags.Generator) === 0) {
-        const returnType = getReturnTypeOfSignature(c, getSignatureFromDeclaration(c, node));
-        const target = (flags & FunctionFlags.Async) !== 0 ? getAwaitedTypeNoAlias(c, returnType) : returnType;
-        const source = (flags & FunctionFlags.Async) !== 0 ? getAwaitedTypeNoAlias(c, exprType) : exprType;
-        if (!isErrorType(c, target)) checkTypeAssignableToAndOptionallyElaborate(c, source, target, body, body);
-      }
-    }
+    if (returnType !== undefined)
+      checkReturnExpression(c, node, unwrapReturnType(c, returnType, functionFlags), body, body, exprType, false);
   }
 }
 
-function checkAllCodePathsReturn(c: Checker, func: Node, returnTypeNode: Node, body: Block): void {
-  if ((func.flags & NodeFlags.HasImplicitReturn) === 0 || (func.flags & NodeFlags.HasExplicitReturn) !== 0) return;
-  const flags = getFunctionFlags(func);
-  if ((flags & FunctionFlags.Generator) !== 0) return;
-  const declared = getReturnTypeOfSignature(c, getSignatureFromDeclaration(c, func));
-  const returnType = (flags & FunctionFlags.Async) !== 0 ? getAwaitedTypeNoAlias(c, declared) : declared;
-  if (
-    (returnType.flags & (TypeFlags.AnyOrUnknown | TypeFlags.Void | TypeFlags.Undefined | TypeFlags.Never)) !== 0 ||
-    isErrorType(c, returnType)
-  )
+/** Checks a generator's or async function's return type annotation. */
+function checkSignatureReturnType(c: Checker, node: Node, returnTypeNode: Node, functionFlags: FunctionFlags): void {
+  if ((functionFlags & (FunctionFlags.Invalid | FunctionFlags.Generator)) === FunctionFlags.Generator) {
+    const returnType = getTypeFromTypeNode(c, returnTypeNode);
+    if (returnType === c.voidType) c.error(returnTypeNode, Diagnostics.A_generator_cannot_have_a_void_type_annotation);
+    else checkGeneratorInstantiationAssignabilityToReturnType(c, returnType, functionFlags, returnTypeNode);
+  } else if ((functionFlags & FunctionFlags.AsyncGenerator) === FunctionFlags.Async)
+    checkAsyncFunctionReturnType(c, node, returnTypeNode);
+}
+
+/** Checks that an async function's return type is the global `Promise<T>` and can be awaited. */
+function checkAsyncFunctionReturnType(c: Checker, node: Node, returnTypeNode: Node): void {
+  const returnType = getTypeFromTypeNode(c, returnTypeNode);
+  if (isErrorType(c, returnType)) return;
+  const globalPromiseType = getGlobalPromiseTypeChecked(c);
+  if (globalPromiseType !== c.emptyGenericType && !isReferenceToType(returnType, globalPromiseType)) {
+    c.error(
+      returnTypeNode,
+      Diagnostics.The_return_type_of_an_async_function_or_method_must_be_the_global_Promise_T_type_Did_you_mean_to_write_Promise_0,
+      typeToString(c, getAwaitedTypeNoAlias(c, returnType) ?? c.voidType),
+    );
     return;
-  if ((returnType.flags & TypeFlags.Union) !== 0) {
-    for (const t of typesOf(returnType))
-      if ((t.flags & (TypeFlags.AnyOrUnknown | TypeFlags.Void | TypeFlags.Undefined)) !== 0) return;
   }
-  // Without reachability analysis, a trailing call may never return.
-  const statements = body.statements.nodes;
-  if (statements.length > 0) {
-    const last = statements[statements.length - 1];
-    if (
-      last.kind === SyntaxKind.ExpressionStatement ||
-      last.kind === SyntaxKind.SwitchStatement ||
-      last.kind === SyntaxKind.TryStatement
-    )
-      return;
-  }
-  c.error(
-    returnTypeNode,
-    Diagnostics.A_function_whose_declared_type_is_neither_undefined_void_nor_any_must_return_a_value,
+  checkAwaitedType(
+    c,
+    returnType,
+    false,
+    node,
+    Diagnostics.The_return_type_of_an_async_function_must_either_be_a_valid_promise_or_must_not_contain_a_callable_then_member,
   );
 }
 
-export function checkAwaitExpression(c: Checker, node: Node): Type {
-  const operandType = checkExpressionCached(c, getExpression(node)!);
-  return getAwaitedTypeNoAlias(c, operandType);
-}
-
-/** The type `await` produces: the promised type of promise-likes, recursively. */
-export function getAwaitedTypeNoAlias(c: Checker, t: Type): Type {
-  if ((t.flags & TypeFlags.AnyOrUnknown) !== 0) return t;
-  // Self-referencing promise types stop at the first repeat.
-  if (c.awaitedTypeStack.includes(t.id)) return t;
-  c.awaitedTypeStack.push(t.id);
-  let result = t;
-  if ((t.flags & TypeFlags.Union) !== 0) result = mapType(c, t, (u) => getAwaitedTypeNoAlias(c, u));
-  else {
-    const promised = getPromisedTypeOfPromise(c, t);
-    if (promised !== undefined) result = getAwaitedTypeNoAlias(c, promised);
+function checkAllCodePathsInNonVoidFunctionReturnOrThrow(c: Checker, func: Node, returnType: Type | undefined): void {
+  const functionFlags = getFunctionFlags(func);
+  const t = returnType !== undefined ? unwrapReturnType(c, returnType, functionFlags) : undefined;
+  // A return type that includes `void` or is `any` or `undefined` needs no return statements.
+  if (
+    t !== undefined &&
+    (maybeTypeOfKind(t, TypeFlags.Void) || (t.flags & (TypeFlags.Any | TypeFlags.Undefined)) !== 0)
+  )
+    return;
+  // Signatures, expression bodies and bodies that end in a return or throw have nothing to check.
+  const body = getBody(func);
+  if (
+    func.kind === SyntaxKind.MethodSignature ||
+    body === undefined ||
+    nodeIsMissing(body) ||
+    body.kind !== SyntaxKind.Block ||
+    !functionHasImplicitReturn(c, func)
+  )
+    return;
+  const hasExplicitReturn = (func.flags & NodeFlags.HasExplicitReturn) !== 0;
+  const errorNode = getType(func) ?? func;
+  if (t !== undefined && (t.flags & TypeFlags.Never) !== 0)
+    c.error(errorNode, Diagnostics.A_function_returning_never_cannot_have_a_reachable_end_point);
+  else if (t !== undefined && !hasExplicitReturn)
+    c.error(
+      errorNode,
+      Diagnostics.A_function_whose_declared_type_is_neither_undefined_void_nor_any_must_return_a_value,
+    );
+  else if (t !== undefined && c.strictNullChecks && !isTypeAssignableTo(c, c.undefinedType, t))
+    c.error(errorNode, Diagnostics.Function_lacks_ending_return_statement_and_return_type_does_not_include_undefined);
+  else if (c.compilerOptions.noImplicitReturns === true) {
+    if (t === undefined) {
+      // Without an annotation, only functions that return values other than void or any are checked.
+      if (!hasExplicitReturn) return;
+      const inferredReturnType = getReturnTypeOfSignature(c, getSignatureFromDeclaration(c, func));
+      if (isUnwrappedReturnTypeUndefinedVoidOrAny(c, func, inferredReturnType)) return;
+    }
+    c.error(errorNode, Diagnostics.Not_all_code_paths_return_a_value);
   }
-  c.awaitedTypeStack.pop();
-  return result;
 }
 
-export function getPromisedTypeOfPromise(c: Checker, t: Type): Type | undefined {
-  if ((t.flags & TypeFlags.Object) === 0) return undefined;
-  const target = (t as TypeReference).target;
-  if (target !== undefined && (target === getGlobalPromiseType(c) || target === getGlobalPromiseLikeType(c)))
-    return getTypeArguments(c, t)[0];
-  return undefined;
+export function isUnwrappedReturnTypeUndefinedVoidOrAny(c: Checker, func: Node, returnType: Type): boolean {
+  const t = unwrapReturnType(c, returnType, getFunctionFlags(func));
+  return maybeTypeOfKind(t, TypeFlags.Void) || (t.flags & (TypeFlags.Any | TypeFlags.Undefined)) !== 0;
+}
+
+function functionHasImplicitReturn(c: Checker, func: Node): boolean {
+  const endFlowNode = getEndFlowNode(func);
+  return endFlowNode !== undefined && isReachableFlowNode(c, endFlowNode);
+}
+
+/**
+ * Checks a returned expression against the unwrapped return type; `node` is the return statement,
+ * or the expression body of an arrow function. Conditional expressions are checked by branch.
+ */
+export function checkReturnExpression(
+  c: Checker,
+  container: Node,
+  unwrappedReturnType: Type,
+  node: Node,
+  expr: Node | undefined,
+  exprType: Type,
+  inConditionalExpression: boolean,
+): void {
+  const functionFlags = getFunctionFlags(container);
+  if (expr !== undefined) {
+    const unwrappedExpr = skipParentheses(expr);
+    if (unwrappedExpr.kind === SyntaxKind.ConditionalExpression) {
+      const conditional = unwrappedExpr as ConditionalExpression;
+      const whenTrue = conditional.whenTrue;
+      const whenFalse = conditional.whenFalse;
+      checkReturnExpression(c, container, unwrappedReturnType, node, whenTrue, checkExpression(c, whenTrue), true);
+      checkReturnExpression(c, container, unwrappedReturnType, node, whenFalse, checkExpression(c, whenFalse), true);
+      return;
+    }
+  }
+  const inReturnStatement = node.kind === SyntaxKind.ReturnStatement;
+  const unwrappedExprType =
+    (functionFlags & FunctionFlags.Async) !== 0
+      ? checkAwaitedType(
+          c,
+          exprType,
+          false,
+          node,
+          Diagnostics.The_return_type_of_an_async_function_must_either_be_a_valid_promise_or_must_not_contain_a_callable_then_member,
+        )
+      : exprType;
+  const effectiveExpr = expr !== undefined ? getEffectiveCheckNode(expr) : undefined;
+  const errorNode = inReturnStatement && !inConditionalExpression ? node : (effectiveExpr ?? node);
+  checkTypeAssignableToAndOptionallyElaborate(c, unwrappedExprType, unwrappedReturnType, errorNode, effectiveExpr);
+}
+
+/** `node` without parentheses and `satisfies`. */
+function getEffectiveCheckNode(node: Node): Node {
+  let current = node;
+  while (current.kind === SyntaxKind.ParenthesizedExpression || current.kind === SyntaxKind.SatisfiesExpression)
+    current = getExpression(current)!;
+  return current;
+}
+
+export function checkAwaitExpression(c: Checker, node: Node): Type {
+  const operandType = checkExpression(c, getExpression(node)!);
+  const awaitedType = checkAwaitedType(
+    c,
+    operandType,
+    true,
+    node,
+    Diagnostics.Type_of_await_operand_must_either_be_a_valid_promise_or_must_not_contain_a_callable_then_member,
+  );
+  if (awaitedType === operandType && !isErrorType(c, awaitedType) && (operandType.flags & TypeFlags.AnyOrUnknown) === 0)
+    c.addSuggestion(
+      createDiagnosticForNode(node, Diagnostics.X_await_has_no_effect_on_the_type_of_this_expression, []),
+    );
+  return awaitedType;
+}
+
+// ---- Generators
+
+export function checkYieldExpression(c: Checker, node: Node): Type {
+  const yieldExpr = node as YieldExpression;
+  const func = getContainingFunctionLike(node);
+  if (func === undefined) return c.anyType;
+  const functionFlags = getFunctionFlags(func);
+  // Outside a generator `yield` is a syntax error.
+  if ((functionFlags & FunctionFlags.Generator) === 0) return c.anyType;
+  const isAsync = (functionFlags & FunctionFlags.Async) !== 0;
+  // Without an annotation the return type is computed from the yields, so there's nothing to check.
+  let returnType = getReturnTypeFromAnnotation(c, func);
+  if (returnType !== undefined && (returnType.flags & TypeFlags.Union) !== 0)
+    returnType = filterType(c, returnType, (t) =>
+      checkGeneratorInstantiationAssignabilityToReturnType(c, t, functionFlags, undefined),
+    );
+  const iterationTypes =
+    returnType !== undefined ? getIterationTypesOfGeneratorFunctionReturnType(c, returnType, isAsync) : undefined;
+  const signatureYieldType = iterationTypes?.yieldType ?? c.anyType;
+  const signatureNextType = iterationTypes?.nextType ?? c.anyType;
+  const operand = yieldExpr.expression;
+  const yieldExpressionType = operand !== undefined ? checkExpression(c, operand) : c.undefinedWideningType;
+  const yieldedType = getYieldedTypeOfYieldExpression(c, yieldExpr, yieldExpressionType, signatureNextType, isAsync);
+  if (returnType !== undefined && yieldedType !== undefined)
+    checkTypeAssignableToAndOptionallyElaborate(c, yieldedType, signatureYieldType, operand ?? node, operand);
+  if (yieldExpr.asteriskToken !== undefined)
+    return (
+      getIterationTypeOfIterable(
+        c,
+        isAsync ? IterationUse.AsyncYieldStar : IterationUse.YieldStar,
+        IterationTypeKind.Return,
+        yieldExpressionType,
+        operand,
+      ) ?? c.anyType
+    );
+  if (returnType !== undefined)
+    return getIterationTypeOfGeneratorFunctionReturnType(c, IterationTypeKind.Next, returnType, isAsync) ?? c.anyType;
+  const t = getContextualIterationType(c, IterationTypeKind.Next, func);
+  if (t !== undefined) return t;
+  if (c.noImplicitAny && !expressionResultIsUnused(node)) {
+    const contextualType = getContextualType(c, node);
+    if (contextualType === undefined || (contextualType.flags & TypeFlags.Any) !== 0)
+      c.error(
+        node,
+        Diagnostics.X_yield_expression_implicitly_results_in_an_any_type_because_its_containing_generator_lacks_a_return_type_annotation,
+      );
+  }
+  return c.anyType;
+}
+
+/** What a `yield` yields: its operand, or what a `yield*` operand iterates, awaited in async generators. */
+function getYieldedTypeOfYieldExpression(
+  c: Checker,
+  node: YieldExpression,
+  expressionType: Type,
+  sentType: Type,
+  isAsync: boolean,
+): Type | undefined {
+  let errorNode: Node = node;
+  if (node.expression !== undefined) errorNode = node.expression;
+  const isYieldStar = node.asteriskToken !== undefined;
+  const yieldedType = isYieldStar
+    ? checkIteratedTypeOrElementType(
+        c,
+        isAsync ? IterationUse.AsyncYieldStar : IterationUse.YieldStar,
+        expressionType,
+        sentType,
+        errorNode,
+      )
+    : expressionType;
+  if (!isAsync) return yieldedType;
+  return getAwaitedTypeEx(
+    c,
+    yieldedType,
+    errorNode,
+    isYieldStar
+      ? Diagnostics.Type_of_iterated_elements_of_a_yield_Asterisk_operand_must_either_be_a_valid_promise_or_must_not_contain_a_callable_then_member
+      : Diagnostics.Type_of_yield_operand_in_an_async_generator_must_either_be_a_valid_promise_or_must_not_contain_a_callable_then_member,
+  );
+}
+
+/** Whether the value of `node` is discarded: by an expression statement, `void`, a `for` header or a comma. */
+function expressionResultIsUnused(nodeIn: Node): boolean {
+  let node = nodeIn;
+  for (;;) {
+    const parent = node.parent!;
+    if (parent.kind === SyntaxKind.ParenthesizedExpression) {
+      node = parent;
+      continue;
+    }
+    if (
+      parent.kind === SyntaxKind.ExpressionStatement ||
+      parent.kind === SyntaxKind.VoidExpression ||
+      (parent.kind === SyntaxKind.ForStatement &&
+        ((parent as ForStatement).initializer === node || (parent as ForStatement).incrementor === node))
+    )
+      return true;
+    if (
+      parent.kind === SyntaxKind.BinaryExpression &&
+      (parent as BinaryExpression).operatorToken.kind === SyntaxKind.CommaToken
+    ) {
+      // The left side of a comma is unused; the right side is when the comma is.
+      if (node === (parent as BinaryExpression).left) return true;
+      node = parent;
+      continue;
+    }
+    return false;
+  }
+}
+
+function getContainingFunctionLike(node: Node): Node | undefined {
+  let current = node.parent;
+  while (current !== undefined && !isFunctionLike(current)) current = current.parent;
+  return current;
 }
 
 // ---- Context sensitivity
@@ -499,90 +756,266 @@ export function getReturnTypeFromBodyEx(c: Checker, func: Node, checkMode: Check
   checkMode &= ~CheckMode.SkipGenericFunctions;
   const body = getBody(func);
   if (body === undefined) return c.errorType;
-  const flags = getFunctionFlags(func);
-  if ((flags & FunctionFlags.Generator) !== 0) return c.anyType;
-  const isAsync = (flags & FunctionFlags.Async) !== 0;
-  let returnType: Type;
+  const functionFlags = getFunctionFlags(func);
+  const isAsync = (functionFlags & FunctionFlags.Async) !== 0;
+  const isGenerator = (functionFlags & FunctionFlags.Generator) !== 0;
+  let returnType: Type | undefined;
+  let yieldType: Type | undefined;
+  let nextType: Type | undefined;
+  let fallbackReturnType: Type = c.voidType;
   if (body.kind !== SyntaxKind.Block) {
     returnType = checkExpressionCachedEx(c, body, checkMode);
-    if (isAsync) returnType = getAwaitedTypeNoAlias(c, returnType);
+    if (isConstContext(body)) returnType = getRegularTypeOfLiteralType(c, returnType);
+    // An async body may return a promise or a value; its awaited type is wrapped in `Promise<T>` below.
+    if (isAsync)
+      returnType = unwrapAwaitedType(
+        c,
+        checkAwaitedType(
+          c,
+          returnType,
+          false,
+          func,
+          Diagnostics.The_return_type_of_an_async_function_must_either_be_a_valid_promise_or_must_not_contain_a_callable_then_member,
+        ),
+      );
+  } else if (isGenerator) {
+    const returnTypes = checkAndAggregateReturnExpressionTypes(c, func, checkMode);
+    if (returnTypes === undefined) fallbackReturnType = c.neverType;
+    else if (returnTypes.length !== 0)
+      returnType = getUnionTypeEx(c, returnTypes, UnionReduction.Subtype, undefined, undefined);
+    const yields = checkAndAggregateYieldOperandTypes(c, func, checkMode);
+    if (yields.yieldTypes.length !== 0)
+      yieldType = getUnionTypeEx(c, yields.yieldTypes, UnionReduction.Subtype, undefined, undefined);
+    if (yields.nextTypes.length !== 0) nextType = getIntersectionType(c, yields.nextTypes);
   } else {
-    const types: Type[] = [];
-    const collector = new ReturnCollector();
-    collector.visitStatements(body as Block);
-    let hasReturnWithNoExpression = (func.flags & NodeFlags.HasImplicitReturn) !== 0;
-    let hasReturnOfTypeNever = false;
-    for (const ret of collector.returns) {
-      const expr = ret.expression;
-      if (expr === undefined) {
-        hasReturnWithNoExpression = true;
-        continue;
-      }
-      // Bare recursive calls don't contribute to the inferred type.
-      if (isRecursiveCall(c, func, expr)) {
-        hasReturnOfTypeNever = true;
-        continue;
-      }
-      let t = checkExpressionCachedEx(c, expr, checkMode);
-      if (isAsync) t = getAwaitedTypeNoAlias(c, t);
-      if ((t.flags & TypeFlags.Never) !== 0) hasReturnOfTypeNever = true;
-      if (!types.includes(t)) types.push(t);
-    }
-    if (types.length === 0 && !hasReturnWithNoExpression && (hasReturnOfTypeNever || mayReturnNever(func)))
-      return isAsync ? createPromiseType(c, c.neverType) : c.neverType;
+    const types = checkAndAggregateReturnExpressionTypes(c, func, checkMode);
+    // An async function returns `Promise<never>`, not `never`.
+    if (types === undefined) return isAsync ? createPromiseReturnType(c, func, c.neverType) : c.neverType;
     if (types.length === 0) {
       // `undefined` rather than `void` when the contextual return type includes `undefined`.
-      let contextualReturnType = getContextualReturnType(c, func);
-      if (contextualReturnType !== undefined && isAsync)
-        contextualReturnType = getPromisedTypeOfPromise(c, contextualReturnType);
+      const contextualReturnType = getContextualReturnType(c, func);
       const t =
         contextualReturnType !== undefined &&
-        someType(contextualReturnType, (u) => (u.flags & TypeFlags.Undefined) !== 0)
+        someType(unwrapReturnType(c, contextualReturnType, functionFlags), (u) => (u.flags & TypeFlags.Undefined) !== 0)
           ? c.undefinedType
           : c.voidType;
-      return isAsync ? createPromiseType(c, t) : t;
+      return isAsync ? createPromiseReturnType(c, func, t) : t;
     }
-    if (hasReturnWithNoExpression && c.strictNullChecks && !types.includes(c.undefinedType))
-      types.push(c.undefinedType);
     returnType = getUnionTypeEx(c, types, UnionReduction.Subtype, undefined, undefined);
   }
-  if (isUnitType(returnType)) {
-    // A unit type keeps its literal type only when the contextual return type calls for it.
-    const contextualSignature = getContextualSignatureForFunctionLikeDeclaration(c, func);
-    let contextualType: Type | undefined = undefined;
-    if (contextualSignature !== undefined)
-      contextualType =
-        contextualSignature === getSignatureFromDeclaration(c, func)
-          ? returnType
-          : instantiateContextualType(c, getReturnTypeOfSignature(c, contextualSignature), func, ContextFlags.None);
-    if (contextualType !== undefined && isAsync) contextualType = getPromisedTypeOfPromise(c, contextualType);
-    returnType = getWidenedLiteralLikeTypeForContextualType(c, returnType, contextualType);
+  if (returnType !== undefined || yieldType !== undefined || nextType !== undefined) {
+    if (
+      (returnType !== undefined && isUnitType(returnType)) ||
+      (yieldType !== undefined && isUnitType(yieldType)) ||
+      (nextType !== undefined && isUnitType(nextType))
+    ) {
+      const contextualSignature = getContextualSignatureForFunctionLikeDeclaration(c, func);
+      let contextualType: Type | undefined;
+      if (contextualSignature === undefined) contextualType = undefined;
+      else if (contextualSignature === getSignatureFromDeclaration(c, func))
+        contextualType = isGenerator ? undefined : returnType;
+      else
+        contextualType = instantiateContextualType(
+          c,
+          getReturnTypeOfSignature(c, contextualSignature),
+          func,
+          ContextFlags.None,
+        );
+      if (isGenerator) {
+        yieldType = getWidenedLiteralLikeTypeForContextualIterationTypeIfNeeded(
+          c,
+          yieldType,
+          contextualType,
+          IterationTypeKind.Yield,
+          isAsync,
+        );
+        returnType = getWidenedLiteralLikeTypeForContextualIterationTypeIfNeeded(
+          c,
+          returnType,
+          contextualType,
+          IterationTypeKind.Return,
+          isAsync,
+        );
+        nextType = getWidenedLiteralLikeTypeForContextualIterationTypeIfNeeded(
+          c,
+          nextType,
+          contextualType,
+          IterationTypeKind.Next,
+          isAsync,
+        );
+      } else if (returnType !== undefined && isUnitType(returnType)) {
+        const contextualReturnType =
+          contextualType !== undefined && isAsync ? getPromisedTypeOfPromise(c, contextualType) : contextualType;
+        returnType = getWidenedLiteralLikeTypeForContextualType(c, returnType, contextualReturnType);
+      }
+    }
+    if (yieldType !== undefined) yieldType = getWidenedType(c, yieldType);
+    if (returnType !== undefined) returnType = getWidenedType(c, returnType);
+    if (nextType !== undefined) nextType = getWidenedType(c, nextType);
   }
-  const widened = getWidenedType(c, returnType);
-  return isAsync ? createPromiseType(c, widened) : widened;
+  if (isGenerator)
+    return createGeneratorType(
+      c,
+      yieldType ?? c.neverType,
+      returnType ?? fallbackReturnType,
+      nextType ?? getContextualIterationType(c, IterationTypeKind.Next, func) ?? c.unknownType,
+      isAsync,
+    );
+  // An async function's body returns its awaited type, wrapped in `Promise<T>`.
+  return isAsync ? createPromiseType(c, returnType ?? fallbackReturnType) : (returnType ?? fallbackReturnType);
 }
 
-/** Function expressions, arrows and object literal methods without reachable ends may return `never`. */
+function getWidenedLiteralLikeTypeForContextualIterationTypeIfNeeded(
+  c: Checker,
+  t: Type | undefined,
+  contextualSignatureReturnType: Type | undefined,
+  kind: IterationTypeKind,
+  isAsyncGenerator: boolean,
+): Type | undefined {
+  if (t === undefined || !isUnitType(t)) return t;
+  const contextualType =
+    contextualSignatureReturnType !== undefined
+      ? getIterationTypeOfGeneratorFunctionReturnType(c, kind, contextualSignatureReturnType, isAsyncGenerator)
+      : undefined;
+  return getWidenedLiteralLikeTypeForContextualType(c, t, contextualType);
+}
+
+/** The types of a body's returned expressions, or undefined for a function that never returns. */
+function checkAndAggregateReturnExpressionTypes(c: Checker, func: Node, checkMode: CheckMode): Type[] | undefined {
+  const isAsync = (getFunctionFlags(func) & FunctionFlags.Async) !== 0;
+  const aggregatedTypes: Type[] = [];
+  let hasReturnWithNoExpression = functionHasImplicitReturn(c, func);
+  let hasReturnOfTypeNever = false;
+  const collector = new ReturnCollector();
+  collector.visitStatements(getBody(func) as Block);
+  for (const ret of collector.returns) {
+    let expr = ret.expression;
+    if (expr === undefined) {
+      hasReturnWithNoExpression = true;
+      continue;
+    }
+    expr = skipParentheses(expr);
+    // `return await` unwraps in async functions, and bare calls of the function itself don't contribute.
+    if (isAsync && expr.kind === SyntaxKind.AwaitExpression) expr = skipParentheses(getExpression(expr)!);
+    if (isRecursiveCall(c, func, expr)) {
+      hasReturnOfTypeNever = true;
+      continue;
+    }
+    let t = checkExpressionCachedEx(c, expr, checkMode);
+    // An async function's returned promises are awaited; the caller wraps the result in `Promise<T>`.
+    if (isAsync)
+      t = unwrapAwaitedType(
+        c,
+        checkAwaitedType(
+          c,
+          t,
+          false,
+          func,
+          Diagnostics.The_return_type_of_an_async_function_must_either_be_a_valid_promise_or_must_not_contain_a_callable_then_member,
+        ),
+      );
+    if ((t.flags & TypeFlags.Never) !== 0) hasReturnOfTypeNever = true;
+    if (isConstContext(expr)) t = getRegularTypeOfLiteralType(c, t);
+    if (!aggregatedTypes.includes(t)) aggregatedTypes.push(t);
+  }
+  if (aggregatedTypes.length === 0 && !hasReturnWithNoExpression && (hasReturnOfTypeNever || mayReturnNever(func)))
+    return undefined;
+  if (
+    c.strictNullChecks &&
+    aggregatedTypes.length !== 0 &&
+    hasReturnWithNoExpression &&
+    !aggregatedTypes.includes(c.undefinedType)
+  )
+    aggregatedTypes.push(c.undefinedType);
+  return aggregatedTypes;
+}
+
+function isRecursiveCall(c: Checker, func: Node, expr: Node): boolean {
+  if (expr.kind !== SyntaxKind.CallExpression) return false;
+  const callee = getExpression(expr)!;
+  if (callee.kind !== SyntaxKind.Identifier) return false;
+  const symbol = getSymbol(func);
+  if (symbol === undefined || checkExpressionCached(c, callee).symbol !== getMergedSymbol(c, symbol)) return false;
+  const valueDeclaration = symbol.valueDeclaration;
+  return (
+    valueDeclaration === undefined ||
+    !isFunctionExpressionOrArrowFunction(valueDeclaration) ||
+    isConstantReference(c, callee)
+  );
+}
+
 function mayReturnNever(func: Node): boolean {
   switch (func.kind) {
     case SyntaxKind.FunctionExpression:
     case SyntaxKind.ArrowFunction:
       return true;
     case SyntaxKind.MethodDeclaration:
-      return func.parent !== undefined && func.parent.kind === SyntaxKind.ObjectLiteralExpression;
+      return func.parent!.kind === SyntaxKind.ObjectLiteralExpression;
   }
   return false;
 }
 
-/** Whether `expr` is a call of the declared function `func` by name. */
-function isRecursiveCall(c: Checker, func: Node, expr: Node): boolean {
-  let e = expr;
-  while (e.kind === SyntaxKind.ParenthesizedExpression) e = getExpression(e)!;
-  if (e.kind !== SyntaxKind.CallExpression) return false;
-  const callee = getExpression(e)!;
-  if (callee.kind !== SyntaxKind.Identifier || isFunctionExpressionOrArrowFunction(func)) return false;
-  const symbol = getSymbolOfDeclaration(c, func);
-  return symbol !== undefined && checkExpressionCached(c, callee).symbol === getMergedSymbol(c, symbol);
+class YieldOperandTypes {
+  readonly yieldTypes: Type[] = [];
+  readonly nextTypes: Type[] = [];
+}
+
+function checkAndAggregateYieldOperandTypes(c: Checker, func: Node, checkMode: CheckMode): YieldOperandTypes {
+  const isAsync = (getFunctionFlags(func) & FunctionFlags.Async) !== 0;
+  const result = new YieldOperandTypes();
+  const collector = new YieldCollector();
+  collector.visit(getBody(func)!);
+  for (const yieldExpr of collector.yields) {
+    const operand = yieldExpr.expression;
+    let yieldExprType = operand !== undefined ? checkExpressionEx(c, operand, checkMode) : c.undefinedWideningType;
+    if (operand !== undefined && isConstContext(operand)) yieldExprType = getRegularTypeOfLiteralType(c, yieldExprType);
+    const yieldedType = getYieldedTypeOfYieldExpression(c, yieldExpr, yieldExprType, c.anyType, isAsync);
+    if (yieldedType !== undefined && !result.yieldTypes.includes(yieldedType)) result.yieldTypes.push(yieldedType);
+    const nextType =
+      yieldExpr.asteriskToken !== undefined
+        ? getIterationTypesOfIterable(
+            c,
+            yieldExprType,
+            isAsync ? IterationUse.AsyncYieldStar : IterationUse.YieldStar,
+            operand,
+          ).nextType
+        : getContextualType(c, yieldExpr);
+    if (nextType !== undefined && !result.nextTypes.includes(nextType)) result.nextTypes.push(nextType);
+  }
+  return result;
+}
+
+/** Collects the `yield` expressions of a generator body, skipping nested functions. */
+class YieldCollector extends NodeVisitor {
+  readonly yields: YieldExpression[] = [];
+
+  visit(node: Node): void {
+    switch (node.kind) {
+      case SyntaxKind.YieldExpression: {
+        this.yields.push(node as YieldExpression);
+        const operand = (node as YieldExpression).expression;
+        if (operand !== undefined) this.visit(operand);
+        return;
+      }
+      case SyntaxKind.EnumDeclaration:
+      case SyntaxKind.InterfaceDeclaration:
+      case SyntaxKind.ModuleDeclaration:
+      case SyntaxKind.TypeAliasDeclaration:
+        return;
+    }
+    if (isFunctionLike(node)) {
+      // Nested functions are skipped, but not their computed names.
+      const name = getName(node);
+      if (name !== undefined && name.kind === SyntaxKind.ComputedPropertyName) this.visit(getExpression(name)!);
+      return;
+    }
+    if (!isTypeNodeKind(node.kind)) node.forEachChild(this);
+  }
+
+  visitNode(node: Node): boolean {
+    this.visit(node);
+    return false;
+  }
 }
 
 /** Collects the return statements of a function body, skipping nested functions and classes. */

@@ -49,7 +49,8 @@ import {
   type ObjectType,
   type TypeParameter,
 } from './checker-types.js';
-import { createPromiseType, getGlobalTemplateStringsArrayType } from './checker-globals.js';
+import { getGlobalTemplateStringsArrayType } from './checker-globals.js';
+import { createPromiseType } from './checker-iteration.js';
 import {
   UnionReduction,
   createArrayType,
@@ -107,12 +108,8 @@ import {
 } from './checker-symbol-types.js';
 import { type Relation, checkTypeRelatedTo, getRegularTypeOfObjectLiteral, isTypeAssignableTo } from './relations.js';
 import { getNonNullableType } from './checker-flow.js';
-import {
-  checkExpression,
-  checkExpressionCached,
-  checkNonNullType,
-  getIteratedTypeOrElementType,
-} from './checker-expressions.js';
+import { checkExpression, checkExpressionCached, checkNonNullType } from './checker-expressions.js';
+import { IterationUse, checkIteratedTypeOrElementType } from './checker-iteration.js';
 import { isContextSensitive } from './checker-functions.js';
 import {
   getBaseConstructorTypeOfClass,
@@ -190,7 +187,7 @@ export function checkCallExpression(c: Checker, node: Node, checkMode: CheckMode
   const call = node as CallExpression;
   const callee = call.expression;
   if (callee.kind === SyntaxKind.ImportKeyword) {
-    for (const arg of call.arguments.nodes) checkExpression(c, arg);
+    for (const arg of call.arguments.nodes) checkExpressionCached(c, arg);
     const specifier = call.arguments.nodes.length > 0 ? call.arguments.nodes[0] : undefined;
     if (
       specifier !== undefined &&
@@ -677,7 +674,12 @@ function getSpreadArgumentType(
           ? (arg as SyntheticExpression).type
           : checkExpressionWithContextualType(c, (arg as SpreadElement).expression, restType, context, checkMode);
       if (isArrayLikeType(c, spreadType)) return getMutableArrayOrTupleType(c, spreadType);
-      return createArrayTypeEx(c, getIteratedTypeOrElementType(c, spreadType), inConstContext);
+      const errorNode = arg.kind === SyntaxKind.SpreadElement ? (arg as SpreadElement).expression : arg;
+      return createArrayTypeEx(
+        c,
+        checkIteratedTypeOrElementType(c, IterationUse.Spread, spreadType, c.undefinedType, errorNode),
+        inConstContext,
+      );
     }
   }
   const types: Type[] = [];
@@ -693,7 +695,8 @@ function getSpreadArgumentType(
         types.push(spreadType);
         infos.push(new TupleElementInfo(ElementFlags.Variadic, undefined));
       } else {
-        types.push(getIteratedTypeOrElementType(c, spreadType));
+        const errorNode = arg.kind === SyntaxKind.SpreadElement ? (arg as SpreadElement).expression : arg;
+        types.push(checkIteratedTypeOrElementType(c, IterationUse.Spread, spreadType, c.undefinedType, errorNode));
         infos.push(new TupleElementInfo(ElementFlags.Rest, undefined));
       }
       continue;

@@ -67,7 +67,6 @@ import {
   getNumberLiteralType,
   getRegularTypeOfLiteralType,
   getStringLiteralType,
-  getUnionType,
   getUnionTypeEx,
   getWidenedLiteralType,
   isErrorType,
@@ -85,8 +84,6 @@ import {
 } from './checker-type-factory.js';
 import { ElementFlags, TupleElementInfo } from './checker-types.js';
 import {
-  getApparentType,
-  getApplicableIndexInfoForName,
   getBaseConstraintOfType,
   getPropertyOfType,
   getIndexInfoOfType,
@@ -115,7 +112,6 @@ import {
 import { getDeclaredTypeOfClassOrInterface } from './checker-declared-types.js';
 import { getTypeFromTypeNode } from './checker-type-nodes.js';
 import {
-  getIndexedAccessTypeEx,
   isGenericObjectType,
   getIndexedAccessTypeOrUndefinedEx,
   getHomomorphicTypeVariable,
@@ -141,8 +137,14 @@ import {
   instantiateTypeWithSingleGenericCallSignature,
   propagateOptionalTypeMarker,
 } from './checker-calls.js';
-import { checkFunctionExpressionOrObjectLiteralMethod, checkAwaitExpression } from './checker-functions.js';
+import {
+  checkAwaitExpression,
+  checkFunctionExpressionOrObjectLiteralMethod,
+  checkYieldExpression,
+} from './checker-functions.js';
+import { IterationUse, checkIteratedTypeOrElementType, getIteratedTypeOrElementType } from './checker-iteration.js';
 import { checkClassExpression } from './checker-classes.js';
+import { padTupleType } from './checker-destructuring.js';
 import { checkObjectLiteral } from './checker-object-literals.js';
 import { EvaluatedKind, evaluate } from './checker-evaluator.js';
 import {
@@ -227,7 +229,17 @@ export function checkExpressionForMutableLocationEx(c: Checker, node: Node, chec
 
 export function checkDeclarationInitializer(c: Checker, declaration: Node): Type {
   const initializer = getInitializer(declaration)!;
-  return checkExpressionCached(c, initializer);
+  const t = checkExpressionCached(c, initializer);
+  // A parameter's array pattern pads its tuple initializer with the elements it binds past the end.
+  const name = getName(declaration);
+  if (
+    name !== undefined &&
+    name.kind === SyntaxKind.ArrayBindingPattern &&
+    isTupleType(t) &&
+    getRootDeclaration(declaration).kind === SyntaxKind.Parameter
+  )
+    return padTupleType(c, t, name);
+  return t;
 }
 
 export function checkComputedPropertyName(c: Checker, node: Node): Type {
@@ -362,11 +374,8 @@ function checkExpressionWorker(c: Checker, node: Node, checkMode: CheckMode): Ty
       return checkSpreadExpression(c, node as SpreadElement, checkMode);
     case SyntaxKind.OmittedExpression:
       return c.undefinedWideningType;
-    case SyntaxKind.YieldExpression: {
-      const operand = getExpression(node);
-      if (operand !== undefined) checkExpression(c, operand);
-      return c.anyType;
-    }
+    case SyntaxKind.YieldExpression:
+      return checkYieldExpression(c, node);
     case SyntaxKind.SyntheticExpression:
       return c.anyType;
     case SyntaxKind.JsxExpression:
@@ -400,6 +409,14 @@ export function checkIdentifier(c: Checker, node: Identifier): Type {
   const localOrExportSymbol = getExportSymbolOfValueSymbolIfExported(c, symbol);
   let declaration = localOrExportSymbol.valueDeclaration;
   const immediateDeclaration = declaration;
+  // In `const [a, b = a + 1] = [2]`, `a` is `any` while computing the contextual type of `[2]`.
+  if (
+    declaration !== undefined &&
+    declaration.kind === SyntaxKind.BindingElement &&
+    c.contextualBindingPatterns.includes(declaration.parent!) &&
+    isDescendantOf(node, declaration.parent!)
+  )
+    return c.nonInferrableAnyType;
   let t = getNarrowableTypeForReference(c, getTypeOfSymbol(c, localOrExportSymbol), node);
   const assignmentKind = getAssignmentTargetKind(node);
   if (assignmentKind !== AssignmentKind.None) {
@@ -571,7 +588,13 @@ function containsUndefinedType(c: Checker, t: Type): boolean {
   return (u.flags & TypeFlags.Undefined) !== 0 && u !== c.missingType;
 }
 
-function isInAmbientOrTypeNode(node: Node): boolean {
+function isDescendantOf(node: Node, ancestor: Node): boolean {
+  for (let current: Node | undefined = node; current !== undefined; current = current.parent)
+    if (current === ancestor) return true;
+  return false;
+}
+
+export function isInAmbientOrTypeNode(node: Node): boolean {
   if ((node.flags & NodeFlags.Ambient) !== 0) return true;
   for (let current: Node | undefined = node; current !== undefined; current = current.parent) {
     if (
@@ -711,25 +734,8 @@ function isTemplateLiteralContextualType(c: Checker, t: Type): boolean {
 }
 
 function checkSpreadExpression(c: Checker, node: SpreadElement, checkMode: CheckMode): Type {
-  const arrayOrIterable = checkExpressionEx(c, node.expression, checkMode);
-  return getIteratedTypeOrElementType(c, arrayOrIterable);
-}
-
-/** The element type of an array, tuple or string; `any` for other iterables (not yet resolved). */
-export function getIteratedTypeOrElementType(c: Checker, t: Type): Type {
-  if ((t.flags & TypeFlags.Any) !== 0) return t;
-  if ((t.flags & TypeFlags.StringLike) !== 0) return c.stringType;
-  if ((t.flags & TypeFlags.Union) !== 0) {
-    const types: Type[] = [];
-    for (const u of typesOf(t)) types.push(getIteratedTypeOrElementType(c, u));
-    return getUnionType(c, types);
-  }
-  const indexInfo = getApplicableIndexInfoForName(c, getApparentType(c, t), '0');
-  if (isTupleType(t) || indexInfo !== undefined) {
-    const numberIndex = getIndexedAccessTypeEx(c, t, c.numberType, AccessFlags.None, undefined, undefined);
-    if (!isErrorType(c, numberIndex)) return numberIndex;
-  }
-  return c.anyType;
+  const arrayOrIterableType = checkExpressionEx(c, node.expression, checkMode);
+  return checkIteratedTypeOrElementType(c, IterationUse.Spread, arrayOrIterableType, c.undefinedType, node.expression);
 }
 
 function checkArrayLiteral(c: Checker, node: ArrayLiteralExpression, checkMode: CheckMode): Type {
@@ -753,11 +759,21 @@ function checkArrayLiteral(c: Checker, node: ArrayLiteralExpression, checkMode: 
         // `[...c] = ...` makes `c` a rest target that only provides a contextual type, so it's not
         // checked as iterable.
         const restElementType =
-          getIndexTypeOfType(c, spreadType, c.numberType) ?? getIteratedTypeOrElementType(c, spreadType);
+          getIndexTypeOfType(c, spreadType, c.numberType) ??
+          getIteratedTypeOrElementType(c, IterationUse.Destructuring, spreadType, c.undefinedType, undefined, false) ??
+          c.unknownType;
         elementTypes.push(restElementType);
         elementInfos.push(new TupleElementInfo(ElementFlags.Rest, undefined));
       } else {
-        elementTypes.push(getIteratedTypeOrElementType(c, spreadType));
+        elementTypes.push(
+          checkIteratedTypeOrElementType(
+            c,
+            IterationUse.Spread,
+            spreadType,
+            c.undefinedType,
+            (e as SpreadElement).expression,
+          ),
+        );
         elementInfos.push(new TupleElementInfo(ElementFlags.Rest, undefined));
       }
     } else if (c.exactOptionalPropertyTypes && e.kind === SyntaxKind.OmittedExpression) {
@@ -1007,6 +1023,25 @@ function reportObjectPossiblyNullOrUndefinedError(c: Checker, node: Node, facts:
         : Diagnostics.Object_is_possibly_null,
     );
   }
+}
+
+/** `checkNonNullType`, also reporting a `void` type as possibly undefined. */
+export function checkNonNullNonVoidType(c: Checker, t: Type, node: Node): Type {
+  const nonNullType = checkNonNullType(c, t, node);
+  if ((nonNullType.flags & TypeFlags.Void) === 0) return nonNullType;
+  if (isEntityNameExpression(node, false)) {
+    const nodeText = entityNameToString(node);
+    if (node.kind === SyntaxKind.Identifier && nodeText === 'undefined') {
+      c.error(node, Diagnostics.The_value_0_cannot_be_used_here, nodeText);
+      return nonNullType;
+    }
+    if (nodeText.length < 100) {
+      c.error(node, Diagnostics.X_0_is_possibly_undefined, nodeText);
+      return nonNullType;
+    }
+  }
+  c.error(node, Diagnostics.Object_is_possibly_undefined);
+  return nonNullType;
 }
 
 export function entityNameToString(node: Node): string {

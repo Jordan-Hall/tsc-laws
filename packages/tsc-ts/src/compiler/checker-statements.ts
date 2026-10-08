@@ -15,27 +15,35 @@ import {
   type WhileStatement,
   getExpression,
   getStatements,
-  getType,
 } from './ast.js';
 import { Diagnostics } from './diagnostics.js';
 import { SyntaxKind } from './syntax-kind.js';
 import type { Checker } from './checker.js';
 import { CheckMode, type Type, TypeFlags } from './checker-types.js';
-import { isErrorType } from './checker-type-factory.js';
-import { getReturnTypeOfSignature, getSignatureFromDeclaration } from './checker-signatures.js';
+import {
+  getReturnTypeFromAnnotation,
+  getReturnTypeOfSignature,
+  getSignatureFromDeclaration,
+} from './checker-signatures.js';
 import {
   checkExpression,
   checkExpressionCached,
+  checkNonNullExpression,
   checkTypeAssignableToAndOptionallyElaborate,
-  getIteratedTypeOrElementType,
 } from './checker-expressions.js';
-import { checkTestingKnownTruthyType, checkTruthinessExpression } from './checker-operators.js';
-import { checkTypeAssignableTo } from './relations.js';
+import { IterationUse, checkIteratedTypeOrElementType } from './checker-iteration.js';
+import { checkDestructuringAssignment } from './checker-destructuring.js';
+import {
+  checkReferenceExpression,
+  checkTestingKnownTruthyType,
+  checkTruthinessExpression,
+} from './checker-operators.js';
 import { isTypeAssignableToKindEx as isTypeAssignableToKind } from './checker-type-operators.js';
 import { checkSourceElement } from './checker-source-file.js';
 import { checkVariableDeclarationList, checkVariableLikeDeclaration } from './checker-declarations.js';
-import { getAwaitedTypeNoAlias } from './checker-functions.js';
-import { getFunctionFlags, FunctionFlags } from './checker-utilities.js';
+import { checkReturnExpression, isUnwrappedReturnTypeUndefinedVoidOrAny } from './checker-functions.js';
+import { unwrapReturnType } from './checker-iteration.js';
+import { getFunctionFlags } from './checker-utilities.js';
 import { typeToString } from './type-printer.js';
 import { getNonNullableType } from './checker-flow.js';
 
@@ -101,54 +109,72 @@ export function checkForInStatement(c: Checker, node: Node): void {
 
 export function checkForOfStatement(c: Checker, node: Node): void {
   const s = node as ForInOrOfStatement;
+  // A declaration checks the right side through its type; an expression is checked as a
+  // destructuring assignment or a reference the iterated type must be assignable to.
   if (s.initializer.kind === SyntaxKind.VariableDeclarationList) {
     for (const d of (s.initializer as VariableDeclarationList).declarations.nodes) checkVariableLikeDeclaration(c, d);
-  } else checkExpression(c, s.initializer);
-  checkRightHandSideOfForOf(c, s);
+  } else {
+    const varExpr = s.initializer;
+    const iteratedType = checkRightHandSideOfForOf(c, s);
+    if (varExpr.kind === SyntaxKind.ArrayLiteralExpression || varExpr.kind === SyntaxKind.ObjectLiteralExpression)
+      checkDestructuringAssignment(c, varExpr, iteratedType, CheckMode.Normal, false);
+    else {
+      const leftType = checkExpression(c, varExpr);
+      checkReferenceExpression(
+        c,
+        varExpr,
+        Diagnostics.The_left_hand_side_of_a_for_of_statement_must_be_a_variable_or_a_property_access,
+        Diagnostics.The_left_hand_side_of_a_for_of_statement_may_not_be_an_optional_property_access,
+      );
+      checkTypeAssignableToAndOptionallyElaborate(c, iteratedType, leftType, varExpr, s.expression);
+    }
+  }
   checkSourceElement(c, s.statement);
 }
 
 /** The element type a `for...of` produces. */
 export function checkRightHandSideOfForOf(c: Checker, statement: Node): Type {
   const s = statement as ForInOrOfStatement;
-  const exprType = checkExpressionCached(c, s.expression);
-  const elementType = getIteratedTypeOrElementType(c, exprType);
-  return s.awaitModifier !== undefined ? getAwaitedTypeNoAlias(c, elementType) : elementType;
+  const use = s.awaitModifier !== undefined ? IterationUse.ForAwaitOf : IterationUse.ForOf;
+  return checkIteratedTypeOrElementType(c, use, checkNonNullExpression(c, s.expression), c.undefinedType, s.expression);
 }
 
 export function checkReturnStatement(c: Checker, node: Node): void {
   const s = node as ReturnStatement;
-  const func = getContainingFunction(node);
-  if (s.expression === undefined) return;
-  const exprType = checkExpressionCached(c, s.expression);
-  if (func !== undefined && func.kind === SyntaxKind.SetAccessor) {
-    c.error(node, Diagnostics.Setters_cannot_return_a_value);
+  const container = getContainingFunction(node);
+  // Returns outside functions and in static blocks are grammar errors.
+  if (container === undefined) {
+    if (s.expression !== undefined) checkExpressionCached(c, s.expression);
     return;
   }
-  if (func !== undefined && func.kind === SyntaxKind.Constructor) {
-    const instanceType = getReturnTypeOfSignature(c, getSignatureFromDeclaration(c, func));
-    if (!checkTypeAssignableTo(c, exprType, instanceType, node, undefined))
-      c.error(
-        node,
-        Diagnostics.Return_type_of_constructor_signature_must_be_assignable_to_the_instance_type_of_the_class,
-      );
-    return;
-  }
-  if (func === undefined || getType(func) === undefined) return;
-  const flags = getFunctionFlags(func);
-  if ((flags & FunctionFlags.Generator) !== 0) return;
-  if (func.kind === SyntaxKind.Constructor || func.kind === SyntaxKind.SetAccessor) return;
-  const returnType = getReturnTypeOfSignature(c, getSignatureFromDeclaration(c, func));
-  if (isErrorType(c, returnType) || (returnType.flags & TypeFlags.Any) !== 0) return;
-  const target = (flags & FunctionFlags.Async) !== 0 ? getAwaitedTypeNoAlias(c, returnType) : returnType;
-  const source = (flags & FunctionFlags.Async) !== 0 ? getAwaitedTypeNoAlias(c, exprType) : exprType;
-  if ((target.flags & TypeFlags.Void) !== 0 && (source.flags & (TypeFlags.Void | TypeFlags.Undefined)) === 0)
-    return checkVoidReturn(c, s, source, target);
-  checkTypeAssignableToAndOptionallyElaborate(c, source, target, node, s.expression);
-}
-
-function checkVoidReturn(c: Checker, s: ReturnStatement, source: Type, target: Type): void {
-  checkTypeAssignableTo(c, source, target, s, undefined);
+  const signature = getSignatureFromDeclaration(c, container);
+  const returnType = getReturnTypeOfSignature(c, signature);
+  const functionFlags = getFunctionFlags(container);
+  const exprNode = s.expression;
+  if (c.strictNullChecks || exprNode !== undefined || (returnType.flags & TypeFlags.Never) !== 0) {
+    const exprType = exprNode !== undefined ? checkExpressionCached(c, exprNode) : c.undefinedType;
+    if (container.kind === SyntaxKind.SetAccessor) {
+      if (exprNode !== undefined) c.error(node, Diagnostics.Setters_cannot_return_a_value);
+    } else if (container.kind === SyntaxKind.Constructor) {
+      if (
+        exprNode !== undefined &&
+        !checkTypeAssignableToAndOptionallyElaborate(c, exprType, returnType, node, exprNode)
+      )
+        c.error(
+          node,
+          Diagnostics.Return_type_of_constructor_signature_must_be_assignable_to_the_instance_type_of_the_class,
+        );
+    } else if (getReturnTypeFromAnnotation(c, container) !== undefined) {
+      const unwrappedReturnType = unwrapReturnType(c, returnType, functionFlags);
+      checkReturnExpression(c, container, unwrappedReturnType, node, exprNode, exprType, false);
+    }
+  } else if (
+    container.kind !== SyntaxKind.Constructor &&
+    c.compilerOptions.noImplicitReturns === true &&
+    !isUnwrappedReturnTypeUndefinedVoidOrAny(c, container, returnType)
+  )
+    // The function has a return type, but this return statement has no expression.
+    c.error(node, Diagnostics.Not_all_code_paths_return_a_value);
 }
 
 function getContainingFunction(node: Node): Node | undefined {
@@ -196,10 +222,7 @@ export function checkTryStatement(c: Checker, node: Node): void {
   checkBlock(c, s.tryBlock);
   const catchClause: CatchClause | undefined = s.catchClause;
   if (catchClause !== undefined) {
-    if (catchClause.variableDeclaration !== undefined) {
-      const typeNode = getType(catchClause.variableDeclaration);
-      if (typeNode !== undefined) checkSourceElement(c, typeNode);
-    }
+    if (catchClause.variableDeclaration !== undefined) checkVariableLikeDeclaration(c, catchClause.variableDeclaration);
     checkBlock(c, catchClause.block);
   }
   if (s.finallyBlock !== undefined) checkBlock(c, s.finallyBlock);

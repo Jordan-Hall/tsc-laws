@@ -63,6 +63,7 @@ import {
 } from './checker-classes.js';
 import { checkJsxElementDeferred } from './checker-jsx.js';
 import { checkFunctionLikeBody } from './checker-functions.js';
+import { produceDeferredIterationErrors } from './checker-iteration.js';
 import { checkFunctionOrMethodSymbols } from './checker-overloads.js';
 import { checkTypeLiteralMembers } from './checker-heritage.js';
 import { checkGrammarSourceFile } from './checker-grammar.js';
@@ -76,6 +77,7 @@ export function checkSourceFile(c: Checker, file: SourceFile): void {
   if ((links.flags & NodeCheckFlags.TypeChecked) !== 0) return;
   links.flags |= NodeCheckFlags.TypeChecked;
   if (c.host.isSourceFileDefaultLibrary(file)) return;
+  c.saveDeferredDiagnostics = true;
   for (const statement of getStatements(file)!.nodes) checkSourceElement(c, statement);
   checkDeferredNodes(c);
   if (isExternalOrCommonJSModule(file)) checkExternalModuleExports(c, file);
@@ -83,6 +85,8 @@ export function checkSourceFile(c: Checker, file: SourceFile): void {
   checkGrammarSourceFile(c, file);
   // Expressions first checked by grammar checks may defer more nodes.
   checkDeferredNodes(c);
+  c.saveDeferredDiagnostics = false;
+  produceDeferredIterationErrors(c);
 }
 
 /** Checks a statement, declaration, class member or type node. */

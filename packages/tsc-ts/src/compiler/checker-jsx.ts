@@ -124,7 +124,12 @@ import {
   elaborateError,
   getBestMatchIndexedAccessTypeOrUndefined,
 } from './checker-elaboration.js';
-import { getIteratedTypeOrElementType } from './checker-expressions.js';
+import {
+  IterationTypeKind,
+  IterationUse,
+  getGlobalIterableType,
+  getIterationTypeOfIterable,
+} from './checker-iteration.js';
 import { getIndexedAccessTypeOrUndefined, getPropertyNameFromIndex } from './checker-type-operators.js';
 import { removeMissingType } from './checker-symbol-types.js';
 import { typeToString } from './type-printer.js';
@@ -132,7 +137,6 @@ import { getReducedType } from './checker-members.js';
 import { getNumberLiteralType } from './checker-type-factory.js';
 import { getIndexedAccessType } from './checker-type-operators.js';
 import { filterType, isTupleType } from './checker-type-factory.js';
-import { getGlobalIterableType } from './checker-globals.js';
 import { createTypeFromGenericGlobalType } from './checker-type-factory.js';
 import { isTypeAssignableTo } from './relations.js';
 
@@ -1637,7 +1641,7 @@ export function elaborateJsxComponents(
   const moreThanOneRealChildren = validChildren.length > 1;
   let arrayLikeTargetParts: Type;
   let nonArrayLikeTargetParts: Type;
-  const iterableType = getGlobalIterableType(c);
+  const iterableType = getGlobalIterableType(c, false);
   if (iterableType !== c.emptyGenericType) {
     const anyIterable = createTypeFromGenericGlobalType(c, iterableType, [c.anyType, c.anyType, c.anyType]);
     arrayLikeTargetParts = filterType(c, childrenTargetType, (t) => isTypeAssignableTo(c, t, anyIterable));
@@ -1731,7 +1735,13 @@ function elaborateIterableOrArrayLikeTargetElementwise(
   // A non-array-like part means `Iterable` exists.
   const iterationType =
     nonTupleOrArrayLikeTargetParts !== c.neverType
-      ? getIteratedTypeOrElementType(c, nonTupleOrArrayLikeTargetParts)
+      ? getIterationTypeOfIterable(
+          c,
+          IterationUse.ForOf,
+          IterationTypeKind.Yield,
+          nonTupleOrArrayLikeTargetParts,
+          undefined,
+        )
       : undefined;
   let reportedError = false;
   for (const e of elements) {

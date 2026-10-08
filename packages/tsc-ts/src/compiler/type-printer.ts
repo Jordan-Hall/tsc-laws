@@ -12,6 +12,7 @@ import {
   getParameters,
   getQuestionToken,
   getText,
+  type TypeReferenceNode,
 } from './ast.js';
 import {
   declarationNameToString,
@@ -87,6 +88,8 @@ import {
   MappedTypeModifiers,
 } from './checker-type-operators.js';
 import { SignatureKind } from './checker-types.js';
+import { isTypeIdenticalTo } from './relations.js';
+import { getGlobalIterableIteratorType, getGlobalIterableType, isReferenceToType } from './checker-iteration.js';
 
 const defaultMaximumTruncationLength = 160;
 
@@ -373,7 +376,16 @@ class TypePrinter {
         prefix =
           this.symbolReference(parent, SymbolFlags.Type) + this.typeArguments(typeArguments.slice(start, i)) + '.';
     }
-    const typeParameterCount = Math.min(generic.typeParameters().length, typeArguments.length);
+    let typeParameterCount = Math.min(generic.typeParameters().length, typeArguments.length);
+    // Arguments equal to their defaults are elided for the iterable types, which gained two type
+    // parameters, unless they were written out.
+    if (isIterableTypeWithDefaults(c, t) && !hasAllTypeArgumentsWritten(t as TypeReference, typeParameterCount))
+      while (typeParameterCount > 0) {
+        const defaultType = getDefaultFromTypeParameter(c, generic.typeParameters()[typeParameterCount - 1]);
+        if (defaultType === undefined || !isTypeIdenticalTo(c, typeArguments[typeParameterCount - 1], defaultType))
+          break;
+        typeParameterCount--;
+      }
     const args = typeArguments.length > 0 ? typeArguments.slice(i, typeParameterCount) : [];
     if (prefix !== '') return prefix + t.symbol!.name + this.typeArguments(args);
     return this.symbolReference(t.symbol!, SymbolFlags.Type) + this.typeArguments(args);
@@ -702,6 +714,22 @@ function isQualifyingParent(symbol: Symbol): boolean {
   return true;
 }
 
+function isIterableTypeWithDefaults(c: Checker, t: Type): boolean {
+  return (
+    isReferenceToType(t, getGlobalIterableType(c, false)) ||
+    isReferenceToType(t, getGlobalIterableIteratorType(c, false)) ||
+    isReferenceToType(t, getGlobalIterableType(c, true)) ||
+    isReferenceToType(t, getGlobalIterableIteratorType(c, true))
+  );
+}
+
+function hasAllTypeArgumentsWritten(t: TypeReference, typeParameterCount: number): boolean {
+  const node = t.node;
+  if (node === undefined || node.kind !== SyntaxKind.TypeReference) return false;
+  const typeArguments = (node as TypeReferenceNode).typeArguments;
+  return typeArguments !== undefined && typeArguments.nodes.length >= typeParameterCount;
+}
+
 function symbolNameForChain(symbol: Symbol): string {
   const name = symbol.name;
   if (name === InternalSymbolName.Default) return 'default';
@@ -783,6 +811,14 @@ function bindingPatternText(node: Node): string {
     : '[' + parts.join(', ') + ']';
 }
 
+/** The name of a unique symbol: well-known symbols are members of the global `Symbol`, such as `Symbol.iterator`. */
+function uniqueSymbolNameText(c: Checker, symbol: Symbol): string {
+  const parent = getParentOfSymbol(c, symbol);
+  if (parent !== undefined && parent.name === 'SymbolConstructor' && (symbol.flags & SymbolFlags.Property) !== 0)
+    return 'Symbol.' + symbol.name;
+  return symbolToString(c, symbol);
+}
+
 function propertyNameText(c: Checker, prop: Symbol): string {
   const nameType = c.symbolLinks(prop).nameType;
   if (nameType !== undefined) {
@@ -792,7 +828,7 @@ function propertyNameText(c: Checker, prop: Symbol): string {
     }
     if ((nameType.flags & TypeFlags.NumberLiteral) !== 0) return numberText((nameType as LiteralType).numberValue);
     if ((nameType.flags & TypeFlags.UniqueESSymbol) !== 0 && nameType.symbol !== undefined)
-      return '[' + nameType.symbol.name + ']';
+      return '[' + uniqueSymbolNameText(c, nameType.symbol) + ']';
   }
   const name = prop.name;
   if (name.charCodeAt(0) === 0xfffe) return internalNameText(prop);

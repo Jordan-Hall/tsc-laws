@@ -90,6 +90,7 @@ import { InferenceCaches } from './checker-inference.js';
 import { AssignmentMarker, type FlowLoopInfo } from './checker-narrowing.js';
 import type { FlowNode } from './flow.js';
 import { JsxState } from './checker-jsx.js';
+import type { DeferredIterationError, IterationTypes } from './checker-iteration.js';
 import type { SourceFileMetadata } from './program-utilities.js';
 
 /** What the checker needs from a program. */
@@ -361,6 +362,13 @@ export class Checker {
 
   readonly suggestionResolver: SuggestionNameResolver;
   readonly awaitedTypeStack: number[] = [];
+  /** Iteration types by type id and iteration use. */
+  readonly iterationTypesCache = new Map<number, IterationTypes>();
+  /** Whether diagnostics can be deferred to the end of the file being checked. */
+  saveDeferredDiagnostics = false;
+  deferredIterationErrors: DeferredIterationError[] = [];
+  /** Binding patterns whose implied type is being computed as a contextual type. */
+  readonly contextualBindingPatterns: Node[] = [];
   relationComparers: TypeComparer[] = [];
   readonly relationScratchKey = new RelationKey();
   readonly markerTypes = new Set<Type>();
@@ -720,6 +728,8 @@ export function disposeChecker(c: Checker): void {
   c.substitutionTypes.clear();
   c.subtypeReductionCache.clear();
   c.cachedTypes.clear();
+  c.iterationTypesCache.clear();
+  c.deferredIterationErrors = [];
   c.errorTypes.clear();
   c.globalTypeCache.clear();
   c.globalSymbolCache.clear();

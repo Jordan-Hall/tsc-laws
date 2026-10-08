@@ -296,6 +296,11 @@ export function getNonCircularReturnTypeOfSignature(c: Checker, sig: Signature):
   return isResolvingReturnTypeOfSignature(c, sig) ? c.anyType : getReturnTypeOfSignature(c, sig);
 }
 
+function isThisParameterDeclaration(p: Node): boolean {
+  const name = getName(p);
+  return name !== undefined && name.kind === SyntaxKind.Identifier && getText(name) === 'this';
+}
+
 export function getReturnTypeFromAnnotation(c: Checker, declaration: Node): Type | undefined {
   if (declaration.kind === SyntaxKind.Constructor)
     return getDeclaredTypeOfClassOrInterface(c, getMergedSymbol(c, getSymbol(declaration.parent!)!));
@@ -306,7 +311,7 @@ export function getReturnTypeFromAnnotation(c: Checker, declaration: Node): Type
     if (symbol !== undefined) {
       const setter = symbol.declarations.find((d) => d.kind === SyntaxKind.SetAccessor);
       if (setter !== undefined) {
-        const param = getParameters(setter)?.nodes.find((p) => getName(p)?.kind !== SyntaxKind.ThisKeyword);
+        const param = getParameters(setter)?.nodes.find((p) => !isThisParameterDeclaration(p));
         const typeNode = param !== undefined ? getType(param) : undefined;
         if (typeNode !== undefined) return getTypeFromTypeNode(c, typeNode);
       }

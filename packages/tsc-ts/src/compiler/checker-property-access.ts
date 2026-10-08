@@ -51,7 +51,7 @@ import { getBaseConstraintOfType } from './checker-members.js';
 import { getTypeFromTypeNode } from './checker-type-nodes.js';
 import { isGenericObjectType } from './checker-type-operators.js';
 import { typeToString, symbolToString } from './type-printer.js';
-import { getPromisedTypeOfPromise } from './checker-functions.js';
+import { getPromisedTypeOfPromise } from './checker-iteration.js';
 import { AssignmentKind, getAssignmentTargetKind, getControlFlowContainer } from './checker-narrowing.js';
 import { getSymbolNameForPrivateIdentifier } from './binder.js';
 import { checkPropertyNotUsedBeforeDeclaration } from './checker-declaration-order.js';

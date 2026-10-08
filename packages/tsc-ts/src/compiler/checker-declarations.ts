@@ -93,8 +93,11 @@ import {
 import {
   checkComputedPropertyName,
   checkExpressionCached,
+  checkNonNullNonVoidType,
   checkTypeAssignableToAndOptionallyElaborate,
+  isInAmbientOrTypeNode,
 } from './checker-expressions.js';
+import { IterationUse, checkIteratedTypeOrElementType } from './checker-iteration.js';
 import { isTypeAssignableTo, isTypeIdenticalTo, checkTypeAssignableTo } from './relations.js';
 import { getReducedType } from './checker-members.js';
 import { instantiateType } from './instantiation.js';
@@ -146,6 +149,7 @@ export function checkVariableLikeDeclaration(c: Checker, node: Node): void {
       if (element.kind === SyntaxKind.OmittedExpression) continue;
       checkBindingElement(c, element as BindingElement);
     }
+    if (!initializerNotAllowed) checkBindingPatternInitializer(c, node, name, initializer);
     return;
   }
   if (initializerNotAllowed) {
@@ -201,6 +205,33 @@ export function checkVariableLikeDeclaration(c: Checker, node: Node): void {
     const initType = checkExpressionCached(c, initializer);
     if (!isErrorType(c, declarationType))
       checkTypeAssignableToAndOptionallyElaborate(c, initType, declarationType, node, initializer);
+  }
+}
+
+/** Checks the initializer of a binding pattern, and that a pattern without names destructures a valid type. */
+function checkBindingPatternInitializer(c: Checker, node: Node, name: Node, initializer: Node | undefined): void {
+  if (isInAmbientOrTypeNode(node)) return;
+  // A for-in initializer is already an error.
+  const needCheckInitializer = initializer !== undefined && node.parent!.parent!.kind !== SyntaxKind.ForInStatement;
+  const needCheckWidenedType = !getElements(name)!.nodes.some((e) => getName(e) !== undefined);
+  if (!needCheckInitializer && !needCheckWidenedType) return;
+  const widenedType = getWidenedTypeForVariableLikeDeclaration(c, node, false);
+  if (needCheckInitializer) {
+    const initializerType = checkExpressionCached(c, initializer!);
+    if (c.strictNullChecks && needCheckWidenedType) checkNonNullNonVoidType(c, initializerType, node);
+    else
+      checkTypeAssignableToAndOptionallyElaborate(
+        c,
+        initializerType,
+        getWidenedTypeForVariableLikeDeclaration(c, node, false),
+        node,
+        initializer,
+      );
+  }
+  if (needCheckWidenedType) {
+    if (name.kind === SyntaxKind.ArrayBindingPattern)
+      checkIteratedTypeOrElementType(c, IterationUse.Destructuring, widenedType, c.undefinedType, node);
+    else if (c.strictNullChecks) checkNonNullNonVoidType(c, widenedType, node);
   }
 }
 

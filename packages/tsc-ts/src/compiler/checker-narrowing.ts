@@ -1757,7 +1757,7 @@ export function getAccessedPropertyName(c: Checker, access: Node): string | unde
   return undefined;
 }
 
-function isConstantReference(c: Checker, node: Node): boolean {
+export function isConstantReference(c: Checker, node: Node): boolean {
   switch (node.kind) {
     case SyntaxKind.ThisKeyword:
       return true;

@@ -42,12 +42,14 @@ import {
   getIntersectionType,
   getNumberLiteralType,
   getRegularTypeOfLiteralType,
+  getUnionType,
   getUnionTypeEx,
   getWidenedLiteralType,
   getEndElementCount,
   getStringLiteralType,
   getTypeArguments,
   getTypeReferenceArity,
+  mapType,
   mapTypeEx,
   isTupleType,
   tupleTargetOf,
@@ -59,7 +61,6 @@ import {
   findApplicableIndexInfo,
   getApparentType,
   getBaseConstraintOrType,
-  getIndexInfoOfType,
   getIndexInfosOfStructuredType,
   getPropertiesOfType,
   getPropertyOfType,
@@ -87,7 +88,14 @@ import {
 } from './checker-type-operators.js';
 import { getOptionalType, removeMissingType } from './checker-symbol-types.js';
 import { getConstituentTypeForKeyType, getKeyPropertyName } from './checker-narrowing.js';
-import { type BindingElement, getElements, getExpression, getNodeId, getProperties } from './ast.js';
+import {
+  type BindingElement,
+  type YieldExpression,
+  getElements,
+  getExpression,
+  getNodeId,
+  getProperties,
+} from './ast.js';
 import type { Symbol } from './symbol.js';
 import { isDiscriminantProperty, isTypeAssignableTo } from './relations.js';
 import { getPropertyNameFromType, isNumericLiteralName, isTypeUsableAsPropertyName } from './checker-utilities.js';
@@ -113,11 +121,25 @@ import {
 import { type InferenceContext, hasInferenceCandidatesOrDefault } from './checker-inference.js';
 import { instantiateType, isNodeDescendantOf } from './instantiation.js';
 import { getIndexedAccessTypeEx } from './checker-type-operators.js';
-import { getIteratedTypeOrElementType } from './checker-expressions.js';
 import { getTypeOfSymbol } from './checker-symbol-types.js';
 import { maybeTypeOfKind } from './checker-utilities.js';
 import { getFunctionFlags, FunctionFlags, indexOfNode } from './checker-utilities.js';
-import { getAwaitedTypeNoAlias, isContextSensitive } from './checker-functions.js';
+import { isContextSensitive } from './checker-functions.js';
+import {
+  IterationTypeKind,
+  IterationUse,
+  checkGeneratorInstantiationAssignabilityToReturnType,
+  createGeneratorType,
+  createPromiseLikeType,
+  getAwaitedTypeNoAlias,
+  getAwaitedTypeOfPromise,
+  getIteratedTypeOrElementType,
+  getIterationTypeOfGeneratorFunctionReturnType,
+  getIterationTypesOfGeneratorFunctionReturnType,
+} from './checker-iteration.js';
+import { isFunctionLike } from './ast-utilities.js';
+import { getCachedGlobalType } from './checker-symbols.js';
+import { getTypeFromBindingPattern } from './checker-destructuring.js';
 import {
   getContextualJsxElementAttributesType,
   getContextualTypeForJsxAttribute,
@@ -287,19 +309,14 @@ export function getContextualTypeEx(c: Checker, node: Node, contextFlags: Contex
     case SyntaxKind.PropertySignature:
     case SyntaxKind.BindingElement:
       if (getInitializer(parent) !== node) return undefined;
-      return getContextualTypeForInitializer(c, parent);
-    case SyntaxKind.ArrowFunction: {
-      const t = getContextualReturnType(c, parent);
-      if (t === undefined) return undefined;
-      return (getFunctionFlags(parent) & FunctionFlags.Async) !== 0 ? getAwaitedTypeNoAlias(c, t) : t;
-    }
-    case SyntaxKind.ReturnStatement: {
-      const func = getContainingFunctionForReturn(parent);
-      if (func === undefined) return undefined;
-      const t = getContextualReturnType(c, func);
-      if (t === undefined) return undefined;
-      return (getFunctionFlags(func) & FunctionFlags.Async) !== 0 ? getAwaitedTypeNoAlias(c, t) : t;
-    }
+      return getContextualTypeForInitializerExpression(c, parent, contextFlags);
+    case SyntaxKind.ArrowFunction:
+    case SyntaxKind.ReturnStatement:
+      return getContextualTypeForReturnExpression(c, node);
+    case SyntaxKind.YieldExpression:
+      return getContextualTypeForYieldOperand(c, parent, contextFlags);
+    case SyntaxKind.AwaitExpression:
+      return getContextualTypeForAwaitOperand(c, parent, contextFlags);
     case SyntaxKind.CallExpression:
     case SyntaxKind.NewExpression:
       return getContextualTypeForArgument(c, parent, node);
@@ -364,6 +381,25 @@ export function getContextualTypeEx(c: Checker, node: Node, contextFlags: Contex
   return undefined;
 }
 
+function getContextualTypeForInitializerExpression(
+  c: Checker,
+  declaration: Node,
+  contextFlags: ContextFlags,
+): Type | undefined {
+  const result = getContextualTypeForInitializer(c, declaration);
+  if (result !== undefined) return result;
+  // A binding pattern implies a type, such as a tuple for an array pattern.
+  const name = getName(declaration);
+  if (
+    (contextFlags & ContextFlags.SkipBindingPatterns) === 0 &&
+    name !== undefined &&
+    (name.kind === SyntaxKind.ObjectBindingPattern || name.kind === SyntaxKind.ArrayBindingPattern) &&
+    getElements(name)!.nodes.length > 0
+  )
+    return getTypeFromBindingPattern(c, name, true, false);
+  return undefined;
+}
+
 function getContextualTypeForInitializer(c: Checker, declaration: Node): Type | undefined {
   const typeNode = getType(declaration);
   if (typeNode !== undefined) return getTypeFromTypeNode(c, typeNode);
@@ -405,25 +441,94 @@ function isLiteralComputedName(name: Node): boolean {
   return expression.kind === SyntaxKind.StringLiteral || expression.kind === SyntaxKind.NumericLiteral;
 }
 
-function getContainingFunctionForReturn(node: Node): Node | undefined {
+function getContainingFunction(node: Node): Node | undefined {
   let current = node.parent;
-  while (current !== undefined) {
-    switch (current.kind) {
-      case SyntaxKind.FunctionDeclaration:
-      case SyntaxKind.FunctionExpression:
-      case SyntaxKind.ArrowFunction:
-      case SyntaxKind.MethodDeclaration:
-      case SyntaxKind.GetAccessor:
-      case SyntaxKind.SetAccessor:
-      case SyntaxKind.Constructor:
-        return current;
-      case SyntaxKind.ClassStaticBlockDeclaration:
-      case SyntaxKind.SourceFile:
-        return undefined;
-    }
-    current = current.parent;
+  while (current !== undefined && !isFunctionLike(current)) current = current.parent;
+  return current;
+}
+
+function getContextualTypeForReturnExpression(c: Checker, node: Node): Type | undefined {
+  const func = getContainingFunction(node);
+  if (func === undefined) return undefined;
+  let contextualReturnType = getContextualReturnType(c, func);
+  if (contextualReturnType === undefined) return undefined;
+  const functionFlags = getFunctionFlags(func);
+  const isAsync = (functionFlags & FunctionFlags.Async) !== 0;
+  if ((functionFlags & FunctionFlags.Generator) !== 0) {
+    if ((contextualReturnType.flags & TypeFlags.Union) !== 0)
+      contextualReturnType = filterType(
+        c,
+        contextualReturnType,
+        (t) => getIterationTypeOfGeneratorFunctionReturnType(c, IterationTypeKind.Return, t, isAsync) !== undefined,
+      );
+    const iterationReturnType = getIterationTypeOfGeneratorFunctionReturnType(
+      c,
+      IterationTypeKind.Return,
+      contextualReturnType,
+      isAsync,
+    );
+    if (iterationReturnType === undefined) return undefined;
+    // Async generators also unwrap the promise below.
+    contextualReturnType = iterationReturnType;
   }
-  return undefined;
+  if (isAsync) {
+    // The awaited type without the `Awaited<T>` alias.
+    const contextualAwaitedType = mapType(c, contextualReturnType, (t) => getAwaitedTypeNoAlias(c, t));
+    return getUnionType(c, [contextualAwaitedType, createPromiseLikeType(c, contextualAwaitedType)]);
+  }
+  return contextualReturnType;
+}
+
+function getContextualTypeForYieldOperand(c: Checker, node: Node, contextFlags: ContextFlags): Type | undefined {
+  const func = getContainingFunction(node);
+  if (func === undefined) return undefined;
+  const functionFlags = getFunctionFlags(func);
+  let contextualReturnType = getContextualReturnType(c, func);
+  if (contextualReturnType === undefined) return undefined;
+  const isAsyncGenerator = (functionFlags & FunctionFlags.Async) !== 0;
+  const isYieldStar = (node as YieldExpression).asteriskToken !== undefined;
+  if (!isYieldStar && (contextualReturnType.flags & TypeFlags.Union) !== 0)
+    contextualReturnType = filterType(
+      c,
+      contextualReturnType,
+      (t) =>
+        getIterationTypeOfGeneratorFunctionReturnType(c, IterationTypeKind.Return, t, isAsyncGenerator) !== undefined,
+    );
+  if (isYieldStar) {
+    const iterationTypes = getIterationTypesOfGeneratorFunctionReturnType(c, contextualReturnType, isAsyncGenerator);
+    const yieldType = iterationTypes.yieldType ?? c.silentNeverType;
+    const returnType = getContextualTypeEx(c, node, contextFlags) ?? c.silentNeverType;
+    const nextType = iterationTypes.nextType ?? c.unknownType;
+    const generatorType = createGeneratorType(c, yieldType, returnType, nextType, false);
+    if (!isAsyncGenerator) return generatorType;
+    return getUnionType(c, [generatorType, createGeneratorType(c, yieldType, returnType, nextType, true)]);
+  }
+  return getIterationTypeOfGeneratorFunctionReturnType(
+    c,
+    IterationTypeKind.Yield,
+    contextualReturnType,
+    isAsyncGenerator,
+  );
+}
+
+function getContextualTypeForAwaitOperand(c: Checker, node: Node, contextFlags: ContextFlags): Type | undefined {
+  const contextualType = getContextualTypeEx(c, node, contextFlags);
+  if (contextualType === undefined) return undefined;
+  const contextualAwaitedType = getAwaitedTypeNoAlias(c, contextualType);
+  if (contextualAwaitedType === undefined) return undefined;
+  return getUnionType(c, [contextualAwaitedType, createPromiseLikeType(c, contextualAwaitedType)]);
+}
+
+/** The iteration type of `kind` a generator's contextual return type implies. */
+export function getContextualIterationType(c: Checker, kind: IterationTypeKind, func: Node): Type | undefined {
+  const contextualReturnType = getContextualReturnType(c, func);
+  if (contextualReturnType === undefined) return undefined;
+  return getIterationTypeOfGeneratorFunctionReturnType(
+    c,
+    kind,
+    contextualReturnType,
+    (getFunctionFlags(func) & FunctionFlags.Async) !== 0,
+  );
 }
 
 /** The return type a function's annotation or contextual signature implies. */
@@ -435,8 +540,27 @@ export function getContextualReturnType(c: Checker, func: Node): Type | undefine
   }
   if (func.kind === SyntaxKind.GetAccessor || func.kind === SyntaxKind.Constructor) return undefined;
   const signature = getContextualSignatureForFunctionLikeDeclaration(c, func);
-  if (signature !== undefined && !isResolvingReturnTypeOfSignature(c, signature))
-    return getReturnTypeOfSignature(c, signature);
+  if (signature !== undefined && !isResolvingReturnTypeOfSignature(c, signature)) {
+    const returnType = getReturnTypeOfSignature(c, signature);
+    const functionFlags = getFunctionFlags(func);
+    if ((functionFlags & FunctionFlags.Generator) !== 0)
+      return filterType(
+        c,
+        returnType,
+        (t) =>
+          (t.flags & (TypeFlags.AnyOrUnknown | TypeFlags.Void | TypeFlags.InstantiableNonPrimitive)) !== 0 ||
+          checkGeneratorInstantiationAssignabilityToReturnType(c, t, functionFlags, undefined),
+      );
+    if ((functionFlags & FunctionFlags.Async) !== 0)
+      return filterType(
+        c,
+        returnType,
+        (t) =>
+          (t.flags & (TypeFlags.AnyOrUnknown | TypeFlags.Void | TypeFlags.InstantiableNonPrimitive)) !== 0 ||
+          getAwaitedTypeOfPromise(c, t) !== undefined,
+      );
+    return returnType;
+  }
   const iife = getImmediatelyInvokedFunctionExpression(func);
   return iife !== undefined ? getContextualType(c, iife) : undefined;
 }
@@ -458,6 +582,10 @@ function getContextualTypeForArgument(c: Checker, call: Node, arg: Node): Type |
 }
 
 export function getContextualTypeForArgumentAtIndex(c: Checker, call: Node, argIndex: number): Type {
+  if (call.kind === SyntaxKind.CallExpression && getExpression(call)!.kind === SyntaxKind.ImportKeyword) {
+    if (argIndex === 0) return c.stringType;
+    return argIndex === 1 ? getCachedGlobalType(c, 'ImportCallOptions', 0, false) : c.anyType;
+  }
   // While resolving the call's signature, arguments get the resolving signature's `any`.
   const signature = resolveCallSignatureForContext(c, call);
   const restIndex = signature.parameters.length - 1;
@@ -524,11 +652,7 @@ export function getContextualTypeForElementExpression(
 }
 
 function getIteratedTypeOrElementTypeForContext(c: Checker, t: Type): Type | undefined {
-  const info = getIndexInfoOfType(c, t, c.numberType);
-  if (info !== undefined) return info.valueType;
-  if ((t.flags & TypeFlags.Object) === 0) return undefined;
-  const iterated = getIteratedTypeOrElementType(c, t);
-  return (iterated.flags & TypeFlags.Any) !== 0 && iterated !== t ? undefined : iterated;
+  return getIteratedTypeOrElementType(c, IterationUse.Element, t, c.undefinedType, undefined, false);
 }
 
 function getSpreadIndices(elements: Node[]): number[] {
