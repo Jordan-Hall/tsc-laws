@@ -79,7 +79,12 @@ import {
 } from './checker-declared-types.js';
 import { getTypeFromTypeNode } from './checker-type-nodes.js';
 import { instantiateType } from './instantiation.js';
-import { getIndexInfosOfType, getPropertiesOfObjectType } from './checker-members.js';
+import {
+  getIndexInfosOfType,
+  getPropertiesOfObjectType,
+  getPropertiesOfType,
+  getPropertyOfObjectType,
+} from './checker-members.js';
 import { typeToString, symbolToString } from './type-printer.js';
 import { getTypeOfMappedSymbol, getIndexType } from './checker-type-operators.js';
 import {
@@ -472,16 +477,39 @@ export function reportImplicitAny(c: Checker, declaration: Node, t: Type): void 
 // ---- Widening
 
 export function getWidenedType(c: Checker, t: Type): Type {
+  return getWidenedTypeWithContext(c, t, undefined);
+}
+
+/** Widening state for the constituents of a union: object literals get each other's missing properties. */
+class WideningContext {
+  readonly parent: WideningContext | undefined;
+  readonly propertyName: string;
+  siblings: Type[] | undefined;
+  resolvedProperties: Symbol[] | undefined = undefined;
+
+  constructor(parent: WideningContext | undefined, propertyName: string, siblings: Type[] | undefined) {
+    this.parent = parent;
+    this.propertyName = propertyName;
+    this.siblings = siblings;
+  }
+}
+
+function getWidenedTypeWithContext(c: Checker, t: Type, context: WideningContext | undefined): Type {
   if ((t.objectFlags & ObjectFlags.RequiresWidening) === 0) return t;
   const key = 'widened' + t.id;
-  const cached = c.cachedTypes.get(key);
-  if (cached !== undefined) return cached;
+  if (context === undefined) {
+    const cached = c.cachedTypes.get(key);
+    if (cached !== undefined) return cached;
+  }
   let result: Type | undefined;
   if ((t.flags & (TypeFlags.Any | TypeFlags.Nullable)) !== 0) result = c.anyType;
   else if ((t.objectFlags & ObjectFlags.ObjectLiteral) !== 0 && (t.flags & TypeFlags.Object) !== 0)
-    result = getWidenedTypeOfObjectLiteral(c, t);
+    result = getWidenedTypeOfObjectLiteral(c, t, context);
   else if ((t.flags & TypeFlags.Union) !== 0) {
-    const widened = typesOf(t).map((u) => ((u.flags & TypeFlags.Nullable) !== 0 ? u : getWidenedType(c, u)));
+    const unionContext = context ?? new WideningContext(undefined, '', typesOf(t));
+    const widened = typesOf(t).map((u) =>
+      (u.flags & TypeFlags.Nullable) !== 0 ? u : getWidenedTypeWithContext(c, u, unionContext),
+    );
     // Widened empty object literals reduce subtypes, e.g. {} | string to {}.
     result = getUnionTypeEx(
       c,
@@ -501,13 +529,16 @@ export function getWidenedType(c: Checker, t: Type): Type {
       (t as TypeReference).target!,
       getTypeArguments(c, t).map((u) => getWidenedType(c, u)),
     );
-  if (result !== undefined) c.cachedTypes.set(key, result);
+  if (result !== undefined && context === undefined) c.cachedTypes.set(key, result);
   return result ?? t;
 }
 
-function getWidenedTypeOfObjectLiteral(c: Checker, t: Type): Type {
+function getWidenedTypeOfObjectLiteral(c: Checker, t: Type, context: WideningContext | undefined): Type {
   const members = new Map<string, Symbol>();
-  for (const prop of getPropertiesOfObjectType(c, t)) members.set(prop.name, getWidenedProperty(c, prop));
+  for (const prop of getPropertiesOfObjectType(c, t)) members.set(prop.name, getWidenedProperty(c, prop, context));
+  if (context !== undefined)
+    for (const prop of getPropertiesOfContext(c, context))
+      if (!members.has(prop.name)) members.set(prop.name, getUndefinedProperty(c, prop));
   const infos = getIndexInfosOfType(c, t).map(
     (info) =>
       new IndexInfo(
@@ -523,20 +554,67 @@ function getWidenedTypeOfObjectLiteral(c: Checker, t: Type): Type {
   return result;
 }
 
-function getWidenedProperty(c: Checker, prop: Symbol): Symbol {
+function getWidenedProperty(c: Checker, prop: Symbol, context: WideningContext | undefined): Symbol {
   if ((prop.flags & SymbolFlags.Property) === 0) return prop;
   const original = getTypeOfSymbol(c, prop);
-  const widened = getWidenedType(c, original);
+  const propContext = context !== undefined ? new WideningContext(context, prop.name, undefined) : undefined;
+  const widened = getWidenedTypeWithContext(c, original, propContext);
   if (widened === original) return prop;
+  return createSymbolWithWidenedType(c, prop, widened);
+}
+
+function createSymbolWithWidenedType(c: Checker, prop: Symbol, t: Type): Symbol {
   const result = c.newSymbolWithCheckFlags(prop.flags, prop.name, prop.checkFlags & CheckFlags.Readonly);
   result.declarations = prop.declarations;
   result.parent = prop.parent;
   result.valueDeclaration = prop.valueDeclaration;
   const links = c.symbolLinks(result);
-  links.type = widened;
+  links.type = t;
   links.target = prop;
   links.nameType = c.symbolLinks(prop).nameType;
   return result;
+}
+
+/** An optional `undefined` property standing in for a property of a sibling object literal. */
+function getUndefinedProperty(c: Checker, prop: Symbol): Symbol {
+  const cached = c.undefinedProperties.get(prop.name);
+  if (cached !== undefined) return cached;
+  const result = createSymbolWithWidenedType(c, prop, c.undefinedOrMissingType);
+  result.flags |= SymbolFlags.Optional;
+  c.undefinedProperties.set(prop.name, result);
+  return result;
+}
+
+function getPropertiesOfContext(c: Checker, context: WideningContext): Symbol[] {
+  if (context.resolvedProperties === undefined) {
+    const names = new Map<string, Symbol>();
+    for (const t of getSiblingsOfContext(c, context))
+      if (
+        (t.objectFlags & ObjectFlags.ObjectLiteral) !== 0 &&
+        (t.flags & TypeFlags.Object) !== 0 &&
+        (t.objectFlags & ObjectFlags.ContainsSpread) === 0
+      )
+        for (const prop of getPropertiesOfType(c, t)) names.set(prop.name, prop);
+    context.resolvedProperties = [...names.values()];
+  }
+  return context.resolvedProperties;
+}
+
+function getSiblingsOfContext(c: Checker, context: WideningContext): Type[] {
+  if (context.siblings === undefined) {
+    const siblings: Type[] = [];
+    for (const t of getSiblingsOfContext(c, context.parent!))
+      if ((t.objectFlags & ObjectFlags.ObjectLiteral) !== 0 && (t.flags & TypeFlags.Object) !== 0) {
+        const prop = getPropertyOfObjectType(c, t, context.propertyName);
+        if (prop !== undefined) {
+          const propType = getTypeOfSymbol(c, prop);
+          if ((propType.flags & TypeFlags.Union) !== 0) for (const u of typesOf(propType)) siblings.push(u);
+          else siblings.push(propType);
+        }
+      }
+    context.siblings = siblings;
+  }
+  return context.siblings;
 }
 
 // ---- Optionality

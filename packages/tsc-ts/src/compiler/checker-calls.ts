@@ -68,6 +68,7 @@ import {
   mapType,
   someType,
   tupleTargetOf,
+  typesOf,
 } from './checker-type-factory.js';
 import {
   createSymbolWithType,
@@ -430,7 +431,7 @@ function isUntypedFunctionCall(
   );
 }
 
-function resolveUntypedCall(c: Checker, node: Node): Signature {
+export function resolveUntypedCall(c: Checker, node: Node): Signature {
   if (node.kind === SyntaxKind.TaggedTemplateExpression) {
     const template = (node as TaggedTemplateExpression).template;
     if (template.kind === SyntaxKind.TemplateExpression)
@@ -445,13 +446,78 @@ function resolveErrorCall(c: Checker, node: Node): Signature {
 }
 
 function invocationError(c: Checker, errorTarget: Node, apparentType: Type, kind: SignatureKind): void {
-  c.error(
-    errorTarget,
-    kind === SignatureKind.Call
-      ? Diagnostics.This_expression_is_not_callable
-      : Diagnostics.This_expression_is_not_constructable,
+  const isCall = kind === SignatureKind.Call;
+  const parent = errorTarget.parent;
+  const target =
+    errorTarget.kind === SyntaxKind.PropertyAccessExpression &&
+    parent !== undefined &&
+    parent.kind === SyntaxKind.CallExpression
+      ? getName(errorTarget)!
+      : errorTarget;
+  let headMessage = isCall
+    ? Diagnostics.This_expression_is_not_callable
+    : Diagnostics.This_expression_is_not_constructable;
+  // A get accessor called as a function.
+  if (
+    parent !== undefined &&
+    parent.kind === SyntaxKind.CallExpression &&
+    (parent as CallExpression).arguments.nodes.length === 0
+  ) {
+    const resolvedSymbol = c.nodeLinks(errorTarget).resolvedSymbol;
+    if (resolvedSymbol !== undefined && (resolvedSymbol.flags & SymbolFlags.GetAccessor) !== 0)
+      headMessage =
+        Diagnostics.This_expression_is_not_callable_because_it_is_a_get_accessor_Did_you_mean_to_use_it_without;
+  }
+  c.addDiagnostic(chainDiagnostic(getInvocationErrorDetails(c, target, apparentType, isCall), headMessage));
+}
+
+function getInvocationErrorDetails(c: Checker, target: Node, apparentType: Type, isCall: boolean): Diagnostic {
+  const kind = isCall ? SignatureKind.Call : SignatureKind.Construct;
+  if ((apparentType.flags & TypeFlags.Union) === 0)
+    return createDiagnosticForNode(
+      target,
+      isCall ? Diagnostics.Type_0_has_no_call_signatures : Diagnostics.Type_0_has_no_construct_signatures,
+      [typeToString(c, apparentType)],
+    );
+  let diagnostic: Diagnostic | undefined = undefined;
+  let hasSignatures = false;
+  for (const constituent of typesOf(apparentType)) {
+    if (getSignaturesOfType(c, constituent, kind).length !== 0) {
+      hasSignatures = true;
+      // With an error already found, "no constituent is callable" can't apply.
+      if (diagnostic !== undefined) break;
+    } else if (diagnostic === undefined) {
+      // The first non-callable constituent.
+      diagnostic = chainDiagnostic(
+        createDiagnosticForNode(
+          target,
+          isCall ? Diagnostics.Type_0_has_no_call_signatures : Diagnostics.Type_0_has_no_construct_signatures,
+          [typeToString(c, constituent)],
+        ),
+        isCall
+          ? Diagnostics.Not_all_constituents_of_type_0_are_callable
+          : Diagnostics.Not_all_constituents_of_type_0_are_constructable,
+        typeToString(c, apparentType),
+      );
+      if (hasSignatures) break;
+    }
+  }
+  if (!hasSignatures)
+    return createDiagnosticForNode(
+      target,
+      isCall ? Diagnostics.No_constituent_of_type_0_is_callable : Diagnostics.No_constituent_of_type_0_is_constructable,
+      [typeToString(c, apparentType)],
+    );
+  return (
+    diagnostic ??
+    createDiagnosticForNode(
+      target,
+      isCall
+        ? Diagnostics.Each_member_of_the_union_type_0_has_signatures_but_none_of_those_signatures_are_compatible_with_each_other
+        : Diagnostics.Each_member_of_the_union_type_0_has_construct_signatures_but_none_of_those_signatures_are_compatible_with_each_other,
+      [typeToString(c, apparentType)],
+    )
   );
-  void apparentType;
 }
 
 function checkNonNullTypeForCall(c: Checker, t: Type, node: Node): Type {
@@ -567,8 +633,15 @@ function checkArgument(
   context: InferenceContext | undefined,
   checkMode: CheckMode,
 ): Type {
-  if (arg.kind === SyntaxKind.SyntheticExpression) return (arg as SyntheticExpression).type;
+  if (arg.kind === SyntaxKind.SyntheticExpression) return checkSyntheticExpression(c, arg as SyntheticExpression);
   return checkExpressionWithContextualType(c, arg, paramType, context, checkMode);
+}
+
+/** A synthetic argument's type; a spread one stands for its elements. */
+function checkSyntheticExpression(c: Checker, node: SyntheticExpression): Type {
+  return node.isSpread
+    ? getIndexedAccessTypeEx(c, node.type, c.numberType, AccessFlags.None, undefined, undefined)
+    : node.type;
 }
 
 function getSpreadArgumentIndex(args: Node[]): number {
@@ -723,7 +796,7 @@ export function resolveCall(
   result = getCandidateForOverloadFailure(c, node, s.candidates, s.args, checkMode);
   // Cache now so that error reporting below handles circularities like getResolvedSignature would.
   c.nodeLinks(node).resolvedSignature = result;
-  reportCallResolutionErrors(c, node, s, signatures, headMessage);
+  reportCallResolutionErrors(c, s, signatures, headMessage);
   return result;
 }
 
@@ -1403,7 +1476,6 @@ function tryGetRestTypeOfSignature(c: Checker, signature: Signature): Type | und
 
 function reportCallResolutionErrors(
   c: Checker,
-  node: Node,
   s: CallState,
   signatures: Signature[],
   headMessage: DiagnosticMessage | undefined,
@@ -1428,7 +1500,7 @@ function reportCallResolutionErrors(
     c.addDiagnostic(getArgumentArityError(c, s.node, [s.candidateForArgumentArityError], s.args, headMessage));
   else if (s.candidateForTypeArgumentError !== undefined)
     checkTypeArguments(c, s.candidateForTypeArgumentError, getCallTypeArguments(s.node), true, headMessage);
-  else if (node.kind !== SyntaxKind.JsxOpeningFragment) {
+  else if (s.node.kind !== SyntaxKind.JsxOpeningFragment) {
     const withCorrectTypeArgumentArity = signatures.filter((sig) =>
       hasCorrectTypeArgumentArity(c, sig, s.typeArguments),
     );

@@ -20,11 +20,7 @@ import {
   ModifierFlags,
   getName,
 } from './ast.js';
-import {
-  isFunctionExpressionOrArrowFunction,
-  isObjectLiteralMethod,
-  hasSyntacticModifier,
-} from './binder-utilities.js';
+import { hasSyntacticModifier, isFunctionExpressionOrArrowFunction } from './binder-utilities.js';
 import { Diagnostics } from './diagnostics.js';
 import { SyntaxKind } from './syntax-kind.js';
 import type { Checker } from './checker.js';
@@ -38,17 +34,17 @@ import {
   mapType,
 } from './checker-type-factory.js';
 import { getTypeOfSymbol, getWidenedType, reportImplicitAny } from './checker-symbol-types.js';
-import { getSymbolOfDeclaration } from './checker-symbols.js';
+import { getMergedSymbol, getSymbolOfDeclaration } from './checker-symbols.js';
 import { getReturnTypeOfSignature, getSignatureFromDeclaration } from './checker-signatures.js';
 import { getGlobalPromiseLikeType, getGlobalPromiseType, createPromiseType } from './checker-globals.js';
 import { checkExpressionCached, getWidenedLiteralLikeTypeForContextualType } from './checker-expressions.js';
-import { getContextualReturnType, hasContextSensitiveParameters } from './checker-contextual.js';
+import { hasContextSensitiveParameters } from './checker-contextual.js';
 import { checkNodeDeferred, checkSourceElement, checkTypeNodeIfPresent } from './checker-source-file.js';
 import { checkTypeParameters, checkVariableLikeDeclaration } from './checker-declarations.js';
 import { getFunctionFlags, FunctionFlags } from './checker-utilities.js';
 import { CheckMode, ObjectFlags, type Signature, SignatureFlags, SignatureKind } from './checker-types.js';
 import type { Symbol } from './symbol.js';
-import { createAnonymousType, getWidenedLiteralType } from './checker-type-factory.js';
+import { createAnonymousType, getWidenedLiteralType, isUnitType, someType } from './checker-type-factory.js';
 import { createSymbolWithType, getSignaturesOfType } from './checker-members.js';
 import {
   getEffectiveRestType,
@@ -58,6 +54,7 @@ import {
   tryGetTypeAtPosition,
 } from './checker-signatures.js';
 import { addOptionality } from './checker-symbol-types.js';
+import { getTypeFromBindingPattern } from './checker-destructuring.js';
 import { getTypeFromTypeNode } from './checker-type-nodes.js';
 import {
   checkDeclarationInitializer,
@@ -67,7 +64,13 @@ import {
 import { isTypeAssignableTo } from './relations.js';
 import { type InferenceContext, InferencePriority, inferTypes } from './checker-inference.js';
 import { couldContainTypeVariables, instantiateSignature } from './instantiation.js';
-import { getContextualSignatureForFunctionLikeDeclaration, getInferenceContext } from './checker-contextual.js';
+import {
+  ContextFlags,
+  getContextualReturnType,
+  getContextualSignatureForFunctionLikeDeclaration,
+  getInferenceContext,
+  instantiateContextualType,
+} from './checker-contextual.js';
 
 export function checkFunctionExpressionOrObjectLiteralMethod(c: Checker, node: Node, checkMode: CheckMode): Type {
   checkNodeDeferred(c, node);
@@ -255,7 +258,16 @@ function assignParameterSymbolType(c: Checker, parameter: Symbol, contextualType
     false,
     declaration !== undefined && getInitializer(declaration) === undefined && isOptionalDeclaration(declaration),
   );
-  if (declaration !== undefined) assignParameterType(c, declaration);
+  if (declaration === undefined) return;
+  const name = getName(declaration);
+  // Without a better inference than `unknown`, a binding pattern implies the type.
+  if (
+    links.type === c.unknownType &&
+    name !== undefined &&
+    (name.kind === SyntaxKind.ObjectBindingPattern || name.kind === SyntaxKind.ArrayBindingPattern)
+  )
+    links.type = getTypeFromBindingPattern(c, name, false, false);
+  assignParameterType(c, declaration);
 }
 
 export function getTypeOfObjectLiteralMethod(c: Checker, node: Node, checkMode: CheckMode): Type {
@@ -499,35 +511,78 @@ export function getReturnTypeFromBodyEx(c: Checker, func: Node, checkMode: Check
     const collector = new ReturnCollector();
     collector.visitStatements(body as Block);
     let hasReturnWithNoExpression = (func.flags & NodeFlags.HasImplicitReturn) !== 0;
+    let hasReturnOfTypeNever = false;
     for (const ret of collector.returns) {
       const expr = ret.expression;
       if (expr === undefined) {
         hasReturnWithNoExpression = true;
         continue;
       }
+      // Bare recursive calls don't contribute to the inferred type.
+      if (isRecursiveCall(c, func, expr)) {
+        hasReturnOfTypeNever = true;
+        continue;
+      }
       let t = checkExpressionCachedEx(c, expr, checkMode);
       if (isAsync) t = getAwaitedTypeNoAlias(c, t);
-      if ((t.flags & TypeFlags.Never) === 0) types.push(t);
+      if ((t.flags & TypeFlags.Never) !== 0) hasReturnOfTypeNever = true;
+      if (!types.includes(t)) types.push(t);
     }
-    if (types.length === 0 && collector.returns.length === 0) {
-      const v = c.voidType;
-      return isAsync ? createPromiseType(c, v) : v;
-    }
+    if (types.length === 0 && !hasReturnWithNoExpression && (hasReturnOfTypeNever || mayReturnNever(func)))
+      return isAsync ? createPromiseType(c, c.neverType) : c.neverType;
     if (types.length === 0) {
-      // Only `return;` statements, or every returned expression is `never`.
-      const t = hasReturnWithNoExpression ? c.voidType : c.neverType;
+      // `undefined` rather than `void` when the contextual return type includes `undefined`.
+      let contextualReturnType = getContextualReturnType(c, func);
+      if (contextualReturnType !== undefined && isAsync)
+        contextualReturnType = getPromisedTypeOfPromise(c, contextualReturnType);
+      const t =
+        contextualReturnType !== undefined &&
+        someType(contextualReturnType, (u) => (u.flags & TypeFlags.Undefined) !== 0)
+          ? c.undefinedType
+          : c.voidType;
       return isAsync ? createPromiseType(c, t) : t;
     }
-    if (hasReturnWithNoExpression && c.strictNullChecks) types.push(c.undefinedType);
+    if (hasReturnWithNoExpression && c.strictNullChecks && !types.includes(c.undefinedType))
+      types.push(c.undefinedType);
     returnType = getUnionTypeEx(c, types, UnionReduction.Subtype, undefined, undefined);
   }
-  const contextualReturnType =
-    isFunctionExpressionOrArrowFunction(func) || isObjectLiteralMethod(func)
-      ? getContextualReturnType(c, func)
-      : undefined;
-  returnType = getWidenedLiteralLikeTypeForContextualType(c, returnType, contextualReturnType);
+  if (isUnitType(returnType)) {
+    // A unit type keeps its literal type only when the contextual return type calls for it.
+    const contextualSignature = getContextualSignatureForFunctionLikeDeclaration(c, func);
+    let contextualType: Type | undefined = undefined;
+    if (contextualSignature !== undefined)
+      contextualType =
+        contextualSignature === getSignatureFromDeclaration(c, func)
+          ? returnType
+          : instantiateContextualType(c, getReturnTypeOfSignature(c, contextualSignature), func, ContextFlags.None);
+    if (contextualType !== undefined && isAsync) contextualType = getPromisedTypeOfPromise(c, contextualType);
+    returnType = getWidenedLiteralLikeTypeForContextualType(c, returnType, contextualType);
+  }
   const widened = getWidenedType(c, returnType);
   return isAsync ? createPromiseType(c, widened) : widened;
+}
+
+/** Function expressions, arrows and object literal methods without reachable ends may return `never`. */
+function mayReturnNever(func: Node): boolean {
+  switch (func.kind) {
+    case SyntaxKind.FunctionExpression:
+    case SyntaxKind.ArrowFunction:
+      return true;
+    case SyntaxKind.MethodDeclaration:
+      return func.parent !== undefined && func.parent.kind === SyntaxKind.ObjectLiteralExpression;
+  }
+  return false;
+}
+
+/** Whether `expr` is a call of the declared function `func` by name. */
+function isRecursiveCall(c: Checker, func: Node, expr: Node): boolean {
+  let e = expr;
+  while (e.kind === SyntaxKind.ParenthesizedExpression) e = getExpression(e)!;
+  if (e.kind !== SyntaxKind.CallExpression) return false;
+  const callee = getExpression(e)!;
+  if (callee.kind !== SyntaxKind.Identifier || isFunctionExpressionOrArrowFunction(func)) return false;
+  const symbol = getSymbolOfDeclaration(c, func);
+  return symbol !== undefined && checkExpressionCached(c, callee).symbol === getMergedSymbol(c, symbol);
 }
 
 /** Collects the return statements of a function body, skipping nested functions and classes. */

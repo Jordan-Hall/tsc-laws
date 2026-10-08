@@ -13,6 +13,7 @@ import {
   getText,
   getSymbol,
   getTypeParameters,
+  NodeFlags,
 } from './ast.js';
 import {
   getImmediatelyInvokedFunctionExpression,
@@ -915,7 +916,7 @@ export function hasContextSensitiveParameters(func: Node): boolean {
   for (const p of params) if (getType(p) === undefined) return true;
   if (func.kind !== SyntaxKind.ArrowFunction) {
     // Without an explicit `this` parameter, the implicit one is contextually typed.
-    if (params.length === 0 || !isThisParameter(params[0])) return true;
+    if (params.length === 0 || !isThisParameter(params[0])) return (func.flags & NodeFlags.ContainsThis) !== 0;
   }
   return false;
 }

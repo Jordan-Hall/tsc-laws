@@ -1687,9 +1687,9 @@ export function inferTypeForHomomorphicMappedType(
 ): Type | undefined {
   const key = source.id + ',' + target.id + ',' + constraint.id;
   const caches = c.inferenceCaches;
-  if (caches.reverseHomomorphicMapped.has(key)) return caches.reverseHomomorphicMapped.get(key) ?? undefined;
+  if (caches.reverseHomomorphicMapped.has(key)) return caches.reverseHomomorphicMapped.get(key);
   const t = createReverseMappedType(c, source, target, constraint);
-  caches.reverseHomomorphicMapped.set(key, t ?? null);
+  caches.reverseHomomorphicMapped.set(key, t);
   return t;
 }
 
@@ -1774,7 +1774,7 @@ export function inferReverseMappedType(
   caches.reverseSourceStack.pop();
   caches.reverseTargetStack.pop();
   caches.reverseExpandingFlags = saveExpandingFlags;
-  caches.reverseMapped.set(key, t ?? null);
+  caches.reverseMapped.set(key, t);
   return t;
 }
 
@@ -2151,8 +2151,8 @@ export class InferenceCaches {
   readonly optionalCallSignatures = new Map<Signature, Map<string, Signature>>();
   readonly discriminatedContextualTypes = new Map<string, Type>();
   readonly contextFreeTypes = new Map<Node, Type>();
-  readonly reverseMapped = new Map<string, Type | null>();
-  readonly reverseHomomorphicMapped = new Map<string, Type | null>();
+  readonly reverseMapped = new Map<string, Type | undefined>();
+  readonly reverseHomomorphicMapped = new Map<string, Type | undefined>();
   readonly reverseSourceStack: Type[] = [];
   readonly reverseTargetStack: Type[] = [];
   reverseExpandingFlags: number = ExpandingFlags.None;

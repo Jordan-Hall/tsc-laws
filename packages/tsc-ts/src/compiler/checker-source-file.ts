@@ -8,6 +8,7 @@
 // - JSX: checker-jsx.ts
 // - grammar: checker-grammar.ts (checks the parser leaves to the checker)
 // - type nodes: `checkTypeNode` below
+import { resolveUntypedCall } from './checker-calls.js';
 import {
   type Node,
   NodeVisitor,
@@ -309,6 +310,12 @@ function checkDeferredNode(c: Checker, node: Node): void {
   const saveCurrentNode = c.currentNode;
   c.currentNode = node;
   switch (node.kind) {
+    case SyntaxKind.CallExpression:
+    case SyntaxKind.NewExpression:
+    case SyntaxKind.TaggedTemplateExpression:
+      // Deferred when overload resolution fails, so that the arguments are checked once.
+      resolveUntypedCall(c, node);
+      break;
     case SyntaxKind.FunctionExpression:
     case SyntaxKind.ArrowFunction:
     case SyntaxKind.MethodDeclaration:
