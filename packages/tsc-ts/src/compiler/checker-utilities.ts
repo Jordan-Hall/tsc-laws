@@ -145,13 +145,13 @@ export function indexOfNode(nodes: readonly Node[], node: Node): number {
   let high = nodes.length;
   while (low < high) {
     const middle = (low + high) >>> 1;
-    const n = nodes[middle];
+    const n = nodes[middle]!;
     const order = n.pos !== node.pos ? n.pos - node.pos : n.end - node.end;
     if (order < 0) low = middle + 1;
     else high = middle;
   }
   if (low < nodes.length) {
-    const n = nodes[low];
+    const n = nodes[low]!;
     if (n.pos === node.pos && n.end === node.end) return low;
   }
   return -1;

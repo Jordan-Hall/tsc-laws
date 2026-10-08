@@ -102,9 +102,9 @@ export function checkForInStatement(c: Checker, node: Node): void {
     : expressionType;
   if (s.initializer.kind === SyntaxKind.VariableDeclarationList) {
     const declarations = (s.initializer as VariableDeclarationList).declarations.nodes;
-    if (declarations.length !== 0 && isBindingPattern(getName(declarations[0])))
+    if (declarations.length !== 0 && isBindingPattern(getName(declarations[0]!)))
       c.error(
-        getName(declarations[0])!,
+        getName(declarations[0]!)!,
         Diagnostics.The_left_hand_side_of_a_for_in_statement_cannot_be_a_destructuring_pattern,
       );
     for (const d of declarations) checkVariableLikeDeclaration(c, d);

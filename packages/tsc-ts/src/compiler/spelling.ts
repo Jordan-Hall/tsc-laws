@@ -21,7 +21,7 @@ export function levenshteinWithMax(s1: number[], s2: number[], max: number): num
   for (let i = 0; i <= s2.length; i++) previous[i] = i;
   const big = max + 0.01;
   for (let i = 1; i <= s1.length; i++) {
-    const c1 = s1[i - 1];
+    const c1 = s1[i - 1]!;
     const lower1 = toLower(c1);
     const minJ = Math.max(Math.ceil(i - max), 1);
     const maxJ = Math.min(Math.floor(max + i), s2.length);
@@ -29,7 +29,7 @@ export function levenshteinWithMax(s1: number[], s2: number[], max: number): num
     current[0] = i;
     for (let j = 1; j < minJ; j++) current[j] = big;
     for (let j = minJ; j <= maxJ; j++) {
-      const c2 = s2[j - 1];
+      const c2 = s2[j - 1]!;
       let dist = previous[j - 1];
       if (c1 !== c2) {
         const substitution = dist + (lower1 === toLower(c2) ? 0.1 : 2);

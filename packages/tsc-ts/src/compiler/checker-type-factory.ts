@@ -86,7 +86,7 @@ export const enum IntersectionFlags {
 
 export function typeListKey(types: readonly Type[]): string {
   let key = '';
-  for (let i = 0; i < types.length; i++) key += (i === 0 ? '' : ',') + types[i].id;
+  for (let i = 0; i < types.length; i++) key += (i === 0 ? '' : ',') + types[i]!.id;
   return key;
 }
 
@@ -198,7 +198,7 @@ export function newIndexInfo(
 export function getPropagatingFlagsOfTypes(types: readonly Type[], excludeKinds: TypeFlags): ObjectFlags {
   let result = 0;
   for (let i = 0; i < types.length; i++) {
-    const t = types[i];
+    const t = types[i]!;
     if ((t.flags & excludeKinds) === 0) result |= t.objectFlags;
   }
   return result & ObjectFlags.PropagatingFlags;
@@ -389,7 +389,7 @@ export function compareSymbols(c: Checker, s1: Symbol | undefined, s2: Symbol | 
   if (s1 === undefined) return 1;
   if (s2 === undefined) return -1;
   if (s1.declarations.length !== 0 && s2.declarations.length !== 0) {
-    const r = compareNodes(c, s1.declarations[0], s2.declarations[0]);
+    const r = compareNodes(c, s1.declarations[0]!, s2.declarations[0]!);
     if (r !== 0) return r;
   } else if (s1.declarations.length !== 0) return -1;
   else if (s2.declarations.length !== 0) return 1;
@@ -430,7 +430,7 @@ function compareTypeLists(c: Checker, s1: readonly Type[] | undefined, s2: reado
   const b = s2 ?? emptyTypes;
   if (a.length !== b.length) return a.length - b.length;
   for (let i = 0; i < a.length; i++) {
-    const r = compareTypes(c, a[i], b[i]);
+    const r = compareTypes(c, a[i]!, b[i]!);
     if (r !== 0) return r;
   }
   return 0;
@@ -453,11 +453,11 @@ function compareTupleTypes(t1: TupleType, t2: TupleType): number {
   if (t1.readonly !== t2.readonly) return t1.readonly ? 1 : -1;
   if (t1.elementInfos.length !== t2.elementInfos.length) return t1.elementInfos.length - t2.elementInfos.length;
   for (let i = 0; i < t1.elementInfos.length; i++) {
-    const r = t1.elementInfos[i].flags - t2.elementInfos[i].flags;
+    const r = t1.elementInfos[i]!.flags - t2.elementInfos[i]!.flags;
     if (r !== 0) return r;
   }
   for (let i = 0; i < t1.elementInfos.length; i++) {
-    const r = compareElementLabels(t1.elementInfos[i].labeledDeclaration, t2.elementInfos[i].labeledDeclaration);
+    const r = compareElementLabels(t1.elementInfos[i]!.labeledDeclaration, t2.elementInfos[i]!.labeledDeclaration);
     if (r !== 0) return r;
   }
   return 0;
@@ -596,7 +596,7 @@ export function compareTypes(c: Checker, t1: Type, t2: Type): number {
     const b = (t2 as TemplateLiteralType).texts;
     const n = Math.min(a.length, b.length);
     for (let i = 0; i < n; i++) {
-      r = compareCodePoints(a[i], b[i]);
+      r = compareCodePoints(a[i]!, b[i]!);
       if (r !== 0) return r;
     }
     if (a.length !== b.length) return a.length - b.length;
@@ -615,7 +615,7 @@ export function binarySearchTypes(c: Checker, types: readonly Type[], t: Type): 
   let high = types.length - 1;
   while (low <= high) {
     const middle = (low + high) >> 1;
-    const r = compareTypes(c, types[middle], t);
+    const r = compareTypes(c, types[middle]!, t);
     if (r === 0) return middle;
     if (r < 0) low = middle + 1;
     else high = middle - 1;
@@ -717,7 +717,7 @@ export function filterType(c: Checker, type: Type, f: (t: Type) => boolean): Typ
       const originFiltered: Type[] = [];
       for (const u of originTypes) if ((u.flags & TypeFlags.Union) !== 0 || f(u)) originFiltered.push(u);
       if (originTypes.length - originFiltered.length === types.length - filtered.length) {
-        if (originFiltered.length === 1) return originFiltered[0];
+        if (originFiltered.length === 1) return originFiltered[0]!;
         newOrigin = newUnionType(c, ObjectFlags.None, originFiltered);
       }
     }
@@ -760,15 +760,15 @@ export function getUnionTypeEx(
   origin: Type | undefined,
 ): Type {
   if (types.length === 0) return c.neverType;
-  if (types.length === 1) return types[0];
+  if (types.length === 1) return types[0]!;
   // Optimize the common case of unioning a union with some other type, like `undefined`.
   if (
     types.length === 2 &&
     origin === undefined &&
-    ((types[0].flags & TypeFlags.Union) !== 0 || (types[1].flags & TypeFlags.Union) !== 0)
+    ((types[0]!.flags & TypeFlags.Union) !== 0 || (types[1]!.flags & TypeFlags.Union) !== 0)
   ) {
-    let id1 = types[0].id;
-    let id2 = types[1].id;
+    let id1 = types[0]!.id;
+    let id2 = types[1]!.id;
     if (id1 > id2) {
       const t = id1;
       id1 = id2;
@@ -811,7 +811,7 @@ function getUnionTypeWorker(
       return c.unknownType;
     }
     if ((includes & TypeFlags.Undefined) !== 0) {
-      if (typeSet.length >= 2 && typeSet[0] === c.undefinedType && typeSet[1] === c.missingType) typeSet.splice(1, 1);
+      if (typeSet.length >= 2 && typeSet[0]! === c.undefinedType && typeSet[1]! === c.missingType) typeSet.splice(1, 1);
     }
     if (
       (includes &
@@ -856,7 +856,7 @@ function getUnionTypeWorker(
         }
       if (!inNamed) reducedTypes.push(t);
     }
-    if (alias === undefined && namedUnions.length === 1 && reducedTypes.length === 0) return namedUnions[0];
+    if (alias === undefined && namedUnions.length === 1 && reducedTypes.length === 0) return namedUnions[0]!;
     // A denormalized origin only when the union came from named unions with no overlap.
     let namedTypesCount = 0;
     for (const u of namedUnions) namedTypesCount += (u as UnionType).types.length;
@@ -880,7 +880,7 @@ export function getUnionTypeFromSortedList(
   origin: Type | undefined,
 ): Type {
   if (types.length === 0) return c.neverType;
-  if (types.length === 1) return types[0];
+  if (types.length === 1) return types[0]!;
   const key = unionKey(types, origin, alias);
   let result = c.unionTypes.get(key);
   if (result === undefined) {
@@ -893,8 +893,8 @@ export function getUnionTypeFromSortedList(
     union.alias = alias;
     if (
       types.length === 2 &&
-      (types[0].flags & TypeFlags.BooleanLiteral) !== 0 &&
-      (types[1].flags & TypeFlags.BooleanLiteral) !== 0
+      (types[0]!.flags & TypeFlags.BooleanLiteral) !== 0 &&
+      (types[1]!.flags & TypeFlags.BooleanLiteral) !== 0
     )
       union.flags |= TypeFlags.Boolean;
     c.unionTypes.set(key, union);
@@ -951,7 +951,7 @@ function removeRedundantLiteralTypes(
   let i = types.length;
   while (i > 0) {
     i--;
-    const t = types[i];
+    const t = types[i]!;
     const flags = t.flags;
     const remove =
       ((flags & (TypeFlags.StringLiteral | TypeFlags.TemplateLiteral | TypeFlags.StringMapping)) !== 0 &&
@@ -972,7 +972,7 @@ function removeStringLiteralsMatchedByTemplateLiterals(c: Checker, types: Type[]
   let i = types.length;
   while (i > 0) {
     i--;
-    const t = types[i];
+    const t = types[i]!;
     if ((t.flags & TypeFlags.StringLiteral) === 0) continue;
     for (const template of templates)
       if (isTypeMatchedByTemplateLiteralOrStringMapping(c, t, template)) {
@@ -989,14 +989,14 @@ function isTypeMatchedByTemplateLiteralOrStringMapping(c: Checker, t: Type, temp
 }
 
 function constrainedTypeVariableIndex(t: Type): number {
-  return ((t as IntersectionType).types[0].flags & TypeFlags.TypeVariable) === 0 ? 1 : 0;
+  return ((t as IntersectionType).types[0]!.flags & TypeFlags.TypeVariable) === 0 ? 1 : 0;
 }
 
 function removeConstrainedTypeVariables(c: Checker, types: Type[]): void {
   const typeVariables: Type[] = [];
   for (const t of types) {
     if ((t.flags & TypeFlags.Intersection) !== 0 && (t.objectFlags & ObjectFlags.IsConstrainedTypeVariable) !== 0) {
-      const v = (t as IntersectionType).types[constrainedTypeVariableIndex(t)];
+      const v = (t as IntersectionType).types[constrainedTypeVariableIndex(t)]!;
       if (!typeVariables.includes(v)) typeVariables.push(v);
     }
   }
@@ -1005,8 +1005,8 @@ function removeConstrainedTypeVariables(c: Checker, types: Type[]): void {
     for (const t of types) {
       if ((t.flags & TypeFlags.Intersection) !== 0 && (t.objectFlags & ObjectFlags.IsConstrainedTypeVariable) !== 0) {
         const index = constrainedTypeVariableIndex(t);
-        if ((t as IntersectionType).types[index] === typeVariable)
-          insertType(c, primitives, (t as IntersectionType).types[1 - index]);
+        if ((t as IntersectionType).types[index]! === typeVariable)
+          insertType(c, primitives, (t as IntersectionType).types[1 - index]!);
       }
     }
     const constraint = getBaseConstraintOfType(c, typeVariable);
@@ -1014,11 +1014,11 @@ function removeConstrainedTypeVariables(c: Checker, types: Type[]): void {
       let i = types.length;
       while (i > 0) {
         i--;
-        const t = types[i];
+        const t = types[i]!;
         if ((t.flags & TypeFlags.Intersection) !== 0 && (t.objectFlags & ObjectFlags.IsConstrainedTypeVariable) !== 0) {
           const index = constrainedTypeVariableIndex(t);
           const parts = (t as IntersectionType).types;
-          if (parts[index] === typeVariable && containsType(c, primitives, parts[1 - index])) types.splice(i, 1);
+          if (parts[index]! === typeVariable && containsType(c, primitives, parts[1 - index]!)) types.splice(i, 1);
         }
       }
       insertType(c, types, typeVariable);
@@ -1047,7 +1047,7 @@ function removeSubtypes(c: Checker, types: Type[], hasObjectTypes: boolean): Typ
   let count = 0;
   while (i > 0) {
     i--;
-    const source = types[i];
+    const source = types[i]!;
     if (!hasEmptyObject && (source.flags & TypeFlags.StructuredOrInstantiable) === 0) continue;
     // `T extends A | B` is a subtype of `A | B` but not of `A` or `B` alone.
     if (
@@ -1300,11 +1300,11 @@ export function getIntersectionTypeEx(
   }
   if ((includes & TypeFlags.IncludesMissingType) !== 0) typeSet[typeSet.indexOf(c.undefinedType)] = c.missingType;
   if (typeSet.length === 0) return c.unknownType;
-  if (typeSet.length === 1) return typeSet[0];
+  if (typeSet.length === 1) return typeSet[0]!;
   if (typeSet.length === 2 && (flags & IntersectionFlags.NoConstraintReduction) === 0) {
-    const typeVarIndex = (typeSet[0].flags & TypeFlags.TypeVariable) === 0 ? 1 : 0;
-    const typeVariable = typeSet[typeVarIndex];
-    const primitiveType = typeSet[1 - typeVarIndex];
+    const typeVarIndex = (typeSet[0]!.flags & TypeFlags.TypeVariable) === 0 ? 1 : 0;
+    const typeVariable = typeSet[typeVarIndex]!;
+    const primitiveType = typeSet[1 - typeVarIndex]!;
     if (
       (typeVariable.flags & TypeFlags.TypeVariable) !== 0 &&
       (((primitiveType.flags & (TypeFlags.Primitive | TypeFlags.NonPrimitive)) !== 0 &&
@@ -1338,7 +1338,7 @@ export function getIntersectionTypeEx(
         let containedUndefinedType: Type = c.undefinedType;
         for (const t of typeSet) if (containsMissingType(c, t)) containedUndefinedType = c.missingType;
         for (let i = 0; i < typeSet.length; i++)
-          typeSet[i] = filterType(c, typeSet[i], (t) => (t.flags & TypeFlags.Undefined) === 0);
+          typeSet[i] = filterType(c, typeSet[i]!, (t) => (t.flags & TypeFlags.Undefined) === 0);
         result = getUnionTypeEx(
           c,
           [getIntersectionTypeEx(c, typeSet, flags, undefined), containedUndefinedType],
@@ -1348,7 +1348,7 @@ export function getIntersectionTypeEx(
         );
       } else if (typeSet.every(isUnionWithNull)) {
         for (let i = 0; i < typeSet.length; i++)
-          typeSet[i] = filterType(c, typeSet[i], (t) => (t.flags & TypeFlags.Null) === 0);
+          typeSet[i] = filterType(c, typeSet[i]!, (t) => (t.flags & TypeFlags.Null) === 0);
         result = getUnionTypeEx(
           c,
           [getIntersectionTypeEx(c, typeSet, flags, undefined), c.nullType],
@@ -1393,24 +1393,24 @@ export function isPrimitiveOrObjectOrEmptyType(c: Checker, t: Type): boolean {
 }
 
 export function containsMissingType(c: Checker, t: Type): boolean {
-  return t === c.missingType || ((t.flags & TypeFlags.Union) !== 0 && typesOf(t)[0] === c.missingType);
+  return t === c.missingType || ((t.flags & TypeFlags.Union) !== 0 && typesOf(t)[0]! === c.missingType);
 }
 
 function isUnionWithUndefined(t: Type): boolean {
-  return (t.flags & TypeFlags.Union) !== 0 && (typesOf(t)[0].flags & TypeFlags.Undefined) !== 0;
+  return (t.flags & TypeFlags.Union) !== 0 && (typesOf(t)[0]!.flags & TypeFlags.Undefined) !== 0;
 }
 
 function isUnionWithNull(t: Type): boolean {
   if ((t.flags & TypeFlags.Union) === 0) return false;
   const types = typesOf(t);
-  return (types[0].flags & TypeFlags.Null) !== 0 || (types[1].flags & TypeFlags.Null) !== 0;
+  return (types[0]!.flags & TypeFlags.Null) !== 0 || (types[1]!.flags & TypeFlags.Null) !== 0;
 }
 
 function removeRedundantSupertypes(c: Checker, types: Type[], includes: TypeFlags): void {
   let i = types.length;
   while (i > 0) {
     i--;
-    const t = types[i];
+    const t = types[i]!;
     const remove =
       ((t.flags & TypeFlags.String) !== 0 &&
         (includes & (TypeFlags.StringLiteral | TypeFlags.TemplateLiteral | TypeFlags.StringMapping)) !== 0) ||
@@ -1430,7 +1430,7 @@ function extractRedundantTemplateLiterals(c: Checker, types: Type[]): boolean {
   let i = types.length;
   while (i > 0) {
     i--;
-    const t = types[i];
+    const t = types[i]!;
     if ((t.flags & (TypeFlags.TemplateLiteral | TypeFlags.StringMapping)) === 0) continue;
     for (const t2 of literals) {
       if (isTypeSubtypeOf(c, t2, t)) {
@@ -1446,10 +1446,10 @@ function extractRedundantTemplateLiterals(c: Checker, types: Type[]): boolean {
 function intersectUnionsOfPrimitiveTypes(c: Checker, types: Type[]): boolean {
   const index = types.findIndex((t) => (t.objectFlags & ObjectFlags.PrimitiveUnion) !== 0);
   if (index < 0) return false;
-  const unionTypes: Type[] = [types[index]];
+  const unionTypes: Type[] = [types[index]!];
   let i = index + 1;
   while (i < types.length) {
-    const t = types[i];
+    const t = types[i]!;
     if ((t.objectFlags & ObjectFlags.PrimitiveUnion) !== 0) {
       unionTypes.push(t);
       types.splice(i, 1);
@@ -1463,8 +1463,8 @@ function intersectUnionsOfPrimitiveTypes(c: Checker, types: Type[]): boolean {
       if (!insertType(c, checked, t)) continue;
       if (!eachUnionContains(c, unionTypes, t)) continue;
       // undefinedType and missingType sort first.
-      if (t === c.undefinedType && result.length !== 0 && result[0] === c.missingType) continue;
-      if (t === c.missingType && result.length !== 0 && result[0] === c.undefinedType) {
+      if (t === c.undefinedType && result.length !== 0 && result[0]! === c.missingType) continue;
+      if (t === c.missingType && result.length !== 0 && result[0]! === c.undefinedType) {
         result[0] = c.missingType;
         continue;
       }
@@ -1516,10 +1516,10 @@ function getCrossProductIntersections(c: Checker, types: Type[], flags: Intersec
     const constituents = types.slice();
     let n = i;
     for (let j = types.length - 1; j >= 0; j--) {
-      if ((types[j].flags & TypeFlags.Union) !== 0) {
-        const sourceTypes = typesOf(types[j]);
+      if ((types[j]!.flags & TypeFlags.Union) !== 0) {
+        const sourceTypes = typesOf(types[j]!);
         const length = sourceTypes.length;
-        constituents[j] = sourceTypes[n % length];
+        constituents[j] = sourceTypes[n % length]!;
         n = Math.trunc(n / length);
       }
     }
@@ -1670,13 +1670,13 @@ export function getElementTypes(c: Checker, t: Type): Type[] {
 }
 
 export function getStartElementCount(t: TupleType, flags: ElementFlags): number {
-  for (let i = 0; i < t.elementInfos.length; i++) if ((t.elementInfos[i].flags & flags) === 0) return i;
+  for (let i = 0; i < t.elementInfos.length; i++) if ((t.elementInfos[i]!.flags & flags) === 0) return i;
   return t.elementInfos.length;
 }
 
 export function getEndElementCount(t: TupleType, flags: ElementFlags): number {
   for (let i = t.elementInfos.length; i > 0; i--)
-    if ((t.elementInfos[i - 1].flags & flags) === 0) return t.elementInfos.length - i;
+    if ((t.elementInfos[i - 1]!.flags & flags) === 0) return t.elementInfos.length - i;
   return t.elementInfos.length;
 }
 
@@ -1715,7 +1715,7 @@ function tupleKey(elementInfos: TupleElementInfo[], readonly: boolean): string {
 }
 
 export function getTupleTargetType(c: Checker, elementInfos: TupleElementInfo[], readonly: boolean): Type {
-  if (elementInfos.length === 1 && (elementInfos[0].flags & ElementFlags.Rest) !== 0)
+  if (elementInfos.length === 1 && (elementInfos[0]!.flags & ElementFlags.Rest) !== 0)
     return readonly ? c.globalReadonlyArrayType : c.globalArrayType;
   const key = tupleKey(elementInfos, readonly);
   let type = c.tupleTypes.get(key);
@@ -1737,7 +1737,7 @@ function createTupleTargetType(c: Checker, elementInfos: TupleElementInfo[], rea
   for (let i = 0; i < arity; i++) {
     const typeParameter = c.newTypeParameter(undefined);
     typeParameters.push(typeParameter);
-    const flags = elementInfos[i].flags;
+    const flags = elementInfos[i]!.flags;
     combinedFlags |= flags;
     if ((combinedFlags & ElementFlags.Variable) === 0) {
       const property = c.newSymbolWithCheckFlags(
@@ -1801,17 +1801,17 @@ export function createNormalizedTupleType(
   const infos = target.elementInfos;
   if ((target.combinedFlags & ElementFlags.Variadic) !== 0) {
     for (let i = 0; i < elementTypes.length; i++) {
-      const e = elementTypes[i];
+      const e = elementTypes[i]!;
       if (
         i < infos.length &&
-        (infos[i].flags & ElementFlags.Variadic) !== 0 &&
+        (infos[i]!.flags & ElementFlags.Variadic) !== 0 &&
         (e.flags & (TypeFlags.Never | TypeFlags.Union)) !== 0
       ) {
         // [A, ...(X | Y)] becomes [A, ...X] | [A, ...Y].
         const checkTypes: Type[] = [];
         for (let j = 0; j < elementTypes.length; j++)
           checkTypes.push(
-            j < infos.length && (infos[j].flags & ElementFlags.Variadic) !== 0 ? elementTypes[j] : c.unknownType,
+            j < infos.length && (infos[j]!.flags & ElementFlags.Variadic) !== 0 ? elementTypes[j]! : c.unknownType,
           );
         if (checkCrossProductUnion(c, checkTypes)) {
           return mapType(c, e, (t) => {
@@ -1825,7 +1825,7 @@ export function createNormalizedTupleType(
   }
   const n = new TupleNormalizer(c);
   if (!n.normalize(elementTypes.slice(0, infos.length), infos)) return c.errorType;
-  if (elementTypes.length > infos.length) n.types.push(elementTypes[infos.length]);
+  if (elementTypes.length > infos.length) n.types.push(elementTypes[infos.length]!);
   const tupleTarget = getTupleTargetType(c, n.infos, target.readonly);
   if (tupleTarget === c.emptyGenericType) return c.emptyObjectType;
   if (n.types.length !== 0) return createTypeReferenceEx(c, tupleTarget, n.types, objectFlags);
@@ -1851,8 +1851,8 @@ class TupleNormalizer {
   normalize(elementTypes: Type[], elementInfos: TupleElementInfo[]): boolean {
     const c = this.c;
     for (let i = 0; i < elementTypes.length; i++) {
-      const t = elementTypes[i];
-      const info = elementInfos[i];
+      const t = elementTypes[i]!;
+      const info = elementInfos[i]!;
       if ((info.flags & ElementFlags.Variadic) === 0) {
         this.add(t, info);
         continue;
@@ -1867,7 +1867,7 @@ class TupleNormalizer {
           return false;
         }
         const spreadInfos = tupleTargetOf(t).elementInfos;
-        for (let j = 0; j < spreadTypes.length; j++) this.add(spreadTypes[j], spreadInfos[j]);
+        for (let j = 0; j < spreadTypes.length; j++) this.add(spreadTypes[j]!, spreadInfos[j]!);
       } else {
         const s = (isArrayLikeType(c, t) ? getIndexTypeOfType(c, t, c.numberType) : undefined) ?? c.errorType;
         this.add(s, new TupleElementInfo(ElementFlags.Rest, info.labeledDeclaration));
@@ -1875,7 +1875,7 @@ class TupleNormalizer {
     }
     // Optional elements before the last required one become required.
     for (let i = 0; i < this.lastRequiredIndex; i++) {
-      const info = this.infos[i];
+      const info = this.infos[i]!;
       if ((info.flags & ElementFlags.Optional) !== 0)
         this.infos[i] = new TupleElementInfo(ElementFlags.Required, info.labeledDeclaration);
     }
@@ -1883,8 +1883,8 @@ class TupleNormalizer {
       // Elements from the first rest to the last optional or rest become one rest element.
       const types: Type[] = [];
       for (let i = this.firstRestIndex; i <= this.lastOptionalOrRestIndex; i++) {
-        let t = this.types[i];
-        if ((this.infos[i].flags & ElementFlags.Variadic) !== 0) t = getIndexedAccessType(c, t, c.numberType);
+        let t = this.types[i]!;
+        if ((this.infos[i]!.flags & ElementFlags.Variadic) !== 0) t = getIndexedAccessType(c, t, c.numberType);
         types.push(t);
       }
       this.types[this.firstRestIndex] = getUnionType(c, types);
@@ -1950,14 +1950,14 @@ export function getTemplateLiteralType(c: Checker, texts: string[], types: Type[
   const unionIndex = types.findIndex((t) => (t.flags & (TypeFlags.Never | TypeFlags.Union)) !== 0);
   if (unionIndex >= 0) {
     if (!checkCrossProductUnion(c, types)) return c.errorType;
-    return mapType(c, types[unionIndex], (t) => {
+    return mapType(c, types[unionIndex]!, (t) => {
       const replaced = types.slice();
       replaced[unionIndex] = t;
       return getTemplateLiteralType(c, texts, replaced);
     });
   }
   if (types.includes(c.wildcardType)) return c.wildcardType;
-  const builder = new TemplateBuilder(c, texts[0]);
+  const builder = new TemplateBuilder(c, texts[0]!);
   if (!builder.addSpans(texts, types)) return c.stringType;
   if (builder.newTypes.length === 0) return getStringLiteralType(c, builder.text);
   builder.newTexts.push(builder.text);
@@ -1966,7 +1966,7 @@ export function getTemplateLiteralType(c: Checker, texts: string[], types: Type[
   if (newTexts.every((t) => t === '')) {
     if (newTypes.every((t) => (t.flags & TypeFlags.String) !== 0)) return c.stringType;
     // `${Mapping<xxx>}` is Mapping<xxx>.
-    if (newTypes.length === 1 && isPatternLiteralType(c, newTypes[0])) return newTypes[0];
+    if (newTypes.length === 1 && isPatternLiteralType(c, newTypes[0]!)) return newTypes[0]!;
   }
   const key = newTexts.join('\u0000') + '|' + typeListKey(newTypes);
   let type = c.templateLiteralTypes.get(key);
@@ -1991,18 +1991,18 @@ class TemplateBuilder {
   addSpans(texts: string[], types: Type[]): boolean {
     const c = this.c;
     for (let i = 0; i < types.length; i++) {
-      const t = types[i];
+      const t = types[i]!;
       if ((t.flags & (TypeFlags.Literal | TypeFlags.Null | TypeFlags.Undefined)) !== 0) {
-        this.text += getTemplateStringForType(c, t) + texts[i + 1];
+        this.text += getTemplateStringForType(c, t) + texts[i + 1]!;
       } else if ((t.flags & TypeFlags.TemplateLiteral) !== 0) {
         const template = t as TemplateLiteralType;
-        this.text += template.texts[0];
+        this.text += template.texts[0]!;
         if (!this.addSpans(template.texts, template.types)) return false;
-        this.text += texts[i + 1];
+        this.text += texts[i + 1]!;
       } else if (isGenericIndexType(c, t) || isPatternLiteralPlaceholderType(c, t)) {
         this.newTypes.push(t);
         this.newTexts.push(this.text);
-        this.text = texts[i + 1];
+        this.text = texts[i + 1]!;
       } else return false;
     }
     return true;

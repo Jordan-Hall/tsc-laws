@@ -8,6 +8,7 @@ import {
   type JsxFragment,
   type JsxNamespacedName,
   type JsxOpeningElement,
+  type JsxSelfClosingElement,
   type JsxSpreadAttribute,
   type JsxText,
   type Node,
@@ -16,7 +17,9 @@ import {
   type QualifiedName,
   type SourceFile,
   getSymbol,
+  getTagName,
   getText,
+  getTypeArguments,
 } from './ast.js';
 import { getSourceFileOfNode, getSourceTextOfNode } from './binder-utilities.js';
 import { Diagnostic, type DiagnosticMessage, Diagnostics, chainDiagnostic } from './diagnostics.js';
@@ -262,15 +265,17 @@ function entityNameToString(node: Node): string {
 }
 
 export function getTagNameOf(node: Node): Node {
-  return (node as JsxOpeningElement).tagName;
+  return getTagName(node)!;
 }
 
 export function getAttributesOf(node: Node): JsxAttributes {
-  return (node as JsxOpeningElement).attributes;
+  return node.kind === SyntaxKind.JsxSelfClosingElement
+    ? (node as JsxSelfClosingElement).attributes
+    : (node as JsxOpeningElement).attributes;
 }
 
 function getTypeArgumentListOf(node: Node): NodeList | undefined {
-  return (node as JsxOpeningElement).typeArguments;
+  return getTypeArguments(node);
 }
 
 function getChildrenOf(node: Node): Node[] {
@@ -521,10 +526,10 @@ function getNameFromJsxElementAttributesContainer(c: Checker, containerName: str
     if (sym !== undefined) {
       const props = getPropertiesOfType(c, getDeclaredTypeOfSymbol(c, sym));
       if (props.length === 0) return '';
-      if (props.length === 1) return props[0].name;
+      if (props.length === 1) return props[0]!.name;
       if (sym.declarations.length !== 0)
         c.error(
-          sym.declarations[0],
+          sym.declarations[0]!,
           Diagnostics.The_global_type_JSX_0_may_not_have_more_than_one_property,
           containerName,
         );
@@ -966,7 +971,7 @@ export function createJsxAttributesTypeFromAttributesProperty(
       }
       const childrenPropSymbol = c.newSymbol(SymbolFlags.Property, jsxChildrenPropertyName);
       const links = c.symbolLinks(childrenPropSymbol);
-      if (childTypes.length === 1) links.type = childTypes[0];
+      if (childTypes.length === 1) links.type = childTypes[0]!;
       else if (childrenContextualType !== undefined && someType(childrenContextualType, (t) => isTupleLikeType(c, t)))
         links.type = createTupleType(c, childTypes);
       else links.type = createArrayType(c, getUnionType(c, childTypes));
@@ -1333,7 +1338,7 @@ function checkJsxOpeningLikeElementOrOpeningFragment(c: Checker, node: Node): vo
       )
     )
       c.addDiagnostic(
-        chainDiagnostic(diagnostics[0], Diagnostics.X_0_cannot_be_used_as_a_JSX_component, getTextOfNode(tagName)),
+        chainDiagnostic(diagnostics[0]!, Diagnostics.X_0_cannot_be_used_as_a_JSX_component, getTextOfNode(tagName)),
       );
   } else
     checkJsxReturnAssignableToAppropriateBound(c, getJsxReferenceKind(c, node), getReturnTypeOfSignature(c, sig), node);
@@ -1394,7 +1399,7 @@ function checkJsxReturnAssignableToAppropriateBound(
   }
   if (diagnostics.length !== 0)
     c.addDiagnostic(
-      chainDiagnostic(diagnostics[0], Diagnostics.X_0_cannot_be_used_as_a_JSX_component, getTextOfNode(tagName)),
+      chainDiagnostic(diagnostics[0]!, Diagnostics.X_0_cannot_be_used_as_a_JSX_component, getTextOfNode(tagName)),
     );
 }
 
@@ -1478,7 +1483,7 @@ function checkGrammarTypeArguments(c: Checker, node: Node, typeArguments: NodeLi
   if (typeArguments.hasTrailingComma())
     return grammarErrorAtPos(
       c,
-      typeArguments.nodes[0],
+      typeArguments.nodes[0]!,
       typeArguments.end - 1,
       1,
       Diagnostics.Trailing_comma_not_allowed,
@@ -1664,7 +1669,7 @@ export function elaborateJsxComponents(
       let memberOffset = 0;
       const allChildren = containingElement.children.nodes;
       for (let i = 0; i < allChildren.length; i++) {
-        const e = getElaborationElementForJsxChild(allChildren[i], getNumberLiteralType(c, i - memberOffset));
+        const e = getElaborationElementForJsxChild(allChildren[i]!, getNumberLiteralType(c, i - memberOffset));
         if (e !== undefined) children.push(e);
         else memberOffset++;
       }
@@ -1691,7 +1696,7 @@ export function elaborateJsxComponents(
       reportedError = true;
     }
   } else if (nonArrayLikeTargetParts !== c.neverType) {
-    const e = getElaborationElementForJsxChild(validChildren[0], childrenNameType);
+    const e = getElaborationElementForJsxChild(validChildren[0]!, childrenNameType);
     if (e !== undefined)
       reportedError =
         elaborateElement(

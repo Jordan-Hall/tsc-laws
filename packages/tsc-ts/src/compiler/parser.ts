@@ -375,7 +375,7 @@ class ParentSetter extends NodeVisitor {
 
 function appendRange(to: Node[], from: readonly Node[], start: number, end: number): void {
   // `i += 1`: scriptc rejects `i++` here (the bounds come from array elements).
-  for (let i = start; i < end; i += 1) to.push(from[i]);
+  for (let i = start; i < end; i += 1) to.push(from[i]!);
 }
 
 /** Parses `text` as the file `fileName`. The script kind defaults to the one implied by the extension. */
@@ -545,7 +545,7 @@ export class Parser extends ScannerErrorReporter {
   ): Diagnostic | undefined {
     const diagnostics = this.diagnostics;
     let result: Diagnostic | undefined;
-    if (diagnostics.length === 0 || diagnostics[diagnostics.length - 1].pos !== pos) {
+    if (diagnostics.length === 0 || diagnostics[diagnostics.length - 1]!.pos !== pos) {
       result = new Diagnostic(undefined, pos, end, message, args);
       diagnostics.push(result);
     }
@@ -782,7 +782,7 @@ export class Parser extends ScannerErrorReporter {
     const i = index + this.reparseList.length;
     if (this.statementHasAwaitIdentifier && (statement.flags & NodeFlags.AwaitContext) === 0) {
       const spans = this.possibleAwaitSpans;
-      if (spans.length === 0 || spans[spans.length - 1] !== i) spans.push(i, i + 1);
+      if (spans.length === 0 || spans[spans.length - 1]! !== i) spans.push(i, i + 1);
       else spans[spans.length - 1] = i + 1;
     }
     return statement;
@@ -798,35 +798,35 @@ export class Parser extends ScannerErrorReporter {
     this.diagnostics = [];
     let afterAwaitStatement: number = 0;
     for (let i = 0; i < spans.length; i += 2) {
-      const nextAwaitStatement: number = spans[i];
+      const nextAwaitStatement: number = spans[i]!;
       // Copy the statements up to the next span with their diagnostics.
-      const prevStatement = original[afterAwaitStatement];
-      const nextStatement = original[nextAwaitStatement];
+      const prevStatement = original[afterAwaitStatement]!;
+      const nextStatement = original[nextAwaitStatement]!;
       appendRange(statements, original, afterAwaitStatement, nextAwaitStatement);
       const diagnosticStart = findDiagnosticAtOrAfter(savedParseDiagnostics, 0, prevStatement.pos);
       if (diagnosticStart >= 0) {
         const diagnosticEnd = findDiagnosticAtOrAfter(savedParseDiagnostics, diagnosticStart, nextStatement.pos);
         const stop = diagnosticEnd >= 0 ? diagnosticEnd : savedParseDiagnostics.length;
-        for (let j = diagnosticStart; j < stop; j++) this.diagnostics.push(savedParseDiagnostics[j]);
+        for (let j = diagnosticStart; j < stop; j++) this.diagnostics.push(savedParseDiagnostics[j]!);
       }
       // Reparse the span's statements in an await context, keeping only the new diagnostics.
       const state = this.mark();
       this.contextFlags |= NodeFlags.AwaitContext;
       this.scanner.resetPos(nextStatement.pos);
       this.nextToken();
-      afterAwaitStatement = spans[i + 1];
+      afterAwaitStatement = spans[i + 1]!;
       while (this.token() !== SyntaxKind.EndOfFile) {
         const startPos = this.scanner.getTokenFullStart();
         const statement = this.parseStatement();
         statements.push(statement);
         if (startPos === this.scanner.getTokenFullStart()) this.nextToken();
         if (afterAwaitStatement < original.length) {
-          const lastAwaitStatement = original[afterAwaitStatement - 1];
+          const lastAwaitStatement = original[afterAwaitStatement - 1]!;
           if (statement.end === lastAwaitStatement.end) break;
           if (statement.end > lastAwaitStatement.end) {
             // We ate into the next statement, so continue with the next span.
             i += 2;
-            afterAwaitStatement = i < spans.length ? spans[i + 1] : original.length;
+            afterAwaitStatement = i < spans.length ? spans[i + 1]! : original.length;
           }
         }
       }
@@ -835,12 +835,12 @@ export class Parser extends ScannerErrorReporter {
     }
     // Copy the remaining statements with their diagnostics.
     if (afterAwaitStatement < original.length) {
-      const prevStatement = original[afterAwaitStatement];
+      const prevStatement = original[afterAwaitStatement]!;
       appendRange(statements, original, afterAwaitStatement, original.length);
       const diagnosticStart = findDiagnosticAtOrAfter(savedParseDiagnostics, 0, prevStatement.pos);
       if (diagnosticStart >= 0)
         for (let j = diagnosticStart; j < savedParseDiagnostics.length; j++)
-          this.diagnostics.push(savedParseDiagnostics[j]);
+          this.diagnostics.push(savedParseDiagnostics[j]!);
     }
     const list = sourceFile.statements;
     const result = this.newSourceFile(this.newNodeList(list.pos, list.end, statements), sourceFile.endOfFileToken);
@@ -3411,7 +3411,7 @@ export class Parser extends ScannerErrorReporter {
   addMatchingBraceRelatedInfo(openBracePosition: number): void {
     const diagnostics = this.diagnostics;
     if (diagnostics.length === 0) return;
-    const lastDiagnostic = diagnostics[diagnostics.length - 1];
+    const lastDiagnostic = diagnostics[diagnostics.length - 1]!;
     if (lastDiagnostic.code === messageCode(Diagnostics.X_0_expected))
       lastDiagnostic.addRelatedInfo(
         new Diagnostic(
@@ -3616,7 +3616,7 @@ export class Parser extends ScannerErrorReporter {
         undefined,
       );
       if (modifiers !== undefined) {
-        const first = modifiers.nodes[0];
+        const first = modifiers.nodes[0]!;
         this.parseErrorAt(
           first.pos,
           first.end,
@@ -4712,7 +4712,7 @@ export class Parser extends ScannerErrorReporter {
     if (opening instanceof JsxOpeningElement) {
       let children = this.parseJsxChildren(opening);
       let closingElement: JsxClosingElement;
-      const lastChild = children.nodes.length > 0 ? children.nodes[children.nodes.length - 1] : undefined;
+      const lastChild = children.nodes.length > 0 ? children.nodes[children.nodes.length - 1]! : undefined;
       if (
         lastChild instanceof JsxElement &&
         !tagNamesAreEquivalent(lastChild.openingElement.tagName, lastChild.closingElement.tagName) &&
@@ -6306,14 +6306,14 @@ export class Parser extends ScannerErrorReporter {
           const defaultIndex = findKindIndex(modifiers, SyntaxKind.DefaultKeyword, 0);
           if (decoratorIndex > exportIndex && defaultIndex >= 0 && decoratorIndex < defaultIndex) {
             // A decorator between `export` and `default`.
-            const decorator = modifiers[decoratorIndex];
+            const decorator = modifiers[decoratorIndex]!;
             this.jsErrorAt(decorator.pos, decorator.end, Diagnostics.Decorators_are_not_valid_here);
           } else if (decoratorIndex < exportIndex) {
             // A trailing decorator after `export`.
             const trailingDecoratorIndex = findKindIndex(modifiers, SyntaxKind.Decorator, exportIndex);
             if (trailingDecoratorIndex >= 0) {
-              const trailing = modifiers[trailingDecoratorIndex];
-              const leading = modifiers[decoratorIndex];
+              const trailing = modifiers[trailingDecoratorIndex]!;
+              const leading = modifiers[decoratorIndex]!;
               const diagnostic = new Diagnostic(
                 undefined,
                 skipTrivia(this.sourceText, trailing.pos),
@@ -6581,7 +6581,7 @@ export class Parser extends ScannerErrorReporter {
     }
     const result = this.newSourceFile(statements, eof);
     this.finishNode(result, pos);
-    const first = result.statements.nodes.length > 0 ? result.statements.nodes[0] : undefined;
+    const first = result.statements.nodes.length > 0 ? result.statements.nodes[0]! : undefined;
     if (first instanceof ExpressionStatement) this.validateJsonValue(result, first.expression);
     this.finishSourceFile(result, false);
     return result;
@@ -6764,7 +6764,7 @@ function hasModifierOfKind(modifiers: ModifierList, kind: SyntaxKind): boolean {
 }
 
 function findKindIndex(nodes: readonly Node[], kind: SyntaxKind, start: number): number {
-  for (let i = start; i < nodes.length; i++) if (nodes[i].kind === kind) return i;
+  for (let i = start; i < nodes.length; i++) if (nodes[i]!.kind === kind) return i;
   return -1;
 }
 
@@ -6815,7 +6815,7 @@ function attachFileToDiagnostics(diagnostics: Diagnostic[], file: SourceFile): D
 
 /** The index of the first diagnostic at or after `pos`, starting at `start`, or -1. */
 function findDiagnosticAtOrAfter(diagnostics: readonly Diagnostic[], start: number, pos: number): number {
-  for (let i = start; i < diagnostics.length; i++) if (diagnostics[i].pos >= pos) return i;
+  for (let i = start; i < diagnostics.length; i++) if (diagnostics[i]!.pos >= pos) return i;
   return -1;
 }
 
@@ -7331,14 +7331,14 @@ function collectDynamicImportOrRequireCalls(file: SourceFile): void {
   while (index >= 0) {
     const node = getNodeAtPosition(file, index, isJavaScriptFile);
     if (isJavaScriptFile && node instanceof CallExpression && isRequireCall(node, true)) {
-      file.imports.push(node.arguments.nodes[0]);
+      file.imports.push(node.arguments.nodes[0]!);
     } else if (
       node instanceof CallExpression &&
       isImportCall(node) &&
       node.arguments.nodes.length > 0 &&
       isStringLiteralLike(node.arguments.nodes[0]!)
     ) {
-      file.imports.push(node.arguments.nodes[0]);
+      file.imports.push(node.arguments.nodes[0]!);
     } else if (node instanceof ImportTypeNode) {
       const literal = getImportTypeNodeLiteral(node);
       if (literal !== undefined) file.imports.push(literal);

@@ -75,6 +75,7 @@ import {
 import {
   getBaseConstraintOfType,
   getBaseConstraintOrType,
+  mapToBaseConstraintOrType,
   getDeclarationModifierFlagsFromSymbol,
   getReducedType,
   getIndexInfosOfType,
@@ -364,7 +365,7 @@ function getTypeFromArrayBindingPattern(
   reportErrors: boolean,
 ): Type {
   const elements = getElements(pattern)!.nodes;
-  const last = elements.length > 0 ? elements[elements.length - 1] : undefined;
+  const last = elements.length > 0 ? elements[elements.length - 1]! : undefined;
   const restElement =
     last !== undefined &&
     last.kind === SyntaxKind.BindingElement &&
@@ -375,7 +376,7 @@ function getTypeFromArrayBindingPattern(
     return c.languageVersion >= ScriptTarget.ES2015 ? createIterableType(c, c.anyType) : c.anyArrayType;
   let minLength = 0;
   for (let i = elements.length - 1; i >= 0; i--) {
-    const e = elements[i];
+    const e = elements[i]!;
     if (!(e === restElement || getName(e) === undefined || getInitializer(e) !== undefined)) {
       minLength = i + 1;
       break;
@@ -384,7 +385,7 @@ function getTypeFromArrayBindingPattern(
   const types: Type[] = [];
   const infos: TupleElementInfo[] = [];
   for (let i = 0; i < elements.length; i++) {
-    const e = elements[i];
+    const e = elements[i]!;
     types.push(
       // Omitted elements are binding elements without a name.
       getName(e) === undefined
@@ -482,7 +483,7 @@ export function padTupleType(c: Checker, t: Type, pattern: Node): Type {
   const elementTypes = getElementTypes(c, t).slice();
   const elementInfos = target.elementInfos.slice();
   for (let i = arity; i < patternElements.length; i++) {
-    const e = patternElements[i];
+    const e = patternElements[i]!;
     if (
       i < patternElements.length - 1 ||
       !(e.kind === SyntaxKind.BindingElement && (e as BindingElement).dotDotDotToken !== undefined)
@@ -571,7 +572,7 @@ function checkObjectLiteralDestructuringPropertyAssignment(
   propertyIndex: number,
   _rightIsThis: boolean,
 ): void {
-  const property = properties[propertyIndex];
+  const property = properties[propertyIndex]!;
   if (property.kind === SyntaxKind.PropertyAssignment || property.kind === SyntaxKind.ShorthandPropertyAssignment) {
     const name = getName(property)!;
     const exprType = getLiteralTypeFromPropertyName(c, name) ?? c.errorType;
@@ -622,10 +623,10 @@ function checkArrayLiteralAssignment(c: Checker, node: Node, sourceType: Type, c
     c.undefinedType,
     node,
   );
-  let inBoundsType = c.compilerOptions.noUncheckedIndexedAccess === true ? undefined : possiblyOutOfBoundsType;
+  let inBoundsType = c.noUncheckedIndexedAccess ? undefined : possiblyOutOfBoundsType;
   for (let i = 0; i < elements.length; i++) {
     let t = possiblyOutOfBoundsType;
-    if (elements[i].kind === SyntaxKind.SpreadElement) {
+    if (elements[i]!.kind === SyntaxKind.SpreadElement) {
       if (inBoundsType === undefined)
         inBoundsType = checkIteratedTypeOrElementType(c, IterationUse.Destructuring, sourceType, c.undefinedType, node);
       t = inBoundsType;
@@ -643,7 +644,7 @@ function checkArrayLiteralDestructuringElementAssignment(
   elementType: Type,
   checkMode: CheckMode,
 ): void {
-  const element = elements[elementIndex];
+  const element = elements[elementIndex]!;
   if (element.kind === SyntaxKind.OmittedExpression) return;
   if (element.kind !== SyntaxKind.SpreadElement) {
     if (isArrayLikeType(c, sourceType)) {
@@ -783,10 +784,7 @@ export function getSpreadSymbol(c: Checker, prop: Symbol, readonly: boolean): Sy
 
 /** Whether a type may be spread into an object or destructured by an object rest element. */
 export function isValidSpreadType(c: Checker, t: Type): boolean {
-  const s = removeDefinitelyFalsyTypes(
-    c,
-    mapType(c, t, (u) => getBaseConstraintOrType(c, u)),
-  );
+  const s = removeDefinitelyFalsyTypes(c, mapToBaseConstraintOrType(c, t));
   if (
     (s.flags & (TypeFlags.Any | TypeFlags.NonPrimitive | TypeFlags.Object | TypeFlags.InstantiableNonPrimitive)) !==
     0

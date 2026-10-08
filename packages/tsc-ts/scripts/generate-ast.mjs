@@ -433,8 +433,14 @@ function emitBinderAccessors(classes) {
         getter.push(`    case SyntaxKind.${k}:`);
         setter.push(`    case SyntaxKind.${k}:`);
       }
-      getter.push(`      if (node instanceof ${c.name}) return node.${field};`, '      break;');
-      // Through a typed local: scriptc writes fields of a narrowed parameter dynamically.
+      // Through typed locals: scriptc reads and writes fields of a narrowed parameter dynamically.
+      getter.push(
+        `      if (node instanceof ${c.name}) {`,
+        `        const holder: ${c.name} = node;`,
+        `        return holder.${field};`,
+        '      }',
+        '      break;',
+      );
       setter.push(
         `      if (node instanceof ${c.name}) {`,
         `        const target: ${c.name} = node;`,

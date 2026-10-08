@@ -726,7 +726,8 @@ export function addOptionality(c: Checker, t: Type, isProperty: boolean, isOptio
 
 export function getOptionalType(c: Checker, t: Type, isProperty: boolean): Type {
   const missingOrUndefined = isProperty ? c.undefinedOrMissingType : c.undefinedType;
-  if (t === missingOrUndefined || ((t.flags & TypeFlags.Union) !== 0 && typesOf(t)[0] === missingOrUndefined)) return t;
+  if (t === missingOrUndefined || ((t.flags & TypeFlags.Union) !== 0 && typesOf(t)[0]! === missingOrUndefined))
+    return t;
   return getUnionType(c, [t, missingOrUndefined]);
 }
 
@@ -791,7 +792,7 @@ function getAnnotatedAccessorTypeNode(accessor: Node | undefined): Node | undefi
   if (accessor.kind === SyntaxKind.SetAccessor) {
     const params = getParameters(accessor)?.nodes ?? [];
     if (params.length === 0) return undefined;
-    return getType(params.length === 2 ? params[1] : params[0]);
+    return getType(params.length === 2 ? params[1]! : params[0]!);
   }
   return undefined;
 }

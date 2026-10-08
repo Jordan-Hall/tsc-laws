@@ -87,12 +87,12 @@ export function getIntendedTypeFromJSDocTypeReference(c: Checker, node: Node): T
       if (typeArguments.length === 2) {
         const recordSymbol = getGlobalTypeAliasSymbol(c, 'Record', 2, true);
         if (recordSymbol !== undefined) {
-          const indexType = getTypeFromTypeNode(c, typeArguments[0]);
+          const indexType = getTypeFromTypeNode(c, typeArguments[0]!);
           if (isValidIndexKeyType(c, indexType))
             return getTypeAliasInstantiation(
               c,
               recordSymbol,
-              [indexType, getTypeFromTypeNode(c, typeArguments[1])],
+              [indexType, getTypeFromTypeNode(c, typeArguments[1]!)],
               undefined,
             );
         }
@@ -160,7 +160,7 @@ function getAllJSDocTags(node: Node): readonly Node[] {
   for (let current: Node | undefined = node; current !== undefined; current = getNextJSDocCommentLocation(current)) {
     const jsDoc = current.jsDoc;
     if (jsDoc === undefined || jsDoc.length === 0) continue;
-    const tags = (jsDoc[jsDoc.length - 1] as JSDoc).tags;
+    const tags = (jsDoc[jsDoc.length - 1]! as JSDoc).tags;
     if (tags !== undefined) return tags.nodes;
   }
   return [];
@@ -180,7 +180,7 @@ function getNextJSDocCommentLocation(node: Node): Node | undefined {
     case SyntaxKind.ExpressionStatement:
       return parent;
     case SyntaxKind.VariableDeclarationList:
-      return (parent as VariableDeclarationList).declarations.nodes[0] === node ? parent : undefined;
+      return (parent as VariableDeclarationList).declarations.nodes[0]! === node ? parent : undefined;
   }
   return undefined;
 }
@@ -204,14 +204,14 @@ export function checkUnmatchedJSDocParameters(c: Checker, node: Node): void {
   const excludedParameters = new Set<number>();
   const params = getParameters(node)!.nodes;
   for (let i = 0; i < params.length; i++) {
-    const name = getName(params[i])!;
+    const name = getName(params[i]!)!;
     if (name.kind === SyntaxKind.Identifier) parameters.add(getText(name));
     if (name.kind === SyntaxKind.ObjectBindingPattern || name.kind === SyntaxKind.ArrayBindingPattern)
       excludedParameters.add(i);
   }
   if (containsArgumentsReference(c, node)) {
     const lastIndex = jsdocParameters.length - 1;
-    const last = jsdocParameters[lastIndex];
+    const last = jsdocParameters[lastIndex]!;
     if (last.name.kind !== SyntaxKind.Identifier) return;
     if (excludedParameters.has(lastIndex) || parameters.has(getText(last.name))) return;
     const typeExpression = last.typeExpression;
@@ -225,7 +225,7 @@ export function checkUnmatchedJSDocParameters(c: Checker, node: Node): void {
     return;
   }
   for (let index = 0; index < jsdocParameters.length; index++) {
-    const tag = jsdocParameters[index];
+    const tag = jsdocParameters[index]!;
     const name = tag.name;
     if (excludedParameters.has(index) || (name.kind === SyntaxKind.Identifier && parameters.has(getText(name))))
       continue;

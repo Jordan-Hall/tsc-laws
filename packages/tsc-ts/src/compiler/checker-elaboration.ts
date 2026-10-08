@@ -156,7 +156,7 @@ function elaborateDidYouMeanToCallOrConstruct(
   if (!callable) return false;
   const diagnostics: Diagnostic[] = [];
   if (checkTypeRelatedTo(c, source, target, relation, node, headMessage, diagnostics)) return false;
-  const diagnostic = diagnostics[0];
+  const diagnostic = diagnostics[0]!;
   diagnostic.addRelatedInfo(
     createDiagnosticForNode(
       node,
@@ -260,7 +260,7 @@ function elaborateArrayLiteral(
   let reportedError = false;
   const elements = getElements(node)!.nodes;
   for (let i = 0; i < elements.length; i++) {
-    const element = elements[i];
+    const element = elements[i]!;
     if (
       element.kind === SyntaxKind.OmittedExpression ||
       (isTupleLikeType(c, target) && getPropertyOfType(c, target, String(i)) === undefined)
@@ -342,7 +342,7 @@ export function elaborateElement(
       checkTypeRelatedTo(c, sourcePropType, targetPropType, relation, prop, errorMessage, diagnostics);
   }
   if (diagnostics.length === 0) return false;
-  const diagnostic = diagnostics[0];
+  const diagnostic = diagnostics[0]!;
   let propertyName = '';
   let targetProp = undefined;
   if (isTypeUsableAsPropertyName(nameType)) {
@@ -374,8 +374,8 @@ export function elaborateElement(
   ) {
     const targetNode =
       targetProp !== undefined && targetProp.declarations.length !== 0
-        ? targetProp.declarations[0]
-        : target.symbol!.declarations[0];
+        ? targetProp.declarations[0]!
+        : target.symbol!.declarations[0]!;
     if (propertyName === '' || (nameType.flags & TypeFlags.UniqueESSymbol) !== 0)
       propertyName = typeToString(c, nameType);
     if (!c.host.isSourceFileDefaultLibrary(getSourceFileOfNode(targetNode)))
@@ -444,11 +444,11 @@ function elaborateArrowFunction(
   const diagnostics: Diagnostic[] = [];
   checkTypeRelatedTo(c, sourceReturn, targetReturn, relation, returnExpression, undefined, diagnostics);
   if (diagnostics.length === 0) return false;
-  const diagnostic = diagnostics[0];
+  const diagnostic = diagnostics[0]!;
   if (target.symbol !== undefined && target.symbol.declarations.length !== 0)
     diagnostic.addRelatedInfo(
       createDiagnosticForNode(
-        target.symbol.declarations[0],
+        target.symbol.declarations[0]!,
         Diagnostics.The_expected_type_comes_from_the_return_type_of_this_signature,
         [],
       ),

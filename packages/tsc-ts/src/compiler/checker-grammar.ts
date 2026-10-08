@@ -417,7 +417,7 @@ function checkGrammarNode(g: GrammarChecker, node: Node): boolean {
     case SyntaxKind.MappedType: {
       const members = (node as MappedTypeNode).members;
       if (members !== undefined && members.nodes.length > 0)
-        grammarErrorOnNode(g, members.nodes[0], Diagnostics.A_mapped_type_may_not_declare_properties_or_methods);
+        grammarErrorOnNode(g, members.nodes[0]!, Diagnostics.A_mapped_type_may_not_declare_properties_or_methods);
       return true;
     }
     // Expressions
@@ -1320,7 +1320,7 @@ function checkGrammarParameterList(g: GrammarChecker, parameters: NodeList): boo
   let seenOptionalParameter = false;
   const count = parameters.nodes.length;
   for (let i = 0; i < count; i++) {
-    const parameter = parameters.nodes[i] as ParameterDeclaration;
+    const parameter = parameters.nodes[i]! as ParameterDeclaration;
     if (parameter.dotDotDotToken !== undefined) {
       if (i !== count - 1)
         return grammarErrorOnNode(
@@ -1378,7 +1378,7 @@ function checkGrammarForUseStrictSimpleParameterList(g: GrammarChecker, node: No
   for (let i = 0; i < nonSimpleParameters.length; i++)
     addRelated(
       diagnostic,
-      nonSimpleParameters[i],
+      nonSimpleParameters[i]!,
       i === 0 ? Diagnostics.Non_simple_parameter_declared_here : Diagnostics.X_and_here,
     );
   return true;
@@ -1390,14 +1390,14 @@ function checkGrammarArrowFunction(g: GrammarChecker, node: Node): boolean {
   const typeParameters = arrow.typeParameters;
   if (typeParameters !== undefined) {
     const nodes = typeParameters.nodes;
-    const hasConstraint = nodes.length > 0 && (nodes[0] as TypeParameterDeclaration).constraint !== undefined;
+    const hasConstraint = nodes.length > 0 && (nodes[0]! as TypeParameterDeclaration).constraint !== undefined;
     if (
       !(nodes.length > 1 || typeParameters.hasTrailingComma() || hasConstraint) &&
       fileExtensionIsOneOf(g.file.fileName, ['.mts', '.cts'])
     )
       grammarErrorOnNode(
         g,
-        nodes[0],
+        nodes[0]!,
         Diagnostics.This_syntax_is_reserved_in_files_with_the_mts_or_cts_extension_Add_a_trailing_comma_or_explicit_constraint,
       );
   }
@@ -1428,7 +1428,7 @@ function isThisParameter(node: Node): boolean {
 function getThisParameter(signature: Node): Node | undefined {
   const parameters = getParameters(signature);
   if (parameters === undefined || parameters.nodes.length === 0) return undefined;
-  const first = parameters.nodes[0];
+  const first = parameters.nodes[0]!;
   return isThisParameter(first) ? first : undefined;
 }
 
@@ -1445,7 +1445,7 @@ function checkGrammarIndexSignatureParameters(g: GrammarChecker, node: IndexSign
   const parameters = node.parameters.nodes;
   if (parameters.length === 0)
     return grammarErrorOnNode(g, node, Diagnostics.An_index_signature_must_have_exactly_one_parameter);
-  const parameter = parameters[0] as ParameterDeclaration;
+  const parameter = parameters[0]! as ParameterDeclaration;
   if (parameters.length !== 1)
     return grammarErrorOnNode(g, parameter.name, Diagnostics.An_index_signature_must_have_exactly_one_parameter);
   checkGrammarForDisallowedTrailingComma(
@@ -1581,9 +1581,9 @@ function checkGrammarClassDeclarationHeritageClauses(g: GrammarChecker, node: No
       if (seenImplementsClause)
         return grammarErrorOnFirstToken(g, clause, Diagnostics.X_extends_clause_must_precede_implements_clause);
       if (clause.types.nodes.length > 1)
-        return grammarErrorOnFirstToken(g, clause.types.nodes[1], Diagnostics.Classes_can_only_extend_a_single_class);
+        return grammarErrorOnFirstToken(g, clause.types.nodes[1]!, Diagnostics.Classes_can_only_extend_a_single_class);
       if (clause.types.nodes.length > 0) {
-        const mismatch = findMismatchedAugmentsTag(node, clause.types.nodes[0] as ExpressionWithTypeArguments);
+        const mismatch = findMismatchedAugmentsTag(node, clause.types.nodes[0]! as ExpressionWithTypeArguments);
         if (mismatch !== undefined)
           return grammarErrorOnNode(
             g,
@@ -1715,7 +1715,7 @@ function checkGrammarMethod(g: GrammarChecker, node: Node): boolean {
       const modifiers = getModifiers(node);
       if (
         modifiers !== undefined &&
-        !(modifiers.nodes.length === 1 && modifiers.nodes[0].kind === SyntaxKind.AsyncKeyword)
+        !(modifiers.nodes.length === 1 && modifiers.nodes[0]!.kind === SyntaxKind.AsyncKeyword)
       )
         return grammarErrorOnFirstToken(g, node, Diagnostics.Modifiers_cannot_appear_here);
       const postfixToken = getPostfixToken(node);
@@ -1805,7 +1805,7 @@ function checkGrammarAccessor(g: GrammarChecker, accessor: Node): boolean {
   const parameters = getParameters(accessor)!.nodes;
   const isGetter = accessor.kind === SyntaxKind.GetAccessor;
   // A `this` parameter only counts with the right number of other parameters.
-  const hasThisParameter = parameters.length === (isGetter ? 1 : 2) && isThisParameter(parameters[0]);
+  const hasThisParameter = parameters.length === (isGetter ? 1 : 2) && isThisParameter(parameters[0]!);
   if (!hasThisParameter && parameters.length !== (isGetter ? 0 : 1))
     return grammarErrorOnNode(
       g,
@@ -1817,7 +1817,7 @@ function checkGrammarAccessor(g: GrammarChecker, accessor: Node): boolean {
   if (!isGetter) {
     if (getType(accessor) !== undefined)
       return grammarErrorOnNode(g, name, Diagnostics.A_set_accessor_cannot_have_a_return_type_annotation);
-    const parameter = parameters[hasThisParameter ? 1 : 0] as ParameterDeclaration;
+    const parameter = parameters[hasThisParameter ? 1 : 0]! as ParameterDeclaration;
     if (parameter.dotDotDotToken !== undefined)
       return grammarErrorOnNode(g, parameter.dotDotDotToken, Diagnostics.A_set_accessor_cannot_have_rest_parameter);
     if (parameter.questionToken !== undefined)
@@ -1848,7 +1848,7 @@ function checkGrammarProperty(g: GrammarChecker, node: Node): boolean {
     )
       return grammarErrorOnNode(
         g,
-        getMembers(parent)!.nodes[0],
+        getMembers(parent)!.nodes[0]!,
         Diagnostics.A_mapped_type_may_not_declare_properties_or_methods,
       );
   }
@@ -2202,7 +2202,7 @@ function checkGrammarNameInLetOrConstDeclarations(g: GrammarChecker, name: Node)
 function checkGrammarBindingElement(g: GrammarChecker, node: BindingElement): boolean {
   if (node.dotDotDotToken !== undefined) {
     const elements = getElements(node.parent!)!;
-    if (node !== elements.nodes[elements.nodes.length - 1])
+    if (node !== elements.nodes[elements.nodes.length - 1]!)
       return grammarErrorOnNode(g, node, Diagnostics.A_rest_element_must_be_last_in_a_destructuring_pattern);
     checkGrammarForDisallowedTrailingComma(
       g,
@@ -2300,12 +2300,12 @@ function checkGrammarForInOrForOfStatementWorker(g: GrammarChecker, node: ForInO
   if (declarations.length > 1)
     return grammarErrorOnFirstToken(
       g,
-      declarations[1],
+      declarations[1]!,
       isForIn
         ? Diagnostics.Only_a_single_variable_declaration_is_allowed_in_a_for_in_statement
         : Diagnostics.Only_a_single_variable_declaration_is_allowed_in_a_for_of_statement,
     );
-  const first = declarations[0] as VariableDeclaration;
+  const first = declarations[0]! as VariableDeclaration;
   if (first.initializer !== undefined)
     return grammarErrorOnNode(
       g,
@@ -2998,7 +2998,7 @@ function getResolutionModeOverride(g: GrammarChecker, node: ImportAttributes, re
       );
     return ModuleKind.None;
   }
-  const attribute = attributes[0] as ImportAttribute;
+  const attribute = attributes[0]! as ImportAttribute;
   const name = attribute.name;
   if (name === undefined || !isStringLiteralLike(name)) return ModuleKind.None;
   if (getText(name) !== 'resolution-mode') {
@@ -3141,7 +3141,7 @@ function checkGrammarObjectLiteral(g: GrammarChecker, node: ObjectLiteralExpress
   for (let i = 0; i < count; i++) checkGrammarObjectLiteralExpression(g, node, true);
   const properties = node.properties;
   const length = properties.nodes.length;
-  if (length > 0 && properties.nodes[length - 1].kind === SyntaxKind.SpreadAssignment)
+  if (length > 0 && properties.nodes[length - 1]!.kind === SyntaxKind.SpreadAssignment)
     checkGrammarForDisallowedTrailingComma(
       g,
       properties,
@@ -3153,7 +3153,7 @@ function checkGrammarArrayDestructuringTarget(g: GrammarChecker, node: Node): vo
   const elements = getElements(node)!;
   const count = elements.nodes.length;
   if (count === 0) return;
-  const last = elements.nodes[count - 1];
+  const last = elements.nodes[count - 1]!;
   if (last.kind !== SyntaxKind.SpreadElement) return;
   const restExpression = getExpression(last)!;
   if (
@@ -3385,7 +3385,7 @@ function checkGrammarImportCallExpression(g: GrammarChecker, node: CallExpressio
     if (argumentNodes.length > 1)
       return grammarErrorOnNode(
         g,
-        argumentNodes[1],
+        argumentNodes[1]!,
         Diagnostics.Dynamic_imports_only_support_a_second_argument_when_the_module_option_is_set_to_esnext_node16_node18_node20_nodenext_or_preserve,
       );
   }

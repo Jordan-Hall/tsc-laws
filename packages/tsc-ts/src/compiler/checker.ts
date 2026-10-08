@@ -43,7 +43,9 @@ import {
   ModuleKind,
   ScriptTarget,
   getEmitScriptTarget,
+  getIsolatedModules,
   getStrictOptionValue,
+  shouldPreserveConstEnums,
 } from './options.js';
 import { CheckFlags, Symbol, SymbolFlags, type SymbolTable, getSymbolId } from './symbol.js';
 import {
@@ -95,7 +97,7 @@ import { Relation, RelationKey, TypeComparer } from './relations.js';
 import { TypeNodeVisitor, checkSourceFile } from './checker-source-file.js';
 import { InferenceCaches } from './checker-inference.js';
 import { AssignmentMarker, type FlowLoopInfo } from './checker-narrowing.js';
-import type { FlowNode } from './flow.js';
+import type { FlowNode, FlowReduceLabel } from './flow.js';
 import { JsxState } from './checker-jsx.js';
 import type { DeferredIterationError, IterationTypes } from './checker-iteration.js';
 import type { SpreadIndices } from './checker-contextual.js';
@@ -208,6 +210,9 @@ export class Checker {
   readonly legacyDecorators: boolean;
   readonly useUnknownInCatchVariables: boolean;
   readonly exactOptionalPropertyTypes: boolean;
+  readonly isolatedModules: boolean;
+  readonly preserveConstEnums: boolean;
+  readonly noUncheckedIndexedAccess: boolean;
 
   // Counters for type and signature ids.
   typeCount = 0;
@@ -413,6 +418,8 @@ export class Checker {
   /** Types of expressions whose computation needed flow analysis, outside loop back edges. */
   flowTypeCache: Map<Node, Type> | undefined = undefined;
   flowInvocationCount = 0;
+  /** The reduce labels being passed, innermost last; each limits its target label's antecedents. */
+  readonly flowReduceLabels: FlowReduceLabel[] = [];
   readonly flowNodeReachable = new Map<FlowNode, boolean>();
   readonly flowNodePostSuper = new Map<FlowNode, boolean>();
   lastFlowNode: FlowNode | undefined = undefined;
@@ -445,7 +452,7 @@ export class Checker {
     this.compilerOptions = options;
     this.files = host.getSourceFiles();
     this.fileIndex = new Map<SourceFile, number>();
-    for (let i = 0; i < this.files.length; i++) this.fileIndex.set(this.files[i], i);
+    for (let i = 0; i < this.files.length; i++) this.fileIndex.set(this.files[i]!, i);
     this.languageVersion = getEmitScriptTarget(options);
     this.strictNullChecks = getStrictOptionValue(options, options.strictNullChecks);
     this.strictFunctionTypes = getStrictOptionValue(options, options.strictFunctionTypes);
@@ -457,6 +464,9 @@ export class Checker {
     this.legacyDecorators = options.experimentalDecorators === true;
     this.useUnknownInCatchVariables = getStrictOptionValue(options, options.useUnknownInCatchVariables);
     this.exactOptionalPropertyTypes = options.exactOptionalPropertyTypes === true;
+    this.isolatedModules = getIsolatedModules(options);
+    this.preserveConstEnums = shouldPreserveConstEnums(options);
+    this.noUncheckedIndexedAccess = options.noUncheckedIndexedAccess === true;
 
     this.undefinedSymbol = this.newSymbol(SymbolFlags.Property, 'undefined');
     this.argumentsSymbol = this.newSymbol(SymbolFlags.Property, 'arguments');

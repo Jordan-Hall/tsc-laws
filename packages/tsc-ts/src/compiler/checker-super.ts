@@ -3,6 +3,7 @@ import { type Node, getExpression, getFlowNode, getInitializer, getModifiers } f
 import { isClassElement, isClassLike, isStatic } from './binder-utilities.js';
 import { type DiagnosticMessage, Diagnostics } from './diagnostics.js';
 import { type FlowNode, FlowFlags, type FlowReduceLabel } from './flow.js';
+import { getBranchLabelAntecedents } from './checker-narrowing.js';
 import { SyntaxKind } from './syntax-kind.js';
 import type { Checker } from './checker.js';
 import { type InterfaceType, type Type, ObjectFlags, TypeFlags } from './checker-types.js';
@@ -74,7 +75,7 @@ export function checkSuperExpression(c: Checker, node: Node): Type {
     return c.errorType;
   }
   if (isStatic(container) || isCallExpression) return getBaseConstructorTypeOfClass(c, classType as InterfaceType);
-  return getTypeWithThisArgument(c, baseTypes[0], (classType as InterfaceType).thisType, false);
+  return getTypeWithThisArgument(c, baseTypes[0]!, (classType as InterfaceType).thisType, false);
 }
 
 function isLegalUsageOfSuperExpression(container: Node, isCallExpression: boolean): boolean {
@@ -169,7 +170,7 @@ export function checkThisBeforeSuper(c: Checker, node: Node, container: Node, me
   if (getExtendsHeritageClauseElement(containingClassDeclaration) === undefined) return;
   if (classDeclarationExtendsNull(c, containingClassDeclaration)) return;
   const flow = getFlowNode(node);
-  if (flow !== undefined && !isPostSuperFlowNode(c, flow, false, [])) c.error(node, message);
+  if (flow !== undefined && !isPostSuperFlowNode(c, flow, false)) c.error(node, message);
 }
 
 export function classDeclarationExtendsNull(c: Checker, classDeclaration: Node): boolean {
@@ -182,12 +183,7 @@ export function classDeclarationExtendsNull(c: Checker, classDeclaration: Node):
 }
 
 /** Whether every path to `start` passes a `super(...)` call. */
-function isPostSuperFlowNode(
-  c: Checker,
-  start: FlowNode,
-  noCacheCheckIn: boolean,
-  reduceLabels: FlowReduceLabel[],
-): boolean {
+function isPostSuperFlowNode(c: Checker, start: FlowNode, noCacheCheckIn: boolean): boolean {
   let flow = start;
   let noCacheCheck = noCacheCheckIn;
   for (;;) {
@@ -196,7 +192,7 @@ function isPostSuperFlowNode(
       if (!noCacheCheck) {
         const cached = c.flowNodePostSuper.get(flow);
         if (cached !== undefined) return cached;
-        const postSuper = isPostSuperFlowNode(c, flow, true, reduceLabels);
+        const postSuper = isPostSuperFlowNode(c, flow, true);
         c.flowNodePostSuper.set(flow, postSuper);
         return postSuper;
       }
@@ -208,27 +204,21 @@ function isPostSuperFlowNode(
       if (getExpression(flow.node!)!.kind === SyntaxKind.SuperKeyword) return true;
       flow = flow.antecedent!;
     } else if ((flags & FlowFlags.BranchLabel) !== 0) {
-      for (const antecedent of getBranchLabelAntecedents(flow, reduceLabels))
-        if (!isPostSuperFlowNode(c, antecedent, false, reduceLabels)) return false;
+      for (const antecedent of getBranchLabelAntecedents(c, flow))
+        if (!isPostSuperFlowNode(c, antecedent, false)) return false;
       return true;
     } else if ((flags & FlowFlags.LoopLabel) !== 0) {
       // A loop is post-super when the path into its top is.
-      flow = flow.antecedents![0];
+      flow = flow.antecedents![0]!;
     } else if ((flags & FlowFlags.ReduceLabel) !== 0) {
-      reduceLabels.push(flow as FlowReduceLabel);
-      const result = isPostSuperFlowNode(c, flow.antecedent!, false, reduceLabels);
-      reduceLabels.pop();
+      c.flowReduceLabels.push(flow as FlowReduceLabel);
+      const result = isPostSuperFlowNode(c, flow.antecedent!, false);
+      c.flowReduceLabels.pop();
       return result;
     }
     // Unreachable nodes count as post-super to silence errors.
     else return (flags & FlowFlags.Unreachable) !== 0;
   }
-}
-
-function getBranchLabelAntecedents(flow: FlowNode, reduceLabels: FlowReduceLabel[]): FlowNode[] {
-  for (let i = reduceLabels.length - 1; i >= 0; i--)
-    if (reduceLabels[i].target === flow) return reduceLabels[i].antecedents!;
-  return flow.antecedents!;
 }
 
 /** Reports `this` in a static property initializer of a class with legacy decorators. */

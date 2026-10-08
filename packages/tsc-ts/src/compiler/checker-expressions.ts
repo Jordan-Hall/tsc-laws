@@ -97,7 +97,6 @@ import {
   everyType,
   getTemplateLiteralType,
   isMutableArrayOrTuple,
-  mapType,
 } from './checker-type-factory.js';
 import { ElementFlags, TupleElementInfo } from './checker-types.js';
 import {
@@ -112,6 +111,7 @@ import {
   isApplicableIndexType,
   getDeclarationModifierFlagsFromSymbol,
   getApparentType,
+  mapToBaseConstraintOrType,
 } from './checker-members.js';
 import {
   getExportSymbolOfValueSymbolIfExported,
@@ -771,9 +771,15 @@ export function checkIdentifier(c: Checker, node: Identifier): Type {
  */
 export function getNarrowableTypeForReference(c: Checker, t: Type, reference: Node): Type {
   const substituteConstraints =
-    someType(t, (u) => isGenericTypeWithUnionConstraint(c, u)) &&
+    someTypeIsGenericWithUnionConstraint(c, t) &&
     (isConstraintPosition(c, t, reference) || hasContextualTypeWithNoGenericTypes(c, reference));
-  return substituteConstraints ? mapType(c, t, (u) => getBaseConstraintOrType(c, u)) : t;
+  return substituteConstraints ? mapToBaseConstraintOrType(c, t) : t;
+}
+
+function someTypeIsGenericWithUnionConstraint(c: Checker, t: Type): boolean {
+  if ((t.flags & TypeFlags.Union) === 0) return isGenericTypeWithUnionConstraint(c, t);
+  for (const u of typesOf(t)) if (isGenericTypeWithUnionConstraint(c, u)) return true;
+  return false;
 }
 
 function isConstraintPosition(c: Checker, t: Type, node: Node): boolean {
@@ -794,7 +800,10 @@ function isConstraintPosition(c: Checker, t: Type, node: Node): boolean {
 }
 
 function isGenericTypeWithUnionConstraint(c: Checker, t: Type): boolean {
-  if ((t.flags & TypeFlags.Intersection) !== 0) return typesOf(t).some((u) => isGenericTypeWithUnionConstraint(c, u));
+  if ((t.flags & TypeFlags.Intersection) !== 0) {
+    for (const u of typesOf(t)) if (isGenericTypeWithUnionConstraint(c, u)) return true;
+    return false;
+  }
   return (
     (t.flags & TypeFlags.Instantiable) !== 0 &&
     (getBaseConstraintOrType(c, t).flags & (TypeFlags.Nullable | TypeFlags.Union)) !== 0
@@ -802,8 +811,10 @@ function isGenericTypeWithUnionConstraint(c: Checker, t: Type): boolean {
 }
 
 function isGenericTypeWithoutNullableConstraint(c: Checker, t: Type): boolean {
-  if ((t.flags & TypeFlags.Intersection) !== 0)
-    return typesOf(t).some((u) => isGenericTypeWithoutNullableConstraint(c, u));
+  if ((t.flags & TypeFlags.Intersection) !== 0) {
+    for (const u of typesOf(t)) if (isGenericTypeWithoutNullableConstraint(c, u)) return true;
+    return false;
+  }
   return (
     (t.flags & TypeFlags.Instantiable) !== 0 && !maybeTypeOfKind(getBaseConstraintOrType(c, t), TypeFlags.Nullable)
   );
@@ -828,7 +839,7 @@ function hasContextualTypeWithNoGenericTypes(c: Checker, node: Node): boolean {
 }
 
 function containsUndefinedType(c: Checker, t: Type): boolean {
-  const u = (t.flags & TypeFlags.Union) !== 0 ? (t as UnionType).types[0] : t;
+  const u = (t.flags & TypeFlags.Union) !== 0 ? (t as UnionType).types[0]! : t;
   return (u.flags & TypeFlags.Undefined) !== 0 && u !== c.missingType;
 }
 
@@ -1080,10 +1091,16 @@ function checkArrayLiteral(c: Checker, node: ArrayLiteralExpression, checkMode: 
   let elementType: Type;
   if (elementTypes.length > 0) {
     for (let i = 0; i < elementTypes.length; i++)
-      if ((elementInfos[i].flags & ElementFlags.Variadic) !== 0)
+      if ((elementInfos[i]!.flags & ElementFlags.Variadic) !== 0)
         elementTypes[i] =
-          getIndexedAccessTypeOrUndefinedEx(c, elementTypes[i], c.numberType, AccessFlags.None, undefined, undefined) ??
-          c.anyType;
+          getIndexedAccessTypeOrUndefinedEx(
+            c,
+            elementTypes[i]!,
+            c.numberType,
+            AccessFlags.None,
+            undefined,
+            undefined,
+          ) ?? c.anyType;
     elementType = getUnionTypeEx(c, elementTypes, UnionReduction.Subtype, undefined, undefined);
   } else elementType = c.strictNullChecks ? c.implicitNeverType : c.undefinedWideningType;
   return createArrayLiteralType(c, createArrayTypeEx(c, elementType, inConstContext));
@@ -1622,7 +1639,7 @@ function getForInVariableSymbol(c: Checker, node: ForInOrOfStatement): Symbol | 
   const initializer = node.initializer;
   if (initializer.kind === SyntaxKind.VariableDeclarationList) {
     const declarations = (initializer as VariableDeclarationList).declarations.nodes;
-    return declarations.length > 0 ? getSymbolOfDeclaration(c, declarations[0]) : undefined;
+    return declarations.length > 0 ? getSymbolOfDeclaration(c, declarations[0]!) : undefined;
   }
   return initializer.kind === SyntaxKind.Identifier ? getResolvedSymbol(c, initializer) : undefined;
 }

@@ -242,7 +242,7 @@ export function identifierToKeywordKind(text: string): SyntaxKind {
 }
 
 export function tokenToString(kind: SyntaxKind): string {
-  return kind >= 0 && kind < tokenToText.length ? tokenToText[kind] : '';
+  return kind >= 0 && kind < tokenToText.length ? tokenToText[kind]! : '';
 }
 
 export function stringToToken(text: string): SyntaxKind {
@@ -2549,7 +2549,7 @@ export function computeLineOfPosition(lineStarts: readonly number[], pos: number
   let high = lineStarts.length - 1;
   while (low <= high) {
     const middle = low + ((high - low) >> 1);
-    const value = lineStarts[middle];
+    const value = lineStarts[middle]!;
     if (value < pos) low = middle + 1;
     else if (value > pos) high = middle - 1;
     else return middle;

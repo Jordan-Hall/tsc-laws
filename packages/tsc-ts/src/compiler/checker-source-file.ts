@@ -387,7 +387,7 @@ function checkTypePredicate(c: Checker, node: TypePredicateNode): void {
         !checkTypeRelatedTo(
           c,
           typePredicate.type,
-          getTypeOfSymbol(c, signature.parameters[typePredicate.parameterIndex]),
+          getTypeOfSymbol(c, signature.parameters[typePredicate.parameterIndex]!),
           c.assignableRelation,
           node.type,
           undefined,
@@ -396,7 +396,7 @@ function checkTypePredicate(c: Checker, node: TypePredicateNode): void {
       )
         c.addDiagnostic(
           chainDiagnostic(
-            diagnostics[0],
+            diagnostics[0]!,
             Diagnostics.A_type_predicate_s_type_must_be_assignable_to_its_parameter_s_type,
           ),
         );
@@ -539,7 +539,7 @@ export function checkNodeDeferred(c: Checker, node: Node): void {
 
 function checkDeferredNodes(c: Checker): void {
   // Deferred checks may defer more nodes.
-  for (let i = 0; i < c.deferredNodes.length; i++) checkDeferredNode(c, c.deferredNodes[i]);
+  for (let i = 0; i < c.deferredNodes.length; i++) checkDeferredNode(c, c.deferredNodes[i]!);
   c.deferredNodes.length = 0;
 }
 

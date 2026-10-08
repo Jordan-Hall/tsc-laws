@@ -717,7 +717,7 @@ export class LibGlobals {
   /** Whether `files` starts with exactly these `count` libraries. */
   matches(files: readonly SourceFile[], count: number): boolean {
     if (count !== this.files.length) return false;
-    for (let i = 0; i < count; i++) if (files[i] !== this.files[i]) return false;
+    for (let i = 0; i < count; i++) if (files[i]! !== this.files[i]!) return false;
     return true;
   }
 }
@@ -728,7 +728,7 @@ const libGlobalsCache: LibGlobals[] = [];
 function getLibraryCount(c: Checker): number {
   const files = c.files;
   let count = 0;
-  while (count < files.length && c.host.isSourceFileDefaultLibrary(files[count])) count++;
+  while (count < files.length && c.host.isSourceFileDefaultLibrary(files[count]!)) count++;
   return count;
 }
 
@@ -776,14 +776,14 @@ export function initializeGlobals(c: Checker): void {
     for (const pattern of libs.patternAmbientModules) c.patternAmbientModules.push(pattern);
   } else if (libraryCount > 0) {
     const diagnosticCount = c.diagnostics.count();
-    for (let i = 0; i < libraryCount; i++) mergeFileGlobals(c, c.files[i]);
+    for (let i = 0; i < libraryCount; i++) mergeFileGlobals(c, c.files[i]!);
     // Diagnostics belong to one checker, so libraries that report any aren't shared.
     if (c.diagnostics.count() === diagnosticCount) {
       c.libGlobals = new LibGlobals(c, c.files.slice(0, libraryCount));
       libGlobalsCache.push(c.libGlobals);
     }
   }
-  for (let i = libraryCount; i < c.files.length; i++) mergeFileGlobals(c, c.files[i]);
+  for (let i = libraryCount; i < c.files.length; i++) mergeFileGlobals(c, c.files[i]!);
   for (const file of c.files)
     for (const augmentation of file.moduleAugmentations)
       if (augmentation.parent !== undefined && isGlobalScopeAugmentation(augmentation.parent))
@@ -846,7 +846,7 @@ function mergeModuleAugmentation(c: Checker, moduleName: Node): void {
   const moduleNode = moduleName.parent as ModuleDeclaration;
   const augmentationSymbol = moduleNode.symbol!;
   // Several augmentations in one file share a symbol; merge it once.
-  if (augmentationSymbol.declarations[0] !== moduleNode) return;
+  if (augmentationSymbol.declarations[0]! !== moduleNode) return;
   if (isGlobalScopeAugmentation(moduleNode)) {
     if (augmentationSymbol.exports !== undefined)
       mergeSymbolTable(c, c.globals, augmentationSymbol.exports, false, undefined);
@@ -941,7 +941,7 @@ export function mergeSymbol(c: Checker, target: Symbol, source: Symbol, unidirec
     // `var globalThis` already reports a conflict with the built-in.
     if (target !== c.globalThisSymbol)
       c.error(
-        getNameOfDeclaration(source.declarations[0]),
+        getNameOfDeclaration(source.declarations[0]!),
         Diagnostics.Cannot_augment_module_0_with_value_exports_because_it_resolves_to_a_non_module_entity,
         symbolToString(c, target),
       );
@@ -964,7 +964,7 @@ function reportMergeSymbolError(c: Checker, target: Symbol, source: Symbol): voi
 
 function isPlainJSFile(symbol: Symbol): boolean {
   if (symbol.declarations.length === 0) return false;
-  const file = getSourceFileOfNode(symbol.declarations[0]);
+  const file = getSourceFileOfNode(symbol.declarations[0]!);
   return file.isJS() && file.checkJsDirective === undefined;
 }
 
@@ -1096,7 +1096,7 @@ export function getSymbolOfDeclaration(c: Checker, node: Node): Symbol | undefin
 export function getLateBoundSymbol(c: Checker, symbol: Symbol): Symbol {
   if ((symbol.flags & SymbolFlags.ClassMember) === 0 || symbol.name !== InternalSymbolName.Computed) return symbol;
   const links = c.symbolLinks(symbol);
-  if (links.lateSymbol === undefined && symbol.declarations.some((d) => hasLateBindableName(c, d))) {
+  if (links.lateSymbol === undefined && hasLateBindableDeclaration(c, symbol)) {
     // Force late binding of the parent's members or exports, which sets lateSymbol.
     const parent = getMergedSymbol(c, symbol.parent!);
     if (symbol.declarations.some(hasStaticModifier)) getExportsOfSymbol(c, parent);
@@ -1104,6 +1104,11 @@ export function getLateBoundSymbol(c: Checker, symbol: Symbol): Symbol {
   }
   if (links.lateSymbol === undefined) links.lateSymbol = symbol;
   return links.lateSymbol;
+}
+
+function hasLateBindableDeclaration(c: Checker, symbol: Symbol): boolean {
+  for (const declaration of symbol.declarations) if (hasLateBindableName(c, declaration)) return true;
+  return false;
 }
 
 // ---- Global types
@@ -1243,7 +1248,7 @@ export function resolveSymbolEx(c: Checker, symbol: Symbol, dontResolveAlias: bo
 
 export function getDeclarationOfAliasSymbol(symbol: Symbol): Node | undefined {
   for (let i = symbol.declarations.length - 1; i >= 0; i--) {
-    const d = symbol.declarations[i];
+    const d = symbol.declarations[i]!;
     if (isAliasSymbolDeclaration(d)) return d;
   }
   return undefined;
@@ -1523,7 +1528,7 @@ export function getNamedMembers(c: Checker, members: SymbolTable | undefined, co
 /** Sorts symbols by declaration order; members are usually in that order already. */
 function sortSymbols(c: Checker, symbols: Symbol[]): void {
   for (let i = 1; i < symbols.length; i++)
-    if (compareSymbols(c, symbols[i - 1], symbols[i]) > 0) {
+    if (compareSymbols(c, symbols[i - 1]!, symbols[i]!) > 0) {
       symbols.sort((a, b) => compareSymbols(c, a, b));
       return;
     }
@@ -1794,8 +1799,8 @@ export function findResolutionCycleStartIndex(
   propertyName: TypeSystemPropertyName,
 ): number {
   for (let i = c.resolutionTargets.length - 1; i >= c.resolutionStart; i--) {
-    if (resolutionHasProperty(c, c.resolutionTargets[i], c.resolutionPropertyNames[i])) return -1;
-    if (c.resolutionTargets[i] === target && c.resolutionPropertyNames[i] === propertyName) return i;
+    if (resolutionHasProperty(c, c.resolutionTargets[i]!, c.resolutionPropertyNames[i]!)) return -1;
+    if (c.resolutionTargets[i]! === target && c.resolutionPropertyNames[i]! === propertyName) return i;
   }
   return -1;
 }

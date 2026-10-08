@@ -305,7 +305,7 @@ export function getComparer(c: Checker, kind: ComparerKind): TypeComparer {
     ];
     c.relationComparers = list;
   }
-  return list[kind];
+  return list[kind]!;
 }
 
 export function compareTypesIdentical(c: Checker, s: Type, t: Type): Ternary {
@@ -492,6 +492,11 @@ function sameLiteralValue(a: Type, b: Type): boolean {
   return x.stringValue === y.stringValue;
 }
 
+function someTypeIsEmptyAnonymousObject(c: Checker, types: readonly Type[]): boolean {
+  for (const t of types) if (isEmptyAnonymousObjectType(c, t)) return true;
+  return false;
+}
+
 export function isUnknownLikeUnionType(c: Checker, t: Type): boolean {
   if (!c.strictNullChecks || (t.flags & TypeFlags.Union) === 0) return false;
   if ((t.objectFlags & ObjectFlags.IsUnknownLikeUnionComputed) === 0) {
@@ -499,9 +504,9 @@ export function isUnknownLikeUnionType(c: Checker, t: Type): boolean {
     const types = typesOf(t);
     if (
       types.length >= 3 &&
-      (types[0].flags & TypeFlags.Undefined) !== 0 &&
-      (types[1].flags & TypeFlags.Null) !== 0 &&
-      types.some((u) => isEmptyAnonymousObjectType(c, u))
+      (types[0]!.flags & TypeFlags.Undefined) !== 0 &&
+      (types[1]!.flags & TypeFlags.Null) !== 0 &&
+      someTypeIsEmptyAnonymousObject(c, types)
     )
       t.objectFlags |= ObjectFlags.IsUnknownLikeUnion;
   }
@@ -901,13 +906,13 @@ export class Relater extends TypeComparer {
     if ((source.flags & TypeFlags.DefinitelyNonNullable) !== 0 && (target.flags & TypeFlags.Union) !== 0) {
       const types = typesOf(target);
       let candidate: Type | undefined;
-      if (types.length === 2 && (types[0].flags & TypeFlags.Nullable) !== 0) candidate = types[1];
+      if (types.length === 2 && (types[0]!.flags & TypeFlags.Nullable) !== 0) candidate = types[1]!;
       else if (
         types.length === 3 &&
-        (types[0].flags & TypeFlags.Nullable) !== 0 &&
-        (types[1].flags & TypeFlags.Nullable) !== 0
+        (types[0]!.flags & TypeFlags.Nullable) !== 0 &&
+        (types[1]!.flags & TypeFlags.Nullable) !== 0
       )
-        candidate = types[2];
+        candidate = types[2]!;
       if (candidate !== undefined && (candidate.flags & TypeFlags.Nullable) === 0) {
         target = getNormalizedType(c, candidate, true);
         if (source === target) return Ternary.True;
@@ -950,10 +955,10 @@ export class Relater extends TypeComparer {
           const constructs = getSignaturesOfType(c, source, SignatureKind.Construct);
           if (
             (calls.length > 0 &&
-              this.isRelatedTo(getReturnTypeOfSignature(c, calls[0]), target, RecursionFlags.Source, false) !==
+              this.isRelatedTo(getReturnTypeOfSignature(c, calls[0]!), target, RecursionFlags.Source, false) !==
                 Ternary.False) ||
             (constructs.length > 0 &&
-              this.isRelatedTo(getReturnTypeOfSignature(c, constructs[0]), target, RecursionFlags.Source, false) !==
+              this.isRelatedTo(getReturnTypeOfSignature(c, constructs[0]!), target, RecursionFlags.Source, false) !==
                 Ternary.False)
           )
             this.reportError(
@@ -1043,7 +1048,7 @@ export class Relater extends TypeComparer {
           }
           const objectLiteralDeclaration =
             source.symbol !== undefined && source.symbol.declarations.length !== 0
-              ? source.symbol.declarations[0]
+              ? source.symbol.declarations[0]!
               : undefined;
           const valueDeclaration = prop.valueDeclaration;
           if (
@@ -1163,7 +1168,7 @@ export class Relater extends TypeComparer {
     if ((source.flags & TypeFlags.Union) !== 0 && containsType(this.c, sourceTypes, target)) return Ternary.True;
     for (let i = 0; i < sourceTypes.length; i++) {
       const related = this.isRelatedToEx(
-        sourceTypes[i],
+        sourceTypes[i]!,
         target,
         RecursionFlags.Source,
         reportErrors && i === sourceTypes.length - 1,
@@ -1187,7 +1192,7 @@ export class Relater extends TypeComparer {
     const strippedTarget = this.getUndefinedStrippedTargetIfNeeded(source, target);
     const strippedTypes = (strippedTarget.flags & TypeFlags.Union) !== 0 ? typesOf(strippedTarget) : emptyTypes;
     for (let i = 0; i < sourceTypes.length; i++) {
-      const sourceType = sourceTypes[i];
+      const sourceType = sourceTypes[i]!;
       if (
         (strippedTarget.flags & TypeFlags.Union) !== 0 &&
         sourceTypes.length >= strippedTypes.length &&
@@ -1196,7 +1201,7 @@ export class Relater extends TypeComparer {
         // Unions that map one another relate element-wise.
         const related = this.isRelatedToEx(
           sourceType,
-          strippedTypes[i % strippedTypes.length],
+          strippedTypes[i % strippedTypes.length]!,
           RecursionFlags.Both,
           false,
           undefined,
@@ -1225,8 +1230,8 @@ export class Relater extends TypeComparer {
     if (
       (source.flags & TypeFlags.Union) !== 0 &&
       (target.flags & TypeFlags.Union) !== 0 &&
-      (typesOf(source)[0].flags & TypeFlags.Undefined) === 0 &&
-      (typesOf(target)[0].flags & TypeFlags.Undefined) !== 0
+      (typesOf(source)[0]!.flags & TypeFlags.Undefined) === 0 &&
+      (typesOf(target)[0]!.flags & TypeFlags.Undefined) !== 0
     )
       return filterType(this.c, target, (t) => (t.flags & TypeFlags.Undefined) === 0);
     return target;
@@ -1414,9 +1419,9 @@ export class Relater extends TypeComparer {
 
   resetMaybeStack(maybeStart: number, propagatingVarianceFlags: number, markAllAsSucceeded: boolean): void {
     for (let i = maybeStart; i < this.maybeKeys.length; i++) {
-      this.maybeKeysSet.delete(this.maybeKeys[i]);
+      this.maybeKeysSet.delete(this.maybeKeys[i]!);
       if (markAllAsSucceeded) {
-        this.relation.set(this.maybeKeys[i], RelationComparisonResult.Succeeded | propagatingVarianceFlags);
+        this.relation.set(this.maybeKeys[i]!, RelationComparisonResult.Succeeded | propagatingVarianceFlags);
         this.relationCount--;
       }
     }
@@ -1578,10 +1583,10 @@ export class Relater extends TypeComparer {
       } else if ((source.flags & TypeFlags.TemplateLiteral) !== 0) {
         const s = source as TemplateLiteralType;
         const t = target as TemplateLiteralType;
-        if (s.texts.length === t.texts.length && s.texts.every((x, i) => x === t.texts[i])) {
+        if (s.texts.length === t.texts.length && s.texts.every((x, i) => x === t.texts[i]!)) {
           result = Ternary.True;
           for (let i = 0; i < s.types.length; i++) {
-            result &= this.isRelatedTo(s.types[i], t.types[i], RecursionFlags.Both, false);
+            result &= this.isRelatedTo(s.types[i]!, t.types[i]!, RecursionFlags.Both, false);
             if (result === Ternary.False) return result;
           }
           return result;
@@ -1636,14 +1641,14 @@ export class Relater extends TypeComparer {
     }
     // [...U] relates where U does, and U to readonly [...T] or to [...T] for mutable array constraints.
     if (isSingleElementGenericTupleType(source) && !tupleTargetOf(source).readonly) {
-      result = this.isRelatedTo(getTypeArguments(c, source)[0], target, RecursionFlags.Source, false);
+      result = this.isRelatedTo(getTypeArguments(c, source)[0]!, target, RecursionFlags.Source, false);
       if (result !== Ternary.False) return result;
     }
     if (
       isSingleElementGenericTupleType(target) &&
       (tupleTargetOf(target).readonly || isMutableArrayOrTuple(c, getBaseConstraintOrType(c, source)))
     ) {
-      result = this.isRelatedTo(source, getTypeArguments(c, target)[0], RecursionFlags.Target, false);
+      result = this.isRelatedTo(source, getTypeArguments(c, target)[0]!, RecursionFlags.Target, false);
       if (result !== Ternary.False) return result;
     }
     if ((target.flags & TypeFlags.TypeParameter) !== 0) {
@@ -2073,19 +2078,19 @@ export class Relater extends TypeComparer {
     // Each combination of discriminant types must match one or more constituents of the target.
     const skipOptional = c.strictNullChecks || this.relation === c.comparableRelation;
     const matchingTypes: Type[] = [];
-    const combination: Type[] = discriminantTypes.map((types) => types[0]);
+    const combination: Type[] = discriminantTypes.map((types) => types[0]!);
     for (let i = 0; i < combinations; i++) {
       let n = i;
       for (let j = discriminantTypes.length - 1; j >= 0; j--) {
-        const types = discriminantTypes[j];
-        combination[j] = types[n % types.length];
+        const types = discriminantTypes[j]!;
+        combination[j] = types[n % types.length]!;
         n = Math.floor(n / types.length);
       }
       let hasMatch = false;
       for (const t of target.types) {
         let matches = true;
         for (let k = 0; k < discriminants.length; k++) {
-          const sourceProp = discriminants[k];
+          const sourceProp = discriminants[k]!;
           const targetProp = getPropertyOfType(c, t, sourceProp.name);
           if (targetProp === undefined) {
             matches = false;
@@ -2098,7 +2103,7 @@ export class Relater extends TypeComparer {
             target,
             sourceProp,
             targetProp,
-            combination[k],
+            combination[k]!,
             false,
             IntersectionState.None,
             skipOptional,
@@ -2201,11 +2206,11 @@ export class Relater extends TypeComparer {
     let result = Ternary.True;
     for (let i = 0; i < length; i++) {
       // Without variance information, default to covariance.
-      const varianceFlags = i < variances.length ? variances[i] : VarianceFlags.Covariant;
+      const varianceFlags = i < variances.length ? variances[i]! : VarianceFlags.Covariant;
       const variance = varianceFlags & VarianceFlags.VarianceMask;
       if (variance === VarianceFlags.Independent) continue;
-      const s = sources[i];
-      const t = targets[i];
+      const s = sources[i]!;
+      const t = targets[i]!;
       let related: Ternary;
       if ((varianceFlags & VarianceFlags.Unmeasurable) !== 0)
         related =
@@ -2335,14 +2340,14 @@ export class Relater extends TypeComparer {
         let canExcludeDiscriminants = excludedProperties !== undefined && excludedProperties.size !== 0;
         for (let sourcePosition = 0; sourcePosition < sourceArity; sourcePosition++) {
           const sourceFlags = isTupleType(source)
-            ? tupleTargetOf(source).elementInfos[sourcePosition].flags
+            ? tupleTargetOf(source).elementInfos[sourcePosition]!.flags
             : ElementFlags.Rest;
           const sourcePositionFromEnd = sourceArity - 1 - sourcePosition;
           const targetPosition =
             targetHasRestElement && sourcePosition >= targetStartCount
               ? targetArity - 1 - Math.min(sourcePositionFromEnd, targetEndCount)
               : sourcePosition;
-          const targetFlags = targetPosition >= 0 ? targetTuple.elementInfos[targetPosition].flags : ElementFlags.None;
+          const targetFlags = targetPosition >= 0 ? targetTuple.elementInfos[targetPosition]!.flags : ElementFlags.None;
           if ((targetFlags & ElementFlags.Variadic) !== 0 && (sourceFlags & ElementFlags.Variadic) === 0) {
             if (reportErrors)
               this.reportError(Diagnostics.Source_provides_no_match_for_variadic_element_at_position_0_in_target, [
@@ -2372,10 +2377,10 @@ export class Relater extends TypeComparer {
           }
           const sourceType = removeMissingType(
             c,
-            sourceTypeArguments[sourcePosition],
+            sourceTypeArguments[sourcePosition]!,
             (sourceFlags & targetFlags & ElementFlags.Optional) !== 0,
           );
-          const targetType = targetTypeArguments[targetPosition];
+          const targetType = targetTypeArguments[targetPosition]!;
           const targetCheckType =
             (sourceFlags & ElementFlags.Variadic) !== 0 && (targetFlags & ElementFlags.Rest) !== 0
               ? createArrayTypeEx(c, targetType, false)
@@ -2636,7 +2641,7 @@ export class Relater extends TypeComparer {
       ]);
       if (unmatchedProperty.declarations.length !== 0)
         this.relatedInfo.push(
-          createDiagnosticForNode(unmatchedProperty.declarations[0], Diagnostics.X_0_is_declared_here, [propName]),
+          createDiagnosticForNode(unmatchedProperty.declarations[0]!, Diagnostics.X_0_is_declared_here, [propName]),
         );
     } else if (this.tryElaborateArrayLikeErrors(source, target, false)) {
       const names = getTypeNamesForErrorDisplay(c, source, target);
@@ -2721,8 +2726,8 @@ export class Relater extends TypeComparer {
     const sourceSignatures = getSignaturesOfType(c, source, kind);
     const targetSignatures = getSignaturesOfType(c, target, kind);
     if (kind === SignatureKind.Construct && sourceSignatures.length !== 0 && targetSignatures.length !== 0) {
-      const sourceIsAbstract = (sourceSignatures[0].flags & SignatureFlags.Abstract) !== 0;
-      const targetIsAbstract = (targetSignatures[0].flags & SignatureFlags.Abstract) !== 0;
+      const sourceIsAbstract = (sourceSignatures[0]!.flags & SignatureFlags.Abstract) !== 0;
+      const targetIsAbstract = (targetSignatures[0]!.flags & SignatureFlags.Abstract) !== 0;
       if (sourceIsAbstract && !targetIsAbstract) {
         if (reportErrors)
           this.reportError(
@@ -2731,7 +2736,7 @@ export class Relater extends TypeComparer {
           );
         return Ternary.False;
       }
-      if (!this.constructorVisibilitiesAreCompatible(sourceSignatures[0], targetSignatures[0], reportErrors))
+      if (!this.constructorVisibilitiesAreCompatible(sourceSignatures[0]!, targetSignatures[0]!, reportErrors))
         return Ternary.False;
     }
     let result = Ternary.True;
@@ -2746,8 +2751,8 @@ export class Relater extends TypeComparer {
       // Instantiations of the same type compare pairwise with erased type parameters.
       for (let i = 0; i < targetSignatures.length && i < sourceSignatures.length; i++) {
         const related = this.signatureRelatedTo(
-          sourceSignatures[i],
-          targetSignatures[i],
+          sourceSignatures[i]!,
+          targetSignatures[i]!,
           true,
           reportErrors,
           intersectionState,
@@ -2759,8 +2764,8 @@ export class Relater extends TypeComparer {
       // Single signatures erase generics only for comparability.
       const eraseGenerics = this.relation === c.comparableRelation;
       result = this.signatureRelatedTo(
-        sourceSignatures[0],
-        targetSignatures[0],
+        sourceSignatures[0]!,
+        targetSignatures[0]!,
         eraseGenerics,
         reportErrors,
         intersectionState,
@@ -2845,8 +2850,8 @@ export class Relater extends TypeComparer {
     for (let i = 0; i < sourceSignatures.length; i++) {
       const related = compareSignaturesIdenticalWith(
         c,
-        sourceSignatures[i],
-        targetSignatures[i],
+        sourceSignatures[i]!,
+        targetSignatures[i]!,
         false,
         false,
         false,
@@ -3167,16 +3172,16 @@ export class Relater extends TypeComparer {
       let arg = '';
       switch (this.getChainMessage(1)) {
         case Diagnostics.Call_signatures_with_no_arguments_have_incompatible_return_types_0_and_1:
-          arg = getPropertyNameArg(args[0]) + '()';
+          arg = getPropertyNameArg(args[0]!) + '()';
           break;
         case Diagnostics.Construct_signatures_with_no_arguments_have_incompatible_return_types_0_and_1:
-          arg = 'new ' + getPropertyNameArg(args[0]) + '()';
+          arg = 'new ' + getPropertyNameArg(args[0]!) + '()';
           break;
         case Diagnostics.Call_signature_return_types_0_and_1_are_incompatible:
-          arg = getPropertyNameArg(args[0]) + '(...)';
+          arg = getPropertyNameArg(args[0]!) + '(...)';
           break;
         case Diagnostics.Construct_signature_return_types_0_and_1_are_incompatible:
-          arg = 'new ' + getPropertyNameArg(args[0]) + '(...)';
+          arg = 'new ' + getPropertyNameArg(args[0]!) + '(...)';
           break;
       }
       if (arg !== '') {
@@ -3189,8 +3194,8 @@ export class Relater extends TypeComparer {
         case Diagnostics.Types_of_property_0_are_incompatible:
         case Diagnostics.The_types_of_0_are_incompatible_between_these_types:
         case Diagnostics.The_types_returned_by_0_are_incompatible_between_these_types: {
-          const head = getPropertyNameArg(args[0]);
-          const tail = getPropertyNameArg(this.errorChain!.next!.args[0]);
+          const head = getPropertyNameArg(args[0]!);
+          const tail = getPropertyNameArg(this.errorChain!.next!.args[0]!);
           const dotted = addToDottedName(head, tail);
           this.errorChain = this.errorChain!.next!.next;
           if (message === Diagnostics.Types_of_property_0_are_incompatible)
@@ -3217,9 +3222,9 @@ export class Relater extends TypeComparer {
   chainArgsMatch(a0: string | undefined, a1: string | undefined, a2: string | undefined): boolean {
     const args = this.errorChain!.args;
     return (
-      (a0 === undefined || args[0] === a0) &&
-      (a1 === undefined || args[1] === a1) &&
-      (a2 === undefined || args[2] === a2)
+      (a0 === undefined || args[0]! === a0) &&
+      (a1 === undefined || args[1]! === a1) &&
+      (a2 === undefined || args[2]! === a2)
     );
   }
 }
@@ -3279,14 +3284,14 @@ export function getSingleBaseForNonAugmentingSubtype(c: Checker, t: Type): Type 
   const typeArguments = getTypeArguments(c, t);
   let instantiatedBase =
     typeParameters.length === 0
-      ? bases[0]
+      ? bases[0]!
       : instantiateType(
           c,
-          bases[0],
+          bases[0]!,
           newTypeMapper(typeParameters.slice(), typeArguments.slice(0, typeParameters.length)),
         );
   if (typeArguments.length > typeParameters.length)
-    instantiatedBase = getTypeWithThisArgument(c, instantiatedBase, typeArguments[typeArguments.length - 1], false);
+    instantiatedBase = getTypeWithThisArgument(c, instantiatedBase, typeArguments[typeArguments.length - 1]!, false);
   c.cachedTypes.set(key, instantiatedBase);
   return instantiatedBase;
 }
@@ -3914,7 +3919,7 @@ function hasCovariantVoidArgument(typeArguments: readonly Type[], variances: rea
   for (let i = 0; i < variances.length; i++)
     if (
       (variances[i] & VarianceFlags.VarianceMask) === VarianceFlags.Covariant &&
-      (typeArguments[i].flags & TypeFlags.Void) !== 0
+      (typeArguments[i]!.flags & TypeFlags.Void) !== 0
     )
       return true;
   return false;
@@ -4009,10 +4014,10 @@ function isDistributionDependent(c: Checker, t: ConditionalType): boolean {
 }
 
 function templateLiteralTypesDefinitelyUnrelated(source: TemplateLiteralType, target: TemplateLiteralType): boolean {
-  const sourceStart = source.texts[0];
-  const targetStart = target.texts[0];
-  const sourceEnd = source.texts[source.texts.length - 1];
-  const targetEnd = target.texts[target.texts.length - 1];
+  const sourceStart = source.texts[0]!;
+  const targetStart = target.texts[0]!;
+  const sourceEnd = source.texts[source.texts.length - 1]!;
+  const targetEnd = target.texts[target.texts.length - 1]!;
   const startLen = Math.min(sourceStart.length, targetStart.length);
   const endLen = Math.min(sourceEnd.length, targetEnd.length);
   return (
@@ -4031,7 +4036,7 @@ function isPartialMappedType(t: Type): boolean {
 
 export function isEmptyArrayLiteralType(c: Checker, t: Type): boolean {
   if (!isArrayType(c, t)) return false;
-  const elementType = getTypeArguments(c, t)[0];
+  const elementType = getTypeArguments(c, t)[0]!;
   return c.strictNullChecks ? elementType === c.implicitNeverType : elementType === c.undefinedWideningType;
 }
 
@@ -4340,8 +4345,8 @@ function compareSignaturesIdenticalWith(
   if (target.typeParameters.length !== 0) {
     const mapper = newTypeMapper(source.typeParameters, target.typeParameters);
     for (let i = 0; i < target.typeParameters.length; i++) {
-      const s = source.typeParameters[i];
-      const t = target.typeParameters[i];
+      const s = source.typeParameters[i]!;
+      const t = target.typeParameters[i]!;
       if (s === t) continue;
       if (
         comparer.compare(

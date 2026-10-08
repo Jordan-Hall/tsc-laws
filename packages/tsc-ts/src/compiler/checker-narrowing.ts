@@ -128,6 +128,7 @@ import {
   getReducedApparentType,
   getSignaturesOfType,
   getTypeOfPropertyOfType,
+  mapToBaseConstraintOrType,
 } from './checker-members.js';
 import {
   getAssignmentTarget,
@@ -196,7 +197,6 @@ export class FlowState {
   refKey: string | undefined = undefined;
   depth = 0;
   sharedFlowStart = 0;
-  readonly reduceLabels: FlowReduceLabel[] = [];
   incomplete = false;
 
   constructor(reference: Node, declaredType: Type, initialType: Type, flowContainer: Node | undefined) {
@@ -290,10 +290,10 @@ export function getTypeAtFlowNode(c: Checker, f: FlowState, start: FlowNode): Ty
     if ((flags & FlowFlags.Shared) !== 0) {
       // Shared nodes are cached for the duration of one walk.
       for (let i = f.sharedFlowStart; i < c.sharedFlowNodes.length; i++) {
-        if (c.sharedFlowNodes[i] === flow) {
+        if (c.sharedFlowNodes[i]! === flow) {
           f.depth--;
-          f.incomplete = c.sharedFlowIncomplete[i];
-          return c.sharedFlowTypes[i];
+          f.incomplete = c.sharedFlowIncomplete[i]!;
+          return c.sharedFlowTypes[i]!;
         }
       }
       sharedFlow = flow;
@@ -316,16 +316,16 @@ export function getTypeAtFlowNode(c: Checker, f: FlowState, start: FlowNode): Ty
     } else if ((flags & FlowFlags.Condition) !== 0) t = getTypeAtFlowCondition(c, f, flow);
     else if ((flags & FlowFlags.SwitchClause) !== 0) t = getTypeAtSwitchClause(c, f, flow as FlowSwitchClause);
     else if ((flags & FlowFlags.BranchLabel) !== 0) {
-      const antecedents = getBranchLabelAntecedents(flow, f.reduceLabels);
+      const antecedents = getBranchLabelAntecedents(c, flow);
       if (antecedents.length === 1) {
-        flow = antecedents[0];
+        flow = antecedents[0]!;
         continue;
       }
       t = getTypeAtFlowBranchLabel(c, f, antecedents);
     } else if ((flags & FlowFlags.LoopLabel) !== 0) {
       const antecedents = flow.antecedents!;
       if (antecedents.length === 1) {
-        flow = antecedents[0];
+        flow = antecedents[0]!;
         continue;
       }
       t = getTypeAtFlowLoopLabel(c, f, flow);
@@ -337,9 +337,9 @@ export function getTypeAtFlowNode(c: Checker, f: FlowState, start: FlowNode): Ty
       }
       t = mutated;
     } else if ((flags & FlowFlags.ReduceLabel) !== 0) {
-      f.reduceLabels.push(flow as FlowReduceLabel);
+      c.flowReduceLabels.push(flow as FlowReduceLabel);
       t = getTypeAtFlowNode(c, f, flow.antecedent!);
-      f.reduceLabels.pop();
+      c.flowReduceLabels.pop();
     } else if ((flags & FlowFlags.Start) !== 0) {
       // Continue with the containing function's flow when the reference is captured.
       const container = flow.node;
@@ -377,9 +377,11 @@ export function convertAutoToAny(c: Checker, t: Type): Type {
   return t;
 }
 
-function getBranchLabelAntecedents(flow: FlowNode, reduceLabels: FlowReduceLabel[]): FlowNode[] {
+/** A branch label's antecedents, as limited by the innermost reduce label being passed that targets it. */
+export function getBranchLabelAntecedents(c: Checker, flow: FlowNode): FlowNode[] {
+  const reduceLabels = c.flowReduceLabels;
   for (let i = reduceLabels.length - 1; i >= 0; i--)
-    if (reduceLabels[i].target === flow) return reduceLabels[i].antecedents!;
+    if (reduceLabels[i]!.target === flow) return reduceLabels[i]!.antecedents!;
   return flow.antecedents!;
 }
 
@@ -541,17 +543,12 @@ function getTupleElementType(c: Checker, t: Type, index: number): Type | undefin
   const propType = getTypeOfPropertyOfType(c, t, String(index));
   if (propType !== undefined) return propType;
   if (everyType(t, isTupleType))
-    return getTupleElementTypeOutOfStartCount(
-      c,
-      t,
-      index,
-      c.compilerOptions.noUncheckedIndexedAccess === true ? c.undefinedType : undefined,
-    );
+    return getTupleElementTypeOutOfStartCount(c, t, index, c.noUncheckedIndexedAccess ? c.undefinedType : undefined);
   return undefined;
 }
 
 function includeUndefinedInIndexSignature(c: Checker, t: Type): Type {
-  return c.compilerOptions.noUncheckedIndexedAccess === true ? getUnionType(c, [t, c.missingType]) : t;
+  return c.noUncheckedIndexedAccess ? getUnionType(c, [t, c.missingType]) : t;
 }
 
 function getTypeOfDestructuredSpreadExpression(c: Checker, t: Type): Type {
@@ -621,7 +618,7 @@ function getTypeAtFlowCall(c: Checker, f: FlowState, flow: FlowNode): Type | und
       predicate.parameterIndex >= 0 &&
       predicate.parameterIndex < args.length
     )
-      narrowedType = narrowTypeByAssertion(c, f, t, args[predicate.parameterIndex]);
+      narrowedType = narrowTypeByAssertion(c, f, t, args[predicate.parameterIndex]!);
     if (narrowedType === t) return newFlowType(c, f, flowType, incomplete);
     return newFlowType(c, f, narrowedType, incomplete);
   }
@@ -670,15 +667,20 @@ export function getEffectsSignature(c: Checker, node: Node): Signature | undefin
       SignatureKind.Call,
     );
     let candidate: Signature | undefined = undefined;
-    if (signatures.length === 1 && signatures[0].typeParameters.length === 0) candidate = signatures[0];
+    if (signatures.length === 1 && signatures[0]!.typeParameters.length === 0) candidate = signatures[0]!;
     // Generic or overloaded predicates and assertions take effect through the resolved signature.
-    else if (signatures.some((sig) => hasTypePredicateOrNeverReturnType(c, sig)))
+    else if (someSignatureHasTypePredicateOrNeverReturnType(c, signatures))
       candidate = getResolvedSignature(c, node, CheckMode.Normal);
     signature =
       candidate !== undefined && hasTypePredicateOrNeverReturnType(c, candidate) ? candidate : c.unknownSignature;
     links.effectsSignature = signature;
   }
   return signature === c.unknownSignature ? undefined : signature;
+}
+
+function someSignatureHasTypePredicateOrNeverReturnType(c: Checker, signatures: readonly Signature[]): boolean {
+  for (const sig of signatures) if (hasTypePredicateOrNeverReturnType(c, sig)) return true;
+  return false;
 }
 
 function hasTypePredicateOrNeverReturnType(c: Checker, sig: Signature): boolean {
@@ -862,7 +864,7 @@ function getUnionOfFlowTypes(c: Checker, f: FlowState, types: Type[], reduction:
   if (result !== declared && (result.flags & declared.flags & TypeFlags.Union) !== 0) {
     const a = (result as UnionType).types;
     const b = (declared as UnionType).types;
-    if (a.length === b.length && a.every((t, i) => t === b[i])) return declared;
+    if (a.length === b.length && a.every((t, i) => t === b[i]!)) return declared;
   }
   return result;
 }
@@ -1129,7 +1131,7 @@ function getTypePredicateArgument(predicate: TypePredicate, call: Node): Node | 
   if (predicate.kind === TypePredicateKind.Identifier || predicate.kind === TypePredicateKind.AssertsIdentifier) {
     const args = getArguments(call)!.nodes;
     return predicate.parameterIndex >= 0 && predicate.parameterIndex < args.length
-      ? args[predicate.parameterIndex]
+      ? args[predicate.parameterIndex]!
       : undefined;
   }
   const invoked = skipParentheses(getExpression(call)!);
@@ -1948,13 +1950,13 @@ function getSwitchClauseTypeOfWitnesses(c: Checker, statement: Node): string[] |
 function getNotEqualFactsFromTypeofSwitch(start: number, end: number, witnesses: string[]): TypeFacts {
   let facts = TypeFacts.None;
   for (let i = 0; i < witnesses.length; i++)
-    if ((i < start || i >= end) && witnesses[i] !== '') facts |= typeofNEFacts(witnesses[i]);
+    if ((i < start || i >= end) && witnesses[i]! !== '') facts |= typeofNEFacts(witnesses[i]!);
   return facts;
 }
 
 function getDefaultClauseIndex(statement: Node): number {
   const clauses = getClauses(statement);
-  for (let i = 0; i < clauses.length; i++) if (clauses[i].kind === SyntaxKind.DefaultClause) return i;
+  for (let i = 0; i < clauses.length; i++) if (clauses[i]!.kind === SyntaxKind.DefaultClause) return i;
   return -1;
 }
 
@@ -1981,19 +1983,19 @@ function narrowTypeBySwitchOnTrue(c: Checker, f: FlowState, typeIn: Type, flow: 
   const hasDefaultClause =
     flow.clauseStart === flow.clauseEnd || (defaultIndex >= flow.clauseStart && defaultIndex < flow.clauseEnd);
   for (let i = 0; i < flow.clauseStart; i++) {
-    const expr = (clauses[i] as CaseOrDefaultClause).expression;
+    const expr = (clauses[i]! as CaseOrDefaultClause).expression;
     if (expr !== undefined) t = narrowType(c, f, t, expr, false);
   }
   if (hasDefaultClause) {
     for (let i = flow.clauseEnd; i < clauses.length; i++) {
-      const expr = (clauses[i] as CaseOrDefaultClause).expression;
+      const expr = (clauses[i]! as CaseOrDefaultClause).expression;
       if (expr !== undefined) t = narrowType(c, f, t, expr, false);
     }
     return t;
   }
   const types: Type[] = [];
   for (let i = flow.clauseStart; i < flow.clauseEnd; i++) {
-    const expr = (clauses[i] as CaseOrDefaultClause).expression;
+    const expr = (clauses[i]! as CaseOrDefaultClause).expression;
     types.push(expr !== undefined ? narrowType(c, f, t, expr, true) : c.neverType);
   }
   return getUnionType(c, types);
@@ -2345,18 +2347,13 @@ function isCallChain(node: Node): boolean {
 // ---- Reachability
 
 export function isReachableFlowNode(c: Checker, flow: FlowNode): boolean {
-  const result = isReachableFlowNodeWorker(c, flow, false, []);
+  const result = isReachableFlowNodeWorker(c, flow, false);
   c.lastFlowNode = flow;
   c.lastFlowNodeReachable = result;
   return result;
 }
 
-function isReachableFlowNodeWorker(
-  c: Checker,
-  start: FlowNode,
-  noCacheCheckIn: boolean,
-  reduceLabels: FlowReduceLabel[],
-): boolean {
+function isReachableFlowNodeWorker(c: Checker, start: FlowNode, noCacheCheckIn: boolean): boolean {
   let flow = start;
   let noCacheCheck = noCacheCheckIn;
   for (;;) {
@@ -2366,7 +2363,7 @@ function isReachableFlowNodeWorker(
       if (!noCacheCheck) {
         const cached = c.flowNodeReachable.get(flow);
         if (cached !== undefined) return cached;
-        const reachable = isReachableFlowNodeWorker(c, flow, true, reduceLabels);
+        const reachable = isReachableFlowNodeWorker(c, flow, true);
         c.flowNodeReachable.set(flow, reachable);
         return reachable;
       }
@@ -2386,7 +2383,7 @@ function isReachableFlowNodeWorker(
           if (
             predicate.parameterIndex >= 0 &&
             predicate.parameterIndex < args.length &&
-            isFalseExpression(args[predicate.parameterIndex])
+            isFalseExpression(args[predicate.parameterIndex]!)
           )
             return false;
         }
@@ -2394,22 +2391,22 @@ function isReachableFlowNodeWorker(
       }
       flow = flow.antecedent!;
     } else if ((flags & FlowFlags.BranchLabel) !== 0) {
-      for (const antecedent of getBranchLabelAntecedents(flow, reduceLabels))
-        if (isReachableFlowNodeWorker(c, antecedent, false, reduceLabels)) return true;
+      for (const antecedent of getBranchLabelAntecedents(c, flow))
+        if (isReachableFlowNodeWorker(c, antecedent, false)) return true;
       return false;
     } else if ((flags & FlowFlags.LoopLabel) !== 0) {
       const antecedents = flow.antecedents;
       if (antecedents === undefined || antecedents.length === 0) return false;
-      flow = antecedents[0];
+      flow = antecedents[0]!;
     } else if ((flags & FlowFlags.SwitchClause) !== 0) {
       const clause = flow as FlowSwitchClause;
       if (clause.isEmpty() && isExhaustiveSwitchStatement(c, clause.switchStatement)) return false;
       flow = flow.antecedent!;
     } else if ((flags & FlowFlags.ReduceLabel) !== 0) {
       c.lastFlowNode = undefined;
-      reduceLabels.push(flow as FlowReduceLabel);
-      const result = isReachableFlowNodeWorker(c, flow.antecedent!, false, reduceLabels);
-      reduceLabels.pop();
+      c.flowReduceLabels.push(flow as FlowReduceLabel);
+      const result = isReachableFlowNodeWorker(c, flow.antecedent!, false);
+      c.flowReduceLabels.pop();
       return result;
     } else return (flags & FlowFlags.Unreachable) === 0;
   }
@@ -2846,8 +2843,7 @@ export function getNarrowedTypeOfSymbol(c: Checker, symbol: Symbol, location: No
   links.flags |= NodeCheckFlags.InCheckIdentifier;
   let result = t;
   const parentType = getTypeForBindingElementParent(c, parent);
-  const parentTypeConstraint =
-    parentType !== undefined ? mapType(c, parentType, (u) => getBaseConstraintOrType(c, u)) : undefined;
+  const parentTypeConstraint = parentType !== undefined ? mapToBaseConstraintOrType(c, parentType) : undefined;
   if (
     parentTypeConstraint !== undefined &&
     (parentTypeConstraint.flags & TypeFlags.Union) !== 0 &&

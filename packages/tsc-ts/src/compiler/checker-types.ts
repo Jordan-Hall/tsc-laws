@@ -949,7 +949,7 @@ export class ArrayTypeMapper extends TypeMapper {
 
   map(type: Type): Type {
     const sources = this.sources;
-    for (let i = 0; i < sources.length; i++) if (type === sources[i]) return this.targets[i];
+    for (let i = 0; i < sources.length; i++) if (type === sources[i]!) return this.targets[i]!;
     return type;
   }
 
@@ -958,7 +958,7 @@ export class ArrayTypeMapper extends TypeMapper {
   }
 
   mapsThisOnly(): boolean {
-    return this.sources.length === 1 && isThisTypeParameter(this.sources[0]);
+    return this.sources.length === 1 && isThisTypeParameter(this.sources[0]!);
   }
 }
 
@@ -978,7 +978,7 @@ export class ArrayToSingleTypeMapper extends TypeMapper {
   }
 
   mapsThisOnly(): boolean {
-    return this.sources.length === 1 && isThisTypeParameter(this.sources[0]);
+    return this.sources.length === 1 && isThisTypeParameter(this.sources[0]!);
   }
 }
 
@@ -1003,7 +1003,7 @@ export class MergedTypeMapper extends TypeMapper {
 }
 
 export function newTypeMapper(sources: Type[], targets: Type[]): TypeMapper {
-  return sources.length === 1 ? new SimpleTypeMapper(sources[0], targets[0]) : new ArrayTypeMapper(sources, targets);
+  return sources.length === 1 ? new SimpleTypeMapper(sources[0]!, targets[0]!) : new ArrayTypeMapper(sources, targets);
 }
 
 export function mergeTypeMappers(m1: TypeMapper | undefined, m2: TypeMapper): TypeMapper {

@@ -194,7 +194,7 @@ export function findContextualNode(c: Checker, node: Node, includeCaches: boolea
   const caches = c.inferenceCaches;
   const nodes = caches.contextualNodes;
   for (let i = 0; i < nodes.length; i++)
-    if (nodes[i] === node && (includeCaches || !caches.contextualIsCache[i])) return i;
+    if (nodes[i]! === node && (includeCaches || !caches.contextualIsCache[i])) return i;
   return -1;
 }
 
@@ -212,7 +212,7 @@ export function popInferenceContext(c: Checker): void {
 export function getInferenceContext(c: Checker, node: Node): InferenceContext | undefined {
   const caches = c.inferenceCaches;
   for (let i = caches.inferenceNodes.length - 1; i >= 0; i--)
-    if (isNodeDescendantOf(node, caches.inferenceNodes[i])) return caches.inferenceContexts[i];
+    if (isNodeDescendantOf(node, caches.inferenceNodes[i]!)) return caches.inferenceContexts[i];
   return undefined;
 }
 
@@ -630,7 +630,7 @@ export function getContextualTypeForArgumentAtIndex(c: Checker, call: Node, argI
   if (signature.hasRestParameter() && argIndex >= restIndex)
     return getIndexedAccessTypeEx(
       c,
-      getTypeOfSymbol(c, signature.parameters[restIndex]),
+      getTypeOfSymbol(c, signature.parameters[restIndex]!),
       getNumberLiteralType(c, argIndex - restIndex),
       AccessFlags.Contextual,
       undefined,
@@ -662,8 +662,8 @@ export function getContextualTypeForElementExpression(
         if ((firstSpreadIndex < 0 || index < firstSpreadIndex) && index < target.fixedLength)
           return removeMissingType(
             c,
-            getTypeArguments(c, u)[index],
-            (target.elementInfos[index].flags & ElementFlags.Optional) !== 0,
+            getTypeArguments(c, u)[index]!,
+            (target.elementInfos[index]!.flags & ElementFlags.Optional) !== 0,
           );
         // With a known length and the index after all spreads, count from the end.
         const offset = length >= 0 && (lastSpreadIndex < 0 || index > lastSpreadIndex) ? length - index : 0;
@@ -671,7 +671,7 @@ export function getContextualTypeForElementExpression(
           offset > 0 && (target.combinedFlags & ElementFlags.Variable) !== 0
             ? getEndElementCount(target, ElementFlags.Fixed)
             : 0;
-        if (offset > 0 && offset <= fixedEndLength) return getTypeArguments(c, u)[getTypeReferenceArity(u) - offset];
+        if (offset > 0 && offset <= fixedEndLength) return getTypeArguments(c, u)[getTypeReferenceArity(u) - offset]!;
         // Otherwise the union of the possible element types, without subtype reduction.
         const tupleIndex = firstSpreadIndex >= 0 ? Math.min(target.fixedLength, firstSpreadIndex) : target.fixedLength;
         const endSkipCount =
@@ -710,7 +710,7 @@ function getSpreadIndices(c: Checker, node: Node, elements: Node[]): SpreadIndic
   let first = -1;
   let last = -1;
   for (let i = 0; i < elements.length; i++)
-    if (elements[i].kind === SyntaxKind.SpreadElement) {
+    if (elements[i]!.kind === SyntaxKind.SpreadElement) {
       if (first < 0) first = i;
       last = i;
     }
@@ -804,7 +804,7 @@ function getTypeOfPropertyOfContextualTypeEx(
             getTypeFromIndexInfosOfContextualType(c, candidate, name, nameType),
           );
         if (types.length === 0) return undefined;
-        return types.length === 1 ? types[0] : getIntersectionType(c, types);
+        return types.length === 1 ? types[0]! : getIntersectionType(c, types);
       }
       if ((u.flags & TypeFlags.Object) === 0) return undefined;
       if (
@@ -1046,20 +1046,20 @@ function discriminateTypeByObjectLiteral(c: Checker, target: UnionType, props: N
   for (let n = 0; n < count; n++) {
     // Eliminate non-matching constituents only if some constituent matches.
     let matched = false;
-    const name = n < props.length ? getSymbol(props[n])!.name : members[n - props.length].name;
+    const name = n < props.length ? getSymbol(props[n]!)!.name : members[n - props.length]!.name;
     for (let i = 0; i < types.length; i++) {
-      if (include[i] === Ternary.False) continue;
-      const targetType = getTypeOfPropertyOrIndexSignatureOfType(c, types[i], name);
+      if (include[i]! === Ternary.False) continue;
+      const targetType = getTypeOfPropertyOrIndexSignatureOfType(c, types[i]!, name);
       if (targetType === undefined) continue;
       if (discriminantMatches(c, props, n, targetType)) matched = true;
       else include[i] = Ternary.Maybe;
     }
     for (let i = 0; i < types.length; i++)
-      if (include[i] === Ternary.Maybe) include[i] = matched ? Ternary.False : Ternary.True;
+      if (include[i]! === Ternary.Maybe) include[i] = matched ? Ternary.False : Ternary.True;
   }
   if (!include.includes(Ternary.False)) return target;
   const filteredTypes: Type[] = [];
-  for (let i = 0; i < types.length; i++) if (include[i] === Ternary.True) filteredTypes.push(types[i]);
+  for (let i = 0; i < types.length; i++) if (include[i]! === Ternary.True) filteredTypes.push(types[i]!);
   const filtered = getUnionTypeEx(c, filteredTypes, UnionReduction.None, undefined, undefined);
   return (filtered.flags & TypeFlags.Never) === 0 ? filtered : target;
 }
@@ -1067,7 +1067,7 @@ function discriminateTypeByObjectLiteral(c: Checker, target: UnionType, props: N
 function discriminantMatches(c: Checker, props: Node[], index: number, t: Type): boolean {
   let propType: Type;
   if (index < props.length) {
-    const prop = props[index];
+    const prop = props[index]!;
     propType =
       prop.kind === SyntaxKind.PropertyAssignment
         ? getContextFreeTypeOfExpression(c, (prop as PropertyAssignment).initializer)
@@ -1105,7 +1105,7 @@ export function hasContextSensitiveParameters(func: Node): boolean {
   for (const p of params) if (getType(p) === undefined) return true;
   if (func.kind !== SyntaxKind.ArrowFunction) {
     // Without an explicit `this` parameter, the implicit one is contextually typed.
-    if (params.length === 0 || !isThisParameter(params[0])) return (func.flags & NodeFlags.ContainsThis) !== 0;
+    if (params.length === 0 || !isThisParameter(params[0]!)) return (func.flags & NodeFlags.ContainsThis) !== 0;
   }
   return false;
 }
@@ -1130,16 +1130,16 @@ export function getContextualSignature(c: Checker, node: Node): Signature | unde
     if (signature === undefined) continue;
     if (
       signatureList.length !== 0 &&
-      compareSignaturesIdentical(c, signatureList[0], signature, false, true, true, ComparerKind.Identical) ===
+      compareSignaturesIdentical(c, signatureList[0]!, signature, false, true, true, ComparerKind.Identical) ===
         Ternary.False
     )
       return undefined;
     signatureList.push(signature);
   }
   if (signatureList.length === 0) return undefined;
-  if (signatureList.length === 1) return signatureList[0];
+  if (signatureList.length === 1) return signatureList[0]!;
   // The union of the signatures, with the union of their return types.
-  const result = cloneSignature(c, signatureList[0]);
+  const result = cloneSignature(c, signatureList[0]!);
   result.composite = new CompositeSignature(true, signatureList);
   result.target = undefined;
   result.mapper = undefined;
@@ -1150,7 +1150,7 @@ export function getContextualSignature(c: Checker, node: Node): Signature | unde
 export function getContextualCallSignature(c: Checker, t: Type, node: Node): Signature | undefined {
   const signatures = getSignaturesOfType(c, t, SignatureKind.Call);
   const applicableByArity = signatures.filter((s) => !isAritySmaller(c, s, node));
-  return applicableByArity.length === 1 ? applicableByArity[0] : getIntersectedSignatures(c, applicableByArity);
+  return applicableByArity.length === 1 ? applicableByArity[0]! : getIntersectedSignatures(c, applicableByArity);
 }
 
 /** Signatures with identical type parameters combined into one, under noImplicitAny. */
@@ -1170,12 +1170,12 @@ function isAritySmaller(c: Checker, signature: Signature, target: Node): boolean
   const parameters = getParameters(target)!.nodes;
   let targetParameterCount = 0;
   while (targetParameterCount < parameters.length) {
-    const param = parameters[targetParameterCount] as ParameterDeclaration;
+    const param = parameters[targetParameterCount]! as ParameterDeclaration;
     if (param.initializer !== undefined || param.questionToken !== undefined || param.dotDotDotToken !== undefined)
       break;
     targetParameterCount++;
   }
-  if (parameters.length !== 0 && isThisParameter(parameters[0])) targetParameterCount--;
+  if (parameters.length !== 0 && isThisParameter(parameters[0]!)) targetParameterCount--;
   return !hasEffectiveRestParameter(c, signature) && getParameterCount(c, signature) < targetParameterCount;
 }
 
@@ -1199,7 +1199,7 @@ function getContextuallyTypedParameterTypeOrUndefined(c: Checker, parameter: Nod
     links.resolvedSignature = c.anySignature;
     const t =
       indexOfParameter < args.length
-        ? getWidenedLiteralType(c, checkExpression(c, args[indexOfParameter]))
+        ? getWidenedLiteralType(c, checkExpression(c, args[indexOfParameter]!))
         : getInitializer(parameter) !== undefined
           ? undefined
           : c.undefinedWideningType;
@@ -1211,7 +1211,7 @@ function getContextuallyTypedParameterTypeOrUndefined(c: Checker, parameter: Nod
   const params = getParameters(func)!.nodes;
   let index = params.indexOf(parameter);
   if (params.length > 0) {
-    const first = getName(params[0]);
+    const first = getName(params[0]!);
     if (first !== undefined && first.kind === SyntaxKind.Identifier && getText(first) === 'this') index--;
   }
   if ((parameter as ParameterDeclaration).dotDotDotToken !== undefined && index === params.length - 1)
@@ -1286,5 +1286,5 @@ function getThisTypeFromContextualType(c: Checker, t: Type): Type | undefined {
 function getThisTypeArgument(c: Checker, t: Type): Type | undefined {
   if ((t.objectFlags & ObjectFlags.Reference) === 0) return undefined;
   const globalThisType = getGlobalType(c, 'ThisType', 1, false);
-  return (t as TypeReference).target === globalThisType ? getTypeArguments(c, t)[0] : undefined;
+  return (t as TypeReference).target === globalThisType ? getTypeArguments(c, t)[0]! : undefined;
 }

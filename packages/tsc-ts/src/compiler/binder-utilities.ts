@@ -313,7 +313,7 @@ export function isIdentifierNamed(node: Node, name: string): boolean {
 /** `node` without enclosing parentheses. */
 export function skipParentheses(node: Node): Node {
   let current = node;
-  while (current instanceof ParenthesizedExpression) current = current.expression;
+  while (current instanceof ParenthesizedExpression) current = (current as ParenthesizedExpression).expression;
   return current;
 }
 
@@ -644,7 +644,7 @@ export function getAssignmentDeclarationKind(node: Node): JSDeclarationKind {
     (node.flags & NodeFlags.JavaScriptFile) !== 0 &&
     isBindableObjectDefinePropertyCall(node)
   ) {
-    const entityName = getArguments(node)!.nodes[0];
+    const entityName = getArguments(node)!.nodes[0]!;
     return isExportsIdentifier(entityName) || isModuleExportsAccessExpression(entityName)
       ? JSDeclarationKind.ObjectDefinePropertyExports
       : JSDeclarationKind.ObjectDefinePropertyValue;
@@ -710,7 +710,7 @@ export function getNonAssignedNameOfDeclaration(declaration: Node): Node | undef
         }
         case JSDeclarationKind.ObjectDefinePropertyValue:
         case JSDeclarationKind.ObjectDefinePropertyExports:
-          return getArguments(declaration)!.nodes[1];
+          return getArguments(declaration)!.nodes[1]!;
       }
       return undefined;
     case SyntaxKind.ExportAssignment: {
@@ -735,7 +735,7 @@ export function getAssignedName(node: Node): Node | undefined {
       if (node !== binary.right) return undefined;
       const left = binary.left;
       if (left.kind === SyntaxKind.Identifier) return left;
-      if (left instanceof PropertyAccessExpression) return left.name;
+      if (left instanceof PropertyAccessExpression) return (left as PropertyAccessExpression).name;
       if (left instanceof ElementAccessExpression) {
         const argument = skipParentheses(left.argumentExpression);
         if (isStringOrNumericLiteralLike(argument)) return argument;
@@ -1078,7 +1078,7 @@ class ModuleInstanceStateComputer extends NodeVisitor {
     let p: Node | undefined = specifier;
     for (;;) {
       if (remaining === 0) p = p.parent;
-      else p = ancestors[--remaining];
+      else p = ancestors[--remaining]!;
       if (p === undefined) break;
       if (p.kind !== SyntaxKind.Block && p.kind !== SyntaxKind.ModuleBlock && p.kind !== SyntaxKind.SourceFile)
         continue;
@@ -1188,7 +1188,7 @@ function getErrorRangeForArrowFunction(file: SourceFile, node: Node): TextRange 
     const endLine = computeLineOfPosition(lineStarts, body.end);
     if (startLine < endLine) {
       // A multi-line arrow function: the span is its first line, including the line break.
-      let end: number = lineStarts[startLine];
+      let end: number = lineStarts[startLine]!;
       while (end < text.length && !isLineBreak(text.charCodeAt(end))) end += 1;
       return new TextRange(pos, end);
     }
@@ -1207,10 +1207,10 @@ function findOriginatingJSDocSatisfiesTag(file: SourceFile, node: SatisfiesExpre
       if (!(jsDoc instanceof JSDoc) || jsDoc.tags === undefined) continue;
       const tags = jsDoc.tags.nodes;
       for (let i = 0; i < tags.length; i++) {
-        const tag = tags[i];
+        const tag = tags[i]!;
         if (tag instanceof JSDocSatisfiesTag) {
           if (first === undefined) first = tag;
-          const type = getType(tag.typeExpression);
+          const type = getType((tag as JSDocSatisfiesTag).typeExpression);
           if (type !== undefined && type.pos === targetType.pos && type.end === targetType.end) return tag;
         }
       }
@@ -1259,7 +1259,7 @@ export function getErrorRangeForNode(file: SourceFile, node: Node): TextRange {
     case SyntaxKind.DefaultClause: {
       const start = skipTrivia(text, node.pos);
       const statements = getStatements(node)!.nodes;
-      return new TextRange(start, statements.length !== 0 ? statements[0].pos : node.end);
+      return new TextRange(start, statements.length !== 0 ? statements[0]!.pos : node.end);
     }
     case SyntaxKind.ReturnStatement:
     case SyntaxKind.YieldExpression:

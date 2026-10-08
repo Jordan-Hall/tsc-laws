@@ -65,7 +65,7 @@ let messagesByKey: Map<string, DiagnosticMessage> | undefined;
 
 function textOf(locale: Locale, message: DiagnosticMessage): string {
   while (texts.length <= locale) texts.push([]);
-  let table = texts[locale];
+  let table = texts[locale]!;
   if (table.length === 0) {
     table = (locale === Locale.Default ? messageTexts : translations(locale)).split('\n');
     texts[locale] = table;
@@ -115,7 +115,7 @@ export function formatMessage(text: string, args: readonly string[]): string {
     if (close === open + 1 || close >= text.length || text.charCodeAt(close) !== 0x7d) continue;
     const index = Number(text.slice(open + 1, close));
     if (index >= args.length) throw new Error('Invalid formatting placeholder');
-    result += text.slice(start, open) + toWellFormed(args[index]);
+    result += text.slice(start, open) + toWellFormed(args[index]!);
     start = close + 1;
     open = close;
   }
@@ -282,7 +282,7 @@ export function compareCodePoints(a: string, b: string): number {
 function compareArgs(a: readonly string[], b: readonly string[]): number {
   const length = Math.min(a.length, b.length);
   for (let i = 0; i < length; i++) {
-    const c = compareCodePoints(a[i], b[i]);
+    const c = compareCodePoints(a[i]!, b[i]!);
     if (c !== 0) return c;
   }
   return a.length - b.length;
@@ -301,7 +301,7 @@ function fileNameOf(d: Diagnostic): string {
 function compareChainSize(a: readonly Diagnostic[], b: readonly Diagnostic[]): number {
   if (a.length !== b.length) return b.length - a.length;
   for (let i = 0; i < a.length; i++) {
-    const c = compareChainSize(a[i].messageChain, b[i].messageChain);
+    const c = compareChainSize(a[i]!.messageChain, b[i]!.messageChain);
     if (c !== 0) return c;
   }
   return 0;
@@ -309,9 +309,9 @@ function compareChainSize(a: readonly Diagnostic[], b: readonly Diagnostic[]): n
 
 function compareChainContent(a: readonly Diagnostic[], b: readonly Diagnostic[]): number {
   for (let i = 0; i < a.length; i++) {
-    let c = compareArgs(a[i].args, b[i].args);
+    let c = compareArgs(a[i]!.args, b[i]!.args);
     if (c !== 0) return c;
-    c = compareChainContent(a[i].messageChain, b[i].messageChain);
+    c = compareChainContent(a[i]!.messageChain, b[i]!.messageChain);
     if (c !== 0) return c;
   }
   return 0;

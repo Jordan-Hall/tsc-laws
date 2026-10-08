@@ -176,7 +176,7 @@ function resolveTypeReferenceMembers(c: Checker, t: TypeReference): void {
 
 function sameTypes(a: readonly Type[], b: readonly Type[]): boolean {
   if (a.length !== b.length) return false;
-  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  for (let i = 0; i < a.length; i++) if (a[i]! !== b[i]!) return false;
   return true;
 }
 
@@ -211,7 +211,7 @@ function resolveObjectTypeMembers(
   if (baseTypes.length !== 0) {
     members = !instantiated || members === undefined ? new Map(members ?? []) : members;
     setStructuredTypeMembers(c, t, members, callSignatures, constructSignatures, indexInfos);
-    const thisArgument = typeArguments.length !== 0 ? typeArguments[typeArguments.length - 1] : undefined;
+    const thisArgument = typeArguments.length !== 0 ? typeArguments[typeArguments.length - 1]! : undefined;
     t.objectFlags |= ObjectFlags.UnresolvedMembers;
     for (const baseType of baseTypes) {
       const instantiatedBaseType =
@@ -415,7 +415,7 @@ function getArrayMemberCallSignatures(c: Checker, t: UnionType): Signature[] {
   // A union of instantiations of one Array or ReadonlyArray member: `(A[] | B[])["m"]` is `(A | B)[]["m"]`.
   let memberName = '';
   for (let i = 0; i < t.types.length; i++) {
-    const u = t.types[i];
+    const u = t.types[i]!;
     if (
       (u.objectFlags & ObjectFlags.Instantiated) === 0 ||
       u.symbol === undefined ||
@@ -428,7 +428,7 @@ function getArrayMemberCallSignatures(c: Checker, t: UnionType): Signature[] {
   }
   const arrayArg = mapType(c, t, (u) => {
     const generic = isReadonlyArraySymbol(c, u.symbol!.parent!) ? c.globalReadonlyArrayType : c.globalArrayType;
-    return (u as ObjectType).mapper!.map((generic as InterfaceType).typeParameters()[0]);
+    return (u as ObjectType).mapper!.map((generic as InterfaceType).typeParameters()[0]!);
   });
   const arrayType = createArrayTypeEx(
     c,
@@ -463,7 +463,7 @@ export function getUnionSignatures(c: Checker, signatureLists: Signature[][]): S
   let indexWithLengthOverOne = 0;
   let countLengthOverOne = 0;
   for (let i = 0; i < signatureLists.length; i++) {
-    const list = signatureLists[i];
+    const list = signatureLists[i]!;
     if (list.length === 0) return emptySignatures;
     if (list.length > 1) {
       indexWithLengthOverOne = i;
@@ -498,11 +498,11 @@ export function getUnionSignatures(c: Checker, signatureLists: Signature[][]): S
   }
   if ((result === undefined || result.length === 0) && countLengthOverOne <= 1) {
     // One constituent has overloads: try a single signature that handles all of them.
-    const masterList = signatureLists[indexWithLengthOverOne];
+    const masterList = signatureLists[indexWithLengthOverOne]!;
     let results: Signature[] | undefined = masterList.slice();
     for (const signatures of signatureLists) {
       if (signatures === masterList) continue;
-      const signature = signatures[0];
+      const signature = signatures[0]!;
       if (
         signature.typeParameters.length !== 0 &&
         results.some(
@@ -530,7 +530,7 @@ function findMatchingSignatures(
     // Generic signatures need exact matches in the other lists.
     if (listIndex > 0) return undefined;
     for (let i = 1; i < signatureLists.length; i++)
-      if (findMatchingSignature(c, signatureLists[i], signature, false, false, false) === undefined) return undefined;
+      if (findMatchingSignature(c, signatureLists[i]!, signature, false, false, false) === undefined) return undefined;
     return [signature];
   }
   const result: Signature[] = [];
@@ -538,8 +538,8 @@ function findMatchingSignatures(
     const match =
       i === listIndex
         ? signature
-        : (findMatchingSignature(c, signatureLists[i], signature, false, false, true) ??
-          findMatchingSignature(c, signatureLists[i], signature, true, false, true));
+        : (findMatchingSignature(c, signatureLists[i]!, signature, false, false, true) ??
+          findMatchingSignature(c, signatureLists[i]!, signature, true, false, true));
     if (match === undefined) return undefined;
     if (!result.includes(match)) result.push(match);
   }
@@ -574,8 +574,8 @@ export function compareTypeParametersIdentical(c: Checker, sourceParams: Type[],
   if (sourceParams.length !== targetParams.length) return false;
   const mapper = newTypeMapper(targetParams, sourceParams);
   for (let i = 0; i < sourceParams.length; i++) {
-    const source = sourceParams[i];
-    const target = targetParams[i];
+    const source = sourceParams[i]!;
+    const target = targetParams[i]!;
     if (source === target) continue;
     // A type parameter matches another one with an identical (instantiated) constraint.
     const sourceConstraint = getConstraintFromTypeParameter(c, source) ?? c.unknownType;
@@ -618,7 +618,7 @@ export function combineUnionOrIntersectionMemberSignatures(
       : undefined;
   let flags = (left.flags | right.flags) & (SignatureFlags.PropagatingFlags & ~SignatureFlags.HasRestParameter);
   const params = combineUnionOrIntersectionParameters(c, left, right, paramMapper, isUnion);
-  const lastParam = params.length !== 0 ? params[params.length - 1] : undefined;
+  const lastParam = params.length !== 0 ? params[params.length - 1]! : undefined;
   if (lastParam !== undefined && (lastParam.checkFlags & CheckFlags.RestParameter) !== 0)
     flags |= SignatureFlags.HasRestParameter;
   const thisParam = combineUnionOrIntersectionThisParam(
@@ -717,7 +717,7 @@ function combineUnionOrIntersectionThisParam(
 }
 
 export function getUnionIndexInfos(c: Checker, types: readonly Type[]): IndexInfo[] {
-  const sourceInfos = getIndexInfosOfType(c, types[0]);
+  const sourceInfos = getIndexInfosOfType(c, types[0]!);
   const result: IndexInfo[] = [];
   for (const info of sourceInfos) {
     const indexType = info.keyType;
@@ -751,8 +751,8 @@ function resolveIntersectionTypeMembers(c: Checker, t: IntersectionType): void {
   let mixinCount = 0;
   let firstMixinIndex = -1;
   for (let i = 0; i < types.length; i++) {
-    if (getSignaturesOfType(c, types[i], SignatureKind.Construct).length > 0) constructorTypeCount++;
-    if (mixinFlags[i]) {
+    if (getSignaturesOfType(c, types[i]!, SignatureKind.Construct).length > 0) constructorTypeCount++;
+    if (mixinFlags[i]!) {
       if (firstMixinIndex < 0) firstMixinIndex = i;
       mixinCount++;
     }
@@ -762,7 +762,7 @@ function resolveIntersectionTypeMembers(c: Checker, t: IntersectionType): void {
     mixinCount--;
   }
   for (let i = 0; i < types.length; i++) {
-    const u = types[i];
+    const u = types[i]!;
     // Mixin construct signatures are dropped; their return types mix into the others.
     if (!mixinFlags[i]) {
       let signatures = getSignaturesOfType(c, u, SignatureKind.Construct);
@@ -784,8 +784,8 @@ function includeMixinType(c: Checker, t: Type, types: readonly Type[], mixinFlag
   const mixed: Type[] = [];
   for (let i = 0; i < types.length; i++) {
     if (i === index) mixed.push(t);
-    else if (mixinFlags[i])
-      mixed.push(getReturnTypeOfSignature(c, getSignaturesOfType(c, types[i], SignatureKind.Construct)[0]));
+    else if (mixinFlags[i]!)
+      mixed.push(getReturnTypeOfSignature(c, getSignaturesOfType(c, types[i]!, SignatureKind.Construct)[0]!));
   }
   return getIntersectionType(c, mixed);
 }
@@ -805,7 +805,7 @@ function appendSignatures(c: Checker, signatures: Signature[], newSignatures: re
 
 export function appendIndexInfo(c: Checker, indexInfos: IndexInfo[], newInfo: IndexInfo, union: boolean): IndexInfo[] {
   for (let i = 0; i < indexInfos.length; i++) {
-    const info = indexInfos[i];
+    const info = indexInfos[i]!;
     if (info.keyType !== newInfo.keyType) continue;
     const valueType = union
       ? getUnionType(c, [info.valueType, newInfo.valueType])
@@ -1221,7 +1221,7 @@ export function findApplicableIndexInfo(
     return stringIndexInfo !== undefined && isApplicableIndexType(c, keyType, c.stringType)
       ? stringIndexInfo
       : undefined;
-  if (applicable.length === 1) return applicable[0];
+  if (applicable.length === 1) return applicable[0]!;
   // Several apply: a synthetic info; its key type is unused.
   let isReadonly = true;
   const types: Type[] = [];
@@ -1436,6 +1436,11 @@ export function getBaseConstraintOrType(c: Checker, t: Type): Type {
   return getBaseConstraintOfType(c, t) ?? t;
 }
 
+/** `t` with each constituent replaced by its base constraint. */
+export function mapToBaseConstraintOrType(c: Checker, t: Type): Type {
+  return mapType(c, t, (u) => getBaseConstraintOrType(c, u));
+}
+
 function hasConstrainedTypeData(t: Type): boolean {
   return (
     (t.flags & (TypeFlags.Intrinsic | TypeFlags.Literal | TypeFlags.UniqueESSymbol | TypeFlags.Enum)) === 0 ||
@@ -1548,9 +1553,9 @@ function computeBaseConstraint(c: Checker, t: Type, stack: RecursionId[]): Type 
     const infos = tupleTargetOf(t).elementInfos;
     const newElements: Type[] = [];
     for (let i = 0; i < elementTypes.length; i++) {
-      const v = elementTypes[i];
+      const v = elementTypes[i]!;
       let element = v;
-      if ((v.flags & TypeFlags.TypeParameter) !== 0 && (infos[i].flags & ElementFlags.Variadic) !== 0) {
+      if ((v.flags & TypeFlags.TypeParameter) !== 0 && (infos[i]!.flags & ElementFlags.Variadic) !== 0) {
         const constraint = getNextBaseConstraint(c, v, stack);
         if (
           constraint !== undefined &&

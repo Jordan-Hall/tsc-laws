@@ -187,7 +187,7 @@ export function modifierToFlag(kind: SyntaxKind): ModifierFlags {
 
 export function modifiersToFlags(modifiers: readonly Node[]): ModifierFlags {
   let flags = ModifierFlags.None;
-  for (let i = 0; i < modifiers.length; i++) flags |= modifierToFlag(modifiers[i].kind);
+  for (let i = 0; i < modifiers.length; i++) flags |= modifierToFlag(modifiers[i]!.kind);
   return flags;
 }
 
@@ -457,7 +457,7 @@ export function getExternalModuleName(node: Node): Node | undefined {
     case SyntaxKind.CallExpression:
       if (node instanceof CallExpression) {
         const args = node.arguments.nodes;
-        return args.length > 0 ? args[0] : undefined;
+        return args.length > 0 ? args[0]! : undefined;
       }
       return undefined;
     case SyntaxKind.ModuleDeclaration:

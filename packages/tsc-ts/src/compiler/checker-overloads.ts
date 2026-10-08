@@ -291,7 +291,9 @@ class OverloadChecker {
  * overload's container (so overloads from other files aren't reported), else the first overload.
  */
 function getCanonicalOverload(overloads: Node[], implementation: Node | undefined): Node {
-  return implementation !== undefined && implementation.parent === overloads[0].parent ? implementation : overloads[0];
+  return implementation !== undefined && implementation.parent === overloads[0]!.parent
+    ? implementation
+    : overloads[0]!;
 }
 
 function getNextSibling(node: Node): Node | undefined {
@@ -299,7 +301,7 @@ function getNextSibling(node: Node): Node | undefined {
   const list = getStatements(parent) ?? getMembers(parent);
   if (list === undefined) return undefined;
   const index = list.nodes.indexOf(node);
-  return index >= 0 && index + 1 < list.nodes.length ? list.nodes[index + 1] : undefined;
+  return index >= 0 && index + 1 < list.nodes.length ? list.nodes[index + 1]! : undefined;
 }
 
 function isSameMemberName(c: Checker, name: Node, other: Node): boolean {

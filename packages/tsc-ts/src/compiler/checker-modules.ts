@@ -62,13 +62,7 @@ import {
   moduleExportNameIsDefault,
 } from './binder-utilities.js';
 import { type Diagnostic, type DiagnosticMessage, Diagnostics } from './diagnostics.js';
-import {
-  ModuleKind,
-  getEmitModuleKind,
-  getIsolatedModules,
-  getResolveJsonModule,
-  shouldPreserveConstEnums,
-} from './options.js';
+import { ModuleKind, getEmitModuleKind, getResolveJsonModule } from './options.js';
 import { isNodeCoreModule } from './parser.js';
 import { isExternalModuleNameRelative } from './path.js';
 import { InternalSymbolName, type Symbol, SymbolFlags, type SymbolTable } from './symbol.js';
@@ -264,7 +258,7 @@ export function resolveESModuleSymbol(
     referenceParent.kind === SyntaxKind.ImportDeclaration ? getNamespaceImport(referenceParent) : undefined;
   if (namespaceImport === undefined && !isImportCall(referenceParent)) return symbol;
   const reference = isImportCall(referenceParent)
-    ? (referenceParent as CallExpression).arguments.nodes[0]
+    ? (referenceParent as CallExpression).arguments.nodes[0]!
     : getModuleSpecifier(referenceParent)!;
   const type = getTypeOfSymbol(c, symbol);
   if (hasSignatures(c, type) || getPropertyOfTypeEx(c, type, InternalSymbolName.Default, true, false) !== undefined) {
@@ -477,7 +471,7 @@ function withTypeOnlyMark(c: Checker, node: Node, resolved: Symbol | undefined):
 function getTargetOfImportEqualsDeclaration(c: Checker, node: Node): Symbol | undefined {
   if (node.kind === SyntaxKind.VariableDeclaration || isExternalModuleImportEquals(node)) {
     const moduleReference = isVariableDeclarationInitializedToRequire(node)
-      ? (getInitializer(node) as CallExpression).arguments.nodes[0]
+      ? (getInitializer(node) as CallExpression).arguments.nodes[0]!
       : getExpression((node as ImportEqualsDeclaration).moduleReference);
     const immediate = resolveExternalModuleName(c, node, moduleReference, false);
     const resolved = resolveExternalModuleSymbol(c, immediate, true);
@@ -695,7 +689,7 @@ function getExternalModuleMember(
   dontResolveAlias: boolean,
 ): Symbol | undefined {
   const moduleSpecifier = isVariableDeclarationInitializedToRequire(node)
-    ? (getInitializer(node) as CallExpression).arguments.nodes[0]
+    ? (getInitializer(node) as CallExpression).arguments.nodes[0]!
     : getExternalModuleName(node);
   const moduleSymbol = resolveExternalModuleName(c, node, moduleSpecifier, false);
   const name =
@@ -869,7 +863,7 @@ function reportNonExportedMember(
   for (let i = 0; i < localSymbol.declarations.length; i++)
     diagnostic.addRelatedInfo(
       createDiagnosticForNode(
-        localSymbol.declarations[i],
+        localSymbol.declarations[i]!,
         i === 0 ? Diagnostics.X_0_is_declared_here : Diagnostics.X_and_here,
         [declarationName],
       ),
@@ -1224,8 +1218,8 @@ export function markPropertyAliasReferenced(
   const parentSymbol = getResolvedSymbol(c, left);
   if (parentSymbol === c.unknownSymbol) return;
   if (
-    getIsolatedModules(c.compilerOptions) ||
-    (shouldPreserveConstEnums(c.compilerOptions) && isExportOrExportExpression(location)) ||
+    c.isolatedModules ||
+    (c.preserveConstEnums && isExportOrExportExpression(location)) ||
     (leftType.flags & TypeFlags.Any) !== 0 ||
     leftType === c.silentNeverType
   ) {
@@ -1263,8 +1257,8 @@ function markAliasReferenced(c: Checker, symbol: Symbol, location: Node): void {
   if ((getSymbolFlagsExcludingTypeOnly(c, symbol) & (SymbolFlags.Value | SymbolFlags.ExportValue)) === 0) return;
   // An alias of a const enum can be elided unless the enum is kept.
   if (
-    getIsolatedModules(c.compilerOptions) ||
-    (shouldPreserveConstEnums(c.compilerOptions) && isExportOrExportExpression(location)) ||
+    c.isolatedModules ||
+    (c.preserveConstEnums && isExportOrExportExpression(location)) ||
     !isConstEnumOrConstEnumOnlyModule(getExportSymbolOfValueSymbolIfExported(c, target))
   )
     markAliasSymbolAsReferenced(c, symbol);
@@ -1506,7 +1500,7 @@ export function getTypeFromImportTypeNode(c: Checker, node: Node): Type {
     const nameChain = getIdentifierChain(qualifier);
     let currentNamespace = moduleSymbol;
     for (let i = 0; i < nameChain.length; i++) {
-      const current = nameChain[i];
+      const current = nameChain[i]!;
       const meaning = i === nameChain.length - 1 ? targetMeaning : SymbolFlags.Namespace;
       const merged = getMergedSymbol(c, resolveSymbol(c, currentNamespace)!);
       const text = getText(current);
@@ -1563,11 +1557,11 @@ function resolveImportSymbolType(c: Checker, node: Node, symbol: Symbol, meaning
 export function checkImportCallExpression(c: Checker, node: Node): Type {
   const args = (node as CallExpression).arguments.nodes;
   if (args.length === 0) return createPromiseReturnType(c, node, c.anyType);
-  const specifier = args[0];
+  const specifier = args[0]!;
   const specifierType = checkExpressionCached(c, specifier);
-  const optionsType = args.length > 1 ? checkExpressionCached(c, args[1]) : undefined;
+  const optionsType = args.length > 1 ? checkExpressionCached(c, args[1]!) : undefined;
   // Extra arguments are a grammar error; check them for completions.
-  for (let i = 2; i < args.length; i++) checkExpressionCached(c, args[i]);
+  for (let i = 2; i < args.length; i++) checkExpressionCached(c, args[i]!);
   if ((specifierType.flags & TypeFlags.Nullable) !== 0 || !isTypeAssignableTo(c, specifierType, c.stringType))
     c.error(
       specifier,
@@ -1581,11 +1575,11 @@ export function checkImportCallExpression(c: Checker, node: Node): Type {
         c,
         optionsType,
         getNullableType(c, importCallOptionsType, TypeFlags.Undefined),
-        args[1],
+        args[1]!,
         undefined,
       );
-    if (args[1].kind === SyntaxKind.ObjectLiteralExpression)
-      for (const property of (args[1] as ObjectLiteralExpression).properties.nodes) {
+    if (args[1]!.kind === SyntaxKind.ObjectLiteralExpression)
+      for (const property of (args[1]! as ObjectLiteralExpression).properties.nodes) {
         const name = getName(property);
         if (
           property.kind === SyntaxKind.PropertyAssignment &&
@@ -1909,7 +1903,7 @@ function checkExportSpecifier(c: Checker, node: Node): void {
     symbol !== undefined &&
     (symbol === c.undefinedSymbol ||
       symbol === c.globalThisSymbol ||
-      (symbol.declarations.length > 0 && isGlobalSourceFile(getDeclarationContainer(symbol.declarations[0]))))
+      (symbol.declarations.length > 0 && isGlobalSourceFile(getDeclarationContainer(symbol.declarations[0]!))))
   )
     c.error(
       exportedName,
@@ -1982,12 +1976,7 @@ export function checkExportAssignment(c: Checker, node: Node): void {
             : Diagnostics.An_export_default_must_reference_a_value_when_verbatimModuleSyntax_is_enabled_but_0_only_refers_to_a_type,
           name,
         );
-      if (
-        !isIllegalExportDefaultInCJS &&
-        !ambient &&
-        getIsolatedModules(c.compilerOptions) &&
-        (sym.flags & SymbolFlags.Value) === 0
-      )
+      if (!isIllegalExportDefaultInCJS && !ambient && c.isolatedModules && (sym.flags & SymbolFlags.Value) === 0)
         checkIsolatedModulesExportAssignment(c, node, sym, typeOnlyDeclaration, isExportEquals);
     } else checkExpressionCached(c, id);
   } else checkExpressionCached(c, expression);
@@ -2091,11 +2080,7 @@ export function checkAliasSymbol(c: Checker, node: Node): void {
       symbolToString(c, symbol),
       getIsolatedModulesLikeFlagName(c),
     );
-  if (
-    getIsolatedModules(c.compilerOptions) &&
-    !isTypeOnlyImportOrExportDeclaration(node) &&
-    (node.flags & NodeFlags.Ambient) === 0
-  )
+  if (c.isolatedModules && !isTypeOnlyImportOrExportDeclaration(node) && (node.flags & NodeFlags.Ambient) === 0)
     checkIsolatedModulesAlias(c, node, symbol, target, targetFlags);
 }
 
@@ -2119,7 +2104,7 @@ function reportJSTypeAlias(c: Checker, node: Node, symbol: Symbol): void {
     const specifier =
       declaration.kind === SyntaxKind.VariableDeclaration
         ? isVariableDeclarationInitializedToRequire(declaration)
-          ? (getInitializer(declaration) as CallExpression).arguments.nodes[0]
+          ? (getInitializer(declaration) as CallExpression).arguments.nodes[0]!
           : undefined
         : getExternalModuleName(declaration);
     if (specifier !== undefined && isStringLiteralLike(specifier)) specifierText = getText(specifier);

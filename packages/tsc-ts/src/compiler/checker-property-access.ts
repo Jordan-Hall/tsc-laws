@@ -157,7 +157,7 @@ export function checkPropertyAccessExpressionOrQualifiedName(
     if (indexInfo.isReadonly && (assignmentKind !== AssignmentKind.None || isDeleteTarget(node)))
       c.error(node, Diagnostics.Index_signature_in_type_0_only_permits_reading, typeToString(c, apparentType));
     propType = indexInfo.valueType;
-    if (c.compilerOptions.noUncheckedIndexedAccess === true && assignmentKind !== AssignmentKind.Definite)
+    if (c.noUncheckedIndexedAccess && assignmentKind !== AssignmentKind.Definite)
       propType = getUnionType(c, [propType, c.missingType]);
     if (
       c.compilerOptions.noPropertyAccessFromIndexSignature === true &&
@@ -620,7 +620,7 @@ function getEnclosingClassFromThisParameter(c: Checker, node: Node): Type | unde
 function getThisParameterDeclaration(func: Node): Node | undefined {
   const parameters = getParameters(func);
   if (parameters === undefined || parameters.nodes.length === 0) return undefined;
-  const first = parameters.nodes[0];
+  const first = parameters.nodes[0]!;
   const name = getName(first);
   return name !== undefined && name.kind === SyntaxKind.Identifier && getText(name) === 'this' ? first : undefined;
 }
@@ -716,5 +716,5 @@ export function getSuggestedSymbolForNonexistentProperty(
   }
   const best = getSpellingSuggestion(name, candidates);
   if (best === '') return undefined;
-  return symbols[candidates.indexOf(best)];
+  return symbols[candidates.indexOf(best)]!;
 }

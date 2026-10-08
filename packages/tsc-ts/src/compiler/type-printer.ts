@@ -269,7 +269,7 @@ class TypePrinter {
     if ((flags & TypeFlags.Union) !== 0 && (t as UnionType).origin !== undefined) u = (t as UnionType).origin!;
     if ((u.flags & (TypeFlags.Union | TypeFlags.Intersection)) !== 0) {
       const types = (u.flags & TypeFlags.Union) !== 0 ? formatUnionTypes(c, typesOf(u), expandingEnum) : typesOf(u);
-      if (types.length === 1) return this.type(types[0]);
+      if (types.length === 1) return this.type(types[0]!);
       const parts = this.typeList(
         types,
         true,
@@ -288,9 +288,9 @@ class TypePrinter {
     }
     if ((flags & TypeFlags.TemplateLiteral) !== 0) {
       const template = t as TemplateLiteralType;
-      let text = '`' + escapeTemplate(template.texts[0]);
+      let text = '`' + escapeTemplate(template.texts[0]!);
       for (let i = 0; i < template.types.length; i++)
-        text += '${' + this.type(template.types[i]) + '}' + escapeTemplate(template.texts[i + 1]);
+        text += '${' + this.type(template.types[i]!) + '}' + escapeTemplate(template.texts[i + 1]!);
       this.approximateLength += 2;
       return text + '`';
     }
@@ -322,9 +322,9 @@ class TypePrinter {
       if (!isBareList) return ['...'];
       if (types.length > 2)
         return [
-          this.typeAt(types[0], precedence),
+          this.typeAt(types[0]!, precedence),
           '... ' + (types.length - 2) + ' more ...',
-          this.typeAt(types[types.length - 1], precedence),
+          this.typeAt(types[types.length - 1]!, precedence),
         ];
     }
     const result: string[] = [];
@@ -332,11 +332,11 @@ class TypePrinter {
       const displayIndex = i + 1;
       if (this.checkTruncationLength() && displayIndex + 2 < types.length - 1) {
         result.push('... ' + (types.length - displayIndex) + ' more ...');
-        result.push(this.typeAt(types[types.length - 1], precedence));
+        result.push(this.typeAt(types[types.length - 1]!, precedence));
         break;
       }
       this.approximateLength += 2;
-      result.push(this.typeAt(types[i], precedence));
+      result.push(this.typeAt(types[i]!, precedence));
     }
     if ((this.flags & PrintFlags.UseFullyQualifiedType) === 0) this.qualifyCollidingNames(types, result, precedence);
     return result;
@@ -347,15 +347,15 @@ class TypePrinter {
     // Only entries printed one-to-one; truncation markers aren't types.
     if (result.length !== types.length) return;
     for (let i = 0; i < result.length; i++) {
-      if (!isIdentifierText(result[i])) continue;
+      if (!isIdentifierText(result[i]!)) continue;
       let collides = false;
       for (let j = 0; j < result.length; j++)
-        if (j !== i && result[j] === result[i] && !typesAreSameReference(types[i], types[j])) collides = true;
+        if (j !== i && result[j] === result[i] && !typesAreSameReference(types[i]!, types[j]!)) collides = true;
       if (!collides) continue;
       const saveFlags = this.flags;
       this.flags |= PrintFlags.UseFullyQualifiedType;
-      const name = result[i];
-      for (let j = i; j < result.length; j++) if (result[j] === name) result[j] = this.typeAt(types[j], precedence);
+      const name = result[i]!;
+      for (let j = i; j < result.length; j++) if (result[j]! === name) result[j] = this.typeAt(types[j]!, precedence);
       this.flags = saveFlags;
     }
   }
@@ -368,7 +368,7 @@ class TypePrinter {
   aliasReference(symbol: Symbol, typeArguments: readonly Type[]): string {
     const c = this.c;
     if (typeArguments.length === 1 && symbol === c.globalArrayType.symbol)
-      return this.typeAt(typeArguments[0], Precedence.Postfix) + '[]';
+      return this.typeAt(typeArguments[0]!, Precedence.Postfix) + '[]';
     // Arguments are printed first; the name counts toward truncation after them.
     const args = this.typeArguments(typeArguments);
     return this.symbolReference(symbol, SymbolFlags.Type) + args;
@@ -393,8 +393,8 @@ class TypePrinter {
     const typeArguments = getTypeArguments(c, t);
     if (target === c.globalArrayType || target === c.globalReadonlyArrayType) {
       if ((this.flags & PrintFlags.WriteArrayAsGenericType) !== 0)
-        return (target === c.globalArrayType ? 'Array' : 'ReadonlyArray') + '<' + this.type(typeArguments[0]) + '>';
-      const element = this.typeAt(typeArguments[0], Precedence.Postfix) + '[]';
+        return (target === c.globalArrayType ? 'Array' : 'ReadonlyArray') + '<' + this.type(typeArguments[0]!) + '>';
+      const element = this.typeAt(typeArguments[0]!, Precedence.Postfix) + '[]';
       return target === c.globalArrayType ? element : 'readonly ' + element;
     }
     if ((target.objectFlags & ObjectFlags.Tuple) !== 0) {
@@ -404,17 +404,17 @@ class TypePrinter {
       const elementTypes: Type[] = [];
       for (let i = 0; i < arity; i++)
         elementTypes.push(
-          removeMissingType(c, typeArguments[i], (tuple.elementInfos[i].flags & ElementFlags.Optional) !== 0),
+          removeMissingType(c, typeArguments[i]!, (tuple.elementInfos[i]!.flags & ElementFlags.Optional) !== 0),
         );
       const texts = elementTypes.length === 0 ? [] : this.typeList(elementTypes, false, Precedence.Lowest);
       for (let i = 0; i < texts.length; i++) {
         if (i >= tuple.elementInfos.length) {
-          parts.push(texts[i]);
+          parts.push(texts[i]!);
           continue;
         }
-        const info = tuple.elementInfos[i];
+        const info = tuple.elementInfos[i]!;
         const flags = info.flags;
-        let text = texts[i];
+        let text = texts[i]!;
         if (info.labeledDeclaration !== undefined) {
           const label = getText(getName(info.labeledDeclaration)!);
           if ((flags & ElementFlags.Rest) !== 0) text = parenthesizeForArray(text) + '[]';
@@ -439,11 +439,11 @@ class TypePrinter {
     let i = 0;
     while (i < outer.length) {
       const start = i;
-      const parent = getParentSymbolOfTypeParameter(c, outer[i]);
+      const parent = getParentSymbolOfTypeParameter(c, outer[i]!);
       do i++;
-      while (i < outer.length && getParentSymbolOfTypeParameter(c, outer[i]) === parent);
+      while (i < outer.length && getParentSymbolOfTypeParameter(c, outer[i]!) === parent);
       let same = true;
-      for (let j = start; j < i; j++) if (outer[j] !== typeArguments[j]) same = false;
+      for (let j = start; j < i; j++) if (outer[j]! !== typeArguments[j]!) same = false;
       if (!same && parent !== undefined)
         prefix =
           this.symbolReference(parent, SymbolFlags.Type) + this.typeArguments(typeArguments.slice(start, i)) + '.';
@@ -453,8 +453,8 @@ class TypePrinter {
     // parameters, unless they were written out.
     if (isIterableTypeWithDefaults(c, t) && !hasAllTypeArgumentsWritten(t as TypeReference, typeParameterCount))
       while (typeParameterCount > 0) {
-        const defaultType = getDefaultFromTypeParameter(c, generic.typeParameters()[typeParameterCount - 1]);
-        if (defaultType === undefined || !isTypeIdenticalTo(c, typeArguments[typeParameterCount - 1], defaultType))
+        const defaultType = getDefaultFromTypeParameter(c, generic.typeParameters()[typeParameterCount - 1]!);
+        if (defaultType === undefined || !isTypeIdenticalTo(c, typeArguments[typeParameterCount - 1]!, defaultType))
           break;
         typeParameterCount--;
       }
@@ -518,9 +518,9 @@ class TypePrinter {
         this.approximateLength += 2;
         return '{}';
       }
-      if (calls.length === 1 && constructs.length === 0) return this.signature(calls[0], SyntaxKind.FunctionType, '');
+      if (calls.length === 1 && constructs.length === 0) return this.signature(calls[0]!, SyntaxKind.FunctionType, '');
       if (constructs.length === 1 && calls.length === 0)
-        return this.signature(constructs[0], SyntaxKind.ConstructorType, '');
+        return this.signature(constructs[0]!, SyntaxKind.ConstructorType, '');
     }
     const saveFlags = this.flags;
     this.flags |= PrintFlags.InObjectTypeLiteral;
@@ -553,7 +553,7 @@ class TypePrinter {
       i++;
       if (this.checkTruncationLength() && i + 2 < properties.length - 1) {
         result.push('... ' + (properties.length - i) + ' more ...;');
-        this.property(properties[properties.length - 1], result);
+        this.property(properties[properties.length - 1]!, result);
         break;
       }
       this.property(prop, result);
@@ -609,7 +609,7 @@ class TypePrinter {
     }
     const typeText =
       this.declaredTypeText(
-        prop.valueDeclaration ?? (prop.declarations.length !== 0 ? prop.declarations[0] : undefined),
+        prop.valueDeclaration ?? (prop.declarations.length !== 0 ? prop.declarations[0]! : undefined),
         propertyType,
       ) ?? this.type(propertyType);
     const readonly = isReadonlySymbol(c, prop) ? 'readonly ' : '';
@@ -703,7 +703,7 @@ class TypePrinter {
     const params: string[] = [];
     if (s.thisParameter !== undefined) params.push('this: ' + this.type(getTypeOfSymbol(c, s.thisParameter)));
     for (let i = 0; i < s.parameters.length; i++)
-      params.push(this.parameter(s.parameters[i], i === s.parameters.length - 1 && s.hasRestParameter()));
+      params.push(this.parameter(s.parameters[i]!, i === s.parameters.length - 1 && s.hasRestParameter()));
     const paramList = '(' + params.join(', ') + ')';
     const returnText = this.returnType(s);
     switch (kind) {
@@ -849,7 +849,7 @@ class TypePrinter {
         break;
       case SyntaxKind.SetAccessor: {
         const params = getParameters(declaration)!.nodes;
-        annotation = params.length !== 0 ? getType(params[0]) : undefined;
+        annotation = params.length !== 0 ? getType(params[0]!) : undefined;
         break;
       }
     }
@@ -1376,7 +1376,7 @@ function internalNameText(symbol: Symbol): string {
       const n = getNameOfDeclaration(d);
       if (n !== undefined) return declarationNameToString(getSourceFileOfNode(n), n);
     }
-    const d = symbol.declarations.length !== 0 ? symbol.declarations[0] : symbol.valueDeclaration;
+    const d = symbol.declarations.length !== 0 ? symbol.declarations[0]! : symbol.valueDeclaration;
     if (d !== undefined && d.parent !== undefined && d.parent.kind === SyntaxKind.VariableDeclaration) {
       const n = getName(d.parent);
       if (n !== undefined) return declarationNameToString(getSourceFileOfNode(n), n);
@@ -1386,7 +1386,7 @@ function internalNameText(symbol: Symbol): string {
   if (name === InternalSymbolName.Type || name === InternalSymbolName.Object) return '__type';
   // `declare global` prints its keyword name.
   if (name === InternalSymbolName.Global && symbol.declarations.length > 0) {
-    const n = getName(symbol.declarations[0]);
+    const n = getName(symbol.declarations[0]!);
     if (n !== undefined && n.kind === SyntaxKind.Identifier) return getText(n);
   }
   if (name.startsWith('￾@')) {
@@ -1403,7 +1403,7 @@ function getTypeAliasForTypeLiteral(c: Checker, t: Type): Symbol | undefined {
   const symbol = t.symbol;
   if (symbol === undefined || (symbol.flags & SymbolFlags.TypeLiteral) === 0 || symbol.declarations.length === 0)
     return undefined;
-  let node = symbol.declarations[0].parent;
+  let node = symbol.declarations[0]!.parent;
   while (node !== undefined && node.kind === SyntaxKind.ParenthesizedType) node = node.parent;
   if (node !== undefined && node.kind === SyntaxKind.TypeAliasDeclaration) return getSymbol(node);
   return undefined;
@@ -1412,7 +1412,7 @@ function getTypeAliasForTypeLiteral(c: Checker, t: Type): Symbol | undefined {
 function getParentSymbolOfTypeParameter(c: Checker, tp: Type): Symbol | undefined {
   const symbol = tp.symbol;
   if (symbol === undefined || symbol.declarations.length === 0) return undefined;
-  const container = symbol.declarations[0].parent;
+  const container = symbol.declarations[0]!.parent;
   if (container === undefined) return undefined;
   const s = getSymbol(container);
   return s;
@@ -1421,7 +1421,7 @@ function getParentSymbolOfTypeParameter(c: Checker, tp: Type): Symbol | undefine
 function parameterNameOfIndexSignature(declaration: Node): string {
   const params = getParameters(declaration)!.nodes;
   if (params.length === 0) return 'x';
-  const name = getName(params[0]);
+  const name = getName(params[0]!);
   return name !== undefined && name.kind === SyntaxKind.Identifier ? getText(name) : 'x';
 }
 
@@ -1659,7 +1659,7 @@ export function formatUnionTypes(c: Checker, types: readonly Type[], expandingEn
   const result: Type[] = [];
   let flags = 0;
   for (let i = 0; i < types.length; i++) {
-    const t = types[i];
+    const t = types[i]!;
     flags |= t.flags;
     if ((t.flags & TypeFlags.Nullable) !== 0) continue;
     if ((t.flags & TypeFlags.BooleanLiteral) !== 0 || (!expandingEnum && (t.flags & TypeFlags.EnumLike) !== 0)) {
@@ -1669,7 +1669,8 @@ export function formatUnionTypes(c: Checker, types: readonly Type[], expandingEn
         const count = baseTypes.length;
         if (
           i + count <= types.length &&
-          getRegularTypeOfLiteralType(c, types[i + count - 1]) === getRegularTypeOfLiteralType(c, baseTypes[count - 1])
+          getRegularTypeOfLiteralType(c, types[i + count - 1]!) ===
+            getRegularTypeOfLiteralType(c, baseTypes[count - 1]!)
         ) {
           result.push(baseType);
           i += count - 1;

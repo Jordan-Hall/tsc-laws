@@ -190,7 +190,7 @@ export function instantiateTypeWithAlias(
     c.activeMapperCaches.push(new Map<string, Type>());
   }
   const key = type.id + aliasKey(alias);
-  const cache = c.activeMapperCaches[index !== -1 ? index : c.activeMapperCaches.length - 1];
+  const cache = c.activeMapperCaches[index !== -1 ? index : c.activeMapperCaches.length - 1]!;
   const cached = cache.get(key);
   if (cached !== undefined) return cached;
   c.instantiationCount++;
@@ -368,7 +368,7 @@ function getObjectTypeInstantiation(
   if ((type.objectFlags & ObjectFlags.Reference) !== 0) declaration = (type as TypeReference).node!;
   else if ((type.objectFlags & ObjectFlags.InstantiationExpressionType) !== 0)
     declaration = (type as InstantiationExpressionType).node!;
-  else declaration = type.symbol!.declarations[0];
+  else declaration = type.symbol!.declarations[0]!;
   const links = c.nodeLinks(declaration);
   let target: ObjectType;
   if ((type.objectFlags & ObjectFlags.Reference) !== 0) target = links.resolvedType as ObjectType;
@@ -474,7 +474,7 @@ class ReferenceFinder extends NodeVisitor {
           !(firstIdentifier.kind === SyntaxKind.Identifier && firstIdentifier.text === 'this')
         ) {
           const symbol = getResolvedSymbolOfIdentifier(this.c, firstIdentifier);
-          const tpDeclaration = tp.symbol!.declarations[0];
+          const tpDeclaration = tp.symbol!.declarations[0]!;
           let scope: Node | undefined;
           if (tpDeclaration.kind === SyntaxKind.TypeParameter) scope = tpDeclaration.parent;
           else if (tp.isThisType) scope = tpDeclaration;
@@ -516,7 +516,7 @@ export function isTypeParameterPossiblyReferenced(c: Checker, tp: Type, node: No
   const typeParameter = tp as TypeParameter;
   if (tp.symbol === undefined || tp.symbol.declarations.length !== 1) return true;
   const finder = new ReferenceFinder(c, typeParameter);
-  const container = tp.symbol.declarations[0].parent;
+  const container = tp.symbol.declarations[0]!.parent;
   for (let n: Node | undefined = node; n !== container; n = n.parent) {
     if (n === undefined || n.kind === SyntaxKind.Block) return true;
     if (n.kind === SyntaxKind.ConditionalType && finder.containsReference((n as ConditionalTypeNode).extendsType))
@@ -577,11 +577,11 @@ export function instantiateTypeAlias(
 export function instantiateTypes(c: Checker, types: Type[], mapper: TypeMapper | undefined): Type[] {
   if (mapper === undefined) return types;
   for (let i = 0; i < types.length; i++) {
-    const mapped = instantiateType(c, types[i], mapper);
-    if (mapped !== types[i]) {
+    const mapped = instantiateType(c, types[i]!, mapper);
+    if (mapped !== types[i]!) {
       const result = types.slice(0, i);
       result.push(mapped);
-      for (let j = i + 1; j < types.length; j++) result.push(instantiateType(c, types[j], mapper));
+      for (let j = i + 1; j < types.length; j++) result.push(instantiateType(c, types[j]!, mapper));
       return result;
     }
   }
@@ -590,11 +590,11 @@ export function instantiateTypes(c: Checker, types: Type[], mapper: TypeMapper |
 
 export function instantiateSymbols(c: Checker, symbols: Symbol[], mapper: TypeMapper): Symbol[] {
   for (let i = 0; i < symbols.length; i++) {
-    const mapped = instantiateSymbol(c, symbols[i], mapper);
-    if (mapped !== symbols[i]) {
+    const mapped = instantiateSymbol(c, symbols[i]!, mapper);
+    if (mapped !== symbols[i]!) {
       const result = symbols.slice(0, i);
       result.push(mapped);
-      for (let j = i + 1; j < symbols.length; j++) result.push(instantiateSymbol(c, symbols[j], mapper));
+      for (let j = i + 1; j < symbols.length; j++) result.push(instantiateSymbol(c, symbols[j]!, mapper));
       return result;
     }
   }
@@ -603,11 +603,11 @@ export function instantiateSymbols(c: Checker, symbols: Symbol[], mapper: TypeMa
 
 export function instantiateSignatures(c: Checker, signatures: Signature[], mapper: TypeMapper): Signature[] {
   for (let i = 0; i < signatures.length; i++) {
-    const mapped = instantiateSignature(c, signatures[i], mapper);
-    if (mapped !== signatures[i]) {
+    const mapped = instantiateSignature(c, signatures[i]!, mapper);
+    if (mapped !== signatures[i]!) {
       const result = signatures.slice(0, i);
       result.push(mapped);
-      for (let j = i + 1; j < signatures.length; j++) result.push(instantiateSignature(c, signatures[j], mapper));
+      for (let j = i + 1; j < signatures.length; j++) result.push(instantiateSignature(c, signatures[j]!, mapper));
       return result;
     }
   }
@@ -616,11 +616,11 @@ export function instantiateSignatures(c: Checker, signatures: Signature[], mappe
 
 export function instantiateIndexInfos(c: Checker, infos: IndexInfo[], mapper: TypeMapper): IndexInfo[] {
   for (let i = 0; i < infos.length; i++) {
-    const mapped = instantiateIndexInfo(c, infos[i], mapper);
-    if (mapped !== infos[i]) {
+    const mapped = instantiateIndexInfo(c, infos[i]!, mapper);
+    if (mapped !== infos[i]!) {
       const result = infos.slice(0, i);
       result.push(mapped);
-      for (let j = i + 1; j < infos.length; j++) result.push(instantiateIndexInfo(c, infos[j], mapper));
+      for (let j = i + 1; j < infos.length; j++) result.push(instantiateIndexInfo(c, infos[j]!, mapper));
       return result;
     }
   }
@@ -697,7 +697,7 @@ export function instantiateSymbol(c: Checker, symbol: Symbol, mapper: TypeMapper
 /** Conservatively, whether a parameter or member's type can't reference `this`. */
 export function isThisless(symbol: Symbol): boolean {
   if (symbol.declarations.length !== 1) return false;
-  const declaration = symbol.declarations[0];
+  const declaration = symbol.declarations[0]!;
   switch (declaration.kind) {
     case SyntaxKind.Parameter:
     case SyntaxKind.PropertyDeclaration:

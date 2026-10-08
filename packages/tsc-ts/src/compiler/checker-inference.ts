@@ -314,7 +314,7 @@ export class InferenceTypeMapper extends TypeMapper {
   map(type: Type): Type {
     const inferences = this.context.inferences;
     for (let i = 0; i < inferences.length; i++) {
-      const inference = inferences[i];
+      const inference = inferences[i]!;
       if (type !== inference.typeParameter) continue;
       if (this.fixing && !inference.isFixed) {
         // Infer from intra-expression sites before committing to an inference.
@@ -405,13 +405,13 @@ function hasTypeParameterDefault(tp: Type): boolean {
 }
 
 export function hasOverlappingInferences(a: InferenceInfo[], b: InferenceInfo[]): boolean {
-  for (let i = 0; i < a.length; i++) if (hasInferenceCandidates(a[i]) && hasInferenceCandidates(b[i])) return true;
+  for (let i = 0; i < a.length; i++) if (hasInferenceCandidates(a[i]!) && hasInferenceCandidates(b[i]!)) return true;
   return false;
 }
 
 export function mergeInferences(target: InferenceInfo[], source: InferenceInfo[]): void {
   for (let i = 0; i < target.length; i++)
-    if (!hasInferenceCandidates(target[i]) && hasInferenceCandidates(source[i])) target[i] = source[i];
+    if (!hasInferenceCandidates(target[i]!) && hasInferenceCandidates(source[i]!)) target[i] = source[i]!;
 }
 
 // ---- Inferring from types
@@ -692,8 +692,8 @@ class InferenceState {
     const count = Math.min(sourceTypes.length, targetTypes.length);
     for (let i = 0; i < count; i++) {
       if (i < variances.length && (variances[i] & VarianceFlags.VarianceMask) === VarianceFlags.Contravariant)
-        this.inferFromContravariantTypes(sourceTypes[i], targetTypes[i]);
-      else this.inferFromTypes(sourceTypes[i], targetTypes[i]);
+        this.inferFromContravariantTypes(sourceTypes[i]!, targetTypes[i]!);
+      else this.inferFromTypes(sourceTypes[i]!, targetTypes[i]!);
     }
     this.depth--;
   }
@@ -801,7 +801,7 @@ class InferenceState {
           for (let i = 0; i < sources.length; i++) {
             const saveInferencePriority = this.inferencePriority;
             this.inferencePriority = InferencePriority.MaxValue;
-            this.inferFromTypes(sources[i], t);
+            this.inferFromTypes(sources[i]!, t);
             if (this.inferencePriority === this.priority) matched[i] = true;
             inferenceCircularity = inferenceCircularity || this.inferencePriority === InferencePriority.Circularity;
             this.inferencePriority = Math.min(this.inferencePriority, saveInferencePriority);
@@ -817,7 +817,7 @@ class InferenceState {
       // With a single naked type variable and no circularities, infer the unmatched sources to it.
       if (typeVariableCount === 1 && !inferenceCircularity) {
         const unmatched: Type[] = [];
-        for (let i = 0; i < sources.length; i++) if (!matched[i]) unmatched.push(sources[i]);
+        for (let i = 0; i < sources.length; i++) if (!matched[i]) unmatched.push(sources[i]!);
         if (unmatched.length !== 0) {
           this.inferFromTypes(getUnionType(this.c, unmatched), nakedTypeVariable!);
           return;
@@ -875,8 +875,8 @@ class InferenceState {
     // instantiation produces `never` rather than collapsing to the constraint.
     if (matches === undefined && !target.texts.every((s) => s === '')) return;
     for (let i = 0; i < types.length; i++) {
-      const placeholder = types[i];
-      const matchSource = matches !== undefined ? matches[i] : c.neverType;
+      const placeholder = types[i]!;
+      const matchSource = matches !== undefined ? matches[i]! : c.neverType;
       if ((matchSource.flags & TypeFlags.StringLiteral) !== 0 && (placeholder.flags & TypeFlags.TypeVariable) !== 0) {
         const info = this.infoFor(placeholder);
         if (info !== undefined) {
@@ -953,7 +953,7 @@ class InferenceState {
     const sourceTypes = getTypeArguments(c, source);
     // Tuples of the same structure: infer between the element types.
     if (isTupleType(source) && isTupleTypeStructureMatching(source, target)) {
-      for (let i = 0; i < targetArity; i++) this.inferFromTypes(sourceTypes[i], elementTypes[i]);
+      for (let i = 0; i < targetArity; i++) this.inferFromTypes(sourceTypes[i]!, elementTypes[i]!);
       return;
     }
     let startLength = 0;
@@ -967,40 +967,40 @@ class InferenceState {
           getEndElementCount(targetTuple, ElementFlags.Fixed),
         );
     }
-    for (let i = 0; i < startLength; i++) this.inferFromTypes(sourceTypes[i], elementTypes[i]);
+    for (let i = 0; i < startLength; i++) this.inferFromTypes(sourceTypes[i]!, elementTypes[i]!);
     if (
       !isTupleType(source) ||
       (sourceArity - startLength - endLength === 1 &&
-        (tupleTargetOf(source).elementInfos[startLength].flags & ElementFlags.Rest) !== 0)
+        (tupleTargetOf(source).elementInfos[startLength]!.flags & ElementFlags.Rest) !== 0)
     ) {
       // A single rest element remains in the source; infer from it to every middle target element.
-      const restType = sourceTypes[startLength];
+      const restType = sourceTypes[startLength]!;
       for (let i = startLength; i < targetArity - endLength; i++)
         this.inferFromTypes(
-          (elementInfos[i].flags & ElementFlags.Variadic) !== 0 ? createArrayType(c, restType) : restType,
-          elementTypes[i],
+          (elementInfos[i]!.flags & ElementFlags.Variadic) !== 0 ? createArrayType(c, restType) : restType,
+          elementTypes[i]!,
         );
     } else {
       const middleLength = targetArity - startLength - endLength;
       if (middleLength === 2) {
-        const first = elementInfos[startLength].flags;
-        const second = elementInfos[startLength + 1].flags;
+        const first = elementInfos[startLength]!.flags;
+        const second = elementInfos[startLength + 1]!.flags;
         if ((first & second & ElementFlags.Variadic) !== 0) {
           // [...T, ...U]: slice the source by the implied arity of T.
-          const targetInfo = this.infoFor(elementTypes[startLength]);
+          const targetInfo = this.infoFor(elementTypes[startLength]!);
           if (targetInfo !== undefined && targetInfo.impliedArity >= 0) {
             this.inferFromTypes(
               sliceTupleType(c, source, startLength, endLength + sourceArity - targetInfo.impliedArity),
-              elementTypes[startLength],
+              elementTypes[startLength]!,
             );
             this.inferFromTypes(
               sliceTupleType(c, source, startLength + targetInfo.impliedArity, endLength),
-              elementTypes[startLength + 1],
+              elementTypes[startLength + 1]!,
             );
           }
         } else if ((first & ElementFlags.Variadic) !== 0 && (second & ElementFlags.Rest) !== 0) {
           // [...T, ...rest]: use the arity of a fixed-size tuple constraint of T.
-          const info = this.infoFor(elementTypes[startLength]);
+          const info = this.infoFor(elementTypes[startLength]!);
           if (info !== undefined) {
             const constraint = getBaseConstraintOfType(c, info.typeParameter);
             if (
@@ -1011,7 +1011,7 @@ class InferenceState {
               const impliedArity = tupleTargetOf(constraint).fixedLength;
               this.inferFromTypes(
                 sliceTupleType(c, source, startLength, sourceArity - (startLength + impliedArity)),
-                elementTypes[startLength],
+                elementTypes[startLength]!,
               );
               const restType = getElementTypeOfSliceOfTupleType(
                 c,
@@ -1021,12 +1021,12 @@ class InferenceState {
                 false,
                 false,
               );
-              if (restType !== undefined) this.inferFromTypes(restType, elementTypes[startLength + 1]);
+              if (restType !== undefined) this.inferFromTypes(restType, elementTypes[startLength + 1]!);
             }
           }
         } else if ((first & ElementFlags.Rest) !== 0 && (second & ElementFlags.Variadic) !== 0) {
           // [...rest, ...T]: use the arity of a fixed-size tuple constraint of T.
-          const info = this.infoFor(elementTypes[startLength + 1]);
+          const info = this.infoFor(elementTypes[startLength + 1]!);
           if (info !== undefined) {
             const constraint = getBaseConstraintOfType(c, info.typeParameter);
             if (
@@ -1052,28 +1052,28 @@ class InferenceState {
                   false,
                   false,
                 );
-                if (restType !== undefined) this.inferFromTypes(restType, elementTypes[startLength]);
-                this.inferFromTypes(trailingSlice, elementTypes[startLength + 1]);
+                if (restType !== undefined) this.inferFromTypes(restType, elementTypes[startLength]!);
+                this.inferFromTypes(trailingSlice, elementTypes[startLength + 1]!);
               }
             }
           }
         }
-      } else if (middleLength === 1 && (elementInfos[startLength].flags & ElementFlags.Variadic) !== 0) {
+      } else if (middleLength === 1 && (elementInfos[startLength]!.flags & ElementFlags.Variadic) !== 0) {
         // One variadic middle element: infer the source slice between the fixed parts, speculatively
         // when the target ends in optional elements.
         const priority =
-          (elementInfos[targetArity - 1].flags & ElementFlags.Optional) !== 0
+          (elementInfos[targetArity - 1]!.flags & ElementFlags.Optional) !== 0
             ? InferencePriority.SpeculativeTuple
             : InferencePriority.None;
-        this.inferWithPriority(sliceTupleType(c, source, startLength, endLength), elementTypes[startLength], priority);
-      } else if (middleLength === 1 && (elementInfos[startLength].flags & ElementFlags.Rest) !== 0) {
+        this.inferWithPriority(sliceTupleType(c, source, startLength, endLength), elementTypes[startLength]!, priority);
+      } else if (middleLength === 1 && (elementInfos[startLength]!.flags & ElementFlags.Rest) !== 0) {
         // One rest middle element: infer the union of the middle source elements.
         const restType = getElementTypeOfSliceOfTupleType(c, source, startLength, endLength, false, false);
-        if (restType !== undefined) this.inferFromTypes(restType, elementTypes[startLength]);
+        if (restType !== undefined) this.inferFromTypes(restType, elementTypes[startLength]!);
       }
     }
     for (let i = 0; i < endLength; i++)
-      this.inferFromTypes(sourceTypes[sourceArity - i - 1], elementTypes[targetArity - i - 1]);
+      this.inferFromTypes(sourceTypes[sourceArity - i - 1]!, elementTypes[targetArity - i - 1]!);
   }
 
   inferFromProperties(source: Type, target: Type): void {
@@ -1099,8 +1099,8 @@ class InferenceState {
     for (let i = 0; i < targetLen; i++) {
       const sourceIndex = Math.max(sourceLen - targetLen + i, 0);
       this.inferFromSignature(
-        getBaseSignature(c, sourceSignatures[sourceIndex]),
-        getErasedSignature(c, targetSignatures[i]),
+        getBaseSignature(c, sourceSignatures[sourceIndex]!),
+        getErasedSignature(c, targetSignatures[i]!),
       );
     }
   }
@@ -1324,7 +1324,7 @@ function isTupleTypeStructureMatching(t1: Type, t2: Type): boolean {
   const infos1 = tupleTargetOf(t1).elementInfos;
   const infos2 = tupleTargetOf(t2).elementInfos;
   for (let i = 0; i < infos1.length; i++)
-    if ((infos1[i].flags & ElementFlags.Variable) !== (infos2[i].flags & ElementFlags.Variable)) return false;
+    if ((infos1[i]!.flags & ElementFlags.Variable) !== (infos2[i]!.flags & ElementFlags.Variable)) return false;
   return true;
 }
 
@@ -1332,7 +1332,10 @@ export function isConstTypeVariable(c: Checker, t: Type | undefined, depth: numb
   if (depth >= 5 || t === undefined) return false;
   if ((t.flags & TypeFlags.TypeParameter) !== 0)
     return t.symbol !== undefined && t.symbol.declarations.some((d) => hasSyntacticModifier(d, ModifierFlags.Const));
-  if ((t.flags & TypeFlags.UnionOrIntersection) !== 0) return typesOf(t).some((s) => isConstTypeVariable(c, s, depth));
+  if ((t.flags & TypeFlags.UnionOrIntersection) !== 0) {
+    for (const s of typesOf(t)) if (isConstTypeVariable(c, s, depth)) return true;
+    return false;
+  }
   if ((t.flags & TypeFlags.IndexedAccess) !== 0)
     return isConstTypeVariable(c, (t as IndexedAccessType).objectType, depth + 1);
   if ((t.flags & TypeFlags.Conditional) !== 0)
@@ -1346,7 +1349,7 @@ export function isConstTypeVariable(c: Checker, t: Type | undefined, depth: numb
     const elements = getElementTypes(c, t);
     const infos = tupleTargetOf(t).elementInfos;
     for (let i = 0; i < elements.length; i++)
-      if ((infos[i].flags & ElementFlags.Variadic) !== 0 && isConstTypeVariable(c, elements[i], depth)) return true;
+      if ((infos[i]!.flags & ElementFlags.Variadic) !== 0 && isConstTypeVariable(c, elements[i]!, depth)) return true;
   }
   return false;
 }
@@ -1494,7 +1497,7 @@ export function inferTypesFromTemplateLiteralType(
     const s = source as TemplateLiteralType;
     if (arraysEqual(s.texts, target.texts))
       return s.types.map((t, i) =>
-        isTypeAssignableTo(c, getBaseConstraintOrType(c, t), getBaseConstraintOrType(c, target.types[i]))
+        isTypeAssignableTo(c, getBaseConstraintOrType(c, t), getBaseConstraintOrType(c, target.types[i]!))
           ? t
           : getStringLikeTypeForType(c, t),
       );
@@ -1541,8 +1544,8 @@ class TemplateMatcher {
     let matchType: Type;
     if (s === this.seg) matchType = getStringLiteralType(this.c, this.sourceText(s).substring(this.pos, p));
     else {
-      const texts: string[] = [this.sourceTexts[this.seg].substring(this.pos)];
-      for (let i = this.seg + 1; i < s; i++) texts.push(this.sourceTexts[i]);
+      const texts: string[] = [this.sourceTexts[this.seg]!.substring(this.pos)];
+      for (let i = this.seg + 1; i < s; i++) texts.push(this.sourceTexts[i]!);
       texts.push(this.sourceText(s).substring(0, p));
       matchType = getTemplateLiteralType(this.c, texts, this.sourceTypes.slice(this.seg, s));
     }
@@ -1559,12 +1562,12 @@ function inferFromLiteralPartsToTemplateLiteral(
   target: TemplateLiteralType,
 ): Type[] | undefined {
   const lastSourceIndex = sourceTexts.length - 1;
-  const sourceStartText = sourceTexts[0];
-  const sourceEndText = sourceTexts[lastSourceIndex];
+  const sourceStartText = sourceTexts[0]!;
+  const sourceEndText = sourceTexts[lastSourceIndex]!;
   const targetTexts = target.texts;
   const lastTargetIndex = targetTexts.length - 1;
-  const targetStartText = targetTexts[0];
-  const targetEndText = targetTexts[lastTargetIndex];
+  const targetStartText = targetTexts[0]!;
+  const targetEndText = targetTexts[lastTargetIndex]!;
   if (
     (lastSourceIndex === 0 && sourceStartText.length < targetStartText.length + targetEndText.length) ||
     !sourceStartText.startsWith(targetStartText) ||
@@ -1579,7 +1582,7 @@ function inferFromLiteralPartsToTemplateLiteral(
     targetStartText.length,
   );
   for (let i = 1; i < lastTargetIndex; i++) {
-    const delim = targetTexts[i];
+    const delim = targetTexts[i]!;
     if (delim.length > 0) {
       let s = m.seg;
       let p = m.pos;
@@ -1711,7 +1714,7 @@ function createReverseMappedType(
     return undefined;
   // Arrays and tuples map to arrays and tuples of reverse-mapped elements.
   if (isArrayType(c, source)) {
-    const elementType = inferReverseMappedType(c, getTypeArguments(c, source)[0], target, constraint);
+    const elementType = inferReverseMappedType(c, getTypeArguments(c, source)[0]!, target, constraint);
     if (elementType === undefined) return undefined;
     return createArrayTypeEx(c, elementType, isReadonlyArrayType(c, source));
   }
@@ -1904,7 +1907,7 @@ export function inferFromIntraExpressionSites(c: Checker, context: InferenceCont
 }
 
 export function getInferredType(c: Checker, context: InferenceContext, index: number): Type {
-  const inference = context.inferences[index];
+  const inference = context.inferences[index]!;
   if (inference.inferredType !== undefined) return inference.inferredType;
   if (inference.typeParameter === c.errorType) return inference.typeParameter;
   let inferredType: Type | undefined = undefined;
@@ -2064,7 +2067,7 @@ export function getTypeFromInference(c: Checker, inference: InferenceInfo): Type
 }
 
 export function getCommonSupertype(c: Checker, types: Type[]): Type {
-  if (types.length === 1) return types[0];
+  if (types.length === 1) return types[0]!;
   // Remove nullable types, find the supertype, and add them back.
   const primaryTypes = c.strictNullChecks
     ? types.map((t) => filterType(c, t, (u) => (u.flags & TypeFlags.Nullable) === 0))
@@ -2073,7 +2076,7 @@ export function getCommonSupertype(c: Checker, types: Type[]): Type {
     ? getUnionType(c, primaryTypes)
     : getSingleCommonSupertype(c, primaryTypes);
   let same = true;
-  for (let i = 0; i < types.length; i++) if (primaryTypes[i] !== types[i]) same = false;
+  for (let i = 0; i < types.length; i++) if (primaryTypes[i]! !== types[i]!) same = false;
   if (same) return supertype;
   return getNullableType(c, supertype, getCombinedTypeFlags(types) & TypeFlags.Nullable);
 }
@@ -2182,7 +2185,7 @@ class TypeArgumentMapper extends TypeMapper {
   map(t: Type): Type {
     const index = this.typeParameters.indexOf(t);
     if (index < 0) return t;
-    if (index < this.typeArgumentNodes.length) return getTypeFromTypeNode(this.c, this.typeArgumentNodes[index]);
+    if (index < this.typeArgumentNodes.length) return getTypeFromTypeNode(this.c, this.typeArgumentNodes[index]!);
     if (this.filled === undefined)
       this.filled = fillMissingTypeArguments(
         this.c,
@@ -2191,7 +2194,7 @@ class TypeArgumentMapper extends TypeMapper {
         getMinTypeArgumentCount(this.c, this.typeParameters),
         false,
       );
-    return this.filled[index];
+    return this.filled[index]!;
   }
 }
 
@@ -2218,7 +2221,7 @@ export function getInferredTypeParameterConstraint(c: Checker, t: Type, omitType
           if (typeArgumentNodes === undefined || typeParameters === undefined) break;
           const index = typeArgumentNodes.nodes.indexOf(child);
           if (index < 0 || index >= typeParameters.length) break;
-          const declaredConstraint = getConstraintOfTypeParameter(c, typeParameters[index]);
+          const declaredConstraint = getConstraintOfTypeParameter(c, typeParameters[index]!);
           if (declaredConstraint === undefined) break;
           // Constraints referencing the type parameter itself are discarded.
           const constraint = instantiateType(

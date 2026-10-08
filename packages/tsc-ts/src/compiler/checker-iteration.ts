@@ -282,8 +282,7 @@ export function getIteratedTypeOrElementType(
     return undefined;
   }
   const iterableExists = getGlobalIterableType(c, false) !== c.emptyGenericType;
-  const possibleOutOfBounds =
-    c.compilerOptions.noUncheckedIndexedAccess === true && (use & IterationUse.PossiblyOutOfBounds) !== 0;
+  const possibleOutOfBounds = c.noUncheckedIndexedAccess && (use & IterationUse.PossiblyOutOfBounds) !== 0;
   if (iterableExists || allowAsyncIterables) {
     const iterationTypes = getIterationTypesOfIterable(c, inputType, use, iterableExists ? errorNode : undefined);
     if (checkAssignability && iterationTypes.nextType !== undefined) {
@@ -353,8 +352,7 @@ export function getIteratedTypeOrElementType(
   const arrayElementType = getIndexTypeOfType(c, arrayType, c.numberType);
   if (hasStringConstituent && arrayElementType !== undefined) {
     // An optimization for `string | string[]`.
-    if ((arrayElementType.flags & TypeFlags.StringLike) !== 0 && c.compilerOptions.noUncheckedIndexedAccess !== true)
-      return c.stringType;
+    if ((arrayElementType.flags & TypeFlags.StringLike) !== 0 && !c.noUncheckedIndexedAccess) return c.stringType;
     return getUnionTypeEx(
       c,
       possibleOutOfBounds ? [arrayElementType, c.stringType, c.undefinedType] : [arrayElementType, c.stringType],
@@ -369,7 +367,7 @@ export function getIteratedTypeOrElementType(
 }
 
 function includeUndefinedInIndexSignature(c: Checker, t: Type): Type {
-  return c.compilerOptions.noUncheckedIndexedAccess === true ? getUnionType(c, [t, c.missingType]) : t;
+  return c.noUncheckedIndexedAccess ? getUnionType(c, [t, c.missingType]) : t;
 }
 
 class IterationDiagnosticDetails {
@@ -537,13 +535,13 @@ function getIterationTypesOfIterableFast(c: Checker, t: Type, isAsync: boolean):
     isReferenceToType(t, getGlobalGeneratorType(c, isAsync))
   ) {
     const typeArguments = getTypeArguments(c, t);
-    return getResolvedIterationTypes(c, isAsync, typeArguments[0], typeArguments[1], typeArguments[2]);
+    return getResolvedIterationTypes(c, isAsync, typeArguments[0]!, typeArguments[1]!, typeArguments[2]!);
   }
   if (isReferenceToBuiltinIteratorType(c, t, isAsync))
     return getResolvedIterationTypes(
       c,
       isAsync,
-      getTypeArguments(c, t)[0],
+      getTypeArguments(c, t)[0]!,
       getBuiltinIteratorReturnType(c),
       c.unknownType,
     );
@@ -652,13 +650,13 @@ function getIterationTypesOfIteratorFast(c: Checker, t: Type, isAsync: boolean):
     isReferenceToType(t, getGlobalGeneratorType(c, isAsync))
   ) {
     const typeArguments = getTypeArguments(c, t);
-    return getResolvedIterationTypes(c, isAsync, typeArguments[0], typeArguments[1], typeArguments[2]);
+    return getResolvedIterationTypes(c, isAsync, typeArguments[0]!, typeArguments[1]!, typeArguments[2]!);
   }
   if (isReferenceToBuiltinIteratorType(c, t, isAsync))
     return getResolvedIterationTypes(
       c,
       isAsync,
-      getTypeArguments(c, t)[0],
+      getTypeArguments(c, t)[0]!,
       getBuiltinIteratorReturnType(c),
       c.unknownType,
     );
@@ -724,9 +722,9 @@ function getIterationTypesOfMethod(
       const mapper = (methodType as ObjectType).mapper;
       if (mapper !== undefined)
         return new IterationTypes(
-          mapper.map(typeParameters[0]),
-          mapper.map(typeParameters[1]),
-          methodName === 'next' ? mapper.map(typeParameters[2]) : undefined,
+          mapper.map(typeParameters[0]!),
+          mapper.map(typeParameters[1]!),
+          methodName === 'next' ? mapper.map(typeParameters[2]!) : undefined,
         );
     }
   }
@@ -779,9 +777,9 @@ function getIterationTypesOfMethod(
 function getIterationTypesOfIteratorResult(c: Checker, t: Type): IterationTypes {
   if ((t.flags & TypeFlags.Any) !== 0) return anyIterationTypes(c);
   if (isReferenceToType(t, getGlobalIteratorYieldResultType(c)))
-    return new IterationTypes(getTypeArguments(c, t)[0], undefined, undefined);
+    return new IterationTypes(getTypeArguments(c, t)[0]!, undefined, undefined);
   if (isReferenceToType(t, getGlobalIteratorReturnResultType(c)))
-    return new IterationTypes(undefined, getTypeArguments(c, t)[0], undefined);
+    return new IterationTypes(undefined, getTypeArguments(c, t)[0]!, undefined);
   const yieldIteratorResult = filterType(c, t, (u) => isIteratorResult(c, u, IterationTypeKind.Yield));
   const yieldType =
     yieldIteratorResult !== c.neverType ? getTypeOfPropertyOfType(c, yieldIteratorResult, 'value') : undefined;
@@ -1047,7 +1045,7 @@ export function createAwaitedTypeIfNeeded(c: Checker, t: Type): Type {
 /** `T` of a generic `Awaited<T>`, through unions. */
 export function unwrapAwaitedType(c: Checker, t: Type): Type {
   if ((t.flags & TypeFlags.Union) !== 0) return mapType(c, t, (u) => unwrapAwaitedType(c, u));
-  if (isAwaitedTypeInstantiation(c, t)) return t.alias!.typeArguments[0];
+  if (isAwaitedTypeInstantiation(c, t)) return t.alias!.typeArguments[0]!;
   return t;
 }
 
@@ -1101,7 +1099,7 @@ function getPromisedTypeOfPromiseWorker(c: Checker, t: Type, errorNode: Node | u
   const cached = c.cachedTypes.get(key);
   if (cached !== undefined) return new PromisedType(cached, undefined);
   if (isReferenceToType(t, getGlobalPromiseType(c))) {
-    const result = getTypeArguments(c, t)[0];
+    const result = getTypeArguments(c, t)[0]!;
     c.cachedTypes.set(key, result);
     return new PromisedType(result, undefined);
   }

@@ -101,9 +101,10 @@ export function getWidenedTypeForAssignmentDeclaration(c: Checker, symbol: Symbo
     const types: Type[] = [];
     const declarations = symbol.declarations;
     for (let i = 0; i < declarations.length; i++) {
-      const declaration = declarations[i];
-      if (declaration instanceof BinaryExpression && declaration.type !== undefined) {
-        t = getTypeFromTypeNode(c, declaration.type);
+      const declaration = declarations[i]!;
+      const declaredType = declaration instanceof BinaryExpression ? (declaration as BinaryExpression).type : undefined;
+      if (declaredType !== undefined) {
+        t = getTypeFromTypeNode(c, declaredType);
         break;
       }
       const assignedType = getAssignmentDeclarationInitializerType(c, declaration);
@@ -161,7 +162,7 @@ function getAssignmentDeclarationInitializerType(c: Checker, node: Node): Type |
     }
     return t;
   }
-  if (node.kind === SyntaxKind.CallExpression) return getTypeFromPropertyDescriptor(c, getArguments(node)!.nodes[2]);
+  if (node.kind === SyntaxKind.CallExpression) return getTypeFromPropertyDescriptor(c, getArguments(node)!.nodes[2]!);
   return undefined;
 }
 

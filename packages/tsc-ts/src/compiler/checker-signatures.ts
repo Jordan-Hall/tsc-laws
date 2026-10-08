@@ -112,11 +112,11 @@ export function getSignaturesOfSymbol(c: Checker, symbol: Symbol | undefined): S
   const result: Signature[] = [];
   const declarations = symbol.declarations;
   for (let i = 0; i < declarations.length; i++) {
-    const decl = declarations[i];
+    const decl = declarations[i]!;
     if (!isFunctionLikeNode(decl)) continue;
     // An implementation directly following an overload of the same kind is skipped.
     if (i > 0 && getBody(decl) !== undefined) {
-      const previous = declarations[i - 1];
+      const previous = declarations[i - 1]!;
       if (
         decl.parent === previous.parent &&
         decl.kind === previous.kind &&
@@ -180,7 +180,7 @@ export function getSignatureFromDeclaration(c: Checker, declaration: Node): Sign
   if (iife === undefined && isUntypedSignatureInJSFile(c, declaration, params))
     flags |= SignatureFlags.IsUntypedSignatureInJSFile;
   for (let i = 0; i < params.length; i++) {
-    const param = params[i];
+    const param = params[i]!;
     let paramSymbol = getSymbol(param)!;
     const typeNode = getType(param);
     // Parameter properties use the parameter, not the property.
@@ -225,7 +225,7 @@ export function getSignatureFromDeclaration(c: Checker, declaration: Node): Sign
       : undefined;
   const typeParameters =
     classType !== undefined ? classType.localTypeParameters() : getTypeParametersFromDeclaration(c, declaration);
-  if (params.length !== 0 && isRestParameter(params[params.length - 1])) flags |= SignatureFlags.HasRestParameter;
+  if (params.length !== 0 && isRestParameter(params[params.length - 1]!)) flags |= SignatureFlags.HasRestParameter;
   if (
     declaration.kind === SyntaxKind.ConstructorType ||
     declaration.kind === SyntaxKind.Constructor ||
@@ -265,6 +265,12 @@ function getTypeParametersFromDeclaration(c: Checker, declaration: Node): Type[]
 
 // ---- Return types and predicates
 
+function getReturnTypesOfSignatures(c: Checker, signatures: readonly Signature[]): Type[] {
+  const types: Type[] = [];
+  for (const sig of signatures) types.push(getReturnTypeOfSignature(c, sig));
+  return types;
+}
+
 export function getReturnTypeOfSignature(c: Checker, sig: Signature): Type {
   if (sig.resolvedReturnType !== undefined) return sig.resolvedReturnType;
   if (!pushTypeResolution(c, sig, TypeSystemPropertyName.ResolvedReturnType)) return c.errorType;
@@ -275,7 +281,7 @@ export function getReturnTypeOfSignature(c: Checker, sig: Signature): Type {
       c,
       getUnionOrIntersectionType(
         c,
-        sig.composite.signatures.map((s) => getReturnTypeOfSignature(c, s)),
+        getReturnTypesOfSignatures(c, sig.composite.signatures),
         sig.composite.isUnion,
         UnionReduction.Subtype,
       ),
@@ -465,7 +471,7 @@ export function getTypeOfParameter(c: Checker, symbol: Symbol): Type {
 export function getParameterCount(c: Checker, signature: Signature): number {
   const length = signature.parameters.length;
   if (signature.hasRestParameter()) {
-    const restType = getTypeOfSymbol(c, signature.parameters[length - 1]);
+    const restType = getTypeOfSymbol(c, signature.parameters[length - 1]!);
     if (isTupleType(restType)) {
       const target = tupleTargetOf(restType);
       return length + target.fixedLength - ((target.combinedFlags & ElementFlags.Variable) !== 0 ? 0 : 1);
@@ -478,7 +484,7 @@ export function getMinArgumentCount(c: Checker, signature: Signature): number {
   if (signature.resolvedMinArgumentCount === -1) {
     let minArgumentCount = -1;
     if (signature.hasRestParameter()) {
-      const restType = getTypeOfSymbol(c, signature.parameters[signature.parameters.length - 1]);
+      const restType = getTypeOfSymbol(c, signature.parameters[signature.parameters.length - 1]!);
       if (isTupleType(restType)) {
         const infos = tupleTargetOf(restType).elementInfos;
         const firstOptional = infos.findIndex((info) => (info.flags & ElementFlags.Required) === 0);
@@ -503,7 +509,7 @@ export function getMinArgumentCount(c: Checker, signature: Signature): number {
 
 export function hasEffectiveRestParameter(c: Checker, signature: Signature): boolean {
   if (!signature.hasRestParameter()) return false;
-  const restType = getTypeOfSymbol(c, signature.parameters[signature.parameters.length - 1]);
+  const restType = getTypeOfSymbol(c, signature.parameters[signature.parameters.length - 1]!);
   return !isTupleType(restType) || (tupleTargetOf(restType).combinedFlags & ElementFlags.Variable) !== 0;
 }
 
@@ -513,10 +519,10 @@ export function getTypeAtPosition(c: Checker, signature: Signature, pos: number)
 
 export function tryGetTypeAtPosition(c: Checker, signature: Signature, pos: number): Type | undefined {
   const paramCount = signature.parameters.length - (signature.hasRestParameter() ? 1 : 0);
-  if (pos < paramCount) return getTypeOfParameter(c, signature.parameters[pos]);
+  if (pos < paramCount) return getTypeOfParameter(c, signature.parameters[pos]!);
   if (signature.hasRestParameter()) {
     // Out-of-bounds positions of fixed tuples are undefined.
-    const restType = getTypeOfSymbol(c, signature.parameters[paramCount]);
+    const restType = getTypeOfSymbol(c, signature.parameters[paramCount]!);
     const index = pos - paramCount;
     if (
       !isTupleType(restType) ||
@@ -534,7 +540,7 @@ export function getRestOrAnyTypeAtPosition(c: Checker, source: Signature, pos: n
   if (
     restType !== undefined &&
     isArrayType(c, restType) &&
-    (getTypeArguments(c, restType)[0].flags & TypeFlags.Any) !== 0
+    (getTypeArguments(c, restType)[0]!.flags & TypeFlags.Any) !== 0
   )
     return c.anyType;
   return restType;
@@ -572,16 +578,16 @@ export function getRestTypeAtPosition(c: Checker, source: Signature, pos: number
 function getNameableDeclarationAtPosition(c: Checker, signature: Signature, pos: number): Node | undefined {
   const paramCount = signature.parameters.length - (signature.hasRestParameter() ? 1 : 0);
   if (pos < paramCount) {
-    const decl = signature.parameters[pos].valueDeclaration;
+    const decl = signature.parameters[pos]!.valueDeclaration;
     return decl !== undefined && isValidDeclarationForTupleLabel(decl) ? decl : undefined;
   }
   if (signature.hasRestParameter()) {
-    const restParameter = signature.parameters[paramCount];
+    const restParameter = signature.parameters[paramCount]!;
     const restType = getTypeOfSymbol(c, restParameter);
     if (isTupleType(restType)) {
       const infos = tupleTargetOf(restType).elementInfos;
       const index = pos - paramCount;
-      return index < infos.length ? infos[index].labeledDeclaration : undefined;
+      return index < infos.length ? infos[index]!.labeledDeclaration : undefined;
     }
     if (restParameter.valueDeclaration !== undefined && isValidDeclarationForTupleLabel(restParameter.valueDeclaration))
       return restParameter.valueDeclaration;
@@ -604,7 +610,7 @@ export function getNonArrayRestType(c: Checker, signature: Signature): Type | un
 
 export function getEffectiveRestType(c: Checker, signature: Signature): Type | undefined {
   if (!signature.hasRestParameter()) return undefined;
-  const restType = getTypeOfSymbol(c, signature.parameters[signature.parameters.length - 1]);
+  const restType = getTypeOfSymbol(c, signature.parameters[signature.parameters.length - 1]!);
   if (!isTupleType(restType)) return (restType.flags & TypeFlags.Any) !== 0 ? c.anyArrayType : restType;
   if ((tupleTargetOf(restType).combinedFlags & ElementFlags.Variable) !== 0)
     return sliceTupleType(c, restType, tupleTargetOf(restType).fixedLength, 0);
@@ -633,12 +639,12 @@ export function getThisTypeOfSignature(c: Checker, signature: Signature): Type |
 
 export function getParameterNameAtPosition(c: Checker, signature: Signature, pos: number): string {
   const paramCount = signature.parameters.length - (signature.hasRestParameter() ? 1 : 0);
-  if (pos < paramCount) return signature.parameters[pos].name;
-  const restParameter = signature.parameters[paramCount];
+  if (pos < paramCount) return signature.parameters[pos]!.name;
+  const restParameter = signature.parameters[paramCount]!;
   const restType = getTypeOfSymbol(c, restParameter);
   if (isTupleType(restType)) {
     const index = pos - paramCount;
-    const info = tupleTargetOf(restType).elementInfos[index];
+    const info = tupleTargetOf(restType).elementInfos[index]!;
     if (info.labeledDeclaration !== undefined) return getText(getName(info.labeledDeclaration)!);
     return restParameter.name + '_' + index;
   }
@@ -650,8 +656,8 @@ export function isTopSignature(c: Checker, s: Signature): boolean {
   if (s.typeParameters.length !== 0 || s.parameters.length !== 1 || !s.hasRestParameter()) return false;
   if (s.thisParameter !== undefined && (getTypeOfParameter(c, s.thisParameter).flags & TypeFlags.Any) === 0)
     return false;
-  const paramType = getTypeOfParameter(c, s.parameters[0]);
-  const restType = isArrayType(c, paramType) ? getTypeArguments(c, paramType)[0] : paramType;
+  const paramType = getTypeOfParameter(c, s.parameters[0]!);
+  const restType = isArrayType(c, paramType) ? getTypeArguments(c, paramType)[0]! : paramType;
   return (
     (restType.flags & (TypeFlags.Any | TypeFlags.Never)) !== 0 &&
     (getReturnTypeOfSignature(c, s).flags & TypeFlags.AnyOrUnknown) !== 0
@@ -779,13 +785,13 @@ export function getSingleSignature(
   const resolved = resolveStructuredTypeMembers(c, t);
   if (!allowMembers && (resolved.properties.length !== 0 || resolved.indexInfos.length !== 0)) return undefined;
   if (kind === SignatureKind.Call && resolved.callSignatures.length === 1 && resolved.constructSignatures.length === 0)
-    return resolved.callSignatures[0];
+    return resolved.callSignatures[0]!;
   if (
     kind === SignatureKind.Construct &&
     resolved.constructSignatures.length === 1 &&
     resolved.callSignatures.length === 0
   )
-    return resolved.constructSignatures[0];
+    return resolved.constructSignatures[0]!;
   return undefined;
 }
 
@@ -864,7 +870,7 @@ export function getIndexInfosOfIndexSymbol(c: Checker, indexSymbol: Symbol, sibl
       const parameters = getParameters(declaration)?.nodes ?? [];
       const returnTypeNode = getType(declaration);
       if (parameters.length !== 1) continue;
-      const typeNode = getType(parameters[0]);
+      const typeNode = getType(parameters[0]!);
       if (typeNode === undefined) continue;
       const valueType = returnTypeNode !== undefined ? getTypeFromTypeNode(c, returnTypeNode) : c.anyType;
       const keyTypes = getTypeFromTypeNode(c, typeNode);
@@ -913,7 +919,7 @@ import { ContextFlags, getContextualTypeEx } from './checker-contextual.js';
 /** Whether `symbol` is a known symbol or has a computed name of a symbol type. */
 function isSymbolWithSymbolName(c: Checker, symbol: Symbol): boolean {
   if (symbol.name.startsWith('\ufffe@')) return true;
-  const name = symbol.declarations.length !== 0 ? getName(symbol.declarations[0]) : undefined;
+  const name = symbol.declarations.length !== 0 ? getName(symbol.declarations[0]!) : undefined;
   return (
     name !== undefined &&
     name.kind === SyntaxKind.ComputedPropertyName &&
@@ -924,7 +930,7 @@ function isSymbolWithSymbolName(c: Checker, symbol: Symbol): boolean {
 /** Whether `symbol` has a numeric name, or a computed name of a number type. */
 function isSymbolWithNumericName(c: Checker, symbol: Symbol): boolean {
   if (isNumericLiteralName(symbol.name)) return true;
-  const name = symbol.declarations.length !== 0 ? getName(symbol.declarations[0]) : undefined;
+  const name = symbol.declarations.length !== 0 ? getName(symbol.declarations[0]!) : undefined;
   if (name === undefined) return false;
   if (name.kind === SyntaxKind.ComputedPropertyName)
     return isTypeAssignableToKind(c, checkComputedPropertyName(c, name), TypeFlags.NumberLike);

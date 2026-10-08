@@ -219,7 +219,7 @@ export function checkCallExpression(c: Checker, node: Node, checkMode: CheckMode
   if (signature === c.resolvingSignature) return c.silentNeverType;
   if (callee.kind === SyntaxKind.SuperKeyword) return c.voidType;
   if (isInJSFile(node) && isCommonJSRequire(c, node))
-    return resolveExternalModuleTypeByLiteral(c, call.arguments.nodes[0]);
+    return resolveExternalModuleTypeByLiteral(c, call.arguments.nodes[0]!);
   const returnType = getReturnTypeOfSignature(c, signature);
   // A call of the global `Symbol` in a const or readonly declaration is a fresh unique symbol.
   if ((returnType.flags & TypeFlags.ESSymbolLike) !== 0 && isSymbolOrSymbolForCall(c, call))
@@ -415,7 +415,7 @@ function resolveNewExpression(c: Checker, node: NewExpression, checkMode: CheckM
   }
   const constructSignatures = getSignaturesOfType(c, expressionType, SignatureKind.Construct);
   if (constructSignatures.length !== 0) {
-    if (!isConstructorAccessible(c, node, constructSignatures[0])) return resolveErrorCall(c, node);
+    if (!isConstructorAccessible(c, node, constructSignatures[0]!)) return resolveErrorCall(c, node);
     if (someSignature(constructSignatures, (s) => (s.flags & SignatureFlags.Abstract) !== 0)) {
       c.error(node, Diagnostics.Cannot_create_an_instance_of_an_abstract_class);
       return resolveErrorCall(c, node);
@@ -703,7 +703,7 @@ export function getEffectiveCallArguments(c: Checker, node: Node): Node[] {
   // Spreads of tuple types become synthetic arguments, one per element.
   const effectiveArgs = args.slice(0, spreadIndex);
   for (let i = spreadIndex; i < args.length; i++) {
-    const arg = args[i];
+    const arg = args[i]!;
     // Spread expressions never have a contextual type, so caching is safe.
     const spreadType =
       arg.kind === SyntaxKind.SpreadElement
@@ -715,13 +715,13 @@ export function getEffectiveCallArguments(c: Checker, node: Node): Node[] {
       const elementTypes = getElementTypes(c, spreadType);
       const elementInfos = tupleTargetOf(spreadType).elementInfos;
       for (let j = 0; j < elementTypes.length; j++) {
-        const flags = elementInfos[j].flags;
+        const flags = elementInfos[j]!.flags;
         effectiveArgs.push(
           new SyntheticExpression(
             arg,
-            (flags & ElementFlags.Rest) !== 0 ? createArrayType(c, elementTypes[j]) : elementTypes[j],
+            (flags & ElementFlags.Rest) !== 0 ? createArrayType(c, elementTypes[j]!) : elementTypes[j]!,
             (flags & ElementFlags.Variable) !== 0,
-            elementInfos[j].labeledDeclaration,
+            elementInfos[j]!.labeledDeclaration,
           ),
         );
       }
@@ -750,7 +750,7 @@ function checkSyntheticExpression(c: Checker, node: SyntheticExpression): Type {
 }
 
 function getSpreadArgumentIndex(args: Node[]): number {
-  for (let i = 0; i < args.length; i++) if (isSpreadArgument(args[i])) return i;
+  for (let i = 0; i < args.length; i++) if (isSpreadArgument(args[i]!)) return i;
   return -1;
 }
 
@@ -774,7 +774,7 @@ function getSpreadArgumentType(
 ): Type {
   const inConstContext = isConstTypeVariable(c, restType, 0);
   if (argCount > 0 && index >= argCount - 1) {
-    const arg = args[argCount - 1];
+    const arg = args[argCount - 1]!;
     if (isSpreadArgument(arg)) {
       // A spread in the last position to a rest parameter: both are `...x` forms.
       const spreadType =
@@ -793,7 +793,7 @@ function getSpreadArgumentType(
   const types: Type[] = [];
   const infos: TupleElementInfo[] = [];
   for (let i = index; i < argCount; i++) {
-    const arg = args[i];
+    const arg = args[i]!;
     if (isSpreadArgument(arg)) {
       const spreadType =
         arg.kind === SyntaxKind.SyntheticExpression
@@ -896,7 +896,7 @@ export function resolveCall(
   const s = new CallState(node, typeArguments, getEffectiveCallArguments(c, node), candidates);
   // Context-sensitive arguments are excluded from a first inference and applicability pass, then
   // included in a second pass with their contextual types fixed.
-  s.isSingleNonGenericCandidate = candidates.length === 1 && candidates[0].typeParameters.length === 0;
+  s.isSingleNonGenericCandidate = candidates.length === 1 && candidates[0]!.typeParameters.length === 0;
   // Decorator arguments are synthetic, so never context sensitive.
   if (
     node.kind !== SyntaxKind.Decorator &&
@@ -975,7 +975,7 @@ function chooseOverload(c: Checker, s: CallState, relation: Relation): Signature
   s.candidateForArgumentArityError = undefined;
   s.candidateForTypeArgumentError = undefined;
   if (s.isSingleNonGenericCandidate) {
-    const candidate = s.candidates[0];
+    const candidate = s.candidates[0]!;
     if (s.typeArguments.length !== 0 || !hasCorrectArity(c, s.node, s.args, candidate)) return undefined;
     if (!isSignatureApplicable(c, s.node, s.args, candidate, relation, CheckMode.Normal, false, undefined)) {
       s.candidatesForArgumentError = [candidate];
@@ -984,7 +984,7 @@ function chooseOverload(c: Checker, s: CallState, relation: Relation): Signature
     return candidate;
   }
   for (let candidateIndex = 0; candidateIndex < s.candidates.length; candidateIndex++) {
-    const candidate = s.candidates[candidateIndex];
+    const candidate = s.candidates[candidateIndex]!;
     if (!hasCorrectTypeArgumentArity(c, candidate, s.typeArguments) || !hasCorrectArity(c, s.node, s.args, candidate))
       continue;
     let checkCandidate: Signature;
@@ -1086,7 +1086,7 @@ function hasCorrectArity(c: Checker, node: Node, args: Node[], signature: Signat
     if (template.kind === SyntaxKind.TemplateExpression) {
       // A template without a tail literal makes the call incomplete.
       const spans = (template as TemplateExpression).templateSpans.nodes;
-      const literal = (spans[spans.length - 1] as TemplateSpan).literal;
+      const literal = (spans[spans.length - 1]! as TemplateSpan).literal;
       callIsIncomplete = literal.end === literal.pos || isUnterminatedLiteral(literal);
     } else callIsIncomplete = isUnterminatedLiteral(template);
   } else if (node.kind === SyntaxKind.Decorator) {
@@ -1143,9 +1143,9 @@ function checkTypeArguments(
   );
   const mapper = newTypeMapper(typeParameters, typeArgumentTypes);
   for (let i = 0; i < typeArgumentNodes.length; i++) {
-    const constraint = getConstraintOfTypeParameter(c, typeParameters[i]);
+    const constraint = getConstraintOfTypeParameter(c, typeParameters[i]!);
     if (constraint === undefined) continue;
-    const typeArgument = typeArgumentTypes[i];
+    const typeArgument = typeArgumentTypes[i]!;
     const diagnostics: Diagnostic[] = [];
     if (
       !checkTypeRelatedTo(
@@ -1153,12 +1153,12 @@ function checkTypeArguments(
         typeArgument,
         getTypeWithThisArgument(c, instantiateType(c, constraint, mapper), typeArgument, false),
         c.assignableRelation,
-        reportErrors ? typeArgumentNodes[i] : undefined,
+        reportErrors ? typeArgumentNodes[i]! : undefined,
         headMessage ?? Diagnostics.Type_0_does_not_satisfy_the_constraint_1,
         diagnostics,
       )
     ) {
-      if (diagnostics.length !== 0) c.addDiagnostic(diagnostics[0]);
+      if (diagnostics.length !== 0) c.addDiagnostic(diagnostics[0]!);
       return undefined;
     }
   }
@@ -1215,7 +1215,7 @@ function isSignatureApplicable(
   const restType = getNonArrayRestType(c, signature);
   const argCount = restType !== undefined ? Math.min(getParameterCount(c, signature) - 1, args.length) : args.length;
   for (let i = 0; i < argCount; i++) {
-    const arg = args[i];
+    const arg = args[i]!;
     if (arg.kind === SyntaxKind.OmittedExpression) continue;
     const paramType = getTypeAtPosition(c, signature, i);
     const argType = checkArgument(c, arg, paramType, undefined, checkMode);
@@ -1242,7 +1242,7 @@ function isSignatureApplicable(
     const restArgCount = args.length - argCount;
     let errorNode: Node | undefined = undefined;
     if (reportErrors)
-      errorNode = restArgCount === 0 ? node : restArgCount === 1 ? getEffectiveCheckNode(args[argCount]) : node;
+      errorNode = restArgCount === 0 ? node : restArgCount === 1 ? getEffectiveCheckNode(args[argCount]!) : node;
     const diagnostics: Diagnostic[] = [];
     const related = checkTypeRelatedTo(
       c,
@@ -1257,8 +1257,8 @@ function isSignatureApplicable(
       if (restArgCount > 1 && reportErrors) {
         // Several rest arguments: report over their combined range.
         const file = getSourceFileOfNode(node);
-        const pos = skipTrivia(file.text, args[argCount].pos);
-        const end = args[args.length - 1].end;
+        const pos = skipTrivia(file.text, args[argCount]!.pos);
+        const end = args[args.length - 1]!.end;
         for (const d of diagnostics) {
           const moved = new Diagnostic(file.diagnosticFile(), pos, end, d.message, d.args.slice());
           moved.messageChain = d.messageChain;
@@ -1417,7 +1417,7 @@ function inferTypeArguments(
       false,
     );
   for (let i = 0; i < argCount; i++) {
-    const arg = args[i];
+    const arg = args[i]!;
     if (arg.kind === SyntaxKind.OmittedExpression) continue;
     const paramType = getTypeAtPosition(c, signature, i);
     if (couldContainTypeVariables(c, paramType)) {
@@ -1458,7 +1458,7 @@ function pickLongestCandidateSignature(
 ): Signature {
   // The longest signature gives contextual types to the most arguments.
   const bestIndex = getLongestCandidateIndex(c, candidates, args.length);
-  const candidate = candidates[bestIndex];
+  const candidate = candidates[bestIndex]!;
   const typeParameters = candidate.typeParameters;
   if (typeParameters.length === 0) return candidate;
   const typeArgumentNodes = getCallTypeArguments(node);
@@ -1495,7 +1495,7 @@ function getLongestCandidateIndex(c: Checker, candidates: Signature[], argsCount
   let maxParamsIndex = -1;
   let maxParams = -1;
   for (let i = 0; i < candidates.length; i++) {
-    const candidate = candidates[i];
+    const candidate = candidates[i]!;
     const paramCount = getParameterCount(c, candidate);
     if (hasEffectiveRestParameter(c, candidate) || paramCount >= argsCount) return i;
     if (paramCount > maxParams) {
@@ -1509,7 +1509,7 @@ function getLongestCandidateIndex(c: Checker, candidates: Signature[], argsCount
 function getTypeArgumentsFromNodes(c: Checker, typeArgumentNodes: Node[], typeParameters: Type[]): Type[] {
   const typeArguments = typeArgumentNodes.slice(0, typeParameters.length).map((n) => getTypeFromTypeNode(c, n));
   while (typeArguments.length < typeParameters.length) {
-    const tp = typeParameters[typeArguments.length];
+    const tp = typeParameters[typeArguments.length]!;
     typeArguments.push(getDefaultFromTypeParameter(c, tp) ?? getConstraintOfTypeParameter(c, tp) ?? c.unknownType);
   }
   return typeArguments;
@@ -1540,10 +1540,10 @@ function createUnionOfSignaturesForOverloadFailure(c: Checker, candidates: Signa
     for (const s of candidates) {
       const p = s.hasRestParameter()
         ? i < s.parameters.length - 1
-          ? s.parameters[i]
-          : s.parameters[s.parameters.length - 1]
+          ? s.parameters[i]!
+          : s.parameters[s.parameters.length - 1]!
         : i < s.parameters.length
-          ? s.parameters[i]
+          ? s.parameters[i]!
           : undefined;
       if (p !== undefined) symbols.push(p);
       const t = tryGetTypeAtPosition(c, s, i);
@@ -1555,20 +1555,20 @@ function createUnionOfSignaturesForOverloadFailure(c: Checker, candidates: Signa
   const restTypes: Type[] = [];
   for (const s of candidates)
     if (s.hasRestParameter()) {
-      restParameterSymbols.push(s.parameters[s.parameters.length - 1]);
+      restParameterSymbols.push(s.parameters[s.parameters.length - 1]!);
       const t = tryGetRestTypeOfSignature(c, s);
       if (t !== undefined) restTypes.push(t);
     }
   let flags = SignatureFlags.IsSignatureCandidateForOverloadFailure;
   if (restParameterSymbols.length !== 0) {
     const t = createArrayType(c, getUnionTypeEx(c, restTypes, UnionReduction.Subtype, undefined, undefined));
-    parameters.push(createSymbolWithType(c, restParameterSymbols[0], t));
+    parameters.push(createSymbolWithType(c, restParameterSymbols[0]!, t));
     flags |= SignatureFlags.HasRestParameter;
   }
   if (candidates.some((s) => (s.flags & SignatureFlags.HasLiteralTypes) !== 0)) flags |= SignatureFlags.HasLiteralTypes;
   return c.newSignature(
     flags,
-    candidates[0].declaration,
+    candidates[0]!.declaration,
     [],
     thisParameter,
     parameters,
@@ -1581,12 +1581,12 @@ function createUnionOfSignaturesForOverloadFailure(c: Checker, candidates: Signa
 }
 
 function createCombinedSymbolFromTypes(c: Checker, sources: Symbol[], types: Type[]): Symbol {
-  return createSymbolWithType(c, sources[0], getUnionTypeEx(c, types, UnionReduction.Subtype, undefined, undefined));
+  return createSymbolWithType(c, sources[0]!, getUnionTypeEx(c, types, UnionReduction.Subtype, undefined, undefined));
 }
 
 function tryGetRestTypeOfSignature(c: Checker, signature: Signature): Type | undefined {
   if (!signature.hasRestParameter()) return undefined;
-  let restType: Type | undefined = getTypeOfSymbol(c, signature.parameters[signature.parameters.length - 1]);
+  let restType: Type | undefined = getTypeOfSymbol(c, signature.parameters[signature.parameters.length - 1]!);
   if (isTupleType(restType)) {
     restType = getRestTypeOfTupleType(c, restType);
     if (restType === undefined) return undefined;
@@ -1603,7 +1603,7 @@ function reportCallResolutionErrors(
   headMessage: DiagnosticMessage | undefined,
 ): void {
   if (s.candidatesForArgumentError.length !== 0) {
-    const last = s.candidatesForArgumentError[s.candidatesForArgumentError.length - 1];
+    const last = s.candidatesForArgumentError[s.candidatesForArgumentError.length - 1]!;
     const diagnostics: Diagnostic[] = [];
     isSignatureApplicable(c, s.node, s.args, last, c.assignableRelation, CheckMode.Normal, true, diagnostics);
     for (let diagnostic of diagnostics) {
@@ -1646,7 +1646,7 @@ function getArgumentArityError(
   const spreadIndex = getSpreadArgumentIndex(args);
   if (spreadIndex > -1)
     return createDiagnosticForNode(
-      args[spreadIndex],
+      args[spreadIndex]!,
       Diagnostics.A_spread_argument_must_either_have_a_tuple_type_or_be_passed_to_a_rest_parameter,
       [],
     );
@@ -1700,7 +1700,7 @@ function getArgumentArityError(
     const declaration = closestSignature !== undefined ? closestSignature.declaration : undefined;
     const params = declaration !== undefined ? getParameters(declaration) : undefined;
     const index = args.length + (closestSignature!.thisParameter !== undefined ? 1 : 0);
-    const parameter = params !== undefined && index < params.nodes.length ? params.nodes[index] : undefined;
+    const parameter = params !== undefined && index < params.nodes.length ? params.nodes[index]! : undefined;
     if (parameter !== undefined) {
       const name = getName(parameter)!;
       if (name.kind === SyntaxKind.ObjectBindingPattern || name.kind === SyntaxKind.ArrayBindingPattern)
@@ -1731,8 +1731,8 @@ function getArgumentArityError(
     );
   // Too long: the error spans the excess arguments.
   const file = getSourceFileOfNode(node);
-  let pos = args[maxCount].pos;
-  let end = args[args.length - 1].end;
+  let pos = args[maxCount]!.pos;
+  let end = args[args.length - 1]!.end;
   if (end === pos) end++;
   pos = skipTrivia(file.text, pos);
   if (end < pos) end = pos;
@@ -1757,7 +1757,7 @@ function getTypeArgumentArityError(
   let diagnostic: Diagnostic;
   if (signatures.length === 1) {
     // No overloads.
-    const sig = signatures[0];
+    const sig = signatures[0]!;
     const minCount = getMinTypeArgumentCount(c, sig.typeParameters);
     const maxCount = sig.typeParameters.length;
     const expected = minCount < maxCount ? minCount + '-' + maxCount : String(minCount);

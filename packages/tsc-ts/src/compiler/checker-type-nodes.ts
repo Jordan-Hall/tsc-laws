@@ -169,8 +169,8 @@ function getImpliedConstraint(c: Checker, t: Type, checkNode: Node, extendsNode:
     return getImpliedConstraint(
       c,
       t,
-      (checkNode as TupleTypeNode).elements.nodes[0],
-      (extendsNode as TupleTypeNode).elements.nodes[0],
+      (checkNode as TupleTypeNode).elements.nodes[0]!,
+      (extendsNode as TupleTypeNode).elements.nodes[0]!,
     );
   if (getActualTypeVariable(c, getTypeFromTypeNode(c, checkNode)) === getActualTypeVariable(c, t))
     return getTypeFromTypeNode(c, extendsNode);
@@ -778,8 +778,8 @@ export function getTypeAliasInstantiation(
   const t = getDeclaredTypeOfSymbol(c, symbol);
   if (t === c.intrinsicMarkerType && typeArguments.length === 1) {
     const kind = intrinsicTypeKind(symbol.name);
-    if (kind === IntrinsicTypeKind.NoInfer) return getNoInferType(c, typeArguments[0]);
-    if (kind !== IntrinsicTypeKind.Unknown) return getStringMappingType(c, symbol, typeArguments[0]);
+    if (kind === IntrinsicTypeKind.NoInfer) return getNoInferType(c, typeArguments[0]!);
+    if (kind !== IntrinsicTypeKind.Unknown) return getStringMappingType(c, symbol, typeArguments[0]!);
   }
   const links = c.symbolLinks(symbol);
   const typeParameters = links.typeParameters ?? emptyTypes;
@@ -845,7 +845,7 @@ function getArrayElementTypeNode(node: Node): Node | undefined {
     case SyntaxKind.TupleType: {
       const elements = (node as TupleTypeNode).elements.nodes;
       if (elements.length === 1) {
-        const e = elements[0];
+        const e = elements[0]!;
         if (e.kind === SyntaxKind.RestType) return getArrayElementTypeNode((e as RestTypeNode).type);
         if (e.kind === SyntaxKind.NamedTupleMember && (e as NamedTupleMember).dotDotDotToken !== undefined)
           return getArrayElementTypeNode((e as NamedTupleMember).type);
@@ -960,7 +960,7 @@ function getTypeFromIntersectionTypeNode(c: Checker, node: IntersectionTypeNode)
     if (types.length === 2) {
       const emptyIndex = types.indexOf(c.emptyTypeLiteralType);
       if (emptyIndex >= 0) {
-        const t = types[1 - emptyIndex];
+        const t = types[1 - emptyIndex]!;
         noSupertypeReduction =
           (t.flags & (TypeFlags.String | TypeFlags.Number | TypeFlags.BigInt)) !== 0 ||
           ((t.flags & TypeFlags.TemplateLiteral) !== 0 && isPatternLiteralType(c, t));

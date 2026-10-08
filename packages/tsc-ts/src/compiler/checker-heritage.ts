@@ -122,7 +122,7 @@ export function checkClassHeritage(c: Checker, node: Node): void {
   const baseTypeNode = getExtendsHeritageClauseElement(node);
   if (baseTypeNode !== undefined) {
     const baseTypes = getBaseTypes(c, classType);
-    if (baseTypes.length !== 0) checkBaseClass(c, node, classType, typeWithThis, staticType, baseTypes[0]);
+    if (baseTypes.length !== 0) checkBaseClass(c, node, classType, typeWithThis, staticType, baseTypes[0]!);
   }
   checkMembersForOverrideModifier(c, node, classType, typeWithThis, staticType);
   for (const typeRefNode of getImplementsHeritageClauseElements(node)) {
@@ -210,7 +210,7 @@ function getImplementsHeritageClauseElements(node: Node): Node[] {
 function checkBaseTypeAccessibility(c: Checker, t: Type, node: Node): void {
   const signatures = getSignaturesOfType(c, t, SignatureKind.Construct);
   if (signatures.length === 0) return;
-  const declaration = signatures[0].declaration;
+  const declaration = signatures[0]!.declaration;
   if (declaration === undefined || !hasSyntacticModifier(declaration, ModifierFlags.Private)) return;
   const typeClassDeclaration = t.symbol !== undefined ? getClassLikeDeclarationOfSymbol(t.symbol) : undefined;
   if (!isNodeWithinClass(node, typeClassDeclaration))
@@ -256,7 +256,7 @@ function issueMemberSpecificError(
     ) {
       c.addDiagnostic(
         chainDiagnostic(
-          diagnostics[0],
+          diagnostics[0]!,
           Diagnostics.Property_0_in_type_1_is_not_assignable_to_the_same_property_in_base_type_2,
           symbolToString(c, declaredProp),
           typeToString(c, typeWithThis),
@@ -465,7 +465,7 @@ function reportMissingAbstractMembers(c: Checker, node: Node | undefined, missin
       c.error(
         node,
         Diagnostics.Non_abstract_class_expression_does_not_implement_inherited_abstract_member_0_from_class_1,
-        properties[0],
+        properties[0]!,
         missing.baseTypeName,
       );
     else
@@ -473,7 +473,7 @@ function reportMissingAbstractMembers(c: Checker, node: Node | undefined, missin
         node,
         Diagnostics.Non_abstract_class_0_does_not_implement_inherited_abstract_member_1_from_class_2,
         missing.typeName,
-        properties[0],
+        properties[0]!,
         missing.baseTypeName,
       );
     return;
@@ -551,7 +551,7 @@ function checkMembersForOverrideModifier(
   let baseWithThis: Type | undefined = undefined;
   if (getExtendsHeritageClauseElement(node) !== undefined) {
     const baseTypes = getBaseTypes(c, t);
-    if (baseTypes.length > 0) baseWithThis = getTypeWithThisArgument(c, baseTypes[0], t.thisType, false);
+    if (baseTypes.length > 0) baseWithThis = getTypeWithThisArgument(c, baseTypes[0]!, t.thisType, false);
   }
   const baseStaticType = getBaseConstructorTypeOfClass(c, t);
   for (const member of getMembers(node)!.nodes) {
@@ -820,8 +820,8 @@ function areTypeParametersIdentical(
   for (const sourceParameters of lists) {
     if (sourceParameters.length < minTypeArgumentCount || sourceParameters.length > maxTypeArgumentCount) return false;
     for (let i = 0; i < sourceParameters.length; i++) {
-      const source = sourceParameters[i] as TypeParameterDeclaration;
-      const target = targetParameters[i];
+      const source = sourceParameters[i]! as TypeParameterDeclaration;
+      const target = targetParameters[i]!;
       if (getText(source.name) !== target.symbol!.name) return false;
       // A later declaration without a constraint may merge with a constrained one.
       const targetConstraint = getConstraintOfTypeParameter(c, target);
@@ -1105,7 +1105,7 @@ function checkTypeForDuplicateIndexSignatures(c: Checker, node: Node): void {
     if (declaration.kind !== SyntaxKind.IndexSignature) continue;
     const parameters = getParameters(declaration)!.nodes;
     if (parameters.length !== 1) continue;
-    const typeNode = getType(parameters[0]);
+    const typeNode = getType(parameters[0]!);
     if (typeNode === undefined) continue;
     const keyType = getTypeFromTypeNode(c, typeNode);
     const distributed = (keyType.flags & TypeFlags.Union) !== 0 ? typesOf(keyType) : [keyType];
@@ -1116,12 +1116,12 @@ function checkTypeForDuplicateIndexSignatures(c: Checker, node: Node): void {
         keyTypes.push(k);
         declarationsByKey.push([]);
       }
-      declarationsByKey[index].push(declaration);
+      declarationsByKey[index]!.push(declaration);
     }
   }
   for (let i = 0; i < keyTypes.length; i++) {
-    if (declarationsByKey[i].length <= 1) continue;
-    for (const declaration of declarationsByKey[i])
-      c.error(declaration, Diagnostics.Duplicate_index_signature_for_type_0, typeToString(c, keyTypes[i]));
+    if (declarationsByKey[i]!.length <= 1) continue;
+    for (const declaration of declarationsByKey[i]!)
+      c.error(declaration, Diagnostics.Duplicate_index_signature_for_type_0, typeToString(c, keyTypes[i]!));
   }
 }

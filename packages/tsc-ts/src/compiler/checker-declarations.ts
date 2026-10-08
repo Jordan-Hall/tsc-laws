@@ -29,7 +29,6 @@ import {
   getTypeArguments,
 } from './ast.js';
 import { isExternalModuleNameRelative } from './path.js';
-import { shouldPreserveConstEnums } from './options.js';
 import { checkTypeNameIsReserved } from './checker-classes.js';
 import { getPropertyNameFromType, isBindingPattern, isTypeUsableAsPropertyName } from './checker-utilities.js';
 import { checkPropertyAccessibility } from './checker-property-access.js';
@@ -563,7 +562,7 @@ export function checkTypeParameters(c: Checker, list: NodeList | undefined): voi
   const typeParameters = list.nodes;
   let seenDefault = false;
   for (let i = 0; i < typeParameters.length; i++) {
-    const node = typeParameters[i] as TypeParameterDeclaration;
+    const node = typeParameters[i]! as TypeParameterDeclaration;
     checkTypeParameter(c, node);
     if (node.defaultType !== undefined) {
       seenDefault = true;
@@ -571,7 +570,7 @@ export function checkTypeParameters(c: Checker, list: NodeList | undefined): voi
       finder.visitNode(node.defaultType);
     } else if (seenDefault) c.error(node, Diagnostics.Required_type_parameters_may_not_follow_optional_type_parameters);
     for (let j = 0; j < i; j++)
-      if (getSymbol(typeParameters[j]) === getSymbol(node))
+      if (getSymbol(typeParameters[j]!) === getSymbol(node))
         c.error(
           node.name,
           Diagnostics.Duplicate_identifier_0,
@@ -598,7 +597,7 @@ class LaterTypeParameterReferenceFinder extends NodeVisitor {
       const t = getTypeFromTypeNode(this.c, node);
       if ((t.flags & TypeFlags.TypeParameter) !== 0)
         for (let i = this.index; i < this.typeParameters.length; i++)
-          if (t.symbol === getSymbolOfDeclaration(this.c, this.typeParameters[i]))
+          if (t.symbol === getSymbolOfDeclaration(this.c, this.typeParameters[i]!))
             this.c.error(
               node,
               Diagnostics.Type_parameter_defaults_can_only_reference_previously_declared_type_parameters,
@@ -663,13 +662,13 @@ export function checkTypeArgumentConstraintsOfReference(c: Checker, node: Node):
   );
   const mapper = newTypeMapper(typeParameters.slice(), filled);
   for (let i = 0; i < typeArguments.length; i++) {
-    const constraint = getConstraintOfTypeParameter(c, typeParameters[i]);
+    const constraint = getConstraintOfTypeParameter(c, typeParameters[i]!);
     if (constraint === undefined) continue;
     checkTypeAssignableTo(
       c,
-      typeArguments[i],
+      typeArguments[i]!,
       instantiateType(c, constraint, mapper),
-      typeArgumentNodes.nodes[i],
+      typeArgumentNodes.nodes[i]!,
       Diagnostics.Type_0_does_not_satisfy_the_constraint_1,
     );
   }
@@ -705,10 +704,10 @@ export function checkEnumDeclaration(c: Checker, node: Node): void {
   for (const d of symbol.declarations) {
     if (d.kind !== SyntaxKind.EnumDeclaration) continue;
     const members = (d as EnumDeclaration).members.nodes;
-    if (members.length === 0 || getInitializer(members[0]) !== undefined) continue;
+    if (members.length === 0 || getInitializer(members[0]!) !== undefined) continue;
     if (seenEnumMissingInitialInitializer)
       c.error(
-        getName(members[0]),
+        getName(members[0]!),
         Diagnostics.In_an_enum_with_multiple_declarations_only_one_declaration_can_omit_an_initializer_for_its_first_enum_element,
       );
     else seenEnumMissingInitialInitializer = true;
@@ -742,7 +741,7 @@ export function checkModuleDeclaration(c: Checker, node: Node): void {
     symbol !== undefined &&
     (symbol.flags & SymbolFlags.ValueModule) !== 0 &&
     !inAmbientContext &&
-    isInstantiatedModule(node, shouldPreserveConstEnums(c.compilerOptions))
+    isInstantiatedModule(node, c.preserveConstEnums)
   ) {
     if (c.compilerOptions.erasableSyntaxOnly === true)
       c.error(node, Diagnostics.This_syntax_is_not_allowed_when_erasableSyntaxOnly_is_enabled);

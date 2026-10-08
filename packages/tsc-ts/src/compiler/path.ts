@@ -597,7 +597,7 @@ export function fileExtensionIs(path: string, extension: string): boolean {
 }
 
 export function fileExtensionIsOneOf(path: string, extensions: readonly string[]): boolean {
-  for (let i = 0; i < extensions.length; i++) if (fileExtensionIs(path, extensions[i])) return true;
+  for (let i = 0; i < extensions.length; i++) if (fileExtensionIs(path, extensions[i]!)) return true;
   return false;
 }
 
@@ -618,7 +618,7 @@ export function extensionIsTs(ext: string): boolean {
 /** Removes a known extension (including `.d.ts` forms). */
 export function removeFileExtension(path: string): string {
   for (let i = 0; i < extensionsToRemove.length; i++) {
-    const ext = extensionsToRemove[i];
+    const ext = extensionsToRemove[i]!;
     if (path.endsWith(ext)) return path.slice(0, path.length - ext.length);
   }
   return path;
@@ -660,7 +660,7 @@ export function hasJSFileExtension(path: string): boolean {
 export function getDeclarationFileExtension(fileName: string): string {
   const base = getBaseFileName(fileName);
   for (let i = 0; i < supportedDeclarationExtensions.length; i++) {
-    if (base.endsWith(supportedDeclarationExtensions[i])) return supportedDeclarationExtensions[i];
+    if (base.endsWith(supportedDeclarationExtensions[i]!)) return supportedDeclarationExtensions[i]!;
   }
   if (base.endsWith('.ts')) {
     const index = base.indexOf('.d.');

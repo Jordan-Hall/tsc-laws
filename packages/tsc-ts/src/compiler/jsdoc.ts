@@ -237,7 +237,7 @@ export class JSDocParser {
     // JSDoc diagnostics are reported separately, and only for JavaScript files.
     const diagnostics = p.diagnostics;
     if ((p.contextFlags & NodeFlags.JavaScriptFile) !== 0)
-      for (let i = saveDiagnosticsLength; i < diagnostics.length; i++) p.jsDocDiagnostics.push(diagnostics[i]);
+      for (let i = saveDiagnosticsLength; i < diagnostics.length; i++) p.jsDocDiagnostics.push(diagnostics[i]!);
     diagnostics.length = saveDiagnosticsLength;
 
     p.scanner.setTextEnd(text.length);
@@ -382,7 +382,7 @@ export class JSDocParser {
     if (commentsPos === -1) commentsPos = p.scanner.getTokenFullStart();
     const parts = comments.parts;
     if (parts.length > 0) {
-      parts[parts.length - 1] = trimEndUnicodeSpace(parts[parts.length - 1]);
+      parts[parts.length - 1] = trimEndUnicodeSpace(parts[parts.length - 1]!);
       const jsdocText = new JSDocText(parts.join(''));
       p.finishNodeWithEnd(jsdocText, linkEnd, commentsPos);
       commentParts.push(jsdocText);
@@ -998,7 +998,7 @@ export class JSDocParser {
           typeExpression = childTypeTag.typeExpression;
         } else {
           // This differs from Strada but prevents a crash.
-          const pos = jsdocPropertyTags.length > 0 ? jsdocPropertyTags[0].pos : start;
+          const pos = jsdocPropertyTags.length > 0 ? jsdocPropertyTags[0]!.pos : start;
           typeExpression = p.finishNode(jsdocTypeLiteral, pos);
         }
         end = typeExpression!.end;
@@ -1287,7 +1287,7 @@ function nextTokenIsIdentifierOrKeyword(p: Parser): boolean {
 /** Removes leading strings made only of line breaks. */
 function removeLeadingNewlines(comments: string[]): void {
   let i = 0;
-  while (i < comments.length && isOnlyLineBreaks(comments[i])) i++;
+  while (i < comments.length && isOnlyLineBreaks(comments[i]!)) i++;
   if (i > 0) comments.splice(0, i);
 }
 
@@ -1303,7 +1303,7 @@ function isOnlyLineBreaks(s: string): boolean {
 function removeTrailingWhitespace(comments: string[]): void {
   let end = comments.length;
   for (let i = comments.length - 1; i >= 0; i--) {
-    const trimmed = trimEndWhiteSpaceLike(comments[i]);
+    const trimmed = trimEndWhiteSpaceLike(comments[i]!);
     if (trimmed === '') {
       end = i;
     } else {

@@ -456,8 +456,8 @@ function getLowerBoundOfKeyType(c: Checker, t: Type): Type {
     // Keep `string & {}` and friends, which prevent subtype reduction.
     if (
       types.length === 2 &&
-      (types[0].flags & (TypeFlags.String | TypeFlags.Number | TypeFlags.BigInt)) !== 0 &&
-      types[1] === c.emptyTypeLiteralType
+      (types[0]!.flags & (TypeFlags.String | TypeFlags.Number | TypeFlags.BigInt)) !== 0 &&
+      types[1]! === c.emptyTypeLiteralType
     )
       return t;
     return getIntersectionType(
@@ -522,7 +522,7 @@ export function getIndexedAccessTypeOrUndefinedEx(
     isTypeAssignableToKind(c, indexType, TypeFlags.String | TypeFlags.Number)
   )
     indexType = c.stringType;
-  if (c.compilerOptions.noUncheckedIndexedAccess === true && (accessFlags & AccessFlags.ExpressionPosition) !== 0)
+  if (c.noUncheckedIndexedAccess && (accessFlags & AccessFlags.ExpressionPosition) !== 0)
     accessFlags |= AccessFlags.IncludeUndefined;
   // Generic index or object types defer to an indexed access type.
   if (shouldDeferIndexedAccessType(c, objectType, indexType, accessNode)) {
@@ -957,7 +957,7 @@ function isConstEnumObjectType(t: Type): boolean {
 }
 
 function containsMissing(c: Checker, t: Type): boolean {
-  return t === c.missingType || ((t.flags & TypeFlags.Union) !== 0 && typesOf(t)[0] === c.missingType);
+  return t === c.missingType || ((t.flags & TypeFlags.Union) !== 0 && typesOf(t)[0]! === c.missingType);
 }
 
 function getIndexNodeForAccessExpression(accessNode: Node): Node {
@@ -1001,8 +1001,8 @@ export function getElementTypeOfSliceOfTupleType(
   const typeArguments = getTypeArguments(c, t);
   const elementTypes: Type[] = [];
   for (let i = index; i < length; i++) {
-    const e = typeArguments[i];
-    elementTypes.push((infos[i].flags & ElementFlags.Variadic) !== 0 ? getIndexedAccessType(c, e, c.numberType) : e);
+    const e = typeArguments[i]!;
+    elementTypes.push((infos[i]!.flags & ElementFlags.Variadic) !== 0 ? getIndexedAccessType(c, e, c.numberType) : e);
   }
   if (writing) return getIntersectionType(c, elementTypes);
   return getUnionTypeEx(
@@ -1252,8 +1252,8 @@ function applyTemplateStringMapping(c: Checker, symbol: Symbol, texts: string[],
   if (kind === IntrinsicTypeKind.Uppercase || kind === IntrinsicTypeKind.Lowercase)
     return [texts.map((t) => applyStringMapping(symbol, t)), types.map((t) => getStringMappingType(c, symbol, t))];
   if (kind === IntrinsicTypeKind.Capitalize || kind === IntrinsicTypeKind.Uncapitalize) {
-    if (texts[0] === '') return [texts, [getStringMappingType(c, symbol, types[0])].concat(types.slice(1))];
-    return [[applyStringMapping(symbol, texts[0])].concat(texts.slice(1)), types];
+    if (texts[0]! === '') return [texts, [getStringMappingType(c, symbol, types[0]!)].concat(types.slice(1))];
+    return [[applyStringMapping(symbol, texts[0]!)].concat(texts.slice(1)), types];
   }
   return [texts, types];
 }
@@ -1641,7 +1641,7 @@ function instantiateMappedTupleType(
   const newElementTypes: Type[] = [];
   const newInfos = infos.slice();
   for (let i = 0; i < elementTypes.length; i++) {
-    const flags = infos[i].flags;
+    const flags = infos[i]!.flags;
     let mapped: Type;
     if (i < fixedLength)
       mapped = instantiateMappedTypeTemplate(
@@ -1652,7 +1652,7 @@ function instantiateMappedTupleType(
         fixedMapper,
       );
     else if ((flags & ElementFlags.Variadic) !== 0)
-      mapped = instantiateType(c, mappedType, prependTypeMapping(typeVariable, elementTypes[i], mapper));
+      mapped = instantiateType(c, mappedType, prependTypeMapping(typeVariable, elementTypes[i]!, mapper));
     else
       mapped =
         getElementTypeOfArrayType(
@@ -1660,13 +1660,13 @@ function instantiateMappedTupleType(
           instantiateType(
             c,
             mappedType,
-            prependTypeMapping(typeVariable, createArrayTypeEx(c, elementTypes[i], false), mapper),
+            prependTypeMapping(typeVariable, createArrayTypeEx(c, elementTypes[i]!, false), mapper),
           ),
         ) ?? c.unknownType;
     if ((modifiers & MappedTypeModifiers.IncludeOptional) !== 0) {
-      if ((flags & ElementFlags.Required) !== 0) newInfos[i] = withFlags(newInfos[i], ElementFlags.Optional);
+      if ((flags & ElementFlags.Required) !== 0) newInfos[i] = withFlags(newInfos[i]!, ElementFlags.Optional);
     } else if ((modifiers & MappedTypeModifiers.ExcludeOptional) !== 0) {
-      if ((flags & ElementFlags.Optional) !== 0) newInfos[i] = withFlags(newInfos[i], ElementFlags.Required);
+      if ((flags & ElementFlags.Optional) !== 0) newInfos[i] = withFlags(newInfos[i]!, ElementFlags.Required);
     }
     newElementTypes.push(mapped);
   }
@@ -2051,7 +2051,7 @@ export function isTypeMatchedByTemplateLiteralType(
   if (inferences === undefined) return false;
   const compare = compareTypes ?? ((s: Type, t: Type) => isTypeAssignableTo(c, s, t));
   for (let i = 0; i < inferences.length; i++)
-    if (!isValidTypeForTemplateLiteralPlaceholder(c, inferences[i], target.types[i], compare)) return false;
+    if (!isValidTypeForTemplateLiteralPlaceholder(c, inferences[i]!, target.types[i]!, compare)) return false;
   return true;
 }
 
@@ -2082,9 +2082,9 @@ function isValidTypeForTemplateLiteralPlaceholder(
     const texts = (source as TemplateLiteralType).texts;
     return (
       texts.length === 2 &&
-      texts[0] === '' &&
-      texts[1] === '' &&
-      compare((source as TemplateLiteralType).types[0], target)
+      texts[0]! === '' &&
+      texts[1]! === '' &&
+      compare((source as TemplateLiteralType).types[0]!, target)
     );
   }
   return false;
@@ -2105,7 +2105,7 @@ export function isMemberOfStringMapping(c: Checker, source: Type, target: Type):
       inner = (inner as StringMappingType).target;
     }
     let mapped = source;
-    for (let i = mappings.length - 1; i >= 0; i--) mapped = getStringMappingType(c, mappings[i], mapped);
+    for (let i = mappings.length - 1; i >= 0; i--) mapped = getStringMappingType(c, mappings[i]!, mapped);
     return mapped === source && isMemberOfStringMapping(c, source, inner);
   }
   return false;

@@ -189,7 +189,7 @@ export function getExtendsHeritageClauseElements(node: Node): Node[] {
 
 export function getExtendsHeritageClauseElement(node: Node): Node | undefined {
   const elements = getExtendsHeritageClauseElements(node);
-  return elements.length !== 0 ? elements[0] : undefined;
+  return elements.length !== 0 ? elements[0]! : undefined;
 }
 
 export function getClassLikeDeclarationOfSymbol(symbol: Symbol): Node | undefined {
@@ -519,9 +519,9 @@ function getTupleBaseType(c: Checker, t: TupleType): Type {
   const elementTypes: Type[] = [];
   for (let i = 0; i < typeParameters.length; i++)
     elementTypes.push(
-      (t.elementInfos[i].flags & ElementFlags.Variadic) !== 0
-        ? getIndexedAccessType(c, typeParameters[i], c.numberType)
-        : typeParameters[i],
+      (t.elementInfos[i]!.flags & ElementFlags.Variadic) !== 0
+        ? getIndexedAccessType(c, typeParameters[i]!, c.numberType)
+        : typeParameters[i]!,
     );
   return createArrayTypeEx(c, getUnionType(c, elementTypes), t.readonly);
 }
@@ -552,7 +552,7 @@ function resolveBaseTypesOfClass(c: Checker, t: InterfaceType): void {
       c.error(getExpression(baseTypeNode), Diagnostics.No_base_constructor_has_the_specified_number_of_type_arguments);
       return;
     }
-    baseType = getReturnTypeOfSignature(c, constructors[0]);
+    baseType = getReturnTypeOfSignature(c, constructors[0]!);
   }
   if (isErrorType(c, baseType)) return;
   const reducedBaseType = getReducedType(c, baseType);
@@ -624,7 +624,7 @@ function areAllOuterTypeParametersApplied(c: Checker, t: Type): boolean {
   const outer = (t as InterfaceType).outerTypeParameters();
   if (outer.length === 0) return true;
   const last = outer.length - 1;
-  return outer[last].symbol !== getTypeArguments(c, t)[last].symbol;
+  return outer[last]!.symbol !== getTypeArguments(c, t)[last]!.symbol;
 }
 
 function reportCircularBaseType(c: Checker, node: Node, t: Type): void {
@@ -710,9 +710,9 @@ export function isConstructorType(c: Checker, t: Type): boolean {
 export function isMixinConstructorType(c: Checker, t: Type): boolean {
   const signatures = getSignaturesOfType(c, t, SignatureKind.Construct);
   if (signatures.length !== 1) return false;
-  const s = signatures[0];
+  const s = signatures[0]!;
   if (s.typeParameters.length !== 0 || s.parameters.length !== 1 || !s.hasRestParameter()) return false;
-  const paramType = getTypeOfParameterLazy(c, s.parameters[0]);
+  const paramType = getTypeOfParameterLazy(c, s.parameters[0]!);
   return (paramType.flags & TypeFlags.Any) !== 0 || getElementTypeOfArrayType(c, paramType) === c.anyType;
 }
 
@@ -722,7 +722,7 @@ export function getElementTypeOfArrayType(c: Checker, t: Type): Type | undefined
   if ((t.objectFlags & ObjectFlags.Reference) === 0) return undefined;
   const target = (t as TypeReference).target;
   if (target !== c.globalArrayType && target !== c.globalReadonlyArrayType) return undefined;
-  return getTypeArguments(c, t)[0];
+  return getTypeArguments(c, t)[0]!;
 }
 
 // ---- Constraints and defaults
@@ -806,7 +806,7 @@ export function getDefaultOrUnknownFromTypeParameter(c: Checker, t: Type): Type 
 export function getMinTypeArgumentCount(c: Checker, typeParameters: readonly Type[]): number {
   let minTypeArgumentCount = 0;
   for (let i = 0; i < typeParameters.length; i++)
-    if (getDefaultFromTypeParameter(c, typeParameters[i]) === undefined) minTypeArgumentCount = i + 1;
+    if (getDefaultFromTypeParameter(c, typeParameters[i]!) === undefined) minTypeArgumentCount = i + 1;
   return minTypeArgumentCount;
 }
 
@@ -826,7 +826,7 @@ export function fillMissingTypeArguments(
   for (let i = numTypeArguments; i < numTypeParameters; i++) result.push(c.errorType);
   const baseDefaultType = isJavaScriptImplicitAny ? c.anyType : c.unknownType;
   for (let i = numTypeArguments; i < numTypeParameters; i++) {
-    const defaultType = getDefaultFromTypeParameter(c, typeParameters[i]);
+    const defaultType = getDefaultFromTypeParameter(c, typeParameters[i]!);
     result[i] =
       defaultType !== undefined
         ? instantiateType(c, defaultType, newTypeMapper(typeParameters as Type[], result))

@@ -533,11 +533,11 @@ export function getTypeOfPropertyInBaseClass(c: Checker, property: Symbol): Type
   const classType = getDeclaringClass(c, property);
   if (classType === undefined) return undefined;
   const baseClassTypes = getBaseTypes(c, classType);
-  return baseClassTypes.length > 0 ? getTypeOfPropertyOfType(c, baseClassTypes[0], property.name) : undefined;
+  return baseClassTypes.length > 0 ? getTypeOfPropertyOfType(c, baseClassTypes[0]!, property.name) : undefined;
 }
 
 function containsUndefinedType(t: Type): boolean {
-  const first = (t.flags & TypeFlags.Union) !== 0 ? typesOf(t)[0] : t;
+  const first = (t.flags & TypeFlags.Union) !== 0 ? typesOf(t)[0]! : t;
   return (first.flags & TypeFlags.Undefined) !== 0;
 }
 
@@ -578,13 +578,13 @@ export function isConstructorAccessible(c: Checker, node: Node, signature: Signa
 function typeHasProtectedAccessibleBase(c: Checker, target: Symbol, t: Type): boolean {
   const baseTypes = getBaseTypes(c, getTargetType(t));
   if (baseTypes.length === 0) return false;
-  const firstBase = baseTypes[0];
+  const firstBase = baseTypes[0]!;
   if ((firstBase.flags & TypeFlags.Intersection) !== 0) {
     const types = typesOf(firstBase);
     const mixinFlags = findMixins(c, types);
     for (let i = 0; i < types.length; i++) {
-      const member = types[i];
-      if (mixinFlags[i] || (member.objectFlags & (ObjectFlags.Class | ObjectFlags.Interface)) === 0) continue;
+      const member = types[i]!;
+      if (mixinFlags[i]! || (member.objectFlags & (ObjectFlags.Class | ObjectFlags.Interface)) === 0) continue;
       if (member.symbol === target || typeHasProtectedAccessibleBase(c, target, member)) return true;
     }
     return false;
@@ -599,9 +599,9 @@ function findMixins(c: Checker, types: Type[]): boolean[] {
   let mixinCount = 0;
   let firstMixinIndex = -1;
   for (let i = 0; i < types.length; i++) {
-    const isMixin = isMixinConstructorType(c, types[i]);
+    const isMixin = isMixinConstructorType(c, types[i]!);
     mixinFlags.push(isMixin);
-    if (getSignaturesOfType(c, types[i], SignatureKind.Construct).length > 0) constructorTypeCount++;
+    if (getSignaturesOfType(c, types[i]!, SignatureKind.Construct).length > 0) constructorTypeCount++;
     if (isMixin) {
       if (firstMixinIndex < 0) firstMixinIndex = i;
       mixinCount++;

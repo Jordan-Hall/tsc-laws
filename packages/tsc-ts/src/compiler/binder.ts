@@ -537,7 +537,7 @@ class Binder extends NodeVisitor {
     }
     const declarations = symbol.declarations;
     for (let index = 0; index < declarations.length; index++) {
-      const declaration = declarations[index];
+      const declaration = declarations[index]!;
       const decl = getNameOfDeclaration(declaration) ?? declaration;
       const d = this.createDiagnosticForNode(
         decl,
@@ -1318,8 +1318,8 @@ class Binder extends NodeVisitor {
 
   bindEachStatementFunctionsFirst(statements: NodeList): void {
     const nodes = statements.nodes;
-    for (let i = 0; i < nodes.length; i++) if (nodes[i].kind === SyntaxKind.FunctionDeclaration) this.bind(nodes[i]!);
-    for (let i = 0; i < nodes.length; i++) if (nodes[i].kind !== SyntaxKind.FunctionDeclaration) this.bind(nodes[i]!);
+    for (let i = 0; i < nodes.length; i++) if (nodes[i]!.kind === SyntaxKind.FunctionDeclaration) this.bind(nodes[i]!);
+    for (let i = 0; i < nodes.length; i++) if (nodes[i]!.kind !== SyntaxKind.FunctionDeclaration) this.bind(nodes[i]!);
   }
 
   // Flow graph
@@ -1387,7 +1387,7 @@ class Binder extends NodeVisitor {
   finishFlowLabel(label: FlowNode): FlowNode {
     const antecedents = label.antecedents;
     if (antecedents === undefined) return this.unreachableFlow;
-    if (antecedents.length === 1) return antecedents[0];
+    if (antecedents.length === 1) return antecedents[0]!;
     return label;
   }
 
@@ -1657,7 +1657,7 @@ class Binder extends NodeVisitor {
     let fallthroughFlow = this.unreachableFlow;
     for (let i = 0; i < clauses.length; i++) {
       const clauseStart = i;
-      while ((clauses[i] as CaseOrDefaultClause).statements.nodes.length === 0 && i + 1 < clauses.length) {
+      while ((clauses[i]! as CaseOrDefaultClause).statements.nodes.length === 0 && i + 1 < clauses.length) {
         if (fallthroughFlow === this.unreachableFlow) this.currentFlow = this.preSwitchCaseFlow!;
         this.bind(clauses[i]!);
         i++;
@@ -1669,7 +1669,7 @@ class Binder extends NodeVisitor {
       this.addAntecedent(preCaseLabel, preCaseFlow);
       this.addAntecedent(preCaseLabel, fallthroughFlow);
       this.currentFlow = this.finishFlowLabel(preCaseLabel);
-      const clause = clauses[i] as CaseOrDefaultClause;
+      const clause = clauses[i]! as CaseOrDefaultClause;
       this.bind(clause);
       fallthroughFlow = this.currentFlow;
       if ((this.currentFlow.flags & FlowFlags.Unreachable) === 0 && i !== clauses.length - 1)
@@ -2214,7 +2214,10 @@ class Binder extends NodeVisitor {
   }
 
   bindDeferredExpandoAssignment(node: Node): void {
-    const target = node instanceof BinaryExpression ? getExpression(node.left)! : getArguments(node)!.nodes[0];
+    const target =
+      node instanceof BinaryExpression
+        ? getExpression((node as BinaryExpression).left)!
+        : getArguments(node)!.nodes[0]!;
     const symbol = getInitializerSymbol(
       this.lookupEntity(target, this.blockScopeContainer) ?? this.lookupEntity(target, this.container),
     );

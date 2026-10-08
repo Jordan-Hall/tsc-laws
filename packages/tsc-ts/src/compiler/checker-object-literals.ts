@@ -287,7 +287,7 @@ function getObjectLiteralIndexInfo(c: Checker, isReadonly: boolean, properties: 
       (keyType === c.esSymbolType && isSymbolWithSymbolName(c, prop))
     ) {
       propTypes.push(getTypeOfSymbol(c, prop));
-      if (isSymbolWithComputedName(prop)) components.push(prop.declarations[0]);
+      if (isSymbolWithComputedName(prop)) components.push(prop.declarations[0]!);
     }
   }
   const unionType =
@@ -298,7 +298,7 @@ function getObjectLiteralIndexInfo(c: Checker, isReadonly: boolean, properties: 
 }
 
 function getFirstDeclarationName(symbol: Symbol): Node | undefined {
-  return symbol.declarations.length !== 0 ? getName(symbol.declarations[0]) : undefined;
+  return symbol.declarations.length !== 0 ? getName(symbol.declarations[0]!) : undefined;
 }
 
 function isSymbolWithSymbolName(c: Checker, symbol: Symbol): boolean {
@@ -397,7 +397,7 @@ export function getSpreadType(
     // `T & { a: string }` spread with `{ b: string }` merges into `T & { a: string, b: string }`.
     if ((left.flags & TypeFlags.Intersection) !== 0) {
       const types = typesOf(left);
-      const lastLeft = types[types.length - 1];
+      const lastLeft = types[types.length - 1]!;
       if (isNonGenericObjectType(c, lastLeft) && isNonGenericObjectType(c, right)) {
         const newTypes = types.slice();
         newTypes[newTypes.length - 1] = getSpreadType(c, lastLeft, right, symbol, objectFlags, readonly);
@@ -457,7 +457,7 @@ function getIndexInfoWithReadonly(info: IndexInfo, readonly: boolean): IndexInfo
 
 function getUnionIndexInfos(c: Checker, types: Type[]): IndexInfo[] {
   const result: IndexInfo[] = [];
-  for (const info of getIndexInfosOfType(c, types[0])) {
+  for (const info of getIndexInfosOfType(c, types[0]!)) {
     const indexType = info.keyType;
     if (!types.every((t) => getIndexInfoOfType(c, t, indexType) !== undefined)) continue;
     const valueTypes: Type[] = [];

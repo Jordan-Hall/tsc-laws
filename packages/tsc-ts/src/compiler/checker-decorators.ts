@@ -468,7 +468,7 @@ function newFunctionTypeWithThis(c: Checker, thisParameter: Symbol, parameters: 
 function getThisParameter(signature: Node): Node | undefined {
   const parameters = getParameters(signature);
   if (parameters === undefined || parameters.nodes.length === 0) return undefined;
-  const first = parameters.nodes[0];
+  const first = parameters.nodes[0]!;
   const name = getName(first);
   return name !== undefined && name.kind === SyntaxKind.Identifier && getText(name) === 'this' ? first : undefined;
 }

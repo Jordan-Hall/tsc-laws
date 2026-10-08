@@ -185,7 +185,7 @@ function contextuallyCheckFunctionExpressionOrObjectLiteralMethod(c: Checker, no
   if (symbol === undefined) return;
   const signatures = getSignaturesOfType(c, getTypeOfSymbol(c, symbol), SignatureKind.Call);
   if (signatures.length === 0) return;
-  const signature = signatures[0];
+  const signature = signatures[0]!;
   if (isContextSensitive(c, node)) {
     if (contextualSignature !== undefined) {
       const inferenceContext = getInferenceContext(c, node);
@@ -231,7 +231,7 @@ function inferFromAnnotatedParametersAndReturn(
 ): void {
   const length = sig.parameters.length - (sig.hasRestParameter() ? 1 : 0);
   for (let i = 0; i < length; i++) {
-    const declaration = sig.parameters[i].valueDeclaration;
+    const declaration = sig.parameters[i]!.valueDeclaration;
     const typeNode = declaration !== undefined ? getType(declaration) : undefined;
     if (typeNode !== undefined) {
       const source = addOptionality(c, getTypeFromTypeNode(c, typeNode), false, isOptionalDeclaration(declaration!));
@@ -276,7 +276,7 @@ function assignContextualParameterTypes(c: Checker, sig: Signature, context: Sig
   }
   const length = sig.parameters.length - (sig.hasRestParameter() ? 1 : 0);
   for (let i = 0; i < length; i++) {
-    const parameter = sig.parameters[i];
+    const parameter = sig.parameters[i]!;
     const declaration = parameter.valueDeclaration;
     if (declaration === undefined || getType(declaration) !== undefined) continue;
     let t = tryGetTypeAtPosition(c, context, i);
@@ -290,7 +290,7 @@ function assignContextualParameterTypes(c: Checker, sig: Signature, context: Sig
     assignParameterSymbolType(c, parameter, t);
   }
   if (sig.hasRestParameter()) {
-    const parameter = sig.parameters[sig.parameters.length - 1];
+    const parameter = sig.parameters[sig.parameters.length - 1]!;
     const declaration = parameter.valueDeclaration;
     if (declaration !== undefined && getType(declaration) === undefined)
       assignParameterSymbolType(c, parameter, getRestTypeAtPosition(c, context, length, false));
@@ -1073,7 +1073,7 @@ function checkAndAggregateYieldOperandTypes(c: Checker, func: Node, checkMode: C
             isAsync ? IterationUse.AsyncYieldStar : IterationUse.YieldStar,
             operand,
           ).nextType
-        : getContextualType(c, yieldExpr);
+        : getContextualType(c, yieldExpr!);
     if (nextType !== undefined && !result.nextTypes.includes(nextType)) result.nextTypes.push(nextType);
   }
   return result;

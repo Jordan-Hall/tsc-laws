@@ -130,7 +130,7 @@ function jsxEmit(value: string): JsxEmit | undefined {
 function createJsxOptions(text: string): CompilerOptions {
   const options = createOptions();
   for (const m of text.matchAll(/^[ \t]*\/\/[ \t]*@(\w+)[ \t]*:([^\r\n]*)/gim)) {
-    const value = m[2].split(',')[0].trim();
+    const value = m[2].split(',')[0]!.trim();
     switch (m[1].toLowerCase()) {
       case 'jsx':
         options.jsx = jsxEmit(value.toLowerCase());
@@ -161,7 +161,7 @@ function isCheckedJS(text: string): boolean {
         units++;
         break;
       case 'checkjs':
-        checkJs = value.split(',')[0].trim().toLowerCase() === 'true';
+        checkJs = value.split(',')[0]!.trim().toLowerCase() === 'true';
         break;
     }
   }
@@ -244,9 +244,9 @@ function format(diagnostics: Diagnostic[], input: string, text: string, out: str
 
 function main(): void {
   const args = process.argv.slice(2);
-  const path = args[0];
-  const libDir = args[1];
-  const mode = args.length > 2 ? args[2] : '';
+  const path = args[0]!;
+  const libDir = args[1]!;
+  const mode = args.length > 2 ? args[2]! : '';
   const options = createOptions();
   const loader = new LibLoader(libDir, options);
   const out: string[] = [];

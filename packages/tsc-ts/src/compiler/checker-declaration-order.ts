@@ -136,7 +136,7 @@ function isPropertyDeclaredInAncestorClass(c: Checker, prop: Symbol): boolean {
   if (parent === undefined || (parent.flags & SymbolFlags.Class) === 0) return false;
   const baseTypes = getBaseTypes(c, getDeclaredTypeOfSymbol(c, parent));
   if (baseTypes.length === 0) return false;
-  const superProperty = getPropertyOfType(c, baseTypes[0], prop.name);
+  const superProperty = getPropertyOfType(c, baseTypes[0]!, prop.name);
   return superProperty !== undefined && superProperty.valueDeclaration !== undefined;
 }
 

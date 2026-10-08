@@ -563,7 +563,7 @@ class RegularExpressionChecker {
       );
     } else {
       if (this.namedCapturingGroups.length > 0)
-        this.namedCapturingGroups[this.namedCapturingGroups.length - 1].add(name);
+        this.namedCapturingGroups[this.namedCapturingGroups.length - 1]!.add(name);
       this.groupSpecifiers.add(name);
     }
   }

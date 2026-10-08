@@ -332,14 +332,14 @@ export class Reparser {
     if (signatureParameters !== undefined) {
       const params = signatureParameters.nodes;
       for (let pi = 0; pi < params.length; pi++) {
-        const param = params[pi];
+        const param = params[pi]!;
         let parameter: ParameterDeclaration;
         if (param instanceof JSDocThisTag) {
           const thisIdent = new Identifier('this');
           thisIdent.pos = param.pos;
           thisIdent.end = param.end;
           thisIdent.flags = p.contextFlags | NodeFlags.Reparsed;
-          const type = this.addDeepCloneReparse(getType(param.typeExpression)!);
+          const type = this.addDeepCloneReparse(getType((param as JSDocThisTag).typeExpression)!);
           parameter = new ParameterDeclaration(undefined, undefined, thisIdent, undefined, type, undefined);
         } else if (param instanceof JSDocParameterOrPropertyTag) {
           // Sub-properties like `@param x.y` describe a parameter's properties, not parameters.
@@ -556,8 +556,9 @@ export class Reparser {
         if (fun !== undefined && getFullSignature(fun) === undefined && tag instanceof JSDocParameterOrPropertyTag) {
           const param = findMatchingParameter(fun, tag, jsDoc);
           if (param !== undefined) {
-            if (param.type === undefined && tag.typeExpression !== undefined)
-              param.type = this.reparseJSDocTypeLiteral(getType(tag.typeExpression)!);
+            const typeExpression = (tag as JSDocParameterOrPropertyTag).typeExpression;
+            if (param.type === undefined && typeExpression !== undefined)
+              param.type = this.reparseJSDocTypeLiteral(getType(typeExpression)!);
             if (param.questionToken === undefined) {
               const question = this.makeQuestionIfOptional(tag);
               if (question !== undefined) param.questionToken = question;
@@ -588,7 +589,7 @@ export class Reparser {
               undefined,
               undefined,
             );
-            thisParam.type = this.addDeepCloneReparse(getType(tag.typeExpression)!);
+            thisParam.type = this.addDeepCloneReparse(getType((tag as JSDocThisTag).typeExpression)!);
             this.finishReparsedNode(thisParam, tag.tagName);
             const newParams: Node[] = [thisParam];
             for (const param of params) newParams.push(param);
@@ -845,7 +846,7 @@ export class Reparser {
     for (const clause of heritageClauses.nodes) {
       if (!(clause instanceof HeritageClause) || clause.token !== SyntaxKind.ExtendsKeyword) continue;
       if (clause.types.nodes.length !== 1) return false;
-      const target = clause.types.nodes[0];
+      const target = clause.types.nodes[0]!;
       const source = tag.className;
       if (
         target instanceof ExpressionWithTypeArguments &&
@@ -985,7 +986,7 @@ function getFunctionLikeHost(host: Node): Node | undefined {
   if (host instanceof VariableStatement) {
     const nodes = host.declarationList.declarations.nodes;
     if (nodes.length !== 0) {
-      const first = nodes[0];
+      const first = nodes[0]!;
       fun = first instanceof VariableDeclaration ? first.initializer : undefined;
     }
   } else if (host.kind === SyntaxKind.PropertyAssignment || host.kind === SyntaxKind.PropertyDeclaration) {
