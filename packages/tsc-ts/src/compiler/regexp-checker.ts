@@ -7,7 +7,7 @@ import {
   isIdentifierPart,
   isWordCharacter,
 } from './character-codes.js';
-import * as Diagnostics from './diagnostic-messages.js';
+import { Diagnostics } from './diagnostic-messages.js';
 import type { DiagnosticMessage } from './diagnostics.js';
 import type { Scanner } from './scanner.js';
 import { getSpellingSuggestion } from './spelling.js';

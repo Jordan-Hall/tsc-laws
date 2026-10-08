@@ -1,6 +1,6 @@
-// Generates SyntaxKind, the Unicode identifier tables and the diagnostic messages
-// used by src/compiler from the pinned typescript-go sources.
-import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
+// Generates SyntaxKind and the Unicode identifier tables used by src/compiler from
+// the pinned typescript-go sources. Diagnostic messages come from generate-diagnostics.mjs.
+import { readFileSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { join, resolve } from 'node:path';
 
@@ -66,52 +66,9 @@ ${rangeTable(source, 'unicodeESNextIdentifierPart')}
 `;
 }
 
-const categories = {
-  CategoryWarning: 'Warning',
-  CategoryError: 'Error',
-  CategorySuggestion: 'Suggestion',
-  CategoryMessage: 'Message',
-};
-
-// Emits every message referenced as `Diagnostics.Name` under src/.
-function diagnosticMessages() {
-  const used = new Set();
-  const visit = (dir) => {
-    for (const entry of readdirSync(dir, { withFileTypes: true })) {
-      const path = join(dir, entry.name);
-      if (entry.isDirectory()) visit(path);
-      else if (entry.name.endsWith('.ts'))
-        for (const [, name] of readFileSync(path, 'utf8').matchAll(/\bDiagnostics\.(\w+)/g)) used.add(name);
-    }
-  };
-  visit(join(root, 'src'));
-  const source = readFileSync(join(upstream, 'diagnostics/diagnostics_generated.go'), 'utf8');
-  const messages = new Map();
-  for (const [, name, fields] of source.matchAll(/^var (\w+) = &Message\{(.*)\}$/gm)) messages.set(name, fields);
-  const lines = [];
-  for (const name of [...used].sort()) {
-    const fields = messages.get(name);
-    if (fields === undefined) throw new Error(`unknown diagnostic message ${name}`);
-    const code = /code: (\d+)/.exec(fields)[1];
-    const category = categories[/category: (\w+)/.exec(fields)[1]];
-    const key = /key: ("(?:[^"\\]|\\.)*")/.exec(fields)[1];
-    const text = /text: ("(?:[^"\\]|\\.)*")/.exec(fields)[1];
-    const options = ['reportsUnnecessary', 'elidedInCompatibilityPyramid', 'reportsDeprecated'].map((option) =>
-      fields.includes(`${option}: true`),
-    );
-    while (options.length > 0 && !options[options.length - 1]) options.pop();
-    const extra = options.map((option) => `, ${option}`).join('');
-    lines.push(
-      `export const ${name}: DiagnosticMessage = new DiagnosticMessage(${code}, DiagnosticCategory.${category}, ${key}, ${text}${extra});`,
-    );
-  }
-  return `${header}import { DiagnosticCategory, DiagnosticMessage } from './diagnostics.js';\n\n${lines.join('\n')}\n`;
-}
-
 const files = {
   'syntax-kind.ts': syntaxKind(),
   'unicode-identifiers.ts': unicodeIdentifiers(),
-  'diagnostic-messages.ts': diagnosticMessages(),
 };
 for (const [name, text] of Object.entries(files)) writeFileSync(join(out, name), text);
 execFileSync(

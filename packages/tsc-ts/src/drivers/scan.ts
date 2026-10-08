@@ -3,7 +3,7 @@
 // [--target N] [--rescan] [--jsdoc]
 import { readFileSync } from 'node:fs';
 import { performance } from 'node:perf_hooks';
-import type { DiagnosticMessage } from '../compiler/diagnostics.js';
+import { messageCode, type DiagnosticMessage } from '../compiler/diagnostics.js';
 import {
   Scanner,
   ScannerErrorReporter,
@@ -91,7 +91,7 @@ class Printer extends ScannerErrorReporter {
   }
 
   onError(message: DiagnosticMessage, start: number, length: number, args: readonly string[]): void {
-    let line = `! ${message.code} ${this.byte(start)} ${this.byte(start + length) - this.byte(start)}`;
+    let line = `! ${messageCode(message)} ${this.byte(start)} ${this.byte(start + length) - this.byte(start)}`;
     for (const arg of args) line += ' ' + quote(arg);
     out.push(line);
   }

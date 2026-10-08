@@ -13,7 +13,7 @@ import {
   isWhiteSpaceSingleLine,
   isWordCharacter,
 } from './character-codes.js';
-import * as Diagnostics from './diagnostic-messages.js';
+import { Diagnostics } from './diagnostic-messages.js';
 import type { DiagnosticMessage } from './diagnostics.js';
 import { parsePseudoBigInt } from './pseudo-bigint.js';
 import {
