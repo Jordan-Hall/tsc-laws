@@ -4,12 +4,12 @@ An experimental TypeScript port of the TypeScript 7.0.2 compiler ([TypeScript-Go
 
 ## Packages
 
-| Package                                | Description                                                             |
-| -------------------------------------- | ----------------------------------------------------------------------- |
-| [`packages/tsc-ts`](packages/tsc-ts)   | The `tsc-ts` command line and its `--api` server.                       |
-| [`packages/tsgo`](packages/tsgo)       | tsgo's scanner, parser, binder, and checker, translated to TypeScript.  |
-| [`packages/gots`](packages/gots)       | Go-to-TypeScript translator that generates `packages/tsgo/src/tsgo`.    |
-| [`packages/relater`](packages/relater) | Hand-ported assignability checker over a type graph exported from tsgo. |
+| Package                                | Description                                                                             |
+| -------------------------------------- | --------------------------------------------------------------------------------------- |
+| [`packages/tsc-ts`](packages/tsc-ts)   | The compiler, written in TypeScript, with the `tsc-ts` command line and `--api` server. |
+| [`packages/tsgo`](packages/tsgo)       | tsgo's scanner, parser, binder, and checker, translated to TypeScript.                  |
+| [`packages/gots`](packages/gots)       | Go-to-TypeScript translator that generates `packages/tsgo/src/tsgo`.                    |
+| [`packages/relater`](packages/relater) | Hand-ported assignability checker over a type graph exported from tsgo.                 |
 
 Tasks run with [Turborepo](https://turborepo.com).
 
@@ -29,6 +29,25 @@ npm run build:oracle     # tsgo reference builds in packages/*/dist
 ```
 
 `package.json` pins scriptc `0.2.6`. The build fails with any other version.
+
+## Compiler
+
+`packages/tsc-ts/src/compiler` is the compiler, ported from tsgo 7.0.2 as idiomatic TypeScript. Each part is compared with tsgo on TypeScript's test corpus (about 12,500 files, 17,000 units after splitting multi-file cases):
+
+| Part                         | Compared with tsgo                                  | Status                           |
+| ---------------------------- | --------------------------------------------------- | -------------------------------- |
+| Scanner                      | tokens, values, errors, rescans, JSDoc              | all files match                  |
+| Parser and AST               | tree, diagnostics, API source file encoding         | all units match                  |
+| Binder                       | symbols, tables, flow graph, name resolution        | all units match                  |
+| Module resolution            | results, package IDs, `--traceResolution`           | all requests match               |
+| `tsconfig.json` and programs | `--showConfig`, `--listFilesOnly`, `--explainFiles` | all cases match                  |
+| Command line and options     | output, errors, exit codes, `--locale`              | all cases match                  |
+| Diagnostics catalog          | messages, 13 translations, output formats           | all match                        |
+| JavaScript emit              | emitted files byte for byte, 12 option sets         | all compared units match         |
+| Declaration emit             | `.d.ts` and `.d.ts.map` byte for byte               | 99% of units with explicit types |
+| Type checker                 | diagnostics per file                                | in progress (59% of files match) |
+
+The corpus scripts are in `packages/tsc-ts/scripts` (`*-corpus.mjs`).
 
 ## API server
 
