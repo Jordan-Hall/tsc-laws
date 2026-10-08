@@ -1410,7 +1410,7 @@ class Encoder extends NodeVisitor {
     this.prevIndex = 0;
     this.parentIndex = index;
     const nodes = list.nodes;
-    for (let i = 0; i < nodes.length; i++) this.visitNode(nodes[i]);
+    for (let i = 0; i < nodes.length; i++) this.visitNode(nodes[i]!);
     this.prevIndex = index;
     this.parentIndex = saveParent;
     return false;
@@ -1430,7 +1430,7 @@ class Encoder extends NodeVisitor {
       if (node.comment !== undefined) this.visitList(node.comment);
     } else node.forEachChild(this);
     const jsDoc = getJSDoc(this.file, node);
-    for (let i = 0; i < jsDoc.length; i++) this.visitNode(jsDoc[i]);
+    for (let i = 0; i < jsDoc.length; i++) this.visitNode(jsDoc[i]!);
     return false;
   }
 

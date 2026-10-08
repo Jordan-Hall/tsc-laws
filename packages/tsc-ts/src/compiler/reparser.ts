@@ -572,7 +572,7 @@ export class Reparser {
         if (fun !== undefined && tag instanceof JSDocThisTag) {
           const parameters = getParameters(fun);
           const params = parameters !== undefined ? parameters.nodes : [];
-          const firstName = params.length > 0 ? getName(params[0]) : undefined;
+          const firstName = params.length > 0 ? getName(params[0]!) : undefined;
           if (
             params.length === 0 ||
             (firstName !== undefined &&

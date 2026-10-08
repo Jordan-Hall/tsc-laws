@@ -320,7 +320,7 @@ function compareChainContent(a: readonly Diagnostic[], b: readonly Diagnostic[])
 function compareRelatedInfo(a: readonly Diagnostic[], b: readonly Diagnostic[]): number {
   if (a.length !== b.length) return b.length - a.length;
   for (let i = 0; i < a.length; i++) {
-    const c = compareDiagnostics(a[i], b[i]);
+    const c = compareDiagnostics(a[i]!, b[i]!);
     if (c !== 0) return c;
   }
   return 0;
@@ -374,7 +374,7 @@ export function equalDiagnostics(a: Diagnostic, b: Diagnostic): boolean {
   if (!equalDiagnosticsNoRelatedInfo(a, b)) return false;
   if (a.relatedInformation.length !== b.relatedInformation.length) return false;
   for (let i = 0; i < a.relatedInformation.length; i++) {
-    if (!equalDiagnostics(a.relatedInformation[i], b.relatedInformation[i])) return false;
+    if (!equalDiagnostics(a.relatedInformation[i]!, b.relatedInformation[i]!)) return false;
   }
   return true;
 }
@@ -558,7 +558,7 @@ export function formatDiagnosticsWithColorAndContext(
   let result = '';
   for (let i = 0; i < diagnostics.length; i++) {
     if (i > 0) result += options.newLine;
-    result += formatDiagnosticWithColorAndContext(diagnostics[i], options);
+    result += formatDiagnosticWithColorAndContext(diagnostics[i]!, options);
   }
   return result;
 }

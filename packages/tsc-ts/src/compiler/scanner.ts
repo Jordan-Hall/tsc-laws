@@ -435,17 +435,17 @@ export class Scanner {
 
   /** @internal Current position; the end of the current token. */
   pos: number;
-  private fullStartPos: number;
+  /** @internal */ fullStartPos: number;
   /** @internal */ tokenStart: number;
-  private token: SyntaxKind;
+  /** @internal */ token: SyntaxKind;
   /** @internal */ tokenFlags: TokenFlags;
   // The token value is `text[valueStart, valueEnd)` while `valueStart >= 0`,
   // so identifiers and keywords don't allocate until their value is read.
-  private tokenValue: string;
-  private valueStart: number;
-  private valueEnd: number;
-  private commentDirectives: CommentDirective[];
-  private skipJSDocLeadingAsterisks: number;
+  /** @internal */ tokenValue: string;
+  /** @internal */ valueStart: number;
+  /** @internal */ valueEnd: number;
+  /** @internal */ commentDirectives: CommentDirective[];
+  /** @internal */ skipJSDocLeadingAsterisks: number;
   // The code units zeroed by `setTextEnd`.
   private readonly cutUnits: Uint16Array;
 

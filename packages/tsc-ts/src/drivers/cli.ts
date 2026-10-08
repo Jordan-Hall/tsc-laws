@@ -8,6 +8,7 @@ import { dirname } from 'node:path';
 import { DirectoryEntries } from '../compiler/file-system.js';
 import { normalizePath } from '../compiler/path.js';
 import { ExitStatus, System, executeCommandLine } from '../compiler/tsc-cli.js';
+import './lowering.js';
 
 const bundledPrefix = 'bundled:///libs/';
 
@@ -150,10 +151,8 @@ const sys = new NodeSystem(
   bundledLibs,
 );
 const result = executeCommandLine(sys, process.argv.slice(2));
-if (result.kind === 'exit') {
-  process.exitCode = result.status;
-} else {
-  const stage = result.kind === 'compile' ? 'checking and emit' : result.kind;
-  process.stderr.write(`tsc-ts: ${stage} is not implemented yet\n`);
-  process.exitCode = ExitStatus.NotImplemented;
-}
+// Exit without tearing down the program: process.exit skips the final cycle collection.
+if (result.kind === 'exit') process.exit(result.status);
+const stage = result.kind === 'compile' ? 'checking and emit' : result.kind;
+process.stderr.write(`tsc-ts: ${stage} is not implemented yet\n`);
+process.exit(ExitStatus.NotImplemented);

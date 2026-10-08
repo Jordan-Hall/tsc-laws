@@ -605,8 +605,8 @@ export function isBindableObjectDefinePropertyCall(node: Node): boolean {
     callee instanceof PropertyAccessExpression &&
     isIdentifierNamed(callee.expression, 'Object') &&
     getText(callee.name) === 'defineProperty' &&
-    isStringOrNumericLiteralLike(args[1]) &&
-    isBindableStaticNameExpression(args[0], true)
+    isStringOrNumericLiteralLike(args[1]!) &&
+    isBindableStaticNameExpression(args[0]!, true)
   );
 }
 
@@ -675,7 +675,7 @@ export function isVariableDeclarationInitializedToRequire(node: Node): boolean {
 function isRequireCallWithLiteral(node: Node): boolean {
   if (!(node instanceof CallExpression) || !isIdentifierNamed(node.expression, 'require')) return false;
   const args = node.arguments.nodes;
-  return args.length === 1 && isStringLiteralLike(args[0]);
+  return args.length === 1 && isStringLiteralLike(args[0]!);
 }
 
 /** A `@typedef` or `@callback` at the top level of a module. */

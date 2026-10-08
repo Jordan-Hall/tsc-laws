@@ -156,7 +156,7 @@ export abstract class NodeVisitor {
 
   visitList(list: NodeList): boolean {
     const nodes = list.nodes;
-    for (let i = 0; i < nodes.length; i++) if (this.visitNode(nodes[i])) return true;
+    for (let i = 0; i < nodes.length; i++) if (this.visitNode(nodes[i]!)) return true;
     return false;
   }
 
@@ -7232,8 +7232,8 @@ export class PatternAmbientModule {
 }
 
 function containsNonASCII(text: string): boolean {
-  for (let i = 0; i < text.length; i++) if (text.charCodeAt(i) >= 0x80) return true;
-  return false;
+  // Every non-ASCII code unit takes more than one UTF-8 byte; this avoids a charCodeAt per unit.
+  return Buffer.byteLength(text, 'utf8') !== text.length;
 }
 
 // Accessors for fields shared by several node classes.

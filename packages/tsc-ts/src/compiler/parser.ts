@@ -232,7 +232,7 @@ import { isDeclarationFileName, isExternalModuleNameRelative } from './path.js';
 import {
   Scanner,
   ScannerErrorReporter,
-  type ScannerState,
+  ScannerState,
   getLeadingCommentRanges,
   getViableKeywordSuggestions,
   skipTrivia,
@@ -321,8 +321,7 @@ export const enum JSDocScannerInfo {
 const noArgs: readonly string[] = [];
 
 /** Parser state saved by `mark` for speculative parsing. */
-export class ParserState {
-  readonly scannerState: ScannerState;
+export class ParserState extends ScannerState {
   readonly contextFlags: NodeFlags;
   diagnosticsLength: number;
   readonly jsDiagnosticsLength: number;
@@ -332,7 +331,7 @@ export class ParserState {
   readonly hasParseError: boolean;
 
   constructor(
-    scannerState: ScannerState,
+    scanner: Scanner,
     contextFlags: NodeFlags,
     diagnosticsLength: number,
     jsDiagnosticsLength: number,
@@ -341,7 +340,19 @@ export class ParserState {
     statementHasAwaitIdentifier: boolean,
     hasParseError: boolean,
   ) {
-    this.scannerState = scannerState;
+    // One object for the scanner and parser state: speculation is frequent.
+    super(
+      scanner.pos,
+      scanner.fullStartPos,
+      scanner.tokenStart,
+      scanner.token,
+      scanner.tokenFlags,
+      scanner.tokenValue,
+      scanner.valueStart,
+      scanner.valueEnd,
+      scanner.commentDirectives.length,
+      scanner.skipJSDocLeadingAsterisks,
+    );
     this.contextFlags = contextFlags;
     this.diagnosticsLength = diagnosticsLength;
     this.jsDiagnosticsLength = jsDiagnosticsLength;
@@ -555,7 +566,7 @@ export class Parser extends ScannerErrorReporter {
 
   mark(): ParserState {
     return new ParserState(
-      this.scanner.mark(),
+      this.scanner,
       this.contextFlags,
       this.diagnostics.length,
       this.jsDiagnostics.length,
@@ -567,7 +578,7 @@ export class Parser extends ScannerErrorReporter {
   }
 
   rewind(state: ParserState): void {
-    this.scanner.rewind(state.scannerState);
+    this.scanner.rewind(state);
     this.currentToken = this.scanner.getToken();
     this.contextFlags = state.contextFlags;
     // Truncate only when needed: setting an array's length is not free.
@@ -7325,7 +7336,7 @@ function collectDynamicImportOrRequireCalls(file: SourceFile): void {
       node instanceof CallExpression &&
       isImportCall(node) &&
       node.arguments.nodes.length > 0 &&
-      isStringLiteralLike(node.arguments.nodes[0])
+      isStringLiteralLike(node.arguments.nodes[0]!)
     ) {
       file.imports.push(node.arguments.nodes[0]);
     } else if (node instanceof ImportTypeNode) {

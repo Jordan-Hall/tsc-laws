@@ -1294,13 +1294,13 @@ class Binder extends NodeVisitor {
   bindNodes(list: NodeList | undefined): void {
     if (list === undefined) return;
     const nodes = list.nodes;
-    for (let i = 0; i < nodes.length; i++) this.bind(nodes[i]);
+    for (let i = 0; i < nodes.length; i++) this.bind(nodes[i]!);
   }
 
   bindEachStatementFunctionsFirst(statements: NodeList): void {
     const nodes = statements.nodes;
-    for (let i = 0; i < nodes.length; i++) if (nodes[i].kind === SyntaxKind.FunctionDeclaration) this.bind(nodes[i]);
-    for (let i = 0; i < nodes.length; i++) if (nodes[i].kind !== SyntaxKind.FunctionDeclaration) this.bind(nodes[i]);
+    for (let i = 0; i < nodes.length; i++) if (nodes[i].kind === SyntaxKind.FunctionDeclaration) this.bind(nodes[i]!);
+    for (let i = 0; i < nodes.length; i++) if (nodes[i].kind !== SyntaxKind.FunctionDeclaration) this.bind(nodes[i]!);
   }
 
   // Flow graph
@@ -1640,7 +1640,7 @@ class Binder extends NodeVisitor {
       const clauseStart = i;
       while ((clauses[i] as CaseOrDefaultClause).statements.nodes.length === 0 && i + 1 < clauses.length) {
         if (fallthroughFlow === this.unreachableFlow) this.currentFlow = this.preSwitchCaseFlow!;
-        this.bind(clauses[i]);
+        this.bind(clauses[i]!);
         i++;
       }
       const preCaseLabel = this.createBranchLabel();
@@ -2060,7 +2060,7 @@ class Binder extends NodeVisitor {
     const exports = getExports(symbol);
     const existing = exports.get('prototype');
     if (existing !== undefined)
-      this.errorOnNode(existing.declarations[0], Diagnostics.Duplicate_identifier_0, ['prototype']);
+      this.errorOnNode(existing.declarations[0]!, Diagnostics.Duplicate_identifier_0, ['prototype']);
     exports.set('prototype', prototypeSymbol);
     prototypeSymbol.parent = symbol;
   }

@@ -590,7 +590,7 @@ function isInParameter(declaration: Node | undefined): boolean {
 /** The local symbol of an `export default` declaration. */
 export function getLocalSymbolForExportDefault(symbol: Symbol): Symbol | undefined {
   const declarations = symbol.declarations;
-  if (declarations.length === 0 || !hasSyntacticModifier(declarations[0], ModifierFlags.Default)) return undefined;
+  if (declarations.length === 0 || !hasSyntacticModifier(declarations[0]!, ModifierFlags.Default)) return undefined;
   for (const declaration of declarations) {
     const localSymbol = getLocalSymbol(declaration);
     if (localSymbol !== undefined) return localSymbol;

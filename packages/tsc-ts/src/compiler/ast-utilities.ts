@@ -410,7 +410,7 @@ export function isRequireCall(node: Node, requireStringLiteralLikeArgument: bool
   if (!(callee instanceof Identifier) || callee.text !== 'require') return false;
   const args = node.arguments.nodes;
   if (args.length !== 1) return false;
-  return !requireStringLiteralLikeArgument || isStringLiteralLike(args[0]);
+  return !requireStringLiteralLikeArgument || isStringLiteralLike(args[0]!);
 }
 
 /** The string literal of `import("x")` types. */

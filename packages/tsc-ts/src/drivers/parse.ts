@@ -18,6 +18,7 @@ import {
 import { type Diagnostic, Locale } from '../compiler/diagnostics.js';
 import { encodeSourceFile } from '../compiler/encoder.js';
 import { getJSDoc, parseSourceFile } from '../compiler/parser.js';
+import './lowering.js';
 
 const out: string[] = [];
 
@@ -101,7 +102,7 @@ class TreePrinter extends NodeVisitor {
       if (node.comment !== undefined) this.visitList(node.comment);
     } else node.forEachChild(this);
     const jsDoc = getJSDoc(this.file, node);
-    for (let i = 0; i < jsDoc.length; i++) this.visitNode(jsDoc[i]);
+    for (let i = 0; i < jsDoc.length; i++) this.visitNode(jsDoc[i]!);
     this.depth--;
     this.container = saveContainer;
     return false;
@@ -111,7 +112,7 @@ class TreePrinter extends NodeVisitor {
     out.push(`${this.depth} L ${this.byte(list.pos)} ${this.byte(list.end)} ${list.nodes.length}`);
     this.depth++;
     const nodes = list.nodes;
-    for (let i = 0; i < nodes.length; i++) this.visitNode(nodes[i]);
+    for (let i = 0; i < nodes.length; i++) this.visitNode(nodes[i]!);
     this.depth--;
     return false;
   }

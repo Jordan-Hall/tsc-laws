@@ -1100,7 +1100,7 @@ export function sortAndDeduplicateDiagnostics(diagnostics: readonly Diagnostic[]
   while (i < sorted.length) {
     let diagnostic = sorted[i];
     let n = 1;
-    while (i + n < sorted.length && equalDiagnosticsNoRelatedInfo(diagnostic, sorted[i + n])) n++;
+    while (i + n < sorted.length && equalDiagnosticsNoRelatedInfo(diagnostic, sorted[i + n]!)) n++;
     if (n > 1) {
       const related: Diagnostic[] = [];
       for (let k = 0; k < n; k++) for (const info of sorted[i + k].relatedInformation) related.push(info);
@@ -1108,7 +1108,7 @@ export function sortAndDeduplicateDiagnostics(diagnostics: readonly Diagnostic[]
         related.sort(compareDiagnostics);
         const compacted: Diagnostic[] = [];
         for (const info of related) {
-          if (compacted.length === 0 || !equalDiagnostics(compacted[compacted.length - 1], info)) compacted.push(info);
+          if (compacted.length === 0 || !equalDiagnostics(compacted[compacted.length - 1]!, info)) compacted.push(info);
         }
         diagnostic = diagnostic.clone();
         diagnostic.relatedInformation = compacted;
