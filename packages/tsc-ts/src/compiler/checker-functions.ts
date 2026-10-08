@@ -95,6 +95,7 @@ import {
   getInferenceContext,
   instantiateContextualType,
 } from './checker-contextual.js';
+import { checkJSDocFullSignature, checkUnmatchedJSDocParameters, getFullSignatureTypeNode } from './checker-jsdoc.js';
 import { isFunctionLike, nodeIsMissing } from './ast-utilities.js';
 import { isConstantReference, isReachableFlowNode } from './checker-narrowing.js';
 import {
@@ -159,6 +160,7 @@ export function checkFunctionExpressionOrObjectLiteralMethod(c: Checker, node: N
     }
     return c.anyFunctionType;
   }
+  checkJSDocFullSignature(c, node);
   contextuallyCheckFunctionExpressionOrObjectLiteralMethod(c, node, checkMode);
   const symbol = getSymbolOfDeclaration(c, node);
   return symbol !== undefined ? getTypeOfSymbol(c, symbol) : c.anyType;
@@ -326,6 +328,7 @@ export function getTypeOfObjectLiteralMethod(c: Checker, node: Node, checkMode: 
 export function checkFunctionLikeBody(c: Checker, node: Node): void {
   const typeParameters = getTypeParameters(node);
   checkTypeParameters(c, typeParameters);
+  checkUnmatchedJSDocParameters(c, node);
   const params = getParameters(node);
   if (params !== undefined) for (const p of params.nodes) checkVariableLikeDeclaration(c, p);
   const returnTypeNode = getType(node);
@@ -416,7 +419,7 @@ function checkAllCodePathsInNonVoidFunctionReturnOrThrow(c: Checker, func: Node,
   )
     return;
   const hasExplicitReturn = (func.flags & NodeFlags.HasExplicitReturn) !== 0;
-  const errorNode = getType(func) ?? func;
+  const errorNode = getType(func) ?? getFullSignatureTypeNode(func) ?? func;
   if (t !== undefined && (t.flags & TypeFlags.Never) !== 0)
     c.error(errorNode, Diagnostics.A_function_returning_never_cannot_have_a_reachable_end_point);
   else if (t !== undefined && !hasExplicitReturn)

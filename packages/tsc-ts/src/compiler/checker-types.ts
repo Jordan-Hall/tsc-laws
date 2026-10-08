@@ -1073,6 +1073,10 @@ export class SymbolLinks {
   lastAssignmentPos: number;
   hasDefiniteAssignment: boolean;
   isConstructorDeclaredProperty: boolean;
+  // JavaScript `this.x` assignment declarations
+  /** A `ThisAssignmentKind` plus one; zero until computed. */
+  thisAssignmentKind: number;
+  thisAssignmentLocation: Node | undefined;
   // Reverse mapped properties
   reverseMappedPropertyType: Type | undefined;
   reverseMappedMappedType: Type | undefined;
@@ -1114,6 +1118,8 @@ export class SymbolLinks {
     this.lastAssignmentPos = 0;
     this.hasDefiniteAssignment = false;
     this.isConstructorDeclaredProperty = false;
+    this.thisAssignmentKind = 0;
+    this.thisAssignmentLocation = undefined;
     this.reverseMappedPropertyType = undefined;
     this.reverseMappedMappedType = undefined;
     this.reverseMappedConstraintType = undefined;
@@ -1156,7 +1162,11 @@ export class NodeLinks {
   /** The signature the runtime calls a decorator of this declaration with. */
   decoratorSignature: Signature | undefined;
 
+  /** Whether a function body references `arguments`: 0 until computed, 1 for no, 2 for yes. */
+  containsArgumentsReference: number;
+
   constructor() {
+    this.containsArgumentsReference = 0;
     this.flags = NodeCheckFlags.None;
     this.resolvedSymbol = undefined;
     this.resolvedType = undefined;

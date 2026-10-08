@@ -77,6 +77,7 @@ import {
 } from './checker-expressions.js';
 import { checkDestructuringAssignment } from './checker-destructuring.js';
 import { reportNonexistentProperty } from './checker-property-access.js';
+import { isUndefinedAssignmentToCommonJSExport } from './checker-javascript.js';
 
 // ---- Unary operators
 
@@ -740,6 +741,7 @@ function checkAssignmentOperator(
   rightType: Type,
 ): void {
   if (!isAssignmentOperator(operator)) return;
+  if (isUndefinedAssignmentToCommonJSExport(c, left, rightType)) return;
   // Assignability is only checked when the target is a reference, to avoid cascading errors.
   if (
     checkReferenceExpression(

@@ -173,6 +173,7 @@ function checkSourceElementWorker(c: Checker, node: Node): void {
       checkInterfaceDeclaration(c, node);
       return;
     case SyntaxKind.TypeAliasDeclaration:
+    case SyntaxKind.JSTypeAliasDeclaration:
       checkTypeAliasDeclaration(c, node);
       return;
     case SyntaxKind.EnumDeclaration:

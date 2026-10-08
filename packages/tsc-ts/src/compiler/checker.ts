@@ -24,6 +24,8 @@
 // | checker-classes.ts              | classes and interfaces                                  |
 // | checker-heritage.ts             | base types, overrides, index constraints, duplicates    |
 // | checker-jsx.ts                  | JSX                                                     |
+// | checker-javascript.ts           | CommonJS, expando and `this.x` assignment declarations  |
+// | checker-jsdoc.ts                | JSDoc type references, `@type` on functions, `@param`   |
 // | checker-elaboration.ts          | reporting relation errors at the failing subexpression  |
 // | checker-grammar.ts              | grammar checks                                          |
 // | checker-flow.ts                 | control flow narrowing                                  |

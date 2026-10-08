@@ -1,5 +1,6 @@
 // Small helpers shared across checker modules.
 import {
+  BinaryExpression,
   ModifierFlags,
   type Node,
   getAsteriskToken,
@@ -14,7 +15,7 @@ import type { Checker } from './checker.js';
 import { type LiteralType, type Type, TypeFlags, type UniqueESSymbolType } from './checker-types.js';
 import { isGenericType } from './checker-type-operators.js';
 import { isPatternLiteralType, typesOf } from './checker-type-factory.js';
-import { checkComputedPropertyName } from './checker-expressions.js';
+import { checkComputedPropertyName, checkExpressionCached } from './checker-expressions.js';
 import { isTypeAssignableTo } from './relations.js';
 
 export function isTypeUsableAsPropertyName(t: Type): boolean {
@@ -74,11 +75,16 @@ function isLateBindableAST(node: Node): boolean {
 
 /** A computed name of entity-name form whose type is a literal or unique symbol. */
 export function hasLateBindableName(c: Checker, node: Node): boolean {
-  const name = getName(node);
+  const name = getLateBindableNameOfDeclaration(node);
   if (name === undefined || !isLateBindableAST(name)) return false;
-  return (
-    name.kind === SyntaxKind.ComputedPropertyName && isTypeUsableAsPropertyName(checkComputedPropertyName(c, name))
-  );
+  if (name.kind === SyntaxKind.ComputedPropertyName)
+    return isTypeUsableAsPropertyName(checkComputedPropertyName(c, name));
+  return isTypeUsableAsPropertyName(checkExpressionCached(c, (name as ElementAccessExpression).argumentExpression));
+}
+
+/** The name of a member, or the `F[name]` target of a JavaScript element access assignment. */
+export function getLateBindableNameOfDeclaration(node: Node): Node | undefined {
+  return node instanceof BinaryExpression ? node.left : getName(node);
 }
 
 export function hasLateBindableIndexSignature(c: Checker, node: Node): boolean {

@@ -1,7 +1,9 @@
 // Command check-oracle prints TypeScript-Go's diagnostics for a file checked
 // against the bundled libs, or times checking with --bench. A .tsx file is
 // checked as /input.tsx with the JSX options of its @jsx, @jsxFactory,
-// @jsxFragmentFactory and @jsxImportSource directives.
+// @jsxFragmentFactory and @jsxImportSource directives. A test case whose files
+// are all JavaScript and that sets @checkJs is checked as /input.js with
+// allowJs and checkJs.
 package main
 
 import (
@@ -28,8 +30,35 @@ var jsxEmits = map[string]core.JsxEmit{
 	"react-jsxdev": core.JsxEmitReactJSXDev,
 }
 
+var jsExtension = regexp.MustCompile(`(?i)\.(js|jsx|cjs|mjs)$`)
+
+// isCheckedJS reports whether a test case sets @checkJs and all its @filename units are JavaScript.
+func isCheckedJS(text string) bool {
+	units := 0
+	checkJs := false
+	for _, m := range directive.FindAllStringSubmatch(text, -1) {
+		value := strings.TrimSpace(m[2])
+		switch strings.ToLower(m[1]) {
+		case "filename":
+			if !jsExtension.MatchString(value) {
+				return false
+			}
+			units++
+		case "checkjs":
+			checkJs = strings.ToLower(strings.TrimSpace(strings.Split(value, ",")[0])) == "true"
+		}
+	}
+	return units > 0 && checkJs
+}
+
 func check(path string, text string, readLib func(name string) (string, bool)) []*ast.Diagnostic {
 	if !strings.HasSuffix(path, ".tsx") {
+		if isCheckedJS(text) {
+			options := checkhost.DefaultOptions()
+			options.AllowJs = core.TSTrue
+			options.CheckJs = core.TSTrue
+			return checkhost.CheckWithOptions("/input.js", text, options, readLib)
+		}
 		return checkhost.Check("/input.ts", text, readLib)
 	}
 	options := checkhost.DefaultOptions()

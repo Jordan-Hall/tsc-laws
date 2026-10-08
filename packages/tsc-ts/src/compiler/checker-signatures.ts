@@ -19,7 +19,7 @@ import {
   getText,
   ExpressionWithTypeArguments,
 } from './ast.js';
-import { nodeIsMissing } from './ast-utilities.js';
+import { isInJSFile, nodeIsMissing } from './ast-utilities.js';
 import {
   declarationNameToString,
   getImmediatelyInvokedFunctionExpression,
@@ -121,7 +121,8 @@ export function getSignaturesOfSymbol(c: Checker, symbol: Symbol | undefined): S
       )
         continue;
     }
-    result.push(getSignatureFromDeclaration(c, decl));
+    // A JSDoc `@type` tag gives a function its signature, for the sake of optional parameters.
+    result.push(getSignatureOfFullSignatureType(c, decl) ?? getSignatureFromDeclaration(c, decl));
   }
   return result;
 }
@@ -164,6 +165,8 @@ export function getSignatureFromDeclaration(c: Checker, declaration: Node): Sign
   let minArgumentCount = 0;
   const iife = getImmediatelyInvokedFunctionExpression(declaration);
   const params = getParameters(declaration)?.nodes ?? [];
+  if (iife === undefined && isUntypedSignatureInJSFile(c, declaration, params))
+    flags |= SignatureFlags.IsUntypedSignatureInJSFile;
   for (let i = 0; i < params.length; i++) {
     const param = params[i];
     let paramSymbol = getSymbol(param)!;
@@ -220,6 +223,8 @@ export function getSignatureFromDeclaration(c: Checker, declaration: Node): Sign
 }
 
 function getTypeParametersFromDeclaration(c: Checker, declaration: Node): Type[] {
+  const fullSignature = getSignatureOfFullSignatureType(c, declaration);
+  if (fullSignature !== undefined) return fullSignature.typeParameters ?? emptyTypes;
   const nodes = getTypeParameterNodes(declaration);
   if (nodes === undefined || nodes.nodes.length === 0) return emptyTypes;
   const result: Type[] = [];
@@ -321,7 +326,7 @@ export function getReturnTypeFromAnnotation(c: Checker, declaration: Node): Type
       }
     }
   }
-  return undefined;
+  return getReturnTypeOfFullSignature(c, declaration);
 }
 
 export function getTypePredicateOfSignature(c: Checker, sig: Signature): TypePredicate | undefined {
@@ -865,6 +870,8 @@ export function getIndexInfosOfIndexSymbol(c: Checker, indexSymbol: Symbol, sibl
 }
 
 import { isValidIndexKeyType as isValidIndexKeyTypeLocal, isNumericLiteralName } from './checker-utilities.js';
+import { getReturnTypeOfFullSignature, getSignatureOfFullSignatureType } from './checker-jsdoc.js';
+import { ContextFlags, getContextualTypeEx } from './checker-contextual.js';
 
 /** Whether `symbol` is a known symbol or has a computed name of a symbol type. */
 function isSymbolWithSymbolName(c: Checker, symbol: Symbol): boolean {
@@ -919,3 +926,22 @@ export {
   ElementFlags,
 };
 export type { TypeReference };
+
+/** A JavaScript function without parameter types or a contextual signature: all its parameters are optional. */
+function isUntypedSignatureInJSFile(c: Checker, declaration: Node, params: Node[]): boolean {
+  if (!isInJSFile(declaration)) return false;
+  switch (declaration.kind) {
+    case SyntaxKind.FunctionExpression:
+    case SyntaxKind.ArrowFunction:
+    case SyntaxKind.MethodDeclaration:
+    case SyntaxKind.GetAccessor:
+    case SyntaxKind.SetAccessor:
+    case SyntaxKind.FunctionDeclaration:
+    case SyntaxKind.Constructor:
+      break;
+    default:
+      return false;
+  }
+  for (const param of params) if (getType(param) !== undefined) return false;
+  return getContextualTypeEx(c, declaration, ContextFlags.Signature) === undefined;
+}

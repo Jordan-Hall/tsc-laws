@@ -6,7 +6,7 @@ import {
 } from './checker-modules.js';
 import {
   type ArrayLiteralExpression,
-  type BinaryExpression,
+  BinaryExpression,
   type ComputedPropertyName,
   type ConditionalExpression,
   type ElementAccessExpression,
@@ -79,6 +79,7 @@ import {
   getStringLiteralType,
   getUnionTypeEx,
   getWidenedLiteralType,
+  getWidenedUniqueESSymbolType,
   isErrorType,
   isTupleType,
   someType,
@@ -171,7 +172,7 @@ import {
 import { checkJsx } from './checker-jsx.js';
 import { getRegularTypeOfObjectLiteral } from './checker-literals.js';
 import { getSignatureFromDeclaration, getThisTypeOfSignature } from './checker-signatures.js';
-import { isFunctionLike } from './ast-utilities.js';
+import { isFunctionLike, isInJSFile } from './ast-utilities.js';
 import {
   AssignmentKind,
   convertAutoToAny,
@@ -186,11 +187,14 @@ import {
   isSymbolAssignedDefinitely,
   getFlowTypeOfReference,
 } from './checker-narrowing.js';
+import { getFlowTypeOfAutoTypedProperty, getThisTypeOfAssignedFunction } from './checker-javascript.js';
+import { getThisTypeOfObjectLiteralMember } from './checker-contextual.js';
 
 import { ContextFlags, getInferenceContext, instantiateContextualType } from './checker-contextual.js';
 import { addIntraExpressionInferenceSite } from './checker-inference.js';
 import { checkTypeRelatedToAndOptionallyElaborate } from './checker-elaboration.js';
 import { isContextSensitive } from './checker-functions.js';
+import { getSignatureOfFullSignatureType } from './checker-jsdoc.js';
 export {
   getContextuallyTypedParameterType,
   isContextSensitiveFunctionOrObjectLiteralMethod,
@@ -471,9 +475,11 @@ export function checkIdentifier(c: Checker, node: Identifier): Type {
   else return t;
   if (declaration === undefined) return t;
   const isParameter = getRootDeclaration(declaration).kind === SyntaxKind.Parameter;
-  const declarationContainer = getControlFlowContainer(declaration);
+  // The CommonJS `module` symbol is declared by its source file.
+  const declarationContainer = declaration.parent !== undefined ? getControlFlowContainer(declaration) : undefined;
   let flowContainer = getControlFlowContainer(node);
   const isOuterVariable = flowContainer !== declarationContainer;
+  const isModuleExports = (symbol.flags & SymbolFlags.ModuleExports) !== 0;
   const typeIsAutomatic = t === c.autoType || t === c.autoArrayType;
   const isAutomaticTypeInNonNull = typeIsAutomatic && node.parent!.kind === SyntaxKind.NonNullExpression;
   // Closures see narrowings of constants, and of variables past their last assignment.
@@ -498,6 +504,7 @@ export function checkIdentifier(c: Checker, node: Identifier): Type {
     isParameter ||
     isAlias ||
     (isOuterVariable && !isNeverInitialized) ||
+    isModuleExports ||
     declaration.kind === SyntaxKind.BindingElement ||
     (t !== c.autoType &&
       t !== c.autoArrayType &&
@@ -674,8 +681,10 @@ export function checkThisExpression(c: Checker, node: Node): Type {
 function tryGetThisTypeAt(c: Checker, node: Node, container: Node): Type | undefined {
   if (isFunctionLike(container) && container.kind !== SyntaxKind.Constructor) {
     const thisType =
-      getThisTypeOfSignature(c, getSignatureFromDeclaration(c, container)) ??
-      getContextualThisParameterType(c, container);
+      getThisTypeOfSignature(
+        c,
+        getSignatureOfFullSignatureType(c, container) ?? getSignatureFromDeclaration(c, container),
+      ) ?? getContextualThisParameterType(c, container);
     if (thisType !== undefined) return thisType;
   }
   const parent = container.parent;
@@ -708,11 +717,10 @@ export function getContextualThisParameterType(c: Checker, func: Node): Type | u
     const thisType = getThisTypeOfSignature(c, signature);
     if (thisType !== undefined) return thisType;
   }
-  if (!c.noImplicitThis) return undefined;
+  if (!c.noImplicitThis && !isInJSFile(func)) return undefined;
   const literal = getContainingObjectLiteral(func);
-  if (literal === undefined) return undefined;
-  // Without ThisType markers or literal types under construction, any containing literal gives `this` a type.
-  return c.anyType;
+  if (literal !== undefined) return getThisTypeOfObjectLiteralMember(c, literal);
+  return getThisTypeOfAssignedFunction(c, func);
 }
 
 function getContainingObjectLiteral(func: Node): Node | undefined {
@@ -976,7 +984,8 @@ export function getWidenedLiteralLikeTypeForContextualType(
   t: Type,
   contextualType: Type | undefined,
 ): Type {
-  if (!isLiteralOfContextualType(c, t, contextualType)) return getWidenedLiteralType(c, t);
+  if (!isLiteralOfContextualType(c, t, contextualType))
+    return getWidenedUniqueESSymbolType(c, getWidenedLiteralType(c, t));
   return getRegularTypeOfLiteralType(c, t);
 }
 
@@ -1156,7 +1165,7 @@ export function getFlowTypeOfAccessExpression(
     !((prop.flags & SymbolFlags.Method) !== 0 && (propType.flags & TypeFlags.Union) !== 0)
   )
     return propType;
-  if (propType === c.autoType) return c.anyType;
+  if (propType === c.autoType) return getFlowTypeOfAutoTypedProperty(c, node, prop);
   propType = getNarrowableTypeForReference(c, propType, node);
   // `this.x` in the constructor of x's class starts out uninitialized under strictPropertyInitialization.
   let assumeUninitialized = false;
@@ -1176,6 +1185,14 @@ export function getFlowTypeOfAccessExpression(
         flowContainer.parent === declaration.parent &&
         (declaration.flags & NodeFlags.Ambient) === 0;
     }
+  }
+  // A JavaScript `this.x = …` declaration is unassigned before it in its own function.
+  if (c.strictNullChecks && prop !== undefined && !assumeUninitialized) {
+    const declaration = prop.valueDeclaration;
+    assumeUninitialized =
+      declaration instanceof BinaryExpression &&
+      declaration.left.kind === SyntaxKind.PropertyAccessExpression &&
+      getControlFlowContainer(node) === getControlFlowContainer(declaration);
   }
   const initialType = assumeUninitialized ? getOptionalType(c, propType, false) : propType;
   const flowType = getFlowTypeOfReference(c, node, propType, initialType, undefined);

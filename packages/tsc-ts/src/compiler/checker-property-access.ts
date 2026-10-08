@@ -63,6 +63,7 @@ import {
   getFlowTypeOfAccessExpression,
   getResolvedSymbol,
 } from './checker-expressions.js';
+import { isJSLiteralType, isThisPropertyAccessInConstructor } from './checker-javascript.js';
 
 export function checkPropertyAccessExpressionOrQualifiedName(
   c: Checker,
@@ -133,7 +134,7 @@ export function checkPropertyAccessExpressionOrQualifiedName(
         ? getApplicableIndexInfoForName(c, apparentType, name)
         : undefined;
     if (indexInfo === undefined) {
-      if ((leftType.objectFlags & ObjectFlags.JSLiteral) !== 0) return c.anyType;
+      if (isJSLiteralType(c, leftType)) return c.anyType;
       if (leftType.symbol === c.globalThisSymbol) {
         const globalSymbol = c.globalThisSymbol.exports?.get(name);
         if (globalSymbol !== undefined && (globalSymbol.flags & SymbolFlags.BlockScoped) !== 0)
@@ -174,7 +175,9 @@ export function checkPropertyAccessExpressionOrQualifiedName(
       c.error(right, Diagnostics.Cannot_assign_to_0_because_it_is_a_read_only_property, name);
       return c.errorType;
     }
-    propType = assignmentKind === AssignmentKind.Definite ? getWriteTypeOfSymbol(c, prop) : getTypeOfSymbol(c, prop);
+    if (isThisPropertyAccessInConstructor(c, node, prop)) propType = c.autoType;
+    else
+      propType = assignmentKind === AssignmentKind.Definite ? getWriteTypeOfSymbol(c, prop) : getTypeOfSymbol(c, prop);
   }
   return getFlowTypeOfAccessExpression(c, node, prop, propType, right);
 }
@@ -312,6 +315,12 @@ export function isAssignmentToReadonlyEntity(
   assignmentKind: AssignmentKind,
 ): boolean {
   if (assignmentKind === AssignmentKind.None) return false;
+  // CommonJS `module.exports` is never readonly.
+  if (isAccessExpression(expr)) {
+    const target = skipParentheses(getExpression(expr)!);
+    if (target.kind === SyntaxKind.Identifier && (getResolvedSymbol(c, target).flags & SymbolFlags.ModuleExports) !== 0)
+      return false;
+  }
   if (isReadonlySymbol(c, symbol)) {
     // Readonly properties may be assigned through `this` in the constructor of their class.
     if (
@@ -325,7 +334,12 @@ export function isAssignmentToReadonlyEntity(
       if (declaration !== undefined) {
         const isLocalPropertyDeclaration = ctor.parent === declaration.parent;
         const isLocalParameterProperty = ctor === declaration.parent;
-        return !isLocalPropertyDeclaration && !isLocalParameterProperty;
+        // A JavaScript `this.x = …` declaration of this class or constructor function.
+        const isAssignmentDeclaration = declaration.kind === SyntaxKind.BinaryExpression;
+        const parentDeclaration = symbol.parent?.valueDeclaration;
+        const isLocalThisPropertyAssignment =
+          isAssignmentDeclaration && (parentDeclaration === ctor.parent || parentDeclaration === ctor);
+        return !isLocalPropertyDeclaration && !isLocalParameterProperty && !isLocalThisPropertyAssignment;
       }
     }
     return true;

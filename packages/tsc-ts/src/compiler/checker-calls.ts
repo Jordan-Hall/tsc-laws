@@ -176,6 +176,7 @@ import {
   isJsxOpeningLikeElement,
   resolveJsxOpeningLikeElement,
 } from './checker-jsx.js';
+import { isCommonJSRequire, resolveExternalModuleTypeByLiteral } from './checker-javascript.js';
 
 /** The type of an optional chain's expression with the chain's `undefined` removed. */
 export function getOptionalExpressionType(c: Checker, exprType: Type, expression: Node): Type {
@@ -199,6 +200,8 @@ export function checkCallExpression(c: Checker, node: Node, checkMode: CheckMode
   // A deferred call to a generic function returning a function, under SkipGenericFunctions.
   if (signature === c.resolvingSignature) return c.silentNeverType;
   if (callee.kind === SyntaxKind.SuperKeyword) return c.voidType;
+  if (isInJSFile(node) && isCommonJSRequire(c, node))
+    return resolveExternalModuleTypeByLiteral(c, call.arguments.nodes[0]);
   const returnType = getReturnTypeOfSignature(c, signature);
   // A call of the global `Symbol` in a const or readonly declaration is a fresh unique symbol.
   if ((returnType.flags & TypeFlags.ESSymbolLike) !== 0 && isSymbolOrSymbolForCall(c, call))

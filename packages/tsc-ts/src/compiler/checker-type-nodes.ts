@@ -1,6 +1,7 @@
 // Types from type nodes: `getTypeFromTypeNode` and the resolution of type references.
 import {
   type ArrayTypeNode,
+  ModifierFlags,
   type ExpressionWithTypeArguments,
   type IndexedAccessTypeNode,
   type InferTypeNode,
@@ -53,6 +54,7 @@ import {
   newTypeMapper,
 } from './checker-types.js';
 import {
+  createArrayType,
   IntersectionFlags,
   UnionReduction,
   aliasKey,
@@ -104,6 +106,8 @@ import {
   checkTypeQueryExpression,
   getResolvedSymbol,
 } from './checker-expressions.js';
+import { getIntendedTypeFromJSDocTypeReference } from './checker-jsdoc.js';
+import { getCombinedNodeFlags, hasSyntacticModifier } from './binder-utilities.js';
 
 export function getTypeFromTypeNode(c: Checker, node: Node): Type {
   return getTypeFromTypeNodeWorker(c, node);
@@ -120,6 +124,8 @@ function getTypeFromTypeNodeWorker(c: Checker, node: Node): Type {
       const t = getTypeFromTypeNode(c, getType(node)!);
       return c.strictNullChecks ? getNullableType(c, t, TypeFlags.Null) : t;
     }
+    case SyntaxKind.JSDocVariadicType:
+      return createArrayType(c, getTypeFromTypeNode(c, getType(node)!));
     case SyntaxKind.JSDocOptionalType:
       return addOptionality(c, getTypeFromTypeNode(c, getType(node)!), false, true);
     case SyntaxKind.UnknownKeyword:
@@ -287,16 +293,22 @@ function walkUpParenthesizedTypes(node: Node): Node {
   return n;
 }
 
+/** A const variable of a variable statement, a static readonly property, or a readonly property signature. */
 function isValidESSymbolDeclaration(node: Node): boolean {
   switch (node.kind) {
-    case SyntaxKind.VariableDeclaration:
+    case SyntaxKind.VariableDeclaration: {
+      const list = node.parent!;
       return (
-        (node.flags & NodeFlags.Const) !== 0 ||
-        (node.parent !== undefined && (node.parent.flags & NodeFlags.Const) !== 0)
+        (getCombinedNodeFlags(node) & NodeFlags.Constant) === NodeFlags.Const &&
+        getName(node)!.kind === SyntaxKind.Identifier &&
+        list.kind === SyntaxKind.VariableDeclarationList &&
+        list.parent!.kind === SyntaxKind.VariableStatement
       );
+    }
     case SyntaxKind.PropertyDeclaration:
+      return hasSyntacticModifier(node, ModifierFlags.Readonly) && isStatic(node);
     case SyntaxKind.PropertySignature:
-      return isStatic(node) || node.kind === SyntaxKind.PropertySignature;
+      return hasSyntacticModifier(node, ModifierFlags.Readonly);
   }
   return false;
 }
@@ -337,7 +349,10 @@ export function getTypeFromTypeReference(c: Checker, node: Node): Type {
   if (links.resolvedType === undefined) {
     if (isConstTypeReference(node) && isAssertionExpression(node.parent))
       links.resolvedType = checkExpressionCached(c, getExpression(node.parent!)!);
-    else links.resolvedType = getTypeReferenceType(c, node, getSymbolFromTypeReference(c, node));
+    else
+      links.resolvedType =
+        getIntendedTypeFromJSDocTypeReference(c, node) ??
+        getTypeReferenceType(c, node, getSymbolFromTypeReference(c, node));
   }
   return links.resolvedType;
 }
@@ -474,7 +489,7 @@ export function getTypeFromClassOrInterfaceReference(c: Checker, node: Node, sym
   return createTypeReferenceEx(c, t, t.outerTypeParameters().concat(localTypeArguments), ObjectFlags.FromTypeNode);
 }
 
-function checkNoTypeArguments(c: Checker, node: Node, symbol: Symbol | undefined): boolean {
+export function checkNoTypeArguments(c: Checker, node: Node, symbol: Symbol | undefined): boolean {
   if (typeArgumentNodesOf(node).length === 0) return true;
   const typeName =
     symbol !== undefined

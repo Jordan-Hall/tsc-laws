@@ -58,6 +58,7 @@ import {
 import { getInferenceContext } from './checker-contextual.js';
 import { addIntraExpressionInferenceSite } from './checker-inference.js';
 import { isEmptyObjectType } from './checker-type-factory.js';
+import { getTypeOfExpandoObjectLiteral, isJSObjectLiteral } from './checker-javascript.js';
 
 /** Builds the type of the members collected since the last spread. */
 class ObjectLiteralBuilder {
@@ -68,6 +69,8 @@ class ObjectLiteralBuilder {
   properties: Symbol[] = [];
   objectFlags = ObjectFlags.FreshLiteral;
   patternWithComputedProperties = false;
+  /** An object literal in a JavaScript file without a contextual type allows unknown members. */
+  isJSLiteral = false;
   hasComputedString = false;
   hasComputedNumber = false;
   hasComputedSymbol = false;
@@ -88,6 +91,7 @@ class ObjectLiteralBuilder {
     if (this.hasComputedSymbol) indexInfos.push(getObjectLiteralIndexInfo(c, isReadonly, properties, c.esSymbolType));
     const result = createAnonymousType(c, getSymbol(this.node), this.members, [], [], indexInfos);
     result.objectFlags |= this.objectFlags | ObjectFlags.ObjectLiteral | ObjectFlags.ContainsObjectOrArrayLiteral;
+    if (this.isJSLiteral) result.objectFlags |= ObjectFlags.JSLiteral;
     if (this.patternWithComputedProperties)
       result.objectFlags |= ObjectFlags.ObjectLiteralPatternWithComputedProperties;
     return result;
@@ -104,11 +108,14 @@ class ObjectLiteralBuilder {
 }
 
 export function checkObjectLiteral(c: Checker, node: Node, checkMode: CheckMode): Type {
+  const expandoType = getTypeOfExpandoObjectLiteral(c, node);
+  if (expandoType !== undefined) return expandoType;
   const inDestructuringPattern = isAssignmentTarget(node);
   const allProperties = c.strictNullChecks ? new Map<string, Symbol>() : undefined;
   const inConstContext = isConstContext(node);
   const checkFlags = inConstContext ? CheckFlags.Readonly : 0;
   const builder = new ObjectLiteralBuilder(node, inDestructuringPattern);
+  builder.isJSLiteral = isJSObjectLiteral(c, node);
   let spread: Type = c.emptyObjectType;
   const elements = getProperties(node)!.nodes;
   // Computed names are checked up front: a spread may bail out before the member is reached.

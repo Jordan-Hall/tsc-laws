@@ -1,7 +1,8 @@
 // Checks a file against the bundled libs and prints its diagnostics in the format of the reference
 // check oracle: `<file> <code> <pos> <len> <message>` with UTF-8 offsets.
 // A .tsx file is checked as `/input.tsx` with the JSX options of its `@jsx`, `@jsxFactory`,
-// `@jsxFragmentFactory` and `@jsxImportSource` directives.
+// `@jsxFragmentFactory` and `@jsxImportSource` directives. A test case whose files are all JavaScript
+// and that sets @checkJs is checked as `/input.js` with allowJs and checkJs.
 // Usage: check FILE LIBDIR [--batch|--bench]
 //   --batch  FILE lists input files, one per line; each is printed after `== <path>`
 //   --bench  times parsing, binding and checking FILE
@@ -148,14 +149,46 @@ function createJsxOptions(text: string): CompilerOptions {
   return options;
 }
 
-function inputName(path: string): string {
-  return path.endsWith('.tsx') ? '/input.tsx' : '/input.ts';
+/** Whether a test case sets @checkJs and all its @filename units are JavaScript. */
+function isCheckedJS(text: string): boolean {
+  let units = 0;
+  let checkJs = false;
+  for (const m of text.matchAll(/^[ \t]*\/\/[ \t]*@(\w+)[ \t]*:([^\r\n]*)/gim)) {
+    const value = m[2].trim();
+    switch (m[1].toLowerCase()) {
+      case 'filename':
+        if (!/\.(js|jsx|cjs|mjs)$/i.test(value)) return false;
+        units++;
+        break;
+      case 'checkjs':
+        checkJs = value.split(',')[0].trim().toLowerCase() === 'true';
+        break;
+    }
+  }
+  return units > 0 && checkJs;
 }
 
-/** Parse, bind, semantic and global diagnostics of `/input.ts` (or `/input.tsx`), in that order. */
+function createJSOptions(): CompilerOptions {
+  const options = createOptions();
+  options.allowJs = true;
+  options.checkJs = true;
+  return options;
+}
+
+function inputName(path: string, text: string): string {
+  if (path.endsWith('.tsx')) return '/input.tsx';
+  return isCheckedJS(text) ? '/input.js' : '/input.ts';
+}
+
+/**
+ * Parse, bind, semantic and global diagnostics of the input file, in that order. JS files add their
+ * JS-only syntactic and JSDoc diagnostics as a program does for a checked JS file.
+ */
 function check(path: string, text: string, loader: LibLoader, defaults: CompilerOptions): Diagnostic[] {
-  const name = inputName(path);
-  const options = name === '/input.tsx' ? createJsxOptions(text) : defaults;
+  const name = inputName(path, text);
+  let options = defaults;
+  if (name === '/input.tsx') options = createJsxOptions(text);
+  else if (name === '/input.js') options = createJSOptions();
   const file = parse(name, text);
   bindSourceFile(file);
   const files = loader.files.slice();
@@ -163,8 +196,10 @@ function check(path: string, text: string, loader: LibLoader, defaults: Compiler
   const checker = new Checker(new CheckHost(options, files, loader.libs));
   const result: Diagnostic[] = [];
   for (const d of file.diagnostics) result.push(d);
+  for (const d of file.jsDiagnostics) result.push(d);
   for (const d of file.bindDiagnostics) result.push(d);
   for (const d of checker.getDiagnostics(file)) result.push(d);
+  for (const d of file.jsDocDiagnostics) result.push(d);
   for (const d of checker.getGlobalDiagnostics()) result.push(d);
   disposeChecker(checker);
   return result;
@@ -193,7 +228,7 @@ function utf8Offsets(text: string): Int32Array {
 }
 
 function format(diagnostics: Diagnostic[], path: string, text: string, out: string[]): void {
-  const input = inputName(path);
+  const input = inputName(path, text);
   const offsets = utf8Offsets(text);
   for (const d of diagnostics) {
     const name = d.file !== undefined ? d.file.fileName : '';

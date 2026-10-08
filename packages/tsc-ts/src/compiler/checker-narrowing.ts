@@ -2101,6 +2101,7 @@ export class AssignmentMarker extends NodeVisitor {
       }
       case SyntaxKind.InterfaceDeclaration:
       case SyntaxKind.TypeAliasDeclaration:
+      case SyntaxKind.JSTypeAliasDeclaration:
       case SyntaxKind.EnumDeclaration:
         return false;
     }

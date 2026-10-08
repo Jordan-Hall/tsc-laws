@@ -2,10 +2,12 @@
 // check oracle, and reports how many files match exactly.
 //
 // Usage: node scripts/check-corpus.mjs [--native BINARY] [--jobs N] [--limit N] [--cache FILE]
-//                                      [--save FILE] [--list] [--show CODE] [compiler|conformance|DIR|FILE ...]
+//                                      [--save FILE] [--list] [--show CODE] [--js] [compiler|conformance|DIR|FILE ...]
 //
-// Test cases are checked whole, as `/input.ts`, or as `/input.tsx` with their JSX directives. Without --native, the checker runs under Node from
-// a tsc build. --cache stores the oracle's output, which only changes with the reference build.
+// Test cases are checked whole, as `/input.ts`, as `/input.tsx` with their JSX directives, or as
+// `/input.js` when all their files are JavaScript and they set @checkJs (--js checks only those).
+// Without --native, the checker runs under Node from a tsc build. --cache stores the oracle's
+// output, which only changes with the reference build.
 // --save writes the checker's output as JSON. --list prints the differing files; --show CODE prints
 // the files with mismatches of that code.
 import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
@@ -28,6 +30,7 @@ const cacheFile = option('--cache', undefined);
 const show = option('--show', undefined);
 const saveFile = option('--save', undefined);
 const list = args.includes('--list');
+const jsOnly = args.includes('--js');
 const inputs = args.filter((a, i) => !a.startsWith('--') && !valued.has(args[i - 1]));
 const libs = join(repo, 'upstream/typescript-go/internal/bundled/libs');
 const cases = join(repo, 'upstream/TypeScript/tests/cases');
@@ -96,6 +99,9 @@ async function expectedResults(paths) {
     cacheFile !== undefined && existsSync(cacheFile)
       ? new Map(Object.entries(JSON.parse(readFileSync(cacheFile, 'utf8'))))
       : new Map();
+  // Entries from before JavaScript cases were checked as JavaScript are stale.
+  if (!cached.has('#js')) for (const key of cached.keys()) if (existsSync(key) && isCheckedJS(key)) cached.delete(key);
+  cached.set('#js', []);
   // Entries from before .tsx cases were checked as JSX are stale.
   if (!cached.has('#jsx')) for (const key of cached.keys()) if (key.endsWith('.tsx')) cached.delete(key);
   cached.set('#jsx', []);
@@ -109,8 +115,32 @@ async function expectedResults(paths) {
 
 const code = (line) => line.split(' ')[1];
 
+/** Whether a test case is checked as JavaScript, as the check drivers decide. */
+function isCheckedJS(path) {
+  if (path.endsWith('.tsx')) return false;
+  let units = 0;
+  let checkJs = false;
+  for (const m of readFileSync(path, 'utf8').matchAll(/^[ \t]*\/\/[ \t]*@(\w+)[ \t]*:([^\r\n]*)/gim)) {
+    const value = m[2].trim();
+    const name = m[1].toLowerCase();
+    if (name === 'filename') {
+      if (!/\.(js|jsx|cjs|mjs)$/i.test(value)) return false;
+      units++;
+    } else if (name === 'checkjs') checkJs = value.split(',')[0].trim().toLowerCase() === 'true';
+  }
+  return units > 0 && checkJs;
+}
+
 const suites = inputs.length > 0 ? inputs : ['compiler', 'conformance'];
-const paths = suites.flatMap((s) => files(existsSync(s) ? resolve(s) : join(cases, s))).slice(0, limit);
+const jsCases = new Set();
+const paths = suites
+  .flatMap((s) => files(existsSync(s) ? resolve(s) : join(cases, s)))
+  .filter((p) => {
+    if (!isCheckedJS(p)) return !jsOnly;
+    jsCases.add(p);
+    return true;
+  })
+  .slice(0, limit);
 const start = performance.now();
 const [expected, actual] = await Promise.all([expectedResults(paths), runAll(check, paths)]);
 const seconds = ((performance.now() - start) / 1000).toFixed(1);
@@ -120,6 +150,8 @@ let matched = 0;
 let clean = 0;
 let cleanMatched = 0;
 let crashed = 0;
+let jsCompared = 0;
+let jsMatched = 0;
 let jsxCompared = 0;
 let jsxMatched = 0;
 const missingByCode = new Map();
@@ -131,12 +163,15 @@ for (const file of paths) {
   const want = expected.get(file);
   if (want === undefined || want.includes('!! panic')) continue;
   compared++;
+  const isJS = jsCases.has(file);
+  if (isJS) jsCompared++;
   const isJsx = file.endsWith('.tsx');
   if (isJsx) jsxCompared++;
   const got = actual.get(file);
   if (want.length === 0) clean++;
   if (got !== undefined && JSON.stringify(want) === JSON.stringify(got)) {
     matched++;
+    if (isJS) jsMatched++;
     if (isJsx) jsxMatched++;
     if (want.length === 0) cleanMatched++;
     continue;
@@ -168,6 +203,7 @@ for (const file of paths) {
 const pct = (a, b) => (b === 0 ? '0.0' : ((100 * a) / b).toFixed(1));
 console.log(`${matched} of ${compared} files match tsgo (${pct(matched, compared)}%) in ${seconds}s`);
 console.log(`${cleanMatched} of ${clean} files without diagnostics match (${pct(cleanMatched, clean)}%)`);
+console.log(`${jsMatched} of ${jsCompared} JavaScript files match (${pct(jsMatched, jsCompared)}%)`);
 console.log(`${jsxMatched} of ${jsxCompared} .tsx files match (${pct(jsxMatched, jsxCompared)}%)`);
 console.log(`${crashed} files crashed`);
 const top = (map) =>

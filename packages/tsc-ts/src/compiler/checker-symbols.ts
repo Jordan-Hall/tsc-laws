@@ -1,6 +1,7 @@
 // Symbols: merging globals and augmentations, merged and late-bound symbols, aliases, exports,
 // entity names and the checker's name resolver.
 import {
+  type ElementAccessExpression,
   type Identifier,
   ModuleDeclaration,
   type Node,
@@ -48,8 +49,9 @@ import { getDeclaredTypeOfSymbol } from './checker-declared-types.js';
 import { symbolToString } from './type-printer.js';
 import { getTypeOfSymbol } from './checker-symbol-types.js';
 import { getPropertyOfType } from './checker-members.js';
-import { checkComputedPropertyName, entityNameToString } from './checker-expressions.js';
+import { checkComputedPropertyName, checkExpressionCached, entityNameToString } from './checker-expressions.js';
 import {
+  getLateBindableNameOfDeclaration,
   getPropertyNameFromType,
   isTypeUsableAsPropertyName,
   hasLateBindableName,
@@ -64,6 +66,7 @@ import {
   resolveExternalModuleSymbol,
   resolveIndirectionAlias,
 } from './checker-modules.js';
+import { isJSAliasDeclaration } from './checker-javascript.js';
 
 // ---- Name resolution
 
@@ -1164,6 +1167,10 @@ export function isAliasSymbolDeclaration(node: Node): boolean {
       const e = getExpression(node);
       return e !== undefined && isEntityNameExpressionNode(e);
     }
+    case SyntaxKind.VariableDeclaration:
+    case SyntaxKind.BindingElement:
+    case SyntaxKind.BinaryExpression:
+      return isJSAliasDeclaration(node);
   }
   return false;
 }
@@ -1278,6 +1285,14 @@ function getResolvedMembersOrExports(c: Checker, symbol: Symbol, isStatic: boole
       }
     }
   }
+  // JavaScript `F[name] = …` assignments with late-bindable names.
+  const assignments = isStatic ? symbol.exports?.get(InternalSymbolName.AssignmentDeclaration) : undefined;
+  if (assignments !== undefined)
+    for (const member of assignments.declarations)
+      if (hasLateBindableName(c, member)) {
+        if (late === undefined) late = new Map<string, Symbol>();
+        lateBindMember(c, symbol, early, late, member);
+      }
   const result = late === undefined ? early : combineSymbolTables(c, early, late);
   if (isStatic) links.resolvedExports = result;
   else links.resolvedMembers = result;
@@ -1312,8 +1327,11 @@ function lateBindMember(c: Checker, parent: Symbol, early: SymbolTable, late: Sy
   if (links.resolvedSymbol !== undefined) return links.resolvedSymbol;
   // A recursive request falls back to the early-bound symbol.
   links.resolvedSymbol = getSymbol(decl);
-  const declName = getName(decl)!;
-  const type = checkComputedPropertyName(c, declName);
+  const declName = getLateBindableNameOfDeclaration(decl)!;
+  const type =
+    declName.kind === SyntaxKind.ElementAccessExpression
+      ? checkExpressionCached(c, (declName as ElementAccessExpression).argumentExpression)
+      : checkComputedPropertyName(c, declName);
   if (isTypeUsableAsPropertyName(type)) {
     const memberName = getPropertyNameFromType(type);
     const symbolFlags = getSymbol(decl)!.flags;

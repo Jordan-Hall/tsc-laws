@@ -118,6 +118,7 @@ import { getDeclaredTypeOfSymbol } from './checker-declared-types.js';
 import { isValidSpreadType } from './checker-destructuring.js';
 import { createPromiseType } from './checker-iteration.js';
 import { symbolToString, typeToString } from './type-printer.js';
+import { checkTypeAssignableToAndOptionallyElaborate } from './checker-expressions.js';
 
 // ---- Resolution
 
@@ -1996,6 +1997,18 @@ export function checkExportAssignment(c: Checker, node: Node): void {
       Diagnostics.ECMAScript_imports_and_exports_cannot_be_written_in_a_CommonJS_file_under_verbatimModuleSyntax_Adjust_the_type_field_in_the_nearest_package_json_to_make_this_file_an_ECMAScript_module_or_adjust_your_verbatimModuleSyntax_module_and_moduleResolution_settings_in_TypeScript,
     );
   checkExternalModuleExports(c, container);
+  // A JSDoc `@type` on `export default`.
+  const typeNode = getType(node);
+  if (typeNode !== undefined) {
+    const expr = getExpression(node)!;
+    checkTypeAssignableToAndOptionallyElaborate(
+      c,
+      checkExpressionCached(c, expr),
+      getTypeFromTypeNode(c, typeNode),
+      expr,
+      expr,
+    );
+  }
 }
 
 function checkIsolatedModulesExportAssignment(

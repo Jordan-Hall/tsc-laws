@@ -69,14 +69,20 @@ import {
 } from './checker-members.js';
 import { getTypeFromTypeNode } from './checker-type-nodes.js';
 import { SymbolFlags } from './symbol.js';
-import { TypeSystemPropertyName, findResolutionCycleStartIndex, getCachedGlobalType } from './checker-symbols.js';
+import {
+  TypeSystemPropertyName,
+  findResolutionCycleStartIndex,
+  getCachedGlobalType,
+  getGlobalType,
+} from './checker-symbols.js';
 import { isImportCall } from './ast-utilities.js';
-import { CompositeSignature, Ternary } from './checker-types.js';
+import { CompositeSignature, Ternary, type TypeReference } from './checker-types.js';
 import { ComparerKind, compareSignaturesIdentical } from './relations.js';
 import {
   cloneSignature,
   getOrCreateTypeFromSignature,
   getParameterCount,
+  getReturnTypeFromAnnotation,
   hasEffectiveRestParameter,
 } from './checker-signatures.js';
 import {
@@ -92,7 +98,7 @@ import {
   isGenericMappedType,
   substituteIndexedMappedType,
 } from './checker-type-operators.js';
-import { getOptionalType, removeMissingType } from './checker-symbol-types.js';
+import { getOptionalType, getWidenedType, removeMissingType } from './checker-symbol-types.js';
 import { getConstituentTypeForKeyType, getKeyPropertyName } from './checker-narrowing.js';
 import {
   type BindingElement,
@@ -108,7 +114,6 @@ import { getPropertyNameFromType, isNumericLiteralName, isTypeUsableAsPropertyNa
 import {
   getReturnTypeOfSignature,
   getRestTypeAtPosition,
-  getSignatureFromDeclaration,
   getTypeAtPosition,
   tryGetTypeAtPosition,
 } from './checker-signatures.js';
@@ -124,12 +129,14 @@ import {
   checkExpressionEx,
   isLiteralOfContextualType,
 } from './checker-expressions.js';
-import { type InferenceContext, hasInferenceCandidatesOrDefault } from './checker-inference.js';
+import { type InferenceContext, getMapperFromContext, hasInferenceCandidatesOrDefault } from './checker-inference.js';
 import { instantiateType, isNodeDescendantOf } from './instantiation.js';
 import { getIndexedAccessTypeEx } from './checker-type-operators.js';
 import { getTypeOfSymbol } from './checker-symbol-types.js';
+import { getNonNullableType } from './checker-flow.js';
 import { maybeTypeOfKind } from './checker-utilities.js';
 import { getFunctionFlags, FunctionFlags, indexOfNode } from './checker-utilities.js';
+import { getContextualTypeForAssignmentExpression } from './checker-javascript.js';
 import { isContextSensitive } from './checker-functions.js';
 import {
   IterationTypeKind,
@@ -340,6 +347,11 @@ export function getContextualTypeEx(c: Checker, node: Node, contextFlags: Contex
     }
     case SyntaxKind.SatisfiesExpression:
       return getTypeFromTypeNode(c, getType(parent)!);
+    case SyntaxKind.ExportAssignment: {
+      // A JSDoc `@type` on `export default`.
+      const typeNode = getType(parent);
+      return typeNode !== undefined ? getTypeFromTypeNode(c, typeNode) : undefined;
+    }
     case SyntaxKind.BinaryExpression:
       return getContextualTypeForBinaryOperand(c, parent as BinaryExpression, node, contextFlags);
     case SyntaxKind.PropertyAssignment:
@@ -544,12 +556,9 @@ export function getContextualIterationType(c: Checker, kind: IterationTypeKind, 
 
 /** The return type a function's annotation or contextual signature implies. */
 export function getContextualReturnType(c: Checker, func: Node): Type | undefined {
-  const typeNode = getType(func);
-  if (typeNode !== undefined) {
-    if (func.kind === SyntaxKind.Constructor) return undefined;
-    return getReturnTypeOfSignature(c, getSignatureFromDeclaration(c, func));
-  }
-  if (func.kind === SyntaxKind.GetAccessor || func.kind === SyntaxKind.Constructor) return undefined;
+  // A return type annotation, a constructor's class, a getter's annotated setter or a JSDoc `@type`.
+  const annotated = getReturnTypeFromAnnotation(c, func);
+  if (annotated !== undefined) return annotated;
   const signature = getContextualSignatureForFunctionLikeDeclaration(c, func);
   if (signature !== undefined && !isResolvingReturnTypeOfSignature(c, signature)) {
     const returnType = getReturnTypeOfSignature(c, signature);
@@ -685,6 +694,9 @@ function getContextualTypeForObjectLiteralElement(
   element: Node,
   contextFlags: ContextFlags,
 ): Type | undefined {
+  // A JSDoc `@type` on the property.
+  const typeNode = getType(element);
+  if (typeNode !== undefined && !isObjectLiteralMethod(element)) return getTypeFromTypeNode(c, typeNode);
   const objectLiteral = element.parent!;
   const t = getApparentTypeOfContextualTypeEx(c, objectLiteral, contextFlags);
   if (t === undefined) return undefined;
@@ -846,6 +858,8 @@ function getContextualTypeForBinaryOperand(
   node: Node,
   contextFlags: ContextFlags,
 ): Type | undefined {
+  // A JSDoc type on a JavaScript assignment.
+  if (binary.type !== undefined) return getTypeFromTypeNode(c, binary.type);
   const op = binary.operatorToken.kind;
   switch (op) {
     case SyntaxKind.EqualsToken:
@@ -853,7 +867,7 @@ function getContextualTypeForBinaryOperand(
     case SyntaxKind.BarBarEqualsToken:
     case SyntaxKind.QuestionQuestionEqualsToken:
       if (node !== binary.right) return undefined;
-      return checkExpressionCached(c, binary.left);
+      return getContextualTypeForAssignmentExpression(c, binary);
     case SyntaxKind.BarBarToken:
     case SyntaxKind.QuestionQuestionToken: {
       const t = getContextualTypeEx(c, binary, contextFlags);
@@ -1096,7 +1110,7 @@ export function getContextualSignature(c: Checker, node: Node): Signature | unde
 }
 
 /** The single call signature of `t` with at least as many parameters as `node`. */
-function getContextualCallSignature(c: Checker, t: Type, node: Node): Signature | undefined {
+export function getContextualCallSignature(c: Checker, t: Type, node: Node): Signature | undefined {
   const signatures = getSignaturesOfType(c, t, SignatureKind.Call);
   const applicableByArity = signatures.filter((s) => !isAritySmaller(c, s, node));
   return applicableByArity.length === 1 ? applicableByArity[0] : getIntersectedSignatures(c, applicableByArity);
@@ -1178,4 +1192,62 @@ export function getContextualTypeForInference(c: Checker, node: Node): Type | un
   return node.kind === SyntaxKind.MethodDeclaration
     ? getContextualTypeForObjectLiteralElement(c, node, ContextFlags.NoConstraints)
     : getContextualTypeEx(c, node, ContextFlags.NoConstraints);
+}
+
+// ---- `this` in object literals
+
+/**
+ * `this` in a method of an object literal: the `T` of a contextual `ThisType<T>` of the literal or
+ * an enclosing one, else the literal's contextual type or its own type.
+ */
+export function getThisTypeOfObjectLiteralMember(c: Checker, literal: Node): Type {
+  const contextualType = getApparentTypeOfContextualTypeEx(c, literal, ContextFlags.None);
+  const thisType = getThisTypeOfObjectLiteralFromContextualType(c, literal, contextualType);
+  if (thisType !== undefined) {
+    const mapper = getMapperFromContext(getInferenceContext(c, literal));
+    return mapper !== undefined ? instantiateType(c, thisType, mapper) : thisType;
+  }
+  return getWidenedType(
+    c,
+    contextualType !== undefined ? getNonNullableType(c, contextualType) : checkExpressionCached(c, literal),
+  );
+}
+
+function getThisTypeOfObjectLiteralFromContextualType(
+  c: Checker,
+  containingLiteral: Node,
+  contextualType: Type | undefined,
+): Type | undefined {
+  let literal = containingLiteral;
+  let t = contextualType;
+  while (t !== undefined) {
+    const thisType = getThisTypeFromContextualType(c, t);
+    if (thisType !== undefined) return thisType;
+    if (literal.parent!.kind !== SyntaxKind.PropertyAssignment) break;
+    literal = literal.parent!.parent!;
+    t = getApparentTypeOfContextualTypeEx(c, literal, ContextFlags.None);
+  }
+  return undefined;
+}
+
+function getThisTypeFromContextualType(c: Checker, t: Type): Type | undefined {
+  return mapTypeEx(
+    c,
+    t,
+    (u) => {
+      if ((u.flags & TypeFlags.Intersection) === 0) return getThisTypeArgument(c, u);
+      for (const v of typesOf(u)) {
+        const typeArgument = getThisTypeArgument(c, v);
+        if (typeArgument !== undefined) return typeArgument;
+      }
+      return undefined;
+    },
+    false,
+  );
+}
+
+function getThisTypeArgument(c: Checker, t: Type): Type | undefined {
+  if ((t.objectFlags & ObjectFlags.Reference) === 0) return undefined;
+  const globalThisType = getGlobalType(c, 'ThisType', 1, false);
+  return (t as TypeReference).target === globalThisType ? getTypeArguments(c, t)[0] : undefined;
 }

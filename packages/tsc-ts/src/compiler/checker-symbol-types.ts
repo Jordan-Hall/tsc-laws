@@ -109,6 +109,7 @@ import {
 import { getTypeForBindingElement, getTypeFromBindingPattern } from './checker-destructuring.js';
 import { checkRightHandSideOfForOf } from './checker-statements.js';
 import { getTypeWithFacts, TypeFacts } from './checker-flow.js';
+import { getTypeOfModuleExportsSymbol, getWidenedTypeForAssignmentDeclaration } from './checker-javascript.js';
 
 export function getTypeOfSymbol(c: Checker, symbol: Symbol): Type {
   const checkFlags = symbol.checkFlags;
@@ -217,6 +218,11 @@ function getTypeOfVariableOrParameterOrPropertyWorker(c: Checker, symbol: Symbol
   const declaration = symbol.valueDeclaration;
   if (declaration === undefined) return c.errorType;
   if (!pushTypeResolution(c, symbol, TypeSystemPropertyName.Type)) return reportCircularityError(c, symbol);
+  if ((symbol.flags & SymbolFlags.ModuleExports) !== 0) {
+    const t = getTypeOfModuleExportsSymbol(c, symbol);
+    popTypeResolution(c);
+    return t;
+  }
   let result: Type;
   switch (declaration.kind) {
     case SyntaxKind.Parameter:
@@ -250,8 +256,11 @@ function getTypeOfVariableOrParameterOrPropertyWorker(c: Checker, symbol: Symbol
     case SyntaxKind.EnumMember:
       result = getTypeOfEnumMember(c, symbol);
       break;
+    case SyntaxKind.BinaryExpression:
+    case SyntaxKind.CallExpression:
+      result = getWidenedTypeForAssignmentDeclaration(c, symbol);
+      break;
     default:
-      // JS assignment declarations aren't typed yet.
       result = c.anyType;
   }
   if (!popTypeResolution(c)) return reportCircularityError(c, symbol);
@@ -345,6 +354,8 @@ export function getTypeForVariableLikeDeclaration(
       const getter = fnSymbol?.declarations.find((d) => d.kind === SyntaxKind.GetAccessor);
       if (getter !== undefined) return getReturnTypeOfSignature(c, getSignatureFromDeclaration(c, getter));
     }
+    const fullSignatureType = getParameterTypeOfFullSignature(c, fn, declaration);
+    if (fullSignatureType !== undefined) return fullSignatureType;
     const t = getSymbol(declaration)!.name === 'this' ? undefined : getContextuallyTypedParameterType(c, declaration);
     if (t !== undefined) return addOptionality(c, t, false, isOptional);
   }
@@ -378,7 +389,19 @@ export function getTypeForVariableLikeDeclaration(
 }
 
 function widenTypeInferredFromInitializer(c: Checker, declaration: Node, t: Type): Type {
-  return getWidenedLiteralTypeForInitializer(c, declaration, t);
+  const widened = getWidenedLiteralTypeForInitializer(c, declaration, t);
+  // `null`, `undefined` and `[]` initializers in JavaScript are implicitly `any` and `any[]`.
+  if (isInJSFile(declaration)) {
+    if (widened === (c.strictNullChecks ? c.implicitNeverType : c.undefinedWideningType)) {
+      reportImplicitAny(c, declaration, c.anyType);
+      return c.anyType;
+    }
+    if (isEmptyArrayLiteralType(c, widened)) {
+      reportImplicitAny(c, declaration, c.anyArrayType);
+      return c.anyArrayType;
+    }
+  }
+  return widened;
 }
 
 export function getWidenedLiteralTypeForInitializer(c: Checker, declaration: Node, t: Type): Type {
@@ -695,6 +718,9 @@ export function isReadonlySymbol(c: Checker, symbol: Symbol): boolean {
 }
 
 import { getDeclarationModifierFlagsFromSymbol } from './checker-members.js';
+import { getParameterTypeOfFullSignature } from './checker-jsdoc.js';
+import { isInJSFile } from './ast-utilities.js';
+import { isEmptyArrayLiteralType } from './relations.js';
 
 function getDeclarationModifierFlags(c: Checker, symbol: Symbol): ModifierFlags {
   return getDeclarationModifierFlagsFromSymbol(c, symbol, false);

@@ -1,13 +1,27 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { existsSync, readdirSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { tempDir } from './temp.mjs';
 
 const oracle = resolve('dist/check-oracle');
 const libs = resolve('../../upstream/typescript-go/internal/bundled/libs');
 const cases = resolve('../../upstream/TypeScript/tests/cases/compiler');
+
+// Whether the oracle checks a case as JavaScript: every @filename unit is JavaScript and it sets
+// @checkJs. The translated checker only checks TypeScript.
+function isCheckedJs(file) {
+  let units = 0;
+  let checkJs = false;
+  for (const [, name, value] of readFileSync(file, 'utf8').matchAll(/^[ \t]*\/\/[ \t]*@(\w+)[ \t]*:([^\r\n]*)/gim)) {
+    if (name.toLowerCase() === 'filename') {
+      if (!/\.(js|jsx|cjs|mjs)$/i.test(value.trim())) return false;
+      units++;
+    } else if (name.toLowerCase() === 'checkjs') checkJs = value.split(',')[0].trim().toLowerCase() === 'true';
+  }
+  return units > 0 && checkJs;
+}
 
 // Every 25th compiler test case, when the TypeScript test cases are present.
 const sample = existsSync(cases)
@@ -16,6 +30,7 @@ const sample = existsSync(cases)
       .sort()
       .filter((_, i) => i % 25 === 0)
       .map((f) => join(cases, f))
+      .filter((f) => !isCheckedJs(f))
   : [];
 const inputs = [resolve('tests/fixtures/check-basic.ts'), ...sample];
 

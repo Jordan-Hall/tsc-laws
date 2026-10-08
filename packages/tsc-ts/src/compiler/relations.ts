@@ -71,6 +71,7 @@ import {
   getEndElementCount,
   createNormalizedTypeReference,
   typeListKey,
+  countTypes,
 } from './checker-type-factory.js';
 import {
   findApplicableIndexInfo,
@@ -1988,8 +1989,148 @@ export class Relater extends TypeComparer {
           else if (this.errorChain === undefined) this.errorChain = saveChain;
         }
       }
+      // An object is related to a discriminated union when every combination of its discriminants
+      // matches a constituent. Errors come from the constituent checks.
+      if (
+        (source.flags & (TypeFlags.Object | TypeFlags.Intersection)) !== 0 &&
+        (target.flags & TypeFlags.Union) !== 0
+      ) {
+        const objectOnlyTarget = filterType(
+          c,
+          target,
+          (t) => (t.flags & (TypeFlags.Object | TypeFlags.Intersection | TypeFlags.Substitution)) !== 0,
+        );
+        if ((objectOnlyTarget.flags & TypeFlags.Union) !== 0) {
+          const related = this.typeRelatedToDiscriminatedType(source, objectOnlyTarget);
+          if (related !== Ternary.False) return related;
+        }
+      }
     }
     return Ternary.False;
+  }
+
+  typeRelatedToDiscriminatedType(source: Type, target: Type): Ternary {
+    const c = this.c;
+    const sourceProperties = getPropertiesOfType(c, source).filter((p) => isDiscriminantProperty(c, target, p.name));
+    if (sourceProperties.length === 0) return Ternary.False;
+    // Too many combinations make the comparison too complex.
+    let numCombinations = 1;
+    for (const sourceProperty of sourceProperties) {
+      numCombinations *= countTypes(getNonMissingTypeOfSymbol(c, sourceProperty));
+      if (numCombinations > 25 || numCombinations === 0) return Ternary.False;
+    }
+    const sourceDiscriminantTypes: Type[][] = [];
+    const excludedProperties = new Set<string>();
+    for (const sourceProperty of sourceProperties) {
+      const t = getNonMissingTypeOfSymbol(c, sourceProperty);
+      sourceDiscriminantTypes.push((t.flags & TypeFlags.Union) !== 0 ? typesOf(t) : [t]);
+      excludedProperties.add(sourceProperty.name);
+    }
+    const matchingTypes: Type[] = [];
+    const targetTypes = typesOf(target);
+    for (let i = 0; i < numCombinations; i++) {
+      // The i-th element of the cartesian product of the discriminant types.
+      const combination: Type[] = [];
+      let n = i;
+      for (let j = sourceDiscriminantTypes.length - 1; j >= 0; j--) {
+        const types = sourceDiscriminantTypes[j];
+        combination.unshift(types[n % types.length]);
+        n = Math.floor(n / types.length);
+      }
+      let hasMatch = false;
+      for (const t of targetTypes) {
+        let matches = true;
+        for (let k = 0; k < sourceProperties.length; k++) {
+          const sourceProperty = sourceProperties[k];
+          const targetProperty = getPropertyOfType(c, t, sourceProperty.name);
+          if (targetProperty === undefined) {
+            matches = false;
+            break;
+          }
+          if (sourceProperty === targetProperty) continue;
+          // The source property is compared in the context of a single discriminant type.
+          const related = this.discriminantPropertyRelatedTo(
+            source,
+            target,
+            combination[k],
+            sourceProperty,
+            targetProperty,
+            c.strictNullChecks || this.relation === c.comparableRelation,
+          );
+          if (related === Ternary.False) {
+            matches = false;
+            break;
+          }
+        }
+        if (!matches) continue;
+        if (!matchingTypes.includes(t)) matchingTypes.push(t);
+        hasMatch = true;
+      }
+      if (!hasMatch) return Ternary.False;
+    }
+    // The remaining non-discriminant properties of each match.
+    let result = Ternary.True;
+    for (const t of matchingTypes) {
+      result &= this.propertiesRelatedTo(source, t, false, excludedProperties, false, IntersectionState.None);
+      if (result !== Ternary.False) {
+        result &= this.signaturesRelatedTo(source, t, SignatureKind.Call, false, IntersectionState.None);
+        if (result !== Ternary.False) {
+          result &= this.signaturesRelatedTo(source, t, SignatureKind.Construct, false, IntersectionState.None);
+          if (result !== Ternary.False && !(isTupleType(source) && isTupleType(t)))
+            result &= this.indexSignaturesRelatedTo(source, t, false, false, IntersectionState.None);
+        }
+      }
+      if (result === Ternary.False) return result;
+    }
+    return result;
+  }
+
+  /** `propertyRelatedTo` with `sourcePropType` standing for the type of `sourceProp`. */
+  discriminantPropertyRelatedTo(
+    source: Type,
+    target: Type,
+    sourcePropType: Type,
+    sourceProp: Symbol,
+    targetProp: Symbol,
+    skipOptional: boolean,
+  ): Ternary {
+    const c = this.c;
+    const sourcePropFlags = getDeclarationModifierFlagsFromSymbol(c, sourceProp, false);
+    const targetPropFlags = getDeclarationModifierFlagsFromSymbol(c, targetProp, false);
+    if ((sourcePropFlags & ModifierFlags.Private) !== 0 || (targetPropFlags & ModifierFlags.Private) !== 0) {
+      if (sourceProp.valueDeclaration !== targetProp.valueDeclaration) return Ternary.False;
+    } else if ((targetPropFlags & ModifierFlags.Protected) !== 0) {
+      if (!isValidOverrideOf(c, sourceProp, targetProp)) return Ternary.False;
+    } else if ((sourcePropFlags & ModifierFlags.Protected) !== 0) return Ternary.False;
+    if (
+      this.relation === c.strictSubtypeRelation &&
+      isReadonlySymbol(c, sourceProp) &&
+      !isReadonlySymbol(c, targetProp)
+    )
+      return Ternary.False;
+    const targetIsOptional = c.strictNullChecks && (targetProp.checkFlags & CheckFlags.Partial) !== 0;
+    const effectiveTarget = addOptionality(c, getNonMissingTypeOfSymbol(c, targetProp), false, targetIsOptional);
+    const related =
+      (effectiveTarget.flags & (this.relation === c.strictSubtypeRelation ? TypeFlags.Any : TypeFlags.AnyOrUnknown)) !==
+      0
+        ? Ternary.True
+        : this.isRelatedToEx(
+            sourcePropType,
+            effectiveTarget,
+            RecursionFlags.Both,
+            false,
+            undefined,
+            IntersectionState.None,
+          );
+    if (related === Ternary.False) return Ternary.False;
+    if (
+      !skipOptional &&
+      (sourceProp.flags & SymbolFlags.Optional) !== 0 &&
+      (targetProp.flags & SymbolFlags.ClassMember) !== 0 &&
+      (targetProp.flags & SymbolFlags.Optional) === 0
+    )
+      return Ternary.False;
+    return related;
   }
 
   relateToGenericMappedType(source: Type, target: MappedType, reportErrors: boolean): Ternary {

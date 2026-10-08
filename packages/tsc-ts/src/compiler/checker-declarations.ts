@@ -51,6 +51,7 @@ import {
   isEnumConst,
   isExternalModule,
   isModuleAugmentationExternal,
+  isVariableDeclarationInitializedToRequire,
 } from './binder-utilities.js';
 import { Diagnostic, type DiagnosticMessage, Diagnostics } from './diagnostics.js';
 import { InternalSymbolName, type Symbol, SymbolFlags } from './symbol.js';
@@ -106,6 +107,8 @@ import {
 } from './ast-utilities.js';
 import { getTypeForBindingElementParent } from './checker-destructuring.js';
 import { checkFunctionOrMethodSymbols } from './checker-overloads.js';
+import { checkJSDocFullSignature } from './checker-jsdoc.js';
+import { checkAliasSymbol } from './checker-modules.js';
 import { checkDecorators } from './checker-decorators.js';
 
 // ---- Variables and parameters
@@ -155,6 +158,11 @@ export function checkVariableLikeDeclaration(c: Checker, node: Node): void {
   const symbol = getSymbolOfDeclaration(c, node);
   if (symbol === undefined) {
     if (initializer !== undefined) checkExpressionCached(c, initializer);
+    return;
+  }
+  // `const x = require("m")` declares an alias.
+  if ((symbol.flags & SymbolFlags.Alias) !== 0 && isVariableDeclarationInitializedToRequire(node)) {
+    checkAliasSymbol(c, node);
     return;
   }
   const t = getTypeOfSymbol(c, symbol);
@@ -366,6 +374,14 @@ function checkBindingElement(c: Checker, element: BindingElement): void {
       if (e.kind !== SyntaxKind.OmittedExpression) checkBindingElement(c, e as BindingElement);
   } else {
     const symbol = getSymbolOfDeclaration(c, element);
+    if (
+      symbol !== undefined &&
+      (symbol.flags & SymbolFlags.Alias) !== 0 &&
+      isVariableDeclarationInitializedToRequire(element)
+    ) {
+      checkAliasSymbol(c, element);
+      return;
+    }
     if (symbol !== undefined) {
       getTypeOfSymbol(c, symbol);
       checkExportsOnMergedDeclarations(c, element);
@@ -404,6 +420,7 @@ export function checkFunctionDeclaration(c: Checker, node: Node): void {
   const symbol = getSymbolOfDeclaration(c, node);
   if (symbol !== undefined) getTypeOfSymbol(c, symbol);
   checkFunctionLikeBody(c, node);
+  checkJSDocFullSignature(c, node);
   checkFunctionOrMethodSymbols(c, node);
 }
 
@@ -846,6 +863,7 @@ function getDeclarationSpaces(c: Checker, node: Node): DeclarationSpaces {
   switch (node.kind) {
     case SyntaxKind.InterfaceDeclaration:
     case SyntaxKind.TypeAliasDeclaration:
+    case SyntaxKind.JSTypeAliasDeclaration:
       return DeclarationSpaces.ExportType;
     case SyntaxKind.ModuleDeclaration:
       return isAmbientModule(node) || getModuleInstanceState(node) !== ModuleInstanceState.NonInstantiated

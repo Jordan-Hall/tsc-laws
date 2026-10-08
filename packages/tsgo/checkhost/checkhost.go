@@ -87,7 +87,8 @@ func NewProgramWithOptions(fileName string, text string, options *core.CompilerO
 }
 
 // Check returns the diagnostics of fileName: syntactic, bind, semantic, and
-// global diagnostics, in that order.
+// global diagnostics, in that order. JS files add their JS-only syntactic and
+// JSDoc diagnostics as a program does for a checked JS file.
 func Check(fileName string, text string, readLib func(name string) (string, bool)) []*ast.Diagnostic {
 	return CheckWithOptions(fileName, text, DefaultOptions(), readLib)
 }
@@ -100,8 +101,10 @@ func CheckWithOptions(fileName string, text string, options *core.CompilerOption
 	file := p.byPath[tspath.Path(fileName)]
 	var diags []*ast.Diagnostic
 	diags = append(diags, file.Diagnostics()...)
+	diags = append(diags, file.JSDiagnostics()...)
 	diags = append(diags, file.BindDiagnostics()...)
 	diags = append(diags, c.GetDiagnostics(context.Background(), file)...)
+	diags = append(diags, file.JSDocDiagnostics()...)
 	diags = append(diags, c.GetGlobalDiagnostics()...)
 	return diags
 }

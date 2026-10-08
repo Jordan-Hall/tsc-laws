@@ -670,6 +670,7 @@ function getPropertyTypeForIndexType(
           return undefined;
         }
         if ((accessFlags & AccessFlags.CacheSymbol) !== 0) c.nodeLinks(accessExpression).resolvedSymbol = prop;
+        if (isThisPropertyAccessInConstructor(c, accessExpression, prop)) return c.autoType;
       }
       const propType =
         (accessFlags & AccessFlags.Writing) !== 0 ? getWriteTypeOfSymbol(c, prop) : getTypeOfSymbol(c, prop);
@@ -768,7 +769,7 @@ function getPropertyTypeForIndexType(
       return indexInfo.valueType;
     }
     if ((indexType.flags & TypeFlags.Never) !== 0) return c.neverType;
-    if ((objectType.objectFlags & ObjectFlags.JSLiteral) !== 0) return c.anyType;
+    if (isJSLiteralType(c, objectType)) return c.anyType;
     if (accessExpression !== undefined && !isConstEnumObjectType(objectType)) {
       if (isObjectLiteralType(objectType)) {
         if (c.noImplicitAny && (indexType.flags & (TypeFlags.StringLiteral | TypeFlags.NumberLiteral)) !== 0) {
@@ -874,7 +875,7 @@ function getPropertyTypeForIndexType(
     }
   }
   if ((accessFlags & AccessFlags.AllowMissing) !== 0 && isObjectLiteralType(objectType)) return c.undefinedType;
-  if ((objectType.objectFlags & ObjectFlags.JSLiteral) !== 0) return c.anyType;
+  if (isJSLiteralType(c, objectType)) return c.anyType;
   if (accessNode !== undefined) {
     const indexNode = getIndexNodeForAccessExpression(accessNode);
     if (
@@ -1670,6 +1671,7 @@ function instantiateMappedTupleType(
 
 import { TupleElementInfo } from './checker-types.js';
 import { createDiagnosticForNode } from './checker.js';
+import { isJSLiteralType, isThisPropertyAccessInConstructor } from './checker-javascript.js';
 
 function withFlags(info: TupleElementInfo, flags: ElementFlags): TupleElementInfo {
   return new TupleElementInfo(flags, info.labeledDeclaration);

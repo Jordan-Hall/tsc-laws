@@ -134,6 +134,7 @@ import { SymbolFlags } from './symbol.js';
 import { typeToString } from './type-printer.js';
 import type { ScriptTarget as LanguageTarget } from './types.js';
 import { SyntaxKind } from './syntax-kind.js';
+import { findMismatchedAugmentsTag } from './checker-jsdoc.js';
 
 /** Runs the grammar checks of every node of `file`. */
 export function checkGrammarSourceFile(c: Checker, file: SourceFile): void {
@@ -1581,6 +1582,18 @@ function checkGrammarClassDeclarationHeritageClauses(g: GrammarChecker, node: No
         return grammarErrorOnFirstToken(g, clause, Diagnostics.X_extends_clause_must_precede_implements_clause);
       if (clause.types.nodes.length > 1)
         return grammarErrorOnFirstToken(g, clause.types.nodes[1], Diagnostics.Classes_can_only_extend_a_single_class);
+      if (clause.types.nodes.length > 0) {
+        const mismatch = findMismatchedAugmentsTag(node, clause.types.nodes[0] as ExpressionWithTypeArguments);
+        if (mismatch !== undefined)
+          return grammarErrorOnNode(
+            g,
+            mismatch.name,
+            Diagnostics.JSDoc_0_1_does_not_match_the_extends_2_clause,
+            mismatch.tagName,
+            mismatch.className,
+            mismatch.extendsName,
+          );
+      }
       seenExtendsClause = true;
     } else {
       if (seenImplementsClause)

@@ -479,7 +479,8 @@ function newThisPropertyReference(symbol: Symbol, container: Node, flowNode: Flo
   return reference;
 }
 
-function getFlowTypeOfProperty(c: Checker, reference: Node, prop: Symbol): Type {
+/** The control flow type of `this.x` at `reference`, from `undefined` or the base class property type. */
+export function getFlowTypeOfProperty(c: Checker, reference: Node, prop: Symbol): Type {
   let initialType: Type = c.undefinedType;
   const declaration = prop.valueDeclaration;
   if (
@@ -493,7 +494,7 @@ function getFlowTypeOfProperty(c: Checker, reference: Node, prop: Symbol): Type 
 }
 
 /** Whether a property's type comes from its assignments: it has no annotation or initializer. */
-function isAutoTypedProperty(c: Checker, symbol: Symbol): boolean {
+export function isAutoTypedProperty(c: Checker, symbol: Symbol): boolean {
   const declaration = symbol.valueDeclaration;
   return (
     declaration !== undefined &&
