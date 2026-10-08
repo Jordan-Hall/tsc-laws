@@ -1,8 +1,7 @@
 /**
  * The tsconfig.json written by `tsc --init`.
  */
-import * as m from './command-line-messages.js';
-import type { Message } from './command-line-messages.js';
+import { Diagnostics, localizeMessage, type DiagnosticMessage, type Locale } from './diagnostics.js';
 import {
   compilerOptionsByName,
   sameEnumValue,
@@ -18,43 +17,45 @@ const enum Commented {
   Optional,
 }
 
-/** Generates tsconfig.json text with the recommended settings plus the command-line `options`. */
-export function generateTSConfig(options: ReadonlyMap<string, OptionValue>): string {
-  const writer = new ConfigWriter(options);
+/** Generates tsconfig.json text with the recommended settings plus the command-line `options`, commented in `locale`. */
+export function generateTSConfig(options: ReadonlyMap<string, OptionValue>, locale: Locale): string {
+  const writer = new ConfigWriter(options, locale);
   writer.line('{');
-  writer.line('  // ' + m.Visit_https_Colon_Slash_Slashaka_ms_Slashtsconfig_to_read_more_about_this_file.text);
+  writer.line(
+    '  // ' + writer.text(Diagnostics.Visit_https_Colon_Slash_Slashaka_ms_Slashtsconfig_to_read_more_about_this_file),
+  );
   writer.line('  "compilerOptions": {');
 
-  writer.heading(m.File_Layout);
+  writer.heading(Diagnostics.File_Layout);
   writer.option('rootDir', './src', Commented.Optional);
   writer.option('outDir', './dist', Commented.Optional);
   writer.line('');
 
-  writer.heading(m.Environment_Settings);
-  writer.heading(m.See_also_https_Colon_Slash_Slashaka_ms_Slashtsconfig_Slashmodule);
+  writer.heading(Diagnostics.Environment_Settings);
+  writer.heading(Diagnostics.See_also_https_Colon_Slash_Slashaka_ms_Slashtsconfig_Slashmodule);
   writer.option('module', ModuleKind.NodeNext, Commented.Never);
   writer.option('target', ScriptTarget.ESNext, Commented.Never);
   writer.option('types', [], Commented.Never);
   const lib = options.get('lib');
   if (lib !== undefined) writer.option('lib', lib, Commented.Never);
-  writer.heading(m.For_nodejs_Colon);
+  writer.heading(Diagnostics.For_nodejs_Colon);
   writer.line('    // "lib": ["esnext"],');
   writer.line('    // "types": ["node"],');
-  writer.heading(m.and_npm_install_D_types_Slashnode);
+  writer.heading(Diagnostics.X_and_npm_install_D_types_Slashnode);
   writer.line('');
 
-  writer.heading(m.Other_Outputs);
+  writer.heading(Diagnostics.Other_Outputs);
   writer.option('sourceMap', true, Commented.Never);
   writer.option('declaration', true, Commented.Never);
   writer.option('declarationMap', true, Commented.Never);
   writer.line('');
 
-  writer.heading(m.Stricter_Typechecking_Options);
+  writer.heading(Diagnostics.Stricter_Typechecking_Options);
   writer.option('noUncheckedIndexedAccess', true, Commented.Never);
   writer.option('exactOptionalPropertyTypes', true, Commented.Never);
   writer.line('');
 
-  writer.heading(m.Style_Options);
+  writer.heading(Diagnostics.Style_Options);
   writer.option('noImplicitReturns', true, Commented.Optional);
   writer.option('noImplicitOverride', true, Commented.Optional);
   writer.option('noUnusedLocals', true, Commented.Optional);
@@ -63,7 +64,7 @@ export function generateTSConfig(options: ReadonlyMap<string, OptionValue>): str
   writer.option('noPropertyAccessFromIndexSignature', true, Commented.Optional);
   writer.line('');
 
-  writer.heading(m.Recommended_Options);
+  writer.heading(Diagnostics.Recommended_Options);
   writer.option('strict', true, Commented.Never);
   writer.option('jsx', JsxEmit.ReactJSX, Commented.Never);
   writer.option('verbatimModuleSyntax', true, Commented.Never);
@@ -89,14 +90,21 @@ class ConfigWriter {
   readonly lines: string[] = [];
   private readonly written = new Set<string>(['init', 'help', 'watch']);
 
-  constructor(private readonly options: ReadonlyMap<string, OptionValue>) {}
+  constructor(
+    private readonly options: ReadonlyMap<string, OptionValue>,
+    private readonly locale: Locale,
+  ) {}
 
   line(text: string): void {
     this.lines.push(text);
   }
 
-  heading(message: Message): void {
-    this.lines.push('    // ' + message.text);
+  text(message: DiagnosticMessage): string {
+    return localizeMessage(this.locale, message, []);
+  }
+
+  heading(message: DiagnosticMessage): void {
+    this.lines.push('    // ' + this.text(message));
   }
 
   option(name: string, defaultValue: OptionValue, commented: Commented): void {

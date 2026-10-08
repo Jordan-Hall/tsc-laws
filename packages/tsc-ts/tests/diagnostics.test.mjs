@@ -117,17 +117,27 @@ test('formatting with arguments matches tsgo', { skip }, async () => {
 
 /** Language, script and region subtags to combine, from the locale tables. */
 function localeCorpus() {
-  const source = readFileSync(join(root, 'src/compiler/locale-matcher.ts'), 'utf8');
+  const source = readFileSync(join(root, 'src/compiler/locale-data.ts'), 'utf8');
   const block = (name) =>
     source
       .slice(source.indexOf(`const ${name} = `))
       .split('`')[1]
       .trim()
       .split(/\s+/);
+  const list = (name) => {
+    const start = source.indexOf(`const ${name} =`);
+    const text = source.slice(start, source.indexOf(';', start));
+    return [...text.matchAll(/'([^']*)'/g)]
+      .map((m) => m[1])
+      .join('')
+      .split(' ');
+  };
   const languages = block('likelyScripts').map((entry) => entry.split('=')[0]);
   const aliases = block('languageAliases').map((entry) => entry.split('=')[0]);
   // Zmth (mathematical notation) is left out: x/text's answers for it do not follow its data.
-  const scripts = block('knownScripts').filter((s) => s !== 'Zmth');
+  const scripts = list('scripts')
+    .map((s) => s[0].toUpperCase() + s.slice(1))
+    .filter((s) => s !== 'Zmth');
   const letters = 'abcdefghijklmnopqrstuvwxyz';
   const codes = [];
   for (const a of letters) for (const b of letters) codes.push(a + b);

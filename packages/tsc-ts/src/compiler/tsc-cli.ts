@@ -2,10 +2,16 @@
  * The `tsc` command line up to compilation: argument errors, `--init`, `--version`, `--help`,
  * project lookup and `--showConfig`.
  */
-import * as m from './command-line-messages.js';
-import { categoryName, createDiagnostic, formatMessage } from './command-line-messages.js';
-import type { Diagnostic } from './command-line-messages.js';
-import { combinePaths, getDirectoryPath, normalizePath } from './command-line-paths.js';
+import {
+  createCompilerDiagnostic,
+  Diagnostics,
+  formatDiagnostic,
+  formatDiagnosticWithColorAndContext,
+  parseLocale,
+  type Diagnostic,
+  type DiagnosticFormatOptions,
+  type Locale,
+} from './diagnostics.js';
 import {
   CommandLineHost,
   parseBuildCommandLine,
@@ -16,6 +22,7 @@ import {
 import { Colors, defaultIsPretty, header, printBuildHelp, printHelp, printVersion } from './help.js';
 import { generateTSConfig } from './init.js';
 import type { CompilerOptions } from './options.js';
+import { combinePaths, getDirectoryPath, normalizePath } from './path.js';
 import { showConfig } from './show-config.js';
 
 export enum ExitStatus {
@@ -64,26 +71,27 @@ function exit(status: ExitStatus): CommandLineResult {
 export class DiagnosticReporter {
   private readonly quiet: boolean;
   private readonly pretty: boolean;
+  private readonly format: DiagnosticFormatOptions;
 
   constructor(
     private readonly sys: System,
     options: CompilerOptions,
+    locale: Locale,
   ) {
     this.quiet = options.quiet === true;
     this.pretty = options.pretty ?? defaultIsPretty(sys);
+    this.format = {
+      locale,
+      currentDirectory: sys.currentDirectory,
+      useCaseSensitiveFileNames: sys.useCaseSensitiveFileNames,
+      newLine: '\n',
+    };
   }
 
   report(diagnostic: Diagnostic): void {
     if (this.quiet) return;
-    const message = diagnostic.message;
-    const text = formatMessage(message, diagnostic.args);
-    const category = categoryName(message.category);
-    if (this.pretty) {
-      const color = categoryColor(category);
-      this.sys.write(`${color}${category}\x1b[0m\x1b[90m TS${message.code}: \x1b[0m${text}\n`);
-    } else {
-      this.sys.write(`${category} TS${message.code}: ${text}\n`);
-    }
+    if (this.pretty) this.sys.write(formatDiagnosticWithColorAndContext(diagnostic, this.format) + '\n');
+    else this.sys.write(formatDiagnostic(diagnostic, this.format));
   }
 
   reportAll(diagnostics: readonly Diagnostic[]): void {
@@ -91,17 +99,9 @@ export class DiagnosticReporter {
   }
 }
 
-function categoryColor(category: string): string {
-  switch (category) {
-    case 'error':
-      return '\x1b[91m';
-    case 'warning':
-      return '\x1b[93m';
-    case 'suggestion':
-      return '\x1b[90m';
-    default:
-      return '\x1b[94m';
-  }
+/** The language of messages and help: tsgo's choice of translation for `--locale`. */
+export function outputLocale(options: CompilerOptions): Locale {
+  return parseLocale(options.locale ?? '');
 }
 
 /** Runs `tsc` with `args` (without the executable). */
@@ -116,14 +116,15 @@ export function executeCommandLine(sys: System, args: readonly string[]): Comman
 }
 
 function executeBuild(sys: System, commandLine: ParsedBuildCommandLine): CommandLineResult {
-  const reporter = new DiagnosticReporter(sys, commandLine.compilerOptions);
+  const locale = outputLocale(commandLine.compilerOptions);
+  const reporter = new DiagnosticReporter(sys, commandLine.compilerOptions, locale);
   if (commandLine.errors.length > 0) {
     reporter.reportAll(commandLine.errors);
     return exit(ExitStatus.DiagnosticsPresent_OutputsSkipped);
   }
   if (commandLine.compilerOptions.help === true) {
-    printVersion(sys);
-    printBuildHelp(sys);
+    printVersion(sys, locale);
+    printBuildHelp(sys, locale);
     return exit(ExitStatus.Success);
   }
   return { kind: 'build', commandLine };
@@ -131,25 +132,26 @@ function executeBuild(sys: System, commandLine: ParsedBuildCommandLine): Command
 
 function executeCompile(sys: System, commandLine: ParsedCommandLine): CommandLineResult {
   const options = commandLine.options;
-  const reporter = new DiagnosticReporter(sys, options);
+  const locale = outputLocale(options);
+  const reporter = new DiagnosticReporter(sys, options, locale);
   if (commandLine.errors.length > 0) {
     reporter.reportAll(commandLine.errors);
     return exit(ExitStatus.DiagnosticsPresent_OutputsSkipped);
   }
   if (options.init === true) {
-    writeConfigFile(sys, reporter, commandLine);
+    writeConfigFile(sys, locale, reporter, commandLine);
     return exit(ExitStatus.Success);
   }
   if (options.version === true) {
-    printVersion(sys);
+    printVersion(sys, locale);
     return exit(ExitStatus.Success);
   }
   if (options.help === true || options.all === true) {
-    printHelp(sys, options.all === true);
+    printHelp(sys, locale, options.all === true);
     return exit(ExitStatus.Success);
   }
   if (options.watch === true && options.listFilesOnly === true) {
-    reporter.report(createDiagnostic(m.Options_0_and_1_cannot_be_combined, 'watch', 'listFilesOnly'));
+    reporter.report(createCompilerDiagnostic(Diagnostics.Options_0_and_1_cannot_be_combined, 'watch', 'listFilesOnly'));
     return exit(ExitStatus.DiagnosticsPresent_OutputsSkipped);
   }
 
@@ -157,7 +159,9 @@ function executeCompile(sys: System, commandLine: ParsedCommandLine): CommandLin
   let configFileName = '';
   if (options.project !== undefined) {
     if (fileNames.length !== 0) {
-      reporter.report(createDiagnostic(m.Option_project_cannot_be_mixed_with_source_files_on_a_command_line));
+      reporter.report(
+        createCompilerDiagnostic(Diagnostics.Option_project_cannot_be_mixed_with_source_files_on_a_command_line),
+      );
       return exit(ExitStatus.DiagnosticsPresent_OutputsSkipped);
     }
     const project = normalizePath(options.project);
@@ -165,14 +169,17 @@ function executeCompile(sys: System, commandLine: ParsedCommandLine): CommandLin
       configFileName = combinePaths(project, 'tsconfig.json');
       if (!sys.fileExists(configFileName)) {
         reporter.report(
-          createDiagnostic(m.Cannot_find_a_tsconfig_json_file_at_the_current_directory_Colon_0, configFileName),
+          createCompilerDiagnostic(
+            Diagnostics.Cannot_find_a_tsconfig_json_file_at_the_current_directory_Colon_0,
+            configFileName,
+          ),
         );
         return exit(ExitStatus.DiagnosticsPresent_OutputsSkipped);
       }
     } else {
       configFileName = project;
       if (!sys.fileExists(configFileName)) {
-        reporter.report(createDiagnostic(m.The_specified_path_does_not_exist_Colon_0, project));
+        reporter.report(createCompilerDiagnostic(Diagnostics.The_specified_path_does_not_exist_Colon_0, project));
         return exit(ExitStatus.DiagnosticsPresent_OutputsSkipped);
       }
     }
@@ -182,8 +189,8 @@ function executeCompile(sys: System, commandLine: ParsedCommandLine): CommandLin
     if (fileNames.length !== 0) {
       if (configFileName !== '') {
         reporter.report(
-          createDiagnostic(
-            m.tsconfig_json_is_present_but_will_not_be_loaded_if_files_are_specified_on_commandline_Use_ignoreConfig_to_skip_this_error,
+          createCompilerDiagnostic(
+            Diagnostics.X_tsconfig_json_is_present_but_will_not_be_loaded_if_files_are_specified_on_commandline_Use_ignoreConfig_to_skip_this_error,
           ),
         );
         return exit(ExitStatus.DiagnosticsPresent_OutputsSkipped);
@@ -191,11 +198,14 @@ function executeCompile(sys: System, commandLine: ParsedCommandLine): CommandLin
     } else if (configFileName === '') {
       if (options.showConfig === true) {
         reporter.report(
-          createDiagnostic(m.Cannot_find_a_tsconfig_json_file_at_the_current_directory_Colon_0, searchPath),
+          createCompilerDiagnostic(
+            Diagnostics.Cannot_find_a_tsconfig_json_file_at_the_current_directory_Colon_0,
+            searchPath,
+          ),
         );
       } else {
-        printVersion(sys);
-        printHelp(sys, false);
+        printVersion(sys, locale);
+        printHelp(sys, locale, false);
       }
       return exit(ExitStatus.DiagnosticsPresent_OutputsSkipped);
     }
@@ -231,13 +241,18 @@ function findConfigFile(sys: System, directory: string): string {
   }
 }
 
-function writeConfigFile(sys: System, reporter: DiagnosticReporter, commandLine: ParsedCommandLine): void {
+function writeConfigFile(
+  sys: System,
+  locale: Locale,
+  reporter: DiagnosticReporter,
+  commandLine: ParsedCommandLine,
+): void {
   const file = normalizePath(combinePaths(sys.currentDirectory, 'tsconfig.json'));
   if (sys.fileExists(file)) {
-    reporter.report(createDiagnostic(m.A_tsconfig_json_file_is_already_defined_at_Colon_0, file));
+    reporter.report(createCompilerDiagnostic(Diagnostics.A_tsconfig_json_file_is_already_defined_at_Colon_0, file));
     return;
   }
-  sys.writeFile(file, generateTSConfig(commandLine.raw));
+  sys.writeFile(file, generateTSConfig(commandLine.raw, locale));
   sys.write(
     '\n' +
       header(sys, new Colors(sys), 'Created a new tsconfig.json') +

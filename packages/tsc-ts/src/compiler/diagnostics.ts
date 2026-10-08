@@ -2,13 +2,14 @@
  * Diagnostics: message lookup and localization, the `Diagnostic` type, and tsc's plain and
  * pretty diagnostic output.
  */
+import { isDigit, isUnicodeWhiteSpace, utf8Length } from './character-codes.js';
 import { Locale, translations } from './diagnostic-locales.js';
 import { Diagnostics, messageCodes, messageFlags, messageKeys, messageTexts } from './diagnostic-messages.js';
 import { getPathComponentsRelativeTo, getPathFromPathComponents, isRootedDiskPath, pathIsAbsolute } from './path.js';
 import { computeLineOfPosition, computeLineStarts } from './scanner.js';
 
 export { Diagnostics, Locale };
-export { parseLocale } from './locale-matcher.js';
+export { parseLocale } from './locale.js';
 
 export const enum DiagnosticCategory {
   Warning = 0,
@@ -121,10 +122,6 @@ export function formatMessage(text: string, args: readonly string[]): string {
   return result + text.slice(start);
 }
 
-function isDigit(c: number): boolean {
-  return c >= 0x30 && c <= 0x39;
-}
-
 /** Replaces lone surrogates with U+FFFD, as tsgo makes arguments valid UTF-8. */
 function toWellFormed(text: string): string {
   for (let i = 0; i < text.length; i++) {
@@ -223,6 +220,16 @@ export class Diagnostic {
     result.skippedOnNoEmit = this.skippedOnNoEmit;
     return result;
   }
+}
+
+/** A message with its arguments and no location, such as a module resolution trace. */
+export interface MessageWithArgs {
+  readonly message: DiagnosticMessage;
+  readonly args: readonly string[];
+}
+
+export function messageWithArgs(message: DiagnosticMessage, ...args: string[]): MessageWithArgs {
+  return { message, args };
 }
 
 /** An entry of `Diagnostic.messageChain`. */
@@ -461,26 +468,9 @@ function formatLocation(file: DiagnosticFile, pos: number, options: DiagnosticFo
   return `${styled(relativeFileName(file.fileName, options), cyan)}:${styled(String(line + 1), yellow)}:${styled(String(character + 1), yellow)}`;
 }
 
-/** Whitespace as Go's `unicode.IsSpace` defines it. */
-function isSpace(c: number): boolean {
-  return (
-    (c >= 0x09 && c <= 0x0d) ||
-    c === 0x20 ||
-    c === 0x85 ||
-    c === 0xa0 ||
-    c === 0x1680 ||
-    (c >= 0x2000 && c <= 0x200a) ||
-    c === 0x2028 ||
-    c === 0x2029 ||
-    c === 0x202f ||
-    c === 0x205f ||
-    c === 0x3000
-  );
-}
-
 function trimEndSpace(text: string): string {
   let end = text.length;
-  while (end > 0 && isSpace(text.charCodeAt(end - 1))) end--;
+  while (end > 0 && isUnicodeWhiteSpace(text.charCodeAt(end - 1))) end--;
   return text.slice(0, end);
 }
 
@@ -585,23 +575,6 @@ export function formatDiagnosticStatusWithColor(
   options: DiagnosticFormatOptions,
 ): string {
   return `[${styled(time, grey)}] ${flattenDiagnosticMessage(diagnostic, options.newLine, options.locale)}`;
-}
-
-function utf8Length(text: string): number {
-  let length = 0;
-  for (let i = 0; i < text.length; i++) {
-    const c = text.charCodeAt(i);
-    if (c < 0x80) length += 1;
-    else if (c < 0x800) length += 2;
-    else if (c >= 0xd800 && c <= 0xdbff && i + 1 < text.length) {
-      const next = text.charCodeAt(i + 1);
-      if (next >= 0xdc00 && next <= 0xdfff) {
-        length += 4;
-        i++;
-      } else length += 3;
-    } else length += 3;
-  }
-  return length;
 }
 
 class FileErrors {

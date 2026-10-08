@@ -5,8 +5,7 @@
  * "Expected type of 'main' field in 'package.json' to be 'string', got 'number'".
  */
 
-import * as Messages from './module-resolution-messages.js';
-import { messageWithArgs, type MessageWithArgs } from './module-resolution-messages.js';
+import { Diagnostics, messageWithArgs, type MessageWithArgs } from './diagnostics.js';
 import { toPath, type Path } from './path.js';
 
 export const typeScriptVersion = '7.0.2';
@@ -430,13 +429,13 @@ export class PackageJson {
     const traces = this.versionTraces;
     const typesVersions = this.typesVersions;
     if (typesVersions === undefined) {
-      traces.push(messageWithArgs(Messages.package_json_does_not_have_a_0_field, 'typesVersions'));
+      traces.push(messageWithArgs(Diagnostics.X_package_json_does_not_have_a_0_field, 'typesVersions'));
       return undefined;
     }
     if (typesVersions.type !== 'object') {
       traces.push(
         messageWithArgs(
-          Messages.Expected_type_of_0_field_in_package_json_to_be_1_got_2,
+          Diagnostics.Expected_type_of_0_field_in_package_json_to_be_1_got_2,
           'typesVersions',
           'object',
           typesVersions.type,
@@ -446,7 +445,7 @@ export class PackageJson {
     }
     traces.push(
       messageWithArgs(
-        Messages.package_json_has_a_typesVersions_field_with_version_specific_path_mappings,
+        Diagnostics.X_package_json_has_a_typesVersions_field_with_version_specific_path_mappings,
         'typesVersions',
       ),
     );
@@ -454,7 +453,7 @@ export class PackageJson {
       const range = parseVersionRange(key);
       if (range === undefined) {
         traces.push(
-          messageWithArgs(Messages.package_json_has_a_typesVersions_entry_0_that_is_not_a_valid_semver_range, key),
+          messageWithArgs(Diagnostics.X_package_json_has_a_typesVersions_entry_0_that_is_not_a_valid_semver_range, key),
         );
         continue;
       }
@@ -462,7 +461,7 @@ export class PackageJson {
       if (value.type !== 'object') {
         traces.push(
           messageWithArgs(
-            Messages.Expected_type_of_0_field_in_package_json_to_be_1_got_2,
+            Diagnostics.Expected_type_of_0_field_in_package_json_to_be_1_got_2,
             "typesVersions['" + key + "']",
             'object',
             value.type,
@@ -475,7 +474,7 @@ export class PackageJson {
     }
     traces.push(
       messageWithArgs(
-        Messages.package_json_does_not_have_a_typesVersions_entry_that_matches_version_0,
+        Diagnostics.X_package_json_does_not_have_a_typesVersions_entry_that_matches_version_0,
         typeScriptVersionMajorMinor,
       ),
     );

@@ -1,4 +1,7 @@
-// Registry data of golang.org/x/text/language v0.38.0, which tsgo validates `--locale` against.
+// Locale data of golang.org/x/text/language v0.38.0: the subtag registry tsgo validates `--locale`
+// against, and the CLDR matching results it picks a translation with.
+//
+// Registry lists are space-separated and lowercase.
 
 /** Known three-letter language subtags as a bitset over `aaa`..`zzz`, six bits per base64 character. */
 export const languages3 =
@@ -106,3 +109,95 @@ export const variants =
   'a peano petr1708 pinyin polyton provenc puter rigik rozaj rumgr scotland scouse simple solba sotav ' +
   'spanglis surmiran sursilv sutsilv synnejyl tarask tongyong tunumiit uccor ucrcor ulster unifon vaid' +
   'ika valencia vallader vecdruka vivaraup wadegile xsistemo';
+
+//// Matching: space-separated `key=value` pairs, where numbers name a `Locale`.
+
+/** ISO 639-2 codes of languages that can select a translation, with their canonical code. */
+export const languageAliases = `
+  abk=ab aym=ay aze=az bel=be bre=br ces=cs chi=zh cos=co cze=cs deu=de eus=eu fra=fr fre=fr ger=de glg=gl
+  grn=gn hat=ht hye=hy ita=it jpn=ja kaz=kk kin=rw kir=ky kon=kg kor=ko kur=ku lat=la lin=ln ltz=lb mlg=mg
+  mon=mn oci=oc pol=pl por=pt que=qu roh=rm rus=ru spa=es tat=tt tgk=tg tuk=tk tur=tr uig=ug uzb=uz wol=wo
+  zho=zh
+`;
+
+/** Bibliographic codes x/text only canonicalizes when the whole tag parses without error. */
+export const bibliographicAliases = 'arm=hy baq=eu';
+
+/** The translation chosen for a language in a script, where there is one. */
+export const scriptMatches = `
+  ab-Cyrl=12 ay-Latn=5 az-Cyrl=12 az-Latn=12 be-Cyrl=12 br-Latn=6 cmn-Hans=1 cmn-Hant=2 co-Latn=6 crs-Latn=6
+  cs-Latn=3 de-Latn=4 es-Latn=5 eu-Latn=5 fr-Latn=6 gl-Latn=5 gn-Latn=5 gsw-Latn=4 ht-Latn=6 hy-Armn=12
+  hy-Cyrl=12 it-Latn=7 ja-Jpan=8 kg-Latn=6 kk-Cyrl=12 ko-Kore=9 ku-Latn=13 ky-Cyrl=12 la-Latn=7 lb-Latn=4
+  ln-Latn=6 lua-Latn=6 mg-Latn=6 mn-Cyrl=12 oc-Latn=6 pl-Latn=10 pt-Latn=11 qu-Latn=5 rm-Latn=4 ru-Cyrl=12
+  ru-Latn=12 rw-Latn=6 tg-Cyrl=12 tk-Cyrl=12 tk-Latn=12 tr-Latn=13 tt-Cyrl=12 ug-Hans=1 ug-Hant=2 uz-Cyrl=12
+  uz-Latn=12 wo-Latn=6 zh-Hans=1 zh-Hant=2
+`;
+
+/** The usual script of each language that can select a translation. */
+export const likelyScripts = `
+  ab=Cyrl ay=Latn az=Latn be=Cyrl br=Latn cmn=Hans co=Latn crs=Latn cs=Latn de=Latn es=Latn eu=Latn fr=Latn
+  gl=Latn gn=Latn gsw=Latn ht=Latn hy=Armn it=Latn ja=Jpan kg=Latn kk=Cyrl ko=Kore ku=Latn ky=Cyrl la=Latn
+  lb=Latn ln=Latn lua=Latn mg=Latn mn=Cyrl oc=Latn pl=Latn pt=Latn qu=Latn rm=Latn ru=Cyrl rw=Latn tg=Cyrl
+  tk=Latn tr=Latn tt=Cyrl ug=Arab uz=Latn wo=Latn zh=Hans
+`;
+
+/** Regions where a language is usually written in another script, when that changes the translation. */
+export const regionScripts = `
+  az-034=Arab az-364=Arab az-368=Arab az-IQ=Arab az-IR=Arab cmn-003=Hant cmn-005=Hant cmn-009=Hant cmn-013=Hant
+  cmn-019=Hant cmn-021=Hant cmn-035=Hant cmn-036=Hant cmn-053=Hant cmn-061=Hant cmn-096=Hant cmn-150=Hant
+  cmn-154=Hant cmn-158=Hant cmn-254=Hant cmn-258=Hant cmn-344=Hant cmn-360=Hant cmn-419=Hant cmn-446=Hant
+  cmn-458=Hant cmn-591=Hant cmn-608=Hant cmn-704=Hant cmn-740=Hant cmn-764=Hant cmn-826=Hant cmn-840=Hant
+  cmn-967=Hant cmn-AU=Hant cmn-BN=Hant cmn-EU=Hant cmn-GB=Hant cmn-GF=Hant cmn-HK=Hant cmn-ID=Hant cmn-MO=Hant
+  cmn-MY=Hant cmn-PA=Hant cmn-PF=Hant cmn-PH=Hant cmn-PZ=Hant cmn-QU=Hant cmn-SR=Hant cmn-TH=Hant cmn-TW=Hant
+  cmn-UK=Hant cmn-US=Hant cmn-VD=Hant cmn-VN=Hant kk-004=Arab kk-030=Arab kk-034=Arab kk-156=Arab kk-364=Arab
+  kk-496=Arab kk-AF=Arab kk-CN=Arab kk-IR=Arab kk-MN=Arab ku-422=Arab ku-LB=Arab ky-030=Arab ky-145=Latn
+  ky-156=Arab ky-792=Latn ky-CN=Arab ky-TR=Latn mn-156=Mong mn-CN=Mong tg-034=Arab tg-586=Arab tg-PK=Arab
+  uz-004=Arab uz-034=Arab uz-AF=Arab zh-003=Hant zh-005=Hant zh-009=Hant zh-013=Hant zh-019=Hant zh-021=Hant
+  zh-035=Hant zh-036=Hant zh-053=Hant zh-061=Hant zh-096=Hant zh-150=Hant zh-154=Hant zh-158=Hant zh-254=Hant
+  zh-258=Hant zh-344=Hant zh-360=Hant zh-419=Hant zh-446=Hant zh-458=Hant zh-591=Hant zh-608=Hant zh-704=Hant
+  zh-740=Hant zh-764=Hant zh-826=Hant zh-840=Hant zh-967=Hant zh-AU=Hant zh-BN=Hant zh-EU=Hant zh-GB=Hant
+  zh-GF=Hant zh-HK=Hant zh-ID=Hant zh-MO=Hant zh-MY=Hant zh-PA=Hant zh-PF=Hant zh-PH=Hant zh-PZ=Hant zh-QU=Hant
+  zh-SR=Hant zh-TH=Hant zh-TW=Hant zh-UK=Hant zh-US=Hant zh-VD=Hant zh-VN=Hant
+`;
+
+/** For `und-REGION`: the region's usual script and translation, where there is one. */
+export const undRegions = `
+  005=Latn:11 013=Latn:5 024=Latn:11 029=Latn:5 030=Hans:1 031=Latn:12 032=Latn:5 039=Latn:7 040=Latn:4
+  051=Armn:12 068=Latn:5 076=Latn:11 112=Cyrl:12 120=Latn:6 132=Latn:11 140=Latn:6 142=Hans:1 143=Latn:12
+  148=Latn:6 150=Cyrl:12 151=Cyrl:12 152=Latn:5 155=Latn:4 156=Hans:1 158=Hant:2 170=Latn:5 175=Latn:6
+  178=Latn:6 188=Latn:5 192=Latn:5 203=Latn:3 204=Latn:6 214=Latn:5 218=Latn:5 222=Latn:5 226=Latn:5 249=Latn:6
+  250=Latn:6 254=Latn:6 258=Latn:6 260=Latn:6 266=Latn:6 276=Latn:4 278=Latn:4 280=Latn:4 312=Latn:6 320=Latn:5
+  324=Latn:6 332=Latn:6 336=Latn:7 340=Latn:5 344=Hant:2 380=Latn:7 384=Latn:6 392=Jpan:8 398=Cyrl:12 408=Kore:9
+  410=Kore:9 417=Cyrl:12 419=Latn:5 438=Latn:4 442=Latn:6 446=Hant:2 450=Latn:6 474=Latn:6 484=Latn:5 492=Latn:6
+  496=Cyrl:12 508=Latn:11 540=Latn:6 558=Latn:5 591=Latn:5 600=Latn:5 604=Latn:5 616=Latn:10 620=Latn:11
+  624=Latn:11 626=Latn:11 630=Latn:5 638=Latn:6 643=Cyrl:12 646=Latn:6 652=Latn:6 663=Latn:6 666=Latn:6
+  674=Latn:7 678=Latn:11 686=Latn:6 690=Latn:6 724=Latn:5 756=Latn:4 762=Cyrl:12 768=Latn:6 792=Latn:13
+  795=Latn:12 854=Latn:6 858=Latn:5 860=Latn:12 862=Latn:5 876=Latn:6 AM=Armn:12 AO=Latn:11 AR=Latn:5 AT=Latn:4
+  AZ=Latn:12 BF=Latn:6 BJ=Latn:6 BL=Latn:6 BO=Latn:5 BR=Latn:11 BY=Cyrl:12 CF=Latn:6 CG=Latn:6 CH=Latn:4
+  CI=Latn:6 CL=Latn:5 CM=Latn:6 CN=Hans:1 CO=Latn:5 CR=Latn:5 CU=Latn:5 CV=Latn:11 CZ=Latn:3 DD=Latn:4 DE=Latn:4
+  DO=Latn:5 DY=Latn:6 EA=Latn:5 EC=Latn:5 ES=Latn:5 EZ=Latn:4 FR=Latn:6 FX=Latn:6 GA=Latn:6 GF=Latn:6 GN=Latn:6
+  GP=Latn:6 GQ=Latn:5 GT=Latn:5 GW=Latn:11 HK=Hant:2 HN=Latn:5 HT=Latn:6 HV=Latn:6 IC=Latn:5 IT=Latn:7 JP=Jpan:8
+  KG=Cyrl:12 KP=Kore:9 KR=Kore:9 KZ=Cyrl:12 LI=Latn:4 LU=Latn:6 MC=Latn:6 MF=Latn:6 MG=Latn:6 MN=Cyrl:12
+  MO=Hant:2 MQ=Latn:6 MX=Latn:5 MZ=Latn:11 NC=Latn:6 NI=Latn:5 PA=Latn:5 PE=Latn:5 PF=Latn:6 PL=Latn:10
+  PM=Latn:6 PR=Latn:5 PT=Latn:11 PY=Latn:5 PZ=Latn:5 RE=Latn:6 RU=Cyrl:12 RW=Latn:6 SC=Latn:6 SM=Latn:7
+  SN=Latn:6 ST=Latn:11 SV=Latn:5 TD=Latn:6 TF=Latn:6 TG=Latn:6 TJ=Cyrl:12 TL=Latn:11 TM=Latn:12 TP=Latn:11
+  TR=Latn:13 TW=Hant:2 UY=Latn:5 UZ=Latn:12 VA=Latn:7 VE=Latn:5 WF=Latn:6 YT=Latn:6
+`;
+
+/** For `und-Script`: the translation for the script's usual language, where there is one. */
+export const undScripts = 'Armn=12 Cyrl=12 Hans=1 Hant=2 Jpan=8 Kore=9';
+
+/** Tags the rules above get wrong, with x/text's answer. */
+export const exceptions = `
+  ug-156=1 ug-158=2 ug-CN=1 ug-TW=2 und-Cyrl-008=0 und-Cyrl-070=0 und-Cyrl-100=0 und-Cyrl-300=0 und-Cyrl-498=0
+  und-Cyrl-642=0 und-Cyrl-688=0 und-Cyrl-703=0 und-Cyrl-792=0 und-Cyrl-804=0 und-Cyrl-807=0 und-Cyrl-983=0
+  und-Cyrl-AL=0 und-Cyrl-BA=0 und-Cyrl-BG=0 und-Cyrl-GR=0 und-Cyrl-MD=0 und-Cyrl-MK=0 und-Cyrl-RO=0
+  und-Cyrl-RS=0 und-Cyrl-SK=0 und-Cyrl-TR=0 und-Cyrl-UA=0 und-Cyrl-XK=0 und-Latn-004=12 und-Latn-012=6
+  und-Latn-051=13 und-Latn-150=12 und-Latn-151=12 und-Latn-174=6 und-Latn-196=13 und-Latn-268=13 und-Latn-364=12
+  und-Latn-398=12 und-Latn-446=11 und-Latn-478=6 und-Latn-504=6 und-Latn-760=6 und-Latn-788=6 und-Latn-804=10
+  und-Latn-AF=12 und-Latn-AM=13 und-Latn-CY=13 und-Latn-DZ=6 und-Latn-GE=13 und-Latn-IR=12 und-Latn-KM=6
+  und-Latn-KZ=12 und-Latn-MA=6 und-Latn-MO=11 und-Latn-MR=6 und-Latn-SY=6 und-Latn-TN=6 und-Latn-UA=10
+`;
+
+/** Deprecated region codes x/text only replaces when the whole tag parses without error. */
+export const deprecatedRegions = 'BU CT DD DY FX HV JT MI NH NQ PU PZ QU RH TP UK VD WK YD ZR 249 278 720';

@@ -2,7 +2,7 @@
 // Runs the tsc command line up to compilation, which is not implemented yet.
 import { spawnSync } from 'node:child_process';
 import { readFileSync, statSync, writeFileSync, writeSync } from 'node:fs';
-import { normalizePath } from '../compiler/command-line-paths.js';
+import { normalizePath } from '../compiler/path.js';
 import { ExitStatus, System, executeCommandLine } from '../compiler/tsc-cli.js';
 
 class NodeSystem extends System {

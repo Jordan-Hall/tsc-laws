@@ -485,6 +485,41 @@ function localeCases() {
   ]);
 }
 
+/** Messages, help and `--init` comments in the languages `--locale` selects. */
+function localizedCases() {
+  const tags = ['de', 'fr-FR', 'ja', 'zh-CN', 'zh-Hant', 'ko', 'ru', 'pt-BR', 'cs', 'pl', 'tr', 'it', 'es', 'i-lux'];
+  const cases = [];
+  for (const tag of tags) {
+    for (const args of [
+      ['--foo'],
+      ['--foo', '--target', 'bogus', '--strict', 'x', '--checkers', '0'],
+      ['--watch', '--listFilesOnly'],
+      ['--project', 'missing'],
+      ['--version'],
+      ['--help'],
+      ['--all'],
+      [],
+      ['-b', '--help'],
+      ['-b', '--foo', '--clean', '--force'],
+      ['--init'],
+    ]) {
+      cases.push({ args: ['--locale', tag, ...args] });
+    }
+    // The locale applies to errors given before it, too.
+    cases.push({ args: ['--foo', '--locale', tag] });
+    cases.push({ args: ['--locale', tag, '--foo', '--strict', 'x'], env: { FORCE_COLOR: '1' } });
+    cases.push({ args: ['--locale', tag, '--init'], files: { 'tsconfig.json': '{}' } });
+  }
+  // Wrapping counts UTF-8 bytes. tsgo can split a character there, writing invalid UTF-8; in these
+  // locales' help no line break falls inside one.
+  if (haveScript) {
+    for (const tag of ['es', 'it']) {
+      for (const width of [80, 120]) cases.push({ args: ['--locale', tag, '--help'], width });
+    }
+  }
+  return cases;
+}
+
 // ---- running
 
 function setUp(dir, files = {}) {
@@ -620,6 +655,10 @@ test(
 
 test('locale validation', { skip: !existsSync(tsgo) && 'needs packages/tsgo/dist/tsgo' }, (t) =>
   check(t, 'locale', localeCases()),
+);
+
+test('localized output', { skip: !existsSync(tsgo) && 'needs packages/tsgo/dist/tsgo' }, (t) =>
+  check(t, 'localized', localizedCases()),
 );
 
 test.after(() => rmSync(work, { recursive: true, force: true }));

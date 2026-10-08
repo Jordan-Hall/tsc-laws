@@ -2,7 +2,7 @@
 // Resolves the requests of each case against an in-memory file system and prints the results as JSON,
 // in the format of packages/tsgo/oracles/resolve-oracle.
 import { readFileSync } from 'node:fs';
-import { formatMessageWithArgs, type MessageWithArgs } from '../compiler/module-resolution-messages.js';
+import { Locale, localizeMessage, type Diagnostic, type MessageWithArgs } from '../compiler/diagnostics.js';
 import {
   ModuleResolutionHost,
   Resolver,
@@ -12,7 +12,7 @@ import {
   type PackageId,
   type ResolvedProjectReference,
 } from '../compiler/module-resolution.js';
-import { parseJson, type JsonObject, type JsonValue } from '../compiler/package-json.js';
+import { parseJson, type JsonObject } from '../compiler/package-json.js';
 import {
   changeExtension,
   combinePaths,
@@ -32,6 +32,7 @@ import {
   toPath,
   tryGetExtensionFromPath,
 } from '../compiler/path.js';
+import { bool, num, object, quote, quoteList, str, strings } from './json.js';
 
 interface Entry {
   readonly kind: 'file' | 'directory' | 'symlink';
@@ -211,35 +212,6 @@ function comparePathsByParts(a: string, b: string): number {
 
 //// JSON input
 
-const EMPTY: JsonObject = { type: 'object', entries: new Map(), kind: 0 };
-
-function object(value: JsonValue | undefined): JsonObject {
-  return value !== undefined && value.type === 'object' ? value : EMPTY;
-}
-
-function str(o: JsonObject, key: string): string {
-  const v = o.entries.get(key);
-  return v !== undefined && v.type === 'string' ? v.value : '';
-}
-
-function num(o: JsonObject, key: string): number {
-  const v = o.entries.get(key);
-  return v !== undefined && v.type === 'number' ? v.value : 0;
-}
-
-function bool(o: JsonObject, key: string): boolean | undefined {
-  const v = o.entries.get(key);
-  return v !== undefined && v.type === 'boolean' ? v.value : undefined;
-}
-
-function strings(o: JsonObject, key: string): string[] | undefined {
-  const v = o.entries.get(key);
-  if (v === undefined || v.type !== 'array') return undefined;
-  const result: string[] = [];
-  for (const item of v.items) if (item.type === 'string') result.push(item.value);
-  return result;
-}
-
 function stringMap(o: JsonObject, key: string): Map<string, string> {
   const result = new Map<string, string>();
   for (const [k, v] of object(o.entries.get(key)).entries) if (v.type === 'string') result.set(k, v.value);
@@ -284,31 +256,27 @@ function readOptions(o: JsonObject): ModuleResolutionOptions {
 
 //// JSON output
 
-function q(s: string): string {
-  return JSON.stringify(s);
-}
-
-function list(items: readonly string[]): string {
-  return '[' + items.map(q).join(',') + ']';
-}
-
 function packageIdJson(id: PackageId | undefined): string {
   if (id === undefined) return 'null';
   return (
     '{"name":' +
-    q(id.name) +
+    quote(id.name) +
     ',"subModuleName":' +
-    q(id.subModuleName) +
+    quote(id.subModuleName) +
     ',"version":' +
-    q(id.version) +
+    quote(id.version) +
     ',"peerDependencies":' +
-    q(id.peerDependencies) +
+    quote(id.peerDependencies) +
     '}'
   );
 }
 
-function messages(items: readonly MessageWithArgs[], withCode: boolean): string[] {
-  return items.map((m) => (withCode ? m.message.code + ' ' : '') + formatMessageWithArgs(m));
+function traceTexts(items: readonly MessageWithArgs[]): string[] {
+  return items.map((m) => localizeMessage(Locale.Default, m.message, m.args));
+}
+
+function diagnosticTexts(items: readonly Diagnostic[]): string[] {
+  return items.map((d) => d.code + ' ' + d.localize(Locale.Default));
 }
 
 interface Output {
@@ -328,11 +296,11 @@ interface Output {
 function outputJson(o: Output): string {
   return (
     '{"resolvedFileName":' +
-    q(o.resolvedFileName) +
+    quote(o.resolvedFileName) +
     ',"originalPath":' +
-    q(o.originalPath) +
+    quote(o.originalPath) +
     ',"extension":' +
-    q(o.extension) +
+    quote(o.extension) +
     ',"resolvedUsingTsExtension":' +
     String(o.resolvedUsingTsExtension) +
     ',"isExternalLibraryImport":' +
@@ -340,14 +308,14 @@ function outputJson(o: Output): string {
     ',"packageId":' +
     packageIdJson(o.packageId) +
     ',"alternateResult":' +
-    q(o.alternateResult) +
+    quote(o.alternateResult) +
     ',"primary":' +
     String(o.primary) +
     ',"diagnostics":' +
-    list(o.diagnostics) +
+    quoteList(o.diagnostics) +
     ',"traces":' +
-    list(o.traces) +
-    (o.names === undefined ? '' : ',"names":' + list(o.names)) +
+    quoteList(o.traces) +
+    (o.names === undefined ? '' : ',"names":' + quoteList(o.names)) +
     '}'
   );
 }
@@ -408,7 +376,7 @@ function runCase(c: JsonObject): string[] {
         out.isExternalLibraryImport = r.isExternalLibraryImport;
         out.packageId = r.packageId;
         out.alternateResult = r.alternateResult;
-        out.diagnostics = messages(r.resolutionDiagnostics, true);
+        out.diagnostics = diagnosticTexts(r.resolutionDiagnostics);
         break;
       }
       case 'type': {
@@ -418,7 +386,7 @@ function runCase(c: JsonObject): string[] {
         out.primary = r.primary;
         out.isExternalLibraryImport = r.isExternalLibraryImport;
         out.packageId = r.packageId;
-        out.diagnostics = messages(r.resolutionDiagnostics, true);
+        out.diagnostics = diagnosticTexts(r.resolutionDiagnostics);
         break;
       }
       case 'automaticTypes':
@@ -456,7 +424,7 @@ function runCase(c: JsonObject): string[] {
         break;
       }
     }
-    out.traces = messages(traces, false);
+    out.traces = traceTexts(traces);
     results.push(outputJson(out));
   }
   return results;

@@ -1,10 +1,8 @@
 /**
  * Parses `tsc` and `tsc --build` arguments into options, file names and diagnostics, as tsgo does.
  */
-import * as m from './command-line-messages.js';
-import { createDiagnostic } from './command-line-messages.js';
-import type { Diagnostic, Message } from './command-line-messages.js';
-import { getNormalizedAbsolutePath } from './command-line-paths.js';
+import { isUnicodeWhiteSpace, isWhiteSpaceLike } from './character-codes.js';
+import { createCompilerDiagnostic, Diagnostics, type Diagnostic, type DiagnosticMessage } from './diagnostics.js';
 import { isValidLocale } from './locale.js';
 import {
   buildOption,
@@ -23,6 +21,7 @@ import {
   type OptionValue,
   type WatchOptions,
 } from './options.js';
+import { getNormalizedAbsolutePath } from './path.js';
 
 /** Reads response files. */
 export abstract class CommandLineHost {
@@ -55,33 +54,33 @@ export interface ParsedBuildCommandLine {
 /** How a parser resolves and reports options. */
 interface ParserMode {
   readonly options: OptionNameMap;
-  readonly unknownOption: Message;
-  readonly missingArgument: Message;
+  readonly unknownOption: DiagnosticMessage;
+  readonly missingArgument: DiagnosticMessage;
   /** Options of the other mode, reported with `wrongMode` instead of as unknown. */
   readonly otherModeOptions?: OptionNameMap;
-  readonly wrongMode?: Message;
+  readonly wrongMode?: DiagnosticMessage;
 }
 
 const compilerMode: ParserMode = {
   options: compilerOptionsByName,
-  unknownOption: m.Unknown_compiler_option_0,
-  missingArgument: m.Compiler_option_0_expects_an_argument,
+  unknownOption: Diagnostics.Unknown_compiler_option_0,
+  missingArgument: Diagnostics.Compiler_option_0_expects_an_argument,
   otherModeOptions: buildOptionsByName,
-  wrongMode: m.Compiler_option_0_may_only_be_used_with_build,
+  wrongMode: Diagnostics.Compiler_option_0_may_only_be_used_with_build,
 };
 
 const buildMode: ParserMode = {
   options: buildOptionsByName,
-  unknownOption: m.Unknown_build_option_0,
-  missingArgument: m.Build_option_0_requires_a_value_of_type_1,
+  unknownOption: Diagnostics.Unknown_build_option_0,
+  missingArgument: Diagnostics.Build_option_0_requires_a_value_of_type_1,
   otherModeOptions: compilerOptionsByName,
-  wrongMode: m.Compiler_option_0_may_not_be_used_with_build,
+  wrongMode: Diagnostics.Compiler_option_0_may_not_be_used_with_build,
 };
 
 const watchMode: ParserMode = {
   options: watchOptionsByName,
-  unknownOption: m.Unknown_watch_option_0,
-  missingArgument: m.Watch_option_0_requires_a_value_of_type_1,
+  unknownOption: Diagnostics.Unknown_watch_option_0,
+  missingArgument: Diagnostics.Watch_option_0_requires_a_value_of_type_1,
 };
 
 export function parseCommandLine(args: readonly string[], host: CommandLineHost): ParsedCommandLine {
@@ -117,13 +116,13 @@ export function parseBuildCommandLine(args: readonly string[], host: CommandLine
   const { clean, force, verbose, dry } = buildOptions;
   const watch = compilerOptions.watch;
   if (clean === true && force === true)
-    errors.push(createDiagnostic(m.Options_0_and_1_cannot_be_combined, 'clean', 'force'));
+    errors.push(createCompilerDiagnostic(Diagnostics.Options_0_and_1_cannot_be_combined, 'clean', 'force'));
   if (clean === true && verbose === true)
-    errors.push(createDiagnostic(m.Options_0_and_1_cannot_be_combined, 'clean', 'verbose'));
+    errors.push(createCompilerDiagnostic(Diagnostics.Options_0_and_1_cannot_be_combined, 'clean', 'verbose'));
   if (clean === true && watch === true)
-    errors.push(createDiagnostic(m.Options_0_and_1_cannot_be_combined, 'clean', 'watch'));
+    errors.push(createCompilerDiagnostic(Diagnostics.Options_0_and_1_cannot_be_combined, 'clean', 'watch'));
   if (watch === true && dry === true)
-    errors.push(createDiagnostic(m.Options_0_and_1_cannot_be_combined, 'watch', 'dry'));
+    errors.push(createCompilerDiagnostic(Diagnostics.Options_0_and_1_cannot_be_combined, 'watch', 'dry'));
   return {
     buildOptions,
     compilerOptions,
@@ -191,10 +190,10 @@ class CommandLineParser {
     const other = this.mode.otherModeOptions?.get(name);
     if (other !== undefined && this.mode.wrongMode !== undefined) {
       const message =
-        other.name === 'build' ? m.Option_build_must_be_the_first_command_line_argument : this.mode.wrongMode;
-      return createDiagnostic(message, name);
+        other.name === 'build' ? Diagnostics.Option_build_must_be_the_first_command_line_argument : this.mode.wrongMode;
+      return createCompilerDiagnostic(message, name);
     }
-    return createDiagnostic(this.mode.unknownOption, arg);
+    return createCompilerDiagnostic(this.mode.unknownOption, arg);
   }
 
   /** Splits a response file into arguments at whitespace; `"` quotes an argument. */
@@ -202,7 +201,7 @@ class CommandLineParser {
     const path = getNormalizedAbsolutePath(fileName, this.host.currentDirectory);
     const text = this.host.readFile(path);
     if (text === undefined) {
-      this.errors.push(createDiagnostic(m.Cannot_read_file_0, path));
+      this.errors.push(createCompilerDiagnostic(Diagnostics.Cannot_read_file_0, path));
       return;
     }
     const args: string[] = [];
@@ -218,7 +217,7 @@ class CommandLineParser {
           args.push(text.slice(start + 1, pos));
           pos++;
         } else {
-          this.errors.push(createDiagnostic(m.Unterminated_quoted_string_in_response_file_0, path));
+          this.errors.push(createCompilerDiagnostic(Diagnostics.Unterminated_quoted_string_in_response_file_0, path));
         }
       } else {
         // tsgo panics when the file ends in an argument; tsc accepts it.
@@ -246,15 +245,18 @@ class CommandLineParser {
           return i + 1;
         }
         this.errors.push(
-          createDiagnostic(
-            m.Option_0_can_only_be_specified_in_tsconfig_json_file_or_set_to_false_or_null_on_command_line,
+          createCompilerDiagnostic(
+            Diagnostics.Option_0_can_only_be_specified_in_tsconfig_json_file_or_set_to_false_or_null_on_command_line,
             name,
           ),
         );
         return value === 'true' ? i + 1 : i;
       }
       this.errors.push(
-        createDiagnostic(m.Option_0_can_only_be_specified_in_tsconfig_json_file_or_set_to_null_on_command_line, name),
+        createCompilerDiagnostic(
+          Diagnostics.Option_0_can_only_be_specified_in_tsconfig_json_file_or_set_to_null_on_command_line,
+          name,
+        ),
       );
       return value !== '' && !value.startsWith('-') ? i + 1 : i;
     }
@@ -264,7 +266,7 @@ class CommandLineParser {
         this.raw.set(name, true);
         return i;
       }
-      this.errors.push(createDiagnostic(mode.missingArgument, name, valueTypeName(option)));
+      this.errors.push(createCompilerDiagnostic(mode.missingArgument, name, valueTypeName(option)));
       if (option.kind === 'list') this.raw.set(name, []);
       else if (option.kind === 'enum') this.errors.push(invalidEnumValueError(option));
       return i;
@@ -279,12 +281,16 @@ class CommandLineParser {
       case 'number': {
         const value = parseInteger(next);
         if (value === undefined) {
-          this.errors.push(createDiagnostic(mode.missingArgument, name, 'number'));
+          this.errors.push(createCompilerDiagnostic(mode.missingArgument, name, 'number'));
         } else if (value >= (option.minValue ?? 0)) {
           this.raw.set(name, value);
         } else {
           this.errors.push(
-            createDiagnostic(m.Option_0_requires_value_to_be_greater_than_1, name, String(option.minValue ?? 0)),
+            createCompilerDiagnostic(
+              Diagnostics.Option_0_requires_value_to_be_greater_than_1,
+              name,
+              String(option.minValue ?? 0),
+            ),
           );
         }
         return i + 1;
@@ -345,12 +351,16 @@ class CommandLineParser {
     if (option.extraValidation === 'spec') {
       const message = specError(value);
       if (message !== undefined) {
-        this.errors.push(createDiagnostic(message));
+        this.errors.push(createCompilerDiagnostic(message));
         return false;
       }
     } else if (option.extraValidation === 'locale' && !isValidLocale(value)) {
       this.errors.push(
-        createDiagnostic(m.Locale_must_be_an_IETF_BCP_47_language_tag_Examples_Colon_0_1, 'en', 'ja-jp'),
+        createCompilerDiagnostic(
+          Diagnostics.Locale_must_be_an_IETF_BCP_47_language_tag_Examples_Colon_0_1,
+          'en',
+          'ja-jp',
+        ),
       );
       return false;
     }
@@ -365,7 +375,11 @@ function valueTypeName(option: OptionDeclaration): string {
 }
 
 function invalidEnumValueError(option: OptionDeclaration): Diagnostic {
-  return createDiagnostic(m.Argument_for_0_option_must_be_Colon_1, '--' + option.name, enumNamesList(option));
+  return createCompilerDiagnostic(
+    Diagnostics.Argument_for_0_option_must_be_Colon_1,
+    '--' + option.name,
+    enumNamesList(option),
+  );
 }
 
 /** `'a', 'b', 'c'`: the option's value names without deprecated ones. */
@@ -380,12 +394,12 @@ export function enumNamesList(option: OptionDeclaration): string {
 }
 
 /** Rejects `..` after a `**` wildcard in exclude specs. */
-function specError(spec: string): Message | undefined {
+function specError(spec: string): DiagnosticMessage | undefined {
   const wildcard = spec.startsWith('**/') ? 0 : spec.indexOf('/**/');
   if (wildcard === -1) return undefined;
   const lastDotDot = spec.endsWith('/..') ? spec.length : spec.lastIndexOf('/../');
   return lastDotDot > wildcard
-    ? m.File_specification_cannot_contain_a_parent_directory_that_appears_after_a_recursive_directory_wildcard_Asterisk_Asterisk_Colon_0
+    ? Diagnostics.File_specification_cannot_contain_a_parent_directory_that_appears_after_a_recursive_directory_wildcard_Asterisk_Asterisk_Colon_0
     : undefined;
 }
 
@@ -405,50 +419,11 @@ function parseInteger(text: string): number | undefined {
   return Number(text);
 }
 
-/** Go's `unicode.IsSpace`. */
-function isSpace(ch: number): boolean {
-  return (
-    (ch >= 9 && ch <= 13) ||
-    ch === 32 ||
-    ch === 0x85 ||
-    ch === 0xa0 ||
-    ch === 0x1680 ||
-    (ch >= 0x2000 && ch <= 0x200a) ||
-    ch === 0x2028 ||
-    ch === 0x2029 ||
-    ch === 0x202f ||
-    ch === 0x205f ||
-    ch === 0x3000
-  );
-}
-
-/** The scanner's white space and line breaks. */
-function isWhiteSpaceLike(ch: number): boolean {
-  return (
-    ch === 32 ||
-    ch === 9 ||
-    ch === 11 ||
-    ch === 12 ||
-    ch === 10 ||
-    ch === 13 ||
-    ch === 0x85 ||
-    ch === 0xa0 ||
-    ch === 0x1680 ||
-    (ch >= 0x2000 && ch <= 0x200b) ||
-    ch === 0x2028 ||
-    ch === 0x2029 ||
-    ch === 0x202f ||
-    ch === 0x205f ||
-    ch === 0x3000 ||
-    ch === 0xfeff
-  );
-}
-
 function trimSpace(text: string): string {
   let start = 0;
   let end = text.length;
-  while (start < end && isSpace(text.charCodeAt(start))) start++;
-  while (end > start && isSpace(text.charCodeAt(end - 1))) end--;
+  while (start < end && isUnicodeWhiteSpace(text.charCodeAt(start))) start++;
+  while (end > start && isUnicodeWhiteSpace(text.charCodeAt(end - 1))) end--;
   return text.slice(start, end);
 }
 

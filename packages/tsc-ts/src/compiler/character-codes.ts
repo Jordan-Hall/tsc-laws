@@ -177,6 +177,23 @@ export function isWhiteSpaceLike(ch: number): boolean {
   return isWhiteSpaceSingleLine(ch) || isLineBreak(ch);
 }
 
+/** Unicode White_Space, as Go's `unicode.IsSpace` defines it. Unlike `isWhiteSpaceLike`, excludes ZWSP and BOM. */
+export function isUnicodeWhiteSpace(ch: number): boolean {
+  return (
+    (ch >= CharacterCodes.tab && ch <= CharacterCodes.carriageReturn) ||
+    ch === CharacterCodes.space ||
+    ch === CharacterCodes.nextLine ||
+    ch === CharacterCodes.nonBreakingSpace ||
+    ch === CharacterCodes.ogham ||
+    (ch >= CharacterCodes.enQuad && ch <= CharacterCodes.hairSpace) ||
+    ch === CharacterCodes.lineSeparator ||
+    ch === CharacterCodes.paragraphSeparator ||
+    ch === CharacterCodes.narrowNoBreakSpace ||
+    ch === CharacterCodes.mathematicalSpace ||
+    ch === CharacterCodes.ideographicSpace
+  );
+}
+
 export function isDigit(ch: number): boolean {
   return ch >= CharacterCodes._0 && ch <= CharacterCodes._9;
 }
@@ -224,6 +241,21 @@ export function codePointAt(text: string, pos: number, end: number): number {
     if (low >= 0xdc00 && low <= 0xdfff) return (ch - 0xd800) * 0x400 + (low - 0xdc00) + 0x10000;
   }
   return ch;
+}
+
+/** Length of `text` in UTF-8 bytes. A lone surrogate counts as U+FFFD. */
+export function utf8Length(text: string): number {
+  let length = 0;
+  for (let i = 0; i < text.length; i++) {
+    const c = text.charCodeAt(i);
+    if (c < 0x80) length += 1;
+    else if (c < 0x800) length += 2;
+    else if (isHighSurrogate(c) && i + 1 < text.length && isLowSurrogate(text.charCodeAt(i + 1))) {
+      length += 4;
+      i++;
+    } else length += 3;
+  }
+  return length;
 }
 
 /** The code point ending just before `pos`, combining a surrogate pair; -1 at the start. */

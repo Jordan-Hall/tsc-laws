@@ -2,8 +2,7 @@
  * Options, host and result types for module resolution.
  */
 
-import * as Messages from './module-resolution-messages.js';
-import type { DiagnosticMessage, MessageWithArgs } from './module-resolution-messages.js';
+import { Diagnostics, type Diagnostic, type DiagnosticMessage } from './diagnostics.js';
 import { combinePaths, getDirectoryPath, normalizePath } from './path.js';
 
 export enum ModuleKind {
@@ -142,7 +141,7 @@ export interface ResolvedModule {
   isExternalLibraryImport: boolean;
   /** A file found with `exports` ignored, when the real resolution only found JavaScript. */
   alternateResult: string;
-  resolutionDiagnostics: readonly MessageWithArgs[];
+  resolutionDiagnostics: readonly Diagnostic[];
 }
 
 export interface ResolvedTypeReferenceDirective {
@@ -153,7 +152,7 @@ export interface ResolvedTypeReferenceDirective {
   primary: boolean;
   packageId: PackageId | undefined;
   isExternalLibraryImport: boolean;
-  resolutionDiagnostics: readonly MessageWithArgs[];
+  resolutionDiagnostics: readonly Diagnostic[];
 }
 
 export const inferredTypesContainingFile = '__inferred type names__.ts';
@@ -343,25 +342,25 @@ export function getResolutionDiagnostic(
     case '.d.cts':
       return undefined;
     case '.tsx':
-      return needJsx ? Messages.Module_0_was_resolved_to_1_but_jsx_is_not_set : undefined;
+      return needJsx ? Diagnostics.Module_0_was_resolved_to_1_but_jsx_is_not_set : undefined;
     case '.jsx':
-      if (needJsx) return Messages.Module_0_was_resolved_to_1_but_jsx_is_not_set;
+      if (needJsx) return Diagnostics.Module_0_was_resolved_to_1_but_jsx_is_not_set;
       return needAllowJs
-        ? Messages.Could_not_find_a_declaration_file_for_module_0_1_implicitly_has_an_any_type
+        ? Diagnostics.Could_not_find_a_declaration_file_for_module_0_1_implicitly_has_an_any_type
         : undefined;
     case '.js':
     case '.mjs':
     case '.cjs':
       return needAllowJs
-        ? Messages.Could_not_find_a_declaration_file_for_module_0_1_implicitly_has_an_any_type
+        ? Diagnostics.Could_not_find_a_declaration_file_for_module_0_1_implicitly_has_an_any_type
         : undefined;
     case '.json':
       return getResolveJsonModule(options)
         ? undefined
-        : Messages.Module_0_was_resolved_to_1_but_resolveJsonModule_is_not_used;
+        : Diagnostics.Module_0_was_resolved_to_1_but_resolveJsonModule_is_not_used;
     default:
       return isDeclarationFile || options.allowArbitraryExtensions === true
         ? undefined
-        : Messages.Module_0_was_resolved_to_1_but_allowArbitraryExtensions_is_not_set;
+        : Diagnostics.Module_0_was_resolved_to_1_but_allowArbitraryExtensions_is_not_set;
   }
 }

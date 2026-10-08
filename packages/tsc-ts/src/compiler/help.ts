@@ -1,9 +1,8 @@
 /**
  * `tsc --version`, `--help`, `--help --all` and `tsc --build --help` output.
  */
-import * as m from './command-line-messages.js';
-import { formatMessage } from './command-line-messages.js';
-import type { Message } from './command-line-messages.js';
+import { charSize, codePointAt, utf8Length } from './character-codes.js';
+import { Diagnostics, localizeMessage, type DiagnosticMessage, type Locale } from './diagnostics.js';
 import {
   buildOption,
   buildOptionDeclarations,
@@ -61,19 +60,44 @@ export class Colors {
   }
 }
 
+/** Number of code points, which Go's `%*s` pads to. */
+function codePointLength(text: string): number {
+  let length = 0;
+  for (let i = 0; i < text.length; i += charSize(codePointAt(text, i, text.length))) length++;
+  return length;
+}
+
 function padEnd(text: string, width: number): string {
-  return text.length >= width ? text : text + ' '.repeat(width - text.length);
+  const length = codePointLength(text);
+  return length >= width ? text : text + ' '.repeat(width - length);
 }
 
 function padStart(text: string, width: number): string {
-  return text.length >= width ? text : ' '.repeat(width - text.length) + text;
+  const length = codePointLength(text);
+  return length >= width ? text : ' '.repeat(width - length) + text;
+}
+
+/**
+ * The end of the longest piece of `text` from `start` that fits in `bytes` UTF-8 bytes, and at least
+ * one character. tsgo slices at the byte, which can split a character; here it moves to the next piece.
+ */
+function utf8PieceEnd(text: string, start: number, bytes: number): number {
+  let end = start;
+  let used = 0;
+  while (end < text.length) {
+    const codePoint = codePointAt(text, end, text.length);
+    used += codePoint < 0x80 ? 1 : codePoint < 0x800 ? 2 : codePoint < 0x10000 ? 3 : 4;
+    if (used > bytes && end > start) break;
+    end += charSize(codePoint);
+  }
+  return end;
 }
 
 /** `message`, with the TypeScript logo right-aligned when the terminal is wide enough. */
 export function header(sys: System, colors: Colors, message: string): string {
   const width = sys.terminalWidth;
   const icon = '     ';
-  if (width < message.length + icon.length) return message + '\n\n';
+  if (width < utf8Length(message) + icon.length) return message + '\n\n';
   const leftAlign = Math.min(width, 120) - icon.length;
   return (
     padEnd(message, leftAlign) +
@@ -85,20 +109,43 @@ export function header(sys: System, colors: Colors, message: string): string {
   );
 }
 
-function versionText(): string {
-  return formatMessage(m.Version_0, [version]);
+/** Help output for one terminal, in one language. */
+class HelpWriter {
+  readonly colors: Colors;
+  readonly width: number;
+
+  constructor(
+    readonly sys: System,
+    readonly locale: Locale,
+  ) {
+    this.colors = new Colors(sys);
+    this.width = sys.terminalWidth;
+  }
+
+  text(message: DiagnosticMessage, ...args: string[]): string {
+    return localizeMessage(this.locale, message, args);
+  }
+
+  header(): string {
+    return header(
+      this.sys,
+      this.colors,
+      this.text(Diagnostics.X_tsc_Colon_The_TypeScript_Compiler) + ' - ' + versionText(this.locale),
+    );
+  }
 }
 
-function title(): string {
-  return m.tsc_Colon_The_TypeScript_Compiler.text + ' - ' + versionText();
+function versionText(locale: Locale): string {
+  return localizeMessage(locale, Diagnostics.Version_0, [version]);
 }
 
-export function printVersion(sys: System): void {
-  sys.write(versionText() + '\n');
+export function printVersion(sys: System, locale: Locale): void {
+  sys.write(versionText(locale) + '\n');
 }
 
 /** `tsc --help`, or with `all`, `tsc --help --all`. */
-export function printHelp(sys: System, all: boolean): void {
+export function printHelp(sys: System, locale: Locale, all: boolean): void {
+  const writer = new HelpWriter(sys, locale);
   const options = [...optionDeclarations, buildOption];
   if (all) {
     options.sort((a, b) => {
@@ -106,136 +153,159 @@ export function printHelp(sys: System, all: boolean): void {
       const y = b.name.toLowerCase();
       return x < y ? -1 : x > y ? 1 : 0;
     });
-    printAllHelp(sys, options);
+    printAllHelp(writer, options);
   } else {
     printEasyHelp(
-      sys,
+      writer,
       options.filter((option) => option.showInSimplifiedHelpView === true),
     );
   }
 }
 
-export function printBuildHelp(sys: System): void {
-  const colors = new Colors(sys);
+export function printBuildHelp(sys: System, locale: Locale): void {
+  const writer = new HelpWriter(sys, locale);
   const options = buildOptionDeclarations.filter((option) => option !== buildOption);
   sys.write(
-    header(sys, colors, title()) +
-      sectionOutput(sys, colors, m.BUILD_OPTIONS.text, options, false, buildModeIntroduction(), undefined),
+    writer.header() +
+      sectionOutput(
+        writer,
+        writer.text(Diagnostics.BUILD_OPTIONS),
+        options,
+        false,
+        buildModeIntroduction(writer),
+        undefined,
+      ),
   );
 }
 
-function buildModeIntroduction(): string {
-  return formatMessage(
-    m.Using_build_b_will_make_tsc_behave_more_like_a_build_orchestrator_than_a_compiler_This_is_used_to_trigger_building_composite_projects_which_you_can_learn_more_about_at_0,
-    ['https://aka.ms/tsc-composite-builds'],
+function buildModeIntroduction(writer: HelpWriter): string {
+  return writer.text(
+    Diagnostics.Using_build_b_will_make_tsc_behave_more_like_a_build_orchestrator_than_a_compiler_This_is_used_to_trigger_building_composite_projects_which_you_can_learn_more_about_at_0,
+    'https://aka.ms/tsc-composite-builds',
   );
 }
 
-function learnMore(): string {
-  return formatMessage(m.You_can_learn_about_all_of_the_compiler_options_at_0, ['https://aka.ms/tsc']);
+function learnMore(writer: HelpWriter): string {
+  return writer.text(Diagnostics.You_can_learn_about_all_of_the_compiler_options_at_0, 'https://aka.ms/tsc');
 }
 
-function printEasyHelp(sys: System, options: readonly OptionDeclaration[]): void {
-  const colors = new Colors(sys);
-  let out = header(sys, colors, title());
-  out += colors.bold(m.COMMON_COMMANDS.text) + '\n\n';
-  out += example(colors, ['tsc'], m.Compiles_the_current_project_tsconfig_json_in_the_working_directory);
+function printEasyHelp(writer: HelpWriter, options: readonly OptionDeclaration[]): void {
+  let out = writer.header();
+  out += writer.colors.bold(writer.text(Diagnostics.COMMON_COMMANDS)) + '\n\n';
+  out += example(writer, ['tsc'], Diagnostics.Compiles_the_current_project_tsconfig_json_in_the_working_directory);
   out += example(
-    colors,
+    writer,
     ['tsc app.ts util.ts'],
-    m.Ignoring_tsconfig_json_compiles_the_specified_files_with_default_compiler_options,
+    Diagnostics.Ignoring_tsconfig_json_compiles_the_specified_files_with_default_compiler_options,
   );
-  out += example(colors, ['tsc -b'], m.Build_a_composite_project_in_the_working_directory);
+  out += example(writer, ['tsc -b'], Diagnostics.Build_a_composite_project_in_the_working_directory);
   out += example(
-    colors,
+    writer,
     ['tsc --init'],
-    m.Creates_a_tsconfig_json_with_the_recommended_settings_in_the_working_directory,
+    Diagnostics.Creates_a_tsconfig_json_with_the_recommended_settings_in_the_working_directory,
   );
   out += example(
-    colors,
+    writer,
     ['tsc -p ./path/to/tsconfig.json'],
-    m.Compiles_the_TypeScript_project_located_at_the_specified_path,
+    Diagnostics.Compiles_the_TypeScript_project_located_at_the_specified_path,
   );
   out += example(
-    colors,
+    writer,
     ['tsc --help --all'],
-    m.An_expanded_version_of_this_information_showing_all_possible_compiler_options,
+    Diagnostics.An_expanded_version_of_this_information_showing_all_possible_compiler_options,
   );
   out += example(
-    colors,
+    writer,
     ['tsc --noEmit', 'tsc --target esnext'],
-    m.Compiles_the_current_project_with_additional_settings,
+    Diagnostics.Compiles_the_current_project_with_additional_settings,
   );
 
   const commandLineOptions: OptionDeclaration[] = [];
   const configOptions: OptionDeclaration[] = [];
   for (const option of options) {
-    if (option.isCommandLineOnly === true || option.category === m.Command_line_Options)
+    if (option.isCommandLineOnly === true || option.category === Diagnostics.Command_line_Options)
       commandLineOptions.push(option);
     else configOptions.push(option);
   }
-  out += sectionOutput(sys, colors, m.COMMAND_LINE_FLAGS.text, commandLineOptions, false, undefined, undefined);
-  out += sectionOutput(sys, colors, m.COMMON_COMPILER_OPTIONS.text, configOptions, false, undefined, learnMore());
-  sys.write(out);
-}
-
-function example(colors: Colors, commands: readonly string[], description: Message): string {
-  let text = '';
-  for (const command of commands) text += '  ' + colors.blue(command) + '\n';
-  return text + '  ' + description.text + '\n\n';
-}
-
-function printAllHelp(sys: System, options: readonly OptionDeclaration[]): void {
-  const colors = new Colors(sys);
-  let out = header(sys, colors, title());
-  out += sectionOutput(sys, colors, m.ALL_COMPILER_OPTIONS.text, options, true, undefined, learnMore());
   out += sectionOutput(
-    sys,
-    colors,
-    m.WATCH_OPTIONS.text,
+    writer,
+    writer.text(Diagnostics.COMMAND_LINE_FLAGS),
+    commandLineOptions,
+    false,
+    undefined,
+    undefined,
+  );
+  out += sectionOutput(
+    writer,
+    writer.text(Diagnostics.COMMON_COMPILER_OPTIONS),
+    configOptions,
+    false,
+    undefined,
+    learnMore(writer),
+  );
+  writer.sys.write(out);
+}
+
+function example(writer: HelpWriter, commands: readonly string[], description: DiagnosticMessage): string {
+  let text = '';
+  for (const command of commands) text += '  ' + writer.colors.blue(command) + '\n';
+  return text + '  ' + writer.text(description) + '\n\n';
+}
+
+function printAllHelp(writer: HelpWriter, options: readonly OptionDeclaration[]): void {
+  let out = writer.header();
+  out += sectionOutput(
+    writer,
+    writer.text(Diagnostics.ALL_COMPILER_OPTIONS),
+    options,
+    true,
+    undefined,
+    learnMore(writer),
+  );
+  out += sectionOutput(
+    writer,
+    writer.text(Diagnostics.WATCH_OPTIONS),
     optionsForWatch,
     false,
-    m
-      .Including_watch_w_will_start_watching_the_current_project_for_the_file_changes_Once_set_you_can_config_watch_mode_with_Colon
-      .text,
+    writer.text(
+      Diagnostics.Including_watch_w_will_start_watching_the_current_project_for_the_file_changes_Once_set_you_can_config_watch_mode_with_Colon,
+    ),
     undefined,
   );
   out += sectionOutput(
-    sys,
-    colors,
-    m.BUILD_OPTIONS.text,
+    writer,
+    writer.text(Diagnostics.BUILD_OPTIONS),
     optionsForBuild.filter((option) => option !== buildOption),
     false,
-    buildModeIntroduction(),
+    buildModeIntroduction(writer),
     undefined,
   );
-  sys.write(out);
+  writer.sys.write(out);
 }
 
 /** A section heading and its options, grouped by category when `byCategory` is set. */
 function sectionOutput(
-  sys: System,
-  colors: Colors,
+  writer: HelpWriter,
   name: string,
   options: readonly OptionDeclaration[],
   byCategory: boolean,
   before: string | undefined,
   after: string | undefined,
 ): string {
-  let out = colors.bold(name) + '\n\n';
+  let out = writer.colors.bold(name) + '\n\n';
   if (before !== undefined) out += before + '\n\n';
   if (!byCategory) {
-    out += groupOutput(sys, colors, options);
+    out += groupOutput(writer, options);
   } else {
     const categories = new Map<string, OptionDeclaration[]>();
     for (const option of options) {
       if (option.category === undefined) continue;
-      const category = option.category.text;
+      const category = writer.text(option.category);
       const group = categories.get(category);
       if (group === undefined) categories.set(category, [option]);
       else group.push(option);
     }
-    for (const [category, group] of categories) out += '### ' + category + '\n\n' + groupOutput(sys, colors, group);
+    for (const [category, group] of categories) out += '### ' + category + '\n\n' + groupOutput(writer, group);
   }
   if (after !== undefined) out += after + '\n\n';
   return out;
@@ -245,14 +315,14 @@ function displayName(option: OptionDeclaration): string {
   return '--' + option.name + (option.shortName !== undefined ? ', -' + option.shortName : '');
 }
 
-function groupOutput(sys: System, colors: Colors, options: readonly OptionDeclaration[]): string {
+function groupOutput(writer: HelpWriter, options: readonly OptionDeclaration[]): string {
   let maxLength = 0;
   for (const option of options) maxLength = Math.max(maxLength, displayName(option).length);
   // Names are right-aligned two spaces from the margin; descriptions start two spaces after them.
   const nameEnd = maxLength + 2;
   const descriptionStart = nameEnd + 2;
   let out = '';
-  for (const option of options) out += optionOutput(sys, colors, option, nameEnd, descriptionStart);
+  for (const option of options) out += optionOutput(writer, option, nameEnd, descriptionStart);
   // Always end with a blank line.
   return out.endsWith('\n\n') ? out : out + '\n';
 }
@@ -264,18 +334,19 @@ interface ValueCandidates {
 }
 
 function optionOutput(
-  sys: System,
-  colors: Colors,
+  writer: HelpWriter,
   option: OptionDeclaration,
   nameEnd: number,
   descriptionStart: number,
 ): string {
+  const colors = writer.colors;
   const name = displayName(option);
-  const candidates = valueCandidates(option);
-  const defaultValue = defaultValueText(option);
+  const candidates = valueCandidates(writer, option);
+  const defaultValue = defaultValueText(writer, option);
   const showDetails = showAdditionalInfo(option, candidates);
-  const width = sys.terminalWidth;
-  const description = option.description?.text ?? '';
+  const width = writer.width;
+  const description = option.description !== undefined ? writer.text(option.description) : '';
+  const defaultLabel = writer.text(Diagnostics.X_default_Colon);
   let out = '';
 
   if (width >= 80) {
@@ -285,7 +356,7 @@ function optionOutput(
         out += prettyLines(colors, candidates.label, candidates.values, nameEnd, descriptionStart, width, false) + '\n';
       }
       if (defaultValue !== '') {
-        out += prettyLines(colors, m.default_Colon.text, defaultValue, nameEnd, descriptionStart, width, false) + '\n';
+        out += prettyLines(colors, defaultLabel, defaultValue, nameEnd, descriptionStart, width, false) + '\n';
       }
     }
     return out + '\n';
@@ -296,14 +367,14 @@ function optionOutput(
     if (candidates !== undefined) out += candidates.label + ' ' + candidates.values;
     if (defaultValue !== '') {
       if (candidates !== undefined) out += '\n';
-      out += m.default_Colon.text + ' ' + defaultValue;
+      out += defaultLabel + ' ' + defaultValue;
     }
     out += '\n';
   }
   return out + '\n';
 }
 
-/** `left` right-aligned in a column, then `right` wrapped at the terminal width. */
+/** `left` right-aligned in a column, then `right` wrapped at the terminal width, measured in UTF-8 bytes. */
 function prettyLines(
   colors: Colors,
   left: string,
@@ -315,30 +386,33 @@ function prettyLines(
 ): string {
   const lineLength = width - descriptionStart;
   let out = '';
-  let first = true;
-  let rest = right;
-  while (rest.length > 0) {
+  let start = 0;
+  while (start < right.length) {
     let lineStart: string;
-    if (first) {
+    if (start === 0) {
       lineStart = padEnd(padStart(left, nameEnd), descriptionStart);
       if (colorLeft) lineStart = colors.blue(lineStart);
     } else {
       lineStart = ' '.repeat(descriptionStart);
     }
-    const end = Math.min(lineLength, rest.length);
-    out += lineStart + rest.slice(0, end) + '\n';
-    rest = rest.slice(end);
-    first = false;
+    const end = utf8PieceEnd(right, start, lineLength);
+    out += lineStart + right.slice(start, end) + '\n';
+    start = end;
   }
   return out;
 }
 
 function showAdditionalInfo(option: OptionDeclaration, candidates: ValueCandidates | undefined): boolean {
-  if (option.category === m.Command_line_Options) return false;
-  return !(candidates !== undefined && candidates.values === 'string' && option.defaultValueDescription === undefined);
+  if (option.category === Diagnostics.Command_line_Options) return false;
+  return !(
+    candidates !== undefined &&
+    candidates.values === 'string' &&
+    option.defaultValueDescription === undefined &&
+    option.defaultValueMessage === undefined
+  );
 }
 
-function valueCandidates(option: OptionDeclaration): ValueCandidates | undefined {
+function valueCandidates(writer: HelpWriter, option: OptionDeclaration): ValueCandidates | undefined {
   switch (option.kind) {
     case 'object':
       return undefined;
@@ -347,11 +421,11 @@ function valueCandidates(option: OptionDeclaration): ValueCandidates | undefined
     case 'string':
     case 'number':
     case 'boolean':
-      return { label: m.type_Colon.text, values: possibleValues(option) };
+      return { label: writer.text(Diagnostics.X_type_Colon), values: possibleValues(option) };
     case 'list':
-      return { label: m.one_or_more_Colon.text, values: possibleValues(option) };
+      return { label: writer.text(Diagnostics.X_one_or_more_Colon), values: possibleValues(option) };
     case 'enum':
-      return { label: m.one_of_Colon.text, values: possibleValues(option) };
+      return { label: writer.text(Diagnostics.X_one_of_Colon), values: possibleValues(option) };
   }
 }
 
@@ -385,17 +459,15 @@ function possibleValues(option: OptionDeclaration): string {
   }
 }
 
-function defaultValueText(option: OptionDeclaration): string {
+function defaultValueText(writer: HelpWriter, option: OptionDeclaration): string {
+  if (option.defaultValueMessage !== undefined) return writer.text(option.defaultValueMessage);
   const value = option.defaultValueDescription;
   if (value === undefined) return 'undefined';
   if (typeof value === 'boolean') return value ? 'true' : 'false';
   if (typeof value === 'string') return value;
-  if (typeof value === 'number') {
-    const enumOption = option.kind === 'list' ? option.element : option;
-    if (enumOption?.kind !== 'enum' || enumOption.values === undefined) return String(value);
-    const names: string[] = [];
-    for (const [name, enumValue] of enumOption.values) if (sameEnumValue(enumValue, value)) names.push(name);
-    return names.join('/');
-  }
-  return value.text;
+  const enumOption = option.kind === 'list' ? option.element : option;
+  if (enumOption?.kind !== 'enum' || enumOption.values === undefined) return String(value);
+  const names: string[] = [];
+  for (const [name, enumValue] of enumOption.values) if (sameEnumValue(enumValue, value)) names.push(name);
+  return names.join('/');
 }

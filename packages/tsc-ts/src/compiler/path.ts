@@ -573,6 +573,23 @@ export function getRelativePathFromDirectory(
   return getPathFromPathComponents(getPathComponentsRelativeTo(from, to, useCaseSensitiveFileNames, currentDirectory));
 }
 
+/** The path from the directory of file `from` to `to`, prefixed with `./` unless absolute or dot-relative. */
+export function getRelativePathFromFile(
+  from: string,
+  to: string,
+  useCaseSensitiveFileNames: boolean,
+  currentDirectory = '',
+): string {
+  return ensurePathIsNonModuleName(
+    getRelativePathFromDirectory(getDirectoryPath(from), to, useCaseSensitiveFileNames, currentDirectory),
+  );
+}
+
+/** Prefixes `./` to paths that would otherwise read as module names. */
+export function ensurePathIsNonModuleName(path: string): string {
+  return pathIsAbsolute(path) || pathIsRelative(path) ? path : './' + path;
+}
+
 //// Extensions
 
 export function fileExtensionIs(path: string, extension: string): boolean {

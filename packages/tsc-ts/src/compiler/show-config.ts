@@ -1,8 +1,7 @@
 /**
  * `tsc --showConfig`: the effective configuration as tsconfig.json text.
  */
-import * as m from './command-line-messages.js';
-import { getDirectoryPath, getNormalizedAbsolutePath, getRelativePathFromFile } from './command-line-paths.js';
+import { Diagnostics } from './diagnostics.js';
 import { compilerOptionsByName, sameEnumValue, type OptionDeclaration } from './option-declarations.js';
 import {
   compilerOptionNames,
@@ -23,6 +22,7 @@ import {
   shouldPreserveConstEnums,
   type CompilerOptions,
 } from './options.js';
+import { getDirectoryPath, getNormalizedAbsolutePath, getRelativePathFromFile } from './path.js';
 
 /** What `--showConfig` prints besides compiler options. Config file contents are filled in by tsconfig parsing. */
 export interface ShowConfigInput {
@@ -83,7 +83,8 @@ export function showConfig(input: ShowConfigInput, configFileName: string): stri
   for (const name of compilerOptionNames) {
     const option = compilerOptionsByName.get(name);
     if (option === undefined || hiddenOptions.has(option.name)) continue;
-    if (option.category === m.Command_line_Options || option.category === m.Output_Formatting) continue;
+    if (option.category === Diagnostics.Command_line_Options || option.category === Diagnostics.Output_Formatting)
+      continue;
     const json = name === 'paths' ? pathsJson(input.options.paths) : optionJson(option, input.options, paths);
     if (json !== undefined) shown.set(option.name, json);
   }

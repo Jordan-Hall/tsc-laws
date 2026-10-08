@@ -8,8 +8,14 @@
  * ```
  */
 
-import * as Messages from './module-resolution-messages.js';
-import { messageWithArgs, type DiagnosticMessage, type MessageWithArgs } from './module-resolution-messages.js';
+import {
+  createDiagnostic,
+  Diagnostics,
+  messageWithArgs,
+  type Diagnostic,
+  type DiagnosticMessage,
+  type MessageWithArgs,
+} from './diagnostics.js';
 import {
   ModuleKind,
   ModuleResolutionHost,
@@ -261,9 +267,9 @@ type PathsLoader =
 
 const RELATIVE_LOADER: PathsLoader = { kind: 'relative' };
 
-const NO_DIAGNOSTICS: readonly MessageWithArgs[] = [];
+const NO_DIAGNOSTICS: readonly Diagnostic[] = [];
 
-function unresolvedModule(diagnostics: readonly MessageWithArgs[]): ResolvedModule {
+function unresolvedModule(diagnostics: readonly Diagnostic[]): ResolvedModule {
   return {
     resolvedFileName: '',
     originalPath: '',
@@ -320,14 +326,17 @@ export class Resolver {
     }
 
     const options = optionsWithRedirect(this.options, redirect);
-    tracer?.push(messageWithArgs(Messages.Resolving_module_0_from_1, moduleName, containingFile));
+    tracer?.push(messageWithArgs(Diagnostics.Resolving_module_0_from_1, moduleName, containingFile));
     if (tracer !== undefined) traceRedirect(tracer, redirect);
 
     const kind = getModuleResolutionKind(options);
     tracer?.push(
       options.moduleResolution !== kind
-        ? messageWithArgs(Messages.Module_resolution_kind_is_not_specified_using_0, moduleResolutionKindName(kind))
-        : messageWithArgs(Messages.Explicitly_specified_module_resolution_kind_Colon_0, moduleResolutionKindName(kind)),
+        ? messageWithArgs(Diagnostics.Module_resolution_kind_is_not_specified_using_0, moduleResolutionKindName(kind))
+        : messageWithArgs(
+            Diagnostics.Explicitly_specified_module_resolution_kind_Colon_0,
+            moduleResolutionKindName(kind),
+          ),
     );
 
     const state = new ResolutionState(this, tracer, moduleName, containingDirectory, false, mode, options);
@@ -335,11 +344,11 @@ export class Resolver {
 
     if (tracer !== undefined) {
       if (result.resolvedFileName === '') {
-        tracer.push(messageWithArgs(Messages.Module_name_0_was_not_resolved, moduleName));
+        tracer.push(messageWithArgs(Diagnostics.Module_name_0_was_not_resolved, moduleName));
       } else if (result.packageId !== undefined) {
         tracer.push(
           messageWithArgs(
-            Messages.Module_name_0_was_successfully_resolved_to_1_with_Package_ID_2,
+            Diagnostics.Module_name_0_was_successfully_resolved_to_1_with_Package_ID_2,
             moduleName,
             result.resolvedFileName,
             packageIdToString(result.packageId),
@@ -347,7 +356,11 @@ export class Resolver {
         );
       } else {
         tracer.push(
-          messageWithArgs(Messages.Module_name_0_was_successfully_resolved_to_1, moduleName, result.resolvedFileName),
+          messageWithArgs(
+            Diagnostics.Module_name_0_was_successfully_resolved_to_1,
+            moduleName,
+            result.resolvedFileName,
+          ),
         );
       }
     }
@@ -388,7 +401,7 @@ export class Resolver {
     if (tracer !== undefined) {
       tracer.push(
         messageWithArgs(
-          Messages.Resolving_type_reference_directive_0_containing_file_1_root_directory_2,
+          Diagnostics.Resolving_type_reference_directive_0_containing_file_1_root_directory_2,
           name,
           containingFile,
           typeRoots.join(','),
@@ -402,11 +415,11 @@ export class Resolver {
 
     if (tracer !== undefined) {
       if (result.resolvedFileName === '') {
-        tracer.push(messageWithArgs(Messages.Type_reference_directive_0_was_not_resolved, name));
+        tracer.push(messageWithArgs(Diagnostics.Type_reference_directive_0_was_not_resolved, name));
       } else if (result.packageId !== undefined) {
         tracer.push(
           messageWithArgs(
-            Messages.Type_reference_directive_0_was_successfully_resolved_to_1_with_Package_ID_2_primary_Colon_3,
+            Diagnostics.Type_reference_directive_0_was_successfully_resolved_to_1_with_Package_ID_2_primary_Colon_3,
             name,
             result.resolvedFileName,
             packageIdToString(result.packageId),
@@ -416,7 +429,7 @@ export class Resolver {
       } else {
         tracer.push(
           messageWithArgs(
-            Messages.Type_reference_directive_0_was_successfully_resolved_to_1_primary_Colon_2,
+            Diagnostics.Type_reference_directive_0_was_successfully_resolved_to_1_primary_Colon_2,
             name,
             result.resolvedFileName,
             String(result.primary),
@@ -498,7 +511,7 @@ export class Resolver {
     );
     tracer?.push(
       messageWithArgs(
-        Messages.Auto_discovery_for_typings_is_enabled_in_project_0_Running_extra_resolution_pass_for_module_1_using_cache_location_2,
+        Diagnostics.Auto_discovery_for_typings_is_enabled_in_project_0_Running_extra_resolution_pass_for_module_1_using_cache_location_2,
         this.projectName,
         moduleName,
         this.typingsLocation,
@@ -525,7 +538,9 @@ function optionsWithRedirect(
 
 function traceRedirect(tracer: MessageWithArgs[], redirect: ResolvedProjectReference | undefined): void {
   if (redirect !== undefined && redirect.options !== undefined) {
-    tracer.push(messageWithArgs(Messages.Using_compiler_options_of_project_reference_redirect_0, redirect.configName));
+    tracer.push(
+      messageWithArgs(Diagnostics.Using_compiler_options_of_project_reference_redirect_0, redirect.configName),
+    );
   }
 }
 
@@ -590,7 +605,7 @@ class ResolutionState {
    */
   candidateEndingIsFromConfig = false;
   resolvedPackageDirectory = false;
-  diagnostics: MessageWithArgs[] = [];
+  diagnostics: Diagnostic[] = [];
   private pathPatterns: ParsedPatterns | undefined;
 
   constructor(
@@ -639,12 +654,12 @@ class ResolutionState {
   ): ResolvedTypeReferenceDirective {
     const traces = this.traces;
     if (typeRoots.length > 0) {
-      if (traces !== undefined) this.trace(Messages.Resolving_with_primary_search_path_0, typeRoots.join(', '));
+      if (traces !== undefined) this.trace(Diagnostics.Resolving_with_primary_search_path_0, typeRoots.join(', '));
       for (const typeRoot of typeRoots) {
         const candidate = this.getCandidateFromTypeRoot(typeRoot);
         if (!this.host.directoryExists(typeRoot)) {
           if (traces !== undefined)
-            this.trace(Messages.Directory_0_does_not_exist_skipping_all_lookups_in_it, typeRoot);
+            this.trace(Diagnostics.Directory_0_does_not_exist_skipping_all_lookups_in_it, typeRoot);
           continue;
         }
         if (fromConfig) {
@@ -659,13 +674,13 @@ class ResolutionState {
         if (fromDirectory !== undefined) return this.createResolvedTypeReferenceDirective(fromDirectory, true);
       }
     } else if (traces !== undefined) {
-      this.trace(Messages.Root_directory_cannot_be_determined_skipping_primary_search_paths);
+      this.trace(Diagnostics.Root_directory_cannot_be_determined_skipping_primary_search_paths);
     }
 
     let resolved: Resolved | undefined;
     if (!fromConfig || !fromInferredTypes) {
       if (traces !== undefined)
-        this.trace(Messages.Looking_up_in_node_modules_folder_initial_location_0, this.containingDirectory);
+        this.trace(Diagnostics.Looking_up_in_node_modules_folder_initial_location_0, this.containingDirectory);
       if (!isExternalModuleNameRelative(this.name)) {
         resolved = this.loadModuleFromNearestNodeModulesDirectory(false);
       } else {
@@ -674,7 +689,7 @@ class ResolutionState {
       }
     } else if (traces !== undefined) {
       this.trace(
-        Messages.Resolving_type_reference_directive_for_program_that_specifies_custom_typeRoots_skipping_lookup_in_node_modules_folder,
+        Diagnostics.Resolving_type_reference_directive_for_program_that_specifies_custom_typeRoots_skipping_lookup_in_node_modules_folder,
       );
     }
     return this.createResolvedTypeReferenceDirective(resolved, false);
@@ -698,7 +713,7 @@ class ResolutionState {
   private mangleScopedPackageName(name: string): string {
     const mangled = mangleScopedPackageName(name);
     if (this.traces !== undefined && mangled !== name)
-      this.trace(Messages.Scoped_package_detected_looking_in_0, mangled);
+      this.trace(Diagnostics.Scoped_package_detected_looking_in_0, mangled);
     return mangled;
   }
 
@@ -710,7 +725,7 @@ class ResolutionState {
       const candidate = this.getCandidateFromTypeRoot(typeRoot);
       if (!this.host.directoryExists(typeRoot)) {
         if (this.traces !== undefined)
-          this.trace(Messages.Directory_0_does_not_exist_skipping_all_lookups_in_it, typeRoot);
+          this.trace(Diagnostics.Directory_0_does_not_exist_skipping_all_lookups_in_it, typeRoot);
         continue;
       }
       const fromFile = this.loadModuleFromFile(Extensions.Declaration, candidate);
@@ -740,7 +755,7 @@ class ResolutionState {
   resolveNodeLike(): ResolvedModule {
     if (this.traces !== undefined) {
       const conditions = this.conditions.map((c) => "'" + c + "'").join(', ');
-      this.trace(Messages.Resolving_in_0_mode_with_conditions_1, this.esmMode ? 'ESM' : 'CJS', conditions);
+      this.trace(Diagnostics.Resolving_in_0_mode_with_conditions_1, this.esmMode ? 'ESM' : 'CJS', conditions);
     }
     const result = this.resolveNodeLikeWorker();
     if (
@@ -757,7 +772,7 @@ class ResolutionState {
       // Find out whether the package would resolve to types without `exports`, to suggest a fix.
       if (this.traces !== undefined) {
         this.trace(
-          Messages.Resolution_of_non_relative_name_failed_trying_with_modern_Node_resolution_features_disabled_to_see_if_npm_library_needs_configuration_update,
+          Diagnostics.Resolution_of_non_relative_name_failed_trying_with_modern_Node_resolution_features_disabled_to_see_if_npm_library_needs_configuration_update,
         );
       }
       this.features &= ~Features.Exports;
@@ -794,7 +809,7 @@ class ResolutionState {
     if (this.name.includes(':')) {
       if (this.traces !== undefined) {
         this.trace(
-          Messages.Skipping_module_0_that_looks_like_an_absolute_URI_target_file_types_Colon_1,
+          Diagnostics.Skipping_module_0_that_looks_like_an_absolute_URI_target_file_types_Colon_1,
           this.name,
           extensionsToString(this.extensions),
         );
@@ -803,7 +818,7 @@ class ResolutionState {
     }
     if (this.traces !== undefined) {
       this.trace(
-        Messages.Loading_module_0_from_node_modules_folder_target_file_types_Colon_1,
+        Diagnostics.Loading_module_0_from_node_modules_folder_target_file_types_Colon_1,
         this.name,
         extensionsToString(this.extensions),
       );
@@ -853,7 +868,7 @@ class ResolutionState {
   private loadModuleFromImports(): Resolved | undefined {
     if (this.name === '#' || (this.name.startsWith('#/') && (this.features & Features.ImportsPatternRoot) === 0)) {
       if (this.traces !== undefined)
-        this.trace(Messages.Invalid_import_specifier_0_has_no_possible_resolutions, this.name);
+        this.trace(Diagnostics.Invalid_import_specifier_0_has_no_possible_resolutions, this.name);
       return undefined;
     }
     const directory = getNormalizedAbsolutePath(this.containingDirectory, this.host.getCurrentDirectory());
@@ -861,21 +876,21 @@ class ResolutionState {
     const contents = scope?.contents;
     if (scope === undefined || contents === undefined) {
       if (this.traces !== undefined) {
-        this.trace(Messages.Directory_0_has_no_containing_package_json_scope_Imports_will_not_resolve, directory);
+        this.trace(Diagnostics.Directory_0_has_no_containing_package_json_scope_Imports_will_not_resolve, directory);
       }
       return undefined;
     }
     const imports = contents.imports;
     if (imports === undefined || imports.type !== 'object') {
       if (this.traces !== undefined)
-        this.trace(Messages.package_json_scope_0_has_no_imports_defined, scope.packageDirectory);
+        this.trace(Diagnostics.X_package_json_scope_0_has_no_imports_defined, scope.packageDirectory);
       return undefined;
     }
     const result = this.loadModuleFromExportsOrImports(this.extensions, this.name, imports, scope, true);
     if (result !== undefined) return result;
     if (this.traces !== undefined) {
       this.trace(
-        Messages.Import_specifier_0_does_not_exist_in_package_json_scope_at_path_1,
+        Diagnostics.Import_specifier_0_does_not_exist_in_package_json_scope_at_path_1,
         this.name,
         scope.packageDirectory,
       );
@@ -901,7 +916,7 @@ class ResolutionState {
     }
     if (this.traces !== undefined) {
       this.trace(
-        Messages.Export_specifier_0_does_not_exist_in_package_json_scope_at_path_1,
+        Diagnostics.Export_specifier_0_does_not_exist_in_package_json_scope_at_path_1,
         subpath,
         scope.packageDirectory,
       );
@@ -988,7 +1003,7 @@ class ResolutionState {
   private invalidTarget(scope: PackageJsonInfo, moduleName: string): undefined {
     if (this.traces !== undefined) {
       this.trace(
-        Messages.package_json_scope_0_has_invalid_type_for_target_of_specifier_1,
+        Diagnostics.X_package_json_scope_0_has_invalid_type_for_target_of_specifier_1,
         scope.packageDirectory,
         moduleName,
       );
@@ -1032,7 +1047,7 @@ class ResolutionState {
         }
         if (traces !== undefined) {
           this.trace(
-            Messages.Using_0_subpath_1_with_target_2,
+            Diagnostics.Using_0_subpath_1_with_target_2,
             isImports ? 'imports' : 'exports',
             key,
             isPattern ? replaceAllStars(targetString, subpath) : targetString + subpath,
@@ -1060,14 +1075,14 @@ class ResolutionState {
         return undefined;
       }
       case 'object': {
-        if (traces !== undefined) this.trace(Messages.Entering_conditional_exports);
+        if (traces !== undefined) this.trace(Diagnostics.Entering_conditional_exports);
         for (const [condition, subTarget] of target.entries) {
           if (!this.conditionMatches(condition)) {
-            if (traces !== undefined) this.trace(Messages.Saw_non_matching_condition_0, condition);
+            if (traces !== undefined) this.trace(Diagnostics.Saw_non_matching_condition_0, condition);
             continue;
           }
           if (traces !== undefined)
-            this.trace(Messages.Matched_0_condition_1, isImports ? 'imports' : 'exports', condition);
+            this.trace(Diagnostics.Matched_0_condition_1, isImports ? 'imports' : 'exports', condition);
           const result = this.loadModuleFromTargetExportOrImport(
             extensions,
             moduleName,
@@ -1080,14 +1095,14 @@ class ResolutionState {
           );
           if (result !== undefined) {
             if (traces !== undefined) {
-              if (result.path !== '') this.trace(Messages.Resolved_under_condition_0, condition);
-              this.trace(Messages.Exiting_conditional_exports);
+              if (result.path !== '') this.trace(Diagnostics.Resolved_under_condition_0, condition);
+              this.trace(Diagnostics.Exiting_conditional_exports);
             }
             return result;
           }
-          if (traces !== undefined) this.trace(Messages.Failed_to_resolve_under_condition_0, condition);
+          if (traces !== undefined) this.trace(Diagnostics.Failed_to_resolve_under_condition_0, condition);
         }
-        if (traces !== undefined) this.trace(Messages.Exiting_conditional_exports);
+        if (traces !== undefined) this.trace(Diagnostics.Exiting_conditional_exports);
         return undefined;
       }
       case 'array':
@@ -1109,7 +1124,7 @@ class ResolutionState {
       case 'null':
         if (traces !== undefined) {
           this.trace(
-            Messages.package_json_scope_0_explicitly_maps_specifier_1_to_null,
+            Diagnostics.X_package_json_scope_0_explicitly_maps_specifier_1_to_null,
             scope.packageDirectory,
             moduleName,
           );
@@ -1131,8 +1146,8 @@ class ResolutionState {
     const combinedLookup = isPattern ? replaceAllStars(targetString, subpath) : targetString + subpath;
     const scopeDirectory = ensureTrailingDirectorySeparator(scope.packageDirectory);
     if (this.traces !== undefined) {
-      this.trace(Messages.Using_0_subpath_1_with_target_2, 'imports', key, combinedLookup);
-      this.trace(Messages.Resolving_module_0_from_1, combinedLookup, scopeDirectory);
+      this.trace(Diagnostics.Using_0_subpath_1_with_target_2, 'imports', key, combinedLookup);
+      this.trace(Diagnostics.Resolving_module_0_from_1, combinedLookup, scopeDirectory);
     }
     const name = this.name;
     const containingDirectory = this.containingDirectory;
@@ -1182,10 +1197,13 @@ class ResolutionState {
       rootDir = getDirectoryPath(configFilePath);
     } else {
       this.diagnostics.push(
-        messageWithArgs(
+        createDiagnostic(
+          undefined,
+          0,
+          0,
           isImports
-            ? Messages.The_project_root_is_ambiguous_but_is_required_to_resolve_import_map_entry_0_in_file_1_Supply_the_rootDir_compiler_option_to_disambiguate
-            : Messages.The_project_root_is_ambiguous_but_is_required_to_resolve_export_map_entry_0_in_file_1_Supply_the_rootDir_compiler_option_to_disambiguate,
+            ? Diagnostics.The_project_root_is_ambiguous_but_is_required_to_resolve_import_map_entry_0_in_file_1_Supply_the_rootDir_compiler_option_to_disambiguate
+            : Diagnostics.The_project_root_is_ambiguous_but_is_required_to_resolve_export_map_entry_0_in_file_1_Supply_the_rootDir_compiler_option_to_disambiguate,
           entry === '' ? '.' : entry,
           packagePath,
         ),
@@ -1231,7 +1249,7 @@ class ResolutionState {
     if (priority !== 0) {
       if (this.traces !== undefined) {
         this.trace(
-          Messages.Searching_all_ancestor_node_modules_directories_for_preferred_extensions_Colon_0,
+          Diagnostics.Searching_all_ancestor_node_modules_directories_for_preferred_extensions_Colon_0,
           extensionsToString(priority),
         );
       }
@@ -1241,7 +1259,7 @@ class ResolutionState {
     if (secondary !== 0 && !typesScopeOnly) {
       if (this.traces !== undefined) {
         this.trace(
-          Messages.Searching_all_ancestor_node_modules_directories_for_fallback_extensions_Colon_0,
+          Diagnostics.Searching_all_ancestor_node_modules_directories_for_fallback_extensions_Colon_0,
           extensionsToString(secondary),
         );
       }
@@ -1271,7 +1289,7 @@ class ResolutionState {
     const nodeModules = combinePaths(directory, 'node_modules');
     if (!this.host.directoryExists(nodeModules)) {
       if (this.traces !== undefined)
-        this.trace(Messages.Directory_0_does_not_exist_skipping_all_lookups_in_it, nodeModules);
+        this.trace(Diagnostics.Directory_0_does_not_exist_skipping_all_lookups_in_it, nodeModules);
       return undefined;
     }
     if (!typesScopeOnly) {
@@ -1282,7 +1300,7 @@ class ResolutionState {
       const atTypes = combinePaths(nodeModules, '@types');
       if (!this.host.directoryExists(atTypes)) {
         if (this.traces !== undefined)
-          this.trace(Messages.Directory_0_does_not_exist_skipping_all_lookups_in_it, atTypes);
+          this.trace(Diagnostics.Directory_0_does_not_exist_skipping_all_lookups_in_it, atTypes);
         return undefined;
       }
       return this.loadModuleFromSpecificNodeModulesDirectory(
@@ -1338,7 +1356,7 @@ class ResolutionState {
         if (versionPaths !== undefined) {
           if (this.traces !== undefined) {
             this.trace(
-              Messages.package_json_has_a_typesVersions_entry_0_that_matches_compiler_version_1_looking_for_a_pattern_to_match_module_name_2,
+              Diagnostics.X_package_json_has_a_typesVersions_entry_0_that_matches_compiler_version_1_looking_for_a_pattern_to_match_module_name_2,
               versionPaths.version,
               typeScriptVersion,
               rest,
@@ -1483,7 +1501,7 @@ class ResolutionState {
     const paths = this.options.paths;
     if (paths === undefined || paths.size === 0 || pathIsRelative(this.name)) return undefined;
     if (this.traces !== undefined) {
-      this.trace(Messages.paths_option_is_specified_looking_for_a_pattern_to_match_module_name_0, this.name);
+      this.trace(Diagnostics.X_paths_option_is_specified_looking_for_a_pattern_to_match_module_name_0, this.name);
     }
     const baseDirectory =
       this.options.pathsBasePath !== undefined && this.options.pathsBasePath !== ''
@@ -1510,12 +1528,12 @@ class ResolutionState {
     const pattern = matchPatternOrExact(patterns, moduleName);
     if (pattern === undefined) return undefined;
     const star = matchedText(pattern, moduleName);
-    if (this.traces !== undefined) this.trace(Messages.Module_name_0_matched_pattern_1, moduleName, pattern.text);
+    if (this.traces !== undefined) this.trace(Diagnostics.Module_name_0_matched_pattern_1, moduleName, pattern.text);
     for (const substitution of paths.get(pattern.text) ?? []) {
       const path = replaceFirstStar(substitution, star);
       const candidate = normalizePath(combinePaths(containingDirectory, path));
       if (this.traces !== undefined) {
-        this.trace(Messages.Trying_substitution_0_candidate_module_location_Colon_1, substitution, path);
+        this.trace(Diagnostics.Trying_substitution_0_candidate_module_location_Colon_1, substitution, path);
       }
       // A substitution may name a file with its extension.
       const extension = tryGetExtensionFromPath(substitution);
@@ -1548,7 +1566,7 @@ class ResolutionState {
     if (rootDirs === undefined || rootDirs.length === 0) return undefined;
     const traces = this.traces;
     if (traces !== undefined)
-      this.trace(Messages.rootDirs_option_is_set_using_it_to_resolve_relative_module_name_0, this.name);
+      this.trace(Diagnostics.X_rootDirs_option_is_set_using_it_to_resolve_relative_module_name_0, this.name);
 
     const candidate = normalizePath(combinePaths(this.containingDirectory, this.name));
     let matchedRootDir = '';
@@ -1559,7 +1577,7 @@ class ResolutionState {
         candidate.startsWith(normalizedRoot) && (matchedPrefix === '' || matchedPrefix.length < normalizedRoot.length);
       if (traces !== undefined) {
         this.trace(
-          Messages.Checking_if_0_is_the_longest_matching_prefix_for_1_2,
+          Diagnostics.Checking_if_0_is_the_longest_matching_prefix_for_1_2,
           normalizedRoot,
           candidate,
           String(isLongest),
@@ -1572,23 +1590,23 @@ class ResolutionState {
     }
     if (matchedPrefix === '') return undefined;
 
-    if (traces !== undefined) this.trace(Messages.Longest_matching_prefix_for_0_is_1, candidate, matchedPrefix);
+    if (traces !== undefined) this.trace(Diagnostics.Longest_matching_prefix_for_0_is_1, candidate, matchedPrefix);
     const suffix = candidate.slice(matchedPrefix.length);
     if (traces !== undefined)
-      this.trace(Messages.Loading_0_from_the_root_dir_1_candidate_location_2, suffix, matchedPrefix, candidate);
+      this.trace(Diagnostics.Loading_0_from_the_root_dir_1_candidate_location_2, suffix, matchedPrefix, candidate);
     const initial = this.nodeLoadModuleByRelativeName(this.extensions, candidate, true);
     if (initial !== undefined) return initial;
 
-    if (traces !== undefined) this.trace(Messages.Trying_other_entries_in_rootDirs);
+    if (traces !== undefined) this.trace(Diagnostics.Trying_other_entries_in_rootDirs);
     for (const rootDir of rootDirs) {
       if (rootDir === matchedRootDir) continue;
       const other = combinePaths(normalizePath(rootDir), suffix);
       if (traces !== undefined)
-        this.trace(Messages.Loading_0_from_the_root_dir_1_candidate_location_2, suffix, rootDir, other);
+        this.trace(Diagnostics.Loading_0_from_the_root_dir_1_candidate_location_2, suffix, rootDir, other);
       const resolved = this.nodeLoadModuleByRelativeName(this.extensions, other, true);
       if (resolved !== undefined) return resolved;
     }
-    if (traces !== undefined) this.trace(Messages.Module_resolution_using_rootDirs_has_failed);
+    if (traces !== undefined) this.trace(Diagnostics.Module_resolution_using_rootDirs_has_failed);
     return undefined;
   }
 
@@ -1601,7 +1619,7 @@ class ResolutionState {
   ): Resolved | undefined {
     if (this.traces !== undefined) {
       this.trace(
-        Messages.Loading_module_as_file_Slash_folder_candidate_module_location_0_target_file_types_Colon_1,
+        Diagnostics.Loading_module_as_file_Slash_folder_candidate_module_location_0_target_file_types_Colon_1,
         candidate,
         extensionsToString(extensions),
       );
@@ -1610,7 +1628,7 @@ class ResolutionState {
       const parent = getDirectoryPath(candidate);
       if (!this.host.directoryExists(parent)) {
         if (this.traces !== undefined)
-          this.trace(Messages.Directory_0_does_not_exist_skipping_all_lookups_in_it, parent);
+          this.trace(Diagnostics.Directory_0_does_not_exist_skipping_all_lookups_in_it, parent);
         return undefined;
       }
       const fromFile = this.loadModuleFromFile(extensions, candidate);
@@ -1621,7 +1639,7 @@ class ResolutionState {
     }
     if (!this.host.directoryExists(candidate)) {
       if (this.traces !== undefined)
-        this.trace(Messages.Directory_0_does_not_exist_skipping_all_lookups_in_it, candidate);
+        this.trace(Diagnostics.Directory_0_does_not_exist_skipping_all_lookups_in_it, candidate);
       return undefined;
     }
     // ESM relative imports do no directory lookups (neither package.json nor index files).
@@ -1644,7 +1662,7 @@ class ResolutionState {
     if (extensionless === candidate) extensionless = candidate.slice(0, candidate.lastIndexOf('.'));
     const extension = candidate.slice(extensionless.length);
     if (this.traces !== undefined)
-      this.trace(Messages.File_name_0_has_a_1_extension_stripping_it, candidate, extension);
+      this.trace(Diagnostics.File_name_0_has_a_1_extension_stripping_it, candidate, extension);
     return this.tryAddingExtensions(extensionless, extensions, extension);
   }
 
@@ -1747,10 +1765,10 @@ class ResolutionState {
 
   private tryFileLookup(fileName: string): boolean {
     if (this.host.fileExists(fileName)) {
-      if (this.traces !== undefined) this.trace(Messages.File_0_exists_use_it_as_a_name_resolution_result, fileName);
+      if (this.traces !== undefined) this.trace(Diagnostics.File_0_exists_use_it_as_a_name_resolution_result, fileName);
       return true;
     }
-    if (this.traces !== undefined) this.trace(Messages.File_0_does_not_exist, fileName);
+    if (this.traces !== undefined) this.trace(Diagnostics.File_0_does_not_exist, fileName);
     return false;
   }
 
@@ -1783,7 +1801,7 @@ class ResolutionState {
       const moduleName = getRelativePathFromDirectory(candidate, packageFile !== '' ? packageFile : indexPath, false);
       if (this.traces !== undefined) {
         this.trace(
-          Messages.package_json_has_a_typesVersions_entry_0_that_matches_compiler_version_1_looking_for_a_pattern_to_match_module_name_2,
+          Diagnostics.X_package_json_has_a_typesVersions_entry_0_that_matches_compiler_version_1_looking_for_a_pattern_to_match_module_name_2,
           versionPaths.version,
           typeScriptVersion,
           moduleName,
@@ -1885,22 +1903,22 @@ class ResolutionState {
     if (existing !== undefined) {
       if (existing.contents !== undefined) {
         if (this.traces !== undefined)
-          this.trace(Messages.File_0_exists_according_to_earlier_cached_lookups, packageJsonPath);
+          this.trace(Diagnostics.File_0_exists_according_to_earlier_cached_lookups, packageJsonPath);
         return withPackageDirectory(existing, packageDirectory);
       }
       if (existing.directoryExists && this.traces !== undefined) {
-        this.trace(Messages.File_0_does_not_exist_according_to_earlier_cached_lookups, packageJsonPath);
+        this.trace(Diagnostics.File_0_does_not_exist_according_to_earlier_cached_lookups, packageJsonPath);
       }
       return undefined;
     }
     const directoryExists = this.host.directoryExists(packageDirectory);
     if (directoryExists && this.host.fileExists(packageJsonPath)) {
       const contents = parsePackageJson(this.host.readFile(packageJsonPath) ?? '');
-      if (this.traces !== undefined) this.trace(Messages.Found_package_json_at_0, packageJsonPath);
+      if (this.traces !== undefined) this.trace(Diagnostics.Found_package_json_at_0, packageJsonPath);
       const stored = cache.set(packageJsonPath, { packageDirectory, directoryExists: true, contents });
       return withPackageDirectory(stored, packageDirectory);
     }
-    if (directoryExists && this.traces !== undefined) this.trace(Messages.File_0_does_not_exist, packageJsonPath);
+    if (directoryExists && this.traces !== undefined) this.trace(Diagnostics.File_0_does_not_exist, packageJsonPath);
     cache.set(packageJsonPath, { packageDirectory, directoryExists, contents: undefined });
     return undefined;
   }
@@ -1925,7 +1943,7 @@ class ResolutionState {
     if (field === undefined || !this.validatePackageJsonField('peerDependencies', field, 'object')) return '';
     const peers = field.value;
     if (peers === undefined || peers.size === 0) return '';
-    if (this.traces !== undefined) this.trace(Messages.package_json_has_a_peerDependencies_field);
+    if (this.traces !== undefined) this.trace(Diagnostics.X_package_json_has_a_peerDependencies_field);
     const packageDirectory = this.realPath(packageInfo.packageDirectory);
     const index = packageDirectory.lastIndexOf('/node_modules');
     if (index === -1) return '';
@@ -1938,9 +1956,9 @@ class ResolutionState {
       if (peerContents !== undefined) {
         const version = peerContents.version.value ?? '';
         result += '+' + name + '@' + version;
-        if (this.traces !== undefined) this.trace(Messages.Found_peerDependency_0_with_1_version, name, version);
+        if (this.traces !== undefined) this.trace(Diagnostics.Found_peerDependency_0_with_1_version, name, version);
       } else if (this.traces !== undefined) {
-        this.trace(Messages.Failed_to_find_peerDependency_0, name);
+        this.trace(Diagnostics.Failed_to_find_peerDependency_0, name);
       }
     }
     return result;
@@ -1948,7 +1966,7 @@ class ResolutionState {
 
   private realPath(path: string): string {
     const real = normalizePath(this.host.realpath(path));
-    if (this.traces !== undefined) this.trace(Messages.Resolving_real_path_for_0_result_1, path, real);
+    if (this.traces !== undefined) this.trace(Diagnostics.Resolving_real_path_for_0_result_1, path, real);
     return real;
   }
 
@@ -1957,14 +1975,14 @@ class ResolutionState {
       if (field.value !== undefined) return true;
       if (this.traces !== undefined) {
         this.trace(
-          Messages.Expected_type_of_0_field_in_package_json_to_be_1_got_2,
+          Diagnostics.Expected_type_of_0_field_in_package_json_to_be_1_got_2,
           fieldName,
           expectedType,
           field.actualType,
         );
       }
     }
-    if (this.traces !== undefined) this.trace(Messages.package_json_does_not_have_a_0_field, fieldName);
+    if (this.traces !== undefined) this.trace(Diagnostics.X_package_json_does_not_have_a_0_field, fieldName);
     return false;
   }
 
@@ -1973,12 +1991,12 @@ class ResolutionState {
     if (!this.validatePackageJsonField(fieldName, field, 'string')) return '';
     const value = field.value ?? '';
     if (value === '') {
-      if (this.traces !== undefined) this.trace(Messages.package_json_had_a_falsy_0_field, fieldName);
+      if (this.traces !== undefined) this.trace(Diagnostics.X_package_json_had_a_falsy_0_field, fieldName);
       return '';
     }
     const path = normalizePath(combinePaths(directory, value));
     if (this.traces !== undefined)
-      this.trace(Messages.package_json_has_0_field_1_that_references_2, fieldName, value, path);
+      this.trace(Diagnostics.X_package_json_has_0_field_1_that_references_2, fieldName, value, path);
     return path;
   }
 
