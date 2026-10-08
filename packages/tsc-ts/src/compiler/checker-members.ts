@@ -571,7 +571,7 @@ export function findMatchingSignature(
   return undefined;
 }
 
-function compareTypeParametersIdentical(c: Checker, sourceParams: Type[], targetParams: Type[]): boolean {
+export function compareTypeParametersIdentical(c: Checker, sourceParams: Type[], targetParams: Type[]): boolean {
   if (sourceParams.length !== targetParams.length) return false;
   const mapper = newTypeMapper(targetParams, sourceParams);
   for (let i = 0; i < sourceParams.length; i++) {

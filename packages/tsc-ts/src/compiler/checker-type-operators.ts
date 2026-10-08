@@ -35,7 +35,6 @@ import {
   type LiteralType,
   type MappedType,
   ObjectFlags,
-  type ObjectType,
   StringMappingType,
   type SubstitutionType,
   type TemplateLiteralType,
@@ -50,6 +49,7 @@ import {
   prependTypeMapping,
   newTypeMapper,
   IntrinsicType,
+  type ReverseMappedType,
 } from './checker-types.js';
 import {
   UnionReduction,
@@ -157,7 +157,11 @@ import {
   maybeTypeOfKind,
   isLateBoundName,
 } from './checker-utilities.js';
-import { inferTypesForConditional } from './checker-inference.js';
+import {
+  inferTypesForConditional,
+  instantiateReverseMappedType as instantiateReverseMappedTypeOfInference,
+  resolveReverseMappedTypeMembers as resolveReverseMappedTypeMembersOfInference,
+} from './checker-inference.js';
 
 // ---- Genericity
 
@@ -257,7 +261,7 @@ export function getIndexTypeEx(c: Checker, t: Type, indexFlags: IndexFlags): Typ
   return getLiteralTypeFromProperties(c, t, include, indexFlags === IndexFlags.None);
 }
 
-function shouldDeferIndexType(c: Checker, t: Type, indexFlags: IndexFlags): boolean {
+export function shouldDeferIndexType(c: Checker, t: Type, indexFlags: IndexFlags): boolean {
   return (
     (t.flags & TypeFlags.InstantiableNonPrimitive) !== 0 ||
     isGenericTupleType(t) ||
@@ -1194,7 +1198,7 @@ export function intrinsicTypeKind(name: string): IntrinsicTypeKind {
   return IntrinsicTypeKind.Unknown;
 }
 
-function applyStringMapping(symbol: Symbol, s: string): string {
+export function applyStringMapping(symbol: Symbol, s: string): string {
   switch (intrinsicTypeKind(symbol.name)) {
     case IntrinsicTypeKind.Uppercase:
       return s.toUpperCase();
@@ -1412,13 +1416,13 @@ export function getActualTypeVariable(c: Checker, t: Type): Type {
   return t;
 }
 
-const enum MappedTypeNameTypeKind {
+export const enum MappedTypeNameTypeKind {
   None = 0,
   Filtering = 1,
   Remapping = 2,
 }
 
-function getMappedTypeNameTypeKind(c: Checker, t: MappedType): MappedTypeNameTypeKind {
+export function getMappedTypeNameTypeKind(c: Checker, t: MappedType): MappedTypeNameTypeKind {
   const nameType = getNameTypeFromMappedType(c, t);
   if (nameType === undefined) return MappedTypeNameTypeKind.None;
   return isTypeAssignableTo(c, nameType, getTypeParameterFromMappedType(c, t))
@@ -1692,13 +1696,12 @@ function instantiateMappedTypeTemplate(
   return propType;
 }
 
-/** Reverse mapped types come from inference; instantiation leaves them as is for now. */
-export function instantiateReverseMappedType(_c: Checker, t: Type, _mapper: TypeMapper): Type {
-  return t;
+export function instantiateReverseMappedType(c: Checker, t: Type, mapper: TypeMapper): Type {
+  return instantiateReverseMappedTypeOfInference(c, t as ReverseMappedType, mapper);
 }
 
 export function resolveReverseMappedTypeMembers(c: Checker, t: Type): void {
-  setStructuredTypeMembers(c, t as ObjectType, undefined, [], [], []);
+  resolveReverseMappedTypeMembersOfInference(c, t as ReverseMappedType);
 }
 
 // ---- Conditional types

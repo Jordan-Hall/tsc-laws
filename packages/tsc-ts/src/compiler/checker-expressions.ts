@@ -138,6 +138,7 @@ import {
   checkNewExpression,
   checkTaggedTemplateExpression,
   getOptionalExpressionType,
+  instantiateTypeWithSingleGenericCallSignature,
   propagateOptionalTypeMarker,
 } from './checker-calls.js';
 import { checkFunctionExpressionOrObjectLiteralMethod, checkAwaitExpression } from './checker-functions.js';
@@ -174,6 +175,10 @@ import {
   getFlowTypeOfReference,
 } from './checker-narrowing.js';
 
+import { ContextFlags, getInferenceContext, instantiateContextualType } from './checker-contextual.js';
+import { addIntraExpressionInferenceSite } from './checker-inference.js';
+import { checkTypeRelatedToAndOptionallyElaborate } from './checker-elaboration.js';
+import { isContextSensitive } from './checker-functions.js';
 export {
   getContextuallyTypedParameterType,
   isContextSensitiveFunctionOrObjectLiteralMethod,
@@ -188,7 +193,12 @@ export function checkExpression(c: Checker, node: Node): Type {
 export function checkExpressionEx(c: Checker, node: Node, checkMode: CheckMode): Type {
   const saveCurrentNode = c.currentNode;
   c.currentNode = node;
-  const t = checkExpressionWorker(c, node, checkMode);
+  const t = instantiateTypeWithSingleGenericCallSignature(
+    c,
+    node,
+    checkExpressionWorker(c, node, checkMode),
+    checkMode,
+  );
   c.currentNode = saveCurrentNode;
   return t;
 }
@@ -202,9 +212,17 @@ export function checkExpressionCached(c: Checker, node: Node): Type {
 
 /** The type of an initializer in a position where literals widen unless the context wants them. */
 export function checkExpressionForMutableLocation(c: Checker, node: Node): Type {
-  const t = checkExpression(c, node);
+  return checkExpressionForMutableLocationEx(c, node, CheckMode.Normal);
+}
+
+export function checkExpressionForMutableLocationEx(c: Checker, node: Node, checkMode: CheckMode): Type {
+  const t = checkExpressionEx(c, node, checkMode);
   if (isConstContext(node)) return getRegularTypeOfLiteralType(c, t);
-  return getWidenedLiteralLikeTypeForContextualType(c, t, getContextualType(c, node));
+  return getWidenedLiteralLikeTypeForContextualType(
+    c,
+    t,
+    instantiateContextualType(c, getContextualType(c, node), node, ContextFlags.None),
+  );
 }
 
 export function checkDeclarationInitializer(c: Checker, declaration: Node): Type {
@@ -749,7 +767,19 @@ function checkArrayLiteral(c: Checker, node: ArrayLiteralExpression, checkMode: 
       elementInfos.push(new TupleElementInfo(ElementFlags.Optional, undefined));
     } else {
       const t =
-        e.kind === SyntaxKind.OmittedExpression ? c.undefinedWideningType : checkExpressionForMutableLocation(c, e);
+        e.kind === SyntaxKind.OmittedExpression
+          ? c.undefinedWideningType
+          : checkExpressionForMutableLocationEx(c, e, checkMode);
+      if (
+        contextualType !== undefined &&
+        (checkMode & CheckMode.Inferential) !== 0 &&
+        (checkMode & CheckMode.SkipContextSensitive) === 0 &&
+        isContextSensitive(c, e)
+      ) {
+        // Inferences flowing between context-sensitive elements are made before fixing.
+        const inferenceContext = getInferenceContext(c, node);
+        if (inferenceContext !== undefined) addIntraExpressionInferenceSite(inferenceContext, e, t);
+      }
       elementTypes.push(addOptionality(c, t, true, hasOmittedExpression));
       elementInfos.push(
         new TupleElementInfo(hasOmittedExpression ? ElementFlags.Optional : ElementFlags.Required, undefined),
@@ -757,7 +787,7 @@ function checkArrayLiteral(c: Checker, node: ArrayLiteralExpression, checkMode: 
     }
   }
   if (inDestructuringPattern) return createTupleTypeEx(c, elementTypes, elementInfos, false);
-  if (inConstContext || inTupleContext)
+  if (inConstContext || inTupleContext || (checkMode & CheckMode.ForceTuple) !== 0)
     return createArrayLiteralType(
       c,
       createTupleTypeEx(
@@ -1220,7 +1250,16 @@ export function checkTypeAssignableToAndOptionallyElaborate(
   source: Type,
   target: Type,
   errorNode: Node,
-  _expr: Node | undefined,
+  expr: Node | undefined,
 ): boolean {
-  return checkTypeAssignableTo(c, source, target, errorNode, undefined);
+  return checkTypeRelatedToAndOptionallyElaborate(
+    c,
+    source,
+    target,
+    c.assignableRelation,
+    errorNode,
+    expr,
+    undefined,
+    undefined,
+  );
 }

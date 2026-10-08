@@ -300,6 +300,19 @@ class TypePrinter {
   }
 
   typeReference(t: TypeReference): string {
+    // Deferred references can nest without bound; print revisits as `...`.
+    if (t.node === undefined) return this.typeReferenceWorker(t);
+    if (this.visited.has(t.id)) {
+      this.approximateLength += 3;
+      return '...';
+    }
+    this.visited.add(t.id);
+    const result = this.typeReferenceWorker(t);
+    this.visited.delete(t.id);
+    return result;
+  }
+
+  typeReferenceWorker(t: TypeReference): string {
     const c = this.c;
     const target = t.target!;
     const typeArguments = getTypeArguments(c, t);

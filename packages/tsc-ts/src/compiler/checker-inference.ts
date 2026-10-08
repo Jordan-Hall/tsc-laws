@@ -1,18 +1,2235 @@
-// Type inference. Not ported yet: callers fall back to permissive results.
+// Type inference: inference contexts, inferring from source to target types, and the inferred
+// types of type parameters.
+import {
+  type NamedTupleMember,
+  type ParameterDeclaration,
+  type TypeReferenceNode,
+  type MappedTypeNode,
+  type Node,
+  ModifierFlags,
+  NodeFlags,
+  type TypeParameterDeclaration,
+} from './ast.js';
+import { hasSyntacticModifier } from './binder-utilities.js';
+import { CheckFlags, type Symbol, SymbolFlags } from './symbol.js';
+import { SyntaxKind } from './syntax-kind.js';
 import type { Checker } from './checker.js';
-import type { ConditionalRoot, Type, TypeMapper } from './checker-types.js';
+import {
+  ArrayToSingleTypeMapper,
+  type ConditionalRoot,
+  type ConditionalType,
+  ElementFlags,
+  IndexFlags,
+  type IndexType,
+  type IndexedAccessType,
+  type IndexInfo,
+  type IntrinsicType,
+  type LiteralType,
+  type MappedType,
+  MergedTypeMapper,
+  ObjectFlags,
+  type ReverseMappedType,
+  type Signature,
+  SignatureFlags,
+  SignatureKind,
+  type StringMappingType,
+  type SubstitutionType,
+  type TemplateLiteralType,
+  Ternary,
+  TupleElementInfo,
+  type Type,
+  TypeFlags,
+  TypeMapper,
+  type TypeParameter,
+  type TypePredicate,
+  type TypeReference,
+  type UnionType,
+  VarianceFlags,
+  newTypeMapper,
+} from './checker-types.js';
+import {
+  UnionReduction,
+  createAnonymousType,
+  createArrayType,
+  createArrayTypeEx,
+  createTupleType,
+  createTupleTypeEx,
+  filterType,
+  getBaseTypeOfLiteralType,
+  getBigIntLiteralType,
+  getElementTypes,
+  getEndElementCount,
+  getIntersectionType,
+  getNumberLiteralType,
+  getRegularTypeOfLiteralType,
+  getStringLiteralType,
+  getTemplateLiteralType,
+  getTypeArguments,
+  getTypeReferenceArity,
+  getUnionType,
+  getUnionTypeEx,
+  getWidenedLiteralType,
+  isArrayOrTupleType,
+  isErrorType,
+  isArrayType,
+  isGenericTupleType,
+  isLiteralType,
+  isMutableArrayOrTuple,
+  isReadonlyArrayType,
+  isTupleType,
+  mapType,
+  newIndexInfo,
+  newObjectType,
+  setStructuredTypeMembers,
+  someType,
+  tupleTargetOf,
+  typesOf,
+} from './checker-type-factory.js';
+import {
+  getDeclaredTypeOfClassOrInterface,
+  getDeclaredTypeOfSymbol,
+  fillMissingTypeArguments,
+  getConstraintOfTypeParameter,
+  getDefaultFromTypeParameter,
+  getMinTypeArgumentCount,
+} from './checker-declared-types.js';
+import {
+  MappedTypeModifiers,
+  applyStringMapping,
+  getActualTypeVariable,
+  getConstraintFromConditionalType,
+  getConstraintOfConditionalType,
+  getConstraintTypeFromMappedType,
+  getElementTypeOfSliceOfTupleType,
+  getFalseTypeFromConditionalType,
+  getHomomorphicTypeVariable,
+  getIndexType,
+  getIndexTypeEx,
+  getIndexedAccessType,
+  getLiteralTypeFromProperty,
+  getMappedTypeModifiers,
+  getNameTypeFromMappedType,
+  getSimplifiedType,
+  getSubstitutionIntersection,
+  getTemplateTypeFromMappedType,
+  getTrueTypeFromConditionalType,
+  getTypeParameterFromMappedType,
+  isGenericMappedType,
+  isNoInferType,
+  isTypeMatchedByTemplateLiteralType,
+  shouldDeferIndexType,
+} from './checker-type-operators.js';
+import {
+  getApparentType,
+  getApplicableIndexInfo,
+  getBaseConstraintOfType,
+  getBaseConstraintOrType,
+  getConstraintOfType,
+  getIndexInfoOfType,
+  getIndexInfosOfType,
+  getPropertiesOfObjectType,
+  getPropertiesOfType,
+  getPropertyOfType,
+  getReducedType,
+  getSignaturesOfType,
+  getTypeWithThisArgument,
+  isApplicableIndexType,
+  isObjectLiteralType,
+} from './checker-members.js';
+import {
+  getEffectiveRestType,
+  getErasedSignature,
+  getParameterCount,
+  getRestTypeAtPosition,
+  getReturnTypeOfSignature,
+  getSignatureInstantiation,
+  getThisTypeOfSignature,
+  getTypeAtPosition,
+  getTypePredicateOfSignature,
+  sliceTupleType,
+} from './checker-signatures.js';
+import {
+  getNullableType,
+  getTypeOfSymbol,
+  getWidenedType,
+  isReadonlySymbol,
+  removeMissingOrUndefinedType,
+  removeMissingType,
+} from './checker-symbol-types.js';
+import {
+  combineTypeMappers,
+  couldContainTypeVariables,
+  instantiateSignature,
+  instantiateSignatureEx,
+  instantiateType,
+  instantiateTypes,
+} from './instantiation.js';
+import {
+  type TypeComparer,
+  ComparerKind,
+  getAliasVariances,
+  getComparer,
+  getUnmatchedProperty,
+  getVariances,
+  isDeeplyNestedType,
+  isObjectTypeWithInferableIndex,
+  isTypeAssignableTo,
+  isTypeIdenticalTo,
+  isTypeStrictSubtypeOf,
+  isTypeSubtypeOf,
+} from './relations.js';
+import { maybeTypeOfKind } from './checker-utilities.js';
+import { getTypeFromTypeNode } from './checker-type-nodes.js';
+import { getMergedSymbol } from './checker-symbols.js';
+import { parsePseudoBigInt } from './pseudo-bigint.js';
+import { getContextualTypeForInference } from './checker-contextual.js';
 
-/**
- * A mapper from a conditional type's `infer` type parameters to their inferences, or undefined
- * when inference isn't available.
- */
+export const enum InferenceFlags {
+  None = 0,
+  /** Infer `silentNeverType` for no inferences (otherwise `unknown`). */
+  NoDefault = 1 << 0,
+  /** Infer `any` for no inferences. */
+  AnyDefault = 1 << 1,
+  /** A generic function was skipped during inference. */
+  SkippedGenericFunction = 1 << 2,
+}
+
+export const enum InferencePriority {
+  None = 0,
+  /** Naked type variable in union or intersection type. */
+  NakedTypeVariable = 1 << 0,
+  SpeculativeTuple = 1 << 1,
+  /** Source originated within a substitution type's substitute. */
+  SubstituteSource = 1 << 2,
+  HomomorphicMappedType = 1 << 3,
+  PartialHomomorphicMappedType = 1 << 4,
+  MappedTypeConstraint = 1 << 5,
+  ContravariantConditional = 1 << 6,
+  /** Inference made from the return type of a generic function. */
+  ReturnType = 1 << 7,
+  LiteralKeyof = 1 << 8,
+  /** Don't infer from constraints of instantiable types. */
+  NoConstraints = 1 << 9,
+  /** Always use strict rules for contravariant inferences. */
+  AlwaysStrict = 1 << 10,
+  MaxValue = 1 << 11,
+  /** Inference circularity, less than all other priorities. */
+  Circularity = -1,
+  PriorityImpliesCombination = ReturnType | MappedTypeConstraint | LiteralKeyof,
+}
+
+const enum ExpandingFlags {
+  None = 0,
+  Source = 1,
+  Target = 2,
+  Both = 3,
+}
+
+/** Inferences for one type parameter. */
+export class InferenceInfo {
+  readonly typeParameter: Type;
+  /** Covariant candidates, in decreasing depth order. */
+  candidates: Type[] = [];
+  candidateDepths: number[] = [];
+  contraCandidates: Type[] = [];
+  inferredType: Type | undefined = undefined;
+  priority: InferencePriority = InferencePriority.MaxValue;
+  /** Whether all inferences are to top-level occurrences. */
+  topLevel = true;
+  isFixed = false;
+  impliedArity = -1;
+
+  constructor(typeParameter: Type) {
+    this.typeParameter = typeParameter;
+  }
+
+  clone(): InferenceInfo {
+    const info = new InferenceInfo(this.typeParameter);
+    info.candidates = this.candidates.slice();
+    info.candidateDepths = this.candidateDepths.slice();
+    info.contraCandidates = this.contraCandidates.slice();
+    info.inferredType = this.inferredType;
+    info.priority = this.priority;
+    info.topLevel = this.topLevel;
+    info.isFixed = this.isFixed;
+    info.impliedArity = this.impliedArity;
+    return info;
+  }
+}
+
+export class IntraExpressionInferenceSite {
+  readonly node: Node;
+  readonly type: Type;
+
+  constructor(node: Node, type: Type) {
+    this.node = node;
+    this.type = type;
+  }
+}
+
+export class InferenceContext {
+  inferences: InferenceInfo[];
+  /** The generic signature inferences are made for, if any. */
+  readonly signature: Signature | undefined;
+  flags: InferenceFlags;
+  readonly compareTypes: TypeComparer;
+  /** Fixes inferences. */
+  mapper: TypeMapper;
+  nonFixingMapper: TypeMapper;
+  /** Maps to inferences from the return type, if any. */
+  returnMapper: TypeMapper | undefined = undefined;
+  outerReturnMapper: TypeMapper | undefined = undefined;
+  inferredTypeParameters: Type[] | undefined = undefined;
+  intraExpressionInferenceSites: IntraExpressionInferenceSite[] = [];
+
+  constructor(
+    c: Checker,
+    inferences: InferenceInfo[],
+    signature: Signature | undefined,
+    flags: InferenceFlags,
+    compareTypes: TypeComparer,
+  ) {
+    this.inferences = inferences;
+    this.signature = signature;
+    this.flags = flags;
+    this.compareTypes = compareTypes;
+    this.mapper = new InferenceTypeMapper(c, this, true);
+    this.nonFixingMapper = new InferenceTypeMapper(c, this, false);
+  }
+}
+
+/** Maps a context's type parameters to their inferred types, optionally fixing them. */
+export class InferenceTypeMapper extends TypeMapper {
+  readonly c: Checker;
+  readonly context: InferenceContext;
+  readonly fixing: boolean;
+
+  constructor(c: Checker, context: InferenceContext, fixing: boolean) {
+    super();
+    this.c = c;
+    this.context = context;
+    this.fixing = fixing;
+  }
+
+  map(type: Type): Type {
+    const inferences = this.context.inferences;
+    for (let i = 0; i < inferences.length; i++) {
+      const inference = inferences[i];
+      if (type !== inference.typeParameter) continue;
+      if (this.fixing && !inference.isFixed) {
+        // Infer from intra-expression sites before committing to an inference.
+        inferFromIntraExpressionSites(this.c, this.context);
+        clearCachedInferences(inferences);
+        inference.isFixed = true;
+      }
+      return getInferredType(this.c, this.context, i);
+    }
+    return type;
+  }
+}
+
+export function createInferenceContext(
+  c: Checker,
+  typeParameters: readonly Type[],
+  signature: Signature | undefined,
+  flags: InferenceFlags,
+  compareTypes: TypeComparer | undefined,
+): InferenceContext {
+  const inferences: InferenceInfo[] = [];
+  for (const tp of typeParameters) inferences.push(new InferenceInfo(tp));
+  return new InferenceContext(c, inferences, signature, flags, compareTypes ?? getComparer(c, ComparerKind.Assignable));
+}
+
+export function cloneInferenceContext(
+  c: Checker,
+  context: InferenceContext,
+  extraFlags: InferenceFlags,
+): InferenceContext {
+  return new InferenceContext(
+    c,
+    context.inferences.map((i) => i.clone()),
+    context.signature,
+    context.flags | extraFlags,
+    context.compareTypes,
+  );
+}
+
+export function cloneInferredPartOfContext(c: Checker, context: InferenceContext): InferenceContext | undefined {
+  const inferences = context.inferences.filter(hasInferenceCandidates);
+  if (inferences.length === 0) return undefined;
+  return new InferenceContext(
+    c,
+    inferences.map((i) => i.clone()),
+    context.signature,
+    context.flags,
+    context.compareTypes,
+  );
+}
+
+export function getMapperFromContext(context: InferenceContext | undefined): TypeMapper | undefined {
+  return context !== undefined ? context.mapper : undefined;
+}
+
+/** The context's return mapper combined with a mapper erasing its other type parameters to their current inferences. */
+export function createOuterReturnMapper(c: Checker, context: InferenceContext): TypeMapper {
+  if (context.outerReturnMapper === undefined) {
+    let mapper: TypeMapper = cloneInferenceContext(c, context, InferenceFlags.None).mapper;
+    if (context.returnMapper !== undefined) mapper = new MergedTypeMapper(context.returnMapper, mapper);
+    context.outerReturnMapper = mapper;
+  }
+  return context.outerReturnMapper;
+}
+
+export function addIntraExpressionInferenceSite(context: InferenceContext, node: Node, type: Type): void {
+  context.intraExpressionInferenceSites.push(new IntraExpressionInferenceSite(node, type));
+}
+
+export function clearCachedInferences(inferences: InferenceInfo[]): void {
+  for (const inference of inferences) if (!inference.isFixed) inference.inferredType = undefined;
+}
+
+export function hasInferenceCandidates(info: InferenceInfo): boolean {
+  return info.candidates.length !== 0 || info.contraCandidates.length !== 0;
+}
+
+export function hasInferenceCandidatesOrDefault(info: InferenceInfo): boolean {
+  return hasInferenceCandidates(info) || hasTypeParameterDefault(info.typeParameter);
+}
+
+function hasTypeParameterDefault(tp: Type): boolean {
+  const symbol = tp.symbol;
+  if (symbol === undefined) return false;
+  for (const d of symbol.declarations)
+    if (d.kind === SyntaxKind.TypeParameter && (d as TypeParameterDeclaration).defaultType !== undefined) return true;
+  return false;
+}
+
+export function hasOverlappingInferences(a: InferenceInfo[], b: InferenceInfo[]): boolean {
+  for (let i = 0; i < a.length; i++) if (hasInferenceCandidates(a[i]) && hasInferenceCandidates(b[i])) return true;
+  return false;
+}
+
+export function mergeInferences(target: InferenceInfo[], source: InferenceInfo[]): void {
+  for (let i = 0; i < target.length; i++)
+    if (!hasInferenceCandidates(target[i]) && hasInferenceCandidates(source[i])) target[i] = source[i];
+}
+
+// ---- Inferring from types
+
+/** Infers from `source` to `target` for the type parameters of `inferences`. */
+export function inferTypes(
+  c: Checker,
+  inferences: InferenceInfo[],
+  source: Type,
+  target: Type,
+  priority: InferencePriority,
+  contravariant: boolean,
+): void {
+  const state = new InferenceState(c, inferences, target, priority, contravariant);
+  state.inferFromTypes(source, target);
+}
+
+const enum InferenceAction {
+  ConditionalType,
+  GenericMappedTypes,
+  ObjectTypes,
+}
+
+const enum MatchKind {
+  TypeOrBaseIdentical,
+  CloselyMatched,
+  Identical,
+}
+
+class MatchedTypes {
+  readonly sources: Type[];
+  readonly targets: Type[];
+
+  constructor(sources: Type[], targets: Type[]) {
+    this.sources = sources;
+    this.targets = targets;
+  }
+}
+
+function typesMatch(c: Checker, s: Type, t: Type, kind: MatchKind): boolean {
+  switch (kind) {
+    case MatchKind.TypeOrBaseIdentical:
+      return isTypeOrBaseIdenticalTo(c, s, t);
+    case MatchKind.CloselyMatched:
+      return isTypeCloselyMatchedBy(s, t);
+    case MatchKind.Identical:
+      return isTypeIdenticalTo(c, s, t);
+  }
+}
+
+/** The state of one `inferTypes` walk. */
+class InferenceState {
+  readonly c: Checker;
+  readonly inferences: InferenceInfo[];
+  readonly originalTarget: Type;
+  priority: number;
+  inferencePriority: number = InferencePriority.MaxValue;
+  contravariant: boolean;
+  bivariant = false;
+  expandingFlags: ExpandingFlags = ExpandingFlags.None;
+  propagationType: Type | undefined = undefined;
+  visited: Map<string, InferencePriority> | undefined = undefined;
+  readonly sourceStack: Type[] = [];
+  readonly targetStack: Type[] = [];
+  depth = 0;
+
+  constructor(
+    c: Checker,
+    inferences: InferenceInfo[],
+    originalTarget: Type,
+    priority: InferencePriority,
+    contravariant: boolean,
+  ) {
+    this.c = c;
+    this.inferences = inferences;
+    this.originalTarget = originalTarget;
+    this.priority = priority;
+    this.contravariant = contravariant;
+  }
+
+  infoFor(t: Type): InferenceInfo | undefined {
+    return getInferenceInfoForType(this.inferences, t);
+  }
+
+  inferFromTypes(source: Type, target: Type): void {
+    const c = this.c;
+    if (!couldContainTypeVariables(c, target) || isNoInferType(c, target)) return;
+    if (source === c.wildcardType || source === c.blockedStringType) {
+      // Infer the `any`-like source for every type parameter referenced in the target.
+      const savePropagationType = this.propagationType;
+      this.propagationType = source;
+      this.inferFromTypes(target, target);
+      this.propagationType = savePropagationType;
+      return;
+    }
+    const sourceAlias = source.alias;
+    const targetAlias = target.alias;
+    if (sourceAlias !== undefined && targetAlias !== undefined && sourceAlias.symbol === targetAlias.symbol) {
+      if (sourceAlias.typeArguments.length !== 0 || targetAlias.typeArguments.length !== 0) {
+        // Instantiations of the same alias: infer between the type arguments, with defaults applied.
+        const params = c.symbolLinks(sourceAlias.symbol).typeParameters ?? [];
+        const minParams = getMinTypeArgumentCount(c, params);
+        const sourceTypes = fillMissingTypeArguments(c, sourceAlias.typeArguments, params, minParams, false);
+        const targetTypes = fillMissingTypeArguments(c, targetAlias.typeArguments, params, minParams, false);
+        this.inferFromTypeArguments(sourceTypes, targetTypes, getAliasVariances(c, sourceAlias.symbol));
+      }
+      return;
+    }
+    if (source === target && (source.flags & TypeFlags.UnionOrIntersection) !== 0) {
+      for (const t of typesOf(source)) this.inferFromTypes(t, t);
+      return;
+    }
+    if ((target.flags & TypeFlags.Union) !== 0) {
+      const sourceTypes = (source.flags & TypeFlags.Union) !== 0 ? typesOf(source) : [source];
+      // Infer between identically matching constituents, then closely matching ones, removing them.
+      const temp = this.inferFromMatchingTypes(sourceTypes, distributedTypes(target), MatchKind.TypeOrBaseIdentical);
+      const matched = this.inferFromMatchingTypes(temp.sources, temp.targets, MatchKind.CloselyMatched);
+      if (matched.targets.length === 0) return;
+      target = getUnionType(c, matched.targets);
+      if (matched.sources.length === 0) {
+        // Everything matched; infer from the full source at lower priority so that `string` to
+        // `string | T` still infers `string` for T.
+        this.inferWithPriority(source, target, InferencePriority.NakedTypeVariable);
+        return;
+      }
+      source = getUnionType(c, matched.sources);
+    } else if (
+      (target.flags & TypeFlags.Intersection) !== 0 &&
+      !typesOf(target).every((t) => isNonGenericObjectType(c, t))
+    ) {
+      // Reduce intersections unless they're simple combinations of object types.
+      if ((source.flags & TypeFlags.Union) === 0) {
+        const sourceTypes = (source.flags & TypeFlags.Intersection) !== 0 ? typesOf(source) : [source];
+        const matched = this.inferFromMatchingTypes(sourceTypes, typesOf(target), MatchKind.Identical);
+        if (matched.sources.length === 0 || matched.targets.length === 0) return;
+        source = getIntersectionType(c, matched.sources);
+        target = getIntersectionType(c, matched.targets);
+      }
+    }
+    if ((target.flags & (TypeFlags.IndexedAccess | TypeFlags.Substitution)) !== 0) {
+      if (isNoInferType(c, target)) return;
+      target = getActualTypeVariable(c, target);
+    }
+    if ((target.flags & TypeFlags.TypeVariable) !== 0) {
+      const inference = this.infoFor(target);
+      if (inference !== undefined) {
+        this.inferToTypeVariable(inference, source, target);
+        return;
+      }
+      // Infer to the simplified indexed access to expose more bare type parameters.
+      const simplified = getSimplifiedType(c, target, false);
+      if (simplified !== target) this.inferFromTypes(source, simplified);
+      else if ((target.flags & TypeFlags.IndexedAccess) !== 0) {
+        const access = target as IndexedAccessType;
+        const indexType = getSimplifiedType(c, access.indexType, false);
+        if ((indexType.flags & TypeFlags.Instantiable) !== 0) {
+          const distributed = distributeIndexOverObjectType(
+            c,
+            getSimplifiedType(c, access.objectType, false),
+            indexType,
+          );
+          if (distributed !== undefined && distributed !== target) this.inferFromTypes(source, distributed);
+        }
+      }
+    }
+    if (
+      (source.objectFlags & ObjectFlags.Reference) !== 0 &&
+      (target.objectFlags & ObjectFlags.Reference) !== 0 &&
+      (referenceTarget(source) === referenceTarget(target) || (isArrayType(c, source) && isArrayType(c, target))) &&
+      !(referenceNode(source) !== undefined && referenceNode(target) !== undefined)
+    ) {
+      this.inferFromTypeArguments(
+        getTypeArguments(c, source),
+        getTypeArguments(c, target),
+        getVariances(c, referenceTarget(source)!),
+      );
+    } else if ((source.flags & TypeFlags.Index) !== 0 && (target.flags & TypeFlags.Index) !== 0) {
+      this.inferFromContravariantTypes((source as IndexType).target, (target as IndexType).target);
+    } else if (
+      (isLiteralType(source) || (source.flags & TypeFlags.String) !== 0) &&
+      (target.flags & TypeFlags.Index) !== 0
+    ) {
+      const empty = createEmptyObjectTypeFromStringLiteral(c, source);
+      this.inferFromContravariantTypesWithPriority(empty, (target as IndexType).target, InferencePriority.LiteralKeyof);
+    } else if ((source.flags & TypeFlags.IndexedAccess) !== 0 && (target.flags & TypeFlags.IndexedAccess) !== 0) {
+      this.inferFromTypes((source as IndexedAccessType).objectType, (target as IndexedAccessType).objectType);
+      this.inferFromTypes((source as IndexedAccessType).indexType, (target as IndexedAccessType).indexType);
+    } else if ((source.flags & TypeFlags.StringMapping) !== 0 && (target.flags & TypeFlags.StringMapping) !== 0) {
+      if (source.symbol === target.symbol)
+        this.inferFromTypes((source as StringMappingType).target, (target as StringMappingType).target);
+    } else if ((source.flags & TypeFlags.Substitution) !== 0) {
+      this.inferFromTypes((source as SubstitutionType).baseType, target);
+      // Substitutes infer at a lower priority.
+      this.inferWithPriority(getSubstitutionIntersection(c, source), target, InferencePriority.SubstituteSource);
+    } else if ((target.flags & TypeFlags.Conditional) !== 0) {
+      this.invokeOnce(source, target, InferenceAction.ConditionalType);
+    } else if ((target.flags & TypeFlags.UnionOrIntersection) !== 0) {
+      this.inferToMultipleTypes(source, typesOf(target), target.flags);
+    } else if ((source.flags & TypeFlags.Union) !== 0) {
+      for (const sourceType of typesOf(source)) this.inferFromTypes(sourceType, target);
+    } else if ((target.flags & TypeFlags.TemplateLiteral) !== 0) {
+      this.inferToTemplateLiteralType(source, target as TemplateLiteralType);
+    } else {
+      source = getReducedType(c, source);
+      if (isGenericMappedType(c, source) && isGenericMappedType(c, target))
+        this.invokeOnce(source, target, InferenceAction.GenericMappedTypes);
+      if (
+        !(
+          (this.priority & InferencePriority.NoConstraints) !== 0 &&
+          (source.flags & (TypeFlags.Intersection | TypeFlags.Instantiable)) !== 0
+        )
+      ) {
+        const apparentSource = getApparentType(c, source);
+        // The apparent type of an indexed access or conditional may be any type; restart with it.
+        if (apparentSource !== source && (apparentSource.flags & (TypeFlags.Object | TypeFlags.Intersection)) === 0) {
+          this.inferFromTypes(apparentSource, target);
+          return;
+        }
+        source = apparentSource;
+      }
+      if ((source.flags & (TypeFlags.Object | TypeFlags.Intersection)) !== 0)
+        this.invokeOnce(source, target, InferenceAction.ObjectTypes);
+    }
+  }
+
+  inferToTypeVariable(inference: InferenceInfo, source: Type, target: Type): void {
+    const c = this.c;
+    // Non-inferrable sources are markers that must not become candidates.
+    if ((source.objectFlags & ObjectFlags.NonInferrableType) !== 0 || source === c.nonInferrableAnyType) return;
+    if (!inference.isFixed) {
+      const candidate = this.propagationType ?? source;
+      if (candidate === c.blockedStringType) return;
+      if (this.priority < inference.priority) {
+        inference.candidates = [];
+        inference.candidateDepths = [];
+        inference.contraCandidates = [];
+        inference.topLevel = true;
+        inference.priority = this.priority;
+      }
+      if (this.priority === inference.priority) {
+        // Contravariant inferences only in purely contravariant positions.
+        if (this.contravariant && !this.bivariant) {
+          if (!inference.contraCandidates.includes(candidate)) {
+            inference.contraCandidates.push(candidate);
+            clearCachedInferences(this.inferences);
+          }
+        } else {
+          let index = inference.candidates.indexOf(candidate);
+          if (index < 0 || inference.candidateDepths[index] < this.depth) {
+            if (index >= 0) {
+              inference.candidates.splice(index, 1);
+              inference.candidateDepths.splice(index, 1);
+            }
+            // Keep candidates with the highest depth first.
+            index = 0;
+            while (index < inference.candidateDepths.length && inference.candidateDepths[index] >= this.depth) index++;
+            inference.candidates.splice(index, 0, candidate);
+            inference.candidateDepths.splice(index, 0, this.depth);
+            clearCachedInferences(this.inferences);
+          }
+        }
+      }
+      if (
+        (this.priority & InferencePriority.ReturnType) === 0 &&
+        (target.flags & TypeFlags.TypeParameter) !== 0 &&
+        inference.topLevel &&
+        !isTypeParameterAtTopLevel(c, this.originalTarget, target, 0)
+      ) {
+        inference.topLevel = false;
+        clearCachedInferences(this.inferences);
+      }
+    }
+    this.inferencePriority = Math.min(this.inferencePriority, this.priority);
+  }
+
+  inferFromTypeArguments(sourceTypes: Type[], targetTypes: Type[], variances: VarianceFlags[]): void {
+    this.depth++;
+    const count = Math.min(sourceTypes.length, targetTypes.length);
+    for (let i = 0; i < count; i++) {
+      if (i < variances.length && (variances[i] & VarianceFlags.VarianceMask) === VarianceFlags.Contravariant)
+        this.inferFromContravariantTypes(sourceTypes[i], targetTypes[i]);
+      else this.inferFromTypes(sourceTypes[i], targetTypes[i]);
+    }
+    this.depth--;
+  }
+
+  inferWithPriority(source: Type, target: Type, newPriority: InferencePriority): void {
+    const savePriority = this.priority;
+    this.priority |= newPriority;
+    this.inferFromTypes(source, target);
+    this.priority = savePriority;
+  }
+
+  inferFromContravariantTypesWithPriority(source: Type, target: Type, newPriority: InferencePriority): void {
+    const savePriority = this.priority;
+    this.priority |= newPriority;
+    this.inferFromContravariantTypes(source, target);
+    this.priority = savePriority;
+  }
+
+  inferFromContravariantTypes(source: Type, target: Type): void {
+    this.contravariant = !this.contravariant;
+    this.inferFromTypes(source, target);
+    this.contravariant = !this.contravariant;
+  }
+
+  inferFromContravariantTypesIfStrictFunctionTypes(source: Type, target: Type): void {
+    if (this.c.strictFunctionTypes || (this.priority & InferencePriority.AlwaysStrict) !== 0)
+      this.inferFromContravariantTypes(source, target);
+    else this.inferFromTypes(source, target);
+  }
+
+  /** Runs `action` once per source and target pair, stopping at circularities. */
+  invokeOnce(source: Type, target: Type, action: InferenceAction): void {
+    const key = source.id + ',' + target.id;
+    let visited = this.visited;
+    if (visited === undefined) {
+      visited = new Map<string, InferencePriority>();
+      this.visited = visited;
+    }
+    const status = visited.get(key);
+    if (status !== undefined) {
+      this.inferencePriority = Math.min(this.inferencePriority, status);
+      return;
+    }
+    visited.set(key, InferencePriority.Circularity);
+    const saveInferencePriority = this.inferencePriority;
+    this.inferencePriority = InferencePriority.MaxValue;
+    // Duplicate recursion identities on both sides mean a circularity.
+    const saveExpandingFlags = this.expandingFlags;
+    this.sourceStack.push(source);
+    this.targetStack.push(target);
+    if (isDeeplyNestedType(this.c, source, this.sourceStack, 2)) this.expandingFlags |= ExpandingFlags.Source;
+    if (isDeeplyNestedType(this.c, target, this.targetStack, 2)) this.expandingFlags |= ExpandingFlags.Target;
+    if (this.expandingFlags !== ExpandingFlags.Both) {
+      switch (action) {
+        case InferenceAction.ConditionalType:
+          this.inferToConditionalType(source, target as ConditionalType);
+          break;
+        case InferenceAction.GenericMappedTypes:
+          this.inferFromGenericMappedTypes(source as MappedType, target as MappedType);
+          break;
+        case InferenceAction.ObjectTypes:
+          this.inferFromObjectTypes(source, target);
+          break;
+      }
+    } else this.inferencePriority = InferencePriority.Circularity;
+    this.targetStack.pop();
+    this.sourceStack.pop();
+    this.expandingFlags = saveExpandingFlags;
+    visited.set(key, this.inferencePriority);
+    this.inferencePriority = Math.min(this.inferencePriority, saveInferencePriority);
+  }
+
+  inferFromMatchingTypes(sources: Type[], targets: Type[], kind: MatchKind): MatchedTypes {
+    const c = this.c;
+    const matchedSources: Type[] = [];
+    const matchedTargets: Type[] = [];
+    for (const t of targets)
+      for (const s of sources)
+        if (typesMatch(c, s, t, kind)) {
+          this.inferFromTypes(s, t);
+          if (!matchedSources.includes(s)) matchedSources.push(s);
+          if (!matchedTargets.includes(t)) matchedTargets.push(t);
+        }
+    return new MatchedTypes(
+      matchedSources.length !== 0 ? sources.filter((t) => !matchedSources.includes(t)) : sources,
+      matchedTargets.length !== 0 ? targets.filter((t) => !matchedTargets.includes(t)) : targets,
+    );
+  }
+
+  inferToMultipleTypes(source: Type, targets: Type[], targetFlags: TypeFlags): void {
+    let typeVariableCount = 0;
+    if ((targetFlags & TypeFlags.Union) !== 0) {
+      let nakedTypeVariable: Type | undefined = undefined;
+      const sources = (source.flags & TypeFlags.Union) !== 0 ? typesOf(source) : [source];
+      const matched: boolean[] = [];
+      for (let i = 0; i < sources.length; i++) matched.push(false);
+      let inferenceCircularity = false;
+      // Infer to targets that aren't naked type variables first, tracking which sources produced
+      // inferences of the same quality as a naked type variable would get.
+      for (const t of targets) {
+        if (this.infoFor(t) !== undefined) {
+          nakedTypeVariable = t;
+          typeVariableCount++;
+        } else
+          for (let i = 0; i < sources.length; i++) {
+            const saveInferencePriority = this.inferencePriority;
+            this.inferencePriority = InferencePriority.MaxValue;
+            this.inferFromTypes(sources[i], t);
+            if (this.inferencePriority === this.priority) matched[i] = true;
+            inferenceCircularity = inferenceCircularity || this.inferencePriority === InferencePriority.Circularity;
+            this.inferencePriority = Math.min(this.inferencePriority, saveInferencePriority);
+          }
+      }
+      if (typeVariableCount === 0) {
+        // Infer `A | B` for T from `A | B` to `T & (X | Y)`.
+        const intersectionTypeVariable = this.getSingleTypeVariableFromIntersectionTypes(targets);
+        if (intersectionTypeVariable !== undefined)
+          this.inferWithPriority(source, intersectionTypeVariable, InferencePriority.NakedTypeVariable);
+        return;
+      }
+      // With a single naked type variable and no circularities, infer the unmatched sources to it.
+      if (typeVariableCount === 1 && !inferenceCircularity) {
+        const unmatched: Type[] = [];
+        for (let i = 0; i < sources.length; i++) if (!matched[i]) unmatched.push(sources[i]);
+        if (unmatched.length !== 0) {
+          this.inferFromTypes(getUnionType(this.c, unmatched), nakedTypeVariable!);
+          return;
+        }
+      }
+    } else {
+      // Inferences from nested naked type variables come first among the candidates.
+      for (const t of targets) {
+        if (this.infoFor(t) !== undefined) typeVariableCount++;
+        else this.inferFromTypes(source, t);
+      }
+    }
+    // Inferences directly to naked type variables get lower priority.
+    if (
+      ((targetFlags & TypeFlags.Intersection) !== 0 && typeVariableCount === 1) ||
+      ((targetFlags & TypeFlags.Intersection) === 0 && typeVariableCount > 0)
+    )
+      for (const t of targets)
+        if (this.infoFor(t) !== undefined) this.inferWithPriority(source, t, InferencePriority.NakedTypeVariable);
+  }
+
+  getSingleTypeVariableFromIntersectionTypes(types: Type[]): Type | undefined {
+    let typeVariable: Type | undefined = undefined;
+    for (const t of types) {
+      if ((t.flags & TypeFlags.Intersection) === 0) return undefined;
+      const v = typesOf(t).find((u) => this.infoFor(u) !== undefined);
+      if (v === undefined || (typeVariable !== undefined && v !== typeVariable)) return undefined;
+      typeVariable = v;
+    }
+    return typeVariable;
+  }
+
+  inferToConditionalType(source: Type, target: ConditionalType): void {
+    const c = this.c;
+    if ((source.flags & TypeFlags.Conditional) !== 0) {
+      const s = source as ConditionalType;
+      this.inferFromTypes(s.checkType, target.checkType);
+      this.inferFromTypes(s.extendsType, target.extendsType);
+      this.inferFromTypes(getTrueTypeFromConditionalType(c, s), getTrueTypeFromConditionalType(c, target));
+      this.inferFromTypes(getFalseTypeFromConditionalType(c, s), getFalseTypeFromConditionalType(c, target));
+    } else {
+      const targetTypes = [getTrueTypeFromConditionalType(c, target), getFalseTypeFromConditionalType(c, target)];
+      const savePriority = this.priority;
+      this.priority |= this.contravariant ? InferencePriority.ContravariantConditional : 0;
+      this.inferToMultipleTypes(source, targetTypes, target.flags);
+      this.priority = savePriority;
+    }
+  }
+
+  inferToTemplateLiteralType(source: Type, target: TemplateLiteralType): void {
+    const c = this.c;
+    const matches = inferTypesFromTemplateLiteralType(c, source, target);
+    const types = target.types;
+    // When the target has only placeholders and nothing matches, infer `never` for each so that
+    // instantiation produces `never` rather than collapsing to the constraint.
+    if (matches === undefined && !target.texts.every((s) => s === '')) return;
+    for (let i = 0; i < types.length; i++) {
+      const placeholder = types[i];
+      const matchSource = matches !== undefined ? matches[i] : c.neverType;
+      if ((matchSource.flags & TypeFlags.StringLiteral) !== 0 && (placeholder.flags & TypeFlags.TypeVariable) !== 0) {
+        const info = this.infoFor(placeholder);
+        if (info !== undefined) {
+          const constraint = getBaseConstraintOfType(c, info.typeParameter);
+          if (constraint !== undefined && (constraint.flags & TypeFlags.Any) === 0) {
+            const matching = getTemplatePlaceholderInference(c, matchSource as LiteralType, constraint);
+            if (matching !== undefined) {
+              this.inferFromTypes(matching, placeholder);
+              continue;
+            }
+          }
+        }
+      }
+      this.inferFromTypes(matchSource, placeholder);
+    }
+  }
+
+  inferFromGenericMappedTypes(source: MappedType, target: MappedType): void {
+    // From `{ [P in S]: X }` to `{ [P in T]: Y }`, infer from S to T and from X to Y.
+    const c = this.c;
+    this.inferFromTypes(getConstraintTypeFromMappedType(c, source), getConstraintTypeFromMappedType(c, target));
+    this.inferFromTypes(getTemplateTypeFromMappedType(c, source), getTemplateTypeFromMappedType(c, target));
+    const sourceNameType = getNameTypeFromMappedType(c, source);
+    const targetNameType = getNameTypeFromMappedType(c, target);
+    if (sourceNameType !== undefined && targetNameType !== undefined)
+      this.inferFromTypes(sourceNameType, targetNameType);
+  }
+
+  inferFromObjectTypes(source: Type, target: Type): void {
+    const c = this.c;
+    if (
+      (source.objectFlags & ObjectFlags.Reference) !== 0 &&
+      (target.objectFlags & ObjectFlags.Reference) !== 0 &&
+      (referenceTarget(source) === referenceTarget(target) || (isArrayType(c, source) && isArrayType(c, target)))
+    ) {
+      this.inferFromTypeArguments(
+        getTypeArguments(c, source),
+        getTypeArguments(c, target),
+        getVariances(c, referenceTarget(source)!),
+      );
+      return;
+    }
+    if (isGenericMappedType(c, source) && isGenericMappedType(c, target))
+      this.inferFromGenericMappedTypes(source as MappedType, target as MappedType);
+    if ((target.objectFlags & ObjectFlags.Mapped) !== 0 && !hasMappedNameType(target as MappedType)) {
+      const constraintType = getConstraintTypeFromMappedType(c, target as MappedType);
+      if (this.inferToMappedType(source, target as MappedType, constraintType)) return;
+    }
+    // Infer from members only when the types are possibly related.
+    if (typesDefinitelyUnrelated(c, source, target)) return;
+    if (isArrayOrTupleType(c, source)) {
+      if (isTupleType(target)) {
+        this.inferFromTupleTypes(source, target);
+        return;
+      }
+      if (isArrayType(c, target)) {
+        this.inferFromIndexTypes(source, target);
+        return;
+      }
+    }
+    this.inferFromProperties(source, target);
+    this.inferFromSignatures(source, target, SignatureKind.Call);
+    this.inferFromSignatures(source, target, SignatureKind.Construct);
+    this.inferFromIndexTypes(source, target);
+  }
+
+  inferFromTupleTypes(source: Type, target: Type): void {
+    const c = this.c;
+    const sourceArity = getTypeReferenceArity(source);
+    const targetArity = getTypeReferenceArity(target);
+    const elementTypes = getTypeArguments(c, target);
+    const targetTuple = tupleTargetOf(target);
+    const elementInfos = targetTuple.elementInfos;
+    const sourceTypes = getTypeArguments(c, source);
+    // Tuples of the same structure: infer between the element types.
+    if (isTupleType(source) && isTupleTypeStructureMatching(source, target)) {
+      for (let i = 0; i < targetArity; i++) this.inferFromTypes(sourceTypes[i], elementTypes[i]);
+      return;
+    }
+    let startLength = 0;
+    let endLength = 0;
+    if (isTupleType(source)) {
+      const sourceTuple = tupleTargetOf(source);
+      startLength = Math.min(sourceTuple.fixedLength, targetTuple.fixedLength);
+      if ((targetTuple.combinedFlags & ElementFlags.Variable) !== 0)
+        endLength = Math.min(
+          getEndElementCount(sourceTuple, ElementFlags.Fixed),
+          getEndElementCount(targetTuple, ElementFlags.Fixed),
+        );
+    }
+    for (let i = 0; i < startLength; i++) this.inferFromTypes(sourceTypes[i], elementTypes[i]);
+    if (
+      !isTupleType(source) ||
+      (sourceArity - startLength - endLength === 1 &&
+        (tupleTargetOf(source).elementInfos[startLength].flags & ElementFlags.Rest) !== 0)
+    ) {
+      // A single rest element remains in the source; infer from it to every middle target element.
+      const restType = sourceTypes[startLength];
+      for (let i = startLength; i < targetArity - endLength; i++)
+        this.inferFromTypes(
+          (elementInfos[i].flags & ElementFlags.Variadic) !== 0 ? createArrayType(c, restType) : restType,
+          elementTypes[i],
+        );
+    } else {
+      const middleLength = targetArity - startLength - endLength;
+      if (middleLength === 2) {
+        const first = elementInfos[startLength].flags;
+        const second = elementInfos[startLength + 1].flags;
+        if ((first & second & ElementFlags.Variadic) !== 0) {
+          // [...T, ...U]: slice the source by the implied arity of T.
+          const targetInfo = this.infoFor(elementTypes[startLength]);
+          if (targetInfo !== undefined && targetInfo.impliedArity >= 0) {
+            this.inferFromTypes(
+              sliceTupleType(c, source, startLength, endLength + sourceArity - targetInfo.impliedArity),
+              elementTypes[startLength],
+            );
+            this.inferFromTypes(
+              sliceTupleType(c, source, startLength + targetInfo.impliedArity, endLength),
+              elementTypes[startLength + 1],
+            );
+          }
+        } else if ((first & ElementFlags.Variadic) !== 0 && (second & ElementFlags.Rest) !== 0) {
+          // [...T, ...rest]: use the arity of a fixed-size tuple constraint of T.
+          const info = this.infoFor(elementTypes[startLength]);
+          if (info !== undefined) {
+            const constraint = getBaseConstraintOfType(c, info.typeParameter);
+            if (
+              constraint !== undefined &&
+              isTupleType(constraint) &&
+              (tupleTargetOf(constraint).combinedFlags & ElementFlags.Variable) === 0
+            ) {
+              const impliedArity = tupleTargetOf(constraint).fixedLength;
+              this.inferFromTypes(
+                sliceTupleType(c, source, startLength, sourceArity - (startLength + impliedArity)),
+                elementTypes[startLength],
+              );
+              const restType = getElementTypeOfSliceOfTupleType(
+                c,
+                source,
+                startLength + impliedArity,
+                endLength,
+                false,
+                false,
+              );
+              if (restType !== undefined) this.inferFromTypes(restType, elementTypes[startLength + 1]);
+            }
+          }
+        } else if ((first & ElementFlags.Rest) !== 0 && (second & ElementFlags.Variadic) !== 0) {
+          // [...rest, ...T]: use the arity of a fixed-size tuple constraint of T.
+          const info = this.infoFor(elementTypes[startLength + 1]);
+          if (info !== undefined) {
+            const constraint = getBaseConstraintOfType(c, info.typeParameter);
+            if (
+              constraint !== undefined &&
+              isTupleType(constraint) &&
+              (tupleTargetOf(constraint).combinedFlags & ElementFlags.Variable) === 0
+            ) {
+              const impliedArity = tupleTargetOf(constraint).fixedLength;
+              const endIndex = sourceArity - getEndElementCount(targetTuple, ElementFlags.Fixed);
+              const startIndex = endIndex - impliedArity;
+              if (startIndex >= startLength) {
+                const trailingSlice = createTupleTypeEx(
+                  c,
+                  sourceTypes.slice(startIndex, endIndex),
+                  tupleTargetOf(source).elementInfos.slice(startIndex, endIndex),
+                  false,
+                );
+                const restType = getElementTypeOfSliceOfTupleType(
+                  c,
+                  source,
+                  startLength,
+                  endLength + impliedArity,
+                  false,
+                  false,
+                );
+                if (restType !== undefined) this.inferFromTypes(restType, elementTypes[startLength]);
+                this.inferFromTypes(trailingSlice, elementTypes[startLength + 1]);
+              }
+            }
+          }
+        }
+      } else if (middleLength === 1 && (elementInfos[startLength].flags & ElementFlags.Variadic) !== 0) {
+        // One variadic middle element: infer the source slice between the fixed parts, speculatively
+        // when the target ends in optional elements.
+        const priority =
+          (elementInfos[targetArity - 1].flags & ElementFlags.Optional) !== 0
+            ? InferencePriority.SpeculativeTuple
+            : InferencePriority.None;
+        this.inferWithPriority(sliceTupleType(c, source, startLength, endLength), elementTypes[startLength], priority);
+      } else if (middleLength === 1 && (elementInfos[startLength].flags & ElementFlags.Rest) !== 0) {
+        // One rest middle element: infer the union of the middle source elements.
+        const restType = getElementTypeOfSliceOfTupleType(c, source, startLength, endLength, false, false);
+        if (restType !== undefined) this.inferFromTypes(restType, elementTypes[startLength]);
+      }
+    }
+    for (let i = 0; i < endLength; i++)
+      this.inferFromTypes(sourceTypes[sourceArity - i - 1], elementTypes[targetArity - i - 1]);
+  }
+
+  inferFromProperties(source: Type, target: Type): void {
+    const c = this.c;
+    for (const targetProp of getPropertiesOfObjectType(c, target)) {
+      const sourceProp = getPropertyOfType(c, source, targetProp.name);
+      if (sourceProp !== undefined)
+        this.inferFromTypes(
+          removeMissingType(c, getTypeOfSymbol(c, sourceProp), (sourceProp.flags & SymbolFlags.Optional) !== 0),
+          removeMissingType(c, getTypeOfSymbol(c, targetProp), (targetProp.flags & SymbolFlags.Optional) !== 0),
+        );
+    }
+  }
+
+  inferFromSignatures(source: Type, target: Type, kind: SignatureKind): void {
+    const c = this.c;
+    const sourceSignatures = getSignaturesOfType(c, source, kind);
+    const sourceLen = sourceSignatures.length;
+    if (sourceLen === 0) return;
+    // Match signatures from the bottom up; excess targets infer from the first source signature.
+    const targetSignatures = getSignaturesOfType(c, target, kind);
+    const targetLen = targetSignatures.length;
+    for (let i = 0; i < targetLen; i++) {
+      const sourceIndex = Math.max(sourceLen - targetLen + i, 0);
+      this.inferFromSignature(
+        getBaseSignature(c, sourceSignatures[sourceIndex]),
+        getErasedSignature(c, targetSignatures[i]),
+      );
+    }
+  }
+
+  inferFromSignature(source: Signature, target: Signature): void {
+    const c = this.c;
+    if ((source.flags & SignatureFlags.IsNonInferrable) === 0) {
+      const saveBivariant = this.bivariant;
+      const kind = target.declaration !== undefined ? target.declaration.kind : SyntaxKind.Unknown;
+      // Once in a bivariant signature, nested inferences stay bivariant.
+      this.bivariant =
+        this.bivariant ||
+        kind === SyntaxKind.MethodDeclaration ||
+        kind === SyntaxKind.MethodSignature ||
+        kind === SyntaxKind.Constructor;
+      applyToParameterTypes(c, source, target, (s, t) => this.inferFromContravariantTypesIfStrictFunctionTypes(s, t));
+      this.bivariant = saveBivariant;
+    }
+    applyToReturnTypes(c, source, target, (s, t) => this.inferFromTypes(s, t));
+  }
+
+  inferFromIndexTypes(source: Type, target: Type): void {
+    const c = this.c;
+    // Inferences across mapped type index signatures are like inferences to homomorphic variables.
+    const priority =
+      (source.objectFlags & target.objectFlags & ObjectFlags.Mapped) !== 0
+        ? InferencePriority.HomomorphicMappedType
+        : InferencePriority.None;
+    const indexInfos = getIndexInfosOfType(c, target);
+    if (isObjectTypeWithInferableIndex(c, source))
+      for (const targetInfo of indexInfos) {
+        const propTypes: Type[] = [];
+        for (const prop of getPropertiesOfType(c, source))
+          if (
+            isApplicableIndexType(
+              c,
+              getLiteralTypeFromProperty(c, prop, TypeFlags.StringOrNumberLiteralOrUnique, false),
+              targetInfo.keyType,
+            )
+          ) {
+            const propType = getTypeOfSymbol(c, prop);
+            propTypes.push(
+              (prop.flags & SymbolFlags.Optional) !== 0 ? removeMissingOrUndefinedType(c, propType) : propType,
+            );
+          }
+        for (const info of getIndexInfosOfType(c, source))
+          if (isApplicableIndexType(c, info.keyType, targetInfo.keyType)) propTypes.push(info.valueType);
+        if (propTypes.length !== 0) this.inferWithPriority(getUnionType(c, propTypes), targetInfo.valueType, priority);
+      }
+    for (const targetInfo of indexInfos) {
+      const sourceInfo = getApplicableIndexInfo(c, source, targetInfo.keyType);
+      if (sourceInfo !== undefined) this.inferWithPriority(sourceInfo.valueType, targetInfo.valueType, priority);
+    }
+  }
+
+  inferToMappedType(source: Type, target: MappedType, constraintType: Type): boolean {
+    const c = this.c;
+    if ((constraintType.flags & TypeFlags.UnionOrIntersection) !== 0) {
+      let result = false;
+      for (const t of typesOf(constraintType)) result = this.inferToMappedType(source, target, t) || result;
+      return result;
+    }
+    if ((constraintType.flags & TypeFlags.Index) !== 0) {
+      // From S to a homomorphic `{ [P in keyof T]: X }`: reverse-map S and make a secondary
+      // inference to T, so direct inferences to T win over ones to `Partial<T>`.
+      const inference = this.infoFor((constraintType as IndexType).target);
+      if (inference !== undefined && !inference.isFixed) {
+        const inferredType = inferTypeForHomomorphicMappedType(c, source, target, constraintType as IndexType);
+        if (inferredType !== undefined)
+          this.inferWithPriority(
+            inferredType,
+            inference.typeParameter,
+            (source.objectFlags & ObjectFlags.NonInferrableType) !== 0
+              ? InferencePriority.PartialHomomorphicMappedType
+              : InferencePriority.HomomorphicMappedType,
+          );
+      }
+      return true;
+    }
+    if ((constraintType.flags & TypeFlags.TypeParameter) !== 0) {
+      // From S to `{ [P in K]: X }`: infer `keyof S` to K, then to K's constraint like a homomorphic
+      // mapped type (for `Pick<T, K>`).
+      this.inferWithPriority(
+        getIndexTypeEx(c, source, IndexFlags.None),
+        constraintType,
+        InferencePriority.MappedTypeConstraint,
+      );
+      const extendedConstraint = getConstraintOfType(c, constraintType);
+      if (extendedConstraint !== undefined && this.inferToMappedType(source, target, extendedConstraint)) return true;
+      // Otherwise infer the union of the source's property types to X.
+      const types: Type[] = [];
+      for (const p of getPropertiesOfType(c, source)) types.push(getTypeOfSymbol(c, p));
+      for (const info of getIndexInfosOfType(c, source))
+        types.push(info !== c.enumNumberIndexInfo ? info.valueType : c.neverType);
+      this.inferFromTypes(getUnionType(c, types), getTemplateTypeFromMappedType(c, target));
+      return true;
+    }
+    return false;
+  }
+}
+
+// ---- Helpers
+
+function getInferenceInfoForType(inferences: InferenceInfo[], t: Type): InferenceInfo | undefined {
+  if ((t.flags & TypeFlags.TypeVariable) !== 0)
+    for (const inference of inferences) if (t === inference.typeParameter) return inference;
+  return undefined;
+}
+
+function distributedTypes(t: Type): Type[] {
+  return (t.flags & TypeFlags.Union) !== 0 ? typesOf(t) : [t];
+}
+
+function referenceTarget(t: Type): Type | undefined {
+  return (t as TypeReference).target;
+}
+
+function referenceNode(t: Type): Node | undefined {
+  return (t as TypeReference).node;
+}
+
+function isNonGenericObjectType(c: Checker, t: Type): boolean {
+  return (t.flags & TypeFlags.Object) !== 0 && !isGenericMappedType(c, t);
+}
+
+function hasMappedNameType(t: MappedType): boolean {
+  return t.declaration !== undefined && (t.declaration as MappedTypeNode).nameType !== undefined;
+}
+
+/** `(T | U)[K]` as `T[K] | U[K]` and `(T & U)[K]` as `T[K] & U[K]`. */
+function distributeIndexOverObjectType(c: Checker, objectType: Type, indexType: Type): Type | undefined {
+  if (
+    (objectType.flags & TypeFlags.Union) !== 0 ||
+    ((objectType.flags & TypeFlags.Intersection) !== 0 && !shouldDeferIndexType(c, objectType, IndexFlags.None))
+  ) {
+    const types = typesOf(objectType).map((t) => getSimplifiedType(c, getIndexedAccessType(c, t, indexType), false));
+    return (objectType.flags & TypeFlags.Intersection) !== 0 ? getIntersectionType(c, types) : getUnionType(c, types);
+  }
+  return undefined;
+}
+
+/** An object with a property of type `any` for each string literal in `t`. */
+function createEmptyObjectTypeFromStringLiteral(c: Checker, t: Type): Type {
+  const members = new Map<string, Symbol>();
+  for (const u of distributedTypes(t)) {
+    if ((u.flags & TypeFlags.StringLiteral) === 0) continue;
+    const name = (u as LiteralType).stringValue;
+    const literalProp = c.newSymbol(SymbolFlags.Property, name);
+    c.symbolLinks(literalProp).type = c.anyType;
+    if (u.symbol !== undefined) {
+      literalProp.declarations = u.symbol.declarations;
+      literalProp.valueDeclaration = u.symbol.valueDeclaration;
+    }
+    members.set(name, literalProp);
+  }
+  const indexInfos: IndexInfo[] =
+    (t.flags & TypeFlags.String) !== 0 ? [newIndexInfo(c.stringType, c.emptyObjectType, false, undefined)] : [];
+  return createAnonymousType(c, undefined, members, [], [], indexInfos);
+}
+
+export function isTypeParameterAtTopLevel(c: Checker, t: Type, tp: Type, depth: number): boolean {
+  if (t === tp) return true;
+  if ((t.flags & TypeFlags.UnionOrIntersection) !== 0)
+    return typesOf(t).some((u) => isTypeParameterAtTopLevel(c, u, tp, depth));
+  return (
+    depth < 3 &&
+    (t.flags & TypeFlags.Conditional) !== 0 &&
+    (isTypeParameterAtTopLevel(c, getTrueTypeFromConditionalType(c, t as ConditionalType), tp, depth + 1) ||
+      isTypeParameterAtTopLevel(c, getFalseTypeFromConditionalType(c, t as ConditionalType), tp, depth + 1))
+  );
+}
+
+function isTypeParameterAtTopLevelInReturnType(c: Checker, signature: Signature, typeParameter: Type): boolean {
+  const typePredicate = getTypePredicateOfSignature(c, signature);
+  if (typePredicate !== undefined)
+    return typePredicate.type !== undefined && isTypeParameterAtTopLevel(c, typePredicate.type, typeParameter, 0);
+  return isTypeParameterAtTopLevel(c, getReturnTypeOfSignature(c, signature), typeParameter, 0);
+}
+
+function isTypeOrBaseIdenticalTo(c: Checker, s: Type, t: Type): boolean {
+  if (t === c.missingType) return s === t;
+  return (
+    isTypeIdenticalTo(c, s, t) ||
+    ((t.flags & TypeFlags.String) !== 0 && (s.flags & TypeFlags.StringLiteral) !== 0) ||
+    ((t.flags & TypeFlags.Number) !== 0 && (s.flags & TypeFlags.NumberLiteral) !== 0)
+  );
+}
+
+function isTypeCloselyMatchedBy(s: Type, t: Type): boolean {
+  if (
+    (s.flags & TypeFlags.Object) !== 0 &&
+    (t.flags & TypeFlags.Object) !== 0 &&
+    s.symbol !== undefined &&
+    s.symbol === t.symbol
+  )
+    return true;
+  const sa = s.alias;
+  const ta = t.alias;
+  return sa !== undefined && ta !== undefined && sa.typeArguments.length !== 0 && sa.symbol === ta.symbol;
+}
+
+function typesDefinitelyUnrelated(c: Checker, source: Type, target: Type): boolean {
+  // Tuples of incompatible arities, or objects that each have a property missing in the other.
+  if (isTupleType(source) && isTupleType(target)) {
+    const s = tupleTargetOf(source);
+    const t = tupleTargetOf(target);
+    return (
+      ((t.combinedFlags & ElementFlags.Variadic) === 0 && t.minLength > s.minLength) ||
+      ((t.combinedFlags & ElementFlags.Variable) === 0 &&
+        ((s.combinedFlags & ElementFlags.Variable) !== 0 || t.fixedLength < s.fixedLength))
+    );
+  }
+  return (
+    getUnmatchedProperty(c, source, target, false) !== undefined &&
+    getUnmatchedProperty(c, target, source, false) !== undefined
+  );
+}
+
+function isTupleTypeStructureMatching(t1: Type, t2: Type): boolean {
+  if (getTypeReferenceArity(t1) !== getTypeReferenceArity(t2)) return false;
+  const infos1 = tupleTargetOf(t1).elementInfos;
+  const infos2 = tupleTargetOf(t2).elementInfos;
+  for (let i = 0; i < infos1.length; i++)
+    if ((infos1[i].flags & ElementFlags.Variable) !== (infos2[i].flags & ElementFlags.Variable)) return false;
+  return true;
+}
+
+export function isConstTypeVariable(c: Checker, t: Type | undefined, depth: number): boolean {
+  if (depth >= 5 || t === undefined) return false;
+  if ((t.flags & TypeFlags.TypeParameter) !== 0)
+    return t.symbol !== undefined && t.symbol.declarations.some((d) => hasSyntacticModifier(d, ModifierFlags.Const));
+  if ((t.flags & TypeFlags.UnionOrIntersection) !== 0) return typesOf(t).some((s) => isConstTypeVariable(c, s, depth));
+  if ((t.flags & TypeFlags.IndexedAccess) !== 0)
+    return isConstTypeVariable(c, (t as IndexedAccessType).objectType, depth + 1);
+  if ((t.flags & TypeFlags.Conditional) !== 0)
+    return isConstTypeVariable(c, getConstraintOfConditionalType(c, t), depth + 1);
+  if ((t.flags & TypeFlags.Substitution) !== 0) return isConstTypeVariable(c, (t as SubstitutionType).baseType, depth);
+  if ((t.objectFlags & ObjectFlags.Mapped) !== 0) {
+    const typeVariable = getHomomorphicTypeVariable(c, t as MappedType);
+    return typeVariable !== undefined && isConstTypeVariable(c, typeVariable, depth);
+  }
+  if (isGenericTupleType(t)) {
+    const elements = getElementTypes(c, t);
+    const infos = tupleTargetOf(t).elementInfos;
+    for (let i = 0; i < elements.length; i++)
+      if ((infos[i].flags & ElementFlags.Variadic) !== 0 && isConstTypeVariable(c, elements[i], depth)) return true;
+  }
+  return false;
+}
+
+export function isMutableArrayLikeType(c: Checker, t: Type): boolean {
+  return (
+    isMutableArrayOrTuple(c, t) ||
+    ((t.flags & (TypeFlags.Any | TypeFlags.Nullable)) === 0 && isTypeAssignableTo(c, t, c.anyArrayType))
+  );
+}
+
+function typePredicateKindsMatch(a: TypePredicate, b: TypePredicate): boolean {
+  return a.kind === b.kind && a.parameterIndex === b.parameterIndex;
+}
+
+/** Calls `callback` with each pair of corresponding parameter types of `source` and `target`. */
+export function applyToParameterTypes(
+  c: Checker,
+  source: Signature,
+  target: Signature,
+  callback: (s: Type, t: Type) => void,
+): void {
+  const sourceCount = getParameterCount(c, source);
+  const targetCount = getParameterCount(c, target);
+  const sourceRestType = getEffectiveRestType(c, source);
+  const targetRestType = getEffectiveRestType(c, target);
+  const targetNonRestCount = targetRestType !== undefined ? targetCount - 1 : targetCount;
+  const paramCount = sourceRestType !== undefined ? targetNonRestCount : Math.min(sourceCount, targetNonRestCount);
+  const sourceThisType = getThisTypeOfSignature(c, source);
+  if (sourceThisType !== undefined) {
+    const targetThisType = getThisTypeOfSignature(c, target);
+    if (targetThisType !== undefined) callback(sourceThisType, targetThisType);
+  }
+  for (let i = 0; i < paramCount; i++) callback(getTypeAtPosition(c, source, i), getTypeAtPosition(c, target, i));
+  if (targetRestType !== undefined)
+    callback(
+      getRestTypeAtPosition(
+        c,
+        source,
+        paramCount,
+        isConstTypeVariable(c, targetRestType, 0) && !someType(targetRestType, (t) => isMutableArrayLikeType(c, t)),
+      ),
+      targetRestType,
+    );
+}
+
+export function applyToReturnTypes(
+  c: Checker,
+  source: Signature,
+  target: Signature,
+  callback: (s: Type, t: Type) => void,
+): void {
+  const targetTypePredicate = getTypePredicateOfSignature(c, target);
+  if (targetTypePredicate !== undefined) {
+    const sourceTypePredicate = getTypePredicateOfSignature(c, source);
+    if (
+      sourceTypePredicate !== undefined &&
+      typePredicateKindsMatch(sourceTypePredicate, targetTypePredicate) &&
+      sourceTypePredicate.type !== undefined &&
+      targetTypePredicate.type !== undefined
+    ) {
+      callback(sourceTypePredicate.type, targetTypePredicate.type);
+      return;
+    }
+  }
+  const targetReturnType = getReturnTypeOfSignature(c, target);
+  if (couldContainTypeVariables(c, targetReturnType)) callback(getReturnTypeOfSignature(c, source), targetReturnType);
+}
+
+/** `signature` with its type parameters replaced by their base constraints. */
+export function getBaseSignature(c: Checker, signature: Signature): Signature {
+  const typeParameters = signature.typeParameters;
+  if (typeParameters.length === 0) return signature;
+  if (signature.baseSignatureCache !== undefined) return signature.baseSignatureCache;
+  const baseConstraintMapper = newTypeMapper(
+    typeParameters,
+    typeParameters.map((tp) => getConstraintOfTypeParameter(c, tp) ?? c.unknownType),
+  );
+  let baseConstraints = typeParameters.map((tp) => instantiateType(c, tp, baseConstraintMapper));
+  // Resolve non-circular interdependent constraints, then erase what remains circular.
+  for (let i = 0; i < typeParameters.length - 1; i++)
+    baseConstraints = instantiateTypes(c, baseConstraints, baseConstraintMapper);
+  baseConstraints = instantiateTypes(c, baseConstraints, new ArrayToSingleTypeMapper(typeParameters, c.anyType));
+  const result = instantiateSignatureEx(c, signature, newTypeMapper(typeParameters, baseConstraints), true);
+  signature.baseSignatureCache = result;
+  return result;
+}
+
+export function getTypeParametersForMapper(c: Checker, signature: Signature): Type[] {
+  return signature.typeParameters.map((tp) => instantiateType(c, tp, (tp as TypeParameter).mapper));
+}
+
+/** The generic `signature` instantiated in the context of the non-generic `contextualSignature`. */
+export function instantiateSignatureInContextOf(
+  c: Checker,
+  signature: Signature,
+  contextualSignature: Signature,
+  inferenceContext: InferenceContext | undefined,
+  compareTypes: TypeComparer | undefined,
+): Signature {
+  const context = createInferenceContext(
+    c,
+    getTypeParametersForMapper(c, signature),
+    signature,
+    InferenceFlags.None,
+    compareTypes,
+  );
+  // Clone so that inferring through a rest type parameter doesn't fix it.
+  const restType = getEffectiveRestType(c, contextualSignature);
+  const mapper =
+    inferenceContext !== undefined
+      ? restType !== undefined && (restType.flags & TypeFlags.TypeParameter) !== 0
+        ? inferenceContext.nonFixingMapper
+        : inferenceContext.mapper
+      : undefined;
+  const sourceSignature =
+    mapper !== undefined ? instantiateSignature(c, contextualSignature, mapper) : contextualSignature;
+  applyToParameterTypes(c, sourceSignature, signature, (source, target) =>
+    inferTypes(c, context.inferences, source, target, InferencePriority.None, false),
+  );
+  if (inferenceContext === undefined)
+    applyToReturnTypes(c, contextualSignature, signature, (source, target) =>
+      inferTypes(c, context.inferences, source, target, InferencePriority.ReturnType, false),
+    );
+  return getSignatureInstantiation(
+    c,
+    signature,
+    getInferredTypes(c, context),
+    contextualSignature.declaration !== undefined &&
+      (contextualSignature.declaration.flags & NodeFlags.JavaScriptFile) !== 0,
+  );
+}
+
+// ---- Template literal inference
+
+/** The types matched by `target`'s placeholders in `source`, or undefined if it doesn't match. */
+export function inferTypesFromTemplateLiteralType(
+  c: Checker,
+  source: Type,
+  target: TemplateLiteralType,
+): Type[] | undefined {
+  if ((source.flags & TypeFlags.StringLiteral) !== 0)
+    return inferFromLiteralPartsToTemplateLiteral(c, [(source as LiteralType).stringValue], [], target);
+  if ((source.flags & TypeFlags.TemplateLiteral) !== 0) {
+    const s = source as TemplateLiteralType;
+    if (arraysEqual(s.texts, target.texts))
+      return s.types.map((t, i) =>
+        isTypeAssignableTo(c, getBaseConstraintOrType(c, t), getBaseConstraintOrType(c, target.types[i]))
+          ? t
+          : getStringLikeTypeForType(c, t),
+      );
+    return inferFromLiteralPartsToTemplateLiteral(c, s.texts, s.types, target);
+  }
+  return undefined;
+}
+
+function arraysEqual(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
+}
+
+function getStringLikeTypeForType(c: Checker, t: Type): Type {
+  return (t.flags & (TypeFlags.Any | TypeFlags.StringLike)) !== 0 ? t : getTemplateLiteralType(c, ['', ''], [t]);
+}
+
+/** Matches the text and type parts of a source literal against a target template literal. */
+class TemplateMatcher {
+  readonly c: Checker;
+  readonly sourceTexts: string[];
+  readonly sourceTypes: Type[];
+  readonly lastSourceIndex: number;
+  readonly remainingEndText: string;
+  seg = 0;
+  pos: number;
+  readonly matches: Type[] = [];
+
+  constructor(c: Checker, sourceTexts: string[], sourceTypes: Type[], remainingEndText: string, pos: number) {
+    this.c = c;
+    this.sourceTexts = sourceTexts;
+    this.sourceTypes = sourceTypes;
+    this.lastSourceIndex = sourceTexts.length - 1;
+    this.remainingEndText = remainingEndText;
+    this.pos = pos;
+  }
+
+  sourceText(index: number): string {
+    return index < this.lastSourceIndex ? this.sourceTexts[index] : this.remainingEndText;
+  }
+
+  addMatch(s: number, p: number): void {
+    let matchType: Type;
+    if (s === this.seg) matchType = getStringLiteralType(this.c, this.sourceText(s).substring(this.pos, p));
+    else {
+      const texts: string[] = [this.sourceTexts[this.seg].substring(this.pos)];
+      for (let i = this.seg + 1; i < s; i++) texts.push(this.sourceTexts[i]);
+      texts.push(this.sourceText(s).substring(0, p));
+      matchType = getTemplateLiteralType(this.c, texts, this.sourceTypes.slice(this.seg, s));
+    }
+    this.matches.push(matchType);
+    this.seg = s;
+    this.pos = p;
+  }
+}
+
+function inferFromLiteralPartsToTemplateLiteral(
+  c: Checker,
+  sourceTexts: string[],
+  sourceTypes: Type[],
+  target: TemplateLiteralType,
+): Type[] | undefined {
+  const lastSourceIndex = sourceTexts.length - 1;
+  const sourceStartText = sourceTexts[0];
+  const sourceEndText = sourceTexts[lastSourceIndex];
+  const targetTexts = target.texts;
+  const lastTargetIndex = targetTexts.length - 1;
+  const targetStartText = targetTexts[0];
+  const targetEndText = targetTexts[lastTargetIndex];
+  if (
+    (lastSourceIndex === 0 && sourceStartText.length < targetStartText.length + targetEndText.length) ||
+    !sourceStartText.startsWith(targetStartText) ||
+    !sourceEndText.endsWith(targetEndText)
+  )
+    return undefined;
+  const m = new TemplateMatcher(
+    c,
+    sourceTexts,
+    sourceTypes,
+    sourceEndText.substring(0, sourceEndText.length - targetEndText.length),
+    targetStartText.length,
+  );
+  for (let i = 1; i < lastTargetIndex; i++) {
+    const delim = targetTexts[i];
+    if (delim.length > 0) {
+      let s = m.seg;
+      let p = m.pos;
+      for (;;) {
+        const d = m.sourceText(s).indexOf(delim, p);
+        if (d >= 0) {
+          p = d;
+          break;
+        }
+        s++;
+        if (s === sourceTexts.length) return undefined;
+        p = 0;
+      }
+      m.addMatch(s, p);
+      m.pos += delim.length;
+    } else if (m.pos < m.sourceText(m.seg).length) {
+      // Consume one code point.
+      const code = m.sourceText(m.seg).codePointAt(m.pos)!;
+      m.addMatch(m.seg, m.pos + (code > 0xffff ? 2 : 1));
+    } else if (m.seg < lastSourceIndex) m.addMatch(m.seg + 1, 0);
+    else return undefined;
+  }
+  m.addMatch(lastSourceIndex, m.sourceText(lastSourceIndex).length);
+  return m.matches;
+}
+
+/** For a string literal inferred to a placeholder constrained to primitives, the literal type the constraint prefers. */
+function getTemplatePlaceholderInference(c: Checker, source: LiteralType, constraint: Type): Type | undefined {
+  let allTypeFlags = TypeFlags.None;
+  for (const t of distributedTypes(constraint)) allTypeFlags |= t.flags;
+  // A constraint including `string` needs no more specific type.
+  if ((allTypeFlags & TypeFlags.String) !== 0) return undefined;
+  const str = source.stringValue;
+  if ((allTypeFlags & TypeFlags.NumberLike) !== 0 && !isValidNumberString(str, true))
+    allTypeFlags &= ~TypeFlags.NumberLike;
+  if ((allTypeFlags & TypeFlags.BigIntLike) !== 0 && !isValidBigIntString(str)) allTypeFlags &= ~TypeFlags.BigIntLike;
+  let matching: Type = c.neverType;
+  for (const t of distributedTypes(constraint))
+    matching = choosePlaceholderType(c, matching, t, source, str, allTypeFlags);
+  return (matching.flags & TypeFlags.Never) === 0 ? matching : undefined;
+}
+
+function choosePlaceholderType(
+  c: Checker,
+  left: Type,
+  right: Type,
+  source: LiteralType,
+  str: string,
+  allTypeFlags: TypeFlags,
+): Type {
+  if ((right.flags & allTypeFlags) === 0) return left;
+  if ((left.flags & TypeFlags.String) !== 0) return left;
+  if ((right.flags & TypeFlags.String) !== 0) return source;
+  if ((left.flags & TypeFlags.TemplateLiteral) !== 0) return left;
+  if (
+    (right.flags & TypeFlags.TemplateLiteral) !== 0 &&
+    isTypeMatchedByTemplateLiteralType(c, source, right as TemplateLiteralType)
+  )
+    return source;
+  if ((left.flags & TypeFlags.StringMapping) !== 0) return left;
+  if ((right.flags & TypeFlags.StringMapping) !== 0 && str === applyStringMapping(right.symbol!, str)) return source;
+  if ((left.flags & TypeFlags.StringLiteral) !== 0) return left;
+  if ((right.flags & TypeFlags.StringLiteral) !== 0 && (right as LiteralType).stringValue === str) return right;
+  if ((left.flags & TypeFlags.Number) !== 0) return left;
+  if ((right.flags & TypeFlags.Number) !== 0) return getNumberLiteralType(c, Number(str));
+  if ((left.flags & TypeFlags.Enum) !== 0) return left;
+  if ((right.flags & TypeFlags.Enum) !== 0) return getNumberLiteralType(c, Number(str));
+  if ((left.flags & TypeFlags.NumberLiteral) !== 0) return left;
+  if ((right.flags & TypeFlags.NumberLiteral) !== 0 && (right as LiteralType).numberValue === Number(str)) return right;
+  if ((left.flags & TypeFlags.BigInt) !== 0) return left;
+  if ((right.flags & TypeFlags.BigInt) !== 0) return getBigIntLiteralType(c, parsePseudoBigInt(str));
+  if ((left.flags & TypeFlags.BigIntLiteral) !== 0) return left;
+  if ((right.flags & TypeFlags.BigIntLiteral) !== 0 && (right as LiteralType).stringValue === str) return right;
+  if ((left.flags & TypeFlags.Boolean) !== 0) return left;
+  if ((right.flags & TypeFlags.Boolean) !== 0)
+    return str === 'true' ? c.trueType : str === 'false' ? c.falseType : c.booleanType;
+  if ((left.flags & TypeFlags.BooleanLiteral) !== 0) return left;
+  if ((right.flags & TypeFlags.BooleanLiteral) !== 0 && (right as LiteralType).stringValue === str) return right;
+  if ((left.flags & TypeFlags.Undefined) !== 0) return left;
+  if ((right.flags & TypeFlags.Undefined) !== 0 && (right as IntrinsicType).intrinsicName === str) return right;
+  if ((left.flags & TypeFlags.Null) !== 0) return left;
+  if ((right.flags & TypeFlags.Null) !== 0 && (right as IntrinsicType).intrinsicName === str) return right;
+  return left;
+}
+
+function isValidNumberString(s: string, roundTripOnly: boolean): boolean {
+  if (s === '') return false;
+  const n = Number(s);
+  return isFinite(n) && (!roundTripOnly || String(n) === s);
+}
+
+function isValidBigIntString(s: string): boolean {
+  // Round-trippable decimal integers, as `${bigint}` would print them.
+  return /^-?(0|[1-9][0-9]*)$/.test(s) && s !== '-0';
+}
+
+// ---- Reverse mapped types
+
+/** Infers a source type for the homomorphic mapped type `{ [P in keyof T]: X }`, cached. */
+export function inferTypeForHomomorphicMappedType(
+  c: Checker,
+  source: Type,
+  target: MappedType,
+  constraint: IndexType,
+): Type | undefined {
+  const key = source.id + ',' + target.id + ',' + constraint.id;
+  const caches = c.inferenceCaches;
+  if (caches.reverseHomomorphicMapped.has(key)) return caches.reverseHomomorphicMapped.get(key) ?? undefined;
+  const t = createReverseMappedType(c, source, target, constraint);
+  caches.reverseHomomorphicMapped.set(key, t ?? null);
+  return t;
+}
+
+function createReverseMappedType(
+  c: Checker,
+  source: Type,
+  target: MappedType,
+  constraint: IndexType,
+): Type | undefined {
+  // Reverse mappable: a string index signature, or properties of a partially inferable type.
+  if (
+    !(
+      getIndexInfoOfType(c, source, c.stringType) !== undefined ||
+      (getPropertiesOfType(c, source).length !== 0 && isPartiallyInferableType(c, source))
+    )
+  )
+    return undefined;
+  // Arrays and tuples map to arrays and tuples of reverse-mapped elements.
+  if (isArrayType(c, source)) {
+    const elementType = inferReverseMappedType(c, getTypeArguments(c, source)[0], target, constraint);
+    if (elementType === undefined) return undefined;
+    return createArrayTypeEx(c, elementType, isReadonlyArrayType(c, source));
+  }
+  if (isTupleType(source)) {
+    const elementTypes: Type[] = [];
+    for (const t of getElementTypes(c, source)) {
+      const e = inferReverseMappedType(c, t, target, constraint);
+      if (e === undefined) return undefined;
+      elementTypes.push(e);
+    }
+    let elementInfos = tupleTargetOf(source).elementInfos;
+    if ((getMappedTypeModifiers(target) & MappedTypeModifiers.IncludeOptional) !== 0)
+      elementInfos = elementInfos.map((info) =>
+        (info.flags & ElementFlags.Optional) !== 0
+          ? new TupleElementInfo(ElementFlags.Required, info.labeledDeclaration)
+          : info,
+      );
+    return createTupleTypeEx(c, elementTypes, elementInfos, tupleTargetOf(source).readonly);
+  }
+  // Other object types map to an object whose properties are reverse-mapped lazily.
+  const reversed = newObjectType(c, ObjectFlags.ReverseMapped | ObjectFlags.Anonymous, undefined) as ReverseMappedType;
+  reversed.source = source;
+  reversed.mappedType = target;
+  reversed.constraintType = constraint;
+  return reversed;
+}
+
+/** Not marked non-inferable, or an object literal or tuple with some inferable part. */
+function isPartiallyInferableType(c: Checker, t: Type): boolean {
+  return (
+    (t.objectFlags & ObjectFlags.NonInferrableType) === 0 ||
+    (isObjectLiteralType(t) &&
+      getPropertiesOfType(c, t).some((p) => isPartiallyInferableType(c, getTypeOfSymbol(c, p)))) ||
+    (isTupleType(t) && getElementTypes(c, t).some((e) => isPartiallyInferableType(c, e)))
+  );
+}
+
+export function inferReverseMappedType(
+  c: Checker,
+  source: Type,
+  target: MappedType,
+  constraint: IndexType,
+): Type | undefined {
+  const key = source.id + ',' + target.id + ',' + constraint.id;
+  const caches = c.inferenceCaches;
+  if (caches.reverseMapped.has(key)) return caches.reverseMapped.get(key) ?? c.unknownType;
+  caches.reverseSourceStack.push(source);
+  caches.reverseTargetStack.push(target);
+  const saveExpandingFlags = caches.reverseExpandingFlags;
+  if (isDeeplyNestedType(c, source, caches.reverseSourceStack, 2))
+    caches.reverseExpandingFlags |= ExpandingFlags.Source;
+  if (isDeeplyNestedType(c, target, caches.reverseTargetStack, 2))
+    caches.reverseExpandingFlags |= ExpandingFlags.Target;
+  let t: Type | undefined = undefined;
+  if (caches.reverseExpandingFlags !== ExpandingFlags.Both) {
+    const typeParameter = getIndexedAccessType(c, constraint.target, getTypeParameterFromMappedType(c, target));
+    const templateType = getTemplateTypeFromMappedType(c, target);
+    const inference = new InferenceInfo(typeParameter);
+    inferTypes(c, [inference], source, templateType, InferencePriority.None, false);
+    t = getWidenedType(c, getTypeFromInference(c, inference) ?? c.unknownType);
+  }
+  caches.reverseSourceStack.pop();
+  caches.reverseTargetStack.pop();
+  caches.reverseExpandingFlags = saveExpandingFlags;
+  caches.reverseMapped.set(key, t ?? null);
+  return t;
+}
+
+export function resolveReverseMappedTypeMembers(c: Checker, t: ReverseMappedType): void {
+  const source = t.source!;
+  const mappedType = t.mappedType as MappedType;
+  const constraintType = t.constraintType as IndexType;
+  const indexInfo = getIndexInfoOfType(c, source, c.stringType);
+  const modifiers = getMappedTypeModifiers(mappedType);
+  const readonlyMask = (modifiers & MappedTypeModifiers.IncludeReadonly) === 0;
+  const optionalMask = (modifiers & MappedTypeModifiers.IncludeOptional) !== 0 ? 0 : SymbolFlags.Optional;
+  const indexInfos: IndexInfo[] =
+    indexInfo !== undefined
+      ? [
+          newIndexInfo(
+            c.stringType,
+            inferReverseMappedType(c, indexInfo.valueType, mappedType, constraintType) ?? c.unknownType,
+            readonlyMask && indexInfo.isReadonly,
+            undefined,
+          ),
+        ]
+      : [];
+  const members = new Map<string, Symbol>();
+  const limitedConstraint = getLimitedConstraint(c, t);
+  for (const prop of getPropertiesOfType(c, source)) {
+    // With an intersection constraint, skip properties the filtering literals exclude.
+    if (limitedConstraint !== undefined) {
+      const propertyNameType = getLiteralTypeFromProperty(c, prop, TypeFlags.StringOrNumberLiteralOrUnique, false);
+      if (!isTypeAssignableTo(c, propertyNameType, limitedConstraint)) continue;
+    }
+    const checkFlags = CheckFlags.ReverseMapped | (readonlyMask && isReadonlySymbol(c, prop) ? CheckFlags.Readonly : 0);
+    const inferredProp = c.newSymbolWithCheckFlags(
+      SymbolFlags.Property | (prop.flags & optionalMask),
+      prop.name,
+      checkFlags,
+    );
+    inferredProp.declarations = prop.declarations;
+    const links = c.symbolLinks(inferredProp);
+    links.nameType = c.symbolLinks(prop).nameType;
+    links.reverseMappedPropertyType = getTypeOfSymbol(c, prop);
+    const constraintTarget = constraintType.target;
+    if (
+      (constraintTarget.flags & TypeFlags.IndexedAccess) !== 0 &&
+      ((constraintTarget as IndexedAccessType).objectType.flags & TypeFlags.TypeParameter) !== 0 &&
+      ((constraintTarget as IndexedAccessType).indexType.flags & TypeFlags.TypeParameter) !== 0
+    ) {
+      // `{[K in keyof T[K_1]]: T[K_1]}` reverse-maps like `{[K in keyof T]: T}`.
+      const newTypeParam = (constraintTarget as IndexedAccessType).objectType;
+      links.reverseMappedMappedType = replaceIndexedAccess(
+        c,
+        mappedType,
+        constraintTarget as IndexedAccessType,
+        newTypeParam,
+      );
+      links.reverseMappedConstraintType = getIndexType(c, newTypeParam);
+    } else {
+      links.reverseMappedMappedType = mappedType;
+      links.reverseMappedConstraintType = constraintType;
+    }
+    members.set(prop.name, inferredProp);
+  }
+  setStructuredTypeMembers(c, t, members, [], [], indexInfos);
+}
+
+export function getTypeOfReverseMappedSymbol(c: Checker, symbol: Symbol): Type {
+  const links = c.symbolLinks(symbol);
+  if (links.type === undefined)
+    links.type =
+      inferReverseMappedType(
+        c,
+        links.reverseMappedPropertyType!,
+        links.reverseMappedMappedType as MappedType,
+        links.reverseMappedConstraintType as IndexType,
+      ) ?? c.unknownType;
+  return links.type;
+}
+
+/** The filtering literals of an intersection constraint, e.g. `"a" | "b"` in `keyof U & ("a" | "b")`. */
+function getLimitedConstraint(c: Checker, t: ReverseMappedType): Type | undefined {
+  const constraint = getConstraintTypeFromMappedType(c, t.mappedType as MappedType);
+  if ((constraint.flags & TypeFlags.UnionOrIntersection) === 0) return undefined;
+  const origin = (constraint.flags & TypeFlags.Union) !== 0 ? (constraint as UnionType).origin : constraint;
+  if (origin === undefined || (origin.flags & TypeFlags.Intersection) === 0) return undefined;
+  const limited = getIntersectionType(
+    c,
+    typesOf(origin).filter((u) => u !== t.constraintType),
+  );
+  return limited !== c.neverType ? limited : undefined;
+}
+
+function replaceIndexedAccess(c: Checker, instantiable: Type, t: IndexedAccessType, replacement: Type): Type {
+  // Map the index to 0 and the object to `[replacement]`, making the access `replacement`.
+  return instantiateType(
+    c,
+    instantiable,
+    newTypeMapper([t.indexType, t.objectType], [getNumberLiteralType(c, 0), createTupleType(c, [replacement])]),
+  );
+}
+
+export function instantiateReverseMappedType(c: Checker, t: ReverseMappedType, mapper: TypeMapper): Type {
+  const innerMappedType = instantiateType(c, t.mappedType!, mapper);
+  if ((innerMappedType.objectFlags & ObjectFlags.Mapped) === 0) return t;
+  const innerIndexType = instantiateType(c, t.constraintType!, mapper);
+  if ((innerIndexType.flags & TypeFlags.Index) === 0) return t;
+  return (
+    inferTypeForHomomorphicMappedType(
+      c,
+      instantiateType(c, t.source!, mapper),
+      innerMappedType as MappedType,
+      innerIndexType as IndexType,
+    ) ?? t
+  );
+}
+
+// ---- Inferred types
+
+/** Infers early from intra-expression sites (context-sensitive elements of object and array literals). */
+export function inferFromIntraExpressionSites(c: Checker, context: InferenceContext): void {
+  const sites = context.intraExpressionInferenceSites;
+  context.intraExpressionInferenceSites = [];
+  for (const site of sites) {
+    const contextualType = getContextualTypeForInference(c, site.node);
+    if (contextualType !== undefined)
+      inferTypes(c, context.inferences, site.type, contextualType, InferencePriority.None, false);
+  }
+}
+
+export function getInferredType(c: Checker, context: InferenceContext, index: number): Type {
+  const inference = context.inferences[index];
+  if (inference.inferredType !== undefined) return inference.inferredType;
+  if (inference.typeParameter === c.errorType) return inference.typeParameter;
+  let inferredType: Type | undefined = undefined;
+  let fallbackType: Type | undefined = undefined;
+  const signature = context.signature;
+  if (signature !== undefined) {
+    const covariant = inference.candidates.length !== 0 ? getCovariantInference(c, inference, signature) : undefined;
+    const contravariant = inference.contraCandidates.length !== 0 ? getContravariantInference(c, inference) : undefined;
+    if (covariant !== undefined || contravariant !== undefined) {
+      // Prefer the covariant inference when it isn't never or any, is assignable to some
+      // contravariant candidate, and no type parameter constrained to this one conflicts.
+      const preferCovariantType =
+        covariant !== undefined &&
+        (contravariant === undefined ||
+          ((covariant.flags & (TypeFlags.Never | TypeFlags.Any)) === 0 &&
+            inference.contraCandidates.some((t) => isTypeAssignableTo(c, covariant, t)) &&
+            context.inferences.every(
+              (other) =>
+                (other !== inference &&
+                  getConstraintOfTypeParameter(c, other.typeParameter) !== inference.typeParameter) ||
+                other.candidates.every((t) => isTypeAssignableTo(c, t, covariant)),
+            )));
+      if (preferCovariantType) {
+        inferredType = covariant;
+        fallbackType = contravariant;
+      } else {
+        inferredType = contravariant;
+        fallbackType = covariant;
+      }
+    } else if ((context.flags & InferenceFlags.NoDefault) !== 0) {
+      // silentNeverType signals no inferences.
+      inferredType = c.silentNeverType;
+    } else {
+      // No inferences: the default, with forward references to later type parameters erased.
+      const defaultType = getDefaultFromTypeParameter(c, inference.typeParameter);
+      if (defaultType !== undefined)
+        inferredType = instantiateType(
+          c,
+          defaultType,
+          new MergedTypeMapper(newBackreferenceMapper(c, context, index), context.nonFixingMapper),
+        );
+    }
+  } else inferredType = getTypeFromInference(c, inference);
+  inference.inferredType =
+    inferredType ?? ((context.flags & InferenceFlags.AnyDefault) !== 0 ? c.anyType : c.unknownType);
+  const constraint = getConstraintOfTypeParameter(c, inference.typeParameter);
+  if (constraint !== undefined) {
+    const instantiatedConstraint = instantiateType(c, constraint, context.nonFixingMapper);
+    if (inferredType !== undefined) {
+      const constraintWithThis = getTypeWithThisArgument(c, instantiatedConstraint, inferredType, false);
+      if (context.compareTypes.compare(inferredType, constraintWithThis, false) === Ternary.False) {
+        // A pure return type inference may still succeed without the constituents the constraint rejects.
+        let filtered: Type | undefined = undefined;
+        if (inference.priority === InferencePriority.ReturnType)
+          filtered = mapType(c, inferredType, (t) =>
+            context.compareTypes.compare(t, constraintWithThis, false) !== Ternary.False ? t : c.neverType,
+          );
+        inferredType = filtered !== undefined && (filtered.flags & TypeFlags.Never) === 0 ? filtered : undefined;
+      }
+    }
+    if (inferredType === undefined)
+      inferredType =
+        fallbackType !== undefined &&
+        context.compareTypes.compare(
+          fallbackType,
+          getTypeWithThisArgument(c, instantiatedConstraint, fallbackType, false),
+          false,
+        ) !== Ternary.False
+          ? fallbackType
+          : instantiatedConstraint;
+    inference.inferredType = inferredType;
+  }
+  clearActiveMapperCaches(c);
+  return inference.inferredType;
+}
+
+function clearActiveMapperCaches(c: Checker): void {
+  for (const cache of c.activeMapperCaches) cache.clear();
+}
+
+/** Maps forward references to later type parameters to `unknown`, for instantiating defaults. */
+function newBackreferenceMapper(c: Checker, context: InferenceContext, index: number): TypeMapper {
+  return new ArrayToSingleTypeMapper(
+    context.inferences.slice(index).map((i) => i.typeParameter),
+    c.unknownType,
+  );
+}
+
+export function getInferredTypes(c: Checker, context: InferenceContext): Type[] {
+  const result: Type[] = [];
+  for (let i = 0; i < context.inferences.length; i++) result.push(getInferredType(c, context, i));
+  return result;
+}
+
+function getCovariantInference(c: Checker, inference: InferenceInfo, signature: Signature): Type {
+  // Object and array literal candidates become one widened, normalized type.
+  const candidates = unionObjectAndArrayLiteralCandidates(c, inference.candidates);
+  // Widen literals when all inferences were to top-level occurrences, the type parameter has no
+  // primitive constraint, and it was fixed or doesn't occur at top level in the return type.
+  const primitiveConstraint =
+    hasPrimitiveConstraint(c, inference.typeParameter) || isConstTypeVariable(c, inference.typeParameter, 0);
+  const widenLiteralTypes =
+    !primitiveConstraint &&
+    inference.topLevel &&
+    (inference.isFixed || !isTypeParameterAtTopLevelInReturnType(c, signature, inference.typeParameter));
+  const baseCandidates = primitiveConstraint
+    ? candidates.map((t) => getRegularTypeOfLiteralType(c, t))
+    : widenLiteralTypes
+      ? candidates.map((t) => getWidenedLiteralType(c, t))
+      : candidates;
+  // Positions implying a combined result infer a union, others a common supertype.
+  const unwidenedType =
+    (inference.priority & InferencePriority.PriorityImpliesCombination) !== 0
+      ? getUnionTypeEx(c, baseCandidates, UnionReduction.Subtype, undefined, undefined)
+      : getCommonSupertype(c, baseCandidates);
+  return getWidenedType(c, unwidenedType);
+}
+
+function getContravariantInference(c: Checker, inference: InferenceInfo): Type {
+  return (inference.priority & InferencePriority.PriorityImpliesCombination) !== 0
+    ? getIntersectionType(c, inference.contraCandidates)
+    : getCommonSubtype(c, inference.contraCandidates);
+}
+
+function isObjectOrArrayLiteralType(t: Type): boolean {
+  return (t.objectFlags & (ObjectFlags.ObjectLiteral | ObjectFlags.ArrayLiteral)) !== 0;
+}
+
+function unionObjectAndArrayLiteralCandidates(c: Checker, candidates: Type[]): Type[] {
+  if (candidates.length > 1) {
+    const objectLiterals = candidates.filter(isObjectOrArrayLiteralType);
+    if (objectLiterals.length !== 0) {
+      const literalsType = getUnionTypeEx(c, objectLiterals, UnionReduction.Subtype, undefined, undefined);
+      const result = candidates.filter((t) => !isObjectOrArrayLiteralType(t));
+      result.push(literalsType);
+      return result;
+    }
+  }
+  return candidates;
+}
+
+function hasPrimitiveConstraint(c: Checker, t: Type): boolean {
+  let constraint = getConstraintOfTypeParameter(c, t);
+  if (constraint === undefined) return false;
+  if ((constraint.flags & TypeFlags.Conditional) !== 0) constraint = getConstraintFromConditionalType(c, constraint);
+  return maybeTypeOfKind(
+    constraint,
+    TypeFlags.Primitive | TypeFlags.Index | TypeFlags.TemplateLiteral | TypeFlags.StringMapping,
+  );
+}
+
+export function getTypeFromInference(c: Checker, inference: InferenceInfo): Type | undefined {
+  if (inference.candidates.length !== 0)
+    return getUnionTypeEx(c, inference.candidates, UnionReduction.Subtype, undefined, undefined);
+  if (inference.contraCandidates.length !== 0) return getIntersectionType(c, inference.contraCandidates);
+  return undefined;
+}
+
+export function getCommonSupertype(c: Checker, types: Type[]): Type {
+  if (types.length === 1) return types[0];
+  // Remove nullable types, find the supertype, and add them back.
+  const primaryTypes = c.strictNullChecks
+    ? types.map((t) => filterType(c, t, (u) => (u.flags & TypeFlags.Nullable) === 0))
+    : types;
+  const supertype = literalTypesWithSameBaseType(c, primaryTypes)
+    ? getUnionType(c, primaryTypes)
+    : getSingleCommonSupertype(c, primaryTypes);
+  let same = true;
+  for (let i = 0; i < types.length; i++) if (primaryTypes[i] !== types[i]) same = false;
+  if (same) return supertype;
+  return getNullableType(c, supertype, getCombinedTypeFlags(types) & TypeFlags.Nullable);
+}
+
+function getSingleCommonSupertype(c: Checker, types: Type[]): Type {
+  // The leftmost type no type to its right is a strict supertype of, if it's a strict supertype of
+  // all others; otherwise the same with regular supertypes.
+  let candidate: Type | undefined = undefined;
+  for (const t of types) if (candidate === undefined || isTypeStrictSubtypeOf(c, candidate, t)) candidate = t;
+  if (types.every((t) => t === candidate || isTypeStrictSubtypeOf(c, t, candidate!))) return candidate!;
+  candidate = undefined;
+  for (const t of types) if (candidate === undefined || isTypeSubtypeOf(c, candidate, t)) candidate = t;
+  return candidate!;
+}
+
+/** The leftmost type no type to its right is a subtype of. */
+export function getCommonSubtype(c: Checker, types: Type[]): Type {
+  let subtype: Type | undefined = undefined;
+  for (const t of types) if (subtype === undefined || isTypeSubtypeOf(c, t, subtype)) subtype = t;
+  return subtype!;
+}
+
+function getCombinedTypeFlags(types: Type[]): TypeFlags {
+  let flags = TypeFlags.None;
+  for (const t of types) flags |= (t.flags & TypeFlags.Union) !== 0 ? getCombinedTypeFlags(typesOf(t)) : t.flags;
+  return flags;
+}
+
+function literalTypesWithSameBaseType(c: Checker, types: Type[]): boolean {
+  let commonBaseType: Type | undefined = undefined;
+  for (const t of types) {
+    if ((t.flags & TypeFlags.Never) !== 0) continue;
+    const baseType = getBaseTypeOfLiteralType(c, t);
+    if (commonBaseType === undefined) commonBaseType = baseType;
+    if (baseType === t || baseType !== commonBaseType) return false;
+  }
+  return true;
+}
+
+// ---- Conditional types
+
+/** A mapper from a conditional type's `infer` type parameters to their inferences. */
 export function inferTypesForConditional(
-  _c: Checker,
-  _root: ConditionalRoot,
-  _checkType: Type,
-  _extendsType: Type,
-  _mapper: TypeMapper | undefined,
-  _checkTypeDeferred: boolean,
+  c: Checker,
+  root: ConditionalRoot,
+  checkType: Type,
+  extendsType: Type,
+  mapper: TypeMapper | undefined,
+  checkTypeDeferred: boolean,
 ): TypeMapper | undefined {
+  // The constraints of `infer` type parameters may refer to other roots or to what `mapper` maps,
+  // so the non-fixing mapper combines with `mapper`.
+  const context = createInferenceContext(c, root.inferTypeParameters, undefined, InferenceFlags.None, undefined);
+  if (mapper !== undefined) context.nonFixingMapper = combineTypeMappers(c, context.nonFixingMapper, mapper);
+  // Inferences from constraints could eagerly resolve what should defer; contravariance is always strict.
+  if (!checkTypeDeferred)
+    inferTypes(
+      c,
+      context.inferences,
+      checkType,
+      extendsType,
+      InferencePriority.NoConstraints | InferencePriority.AlwaysStrict,
+      false,
+    );
+  return context.mapper;
+}
+
+/** Caches and stacks for inference, contextual typing and call resolution. */
+export class InferenceCaches {
+  /** Contextual types pushed for nodes being checked, innermost last. */
+  readonly contextualNodes: Node[] = [];
+  readonly contextualTypes: (Type | undefined)[] = [];
+  readonly contextualIsCache: boolean[] = [];
+  /** Inference contexts pushed for arguments being checked, innermost last. */
+  readonly inferenceNodes: Node[] = [];
+  readonly inferenceContexts: (InferenceContext | undefined)[] = [];
+  readonly optionalCallSignatures = new Map<Signature, Map<string, Signature>>();
+  readonly discriminatedContextualTypes = new Map<string, Type>();
+  readonly contextFreeTypes = new Map<Node, Type>();
+  readonly reverseMapped = new Map<string, Type | null>();
+  readonly reverseHomomorphicMapped = new Map<string, Type | null>();
+  readonly reverseSourceStack: Type[] = [];
+  readonly reverseTargetStack: Type[] = [];
+  reverseExpandingFlags: number = ExpandingFlags.None;
+}
+
+// ---- Constraints of `infer` type parameters
+
+/** The constraint an `infer T` position implies, e.g. `unknown[]` in a rest position. */
+export function getInferredTypeParameterConstraint(c: Checker, t: Type): Type | undefined {
+  const inferences: Type[] = [];
+  const symbol = t.symbol;
+  if (symbol !== undefined)
+    for (const declaration of symbol.declarations) {
+      if (declaration.parent === undefined || declaration.parent.kind !== SyntaxKind.InferType) continue;
+      let child: Node = declaration.parent;
+      let parent = child.parent;
+      while (parent !== undefined && parent.kind === SyntaxKind.ParenthesizedType) {
+        child = parent;
+        parent = child.parent;
+      }
+      if (parent === undefined) continue;
+      switch (parent.kind) {
+        case SyntaxKind.TypeReference: {
+          // `Foo<infer T>` takes the constraint of Foo's corresponding type parameter.
+          const typeArgumentNodes = (parent as TypeReferenceNode).typeArguments;
+          const typeParameters = getTypeParametersForTypeReference(c, parent);
+          if (typeArgumentNodes === undefined || typeParameters === undefined) break;
+          const index = typeArgumentNodes.nodes.indexOf(child);
+          if (index < 0 || index >= typeParameters.length) break;
+          const declaredConstraint = getConstraintOfTypeParameter(c, typeParameters[index]);
+          if (declaredConstraint === undefined) break;
+          const typeArguments = typeArgumentNodes.nodes.map((n) => getTypeFromTypeNode(c, n));
+          const filled = fillMissingTypeArguments(
+            c,
+            typeArguments,
+            typeParameters,
+            getMinTypeArgumentCount(c, typeParameters),
+            false,
+          );
+          // Constraints referencing the type parameter itself are discarded.
+          const constraint = instantiateType(c, declaredConstraint, newTypeMapper(typeParameters.slice(), filled));
+          if (constraint !== t) inferences.push(constraint);
+          break;
+        }
+        case SyntaxKind.Parameter:
+          if ((parent as ParameterDeclaration).dotDotDotToken !== undefined)
+            inferences.push(createArrayType(c, c.unknownType));
+          break;
+        case SyntaxKind.RestType:
+          inferences.push(createArrayType(c, c.unknownType));
+          break;
+        case SyntaxKind.NamedTupleMember:
+          if ((parent as NamedTupleMember).dotDotDotToken !== undefined)
+            inferences.push(createArrayType(c, c.unknownType));
+          break;
+        case SyntaxKind.TemplateLiteralTypeSpan:
+          inferences.push(c.stringType);
+          break;
+        case SyntaxKind.TypeParameter:
+          if (parent.parent !== undefined && parent.parent.kind === SyntaxKind.MappedType)
+            inferences.push(c.stringNumberSymbolType);
+          break;
+      }
+    }
+  return inferences.length !== 0 ? getIntersectionType(c, inferences) : undefined;
+}
+
+function getTypeParametersForTypeReference(c: Checker, node: Node): readonly Type[] | undefined {
+  if (isErrorType(c, getTypeFromTypeNode(c, node))) return undefined;
+  const symbol = c.nodeLinks(node).resolvedSymbol;
+  if (symbol === undefined || symbol === c.unknownSymbol) return undefined;
+  if ((symbol.flags & (SymbolFlags.Class | SymbolFlags.Interface)) !== 0)
+    return getDeclaredTypeOfClassOrInterface(c, getMergedSymbol(c, symbol)).localTypeParameters();
+  if ((symbol.flags & SymbolFlags.TypeAlias) !== 0) {
+    getDeclaredTypeOfSymbol(c, symbol);
+    return c.symbolLinks(symbol).typeParameters;
+  }
   return undefined;
 }

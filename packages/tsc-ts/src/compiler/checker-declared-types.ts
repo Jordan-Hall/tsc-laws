@@ -1,5 +1,6 @@
 // Declared types: classes, interfaces, type aliases, enums and type parameters, with their base
 // types, constraints and defaults.
+import { getInferredTypeParameterConstraint } from './checker-inference.js';
 import {
   EnumDeclaration,
   type Node,
@@ -571,7 +572,7 @@ function resolveBaseTypesOfClass(c: Checker, t: InterfaceType): void {
   t.resolvedBaseTypes = [reducedBaseType];
 }
 
-function getInstantiatedConstructorsForTypeArguments(
+export function getInstantiatedConstructorsForTypeArguments(
   c: Checker,
   t: Type,
   typeArgumentNodes: Node[] | undefined,
@@ -763,11 +764,6 @@ export function getConstraintFromTypeParameter(c: Checker, t: Type): Type | unde
     tp.constraint = constraint ?? c.noConstraintType;
   }
   return tp.constraint !== c.noConstraintType ? tp.constraint : undefined;
-}
-
-/** Constraints implied by an `infer T` position; not yet computed. */
-function getInferredTypeParameterConstraint(_c: Checker, _t: Type): Type | undefined {
-  return undefined;
 }
 
 export function getDefaultFromTypeParameter(c: Checker, t: Type): Type | undefined {

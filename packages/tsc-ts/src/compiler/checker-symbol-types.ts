@@ -85,6 +85,7 @@ import {
   getTypeOfParameter as getTypeOfParameterOfSignature,
 } from './checker-signatures.js';
 import { getReturnTypeFromBody } from './checker-functions.js';
+import { getTypeOfReverseMappedSymbol } from './checker-inference.js';
 import {
   checkDeclarationInitializer,
   getContextuallyTypedParameterType,
@@ -99,7 +100,7 @@ export function getTypeOfSymbol(c: Checker, symbol: Symbol): Type {
   if ((checkFlags & CheckFlags.DeferredType) !== 0) return getTypeOfSymbolWithDeferredType(c, symbol);
   if ((checkFlags & CheckFlags.Instantiated) !== 0) return getTypeOfInstantiatedSymbol(c, symbol);
   if ((checkFlags & CheckFlags.Mapped) !== 0) return getTypeOfMappedSymbol(c, symbol);
-  if ((checkFlags & CheckFlags.ReverseMapped) !== 0) return c.symbolLinks(symbol).type ?? c.errorType;
+  if ((checkFlags & CheckFlags.ReverseMapped) !== 0) return getTypeOfReverseMappedSymbol(c, symbol);
   const flags = symbol.flags;
   if ((flags & SymbolFlags.Accessor) !== 0) return getTypeOfAccessors(c, symbol);
   if ((flags & (SymbolFlags.Variable | SymbolFlags.Property)) !== 0)

@@ -3274,6 +3274,11 @@ export function getMatchingUnionConstituentForType(_c: Checker, _unionType: Unio
   return undefined;
 }
 
+/** The constituent of the union `target` that `source` most likely meant, for error elaboration. */
+export function getBestMatchingTypeForElaboration(c: Checker, source: Type, target: Type): Type | undefined {
+  return getBestMatchingType(c, source, target, new Relater(c, c.assignableRelation, undefined));
+}
+
 function getBestMatchingType(c: Checker, source: Type, target: Type, relater: Relater): Type | undefined {
   return (
     findMatchingDiscriminantType(c, source, target, relater) ??
@@ -3415,7 +3420,7 @@ function isValidOverrideOf(c: Checker, sourceProp: Symbol, targetProp: Symbol): 
   return sourceClass === targetClass || hasBaseType(c, sourceClass, targetClass);
 }
 
-function isObjectTypeWithInferableIndex(c: Checker, t: Type): boolean {
+export function isObjectTypeWithInferableIndex(c: Checker, t: Type): boolean {
   if ((t.flags & TypeFlags.Intersection) !== 0) return typesOf(t).every((u) => isObjectTypeWithInferableIndex(c, u));
   return (
     (t.symbol !== undefined &&

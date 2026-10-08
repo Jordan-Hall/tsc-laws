@@ -1,6 +1,5 @@
 // Functions: function expressions and arrows, bodies, inferred return types, `await`.
 import {
-  type ArrowFunction,
   type Block,
   type ConditionalExpression,
   type BinaryExpression,
@@ -42,23 +41,220 @@ import { getSymbolOfDeclaration } from './checker-symbols.js';
 import { getReturnTypeOfSignature, getSignatureFromDeclaration } from './checker-signatures.js';
 import { getGlobalPromiseLikeType, getGlobalPromiseType, createPromiseType } from './checker-globals.js';
 import { checkExpressionCached, getWidenedLiteralLikeTypeForContextualType } from './checker-expressions.js';
-import { checkTypeAssignableTo } from './relations.js';
-import {
-  getContextualReturnType,
-  hasContextSensitiveParameters,
-  isContextSensitiveFunctionOrObjectLiteralMethod,
-} from './checker-contextual.js';
+import { getContextualReturnType, hasContextSensitiveParameters } from './checker-contextual.js';
 import { checkNodeDeferred, checkSourceElement, checkTypeNodeIfPresent } from './checker-source-file.js';
 import { checkTypeParameters, checkVariableLikeDeclaration } from './checker-declarations.js';
 import { getFunctionFlags, FunctionFlags } from './checker-utilities.js';
-import { CheckMode } from './checker-types.js';
+import { CheckMode, ObjectFlags, type Signature, SignatureFlags, SignatureKind } from './checker-types.js';
+import type { Symbol } from './symbol.js';
+import { createAnonymousType, getWidenedLiteralType } from './checker-type-factory.js';
+import { createSymbolWithType, getSignaturesOfType } from './checker-members.js';
+import {
+  getEffectiveRestType,
+  getRestTypeAtPosition,
+  getTypeAtPosition,
+  isOptionalDeclaration,
+  tryGetTypeAtPosition,
+} from './checker-signatures.js';
+import { addOptionality } from './checker-symbol-types.js';
+import { getTypeFromTypeNode } from './checker-type-nodes.js';
+import {
+  checkDeclarationInitializer,
+  checkExpressionEx,
+  checkTypeAssignableToAndOptionallyElaborate,
+} from './checker-expressions.js';
+import { isTypeAssignableTo } from './relations.js';
+import { type InferenceContext, InferencePriority, inferTypes } from './checker-inference.js';
+import { couldContainTypeVariables, instantiateSignature } from './instantiation.js';
+import { getContextualSignatureForFunctionLikeDeclaration, getInferenceContext } from './checker-contextual.js';
 
-export function checkFunctionExpressionOrObjectLiteralMethod(c: Checker, node: Node, _checkMode: CheckMode): Type {
+export function checkFunctionExpressionOrObjectLiteralMethod(c: Checker, node: Node, checkMode: CheckMode): Type {
   checkNodeDeferred(c, node);
   if (node.kind === SyntaxKind.GetAccessor || node.kind === SyntaxKind.SetAccessor) return c.anyType;
-  assignContextualParameterTypes(c, node);
+  if ((checkMode & CheckMode.SkipContextSensitive) !== 0 && isContextSensitive(c, node)) {
+    // Skip parameters, but keep a return type with the non-contextual parts so that inferences can
+    // be drawn early.
+    if (getType(node) === undefined && !hasContextSensitiveParameters(node)) {
+      const contextualSignature = getContextualSignatureForFunctionLikeDeclaration(c, node);
+      if (
+        contextualSignature !== undefined &&
+        couldContainTypeVariables(c, getReturnTypeOfSignature(c, contextualSignature))
+      ) {
+        const links = c.nodeLinks(node);
+        if (links.contextFreeType !== undefined) return links.contextFreeType;
+        const returnType = getReturnTypeFromBodyEx(c, node, checkMode);
+        const returnOnlySignature = c.newSignature(
+          SignatureFlags.IsNonInferrable,
+          undefined,
+          [],
+          undefined,
+          [],
+          returnType,
+          0,
+        );
+        const returnOnlyType = createAnonymousType(
+          c,
+          getSymbolOfDeclaration(c, node),
+          undefined,
+          [returnOnlySignature],
+          [],
+          [],
+        );
+        returnOnlyType.objectFlags |= ObjectFlags.NonInferrableType;
+        links.contextFreeType = returnOnlyType;
+        return returnOnlyType;
+      }
+    }
+    return c.anyFunctionType;
+  }
+  contextuallyCheckFunctionExpressionOrObjectLiteralMethod(c, node, checkMode);
   const symbol = getSymbolOfDeclaration(c, node);
   return symbol !== undefined ? getTypeOfSymbol(c, symbol) : c.anyType;
+}
+
+/** Assigns contextual parameter types and the return type of a function expression, once. */
+function contextuallyCheckFunctionExpressionOrObjectLiteralMethod(c: Checker, node: Node, checkMode: CheckMode): void {
+  const links = c.nodeLinks(node);
+  if ((links.flags & NodeCheckFlags.ContextChecked) !== 0) return;
+  const contextualSignature = getContextualSignatureForFunctionLikeDeclaration(c, node);
+  // Obtaining the contextual signature may have come back here through overload resolution.
+  if ((links.flags & NodeCheckFlags.ContextChecked) !== 0) return;
+  links.flags |= NodeCheckFlags.ContextChecked;
+  const symbol = getSymbolOfDeclaration(c, node);
+  if (symbol === undefined) return;
+  const signatures = getSignaturesOfType(c, getTypeOfSymbol(c, symbol), SignatureKind.Call);
+  if (signatures.length === 0) return;
+  const signature = signatures[0];
+  if (isContextSensitive(c, node)) {
+    if (contextualSignature !== undefined) {
+      const inferenceContext = getInferenceContext(c, node);
+      let instantiatedContextualSignature: Signature | undefined = undefined;
+      if ((checkMode & CheckMode.Inferential) !== 0 && inferenceContext !== undefined) {
+        inferFromAnnotatedParametersAndReturn(c, signature, contextualSignature, inferenceContext);
+        const restType = getEffectiveRestType(c, contextualSignature);
+        if (restType !== undefined && (restType.flags & TypeFlags.TypeParameter) !== 0)
+          instantiatedContextualSignature = instantiateSignature(
+            c,
+            contextualSignature,
+            inferenceContext.nonFixingMapper,
+          );
+      }
+      if (instantiatedContextualSignature === undefined)
+        instantiatedContextualSignature =
+          inferenceContext !== undefined
+            ? instantiateSignature(c, contextualSignature, inferenceContext.mapper)
+            : contextualSignature;
+      assignContextualParameterTypes(c, signature, instantiatedContextualSignature);
+    } else assignNonContextualParameterTypes(c, node);
+  } else if (
+    contextualSignature !== undefined &&
+    getTypeParameters(node) === undefined &&
+    contextualSignature.parameters.length > getParameters(node)!.nodes.length
+  ) {
+    const inferenceContext = getInferenceContext(c, node);
+    if ((checkMode & CheckMode.Inferential) !== 0 && inferenceContext !== undefined)
+      inferFromAnnotatedParametersAndReturn(c, signature, contextualSignature, inferenceContext);
+  }
+  if (contextualSignature !== undefined && getType(node) === undefined && signature.resolvedReturnType === undefined) {
+    const returnType = getReturnTypeFromBodyEx(c, node, checkMode);
+    if (signature.resolvedReturnType === undefined) signature.resolvedReturnType = returnType;
+  }
+}
+
+function inferFromAnnotatedParametersAndReturn(
+  c: Checker,
+  sig: Signature,
+  context: Signature,
+  inferenceContext: InferenceContext,
+): void {
+  const length = sig.parameters.length - (sig.hasRestParameter() ? 1 : 0);
+  for (let i = 0; i < length; i++) {
+    const declaration = sig.parameters[i].valueDeclaration;
+    const typeNode = declaration !== undefined ? getType(declaration) : undefined;
+    if (typeNode !== undefined) {
+      const source = addOptionality(c, getTypeFromTypeNode(c, typeNode), false, isOptionalDeclaration(declaration!));
+      inferTypes(
+        c,
+        inferenceContext.inferences,
+        source,
+        getTypeAtPosition(c, context, i),
+        InferencePriority.None,
+        false,
+      );
+    }
+  }
+  const declaration = sig.declaration;
+  const returnTypeNode = declaration !== undefined ? getType(declaration) : undefined;
+  if (returnTypeNode !== undefined)
+    inferTypes(
+      c,
+      inferenceContext.inferences,
+      getTypeFromTypeNode(c, returnTypeNode),
+      getReturnTypeOfSignature(c, context),
+      InferencePriority.None,
+      false,
+    );
+}
+
+function assignContextualParameterTypes(c: Checker, sig: Signature, context: Signature): void {
+  if (context.typeParameters.length !== 0) {
+    // A contextual inference was already performed and cached on this signature.
+    if (sig.typeParameters.length !== 0) return;
+    sig.typeParameters = context.typeParameters;
+  }
+  if (context.thisParameter !== undefined) {
+    const parameter = sig.thisParameter;
+    if (
+      parameter === undefined ||
+      (parameter.valueDeclaration !== undefined && getType(parameter.valueDeclaration) === undefined)
+    ) {
+      if (parameter === undefined) sig.thisParameter = createSymbolWithType(c, context.thisParameter, undefined);
+      assignParameterSymbolType(c, sig.thisParameter!, getTypeOfSymbol(c, context.thisParameter));
+    }
+  }
+  const length = sig.parameters.length - (sig.hasRestParameter() ? 1 : 0);
+  for (let i = 0; i < length; i++) {
+    const parameter = sig.parameters[i];
+    const declaration = parameter.valueDeclaration;
+    if (declaration === undefined || getType(declaration) !== undefined) continue;
+    let t = tryGetTypeAtPosition(c, context, i);
+    if (t !== undefined && getInitializer(declaration) !== undefined) {
+      let initializerType = checkDeclarationInitializer(c, declaration);
+      if (!isTypeAssignableTo(c, initializerType, t)) {
+        initializerType = getWidenedLiteralType(c, initializerType);
+        if (isTypeAssignableTo(c, t, initializerType)) t = initializerType;
+      }
+    }
+    assignParameterSymbolType(c, parameter, t);
+  }
+  if (sig.hasRestParameter()) {
+    const parameter = sig.parameters[sig.parameters.length - 1];
+    const declaration = parameter.valueDeclaration;
+    if (declaration !== undefined && getType(declaration) === undefined)
+      assignParameterSymbolType(c, parameter, getRestTypeAtPosition(c, context, length, false));
+  }
+}
+
+function assignNonContextualParameterTypes(c: Checker, func: Node): void {
+  for (const param of getParameters(func)!.nodes) assignParameterType(c, param);
+}
+
+/** Fixes a parameter's type to `contextualType`, or to its declared type without one. */
+function assignParameterSymbolType(c: Checker, parameter: Symbol, contextualType: Type | undefined): void {
+  const links = c.symbolLinks(parameter);
+  if (links.type !== undefined) return;
+  const declaration = parameter.valueDeclaration;
+  if (contextualType === undefined) {
+    links.type = getTypeOfSymbol(c, parameter);
+    return;
+  }
+  links.type = addOptionality(
+    c,
+    contextualType,
+    false,
+    declaration !== undefined && getInitializer(declaration) === undefined && isOptionalDeclaration(declaration),
+  );
+  if (declaration !== undefined) assignParameterType(c, declaration);
 }
 
 export function getTypeOfObjectLiteralMethod(c: Checker, node: Node, checkMode: CheckMode): Type {
@@ -93,7 +289,7 @@ export function checkFunctionLikeBody(c: Checker, node: Node): void {
         const returnType = getReturnTypeOfSignature(c, getSignatureFromDeclaration(c, node));
         const target = (flags & FunctionFlags.Async) !== 0 ? getAwaitedTypeNoAlias(c, returnType) : returnType;
         const source = (flags & FunctionFlags.Async) !== 0 ? getAwaitedTypeNoAlias(c, exprType) : exprType;
-        if (!isErrorType(c, target)) checkTypeAssignableTo(c, source, target, body, undefined);
+        if (!isErrorType(c, target)) checkTypeAssignableToAndOptionallyElaborate(c, source, target, body, body);
       }
     }
   }
@@ -197,17 +393,86 @@ export function isContextSensitive(c: Checker, node: Node): boolean {
 }
 
 function isContextSensitiveFunctionLikeDeclaration(c: Checker, node: Node): boolean {
-  if (hasContextSensitiveParameters(node)) return true;
-  if (node.kind !== SyntaxKind.ArrowFunction) return false;
-  const arrow = node as ArrowFunction;
-  if (arrow.typeParameters !== undefined || arrow.body.kind === SyntaxKind.Block) return false;
-  return isContextSensitive(c, arrow.body);
+  return (
+    hasContextSensitiveParameters(node) ||
+    hasContextSensitiveReturnExpression(c, node) ||
+    hasContextSensitiveYieldExpression(c, node)
+  );
+}
+
+function hasContextSensitiveReturnExpression(c: Checker, node: Node): boolean {
+  if (getTypeParameters(node) !== undefined || getType(node) !== undefined) return false;
+  const body = getBody(node);
+  if (body === undefined) return false;
+  if (body.kind !== SyntaxKind.Block) return isContextSensitive(c, body);
+  const collector = new ReturnCollector();
+  collector.visitStatements(body as Block);
+  for (const ret of collector.returns)
+    if (ret.expression !== undefined && isContextSensitive(c, ret.expression)) return true;
+  return false;
+}
+
+function hasContextSensitiveYieldExpression(c: Checker, node: Node): boolean {
+  if ((getFunctionFlags(node) & FunctionFlags.Generator) === 0) return false;
+  const body = getBody(node);
+  if (body === undefined) return false;
+  const finder = new YieldFinder(c);
+  body.forEachChild(finder);
+  return finder.found;
+}
+
+/** Finds a context-sensitive `yield` operand, skipping nested functions. */
+class YieldFinder extends NodeVisitor {
+  readonly c: Checker;
+  found = false;
+
+  constructor(c: Checker) {
+    super();
+    this.c = c;
+  }
+
+  visitNode(node: Node): boolean {
+    if (node.kind === SyntaxKind.YieldExpression) {
+      const expression = getExpression(node);
+      if (expression !== undefined && isContextSensitive(this.c, expression)) {
+        this.found = true;
+        return true;
+      }
+    }
+    if (isFunctionLikeOrClass(node)) return false;
+    return node.forEachChild(this);
+  }
+}
+
+function isFunctionLikeOrClass(node: Node): boolean {
+  switch (node.kind) {
+    case SyntaxKind.FunctionDeclaration:
+    case SyntaxKind.FunctionExpression:
+    case SyntaxKind.ArrowFunction:
+    case SyntaxKind.MethodDeclaration:
+    case SyntaxKind.GetAccessor:
+    case SyntaxKind.SetAccessor:
+    case SyntaxKind.Constructor:
+    case SyntaxKind.ClassDeclaration:
+    case SyntaxKind.ClassExpression:
+      return true;
+  }
+  return false;
 }
 
 // ---- Return type inference
 
 /** The return type inferred from a function's body. */
 export function getReturnTypeFromBody(c: Checker, func: Node): Type {
+  return getReturnTypeFromBodyEx(c, func, CheckMode.Normal);
+}
+
+function checkExpressionCachedEx(c: Checker, node: Node, checkMode: CheckMode): Type {
+  return checkMode !== CheckMode.Normal ? checkExpressionEx(c, node, checkMode) : checkExpressionCached(c, node);
+}
+
+export function getReturnTypeFromBodyEx(c: Checker, func: Node, checkMode: CheckMode): Type {
+  checkMode &= ~CheckMode.SkipGenericFunctions;
   const body = getBody(func);
   if (body === undefined) return c.errorType;
   const flags = getFunctionFlags(func);
@@ -215,7 +480,7 @@ export function getReturnTypeFromBody(c: Checker, func: Node): Type {
   const isAsync = (flags & FunctionFlags.Async) !== 0;
   let returnType: Type;
   if (body.kind !== SyntaxKind.Block) {
-    returnType = checkExpressionCached(c, body);
+    returnType = checkExpressionCachedEx(c, body, checkMode);
     if (isAsync) returnType = getAwaitedTypeNoAlias(c, returnType);
   } else {
     const types: Type[] = [];
@@ -228,7 +493,7 @@ export function getReturnTypeFromBody(c: Checker, func: Node): Type {
         hasReturnWithNoExpression = true;
         continue;
       }
-      let t = checkExpressionCached(c, expr);
+      let t = checkExpressionCachedEx(c, expr, checkMode);
       if (isAsync) t = getAwaitedTypeNoAlias(c, t);
       if ((t.flags & TypeFlags.Never) === 0) types.push(t);
     }
@@ -326,15 +591,6 @@ function isPrivateWithinAmbient(node: Node): boolean {
     (hasSyntacticModifier(node, ModifierFlags.Private) || node.kind === SyntaxKind.PrivateIdentifier) &&
     (node.flags & NodeFlags.Ambient) !== 0
   );
-}
-
-/** Fixes the types of a context-sensitive function's parameters, once, from its context. */
-function assignContextualParameterTypes(c: Checker, func: Node): void {
-  const links = c.nodeLinks(func);
-  if ((links.flags & NodeCheckFlags.ContextChecked) !== 0) return;
-  links.flags |= NodeCheckFlags.ContextChecked;
-  if (!isContextSensitiveFunctionOrObjectLiteralMethod(c, func)) return;
-  for (const param of getParameters(func)!.nodes) assignParameterType(c, param);
 }
 
 function assignParameterType(c: Checker, declaration: Node): void {

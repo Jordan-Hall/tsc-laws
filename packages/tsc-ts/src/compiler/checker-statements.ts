@@ -23,7 +23,12 @@ import type { Checker } from './checker.js';
 import { CheckMode, type Type, TypeFlags } from './checker-types.js';
 import { isErrorType } from './checker-type-factory.js';
 import { getReturnTypeOfSignature, getSignatureFromDeclaration } from './checker-signatures.js';
-import { checkExpression, checkExpressionCached, getIteratedTypeOrElementType } from './checker-expressions.js';
+import {
+  checkExpression,
+  checkExpressionCached,
+  checkTypeAssignableToAndOptionallyElaborate,
+  getIteratedTypeOrElementType,
+} from './checker-expressions.js';
 import { checkTestingKnownTruthyType, checkTruthinessExpression } from './checker-operators.js';
 import { checkTypeAssignableTo } from './relations.js';
 import { isTypeAssignableToKindEx as isTypeAssignableToKind } from './checker-type-operators.js';
@@ -139,7 +144,7 @@ export function checkReturnStatement(c: Checker, node: Node): void {
   const source = (flags & FunctionFlags.Async) !== 0 ? getAwaitedTypeNoAlias(c, exprType) : exprType;
   if ((target.flags & TypeFlags.Void) !== 0 && (source.flags & (TypeFlags.Void | TypeFlags.Undefined)) === 0)
     return checkVoidReturn(c, s, source, target);
-  checkTypeAssignableTo(c, source, target, node, undefined);
+  checkTypeAssignableToAndOptionallyElaborate(c, source, target, node, s.expression);
 }
 
 function checkVoidReturn(c: Checker, s: ReturnStatement, source: Type, target: Type): void {

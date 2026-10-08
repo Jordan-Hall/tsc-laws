@@ -1,5 +1,6 @@
 // Signatures: from declarations, their parameters, return types and type predicates, and
 // derived instantiations (erased, canonical, base).
+import { instantiateSignatureInContextOf as instantiateSignatureInContextOfInference } from './checker-inference.js';
 import {
   ModifierFlags,
   type Node,
@@ -643,7 +644,7 @@ export function getSignatureInstantiation(
   );
 }
 
-function getSignatureInstantiationWithoutFillingInTypeArguments(
+export function getSignatureInstantiationWithoutFillingInTypeArguments(
   c: Checker,
   sig: Signature,
   typeArguments: Type[],
@@ -697,14 +698,14 @@ export function getCanonicalSignature(c: Checker, signature: Signature): Signatu
   return signature.canonicalSignatureCache;
 }
 
-/** The generic `signature` instantiated in the context of `contextualSignature`; without inference yet, erased. */
+/** The generic `signature` instantiated in the context of the non-generic `contextualSignature`. */
 export function instantiateSignatureInContextOf(
   c: Checker,
   signature: Signature,
-  _contextualSignature: Signature,
-  _comparer: TypeComparer,
+  contextualSignature: Signature,
+  comparer: TypeComparer,
 ): Signature {
-  return getErasedSignature(c, signature);
+  return instantiateSignatureInContextOfInference(c, signature, contextualSignature, undefined, comparer);
 }
 
 export function getSingleCallSignature(c: Checker, t: Type): Signature | undefined {

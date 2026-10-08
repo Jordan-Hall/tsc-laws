@@ -46,11 +46,17 @@ import { getSpreadSymbol, isSpreadableProperty, isValidSpreadType, hasDefaultVal
 import {
   checkComputedPropertyName,
   checkExpressionEx,
-  checkExpressionForMutableLocation,
+  checkExpressionForMutableLocationEx,
   checkTypeAssignableToAndOptionallyElaborate,
   isConstContext,
 } from './checker-expressions.js';
-import { checkFunctionExpressionOrObjectLiteralMethod, getTypeOfObjectLiteralMethod } from './checker-functions.js';
+import {
+  checkFunctionExpressionOrObjectLiteralMethod,
+  getTypeOfObjectLiteralMethod,
+  isContextSensitive,
+} from './checker-functions.js';
+import { getInferenceContext } from './checker-contextual.js';
+import { addIntraExpressionInferenceSite } from './checker-inference.js';
 import { isEmptyObjectType } from './checker-type-factory.js';
 
 /** Builds the type of the members collected since the last spread. */
@@ -133,6 +139,23 @@ export function checkObjectLiteral(c: Checker, node: Node, checkMode: CheckMode)
           checkMode,
         );
       else t = getTypeOfObjectLiteralMethod(c, memberDecl, checkMode);
+      if (
+        (checkMode & CheckMode.Inferential) !== 0 &&
+        (checkMode & CheckMode.SkipContextSensitive) === 0 &&
+        (memberDecl.kind === SyntaxKind.PropertyAssignment || memberDecl.kind === SyntaxKind.MethodDeclaration) &&
+        isContextSensitive(c, memberDecl)
+      ) {
+        // Inferences flowing between context-sensitive members are made before fixing.
+        const inferenceContext = getInferenceContext(c, node);
+        if (inferenceContext !== undefined)
+          addIntraExpressionInferenceSite(
+            inferenceContext,
+            memberDecl.kind === SyntaxKind.PropertyAssignment
+              ? (memberDecl as PropertyAssignment).initializer
+              : memberDecl,
+            t,
+          );
+      }
       if (member === undefined) continue;
       builder.objectFlags |= t.objectFlags & ObjectFlags.PropagatingFlags;
       const nameType =
@@ -198,9 +221,9 @@ export function checkObjectLiteral(c: Checker, node: Node, checkMode: CheckMode)
   return builder.createType(c);
 }
 
-function checkPropertyAssignment(c: Checker, node: PropertyAssignment, _checkMode: CheckMode): Type {
+function checkPropertyAssignment(c: Checker, node: PropertyAssignment, checkMode: CheckMode): Type {
   if (node.name.kind === SyntaxKind.ComputedPropertyName) checkComputedPropertyName(c, node.name);
-  const initializerType = checkExpressionForMutableLocation(c, node.initializer);
+  const initializerType = checkExpressionForMutableLocationEx(c, node.initializer, checkMode);
   const typeNode = getType(node);
   if (typeNode === undefined) return initializerType;
   const t = getTypeFromTypeNode(c, typeNode);
@@ -212,10 +235,10 @@ function checkShorthandPropertyAssignment(
   c: Checker,
   node: ShorthandPropertyAssignment,
   inDestructuringPattern: boolean,
-  _checkMode: CheckMode,
+  checkMode: CheckMode,
 ): Type {
   const expr = (inDestructuringPattern ? undefined : node.objectAssignmentInitializer) ?? node.name;
-  const expressionType = checkExpressionForMutableLocation(c, expr);
+  const expressionType = checkExpressionForMutableLocationEx(c, expr, checkMode);
   const typeNode = getType(node);
   if (typeNode === undefined) return expressionType;
   const t = getTypeFromTypeNode(c, typeNode);

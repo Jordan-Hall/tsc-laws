@@ -303,6 +303,7 @@ export const enum CheckMode {
   IsForSignatureHelp = 1 << 4,
   RestBindingElement = 1 << 5,
   TypeOnly = 1 << 6,
+  ForceTuple = 1 << 7,
 }
 
 export const enum TypeFormatFlags {
@@ -1070,6 +1071,10 @@ export class SymbolLinks {
   lastAssignmentPos: number;
   hasDefiniteAssignment: boolean;
   isConstructorDeclaredProperty: boolean;
+  // Reverse mapped properties
+  reverseMappedPropertyType: Type | undefined;
+  reverseMappedMappedType: Type | undefined;
+  reverseMappedConstraintType: Type | undefined;
 
   constructor() {
     this.type = undefined;
@@ -1106,6 +1111,9 @@ export class SymbolLinks {
     this.lastAssignmentPos = 0;
     this.hasDefiniteAssignment = false;
     this.isConstructorDeclaredProperty = false;
+    this.reverseMappedPropertyType = undefined;
+    this.reverseMappedMappedType = undefined;
+    this.reverseMappedConstraintType = undefined;
   }
 }
 
