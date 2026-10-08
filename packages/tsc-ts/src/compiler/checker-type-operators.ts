@@ -132,6 +132,7 @@ import {
   combineTypeMappers,
   getRestrictiveInstantiation,
   instantiateAnonymousType,
+  isRestrictiveInstance,
   instantiateType,
   instantiateTypeAlias,
   isTypeParameterPossiblyReferenced,
@@ -1108,15 +1109,11 @@ function getSimplifiedIndexedAccessType(c: Checker, t: IndexedAccessType, writin
     );
     if (elementType !== undefined) result = elementType;
   } else if (isGenericMappedType(c, objectType)) {
-    // { [P in K]: E }[X] -> E with X for P, when the template doesn't depend on the iteration in other ways.
-    if (mappedNameTypeNode(objectType as MappedType) === undefined) {
-      const constraint = getConstraintTypeFromMappedType(c, objectType as MappedType);
-      if (
-        !(getMappedTypeModifiers(objectType as MappedType) & MappedTypeModifiers.ExcludeOptional) &&
-        isTypeAssignableTo(c, indexType, constraint)
-      )
-        result = getSimplifiedType(c, substituteIndexedMappedType(c, objectType as MappedType, indexType), writing);
-    }
+    // { [P in K]: E }[X] -> E with X for P, unless the mapped type remaps its keys.
+    if (getMappedTypeNameTypeKind(c, objectType as MappedType) !== MappedTypeNameTypeKind.Remapping)
+      result = mapType(c, substituteIndexedMappedType(c, objectType as MappedType, indexType), (u) =>
+        getSimplifiedType(c, u, writing),
+      );
   }
   if (result.id !== t.id) {
     const self: Type = t;
@@ -1978,7 +1975,7 @@ export function getInferredTrueTypeFromConditionalType(c: Checker, t: Conditiona
   return t.resolvedInferredTrueType;
 }
 
-function getDefaultConstraintOfConditionalType(c: Checker, t: ConditionalType): Type {
+export function getDefaultConstraintOfConditionalType(c: Checker, t: ConditionalType): Type {
   if (t.resolvedDefaultConstraint === undefined) {
     // The default constraint is the union of the branches, ignoring `never` branches from the check.
     const trueConstraint = getInferredTrueTypeFromConditionalType(c, t);
@@ -1998,7 +1995,36 @@ export function getConstraintOfConditionalType(c: Checker, t: Type): Type | unde
 }
 
 export function getConstraintFromConditionalType(c: Checker, t: Type): Type {
-  return getDefaultConstraintOfConditionalType(c, t as ConditionalType);
+  return (
+    getConstraintOfDistributiveConditionalType(c, t as ConditionalType) ??
+    getDefaultConstraintOfConditionalType(c, t as ConditionalType)
+  );
+}
+
+/**
+ * For `T extends U ? X : Y` with a constrained check type T, the instantiation with T replaced by its
+ * constraint, which distributes over a union constraint and may reduce; `T extends undefined ? never : T`
+ * removes `undefined` from T. Restrictive instantiations have none: their type parameters are `unknown`.
+ */
+export function getConstraintOfDistributiveConditionalType(c: Checker, t: ConditionalType): Type | undefined {
+  if (t.resolvedConstraintOfDistributive === undefined) {
+    t.resolvedConstraintOfDistributive = c.noConstraintType;
+    if (t.root.isDistributive && !isRestrictiveInstance(c, t)) {
+      let constraint: Type | undefined = getSimplifiedType(c, t.checkType, false);
+      if (constraint === t.checkType) constraint = getConstraintOfTypeLocal(c, constraint);
+      if (constraint !== undefined && constraint !== t.checkType) {
+        const instantiated = getConditionalTypeInstantiation(
+          c,
+          t,
+          prependTypeMapping(t.root.checkType, constraint, t.mapper),
+          true,
+          undefined,
+        );
+        if ((instantiated.flags & TypeFlags.Never) === 0) t.resolvedConstraintOfDistributive = instantiated;
+      }
+    }
+  }
+  return t.resolvedConstraintOfDistributive !== c.noConstraintType ? t.resolvedConstraintOfDistributive : undefined;
 }
 
 // ---- Template literal matching

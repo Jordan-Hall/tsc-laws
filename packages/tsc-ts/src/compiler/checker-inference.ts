@@ -1184,7 +1184,7 @@ class InferenceState {
       // From S to `{ [P in K]: X }`: infer `keyof S` to K, then to K's constraint like a homomorphic
       // mapped type (for `Pick<T, K>`).
       this.inferWithPriority(
-        getIndexTypeEx(c, source, IndexFlags.None),
+        getIndexTypeEx(c, source, c.patternForType.has(source) ? IndexFlags.NoIndexSignatures : IndexFlags.None),
         constraintType,
         InferencePriority.MappedTypeConstraint,
       );

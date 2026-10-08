@@ -58,6 +58,7 @@ import { Diagnostic, type DiagnosticMessage, Diagnostics } from './diagnostics.j
 import { InternalSymbolName, type Symbol, SymbolFlags } from './symbol.js';
 import { SyntaxKind } from './syntax-kind.js';
 import { type Checker, createDiagnosticForNode } from './checker.js';
+import { IntrinsicTypeKind, intrinsicTypeKind } from './checker-type-operators.js';
 import { type Type, TypeFlags, newTypeMapper } from './checker-types.js';
 import { isErrorType } from './checker-type-factory.js';
 import { getTypeFromTypeNode } from './checker-type-nodes.js';
@@ -516,12 +517,21 @@ function instantiateTypeWithSelf(_c: Checker, t: Type): Type {
 export function checkTypeAliasDeclaration(c: Checker, node: Node): void {
   const alias = node as TypeAliasDeclaration;
   const typeParameters = alias.typeParameters;
-  checkTypeParameters(c, typeParameters);
   checkTypeNameIsReserved(c, alias.name, Diagnostics.Type_alias_name_cannot_be_0);
   checkExportsOnMergedDeclarations(c, node);
-  const symbol = getSymbolOfDeclaration(c, node);
-  if (symbol !== undefined) getDeclaredTypeOfSymbol(c, symbol);
-  if (alias.type.kind !== SyntaxKind.IntrinsicKeyword) checkSourceElement(c, alias.type);
+  checkTypeParameters(c, typeParameters);
+  if (alias.type.kind === SyntaxKind.IntrinsicKeyword) {
+    const name = getText(alias.name);
+    const count = typeParameters !== undefined ? typeParameters.nodes.length : 0;
+    if (
+      !(count === 0 && name === 'BuiltinIteratorReturn') &&
+      !(count === 1 && intrinsicTypeKind(name) !== IntrinsicTypeKind.Unknown)
+    )
+      c.error(
+        alias.type,
+        Diagnostics.The_intrinsic_keyword_can_only_be_used_to_declare_compiler_provided_intrinsic_types,
+      );
+  } else checkSourceElement(c, alias.type);
 }
 
 /** Checks the type arguments of a reference to a generic type against their constraints. */

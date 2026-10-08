@@ -108,6 +108,7 @@ import {
   getExportSymbolOfValueSymbolIfExported,
   getMergedSymbol,
   getSymbolOfDeclaration,
+  resolveEntityName,
   resolveName,
   getCannotFindNameDiagnosticForName,
   getDeclarationOfAliasSymbol,
@@ -142,6 +143,7 @@ import {
 } from './checker-contextual.js';
 import {
   checkCallExpression,
+  checkExpressionWithTypeArguments,
   checkNewExpression,
   checkTaggedTemplateExpression,
   getOptionalExpressionType,
@@ -155,12 +157,14 @@ import {
 } from './checker-functions.js';
 import { IterationUse, checkIteratedTypeOrElementType, getIteratedTypeOrElementType } from './checker-iteration.js';
 import { checkClassExpression } from './checker-classes.js';
-import { padTupleType } from './checker-destructuring.js';
+import { padParameterInitializerType } from './checker-destructuring.js';
+import { checkNodeDeferred } from './checker-source-file.js';
 import { checkObjectLiteral } from './checker-object-literals.js';
 import { EvaluatedKind, evaluate } from './checker-evaluator.js';
 import {
   checkPrivateIdentifierExpression,
   checkPropertyAccessExpressionOrQualifiedName,
+  isMethodAccessForCall,
 } from './checker-property-access.js';
 import {
   checkBinaryExpression,
@@ -192,7 +196,7 @@ import { getFlowTypeOfAutoTypedProperty, getThisTypeOfAssignedFunction } from '.
 import { getThisTypeOfObjectLiteralMember } from './checker-contextual.js';
 
 import { ContextFlags, getInferenceContext, instantiateContextualType } from './checker-contextual.js';
-import { addIntraExpressionInferenceSite } from './checker-inference.js';
+import { addIntraExpressionInferenceSite, isConstTypeVariable } from './checker-inference.js';
 import { isContextSensitiveFunctionOrObjectLiteralMethod } from './checker-contextual.js';
 import { checkTypeRelatedToAndOptionallyElaborate } from './checker-elaboration.js';
 import { isContextSensitive } from './checker-functions.js';
@@ -235,7 +239,7 @@ export function checkExpressionForMutableLocation(c: Checker, node: Node): Type 
 
 export function checkExpressionForMutableLocationEx(c: Checker, node: Node, checkMode: CheckMode): Type {
   const t = checkExpressionEx(c, node, checkMode);
-  if (isConstContext(node)) return getRegularTypeOfLiteralType(c, t);
+  if (isConstContext(c, node)) return getRegularTypeOfLiteralType(c, t);
   return getWidenedLiteralLikeTypeForContextualType(
     c,
     t,
@@ -245,17 +249,7 @@ export function checkExpressionForMutableLocationEx(c: Checker, node: Node, chec
 
 export function checkDeclarationInitializer(c: Checker, declaration: Node): Type {
   const initializer = getInitializer(declaration)!;
-  const t = checkExpressionCached(c, initializer);
-  // A parameter's array pattern pads its tuple initializer with the elements it binds past the end.
-  const name = getName(declaration);
-  if (
-    name !== undefined &&
-    name.kind === SyntaxKind.ArrayBindingPattern &&
-    isTupleType(t) &&
-    getRootDeclaration(declaration).kind === SyntaxKind.Parameter
-  )
-    return padTupleType(c, t, name);
-  return t;
+  return padParameterInitializerType(c, declaration, checkExpressionCached(c, initializer));
 }
 
 export function checkComputedPropertyName(c: Checker, node: Node): Type {
@@ -375,7 +369,7 @@ function checkExpressionWorker(c: Checker, node: Node, checkMode: CheckMode): Ty
     case SyntaxKind.NonNullExpression:
       return getNonNullableType(c, checkExpressionEx(c, getExpression(node)!, checkMode));
     case SyntaxKind.ExpressionWithTypeArguments:
-      return checkExpressionEx(c, getExpression(node)!, checkMode);
+      return checkExpressionWithTypeArguments(c, node);
     case SyntaxKind.SatisfiesExpression:
       return checkSatisfiesExpression(c, node, checkMode);
     case SyntaxKind.MetaProperty:
@@ -757,7 +751,7 @@ function checkTemplateExpression(c: Checker, node: TemplateExpression): Type {
       return getFreshTypeOfLiteralType(c, getStringLiteralType(c, evaluated.stringValue));
   }
   if (
-    isConstContext(node) ||
+    isConstContext(c, node) ||
     isTemplateLiteralContext(node) ||
     someType(getContextualType(c, node) ?? c.unknownType, (t) => isTemplateLiteralContextualType(c, t))
   )
@@ -792,7 +786,7 @@ function checkArrayLiteral(c: Checker, node: ArrayLiteralExpression, checkMode: 
   const elementTypes: Type[] = [];
   const elementInfos: TupleElementInfo[] = [];
   const inDestructuringPattern = isAssignmentTarget(node);
-  const inConstContext = isConstContext(node);
+  const inConstContext = isConstContext(c, node);
   const contextualType = getApparentTypeOfContextualType(c, node);
   const inTupleContext =
     isSpreadIntoCallOrNew(node) ||
@@ -942,9 +936,11 @@ export function getPropertyNameOfObjectLiteralElement(c: Checker, element: Node)
 }
 
 /** Whether `node` is in an `as const` context, where literals keep their types. */
-export function isConstContext(node: Node): boolean {
+export function isConstContext(c: Checker, node: Node): boolean {
   const parent = node.parent;
   if (parent === undefined) return false;
+  // Literals contextually typed by a `const` type parameter are in a const context.
+  if (isValidConstAssertionArgument(c, node) && isConstTypeVariable(c, getContextualType(c, node), 0)) return true;
   switch (parent.kind) {
     case SyntaxKind.AsExpression:
     case SyntaxKind.TypeAssertionExpression:
@@ -953,14 +949,50 @@ export function isConstContext(node: Node): boolean {
     case SyntaxKind.ArrayLiteralExpression:
     case SyntaxKind.SpreadElement:
     case SyntaxKind.SatisfiesExpression:
-      return isConstContext(parent);
+      return isConstContext(c, parent);
     case SyntaxKind.PropertyAssignment:
     case SyntaxKind.ShorthandPropertyAssignment:
-      return isConstContext(parent.parent!);
+      return isConstContext(c, parent.parent!);
     case SyntaxKind.TemplateSpan:
-      return isConstContext(parent.parent!);
+      return isConstContext(c, parent.parent!);
     case SyntaxKind.ConditionalExpression:
-      return (parent as ConditionalExpression).condition !== node && isConstContext(parent);
+      return (parent as ConditionalExpression).condition !== node && isConstContext(c, parent);
+  }
+  return false;
+}
+
+/** Whether `as const` applies to the expression: a literal, or a reference to an enum member. */
+function isValidConstAssertionArgument(c: Checker, node: Node): boolean {
+  switch (node.kind) {
+    case SyntaxKind.StringLiteral:
+    case SyntaxKind.NoSubstitutionTemplateLiteral:
+    case SyntaxKind.NumericLiteral:
+    case SyntaxKind.BigIntLiteral:
+    case SyntaxKind.TrueKeyword:
+    case SyntaxKind.FalseKeyword:
+    case SyntaxKind.ArrayLiteralExpression:
+    case SyntaxKind.ObjectLiteralExpression:
+    case SyntaxKind.TemplateExpression:
+      return true;
+    case SyntaxKind.ParenthesizedExpression:
+      return isValidConstAssertionArgument(c, getExpression(node)!);
+    case SyntaxKind.PrefixUnaryExpression: {
+      const unary = node as PrefixUnaryExpression;
+      const kind = unary.operand.kind;
+      return (
+        (unary.operator === SyntaxKind.MinusToken &&
+          (kind === SyntaxKind.NumericLiteral || kind === SyntaxKind.BigIntLiteral)) ||
+        (unary.operator === SyntaxKind.PlusToken && kind === SyntaxKind.NumericLiteral)
+      );
+    }
+    case SyntaxKind.PropertyAccessExpression:
+    case SyntaxKind.ElementAccessExpression: {
+      const expr = skipParentheses(getExpression(node)!);
+      const symbol = isEntityNameExpression(expr, false)
+        ? resolveEntityName(c, expr, SymbolFlags.Value, true, false, undefined)
+        : undefined;
+      return symbol !== undefined && (symbol.flags & SymbolFlags.Enum) !== 0;
+    }
   }
   return false;
 }
@@ -1219,7 +1251,7 @@ function checkElementAccessExpression(c: Checker, node: ElementAccessExpression,
   const indexType = checkExpression(c, indexExpression);
   if (isErrorType(c, exprType) || exprType === c.silentNeverType) return exprType;
   const isAssignment = getAssignmentTargetKind(node) !== AssignmentKind.None;
-  const objectType = isAssignment ? getWidenedType(c, exprType) : exprType;
+  const objectType = isAssignment || isMethodAccessForCall(node) ? getWidenedType(c, exprType) : exprType;
   if (isConstEnumObjectTypeLocal(objectType) && !isStringLiteralLike(indexExpression)) {
     c.error(indexExpression, Diagnostics.A_const_enum_member_can_only_be_accessed_using_a_string_literal);
     return c.errorType;
@@ -1298,21 +1330,31 @@ function hasNumericPropertyNames(c: Checker, t: Type): boolean {
 function checkAssertion(c: Checker, node: Node, checkMode: CheckMode): Type {
   if (isConstTypeReference(getType(node)!)) {
     const exprType = checkExpressionEx(c, getExpression(node)!, checkMode);
+    if (!isValidConstAssertionArgument(c, getExpression(node)!))
+      c.error(
+        getExpression(node)!,
+        Diagnostics.A_const_assertion_can_only_be_applied_to_references_to_enum_members_or_string_number_boolean_array_or_object_literals,
+      );
     return getRegularTypeOfLiteralType(c, exprType);
   }
   const exprType = checkExpressionEx(c, getExpression(node)!, checkMode);
-  const targetType = getTypeFromTypeNode(c, getType(node)!);
-  if (!isErrorType(c, targetType)) checkAssertionCompatibility(c, node, exprType, targetType);
-  return targetType;
+  // The operand is compared with the asserted type once, after the last check of the operand.
+  c.nodeLinks(node).assertionExpressionType = exprType;
+  checkNodeDeferred(c, node);
+  return getTypeFromTypeNode(c, getType(node)!);
 }
 
-function checkAssertionCompatibility(c: Checker, node: Node, exprType: Type, targetType: Type): void {
-  const widenedType = getWidenedType(
-    c,
-    getRegularTypeOfObjectLiteral(c, getBaseTypeOfLiteralTypeForAssertion(c, exprType)),
-  );
-  if (isErrorType(c, widenedType) || isErrorType(c, targetType)) return;
-  if (!isTypeComparableTo(c, targetType, widenedType)) {
+/** Checks that an assertion's operand type and asserted type are comparable. */
+export function checkAssertionDeferred(c: Checker, node: Node): void {
+  const targetType = getTypeFromTypeNode(c, getType(node)!);
+  if (!isErrorType(c, targetType))
+    checkAssertionCompatibility(c, node, c.nodeLinks(node).assertionExpressionType!, targetType);
+}
+
+function checkAssertionCompatibility(c: Checker, node: Node, rawExprType: Type, targetType: Type): void {
+  const exprType = getRegularTypeOfObjectLiteral(c, getBaseTypeOfLiteralType(c, rawExprType));
+  if (isErrorType(c, targetType)) return;
+  if (!isTypeComparableTo(c, targetType, getWidenedType(c, exprType)))
     checkTypeComparableTo(
       c,
       exprType,
@@ -1320,11 +1362,6 @@ function checkAssertionCompatibility(c: Checker, node: Node, exprType: Type, tar
       node,
       Diagnostics.Conversion_of_type_0_to_type_1_may_be_a_mistake_because_neither_type_sufficiently_overlaps_with_the_other_If_this_was_intentional_convert_the_expression_to_unknown_first,
     );
-  }
-}
-
-function getBaseTypeOfLiteralTypeForAssertion(c: Checker, t: Type): Type {
-  return getWidenedLiteralType(c, t);
 }
 
 function checkSatisfiesExpression(c: Checker, node: Node, checkMode: CheckMode): Type {

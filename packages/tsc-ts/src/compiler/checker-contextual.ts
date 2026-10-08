@@ -370,14 +370,14 @@ export function getContextualTypeEx(c: Checker, node: Node, contextFlags: Contex
       const elements = (parent as ArrayLiteralExpression).elements.nodes;
       const index = indexOfNode(elements, node);
       if (index < 0) return undefined;
-      const spreads = getSpreadIndices(elements);
+      const spreads = getSpreadIndices(c, parent, elements);
       return getContextualTypeForElementExpression(
         c,
         getApparentTypeOfContextualTypeEx(c, parent, contextFlags),
         index,
         elements.length,
-        spreads[0],
-        spreads[1],
+        spreads.first,
+        spreads.last,
       );
     }
     case SyntaxKind.ConditionalExpression: {
@@ -679,7 +679,20 @@ function getIteratedTypeOrElementTypeForContext(c: Checker, t: Type): Type | und
   return getIteratedTypeOrElementType(c, IterationUse.Element, t, c.undefinedType, undefined, false);
 }
 
-function getSpreadIndices(elements: Node[]): number[] {
+/** The indices of the first and last spread elements of an array literal, or -1. */
+export class SpreadIndices {
+  readonly first: number;
+  readonly last: number;
+
+  constructor(first: number, last: number) {
+    this.first = first;
+    this.last = last;
+  }
+}
+
+function getSpreadIndices(c: Checker, node: Node, elements: Node[]): SpreadIndices {
+  const cached = c.spreadIndices.get(node);
+  if (cached !== undefined) return cached;
   let first = -1;
   let last = -1;
   for (let i = 0; i < elements.length; i++)
@@ -687,7 +700,9 @@ function getSpreadIndices(elements: Node[]): number[] {
       if (first < 0) first = i;
       last = i;
     }
-  return [first, last];
+  const result = new SpreadIndices(first, last);
+  c.spreadIndices.set(node, result);
+  return result;
 }
 
 function getContextualTypeForObjectLiteralElement(
@@ -876,7 +891,10 @@ function getContextualTypeForBinaryOperand(
     case SyntaxKind.BarBarToken:
     case SyntaxKind.QuestionQuestionToken: {
       const t = getContextualTypeEx(c, binary, contextFlags);
-      return node === binary.right && t === undefined ? checkExpressionCached(c, binary.left) : t;
+      // A contextual type implied by a binding pattern gives way to the left operand's type.
+      return node === binary.right && (t === undefined || c.patternForType.has(t))
+        ? checkExpressionCached(c, binary.left)
+        : t;
     }
     case SyntaxKind.AmpersandAmpersandToken:
     case SyntaxKind.CommaToken:

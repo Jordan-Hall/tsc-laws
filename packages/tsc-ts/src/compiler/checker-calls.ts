@@ -20,6 +20,8 @@ import {
   getParameters,
   getText,
   getTypeArguments as getTypeArgumentList,
+  type BinaryExpression,
+  getNodeId,
 } from './ast.js';
 import { canHaveDecorators, isImportCall } from './ast-utilities.js';
 import {
@@ -33,7 +35,7 @@ import {
 import { Diagnostic, type DiagnosticMessage, Diagnostics, chainDiagnostic } from './diagnostics.js';
 import { skipTrivia } from './scanner.js';
 import { SyntaxKind } from './syntax-kind.js';
-import { type Symbol, SymbolFlags } from './symbol.js';
+import { InternalSymbolName, type Symbol, SymbolFlags } from './symbol.js';
 import { TokenFlags } from './types.js';
 import { type Checker, createDiagnosticForNode } from './checker.js';
 import { checkSuperExpression } from './checker-super.js';
@@ -50,6 +52,8 @@ import {
   AccessFlags,
   CheckMode,
   ElementFlags,
+  InstantiationExpressionType,
+  ObjectFlags,
   type Signature,
   SignatureFlags,
   SignatureKind,
@@ -77,6 +81,8 @@ import {
   isMutableArrayOrTuple,
   isTupleType,
   mapType,
+  newObjectType,
+  setStructuredTypeMembers,
   someType,
   tupleTargetOf,
   typesOf,
@@ -84,6 +90,8 @@ import {
 import {
   createSymbolWithType,
   getApparentType,
+  getBaseConstraintOfType,
+  resolveStructuredTypeMembers,
   getBaseConstraintOrType,
   getIndexTypeOfType,
   getReducedType,
@@ -118,7 +126,12 @@ import {
 } from './checker-symbol-types.js';
 import { type Relation, checkTypeRelatedTo, getRegularTypeOfObjectLiteral, isTypeAssignableTo } from './relations.js';
 import { getNonNullableType } from './checker-flow.js';
-import { checkExpression, checkExpressionCached, checkNonNullType } from './checker-expressions.js';
+import {
+  checkExpression,
+  checkExpressionCached,
+  checkNonNullType,
+  checkTypeQueryExpression,
+} from './checker-expressions.js';
 import { IterationUse, checkIteratedTypeOrElementType } from './checker-iteration.js';
 import { isContextSensitive } from './checker-functions.js';
 import {
@@ -131,7 +144,7 @@ import {
 } from './checker-declared-types.js';
 import { getESSymbolLikeTypeForNode, getTypeFromTypeNode } from './checker-type-nodes.js';
 import { getIndexedAccessTypeEx, getRestTypeOfTupleType } from './checker-type-operators.js';
-import { instantiateType } from './instantiation.js';
+import { instantiateType, isNodeDescendantOf } from './instantiation.js';
 import { maybeTypeOfKind } from './checker-utilities.js';
 import { checkSourceElement, checkNodeDeferred } from './checker-source-file.js';
 import {
@@ -1891,4 +1904,145 @@ function getSignatureInstantiationWithInferredTypeParameters(
   const newInstantiatedSignature = cloneSignature(c, instantiatedSignature);
   newInstantiatedSignature.resolvedReturnType = newReturnType;
   return newInstantiatedSignature;
+}
+
+// ---- Instantiation expressions
+
+/** Checks `f<T>` in an expression, or `typeof f<T>`. */
+export function checkExpressionWithTypeArguments(c: Checker, node: Node): Type {
+  const typeArguments = getTypeArgumentList(node);
+  if (typeArguments !== undefined) for (const a of typeArguments.nodes) checkSourceElement(c, a);
+  let exprType: Type;
+  if (node.kind === SyntaxKind.ExpressionWithTypeArguments) {
+    let parent = node.parent!;
+    while (parent.kind === SyntaxKind.ParenthesizedExpression) parent = parent.parent!;
+    if (
+      parent.kind === SyntaxKind.BinaryExpression &&
+      (parent as BinaryExpression).operatorToken.kind === SyntaxKind.InstanceOfKeyword &&
+      isNodeDescendantOf(node, (parent as BinaryExpression).right)
+    )
+      c.error(
+        node,
+        Diagnostics.The_right_hand_side_of_an_instanceof_expression_must_not_be_an_instantiation_expression,
+      );
+    exprType = checkExpression(c, getExpression(node)!);
+  } else exprType = checkTypeQueryExpression(c, node);
+  return getInstantiationExpressionType(c, exprType, node);
+}
+
+/** The type of an expression with type arguments: its generic signatures instantiated with them. */
+export function getInstantiationExpressionType(c: Checker, exprType: Type, node: Node): Type {
+  const typeArgumentList = getTypeArgumentList(node);
+  if (exprType === c.silentNeverType || isErrorType(c, exprType) || typeArgumentList === undefined) return exprType;
+  const key = `${getNodeId(node)},${exprType.id}`;
+  const cached = c.instantiationExpressionTypes.get(key);
+  if (cached !== undefined) return cached;
+  const instantiator = new InstantiationExpressionInstantiator(c, node, typeArgumentList.nodes);
+  const result = instantiator.instantiateType(exprType);
+  c.instantiationExpressionTypes.set(key, result);
+  const errorType = instantiator.hasSomeApplicableSignature ? instantiator.nonApplicableType : exprType;
+  if (errorType !== undefined) {
+    const file = getSourceFileOfNode(node);
+    c.addDiagnostic(
+      new Diagnostic(
+        file.diagnosticFile(),
+        skipTrivia(file.text, typeArgumentList.pos),
+        typeArgumentList.end,
+        Diagnostics.Type_0_has_no_signatures_for_which_the_type_argument_list_is_applicable,
+        [typeToString(c, errorType)],
+      ),
+    );
+  }
+  return result;
+}
+
+/** Instantiates the generic signatures of a type and its constituents with explicit type arguments. */
+class InstantiationExpressionInstantiator {
+  readonly c: Checker;
+  readonly node: Node;
+  readonly typeArguments: Node[];
+  hasSomeApplicableSignature = false;
+  nonApplicableType: Type | undefined = undefined;
+  hasSignatures = false;
+  hasApplicableSignature = false;
+
+  constructor(c: Checker, node: Node, typeArguments: Node[]) {
+    this.c = c;
+    this.node = node;
+    this.typeArguments = typeArguments;
+  }
+
+  instantiateType(t: Type): Type {
+    const saveHasSignatures = this.hasSignatures;
+    const saveHasApplicableSignature = this.hasApplicableSignature;
+    this.hasSignatures = false;
+    this.hasApplicableSignature = false;
+    const result = this.instantiateTypePart(t);
+    if (this.hasApplicableSignature) this.hasSomeApplicableSignature = true;
+    if (this.hasSignatures && !this.hasApplicableSignature && this.nonApplicableType === undefined)
+      this.nonApplicableType = t;
+    this.hasSignatures = saveHasSignatures;
+    this.hasApplicableSignature = saveHasApplicableSignature;
+    return result;
+  }
+
+  instantiateTypePart(t: Type): Type {
+    const c = this.c;
+    if ((t.flags & TypeFlags.Object) !== 0) {
+      const resolved = resolveStructuredTypeMembers(c, t);
+      const callSignatures = this.instantiateSignatures(resolved.callSignatures);
+      const constructSignatures = this.instantiateSignatures(resolved.constructSignatures);
+      if (resolved.callSignatures.length !== 0 || resolved.constructSignatures.length !== 0) this.hasSignatures = true;
+      if (callSignatures.length !== 0 || constructSignatures.length !== 0) this.hasApplicableSignature = true;
+      if (callSignatures !== resolved.callSignatures || constructSignatures !== resolved.constructSignatures) {
+        const result = newObjectType(
+          c,
+          ObjectFlags.Anonymous | ObjectFlags.InstantiationExpressionType,
+          c.newSymbol(SymbolFlags.None, InternalSymbolName.InstantiationExpression),
+        ) as InstantiationExpressionType;
+        setStructuredTypeMembers(c, result, resolved.members, callSignatures, constructSignatures, resolved.indexInfos);
+        result.node = this.node;
+        return result;
+      }
+    } else if ((t.flags & TypeFlags.InstantiableNonPrimitive) !== 0) {
+      const constraint = getBaseConstraintOfType(c, t);
+      if (constraint !== undefined) {
+        const instantiated = this.instantiateTypePart(constraint);
+        if (instantiated !== constraint) return instantiated;
+      }
+    } else if ((t.flags & TypeFlags.Union) !== 0) return mapType(c, t, (u) => this.instantiateType(u));
+    else if ((t.flags & TypeFlags.Intersection) !== 0) {
+      const types = typesOf(t);
+      const instantiated: Type[] = [];
+      let changed = false;
+      for (const u of types) {
+        const v = this.instantiateTypePart(u);
+        if (v !== u) changed = true;
+        instantiated.push(v);
+      }
+      return changed ? getIntersectionType(c, instantiated) : t;
+    }
+    return t;
+  }
+
+  /** The applicable signatures, instantiated; the same array when nothing changes. */
+  instantiateSignatures(signatures: Signature[]): Signature[] {
+    const c = this.c;
+    const result: Signature[] = [];
+    let changed = false;
+    for (const sig of signatures) {
+      if (sig.typeParameters.length === 0 || !hasCorrectTypeArgumentArity(c, sig, this.typeArguments)) {
+        changed = true;
+        continue;
+      }
+      const typeArgumentTypes = checkTypeArguments(c, sig, this.typeArguments, true, undefined);
+      if (typeArgumentTypes === undefined) {
+        result.push(sig);
+        continue;
+      }
+      result.push(getSignatureInstantiation(c, sig, typeArgumentTypes, isInJSFile(sig.declaration)));
+      changed = true;
+    }
+    return changed ? result : signatures;
+  }
 }

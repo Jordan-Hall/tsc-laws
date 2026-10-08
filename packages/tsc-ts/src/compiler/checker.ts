@@ -94,6 +94,7 @@ import { AssignmentMarker, type FlowLoopInfo } from './checker-narrowing.js';
 import type { FlowNode } from './flow.js';
 import { JsxState } from './checker-jsx.js';
 import type { DeferredIterationError, IterationTypes } from './checker-iteration.js';
+import type { SpreadIndices } from './checker-contextual.js';
 import type { SourceFileMetadata } from './program-utilities.js';
 
 /** What the checker needs from a program. */
@@ -379,6 +380,12 @@ export class Checker {
   deferredIterationErrors: DeferredIterationError[] = [];
   /** Binding patterns whose implied type is being computed as a contextual type. */
   readonly contextualBindingPatterns: Node[] = [];
+  /** The binding pattern or assignment pattern that implied each type. */
+  readonly patternForType = new Map<Type, Node>();
+  /** Spread element indices of array literals with contextually typed elements. */
+  readonly spreadIndices = new Map<Node, SpreadIndices>();
+  /** Instantiation expression types by node and expression type id. */
+  readonly instantiationExpressionTypes = new Map<string, Type>();
   relationComparers: TypeComparer[] = [];
   readonly relationScratchKey = new RelationKey();
   readonly markerTypes = new Set<Type>();

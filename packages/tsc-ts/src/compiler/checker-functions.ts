@@ -213,6 +213,7 @@ function contextuallyCheckFunctionExpressionOrObjectLiteralMethod(c: Checker, no
     const returnType = getReturnTypeFromBodyEx(c, node, checkMode);
     if (signature.resolvedReturnType === undefined) signature.resolvedReturnType = returnType;
   }
+  checkFunctionLikeSignature(c, node);
 }
 
 function inferFromAnnotatedParametersAndReturn(
@@ -324,17 +325,25 @@ export function getTypeOfObjectLiteralMethod(c: Checker, node: Node, checkMode: 
   return checkFunctionExpressionOrObjectLiteralMethod(c, node, checkMode);
 }
 
-/** Checks a function-like declaration's parameters, return type annotation and body. */
-export function checkFunctionLikeBody(c: Checker, node: Node): void {
-  const typeParameters = getTypeParameters(node);
-  checkTypeParameters(c, typeParameters);
+/** Checks the type parameters, parameters and return type annotation of a function. */
+function checkFunctionLikeSignature(c: Checker, node: Node): void {
+  checkTypeParameters(c, getTypeParameters(node));
   checkUnmatchedJSDocParameters(c, node);
   const params = getParameters(node);
   if (params !== undefined) for (const p of params.nodes) checkVariableLikeDeclaration(c, p);
   const returnTypeNode = getType(node);
   checkTypeNodeIfPresent(c, returnTypeNode);
+  if (returnTypeNode !== undefined) checkSignatureReturnType(c, node, returnTypeNode, getFunctionFlags(node));
+}
+
+/**
+ * Checks a function's signature and body. The signature of a function expression or object literal
+ * method is checked earlier, while its contextual parameter types are assigned.
+ */
+export function checkFunctionLikeBody(c: Checker, node: Node): void {
+  if ((c.nodeLinks(node).flags & NodeCheckFlags.ContextChecked) === 0) checkFunctionLikeSignature(c, node);
+  const returnTypeNode = getType(node);
   const functionFlags = getFunctionFlags(node);
-  if (returnTypeNode !== undefined) checkSignatureReturnType(c, node, returnTypeNode, functionFlags);
   const body = getBody(node);
   // Function and class method declarations without a body or return type return `any`.
   if (
@@ -770,7 +779,7 @@ export function getReturnTypeFromBodyEx(c: Checker, func: Node, checkMode: Check
   let fallbackReturnType: Type = c.voidType;
   if (body.kind !== SyntaxKind.Block) {
     returnType = checkExpressionCachedEx(c, body, checkMode);
-    if (isConstContext(body)) returnType = getRegularTypeOfLiteralType(c, returnType);
+    if (isConstContext(c, body)) returnType = getRegularTypeOfLiteralType(c, returnType);
     // An async body may return a promise or a value; its awaited type is wrapped in `Promise<T>` below.
     if (isAsync)
       returnType = unwrapAwaitedType(
@@ -920,7 +929,7 @@ function checkAndAggregateReturnExpressionTypes(c: Checker, func: Node, checkMod
         ),
       );
     if ((t.flags & TypeFlags.Never) !== 0) hasReturnOfTypeNever = true;
-    if (isConstContext(expr)) t = getRegularTypeOfLiteralType(c, t);
+    if (isConstContext(c, expr)) t = getRegularTypeOfLiteralType(c, t);
     if (!aggregatedTypes.includes(t)) aggregatedTypes.push(t);
   }
   if (aggregatedTypes.length === 0 && !hasReturnWithNoExpression && (hasReturnOfTypeNever || mayReturnNever(func)))
@@ -973,7 +982,8 @@ function checkAndAggregateYieldOperandTypes(c: Checker, func: Node, checkMode: C
   for (const yieldExpr of collector.yields) {
     const operand = yieldExpr.expression;
     let yieldExprType = operand !== undefined ? checkExpressionEx(c, operand, checkMode) : c.undefinedWideningType;
-    if (operand !== undefined && isConstContext(operand)) yieldExprType = getRegularTypeOfLiteralType(c, yieldExprType);
+    if (operand !== undefined && isConstContext(c, operand))
+      yieldExprType = getRegularTypeOfLiteralType(c, yieldExprType);
     const yieldedType = getYieldedTypeOfYieldExpression(c, yieldExpr, yieldExprType, c.anyType, isAsync);
     if (yieldedType !== undefined && !result.yieldTypes.includes(yieldedType)) result.yieldTypes.push(yieldedType);
     const nextType =

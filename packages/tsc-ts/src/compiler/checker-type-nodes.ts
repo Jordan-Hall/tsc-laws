@@ -111,12 +111,8 @@ import {
   getHomomorphicTypeVariable,
   getTypeParameterFromMappedType,
 } from './checker-type-operators.js';
-import {
-  checkExpression,
-  checkExpressionCached,
-  checkTypeQueryExpression,
-  getResolvedSymbol,
-} from './checker-expressions.js';
+import { checkExpression, checkExpressionCached, getResolvedSymbol } from './checker-expressions.js';
+import { checkExpressionWithTypeArguments } from './checker-calls.js';
 import { getIntendedTypeFromJSDocTypeReference } from './checker-jsdoc.js';
 import { getCombinedNodeFlags, hasSyntacticModifier } from './binder-utilities.js';
 
@@ -812,7 +808,7 @@ export function getTypeAliasInstantiation(
 function getTypeFromTypeQueryNode(c: Checker, node: Node): Type {
   const links = c.nodeLinks(node);
   if (links.resolvedType === undefined)
-    links.resolvedType = getRegularTypeOfLiteralType(c, getWidenedType(c, checkTypeQueryExpression(c, node)));
+    links.resolvedType = getRegularTypeOfLiteralType(c, getWidenedType(c, checkExpressionWithTypeArguments(c, node)));
   return links.resolvedType;
 }
 

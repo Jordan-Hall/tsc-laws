@@ -34,8 +34,10 @@ import {
   getIndexInfosOfType,
   getIndexTypeOfType,
   getPropertiesOfType,
+  getPropertyOfType,
   getReducedType,
 } from './checker-members.js';
+import { symbolToString, typeToString } from './type-printer.js';
 import { getMergedSymbol, getSymbolOfDeclaration } from './checker-symbols.js';
 import { addOptionality, getTypeOfSymbol, removeMissingOrUndefinedType } from './checker-symbol-types.js';
 import { getTypeFromTypeNode } from './checker-type-nodes.js';
@@ -55,7 +57,7 @@ import {
   getTypeOfObjectLiteralMethod,
   isContextSensitive,
 } from './checker-functions.js';
-import { getInferenceContext } from './checker-contextual.js';
+import { getApparentTypeOfContextualType, getInferenceContext } from './checker-contextual.js';
 import { addIntraExpressionInferenceSite } from './checker-inference.js';
 import { isEmptyObjectType } from './checker-type-factory.js';
 import { getTypeOfExpandoObjectLiteral, isJSObjectLiteral } from './checker-javascript.js';
@@ -84,7 +86,7 @@ class ObjectLiteralBuilder {
 
   createType(c: Checker): Type {
     const indexInfos: IndexInfo[] = [];
-    const isReadonly = isConstContext(this.node);
+    const isReadonly = isConstContext(c, this.node);
     const properties = this.properties.slice(this.offset);
     if (this.hasComputedString) indexInfos.push(getObjectLiteralIndexInfo(c, isReadonly, properties, c.stringType));
     if (this.hasComputedNumber) indexInfos.push(getObjectLiteralIndexInfo(c, isReadonly, properties, c.numberType));
@@ -94,6 +96,7 @@ class ObjectLiteralBuilder {
     if (this.isJSLiteral) result.objectFlags |= ObjectFlags.JSLiteral;
     if (this.patternWithComputedProperties)
       result.objectFlags |= ObjectFlags.ObjectLiteralPatternWithComputedProperties;
+    if (this.inDestructuringPattern) c.patternForType.set(result, this.node);
     return result;
   }
 
@@ -112,10 +115,16 @@ export function checkObjectLiteral(c: Checker, node: Node, checkMode: CheckMode)
   if (expandoType !== undefined) return expandoType;
   const inDestructuringPattern = isAssignmentTarget(node);
   const allProperties = c.strictNullChecks ? new Map<string, Symbol>() : undefined;
-  const inConstContext = isConstContext(node);
+  const inConstContext = isConstContext(c, node);
   const checkFlags = inConstContext ? CheckFlags.Readonly : 0;
   const builder = new ObjectLiteralBuilder(node, inDestructuringPattern);
   builder.isJSLiteral = isJSObjectLiteral(c, node);
+  const contextualType = getApparentTypeOfContextualType(c, node);
+  const contextualPattern = contextualType !== undefined ? c.patternForType.get(contextualType) : undefined;
+  const contextualTypeHasPattern =
+    contextualPattern !== undefined &&
+    (contextualPattern.kind === SyntaxKind.ObjectBindingPattern ||
+      contextualPattern.kind === SyntaxKind.ObjectLiteralExpression);
   let spread: Type = c.emptyObjectType;
   const elements = getProperties(node)!.nodes;
   // Computed names are checked up front: a spread may bail out before the member is reached.
@@ -176,6 +185,21 @@ export function checkObjectLiteral(c: Checker, node: Node, checkMode: CheckMode)
       if (nameType !== undefined) links.nameType = nameType;
       // Defaults in assignment patterns make the property optional.
       if (inDestructuringPattern && hasDefaultValue(memberDecl)) prop.flags |= SymbolFlags.Optional;
+      else if (
+        contextualTypeHasPattern &&
+        (contextualType!.objectFlags & ObjectFlags.ObjectLiteralPatternWithComputedProperties) === 0
+      ) {
+        // Properties defaulted in the binding pattern that implies the contextual type are optional.
+        const impliedProp = getPropertyOfType(c, contextualType!, member.name);
+        if (impliedProp !== undefined) prop.flags |= impliedProp.flags & SymbolFlags.Optional;
+        else if (getIndexInfoOfType(c, contextualType!, c.stringType) === undefined)
+          c.error(
+            getName(memberDecl)!,
+            Diagnostics.Object_literal_may_only_specify_known_properties_and_0_does_not_exist_in_type_1,
+            symbolToString(c, member),
+            typeToString(c, contextualType!),
+          );
+      }
       prop.declarations = member.declarations;
       prop.parent = member.parent;
       prop.valueDeclaration = member.valueDeclaration;

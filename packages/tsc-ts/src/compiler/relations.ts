@@ -35,7 +35,9 @@ import {
   emptyTypes,
   newTypeMapper,
   SimpleTypeMapper,
+  type TypeMapper,
 } from './checker-types.js';
+import { InferenceFlags, InferencePriority, createInferenceContext, inferTypes } from './checker-inference.js';
 import {
   IntersectionFlags,
   containsType,
@@ -113,6 +115,7 @@ import {
   fillMissingTypeArguments,
   getMinTypeArgumentCount,
   hasBaseType,
+  hasNonCircularBaseConstraint,
   computeEnumMemberValues,
 } from './checker-declared-types.js';
 import {
@@ -131,7 +134,8 @@ import {
 import { getSuggestedSymbolForNonexistentJSXAttribute, isJsxOpeningLikeElement } from './checker-jsx.js';
 import { signatureToString, symbolToString, typeToString, typePredicateToString } from './type-printer.js';
 import {
-  getConstraintFromConditionalType,
+  getConstraintOfDistributiveConditionalType,
+  getDefaultConstraintOfConditionalType,
   getConstraintTypeFromMappedType,
   getFalseTypeFromConditionalType,
   getIndexType,
@@ -1839,17 +1843,33 @@ export class Relater extends TypeComparer {
     } else if ((source.flags & TypeFlags.Conditional) !== 0) {
       if (isDeeplyNestedType(c, source, this.sourceStack, 10)) return Ternary.Maybe;
       const s = source as ConditionalType;
+      const saveErrorChain = this.errorChain;
       if ((target.flags & TypeFlags.Conditional) !== 0) {
         const t = target as ConditionalType;
         // Related when check types relate either way, extends types are identical, and branches relate.
+        // The source's `infer` type parameters are inferred from the target's extends type.
+        let sourceExtends = s.extendsType;
+        let mapper: TypeMapper | undefined = undefined;
+        if (s.root.inferTypeParameters.length !== 0) {
+          const context = createInferenceContext(c, s.root.inferTypeParameters, undefined, InferenceFlags.None, this);
+          inferTypes(
+            c,
+            context.inferences,
+            t.extendsType,
+            sourceExtends,
+            InferencePriority.NoConstraints | InferencePriority.AlwaysStrict,
+            false,
+          );
+          sourceExtends = instantiateType(c, sourceExtends, context.mapper);
+          mapper = context.mapper;
+        }
         if (
-          s.root.inferTypeParameters.length === 0 &&
-          isTypeIdenticalTo(c, s.extendsType, t.extendsType) &&
+          isTypeIdenticalTo(c, sourceExtends, t.extendsType) &&
           (this.isRelatedTo(s.checkType, t.checkType, RecursionFlags.Both, false) !== Ternary.False ||
             this.isRelatedTo(t.checkType, s.checkType, RecursionFlags.Both, false) !== Ternary.False)
         ) {
           result = this.isRelatedTo(
-            getTrueTypeFromConditionalType(c, s),
+            instantiateType(c, getTrueTypeFromConditionalType(c, s), mapper),
             getTrueTypeFromConditionalType(c, t),
             RecursionFlags.Both,
             reportErrors,
@@ -1864,9 +1884,19 @@ export class Relater extends TypeComparer {
           if (result !== Ternary.False) return result;
         }
       }
-      const defaultConstraint = getConstraintFromConditionalType(c, s);
+      // A conditional relates through its default constraint, the union of its branches.
+      const defaultConstraint = getDefaultConstraintOfConditionalType(c, s);
       result = this.isRelatedTo(defaultConstraint, target, RecursionFlags.Source, reportErrors);
       if (result !== Ternary.False) return result;
+      // Its distributive constraint is too inaccurate to relate conditionals to each other.
+      if ((target.flags & TypeFlags.Conditional) === 0 && hasNonCircularBaseConstraint(c, s)) {
+        const distributiveConstraint = getConstraintOfDistributiveConditionalType(c, s);
+        if (distributiveConstraint !== undefined) {
+          this.errorChain = saveErrorChain;
+          result = this.isRelatedTo(distributiveConstraint, target, RecursionFlags.Source, reportErrors);
+          if (result !== Ternary.False) return result;
+        }
+      }
     } else if ((source.flags & TypeFlags.TemplateLiteral) !== 0 && (target.flags & TypeFlags.Object) === 0) {
       if ((target.flags & TypeFlags.TemplateLiteral) === 0) {
         const constraint = getBaseConstraintOfType(c, source);

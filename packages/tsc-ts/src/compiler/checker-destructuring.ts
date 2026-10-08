@@ -24,6 +24,7 @@ import { isLeftHandSideExpression } from './ast-utilities.js';
 import { TokenFlags } from './types.js';
 import { getFlowTypeOfReference, getDestructuringPropertyName } from './checker-narrowing.js';
 import {
+  getRootDeclaration,
   isClassLike,
   isPartOfParameterDeclaration,
   isPrivateIdentifierClassElementDeclaration,
@@ -41,8 +42,10 @@ import {
   TupleElementInfo,
   type Type,
   TypeFlags,
+  type TypeReference,
 } from './checker-types.js';
 import {
+  cloneTypeReference,
   createAnonymousType,
   createArrayType,
   createTupleTypeEx,
@@ -75,17 +78,19 @@ import {
   getDeclarationModifierFlagsFromSymbol,
   getReducedType,
   getIndexInfosOfType,
+  getPropertiesOfObjectType,
   getPropertiesOfType,
+  getPropertyOfType,
   isArrayLikeType,
 } from './checker-members.js';
 import { getGlobalTypeAliasSymbol, getSymbolOfDeclaration } from './checker-symbols.js';
 import {
   getTypeForVariableLikeDeclaration,
   getTypeOfSymbol,
+  addOptionality,
   getWidenedLiteralTypeForInitializer,
   isReadonlySymbol,
   reportImplicitAny,
-  getWidenedType,
   declarationBelongsToPrivateAmbientMember,
 } from './checker-symbol-types.js';
 import { getTypeAliasInstantiation } from './checker-type-nodes.js';
@@ -97,9 +102,9 @@ import {
   checkExpressionEx,
   checkNonNullType,
   checkTypeAssignableToAndOptionallyElaborate,
-  getWidenedLiteralLikeTypeForContextualType,
 } from './checker-expressions.js';
-import { IterationUse, checkIteratedTypeOrElementType } from './checker-iteration.js';
+import { IterationUse, checkIteratedTypeOrElementType, createIterableType } from './checker-iteration.js';
+import { ScriptTarget } from './options.js';
 import { checkExpressionWithContextualType } from './checker-contextual.js';
 import { checkBinaryExpression, checkReferenceExpression, removeDefinitelyFalsyTypes } from './checker-operators.js';
 import { TypeFacts, getNonNullableType, getTypeWithFacts, hasTypeFacts } from './checker-flow.js';
@@ -344,6 +349,10 @@ function getTypeFromObjectBindingPattern(
   }
   const result = createAnonymousType(c, undefined, members, [], [], indexInfos);
   result.objectFlags |= objectFlags;
+  if (includePatternInType) {
+    c.patternForType.set(result, pattern);
+    result.objectFlags |= ObjectFlags.ContainsObjectOrArrayLiteral;
+  }
   return result;
 }
 
@@ -361,7 +370,8 @@ function getTypeFromArrayBindingPattern(
     (last as BindingElement).dotDotDotToken !== undefined
       ? last
       : undefined;
-  if (elements.length === 0 || (elements.length === 1 && restElement !== undefined)) return c.anyArrayType;
+  if (elements.length === 0 || (elements.length === 1 && restElement !== undefined))
+    return c.languageVersion >= ScriptTarget.ES2015 ? createIterableType(c, c.anyType) : c.anyArrayType;
   let minLength = 0;
   for (let i = elements.length - 1; i >= 0; i--) {
     const e = elements[i];
@@ -384,7 +394,12 @@ function getTypeFromArrayBindingPattern(
       e === restElement ? ElementFlags.Rest : i >= minLength ? ElementFlags.Optional : ElementFlags.Required;
     infos.push(new TupleElementInfo(flags, undefined));
   }
-  return createTupleTypeEx(c, types, infos, false);
+  const result = createTupleTypeEx(c, types, infos, false);
+  if (!includePatternInType) return result;
+  const clone = cloneTypeReference(c, result as TypeReference);
+  c.patternForType.set(clone, pattern);
+  clone.objectFlags |= ObjectFlags.ContainsObjectOrArrayLiteral;
+  return clone;
 }
 
 function getTypeFromBindingElement(
@@ -399,14 +414,59 @@ function getTypeFromBindingElement(
     const contextualType = isBindingPatternNode(element.name)
       ? getTypeFromBindingPattern(c, element.name!, true, false)
       : c.unknownType;
-    const t = checkExpressionWithContextualType(c, element.initializer, contextualType, undefined, CheckMode.Normal);
-    return getWidenedType(c, getWidenedLiteralLikeTypeForContextualType(c, t, undefined));
+    const t = padParameterInitializerType(
+      c,
+      element,
+      checkExpressionWithContextualType(c, element.initializer, contextualType, undefined, CheckMode.Normal),
+    );
+    return addOptionality(c, getWidenedLiteralTypeForInitializer(c, element, t), false, true);
   }
   if (isBindingPatternNode(element.name))
     return getTypeFromBindingPattern(c, element.name!, includePatternInType, reportErrors);
   if (reportErrors && c.noImplicitAny && !declarationBelongsToPrivateAmbientMember(element))
     reportImplicitAny(c, element, c.anyType);
   return includePatternInType ? c.nonInferrableAnyType : c.anyType;
+}
+
+/**
+ * The initializer type of a parameter or its binding element, padded with the members its binding
+ * pattern defaults or binds past the end of a tuple.
+ */
+export function padParameterInitializerType(c: Checker, declaration: Node, t: Type): Type {
+  if (getRootDeclaration(declaration).kind !== SyntaxKind.Parameter) return t;
+  const name = getName(declaration);
+  if (name === undefined) return t;
+  if (name.kind === SyntaxKind.ObjectBindingPattern && (t.objectFlags & ObjectFlags.ObjectLiteral) !== 0)
+    return padObjectLiteralType(c, t, name);
+  if (name.kind === SyntaxKind.ArrayBindingPattern && isTupleType(t)) return padTupleType(c, t, name);
+  return t;
+}
+
+/** An object literal type with optional properties added for the pattern's defaulted elements it lacks. */
+function padObjectLiteralType(c: Checker, t: Type, pattern: Node): Type {
+  const missingElements: BindingElement[] = [];
+  for (const node of getElements(pattern)!.nodes) {
+    const e = node as BindingElement;
+    if (e.initializer === undefined) continue;
+    const name = getPropertyNameFromBindingElement(c, e);
+    if (name !== undefined && getPropertyOfType(c, t, name) === undefined) missingElements.push(e);
+  }
+  if (missingElements.length === 0) return t;
+  const members = new Map<string, Symbol>();
+  for (const prop of getPropertiesOfObjectType(c, t)) members.set(prop.name, prop);
+  for (const e of missingElements) {
+    const symbol = c.newSymbol(SymbolFlags.Property | SymbolFlags.Optional, getPropertyNameFromBindingElement(c, e)!);
+    c.symbolLinks(symbol).type = getTypeFromBindingElement(c, e, false, false);
+    members.set(symbol.name, symbol);
+  }
+  const result = createAnonymousType(c, t.symbol, members, [], [], getIndexInfosOfType(c, t));
+  result.objectFlags = t.objectFlags;
+  return result;
+}
+
+function getPropertyNameFromBindingElement(c: Checker, e: BindingElement): string | undefined {
+  const exprType = getLiteralTypeFromPropertyName(c, e.propertyName ?? e.name!);
+  return exprType !== undefined && isTypeUsableAsPropertyName(exprType) ? getPropertyNameFromType(exprType) : undefined;
 }
 
 /**

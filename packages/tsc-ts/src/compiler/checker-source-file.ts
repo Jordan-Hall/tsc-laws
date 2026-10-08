@@ -12,6 +12,7 @@
 import { resolveUntypedCall } from './checker-calls.js';
 import {
   type ImportTypeNode,
+  type MappedTypeNode,
   type JSDoc,
   type Node,
   type NodeList,
@@ -21,14 +22,15 @@ import {
   getName,
   getNodeId,
   getStatements,
-  getTypeArguments,
   getType,
   getTypeParameters,
 } from './ast.js';
 import { SyntaxKind } from './syntax-kind.js';
 import { isExternalOrCommonJSModule } from './binder-utilities.js';
 import type { Checker } from './checker.js';
-import { NodeCheckFlags } from './checker-types.js';
+import { type MappedType, NodeCheckFlags } from './checker-types.js';
+import { getConstraintTypeFromMappedType, getNameTypeFromMappedType } from './checker-type-operators.js';
+import { checkTypeAssignableTo } from './relations.js';
 import { getTypeFromTypeNode } from './checker-type-nodes.js';
 import {
   checkBlock,
@@ -72,6 +74,7 @@ import {
   checkInterfaceDeclaration,
 } from './checker-classes.js';
 import { checkJsxElementDeferred } from './checker-jsx.js';
+import { checkAssertionDeferred } from './checker-expressions.js';
 import { checkFunctionLikeBody } from './checker-functions.js';
 import { produceDeferredIterationErrors } from './checker-iteration.js';
 import { checkFunctionOrMethodSymbols } from './checker-overloads.js';
@@ -245,6 +248,13 @@ function checkSignatureMember(c: Checker, node: Node): void {
 }
 
 function checkTypeNode(c: Checker, node: Node): void {
+  const saveCurrentNode = c.currentNode;
+  c.currentNode = node;
+  checkTypeNodeWorker(c, node);
+  c.currentNode = saveCurrentNode;
+}
+
+function checkTypeNodeWorker(c: Checker, node: Node): void {
   switch (node.kind) {
     case SyntaxKind.MethodSignature:
     case SyntaxKind.CallSignature:
@@ -264,7 +274,6 @@ function checkTypeNode(c: Checker, node: Node): void {
     case SyntaxKind.ImportType:
     case SyntaxKind.IndexedAccessType:
     case SyntaxKind.TypeOperator:
-    case SyntaxKind.MappedType:
     case SyntaxKind.ConditionalType:
     case SyntaxKind.TupleType:
     case SyntaxKind.LiteralType:
@@ -276,14 +285,35 @@ function checkTypeNode(c: Checker, node: Node): void {
     checkTypeNode(c, (node as ImportTypeNode).argument);
     return;
   }
-  if (node.kind === SyntaxKind.TypeQuery) {
-    const args = getTypeArguments(node);
-    if (args !== undefined) for (const a of args.nodes) checkTypeNode(c, a);
+  // Type arguments of a type query are checked with its type.
+  if (node.kind === SyntaxKind.TypeQuery) return;
+  if (node.kind === SyntaxKind.MappedType) {
+    checkMappedType(c, node as MappedTypeNode);
     return;
   }
   node.forEachChild(c.typeNodeVisitor);
   if (node.kind === SyntaxKind.MethodSignature) checkFunctionOrMethodSymbols(c, node);
   else if (node.kind === SyntaxKind.TypeLiteral) checkTypeLiteralMembers(c, node);
+}
+
+/** Checks a mapped type's parts before its type, which resolves the constraint eagerly. */
+function checkMappedType(c: Checker, node: MappedTypeNode): void {
+  checkTypeParameter(c, node.typeParameter);
+  checkTypeNodeIfPresent(c, node.nameType);
+  checkTypeNodeIfPresent(c, node.type);
+  if (node.type === undefined) reportImplicitAny(c, node, c.anyType);
+  if (node.members !== undefined) for (const m of node.members.nodes) checkSourceElement(c, m);
+  const t = getTypeFromTypeNode(c, node) as MappedType;
+  const nameType = getNameTypeFromMappedType(c, t);
+  if (nameType !== undefined) checkTypeAssignableTo(c, nameType, c.stringNumberSymbolType, node.nameType, undefined);
+  else
+    checkTypeAssignableTo(
+      c,
+      getConstraintTypeFromMappedType(c, t),
+      c.stringNumberSymbolType,
+      node.typeParameter.constraint,
+      undefined,
+    );
 }
 
 /** Visits the children of a type node; owned by the checker to avoid per-node allocation. */
@@ -374,6 +404,10 @@ function checkDeferredNode(c: Checker, node: Node): void {
       break;
     case SyntaxKind.ClassExpression:
       checkClassLikeDeferred(c, node);
+      break;
+    case SyntaxKind.AsExpression:
+    case SyntaxKind.TypeAssertionExpression:
+      checkAssertionDeferred(c, node);
       break;
     case SyntaxKind.JsxElement:
     case SyntaxKind.JsxSelfClosingElement:
