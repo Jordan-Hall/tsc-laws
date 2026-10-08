@@ -26,6 +26,8 @@ export enum ScriptTarget {
 }
 
 export enum ModuleKind {
+  /** Not an option value: a resolution mode or implied format without a specific module kind. */
+  None = 0,
   CommonJS = 1,
   /** @deprecated Accepted for parsing and validation only. */
   AMD = 2,
@@ -170,7 +172,8 @@ export interface CompilerOptions {
   noImplicitOverride?: boolean;
   noUncheckedSideEffectImports?: boolean;
   outDir?: string;
-  paths?: Map<string, string[]>;
+  /** Substitutions are `undefined` where the config gave a non-array. */
+  paths?: Map<string, string[] | undefined>;
   preserveConstEnums?: boolean;
   preserveSymlinks?: boolean;
   project?: string;
@@ -810,6 +813,338 @@ export function setCompilerOption(options: CompilerOptions, name: string, value:
       options.checkers = numberValue(value);
       break;
   }
+}
+
+/**
+ * Sets the options of `target` that are set in `source`, and unsets those named in `nulls`
+ * (options given as `null`, which reset inherited values).
+ */
+export function mergeCompilerOptions(
+  target: CompilerOptions,
+  source: CompilerOptions,
+  nulls: ReadonlySet<string> | undefined,
+): CompilerOptions {
+  target.allowJs = merged(source.allowJs, target.allowJs, nulls, 'allowJs');
+  target.allowArbitraryExtensions = merged(
+    source.allowArbitraryExtensions,
+    target.allowArbitraryExtensions,
+    nulls,
+    'allowArbitraryExtensions',
+  );
+  target.allowImportingTsExtensions = merged(
+    source.allowImportingTsExtensions,
+    target.allowImportingTsExtensions,
+    nulls,
+    'allowImportingTsExtensions',
+  );
+  target.allowNonTsExtensions = merged(
+    source.allowNonTsExtensions,
+    target.allowNonTsExtensions,
+    nulls,
+    'allowNonTsExtensions',
+  );
+  target.allowUmdGlobalAccess = merged(
+    source.allowUmdGlobalAccess,
+    target.allowUmdGlobalAccess,
+    nulls,
+    'allowUmdGlobalAccess',
+  );
+  target.allowUnreachableCode = merged(
+    source.allowUnreachableCode,
+    target.allowUnreachableCode,
+    nulls,
+    'allowUnreachableCode',
+  );
+  target.allowUnusedLabels = merged(source.allowUnusedLabels, target.allowUnusedLabels, nulls, 'allowUnusedLabels');
+  target.assumeChangesOnlyAffectDirectDependencies = merged(
+    source.assumeChangesOnlyAffectDirectDependencies,
+    target.assumeChangesOnlyAffectDirectDependencies,
+    nulls,
+    'assumeChangesOnlyAffectDirectDependencies',
+  );
+  target.checkJs = merged(source.checkJs, target.checkJs, nulls, 'checkJs');
+  target.customConditions = merged(source.customConditions, target.customConditions, nulls, 'customConditions');
+  target.composite = merged(source.composite, target.composite, nulls, 'composite');
+  target.emitDeclarationOnly = merged(
+    source.emitDeclarationOnly,
+    target.emitDeclarationOnly,
+    nulls,
+    'emitDeclarationOnly',
+  );
+  target.emitBOM = merged(source.emitBOM, target.emitBOM, nulls, 'emitBOM');
+  target.emitDecoratorMetadata = merged(
+    source.emitDecoratorMetadata,
+    target.emitDecoratorMetadata,
+    nulls,
+    'emitDecoratorMetadata',
+  );
+  target.declaration = merged(source.declaration, target.declaration, nulls, 'declaration');
+  target.declarationDir = merged(source.declarationDir, target.declarationDir, nulls, 'declarationDir');
+  target.declarationMap = merged(source.declarationMap, target.declarationMap, nulls, 'declarationMap');
+  target.deduplicatePackages = merged(
+    source.deduplicatePackages,
+    target.deduplicatePackages,
+    nulls,
+    'deduplicatePackages',
+  );
+  target.disableSizeLimit = merged(source.disableSizeLimit, target.disableSizeLimit, nulls, 'disableSizeLimit');
+  target.disableSourceOfProjectReferenceRedirect = merged(
+    source.disableSourceOfProjectReferenceRedirect,
+    target.disableSourceOfProjectReferenceRedirect,
+    nulls,
+    'disableSourceOfProjectReferenceRedirect',
+  );
+  target.disableSolutionSearching = merged(
+    source.disableSolutionSearching,
+    target.disableSolutionSearching,
+    nulls,
+    'disableSolutionSearching',
+  );
+  target.disableReferencedProjectLoad = merged(
+    source.disableReferencedProjectLoad,
+    target.disableReferencedProjectLoad,
+    nulls,
+    'disableReferencedProjectLoad',
+  );
+  target.erasableSyntaxOnly = merged(source.erasableSyntaxOnly, target.erasableSyntaxOnly, nulls, 'erasableSyntaxOnly');
+  target.exactOptionalPropertyTypes = merged(
+    source.exactOptionalPropertyTypes,
+    target.exactOptionalPropertyTypes,
+    nulls,
+    'exactOptionalPropertyTypes',
+  );
+  target.experimentalDecorators = merged(
+    source.experimentalDecorators,
+    target.experimentalDecorators,
+    nulls,
+    'experimentalDecorators',
+  );
+  target.forceConsistentCasingInFileNames = merged(
+    source.forceConsistentCasingInFileNames,
+    target.forceConsistentCasingInFileNames,
+    nulls,
+    'forceConsistentCasingInFileNames',
+  );
+  target.isolatedModules = merged(source.isolatedModules, target.isolatedModules, nulls, 'isolatedModules');
+  target.isolatedDeclarations = merged(
+    source.isolatedDeclarations,
+    target.isolatedDeclarations,
+    nulls,
+    'isolatedDeclarations',
+  );
+  target.ignoreConfig = merged(source.ignoreConfig, target.ignoreConfig, nulls, 'ignoreConfig');
+  target.ignoreDeprecations = merged(source.ignoreDeprecations, target.ignoreDeprecations, nulls, 'ignoreDeprecations');
+  target.importHelpers = merged(source.importHelpers, target.importHelpers, nulls, 'importHelpers');
+  target.inlineSourceMap = merged(source.inlineSourceMap, target.inlineSourceMap, nulls, 'inlineSourceMap');
+  target.inlineSources = merged(source.inlineSources, target.inlineSources, nulls, 'inlineSources');
+  target.init = merged(source.init, target.init, nulls, 'init');
+  target.incremental = merged(source.incremental, target.incremental, nulls, 'incremental');
+  target.jsx = merged(source.jsx, target.jsx, nulls, 'jsx');
+  target.jsxFactory = merged(source.jsxFactory, target.jsxFactory, nulls, 'jsxFactory');
+  target.jsxFragmentFactory = merged(source.jsxFragmentFactory, target.jsxFragmentFactory, nulls, 'jsxFragmentFactory');
+  target.jsxImportSource = merged(source.jsxImportSource, target.jsxImportSource, nulls, 'jsxImportSource');
+  target.lib = merged(source.lib, target.lib, nulls, 'lib');
+  target.libReplacement = merged(source.libReplacement, target.libReplacement, nulls, 'libReplacement');
+  target.locale = merged(source.locale, target.locale, nulls, 'locale');
+  target.mapRoot = merged(source.mapRoot, target.mapRoot, nulls, 'mapRoot');
+  target.module = merged(source.module, target.module, nulls, 'module');
+  target.moduleResolution = merged(source.moduleResolution, target.moduleResolution, nulls, 'moduleResolution');
+  target.moduleSuffixes = merged(source.moduleSuffixes, target.moduleSuffixes, nulls, 'moduleSuffixes');
+  target.moduleDetection = merged(source.moduleDetection, target.moduleDetection, nulls, 'moduleDetection');
+  target.newLine = merged(source.newLine, target.newLine, nulls, 'newLine');
+  target.noEmit = merged(source.noEmit, target.noEmit, nulls, 'noEmit');
+  target.noCheck = merged(source.noCheck, target.noCheck, nulls, 'noCheck');
+  target.noErrorTruncation = merged(source.noErrorTruncation, target.noErrorTruncation, nulls, 'noErrorTruncation');
+  target.noFallthroughCasesInSwitch = merged(
+    source.noFallthroughCasesInSwitch,
+    target.noFallthroughCasesInSwitch,
+    nulls,
+    'noFallthroughCasesInSwitch',
+  );
+  target.noImplicitAny = merged(source.noImplicitAny, target.noImplicitAny, nulls, 'noImplicitAny');
+  target.noImplicitThis = merged(source.noImplicitThis, target.noImplicitThis, nulls, 'noImplicitThis');
+  target.noImplicitReturns = merged(source.noImplicitReturns, target.noImplicitReturns, nulls, 'noImplicitReturns');
+  target.noEmitHelpers = merged(source.noEmitHelpers, target.noEmitHelpers, nulls, 'noEmitHelpers');
+  target.noLib = merged(source.noLib, target.noLib, nulls, 'noLib');
+  target.noPropertyAccessFromIndexSignature = merged(
+    source.noPropertyAccessFromIndexSignature,
+    target.noPropertyAccessFromIndexSignature,
+    nulls,
+    'noPropertyAccessFromIndexSignature',
+  );
+  target.noUncheckedIndexedAccess = merged(
+    source.noUncheckedIndexedAccess,
+    target.noUncheckedIndexedAccess,
+    nulls,
+    'noUncheckedIndexedAccess',
+  );
+  target.noEmitOnError = merged(source.noEmitOnError, target.noEmitOnError, nulls, 'noEmitOnError');
+  target.noUnusedLocals = merged(source.noUnusedLocals, target.noUnusedLocals, nulls, 'noUnusedLocals');
+  target.noUnusedParameters = merged(source.noUnusedParameters, target.noUnusedParameters, nulls, 'noUnusedParameters');
+  target.noResolve = merged(source.noResolve, target.noResolve, nulls, 'noResolve');
+  target.noImplicitOverride = merged(source.noImplicitOverride, target.noImplicitOverride, nulls, 'noImplicitOverride');
+  target.noUncheckedSideEffectImports = merged(
+    source.noUncheckedSideEffectImports,
+    target.noUncheckedSideEffectImports,
+    nulls,
+    'noUncheckedSideEffectImports',
+  );
+  target.outDir = merged(source.outDir, target.outDir, nulls, 'outDir');
+  target.paths = merged(source.paths, target.paths, nulls, 'paths');
+  target.preserveConstEnums = merged(source.preserveConstEnums, target.preserveConstEnums, nulls, 'preserveConstEnums');
+  target.preserveSymlinks = merged(source.preserveSymlinks, target.preserveSymlinks, nulls, 'preserveSymlinks');
+  target.project = merged(source.project, target.project, nulls, 'project');
+  target.resolveJsonModule = merged(source.resolveJsonModule, target.resolveJsonModule, nulls, 'resolveJsonModule');
+  target.resolvePackageJsonExports = merged(
+    source.resolvePackageJsonExports,
+    target.resolvePackageJsonExports,
+    nulls,
+    'resolvePackageJsonExports',
+  );
+  target.resolvePackageJsonImports = merged(
+    source.resolvePackageJsonImports,
+    target.resolvePackageJsonImports,
+    nulls,
+    'resolvePackageJsonImports',
+  );
+  target.removeComments = merged(source.removeComments, target.removeComments, nulls, 'removeComments');
+  target.rewriteRelativeImportExtensions = merged(
+    source.rewriteRelativeImportExtensions,
+    target.rewriteRelativeImportExtensions,
+    nulls,
+    'rewriteRelativeImportExtensions',
+  );
+  target.reactNamespace = merged(source.reactNamespace, target.reactNamespace, nulls, 'reactNamespace');
+  target.rootDir = merged(source.rootDir, target.rootDir, nulls, 'rootDir');
+  target.rootDirs = merged(source.rootDirs, target.rootDirs, nulls, 'rootDirs');
+  target.skipLibCheck = merged(source.skipLibCheck, target.skipLibCheck, nulls, 'skipLibCheck');
+  target.stableTypeOrdering = merged(source.stableTypeOrdering, target.stableTypeOrdering, nulls, 'stableTypeOrdering');
+  target.strict = merged(source.strict, target.strict, nulls, 'strict');
+  target.strictBindCallApply = merged(
+    source.strictBindCallApply,
+    target.strictBindCallApply,
+    nulls,
+    'strictBindCallApply',
+  );
+  target.strictBuiltinIteratorReturn = merged(
+    source.strictBuiltinIteratorReturn,
+    target.strictBuiltinIteratorReturn,
+    nulls,
+    'strictBuiltinIteratorReturn',
+  );
+  target.strictFunctionTypes = merged(
+    source.strictFunctionTypes,
+    target.strictFunctionTypes,
+    nulls,
+    'strictFunctionTypes',
+  );
+  target.strictNullChecks = merged(source.strictNullChecks, target.strictNullChecks, nulls, 'strictNullChecks');
+  target.strictPropertyInitialization = merged(
+    source.strictPropertyInitialization,
+    target.strictPropertyInitialization,
+    nulls,
+    'strictPropertyInitialization',
+  );
+  target.stripInternal = merged(source.stripInternal, target.stripInternal, nulls, 'stripInternal');
+  target.skipDefaultLibCheck = merged(
+    source.skipDefaultLibCheck,
+    target.skipDefaultLibCheck,
+    nulls,
+    'skipDefaultLibCheck',
+  );
+  target.sourceMap = merged(source.sourceMap, target.sourceMap, nulls, 'sourceMap');
+  target.sourceRoot = merged(source.sourceRoot, target.sourceRoot, nulls, 'sourceRoot');
+  target.suppressOutputPathCheck = merged(
+    source.suppressOutputPathCheck,
+    target.suppressOutputPathCheck,
+    nulls,
+    'suppressOutputPathCheck',
+  );
+  target.target = merged(source.target, target.target, nulls, 'target');
+  target.traceResolution = merged(source.traceResolution, target.traceResolution, nulls, 'traceResolution');
+  target.tsBuildInfoFile = merged(source.tsBuildInfoFile, target.tsBuildInfoFile, nulls, 'tsBuildInfoFile');
+  target.typeRoots = merged(source.typeRoots, target.typeRoots, nulls, 'typeRoots');
+  target.types = merged(source.types, target.types, nulls, 'types');
+  target.useDefineForClassFields = merged(
+    source.useDefineForClassFields,
+    target.useDefineForClassFields,
+    nulls,
+    'useDefineForClassFields',
+  );
+  target.useUnknownInCatchVariables = merged(
+    source.useUnknownInCatchVariables,
+    target.useUnknownInCatchVariables,
+    nulls,
+    'useUnknownInCatchVariables',
+  );
+  target.verbatimModuleSyntax = merged(
+    source.verbatimModuleSyntax,
+    target.verbatimModuleSyntax,
+    nulls,
+    'verbatimModuleSyntax',
+  );
+  target.maxNodeModuleJsDepth = merged(
+    source.maxNodeModuleJsDepth,
+    target.maxNodeModuleJsDepth,
+    nulls,
+    'maxNodeModuleJsDepth',
+  );
+  target.allowSyntheticDefaultImports = merged(
+    source.allowSyntheticDefaultImports,
+    target.allowSyntheticDefaultImports,
+    nulls,
+    'allowSyntheticDefaultImports',
+  );
+  target.alwaysStrict = merged(source.alwaysStrict, target.alwaysStrict, nulls, 'alwaysStrict');
+  target.baseUrl = merged(source.baseUrl, target.baseUrl, nulls, 'baseUrl');
+  target.downlevelIteration = merged(source.downlevelIteration, target.downlevelIteration, nulls, 'downlevelIteration');
+  target.esModuleInterop = merged(source.esModuleInterop, target.esModuleInterop, nulls, 'esModuleInterop');
+  target.outFile = merged(source.outFile, target.outFile, nulls, 'outFile');
+  target.configFilePath = merged(source.configFilePath, target.configFilePath, nulls, 'configFilePath');
+  target.noDtsResolution = merged(source.noDtsResolution, target.noDtsResolution, nulls, 'noDtsResolution');
+  target.pathsBasePath = merged(source.pathsBasePath, target.pathsBasePath, nulls, 'pathsBasePath');
+  target.diagnostics = merged(source.diagnostics, target.diagnostics, nulls, 'diagnostics');
+  target.extendedDiagnostics = merged(
+    source.extendedDiagnostics,
+    target.extendedDiagnostics,
+    nulls,
+    'extendedDiagnostics',
+  );
+  target.generateCpuProfile = merged(source.generateCpuProfile, target.generateCpuProfile, nulls, 'generateCpuProfile');
+  target.generateTrace = merged(source.generateTrace, target.generateTrace, nulls, 'generateTrace');
+  target.listEmittedFiles = merged(source.listEmittedFiles, target.listEmittedFiles, nulls, 'listEmittedFiles');
+  target.listFiles = merged(source.listFiles, target.listFiles, nulls, 'listFiles');
+  target.explainFiles = merged(source.explainFiles, target.explainFiles, nulls, 'explainFiles');
+  target.listFilesOnly = merged(source.listFilesOnly, target.listFilesOnly, nulls, 'listFilesOnly');
+  target.noEmitForJsFiles = merged(source.noEmitForJsFiles, target.noEmitForJsFiles, nulls, 'noEmitForJsFiles');
+  target.preserveWatchOutput = merged(
+    source.preserveWatchOutput,
+    target.preserveWatchOutput,
+    nulls,
+    'preserveWatchOutput',
+  );
+  target.pretty = merged(source.pretty, target.pretty, nulls, 'pretty');
+  target.version = merged(source.version, target.version, nulls, 'version');
+  target.watch = merged(source.watch, target.watch, nulls, 'watch');
+  target.showConfig = merged(source.showConfig, target.showConfig, nulls, 'showConfig');
+  target.build = merged(source.build, target.build, nulls, 'build');
+  target.help = merged(source.help, target.help, nulls, 'help');
+  target.all = merged(source.all, target.all, nulls, 'all');
+  target.pprofDir = merged(source.pprofDir, target.pprofDir, nulls, 'pprofDir');
+  target.singleThreaded = merged(source.singleThreaded, target.singleThreaded, nulls, 'singleThreaded');
+  target.quiet = merged(source.quiet, target.quiet, nulls, 'quiet');
+  target.checkers = merged(source.checkers, target.checkers, nulls, 'checkers');
+  return target;
+}
+
+function merged<T>(
+  source: T | undefined,
+  target: T | undefined,
+  nulls: ReadonlySet<string> | undefined,
+  name: string,
+): T | undefined {
+  if (nulls !== undefined && nulls.has(name)) return undefined;
+  return source === undefined ? target : source;
 }
 
 export function getCompilerOption(options: CompilerOptions, name: string): CompilerOptionValue | undefined {

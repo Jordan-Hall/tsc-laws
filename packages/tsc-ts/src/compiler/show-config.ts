@@ -228,10 +228,12 @@ function jsonArray(items: readonly string[], level: number): string {
   return '[\n' + inner + items.map((item) => JSON.stringify(item)).join(',\n' + inner) + '\n' + indent(level) + ']';
 }
 
-function pathsJson(paths: ReadonlyMap<string, readonly string[]> | undefined): string | undefined {
+function pathsJson(paths: ReadonlyMap<string, readonly string[] | undefined> | undefined): string | undefined {
   if (paths === undefined) return undefined;
   if (paths.size === 0) return '{}';
   const entries: string[] = [];
-  for (const [key, value] of paths) entries.push(indent(3) + JSON.stringify(key) + ': ' + jsonArray(value, 3));
+  for (const [key, value] of paths) {
+    entries.push(indent(3) + JSON.stringify(key) + ': ' + jsonArray(value ?? [], 3));
+  }
   return '{\n' + entries.join(',\n') + '\n' + indent(2) + '}';
 }

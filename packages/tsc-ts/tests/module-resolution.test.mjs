@@ -33,7 +33,7 @@ execFileSync(
   { stdio: 'inherit' },
 );
 const path = await import(pathToFileURL(join(out, 'compiler/path.js')).href);
-const types = await import(pathToFileURL(join(out, 'compiler/module-resolution-types.js')).href);
+const types = await import(pathToFileURL(join(out, 'compiler/options.js')).href);
 const driver = join(out, 'drivers/resolve.js');
 
 function run(cases, name) {

@@ -1,17 +1,24 @@
 /**
- * The `tsc` command line up to compilation: argument errors, `--init`, `--version`, `--help`,
- * project lookup and `--showConfig`.
+ * The `tsc` command line up to binding: argument errors, `--init`, `--version`, `--help`, project lookup,
+ * tsconfig.json, `--showConfig`, program construction and `--listFilesOnly`.
  */
 import {
   createCompilerDiagnostic,
   Diagnostics,
   formatDiagnostic,
   formatDiagnosticWithColorAndContext,
+  formatErrorSummary,
+  localizeMessage,
   parseLocale,
   type Diagnostic,
   type DiagnosticFormatOptions,
   type Locale,
+  type MessageWithArgs,
 } from './diagnostics.js';
+import { CompilerHost } from './file-loader.js';
+import { CachedFileSystem, FileSystem, type DirectoryEntries } from './file-system.js';
+import { Program, sortAndDeduplicateDiagnostics } from './program.js';
+import { ConfigParser, ParsedCommandLine as ProjectConfig } from './tsconfig.js';
 import {
   CommandLineHost,
   parseBuildCommandLine,
@@ -21,9 +28,9 @@ import {
 } from './command-line.js';
 import { Colors, defaultIsPretty, header, printBuildHelp, printHelp, printVersion } from './help.js';
 import { generateTSConfig } from './init.js';
-import type { CompilerOptions } from './options.js';
+import { isIncremental, type CompilerOptions } from './options.js';
 import { combinePaths, getDirectoryPath, normalizePath } from './path.js';
-import { showConfig } from './show-config.js';
+import { showConfig, type ShowConfigInput } from './show-config.js';
 
 export enum ExitStatus {
   Success = 0,
@@ -42,6 +49,8 @@ export abstract class System extends CommandLineHost {
     /** Columns of the output terminal; `0` when not a terminal. */
     readonly terminalWidth: number,
     readonly useCaseSensitiveFileNames: boolean,
+    /** Where the bundled `lib.*.d.ts` files are. */
+    readonly defaultLibraryPath: string,
   ) {
     super(currentDirectory);
   }
@@ -52,15 +61,67 @@ export abstract class System extends CommandLineHost {
   abstract fileExists(path: string): boolean;
   abstract directoryExists(path: string): boolean;
   abstract writeFile(path: string, text: string): boolean;
+  /** Sorted entries of a directory; empty if it can't be read. */
+  abstract getAccessibleEntries(path: string): DirectoryEntries;
+  /** The path with symlinks resolved, or `path` itself if it does not exist. */
+  abstract realpath(path: string): string;
+}
+
+/** The file system of a `System`. */
+class SystemFileSystem extends FileSystem {
+  constructor(private readonly sys: System) {
+    super(sys.useCaseSensitiveFileNames);
+  }
+
+  fileExists(path: string): boolean {
+    return this.sys.fileExists(path);
+  }
+
+  directoryExists(path: string): boolean {
+    return this.sys.directoryExists(path);
+  }
+
+  readFile(path: string): string | undefined {
+    return this.sys.readFile(path);
+  }
+
+  getAccessibleEntries(path: string): DirectoryEntries {
+    return this.sys.getAccessibleEntries(path);
+  }
+
+  realpath(path: string): string {
+    return this.sys.realpath(path);
+  }
+}
+
+/** A compiler host writing `--traceResolution` output to the system. */
+class SystemCompilerHost extends CompilerHost {
+  constructor(
+    private readonly sys: System,
+    fs: FileSystem,
+    private readonly locale: Locale,
+  ) {
+    super(fs, sys.currentDirectory, sys.defaultLibraryPath);
+  }
+
+  trace(message: MessageWithArgs): void {
+    this.sys.write(localizeMessage(this.locale, message.message, message.args) + '\n');
+  }
 }
 
 /** How a `tsc` run ended, or the work left for the compiler. */
 export type CommandLineResult =
   | { readonly kind: 'exit'; readonly status: ExitStatus }
-  /** Load `configFileName`, merge `commandLine` into it, then compile or `--showConfig`. */
-  | { readonly kind: 'config'; readonly configFileName: string; readonly commandLine: ParsedCommandLine }
-  /** Compile the command-line files with the command-line options. */
-  | { readonly kind: 'compile'; readonly commandLine: ParsedCommandLine }
+  /** Bind, check and emit `program`, reporting with `reporter` and `errorSummary`. */
+  | {
+      readonly kind: 'compile';
+      readonly program: Program;
+      readonly incremental: boolean;
+      readonly reporter: DiagnosticReporter;
+      readonly errorSummary: ErrorSummaryReporter;
+    }
+  /** Watch the project of `config`. */
+  | { readonly kind: 'watch'; readonly config: ProjectConfig; readonly commandLine: ParsedCommandLine }
   | { readonly kind: 'build'; readonly commandLine: ParsedBuildCommandLine };
 
 function exit(status: ExitStatus): CommandLineResult {
@@ -96,6 +157,30 @@ export class DiagnosticReporter {
 
   reportAll(diagnostics: readonly Diagnostic[]): void {
     for (const diagnostic of diagnostics) this.report(diagnostic);
+  }
+}
+
+/** Writes "Found N errors" after diagnostics under `--pretty`. */
+export class ErrorSummaryReporter {
+  private readonly pretty: boolean;
+  private readonly format: DiagnosticFormatOptions;
+
+  constructor(
+    private readonly sys: System,
+    options: CompilerOptions,
+    locale: Locale,
+  ) {
+    this.pretty = options.pretty ?? defaultIsPretty(sys);
+    this.format = {
+      locale,
+      currentDirectory: sys.currentDirectory,
+      useCaseSensitiveFileNames: sys.useCaseSensitiveFileNames,
+      newLine: '\n',
+    };
+  }
+
+  report(diagnostics: readonly Diagnostic[]): void {
+    if (this.pretty) this.sys.write(formatErrorSummary(diagnostics, this.format));
   }
 }
 
@@ -211,22 +296,97 @@ function executeCompile(sys: System, commandLine: ParsedCommandLine): CommandLin
     }
   }
 
-  if (configFileName !== '') return { kind: 'config', configFileName, commandLine };
-  if (options.showConfig === true) {
-    sys.write(
-      showConfig(
-        {
-          options,
-          fileNames,
-          currentDirectory: sys.currentDirectory,
-          useCaseSensitiveFileNames: sys.useCaseSensitiveFileNames,
-        },
-        '',
-      ),
+  const fs = new CachedFileSystem(new SystemFileSystem(sys));
+  let config = new ProjectConfig(
+    options,
+    undefined,
+    fileNames,
+    [],
+    undefined,
+    [],
+    sys.currentDirectory,
+    sys.useCaseSensitiveFileNames,
+    0,
+  );
+  if (configFileName !== '') {
+    const errors: Diagnostic[] = [];
+    const parsed = new ConfigParser(fs, sys.currentDirectory).parseConfigFile(
+      configFileName,
+      options,
+      commandLine.raw,
+      errors,
     );
+    if (parsed === undefined) {
+      reporter.reportAll(errors);
+      return exit(ExitStatus.DiagnosticsPresent_OutputsGenerated);
+    }
+    config = parsed;
+  }
+
+  // The summary follows `pretty` of the config; diagnostics only that of the command line, as in tsgo.
+  const errorSummary = new ErrorSummaryReporter(sys, config.options, locale);
+  if (options.showConfig === true) {
+    sys.write(showConfig(showConfigInput(config, sys), configFileName));
     return exit(ExitStatus.Success);
   }
-  return { kind: 'compile', commandLine };
+  if (config.options.watch === true) return { kind: 'watch', config, commandLine };
+
+  const program = new Program(config, new SystemCompilerHost(sys, fs, locale));
+  // Statistics need checking and emit timings.
+  const statistics = config.options.diagnostics === true || config.options.extendedDiagnostics === true;
+  if (config.options.listFilesOnly === true && !statistics) {
+    return exit(listFilesOnly(sys, program, locale, reporter, errorSummary));
+  }
+  return { kind: 'compile', program, incremental: isIncremental(config.options), reporter, errorSummary };
+}
+
+/** What `--showConfig` prints for a project. */
+function showConfigInput(config: ProjectConfig, sys: System): ShowConfigInput {
+  const specs = config.configFile?.configFileSpecs;
+  let include: readonly string[] | undefined;
+  if (specs !== undefined) {
+    const includeSpecs = specs.validatedIncludeSpecs;
+    if (!(includeSpecs.length === 1 && includeSpecs[0] === '**/*')) include = includeSpecs;
+  }
+  return {
+    options: config.options,
+    fileNames: config.fileNames,
+    currentDirectory: config.configFile !== undefined ? config.currentDirectory : sys.currentDirectory,
+    useCaseSensitiveFileNames: sys.useCaseSensitiveFileNames,
+    references: config.projectReferences,
+    include,
+    exclude: specs?.validatedExcludeSpecs,
+  };
+}
+
+/**
+ * `--listFilesOnly`: config, syntax and program diagnostics, then the files (explained under `--explainFiles`).
+ * Nothing is checked or emitted.
+ */
+function listFilesOnly(
+  sys: System,
+  program: Program,
+  locale: Locale,
+  reporter: DiagnosticReporter,
+  errorSummary: ErrorSummaryReporter,
+): ExitStatus {
+  let diagnostics: Diagnostic[] = [...program.getConfigFileParsingDiagnostics()];
+  const configDiagnosticsCount = diagnostics.length;
+  for (const diagnostic of program.getSyntacticDiagnostics()) diagnostics.push(diagnostic);
+  if (diagnostics.length === configDiagnosticsCount) {
+    for (const diagnostic of program.getProgramDiagnostics()) diagnostics.push(diagnostic);
+  }
+  diagnostics = sortAndDeduplicateDiagnostics(diagnostics);
+  reporter.reportAll(diagnostics);
+  if (program.options.explainFiles === true) {
+    sys.write(program.explainFiles(locale));
+  } else {
+    let out = '';
+    for (const file of program.getSourceFiles()) out += file.fileName + '\n';
+    sys.write(out);
+  }
+  errorSummary.report(diagnostics);
+  return diagnostics.length > 0 ? ExitStatus.DiagnosticsPresent_OutputsSkipped : ExitStatus.Success;
 }
 
 /** The nearest `tsconfig.json` in `directory` or its ancestors, or `''`. */

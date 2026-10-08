@@ -8,10 +8,10 @@ import {
   Resolver,
   getAutomaticTypeDirectiveNames,
   resolveConfig,
-  type ModuleResolutionOptions,
   type PackageId,
   type ResolvedProjectReference,
 } from '../compiler/module-resolution.js';
+import type { CompilerOptions } from '../compiler/options.js';
 import { parseJson, type JsonObject } from '../compiler/package-json.js';
 import {
   changeExtension,
@@ -218,7 +218,7 @@ function stringMap(o: JsonObject, key: string): Map<string, string> {
   return result;
 }
 
-function readOptions(o: JsonObject): ModuleResolutionOptions {
+function readOptions(o: JsonObject): CompilerOptions {
   let paths: Map<string, string[]> | undefined;
   const pathsValue = o.entries.get('paths');
   if (pathsValue !== undefined && pathsValue.type === 'array') {
@@ -229,9 +229,9 @@ function readOptions(o: JsonObject): ModuleResolutionOptions {
     }
   }
   return {
-    moduleResolution: num(o, 'moduleResolution'),
-    module: num(o, 'module'),
-    target: num(o, 'target'),
+    moduleResolution: enumValue(o, 'moduleResolution'),
+    module: enumValue(o, 'module'),
+    target: enumValue(o, 'target'),
     allowJs: bool(o, 'allowJs'),
     checkJs: bool(o, 'checkJs'),
     resolveJsonModule: bool(o, 'resolveJsonModule'),
@@ -252,6 +252,12 @@ function readOptions(o: JsonObject): ModuleResolutionOptions {
     declarationDir: str(o, 'declarationDir'),
     rootDir: str(o, 'rootDir'),
   };
+}
+
+/** Go encodes unset enum options as 0. */
+function enumValue(o: JsonObject, key: string): number | undefined {
+  const value = num(o, key);
+  return value === 0 ? undefined : value;
 }
 
 //// JSON output

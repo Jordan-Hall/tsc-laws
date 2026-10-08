@@ -13,6 +13,8 @@ const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '../../..');
 const tsgo = join(root, 'packages/tsgo/dist/tsgo');
 const haveScript = existsSync('/usr/bin/script');
+// tsgo's embedded lib files, which ours reads as `bundled:///libs/` from here.
+const bundledLibs = join(root, 'upstream/typescript-go/internal/bundled/libs');
 
 const work = mkdtempSync(join(tmpdir(), 'tsc-ts-cli-'));
 const out = join(work, 'build');
@@ -537,7 +539,7 @@ function shellQuote(s) {
 function run(command, testCase, label) {
   const dir = mkdtempSync(join(work, label + '-'));
   setUp(dir, testCase.files);
-  const env = { PATH: process.env.PATH ?? '', ...testCase.env };
+  const env = { PATH: process.env.PATH ?? '', TSC_TS_BUNDLED_LIBS: bundledLibs, ...testCase.env };
   let file = command[0];
   let args = [...command.slice(1), ...testCase.args];
   if (testCase.width !== undefined) {
@@ -591,21 +593,17 @@ async function compare(cases) {
   const counts = { total: cases.length, matched: 0, skipped: 0, seam: 0 };
   const skips = new Map();
   const failures = [];
-  await pool(cases, 24, async (testCase) => {
+  await pool(cases, 12, async (testCase) => {
     if (testCase.skip) {
       counts.skipped++;
       skips.set(testCase.skip, (skips.get(testCase.skip) ?? 0) + 1);
       return;
     }
     if (testCase.seam) {
-      // Runs only ours: tsgo would compile (or watch) here.
+      // tsgo may check and emit here: compare only if ours stops before that.
       const actual = await run(ours, testCase, 'ours');
       if (actual.status === 5 && actual.stderr.includes('is not implemented yet')) {
         counts.seam++;
-        return;
-      }
-      if (testCase.seam !== 'maybe') {
-        failures.push(`${describe(testCase)}: expected to reach compilation, got status ${actual.status}`);
         return;
       }
     }

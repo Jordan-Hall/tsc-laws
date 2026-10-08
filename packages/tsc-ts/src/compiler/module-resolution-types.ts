@@ -3,96 +3,20 @@
  */
 
 import { Diagnostics, type Diagnostic, type DiagnosticMessage } from './diagnostics.js';
+import {
+  getAllowJS,
+  getModuleResolutionKind,
+  getResolveJsonModule,
+  ModuleKind,
+  ModuleResolutionKind,
+  type CompilerOptions,
+} from './options.js';
 import { combinePaths, getDirectoryPath, normalizePath } from './path.js';
 
-export enum ModuleKind {
-  None = 0,
-  CommonJS = 1,
-  AMD = 2,
-  UMD = 3,
-  System = 4,
-  ES2015 = 5,
-  ES2020 = 6,
-  ES2022 = 7,
-  ESNext = 99,
-  Node16 = 100,
-  Node18 = 101,
-  Node20 = 102,
-  NodeNext = 199,
-  Preserve = 200,
-}
+export { ModuleKind, ModuleResolutionKind } from './options.js';
 
 /** The module format a specifier is resolved for: `None`, `CommonJS` or `ESNext`. */
 export type ResolutionMode = ModuleKind;
-
-export enum ModuleResolutionKind {
-  Unknown = 0,
-  Classic = 1,
-  Node10 = 2,
-  Node16 = 3,
-  NodeNext = 99,
-  Bundler = 100,
-}
-
-export enum ScriptTarget {
-  None = 0,
-  ES5 = 1,
-  ES2015 = 2,
-  ES2016 = 3,
-  ES2017 = 4,
-  ES2018 = 5,
-  ES2019 = 6,
-  ES2020 = 7,
-  ES2021 = 8,
-  ES2022 = 9,
-  ES2023 = 10,
-  ES2024 = 11,
-  ES2025 = 12,
-  ESNext = 99,
-  JSON = 100,
-}
-
-export enum JsxEmit {
-  None = 0,
-  Preserve = 1,
-  ReactNative = 2,
-  React = 3,
-  ReactJSX = 4,
-  ReactJSXDev = 5,
-}
-
-/** The compiler options module resolution reads. Absent booleans are "not set". */
-export interface ModuleResolutionOptions {
-  moduleResolution?: ModuleResolutionKind;
-  module?: ModuleKind;
-  target?: ScriptTarget;
-  allowJs?: boolean;
-  checkJs?: boolean;
-  resolveJsonModule?: boolean;
-  resolvePackageJsonExports?: boolean;
-  resolvePackageJsonImports?: boolean;
-  noDtsResolution?: boolean;
-  preserveSymlinks?: boolean;
-  traceResolution?: boolean;
-  customConditions?: readonly string[];
-  moduleSuffixes?: readonly string[];
-  rootDirs?: readonly string[];
-  /** Set (even empty) means type roots come from configuration. */
-  typeRoots?: readonly string[];
-  types?: readonly string[];
-  /** In declaration order. */
-  paths?: ReadonlyMap<string, readonly string[]>;
-  /** Directory `paths` are relative to; defaults to the current directory. */
-  pathsBasePath?: string;
-  configFilePath?: string;
-  outDir?: string;
-  declarationDir?: string;
-  rootDir?: string;
-  jsx?: JsxEmit;
-  strict?: boolean;
-  noImplicitAny?: boolean;
-  allowArbitraryExtensions?: boolean;
-}
 
 /** File system access for resolution. Paths passed in are absolute and use `/`. */
 export abstract class ModuleResolutionHost {
@@ -110,7 +34,7 @@ export abstract class ModuleResolutionHost {
 /** A referenced project whose options apply to files it contains. */
 export interface ResolvedProjectReference {
   readonly configName: string;
-  readonly options: ModuleResolutionOptions | undefined;
+  readonly options: CompilerOptions | undefined;
 }
 
 export interface PackageId {
@@ -159,42 +83,6 @@ export const inferredTypesContainingFile = '__inferred type names__.ts';
 
 //// Option defaults
 
-export function getEmitScriptTarget(options: ModuleResolutionOptions): ScriptTarget {
-  return options.target !== undefined && options.target !== ScriptTarget.None ? options.target : ScriptTarget.ES2025;
-}
-
-export function getEmitModuleKind(options: ModuleResolutionOptions): ModuleKind {
-  if (options.module !== undefined && options.module !== ModuleKind.None) return options.module;
-  const target = getEmitScriptTarget(options);
-  if (target === ScriptTarget.ESNext) return ModuleKind.ESNext;
-  if (target >= ScriptTarget.ES2022) return ModuleKind.ES2022;
-  if (target >= ScriptTarget.ES2020) return ModuleKind.ES2020;
-  if (target >= ScriptTarget.ES2015) return ModuleKind.ES2015;
-  return ModuleKind.CommonJS;
-}
-
-/** The effective kind; `classic` and `node10` are no longer supported and fall back like an unset option. */
-export function getModuleResolutionKind(options: ModuleResolutionOptions): ModuleResolutionKind {
-  const kind = options.moduleResolution ?? ModuleResolutionKind.Unknown;
-  if (
-    kind !== ModuleResolutionKind.Unknown &&
-    kind !== ModuleResolutionKind.Classic &&
-    kind !== ModuleResolutionKind.Node10
-  ) {
-    return kind;
-  }
-  switch (getEmitModuleKind(options)) {
-    case ModuleKind.Node16:
-    case ModuleKind.Node18:
-    case ModuleKind.Node20:
-      return ModuleResolutionKind.Node16;
-    case ModuleKind.NodeNext:
-      return ModuleResolutionKind.NodeNext;
-    default:
-      return ModuleResolutionKind.Bundler;
-  }
-}
-
 export function moduleResolutionKindName(kind: ModuleResolutionKind): string {
   switch (kind) {
     case ModuleResolutionKind.Classic:
@@ -212,19 +100,8 @@ export function moduleResolutionKindName(kind: ModuleResolutionKind): string {
   }
 }
 
-export function getResolveJsonModule(options: ModuleResolutionOptions): boolean {
-  if (options.resolveJsonModule !== undefined) return options.resolveJsonModule;
-  const module = getEmitModuleKind(options);
-  if (module === ModuleKind.Node20 || module === ModuleKind.NodeNext) return true;
-  return getModuleResolutionKind(options) === ModuleResolutionKind.Bundler;
-}
-
-export function getAllowJs(options: ModuleResolutionOptions): boolean {
-  return options.allowJs ?? options.checkJs === true;
-}
-
 /** Configured `typeRoots`, or every ancestor `node_modules/@types` of the config directory. */
-export function getEffectiveTypeRoots(options: ModuleResolutionOptions, currentDirectory: string): readonly string[] {
+export function getEffectiveTypeRoots(options: CompilerOptions, currentDirectory: string): readonly string[] {
   if (options.typeRoots !== undefined) return options.typeRoots;
   let directory =
     options.configFilePath !== undefined && options.configFilePath !== ''
@@ -242,7 +119,7 @@ export function getEffectiveTypeRoots(options: ModuleResolutionOptions, currentD
 }
 
 /** Export/import conditions in priority order. */
-export function getConditions(options: ModuleResolutionOptions, mode: ResolutionMode): string[] {
+export function getConditions(options: CompilerOptions, mode: ResolutionMode): string[] {
   const kind = getModuleResolutionKind(options);
   if (mode === ModuleKind.None && kind === ModuleResolutionKind.Bundler) mode = ModuleKind.ESNext;
   const conditions = [mode === ModuleKind.ESNext ? 'import' : 'require'];
@@ -327,12 +204,12 @@ export function comparePatternKeys(a: string, b: string): number {
  * Arguments are the module name and the resolved file name.
  */
 export function getResolutionDiagnostic(
-  options: ModuleResolutionOptions,
+  options: CompilerOptions,
   resolved: ResolvedModule,
   isDeclarationFile: boolean,
 ): DiagnosticMessage | undefined {
-  const needJsx = options.jsx === undefined || options.jsx === JsxEmit.None;
-  const needAllowJs = !getAllowJs(options) && (options.noImplicitAny ?? options.strict) === true;
+  const needJsx = options.jsx === undefined;
+  const needAllowJs = !getAllowJS(options) && (options.noImplicitAny ?? options.strict) === true;
   switch (resolved.extension) {
     case '.ts':
     case '.d.ts':

@@ -21,18 +21,14 @@ import {
   ModuleResolutionHost,
   ModuleResolutionKind,
   comparePatternKeys,
-  getAllowJs,
   getConditions,
   getEffectiveTypeRoots,
-  getModuleResolutionKind,
-  getResolveJsonModule,
   inferredTypesContainingFile,
   mangleScopedPackageName,
   moduleResolutionKindName,
   packageIdToString,
   parseNodeModuleFromPath,
   parsePackageName,
-  type ModuleResolutionOptions,
   type PackageId,
   type ResolutionMode,
   type ResolvedModule,
@@ -53,6 +49,7 @@ import {
   type PackageJsonInfo,
   type VersionPaths,
 } from './package-json.js';
+import { getAllowJS, getModuleResolutionKind, getResolveJsonModule, type CompilerOptions } from './options.js';
 import {
   changeExtension,
   combinePaths,
@@ -161,7 +158,7 @@ interface ParsedPatterns {
   readonly patterns: readonly Pattern[];
 }
 
-function parsePatterns(paths: ReadonlyMap<string, readonly string[]>): ParsedPatterns {
+function parsePatterns(paths: ReadonlyMap<string, readonly string[] | undefined>): ParsedPatterns {
   const exact = new Set<string>();
   const patterns: Pattern[] = [];
   for (const key of paths.keys()) {
@@ -290,7 +287,7 @@ export class Resolver {
 
   constructor(
     readonly host: ModuleResolutionHost,
-    readonly options: ModuleResolutionOptions,
+    readonly options: CompilerOptions,
     /** Global typings cache for automatic type acquisition, or `''`. */
     readonly typingsLocation = '',
     readonly projectName = '',
@@ -530,9 +527,9 @@ export class Resolver {
 }
 
 function optionsWithRedirect(
-  options: ModuleResolutionOptions,
+  options: CompilerOptions,
   redirect: ResolvedProjectReference | undefined,
-): ModuleResolutionOptions {
+): CompilerOptions {
   return redirect?.options ?? options;
 }
 
@@ -553,7 +550,7 @@ export function resolveConfig(moduleName: string, containingFile: string, host: 
 }
 
 /** The `types` entries to include automatically, expanding `*` to every package in the type roots. */
-export function getAutomaticTypeDirectiveNames(options: ModuleResolutionOptions, host: ModuleResolutionHost): string[] {
+export function getAutomaticTypeDirectiveNames(options: CompilerOptions, host: ModuleResolutionHost): string[] {
   const types = options.types ?? [];
   if (!types.includes('*')) return types.slice();
   const wildcardMatches: string[] = [];
@@ -615,7 +612,7 @@ class ResolutionState {
     public containingDirectory: string,
     isTypeReferenceDirective: boolean,
     mode: ResolutionMode,
-    readonly options: ModuleResolutionOptions,
+    readonly options: CompilerOptions,
   ) {
     this.host = resolver.host;
     if (isTypeReferenceDirective) this.extensions = Extensions.Declaration;
@@ -855,7 +852,7 @@ class ResolutionState {
     for (let i = nameParts.length; i < parts.length; i++) subpath = combinePaths(subpath, parts[i]);
     // Two passes keep @types packages higher in the tree ahead of untyped implementations, as in
     // node_modules lookups. With allowJs, one pass lets self-names map back to input JS files.
-    if (getAllowJs(this.options) && !this.containingDirectory.includes('/node_modules/')) {
+    if (getAllowJS(this.options) && !this.containingDirectory.includes('/node_modules/')) {
       return this.loadModuleFromExports(scope, this.extensions, subpath);
     }
     const priority = this.extensions & (Extensions.TypeScript | Extensions.Declaration);
@@ -1521,7 +1518,7 @@ class ResolutionState {
     extensions: number,
     moduleName: string,
     containingDirectory: string,
-    paths: ReadonlyMap<string, readonly string[]>,
+    paths: ReadonlyMap<string, readonly string[] | undefined>,
     patterns: ParsedPatterns,
     loader: PathsLoader,
   ): Resolved | undefined {
@@ -2009,7 +2006,7 @@ class ResolutionState {
 
 const OUTPUT_EXTENSIONS: readonly string[] = ['.mjs', '.cjs', '.js', '.json', '.d.mts', '.d.cts', '.d.ts'];
 
-function bundlerFeatures(options: ModuleResolutionOptions): number {
+function bundlerFeatures(options: CompilerOptions): number {
   let features: number = Features.BundlerDefault;
   if (options.resolvePackageJsonExports === true) features |= Features.Exports;
   else if (options.resolvePackageJsonExports === false) features &= ~Features.Exports;

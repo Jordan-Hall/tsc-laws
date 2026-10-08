@@ -1,22 +1,57 @@
 // Usage: cli [tsc arguments]
-// Runs the tsc command line up to compilation, which is not implemented yet.
+// Runs the tsc command line up to binding, which is not implemented yet.
+// Lib files come from TSC_TS_LIB_DIR, or the script's directory. With TSC_TS_BUNDLED_LIBS set, they are read
+// from that directory as `bundled:///libs/`, like tsgo's embedded libraries.
 import { spawnSync } from 'node:child_process';
-import { readFileSync, statSync, writeFileSync, writeSync } from 'node:fs';
+import { readdirSync, readFileSync, realpathSync, statSync, writeFileSync, writeSync } from 'node:fs';
+import { dirname } from 'node:path';
+import { DirectoryEntries } from '../compiler/file-system.js';
 import { normalizePath } from '../compiler/path.js';
 import { ExitStatus, System, executeCommandLine } from '../compiler/tsc-cli.js';
 
+const bundledPrefix = 'bundled:///libs/';
+
 class NodeSystem extends System {
+  constructor(
+    currentDirectory: string,
+    writeOutputIsTTY: boolean,
+    terminalWidth: number,
+    defaultLibraryPath: string,
+    /** The directory `bundled:///libs/` maps to, or `''`. */
+    private readonly bundledLibs: string,
+  ) {
+    super(currentDirectory, writeOutputIsTTY, terminalWidth, true, defaultLibraryPath);
+  }
+
   getEnvironmentVariable(name: string): string {
     return process.env[name] ?? '';
   }
 
   write(text: string): void {
-    writeSync(1, text);
+    // A pipe may be non-blocking (EAGAIN): retry a while until everything is written.
+    const bytes = Buffer.from(text);
+    let offset = 0;
+    let failures = 0;
+    while (offset < bytes.length) {
+      try {
+        offset += writeSync(1, bytes, offset);
+        failures = 0;
+      } catch {
+        if (++failures > 100000) throw new Error('cannot write to stdout');
+      }
+    }
+  }
+
+  private toOsPath(path: string): string {
+    if (this.bundledLibs !== '' && path.startsWith(bundledPrefix)) {
+      return this.bundledLibs + '/' + path.slice(bundledPrefix.length);
+    }
+    return path;
   }
 
   readFile(path: string): string | undefined {
     try {
-      return readFileSync(path, 'utf8');
+      return readFileSync(this.toOsPath(path), 'utf8');
     } catch {
       return undefined;
     }
@@ -33,7 +68,7 @@ class NodeSystem extends System {
 
   fileExists(path: string): boolean {
     try {
-      return statSync(path).isFile();
+      return statSync(this.toOsPath(path)).isFile();
     } catch {
       return false;
     }
@@ -41,11 +76,58 @@ class NodeSystem extends System {
 
   directoryExists(path: string): boolean {
     try {
-      return statSync(path).isDirectory();
+      return statSync(this.toOsPath(path)).isDirectory();
     } catch {
       return false;
     }
   }
+
+  getAccessibleEntries(path: string): DirectoryEntries {
+    const files: string[] = [];
+    const directories: string[] = [];
+    const symlinks = new Set<string>();
+    let entries;
+    try {
+      entries = readdirSync(this.toOsPath(path), { withFileTypes: true });
+    } catch {
+      return new DirectoryEntries(files, directories, symlinks);
+    }
+    const names = entries.map((entry) => entry.name).sort(compareUtf8);
+    const byName = new Map(entries.map((entry) => [entry.name, entry]));
+    for (const name of names) {
+      const entry = byName.get(name);
+      if (entry === undefined) continue;
+      if (entry.isDirectory()) directories.push(name);
+      else if (entry.isFile()) files.push(name);
+      else if (entry.isSymbolicLink()) {
+        try {
+          const stat = statSync(this.toOsPath(path) + '/' + name);
+          if (stat.isDirectory()) directories.push(name);
+          else if (stat.isFile()) files.push(name);
+          else continue;
+          symlinks.add(name);
+        } catch {
+          // A broken link.
+        }
+      }
+    }
+    return new DirectoryEntries(files, directories, symlinks);
+  }
+
+  realpath(path: string): string {
+    try {
+      return normalizePath(realpathSync(path));
+    } catch {
+      return path;
+    }
+  }
+}
+
+/** Orders names by UTF-8 bytes, as Go's directory listing does. */
+function compareUtf8(a: string, b: string): number {
+  const x = Buffer.from(a);
+  const y = Buffer.from(b);
+  return Buffer.compare(x, y);
 }
 
 /** Columns of the terminal, from `stty` since there's no portable API for it. */
@@ -56,14 +138,22 @@ function terminalWidth(): number {
   return Number.isInteger(columns) ? columns : 0;
 }
 
+const bundledLibs = process.env.TSC_TS_BUNDLED_LIBS ?? '';
+const libraryPath =
+  bundledLibs !== '' ? 'bundled:///libs' : (process.env.TSC_TS_LIB_DIR ?? dirname(process.argv[1] ?? '.'));
 const isTTY = process.stdout.isTTY === true;
-const sys = new NodeSystem(normalizePath(process.cwd()), isTTY, isTTY ? terminalWidth() : 0, true);
+const sys = new NodeSystem(
+  normalizePath(process.cwd()),
+  isTTY,
+  isTTY ? terminalWidth() : 0,
+  normalizePath(libraryPath),
+  bundledLibs,
+);
 const result = executeCommandLine(sys, process.argv.slice(2));
 if (result.kind === 'exit') {
   process.exitCode = result.status;
 } else {
-  process.stderr.write(
-    `tsc-ts: ${result.kind === 'config' ? 'tsconfig.json loading' : result.kind} is not implemented yet\n`,
-  );
+  const stage = result.kind === 'compile' ? 'checking and emit' : result.kind;
+  process.stderr.write(`tsc-ts: ${stage} is not implemented yet\n`);
   process.exitCode = ExitStatus.NotImplemented;
 }

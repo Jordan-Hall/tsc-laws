@@ -393,7 +393,8 @@ const ABSENT_MAP: Expected<ReadonlyMap<string, string>> = { actualType: undefine
 export interface VersionPaths {
   /** The matching `typesVersions` key. */
   readonly version: string;
-  readonly paths: ReadonlyMap<string, readonly string[]>;
+  /** Values are never `undefined`; the type matches compiler options' `paths`. */
+  readonly paths: ReadonlyMap<string, readonly string[] | undefined>;
 }
 
 export class PackageJson {
@@ -482,8 +483,8 @@ export class PackageJson {
   }
 }
 
-function versionPathsFromJson(value: JsonObject): Map<string, string[]> {
-  const paths = new Map<string, string[]>();
+function versionPathsFromJson(value: JsonObject): Map<string, string[] | undefined> {
+  const paths = new Map<string, string[] | undefined>();
   for (const [key, entry] of value.entries) {
     if (entry.type !== 'array') continue;
     const substitutions: string[] = [];
