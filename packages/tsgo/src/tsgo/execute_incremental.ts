@@ -10,13 +10,13 @@ import * as $compiler from './compiler.js';
 import * as $core from './core.js';
 import * as $diagnostics from './diagnostics.js';
 import * as $json from './json.js';
+import * as $module from './module.js';
 import * as $outputpaths from './outputpaths.js';
 import * as $packagejson from './packagejson.js';
 import * as $tracing from './tracing.js';
 import * as $tsoptions from './tsoptions.js';
 import * as $tspath from './tspath.js';
 import type * as $execute_build from './execute_build.js';
-import type * as $module from './module.js';
 import type * as $vfs from './vfs.js';
 import { OrderedMap as $collections$OrderedMap } from './collections.js';
 import { Set_ as $collections$Set_ } from './collections.js';
@@ -1785,7 +1785,7 @@ export class Program extends $rt.GoObject {
       $t1 = $compiler.EmitResult.$lit_compiler_EmitResult_0_2(false, [buildInfoFileName]);
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -1810,7 +1810,7 @@ export class Program extends $rt.GoObject {
             hasIncludeProcessingDiagnostics === undefined &&
             p!.program!.GetIncludeProcessorDiagnostics(file).length > 0
           ) {
-            hasIncludeProcessingDiagnostics = $fn1;
+            hasIncludeProcessingDiagnostics = $fn3;
           }
           return false;
         })
@@ -1818,7 +1818,7 @@ export class Program extends $rt.GoObject {
         hasEmitDiagnostics = true;
       }
       if (hasIncludeProcessingDiagnostics === undefined) {
-        hasIncludeProcessingDiagnostics = $fn2;
+        hasIncludeProcessingDiagnostics = $fn4;
       }
     } else {
       hasEmitDiagnostics = p!.snapshot_!.hasEmitDiagnostics;
@@ -2076,7 +2076,7 @@ export class affectedFilesHandler extends $rt.GoObject {
       $t1 = !(update!.signature === prevSignature);
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -2665,7 +2665,7 @@ export class buildInfoReader extends $rt.GoObject {
     if (buildInfoFileName === ('' as string)) {
       return undefined;
     }
-    const $t1 = $rt.nn($rt.nn(r!.host).FS$m()).ReadFile(buildInfoFileName);
+    const $t1 = $fn2($rt.nn($rt.nn(r!.host).FS$m()), buildInfoFileName);
     const data: string = $t1[0];
     const ok: boolean = $t1[1];
     if (!ok) {
@@ -2943,7 +2943,7 @@ export class emitFilesHandler extends $rt.GoObject {
         }
         let aTime: $rt.time_Time = new $rt.time_Time();
         if (differsOnlyInMap) {
-          aTime = $rt.nn(h!.program!.host).GetMTime(fileName);
+          aTime = $fn1($rt.nn(h!.program!.host), fileName);
         }
         let err: $rt.GoObject | undefined = undefined as $rt.GoObject | undefined;
         if (!(options.WriteFile_ === undefined)) {
@@ -3254,7 +3254,7 @@ export class referenceMap extends $rt.GoObject {
     if (ok$1) {
       return $rt.maps_Keys($collections$Set_.Keys$nil<$tspath.Path>(refs));
     }
-    return $fn5;
+    return $fn7;
   }
 }
 export class snapshot extends $rt.GoObject {
@@ -3501,7 +3501,7 @@ export class toBuildInfo extends $rt.GoObject {
       )(t),
     );
     $rt.slices_Sort(fileIds);
-    const key: string = $rt.strings_Join($core.Map_<BuildInfoFileId, string>($zf2, fileIds, $fn6), ',');
+    const key: string = $rt.strings_Join($core.Map_<BuildInfoFileId, string>($zf2, fileIds, $fn8), ',');
     let fileIdListId: BuildInfoFileIdListId = t!.fileNamesToFileIdListId?.get(key) ?? 0;
     if (fileIdListId === (0 as number)) {
       t!.buildInfo!.FileIdsList.push(fileIds);
@@ -3759,7 +3759,7 @@ export class toBuildInfo extends $rt.GoObject {
     const t = this;
     $tsoptions.ForEachCompilerOptionValue(
       t!.snapshot_!.options,
-      $fn7,
+      $fn9,
       (option$1: $tsoptions.CommandLineOption | undefined, value: $rt.reflect_Value, i: number): boolean => {
         if (value.IsZero()) {
           return false;
@@ -4452,26 +4452,34 @@ export const FileEmitKindNone: FileEmitKind = 0;
 export const SignatureUpdateKindComputedDts: SignatureUpdateKind = 0;
 export const SignatureUpdateKindStoredAtEmit: SignatureUpdateKind = 1;
 export const SignatureUpdateKindUsedVersion: SignatureUpdateKind = 2;
+interface $I0 {
+  GetMTime(a0: string): $rt.time_Time;
+}
+interface $I1 {
+  ReadFile(a0: string): [string, boolean];
+}
 const $fn0 = (file$1: $ast.SourceFile | undefined): boolean => {
   return !(file$1 === undefined);
 };
-const $fn1 = (): boolean => {
+const $fn1 = ($r: $I0, a0: string): $rt.time_Time => $r.GetMTime(a0);
+const $fn2 = ($r: $I1, a0: string): [string, boolean] => $r.ReadFile(a0);
+const $fn3 = (): boolean => {
   return true;
 };
-const $fn2 = (): boolean => {
+const $fn4 = (): boolean => {
   return false;
 };
-const $fn3 = (augmentation: $ast.Node | undefined): boolean => {
+const $fn5 = (augmentation: $ast.Node | undefined): boolean => {
   return $ast.IsGlobalScopeAugmentation(augmentation!.Parent);
 };
-const $fn4 = (stmt: $ast.Node | undefined): boolean => {
+const $fn6 = (stmt: $ast.Node | undefined): boolean => {
   return !$ast.IsModuleWithStringLiteralName(stmt);
 };
-const $fn5 = (yield_: ((p0: $tspath.Path) => boolean) | undefined): void => {};
-const $fn6 = (id: BuildInfoFileId): string => {
+const $fn7 = (yield_: ((p0: $tspath.Path) => boolean) | undefined): void => {};
+const $fn8 = (id: BuildInfoFileId): string => {
   return $rt.fmt_Sprintf('%d', [new $rt.BoxNum(id, 'execute/incremental.BuildInfoFileId')]);
 };
-const $fn7 = (option: $tsoptions.CommandLineOption | undefined): boolean => {
+const $fn9 = (option: $tsoptions.CommandLineOption | undefined): boolean => {
   return option!.AffectsBuildInfo;
 };
 export function dtsMayChange$addFileToAffectedFilesPendingEmit(
@@ -4747,7 +4755,7 @@ export function programToSnapshot(
 }
 export function fileAffectsGlobalScope(file: $ast.SourceFile | undefined): boolean {
   $binder.BindSourceFile(file);
-  if ($core.Some<$ast.Node | undefined>(file!.ModuleAugmentations, $fn3)) {
+  if ($core.Some<$ast.Node | undefined>(file!.ModuleAugmentations, $fn5)) {
     return true;
   }
   if ($ast.IsExternalOrCommonJSModule(file) || $ast.IsJsonSourceFile(file)) {
@@ -4756,7 +4764,7 @@ export function fileAffectsGlobalScope(file: $ast.SourceFile | undefined): boole
   return (
     !(file!.Statements_ === undefined) &&
     !(file!.Statements_!.Nodes.length === 0) &&
-    $core.Some<$ast.Node | undefined>(file!.Statements_!.Nodes, $fn4)
+    $core.Some<$ast.Node | undefined>(file!.Statements_!.Nodes, $fn6)
   );
 }
 export function addReferencedFilesFromSymbol(
@@ -4877,7 +4885,7 @@ export function getReferencedFiles(
     );
     break $body;
   } catch ($e) {
-    $panic = $rt.toPanic($e);
+    $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
   } finally {
     $panic = $rt.runDefers($defers, $panic);
   }

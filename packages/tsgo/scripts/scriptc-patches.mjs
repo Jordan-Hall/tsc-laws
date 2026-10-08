@@ -15,6 +15,14 @@ export const patches = [
     from: "      baseName += '_';\n    }\n    let i: number = 1;",
     to: "      baseName = String(baseName) + '_';\n    }\n    let i: number = 1;",
   },
+  {
+    // `pos++` in this boolean function is rejected as an increment of a
+    // non-number.
+    file: 'src/tsgo/compiler.ts',
+    within: 'export function isCommentOrBlankLine(',
+    from: 'pos++;',
+    to: 'pos = pos + 1;',
+  },
   // orderedSet<Type | undefined> crashes code generation ("expected object,
   // got union"); it is the only instantiation, so make the class concrete.
   { file: 'src/tsgo/checker.ts', from: 'orderedSet<Type | undefined>', to: 'orderedSet', count: 4 },

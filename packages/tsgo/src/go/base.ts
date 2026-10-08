@@ -190,7 +190,8 @@ export function runDefers(defers: (() => void)[], p: Panic | undefined): Panic |
       defer();
       active = current;
     } catch (e) {
-      active = toPanic(e);
+      // scriptc keeps the class of a caught value only for tests on the binding.
+      active = e instanceof Panic ? e : toPanic(e);
     }
     current = saved;
   }
@@ -533,6 +534,11 @@ export function stubCall<T>(what: string, zero: T): T {
   throw new Error('unsupported: ' + what);
 }
 
+export function stubVoid(what: string): void {
+  if (initializing) return;
+  throw new Error('unsupported: ' + what);
+}
+
 // Non-generic type assertion helpers.
 export function typeAssertError(): Panic {
   return new Panic(new BoxStr('interface conversion', 'string'));
@@ -564,10 +570,32 @@ export function unboxAny<T>(v: GoObject | undefined): T {
   return (v === undefined ? v : v.$unbox()) as T;
 }
 
-// fromBytes converts file contents to a byte string. It remembers the
-// bytes so stringBytes can return them without converting back.
-let lastText = '';
-let lastBytes: Uint8Array = new Uint8Array(0);
+// A byte string and its bytes. (Typed arrays are not Map values in scriptc.)
+class TextBytes {
+  readonly text: string;
+  readonly bytes: Uint8Array;
+  constructor(text: string, bytes: Uint8Array) {
+    this.text = text;
+    this.bytes = bytes;
+  }
+}
+
+// Natively, indexing a string with non-ASCII characters is slow, so the
+// bytes of file contents are remembered for stringBytes: by text, and the
+// most recently used ones by identity.
+const textBytes = new Map<string, TextBytes>();
+let textBytesSize = 0;
+const recentBytes: TextBytes[] = [];
+
+function useBytes(entry: TextBytes): void {
+  if (recentBytes.length > 0 && recentBytes[0] === entry) return;
+  const i = recentBytes.indexOf(entry);
+  if (i >= 0) recentBytes.splice(i, 1);
+  else if (recentBytes.length >= 16) recentBytes.pop();
+  recentBytes.unshift(entry);
+}
+
+// fromBytes converts file contents to a byte string.
 export function fromBytes(bytes: Uint8Array): string {
   const parts: string[] = [];
   for (let i = 0; i < bytes.length; i += 4096) {
@@ -577,8 +605,19 @@ export function fromBytes(bytes: Uint8Array): string {
     parts.push(String.fromCharCode(...codes));
   }
   const text = parts.join('');
-  lastText = text;
-  lastBytes = bytes;
+  const known = textBytes.get(text);
+  if (known !== undefined) useBytes(known);
+  else {
+    // Bounded, for long-running hosts that read many file versions.
+    if (textBytesSize + bytes.length > 512 * 1024 * 1024) {
+      clearMap(textBytes);
+      textBytesSize = 0;
+    }
+    const entry = new TextBytes(text, bytes);
+    textBytes.set(text, entry);
+    textBytesSize += bytes.length;
+    useBytes(entry);
+  }
   return text;
 }
 
@@ -597,12 +636,29 @@ export function ptrTo<T>(g: () => T, s: (v: T) => void): Ptr<T> {
 
 export const EMPTY_BYTES = new Uint8Array(0);
 
-// stringBytes copies a byte string into a Uint8Array for fast indexing.
+// stringBytes returns a byte string's bytes for fast indexing. The scanner
+// sets each file's text many times, and a prefix of it for each JSDoc
+// comment.
 export function stringBytes(s: string): Uint8Array {
-  if (s.length === lastBytes.length && s === lastText) return lastBytes;
+  for (const entry of recentBytes) {
+    if (entry.text.length === s.length && entry.text === s) {
+      useBytes(entry);
+      return entry.bytes;
+    }
+  }
+  if (recentBytes.length > 0) {
+    const last = recentBytes[0];
+    if (s.length < last.text.length && last.text.startsWith(s)) return last.bytes.subarray(0, s.length);
+  }
+  const known = textBytes.get(s);
+  if (known !== undefined) {
+    useBytes(known);
+    return known.bytes;
+  }
   const n = s.length;
   const out = new Uint8Array(n);
   for (let i = 0; i < n; i++) out[i] = s.charCodeAt(i);
+  if (n > 4096) useBytes(new TextBytes(s, out));
   return out;
 }
 
@@ -791,9 +847,12 @@ export function toStructMap<K, V>(m: Map<K, V> | undefined): StructMap<K, V> | u
 
 // nn is v!, panicking on nil.
 export function nn<T>(v: T | undefined): T {
-  if (v === undefined)
-    throw new Panic(new BoxStr('runtime error: invalid memory address or nil pointer dereference', 'string'));
+  if (v === undefined) throw nilDereference();
   return v;
+}
+
+export function nilDereference(): Panic {
+  return new Panic(new BoxStr('runtime error: invalid memory address or nil pointer dereference', 'string'));
 }
 
 // swapValue stores v through set and returns old.

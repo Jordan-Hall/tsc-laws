@@ -15,7 +15,10 @@ import {
 import { SyntaxKind } from '../syntax-kind.js';
 import { EmitFlags, GeneratedIdentifierFlags } from './emit-flags.js';
 import { NodeFactory } from './factory.js';
+import type { EmitHelper } from './helpers.js';
 import { isParseTreeNode, isPrologueDirective } from './utilities.js';
+
+export { EmitHelper, compareEmitHelpers, noPriority } from './helpers.js';
 
 const enum SpanKind {
   Prologue,
@@ -37,6 +40,7 @@ function prologueText(node: Node): string {
 }
 
 /** A comment created by a transform rather than read from source text. */
+
 export class SynthesizedComment {
   readonly kind: SyntaxKind;
   readonly hasLeadingNewLine: boolean;
@@ -49,47 +53,6 @@ export class SynthesizedComment {
     this.hasLeadingNewLine = hasLeadingNewLine;
     this.hasTrailingNewLine = hasTrailingNewLine;
   }
-}
-
-/** A runtime helper such as `__decorate`, emitted once at the top of a file or scope. */
-export class EmitHelper {
-  readonly name: string;
-  /** Emitted in the scope that uses it rather than at the top of the file. */
-  readonly scoped: boolean;
-  readonly text: string;
-  /** Lower values are emitted first; helpers without a priority come last. */
-  readonly priority: number;
-  readonly dependencies: readonly EmitHelper[];
-  readonly importName: string;
-  /** For helpers that declare a file-level unique name: the base name, written in place of each `{name}` in `text`. */
-  readonly uniqueName: string;
-
-  constructor(
-    name: string,
-    scoped: boolean,
-    text: string,
-    priority: number,
-    dependencies: readonly EmitHelper[],
-    importName: string,
-    uniqueName: string,
-  ) {
-    this.name = name;
-    this.scoped = scoped;
-    this.text = text;
-    this.priority = priority;
-    this.dependencies = dependencies;
-    this.importName = importName;
-    this.uniqueName = uniqueName;
-  }
-}
-
-export const noPriority = -1;
-
-export function compareEmitHelpers(x: EmitHelper, y: EmitHelper): number {
-  if (x === y || x.priority === y.priority) return 0;
-  if (x.priority === noPriority) return 1;
-  if (y.priority === noPriority) return -1;
-  return x.priority - y.priority;
 }
 
 export class AutoGenerateInfo {

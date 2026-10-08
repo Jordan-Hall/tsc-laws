@@ -212,17 +212,6 @@ export class UserPreferences extends $rt.GoObject {
     o.ImportModuleSpecifierEnding = p1;
     return o;
   }
-  static $lit_modulespecifiers_UserPreferences_0_1_2(
-    p0: ImportModuleSpecifierPreference,
-    p1: ImportModuleSpecifierEndingPreference,
-    p2: string[],
-  ): UserPreferences {
-    const o = new UserPreferences();
-    o.ImportModuleSpecifierPreference_ = p0;
-    o.ImportModuleSpecifierEnding = p1;
-    o.AutoImportSpecifierExcludeRegexes = p2;
-    return o;
-  }
   static $cast_modulespecifiers_UserPreferences(v: $rt.GoObject | undefined): UserPreferences {
     if (v instanceof UserPreferences) return v;
     throw $rt.typeAssertError();
@@ -2362,7 +2351,7 @@ export function stringToRegex(pattern: string): $rt.regexp_Regexp | undefined {
     $t1 = compiled;
     break $body;
   } catch ($e) {
-    $panic = $rt.toPanic($e);
+    $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
   } finally {
     $panic = $rt.runDefers($defers, $panic);
   }

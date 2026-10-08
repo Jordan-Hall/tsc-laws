@@ -389,7 +389,7 @@ export class DeclarationTransformer extends $transformers.Transformer {
       $t1 = result!.AsNode$Node();
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -805,7 +805,7 @@ export class DeclarationTransformer extends $transformers.Transformer {
       $t1 = result;
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -1801,7 +1801,7 @@ export class DeclarationTransformer extends $transformers.Transformer {
       $t1 = tx!.Factory()!.NewSyntaxList([statement$1, assignment$1]);
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -1868,7 +1868,7 @@ export class DeclarationTransformer extends $transformers.Transformer {
       $t1 = tx!.Factory()!.NewClassDeclaration(modifiers, className, typeParameters, heritageClauses, members);
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -2440,7 +2440,7 @@ export class DeclarationTransformer extends $transformers.Transformer {
         );
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -2549,7 +2549,7 @@ export class DeclarationTransformer extends $transformers.Transformer {
       $t1 = tx!.thisPropertyAssignmentsCollected;
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -3203,7 +3203,7 @@ export class DeclarationTransformer extends $transformers.Transformer {
       $t1 = undefined;
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -3262,7 +3262,7 @@ export class DeclarationTransformer extends $transformers.Transformer {
       $t1 = undefined;
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -3445,7 +3445,7 @@ export class DeclarationTransformer extends $transformers.Transformer {
       $rt.appendInto($t11, statements);
       $t9!.set($t10, $t11);
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -3572,7 +3572,7 @@ export class DeclarationTransformer extends $transformers.Transformer {
         }
       }
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }

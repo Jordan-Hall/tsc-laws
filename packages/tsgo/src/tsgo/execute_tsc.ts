@@ -321,7 +321,7 @@ export class ExtendedConfigCache extends $rt.GoObject {
       $t1 = entry!.ExtendedConfigCacheEntry_;
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -482,7 +482,7 @@ export class Statistics extends $rt.GoObject {
       table$v.add(prefix + 'Total time', new $rt.BoxNum(s!.compileTimes!.totalTime, 'time.Duration'));
       table$v.print(w);
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -912,7 +912,7 @@ export function CreateBuilderStatusReporter(
           ),
         );
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -973,7 +973,7 @@ export function CreateWatchStatusReporter(
           ),
         );
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -1046,7 +1046,7 @@ export function EmitFilesAndReportErrors(input: EmitInput): CompileAndEmitResult
         $t1 = diags;
         break $body;
       } catch ($e) {
-        $panic = $rt.toPanic($e);
+        $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
       } finally {
         $panic = $rt.runDefers($defers, $panic);
       }
@@ -1074,7 +1074,7 @@ export function EmitFilesAndReportErrors(input: EmitInput): CompileAndEmitResult
         $t2 = diags$1;
         break $body;
       } catch ($e) {
-        $panic = $rt.toPanic($e);
+        $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
       } finally {
         $panic = $rt.runDefers($defers, $panic);
       }
@@ -1162,7 +1162,7 @@ export function listFiles(input: EmitInput, emitResult: $compiler.EmitResult | u
       }
     }
   } catch ($e) {
-    $panic = $rt.toPanic($e);
+    $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
   } finally {
     $panic = $rt.runDefers($defers, $panic);
   }

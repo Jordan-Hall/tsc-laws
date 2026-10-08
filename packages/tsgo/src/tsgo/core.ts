@@ -1172,12 +1172,6 @@ export class TextChange extends $rt.GoObject {
     o.$copy_core_TextChange(this);
     return o;
   }
-  static $lit_core_TextChange_1_0(p0: string, p1: TextRange): TextChange {
-    const o = new TextChange();
-    o.NewText = p0;
-    o.TextRange_ = p1;
-    return o;
-  }
   static $cast_core_TextChange(v: $rt.GoObject | undefined): TextChange {
     if (v instanceof TextChange) return v;
     throw $rt.typeAssertError();
@@ -1235,7 +1229,7 @@ export class ThrottleGroup extends $rt.GoObject {
         $t1 = fn!();
         break $body;
       } catch ($e) {
-        $panic = $rt.toPanic($e);
+        $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
       } finally {
         $panic = $rt.runDefers($defers, $panic);
       }
@@ -1461,7 +1455,7 @@ export class parallelWorkGroup extends $rt.GoObject {
       });
       w!.wg.Wait();
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -1501,7 +1495,7 @@ export class singleThreadedWorkGroup extends $rt.GoObject {
       });
       w!.fns.push(fn);
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -1525,7 +1519,7 @@ export class singleThreadedWorkGroup extends $rt.GoObject {
         fn!();
       }
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -1553,7 +1547,7 @@ export class singleThreadedWorkGroup extends $rt.GoObject {
       $t1 = fn;
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -1919,7 +1913,7 @@ export function BreadthFirstSearchParallelEx<K, N>(
             );
           }
         } catch ($e) {
-          $panic = $rt.toPanic($e);
+          $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
         } finally {
           $panic = $rt.runDefers($defers, $panic);
         }
@@ -2307,7 +2301,7 @@ export function MapNonNil<T, U>($z_U: () => U, slice: T[], f: ((p0: T) => U) | u
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
       const value = $t1[$t2];
       const mapped: U = f!(value);
-      if (!(mapped === new $rt.Ptr<U>($z_U())!.get())) {
+      if (!(mapped === $z_U())) {
         result.push(mapped);
       }
     }
@@ -2447,7 +2441,7 @@ export function Find<T>($z_T: () => T, slice: T[], f: ((p0: T) => boolean) | und
       }
     }
   }
-  return new $rt.Ptr<T>($z_T())!.get();
+  return $z_T();
 }
 export function FindLast<T>($z_T: () => T, slice: T[], f: ((p0: T) => boolean) | undefined): T {
   {
@@ -2458,7 +2452,7 @@ export function FindLast<T>($z_T: () => T, slice: T[], f: ((p0: T) => boolean) |
       }
     }
   }
-  return new $rt.Ptr<T>($z_T())!.get();
+  return $z_T();
 }
 export function FindIndex<T>(slice: T[], f: ((p0: T) => boolean) | undefined): number {
   {
@@ -2488,19 +2482,19 @@ export function FirstOrNil<T>($z_T: () => T, slice: T[]): T {
   if (!(slice.length === (0 as number))) {
     return slice[0];
   }
-  return new $rt.Ptr<T>($z_T())!.get();
+  return $z_T();
 }
 export function LastOrNil<T>($z_T: () => T, slice: T[]): T {
   if (!(slice.length === (0 as number))) {
     return slice[slice.length - 1];
   }
-  return new $rt.Ptr<T>($z_T())!.get();
+  return $z_T();
 }
 export function ElementOrNil<T>($z_T: () => T, slice: T[], index: number): T {
   if (index < slice.length) {
     return slice[index];
   }
-  return new $rt.Ptr<T>($z_T())!.get();
+  return $z_T();
 }
 export function FirstOrNilSeq<T>($z_T: () => T, seq: ((p0: ((p0: T) => boolean) | undefined) => void) | undefined): T {
   if (!(seq === undefined)) {
@@ -2514,7 +2508,7 @@ export function FirstOrNilSeq<T>($z_T: () => T, seq: ((p0: ((p0: T) => boolean) 
     });
     if ($t1) return $t2;
   }
-  return new $rt.Ptr<T>($z_T())!.get();
+  return $z_T();
 }
 export function FirstNonNil<T, U>($z_U: () => U, slice: T[], f: ((p0: T) => U) | undefined): U {
   {
@@ -2522,12 +2516,12 @@ export function FirstNonNil<T, U>($z_U: () => U, slice: T[], f: ((p0: T) => U) |
     for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
       const value = $t1[$t2];
       const mapped: U = f!(value);
-      if (!(mapped === new $rt.Ptr<U>($z_U())!.get())) {
+      if (!(mapped === $z_U())) {
         return mapped;
       }
     }
   }
-  return new $rt.Ptr<U>($z_U())!.get();
+  return $z_U();
 }
 export function FirstNonZero<T>($z_T: () => T, values: T[]): T {
   const zero: T = $z_T();
@@ -2642,7 +2636,7 @@ export function IfElse<T>(b: boolean, whenTrue: T, whenFalse: T): T {
   return whenFalse;
 }
 export function OrElse<T>($z_T: () => T, value: T, defaultValue: T): T {
-  if (!(value === new $rt.Ptr<T>($z_T())!.get())) {
+  if (!(value === $z_T())) {
     return value;
   }
   return defaultValue;
@@ -2843,7 +2837,7 @@ export function GetSpellingSuggestion<T>(
     $t1 = bestCandidate;
     break $body;
   } catch ($e) {
-    $panic = $rt.toPanic($e);
+    $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
   } finally {
     $panic = $rt.runDefers($defers, $panic);
   }

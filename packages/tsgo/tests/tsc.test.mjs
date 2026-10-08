@@ -31,30 +31,37 @@ const run = (command, args) => {
   return { status: result.status, stdout: result.stdout, stderr: result.stderr, emitted: files(join(cwd, 'dist')) };
 };
 
+// The translated tsc compiled for Node, or the native tsc-ts executable named
+// by TSC_TS_BIN (relative to the repository root).
+const translatedTsc = () => {
+  if (process.env.TSC_TS_BIN) return [resolve('../..', process.env.TSC_TS_BIN)];
+  const out = tempDir('tsc-ts-tsc-build-');
+  execFileSync(
+    resolve('../../node_modules/.bin/tsc'),
+    [
+      '--outDir',
+      out,
+      '--target',
+      'es2024',
+      '--module',
+      'nodenext',
+      '--moduleResolution',
+      'nodenext',
+      '--skipLibCheck',
+      '--types',
+      'node',
+      'src/drivers/tsc.ts',
+    ],
+    { stdio: 'inherit' },
+  );
+  return [process.execPath, '--stack-size=16000', join(out, 'drivers/tsc.js')];
+};
+
 test(
   'translated tsc matches tsgo on a project',
   { skip: !existsSync(tsgo) && 'run npm run build:oracle', timeout: 600_000 },
   () => {
-    const out = tempDir('tsc-ts-tsc-build-');
-    execFileSync(
-      resolve('../../node_modules/.bin/tsc'),
-      [
-        '--outDir',
-        out,
-        '--target',
-        'es2024',
-        '--module',
-        'nodenext',
-        '--moduleResolution',
-        'nodenext',
-        '--skipLibCheck',
-        '--types',
-        'node',
-        'src/drivers/tsc.ts',
-      ],
-      { stdio: 'inherit' },
-    );
-    const translated = [process.execPath, '--stack-size=16000', join(out, 'drivers/tsc.js')];
+    const translated = translatedTsc();
     for (const args of [
       ['-p', '.'],
       ['-p', '.', '--noEmit'],

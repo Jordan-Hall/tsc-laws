@@ -230,7 +230,7 @@ export class Tracing extends $rt.GoObject {
       tr!.writeEvent(traceEvent.$lit_tracing_traceEvent_0_1_2_3_4_5_6_8(1, tid, 'I', phase, ts, name_, 'g', args));
       tr!.maybeFlushLocked();
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -278,7 +278,7 @@ export class Tracing extends $rt.GoObject {
           tr!.writeEvent(traceEvent.$lit_tracing_traceEvent_0_1_2_3_4_5_8(1, tid, 'E', phase, endTs, name_, args));
           tr!.maybeFlushLocked();
         } catch ($e) {
-          $panic = $rt.toPanic($e);
+          $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
         } finally {
           $panic = $rt.runDefers($defers, $panic);
         }
@@ -329,7 +329,7 @@ export class Tracing extends $rt.GoObject {
         );
         tr!.maybeFlushLocked();
       } catch ($e) {
-        $panic = $rt.toPanic($e);
+        $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
       } finally {
         $panic = $rt.runDefers($defers, $panic);
       }
@@ -421,7 +421,7 @@ export class Tracing extends $rt.GoObject {
       $t1 = tracer;
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -493,7 +493,7 @@ export class Tracing extends $rt.GoObject {
       $t1 = undefined;
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -783,7 +783,7 @@ export class typeTracer extends $rt.GoObject {
       });
       t!.types.push(typ);
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }

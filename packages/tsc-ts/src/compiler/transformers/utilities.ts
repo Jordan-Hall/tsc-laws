@@ -15,10 +15,22 @@ import {
   SourceFile,
   Block,
   VariableStatement,
+  ShorthandPropertyAssignment,
+  ForStatement,
+  ImportEqualsDeclaration,
+  ConditionalExpression,
+  TaggedTemplateExpression,
+  ImportAttribute,
+  getArguments,
+  getBody,
+  getExpression,
+  getInitializer,
   getModifiers,
   getName,
   getStatements,
+  getTagName,
 } from '../ast.js';
+import type { NodeFactory } from '../printer/factory.js';
 import { SyntaxKind } from '../syntax-kind.js';
 
 export function modifierFlagsOf(node: Node): ModifierFlags {
@@ -199,4 +211,105 @@ function nodeHasName(statement: Node, text: string): boolean {
     for (let i = 0; i < declarations.length; i++) if (nodeHasName(declarations[i], text)) return true;
   }
   return false;
+}
+
+/** Whether `name` is used as a value in `parent`, rather than declared or as a property name. */
+export function isIdentifierReference(name: Node, parent: Node | undefined): boolean {
+  if (parent === undefined) return false;
+  switch (parent.kind) {
+    case SyntaxKind.BinaryExpression:
+    case SyntaxKind.PrefixUnaryExpression:
+    case SyntaxKind.PostfixUnaryExpression:
+    case SyntaxKind.YieldExpression:
+    case SyntaxKind.AsExpression:
+    case SyntaxKind.SatisfiesExpression:
+    case SyntaxKind.ElementAccessExpression:
+    case SyntaxKind.NonNullExpression:
+    case SyntaxKind.SpreadElement:
+    case SyntaxKind.SpreadAssignment:
+    case SyntaxKind.ParenthesizedExpression:
+    case SyntaxKind.ArrayLiteralExpression:
+    case SyntaxKind.DeleteExpression:
+    case SyntaxKind.TypeOfExpression:
+    case SyntaxKind.VoidExpression:
+    case SyntaxKind.AwaitExpression:
+    case SyntaxKind.TypeAssertionExpression:
+    case SyntaxKind.ExpressionWithTypeArguments:
+    case SyntaxKind.JsxSelfClosingElement:
+    case SyntaxKind.JsxSpreadAttribute:
+    case SyntaxKind.JsxExpression:
+    case SyntaxKind.PartiallyEmittedExpression:
+      return true;
+    case SyntaxKind.ComputedPropertyName:
+    case SyntaxKind.Decorator:
+    case SyntaxKind.IfStatement:
+    case SyntaxKind.DoStatement:
+    case SyntaxKind.WhileStatement:
+    case SyntaxKind.WithStatement:
+    case SyntaxKind.ReturnStatement:
+    case SyntaxKind.SwitchStatement:
+    case SyntaxKind.CaseClause:
+    case SyntaxKind.ThrowStatement:
+    case SyntaxKind.ExpressionStatement:
+    case SyntaxKind.ExportAssignment:
+    case SyntaxKind.PropertyAccessExpression:
+    case SyntaxKind.TemplateSpan:
+      return getExpression(parent) === name;
+    case SyntaxKind.VariableDeclaration:
+    case SyntaxKind.Parameter:
+    case SyntaxKind.BindingElement:
+    case SyntaxKind.PropertyDeclaration:
+    case SyntaxKind.PropertySignature:
+    case SyntaxKind.PropertyAssignment:
+    case SyntaxKind.EnumMember:
+    case SyntaxKind.JsxAttribute:
+      return getInitializer(parent) === name;
+    case SyntaxKind.ShorthandPropertyAssignment:
+      return parent instanceof ShorthandPropertyAssignment && parent.objectAssignmentInitializer === name;
+    case SyntaxKind.ForStatement:
+      return (
+        parent instanceof ForStatement &&
+        (parent.initializer === name || parent.condition === name || parent.incrementor === name)
+      );
+    case SyntaxKind.ForInStatement:
+    case SyntaxKind.ForOfStatement:
+      return getInitializer(parent) === name || getExpression(parent) === name;
+    case SyntaxKind.ImportEqualsDeclaration:
+      return parent instanceof ImportEqualsDeclaration && parent.moduleReference === name;
+    case SyntaxKind.ArrowFunction:
+      return getBody(parent) === name;
+    case SyntaxKind.ConditionalExpression:
+      return (
+        parent instanceof ConditionalExpression &&
+        (parent.condition === name || parent.whenTrue === name || parent.whenFalse === name)
+      );
+    case SyntaxKind.CallExpression:
+    case SyntaxKind.NewExpression: {
+      if (getExpression(parent) === name) return true;
+      const args = getArguments(parent);
+      return args !== undefined && args.nodes.indexOf(name) >= 0;
+    }
+    case SyntaxKind.TaggedTemplateExpression:
+      return parent instanceof TaggedTemplateExpression && parent.tag === name;
+    case SyntaxKind.ImportAttribute:
+      return parent instanceof ImportAttribute && parent.value === name;
+    case SyntaxKind.JsxOpeningElement:
+    case SyntaxKind.JsxClosingElement:
+      return getTagName(parent) === name;
+  }
+  return false;
+}
+
+/** The node itself for one node, else a syntax list of them; undefined for none. */
+export function singleOrMany(nodes: Node[], factory: NodeFactory): Node | undefined {
+  if (nodes.length === 0) return undefined;
+  if (nodes.length === 1) return nodes[0];
+  return factory.createSyntaxList(nodes);
+}
+
+/** Whether two optional nodes are the same node. */
+export function isSameNode(a: Node | undefined, b: Node | undefined): boolean {
+  if (a === undefined) return b === undefined;
+  if (b === undefined) return false;
+  return a === b;
 }

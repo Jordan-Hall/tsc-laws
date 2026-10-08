@@ -292,7 +292,8 @@ func (x *fn) body(body *ast.BlockStmt, ft *ast.FuncType) {
 	x.targets = x.targets[:len(x.targets)-1]
 	x.indent--
 	x.line("} catch ($e) {")
-	x.line("  $panic = $rt.toPanic($e);")
+	// scriptc keeps the class of a caught value only for tests on the binding.
+	x.line("  $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);")
 	x.line("} finally {")
 	x.line("  $panic = $rt.runDefers($defers, $panic);")
 	x.line("}")
@@ -1577,6 +1578,9 @@ func (x *fn) unbox(v string, tt types.Type) string {
 				// The classes behind tt are not importable from here.
 				return "$rt.unsupportedConversion<" + t + ">(" + strconv.Quote(t) + ")"
 			}
+			if s := x.unionNarrow(v, tt, "undefined"); s != "" {
+				return s
+			}
 			return "(" + v + " as " + t + ")"
 		}
 		return v
@@ -1723,6 +1727,10 @@ func (x *fn) ifaceReachable(tt types.Type) bool {
 		m = x.f.t.ifaces[n.Origin().Obj()]
 	} else {
 		m = x.f.t.anonIfaces[types.TypeString(it, nil)]
+	}
+	if m != nil && m.base == nil && len(m.union) > 0 {
+		n, _ := types.Unalias(tt).(*types.Named)
+		return x.ifaceClassesReachable(n, it)
 	}
 	return m == nil || m.base == nil || x.f.dependsOn(m.base.Pkg())
 }

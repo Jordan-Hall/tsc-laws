@@ -21643,7 +21643,7 @@ export function loadLocaleData(data: string): Map<Key, string> | undefined {
     $t1 = result;
     break $body;
   } catch ($e) {
-    $panic = $rt.toPanic($e);
+    $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
   } finally {
     $panic = $rt.runDefers($defers, $panic);
   }

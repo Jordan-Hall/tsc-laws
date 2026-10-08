@@ -515,7 +515,7 @@ export class BuildTask extends $rt.GoObject {
               if (!(fileInfo === undefined) && !(fileInfo!.Version() === ('' as string))) {
                 version = fileInfo!.Version();
                 {
-                  const $t7 = $rt.nn(orchestrator!.host_!.FS$m()).ReadFile(resolvedInputPath);
+                  const $t7 = $fn0($rt.nn(orchestrator!.host_!.FS$m()), resolvedInputPath);
                   const text: string = $t7[0];
                   const ok: boolean = $t7[1];
                   if (ok) {
@@ -599,7 +599,7 @@ export class BuildTask extends $rt.GoObject {
               $execute_incremental.BuildInfoFileInfo.GetFileInfo$nil(buildInfoFileInfo$1)!.Version();
             if (!(version$1 === ('' as string))) {
               {
-                const $t15 = $rt.nn(orchestrator!.host_!.FS$m()).ReadFile(inputFile$1);
+                const $t15 = $fn0($rt.nn(orchestrator!.host_!.FS$m()), inputFile$1);
                 const text$1: string = $t15[0];
                 const ok$1: boolean = $t15[1];
                 if (ok$1) {
@@ -1148,7 +1148,7 @@ export class BuildTask extends $rt.GoObject {
       $t2 = $t5[1];
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -1184,7 +1184,7 @@ export class BuildTask extends $rt.GoObject {
         dtsTime,
       );
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -1222,7 +1222,7 @@ export class BuildTask extends $rt.GoObject {
       $t1 = dtsTime;
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -1362,13 +1362,13 @@ export class Orchestrator extends $rt.GoObject {
     const o = this;
     const path: $tspath.Path = o!.toPath(configName);
     const task: BuildTask | undefined = o!.getTask(path);
-    return $core.Map_<upstreamTask | undefined, string>($zf0, task!.upStream, $fn1);
+    return $core.Map_<upstreamTask | undefined, string>($zf0, task!.upStream, $fn2);
   }
   Downstream(configName: string): string[] {
     const o = this;
     const path: $tspath.Path = o!.toPath(configName);
     const task: BuildTask | undefined = o!.getTask(path);
-    return $core.Map_<BuildTask | undefined, string>($zf0, task!.downStream, $fn2);
+    return $core.Map_<BuildTask | undefined, string>($zf0, task!.downStream, $fn3);
   }
   getTask(path: $tspath.Path): BuildTask | undefined {
     const o = this;
@@ -1739,7 +1739,7 @@ export class Orchestrator extends $rt.GoObject {
       for (const [eventPath$1, $t23] of changedPaths ?? new Map<string, $fswatch.EventKind>()) {
         if ($rt.nn(o!.host_!.FS$m()).DirectoryExists(eventPath$1)) {
           if (o!.wm!.IsPathUnderWatch(eventPath$1, opts)) {
-            o!.rangeTask($fn3);
+            o!.rangeTask($fn4);
             needsUpdate!.Store(true);
             break;
           }
@@ -2004,7 +2004,7 @@ export class Orchestrator extends $rt.GoObject {
       }
       o!.resetCaches();
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -2565,7 +2565,7 @@ export class orchestratorResult extends $rt.GoObject {
     if (!(b!.filesToDelete.length === 0)) {
       o!.createBuilderStatusReporter(undefined)!(
         $ast.NewCompilerDiagnostic($diagnostics.A_non_dry_build_would_delete_the_following_files_Colon_0, [
-          new $rt.BoxStr($rt.strings_Join($core.Map_<string, string>($zf0, b!.filesToDelete, $fn0), ''), 'string'),
+          new $rt.BoxStr($rt.strings_Join($core.Map_<string, string>($zf0, b!.filesToDelete, $fn1), ''), 'string'),
         ]),
       );
     }
@@ -2622,7 +2622,7 @@ export class parseCache<K, V> extends $rt.GoObject {
           $defers.push(() => {
             $t4.Unlock();
           });
-          if (allowZero || !(entry!.value === new $rt.Ptr<V>(this.$z_V())!.get())) {
+          if (allowZero || !(entry!.value === this.$z_V())) {
             $t1 = entry!.value;
             break $body;
           }
@@ -2633,7 +2633,7 @@ export class parseCache<K, V> extends $rt.GoObject {
       $t1 = newEntry!.value;
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -2897,16 +2897,20 @@ export const upToDateStatusTypeUpToDate: upToDateStatusType = 3;
 export const upToDateStatusTypeUpToDateWithInputFileText: upToDateStatusType = 5;
 export const upToDateStatusTypeUpToDateWithUpstreamTypes: upToDateStatusType = 4;
 export const upToDateStatusTypeUpstreamErrors: upToDateStatusType = 2;
-const $fn0 = (f: string): string => {
+interface $I0 {
+  ReadFile(a0: string): [string, boolean];
+}
+const $fn0 = ($r: $I0, a0: string): [string, boolean] => $r.ReadFile(a0);
+const $fn1 = (f: string): string => {
   return '\r\n * ' + f;
 };
-const $fn1 = (t: upstreamTask | undefined): string => {
+const $fn2 = (t: upstreamTask | undefined): string => {
   return t!.task!.config;
 };
-const $fn2 = (t: BuildTask | undefined): string => {
+const $fn3 = (t: BuildTask | undefined): string => {
   return t!.config;
 };
-const $fn3 = (path$1: $tspath.Path, task$1: BuildTask | undefined): void => {
+const $fn4 = (path$1: $tspath.Path, task$1: BuildTask | undefined): void => {
   task$1!.resetStatus();
   task$1!.reportDone = new $rt.Chan<$rt.Empty>(0, $rt.EMPTY);
   task$1!.done = new $rt.Chan<$rt.Empty>(0, $rt.EMPTY);

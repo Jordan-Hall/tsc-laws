@@ -11,10 +11,7 @@ import * as $execute_build from './execute_build.js';
 import * as $execute_incremental from './execute_incremental.js';
 import * as $execute_tsc from './execute_tsc.js';
 import * as $execute_watchmanager from './execute_watchmanager.js';
-import * as $format from './format.js';
 import * as $json from './json.js';
-import * as $ls_lsutil from './ls_lsutil.js';
-import * as $parser from './parser.js';
 import * as $pprof from './pprof.js';
 import * as $tracing from './tracing.js';
 import * as $tsoptions from './tsoptions.js';
@@ -296,7 +293,7 @@ export class Watcher extends $rt.GoObject {
         }
       }
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -653,12 +650,19 @@ export class watchCompilerHost extends $rt.GoObject {
     return this.CompilerHost_!.GetCurrentDirectory();
   }
   GetResolvedProjectReference(a0: string, a1: $tspath.Path): $tsoptions.ParsedCommandLine | undefined {
-    return this.CompilerHost_!.GetResolvedProjectReference(a0, a1);
+    return $fn0($rt.nn(this.CompilerHost_), a0, a1);
   }
   Trace(a0: $diagnostics.Message | undefined, a1: ($rt.GoObject | undefined)[]): void {
     return this.CompilerHost_!.Trace(a0, a1);
   }
 }
+const $fn0 = ($r: $compiler.CompilerHost, a0: string, a1: $tspath.Path): $tsoptions.ParsedCommandLine | undefined => {
+  if ($r instanceof $compiler.compilerHost) return $r.GetResolvedProjectReference(a0, a1);
+  if ($r instanceof $execute_build.compilerHost) return $r.GetResolvedProjectReference(a0, a1);
+  if ($r instanceof $execute_build.host) return $r.GetResolvedProjectReference(a0, a1);
+  if ($r instanceof watchCompilerHost) return $r.GetResolvedProjectReference(a0, a1);
+  throw $rt.nilDereference();
+};
 export function startTracingIfNeeded(
   sys: $execute_tsc.System,
   config: $tsoptions.ParsedCommandLine | undefined,
@@ -721,45 +725,6 @@ export function CommandLine(
     testing,
   );
 }
-export function fmtMain(sys: $execute_tsc.System, input: string, output: string): $execute_tsc.ExitStatus {
-  const ctx: $rt.context_Context | undefined = $format.WithFormatCodeSettings(
-    $rt.context_Background(),
-    $ls_lsutil.GetDefaultFormatCodeSettings(),
-    '\n',
-  );
-  input = $tspath.ToPath(input, sys!.GetCurrentDirectory(), $rt.nn(sys!.FS$m()).UseCaseSensitiveFileNames());
-  output = $tspath.ToPath(output, sys!.GetCurrentDirectory(), $rt.nn(sys!.FS$m()).UseCaseSensitiveFileNames());
-  const $t1 = $rt.nn(sys!.FS$m()).ReadFile(input);
-  const fileContent: string = $t1[0];
-  const ok: boolean = $t1[1];
-  if (!ok) {
-    $rt
-      .nn(sys!.Writer$m())
-      .Write(
-        $rt.stringToBytes(
-          $rt.fmt_Sprintln([new $rt.BoxStr('File not found:', 'string'), new $rt.BoxStr(input, 'string')]),
-        ),
-      );
-    return 5;
-  }
-  const text: string = fileContent;
-  const pathified: $tspath.Path = $tspath.ToPath(input, sys!.GetCurrentDirectory(), true);
-  const sourceFile: $ast.SourceFile | undefined = $parser.ParseSourceFile(
-    $ast.SourceFileParseOptions.$lit_ast_SourceFileParseOptions_0_1(pathified, pathified),
-    text,
-    $core.GetScriptKindFromFileName(pathified),
-  );
-  const edits: $core.TextChange[] = $format.FormatDocument(ctx, sourceFile);
-  const newText: string = $core.ApplyBulkEdits(text, edits);
-  {
-    const err: $rt.GoObject | undefined = $rt.nn(sys!.FS$m()).WriteFile(output, newText);
-    if (!(err === undefined)) {
-      $rt.nn(sys!.Writer$m()).Write($rt.stringToBytes($rt.fmt_Sprintln([new $rt.BoxStr(err!.Error(), 'string')])));
-      return 5;
-    }
-  }
-  return 0;
-}
 export function tscBuildCompilation(
   ctx: $rt.context_Context | undefined,
   sys: $execute_tsc.System,
@@ -810,7 +775,7 @@ export function tscBuildCompilation(
     $t1 = orchestrator!.Start(ctx);
     break $body;
   } catch ($e) {
-    $panic = $rt.toPanic($e);
+    $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
   } finally {
     $panic = $rt.runDefers($defers, $panic);
   }
@@ -1068,7 +1033,7 @@ export function tscCompilation(
     );
     break $body;
   } catch ($e) {
-    $panic = $rt.toPanic($e);
+    $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
   } finally {
     $panic = $rt.runDefers($defers, $panic);
   }

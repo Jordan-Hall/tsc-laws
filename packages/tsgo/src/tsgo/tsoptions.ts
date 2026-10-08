@@ -2628,7 +2628,7 @@ export class commandLineParser extends $rt.GoObject {
         if (p!.fs === undefined) {
           return ['', false];
         }
-        const $t1 = $rt.nn(p!.fs).ReadFile(fileName$1);
+        const $t1 = $fn15($rt.nn(p!.fs), fileName$1);
         const read: string = $t1[0];
         const err: boolean = $t1[1];
         return [read, err];
@@ -3367,6 +3367,9 @@ export const extraValidationNone: extraValidation = '';
 export const extraValidationSpec: extraValidation = 'spec';
 export const fileGlobPattern: string = '*.{js,jsx,mjs,cjs,ts,tsx,mts,cts,json}';
 export const recursiveFileGlobPattern: string = '**/*.{js,jsx,mjs,cjs,ts,tsx,mts,cts,json}';
+interface $I0 {
+  ReadFile(a0: string): [string, boolean];
+}
 const $fn0 = (s: $rt.GoObject | undefined): string => {
   return $rt.checkString($rt.isValue(s, 'string'), s);
 };
@@ -3376,16 +3379,17 @@ const $fn11 = ($r: $core.CompilerOptions | undefined): boolean => $r!.GetResolve
 const $fn12 = ($r: $core.CompilerOptions | undefined): boolean => $r!.GetResolveJsonModule();
 const $fn13 = ($r: $core.CompilerOptions | undefined): boolean => $r!.GetAllowJS();
 const $fn14 = ($r: $core.CompilerOptions | undefined): boolean => $r!.GetAllowImportingTsExtensions();
-const $fn15 = (option: CommandLineOption | undefined): boolean => {
+const $fn15 = ($r: $I0, a0: string): [string, boolean] => $r.ReadFile(a0);
+const $fn16 = (option: CommandLineOption | undefined): boolean => {
   return option!.AffectsSemanticDiagnostics;
 };
-const $fn16 = (option: CommandLineOption | undefined): boolean => {
+const $fn17 = (option: CommandLineOption | undefined): boolean => {
   return option!.AffectsDeclarationPath;
 };
-const $fn17 = (option: CommandLineOption | undefined): boolean => {
+const $fn18 = (option: CommandLineOption | undefined): boolean => {
   return option!.AffectsEmit;
 };
-const $fn18 = (v$1: $rt.GoObject | undefined): boolean => {
+const $fn19 = (v$1: $rt.GoObject | undefined): boolean => {
   return (
     !(v$1 === undefined) &&
     !$rt.ifaceEq(v$1, new $rt.BoxBool(false, 'bool')) &&
@@ -3393,29 +3397,29 @@ const $fn18 = (v$1: $rt.GoObject | undefined): boolean => {
     !$rt.ifaceEq(v$1, new $rt.BoxStr('' as string, 'string'))
   );
 };
-const $fn19 = (element: $rt.GoObject | undefined): boolean => {
+const $fn2 = ($r: $core.CompilerOptions | undefined): $core.ModuleResolutionKind => $r!.GetModuleResolutionKind();
+const $fn20 = (element: $rt.GoObject | undefined): boolean => {
   return isOrderedMapJSONValue(element);
 };
-const $fn2 = ($r: $core.CompilerOptions | undefined): $core.ModuleResolutionKind => $r!.GetModuleResolutionKind();
-const $fn20 = (element$1: $rt.GoObject | undefined): boolean => {
+const $fn21 = (element$1: $rt.GoObject | undefined): boolean => {
   return isStringJSONValue(element$1);
 };
-const $fn21 = (property: $ast.PropertyAssignment | undefined): $ast.Node | undefined => {
+const $fn22 = (property: $ast.PropertyAssignment | undefined): $ast.Node | undefined => {
   return property!.Initializer_;
 };
-const $fn22 = (element$2: $rt.GoObject | undefined): boolean => {
+const $fn23 = (element$2: $rt.GoObject | undefined): boolean => {
   return isStringJSONValue(element$2);
 };
-const $fn23 = (element$3: $rt.GoObject | undefined): boolean => {
+const $fn24 = (element$3: $rt.GoObject | undefined): boolean => {
   return isStringJSONValue(element$3);
 };
-const $fn24 = (spec: $rt.GoObject | undefined): boolean => {
+const $fn25 = (spec: $rt.GoObject | undefined): boolean => {
   return isStringJSONValue(spec);
 };
-const $fn25 = (element$4: $rt.GoObject | undefined): boolean => {
+const $fn26 = (element$4: $rt.GoObject | undefined): boolean => {
   return isOrderedMapJSONValue(element$4);
 };
-const $fn26 = (include: string): boolean => {
+const $fn27 = (include: string): boolean => {
   return $rt.strings_HasSuffix(include, '.json');
 };
 const $fn3 = ($r: $core.CompilerOptions | undefined): $core.ModuleDetectionKind => $r!.GetEmitModuleDetectionKind();
@@ -6197,19 +6201,19 @@ export function CompilerOptionsAffectSemanticDiagnostics(
   oldOptions: $core.CompilerOptions | undefined,
   newOptions: $core.CompilerOptions | undefined,
 ): boolean {
-  return optionsHaveChanges(oldOptions, newOptions, $fn15);
+  return optionsHaveChanges(oldOptions, newOptions, $fn16);
 }
 export function CompilerOptionsAffectDeclarationPath(
   oldOptions: $core.CompilerOptions | undefined,
   newOptions: $core.CompilerOptions | undefined,
 ): boolean {
-  return optionsHaveChanges(oldOptions, newOptions, $fn16);
+  return optionsHaveChanges(oldOptions, newOptions, $fn17);
 }
 export function CompilerOptionsAffectEmit(
   oldOptions: $core.CompilerOptions | undefined,
   newOptions: $core.CompilerOptions | undefined,
 ): boolean {
-  return optionsHaveChanges(oldOptions, newOptions, $fn17);
+  return optionsHaveChanges(oldOptions, newOptions, $fn18);
 }
 export function getParseCommandLineWorkerDiagnostics(
   decls: (CommandLineOption | undefined)[],
@@ -8919,7 +8923,7 @@ export function convertJsonOptionOfListType(
       });
       let filteredValues: ($rt.GoObject | undefined)[] = mappedValues;
       if (!option!.listPreserveFalsyValues) {
-        filteredValues = $core.Filter<$rt.GoObject | undefined>(mappedValues, $fn18);
+        filteredValues = $core.Filter<$rt.GoObject | undefined>(mappedValues, $fn19);
       }
       return [filteredValues, errors];
     }
@@ -9871,7 +9875,7 @@ export function ParseExtendedConfig(
     (
       ($t1: $vfs.FS) =>
       (a0: string): [string, boolean] =>
-        $rt.nn($t1).ReadFile(a0)
+        $fn15($rt.nn($t1), a0)
     )($rt.nn(host).FS$m()),
   );
   const extendedResult: TsConfigSourceFile | undefined = $t2[0];
@@ -10222,8 +10226,8 @@ export function parseJsonConfigFileContentWorker(
     }
     return propOfRaw.$lit_tsoptions_propOfRaw_0_1([], 'no-prop');
   };
-  const referencesOfRaw: propOfRaw = getPropFromRaw!('references', $fn19, 'object');
-  const fileSpecs: propOfRaw = getPropFromRaw!('files', $fn20, 'string');
+  const referencesOfRaw: propOfRaw = getPropFromRaw!('references', $fn20, 'object');
+  const fileSpecs: propOfRaw = getPropFromRaw!('files', $fn21, 'string');
   if (!(fileSpecs.sliceValue.length === 0) || fileSpecs.wrongValue === ('' as string)) {
     let hasZeroOrNoReferences: boolean = false;
     if (
@@ -10252,7 +10256,7 @@ export function parseJsonConfigFileContentWorker(
         const nodeValue: $ast.Node | undefined = ForEachTsConfigPropArray<$ast.Node>(
           sourceFile!.SourceFile_,
           'files',
-          $fn21,
+          $fn22,
         );
         errors = $rt.appendCopy(errors, [
           CreateDiagnosticForNodeInSourceFile(sourceFile!.SourceFile_, nodeValue, diagnosticMessage, [
@@ -10268,8 +10272,8 @@ export function parseJsonConfigFileContentWorker(
       }
     }
   }
-  let includeSpecs: propOfRaw = getPropFromRaw!('include', $fn22, 'string');
-  let excludeSpecs: propOfRaw = getPropFromRaw!('exclude', $fn23, 'string');
+  let includeSpecs: propOfRaw = getPropFromRaw!('include', $fn23, 'string');
+  let excludeSpecs: propOfRaw = getPropFromRaw!('exclude', $fn24, 'string');
   let isDefaultIncludeSpec: boolean = false;
   if (excludeSpecs.wrongValue === ('no-prop' as string) && !(parsedConfig!.options === undefined)) {
     const outDir: string = parsedConfig!.options!.OutDir;
@@ -10339,7 +10343,7 @@ export function parseJsonConfigFileContentWorker(
   if (!(fileSpecs.sliceValue.length === 0)) {
     const fileSpecs$1: ($rt.GoObject | undefined)[] = $core.Filter<$rt.GoObject | undefined>(
       fileSpecs.sliceValue,
-      $fn24,
+      $fn25,
     );
     {
       const $t7 = fileSpecs$1;
@@ -10417,7 +10421,7 @@ export function parseJsonConfigFileContentWorker(
     basePath$2: string,
   ): ($core.ProjectReference | undefined)[] => {
     let projectReferences: ($core.ProjectReference | undefined)[] = [];
-    const newReferencesOfRaw: propOfRaw = getPropFromRaw!('references', $fn25, 'object');
+    const newReferencesOfRaw: propOfRaw = getPropFromRaw!('references', $fn26, 'object');
     if (!(newReferencesOfRaw.sliceValue.length === 0)) {
       projectReferences = [] as ($core.ProjectReference | undefined)[];
       {
@@ -10916,7 +10920,7 @@ export function getFileNamesFromConfigSpecs(
         const file$1 = $t3[$t4];
         if ($tspath.FileExtensionIs(file$1, '.json')) {
           if (jsonOnlyIncludeMatchers === undefined) {
-            const includes: string[] = $core.Filter<string>(validatedIncludeSpecs, $fn26);
+            const includes: string[] = $core.Filter<string>(validatedIncludeSpecs, $fn27);
             jsonOnlyIncludeMatchers = $vfs_vfsmatch.NewSpecMatcher(
               includes,
               basePath,
@@ -11060,7 +11064,7 @@ export function GetParsedCommandLineOfConfigFilePath(
     (
       ($t1: $vfs.FS) =>
       (a0: string): [string, boolean] =>
-        $rt.nn($t1).ReadFile(a0)
+        $fn15($rt.nn($t1), a0)
     )($rt.nn(sys).FS$m()),
     errors,
   );

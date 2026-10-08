@@ -16,6 +16,8 @@ mkdirSync('../../upstream/typescript-go/internal/checkhost', { recursive: true }
 for (const file of ['checkhost.go', 'tsc.go', 'project.go', 'api.go']) {
   copyFileSync('checkhost/' + file, '../../upstream/typescript-go/internal/checkhost/' + file);
 }
+// Packages no longer translated leave no stale modules behind.
+rmSync('src/tsgo', { recursive: true, force: true });
 run(
   'go',
   [

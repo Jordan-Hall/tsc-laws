@@ -4,13 +4,11 @@ import * as $rt from '../go/runtime.js';
 import type * as $checkhost from './checkhost.js';
 import type * as $compiler from './compiler.js';
 import type * as $vfs_cachedvfs from './vfs_cachedvfs.js';
-import type * as $vfs_osvfs from './vfs_osvfs.js';
 import type * as $vfs_trackingvfs from './vfs_trackingvfs.js';
 export type DirEntry = $rt.io_fs_DirEntry | undefined;
 export type FS =
   | $vfs_cachedvfs.FS
   | $compiler.projectReferenceDtsFakingVfs
-  | $vfs_osvfs.osFS
   | $vfs_trackingvfs.FS
   | $checkhost.apiFS
   | $checkhost.hostFS
@@ -44,6 +42,7 @@ export class Entries extends $rt.GoObject {
     throw $rt.typeAssertError();
   }
 }
+export const Entries$zero: Entries = new Entries();
 export let ErrInvalid: $rt.GoObject | undefined = $rt.io_fs_ErrInvalid;
 export let ErrPermission: $rt.GoObject | undefined = $rt.io_fs_ErrPermission;
 export let ErrExist: $rt.GoObject | undefined = $rt.io_fs_ErrExist;

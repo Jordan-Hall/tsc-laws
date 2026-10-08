@@ -128,7 +128,7 @@ export class CommonJSModuleTransformer extends $transformers.Transformer {
       $t1 = node;
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -150,7 +150,7 @@ export class CommonJSModuleTransformer extends $transformers.Transformer {
       $t1 = tx!.visitTopLevelNestedNoStack(node);
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -242,7 +242,7 @@ export class CommonJSModuleTransformer extends $transformers.Transformer {
       $t1 = tx!.visitNoStack(node, false);
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -336,7 +336,7 @@ export class CommonJSModuleTransformer extends $transformers.Transformer {
       $t1 = tx!.visitNoStack(node, true);
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -358,7 +358,7 @@ export class CommonJSModuleTransformer extends $transformers.Transformer {
       $t1 = tx!.visitAssignmentPatternNoStack(node);
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -633,7 +633,7 @@ export class CommonJSModuleTransformer extends $transformers.Transformer {
       $t1 = tx!.Visitor()!.VisitNode(node!.Expression_);
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -1457,7 +1457,7 @@ export class CommonJSModuleTransformer extends $transformers.Transformer {
       $t1 = tx!.Factory()!.NewAssignmentExpression(propertyAccess, node!.Initializer_);
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -1979,7 +1979,7 @@ export class CommonJSModuleTransformer extends $transformers.Transformer {
       $t1 = node;
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }

@@ -246,7 +246,7 @@ export class debounce extends $rt.GoObject {
       });
       d!.callbacks!.set(key, cb);
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -264,7 +264,7 @@ export class debounce extends $rt.GoObject {
       });
       d!.callbacks?.delete(key);
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -287,7 +287,7 @@ export class debounce extends $rt.GoObject {
       d!.triggerChLocked()!.close();
       d!.triggerCh = new $rt.Chan<$rt.Empty>(0, $rt.EMPTY);
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -375,7 +375,7 @@ export class debounce extends $rt.GoObject {
         d!.waitCh = new $rt.Chan<$rt.Empty>(0, $rt.EMPTY);
       }
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -602,7 +602,7 @@ export class dirWatch extends $rt.GoObject {
       $t1 = changed;
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -651,7 +651,7 @@ export class dirWatch extends $rt.GoObject {
       $t2 = $t4[1];
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -687,7 +687,7 @@ export class dirWatch extends $rt.GoObject {
       $t1 = false;
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -812,7 +812,7 @@ export class eventList extends $rt.GoObject {
       const seq: number = el!.nextSeqLocked();
       el!.createLocked(path, seq);
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -831,7 +831,7 @@ export class eventList extends $rt.GoObject {
       el!.advanceSeqLocked(seq);
       el!.createLocked(path, seq);
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -861,7 +861,7 @@ export class eventList extends $rt.GoObject {
       const seq: number = el!.nextSeqLocked();
       el!.updateLocked(path, seq);
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -880,7 +880,7 @@ export class eventList extends $rt.GoObject {
       el!.advanceSeqLocked(seq);
       el!.updateLocked(path, seq);
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -900,7 +900,7 @@ export class eventList extends $rt.GoObject {
       el!.updateLocked(path, seq);
       el!.getOrCreate(path)!.includedWatchRoot = true;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -923,7 +923,7 @@ export class eventList extends $rt.GoObject {
       const seq: number = el!.nextSeqLocked();
       el!.removeLocked(path, seq);
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -945,7 +945,7 @@ export class eventList extends $rt.GoObject {
       $t1 = seq;
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -965,7 +965,7 @@ export class eventList extends $rt.GoObject {
       el!.advanceSeqLocked(seq);
       el!.removeLocked(path, seq);
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -985,7 +985,7 @@ export class eventList extends $rt.GoObject {
       el!.removeLocked(path, seq);
       el!.getOrCreate(path)!.includedWatchRoot = true;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -1010,7 +1010,7 @@ export class eventList extends $rt.GoObject {
       $t1 = $rt.mapLen(el!.entries);
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -1049,7 +1049,7 @@ export class eventList extends $rt.GoObject {
       $t1 = el!.snapshotLocked();
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -1077,7 +1077,7 @@ export class eventList extends $rt.GoObject {
       $t2 = $t4[1];
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -1113,7 +1113,7 @@ export class eventList extends $rt.GoObject {
       $t2 = $t6[1];
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -1134,7 +1134,7 @@ export class eventList extends $rt.GoObject {
         el!.err = err;
       }
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -1154,7 +1154,7 @@ export class eventList extends $rt.GoObject {
       $t1 = !(el!.err === undefined);
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -1175,7 +1175,7 @@ export class eventList extends $rt.GoObject {
       $t1 = el!.err;
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -1214,7 +1214,7 @@ export class eventList extends $rt.GoObject {
       $t1 = el!.seq;
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -1347,7 +1347,7 @@ export class watch extends $rt.GoObject {
       $t1 = undefined;
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -1580,7 +1580,7 @@ export class watcher extends $rt.GoObject {
       $t1 = dw$3;
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -1609,7 +1609,7 @@ export class watcher extends $rt.GoObject {
         }
       }
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -1813,7 +1813,7 @@ export class watcherBase extends $rt.GoObject {
             }
           }
         } catch ($e) {
-          $panic = $rt.toPanic($e);
+          $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
         } finally {
           $panic = $rt.runDefers($defers, $panic);
         }
@@ -1828,7 +1828,7 @@ export class watcherBase extends $rt.GoObject {
       $t1 = b!.startErr;
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -2047,9 +2047,16 @@ export function walkDirGeneric(
   recursive: boolean,
   fn: ((p0: string, p1: boolean) => $rt.GoObject | undefined) | undefined,
 ): $rt.GoObject | undefined {
-  const $t1 = $rt.os_Lstat(dir) as unknown as [$checkhost.hostFileInfo | undefined, $rt.GoObject | undefined];
-  const info: $checkhost.hostFileInfo | undefined = $t1[0];
-  const err: $rt.GoObject | undefined = $t1[1];
+  const $t2 = ((
+    $t1: [$rt.GoObject | undefined, $rt.GoObject | undefined],
+  ): [$checkhost.hostFileInfo | undefined, $rt.GoObject | undefined] => [
+    $t1[0] === undefined
+      ? undefined
+      : $rt.unsupportedConversion<$checkhost.hostFileInfo | undefined>('$checkhost.hostFileInfo | undefined'),
+    $t1[1],
+  ])($rt.os_Lstat(dir));
+  const info: $checkhost.hostFileInfo | undefined = $t2[0];
+  const err: $rt.GoObject | undefined = $t2[1];
   if (!(err === undefined)) {
     return err;
   }
@@ -2175,9 +2182,16 @@ export function Default(): Watcher {
   }
 }
 export function validateWatchDirectory(dir: string): $rt.GoObject | undefined {
-  const $t1 = $rt.os_Stat(dir) as unknown as [$checkhost.hostFileInfo | undefined, $rt.GoObject | undefined];
-  const info: $checkhost.hostFileInfo | undefined = $t1[0];
-  const err: $rt.GoObject | undefined = $t1[1];
+  const $t2 = ((
+    $t1: [$rt.GoObject | undefined, $rt.GoObject | undefined],
+  ): [$checkhost.hostFileInfo | undefined, $rt.GoObject | undefined] => [
+    $t1[0] === undefined
+      ? undefined
+      : $rt.unsupportedConversion<$checkhost.hostFileInfo | undefined>('$checkhost.hostFileInfo | undefined'),
+    $t1[1],
+  ])($rt.os_Stat(dir));
+  const info: $checkhost.hostFileInfo | undefined = $t2[0];
+  const err: $rt.GoObject | undefined = $t2[1];
   if (!(err === undefined)) {
     return err;
   }

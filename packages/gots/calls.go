@@ -622,7 +622,65 @@ func (x *fn) stdCast(text string, tt types.Type) string {
 	if normal == rt {
 		return text
 	}
+	// scriptc can't convert a tuple element by casting the whole tuple;
+	// narrow the elements that differ one at a time.
+	if tuple, ok := tt.(*types.Tuple); ok {
+		p := x.tmp()
+		elems := make([]string, tuple.Len())
+		for i := range elems {
+			elem := fmt.Sprintf("%s[%d]", p, i)
+			et := tuple.At(i).Type()
+			x.f.runtime = true
+			ert := x.f.tsType(et)
+			x.f.runtime = false
+			if x.f.tsType(et) == ert {
+				elems[i] = elem
+			} else if s := x.unionNarrow(elem, et, "undefined"); s != "" {
+				elems[i] = s
+			} else {
+				t := x.f.tsType(et)
+				elems[i] = fmt.Sprintf("(%s === undefined ? undefined : $rt.unsupportedConversion<%s>(%q))", elem, t, t)
+			}
+		}
+		return fmt.Sprintf("((%s: %s): %s => [%s])(%s)", p, rt, normal, strings.Join(elems, ", "), text)
+	}
 	return "(" + text + " as unknown as " + normal + ")"
+}
+
+// unionNarrow narrows interface value v to tt when tt is represented as a
+// union of classes, or returns "". scriptc narrows only parameters, and one
+// class per instanceof test, so v passes through a function whose tests
+// each yield one class; fallback is the value when none matches.
+func (x *fn) unionNarrow(v string, tt types.Type, fallback string) string {
+	it, ok := tt.Underlying().(*types.Interface)
+	if !ok || it.NumMethods() == 0 {
+		return ""
+	}
+	n, _ := types.Unalias(tt).(*types.Named)
+	var m *ifaceMap
+	if n != nil {
+		m = x.f.t.ifaces[n.Origin().Obj()]
+	} else {
+		m = x.f.t.anonIfaces[types.TypeString(it, nil)]
+	}
+	if m == nil || m.stub || m.base != nil || len(m.union) == 0 || !x.ifaceClassesReachable(n, it) {
+		return ""
+	}
+	p := x.tmp()
+	t := x.f.tsType(tt)
+	var b strings.Builder
+	fmt.Fprintf(&b, "((%s: $rt.GoObject | undefined): %s => ", p, t)
+	for _, u := range m.union {
+		var class string
+		if ptr, ok := u.(*types.Pointer); ok {
+			class = x.f.qualify(ptr.Elem().(*types.Named).Obj())
+		} else {
+			class = x.f.boxRef(u.(*types.Named).Obj())
+		}
+		fmt.Fprintf(&b, "%s instanceof %s ? %s : ", p, class, p)
+	}
+	fmt.Fprintf(&b, "%s)(%s)", fallback, v)
+	return b.String()
 }
 
 func (x *fn) isStdFunc(fun ast.Expr) bool {

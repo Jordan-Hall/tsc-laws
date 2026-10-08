@@ -2,7 +2,7 @@
 // client for symbols, types, signatures and nodes within each snapshot.
 import * as backend from './backend.js';
 import type { Node, Project, Signature, SourceFile, Symbol, Type } from './backend.js';
-import { ClientError, InvalidRequestError } from './errors.js';
+import { ApiError, ClientError, InvalidRequestError } from './errors.js';
 import type { Reply, Response } from './connection.js';
 import type { ClientFileSystem } from './fs.js';
 import { normalizeAbsolutePath, toPath, uriToFileName } from './paths.js';
@@ -197,7 +197,16 @@ export class Session {
     try {
       return { ok: true, reply: this.dispatch(method, params) };
     } catch (e) {
-      return { ok: false, error: errorMessage(method, e) };
+      // Classified here: natively, a caught value passed on loses its class.
+      // Compiler failures read like Go panics.
+      if (e instanceof ApiError) return { ok: false, error: e.message };
+      if (e instanceof SyntaxError) {
+        return {
+          ok: false,
+          error: new InvalidRequestError(`failed to unmarshal ${method} params: ${e.message}`).message,
+        };
+      }
+      return { ok: false, error: backend.panicMessage(e) };
     } finally {
       if (this.timing !== undefined) this.record(method, Date.now() - start);
     }
@@ -994,14 +1003,6 @@ export class Session {
   private toPath(fileName: string): string {
     return toPath(fileName, this.options.currentDirectory, this.options.useCaseSensitiveFileNames);
   }
-}
-
-// The message of a failed request. Compiler failures read like Go panics.
-function errorMessage(method: string, e: unknown): string {
-  if (e instanceof ClientError || e instanceof InvalidRequestError) return e.message;
-  if (e instanceof SyntaxError)
-    return new InvalidRequestError(`failed to unmarshal ${method} params: ${e.message}`).message;
-  return backend.panicMessage(e);
 }
 
 // Registries

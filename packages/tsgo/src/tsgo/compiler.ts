@@ -1334,7 +1334,7 @@ export class Program extends processedFiles {
               }
               $binder.BindSourceFile(file);
             } catch ($e) {
-              $panic = $rt.toPanic($e);
+              $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
             } finally {
               $panic = $rt.runDefers($defers, $panic);
             }
@@ -1593,7 +1593,7 @@ export class Program extends processedFiles {
     } else {
       p!.BindSourceFiles();
     }
-    return p!.collectDiagnostics(ctx, sourceFile, false, $fn9);
+    return p!.collectDiagnostics(ctx, sourceFile, false, $fn10);
   }
   GetSemanticDiagnostics(
     ctx: $rt.context_Context | undefined,
@@ -2301,7 +2301,7 @@ export class Program extends processedFiles {
       if (
         !(options!.OutDir === ('' as string)) &&
         dir === ('' as string) &&
-        $core.Some<$ast.SourceFile | undefined>(p!.files, $fn10)
+        $core.Some<$ast.SourceFile | undefined>(p!.files, $fn11)
       ) {
         createDiagnosticForOptionName!(
           $diagnostics.Cannot_find_the_common_subdirectory_path_for_the_input_files,
@@ -2770,7 +2770,7 @@ export class Program extends processedFiles {
     diags = $rt.appendCopy(diags, fileChecker!.GetDiagnostics(ctx, sourceFile));
     const isPlainJS: boolean = $ast.IsPlainJSFile(sourceFile, compilerOptions!.CheckJs);
     if (isPlainJS) {
-      return $core.Filter<$ast.Diagnostic | undefined>(diags, $fn12);
+      return $core.Filter<$ast.Diagnostic | undefined>(diags, $fn13);
     }
     const isJS: boolean = sourceFile!.ScriptKind_ === (1 as number) || sourceFile!.ScriptKind_ === (2 as number);
     const isCheckJS: boolean = isJS && $ast.IsCheckJSEnabledForFile(sourceFile, compilerOptions);
@@ -2882,7 +2882,7 @@ export class Program extends processedFiles {
       $t1 = diagnostics;
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -3144,12 +3144,16 @@ export class Program extends processedFiles {
               });
               emitter$v!.host = host;
               const writer: $printer.EmitTextWriter = (($t5: $rt.GoObject | undefined) =>
-                $t5 instanceof $printer.ChangeTrackerWriter ||
-                $t5 instanceof $printer.singleLineStringWriter ||
-                $t5 instanceof $printer.textWriter ||
-                $t5 instanceof $checker.semicolonRemoverWriter
-                  ? ($t5 as $printer.EmitTextWriter)
-                  : $rt.typeAssertFail<$printer.EmitTextWriter>())(writerPool!.Get());
+                (($t6: $rt.GoObject | undefined): $printer.EmitTextWriter =>
+                  $t6 instanceof $printer.ChangeTrackerWriter
+                    ? $t6
+                    : $t6 instanceof $printer.singleLineStringWriter
+                      ? $t6
+                      : $t6 instanceof $printer.textWriter
+                        ? $t6
+                        : $t6 instanceof $checker.semicolonRemoverWriter
+                          ? $t6
+                          : $rt.typeAssertFail<$printer.EmitTextWriter>())($t5))(writerPool!.Get());
               $rt.nn(writer).Clear();
               emitter$v!.writer = writer;
               emitter$v!.paths = $outputpaths.GetOutputPathsFor(
@@ -3162,7 +3166,7 @@ export class Program extends processedFiles {
               emitter$v!.writer = undefined as $printer.EmitTextWriter;
               writerPool!.Put(writer);
             } catch ($e) {
-              $panic = $rt.toPanic($e);
+              $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
             } finally {
               $panic = $rt.runDefers($defers, $panic);
             }
@@ -3171,10 +3175,10 @@ export class Program extends processedFiles {
         }
       }
       $rt.nn(wg).RunAndWait();
-      $t1 = CombineEmitResults($core.Map_<emitter | undefined, EmitResult | undefined>($zf6, emitters, $fn13));
+      $t1 = CombineEmitResults($core.Map_<emitter | undefined, EmitResult | undefined>($zf6, emitters, $fn14));
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -3212,8 +3216,8 @@ export class Program extends processedFiles {
   HasSameFileNames(other: Program | undefined): boolean {
     const p = this;
     return (
-      $rt.maps_EqualFunc(p!.filesByPath, other!.filesByPath, $fn14) &&
-      $rt.maps_EqualFunc(p!.redirectFilesByPath, other!.redirectFilesByPath, $fn15)
+      $rt.maps_EqualFunc(p!.filesByPath, other!.filesByPath, $fn15) &&
+      $rt.maps_EqualFunc(p!.redirectFilesByPath, other!.redirectFilesByPath, $fn16)
     );
   }
   GetSourceFiles(): ($ast.SourceFile | undefined)[] {
@@ -3274,7 +3278,7 @@ export class Program extends processedFiles {
       filesExplained++;
     };
     const redirectFiles: (redirectsFile | undefined)[] = $rt.slices_Collect($rt.maps_Values(p!.redirectFilesByPath));
-    $rt.slices_SortFunc(redirectFiles, $fn16);
+    $rt.slices_SortFunc(redirectFiles, $fn17);
     const files: ($ast.SourceFile | undefined)[] = p!.GetSourceFiles();
     let sourceFileIndex: number = 0;
     const explainSourceFiles: ((p0: number) => void) | undefined = (endIndex: number): void => {
@@ -3950,7 +3954,7 @@ export class checkerPool extends $rt.GoObject {
             });
             cb!(idx, checker);
           } catch ($e) {
-            $panic = $rt.toPanic($e);
+            $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
           } finally {
             $panic = $rt.runDefers($defers, $panic);
           }
@@ -4006,7 +4010,7 @@ export class checkerPool extends $rt.GoObject {
             }
           }
         } catch ($e) {
-          $panic = $rt.toPanic($e);
+          $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
         } finally {
           $panic = $rt.runDefers($defers, $panic);
         }
@@ -4071,7 +4075,7 @@ export class compilerHost extends $rt.GoObject {
   }
   GetSourceFile(opts: $ast.SourceFileParseOptions): $ast.SourceFile | undefined {
     const h = this;
-    const $t1 = $rt.nn(h!.FS$m()).ReadFile(opts.FileName);
+    const $t1 = $fn7($rt.nn(h!.FS$m()), opts.FileName);
     const text: string = $t1[0];
     const ok: boolean = $t1[1];
     if (!ok) {
@@ -4301,7 +4305,7 @@ export class emitter extends $rt.GoObject {
       e!.emitDeclarationFile(e!.sourceFile, e!.paths!.DeclarationFilePath(), e!.paths!.DeclarationMapPath());
       e!.emitResult.Diagnostics = e!.emitterDiagnostics.GetDiagnostics();
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -4353,7 +4357,7 @@ export class emitter extends $rt.GoObject {
       $t1 = sourceFile;
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -4397,7 +4401,7 @@ export class emitter extends $rt.GoObject {
       $t2 = $t5[1];
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -4462,7 +4466,7 @@ export class emitter extends $rt.GoObject {
         shouldEmitSourceMaps(options, sourceFile),
       );
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -4557,7 +4561,7 @@ export class emitter extends $rt.GoObject {
         shouldEmitSourceMaps(declarationMapOptions, sourceFile),
       );
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -5062,7 +5066,7 @@ export class fileLoader extends $rt.GoObject {
       $t1 = sourceFile;
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -5309,7 +5313,7 @@ export class fileLoader extends $rt.GoObject {
       t!.typeResolutionsInFile = typeResolutionsInFile;
       t!.typeResolutionsTrace = typeResolutionsTrace;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -5451,7 +5455,7 @@ export class fileLoader extends $rt.GoObject {
         t!.resolutionsTrace = resolutionsTrace;
       }
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -5480,7 +5484,7 @@ export class fileLoader extends $rt.GoObject {
       $t1 = externalHelpersModuleReference;
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -5554,7 +5558,7 @@ export class fileLoader extends $rt.GoObject {
       $t2 = $t3[1];
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -5660,7 +5664,7 @@ export class filesParser extends $rt.GoObject {
               }
             }
           } catch ($e) {
-            $panic = $rt.toPanic($e);
+            $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
           } finally {
             $panic = $rt.runDefers($defers, $panic);
           }
@@ -6177,7 +6181,7 @@ export class includeProcessor extends $rt.GoObject {
     const i = this;
     if (
       !FileIncludeReason.isReferencedFile$nil(reason) &&
-      $rt.slices_ContainsFunc(i!.fileIncludeReasons?.get(file) ?? [], $fn7)
+      $rt.slices_ContainsFunc(i!.fileIncludeReasons?.get(file) ?? [], $fn8)
     ) {
       i!.addProcessingDiagnostic([
         processingDiagnostic.$lit_compiler_processingDiagnostic_0_1(
@@ -6717,7 +6721,7 @@ export class parseTask extends $rt.GoObject {
       }
       loader!.resolveImportsAndModuleAugmentations(t);
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -6758,7 +6762,7 @@ export class parseTask extends $rt.GoObject {
         }
       }
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -6943,7 +6947,7 @@ export class processingDiagnostic extends $rt.GoObject {
           processInclude!(reason);
         }
       }
-      redirectInfo = program!.includeProcessor_!.explainRedirectAndImpliedFormat(program, diag!.file, $fn8);
+      redirectInfo = program!.includeProcessor_!.explainRedirectAndImpliedFormat(program, diag!.file, $fn9);
     }
     if (!(diag!.diagnosticReason === undefined)) {
       processInclude!(diag!.diagnosticReason);
@@ -7066,7 +7070,7 @@ export class projectReferenceDtsFakingVfs extends $rt.GoObject {
     const fs = this;
     let contents: string = '';
     let ok: boolean = false;
-    return $rt.nn($rt.nn(fs!.projectReferenceFileMapper_!.opts.Host).FS$m()).ReadFile(path);
+    return $fn7($rt.nn($rt.nn(fs!.projectReferenceFileMapper_!.opts.Host).FS$m()), path);
   }
   WriteFile(path: string, data: string): $rt.GoObject | undefined {
     const fs = this;
@@ -7567,7 +7571,7 @@ export class projectReferenceParseTask extends $rt.GoObject {
           });
         }
       }
-      t!.resolved = $rt.nn(loader!.opts.Host).GetResolvedProjectReference(t!.configName, loader!.toPath(t!.configName));
+      t!.resolved = $fn18($rt.nn(loader!.opts.Host), t!.configName, loader!.toPath(t!.configName));
       if (t!.resolved === undefined) {
         break $body;
       }
@@ -7579,7 +7583,7 @@ export class projectReferenceParseTask extends $rt.GoObject {
         }
       }
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -7998,34 +8002,48 @@ export const fileIncludeKindRootFile: number = 4;
 export const fileIncludeKindTypeReferenceDirective: number = 2;
 export const processingDiagnosticKindExplainingFileInclude: processingDiagnosticKind = 1;
 export const processingDiagnosticKindUnknownReference: processingDiagnosticKind = 0;
+interface $I0 {
+  ReadFile(a0: string): [string, boolean];
+}
+interface $I1 {
+  GetResolvedProjectReference(a0: string, a1: $tspath.Path): $tsoptions.ParsedCommandLine | undefined;
+}
 const $fn0 = (): $rt.GoObject | undefined => {
   return parseTaskData.$lit_compiler_parseTaskData_0(new Map<string, parseTask | undefined>());
 };
 const $fn1 = (): string[] => {
   return [];
 };
-const $fn10 = (f: $ast.SourceFile | undefined): boolean => {
+const $fn10 = (
+  $p0: $rt.context_Context | undefined,
+  file: $ast.SourceFile | undefined,
+): ($ast.Diagnostic | undefined)[] => {
+  return file!.BindDiagnostics();
+};
+const $fn11 = (f: $ast.SourceFile | undefined): boolean => {
   return $tspath.GetRootLength(f!.FileName()) > 1;
 };
-const $fn11 = (d: $ast.Diagnostic | undefined): boolean => {
+const $fn12 = (d: $ast.Diagnostic | undefined): boolean => {
   return !d!.SkippedOnNoEmit();
 };
-const $fn12 = (d: $ast.Diagnostic | undefined): boolean => {
+const $fn13 = (d: $ast.Diagnostic | undefined): boolean => {
   return $collections$Set_.Has$nil<number>(plainJSErrors, d!.Code());
 };
-const $fn13 = (e: emitter | undefined): EmitResult | undefined => {
+const $fn14 = (e: emitter | undefined): EmitResult | undefined => {
   return e!.emitResult;
 };
-const $fn14 = (a: $ast.SourceFile | undefined, b: $ast.SourceFile | undefined): boolean => {
+const $fn15 = (a: $ast.SourceFile | undefined, b: $ast.SourceFile | undefined): boolean => {
   return a!.FileName() === b!.FileName();
 };
-const $fn15 = (a$1: redirectsFile | undefined, b$1: redirectsFile | undefined): boolean => {
+const $fn16 = (a$1: redirectsFile | undefined, b$1: redirectsFile | undefined): boolean => {
   return a$1!.FileName() === b$1!.FileName();
 };
-const $fn16 = (a: redirectsFile | undefined, b: redirectsFile | undefined): number => {
+const $fn17 = (a: redirectsFile | undefined, b: redirectsFile | undefined): number => {
   return a!.index - b!.index;
 };
-const $fn17 = (configName: string): projectReferenceParseTask | undefined => {
+const $fn18 = ($r: $I1, a0: string, a1: $tspath.Path): $tsoptions.ParsedCommandLine | undefined =>
+  $r.GetResolvedProjectReference(a0, a1);
+const $fn19 = (configName: string): projectReferenceParseTask | undefined => {
   return projectReferenceParseTask.$lit_compiler_projectReferenceParseTask_0(configName);
 };
 const $fn2 = (fileName$1: string): string => {
@@ -8035,17 +8053,12 @@ const $fn3 = (k: $module.ModeAwareCacheKey): string => k.$key_module_ModeAwareCa
 const $fn4 = $ast.SourceFileMetaData.$lit_ast_SourceFileMetaData_2(1);
 const $fn5 = (k: $module.PackageId): string => k.$key_module_PackageId();
 const $fn6 = (msg: $diagnostics.Message | undefined, args: ($rt.GoObject | undefined)[]): void => {};
-const $fn7 = (r: FileIncludeReason | undefined): boolean => {
+const $fn7 = ($r: $I0, a0: string): [string, boolean] => $r.ReadFile(a0);
+const $fn8 = (r: FileIncludeReason | undefined): boolean => {
   return FileIncludeReason.isReferencedFile$nil(r);
 };
-const $fn8 = (fileName: string): string => {
+const $fn9 = (fileName: string): string => {
   return fileName;
-};
-const $fn9 = (
-  $p0: $rt.context_Context | undefined,
-  file: $ast.SourceFile | undefined,
-): ($ast.Diagnostic | undefined)[] => {
-  return file!.BindDiagnostics();
 };
 export let parseTaskDataPool: $rt.sync_Pool = new $rt.sync_Pool($fn0);
 export let plainJSErrors: $collections.Set_<number> | undefined = $collections.NewSetFromItems<number>([
@@ -8490,7 +8503,7 @@ export function processAllProgramFiles(opts: ProgramOptions, singleThreaded: boo
     $t1 = loader.filesParser_!.getProcessedFiles(loader);
     break $body;
   } catch ($e) {
-    $panic = $rt.toPanic($e);
+    $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
   } finally {
     $panic = $rt.runDefers($defers, $panic);
   }
@@ -8722,7 +8735,7 @@ export function NewProgram(opts: ProgramOptions): Program | undefined {
     $t1 = p;
     break $body;
   } catch ($e) {
-    $panic = $rt.toPanic($e);
+    $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
   } finally {
     $panic = $rt.runDefers($defers, $panic);
   }
@@ -8833,11 +8846,11 @@ export function FilterNoEmitSemanticDiagnostics(
   if (!$core.Tristate$IsTrue(options!.NoEmit)) {
     return diagnostics;
   }
-  return $core.Filter<$ast.Diagnostic | undefined>(diagnostics, $fn11);
+  return $core.Filter<$ast.Diagnostic | undefined>(diagnostics, $fn12);
 }
 export function isCommentOrBlankLine(text: string, pos: number): boolean {
   for (; pos < text.length && (text.charCodeAt(pos) === (32 as number) || text.charCodeAt(pos) === (9 as number));) {
-    pos++;
+    pos = pos + 1;
   }
   return (
     pos === text.length ||
@@ -9015,5 +9028,5 @@ export function newProjectReferenceDtsFakingHost(loader: fileLoader | undefined)
 export function createProjectReferenceParseTasks(
   projectReferences: string[],
 ): (projectReferenceParseTask | undefined)[] {
-  return $core.Map_<string, projectReferenceParseTask | undefined>($zf7, projectReferences, $fn17);
+  return $core.Map_<string, projectReferenceParseTask | undefined>($zf7, projectReferences, $fn19);
 }

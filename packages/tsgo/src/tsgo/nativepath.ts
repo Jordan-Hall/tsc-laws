@@ -6,8 +6,15 @@ export function Realpath(path: string): [string, $rt.GoObject | undefined] {
   return $rt.path_filepath_EvalSymlinks(path);
 }
 export function IsSymlinkOrReparsePoint(path: string): boolean {
-  const $t1 = $rt.os_Lstat(path) as unknown as [$checkhost.hostFileInfo | undefined, $rt.GoObject | undefined];
-  const info: $checkhost.hostFileInfo | undefined = $t1[0];
-  const err: $rt.GoObject | undefined = $t1[1];
+  const $t2 = ((
+    $t1: [$rt.GoObject | undefined, $rt.GoObject | undefined],
+  ): [$checkhost.hostFileInfo | undefined, $rt.GoObject | undefined] => [
+    $t1[0] === undefined
+      ? undefined
+      : $rt.unsupportedConversion<$checkhost.hostFileInfo | undefined>('$checkhost.hostFileInfo | undefined'),
+    $t1[1],
+  ])($rt.os_Lstat(path));
+  const info: $checkhost.hostFileInfo | undefined = $t2[0];
+  const err: $rt.GoObject | undefined = $t2[1];
   return err === undefined && !((info!.Mode() & 134217728) === (0 as number));
 }

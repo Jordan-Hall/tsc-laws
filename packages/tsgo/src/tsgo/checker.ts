@@ -2842,7 +2842,7 @@ export class Checker extends $rt.GoObject {
       }
       c!.ctx = undefined as $rt.context_Context | undefined;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -3342,7 +3342,7 @@ export class Checker extends $rt.GoObject {
       }
       c!.currentNode = saveCurrentNode;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -3554,7 +3554,7 @@ export class Checker extends $rt.GoObject {
         }
       }
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -8266,7 +8266,7 @@ export class Checker extends $rt.GoObject {
       c!.checkGrammarVariableDeclaration(node!.AsVariableDeclaration());
       c!.checkVariableLikeDeclaration(node);
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -10696,7 +10696,7 @@ export class Checker extends $rt.GoObject {
       $t1 = t;
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -20936,7 +20936,7 @@ export class Checker extends $rt.GoObject {
       (resolutionDiagnostic === undefined ||
         resolutionDiagnostic === $diagnostics.Module_0_was_resolved_to_1_but_jsx_is_not_set)
     ) {
-      sourceFile = $rt.nn(c!.program).GetSourceFileForResolvedModule(resolvedModule!.ResolvedFileName);
+      sourceFile = $fn61($rt.nn(c!.program), resolvedModule!.ResolvedFileName);
     }
     if (!(sourceFile === undefined)) {
       if (!(resolutionDiagnostic === undefined)) {
@@ -21139,7 +21139,7 @@ export class Checker extends $rt.GoObject {
     if (!(c!.patternAmbientModules.length === (0 as number))) {
       const pattern: $ast.PatternAmbientModule | undefined = $core.FindBestPatternMatch<
         $ast.PatternAmbientModule | undefined
-      >($zf9, c!.patternAmbientModules, $fn61, moduleReference);
+      >($zf9, c!.patternAmbientModules, $fn62, moduleReference);
       if (!(pattern === undefined)) {
         const augmentation: $ast.Symbol_ | undefined =
           c!.patternAmbientModuleAugmentations?.get(moduleReference) ?? undefined;
@@ -23052,7 +23052,7 @@ export class Checker extends $rt.GoObject {
         if (!((baseConstructorType!.flags & 34078720) === (0 as number))) {
           return baseConstructorType;
         } else if (!((baseConstructorType!.flags & 268435456) === (0 as number))) {
-          return $core.Find<Type | undefined>($zf0, baseConstructorType!.Types$Type(), $fn62);
+          return $core.Find<Type | undefined>($zf0, baseConstructorType!.Types$Type(), $fn63);
         }
       }
     }
@@ -23729,7 +23729,7 @@ export class Checker extends $rt.GoObject {
     symbol_: $ast.Symbol_ | undefined,
   ): Type | undefined {
     const c = this;
-    source = c!.filterType(source, $fn64);
+    source = c!.filterType(source, $fn65);
     if (!((source!.flags & 262144) === (0 as number))) {
       return c!.emptyObjectType;
     }
@@ -24105,7 +24105,7 @@ export class Checker extends $rt.GoObject {
     if (
       !(symbol_!.ValueDeclaration === undefined) &&
       $ast.IsInJSFile(symbol_!.ValueDeclaration) &&
-      c!.filterType(t, $fn65) === c!.neverType
+      c!.filterType(t, $fn66) === c!.neverType
     ) {
       c!.reportImplicitAny(symbol_!.ValueDeclaration, c!.anyType, 0);
       return c!.anyType;
@@ -26332,7 +26332,7 @@ export class Checker extends $rt.GoObject {
         $ast.IsMethodOrAccessor(declaration) ||
         $ast.IsFunctionDeclaration(declaration) ||
         $ast.IsConstructorDeclaration(declaration)) &&
-      $core.Every<$ast.Node | undefined>(declaration!.Parameters(), $fn66) &&
+      $core.Every<$ast.Node | undefined>(declaration!.Parameters(), $fn67) &&
       c!.getContextualType(declaration, 1) === undefined;
     if (isUntypedSignatureInJSFile) {
       flags = (flags | 64) >>> 0;
@@ -26733,7 +26733,7 @@ export class Checker extends $rt.GoObject {
                   c!.unwrapReturnType(contextualReturnType, functionFlags),
                   c!.voidType,
                 ),
-                $fn67,
+                $fn68,
               )
             ) {
               returnType$1 = c!.undefinedType;
@@ -27943,7 +27943,7 @@ export class Checker extends $rt.GoObject {
                   const firstThisParameterOfUnionSignatures: $ast.Symbol_ | undefined = $core.FirstNonNil<
                     Signature | undefined,
                     $ast.Symbol_ | undefined
-                  >($zf1, unionSignatures, $fn68);
+                  >($zf1, unionSignatures, $fn69);
                   if (!(firstThisParameterOfUnionSignatures === undefined)) {
                     const thisType: Type | undefined = c!.getIntersectionType(
                       $core.MapNonNil<Signature | undefined, Type | undefined>(
@@ -29049,7 +29049,7 @@ export class Checker extends $rt.GoObject {
   }
   hasTypeParameterDefault(t: Type | undefined): boolean {
     const c = this;
-    return !(t!.symbol === undefined) && $core.Some<$ast.Node | undefined>(t!.symbol!.Declarations, $fn69);
+    return !(t!.symbol === undefined) && $core.Some<$ast.Node | undefined>(t!.symbol!.Declarations, $fn70);
   }
   fillMissingTypeArguments(
     typeArguments: (Type | undefined)[],
@@ -29129,7 +29129,7 @@ export class Checker extends $rt.GoObject {
           const defaultDeclaration: $ast.Node | undefined = $core.FirstNonNil<
             $ast.Node | undefined,
             $ast.Node | undefined
-          >($zf3, t!.symbol!.Declarations, $fn70);
+          >($zf3, t!.symbol!.Declarations, $fn71);
           if (!(defaultDeclaration === undefined)) {
             defaultType = c!.getTypeFromTypeNode(defaultDeclaration);
           }
@@ -29364,7 +29364,7 @@ export class Checker extends $rt.GoObject {
       if (declaration === undefined) {
         declaration = $ast.GetDeclarationOfKind(t!.alias!.symbol, 345);
       }
-      return !(declaration === undefined) && !($ast.FindAncestorOrQuit(declaration!.Parent, $fn71) === undefined);
+      return !(declaration === undefined) && !($ast.FindAncestorOrQuit(declaration!.Parent, $fn72) === undefined);
     }
     return false;
   }
@@ -30095,19 +30095,19 @@ export class Checker extends $rt.GoObject {
   }
   instantiateTypes(types: (Type | undefined)[], m: TypeMapper | undefined): (Type | undefined)[] {
     const c = this;
-    return instantiateList<Type | undefined>($zf0, c, types, m, $fn72);
+    return instantiateList<Type | undefined>($zf0, c, types, m, $fn73);
   }
   instantiateSymbols(symbols: ($ast.Symbol_ | undefined)[], m: TypeMapper | undefined): ($ast.Symbol_ | undefined)[] {
     const c = this;
-    return instantiateList<$ast.Symbol_ | undefined>($zf1, c, symbols, m, $fn73);
+    return instantiateList<$ast.Symbol_ | undefined>($zf1, c, symbols, m, $fn74);
   }
   instantiateSignatures(signatures: (Signature | undefined)[], m: TypeMapper | undefined): (Signature | undefined)[] {
     const c = this;
-    return instantiateList<Signature | undefined>($zf5, c, signatures, m, $fn74);
+    return instantiateList<Signature | undefined>($zf5, c, signatures, m, $fn75);
   }
   instantiateIndexInfos(indexInfos: (IndexInfo | undefined)[], m: TypeMapper | undefined): (IndexInfo | undefined)[] {
     const c = this;
-    return instantiateList<IndexInfo | undefined>($zf8, c, indexInfos, m, $fn75);
+    return instantiateList<IndexInfo | undefined>($zf8, c, indexInfos, m, $fn76);
   }
   tryGetTypeFromTypeNode(node: $ast.Node | undefined): Type | undefined {
     const c = this;
@@ -30940,7 +30940,7 @@ export class Checker extends $rt.GoObject {
       {
         const lengthType: Type | undefined = c!.getTypeOfPropertyOfType(t, 'length');
         if (!(lengthType === undefined)) {
-          return everyType(lengthType, $fn76);
+          return everyType(lengthType, $fn77);
         }
       }
     }
@@ -31164,7 +31164,7 @@ export class Checker extends $rt.GoObject {
     const c = this;
     let declaration: $ast.Node | undefined = symbol_!.ValueDeclaration;
     if ((symbol_!.Flags & 48) === (0 as number)) {
-      declaration = $core.Find<$ast.Node | undefined>($zf3, symbol_!.Declarations, $fn77);
+      declaration = $core.Find<$ast.Node | undefined>($zf3, symbol_!.Declarations, $fn78);
     }
     $debug.Assert(!(declaration === undefined), [
       new $rt.BoxStr('Class was missing valueDeclaration -OR- non-class had no interface declarations', 'string'),
@@ -32139,7 +32139,7 @@ export class Checker extends $rt.GoObject {
     return (
       $ast.IsTupleTypeNode(node) &&
       node!.Elements().length > 0 &&
-      !$core.Some<$ast.Node | undefined>(node!.Elements(), $fn78)
+      !$core.Some<$ast.Node | undefined>(node!.Elements(), $fn79)
     );
   }
   isDeferredType(t: Type | undefined, checkTuples: boolean): boolean {
@@ -32326,7 +32326,7 @@ export class Checker extends $rt.GoObject {
                 );
                 if (
                   !(immediateModuleSymbol === undefined) &&
-                  $core.Some<$ast.Node | undefined>(immediateModuleSymbol!.Declarations, $fn79)
+                  $core.Some<$ast.Node | undefined>(immediateModuleSymbol!.Declarations, $fn80)
                 ) {
                   symbolFromModule = c!.getSymbol(
                     c!.getExportsOfSymbol(immediateModuleSymbol!.Parent),
@@ -32482,7 +32482,7 @@ export class Checker extends $rt.GoObject {
   }
   createTupleType(elementTypes: (Type | undefined)[]): Type | undefined {
     const c = this;
-    const elementInfos: TupleElementInfo[] = $core.Map_<Type | undefined, TupleElementInfo>($zf14, elementTypes, $fn80);
+    const elementInfos: TupleElementInfo[] = $core.Map_<Type | undefined, TupleElementInfo>($zf14, elementTypes, $fn81);
     return c!.createTupleTypeEx(elementTypes, elementInfos, false);
   }
   createTupleTypeEx(
@@ -32522,7 +32522,7 @@ export class Checker extends $rt.GoObject {
   createTupleTargetType(elementInfos: TupleElementInfo[], readonly_: boolean): Type | undefined {
     const c = this;
     const arity: number = elementInfos.length;
-    const minLength: number = $core.CountWhere<TupleElementInfo>(elementInfos, $fn81);
+    const minLength: number = $core.CountWhere<TupleElementInfo>(elementInfos, $fn82);
     let typeParameters: (Type | undefined)[] = [];
     const members: $ast.SymbolTable = new Map<string, $ast.Symbol_ | undefined>();
     let combinedFlags: ElementFlags = 0;
@@ -34307,7 +34307,7 @@ export class Checker extends $rt.GoObject {
   }
   extractRedundantTemplateLiterals(types: (Type | undefined)[]): [(Type | undefined)[], boolean] {
     const c = this;
-    const literals: (Type | undefined)[] = $core.Filter<Type | undefined>(types, $fn82);
+    const literals: (Type | undefined)[] = $core.Filter<Type | undefined>(types, $fn83);
     let i: number = types.length;
     for (; i > 0;) {
       i--;
@@ -34931,7 +34931,7 @@ export class Checker extends $rt.GoObject {
     }
     let result: Type | undefined = undefined as Type | undefined;
     if (!((indexFlags & 2) === (0 as number))) {
-      result = c!.filterType(c!.getUnionType(keyTypes), $fn83);
+      result = c!.filterType(c!.getUnionType(keyTypes), $fn84);
     } else {
       result = c!.getUnionType(keyTypes);
     }
@@ -35137,7 +35137,7 @@ export class Checker extends $rt.GoObject {
       }
       if (everyType(objectType, isTupleType) && isNumericLiteralName(propName)) {
         const index: $jsnum.Number_ = $jsnum.FromString(propName);
-        if (!(accessNode === undefined) && everyType(objectType, $fn84) && (accessFlags & 16) === (0 as number)) {
+        if (!(accessNode === undefined) && everyType(objectType, $fn85) && (accessFlags & 16) === (0 as number)) {
           const indexNode: $ast.Node | undefined = getIndexNodeForAccessExpression(accessNode);
           if (isTupleType(objectType)) {
             if (index < 0) {
@@ -35467,7 +35467,7 @@ export class Checker extends $rt.GoObject {
     const c = this;
     const candidates: ((p0: ((p0: Type | undefined) => boolean) | undefined) => void) | undefined = $core.FilterSeq<
       Type | undefined
-    >(target!.Types$Type(), $fn82);
+    >(target!.Types$Type(), $fn83);
     return $core.GetSpellingSuggestion<Type | undefined>(
       $zf0,
       getStringLiteralValue(source),
@@ -36631,7 +36631,7 @@ export class Checker extends $rt.GoObject {
           if ($ast.IsJsxTagName(location) && isJsxIntrinsicTagName(location)) {
             return;
           }
-          if (!($ast.FindAncestor(location, $fn85) === undefined)) {
+          if (!($ast.FindAncestor(location, $fn86) === undefined)) {
             return;
           }
           if (
@@ -37609,7 +37609,7 @@ export class Checker extends $rt.GoObject {
   }
   getTemplateLiteralType(texts: string[], types: (Type | undefined)[]): Type | undefined {
     const c = this;
-    const unionIndex: number = $core.FindIndex<Type | undefined>(types, $fn87);
+    const unionIndex: number = $core.FindIndex<Type | undefined>(types, $fn88);
     if (unionIndex >= 0) {
       if (!c!.checkCrossProductUnion(types)) {
         return c!.errorType;
@@ -37666,8 +37666,8 @@ export class Checker extends $rt.GoObject {
       return c!.getStringLiteralType($stringutil.CombineSurrogatePairs(sb.String()));
     }
     newTexts.push($stringutil.CombineSurrogatePairs(sb.String()));
-    if ($core.Every<string>(newTexts, $fn88)) {
-      if ($core.Every<Type | undefined>(newTypes, $fn89)) {
+    if ($core.Every<string>(newTexts, $fn89)) {
+      if ($core.Every<Type | undefined>(newTypes, $fn90)) {
         return c!.stringType;
       }
       if (newTypes.length === (1 as number) && c!.isPatternLiteralType(newTypes[0])) {
@@ -42800,12 +42800,12 @@ export class Checker extends $rt.GoObject {
         } else {
           if (c!.strictNullChecks) {
             if (c!.optionalChainContainsReference(expr, f!.reference)) {
-              t = c!.narrowTypeBySwitchOptionalChainContainment(t, data, $fn92);
+              t = c!.narrowTypeBySwitchOptionalChainContainment(t, data, $fn93);
             } else if (
               $ast.IsTypeOfExpression(expr) &&
               c!.optionalChainContainsReference(expr!.Expression(), f!.reference)
             ) {
-              t = c!.narrowTypeBySwitchOptionalChainContainment(t, data, $fn93);
+              t = c!.narrowTypeBySwitchOptionalChainContainment(t, data, $fn94);
             }
           }
           const access: $ast.Node | undefined = c!.getDiscriminantPropertyAccess(f, expr, t);
@@ -42889,7 +42889,7 @@ export class Checker extends $rt.GoObject {
     }
     const clauses: ($ast.Node | undefined)[] = data!.SwitchStatement!.AsSwitchStatement()!.CaseBlock!.AsCaseBlock()!
       .Clauses!.Nodes;
-    const defaultIndex: number = $core.FindIndex<$ast.Node | undefined>(clauses, $fn94);
+    const defaultIndex: number = $core.FindIndex<$ast.Node | undefined>(clauses, $fn95);
     const clauseStart: number = data!.ClauseStart;
     const clauseEnd: number = data!.ClauseEnd;
     const hasDefaultClause: boolean =
@@ -42918,7 +42918,7 @@ export class Checker extends $rt.GoObject {
     const c = this;
     const clauses: ($ast.Node | undefined)[] = data!.SwitchStatement!.AsSwitchStatement()!.CaseBlock!.AsCaseBlock()!
       .Clauses!.Nodes;
-    const defaultIndex: number = $core.FindIndex<$ast.Node | undefined>(clauses, $fn94);
+    const defaultIndex: number = $core.FindIndex<$ast.Node | undefined>(clauses, $fn95);
     const clauseStart: number = data!.ClauseStart;
     const clauseEnd: number = data!.ClauseEnd;
     const hasDefaultClause: boolean =
@@ -46077,7 +46077,7 @@ export class Checker extends $rt.GoObject {
       if (!(useStrictDirective === undefined)) {
         const nonSimpleParameters: ($ast.Node | undefined)[] = $core.Filter<$ast.Node | undefined>(
           node!.Parameters(),
-          $fn95,
+          $fn96,
         );
         if (!(nonSimpleParameters.length === (0 as number))) {
           {
@@ -46237,7 +46237,7 @@ export class Checker extends $rt.GoObject {
       );
     }
     const t: Type | undefined = c!.getTypeFromTypeNode(typeNode);
-    if (someType(t, $fn96) || c!.isGenericType(t)) {
+    if (someType(t, $fn97) || c!.isGenericType(t)) {
       return c!.grammarErrorOnNode(
         parameter!.Name(),
         $diagnostics.An_index_signature_parameter_type_cannot_be_a_literal_type_or_generic_type_Consider_using_a_mapped_object_type_instead,
@@ -48378,10 +48378,10 @@ export class Checker extends $rt.GoObject {
       } else {
         sourceTypes$1 = [source];
       }
-      const $t3 = c!.inferFromMatchingTypes(n, sourceTypes$1, target!.Distributed(), $fn97);
+      const $t3 = c!.inferFromMatchingTypes(n, sourceTypes$1, target!.Distributed(), $fn98);
       const tempSources: (Type | undefined)[] = $t3[0];
       const tempTargets: (Type | undefined)[] = $t3[1];
-      const $t4 = c!.inferFromMatchingTypes(n, tempSources, tempTargets, $fn98);
+      const $t4 = c!.inferFromMatchingTypes(n, tempSources, tempTargets, $fn99);
       const sources: (Type | undefined)[] = $t4[0];
       const targets: (Type | undefined)[] = $t4[1];
       if (targets.length === (0 as number)) {
@@ -48411,7 +48411,7 @@ export class Checker extends $rt.GoObject {
         } else {
           sourceTypes$2 = [source];
         }
-        const $t6 = c!.inferFromMatchingTypes(n, sourceTypes$2, target!.Types$Type(), $fn99);
+        const $t6 = c!.inferFromMatchingTypes(n, sourceTypes$2, target!.Types$Type(), $fn100);
         const sources$1: (Type | undefined)[] = $t6[0];
         const targets$1: (Type | undefined)[] = $t6[1];
         if (sources$1.length === (0 as number) || targets$1.length === (0 as number)) {
@@ -48541,7 +48541,7 @@ export class Checker extends $rt.GoObject {
           c!.inferFromTypes(n, source!.AsSubstitutionType()!.baseType, target);
           c!.inferWithPriority(n, c!.getSubstitutionIntersection(source), target, 4);
         } else if (!((target!.flags & 67108864) === (0 as number))) {
-          c!.invokeOnce(n, source, target, $fn100);
+          c!.invokeOnce(n, source, target, $fn101);
         } else if (!((target!.flags & 402653184) === (0 as number))) {
           c!.inferToMultipleTypes(n, source, target!.Types$Type(), target!.flags);
         } else if (!((source!.flags & 134217728) === (0 as number))) {
@@ -48557,7 +48557,7 @@ export class Checker extends $rt.GoObject {
         } else {
           source = c!.getReducedType(source);
           if (c!.isGenericMappedType(source) && c!.isGenericMappedType(target)) {
-            c!.invokeOnce(n, source, target, $fn101);
+            c!.invokeOnce(n, source, target, $fn102);
           }
           if (!(!((n!.priority & 512) === (0 as number)) && !((source!.flags & 401080320) === (0 as number)))) {
             const apparentSource: Type | undefined = c!.getApparentType(source);
@@ -48568,7 +48568,7 @@ export class Checker extends $rt.GoObject {
             source = apparentSource;
           }
           if (!((source!.flags & 269484032) === (0 as number))) {
-            c!.invokeOnce(n, source, target, $fn102);
+            c!.invokeOnce(n, source, target, $fn103);
           }
         }
       }
@@ -48654,7 +48654,7 @@ export class Checker extends $rt.GoObject {
       }
     }
     if (n!.visited === undefined) {
-      n!.visited = new $rt.StructMap<InferenceKey, InferencePriority>($fn103);
+      n!.visited = new $rt.StructMap<InferenceKey, InferencePriority>($fn104);
     }
     n!.visited!.set(key, -1);
     const saveInferencePriority: InferencePriority = n!.inferencePriority;
@@ -48854,7 +48854,7 @@ export class Checker extends $rt.GoObject {
     const c = this;
     const matches: (Type | undefined)[] = c!.inferTypesFromTemplateLiteralType(source, target);
     const types: (Type | undefined)[] = target!.types;
-    if (!(matches.length === (0 as number)) || $core.Every<string>(target!.texts, $fn104)) {
+    if (!(matches.length === (0 as number)) || $core.Every<string>(target!.texts, $fn105)) {
       {
         const $t1 = types;
         for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
@@ -49558,12 +49558,12 @@ export class Checker extends $rt.GoObject {
           return c!.inferReverseMappedType(t, target, constraint);
         },
       );
-      if (!$core.Every<Type | undefined>(elementTypes, $fn105)) {
+      if (!$core.Every<Type | undefined>(elementTypes, $fn106)) {
         return undefined;
       }
       let elementInfos: TupleElementInfo[] = source!.TargetTupleType()!.elementInfos;
       if (!((getMappedTypeModifiers(target) & 4) === (0 as number))) {
-        elementInfos = $core.SameMap<TupleElementInfo>($zf14, elementInfos, $fn106);
+        elementInfos = $core.SameMap<TupleElementInfo>($zf14, elementInfos, $fn107);
       }
       return c!.createTupleTypeEx(elementTypes, elementInfos, source!.TargetTupleType()!.readonly);
     }
@@ -50150,7 +50150,7 @@ export class Checker extends $rt.GoObject {
       );
       if (!(objectLiterals.length === (0 as number))) {
         const literalsType: Type | undefined = c!.getUnionTypeEx(objectLiterals, 2, undefined, undefined);
-        const nonLiteralTypes: (Type | undefined)[] = $core.Filter<Type | undefined>(candidates, $fn107);
+        const nonLiteralTypes: (Type | undefined)[] = $core.Filter<Type | undefined>(candidates, $fn108);
         return $core.Concatenate<Type | undefined>(nonLiteralTypes, [literalsType]);
       }
     }
@@ -50210,7 +50210,7 @@ export class Checker extends $rt.GoObject {
     let primaryTypes: (Type | undefined)[] = types;
     if (c!.strictNullChecks) {
       primaryTypes = $core.SameMap<Type | undefined>($zf0, types, (t: Type | undefined): Type | undefined => {
-        return c!.filterType(t, $fn108);
+        return c!.filterType(t, $fn109);
       });
     }
     let supertype: Type | undefined = undefined as Type | undefined;
@@ -50226,7 +50226,7 @@ export class Checker extends $rt.GoObject {
   }
   getSingleCommonSupertype(types: (Type | undefined)[]): Type | undefined {
     const c = this;
-    const candidate: Type | undefined = c!.findLeftmostType(types, $fn109);
+    const candidate: Type | undefined = c!.findLeftmostType(types, $fn110);
     if (
       $core.Every<Type | undefined>(types, (t: Type | undefined): boolean => {
         return t === candidate || c!.isTypeStrictSubtypeOf(t, candidate);
@@ -50234,7 +50234,7 @@ export class Checker extends $rt.GoObject {
     ) {
       return candidate;
     }
-    return c!.findLeftmostType(types, $fn110);
+    return c!.findLeftmostType(types, $fn111);
   }
   findLeftmostType(
     types: (Type | undefined)[],
@@ -51145,11 +51145,11 @@ export class Checker extends $rt.GoObject {
     {
       switch (name_) {
         case 'for' as string: {
-          jsxSpecific = $core.Find<$ast.Symbol_ | undefined>($zf1, properties, $fn111);
+          jsxSpecific = $core.Find<$ast.Symbol_ | undefined>($zf1, properties, $fn112);
           break;
         }
         case 'class' as string: {
-          jsxSpecific = $core.Find<$ast.Symbol_ | undefined>($zf1, properties, $fn112);
+          jsxSpecific = $core.Find<$ast.Symbol_ | undefined>($zf1, properties, $fn113);
           break;
         }
       }
@@ -51546,7 +51546,7 @@ export class Checker extends $rt.GoObject {
         }
       }
     }
-    const parentHasSemanticJsxChildren: ((p0: $ast.Node | undefined) => boolean) | undefined = $fn113;
+    const parentHasSemanticJsxChildren: ((p0: $ast.Node | undefined) => boolean) | undefined = $fn114;
     if (parentHasSemanticJsxChildren!(openingLikeElement)) {
       const childTypes: (Type | undefined)[] = c!.checkJsxChildren(openingLikeElement!.Parent, checkMode);
       if (
@@ -52354,7 +52354,7 @@ export class Checker extends $rt.GoObject {
     const typeParameters: (Type | undefined)[] = $core.Map_<InferenceInfo | undefined, Type | undefined>(
       $zf0,
       forwardInferences,
-      $fn114,
+      $fn115,
     );
     return newArrayToSingleTypeMapper(typeParameters, c!.unknownType);
   }
@@ -52610,7 +52610,7 @@ export class Checker extends $rt.GoObject {
       $t1 = result;
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -52742,7 +52742,7 @@ export class Checker extends $rt.GoObject {
       $t1 = $rt.nn(writer).String();
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -52832,7 +52832,7 @@ export class Checker extends $rt.GoObject {
       $t1 = $rt.nn(writer$1).String();
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -52882,7 +52882,7 @@ export class Checker extends $rt.GoObject {
       $t1 = $rt.nn(writer).String();
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -52964,7 +52964,7 @@ export class Checker extends $rt.GoObject {
       $t1 = nodeBuilder!.SignatureToSignatureDeclaration(signature, kind, enclosingDeclaration, flags, 0, undefined);
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -53017,7 +53017,7 @@ export class Checker extends $rt.GoObject {
       $t1 = b.String();
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -53064,7 +53064,7 @@ export class Checker extends $rt.GoObject {
       $t1 = p!.Emit(typeParamNode, sourceFile);
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -54118,7 +54118,7 @@ export class Checker extends $rt.GoObject {
         resolved!.signatures.length === (0 as number) &&
         resolved!.indexInfos.length === (0 as number) &&
         resolved!.properties.length > 0 &&
-        $core.Every<$ast.Symbol_ | undefined>(resolved!.properties, $fn138)
+        $core.Every<$ast.Symbol_ | undefined>(resolved!.properties, $fn139)
       );
     }
     if (!((t!.flags & 16777216) === (0 as number))) {
@@ -54224,7 +54224,7 @@ export class Checker extends $rt.GoObject {
           !(target === undefined) &&
           (!(target!.symbol === undefined) ||
             (!((target!.flags & 268435456) === (0 as number)) &&
-              $core.Some<Type | undefined>(target!.Types$Type(), $fn139)))
+              $core.Some<Type | undefined>(target!.Types$Type(), $fn140)))
         ) {
           t = target;
           continue;
@@ -54924,7 +54924,7 @@ export class Checker extends $rt.GoObject {
       $t1 = links!.variances ?? [];
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -55344,7 +55344,7 @@ export class Checker extends $rt.GoObject {
         if (isTupleType(restType)) {
           const firstOptionalIndex: number = $core.FindIndex<TupleElementInfo>(
             restType!.TargetTupleType()!.elementInfos,
-            $fn140,
+            $fn141,
           );
           let requiredCount: number = firstOptionalIndex;
           if (firstOptionalIndex < 0) {
@@ -55367,7 +55367,7 @@ export class Checker extends $rt.GoObject {
       {
         for (let i: number = minArgumentCount - 1; i >= 0; i--) {
           const t: Type | undefined = c!.getTypeAtPosition(signature, i);
-          if (!someType(t, $fn141)) {
+          if (!someType(t, $fn142)) {
             break;
           }
           minArgumentCount = i;
@@ -58106,7 +58106,7 @@ export class Checker extends $rt.GoObject {
       ctx.meaning,
     );
     if (links!.accessibleChainCache === undefined) {
-      links!.accessibleChainCache = new $rt.StructMap<accessibleChainCacheKey, ($ast.Symbol_ | undefined)[]>($fn145);
+      links!.accessibleChainCache = new $rt.StructMap<accessibleChainCacheKey, ($ast.Symbol_ | undefined)[]>($fn146);
     }
     const $t1: $rt.StructMap<accessibleChainCacheKey, ($ast.Symbol_ | undefined)[]> | undefined =
       links!.accessibleChainCache;
@@ -58569,7 +58569,7 @@ export class Checker extends $rt.GoObject {
         c!.symbolToStringEx(symbol_, enclosingDeclaration, meaning, 4),
       );
     }
-    return $fn91;
+    return $fn92;
   }
   isOptionalParameter(node: $ast.Node | undefined): boolean {
     const c = this;
@@ -59750,7 +59750,7 @@ export class EmitResolver extends $rt.GoObject {
       $t1 = r!.checker!.getJsxFactoryEntity(location);
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -59771,7 +59771,7 @@ export class EmitResolver extends $rt.GoObject {
       $t1 = r!.checker!.getJsxFragmentFactoryEntity(location);
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -59792,7 +59792,7 @@ export class EmitResolver extends $rt.GoObject {
       $t1 = r!.isOptionalParameter(node);
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -59826,7 +59826,7 @@ export class EmitResolver extends $rt.GoObject {
       $t1 = !((symbol_!.CheckFlags_ & 4096) === (0 as number));
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -59856,7 +59856,7 @@ export class EmitResolver extends $rt.GoObject {
       $t1 = r!.checker!.enumMemberLinks.Get(node)!.value;
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -59877,7 +59877,7 @@ export class EmitResolver extends $rt.GoObject {
       $t1 = r!.isDeclarationVisible(node);
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -60024,7 +60024,7 @@ export class EmitResolver extends $rt.GoObject {
       r!.declarationFileLinks.Get(file!.AsNode())!.aliasesMarked = true;
       file!.AsNode()!.ForEachChild$Node(r!.aliasMarkingVisitor);
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -60117,7 +60117,7 @@ export class EmitResolver extends $rt.GoObject {
       $t1 = r!.isEntityNameVisible(entityName, enclosingDeclaration, true);
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -60131,7 +60131,7 @@ export class EmitResolver extends $rt.GoObject {
   ): $printer.SymbolAccessibilityResult {
     const r = this;
     if (!$ast.IsParseTreeNode(entityName)) {
-      return $fn90;
+      return $fn91;
     }
     const meaning: $ast.SymbolFlags = getMeaningOfEntityNameReference(entityName);
     const firstIdentifier: $ast.Node | undefined = $ast.GetFirstIdentifier(entityName);
@@ -60148,14 +60148,14 @@ export class EmitResolver extends $rt.GoObject {
       !((symbol_!.Flags & 262144) === (0 as number)) &&
       !((meaning & 788968) === (0 as number))
     ) {
-      return $fn91;
+      return $fn92;
     }
     if (symbol_ === undefined && $ast.IsThisIdentifier(firstIdentifier)) {
       const sym: $ast.Symbol_ | undefined = r!.checker!.getSymbolOfDeclaration(
         r!.checker!.getThisContainer(firstIdentifier, false, false),
       );
       if (r!.isSymbolAccessible(sym, enclosingDeclaration, meaning, false).Accessibility === (0 as number)) {
-        return $fn91;
+        return $fn92;
       }
     }
     if (symbol_ === undefined) {
@@ -60315,7 +60315,7 @@ export class EmitResolver extends $rt.GoObject {
       $t1 = false;
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -60381,7 +60381,7 @@ export class EmitResolver extends $rt.GoObject {
       $t1 = false;
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -60433,7 +60433,7 @@ export class EmitResolver extends $rt.GoObject {
       $t1 = r!.checker!.getResolvedSymbol(node!.Expression()!.Expression()) === r!.checker!.globalThisSymbol;
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -60462,7 +60462,7 @@ export class EmitResolver extends $rt.GoObject {
       $t1 = r!.requiresAddingImplicitUndefined(declaration, symbol_, enclosingDeclaration);
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -60586,7 +60586,7 @@ export class EmitResolver extends $rt.GoObject {
       $t1 = false;
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -60624,7 +60624,7 @@ export class EmitResolver extends $rt.GoObject {
       $t1 = r!.IsExpandoFunctionDeclarationUnsafe(node);
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -60690,7 +60690,7 @@ export class EmitResolver extends $rt.GoObject {
       $t1 = false;
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -60716,7 +60716,7 @@ export class EmitResolver extends $rt.GoObject {
       $t1 = r!.isValueAliasDeclarationWorker(node);
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -60821,7 +60821,7 @@ export class EmitResolver extends $rt.GoObject {
       $t1 = r!.isAliasResolvedToValue(c!.getSymbolOfDeclaration(node), false);
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -60857,7 +60857,7 @@ export class EmitResolver extends $rt.GoObject {
         file!.ForEachChild(visit);
       }
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -60881,7 +60881,7 @@ export class EmitResolver extends $rt.GoObject {
       $t1 = r!.checker!.getExternalModuleFileFromDeclaration(declaration);
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -60953,7 +60953,7 @@ export class EmitResolver extends $rt.GoObject {
       $t1 = $rt.nn(r!.getReferenceResolver()).GetReferencedExportContainer(node, prefixLocals);
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -60972,7 +60972,7 @@ export class EmitResolver extends $rt.GoObject {
       });
       r!.jsxLinks.Get(node)!.importRef = ref;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -61004,7 +61004,7 @@ export class EmitResolver extends $rt.GoObject {
       $t1 = undefined;
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -61029,7 +61029,7 @@ export class EmitResolver extends $rt.GoObject {
       $t1 = $rt.nn(r!.getReferenceResolver()).GetReferencedValueDeclaration(node);
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -61058,7 +61058,7 @@ export class EmitResolver extends $rt.GoObject {
       $t1 = $rt.nn(r!.getReferenceResolver()).GetReferencedValueDeclarations(node);
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -61087,7 +61087,7 @@ export class EmitResolver extends $rt.GoObject {
       $t1 = !(symbol_ === undefined);
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -61112,7 +61112,7 @@ export class EmitResolver extends $rt.GoObject {
       $t1 = $rt.nn(r!.getReferenceResolver()).GetElementAccessExpressionName(expression);
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -61137,7 +61137,7 @@ export class EmitResolver extends $rt.GoObject {
       $t1 = $rt.nn(r!.getReferenceResolver()).GetReferencedMemberValueDeclaration(node);
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -61177,7 +61177,7 @@ export class EmitResolver extends $rt.GoObject {
       );
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -61217,7 +61217,7 @@ export class EmitResolver extends $rt.GoObject {
       );
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -61259,7 +61259,7 @@ export class EmitResolver extends $rt.GoObject {
       );
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -61353,7 +61353,7 @@ export class EmitResolver extends $rt.GoObject {
       }
       throw $rt.newPanic(new $rt.BoxStr('unhandled literal const value kind', 'string'));
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -61393,7 +61393,7 @@ export class EmitResolver extends $rt.GoObject {
       );
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -61546,7 +61546,7 @@ export class EmitResolver extends $rt.GoObject {
       $t1 = result;
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -61567,7 +61567,7 @@ export class EmitResolver extends $rt.GoObject {
       $t1 = r!.checker!.GetEffectiveDeclarationFlags(node, flags);
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -61588,7 +61588,7 @@ export class EmitResolver extends $rt.GoObject {
       $t1 = r!.checker!.GetResolutionModeOverride(node!.AsImportAttributes(), false);
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -61609,7 +61609,7 @@ export class EmitResolver extends $rt.GoObject {
       $t1 = r!.checker!.GetConstantValue(node);
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -61747,7 +61747,7 @@ export class EmitResolver extends $rt.GoObject {
         break $body;
       }
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -61788,7 +61788,7 @@ export class EmitResolver extends $rt.GoObject {
       $t1 = requestNodeBuilder!.TryJSTypeNodeToTypeNode(typeNode, enclosingDeclaration, flags, internalFlags, tracker);
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -61845,7 +61845,7 @@ export class EmitResolver extends $rt.GoObject {
       $t1 = false;
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -63578,7 +63578,7 @@ export class NodeBuilder extends $rt.GoObject {
       enclosingDeclaration,
       $ast.GetSourceFileOfNode(enclosingDeclaration),
       [] as (Type | undefined)[],
-      new $rt.StructMap<CompositeSymbolIdentity, number>($fn115),
+      new $rt.StructMap<CompositeSymbolIdentity, number>($fn116),
       [] as (TrackedSymbolArgs | undefined)[],
       [] as ($ast.Symbol_ | undefined)[],
       new Map<$ast.SymbolId, Type | undefined>(),
@@ -63627,7 +63627,7 @@ export class NodeBuilder extends $rt.GoObject {
       $t1 = result;
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -63653,7 +63653,7 @@ export class NodeBuilder extends $rt.GoObject {
       $t1 = result;
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -64094,7 +64094,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
     b!.ctx!.approximateLength += 9 + name_.length;
     const memberProps: ($ast.Symbol_ | undefined)[] = $core.Filter<$ast.Symbol_ | undefined>(
       b!.ch!.getPropertiesOfType(b!.ch!.getTypeOfSymbol(symbol_)),
-      $fn116,
+      $fn117,
     );
     let members: ($ast.Node | undefined)[] = [];
     {
@@ -64227,7 +64227,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
       const heritageClauses: ($ast.Node | undefined)[] = b!.hoverHeritageClauses(classLikeDeclarations);
       const allProps: ($ast.Symbol_ | undefined)[] = b!.ch!.getPropertiesOfType(classType);
       const symbolProps: ($ast.Symbol_ | undefined)[] = b!.filterInheritedProperties(classType, baseTypes, allProps);
-      const publicProps: ($ast.Symbol_ | undefined)[] = $core.Filter<$ast.Symbol_ | undefined>(symbolProps, $fn117);
+      const publicProps: ($ast.Symbol_ | undefined)[] = $core.Filter<$ast.Symbol_ | undefined>(symbolProps, $fn118);
       const hasPrivate: boolean = $core.Some<$ast.Symbol_ | undefined>(symbolProps, isHashPrivate);
       let instanceMembers: ($ast.Node | undefined)[] = [];
       instanceMembers = b!.serializePropertiesWithTruncation(publicProps, instanceMembers);
@@ -64280,7 +64280,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
       );
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -64432,7 +64432,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
     elements: ($ast.Node | undefined)[],
   ): ($ast.Node | undefined)[] {
     const b = this;
-    properties = $core.Filter<$ast.Symbol_ | undefined>(properties, $fn118);
+    properties = $core.Filter<$ast.Symbol_ | undefined>(properties, $fn119);
     {
       const $t1 = properties;
       for (let $t2 = 0, $n = $t1.length; $t2 < $n; $t2++) {
@@ -64494,7 +64494,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
     const signatures: (Signature | undefined)[] = b!.ch!.getSignaturesOfType(staticType, 1);
     if (!(staticBaseType === undefined)) {
       const baseSigs: (Signature | undefined)[] = b!.ch!.getSignaturesOfType(staticBaseType, 1);
-      if (baseSigs.length === (0 as number) && $core.Every<Signature | undefined>(signatures, $fn119)) {
+      if (baseSigs.length === (0 as number) && $core.Every<Signature | undefined>(signatures, $fn120)) {
         return [];
       }
       if (baseSigs.length === signatures.length) {
@@ -64559,7 +64559,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
           ),
         ];
       }
-    } else if ($core.Every<Signature | undefined>(signatures, $fn120)) {
+    } else if ($core.Every<Signature | undefined>(signatures, $fn121)) {
       return [];
     }
     let result: ($ast.Node | undefined)[] = [];
@@ -64806,7 +64806,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
         }
       }
       const allExported: boolean =
-        bodyStatements.length > 0 && $core.Every<$ast.Node | undefined>(bodyStatements, $fn121);
+        bodyStatements.length > 0 && $core.Every<$ast.Node | undefined>(bodyStatements, $fn122);
       if (allExported) {
         {
           const $t10 = bodyStatements;
@@ -64845,7 +64845,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
       );
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -65220,7 +65220,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
       let $t3 = false;
       let $t4: $ast.NodeList | undefined = undefined as $ast.NodeList | undefined;
       seenNames!.Values()!((types: mapToTypeNodes$seenName[]): boolean => {
-        if (!arrayIsHomogeneous<mapToTypeNodes$seenName>(types, $fn122)) {
+        if (!arrayIsHomogeneous<mapToTypeNodes$seenName>(types, $fn123)) {
           {
             const $t5 = types;
             for (let $t6 = 0, $n = $t5.length; $t6 < $n; $t6++) {
@@ -65367,7 +65367,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
     }
     const constructSignatures: (Signature | undefined)[] = $core.Filter<Signature | undefined>(
       t!.ConstructSignatures(),
-      $fn123,
+      $fn124,
     );
     if (constructSignatures.length === t!.ConstructSignatures().length) {
       t!.objectTypeWithoutAbstractConstructSignatures = t!.AsType();
@@ -66117,7 +66117,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
     );
     const links: NodeBuilderSymbolLinks | undefined = b!.symbolLinks.Get(symbol_);
     if (links!.specifierCache === undefined) {
-      links!.specifierCache = new $rt.StructMap<$module.ModeAwareCacheKey, string>($fn125);
+      links!.specifierCache = new $rt.StructMap<$module.ModeAwareCacheKey, string>($fn126);
     }
     const $t1: $module.ModeAwareCache<string> = links!.specifierCache;
     const $t2 = cacheKey;
@@ -67519,7 +67519,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
           !(propertySymbol!.Parent === undefined) &&
           !((propertySymbol!.Parent!.Flags & 32) === (0 as number)) &&
           !(propDeclaration === undefined) &&
-          !($core.Find<$ast.Node | undefined>($zf3, propDeclaration!.ModifierNodes(), $fn126) === undefined)
+          !($core.Find<$ast.Node | undefined>($zf3, propDeclaration!.ModifierNodes(), $fn127) === undefined)
         ) {
           const fakeGetterSignature: Signature | undefined = b!.ch!.newSignature(
             0,
@@ -67572,7 +67572,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
       !b!.ch!.isReadonlySymbol(propertySymbol)
     ) {
       const signatures: (Signature | undefined)[] = b!.ch!.getSignaturesOfType(
-        b!.ch!.filterType(propertyType, $fn127),
+        b!.ch!.filterType(propertyType, $fn128),
         0,
       );
       {
@@ -67779,7 +67779,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
         return signatureNode$1;
       }
     }
-    const abstractSignatures: (Signature | undefined)[] = $core.Filter<Signature | undefined>(ctorSigs, $fn128);
+    const abstractSignatures: (Signature | undefined)[] = $core.Filter<Signature | undefined>(ctorSigs, $fn129);
     if (abstractSignatures.length > 0) {
       let types: (Type | undefined)[] = $core.Map_<Signature | undefined, Type | undefined>(
         $zf0,
@@ -67794,7 +67794,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
         resolved!.indexInfos.length +
         $core.IfElse<number>(
           !((b!.ctx!.flags & 2048) === (0 as number)),
-          $core.CountWhere<$ast.Symbol_ | undefined>(resolved!.properties, $fn118),
+          $core.CountWhere<$ast.Symbol_ | undefined>(resolved!.properties, $fn119),
           resolved!.properties.length,
         );
       if (!(typeElementCount === (0 as number))) {
@@ -67943,7 +67943,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
         if ($collections$Set_.Has$nil<TypeId>(b!.ctx!.visitedTypes, typeId)) {
           return b!.createElidedInformationPlaceholder();
         }
-        return b!.visitAndTransformType(t, $fn129);
+        return b!.visitAndTransformType(t, $fn130);
       }
       let isInstanceType: $ast.SymbolFlags = 0;
       if (isClassInstanceSide(b!.ch, t)) {
@@ -67971,7 +67971,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
           return b!.createElidedInformationPlaceholder();
         }
       } else {
-        return b!.visitAndTransformType(t, $fn129);
+        return b!.visitAndTransformType(t, $fn130);
       }
     } else {
       return b!.createTypeNodeFromObjectType(t);
@@ -67999,7 +67999,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
         }
         return b!.createElidedInformationPlaceholder();
       }
-      return b!.visitAndTransformType(t, $fn130);
+      return b!.visitAndTransformType(t, $fn131);
     }
     return b!.typeToTypeNode(t);
   }
@@ -68364,7 +68364,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
       const links$1: NodeBuilderLinks | undefined = b!.links.Get(b!.ctx!.enclosingDeclaration);
       if (links$1!.serializedTypes === undefined) {
         links$1!.serializedTypes = new $rt.StructMap<CompositeTypeCacheIdentity, SerializedTypeEntry | undefined>(
-          $fn131,
+          $fn132,
         );
       }
       links$1!.serializedTypes!.set(
@@ -68629,7 +68629,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
           break $body;
         }
         if (!(t!.AsTypeReference$Type()!.node === undefined)) {
-          $t1 = b!.visitAndTransformType(t, $fn132);
+          $t1 = b!.visitAndTransformType(t, $fn133);
           break $body;
         } else {
           $t1 = b!.typeReferenceToTypeNode(t);
@@ -68764,7 +68764,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
         break $body;
       }
       if (!((t!.flags & 67108864) === (0 as number))) {
-        $t1 = b!.visitAndTransformType(t, $fn133);
+        $t1 = b!.visitAndTransformType(t, $fn134);
         break $body;
       }
       if (!((t!.flags & 16777216) === (0 as number))) {
@@ -68784,7 +68784,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
       }
       throw $rt.newPanic(new $rt.BoxStr('Should be unreachable.', 'string'));
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -69044,7 +69044,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
           return undo;
         }
       };
-      if (expandedParams.length === 0 || !$core.Some<$ast.Symbol_ | undefined>(expandedParams, $fn134)) {
+      if (expandedParams.length === 0 || !$core.Some<$ast.Symbol_ | undefined>(expandedParams, $fn135)) {
         cleanupParams = undefined;
       } else {
         cleanupParams = pushFakeScope!(
@@ -69133,7 +69133,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
       if (
         !((b!.ctx!.flags & 4) === (0 as number)) &&
         !(typeParameters.length === 0) &&
-        $core.Some<Type | undefined>(typeParameters, $fn135)
+        $core.Some<Type | undefined>(typeParameters, $fn136)
       ) {
         cleanupTypeParams = pushFakeScope!(
           'typeParams',
@@ -69800,7 +69800,7 @@ export class NodeBuilderImpl extends $rt.GoObject {
         }
       }
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -71420,7 +71420,7 @@ export class Relater extends $rt.GoObject {
       $t1 = result;
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -71576,7 +71576,7 @@ export class Relater extends $rt.GoObject {
           return [result, true];
         }
       }
-      if ($core.Some<VarianceFlags>(variances, $fn142)) {
+      if ($core.Some<VarianceFlags>(variances, $fn143)) {
         originalErrorChain = undefined;
         r!.restoreErrorState(saveErrorState);
         return [0, false];
@@ -71584,7 +71584,7 @@ export class Relater extends $rt.GoObject {
       const allowStructuralFallback: boolean = r!.c!.hasCovariantVoidArgument(targetTypeArguments, variances);
       varianceCheckFailed = !allowStructuralFallback;
       if (!(variances.length === (0 as number)) && !allowStructuralFallback) {
-        if (varianceCheckFailed && !(reportErrors && $core.Some<VarianceFlags>(variances, $fn143))) {
+        if (varianceCheckFailed && !(reportErrors && $core.Some<VarianceFlags>(variances, $fn144))) {
           return [0, true];
         }
         originalErrorChain = r!.errorChain;
@@ -71817,7 +71817,7 @@ export class Relater extends $rt.GoObject {
           if (r!.relation === r!.c!.comparableRelation && !((source!.flags & 524288) === (0 as number))) {
             {
               const constraint: Type | undefined = r!.c!.getConstraintOfTypeParameter(source);
-              if (!(constraint === undefined) && someType(constraint, $fn144)) {
+              if (!(constraint === undefined) && someType(constraint, $fn145)) {
                 return r!.isRelatedTo(constraint, target, 1, false);
               }
             }
@@ -74818,7 +74818,7 @@ export class Tracer extends $rt.GoObject {
         });
         pop!();
       } catch ($e) {
-        $panic = $rt.toPanic($e);
+        $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
       } finally {
         $panic = $rt.runDefers($defers, $panic);
       }
@@ -76443,14 +76443,14 @@ export class tracedTypeAdapter extends $rt.GoObject {
         break $body;
       }
       if (!((a!.t!.objectFlags & 16) === (0 as number)) || !((a!.t!.flags & 406862848) === (0 as number))) {
-        $defers.push($fn146);
+        $defers.push($fn147);
         $t1 = a!.checker!.TypeToString(a!.t);
         break $body;
       }
       $t1 = '';
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -77264,6 +77264,9 @@ export const thisAssignmentDeclarationConstructor: thisAssignmentDeclarationKind
 export const thisAssignmentDeclarationMethod: thisAssignmentDeclarationKind = 3;
 export const thisAssignmentDeclarationNone: thisAssignmentDeclarationKind = 0;
 export const thisAssignmentDeclarationTyped: thisAssignmentDeclarationKind = 1;
+interface $I0 {
+  GetSourceFileForResolvedModule(a0: string): $ast.SourceFile | undefined;
+}
 const $fn0 = (): Map<string, $ast.Symbol_ | undefined> | undefined => {
   const result: Map<string, $ast.Symbol_ | undefined> | undefined = new Map<string, $ast.Symbol_ | undefined>();
   {
@@ -77309,55 +77312,57 @@ const $fn1 =
     99,
   );
 const $fn10 = (k: AssignmentReducedKey): string => k.$key_checker_AssignmentReducedKey();
-const $fn100 = (
-  $r: Checker | undefined,
-  a0: InferenceState | undefined,
-  a1: Type | undefined,
-  a2: Type | undefined,
-): void => $r!.inferToConditionalType(a0, a1, a2);
+const $fn100 = ($r: Checker | undefined, a0: Type | undefined, a1: Type | undefined): boolean =>
+  $r!.isTypeIdenticalTo(a0, a1);
 const $fn101 = (
   $r: Checker | undefined,
   a0: InferenceState | undefined,
   a1: Type | undefined,
   a2: Type | undefined,
-): void => $r!.inferFromGenericMappedTypes(a0, a1, a2);
+): void => $r!.inferToConditionalType(a0, a1, a2);
 const $fn102 = (
   $r: Checker | undefined,
   a0: InferenceState | undefined,
   a1: Type | undefined,
   a2: Type | undefined,
+): void => $r!.inferFromGenericMappedTypes(a0, a1, a2);
+const $fn103 = (
+  $r: Checker | undefined,
+  a0: InferenceState | undefined,
+  a1: Type | undefined,
+  a2: Type | undefined,
 ): void => $r!.inferFromObjectTypes(a0, a1, a2);
-const $fn103 = (k: InferenceKey): string => k.$key_checker_InferenceKey();
-const $fn104 = (s: string): boolean => {
+const $fn104 = (k: InferenceKey): string => k.$key_checker_InferenceKey();
+const $fn105 = (s: string): boolean => {
   return s === ('' as string);
 };
-const $fn105 = (t$1: Type | undefined): boolean => {
+const $fn106 = (t$1: Type | undefined): boolean => {
   return !(t$1 === undefined);
 };
-const $fn106 = (info: TupleElementInfo): TupleElementInfo => {
+const $fn107 = (info: TupleElementInfo): TupleElementInfo => {
   if (!((info.flags & 2) === (0 as number))) {
     return TupleElementInfo.$lit_checker_TupleElementInfo_0_1(1, info.labeledDeclaration);
   }
   return info.$clone_checker_TupleElementInfo();
 };
-const $fn107 = (t: Type | undefined): boolean => {
+const $fn108 = (t: Type | undefined): boolean => {
   return !isObjectOrArrayLiteralType(t);
 };
-const $fn108 = (u: Type | undefined): boolean => {
+const $fn109 = (u: Type | undefined): boolean => {
   return (u!.flags & 12) === (0 as number);
 };
-const $fn109 = ($r: Checker | undefined, a0: Type | undefined, a1: Type | undefined): boolean =>
-  $r!.isTypeStrictSubtypeOf(a0, a1);
 const $fn11 = (k: DiscriminatedContextualTypeKey): string => k.$key_checker_DiscriminatedContextualTypeKey();
 const $fn110 = ($r: Checker | undefined, a0: Type | undefined, a1: Type | undefined): boolean =>
+  $r!.isTypeStrictSubtypeOf(a0, a1);
+const $fn111 = ($r: Checker | undefined, a0: Type | undefined, a1: Type | undefined): boolean =>
   $r!.isTypeSubtypeOf(a0, a1);
-const $fn111 = (x: $ast.Symbol_ | undefined): boolean => {
+const $fn112 = (x: $ast.Symbol_ | undefined): boolean => {
   return $ast.SymbolName(x) === ('htmlFor' as string);
 };
-const $fn112 = (x$1: $ast.Symbol_ | undefined): boolean => {
+const $fn113 = (x$1: $ast.Symbol_ | undefined): boolean => {
   return $ast.SymbolName(x$1) === ('className' as string);
 };
-const $fn113 = (openingLikeElement$1: $ast.Node | undefined): boolean => {
+const $fn114 = (openingLikeElement$1: $ast.Node | undefined): boolean => {
   const parent: $ast.Node | undefined = openingLikeElement$1!.Parent;
   if (parent === undefined) {
     return false;
@@ -77378,92 +77383,92 @@ const $fn113 = (openingLikeElement$1: $ast.Node | undefined): boolean => {
   }
   return !($ast.GetSemanticJsxChildren(children).length === (0 as number));
 };
-const $fn114 = (i: InferenceInfo | undefined): Type | undefined => {
+const $fn115 = (i: InferenceInfo | undefined): Type | undefined => {
   return i!.typeParameter;
 };
-const $fn115 = (k: CompositeSymbolIdentity): string => k.$key_checker_CompositeSymbolIdentity();
-const $fn116 = (p: $ast.Symbol_ | undefined): boolean => {
+const $fn116 = (k: CompositeSymbolIdentity): string => k.$key_checker_CompositeSymbolIdentity();
+const $fn117 = (p: $ast.Symbol_ | undefined): boolean => {
   return !((p!.Flags & 8) === (0 as number));
 };
-const $fn117 = (s: $ast.Symbol_ | undefined): boolean => {
+const $fn118 = (s: $ast.Symbol_ | undefined): boolean => {
   return !isHashPrivate(s);
 };
-const $fn118 = (p: $ast.Symbol_ | undefined): boolean => {
+const $fn119 = (p: $ast.Symbol_ | undefined): boolean => {
   return (p!.Flags & 4194304) === (0 as number);
 };
-const $fn119 = (sig: Signature | undefined): boolean => {
+const $fn12 = (k: InstantiationExpressionKey): string => k.$key_checker_InstantiationExpressionKey();
+const $fn120 = (sig: Signature | undefined): boolean => {
   return sig!.parameters.length === (0 as number);
 };
-const $fn12 = (k: InstantiationExpressionKey): string => k.$key_checker_InstantiationExpressionKey();
-const $fn120 = (sig$2: Signature | undefined): boolean => {
+const $fn121 = (sig$2: Signature | undefined): boolean => {
   return sig$2!.parameters.length === (0 as number);
 };
-const $fn121 = (d: $ast.Node | undefined): boolean => {
+const $fn122 = (d: $ast.Node | undefined): boolean => {
   return $ast.HasSyntacticModifier(d, 32);
 };
-const $fn122 = (a: mapToTypeNodes$seenName, b$1: mapToTypeNodes$seenName): boolean => {
+const $fn123 = (a: mapToTypeNodes$seenName, b$1: mapToTypeNodes$seenName): boolean => {
   return typesAreSameReference(a.t, b$1.t);
 };
-const $fn123 = (signature: Signature | undefined): boolean => {
+const $fn124 = (signature: Signature | undefined): boolean => {
   return (signature!.flags & 8) === (0 as number);
 };
-const $fn124 = (node$1: $ast.Node | undefined): boolean => {
+const $fn125 = (node$1: $ast.Node | undefined): boolean => {
   return $ast.IsRequireCall(node$1, true);
 };
-const $fn125 = (k: $module.ModeAwareCacheKey): string => k.$key_module_ModeAwareCacheKey();
-const $fn126 = (m: $ast.Node | undefined): boolean => {
+const $fn126 = (k: $module.ModeAwareCacheKey): string => k.$key_module_ModeAwareCacheKey();
+const $fn127 = (m: $ast.Node | undefined): boolean => {
   return m!.Kind_ === (128 as number);
 };
-const $fn127 = (t: Type | undefined): boolean => {
+const $fn128 = (t: Type | undefined): boolean => {
   return (t!.flags & 4) === (0 as number);
 };
-const $fn128 = (signature$2: Signature | undefined): boolean => {
+const $fn129 = (signature$2: Signature | undefined): boolean => {
   return !((signature$2!.flags & 8) === (0 as number));
 };
-const $fn129 = ($r: NodeBuilderImpl | undefined, a0: Type | undefined): $ast.Node | undefined =>
-  $r!.createTypeNodeFromObjectType(a0);
 const $fn13 = (k: SubstitutionTypeKey): string => k.$key_checker_SubstitutionTypeKey();
-const $fn130 = ($r: NodeBuilderImpl | undefined, a0: Type | undefined): $ast.Node | undefined => $r!.typeToTypeNode(a0);
-const $fn131 = (k: CompositeTypeCacheIdentity): string => k.$key_checker_CompositeTypeCacheIdentity();
-const $fn132 = ($r: NodeBuilderImpl | undefined, a0: Type | undefined): $ast.Node | undefined =>
-  $r!.typeReferenceToTypeNode(a0);
+const $fn130 = ($r: NodeBuilderImpl | undefined, a0: Type | undefined): $ast.Node | undefined =>
+  $r!.createTypeNodeFromObjectType(a0);
+const $fn131 = ($r: NodeBuilderImpl | undefined, a0: Type | undefined): $ast.Node | undefined => $r!.typeToTypeNode(a0);
+const $fn132 = (k: CompositeTypeCacheIdentity): string => k.$key_checker_CompositeTypeCacheIdentity();
 const $fn133 = ($r: NodeBuilderImpl | undefined, a0: Type | undefined): $ast.Node | undefined =>
+  $r!.typeReferenceToTypeNode(a0);
+const $fn134 = ($r: NodeBuilderImpl | undefined, a0: Type | undefined): $ast.Node | undefined =>
   $r!.conditionalTypeToTypeNode(a0);
-const $fn134 = (p: $ast.Symbol_ | undefined): boolean => {
+const $fn135 = (p: $ast.Symbol_ | undefined): boolean => {
   return !(p === undefined);
 };
-const $fn135 = (p$2: Type | undefined): boolean => {
+const $fn136 = (p$2: Type | undefined): boolean => {
   return !(p$2 === undefined);
 };
-const $fn136 = $printer.PrinterOptions.$lit_printer_PrinterOptions_0(true);
-const $fn137 = $printer.PrinterOptions.$lit_printer_PrinterOptions_0_9(true, true);
-const $fn138 = (p: $ast.Symbol_ | undefined): boolean => {
+const $fn137 = $printer.PrinterOptions.$lit_printer_PrinterOptions_0(true);
+const $fn138 = $printer.PrinterOptions.$lit_printer_PrinterOptions_0_9(true, true);
+const $fn139 = (p: $ast.Symbol_ | undefined): boolean => {
   return !((p!.Flags & 16777216) === (0 as number));
 };
-const $fn139 = (t$1: Type | undefined): boolean => {
+const $fn14 = (k: ReverseMappedTypeKey): string => k.$key_checker_ReverseMappedTypeKey();
+const $fn140 = (t$1: Type | undefined): boolean => {
   return !(t$1!.symbol === undefined);
 };
-const $fn14 = (k: ReverseMappedTypeKey): string => k.$key_checker_ReverseMappedTypeKey();
-const $fn140 = (info: TupleElementInfo): boolean => {
+const $fn141 = (info: TupleElementInfo): boolean => {
   return (info.flags & 1) === (0 as number);
 };
-const $fn141 = (t$1: Type | undefined): boolean => {
+const $fn142 = (t$1: Type | undefined): boolean => {
   return !((t$1!.flags & 16) === (0 as number));
 };
-const $fn142 = (v: VarianceFlags): boolean => {
+const $fn143 = (v: VarianceFlags): boolean => {
   return !((v & 24) === (0 as number));
 };
-const $fn143 = (v$1: VarianceFlags): boolean => {
+const $fn144 = (v$1: VarianceFlags): boolean => {
   return (v$1 & 7) === (0 as number);
 };
-const $fn144 = (c: Type | undefined): boolean => {
+const $fn145 = (c: Type | undefined): boolean => {
   return !((c!.flags & 524288) === (0 as number));
 };
-const $fn145 = (k: accessibleChainCacheKey): string => k.$key_checker_accessibleChainCacheKey();
-const $fn146 = (): void => {
+const $fn146 = (k: accessibleChainCacheKey): string => k.$key_checker_accessibleChainCacheKey();
+const $fn147 = (): void => {
   $rt.recover();
 };
-const $fn147 = (n: $ast.Node | undefined): $ast.FindAncestorResult => {
+const $fn148 = (n: $ast.Node | undefined): $ast.FindAncestorResult => {
   {
     switch (n!.Kind_) {
       case 187 as number: {
@@ -77477,7 +77482,7 @@ const $fn147 = (n: $ast.Node | undefined): $ast.FindAncestorResult => {
   }
   return 2;
 };
-const $fn148 = (n: $ast.Node | undefined): $ast.FindAncestorResult => {
+const $fn149 = (n: $ast.Node | undefined): $ast.FindAncestorResult => {
   if ($ast.IsClassLike(n)) {
     return 2;
   }
@@ -77486,11 +77491,11 @@ const $fn148 = (n: $ast.Node | undefined): $ast.FindAncestorResult => {
   }
   return 0;
 };
-const $fn149 = (n: $ast.Node | undefined): boolean => {
-  return $ast.IsInterfaceDeclaration(n) || $ast.IsTypeOrJSTypeAliasDeclaration(n) || $ast.IsTypeLiteralNode(n);
-};
 const $fn15 = (k: IterationTypesKey): string => k.$key_checker_IterationTypesKey();
 const $fn150 = (n: $ast.Node | undefined): boolean => {
+  return $ast.IsInterfaceDeclaration(n) || $ast.IsTypeOrJSTypeAliasDeclaration(n) || $ast.IsTypeLiteralNode(n);
+};
+const $fn151 = (n: $ast.Node | undefined): boolean => {
   return !(($binder.GetContainerFlags(n) & 1) === (0 as number));
 };
 const $fn16 = (k: UnionOfUnionKey): string => k.$key_checker_UnionOfUnionKey();
@@ -78110,41 +78115,42 @@ const $fn6 = (k: StringMappingKey): string => k.$key_checker_StringMappingKey();
 const $fn60 = (d: $ast.Node | undefined): boolean => {
   return $ast.HasSyntacticModifier(d, 4096);
 };
-const $fn61 = (v: $ast.PatternAmbientModule | undefined): $core.Pattern => {
+const $fn61 = ($r: $I0, a0: string): $ast.SourceFile | undefined => $r.GetSourceFileForResolvedModule(a0);
+const $fn62 = (v: $ast.PatternAmbientModule | undefined): $core.Pattern => {
   return v!.Pattern_.$clone_core_Pattern();
 };
-const $fn62 = (t: Type | undefined): boolean => {
+const $fn63 = (t: Type | undefined): boolean => {
   return !((t!.flags & 34078720) === (0 as number));
 };
-const $fn63 = (t$1: Type | undefined): boolean => {
+const $fn64 = (t$1: Type | undefined): boolean => {
   return !((t$1!.flags & 524288) === (0 as number)) || isTypeReferenceWithGenericArguments(t$1);
 };
-const $fn64 = (t: Type | undefined): boolean => {
+const $fn65 = (t: Type | undefined): boolean => {
   return (t!.flags & 12) === (0 as number);
 };
-const $fn65 = (c$1: Type | undefined): boolean => {
+const $fn66 = (c$1: Type | undefined): boolean => {
   return !((c$1!.Flags() & 4294967283) >>> 0 === (0 as number));
 };
-const $fn66 = (param: $ast.Node | undefined): boolean => {
+const $fn67 = (param: $ast.Node | undefined): boolean => {
   return param!.Type$m() === undefined;
 };
-const $fn67 = (t: Type | undefined): boolean => {
+const $fn68 = (t: Type | undefined): boolean => {
   return !((t!.flags & 4) === (0 as number));
 };
-const $fn68 = (sig: Signature | undefined): $ast.Symbol_ | undefined => {
+const $fn69 = (sig: Signature | undefined): $ast.Symbol_ | undefined => {
   return sig!.thisParameter;
 };
-const $fn69 = (d: $ast.Node | undefined): boolean => {
+const $fn7 = (k: CachedTypeKey): string => k.$key_checker_CachedTypeKey();
+const $fn70 = (d: $ast.Node | undefined): boolean => {
   return $ast.IsTypeParameterDeclaration(d) && !(d!.AsTypeParameterDeclaration()!.DefaultType === undefined);
 };
-const $fn7 = (k: CachedTypeKey): string => k.$key_checker_CachedTypeKey();
-const $fn70 = (decl: $ast.Node | undefined): $ast.Node | undefined => {
+const $fn71 = (decl: $ast.Node | undefined): $ast.Node | undefined => {
   if ($ast.IsTypeParameterDeclaration(decl)) {
     return decl!.AsTypeParameterDeclaration()!.DefaultType;
   }
   return undefined;
 };
-const $fn71 = (n: $ast.Node | undefined): $ast.FindAncestorResult => {
+const $fn72 = (n: $ast.Node | undefined): $ast.FindAncestorResult => {
   {
     switch (n!.Kind_) {
       case 307 as number: {
@@ -78157,21 +78163,21 @@ const $fn71 = (n: $ast.Node | undefined): $ast.FindAncestorResult => {
   }
   return 2;
 };
-const $fn72 = ($r: Checker | undefined, a0: Type | undefined, a1: TypeMapper | undefined): Type | undefined =>
+const $fn73 = ($r: Checker | undefined, a0: Type | undefined, a1: TypeMapper | undefined): Type | undefined =>
   $r!.instantiateType(a0, a1);
-const $fn73 = (
+const $fn74 = (
   $r: Checker | undefined,
   a0: $ast.Symbol_ | undefined,
   a1: TypeMapper | undefined,
 ): $ast.Symbol_ | undefined => $r!.instantiateSymbol(a0, a1);
-const $fn74 = ($r: Checker | undefined, a0: Signature | undefined, a1: TypeMapper | undefined): Signature | undefined =>
+const $fn75 = ($r: Checker | undefined, a0: Signature | undefined, a1: TypeMapper | undefined): Signature | undefined =>
   $r!.instantiateSignature(a0, a1);
-const $fn75 = ($r: Checker | undefined, a0: IndexInfo | undefined, a1: TypeMapper | undefined): IndexInfo | undefined =>
+const $fn76 = ($r: Checker | undefined, a0: IndexInfo | undefined, a1: TypeMapper | undefined): IndexInfo | undefined =>
   $r!.instantiateIndexInfo(a0, a1);
-const $fn76 = (t$1: Type | undefined): boolean => {
+const $fn77 = (t$1: Type | undefined): boolean => {
   return !((t$1!.flags & 2048) === (0 as number));
 };
-const $fn77 = (d: $ast.Node | undefined): boolean => {
+const $fn78 = (d: $ast.Node | undefined): boolean => {
   if ($ast.IsInterfaceDeclaration(d)) {
     return true;
   }
@@ -78181,7 +78187,7 @@ const $fn77 = (d: $ast.Node | undefined): boolean => {
   const initializer: $ast.Node | undefined = d!.Initializer();
   return !(initializer === undefined) && $ast.IsFunctionExpressionOrArrowFunction(initializer);
 };
-const $fn78 = (e: $ast.Node | undefined): boolean => {
+const $fn79 = (e: $ast.Node | undefined): boolean => {
   return (
     $ast.IsOptionalTypeNode(e) ||
     $ast.IsRestTypeNode(e) ||
@@ -78189,29 +78195,29 @@ const $fn78 = (e: $ast.Node | undefined): boolean => {
       (!(e!.QuestionToken() === undefined) || !(e!.AsNamedTupleMember()!.DotDotDotToken === undefined)))
   );
 };
-const $fn79 = (d: $ast.Node | undefined): boolean => {
+const $fn8 = (k: CachedSignatureKey): string => k.$key_checker_CachedSignatureKey();
+const $fn80 = (d: $ast.Node | undefined): boolean => {
   return $ast.GetAssignmentDeclarationKind(d) === (1 as number);
 };
-const $fn8 = (k: CachedSignatureKey): string => k.$key_checker_CachedSignatureKey();
-const $fn80 = ($p0: Type | undefined): TupleElementInfo => {
+const $fn81 = ($p0: Type | undefined): TupleElementInfo => {
   return TupleElementInfo.$lit_checker_TupleElementInfo_0(1);
 };
-const $fn81 = (e: TupleElementInfo): boolean => {
+const $fn82 = (e: TupleElementInfo): boolean => {
   return !((e.flags & 9) === (0 as number));
 };
-const $fn82 = (t: Type | undefined): boolean => {
+const $fn83 = (t: Type | undefined): boolean => {
   return !((t!.flags & 1024) === (0 as number));
 };
-const $fn83 = (t$1: Type | undefined): boolean => {
+const $fn84 = (t$1: Type | undefined): boolean => {
   return (t$1!.flags & 33) === (0 as number);
 };
-const $fn84 = (t$1: Type | undefined): boolean => {
+const $fn85 = (t$1: Type | undefined): boolean => {
   return (t$1!.TargetTupleType()!.combinedFlags & 12) === (0 as number);
 };
-const $fn85 = (n: $ast.Node | undefined): boolean => {
+const $fn86 = (n: $ast.Node | undefined): boolean => {
   return $ast.IsMetaProperty(n);
 };
-const $fn86 = (n: $ast.Node | undefined): boolean => {
+const $fn87 = (n: $ast.Node | undefined): boolean => {
   const parent: $ast.Node | undefined = n!.Parent;
   if (!(parent === undefined)) {
     if ($ast.IsAnyExportAssignment(parent)) {
@@ -78223,31 +78229,31 @@ const $fn86 = (n: $ast.Node | undefined): boolean => {
   }
   return false;
 };
-const $fn87 = (t: Type | undefined): boolean => {
+const $fn88 = (t: Type | undefined): boolean => {
   return !((t!.flags & 134479872) === (0 as number));
 };
-const $fn88 = (t$3: string): boolean => {
+const $fn89 = (t$3: string): boolean => {
   return t$3 === ('' as string);
 };
-const $fn89 = (t$4: Type | undefined): boolean => {
+const $fn9 = (k: NarrowedTypeKey): string => k.$key_checker_NarrowedTypeKey();
+const $fn90 = (t$4: Type | undefined): boolean => {
   return !((t$4!.flags & 32) === (0 as number));
 };
-const $fn9 = (k: NarrowedTypeKey): string => k.$key_checker_NarrowedTypeKey();
-const $fn90 = $printer.SymbolAccessibilityResult.$lit_printer_SymbolAccessibilityResult_0(1);
-const $fn91 = $printer.SymbolAccessibilityResult.$lit_printer_SymbolAccessibilityResult_0(0);
-const $fn92 = (t$1: Type | undefined): boolean => {
+const $fn91 = $printer.SymbolAccessibilityResult.$lit_printer_SymbolAccessibilityResult_0(1);
+const $fn92 = $printer.SymbolAccessibilityResult.$lit_printer_SymbolAccessibilityResult_0(0);
+const $fn93 = (t$1: Type | undefined): boolean => {
   return (t$1!.flags & 262148) === (0 as number);
 };
-const $fn93 = (t$2: Type | undefined): boolean => {
+const $fn94 = (t$2: Type | undefined): boolean => {
   return !(
     !((t$2!.flags & 262144) === (0 as number)) ||
     (!((t$2!.flags & 1024) === (0 as number)) && getStringLiteralValue(t$2) === ('undefined' as string))
   );
 };
-const $fn94 = (clause: $ast.Node | undefined): boolean => {
+const $fn95 = (clause: $ast.Node | undefined): boolean => {
   return clause!.Kind_ === (298 as number);
 };
-const $fn95 = (n: $ast.Node | undefined): boolean => {
+const $fn96 = (n: $ast.Node | undefined): boolean => {
   const parameter: $ast.ParameterDeclaration | undefined = n!.AsParameterDeclaration();
   return (
     !(parameter!.Initializer_ === undefined) ||
@@ -78255,15 +78261,13 @@ const $fn95 = (n: $ast.Node | undefined): boolean => {
     isRestParameter(parameter!.AsNode())
   );
 };
-const $fn96 = (t$1: Type | undefined): boolean => {
+const $fn97 = (t$1: Type | undefined): boolean => {
   return !((t$1!.flags & 19456) === (0 as number));
 };
-const $fn97 = ($r: Checker | undefined, a0: Type | undefined, a1: Type | undefined): boolean =>
-  $r!.isTypeOrBaseIdenticalTo(a0, a1);
 const $fn98 = ($r: Checker | undefined, a0: Type | undefined, a1: Type | undefined): boolean =>
-  $r!.isTypeCloselyMatchedBy(a0, a1);
+  $r!.isTypeOrBaseIdenticalTo(a0, a1);
 const $fn99 = ($r: Checker | undefined, a0: Type | undefined, a1: Type | undefined): boolean =>
-  $r!.isTypeIdenticalTo(a0, a1);
+  $r!.isTypeCloselyMatchedBy(a0, a1);
 export let SignatureKeyErased: CacheHashKey = $rt.github_com_zeebo_xxh3_HashString128('-');
 export let SignatureKeyCanonical: CacheHashKey = $rt.github_com_zeebo_xxh3_HashString128('*');
 export let SignatureKeyBase: CacheHashKey = $rt.github_com_zeebo_xxh3_HashString128('#');
@@ -79361,7 +79365,7 @@ export function getNodeListKey(nodes: ($ast.Node | undefined)[]): CacheHashKey {
   return b.hash();
 }
 export function isTypeReferenceWithGenericArguments(t: Type | undefined): boolean {
-  return isNonDeferredTypeReference(t) && $core.Some<Type | undefined>(t!.checker!.getTypeArguments(t), $fn63);
+  return isNonDeferredTypeReference(t) && $core.Some<Type | undefined>(t!.checker!.getTypeArguments(t), $fn64);
 }
 export function isNonDeferredTypeReference(t: Type | undefined): boolean {
   return !((t!.objectFlags & 4) === (0 as number)) && t!.AsTypeReference$Type()!.node === undefined;
@@ -79838,7 +79842,7 @@ export function getNameFromIndexInfo(info: IndexInfo | undefined): string {
   return 'x';
 }
 export function isExportOrExportExpression(location: $ast.Node | undefined): boolean {
-  return !($ast.FindAncestor(location, $fn86) === undefined);
+  return !($ast.FindAncestor(location, $fn87) === undefined);
 }
 export function shouldMarkIdentifierAliasReferenced(node: $ast.Node | undefined): boolean {
   const parent: $ast.Node | undefined = node!.Parent;
@@ -80640,7 +80644,7 @@ export function tryGetModuleSpecifierFromDeclarationWorker(node: $ast.Node | und
     switch (node!.Kind_) {
       case 261 as number:
       case 209 as number: {
-        const requireCall: $ast.Node | undefined = $ast.FindAncestor(node!.Initializer(), $fn124);
+        const requireCall: $ast.Node | undefined = $ast.FindAncestor(node!.Initializer(), $fn125);
         if (requireCall === undefined) {
           return undefined;
         }
@@ -81450,17 +81454,17 @@ export function createPrinterWithDefaults(emitContext: $printer.EmitContext | un
 export function createPrinterWithRemoveComments(
   emitContext: $printer.EmitContext | undefined,
 ): $printer.Printer | undefined {
-  return $printer.NewPrinter($fn136, new $printer.PrintHandlers(), emitContext);
+  return $printer.NewPrinter($fn137, new $printer.PrintHandlers(), emitContext);
 }
 export function createPrinterWithRemoveCommentsOmitTrailingSemicolonNeverAsciiEscape(
   emitContext: $printer.EmitContext | undefined,
 ): $printer.Printer | undefined {
-  return $printer.NewPrinter($fn137, new $printer.PrintHandlers(), emitContext);
+  return $printer.NewPrinter($fn138, new $printer.PrintHandlers(), emitContext);
 }
 export function createPrinterWithRemoveCommentsNeverAsciiEscape(
   emitContext: $printer.EmitContext | undefined,
 ): $printer.Printer | undefined {
-  return $printer.NewPrinter($fn137, new $printer.PrintHandlers(), emitContext);
+  return $printer.NewPrinter($fn138, new $printer.PrintHandlers(), emitContext);
 }
 export function getTrailingSemicolonDeferringWriter(writer: $printer.EmitTextWriter): $printer.EmitTextWriter {
   return semicolonRemoverWriter.$lit_checker_semicolonRemoverWriter_0_1(false, writer);
@@ -82032,7 +82036,7 @@ export function findInMap<K, V>(
       return value;
     }
   }
-  return new $rt.Ptr<V>($z_V())!.get();
+  return $z_V();
 }
 export function tokenIsIdentifierOrKeyword(token: $ast.Kind): boolean {
   return token >= 79;
@@ -82127,7 +82131,7 @@ export function isTypeReferenceIdentifier(node: $ast.Node | undefined): boolean 
   return $ast.IsTypeReferenceNode(node!.Parent);
 }
 export function IsInTypeQuery(node: $ast.Node | undefined): boolean {
-  return !($ast.FindAncestorOrQuit(node, $fn147) === undefined);
+  return !($ast.FindAncestorOrQuit(node, $fn148) === undefined);
 }
 export function canHaveLocals(node: $ast.Node | undefined): boolean {
   {
@@ -82964,7 +82968,7 @@ export function isObjectOrArrayLiteralType(t: Type | undefined): boolean {
   return !((t!.objectFlags & 16512) === (0 as number));
 }
 export function getContainingClassExcludingClassDecorators(node: $ast.Node | undefined): $ast.Node | undefined {
-  const decorator: $ast.Node | undefined = $ast.FindAncestorOrQuit(node!.Parent, $fn148);
+  const decorator: $ast.Node | undefined = $ast.FindAncestorOrQuit(node!.Parent, $fn149);
   if (!(decorator === undefined) && $ast.IsClassLike(decorator!.Parent)) {
     return $ast.GetContainingClass(decorator!.Parent);
   }
@@ -83012,7 +83016,7 @@ export function isInfinityOrNaNString(name_: string): boolean {
   return name_ === ('Infinity' as string) || name_ === ('-Infinity' as string) || name_ === ('NaN' as string);
 }
 export function isInAmbientOrTypeNode(node: $ast.Node | undefined): boolean {
-  return !((node!.Flags & 8388608) === (0 as number)) || !($ast.FindAncestor(node, $fn149) === undefined);
+  return !((node!.Flags & 8388608) === (0 as number)) || !($ast.FindAncestor(node, $fn150) === undefined);
 }
 export function isLiteralExpressionOfObject(node: $ast.Node | undefined): boolean {
   {
@@ -83217,7 +83221,7 @@ export function forEachYieldExpression(
   return traverse!(body);
 }
 export function getEnclosingContainer(node: $ast.Node | undefined): $ast.Node | undefined {
-  return $ast.FindAncestor(node!.Parent, $fn150);
+  return $ast.FindAncestor(node!.Parent, $fn151);
 }
 export function getDeclarationsOfKind(symbol_: $ast.Symbol_ | undefined, kind: $ast.Kind): ($ast.Node | undefined)[] {
   return $core.Filter<$ast.Node | undefined>(symbol_!.Declarations, (d: $ast.Node | undefined): boolean => {

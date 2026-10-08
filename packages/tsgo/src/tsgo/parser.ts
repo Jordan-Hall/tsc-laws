@@ -227,7 +227,7 @@ export class Parser extends $rt.GoObject {
     if (end === (-1 as number)) {
       end = p!.sourceText.length;
     }
-    if (!isJSDocLikeText(p!.sourceText.substring(start))) {
+    if (!isJSDocLikeTextAt(p!.sourceText, start)) {
       return undefined;
     }
     const saveSourceText: string = p!.sourceText;
@@ -238,7 +238,7 @@ export class Parser extends $rt.GoObject {
     const saveDiagnosticsLength: number = p!.diagnostics.length;
     const saveHasParseError: boolean = p!.hasParseError;
     const saveHasAwaitIdentifier: boolean = p!.statementHasAwaitIdentifier;
-    const initialIndent: number = start + 4 - ($rt.strings_LastIndex(p!.sourceText.substring(0, start), '\n') + 1);
+    const initialIndent: number = start + 4 - (lastLineFeedBefore(p!.sourceText, start) + 1);
     p!.sourceText = p!.sourceText.substring(0, end - 2);
     p!.scanner!.SetText(p!.sourceText);
     p!.scanner!.ResetPos(start + 3);
@@ -10544,7 +10544,7 @@ export function parseJSDocForNode(
     $t1 = jsdoc;
     break $body;
   } catch ($e) {
-    $panic = $rt.toPanic($e);
+    $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
   } finally {
     $panic = $rt.runDefers($defers, $panic);
   }
@@ -10660,7 +10660,7 @@ export function ParseSourceFile(
     $t1 = p!.parseSourceFileWorker();
     break $body;
   } catch ($e) {
-    $panic = $rt.toPanic($e);
+    $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
   } finally {
     $panic = $rt.runDefers($defers, $panic);
   }
@@ -10696,7 +10696,7 @@ export function ParseIsolatedEntityName(text: string): $ast.Node | undefined {
     );
     break $body;
   } catch ($e) {
-    $panic = $rt.toPanic($e);
+    $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
   } finally {
     $panic = $rt.runDefers($defers, $panic);
   }
@@ -11221,6 +11221,24 @@ export function GetJSDocCommentRanges(
 }
 export function isKeywordOrPunctuation(token: $ast.Kind): boolean {
   return $ast.IsKeywordKind(token) || $ast.IsPunctuationKind(token);
+}
+export function isJSDocLikeTextAt(text: string, start: number): boolean {
+  return (
+    text.length - start >= 4 &&
+    text.charCodeAt(start + 1) === (42 as number) &&
+    text.charCodeAt(start + 2) === (42 as number) &&
+    !(text.charCodeAt(start + 3) === (47 as number))
+  );
+}
+export function lastLineFeedBefore(text: string, end: number): number {
+  {
+    for (let i: number = end - 1; i >= 0; i--) {
+      if (text.charCodeAt(i) === (10 as number)) {
+        return i;
+      }
+    }
+  }
+  return -1;
 }
 export function isJSDocLikeText(text: string): boolean {
   return (

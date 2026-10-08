@@ -5,16 +5,16 @@ import * as $ast from './ast.js';
 import * as $binder from './binder.js';
 import * as $boxes from './boxes.js';
 import * as $checker from './checker.js';
+import * as $collections from './collections.js';
 import * as $compiler from './compiler.js';
 import * as $core from './core.js';
 import * as $execute from './execute.js';
 import * as $jsnum from './jsnum.js';
+import * as $module from './module.js';
 import * as $parser from './parser.js';
 import * as $tsoptions from './tsoptions.js';
 import * as $tspath from './tspath.js';
 import * as $vfs from './vfs.js';
-import type * as $collections from './collections.js';
-import type * as $module from './module.js';
 import type * as $packagejson from './packagejson.js';
 import type * as $symlinks from './symlinks.js';
 export class APIHost extends $rt.GoObject {

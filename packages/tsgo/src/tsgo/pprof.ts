@@ -76,7 +76,7 @@ export class CPUProfiler extends $rt.GoObject {
       $t1 = undefined;
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -109,7 +109,7 @@ export class CPUProfiler extends $rt.GoObject {
       $t2 = $t5[1];
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -295,7 +295,7 @@ export function SaveHeapProfile(profileDir: string): [string, $rt.GoObject | und
     $t2 = $t8[1];
     break $body;
   } catch ($e) {
-    $panic = $rt.toPanic($e);
+    $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
   } finally {
     $panic = $rt.runDefers($defers, $panic);
   }
@@ -363,7 +363,7 @@ export function SaveAllocProfile(profileDir: string): [string, $rt.GoObject | un
     $t2 = $t8[1];
     break $body;
   } catch ($e) {
-    $panic = $rt.toPanic($e);
+    $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
   } finally {
     $panic = $rt.runDefers($defers, $panic);
   }

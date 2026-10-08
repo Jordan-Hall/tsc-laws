@@ -1,7 +1,7 @@
 // Emits JavaScript for source files: runs the transforms, prints, and writes the output,
 // source map and `//# sourceMappingURL` comment.
 import { ScriptKind, type SourceFile } from './ast.js';
-import { type CompilerOptions, ModuleKind, NewLineKind, getEmitModuleKind, getEmitScriptTarget } from './options.js';
+import { type CompilerOptions, NewLineKind, getEmitScriptTarget, getIsolatedModules } from './options.js';
 import { type OutputPathsHost, getOutputPathsFor } from './output-paths.js';
 import {
   combinePaths,
@@ -21,11 +21,12 @@ import { TextWriter } from './printer/text-writer.js';
 import { SourceMapGenerator, getRelativePathToDirectoryOrUrl } from './sourcemap.js';
 import type { EmitResolver } from './transformers/emit-resolver.js';
 import { ImportElision } from './transformers/import-elision.js';
-import { ESModuleTransformer, type ModuleFormatHost, UseStrictTransformer } from './transformers/module.js';
+import { type ModuleFormatHost, UseStrictTransformer, createModuleTransformer } from './transformers/module.js';
 import type { Transformer } from './transformers/transformer.js';
 import { TypeEraser } from './transformers/type-eraser.js';
 import { TypeScriptFacts } from './transformers/subtree-facts.js';
 import { RuntimeSyntax } from './transformers/runtime-syntax.js';
+import { ConstEnumInliner } from './transformers/const-enum-inliner.js';
 
 /** The program as emit sees it. */
 export abstract class EmitHost implements OutputPathsHost {
@@ -59,6 +60,11 @@ export abstract class EmitHost implements OutputPathsHost {
 
   /** Writes an output file; returns an error message, or `''`. */
   abstract writeFile(fileName: string, text: string): string;
+
+  /** Whether writing a file is blocked, as when it would overwrite an input; false by default. */
+  isEmitBlocked(_fileName: string): boolean {
+    return false;
+  }
 }
 
 export class EmitResult {
@@ -93,7 +99,12 @@ export function emitFiles(host: EmitHost, files: readonly SourceFile[]): EmitRes
     const file = files[i];
     if (!sourceFileMayBeEmitted(file, options)) continue;
     const paths = getOutputPathsFor(file.fileName, file.scriptKind === ScriptKind.JSON, options, host, false);
-    if (paths.jsFilePath !== '') emitJSFile(host, file, paths.jsFilePath, paths.sourceMapFilePath, result);
+    if (paths.jsFilePath === '') continue;
+    if (host.isEmitBlocked(paths.jsFilePath)) {
+      result.emitSkipped = true;
+      continue;
+    }
+    emitJSFile(host, file, paths.jsFilePath, paths.sourceMapFilePath, result);
   }
   return result;
 }
@@ -104,14 +115,10 @@ function getScriptTransformers(host: EmitHost, context: EmitContext, file: Sourc
   const transformers: Transformer[] = [new TypeEraser(context, options, facts)];
   if (options.verbatimModuleSyntax !== true && !file.isJS())
     transformers.push(new ImportElision(context, options, host.resolver));
-  transformers.push(new RuntimeSyntax(context, options, facts));
+  transformers.push(new RuntimeSyntax(context, options, facts, host.resolver));
   transformers.push(new UseStrictTransformer(context, options, host.formats));
-  const moduleKind = getEmitModuleKind(options);
-  const esm =
-    moduleKind === ModuleKind.Preserve || host.formats.getEmitModuleFormat(file.fileName) >= ModuleKind.ES2015;
-  const moduleTransformer = new ESModuleTransformer(context, options);
-  if (!esm) moduleTransformer.unsupported = 'CommonJS module output is not supported yet';
-  transformers.push(moduleTransformer);
+  transformers.push(createModuleTransformer(context, options, host.resolver, host.formats));
+  if (!getIsolatedModules(options)) transformers.push(new ConstEnumInliner(context, options, host.resolver));
   return transformers;
 }
 

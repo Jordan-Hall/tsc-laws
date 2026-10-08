@@ -1836,7 +1836,7 @@ export class resolutionState extends $rt.GoObject {
       $t1 = continueSearching();
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -3119,7 +3119,7 @@ export class resolutionState extends $rt.GoObject {
     }
     const directoryExists: boolean = $rt.nn($rt.nn(r!.resolver!.host).FS$m()).DirectoryExists(packageDirectory);
     if (directoryExists && $rt.nn($rt.nn(r!.resolver!.host).FS$m()).FileExists(packageJsonPath)) {
-      const $t1 = $rt.nn($rt.nn(r!.resolver!.host).FS$m()).ReadFile(packageJsonPath);
+      const $t1 = $fn1($rt.nn($rt.nn(r!.resolver!.host).FS$m()), packageJsonPath);
       const contents: string = $t1[0];
       const $t2 = $packagejson.Parse($rt.stringToBytes(contents));
       const packageJsonContent: $packagejson.Fields = $t2[0];
@@ -3184,7 +3184,11 @@ export class resolutionState extends $rt.GoObject {
     const r = this;
     let peerDependencies: $packagejson.Expected<Map<string, string> | undefined> =
       packageJsonInfo!.Contents!.DependencyFields_.PeerDependencies.$clone_packagejson_Expected();
-    const ok: boolean = r!.validatePackageJSONField('peerDependencies', peerDependencies);
+    const ok: boolean = validatePackageJSONField<Map<string, string> | undefined>(
+      r,
+      'peerDependencies',
+      peerDependencies,
+    );
     if (!ok || $rt.mapLen(peerDependencies.Value) === (0 as number)) {
       return '';
     }
@@ -3239,34 +3243,13 @@ export class resolutionState extends $rt.GoObject {
     }
     return rp;
   }
-  validatePackageJSONField(fieldName: string, field: $packagejson.TypeValidatedField | undefined): boolean {
-    const r = this;
-    if (field!.IsPresent()) {
-      if (field!.IsValid()) {
-        return true;
-      }
-      if (!(r!.tracer_ === undefined)) {
-        tracer.write$nil(r!.tracer_, $diagnostics.Expected_type_of_0_field_in_package_json_to_be_1_got_2, [
-          new $rt.BoxStr(fieldName, 'string'),
-          new $rt.BoxStr(field!.ExpectedJSONType(), 'string'),
-          new $rt.BoxStr(field!.ActualJSONType(), 'string'),
-        ]);
-      }
-    }
-    if (!(r!.tracer_ === undefined)) {
-      tracer.write$nil(r!.tracer_, $diagnostics.X_package_json_does_not_have_a_0_field, [
-        new $rt.BoxStr(fieldName, 'string'),
-      ]);
-    }
-    return false;
-  }
   getPackageJSONPathField(
     fieldName: string,
     field: $packagejson.Expected<string> | undefined,
     directory: string,
   ): [string, boolean] {
     const r = this;
-    if (!r!.validatePackageJSONField(fieldName, field)) {
+    if (!validatePackageJSONField<string>(r, fieldName, field)) {
       return ['', false];
     }
     if (field!.Value === ('' as string)) {
@@ -3785,9 +3768,13 @@ export const extensionsImplementationFiles: extensions = 3;
 export const extensionsJavaScript: extensions = 2;
 export const extensionsJson: extensions = 8;
 export const extensionsTypeScript: extensions = 1;
+interface $I0 {
+  ReadFile(a0: string): [string, boolean];
+}
 const $fn0 = (c: string): string => {
   return "'" + c + "'";
 };
+const $fn1 = ($r: $I0, a0: string): [string, boolean] => $r.ReadFile(a0);
 export let typeScriptVersion: $semver.Version = $semver.MustParse($core.Version());
 export function newCaches(
   currentDirectory: string,
@@ -3912,6 +3899,30 @@ export function NewResolverWithOptions(
     );
   }
   return r;
+}
+export function validatePackageJSONField<T>(
+  r: resolutionState | undefined,
+  fieldName: string,
+  field: $packagejson.Expected<T> | undefined,
+): boolean {
+  if (field!.IsPresent()) {
+    if (field!.IsValid()) {
+      return true;
+    }
+    if (!(r!.tracer_ === undefined)) {
+      tracer.write$nil(r!.tracer_, $diagnostics.Expected_type_of_0_field_in_package_json_to_be_1_got_2, [
+        new $rt.BoxStr(fieldName, 'string'),
+        new $rt.BoxStr(field!.ExpectedJSONType(), 'string'),
+        new $rt.BoxStr(field!.ActualJSONType(), 'string'),
+      ]);
+    }
+  }
+  if (!(r!.tracer_ === undefined)) {
+    tracer.write$nil(r!.tracer_, $diagnostics.X_package_json_does_not_have_a_0_field, [
+      new $rt.BoxStr(fieldName, 'string'),
+    ]);
+  }
+  return false;
 }
 export function GetConditions(
   options: $core.CompilerOptions | undefined,
@@ -4119,7 +4130,7 @@ export function GetAutomaticTypeDirectiveNames(
             const packageJsonPath: string = $tspath.CombinePaths(root, [normalized, 'package.json']);
             let isNotNeededPackage: boolean = false;
             if ($rt.nn($rt.nn(host).FS$m()).FileExists(packageJsonPath)) {
-              const $t6 = $rt.nn($rt.nn(host).FS$m()).ReadFile(packageJsonPath);
+              const $t6 = $fn1($rt.nn($rt.nn(host).FS$m()), packageJsonPath);
               const contents: string = $t6[0];
               const $t7 = $packagejson.Parse($rt.stringToBytes(contents));
               const packageJsonContent: $packagejson.Fields = $t7[0];

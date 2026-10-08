@@ -50,6 +50,65 @@ var sourceEdits = []struct{ file, from, to string }{
 	p.rewind(*state)
 	return result
 }`},
+	// Package.json fields are generic Expected[T] values, which the
+	// translation can't pass as the TypeValidatedField interface.
+	{"module/resolver.go", "func (r *resolutionState) validatePackageJSONField(fieldName string, field packagejson.TypeValidatedField) bool {", "func validatePackageJSONField[T any](r *resolutionState, fieldName string, field *packagejson.Expected[T]) bool {"},
+	{"module/resolver.go", `r.validatePackageJSONField("peerDependencies", &peerDependencies)`, `validatePackageJSONField(r, "peerDependencies", &peerDependencies)`},
+	{"module/resolver.go", `!r.validatePackageJSONField(fieldName, field)`, `!validatePackageJSONField(r, fieldName, field)`},
+	// JSDoc parsing tests the text around each comment without taking
+	// substrings, which the translation copies.
+	{"parser/jsdoc.go", "if !isJSDocLikeText(p.sourceText[start:]) {", "if !isJSDocLikeTextAt(p.sourceText, start) {"},
+	{"parser/jsdoc.go", `strings.LastIndex(p.sourceText[:start], "\n")`, "lastLineFeedBefore(p.sourceText, start)"},
+	{"parser/utilities.go", "func isJSDocLikeText(text string) bool {", `func isJSDocLikeTextAt(text string, start int) bool {
+	return len(text)-start >= 4 && text[start+1] == '*' && text[start+2] == '*' && text[start+3] != '/'
+}
+
+func lastLineFeedBefore(text string, end int) int {
+	for i := end - 1; i >= 0; i-- {
+		if text[i] == '\n' {
+			return i
+		}
+	}
+	return -1
+}
+
+func isJSDocLikeText(text string) bool {`},
+	// Source file data cells hold their value as an interface: generic class
+	// instances can't be recovered from an interface value in scriptc.
+	{"ast/ast.go", `type sourceFileDataCell[T any] struct {
+	once  sync.Once
+	value T
+}`, `type sourceFileDataCell struct {
+	once  sync.Once
+	value any
+}`},
+	{"ast/ast.go", `	cell.once.Do(func() {
+		cell.value = compute(file)
+	})
+	return cell.value
+}
+
+func getSourceFileDataCell[T any](file *SourceFile, key *SourceFileDataKey[T]) *sourceFileDataCell[T] {`, `	cell.once.Do(func() {
+		cell.value = compute(file)
+	})
+	return cell.value.(T)
+}
+
+func getSourceFileDataCell[T any](file *SourceFile, key *SourceFileDataKey[T]) *sourceFileDataCell {`},
+	{"ast/ast.go", `	if file.data == nil {
+		file.data = make(map[sourceFileDataKey]any)
+	}
+	if cell, ok := file.data[key.key]; ok {
+		return cell.(*sourceFileDataCell[T])
+	}
+	cell := &sourceFileDataCell[T]{}`, `	if file.data == nil {
+		file.data = make(map[sourceFileDataKey]*sourceFileDataCell)
+	}
+	if cell, ok := file.data[key.key]; ok {
+		return cell
+	}
+	cell := &sourceFileDataCell{}`},
+	{"ast/ast.go", "	data   map[sourceFileDataKey]any\n", "	data   map[sourceFileDataKey]*sourceFileDataCell\n"},
 	{"scanner/scanner.go", "func (s *Scanner) Rewind(state ScannerState) {", "func (s *Scanner) MarkInto(dst *ScannerState) {\n\t*dst = s.ScannerState\n}\n\nfunc (s *Scanner) Rewind(state ScannerState) {"},
 }
 
@@ -97,6 +156,15 @@ func isOrderedMapJSONValue(v any) bool { _, ok := v.(*collections.OrderedMap[str
 	}
 }`},
 	{"packagejson/expected.go", `\t"reflect"\n`, ""},
+	// Decoding JSON into an OrderedMap is only reached through the JSON
+	// library, which the translation doesn't include; scriptc can't lower
+	// pointers to every key and value type it would instantiate.
+	{"collections/ordered_map.go", `(?s)\nvar _ json\.UnmarshalerFrom = .*?\n}\n`, ""},
+	{"collections/ordered_map.go", `\t"errors"\n`, ""},
+	// fmtMain is unused; dropping it keeps the formatter and the language
+	// server protocol out of the tsc command line.
+	{"execute/tsc.go", `(?s)\nfunc fmtMain\(.*?\n}\n`, ""},
+	{"execute/tsc.go", `\t"github.com/microsoft/typescript-go/internal/(core|format|ls/lsutil|parser)"\n`, ""},
 	// The encoder's visitors call factory updates through a nil *NodeFactory,
 	// which Go allows for unchanged nodes but the translation can't.
 	{"api/encoder/encoder.go", `visitor := &ast.NodeVisitor\{\n`, "visitor := &ast.NodeVisitor{\n\t\tFactory: &ast.NodeFactory{},\n"},

@@ -39,6 +39,16 @@ npm run build -w tsc-ts
 node packages/tsc-ts/dist/tsc-ts/src/main.js --api --cwd path/to/project
 ```
 
+Native builds read lib files from the executable's directory, or from `TSC_TS_LIB_DIR`:
+
+```sh
+npm run build:native -w tsc-ts       # packages/tsc-ts/dist/tsc
+npm run build:native:dev -w tsc-ts   # unoptimized, faster to build
+TSC_TS_LIB_DIR=upstream/typescript-go/internal/bundled/libs packages/tsc-ts/dist/tsc -p path/to/project
+```
+
+`TSC_TS_BIN=packages/tsc-ts/dist/tsc` runs the `tsc-ts` and `tsc` tests against a native build.
+
 The server is checked against `tsc --api` 7.0.2 response by response, and scriptc builds the same programs with either. The compiler behind it is currently the translated tsgo in `packages/tsgo`. Language service methods (completions, references, JSDoc queries) are not supported yet.
 
 ## Checker

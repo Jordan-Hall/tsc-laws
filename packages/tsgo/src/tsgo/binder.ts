@@ -4091,7 +4091,7 @@ export function bindSourceFile(file: $ast.SourceFile | undefined): void {
       file!.SymbolCount = b!.symbolCount;
       file!.ClassifiableNames = b!.classifiableNames.$clone_collections_Set();
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }

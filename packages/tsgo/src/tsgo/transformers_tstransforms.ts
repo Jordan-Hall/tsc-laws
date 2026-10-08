@@ -643,7 +643,7 @@ export class LegacyDecoratorsTransformer extends $transformers.Transformer {
       $t1 = tx!.Factory()!.NewSyntaxList(statements);
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -1068,7 +1068,7 @@ export class MetadataTransformer extends $transformers.Transformer {
         }
       }
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -1116,7 +1116,7 @@ export class MetadataTransformer extends $transformers.Transformer {
         );
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -1156,7 +1156,7 @@ export class MetadataTransformer extends $transformers.Transformer {
         );
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -1762,7 +1762,7 @@ export class RuntimeSyntaxTransformer extends $transformers.Transformer {
       $t1 = node;
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -3399,7 +3399,7 @@ export class TypeEraserTransformer extends $transformers.Transformer {
         }
       }
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -3511,7 +3511,7 @@ export class metadataSerializer extends $rt.GoObject {
       $t1 = s!.serializeTypeOfNode(node, container);
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -3538,7 +3538,7 @@ export class metadataSerializer extends $rt.GoObject {
       $t1 = s!.serializeParameterTypesOfNode(node, container);
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -3561,7 +3561,7 @@ export class metadataSerializer extends $rt.GoObject {
       $t1 = s!.serializeReturnTypeOfNode(node);
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -3763,7 +3763,7 @@ export class metadataSerializer extends $rt.GoObject {
       $t1 = s!.f!.NewIdentifier('Object');
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }

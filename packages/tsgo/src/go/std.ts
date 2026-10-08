@@ -843,11 +843,17 @@ export function fmt_Errorf(format: string, args: (GoObject | undefined)[]): GoOb
   return new GoError(fmt_Sprintf(format, args));
 }
 
-// sync and sync/atomic run single-threaded.
+// sync and sync/atomic run single-threaded. Methods that take no arguments
+// return a value: scriptc calls zero-argument void methods through a dynamic
+// property lookup.
 
 export class sync_Mutex extends GoObject {
-  Lock(): void {}
-  Unlock(): void {}
+  Lock(): number {
+    return 0;
+  }
+  Unlock(): number {
+    return 0;
+  }
   TryLock(): boolean {
     return true;
   }
@@ -856,10 +862,18 @@ export class sync_Mutex extends GoObject {
   }
 }
 export class sync_RWMutex extends GoObject {
-  Lock(): void {}
-  Unlock(): void {}
-  RLock(): void {}
-  RUnlock(): void {}
+  Lock(): number {
+    return 0;
+  }
+  Unlock(): number {
+    return 0;
+  }
+  RLock(): number {
+    return 0;
+  }
+  RUnlock(): number {
+    return 0;
+  }
   $clone(): sync_RWMutex {
     return new sync_RWMutex();
   }
@@ -880,8 +894,12 @@ export class sync_Once extends GoObject {
 }
 export class sync_WaitGroup extends GoObject {
   Add(_n: number): void {}
-  Done(): void {}
-  Wait(): void {}
+  Done(): number {
+    return 0;
+  }
+  Wait(): number {
+    return 0;
+  }
   Go(f: (() => void) | undefined): void {
     f!();
   }

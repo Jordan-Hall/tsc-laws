@@ -417,13 +417,35 @@ func (f *file) hoistFn(text string) string {
 	return name
 }
 
+// hoistType declares an interface with the given body once per module and
+// returns its name.
+func (f *file) hoistType(body string) string {
+	if f.hoistedTypes == nil {
+		f.hoistedTypes = map[string]string{}
+	}
+	if name, ok := f.hoistedTypes[body]; ok {
+		return name
+	}
+	name := fmt.Sprintf("$I%d", len(f.hoistedTypes))
+	f.hoistedTypes[body] = name
+	return name
+}
+
 func (f *file) hoistedFnDecls() string {
+	var b strings.Builder
+	var types []string
+	for k := range f.hoistedTypes {
+		types = append(types, k)
+	}
+	sort.Slice(types, func(i, j int) bool { return f.hoistedTypes[types[i]] < f.hoistedTypes[types[j]] })
+	for _, k := range types {
+		fmt.Fprintf(&b, "interface %s %s\n", f.hoistedTypes[k], k)
+	}
 	var keys []string
 	for k := range f.hoistedFns {
 		keys = append(keys, k)
 	}
 	sort.Slice(keys, func(i, j int) bool { return f.hoistedFns[keys[i]] < f.hoistedFns[keys[j]] })
-	var b strings.Builder
 	for _, k := range keys {
 		fmt.Fprintf(&b, "const %s = %s;\n", f.hoistedFns[k], k)
 	}

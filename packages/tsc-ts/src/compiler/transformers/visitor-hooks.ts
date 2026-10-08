@@ -87,6 +87,13 @@ export abstract class VisitorHooks {
     return node;
   }
 
+  /** A visited statement, as a block if it became several, or undefined if removed. */
+  visitStatement(node: Node | undefined): Node | undefined {
+    if (node === undefined) return undefined;
+    const visited = this.visit(node);
+    return visited === undefined ? undefined : this.liftToBlock(visited);
+  }
+
   /** The body of an `if`, `with` or labeled statement; an elided statement becomes `;`. */
   visitEmbeddedStatement(node: Node | undefined): Node | undefined {
     if (node === undefined) return undefined;

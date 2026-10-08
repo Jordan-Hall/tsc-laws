@@ -143,7 +143,7 @@ func (f *file) stdStub(name string, ref stdRef) string {
 		sig := o.Type().(*types.Signature)
 		params, _ := f.sigParams(sig)
 		if sig.Results().Len() == 0 {
-			return fmt.Sprintf("export function %s%s(%s): void { $rt.stubCall(%q, undefined); }\n", name, f.tparamList(sig.TypeParams()), params, what)
+			return fmt.Sprintf("export function %s%s(%s): void { $rt.stubVoid(%q); }\n", name, f.tparamList(sig.TypeParams()), params, what)
 		}
 		var zero string
 		if sig.Results().Len() == 1 {

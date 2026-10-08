@@ -24,7 +24,9 @@ type file struct {
 	zs         zscope
 	hoisted    map[string]string
 	hoistedFns map[string]string
-	typeOnly   map[string]bool
+	// hoistedTypes are interface bodies declared once per module.
+	hoistedTypes map[string]string
+	typeOnly     map[string]bool
 	// named lists classes imported by name, as "module.Name"; scriptc only
 	// resolves generic static methods through named imports.
 	named  map[string]bool
@@ -690,12 +692,33 @@ func (f *file) classDecl(tn *types.TypeName) string {
 				fmt.Fprintf(&w, "  %s(%s): %s { return %s(this%s%s); }\n", f.t.methodNameStr(name), params, f.results(sig), f.qualifyMethod(rn, fn.Name()), path, prefixComma(args))
 				continue
 			}
+			if d := f.unionDispatch(f.embeddedFieldType(tn, sel.Index()[:len(sel.Index())-1]), sig, f.t.methodNameStr(name)); d != "" {
+				fmt.Fprintf(&w, "  %s(%s): %s { return %s($rt.nn(this%s)%s); }\n", f.t.methodNameStr(name), params, f.results(sig), d, strings.TrimSuffix(path, "!"), prefixComma(args))
+				continue
+			}
 			fmt.Fprintf(&w, "  %s(%s): %s { return this%s.%s(%s); }\n", f.t.methodNameStr(name), params, f.results(sig), path, f.t.methodNameStr(name), args)
 		}
 		w.WriteString("}\n")
 		out = w.String()
 	})
 	return out
+}
+
+// embeddedFieldType returns the type of the embedded field reached from
+// class tn through the field indexes of a selection path.
+func (f *file) embeddedFieldType(tn *types.TypeName, index []int) types.Type {
+	var cur types.Type = tn.Type()
+	for _, i := range index {
+		if p, ok := cur.Underlying().(*types.Pointer); ok {
+			cur = p.Elem()
+		}
+		st, ok := cur.Underlying().(*types.Struct)
+		if !ok {
+			return nil
+		}
+		cur = st.Field(i).Type()
+	}
+	return cur
 }
 
 func typeArgNames(tn *types.TypeName) string {
@@ -911,6 +934,14 @@ func (f *file) tsType(tt types.Type) string {
 			return f.qualify(obj) + typeArgNames(obj)
 		}
 		name := f.qualify(obj) + f.typeArgs(x.TypeArgs())
+		// scriptc leaves generic classes named through `import type`
+		// namespaces uninstantiated; import their module as a value. Imports
+		// used only in types are elided from the JavaScript.
+		if x.TypeArgs().Len() > 0 && obj.Pkg() != f.p.p.Types {
+			if tp := f.t.pkgs[obj.Pkg()]; tp != nil {
+				f.imports[tp.module] = true
+			}
+		}
 		if m := f.t.ifaces[obj]; m != nil && m.stub {
 			return name + " | undefined"
 		}

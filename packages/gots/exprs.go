@@ -364,7 +364,68 @@ func (x *fn) methodCallOn(e *ast.SelectorExpr, r string, args []string) string {
 			name += "$" + x.f.t.typeName(dn.Origin().Obj())
 		}
 	}
+	if path == "" {
+		if d := x.f.unionDispatch(recvType, sig, name); d != "" {
+			return fmt.Sprintf("%s(%s%s)", d, r, prefixComma(argStr))
+		}
+	}
 	return fmt.Sprintf("%s%s.%s(%s)", r, path, name, argStr)
+}
+
+// unionCalls are the interface methods scriptc rejects when called on the
+// union of classes that represents the interface ("method calls like ...
+// are not supported yet"), by package path below internal/, interface and
+// method name. The same calls compile on a single class.
+var unionCalls = map[string]bool{
+	"checker.Program.GetSourceFileForResolvedModule":    true,
+	"compiler.CompilerHost.GetResolvedProjectReference": true,
+	"execute/incremental.Host.GetMTime":                 true,
+	"vfs.FS.ReadFile":                                   true,
+}
+
+// unionDispatch returns a module-level function that makes one of the
+// unionCalls on a receiver of interface type tt, or "" for other calls. The
+// function tests each class in turn, or calls through a TypeScript interface
+// when the classes can't be imported here.
+func (f *file) unionDispatch(tt types.Type, sig *types.Signature, name string) string {
+	n, ok := types.Unalias(tt).(*types.Named)
+	if !ok || !isIfaceType(n) || mentionsTypeParam(n) || mentionsTypeParam(sig) || n.Obj().Pkg() == nil {
+		return ""
+	}
+	if !unionCalls[strings.TrimPrefix(n.Obj().Pkg().Path(), modulePrefix)+"."+n.Obj().Name()+"."+name] {
+		return ""
+	}
+	m := f.t.ifaces[n.Origin().Obj()]
+	if m == nil || m.base != nil || len(m.union) < 2 {
+		return ""
+	}
+	reachable := true
+	for _, u := range m.union {
+		p, ok := u.(*types.Pointer)
+		if !ok {
+			return ""
+		}
+		reachable = reachable && f.dependsOn(p.Elem().(*types.Named).Obj().Pkg())
+	}
+	params, args := f.sigParams(sig)
+	results := f.results(sig)
+	if !reachable {
+		iface := f.hoistType(fmt.Sprintf("{\n  %s(%s): %s;\n}", name, params, results))
+		return f.hoistFn(fmt.Sprintf("($r: %s%s): %s => $r.%s(%s)", iface, prefixComma(params), results, name, args))
+	}
+	// Each test narrows the parameter to one class.
+	var b strings.Builder
+	fmt.Fprintf(&b, "($r: %s%s): %s => {\n", f.tsType(tt), prefixComma(params), results)
+	for _, u := range m.union {
+		c := f.qualify(u.(*types.Pointer).Elem().(*types.Named).Obj())
+		if results == "void" {
+			fmt.Fprintf(&b, "  if ($r instanceof %s) {\n    $r.%s(%s);\n    return;\n  }\n", c, name, args)
+		} else {
+			fmt.Fprintf(&b, "  if ($r instanceof %s) return $r.%s(%s);\n", c, name, args)
+		}
+	}
+	b.WriteString("  throw $rt.nilDereference();\n}")
+	return f.hoistFn(b.String())
 }
 
 func (f *file) qualifyMethod(n *types.Named, method string) string {
@@ -546,6 +607,14 @@ func (x *fn) deref(e *ast.StarExpr) string {
 	}
 	if isStructType(p.Elem()) || isArrayType(p.Elem()) {
 		return x.expr(e.X) + "!"
+	}
+	// *new(T) is T's zero value; it needs no pointer.
+	if call, ok := ast.Unparen(e.X).(*ast.CallExpr); ok && len(call.Args) == 1 {
+		if id, ok := ast.Unparen(call.Fun).(*ast.Ident); ok {
+			if _, isBuiltin := x.info.Uses[id].(*types.Builtin); isBuiltin && id.Name == "new" && x.info.Types[call.Args[0]].IsType() {
+				return x.f.zero(p.Elem())
+			}
+		}
 	}
 	return x.expr(e.X) + "!.get()"
 }
@@ -953,6 +1022,9 @@ func (x *fn) checked(v string, tt types.Type, te ast.Expr) string {
 	}
 	if x.boxGeneric && isGenericPtr(tt) {
 		return x.unbox(v, tt)
+	}
+	if s := x.unionNarrow(v, tt, "$rt.typeAssertFail<"+x.f.tsType(tt)+">()"); s != "" {
+		return s
 	}
 	return fmt.Sprintf("(%s ? %s : $rt.typeAssertFail<%s>())", test, x.unbox(v, tt), x.f.tsType(tt))
 }

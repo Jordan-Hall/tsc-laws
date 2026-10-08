@@ -1,14 +1,14 @@
 // Shared by the emit test and scripts/emit-corpus.mjs: builds the emit driver and compares its
 // output with tsgo's on batches of files, every output file byte for byte.
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
-import { join, relative, resolve } from 'node:path';
+import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { dirname, join, normalize, relative, resolve } from 'node:path';
 import { repo, root, run } from './parser-cases.mjs';
 import { tempDir } from './temp.mjs';
 
 export const tsgo = resolve(repo, 'packages/tsgo/dist/tsgo');
 
-/** Options for both compilers: no type checking or module resolution, ECMAScript module output. */
+/** Options for both compilers: no type checking or loading of other files, ECMAScript module output. */
 export const baseFlags = [
   '--ignoreConfig',
   '--noCheck',
@@ -48,6 +48,61 @@ export function buildEmitDriver() {
 }
 
 export const emittable = /(?<!\.d)\.(?:[cm]?ts|tsx|[cm]?js|jsx)$/;
+
+/** Test cases tsgo doesn't finish emitting as CommonJS. */
+const commonJSHangs = ['conformance/salsa/importingExportingTypes.ts'];
+
+/** Whether tsgo doesn't finish emitting the test case of a unit as CommonJS. */
+export const isCommonJSHang = (unit) => commonJSHangs.some((name) => unit.source.endsWith('/' + name));
+
+const directive = /^\/\/\s*@(\w+)\s*:\s*([^\r\n]*)/;
+
+/**
+ * Writes each test case into its own directory with the paths its `// @filename:` directives
+ * give, so package.json files apply and imports between its files resolve. Returns
+ * `[{ source, path }]` for its files outside node_modules that emit JavaScript.
+ */
+export function materializeGrouped(files, dir) {
+  const paths = [];
+  for (const [index, file] of files.entries()) {
+    let text;
+    try {
+      text = new TextDecoder('utf-8', { fatal: true }).decode(readFileSync(file));
+    } catch {
+      continue;
+    }
+    const caseDir = join(dir, String(index));
+    const units = [];
+    let name = undefined;
+    let content = [];
+    const flush = () => {
+      const body = content.join('\n');
+      if (name !== undefined) units.push({ name, text: body });
+      else if (body.trim() !== '') units.push({ name: file.split('/').at(-1), text: body });
+      content = [];
+    };
+    for (const line of text.split('\n')) {
+      const match = directive.exec(line);
+      if (match) {
+        if (match[1].toLowerCase() === 'filename') {
+          flush();
+          name = match[2].trim().replaceAll('\\', '/');
+        }
+        continue;
+      }
+      content.push(line);
+    }
+    flush();
+    for (const unit of units) {
+      const relativePath = normalize(unit.name.replace(/^[a-zA-Z]:/, '').replace(/^\/+/, '')).replace(/^(\.\.\/)+/, '');
+      const path = join(caseDir, relativePath);
+      mkdirSync(dirname(path), { recursive: true });
+      writeFileSync(path, unit.text);
+      if (emittable.test(path) && !relativePath.split('/').includes('node_modules')) paths.push({ source: file, path });
+    }
+  }
+  return paths;
+}
 
 function listOutputs(dir) {
   const out = [];

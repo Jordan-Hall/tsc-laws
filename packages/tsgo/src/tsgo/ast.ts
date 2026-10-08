@@ -6285,7 +6285,7 @@ export class DiagnosticsCollection extends $rt.GoObject {
         c!.nonFileDiagnosticsSorted = false;
       }
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -6320,7 +6320,7 @@ export class DiagnosticsCollection extends $rt.GoObject {
       $t1 = undefined;
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -6341,7 +6341,7 @@ export class DiagnosticsCollection extends $rt.GoObject {
       $t1 = c!.getGlobalDiagnosticsLocked();
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -6370,7 +6370,7 @@ export class DiagnosticsCollection extends $rt.GoObject {
       $t1 = c!.getDiagnosticsForFileLocked(fileName);
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -6405,7 +6405,7 @@ export class DiagnosticsCollection extends $rt.GoObject {
       $t1 = diagnostics;
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -17459,13 +17459,6 @@ export class NodeVisitorHooks extends $rt.GoObject {
     o.VisitModifiers = p3;
     return o;
   }
-  static $lit_ast_NodeVisitorHooks_2(
-    p0: ((p0: NodeList | undefined, p1: NodeVisitor | undefined) => NodeList | undefined) | undefined,
-  ): NodeVisitorHooks {
-    const o = new NodeVisitorHooks();
-    o.VisitNodes = p0;
-    return o;
-  }
   static $lit_ast_NodeVisitorHooks_2_0(
     p0: ((p0: NodeList | undefined, p1: NodeVisitor | undefined) => NodeList | undefined) | undefined,
     p1: ((p0: Node | undefined, p1: NodeVisitor | undefined) => Node | undefined) | undefined,
@@ -19206,7 +19199,7 @@ export class SourceFile extends NodeBase {
   Statements_: NodeList | undefined = undefined;
   EndOfFileToken: Node | undefined = undefined;
   dataMu: $rt.sync_Mutex = new $rt.sync_Mutex();
-  data$4: Map<sourceFileDataKey, $rt.GoObject | undefined> | undefined = undefined;
+  data$4: Map<sourceFileDataKey, sourceFileDataCell | undefined> | undefined = undefined;
   diagnostics: (Diagnostic | undefined)[] = [];
   jsDiagnostics: (Diagnostic | undefined)[] = [];
   jsdocDiagnostics: (Diagnostic | undefined)[] = [];
@@ -19427,7 +19420,7 @@ export class SourceFile extends NodeBase {
       $t1 = jsdocs$2;
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -19515,7 +19508,7 @@ export class SourceFile extends NodeBase {
       $t1 = lineMap;
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -19640,7 +19633,7 @@ export class SourceFile extends NodeBase {
       $t1 = token$1;
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -19664,7 +19657,7 @@ export class SourceFile extends NodeBase {
       $t1 = node!.declarationMap;
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }
@@ -22181,27 +22174,24 @@ export class positionMapEntry extends $rt.GoObject {
     throw $rt.typeAssertError();
   }
 }
-export class sourceFileDataCell<T> extends $rt.GoObject {
-  $z_T: () => T;
-  once: $rt.sync_Once;
-  value: T;
-  constructor($z_T: () => T) {
-    super();
-    this.$z_T = $z_T;
-    this.once = new $rt.sync_Once();
-    this.value = this.$z_T();
-  }
-  $copy_ast_sourceFileDataCell(src: sourceFileDataCell<T>): void {
+export class sourceFileDataCell extends $rt.GoObject {
+  once: $rt.sync_Once = new $rt.sync_Once();
+  value: $rt.GoObject | undefined = undefined;
+  $copy_ast_sourceFileDataCell(src: sourceFileDataCell): void {
     this.once = src.once;
     this.value = src.value;
   }
-  $equals_ast_sourceFileDataCell(o: sourceFileDataCell<T>): boolean {
-    return this.once === o.once && this.value === o.value;
+  $equals_ast_sourceFileDataCell(o: sourceFileDataCell): boolean {
+    return this.once === o.once && $rt.ifaceEq(this.value, o.value);
   }
-  $clone_ast_sourceFileDataCell(): sourceFileDataCell<T> {
-    const o = new sourceFileDataCell<T>(this.$z_T);
+  $clone_ast_sourceFileDataCell(): sourceFileDataCell {
+    const o = new sourceFileDataCell();
     o.$copy_ast_sourceFileDataCell(this);
     return o;
+  }
+  static $cast_ast_sourceFileDataCell(v: $rt.GoObject | undefined): sourceFileDataCell {
+    if (v instanceof sourceFileDataCell) return v;
+    throw $rt.typeAssertError();
   }
 }
 export const AllAccessorDeclarations$zero: AllAccessorDeclarations = new AllAccessorDeclarations();
@@ -23776,18 +23766,17 @@ export function GetOrComputeSourceFileData<T>(
   key: SourceFileDataKey<T> | undefined,
   compute: ((p0: SourceFile | undefined) => T) | undefined,
 ): T {
-  const cell: sourceFileDataCell<T> | undefined = getSourceFileDataCell<T>($z_T, file, key);
+  const cell: sourceFileDataCell | undefined = getSourceFileDataCell<T>(file, key);
   cell!.once.Do((): void => {
-    cell!.value = compute!(file);
+    cell!.value = $rt.boxAny(compute!(file));
   });
-  return cell!.value;
+  return cell!.value !== undefined ? $rt.unboxAny<T>(cell!.value) : $rt.typeAssertFail<T>();
 }
 export function getSourceFileDataCell<T>(
-  $z_T: () => T,
   file: SourceFile | undefined,
   key: SourceFileDataKey<T> | undefined,
-): sourceFileDataCell<T> | undefined {
-  let $t1: sourceFileDataCell<T> | undefined = undefined;
+): sourceFileDataCell | undefined {
+  let $t1: sourceFileDataCell | undefined = undefined;
   const $defers: (() => void)[] = [];
   let $panic: $rt.Panic | undefined = undefined;
   $body: try {
@@ -23800,27 +23789,24 @@ export function getSourceFileDataCell<T>(
       $t2.Unlock();
     });
     if (file!.data$4 === undefined) {
-      file!.data$4 = new Map<sourceFileDataKey, $rt.GoObject | undefined>();
+      file!.data$4 = new Map<sourceFileDataKey, sourceFileDataCell | undefined>();
     }
     {
-      const $t3: Map<sourceFileDataKey, $rt.GoObject | undefined> | undefined = file!.data$4;
+      const $t3: Map<sourceFileDataKey, sourceFileDataCell | undefined> | undefined = file!.data$4;
       const $t4 = key!.key;
-      const cell: $rt.GoObject | undefined = $t3?.get($t4) ?? undefined;
+      const cell: sourceFileDataCell | undefined = $t3?.get($t4) ?? undefined;
       const ok: boolean = $t3 !== undefined && $t3.has($t4);
       if (ok) {
-        $t1 =
-          cell instanceof sourceFileDataCell
-            ? (cell as sourceFileDataCell<T> | undefined)
-            : $rt.typeAssertFail<sourceFileDataCell<T> | undefined>();
+        $t1 = cell;
         break $body;
       }
     }
-    const cell$1: sourceFileDataCell<T> | undefined = new sourceFileDataCell<T>($z_T);
+    const cell$1: sourceFileDataCell | undefined = new sourceFileDataCell();
     file!.data$4!.set(key!.key, cell$1);
     $t1 = cell$1;
     break $body;
   } catch ($e) {
-    $panic = $rt.toPanic($e);
+    $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
   } finally {
     $panic = $rt.runDefers($defers, $panic);
   }
@@ -27080,7 +27066,7 @@ export function SetParentInChildren(node: Node | undefined): void {
     });
     fn!(node);
   } catch ($e) {
-    $panic = $rt.toPanic($e);
+    $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
   } finally {
     $panic = $rt.runDefers($defers, $panic);
   }

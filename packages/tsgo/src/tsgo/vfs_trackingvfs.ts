@@ -28,7 +28,7 @@ export class FS extends $rt.GoObject {
   ReadFile(path: string): [string, boolean] {
     const fs = this;
     fs!.SeenFiles.Add(path);
-    return $rt.nn(fs!.Inner).ReadFile(path);
+    return $fn0($rt.nn(fs!.Inner), path);
   }
   FileExists(path: string): boolean {
     const fs = this;
@@ -86,3 +86,7 @@ export class FS extends $rt.GoObject {
     return $rt.nn(fs!.Inner).Realpath(path);
   }
 }
+interface $I0 {
+  ReadFile(a0: string): [string, boolean];
+}
+const $fn0 = ($r: $I0, a0: string): [string, boolean] => $r.ReadFile(a0);

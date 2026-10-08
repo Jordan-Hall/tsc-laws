@@ -15,12 +15,11 @@ import {
 } from 'node:fs';
 import { join, resolve } from 'node:path';
 import test from 'node:test';
-import { scriptcDist } from './toolchain.mjs';
+import { scriptcDist, tscTs, tscTsMissing } from './toolchain.mjs';
 import { tempDir } from './temp.mjs';
 
 const bundled = scriptcDist ?? '';
-const main = resolve('dist/tsc-ts/src/main.js');
-const skip = !existsSync(bundled) ? 'needs the scriptc toolchain' : !existsSync(main) ? 'run npm run build' : false;
+const skip = !existsSync(bundled) ? 'needs the scriptc toolchain' : tscTsMissing;
 
 // A copy of the scriptc toolchain whose bundled tsc runs tsc-ts.
 function toolchain() {
@@ -39,7 +38,7 @@ function toolchain() {
   link(join(source, 'lib/typescript/lib'), lib, 'tsc');
   writeFileSync(
     join(lib, 'tsc'),
-    `#!/bin/sh\nTSC_TS_LIB_DIR="${lib}" exec "${process.execPath}" --stack-size=16000 "${main}" "$@"\n`,
+    `#!/bin/sh\nTSC_TS_LIB_DIR="${lib}" exec ${tscTs.map((arg) => `"${arg}"`).join(' ')} "$@"\n`,
   );
   chmodSync(join(lib, 'tsc'), 0o755);
   return join(root, 'bin/scriptc');
@@ -67,16 +66,20 @@ const programs = [
 test('scriptc builds the same programs with tsc-ts', { skip, timeout: 900_000 }, () => {
   const ours = toolchain();
   const theirs = resolve('../../node_modules/.bin/scriptc');
+  const seconds = [0, 0];
   for (const [fixture, entry] of programs) {
     const results = [];
-    for (const scriptc of [theirs, ours]) {
+    for (const [i, scriptc] of [theirs, ours].entries()) {
       const dir = tempDir('tsc-ts-program-');
       cpSync(resolve('tests/fixtures/programs', fixture), fixture.endsWith('.ts') ? join(dir, fixture) : dir, {
         recursive: true,
       });
+      const start = performance.now();
       results.push(build(scriptc, dir, entry));
+      seconds[i] += (performance.now() - start) / 1000;
     }
     assert.deepEqual(results[1], results[0], fixture);
     if (fixture !== 'type-error.ts') assert.equal(results[0].run?.status, 0, `${fixture}: ${results[0].output}`);
   }
+  console.log(`builds and runs: ${seconds[0].toFixed(1)} s with tsc, ${seconds[1].toFixed(1)} s with tsc-ts`);
 });

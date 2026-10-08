@@ -405,7 +405,7 @@ export class JSXTransformer extends $transformers.Transformer {
       $t1 = tx!.Visitor()!.Visit!(node);
       break $body;
     } catch ($e) {
-      $panic = $rt.toPanic($e);
+      $panic = $e instanceof $rt.Panic ? $e : $rt.toPanic($e);
     } finally {
       $panic = $rt.runDefers($defers, $panic);
     }

@@ -447,66 +447,6 @@ export class OrderedMap<K, V> extends $rt.GoObject {
     }
     return enc!.WriteToken($json.EndObject);
   }
-  UnmarshalJSONFrom(
-    dec: $rt.github_com_go_json_experiment_json_jsontext_Decoder | undefined,
-  ): $rt.GoObject | undefined {
-    const m = this;
-    const $t1 = dec!.ReadToken();
-    const token: $rt.github_com_go_json_experiment_json_jsontext_Token = $t1[0];
-    const err: $rt.GoObject | undefined = $t1[1];
-    if (!(err === undefined)) {
-      return err;
-    }
-    if (token.Kind() === (110 as number)) {
-      return undefined;
-    }
-    if (!(token.Kind() === (123 as number))) {
-      return $rt.errors_New('cannot unmarshal non-object JSON value into Map');
-    }
-    for (; !(dec!.PeekKind() === (125 as number));) {
-      let key: K = this.$z_K();
-      let value: V = this.$z_V();
-      {
-        const err$1: $rt.GoObject | undefined = $json.UnmarshalDecode(
-          dec,
-          $rt.ptrTo<K>(
-            (): K => key,
-            (v: K): void => {
-              key = v;
-            },
-          ),
-          [] as ($rt.github_com_go_json_experiment_json_internal_jsonopts_Options | undefined)[],
-        );
-        if (!(err$1 === undefined)) {
-          return err$1;
-        }
-      }
-      {
-        const err$2: $rt.GoObject | undefined = $json.UnmarshalDecode(
-          dec,
-          $rt.ptrTo<V>(
-            (): V => value,
-            (v: V): void => {
-              value = v;
-            },
-          ),
-          [] as ($rt.github_com_go_json_experiment_json_internal_jsonopts_Options | undefined)[],
-        );
-        if (!(err$2 === undefined)) {
-          return err$2;
-        }
-      }
-      m!.Set(key, value);
-    }
-    {
-      const $t2 = dec!.ReadToken();
-      const err$3: $rt.GoObject | undefined = $t2[1];
-      if (!(err$3 === undefined)) {
-        return err$3;
-      }
-    }
-    return undefined;
-  }
 }
 export class OrderedSet<T> extends $rt.GoObject {
   $z_T: () => T;

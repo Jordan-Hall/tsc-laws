@@ -4,17 +4,15 @@ import { cpSync, existsSync, mkdirSync, readFileSync, realpathSync, writeFileSyn
 import { join, resolve } from 'node:path';
 import test from 'node:test';
 import { Differential, explore } from './differential.mjs';
-import { typescriptLib as bundledLib } from './toolchain.mjs';
+import { typescriptLib as bundledLib, tscTs, tscTsMissing } from './toolchain.mjs';
 import { tempDir } from './temp.mjs';
 
 // The reference: TypeScript 7.0.2's tsc, shipped with scriptc. It reads lib
 // files from its real directory.
 const typescriptLib = bundledLib !== undefined && existsSync(bundledLib) ? realpathSync(bundledLib) : '';
 const realTsc = join(typescriptLib, 'tsc');
-const main = resolve('dist/tsc-ts/src/main.js');
-const tscTs = [process.execPath, '--stack-size=16000', main];
 const env = { TSC_TS_LIB_DIR: typescriptLib };
-const skip = !existsSync(realTsc) ? 'needs the scriptc toolchain' : !existsSync(main) ? 'run npm run build' : false;
+const skip = !existsSync(realTsc) ? 'needs the scriptc toolchain' : tscTsMissing;
 
 function copyProject() {
   const dir = tempDir('tsc-ts-api-');
