@@ -506,7 +506,6 @@ export class Orchestrator {
     }
     const options = command.compilerOptions;
     if (options.diagnostics === true || options.extendedDiagnostics === true) {
-      statistics.isAggregate = true;
       statistics.times.totalTime = this.sys.sinceStart();
       statistics.report(this.sys);
     }

@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { tempDir } from './temp.mjs';
@@ -185,6 +185,29 @@ function readFiles(dir) {
   return result;
 }
 
+/**
+ * Makes `files` newer than everything else in `dir` and older than anything written next, however long the
+ * next build takes: shifts every file 10 s into the past, keeping their order, then dates `files` just after
+ * the newest of them.
+ */
+function touch(dir, files) {
+  let newest = 0;
+  const walk = (directory) => {
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      const file = join(directory, entry.name);
+      if (entry.isDirectory()) walk(file);
+      else {
+        const time = statSync(file).mtimeMs - 10_000;
+        utimesSync(file, new Date(time), new Date(time));
+        newest = Math.max(newest, time);
+      }
+    }
+  };
+  walk(dir);
+  const later = new Date(newest + 1000);
+  for (const file of files) utimesSync(join(dir, file), later, later);
+}
+
 /** Masks what differs between runs: clock times, durations, memory, and counts that depend on checker internals. */
 function normalize(text, dir) {
   return (
@@ -212,8 +235,7 @@ for (const [name, scenario] of Object.entries(scenarios)) {
       const results = {};
       for (const [which, dir] of Object.entries(dirs)) {
         if (step.edit) writeFiles(dir, step.edit);
-        const later = new Date(Date.now() + 2000);
-        for (const file of step.touch ?? []) utimesSync(join(dir, file), later, later);
+        if (step.touch) touch(dir, step.touch);
         const { output, status } = run(which === 'tsgo' ? [tsgo] : tscTs, step.args, join(dir, step.cwd ?? '.'));
         const files = readFiles(dir);
         for (const [file, text] of Object.entries(files)) files[file] = normalize(text, dir);
