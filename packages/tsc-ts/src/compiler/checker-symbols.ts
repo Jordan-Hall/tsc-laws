@@ -2,6 +2,7 @@
 // entity names and the checker's name resolver.
 import { isTypeAssignableToKindEx } from './checker-type-operators.js';
 import {
+  BinaryExpression,
   type ElementAccessExpression,
   type Identifier,
   ModuleDeclaration,
@@ -78,6 +79,7 @@ import {
   resolveIndirectionAlias,
 } from './checker-modules.js';
 import { isJSAliasDeclaration } from './checker-javascript.js';
+import { getFeatureMap } from './checker-features.js';
 
 // ---- Name resolution
 
@@ -252,6 +254,12 @@ function onFailedToResolveSymbol(
       return;
     if (location.kind === SyntaxKind.Identifier && getText(location) === name)
       declarationName = declarationNameToString(getSourceFileOfNode(location), location);
+  }
+  // A missing library comes before spelling suggestions.
+  const features = getFeatureMap().get(name);
+  if (features !== undefined) {
+    c.error(location, message, declarationName, features[0]!.lib);
+    return;
   }
   const suggestion = c.suggestionResolver.resolve(location, name, meaning, undefined, false, false);
   if (
@@ -1097,9 +1105,16 @@ export function getLateBoundSymbol(c: Checker, symbol: Symbol): Symbol {
   const links = c.symbolLinks(symbol);
   if (links.lateSymbol === undefined && hasLateBindableDeclaration(c, symbol)) {
     // Force late binding of the parent's members or exports, which sets lateSymbol.
-    const parent = getMergedSymbol(c, symbol.parent!);
-    if (hasStaticDeclaration(symbol)) getExportsOfSymbol(c, parent);
-    else getMembersOfSymbol(c, parent);
+    if (symbol.parent !== undefined) {
+      const parent = getMergedSymbol(c, symbol.parent);
+      if (hasStaticDeclaration(symbol)) getExportsOfSymbol(c, parent);
+      else getMembersOfSymbol(c, parent);
+    } else {
+      // An `F[name] = …` assignment in a script has no parent. Checking its target late-binds it
+      // with the members of the function it's assigned to.
+      for (const declaration of symbol.declarations)
+        if (declaration instanceof BinaryExpression) checkExpressionCached(c, declaration.left);
+    }
   }
   if (links.lateSymbol === undefined) links.lateSymbol = symbol;
   return links.lateSymbol;

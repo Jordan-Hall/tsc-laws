@@ -67,6 +67,7 @@ import {
   getSpellingSuggestionForName,
   getSymbolOfDeclaration,
 } from './checker-symbols.js';
+import { getFeatureMap } from './checker-features.js';
 import { isNodeDescendantOf } from './instantiation.js';
 import { getTypeOfSymbol, getWidenedType, getWriteTypeOfSymbol, isReadonlySymbol } from './checker-symbol-types.js';
 import {
@@ -746,8 +747,16 @@ export function reportNonexistentProperty(c: Checker, propNode: Node, containing
       ]);
       diagnostic.addRelatedInfo(createDiagnosticForNode(propNode, Diagnostics.Did_you_forget_to_use_await, []));
     } else {
-      const suggestion = getSuggestedSymbolForNonexistentProperty(c, propNode, containingType);
-      if (suggestion !== undefined) {
+      const libSuggestion = getSuggestedLibForNonExistentProperty(c, missingProperty, containingType);
+      const suggestion =
+        libSuggestion === '' ? getSuggestedSymbolForNonexistentProperty(c, propNode, containingType) : undefined;
+      if (libSuggestion !== '')
+        diagnostic = createDiagnosticForNode(
+          propNode,
+          Diagnostics.Property_0_does_not_exist_on_type_1_Do_you_need_to_change_your_target_library_Try_changing_the_lib_compiler_option_to_2_or_later,
+          [missingProperty, container, libSuggestion],
+        );
+      else if (suggestion !== undefined) {
         diagnostic = createDiagnosticForNode(propNode, Diagnostics.Property_0_does_not_exist_on_type_1_Did_you_mean_2, [
           missingProperty,
           container,
@@ -769,6 +778,15 @@ export function reportNonexistentProperty(c: Checker, propNode: Node, containing
   }
   if (chain !== undefined) diagnostic.addMessageChain(chain);
   c.addDiagnostic(diagnostic);
+}
+
+/** The library that adds `missingProperty` to the apparent type's global, or '' if none does. */
+function getSuggestedLibForNonExistentProperty(c: Checker, missingProperty: string, containingType: Type): string {
+  const container = getApparentType(c, containingType).symbol;
+  if (container === undefined) return '';
+  const entries = getFeatureMap().get(container.name);
+  if (entries !== undefined) for (const entry of entries) if (entry.props.includes(missingProperty)) return entry.lib;
+  return '';
 }
 
 /** Whether the type looks like an empty DOM type, as when the DOM lib is missing. */

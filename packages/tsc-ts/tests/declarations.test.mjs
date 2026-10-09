@@ -163,6 +163,49 @@ test('stripInternal removes @internal declarations', async () => {
   assert.equal(read('d.d.ts'), 'export interface I {\n    shown: number;\n}\n');
 });
 
+test(
+  'expando assignments with late-bound names in a script match tsgo',
+  { skip: !existsSync(tsgo) && 'needs packages/tsgo/dist/tsgo' },
+  async () => {
+    // Without type checking, nothing has bound the host functions' members before declaration emit.
+    // tsgo needs JavaScript output here: with --emitDeclarationOnly it panics.
+    const dir = tempDir('tsc-ts-declarations-expando-');
+    const source = join(dir, 'a.ts');
+    writeFileSync(
+      source,
+      [
+        'const t = "test" as const;',
+        'const k = "key";',
+        'const f = () => {};',
+        'f[t] = true;',
+        'function g() {}',
+        'g[t] = "s";',
+        'const h = function () {};',
+        'h[k] = 1;',
+        'h[k] = 2;',
+        'h.other = f[t];',
+        '',
+      ].join('\n'),
+    );
+    const args = [...baseFlags, '--declaration', '--rootDir', dir];
+    const [theirs, mine] = await Promise.all([
+      run([tsgo, ...args, '--outDir', join(dir, 'expected'), source]),
+      run([...command, ...args, '--outDir', join(dir, 'actual'), source]),
+    ]);
+    assert.equal(mine.stderr.toString(), '');
+    // The emit driver doesn't report the missing global types --noLib causes.
+    const errors = (r) =>
+      r.stdout
+        .toString()
+        .split('\n')
+        .filter((line) => line !== '' && !line.includes('TS2318'));
+    assert.deepEqual(errors(mine), errors(theirs));
+    const expected = readFileSync(join(dir, 'expected/a.d.ts'), 'utf8');
+    assert.match(expected, /declare namespace f \{\n {4}var test: boolean;\n\}/);
+    assert.equal(readFileSync(join(dir, 'actual/a.d.ts'), 'utf8'), expected);
+  },
+);
+
 // Every 25th test case.
 function sample() {
   return [...listFiles(join(cases, 'compiler')), ...listFiles(join(cases, 'conformance'))].filter(

@@ -1,4 +1,5 @@
-// Compiles projects whose global augmentations make the default library files invalid, through tsgo
+// Compiles projects whose global augmentations make the default library files invalid, or that use
+// features of newer library files than the selected ones, through tsgo
 // (packages/tsgo/dist/tsgo) and tsc-ts (the Node build, or TSC_TS_BIN), and compares stdout, stderr and exit
 // status, and the build info of incremental runs. Each project runs with several option combinations,
 // skipLibCheck and skipDefaultLibCheck included.
@@ -63,6 +64,11 @@ const projects = [
   ['merged lib class', 'declare global { interface Date { getTime(): string; } }\nexport {};\n'],
   ['clean augmentation', 'declare global { interface Array<T> { last(): T | undefined; } }\nexport {};\n'],
   ['no augmentation', 'export const a: number = 1;\n'],
+  [
+    'features of newer libraries',
+    'export const m = new Map<string, number>();\nexport const a = [1].at(0);\n' +
+      'export const s = "ab".replaceAll("a", "b");\nexport const y = Symbol();\nexport const w: WeakRef<object> = null!;\n',
+  ],
   [
     'unconstrained type parameters',
     'export function f<T>(x: T) { const y: string = x; return y; }\n' +
