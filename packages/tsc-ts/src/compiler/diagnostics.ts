@@ -2,7 +2,7 @@
  * Diagnostics: message lookup and localization, the `Diagnostic` type, and tsc's plain and
  * pretty diagnostic output.
  */
-import { isDigit, isUnicodeWhiteSpace, utf8Length, utf8Offsets } from './character-codes.js';
+import { isDigit, isUnicodeWhiteSpace, utf8Length } from './character-codes.js';
 import { Locale, translations } from './diagnostic-locales.js';
 import { Diagnostics, messageCodes, messageFlags, messageKeys, messageTexts } from './diagnostic-messages.js';
 import { getPathComponentsRelativeTo, getPathFromPathComponents, isRootedDiskPath, pathIsAbsolute } from './path.js';
@@ -151,48 +151,97 @@ export class DiagnosticFile {
     this.text = text;
   }
 
+  /** Computes the line starts and UTF-8 offsets, so that later reads never write to the file. */
+  computeCaches(): void {
+    this.getLineStarts();
+    this.getNonASCIIStarts();
+  }
+
   /** Start offsets of each line, split at CR, LF, CRLF, LS and PS. */
   getLineStarts(): readonly number[] {
     if (this.lineStarts.length === 0) this.lineStarts = computeLineStarts(this.text);
     return this.lineStarts;
   }
 
-  // The UTF-8 offset of each UTF-16 offset; empty for an ASCII text, unset until first used.
-  private offsets8: Int32Array | undefined = undefined;
+  // The non-ASCII characters, in order: their UTF-16 offsets, UTF-8 lengths, and the UTF-8 bytes
+  // beyond one per UTF-16 code unit of the text up to and including each. Unset until first used.
+  private nonASCIIStarts: number[] | undefined = undefined;
+  private nonASCIILengths: number[] = [];
+  private extraBytes: number[] = [];
 
-  private getUtf8Offsets(): Int32Array {
-    let offsets = this.offsets8;
-    if (offsets === undefined) {
+  private getNonASCIIStarts(): number[] {
+    let starts = this.nonASCIIStarts;
+    if (starts === undefined) {
+      starts = [];
       const text = this.text;
-      offsets = utf8Length(text) === text.length ? new Int32Array(0) : utf8Offsets(text);
-      this.offsets8 = offsets;
+      if (Buffer.byteLength(text, 'utf8') !== text.length) {
+        // Scanning the UTF-8 encoding is faster than reading each code unit.
+        const bytes = Buffer.from(text, 'utf8');
+        const lengths = this.nonASCIILengths;
+        const extraBytes = this.extraBytes;
+        let extra = 0;
+        for (let i = 0; i < bytes.length; i++) {
+          const b = bytes[i]!;
+          if (b < 0x80) continue;
+          // A lone surrogate is encoded as U+FFFD, in 3 bytes.
+          const length = b >= 0xf0 ? 4 : b >= 0xe0 ? 3 : 2;
+          starts.push(i - extra);
+          lengths.push(length);
+          extra += length === 4 ? 2 : length - 1;
+          extraBytes.push(extra);
+          i += length - 1;
+        }
+      }
+      this.nonASCIIStarts = starts;
     }
-    return offsets;
+    return starts;
+  }
+
+  /** The number of non-ASCII characters starting before UTF-16 offset `pos`. */
+  private countNonASCIIBefore(starts: readonly number[], pos: number): number {
+    let low = 0;
+    let high = starts.length;
+    while (low < high) {
+      const middle = (low + high) >> 1;
+      if (starts[middle]! < pos) low = middle + 1;
+      else high = middle;
+    }
+    return low;
   }
 
   /** The UTF-8 offset of UTF-16 offset `pos`, as tsgo counts positions. */
   toUtf8Offset(pos: number): number {
-    const offsets = this.getUtf8Offsets();
-    if (offsets.length === 0 || pos < 0 || pos >= offsets.length) return pos;
-    return offsets[pos]!;
+    const starts = this.getNonASCIIStarts();
+    if (starts.length === 0 || pos <= 0 || pos > this.text.length) return pos;
+    const count = this.countNonASCIIBefore(starts, pos);
+    if (count === 0) return pos;
+    const last = count - 1;
+    // The middle of a surrogate pair shares its start's offset.
+    if (this.nonASCIILengths[last] === 4 && starts[last]! + 1 === pos)
+      return starts[last]! + (last === 0 ? 0 : this.extraBytes[last - 1]!);
+    return pos + this.extraBytes[last]!;
   }
 
   /** The UTF-16 offset of UTF-8 offset `pos`; inside a character, the offset of its start. */
   fromUtf8Offset(pos: number): number {
-    const offsets = this.getUtf8Offsets();
-    if (offsets.length === 0 || pos <= 0) return pos;
+    const starts = this.getNonASCIIStarts();
+    if (starts.length === 0 || pos <= 0) return pos;
+    const extraBytes = this.extraBytes;
+    // The last non-ASCII character starting at or before `pos`, in UTF-8.
     let low = 0;
-    let high = offsets.length - 1;
-    if (pos >= offsets[high]!) return high + pos - offsets[high]!;
-    // The last offset at or before `pos`.
+    let high = starts.length;
     while (low < high) {
-      const middle = (low + high + 1) >> 1;
-      if (offsets[middle]! <= pos) low = middle;
-      else high = middle - 1;
+      const middle = (low + high) >> 1;
+      const start8 = starts[middle]! + (middle === 0 ? 0 : extraBytes[middle - 1]!);
+      if (start8 <= pos) low = middle + 1;
+      else high = middle;
     }
-    // The middle of a surrogate pair shares its start's offset.
-    while (low > 0 && offsets[low - 1] === offsets[low]) low--;
-    return low;
+    if (low === 0) return pos;
+    const index = low - 1;
+    const start = starts[index]!;
+    const end8 = start + (index === 0 ? 0 : extraBytes[index - 1]!) + this.nonASCIILengths[index]!;
+    if (pos < end8) return start;
+    return pos - extraBytes[index]!;
   }
 }
 

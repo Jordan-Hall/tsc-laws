@@ -800,6 +800,7 @@ export class Parser extends ScannerErrorReporter {
     }
     collectExternalModuleReferences(result);
     if (result.isJS()) result.jsDiagnostics = attachFileToDiagnostics(this.jsDiagnostics, result);
+    result.computeCaches();
     return result;
   }
 

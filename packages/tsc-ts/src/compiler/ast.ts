@@ -2,13 +2,15 @@
 //
 // Every node extends `Node`. Child fields are typed by category (`Expression`, `TypeNode`, …),
 // which are aliases of `Node`; narrow with the `is*` guards in ast-utilities.ts or `instanceof`.
-import { computeLineStarts } from './scanner.js';
 import { SyntaxKind } from './syntax-kind.js';
 import { type CommentDirective, type CommentRange, type LanguageVariant, TokenFlags } from './types.js';
 import { type Diagnostic, DiagnosticFile } from './diagnostics.js';
 import type { ResolutionMode } from './module-resolution-types.js';
 import type { FlowNode } from './flow.js';
 import type { Symbol, SymbolTable } from './symbol.js';
+
+/** The id of the most recently constructed node. */
+let lastNodeId = 0;
 
 export const enum NodeFlags {
   None = 0,
@@ -175,8 +177,8 @@ export abstract class Node {
   /** JSDoc comments attached by the parser (eagerly in JS files, on demand in TS files). */
   /** `JSDoc` nodes. */
   jsDoc: Node[] | undefined;
-  /** Assigned on first use by `getNodeId`; 0 until then. */
-  id: number;
+  /** A program-wide id, unique among all nodes, in construction order. */
+  readonly id: number;
 
   constructor(kind: SyntaxKind) {
     this.kind = kind;
@@ -185,7 +187,7 @@ export abstract class Node {
     this.end = -1;
     this.parent = undefined;
     this.jsDoc = undefined;
-    this.id = 0;
+    this.id = ++lastNodeId;
   }
 
   /** Calls `visitor` for each child in order; returns `true` if the visitor stopped. */
@@ -195,16 +197,9 @@ export abstract class Node {
   abstract deepClone(): Node;
 }
 
-let nextNodeId = 0;
-
-/** A program-wide id, assigned to each node when first requested. */
+/** A program-wide id, unique among all nodes. */
 export function getNodeId(node: Node): number {
-  let id = node.id;
-  if (id === 0) {
-    id = ++nextNodeId;
-    node.id = id;
-  }
-  return id;
+  return node.id;
 }
 
 /** A list of child nodes with its own text range. */
@@ -7068,9 +7063,8 @@ export class SourceFile extends Node {
   containsNonASCII: boolean;
   /** Whether imports of Node built-ins use the `node:` prefix. */
   usesUriStyleNodeCoreModules: Tristate;
-  /** Identifier and interned literal texts in parse order, with repeats; see `identifiers()`. */
+  /** Identifier and interned literal texts in parse order, with repeats. */
   identifierTexts: string[];
-  private identifierSet: Set<string> | undefined;
   identifierCount: number;
   nodeCount: number;
   textCount: number;
@@ -7094,7 +7088,6 @@ export class SourceFile extends Node {
   /** Whether JSDoc of TypeScript files is parsed on first use. */
   hasLazyJSDoc: boolean;
   private diagnosticFileCache: DiagnosticFile | undefined;
-  private lineStartsCache: number[] | undefined;
 
   // Set by the binder.
   symbol: Symbol | undefined;
@@ -7134,7 +7127,6 @@ export class SourceFile extends Node {
     this.containsNonASCII = containsNonASCII(text);
     this.usesUriStyleNodeCoreModules = Tristate.Unknown;
     this.identifierTexts = [];
-    this.identifierSet = undefined;
     this.identifierCount = 0;
     this.nodeCount = 0;
     this.textCount = 0;
@@ -7152,7 +7144,6 @@ export class SourceFile extends Node {
     this.reparsedClones = [];
     this.hasLazyJSDoc = false;
     this.diagnosticFileCache = undefined;
-    this.lineStartsCache = undefined;
     this.symbol = undefined;
     this.locals = undefined;
     this.nextContainer = undefined;
@@ -7173,13 +7164,16 @@ export class SourceFile extends Node {
   }
 
   /** UTF-16 offsets of each line start. */
-  lineStarts(): number[] {
-    let starts = this.lineStartsCache;
-    if (starts === undefined) {
-      starts = computeLineStarts(this.text);
-      this.lineStartsCache = starts;
-    }
-    return starts;
+  lineStarts(): readonly number[] {
+    return this.diagnosticFile().getLineStarts();
+  }
+
+  /**
+   * Computes the line starts and UTF-8 offsets, which are otherwise computed on first use, so that
+   * reading them later never writes to the file.
+   */
+  computeCaches(): void {
+    this.diagnosticFile().computeCaches();
   }
 
   /** The file as diagnostics see it. */
@@ -7190,16 +7184,6 @@ export class SourceFile extends Node {
       this.diagnosticFileCache = file;
     }
     return file;
-  }
-
-  /** The names used in the file, for generating unique names. */
-  identifiers(): Set<string> {
-    let set = this.identifierSet;
-    if (set === undefined) {
-      set = new Set<string>(this.identifierTexts);
-      this.identifierSet = set;
-    }
-    return set;
   }
 
   isJS(): boolean {

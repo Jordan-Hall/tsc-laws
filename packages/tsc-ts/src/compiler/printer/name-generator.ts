@@ -352,6 +352,16 @@ export class NameGenerator {
   }
 }
 
+// The names used in recently emitted files, kept apart from the files, which are shared and read-only.
+const identifierSets = new Map<SourceFile, Set<string>>();
+
+/** Whether no identifier in `file` is named `name`. */
 export function isFileLevelUniqueName(file: SourceFile, name: string): boolean {
-  return !file.identifiers().has(name);
+  let set = identifierSets.get(file);
+  if (set === undefined) {
+    if (identifierSets.size >= 16) identifierSets.clear();
+    set = new Set<string>(file.identifierTexts);
+    identifierSets.set(file, set);
+  }
+  return !set.has(name);
 }

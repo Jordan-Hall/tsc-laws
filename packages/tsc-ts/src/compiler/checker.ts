@@ -273,7 +273,7 @@ export class Checker {
   readonly suggestionDiagnostics = new DiagnosticCollection();
 
   // Links of symbols and nodes, keyed by object like tsgo's link stores. Object keys are faster
-  // natively than ids, and reading links assigns no ids.
+  // natively than ids.
   readonly symbolLinkStore = new Map<Symbol, SymbolLinks>();
   readonly nodeLinkStore = new Map<Node, NodeLinks>();
   /** Merged symbols, indexed by the id of the symbol merged into them. */

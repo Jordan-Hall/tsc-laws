@@ -2653,6 +2653,12 @@ function collectCommentRanges(text: string, pos: number, trailing: boolean): Com
 
 /** Start positions of each line, split at CR, LF, CRLF, LS and PS. */
 export function computeLineStarts(text: string): number[] {
+  // Most texts break lines at LF only, which a search finds fastest.
+  if (text.indexOf('\r') < 0 && text.indexOf('\u2028') < 0 && text.indexOf('\u2029') < 0) {
+    const starts = [0];
+    for (let i = text.indexOf('\n'); i >= 0; i = text.indexOf('\n', i + 1)) starts.push(i + 1);
+    return starts;
+  }
   const result: number[] = [];
   let lineStart = 0;
   let pos = 0;

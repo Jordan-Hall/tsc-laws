@@ -403,7 +403,7 @@ export class Printer extends NameGeneratorHost {
   readonly nameGenerator: NameGenerator;
   currentSourceFile: SourceFile | undefined;
   private sourceText: string;
-  private lineStarts: number[];
+  private lineStarts: readonly number[];
   private writer: TextWriter;
   private ownWriter: TextWriter | undefined;
   private uniqueHelperNames: Map<string, Identifier> | undefined;
@@ -429,7 +429,7 @@ export class Printer extends NameGeneratorHost {
   private sourceMapSource: SourceFile | undefined;
   private sourceMapSourceIndex: number;
   private sourceMapSourceIsJson: boolean;
-  private sourceMapLineStarts: number[];
+  private sourceMapLineStarts: readonly number[];
   private mostRecentSourceMapSource: SourceFile | undefined;
   private mostRecentSourceMapSourceIndex: number;
 
