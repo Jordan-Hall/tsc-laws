@@ -1,4 +1,7 @@
 // Predicates and helpers over syntax kinds and nodes, as in tsgo's ast/utilities.go.
+//
+// Fields of `instanceof`-narrowed nodes are read through `as` casts: scriptc reads them
+// statically, but reads fields of a narrowed value dynamically.
 import {
   CallExpression,
   ExternalModuleReference,
@@ -373,12 +376,19 @@ export function isStringLiteralLike(node: Node): boolean {
 /** Whether two JSX tag names (identifiers, `this`, namespaced names or property accesses) are the same. */
 export function tagNamesAreEquivalent(lhs: Node, rhs: Node): boolean {
   if (lhs.kind !== rhs.kind) return false;
-  if (lhs instanceof Identifier && rhs instanceof Identifier) return lhs.text === rhs.text;
+  if (lhs instanceof Identifier && rhs instanceof Identifier)
+    return (lhs as Identifier).text === (rhs as Identifier).text;
   if (lhs.kind === SyntaxKind.ThisKeyword) return true;
   if (lhs instanceof JsxNamespacedName && rhs instanceof JsxNamespacedName)
-    return lhs.namespace.text === rhs.namespace.text && lhs.name.text === rhs.name.text;
+    return (
+      (lhs as JsxNamespacedName).namespace.text === (rhs as JsxNamespacedName).namespace.text &&
+      (lhs as JsxNamespacedName).name.text === (rhs as JsxNamespacedName).name.text
+    );
   if (lhs instanceof PropertyAccessExpression && rhs instanceof PropertyAccessExpression)
-    return getText(lhs.name) === getText(rhs.name) && tagNamesAreEquivalent(lhs.expression, rhs.expression);
+    return (
+      getText((lhs as PropertyAccessExpression).name) === getText((rhs as PropertyAccessExpression).name) &&
+      tagNamesAreEquivalent((lhs as PropertyAccessExpression).expression, (rhs as PropertyAccessExpression).expression)
+    );
   throw new Error('Unhandled case in tagNamesAreEquivalent');
 }
 
@@ -388,15 +398,19 @@ export function getTextOfNodeFromSourceText(sourceText: string, node: Node): str
   const text = sourceText.substring(skipTrivia(sourceText, node.pos), node.end);
   if ((node.flags & NodeFlags.ReparserTransformedLiteral) !== 0) {
     if (node instanceof StringLiteral)
-      return (node.tokenFlags & TokenFlags.SingleQuote) !== 0 ? "'" + text + "'" : '"' + text + '"';
-    if (node instanceof Identifier) return node.text;
+      return ((node as StringLiteral).tokenFlags & TokenFlags.SingleQuote) !== 0 ? "'" + text + "'" : '"' + text + '"';
+    if (node instanceof Identifier) return (node as Identifier).text;
     throw new Error('Unexpected reparser-transformed node kind');
   }
   return text;
 }
 
 export function isImportMeta(node: Node): boolean {
-  return node instanceof MetaProperty && node.keywordToken === SyntaxKind.ImportKeyword && node.name.text === 'meta';
+  return (
+    node instanceof MetaProperty &&
+    (node as MetaProperty).keywordToken === SyntaxKind.ImportKeyword &&
+    (node as MetaProperty).name.text === 'meta'
+  );
 }
 
 /** `import(…)` or `import.defer(…)`. */
@@ -423,9 +437,9 @@ export function isRequireCall(node: Node, requireStringLiteralLikeArgument: bool
 /** The string literal of `import("x")` types. */
 export function getImportTypeNodeLiteral(node: Node): Node | undefined {
   if (node instanceof ImportTypeNode) {
-    const argument = node.argument;
-    if (argument instanceof LiteralTypeNode && argument.literal.kind === SyntaxKind.StringLiteral)
-      return argument.literal;
+    const argument = (node as ImportTypeNode).argument;
+    if (argument instanceof LiteralTypeNode && (argument as LiteralTypeNode).literal.kind === SyntaxKind.StringLiteral)
+      return (argument as LiteralTypeNode).literal;
   }
   return undefined;
 }
@@ -476,7 +490,7 @@ export function getExternalModuleName(node: Node): Node | undefined {
 }
 
 export function isGlobalScopeAugmentation(node: Node): boolean {
-  return node instanceof ModuleDeclaration && node.keyword === SyntaxKind.GlobalKeyword;
+  return node instanceof ModuleDeclaration && (node as ModuleDeclaration).keyword === SyntaxKind.GlobalKeyword;
 }
 
 export function isAmbientModule(node: Node): boolean {

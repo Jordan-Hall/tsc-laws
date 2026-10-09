@@ -1086,14 +1086,15 @@ export class JSDocParser {
         case SyntaxKind.AtToken:
           if (canParseTag && p.scanner.canFollowJSDocAt()) {
             const child = this.tryParseChildTag(target, indent);
-            if (
-              child instanceof JSDocParameterOrPropertyTag &&
-              name !== undefined &&
-              (child.name instanceof Identifier ||
-                !(child.name instanceof QualifiedName) ||
-                !textsEqual(name, child.name.left))
-            )
-              return undefined;
+            if (child instanceof JSDocParameterOrPropertyTag && name !== undefined) {
+              const childName = (child as JSDocParameterOrPropertyTag).name;
+              if (
+                childName instanceof Identifier ||
+                !(childName instanceof QualifiedName) ||
+                !textsEqual(name, (childName as QualifiedName).left)
+              )
+                return undefined;
+            }
             return child;
           }
           seenAsterisk = false;
@@ -1233,7 +1234,7 @@ export class JSDocParser {
     }
     const pos = p.scanner.getTokenStart();
     const end = p.scanner.getTokenEnd();
-    const text = p.scanner.getTokenValue();
+    const text = p.scanner.getIdentifierValue();
     p.internIdentifier(text);
     p.nextTokenJSDoc();
     const result = p.newIdentifier(text);
@@ -1253,23 +1254,31 @@ function hasTagOfKind(tags: readonly Node[], kind: SyntaxKind): boolean {
 
 function isObjectOrObjectArrayTypeReference(node: Node): boolean {
   if (node.kind === SyntaxKind.ObjectKeyword) return true;
-  if (node instanceof ArrayTypeNode) return isObjectOrObjectArrayTypeReference(node.elementType);
-  if (node instanceof TypeReferenceNode)
-    return node.typeName instanceof Identifier && node.typeName.text === 'Object' && node.typeArguments === undefined;
-  return false;
+  if (node instanceof ArrayTypeNode) return isObjectOrObjectArrayTypeReference((node as ArrayTypeNode).elementType);
+  if (!(node instanceof TypeReferenceNode)) return false;
+  const typeName = (node as TypeReferenceNode).typeName;
+  return (
+    typeName instanceof Identifier &&
+    (typeName as Identifier).text === 'Object' &&
+    (node as TypeReferenceNode).typeArguments === undefined
+  );
 }
 
 /** Whether two entity names are the same dotted name. */
 function textsEqual(a: Node, b: Node): boolean {
   while (!(a instanceof Identifier) || !(b instanceof Identifier)) {
-    if (a instanceof QualifiedName && b instanceof QualifiedName && a.right.text === b.right.text) {
-      a = a.left;
-      b = b.left;
+    if (
+      a instanceof QualifiedName &&
+      b instanceof QualifiedName &&
+      (a as QualifiedName).right.text === (b as QualifiedName).right.text
+    ) {
+      a = (a as QualifiedName).left;
+      b = (b as QualifiedName).left;
     } else {
       return false;
     }
   }
-  return a.text === b.text;
+  return (a as Identifier).text === (b as Identifier).text;
 }
 
 function isNextNonwhitespaceTokenEndOfFile(p: Parser): boolean {

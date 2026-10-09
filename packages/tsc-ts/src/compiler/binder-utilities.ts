@@ -1,5 +1,8 @@
 // Syntax queries the binder, name resolver and checker share, ported from tsgo's ast and
 // scanner utilities.
+//
+// Fields of `instanceof`-narrowed nodes are read through `as` casts: scriptc reads them
+// statically, but reads fields of a narrowed value dynamically.
 import {
   BinaryExpression,
   BindingElement,
@@ -287,8 +290,9 @@ export function isStringOrNumericLiteralLike(node: Node): boolean {
 export function isSignedNumericLiteral(node: Node): boolean {
   return (
     node instanceof PrefixUnaryExpression &&
-    (node.operator === SyntaxKind.PlusToken || node.operator === SyntaxKind.MinusToken) &&
-    node.operand.kind === SyntaxKind.NumericLiteral
+    ((node as PrefixUnaryExpression).operator === SyntaxKind.PlusToken ||
+      (node as PrefixUnaryExpression).operator === SyntaxKind.MinusToken) &&
+    (node as PrefixUnaryExpression).operand.kind === SyntaxKind.NumericLiteral
   );
 }
 
@@ -324,7 +328,7 @@ export function nodeText(node: Node): string {
 }
 
 export function isIdentifierNamed(node: Node, name: string): boolean {
-  return node instanceof Identifier && node.text === name;
+  return node instanceof Identifier && (node as Identifier).text === name;
 }
 
 // Expressions
@@ -373,7 +377,10 @@ export function isExpressionOfOptionalChainRoot(node: Node): boolean {
 }
 
 export function isNullishCoalesce(node: Node): boolean {
-  return node instanceof BinaryExpression && node.operatorToken.kind === SyntaxKind.QuestionQuestionToken;
+  return (
+    node instanceof BinaryExpression &&
+    (node as BinaryExpression).operatorToken.kind === SyntaxKind.QuestionQuestionToken
+  );
 }
 
 export function isLogicalOrCoalescingBinaryOperator(kind: SyntaxKind): boolean {
@@ -529,9 +536,12 @@ export function isAccessExpression(node: Node): boolean {
 
 /** The name of `x.name` or the literal of `x["name"]`. */
 export function getElementOrPropertyAccessName(node: Node): Node | undefined {
-  if (node instanceof PropertyAccessExpression) return node.name.kind === SyntaxKind.Identifier ? node.name : undefined;
+  if (node instanceof PropertyAccessExpression)
+    return (node as PropertyAccessExpression).name.kind === SyntaxKind.Identifier
+      ? (node as PropertyAccessExpression).name
+      : undefined;
   if (node instanceof ElementAccessExpression) {
-    const argument = skipParentheses(node.argumentExpression);
+    const argument = skipParentheses((node as ElementAccessExpression).argumentExpression);
     return isStringOrNumericLiteralLike(argument) ? argument : undefined;
   }
   throw new Error('Unhandled case in getElementOrPropertyAccessName');
@@ -561,8 +571,11 @@ export function isConstAssertion(node: Node): boolean {
   if (node.kind !== SyntaxKind.AsExpression && node.kind !== SyntaxKind.TypeAssertionExpression) return false;
   const type = getType(node);
   if (!(type instanceof TypeReferenceNode)) return false;
-  const typeArguments = type.typeArguments;
-  return (typeArguments === undefined || typeArguments.nodes.length === 0) && isIdentifierNamed(type.typeName, 'const');
+  const typeArguments = (type as TypeReferenceNode).typeArguments;
+  return (
+    (typeArguments === undefined || typeArguments.nodes.length === 0) &&
+    isIdentifierNamed((type as TypeReferenceNode).typeName, 'const')
+  );
 }
 
 // JavaScript declarations
@@ -600,13 +613,21 @@ export function isModuleExportsAccessExpression(node: Node): boolean {
 }
 
 function isLiteralLikeElementAccess(node: Node): boolean {
-  return node instanceof ElementAccessExpression && isStringOrNumericLiteralLike(node.argumentExpression);
+  return (
+    node instanceof ElementAccessExpression &&
+    isStringOrNumericLiteralLike((node as ElementAccessExpression).argumentExpression)
+  );
 }
 
 export function isBindableStaticAccessExpression(node: Node, excludeThisKeyword: boolean): boolean {
   if (node instanceof PropertyAccessExpression) {
-    if (!excludeThisKeyword && node.expression.kind === SyntaxKind.ThisKeyword) return true;
-    if (node.name.kind === SyntaxKind.Identifier && isBindableStaticNameExpression(node.expression, true)) return true;
+    if (!excludeThisKeyword && (node as PropertyAccessExpression).expression.kind === SyntaxKind.ThisKeyword)
+      return true;
+    if (
+      (node as PropertyAccessExpression).name.kind === SyntaxKind.Identifier &&
+      isBindableStaticNameExpression((node as PropertyAccessExpression).expression, true)
+    )
+      return true;
   }
   return isBindableStaticElementAccessExpression(node, excludeThisKeyword);
 }
@@ -628,13 +649,13 @@ export function isBindableStaticNameExpression(node: Node, excludeThisKeyword: b
 /** `Object.defineProperty(x, "name", descriptor)` with a bindable `x`. */
 export function isBindableObjectDefinePropertyCall(node: Node): boolean {
   if (!(node instanceof CallExpression)) return false;
-  const args = node.arguments.nodes;
+  const args = (node as CallExpression).arguments.nodes;
   if (args.length !== 3) return false;
-  const callee = node.expression;
+  const callee = (node as CallExpression).expression;
   return (
     callee instanceof PropertyAccessExpression &&
-    isIdentifierNamed(callee.expression, 'Object') &&
-    getText(callee.name) === 'defineProperty' &&
+    isIdentifierNamed((callee as PropertyAccessExpression).expression, 'Object') &&
+    getText((callee as PropertyAccessExpression).name) === 'defineProperty' &&
     isStringOrNumericLiteralLike(args[1]!) &&
     isBindableStaticNameExpression(args[0]!, true)
   );
@@ -696,7 +717,11 @@ export function isExpandoInitializer(declaration: Node, initializer: Node | unde
 /** `const x = require("m")` in JavaScript, or a binding element of one. */
 export function isVariableDeclarationInitializedToRequire(node: Node): boolean {
   const candidate = node.kind === SyntaxKind.BindingElement ? node.parent!.parent! : node;
-  if (!(candidate instanceof VariableDeclaration) || (candidate.flags & NodeFlags.JavaScriptFile) === 0) return false;
+  if (
+    !(candidate instanceof VariableDeclaration) ||
+    ((candidate as VariableDeclaration).flags & NodeFlags.JavaScriptFile) === 0
+  )
+    return false;
   const declaration = candidate as VariableDeclaration;
   const initializer = declaration.initializer;
   if (initializer === undefined) return false;
@@ -708,8 +733,9 @@ export function isVariableDeclarationInitializedToRequire(node: Node): boolean {
 }
 
 function isRequireCallWithLiteral(node: Node): boolean {
-  if (!(node instanceof CallExpression) || !isIdentifierNamed(node.expression, 'require')) return false;
-  const args = node.arguments.nodes;
+  if (!(node instanceof CallExpression) || !isIdentifierNamed((node as CallExpression).expression, 'require'))
+    return false;
+  const args = (node as CallExpression).arguments.nodes;
   return args.length === 1 && isStringLiteralLike(args[0]!);
 }
 
@@ -765,7 +791,7 @@ export function getAssignedName(node: Node): Node | undefined {
       if (left.kind === SyntaxKind.Identifier) return left;
       if (left instanceof PropertyAccessExpression) return (left as PropertyAccessExpression).name;
       if (left instanceof ElementAccessExpression) {
-        const argument = skipParentheses(left.argumentExpression);
+        const argument = skipParentheses((left as ElementAccessExpression).argumentExpression);
         if (isStringOrNumericLiteralLike(argument)) return argument;
       }
       return undefined;
@@ -960,8 +986,8 @@ export function isModuleAugmentationExternal(node: Node): boolean {
       return (
         grandParent instanceof ModuleDeclaration &&
         isAmbientModuleDeclaration(grandParent) &&
-        grandParent.parent!.kind === SyntaxKind.SourceFile &&
-        !isExternalModule(grandParent.parent as SourceFile)
+        (grandParent as ModuleDeclaration).parent!.kind === SyntaxKind.SourceFile &&
+        !isExternalModule((grandParent as ModuleDeclaration).parent as SourceFile)
       );
     }
   }
@@ -1140,7 +1166,7 @@ function nodeHasName(statement: Node, name: string): boolean {
   if (declarationName !== undefined)
     return declarationName.kind === SyntaxKind.Identifier && getText(declarationName) === name;
   if (statement instanceof VariableStatement) {
-    for (const declaration of statement.declarationList.declarations.nodes)
+    for (const declaration of (statement as VariableStatement).declarationList.declarations.nodes)
       if (nodeHasName(declaration, name)) return true;
   }
   return false;
@@ -1233,8 +1259,10 @@ function findOriginatingJSDocSatisfiesTag(file: SourceFile, node: SatisfiesExpre
     if ((current.flags & NodeFlags.HasJSDoc) === 0) continue;
     let first: Node | undefined;
     for (const jsDoc of getJSDoc(file, current)) {
-      if (!(jsDoc instanceof JSDoc) || jsDoc.tags === undefined) continue;
-      const tags = jsDoc.tags.nodes;
+      if (!(jsDoc instanceof JSDoc)) continue;
+      const tagList = (jsDoc as JSDoc).tags;
+      if (tagList === undefined) continue;
+      const tags = tagList.nodes;
       for (let i = 0; i < tags.length; i++) {
         const tag = tags[i]!;
         if (tag instanceof JSDocSatisfiesTag) {

@@ -322,13 +322,13 @@ const noArgs: readonly string[] = [];
 
 /** Parser state saved by `mark` for speculative parsing. */
 export class ParserState extends ScannerState {
-  readonly contextFlags: NodeFlags;
+  contextFlags: NodeFlags;
   diagnosticsLength: number;
-  readonly jsDiagnosticsLength: number;
-  readonly jsDocInfosLength: number;
-  readonly reparsedClonesLength: number;
-  readonly statementHasAwaitIdentifier: boolean;
-  readonly hasParseError: boolean;
+  jsDiagnosticsLength: number;
+  jsDocInfosLength: number;
+  reparsedClonesLength: number;
+  statementHasAwaitIdentifier: boolean;
+  hasParseError: boolean;
 
   constructor(
     scanner: Scanner,
@@ -361,13 +361,41 @@ export class ParserState extends ScannerState {
     this.statementHasAwaitIdentifier = statementHasAwaitIdentifier;
     this.hasParseError = hasParseError;
   }
+
+  /** Overwrites this state with the parser's current one, like `Parser.mark`. */
+  assignParser(p: Parser): void {
+    this.assign(p.scanner);
+    this.contextFlags = p.contextFlags;
+    this.diagnosticsLength = p.diagnostics.length;
+    this.jsDiagnosticsLength = p.jsDiagnostics.length;
+    this.jsDocInfosLength = p.jsDocInfos.length;
+    this.reparsedClonesLength = p.reparsedClones.length;
+    this.statementHasAwaitIdentifier = p.statementHasAwaitIdentifier;
+    this.hasParseError = p.hasParseError;
+  }
 }
 
-/** Sets the parent of every visited node. */
+/** Sets the parent of every visited node to `node`. */
 class ParentSetter extends NodeVisitor {
-  parent: Node | undefined = undefined;
+  node: Node;
+  // `node` as stored in `parent` fields. Optional object fields are boxed natively, so the box is
+  // created on the first child and shared by the rest; leaves need none.
+  parent: Node | undefined;
+  boxed: boolean;
+
+  constructor() {
+    super();
+    this.node = new Token(SyntaxKind.Unknown);
+    this.parent = undefined;
+    this.boxed = false;
+  }
 
   visitNode(node: Node): boolean {
+    // A flag rather than `this.parent === undefined`: a narrowed read would box again per child.
+    if (!this.boxed) {
+      this.parent = this.node;
+      this.boxed = true;
+    }
     node.parent = this.parent;
     return false;
   }
@@ -476,6 +504,14 @@ export class Parser extends ScannerErrorReporter {
   private readonly parentSetter: ParentSetter;
   /** Parses JSDoc comments and, in JavaScript files, reparses their tags. */
   readonly jsdoc: JSDocParser;
+  /**
+   * Returned instead of `undefined` by hot element parsers: a `Node | undefined` result is boxed natively
+   * for every node returned.
+   */
+  readonly noElement: Node;
+  // States reused by speculation that ends before the method that started it returns, by depth.
+  private readonly speculation: ParserState[];
+  private speculationDepth: number;
 
   constructor(
     fileName: string,
@@ -517,6 +553,9 @@ export class Parser extends ScannerErrorReporter {
     this.signatureParameterFlags = ParseFlags.None;
     this.parentSetter = new ParentSetter();
     this.jsdoc = new JSDocParser(this);
+    this.noElement = new Token(SyntaxKind.Unknown);
+    this.speculation = [];
+    this.speculationDepth = 0;
     this.scanner = new Scanner(sourceText);
     this.scanner.setOnError(this);
     this.scanner.setLanguageVariant(this.languageVariant);
@@ -595,11 +634,30 @@ export class Parser extends ScannerErrorReporter {
     this.hasParseError = state.hasParseError;
   }
 
+  /** Like `mark`, but reuses a state object; balance every call with `endSpeculation`. */
+  beginSpeculation(): ParserState {
+    const depth = this.speculationDepth++;
+    if (depth === this.speculation.length) {
+      const state = this.mark();
+      this.speculation.push(state);
+      return state;
+    }
+    const state = this.speculation[depth]!;
+    state.assignParser(this);
+    return state;
+  }
+
+  /** Releases the state from `beginSpeculation`, keeping the current parser state. */
+  endSpeculation(_state: ParserState): void {
+    this.speculationDepth--;
+  }
+
   /** Runs `callback` and restores the parser state afterwards. */
   lookAhead(callback: (p: Parser) => boolean): boolean {
-    const state = this.mark();
+    const state = this.beginSpeculation();
     const result = callback(this);
     this.rewind(state);
+    this.endSpeculation(state);
     return result;
   }
 
@@ -701,9 +759,12 @@ export class Parser extends ScannerErrorReporter {
 
   overrideParentInImmediateChildren(node: Node): void {
     const setter = this.parentSetter;
-    setter.parent = node;
+    setter.node = node;
     node.forEachChild(setter);
-    setter.parent = undefined;
+    if (setter.boxed) {
+      setter.parent = undefined;
+      setter.boxed = false;
+    }
   }
 
   // Source files
@@ -850,7 +911,8 @@ export class Parser extends ScannerErrorReporter {
 
   // Lists
 
-  parseListElement(element: ListElement, index: number): Node | undefined {
+  /** The element, or `noElement` if a signature parameter can't start here. */
+  parseListElement(element: ListElement, index: number): Node {
     switch (element) {
       case ListElement.Statement:
         return this.parseStatement();
@@ -893,7 +955,7 @@ export class Parser extends ScannerErrorReporter {
           this.signatureParameterInAwaitContext,
           this.signatureParameterAllowAmbiguity,
         );
-        if (parameter !== undefined && (this.signatureParameterFlags & ParseFlags.Type) === 0)
+        if (parameter !== this.noElement && (this.signatureParameterFlags & ParseFlags.Type) === 0)
           this.checkJSSyntax(parameter);
         return parameter;
       }
@@ -933,7 +995,7 @@ export class Parser extends ScannerErrorReporter {
           }
           this.reparseList = [];
         }
-        if (elt !== undefined) list.push(elt);
+        if (elt !== this.noElement) list.push(elt);
         continue;
       }
       if (this.abortParsingListOrMoveToNextToken(kind)) break;
@@ -959,7 +1021,7 @@ export class Parser extends ScannerErrorReporter {
       if (this.isListElement(kind, false)) {
         const startPos = this.nodePos();
         const result = this.parseListElement(element, list.length);
-        if (result === undefined) {
+        if (result === this.noElement) {
           this.parsingContexts = saveParsingContexts;
           return undefined;
         }
@@ -2095,8 +2157,8 @@ export class Parser extends ScannerErrorReporter {
       this.checkJSSyntax(result);
       if (heritageClauses !== undefined)
         for (const clause of heritageClauses.nodes)
-          if (clause instanceof HeritageClause && clause.token === SyntaxKind.ExtendsKeyword)
-            for (const expression of clause.types.nodes) this.checkJSSyntax(expression);
+          if (clause instanceof HeritageClause && (clause as HeritageClause).token === SyntaxKind.ExtendsKeyword)
+            for (const expression of (clause as HeritageClause).types.nodes) this.checkJSSyntax(expression);
     }
     return result;
   }
@@ -2344,7 +2406,7 @@ export class Parser extends ScannerErrorReporter {
     // Tagged templates sometimes appear where only plain strings are allowed, as in
     // `module `M1` {`, which parses as the template literal module`M1`.
     if (node instanceof TaggedTemplateExpression) {
-      const template = node.template;
+      const template = (node as TaggedTemplateExpression).template;
       this.parseErrorAt(
         skipTrivia(this.sourceText, template.pos),
         template.end,
@@ -2353,7 +2415,7 @@ export class Parser extends ScannerErrorReporter {
       return;
     }
     // Unless this is a keyword-like identifier, give the generic message.
-    const expressionText = node instanceof Identifier ? node.text : '';
+    const expressionText = node instanceof Identifier ? (node as Identifier).text : '';
     if (expressionText === '') {
       this.parseErrorAtCurrentToken(Diagnostics.X_0_expected, [tokenToString(SyntaxKind.SemicolonToken)]);
       return;
@@ -2758,7 +2820,7 @@ export class Parser extends ScannerErrorReporter {
     let propertyName: Node | undefined;
     let nameOk = this.isModuleExportNameOk(disallowKeywords);
     let name = this.parseModuleExportName();
-    if (name instanceof Identifier && name.text === 'type') {
+    if (name instanceof Identifier && (name as Identifier).text === 'type') {
       // With a leading `type`, especially before `as`:
       //   import { type } from "mod";          - isTypeOnly: false, name: type
       //   import { type as } from "mod";       - isTypeOnly: true,  name: as
@@ -3113,11 +3175,15 @@ export class Parser extends ScannerErrorReporter {
       case SyntaxKind.UndefinedKeyword:
       case SyntaxKind.NeverKeyword:
       case SyntaxKind.ObjectKeyword: {
-        const state = this.mark();
+        const state = this.beginSpeculation();
         const keywordTypeNode = this.parseKeywordTypeNode();
         // Followed by a dot, these are a dotted type reference.
-        if (this.token() !== SyntaxKind.DotToken) return keywordTypeNode;
+        if (this.token() !== SyntaxKind.DotToken) {
+          this.endSpeculation(state);
+          return keywordTypeNode;
+        }
         this.rewind(state);
+        this.endSpeculation(state);
         return this.parseTypeReference();
       }
       case SyntaxKind.AsteriskEqualsToken:
@@ -3333,7 +3399,7 @@ export class Parser extends ScannerErrorReporter {
 
   parsePrivateIdentifier(): Node {
     const pos = this.nodePos();
-    const text = this.scanner.getTokenValue();
+    const text = this.scanner.getIdentifierValue();
     this.nextToken();
     return this.finishNode(new PrivateIdentifier(this.internIdentifier(text)), pos);
   }
@@ -3595,10 +3661,11 @@ export class Parser extends ScannerErrorReporter {
   }
 
   parseParameter(): Node {
-    return this.parseParameterEx(false, true)!;
+    return this.parseParameterEx(false, true);
   }
 
-  parseParameterEx(inOuterAwaitContext: boolean, allowAmbiguity: boolean): Node | undefined {
+  /** The parameter, or `noElement` if ambiguity isn't allowed and no parameter name starts here. */
+  parseParameterEx(inOuterAwaitContext: boolean, allowAmbiguity: boolean): Node {
     const pos = this.nodePos();
     const jsdoc = this.jsdocScannerInfo();
     // Decorators are parsed in the outer [Await] context, the rest in the function's.
@@ -3626,7 +3693,7 @@ export class Parser extends ScannerErrorReporter {
       return this.finishWithJSDoc(result, pos, jsdoc);
     }
     const dotDotDotToken = this.parseOptionalToken(SyntaxKind.DotDotDotToken);
-    if (!allowAmbiguity && !this.isParameterNameStart()) return undefined;
+    if (!allowAmbiguity && !this.isParameterNameStart()) return this.noElement;
     const name = this.parseNameOfParameter(modifiers);
     const questionToken = this.parseOptionalToken(SyntaxKind.QuestionToken);
     const type = this.parseTypeAnnotation();
@@ -3688,14 +3755,16 @@ export class Parser extends ScannerErrorReporter {
 
   parseTypeOrTypePredicate(): TypeNode {
     if (this.isIdentifier()) {
-      const state = this.mark();
+      const state = this.beginSpeculation();
       const pos = this.nodePos();
       const id = this.parseIdentifier();
       if (this.token() === SyntaxKind.IsKeyword && !this.hasPrecedingLineBreak()) {
+        this.endSpeculation(state);
         this.nextToken();
         return this.finishNode(new TypePredicateNode(undefined, id, this.parseType()), pos);
       }
       this.rewind(state);
+      this.endSpeculation(state);
     }
     return this.parseType();
   }
@@ -3865,12 +3934,12 @@ export class Parser extends ScannerErrorReporter {
     const pos = this.nodePos();
     if (this.parseOptional(SyntaxKind.DotDotDotToken)) return this.finishNode(new RestTypeNode(this.parseType()), pos);
     const type = this.parseType();
-    if (type instanceof JSDocNullableType && type.pos === type.type.pos) {
-      const node = new OptionalTypeNode(type.type);
-      node.flags = type.flags;
-      node.pos = type.pos;
-      node.end = type.end;
-      type.type.parent = node;
+    if (type instanceof JSDocNullableType && (type as JSDocNullableType).pos === (type as JSDocNullableType).type.pos) {
+      const node = new OptionalTypeNode((type as JSDocNullableType).type);
+      node.flags = (type as JSDocNullableType).flags;
+      node.pos = (type as JSDocNullableType).pos;
+      node.end = (type as JSDocNullableType).end;
+      (type as JSDocNullableType).type.parent = node;
       return node;
     }
     return type;
@@ -4121,17 +4190,20 @@ export class Parser extends ScannerErrorReporter {
   }
 
   parseContextualModifier(t: SyntaxKind): boolean {
-    const state = this.mark();
-    if (this.token() === t && this.nextTokenCanFollowModifier()) return true;
-    this.rewind(state);
-    return false;
+    return this.token() === t && this.tryNextTokenCanFollowModifier();
   }
 
   parseAnyContextualModifier(): boolean {
-    const state = this.mark();
-    if (isModifierKind(this.token()) && this.nextTokenCanFollowModifier()) return true;
-    this.rewind(state);
-    return false;
+    return isModifierKind(this.token()) && this.tryNextTokenCanFollowModifier();
+  }
+
+  /** Advances past a modifier if the next token can follow it; otherwise leaves the state unchanged. */
+  tryNextTokenCanFollowModifier(): boolean {
+    const state = this.beginSpeculation();
+    const result = this.nextTokenCanFollowModifier();
+    if (!result) this.rewind(state);
+    this.endSpeculation(state);
+    return result;
   }
 
   nextTokenCanFollowModifier(): boolean {
@@ -4715,34 +4787,41 @@ export class Parser extends ScannerErrorReporter {
       const lastChild = children.nodes.length > 0 ? children.nodes[children.nodes.length - 1]! : undefined;
       if (
         lastChild instanceof JsxElement &&
-        !tagNamesAreEquivalent(lastChild.openingElement.tagName, lastChild.closingElement.tagName) &&
-        tagNamesAreEquivalent(opening.tagName, lastChild.closingElement.tagName)
+        !tagNamesAreEquivalent(
+          (lastChild as JsxElement).openingElement.tagName,
+          (lastChild as JsxElement).closingElement.tagName,
+        ) &&
+        tagNamesAreEquivalent((opening as JsxOpeningElement).tagName, (lastChild as JsxElement).closingElement.tagName)
       ) {
         // An unclosed opening element took its parent's closing element: restructure
         // (<div>(...<span>...</div>)) into (<div>(...<span>...</>)</div>). The parent reports it.
-        const end = lastChild.children.end;
+        const end = (lastChild as JsxElement).children.end;
         const missingIdentifier = this.finishNodeWithEnd(this.newIdentifier(''), end, end);
         const newClosingElement = new JsxClosingElement(missingIdentifier);
         this.finishNodeWithEnd(newClosingElement, end, end);
-        const newLast = new JsxElement(lastChild.openingElement, lastChild.children, newClosingElement);
-        this.finishNodeWithEnd(newLast, lastChild.openingElement.pos, end);
+        const newLast = new JsxElement(
+          (lastChild as JsxElement).openingElement,
+          (lastChild as JsxElement).children,
+          newClosingElement,
+        );
+        this.finishNodeWithEnd(newLast, (lastChild as JsxElement).openingElement.pos, end);
         // Reset parents from the discarded parse.
-        lastChild.openingElement.parent = newLast;
-        for (const c of lastChild.children.nodes) c.parent = newLast;
+        (lastChild as JsxElement).openingElement.parent = newLast;
+        for (const c of (lastChild as JsxElement).children.nodes) c.parent = newLast;
         newClosingElement.parent = newLast;
         const nodes = children.nodes.slice(0, children.nodes.length - 1);
         nodes.push(newLast);
         children = this.newNodeList(children.pos, newLast.end, nodes);
-        closingElement = lastChild.closingElement;
+        closingElement = (lastChild as JsxElement).closingElement;
       } else {
         closingElement = this.parseJsxClosingElement(opening, inExpressionContext);
-        if (!tagNamesAreEquivalent(opening.tagName, closingElement.tagName)) {
+        if (!tagNamesAreEquivalent((opening as JsxOpeningElement).tagName, closingElement.tagName)) {
           if (
             openingTag instanceof JsxOpeningElement &&
-            tagNamesAreEquivalent(closingElement.tagName, openingTag.tagName)
+            tagNamesAreEquivalent(closingElement.tagName, (openingTag as JsxOpeningElement).tagName)
           ) {
             // The opening matched its parent's closing: report it on the opening.
-            const tagName = opening.tagName;
+            const tagName = (opening as JsxOpeningElement).tagName;
             this.parseErrorAt(tagName.pos, tagName.end, Diagnostics.JSX_element_0_has_no_corresponding_closing_tag, [
               getTextOfNodeFromSourceText(this.sourceText, tagName),
             ]);
@@ -4750,7 +4829,7 @@ export class Parser extends ScannerErrorReporter {
             // Other mismatches are reported on the closing.
             const tagName = closingElement.tagName;
             this.parseErrorAt(tagName.pos, tagName.end, Diagnostics.Expected_corresponding_JSX_closing_tag_for_0, [
-              getTextOfNodeFromSourceText(this.sourceText, opening.tagName),
+              getTextOfNodeFromSourceText(this.sourceText, (opening as JsxOpeningElement).tagName),
             ]);
           }
         }
@@ -4803,8 +4882,11 @@ export class Parser extends ScannerErrorReporter {
       if (
         openingTag instanceof JsxOpeningElement &&
         child instanceof JsxElement &&
-        !tagNamesAreEquivalent(child.openingElement.tagName, child.closingElement.tagName) &&
-        tagNamesAreEquivalent(openingTag.tagName, child.closingElement.tagName)
+        !tagNamesAreEquivalent(
+          (child as JsxElement).openingElement.tagName,
+          (child as JsxElement).closingElement.tagName,
+        ) &&
+        tagNamesAreEquivalent((openingTag as JsxOpeningElement).tagName, (child as JsxElement).closingElement.tagName)
       )
         break;
     }
@@ -4817,10 +4899,14 @@ export class Parser extends ScannerErrorReporter {
       case SyntaxKind.EndOfFile:
         // Report at the tag without a closing element rather than at the end of the file.
         if (openingTag instanceof JsxOpeningFragment) {
-          this.parseErrorAt(openingTag.pos, openingTag.end, Diagnostics.JSX_fragment_has_no_corresponding_closing_tag);
+          this.parseErrorAt(
+            (openingTag as JsxOpeningFragment).pos,
+            (openingTag as JsxOpeningFragment).end,
+            Diagnostics.JSX_fragment_has_no_corresponding_closing_tag,
+          );
         } else if (openingTag instanceof JsxOpeningElement) {
           // Only cover `Foo.Bar` in `< Foo.Bar >`.
-          const tag = openingTag.tagName;
+          const tag = (openingTag as JsxOpeningElement).tagName;
           const start = Math.min(skipTrivia(this.sourceText, tag.pos), tag.end);
           this.parseErrorAt(start, tag.end, Diagnostics.JSX_element_0_has_no_corresponding_closing_tag, [
             getTextOfNodeFromSourceText(this.sourceText, tag),
@@ -5294,7 +5380,7 @@ export class Parser extends ScannerErrorReporter {
         Diagnostics.An_optional_chain_cannot_contain_private_identifiers,
       );
     if (expression instanceof ExpressionWithTypeArguments) {
-      const typeArguments = expression.typeArguments;
+      const typeArguments = (expression as ExpressionWithTypeArguments).typeArguments;
       if (typeArguments !== undefined)
         this.parseErrorAt(
           typeArguments.pos - 1,
@@ -5310,13 +5396,13 @@ export class Parser extends ScannerErrorReporter {
     // An optional chain inside a non-null expression.
     if (node instanceof NonNullExpression) {
       let expr = (node as NonNullExpression).expression;
-      while (expr instanceof NonNullExpression && (expr.flags & NodeFlags.OptionalChain) === 0)
+      while (expr instanceof NonNullExpression && ((expr as NonNullExpression).flags & NodeFlags.OptionalChain) === 0)
         expr = (expr as NonNullExpression).expression;
       if ((expr.flags & NodeFlags.OptionalChain) !== 0) {
         // Part of an optional chain: flag the non-null expressions down to it.
         let current: Node = node;
         while (current instanceof NonNullExpression) {
-          current.flags |= NodeFlags.OptionalChain;
+          (current as NonNullExpression).flags |= NodeFlags.OptionalChain;
           current = (current as NonNullExpression).expression;
         }
         return true;
@@ -5376,8 +5462,8 @@ export class Parser extends ScannerErrorReporter {
       if (typeArguments !== undefined || this.token() === SyntaxKind.OpenParenToken) {
         // Absorb type arguments into the call.
         if (questionDotToken === undefined && expression instanceof ExpressionWithTypeArguments) {
-          typeArguments = expression.typeArguments;
-          expression = expression.expression;
+          typeArguments = (expression as ExpressionWithTypeArguments).typeArguments;
+          expression = (expression as ExpressionWithTypeArguments).expression;
         }
         const inner = expression;
         const argumentList = this.parseArgumentList();
@@ -5687,8 +5773,8 @@ export class Parser extends ScannerErrorReporter {
     let typeArguments: NodeList | undefined;
     // Absorb type arguments into the new expression.
     if (expression instanceof ExpressionWithTypeArguments) {
-      typeArguments = expression.typeArguments;
-      expression = expression.expression;
+      typeArguments = (expression as ExpressionWithTypeArguments).typeArguments;
+      expression = (expression as ExpressionWithTypeArguments).expression;
     }
     if (this.token() === SyntaxKind.QuestionDotToken)
       this.parseErrorAtCurrentToken(Diagnostics.Invalid_optional_chain_from_new_expression_Did_you_mean_to_call_0, [
@@ -5793,7 +5879,7 @@ export class Parser extends ScannerErrorReporter {
   ): Identifier {
     if (isIdentifier) {
       const pos = this.scanner.hasPrecedingJSDocLeadingAsterisks() ? this.scanner.getTokenStart() : this.nodePos();
-      const text = this.scanner.getTokenValue();
+      const text = this.scanner.getIdentifierValue();
       this.nextTokenWithoutCheck();
       const result = this.newIdentifier(this.internIdentifier(text));
       this.finishNode(result, pos);
@@ -6380,11 +6466,14 @@ export class Parser extends ScannerErrorReporter {
       }
       case SyntaxKind.ImportDeclaration:
         if (node instanceof ImportDeclaration) {
-          const clause = node.importClause;
+          const clause = (node as ImportDeclaration).importClause;
           if (clause !== undefined && clause.phaseModifier === SyntaxKind.TypeKeyword)
-            this.jsErrorAt(node.pos, node.end, Diagnostics.X_0_declarations_can_only_be_used_in_TypeScript_files, [
-              'import type',
-            ]);
+            this.jsErrorAt(
+              (node as ImportDeclaration).pos,
+              (node as ImportDeclaration).end,
+              Diagnostics.X_0_declarations_can_only_be_used_in_TypeScript_files,
+              ['import type'],
+            );
         }
         break;
       case SyntaxKind.ExportDeclaration:
@@ -6409,12 +6498,20 @@ export class Parser extends ScannerErrorReporter {
         this.jsErrorAt(node.pos, node.end, Diagnostics.X_import_can_only_be_used_in_TypeScript_files);
         break;
       case SyntaxKind.ExportAssignment:
-        if (node instanceof ExportAssignment && node.isExportEquals)
-          this.jsErrorAt(node.pos, node.end, Diagnostics.X_export_can_only_be_used_in_TypeScript_files);
+        if (node instanceof ExportAssignment && (node as ExportAssignment).isExportEquals)
+          this.jsErrorAt(
+            (node as ExportAssignment).pos,
+            (node as ExportAssignment).end,
+            Diagnostics.X_export_can_only_be_used_in_TypeScript_files,
+          );
         break;
       case SyntaxKind.HeritageClause:
-        if (node instanceof HeritageClause && node.token === SyntaxKind.ImplementsKeyword)
-          this.jsErrorAt(node.pos, node.end, Diagnostics.X_implements_clauses_can_only_be_used_in_TypeScript_files);
+        if (node instanceof HeritageClause && (node as HeritageClause).token === SyntaxKind.ImplementsKeyword)
+          this.jsErrorAt(
+            (node as HeritageClause).pos,
+            (node as HeritageClause).end,
+            Diagnostics.X_implements_clauses_can_only_be_used_in_TypeScript_files,
+          );
         break;
       case SyntaxKind.InterfaceDeclaration: {
         const name = getName(node)!;
@@ -6426,10 +6523,10 @@ export class Parser extends ScannerErrorReporter {
       case SyntaxKind.ModuleDeclaration:
         if (node instanceof ModuleDeclaration)
           this.jsErrorAt(
-            node.name.pos,
-            node.name.end,
+            (node as ModuleDeclaration).name.pos,
+            (node as ModuleDeclaration).name.end,
             Diagnostics.X_0_declarations_can_only_be_used_in_TypeScript_files,
-            [tokenToString(node.keyword)],
+            [tokenToString((node as ModuleDeclaration).keyword)],
           );
         break;
       case SyntaxKind.TypeAliasDeclaration: {
@@ -6583,7 +6680,7 @@ export class Parser extends ScannerErrorReporter {
     const result = this.newSourceFile(statements, eof);
     this.finishNode(result, pos);
     const first = result.statements.nodes.length > 0 ? result.statements.nodes[0]! : undefined;
-    if (first instanceof ExpressionStatement) this.validateJsonValue(result, first.expression);
+    if (first instanceof ExpressionStatement) this.validateJsonValue(result, (first as ExpressionStatement).expression);
     this.finishSourceFile(result, false);
     return result;
   }
@@ -6605,8 +6702,8 @@ export class Parser extends ScannerErrorReporter {
       case SyntaxKind.PrefixUnaryExpression:
         if (
           value instanceof PrefixUnaryExpression &&
-          value.operator === SyntaxKind.MinusToken &&
-          value.operand.kind === SyntaxKind.NumericLiteral
+          (value as PrefixUnaryExpression).operator === SyntaxKind.MinusToken &&
+          (value as PrefixUnaryExpression).operand.kind === SyntaxKind.NumericLiteral
         )
           return;
         break;
@@ -6615,7 +6712,8 @@ export class Parser extends ScannerErrorReporter {
         return;
       case SyntaxKind.ArrayLiteralExpression:
         if (value instanceof ArrayLiteralExpression)
-          for (const element of value.elements.nodes) this.validateJsonValue(sourceFile, element);
+          for (const element of (value as ArrayLiteralExpression).elements.nodes)
+            this.validateJsonValue(sourceFile, element);
         return;
     }
     this.jsonError(
@@ -6630,9 +6728,9 @@ export class Parser extends ScannerErrorReporter {
         this.jsonError(element, Diagnostics.Property_assignment_expected);
         continue;
       }
-      if (!isDoubleQuotedString(element.name))
-        this.jsonError(element.name, Diagnostics.String_literal_with_double_quotes_expected);
-      this.validateJsonValue(sourceFile, element.initializer);
+      if (!isDoubleQuotedString((element as PropertyAssignment).name))
+        this.jsonError((element as PropertyAssignment).name, Diagnostics.String_literal_with_double_quotes_expected);
+      this.validateJsonValue(sourceFile, (element as PropertyAssignment).initializer);
     }
   }
 
@@ -6788,16 +6886,21 @@ function getQuestionTokenOfNode(node: Node): Node | undefined {
 }
 
 function isDoubleQuotedString(node: Node): boolean {
-  return node instanceof StringLiteral && (node.tokenFlags & TokenFlags.SingleQuote) === 0;
+  return node instanceof StringLiteral && ((node as StringLiteral).tokenFlags & TokenFlags.SingleQuote) === 0;
 }
 
 /** Whether a speculatively parsed return type means the arrow function parse should be abandoned. */
 function typeHasArrowFunctionBlockingParseError(node: TypeNode): boolean {
-  if (node instanceof TypeReferenceNode) return nodeIsMissing(node.typeName);
+  if (node instanceof TypeReferenceNode) return nodeIsMissing((node as TypeReferenceNode).typeName);
   // Separate checks: a union of classes can't be a receiver natively.
-  if (node instanceof FunctionTypeNode) return node.parameters.isMissingList || typeHasBlockingError(node.type);
-  if (node instanceof ConstructorTypeNode) return node.parameters.isMissingList || typeHasBlockingError(node.type);
-  if (node instanceof ParenthesizedTypeNode) return typeHasArrowFunctionBlockingParseError(node.type);
+  if (node instanceof FunctionTypeNode)
+    return (node as FunctionTypeNode).parameters.isMissingList || typeHasBlockingError((node as FunctionTypeNode).type);
+  if (node instanceof ConstructorTypeNode)
+    return (
+      (node as ConstructorTypeNode).parameters.isMissingList || typeHasBlockingError((node as ConstructorTypeNode).type)
+    );
+  if (node instanceof ParenthesizedTypeNode)
+    return typeHasArrowFunctionBlockingParseError((node as ParenthesizedTypeNode).type);
   return false;
 }
 
@@ -7271,7 +7374,7 @@ function collectModuleReferences(file: SourceFile, node: Statement, inAmbientMod
   if (isAnyImportOrReExport(node)) {
     const moduleNameExpr = getExternalModuleName(node);
     if (moduleNameExpr instanceof StringLiteral) {
-      const moduleName = moduleNameExpr.text;
+      const moduleName = (moduleNameExpr as StringLiteral).text;
       if (moduleName !== '' && (!inAmbientModule || !isExternalModuleNameRelative(moduleName))) {
         file.imports.push(moduleNameExpr);
         if (file.usesUriStyleNodeCoreModules !== Tristate.True && !file.isDeclarationFile) {
@@ -7289,12 +7392,12 @@ function collectModuleReferences(file: SourceFile, node: Statement, inAmbientMod
     isAmbientModule(node) &&
     (inAmbientModule || hasModifierFlag(node, ModifierFlags.Ambient) || file.isDeclarationFile)
   ) {
-    const nameText = getText(node.name);
+    const nameText = getText((node as ModuleDeclaration).name);
     if (file.externalModuleIndicator !== undefined || (inAmbientModule && !isExternalModuleNameRelative(nameText))) {
-      file.moduleAugmentations.push(node.name);
+      file.moduleAugmentations.push((node as ModuleDeclaration).name);
     } else if (!inAmbientModule) {
       file.ambientModuleNames.push(nameText);
-      const body = node.body;
+      const body = (node as ModuleDeclaration).body;
       if (body !== undefined) {
         const statements = getStatements(body);
         if (statements !== undefined)
@@ -7333,14 +7436,14 @@ function collectDynamicImportOrRequireCalls(file: SourceFile): void {
   while (index >= 0) {
     const node = getNodeAtPosition(file, index, isJavaScriptFile);
     if (isJavaScriptFile && node instanceof CallExpression && isRequireCall(node, true)) {
-      file.imports.push(node.arguments.nodes[0]!);
+      file.imports.push((node as CallExpression).arguments.nodes[0]!);
     } else if (
       node instanceof CallExpression &&
       isImportCall(node) &&
-      node.arguments.nodes.length > 0 &&
-      isStringLiteralLike(node.arguments.nodes[0]!)
+      (node as CallExpression).arguments.nodes.length > 0 &&
+      isStringLiteralLike((node as CallExpression).arguments.nodes[0]!)
     ) {
-      file.imports.push(node.arguments.nodes[0]!);
+      file.imports.push((node as CallExpression).arguments.nodes[0]!);
     } else if (node instanceof ImportTypeNode) {
       const literal = getImportTypeNodeLiteral(node);
       if (literal !== undefined) file.imports.push(literal);
@@ -7428,7 +7531,8 @@ class ImportMetaFinder extends NodeVisitor {
 function isAnExternalModuleIndicatorNode(node: Node): boolean {
   return (
     hasModifierFlag(node, ModifierFlags.Export) ||
-    (node instanceof ImportEqualsDeclaration && node.moduleReference.kind === SyntaxKind.ExternalModuleReference) ||
+    (node instanceof ImportEqualsDeclaration &&
+      (node as ImportEqualsDeclaration).moduleReference.kind === SyntaxKind.ExternalModuleReference) ||
     node.kind === SyntaxKind.ImportDeclaration ||
     node.kind === SyntaxKind.ExportAssignment ||
     node.kind === SyntaxKind.ExportDeclaration

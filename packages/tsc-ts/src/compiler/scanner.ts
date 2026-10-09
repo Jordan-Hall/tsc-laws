@@ -280,16 +280,16 @@ const noArgs: readonly string[] = [];
 
 /** A snapshot of the scanner's token state for `Scanner.rewind`. */
 export class ScannerState {
-  readonly pos: number;
-  readonly fullStartPos: number;
-  readonly tokenStart: number;
-  readonly token: SyntaxKind;
-  readonly tokenFlags: TokenFlags;
-  readonly tokenValue: string;
-  readonly valueStart: number;
-  readonly valueEnd: number;
-  readonly commentDirectiveCount: number;
-  readonly skipJSDocLeadingAsterisks: number;
+  pos: number;
+  fullStartPos: number;
+  tokenStart: number;
+  token: SyntaxKind;
+  tokenFlags: TokenFlags;
+  tokenValue: string;
+  valueStart: number;
+  valueEnd: number;
+  commentDirectiveCount: number;
+  skipJSDocLeadingAsterisks: number;
 
   constructor(
     pos: number,
@@ -314,6 +314,126 @@ export class ScannerState {
     this.commentDirectiveCount = commentDirectiveCount;
     this.skipJSDocLeadingAsterisks = skipJSDocLeadingAsterisks;
   }
+
+  /** @internal Overwrites this snapshot with the scanner's current state, like `Scanner.mark`. */
+  assign(scanner: Scanner): void {
+    this.pos = scanner.pos;
+    this.fullStartPos = scanner.fullStartPos;
+    this.tokenStart = scanner.tokenStart;
+    this.token = scanner.token;
+    this.tokenFlags = scanner.tokenFlags;
+    this.tokenValue = scanner.tokenValue;
+    this.valueStart = scanner.valueStart;
+    this.valueEnd = scanner.valueEnd;
+    this.commentDirectiveCount = scanner.commentDirectives.length;
+    this.skipJSDocLeadingAsterisks = scanner.skipJSDocLeadingAsterisks;
+  }
+}
+
+/** FNV-1a over a range's code units. */
+function rangeHash(chars: Uint16Array, start: number, end: number): number {
+  let hash = 0x811c9dc5 | 0;
+  for (let i = start; i < end; i++) hash = Math.imul(hash ^ chars[i], 0x01000193);
+  return hash ^ (hash >>> 15);
+}
+
+/** Strings for ranges of one text, keyed by their code units: equal identifiers share one string. */
+class IdentifierTable {
+  private text: string;
+  // Pairs of (entry index + 1, hash) per slot, (0, 0) when empty; linear probing.
+  private slots: Int32Array;
+  // Each entry's code units, at `offsets[entry]` in `units`: compact, so probes stay in cache.
+  private units: Uint16Array;
+  private unitCount: number;
+  private offsets: Int32Array;
+  private lengths: Int32Array;
+  private texts: string[];
+  private count: number;
+
+  constructor(text: string) {
+    this.text = text;
+    this.slots = new Int32Array(512);
+    this.units = new Uint16Array(1024);
+    this.unitCount = 0;
+    this.offsets = new Int32Array(128);
+    this.lengths = new Int32Array(128);
+    this.texts = [];
+    this.count = 0;
+  }
+
+  /** Empties the table for a new text. */
+  setText(text: string): void {
+    this.text = text;
+    if (this.count === 0) return;
+    this.slots.fill(0);
+    this.texts.length = 0;
+    this.unitCount = 0;
+    this.count = 0;
+  }
+
+  /** `text.substring(start, end)`, or the string interned for an equal range. */
+  intern(chars: Uint16Array, start: number, end: number): string {
+    const length = end - start;
+    const hash = rangeHash(chars, start, end);
+    const slots = this.slots;
+    const mask = slots.length / 2 - 1;
+    let slot = hash & mask;
+    for (;;) {
+      const entry = slots[slot * 2];
+      if (entry === 0) break;
+      if (slots[slot * 2 + 1] === hash && this.lengths[entry - 1] === length) {
+        const units = this.units;
+        const offset = this.offsets[entry - 1];
+        let i = 0;
+        while (i < length && units[(offset + i) | 0] === chars[(start + i) | 0]) i++;
+        if (i === length) return this.texts[entry - 1]!;
+      }
+      slot = (slot + 1) & mask;
+    }
+    const value = this.text.substring(start, end);
+    const index = this.count;
+    if (index === this.offsets.length) {
+      const offsets = new Int32Array(index * 2);
+      offsets.set(this.offsets);
+      this.offsets = offsets;
+      const lengths = new Int32Array(index * 2);
+      lengths.set(this.lengths);
+      this.lengths = lengths;
+    }
+    let units = this.units;
+    const offset = this.unitCount;
+    if (offset + length > units.length) {
+      units = new Uint16Array(Math.max(units.length * 2, offset + length));
+      units.set(this.units);
+      this.units = units;
+    }
+    units.set(chars.subarray(start, end), offset);
+    this.unitCount = offset + length;
+    this.offsets[index] = offset;
+    this.lengths[index] = length;
+    this.texts.push(value);
+    this.count = index + 1;
+    slots[slot * 2] = index + 1;
+    slots[slot * 2 + 1] = hash;
+    if (this.count * 2 > mask + 1) this.slots = rehash(slots);
+    return value;
+  }
+}
+
+/** `IdentifierTable` slots in a table twice the size. */
+function rehash(old: Int32Array): Int32Array {
+  const slots = new Int32Array(old.length * 2);
+  const mask = slots.length / 2 - 1;
+  for (let i = 0; i < old.length; i += 2) {
+    const entry = old[i];
+    if (entry === 0) continue;
+    const hash = old[i + 1];
+    let slot = hash & mask;
+    while (slots[slot * 2] !== 0) slot = (slot + 1) & mask;
+    slots[slot * 2] = entry;
+    slots[slot * 2 + 1] = hash;
+  }
+  return slots;
 }
 
 /** The UTF-16 code units of `text`, followed by zeros so the scanner can peek past the end. */
@@ -448,6 +568,7 @@ export class Scanner {
   /** @internal */ skipJSDocLeadingAsterisks: number;
   // The code units zeroed by `setTextEnd`.
   private readonly cutUnits: Uint16Array;
+  private readonly identifiers: IdentifierTable;
 
   constructor(text = '') {
     this.text = text;
@@ -468,12 +589,14 @@ export class Scanner {
     this.commentDirectives = [];
     this.skipJSDocLeadingAsterisks = 0;
     this.cutUnits = new Uint16Array(4);
+    this.identifiers = new IdentifierTable(text);
   }
 
   /** Sets the text to scan and resets the token state. */
   setText(text: string): void {
     this.text = text;
     this.chars = toCodeUnits(text);
+    this.identifiers.setText(text);
     this.end = text.length;
     this.pos = 0;
     this.fullStartPos = 0;
@@ -563,6 +686,15 @@ export class Scanner {
   getTokenValue(): string {
     if (this.valueStart >= 0) {
       this.tokenValue = this.text.substring(this.valueStart, this.valueEnd);
+      this.valueStart = -1;
+    }
+    return this.tokenValue;
+  }
+
+  /** @internal Like `getTokenValue`, but identifiers with the same text share one string. */
+  getIdentifierValue(): string {
+    if (this.valueStart >= 0) {
+      this.tokenValue = this.identifiers.intern(this.chars, this.valueStart, this.valueEnd);
       this.valueStart = -1;
     }
     return this.tokenValue;

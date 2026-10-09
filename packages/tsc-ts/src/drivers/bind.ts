@@ -28,6 +28,7 @@ import { NameResolver } from '../compiler/name-resolver.js';
 import { parseSourceFile } from '../compiler/parser.js';
 import { type Symbol, SymbolFlags, type SymbolTable } from '../compiler/symbol.js';
 import { SyntaxKind } from '../compiler/syntax-kind.js';
+import './lowering.js';
 
 const out: string[] = [];
 
@@ -203,7 +204,7 @@ class Printer extends NodeVisitor {
     const resolver = new NameResolver({});
     const order = this.order;
     for (let i = 0; i < order.length; i++) {
-      const n = order[i];
+      const n = order[i]!;
       if (n.kind !== SyntaxKind.Identifier) continue;
       const text = getText(n);
       const value = this.sym(resolver.resolve(n, text, SymbolFlags.Value, undefined, false, false));
@@ -219,7 +220,7 @@ class Printer extends NodeVisitor {
     );
     const order = this.order;
     for (let i = 0; i < order.length; i++) {
-      const n = order[i];
+      const n = order[i]!;
       const parts: string[] = [];
       const symbol = getSymbol(n);
       if (symbol !== undefined) parts.push('sym=' + this.sym(symbol));
@@ -236,7 +237,7 @@ class Printer extends NodeVisitor {
     for (const p of file.patternAmbientModules)
       out.push(`pattern ${quote(p.text)} ${p.starIndex} ${this.sym(p.symbol)}`);
     for (let i = 0; i < this.symbols.length; i++) {
-      const s = this.symbols[i];
+      const s = this.symbols[i]!;
       const declarations: string[] = [];
       for (const d of s.declarations) declarations.push(this.node(d));
       let line = `symbol #${i} ${quote(s.name)} ${s.flags} decls=[${declarations.join(' ')}] value=${this.node(s.valueDeclaration)} parent=${this.sym(s.parent)} export=${this.sym(s.exportSymbol)}`;
@@ -249,7 +250,7 @@ class Printer extends NodeVisitor {
   flowGraph(): void {
     const order = this.order;
     for (let i = 0; i < order.length; i++) {
-      const n = order[i];
+      const n = order[i]!;
       const parts: string[] = [];
       const flow = getFlowNode(n);
       if (flow !== undefined) parts.push('flow=' + this.flow(flow));
@@ -267,7 +268,7 @@ class Printer extends NodeVisitor {
       if (parts.length > 0) out.push(`flowof ${i} ${parts.join(' ')}`);
     }
     for (let i = 0; i < this.flows.length; i++) {
-      const f = this.flows[i];
+      const f = this.flows[i]!;
       let line = `flow @${i} ${f.flags}`;
       if (f instanceof FlowSwitchClause)
         line += ` switch=${this.node(f.switchStatement)} ${f.clauseStart} ${f.clauseEnd}`;
