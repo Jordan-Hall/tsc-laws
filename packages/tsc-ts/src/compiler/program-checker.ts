@@ -12,8 +12,13 @@ import { Checker, CheckerHost } from './checker.js';
 import { createDiagnostic, Diagnostic, type DiagnosticMessage, Diagnostics, messageCode } from './diagnostics.js';
 import type { CompilerOptions, ModuleKind } from './options.js';
 import type { ResolvedModule } from './module-resolution-types.js';
+import { ModuleSpecifierHost } from './module-specifiers.js';
+import type { OutputPathsHost } from './output-paths.js';
+import type { PackageJsonInfo } from './package-json.js';
+import type { KnownSymlinks } from './symlinks.js';
 import { Program, sortAndDeduplicateDiagnostics } from './program.js';
 import {
+  getEmitModuleFormatOfFile,
   getEmitSyntaxForUsageLocation,
   isCheckJsEnabledForFile,
   type SourceFileMetadata,
@@ -25,6 +30,8 @@ import { CommentDirectiveKind } from './types.js';
 
 /** What the checker needs, answered by a program. */
 export class ProgramCheckerHost extends CheckerHost {
+  private specifierHost: ProgramModuleSpecifierHost | undefined = undefined;
+
   constructor(readonly program: Program) {
     super();
   }
@@ -90,6 +97,87 @@ export class ProgramCheckerHost extends CheckerHost {
 
   getSourceFileMetadata(file: SourceFile): SourceFileMetadata | undefined {
     return this.program.sourceFileMetadata(file.path);
+  }
+
+  getEmitModuleFormatOfFile(file: SourceFile): ModuleKind {
+    const program = this.program;
+    return getEmitModuleFormatOfFile(
+      file.fileName,
+      program.getCompilerOptionsForFile(file),
+      program.sourceFileMetadata(file.path),
+    );
+  }
+
+  getModuleSpecifierHost(): ModuleSpecifierHost | undefined {
+    let host = this.specifierHost;
+    if (host === undefined) {
+      host = new ProgramModuleSpecifierHost(this.program);
+      this.specifierHost = host;
+    }
+    return host;
+  }
+}
+
+/** Module specifier generation over a program. */
+export class ProgramModuleSpecifierHost extends ModuleSpecifierHost {
+  constructor(readonly program: Program) {
+    super();
+  }
+
+  getCurrentDirectory(): string {
+    return this.program.currentDirectory;
+  }
+
+  useCaseSensitiveFileNames(): boolean {
+    return this.program.useCaseSensitiveFileNames;
+  }
+
+  getSymlinkCache(): KnownSymlinks | undefined {
+    return this.program.getSymlinkCache();
+  }
+
+  getGlobalTypingsCacheLocation(): string {
+    return this.program.getGlobalTypingsCacheLocation();
+  }
+
+  getProjectReferenceOutputDts(path: string): string {
+    return this.program.getProjectReferenceFromSource(path)?.outputDts ?? '';
+  }
+
+  getRedirectTargets(path: string): readonly string[] {
+    return this.program.getRedirectTargets(path);
+  }
+
+  getSourceOfProjectReferenceIfOutputIncluded(file: SourceFile): string {
+    return this.program.getSourceOfProjectReferenceIfOutputIncluded(file.path, file.fileName);
+  }
+
+  fileExists(path: string): boolean {
+    return this.program.host.fs.fileExists(path);
+  }
+
+  getNearestAncestorDirectoryWithPackageJson(directory: string): string {
+    return this.program.getNearestAncestorDirectoryWithPackageJson(directory);
+  }
+
+  getPackageJsonInfo(packageJsonPath: string): PackageJsonInfo | undefined {
+    return this.program.getPackageJsonInfo(packageJsonPath);
+  }
+
+  getDefaultResolutionModeForFile(file: SourceFile): ModuleKind {
+    return this.program.getDefaultResolutionModeForFile(file);
+  }
+
+  getResolvedModuleFromModuleSpecifier(file: SourceFile, specifier: Node): ResolvedModule | undefined {
+    return this.program.getResolvedModuleFromModuleSpecifier(file, specifier);
+  }
+
+  getModeForUsageLocation(file: SourceFile, specifier: Node): ModuleKind {
+    return this.program.getModeForUsageLocation(file, specifier);
+  }
+
+  getOutputPathsHost(): OutputPathsHost {
+    return this.program;
   }
 }
 

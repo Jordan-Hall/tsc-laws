@@ -54,6 +54,7 @@ import {
 } from './ast-utilities.js';
 import {
   declarationNameToString,
+  getDeclarationOfKind,
   getModifierFlags,
   isAccessExpression,
   getRootDeclaration,
@@ -2642,4 +2643,18 @@ function isPartOfTypeOnlyImportOrExportDeclaration(node: Node): boolean {
 
 function getIsolatedModulesLikeFlagName(c: Checker): string {
   return c.compilerOptions.verbatimModuleSyntax === true ? 'verbatimModuleSyntax' : 'isolatedModules';
+}
+
+/** The file a module declaration or import names. */
+export function getExternalModuleFileFromDeclaration(c: Checker, declaration: Node): SourceFile | undefined {
+  let specifier: Node | undefined = undefined;
+  if (declaration.kind === SyntaxKind.ModuleDeclaration) {
+    const name = getName(declaration);
+    if (name !== undefined && name.kind === SyntaxKind.StringLiteral) specifier = name;
+  } else specifier = getExternalModuleName(declaration);
+  if (specifier === undefined) return undefined;
+  const moduleSymbol = resolveExternalModuleNameWorker(c, specifier, specifier, undefined, false, false);
+  if (moduleSymbol === undefined) return undefined;
+  const file = getDeclarationOfKind(moduleSymbol, SyntaxKind.SourceFile);
+  return file === undefined ? undefined : (file as SourceFile);
 }

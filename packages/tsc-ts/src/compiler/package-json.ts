@@ -405,7 +405,9 @@ export class PackageJson {
   main = ABSENT_STRING;
   types = ABSENT_STRING;
   typings = ABSENT_STRING;
+  dependencies = ABSENT_MAP;
   peerDependencies = ABSENT_MAP;
+  optionalDependencies = ABSENT_MAP;
   typesVersions: JsonValue | undefined = undefined;
   imports: JsonValue | undefined = undefined;
   exports: JsonValue | undefined = undefined;
@@ -415,6 +417,14 @@ export class PackageJson {
   private versionPathsRead = false;
   private versionPaths: VersionPaths | undefined = undefined;
   private readonly versionTraces: MessageWithArgs[] = [];
+
+  /** Names in `dependencies`, `peerDependencies` and `optionalDependencies`. */
+  getRuntimeDependencyNames(): Set<string> {
+    const names = new Set<string>();
+    for (const field of [this.dependencies, this.peerDependencies, this.optionalDependencies])
+      if (field.value !== undefined) for (const name of field.value.keys()) names.add(name);
+    return names;
+  }
 
   /** The `typesVersions` paths for this compiler version, appending what was checked to `traces`. */
   getVersionPaths(traces: MessageWithArgs[] | undefined): VersionPaths | undefined {
@@ -564,7 +574,9 @@ function readField(parser: JsonParser, result: PackageJson, key: string): boolea
     case 'typesVersions':
     case 'imports':
     case 'exports':
+    case 'dependencies':
     case 'peerDependencies':
+    case 'optionalDependencies':
       break;
     default:
       return parser.skip();
@@ -602,8 +614,14 @@ function readField(parser: JsonParser, result: PackageJson, key: string): boolea
     case 'exports':
       result.exports = value;
       break;
+    case 'dependencies':
+      result.dependencies = readStringMapField(result.dependencies, value);
+      break;
     case 'peerDependencies':
       result.peerDependencies = readStringMapField(result.peerDependencies, value);
+      break;
+    case 'optionalDependencies':
+      result.optionalDependencies = readStringMapField(result.optionalDependencies, value);
       break;
   }
   return true;

@@ -32,13 +32,12 @@ import {
   getText,
   getSymbol,
 } from './ast.js';
-import { getExternalModuleName, nodeIsPresent } from './ast-utilities.js';
+import { nodeIsPresent } from './ast-utilities.js';
 import {
   JSDeclarationKind,
   getAssignmentDeclarationKind,
   getCombinedModifierFlags,
   getCombinedNodeFlags,
-  getDeclarationOfKind,
   getSourceFileOfNode,
   isEntityNameExpression,
   isParameterPropertyDeclaration,
@@ -50,7 +49,7 @@ import { getBaseTypes, getDeclaredTypeOfSymbol } from './checker-declared-types.
 import { getResolvedSymbol } from './checker-expressions.js';
 import { tryGetNameFromEntityNameExpression } from './checker-narrowing.js';
 import { getIndexInfosOfType, getIndexSymbol, getPropertiesOfType, getPropertyOfType } from './checker-members.js';
-import { getTargetOfExportSpecifier, resolveExternalModuleNameWorker } from './checker-modules.js';
+import { getExternalModuleFileFromDeclaration, getTargetOfExportSpecifier } from './checker-modules.js';
 import {
   getIndexInfosOfIndexSymbol,
   getSignatureFromDeclaration,
@@ -659,21 +658,6 @@ function literalValueToExpression(context: EmitContext, t: LiteralType): Node | 
   if ((t.flags & TypeFlags.BigIntLiteral) !== 0)
     return factory.created(new BigIntLiteral(t.stringValue + 'n', TokenFlags.None));
   return undefined;
-}
-
-/** The file a module declaration or import names. */
-function getExternalModuleFileFromDeclaration(c: Checker, declaration: Node): SourceFile | undefined {
-  let specifier: Node | undefined = undefined;
-  if (declaration.kind === SyntaxKind.ModuleDeclaration) {
-    const name = getName(declaration);
-    if (name !== undefined && name.kind === SyntaxKind.StringLiteral) specifier = name;
-  } else specifier = getExternalModuleName(declaration);
-  if (specifier === undefined) return undefined;
-  const moduleSymbol = resolveExternalModuleNameWorker(c, specifier, specifier, undefined, false, false);
-  if (moduleSymbol === undefined) return undefined;
-  const file = getDeclarationOfKind(moduleSymbol, SyntaxKind.SourceFile);
-  if (file === undefined || !(file instanceof SourceFile)) return undefined;
-  return file as SourceFile;
 }
 
 function addStaticModifier(context: EmitContext, node: Node): Node {

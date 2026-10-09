@@ -10,12 +10,10 @@ import {
   unmangleScopedPackageName,
 } from '../compiler/module-resolution-types.js';
 import {
-  getAllowImportingTsExtensions,
   getModuleResolutionKind,
   getResolvePackageJsonExports,
   getResolvePackageJsonImports,
   getResolveJsonModule,
-  JsxEmit,
   ModuleKind,
   ModuleResolutionKind,
 } from '../compiler/options.js';
@@ -36,24 +34,26 @@ import {
   getBaseFileName,
   getDirectoryPath,
   getPathComponents,
-  hasJSFileExtension,
   hasTrailingDirectorySeparator,
-  hasTSFileExtension,
-  isDeclarationFileName,
   isRootedDiskPath,
   isUrl,
   normalizePath,
   normalizeSlashes,
-  pathIsRelative,
   removeFileExtension,
-  removeExtension,
   removeTrailingDirectorySeparator,
   resolvePath,
   tryGetExtensionFromPath,
   getCanonicalFileName,
 } from '../compiler/path.js';
 import type { Program } from '../compiler/program.js';
-import { getDefaultResolutionModeForFile } from '../compiler/program-utilities.js';
+import {
+  ModuleSpecifierEnding,
+  ModuleSpecifierPreferences,
+  getAllowedEndingsInPreferredOrder,
+  tryGetJSExtensionForFile,
+  tryGetRealFileNameForNonJSDeclarationFileName,
+} from '../compiler/module-specifiers.js';
+import { ProgramModuleSpecifierHost } from '../compiler/program-checker.js';
 import { getLeadingCommentRanges } from '../compiler/scanner.js';
 import type { Symbol } from '../compiler/symbol.js';
 import { flattenExtensions, getSupportedExtensions } from '../compiler/tsconfig.js';
@@ -103,13 +103,6 @@ interface ExtensionOptions {
   referenceKind: ReferenceKind;
   importingSourceFile: SourceFile;
   resolutionMode: ModuleKind;
-}
-
-const enum Ending {
-  Minimal,
-  Index,
-  JsExtension,
-  TsExtension,
 }
 
 class PathCompletions {
@@ -689,136 +682,37 @@ class PathCompletions {
     if (nonJSResult !== '') return { name: nonJSResult, extension: tryGetExtensionFromPath(nonJSResult) };
     if (extensionOptions.referenceKind === ReferenceKind.FileName)
       return { name, extension: tryGetExtensionFromPath(name) };
-    let allowedEndings = this.getAllowedEndingsInPreferredOrder(
+    let allowedEndings = getAllowedEndingsInPreferredOrder(
+      new ModuleSpecifierPreferences('', ''),
+      new ProgramModuleSpecifierHost(this.program),
+      this.options,
       extensionOptions.importingSourceFile,
+      '',
       extensionOptions.resolutionMode,
     );
     // Wildcard subpaths of `exports` need file names.
     if (isExportsOrImportsWildcard)
-      allowedEndings = allowedEndings.filter((e) => e !== Ending.Minimal && e !== Ending.Index);
-    if (allowedEndings.length > 0 && allowedEndings[0] === Ending.TsExtension) {
+      allowedEndings = allowedEndings.filter(
+        (e) => e !== ModuleSpecifierEnding.Minimal && e !== ModuleSpecifierEnding.Index,
+      );
+    if (allowedEndings.length > 0 && allowedEndings[0] === ModuleSpecifierEnding.TsExtension) {
       if (fileExtensionIsOneOf(name, ['.ts', '.tsx', '.mts', '.cts']))
         return { name, extension: tryGetExtensionFromPath(name) };
-      const outputExtension = tryGetJSExtensionForFile(name, this.options.jsx);
+      const outputExtension = tryGetJSExtensionForFile(name, this.options);
       if (outputExtension !== '') return { name: changeExtension(name, outputExtension), extension: outputExtension };
       return { name, extension: tryGetExtensionFromPath(name) };
     }
     if (
       !isExportsOrImportsWildcard &&
       allowedEndings.length > 0 &&
-      (allowedEndings[0] === Ending.Minimal || allowedEndings[0] === Ending.Index) &&
+      (allowedEndings[0] === ModuleSpecifierEnding.Minimal || allowedEndings[0] === ModuleSpecifierEnding.Index) &&
       fileExtensionIsOneOf(name, ['.js', '.jsx', '.ts', '.tsx', '.d.ts'])
     )
       return { name: removeFileExtension(name), extension: tryGetExtensionFromPath(name) };
-    const outputExtension = tryGetJSExtensionForFile(name, this.options.jsx);
+    const outputExtension = tryGetJSExtensionForFile(name, this.options);
     if (outputExtension !== '') return { name: changeExtension(name, outputExtension), extension: outputExtension };
     return { name, extension: tryGetExtensionFromPath(name) };
   }
-
-  private getAllowedEndingsInPreferredOrder(file: SourceFile, syntaxImpliedNodeFormat: ModuleKind): Ending[] {
-    const defaultMode = getDefaultResolutionModeForFile(
-      file.fileName,
-      this.program.sourceFileMetadata(file.path),
-      this.options,
-    );
-    let preferredEnding = this.getModuleSpecifierEndingPreference(defaultMode, file);
-    if (defaultMode !== syntaxImpliedNodeFormat)
-      preferredEnding = this.getModuleSpecifierEndingPreference(syntaxImpliedNodeFormat, file);
-    const moduleResolution = getModuleResolutionKind(this.options);
-    const isNodeNext =
-      moduleResolution >= ModuleResolutionKind.Node16 && moduleResolution <= ModuleResolutionKind.NodeNext;
-    const allowTs = getAllowImportingTsExtensions(this.options) || isDeclarationFileName(file.fileName);
-    if (syntaxImpliedNodeFormat === ModuleKind.ESNext && isNodeNext)
-      return allowTs ? [Ending.TsExtension, Ending.JsExtension] : [Ending.JsExtension];
-    switch (preferredEnding) {
-      case Ending.JsExtension:
-        return allowTs
-          ? [Ending.JsExtension, Ending.TsExtension, Ending.Minimal, Ending.Index]
-          : [Ending.JsExtension, Ending.Minimal, Ending.Index];
-      case Ending.TsExtension:
-        return [Ending.TsExtension, Ending.Minimal, Ending.JsExtension, Ending.Index];
-      case Ending.Index:
-        return allowTs
-          ? [Ending.Index, Ending.Minimal, Ending.TsExtension, Ending.JsExtension]
-          : [Ending.Index, Ending.Minimal, Ending.JsExtension];
-    }
-    return allowTs
-      ? [Ending.Minimal, Ending.Index, Ending.TsExtension, Ending.JsExtension]
-      : [Ending.Minimal, Ending.Index, Ending.JsExtension];
-  }
-
-  private getModuleSpecifierEndingPreference(resolutionMode: ModuleKind, file: SourceFile): Ending {
-    const moduleResolution = getModuleResolutionKind(this.options);
-    const isNodeNext =
-      moduleResolution >= ModuleResolutionKind.Node16 && moduleResolution <= ModuleResolutionKind.NodeNext;
-    const allowTs = getAllowImportingTsExtensions(this.options);
-    if (resolutionMode === ModuleKind.ESNext && isNodeNext) {
-      if (!allowTs) return Ending.JsExtension;
-      return inferPreference(resolutionMode, file, isNodeNext) !== Ending.JsExtension
-        ? Ending.TsExtension
-        : Ending.JsExtension;
-    }
-    // Guess from the file's imports.
-    if (!allowTs) return usesExtensionsOnImports(file) ? Ending.JsExtension : Ending.Minimal;
-    return inferPreference(resolutionMode, file, isNodeNext);
-  }
-}
-
-const extensionsNotSupportingExtensionlessResolution = ['.mts', '.d.mts', '.mjs', '.cts', '.d.cts', '.cjs'];
-
-function usesExtensionsOnImports(file: SourceFile): boolean {
-  for (const ref of file.imports) {
-    const text = getText(ref);
-    if (pathIsRelative(text) && !fileExtensionIsOneOf(text, extensionsNotSupportingExtensionlessResolution))
-      return hasTSFileExtension(text) || hasJSFileExtension(text);
-  }
-  return false;
-}
-
-function inferPreference(resolutionMode: ModuleKind, file: SourceFile, isNodeNext: boolean): Ending {
-  let usesJsExtensions = false;
-  for (const specifier of file.imports) {
-    const path = getText(specifier);
-    if (!pathIsRelative(path)) continue;
-    if (isNodeNext && resolutionMode === ModuleKind.CommonJS) continue;
-    if (fileExtensionIsOneOf(path, extensionsNotSupportingExtensionlessResolution)) continue;
-    if (hasTSFileExtension(path)) return Ending.TsExtension;
-    if (hasJSFileExtension(path)) usesJsExtensions = true;
-  }
-  return usesJsExtensions ? Ending.JsExtension : Ending.Minimal;
-}
-
-function tryGetRealFileNameForNonJSDeclarationFileName(fileName: string): string {
-  const baseName = getBaseFileName(fileName);
-  // `.d.css.ts` and the like.
-  if (!fileName.endsWith('.ts') || !baseName.includes('.d.') || baseName.endsWith('.d.ts')) return '';
-  const noExtension = removeExtension(fileName, '.ts');
-  const ext = noExtension.substring(noExtension.lastIndexOf('.'));
-  return noExtension.substring(0, noExtension.indexOf('.d.')) + ext;
-}
-
-function tryGetJSExtensionForFile(fileName: string, jsx: JsxEmit | undefined): string {
-  const ext = tryGetExtensionFromPath(fileName);
-  switch (ext) {
-    case '.ts':
-    case '.d.ts':
-      return '.js';
-    case '.tsx':
-      return jsx === JsxEmit.Preserve ? '.jsx' : '.js';
-    case '.js':
-    case '.jsx':
-    case '.json':
-      return ext;
-    case '.d.mts':
-    case '.mts':
-    case '.mjs':
-      return '.mjs';
-    case '.d.cts':
-    case '.cts':
-    case '.cjs':
-      return '.cjs';
-  }
-  return '';
 }
 
 function getDeclarationEmitExtensionForPath(path: string): string {

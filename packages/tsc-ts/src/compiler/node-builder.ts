@@ -440,8 +440,6 @@ export class NodeBuilder {
   readonly serializedTypes = new Map<number, Map<string, SerializedTypeEntry>>();
   /** The kind of fake scope a block stands for: `params` or `typeParams`. */
   readonly fakeScopes = new Map<Node, string>();
-  /** Module specifiers by module symbol id and resolution mode. */
-  readonly specifierCache = new Map<string, string>();
   /**
    * Declaration emit's pseudochecker: with it, types of declarations are written from what the
    * source wrote where that denotes the checker's type.

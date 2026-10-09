@@ -39,7 +39,7 @@ import {
 import type { PackageJsonInfo } from './package-json.js';
 import { ProcessingDiagnostic, type IncludeProcessor } from './file-include.js';
 import type { ResolvedModule } from './module-resolution-types.js';
-import { moduleResolutionKindName } from './module-resolution-types.js';
+import { getTypesPackageName, moduleResolutionKindName } from './module-resolution-types.js';
 import {
   getAllowJS,
   getEmitDeclarations,
@@ -67,6 +67,7 @@ import {
   containsPath,
   getBaseFileName,
   getCanonicalFileName,
+  getDirectoryPath,
   getNormalizedAbsolutePath,
   getPathComponentsRelativeTo,
   getPathFromPathComponents,
@@ -97,6 +98,7 @@ import {
   type SourceOutputAndProjectReference,
 } from './tsconfig.js';
 import { SyntaxKind } from './syntax-kind.js';
+import { KnownSymlinks } from './symlinks.js';
 import { LanguageVariant } from './types.js';
 
 export class Program implements OutputPathsHost {
@@ -109,6 +111,7 @@ export class Program implements OutputPathsHost {
   private readonly emitBlockingPaths = new Set<string>();
   private commonSourceDirectoryValue: string | undefined = undefined;
   private packagesMap: Map<string, boolean> | undefined = undefined;
+  private symlinks: KnownSymlinks | undefined = undefined;
 
   constructor(
     readonly commandLine: ParsedCommandLine,
@@ -196,6 +199,84 @@ export class Program implements OutputPathsHost {
   /** The `package.json` lookups of module resolution. */
   packageJsonLookups(): PackageJsonInfo[] {
     return this.processed.resolver.packageJsonInfoCache.infos();
+  }
+
+  /** The typings cache of automatic type acquisition, or `''`. */
+  getGlobalTypingsCacheLocation(): string {
+    return this.processed.resolver.typingsLocation;
+  }
+
+  /** Files of the same package version that redirect to the file at `path`. */
+  getRedirectTargets(path: string): readonly string[] {
+    return this.processed.redirectTargets.get(path) ?? [];
+  }
+
+  /** The directory of the nearest `package.json` at or above `directory`, or `''`. */
+  getNearestAncestorDirectoryWithPackageJson(directory: string): string {
+    const scope = this.processed.resolver.getPackageScopeForPath(directory);
+    return scope !== undefined && scope.contents !== undefined ? scope.packageDirectory : '';
+  }
+
+  /** The `package.json` at `packageJsonPath`, if it exists and is the scope of its directory. */
+  getPackageJsonInfo(packageJsonPath: string): PackageJsonInfo | undefined {
+    const directory = getDirectoryPath(packageJsonPath);
+    const scope = this.processed.resolver.getPackageScopeForPath(directory);
+    return scope !== undefined && scope.contents !== undefined && scope.packageDirectory === directory
+      ? scope
+      : undefined;
+  }
+
+  /**
+   * Directory symlinks seen by module resolution, and those of the runtime dependencies of the
+   * packages that contain emitted files.
+   */
+  getSymlinkCache(): KnownSymlinks {
+    let symlinks = this.symlinks;
+    if (symlinks !== undefined) return symlinks;
+    symlinks = new KnownSymlinks(this.currentDirectory, this.useCaseSensitiveFileNames);
+    // Resolutions record the symlink path they were found through.
+    for (const resolutions of this.processed.resolvedModules.values())
+      if (resolutions !== undefined)
+        for (const resolved of resolutions.values())
+          symlinks.processResolution(resolved.originalPath, resolved.resolvedFileName);
+    for (const resolutions of this.processed.typeResolutionsInFile.values())
+      if (resolutions !== undefined)
+        for (const resolved of resolutions.values())
+          symlinks.processResolution(resolved.originalPath, resolved.resolvedFileName);
+    const seenPackageJsons = new Set<string>();
+    const resolver = this.processed.resolver;
+    for (const [path, metadata] of this.processed.sourceFileMetadata) {
+      const directory = metadata.packageJsonDirectory;
+      if (directory === '') continue;
+      const file = this.getSourceFileByPath(path);
+      if (file === undefined || !this.sourceFileMayBeEmitted(file, false)) continue;
+      const directoryPath = this.toPath(directory);
+      if (seenPackageJsons.has(directoryPath)) continue;
+      seenPackageJsons.add(directoryPath);
+      const packageJsonName = combinePaths(directory, 'package.json');
+      const contents = this.getPackageJsonInfo(packageJsonName)?.contents;
+      if (contents === undefined) continue;
+      for (const dependency of contents.getRuntimeDependencyNames()) {
+        // Usually the symlink next to the package.json is already known.
+        if (symlinks.hasDirectory(this.toPath(combinePaths(combinePaths(directory, 'node_modules'), dependency))))
+          continue;
+        if (
+          !dependency.startsWith('@types') &&
+          symlinks.hasDirectory(
+            this.toPath(combinePaths(combinePaths(directory, 'node_modules'), getTypesPackageName(dependency))),
+          )
+        )
+          continue;
+        const resolved = resolver.resolvePackageDirectory(dependency, packageJsonName, ModuleKind.CommonJS);
+        if (resolved !== undefined && resolved.resolvedFileName !== '')
+          symlinks.processResolution(
+            combinePaths(resolved.originalPath, 'package.json'),
+            combinePaths(resolved.resolvedFileName, 'package.json'),
+          );
+      }
+    }
+    this.symlinks = symlinks;
+    return symlinks;
   }
 
   sourceFileMetadata(path: string): SourceFileMetadata {

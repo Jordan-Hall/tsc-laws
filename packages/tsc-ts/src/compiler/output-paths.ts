@@ -122,6 +122,34 @@ export function getOutputJSFileName(inputFileName: string, options: CompilerOpti
   return '';
 }
 
+/** The JavaScript output of `inputFileName`, whatever the file kind and emit options. */
+export function getOutputJSFileNameWorker(
+  inputFileName: string,
+  options: CompilerOptions,
+  host: OutputPathsHost,
+): string {
+  return changeExtension(
+    getOutputPathWithoutChangingExtension(inputFileName, options.outDir ?? '', host),
+    getOutputExtension(inputFileName, options.jsx),
+  );
+}
+
+/** The declaration output of `inputFileName`. */
+export function getOutputDeclarationFileNameWorker(
+  inputFileName: string,
+  options: CompilerOptions,
+  host: OutputPathsHost,
+): string {
+  const directory =
+    options.declarationDir !== undefined && options.declarationDir !== ''
+      ? options.declarationDir
+      : (options.outDir ?? '');
+  return changeExtension(
+    getOutputPathWithoutChangingExtension(inputFileName, directory, host),
+    getDeclarationEmitExtensionForPath(inputFileName),
+  );
+}
+
 function getOutputPathWithoutChangingExtension(
   inputFileName: string,
   outputDirectory: string,

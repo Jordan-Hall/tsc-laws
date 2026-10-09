@@ -101,9 +101,10 @@ import type { FlowNode, FlowReduceLabel } from './flow.js';
 import { JsxState } from './checker-jsx.js';
 import type { DeferredIterationError, IterationTypes } from './checker-iteration.js';
 import type { SpreadIndices } from './checker-contextual.js';
-import type { SourceFileMetadata } from './program-utilities.js';
+import { SourceFileMetadata, getEmitModuleFormatOfFile } from './program-utilities.js';
 import type { GrammarChecker } from './checker-grammar.js';
 import type { ResolvedModule } from './module-resolution-types.js';
+import type { ModuleSpecifierHost } from './module-specifiers.js';
 
 /** What the checker needs from a program. */
 export abstract class CheckerHost {
@@ -152,6 +153,18 @@ export abstract class CheckerHost {
   }
   /** The `package.json` scope and implied module format of a file, if known. */
   getSourceFileMetadata(_file: SourceFile): SourceFileMetadata | undefined {
+    return undefined;
+  }
+  /** The module format `file` is emitted in. */
+  getEmitModuleFormatOfFile(file: SourceFile): ModuleKind {
+    return getEmitModuleFormatOfFile(
+      file.fileName,
+      this.getCompilerOptions(),
+      this.getSourceFileMetadata(file) ?? new SourceFileMetadata('', '', ModuleKind.None),
+    );
+  }
+  /** What module specifier generation needs; without it, specifiers are relative paths. */
+  getModuleSpecifierHost(): ModuleSpecifierHost | undefined {
     return undefined;
   }
 }
@@ -271,6 +284,10 @@ export class Checker {
 
   readonly diagnostics = new DiagnosticCollection();
   readonly suggestionDiagnostics = new DiagnosticCollection();
+  /** Module specifiers of `import("…")` types, by module symbol id, importing file path and resolution mode. */
+  readonly moduleSpecifiers = new Map<string, string>();
+  /** Specifier generation for hosts without a program. */
+  fallbackModuleSpecifierHost: ModuleSpecifierHost | undefined = undefined;
 
   // Links of symbols and nodes, keyed by object like tsgo's link stores. Object keys are faster
   // natively than ids.

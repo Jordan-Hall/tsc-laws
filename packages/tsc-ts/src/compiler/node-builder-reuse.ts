@@ -46,6 +46,7 @@ import {
 } from './ast.js';
 import { isFunctionLike, isInJSFile, isStringLiteralLike } from './ast-utilities.js';
 import {
+  getSourceFileOfNode,
   getThisContainer,
   hasDynamicName,
   isExportsIdentifier,
@@ -77,7 +78,9 @@ import { TokenFlags } from './types.js';
 import { getSymbolIfSameReference, isSymbolAccessible } from './symbol-accessibility.js';
 import { NodeBuilderFlags } from './transformers/declarations-resolver.js';
 import { BuilderTracker, type NodeBuilder, TrackedSymbol, canReuseExistingJSTypeNode } from './node-builder.js';
-import { symbolToTypeNode } from './node-builder-names.js';
+import { getSpecifierForModuleSymbol, lookupSymbolChain, symbolToTypeNode } from './node-builder-names.js';
+import { getExternalModuleFileFromDeclaration } from './checker-modules.js';
+import { getResolutionModeOverride } from './program-utilities.js';
 
 /** Errors and names tracked while reusing a node, replayed only if the reuse succeeds. */
 class RecoveryBoundary {
@@ -524,10 +527,19 @@ class ExistingNodeReuser extends VisitorBase {
         bound.markError(undefined);
         return node;
       }
+      const originalSpecifier = (node.argument as LiteralTypeNode).literal;
+      const specifier = getModuleSpecifierOverride(b, node, originalSpecifier);
+      let argument: Node;
+      if (specifier === '') argument = this.visitNode(node.argument)!;
+      else {
+        const literal = factory.createStringLiteral(specifier, TokenFlags.None);
+        b.context.setOriginal(literal, originalSpecifier);
+        argument = factory.created(new LiteralTypeNode(literal));
+      }
       return factory.updateImportTypeNode(
         node,
         node.isTypeOf,
-        this.visitNode(node.argument)!,
+        argument,
         node.attributes === undefined ? undefined : asImportAttributes(this.visitNode(node.attributes)),
         this.visitNode(node.qualifier),
         this.visitNodes(node.typeArguments),
@@ -665,6 +677,43 @@ function asToken(node: Node | undefined): Token | undefined {
 
 function isConstTypeReference(node: TypeReferenceNode): boolean {
   return node.typeName instanceof Identifier && node.typeName.text === 'const' && node.typeArguments === undefined;
+}
+
+/**
+ * The specifier an `import("…")` type copied from another file takes in the file being written,
+ * or `''` to keep it.
+ */
+function getModuleSpecifierOverride(b: NodeBuilder, parent: ImportTypeNode, literal: Node): string {
+  const c = b.c;
+  if (b.enclosingFile === getSourceFileOfNode(literal)) return '';
+  const mode = getResolutionModeOverride(parent.attributes);
+  const originalName = getText(literal);
+  let name = originalName;
+  getTypeFromTypeNode(c, parent);
+  const nodeSymbol = c.nodeLinks(parent).resolvedSymbol;
+  const meaning = parent.isTypeOf ? SymbolFlags.Value : SymbolFlags.Type;
+  const parentSymbol =
+    nodeSymbol !== undefined &&
+    isSymbolAccessible(c, nodeSymbol, b.enclosingDeclaration, meaning, false).accessibility ===
+      SymbolAccessibility.Accessible
+      ? lookupSymbolChain(b, nodeSymbol, meaning, true)[0]
+      : undefined;
+  if (parentSymbol !== undefined && isExternalModuleSymbol(parentSymbol))
+    name = getSpecifierForModuleSymbol(b, parentSymbol, mode);
+  else {
+    const targetFile = getExternalModuleFileFromDeclaration(c, parent);
+    if (targetFile !== undefined && targetFile.symbol !== undefined)
+      name = getSpecifierForModuleSymbol(b, targetFile.symbol, mode);
+  }
+  if (name.includes('/node_modules/')) {
+    b.encounteredError = true;
+    b.tracker.reportLikelyUnsafeImportRequiredError(name, '');
+  }
+  return name !== originalName ? name : '';
+}
+
+function isExternalModuleSymbol(symbol: Symbol): boolean {
+  return (symbol.flags & SymbolFlags.Module) !== 0 && symbol.name.startsWith('"');
 }
 
 function isLiteralImportType(node: ImportTypeNode): boolean {

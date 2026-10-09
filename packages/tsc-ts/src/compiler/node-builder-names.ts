@@ -5,6 +5,7 @@ import {
   ElementAccessExpression,
   ExpressionWithTypeArguments,
   Identifier,
+  ImportAttribute,
   ImportAttributes,
   ImportTypeNode,
   IndexedAccessTypeNode,
@@ -20,32 +21,42 @@ import {
   StringLiteral,
   TypeQueryNode,
   TypeReferenceNode,
+  getArguments,
   getExpression,
+  getInitializer,
+  getModuleSpecifier,
   getName,
+  getSymbol,
+  getText,
 } from './ast.js';
 import {
   declarationNameToString,
   getDeclarationOfKind,
   getNameOfDeclaration,
   getSourceFileOfNode,
+  isModuleAugmentationExternal,
 } from './binder-utilities.js';
-import { isAmbientModule } from './ast-utilities.js';
+import { getExternalModuleName, isAmbientModule, isGlobalScopeAugmentation, isRequireCall } from './ast-utilities.js';
+import { getSymbolAtLocation } from './checker-services.js';
 import { checkExpression } from './checker-expressions.js';
 import { getExportsOfSymbol, getMembersOfSymbol, isAmbientModuleSymbolName, resolveAlias } from './checker-symbols.js';
 import { compareSymbols } from './checker-type-factory.js';
 import { TypeFlags, type LiteralType, type Type } from './checker-types.js';
 import { isLateBoundName } from './checker-utilities.js';
-import {
-  getDirectoryPath,
-  getNormalizedAbsolutePath,
-  getRelativePathFromDirectory,
-  isExternalModuleNameRelative,
-  removeFileExtension,
-} from './path.js';
+import { isExternalModuleNameRelative, pathIsRelative } from './path.js';
 import type { Checker } from './checker.js';
-import { getAllowedEndingsInPreferredOrder, processEnding } from './module-specifier-endings.js';
-import { ModuleKind } from './options.js';
-import { getDefaultResolutionModeForFile } from './program-utilities.js';
+import type { ResolvedModule } from './module-resolution-types.js';
+import {
+  ModuleSpecifierHost,
+  ModuleSpecifierPreferences,
+  countPathComponents,
+  getModuleSpecifiersForFile,
+} from './module-specifiers.js';
+import { ModuleKind, ModuleResolutionKind, getModuleResolutionKind } from './options.js';
+import type { OutputPathsHost } from './output-paths.js';
+import type { PackageJsonInfo } from './package-json.js';
+import type { KnownSymlinks } from './symlinks.js';
+import { isExternalModuleAugmentation } from './transformers/declarations-syntactic.js';
 import { EmitFlags } from './printer/emit-flags.js';
 import { isIdentifierText } from './scanner.js';
 import {
@@ -70,7 +81,6 @@ import { SyntaxKind } from './syntax-kind.js';
 import { NodeBuilderFlags, NodeBuilderInternalFlags } from './transformers/declarations-resolver.js';
 import { TokenFlags } from './types.js';
 import { type NodeBuilder, classifyPropertyName, isNumericLiteralName } from './node-builder.js';
-import { getMergedSymbol } from './checker-symbols.js';
 
 // ---- Symbol chains
 
@@ -118,7 +128,11 @@ function getSymbolChain(
       const order: number[] = [];
       for (const p of parents) {
         order.push(specifiers.length);
-        specifiers.push(hasNonGlobalAugmentationExternalModuleDeclaration(p) ? getSpecifierForModuleSymbol(b, p) : '');
+        specifiers.push(
+          hasNonGlobalAugmentationExternalModuleDeclaration(p)
+            ? getSpecifierForModuleSymbol(b, p, ModuleKind.None)
+            : '',
+        );
       }
       order.sort((x, y) => compareByBestName(b, parents[x]!, specifiers[x]!, parents[y]!, specifiers[y]!) || x - y);
       for (const index of order) {
@@ -150,19 +164,12 @@ function getSymbolChain(
 
 function compareByBestName(b: NodeBuilder, a: Symbol, specifierA: string, other: Symbol, specifierB: string): number {
   if (specifierA.length > 0 && specifierB.length > 0) {
-    const isBRelative = isExternalModuleNameRelative(specifierB);
-    if (isExternalModuleNameRelative(specifierA) === isBRelative)
+    const isBRelative = pathIsRelative(specifierB);
+    if (pathIsRelative(specifierA) === isBRelative)
       return countPathComponents(specifierA) - countPathComponents(specifierB);
     return isBRelative ? -1 : 1;
   }
   return compareSymbols(b.c, a, other);
-}
-
-function countPathComponents(path: string): number {
-  let count = 0;
-  const start = path.startsWith('./') ? 2 : 0;
-  for (let i = start; i < path.length; i++) if (path.charCodeAt(i) === 0x2f) count++;
-  return count;
 }
 
 // ---- Type nodes
@@ -188,12 +195,42 @@ export function symbolToTypeNode(
     const nonRootParts =
       chain.length > 1 ? createAccessFromSymbolChain(b, chain, chain.length - 1, 1, typeArguments) : undefined;
     const typeParameterNodes = typeArguments ?? lookupTypeParameterNodes(b, chain, 0);
-    const specifier = getSpecifierForModuleSymbol(b, chain[0]!);
+    let specifier = '';
     let attributes: ImportAttributes | undefined = undefined;
+    const c = b.c;
+    const resolution = getModuleResolutionKind(c.compilerOptions);
+    const nodeNext = resolution === ModuleResolutionKind.Node16 || resolution === ModuleResolutionKind.NodeNext;
+    const contextFile =
+      b.enclosingDeclaration === undefined
+        ? undefined
+        : getSourceFileOfNode(b.context.mostOriginal(b.enclosingDeclaration));
+    if (nodeNext) {
+      // An `import` type of an ES module from a file of another format resolves only in ESM mode.
+      const targetFile = getSourceFileOfModule(chain[0]!);
+      if (targetFile !== undefined && contextFile !== undefined) {
+        const targetFormat = c.host.getEmitModuleFormatOfFile(targetFile);
+        if (targetFormat === ModuleKind.ESNext && targetFormat !== c.host.getEmitModuleFormatOfFile(contextFile)) {
+          specifier = getSpecifierForModuleSymbol(b, chain[0]!, ModuleKind.ESNext);
+          attributes = resolutionModeAttributes(b, 'import');
+        }
+      }
+    }
+    if (specifier === '') specifier = getSpecifierForModuleSymbol(b, chain[0]!, ModuleKind.None);
     if ((b.flags & NodeBuilderFlags.AllowNodeModulesRelativePaths) === 0 && specifier.includes('/node_modules/')) {
-      // A reference into `node_modules` is likely to break when published.
-      b.encounteredError = true;
-      b.tracker.reportLikelyUnsafeImportRequiredError(specifier, symbol.name);
+      const oldSpecifier = specifier;
+      if (nodeNext && contextFile !== undefined) {
+        // The other mode may reach the module portably.
+        const swappedMode =
+          c.host.getEmitModuleFormatOfFile(contextFile) === ModuleKind.ESNext ? ModuleKind.CommonJS : ModuleKind.ESNext;
+        specifier = getSpecifierForModuleSymbol(b, chain[0]!, swappedMode);
+        if (specifier.includes('/node_modules/')) specifier = oldSpecifier;
+        else attributes = resolutionModeAttributes(b, swappedMode === ModuleKind.ESNext ? 'import' : 'require');
+      }
+      if (attributes === undefined) {
+        // A reference into `node_modules` is likely to break when published.
+        b.encounteredError = true;
+        b.tracker.reportLikelyUnsafeImportRequiredError(oldSpecifier, symbol.name);
+      }
     }
     const literal = b.created(new LiteralTypeNode(b.stringLiteral(specifier, false)));
     b.approximateLength += specifier.length + 10;
@@ -201,7 +238,6 @@ export function symbolToTypeNode(
       return b.created(new ImportTypeNode(isTypeOf, literal, attributes, nonRootParts, typeParameterNodes));
     const splitNode = getTopmostIndexedAccessType(nonRootParts as IndexedAccessTypeNode);
     const qualifier = (splitNode.objectType as TypeReferenceNode).typeName;
-    attributes = undefined;
     return b.created(
       new IndexedAccessTypeNode(
         b.created(new ImportTypeNode(isTypeOf, literal, attributes, qualifier, typeParameterNodes)),
@@ -223,6 +259,14 @@ export function symbolToTypeNode(
 
 function isEntityName(node: Node): boolean {
   return node.kind === SyntaxKind.Identifier || node.kind === SyntaxKind.QualifiedName;
+}
+
+/** `with { "resolution-mode": "import" }` or `"require"`. */
+function resolutionModeAttributes(b: NodeBuilder, mode: string): ImportAttributes {
+  const attribute = b.created(
+    new ImportAttribute(b.stringLiteral('resolution-mode', false), b.stringLiteral(mode, false)),
+  );
+  return b.created(new ImportAttributes(SyntaxKind.WithKeyword, b.list([attribute]), false));
 }
 
 function getTopmostIndexedAccessType(node: IndexedAccessTypeNode): IndexedAccessTypeNode {
@@ -447,7 +491,7 @@ function createExpressionFromSymbolChain(b: NodeBuilder, chain: Symbol[], index:
   let symbolName = getNameOfSymbolAsWritten(b, symbol);
   if (index === 0) b.flags ^= NodeBuilderFlags.InInitialEntityName;
   if (startsWithQuote(symbolName) && hasNonGlobalAugmentationExternalModuleDeclaration(symbol)) {
-    const specifier = getSpecifierForModuleSymbol(b, symbol);
+    const specifier = getSpecifierForModuleSymbol(b, symbol, ModuleKind.None);
     b.approximateLength += 2 + specifier.length;
     return b.stringLiteral(specifier, false);
   }
@@ -755,13 +799,15 @@ function getPropertyNameNodeForSymbolFromNameType(
 
 /**
  * The specifier an `import("…")` type names a module with: an ambient module's name, the file
- * name without an enclosing file, else a path relative to the enclosing file.
+ * name without an enclosing file, else what module specifier generation gives for the enclosing
+ * file. `overrideImportMode` is `None` for the mode of the enclosing import or file.
  */
-export function getSpecifierForModuleSymbol(b: NodeBuilder, symbol: Symbol): string {
+export function getSpecifierForModuleSymbol(b: NodeBuilder, symbol: Symbol, overrideImportMode: ModuleKind): string {
+  const c = b.c;
   let file = asSourceFile(getDeclarationOfKind(symbol, SyntaxKind.SourceFile));
   if (file === undefined)
     for (const d of symbol.declarations) {
-      const equivalent = getFileSymbolIfFileSymbolExportEqualsContainer(b.c, d, symbol);
+      const equivalent = getFileSymbolIfFileSymbolExportEqualsContainer(c, d, symbol);
       if (equivalent !== undefined) {
         file = asSourceFile(getDeclarationOfKind(equivalent, SyntaxKind.SourceFile));
         break;
@@ -769,46 +815,235 @@ export function getSpecifierForModuleSymbol(b: NodeBuilder, symbol: Symbol): str
     }
   if (file === undefined && isAmbientModuleSymbolName(symbol.name))
     return symbol.name.substring(1, symbol.name.length - 1);
-  const moduleFile = file ?? getSourceFileOfModule(symbol);
-  if (b.enclosingFile === undefined) {
+  const contextFile = b.enclosingFile;
+  if (contextFile === undefined) {
     if (isAmbientModuleSymbolName(symbol.name)) return symbol.name.substring(1, symbol.name.length - 1);
+    const moduleFile = getSourceFileOfModule(symbol);
     return moduleFile === undefined ? '' : moduleFile.fileName;
   }
-  if (moduleFile === undefined) return '';
-  const key = getSymbolId(getMergedSymbol(b.c, symbol)) + ':' + b.enclosingFile.path;
-  const cached = b.specifierCache.get(key);
+  const enclosingDeclaration =
+    b.enclosingDeclaration === undefined ? undefined : b.context.mostOriginal(b.enclosingDeclaration);
+  const originalModuleSpecifier =
+    enclosingDeclaration !== undefined && canHaveModuleSpecifier(enclosingDeclaration)
+      ? tryGetModuleSpecifierFromDeclaration(enclosingDeclaration)
+      : undefined;
+  let resolutionMode = overrideImportMode;
+  if (resolutionMode === ModuleKind.None)
+    resolutionMode =
+      originalModuleSpecifier !== undefined
+        ? c.host.getModeForUsageLocation(contextFile, originalModuleSpecifier)
+        : c.host.getDefaultResolutionModeForFile(contextFile);
+  const key = getSymbolId(symbol) + '|' + contextFile.path + '|' + resolutionMode;
+  const cached = c.moduleSpecifiers.get(key);
   if (cached !== undefined) return cached;
-  const c = b.c;
-  const options = c.compilerOptions;
-  const metadata = c.host.getSourceFileMetadata(b.enclosingFile);
-  const mode =
-    metadata === undefined
-      ? ModuleKind.None
-      : getDefaultResolutionModeForFile(b.enclosingFile.fileName, metadata, options);
-  // Declaration emit prefers `.js` extensions in ES modules.
-  const allowedEndings = getAllowedEndingsInPreferredOrder(
-    mode === ModuleKind.ESNext,
-    options,
-    b.enclosingFile,
-    mode,
-    mode,
+  // Declaration emit prefers project-relative specifiers, with `.js` extensions in ES modules.
+  const preferences = new ModuleSpecifierPreferences(
+    'project-relative',
+    resolutionMode === ModuleKind.ESNext ? 'js' : '',
   );
-  let relative = getRelativePathFromDirectory(getDirectoryPath(b.enclosingFile.fileName), moduleFile.fileName, true);
-  if (!relative.startsWith('.')) relative = './' + relative;
-  const specifier = processEnding(relative, allowedEndings, options, (path) =>
-    isProgramFile(c, getNormalizedAbsolutePath(path, getDirectoryPath(b.enclosingFile!.fileName))),
-  );
-  b.specifierCache.set(key, specifier);
+  const specifiers = getModuleSpecifiers(c, symbol, contextFile, preferences, overrideImportMode);
+  const specifier = specifiers.length > 0 ? specifiers[0]! : '';
+  c.moduleSpecifiers.set(key, specifier);
   return specifier;
 }
 
-/** Whether a file of the program has the path `withoutExtension` with some extension. */
-function isProgramFile(c: Checker, withoutExtension: string): boolean {
-  for (const file of c.files) {
-    const name = file.fileName;
-    if (name.startsWith(withoutExtension + '.') && removeFileExtension(name) === withoutExtension) return true;
+/** Specifiers `importingFile` can import the module `moduleSymbol` with, best first. */
+export function getModuleSpecifiers(
+  c: Checker,
+  moduleSymbol: Symbol,
+  importingFile: SourceFile,
+  preferences: ModuleSpecifierPreferences,
+  overrideImportMode: ModuleKind,
+): string[] {
+  const ambient = tryGetModuleNameFromAmbientModule(c, moduleSymbol);
+  if (ambient !== '') return [ambient];
+  const moduleFile = getSourceFileOfModule(moduleSymbol);
+  if (moduleFile === undefined) return [];
+  const host = getModuleSpecifierHost(c);
+  // A referenced project's declaration output is named by its source.
+  return getModuleSpecifiersForFile(
+    importingFile,
+    host.getSourceOfProjectReferenceIfOutputIncluded(moduleFile),
+    c.compilerOptions,
+    host,
+    preferences,
+    overrideImportMode,
+    false,
+  );
+}
+
+function getModuleSpecifierHost(c: Checker): ModuleSpecifierHost {
+  let host = c.host.getModuleSpecifierHost();
+  if (host === undefined) {
+    host = c.fallbackModuleSpecifierHost;
+    if (host === undefined) {
+      host = new CheckerModuleSpecifierHost(c);
+      c.fallbackModuleSpecifierHost = host;
+    }
+  }
+  return host;
+}
+
+/** The name of an ambient module declaring `moduleSymbol`, or of the one whose `export =` it is, else `''`. */
+function tryGetModuleNameFromAmbientModule(c: Checker, moduleSymbol: Symbol): string {
+  for (const d of moduleSymbol.declarations) {
+    const name = isModuleWithStringLiteralName(d) ? getName(d)! : undefined;
+    if (name !== undefined && (!isModuleAugmentationExternal(d) || !isExternalModuleNameRelative(getText(name))))
+      return getText(name);
+  }
+  // A namespace exported with `export =` from an ambient module: `import { c } from "m"` names
+  // `ns.c` for `declare module "m" { namespace ns { class c {} } export = ns; }`.
+  for (const d of moduleSymbol.declarations) {
+    if (d.kind !== SyntaxKind.ModuleDeclaration) continue;
+    let container: Node | undefined = d;
+    while (container !== undefined && !isModuleWithStringLiteralName(container)) container = container.parent;
+    if (container === undefined || container.parent === undefined || container.parent.kind !== SyntaxKind.SourceFile)
+      continue;
+    const exportEquals = getSymbol(container)?.exports?.get(InternalSymbolName.ExportEquals);
+    const assignment = exportEquals?.valueDeclaration;
+    if (assignment === undefined || assignment.kind !== SyntaxKind.ExportAssignment) continue;
+    let exported = getSymbolAtLocation(c, getExpression(assignment)!);
+    if (exported === undefined) continue;
+    if ((exported.flags & SymbolFlags.Alias) !== 0) exported = resolveAlias(c, exported);
+    if (exported === getSymbol(d)) return getText(getName(container)!);
+  }
+  return '';
+}
+
+function isModuleWithStringLiteralName(node: Node): boolean {
+  return node.kind === SyntaxKind.ModuleDeclaration && getName(node)?.kind === SyntaxKind.StringLiteral;
+}
+
+function canHaveModuleSpecifier(node: Node): boolean {
+  switch (node.kind) {
+    case SyntaxKind.VariableDeclaration:
+    case SyntaxKind.BindingElement:
+    case SyntaxKind.ImportDeclaration:
+    case SyntaxKind.ExportDeclaration:
+    case SyntaxKind.ImportEqualsDeclaration:
+    case SyntaxKind.ImportClause:
+    case SyntaxKind.NamespaceExport:
+    case SyntaxKind.NamespaceImport:
+    case SyntaxKind.ExportSpecifier:
+    case SyntaxKind.ImportSpecifier:
+    case SyntaxKind.ImportType:
+      return true;
   }
   return false;
+}
+
+/** The string literal module specifier of an import, export, `require` or `import("…")` type declaration. */
+function tryGetModuleSpecifierFromDeclaration(node: Node): Node | undefined {
+  let specifier: Node | undefined;
+  switch (node.kind) {
+    case SyntaxKind.VariableDeclaration:
+    case SyntaxKind.BindingElement: {
+      let call = getInitializer(node);
+      while (call !== undefined && !isRequireCall(call, true)) call = call.parent;
+      specifier = call === undefined ? undefined : getArguments(call)!.nodes[0];
+      break;
+    }
+    case SyntaxKind.ImportDeclaration:
+    case SyntaxKind.ExportDeclaration:
+      specifier = getModuleSpecifier(node);
+      break;
+    case SyntaxKind.ImportEqualsDeclaration:
+      specifier = getExternalModuleName(node);
+      break;
+    case SyntaxKind.ImportClause:
+    case SyntaxKind.NamespaceExport:
+      specifier = getModuleSpecifier(node.parent!);
+      break;
+    case SyntaxKind.NamespaceImport:
+    case SyntaxKind.ExportSpecifier:
+      specifier = getModuleSpecifier(node.parent!.parent!);
+      break;
+    case SyntaxKind.ImportSpecifier:
+      specifier = getModuleSpecifier(node.parent!.parent!.parent!);
+      break;
+    case SyntaxKind.ImportType: {
+      const argument = (node as ImportTypeNode).argument;
+      specifier = argument instanceof LiteralTypeNode ? (argument as LiteralTypeNode).literal : undefined;
+      break;
+    }
+  }
+  return specifier !== undefined && specifier.kind === SyntaxKind.StringLiteral ? specifier : undefined;
+}
+
+/**
+ * Specifier generation without a program, as the checker of single files uses: relative paths
+ * between the checker's files.
+ */
+class CheckerModuleSpecifierHost extends ModuleSpecifierHost {
+  constructor(readonly c: Checker) {
+    super();
+  }
+
+  getCurrentDirectory(): string {
+    return '';
+  }
+
+  useCaseSensitiveFileNames(): boolean {
+    return true;
+  }
+
+  getSymlinkCache(): KnownSymlinks | undefined {
+    return undefined;
+  }
+
+  getGlobalTypingsCacheLocation(): string {
+    return '';
+  }
+
+  getProjectReferenceOutputDts(_path: string): string {
+    return '';
+  }
+
+  getRedirectTargets(_path: string): readonly string[] {
+    return [];
+  }
+
+  getSourceOfProjectReferenceIfOutputIncluded(file: SourceFile): string {
+    return file.fileName;
+  }
+
+  fileExists(path: string): boolean {
+    for (const file of this.c.files) if (file.fileName === path) return true;
+    return false;
+  }
+
+  getNearestAncestorDirectoryWithPackageJson(_directory: string): string {
+    return '';
+  }
+
+  getPackageJsonInfo(_packageJsonPath: string): PackageJsonInfo | undefined {
+    return undefined;
+  }
+
+  getDefaultResolutionModeForFile(file: SourceFile): ModuleKind {
+    return this.c.host.getDefaultResolutionModeForFile(file);
+  }
+
+  getResolvedModuleFromModuleSpecifier(_file: SourceFile, _specifier: Node): ResolvedModule | undefined {
+    return undefined;
+  }
+
+  getModeForUsageLocation(file: SourceFile, specifier: Node): ModuleKind {
+    return this.c.host.getModeForUsageLocation(file, specifier);
+  }
+
+  getOutputPathsHost(): OutputPathsHost {
+    return new FallbackOutputPathsHost();
+  }
+}
+
+class FallbackOutputPathsHost implements OutputPathsHost {
+  readonly currentDirectory = '';
+  readonly useCaseSensitiveFileNames = true;
+
+  commonSourceDirectory(): string {
+    return '';
+  }
 }
 
 function asSourceFile(node: Node | undefined): SourceFile | undefined {
@@ -817,7 +1052,14 @@ function asSourceFile(node: Node | undefined): SourceFile | undefined {
   return undefined;
 }
 
+/** The file of a module: its value declaration's, else that of a declaration that isn't an augmentation. */
 function getSourceFileOfModule(symbol: Symbol): SourceFile | undefined {
-  const d = symbol.valueDeclaration ?? (symbol.declarations.length > 0 ? symbol.declarations[0]! : undefined);
+  let d = symbol.valueDeclaration;
+  if (d === undefined)
+    for (const declaration of symbol.declarations)
+      if (!isExternalModuleAugmentation(declaration) && !isGlobalScopeAugmentation(declaration)) {
+        d = declaration;
+        break;
+      }
   return d === undefined ? undefined : getSourceFileOfNode(d);
 }

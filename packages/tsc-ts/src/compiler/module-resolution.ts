@@ -148,17 +148,17 @@ function unresolved(): Resolved {
 }
 
 /** A `paths` or `typesVersions` pattern: `text` with an optional `*` at `starIndex`. */
-interface Pattern {
+export interface Pattern {
   readonly text: string;
   readonly starIndex: number;
 }
 
-interface ParsedPatterns {
+export interface ParsedPatterns {
   readonly exact: ReadonlySet<string>;
   readonly patterns: readonly Pattern[];
 }
 
-function parsePatterns(paths: ReadonlyMap<string, readonly string[] | undefined>): ParsedPatterns {
+export function parsePatterns(paths: ReadonlyMap<string, readonly string[] | undefined>): ParsedPatterns {
   const exact = new Set<string>();
   const patterns: Pattern[] = [];
   for (const key of paths.keys()) {
@@ -178,7 +178,7 @@ function patternMatches(pattern: Pattern, candidate: string): boolean {
 }
 
 /** The exact key equal to `candidate`, else the matching pattern with the longest prefix. */
-function matchPatternOrExact(parsed: ParsedPatterns, candidate: string): Pattern | undefined {
+export function matchPatternOrExact(parsed: ParsedPatterns, candidate: string): Pattern | undefined {
   if (parsed.exact.has(candidate)) return { text: candidate, starIndex: -1 };
   let best: Pattern | undefined;
   let longestPrefix = -1;
