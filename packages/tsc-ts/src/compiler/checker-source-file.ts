@@ -597,6 +597,8 @@ export class TypeNodeVisitor extends NodeVisitor {
   }
 
   visitNode(node: Node): boolean {
+    // Type members and their parameters are source elements in tsgo, whose JSDoc links count as uses.
+    checkJSDocLinksOfNode(this.c, node);
     switch (node.kind) {
       case SyntaxKind.Identifier:
       case SyntaxKind.QualifiedName:

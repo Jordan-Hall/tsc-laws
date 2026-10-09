@@ -49,10 +49,6 @@ class CheckHost extends CheckerHost {
     return this.libs.has(file);
   }
 
-  getSourceFileForModuleName(_file: SourceFile, _moduleName: string): SourceFile | undefined {
-    return undefined;
-  }
-
   getJSXRuntimeImportSpecifier(_file: SourceFile): Node | undefined {
     return undefined;
   }

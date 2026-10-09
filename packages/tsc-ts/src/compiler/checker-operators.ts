@@ -11,8 +11,6 @@ import {
   NodeFlags,
   NodeVisitor,
   getExpression,
-  getName,
-  getSymbol,
   getText,
 } from './ast.js';
 import {
@@ -87,7 +85,6 @@ import { getPropertyNameFromType, isTypeUsableAsPropertyName, maybeTypeOfKind } 
 import { getAwaitedTypeNoAlias, getAwaitedTypeOfPromise } from './checker-iteration.js';
 import {
   checkExpression,
-  checkExpressionCached,
   checkExpressionEx,
   checkNonNullType,
   checkPropertyAccessExpression,
@@ -100,6 +97,7 @@ import { checkDestructuringAssignment } from './checker-destructuring.js';
 import { EvaluatedKind, evaluate } from './checker-evaluator.js';
 import { reportNonexistentProperty } from './checker-property-access.js';
 import { isUndefinedAssignmentToCommonJSExport } from './checker-javascript.js';
+import { getSymbolAtLocationWorker } from './checker-services.js';
 
 // ---- Unary operators
 
@@ -1210,7 +1208,7 @@ function checkTestingKnownTruthyTypeWorker(c: Checker, condExpr: Node, condType:
   if (location.kind === SyntaxKind.Identifier) testedNode = location;
   else if (location.kind === SyntaxKind.PropertyAccessExpression)
     testedNode = (location as PropertyAccessExpression).name;
-  const testedSymbol = testedNode !== undefined ? getSymbolOfReferenceName(c, testedNode) : undefined;
+  const testedSymbol = testedNode !== undefined ? getSymbolAtLocationWorker(c, testedNode, false) : undefined;
   if (testedSymbol === undefined && !isPromise) return;
   const isUsed =
     testedSymbol !== undefined &&
@@ -1238,31 +1236,6 @@ function isTypeAssertion(node: Node): boolean {
   return n.kind === SyntaxKind.TypeAssertionExpression || n.kind === SyntaxKind.AsExpression;
 }
 
-/**
- * The symbol a name refers to, from what checking has resolved: the variable for a name, the
- * property for the name of a property access, the declared symbol for a declaration name.
- */
-function getSymbolOfReferenceName(c: Checker, node: Node): Symbol | undefined {
-  if (node.kind !== SyntaxKind.Identifier) return undefined;
-  const parent = node.parent!;
-  if (parent.kind === SyntaxKind.PropertyAccessExpression && (parent as PropertyAccessExpression).name === node) {
-    if (c.nodeLinks(parent).resolvedSymbol === undefined) checkExpressionCached(c, parent);
-    return c.nodeLinks(parent).resolvedSymbol;
-  }
-  switch (parent.kind) {
-    case SyntaxKind.VariableDeclaration:
-    case SyntaxKind.Parameter:
-    case SyntaxKind.BindingElement:
-    case SyntaxKind.FunctionDeclaration:
-    case SyntaxKind.PropertyAssignment:
-    case SyntaxKind.PropertyDeclaration:
-    case SyntaxKind.MethodDeclaration:
-      if (getName(parent) === node) return getSymbol(parent);
-  }
-  const symbol = getResolvedSymbol(c, node);
-  return symbol === c.unknownSymbol ? undefined : symbol;
-}
-
 function isSymbolUsedInBinaryExpressionChain(c: Checker, nodeIn: Node, testedSymbol: Symbol): boolean {
   let node = nodeIn;
   while (
@@ -1287,7 +1260,8 @@ class SymbolUseFinder extends NodeVisitor {
   }
 
   visitNode(node: Node): boolean {
-    if (node.kind === SyntaxKind.Identifier && getSymbolOfReferenceName(this.c, node) === this.symbol) return true;
+    if (node.kind === SyntaxKind.Identifier && getSymbolAtLocationWorker(this.c, node, false) === this.symbol)
+      return true;
     return node.forEachChild(this);
   }
 }
@@ -1318,7 +1292,7 @@ class ConditionBodyUseFinder extends NodeVisitor {
   }
 
   visitNode(node: Node): boolean {
-    if (node.kind === SyntaxKind.Identifier && getSymbolOfReferenceName(this.c, node) === this.testedSymbol) {
+    if (node.kind === SyntaxKind.Identifier && getSymbolAtLocationWorker(this.c, node, false) === this.testedSymbol) {
       // A simple identifier test needs no target comparison.
       if (
         this.expr.kind === SyntaxKind.Identifier ||
@@ -1329,12 +1303,12 @@ class ConditionBodyUseFinder extends NodeVisitor {
       let child: Node | undefined = node.parent;
       while (tested !== undefined && child !== undefined) {
         if (tested.kind === SyntaxKind.Identifier && child.kind === SyntaxKind.Identifier)
-          return getSymbolOfReferenceName(this.c, tested) === getSymbolOfReferenceName(this.c, child);
+          return getSymbolAtLocationWorker(this.c, tested, false) === getSymbolAtLocationWorker(this.c, child, false);
         if (tested.kind === SyntaxKind.ThisKeyword && child.kind === SyntaxKind.ThisKeyword) return true;
         if (tested.kind === SyntaxKind.PropertyAccessExpression && child.kind === SyntaxKind.PropertyAccessExpression) {
           if (
-            getSymbolOfReferenceName(this.c, (tested as PropertyAccessExpression).name) !==
-            getSymbolOfReferenceName(this.c, (child as PropertyAccessExpression).name)
+            getSymbolAtLocationWorker(this.c, (tested as PropertyAccessExpression).name, false) !==
+            getSymbolAtLocationWorker(this.c, (child as PropertyAccessExpression).name, false)
           )
             return false;
           child = getExpression(child);

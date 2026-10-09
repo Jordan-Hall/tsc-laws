@@ -103,6 +103,7 @@ import type { DeferredIterationError, IterationTypes } from './checker-iteration
 import type { SpreadIndices } from './checker-contextual.js';
 import type { SourceFileMetadata } from './program-utilities.js';
 import type { GrammarChecker } from './checker-grammar.js';
+import type { ResolvedModule } from './module-resolution-types.js';
 
 /** What the checker needs from a program. */
 export abstract class CheckerHost {
@@ -110,8 +111,33 @@ export abstract class CheckerHost {
   /** Every file of the program, libraries first, in program order. */
   abstract getSourceFiles(): readonly SourceFile[];
   abstract isSourceFileDefaultLibrary(file: SourceFile): boolean;
-  /** The source file of a resolved module specifier, if any. */
-  abstract getSourceFileForModuleName(file: SourceFile, moduleName: string): SourceFile | undefined;
+  /** How a module name in `file` resolved in `mode`, if the program resolved it. */
+  getResolvedModule(_file: SourceFile, _moduleName: string, _mode: ModuleKind): ResolvedModule | undefined {
+    return undefined;
+  }
+  /** The program file for a resolved file name, following project reference redirects. */
+  getSourceFileForResolvedModule(_fileName: string): SourceFile | undefined {
+    return undefined;
+  }
+  /** The resolution mode of the module specifier `location` in `file`. */
+  getModeForUsageLocation(_file: SourceFile, _location: Node): ModuleKind {
+    return ModuleKind.None;
+  }
+  /** The resolution mode of module names in `file` without a specifier of their own. */
+  getDefaultResolutionModeForFile(_file: SourceFile): ModuleKind {
+    return ModuleKind.None;
+  }
+  /** Packages that modules resolved into, by name: whether any of their resolutions was a declaration file. */
+  getPackagesMap(): ReadonlyMap<string, boolean> {
+    return new Map<string, boolean>();
+  }
+  /** The declaration output of a referenced project's source file, or `''`. */
+  getProjectReferenceOutputDts(_fileName: string): string {
+    return '';
+  }
+  fileExists(_path: string): boolean {
+    return false;
+  }
   /** The synthetic specifier of a file's implicit JSX runtime import, such as `react/jsx-runtime`, if any. */
   getJSXRuntimeImportSpecifier(_file: SourceFile): Node | undefined {
     return undefined;

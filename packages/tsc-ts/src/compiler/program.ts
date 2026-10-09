@@ -78,6 +78,7 @@ import {
   toPath,
 } from './path.js';
 import {
+  getDefaultResolutionModeForFile,
   getImpliedNodeFormatForEmit,
   getModeForUsageLocation,
   isCheckJsEnabledForFile,
@@ -107,6 +108,7 @@ export class Program implements OutputPathsHost {
   private readonly programDiagnosticsList: Diagnostic[] = [];
   private readonly emitBlockingPaths = new Set<string>();
   private commonSourceDirectoryValue: string | undefined = undefined;
+  private packagesMap: Map<string, boolean> | undefined = undefined;
 
   constructor(
     readonly commandLine: ParsedCommandLine,
@@ -243,26 +245,41 @@ export class Program implements OutputPathsHost {
     );
   }
 
-  getResolvedModule(file: SourceFile, moduleName: string, mode: ModuleKind): ResolvedModule | undefined {
-    return this.processed.resolvedModules.get(file.path)?.get(modeAwareKey(moduleName, mode));
+  getDefaultResolutionModeForFile(file: SourceFile): ModuleKind {
+    return getDefaultResolutionModeForFile(
+      file.fileName,
+      this.sourceFileMetadata(file.path),
+      this.getCompilerOptionsForFile(file),
+    );
   }
 
-  /** The program file a module name in `file` resolved to, in any resolution mode. */
-  getSourceFileForModuleName(file: SourceFile, moduleName: string): SourceFile | undefined {
-    const resolutions = this.processed.resolvedModules.get(file.path);
-    if (resolutions === undefined) return undefined;
-    const suffix = '|' + moduleName;
-    for (const [key, resolved] of resolutions) {
-      if (!key.endsWith(suffix) || key.indexOf('|') !== key.length - suffix.length) continue;
-      if (resolved.resolvedFileName === '') continue;
-      const target = this.getSourceFile(resolved.resolvedFileName);
-      if (target !== undefined) return target;
-      const redirect = this.processed.projectReferenceMapper.getParseFileRedirect(
-        this.toPath(resolved.resolvedFileName),
-      );
-      if (redirect !== '') return this.getSourceFile(redirect);
+  /** The program file for a resolved file name, or the source file a referenced project's output redirects to. */
+  getSourceFileForResolvedModule(fileName: string): SourceFile | undefined {
+    const file = this.getSourceFile(fileName);
+    if (file !== undefined) return file;
+    const redirect = this.getParseFileRedirect(fileName);
+    return redirect !== '' ? this.getSourceFile(redirect) : undefined;
+  }
+
+  /** Packages that modules resolved into, by name: whether any resolution into them was a declaration file. */
+  getPackagesMap(): ReadonlyMap<string, boolean> {
+    let map = this.packagesMap;
+    if (map === undefined) {
+      map = new Map<string, boolean>();
+      for (const resolutions of this.processed.resolvedModules.values()) {
+        if (resolutions === undefined) continue;
+        for (const resolved of resolutions.values()) {
+          const name = resolved.packageId?.name ?? '';
+          if (name !== '') map.set(name, map.get(name) === true || resolved.extension === '.d.ts');
+        }
+      }
+      this.packagesMap = map;
     }
-    return undefined;
+    return map;
+  }
+
+  getResolvedModule(file: SourceFile, moduleName: string, mode: ModuleKind): ResolvedModule | undefined {
+    return this.processed.resolvedModules.get(file.path)?.get(modeAwareKey(moduleName, mode));
   }
 
   /** The specifier of the implicit JSX runtime import of `file`, if any. */

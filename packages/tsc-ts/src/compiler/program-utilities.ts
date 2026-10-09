@@ -315,7 +315,7 @@ function literalText(node: Node): string {
 }
 
 /** The `resolution-mode` of `import type` attributes, or `None`. */
-function getResolutionModeOverride(attributes: ImportAttributes | undefined): ModuleKind {
+export function getResolutionModeOverride(attributes: ImportAttributes | undefined): ModuleKind {
   if (attributes === undefined) return ModuleKind.None;
   const elements = attributes.attributes.nodes;
   if (elements.length !== 1) return ModuleKind.None;

@@ -23,7 +23,6 @@ import {
   getDotDotDotToken,
   getElements,
   getExpression,
-  getIsTypeOnly,
   getLocals,
   getMembers,
   getName,
@@ -33,7 +32,12 @@ import {
   getText,
   getTypeParameters,
 } from './ast.js';
-import { isAmbientModule, isAssignmentOperator, isGlobalScopeAugmentation } from './ast-utilities.js';
+import {
+  isAmbientModule,
+  isAssignmentOperator,
+  isGlobalScopeAugmentation,
+  isTypeDeclaration,
+} from './ast-utilities.js';
 import {
   getCombinedNodeFlags,
   getModifierFlags,
@@ -444,24 +448,6 @@ function reportUnusedLocal(c: Checker, node: Node, name: string): void {
     ? Diagnostics.X_0_is_declared_but_never_used
     : Diagnostics.X_0_is_declared_but_its_value_is_never_read;
   reportUnused(c, node, UnusedKind.Local, createDiagnosticForNode(getName(node) ?? node, message, [name]));
-}
-
-function isTypeDeclaration(node: Node): boolean {
-  switch (node.kind) {
-    case SyntaxKind.TypeParameter:
-    case SyntaxKind.ClassDeclaration:
-    case SyntaxKind.InterfaceDeclaration:
-    case SyntaxKind.TypeAliasDeclaration:
-    case SyntaxKind.JSTypeAliasDeclaration:
-    case SyntaxKind.EnumDeclaration:
-      return true;
-    case SyntaxKind.ImportClause:
-      return getIsTypeOnly(node);
-    case SyntaxKind.ImportSpecifier:
-    case SyntaxKind.ExportSpecifier:
-      return getIsTypeOnly(node.parent!.parent!);
-  }
-  return false;
 }
 
 function reportUnusedVariables(c: Checker, node: Node, declarations: readonly Node[]): void {

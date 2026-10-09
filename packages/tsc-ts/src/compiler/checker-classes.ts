@@ -654,6 +654,7 @@ export function checkInterfaceDeclaration(c: Checker, node: Node): void {
   checkInterfaceHeritage(c, node);
   if (decl.heritageClauses !== undefined) checkHeritageClauses(c, decl.heritageClauses.nodes, false);
   for (const member of decl.members.nodes) {
+    checkJSDocLinksOfNode(c, member);
     if (member.kind === SyntaxKind.PropertySignature) checkVariableLikeDeclaration(c, member);
     else checkTypeNodeIfPresent(c, member);
   }

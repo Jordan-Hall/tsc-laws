@@ -14,11 +14,11 @@ import {
   type TaggedTemplateExpression,
   type TypeReferenceNode,
   getExpression,
-  getIsTypeOnly,
   getName,
   getTagName,
   getText,
 } from './ast.js';
+import { isTypeDeclaration } from './ast-utilities.js';
 import { isAccessExpression, getCombinedNodeFlags, getSourceFileOfNode, skipParentheses } from './binder-utilities.js';
 import { type Checker, createDiagnosticForNode } from './checker.js';
 import { type Signature, SignatureFlags, type Type } from './checker-types.js';
@@ -340,24 +340,6 @@ export function checkDeprecatedTypeReference(c: Checker, node: Node, type: Type)
       return;
     }
   }
-}
-
-function isTypeDeclaration(node: Node): boolean {
-  switch (node.kind) {
-    case SyntaxKind.TypeParameter:
-    case SyntaxKind.ClassDeclaration:
-    case SyntaxKind.InterfaceDeclaration:
-    case SyntaxKind.TypeAliasDeclaration:
-    case SyntaxKind.JSTypeAliasDeclaration:
-    case SyntaxKind.EnumDeclaration:
-      return true;
-    case SyntaxKind.ImportClause:
-      return getIsTypeOnly(node);
-    case SyntaxKind.ImportSpecifier:
-    case SyntaxKind.ExportSpecifier:
-      return getIsTypeOnly(node.parent!.parent!);
-  }
-  return false;
 }
 
 /** Reports an import specifier importing a deprecated declaration. */

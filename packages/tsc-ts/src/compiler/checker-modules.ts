@@ -27,6 +27,7 @@ import {
   type ObjectLiteralExpression,
   type QualifiedName,
   type SourceFile,
+  type VariableDeclaration,
   ModifierFlags,
   getExpression,
   getInitializer,
@@ -46,11 +47,15 @@ import {
   isFunctionLike,
   isInJSFile,
   isLiteralImportTypeNode,
+  isRequireCall,
   isStringLiteralLike,
+  isTypeOnly,
   nodeIsMissing,
 } from './ast-utilities.js';
 import {
   declarationNameToString,
+  getModifierFlags,
+  isAccessExpression,
   getRootDeclaration,
   getSourceTextOfNode,
   getThisContainer,
@@ -62,10 +67,38 @@ import {
   isVariableDeclarationInitializedToRequire,
   moduleExportNameIsDefault,
 } from './binder-utilities.js';
-import { type Diagnostic, type DiagnosticMessage, Diagnostics } from './diagnostics.js';
-import { ModuleKind, getEmitModuleKind, getResolveJsonModule } from './options.js';
+import { type Diagnostic, type DiagnosticMessage, Diagnostics, chainDiagnostic } from './diagnostics.js';
+import {
+  JsxEmit,
+  ModuleKind,
+  ModuleResolutionKind,
+  getAllowImportingTsExtensions,
+  getEmitModuleKind,
+  getModuleResolutionKind,
+  getResolveJsonModule,
+} from './options.js';
+import {
+  type ResolvedModule,
+  getResolutionDiagnostic,
+  getTypesPackageName,
+  mangleScopedPackageName,
+} from './module-resolution-types.js';
+import { getResolutionModeOverride } from './program-utilities.js';
+import { hasExtension } from './vfs-match.js';
 import { isNodeCoreModule } from './parser.js';
-import { isExternalModuleNameRelative } from './path.js';
+import {
+  combinePaths,
+  extensionIsTs,
+  getDirectoryPath,
+  getNormalizedAbsolutePath,
+  isDeclarationFileName,
+  isExternalModuleNameRelative,
+  pathIsRelative,
+  removeExtension,
+  supportedTSExtensionsFlat,
+  tryExtractTSExtension,
+  tryGetExtensionFromPath,
+} from './path.js';
 import { InternalSymbolName, type Symbol, SymbolFlags, type SymbolTable } from './symbol.js';
 import { SyntaxKind } from './syntax-kind.js';
 import { isExpressionNode } from './transformers/alias-references.js';
@@ -175,7 +208,7 @@ export function resolveExternalModule(
   moduleReference: string,
   moduleNotFoundError: DiagnosticMessage | undefined,
   errorNode: Node | undefined,
-  _isForAugmentation: boolean,
+  isForAugmentation: boolean,
 ): Symbol | undefined {
   if (errorNode !== undefined && moduleReference.startsWith('@types/'))
     c.error(
@@ -186,11 +219,41 @@ export function resolveExternalModule(
     );
   const ambient = tryFindAmbientModule(c, moduleReference, true);
   if (ambient !== undefined) return ambient;
-  const file = c.host.getSourceFileForModuleName(getSourceFileOfNode(location), moduleReference);
+  const importingFile = getSourceFileOfNode(location);
+  const contextSpecifier = getContextSpecifier(location);
+  const mode =
+    contextSpecifier !== undefined && isStringLiteralLike(contextSpecifier)
+      ? c.host.getModeForUsageLocation(importingFile, contextSpecifier)
+      : c.host.getDefaultResolutionModeForFile(importingFile);
+  const resolved = c.host.getResolvedModule(importingFile, moduleReference, mode);
+  const isResolved = resolved !== undefined && resolved.resolvedFileName !== '';
+  const resolutionDiagnostic =
+    errorNode !== undefined && isResolved
+      ? getResolutionDiagnostic(c.compilerOptions, resolved, importingFile.isDeclarationFile)
+      : undefined;
+  const file =
+    isResolved &&
+    (resolutionDiagnostic === undefined ||
+      resolutionDiagnostic === Diagnostics.Module_0_was_resolved_to_1_but_jsx_is_not_set)
+      ? c.host.getSourceFileForResolvedModule(resolved.resolvedFileName)
+      : undefined;
   if (file !== undefined) {
-    if (file.symbol !== undefined) return getMergedSymbol(c, file.symbol);
+    if (errorNode !== undefined) {
+      // A resolution error is reported even though the file was found.
+      if (resolutionDiagnostic !== undefined)
+        c.error(errorNode, resolutionDiagnostic, moduleReference, resolved!.resolvedFileName);
+      checkResolvedModuleExtension(c, location, moduleReference, resolved!, importingFile, mode, errorNode);
+    }
+    if (file.symbol !== undefined) {
+      if (errorNode !== undefined) {
+        if (resolved!.isExternalLibraryImport && !resolutionExtensionIsTSOrJson(resolved!.extension))
+          errorOnImplicitAnyModule(c, false, errorNode, mode, resolved!, moduleReference);
+        checkSyncImportOfESModule(c, location, moduleReference, importingFile, file, errorNode);
+      }
+      return getMergedSymbol(c, file.symbol);
+    }
     if (errorNode !== undefined && moduleNotFoundError !== undefined && !isSideEffectImport(errorNode))
-      c.error(errorNode, Diagnostics.File_0_is_not_a_module, file.fileName);
+      c.error(errorNode, Diagnostics.File_0_is_not_a_module, resolved!.resolvedFileName);
     return undefined;
   }
   // The pattern with the longest prefix wins.
@@ -203,15 +266,387 @@ export function resolveExternalModule(
     }
   }
   if (best !== undefined) return getMergedSymbol(c, c.patternAmbientModuleAugmentations.get(moduleReference) ?? best);
-  if (errorNode === undefined || moduleNotFoundError === undefined) return undefined;
+  if (errorNode === undefined) return undefined;
+  // A module that resolved to JavaScript is untyped.
+  if (
+    (isResolved && !resolutionExtensionIsTSOrJson(resolved.extension) && resolutionDiagnostic === undefined) ||
+    resolutionDiagnostic === Diagnostics.Could_not_find_a_declaration_file_for_module_0_1_implicitly_has_an_any_type
+  ) {
+    if (isForAugmentation)
+      c.error(
+        errorNode,
+        Diagnostics.Invalid_module_name_in_augmentation_Module_0_resolves_to_an_untyped_module_at_1_which_cannot_be_augmented,
+        moduleReference,
+        resolved!.resolvedFileName,
+      );
+    else
+      errorOnImplicitAnyModule(
+        c,
+        c.noImplicitAny && moduleNotFoundError !== undefined,
+        errorNode,
+        mode,
+        resolved!,
+        moduleReference,
+      );
+    return undefined;
+  }
+  if (moduleNotFoundError === undefined) return undefined;
+  if (isResolved) {
+    // A source file of a referenced project whose output hasn't been built.
+    const outputDts = c.host.getProjectReferenceOutputDts(resolved.resolvedFileName);
+    if (outputDts !== '') {
+      c.error(
+        errorNode,
+        Diagnostics.Output_file_0_has_not_been_built_from_source_file_1,
+        outputDts,
+        resolved.resolvedFileName,
+      );
+      return undefined;
+    }
+  }
+  if (resolutionDiagnostic !== undefined) {
+    c.error(errorNode, resolutionDiagnostic, moduleReference, resolved!.resolvedFileName);
+    return undefined;
+  }
+  const resolution = getModuleResolutionKind(c.compilerOptions);
   if (!getResolveJsonModule(c.compilerOptions) && moduleReference.endsWith('.json'))
     c.error(
       errorNode,
       Diagnostics.Cannot_find_module_0_Consider_using_resolveJsonModule_to_import_module_with_json_extension,
       moduleReference,
     );
+  else if (
+    mode === ModuleKind.ESNext &&
+    (resolution === ModuleResolutionKind.Node16 || resolution === ModuleResolutionKind.NodeNext) &&
+    pathIsRelative(moduleReference) &&
+    !hasExtension(moduleReference)
+  ) {
+    const absolute = getNormalizedAbsolutePath(moduleReference, getDirectoryPath(importingFile.fileName));
+    const extension = getSuggestedImportExtension(c, absolute);
+    if (extension !== '')
+      c.error(
+        errorNode,
+        Diagnostics.Relative_import_paths_need_explicit_file_extensions_in_ECMAScript_imports_when_moduleResolution_is_node16_or_nodenext_Did_you_mean_0,
+        moduleReference + extension,
+      );
+    else
+      c.error(
+        errorNode,
+        Diagnostics.Relative_import_paths_need_explicit_file_extensions_in_ECMAScript_imports_when_moduleResolution_is_node16_or_nodenext_Consider_adding_an_extension_to_the_import_path,
+      );
+  } else if (resolved !== undefined && resolved.alternateResult !== '')
+    c.addDiagnostic(
+      chainDiagnostic(
+        createModuleNotFoundChain(c, errorNode, moduleReference, mode, moduleReference),
+        moduleNotFoundError,
+        moduleReference,
+      ),
+    );
   else c.error(errorNode, moduleNotFoundError, moduleReference);
   return undefined;
+}
+
+/** The module specifier that decides the resolution mode of a module reference at `location`. */
+function getContextSpecifier(location: Node): Node | undefined {
+  const parent = location.parent;
+  if (
+    isStringLiteralLike(location) ||
+    (parent !== undefined && parent.kind === SyntaxKind.ModuleDeclaration && getName(parent) === location)
+  )
+    return location;
+  if (location.kind === SyntaxKind.ModuleDeclaration) return getName(location);
+  if (isLiteralImportTypeNode(location)) return ((location as ImportTypeNode).argument as LiteralTypeNode).literal;
+  const requireSpecifier = getModuleSpecifierOfBareOrAccessedRequire(location);
+  if (requireSpecifier !== undefined) return requireSpecifier;
+  for (let current: Node | undefined = location; current !== undefined; current = current.parent)
+    if (isImportCall(current)) return (current as CallExpression).arguments.nodes[0];
+  for (let current: Node | undefined = location; current !== undefined; current = current.parent)
+    if (current.kind === SyntaxKind.ImportDeclaration || current.kind === SyntaxKind.JSImportDeclaration)
+      return getModuleSpecifier(current);
+  for (let current: Node | undefined = location; current !== undefined; current = current.parent)
+    if (current.kind === SyntaxKind.ExportDeclaration) return getModuleSpecifier(current);
+  for (let current: Node | undefined = location; current !== undefined; current = current.parent)
+    if (current.kind === SyntaxKind.ImportEqualsDeclaration) {
+      const reference = (current as ImportEqualsDeclaration).moduleReference;
+      return reference.kind === SyntaxKind.ExternalModuleReference ? getExpression(reference) : undefined;
+    }
+  return undefined;
+}
+
+/** The specifier of `const x = require("m")` or `const x = require("m").a.b` in JavaScript. */
+function getModuleSpecifierOfBareOrAccessedRequire(node: Node): Node | undefined {
+  if (node.kind !== SyntaxKind.VariableDeclaration || !isInJSFile(node)) return undefined;
+  const declaration = node as VariableDeclaration;
+  let initializer = declaration.initializer;
+  if (initializer === undefined || declaration.type !== undefined) return undefined;
+  if ((getModifierFlags(declaration.parent!.parent!) & ModifierFlags.Export) !== 0) return undefined;
+  while (isAccessExpression(initializer)) initializer = getExpression(initializer)!;
+  return isRequireCall(initializer, true) ? (initializer as CallExpression).arguments.nodes[0] : undefined;
+}
+
+function resolutionExtensionIsTSOrJson(extension: string): boolean {
+  return extensionIsTs(extension) || extension === '.json';
+}
+
+/** Imports that name a `.ts` file need `allowImportingTsExtensions`, and declaration files can't be imported. */
+function checkResolvedModuleExtension(
+  c: Checker,
+  location: Node,
+  moduleReference: string,
+  resolved: ResolvedModule,
+  importingFile: SourceFile,
+  mode: ModuleKind,
+  errorNode: Node,
+): void {
+  if (!resolved.resolvedUsingTsExtension) return;
+  if (isDeclarationFileName(moduleReference)) {
+    if (isInEmittableImport(location))
+      c.error(
+        errorNode,
+        Diagnostics.A_declaration_file_cannot_be_imported_without_import_type_Did_you_mean_to_import_an_implementation_file_0_instead,
+        getSuggestedImportSource(c, moduleReference, tryExtractTSExtension(moduleReference), mode),
+      );
+  } else if (
+    !getAllowImportingTsExtensions(c.compilerOptions) &&
+    !isDeclarationFileName(importingFile.fileName) &&
+    isInEmittableImport(location)
+  ) {
+    let extension = tryExtractTSExtension(moduleReference);
+    // A wildcard pattern can match a `.ts` extension that doesn't end the specifier.
+    if (extension === '')
+      for (const candidate of supportedTSExtensionsFlat)
+        if (moduleReference.includes(candidate)) {
+          extension = candidate;
+          break;
+        }
+    c.error(
+      errorNode,
+      Diagnostics.An_import_path_can_only_end_with_a_0_extension_when_allowImportingTsExtensions_is_enabled,
+      extension,
+    );
+  }
+}
+
+function isInEmittableImport(location: Node): boolean {
+  for (let current: Node | undefined = location; current !== undefined; current = current.parent) {
+    switch (current.kind) {
+      case SyntaxKind.ImportDeclaration: {
+        const clause = (current as ImportDeclaration).importClause;
+        if (clause !== undefined && !isTypeOnly(clause)) return true;
+        break;
+      }
+      case SyntaxKind.ExportDeclaration:
+      case SyntaxKind.ImportEqualsDeclaration:
+        if (!getIsTypeOnly(current)) return true;
+        break;
+      case SyntaxKind.CallExpression:
+        if (isImportCall(current)) return true;
+        break;
+    }
+  }
+  return false;
+}
+
+/** The specifier to import instead of a declaration file: its `.js` counterpart when emitting ES modules. */
+function getSuggestedImportSource(c: Checker, moduleReference: string, tsExtension: string, mode: ModuleKind): string {
+  const withoutExtension = removeExtension(moduleReference, tsExtension);
+  const moduleKind = getEmitModuleKind(c.compilerOptions);
+  if ((ModuleKind.ES2015 <= moduleKind && moduleKind <= ModuleKind.ESNext) || mode === ModuleKind.ESNext) {
+    const preferTs = isDeclarationFileName(moduleReference) && getAllowImportingTsExtensions(c.compilerOptions);
+    if (tsExtension === '.mts' || tsExtension === '.d.mts') return withoutExtension + (preferTs ? '.mts' : '.mjs');
+    if (tsExtension === '.cts' || tsExtension === '.d.cts') return withoutExtension + (preferTs ? '.cts' : '.cjs');
+    return withoutExtension + (preferTs ? '.ts' : '.js');
+  }
+  return withoutExtension;
+}
+
+function getSuggestedImportExtension(c: Checker, extensionlessPath: string): string {
+  const host = c.host;
+  if (host.fileExists(extensionlessPath + '.mts')) return '.mjs';
+  if (host.fileExists(extensionlessPath + '.ts')) return '.js';
+  if (host.fileExists(extensionlessPath + '.cts')) return '.cjs';
+  if (host.fileExists(extensionlessPath + '.mjs')) return '.mjs';
+  if (host.fileExists(extensionlessPath + '.js')) return '.js';
+  if (host.fileExists(extensionlessPath + '.cjs')) return '.cjs';
+  if (host.fileExists(extensionlessPath + '.tsx')) return c.compilerOptions.jsx === JsxEmit.Preserve ? '.jsx' : '.js';
+  if (host.fileExists(extensionlessPath + '.jsx')) return '.jsx';
+  if (host.fileExists(extensionlessPath + '.json')) return '.json';
+  return '';
+}
+
+/** Under node16 and node18, a synchronous import of an ES module from a CommonJS file fails at run time. */
+function checkSyncImportOfESModule(
+  c: Checker,
+  location: Node,
+  moduleReference: string,
+  importingFile: SourceFile,
+  file: SourceFile,
+  errorNode: Node,
+): void {
+  const moduleKind = getEmitModuleKind(c.compilerOptions);
+  if (moduleKind !== ModuleKind.Node16 && moduleKind !== ModuleKind.Node18) return;
+  const importEquals = findAncestorOfKind(location, SyntaxKind.ImportEqualsDeclaration);
+  const isSyncImport =
+    (c.host.getDefaultResolutionModeForFile(importingFile) === ModuleKind.CommonJS && !isInImportCall(location)) ||
+    importEquals !== undefined;
+  if (!isSyncImport || c.host.getDefaultResolutionModeForFile(file) !== ModuleKind.ESNext) return;
+  const overrideHost = findResolutionModeOverrideHost(location);
+  if (overrideHost !== undefined && hasResolutionModeOverride(overrideHost)) return;
+  if (importEquals !== undefined) {
+    c.error(
+      errorNode,
+      Diagnostics.Module_0_cannot_be_imported_using_this_construct_The_specifier_only_resolves_to_an_ES_module_which_cannot_be_imported_with_require_Use_an_ECMAScript_import_instead,
+      moduleReference,
+    );
+    return;
+  }
+  let details: Diagnostic | undefined;
+  const extension = tryGetExtensionFromPath(importingFile.fileName);
+  if (extension === '.ts' || extension === '.js' || extension === '.tsx' || extension === '.jsx')
+    details = createModeMismatchDetails(c, importingFile, errorNode);
+  let message =
+    Diagnostics.The_current_file_is_a_CommonJS_module_whose_imports_will_produce_require_calls_however_the_referenced_file_is_an_ECMAScript_module_and_cannot_be_imported_with_require_Consider_writing_a_dynamic_import_0_call_instead;
+  if (overrideHost !== undefined && overrideHost.kind === SyntaxKind.ImportDeclaration) {
+    const clause = (overrideHost as ImportDeclaration).importClause;
+    if (clause !== undefined && isTypeOnly(clause))
+      message =
+        Diagnostics.Type_only_import_of_an_ECMAScript_module_from_a_CommonJS_module_must_have_a_resolution_mode_attribute;
+  } else if (overrideHost !== undefined && overrideHost.kind === SyntaxKind.ImportType)
+    message =
+      Diagnostics.Type_import_of_an_ECMAScript_module_from_a_CommonJS_module_must_have_a_resolution_mode_attribute;
+  c.addDiagnostic(
+    details !== undefined
+      ? chainDiagnostic(details, message, moduleReference)
+      : createDiagnosticForNode(errorNode, message, [moduleReference]),
+  );
+}
+
+function findAncestorOfKind(node: Node, kind: SyntaxKind): Node | undefined {
+  for (let current: Node | undefined = node; current !== undefined; current = current.parent)
+    if (current.kind === kind) return current;
+  return undefined;
+}
+
+function isInImportCall(node: Node): boolean {
+  for (let current: Node | undefined = node; current !== undefined; current = current.parent)
+    if (isImportCall(current)) return true;
+  return false;
+}
+
+function findResolutionModeOverrideHost(node: Node): Node | undefined {
+  for (let current: Node | undefined = node; current !== undefined; current = current.parent)
+    switch (current.kind) {
+      case SyntaxKind.ImportType:
+      case SyntaxKind.ExportDeclaration:
+      case SyntaxKind.ImportDeclaration:
+      case SyntaxKind.JSImportDeclaration:
+        return current;
+    }
+  return undefined;
+}
+
+function hasResolutionModeOverride(node: Node): boolean {
+  let attributes: Node | undefined;
+  if (node.kind === SyntaxKind.ImportType) attributes = (node as ImportTypeNode).attributes;
+  else if (node.kind === SyntaxKind.ExportDeclaration) attributes = (node as ExportDeclaration).attributes;
+  else attributes = (node as ImportDeclaration).attributes;
+  return attributes !== undefined && getResolutionModeOverride(attributes as ImportAttributes) !== ModuleKind.None;
+}
+
+/** How to make a CommonJS file an ES module, elaborating an error about importing one from it. */
+function createModeMismatchDetails(c: Checker, file: SourceFile, errorNode: Node): Diagnostic {
+  const extension = tryGetExtensionFromPath(file.fileName);
+  const targetExtension = extension === '.ts' ? '.mts' : extension === '.js' ? '.mjs' : '';
+  const metadata = c.host.getSourceFileMetadata(file);
+  const packageJsonDirectory = metadata !== undefined ? metadata.packageJsonDirectory : '';
+  if (packageJsonDirectory !== '' && metadata!.packageJsonType === '') {
+    const packageJson = combinePaths(packageJsonDirectory, 'package.json');
+    return targetExtension !== ''
+      ? createDiagnosticForNode(
+          errorNode,
+          Diagnostics.To_convert_this_file_to_an_ECMAScript_module_change_its_file_extension_to_0_or_add_the_field_type_Colon_module_to_1,
+          [targetExtension, packageJson],
+        )
+      : createDiagnosticForNode(
+          errorNode,
+          Diagnostics.To_convert_this_file_to_an_ECMAScript_module_add_the_field_type_Colon_module_to_0,
+          [packageJson],
+        );
+  }
+  return targetExtension !== ''
+    ? createDiagnosticForNode(
+        errorNode,
+        Diagnostics.To_convert_this_file_to_an_ECMAScript_module_change_its_file_extension_to_0_or_create_a_local_package_json_file_with_type_Colon_module,
+        [targetExtension],
+      )
+    : createDiagnosticForNode(
+        errorNode,
+        Diagnostics.To_convert_this_file_to_an_ECMAScript_module_create_a_local_package_json_file_with_type_Colon_module,
+        [],
+      );
+}
+
+/** Reports a module without types: an error under `noImplicitAny`, otherwise a suggestion. */
+function errorOnImplicitAnyModule(
+  c: Checker,
+  isError: boolean,
+  errorNode: Node,
+  mode: ModuleKind,
+  resolved: ResolvedModule,
+  moduleReference: string,
+): void {
+  if (isSideEffectImport(errorNode)) return;
+  const packageName = resolved.packageId !== undefined ? resolved.packageId.name : '';
+  const chain =
+    !isExternalModuleNameRelative(moduleReference) && packageName !== ''
+      ? createModuleNotFoundChain(c, errorNode, moduleReference, mode, packageName)
+      : undefined;
+  const message = Diagnostics.Could_not_find_a_declaration_file_for_module_0_1_implicitly_has_an_any_type;
+  c.addErrorOrSuggestion(
+    isError,
+    chain !== undefined
+      ? chainDiagnostic(chain, message, moduleReference, resolved.resolvedFileName)
+      : createDiagnosticForNode(errorNode, message, [moduleReference, resolved.resolvedFileName]),
+  );
+}
+
+/** Where types for a module might come from, elaborating an error about a module without them. */
+function createModuleNotFoundChain(
+  c: Checker,
+  errorNode: Node,
+  moduleReference: string,
+  mode: ModuleKind,
+  packageNameIn: string,
+): Diagnostic {
+  let packageName = packageNameIn;
+  const resolved = c.host.getResolvedModule(getSourceFileOfNode(errorNode), moduleReference, mode);
+  if (resolved !== undefined && resolved.alternateResult !== '') {
+    if (resolved.alternateResult.includes('/node_modules/@types/'))
+      packageName = '@types/' + mangleScopedPackageName(packageName);
+    return createDiagnosticForNode(
+      errorNode,
+      Diagnostics.There_are_types_at_0_but_this_result_could_not_be_resolved_when_respecting_package_json_exports_The_1_library_may_need_to_update_its_package_json_or_typings,
+      [resolved.alternateResult, packageName],
+    );
+  }
+  const packages = c.host.getPackagesMap();
+  if (packages.has(getTypesPackageName(packageName)))
+    return createDiagnosticForNode(
+      errorNode,
+      Diagnostics.If_the_0_package_actually_exposes_this_module_consider_sending_a_pull_request_to_amend_https_Colon_Slash_Slashgithub_com_SlashDefinitelyTyped_SlashDefinitelyTyped_Slashtree_Slashmaster_Slashtypes_Slash_1,
+      [packageName, mangleScopedPackageName(packageName)],
+    );
+  if (packages.get(packageName) === true)
+    return createDiagnosticForNode(
+      errorNode,
+      Diagnostics.If_the_0_package_actually_exposes_this_module_try_adding_a_new_declaration_d_ts_file_containing_declare_module_1,
+      [packageName, moduleReference],
+    );
+  return createDiagnosticForNode(
+    errorNode,
+    Diagnostics.Try_npm_i_save_dev_types_Slash_1_if_it_exists_or_add_a_new_declaration_d_ts_file_containing_declare_module_0,
+    [moduleReference, mangleScopedPackageName(packageName)],
+  );
 }
 
 function isSideEffectImport(node: Node): boolean {

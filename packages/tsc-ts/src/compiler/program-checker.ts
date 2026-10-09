@@ -11,6 +11,7 @@ import { type Node, ScriptKind, type SourceFile } from './ast.js';
 import { Checker, CheckerHost } from './checker.js';
 import { createDiagnostic, Diagnostic, type DiagnosticMessage, Diagnostics, messageCode } from './diagnostics.js';
 import type { CompilerOptions, ModuleKind } from './options.js';
+import type { ResolvedModule } from './module-resolution-types.js';
 import { Program, sortAndDeduplicateDiagnostics } from './program.js';
 import {
   getEmitSyntaxForUsageLocation,
@@ -40,8 +41,33 @@ export class ProgramCheckerHost extends CheckerHost {
     return this.program.isSourceFileDefaultLibrary(file.path);
   }
 
-  getSourceFileForModuleName(file: SourceFile, moduleName: string): SourceFile | undefined {
-    return this.program.getSourceFileForModuleName(file, moduleName);
+  getResolvedModule(file: SourceFile, moduleName: string, mode: ModuleKind): ResolvedModule | undefined {
+    return this.program.getResolvedModule(file, moduleName, mode);
+  }
+
+  getSourceFileForResolvedModule(fileName: string): SourceFile | undefined {
+    return this.program.getSourceFileForResolvedModule(fileName);
+  }
+
+  getModeForUsageLocation(file: SourceFile, location: Node): ModuleKind {
+    return this.program.getModeForUsageLocation(file, location);
+  }
+
+  getDefaultResolutionModeForFile(file: SourceFile): ModuleKind {
+    return this.program.getDefaultResolutionModeForFile(file);
+  }
+
+  getPackagesMap(): ReadonlyMap<string, boolean> {
+    return this.program.getPackagesMap();
+  }
+
+  getProjectReferenceOutputDts(fileName: string): string {
+    const program = this.program;
+    return program.getProjectReferenceFromSource(program.toPath(fileName))?.outputDts ?? '';
+  }
+
+  fileExists(path: string): boolean {
+    return this.program.host.fs.fileExists(path);
   }
 
   getJSXRuntimeImportSpecifier(file: SourceFile): Node | undefined {

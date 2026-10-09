@@ -2,7 +2,8 @@
 // features of newer library files than the selected ones, through tsgo
 // (packages/tsgo/dist/tsgo) and tsc-ts (the Node build, or TSC_TS_BIN), and compares stdout, stderr and exit
 // status, and the build info of incremental runs. Each project runs with several option combinations,
-// skipLibCheck and skipDefaultLibCheck included.
+// skipLibCheck and skipDefaultLibCheck included. Projects with packages in node_modules check module
+// resolution and the checks that depend on it the same way.
 // Set LIBRARY_FILTER to a substring of project names to run only those.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -123,6 +124,98 @@ const projects = [
   ],
 ];
 
+/** Option combinations every package project runs with, on top of `base` and the project's own options. */
+const packageVariants = [
+  {},
+  { strict: false },
+  { noUnusedLocals: true, noUnusedParameters: true },
+  { module: 'Node16' },
+  { module: 'ESNext', moduleResolution: 'bundler' },
+  { allowJs: true },
+];
+
+/**
+ * Projects with packages, as `[name, files, options]`.
+ * @type {[string, Record<string, string>, Record<string, unknown>?][]}
+ */
+const packageProjects = [
+  [
+    'augmentation of a module re-exported with export *',
+    {
+      'node_modules/kit/package.json': '{"name":"kit","types":"index.d.ts"}\n',
+      'node_modules/kit/index.d.ts': "export * from './dist/index.js';\n",
+      'node_modules/kit/dist/index.d.ts':
+        'interface Checker { (value: number): string; label: string; }\n' +
+        'export { type Checker, check };\ndeclare const check: Checker;\n',
+      'aug.d.ts': "declare module 'kit' { interface Checker { extra: () => void; } }\nexport {};\n",
+      'a.ts':
+        "import { type Checker, check } from 'kit';\ndeclare const c: Checker;\n" +
+        'c(1);\nc.label;\nc.extra();\ncheck.extra();\nexport {};\n',
+    },
+    { files: ['a.ts', 'aug.d.ts'] },
+  ],
+  [
+    'JSDoc links in type members',
+    {
+      't.ts':
+        'export interface Token {}\nexport interface Other {}\nexport class K {}\nexport interface P {}\n' +
+        'export interface Unused {}\n',
+      'a.ts':
+        "import type { Token, Unused } from './t.js';\nimport { Other, K } from './t.js';\nimport { type P } from './t.js';\n" +
+        'export interface Shape {\n  /** see {@link Token}. */\n  draw(meta: number): void;\n' +
+        '  /** see {@link Other}. */\n  x: number;\n}\n' +
+        'export type Literal = {\n  /** {@link K} */\n  y(\n    /** {@link P} */\n    n: number,\n  ): void;\n};\n',
+    },
+    { files: ['a.ts'] },
+  ],
+  [
+    'uncalled function check with type assertions in the body',
+    {
+      't.ts': 'export interface Config { x: number; }\n',
+      'a.ts':
+        "import type { Config } from './t.js';\ndeclare function use(config: Config): void;\n" +
+        'export function f(value: string, callback: (n: number) => void, other: () => void) {\n' +
+        '  if (value.length > 0 && callback) {\n    use(value as unknown as Config);\n    callback(1);\n  }\n' +
+        '  if (other) {\n    use(<Config>(<unknown>value));\n  }\n}\n',
+    },
+    { files: ['a.ts'] },
+  ],
+  [
+    'untyped JavaScript packages',
+    {
+      'node_modules/poly/package.json': '{"name":"poly","main":"dist/poly.js"}\n',
+      'node_modules/poly/dist/poly.js': 'window.poly = 1;\n',
+      'node_modules/@scope/lib/package.json': '{"name":"@scope/lib","version":"1.0.0","main":"index.js"}\n',
+      'node_modules/@scope/lib/index.js': 'module.exports = 1;\n',
+      'local.js': 'export const q = 1;\n',
+      'a.ts':
+        'import "poly";\nimport "poly/missing";\nimport "./local.js";\nimport lib from "@scope/lib";\n' +
+        'import * as poly from "poly";\nlib;\npoly;\n' +
+        'declare module "poly" { export const z: number; }\nexport {};\n',
+    },
+    { files: ['a.ts'] },
+  ],
+  [
+    'module resolution errors',
+    {
+      'package.json': '{"type":"module"}\n',
+      'b.ts': 'export const b = 1;\n',
+      'd.d.ts': 'export declare const d: number;\n',
+      'c.tsx': 'export const c = 1;\n',
+      'cjs/package.json': '{"type":"commonjs"}\n',
+      'cjs/e.ts': 'import { b } from "../b.js";\nimport x = require("../b.js");\nb;\nx;\n',
+      'node_modules/exp/package.json': '{"name":"exp","exports":{".":"./index.js"}}\n',
+      'node_modules/exp/index.js': 'export default 1;\n',
+      'node_modules/exp/index.d.ts': 'declare const v: number;\nexport default v;\n',
+      'a.ts':
+        'import { b } from "./b.ts";\nimport { d } from "./d.d.ts";\nimport { b as b2 } from "./b";\n' +
+        'import { c } from "./c.tsx";\nimport v from "exp";\nimport "./missing.js";\n' +
+        'import type { b as b3 } from "./b.ts";\nb; d; b2; c; v;\nexport type { b3 };\n',
+    },
+    { files: ['a.ts', 'cjs/e.ts'] },
+  ],
+];
+
 function writeFiles(dir, files) {
   for (const [path, content] of Object.entries(files)) {
     mkdirSync(dirname(join(dir, path)), { recursive: true });
@@ -140,7 +233,10 @@ function run(command, files) {
     execFile(command[0], args, { cwd, env, encoding: 'utf8', maxBuffer: 1 << 26 }, (error, stdout, stderr) => {
       const buildInfoFile = join(cwd, 'tsconfig.tsbuildinfo');
       const buildInfo = existsSync(buildInfoFile) ? readFileSync(buildInfoFile, 'utf8') : '';
-      done({ stdout, stderr, status: error ? (typeof error.code === 'number' ? error.code : -1) : 0, buildInfo });
+      // Messages name resolved files by absolute path.
+      const relative = (text) => text.replaceAll(cwd, '.');
+      const status = error ? (typeof error.code === 'number' ? error.code : -1) : 0;
+      done({ stdout: relative(stdout), stderr: relative(stderr), status, buildInfo });
     });
   });
 }
@@ -160,14 +256,15 @@ function firstDifference(a, b) {
   return 'none';
 }
 
-test('library diagnostics from global augmentations match tsgo', { skip, timeout: 900_000 }, async (t) => {
+/** Runs each project with each variant through tsgo and tsc-ts and asserts that they match. */
+async function compareProjects(t, projectList, variantList) {
   const filter = process.env.LIBRARY_FILTER;
   const runs = [];
-  for (const [name, source, options = {}] of projects) {
+  for (const [name, source, options = {}] of projectList) {
     if (filter !== undefined && !name.includes(filter)) continue;
     const { files: rootFiles, ...projectOptions } = options;
     const files = typeof source === 'string' ? { 'a.ts': source } : source;
-    for (const variant of variants) {
+    for (const variant of variantList) {
       const compilerOptions = { ...base, ...projectOptions, ...variant };
       const config = { compilerOptions, files: rootFiles ?? ['a.ts'] };
       runs.push({
@@ -199,6 +296,14 @@ test('library diagnostics from global augmentations match tsgo', { skip, timeout
   );
   t.diagnostic(`${runs.length - failures.length}/${runs.length} runs match; ${errors} report library errors`);
   assert.deepEqual(failures.slice(0, 20), [], `${failures.length} mismatches`);
+}
+
+test('library diagnostics from global augmentations match tsgo', { skip, timeout: 900_000 }, async (t) => {
+  await compareProjects(t, projects, variants);
+});
+
+test('diagnostics of projects with packages match tsgo', { skip, timeout: 900_000 }, async (t) => {
+  await compareProjects(t, packageProjects, packageVariants);
 });
 
 // Library files are skipped only when their text is the verified one; a different text means the table is stale.

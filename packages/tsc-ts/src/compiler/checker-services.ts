@@ -11,7 +11,6 @@ import {
   getArguments,
   getExpression,
   getInitializer,
-  getIsTypeOnly,
   getName,
   getParameters,
   getPropertyName,
@@ -46,6 +45,7 @@ import {
   isImportCall,
   isLiteralImportTypeNode,
   isStringLiteralLike,
+  isTypeDeclaration,
   nodeIsMissing,
 } from './ast-utilities.js';
 import {
@@ -129,8 +129,6 @@ import { getNodeAtPosition } from './parser.js';
 import { CheckFlags, InternalSymbolName, type Symbol, SymbolFlags } from './symbol.js';
 import { SyntaxKind } from './syntax-kind.js';
 
-const allMeanings = SymbolFlags.Value | SymbolFlags.Type | SymbolFlags.Namespace | SymbolFlags.Alias;
-
 // ---- Symbols at locations
 
 /** The symbol a name, keyword or literal at `node` refers to. */
@@ -139,7 +137,8 @@ export function getSymbolAtLocation(c: Checker, node: Node): Symbol | undefined 
   return getSymbolAtLocationWorker(c, getReparsedNodeForNode(node), true);
 }
 
-function getSymbolAtLocationWorker(c: Checker, node: Node, ignoreErrors: boolean): Symbol | undefined {
+/** The symbol a node refers to, reporting resolution errors unless `ignoreErrors`. */
+export function getSymbolAtLocationWorker(c: Checker, node: Node, ignoreErrors: boolean): Symbol | undefined {
   if (node.kind === SyntaxKind.SourceFile)
     return isExternalOrCommonJSModule(node as SourceFile) ? getSymbolOfDeclaration(c, node) : undefined;
   const parent = node.parent!;
@@ -297,7 +296,8 @@ function getSymbolOfNameOrPropertyAccessExpression(c: Checker, nameIn: Node): Sy
   if (isDeclarationName(name)) return getSymbolOfDeclaration(c, name.parent!);
   if (name.parent!.kind === SyntaxKind.ExportAssignment && isEntityNameExpression(name)) {
     // An entity name that doesn't resolve as one may still check as a property access.
-    const success = resolveEntityName(c, name, allMeanings, true, false, undefined);
+    const meaning = SymbolFlags.Value | SymbolFlags.Type | SymbolFlags.Namespace | SymbolFlags.Alias;
+    const success = resolveEntityName(c, name, meaning, true, false, undefined);
     if (success !== undefined && success !== c.unknownSymbol) return success;
   } else if (isEntityName(name) && isInRightSideOfImportOrExportAssignment(name)) {
     // Export assignments were handled above, so this is an import.
@@ -542,6 +542,7 @@ export function getShorthandAssignmentValueSymbol(c: Checker, node: Node | undef
 
 /** The local symbol an export specifier, or the identifier of one, refers to. Throws for other nodes. */
 export function getExportSpecifierLocalTargetSymbol(c: Checker, node: Node): Symbol | undefined {
+  const meaning = SymbolFlags.Value | SymbolFlags.Type | SymbolFlags.Namespace | SymbolFlags.Alias;
   if (node.kind === SyntaxKind.ExportSpecifier) {
     const exportDeclaration = node.parent!.parent!;
     if (getExternalModuleName(exportDeclaration) !== undefined)
@@ -550,9 +551,9 @@ export function getExportSpecifierLocalTargetSymbol(c: Checker, node: Node): Sym
     const name = specifier.propertyName ?? specifier.name;
     // Invalid syntax like `export { "x" }`.
     if (name.kind === SyntaxKind.StringLiteral) return undefined;
-    return resolveEntityName(c, name, allMeanings, true, false, undefined);
+    return resolveEntityName(c, name, meaning, true, false, undefined);
   }
-  if (node.kind === SyntaxKind.Identifier) return resolveEntityName(c, node, allMeanings, true, false, undefined);
+  if (node.kind === SyntaxKind.Identifier) return resolveEntityName(c, node, meaning, true, false, undefined);
   throw new Error('getExportSpecifierLocalTargetSymbol expects an export specifier or identifier');
 }
 
@@ -859,24 +860,6 @@ function isImplementsExpression(node: Node): boolean {
 
 function isExpressionWithTypeArgumentsInClassExtendsClause(node: Node): boolean {
   return getClassOfHeritageExpression(node) !== undefined && !isImplementsExpression(node);
-}
-
-function isTypeDeclaration(node: Node): boolean {
-  switch (node.kind) {
-    case SyntaxKind.TypeParameter:
-    case SyntaxKind.ClassDeclaration:
-    case SyntaxKind.InterfaceDeclaration:
-    case SyntaxKind.TypeAliasDeclaration:
-    case SyntaxKind.JSTypeAliasDeclaration:
-    case SyntaxKind.EnumDeclaration:
-      return true;
-    case SyntaxKind.ImportClause:
-      return getIsTypeOnly(node);
-    case SyntaxKind.ImportSpecifier:
-    case SyntaxKind.ExportSpecifier:
-      return getIsTypeOnly(node.parent!.parent!);
-  }
-  return false;
 }
 
 function isTypeDeclarationName(name: Node): boolean {

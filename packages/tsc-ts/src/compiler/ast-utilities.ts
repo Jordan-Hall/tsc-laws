@@ -6,6 +6,7 @@ import {
   CallExpression,
   ExternalModuleReference,
   Identifier,
+  ImportClause,
   ImportEqualsDeclaration,
   ImportTypeNode,
   JsxNamespacedName,
@@ -19,6 +20,7 @@ import {
   PropertyAccessExpression,
   StringLiteral,
   getExpression,
+  getIsTypeOnly,
   getModuleSpecifier,
   getText,
   getType,
@@ -491,6 +493,31 @@ export function getExternalModuleName(node: Node): Node | undefined {
 
 export function isGlobalScopeAugmentation(node: Node): boolean {
   return node instanceof ModuleDeclaration && (node as ModuleDeclaration).keyword === SyntaxKind.GlobalKeyword;
+}
+
+/** Whether a node is written type-only: an `import type` clause, or a `type` specifier, import or export. */
+export function isTypeOnly(node: Node): boolean {
+  if (node.kind === SyntaxKind.ImportClause) return (node as ImportClause).phaseModifier === SyntaxKind.TypeKeyword;
+  return getIsTypeOnly(node);
+}
+
+/** Whether a declaration declares only a type. */
+export function isTypeDeclaration(node: Node): boolean {
+  switch (node.kind) {
+    case SyntaxKind.TypeParameter:
+    case SyntaxKind.ClassDeclaration:
+    case SyntaxKind.InterfaceDeclaration:
+    case SyntaxKind.TypeAliasDeclaration:
+    case SyntaxKind.JSTypeAliasDeclaration:
+    case SyntaxKind.EnumDeclaration:
+      return true;
+    case SyntaxKind.ImportClause:
+      return isTypeOnly(node);
+    case SyntaxKind.ImportSpecifier:
+    case SyntaxKind.ExportSpecifier:
+      return isTypeOnly(node.parent!.parent!);
+  }
+  return false;
 }
 
 export function isAmbientModule(node: Node): boolean {

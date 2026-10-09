@@ -867,6 +867,21 @@ function mergeModuleAugmentation(c: Checker, moduleName: Node): void {
         c.patternAmbientModuleAugmentations.set(getText(moduleName), merged);
         return;
       }
+    // Exports the module gets through `export *` live on the re-exported symbols; merge into those.
+    const mainExports = mainModule.exports;
+    const exports = augmentationSymbol.exports;
+    if (
+      mainExports !== undefined &&
+      mainExports.has(InternalSymbolName.ExportStar) &&
+      exports !== undefined &&
+      exports.size > 0
+    ) {
+      const resolvedExports = getExportsOfModuleWorker(c, mainModule);
+      for (const [id, symbol] of exports) {
+        const resolved = resolvedExports.get(id);
+        if (resolved !== undefined && !mainExports.has(id)) mergeSymbol(c, resolved, symbol, false);
+      }
+    }
     mergeSymbol(c, mainModule, augmentationSymbol, false);
   } else
     c.error(
