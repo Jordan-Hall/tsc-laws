@@ -73,6 +73,7 @@ import {
   type TypeReference,
   IndexFlags,
   type IndexedAccessType,
+  type SubstitutionType,
 } from './checker-types.js';
 import {
   createTupleTypeEx,
@@ -148,6 +149,7 @@ import {
   getMappedTypeModifiers,
   MappedTypeModifiers,
   getPropertyNameFromIndex,
+  isNoInferType,
 } from './checker-type-operators.js';
 import { TypeFacts, getTypeFacts, getNonNullableType, getTypeWithFacts, hasTypeFacts } from './checker-flow.js';
 import { checkTypeComparableTo, isTypeAssignableTo, isTypeComparableTo } from './relations.js';
@@ -198,6 +200,7 @@ import {
   checkDeleteExpression,
   checkPostfixUnaryExpression,
   checkPrefixUnaryExpression,
+  isTypeAssertion,
 } from './checker-operators.js';
 import { checkJsx } from './checker-jsx.js';
 import { getRegularTypeOfObjectLiteral } from './checker-literals.js';
@@ -328,6 +331,8 @@ export function checkExpressionForMutableLocation(c: Checker, node: Node): Type 
 export function checkExpressionForMutableLocationEx(c: Checker, node: Node, checkMode: CheckMode): Type {
   const t = checkExpressionEx(c, node, checkMode);
   if (isConstContext(c, node)) return getRegularTypeOfLiteralType(c, t);
+  // An asserted type is kept as written.
+  if (isTypeAssertion(node)) return t;
   return getWidenedLiteralLikeTypeForContextualType(
     c,
     t,
@@ -790,6 +795,7 @@ export function getNarrowableTypeForReference(
   reference: Node,
   checkMode: CheckMode = CheckMode.Normal,
 ): Type {
+  if (isNoInferType(c, t)) t = (t as SubstitutionType).baseType;
   const substituteConstraints =
     (checkMode & CheckMode.Inferential) === 0 &&
     someTypeIsGenericWithUnionConstraint(c, t) &&

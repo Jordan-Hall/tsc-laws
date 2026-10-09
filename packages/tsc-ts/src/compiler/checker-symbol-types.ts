@@ -23,6 +23,7 @@ import {
   getText,
   type PropertyAssignment,
   type ShorthandPropertyAssignment,
+  type SourceFile,
 } from './ast.js';
 import {
   declarationNameToString,
@@ -35,6 +36,7 @@ import {
   hasStaticModifier,
   hasSyntacticModifier,
   isCatchClauseVariableDeclarationOrBindingElement,
+  isJsonSourceFile,
   isTypeNodeKind,
 } from './binder-utilities.js';
 import { identifierToKeywordKind } from './scanner.js';
@@ -228,6 +230,12 @@ function getTypeOfVariableOrParameterOrPropertyWorker(c: Checker, symbol: Symbol
   if (symbol === c.requireSymbol) return c.anyType;
   const declaration = symbol.valueDeclaration;
   if (declaration === undefined) return c.errorType;
+  // The `export=` symbol of a JSON file has the type of its value.
+  if (declaration.kind === SyntaxKind.SourceFile && isJsonSourceFile(declaration as SourceFile)) {
+    const statements = (declaration as SourceFile).statements.nodes;
+    if (statements.length === 0) return c.emptyObjectType;
+    return getWidenedType(c, getWidenedLiteralType(c, checkExpression(c, getExpression(statements[0]!)!)));
+  }
   if (!pushTypeResolution(c, symbol, TypeSystemPropertyName.Type)) return reportCircularityError(c, symbol);
   // Like tsgo, the type resolution stays pushed: until popped by an enclosing resolution, its cached
   // type ends cycle detection there, so aliases like `module.exports.b = module.exports.a` resolve.

@@ -1231,7 +1231,7 @@ function checkTestingKnownTruthyTypeWorker(c: Checker, condExpr: Node, condType:
     );
 }
 
-function isTypeAssertion(node: Node): boolean {
+export function isTypeAssertion(node: Node): boolean {
   const n = skipParentheses(node);
   return n.kind === SyntaxKind.TypeAssertionExpression || n.kind === SyntaxKind.AsExpression;
 }

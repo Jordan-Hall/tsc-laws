@@ -18,7 +18,7 @@ import {
   MappedTypeNode,
   getHeritageClauses,
 } from './ast.js';
-import { getSourceFileOfNode, isEnumConst } from './binder-utilities.js';
+import { getSourceFileOfNode, isEnumConst, isObjectLiteralMethod } from './binder-utilities.js';
 import { Diagnostics } from './diagnostics.js';
 import { type Symbol, SymbolFlags } from './symbol.js';
 import { SyntaxKind } from './syntax-kind.js';
@@ -77,6 +77,8 @@ import {
   resolveStructuredTypeMembers,
 } from './checker-members.js';
 import { checkExpression } from './checker-expressions.js';
+import { isContextSensitive } from './checker-functions.js';
+import { getTypeOfSymbol } from './checker-symbol-types.js';
 import { getIndexedAccessType, isGenericMappedType } from './checker-type-operators.js';
 import { getSignatureInstantiation } from './checker-signatures.js';
 import { evaluateEnumMember, EvaluatedKind } from './checker-evaluator.js';
@@ -245,6 +247,23 @@ export function getOuterTypeParameters(c: Checker, node: Node, includeThisTypes:
       case SyntaxKind.MappedType:
       case SyntaxKind.ConditionalType: {
         const outer = getOuterTypeParameters(c, current, includeThisTypes);
+        // A contextually typed function has the type parameters of its contextual signature.
+        if (
+          (kind === SyntaxKind.FunctionExpression ||
+            kind === SyntaxKind.ArrowFunction ||
+            isObjectLiteralMethod(current)) &&
+          isContextSensitive(c, current)
+        ) {
+          const signatures = getSignaturesOfType(
+            c,
+            getTypeOfSymbol(c, getSymbolOfDeclaration(c, current)!),
+            SignatureKind.Call,
+          );
+          if (signatures.length !== 0 && signatures[0]!.typeParameters.length !== 0) {
+            for (const t of signatures[0]!.typeParameters) outer.push(t);
+            return outer;
+          }
+        }
         if (kind === SyntaxKind.MappedType) {
           const typeParameter = (current as MappedTypeNode).typeParameter;
           outer.push(getDeclaredTypeOfTypeParameter(c, getSymbolOfDeclaration(c, typeParameter)!));
