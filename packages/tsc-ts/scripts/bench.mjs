@@ -41,7 +41,7 @@ function native(driver) {
   const sources = execFileSync('git', ['ls-files', 'src'], { encoding: 'utf8' }).trim().split('\n');
   const newest = Math.max(...sources.map((f) => statSync(f).mtimeMs));
   if (!existsSync(exe) || statSync(exe).mtimeMs < newest) {
-    execFileSync(scriptc, ['build', driver, '--optimization=release', '--no-keep-llvm', '-o', exe], {
+    execFileSync(scriptc, ['build', driver, '--optimization=speed', '--no-keep-llvm', '-o', exe], {
       stdio: 'inherit',
     });
   }
