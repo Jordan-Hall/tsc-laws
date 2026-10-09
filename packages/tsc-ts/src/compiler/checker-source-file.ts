@@ -119,12 +119,11 @@ import { checkDeprecatedTypeReference } from './checker-deprecation.js';
 
 /**
  * Checks `file` once; diagnostics accumulate in the checker. `checkUnused` also reports unused
- * identifiers, which need the whole file checked first. Default library files have no errors and
- * are only checked for suggestions.
+ * identifiers, which need the whole file checked first.
  */
 export function checkSourceFile(c: Checker, file: SourceFile, checkUnused = false): void {
   const links = c.nodeLinks(file);
-  if ((links.flags & NodeCheckFlags.TypeChecked) === 0 && (checkUnused || !c.host.isSourceFileDefaultLibrary(file))) {
+  if ((links.flags & NodeCheckFlags.TypeChecked) === 0) {
     links.flags |= NodeCheckFlags.TypeChecked;
     checkSourceFileWorker(c, file);
   }

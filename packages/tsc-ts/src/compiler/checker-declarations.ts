@@ -371,11 +371,7 @@ function checkParameter(c: Checker, node: Node): void {
   if (getDotDotDotToken(node) !== undefined && !isBindingPattern(name)) {
     const symbol = getSymbolOfDeclaration(c, node);
     const t = symbol !== undefined ? getReducedType(c, getTypeOfSymbol(c, symbol)) : undefined;
-    if (
-      t !== undefined &&
-      (t.flags & TypeFlags.Instantiable) === 0 &&
-      !isTypeAssignableTo(c, t, c.anyReadonlyArrayType)
-    )
+    if (t !== undefined && !isTypeAssignableTo(c, t, c.anyReadonlyArrayType))
       c.error(node, Diagnostics.A_rest_parameter_must_be_of_an_array_type);
   }
 }

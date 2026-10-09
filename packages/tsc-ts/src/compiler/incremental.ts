@@ -169,10 +169,11 @@ class StoredDiagnostic {
     const message = messageForKey(this.stored.messageKey);
     if (message === undefined) return undefined;
     const d = this.stored;
+    const diagnosticFile = fileForDiagnostic === undefined ? undefined : fileForDiagnostic.diagnosticFile();
     const result = new Diagnostic(
-      fileForDiagnostic === undefined ? undefined : fileForDiagnostic.diagnosticFile(),
-      d.pos,
-      d.end,
+      diagnosticFile,
+      diagnosticFile === undefined ? d.pos : diagnosticFile.fromUtf8Offset(d.pos),
+      diagnosticFile === undefined ? d.end : diagnosticFile.fromUtf8Offset(d.end),
       message,
       d.messageArgs,
     );
@@ -358,7 +359,11 @@ function diagnosticToString(d: Diagnostic, file: SourceFile): string {
       getRelativePathFromDirectory(getDirectoryPath(file.path), diagnosticFile.fileName, true),
     );
   }
-  if (diagnosticFile !== undefined) result += `(${d.pos},${d.end - d.pos}): `;
+  if (diagnosticFile !== undefined) {
+    // UTF-8 offsets, like tsgo's.
+    const pos = diagnosticFile.toUtf8Offset(d.pos);
+    result += `(${pos},${diagnosticFile.toUtf8Offset(d.end) - pos}): `;
+  }
   result += categoryName(d.category) + String(d.code) + ': ' + messageKey(d.message) + '\n';
   for (const arg of d.args) result += arg + '\n';
   for (const chain of d.messageChain) result += diagnosticToString(chain, file);
@@ -1290,8 +1295,9 @@ class ToBuildInfo {
         const path = toPath(file.fileName, this.program.currentDirectory, this.program.useCaseSensitiveFileNames);
         if (path !== filePath) result.file = this.toFileId(path);
       }
-      result.pos = d.pos;
-      result.end = d.end;
+      // Build info positions are UTF-8 offsets, like tsgo's.
+      result.pos = file === undefined ? d.pos : file.toUtf8Offset(d.pos);
+      result.end = file === undefined ? d.end : file.toUtf8Offset(d.end);
       result.code = d.code;
       result.category = d.category;
       result.messageKey = messageKey(d.message);

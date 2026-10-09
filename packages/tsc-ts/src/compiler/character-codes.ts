@@ -309,3 +309,25 @@ export function isIdentifierPart(codePoint: number, languageVariant = LanguageVa
       (codePoint === CharacterCodes.minus || codePoint === CharacterCodes.colon))
   );
 }
+
+/** UTF-8 offset of each UTF-16 offset of `text`; the middle of a surrogate pair maps to its start. */
+export function utf8Offsets(text: string): Int32Array {
+  const offsets = new Int32Array(text.length + 1);
+  let bytes = 0;
+  for (let i = 0; i < text.length; i++) {
+    offsets[i] = bytes;
+    const ch = text.charCodeAt(i);
+    if (ch < 0x80) bytes += 1;
+    else if (ch < 0x800) bytes += 2;
+    else if (ch >= 0xd800 && ch <= 0xdbff && i + 1 < text.length) {
+      const low = text.charCodeAt(i + 1);
+      if (low >= 0xdc00 && low <= 0xdfff) {
+        offsets[i + 1] = bytes;
+        bytes += 4;
+        i++;
+      } else bytes += 3;
+    } else bytes += 3;
+  }
+  offsets[text.length] = bytes;
+  return offsets;
+}

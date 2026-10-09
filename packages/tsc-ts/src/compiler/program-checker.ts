@@ -1,6 +1,6 @@
 /**
  * Binding and checking a program: the checker host over a `Program`, and the bind, semantic,
- * suggestion and global diagnostics of its files, like tsgo's `Program` with a single checker.
+ * suggestion and global diagnostics of its files, like tsgo's `Program`.
  *
  * ```ts
  * const checked = new CheckedProgram(program);
@@ -18,6 +18,7 @@ import {
   type SourceFileMetadata,
 } from './program-utilities.js';
 import { bindSourceFile } from './binder.js';
+import { libraryDiagnosticsAreKnownEmpty } from './library-diagnostics.js';
 import { computeLineOfPosition } from './scanner.js';
 import { CommentDirectiveKind } from './types.js';
 
@@ -71,9 +72,15 @@ export function bindProgram(program: Program): void {
   for (const file of program.getSourceFiles()) bindSourceFile(file);
 }
 
-/** A bound program with the checker that reports its diagnostics. */
+/**
+ * A bound program with the checker that reports its diagnostics. Default library files are checked by a
+ * checker of their own: tsgo spreads files over several checkers, so checking a library rarely changes
+ * what the checker of another file reports, and other files are checked as if no library had been.
+ */
 export class CheckedProgram {
   readonly checker: Checker;
+  private libraryChecker: Checker | undefined = undefined;
+  private librariesAreClean: boolean | undefined = undefined;
 
   constructor(readonly program: Program) {
     bindProgram(program);
@@ -108,13 +115,29 @@ export class CheckedProgram {
   }
 
   getSuggestionDiagnostics(file: SourceFile | undefined): Diagnostic[] {
-    return this.collectChecked(file, (f) => this.checker.getSuggestionDiagnostics(f));
+    return this.collectChecked(file, (f) => this.checkerOf(f).getSuggestionDiagnostics(f));
   }
 
   /** Diagnostics without a file, once every file is checked. */
   getGlobalDiagnostics(): Diagnostic[] {
     if (this.program.getSourceFiles().length === 0) return [];
-    return this.checker.getGlobalDiagnostics();
+    const libraryChecker = this.libraryChecker;
+    if (libraryChecker === undefined) return this.checker.getGlobalDiagnostics();
+    return sortAndDeduplicateDiagnostics([
+      ...this.checker.getGlobalDiagnostics(),
+      ...libraryChecker.getGlobalDiagnostics(),
+    ]);
+  }
+
+  /** The checker that checks `file`. */
+  private checkerOf(file: SourceFile): Checker {
+    if (!this.program.isSourceFileDefaultLibrary(file.path)) return this.checker;
+    let checker = this.libraryChecker;
+    if (checker === undefined) {
+      checker = this.createChecker();
+      this.libraryChecker = checker;
+    }
+    return checker;
   }
 
   /** Whether `file`'s bind and check diagnostics are reported. */
@@ -148,8 +171,16 @@ export class CheckedProgram {
 
   private getBindAndCheckDiagnostics(file: SourceFile): Diagnostic[] {
     const options = this.program.options;
+    if (this.program.isSourceFileDefaultLibrary(file.path)) {
+      let clean = this.librariesAreClean;
+      if (clean === undefined) {
+        clean = libraryDiagnosticsAreKnownEmpty(this.program);
+        this.librariesAreClean = clean;
+      }
+      if (clean) return [];
+    }
     const diagnostics = file.bindDiagnostics.slice();
-    for (const d of this.checker.getDiagnostics(file)) diagnostics.push(d);
+    for (const d of this.checkerOf(file).getDiagnostics(file)) diagnostics.push(d);
     if (isPlainJSFile(file, options)) {
       const result: Diagnostic[] = [];
       for (const d of diagnostics) if (plainJSErrors.has(d.code)) result.push(d);

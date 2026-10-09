@@ -139,6 +139,7 @@ import {
   addOptionality,
 } from './checker-symbol-types.js';
 import {
+  cloneTypeParameter,
   instantiateSignatureEx,
   instantiateType,
   isTypeParameterPossiblyReferenced,
@@ -3148,6 +3149,24 @@ export class Relater extends TypeComparer {
         this.reportError(message, [typeToString(c, originalTarget, undefined, 1 << 29), symbolToString(c, prop)]);
     }
     this.reportRelationError(headMessage, source, target);
+    if (
+      (source.flags & TypeFlags.TypeParameter) !== 0 &&
+      source.symbol !== undefined &&
+      source.symbol.declarations.length !== 0 &&
+      getConstraintOfType(c, source) === undefined
+    ) {
+      const syntheticParam = cloneTypeParameter(c, source);
+      syntheticParam.constraint = instantiateType(c, target, new SimpleTypeMapper(source, syntheticParam));
+      if (hasNonCircularBaseConstraint(c, syntheticParam)) {
+        this.relatedInfo.push(
+          createDiagnosticForNode(
+            source.symbol.declarations[0]!,
+            Diagnostics.This_type_parameter_might_need_an_extends_0_constraint,
+            [typeToString(c, target)],
+          ),
+        );
+      }
+    }
   }
 
   tryElaborateErrorsForPrimitivesAndObjects(source: Type, target: Type): void {

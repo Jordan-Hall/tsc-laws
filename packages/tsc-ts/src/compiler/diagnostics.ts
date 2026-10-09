@@ -2,7 +2,7 @@
  * Diagnostics: message lookup and localization, the `Diagnostic` type, and tsc's plain and
  * pretty diagnostic output.
  */
-import { isDigit, isUnicodeWhiteSpace, utf8Length } from './character-codes.js';
+import { isDigit, isUnicodeWhiteSpace, utf8Length, utf8Offsets } from './character-codes.js';
 import { Locale, translations } from './diagnostic-locales.js';
 import { Diagnostics, messageCodes, messageFlags, messageKeys, messageTexts } from './diagnostic-messages.js';
 import { getPathComponentsRelativeTo, getPathFromPathComponents, isRootedDiskPath, pathIsAbsolute } from './path.js';
@@ -155,6 +155,44 @@ export class DiagnosticFile {
   getLineStarts(): readonly number[] {
     if (this.lineStarts.length === 0) this.lineStarts = computeLineStarts(this.text);
     return this.lineStarts;
+  }
+
+  // The UTF-8 offset of each UTF-16 offset; empty for an ASCII text, unset until first used.
+  private offsets8: Int32Array | undefined = undefined;
+
+  private getUtf8Offsets(): Int32Array {
+    let offsets = this.offsets8;
+    if (offsets === undefined) {
+      const text = this.text;
+      offsets = utf8Length(text) === text.length ? new Int32Array(0) : utf8Offsets(text);
+      this.offsets8 = offsets;
+    }
+    return offsets;
+  }
+
+  /** The UTF-8 offset of UTF-16 offset `pos`, as tsgo counts positions. */
+  toUtf8Offset(pos: number): number {
+    const offsets = this.getUtf8Offsets();
+    if (offsets.length === 0 || pos < 0 || pos >= offsets.length) return pos;
+    return offsets[pos]!;
+  }
+
+  /** The UTF-16 offset of UTF-8 offset `pos`; inside a character, the offset of its start. */
+  fromUtf8Offset(pos: number): number {
+    const offsets = this.getUtf8Offsets();
+    if (offsets.length === 0 || pos <= 0) return pos;
+    let low = 0;
+    let high = offsets.length - 1;
+    if (pos >= offsets[high]!) return high + pos - offsets[high]!;
+    // The last offset at or before `pos`.
+    while (low < high) {
+      const middle = (low + high + 1) >> 1;
+      if (offsets[middle]! <= pos) low = middle;
+      else high = middle - 1;
+    }
+    // The middle of a surrogate pair shares its start's offset.
+    while (low > 0 && offsets[low - 1] === offsets[low]) low--;
+    return low;
   }
 }
 

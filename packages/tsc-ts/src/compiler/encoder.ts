@@ -190,6 +190,7 @@ import {
 import { getJSDoc } from './parser.js';
 import { SyntaxKind } from './syntax-kind.js';
 import { hash128 } from './xxh3.js';
+import { utf8Offsets } from './character-codes.js';
 
 export const protocolVersion = 5;
 
@@ -328,28 +329,6 @@ function encodeUTF8(text: string): Uint8Array {
 function isASCII(text: string): boolean {
   for (let i = 0; i < text.length; i++) if (text.charCodeAt(i) >= 0x80) return false;
   return true;
-}
-
-/** UTF-8 offset of each UTF-16 offset of `text`; the middle of a surrogate pair maps to its start. */
-function utf8Offsets(text: string): Int32Array {
-  const offsets = new Int32Array(text.length + 1);
-  let bytes = 0;
-  for (let i = 0; i < text.length; i++) {
-    offsets[i] = bytes;
-    const ch = text.charCodeAt(i);
-    if (ch < 0x80) bytes += 1;
-    else if (ch < 0x800) bytes += 2;
-    else if (ch >= 0xd800 && ch <= 0xdbff && i + 1 < text.length) {
-      const low = text.charCodeAt(i + 1);
-      if (low >= 0xdc00 && low <= 0xdfff) {
-        offsets[i + 1] = bytes;
-        bytes += 4;
-        i++;
-      } else bytes += 3;
-    } else bytes += 3;
-  }
-  offsets[text.length] = bytes;
-  return offsets;
 }
 
 /**
