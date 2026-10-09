@@ -151,6 +151,8 @@ function createJsxOptions(text: string): CompilerOptions {
 
 /** Whether a test case sets @checkJs and all its @filename units are JavaScript. */
 function isCheckedJS(text: string): boolean {
+  // Most inputs set no @checkJs: skip matching every directive.
+  if (!text.toLowerCase().includes('@checkjs')) return false;
   let units = 0;
   let checkJs = false;
   for (const m of text.matchAll(/^[ \t]*\/\/[ \t]*@(\w+)[ \t]*:([^\r\n]*)/gim)) {
@@ -228,15 +230,18 @@ function utf8Offsets(text: string): Int32Array {
 
 /** Prints diagnostics with UTF-8 offsets in the input file `input`. */
 function format(diagnostics: Diagnostic[], input: string, text: string, out: string[]): void {
-  const offsets = utf8Offsets(text);
+  // UTF-8 and UTF-16 offsets agree in ASCII text.
+  const ascii = Buffer.byteLength(text) === text.length;
+  const offsets = ascii ? new Int32Array(0) : utf8Offsets(text);
   for (const d of diagnostics) {
     const name = d.file !== undefined ? d.file.fileName : '';
     let pos = d.pos;
     let len = d.end - d.pos;
     if (d.file !== undefined && d.file.fileName === input) {
-      const start = offsets[Math.min(d.pos, text.length)];
-      pos = start;
-      len = offsets[Math.min(d.end, text.length)] - start;
+      const start = Math.min(d.pos, text.length);
+      const end = Math.min(d.end, text.length);
+      pos = ascii ? start : offsets[start];
+      len = (ascii ? end : offsets[end]) - pos;
     }
     out.push(`${name} ${d.code} ${pos} ${len} ${d.localize(Locale.Default)}`);
   }

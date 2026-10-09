@@ -421,7 +421,7 @@ export function getRootSymbols(c: Checker, symbol: Symbol): Symbol[] {
 }
 
 function getImmediateRootSymbols(c: Checker, symbol: Symbol): Symbol[] {
-  const links = c.symbolLinkStore.get(symbolIdOf(symbol));
+  const links = c.symbolLinkStore.get(symbol);
   if ((symbol.checkFlags & CheckFlags.Synthetic) !== 0) {
     const containingType = links?.containingType;
     const result: Symbol[] = [];
@@ -438,16 +438,11 @@ function getImmediateRootSymbols(c: Checker, symbol: Symbol): Symbol[] {
     let target: Symbol | undefined;
     for (let next = links.target; next !== undefined;) {
       target = next;
-      next = c.symbolLinkStore.get(symbolIdOf(next))?.target;
+      next = c.symbolLinkStore.get(next)?.target;
     }
     if (target !== undefined) return [target];
   }
   return [];
-}
-
-// Symbols without an id have no links.
-function symbolIdOf(symbol: Symbol): number {
-  return symbol.id;
 }
 
 /** The resolved signature of a call-like expression. */

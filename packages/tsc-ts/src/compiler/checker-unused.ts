@@ -12,6 +12,7 @@ import {
   type PostfixUnaryExpression,
   type PrefixUnaryExpression,
   type PropertyAccessExpression,
+  type PropertyAssignment,
   type ShorthandPropertyAssignment,
   type VariableDeclarationList,
   NodeFlags,
@@ -96,11 +97,11 @@ function accessKind(node: Node): AccessKind {
       return binary.operatorToken.kind === SyntaxKind.EqualsToken ? AccessKind.Write : AccessKind.ReadWrite;
     }
     case SyntaxKind.PropertyAccessExpression:
-      return getName(parent) !== node ? AccessKind.Read : accessKind(parent);
+      return (parent as PropertyAccessExpression).name !== node ? AccessKind.Read : accessKind(parent);
     case SyntaxKind.PropertyAssignment: {
       const parentAccess = accessKind(parent.parent!);
       // In `({ x: name } = { x: 1 })`, the left `x` is a read and `name` a write.
-      return node === getName(parent) ? reverseAccessKind(parentAccess) : parentAccess;
+      return node === (parent as PropertyAssignment).name ? reverseAccessKind(parentAccess) : parentAccess;
     }
     case SyntaxKind.ShorthandPropertyAssignment:
       // The local variable is the one accessed: public properties aren't checked for use.

@@ -568,7 +568,7 @@ class Binder extends NodeVisitor {
   /** The symbol name of a declaration. Computed names must be literals or well-known symbols. */
   getDeclarationName(node: Node): string {
     if (node instanceof ExportAssignment)
-      return node.isExportEquals ? InternalSymbolName.ExportEquals : InternalSymbolName.Default;
+      return (node as ExportAssignment).isExportEquals ? InternalSymbolName.ExportEquals : InternalSymbolName.Default;
     const name = getNameOfDeclaration(node);
     if (name !== undefined) {
       if (isAmbientModule(node)) {
@@ -586,8 +586,10 @@ class Binder extends NodeVisitor {
         const expression = getExpression(name)!;
         // A literal computed name is just the literal.
         if (isStringOrNumericLiteralLike(expression)) return getText(expression);
-        if (expression instanceof PrefixUnaryExpression && isSignedNumericLiteral(expression))
-          return tokenToString(expression.operator) + getText(expression.operand);
+        if (expression instanceof PrefixUnaryExpression && isSignedNumericLiteral(expression)) {
+          const unary = expression as PrefixUnaryExpression;
+          return tokenToString(unary.operator) + getText(unary.operand);
+        }
         throw new Error('Only computed properties with literal names have declaration names');
       }
       return InternalSymbolName.Missing;
@@ -800,7 +802,7 @@ class Binder extends NodeVisitor {
       case SyntaxKind.ThisKeyword:
       case SyntaxKind.SuperKeyword:
         if (node.kind === SyntaxKind.ThisKeyword) this.seenThisKeyword = true;
-        if (node instanceof KeywordExpression) node.flowNode = this.currentFlowValue();
+        if (node instanceof KeywordExpression) (node as KeywordExpression).flowNode = this.currentFlowValue();
         break;
       case SyntaxKind.QualifiedName:
         if (isPartOfTypeQuery(node)) (node as QualifiedName).flowNode = this.currentFlowValue();
@@ -1770,7 +1772,7 @@ class Binder extends NodeVisitor {
       if (
         operator === SyntaxKind.EqualsToken &&
         left instanceof ElementAccessExpression &&
-        isNarrowableOperand(left.expression)
+        isNarrowableOperand((left as ElementAccessExpression).expression)
       )
         this.currentFlow = this.createFlowMutation(FlowFlags.ArrayMutation, this.currentFlow, node);
     }
@@ -2530,7 +2532,8 @@ function isTopLevelLogicalExpression(node: Node): boolean {
     const parent = current.parent!;
     if (
       parent.kind === SyntaxKind.ParenthesizedExpression ||
-      (parent instanceof PrefixUnaryExpression && parent.operator === SyntaxKind.ExclamationToken)
+      (parent instanceof PrefixUnaryExpression &&
+        (parent as PrefixUnaryExpression).operator === SyntaxKind.ExclamationToken)
     )
       current = parent;
     else break;
@@ -2619,7 +2622,10 @@ export function isNarrowableReference(node: Node): boolean {
 function hasNarrowableArgument(call: CallExpression): boolean {
   for (const argument of call.arguments.nodes) if (containsNarrowableReference(argument)) return true;
   const callee = call.expression;
-  return callee instanceof PropertyAccessExpression && containsNarrowableReference(callee.expression);
+  return (
+    callee instanceof PropertyAccessExpression &&
+    containsNarrowableReference((callee as PropertyAccessExpression).expression)
+  );
 }
 
 function isNarrowingBinaryExpression(expression: BinaryExpression): boolean {
@@ -2656,9 +2662,10 @@ function isNarrowingBinaryExpression(expression: BinaryExpression): boolean {
 function isNarrowableOperand(expression: Node): boolean {
   if (expression.kind === SyntaxKind.ParenthesizedExpression) return isNarrowableOperand(getExpression(expression)!);
   if (expression instanceof BinaryExpression) {
-    const operator = expression.operatorToken.kind;
-    if (operator === SyntaxKind.EqualsToken) return isNarrowableOperand(expression.left);
-    if (operator === SyntaxKind.CommaToken) return isNarrowableOperand(expression.right);
+    const binary = expression as BinaryExpression;
+    const operator = binary.operatorToken.kind;
+    if (operator === SyntaxKind.EqualsToken) return isNarrowableOperand(binary.left);
+    if (operator === SyntaxKind.CommaToken) return isNarrowableOperand(binary.right);
   }
   return containsNarrowableReference(expression);
 }

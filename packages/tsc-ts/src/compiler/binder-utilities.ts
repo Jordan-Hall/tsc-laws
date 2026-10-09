@@ -75,27 +75,41 @@ export function getRootDeclaration(node: Node): Node {
 
 /** Modifier flags of a variable declaration combined with its list's and statement's. */
 export function getCombinedModifierFlags(node: Node): ModifierFlags {
-  let current: Node | undefined = getRootDeclaration(node);
+  // Locals stay non-optional: native builds box a `Node | undefined` local at every assignment.
+  let current = getRootDeclaration(node);
   let flags = getModifierFlags(current);
-  if (current.kind === SyntaxKind.VariableDeclaration) current = current.parent;
-  if (current !== undefined && current.kind === SyntaxKind.VariableDeclarationList) {
-    flags |= getModifierFlags(current);
-    current = current.parent;
+  if (current.kind === SyntaxKind.VariableDeclaration) {
+    const parent = current.parent;
+    if (parent === undefined) return flags;
+    current = parent;
   }
-  if (current !== undefined && current.kind === SyntaxKind.VariableStatement) flags |= getModifierFlags(current);
+  if (current.kind === SyntaxKind.VariableDeclarationList) {
+    flags |= getModifierFlags(current);
+    const parent = current.parent;
+    if (parent === undefined) return flags;
+    current = parent;
+  }
+  if (current.kind === SyntaxKind.VariableStatement) flags |= getModifierFlags(current);
   return flags;
 }
 
 /** Node flags of a variable declaration combined with its list's and statement's. */
 export function getCombinedNodeFlags(node: Node): NodeFlags {
-  let current: Node | undefined = getRootDeclaration(node);
+  // Locals stay non-optional, as in getCombinedModifierFlags.
+  let current = getRootDeclaration(node);
   let flags = current.flags;
-  if (current.kind === SyntaxKind.VariableDeclaration) current = current.parent;
-  if (current !== undefined && current.kind === SyntaxKind.VariableDeclarationList) {
-    flags |= current.flags;
-    current = current.parent;
+  if (current.kind === SyntaxKind.VariableDeclaration) {
+    const parent = current.parent;
+    if (parent === undefined) return flags;
+    current = parent;
   }
-  if (current !== undefined && current.kind === SyntaxKind.VariableStatement) flags |= current.flags;
+  if (current.kind === SyntaxKind.VariableDeclarationList) {
+    flags |= current.flags;
+    const parent = current.parent;
+    if (parent === undefined) return flags;
+    current = parent;
+  }
+  if (current.kind === SyntaxKind.VariableStatement) flags |= current.flags;
   return flags;
 }
 
@@ -294,13 +308,18 @@ export function isBooleanLiteral(node: Node): boolean {
 }
 
 export function isPrologueDirective(node: Node): boolean {
-  return node instanceof ExpressionStatement && node.expression.kind === SyntaxKind.StringLiteral;
+  return (
+    node instanceof ExpressionStatement && (node as ExpressionStatement).expression.kind === SyntaxKind.StringLiteral
+  );
 }
 
 /** The text of an identifier, literal, meta property or JSX namespaced name. */
 export function nodeText(node: Node): string {
-  if (node instanceof JsxNamespacedName) return node.namespace.text + ':' + node.name.text;
-  if (node instanceof MetaProperty) return node.name.text;
+  if (node instanceof JsxNamespacedName) {
+    const namespaced = node as JsxNamespacedName;
+    return namespaced.namespace.text + ':' + namespaced.name.text;
+  }
+  if (node instanceof MetaProperty) return (node as MetaProperty).name.text;
   return getText(node);
 }
 
@@ -318,10 +337,10 @@ export function skipParentheses(node: Node): Node {
 }
 
 function getQuestionDotToken(node: Node): Node | undefined {
-  if (node instanceof PropertyAccessExpression) return node.questionDotToken;
-  if (node instanceof ElementAccessExpression) return node.questionDotToken;
-  if (node instanceof CallExpression) return node.questionDotToken;
-  if (node instanceof TaggedTemplateExpression) return node.questionDotToken;
+  if (node instanceof PropertyAccessExpression) return (node as PropertyAccessExpression).questionDotToken;
+  if (node instanceof ElementAccessExpression) return (node as ElementAccessExpression).questionDotToken;
+  if (node instanceof CallExpression) return (node as CallExpression).questionDotToken;
+  if (node instanceof TaggedTemplateExpression) return (node as TaggedTemplateExpression).questionDotToken;
   return undefined;
 }
 
@@ -374,7 +393,10 @@ export function isLogicalOrCoalescingAssignmentOperator(kind: SyntaxKind): boole
 }
 
 export function isLogicalOrCoalescingAssignmentExpression(node: Node): boolean {
-  return node instanceof BinaryExpression && isLogicalOrCoalescingAssignmentOperator(node.operatorToken.kind);
+  return (
+    node instanceof BinaryExpression &&
+    isLogicalOrCoalescingAssignmentOperator((node as BinaryExpression).operatorToken.kind)
+  );
 }
 
 /** `&&`, `||` or `??`, possibly parenthesized or negated. */
@@ -397,10 +419,11 @@ export function isLogicalExpression(node: Node): boolean {
 
 export function isAssignmentExpression(node: Node, excludeCompoundAssignment: boolean): boolean {
   if (!(node instanceof BinaryExpression)) return false;
-  const operator = node.operatorToken.kind;
+  const binary = node as BinaryExpression;
+  const operator = binary.operatorToken.kind;
   return (
     (operator === SyntaxKind.EqualsToken || (!excludeCompoundAssignment && isAssignmentOperator(operator))) &&
-    isLeftHandSideExpression(node.left)
+    isLeftHandSideExpression(binary.left)
   );
 }
 
@@ -484,15 +507,15 @@ export function isDottedName(node: Node): boolean {
 /** `a`, `a.b.c`, and in JavaScript `this.a` and `a["b"]`. */
 export function isEntityNameExpression(node: Node, allowJS: boolean): boolean {
   if (node.kind === SyntaxKind.Identifier) return true;
-  if (node instanceof PropertyAccessExpression)
-    return node.name.kind === SyntaxKind.Identifier && isEntityNameExpression(node.expression, allowJS);
+  if (node instanceof PropertyAccessExpression) {
+    const access = node as PropertyAccessExpression;
+    return access.name.kind === SyntaxKind.Identifier && isEntityNameExpression(access.expression, allowJS);
+  }
   if (!allowJS) return false;
   if (node.kind === SyntaxKind.ThisKeyword) return true;
-  return (
-    node instanceof ElementAccessExpression &&
-    isStringOrNumericLiteralLike(node.argumentExpression) &&
-    isEntityNameExpression(node.expression, allowJS)
-  );
+  if (!(node instanceof ElementAccessExpression)) return false;
+  const access = node as ElementAccessExpression;
+  return isStringOrNumericLiteralLike(access.argumentExpression) && isEntityNameExpression(access.expression, allowJS);
 }
 
 /** An `export default` or `module.exports =` expression that aliases a declaration. */
@@ -619,12 +642,14 @@ export function isBindableObjectDefinePropertyCall(node: Node): boolean {
 
 export function getAssignmentDeclarationKind(node: Node): JSDeclarationKind {
   if (node instanceof BinaryExpression) {
-    const left = node.left;
-    if (node.operatorToken.kind !== SyntaxKind.EqualsToken || !isAccessExpression(left)) return JSDeclarationKind.None;
+    const binary = node as BinaryExpression;
+    const left = binary.left;
+    if (binary.operatorToken.kind !== SyntaxKind.EqualsToken || !isAccessExpression(left))
+      return JSDeclarationKind.None;
     const inJS = (left.flags & NodeFlags.JavaScriptFile) !== 0;
     const target = getExpression(left)!;
     if (inJS) {
-      if (isModuleExportsAccessExpression(left) && !isExportsIdentifier(node.right))
+      if (isModuleExportsAccessExpression(left) && !isExportsIdentifier(binary.right))
         return JSDeclarationKind.ModuleExports;
       if (
         (isModuleExportsAccessExpression(target) || isExportsIdentifier(target)) &&
@@ -634,7 +659,10 @@ export function getAssignmentDeclarationKind(node: Node): JSDeclarationKind {
       if (target.kind === SyntaxKind.ThisKeyword) return JSDeclarationKind.ThisProperty;
     }
     if (left instanceof PropertyAccessExpression) {
-      if (isEntityNameExpression(target, inJS) && left.name.kind === SyntaxKind.Identifier)
+      if (
+        isEntityNameExpression(target, inJS) &&
+        (left as PropertyAccessExpression).name.kind === SyntaxKind.Identifier
+      )
         return JSDeclarationKind.Property;
     } else if (isEntityNameExpression(target, inJS)) return JSDeclarationKind.Property;
     return JSDeclarationKind.None;
@@ -667,9 +695,9 @@ export function isExpandoInitializer(declaration: Node, initializer: Node | unde
 
 /** `const x = require("m")` in JavaScript, or a binding element of one. */
 export function isVariableDeclarationInitializedToRequire(node: Node): boolean {
-  const declaration = node.kind === SyntaxKind.BindingElement ? node.parent!.parent! : node;
-  if (!(declaration instanceof VariableDeclaration) || (declaration.flags & NodeFlags.JavaScriptFile) === 0)
-    return false;
+  const candidate = node.kind === SyntaxKind.BindingElement ? node.parent!.parent! : node;
+  if (!(candidate instanceof VariableDeclaration) || (candidate.flags & NodeFlags.JavaScriptFile) === 0) return false;
+  const declaration = candidate as VariableDeclaration;
   const initializer = declaration.initializer;
   if (initializer === undefined) return false;
   return (
@@ -763,7 +791,8 @@ export function getNameOfDeclaration(declaration: Node | undefined): Node | unde
 export function isDynamicName(name: Node): boolean {
   let expression: Node;
   if (name.kind === SyntaxKind.ComputedPropertyName) expression = getExpression(name)!;
-  else if (name instanceof ElementAccessExpression) expression = skipParentheses(name.argumentExpression);
+  else if (name instanceof ElementAccessExpression)
+    expression = skipParentheses((name as ElementAccessExpression).argumentExpression);
   else return false;
   return !isStringOrNumericLiteralLike(expression) && !isSignedNumericLiteral(expression);
 }
@@ -906,7 +935,7 @@ export function isPartOfTypeQuery(node: Node): boolean {
 export function isPotentiallyExecutableNode(node: Node): boolean {
   if (node.kind >= SyntaxKind.FirstStatement && node.kind <= SyntaxKind.LastStatement) {
     if (node instanceof VariableStatement) {
-      const list = node.declarationList;
+      const list = (node as VariableStatement).declarationList;
       if ((getCombinedNodeFlags(list) & NodeFlags.BlockScoped) !== 0) return true;
       for (const declaration of list.declarations.nodes) if (getInitializer(declaration) !== undefined) return true;
       return false;

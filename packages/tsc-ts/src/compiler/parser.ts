@@ -4590,7 +4590,7 @@ export class Parser extends ScannerErrorReporter {
         // `as` couldn't be erased without changing the meaning (TypeScript#63527).
         const lastPrecedence =
           lastOperand instanceof BinaryExpression
-            ? getBinaryOperatorPrecedence(lastOperand.operatorToken.kind)
+            ? getBinaryOperatorPrecedence((lastOperand as BinaryExpression).operatorToken.kind)
             : OperatorPrecedence.Highest;
         leftOperand =
           operator === SyntaxKind.SatisfiesKeyword
@@ -5309,14 +5309,15 @@ export class Parser extends ScannerErrorReporter {
     if ((node.flags & NodeFlags.OptionalChain) !== 0) return true;
     // An optional chain inside a non-null expression.
     if (node instanceof NonNullExpression) {
-      let expr = node.expression;
-      while (expr instanceof NonNullExpression && (expr.flags & NodeFlags.OptionalChain) === 0) expr = expr.expression;
+      let expr = (node as NonNullExpression).expression;
+      while (expr instanceof NonNullExpression && (expr.flags & NodeFlags.OptionalChain) === 0)
+        expr = (expr as NonNullExpression).expression;
       if ((expr.flags & NodeFlags.OptionalChain) !== 0) {
         // Part of an optional chain: flag the non-null expressions down to it.
         let current: Node = node;
         while (current instanceof NonNullExpression) {
           current.flags |= NodeFlags.OptionalChain;
-          current = current.expression;
+          current = (current as NonNullExpression).expression;
         }
         return true;
       }

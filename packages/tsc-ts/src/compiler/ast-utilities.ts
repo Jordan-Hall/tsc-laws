@@ -402,19 +402,20 @@ export function isImportMeta(node: Node): boolean {
 /** `import(…)` or `import.defer(…)`. */
 export function isImportCall(node: Node): boolean {
   if (!(node instanceof CallExpression)) return false;
-  const e = node.expression;
-  return (
-    e.kind === SyntaxKind.ImportKeyword ||
-    (e instanceof MetaProperty && e.keywordToken === SyntaxKind.ImportKeyword && e.name.text === 'defer')
-  );
+  const e = (node as CallExpression).expression;
+  if (e.kind === SyntaxKind.ImportKeyword) return true;
+  if (!(e instanceof MetaProperty)) return false;
+  const meta = e as MetaProperty;
+  return meta.keywordToken === SyntaxKind.ImportKeyword && meta.name.text === 'defer';
 }
 
 /** `require(x)` with one argument, a string literal if `requireStringLiteralLikeArgument`. */
 export function isRequireCall(node: Node, requireStringLiteralLikeArgument: boolean): boolean {
   if (!(node instanceof CallExpression)) return false;
-  const callee = node.expression;
-  if (!(callee instanceof Identifier) || callee.text !== 'require') return false;
-  const args = node.arguments.nodes;
+  const call = node as CallExpression;
+  const callee = call.expression;
+  if (!(callee instanceof Identifier) || (callee as Identifier).text !== 'require') return false;
+  const args = call.arguments.nodes;
   if (args.length !== 1) return false;
   return !requireStringLiteralLikeArgument || isStringLiteralLike(args[0]!);
 }
@@ -451,19 +452,24 @@ export function getExternalModuleName(node: Node): Node | undefined {
     case SyntaxKind.ExportDeclaration:
       return getModuleSpecifier(node);
     case SyntaxKind.ImportEqualsDeclaration:
-      if (node instanceof ImportEqualsDeclaration && node.moduleReference instanceof ExternalModuleReference)
-        return node.moduleReference.expression;
+      if (node instanceof ImportEqualsDeclaration) {
+        const reference = (node as ImportEqualsDeclaration).moduleReference;
+        if (reference instanceof ExternalModuleReference) return (reference as ExternalModuleReference).expression;
+      }
       return undefined;
     case SyntaxKind.ImportType:
       return getImportTypeNodeLiteral(node);
     case SyntaxKind.CallExpression:
       if (node instanceof CallExpression) {
-        const args = node.arguments.nodes;
+        const args = (node as CallExpression).arguments.nodes;
         return args.length > 0 ? args[0]! : undefined;
       }
       return undefined;
     case SyntaxKind.ModuleDeclaration:
-      if (node instanceof ModuleDeclaration && node.name.kind === SyntaxKind.StringLiteral) return node.name;
+      if (node instanceof ModuleDeclaration) {
+        const name = (node as ModuleDeclaration).name;
+        if (name.kind === SyntaxKind.StringLiteral) return name;
+      }
       return undefined;
   }
   throw new Error('Unhandled case in getExternalModuleName');
@@ -474,10 +480,9 @@ export function isGlobalScopeAugmentation(node: Node): boolean {
 }
 
 export function isAmbientModule(node: Node): boolean {
-  return (
-    node instanceof ModuleDeclaration &&
-    (node.name.kind === SyntaxKind.StringLiteral || node.keyword === SyntaxKind.GlobalKeyword)
-  );
+  if (!(node instanceof ModuleDeclaration)) return false;
+  const declaration = node as ModuleDeclaration;
+  return declaration.name.kind === SyntaxKind.StringLiteral || declaration.keyword === SyntaxKind.GlobalKeyword;
 }
 
 /** Whether `node` is a JavaScript `/** @type {T} *\/ (x)` cast, reparsed as a parenthesized `as` expression. */

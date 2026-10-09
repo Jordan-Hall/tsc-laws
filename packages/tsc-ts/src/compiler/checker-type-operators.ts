@@ -22,7 +22,7 @@ import {
   getText,
 } from './ast.js';
 import { Diagnostics, Diagnostic } from './diagnostics.js';
-import { CheckFlags, InternalSymbolName, type Symbol, SymbolFlags } from './symbol.js';
+import { CheckFlags, InternalSymbolName, type Symbol, SymbolFlags, getSymbolId } from './symbol.js';
 import { SyntaxKind } from './syntax-kind.js';
 import type { Checker } from './checker.js';
 import {
@@ -1388,7 +1388,7 @@ function applyTemplateStringMapping(c: Checker, symbol: Symbol, texts: string[],
 }
 
 function getStringMappingTypeForGenericType(c: Checker, symbol: Symbol, t: Type): Type {
-  const key = symbol.id + ',' + t.id;
+  const key = getSymbolId(symbol) + ',' + t.id;
   let result = c.stringMappingTypes.get(key);
   if (result === undefined) {
     result = new StringMappingType(c.nextTypeId(), symbol, t);

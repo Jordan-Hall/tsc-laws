@@ -329,7 +329,7 @@ export class NameResolver {
           if (
             lastLocation === (current as ExpressionWithTypeArguments).expression &&
             heritage instanceof HeritageClause &&
-            heritage.token === SyntaxKind.ExtendsKeyword
+            (heritage as HeritageClause).token === SyntaxKind.ExtendsKeyword
           ) {
             const container = heritage.parent!;
             if (isClassLike(container)) {

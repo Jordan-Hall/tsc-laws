@@ -29,7 +29,7 @@
 // | checker-elaboration.ts          | reporting relation errors at the failing subexpression  |
 // | checker-grammar.ts              | grammar checks                                          |
 // | checker-flow.ts                 | control flow narrowing                                  |
-import { type Node, type PatternAmbientModule, type SourceFile, getNodeId } from './ast.js';
+import type { Node, PatternAmbientModule, SourceFile } from './ast.js';
 import { getErrorRangeForNode, getSourceFileOfNode } from './binder-utilities.js';
 import {
   Diagnostic,
@@ -47,7 +47,7 @@ import {
   getStrictOptionValue,
   shouldPreserveConstEnums,
 } from './options.js';
-import { CheckFlags, Symbol, SymbolFlags, type SymbolTable, getSymbolId } from './symbol.js';
+import { CheckFlags, Symbol, SymbolFlags, type SymbolTable } from './symbol.js';
 import {
   IndexInfo,
   IntrinsicType,
@@ -246,10 +246,10 @@ export class Checker {
   readonly diagnostics = new DiagnosticCollection();
   readonly suggestionDiagnostics = new DiagnosticCollection();
 
-  // Links, indexed by symbol and node ids.
-  // Maps rather than arrays by id: ids grow across programs, and maps are faster natively.
-  readonly symbolLinkStore = new Map<number, SymbolLinks>();
-  readonly nodeLinkStore = new Map<number, NodeLinks>();
+  // Links of symbols and nodes, keyed by object like tsgo's link stores. Object keys are faster
+  // natively than ids, and reading links assigns no ids.
+  readonly symbolLinkStore = new Map<Symbol, SymbolLinks>();
+  readonly nodeLinkStore = new Map<Node, NodeLinks>();
   /** Merged symbols, indexed by the id of the symbol merged into them. */
   readonly mergedSymbols: Map<number, Symbol>;
   /** Globals merged from the default libraries, shared with other checkers. */
@@ -698,21 +698,19 @@ export class Checker {
   // ---- Links
 
   symbolLinks(symbol: Symbol): SymbolLinks {
-    const id = getSymbolId(symbol);
-    let links = this.symbolLinkStore.get(id);
+    let links = this.symbolLinkStore.get(symbol);
     if (links === undefined) {
       links = new SymbolLinks();
-      this.symbolLinkStore.set(id, links);
+      this.symbolLinkStore.set(symbol, links);
     }
     return links;
   }
 
   nodeLinks(node: Node): NodeLinks {
-    const id = getNodeId(node);
-    let links = this.nodeLinkStore.get(id);
+    let links = this.nodeLinkStore.get(node);
     if (links === undefined) {
       links = new NodeLinks();
-      this.nodeLinkStore.set(id, links);
+      this.nodeLinkStore.set(node, links);
     }
     return links;
   }

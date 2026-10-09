@@ -266,6 +266,7 @@ export function chainDiagnostic(
 
 /** Orders strings by code point, like Go's byte-wise comparison of UTF-8. */
 export function compareCodePoints(a: string, b: string): number {
+  if (a === b) return 0;
   const length = Math.min(a.length, b.length);
   for (let i = 0; i < length; i++) {
     let x = a.charCodeAt(i);
