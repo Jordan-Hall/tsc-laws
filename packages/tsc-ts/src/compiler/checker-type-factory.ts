@@ -629,14 +629,15 @@ export function containsType(c: Checker, types: readonly Type[], t: Type): boole
 }
 
 /**
- * Whether `t` is a constituent of `union`. Equal types are identical, so large unions, which are
- * tested many times, look `t` up in a set instead of searching their sorted constituents.
+ * Whether `t` is a constituent of `union`. Equal types are identical, so a large union tested more
+ * than once looks `t` up in a set instead of searching its sorted constituents. Most large unions
+ * are tested once; a few are tested very often.
  */
 export function unionContainsType(c: Checker, union: UnionType, t: Type): boolean {
-  const types = union.types;
-  if (types.length < 16) return binarySearchTypes(c, types, t) >= 0;
   let set = union.constituentSet;
   if (set === undefined) {
+    const types = union.types;
+    if (types.length < 16 || union.membershipTests++ === 0) return binarySearchTypes(c, types, t) >= 0;
     set = new Set(types);
     union.constituentSet = set;
   }
