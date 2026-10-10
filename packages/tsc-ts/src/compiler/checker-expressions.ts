@@ -1095,12 +1095,12 @@ function checkArrayLiteral(c: Checker, node: ArrayLiteralExpression, checkMode: 
           ? c.undefinedWideningType
           : checkExpressionForMutableLocationEx(c, e, checkMode);
       if (
-        contextualType !== undefined &&
+        inTupleContext &&
         (checkMode & CheckMode.Inferential) !== 0 &&
         (checkMode & CheckMode.SkipContextSensitive) === 0 &&
         isContextSensitive(c, e)
       ) {
-        // Inferences flowing between context-sensitive elements are made before fixing.
+        // Inferences flowing between context-sensitive tuple elements are made before fixing.
         const inferenceContext = getInferenceContext(c, node);
         if (inferenceContext !== undefined) addIntraExpressionInferenceSite(inferenceContext, e, t);
       }
