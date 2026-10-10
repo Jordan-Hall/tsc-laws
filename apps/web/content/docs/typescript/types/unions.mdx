@@ -1,0 +1,56 @@
+---
+title: Union types
+description: Alternatives, shared operations, and discriminated unions.
+---
+
+`A | B` describes a value assignable to at least one of its members. Before narrowing, an operation must be valid for the possible types of the value.
+
+```ts
+function size(value: string | string[]) {
+  return value.length; // both members provide length: number
+}
+```
+
+A union does not combine every member's properties into one object with all those properties. Access a member-specific property only after establishing the member.
+
+## Discriminated unions
+
+Give each member a common property with a distinct literal value:
+
+```ts
+type Result = { status: 'ok'; value: string } | { status: 'error'; message: string };
+
+function display(result: Result) {
+  if (result.status === 'ok') return result.value;
+  return result.message;
+}
+```
+
+The guard selects a member of `Result`. Making both `value` and `message` optional on a single object would not encode the same relationship.
+
+## Exhaustiveness
+
+After handling every member, a remaining discriminated-union value can narrow to `never`. Passing it to a `never` parameter makes a newly added unhandled member a type error.
+
+```ts
+type State = 'idle' | 'running';
+function assertNever(value: never): never {
+  throw new Error(String(value));
+}
+function label(state: State): string {
+  switch (state) {
+    case 'idle':
+      return 'Idle';
+    case 'running':
+      return 'Running';
+    default:
+      return assertNever(state);
+  }
+}
+```
+
+## Keys of a union
+
+`keyof (A | B)` describes keys available on the union, generally the keys common to its members. It does not automatically form the union of every member's keys. Distribution can be expressed with a [conditional type](/typescript/type-operators/conditional-types) when needed.
+
+See [union types](https://www.typescriptlang.org/docs/handbook/2/everyday-types.html#union-types) and [discriminated unions](https://www.typescriptlang.org/docs/handbook/2/narrowing.html#discriminated-unions).

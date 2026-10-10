@@ -1,0 +1,36 @@
+---
+title: Sources and verification
+description: How to interpret the reference, check examples, and report differences.
+---
+
+TypeScript's behavior is defined in practice by its compiler and tests. The [Handbook](https://www.typescriptlang.org/docs/handbook/intro.html), [TSConfig reference](https://www.typescriptlang.org/tsconfig/), and [release notes](https://www.typescriptlang.org/docs/handbook/release-notes/overview.html) explain supported features. The older [language specification](https://github.com/microsoft/TypeScript/blob/main/doc/spec-ARCHIVED.md) is archived and does not describe all modern TypeScript features.
+
+This site turns that material into a topic-based reference. The prose and examples are maintained independently; upstream links identify the relevant topic rather than claiming that Microsoft has reviewed this text.
+
+## Version boundaries
+
+There are three separate references:
+
+| Reference                  | Purpose                                                          |
+| -------------------------- | ---------------------------------------------------------------- |
+| TypeScript 5.9             | Checks the runnable TypeScript examples in this site.            |
+| Pinned TypeScript-Go 7.0.2 | Provides the oracle used by the compiler's compatibility suites. |
+| ECMAScript                 | Defines JavaScript evaluation, objects, and runtime syntax.      |
+
+The tsc-ts oracle revision is recorded in [upstream.json](https://github.com/vercel-labs/tsc-ts/blob/main/upstream.json). Version-specific changes must name the version and link to upstream evidence. Do not infer a TypeScript 7 rule solely from a TypeScript 5.9 example.
+
+## Example checks
+
+TypeScript code blocks are checked with `strict: true`. Rejected examples use `@ts-expect-error`, so a previously rejected statement becoming accepted also fails the check. Blocks with multiple files declare their filenames. Option directives state when an example changes the default configuration.
+
+These checks detect invalid snippets and stale rejection examples. They do not test runtime results, diagnostic wording, or every possible type instantiation. JavaScript and shell blocks are explanatory.
+
+## Compiler compatibility
+
+The compiler's [compatibility suites](/compiler/compatibility) compare tsc-ts with the pinned upstream compiler. They cover diagnostics, output, configuration, and other observable results. A passing suite establishes agreement on those inputs and comparisons. It cannot establish agreement on all TypeScript programs.
+
+## Reporting a difference
+
+Include the smallest source file that reproduces the behavior, the compiler version, the complete relevant options, and the expected and actual results. State whether the difference is in checking, emitted output, module resolution, or this reference's explanation.
+
+Use the [issue tracker](https://github.com/vercel-labs/tsc-ts/issues) for tsc-ts or reference issues. For an upstream compiler issue, follow [TypeScript's contribution guidance](https://github.com/microsoft/TypeScript/blob/main/CONTRIBUTING.md).

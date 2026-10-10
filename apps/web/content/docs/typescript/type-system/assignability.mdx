@@ -1,0 +1,42 @@
+---
+title: Assignability
+description: When one type can be used in a location expecting another type.
+---
+
+An assignment is checked from a source type to a target type. The question is directional: a value that satisfies a narrower set of possibilities can often be used where a wider set is expected, while the reverse use can fail.
+
+```ts
+let wide: string | number = 1;
+const narrow: number = 1;
+wide = narrow;
+
+declare const unknownChoice: string | number;
+// @ts-expect-error: the source could be a string
+const numberOnly: number = unknownChoice;
+```
+
+## Structural object compatibility
+
+An object source generally needs compatible members for the target's required members. Extra source members can remain present.
+
+```ts
+type Named = { name: string };
+const source = { name: 'Ada', age: 36 };
+const target: Named = source;
+```
+
+[Fresh object literals](/typescript/types/objects) receive additional excess property checks. Private and protected class members add declaration-origin requirements. A shape-only explanation does not cover those cases.
+
+## Function compatibility
+
+Function parameters and returns are checked using their signature rules. Under `strictFunctionTypes`, function-valued properties have contravariant parameter checks. Method declarations retain a bivariant exception. See [variance](/typescript/type-system/variance).
+
+## Special types and nullability
+
+`unknown` accepts values of other types but needs narrowing before most uses. `any` bypasses much of checking. `never` is assignable to other types because it has no possible values. `strictNullChecks` controls whether nullish values are independently checked.
+
+## Accepted does not mean safe for every execution
+
+TypeScript deliberately permits some operations that a fully sound type system would reject, including certain mutable aliases and callback relationships. Assertions and unchecked external data can also invalidate an annotation's assumptions.
+
+Assignability is a compiler relation, not runtime validation. See [type compatibility](https://www.typescriptlang.org/docs/handbook/type-compatibility.html) for upstream rules and rationale.

@@ -1,0 +1,40 @@
+---
+title: Primitive types
+description: string, number, boolean, bigint, symbol, null, and undefined.
+---
+
+Primitive types describe JavaScript primitive values. Use lowercase `string`, `number`, and `boolean` for ordinary values. The uppercase wrapper types describe boxed objects and are usually not the intended annotation.
+
+```ts
+const name: string = 'Ada';
+const count: number = 3;
+const active: boolean = true;
+const large: bigint = 10n;
+const key: symbol = Symbol('key');
+```
+
+## Numbers and bigints
+
+`number` includes integers, floating-point values, `NaN`, and infinities. TypeScript does not provide a distinct built-in integer type. `bigint` describes arbitrary-precision integers and does not implicitly mix with `number` in arithmetic.
+
+Neither annotation establishes a numeric range. Validate bounds at runtime when they matter.
+
+## Null and undefined
+
+With `strictNullChecks`, `null` and `undefined` have distinct types and are not assignable to an ordinary `string` or `number`. Include them in a union when they are valid values.
+
+```ts
+let selected: string | undefined;
+selected = 'item';
+
+// @ts-expect-error: null is not part of this union
+selected = null;
+```
+
+Disabling `strictNullChecks` changes assignability and removes many missing-value checks. Reference examples assume it is enabled.
+
+## `void`
+
+`void` commonly marks a function whose return value should be ignored. It is not equivalent to `undefined` in function compatibility: a function returning a useful value can be used in a context expecting `void`.
+
+See [functions](/typescript/types/functions), [literal types](/typescript/types/literals), and [everyday types](https://www.typescriptlang.org/docs/handbook/2/everyday-types.html).

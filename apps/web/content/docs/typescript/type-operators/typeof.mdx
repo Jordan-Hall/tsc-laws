@@ -1,0 +1,41 @@
+---
+title: typeof in type positions
+description: Refer to the type of a value without executing it.
+---
+
+In a type position, `typeof` refers to the type of a value declaration or property access. It is distinct from JavaScript's runtime `typeof` expression.
+
+```ts
+const settings = { retries: 3, mode: 'read' };
+type Settings = typeof settings;
+const copy: Settings = { retries: 1, mode: 'write' };
+```
+
+Here the mutable properties were inferred as `number` and `string`. `typeof` retrieves that inferred type; it does not preserve the initializer's exact literals retroactively.
+
+## Functions and classes
+
+`typeof fn` retrieves a function's type, which can be passed to utilities such as `ReturnType`. `typeof ClassName` retrieves the constructor and static side; the class name alone describes an instance.
+
+```ts
+function makeUser() {
+  return { name: 'Ada' };
+}
+type User = ReturnType<typeof makeUser>;
+
+class Counter {
+  value = 0;
+}
+type Constructor = typeof Counter;
+type Instance = InstanceType<Constructor>;
+```
+
+## Restrictions
+
+A type query is restricted to appropriate names and property accesses. It does not accept arbitrary function calls or run code to discover a return value. Use `ReturnType<typeof fn>` instead of trying to write a type query for `fn()`.
+
+## Runtime `typeof`
+
+In an expression, `typeof value` produces a JavaScript string such as `"string"` or `"object"`. Comparisons against those strings can narrow a value's type. The runtime result does not enumerate a TypeScript union or retain type arguments.
+
+See [the typeof type operator](https://www.typescriptlang.org/docs/handbook/2/typeof-types.html), [narrowing](/typescript/type-system/narrowing), and [literal types](/typescript/types/literals).

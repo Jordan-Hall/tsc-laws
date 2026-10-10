@@ -1,0 +1,37 @@
+---
+title: API server
+description: Use the TypeScript 7 compiler API protocol over stdin and stdout.
+---
+
+`tsc-ts --api` serves the same protocol as TypeScript 7.0.2's `tsc --api`. Tools that already drive that protocol can use tsc-ts as the executable.
+
+```sh
+npx tsc-ts --api --cwd path/to/project
+```
+
+Requests and responses travel over stdin and stdout using the upstream protocol's framing. This is not an HTTP service or the TypeScript 5 `tsserver` protocol. Do not send newline-delimited JSON unless your client implements the expected framing.
+
+## Client integration
+
+Start the executable as a child process, connect its stdin and stdout to the protocol client, and keep process diagnostics separate from protocol responses. Use the same working directory and library declarations you would use with `tsc --api`.
+
+The implementation is in [the API package](https://github.com/vercel-labs/tsc-ts/tree/main/packages/tsc-ts/src/api). Consult the [protocol definitions](https://github.com/vercel-labs/tsc-ts/blob/main/packages/tsc-ts/src/api/proto.ts) when writing a client. The upstream compiler API may change across versions; pin the client and compiler versions together.
+
+## Language service methods
+
+Supported methods include:
+
+- `getCompletionsAtPosition`
+- `getJsDocTags`
+- `getDocumentationComment`
+- `getReferencesToSymbolInFile`
+- `getReferencedSymbolsForNode`
+- `getSignatureUsages`
+
+Completion requests that require auto imports report `completion list needs auto imports`, as in the pinned upstream server. This includes global identifier completions, import statements, and exhaustive `switch` cases that need auto imports.
+
+## Limitations
+
+`startCPUProfile`, `stopCPUProfile`, and `saveHeapProfile` are unsupported. A matching protocol does not mean every method has an implementation. Check the repository's API tests when depending on a particular request.
+
+The [compatibility page](/compiler/compatibility) explains response comparisons against the upstream API server. For CLI usage, see [command line](/compiler/command-line).

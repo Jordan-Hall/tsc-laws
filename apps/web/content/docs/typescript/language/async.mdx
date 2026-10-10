@@ -1,0 +1,44 @@
+---
+title: Async functions and await
+description: Promise-returning functions and the types of awaited values.
+---
+
+An `async` function returns a promise. Returning a plain value resolves that promise with the value; throwing rejects it. `await` suspends the async function until the awaited value settles.
+
+```ts
+async function readCount(): Promise<number> {
+  return 3;
+}
+
+async function display() {
+  const count = await readCount(); // number
+  return String(count); // return type Promise<string>
+}
+```
+
+## Awaited types
+
+The type of an awaited expression unwraps promise-like values. The `Awaited<T>` utility describes this recursively, including unions.
+
+```ts
+type Result = Awaited<Promise<Promise<string>>>; // string
+type Maybe = Awaited<number | Promise<string>>; // number | string
+```
+
+`Awaited` models thenable behavior; it is not limited to the built-in `Promise` class. The runtime still determines whether a thenable resolves, rejects, or never settles.
+
+## Rejections
+
+A `Promise<T>` describes its fulfilled value. It does not encode the type of rejection. A catch block must handle an unknown thrown value unless its configuration says otherwise.
+
+Annotating a function `async (): Promise<number>` does not guarantee that it will fulfill with a number. It can reject, and an incorrect assertion inside it can defeat the check.
+
+## Top-level await
+
+Top-level `await` requires a module and compiler options that support it. The loading environment must support the emitted module semantics. Enabling a suitable `module` and `target` does not add support to an older runtime.
+
+## Async callbacks
+
+A context that expects a `void`-returning callback can accept an async callback. The caller may ignore the returned promise. For example, `forEach` does not await its callback. Use an explicit loop or `Promise.all` when completion matters.
+
+See [async functions](https://www.typescriptlang.org/docs/handbook/release-notes/typescript-1-7.html#async-functions) and [`Awaited`](https://www.typescriptlang.org/docs/handbook/utility-types.html#awaitedtype).

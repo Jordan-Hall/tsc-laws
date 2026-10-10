@@ -9,6 +9,23 @@ permissions:
   contents: read
 
 jobs:
+  docs:
+    name: documentation
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run type-check -w @tsc-ts/web
+      - run: npm test -w @tsc-ts/web
+      - run: npm run check:examples -w @tsc-ts/web
+      - run: npm run build:web
+      - run: npm run test:routes -w @tsc-ts/web
+
   test:
     name: test (${{ matrix.name }})
     runs-on: ubuntu-latest
@@ -24,14 +41,14 @@ jobs:
               npx turbo run test --filter=@tsc-ts/relater --filter=@tsc-ts/tsgo
               npm run test:corpus
           - name: tsc-ts program 1/2
-            run: npx turbo run build build:oracle && PROGRAM_SHARD=1/2 npm exec -w tsc-ts -- node --test tests/program.test.mjs
+            run: npx turbo run build build:oracle --filter='!@tsc-ts/web' && PROGRAM_SHARD=1/2 npm exec -w tsc-ts -- node --test tests/program.test.mjs
           - name: tsc-ts program 2/2
-            run: npx turbo run build build:oracle && PROGRAM_SHARD=2/2 npm exec -w tsc-ts -- node --test tests/program.test.mjs
+            run: npx turbo run build build:oracle --filter='!@tsc-ts/web' && PROGRAM_SHARD=2/2 npm exec -w tsc-ts -- node --test tests/program.test.mjs
           - name: tsc-ts command line
-            run: npx turbo run build build:oracle && npm exec -w tsc-ts -- node --test tests/command-line.test.mjs
+            run: npx turbo run build build:oracle --filter='!@tsc-ts/web' && npm exec -w tsc-ts -- node --test tests/command-line.test.mjs
           - name: tsc-ts
             run: |
-              npx turbo run build build:oracle
+              npx turbo run build build:oracle --filter='!@tsc-ts/web'
               cd packages/tsc-ts
               node --test $(ls tests/*.test.mjs | grep -v -e program.test -e command-line.test)
     steps:

@@ -1,0 +1,38 @@
+---
+title: tsc-ts
+description: A TypeScript compiler written in TypeScript and compiled to a native executable.
+---
+
+tsc-ts is a port of the TypeScript-Go 7.0.2 compiler to TypeScript. [scriptc](https://scriptc.dev) compiles the implementation to a native executable. The npm package selects the executable for your operating system and architecture.
+
+## Check a project
+
+```sh
+npm install -D tsc-ts
+npx tsc-ts -p tsconfig.json
+```
+
+tsc-ts reads `tsconfig.json`, checks the program, and emits files according to the project's options. Use `--noEmit` to check without writing output.
+
+See [getting started](/compiler/getting-started) for installation and platform packages, and [the command line](/compiler/command-line) for project selection, watch mode, and builds.
+
+## TypeScript behavior
+
+The compiler aims to match the pinned TypeScript-Go implementation. Its tests compare observable results with that implementation. Read [compatibility](/compiler/compatibility) for the tested surfaces and limits of that evidence.
+
+The [TypeScript reference](/typescript) describes language behavior separately. An explanation of a TypeScript rule is not a claim that every implementation case is covered by the compiler's tests.
+
+## API server
+
+`tsc-ts --api` exposes the TypeScript 7 compiler API over stdin and stdout. It is intended for tools that already use TypeScript 7's `tsc --api` protocol. See [the API server](/compiler/api) for supported methods and limitations.
+
+## Source layout
+
+| Package            | Purpose                                             |
+| ------------------ | --------------------------------------------------- |
+| `packages/tsc-ts`  | Compiler, command line, and API server.             |
+| `packages/tsgo`    | TypeScript generated from tsgo's Go implementation. |
+| `packages/gots`    | Go-to-TypeScript translator.                        |
+| `packages/relater` | Assignability checker over an exported type graph.  |
+
+The [repository README](https://github.com/vercel-labs/tsc-ts#readme) documents builds and tests. The compiler is licensed under [Apache-2.0](https://github.com/vercel-labs/tsc-ts/blob/main/LICENSE); upstream notices are in [THIRD_PARTY_NOTICES.md](https://github.com/vercel-labs/tsc-ts/blob/main/THIRD_PARTY_NOTICES.md).

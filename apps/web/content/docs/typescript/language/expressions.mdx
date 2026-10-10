@@ -1,0 +1,48 @@
+---
+title: Expressions
+description: Operators, property access, calls, and optional access in checked JavaScript.
+---
+
+An expression produces a value or performs an operation on values. TypeScript checks its operands and assigns the expression a type. JavaScript determines how the expression evaluates.
+
+## Operators
+
+Arithmetic operators generally require numeric operands. `+` also supports string concatenation. Number and bigint arithmetic cannot mix operands without an explicit conversion.
+
+```ts
+const total = 1 + 2;
+const text = 'count: ' + total;
+const big = 1n + 2n;
+
+// @ts-expect-error: number and bigint cannot be mixed
+const mixed = 1n + 2;
+```
+
+The type checker does not generally compute the exact literal result of arithmetic. The type of `1 + 2` is `number`, not `3`.
+
+## Property access and calls
+
+Property access requires a property available on the receiver type. A call requires a compatible call signature and arguments. For a union, an operation must be valid for the possible members that remain after narrowing.
+
+```ts
+function length(value: string | string[]) {
+  return value.length; // shared property, number
+}
+```
+
+## Optional chaining and nullish coalescing
+
+Optional chaining stops an access or call when its receiver is `null` or `undefined`. It does not stop for `0`, `false`, or an empty string. `??` selects its right operand only when the left is nullish.
+
+```ts
+declare const settings: { retries?: number } | undefined;
+const retries = settings?.retries ?? 3; // number
+```
+
+An optional chain protects the portion of access that belongs to the chain. It does not prove that every nested property is present. Use additional optional access when an intermediate property is also optional.
+
+## Assignment expressions
+
+An assignment is checked against the target's declared type. Its use can also change the flow type of a variable. Type assertions affect checking but do not convert the assigned value.
+
+See [everyday types](https://www.typescriptlang.org/docs/handbook/2/everyday-types.html), [narrowing](/typescript/type-system/narrowing), and the [ECMAScript expressions grammar](https://tc39.es/ecma262/#sec-ecmascript-language-expressions).

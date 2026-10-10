@@ -1,0 +1,49 @@
+---
+title: Classes
+description: Instance types, constructor values, fields, visibility, and inheritance.
+---
+
+A class declaration creates a runtime constructor value and an instance type. `typeof ClassName` describes the constructor and static members; `ClassName` in a type position describes instances.
+
+```ts
+class Counter {
+  value = 0;
+  increment() {
+    this.value += 1;
+  }
+}
+const counter: Counter = new Counter();
+const Constructor: typeof Counter = Counter;
+```
+
+## Members and initialization
+
+Fields can infer their types from initializers. `strictPropertyInitialization` checks that relevant instance fields are initialized by a field initializer or in the constructor. A definite assignment assertion (`field!: T`) suppresses that check; it does not perform an assignment.
+
+A constructor parameter with an accessibility modifier or `readonly` can declare a parameter property. It creates an instance property initialized from the argument.
+
+## Visibility
+
+`public` is the default. `protected` permits access within the class and derived classes under TypeScript's protected-access rules. TypeScript `private` restricts checking but does not create JavaScript private storage. A `#field` uses JavaScript's private-field semantics.
+
+```ts
+class Account {
+  #balance = 0;
+  deposit(amount: number) {
+    this.#balance += amount;
+  }
+  get balance() {
+    return this.#balance;
+  }
+}
+```
+
+## Compatibility
+
+Public instance members participate in structural compatibility. Private and protected members add declaration-origin requirements: independently declared private members with the same spelling do not make two classes compatible.
+
+## Inheritance
+
+`extends` establishes runtime inheritance. `implements` checks the instance against an interface but does not alter method inference or generate an implementation. Abstract classes can supply implementation while preventing direct construction. Static members belong to the constructor, not the instance.
+
+Field runtime semantics depend on `target` and `useDefineForClassFields`. See [classes](https://www.typescriptlang.org/docs/handbook/2/classes.html) and [emit](/typescript/projects/emit).

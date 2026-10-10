@@ -1,0 +1,44 @@
+---
+title: Ambient declarations
+description: Describe values supplied elsewhere with declare and declaration files.
+---
+
+An ambient declaration describes a value, type, or module supplied by another implementation. It provides checking information without generating that implementation.
+
+```ts
+declare const version: string;
+declare function readFile(path: string): Promise<string>;
+```
+
+Calling `readFile` still requires an actual runtime function. The declaration does not load it or validate its result.
+
+## Declaration files
+
+A `.d.ts` file describes a public surface. It can represent a module's exports or contribute global declarations. A top-level import or export generally gives it module scope.
+
+```ts
+// @filename: library.d.ts
+export interface Options {
+  timeout?: number;
+}
+export declare function connect(options: Options): void;
+// @filename: main.ts
+import { connect } from './library';
+connect({ timeout: 1_000 });
+```
+
+This checks successfully even though the example includes no runtime implementation. That is the purpose and the boundary of the declaration.
+
+## Ambient modules
+
+An ambient module declaration in a script declaration file can describe a named package. In a module file, a similar declaration can instead be an augmentation of an existing module. The file's context changes its meaning.
+
+Avoid declaring a dependency as unchecked `any` merely to remove an error when a real declaration contract is available.
+
+## Libraries and dependencies
+
+The `lib` option selects default library declarations. `types` restricts which visible `@types` packages enter the global scope automatically. Imports can still bring in types from their resolved dependencies. `typeRoots` changes automatic package discovery locations.
+
+`skipLibCheck` skips checking declaration files internally; it does not remove their types from the program or make their claims correct at runtime.
+
+See [declaration files](https://www.typescriptlang.org/docs/handbook/declaration-files/introduction.html) and [declaration emit](/typescript/projects/declaration-emit).

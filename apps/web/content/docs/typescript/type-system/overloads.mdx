@@ -1,0 +1,52 @@
+---
+title: Overloads
+description: Call signatures, implementation signatures, and argument-dependent returns.
+---
+
+An overloaded function has multiple public call signatures and one implementation. Calls use the overload signatures. The implementation signature is checked against them but is not an extra callable overload.
+
+```ts
+function parse(value: string): number;
+function parse(value: number): string;
+function parse(value: string | number): number | string {
+  return typeof value === 'string' ? Number(value) : String(value);
+}
+const number = parse('42'); // number
+const text = parse(42); // string
+```
+
+## Calls with unions
+
+A union argument must match an applicable overload. Separate overloads do not automatically combine into an overload accepting the union.
+
+```ts
+function length(value: string): number;
+function length(value: unknown[]): number;
+function length(value: string | unknown[]): number {
+  return value.length;
+}
+declare const value: string | unknown[];
+// @ts-expect-error: neither public overload accepts the whole union
+length(value);
+```
+
+Use a union parameter when the cases have the same return contract and a combined call should be accepted.
+
+## Resolution and ordering
+
+Overload resolution considers applicable signatures and their relationships. Place specific signatures before broad fallback signatures. Overload lists and declaration merging have ordering rules; reordering signatures can change which result a call receives.
+
+## Extracting types
+
+Utilities such as `ReturnType` and conditional inference from overloaded functions generally use the last signature. They do not perform overload resolution for a hypothetical argument list.
+
+```ts
+declare function convert(value: string): number;
+declare function convert(value: number): string;
+declare function convert(value: string | number): string | number;
+type Output = ReturnType<typeof convert>; // string | number
+```
+
+The broad last signature in this declaration is public because all three declarations are ambient signatures, with no implementation body.
+
+See [function overloads](https://www.typescriptlang.org/docs/handbook/2/functions.html#function-overloads) and [conditional types](/typescript/type-operators/conditional-types).

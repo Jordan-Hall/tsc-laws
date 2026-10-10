@@ -1,0 +1,46 @@
+---
+title: Object types
+description: Required and optional properties, index signatures, and excess property checks.
+---
+
+An object type describes properties and signatures required of a value. Object compatibility is primarily structural: a value can satisfy the type because it has the required shape.
+
+```ts
+type User = { name: string; age?: number };
+const user: User = { name: 'Ada' };
+const age = user.age; // number | undefined
+```
+
+## Optional properties
+
+`age?: number` permits the property to be absent. Reads include `undefined` under `strictNullChecks`. With `exactOptionalPropertyTypes`, assigning `undefined` requires the declared property type to include it explicitly.
+
+```ts
+// @option: exactOptionalPropertyTypes=true
+type Options = { timeout?: number };
+const absent: Options = {};
+// @ts-expect-error: present undefined is different from an absent property
+const present: Options = { timeout: undefined };
+```
+
+## Excess property checks
+
+A fresh object literal assigned to a target type is checked for unexpected properties. A variable with extra properties can often be assigned structurally.
+
+```ts
+type Named = { name: string };
+// @ts-expect-error: an unexpected property on a fresh literal
+const direct: Named = { name: 'Ada', age: 36 };
+const detailed = { name: 'Ada', age: 36 };
+const indirect: Named = detailed;
+```
+
+This is not an exact-object guarantee. Other rules, including checks on weak types with only optional properties, can still reject assignments.
+
+## Index signatures
+
+An index signature describes properties accessed through a key family. Explicit properties must be compatible with a relevant index signature. A numeric index value must be compatible with a string index value when both exist, because JavaScript coerces numeric property keys to strings.
+
+With `noUncheckedIndexedAccess`, reading an unspecified key adds `undefined`. Without it, a dictionary annotation can promise a value even when the runtime key is absent.
+
+See [object types](https://www.typescriptlang.org/docs/handbook/2/objects.html) and [strictness](/typescript/projects/strictness).

@@ -1,0 +1,39 @@
+---
+title: tsconfig.json
+description: Select program files and configure checking, module behavior, and output.
+---
+
+`tsconfig.json` describes a TypeScript project. It selects root files and compiler options. Dependencies reached through imports, references, and library declarations can add more files to the program.
+
+```json
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "noEmit": true
+  },
+  "include": ["src"]
+}
+```
+
+This configuration is appropriate for type checking code whose module loading and output are handled by a compatible bundler. A Node.js runtime project may need Node-specific module settings instead.
+
+## File selection
+
+`files` lists root files explicitly. `include` discovers files using patterns. `exclude` filters that discovery; it does not prohibit an excluded file from entering through an import. Default libraries and visible type packages can also enter the program.
+
+`rootDir` helps determine the output layout; it does not select which files are included. `outDir` selects where emitted files are written.
+
+## Inheritance
+
+`extends` loads another configuration and applies local overrides. Relative paths are resolved relative to the file in which they originated. `files`, `include`, and `exclude` in a derived configuration replace their inherited counterparts rather than simply appending.
+
+Project `references` are not inherited through `extends`. Multi-base inheritance has ordering rules; later bases can override earlier options.
+
+## Inspection
+
+Use `--showConfig` to inspect the resolved configuration, `--listFilesOnly` for program inputs, and `--explainFiles` for inclusion reasons. Passing source filenames directly on the command line bypasses project configuration.
+
+See [what is a tsconfig](https://www.typescriptlang.org/docs/handbook/tsconfig-json.html), [the TSConfig reference](https://www.typescriptlang.org/tsconfig/), and [the command line](/compiler/command-line).

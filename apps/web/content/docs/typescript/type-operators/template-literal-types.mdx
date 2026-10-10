@@ -1,0 +1,47 @@
+---
+title: Template literal types
+description: Construct and match string types using literal patterns.
+---
+
+A template literal type combines string literals and interpolated type alternatives. Unions in interpolations produce combinations of possible strings.
+
+```ts
+type Action = 'read' | 'write';
+type Entity = 'user' | 'file';
+type Event = `${Entity}:${Action}`;
+const event: Event = 'user:read';
+// @ts-expect-error: not one of the generated combinations
+const invalid: Event = 'group:delete';
+```
+
+## Patterns
+
+An interpolation can contain broader types such as `string` or `number`, making a pattern rather than a finite list.
+
+```ts
+type DataKey = `data-${string}`;
+const key: DataKey = 'data-user';
+type Pixel = `${number}px`;
+const width: Pixel = '12px';
+```
+
+These types check string compatibility. They do not parse or validate arbitrary strings at runtime, and a numeric template pattern is not a complete specification of a domain-specific numeric format.
+
+## Matching with `infer`
+
+A conditional type can split a string literal by matching a template pattern.
+
+```ts
+type Suffix<T extends string> = T extends `data-${infer Rest}` ? Rest : never;
+type Name = Suffix<'data-user'>; // "user"
+```
+
+The match uses the compiler's type-level string rules. It does not call JavaScript string methods.
+
+## Intrinsic string mappings
+
+`Uppercase`, `Lowercase`, `Capitalize`, and `Uncapitalize` transform string types. Their behavior follows the compiler's string mapping implementation and is not locale-aware formatting.
+
+Large unions can produce a cross product too large for the compiler to represent. Prefer a broader checked pattern or generated declarations when enumerating every combination becomes impractical.
+
+See [template literal types](https://www.typescriptlang.org/docs/handbook/2/template-literal-types.html), [mapped types](/typescript/type-operators/mapped-types), and [conditional types](/typescript/type-operators/conditional-types).

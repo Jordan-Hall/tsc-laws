@@ -1,0 +1,38 @@
+---
+title: Intersection types
+description: Types that must satisfy multiple sets of requirements at once.
+---
+
+`A & B` requires a value to be assignable to both `A` and `B`. For object types, this can combine requirements from each constituent.
+
+```ts
+type Named = { name: string };
+type Located = { x: number; y: number };
+type Place = Named & Located;
+
+const place: Place = { name: 'origin', x: 0, y: 0 };
+```
+
+## Conflicting properties
+
+An intersection does not overwrite a property from the left with a property from the right. Both requirements remain. A property required to be both `string` and `number` has type `never`.
+
+```ts
+type Conflict = { value: string } & { value: number };
+// @ts-expect-error: number cannot satisfy string & number
+const invalid: Conflict = { value: 1 };
+```
+
+Some incompatible discriminant properties cause the entire intersection to reduce to `never`, rather than only the conflicting property. Do not use an intersection as an object-spread type when the runtime spread replaces earlier properties.
+
+## Intersections and unions
+
+`string & number` is impossible and reduces to `never`. `string & unknown` is `string`. `string & any` loses the useful restriction because `any` bypasses ordinary checking.
+
+An intersection of call signatures can describe overload-like behavior. Calls are checked against the available signatures rather than combining all parameter types into a single parameter.
+
+## Interfaces versus intersections
+
+An interface extending another interface checks inherited-property conflicts at the declaration. An intersection can retain a conflict until a value is constructed or a property is used. Prefer explicit compatible interfaces when the relationship should reject conflicts immediately.
+
+See [intersection types](https://www.typescriptlang.org/docs/handbook/2/objects.html#intersection-types), [interfaces](/typescript/types/interfaces), and [overloads](/typescript/type-system/overloads).

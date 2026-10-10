@@ -1,0 +1,41 @@
+---
+title: JavaScript emit
+description: Syntax transforms, runtime APIs, module output, and output controls.
+---
+
+Emit produces JavaScript and optional related outputs from source files. Checking and emit are distinct: ordinary compilation can write output even when diagnostics are present, unless configured otherwise.
+
+## Output controls
+
+| Option                | Behavior                                  |
+| --------------------- | ----------------------------------------- |
+| `noEmit`              | Write no compiler output.                 |
+| `noEmitOnError`       | Suppress output when errors are reported. |
+| `outDir`              | Place outputs under a selected directory. |
+| `sourceMap`           | Produce JavaScript source maps.           |
+| `declaration`         | Produce declaration files.                |
+| `emitDeclarationOnly` | Produce declarations without JavaScript.  |
+
+Build mode has additional orchestration rules; see [project references](/typescript/projects/project-references).
+
+## Target and libraries
+
+`target` selects a syntax level and affects transforms. Lower targets can require helpers for async functions, iteration, private fields, or other features. Not every newer syntax feature can be faithfully transformed to every older environment.
+
+`lib` selects type declarations for runtime APIs. It does not polyfill those APIs. A program can check against `Promise`, `Map`, or browser declarations while running in an environment that lacks them.
+
+## Module output
+
+`module` controls module interpretation and output behavior. `verbatimModuleSyntax` preserves ordinary imports and exports while erasing type-only ones, and can reject incompatible syntax instead of rewriting it into another format.
+
+TypeScript generally preserves import specifier text. Options such as `rewriteRelativeImportExtensions` can rewrite certain relative TypeScript extensions; they do not implement arbitrary path aliases.
+
+## Class fields and helpers
+
+`useDefineForClassFields` selects standard property-definition semantics rather than older assignment behavior. This can matter when inherited setters are present. `importHelpers` can share helper implementations through `tslib`; that dependency must exist when the emitted code needs it.
+
+## Single-file processing
+
+`isolatedModules` reports constructs that cannot be reliably handled by certain single-file transpilers. It does not make the type checker operate on one file at a time or prove agreement with every external transpiler.
+
+See [compiler options](https://www.typescriptlang.org/tsconfig/), [module theory](https://www.typescriptlang.org/docs/handbook/modules/theory.html), and [type erasure](/typescript/language/type-erasure).

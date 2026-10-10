@@ -1,0 +1,43 @@
+---
+title: Type erasure and runtime behavior
+description: Which declarations affect checking and which constructs produce JavaScript.
+---
+
+TypeScript annotations, type aliases, and interfaces do not create runtime values. They are removed when the compiler emits JavaScript.
+
+```ts
+interface User {
+  name: string;
+}
+type Id = string;
+
+function greet(user: User): string {
+  return user.name;
+}
+```
+
+The emitted function receives an ordinary JavaScript value. It does not automatically validate that the argument has a `name` property.
+
+## Assertions do not convert values
+
+An `as` assertion changes the type seen by the checker. It does not parse, coerce, clone, or validate a value.
+
+```ts
+const input: unknown = '42';
+const asserted = input as number; // still a string at runtime
+const converted = Number(input); // actual conversion
+```
+
+Use runtime checks or a validation library for untrusted input. A type annotation on a network response cannot make the response conform to that type.
+
+## Constructs that produce output
+
+Classes, functions, and variables create runtime values. Enums and non-ambient namespaces can also generate runtime objects. Parameter properties can generate assignments. Decorators can produce calls and helper code. JSX is transformed or preserved according to compiler options.
+
+`declare` describes declarations supplied elsewhere; it does not emit their implementation. `import type` is removed. Ordinary imports can remain in output, with their treatment controlled by options such as `verbatimModuleSyntax`.
+
+## Runtime support
+
+`target` selects an output syntax level. `lib` selects declarations for APIs. Including `"DOM"` in `lib` does not install a browser, and including a newer ECMAScript library does not polyfill its APIs.
+
+See [emit](/typescript/projects/emit), [ambient declarations](/typescript/declarations/ambient), and [TypeScript's non-goals](https://github.com/microsoft/TypeScript/wiki/TypeScript-Design-Goals#non-goals).

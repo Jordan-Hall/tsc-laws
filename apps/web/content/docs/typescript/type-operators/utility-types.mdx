@@ -1,0 +1,46 @@
+---
+title: Utility types
+description: Standard transformations for object shapes, unions, functions, and promises.
+---
+
+Utility types are declared in TypeScript's standard libraries. They describe type transformations and do not perform corresponding runtime operations.
+
+## Object transformations
+
+| Utility        | Result                                            |
+| -------------- | ------------------------------------------------- |
+| `Partial<T>`   | Makes properties optional.                        |
+| `Required<T>`  | Removes optional property modifiers.              |
+| `Readonly<T>`  | Makes properties readonly.                        |
+| `Pick<T, K>`   | Keeps the selected keys.                          |
+| `Omit<T, K>`   | Removes the selected keys.                        |
+| `Record<K, V>` | Creates properties for keys `K`, with values `V`. |
+
+```ts
+type User = { id: string; name: string; age?: number };
+type Update = Partial<Omit<User, 'id'>>;
+type Summary = Pick<User, 'id' | 'name'>;
+const update: Update = { name: 'Grace' };
+```
+
+These transformations are generally shallow. `Omit` on a union does not automatically preserve each member's distinct properties; use an explicitly distributive conditional when that behavior is required.
+
+## Union transformations
+
+`Exclude<T, U>` removes union members assignable to `U`. `Extract<T, U>` keeps them. `NonNullable<T>` removes `null` and `undefined`.
+
+```ts
+type Status = 'idle' | 'running' | 'done';
+type Active = Exclude<Status, 'idle'>; // "running" | "done"
+type Present = NonNullable<string | undefined>; // string
+```
+
+`Exclude` works on union members, not on object keys. It cannot express every semantic set subtraction; `Exclude<string, 'a'>` remains `string`.
+
+## Functions and promises
+
+`Parameters`, `ConstructorParameters`, `ReturnType`, and `InstanceType` extract signature information. `Awaited` models unwrapping promise-like results. `ThisParameterType` and `OmitThisParameter` manipulate explicit receiver information.
+
+Overloaded signature extraction generally uses the last signature. `NoInfer<T>` blocks inference candidates from a position while retaining its checking type.
+
+See the [utility types reference](https://www.typescriptlang.org/docs/handbook/utility-types.html), [inference](/typescript/type-system/inference), and [async functions](/typescript/language/async).

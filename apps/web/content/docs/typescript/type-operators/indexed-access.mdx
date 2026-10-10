@@ -1,0 +1,49 @@
+---
+title: Indexed access types
+description: Select property and element types with T[K].
+---
+
+`T[K]` selects the property types of `T` identified by the key type `K`. The key type must be valid for the indexed type.
+
+```ts
+type User = { name: string; age: number; active: boolean };
+type Name = User['name']; // string
+type TextOrNumber = User['name' | 'age']; // string | number
+type Value = User[keyof User]; // string | number | boolean
+```
+
+An invalid key is rejected; indexed access is not an unchecked lookup of arbitrary properties.
+
+```ts
+type User = { name: string };
+// @ts-expect-error: no age property exists
+type Age = User['age'];
+```
+
+## Array and tuple elements
+
+Indexing an array type with `number` retrieves its element type. For a tuple, a known numeric literal retrieves the position's type, and `number` retrieves a union of element types.
+
+```ts
+type Entries = { id: string }[];
+type Entry = Entries[number]; // { id: string }
+type Pair = [string, number];
+type First = Pair[0]; // string
+type Element = Pair[number]; // string | number
+```
+
+## Type keys versus value keys
+
+The brackets of an indexed access type contain a type. A value binding cannot be used directly as that type; use `typeof key` when its value's type is the desired index.
+
+```ts
+const key = 'name';
+type User = { name: string };
+type Name = User[typeof key];
+```
+
+## Optional properties
+
+Selecting an optional property includes `undefined` under `strictNullChecks`. Type-level indexed access and runtime indexed reads are related but not identical: `noUncheckedIndexedAccess` adds missing-value checks to relevant value reads.
+
+See [indexed access types](https://www.typescriptlang.org/docs/handbook/2/indexed-access-types.html), [`keyof`](/typescript/type-operators/keyof), and [object types](/typescript/types/objects).

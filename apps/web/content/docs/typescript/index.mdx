@@ -1,0 +1,44 @@
+---
+title: The TypeScript language
+description: Scope, version assumptions, and conventions for the unofficial language reference.
+---
+
+TypeScript checks JavaScript programs using types. A type describes a set of values and the operations available on those values. Most TypeScript syntax is removed during compilation; some constructs also produce JavaScript.
+
+## Scope
+
+This is an unofficial specification-style reference to common TypeScript language rules and their boundaries. It covers source syntax, types, checking, declarations, and project behavior. Each topic links to upstream documentation so you can compare the explanation with TypeScript's own reference.
+
+It is not an exhaustive grammar or a formal proof of compiler correctness. JavaScript evaluation is defined by [ECMAScript](https://tc39.es/ecma262/). TypeScript adds checking and syntax on top of that runtime model.
+
+## Version and options
+
+The compiler documented here targets TypeScript-Go **7.0.2**. Its upstream revision is pinned in [upstream.json](https://github.com/vercel-labs/tsc-ts/blob/main/upstream.json). Language examples are checked separately with the repository's **TypeScript 5.9** dependency. A successful example check is not a claim of TypeScript 7 or tsc-ts conformance.
+
+Unless a page states otherwise, examples assume:
+
+- `strict: true`, including `strictNullChecks` and `strictFunctionTypes`.
+- `target: "ES2022"` and `module: "ESNext"`.
+- `moduleResolution: "bundler"`.
+- `exactOptionalPropertyTypes: false` and `noUncheckedIndexedAccess: false`.
+
+Environment-specific pages explain the options they depend on. A type inferred from an example can change when its context or options change.
+
+## Reading examples
+
+Comments show inferred types or explain why a statement is rejected:
+
+```ts
+const length: number = 'TypeScript'.length;
+
+// @ts-expect-error: a string is not assignable to number
+const invalid: number = 'ten';
+```
+
+`@ts-expect-error` tells the compiler to expect a diagnostic on the next line. The example check fails if that diagnostic disappears. Examples are isolated from one another; declarations in one block are not implicitly available in another.
+
+## Checking and execution
+
+A type error and a runtime error are different outcomes. A compiler can emit JavaScript from a program with type errors unless `noEmitOnError` is enabled. An accepted program can still fail at runtime, for example after a type assertion describes a value incorrectly.
+
+Read [type erasure](/typescript/language/type-erasure), [assignability](/typescript/type-system/assignability), and [sources and verification](/typescript/sources) for the rules behind those distinctions.

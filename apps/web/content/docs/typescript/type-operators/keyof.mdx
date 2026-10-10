@@ -1,0 +1,40 @@
+---
+title: keyof
+description: Construct a type from the property keys of another type.
+---
+
+`keyof T` produces a type describing the keys available on `T`. For an object with named properties, it is usually a union of their literal keys.
+
+```ts
+type User = { name: string; age: number };
+type Key = keyof User; // "name" | "age"
+const key: Key = 'name';
+```
+
+## Index signatures
+
+A numeric index signature contributes `number`. A string index signature generally contributes `string | number`, reflecting JavaScript's coercion of numeric property keys to strings.
+
+```ts
+type List = { [index: number]: string };
+type ListKey = keyof List; // number
+type Dictionary = { [key: string]: boolean };
+type DictionaryKey = keyof Dictionary; // string | number
+```
+
+Symbol properties can contribute symbol types. `keyof any` is `string | number | symbol`, the property-key family; `keyof unknown` is `never` because no specific keys are known.
+
+## Unions and intersections
+
+For a union, only keys available on the union are directly usable. Two members with no common keys produce `never` under `keyof`. An intersection combines requirements and can provide keys from its constituents.
+
+```ts
+type Shared = keyof ({ id: string; name: string } | { id: string; age: number });
+// "id"
+```
+
+## Runtime keys
+
+`keyof` is a type operation. It does not enumerate an object at runtime. `Object.keys` returns enumerable own string keys and excludes symbols; its return type is not generally `(keyof T)[]`, since runtime objects can contain keys beyond the declared type.
+
+Use `K extends keyof T` to connect a key parameter to an object. See [indexed access](/typescript/type-operators/indexed-access) and [the keyof operator](https://www.typescriptlang.org/docs/handbook/2/keyof-types.html).

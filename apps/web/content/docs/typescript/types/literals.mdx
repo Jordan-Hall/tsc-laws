@@ -1,0 +1,44 @@
+---
+title: Literal types
+description: Exact primitive values, literal widening, and const contexts.
+---
+
+A literal type describes a specific primitive value, such as `"read"`, `1`, or `true`. A union of literal types restricts a value to a known set of alternatives.
+
+```ts
+type Mode = 'read' | 'write';
+const mode: Mode = 'read';
+
+// @ts-expect-error: "delete" is not a Mode
+const invalid: Mode = 'delete';
+```
+
+## Widening
+
+An inferred literal can widen when the surrounding location is mutable. `let mode = 'read'` normally infers `string`. A `const` primitive binding retains a narrower literal type, but properties of a mutable object generally widen.
+
+```ts
+const primitive = 'read'; // "read"
+let mutable = 'read'; // string
+const object = { mode: 'read' }; // { mode: string }
+const fixed = { mode: 'read' } as const; // readonly mode: "read"
+```
+
+The `const` binding prevents reassigning `object`; it does not prevent changing `object.mode`.
+
+## Contextual types
+
+A contextual type can retain a useful literal within a larger expression. `satisfies` checks compatibility without replacing the expression's type with the target annotation.
+
+```ts
+const settings = { mode: 'read' } satisfies { mode: 'read' | 'write' };
+const exact: 'read' = settings.mode;
+```
+
+`satisfies` can affect inference through contextual typing. It is not a promise that the expression's type would be identical without that context.
+
+## Discriminants
+
+A common literal-valued property can distinguish members of a union. Checking that property lets the checker select the matching member. See [unions](/typescript/types/unions) and [narrowing](/typescript/type-system/narrowing).
+
+Upstream: [literal types](https://www.typescriptlang.org/docs/handbook/2/everyday-types.html#literal-types) and [`satisfies`](https://www.typescriptlang.org/docs/handbook/release-notes/typescript-4-9.html#the-satisfies-operator).

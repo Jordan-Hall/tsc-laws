@@ -1,0 +1,46 @@
+---
+title: Readonly types
+description: Write restrictions through a type, their shallow scope, and mutable aliases.
+---
+
+`readonly` prevents certain writes through the annotated type. It is a checking restriction, not runtime freezing.
+
+```ts
+type User = { readonly id: string; profile: { name: string } };
+const user: User = { id: '1', profile: { name: 'Ada' } };
+// @ts-expect-error: id is readonly through User
+user.id = '2';
+user.profile.name = 'Grace'; // nested object is still mutable
+```
+
+## Shallow behavior
+
+`Readonly<T>` makes the properties of `T` readonly; it does not recursively transform every referenced value. Similarly, a readonly array restricts array writes while its element objects may remain mutable.
+
+```ts
+const users: readonly { name: string }[] = [{ name: 'Ada' }];
+// @ts-expect-error: push is not available on the readonly view
+users.push({ name: 'Lin' });
+for (const user of users) user.name = 'Grace';
+```
+
+## Aliasing
+
+Another reference can observe and mutate the same object. TypeScript does not generally use readonly object properties as a nominal compatibility boundary.
+
+```ts
+const mutable = { count: 0 };
+const view: Readonly<typeof mutable> = mutable;
+mutable.count = 1;
+const observed = view.count; // observes the same object's property
+```
+
+Readonly array compatibility is stricter: a readonly array cannot ordinarily be assigned to a mutable array type because it lacks the mutation surface.
+
+## Const assertions
+
+`as const` preserves literal types and produces readonly properties or readonly tuple positions for the literal structure. A referenced mutable object remains mutable; a const assertion does not recursively freeze external references.
+
+Use `Object.freeze` when runtime freezing is needed, remembering that its ordinary behavior is also shallow.
+
+See [readonly properties](https://www.typescriptlang.org/docs/handbook/2/objects.html#readonly-properties), [mapped modifiers](/typescript/type-operators/mapped-types), and [assertions](/typescript/type-system/assertions).

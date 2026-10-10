@@ -1,0 +1,56 @@
+---
+title: Generics
+description: Type parameters, constraints, defaults, and relationships between values.
+---
+
+A generic declaration introduces type parameters that connect its inputs and outputs. A type parameter represents the actual type argument at a use site.
+
+```ts
+function identity<T>(value: T): T {
+  return value;
+}
+const text = identity('hello');
+const count = identity<number>(3);
+```
+
+## Constraints
+
+`T extends U` requires a type argument assignable to `U`. It makes `U`'s supported operations available inside the generic implementation, without turning `T` into exactly `U`.
+
+```ts
+function length<T extends { length: number }>(value: T): number {
+  return value.length;
+}
+length('hello');
+length([1, 2]);
+```
+
+A function returning `T` must return something compatible with the specific `T`, not merely its constraint.
+
+```ts
+function keep<T extends { length: number }>(value: T): T {
+  // @ts-expect-error: T might require more than a length property
+  return { length: value.length };
+}
+```
+
+## Related parameters
+
+One parameter can constrain another. This expresses relationships such as a key belonging to an object's keys.
+
+```ts
+function get<T, K extends keyof T>(value: T, key: K): T[K] {
+  return value[key];
+}
+const name = get({ name: 'Ada', age: 36 }, 'name'); // string
+```
+
+## Defaults and const parameters
+
+A type parameter default supplies a type argument when no argument is provided or inferred. Required parameters cannot follow optional parameters with defaults.
+
+A `const` type parameter asks inference to retain literal structure for suitable expressions. It does not freeze runtime values, and a mutable constraint can cause fallback to a wider candidate.
+
+Avoid introducing parameters that do not connect meaningful positions; they can make inference harder without strengthening the contract.
+
+See [generics](https://www.typescriptlang.org/docs/handbook/2/generics.html) and [const type parameters](https://www.typescriptlang.org/docs/handbook/release-notes/typescript-5-0.html#const-type-parameters).

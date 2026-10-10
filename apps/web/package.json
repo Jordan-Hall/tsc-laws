@@ -1,0 +1,32 @@
+{
+  "name": "@tsc-ts/web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev --hostname 0.0.0.0",
+    "build": "next build",
+    "start": "next start --hostname 0.0.0.0",
+    "postinstall": "fumadocs-mdx",
+    "type-check": "fumadocs-mdx && tsc --noEmit",
+    "test": "node --test tests/content.test.mjs",
+    "test:routes": "node scripts/check-routes.mjs",
+    "check:examples": "node scripts/check-examples.mjs"
+  },
+  "dependencies": {
+    "@vercel/geistdocs": "2.9.3",
+    "fumadocs-core": "16.2.2",
+    "fumadocs-mdx": "14.0.4",
+    "geist": "1.7.1",
+    "next": "16.3.4",
+    "react": "19.2.3",
+    "react-dom": "19.2.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.17",
+    "@types/mdx": "^2.0.13",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "tailwindcss": "^4.1.17"
+  }
+}

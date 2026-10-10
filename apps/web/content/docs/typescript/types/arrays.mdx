@@ -1,0 +1,46 @@
+---
+title: Arrays
+description: Element types, indexed access, mutable arrays, and readonly arrays.
+---
+
+`T[]` and `Array<T>` describe arrays of elements assignable to `T`. The type does not establish a fixed length or guarantee that a particular index exists.
+
+```ts
+const names: string[] = ['Ada', 'Grace'];
+names.push('Lin');
+const first = names[0]; // string with default reference options
+```
+
+## Missing elements
+
+With `noUncheckedIndexedAccess`, an indexed read includes `undefined`, because an array can be empty or the index can be out of range.
+
+```ts
+// @option: noUncheckedIndexedAccess=true
+const names: string[] = [];
+const first = names[0]; // string | undefined
+// @ts-expect-error: the element might not exist
+first.toUpperCase();
+```
+
+Even a length check does not generally narrow an arbitrary indexed access to a present element. A tuple can encode a known position when the structure is fixed.
+
+## Readonly arrays
+
+`readonly T[]` and `ReadonlyArray<T>` expose reads without mutation methods. A mutable array can be passed where a readonly array is expected. The reverse assignment is rejected.
+
+```ts
+function total(values: readonly number[]): number {
+  return values.reduce((sum, value) => sum + value, 0);
+}
+const mutable = [1, 2];
+total(mutable);
+```
+
+The readonly view does not freeze the array or its elements. Another alias can still mutate the same array at runtime.
+
+## Compatibility
+
+Mutable array compatibility can allow an array of a narrower element type to be used as an array of a wider element type. Writes through the wider alias can break assumptions held by the narrower alias. TypeScript's compatibility rules do not enforce full soundness for every mutable operation.
+
+See [array types](https://www.typescriptlang.org/docs/handbook/2/objects.html#the-array-type), [tuples](/typescript/types/tuples), and [readonly](/typescript/types/readonly).

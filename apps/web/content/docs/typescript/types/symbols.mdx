@@ -1,0 +1,45 @@
+---
+title: Symbols and unique symbols
+description: Symbol-valued property keys and declaration-specific unique symbol types.
+---
+
+`symbol` describes JavaScript symbol values. Symbols can be property keys without colliding with string keys of the same description.
+
+```ts
+const key = Symbol('id');
+const object = { [key]: 1, id: 'text' };
+const id = object[key]; // number
+```
+
+Two calls to `Symbol('id')` produce different values even though the description is the same. The description does not define identity.
+
+## Unique symbol types
+
+`unique symbol` gives a symbol declaration its own type identity. It is available for suitable `const` declarations and readonly static properties. Use `typeof` to refer to that particular declaration's type.
+
+```ts
+const first: unique symbol = Symbol('key');
+const second: unique symbol = Symbol('key');
+type First = typeof first;
+const same: First = first;
+// @ts-expect-error: a different declaration has a different identity
+const different: First = second;
+```
+
+## Symbol keys in types
+
+An object type can use a unique symbol as a computed property name. `keyof` can include symbol keys alongside string and numeric keys.
+
+```ts
+declare const tag: unique symbol;
+type Tagged = { [tag]: 'user'; name: string };
+type Keys = keyof Tagged; // typeof tag | "name"
+```
+
+This can support branding conventions, but a declaration alone does not attach a property to runtime values. If the symbol is declared ambiently, its runtime value must be supplied elsewhere.
+
+## Well-known symbols
+
+Properties such as `Symbol.iterator` connect objects to runtime protocols. A compatible type declaration describes the protocol; it does not install the method.
+
+See [symbols](https://www.typescriptlang.org/docs/handbook/symbols.html), [iterators](/typescript/language/iterators), and [`keyof`](/typescript/type-operators/keyof).

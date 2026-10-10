@@ -1,0 +1,44 @@
+---
+title: JSX
+description: JSX syntax, intrinsic elements, component types, and output modes.
+---
+
+JSX is expression syntax embedded in JavaScript-like source. TypeScript parses JSX in `.tsx` files and checks it using the configured JSX type declarations. JSX is not specific to one runtime framework.
+
+## Intrinsic elements
+
+Lowercase element names are ordinarily checked against `JSX.IntrinsicElements`. Component names resolve to values. The framework's declarations supply the namespace and element rules used in real projects.
+
+```tsx
+declare global {
+  namespace JSX {
+    interface Element {}
+    interface IntrinsicElements {
+      label: { text: string };
+    }
+  }
+}
+const element = <label text="Name" />;
+// @ts-expect-error: text is required by this intrinsic element
+const invalid = <label />;
+```
+
+This example supplies a minimal namespace for checking with preserved JSX. It does not provide a JSX runtime.
+
+## Components and attributes
+
+Function and class components are checked according to the library's JSX contract. Props, children, and special attributes depend on those declarations; they are not universally the same for every JSX library.
+
+`JSX.ElementType` lets compatible libraries define which values can be used as element tags independently of the produced element type.
+
+## Output modes
+
+`jsx: "preserve"` retains JSX for another transform. `react` uses the classic factory transform. `react-jsx` and `react-jsxdev` use automatic runtime imports. `jsxImportSource` selects the automatic runtime package.
+
+Selecting a mode does not install the package or make it available to the runtime loader.
+
+## Assertions and generics
+
+Angle-bracket type assertions conflict with JSX parsing; use `as` assertions in `.tsx`. Some generic arrow functions also need disambiguation, such as a trailing comma in `<T,>`.
+
+See [JSX](https://www.typescriptlang.org/docs/handbook/jsx.html), [JSX.ElementType](https://www.typescriptlang.org/docs/handbook/release-notes/typescript-5-1.html#decoupled-type-checking-between-jsx-elements-and-jsx-tag-types), and [emit](/typescript/projects/emit).

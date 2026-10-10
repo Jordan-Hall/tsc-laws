@@ -1,0 +1,49 @@
+---
+title: Namespaces
+description: Named declaration containers and their distinction from file-based modules.
+---
+
+A namespace groups declarations under a name. Non-ambient namespaces containing values can produce runtime objects. Members are accessible outside the namespace when exported.
+
+```ts
+namespace Geometry {
+  export interface Point {
+    x: number;
+    y: number;
+  }
+  export function origin(): Point {
+    return { x: 0, y: 0 };
+  }
+}
+const point: Geometry.Point = Geometry.origin();
+```
+
+## Merging
+
+Namespace declarations with the same name can merge. Exported members are visible across the merged namespace, while non-exported members remain confined to their original declaration body.
+
+```ts
+namespace Registry {
+  export const version = 1;
+}
+namespace Registry {
+  export type Version = typeof version;
+}
+const version: Registry.Version = Registry.version;
+```
+
+A namespace can also merge with certain value declarations, such as a class, function, or enum, subject to ordering and declaration rules. See [declaration merging](/typescript/declarations/merging).
+
+## Ambient namespaces
+
+`declare namespace` describes a namespace provided elsewhere. It does not create a runtime object. Ambient namespaces are common in declarations for global libraries and some module export patterns.
+
+Declaring a namespace in a module keeps it in that module's scope unless exported or introduced through an explicit global augmentation.
+
+## Modules
+
+A file module already provides a scope and import/export relationships. A namespace wrapping every export inside a module adds another naming layer. Use file modules for ordinary module dependencies; use namespaces when the runtime or declaration contract actually groups members under a value or ambient name.
+
+Compiler options for isolated processing or erasable syntax can impose additional namespace restrictions, because value-containing namespaces require a transform.
+
+See [namespaces](https://www.typescriptlang.org/docs/handbook/namespaces.html) and [namespaces and modules](https://www.typescriptlang.org/docs/handbook/namespaces-and-modules.html).
