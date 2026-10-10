@@ -445,14 +445,16 @@ export class Program implements OutputPathsHost {
   /**
    * Computes what checking, reporting and emit would otherwise compute on first use, so that they
    * never write to the program: a program shared with other threads (parallel-check.ts) is
-   * immutable. Neither adds diagnostics: the common source directory is computed eagerly when
-   * options make it report any.
+   * immutable. Neither adds diagnostics. File inclusion diagnostics are fixed first, as tsgo fixes
+   * them on first use: computing the common source directory checks that files are under `rootDir`
+   * (or the config file's directory), which reports only when options compute it while the program
+   * is created (verifyCompilerOptions), not when emit or declaration diagnostics compute it later.
    */
   prepareForSharing(): void {
     this.getSymlinkCache();
     this.getPackagesMap();
-    this.commonSourceDirectory();
     this.includeProcessor.diagnostics(this);
+    this.commonSourceDirectory();
     // File system and resolution lookups that checking and declaration emit add later (module
     // specifiers probe files and `package.json` scopes) go to tables of each thread.
     this.host.fs.prepareForSharing();
