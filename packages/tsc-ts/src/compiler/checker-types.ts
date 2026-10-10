@@ -611,6 +611,9 @@ export class UnionType extends UnionOrIntersectionType {
   /** A property with a unique unit type in every object of the union; '' if not computed, '\0' if none. */
   keyPropertyName: string;
   constituentMap: Map<Type, Type> | undefined;
+  /** The constituents of a large union, for membership tests; created on the second test. */
+  constituentSet: Set<Type> | undefined;
+  membershipTests: number;
 
   constructor(objectFlags: ObjectFlags, id: number, types: Type[]) {
     super(TypeFlags.Union, objectFlags, id, types);
@@ -619,6 +622,8 @@ export class UnionType extends UnionOrIntersectionType {
     this.origin = undefined;
     this.keyPropertyName = '';
     this.constituentMap = undefined;
+    this.constituentSet = undefined;
+    this.membershipTests = 0;
   }
 }
 

@@ -628,6 +628,22 @@ export function containsType(c: Checker, types: readonly Type[], t: Type): boole
   return binarySearchTypes(c, types, t) >= 0;
 }
 
+/**
+ * Whether `t` is a constituent of `union`. Equal types are identical, so a large union tested more
+ * than once looks `t` up in a set instead of searching its sorted constituents. Most large unions
+ * are tested once; a few are tested very often.
+ */
+export function unionContainsType(c: Checker, union: UnionType, t: Type): boolean {
+  let set = union.constituentSet;
+  if (set === undefined) {
+    const types = union.types;
+    if (types.length < 16 || union.membershipTests++ === 0) return binarySearchTypes(c, types, t) >= 0;
+    set = new Set(types);
+    union.constituentSet = set;
+  }
+  return set.has(t);
+}
+
 /** Inserts `t` into the sorted `types`; returns false if already present. */
 export function insertType(c: Checker, types: Type[], t: Type): boolean {
   const index = binarySearchTypes(c, types, t);
@@ -851,7 +867,7 @@ function getUnionTypeWorker(
     for (const t of typeSet) {
       let inNamed = false;
       for (const u of namedUnions)
-        if (containsType(c, (u as UnionType).types, t)) {
+        if (unionContainsType(c, u as UnionType, t)) {
           inNamed = true;
           break;
         }
@@ -1493,17 +1509,17 @@ function intersectUnionsOfPrimitiveTypes(c: Checker, types: Type[]): boolean {
 }
 
 function eachUnionContains(c: Checker, unionTypes: Type[], t: Type): boolean {
-  for (const u of unionTypes) {
-    const types = typesOf(u);
-    if (containsType(c, types, t)) continue;
-    if (t === c.missingType) return containsType(c, types, c.undefinedType);
-    if (t === c.undefinedType) return containsType(c, types, c.missingType);
+  for (const type of unionTypes) {
+    const u = type as UnionType;
+    if (unionContainsType(c, u, t)) continue;
+    if (t === c.missingType) return unionContainsType(c, u, c.undefinedType);
+    if (t === c.undefinedType) return unionContainsType(c, u, c.missingType);
     let primitive: Type | undefined;
     if ((t.flags & TypeFlags.StringLiteral) !== 0) primitive = c.stringType;
     else if ((t.flags & (TypeFlags.Enum | TypeFlags.NumberLiteral)) !== 0) primitive = c.numberType;
     else if ((t.flags & TypeFlags.BigIntLiteral) !== 0) primitive = c.bigintType;
     else if ((t.flags & TypeFlags.UniqueESSymbol) !== 0) primitive = c.esSymbolType;
-    if (primitive === undefined || !containsType(c, types, primitive)) return false;
+    if (primitive === undefined || !unionContainsType(c, u, primitive)) return false;
   }
   return true;
 }
