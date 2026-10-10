@@ -427,11 +427,12 @@ function compareTypeNames(c: Checker, t1: Type, t2: Type): number {
 }
 
 function compareTypeLists(c: Checker, s1: readonly Type[] | undefined, s2: readonly Type[] | undefined): number {
-  const a = s1 ?? emptyTypes;
-  const b = s2 ?? emptyTypes;
-  if (a.length !== b.length) return a.length - b.length;
-  for (let i = 0; i < a.length; i++) {
-    const r = compareTypes(c, a[i]!, b[i]!);
+  // Index the parameters directly: an alias such as `s1 ?? emptyTypes` would hold its own reference.
+  const n1 = s1 === undefined ? 0 : s1.length;
+  const n2 = s2 === undefined ? 0 : s2.length;
+  if (n1 !== n2) return n1 - n2;
+  for (let i = 0; i < n1; i++) {
+    const r = compareTypes(c, s1![i]!, s2![i]!);
     if (r !== 0) return r;
   }
   return 0;
