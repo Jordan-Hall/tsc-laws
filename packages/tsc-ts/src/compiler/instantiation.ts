@@ -194,6 +194,7 @@ export function instantiateTypeWithAlias(
   const cached = cache.get(key);
   if (cached !== undefined) return cached;
   c.instantiationCount++;
+  c.totalInstantiations++;
   c.instantiationDepth++;
   const result = instantiateTypeWorker(c, type, mapper, alias);
   if (index === -1) {

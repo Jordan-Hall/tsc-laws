@@ -13,7 +13,7 @@ import {
 import type { Diagnostic, Locale } from './diagnostics.js';
 import { EmitResult } from './emitter.js';
 import { FileBuildInfoReader, IncrementalProgram, readBuildInfoProgram, TimeStampHost } from './incremental.js';
-import { checkerThreads, startParallelCheck } from './parallel-check.js';
+import { checkerThreads, startParallelCheck, traceSingleChecker } from './parallel-check.js';
 import { getNormalizedAbsolutePath } from './path.js';
 import { sortAndDeduplicateDiagnostics } from './program.js';
 import {
@@ -85,6 +85,7 @@ export function compile(sys: System, work: CompileWork): ExitStatus {
     new SystemWriter(sys),
     outputLocale(program.options),
   );
+  traceSingleChecker(checked);
   return emitStatusAndReportStatistics(sys, compilerProgram, result);
 }
 

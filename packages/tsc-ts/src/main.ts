@@ -28,9 +28,9 @@ else {
 
 /** Lets `--checkers N` start checker threads, and parse threads where threads share objects. */
 function startThreads(): void {
-  parallelCheck.spawn = (program, index, counter, nodeIds, symbolIds) =>
+  parallelCheck.spawn = (program, index, counter, order, nodeIds, symbolIds) =>
     new Worker(new URL(import.meta.url), {
-      workerData: { kind: 'check', program, args, index, counter, nodeIds, symbolIds },
+      workerData: { kind: 'check', program, args, index, counter, order, nodeIds, symbolIds },
     });
   if (sharesPublishedGraphs)
     parallelParse.spawn = (configFileName, counter) =>
@@ -46,12 +46,14 @@ function runThread(): void {
 
 /** A checker thread (parallel-check.ts). */
 function runCheckerThread(): void {
+  const startedAt = Date.now();
   const job = workerData as {
     kind: string;
     program: Program | undefined;
     args: string[];
     index: number;
     counter: SharedArrayBuffer;
+    order: number[];
     nodeIds: number;
     symbolIds: number;
   };
@@ -68,8 +70,8 @@ function runCheckerThread(): void {
   // Without a program this thread checks nothing; the main thread checks the files it would have.
   const result =
     program === undefined
-      ? new CheckerResult(job.index, [], [], [], [], 0)
-      : checkFromQueue(new CheckedProgram(program), job.index, new Int32Array(job.counter));
+      ? new CheckerResult(job.index, [], [], [], [], 0, [])
+      : checkFromQueue(new CheckedProgram(program), job.index, new Int32Array(job.counter), job.order, startedAt);
   parentPort!.postMessage({ result: sharesPublishedGraphs ? publish(result) : result });
 }
 

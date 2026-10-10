@@ -448,6 +448,8 @@ export class Checker {
   // Instantiation
   instantiationDepth = 0;
   instantiationCount = 0;
+  /** Instantiations over the checker's lifetime (statistics). */
+  totalInstantiations = 0;
   readonly activeMappers: TypeMapper[] = [];
   readonly activeMapperCaches: Map<string, Type>[] = [];
   conditionalConstraintDepth = 0;
