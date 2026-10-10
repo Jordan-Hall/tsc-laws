@@ -4,7 +4,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, normalize, relative, resolve } from 'node:path';
 import { repo, root, run } from './parser-cases.mjs';
-import { tempDir } from './temp.mjs';
+import { compiledDir, tempDir } from './temp.mjs';
 
 export const tsgo = resolve(repo, 'packages/tsgo/dist/tsgo');
 
@@ -24,7 +24,7 @@ export const baseFlags = [
 ];
 
 export function buildEmitDriver() {
-  const out = tempDir('tsc-ts-emit-');
+  const out = compiledDir('tsc-ts-emit-');
   execFileSync(
     resolve(repo, 'node_modules/.bin/tsc'),
     [

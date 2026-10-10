@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { existsSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { tempDir } from './temp.mjs';
+import { compiledDir } from './temp.mjs';
 
 const root = resolve(import.meta.dirname, '..');
 const repo = resolve(root, '../..');
@@ -70,7 +70,7 @@ test(
   'checker matches tsgo on small cases',
   { skip: !existsSync(libs) && 'needs upstream sources', timeout: 300_000 },
   () => {
-    const out = tempDir('tsc-ts-check-');
+    const out = compiledDir('tsc-ts-check-');
     execFileSync(
       join(repo, 'node_modules/.bin/tsc'),
       [

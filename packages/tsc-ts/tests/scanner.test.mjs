@@ -4,7 +4,7 @@ import { execFileSync, spawn } from 'node:child_process';
 import { existsSync, readdirSync } from 'node:fs';
 import { availableParallelism } from 'node:os';
 import { join, resolve } from 'node:path';
-import { tempDir } from './temp.mjs';
+import { compiledDir } from './temp.mjs';
 
 const root = resolve(import.meta.dirname, '..');
 const repo = resolve(root, '../..');
@@ -45,7 +45,7 @@ test(
   'scanner matches tsgo on test cases and libs',
   { skip: (!existsSync(oracle) || !existsSync(cases)) && 'needs upstream sources and the scan oracle' },
   async () => {
-    const out = tempDir('tsc-ts-scan-');
+    const out = compiledDir('tsc-ts-scan-');
     execFileSync(
       resolve(repo, 'node_modules/.bin/tsc'),
       [

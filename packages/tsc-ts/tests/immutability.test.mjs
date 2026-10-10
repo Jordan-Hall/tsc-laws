@@ -11,14 +11,14 @@ import { execFileSync } from 'node:child_process';
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { tempDir } from './temp.mjs';
+import { compiledDir, tempDir } from './temp.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '../../..');
 const bundledLibs = join(root, 'upstream/typescript-go/internal/bundled/libs');
 const cases = join(root, 'upstream/TypeScript/tests/cases');
 
-const out = tempDir('tsc-ts-immutability-');
+const out = compiledDir('tsc-ts-immutability-');
 execFileSync(
   join(root, 'node_modules/.bin/tsc'),
   [

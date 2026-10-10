@@ -5,14 +5,14 @@ import { existsSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { extractedCases, pathCases, unitCases } from './module-resolution-cases.mjs';
-import { tempDir } from './temp.mjs';
+import { compiledDir } from './temp.mjs';
 
 // Compares the resolver with tsgo's (packages/tsgo/dist/resolve-oracle, built by `npm run build:oracle`).
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '../../..');
 const oracle = join(root, 'packages/tsgo/dist/resolve-oracle');
 
-const out = tempDir('tsc-ts-resolve-');
+const out = compiledDir('tsc-ts-resolve-');
 execFileSync(
   join(root, 'node_modules/.bin/tsc'),
   [
