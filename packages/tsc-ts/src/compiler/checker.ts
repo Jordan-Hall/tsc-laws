@@ -93,7 +93,7 @@ import {
   mergeAmbientModulesAndAugmentations,
 } from './checker-symbols.js';
 import { PermissiveMapper, ReportingMapper, RestrictiveMapper, UniqueLiteralMapper } from './instantiation.js';
-import { Relation, RelationKey, TypeComparer } from './relations.js';
+import { Relation, RelationKey, type Relater, TypeComparer } from './relations.js';
 import { TypeNodeVisitor, checkSourceFile } from './checker-source-file.js';
 import { InferenceCaches } from './checker-inference.js';
 import { AssignmentMarker, type FlowLoopInfo } from './checker-narrowing.js';
@@ -418,6 +418,8 @@ export class Checker {
   readonly comparableRelation = new Relation();
   readonly identityRelation = new Relation();
   readonly enumRelation = new Map<string, number>();
+  /** A relater that is not in use, kept so that relation checks don't allocate one each. */
+  spareRelater: Relater | undefined = undefined;
 
   // Global types, set by `initializeChecker`.
   globalArrayType: Type;
@@ -854,6 +856,7 @@ function setLinks<T>(store: (T | undefined)[], id: number, links: T): void {
 export function disposeChecker(c: Checker): void {
   c.symbolLinkStore.length = 0;
   c.nodeLinkStore.length = 0;
+  c.spareRelater = undefined;
   if (c.globalChanges !== undefined) returnLibGlobals(c);
   else {
     c.mergedSymbols.clear();

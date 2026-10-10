@@ -720,7 +720,10 @@ export function checkTypeRelatedTo(
   headMessage: DiagnosticMessage | undefined,
   diagnosticOutput: Diagnostic[] | undefined,
 ): boolean {
-  const r = new Relater(c, relation, errorNode);
+  // Nested checks (from resolving types during the relation) find no spare and allocate their own.
+  const r = c.spareRelater ?? new Relater(c, relation, errorNode);
+  c.spareRelater = undefined;
+  r.reset(relation, errorNode);
   r.relationCount = Math.trunc((16000000 - relation.size()) / 8);
   const result = r.isRelatedToEx(
     source,
@@ -753,6 +756,7 @@ export function checkTypeRelatedTo(
     const diagnostic = createDiagnosticFromErrorChain(r.errorChain, r.errorNode, r.relatedInfo);
     if (diagnostic !== undefined) reportDiagnostic(c, diagnostic, diagnosticOutput);
   }
+  c.spareRelater = r;
   return result !== Ternary.False;
 }
 
@@ -838,10 +842,10 @@ function isConversionOrInterfaceImplementationMessage(message: DiagnosticMessage
 
 // ---- The relater
 
-/** One relation check: its error chain, maybe-stack and recursion stacks. */
+/** The state of a relation check: its error chain, maybe-stack and recursion stacks. */
 export class Relater extends TypeComparer {
   readonly c: Checker;
-  readonly relation: Relation;
+  relation: Relation;
   errorNode: Node | undefined;
   errorChain: ErrorChain | undefined = undefined;
   relatedInfo: Diagnostic[] = [];
@@ -860,6 +864,22 @@ export class Relater extends TypeComparer {
     this.c = c;
     this.relation = relation;
     this.errorNode = errorNode;
+  }
+
+  /** Prepares this relater for a new check, as if newly constructed. */
+  reset(relation: Relation, errorNode: Node | undefined): void {
+    this.relation = relation;
+    this.errorNode = errorNode;
+    this.errorChain = undefined;
+    if (this.relatedInfo.length !== 0) this.relatedInfo = [];
+    this.maybeKeys.length = 0;
+    this.maybeKeysSet.clear();
+    this.sourceStack.length = 0;
+    this.targetStack.length = 0;
+    this.expandingFlags = ExpandingFlags.None;
+    this.overflow = false;
+    this.relationCount = 0;
+    this.signatureIntersectionState = IntersectionState.None;
   }
 
   compare(source: Type, target: Type, reportErrors: boolean): Ternary {
