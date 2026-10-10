@@ -33,6 +33,15 @@ npm run pack:npm -w tsc-ts -- --check  # also install the tarballs and compile a
 
 Tasks run with [Turborepo](https://turborepo.com).
 
+## Documentation
+
+[`apps/web`](apps/web/README.md) contains the TypeScript language reference and compiler documentation, built with the Vercel Labs Geistdocs template.
+
+```sh
+npm run dev:web
+npm run build:web
+```
+
 ## Requirements
 
 - Node.js 24+ and npm

@@ -1,0 +1,46 @@
+---
+title: Strictness and checking options
+description: Strict checks, missing-value options, and additional project diagnostics.
+---
+
+`strict` enables a family of checking options. Individual options can be overridden. New compiler versions can add stricter checks, so upgrading can introduce errors even when the configuration stays the same.
+
+## Common strict options
+
+| Option                         | Main effect                                                             |
+| ------------------------------ | ----------------------------------------------------------------------- |
+| `noImplicitAny`                | Reports certain inferred `any` types without an explicit annotation.    |
+| `strictNullChecks`             | Checks nullish values as distinct types.                                |
+| `strictFunctionTypes`          | Adds stricter function-parameter compatibility, with method exceptions. |
+| `strictBindCallApply`          | Checks arguments to typed `bind`, `call`, and `apply`.                  |
+| `strictPropertyInitialization` | Checks initialization of relevant instance properties.                  |
+| `noImplicitThis`               | Reports some implicit `any` receiver types.                             |
+| `useUnknownInCatchVariables`   | Treats unannotated catch variables as `unknown`.                        |
+| `strictBuiltinIteratorReturn`  | Gives built-in iterators stricter return types.                         |
+
+The precise set enabled by `strict` depends on the compiler version. Consult that version's configuration reference.
+
+## Additional missing-value checks
+
+`exactOptionalPropertyTypes` and `noUncheckedIndexedAccess` are not enabled by `strict` alone. They affect different kinds of missing values.
+
+```ts
+// @option: exactOptionalPropertyTypes=true
+// @option: noUncheckedIndexedAccess=true
+type Settings = { timeout?: number };
+// @ts-expect-error: absence is allowed, explicit undefined is not
+const settings: Settings = { timeout: undefined };
+const values: Record<string, number> = {};
+// @ts-expect-error: an arbitrary indexed read can be undefined
+values['missing'].toFixed();
+```
+
+## Project checks
+
+`noUnusedLocals`, `noUnusedParameters`, `noImplicitReturns`, and `noFallthroughCasesInSwitch` provide additional diagnostics. They are not substitutes for the core type rules and are not all implied by `strict`.
+
+## Declaration checking
+
+`skipLibCheck` skips internal checking of declaration files. It can hide incompatible declarations from dependencies, while those declarations still influence the types used by application code.
+
+See [`strict`](https://www.typescriptlang.org/tsconfig/strict.html), [object types](/typescript/types/objects), and [diagnostics](/typescript/projects/diagnostics).

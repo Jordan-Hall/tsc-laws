@@ -1,0 +1,52 @@
+---
+title: Function types
+description: Parameters, returns, call signatures, construct signatures, and this parameters.
+---
+
+A function type describes callable behavior. Parameter names document the signature; parameter types and return types determine compatibility.
+
+```ts
+type Transform = (input: string) => string;
+const upper: Transform = (input) => input.toUpperCase();
+```
+
+The assignment provides a contextual type for `input` and checks the returned expression.
+
+## Optional, default, and rest parameters
+
+An optional parameter can be omitted and is possibly `undefined` inside the function. A default initializer removes `undefined` from the initialized parameter's body type. A rest parameter receives an array or tuple of remaining arguments.
+
+```ts
+function join(separator = ',', ...values: string[]): string {
+  return values.join(separator);
+}
+join(undefined, 'a', 'b');
+```
+
+## Call and construct signatures
+
+An object type can combine properties with a call signature. A construct signature uses `new` and describes the instance returned by construction.
+
+```ts
+type Factory = { new (name: string): { name: string } };
+class User {
+  constructor(public name: string) {}
+}
+const factory: Factory = User;
+```
+
+## `this` parameters
+
+A first parameter named `this` describes the required receiver type. It is a checking-only parameter and is removed from output. Arrow functions capture `this` from their surrounding scope rather than accepting a call-time receiver.
+
+## `void` return contexts
+
+A function returning a value can satisfy a callback type returning `void`. The context ignores the result; the function does not stop returning it at runtime.
+
+```ts
+const values: number[] = [];
+const visit: (value: number) => void = (value) => values.push(value);
+visit(1);
+```
+
+This rule differs from explicitly annotating a function body `(): void`, which restricts its return statements. See [more on functions](https://www.typescriptlang.org/docs/handbook/2/functions.html), [overloads](/typescript/type-system/overloads), and [variance](/typescript/type-system/variance).

@@ -1,0 +1,68 @@
+---
+title: Declaration merging
+description: Combine compatible declarations and augment existing module or global types.
+---
+
+Some declarations with the same name can contribute to a single symbol. Which combinations are permitted depends on the type, value, and namespace meanings they create.
+
+## Interfaces
+
+Interfaces can merge compatible properties and overload signatures. A repeated non-function member must have a compatible declaration type and matching relevant modifiers.
+
+```ts
+interface User {
+  name: string;
+}
+interface User {
+  age: number;
+}
+const user: User = { name: 'Ada', age: 36 };
+```
+
+Type aliases do not reopen this way. Class declarations also do not simply merge with other class declarations.
+
+## Namespaces and values
+
+A namespace following a function or class can add named members to it. The runtime namespace body supplies the corresponding properties when emitted.
+
+```ts
+function format(value: string) {
+  return value.trim();
+}
+namespace format {
+  export const version = 1;
+}
+format.version;
+```
+
+Ordering matters: the namespace follows the value declaration in this pattern. Non-exported namespace members are not automatically shared between bodies.
+
+## Module augmentation
+
+A module can augment declarations in an existing module. This changes the described shape; runtime code must still install any newly described behavior.
+
+```ts
+// @filename: user.ts
+export interface User {
+  name: string;
+}
+// @filename: extension.ts
+import './user';
+declare module './user' {
+  interface User {
+    age?: number;
+  }
+}
+// @filename: main.ts
+import './extension';
+import type { User } from './user';
+const user: User = { name: 'Ada', age: 36 };
+```
+
+An augmentation patches existing declarations rather than introducing arbitrary new top-level exports. Default exports cannot be augmented by a declaration name in the same way as named exports.
+
+## Global augmentation
+
+`declare global` inside a module can extend the global scope. It does not make a runtime global exist.
+
+See [declaration merging](https://www.typescriptlang.org/docs/handbook/declaration-merging.html) and [ambient declarations](/typescript/declarations/ambient).

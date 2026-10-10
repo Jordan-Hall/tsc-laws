@@ -1,0 +1,44 @@
+---
+title: Lexical grammar
+description: How source text becomes identifiers, keywords, literals, and punctuation.
+---
+
+TypeScript source text is scanned into tokens before it is parsed. Tokens include identifiers, keywords, literals, and punctuation. Whitespace and comments usually separate tokens without becoming part of an expression.
+
+## Identifiers
+
+An identifier names a binding or a property. JavaScript's identifier rules allow Unicode characters, `$`, and `_`. A digit can appear after the first character.
+
+```ts
+const café = 1;
+const _count2 = café + 1;
+const $result = _count2;
+```
+
+A word's role depends on its position. A property can use a keyword as a name even when that word cannot declare an ordinary variable in the same context:
+
+```ts
+const settings = { default: true, class: 'primary' };
+settings.default;
+```
+
+## Literals
+
+Numeric, string, boolean, bigint, regular-expression, and template literals introduce values. `null` is also a literal. A literal expression can have a [literal type](/typescript/types/literals), but a mutable binding can widen that type.
+
+```ts
+const count = 1_000;
+const mask = 0xff;
+const large = 10n;
+const label = `items: ${count}`;
+```
+
+## Context matters
+
+`/` can begin a regular-expression literal or represent division. A parser can request a rescan when the surrounding grammar determines which interpretation applies. Similarly, JSX and template substitutions require context-sensitive scanning.
+
+Line breaks can affect automatic semicolon insertion. For example, a line break immediately after `return` ends the return statement; the expression on the next line is not returned. Write the return expression on the same line or open parentheses before the line break.
+
+TypeScript also has tokens used in type positions, including `keyof`, `infer`, and type parameter syntax. Their interpretation depends on the grammar around them.
+
+See the [ECMAScript lexical grammar](https://tc39.es/ecma262/#sec-ecmascript-language-lexical-grammar). TypeScript's scanner is part of the upstream implementation; a complete scanner includes rescanning, error recovery, and comments used by tooling.

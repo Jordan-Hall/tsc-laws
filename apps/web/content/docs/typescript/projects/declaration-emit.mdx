@@ -1,0 +1,41 @@
+---
+title: Declaration emit
+description: Describe a program's exported type surface with d.ts files and declaration maps.
+---
+
+Declaration emit produces files describing a program's type surface. The output contains declarations that consumers can check against, without the implementation bodies.
+
+```ts
+export interface User {
+  name: string;
+}
+export function greet(user: User): string {
+  return user.name;
+}
+```
+
+With `declaration: true`, the emitted declaration retains the interface and function signature. It does not copy the function body or validate consumers' runtime values.
+
+## Options
+
+`declaration` enables declaration output. `emitDeclarationOnly` suppresses JavaScript while retaining declarations. `declarationMap` provides source navigation maps. `declarationDir` selects a separate declaration output directory.
+
+`noEmit` suppresses declarations too. Options must agree with the build tool that supplies the JavaScript files.
+
+## Inferred public types
+
+Exported declarations need types that can be expressed and named in output. A complex inferred return type can expose private implementation details, large structural types, or references that cannot be named from the public module.
+
+Annotate exported functions when the intended contract should remain stable as implementation details change. Check the generated declarations, not just the source annotations, when publishing a library.
+
+## Isolated declarations
+
+`isolatedDeclarations` imposes annotation and other restrictions intended to make declaration generation possible without whole-program inference. It differs from `isolatedModules`, which addresses single-file JavaScript processing.
+
+## Packaging
+
+A package's `types` and `exports` must make declarations reachable under supported resolution modes. Declaration files that work under bundler resolution can still fail under Node-specific resolution if extensions, conditions, or entry points differ.
+
+Declaration maps are useful only when the referenced source can be found. Do not publish unintended private files or broken source paths as part of the package contract.
+
+See [declaration files](https://www.typescriptlang.org/docs/handbook/declaration-files/introduction.html), [isolated declarations](https://www.typescriptlang.org/docs/handbook/release-notes/typescript-5-5.html#isolated-declarations), and [module resolution](/typescript/projects/module-resolution).

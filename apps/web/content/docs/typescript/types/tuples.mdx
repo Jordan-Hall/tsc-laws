@@ -1,0 +1,49 @@
+---
+title: Tuples
+description: Position-specific element types, optional elements, and variadic tuples.
+---
+
+A tuple describes elements by position. A fixed tuple has a known set of positions and a literal `length` type.
+
+```ts
+type Entry = [name: string, count: number];
+const entry: Entry = ['files', 3];
+const name = entry[0]; // string
+const count = entry[1]; // number
+// @ts-expect-error: no element at position 2
+const missing = entry[2];
+```
+
+Labels document positions and can improve editor display. They do not create named properties or change compatibility.
+
+## Optional and rest elements
+
+An optional element contributes a possible shorter length. A rest element accepts a variable number of elements.
+
+```ts
+type Request = [path: string, timeout?: number];
+type Queue = [first: string, ...remaining: string[]];
+const request: Request = ['/users'];
+const queue: Queue = ['first', 'second', 'third'];
+```
+
+Optional elements must follow required elements, subject to the tuple grammar's rest-element rules. Reading an optional element includes `undefined`.
+
+## Variadic type parameters
+
+A tuple can expand a generic tuple parameter with `...T`. This preserves the relationship between a parameter list and the arguments provided to it.
+
+```ts
+function call<T extends unknown[], R>(fn: (...args: T) => R, ...args: T): R {
+  return fn(...args);
+}
+const result = call((name: string, count: number) => `${name}: ${count}`, 'files', 3);
+```
+
+## Readonly tuples
+
+`readonly [string, number]` prevents writes through that tuple type. An array literal with `as const` becomes a readonly tuple with literal elements. This restriction is shallow and does not freeze referenced objects.
+
+Mutable tuples still provide some array mutation methods, so their position types are not a complete runtime length guarantee.
+
+See [tuple types](https://www.typescriptlang.org/docs/handbook/2/objects.html#tuple-types) and [variadic tuples](https://www.typescriptlang.org/docs/handbook/release-notes/typescript-4-0.html#variadic-tuple-types).

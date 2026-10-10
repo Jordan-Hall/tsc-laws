@@ -1,0 +1,43 @@
+---
+title: JavaScript and JSDoc
+description: Check JavaScript files and describe types with supported JSDoc tags.
+---
+
+TypeScript can include JavaScript files with `allowJs` and check them with `checkJs`. A file-level `// @ts-check` enables checking for an individual JavaScript file. JSDoc comments can describe types without adding TypeScript syntax.
+
+```js
+// @ts-check
+/**
+ * @param {string} name
+ * @returns {string}
+ */
+function greet(name) {
+  return name.toUpperCase();
+}
+```
+
+## Type tags
+
+`@type`, `@param`, and `@returns` annotate values and functions. `@typedef` names a type. `@template` introduces a generic parameter. TypeScript supports type expressions in these tags, including imports used only for checking.
+
+```js
+/** @typedef {{ name: string, age?: number }} User */
+/** @type {User} */
+const user = { name: 'Ada' };
+```
+
+Supported JSDoc forms are not identical to every JSDoc tool's syntax. Consult the upstream supported-tag list for constructs your project depends on.
+
+## Assertions and satisfaction
+
+JSDoc can describe a cast attached to a parenthesized expression. `@satisfies` can check an expression against a target type while preserving its inferred type, similarly to TypeScript's `satisfies` operator.
+
+Comments do not perform runtime validation. A cast that incorrectly describes external data can still lead to a runtime error.
+
+## JavaScript inference
+
+JavaScript files have some inference rules different from `.ts` files. Property assignment patterns and missing annotations can be interpreted more permissively. Do not assume that moving the same text to `.ts` produces identical diagnostics.
+
+`allowJs` controls inclusion, while `checkJs` controls reporting of errors in those files. Imported declaration files still affect how JavaScript code is checked.
+
+See [supported JSDoc](https://www.typescriptlang.org/docs/handbook/jsdoc-supported-types.html) and [checking JavaScript](https://www.typescriptlang.org/docs/handbook/type-checking-javascript-files.html). JavaScript blocks in this reference are explanatory and are not included in the TypeScript example check.

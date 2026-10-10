@@ -1,0 +1,45 @@
+---
+title: Variance
+description: How subtype relationships change through generic types and function positions.
+---
+
+Variance describes how compatibility between type arguments relates to compatibility between constructed types. A producer of `T` tends to be covariant; a consumer of `T` tends to be contravariant. Mutable structures and method exceptions require additional care.
+
+```ts
+type Animal = { name: string };
+type Dog = Animal & { bark(): void };
+type Producer<T> = () => T;
+declare const dogProducer: Producer<Dog>;
+const animalProducer: Producer<Animal> = dogProducer;
+```
+
+The produced `Dog` can satisfy a caller expecting `Animal`.
+
+## Function parameters
+
+With `strictFunctionTypes`, a function-valued consumer of every `Animal` can be used to consume a `Dog`. A consumer that only handles `Dog` cannot safely handle every `Animal`.
+
+```ts
+type Animal = { name: string };
+type Dog = Animal & { bark(): void };
+type Consumer<T> = (value: T) => void;
+declare const animals: Consumer<Animal>;
+declare const dogs: Consumer<Dog>;
+const consumeDog: Consumer<Dog> = animals;
+// @ts-expect-error: this consumer requires bark
+const consumeAnimal: Consumer<Animal> = dogs;
+```
+
+## Method exception
+
+Parameters originating in method and constructor declarations are excluded from strict contravariant function checks. This bivariant behavior preserves compatibility for common generic classes and interfaces, but permits some unsafe substitutions.
+
+`handle(value: T): void` and `handle: (value: T) => void` therefore need not have identical compatibility behavior.
+
+## Variance annotations
+
+`in`, `out`, and `in out` can annotate supported generic type parameters. The annotations apply to certain comparisons between instantiations of the same generic declaration. They do not rewrite structural compatibility or force unrelated structural types to behave nominally.
+
+Use annotations to describe the type's actual variance, not to override an incompatible structure.
+
+See [strict function types](https://www.typescriptlang.org/docs/handbook/release-notes/typescript-2-6.html#strict-function-types) and [variance annotations](https://www.typescriptlang.org/docs/handbook/2/generics.html#variance-annotations).

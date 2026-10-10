@@ -1,0 +1,56 @@
+---
+title: Interfaces and type aliases
+description: Naming object shapes, extending interfaces, and choosing a declaration form.
+---
+
+An interface names an object shape. A type alias gives a name to any type expression, including an object, primitive, union, or tuple. Neither creates a runtime value.
+
+```ts
+interface Named {
+  name: string;
+}
+interface User extends Named {
+  id: string;
+}
+type Result = User | { error: string };
+```
+
+## Extension
+
+An interface can extend compatible object types with statically known members. Inherited properties must remain compatible. An interface cannot directly extend a union because a union does not supply a single fixed set of members.
+
+```ts
+interface Named {
+  name: string;
+}
+// @ts-expect-error: the inherited property cannot change to number
+interface Invalid extends Named {
+  name: number;
+}
+```
+
+An alias can express an intersection, but an intersection's property conflicts are handled differently. See [intersections](/typescript/types/intersections).
+
+## Reopening declarations
+
+Interface declarations with the same name in the same scope can merge. Compatible members accumulate. A type alias cannot be reopened this way.
+
+```ts
+interface Settings {
+  timeout: number;
+}
+interface Settings {
+  retries: number;
+}
+const settings: Settings = { timeout: 1_000, retries: 3 };
+```
+
+Merging is useful for extensible declaration surfaces, but unintended global interfaces can also merge. Make files modules when their declarations should be local.
+
+## Names and identity
+
+A named interface or type alias generally does not make a structurally compatible object nominal. Two object types can be assignable even when they have different names. Use a discriminant, a private member, or an explicit branded convention when a domain needs additional distinctions.
+
+A branded type is still a checking convention and can be bypassed with an assertion. It does not validate runtime input.
+
+See [interfaces and aliases](https://www.typescriptlang.org/docs/handbook/2/everyday-types.html#differences-between-type-aliases-and-interfaces) and [declaration merging](/typescript/declarations/merging).

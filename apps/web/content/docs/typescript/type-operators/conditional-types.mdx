@@ -1,0 +1,46 @@
+---
+title: Conditional types
+description: Type-level branching, infer, distribution, and deferred evaluation.
+---
+
+`T extends U ? X : Y` selects a type based on an assignability check. With an unresolved type parameter, selection can be deferred until enough type information is available.
+
+```ts
+type Label<T> = T extends string ? 'text' : 'other';
+type A = Label<string>; // "text"
+type B = Label<number>; // "other"
+```
+
+## Distribution
+
+A conditional type whose checked type is a naked type parameter distributes over a union supplied for that parameter.
+
+```ts
+type ArrayOf<T> = T extends unknown ? T[] : never;
+type Distributed = ArrayOf<string | number>; // string[] | number[]
+type Together<T> = [T] extends [unknown] ? T[] : never;
+type Combined = Together<string | number>; // (string | number)[]
+```
+
+Wrapping the parameter prevents that distribution. Distribution over `never` produces no members, so a typical distributive conditional instantiated with `never` evaluates to `never`.
+
+## `infer`
+
+Inside the `extends` pattern, `infer` introduces a type variable for a matched part. That variable is available in the true branch.
+
+```ts
+type Element<T> = T extends readonly (infer U)[] ? U : T;
+type Name = Element<readonly string[]>; // string
+type Returned<T> = T extends (...args: never[]) => infer R ? R : never;
+type Count = Returned<() => number>; // number
+```
+
+Inference can combine candidates differently according to their positions. Multiple possible matches do not imply a single exact inferred type in every context.
+
+## Overloads and limits
+
+Inferring from an overloaded function generally uses its last signature. Conditional types do not perform call-site overload selection.
+
+Recursive conditional types are subject to instantiation and representation limits. A logically finite construction can still exceed compiler limits, especially when distribution creates many alternatives. Those diagnostics are implementation limits, not additional runtime semantics.
+
+See [conditional types](https://www.typescriptlang.org/docs/handbook/2/conditional-types.html) and [diagnostics](/typescript/projects/diagnostics).

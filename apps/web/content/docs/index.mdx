@@ -1,0 +1,38 @@
+---
+title: TypeScript reference
+description: Language rules, examples, and compiler behavior, alongside the tsc-ts documentation.
+---
+
+TypeScript adds static type checking to JavaScript. It describes which values a program can use, checks how those values flow through the program, and produces JavaScript that runs in the target environment.
+
+This site contains an **unofficial TypeScript language reference** and documentation for **tsc-ts**, a TypeScript compiler written in TypeScript and compiled to native code with [scriptc](https://scriptc.dev).
+
+## TypeScript
+
+The reference explains a rule, shows its behavior in code, and describes the cases where compiler options or runtime behavior change the result.
+
+| Area                                                 | What it covers                                                      |
+| ---------------------------------------------------- | ------------------------------------------------------------------- |
+| [Language](/typescript/language/lexical-grammar)     | Source text, declarations, scope, expressions, and statements.      |
+| [Types](/typescript/types/primitives)                | Primitive types, object types, functions, classes, and collections. |
+| [Type system](/typescript/type-system/assignability) | Assignability, inference, narrowing, generics, and variance.        |
+| [Type operators](/typescript/type-operators/keyof)   | Constructing types from existing types.                             |
+| [Declarations](/typescript/declarations/modules)     | Modules, declaration files, JSX, JSDoc, and decorators.             |
+| [Projects](/typescript/projects/tsconfig)            | Compiler options, resolution, output, and project references.       |
+
+Start with [the reference conventions](/typescript) to understand the version scope and example assumptions. See [sources and verification](/typescript/sources) for how claims can be checked.
+
+## tsc-ts
+
+[Install tsc-ts](/compiler/getting-started) to check a project:
+
+```sh
+npm install -D tsc-ts
+npx tsc-ts -p tsconfig.json
+```
+
+The [compiler documentation](/compiler) covers the command line, native packages, API server, and compatibility testing.
+
+## Status of this reference
+
+This reference is maintained with tsc-ts. It is not a Microsoft specification, and it does not replace the [TypeScript Handbook](https://www.typescriptlang.org/docs/handbook/intro.html). It documents the areas listed above; it does not claim to describe every compiler behavior. TypeScript's upstream implementation and tests are the source for behavior that the prose does not resolve.

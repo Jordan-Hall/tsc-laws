@@ -1,0 +1,49 @@
+---
+title: Statements and control flow
+description: Branches, loops, returns, and reachability in type checking.
+---
+
+Statements determine which expressions execute and in what order. TypeScript uses control-flow analysis to track what can be known about a value at a particular use site.
+
+## Branches
+
+`if` and `switch` can narrow a value's type. A branch that returns or throws does not flow into the statements after it.
+
+```ts
+function display(value: string | undefined): string {
+  if (value === undefined) return '(missing)';
+  return value.toUpperCase(); // value is string
+}
+```
+
+A `switch` over a discriminant can narrow each union member. Its fallthrough behavior is still JavaScript's behavior; a case does not implicitly stop after its last statement.
+
+## Loops
+
+Loops can execute zero times or multiple times, depending on their form. The checker merges flow information from the reachable paths. A value assigned inside a `for` or `while` loop is not necessarily assigned when the loop finishes.
+
+```ts
+function last(values: string[]): string | undefined {
+  let result: string | undefined;
+  for (const value of values) result = value;
+  return result;
+}
+```
+
+`for...of` reads iterable values. `for...in` enumerates enumerable string property keys, including inherited keys; its loop variable is not a proof that each key belongs to `keyof` the object.
+
+## Exceptions and finalization
+
+`throw` terminates the current path. Under `strict`, catch variables default to `unknown`, because JavaScript permits throwing any value. Narrow before accessing a caught value's properties.
+
+```ts
+try {
+  throw new Error('failed');
+} catch (error) {
+  if (error instanceof Error) console.error(error.message);
+}
+```
+
+`finally` executes when control leaves the `try` or `catch`, including through a return. A return or throw inside `finally` can replace the preceding completion.
+
+Options such as `noImplicitReturns`, `noFallthroughCasesInSwitch`, and `allowUnreachableCode` control additional diagnostics. See [narrowing](https://www.typescriptlang.org/docs/handbook/2/narrowing.html) and [strictness](/typescript/projects/strictness).

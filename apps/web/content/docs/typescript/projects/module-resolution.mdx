@@ -1,0 +1,40 @@
+---
+title: Module resolution
+description: Match imports to declarations using runtime-aligned resolution settings.
+---
+
+Module resolution determines which file or package an import refers to during checking. Choose a mode that models the runtime or bundler that will load the emitted code.
+
+## Resolution modes
+
+| Mode       | Intended environment                                                                |
+| ---------- | ----------------------------------------------------------------------------------- |
+| `nodenext` | Current Node.js module behavior, including per-file format decisions.               |
+| `node16`   | Node.js 16-era module behavior.                                                     |
+| `bundler`  | Bundlers with supported package exports and permissive relative extension handling. |
+| `node10`   | Older Node-style resolution without modern package export semantics.                |
+| `classic`  | Historical TypeScript resolution, generally unsuitable for modern packages.         |
+
+Supported modes and details evolve with the compiler version. `module` and `moduleResolution` must form a compatible configuration.
+
+## Node module formats
+
+Node modes consider file extensions and package metadata. `.mts` and `.cts` explicitly select ESM and CommonJS TypeScript inputs. A `.ts` file's format can depend on the nearest package's `type` field. Resolution can use different conditions for imports and `require` calls.
+
+ESM relative imports may need the extension of the emitted JavaScript file. TypeScript can resolve an import of `./user.js` to its corresponding TypeScript source for checking.
+
+## Package declarations
+
+`package.json` fields such as `types`, `exports`, and `imports` can determine accessible entry points. `typesVersions` can select declarations for supported compiler ranges, but does not override every resolution path when package exports are in use.
+
+## Path aliases
+
+`paths` maps specifiers for checking. It does not generally rewrite those specifiers in emitted JavaScript. The runtime or bundler must implement a matching mapping.
+
+Likewise, `rootDirs` describes a virtual merged root for relative resolution without physically moving files. Changing resolution can change types without changing runtime loader behavior.
+
+## Debugging
+
+Use `--traceResolution` and compare the import's format, package conditions, and resolved declaration path. A successful type resolution does not establish that the runtime entry point exists or exports the same value.
+
+See [module resolution](https://www.typescriptlang.org/docs/handbook/modules/reference.html#module-resolution) and [choosing compiler options](https://www.typescriptlang.org/docs/handbook/modules/guides/choosing-compiler-options.html).

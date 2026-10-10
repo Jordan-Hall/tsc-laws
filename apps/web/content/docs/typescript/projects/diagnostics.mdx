@@ -1,0 +1,37 @@
+---
+title: Diagnostics and suppression
+description: Interpret compiler errors, expected errors, and implementation limits.
+---
+
+A diagnostic reports a problem found during scanning, parsing, checking, configuration, or emit. It can include a location, code, category, and related information. The source of a diagnostic matters when reducing a reproduction.
+
+## Expected errors
+
+`@ts-expect-error` suppresses a diagnostic on the next line and reports an unused directive when that line has no diagnostic. It is useful for examples and regression tests of rejected operations.
+
+```ts
+// @ts-expect-error: number is not assignable to string
+const name: string = 42;
+```
+
+The directive does not pin an exact diagnostic code or message. If a different error appears on the same line, the directive can still be satisfied. Use more specific compiler tests when the diagnostic identity matters.
+
+## Other directives
+
+`@ts-ignore` suppresses an error without requiring one to exist. `@ts-nocheck` disables semantic checking for a supported file context. These directives do not repair runtime behavior or make the program's annotations reliable.
+
+An explicit `any` can remove checking without appearing as a suppression comment. Include such annotations when investigating why a program is accepted.
+
+## Implementation limits
+
+Errors about excessive type instantiation or an unrepresentable union describe compiler limits. They do not mean a runtime loop has occurred. Distribution, recursive types, and large template-literal combinations can cause a small source file to require substantial type computation.
+
+Simplify the type-level operation or introduce a stable interface boundary rather than suppressing the limit and assuming the intended result was computed.
+
+## Reproductions
+
+Include the source, compiler version, configuration, and dependency declarations. File inclusion and module resolution can be the cause even when an error points to an expression.
+
+Compiler exit status and emitted-file presence are separate evidence. Check [emit](/typescript/projects/emit) before assuming that a file written by the compiler indicates success.
+
+See [TypeScript 3.9 expected-error comments](https://www.typescriptlang.org/docs/handbook/release-notes/typescript-3-9.html#ts-expect-error-comments) and the [TSConfig reference](https://www.typescriptlang.org/tsconfig/).

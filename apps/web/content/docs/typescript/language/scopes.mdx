@@ -1,0 +1,43 @@
+---
+title: Scope and name lookup
+description: Lexical scope and TypeScript's separate type, value, and namespace meanings.
+---
+
+Name lookup starts at the use site and searches enclosing scopes. A declaration in a nearer scope can shadow a declaration with the same name in an outer scope.
+
+```ts
+const value = 1;
+function read() {
+  const value = 'local';
+  return value; // string
+}
+```
+
+## Type and value meanings
+
+TypeScript tracks type, value, and namespace meanings for declarations. A type alias creates a type meaning. A variable creates a value meaning. A class creates both a type describing instances and a value used as a constructor.
+
+```ts
+type Point = { x: number; y: number };
+const Point = (x: number, y: number): Point => ({ x, y });
+const origin: Point = Point(0, 0);
+```
+
+The annotation uses the type meaning of `Point`; the call uses its value meaning. These declarations can share a name because they occupy different meanings. This does not allow arbitrary duplicate declarations. The rules depend on declaration kinds and [declaration merging](/typescript/declarations/merging).
+
+## Scripts and modules
+
+A file with top-level imports or exports is normally a module, with its own scope. A script's top-level declarations can enter the global scope shared by other scripts. The `moduleDetection` option can change which files are treated as modules.
+
+```ts
+export {}; // make this file a module
+const local = 'only visible in this module';
+```
+
+An ambient declaration can add a global name using `declare global` from a module. That declaration describes a value or type that another part of the runtime must provide.
+
+## Shadowing and control flow
+
+Shadowed names refer to distinct bindings. Narrowing one binding does not narrow a different binding with the same spelling. Imports also bind names in the local module; importing a type does not create a runtime value for that type.
+
+See [modules](https://www.typescriptlang.org/docs/handbook/2/modules.html) and [declaration merging](https://www.typescriptlang.org/docs/handbook/declaration-merging.html).

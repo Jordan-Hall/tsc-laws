@@ -1,0 +1,51 @@
+---
+title: Modules
+description: Module scope, imports, exports, and type-only dependencies.
+---
+
+A module has its own scope. Top-level declarations are available to other modules only when exported. Imports bind exported names in the importing module.
+
+```ts
+// @filename: user.ts
+export interface User {
+  name: string;
+}
+export function greet(user: User) {
+  return user.name;
+}
+// @filename: main.ts
+import { greet } from './user';
+import type { User } from './user';
+const user: User = { name: 'Ada' };
+greet(user);
+```
+
+## Type-only imports and exports
+
+`import type` and `export type` declare checking-only dependencies and are removed from output. A class imported with `import type` can be used as an instance type, but not constructed as a runtime value.
+
+```ts
+// @filename: counter.ts
+export class Counter {
+  value = 0;
+}
+// @filename: main.ts
+import type { Counter } from './counter';
+declare const counter: Counter;
+// @ts-expect-error: the import does not provide a runtime constructor
+new Counter();
+```
+
+## Runtime module formats
+
+ECMAScript modules and CommonJS have different loading and export conventions. `module`, `moduleResolution`, package metadata, and file extensions influence how TypeScript checks and emits a file. A default import's type-checking behavior does not by itself establish that a runtime loader supports the same interop.
+
+With `verbatimModuleSyntax`, ordinary import/export syntax is preserved and type-only syntax is erased. Syntax that does not fit the selected module format can be diagnosed instead of silently rewritten.
+
+## Module detection
+
+Top-level imports and exports commonly establish module status. `moduleDetection` can also consider environment information or force files to be modules. An `export {}` can explicitly mark a file as a module without exporting a value.
+
+An import path is resolved according to project options; resolution finds types for checking and does not necessarily rewrite the path in JavaScript.
+
+See [modules](https://www.typescriptlang.org/docs/handbook/2/modules.html), [module theory](https://www.typescriptlang.org/docs/handbook/modules/theory.html), and [module resolution](/typescript/projects/module-resolution).

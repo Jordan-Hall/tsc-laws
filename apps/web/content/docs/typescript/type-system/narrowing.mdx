@@ -1,0 +1,51 @@
+---
+title: Narrowing
+description: Guards, assignments, discriminants, predicates, and flow types.
+---
+
+Narrowing reduces the possible types of a value at a use site. The declared type still determines which future assignments are allowed.
+
+```ts
+function format(value: string | number) {
+  if (typeof value === 'string') return value.toUpperCase();
+  return value.toFixed(2);
+}
+```
+
+## Guards
+
+`typeof`, equality comparisons, `instanceof`, and the `in` operator can narrow values. Truthiness checks also narrow, but reject useful falsy values such as `0` and `""`. Check nullish values explicitly when those values should remain valid.
+
+`typeof null` is `"object"`; an object guard alone does not exclude `null`. Optional properties can participate on both sides of an `in` check, since they may be present or absent.
+
+## Declared and flow types
+
+```ts
+let value: string | number = 'text';
+value.toUpperCase(); // current flow type is string
+value = 3;
+value.toFixed(); // current flow type is number
+```
+
+The assignment to `3` is legal because the declared type includes `number`.
+
+## Predicates and assertions
+
+A predicate declares a relationship between a boolean result and a parameter's type. The checker trusts that contract; it does not prove that the implementation identifies exactly those values.
+
+```ts
+function isString(value: unknown): value is string {
+  return typeof value === 'string';
+}
+function assertString(value: unknown): asserts value is string {
+  if (!isString(value)) throw new Error('Expected string');
+}
+```
+
+Inferred predicates are supported for some function bodies, with constraints on returns and parameter mutation. An explicit predicate with incorrect runtime logic can make an accepted program fail.
+
+## Boundaries
+
+Mutation and aliasing complicate flow analysis. The checker does not model every effect of a called function or every later callback execution. Keep a narrowed value in a stable local binding when subsequent mutation would invalidate the assumption.
+
+See [narrowing](https://www.typescriptlang.org/docs/handbook/2/narrowing.html) and [statements](/typescript/language/statements).

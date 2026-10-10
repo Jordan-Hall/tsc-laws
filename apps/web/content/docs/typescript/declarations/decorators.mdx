@@ -1,0 +1,42 @@
+---
+title: Decorators
+description: Standard decorator behavior, contexts, initialization, and legacy decorator differences.
+---
+
+A decorator is applied to a supported declaration and can observe or alter its behavior. TypeScript supports the modern decorator model and a separate legacy model enabled by `experimentalDecorators`.
+
+## Modern method decorators
+
+A method decorator receives the method value and a context. It can return a replacement with a compatible signature. The context describes the decorated member and can provide initialization hooks.
+
+```ts
+function logged<This, Args extends unknown[], Return>(
+  method: (this: This, ...args: Args) => Return,
+  context: ClassMethodDecoratorContext<This, (this: This, ...args: Args) => Return>,
+) {
+  return function (this: This, ...args: Args): Return {
+    console.log(String(context.name));
+    return method.apply(this, args);
+  };
+}
+class Greeter {
+  @logged
+  greet(name: string) {
+    return `Hello, ${name}`;
+  }
+}
+```
+
+Calling `greet` runs the replacement. The declaration can cause emitted helper code; a decorator is not an erased type annotation.
+
+## Initialization and ordering
+
+Decorator expressions are evaluated in their specified order, while stacked decorators are applied in reverse order. A context's `addInitializer` registers work for the appropriate initialization phase. Field decorators, accessors, and classes have distinct contracts; a method decorator is not interchangeable with them.
+
+## Legacy decorators
+
+`experimentalDecorators` selects TypeScript's older decorator implementation, with different arguments and checking behavior. Modern decorators do not support parameter decorators and are not compatible with legacy `emitDecoratorMetadata` behavior.
+
+Libraries written for one model need an implementation that explicitly supports the other model before switching options. The same `@name` spelling does not imply the same runtime contract.
+
+See [TypeScript 5 decorators](https://www.typescriptlang.org/docs/handbook/release-notes/typescript-5-0.html#decorators) and the [legacy decorator reference](https://www.typescriptlang.org/docs/handbook/decorators.html).
