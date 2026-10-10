@@ -47,3 +47,55 @@ try {
 `finally` executes when control leaves the `try` or `catch`, including through a return. A return or throw inside `finally` can replace the preceding completion.
 
 Options such as `noImplicitReturns`, `noFallthroughCasesInSwitch`, and `allowUnreachableCode` control additional diagnostics. See [narrowing](https://www.typescriptlang.org/docs/handbook/2/narrowing.html) and [strictness](/typescript/projects/strictness).
+
+## Statement checking contexts
+
+Statements retain ECMAScript evaluation and abrupt-completion behavior. TypeScript checks expressions, declarations, labels, returns, and control-flow consequences. Conditions are generally permitted to use truthiness rather than requiring a Boolean annotation, subject to the edition's diagnostics for syntactically always-truthy or nullish checks.
+
+`if`, conditional expressions, and `switch` create branch facts. Blocks create lexical scopes. Empty statements do not create useful type facts. A `with` statement is not an accepted mechanism for dynamic lexical typing in TypeScript.
+
+## Loop forms
+
+`while`, `do`, and ordinary `for` check conditions and iteration expressions while joining possible loop-back paths. `for...in` obtains string property names; it does not iterate property values or symbols. `for...of` checks iteration protocols and assigns each yielded value to the loop binding. `for await...of` has asynchronous context and iterator requirements.
+
+Loop bindings with lexical declarations have per-iteration capture semantics. `break` and `continue` require valid loop/switch/label targets and contribute abrupt flow. The checker does not infer arbitrary arithmetic bounds from every loop condition.
+
+```ts
+const values: number[] = [1, 2];
+for (const value of values) {
+  const numeric: number = value;
+}
+for (const key in values) {
+  const name: string = key;
+}
+```
+
+## Return and throw
+
+A return is allowed only in the applicable function context. Its expression must satisfy an explicit result contract, including async or generator handling. Without an annotation, reachable returns contribute to inference. A return without an expression can contribute undefined. Automatic semicolon insertion after `return` can therefore change the contract.
+
+A throw can throw any expression; TypeScript has no checked-exception type parameter for every function. An annotated return does not describe all exceptions the function can raise. Recognized never-returning calls and explicit throws can end reachable flow.
+
+## Try, catch, and finally
+
+`useUnknownInCatchVariables` makes an unannotated catch binding unknown in the relevant strict context. A catch binding may be explicitly annotated only with the supported broad types, not an arbitrary assumed exception class. Narrow the value before using its properties.
+
+```ts
+try {
+  throw new Error('failure');
+} catch (error) {
+  if (error instanceof Error) console.log(error.message);
+  // @ts-expect-error: arbitrary thrown values cannot be assumed to have a message
+  error.message;
+}
+```
+
+Finally blocks execute under ECMAScript completion rules and can replace a prior return or throw. Checking does not establish that a program can throw only declared Error objects.
+
+## Switch and diagnostic options
+
+Switch cases compare against the switch expression and can narrow discriminated unions. `noFallthroughCasesInSwitch` controls unintended fallthrough diagnostics; `noImplicitReturns` controls missing return paths. Neither is a universal exhaustiveness requirement. `allowUnreachableCode` and `allowUnusedLabels` concern specific diagnostics rather than changing runtime control flow.
+
+TypeScript 5.6 added diagnostics for syntactically always-truthy/nullish expressions, such as misplaced arrow or comparison syntax. These checks are distinct from proving every Boolean expression constant through data-flow analysis.
+
+Sources: [statement and flow checking](https://github.com/microsoft/TypeScript/blob/c63de15a992d37f0d6cec03ac7631872838602cb/src/compiler/checker.ts), [TypeScript 5.6 checks](https://www.typescriptlang.org/docs/handbook/release-notes/typescript-5-6.html#disallowed-nullish-and-truthy-checks), and [ECMAScript statements](https://tc39.es/ecma262/#sec-ecmascript-language-statements-and-declarations).

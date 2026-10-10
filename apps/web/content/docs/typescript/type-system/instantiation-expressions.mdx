@@ -1,0 +1,52 @@
+---
+title: Instantiation expressions
+description: Specializing generic function and constructor values without calling or wrapping them.
+---
+
+An instantiation expression supplies type arguments to a generic callable or constructable value without invoking it. The runtime value is preserved; its exposed signatures are specialized or filtered according to the supplied arguments.
+
+## Syntax
+
+```text
+InstantiationExpression = Expression '<' Type { ',' Type } [ ',' ] '>' ;
+```
+
+Parser lookahead distinguishes this from relational expressions. The type arguments are not emitted as runtime arguments.
+
+```ts
+function identity<T>(value: T): T {
+  return value;
+}
+const stringIdentity = identity<string>;
+const result: string = stringIdentity('text');
+// @ts-expect-error: specialization no longer admits a number argument
+stringIdentity(1);
+```
+
+## InstantiateSignatures
+
+Given a value type and explicit type arguments:
+
+1. Inspect its call and construct signatures.
+2. Retain generic signatures to which the supplied argument count can apply, considering defaults.
+3. Check constraints and substitute the arguments into retained signatures.
+4. Discard signatures that are inapplicable to that type-argument list.
+5. Preserve the runtime value and the relevant nonsignature type information.
+
+This operation differs from calling a generic function and from annotating a variable with a new callback type. It does not allocate a wrapper function. Overloads with different generic arities can be filtered, so the resulting callable does not necessarily retain every overload of the original.
+
+## Constructors and queries
+
+Generic constructors can be specialized the same way when their construct signatures are applicable. The expression still refers to the original constructor object; it does not create a class declaration with a new runtime identity.
+
+```ts
+const StringMap = Map<string, string>;
+const map = new StringMap();
+map.set('key', 'value');
+// @ts-expect-error: values must satisfy the specialized constructor's type
+map.set('key', 1);
+```
+
+A type query can refer to supported instantiation syntax, such as `typeof identity<string>`, to obtain the specialized function type. That query is erased and does not instantiate a runtime value. Constraint failures and nonapplicable argument counts remain diagnostics even though the operation performs no call.
+
+Sources: [instantiation expressions](https://www.typescriptlang.org/docs/handbook/release-notes/typescript-4-7.html#instantiation-expressions), and [instantiation checking](https://github.com/microsoft/TypeScript/blob/c63de15a992d37f0d6cec03ac7631872838602cb/src/compiler/checker.ts).

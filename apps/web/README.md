@@ -26,4 +26,8 @@ Write language rules before examples, state relevant compiler options, and link 
 
 Each TypeScript code block is checked independently with TypeScript 5.9, `strict: true`, ES2022, and bundler module resolution. Use `// @ts-expect-error` for rejected cases; unused directives fail the check. Use `// @filename: file.ts` to split multi-file examples and `// @option: exactOptionalPropertyTypes=true` to change an example's options. These checks validate the examples, not TypeScript 7 or tsc-ts conformance. JavaScript and shell examples are explanatory and are not run by this check.
 
+Option directives accept JSON values for array/object options, for example `// @option: lib=["ES2022","ESNext.Disposable"]`, as well as booleans, numbers, and unquoted enum names. Grammar blocks use `text` and are explanatory rather than executable examples.
+
+The TypeScript specification describes edition 5.9.3 and cites its pinned compiler revision. Its grammar and checking algorithms describe observable rules; conformance and resource limits are stated separately from tsc-ts's TypeScript-Go target. Add new subjects to the specification coverage index and the appropriate navigation file.
+
 The content tests check internal links and navigation. After a production build, `test:routes` starts a temporary server and checks HTML, Markdown, content negotiation, search, and missing-page responses. Keep the unofficial status, version scope, and compiler limitations visible when adding pages.

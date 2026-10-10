@@ -2,6 +2,8 @@
   "title": "Projects",
   "pages": [
     "tsconfig",
+    "compiler-options",
+    "libraries",
     "strictness",
     "module-resolution",
     "emit",

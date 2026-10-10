@@ -54,3 +54,62 @@ function label(state: State): string {
 `keyof (A | B)` describes keys available on the union, generally the keys common to its members. It does not automatically form the union of every member's keys. Distribution can be expressed with a [conditional type](/typescript/type-operators/conditional-types) when needed.
 
 See [union types](https://www.typescriptlang.org/docs/handbook/2/everyday-types.html#union-types) and [discriminated unions](https://www.typescriptlang.org/docs/handbook/2/narrowing.html#discriminated-unions).
+
+## Construction and assignment obligations
+
+A union accepts values admitted by its alternatives. A source union is assignable to a target only if every relevant source constituent satisfies the target. A source can satisfy a union target through an applicable alternative, with additional discriminant-based handling for structured types.
+
+```ts
+declare const source: string | number;
+const target: string | number | boolean = source;
+// @ts-expect-error: the string possibility is not assignable to number
+const numberOnly: number = source;
+```
+
+`never` is removed, nested unions are flattened, and some literal or special-type alternatives are absorbed. [Normalization](/typescript/type-system/normalization) defines these reductions. Printed union order is not a runtime or language ordering guarantee.
+
+## Member and key operations
+
+A property can be read from a union only when it is available on every relevant constituent. Its read type combines the possible property types. A write can require a value acceptable to every member type, so the requirement can be an intersection rather than the read union.
+
+`keyof (A | B)` includes keys guaranteed for both `A` and `B`, not every key from either. To collect all keys, distribute a type operation over the alternatives explicitly.
+
+```ts
+type Choice = { common: string; text: string } | { common: number; count: number };
+type CommonKey = keyof Choice;
+const key: CommonKey = 'common';
+// @ts-expect-error: text is not present in every alternative
+const unavailable: CommonKey = 'text';
+type AllKeys<T> = T extends unknown ? keyof T : never;
+const distributed: AllKeys<Choice> = 'text';
+```
+
+## Discriminant selection and correlated bindings
+
+For a recognized discriminant test, the checker retains constituents compatible with the tested value on the true path and removes excluded constituents on the false path. Missing properties, widened discriminants, or overlapping discriminants can prevent a unique selection. Testing a property against a finite set does not automatically validate an arbitrary external object as the declared union.
+
+Destructured const bindings and parameters that remain unassigned can preserve correlations between a discriminant and another bound property. Separately reassignable variables need not retain those correlations.
+
+```ts
+type Event = { kind: 'text'; value: string } | { kind: 'count'; value: number };
+function handle(event: Event) {
+  const { kind, value } = event;
+  if (kind === 'text') return value.toUpperCase();
+  return value.toFixed();
+}
+```
+
+## Callable unions
+
+Calling a union of function types requires an argument list accepted by the combined callable requirements. A parameter can become an intersection of possible parameter types; return types combine possibilities. Complex generic or overloaded constituents can make a union uncallable even when each alternative is separately callable.
+
+```ts
+declare const operation: ((value: string | number) => string) | ((value: number | boolean) => number);
+const result: string | number = operation(1);
+// @ts-expect-error: string is not accepted by every possible callable
+operation('one');
+```
+
+The checker cannot generally preserve dependent relationships between an arbitrary union's callable property and a separate argument property. That loss of correlation is a checking boundary, not a claim that all such JavaScript calls fail at runtime.
+
+Sources: [union operations](https://www.typescriptlang.org/docs/handbook/2/everyday-types.html#union-types), [discriminants](https://www.typescriptlang.org/docs/handbook/2/narrowing.html#discriminated-unions), and [checker](https://github.com/microsoft/TypeScript/blob/c63de15a992d37f0d6cec03ac7631872838602cb/src/compiler/checker.ts).

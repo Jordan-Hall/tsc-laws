@@ -1,11 +1,11 @@
 ---
 title: Sources and verification
-description: How to interpret the reference, check examples, and report differences.
+description: Pinned source authority, clause evidence, checked witnesses, coverage, and discrepancy reports for the specification.
 ---
 
-TypeScript's behavior is defined in practice by its compiler and tests. The [Handbook](https://www.typescriptlang.org/docs/handbook/intro.html), [TSConfig reference](https://www.typescriptlang.org/tsconfig/), and [release notes](https://www.typescriptlang.org/docs/handbook/release-notes/overview.html) explain supported features. The older [language specification](https://github.com/microsoft/TypeScript/blob/main/doc/spec-ARCHIVED.md) is archived and does not describe all modern TypeScript features.
+TypeScript's behavior is defined in practice by its compiler and tests. The [Handbook](https://www.typescriptlang.org/docs/handbook/intro.html), [TSConfig reference](https://www.typescriptlang.org/tsconfig/), and [release notes](https://www.typescriptlang.org/docs/handbook/release-notes/overview.html) explain supported features. The older [language specification](https://github.com/microsoft/TypeScript/blob/794c57478ec2a44ee15fb3e245a4c5d2d1612375/doc/spec.md) is archived and does not describe all modern TypeScript features.
 
-This site turns that material into a topic-based reference. The prose and examples are maintained independently; upstream links identify the relevant topic rather than claiming that Microsoft has reviewed this text.
+This specification organizes that material into grammar, semantic entities, checking operations, and subject clauses. Its edition is **TypeScript 5.9.3**, source revision **c63de15a992d37f0d6cec03ac7631872838602cb**. The prose is independently authored; citations identify evidence rather than claiming Microsoft review.
 
 ## Version boundaries
 
@@ -13,7 +13,7 @@ There are three separate references:
 
 | Reference                  | Purpose                                                          |
 | -------------------------- | ---------------------------------------------------------------- |
-| TypeScript 5.9             | Checks the runnable TypeScript examples in this site.            |
+| TypeScript 5.9.3           | Defines this specification's edition and checks its examples.    |
 | Pinned TypeScript-Go 7.0.2 | Provides the oracle used by the compiler's compatibility suites. |
 | ECMAScript                 | Defines JavaScript evaluation, objects, and runtime syntax.      |
 
@@ -23,7 +23,26 @@ The tsc-ts oracle revision is recorded in [upstream.json](https://github.com/ver
 
 TypeScript code blocks are checked with `strict: true`. Rejected examples use `@ts-expect-error`, so a previously rejected statement becoming accepted also fails the check. Blocks with multiple files declare their filenames. Option directives state when an example changes the default configuration.
 
-These checks detect invalid snippets and stale rejection examples. They do not test runtime results, diagnostic wording, or every possible type instantiation. JavaScript and shell blocks are explanatory.
+These checks detect invalid snippets and stale rejection examples. They do not test runtime results, diagnostic wording, or every possible type instantiation. JavaScript and shell blocks are explanatory. Grammar blocks use `text` because productions are not programs. Option directives accept JSON arrays/objects for library and other structured options.
+
+Examples with explicit type constraints test the stated relationship as well as acceptance. Equality helpers still have boundaries, particularly for intersections, overloads, and any; they are not a general proof system.
+
+## Clause evidence
+
+| Source                                                                                                                                            | Defines or explains                                                                   |
+| ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| [scanner.ts](https://github.com/microsoft/TypeScript/blob/c63de15a992d37f0d6cec03ac7631872838602cb/src/compiler/scanner.ts)                       | Tokens, trivia, rescanning, and lexical contexts.                                     |
+| [parser.ts](https://github.com/microsoft/TypeScript/blob/c63de15a992d37f0d6cec03ac7631872838602cb/src/compiler/parser.ts)                         | TypeScript syntax and parse-context restrictions.                                     |
+| [binder.ts](https://github.com/microsoft/TypeScript/blob/c63de15a992d37f0d6cec03ac7631872838602cb/src/compiler/binder.ts)                         | Symbols, declaration spaces, scopes, merges, and flow construction.                   |
+| [checker.ts](https://github.com/microsoft/TypeScript/blob/c63de15a992d37f0d6cec03ac7631872838602cb/src/compiler/checker.ts)                       | Types, relations, inference, resolution, expression/declaration checking, and limits. |
+| [types.ts](https://github.com/microsoft/TypeScript/blob/c63de15a992d37f0d6cec03ac7631872838602cb/src/compiler/types.ts)                           | Syntax kinds and semantic/compiler records.                                           |
+| [moduleNameResolver.ts](https://github.com/microsoft/TypeScript/blob/c63de15a992d37f0d6cec03ac7631872838602cb/src/compiler/moduleNameResolver.ts) | Files, packages, extension substitution, maps, and conditions.                        |
+| [commandLineParser.ts](https://github.com/microsoft/TypeScript/blob/c63de15a992d37f0d6cec03ac7631872838602cb/src/compiler/commandLineParser.ts)   | Configuration, recognized options, and effective option rules.                        |
+| [transformers](https://github.com/microsoft/TypeScript/tree/c63de15a992d37f0d6cec03ac7631872838602cb/src/compiler/transformers)                   | Erasure, lowering, module transforms, and declaration generation.                     |
+| [libraries](https://github.com/microsoft/TypeScript/tree/c63de15a992d37f0d6cec03ac7631872838602cb/src/lib)                                        | API contracts and intrinsic utility declarations.                                     |
+| [conformance cases](https://github.com/microsoft/TypeScript/tree/c63de15a992d37f0d6cec03ac7631872838602cb/tests/cases/conformance)                | Upstream behavioral witnesses across language features.                               |
+
+The [coverage index](/typescript/specification/coverage) maps every clause and its subjects. Algorithms in this text are abstract descriptions of observations, not a copied implementation or a requirement to reproduce compiler internals. Source evidence remains necessary where heuristics, recovery, or resource limits determine a result.
 
 ## Compiler compatibility
 

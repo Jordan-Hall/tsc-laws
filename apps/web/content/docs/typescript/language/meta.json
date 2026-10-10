@@ -1,4 +1,14 @@
 {
   "title": "Language",
-  "pages": ["lexical-grammar", "variables", "scopes", "expressions", "statements", "async", "iterators", "type-erasure"]
+  "pages": [
+    "lexical-grammar",
+    "variables",
+    "scopes",
+    "expressions",
+    "statements",
+    "async",
+    "iterators",
+    "resource-management",
+    "type-erasure"
+  ]
 }

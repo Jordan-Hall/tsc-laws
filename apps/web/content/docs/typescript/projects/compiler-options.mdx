@@ -1,0 +1,242 @@
+---
+title: Compiler option index
+description: Every compiler, command-line, build, and watch option recognized by the TypeScript 5.9.3 option declarations.
+---
+
+This index covers the option names in the edition's [commandLineParser.ts](https://github.com/microsoft/TypeScript/blob/c63de15a992d37f0d6cec03ac7631872838602cb/src/compiler/commandLineParser.ts). It includes command-line-only names and historical names still recognized for compatibility diagnostics. Recognition does not mean a removed option remains usable or that every option belongs under `compilerOptions`.
+
+The content checks compare these rows with the installed TypeScript option declarations, including build and watch options. Use the linked subject clauses for requirements and interactions; an option's short description is not a replacement for its checking algorithm.
+
+## Values and effective defaults
+
+Boolean flags use Boolean values in JSON. Lists and maps require their corresponding JSON structures. Command-line list spelling and aliases belong to CLI parsing rather than the JSON grammar. Invalid values and incompatible combinations are diagnosed.
+
+Omitted values can derive from other options. `strict` supplies defaults for its member flags; `target` supplies a default library level and affects class-field semantics; Node and preserve module modes supply related resolution/interop defaults. `libReplacement` defaults to enabled in this edition. A generated `tsc --init` configuration is a recommendation, not the intrinsic default of every omitted option.
+
+Supported target spellings include ES5 through ES2024 and ESNext, with ES6 as an ES2015 alias; the recognized ES3 spelling is obsolete. Module spellings include none, CommonJS, AMD, System, UMD, ES2015/ES6, ES2020, ES2022, ESNext, node16, node18, node20, nodenext, and preserve. Resolution spellings include node10/node, classic, node16, nodenext, and bundler. Accepted combinations must still satisfy [module resolution](/typescript/projects/module-resolution).
+
+## Language and environment
+
+| Option                    | Effect                                                                         |
+| ------------------------- | ------------------------------------------------------------------------------ |
+| `target`                  | Select syntax lowering and related effective defaults.                         |
+| `lib`                     | Select bundled or replaced ambient API library components.                     |
+| `jsx`                     | Select JSX preservation or transform mode.                                     |
+| `libReplacement`          | Allow supported package-based replacement of library declarations.             |
+| `experimentalDecorators`  | Select the legacy decorator model.                                             |
+| `emitDecoratorMetadata`   | Emit supported legacy design metadata; requires the applicable decorator mode. |
+| `jsxFactory`              | Select the classic JSX factory expression.                                     |
+| `jsxFragmentFactory`      | Select the classic fragment factory expression.                                |
+| `jsxImportSource`         | Select the automatic JSX runtime package source.                               |
+| `reactNamespace`          | Historical classic JSX namespace setting.                                      |
+| `noLib`                   | Disable automatic default-library inclusion.                                   |
+| `useDefineForClassFields` | Use applicable property-definition field semantics.                            |
+| `moduleDetection`         | Choose auto, legacy, or forced module classification.                          |
+
+See [libraries](/typescript/projects/libraries), [JSX](/typescript/declarations/jsx), [decorators](/typescript/declarations/decorators), and [emit](/typescript/projects/emit).
+
+## Modules and resolution
+
+| Option                            | Effect                                                                  |
+| --------------------------------- | ----------------------------------------------------------------------- |
+| `module`                          | Select module interpretation and output representation.                 |
+| `rootDir`                         | Establish the source layout root for output and containment checks.     |
+| `moduleResolution`                | Select the dependency lookup model.                                     |
+| `baseUrl`                         | Supply a base for applicable nonrelative lookup.                        |
+| `paths`                           | Map specifier patterns to ordered checking substitutions.               |
+| `rootDirs`                        | Model a virtual overlay for relative resolution.                        |
+| `typeRoots`                       | Select automatic type-package lookup roots.                             |
+| `types`                           | Restrict automatically included visible type packages.                  |
+| `allowUmdGlobalAccess`            | Permit supported UMD global access from modules.                        |
+| `moduleSuffixes`                  | Alter filename candidate suffixes and their order.                      |
+| `allowImportingTsExtensions`      | Permit supported TypeScript-suffixed requests under output constraints. |
+| `rewriteRelativeImportExtensions` | Rewrite eligible relative TypeScript suffixes in output.                |
+| `resolvePackageJsonExports`       | Use applicable package export maps.                                     |
+| `resolvePackageJsonImports`       | Use applicable package-private import maps.                             |
+| `customConditions`                | Add supported conditions during package lookup.                         |
+| `noUncheckedSideEffectImports`    | Diagnose unresolved side-effect-only imports.                           |
+| `resolveJsonModule`               | Resolve and type supported JSON modules.                                |
+| `allowArbitraryExtensions`        | Permit supported declaration lookup for other asset extensions.         |
+| `noResolve`                       | Restrict program expansion through dependency references.               |
+
+See [configuration](/typescript/projects/tsconfig), [modules](/typescript/declarations/modules), and [module resolution](/typescript/projects/module-resolution). Path mappings do not generally rewrite emitted specifiers or install runtime loading behavior.
+
+## Checking
+
+| Option                               | Effect                                                                           |
+| ------------------------------------ | -------------------------------------------------------------------------------- |
+| `strict`                             | Supply defaults for the edition's strict flag family.                            |
+| `noImplicitAny`                      | Diagnose disallowed implicit any inference.                                      |
+| `strictNullChecks`                   | Treat nullish values as distinct assignment possibilities.                       |
+| `strictFunctionTypes`                | Check ordinary function parameters contravariantly, retaining method exceptions. |
+| `strictBindCallApply`                | Check typed bind/call/apply argument relationships.                              |
+| `strictPropertyInitialization`       | Check recognized instance-field initialization paths.                            |
+| `strictBuiltinIteratorReturn`        | Use the stricter builtin iterator completion relationship.                       |
+| `noImplicitThis`                     | Diagnose disallowed implicit receiver types.                                     |
+| `useUnknownInCatchVariables`         | Use unknown for unannotated catch bindings.                                      |
+| `alwaysStrict`                       | Parse in strict mode and emit applicable strict directives.                      |
+| `noUnusedLocals`                     | Diagnose applicable unused local declarations.                                   |
+| `noUnusedParameters`                 | Diagnose applicable unused parameters.                                           |
+| `exactOptionalPropertyTypes`         | Distinguish absence from a present undefined optional value.                     |
+| `noImplicitReturns`                  | Diagnose applicable incomplete return paths.                                     |
+| `noFallthroughCasesInSwitch`         | Diagnose applicable case fallthrough.                                            |
+| `noUncheckedIndexedAccess`           | Include missing-value possibilities in unchecked indexed reads.                  |
+| `noImplicitOverride`                 | Require applicable overriding members to declare override.                       |
+| `noPropertyAccessFromIndexSignature` | Require brackets for members known only through index signatures.                |
+| `allowUnusedLabels`                  | Control unused-label diagnostics.                                                |
+| `allowUnreachableCode`               | Control applicable syntactic unreachable-code diagnostics.                       |
+| `skipDefaultLibCheck`                | Skip internal checking of default libraries under the supported legacy rule.     |
+| `skipLibCheck`                       | Skip internal declaration-file checks while their types still influence uses.    |
+| `noCheck`                            | Skip substantial semantic checking while retaining work needed for output.       |
+
+See [strictness](/typescript/projects/strictness), [control flow](/typescript/type-system/control-flow), and [diagnostics](/typescript/projects/diagnostics).
+
+## Interoperability and independent processing
+
+| Option                             | Effect                                                                             |
+| ---------------------------------- | ---------------------------------------------------------------------------------- |
+| `isolatedModules`                  | Diagnose constructs unsuitable for supported independent JavaScript transforms.    |
+| `verbatimModuleSyntax`             | Preserve ordinary import/export syntax and erase marked type-only forms.           |
+| `isolatedDeclarations`             | Require the conditions for independent declaration generation.                     |
+| `erasableSyntaxOnly`               | Reject supported runtime-bearing TypeScript syntax beyond straightforward erasure. |
+| `allowSyntheticDefaultImports`     | Permit supported synthetic default-import checking.                                |
+| `esModuleInterop`                  | Apply supported module interop helpers and related defaults.                       |
+| `preserveSymlinks`                 | Retain supported symlink path identity during resolution.                          |
+| `forceConsistentCasingInFileNames` | Diagnose inconsistent casing for file references.                                  |
+
+These options address different contracts. See [type erasure](/typescript/language/type-erasure), [module resolution](/typescript/projects/module-resolution), and [declaration output](/typescript/projects/declaration-emit).
+
+## JavaScript input
+
+| Option                 | Effect                                                   |
+| ---------------------- | -------------------------------------------------------- |
+| `allowJs`              | Admit supported JavaScript files to the program.         |
+| `checkJs`              | Enable applicable JavaScript semantic checking.          |
+| `maxNodeModuleJsDepth` | Limit supported dependency JavaScript exploration depth. |
+
+See [JSDoc and JavaScript checking](/typescript/declarations/jsdoc).
+
+## Output
+
+| Option                | Effect                                                                                |
+| --------------------- | ------------------------------------------------------------------------------------- |
+| `declaration`         | Produce declaration files.                                                            |
+| `declarationMap`      | Produce declaration-to-source maps.                                                   |
+| `emitDeclarationOnly` | Produce declarations without JavaScript output.                                       |
+| `sourceMap`           | Produce external JavaScript source maps.                                              |
+| `inlineSourceMap`     | Embed a JavaScript source map under its compatibility rules.                          |
+| `noEmit`              | Suppress compiler output.                                                             |
+| `outFile`             | Combine output in supported module modes.                                             |
+| `outDir`              | Select the JavaScript output directory.                                               |
+| `removeComments`      | Omit applicable comments from output.                                                 |
+| `importHelpers`       | Import supported transform helpers from tslib.                                        |
+| `downlevelIteration`  | Use protocol-aware iteration lowering where applicable.                               |
+| `sourceRoot`          | Set the source location base recorded in maps.                                        |
+| `mapRoot`             | Set the applicable map location base.                                                 |
+| `inlineSources`       | Embed source content in supported maps.                                               |
+| `emitBOM`             | Emit a byte-order mark in output.                                                     |
+| `newLine`             | Select supported output line endings.                                                 |
+| `stripInternal`       | Omit applicable internal-marked declarations without proving public self-containment. |
+| `noEmitHelpers`       | Leave helper provision to the surrounding environment.                                |
+| `noEmitOnError`       | Suppress relevant outputs when errors are present.                                    |
+| `preserveConstEnums`  | Preserve const-enum declaration output under the compiler's rules.                    |
+| `declarationDir`      | Select a separate declaration output directory.                                       |
+
+See [emit](/typescript/projects/emit) and [declaration emit](/typescript/projects/declaration-emit). Output flags do not make a type assertion a runtime check.
+
+## Projects and incremental work
+
+| Option                                      | Effect                                                             |
+| ------------------------------------------- | ------------------------------------------------------------------ |
+| `incremental`                               | Persist reusable compilation state.                                |
+| `composite`                                 | Establish project-reference coverage and declaration requirements. |
+| `tsBuildInfoFile`                           | Select the build information file location.                        |
+| `disableSourceOfProjectReferenceRedirect`   | Control source redirection for referenced projects.                |
+| `disableSolutionSearching`                  | Control supported editor solution discovery.                       |
+| `disableReferencedProjectLoad`              | Control supported editor loading of referenced projects.           |
+| `assumeChangesOnlyAffectDirectDependencies` | Limit invalidation work using the declared assumption.             |
+
+See [project references](/typescript/projects/project-references). Build information is compiler-specific state rather than a public runtime API.
+
+## Diagnostics, presentation, and editor support
+
+| Option                | Effect                                                      |
+| --------------------- | ----------------------------------------------------------- |
+| `preserveWatchOutput` | Retain previous console output during watch updates.        |
+| `pretty`              | Select formatted diagnostic presentation.                   |
+| `noErrorTruncation`   | Avoid supported diagnostic type-text truncation.            |
+| `listFiles`           | Report files participating in compilation.                  |
+| `explainFiles`        | Report reasons files entered the program.                   |
+| `listEmittedFiles`    | Report emitted artifact names.                              |
+| `traceResolution`     | Report resolution candidates and decisions.                 |
+| `diagnostics`         | Report aggregate compiler measurements.                     |
+| `extendedDiagnostics` | Report additional compiler measurements.                    |
+| `generateCpuProfile`  | Write a supported compiler execution profile.               |
+| `generateTrace`       | Write supported compiler trace artifacts.                   |
+| `disableSizeLimit`    | Control supported editor project size limits.               |
+| `plugins`             | Configure supported language-service plugins.               |
+| `ignoreDeprecations`  | Control supported edition-specific deprecation diagnostics. |
+
+See [diagnostics](/typescript/projects/diagnostics). Traces and profiles describe implementation work; they do not add language rules.
+
+## Historical recognized options
+
+These names remain in the edition's option declarations for compatibility handling. Several were removed in TypeScript 5.5 and cause diagnostics when used; documenting their names must not be read as recommending them.
+
+| Option                           | Historical role                                                                  |
+| -------------------------------- | -------------------------------------------------------------------------------- |
+| `importsNotUsedAsValues`         | Older value-import elision policy; use modern explicit type-only/verbatim rules. |
+| `out`                            | Older output-file spelling.                                                      |
+| `charset`                        | Historical input-encoding option.                                                |
+| `noImplicitUseStrict`            | Older strict-directive control.                                                  |
+| `suppressExcessPropertyErrors`   | Historical excess-property suppression.                                          |
+| `suppressImplicitAnyIndexErrors` | Historical implicit-index-any suppression.                                       |
+| `noStrictGenericChecks`          | Historical generic comparison relaxation.                                        |
+| `preserveValueImports`           | Older value-import preservation policy.                                          |
+| `keyofStringsOnly`               | Historical restriction excluding numeric/symbol key behavior.                    |
+
+See [TypeScript 5.5 removed options](https://www.typescriptlang.org/docs/handbook/release-notes/typescript-5-5.html#disabling-features-deprecated-in-typescript-50).
+
+## Command-line controls
+
+These controls are interpreted by the invocation rather than simply inserted under `compilerOptions`.
+
+| Option          | Effect                                                                  |
+| --------------- | ----------------------------------------------------------------------- |
+| `help`          | Display supported help; repeated declaration entries represent aliases. |
+| `all`           | Expand the option help listing.                                         |
+| `version`       | Display compiler version.                                               |
+| `init`          | Create a recommended initial configuration.                             |
+| `project`       | Select a project configuration path.                                    |
+| `watch`         | Run supported continuous compilation.                                   |
+| `locale`        | Select supported diagnostic localization.                               |
+| `showConfig`    | Display effective configuration without normal compilation.             |
+| `listFilesOnly` | Display program files without ordinary emit/check workflow.             |
+
+## Build-mode controls
+
+| Option              | Effect                                            |
+| ------------------- | ------------------------------------------------- |
+| `build`             | Select project-graph orchestration.               |
+| `verbose`           | Explain build decisions.                          |
+| `dry`               | Report intended build work without performing it. |
+| `force`             | Rebuild despite ordinary up-to-date decisions.    |
+| `clean`             | Remove recognized build outputs.                  |
+| `stopBuildOnErrors` | Stop applicable downstream builds after errors.   |
+
+See [project graph behavior](/typescript/projects/project-references). A build dry run and an ordinary noEmit compilation have different purposes.
+
+## Watch options
+
+Watch configuration uses its separate `watchOptions` record or supported CLI spelling.
+
+| Option                      | Effect                                                         |
+| --------------------------- | -------------------------------------------------------------- |
+| `watchFile`                 | Select supported file-event/polling behavior.                  |
+| `watchDirectory`            | Select supported directory watching behavior.                  |
+| `fallbackPolling`           | Select fallback when event watching is unavailable or limited. |
+| `synchronousWatchDirectory` | Control supported directory-event synchronization.             |
+| `excludeDirectories`        | Exclude directory patterns from relevant watching.             |
+| `excludeFiles`              | Exclude file patterns from relevant watching.                  |
+
+Watch exclusions affect events rather than universally prohibiting files from program semantics. Host behavior and invalidation assumptions remain material.

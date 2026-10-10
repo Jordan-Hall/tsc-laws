@@ -43,3 +43,60 @@ Parameters originating in method and constructor declarations are excluded from 
 Use annotations to describe the type's actual variance, not to override an incompatible structure.
 
 See [strict function types](https://www.typescriptlang.org/docs/handbook/release-notes/typescript-2-6.html#strict-function-types) and [variance annotations](https://www.typescriptlang.org/docs/handbook/2/generics.html#variance-annotations).
+
+## Variance relationships
+
+For a generic type constructor, covariance permits assignment in the direction of its argument relationship; contravariance reverses that direction; invariance requires both directions; bivariance admits either direction in the applicable comparison. These are relationship properties, not runtime transformations.
+
+Produced values tend to contribute covariance and consumed values contravariance. A parameter appearing in both can require invariance. The checker computes variance for some generic references as an optimization and as part of instantiation-based comparison; structural comparison can expose additional behavior.
+
+## Function parameter rule
+
+With `strictFunctionTypes`, ordinary function-valued properties use contravariant parameter checking. Method and constructor declarations retain bivariant parameter comparison for compatibility. The exception is attached to signature origin, not to whether JavaScript happens to invoke the function using a receiver.
+
+```ts
+interface Animal {
+  name: string;
+}
+interface Dog extends Animal {
+  bark(): void;
+}
+type Property<T> = { handle: (value: T) => void };
+type Method<T> = { handle(value: T): void };
+declare const dogProperty: Property<Dog>;
+// @ts-expect-error: the callback cannot accept every Animal
+const animalProperty: Property<Animal> = dogProperty;
+declare const dogMethod: Method<Dog>;
+const animalMethod: Method<Animal> = dogMethod;
+```
+
+The accepted method assignment can fail at runtime if called with an Animal lacking `bark`. It documents the deliberate exception rather than proving the call safe.
+
+## Return and mutable-container rules
+
+Function returns are covariant subject to special target-void behavior. Mutable arrays are covariant in element type, despite writes through widened aliases being potentially unsafe. Ordinary readonly property modifiers are not universally enforced as variance boundaries in object assignment. A fully sound read/write model would therefore describe a different language from TypeScript.
+
+## Explicit variance annotations
+
+Supported generic declarations can use `out T`, `in T`, or `in out T`. The annotation states a claimed relationship, which the checker validates against the declaration where applicable. It cannot be used to make a naturally incompatible declaration arbitrarily compatible.
+
+```ts
+interface Producer<out T> {
+  get(): T;
+}
+interface Consumer<in T> {
+  set: (value: T) => void;
+}
+interface Cell<in out T> {
+  get(): T;
+  set: (value: T) => void;
+}
+```
+
+Annotations affect instantiation-based comparisons of relevant generic types. They do not impose a universal relation on every structurally equivalent object expression. They also do not change runtime code or give interfaces nominal identity.
+
+## Optional and rest parameters
+
+Function compatibility admits historical optional/rest substitutions that can accept a callback with assumptions stronger than every actual invocation. Arity comparison and variance must both be considered; contravariance alone is not a complete model of callback assignability.
+
+Source: [variance measurement and signature comparison](https://github.com/microsoft/TypeScript/blob/c63de15a992d37f0d6cec03ac7631872838602cb/src/compiler/checker.ts), and [variance annotations](https://www.typescriptlang.org/docs/handbook/2/generics.html#variance-annotations).
