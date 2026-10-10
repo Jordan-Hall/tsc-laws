@@ -47,7 +47,7 @@ import {
   getStrictOptionValue,
   shouldPreserveConstEnums,
 } from './options.js';
-import { CheckFlags, Symbol, SymbolFlags, type SymbolTable } from './symbol.js';
+import { CheckFlags, Symbol, SymbolFlags, type SymbolTable, getSymbolId } from './symbol.js';
 import {
   IndexInfo,
   IntrinsicType,
@@ -289,10 +289,9 @@ export class Checker {
   /** Specifier generation for hosts without a program. */
   fallbackModuleSpecifierHost: ModuleSpecifierHost | undefined = undefined;
 
-  // Links of symbols and nodes, keyed by object like tsgo's link stores. Object keys are faster
-  // natively than ids.
-  readonly symbolLinkStore = new Map<Symbol, SymbolLinks>();
-  readonly nodeLinkStore = new Map<Node, NodeLinks>();
+  // Links of symbols and nodes, indexed by symbol and node id like tsc's link arrays.
+  readonly symbolLinkStore: (SymbolLinks | undefined)[] = [];
+  readonly nodeLinkStore: (NodeLinks | undefined)[] = [];
   /** Merged symbols, indexed by the id of the symbol merged into them. */
   readonly mergedSymbols: Map<number, Symbol>;
   /** Globals merged from the default libraries, shared with other checkers. */
@@ -741,19 +740,26 @@ export class Checker {
   // ---- Links
 
   symbolLinks(symbol: Symbol): SymbolLinks {
-    let links = this.symbolLinkStore.get(symbol);
+    const id = getSymbolId(symbol);
+    let links = this.symbolLinkStore[id];
     if (links === undefined) {
       links = new SymbolLinks();
-      this.symbolLinkStore.set(symbol, links);
+      setLinks(this.symbolLinkStore, id, links);
     }
     return links;
   }
 
+  /** The links of `symbol` if it has any, without creating them. */
+  existingSymbolLinks(symbol: Symbol): SymbolLinks | undefined {
+    return this.symbolLinkStore[symbol.id];
+  }
+
   nodeLinks(node: Node): NodeLinks {
-    let links = this.nodeLinkStore.get(node);
+    const id = node.id;
+    let links = this.nodeLinkStore[id];
     if (links === undefined) {
       links = new NodeLinks();
-      this.nodeLinkStore.set(node, links);
+      setLinks(this.nodeLinkStore, id, links);
     }
     return links;
   }
@@ -834,14 +840,20 @@ export class Checker {
   }
 }
 
+/** Stores `links` at `id`, filling the gap below it so the store stays a dense array. */
+function setLinks<T>(store: (T | undefined)[], id: number, links: T): void {
+  while (store.length < id) store.push(undefined);
+  store[id] = links;
+}
+
 /**
  * Drops a checker's links and type caches. Native builds free memory by reference counting, and
  * the checker's caches, types and mappers reference each other; releasing them early lets most of
  * them go without a cycle collection.
  */
 export function disposeChecker(c: Checker): void {
-  c.symbolLinkStore.clear();
-  c.nodeLinkStore.clear();
+  c.symbolLinkStore.length = 0;
+  c.nodeLinkStore.length = 0;
   if (c.globalChanges !== undefined) returnLibGlobals(c);
   else {
     c.mergedSymbols.clear();
