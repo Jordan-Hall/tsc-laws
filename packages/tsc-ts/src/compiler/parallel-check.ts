@@ -3,8 +3,9 @@
  *
  * The main thread is checker 0; it starts N-1 checker threads. Every checker creates its own checker
  * over the program and takes files from one shared queue, largest first, until it is empty; the
- * threads send back the semantic diagnostics of their files and their global diagnostics, and the main
- * thread reports them like a single checker would. tsgo spreads files over its checkers the same way,
+ * threads send back the semantic diagnostics of their files (and under `noEmit` with declarations,
+ * their declaration diagnostics) and their global diagnostics, and the main thread reports them like
+ * a single checker would. tsgo spreads files over its checkers the same way,
  * and which checker checks a file does not change its diagnostics.
  *
  * In scriptc builds, threads share one program: the main thread computes the program's lazy caches,
@@ -17,7 +18,9 @@
 import type { Worker } from 'node:worker_threads';
 import { publish, sharesPublishedGraphs } from '@scriptc/threads';
 import { lastNodeIdValue } from './ast.js';
+import { declarationDiagnosticsOfFile, ProgramEmitter } from './compile-program.js';
 import { Diagnostic, DiagnosticFile } from './diagnostics.js';
+import { getEmitDeclarations } from './options.js';
 import { useLazyJSDocTable } from './parser.js';
 import type { CheckedProgram } from './program-checker.js';
 import type { Program } from './program.js';
@@ -43,15 +46,29 @@ export class ParallelCheck {
 
 export const parallelCheck = new ParallelCheck();
 
-/** What a checker thread sends back: the files it checked (indices) with their diagnostics. */
+/**
+ * What a checker thread sends back: the files it checked (indices) with their semantic diagnostics,
+ * and their declaration diagnostics when the program reports them without emitting.
+ */
 export class CheckerResult {
   constructor(
     readonly index: number,
     readonly files: number[],
     readonly diagnostics: Diagnostic[][],
+    readonly declarations: Diagnostic[][],
     readonly globals: Diagnostic[],
     readonly checkTime: number,
   ) {}
+}
+
+/**
+ * Whether checkers also compute declaration diagnostics: under `noEmit` with declarations, reporting
+ * collects them for every file (getDiagnosticsOfProgram), and tsgo computes them per file on its
+ * checkers too. Otherwise they come from emitting.
+ */
+function checkersReportDeclarations(checked: CheckedProgram): boolean {
+  const options = checked.program.options;
+  return options.noEmit === true && getEmitDeclarations(options);
 }
 
 /**
@@ -81,16 +98,20 @@ export function checkFromQueue(checked: CheckedProgram, index: number, counter: 
   const files = checked.program.getSourceFiles();
   const done: number[] = [];
   const diagnostics: Diagnostic[][] = [];
+  const declarations: Diagnostic[][] = [];
+  // Declaration emit of a file right after checking it, with this checker.
+  const emitter = checkersReportDeclarations(checked) ? new ProgramEmitter(checked) : undefined;
   for (;;) {
     const k = Atomics.add(counter, 0, 1);
     if (k >= order.length) break;
     const i = order[k]!;
     done.push(i);
     diagnostics.push(checked.semanticDiagnosticsOfFile(files[i]!));
+    if (emitter !== undefined) declarations.push(declarationDiagnosticsOfFile(emitter, files[i]!));
   }
   // The main thread reports its own global diagnostics (CheckedProgram.getGlobalDiagnostics).
   const globals = index === 0 ? [] : checked.getGlobalDiagnostics().slice();
-  return new CheckerResult(index, done, diagnostics, globals, performance.now() - start);
+  return new CheckerResult(index, done, diagnostics, declarations, globals, performance.now() - start);
 }
 
 /**
@@ -112,7 +133,11 @@ export function startParallelCheck(checked: CheckedProgram, count: number, done:
   }
   const counter = new SharedArrayBuffer(4);
   const perFile: (Diagnostic[] | undefined)[] = [];
-  for (let i = 0; i < files.length; i++) perFile.push(undefined);
+  const perFileDeclarations: (Diagnostic[] | undefined)[] = [];
+  for (let i = 0; i < files.length; i++) {
+    perFile.push(undefined);
+    perFileDeclarations.push(undefined);
+  }
   const revival = shared ? undefined : new Revival(program);
   let remaining = count - 1;
   let ownDone = false;
@@ -121,10 +146,14 @@ export function startParallelCheck(checked: CheckedProgram, count: number, done:
     const order = checkOrder(checked);
     for (const i of order) if (perFile[i] === undefined) perFile[i] = checked.semanticDiagnosticsOfFile(files[i]!);
     checked.checkedInParallel = perFile;
+    // Files without declaration diagnostics here get them on this thread (PlainProgram).
+    if (checkersReportDeclarations(checked)) checked.declarationsInParallel = perFileDeclarations;
     done(performance.now() - start);
   };
   const record = (result: CheckerResult): void => {
     for (let k = 0; k < result.files.length; k++) perFile[result.files[k]!] = result.diagnostics[k]!;
+    for (let k = 0; k < result.declarations.length; k++)
+      perFileDeclarations[result.files[k]!] = result.declarations[k]!;
     for (const d of result.globals) checked.parallelGlobalDiagnostics.push(d);
     if (trace)
       process.stderr.write(
@@ -171,6 +200,7 @@ class Revival {
       copy.index,
       copy.files,
       copy.diagnostics.map((diagnostics) => diagnostics.map((d) => this.diagnostic(d))),
+      copy.declarations.map((diagnostics) => diagnostics.map((d) => this.diagnostic(d))),
       copy.globals.map((d) => this.diagnostic(d)),
       copy.checkTime,
     );

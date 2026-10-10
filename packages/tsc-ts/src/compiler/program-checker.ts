@@ -216,6 +216,11 @@ export class CheckedProgram {
    */
   checkedInParallel: (Diagnostic[] | undefined)[] | undefined = undefined;
   readonly parallelGlobalDiagnostics: Diagnostic[] = [];
+  /**
+   * The declaration diagnostics checker threads computed under `noEmit` (PlainProgram), by file
+   * index; `undefined` for files they did not. Set once every file is checked.
+   */
+  declarationsInParallel: (Diagnostic[] | undefined)[] | undefined = undefined;
 
   getSemanticDiagnostics(file: SourceFile | undefined): Diagnostic[] {
     const parallel = this.checkedInParallel;

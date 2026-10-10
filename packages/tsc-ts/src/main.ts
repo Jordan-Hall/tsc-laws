@@ -68,7 +68,7 @@ function runCheckerThread(): void {
   // Without a program this thread checks nothing; the main thread checks the files it would have.
   const result =
     program === undefined
-      ? new CheckerResult(job.index, [], [], [], 0)
+      ? new CheckerResult(job.index, [], [], [], [], 0)
       : checkFromQueue(new CheckedProgram(program), job.index, new Int32Array(job.counter));
   parentPort!.postMessage({ result: sharesPublishedGraphs ? publish(result) : result });
 }
