@@ -266,8 +266,8 @@ export function getNumberEnumLiteralType(c: Checker, value: number, enumSymbol: 
 
 export function isFreshLiteralType(type: Type): boolean {
   if ((type.flags & TypeFlags.Freshable) === 0) return false;
-  const fresh = (type as LiteralType).freshType;
-  return fresh !== undefined && fresh.id === type.id;
+  // An identity test, like tsgo's: comparing ids would load the fresh type as well.
+  return (type as LiteralType).freshType === type;
 }
 
 export function getFreshTypeOfLiteralType(c: Checker, type: Type): Type {
