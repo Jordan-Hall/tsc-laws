@@ -316,31 +316,12 @@ function executeCompile(sys: System, commandLine: ParsedCommandLine): CommandLin
   }
 
   const fs = new CachedFileSystem(new SystemFileSystem(sys));
-  let config = new ProjectConfig(
-    options,
-    undefined,
-    fileNames,
-    [],
-    undefined,
-    [],
-    sys.currentDirectory,
-    sys.useCaseSensitiveFileNames,
-    0,
-  );
   const configStart = performance.now();
-  if (configFileName !== '') {
-    const errors: Diagnostic[] = [];
-    const parsed = new ConfigParser(fs, sys.currentDirectory).parseConfigFile(
-      configFileName,
-      options,
-      commandLine.raw,
-      errors,
-    );
-    if (parsed === undefined) {
-      reporter.reportAll(errors);
-      return exit(ExitStatus.DiagnosticsPresent_OutputsGenerated);
-    }
-    config = parsed;
+  const errors: Diagnostic[] = [];
+  const config = readProjectConfig(sys, fs, commandLine, configFileName, errors);
+  if (config === undefined) {
+    reporter.reportAll(errors);
+    return exit(ExitStatus.DiagnosticsPresent_OutputsGenerated);
   }
 
   // The summary follows `pretty` of the config; diagnostics only that of the command line, as in tsgo.
@@ -380,20 +361,66 @@ function executeCompile(sys: System, commandLine: ParsedCommandLine): CommandLin
     return {
       kind: 'deferred',
       run: (done: (result: CommandLineResult) => void) =>
-        startParallelParse(
-          threads,
-          config.fileNames,
-          config.options,
-          sys.currentDirectory,
-          sys.defaultLibraryPath,
-          sys.useCaseSensitiveFileNames,
-          (fileName) => fs.readFile(fileName),
-          (path) => fs.getAccessibleEntries(path),
-          () => done(createProgram()),
+        startParallelParse(threads, config.fileNames, config.options, sys.currentDirectory, configFileName, () =>
+          done(createProgram()),
         ),
     };
   }
   return createProgram();
+}
+
+/**
+ * The project of a compile command line: the config `configFileName` read with the command line's
+ * options, or the command line's files without a config (`configFileName` is `''`). `undefined`, with
+ * `errors`, if the config cannot be read.
+ */
+function readProjectConfig(
+  sys: System,
+  fs: FileSystem,
+  commandLine: ParsedCommandLine,
+  configFileName: string,
+  errors: Diagnostic[],
+): ProjectConfig | undefined {
+  if (configFileName !== '')
+    return new ConfigParser(fs, sys.currentDirectory).parseConfigFile(
+      configFileName,
+      commandLine.options,
+      commandLine.raw,
+      errors,
+    );
+  return new ProjectConfig(
+    commandLine.options,
+    undefined,
+    commandLine.fileNames,
+    [],
+    undefined,
+    [],
+    sys.currentDirectory,
+    sys.useCaseSensitiveFileNames,
+    0,
+  );
+}
+
+/** A parse thread's own copy of the project it loads files of, and the file system it reads it with. */
+export class ThreadProject {
+  constructor(
+    readonly config: ProjectConfig,
+    readonly fs: FileSystem,
+  ) {}
+}
+
+/**
+ * The project of the compile command line `args` for a parse thread (parallel-parse.ts), whose main
+ * thread found its config at `configFileName`; `undefined` if it cannot be read.
+ */
+export function readThreadProject(
+  sys: System,
+  args: readonly string[],
+  configFileName: string,
+): ThreadProject | undefined {
+  const fs = new CachedFileSystem(new SystemFileSystem(sys));
+  const config = readProjectConfig(sys, fs, parseCommandLine(args, sys), configFileName, []);
+  return config === undefined ? undefined : new ThreadProject(config, fs);
 }
 
 /** What `--showConfig` prints for a project. */

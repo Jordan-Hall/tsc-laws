@@ -3,14 +3,14 @@ import { dirname } from 'node:path';
 import { Worker, isMainThread, parentPort, workerData } from 'node:worker_threads';
 import { publish, sharesPublishedGraphs } from '@scriptc/threads';
 import { runServer } from './api/server.js';
-import { reserveNodeIds } from './compiler/ast.js';
+import { reserveNodeIds, shareNodeIds } from './compiler/ast.js';
 import { CheckerResult, checkFromQueue, parallelCheck } from './compiler/parallel-check.js';
-import { parallelParse, runParseWorker } from './compiler/parallel-parse.js';
+import { type LoadMessage, parallelParse } from './compiler/parallel-parse.js';
 import { useLazyJSDocTable } from './compiler/parser.js';
 import { CheckedProgram } from './compiler/program-checker.js';
 import type { Program } from './compiler/program.js';
-import { assignSymbolIdsAtCreation, reserveSymbolIds } from './compiler/symbol.js';
-import { createNodeSystem, programOfCommandLine, runTsc, watching } from './drivers/node-system.js';
+import { assignSymbolIdsAtCreation, reserveSymbolIds, shareSymbolIds } from './compiler/symbol.js';
+import { parseThreadOfCommandLine, programOfCommandLine, runTsc, watching } from './drivers/node-system.js';
 import './drivers/lowering.js';
 
 // Lib files come from TSC_TS_LIB_DIR, or the executable's directory as in tsc.
@@ -33,9 +33,9 @@ function startThreads(): void {
       workerData: { kind: 'check', program, args, index, counter, nodeIds, symbolIds },
     });
   if (sharesPublishedGraphs)
-    parallelParse.spawn = (fileNames, paths, flags, counter) =>
+    parallelParse.spawn = (configFileName, counter) =>
       new Worker(new URL(import.meta.url), {
-        workerData: { kind: 'parse', fileNames, paths, flags, counter },
+        workerData: { kind: 'parse', configFileName, counter },
       });
 }
 
@@ -73,19 +73,23 @@ function runCheckerThread(): void {
   parentPort!.postMessage({ result: sharesPublishedGraphs ? publish(result) : result });
 }
 
-/** A parse thread (parallel-parse.ts). */
+/** A parse thread (parallel-parse.ts): loads the chunks the main thread posts until it posts `stop`. */
 function runParseThread(): void {
-  const job = workerData as {
-    kind: string;
-    fileNames: string[];
-    paths: string[];
-    flags: number[];
-    counter: SharedArrayBuffer;
-  };
-  const bundledLibs = process.env.TSC_TS_BUNDLED_LIBS ?? '';
-  const sys = createNodeSystem(bundledLibs !== '' ? 'bundled:///libs' : defaultLibraryPath, bundledLibs);
-  const batch = runParseWorker(job.fileNames, job.paths, job.flags, job.counter, (fileName) => sys.readFile(fileName));
-  parentPort!.postMessage({ batch });
+  const job = workerData as { kind: string; configFileName: string; counter: SharedArrayBuffer };
+  // Ids, also of the nodes of the config, come in chunks from the counter shared with the other threads.
+  shareNodeIds(new Int32Array(job.counter, 0, 1));
+  shareSymbolIds(new Int32Array(job.counter, 4, 1));
+  assignSymbolIdsAtCreation();
+  const thread = parseThreadOfCommandLine(args, job.configFileName, defaultLibraryPath);
+  const port = parentPort!;
+  port.on('message', (message: unknown) => {
+    const chunk = message as LoadMessage;
+    if (chunk.stop) port.close();
+    // The main thread read the project, so this one can too; if not, the program's FileLoader
+    // parses the files of the chunk (the main thread sees this thread fail).
+    else if (thread === undefined) throw new Error('A parse thread could not read the project');
+    else port.postMessage({ batch: thread.load(chunk) });
+  });
 }
 
 function isNode(): boolean {

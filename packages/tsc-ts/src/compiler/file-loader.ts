@@ -31,7 +31,7 @@ import {
   ModuleResolutionKind,
   type CompilerOptions,
 } from './options.js';
-import { takePreparedFile } from './parallel-parse.js';
+import { LoadKind, type LoadJobs, takePreparedFile } from './parallel-parse.js';
 import { parseSourceFile } from './parser.js';
 import {
   combinePaths,
@@ -426,6 +426,63 @@ export class FileLoader {
     const result = this.collect();
     this.mapper.loader = undefined;
     return result;
+  }
+
+  /**
+   * Parse threads (parallel-parse.ts): loads one file as `load` would, parsing it through
+   * `host.getSourceFile`, and adds the files it references, imports and type directives add to `out`
+   * (libraries by name). `depth` is the file's `maxNodeModuleJsDepth` depth.
+   */
+  loadAhead(kind: LoadKind, name: string, depth: number, out: LoadJobs): void {
+    let task: ParseTask;
+    if (kind === LoadKind.Library) {
+      const libFile = this.pathForLibFile(name);
+      task = new ParseTask(
+        getNormalizedAbsolutePath(libFile.path, this.host.currentDirectory),
+        libFile,
+        undefined,
+        false,
+        false,
+        false,
+        undefined,
+      );
+    } else if (kind === LoadKind.AutomaticTypes) {
+      const containingDirectory =
+        this.options.configFilePath !== undefined
+          ? getDirectoryPath(this.options.configFilePath)
+          : this.host.currentDirectory;
+      task = new ParseTask(
+        combinePaths(containingDirectory, inferredTypesContainingFile),
+        undefined,
+        undefined,
+        true,
+        false,
+        false,
+        undefined,
+      );
+    } else {
+      let fileName = name;
+      if (kind === LoadKind.Root) {
+        const configFile = this.config.configFile;
+        const containingFile =
+          configFile !== undefined
+            ? getNormalizedAbsolutePath(configFile.sourceFile.fileName, this.host.currentDirectory)
+            : this.host.currentDirectory;
+        const resolved = this.getSourceFileFromReference(name, name, containingFile, FileIncludeReason.rootFile(0));
+        if (typeof resolved !== 'string') return;
+        fileName = resolved;
+      }
+      task = new ParseTask(fileName, undefined, undefined, false, false, false, undefined);
+    }
+    task.path = this.toPath(task.normalizedFilePath);
+    this.loadTask(task);
+    for (const sub of task.subTasks) {
+      const subDepth = sub.increaseDepth ? depth + 1 : depth;
+      // `run` skips these.
+      if (sub.elideOnDepth && subDepth > this.maxNodeModuleJsDepth) continue;
+      if (sub.libFile !== undefined) out.push(LoadKind.Library, sub.libFile.name, subDepth);
+      else out.push(LoadKind.File, sub.normalizedFilePath, subDepth);
+    }
   }
 
   // ---- Project references

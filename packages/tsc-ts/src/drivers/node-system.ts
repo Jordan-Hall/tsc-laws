@@ -15,7 +15,8 @@ import { dirname } from 'node:path';
 import { DirectoryEntries } from '../compiler/file-system.js';
 import { normalizePath } from '../compiler/path.js';
 import type { Program } from '../compiler/program.js';
-import { type CommandLineResult, System, executeCommandLine } from '../compiler/tsc-cli.js';
+import { ParseThread } from '../compiler/parse-thread.js';
+import { type CommandLineResult, System, executeCommandLine, readThreadProject } from '../compiler/tsc-cli.js';
 import { compile, compileInParallel, compileThreads } from '../compiler/tsc-compile.js';
 import { build } from '../compiler/tsc-build.js';
 import { watch, watchBuild } from '../compiler/tsc-watch.js';
@@ -205,6 +206,22 @@ export function runTsc(args: readonly string[], libraryPath: string): number {
 export function programOfCommandLine(args: readonly string[], libraryPath: string): Program | undefined {
   const result = executeCommandLine(tscSystem(libraryPath), args);
   return result.kind === 'compile' ? result.program : undefined;
+}
+
+/**
+ * A parse thread (parallel-parse.ts) for the compile command line `args`, whose main thread found its
+ * config at `configFileName`; `undefined` if the project cannot be read.
+ */
+export function parseThreadOfCommandLine(
+  args: readonly string[],
+  configFileName: string,
+  libraryPath: string,
+): ParseThread | undefined {
+  const sys = tscSystem(libraryPath);
+  const project = readThreadProject(sys, args, configFileName);
+  return project === undefined
+    ? undefined
+    : new ParseThread(project.config, project.fs, sys.currentDirectory, sys.defaultLibraryPath);
 }
 
 function tscSystem(libraryPath: string): System {
