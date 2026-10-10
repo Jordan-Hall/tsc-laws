@@ -453,6 +453,10 @@ export class Program implements OutputPathsHost {
     this.getPackagesMap();
     this.commonSourceDirectory();
     this.includeProcessor.diagnostics(this);
+    // File system and resolution lookups that checking and declaration emit add later (module
+    // specifiers probe files and `package.json` scopes) go to tables of each thread.
+    this.host.fs.prepareForSharing();
+    this.processed.resolver.prepareForSharing();
   }
 
   isEmitBlocked(fileName: string): boolean {

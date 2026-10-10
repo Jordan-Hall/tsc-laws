@@ -10,7 +10,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { compiledDir, tempDir } from './temp.mjs';
@@ -155,23 +155,68 @@ function compile(args, freeze) {
   ]);
   const writer = new RecordingWriter();
   const emitted = compiled.emit(writer);
-  return { frozen, diagnostics, outputs: writer.outputs, emitDiagnostics: format(emitted.diagnostics) };
+  // The line counts of `--extendedDiagnostics`.
+  const lines = program.getSourceFiles().map((file) => `${file.fileName} ${file.lineStarts().length}`);
+  return { frozen, diagnostics, outputs: writer.outputs, emitDiagnostics: format(emitted.diagnostics), lines };
 }
 
-function assertImmutable(args) {
+function assertImmutable(args, minimumFrozen = 100000) {
   const frozen = compile(args, true);
-  assert.ok(frozen.frozen > 100000, `froze only ${frozen.frozen} objects`);
+  assert.ok(frozen.frozen > minimumFrozen, `froze only ${frozen.frozen} objects`);
   assert.ok(frozen.outputs.length > 0);
   const plain = compile(args, false);
   assert.deepEqual(frozen.diagnostics, plain.diagnostics);
   assert.deepEqual(frozen.emitDiagnostics, plain.emitDiagnostics);
   assert.deepEqual(frozen.outputs, plain.outputs);
+  assert.deepEqual(frozen.lines, plain.lines);
 }
 
 const emitOptions = (dir) => ['--noEmit', 'false', '--outDir', dir, '--declaration', '--declarationMap', '--sourceMap'];
 
 test('checking and emitting tsc-ts never writes to its bound, prepared program', () => {
   assertImmutable(['-p', resolve(here, '..'), ...emitOptions(tempDir('tsc-ts-immutability-out-'))]);
+});
+
+// Declaration emit writes module specifiers for inferred types, which probes files and `package.json`
+// scopes that loading the program never looked at; JSON modules are source files too.
+test('declaration emit, JSON modules and line counts never write to a bound, prepared program', () => {
+  const dir = tempDir('tsc-ts-immutability-specifiers-');
+  const files = {
+    'tsconfig.json': JSON.stringify({
+      compilerOptions: {
+        strict: true,
+        declaration: true,
+        resolveJsonModule: true,
+        module: 'nodenext',
+        moduleResolution: 'nodenext',
+        types: [],
+      },
+      include: ['src'],
+    }),
+    'package.json': JSON.stringify({ name: 'fixture', version: '1.0.0' }),
+    'src/box.ts':
+      'export interface Box {\n  value: number;\n}\nexport function box(value: number): Box {\n  return { value };\n}\n',
+    'src/nested/deep.ts': 'import { box } from "../box";\nexport const boxed = () => box(1);\n',
+    'src/main.ts': [
+      'import { boxed } from "./nested/deep";',
+      'import { thing } from "dep";',
+      'import * as data from "./data.json";',
+      'export const made = boxed();',
+      'export const named = thing();',
+      'export const count = data.count;',
+      '',
+    ].join('\n'),
+    'src/data.json': '{\n  "count": 1\n}\n',
+    'node_modules/dep/package.json': JSON.stringify({ name: 'dep', version: '1.0.0', types: 'lib/index.d.ts' }),
+    'node_modules/dep/lib/index.d.ts':
+      'import type { Thing } from "./thing";\nexport declare function thing(): Thing;\n',
+    'node_modules/dep/lib/thing.d.ts': 'export interface Thing {\n  name: string;\n}\n',
+  };
+  for (const [name, text] of Object.entries(files)) {
+    mkdirSync(dirname(join(dir, name)), { recursive: true });
+    writeFileSync(join(dir, name), text);
+  }
+  assertImmutable(['-p', dir, ...emitOptions(join(dir, 'out'))], 1000);
 });
 
 /** Every `step`th single-file test case of `suite`, written as one project. */

@@ -415,7 +415,12 @@ export function parseSourceFile(fileName: string, text: string, options?: ParseO
     options === undefined ? new ExternalModuleIndicatorOptions(false, false) : options.externalModuleIndicatorOptions;
   const p = new Parser(fileName, path, text, scriptKind, moduleOptions);
   p.nextToken();
-  if (scriptKind === ScriptKind.JSON) return p.parseJSONText();
+  if (scriptKind === ScriptKind.JSON) {
+    // Like other files (parseSourceFileWorker): reading the caches later never writes to the file.
+    const json = p.parseJSONText();
+    json.computeCaches();
+    return json;
+  }
   return p.parseSourceFileWorker();
 }
 
