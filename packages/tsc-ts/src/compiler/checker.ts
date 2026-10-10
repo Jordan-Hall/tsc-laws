@@ -252,6 +252,16 @@ export class SymbolAccessibilityCaches {
   markedSlot = -1;
 }
 
+/** Links are stored in pages of 256 ids. */
+const enum LinkPaging {
+  Bits = 8,
+  Size = 1 << Bits,
+  Mask = Size - 1,
+}
+
+/** A page of links, indexed by the low bits of an id; undefined until a link in it is stored. */
+type LinkPage<T> = (T | undefined)[] | undefined;
+
 export class Checker {
   readonly host: CheckerHost;
   readonly compilerOptions: CompilerOptions;
@@ -289,9 +299,11 @@ export class Checker {
   /** Specifier generation for hosts without a program. */
   fallbackModuleSpecifierHost: ModuleSpecifierHost | undefined = undefined;
 
-  // Links of symbols and nodes, indexed by symbol and node id like tsc's link arrays.
-  readonly symbolLinkStore: (SymbolLinks | undefined)[] = [];
-  readonly nodeLinkStore: (NodeLinks | undefined)[] = [];
+  // Links of symbols and nodes by symbol and node id, in pages of `LinkPaging.Size` ids created on
+  // first use. Lookups are array reads, and a checker that touches part of a program (as each of
+  // several parallel checkers does) stores only the pages it touches.
+  readonly symbolLinkPages: LinkPage<SymbolLinks>[] = [];
+  readonly nodeLinkPages: LinkPage<NodeLinks>[] = [];
   /** Merged symbols, indexed by the id of the symbol merged into them. */
   readonly mergedSymbols: Map<number, Symbol>;
   /** Globals merged from the default libraries, shared with other checkers. */
@@ -743,25 +755,29 @@ export class Checker {
 
   symbolLinks(symbol: Symbol): SymbolLinks {
     const id = getSymbolId(symbol);
-    let links = this.symbolLinkStore[id];
+    const page = this.symbolLinkPages[id >> LinkPaging.Bits];
+    let links = page !== undefined ? page[id & LinkPaging.Mask] : undefined;
     if (links === undefined) {
       links = new SymbolLinks();
-      setLinks(this.symbolLinkStore, id, links);
+      setLinks(this.symbolLinkPages, id, links);
     }
     return links;
   }
 
   /** The links of `symbol` if it has any, without creating them. */
   existingSymbolLinks(symbol: Symbol): SymbolLinks | undefined {
-    return this.symbolLinkStore[symbol.id];
+    const id = symbol.id;
+    const page = this.symbolLinkPages[id >> LinkPaging.Bits];
+    return page !== undefined ? page[id & LinkPaging.Mask] : undefined;
   }
 
   nodeLinks(node: Node): NodeLinks {
     const id = node.id;
-    let links = this.nodeLinkStore[id];
+    const page = this.nodeLinkPages[id >> LinkPaging.Bits];
+    let links = page !== undefined ? page[id & LinkPaging.Mask] : undefined;
     if (links === undefined) {
       links = new NodeLinks();
-      setLinks(this.nodeLinkStore, id, links);
+      setLinks(this.nodeLinkPages, id, links);
     }
     return links;
   }
@@ -843,9 +859,17 @@ export class Checker {
 }
 
 /** Stores `links` at `id`, filling the gap below it so the store stays a dense array. */
-function setLinks<T>(store: (T | undefined)[], id: number, links: T): void {
-  while (store.length < id) store.push(undefined);
-  store[id] = links;
+/** Stores `links` at `id`, creating its page (and filling the gap below it) as needed. */
+function setLinks<T>(pages: LinkPage<T>[], id: number, links: T): void {
+  const index = id >> LinkPaging.Bits;
+  while (pages.length <= index) pages.push(undefined);
+  let page = pages[index];
+  if (page === undefined) {
+    page = [];
+    for (let i = 0; i < LinkPaging.Size; i++) page.push(undefined);
+    pages[index] = page;
+  }
+  page[id & LinkPaging.Mask] = links;
 }
 
 /**
@@ -854,8 +878,8 @@ function setLinks<T>(store: (T | undefined)[], id: number, links: T): void {
  * them go without a cycle collection.
  */
 export function disposeChecker(c: Checker): void {
-  c.symbolLinkStore.length = 0;
-  c.nodeLinkStore.length = 0;
+  c.symbolLinkPages.length = 0;
+  c.nodeLinkPages.length = 0;
   c.spareRelater = undefined;
   if (c.globalChanges !== undefined) returnLibGlobals(c);
   else {
