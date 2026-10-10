@@ -30,7 +30,10 @@ import { Colors, defaultIsPretty, header, printBuildHelp, printHelp, printVersio
 import { generateTSConfig } from './init.js';
 import { isIncremental, type CompilerOptions } from './options.js';
 import { combinePaths, getDirectoryPath, normalizePath } from './path.js';
+import { checkerThreads } from './parallel-check.js';
+import { parallelParse, reportPreparedFiles, startParallelParse } from './parallel-parse.js';
 import { showConfig, type ShowConfigInput } from './show-config.js';
+import { assignSymbolIdsAtCreation } from './symbol.js';
 
 export enum ExitStatus {
   Success = 0,
@@ -134,6 +137,8 @@ export type CommandLineResult =
       readonly reporter: DiagnosticReporter;
       readonly errorSummary: ErrorSummaryReporter;
     }
+  /** Threads are preparing the program's files; `run` calls back with the result once they are done. */
+  | { readonly kind: 'deferred'; readonly run: (done: (result: CommandLineResult) => void) => void }
   /** Watch the project of `config`. */
   | { readonly kind: 'watch'; readonly config: ProjectConfig; readonly commandLine: ParsedCommandLine }
   | { readonly kind: 'build'; readonly commandLine: ParsedBuildCommandLine };
@@ -348,22 +353,47 @@ function executeCompile(sys: System, commandLine: ParsedCommandLine): CommandLin
   if (config.options.watch === true) return { kind: 'watch', config, commandLine };
 
   const parseStart = performance.now();
-  const program = new Program(config, new SystemCompilerHost(sys, fs, locale));
-  const parseTime = performance.now() - parseStart;
-  // Statistics need checking and emit timings.
-  const statistics = config.options.diagnostics === true || config.options.extendedDiagnostics === true;
-  if (config.options.listFilesOnly === true && !statistics) {
-    return exit(listFilesOnly(sys, program, locale, reporter, errorSummary));
-  }
-  return {
-    kind: 'compile',
-    program,
-    incremental: isIncremental(config.options),
-    configTime,
-    parseTime,
-    reporter,
-    errorSummary,
+  const createProgram = (): CommandLineResult => {
+    const program = new Program(config, new SystemCompilerHost(sys, fs, locale));
+    const parseTime = performance.now() - parseStart;
+    reportPreparedFiles(program.getSourceFiles().map((f) => f.fileName));
+    // Statistics need checking and emit timings.
+    const statistics = config.options.diagnostics === true || config.options.extendedDiagnostics === true;
+    if (config.options.listFilesOnly === true && !statistics) {
+      return exit(listFilesOnly(sys, program, locale, reporter, errorSummary));
+    }
+    return {
+      kind: 'compile',
+      program,
+      incremental: isIncremental(config.options),
+      configTime,
+      parseTime,
+      reporter,
+      errorSummary,
+    };
   };
+  const threads = checkerThreads(config.options.checkers, config.options.singleThreaded);
+  if (threads > 1 && parallelParse.spawn !== undefined && !isIncremental(config.options)) {
+    // Threads parse and bind the files the program is expected to load first (parallel-parse.ts), and
+    // share the program it becomes: its symbols get their ids when they are created.
+    assignSymbolIdsAtCreation();
+    return {
+      kind: 'deferred',
+      run: (done: (result: CommandLineResult) => void) =>
+        startParallelParse(
+          threads,
+          config.fileNames,
+          config.options,
+          sys.currentDirectory,
+          sys.defaultLibraryPath,
+          sys.useCaseSensitiveFileNames,
+          (fileName) => fs.readFile(fileName),
+          (path) => fs.getAccessibleEntries(path),
+          () => done(createProgram()),
+        ),
+    };
+  }
+  return createProgram();
 }
 
 /** What `--showConfig` prints for a project. */

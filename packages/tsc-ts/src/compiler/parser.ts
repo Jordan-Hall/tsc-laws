@@ -6833,6 +6833,10 @@ export function getJSDoc(file: SourceFile, node: Node): readonly Node[] {
   const jsDoc = node.jsDoc;
   if (jsDoc !== undefined) return jsDoc;
   if ((node.flags & NodeFlags.HasJSDoc) === 0 || !file.hasLazyJSDoc) return noNodes;
+  if (lazyJSDocTable !== undefined) {
+    const parsed = lazyJSDocTable.get(node.id);
+    if (parsed !== undefined) return parsed;
+  }
   let parser = lazyJSDocParser;
   if (parser === undefined || lazyJSDocFile !== file) {
     parser = new Parser(file.fileName, file.path, file.text, file.scriptKind, file.externalModuleIndicatorOptions);
@@ -6840,9 +6844,19 @@ export function getJSDoc(file: SourceFile, node: Node): readonly Node[] {
     lazyJSDocFile = file;
   }
   const result = parser.jsdoc.parseJSDocForNode(node);
-  node.jsDoc = result;
+  if (lazyJSDocTable !== undefined) lazyJSDocTable.set(node.id, result);
+  else node.jsDoc = result;
   return result;
 }
+
+/**
+ * Keeps lazily parsed JSDoc in a table of this thread instead of on the nodes: a program shared with
+ * other threads is never written.
+ */
+export function useLazyJSDocTable(): void {
+  lazyJSDocTable = new Map<number, Node[]>();
+}
+let lazyJSDocTable: Map<number, Node[]> | undefined;
 
 const noNodes: readonly Node[] = [];
 // The parser for lazily parsed JSDoc, reused while the same file is visited.

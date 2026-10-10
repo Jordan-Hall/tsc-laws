@@ -11,6 +11,46 @@ import type { Symbol, SymbolTable } from './symbol.js';
 
 /** The id of the most recently constructed node. */
 let lastNodeId = 0;
+// While several threads parse one program (parallel-parse.ts), each takes node ids in chunks from a
+// shared counter; ids up to `nodeIdLimit` belong to this thread.
+let nodeIdLimit = Number.POSITIVE_INFINITY;
+let nodeIdCounter: Int32Array | undefined = undefined;
+const nodeIdChunk = 16384;
+
+function takeNodeIdChunk(): number {
+  const base = Atomics.add(nodeIdCounter!, 0, nodeIdChunk);
+  lastNodeId = base + 1;
+  nodeIdLimit = base + nodeIdChunk;
+  return lastNodeId;
+}
+
+/**
+ * Takes node ids in chunks from `counter[0]`, shared by the threads that parse together; with
+ * `undefined`, goes back to a plain counter above every id handed out.
+ */
+export function shareNodeIds(counter: Int32Array | undefined): void {
+  if (counter !== undefined) {
+    nodeIdCounter = counter;
+    nodeIdLimit = lastNodeId;
+    return;
+  }
+  if (nodeIdCounter !== undefined) {
+    const top = Atomics.load(nodeIdCounter, 0);
+    if (top > lastNodeId) lastNodeId = top;
+  }
+  nodeIdCounter = undefined;
+  nodeIdLimit = Number.POSITIVE_INFINITY;
+}
+
+/** The last node id handed out on this thread. */
+export function lastNodeIdValue(): number {
+  return lastNodeId;
+}
+
+/** Continues node ids above `last` (a checker thread starts above the program it checks). */
+export function reserveNodeIds(last: number): void {
+  if (last > lastNodeId) lastNodeId = last;
+}
 
 export const enum NodeFlags {
   None = 0,
@@ -187,7 +227,7 @@ export abstract class Node {
     this.end = -1;
     this.parent = undefined;
     this.jsDoc = undefined;
-    this.id = ++lastNodeId;
+    this.id = lastNodeId < nodeIdLimit ? ++lastNodeId : takeNodeIdChunk();
   }
 
   /** Calls `visitor` for each child in order; returns `true` if the visitor stopped. */

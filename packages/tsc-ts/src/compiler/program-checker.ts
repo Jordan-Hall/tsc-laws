@@ -210,17 +210,33 @@ export class CheckedProgram {
     return this.collect(file, (f) => f.bindDiagnostics);
   }
 
+  /**
+   * Diagnostics of checker threads (parallel-check.ts): the semantic diagnostics of each file by file
+   * index, and their global diagnostics. Set once every file is checked.
+   */
+  checkedInParallel: (Diagnostic[] | undefined)[] | undefined = undefined;
+  readonly parallelGlobalDiagnostics: Diagnostic[] = [];
+
   getSemanticDiagnostics(file: SourceFile | undefined): Diagnostic[] {
-    return this.collectChecked(file, (f) => {
-      const diagnostics = this.getBindAndCheckDiagnostics(f);
-      let result = diagnostics;
-      if (this.program.options.noEmit === true) {
-        result = [];
-        for (const d of diagnostics) if (!d.skippedOnNoEmit) result.push(d);
-      }
-      for (const d of this.getIncludeProcessorDiagnostics(f)) result.push(d);
-      return result;
-    });
+    const parallel = this.checkedInParallel;
+    if (file === undefined && parallel !== undefined) {
+      const result: Diagnostic[] = [];
+      for (const diagnostics of parallel) if (diagnostics !== undefined) for (const d of diagnostics) result.push(d);
+      return sortAndDeduplicateDiagnostics(result);
+    }
+    return this.collectChecked(file, (f) => this.semanticDiagnosticsOfFile(f));
+  }
+
+  /** The semantic diagnostics of `file`, unsorted. */
+  semanticDiagnosticsOfFile(file: SourceFile): Diagnostic[] {
+    const diagnostics = this.getBindAndCheckDiagnostics(file);
+    let result = diagnostics;
+    if (this.program.options.noEmit === true) {
+      result = [];
+      for (const d of diagnostics) if (!d.skippedOnNoEmit) result.push(d);
+    }
+    for (const d of this.getIncludeProcessorDiagnostics(file)) result.push(d);
+    return result;
   }
 
   /** The bind and check diagnostics of `file` before `noEmit` filtering and without include errors. */
@@ -236,11 +252,11 @@ export class CheckedProgram {
   getGlobalDiagnostics(): Diagnostic[] {
     if (this.program.getSourceFiles().length === 0) return [];
     const libraryChecker = this.libraryChecker;
-    if (libraryChecker === undefined) return this.checker.getGlobalDiagnostics();
-    return sortAndDeduplicateDiagnostics([
-      ...this.checker.getGlobalDiagnostics(),
-      ...libraryChecker.getGlobalDiagnostics(),
-    ]);
+    const parallel = this.parallelGlobalDiagnostics;
+    if (libraryChecker === undefined && parallel.length === 0) return this.checker.getGlobalDiagnostics();
+    const result = [...this.checker.getGlobalDiagnostics(), ...parallel];
+    if (libraryChecker !== undefined) for (const d of libraryChecker.getGlobalDiagnostics()) result.push(d);
+    return sortAndDeduplicateDiagnostics(result);
   }
 
   /** The checker that checks `file`. */

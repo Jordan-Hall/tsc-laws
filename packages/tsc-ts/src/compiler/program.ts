@@ -442,6 +442,19 @@ export class Program implements OutputPathsHost {
     }
   }
 
+  /**
+   * Computes what checking, reporting and emit would otherwise compute on first use, so that they
+   * never write to the program: a program shared with other threads (parallel-check.ts) is
+   * immutable. Neither adds diagnostics: the common source directory is computed eagerly when
+   * options make it report any.
+   */
+  prepareForSharing(): void {
+    this.getSymlinkCache();
+    this.getPackagesMap();
+    this.commonSourceDirectory();
+    this.includeProcessor.diagnostics(this);
+  }
+
   isEmitBlocked(fileName: string): boolean {
     return this.emitBlockingPaths.has(this.toPath(fileName));
   }

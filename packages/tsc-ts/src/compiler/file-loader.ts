@@ -31,6 +31,7 @@ import {
   ModuleResolutionKind,
   type CompilerOptions,
 } from './options.js';
+import { takePreparedFile } from './parallel-parse.js';
 import { parseSourceFile } from './parser.js';
 import {
   combinePaths,
@@ -123,6 +124,9 @@ export class CompilerHost extends ModuleResolutionHost {
     path: string,
     externalModuleIndicatorOptions: ExternalModuleIndicatorOptions,
   ): SourceFile | undefined {
+    // A file that parse threads prepared (parallel-parse.ts).
+    const prepared = takePreparedFile(fileName, path, externalModuleIndicatorOptions);
+    if (prepared !== undefined) return prepared;
     const text = this.fs.readFile(fileName);
     if (text === undefined) return undefined;
     return parseSourceFile(fileName, text, new ParseOptions(path, ScriptKind.Unknown, externalModuleIndicatorOptions));
