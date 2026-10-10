@@ -44,3 +44,66 @@ An index signature describes properties accessed through a key family. Explicit 
 With `noUncheckedIndexedAccess`, reading an unspecified key adds `undefined`. Without it, a dictionary annotation can promise a value even when the runtime key is absent.
 
 See [object types](https://www.typescriptlang.org/docs/handbook/2/objects.html) and [strictness](/typescript/projects/strictness).
+
+## Structured type components
+
+An object type can specify named properties, call and construct signatures, index signatures, and generic relationships. A required property must be available on an assignable source with a compatible type. Optional properties may be absent. A property read from an optional member includes `undefined` under strict null checking.
+
+Methods and function-valued properties have different variance behavior. Accessors can have separate read and write types; explicit getter and setter types need not be identical in this edition. See [functions](/typescript/types/functions) and [index signatures](/typescript/types/index-signatures).
+
+## `object`, `{}`, and `Object`
+
+| Spelling | Meaning under strict null checking                                                   |
+| -------- | ------------------------------------------------------------------------------------ |
+| `object` | Nonprimitive values.                                                                 |
+| `{}`     | Any nonnullish value; does not forbid extra properties or primitives.                |
+| `Object` | The library interface for Object members, with broadly compatible nonnullish values. |
+
+```ts
+const nonnullish: {} = 1;
+// @ts-expect-error: number is primitive
+const nonprimitive: object = 1;
+// @ts-expect-error: null is excluded from the empty object type
+const nullish: {} = null;
+```
+
+An object type with no declared properties is not an exact empty record. TypeScript does not provide a universal exact-object operator that forbids every unspecified runtime key.
+
+## ExcessPropertyCheck
+
+When a fresh object literal is checked against a target requiring object members:
+
+1. Determine the contextual target and relevant union alternatives, including recognized discriminants.
+2. Check explicitly supplied property values and required members.
+3. Reject explicit extra properties that are not admitted by the target's members or index signatures.
+4. Account for spreads and computed names under object-literal rules.
+
+Assigning an existing variable with additional properties generally uses structural compatibility instead. A spread does not cause every key originating in the spread to receive the same excess-property check as a directly written property. This distinction must not be treated as runtime removal of extra keys.
+
+```ts
+type Shape = { name: string };
+// @ts-expect-error: an explicit extra property on a fresh literal
+const direct: Shape = { name: 'Ada', age: 36 };
+const source = { name: 'Ada', age: 36 };
+const structural: Shape = source;
+const spread: Shape = { ...source };
+```
+
+## Weak targets
+
+A weak type has optional properties and no stronger members that establish its shape. Assigning an unrelated object with no common properties can be rejected even when required-property comparison alone would impose no obligation. A compatible common property or an index signature changes that check.
+
+```ts
+type Options = { timeout?: number };
+const unrelated = { retries: 3 };
+// @ts-expect-error: there is no property in common with the weak target
+const options: Options = unrelated;
+```
+
+## Object literals and spread
+
+An object literal is checked property by property with context where available. Later explicit properties can replace earlier spread properties in the inferred result. A spread does not copy prototypes, nonenumerable members, or class-private declarations into a newly declared nominal entity. Generic spreads can produce intersection-like types because exact runtime keys are not known.
+
+Computed names known as literal or unique-symbol keys can introduce named members. Other computed names can contribute less precise index information. Freshness, contextual typing, and inference jointly determine the literal's result type.
+
+Source: [object-literal checking, excess-property checks, and weak types](https://github.com/microsoft/TypeScript/blob/c63de15a992d37f0d6cec03ac7631872838602cb/src/compiler/checker.ts).

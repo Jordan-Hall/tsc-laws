@@ -38,3 +38,59 @@ Likewise, `rootDirs` describes a virtual merged root for relative resolution wit
 Use `--traceResolution` and compare the import's format, package conditions, and resolved declaration path. A successful type resolution does not establish that the runtime entry point exists or exports the same value.
 
 See [module resolution](https://www.typescriptlang.org/docs/handbook/modules/reference.html#module-resolution) and [choosing compiler options](https://www.typescriptlang.org/docs/handbook/modules/guides/choosing-compiler-options.html).
+
+## ResolveModuleRequest
+
+Given a module specifier, importing file, and resolution context:
+
+1. Determine the importing file's format and whether the request is modeled with import or require conditions.
+2. Classify the specifier as relative/absolute, package, package-private `#` import, or supported mapped name.
+3. Apply the mode's package fields, conditions, path mapping, extension substitution, and lookup sequence.
+4. Select the declaration or source used for checking and record relevant package identity.
+5. Diagnose an unresolved or inaccessible request; a fallback is permitted only where the mode defines it.
+
+This algorithm is mode-sensitive. A successful type lookup does not execute the runtime loader or prove that it selects an equivalent implementation.
+
+## Mode requirements
+
+`node16` and `nodenext` model per-file ESM/CommonJS formats and modern package exports/imports. `nodenext` follows the edition's current Node behavior and can evolve in later compiler versions. Supported `module` values such as `node18` and `node20` select their modeled environment; they are not separate arbitrary `moduleResolution` strings.
+
+`bundler` models modern package fields while allowing supported extensionless relative imports expected from bundlers. It derives request conditions from the source import form and configured output context. `node10` uses historical package lookup without full modern exports/imports semantics; `classic` is a distinct legacy lookup and not modern Node behavior.
+
+## File format and extensions
+
+`.mts` and `.cts` force ESM and CommonJS TypeScript formats and emit corresponding `.mjs`/`.cjs` forms. `.d.mts` and `.d.cts` describe those formats. Ordinary `.ts`/`.d.ts` files in Node modes use relevant package metadata, including the nearest package `type` field.
+
+Extension substitution permits a runtime-looking `.js` request to resolve to `.ts`, `.tsx`, or `.d.ts` candidates in the prescribed order. `.mjs` and `.cjs` have their corresponding typed candidates. Modern Node ESM relative requests require appropriate explicit extensions; bundler mode permits different relative lookup behavior.
+
+`allowImportingTsExtensions` and `rewriteRelativeImportExtensions` govern supported TypeScript-suffixed requests and output rewriting. Rewriting covers eligible relative specifiers, not arbitrary package aliases or dynamically computed strings.
+
+## Package exports and conditions
+
+When exports are applicable, `package.json` entry points and conditions restrict accessible paths. An export map can block a deep path even if a file physically exists. Conditions such as `types`, `import`, `require`, `node`, and configured custom conditions affect selection according to the mode and request context. Conditional object order matters.
+
+TypeScript can select a declaration-oriented `types` branch or perform extension substitution on a runtime target. Versioned types conditions have supported matching. `typesVersions` applies in its supported package paths but is not a universal override once exports resolution controls the request.
+
+The package's `types`/`typings` and `main` fields participate in applicable fallback lookup. A separate `@types` package can provide declarations under its own lookup rules. An export map and declaration file format must agree with the modeled runtime format; naming a `.d.ts` file does not erase its ESM/CommonJS interpretation.
+
+## Package-private and self requests
+
+`#` specifiers use a package's `imports` map where enabled. Package self-name requests can use its own name and exports. These are not ordinary filesystem-relative paths. Unsupported conditions, targets, or contexts can fail even when a similar external package import succeeds.
+
+## Paths, base URLs, suffixes, and roots
+
+`paths` applies matching patterns and ordered substitutions in its configured base context. A more specific pattern can win over a broad one. Path mapping does not ordinarily rewrite output and can bypass package semantics if mapped directly to a filesystem location.
+
+`baseUrl` supplies an applicable nonrelative lookup base. `rootDirs` overlays roots for relative checking without physically moving files. `moduleSuffixes` alters candidate filenames; include the empty suffix when unsuffixed fallback is intended. None installs equivalent behavior into Node or a bundler.
+
+## JSON, arbitrary extensions, and side effects
+
+`resolveJsonModule` supplies types for supported JSON imports, with mode and attribute restrictions. `allowArbitraryExtensions` permits associated declaration lookup patterns rather than parsing arbitrary asset formats. `noUncheckedSideEffectImports` diagnoses unresolved side-effect imports that older behavior could leave unchecked; wildcard ambient declarations can affect that observation.
+
+## Type references and host effects
+
+Type-reference directives and automatically included `@types` packages use related but separate resolution. `types` limits automatic inclusion rather than all imports. `typeRoots`, filesystem case sensitivity, symlink treatment, and host canonicalization can alter the program.
+
+Use `traceResolution` to inspect conditions, candidates, and final files. Cache behavior must be invalidated when relevant files, options, or package metadata change. A trace demonstrates the checker's decision for that environment; it is not proof of runtime loading success.
+
+Sources: [module resolver](https://github.com/microsoft/TypeScript/blob/c63de15a992d37f0d6cec03ac7631872838602cb/src/compiler/moduleNameResolver.ts), [module resolution reference](https://www.typescriptlang.org/docs/handbook/modules/reference.html#module-resolution), and [Node 20 mode](https://www.typescriptlang.org/docs/handbook/release-notes/typescript-5-9.html#support-for---module-node20).

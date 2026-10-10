@@ -1,19 +1,34 @@
 ---
-title: The TypeScript language
-description: Scope, version assumptions, and conventions for the unofficial language reference.
+title: TypeScript specification
+description: An unofficial specification of TypeScript 5.9 syntax, static semantics, types, declarations, and project behavior.
 ---
 
-TypeScript checks JavaScript programs using types. A type describes a set of values and the operations available on those values. Most TypeScript syntax is removed during compilation; some constructs also produce JavaScript.
+This specification describes **TypeScript 5.9.3**: accepted syntax, the types assigned to programs, type relationships, declaration checking, and the effect of compiler options on checking and output. It is maintained independently of Microsoft.
 
 ## Scope
 
-This is an unofficial specification-style reference to common TypeScript language rules and their boundaries. It covers source syntax, types, checking, declarations, and project behavior. Each topic links to upstream documentation so you can compare the explanation with TypeScript's own reference.
+TypeScript extends ECMAScript. JavaScript evaluation, execution contexts, objects, and built-in runtime operations are defined by [ECMA-262](https://tc39.es/ecma262/). The clauses here describe TypeScript's additional syntax and static semantics. An erased annotation does not introduce a runtime check.
 
-It is not an exhaustive grammar or a formal proof of compiler correctness. JavaScript evaluation is defined by [ECMAScript](https://tc39.es/ecma262/). TypeScript adds checking and syntax on top of that runtime model.
+| Part                                                           | Subject                                                                            |
+| -------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| [Foundations](/typescript/specification/conventions)           | Terminology, grammar notation, semantic entities, and conformance boundaries.      |
+| [Syntax grammar](/typescript/specification/grammar)            | TypeScript productions and inherited ECMAScript syntax.                            |
+| [Static semantics](/typescript/specification/static-semantics) | Binding, name resolution, type resolution, and declaration checking.               |
+| [Language](/typescript/language/lexical-grammar)               | Expressions, statements, resources, and execution boundaries.                      |
+| [Types](/typescript/types/primitives)                          | Primitive, literal, structured, callable, and special types.                       |
+| [Type system](/typescript/type-system/relations)               | Relations, normalization, inference, contextual typing, and flow analysis.         |
+| [Type operators](/typescript/type-operators/keyof)             | Type queries, indexed access, mapped types, and conditional types.                 |
+| [Declarations](/typescript/declarations/type-aliases)          | Named entities, modules, namespaces, ambient contexts, JSX, JSDoc, and decorators. |
+| [Projects](/typescript/projects/tsconfig)                      | Configuration, resolution, diagnostics, emit, and incremental builds.              |
+| [Coverage index](/typescript/specification/coverage)           | A feature-by-feature map to the defining clause.                                   |
+
+Algorithms describe observable checking decisions, not required compiler data structures or traversal order. Read [conventions](/typescript/specification/conventions) and [conformance boundaries](/typescript/specification/conformance) before interpreting a rule as a requirement.
 
 ## Version and options
 
-The compiler documented here targets TypeScript-Go **7.0.2**. Its upstream revision is pinned in [upstream.json](https://github.com/vercel-labs/tsc-ts/blob/main/upstream.json). Language examples are checked separately with the repository's **TypeScript 5.9** dependency. A successful example check is not a claim of TypeScript 7 or tsc-ts conformance.
+The edition is tied to the [TypeScript 5.9.3 source revision](https://github.com/microsoft/TypeScript/tree/c63de15a992d37f0d6cec03ac7631872838602cb). Its compiler, libraries, and conformance tests resolve behavior that this text leaves unspecified or describes incorrectly. Source citations identify this edition rather than a moving branch.
+
+The **tsc-ts** compiler targets TypeScript-Go **7.0.2**, pinned in [upstream.json](https://github.com/vercel-labs/tsc-ts/blob/main/upstream.json). That separate target does not change this specification's edition. A successful TypeScript 5.9 example check is not a TypeScript 7 or tsc-ts conformance result.
 
 Unless a page states otherwise, examples assume:
 
@@ -21,12 +36,13 @@ Unless a page states otherwise, examples assume:
 - `target: "ES2022"` and `module: "ESNext"`.
 - `moduleResolution: "bundler"`.
 - `exactOptionalPropertyTypes: false` and `noUncheckedIndexedAccess: false`.
+- `lib: ["ES2022", "DOM", "DOM.Iterable"]` and `types: []`.
 
 Environment-specific pages explain the options they depend on. A type inferred from an example can change when its context or options change.
 
 ## Reading examples
 
-Comments show inferred types or explain why a statement is rejected:
+Each TypeScript block is checked independently. Comments reporting inferred types are descriptive; a type-level constraint or assignment can make a particular relationship executable:
 
 ```ts
 const length: number = 'TypeScript'.length;
@@ -35,7 +51,7 @@ const length: number = 'TypeScript'.length;
 const invalid: number = 'ten';
 ```
 
-`@ts-expect-error` tells the compiler to expect a diagnostic on the next line. The example check fails if that diagnostic disappears. Examples are isolated from one another; declarations in one block are not implicitly available in another.
+`@ts-expect-error` requires a diagnostic on the next line; it does not assert its code or wording. Multi-file examples explicitly declare filenames. `// @option:` directives change the default context. JavaScript and shell blocks are explanatory and are not executed by the snippet checker.
 
 ## Checking and execution
 

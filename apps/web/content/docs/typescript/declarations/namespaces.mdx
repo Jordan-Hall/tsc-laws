@@ -47,3 +47,55 @@ A file module already provides a scope and import/export relationships. A namesp
 Compiler options for isolated processing or erasable syntax can impose additional namespace restrictions, because value-containing namespaces require a transform.
 
 See [namespaces](https://www.typescriptlang.org/docs/handbook/namespaces.html) and [namespaces and modules](https://www.typescriptlang.org/docs/handbook/namespaces-and-modules.html).
+
+## Namespace declaration checking
+
+A namespace introduces a qualifying declaration container. Exported members are available through its name; non-exported members remain local under namespace visibility rules. Dotted syntax declares nested namespace structure. The historical identifier-named `module` spelling has namespace behavior and differs from a string-named ambient module.
+
+```ts
+namespace Store {
+  export interface Item {
+    id: string;
+  }
+  export function create(id: string): Item {
+    return { id };
+  }
+}
+const item: Store.Item = Store.create('a');
+```
+
+A namespace name does not by itself denote a structural instance type. `typeof Store` queries its value-side object when available; `Store.Item` resolves its exported type name.
+
+## Merging and visibility
+
+Compatible namespace declarations merge their exported members. Non-exported local declarations from one body are not automatically visible in another body. Namespaces can merge with permitted classes, functions, and enums when declaration ordering and kind restrictions are satisfied.
+
+```ts
+function create() {
+  return 1;
+}
+namespace create {
+  export const version = '1';
+}
+const version: string = create.version;
+```
+
+The merge describes one value with additional exported members; it does not allow two unrelated executable implementations to overwrite one another without restrictions. Type aliases cannot be reopened as namespaces to gain arbitrary merging behavior.
+
+## Runtime representation
+
+A nonambient namespace with value content can emit namespace-object initialization and member assignments. Type-only contents can be elided according to output rules. An ambient namespace describes an externally supplied value or type container and emits no implementation.
+
+The namespace transform must account for existing merged values. It is not equivalent to an ES module import or export. A file containing a namespace can still be a script or external module according to file classification.
+
+## Dependencies and exports
+
+Namespace members use the surrounding lexical environment and permitted internal aliases. Namespaces in global scripts can combine declarations across files, but execution order still matters for runtime initialization. An erased type reference does not schedule the runtime namespace body.
+
+A namespace exported from an external module is available through that module's export environment. It does not automatically become a global variable. `export as namespace` in a declaration file can describe a UMD-style global exposure under its separate ambient rules.
+
+## Restrictions
+
+Ambient namespace bodies prohibit executable statements and ordinary implementations. Runtime namespaces are rejected by `erasableSyntaxOnly`. Independent file transforms require care with cross-file merges and const enum references. The checking contract cannot guarantee that an externally supplied namespace object's runtime members match its declarations.
+
+Sources: [namespaces](https://www.typescriptlang.org/docs/handbook/namespaces.html), [namespace binding](https://github.com/microsoft/TypeScript/blob/c63de15a992d37f0d6cec03ac7631872838602cb/src/compiler/binder.ts), and [namespace transforms](https://github.com/microsoft/TypeScript/blob/c63de15a992d37f0d6cec03ac7631872838602cb/src/compiler/transformers/ts.ts).

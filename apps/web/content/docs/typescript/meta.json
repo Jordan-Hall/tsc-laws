@@ -1,4 +1,14 @@
 {
   "title": "TypeScript",
-  "pages": ["index", "language", "types", "type-system", "type-operators", "declarations", "projects", "sources"]
+  "pages": [
+    "index",
+    "specification",
+    "language",
+    "types",
+    "type-system",
+    "type-operators",
+    "declarations",
+    "projects",
+    "sources"
+  ]
 }

@@ -17,6 +17,7 @@ description: Strict checks, missing-value options, and additional project diagno
 | `noImplicitThis`               | Reports some implicit `any` receiver types.                             |
 | `useUnknownInCatchVariables`   | Treats unannotated catch variables as `unknown`.                        |
 | `strictBuiltinIteratorReturn`  | Gives built-in iterators stricter return types.                         |
+| `alwaysStrict`                 | Parses in strict mode and controls applicable strict directives.        |
 
 The precise set enabled by `strict` depends on the compiler version. Consult that version's configuration reference.
 
@@ -44,3 +45,44 @@ values['missing'].toFixed();
 `skipLibCheck` skips internal checking of declaration files. It can hide incompatible declarations from dependencies, while those declarations still influence the types used by application code.
 
 See [`strict`](https://www.typescriptlang.org/tsconfig/strict.html), [object types](/typescript/types/objects), and [diagnostics](/typescript/projects/diagnostics).
+
+## Strict option resolution
+
+In this edition, `strict` supplies defaults for nine strict flags: `noImplicitAny`, `strictNullChecks`, `strictFunctionTypes`, `strictBindCallApply`, `strictPropertyInitialization`, `strictBuiltinIteratorReturn`, `noImplicitThis`, `useUnknownInCatchVariables`, and `alwaysStrict`. An explicitly set member overrides its umbrella default. The set must be tied to the edition, not assumed fixed for all future compilers.
+
+`alwaysStrict` parses in strict mode and controls applicable emitted strict directives. It is distinct from proving that every source-level type relationship is stricter. Strict mode can also come from module syntax independently of an emitted directive.
+
+## Option dependency checks
+
+Some flags require another option or have effective defaults derived from target/module mode. `strictPropertyInitialization` and `exactOptionalPropertyTypes` require strict-null-checking support. A configuration selecting an incompatible combination receives an option diagnostic; it does not create a third unspecified interpretation of the rule.
+
+`exactOptionalPropertyTypes`, `noUncheckedIndexedAccess`, `noImplicitOverride`, `noPropertyAccessFromIndexSignature`, unused checks, return checks, and fallthrough checks are not all enabled by strict. Their individual effects must be stated separately.
+
+## Missing-value distinctions
+
+| Situation                                      | Controlling rule                                          |
+| ---------------------------------------------- | --------------------------------------------------------- |
+| Passing null to a nonnull target               | `strictNullChecks`.                                       |
+| Explicit undefined in an optional property     | `exactOptionalPropertyTypes` and its declared value type. |
+| Reading an uncertain array/index-signature key | `noUncheckedIndexedAccess`.                               |
+| Reading an optional property                   | Absence contributes undefined under strict null checking. |
+| Reading an uninitialized local                 | Definite assignment under the applicable strict context.  |
+| Leaving an instance field uninitialized        | `strictPropertyInitialization`.                           |
+
+These checks address distinct sources of uncertainty. Enabling one does not imply the others, and none performs runtime validation.
+
+## Annotation and suppression boundaries
+
+`noImplicitAny` permits an explicit `any` and does not eliminate dynamic types from dependencies. `noImplicitThis` concerns receiver inference. `useUnknownInCatchVariables` recognizes that JavaScript can throw non-Error values. `strictFunctionTypes` retains the method/constructor bivariance exception.
+
+`skipLibCheck` skips internal declaration checking while declarations still shape application types. `skipDefaultLibCheck` is the narrower legacy library option. `noCheck` can skip substantial semantic checking while retaining operations necessary for output; it does not guarantee no possible diagnostic and is not a compatibility certification mode.
+
+## Independent transforms
+
+`isolatedModules` diagnoses constructs unsafe for certain file-local JavaScript transforms. `isolatedDeclarations` imposes conditions for local declaration generation. `erasableSyntaxOnly` limits runtime-bearing TypeScript syntax. None is an alias for strict, and enabling them does not make the full compiler forget imported type information.
+
+## Version upgrades
+
+A new compiler edition can add a strict member, change inference, alter standard libraries, or introduce syntactic diagnostics. An upgrade should therefore compare effective options and library declarations as well as explicit configuration text. The [option index](/typescript/projects/compiler-options) and pinned sources identify this edition's behavior.
+
+Source: [strict flag defaults and option validation](https://github.com/microsoft/TypeScript/blob/c63de15a992d37f0d6cec03ac7631872838602cb/src/compiler/commandLineParser.ts), and [program option diagnostics](https://github.com/microsoft/TypeScript/blob/c63de15a992d37f0d6cec03ac7631872838602cb/src/compiler/program.ts).

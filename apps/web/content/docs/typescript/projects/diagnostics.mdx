@@ -35,3 +35,39 @@ Include the source, compiler version, configuration, and dependency declarations
 Compiler exit status and emitted-file presence are separate evidence. Check [emit](/typescript/projects/emit) before assuming that a file written by the compiler indicates success.
 
 See [TypeScript 3.9 expected-error comments](https://www.typescriptlang.org/docs/handbook/release-notes/typescript-3-9.html#ts-expect-error-comments) and the [TSConfig reference](https://www.typescriptlang.org/tsconfig/).
+
+## Diagnostic categories and phases
+
+A diagnostic can describe configuration, scanning/parsing, binding, global declarations, semantic checking, declaration generation, or other output work. It can carry a code, category, file, span, message chain, and related locations. A file span uses source positions rather than rendered grapheme indices.
+
+Syntax recovery can create secondary errors. Their ordering and elaboration are not fixed by this specification's abstract checking algorithms. Compare primary observations on a minimized program rather than treating every recovery message as a separate language requirement.
+
+## Suppression placement
+
+`@ts-expect-error` and `@ts-ignore` affect the applicable following line. The former requires an error and reports an unused directive when none occurs; the latter can silently remain after the underlying error disappears. Neither requires a particular error code.
+
+A directive on a call can be satisfied by an unrelated arity or unresolved-name error on that line. Rejection examples must therefore keep their setup valid and isolate the intended incompatible operation. Syntax failures, option diagnostics, and errors on other lines are not universally suppressed by the comment.
+
+## File-level checking controls
+
+Recognized leading `@ts-check` and `@ts-nocheck` pragmas control the applicable JavaScript/TypeScript checking context. `noCheck` is a compiler option that can skip substantial semantic work while still performing needed output inference. Declaration checking options have narrower scopes. None of these controls repairs the runtime program.
+
+## Limits and complexity
+
+Excessive instantiation, deep structural comparison, tuple size, and unrepresentable-union diagnostics identify implementation boundaries. Recursive distribution and template cross-products can make small source text require large computations. The diagnostic does not imply a runtime recursive call or give the type expression a different runtime meaning.
+
+Suppressing a limit is not evidence that the desired type was fully computed. Reduce the computation or create an explicit boundary that the implementation can represent.
+
+## CLI observations
+
+Compiler exit status, emitted files, formatted messages, and API diagnostic records are distinct observations. `pretty`, `locale`, and `noErrorTruncation` can alter presentation. `diagnostics`, `extendedDiagnostics`, traces, and profiles provide implementation measurements rather than new typing rules.
+
+An output file existing after a run may be stale or may have been written despite errors. Compare the reported exit and the actual current artifacts. Build mode's error-continuation behavior must be stated separately from ordinary compilation.
+
+## Reproduction record
+
+A useful discrepancy record includes the exact compiler edition, root/configuration selection, effective options, files, dependency/library declarations, module format, and expected observation. For a host-sensitive issue, record casing, symlinks, package conditions, and watch/build state as applicable.
+
+The source of a diagnostic can be outside the line it points to: missing ambient declarations, wrong package conditions, or an unexpected file in the program can change a local expression's type.
+
+Sources: [diagnostic definitions](https://github.com/microsoft/TypeScript/blob/c63de15a992d37f0d6cec03ac7631872838602cb/src/compiler/diagnosticMessages.json), [command-line reporting](https://github.com/microsoft/TypeScript/blob/c63de15a992d37f0d6cec03ac7631872838602cb/src/compiler/executeCommandLine.ts), and [checker](https://github.com/microsoft/TypeScript/blob/c63de15a992d37f0d6cec03ac7631872838602cb/src/compiler/checker.ts).

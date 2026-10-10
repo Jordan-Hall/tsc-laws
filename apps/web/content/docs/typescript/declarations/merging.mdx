@@ -66,3 +66,57 @@ An augmentation patches existing declarations rather than introducing arbitrary 
 `declare global` inside a module can extend the global scope. It does not make a runtime global exist.
 
 See [declaration merging](https://www.typescriptlang.org/docs/handbook/declaration-merging.html) and [ambient declarations](/typescript/declarations/ambient).
+
+## MergeDeclarations
+
+For declarations with the same name and overlapping meaning:
+
+1. Determine each declaration's kind and spaces.
+2. Reject prohibited combinations rather than treating every collision as reopening.
+3. Combine compatible member or export declarations into the symbol.
+4. Validate duplicate member types, optionality, generic parameters, and overload contracts.
+5. Apply ordering and visibility rules for the merged entity.
+
+Merging is a binding/checking operation. Runtime-bearing declarations still need the corresponding implementations and initialization order.
+
+## Permitted combinations
+
+| Combination           | Principal rule                                                                       |
+| --------------------- | ------------------------------------------------------------------------------------ |
+| Interface + interface | Compatible parameters and nonmethod members; methods contribute overloads.           |
+| Namespace + namespace | Combine exported members; preserve declaration-local visibility.                     |
+| Namespace + class     | Namespace follows the class and contributes permitted static-like exports.           |
+| Namespace + function  | Namespace follows the function and contributes permitted properties.                 |
+| Namespace + enum      | Contribute permitted additional members to the enum-associated value.                |
+| Enum + enum           | Member and initializer consistency, including automatic initialization restrictions. |
+| Class + interface     | Contribute a compatible type-side shape; does not generate class members.            |
+
+Classes cannot arbitrarily merge with other classes. Type aliases do not merge with interfaces or another alias of the same name. Separate value/type meanings can share a spelling without every such pair being one runtime merge.
+
+## Interface members and overload priority
+
+Repeated nonmethod members must satisfy consistency requirements rather than becoming an intersection of arbitrary incompatible property types. Merged interface generic parameter lists must be compatible. Later overload groups can have priority, with specialized string-literal signatures receiving the supported ordering treatment.
+
+```ts
+interface Settings {
+  name: string;
+}
+interface Settings {
+  count: number;
+}
+const settings: Settings = { name: 'item', count: 1 };
+```
+
+The interface remains open to augmentation, which affects some comparisons and implicit index-signature behavior. A merged declaration's file location does not create nominal identity.
+
+## Module and global augmentation
+
+Module augmentation resolves a specific existing module. A relative or package specifier is resolved under the project's resolution environment; spelling a name does not create an independent replacement module. Augmentation may extend named declarations but cannot generally add arbitrary new top-level exports or refer to a default export by a nonexistent local declaration name.
+
+Global augmentation from a module adds compatible declarations to the global environment. It produces no runtime method installation. A library augmenting `Array<T>` must separately provide any advertised executable behavior.
+
+## Visibility and implementation
+
+Exports added by one namespace body can be visible through the merged namespace. Private local declarations in that body remain local. Nonambient overloads still need implementations, and a namespace merge that adds a function declaration does not magically create a function value if it is only ambient.
+
+Sources: [declaration merging](https://www.typescriptlang.org/docs/handbook/declaration-merging.html), [binder symbol merging](https://github.com/microsoft/TypeScript/blob/c63de15a992d37f0d6cec03ac7631872838602cb/src/compiler/binder.ts), and [checker](https://github.com/microsoft/TypeScript/blob/c63de15a992d37f0d6cec03ac7631872838602cb/src/compiler/checker.ts).

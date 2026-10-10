@@ -7,6 +7,7 @@
     "unions",
     "intersections",
     "objects",
+    "index-signatures",
     "arrays",
     "tuples",
     "functions",

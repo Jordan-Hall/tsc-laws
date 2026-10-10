@@ -1,0 +1,83 @@
+---
+title: Control flow and definite assignment
+description: Flow facts, joins, assignments, reachability, captured bindings, initialization, and invalidation boundaries.
+---
+
+Control-flow analysis tracks recognized facts along possible execution paths. It narrows uses and checks initialization without changing the binding's declared assignment boundary.
+
+## FlowTypeAt
+
+For a reference at a program point:
+
+1. Identify its declared type and the flow container relevant to that reference.
+2. Follow predecessor paths, applying recognized assignments, predicates, and tests.
+3. At a branch, retain alternatives consistent with that path's condition.
+4. At a join, combine the reachable predecessor possibilities.
+5. At a write, replace or invalidate applicable facts while keeping assignments bounded by the declared type.
+6. Respect loops, calls, captured variables, and the analysis's conservative limits.
+
+The implementation represents flow lazily; these steps describe the result rather than requiring a forward data-flow pass.
+
+```ts
+function text(value: string | number) {
+  if (typeof value === 'number') return value.toFixed();
+  const remaining: string = value;
+  return remaining.toUpperCase();
+}
+```
+
+The returning branch contributes no continuation. A guard can therefore narrow code after an `if`, not just its nested block.
+
+## Assignments and joins
+
+An assignment can establish a narrower current type even when the declared type is a union. A branch assigning different alternatives makes the later type a combination of those alternatives. An assignment incompatible with the declared type is rejected regardless of the flow type currently observed.
+
+Loop flow can require repeated analysis because a later iteration reaches a use with facts from an earlier body. The checker does not execute a loop to infer arbitrary numeric bounds or prove its termination.
+
+## Calls and effects
+
+Recognized predicate and assertion calls can narrow their arguments. A call with a recognized `never` return can end a path. Ordinary function bodies are not inlined into callers to derive every side effect. A prior property fact can remain even when another alias or callback mutates the object at runtime.
+
+```ts
+declare const box: { value: string | undefined };
+declare function mutate(box: { value: string | undefined }): void;
+if (box.value !== undefined) {
+  mutate(box);
+  const assumed: string = box.value;
+}
+```
+
+This accepted access documents the effect-analysis boundary. It does not establish that `mutate` preserves the property.
+
+## Aliased conditions and captured variables
+
+Const aliases of supported guard expressions and discriminants can preserve a connection to the original reference. The analysis has finite alias-depth and syntactic restrictions; an arbitrary Boolean-returning expression is not automatically a guard.
+
+Narrowing for captured `let` variables and parameters can be preserved in a non-hoisted closure created after the last recognized assignment. A later possible assignment or an assignment from a nested function can prevent preservation. This edition's behavior includes the TypeScript 5.4 last-assignment improvement.
+
+```ts
+function format(value: string | number) {
+  if (typeof value === 'number') value = String(value);
+  return () => value.toUpperCase();
+}
+```
+
+## Definite assignment
+
+Under the relevant strict options, a local variable must be assigned on every reachable path before a use that requires a value. A type including undefined can alter the obligation. Assignments through arbitrary helper calls are not generally proof of local or field initialization.
+
+```ts
+let count: number;
+// @ts-expect-error: count has no definite preceding assignment
+const before = count;
+count = 1;
+const after: number = count;
+```
+
+For class fields, `strictPropertyInitialization` checks recognized constructor paths and field initializers. A definite-assignment assertion `!` waives the requirement; it produces no runtime initialization. Imported live bindings and ambient declarations have distinct assumptions because their values are supplied elsewhere.
+
+## Unreachable code and exhaustiveness
+
+`allowUnreachableCode` controls diagnostics for syntactically detected unreachable code; it does not replace all type-based reachability. Exhaustiveness can be expressed by assigning the remaining union to `never`. There is no universal requirement that every switch over a union include every alternative, and `noFallthroughCasesInSwitch` addresses fallthrough rather than exhaustive case coverage.
+
+Sources: [control-flow narrowing](https://www.typescriptlang.org/docs/handbook/2/narrowing.html#control-flow-analysis), [last-assignment preservation](https://www.typescriptlang.org/docs/handbook/release-notes/typescript-5-4.html#preserved-narrowing-in-closures-following-last-assignments), and [flow checker](https://github.com/microsoft/TypeScript/blob/c63de15a992d37f0d6cec03ac7631872838602cb/src/compiler/checker.ts).

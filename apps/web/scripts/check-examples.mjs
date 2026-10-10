@@ -32,7 +32,11 @@ for await (const filename of files(root)) {
     const rawOptions = { ...defaults, ...(match[1] === 'tsx' ? { jsx: 'preserve' } : {}) };
     for (const directive of match[2].matchAll(/^\/\/ @option: (\w+)=(.+)$/gm)) {
       const [, key, value] = directive;
-      rawOptions[key] = value === 'true' ? true : value === 'false' ? false : value;
+      try {
+        rawOptions[key] = JSON.parse(value);
+      } catch {
+        rawOptions[key] = value;
+      }
     }
     const converted = ts.convertCompilerOptionsFromJson(rawOptions, process.cwd());
     const virtualRoot = path.resolve('.example-check', String(checked));

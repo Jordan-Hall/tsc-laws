@@ -41,3 +41,63 @@ An ambient declaration can add a global name using `declare global` from a modul
 Shadowed names refer to distinct bindings. Narrowing one binding does not narrow a different binding with the same spelling. Imports also bind names in the local module; importing a type does not create a runtime value for that type.
 
 See [modules](https://www.typescriptlang.org/docs/handbook/2/modules.html) and [declaration merging](https://www.typescriptlang.org/docs/handbook/declaration-merging.html).
+
+## Scope kinds and name lookup
+
+The binder creates global/script, module, function, block, class, namespace, catch, and generic-parameter environments as applicable. Name resolution searches by both spelling and requested declaration meaning. A value binding can shadow a value without erasing an unrelated type-space declaration, while a same-space declaration can make an outer entity unavailable.
+
+```ts
+interface Entry {
+  id: string;
+}
+function use() {
+  const Entry = 1;
+  const value: Entry = { id: 'a' };
+  return value;
+}
+```
+
+Type parameters, infer parameters, and mapped parameters have their own type scopes. An infer name in a conditional pattern is available in its true branch, not as an independently declared global type.
+
+## Hoisting and early uses
+
+Declaration visibility is not runtime initialization. Function declarations and `var` have inherited hoisting behavior; lexical variables and classes have temporal-dead-zone semantics. The checker diagnoses some prohibited early uses and unassigned uses, but it does not statically prove that every indirect runtime access avoids a temporal dead zone.
+
+```ts
+function call() {
+  return later();
+}
+function later() {
+  return 1;
+}
+const result = call();
+```
+
+A forward reference in an erased type position can be valid even when the corresponding runtime expression use would be invalid. Imports have module binding semantics and can participate in runtime cycles; a type-only reference adds no runtime evaluation to break or create a cycle.
+
+## Scripts and external modules
+
+A script contributes declarations to the shared global environment. An external module has a file-local top-level scope and exposes exported names. Module classification depends on syntactic markers, file kind, package/module context, and `moduleDetection`. `export {}` can explicitly make an otherwise script-like file a module.
+
+```ts
+// @filename: first.ts
+const local = 1;
+export {};
+// @filename: second.ts
+const local = 2;
+export {};
+```
+
+The duplicate spelling is permitted because the bindings are in separate modules. The same declarations in global scripts could conflict. The example checker isolates ordinary single-file snippets as modules; explicit multi-file snippets preserve this distinction.
+
+## Namespace visibility and merging
+
+Exported namespace members can be accessed through the namespace. Non-exported members remain subject to declaration-local visibility even when namespace declarations merge. Merging combines compatible entities, not every local lexical environment. A later merged declaration does not gain unrestricted access to a previous declaration's private local names.
+
+## Accessibility and qualification
+
+Class private/protected checks are distinct from lexical name lookup and namespace exports. A qualified type name resolves through permitted namespace/type exports; a property access resolves a runtime value's member type. Identical dotted spelling can therefore have different semantics in type and value positions.
+
+Ambient global augmentation contributes to the global declaration environment from its permitted module context. Module augmentation affects a resolved existing module's declarations rather than creating arbitrary new runtime exports. See [ambient declarations](/typescript/declarations/ambient).
+
+Sources: [binder](https://github.com/microsoft/TypeScript/blob/c63de15a992d37f0d6cec03ac7631872838602cb/src/compiler/binder.ts), [name resolution](https://github.com/microsoft/TypeScript/blob/c63de15a992d37f0d6cec03ac7631872838602cb/src/compiler/checker.ts), and [module detection](https://www.typescriptlang.org/tsconfig/moduleDetection.html).

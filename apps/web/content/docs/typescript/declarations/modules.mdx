@@ -49,3 +49,52 @@ Top-level imports and exports commonly establish module status. `moduleDetection
 An import path is resolved according to project options; resolution finds types for checking and does not necessarily rewrite the path in JavaScript.
 
 See [modules](https://www.typescriptlang.org/docs/handbook/2/modules.html), [module theory](https://www.typescriptlang.org/docs/handbook/modules/theory.html), and [module resolution](/typescript/projects/module-resolution).
+
+## Source module classification
+
+A file is classified using imports/exports, file kind, module/package context, and `moduleDetection`. Explicit `export {}` forces a module context. Module top-level declarations remain local unless exported; scripts contribute to a shared global environment. `.mts` and `.cts` carry explicit module-format information.
+
+The static module symbol describes exports; the runtime module loader evaluates the emitted representation. Type resolution does not guarantee that a runtime module has matching values or that cyclic evaluation initializes every imported value before use.
+
+## Import and export meanings
+
+Ordinary imports create aliases whose type/value meanings follow their exports. Type-only imports restrict value use and are erased. Per-specifier `type` can mix erased type bindings with runtime bindings. Type-only imports do not execute side effects; a separate side-effect import preserves evaluation.
+
+```ts
+// @filename: model.ts
+export interface Model {
+  id: string;
+}
+export const version = 1;
+// @filename: consumer.ts
+import { type Model, version } from './model';
+const model: Model = { id: String(version) };
+// @ts-expect-error: a type-only interface import is not a value
+const runtime = Model;
+```
+
+Named re-exports, star exports, namespace exports, and type-only re-exports follow export resolution rules. Ambiguous star-export collisions require disambiguation where relevant; a default export is not automatically included by ordinary `export *`.
+
+## CommonJS-related declarations
+
+`import name = require('module')` and `export = value` provide TypeScript's CommonJS-related forms. Internal import-equals can alias a qualified namespace entity. `export =` is not an arbitrary synonym for an ES default export and has restrictions on mixing other exported declarations.
+
+Interop options can change permitted default-import checking and helper output. `allowSyntheticDefaultImports` affects checking without itself generating every runtime helper; `esModuleInterop` affects helper-based interoperability and related defaults. Runtime format and loader behavior remain material.
+
+## Verbatim module syntax
+
+With `verbatimModuleSyntax`, ordinary ES import/export syntax is preserved and marked type-only forms are removed. The compiler diagnoses incompatible uses rather than silently converting every ES-looking declaration to CommonJS. A `.ts` file's package format can therefore make an otherwise ordinary import declaration invalid in that context.
+
+This option replaces older import-preservation advice. It makes the value/type distinction explicit but does not change module resolution or perform runtime schema validation.
+
+## Import attributes and deferred imports
+
+Import attributes provide host data and have checking rules for literal keys and values. Type-only resolution attributes can select import/require resolution conditions. TypeScript 5.9 adds supported `import defer * as name from 'module'` syntax with lazy module evaluation semantics when the runtime supports it; it is not a type-only import and is not freely downleveled for every module mode.
+
+See [import attributes and deferred imports](/typescript/declarations/import-attributes) for the syntax and edition boundaries.
+
+## Augmentation
+
+A module augmentation resolves an existing module and adds compatible declarations. It does not synthesize implementations, add arbitrary new top-level exports, or augment a default export using an unavailable declaration name. Global augmentation contributes to the global environment from a permitted module context. See [ambient declarations](/typescript/declarations/ambient).
+
+Source: [module and alias checking](https://github.com/microsoft/TypeScript/blob/c63de15a992d37f0d6cec03ac7631872838602cb/src/compiler/checker.ts), and [module reference](https://www.typescriptlang.org/docs/handbook/modules/reference.html).

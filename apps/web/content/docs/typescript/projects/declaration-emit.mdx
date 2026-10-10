@@ -39,3 +39,44 @@ A package's `types` and `exports` must make declarations reachable under support
 Declaration maps are useful only when the referenced source can be found. Do not publish unintended private files or broken source paths as part of the package contract.
 
 See [declaration files](https://www.typescriptlang.org/docs/handbook/declaration-files/introduction.html), [isolated declarations](https://www.typescriptlang.org/docs/handbook/release-notes/typescript-5-5.html#isolated-declarations), and [module resolution](/typescript/projects/module-resolution).
+
+## Declaration surface construction
+
+Declaration generation retains the externally relevant type surface of a module or global script. It removes implementations, resolves or names inferred public types, and emits dependencies needed to describe exported entities. It does not necessarily copy the source declaration text verbatim.
+
+An exported function exposes overload declarations rather than an extra implementation signature. Classes retain public/protected and relevant private information according to declaration rules, including origin markers needed for compatibility. A type referenced by an export may need to be preserved even when not itself explicitly exported.
+
+## Naming accessibility
+
+An inferred exported type must be expressible in output through available names or supported structural serialization. A private/unnameable dependency can cause an output diagnostic even when checking the implementation succeeds. Very large inference can also make a public surface unexpectedly complex or unstable.
+
+```ts
+export type Result = { ok: true; value: string } | { ok: false; error: string };
+export function read(value: string): Result {
+  return { ok: true, value };
+}
+```
+
+The explicit result defines a stable exported contract rather than exposing every detail of the current returned literal. Declaration consumers check against that contract without running the body.
+
+## Isolated declaration requirements
+
+`isolatedDeclarations` imposes the annotations and supported local inference restrictions needed for independent declaration generation. Exported functions, variables, accessors, class members, and computed names have kind-specific rules. Some simple literal inference remains allowed; the option is not a requirement that every local variable have an annotation.
+
+The option differs from `isolatedModules`. One addresses declaration generation; the other addresses JavaScript transforms. Neither disables the full checker's access to imported type information.
+
+## Output modes and paths
+
+`declaration` enables output, `emitDeclarationOnly` omits JavaScript, and `declarationDir` selects a separate declaration location. `declarationMap` provides mappings to source. `noEmit` suppresses these artifacts as well. `.mts` and `.cts` produce format-specific declaration extensions so consumers resolve the intended ESM/CommonJS type surface.
+
+`stripInternal` can omit declarations marked internal but does not prove that no public type refers to a removed entity. Package declarations should be checked as consumer inputs rather than assuming every omission leaves a self-contained surface.
+
+## Package entry points
+
+`types`, export conditions, and module-format-specific files must make declarations reachable in supported consumer modes. Bundler and Node consumers can resolve different entry points. A declaration reference to a runtime export that does not exist can remain a package defect despite successful local generation.
+
+## JavaScript and incremental boundaries
+
+JavaScript input can generate declarations using its inferred and JSDoc types under the required options. Composite references expose declaration boundaries to downstream projects. An editor can redirect to source for navigation, but the build contract still depends on up-to-date artifacts and project configuration.
+
+Sources: [declaration transform](https://github.com/microsoft/TypeScript/blob/c63de15a992d37f0d6cec03ac7631872838602cb/src/compiler/transformers/declarations.ts), [isolated declarations](https://www.typescriptlang.org/docs/handbook/release-notes/typescript-5-5.html#isolated-declarations), and [package declarations](https://www.typescriptlang.org/docs/handbook/declaration-files/publishing.html).

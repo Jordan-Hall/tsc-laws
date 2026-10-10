@@ -41,3 +41,43 @@ Build behavior after errors is version-sensitive. Modern upstream TypeScript can
 `--clean` removes known build outputs; it is not a general directory-cleaning command. Inspect emitted file lists when changing output layouts.
 
 See [project references](https://www.typescriptlang.org/docs/handbook/project-references.html), [TypeScript 5.6 build changes](https://www.typescriptlang.org/docs/handbook/release-notes/typescript-5-6.html#allow---build-with-intermediate-errors), and [compatibility](/compiler/compatibility).
+
+## Project graph
+
+References identify separately configured dependency projects. A valid build graph requires the applicable composite settings and must not contain prohibited cycles. Root solution configurations can reference projects without themselves compiling duplicate application roots.
+
+`composite` establishes file-coverage and declaration-output requirements and changes the applicable root-directory default. A project's implementation files must be covered by its declared file selection. A reference is not an unrestricted import of every implementation file from another project.
+
+## BuildGraph
+
+1. Load project configurations and construct their dependency graph.
+2. Determine each project's up-to-date state from inputs, outputs, options, and build information.
+3. Build dependencies before dependents when work is required.
+4. Record diagnostics and output state according to this edition's error-continuation behavior.
+5. Persist incremental state and propagate changes affecting dependent work.
+
+An ordinary `--project` invocation does not recursively orchestrate all referenced builds. Build mode is a distinct command-line operation. Watch mode repeats the graph work in response to host changes.
+
+## Incremental information
+
+`.tsbuildinfo` contains compiler-specific state and can be relocated with `tsBuildInfoFile`. It is not a runtime artifact, a public serialization API, or a promise of compatibility across arbitrary compiler versions. Correct reuse must account for sources, options, dependency declarations, output state, and compiler edition.
+
+Modern build mode records build information under its rules even when not every project explicitly sets incremental. Deleting only one output while retaining stale state can require a rebuild decision different from changing a source file.
+
+## Errors and continuation
+
+Since TypeScript 5.6, build mode can continue through intermediate project errors instead of universally stopping at the first failed dependency. `stopBuildOnErrors` controls stopping in this edition. This is separate from a single project's `noEmitOnError` setting and from whether downstream diagnostics occur against incomplete outputs.
+
+`--force` rebuilds despite ordinary up-to-date decisions. `--dry` reports intended work without performing the build. `--verbose` explains orchestration. `--clean` removes recognized build outputs rather than every file in output directories.
+
+## Source redirects and editor behavior
+
+Editors can redirect project references to source or load related projects for navigation. `disableSourceOfProjectReferenceRedirect`, `disableSolutionSearching`, and `disableReferencedProjectLoad` control supported behaviors. These editor settings do not make a stale emitted package correct at runtime.
+
+## Watch invalidation
+
+File, directory, package metadata, and option changes can invalidate graph state. `assumeChangesOnlyAffectDirectDependencies` trades completeness of some invalidation work for reduced rebuild work. Watch exclusions reduce observed events, not the set of all files that can affect semantics.
+
+The host controls watching and scheduling, so event timing is an implementation/environment observation. Compare a clean build when diagnosing a cache or watch discrepancy rather than assuming incremental state is an independent language truth.
+
+Sources: [solution builder](https://github.com/microsoft/TypeScript/blob/c63de15a992d37f0d6cec03ac7631872838602cb/src/compiler/tsbuild.ts), [builder](https://github.com/microsoft/TypeScript/blob/c63de15a992d37f0d6cec03ac7631872838602cb/src/compiler/builder.ts), and [build changes](https://www.typescriptlang.org/docs/handbook/release-notes/typescript-5-6.html#allow---build-with-intermediate-errors).
