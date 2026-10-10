@@ -27,6 +27,7 @@ import type { Program } from './program.js';
 import type { SourceFile } from './ast.js';
 import { lastSymbolIdValue } from './symbol.js';
 import { readFileSync } from 'node:fs';
+import { availableParallelism, totalmem } from 'node:os';
 
 /** With TSC_TS_CHECKERS_TRACE: the process's resident and peak resident set in MB (Linux), else 0. */
 export function residentMB(): number[] {
@@ -93,14 +94,69 @@ function checkersReportDeclarations(checked: CheckedProgram): boolean {
 }
 
 /**
- * The number of checker threads for `checkers` (`--checkers`), or 1 to check on this thread. Without
- * the option, native builds use tsgo's four checkers; under Node.js, where every thread builds its own
- * copy of the program, tsc-ts checks on one thread.
+ * How the number of checkers is chosen without `--checkers`: `fixed` uses tsgo's four; `auto`
+ * (TSC_TS_CHECKERS=auto) uses every CPU this process may run on (`os.availableParallelism()`, at
+ * most `maxAutoCheckers`), fewer when the estimated peak memory would not fit (`memoryCheckers`).
  */
-export function checkerThreads(checkers: number | undefined, singleThreaded: boolean | undefined): number {
+export const checkerPolicy: 'fixed' | 'auto' = process.env.TSC_TS_CHECKERS === 'auto' ? 'auto' : 'fixed';
+
+/** The most checkers `auto` starts (measured up to 8 CPUs; see parmem notes). */
+const maxAutoCheckers = 16;
+
+/**
+ * The number of checker threads for `checkers` (`--checkers`), or 1 to check on this thread. Without
+ * the option, native builds follow `checkerPolicy` (with `program`, the memory estimate of `auto`
+ * applies); under Node.js, where every thread builds its own copy of the program, tsc-ts checks on
+ * one thread.
+ */
+export function checkerThreads(
+  checkers: number | undefined,
+  singleThreaded: boolean | undefined,
+  program?: Program,
+): number {
   if (parallelCheck.spawn === undefined || singleThreaded === true) return 1;
-  const count = checkers ?? (sharesPublishedGraphs ? 4 : 1);
+  const count = checkers ?? defaultCheckers(program);
   return count > 1 ? Math.min(Math.floor(count), 256) : 1;
+}
+
+function defaultCheckers(program: Program | undefined): number {
+  if (!sharesPublishedGraphs) return 1;
+  if (checkerPolicy === 'fixed') return 4;
+  const cpus = Math.min(availableParallelism(), maxAutoCheckers);
+  return program === undefined ? cpus : Math.min(cpus, memoryCheckers(program));
+}
+
+/**
+ * The number of threads that parse ahead of a program checked by `checkers` checkers: every CPU this
+ * process may run on, as tsgo parses on every core whatever its checker count (parse threads hand
+ * their files to the shared program; what else they allocate is reused by the checker threads).
+ */
+export function parseThreads(checkers: number): number {
+  return Math.max(checkers, Math.min(availableParallelism(), maxAutoCheckers));
+}
+
+/**
+ * Measured on the benchmark apps: the bound program takes 28-38 bytes per character of source text
+ * (estimated with `programBytesPerChar`); peak memory is about 2.0-2.6 programs plus 0.03-0.15
+ * programs per further checker (most for Sentry, least for VS Code).
+ */
+const programBytesPerChar = 40;
+const peakPrograms = 2.5;
+const programsPerChecker = 0.15;
+
+/** The most checkers whose estimated peak memory fits 80% of the memory limit; at least 1. */
+export function memoryCheckers(program: Program): number {
+  let chars = 0;
+  for (const file of program.getSourceFiles()) chars += file.text.length;
+  const programBytes = chars * programBytesPerChar;
+  const constrained = process.constrainedMemory();
+  const limit = 0.8 * (constrained > 0 ? Math.min(constrained, totalmem()) : totalmem());
+  const fit = 1 + Math.floor((limit - peakPrograms * programBytes) / (programsPerChecker * programBytes));
+  if (process.env.TSC_TS_CHECKERS_TRACE !== undefined)
+    process.stderr.write(
+      `checkers: ${chars} source chars, estimated program ${Math.round(programBytes / 1048576)}MB, limit ${Math.round(limit / 1048576)}MB, memory fits ${fit} checkers\n`,
+    );
+  return Math.max(1, fit);
 }
 
 /**

@@ -30,7 +30,7 @@ import { Colors, defaultIsPretty, header, printBuildHelp, printHelp, printVersio
 import { generateTSConfig } from './init.js';
 import { isIncremental, type CompilerOptions } from './options.js';
 import { combinePaths, getDirectoryPath, normalizePath } from './path.js';
-import { checkerThreads } from './parallel-check.js';
+import { checkerThreads, parseThreads } from './parallel-check.js';
 import { parallelParse, reportPreparedFiles, startParallelParse } from './parallel-parse.js';
 import { showConfig, type ShowConfigInput } from './show-config.js';
 import { assignSymbolIdsAtCreation } from './symbol.js';
@@ -361,8 +361,13 @@ function executeCompile(sys: System, commandLine: ParsedCommandLine): CommandLin
     return {
       kind: 'deferred',
       run: (done: (result: CommandLineResult) => void) =>
-        startParallelParse(threads, config.fileNames, config.options, sys.currentDirectory, configFileName, () =>
-          done(createProgram()),
+        startParallelParse(
+          parseThreads(threads),
+          config.fileNames,
+          config.options,
+          sys.currentDirectory,
+          configFileName,
+          () => done(createProgram()),
         ),
     };
   }

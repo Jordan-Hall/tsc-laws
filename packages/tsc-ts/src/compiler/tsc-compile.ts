@@ -93,7 +93,7 @@ export function compile(sys: System, work: CompileWork): ExitStatus {
 export function compileThreads(work: CompileWork): number {
   if (work.incremental) return 1;
   const options = work.program.options;
-  return checkerThreads(options.checkers, options.singleThreaded);
+  return checkerThreads(options.checkers, options.singleThreaded, work.program);
 }
 
 /**
