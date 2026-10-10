@@ -1148,10 +1148,9 @@ export class NodeLinks {
   enumValueKind: number;
   hasReportedStatementInAmbientContext: boolean;
   declarationRequiresScopeChange: number;
-  /** For source files. */
+  /** For source files: whether the file has been checked, and its nodes waiting for a deferred check. */
   typeChecked: boolean;
   deferredNodes: Node[] | undefined;
-  deferredNodeSet: Set<Node> | undefined;
 
   /** Case clause types of a switch statement. */
   switchTypes: Type[] | undefined;
@@ -1188,6 +1187,5 @@ export class NodeLinks {
     this.switchWitnessesValid = false;
     this.exhaustiveState = 0;
     this.decoratorSignature = undefined;
-    this.deferredNodeSet = undefined;
   }
 }
