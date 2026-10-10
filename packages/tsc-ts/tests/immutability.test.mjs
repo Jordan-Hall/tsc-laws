@@ -132,9 +132,14 @@ class RecordingWriter extends OutputWriter {
 }
 
 function format(diagnostics) {
-  return diagnostics.map(
-    (d) => `${d.file?.fileName ?? ''}(${d.pos},${d.end}) TS${d.code}: ${d.localize(defaultLocale)}`,
-  );
+  return diagnostics.map((d) => {
+    // Line and column, as reporters print them, from the file's line starts.
+    const starts = d.file?.getLineStarts() ?? [0];
+    let line = 0;
+    while (line + 1 < starts.length && starts[line + 1] <= d.pos) line++;
+    const at = `${line + 1}:${d.pos - starts[line] + 1}`;
+    return `${d.file?.fileName ?? ''}(${d.pos},${d.end}) ${at} TS${d.code}: ${d.localize(defaultLocale)}`;
+  });
 }
 
 /** Diagnostics and emitted files of the project of `args`, optionally frozen after binding. */
@@ -178,8 +183,9 @@ test('checking and emitting tsc-ts never writes to its bound, prepared program',
 });
 
 // Declaration emit writes module specifiers for inferred types, which probes files and `package.json`
-// scopes that loading the program never looked at; JSON modules are source files too.
-test('declaration emit, JSON modules and line counts never write to a bound, prepared program', () => {
+// scopes that loading the program never looked at; JSON modules and the config file are source files
+// too, whose line starts reporters and line counts read.
+test('declaration emit, JSON files and their line starts never write to a bound, prepared program', () => {
   const dir = tempDir('tsc-ts-immutability-specifiers-');
   const files = {
     'tsconfig.json': JSON.stringify({
@@ -190,6 +196,8 @@ test('declaration emit, JSON modules and line counts never write to a bound, pre
         module: 'nodenext',
         moduleResolution: 'nodenext',
         types: [],
+        // A config diagnostic.
+        notAnOption: true,
       },
       include: ['src'],
     }),
@@ -197,8 +205,13 @@ test('declaration emit, JSON modules and line counts never write to a bound, pre
     'src/box.ts':
       'export interface Box {\n  value: number;\n}\nexport function box(value: number): Box {\n  return { value };\n}\n',
     'src/nested/deep.ts': 'import { box } from "../box";\nexport const boxed = () => box(1);\n',
+    // `Widget` is named `./widgets` (index stripped), unless a file like `src/widgets.js` exists.
+    'src/widgets/index.ts': 'export interface Widget {\n  id: number;\n}\n',
+    'src/widgets/make.ts': 'import type { Widget } from "./index";\nexport const make = (): Widget => ({ id: 1 });\n',
     'src/main.ts': [
       'import { boxed } from "./nested/deep";',
+      'import { make } from "./widgets/make";',
+      'export const widget = make();',
       'import { thing } from "dep";',
       'import * as data from "./data.json";',
       'export const made = boxed();',
