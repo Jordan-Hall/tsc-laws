@@ -8,6 +8,8 @@ import { CheckFlags, InternalSymbolName, type Symbol, SymbolFlags, type SymbolTa
 import { SyntaxKind } from './syntax-kind.js';
 import type { Checker } from './checker.js';
 import {
+  CachedTypeKind,
+  cachedTypeKey,
   CompositeSignature,
   ElementFlags,
   IndexInfo,
@@ -1318,11 +1320,11 @@ function getApparentTypeOfIntersectionType(c: Checker, t: IntersectionType, this
       t.resolvedApparentType = getTypeWithThisArgument(c, t, thisArgument, true);
     return t.resolvedApparentType;
   }
-  const key = 'apparent' + thisArgument.id;
-  let result = c.cachedTypes.get(key);
+  const key = cachedTypeKey(CachedTypeKind.Apparent, thisArgument.id);
+  let result = c.cachedTypesById.get(key);
   if (result === undefined) {
     result = getTypeWithThisArgument(c, t, thisArgument, true);
-    c.cachedTypes.set(key, result);
+    c.cachedTypesById.set(key, result);
   }
   return result;
 }
