@@ -359,6 +359,56 @@ class PlanLayout {
 }
 
 /**
+ * The costs of a schedule, copied out of the shared buffer once per checker: they do not change, and
+ * in scriptc builds every access to a shared buffer takes a process-wide lock, which the checkers
+ * waiting for the schedule's own lock also take.
+ */
+export class SchedulePlan {
+  readonly layout: PlanLayout;
+  /** The schedule from its first length up to the sets of resolved libraries. */
+  private readonly data: Int32Array;
+
+  constructor(schedule: Int32Array) {
+    this.layout = new PlanLayout(schedule);
+    this.data = schedule.slice(this.layout.lengths, this.layout.resolved);
+  }
+
+  length(position: number): number {
+    return this.data[position]!;
+  }
+
+  /** The start of the libraries of `position` in the references (`referenceStart(position + 1)` is its end). */
+  referenceStart(position: number): number {
+    return this.data[this.layout.starts - this.layout.lengths + position]!;
+  }
+
+  reference(k: number): number {
+    return this.data[this.layout.references - this.layout.lengths + k]!;
+  }
+
+  cost(library: number): number {
+    return this.data[this.layout.costs - this.layout.lengths + library]!;
+  }
+
+  /** A copy of the set of libraries `checker` has resolved. */
+  resolvedBy(schedule: Int32Array, checker: number): number[] {
+    const words: number[] = [];
+    const at = this.layout.resolved + checker * this.layout.words;
+    for (let w = 0; w < this.layout.words; w++) words.push(Atomics.load(schedule, at + w));
+    return words;
+  }
+}
+
+/** The costs of `schedule`, or `undefined` if it has none. */
+export function schedulePlan(schedule: Int32Array): SchedulePlan | undefined {
+  return Atomics.load(schedule, 4) > 0 ? new SchedulePlan(schedule) : undefined;
+}
+
+function isResolved(words: readonly number[], library: number): boolean {
+  return (words[library >> 5]! & (1 << (library & 31))) !== 0;
+}
+
+/**
  * Fills the costs of a schedule from `newSchedule(count, lengths.length, libraryCosts.length, R)`:
  * the text length of the file at each position, the libraries (0 to `libraryCosts.length - 1`) it
  * imports, R in total, and what resolving each library costs.
@@ -381,19 +431,26 @@ export function fillScheduleCosts(
 }
 
 /** Records that `checker` resolves the libraries of the file at `position`. */
-function markResolved(schedule: Int32Array, checker: number, position: number): void {
-  if (Atomics.load(schedule, 4) === 0) return;
-  const layout = new PlanLayout(schedule);
-  const set = layout.resolved + checker * layout.words;
-  const end = schedule[layout.starts + position + 1]!;
-  for (let r = schedule[layout.starts + position]!; r < end; r++) {
-    const library = schedule[layout.references + r]!;
+function markResolved(schedule: Int32Array, plan: SchedulePlan | undefined, checker: number, position: number): void {
+  if (plan === undefined) return;
+  const set = plan.layout.resolved + checker * plan.layout.words;
+  const end = plan.referenceStart(position + 1);
+  for (let r = plan.referenceStart(position); r < end; r++) {
+    const library = plan.reference(r);
     Atomics.or(schedule, set + (library >> 5), 1 << (library & 31));
   }
 }
 
-/** The next position of the order for checker `index`, or -1 when every file is taken. */
-export function takePosition(schedule: Int32Array, length: number, index: number): number {
+/**
+ * The next position of the order for checker `index`, or -1 when every file is taken. `plan` is
+ * `schedulePlan(schedule)`, which a checker reads once.
+ */
+export function takePosition(
+  schedule: Int32Array,
+  length: number,
+  index: number,
+  plan: SchedulePlan | undefined = schedulePlan(schedule),
+): number {
   const heavy = Atomics.load(schedule, 2);
   if (heavy < 0) {
     const k = Atomics.add(schedule, 0, 1);
@@ -402,7 +459,7 @@ export function takePosition(schedule: Int32Array, length: number, index: number
   if (Atomics.load(schedule, 0) < heavy) {
     const k = Atomics.add(schedule, 0, 1);
     if (k < heavy) {
-      markResolved(schedule, index, k);
+      markResolved(schedule, plan, index, k);
       return k;
     }
   }
@@ -413,7 +470,7 @@ export function takePosition(schedule: Int32Array, length: number, index: number
   let lo = Atomics.load(schedule, own);
   let hi = Atomics.load(schedule, own + 1);
   if (lo >= hi) {
-    const taken = Atomics.load(schedule, 4) > 0 ? takeCheapestEnd(schedule, index) : takeBackHalf(schedule);
+    const taken = plan !== undefined ? takeCheapestEnd(schedule, plan, index) : takeBackHalf(schedule);
     if (taken === undefined) {
       Atomics.store(schedule, 1, 0);
       return -1;
@@ -423,7 +480,7 @@ export function takePosition(schedule: Int32Array, length: number, index: number
   }
   Atomics.store(schedule, own, lo + 1);
   Atomics.store(schedule, own + 1, hi);
-  markResolved(schedule, index, lo);
+  markResolved(schedule, plan, index, lo);
   Atomics.store(schedule, 1, 0);
   return lo;
 }
@@ -459,11 +516,9 @@ function takeBackHalf(schedule: Int32Array): number[] | undefined {
 /** With TSC_TS_CHECKERS_TRACE=3: what each idle checker takes. */
 const traceSteals = process.env.TSC_TS_CHECKERS_TRACE === '3';
 
-function takeCheapestEnd(schedule: Int32Array, thief: number): number[] | undefined {
+function takeCheapestEnd(schedule: Int32Array, plan: SchedulePlan, thief: number): number[] | undefined {
   const count = Atomics.load(schedule, 3);
-  const layout = new PlanLayout(schedule);
-  const resolved = (checker: number, library: number): boolean =>
-    (Atomics.load(schedule, layout.resolved + checker * layout.words + (library >> 5)) & (1 << (library & 31))) !== 0;
+  const thiefResolved = plan.resolvedBy(schedule, thief);
   let bestVictim = -1;
   let bestStart = 0;
   // Even taking what changes nothing helps when the owner is busy with a long file, or never starts.
@@ -476,16 +531,17 @@ function takeCheapestEnd(schedule: Int32Array, thief: number): number[] | undefi
     const lo = Atomics.load(schedule, at);
     const hi = Atomics.load(schedule, at + 1);
     if (lo >= hi) continue;
+    const ownerResolved = plan.resolvedBy(schedule, v);
     let remaining = 0;
     const counted = new Set<number>();
     for (let p = lo; p < hi; p++) {
-      remaining += schedule[layout.lengths + p]!;
-      const end = schedule[layout.starts + p + 1]!;
-      for (let r = schedule[layout.starts + p]!; r < end; r++) {
-        const library = schedule[layout.references + r]!;
-        if (!counted.has(library) && !resolved(v, library)) {
+      remaining += plan.length(p);
+      const end = plan.referenceStart(p + 1);
+      for (let r = plan.referenceStart(p); r < end; r++) {
+        const library = plan.reference(r);
+        if (!counted.has(library) && !isResolved(ownerResolved, library)) {
           counted.add(library);
-          remaining += schedule[layout.costs + library]!;
+          remaining += plan.cost(library);
         }
       }
     }
@@ -494,15 +550,15 @@ function takeCheapestEnd(schedule: Int32Array, thief: number): number[] | undefi
     let thiefCost = 0;
     const lacking = new Set<number>();
     for (let start = hi - 1; start >= lo; start--) {
-      const length = schedule[layout.lengths + start]!;
+      const length = plan.length(start);
       taken += length;
       thiefCost += length;
-      const end = schedule[layout.starts + start + 1]!;
-      for (let r = schedule[layout.starts + start]!; r < end; r++) {
-        const library = schedule[layout.references + r]!;
-        if (!lacking.has(library) && !resolved(thief, library)) {
+      const end = plan.referenceStart(start + 1);
+      for (let r = plan.referenceStart(start); r < end; r++) {
+        const library = plan.reference(r);
+        if (!lacking.has(library) && !isResolved(thiefResolved, library)) {
           lacking.add(library);
-          thiefCost += schedule[layout.costs + library]!;
+          thiefCost += plan.cost(library);
         }
       }
       const gain = remaining - Math.max(remaining - taken, thiefCost);
@@ -654,8 +710,9 @@ export function checkFromQueue(
   const declarations: Diagnostic[][] = [];
   // Declaration emit of a file right after checking it, with this checker.
   const emitter = checkersReportDeclarations(checked) ? new ProgramEmitter(checked) : undefined;
+  const plan = schedulePlan(counter);
   for (;;) {
-    const k = takePosition(counter, order.length, index);
+    const k = takePosition(counter, order.length, index, plan);
     if (k < 0) break;
     const i = order[k]!;
     done.push(i);
