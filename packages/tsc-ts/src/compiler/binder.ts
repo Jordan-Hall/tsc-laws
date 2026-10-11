@@ -154,6 +154,7 @@ import {
   Symbol,
   SymbolFlags,
   type SymbolTable,
+  addDeclaration,
   getExports,
   getMembers,
   getSymbolId,
@@ -737,8 +738,7 @@ class Binder extends NodeVisitor {
   addDeclarationToSymbol(symbol: Symbol, node: Node, symbolFlags: SymbolFlags): void {
     symbol.flags |= symbolFlags;
     setSymbol(node, symbol);
-    const declarations = symbol.declarations;
-    if (declarations.indexOf(node) < 0) declarations.push(node);
+    if (symbol.declarations.indexOf(node) < 0) addDeclaration(symbol, node);
     // A const-enum-only namespace merged with a class, function or regular enum isn't one anymore.
     if (
       (symbol.flags & SymbolFlags.ConstEnumOnlyModule) !== 0 &&
@@ -1145,7 +1145,7 @@ class Binder extends NodeVisitor {
     const locals = this.localsOf(this.file);
     if (locals.has(name)) return;
     const symbol = this.newSymbol(SymbolFlags.FunctionScopedVariable | SymbolFlags.ModuleExports, name);
-    symbol.declarations.push(this.file);
+    addDeclaration(symbol, this.file);
     symbol.valueDeclaration = this.file;
     if (name === 'module') {
       const exportsProperty = this.newSymbol(SymbolFlags.ModuleExports | SymbolFlags.Property, 'exports');
@@ -2257,7 +2257,7 @@ class Binder extends NodeVisitor {
       assignmentSymbol = this.newSymbol(SymbolFlags.None, InternalSymbolName.AssignmentDeclaration);
       exports.set(InternalSymbolName.AssignmentDeclaration, assignmentSymbol);
     }
-    assignmentSymbol.declarations.push(node);
+    addDeclaration(assignmentSymbol, node);
   }
 
   /**

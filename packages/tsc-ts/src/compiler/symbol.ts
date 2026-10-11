@@ -161,7 +161,7 @@ export class Symbol {
     this.flags = flags;
     this.checkFlags = CheckFlags.None;
     this.name = name;
-    this.declarations = [];
+    this.declarations = noDeclarations;
     this.valueDeclaration = undefined;
     this.members = undefined;
     this.exports = undefined;
@@ -183,6 +183,19 @@ export class Symbol {
 }
 
 export type SymbolTable = Map<string, Symbol>;
+
+/**
+ * The declarations of a symbol without any: shared, so never modified. Add declarations with
+ * `addDeclaration`, which gives the symbol its own array on the first one.
+ */
+const noDeclarations: Node[] = [];
+
+/** Appends `node` to the declarations of `symbol`. */
+export function addDeclaration(symbol: Symbol, node: Node): void {
+  const declarations = symbol.declarations;
+  if (declarations.length === 0) symbol.declarations = [node];
+  else declarations.push(node);
+}
 
 let nextSymbolId = 0;
 
