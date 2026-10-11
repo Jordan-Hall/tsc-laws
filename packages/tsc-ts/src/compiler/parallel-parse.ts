@@ -39,16 +39,21 @@ export const enum LoadKind {
   AutomaticTypes = 3,
 }
 
-/** Files to load: kind, name and `maxNodeModuleJsDepth` depth of each. */
+/**
+ * Files to load: kind, name and `maxNodeModuleJsDepth` depth of each, and the size in bytes of the
+ * files a parse thread adds (0 where unknown).
+ */
 export class LoadJobs {
   readonly kinds: number[] = [];
   readonly names: string[] = [];
   readonly depths: number[] = [];
+  readonly sizes: number[] = [];
 
-  push(kind: LoadKind, name: string, depth: number): void {
+  push(kind: LoadKind, name: string, depth: number, size = 0): void {
     this.kinds.push(kind);
     this.names.push(name);
     this.depths.push(depth);
+    this.sizes.push(size);
   }
 }
 
@@ -138,24 +143,37 @@ export function takePreparedFile(
 /** Files per chunk at most: small enough that the files a chunk adds are queued again soon. */
 const maxChunk = 16;
 
+/** Files from this size (bytes) on take a parse thread 25 ms or more, and go out ahead of others. */
+const largeFile = 256 * 1024;
+
 /**
  * The files to hand out to parse threads, each queued once. Library files go out first, one per
  * chunk, also those found later through `/// <reference lib>`: a large one (`lib.dom.d.ts`) takes a
  * thread 100–150 ms, and queued behind other files it would be the last file the program waits for.
- * The other files go out in program order, in chunks of up to `maxChunk`.
+ * Then, for the same reason, large files the parse threads found (`csstype`'s 0.9 MB of
+ * declarations, found through React's), one per chunk. The other files go out in program order, in
+ * chunks of up to `maxChunk`.
  */
 export class ParseQueue {
   private readonly libraries = new LoadJobs();
+  private readonly large = new LoadJobs();
   private readonly others = new LoadJobs();
   private libraryHead = 0;
+  private largeHead = 0;
   private head = 0;
   private readonly seen = new Set<string>();
 
-  push(kind: LoadKind, name: string, depth: number): void {
+  push(kind: LoadKind, name: string, depth: number, size = 0): void {
     const key = kind === LoadKind.Library ? 'lib:' + name : kind === LoadKind.AutomaticTypes ? 'types:' : name;
     if (this.seen.has(key)) return;
     this.seen.add(key);
-    (kind === LoadKind.Library ? this.libraries : this.others).push(kind, name, depth);
+    const jobs =
+      kind === LoadKind.Library
+        ? this.libraries
+        : kind === LoadKind.File && size >= largeFile
+          ? this.large
+          : this.others;
+    jobs.push(kind, name, depth, size);
   }
 
   /** Files queued so far. */
@@ -165,7 +183,14 @@ export class ParseQueue {
 
   /** Files not handed out yet. */
   left(): number {
-    return this.libraries.names.length - this.libraryHead + this.others.names.length - this.head;
+    return (
+      this.libraries.names.length -
+      this.libraryHead +
+      this.large.names.length -
+      this.largeHead +
+      this.others.names.length -
+      this.head
+    );
   }
 
   /** The next chunk for one of `threads` parse threads, or `undefined` when nothing is left. */
@@ -178,6 +203,16 @@ export class ParseQueue {
         kinds: [libraries.kinds[k]!],
         names: [libraries.names[k]!],
         depths: [libraries.depths[k]!],
+      };
+    }
+    const large = this.large;
+    if (this.largeHead < large.names.length) {
+      const k = this.largeHead++;
+      return {
+        stop: false,
+        kinds: [large.kinds[k]!],
+        names: [large.names[k]!],
+        depths: [large.depths[k]!],
       };
     }
     const queue = this.others;
@@ -216,7 +251,7 @@ export function startParallelParse(
   useLazyJSDocTable();
 
   const queue = new ParseQueue();
-  const enqueue = (kind: LoadKind, name: string, depth: number): void => queue.push(kind, name, depth);
+  const enqueue = (kind: LoadKind, name: string, depth: number, size = 0): void => queue.push(kind, name, depth, size);
   // The FileLoader's root tasks.
   for (const name of rootNames) enqueue(LoadKind.Root, getNormalizedAbsolutePath(name, currentDirectory), 0);
   if (rootNames.length > 0) {
@@ -281,7 +316,8 @@ export function startParallelParse(
       if (timeline) mark(`chunk from p${i}: ${batch.files.length} files, ${queue.left()} left, ${busy - 1} busy`);
       for (const prepared of batch.files) parallelParse.files.set(prepared.fileName, prepared);
       const added = batch.added;
-      for (let k = 0; k < added.names.length; k++) enqueue(added.kinds[k]!, added.names[k]!, added.depths[k]!);
+      for (let k = 0; k < added.names.length; k++)
+        enqueue(added.kinds[k]!, added.names[k]!, added.depths[k]!, added.sizes[k]!);
       if (verbose)
         process.stderr.write(
           `parsers: thread ${i} loaded ${batch.files.length} files in ${batch.parseMs.toFixed(1)}ms, at ${(performance.now() - start).toFixed(1)}ms\n`,

@@ -3,12 +3,13 @@
  * FileLoader of its own, which parses, binds and resolves them as the program's FileLoader will, and
  * returns their bound source files, published, with the files they add.
  */
+import { statSync } from 'node:fs';
 import { publish } from '@scriptc/threads';
 import { type ExternalModuleIndicatorOptions, ParseOptions, ScriptKind, type SourceFile } from './ast.js';
 import { bindSourceFile } from './binder.js';
 import { CompilerHost, FileLoader } from './file-loader.js';
 import type { FileSystem } from './file-system.js';
-import { LoadJobs, type LoadMessage, PreparedBatch, PreparedFile } from './parallel-parse.js';
+import { LoadJobs, LoadKind, type LoadMessage, PreparedBatch, PreparedFile } from './parallel-parse.js';
 import { parseSourceFile } from './parser.js';
 import { mark, markAt, timeline } from './timeline.js';
 import type { ParsedCommandLine } from './tsconfig.js';
@@ -54,6 +55,15 @@ class PreparingHost extends CompilerHost {
   }
 }
 
+/** The size of the file `fileName` in bytes, or 0. */
+function fileSize(fileName: string): number {
+  try {
+    return statSync(fileName).size;
+  } catch {
+    return 0;
+  }
+}
+
 export class ParseThread {
   private readonly host: PreparingHost;
   private readonly loader: FileLoader;
@@ -76,6 +86,9 @@ export class ParseThread {
         files[before]!.loaded = loaded;
     }
     this.host.prepared = [];
+    // The sizes of the files to load next, so the main thread hands out large ones first.
+    for (let k = 0; k < added.names.length; k++)
+      if (added.kinds[k] === LoadKind.File) added.sizes[k] = fileSize(added.names[k]!);
     const end = performance.now();
     if (timeline) {
       const h = this.host;
