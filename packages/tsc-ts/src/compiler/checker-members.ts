@@ -301,6 +301,8 @@ export class PendingInstantiatedMembers extends PendingMembers {
   resolving: boolean;
   /** Members instantiated by name lookups so far. */
   instantiated: Map<string, Symbol> | undefined;
+  /** Names that aren't own members, looked up after resolution, and what they found. */
+  inheritedLookups: Map<string, Symbol | undefined> | undefined;
   /** Whether the instantiated table has an own member, and one that isn't optional. */
   readonly hasOwnMembers: boolean;
   readonly hasRequiredOwnMembers: boolean;
@@ -329,6 +331,7 @@ export class PendingInstantiatedMembers extends PendingMembers {
     this.hasBases = false;
     this.resolving = false;
     this.instantiated = undefined;
+    this.inheritedLookups = undefined;
   }
 
   state(position: number): MemberState {
@@ -366,8 +369,17 @@ export class PendingInstantiatedMembers extends PendingMembers {
   /** `members.get(name)` of the table tsgo would have built by now. */
   get(name: string): Symbol | undefined {
     let existing = this.ownMember(name);
-    // addInheritedMembers: a base property replaces a missing or non-value member.
+    // Own members have value flags (pendingInstantiatedTable), so no base replaces them.
     const baseTypes = this.baseTypes;
+    if (existing !== undefined || baseTypes.length === 0) return existing;
+    // Once resolution is complete the answer for a name can't change: remember it.
+    const cacheable = !this.resolving;
+    let lookups = this.inheritedLookups;
+    if (cacheable && lookups !== undefined) {
+      const known = lookups.get(name);
+      if (known !== undefined || lookups.has(name)) return known;
+    }
+    // addInheritedMembers: a base property replaces a missing or non-value member.
     for (let i = 0; i < baseTypes.length; i++) {
       if (existing !== undefined && (existing.flags & SymbolFlags.Value) !== 0) break;
       const base = baseTypes[i];
@@ -376,6 +388,10 @@ export class PendingInstantiatedMembers extends PendingMembers {
           ? getInheritedProperty(this.c, base, name)
           : findProperty(this.c, this.baseProperties[i]!, name);
       if (inherited !== undefined && !isStaticPrivateIdentifierProperty(inherited)) existing = inherited;
+    }
+    if (cacheable) {
+      if (lookups === undefined) this.inheritedLookups = lookups = new Map<string, Symbol | undefined>();
+      lookups.set(name, existing);
     }
     return existing;
   }
@@ -412,6 +428,7 @@ export class PendingInstantiatedMembers extends PendingMembers {
     t.pendingMembers = undefined;
     const members = this.ownTable();
     this.instantiated = undefined;
+    this.inheritedLookups = undefined;
     if (!this.hasBases) {
       t.membersValue = members;
       t.propertiesValue = getNamedMembers(c, members, t.symbol);
