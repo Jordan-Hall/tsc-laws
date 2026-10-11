@@ -1,4 +1,5 @@
 // Symbols: what the binder declares for each named entity, and the tables that hold them.
+import type { ProgramLifetime } from '@scriptc/types';
 import type { Node } from './ast.js';
 
 export const enum SymbolFlags {
@@ -149,7 +150,7 @@ export const enum CheckFlags {
  */
 const noDeclarations: Node[] = [];
 
-export class Symbol {
+export class Symbol implements ProgramLifetime {
   flags: SymbolFlags;
   checkFlags: CheckFlags;
   readonly name: string;

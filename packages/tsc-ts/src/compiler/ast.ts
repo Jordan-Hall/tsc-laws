@@ -2,6 +2,7 @@
 //
 // Every node extends `Node`. Child fields are typed by category (`Expression`, `TypeNode`, …),
 // which are aliases of `Node`; narrow with the `is*` guards in ast-utilities.ts or `instanceof`.
+import type { ProgramLifetime } from '@scriptc/types';
 import { SyntaxKind } from './syntax-kind.js';
 import { type CommentDirective, type CommentRange, type LanguageVariant, TokenFlags } from './types.js';
 import { type Diagnostic, DiagnosticFile } from './diagnostics.js';
@@ -167,7 +168,7 @@ export abstract class NodeVisitor {
   }
 }
 
-export abstract class Node {
+export abstract class Node implements ProgramLifetime {
   readonly kind: SyntaxKind;
   flags: NodeFlags;
   /** Start including leading trivia, as a UTF-16 offset. */
@@ -203,7 +204,7 @@ export function getNodeId(node: Node): number {
 }
 
 /** A list of child nodes with its own text range. */
-export class NodeList {
+export class NodeList implements ProgramLifetime {
   pos: number;
   end: number;
   nodes: Node[];

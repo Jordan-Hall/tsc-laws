@@ -1,5 +1,6 @@
 // The checker's type model: types, signatures, index infos, mappers and the links the checker
 // caches per symbol and node. Flag values match tsgo, because union ordering depends on them.
+import type { ProgramLifetime } from '@scriptc/types';
 import type { Node } from './ast.js';
 import type { Symbol, SymbolTable } from './symbol.js';
 
@@ -382,7 +383,7 @@ export class TypeAlias {
  * The base of every type. Narrow by `flags` (and `objectFlags` for object types), then cast to
  * the subclass, as tsgo does with `AsUnionType()` etc.
  */
-export class Type {
+export class Type implements ProgramLifetime {
   flags: TypeFlags;
   objectFlags: ObjectFlags;
   readonly id: number;
@@ -839,7 +840,7 @@ export class CompositeSignature {
   }
 }
 
-export class Signature {
+export class Signature implements ProgramLifetime {
   readonly id: number;
   flags: SignatureFlags;
   minArgumentCount: number;
@@ -899,7 +900,7 @@ export class Signature {
   }
 }
 
-export class IndexInfo {
+export class IndexInfo implements ProgramLifetime {
   readonly keyType: Type;
   readonly valueType: Type;
   readonly isReadonly: boolean;
@@ -1061,7 +1062,7 @@ export function appendTypeMapping(mapper: TypeMapper | undefined, source: Type, 
 // ---- Links
 
 /** What the checker caches per symbol. */
-export class SymbolLinks {
+export class SymbolLinks implements ProgramLifetime {
   // Values
   type: Type | undefined;
   writeType: Type | undefined;
@@ -1165,7 +1166,7 @@ export class SymbolLinks {
 }
 
 /** What the checker caches per node. */
-export class NodeLinks {
+export class NodeLinks implements ProgramLifetime {
   flags: NodeCheckFlags;
   /** Resolved symbol of an identifier, entity name or call. */
   resolvedSymbol: Symbol | undefined;
