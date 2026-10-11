@@ -14,7 +14,9 @@ class Inference {
 }
 
 export class SignatureInference {
-  private readonly inferenceParameters: number[] = [];
+  // Not private: scriptc 0.2.8 aborts with "Cannot access 'dynamicViews' before initialization"
+  // when it analyzes a private array field that is read through `this` (fixed in later scriptc).
+  readonly inferenceParameters: number[] = [];
   private readonly inferences: Inference[] = [];
   private readonly visited = new RelationCache();
   private readonly inferenceTargets = new Map<number, boolean>();

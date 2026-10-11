@@ -7,12 +7,12 @@ function run(): void {
   const args = process.argv.slice(2);
   if (args.length === 0 || args[0] === '--help') {
     console.log(
-      'relater — experimental tsgo assignability port, compiled statically with scriptc v0.2.7\nUsage: relater graph.json [--rounds N] [--cold]\nInput: relater.type-graph.v11 resolved type arena.',
+      'relater — experimental tsgo assignability port, compiled statically with scriptc v0.2.8\nUsage: relater graph.json [--rounds N] [--cold]\nInput: relater.type-graph.v11 resolved type arena.',
     );
     return;
   }
   if (args[0] === '--version') {
-    console.log('relater 0.0.0 (scriptc 0.2.7)');
+    console.log('relater 0.0.0 (scriptc 0.2.8)');
     return;
   }
   const graph = JSON.parse(readFileSync(args[0], 'utf8')) as Graph;
@@ -47,7 +47,7 @@ function run(): void {
       throw new Error('Invalid query type ID');
     sources[i] = query.source;
     targets[i] = query.target;
-    results.push(checker.isTypeAssignableTo(query.source, query.target));
+    results.push(checker.isTypeAssignableTo(Number(query.source), Number(query.target)));
   }
   // Lazy type resolution, graph decoding, construction, and output are outside timing.
   let checksum = 0;
@@ -55,7 +55,7 @@ function run(): void {
   for (let round = 0; round < rounds; round++) {
     if (cold) checker.resetRelations();
     for (let i = 0; i < sources.length; i++) {
-      if (checker.isTypeAssignableTo(sources[i], targets[i])) checksum++;
+      if (checker.isTypeAssignableTo(Number(sources[i]), Number(targets[i]))) checksum++;
     }
   }
   const elapsedMs = performance.now() - started;
