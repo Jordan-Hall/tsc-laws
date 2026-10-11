@@ -43,6 +43,7 @@ import {
 import { InferenceFlags, InferencePriority, createInferenceContext, inferTypes } from './checker-inference.js';
 import {
   IntersectionFlags,
+  unionContainsSortedTypes,
   unionContainsType,
   createArrayTypeEx,
   compareTypes,
@@ -3623,10 +3624,7 @@ export function isTypeSubsetOf(c: Checker, source: Type, target: Type): boolean 
 
 function isTypeSubsetOfUnion(c: Checker, source: Type, target: Type): boolean {
   const union = target as UnionType;
-  if ((source.flags & TypeFlags.Union) !== 0) {
-    for (const t of typesOf(source)) if (!unionContainsType(c, union, t)) return false;
-    return true;
-  }
+  if ((source.flags & TypeFlags.Union) !== 0) return unionContainsSortedTypes(c, union, typesOf(source));
   if ((source.flags & TypeFlags.EnumLike) !== 0 && getBaseTypeOfEnumLikeType(c, source) === target) return true;
   return unionContainsType(c, union, source);
 }

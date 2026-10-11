@@ -625,7 +625,20 @@ export function binarySearchTypes(c: Checker, types: readonly Type[], t: Type): 
   return ~low;
 }
 
+/**
+ * Sorted type lists shorter than this are searched by identity. `compareTypes` is 0 only for
+ * identical types (the last criterion is the unique id), so membership needs no ordering.
+ */
+const linearTypeSearchLimit = 16;
+
+/** The index of `t` in `types` at or after `from`, or -1. */
+function indexOfType(types: readonly Type[], t: Type, from: number): number {
+  for (let i = from; i < types.length; i++) if (types[i]! === t) return i;
+  return -1;
+}
+
 export function containsType(c: Checker, types: readonly Type[], t: Type): boolean {
+  if (types.length < linearTypeSearchLimit) return indexOfType(types, t, 0) >= 0;
   return binarySearchTypes(c, types, t) >= 0;
 }
 
@@ -638,11 +651,32 @@ export function unionContainsType(c: Checker, union: UnionType, t: Type): boolea
   let set = union.constituentSet;
   if (set === undefined) {
     const types = union.types;
-    if (types.length < 16 || union.membershipTests++ === 0) return binarySearchTypes(c, types, t) >= 0;
+    if (types.length < linearTypeSearchLimit) return indexOfType(types, t, 0) >= 0;
+    if (union.membershipTests++ === 0) return binarySearchTypes(c, types, t) >= 0;
     set = new Set(types);
     union.constituentSet = set;
   }
   return set.has(t);
+}
+
+/**
+ * Whether `union` contains every type of the sorted `types` (the constituents of another union).
+ * Both lists follow `compareTypes`, so in a small union each type is found by identity after the
+ * previous one; large unions keep `unionContainsType`.
+ */
+export function unionContainsSortedTypes(c: Checker, union: UnionType, types: readonly Type[]): boolean {
+  const targets = union.types;
+  if (targets.length >= linearTypeSearchLimit) {
+    for (const t of types) if (!unionContainsType(c, union, t)) return false;
+    return true;
+  }
+  let next = 0;
+  for (const t of types) {
+    const index = indexOfType(targets, t, next);
+    if (index < 0) return false;
+    next = index + 1;
+  }
+  return true;
 }
 
 /** Inserts `t` into the sorted `types`; returns false if already present. */
