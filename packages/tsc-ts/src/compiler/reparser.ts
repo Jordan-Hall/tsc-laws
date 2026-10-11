@@ -818,7 +818,7 @@ export class Reparser {
       default:
         return false;
     }
-    let keyword: SyntaxKind;
+    let keyword = SyntaxKind.Unknown;
     switch (tag.kind) {
       case SyntaxKind.JSDocReadonlyTag:
         keyword = SyntaxKind.ReadonlyKeyword;

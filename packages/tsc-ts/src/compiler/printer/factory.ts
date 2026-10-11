@@ -637,7 +637,7 @@ export class NodeFactory extends NodeFactoryBase {
     if ((flags & ModifierFlags.In) !== 0) kinds.push(SyntaxKind.InKeyword);
     if ((flags & ModifierFlags.Out) !== 0) kinds.push(SyntaxKind.OutKeyword);
     const nodes: Node[] = [];
-    for (const kind of kinds) nodes.push(this.createToken(kind));
+    for (const kind of kinds) nodes.push(this.createToken((kind | 0) as SyntaxKind));
     return this.createModifierList(nodes);
   }
 
