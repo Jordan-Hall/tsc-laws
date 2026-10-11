@@ -1,0 +1,42 @@
+---
+title: Conformance and implementation boundaries
+description: Edition-specific observations, environments, checking limits, and evidence for compatibility claims.
+---
+
+This specification does not establish a certification process. Passing its examples does not establish complete TypeScript compatibility. Microsoft does not publish a modern standard equivalent to ECMA-262; the pinned compiler and tests remain the behavioral reference.
+
+## Observable results
+
+| Observation          | Relevant inputs                                                           |
+| -------------------- | ------------------------------------------------------------------------- |
+| Parsing and binding  | Source bytes, file kind, module context, and syntax options.              |
+| Acceptance           | Files, compiler edition, options, libraries, and dependency declarations. |
+| Inference            | The complete expected-type and control-flow context.                      |
+| JavaScript output    | Target, module format, transforms, and helpers.                           |
+| Declaration output   | Exports, naming accessibility, inference, and declaration options.        |
+| Resolution           | Filesystem, packages, conditions, format, and resolution options.         |
+| Incremental behavior | File changes, build information, dependencies, and host events.           |
+
+A match in one observation does not establish a match in another. Identical diagnostics need not imply identical output or resolution.
+
+## Environment
+
+Case sensitivity, package layout, symlinks, libraries, `@types` packages, and custom host behavior are inputs. A DOM example does not require DOM names in every TypeScript program. Material host differences must be recorded when comparing implementations. Resolution and watch behavior can depend on paths and events without changing language syntax.
+
+## Limits
+
+Recursive type computations can exceed instantiation, union, tuple, or structural comparison limits. This text does not prescribe numeric ceilings. An implementation can diagnose excessive instantiation or an unrepresentable result even when a mathematical interpretation is finite. That diagnostic is an implementation boundary, not another runtime meaning for the type.
+
+## Compatibility exceptions
+
+`any`, assertions, method parameter bivariance, mutable array covariance, unchecked indexing, and stale alias facts can permit runtime errors in accepted programs. Their defining clauses describe these behaviors rather than substituting an idealized sound system.
+
+## Verification evidence
+
+Positive snippets must check under their options. `@ts-expect-error` must still encounter a diagnostic. The snippet checker does not assert diagnostic codes, execute output, or enumerate every instantiation. Type-level assertions establish only the tested relationship and can themselves have limits for intersections, overloads, or `any`.
+
+The [coverage index](/typescript/specification/coverage) records where subjects are defined; it is not proof that every boundary case is correct. The [tsc-ts suites](/compiler/compatibility) use the separate TypeScript-Go 7.0.2 target.
+
+When observations disagree, minimize the source and record the exact edition, options, files, and environment. Identify whether the difference concerns parsing, checking, inference, output, resolution, or a limit. Correct the text or add a version qualification; do not silently interpret a rule as covering every edition.
+
+Sources: [conformance cases](https://github.com/microsoft/TypeScript/tree/c63de15a992d37f0d6cec03ac7631872838602cb/tests/cases/conformance), [compiler options](https://www.typescriptlang.org/tsconfig/), and [sources and verification](/typescript/sources).

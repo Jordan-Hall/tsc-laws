@@ -60,6 +60,8 @@ import {
   checkThisInStaticClassFieldInitializerInDecoratedClass,
 } from './checker-super.js';
 import {
+  CachedTypeKind,
+  cachedTypeKey,
   AccessFlags,
   NodeCheckFlags,
   CheckMode,
@@ -1095,12 +1097,12 @@ function checkArrayLiteral(c: Checker, node: ArrayLiteralExpression, checkMode: 
           ? c.undefinedWideningType
           : checkExpressionForMutableLocationEx(c, e, checkMode);
       if (
-        contextualType !== undefined &&
+        inTupleContext &&
         (checkMode & CheckMode.Inferential) !== 0 &&
         (checkMode & CheckMode.SkipContextSensitive) === 0 &&
         isContextSensitive(c, e)
       ) {
-        // Inferences flowing between context-sensitive elements are made before fixing.
+        // Inferences flowing between context-sensitive tuple elements are made before fixing.
         const inferenceContext = getInferenceContext(c, node);
         if (inferenceContext !== undefined) addIntraExpressionInferenceSite(inferenceContext, e, t);
       }
@@ -1176,12 +1178,12 @@ export function isMutableArrayLikeType(c: Checker, t: Type): boolean {
 
 function createArrayLiteralType(c: Checker, t: Type): Type {
   if ((t.objectFlags & ObjectFlags.Reference) === 0) return t;
-  const key = 'arrayLiteral' + t.id;
-  let literal = c.cachedTypes.get(key);
+  const key = cachedTypeKey(CachedTypeKind.ArrayLiteral, t.id);
+  let literal = c.cachedTypesById.get(key);
   if (literal === undefined) {
     literal = cloneTypeReference(c, t as TypeReference);
     literal.objectFlags |= ObjectFlags.ArrayLiteral | ObjectFlags.ContainsObjectOrArrayLiteral;
-    c.cachedTypes.set(key, literal);
+    c.cachedTypesById.set(key, literal);
   }
   return literal;
 }

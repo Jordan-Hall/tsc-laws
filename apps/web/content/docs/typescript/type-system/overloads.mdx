@@ -1,0 +1,104 @@
+---
+title: Overloads
+description: Call signatures, implementation signatures, and argument-dependent returns.
+---
+
+An overloaded function has multiple public call signatures and one implementation. Calls use the overload signatures. The implementation signature is checked against them but is not an extra callable overload.
+
+```ts
+function parse(value: string): number;
+function parse(value: number): string;
+function parse(value: string | number): number | string {
+  return typeof value === 'string' ? Number(value) : String(value);
+}
+const number = parse('42'); // number
+const text = parse(42); // string
+```
+
+## Calls with unions
+
+A union argument must match an applicable overload. Separate overloads do not automatically combine into an overload accepting the union.
+
+```ts
+function length(value: string): number;
+function length(value: unknown[]): number;
+function length(value: string | unknown[]): number {
+  return value.length;
+}
+declare const value: string | unknown[];
+// @ts-expect-error: neither public overload accepts the whole union
+length(value);
+```
+
+Use a union parameter when the cases have the same return contract and a combined call should be accepted.
+
+## Resolution and ordering
+
+Overload resolution considers applicable signatures and their relationships. Place specific signatures before broad fallback signatures. Overload lists and declaration merging have ordering rules; reordering signatures can change which result a call receives.
+
+## Extracting types
+
+Utilities such as `ReturnType` and conditional inference from overloaded functions generally use the last signature. They do not perform overload resolution for a hypothetical argument list.
+
+```ts
+declare function convert(value: string): number;
+declare function convert(value: number): string;
+declare function convert(value: string | number): string | number;
+type Output = ReturnType<typeof convert>; // string | number
+```
+
+The broad last signature in this declaration is public because all three declarations are ambient signatures, with no implementation body.
+
+See [function overloads](https://www.typescriptlang.org/docs/handbook/2/functions.html#function-overloads) and [conditional types](/typescript/type-operators/conditional-types).
+
+## Overload declaration requirements
+
+An overload set presents multiple call signatures for one implementation or ambient entity. Nonambient function overload declarations must have the required adjacent implementation. The implementation signature must be compatible with the overload contracts; it is checked separately and is not an additional public overload for callers.
+
+Declarations must have compatible modifier and optionality status. Method, constructor, and ambient overloads follow their declaration contexts. Merged declarations can influence signature ordering and priority for specialized literal signatures.
+
+```ts
+function convert(value: string): number;
+function convert(value: number): string;
+function convert(value: string | number): string | number {
+  return typeof value === 'string' ? Number(value) : String(value);
+}
+// @ts-expect-error: implementation's union signature is not a callable public overload
+convert(Math.random() ? '1' : 1);
+```
+
+## ResolveOverload
+
+For a call:
+
+1. Build the ordered candidate signatures, accounting for declared and specialized ordering.
+2. Check type-argument applicability and arity.
+3. Infer omitted arguments and contextually check argument expressions for candidates.
+4. Try the applicable subtype/assignability passes used by the edition's resolver.
+5. Select an applicable signature and obtain its instantiated result; otherwise report an overload failure.
+
+This is not runtime dispatch by argument types. Every successful call invokes the same JavaScript function body. More specific overloads should be ordered before broader ones when their declarations depend on that ordering.
+
+## Union arguments and signature design
+
+A union argument must satisfy one usable overload contract; the checker does not generally distribute a call over its argument union and combine different overload results. A union-accepting overload is needed when that union is an intended input.
+
+An intersection of callable types exposes multiple signatures and can provide overload-like behavior. A union of callable types instead requires a call safe for every possible callable and can synthesize intersected parameter requirements.
+
+## Type operations on overloads
+
+`ReturnType`, `Parameters`, and conditional inference typically inspect the last applicable declared signature representation rather than performing call-site overload resolution. They are not a mechanism for asking what an arbitrary argument list would cause every overload resolver to select.
+
+```ts
+declare function parse(value: string): number;
+declare function parse(value: number): string;
+declare function parse(value: string | number): string | number;
+type Result = ReturnType<typeof parse>;
+const result: Result = 'a';
+```
+
+## Diagnostics and inference boundaries
+
+Failed candidates can produce contextual inference and diagnostics different from a single-signature call. Error elaboration is implementation behavior and does not specify a unique secondary diagnostic sequence. An API should not rely on overload ordering alone to express a dependent relationship better represented by a generic parameter or discriminated tuple.
+
+Source: [`resolveCall` and overload checking](https://github.com/microsoft/TypeScript/blob/c63de15a992d37f0d6cec03ac7631872838602cb/src/compiler/checker.ts).

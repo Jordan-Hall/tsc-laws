@@ -333,6 +333,38 @@ export const enum TypeFormatFlags {
   NoTypeReduction = 1 << 29,
 }
 
+/** Kinds of the checker's `cachedTypesById` entries, which are keyed by kind and type id (tsgo's CachedTypeKey). */
+export const enum CachedTypeKind {
+  LiteralUnionBaseType,
+  IndexType,
+  StringIndexType,
+  EquivalentBaseType,
+  Apparent,
+  Awaited,
+  EvolvingArray,
+  ArrayLiteral,
+  PermissiveInstantiation,
+  RestrictiveInstantiation,
+  RestrictiveTypeParameter,
+  IndexedAccessForReading,
+  IndexedAccessForWriting,
+  Widened,
+  RegularObjectLiteral,
+  PromisedTypeOfPromise,
+}
+
+export function cachedTypeKey(kind: CachedTypeKind, id: number): number {
+  return id * 32 + kind;
+}
+
+/** Type ids below this bound pack in pairs into a `cachedTypesByPair` key. */
+const CachedTypePairIdLimit = 1 << 24;
+
+/** The `cachedTypesByPair` key of two type ids and three bits, or -1 when an id is too large to pack. */
+export function cachedTypePairKey(a: number, b: number, bits: number): number {
+  return a < CachedTypePairIdLimit && b < CachedTypePairIdLimit ? (a * CachedTypePairIdLimit + b) * 8 + bits : -1;
+}
+
 // ---- Types
 
 /** An alias symbol and its type arguments, for types written through a type alias. */
@@ -611,6 +643,9 @@ export class UnionType extends UnionOrIntersectionType {
   /** A property with a unique unit type in every object of the union; '' if not computed, '\0' if none. */
   keyPropertyName: string;
   constituentMap: Map<Type, Type> | undefined;
+  /** The constituents of a large union, for membership tests; created on the second test. */
+  constituentSet: Set<Type> | undefined;
+  membershipTests: number;
 
   constructor(objectFlags: ObjectFlags, id: number, types: Type[]) {
     super(TypeFlags.Union, objectFlags, id, types);
@@ -619,6 +654,8 @@ export class UnionType extends UnionOrIntersectionType {
     this.origin = undefined;
     this.keyPropertyName = '';
     this.constituentMap = undefined;
+    this.constituentSet = undefined;
+    this.membershipTests = 0;
   }
 }
 

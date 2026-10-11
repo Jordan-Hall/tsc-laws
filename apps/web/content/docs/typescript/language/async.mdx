@@ -1,0 +1,88 @@
+---
+title: Async functions and await
+description: Promise-returning functions and the types of awaited values.
+---
+
+An `async` function returns a promise. Returning a plain value resolves that promise with the value; throwing rejects it. `await` suspends the async function until the awaited value settles.
+
+```ts
+async function readCount(): Promise<number> {
+  return 3;
+}
+
+async function display() {
+  const count = await readCount(); // number
+  return String(count); // return type Promise<string>
+}
+```
+
+## Awaited types
+
+The type of an awaited expression unwraps promise-like values. The `Awaited<T>` utility describes this recursively, including unions.
+
+```ts
+type Result = Awaited<Promise<Promise<string>>>; // string
+type Maybe = Awaited<number | Promise<string>>; // number | string
+```
+
+`Awaited` models thenable behavior; it is not limited to the built-in `Promise` class. The runtime still determines whether a thenable resolves, rejects, or never settles.
+
+## Rejections
+
+A `Promise<T>` describes its fulfilled value. It does not encode the type of rejection. A catch block must handle an unknown thrown value unless its configuration says otherwise.
+
+Annotating a function `async (): Promise<number>` does not guarantee that it will fulfill with a number. It can reject, and an incorrect assertion inside it can defeat the check.
+
+## Top-level await
+
+Top-level `await` requires a module and compiler options that support it. The loading environment must support the emitted module semantics. Enabling a suitable `module` and `target` does not add support to an older runtime.
+
+## Async callbacks
+
+A context that expects a `void`-returning callback can accept an async callback. The caller may ignore the returned promise. For example, `forEach` does not await its callback. Use an explicit loop or `Promise.all` when completion matters.
+
+See [async functions](https://www.typescriptlang.org/docs/handbook/release-notes/typescript-1-7.html#async-functions) and [`Awaited`](https://www.typescriptlang.org/docs/handbook/utility-types.html#awaitedtype).
+
+## Async declaration requirements
+
+An async function returns a Promise-like asynchronous result and permits await in its body. Under the edition's checking rules, an explicitly annotated async return must have the supported global Promise form. The value returned by the body must satisfy its awaited fulfillment requirement, not already be wrapped in a Promise at every return statement.
+
+```ts
+async function count(): Promise<number> {
+  return 1;
+}
+const result: Promise<number> = count();
+```
+
+An async modifier does not create a new type parameter for possible rejections. `Promise<number>` describes fulfillment values, not a promise that rejection can only contain a particular error type.
+
+## AwaitType
+
+For an await expression, check the operand and determine the recursively awaited result through the supported thenable relationship. Ordinary nonthenables retain their value type. Eligible Promise-like objects supply their fulfillment value. Malformed thenable contracts can produce diagnostics rather than arbitrary unwrapping.
+
+```ts
+async function read(value: number | PromiseLike<number>) {
+  const resolved: number = await value;
+  return resolved;
+}
+```
+
+The library `Awaited<T>` models related type-level behavior; it is not the runtime await operation. Actual assimilation, scheduling, and exceptions follow ECMAScript. Awaiting an ordinary value still participates in asynchronous execution timing.
+
+## Context and module restrictions
+
+Await is permitted in async functions and in supported top-level module configurations. Top-level await requires a module source context, compatible `module`, and a sufficient `target`. A library declaration containing Promise does not make top-level await valid in every script.
+
+Dynamic import and top-level await can affect runtime module evaluation. Type-only imports do not trigger that evaluation. Node module formats and dependency cycles require the project module rules, not only local await checking.
+
+## Async generators and iteration
+
+Async generators separate yielded, returned, and next-input types using the library's async generator contract. `for await...of` obtains values through async iteration and the supported synchronous fallback. A yielded Promise can be awaited according to async generator/iteration semantics, while the checked signature records the relevant value type.
+
+The availability of `AsyncIterator`, `AsyncIterable`, and async generator declarations depends on libraries. Transforming syntax for an older target does not itself install Symbol or Promise support.
+
+## Flow boundaries
+
+Await does not prove that all objects and aliases are unchanged across suspension. Flow analysis has defined syntactic facts and intentionally incomplete effect tracking. A property narrowed before await can be mutated by external code at runtime; the annotation remains a contract rather than a concurrency guarantee.
+
+Sources: [await and async checking](https://github.com/microsoft/TypeScript/blob/c63de15a992d37f0d6cec03ac7631872838602cb/src/compiler/checker.ts), [async libraries](https://github.com/microsoft/TypeScript/tree/c63de15a992d37f0d6cec03ac7631872838602cb/src/lib), and [ECMAScript async functions](https://tc39.es/ecma262/#sec-async-function-definitions).

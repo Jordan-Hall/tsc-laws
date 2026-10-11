@@ -1,0 +1,94 @@
+---
+title: Intersection types
+description: Types that must satisfy multiple sets of requirements at once.
+---
+
+`A & B` requires a value to be assignable to both `A` and `B`. For object types, this can combine requirements from each constituent.
+
+```ts
+type Named = { name: string };
+type Located = { x: number; y: number };
+type Place = Named & Located;
+
+const place: Place = { name: 'origin', x: 0, y: 0 };
+```
+
+## Conflicting properties
+
+An intersection does not overwrite a property from the left with a property from the right. Both requirements remain. A property required to be both `string` and `number` has type `never`.
+
+```ts
+type Conflict = { value: string } & { value: number };
+// @ts-expect-error: number cannot satisfy string & number
+const invalid: Conflict = { value: 1 };
+```
+
+Some incompatible discriminant properties cause the entire intersection to reduce to `never`, rather than only the conflicting property. Do not use an intersection as an object-spread type when the runtime spread replaces earlier properties.
+
+## Intersections and unions
+
+`string & number` is impossible and reduces to `never`. `string & unknown` is `string`. `string & any` loses the useful restriction because `any` bypasses ordinary checking.
+
+An intersection of call signatures can describe overload-like behavior. Calls are checked against the available signatures rather than combining all parameter types into a single parameter.
+
+## Interfaces versus intersections
+
+An interface extending another interface checks inherited-property conflicts at the declaration. An intersection can retain a conflict until a value is constructed or a property is used. Prefer explicit compatible interfaces when the relationship should reject conflicts immediately.
+
+See [intersection types](https://www.typescriptlang.org/docs/handbook/2/objects.html#intersection-types), [interfaces](/typescript/types/interfaces), and [overloads](/typescript/type-system/overloads).
+
+## Combined obligations
+
+An intersection requires the combined requirements of its constituents. Assignment to an intersection target must satisfy each target constituent. An intersection source can provide properties and signatures contributed by its members. It is not a runtime operation that merges objects or removes incompatible fields.
+
+```ts
+type Named = { name: string };
+type Timed = { timestamp: number };
+const record: Named & Timed = { name: 'entry', timestamp: 0 };
+// @ts-expect-error: timestamp is a required obligation
+const incomplete: Named & Timed = { name: 'entry' };
+```
+
+## Property merging and impossible intersections
+
+A shared property must satisfy all contributing property types. Intersecting incompatible non-discriminant property types can produce a property of type `never`. Intersecting incompatible unit discriminants can reduce the entire object to `never`. Optionality and presence still participate; an impossible optional property need not require that the property exist.
+
+```ts
+type Both = { value: string } & { value: number };
+declare const both: Both;
+const impossible: never = both.value;
+type Tags = { kind: 'left' } & { kind: 'right' };
+declare const tags: Tags;
+const noObject: never = tags;
+```
+
+An intersection does not report the same declaration-time conflict as incompatible interface heritage. It can remain in a type expression until a later operation resolves it. The checker can normalize intersections of unions by distributing combinations, subject to representation limits.
+
+## Keys and indexed access
+
+`keyof (A & B)` ordinarily contains keys contributed by either structured constituent. For an overlapping key, indexed access must account for combined property requirements. This differs from `keyof (A | B)`, where the key must be available across alternatives.
+
+```ts
+type Combined = { left: string } & { right: number };
+const key: keyof Combined = 'right';
+type Right = Combined['right'];
+const value: Right = 1;
+```
+
+## Intersected signatures
+
+Intersections of callable types expose multiple signatures and can behave like overload sets. A call selects an applicable signature rather than requiring a runtime function to return the intersection of every result type. Signature order and specificity affect selection; an intersection of functions is not interchangeable with a union of functions.
+
+```ts
+declare const convert: ((value: string) => number) & ((value: number) => string);
+const numberResult: number = convert('10');
+const stringResult: string = convert(10);
+```
+
+## Nullish removal and identity
+
+Under strict null checking, `T & {}` removes nullish possibilities while permitting nonnullish primitives. It is the definition used for `NonNullable<T>` in this edition. `unknown` is generally neutral in an intersection, `never` absorbs it, and `any` has permissive special behavior.
+
+Mutual assignment between an intersection and a flattened object does not guarantee identical editor display or the same result from a type-level equality helper. Intersections preserve origin information relevant to private members, signatures, and deferred type operations.
+
+Source: [intersection construction and structured relations](https://github.com/microsoft/TypeScript/blob/c63de15a992d37f0d6cec03ac7631872838602cb/src/compiler/checker.ts).

@@ -1,0 +1,111 @@
+---
+title: Function types
+description: Parameters, returns, call signatures, construct signatures, and this parameters.
+---
+
+A function type describes callable behavior. Parameter names document the signature; parameter types and return types determine compatibility.
+
+```ts
+type Transform = (input: string) => string;
+const upper: Transform = (input) => input.toUpperCase();
+```
+
+The assignment provides a contextual type for `input` and checks the returned expression.
+
+## Optional, default, and rest parameters
+
+An optional parameter can be omitted and is possibly `undefined` inside the function. A default initializer removes `undefined` from the initialized parameter's body type. A rest parameter receives an array or tuple of remaining arguments.
+
+```ts
+function join(separator = ',', ...values: string[]): string {
+  return values.join(separator);
+}
+join(undefined, 'a', 'b');
+```
+
+## Call and construct signatures
+
+An object type can combine properties with a call signature. A construct signature uses `new` and describes the instance returned by construction.
+
+```ts
+type Factory = { new (name: string): { name: string } };
+class User {
+  constructor(public name: string) {}
+}
+const factory: Factory = User;
+```
+
+## `this` parameters
+
+A first parameter named `this` describes the required receiver type. It is a checking-only parameter and is removed from output. Arrow functions capture `this` from their surrounding scope rather than accepting a call-time receiver.
+
+## `void` return contexts
+
+A function returning a value can satisfy a callback type returning `void`. The context ignores the result; the function does not stop returning it at runtime.
+
+```ts
+const values: number[] = [];
+const visit: (value: number) => void = (value) => values.push(value);
+visit(1);
+```
+
+This rule differs from explicitly annotating a function body `(): void`, which restricts its return statements. See [more on functions](https://www.typescriptlang.org/docs/handbook/2/functions.html), [overloads](/typescript/type-system/overloads), and [variance](/typescript/type-system/variance).
+
+## Signature grammar and components
+
+A call signature specifies generic parameters, an optional leading `this` parameter, required and optional parameters, a rest parameter, and a return type or predicate. Construct signatures add `new`, optionally `abstract`, and an instance result. Function type syntax uses `=>`; object call signatures use a return annotation after the parameter list.
+
+```ts
+type Callable = { (value: string): number; description: string };
+type Constructor = new (name: string) => { name: string };
+type AbstractConstructor = abstract new (...args: any[]) => object;
+```
+
+Parameter names do not generally participate in compatibility. An initializer is not allowed in a standalone signature without a body. `this` is a type-checking pseudo-parameter, must appear first, and contributes no emitted argument.
+
+## CheckCall
+
+Given a callable expression and argument list:
+
+1. Resolve call signatures from the expression's apparent type. Diagnose a noncallable type.
+2. Account for explicit type arguments or infer omitted arguments under each candidate signature.
+3. Check required arity and permitted argument positions, expanding tuple spreads where appropriate.
+4. Check argument expressions against parameter types with contextual typing.
+5. Select an applicable signature under overload rules and compute its instantiated result.
+
+An ordinary array spread does not establish a fixed tuple of arguments for a fixed-arity signature. Calls involving `any` use dynamic behavior while still obeying some independent syntax restrictions. A call does not validate external JavaScript argument values at runtime.
+
+```ts
+function join(left: string, right: string): string {
+  return left + right;
+}
+const tuple: [string, string] = ['a', 'b'];
+join(...tuple);
+const array: string[] = ['a', 'b'];
+// @ts-expect-error: an array cannot guarantee the two required argument positions
+join(...array);
+```
+
+## Parameters and defaults
+
+An optional parameter admits an omitted argument and reads as possibly undefined. A default initializes an omitted or explicitly undefined argument at runtime. A defaulted parameter preceding a required parameter is not equivalent to an optional trailing argument: the later required position still establishes call arity.
+
+Rest parameters must have an array or tuple-compatible type. Generic tuple rests allow inference of a complete argument sequence. A destructured parameter is checked against the annotated or contextual type of its entire pattern.
+
+## Return checking and inference
+
+With an explicit return type, each reachable return expression must satisfy it. A path returning no value contributes undefined where applicable; `noImplicitReturns` can diagnose missing returns independently of some assignability checks. Without an annotation, candidate return types are combined and widened as required by the inference context.
+
+An async function's annotation and inferred result account for Promise resolution. A generator's return contract separates yielded, returned, and next-input values. A function that always throws can have an explicit `never` return; historical declaration inference need not infer `never` in every such body.
+
+## Callback compatibility
+
+Fewer source parameters can satisfy a target with more arguments because JavaScript functions can ignore extra arguments. A target `void` permits discarding a useful source result. Parameter variance depends on whether the signature is a function-valued property, method, or constructor and on `strictFunctionTypes`.
+
+`strictBindCallApply` checks the library's `bind`, `call`, and `apply` relationships. It is distinct from an ordinary call expression and depends on the callable declarations available in the library.
+
+## Construct signatures
+
+A construct expression requires a nonabstract construct signature and compatible argument types. A class has an instance type and a separate constructor value type. `implements` checks the instance side; it does not establish constructor compatibility. Abstract construct signatures permit accepting abstract classes as values, but do not grant permission to instantiate them directly.
+
+Source: [signature checking and overload resolution](https://github.com/microsoft/TypeScript/blob/c63de15a992d37f0d6cec03ac7631872838602cb/src/compiler/checker.ts), and [call and construct signatures](https://www.typescriptlang.org/docs/handbook/2/functions.html).

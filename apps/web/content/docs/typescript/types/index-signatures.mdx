@@ -1,0 +1,83 @@
+---
+title: Index signatures and property access
+description: String, number, symbol, and template-pattern index signatures, read/write types, and missing-property checks.
+---
+
+An index signature describes properties selected by a category of keys. It does not assert that every such key is present at runtime. Named properties and index signatures jointly determine whether a read or write is accepted.
+
+## Syntax
+
+```text
+IndexSignature = [ 'readonly' ] '[' Identifier ':' KeyType ']' ':' ValueType ;
+```
+
+Key types must be `string`, `number`, `symbol`, a permitted template-literal pattern, or a union of permitted infinite-domain key types. A finite union of literal keys or an arbitrary generic parameter is not an index signature key type; use a mapped type for such a set.
+
+```ts
+type Bag = { [key: string]: number };
+type Pattern = { [key: `data-${string}`]: string };
+type Symbols = { [key: symbol]: boolean };
+// @ts-expect-error: finite literal keys require a mapped type
+type Invalid = { [key: 'left' | 'right']: number };
+type Finite = { [K in 'left' | 'right']: number };
+```
+
+## Named property consistency
+
+A declared property covered by an index signature must satisfy its value type. An optional covered property has the relevant option-dependent write and absence behavior. With both numeric and string signatures, the numeric result must satisfy the string result because JavaScript converts numeric property keys to strings.
+
+```ts
+interface Mixed {
+  [key: string]: string | number;
+  [index: number]: number;
+  count: number;
+}
+interface Broken {
+  [key: string]: number;
+  // @ts-expect-error: a covered named member must satisfy the index result
+  name: string;
+}
+```
+
+A symbol signature does not constrain ordinary string properties merely because both exist on one object. A pattern signature constrains keys matching its template pattern. Pattern signatures can admit excess literal properties with matching names while leaving unrelated extra properties subject to checks.
+
+## ReadProperty
+
+For a property read:
+
+1. Resolve a known named property when the key identifies one.
+2. Otherwise select applicable index signatures according to the key type and string/number conversion rules.
+3. If no property or signature permits the key, diagnose the access unless a dynamic type changes the rule.
+4. Obtain the read type, including undefined for optional members and unchecked indexed reads where configured.
+
+`noPropertyAccessFromIndexSignature` requires bracket syntax when a property is known only through an index signature. It does not remove the signature or prove key presence. `noUncheckedIndexedAccess` adds undefined to uncertain indexed reads, while a known required named member remains definite.
+
+```ts
+// @option: noUncheckedIndexedAccess=true
+const counts: { known: number; [key: string]: number } = { known: 1 };
+const known: number = counts.known;
+const possible: number | undefined = counts['missing'];
+// @ts-expect-error: signature lookup does not establish presence
+const certain: number = counts['missing'];
+```
+
+## WriteProperty
+
+A write must target an assignable location, respect readonly status, and satisfy the property or applicable index value type. If a union key can select members of different types, the write must be valid for every possible selected target. The write requirement can therefore be an intersection even when reading with that key returns a union.
+
+```ts
+type Pair = { text: string; count: number };
+declare let pair: Pair;
+declare const key: keyof Pair;
+const read: string | number = pair[key];
+// @ts-expect-error: neither string nor number satisfies every selected target
+pair[key] = 'value';
+```
+
+A generic key parameter constrained by `keyof T`, paired with a value of `T[K]`, can retain a relationship lost by a broad independent union key.
+
+## Implicit index compatibility
+
+Some object literal types can satisfy an index-signature target when all known properties have compatible values even without an explicit source signature. An augmentable interface does not receive every implicit-signature rule that an object-literal alias receives. Do not infer that any finite structural type automatically promises values for all possible string keys.
+
+Sources: [index signatures](https://www.typescriptlang.org/docs/handbook/2/objects.html#index-signatures), [symbol and pattern signatures](https://www.typescriptlang.org/docs/handbook/release-notes/typescript-4-4.html#symbol-and-template-string-pattern-index-signatures), and [property/index checking](https://github.com/microsoft/TypeScript/blob/c63de15a992d37f0d6cec03ac7631872838602cb/src/compiler/checker.ts).

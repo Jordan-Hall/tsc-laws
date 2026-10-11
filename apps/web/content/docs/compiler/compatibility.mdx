@@ -1,0 +1,39 @@
+---
+title: Compatibility
+description: The upstream target, comparison suites, and limits of the compiler's compatibility evidence.
+---
+
+tsc-ts targets TypeScript-Go 7.0.2. The exact upstream revision is pinned in [upstream.json](https://github.com/vercel-labs/tsc-ts/blob/main/upstream.json). Tests compare tsc-ts with that revision, rather than whichever compiler happens to be installed globally.
+
+## Compared surfaces
+
+The [corpus scripts](https://github.com/vercel-labs/tsc-ts/tree/main/packages/tsc-ts/scripts) and [integration tests](https://github.com/vercel-labs/tsc-ts/tree/main/packages/tsc-ts/tests) compare these observable results:
+
+| Surface               | Compared results                                                  |
+| --------------------- | ----------------------------------------------------------------- |
+| Scanner and parser    | Tokens, values, syntax trees, rescans, and diagnostics.           |
+| Binder                | Symbols, symbol tables, control-flow graphs, and name resolution. |
+| Type checker          | Diagnostics for compiler and conformance cases.                   |
+| Module resolution     | Resolved modules, package identities, and trace output.           |
+| Configuration and CLI | Resolved options, file lists, diagnostics, and exit codes.        |
+| Emit                  | JavaScript, declarations, maps, and declaration diagnostics.      |
+| Build and watch       | Output files, build information, and tested change sequences.     |
+| API server            | Responses to the tested TypeScript 7 API requests.                |
+
+The [repository status table](https://github.com/vercel-labs/tsc-ts#compiler) records the current corpus results. Results can change as upstream, the port, or the comparison scripts change.
+
+## What a passing comparison means
+
+A match means the compared outputs agree for the tested inputs, options, and upstream revision. It does not prove equivalence for every TypeScript program, every platform, or every sequence of edits. An upstream bug can also be reproduced by both compilers.
+
+The generated checker and the standalone `relater` package are separate tools. Their benchmarks and limitations do not describe whole-compiler performance. In particular, synthetic assignability timings do not establish a speedup for compiling a project.
+
+## Known API limits
+
+The API server does not implement profiling methods. Auto-import-dependent completions return the upstream limitation response. See [API server](/compiler/api).
+
+## Investigating a difference
+
+Record the compiler versions, source files, `tsconfig.json`, dependency versions, and library declarations. Reproduce the difference with the smallest possible project. Compare diagnostics, exit status, and emitted files separately.
+
+Report the reproduction in the [issue tracker](https://github.com/vercel-labs/tsc-ts/issues). A report that includes the exact options and expected upstream result can be turned into a regression test.

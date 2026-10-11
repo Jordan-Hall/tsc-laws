@@ -18,6 +18,8 @@ import { CheckFlags, type Symbol, SymbolFlags } from './symbol.js';
 import { SyntaxKind } from './syntax-kind.js';
 import type { Checker, VarianceReporting } from './checker.js';
 import {
+  CachedTypeKind,
+  cachedTypeKey,
   IndexInfo,
   type IndexType,
   type IndexedAccessType,
@@ -186,21 +188,49 @@ export function instantiateTypeWithAlias(
   }
   const index = c.activeMappers.lastIndexOf(mapper);
   if (index === -1) {
+    // A newly active mapper has no cached instantiations; its cache is created when a nested
+    // instantiation with the same mapper stores one.
     c.activeMappers.push(mapper);
-    c.activeMapperCaches.push(new Map<string, Type>());
+    c.activeMapperCaches.push(undefined);
+    c.activeMapperAliasCaches.push(undefined);
+  } else {
+    let cached: Type | undefined = undefined;
+    if (alias === undefined) {
+      const cache = c.activeMapperCaches[index];
+      if (cache !== undefined) cached = cache.get(type.id);
+    } else {
+      const cache = c.activeMapperAliasCaches[index];
+      if (cache !== undefined) cached = cache.get(type.id + aliasKey(alias));
+    }
+    if (cached !== undefined) return cached;
   }
-  const key = type.id + aliasKey(alias);
-  const cache = c.activeMapperCaches[index !== -1 ? index : c.activeMapperCaches.length - 1]!;
-  const cached = cache.get(key);
-  if (cached !== undefined) return cached;
   c.instantiationCount++;
   c.totalInstantiations++;
   c.instantiationDepth++;
   const result = instantiateTypeWorker(c, type, mapper, alias);
   if (index === -1) {
     c.activeMappers.pop();
-    c.activeMapperCaches.pop();
-  } else cache.set(key, result);
+    const cache = c.activeMapperCaches.pop();
+    if (cache !== undefined) {
+      cache.clear();
+      c.freeMapperCaches.push(cache);
+    }
+    c.activeMapperAliasCaches.pop();
+  } else if (alias === undefined) {
+    let cache = c.activeMapperCaches[index];
+    if (cache === undefined) {
+      cache = c.freeMapperCaches.length !== 0 ? c.freeMapperCaches.pop()! : new Map<number, Type>();
+      c.activeMapperCaches[index] = cache;
+    }
+    cache.set(type.id, result);
+  } else {
+    let cache = c.activeMapperAliasCaches[index];
+    if (cache === undefined) {
+      cache = new Map<string, Type>();
+      c.activeMapperAliasCaches[index] = cache;
+    }
+    cache.set(type.id + aliasKey(alias), result);
+  }
   c.instantiationDepth--;
   return result;
 }
@@ -774,18 +804,18 @@ function isThislessFunctionLikeDeclaration(node: Node): boolean {
 
 export function getRestrictiveInstantiation(c: Checker, type: Type): Type {
   if ((type.flags & (TypeFlags.Primitive | TypeFlags.AnyOrUnknown | TypeFlags.Never)) !== 0) return type;
-  const key = 'restrictive' + type.id;
-  const cached = c.cachedTypes.get(key);
+  const key = cachedTypeKey(CachedTypeKind.RestrictiveInstantiation, type.id);
+  const cached = c.cachedTypesById.get(key);
   if (cached !== undefined) return cached;
   const result = instantiateType(c, type, c.restrictiveMapper);
-  c.cachedTypes.set(key, result);
+  c.cachedTypesById.set(key, result);
   // A restrictive instance is its own restrictive instance.
-  c.cachedTypes.set('restrictive' + result.id, result);
+  c.cachedTypesById.set(cachedTypeKey(CachedTypeKind.RestrictiveInstantiation, result.id), result);
   return result;
 }
 
 export function isRestrictiveInstance(c: Checker, type: Type): boolean {
-  return c.cachedTypes.get('restrictive' + type.id) === type;
+  return c.cachedTypesById.get(cachedTypeKey(CachedTypeKind.RestrictiveInstantiation, type.id)) === type;
 }
 
 function getRestrictiveTypeParameter(c: Checker, tp: TypeParameter): Type {
@@ -794,12 +824,12 @@ function getRestrictiveTypeParameter(c: Checker, tp: TypeParameter): Type {
     tp.constraint === c.noConstraintType
   )
     return tp;
-  const key = 'restrictiveParameter' + tp.id;
-  const cached = c.cachedTypes.get(key);
+  const key = cachedTypeKey(CachedTypeKind.RestrictiveTypeParameter, tp.id);
+  const cached = c.cachedTypesById.get(key);
   if (cached !== undefined) return cached;
   const result = c.newTypeParameter(tp.symbol);
   result.constraint = c.noConstraintType;
-  c.cachedTypes.set(key, result);
+  c.cachedTypesById.set(key, result);
   return result;
 }
 

@@ -8,6 +8,8 @@
     "packages/relater/src/checker/flags.ts",
     "packages/relater/src/checker/case-mappings.ts",
     "upstream/**",
-    "**/dist/**"
+    "**/dist/**",
+    "**/.next/**",
+    "**/.source/**"
   ]
 }

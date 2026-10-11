@@ -331,10 +331,11 @@ class Decoder {
         lists[i] = new NodeList(pos, end, items);
         continue;
       }
-      const node = this.create(kind as SyntaxKind, this.field(i, fieldData));
+      // Node kinds and flags are int32 (SyntaxKind, NodeFlags): keep them exact int32s.
+      const node = this.create((kind | 0) as SyntaxKind, this.field(i, fieldData));
       node.pos = pos;
       node.end = end;
-      node.flags = this.field(i, fieldFlags);
+      node.flags = this.field(i, fieldFlags) | 0;
       nodes[i] = node;
     }
     return nodes[1]!;
