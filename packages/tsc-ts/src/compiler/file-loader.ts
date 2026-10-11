@@ -31,7 +31,7 @@ import {
   ModuleResolutionKind,
   type CompilerOptions,
 } from './options.js';
-import { LoadKind, type LoadJobs, takePreparedFile } from './parallel-parse.js';
+import { LoadKind, type LoadJobs, preparedLoad, takePreparedFile } from './parallel-parse.js';
 import { parseSourceFile } from './parser.js';
 import {
   combinePaths,
@@ -176,6 +176,39 @@ export type ModeAwareCache<T> = Map<string, T>;
 
 export function modeAwareKey(name: string, mode: ModuleKind): string {
   return mode + '|' + name;
+}
+
+/** A file a loaded file adds (`ParseTask.addSubTask`), as a parse thread recorded it (`LoadedFile`). */
+export class LoadedReference {
+  constructor(
+    readonly normalizedFilePath: string,
+    /** The library file's name, or `''`. */
+    readonly libName: string,
+    readonly reason: FileIncludeReason,
+    readonly increaseDepth: boolean,
+    readonly elideOnDepth: boolean,
+    readonly packageId: PackageId | undefined,
+  ) {}
+}
+
+/**
+ * What a parse thread's FileLoader found loading a file it prepared (parallel-parse.ts): the same
+ * as the program's FileLoader finds, since both load with the same options and file system. The
+ * program's FileLoader takes it instead of resolving the file's references, imports and type
+ * directives again. Published with the file, so the reasons are copied when taken.
+ */
+export class LoadedFile {
+  constructor(
+    readonly file: SourceFile,
+    readonly isLibFile: boolean,
+    readonly metadata: SourceFileMetadata,
+    readonly references: LoadedReference[],
+    readonly resolutionsInFile: ModeAwareCache<ResolvedModule> | undefined,
+    readonly typeResolutionsInFile: ModeAwareCache<ResolvedTypeReferenceDirective> | undefined,
+    readonly processingDiagnostics: ProcessingDiagnostic[],
+    readonly importHelpersImportSpecifier: StringLiteral | undefined,
+    readonly jsxRuntimeImport: JsxRuntimeImport | undefined,
+  ) {}
 }
 
 class ParseTask {
@@ -433,7 +466,7 @@ export class FileLoader {
    * `host.getSourceFile`, and adds the files it references, imports and type directives add to `out`
    * (libraries by name). `depth` is the file's `maxNodeModuleJsDepth` depth.
    */
-  loadAhead(kind: LoadKind, name: string, depth: number, out: LoadJobs): void {
+  loadAhead(kind: LoadKind, name: string, depth: number, out: LoadJobs): LoadedFile | undefined {
     let task: ParseTask;
     if (kind === LoadKind.Library) {
       const libFile = this.pathForLibFile(name);
@@ -469,20 +502,46 @@ export class FileLoader {
             ? getNormalizedAbsolutePath(configFile.sourceFile.fileName, this.host.currentDirectory)
             : this.host.currentDirectory;
         const resolved = this.getSourceFileFromReference(name, name, containingFile, FileIncludeReason.rootFile(0));
-        if (typeof resolved !== 'string') return;
+        if (typeof resolved !== 'string') return undefined;
         fileName = resolved;
       }
       task = new ParseTask(fileName, undefined, undefined, false, false, false, undefined);
     }
     task.path = this.toPath(task.normalizedFilePath);
     this.loadTask(task);
+    const references: LoadedReference[] = [];
     for (const sub of task.subTasks) {
+      references.push(
+        new LoadedReference(
+          sub.normalizedFilePath,
+          sub.libFile !== undefined ? sub.libFile.name : '',
+          sub.includeReason!,
+          sub.increaseDepth,
+          sub.elideOnDepth,
+          sub.packageId,
+        ),
+      );
       const subDepth = sub.increaseDepth ? depth + 1 : depth;
       // `run` skips these.
       if (sub.elideOnDepth && subDepth > this.maxNodeModuleJsDepth) continue;
       if (sub.libFile !== undefined) out.push(LoadKind.Library, sub.libFile.name, subDepth);
       else out.push(LoadKind.File, sub.normalizedFilePath, subDepth);
     }
+    const file = task.file;
+    // Traces are reported in the program's order: such programs resolve on their own.
+    if (file === undefined || task.redirectedParseTask !== undefined || this.options.traceResolution === true)
+      return undefined;
+    return new LoadedFile(
+      file,
+      task.libFile !== undefined,
+      task.metadata,
+      references,
+      task.resolutionsInFile,
+      task.typeResolutionsInFile,
+      task.processingDiagnostics,
+      task.importHelpersImportSpecifier,
+      task.jsxRuntimeImport,
+    );
   }
 
   // ---- Project references
@@ -781,8 +840,14 @@ export class FileLoader {
       }
     }
 
+    // What a parse thread found loading this file, if it prepared it as the same kind of file.
+    let loaded = preparedLoad(task.normalizedFilePath);
+    if (loaded !== undefined && loaded.isLibFile !== (task.libFile !== undefined)) loaded = undefined;
     // Default libraries are scripts: skip looking up their package.json.
-    task.metadata = task.libFile !== undefined ? libFileMetadata : this.loadSourceFileMetadata(task.normalizedFilePath);
+    task.metadata =
+      task.libFile !== undefined
+        ? libFileMetadata
+        : (loaded?.metadata ?? this.loadSourceFileMetadata(task.normalizedFilePath));
     const options = this.mapper.getCompilerOptionsForFile(task.path, task.normalizedFilePath);
     const file = this.host.getSourceFile(
       task.normalizedFilePath,
@@ -791,6 +856,10 @@ export class FileLoader {
     );
     if (file === undefined) return;
     task.file = file;
+    if (loaded !== undefined && loaded.file === file) {
+      this.takeLoadedFile(task, loaded);
+      return;
+    }
 
     if (this.options.noResolve !== true) {
       for (let i = 0; i < file.referencedFiles.length; i++) this.resolveTripleSlashPathReference(task, file, i);
@@ -809,6 +878,29 @@ export class FileLoader {
       }
     }
     this.resolveImportsAndModuleAugmentations(task, file);
+  }
+
+  /** Loads `task` from what a parse thread found loading the same file (`LoadedFile`). */
+  private takeLoadedFile(task: ParseTask, loaded: LoadedFile): void {
+    for (const reference of loaded.references) {
+      const libFile = reference.libName !== '' ? this.pathForLibFile(reference.libName) : undefined;
+      task.subTasks.push(
+        new ParseTask(
+          reference.normalizedFilePath,
+          libFile,
+          reference.reason.copy(),
+          false,
+          reference.increaseDepth,
+          reference.elideOnDepth,
+          reference.packageId,
+        ),
+      );
+    }
+    for (const diagnostic of loaded.processingDiagnostics) task.processingDiagnostics.push(diagnostic.copy());
+    task.resolutionsInFile = loaded.resolutionsInFile;
+    task.typeResolutionsInFile = loaded.typeResolutionsInFile;
+    task.importHelpersImportSpecifier = loaded.importHelpersImportSpecifier;
+    task.jsxRuntimeImport = loaded.jsxRuntimeImport;
   }
 
   private loadSourceFileMetadata(fileName: string): SourceFileMetadata {
