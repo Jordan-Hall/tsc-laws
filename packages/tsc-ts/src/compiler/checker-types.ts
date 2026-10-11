@@ -534,9 +534,12 @@ export class InterfaceType extends TypeReference {
   declaredCallSignatures: Signature[];
   declaredConstructSignatures: Signature[];
   declaredIndexInfos: IndexInfo[];
+  /** Positions of the declared members by name, for lazily instantiated members of instantiations. */
+  declaredMemberPositions: Map<string, number> | undefined;
 
   constructor(objectFlags: ObjectFlags, id: number, symbol: Symbol | undefined) {
     super(objectFlags, id, symbol);
+    this.declaredMemberPositions = undefined;
     this.allTypeParameters = emptyTypes;
     this.outerTypeParameterCount = 0;
     this.thisType = undefined;

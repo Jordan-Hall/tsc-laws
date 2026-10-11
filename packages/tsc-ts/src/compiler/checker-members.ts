@@ -211,7 +211,7 @@ function resolveObjectTypeMembers(
   } else {
     instantiated = true;
     mapper = newTypeMapper(typeParameters, typeArguments);
-    pending = pendingInstantiatedTable(c, source.declaredMembers, mapper);
+    pending = pendingInstantiatedTable(c, source, mapper);
     members = pending === undefined ? instantiateSymbolTable(c, source.declaredMembers, mapper) : undefined;
     callSignatures = instantiateSignatures(c, source.declaredCallSignatures, mapper);
     constructSignatures = instantiateSignatures(c, source.declaredConstructSignatures, mapper);
@@ -424,9 +424,10 @@ export class PendingInstantiatedMembers extends PendingMembers {
  */
 function pendingInstantiatedTable(
   c: Checker,
-  table: SymbolTable | undefined,
+  source: InterfaceType,
   mapper: TypeMapper,
 ): PendingInstantiatedMembers | undefined {
+  const table = source.declaredMembers;
   if (table === undefined || table.size === 0) return undefined;
   const states: number[] = [];
   let word = 0;
@@ -459,7 +460,7 @@ function pendingInstantiatedTable(
     undefined,
     mapper,
     states,
-    memberPositions(c, table, undefined),
+    declaredMemberPositions(source, table),
     hasOwnMembers,
     hasRequiredOwnMembers,
   );
@@ -486,25 +487,32 @@ function pendingInstantiatedList(c: Checker, list: Symbol[], mapper: TypeMapper)
     list,
     mapper,
     states,
-    memberPositions(c, undefined, list),
+    listPositions(c, list),
     true,
     hasRequiredOwnMembers,
   );
 }
 
-/** Positions by name in a source table or list, cached per source. The last of equal names wins. */
-function memberPositions(c: Checker, table: SymbolTable | undefined, list: Symbol[] | undefined): Map<string, number> {
-  let positions = table !== undefined ? c.memberPositionsInTables.get(table) : c.memberPositionsInLists.get(list!);
+/** Positions of the declared members of `source` by name, shared by all its instantiations. */
+function declaredMemberPositions(source: InterfaceType, table: SymbolTable): Map<string, number> {
+  let positions = source.declaredMemberPositions;
   if (positions === undefined) {
     positions = new Map<string, number>();
     let i = 0;
-    if (table !== undefined) {
-      for (const id of table.keys()) positions.set(id, i++);
-      c.memberPositionsInTables.set(table, positions);
-    } else {
-      for (const symbol of list!) positions.set(symbol.name, i++);
-      c.memberPositionsInLists.set(list!, positions);
-    }
+    for (const id of table.keys()) positions.set(id, i++);
+    source.declaredMemberPositions = positions;
+  }
+  return positions;
+}
+
+/** Positions by name in a target's properties, shared by its instantiations. The last of equal names wins. */
+function listPositions(c: Checker, list: Symbol[]): Map<string, number> {
+  let positions = c.memberPositionsInLists.get(list);
+  if (positions === undefined) {
+    positions = new Map<string, number>();
+    let i = 0;
+    for (const symbol of list) positions.set(symbol.name, i++);
+    c.memberPositionsInLists.set(list, positions);
   }
   return positions;
 }
