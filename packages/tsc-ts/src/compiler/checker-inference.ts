@@ -487,7 +487,9 @@ class InferenceState {
   bivariant = false;
   expandingFlags: ExpandingFlags = ExpandingFlags.None;
   propagationType: Type | undefined = undefined;
-  visited: Map<string, InferencePriority> | undefined = undefined;
+  /** invokeOnce's pairs by packed type ids (`visitKey`), or spelled when an id is too large to pack. */
+  visited: Map<number, InferencePriority> | undefined = undefined;
+  visitedSpelled: Map<string, InferencePriority> | undefined = undefined;
   readonly sourceStack: Type[] = [];
   readonly targetStack: Type[] = [];
   depth = 0;
@@ -737,18 +739,13 @@ class InferenceState {
 
   /** Runs `action` once per source and target pair, stopping at circularities. */
   invokeOnce(source: Type, target: Type, action: InferenceAction): void {
-    const key = source.id + ',' + target.id;
-    let visited = this.visited;
-    if (visited === undefined) {
-      visited = new Map<string, InferencePriority>();
-      this.visited = visited;
-    }
-    const status = visited.get(key);
+    const key = visitKey(source, target);
+    const status = key >= 0 ? this.visited?.get(key) : this.visitedSpelled?.get(source.id + ',' + target.id);
     if (status !== undefined) {
       this.inferencePriority = Math.min(this.inferencePriority, status);
       return;
     }
-    visited.set(key, InferencePriority.Circularity);
+    this.setVisited(source, target, key, InferencePriority.Circularity);
     const saveInferencePriority = this.inferencePriority;
     this.inferencePriority = InferencePriority.MaxValue;
     // Duplicate recursion identities on both sides mean a circularity.
@@ -773,8 +770,26 @@ class InferenceState {
     this.targetStack.pop();
     this.sourceStack.pop();
     this.expandingFlags = saveExpandingFlags;
-    visited.set(key, this.inferencePriority);
+    this.setVisited(source, target, key, this.inferencePriority);
     this.inferencePriority = Math.min(this.inferencePriority, saveInferencePriority);
+  }
+
+  setVisited(source: Type, target: Type, key: number, status: InferencePriority): void {
+    if (key >= 0) {
+      let visited = this.visited;
+      if (visited === undefined) {
+        visited = new Map<number, InferencePriority>();
+        this.visited = visited;
+      }
+      visited.set(key, status);
+    } else {
+      let visited = this.visitedSpelled;
+      if (visited === undefined) {
+        visited = new Map<string, InferencePriority>();
+        this.visitedSpelled = visited;
+      }
+      visited.set(source.id + ',' + target.id, status);
+    }
   }
 
   inferFromMatchingTypes(sources: Type[], targets: Type[], kind: MatchKind): MatchedTypes {
@@ -2025,6 +2040,16 @@ export function getInferredType(c: Checker, context: InferenceContext, index: nu
 function clearActiveMapperCaches(c: Checker): void {
   for (const cache of c.activeMapperCaches) if (cache !== undefined) cache.clear();
   for (const cache of c.activeMapperAliasCaches) if (cache !== undefined) cache.clear();
+}
+
+/** Type ids below this bound pack in pairs into one exact number. */
+const VisitKeyIdLimit = 1 << 26;
+
+/** invokeOnce's key for a pair of types: both ids in one number, or -1 when an id is too large. */
+function visitKey(source: Type, target: Type): number {
+  const s = source.id;
+  const t = target.id;
+  return s < VisitKeyIdLimit && t < VisitKeyIdLimit ? s * VisitKeyIdLimit + t : -1;
 }
 
 /** Maps forward references to later type parameters to `unknown`, for instantiating defaults. */

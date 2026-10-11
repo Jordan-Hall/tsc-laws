@@ -336,6 +336,8 @@ export class Checker {
   readonly bigintLiteralTypes = new Map<string, LiteralType>();
   readonly enumLiteralTypes = new Map<string, LiteralType>();
   readonly uniqueESSymbolTypes = new Map<Symbol, Type>();
+  /** Unions by a hash of their key; `unionTypes` holds the unions whose key hash was taken. */
+  readonly unionTypesByHash = new Map<number, Type>();
   readonly unionTypes = new Map<string, Type>();
   readonly unionOfUnionTypes = new Map<string, Type>();
   readonly intersectionTypes = new Map<string, Type>();
@@ -346,6 +348,9 @@ export class Checker {
   readonly substitutionTypes = new Map<string, Type>();
   readonly subtypeReductionCache = new Map<string, Type[]>();
   readonly cachedTypes = new Map<string, Type>();
+  /** Cached types by `cachedTypeKey` and by `cachedTypePairKey`, without spelled keys. */
+  readonly cachedTypesById = new Map<number, Type>();
+  readonly cachedTypesByPair = new Map<number, Type>();
   readonly errorTypes = new Map<string, Type>();
 
   // Intrinsic types, created in tsgo's order so ids (the last-resort union order) match.
@@ -449,7 +454,7 @@ export class Checker {
   anyReadonlyArrayType: Type;
   globalThisType: Type;
   /** Lazily resolved global types and symbols, by name. */
-  readonly globalTypeCache = new Map<string, Type>();
+  readonly globalTypeCache = new Map<string, Map<number, Type>>();
   /** Module namespace types with synthetic defaults, by kind and type id. */
   readonly moduleTypeCache = new Map<string, Type>();
   readonly globalSymbolCache = new Map<string, Symbol | null>();
@@ -904,6 +909,7 @@ export function disposeChecker(c: Checker): void {
   c.bigintLiteralTypes.clear();
   c.enumLiteralTypes.clear();
   c.uniqueESSymbolTypes.clear();
+  c.unionTypesByHash.clear();
   c.unionTypes.clear();
   c.unionOfUnionTypes.clear();
   c.intersectionTypes.clear();
@@ -914,6 +920,8 @@ export function disposeChecker(c: Checker): void {
   c.substitutionTypes.clear();
   c.subtypeReductionCache.clear();
   c.cachedTypes.clear();
+  c.cachedTypesById.clear();
+  c.cachedTypesByPair.clear();
   c.iterationTypesCache.clear();
   c.deferredIterationErrors = [];
   c.errorTypes.clear();

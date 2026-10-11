@@ -18,6 +18,8 @@ import { CheckFlags, type Symbol, SymbolFlags } from './symbol.js';
 import { SyntaxKind } from './syntax-kind.js';
 import type { Checker, VarianceReporting } from './checker.js';
 import {
+  CachedTypeKind,
+  cachedTypeKey,
   IndexInfo,
   type IndexType,
   type IndexedAccessType,
@@ -801,18 +803,18 @@ function isThislessFunctionLikeDeclaration(node: Node): boolean {
 
 export function getRestrictiveInstantiation(c: Checker, type: Type): Type {
   if ((type.flags & (TypeFlags.Primitive | TypeFlags.AnyOrUnknown | TypeFlags.Never)) !== 0) return type;
-  const key = 'restrictive' + type.id;
-  const cached = c.cachedTypes.get(key);
+  const key = cachedTypeKey(CachedTypeKind.RestrictiveInstantiation, type.id);
+  const cached = c.cachedTypesById.get(key);
   if (cached !== undefined) return cached;
   const result = instantiateType(c, type, c.restrictiveMapper);
-  c.cachedTypes.set(key, result);
+  c.cachedTypesById.set(key, result);
   // A restrictive instance is its own restrictive instance.
-  c.cachedTypes.set('restrictive' + result.id, result);
+  c.cachedTypesById.set(cachedTypeKey(CachedTypeKind.RestrictiveInstantiation, result.id), result);
   return result;
 }
 
 export function isRestrictiveInstance(c: Checker, type: Type): boolean {
-  return c.cachedTypes.get('restrictive' + type.id) === type;
+  return c.cachedTypesById.get(cachedTypeKey(CachedTypeKind.RestrictiveInstantiation, type.id)) === type;
 }
 
 function getRestrictiveTypeParameter(c: Checker, tp: TypeParameter): Type {
@@ -821,12 +823,12 @@ function getRestrictiveTypeParameter(c: Checker, tp: TypeParameter): Type {
     tp.constraint === c.noConstraintType
   )
     return tp;
-  const key = 'restrictiveParameter' + tp.id;
-  const cached = c.cachedTypes.get(key);
+  const key = cachedTypeKey(CachedTypeKind.RestrictiveTypeParameter, tp.id);
+  const cached = c.cachedTypesById.get(key);
   if (cached !== undefined) return cached;
   const result = c.newTypeParameter(tp.symbol);
   result.constraint = c.noConstraintType;
-  c.cachedTypes.set(key, result);
+  c.cachedTypesById.set(key, result);
   return result;
 }
 

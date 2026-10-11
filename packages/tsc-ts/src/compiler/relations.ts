@@ -9,6 +9,8 @@ import { SyntaxKind } from './syntax-kind.js';
 import { isContextSensitive } from './checker-functions.js';
 import { type Checker, createDiagnosticForNode } from './checker.js';
 import {
+  CachedTypeKind,
+  cachedTypeKey,
   type ConditionalType,
   ElementFlags,
   IndexFlags,
@@ -43,6 +45,7 @@ import {
 import { InferenceFlags, InferencePriority, createInferenceContext, inferTypes } from './checker-inference.js';
 import {
   IntersectionFlags,
+  unionContainsSortedTypes,
   unionContainsType,
   createArrayTypeEx,
   compareTypes,
@@ -3435,8 +3438,8 @@ export function getSingleBaseForNonAugmentingSubtype(c: Checker, t: Type): Type 
   const reference = t as TypeReference;
   if ((reference.target!.objectFlags & ObjectFlags.ClassOrInterface) === 0) return undefined;
   const target = reference.target as InterfaceType;
-  const key = 'equivalentBaseType' + t.id;
-  if ((t.objectFlags & ObjectFlags.IdenticalBaseTypeCalculated) !== 0) return c.cachedTypes.get(key);
+  const key = cachedTypeKey(CachedTypeKind.EquivalentBaseType, t.id);
+  if ((t.objectFlags & ObjectFlags.IdenticalBaseTypeCalculated) !== 0) return c.cachedTypesById.get(key);
   t.objectFlags |= ObjectFlags.IdenticalBaseTypeCalculated;
   if ((target.objectFlags & ObjectFlags.Class) !== 0) {
     // Only base types named by simple qualified names; others may refer back to the class.
@@ -3464,7 +3467,7 @@ export function getSingleBaseForNonAugmentingSubtype(c: Checker, t: Type): Type 
         );
   if (typeArguments.length > typeParameters.length)
     instantiatedBase = getTypeWithThisArgument(c, instantiatedBase, typeArguments[typeArguments.length - 1]!, false);
-  c.cachedTypes.set(key, instantiatedBase);
+  c.cachedTypesById.set(key, instantiatedBase);
   return instantiatedBase;
 }
 
@@ -3624,10 +3627,7 @@ export function isTypeSubsetOf(c: Checker, source: Type, target: Type): boolean 
 
 function isTypeSubsetOfUnion(c: Checker, source: Type, target: Type): boolean {
   const union = target as UnionType;
-  if ((source.flags & TypeFlags.Union) !== 0) {
-    for (const t of typesOf(source)) if (!unionContainsType(c, union, t)) return false;
-    return true;
-  }
+  if ((source.flags & TypeFlags.Union) !== 0) return unionContainsSortedTypes(c, union, typesOf(source));
   if ((source.flags & TypeFlags.EnumLike) !== 0 && getBaseTypeOfEnumLikeType(c, source) === target) return true;
   return unionContainsType(c, union, source);
 }
