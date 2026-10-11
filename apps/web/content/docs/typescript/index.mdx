@@ -1,0 +1,60 @@
+---
+title: TypeScript specification
+description: An unofficial specification of TypeScript 5.9 syntax, static semantics, types, declarations, and project behavior.
+---
+
+This specification describes **TypeScript 5.9.3**: accepted syntax, the types assigned to programs, type relationships, declaration checking, and the effect of compiler options on checking and output. It is maintained independently of Microsoft.
+
+## Scope
+
+TypeScript extends ECMAScript. JavaScript evaluation, execution contexts, objects, and built-in runtime operations are defined by [ECMA-262](https://tc39.es/ecma262/). The clauses here describe TypeScript's additional syntax and static semantics. An erased annotation does not introduce a runtime check.
+
+| Part                                                           | Subject                                                                            |
+| -------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| [Foundations](/typescript/specification/conventions)           | Terminology, grammar notation, semantic entities, and conformance boundaries.      |
+| [Syntax grammar](/typescript/specification/grammar)            | TypeScript productions and inherited ECMAScript syntax.                            |
+| [Static semantics](/typescript/specification/static-semantics) | Binding, name resolution, type resolution, and declaration checking.               |
+| [Language](/typescript/language/lexical-grammar)               | Expressions, statements, resources, and execution boundaries.                      |
+| [Types](/typescript/types/primitives)                          | Primitive, literal, structured, callable, and special types.                       |
+| [Type system](/typescript/type-system/relations)               | Relations, normalization, inference, contextual typing, and flow analysis.         |
+| [Type operators](/typescript/type-operators/keyof)             | Type queries, indexed access, mapped types, and conditional types.                 |
+| [Declarations](/typescript/declarations/type-aliases)          | Named entities, modules, namespaces, ambient contexts, JSX, JSDoc, and decorators. |
+| [Projects](/typescript/projects/tsconfig)                      | Configuration, resolution, diagnostics, emit, and incremental builds.              |
+| [Coverage index](/typescript/specification/coverage)           | A feature-by-feature map to the defining clause.                                   |
+
+Algorithms describe observable checking decisions, not required compiler data structures or traversal order. Read [conventions](/typescript/specification/conventions) and [conformance boundaries](/typescript/specification/conformance) before interpreting a rule as a requirement.
+
+## Version and options
+
+The edition is tied to the [TypeScript 5.9.3 source revision](https://github.com/microsoft/TypeScript/tree/c63de15a992d37f0d6cec03ac7631872838602cb). Its compiler, libraries, and conformance tests resolve behavior that this text leaves unspecified or describes incorrectly. Source citations identify this edition rather than a moving branch.
+
+The **tsc-ts** compiler targets TypeScript-Go **7.0.2**, pinned in [upstream.json](https://github.com/vercel-labs/tsc-ts/blob/main/upstream.json). That separate target does not change this specification's edition. A successful TypeScript 5.9 example check is not a TypeScript 7 or tsc-ts conformance result.
+
+Unless a page states otherwise, examples assume:
+
+- `strict: true`, including `strictNullChecks` and `strictFunctionTypes`.
+- `target: "ES2022"` and `module: "ESNext"`.
+- `moduleResolution: "bundler"`.
+- `exactOptionalPropertyTypes: false` and `noUncheckedIndexedAccess: false`.
+- `lib: ["ES2022", "DOM", "DOM.Iterable"]` and `types: []`.
+
+Environment-specific pages explain the options they depend on. A type inferred from an example can change when its context or options change.
+
+## Reading examples
+
+Each TypeScript block is checked independently. Comments reporting inferred types are descriptive; a type-level constraint or assignment can make a particular relationship executable:
+
+```ts
+const length: number = 'TypeScript'.length;
+
+// @ts-expect-error: a string is not assignable to number
+const invalid: number = 'ten';
+```
+
+`@ts-expect-error` requires a diagnostic on the next line; it does not assert its code or wording. Multi-file examples explicitly declare filenames. `// @option:` directives change the default context. JavaScript and shell blocks are explanatory and are not executed by the snippet checker.
+
+## Checking and execution
+
+A type error and a runtime error are different outcomes. A compiler can emit JavaScript from a program with type errors unless `noEmitOnError` is enabled. An accepted program can still fail at runtime, for example after a type assertion describes a value incorrectly.
+
+Read [type erasure](/typescript/language/type-erasure), [assignability](/typescript/type-system/assignability), and [sources and verification](/typescript/sources) for the rules behind those distinctions.

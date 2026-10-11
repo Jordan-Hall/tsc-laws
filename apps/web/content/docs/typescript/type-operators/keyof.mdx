@@ -1,0 +1,74 @@
+---
+title: keyof
+description: Construct a type from the property keys of another type.
+---
+
+`keyof T` produces a type describing the keys available on `T`. For an object with named properties, it is usually a union of their literal keys.
+
+```ts
+type User = { name: string; age: number };
+type Key = keyof User; // "name" | "age"
+const key: Key = 'name';
+```
+
+## Index signatures
+
+A numeric index signature contributes `number`. A string index signature generally contributes `string | number`, reflecting JavaScript's coercion of numeric property keys to strings.
+
+```ts
+type List = { [index: number]: string };
+type ListKey = keyof List; // number
+type Dictionary = { [key: string]: boolean };
+type DictionaryKey = keyof Dictionary; // string | number
+```
+
+Symbol properties can contribute symbol types. `keyof any` is `string | number | symbol`, the property-key family; `keyof unknown` is `never` because no specific keys are known.
+
+## Unions and intersections
+
+For a union, only keys available on the union are directly usable. Two members with no common keys produce `never` under `keyof`. An intersection combines requirements and can provide keys from its constituents.
+
+```ts
+type Shared = keyof ({ id: string; name: string } | { id: string; age: number });
+// "id"
+```
+
+## Runtime keys
+
+`keyof` is a type operation. It does not enumerate an object at runtime. `Object.keys` returns enumerable own string keys and excludes symbols; its return type is not generally `(keyof T)[]`, since runtime objects can contain keys beyond the declared type.
+
+Use `K extends keyof T` to connect a key parameter to an object. See [indexed access](/typescript/type-operators/indexed-access) and [the keyof operator](https://www.typescriptlang.org/docs/handbook/2/keyof-types.html).
+
+## ComputeKeys
+
+For a resolved structured type, collect known property keys and applicable index key categories. String index signatures contribute `string | number` because JavaScript permits numeric access to string-named properties. Numeric signatures contribute `number`; symbol signatures contribute `symbol`; specific computed unique-symbol properties contribute their identities. Pattern signatures contribute their supported template key domains.
+
+For a union, retain keys available across all alternatives. For an intersection, collect combined available keys. For a deferred generic type, retain the key operation until sufficient type information is available rather than assuming a concrete finite list.
+
+```ts
+type StringIndexed = keyof { [key: string]: number };
+const numeric: StringIndexed = 1;
+type NumericIndexed = keyof { [key: number]: string };
+// @ts-expect-error: a numeric signature alone does not supply an arbitrary string key
+const text: NumericIndexed = 'name';
+```
+
+## Named keys and special types
+
+Numeric literal property names can contribute numeric literal keys; quoted names contribute their string names. A symbol's description string does not replace its symbol identity. `keyof any` and `keyof never` admit `string | number | symbol`; `keyof unknown` is `never` because no key is guaranteed.
+
+Primitive keyof results come from apparent library members. `keyof string` is not an enumeration of characters, and `keyof` an array includes array members as well as index-related information. A tuple contributes its recognized positional and array keys; it is not just a union of the element indices written in its source.
+
+```ts
+const impossibleKeys: keyof never = 'key';
+// @ts-expect-error: unknown has no guaranteed key
+const unknownKey: keyof unknown = 'key';
+```
+
+## Key sets and runtime enumeration
+
+`keyof` is erased. It does not call `Object.keys`, include only enumerable own keys, or guarantee that runtime enumeration produces a value typed as every declared key. Optional members contribute keys even when absent at runtime. Inherited or structurally declared members can be checked without being own enumerable properties.
+
+`Extract<keyof T, string>` restricts a generic operation to string keys. A mapped type can visit a key set; indexed access can obtain values at those keys. A generic body using a `keyof` parameter preserves a relationship not retained by an independent arbitrary string.
+
+Source: [key type computation and apparent types](https://github.com/microsoft/TypeScript/blob/c63de15a992d37f0d6cec03ac7631872838602cb/src/compiler/checker.ts).

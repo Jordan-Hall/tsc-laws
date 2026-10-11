@@ -52,7 +52,7 @@ import { NameResolver } from '../name-resolver.js';
 import { isSameNode } from './utilities.js';
 import { pathIsRelative } from '../path.js';
 import { type CompilerOptions, shouldPreserveConstEnums } from '../options.js';
-import { InternalSymbolName, Symbol, SymbolFlags, type SymbolTable } from '../symbol.js';
+import { InternalSymbolName, Symbol, SymbolFlags, type SymbolTable, addDeclaration } from '../symbol.js';
 import { SyntaxKind } from '../syntax-kind.js';
 import { TokenFlags } from '../types.js';
 
@@ -221,7 +221,7 @@ export class MergedGlobals {
     if ((result.flags & SymbolFlags.ConstEnumOnlyModule) === 0) sourceFlags &= ~SymbolFlags.ConstEnumOnlyModule;
     result.flags |= sourceFlags;
     if (source.valueDeclaration !== undefined) setValueDeclaration(result, source.valueDeclaration);
-    for (let i = 0; i < source.declarations.length; i++) result.declarations.push(source.declarations[i]);
+    for (let i = 0; i < source.declarations.length; i++) addDeclaration(result, source.declarations[i]!);
     if (source.members !== undefined) {
       if (result.members === undefined) result.members = new Map<string, Symbol>();
       this.mergeTable(result.members, source.members, undefined);

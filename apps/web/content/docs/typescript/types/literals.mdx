@@ -1,0 +1,97 @@
+---
+title: Literal types
+description: Exact primitive values, literal widening, and const contexts.
+---
+
+A literal type describes a specific primitive value, such as `"read"`, `1`, or `true`. A union of literal types restricts a value to a known set of alternatives.
+
+```ts
+type Mode = 'read' | 'write';
+const mode: Mode = 'read';
+
+// @ts-expect-error: "delete" is not a Mode
+const invalid: Mode = 'delete';
+```
+
+## Widening
+
+An inferred literal can widen when the surrounding location is mutable. `let mode = 'read'` normally infers `string`. A `const` primitive binding retains a narrower literal type, but properties of a mutable object generally widen.
+
+```ts
+const primitive = 'read'; // "read"
+let mutable = 'read'; // string
+const object = { mode: 'read' }; // { mode: string }
+const fixed = { mode: 'read' } as const; // readonly mode: "read"
+```
+
+The `const` binding prevents reassigning `object`; it does not prevent changing `object.mode`.
+
+## Contextual types
+
+A contextual type can retain a useful literal within a larger expression. `satisfies` checks compatibility without replacing the expression's type with the target annotation.
+
+```ts
+const settings = { mode: 'read' } satisfies { mode: 'read' | 'write' };
+const exact: 'read' = settings.mode;
+```
+
+`satisfies` can affect inference through contextual typing. It is not a promise that the expression's type would be identical without that context.
+
+## Discriminants
+
+A common literal-valued property can distinguish members of a union. Checking that property lets the checker select the matching member. See [unions](/typescript/types/unions) and [narrowing](/typescript/type-system/narrowing).
+
+Upstream: [literal types](https://www.typescriptlang.org/docs/handbook/2/everyday-types.html#literal-types) and [`satisfies`](https://www.typescriptlang.org/docs/handbook/release-notes/typescript-4-9.html#the-satisfies-operator).
+
+## Literal type syntax and identity
+
+A literal type denotes a specific string, numeric, bigint, or boolean value. Negative numeric and bigint literal types use a unary minus in type syntax. There is no general regular-expression literal type or arbitrary object-value literal type. `null` and `undefined` have their own intrinsic types.
+
+Two ordinary literal types of the same category and value represent the same literal identity. A number literal is distinct from the corresponding bigint or string literal. Type syntax does not distinguish positive and negative numeric zero as separate useful literal alternatives.
+
+```ts
+type Direction = 'north' | 'south';
+type Status = 200 | 404;
+type Debt = -10;
+type Large = 100n;
+const status: Status = 200;
+// @ts-expect-error: 201 is not an admitted alternative
+const other: Status = 201;
+```
+
+## WidenLiteral
+
+For an eligible fresh literal type, a mutable inference location can replace it with its base primitive type: string literal to `string`, number literal to `number`, bigint literal to `bigint`, or boolean literal to `boolean`. A non-widening literal annotation retains its literal requirement. Enum literals widen according to enum rules.
+
+Contextual typing can preserve a literal expected by an annotated union or discriminant. The result is determined by the expression's location; `const` on a binding does not make every nested property non-widening.
+
+```ts
+const object = { kind: 'text' };
+// @ts-expect-error: the mutable property inferred as string
+const literal: 'text' = object.kind;
+const contextual: { kind: 'text' | 'image' } = { kind: 'text' };
+const permitted: 'text' | 'image' = contextual.kind;
+```
+
+## Const assertions
+
+`as const` applies only to supported literal expressions and their permitted parenthesized forms. It suppresses literal widening, makes properties of an object literal readonly, and makes an array literal a readonly tuple. It recursively processes contained literal syntax, not arbitrary objects reached through references.
+
+```ts
+const mutable = { count: 0 };
+const container = { mutable, label: 'ready' } as const;
+mutable.count += 1;
+container.mutable.count += 1;
+// @ts-expect-error: the literal's label property is readonly
+container.label = 'ready';
+// @ts-expect-error: const assertions cannot be applied to an arbitrary call
+const invalid = Math.random() as const;
+```
+
+The referenced `mutable` object is not frozen. Const assertions and readonly checking do not call `Object.freeze` or prohibit mutation from untyped JavaScript. A `satisfies` expression can provide contextual literal information while preserving its checked result; it is not equivalent to either an annotation or a const assertion.
+
+## Discriminant property requirements
+
+A property with a literal or a union of recognized unit types can discriminate an object union. Testing the property can select matching alternatives. A wider `string` property does not provide the same finite partition. The checker also recognizes some nullish and singleton discriminants; the applicable flow rules determine whether a test narrows the containing object.
+
+Sources: [literal widening](https://www.typescriptlang.org/docs/handbook/release-notes/typescript-2-1.html#better-inference-for-literal-types), [const assertions](https://www.typescriptlang.org/docs/handbook/release-notes/typescript-3-4.html#const-assertions), and [checker](https://github.com/microsoft/TypeScript/blob/c63de15a992d37f0d6cec03ac7631872838602cb/src/compiler/checker.ts).

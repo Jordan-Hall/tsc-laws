@@ -29,6 +29,10 @@
     },
     "tsc-ts#build": {
       "outputs": ["dist/**"]
+    },
+    "@tsc-ts/web#build": {
+      "outputs": [".next/**", "!.next/cache/**"],
+      "env": ["NEXT_PUBLIC_SITE_URL", "VERCEL_PROJECT_PRODUCTION_URL", "VERCEL_ENV"]
     }
   }
 }

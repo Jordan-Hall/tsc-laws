@@ -81,6 +81,20 @@ const cases = [
       "/input.ts 2322 294 1 Type '{ readonly a: number[]; readonly b: number[]; }' is not assignable to type 'number'.",
     ],
   },
+  {
+    // Inferences flow between the context-sensitive elements of an array literal only in a tuple
+    // context: in `f`, `T` is fixed at `b` before the first element's return type is inferred.
+    name: 'intra-expression inference in array literals needs a tuple context',
+    source: [
+      'declare function f<T>(fns: ((a: number, b: T) => T)[]): T;',
+      'const r = f([(a) => a, (a, b) => b]);',
+      'const n: number = r;',
+      'declare function g<T>(fns: [(a: number) => T, (b: T) => void]): T;',
+      'const s = g([(a) => a, (b) => b.toFixed()]);',
+      'const m: number = s;',
+    ],
+    expected: ["/input.ts 2322 103 1 Type 'unknown' is not assignable to type 'number'."],
+  },
 ];
 
 test(

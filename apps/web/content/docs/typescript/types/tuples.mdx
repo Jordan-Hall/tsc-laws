@@ -1,0 +1,102 @@
+---
+title: Tuples
+description: Position-specific element types, optional elements, and variadic tuples.
+---
+
+A tuple describes elements by position. A fixed tuple has a known set of positions and a literal `length` type.
+
+```ts
+type Entry = [name: string, count: number];
+const entry: Entry = ['files', 3];
+const name = entry[0]; // string
+const count = entry[1]; // number
+// @ts-expect-error: no element at position 2
+const missing = entry[2];
+```
+
+Labels document positions and can improve editor display. They do not create named properties or change compatibility.
+
+## Optional and rest elements
+
+An optional element contributes a possible shorter length. A rest element accepts a variable number of elements.
+
+```ts
+type Request = [path: string, timeout?: number];
+type Queue = [first: string, ...remaining: string[]];
+const request: Request = ['/users'];
+const queue: Queue = ['first', 'second', 'third'];
+```
+
+Optional elements must follow required elements, subject to the tuple grammar's rest-element rules. Reading an optional element includes `undefined`.
+
+## Variadic type parameters
+
+A tuple can expand a generic tuple parameter with `...T`. This preserves the relationship between a parameter list and the arguments provided to it.
+
+```ts
+function call<T extends unknown[], R>(fn: (...args: T) => R, ...args: T): R {
+  return fn(...args);
+}
+const result = call((name: string, count: number) => `${name}: ${count}`, 'files', 3);
+```
+
+## Readonly tuples
+
+`readonly [string, number]` prevents writes through that tuple type. An array literal with `as const` becomes a readonly tuple with literal elements. This restriction is shallow and does not freeze referenced objects.
+
+Mutable tuples still provide some array mutation methods, so their position types are not a complete runtime length guarantee.
+
+See [tuple types](https://www.typescriptlang.org/docs/handbook/2/objects.html#tuple-types) and [variadic tuples](https://www.typescriptlang.org/docs/handbook/release-notes/typescript-4-0.html#variadic-tuple-types).
+
+## Tuple construction and positions
+
+A tuple specifies an ordered sequence of required, optional, and rest element types. Fixed positions have individual types. Known length is a numeric literal or a union of permitted lengths; a rest element can make length `number`. Labels document positions without affecting assignment identity.
+
+```ts
+type Pair = [name: string, count: number];
+const pair: Pair = ['items', 3];
+const length: 2 = pair.length;
+// @ts-expect-error: the known third position does not exist
+const absent = pair[2];
+```
+
+Indexing with a broad `number` combines the possible element types, including undefined from optional positions. `noUncheckedIndexedAccess` can add undefined for uncertain indices. A known required position is not made optional solely by that flag.
+
+## Optional and rest restrictions
+
+Optional tuple elements follow required ordinary elements. A rest element can precede a required element, but an optional element cannot follow a rest element, and a tuple cannot contain a second unbounded rest element in an invalid position. Generic variadic tuple substitution can flatten a supplied tuple into the surrounding positions.
+
+```ts
+type Optional = [string, number?];
+const short: Optional = ['a'];
+const long: Optional = ['a', 1];
+type Suffix = [...prefix: string[], count: number];
+const suffix: Suffix = ['a', 'b', 2];
+// @ts-expect-error: an optional element cannot follow a rest element
+type Invalid = [...string[], number?];
+```
+
+Under `exactOptionalPropertyTypes`, explicitly supplying undefined at an optional tuple position differs from omitting that position unless its type includes undefined. Read types still account for absence.
+
+## Tuple assignment
+
+To assign a source tuple to a target tuple, align required, optional, and rest positions, verify that every required target position is present, and check corresponding types. Known source length must satisfy the target's arity. Readonly source tuples cannot satisfy mutable tuple targets. Tuples can satisfy compatible array targets through their aggregate element types; an ordinary array cannot generally guarantee a target tuple's required positions.
+
+## Variadic tuples
+
+A generic tuple rest parameter represents a sequence of positions rather than one array-valued argument. Instantiation expands those positions where the arguments are known. Multiple generic spreads can be represented while inference retains enough sequence information; substituting an unbounded array makes the relevant region unbounded.
+
+```ts
+function prepend<T extends unknown[]>(first: string, ...rest: T): [string, ...T] {
+  return [first, ...rest];
+}
+const result: [string, number, boolean] = prepend('a', 1, true);
+```
+
+Tuple rest parameters in signatures contribute arity and parameter positions to call checking. A union of tuples can describe correlated argument lists; control-flow analysis can preserve those correlations for supported destructuring and rest-parameter patterns.
+
+## Mutation and representation
+
+A mutable fixed tuple still exposes library mutation methods such as `push`. Its declared positional type is not a runtime enforcement of length. A readonly tuple prohibits checked writes but does not freeze the runtime array. Very large or recursively concatenated tuples are subject to representation limits.
+
+Sources: [variadic tuples](https://www.typescriptlang.org/docs/handbook/release-notes/typescript-4-0.html#variadic-tuple-types), [rest elements](https://www.typescriptlang.org/docs/handbook/release-notes/typescript-4-2.html#leadingmiddle-rest-elements-in-tuple-types), and [checker](https://github.com/microsoft/TypeScript/blob/c63de15a992d37f0d6cec03ac7631872838602cb/src/compiler/checker.ts).

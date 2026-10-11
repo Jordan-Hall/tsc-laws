@@ -1,0 +1,104 @@
+---
+title: Type assertions and satisfies
+description: Assert a type, preserve literals, and check a shape without runtime conversion.
+---
+
+A type assertion tells the checker to view an expression as another type. It does not convert or validate the value. Direct assertions generally require sufficient overlap between source and target types.
+
+```ts
+declare const input: unknown;
+const name = input as string;
+// A runtime check is still needed before treating external input as a string.
+```
+
+## Double assertions
+
+An assertion through `unknown` can bypass the overlap restriction. This weakens checking and does not make the value correct.
+
+```ts
+const value = 'text' as unknown as number;
+// The runtime value is still "text".
+```
+
+## Non-null assertions
+
+`value!` removes `null` and `undefined` from the expression's type. It does not check for them at runtime. A definite assignment assertion on a declaration likewise suppresses an initialization check without assigning a value.
+
+Prefer a guard when missing values are possible during execution.
+
+## Const assertions
+
+`as const` retains primitive literal types, makes object-literal properties readonly, and makes array-literal positions a readonly tuple. It applies to suitable literal expressions, not arbitrary expressions needing conversion.
+
+```ts
+const request = { method: 'GET', path: '/users' } as const;
+const method: 'GET' = request.method;
+```
+
+## `satisfies`
+
+`expression satisfies T` checks assignability to `T` while preserving the resulting expression type rather than replacing it with the annotation. The target can still supply contextual typing.
+
+```ts
+const colors = {
+  red: [255, 0, 0],
+  blue: '#0000ff',
+} satisfies Record<string, string | [number, number, number]>;
+colors.blue.toUpperCase();
+```
+
+It does not provide runtime validation and can still perform excess property checks on a fresh object literal.
+
+See [type assertions](https://www.typescriptlang.org/docs/handbook/2/everyday-types.html#type-assertions) and [`satisfies`](https://www.typescriptlang.org/docs/handbook/release-notes/typescript-4-9.html#the-satisfies-operator).
+
+## Assertion forms and checking
+
+`expression as T` and, outside TSX, `<T>expression` assert a target type for the expression result. The checker resolves both types and requires the applicable overlap relationship. The target then becomes the asserted result used by surrounding checking. Neither form converts the value.
+
+An annotation instead defines a target against which the initializer must be assignable and sets the binding's declared type. `satisfies` checks assignability while retaining the expression's checked result type. These three operations must not be specified as interchangeable.
+
+```ts
+type Shape = { mode: 'read' | 'write' };
+const annotated: Shape = { mode: 'read' };
+const checked = { mode: 'read' } satisfies Shape;
+const exact: 'read' = checked.mode;
+// @ts-expect-error: the annotation exposes the broader property contract
+const broader: 'read' = annotated.mode;
+```
+
+## Assertion overlap
+
+A source may be asserted to a broader or narrower sufficiently overlapping target. Unrelated primitive assertions are rejected. An intermediate `unknown` or `any` assertion can bypass that direct overlap check. It is an explicit trust escape, not a conversion or additional validation.
+
+```ts
+declare const input: unknown;
+const claimed = input as { id: string };
+const text: string = claimed.id;
+```
+
+The property access is accepted on the asserted contract even if the runtime input is null or lacks the property. Assertion syntax must therefore not be used as evidence of external-data validity.
+
+## Non-null and definite-assignment assertions
+
+A postfix `!` removes the nullish possibilities relevant to a strict-null-checking expression. It evaluates to the original expression without a null check. Its parsing has restricted-line-break rules. An assertion on an expression differs from `!` on a variable or field declaration, which waives definite assignment rather than modifying the expression's runtime value.
+
+```ts
+declare const maybe: string | undefined;
+const claimed: string = maybe!;
+let externallyInitialized!: string;
+const readable: string = externallyInitialized;
+```
+
+Both uses rely on promises outside the checker's proof. Disabling strict null checking changes the practical significance of the expression assertion but does not add runtime behavior.
+
+## `satisfies` requirements
+
+The left expression must satisfy the resolved target. Fresh literals still receive excess-property checking, and context from the target can type nested callbacks or preserve literals. The result can therefore differ from the same expression checked without context even though it is not simply replaced by the target type.
+
+`satisfies` can follow a const assertion to combine literal preservation with a contract check. A readonly inferred tuple must still satisfy the target's mutability requirements; the operator does not remove readonly merely to make a check pass.
+
+## Const assertion boundary
+
+A const assertion is restricted to supported literal syntax. It suppresses widening and introduces readonly literal structure. It does not recursively freeze referenced objects, create an exact-object type, or prevent access through a mutable alias.
+
+Sources: [satisfies](https://www.typescriptlang.org/docs/handbook/release-notes/typescript-4-9.html#the-satisfies-operator), and [assertion and satisfaction checking](https://github.com/microsoft/TypeScript/blob/c63de15a992d37f0d6cec03ac7631872838602cb/src/compiler/checker.ts).

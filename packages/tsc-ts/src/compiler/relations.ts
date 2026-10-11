@@ -9,6 +9,8 @@ import { SyntaxKind } from './syntax-kind.js';
 import { isContextSensitive } from './checker-functions.js';
 import { type Checker, createDiagnosticForNode } from './checker.js';
 import {
+  CachedTypeKind,
+  cachedTypeKey,
   type ConditionalType,
   ElementFlags,
   IndexFlags,
@@ -43,7 +45,8 @@ import {
 import { InferenceFlags, InferencePriority, createInferenceContext, inferTypes } from './checker-inference.js';
 import {
   IntersectionFlags,
-  containsType,
+  unionContainsSortedTypes,
+  unionContainsType,
   createArrayTypeEx,
   compareTypes,
   containsMissingType,
@@ -79,6 +82,7 @@ import {
   getEndElementCount,
   createNormalizedTypeReference,
   typeListKey,
+  getRegularTypeOfLiteralType,
 } from './checker-type-factory.js';
 import {
   findApplicableIndexInfo,
@@ -219,14 +223,15 @@ export const enum RelationComparisonResult {
 }
 
 /** Cached results of one relation, by relation key. */
+/** Relation results by numeric relation key (see getRelationKey). */
 export class Relation {
-  private readonly results = new Map<string, number>();
+  private readonly results = new Map<number, number>();
 
-  get(key: string): number {
+  get(key: number): number {
     return this.results.get(key) ?? RelationComparisonResult.None;
   }
 
-  set(key: string, result: number): void {
+  set(key: number, result: number): void {
     this.results.set(key, result);
   }
 
@@ -611,8 +616,24 @@ function enumValueText(kind: number, n: number, s: string): string {
 // ---- Keys
 
 export class RelationKey {
-  key = '';
+  key = 0;
   constrained = false;
+}
+
+/** Type ids below this bound pack into a numeric relation key with the intersection state. */
+const RelationKeyIdLimit = 1 << 24;
+
+/**
+ * A key for the string spelling of a relation, numbered per checker. Interned keys are negative, so
+ * they never collide with packed keys.
+ */
+function internRelationKey(c: Checker, text: string): number {
+  let key = c.relationKeyIds.get(text);
+  if (key === undefined) {
+    key = -(c.relationKeyIds.size + 1);
+    c.relationKeyIds.set(text, key);
+  }
+  return key;
 }
 
 export function getRelationKey(
@@ -636,8 +657,17 @@ export function getRelationKey(
     writeTypeReference(c, source, 0, typeParameters, parts, ignoreConstraints, result);
     parts.push(',');
     writeTypeReference(c, target, 0, typeParameters, parts, ignoreConstraints, result);
-    result.key = parts.join('') + ':' + intersectionState;
-  } else result.key = 's' + source.id + ',' + target.id + ':' + intersectionState;
+    result.key = internRelationKey(c, parts.join('') + ':' + intersectionState);
+  } else {
+    // The common case packs both ids and the intersection state (two bits) into one exact number,
+    // so the relation caches need no key strings.
+    const s = source.id;
+    const t = target.id;
+    result.key =
+      s < RelationKeyIdLimit && t < RelationKeyIdLimit
+        ? (s * RelationKeyIdLimit + t) * 4 + intersectionState
+        : internRelationKey(c, 's' + s + ',' + t + ':' + intersectionState);
+  }
   return result;
 }
 
@@ -720,7 +750,10 @@ export function checkTypeRelatedTo(
   headMessage: DiagnosticMessage | undefined,
   diagnosticOutput: Diagnostic[] | undefined,
 ): boolean {
-  const r = new Relater(c, relation, errorNode);
+  // Nested checks (from resolving types during the relation) find no spare and allocate their own.
+  const r = c.spareRelater ?? new Relater(c, relation, errorNode);
+  c.spareRelater = undefined;
+  r.reset(relation, errorNode);
   r.relationCount = Math.trunc((16000000 - relation.size()) / 8);
   const result = r.isRelatedToEx(
     source,
@@ -753,6 +786,7 @@ export function checkTypeRelatedTo(
     const diagnostic = createDiagnosticFromErrorChain(r.errorChain, r.errorNode, r.relatedInfo);
     if (diagnostic !== undefined) reportDiagnostic(c, diagnostic, diagnosticOutput);
   }
+  c.spareRelater = r;
   return result !== Ternary.False;
 }
 
@@ -838,15 +872,15 @@ function isConversionOrInterfaceImplementationMessage(message: DiagnosticMessage
 
 // ---- The relater
 
-/** One relation check: its error chain, maybe-stack and recursion stacks. */
+/** The state of a relation check: its error chain, maybe-stack and recursion stacks. */
 export class Relater extends TypeComparer {
   readonly c: Checker;
-  readonly relation: Relation;
+  relation: Relation;
   errorNode: Node | undefined;
   errorChain: ErrorChain | undefined = undefined;
   relatedInfo: Diagnostic[] = [];
-  readonly maybeKeys: string[] = [];
-  readonly maybeKeysSet = new Set<string>();
+  readonly maybeKeys: number[] = [];
+  readonly maybeKeysSet = new Set<number>();
   readonly sourceStack: Type[] = [];
   readonly targetStack: Type[] = [];
   expandingFlags: ExpandingFlags = ExpandingFlags.None;
@@ -860,6 +894,22 @@ export class Relater extends TypeComparer {
     this.c = c;
     this.relation = relation;
     this.errorNode = errorNode;
+  }
+
+  /** Prepares this relater for a new check, as if newly constructed. */
+  reset(relation: Relation, errorNode: Node | undefined): void {
+    this.relation = relation;
+    this.errorNode = errorNode;
+    this.errorChain = undefined;
+    if (this.relatedInfo.length !== 0) this.relatedInfo = [];
+    this.maybeKeys.length = 0;
+    this.maybeKeysSet.clear();
+    this.sourceStack.length = 0;
+    this.targetStack.length = 0;
+    this.expandingFlags = ExpandingFlags.None;
+    this.overflow = false;
+    this.relationCount = 0;
+    this.signatureIntersectionState = IntersectionState.None;
   }
 
   compare(source: Type, target: Type, reportErrors: boolean): Ternary {
@@ -1199,7 +1249,8 @@ export class Relater extends TypeComparer {
     intersectionState: IntersectionState,
   ): Ternary {
     const sourceTypes = typesOf(source);
-    if ((source.flags & TypeFlags.Union) !== 0 && containsType(this.c, sourceTypes, target)) return Ternary.True;
+    if ((source.flags & TypeFlags.Union) !== 0 && unionContainsType(this.c, source as UnionType, target))
+      return Ternary.True;
     for (let i = 0; i < sourceTypes.length; i++) {
       const related = this.isRelatedToEx(
         sourceTypes[i]!,
@@ -1280,7 +1331,7 @@ export class Relater extends TypeComparer {
     const c = this.c;
     const targetTypes = typesOf(target);
     if ((target.flags & TypeFlags.Union) !== 0) {
-      if (containsType(c, targetTypes, source)) return Ternary.True;
+      if (unionContainsType(c, target as UnionType, source)) return Ternary.True;
       if (
         this.relation !== c.comparableRelation &&
         (target.objectFlags & ObjectFlags.PrimitiveUnion) !== 0 &&
@@ -1299,8 +1350,8 @@ export class Relater extends TypeComparer {
         else if ((source.flags & TypeFlags.NumberLiteral) !== 0) primitive = c.numberType;
         else if ((source.flags & TypeFlags.BigIntLiteral) !== 0) primitive = c.bigintType;
         if (
-          (primitive !== undefined && containsType(c, targetTypes, primitive)) ||
-          (alternateForm !== undefined && containsType(c, targetTypes, alternateForm))
+          (primitive !== undefined && unionContainsType(c, target as UnionType, primitive)) ||
+          (alternateForm !== undefined && unionContainsType(c, target as UnionType, alternateForm))
         )
           return Ternary.True;
         return Ternary.False;
@@ -2488,7 +2539,7 @@ export class Relater extends TypeComparer {
       !isObjectLiteralType(source) &&
       !isEmptyArrayLiteralType(c, source) &&
       !isTupleType(source);
-    const unmatchedProperty = getUnmatchedProperty(c, source, target, requireOptionalProperties);
+    const unmatchedProperty = getUnmatchedProperty(c, source, target, requireOptionalProperties, false);
     if (unmatchedProperty !== undefined) {
       if (reportErrors && shouldReportUnmatchedPropertyError(c, source, target))
         this.reportUnmatchedProperty(source, target, unmatchedProperty, requireOptionalProperties);
@@ -3387,8 +3438,8 @@ export function getSingleBaseForNonAugmentingSubtype(c: Checker, t: Type): Type 
   const reference = t as TypeReference;
   if ((reference.target!.objectFlags & ObjectFlags.ClassOrInterface) === 0) return undefined;
   const target = reference.target as InterfaceType;
-  const key = 'equivalentBaseType' + t.id;
-  if ((t.objectFlags & ObjectFlags.IdenticalBaseTypeCalculated) !== 0) return c.cachedTypes.get(key);
+  const key = cachedTypeKey(CachedTypeKind.EquivalentBaseType, t.id);
+  if ((t.objectFlags & ObjectFlags.IdenticalBaseTypeCalculated) !== 0) return c.cachedTypesById.get(key);
   t.objectFlags |= ObjectFlags.IdenticalBaseTypeCalculated;
   if ((target.objectFlags & ObjectFlags.Class) !== 0) {
     // Only base types named by simple qualified names; others may refer back to the class.
@@ -3416,7 +3467,7 @@ export function getSingleBaseForNonAugmentingSubtype(c: Checker, t: Type): Type 
         );
   if (typeArguments.length > typeParameters.length)
     instantiatedBase = getTypeWithThisArgument(c, instantiatedBase, typeArguments[typeArguments.length - 1]!, false);
-  c.cachedTypes.set(key, instantiatedBase);
+  c.cachedTypesById.set(key, instantiatedBase);
   return instantiatedBase;
 }
 
@@ -3575,13 +3626,10 @@ export function isTypeSubsetOf(c: Checker, source: Type, target: Type): boolean 
 }
 
 function isTypeSubsetOfUnion(c: Checker, source: Type, target: Type): boolean {
-  const targetTypes = typesOf(target);
-  if ((source.flags & TypeFlags.Union) !== 0) {
-    for (const t of typesOf(source)) if (!containsType(c, targetTypes, t)) return false;
-    return true;
-  }
+  const union = target as UnionType;
+  if ((source.flags & TypeFlags.Union) !== 0) return unionContainsSortedTypes(c, union, typesOf(source));
   if ((source.flags & TypeFlags.EnumLike) !== 0 && getBaseTypeOfEnumLikeType(c, source) === target) return true;
-  return containsType(c, targetTypes, source);
+  return unionContainsType(c, union, source);
 }
 
 function getTypeOfPropertyInTypes(c: Checker, types: readonly Type[], name: string): Type {
@@ -3781,14 +3829,31 @@ export function getUnmatchedProperty(
   source: Type,
   target: Type,
   requireOptionalProperties: boolean,
+  matchDiscriminantProperties: boolean,
 ): Symbol | undefined {
   for (const targetProp of getPropertiesOfType(c, target)) {
     if (isStaticPrivateIdentifierProperty(targetProp)) continue;
     if (
       requireOptionalProperties ||
       ((targetProp.flags & SymbolFlags.Optional) === 0 && (targetProp.checkFlags & CheckFlags.Partial) === 0)
-    )
-      if (getPropertyOfType(c, source, targetProp.name) === undefined) return targetProp;
+    ) {
+      const sourceProp = getPropertyOfType(c, source, targetProp.name);
+      if (sourceProp === undefined) return targetProp;
+      if (matchDiscriminantProperties) {
+        // A unit-typed (discriminant) property whose literal differs in the source is unmatched.
+        const targetType = getTypeOfSymbol(c, targetProp);
+        if ((targetType.flags & TypeFlags.Unit) !== 0) {
+          const sourceType = getTypeOfSymbol(c, sourceProp);
+          if (
+            !(
+              (sourceType.flags & TypeFlags.Any) !== 0 ||
+              getRegularTypeOfLiteralType(c, sourceType) === getRegularTypeOfLiteralType(c, targetType)
+            )
+          )
+            return targetProp;
+        }
+      }
+    }
   }
   return undefined;
 }

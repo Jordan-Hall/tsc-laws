@@ -1,0 +1,76 @@
+---
+title: Lexical grammar
+description: How source text becomes identifiers, keywords, literals, and punctuation.
+---
+
+TypeScript source text is scanned into tokens before it is parsed. Tokens include identifiers, keywords, literals, and punctuation. Whitespace and comments usually separate tokens without becoming part of an expression.
+
+## Identifiers
+
+An identifier names a binding or a property. JavaScript's identifier rules allow Unicode characters, `$`, and `_`. A digit can appear after the first character.
+
+```ts
+const café = 1;
+const _count2 = café + 1;
+const $result = _count2;
+```
+
+A word's role depends on its position. A property can use a keyword as a name even when that word cannot declare an ordinary variable in the same context:
+
+```ts
+const settings = { default: true, class: 'primary' };
+settings.default;
+```
+
+## Literals
+
+Numeric, string, boolean, bigint, regular-expression, and template literals introduce values. `null` is also a literal. A literal expression can have a [literal type](/typescript/types/literals), but a mutable binding can widen that type.
+
+```ts
+const count = 1_000;
+const mask = 0xff;
+const large = 10n;
+const label = `items: ${count}`;
+```
+
+## Context matters
+
+`/` can begin a regular-expression literal or represent division. A parser can request a rescan when the surrounding grammar determines which interpretation applies. Similarly, JSX and template substitutions require context-sensitive scanning.
+
+Line breaks can affect automatic semicolon insertion. For example, a line break immediately after `return` ends the return statement; the expression on the next line is not returned. Write the return expression on the same line or open parentheses before the line break.
+
+TypeScript also has tokens used in type positions, including `keyof`, `infer`, and type parameter syntax. Their interpretation depends on the grammar around them.
+
+See the [ECMAScript lexical grammar](https://tc39.es/ecma262/#sec-ecmascript-language-lexical-grammar). TypeScript's scanner is part of the upstream implementation; a complete scanner includes rescanning, error recovery, and comments used by tooling.
+
+## Source goals and tokens
+
+The scanner reads source according to a file's language variant and parser context. `.tsx` permits JSX tokenization; `.ts` permits angle-bracket assertions. JSX text, template substitutions, regular expressions, and greater-than sequences in type arguments require specialized scanning or rescanning. A token stream detached from its parse goal is therefore insufficient to determine every accepted program.
+
+ECMAScript defines whitespace, line terminators, comments, numeric/string literals, identifiers, and lexical goals. TypeScript adds contextual words and interprets some comments as pragmas. Source positions and JavaScript strings use UTF-16 code-unit conventions; a displayed character need not occupy one position.
+
+## Identifier and keyword checks
+
+Identifier escapes must denote permitted identifier characters. An escaped spelling does not generally bypass a reserved-word restriction in a binding position. Property names can use identifier names such as `default`, while binding positions have stricter restrictions determined by module, strict, async, and generator context.
+
+Words including `type`, `infer`, `keyof`, `readonly`, `satisfies`, `as`, `using`, and `namespace` are interpreted by syntactic context. Case is significant: `String` is a declared library name, whereas `string` is intrinsic type syntax.
+
+## Literal spelling
+
+Numeric literals include decimal, exponent, binary, octal, and hexadecimal forms with permitted separators. A separator must occur between eligible digits and cannot be placed arbitrarily next to prefixes, decimal points, or exponents. Legacy forms have strict-context restrictions. A sign is ordinarily a unary operator, though type syntax permits negative literal types.
+
+Bigint literals use the `n` suffix and do not admit fractional values. String literals use escape processing and single/double delimiters. Template literals separate text spans and expression substitutions. Type-level templates replace expression substitutions with types and perform no runtime interpolation.
+
+## Comments and directives
+
+Ordinary comments are trivia, but their placement can affect automatic semicolon insertion through line breaks. JSDoc comments can contribute types in JavaScript checking. Triple-slash reference directives participate in dependency construction only in recognized leading positions. `@ts-check`, `@ts-nocheck`, `@ts-ignore`, and `@ts-expect-error` have checking effects specified in [diagnostics](/typescript/projects/diagnostics).
+
+Not every comment containing a directive-looking word is a valid pragma. A source-map comment, JSX pragma, declaration reference, and diagnostic suppression serve different purposes. They must not be collapsed into one comment-based type mechanism.
+
+## Restricted line breaks
+
+Automatic semicolon insertion follows inherited statement rules. A newline after `return` can terminate that statement; `throw` cannot have the same newline before its operand. Postfix increment/decrement and non-null assertion parsing have restrictions. Async and resource forms also have context-sensitive line-break constraints.
+
+An inserted semicolon can change control flow and inferred returns. A formatter does not substitute for these grammar rules. The [syntax grammar](/typescript/specification/grammar) defines TypeScript productions; syntactic recovery after an invalid token is not acceptance.
+
+Sources: [scanner](https://github.com/microsoft/TypeScript/blob/c63de15a992d37f0d6cec03ac7631872838602cb/src/compiler/scanner.ts), [parser](https://github.com/microsoft/TypeScript/blob/c63de15a992d37f0d6cec03ac7631872838602cb/src/compiler/parser.ts), and [ECMAScript lexical grammar](https://tc39.es/ecma262/#sec-ecmascript-language-lexical-grammar).
