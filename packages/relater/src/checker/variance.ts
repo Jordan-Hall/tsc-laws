@@ -9,7 +9,9 @@ export class VarianceInference {
   private superType = -1;
   private subType = -1;
   private otherType = -1;
-  private readonly reliability: number[] = [];
+  // Not private: scriptc 0.2.8 aborts with "Cannot access 'dynamicViews' before initialization"
+  // when it analyzes a private array field that is read through `this` (fixed in later scriptc).
+  readonly reliability: number[] = [];
 
   constructor(
     private readonly arena: TypeArena,
