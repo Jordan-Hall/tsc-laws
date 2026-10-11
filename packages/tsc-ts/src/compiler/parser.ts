@@ -469,6 +469,8 @@ export class Parser extends ScannerErrorReporter {
   reparsedClones: Node[];
   /** Nodes with eagerly parsed JSDoc, for rewinding. */
   jsDocInfos: Node[];
+  /** The eagerly parsed JSDoc of this file's nodes by node id; becomes `SourceFile.jsDocs`. */
+  jsDocTable: Map<number, Node[]> | undefined;
 
   // State for `ListElement.SignatureParameter`.
   signatureParameterInAwaitContext: boolean;
@@ -521,6 +523,7 @@ export class Parser extends ScannerErrorReporter {
     this.reparseList = [];
     this.reparsedClones = [];
     this.jsDocInfos = [];
+    this.jsDocTable = undefined;
     this.signatureParameterInAwaitContext = false;
     this.signatureParameterAllowAmbiguity = false;
     this.signatureParameterFlags = ParseFlags.None;
@@ -588,6 +591,17 @@ export class Parser extends ScannerErrorReporter {
     );
   }
 
+  /** Attaches eagerly parsed JSDoc to `node`, undone by `rewind`. */
+  setJSDoc(node: Node, jsDoc: Node[]): void {
+    let table = this.jsDocTable;
+    if (table === undefined) {
+      table = new Map<number, Node[]>();
+      this.jsDocTable = table;
+    }
+    table.set(node.id, jsDoc);
+    this.jsDocInfos.push(node);
+  }
+
   rewind(state: ParserState): void {
     this.scanner.rewind(state);
     this.currentToken = this.scanner.getToken();
@@ -598,7 +612,7 @@ export class Parser extends ScannerErrorReporter {
     const jsDocInfos = this.jsDocInfos;
     while (jsDocInfos.length > state.jsDocInfosLength) {
       const node = jsDocInfos.pop();
-      if (node !== undefined) node.jsDoc = undefined;
+      if (node !== undefined && this.jsDocTable !== undefined) this.jsDocTable.delete(node.id);
     }
     if (this.reparsedClones.length !== state.reparsedClonesLength)
       this.reparsedClones.length = state.reparsedClonesLength;
@@ -797,6 +811,8 @@ export class Parser extends ScannerErrorReporter {
     result.identifierCount = this.identifierCount;
     // JSDoc of TypeScript files is parsed on first use.
     result.hasLazyJSDoc = !this.isJavaScript();
+    result.jsDocs = this.jsDocTable;
+    this.jsDocTable = undefined;
     const clones = this.reparsedClones.slice();
     clones.sort(compareNodePositions);
     result.reparsedClones = clones;
@@ -6796,9 +6812,13 @@ export class Parser extends ScannerErrorReporter {
 
 /** The JSDoc nodes of `node`, parsing them on first use in TypeScript files. */
 export function getJSDoc(file: SourceFile, node: Node): readonly Node[] {
-  const jsDoc = node.jsDoc;
-  if (jsDoc !== undefined) return jsDoc;
-  if ((node.flags & NodeFlags.HasJSDoc) === 0 || !file.hasLazyJSDoc) return noNodes;
+  if ((node.flags & NodeFlags.HasJSDoc) === 0) return noNodes;
+  const jsDocs = file.jsDocs;
+  if (jsDocs !== undefined) {
+    const jsDoc = jsDocs.get(node.id);
+    if (jsDoc !== undefined) return jsDoc;
+  }
+  if (!file.hasLazyJSDoc) return noNodes;
   let parser = lazyJSDocParser;
   if (parser === undefined || lazyJSDocFile !== file) {
     parser = new Parser(file.fileName, file.path, file.text, file.scriptKind, file.externalModuleIndicatorOptions);
@@ -6806,8 +6826,30 @@ export function getJSDoc(file: SourceFile, node: Node): readonly Node[] {
     lazyJSDocFile = file;
   }
   const result = parser.jsdoc.parseJSDocForNode(node);
-  node.jsDoc = result;
+  if (jsDocs !== undefined) jsDocs.set(node.id, result);
+  else {
+    const table = new Map<number, Node[]>();
+    table.set(node.id, result);
+    file.jsDocs = table;
+  }
   return result;
+}
+
+/**
+ * The JSDoc already attached to `node` (parsed eagerly, or lazily by `getJSDoc`), without parsing:
+ * `undefined` when there is none.
+ */
+export function getAttachedJSDoc(node: Node): readonly Node[] | undefined {
+  if ((node.flags & NodeFlags.HasJSDoc) === 0) return undefined;
+  let root = node;
+  for (;;) {
+    const parent: Node | undefined = root.parent;
+    if (parent === undefined) break;
+    root = parent;
+  }
+  if (root.kind !== SyntaxKind.SourceFile) return undefined;
+  const jsDocs = (root as SourceFile).jsDocs;
+  return jsDocs === undefined ? undefined : jsDocs.get(node.id);
 }
 
 const noNodes: readonly Node[] = [];
@@ -7449,7 +7491,10 @@ export function getNodeAtPosition(file: SourceFile, position: number, includeJSD
   for (;;) {
     let child: Node | undefined;
     if (includeJSDoc) {
-      const jsDoc = current.jsDoc;
+      const jsDoc =
+        (current.flags & NodeFlags.HasJSDoc) === 0 || file.jsDocs === undefined
+          ? undefined
+          : file.jsDocs.get(current.id);
       if (jsDoc !== undefined)
         for (const doc of jsDoc)
           if (nodeContainsPosition(doc, position)) {

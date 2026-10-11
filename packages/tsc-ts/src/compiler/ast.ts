@@ -177,9 +177,6 @@ export abstract class Node {
   pos: number;
   end: number;
   parent: Node | undefined;
-  /** JSDoc comments attached by the parser (eagerly in JS files, on demand in TS files). */
-  /** `JSDoc` nodes. */
-  jsDoc: Node[] | undefined;
   /** A program-wide id, unique among all nodes, in construction order. */
   readonly id: number;
 
@@ -189,7 +186,6 @@ export abstract class Node {
     this.pos = -1;
     this.end = -1;
     this.parent = undefined;
-    this.jsDoc = undefined;
     this.id = ++lastNodeId | 0;
   }
 
@@ -8064,6 +8060,11 @@ export class SourceFile extends Node {
   reparsedClones: Node[];
   /** Whether JSDoc of TypeScript files is parsed on first use. */
   hasLazyJSDoc: boolean;
+  /**
+   * The `JSDoc` nodes attached to this file's nodes by node id (eagerly in JS files, on demand in
+   * TS files): few nodes carry JSDoc, so it lives here instead of in a field of every node.
+   */
+  jsDocs: Map<number, Node[]> | undefined;
   private diagnosticFileCache: DiagnosticFile | undefined;
 
   // Set by the binder.
@@ -8120,6 +8121,7 @@ export class SourceFile extends Node {
     this.externalModuleIndicator = undefined;
     this.reparsedClones = [];
     this.hasLazyJSDoc = false;
+    this.jsDocs = undefined;
     this.diagnosticFileCache = undefined;
     this.symbol = undefined;
     this.locals = undefined;

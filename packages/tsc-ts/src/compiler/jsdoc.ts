@@ -164,8 +164,7 @@ export class JSDocParser {
       p.hasDeprecatedTag = false;
       node.flags |= NodeFlags.PossiblyContainsDeprecatedTag;
     }
-    node.jsDoc = jsDoc;
-    p.jsDocInfos.push(node);
+    p.setJSDoc(node, jsDoc);
     if (p.isJavaScript()) this.reparser.reparseTags(node, jsDoc);
     return true;
   }
