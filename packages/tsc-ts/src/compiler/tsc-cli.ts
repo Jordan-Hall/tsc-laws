@@ -385,14 +385,13 @@ function readProjectConfig(
   commandLine: ParsedCommandLine,
   configFileName: string,
   errors: Diagnostic[],
+  expandFileNames = true,
 ): ProjectConfig | undefined {
-  if (configFileName !== '')
-    return new ConfigParser(fs, sys.currentDirectory).parseConfigFile(
-      configFileName,
-      commandLine.options,
-      commandLine.raw,
-      errors,
-    );
+  if (configFileName !== '') {
+    const parser = new ConfigParser(fs, sys.currentDirectory);
+    parser.expandFileNames = expandFileNames;
+    return parser.parseConfigFile(configFileName, commandLine.options, commandLine.raw, errors);
+  }
   return new ProjectConfig(
     commandLine.options,
     undefined,
@@ -424,7 +423,9 @@ export function readThreadProject(
   configFileName: string,
 ): ThreadProject | undefined {
   const fs = new CachedFileSystem(new SystemFileSystem(sys));
-  const config = readProjectConfig(sys, fs, parseCommandLine(args, sys), configFileName, []);
+  // The main thread hands out the root files: matching the config's `include` patterns again (tens
+  // of milliseconds on large trees) would only delay the thread's first files.
+  const config = readProjectConfig(sys, fs, parseCommandLine(args, sys), configFileName, [], false);
   return config === undefined ? undefined : new ThreadProject(config, fs);
 }
 

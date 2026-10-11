@@ -966,6 +966,11 @@ function toOptionValue(option: OptionDeclaration, value: JsonValue): OptionValue
 export class ConfigParser {
   private readonly extendedConfigs = new Map<string, ExtendedConfig>();
   private readonly resolutionHost: FileSystemResolutionHost;
+  /**
+   * Whether parsed configs list their root files. Parse threads (parallel-parse.ts), which get the
+   * files to load from the main thread, read the config without matching `include` patterns.
+   */
+  expandFileNames = true;
 
   constructor(
     readonly fs: FileSystem,
@@ -1079,10 +1084,12 @@ export class ConfigParser {
     file.configFileSpecs = specs;
 
     const literalFiles = new Map<string, string>();
-    const fileNames = this.getFileNamesFromConfigSpecs(specs, basePathForFileNames, options, literalFiles);
+    const fileNames = this.expandFileNames
+      ? this.getFileNamesFromConfigSpecs(specs, basePathForFileNames, options, literalFiles)
+      : [];
     const canReportNoInputFiles =
       !(raw instanceof JsonObject) || (!raw.entries.has('files') && !raw.entries.has('references'));
-    if (fileNames.length === 0 && canReportNoInputFiles) {
+    if (this.expandFileNames && fileNames.length === 0 && canReportNoInputFiles) {
       errors.push(
         createCompilerDiagnostic(
           Diagnostics.No_inputs_were_found_in_config_file_0_Specified_include_paths_were_1_and_exclude_paths_were_2,
