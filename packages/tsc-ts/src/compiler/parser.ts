@@ -98,6 +98,7 @@ import {
   MethodSignatureDeclaration,
   MissingDeclaration,
   ModifierFlags,
+  MissingNodeList,
   ModifierList,
   ModuleBlock,
   ModuleDeclaration,
@@ -1053,9 +1054,7 @@ export class Parser extends ScannerErrorReporter {
   }
 
   createMissingList(): NodeList {
-    const result = this.parseEmptyNodeList();
-    result.isMissingList = true;
-    return result;
+    return new MissingNodeList(this.nodePos(), this.nodePos(), []);
   }
 
   /** Reports an error for the current token; returns true if parsing the list should stop. */

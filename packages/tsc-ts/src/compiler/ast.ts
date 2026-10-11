@@ -213,14 +213,16 @@ export class NodeList {
   pos: number;
   end: number;
   nodes: Node[];
-  /** Created where the list's opening token was missing. */
-  isMissingList: boolean;
 
   constructor(pos: number, end: number, nodes: Node[]) {
     this.pos = pos | 0;
     this.end = end | 0;
     this.nodes = nodes;
-    this.isMissingList = false;
+  }
+
+  /** Created where the list's opening token was missing (a `MissingNodeList`, not a stored flag: natively that keeps a list at 48 bytes). */
+  get isMissingList(): boolean {
+    return this instanceof MissingNodeList;
   }
 
   hasTrailingComma(): boolean {
@@ -228,6 +230,9 @@ export class NodeList {
     return nodes.length > 0 && nodes[nodes.length - 1]!.end < this.end;
   }
 }
+
+/** An empty list created where the list's opening token was missing. */
+export class MissingNodeList extends NodeList {}
 
 export class ModifierList extends NodeList {
   modifierFlags: ModifierFlags;
@@ -250,9 +255,9 @@ function cloneNodes(nodes: Node[]): Node[] {
 }
 
 function cloneList(list: NodeList): NodeList {
-  const result = new NodeList(list.pos, list.end, cloneNodes(list.nodes));
-  result.isMissingList = list.isMissingList;
-  return result;
+  return list.isMissingList
+    ? new MissingNodeList(list.pos, list.end, cloneNodes(list.nodes))
+    : new NodeList(list.pos, list.end, cloneNodes(list.nodes));
 }
 
 function cloneModifiers(list: ModifierList): ModifierList {
