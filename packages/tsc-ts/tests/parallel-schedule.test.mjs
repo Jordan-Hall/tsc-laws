@@ -43,6 +43,7 @@ const { CheckedProgram } = await load('compiler/program-checker.js');
 const { ParseQueue } = await load('compiler/parallel-parse.js');
 const {
   autoCheckers,
+  checkGroups,
   checkOrder,
   checkersFittingMemory,
   fillScheduleCosts,
@@ -195,4 +196,64 @@ test('auto starts a checker per CPU, at least four, fewer only when memory does 
   assert.equal(autoCheckers(16, checkersFittingMemory(57491513, 30414210, 16 * GiB)), 8);
   assert.equal(autoCheckers(8, checkersFittingMemory(71728469, 22113123, 16 * GiB)), 8);
   assert.equal(autoCheckers(16, checkersFittingMemory(57491513, 30414210, 32 * GiB)), 16);
+});
+
+function groupProject() {
+  const dir = tempDir('tsc-ts-parallel-schedule-groups-');
+  const files = {
+    'tsconfig.json': JSON.stringify({
+      compilerOptions: { strict: true, noEmit: true, types: [], skipLibCheck: true, module: 'nodenext' },
+      include: ['src'],
+    }),
+    // A large generated module that few files import, the files importing it, and their importer.
+    'src/schema.gen.ts': 'export declare const s0: { a: number; b: string };\n'.repeat(200),
+    'src/meta.gen.ts': "import { s0 } from './schema.gen.js';\nexport const meta = s0;\n",
+    'src/client.ts':
+      "import { s0 } from './schema.gen.js';\nimport { meta } from './meta.gen.js';\nexport const client = [s0, meta];\n",
+    'src/app.ts': "import { client } from './client.js';\nexport const app = client;\n",
+    'src/other.ts': 'export const other = 1;\n'.repeat(20),
+    'src/more.ts': 'export const more = 1;\n'.repeat(20),
+  };
+  for (const [name, text] of Object.entries(files)) {
+    mkdirSync(dirname(join(dir, name)), { recursive: true });
+    writeFileSync(join(dir, name), text);
+  }
+  const work = executeCommandLine(createNodeSystem(bundledLibs, ''), ['-p', dir]);
+  assert.equal(work.kind, 'compile');
+  return new CheckedProgram(work.program);
+}
+
+test('a large module that few files import groups with the files importing it, costliest first', () => {
+  const c = groupProject();
+  const order = checkOrder(c);
+  const cost = [];
+  for (const file of c.program.getSourceFiles()) cost.push(file.text.length);
+  // The default least load is a million characters: this project has no groups.
+  assert.deepEqual(checkGroups(c, order, cost, 2), []);
+  const groups = checkGroups(c, order, cost, 2, 1000);
+  assert.equal(groups.length, 1);
+  const names = groups[0].map((i) => baseName(c.program, i));
+  assert.equal(names[0], 'schema.gen.ts');
+  assert.deepEqual(names.slice().sort(), ['app.ts', 'client.ts', 'meta.gen.ts', 'schema.gen.ts']);
+  // With many checkers, the files around the schema would be too much for one checker.
+  assert.deepEqual(checkGroups(c, order, cost, 64, 1000), []);
+});
+
+test('a checker takes a group from the shared queue as a whole, and nobody takes it from that checker', () => {
+  // Positions 0-2 are a group, 3 a file of its own, then the ranges 4-5 and 6-7.
+  const schedule = new Int32Array(newSchedule(2, 8, 0, 0));
+  fillScheduleCosts(schedule, Array(8).fill(10), Array(8).fill([]), [], [3, 0, 0, 1]);
+  ownRanges(schedule, 4, 6, 6, 8);
+  schedule[2] = 4;
+  assert.equal(takePosition(schedule, 8, 1), 0);
+  assert.equal(takePosition(schedule, 8, 0), 3);
+  assert.equal(takePosition(schedule, 8, 1), 1);
+  assert.equal(takePosition(schedule, 8, 0), 4);
+  assert.equal(takePosition(schedule, 8, 0), 5);
+  // Checker 0 is idle: it takes from checker 1's range, never the rest of its group.
+  assert.equal(takePosition(schedule, 8, 0), 7);
+  assert.equal(takePosition(schedule, 8, 1), 2);
+  assert.equal(takePosition(schedule, 8, 1), 6);
+  assert.equal(takePosition(schedule, 8, 0), -1);
+  assert.equal(takePosition(schedule, 8, 1), -1);
 });

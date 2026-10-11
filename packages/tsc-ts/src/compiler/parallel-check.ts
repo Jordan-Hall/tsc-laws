@@ -3,10 +3,12 @@
  *
  * The main thread is checker 0; it starts N-1 checker threads. Every checker creates its own checker
  * over the program and takes files until none are left (`planSchedule`): the costliest files first,
- * then a range of neighboring files of its own, then the end of other checkers' ranges where that
- * makes them finish earlier (`takePosition`). The threads send back the semantic diagnostics of their files (and under `noEmit` with declarations,
- * their declaration diagnostics) and their global diagnostics, and the main thread reports them like
- * a single checker would. Which checker checks a file does not change its diagnostics.
+ * and groups of files that share costly declarations as a whole (`checkGroups`), then a range of
+ * neighboring files of its own, then the end of other checkers' ranges where that makes them finish
+ * earlier (`takePosition`). The threads send back the semantic
+ * diagnostics of their files (and under `noEmit` with declarations, their declaration diagnostics)
+ * and their global diagnostics, and the main thread reports them like a single checker would. Which
+ * checker checks a file does not change its diagnostics.
  *
  * In scriptc builds, threads share one program: the main thread computes the program's lazy caches,
  * publishes it with `@scriptc/threads` (the program becomes immutable and immortal, and threads
@@ -311,7 +313,11 @@ function isExternalModuleFile(file: SourceFile): boolean {
  * start and end of its range of positions; with costs, for each position the text length of its file
  * and the start of its libraries in the library references (one more start at the end), the library
  * references, for each library what resolving it costs, and for each checker the set of libraries it
- * has resolved (one bit per library).
+ * has resolved (one bit per library), and for each position the number of files of the group starting
+ * there (0 or 1 for a file of its own).
+ *
+ * The leading positions are the shared queue: the costliest files, and groups of files that a
+ * checker takes as a whole (`checkGroups`), which no other checker takes from it.
  *
  * With ranges, each checker checks a contiguous run of the program's files (files next to each
  * other in program order tend to use the same declarations, so its checker resolves fewer of them),
@@ -325,7 +331,7 @@ const scheduleHeader = 8;
 
 export function newSchedule(count: number, positions = 0, libraries = 0, references = 0): SharedArrayBuffer {
   const words = (libraries + 31) >> 5;
-  const plan = positions === 0 ? 0 : 2 * positions + 1 + references + libraries + count * words;
+  const plan = positions === 0 ? 0 : 3 * positions + 1 + references + libraries + count * words;
   const buffer = new SharedArrayBuffer(4 * (scheduleHeader + 2 * count + plan));
   const schedule = new Int32Array(buffer);
   schedule[3] = count;
@@ -344,6 +350,7 @@ class PlanLayout {
   readonly starts: number;
   readonly references: number;
   readonly costs: number;
+  readonly groups: number;
   readonly resolved: number;
   readonly words: number;
 
@@ -353,7 +360,8 @@ class PlanLayout {
     this.starts = this.lengths + positions;
     this.references = this.starts + positions + 1;
     this.costs = this.references + schedule[7]!;
-    this.resolved = this.costs + schedule[5]!;
+    this.groups = this.costs + schedule[5]!;
+    this.resolved = this.groups + positions;
     this.words = schedule[6]!;
   }
 }
@@ -390,6 +398,11 @@ export class SchedulePlan {
     return this.data[this.layout.costs - this.layout.lengths + library]!;
   }
 
+  /** The number of files of the group starting at `position` (0 or 1 for a file of its own). */
+  group(position: number): number {
+    return this.data[this.layout.groups - this.layout.lengths + position]!;
+  }
+
   /** A copy of the set of libraries `checker` has resolved. */
   resolvedBy(schedule: Int32Array, checker: number): number[] {
     const words: number[] = [];
@@ -411,15 +424,18 @@ function isResolved(words: readonly number[], library: number): boolean {
 /**
  * Fills the costs of a schedule from `newSchedule(count, lengths.length, libraryCosts.length, R)`:
  * the text length of the file at each position, the libraries (0 to `libraryCosts.length - 1`) it
- * imports, R in total, and what resolving each library costs.
+ * imports, R in total, what resolving each library costs, and the number of files of the group
+ * starting at each position (`groups`, by default none).
  */
 export function fillScheduleCosts(
   schedule: Int32Array,
   lengths: readonly number[],
   libraries: readonly (readonly number[])[],
   libraryCosts: readonly number[],
+  groups: readonly number[] = [],
 ): void {
   const layout = new PlanLayout(schedule);
+  for (let p = 0; p < groups.length; p++) schedule[layout.groups + p] = groups[p]!;
   let reference = 0;
   for (let p = 0; p < lengths.length; p++) {
     schedule[layout.lengths + p] = lengths[p]!;
@@ -451,17 +467,24 @@ export function takePosition(
   index: number,
   plan: SchedulePlan | undefined = schedulePlan(schedule),
 ): number {
+  const reserved = reservedBy(index);
+  if (reserved.length > 0) return reserved.shift()!;
   const heavy = Atomics.load(schedule, 2);
   if (heavy < 0) {
     const k = Atomics.add(schedule, 0, 1);
     return k < length ? k : -1;
   }
-  if (Atomics.load(schedule, 0) < heavy) {
-    const k = Atomics.add(schedule, 0, 1);
-    if (k < heavy) {
-      markResolved(schedule, plan, index, k);
-      return k;
+  for (;;) {
+    // The shared queue: a group goes to one checker as a whole.
+    const k = Atomics.load(schedule, 0);
+    if (k >= heavy) break;
+    const files = plan === undefined ? 1 : Math.max(1, plan.group(k));
+    if (Atomics.compareExchange(schedule, 0, k, k + files) !== k) continue;
+    for (let j = k; j < k + files; j++) {
+      markResolved(schedule, plan, index, j);
+      if (j > k) reserved.push(j);
     }
+    return k;
   }
   while (Atomics.compareExchange(schedule, 1, 0, 1) !== 0) {
     // Another checker is taking a file; this takes nanoseconds, or microseconds to take a range.
@@ -483,6 +506,18 @@ export function takePosition(
   markResolved(schedule, plan, index, lo);
   Atomics.store(schedule, 1, 0);
   return lo;
+}
+
+/** The rest of a group that checker `index` took from the shared queue, by checker index. */
+const reservedPositions = new Map<number, number[]>();
+
+function reservedBy(index: number): number[] {
+  let reserved = reservedPositions.get(index);
+  if (reserved === undefined) {
+    reserved = [];
+    reservedPositions.set(index, reserved);
+  }
+  return reserved;
 }
 
 /** Takes the back half of the largest remaining range: its positions, or `undefined` if none is left. */
@@ -601,6 +636,8 @@ export class CheckPlan {
     readonly libraries: number[][],
     readonly libraryCosts: number[],
     readonly references: number,
+    /** For each position, the number of files of the group starting there (0 elsewhere). */
+    readonly groups: number[] = [],
   ) {}
 }
 
@@ -608,17 +645,132 @@ export class CheckPlan {
 export function scheduleOf(plan: CheckPlan, count: number): SharedArrayBuffer {
   const buffer = newSchedule(count, plan.lengths.length, plan.libraryCosts.length, plan.references);
   const schedule = new Int32Array(buffer);
-  if (plan.lengths.length > 0) fillScheduleCosts(schedule, plan.lengths, plan.libraries, plan.libraryCosts);
+  if (plan.lengths.length > 0)
+    fillScheduleCosts(schedule, plan.lengths, plan.libraries, plan.libraryCosts, plan.groups);
   Atomics.store(schedule, 2, plan.heavy);
   for (let k = 0; k < plan.ranges.length; k++) Atomics.store(schedule, scheduleHeader + k, plan.ranges[k]!);
   return buffer;
 }
 
+/** The most checked files that may import a file that starts a group (`checkGroups`), and the most files joining it from its importers. */
+const groupImporters = 16;
+
+/** The least load (`checkGroups`) of a file that starts a group, in characters. */
+const groupLoad = 1_000_000;
+
 /**
- * Plans checking with `count` checkers: the order to check files in, the costliest files first (at
- * least `count`, and every file costing more than a 32nd of a checker's share), from the shared
- * queue; then the others split, in program order, into one range of about equal cost per checker,
- * each costliest first.
+ * Groups of checked files (`order`, with estimated costs `cost`) that one of `count` checkers should
+ * check together, each costliest first. A checker resolving the declarations of a file pays for much
+ * of what the files it imports declare, and so does every checker checking a file that imports it:
+ * a large generated schema and the files importing it, or a module that composes a server from
+ * everything else, can cost each checker seconds. So a file whose load, its own text and the text
+ * of the checked files it imports directly, is at least a sixteenth of all checked text and
+ * `least` characters, and that 1 to `groupImporters` checked files import, starts a group. Such files
+ * join the groups of those they import or that import them, and the files importing one directly
+ * or indirectly join its group when there are at most `groupImporters` of them. Only groups of small
+ * files around one large file form: the text of the others may be at most a quarter of a checker's
+ * share, so that checking them together costs little more than their shared declarations (a group
+ * of large components, each mostly its own work, would only make its checker finish last).
+ */
+export function checkGroups(
+  checked: CheckedProgram,
+  order: readonly number[],
+  cost: readonly number[],
+  count: number,
+  least: number = groupLoad,
+): number[][] {
+  const program = checked.program;
+  const files = program.getSourceFiles();
+  const indexOf = new Map<SourceFile, number>();
+  for (const i of order) indexOf.set(files[i]!, i);
+  const imports = new Map<number, number[]>();
+  const importers = new Map<number, number[]>();
+  for (const i of order) {
+    imports.set(i, []);
+    importers.set(i, []);
+  }
+  let total = 0;
+  for (const i of order) {
+    total += files[i]!.text.length;
+    const own = imports.get(i)!;
+    for (const target of program.getResolvedFilesOf(files[i]!)) {
+      const k = indexOf.get(target);
+      if (k === undefined || k === i || own.indexOf(k) >= 0) continue;
+      own.push(k);
+      importers.get(k)!.push(i);
+    }
+  }
+  const threshold = Math.max(least, total / 16);
+  const starts = new Set<number>();
+  for (const i of order) {
+    const by = importers.get(i)!.length;
+    if (by < 1 || by > groupImporters) continue;
+    let load = files[i]!.text.length;
+    for (const k of imports.get(i)!) load += files[k]!.text.length;
+    if (load >= threshold) starts.add(i);
+  }
+  if (starts.size === 0) return [];
+  // Union-find over the files of groups.
+  const parent = new Map<number, number>();
+  const find = (x: number): number => {
+    let root = x;
+    while (parent.has(root) && parent.get(root) !== root) root = parent.get(root)!;
+    parent.set(x, root);
+    return root;
+  };
+  const union = (a: number, b: number): void => {
+    const ra = find(a);
+    const rb = find(b);
+    if (ra !== rb) parent.set(ra, rb);
+  };
+  for (const start of starts) {
+    find(start);
+    for (const k of imports.get(start)!) if (starts.has(k)) union(start, k);
+    for (const k of importers.get(start)!) if (starts.has(k)) union(start, k);
+    const closure = [start];
+    const seen = new Set<number>(closure);
+    let complete = true;
+    for (let q = 0; q < closure.length && complete; q++)
+      for (const k of importers.get(closure[q]!)!) {
+        if (seen.has(k)) continue;
+        seen.add(k);
+        closure.push(k);
+        if (closure.length > groupImporters + 1) {
+          complete = false;
+          break;
+        }
+      }
+    if (complete) for (const k of closure) union(start, k);
+  }
+  const members = new Map<number, number[]>();
+  for (const i of order) {
+    if (!parent.has(i)) continue;
+    const root = find(i);
+    let group = members.get(root);
+    if (group === undefined) members.set(root, (group = []));
+    group.push(i);
+  }
+  const groups: number[][] = [];
+  for (const group of members.values()) {
+    if (group.length < 2) continue;
+    let largest = 0;
+    let text = 0;
+    for (const i of group) {
+      text += files[i]!.text.length;
+      largest = Math.max(largest, files[i]!.text.length);
+    }
+    if (text - largest > total / count / 4) continue;
+    group.sort((a, b) => cost[b]! - cost[a]! || a - b);
+    groups.push(group);
+  }
+  return groups;
+}
+
+/**
+ * Plans checking with `count` checkers: the order to check files in, the costliest files and the
+ * groups (`checkGroups`; at least `count` entries, and every file costing more than a 32nd of a
+ * checker's share), costliest first, from the shared queue; then the others split, in program
+ * order, into one range of about equal cost per checker, each costliest first.
  */
 export function planSchedule(checked: CheckedProgram, count: number): CheckPlan {
   const costs = costOrder(checked);
@@ -631,8 +783,30 @@ export function planSchedule(checked: CheckedProgram, count: number): CheckPlan 
   // a range they would make its checker finish last.
   let heavyCount = count;
   while (heavyCount < order.length && cost[order[heavyCount]!]! * count * 32 >= all) heavyCount++;
-  const heavy = order.slice(0, heavyCount);
-  const rest = order.slice(heavyCount).sort((a, b) => a - b);
+  // The groups go to the shared queue as one entry each, among the costliest files, by total cost.
+  const groups = checkGroups(checked, order, cost, count);
+  const grouped = new Set<number>();
+  for (const group of groups) for (const i of group) grouped.add(i);
+  const entries: number[][] = groups.slice();
+  for (const i of order.slice(0, heavyCount)) if (!grouped.has(i)) entries.push([i]);
+  const entryCost = (entry: number[]): number => {
+    let sum = 0;
+    for (const i of entry) sum += cost[i]!;
+    return sum;
+  };
+  entries.sort((a, b) => entryCost(b) - entryCost(a) || a[0]! - b[0]!);
+  const heavy: number[] = [];
+  const groupAt: number[] = [];
+  for (const entry of entries)
+    for (let k = 0; k < entry.length; k++) {
+      heavy.push(entry[k]!);
+      groupAt.push(k === 0 && entry.length > 1 ? entry.length : 0);
+    }
+  const rest = order
+    .slice(heavyCount)
+    .filter((i) => !grouped.has(i))
+    .sort((a, b) => a - b);
+  heavyCount = heavy.length;
   let total = 0;
   for (const i of rest) total += cost[i]!;
   const planned = heavy.concat(rest);
@@ -674,7 +848,13 @@ export function planSchedule(checked: CheckedProgram, count: number): CheckPlan 
     libraries.push(ids);
     references += ids.length;
   }
-  return new CheckPlan(planned, heavyCount, ranges, lengths, libraries, libraryCosts, references);
+  while (groupAt.length < planned.length) groupAt.push(0);
+  if (process.env.TSC_TS_CHECKERS_TRACE !== undefined)
+    for (const group of groups)
+      process.stderr.write(
+        `checkers: group of ${group.length}: ${group.map((i) => files[i]!.fileName.split('/').slice(-2).join('/')).join(' ')}\n`,
+      );
+  return new CheckPlan(planned, heavyCount, ranges, lengths, libraries, libraryCosts, references, groupAt);
 }
 
 /** With TSC_TS_CHECKERS_TRACE: the single-threaded checker's statistics, like a checker thread's. */
