@@ -462,7 +462,12 @@ export class Checker {
   instantiationDepth = 0;
   instantiationCount = 0;
   readonly activeMappers: TypeMapper[] = [];
-  readonly activeMapperCaches: Map<string, Type>[] = [];
+  /** Per active mapper: its instantiations by type id, created on the first nested write. */
+  readonly activeMapperCaches: (Map<number, Type> | undefined)[] = [];
+  /** Per active mapper: its instantiations with an alias, by type id and alias key. */
+  readonly activeMapperAliasCaches: (Map<string, Type> | undefined)[] = [];
+  /** Cleared caches of popped mappers, reused as tsgo's pushActiveMapper reuses the maps popActiveMapper clears. */
+  readonly freeMapperCaches: Map<number, Type>[] = [];
   conditionalConstraintDepth = 0;
 
   readonly suggestionResolver: SuggestionNameResolver;

@@ -2009,7 +2009,8 @@ export function getInferredType(c: Checker, context: InferenceContext, index: nu
 }
 
 function clearActiveMapperCaches(c: Checker): void {
-  for (const cache of c.activeMapperCaches) cache.clear();
+  for (const cache of c.activeMapperCaches) if (cache !== undefined) cache.clear();
+  for (const cache of c.activeMapperAliasCaches) if (cache !== undefined) cache.clear();
 }
 
 /** Maps forward references to later type parameters to `unknown`, for instantiating defaults. */

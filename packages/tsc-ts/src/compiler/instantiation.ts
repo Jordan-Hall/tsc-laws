@@ -186,20 +186,48 @@ export function instantiateTypeWithAlias(
   }
   const index = c.activeMappers.lastIndexOf(mapper);
   if (index === -1) {
+    // A newly active mapper has no cached instantiations; its cache is created when a nested
+    // instantiation with the same mapper stores one.
     c.activeMappers.push(mapper);
-    c.activeMapperCaches.push(new Map<string, Type>());
+    c.activeMapperCaches.push(undefined);
+    c.activeMapperAliasCaches.push(undefined);
+  } else {
+    let cached: Type | undefined = undefined;
+    if (alias === undefined) {
+      const cache = c.activeMapperCaches[index];
+      if (cache !== undefined) cached = cache.get(type.id);
+    } else {
+      const cache = c.activeMapperAliasCaches[index];
+      if (cache !== undefined) cached = cache.get(type.id + aliasKey(alias));
+    }
+    if (cached !== undefined) return cached;
   }
-  const key = type.id + aliasKey(alias);
-  const cache = c.activeMapperCaches[index !== -1 ? index : c.activeMapperCaches.length - 1]!;
-  const cached = cache.get(key);
-  if (cached !== undefined) return cached;
   c.instantiationCount++;
   c.instantiationDepth++;
   const result = instantiateTypeWorker(c, type, mapper, alias);
   if (index === -1) {
     c.activeMappers.pop();
-    c.activeMapperCaches.pop();
-  } else cache.set(key, result);
+    const cache = c.activeMapperCaches.pop();
+    if (cache !== undefined) {
+      cache.clear();
+      c.freeMapperCaches.push(cache);
+    }
+    c.activeMapperAliasCaches.pop();
+  } else if (alias === undefined) {
+    let cache = c.activeMapperCaches[index];
+    if (cache === undefined) {
+      cache = c.freeMapperCaches.length !== 0 ? c.freeMapperCaches.pop()! : new Map<number, Type>();
+      c.activeMapperCaches[index] = cache;
+    }
+    cache.set(type.id, result);
+  } else {
+    let cache = c.activeMapperAliasCaches[index];
+    if (cache === undefined) {
+      cache = new Map<string, Type>();
+      c.activeMapperAliasCaches[index] = cache;
+    }
+    cache.set(type.id + aliasKey(alias), result);
+  }
   c.instantiationDepth--;
   return result;
 }
