@@ -227,18 +227,15 @@ function groupProject() {
 
 test('a large module that few files import groups with the files importing it, costliest first', () => {
   const c = groupProject();
-  const order = checkOrder(c);
-  const cost = [];
-  for (const file of c.program.getSourceFiles()) cost.push(file.text.length);
   // The default least load is a million characters: this project has no groups.
-  assert.deepEqual(checkGroups(c, order, cost, 2), []);
-  const groups = checkGroups(c, order, cost, 2, 1000);
+  assert.deepEqual(checkGroups(c, 2), []);
+  const groups = checkGroups(c, 2, 1000);
   assert.equal(groups.length, 1);
   const names = groups[0].map((i) => baseName(c.program, i));
   assert.equal(names[0], 'schema.gen.ts');
   assert.deepEqual(names.slice().sort(), ['app.ts', 'client.ts', 'meta.gen.ts', 'schema.gen.ts']);
   // With many checkers, the files around the schema would be too much for one checker.
-  assert.deepEqual(checkGroups(c, order, cost, 64, 1000), []);
+  assert.deepEqual(checkGroups(c, 64, 1000), []);
 });
 
 test('a checker takes a group from the shared queue as a whole, and nobody takes it from that checker', () => {

@@ -222,6 +222,8 @@ class CheckCosts {
     readonly libraries: number[][],
     /** What resolving a library costs a checker the first time (`libraryCostShare` of the text it reaches), by index. */
     readonly libraryCost: number[],
+    /** The program files (indices) each file of `order` imports, by index. */
+    readonly imports: (number[] | undefined)[],
   ) {}
 }
 
@@ -308,7 +310,7 @@ function checkCosts(checked: CheckedProgram, order: number[]): CheckCosts {
     }
     cost[i] = cost[i]! + libraryCostShare * share;
   }
-  return new CheckCosts(order, cost, librariesOf, libraryCost);
+  return new CheckCosts(order, cost, librariesOf, libraryCost, edges);
 }
 
 function isExternalModuleFile(file: SourceFile): boolean {
@@ -741,8 +743,8 @@ const groupImporters = 16;
 const groupLoad = 1_000_000;
 
 /**
- * Groups of checked files (`order`, with estimated costs `cost`) that one of `count` checkers should
- * check together, each costliest first. A checker resolving the declarations of a file pays for much
+ * Groups of checked files that one of `count` checkers should check together, each costliest first
+ * (`costs`, the estimate of `checkOrder`, also has the files' imports). A checker resolving the declarations of a file pays for much
  * of what the files it imports declare, and so does every checker checking a file that imports it:
  * a large generated schema and the files importing it, or a module that composes a server from
  * everything else, can cost each checker seconds. So a file whose load, its own text and the text
@@ -756,66 +758,86 @@ const groupLoad = 1_000_000;
  */
 export function checkGroups(
   checked: CheckedProgram,
-  order: readonly number[],
-  cost: readonly number[],
   count: number,
   least: number = groupLoad,
+  costs: CheckCosts = costOrder(checked),
 ): number[][] {
-  const program = checked.program;
-  const files = program.getSourceFiles();
-  const indexOf = new Map<SourceFile, number>();
-  for (const i of order) indexOf.set(files[i]!, i);
-  const imports = new Map<number, number[]>();
-  const importers = new Map<number, number[]>();
-  for (const i of order) {
-    imports.set(i, []);
-    importers.set(i, []);
+  const files = checked.program.getSourceFiles();
+  const n = files.length;
+  const order = costs.order;
+  const cost = costs.cost;
+  const isChecked: boolean[] = [];
+  const isStart: boolean[] = [];
+  const mark: number[] = [];
+  const parent: number[] = [];
+  const imports: (number[] | undefined)[] = [];
+  const importers: (number[] | undefined)[] = [];
+  for (let i = 0; i < n; i++) {
+    isChecked.push(false);
+    isStart.push(false);
+    mark.push(-1);
+    parent.push(-1);
+    imports.push(undefined);
+    importers.push(undefined);
   }
+  for (const i of order) isChecked[i] = true;
+  // The checked files that each checked file imports, once each, and their importers.
   let total = 0;
   for (const i of order) {
     total += files[i]!.text.length;
-    const own = imports.get(i)!;
-    for (const target of program.getResolvedFilesOf(files[i]!)) {
-      const k = indexOf.get(target);
-      if (k === undefined || k === i || own.indexOf(k) >= 0) continue;
+    const own: number[] = [];
+    for (const k of costs.imports[i] ?? []) {
+      if (!isChecked[k]! || mark[k] === i) continue;
+      mark[k] = i;
       own.push(k);
-      importers.get(k)!.push(i);
+      let by = importers[k];
+      if (by === undefined) importers[k] = by = [];
+      by.push(i);
     }
+    imports[i] = own;
   }
   const threshold = Math.max(least, total / 16);
-  const starts = new Set<number>();
+  const starts: number[] = [];
   for (const i of order) {
-    const by = importers.get(i)!.length;
+    const by = importers[i]?.length ?? 0;
     if (by < 1 || by > groupImporters) continue;
     let load = files[i]!.text.length;
-    for (const k of imports.get(i)!) load += files[k]!.text.length;
-    if (load >= threshold) starts.add(i);
+    for (const k of imports[i]!) load += files[k]!.text.length;
+    if (load < threshold) continue;
+    starts.push(i);
+    isStart[i] = true;
   }
-  if (starts.size === 0) return [];
-  // Union-find over the files of groups.
-  const parent = new Map<number, number>();
+  if (starts.length === 0) return [];
+  // Union-find over the files of groups (`parent` -1: in none).
   const find = (x: number): number => {
+    if (parent[x]! < 0) parent[x] = x;
     let root = x;
-    while (parent.has(root) && parent.get(root) !== root) root = parent.get(root)!;
-    parent.set(x, root);
+    while (parent[root] !== root) root = parent[root]!;
+    while (parent[x] !== root) {
+      const next = parent[x]!;
+      parent[x] = root;
+      x = next;
+    }
     return root;
   };
   const union = (a: number, b: number): void => {
     const ra = find(a);
     const rb = find(b);
-    if (ra !== rb) parent.set(ra, rb);
+    if (ra !== rb) parent[ra] = rb;
   };
+  for (let i = 0; i < n; i++) mark[i] = -1;
   for (const start of starts) {
     find(start);
-    for (const k of imports.get(start)!) if (starts.has(k)) union(start, k);
-    for (const k of importers.get(start)!) if (starts.has(k)) union(start, k);
+    for (const k of imports[start]!) if (isStart[k]!) union(start, k);
+    for (const k of importers[start]!) if (isStart[k]!) union(start, k);
+    // The files importing it directly or indirectly, if they are few.
     const closure = [start];
-    const seen = new Set<number>(closure);
+    mark[start] = start;
     let complete = true;
     for (let q = 0; q < closure.length && complete; q++)
-      for (const k of importers.get(closure[q]!)!) {
-        if (seen.has(k)) continue;
-        seen.add(k);
+      for (const k of importers[closure[q]!] ?? []) {
+        if (mark[k] === start) continue;
+        mark[k] = start;
         closure.push(k);
         if (closure.length > groupImporters + 1) {
           complete = false;
@@ -826,7 +848,7 @@ export function checkGroups(
   }
   const members = new Map<number, number[]>();
   for (const i of order) {
-    if (!parent.has(i)) continue;
+    if (parent[i]! < 0) continue;
     const root = find(i);
     let group = members.get(root);
     if (group === undefined) members.set(root, (group = []));
@@ -866,7 +888,7 @@ export function planSchedule(checked: CheckedProgram, count: number): CheckPlan 
   let heavyCount = count;
   while (heavyCount < order.length && cost[order[heavyCount]!]! * count * 32 >= all) heavyCount++;
   // The groups go to the shared queue as one entry each, among the costliest files, by total cost.
-  const groups = checkGroups(checked, order, cost, count);
+  const groups = checkGroups(checked, count, groupLoad, costs);
   const grouped = new Set<number>();
   for (const group of groups) for (const i of group) grouped.add(i);
   const entries: number[][] = groups.slice();
