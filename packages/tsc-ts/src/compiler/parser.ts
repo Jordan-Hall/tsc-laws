@@ -812,8 +812,9 @@ export class Parser extends ScannerErrorReporter {
     result.identifierCount = this.identifierCount;
     // JSDoc of TypeScript files is parsed on first use.
     result.hasLazyJSDoc = !this.isJavaScript();
+    // The table stays with the parser: when top-level await reparsing produces a second source
+    // file, it finishes with the same table, which still holds the JSDoc of retained statements.
     result.jsDocs = this.jsDocTable;
-    this.jsDocTable = undefined;
     const clones = this.reparsedClones.slice();
     clones.sort(compareNodePositions);
     result.reparsedClones = clones;
