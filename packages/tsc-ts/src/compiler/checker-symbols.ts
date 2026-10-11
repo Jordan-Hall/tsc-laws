@@ -1196,11 +1196,17 @@ export function getGlobalType(c: Checker, name: string, arity: number, reportErr
 
 /** Memoized `getGlobalType`, keyed by name, arity and whether errors were reported. */
 export function getCachedGlobalType(c: Checker, name: string, arity: number, reportErrors: boolean): Type {
-  const key = name + '/' + arity + (reportErrors ? '!' : '');
-  let type = c.globalTypeCache.get(key);
+  // By name, then by arity and whether errors are reported: callers pass literal names.
+  let byArity = c.globalTypeCache.get(name);
+  if (byArity === undefined) {
+    byArity = new Map<number, Type>();
+    c.globalTypeCache.set(name, byArity);
+  }
+  const slot = arity * 2 + (reportErrors ? 1 : 0);
+  let type = byArity.get(slot);
   if (type === undefined) {
     type = getGlobalType(c, name, arity, reportErrors);
-    c.globalTypeCache.set(key, type);
+    byArity.set(slot, type);
   }
   return type;
 }

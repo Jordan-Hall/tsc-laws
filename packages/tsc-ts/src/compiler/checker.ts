@@ -451,7 +451,7 @@ export class Checker {
   anyReadonlyArrayType: Type;
   globalThisType: Type;
   /** Lazily resolved global types and symbols, by name. */
-  readonly globalTypeCache = new Map<string, Type>();
+  readonly globalTypeCache = new Map<string, Map<number, Type>>();
   /** Module namespace types with synthetic defaults, by kind and type id. */
   readonly moduleTypeCache = new Map<string, Type>();
   readonly globalSymbolCache = new Map<string, Symbol | null>();
