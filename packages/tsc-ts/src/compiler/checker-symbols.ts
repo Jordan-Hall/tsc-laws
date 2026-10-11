@@ -45,7 +45,15 @@ import {
 } from './binder-utilities.js';
 import { type Diagnostic, type DiagnosticMessage, Diagnostics, compareDiagnostics } from './diagnostics.js';
 import { NameResolver } from './name-resolver.js';
-import { CheckFlags, InternalSymbolName, Symbol, SymbolFlags, type SymbolTable, getSymbolId } from './symbol.js';
+import {
+  CheckFlags,
+  InternalSymbolName,
+  Symbol,
+  SymbolFlags,
+  type SymbolTable,
+  addDeclaration,
+  getSymbolId,
+} from './symbol.js';
 import { SyntaxKind } from './syntax-kind.js';
 import { type Checker, createDiagnosticForNode } from './checker.js';
 import {
@@ -943,7 +951,7 @@ export function mergeSymbol(c: Checker, target: Symbol, source: Symbol, unidirec
     if ((target.flags & SymbolFlags.ConstEnumOnlyModule) === 0) sourceFlags &= ~SymbolFlags.ConstEnumOnlyModule;
     target.flags |= sourceFlags;
     if (source.valueDeclaration !== undefined) setValueDeclaration(target, source.valueDeclaration);
-    for (const d of source.declarations) target.declarations.push(d);
+    for (const d of source.declarations) addDeclaration(target, d);
     if (source.members !== undefined) {
       if (target.members === undefined) target.members = new Map<string, Symbol>();
       mergeSymbolTable(c, target.members, source.members, unidirectional, undefined);
@@ -1508,7 +1516,7 @@ function lateBindIndexSignature(c: Checker, early: SymbolTable, late: SymbolTabl
   }
   // Unlike late-bound members, `decl` gets no late symbol: the index symbol isn't one property.
   if (indexSymbol.declarations.length === 0 || (getSymbol(decl)!.flags & SymbolFlags.ReplaceableByMethod) === 0)
-    indexSymbol.declarations.push(decl);
+    addDeclaration(indexSymbol, decl);
 }
 
 function addDeclarationToLateBoundSymbol(c: Checker, symbol: Symbol, member: Node, symbolFlags: SymbolFlags): void {
@@ -1516,7 +1524,7 @@ function addDeclarationToLateBoundSymbol(c: Checker, symbol: Symbol, member: Nod
   c.symbolLinks(memberSymbol).lateSymbol = symbol;
   if (symbol.declarations.length === 0 || (memberSymbol.flags & SymbolFlags.ReplaceableByMethod) === 0) {
     symbol.flags |= symbolFlags;
-    symbol.declarations.push(member);
+    addDeclaration(symbol, member);
   }
   if ((symbolFlags & SymbolFlags.Value) !== 0) setValueDeclaration(symbol, member);
 }
