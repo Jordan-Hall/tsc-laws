@@ -1333,8 +1333,8 @@ function typesDefinitelyUnrelated(c: Checker, source: Type, target: Type): boole
     );
   }
   return (
-    getUnmatchedProperty(c, source, target, false) !== undefined &&
-    getUnmatchedProperty(c, target, source, false) !== undefined
+    getUnmatchedProperty(c, source, target, false, true) !== undefined &&
+    getUnmatchedProperty(c, target, source, false, false) !== undefined
   );
 }
 
