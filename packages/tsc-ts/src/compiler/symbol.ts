@@ -143,17 +143,21 @@ export const enum CheckFlags {
   Partial = ReadPartial | WritePartial,
 }
 
+/** Fields of Symbol that few symbols set (about one in twenty), allocated on first write. */
+export class SymbolRareFields {
+  members: SymbolTable | undefined = undefined;
+  exports: SymbolTable | undefined = undefined;
+  exportSymbol: Symbol | undefined = undefined;
+}
+
 export class Symbol {
   flags: SymbolFlags;
   checkFlags: CheckFlags;
   readonly name: string;
   declarations: Node[];
   valueDeclaration: Node | undefined;
-  members: SymbolTable | undefined;
-  exports: SymbolTable | undefined;
   parent: Symbol | undefined;
-  /** For the local symbol of an exported declaration, the exported symbol. */
-  exportSymbol: Symbol | undefined;
+  private rareFields: SymbolRareFields | undefined;
   /** Assigned on first use by `getSymbolId`; 0 until then. */
   id: number;
 
@@ -163,11 +167,49 @@ export class Symbol {
     this.name = name;
     this.declarations = noDeclarations;
     this.valueDeclaration = undefined;
-    this.members = undefined;
-    this.exports = undefined;
     this.parent = undefined;
-    this.exportSymbol = undefined;
+    this.rareFields = undefined;
     this.id = 0;
+  }
+
+  private rareFieldsOrNew(): SymbolRareFields {
+    let group = this.rareFields;
+    if (group === undefined) {
+      group = new SymbolRareFields();
+      this.rareFields = group;
+    }
+    return group;
+  }
+
+  get members(): SymbolTable | undefined {
+    const group = this.rareFields;
+    return group === undefined ? undefined : group.members;
+  }
+
+  set members(value: SymbolTable | undefined) {
+    if (value === undefined && this.rareFields === undefined) return;
+    this.rareFieldsOrNew().members = value;
+  }
+
+  get exports(): SymbolTable | undefined {
+    const group = this.rareFields;
+    return group === undefined ? undefined : group.exports;
+  }
+
+  set exports(value: SymbolTable | undefined) {
+    if (value === undefined && this.rareFields === undefined) return;
+    this.rareFieldsOrNew().exports = value;
+  }
+
+  /** For the local symbol of an exported declaration, the exported symbol. */
+  get exportSymbol(): Symbol | undefined {
+    const group = this.rareFields;
+    return group === undefined ? undefined : group.exportSymbol;
+  }
+
+  set exportSymbol(value: Symbol | undefined) {
+    if (value === undefined && this.rareFields === undefined) return;
+    this.rareFieldsOrNew().exportSymbol = value;
   }
 
   /** Whether this is the symbol of an external module, named by its quoted path. */
