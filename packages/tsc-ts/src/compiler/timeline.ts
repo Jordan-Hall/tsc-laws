@@ -4,7 +4,7 @@
  * the executable was loaded, the same clock on every thread) and `<thread>` is `main`, `p<n>` for a
  * parse thread or `c<n>` for a checker thread.
  */
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 
 export const timeline = process.env.TSC_TS_TIMELINE !== undefined;
 
@@ -25,9 +25,17 @@ export function markAt(ms: number, event: string): void {
   if (timeline) process.stderr.write(`@${ms.toFixed(2)} ${thread} ${event}\n`);
 }
 
-/** Writes the process's memory summary (Linux `/proc/self/smaps_rollup`, in MB) as a timeline event. */
+/** With TSC_TS_TIMELINE=2: the process's memory summary (Linux `/proc/self/smaps_rollup`, in MB) as a timeline event. */
 export function markMemory(): void {
-  if (!timeline) return;
+  const smaps = process.env.TSC_TS_SMAPS;
+  if (smaps !== undefined) {
+    try {
+      writeFileSync(smaps, readFileSync('/proc/self/smaps', 'utf8'));
+    } catch {
+      // Not Linux.
+    }
+  }
+  if (process.env.TSC_TS_TIMELINE !== '2') return;
   try {
     const text = readFileSync('/proc/self/smaps_rollup', 'utf8');
     let out = 'memory';
