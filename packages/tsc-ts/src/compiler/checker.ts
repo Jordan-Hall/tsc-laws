@@ -482,6 +482,8 @@ export class Checker {
   readonly instantiationExpressionTypes = new Map<string, Type>();
   relationComparers: TypeComparer[] = [];
   readonly relationScratchKey = new RelationKey();
+  /** Numbers for relation keys that are spelled as strings (see getRelationKey). */
+  readonly relationKeyIds = new Map<string, number>();
   readonly markerTypes = new Set<Type>();
   readonly arrayVariances: VarianceFlags[] = [VarianceFlags.Covariant];
   nanLiteralType: LiteralType | undefined = undefined;

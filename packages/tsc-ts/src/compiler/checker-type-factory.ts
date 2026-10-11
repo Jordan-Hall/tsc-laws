@@ -266,8 +266,8 @@ export function getNumberEnumLiteralType(c: Checker, value: number, enumSymbol: 
 
 export function isFreshLiteralType(type: Type): boolean {
   if ((type.flags & TypeFlags.Freshable) === 0) return false;
-  const fresh = (type as LiteralType).freshType;
-  return fresh !== undefined && fresh.id === type.id;
+  // An identity test, like tsgo's: comparing ids would load the fresh type as well.
+  return (type as LiteralType).freshType === type;
 }
 
 export function getFreshTypeOfLiteralType(c: Checker, type: Type): Type {
@@ -427,11 +427,12 @@ function compareTypeNames(c: Checker, t1: Type, t2: Type): number {
 }
 
 function compareTypeLists(c: Checker, s1: readonly Type[] | undefined, s2: readonly Type[] | undefined): number {
-  const a = s1 ?? emptyTypes;
-  const b = s2 ?? emptyTypes;
-  if (a.length !== b.length) return a.length - b.length;
-  for (let i = 0; i < a.length; i++) {
-    const r = compareTypes(c, a[i]!, b[i]!);
+  // Index the parameters directly: an alias such as `s1 ?? emptyTypes` would hold its own reference.
+  const n1 = s1 === undefined ? 0 : s1.length;
+  const n2 = s2 === undefined ? 0 : s2.length;
+  if (n1 !== n2) return n1 - n2;
+  for (let i = 0; i < n1; i++) {
+    const r = compareTypes(c, s1![i]!, s2![i]!);
     if (r !== 0) return r;
   }
   return 0;

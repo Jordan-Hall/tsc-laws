@@ -219,14 +219,15 @@ export const enum RelationComparisonResult {
 }
 
 /** Cached results of one relation, by relation key. */
+/** Relation results by numeric relation key (see getRelationKey). */
 export class Relation {
-  private readonly results = new Map<string, number>();
+  private readonly results = new Map<number, number>();
 
-  get(key: string): number {
+  get(key: number): number {
     return this.results.get(key) ?? RelationComparisonResult.None;
   }
 
-  set(key: string, result: number): void {
+  set(key: number, result: number): void {
     this.results.set(key, result);
   }
 
@@ -611,8 +612,24 @@ function enumValueText(kind: number, n: number, s: string): string {
 // ---- Keys
 
 export class RelationKey {
-  key = '';
+  key = 0;
   constrained = false;
+}
+
+/** Type ids below this bound pack into a numeric relation key with the intersection state. */
+const RelationKeyIdLimit = 1 << 24;
+
+/**
+ * A key for the string spelling of a relation, numbered per checker. Interned keys are negative, so
+ * they never collide with packed keys.
+ */
+function internRelationKey(c: Checker, text: string): number {
+  let key = c.relationKeyIds.get(text);
+  if (key === undefined) {
+    key = -(c.relationKeyIds.size + 1);
+    c.relationKeyIds.set(text, key);
+  }
+  return key;
 }
 
 export function getRelationKey(
@@ -636,8 +653,17 @@ export function getRelationKey(
     writeTypeReference(c, source, 0, typeParameters, parts, ignoreConstraints, result);
     parts.push(',');
     writeTypeReference(c, target, 0, typeParameters, parts, ignoreConstraints, result);
-    result.key = parts.join('') + ':' + intersectionState;
-  } else result.key = 's' + source.id + ',' + target.id + ':' + intersectionState;
+    result.key = internRelationKey(c, parts.join('') + ':' + intersectionState);
+  } else {
+    // The common case packs both ids and the intersection state (two bits) into one exact number,
+    // so the relation caches need no key strings.
+    const s = source.id;
+    const t = target.id;
+    result.key =
+      s < RelationKeyIdLimit && t < RelationKeyIdLimit
+        ? (s * RelationKeyIdLimit + t) * 4 + intersectionState
+        : internRelationKey(c, 's' + s + ',' + t + ':' + intersectionState);
+  }
   return result;
 }
 
@@ -849,8 +875,8 @@ export class Relater extends TypeComparer {
   errorNode: Node | undefined;
   errorChain: ErrorChain | undefined = undefined;
   relatedInfo: Diagnostic[] = [];
-  readonly maybeKeys: string[] = [];
-  readonly maybeKeysSet = new Set<string>();
+  readonly maybeKeys: number[] = [];
+  readonly maybeKeysSet = new Set<number>();
   readonly sourceStack: Type[] = [];
   readonly targetStack: Type[] = [];
   expandingFlags: ExpandingFlags = ExpandingFlags.None;
