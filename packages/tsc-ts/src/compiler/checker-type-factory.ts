@@ -806,6 +806,50 @@ export function getUnionTypeEx(
 class TypeSet {
   types: Type[] = [];
   includes = 0;
+  /** Index of the type added or found last, or -1. */
+  last = -1;
+}
+
+/**
+ * Inserts `t` into the sorted `set.types` unless present, starting next to the previous type.
+ * Constituents arrive in sorted runs (nested unions, union members mapped in order), so most
+ * inserts land at or just after the previous position; otherwise the search covers only the side
+ * of the previous position that holds `t`. The set equals binary-search insertion's: the types
+ * stay sorted under the total order `compareTypes`.
+ */
+function insertTypeNearLast(c: Checker, set: TypeSet, t: Type): void {
+  const types = set.types;
+  let low = 0;
+  let high = types.length - 1;
+  const last = set.last;
+  if (last >= 0) {
+    const r = compareTypes(c, types[last]!, t);
+    if (r === 0) return;
+    if (r < 0) {
+      low = last + 1;
+      if (low <= high) {
+        const next = compareTypes(c, types[low]!, t);
+        if (next === 0) {
+          set.last = low;
+          return;
+        }
+        if (next > 0) high = low - 1;
+        else low++;
+      }
+    } else high = last - 1;
+  }
+  while (low <= high) {
+    const middle = (low + high) >> 1;
+    const r = compareTypes(c, types[middle]!, t);
+    if (r === 0) {
+      set.last = middle;
+      return;
+    }
+    if (r < 0) low = middle + 1;
+    else high = middle - 1;
+  }
+  types.splice(low, 0, t);
+  set.last = low;
 }
 
 function getUnionTypeWorker(
@@ -945,7 +989,7 @@ function addTypeToUnion(c: Checker, set: TypeSet, t: Type): void {
   if (isErrorType(c, t)) includes |= TypeFlags.IncludesError;
   if (!c.strictNullChecks && (flags & TypeFlags.Nullable) !== 0) {
     if ((t.objectFlags & ObjectFlags.ContainsWideningType) === 0) includes |= TypeFlags.IncludesNonWideningType;
-  } else insertType(c, set.types, t);
+  } else insertTypeNearLast(c, set, t);
   set.includes = includes;
 }
 
