@@ -41,7 +41,8 @@ const { createNodeSystem } = await load('drivers/node-system.js');
 const { executeCommandLine } = await load('compiler/tsc-cli.js');
 const { CheckedProgram } = await load('compiler/program-checker.js');
 const { ParseQueue } = await load('compiler/parallel-parse.js');
-const { checkOrder, newSchedule, planSchedule, takePosition } = await load('compiler/parallel-check.js');
+const { checkOrder, fillScheduleCosts, newSchedule, planSchedule, scheduleOf, takePosition } =
+  await load('compiler/parallel-check.js');
 
 const Root = 0;
 const File = 1;
@@ -103,9 +104,9 @@ test('a small file that alone imports a large library is checked before larger f
 
 test('checkers take every file once: the costliest first, then their ranges, then the end of others', () => {
   const c = checked();
-  const buffer = newSchedule(2);
-  const schedule = new Int32Array(buffer);
-  const order = planSchedule(c, schedule, 2);
+  const plan = planSchedule(c, 2);
+  const schedule = new Int32Array(scheduleOf(plan, 2));
+  const order = plan.order;
   assert.equal(order.length, 3);
   // Checker 1 takes the two costliest files from the shared queue, then the whole range of checker 0.
   const taken = [];
@@ -115,16 +116,57 @@ test('checkers take every file once: the costliest first, then their ranges, the
   assert.equal(takePosition(schedule, order.length, 0), -1);
 });
 
-test('an idle checker takes the back half of the largest remaining range', () => {
-  const schedule = new Int32Array(newSchedule(2));
+// The ranges start after the 8 header entries of the schedule.
+const ranges = 8;
+
+function ownRanges(schedule, ...bounds) {
   schedule[2] = 0; // no shared prefix
-  schedule[3] = 2;
+  for (let k = 0; k < bounds.length; k++) schedule[ranges + k] = bounds[k];
+}
+
+test('without costs, an idle checker takes the back half of the largest remaining range', () => {
+  const schedule = new Int32Array(newSchedule(2));
   // Checker 0 owns positions 0..9, checker 1 none.
-  schedule[4] = 0;
-  schedule[5] = 10;
-  schedule[6] = 10;
-  schedule[7] = 10;
+  ownRanges(schedule, 0, 10, 10, 10);
   assert.equal(takePosition(schedule, 10, 0), 0);
   assert.equal(takePosition(schedule, 10, 1), 5);
-  assert.deepEqual([...schedule.slice(4, 8)], [1, 5, 6, 10]);
+  assert.deepEqual(Array.from(schedule.slice(ranges, ranges + 4)), [1, 5, 6, 10]);
+});
+
+test('an idle checker takes the end of a range that makes both finish earliest', () => {
+  // Ten files of cost 10 without libraries: checker 1 takes the last four of the nine checker 0 has
+  // left (the first larger end that does not make it finish later).
+  const schedule = new Int32Array(newSchedule(2, 10, 0, 0));
+  fillScheduleCosts(schedule, Array(10).fill(10), Array(10).fill([]), []);
+  ownRanges(schedule, 0, 10, 10, 10);
+  assert.equal(takePosition(schedule, 10, 0), 0);
+  assert.equal(takePosition(schedule, 10, 1), 6);
+  assert.deepEqual(Array.from(schedule.slice(ranges, ranges + 4)), [1, 6, 7, 10]);
+  // Uneven costs: the end that balances the estimated work, not half of the files.
+  const uneven = new Int32Array(newSchedule(2, 4, 0, 0));
+  fillScheduleCosts(uneven, [100, 10, 10, 10], Array(4).fill([]), []);
+  ownRanges(uneven, 0, 4, 4, 4);
+  assert.equal(takePosition(uneven, 4, 1), 1);
+  assert.deepEqual(Array.from(uneven.slice(ranges, ranges + 4)), [0, 1, 2, 4]);
+});
+
+test('an idle checker leaves files whose library only the owner has resolved', () => {
+  // Four small files importing one library that costs 1000 to resolve; checker 0 has taken the first.
+  const schedule = new Int32Array(newSchedule(2, 4, 1, 4));
+  fillScheduleCosts(schedule, Array(4).fill(10), Array(4).fill([0]), [1000]);
+  ownRanges(schedule, 0, 4, 4, 4);
+  assert.equal(takePosition(schedule, 4, 0), 0);
+  // Taking any of the other three would make checker 1 resolve the library: it is done instead.
+  assert.equal(takePosition(schedule, 4, 1), -1);
+  assert.deepEqual(Array.from(schedule.slice(ranges, ranges + 4)), [1, 4, 4, 4]);
+  // Once checker 1 has resolved the library too, it takes the last file.
+  const both = new Int32Array(newSchedule(2, 6, 1, 6));
+  fillScheduleCosts(both, Array(6).fill(10), Array(6).fill([0]), [1000]);
+  ownRanges(both, 0, 2, 2, 6);
+  assert.equal(takePosition(both, 6, 0), 0);
+  assert.equal(takePosition(both, 6, 1), 2);
+  assert.equal(takePosition(both, 6, 0), 1);
+  assert.deepEqual(Array.from(both.slice(ranges, ranges + 4)), [2, 2, 3, 6]);
+  assert.equal(takePosition(both, 6, 0), 5);
+  assert.deepEqual(Array.from(both.slice(ranges, ranges + 4)), [6, 6, 3, 5]);
 });
