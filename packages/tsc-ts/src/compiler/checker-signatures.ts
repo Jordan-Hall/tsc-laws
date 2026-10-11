@@ -512,7 +512,7 @@ export function getMinArgumentCount(c: Checker, signature: Signature): number {
       if (!someType(t, (u) => (u.flags & TypeFlags.Void) !== 0)) break;
       minArgumentCount = i;
     }
-    signature.resolvedMinArgumentCount = minArgumentCount;
+    signature.resolvedMinArgumentCount = minArgumentCount | 0;
   }
   return signature.resolvedMinArgumentCount;
 }
