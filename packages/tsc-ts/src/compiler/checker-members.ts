@@ -219,7 +219,17 @@ function resolveObjectTypeMembers(
   }
   const baseTypes = getBaseTypes(c, source);
   if (pending !== undefined) {
-    resolvePendingObjectTypeMembers(c, t, pending, baseTypes, mapper!, typeArguments, callSignatures, constructSignatures, indexInfos);
+    resolvePendingObjectTypeMembers(
+      c,
+      t,
+      pending,
+      baseTypes,
+      mapper!,
+      typeArguments,
+      callSignatures,
+      constructSignatures,
+      indexInfos,
+    );
     return;
   }
   if (baseTypes.length !== 0) {
@@ -362,7 +372,9 @@ export class PendingInstantiatedMembers extends PendingMembers {
       if (existing !== undefined && (existing.flags & SymbolFlags.Value) !== 0) break;
       const base = baseTypes[i];
       const inherited =
-        base !== undefined ? getInheritedProperty(this.c, base, name) : findProperty(this.c, this.baseProperties[i]!, name);
+        base !== undefined
+          ? getInheritedProperty(this.c, base, name)
+          : findProperty(this.c, this.baseProperties[i]!, name);
       if (inherited !== undefined && !isStaticPrivateIdentifierProperty(inherited)) existing = inherited;
     }
     return existing;
@@ -630,7 +642,8 @@ function resolvePendingObjectTypeMembers(
   }
   t.objectFlags &= ~ObjectFlags.UnresolvedMembers;
   pending.resolving = false;
-  if (t.pendingMembers === pending) setPendingStructuredTypeMembers(t, pending, callSignatures, constructSignatures, indexInfos);
+  if (t.pendingMembers === pending)
+    setPendingStructuredTypeMembers(t, pending, callSignatures, constructSignatures, indexInfos);
   else setStructuredTypeMembers(c, t, t.membersValue, callSignatures, constructSignatures, indexInfos);
 }
 
@@ -738,8 +751,7 @@ function resolveAnonymousTypeMembers(c: Checker, t: ObjectType): void {
       targetProperties.length !== 0 && t.mapper !== undefined
         ? pendingInstantiatedList(c, targetProperties, t.mapper)
         : undefined;
-    const members =
-      pending === undefined ? createInstantiatedSymbolTable(c, targetProperties, t.mapper) : undefined;
+    const members = pending === undefined ? createInstantiatedSymbolTable(c, targetProperties, t.mapper) : undefined;
     const callSignatures = instantiateSignatures(c, getSignaturesOfType(c, target, SignatureKind.Call), t.mapper!);
     const constructSignatures = instantiateSignatures(
       c,
@@ -747,7 +759,8 @@ function resolveAnonymousTypeMembers(c: Checker, t: ObjectType): void {
       t.mapper!,
     );
     const indexInfos = instantiateIndexInfos(c, getIndexInfosOfType(c, target), t.mapper!);
-    if (pending !== undefined) setPendingStructuredTypeMembers(t, pending, callSignatures, constructSignatures, indexInfos);
+    if (pending !== undefined)
+      setPendingStructuredTypeMembers(t, pending, callSignatures, constructSignatures, indexInfos);
     else setStructuredTypeMembers(c, t, members, callSignatures, constructSignatures, indexInfos);
     return;
   }

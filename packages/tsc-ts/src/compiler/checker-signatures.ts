@@ -93,7 +93,12 @@ import {
 import { getTypeOfSymbol, addOptionality } from './checker-symbol-types.js';
 import { getTypeFromTypeNode } from './checker-type-nodes.js';
 import { instantiateSignatureEx, instantiateType, instantiateTypes } from './instantiation.js';
-import { hasResolvedProperties, getIndexInfosOfType, getSignaturesOfType, resolveStructuredTypeMembers } from './checker-members.js';
+import {
+  hasResolvedProperties,
+  getIndexInfosOfType,
+  getSignaturesOfType,
+  resolveStructuredTypeMembers,
+} from './checker-members.js';
 import {
   getIndexedAccessType,
   getElementTypeOfSliceOfTupleType,
