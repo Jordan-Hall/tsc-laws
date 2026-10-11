@@ -49,6 +49,8 @@ const {
   fillScheduleCosts,
   newSchedule,
   planSchedule,
+  retirementMemory,
+  retires,
   scheduleOf,
   takePosition,
 } = await load('compiler/parallel-check.js');
@@ -186,14 +188,14 @@ test('auto starts a checker per CPU, at least four, fewer only when memory does 
   assert.equal(autoCheckers(16, 10), 10);
   assert.equal(autoCheckers(8, 1), 4);
   const GiB = 1024 ** 3;
-  // VS Code (158.6M characters, 16.8M in declaration files): on 16 GiB the estimate leaves tsgo's
-  // four checkers (it checked with 13.2 GiB at 8), on 32 GiB one per CPU.
-  assert.equal(autoCheckers(8, checkersFittingMemory(158592222, 16769893, 16 * GiB)), 4);
+  // VS Code (158.6M characters, 16.8M in declaration files) gets one checker per CPU on 16 GiB (it
+  // checked with 13.2 GiB at 8) and on 32 GiB.
+  assert.equal(autoCheckers(8, checkersFittingMemory(158592222, 16769893, 16 * GiB)), 8);
   assert.equal(autoCheckers(16, checkersFittingMemory(158592222, 16769893, 32 * GiB)), 16);
-  // T3 Code's apps/server (57.5M, 30.4M; 11.1 GiB at 8 checkers, 19 GiB at 16) and Sentry (71.7M, 22.1M;
-  // 9.8 GiB at 8) get eight on 16 GiB.
+  // So do T3 Code's apps/server (57.5M, 30.4M; 9.2 GiB at 8 checkers, 11.8 GiB at 16) and Sentry
+  // (71.7M, 22.1M; 9.8 GiB at 8). Programs above the estimate retire checkers instead.
   assert.equal(autoCheckers(8, checkersFittingMemory(57491513, 30414210, 16 * GiB)), 8);
-  assert.equal(autoCheckers(16, checkersFittingMemory(57491513, 30414210, 16 * GiB)), 8);
+  assert.equal(autoCheckers(16, checkersFittingMemory(57491513, 30414210, 16 * GiB)), 15);
   assert.equal(autoCheckers(8, checkersFittingMemory(71728469, 22113123, 16 * GiB)), 8);
   assert.equal(autoCheckers(16, checkersFittingMemory(57491513, 30414210, 32 * GiB)), 16);
 });
@@ -256,4 +258,19 @@ test('a checker takes a group from the shared queue as a whole, and nobody takes
   assert.equal(takePosition(schedule, 8, 1), 6);
   assert.equal(takePosition(schedule, 8, 0), -1);
   assert.equal(takePosition(schedule, 8, 1), -1);
+});
+
+test('beyond four checkers, one checker at a time retires when memory runs short, and an idle one takes its range', () => {
+  const schedule = new Int32Array(newSchedule(6, 10, 0, 0));
+  fillScheduleCosts(schedule, Array(10).fill(10), Array(10).fill([]), []);
+  ownRanges(schedule, 10, 10, 10, 10, 10, 10, 10, 10, 0, 10, 10, 10);
+  assert.equal(retires(schedule, 4, 100, 50), false);
+  assert.equal(retires(schedule, 3, 100, 200), false);
+  assert.equal(retires(schedule, 4, 100, 200), true);
+  // The next retirement waits until the first one's memory has come back.
+  assert.equal(retires(schedule, 5, 100, 200), false);
+  assert.equal(takePosition(schedule, 10, 0), 0);
+  assert.deepEqual(Array.from(schedule.slice(ranges, ranges + 2)), [1, 10]);
+  assert.deepEqual(Array.from(schedule.slice(ranges + 8, ranges + 10)), [0, 0]);
+  assert.equal(retirementMemory(1000), 850);
 });

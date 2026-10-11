@@ -5,7 +5,8 @@
  * over the program and takes files until none are left (`planSchedule`): the costliest files first,
  * and groups of files that share costly declarations as a whole (`checkGroups`), then a range of
  * neighboring files of its own, then the end of other checkers' ranges where that makes them finish
- * earlier (`takePosition`). The threads send back the semantic
+ * earlier (`takePosition`). Checkers beyond tsgo's four stop when the process's memory reaches its
+ * limit, and the others take over their files (`retires`). The threads send back the semantic
  * diagnostics of their files (and under `noEmit` with declarations, their declaration diagnostics)
  * and their global diagnostics, and the main thread reports them like a single checker would. Which
  * checker checks a file does not change its diagnostics.
@@ -147,27 +148,38 @@ export function parseThreads(checkers: number): number {
 }
 
 /**
- * Peak memory with one checker, per character of source text: measured 44-107 bytes on the
- * benchmark apps (the shared program 28-38, one checker's heap the rest; most where checking
- * instantiates many types, as in Sentry and T3 Code's Effect code, least for tRPC and VS Code).
+ * Peak memory with one checker, per character of source text, for a typical program: measured
+ * 44-107 bytes on the benchmark apps (the shared program 28-38, one checker's heap the rest; most
+ * where checking instantiates many types, as in Sentry and T3 Code's Effect code, least for tRPC).
+ * Programs that need more stay within memory by retiring checkers (`retires`).
  */
-const peakBytesPerChar = 110;
+const peakBytesPerChar = 72;
 
 /**
- * What each further checker adds, per character of declaration files: measured 0.3-31 bytes (every
- * checker resolves the declarations its files use; most for T3 Code's Effect-based projects, 6 for
- * VS Code, under 1 for tRPC).
+ * What each further checker adds, per character of declaration files, for a typical program:
+ * measured 0.3-31 bytes (every checker resolves the declarations its files use; most for T3 Code's
+ * Effect-based projects, 6 for VS Code, under 1 for tRPC).
  */
-const checkerBytesPerDeclarationChar = 32;
+const checkerBytesPerDeclarationChar = 24;
+
+/** The share of the memory limit that checking may use (`checkersFittingMemory`, `retires`). */
+const memoryShare = 0.85;
 
 /**
  * The most checkers whose estimated peak memory (`peakBytesPerChar`,
- * `checkerBytesPerDeclarationChar`) fits 80% of the memory limit, of `memory` bytes; at least 1.
+ * `checkerBytesPerDeclarationChar`) fits `memoryShare` of the memory limit, of `memory` bytes; at
+ * least 1.
  */
 export function checkersFittingMemory(chars: number, declarationChars: number, memory: number): number {
   const peak = chars * peakBytesPerChar;
   const perChecker = Math.max(1, declarationChars * checkerBytesPerDeclarationChar);
-  return Math.max(1, 1 + Math.floor((0.8 * memory - peak) / perChecker));
+  return Math.max(1, 1 + Math.floor((memoryShare * memory - peak) / perChecker));
+}
+
+/** The memory this process may use: the smaller of its constrained memory and the total, in bytes. */
+function memoryLimit(): number {
+  const constrained = process.constrainedMemory();
+  return constrained > 0 ? Math.min(constrained, totalmem()) : totalmem();
 }
 
 /** The most checkers whose estimated peak memory fits (`checkersFittingMemory`), for `program`. */
@@ -178,8 +190,7 @@ export function memoryCheckers(program: Program): number {
     chars += file.text.length;
     if (file.isDeclarationFile) declarationChars += file.text.length;
   }
-  const constrained = process.constrainedMemory();
-  const memory = constrained > 0 ? Math.min(constrained, totalmem()) : totalmem();
+  const memory = memoryLimit();
   const fit = checkersFittingMemory(chars, declarationChars, memory);
   if (process.env.TSC_TS_CHECKERS_TRACE !== undefined)
     process.stderr.write(
@@ -314,7 +325,9 @@ function isExternalModuleFile(file: SourceFile): boolean {
  * and the start of its libraries in the library references (one more start at the end), the library
  * references, for each library what resolving it costs, and for each checker the set of libraries it
  * has resolved (one bit per library), and for each position the number of files of the group starting
- * there (0 or 1 for a file of its own).
+ * there (0 or 1 for a file of its own). Between the ranges and the costs, the time of the latest
+ * retirement (`Date.now()` modulo 2^31, 0 for none) and for each checker whether it retired
+ * (`retires`).
  *
  * The leading positions are the shared queue: the costliest files, and groups of files that a
  * checker takes as a whole (`checkGroups`), which no other checker takes from it.
@@ -332,7 +345,7 @@ const scheduleHeader = 8;
 export function newSchedule(count: number, positions = 0, libraries = 0, references = 0): SharedArrayBuffer {
   const words = (libraries + 31) >> 5;
   const plan = positions === 0 ? 0 : 3 * positions + 1 + references + libraries + count * words;
-  const buffer = new SharedArrayBuffer(4 * (scheduleHeader + 2 * count + plan));
+  const buffer = new SharedArrayBuffer(4 * (scheduleHeader + 3 * count + 1 + plan));
   const schedule = new Int32Array(buffer);
   schedule[3] = count;
   if (positions > 0) {
@@ -356,7 +369,7 @@ class PlanLayout {
 
   constructor(schedule: Int32Array) {
     const positions = schedule[4]!;
-    this.lengths = scheduleHeader + 2 * schedule[3]!;
+    this.lengths = scheduleHeader + 3 * schedule[3]! + 1;
     this.starts = this.lengths + positions;
     this.references = this.starts + positions + 1;
     this.costs = this.references + schedule[7]!;
@@ -520,9 +533,76 @@ function reservedBy(index: number): number[] {
   return reserved;
 }
 
+/** Where the retirement state starts in `schedule` (`newSchedule`). */
+function retirementAt(schedule: Int32Array): number {
+  return scheduleHeader + 2 * Atomics.load(schedule, 3);
+}
+
+/** For checker `thief`, the whole remaining range of a checker that retired (its positions), or `undefined`. */
+function takeRetired(schedule: Int32Array, thief: number): number[] | undefined {
+  const count = Atomics.load(schedule, 3);
+  const flags = retirementAt(schedule) + 1;
+  for (let v = 0; v < count; v++) {
+    if (v === thief || Atomics.load(schedule, flags + v) === 0) continue;
+    const at = scheduleHeader + 2 * v;
+    const lo = Atomics.load(schedule, at);
+    const hi = Atomics.load(schedule, at + 1);
+    if (lo >= hi) continue;
+    Atomics.store(schedule, at + 1, lo);
+    if (traceSteals)
+      process.stderr.write(`checkers: steal ${thief} from retired ${v} [${lo},${hi}) at ${Date.now()}\n`);
+    return [lo, hi];
+  }
+  return undefined;
+}
+
+/** How long after a retirement the next checker may retire: the first one's memory returns as its thread ends. */
+const retirementSpacing = 1000;
+
+/**
+ * Whether checker `index` stops taking files: it is not one of tsgo's four and holds no group, the
+ * process's resident memory has reached `limit` bytes, and no other checker retired in the last
+ * `retirementSpacing` ms. Its thread then ends, which returns its memory, and idle checkers take
+ * the rest of its range.
+ */
+export function retires(schedule: Int32Array, index: number, limit: number, resident = residentBytes()): boolean {
+  if (index < tsgoCheckers || reservedBy(index).length > 0 || resident < limit) return false;
+  const at = retirementAt(schedule);
+  const now = (Date.now() % 0x7fffffff) + 1;
+  const last = Atomics.load(schedule, at);
+  if (last !== 0 && (now - last + 0x7fffffff) % 0x7fffffff < retirementSpacing) return false;
+  if (Atomics.compareExchange(schedule, at, last, now) !== last) return false;
+  while (Atomics.compareExchange(schedule, 1, 0, 1) !== 0) {
+    // Idle checkers read the flags under the schedule's lock.
+  }
+  Atomics.store(schedule, at + 1 + index, 1);
+  Atomics.store(schedule, 1, 0);
+  if (process.env.TSC_TS_CHECKERS_TRACE !== undefined)
+    process.stderr.write(`checkers: thread ${index} retires at rss ${Math.round(resident / 1048576)}MB\n`);
+  return true;
+}
+
+/** The process's resident memory in bytes (Linux), or 0 where it is unknown. */
+function residentBytes(): number {
+  try {
+    const statm = readFileSync('/proc/self/statm', 'utf8');
+    const space = statm.indexOf(' ');
+    return Number(statm.substring(space + 1, statm.indexOf(' ', space + 1))) * 4096;
+  } catch {
+    return 0;
+  }
+}
+
+/** The resident memory, in bytes, at which checkers retire: `memoryShare` of the memory limit. */
+export function retirementMemory(memory = memoryLimit()): number {
+  return memoryShare * memory;
+}
+
 /** Takes the back half of the largest remaining range: its positions, or `undefined` if none is left. */
 function takeBackHalf(schedule: Int32Array): number[] | undefined {
   const count = Atomics.load(schedule, 3);
+  const retired = takeRetired(schedule, -1);
+  if (retired !== undefined) return retired;
   let victim = -1;
   let most = 0;
   for (let v = 0; v < count; v++) {
@@ -553,6 +633,8 @@ const traceSteals = process.env.TSC_TS_CHECKERS_TRACE === '3';
 
 function takeCheapestEnd(schedule: Int32Array, plan: SchedulePlan, thief: number): number[] | undefined {
   const count = Atomics.load(schedule, 3);
+  const retired = takeRetired(schedule, thief);
+  if (retired !== undefined) return retired;
   const thiefResolved = plan.resolvedBy(schedule, thief);
   let bestVictim = -1;
   let bestStart = 0;
@@ -891,7 +973,14 @@ export function checkFromQueue(
   // Declaration emit of a file right after checking it, with this checker.
   const emitter = checkersReportDeclarations(checked) ? new ProgramEmitter(checked) : undefined;
   const plan = schedulePlan(counter);
+  const retirement = index >= tsgoCheckers ? retirementMemory() : 0;
+  let memoryReadAt = 0;
   for (;;) {
+    // Beyond tsgo's four, read the process's memory every 20 ms at most.
+    if (retirement > 0 && performance.now() - memoryReadAt >= 20) {
+      memoryReadAt = performance.now();
+      if (retires(counter, index, retirement)) break;
+    }
     const k = takePosition(counter, order.length, index, plan);
     if (k < 0) break;
     const i = order[k]!;
