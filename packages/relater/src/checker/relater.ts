@@ -185,13 +185,14 @@ export class Checker {
   private isRelatedTo(inputSource: number, inputTarget: number): number {
     if (inputSource === inputTarget) return R.True;
     // v0.2.5 requires an explicit native numeric conversion for these parameter indices.
-    const regularSource = this.regularTypes[Number(inputSource)];
-    const regularTarget = this.regularTypes[Number(inputTarget)];
+    // v0.2.8 reads typed array elements as number | undefined unless converted.
+    const regularSource = Number(this.regularTypes[Number(inputSource)]);
+    const regularTarget = Number(this.regularTypes[Number(inputTarget)]);
     const sourceId = regularSource >= 0 ? regularSource : inputSource;
     const targetId = regularTarget >= 0 ? regularTarget : inputTarget;
     if (sourceId === targetId) return R.True;
-    const sourceFlags = this.flags[sourceId];
-    const targetFlags = this.flags[targetId];
+    const sourceFlags = Number(this.flags[sourceId]);
+    const targetFlags = Number(this.flags[targetId]);
     if (this.isSimpleTypeRelatedTo(sourceId, targetId, sourceFlags, targetFlags)) return R.True;
     if ((targetFlags & F.Never) !== 0) return R.False;
     if (((sourceFlags | targetFlags) & (F.StructuredOrInstantiable | F.EnumLike | F.UniqueESSymbol)) === 0)
