@@ -167,6 +167,9 @@ export abstract class NodeVisitor {
   }
 }
 
+// Native builds store `pos`, `end` and `id` as 32-bit integers when every write provably stores an
+// int32, so writes of values the compiler can't bound (parameters, the id counter) are coerced
+// with `| 0`; the values are always int32.
 export abstract class Node {
   readonly kind: SyntaxKind;
   flags: NodeFlags;
@@ -187,7 +190,7 @@ export abstract class Node {
     this.end = -1;
     this.parent = undefined;
     this.jsDoc = undefined;
-    this.id = ++lastNodeId;
+    this.id = ++lastNodeId | 0;
   }
 
   /** Calls `visitor` for each child in order; returns `true` if the visitor stopped. */
@@ -211,8 +214,8 @@ export class NodeList {
   isMissingList: boolean;
 
   constructor(pos: number, end: number, nodes: Node[]) {
-    this.pos = pos;
-    this.end = end;
+    this.pos = pos | 0;
+    this.end = end | 0;
     this.nodes = nodes;
     this.isMissingList = false;
   }
