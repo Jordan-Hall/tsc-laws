@@ -348,6 +348,9 @@ export class Checker {
   readonly substitutionTypes = new Map<string, Type>();
   readonly subtypeReductionCache = new Map<string, Type[]>();
   readonly cachedTypes = new Map<string, Type>();
+  /** Cached types by `cachedTypeKey` and by `cachedTypePairKey`, without spelled keys. */
+  readonly cachedTypesById = new Map<number, Type>();
+  readonly cachedTypesByPair = new Map<number, Type>();
   readonly errorTypes = new Map<string, Type>();
 
   // Intrinsic types, created in tsgo's order so ids (the last-resort union order) match.
@@ -910,6 +913,8 @@ export function disposeChecker(c: Checker): void {
   c.substitutionTypes.clear();
   c.subtypeReductionCache.clear();
   c.cachedTypes.clear();
+  c.cachedTypesById.clear();
+  c.cachedTypesByPair.clear();
   c.iterationTypesCache.clear();
   c.deferredIterationErrors = [];
   c.errorTypes.clear();

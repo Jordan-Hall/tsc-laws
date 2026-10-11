@@ -2,7 +2,7 @@
 // enums, modules and aliases; optionality and widening.
 import { checkJsxAttribute } from './checker-jsx.js';
 import { getTargetOfAliasDeclaration, resolveExternalModuleSymbol } from './checker-modules.js';
-import { CheckMode } from './checker-types.js';
+import { CachedTypeKind, cachedTypeKey, CheckMode } from './checker-types.js';
 import {
   ModifierFlags,
   type Node,
@@ -672,9 +672,9 @@ class WideningContext {
 
 function getWidenedTypeWithContext(c: Checker, t: Type, context: WideningContext | undefined): Type {
   if ((t.objectFlags & ObjectFlags.RequiresWidening) === 0) return t;
-  const key = 'widened' + t.id;
+  const key = cachedTypeKey(CachedTypeKind.Widened, t.id);
   if (context === undefined) {
-    const cached = c.cachedTypes.get(key);
+    const cached = c.cachedTypesById.get(key);
     if (cached !== undefined) return cached;
   }
   let result: Type | undefined;
@@ -697,7 +697,7 @@ function getWidenedTypeWithContext(c: Checker, t: Type, context: WideningContext
   } else if ((t.flags & TypeFlags.Intersection) !== 0) result = getIntersectionType(c, getWidenedTypes(c, typesOf(t)));
   else if (isArrayOrTupleType(c, t))
     result = createTypeReference(c, (t as TypeReference).target!, getWidenedTypes(c, getTypeArguments(c, t)));
-  if (result !== undefined && context === undefined) c.cachedTypes.set(key, result);
+  if (result !== undefined && context === undefined) c.cachedTypesById.set(key, result);
   return result ?? t;
 }
 

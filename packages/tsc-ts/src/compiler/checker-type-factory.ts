@@ -11,6 +11,8 @@ import { Diagnostics } from './diagnostic-messages.js';
 import { CheckFlags, type Symbol, SymbolFlags, type SymbolTable, getSymbolId } from './symbol.js';
 import type { Checker } from './checker.js';
 import {
+  CachedTypeKind,
+  cachedTypeKey,
   ElementFlags,
   EvolvingArrayType,
   IndexInfo,
@@ -400,11 +402,11 @@ export function getBaseTypeOfLiteralType(c: Checker, type: Type): Type {
   if ((flags & TypeFlags.BigIntLiteral) !== 0) return c.bigintType;
   if ((flags & TypeFlags.BooleanLiteral) !== 0) return c.booleanType;
   if ((flags & TypeFlags.Union) !== 0) {
-    const key = 'lub' + type.id;
-    let cached = c.cachedTypes.get(key);
+    const key = cachedTypeKey(CachedTypeKind.LiteralUnionBaseType, type.id);
+    let cached = c.cachedTypesById.get(key);
     if (cached === undefined) {
       cached = mapType(c, type, (t) => getBaseTypeOfLiteralType(c, t));
-      c.cachedTypes.set(key, cached);
+      c.cachedTypesById.set(key, cached);
     }
     return cached;
   }

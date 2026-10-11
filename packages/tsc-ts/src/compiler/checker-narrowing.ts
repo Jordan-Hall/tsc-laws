@@ -34,6 +34,9 @@ import { FlowFlags, type FlowNode, FlowReduceLabel, FlowSwitchClause } from './f
 import { SyntaxKind } from './syntax-kind.js';
 import type { Checker } from './checker.js';
 import {
+  CachedTypeKind,
+  cachedTypeKey,
+  cachedTypePairKey,
   type LiteralType,
   type Type,
   TypeFlags,
@@ -598,15 +601,17 @@ function getTypeWithDefault(c: Checker, t: Type, defaultExpression: Node | undef
 export function getAssignmentReducedType(c: Checker, declaredType: Type, assignedType: Type): Type {
   if (declaredType === assignedType) return declaredType;
   if ((assignedType.flags & TypeFlags.Never) !== 0) return assignedType;
-  const key = 'assignmentReduced' + declaredType.id + ',' + assignedType.id;
-  let result = c.cachedTypes.get(key);
+  const pair = cachedTypePairKey(declaredType.id, assignedType.id, 0);
+  const key = pair < 0 ? 'assignmentReduced' + declaredType.id + ',' + assignedType.id : '';
+  let result = pair < 0 ? c.cachedTypes.get(key) : c.cachedTypesByPair.get(pair);
   if (result === undefined) {
     const filteredType = filterType(c, declaredType, (t) => typeMaybeAssignableTo(c, assignedType, t));
     let reducedType = filteredType;
     if ((assignedType.flags & TypeFlags.BooleanLiteral) !== 0 && isFreshLiteralType(assignedType))
       reducedType = mapType(c, filteredType, (t) => getFreshTypeOfLiteralType(c, t));
     result = isTypeAssignableTo(c, assignedType, reducedType) ? reducedType : declaredType;
-    c.cachedTypes.set(key, result);
+    if (pair < 0) c.cachedTypes.set(key, result);
+    else c.cachedTypesByPair.set(pair, result);
   }
   return result;
 }
@@ -1556,11 +1561,14 @@ export function getNarrowedType(
   checkDerived: boolean,
 ): Type {
   if ((t.flags & TypeFlags.Union) === 0) return getNarrowedTypeWorker(c, t, candidate, assumeTrue, checkDerived);
-  const key = 'narrowed' + t.id + ',' + candidate.id + (assumeTrue ? 't' : 'f') + (checkDerived ? 'd' : '');
-  let result = c.cachedTypes.get(key);
+  const pair = cachedTypePairKey(t.id, candidate.id, 4 | (assumeTrue ? 2 : 0) | (checkDerived ? 1 : 0));
+  const key =
+    pair < 0 ? 'narrowed' + t.id + ',' + candidate.id + (assumeTrue ? 't' : 'f') + (checkDerived ? 'd' : '') : '';
+  let result = pair < 0 ? c.cachedTypes.get(key) : c.cachedTypesByPair.get(pair);
   if (result === undefined) {
     result = getNarrowedTypeWorker(c, t, candidate, assumeTrue, checkDerived);
-    c.cachedTypes.set(key, result);
+    if (pair < 0) c.cachedTypes.set(key, result);
+    else c.cachedTypesByPair.set(pair, result);
   }
   return result;
 }
@@ -2686,12 +2694,12 @@ function getTypeAtFlowArrayMutation(c: Checker, f: FlowState, flow: FlowNode): T
 
 /** The evolving array type of `let x = []` with the element types added so far. */
 export function getEvolvingArrayType(c: Checker, elementType: Type): Type {
-  const key = 'evolvingArray' + elementType.id;
-  const cached = c.cachedTypes.get(key);
+  const key = cachedTypeKey(CachedTypeKind.EvolvingArray, elementType.id);
+  const cached = c.cachedTypesById.get(key);
   if (cached !== undefined) return cached;
   const evolving = newObjectType(c, ObjectFlags.EvolvingArray, undefined) as EvolvingArrayType;
   evolving.elementType = elementType;
-  c.cachedTypes.set(key, evolving);
+  c.cachedTypesById.set(key, evolving);
   return evolving;
 }
 
