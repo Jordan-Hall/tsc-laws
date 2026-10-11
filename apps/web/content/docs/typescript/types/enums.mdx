@@ -1,0 +1,107 @@
+---
+title: Enums
+description: Numeric and string enums, runtime objects, and const enum behavior.
+---
+
+An enum declares named constants and usually creates a runtime object. Numeric enum members without initializers can receive automatically incremented values.
+
+```ts
+enum Direction {
+  Up,
+  Down,
+}
+const direction: Direction = Direction.Up;
+const name = Direction[Direction.Up]; // numeric reverse mapping
+```
+
+## String enums
+
+String enum members need string constant initializers or references to other string enum members. They do not generate numeric-style reverse mappings.
+
+```ts
+enum Status {
+  Ready = 'ready',
+  Done = 'done',
+}
+const status: Status = Status.Ready;
+// @ts-expect-error: the plain string is not the enum member type
+const invalid: Status = 'ready';
+```
+
+Use a string literal union when a runtime enum object is unnecessary. That choice changes both the checking surface and the emitted code.
+
+## Member types
+
+Enums with known member values can act as unions of member types. A value narrowed to one member can be rejected in comparisons that have no overlap with another. Computed numeric members have additional rules; an enum is not simply an alias for `number`.
+
+## Const enums
+
+A `const enum` can inline member values and omit its runtime object. `preserveConstEnums` changes whether the declaration is retained in output. Publishing ambient const enums can create version and tooling problems: a consumer may inline a value from one version while executing another version's code.
+
+`isolatedModules` imposes restrictions because a single-file transpiler cannot use cross-file type information to inline ambient const enum members reliably.
+
+## Runtime implications
+
+Enums are among the TypeScript constructs that can emit JavaScript beyond removing annotations. An ambient `declare enum` describes an existing enum object rather than creating one.
+
+See [enums](https://www.typescriptlang.org/docs/handbook/enums.html) and [type erasure](/typescript/language/type-erasure).
+
+## Member evaluation and types
+
+An enum introduces a named type, member types, and ordinarily a runtime object. A numeric member can have a constant or computed initializer. An uninitialized member begins at zero when allowed or continues from a preceding numeric constant. A member following an unsupported computed predecessor requires its own initializer. String members require string initializers and do not receive automatic numeric progression.
+
+Constant enum expressions use the supported literals, member references, parentheses, and unary/binary arithmetic operations. An expression outside that constant subset is computed even if a human can predict its result.
+
+```ts
+enum State {
+  Start,
+  Running,
+  Finished = 10,
+}
+const start: 0 = State.Start;
+enum Label {
+  Ready = 'ready',
+  Done = 'done',
+}
+const label: Label = Label.Ready;
+// @ts-expect-error: a bare string is not a member of this enum type
+const bare: Label = 'ready';
+```
+
+Modern enum types include distinct member types even for members that need computed values. This allows member discrimination rather than reverting an entire enum to an undifferentiated type in every computed-member case.
+
+## Assignment restrictions
+
+Enum types and members are not universally interchangeable with arbitrary numbers or with other enum declarations having the same apparent values. Numeric enums retain some number compatibility, but a known numeric literal outside the enum's values can be rejected. Distinct enum declarations have additional edition-specific compatibility restrictions.
+
+```ts
+enum Count {
+  One = 1,
+  Two = 2,
+}
+const known: Count = Count.One;
+// @ts-expect-error: a known out-of-domain literal is rejected
+const outside: Count = 3;
+declare const dynamicNumber: number;
+const numericCompatibility: Count = dynamicNumber;
+```
+
+This numeric compatibility is not runtime validation. Receiving a `number` from an untyped caller can still produce a value with no named enum member.
+
+## Runtime output
+
+Ordinary numeric enums emit an object with forward mappings and numeric reverse mappings. String enums emit forward mappings without the numeric reverse mechanism. Heterogeneous enums combine numeric and string members with their corresponding output behavior. Repeated numeric values can overwrite the reverse mapping; reverse mapping does not promise an injective relation between names and values.
+
+An enum declaration can merge with permitted additional enum or namespace declarations. Initializer and member-name restrictions apply across merged declarations; multiple enum declarations do not each get an unconstrained automatic starting member.
+
+## Const and ambient enums
+
+Const enums require constant members and restrict computed access. Their member references can be inlined and the enum declaration removed. `preserveConstEnums` changes declaration output behavior. Exporting ambient const enums introduces consumer-version and isolated-compilation concerns because inlined values can come from declarations differing from the loaded runtime.
+
+Ambient enums describe an existing entity. An uninitialized ambient non-const member is treated differently from an ordinary auto-incremented constant member; a `.d.ts` file does not synthesize its runtime values.
+
+## Edition boundaries
+
+TypeScript 5 made enums consistently union-like, and TypeScript 5.4 tightened relationships between enum declarations. These behaviors supersede descriptions based solely on older numeric enum rules. Ordinary object literals with `as const` provide a different design: they emit object literals and use value unions rather than enum identity and member rules.
+
+Sources: [enum reference](https://www.typescriptlang.org/docs/handbook/enums.html), [TypeScript 5 enums](https://www.typescriptlang.org/docs/handbook/release-notes/typescript-5-0.html#all-enums-are-union-enums), and [5.4 compatibility](https://www.typescriptlang.org/docs/handbook/release-notes/typescript-5-4.html#new-enum-assignability-restrictions).

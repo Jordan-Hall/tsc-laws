@@ -1,0 +1,100 @@
+---
+title: Variables and bindings
+description: Declare values with const, let, and var, including destructuring bindings.
+---
+
+`const` and `let` declare block-scoped bindings. `const` requires an initializer and prevents assigning another value to the binding. It does not freeze the value.
+
+```ts
+const user = { name: 'Ada' };
+user.name = 'Grace'; // the object's property is mutable
+
+// @ts-expect-error: a const binding cannot be reassigned
+user = { name: 'Lin' };
+
+let attempts = 0;
+attempts += 1;
+```
+
+## Annotations and inference
+
+An annotation sets the binding's declared type. Without one, the initializer and context supply a type.
+
+```ts
+let mode = 'read'; // string
+const fixed = 'read'; // "read"
+let selected: 'read' | 'write' = fixed;
+selected = 'write';
+
+// @ts-expect-error: "delete" is outside the declared union
+selected = 'delete';
+```
+
+`let` usually widens primitive literal initializers because later assignments are allowed. Object properties can widen even when the binding uses `const`. Use [const assertions](/typescript/type-system/assertions) when a literal expression should retain its literal structure.
+
+## Destructuring
+
+Destructuring introduces bindings from object properties or iterable elements. Defaults apply when the extracted value is `undefined`, not when it is `null`.
+
+```ts
+const options: { timeout?: number } = {};
+const { timeout = 1_000 } = options;
+const [first, second] = ['a', 'b'] as const;
+```
+
+A destructuring annotation describes the source value's shape. In `{ name: label }`, `label` is the new variable name; `name` is not a type annotation.
+
+## `var`
+
+`var` is scoped to a function or script rather than the nearest block. Its declaration is hoisted and its runtime value starts as `undefined` before the initializer executes. `let` and `const` have a temporal dead zone before initialization.
+
+See [variable declarations](https://www.typescriptlang.org/docs/handbook/variable-declarations.html) and [scope](/typescript/language/scopes).
+
+## BindingDeclaration checking
+
+For a variable declaration, establish its binding names and scope, resolve an annotation if present, check the initializer with that context, and infer an omitted type according to the declaration's mutability and expression form. Check initialization and uses with the applicable definite-assignment rules.
+
+`var` has function/global declaration behavior; `let` and `const` are block scoped. A const declaration ordinarily requires an initializer and prohibits later rebinding. A readonly member and a const binding are separate contracts: a const object can still contain writable properties.
+
+```ts
+const state = { count: 0 };
+state.count += 1;
+// @ts-expect-error: const prevents rebinding
+state = { count: 2 };
+```
+
+## Annotation boundaries and evolving inference
+
+An annotation bounds future assignments, even when the current initializer narrows a union. Without an annotation, eligible literal initializers widen in mutable locations and can retain specificity in const locations. Uninitialized variables and some empty arrays can have evolving inference. `noImplicitAny` governs disallowed implicit fallback types; it does not prohibit explicit any.
+
+```ts
+let value: string | number = 'a';
+value = 1;
+// @ts-expect-error: future writes are bounded by the declared union
+value = false;
+```
+
+## Binding patterns
+
+An object or array binding pattern reads members or positions from the source's type. An annotation belongs to the whole pattern, not to the spelling after a property colon. Renaming a property changes the local binding name rather than adding a type annotation.
+
+```ts
+const { name: localName }: { name: string } = { name: 'Ada' };
+const text: string = localName;
+```
+
+Default initializers handle an undefined extracted value and influence the resulting binding type. They do not handle null automatically. Rest bindings collect remaining object properties or array positions under the source's structured or iterable rules. Destructuring is runtime syntax and can evaluate getters; a type annotation is erased.
+
+## Definite assignment assertions
+
+`let value!: T` states that initialization is supplied outside the recognized flow proof. It produces no assignment. The assertion is allowed only in its permitted declaration forms; it is distinct from `value!` in an expression, which removes nullish possibilities at that use.
+
+Class fields have separate constructor initialization checks. Ambient variable declarations describe externally supplied values without ordinary executable initializers. A declaration file does not create those values at runtime.
+
+## Loop bindings and resources
+
+`for...in` iterates string property names, and `for...of` obtains values through iterable checking. Per-iteration lexical bindings retain ECMAScript capture behavior. Generic `for...in` keys can be represented by string-key extraction from the iterated type, not arbitrary symbol keys.
+
+`using` and `await using` are resource bindings with disposal obligations and scoped lifetimes; they are not synonyms for const. See [resource management](/typescript/language/resource-management).
+
+Source: [variable checking, binding patterns, and inference](https://github.com/microsoft/TypeScript/blob/c63de15a992d37f0d6cec03ac7631872838602cb/src/compiler/checker.ts).

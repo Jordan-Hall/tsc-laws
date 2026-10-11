@@ -2,11 +2,14 @@
   "name": "tsc-ts",
   "private": true,
   "workspaces": [
-    "packages/*"
+    "packages/*",
+    "apps/*"
   ],
   "type": "module",
   "scripts": {
     "build": "turbo run build",
+    "dev:web": "npm run dev -w @tsc-ts/web",
+    "build:web": "npm run build -w @tsc-ts/web",
     "build:oracle": "turbo run build:oracle",
     "fetch:upstream": "node scripts/fetch-upstream.mjs",
     "test": "turbo run test",

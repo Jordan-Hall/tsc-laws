@@ -1,0 +1,122 @@
+---
+title: Declaration merging
+description: Combine compatible declarations and augment existing module or global types.
+---
+
+Some declarations with the same name can contribute to a single symbol. Which combinations are permitted depends on the type, value, and namespace meanings they create.
+
+## Interfaces
+
+Interfaces can merge compatible properties and overload signatures. A repeated non-function member must have a compatible declaration type and matching relevant modifiers.
+
+```ts
+interface User {
+  name: string;
+}
+interface User {
+  age: number;
+}
+const user: User = { name: 'Ada', age: 36 };
+```
+
+Type aliases do not reopen this way. Class declarations also do not simply merge with other class declarations.
+
+## Namespaces and values
+
+A namespace following a function or class can add named members to it. The runtime namespace body supplies the corresponding properties when emitted.
+
+```ts
+function format(value: string) {
+  return value.trim();
+}
+namespace format {
+  export const version = 1;
+}
+format.version;
+```
+
+Ordering matters: the namespace follows the value declaration in this pattern. Non-exported namespace members are not automatically shared between bodies.
+
+## Module augmentation
+
+A module can augment declarations in an existing module. This changes the described shape; runtime code must still install any newly described behavior.
+
+```ts
+// @filename: user.ts
+export interface User {
+  name: string;
+}
+// @filename: extension.ts
+import './user';
+declare module './user' {
+  interface User {
+    age?: number;
+  }
+}
+// @filename: main.ts
+import './extension';
+import type { User } from './user';
+const user: User = { name: 'Ada', age: 36 };
+```
+
+An augmentation patches existing declarations rather than introducing arbitrary new top-level exports. Default exports cannot be augmented by a declaration name in the same way as named exports.
+
+## Global augmentation
+
+`declare global` inside a module can extend the global scope. It does not make a runtime global exist.
+
+See [declaration merging](https://www.typescriptlang.org/docs/handbook/declaration-merging.html) and [ambient declarations](/typescript/declarations/ambient).
+
+## MergeDeclarations
+
+For declarations with the same name and overlapping meaning:
+
+1. Determine each declaration's kind and spaces.
+2. Reject prohibited combinations rather than treating every collision as reopening.
+3. Combine compatible member or export declarations into the symbol.
+4. Validate duplicate member types, optionality, generic parameters, and overload contracts.
+5. Apply ordering and visibility rules for the merged entity.
+
+Merging is a binding/checking operation. Runtime-bearing declarations still need the corresponding implementations and initialization order.
+
+## Permitted combinations
+
+| Combination           | Principal rule                                                                       |
+| --------------------- | ------------------------------------------------------------------------------------ |
+| Interface + interface | Compatible parameters and nonmethod members; methods contribute overloads.           |
+| Namespace + namespace | Combine exported members; preserve declaration-local visibility.                     |
+| Namespace + class     | Namespace follows the class and contributes permitted static-like exports.           |
+| Namespace + function  | Namespace follows the function and contributes permitted properties.                 |
+| Namespace + enum      | Contribute permitted additional members to the enum-associated value.                |
+| Enum + enum           | Member and initializer consistency, including automatic initialization restrictions. |
+| Class + interface     | Contribute a compatible type-side shape; does not generate class members.            |
+
+Classes cannot arbitrarily merge with other classes. Type aliases do not merge with interfaces or another alias of the same name. Separate value/type meanings can share a spelling without every such pair being one runtime merge.
+
+## Interface members and overload priority
+
+Repeated nonmethod members must satisfy consistency requirements rather than becoming an intersection of arbitrary incompatible property types. Merged interface generic parameter lists must be compatible. Later overload groups can have priority, with specialized string-literal signatures receiving the supported ordering treatment.
+
+```ts
+interface Settings {
+  name: string;
+}
+interface Settings {
+  count: number;
+}
+const settings: Settings = { name: 'item', count: 1 };
+```
+
+The interface remains open to augmentation, which affects some comparisons and implicit index-signature behavior. A merged declaration's file location does not create nominal identity.
+
+## Module and global augmentation
+
+Module augmentation resolves a specific existing module. A relative or package specifier is resolved under the project's resolution environment; spelling a name does not create an independent replacement module. Augmentation may extend named declarations but cannot generally add arbitrary new top-level exports or refer to a default export by a nonexistent local declaration name.
+
+Global augmentation from a module adds compatible declarations to the global environment. It produces no runtime method installation. A library augmenting `Array<T>` must separately provide any advertised executable behavior.
+
+## Visibility and implementation
+
+Exports added by one namespace body can be visible through the merged namespace. Private local declarations in that body remain local. Nonambient overloads still need implementations, and a namespace merge that adds a function declaration does not magically create a function value if it is only ambient.
+
+Sources: [declaration merging](https://www.typescriptlang.org/docs/handbook/declaration-merging.html), [binder symbol merging](https://github.com/microsoft/TypeScript/blob/c63de15a992d37f0d6cec03ac7631872838602cb/src/compiler/binder.ts), and [checker](https://github.com/microsoft/TypeScript/blob/c63de15a992d37f0d6cec03ac7631872838602cb/src/compiler/checker.ts).

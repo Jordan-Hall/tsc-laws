@@ -1,0 +1,11 @@
+import { createProxy } from '@vercel/geistdocs/proxy';
+import { config as geistdocsConfig } from '@/lib/geistdocs/config';
+
+export default createProxy({
+  config: geistdocsConfig,
+  markdownRoutes: [{ from: '/*path', to: '/[lang]/llms.mdx/*path' }],
+});
+
+export const config = {
+  matcher: ['/((?!api(?:/|$)|_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt).*)'],
+};

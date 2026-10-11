@@ -223,7 +223,7 @@ function keywordKindAt(chars: Uint16Array, start: number, end: number): SyntaxKi
   for (let i = keywordBucketStart[bucket], last = keywordBucketStart[bucket + 1]; i < last; i++) {
     let j = 1;
     while (j < length && keywordCodeUnits[i * 12 + j] === chars[start + j]) j++;
-    if (j === length) return keywordKinds[i] as SyntaxKind;
+    if (j === length) return (keywordKinds[i]! | 0) as SyntaxKind;
   }
   return SyntaxKind.Identifier;
 }
@@ -233,12 +233,13 @@ export function getIdentifierToken(text: string): SyntaxKind {
   if (text.length < 2 || text.length > 12) return SyntaxKind.Identifier;
   const first = text.charCodeAt(0);
   if (first < CharacterCodes.a || first > CharacterCodes.z) return SyntaxKind.Identifier;
-  return textToKeyword.get(text) ?? SyntaxKind.Identifier;
+  // `| 0`: a SyntaxKind is an int32, which lets its storage stay int32.
+  return (textToKeyword.get(text) ?? SyntaxKind.Identifier) | 0;
 }
 
 /** The keyword kind of an identifier's text, or `Unknown`. */
 export function identifierToKeywordKind(text: string): SyntaxKind {
-  return textToKeyword.get(text) ?? SyntaxKind.Unknown;
+  return (textToKeyword.get(text) ?? SyntaxKind.Unknown) | 0;
 }
 
 export function tokenToString(kind: SyntaxKind): string {
@@ -246,7 +247,7 @@ export function tokenToString(kind: SyntaxKind): string {
 }
 
 export function stringToToken(text: string): SyntaxKind {
-  return textToToken.get(text) ?? textToKeyword.get(text) ?? SyntaxKind.Unknown;
+  return (textToToken.get(text) ?? textToKeyword.get(text) ?? SyntaxKind.Unknown) | 0;
 }
 
 /** Keywords longer than two characters, for spelling suggestions. */
@@ -1441,7 +1442,7 @@ export class Scanner {
     // The value is `text[start, pos)` unless escapes or CRs make it `cooked`.
     let cooked = false;
     let result = '';
-    let token: SyntaxKind;
+    let token = SyntaxKind.Unknown;
     for (;;) {
       pos = skipTemplateText(chars, pos, end);
       const ch = pos < end ? chars[pos] : CharacterCodes.EOF;

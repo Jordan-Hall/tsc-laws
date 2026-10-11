@@ -1,0 +1,79 @@
+---
+title: JavaScript emit
+description: Syntax transforms, runtime APIs, module output, and output controls.
+---
+
+Emit produces JavaScript and optional related outputs from source files. Checking and emit are distinct: ordinary compilation can write output even when diagnostics are present, unless configured otherwise.
+
+## Output controls
+
+| Option                | Behavior                                  |
+| --------------------- | ----------------------------------------- |
+| `noEmit`              | Write no compiler output.                 |
+| `noEmitOnError`       | Suppress output when errors are reported. |
+| `outDir`              | Place outputs under a selected directory. |
+| `sourceMap`           | Produce JavaScript source maps.           |
+| `declaration`         | Produce declaration files.                |
+| `emitDeclarationOnly` | Produce declarations without JavaScript.  |
+
+Build mode has additional orchestration rules; see [project references](/typescript/projects/project-references).
+
+## Target and libraries
+
+`target` selects a syntax level and affects transforms. Lower targets can require helpers for async functions, iteration, private fields, or other features. Not every newer syntax feature can be faithfully transformed to every older environment.
+
+`lib` selects type declarations for runtime APIs. It does not polyfill those APIs. A program can check against `Promise`, `Map`, or browser declarations while running in an environment that lacks them.
+
+## Module output
+
+`module` controls module interpretation and output behavior. `verbatimModuleSyntax` preserves ordinary imports and exports while erasing type-only ones, and can reject incompatible syntax instead of rewriting it into another format.
+
+TypeScript generally preserves import specifier text. Options such as `rewriteRelativeImportExtensions` can rewrite certain relative TypeScript extensions; they do not implement arbitrary path aliases.
+
+## Class fields and helpers
+
+`useDefineForClassFields` selects standard property-definition semantics rather than older assignment behavior. This can matter when inherited setters are present. `importHelpers` can share helper implementations through `tslib`; that dependency must exist when the emitted code needs it.
+
+## Single-file processing
+
+`isolatedModules` reports constructs that cannot be reliably handled by certain single-file transpilers. It does not make the type checker operate on one file at a time or prove agreement with every external transpiler.
+
+See [compiler options](https://www.typescriptlang.org/tsconfig/), [module theory](https://www.typescriptlang.org/docs/handbook/modules/theory.html), and [type erasure](/typescript/language/type-erasure).
+
+## EmitProgram
+
+For the configured outputs, the compiler transforms eligible source files, prints JavaScript and/or declarations, computes maps, and records emitted files. Checking diagnostics and output decisions are distinct. `noEmit` suppresses compiler output; `noEmitOnError` makes relevant errors suppress output. Build orchestration has its edition-specific rules.
+
+`noCheck` can skip substantial checking while performing the inference needed for requested output. It is not a promise that every source is valid or that no syntax/configuration/declaration diagnostic can occur.
+
+## File and module output
+
+Output extensions depend on source kind and module format: `.mts`/`.cts` correspond to `.mjs`/`.cjs`, and declaration forms correspondingly use `.d.mts`/`.d.cts`. Preserved JSX can produce `.jsx`. `outFile` is restricted to supported bundling module modes and is not a general modern package bundler.
+
+`module` controls the representation of imports and exports. Node modes interpret each file's format, while `preserve` retains supported mixed forms instead of choosing one global representation. `verbatimModuleSyntax` removes type-only syntax and preserves value syntax under its compatibility restrictions.
+
+## Relative extension rewriting
+
+`rewriteRelativeImportExtensions` rewrites supported relative TypeScript-suffixed module paths to their emitted JavaScript forms. It is not a rewrite of bare package names, `paths` aliases, or arbitrary dynamically constructed strings. Module resolution still checks the corresponding source/declaration environment.
+
+## Runtime transforms
+
+Erased annotations are distinct from lowered runtime-bearing constructs. Enums, namespaces, parameter properties, decorators, explicit resource management, async/iterator forms, private fields, and class fields can need transformations or helpers at a selected target. A target does not guarantee that every newer runtime API is polyfilled.
+
+`useDefineForClassFields` selects property-definition semantics where applicable. Defining a field can differ from assignment when an inherited setter exists. `declare` fields produce no field initialization, while an ordinary field declaration can have runtime consequences even without an explicit initializer.
+
+## Helpers
+
+`importHelpers` uses the supported `tslib` helper dependency for applicable module output. `noEmitHelpers` suppresses helper definitions and leaves the surrounding environment responsible for supplying them. These settings must match the runtime deployment; type availability does not supply a helper implementation.
+
+## Maps and comments
+
+`sourceMap` and `inlineSourceMap` control external or inline mappings; `inlineSources` includes source content under its requirements. `sourceRoot` and `mapRoot` affect map paths. Declaration maps are separate from JavaScript maps. `removeComments` and `emitBOM` affect printed output rather than the type relation. `newLine` selects supported output line endings.
+
+Map paths and embedded sources are observable package artifacts and must be reviewed when publishing. A mapping does not alter execution or diagnostics.
+
+## Output consistency
+
+The compiler checks attempts to overwrite inputs and incompatible output configurations. An output directory can retain stale files; compilation is not a general cleanup operation. `listEmittedFiles` provides evidence of the current emit. Exit status and file presence must be compared separately.
+
+Sources: [emitter](https://github.com/microsoft/TypeScript/blob/c63de15a992d37f0d6cec03ac7631872838602cb/src/compiler/emitter.ts), [transforms](https://github.com/microsoft/TypeScript/tree/c63de15a992d37f0d6cec03ac7631872838602cb/src/compiler/transformers), and [relative rewriting](https://www.typescriptlang.org/docs/handbook/release-notes/typescript-5-7.html#path-rewriting-for-relative-paths).

@@ -1,0 +1,116 @@
+---
+title: any, unknown, and never
+description: Unchecked values, unknown values, and types with no possible values.
+---
+
+`any`, `unknown`, and `never` have different roles in checking. They are not interchangeable ways to avoid choosing a type.
+
+| Type      | Assigning values to it | Using a value of it                                     |
+| --------- | ---------------------- | ------------------------------------------------------- |
+| `any`     | Accepts other types.   | Most operations bypass checking.                        |
+| `unknown` | Accepts other types.   | Requires narrowing or an assertion for most operations. |
+| `never`   | Accepts only `never`.  | Represents a value that cannot occur.                   |
+
+## `unknown`
+
+Use `unknown` when the shape of a value has not been established. A guard can make operations available:
+
+```ts
+function read(value: unknown): string {
+  if (typeof value === 'string') return value.toUpperCase();
+  return '(not a string)';
+}
+```
+
+## `any`
+
+`any` allows unchecked property accesses and calls, and is assignable to most target types. It is not assignable to `never`. An `any` value can propagate into the types of subsequent expressions.
+
+An explicit `any` is permitted under `noImplicitAny`; that option rejects certain implicitly inferred `any` types. It does not eliminate all `any` from a program.
+
+## `never`
+
+A function annotated `never` must not complete normally. A narrowed variable can become `never` when no union member remains.
+
+```ts
+function unreachable(value: never): never {
+  throw new Error(`Unexpected value: ${value}`);
+}
+
+function format(value: string | number) {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number') return String(value);
+  return unreachable(value);
+}
+```
+
+`never` disappears from ordinary unions: `string | never` is `string`. An intersection can become `never` when its requirements cannot both hold. See [intersections](/typescript/types/intersections).
+
+Upstream: [`unknown`](https://www.typescriptlang.org/docs/handbook/release-notes/typescript-3-0.html#new-unknown-top-type) and [`never`](https://www.typescriptlang.org/docs/handbook/2/narrowing.html#the-never-type).
+
+## Special-type assignment rules
+
+| Source and target               | Rule under the default strict context                                             |
+| ------------------------------- | --------------------------------------------------------------------------------- |
+| Any source to `unknown`         | Accepted.                                                                         |
+| `unknown` to a concrete type    | Requires narrowing or an assertion; assignment to `any` or `unknown` is accepted. |
+| `any` to an ordinary target     | Generally accepted, but `never` is not an ordinary permissive target.             |
+| Any ordinary source to `any`    | Accepted.                                                                         |
+| `never` to another type         | Accepted.                                                                         |
+| A non-`never` source to `never` | Rejected, including `any`.                                                        |
+
+```ts
+declare const dynamic: any;
+declare const opaque: unknown;
+const bypassed: number = dynamic;
+// @ts-expect-error: unknown does not establish number
+const unproved: number = opaque;
+// @ts-expect-error: even any cannot satisfy never
+const impossible: never = dynamic;
+```
+
+`noImplicitAny` diagnoses omitted types that would produce disallowed implicit any; it does not ban explicit `any`, remove it from dependencies, or validate dynamic values.
+
+## Operations on `unknown`
+
+An unknown value cannot be called, constructed, indexed, or have arbitrary properties read before narrowing. Equality and inequality tests are available, and `typeof`, truthiness, and other recognized tests can produce a narrower flow type. Other operators require an appropriate operand type.
+
+`keyof unknown` is `never`: no property key is guaranteed by an unknown value. `unknown | T` ordinarily becomes `unknown`; `unknown & T` ordinarily becomes `T`. A conditional with a type parameter remains governed by conditional-type rules rather than by a naive Boolean interpretation of `unknown`.
+
+```ts
+declare const input: unknown;
+if (typeof input === 'string') {
+  const upper: string = input.toUpperCase();
+}
+type Keys = keyof unknown;
+// @ts-expect-error: no key is available
+const key: Keys = 'value';
+```
+
+## Operations on `any`
+
+Property access, calls, and arithmetic involving `any` can propagate dynamic typing. The exact result depends on the operation: `keyof any` is `string | number | symbol`, not `any`, and a conditional checked against `any` can select a union of branches. Do not specify that every operation containing `any` returns `any`.
+
+An explicit any annotation can suppress useful flow information and permit arbitrary shape assumptions. The checker still enforces some independent syntactic and arity restrictions; `any` is not a grammar escape.
+
+## `never` and unreachable computations
+
+`never` describes a computation that cannot produce a value on the modeled path. A terminating throw, an unreachable union alternative, or incompatible type requirements can introduce it. It has no members usable as ordinary values.
+
+A declared function and a function expression can infer different return types for throwing-only bodies because of historical inference rules. Annotate `never` when termination is part of the intended callable contract. A call participates in reachability only when the checker recognizes the relevant declaration and return type under its flow rules.
+
+```ts
+function fail(message: string): never {
+  throw new Error(message);
+}
+function consume(value: string | number) {
+  if (typeof value === 'string') return value.length;
+  if (typeof value === 'number') return value;
+  const exhaustive: never = value;
+  return exhaustive;
+}
+```
+
+Distributive conditionals instantiated with `never` have no union members to visit. A tuple wrapper tests `never` as a whole. See [conditional types](/typescript/type-operators/conditional-types).
+
+Source: [simple type relationships and special-type reduction](https://github.com/microsoft/TypeScript/blob/c63de15a992d37f0d6cec03ac7631872838602cb/src/compiler/checker.ts).

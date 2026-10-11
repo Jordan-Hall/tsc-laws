@@ -1,0 +1,79 @@
+---
+title: typeof in type positions
+description: Refer to the type of a value without executing it.
+---
+
+In a type position, `typeof` refers to the type of a value declaration or property access. It is distinct from JavaScript's runtime `typeof` expression.
+
+```ts
+const settings = { retries: 3, mode: 'read' };
+type Settings = typeof settings;
+const copy: Settings = { retries: 1, mode: 'write' };
+```
+
+Here the mutable properties were inferred as `number` and `string`. `typeof` retrieves that inferred type; it does not preserve the initializer's exact literals retroactively.
+
+## Functions and classes
+
+`typeof fn` retrieves a function's type, which can be passed to utilities such as `ReturnType`. `typeof ClassName` retrieves the constructor and static side; the class name alone describes an instance.
+
+```ts
+function makeUser() {
+  return { name: 'Ada' };
+}
+type User = ReturnType<typeof makeUser>;
+
+class Counter {
+  value = 0;
+}
+type Constructor = typeof Counter;
+type Instance = InstanceType<Constructor>;
+```
+
+## Restrictions
+
+A type query is restricted to appropriate names and property accesses. It does not accept arbitrary function calls or run code to discover a return value. Use `ReturnType<typeof fn>` instead of trying to write a type query for `fn()`.
+
+## Runtime `typeof`
+
+In an expression, `typeof value` produces a JavaScript string such as `"string"` or `"object"`. Comparisons against those strings can narrow a value's type. The runtime result does not enumerate a TypeScript union or retain type arguments.
+
+See [the typeof type operator](https://www.typescriptlang.org/docs/handbook/2/typeof-types.html), [narrowing](/typescript/type-system/narrowing), and [literal types](/typescript/types/literals).
+
+## Type query requirements
+
+A type query resolves an eligible value name and obtains its type without evaluating it. Its operand is restricted to the permitted named/qualified and instantiation forms; arbitrary function calls, arithmetic expressions, and object literals are not valid operands merely because JavaScript's runtime `typeof` operator accepts expressions.
+
+```ts
+const settings = { count: 1, mode: 'read' as const };
+type Settings = typeof settings;
+type Count = typeof settings.count;
+const copy: Settings = { count: 2, mode: 'read' };
+```
+
+`typeof` a class name obtains its constructor/static type. The bare class name in type space denotes its instance type. `typeof` a function obtains its callable type, including overloads; it does not obtain the function's return type. Use a signature operation such as `ReturnType` when that is the intended relationship.
+
+## Declaration and flow boundaries
+
+Queries use the entity type supplied by the query context. A query must not be treated as a runtime observation of the current property value. Flow-sensitive query contexts can affect some results; an annotation's declared contract and a use's narrowed type are distinct concepts. Source-level aliases and `as const` inference also determine the queried type.
+
+## Import type queries
+
+`typeof import('package')` refers to the module's value-side export type. `import('package').Name` in type position refers to an exported type. These forms invoke type/module resolution without adding a runtime import statement to output.
+
+```ts
+// @filename: values.ts
+export const answer = 42;
+// @filename: use.ts
+type Module = typeof import('./values');
+const module: Module = { answer: 42 };
+export {};
+```
+
+Import-type options can select permitted attributes and a type-only resolution mode. A value-side query still needs an appropriate exported entity; type-only aliases do not create arbitrary runtime exports.
+
+## Instantiation queries
+
+Supported `typeof functionName<TypeArguments>` syntax obtains the specialized callable type without calling the function. Type argument count, defaults, and constraints are checked. The query is erased, while a value-level instantiation expression preserves the original runtime value. See [instantiation expressions](/typescript/type-system/instantiation-expressions).
+
+Sources: [type queries and import types](https://github.com/microsoft/TypeScript/blob/c63de15a992d37f0d6cec03ac7631872838602cb/src/compiler/checker.ts), and [typeof types](https://www.typescriptlang.org/docs/handbook/2/typeof-types.html).

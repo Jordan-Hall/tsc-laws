@@ -1,0 +1,91 @@
+---
+title: Primitive types
+description: string, number, boolean, bigint, symbol, null, and undefined.
+---
+
+Primitive types describe JavaScript primitive values. Use lowercase `string`, `number`, and `boolean` for ordinary values. The uppercase wrapper types describe boxed objects and are usually not the intended annotation.
+
+```ts
+const name: string = 'Ada';
+const count: number = 3;
+const active: boolean = true;
+const large: bigint = 10n;
+const key: symbol = Symbol('key');
+```
+
+## Numbers and bigints
+
+`number` includes integers, floating-point values, `NaN`, and infinities. TypeScript does not provide a distinct built-in integer type. `bigint` describes arbitrary-precision integers and does not implicitly mix with `number` in arithmetic.
+
+Neither annotation establishes a numeric range. Validate bounds at runtime when they matter.
+
+## Null and undefined
+
+With `strictNullChecks`, `null` and `undefined` have distinct types and are not assignable to an ordinary `string` or `number`. Include them in a union when they are valid values.
+
+```ts
+let selected: string | undefined;
+selected = 'item';
+
+// @ts-expect-error: null is not part of this union
+selected = null;
+```
+
+Disabling `strictNullChecks` changes assignability and removes many missing-value checks. Reference examples assume it is enabled.
+
+## `void`
+
+`void` commonly marks a function whose return value should be ignored. It is not equivalent to `undefined` in function compatibility: a function returning a useful value can be used in a context expecting `void`.
+
+See [functions](/typescript/types/functions), [literal types](/typescript/types/literals), and [everyday types](https://www.typescriptlang.org/docs/handbook/2/everyday-types.html).
+
+## Primitive type requirements
+
+The primitive type keywords are intrinsic and do not resolve through a user declaration. A literal of the corresponding category is assignable to its primitive type. The primitive annotation does not describe a constructor, boxed object, numeric range, string length, or finite-value restriction.
+
+| Type        | Values and checking consequences                                                  |
+| ----------- | --------------------------------------------------------------------------------- |
+| `string`    | ECMAScript strings, including the empty string; not a character or encoding type. |
+| `number`    | ECMAScript Number values, including `NaN`, infinities, and signed zero.           |
+| `bigint`    | ECMAScript BigInt values; arithmetic cannot implicitly mix with `number`.         |
+| `boolean`   | `true` and `false`; numeric truthiness is not boolean assignability.              |
+| `symbol`    | Symbol values; a unique-symbol identity is a more specific type.                  |
+| `null`      | The null value under strict null checking.                                        |
+| `undefined` | The undefined value under strict null checking.                                   |
+| `void`      | A type used primarily to describe discarded function results.                     |
+
+Primitive member access uses the applicable library interface. For example, `string.length` is checked through string members, but that does not mean `string` and `String` have equivalent assignment behavior. A wrapper object is not accepted where the corresponding primitive is required.
+
+```ts
+const primitive: string = 'text';
+const boxed: String = new String('text');
+// @ts-expect-error: a boxed String is not a primitive string
+const invalid: string = boxed;
+// @ts-expect-error: BigInt and Number arithmetic cannot be mixed
+const mixed = 1n + 1;
+```
+
+## Nullability operation
+
+Under `strictNullChecks`, ordinary primitive and object targets reject `null` and `undefined` unless their types explicitly admit them. An optional property or parameter supplies an undefined possibility when read. It does not thereby admit `null`.
+
+With strict null checking disabled, nullish values become broadly assignable and no longer behave as independent union alternatives in ordinary checking. The option therefore changes the relation, not just whether a warning is displayed. Non-null assertions and null-aware narrowing must be interpreted in that option context.
+
+## `void` and `undefined`
+
+In a directly annotated function returning `void`, a return expression producing an ordinary value is rejected. In assignment to a function type whose result is `void`, the caller's promise is to ignore the result, so a source function can return another type.
+
+```ts
+const ignored: () => void = () => 42;
+function explicit(): void {
+  // @ts-expect-error: this explicitly void body cannot return a number
+  return 42;
+}
+function missing(): undefined {}
+```
+
+In this edition, a function explicitly returning `undefined` can omit a return expression. `void` is not generally assignable to `undefined`; a variable holding a void call result cannot be treated as a known undefined value merely because many JavaScript procedures return undefined.
+
+Primitive relationships do not encode refinements such as an integer, nonempty string, positive number, or validated URL. Those require declared types and runtime validation, not additional primitive keywords.
+
+Source: [intrinsic types and apparent-type handling](https://github.com/microsoft/TypeScript/blob/c63de15a992d37f0d6cec03ac7631872838602cb/src/compiler/checker.ts).
