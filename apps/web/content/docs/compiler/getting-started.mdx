@@ -1,0 +1,54 @@
+---
+title: Getting started
+description: Install tsc-ts and check an existing TypeScript project.
+---
+
+Install tsc-ts as a development dependency in your project:
+
+```sh
+npm install -D tsc-ts
+```
+
+The package uses an optional dependency to install a native executable for your platform. Keep optional dependencies enabled; `--omit=optional` prevents the executable from being installed.
+
+## Check a project
+
+From the directory containing `tsconfig.json`, run:
+
+```sh
+npx tsc-ts -p tsconfig.json --noEmit
+```
+
+The compiler reports diagnostics and exits with a nonzero status if the check fails. Remove `--noEmit` to write the JavaScript and declaration outputs enabled by your configuration.
+
+Add a package script to use the locally installed executable:
+
+```json
+{
+  "scripts": {
+    "typecheck": "tsc-ts -p tsconfig.json --noEmit"
+  }
+}
+```
+
+Run `npm run typecheck`. Keep the project's compiler options explicit when comparing results with another compiler.
+
+## Native packages
+
+| Platform             | Optional dependency        |
+| -------------------- | -------------------------- |
+| macOS, Apple silicon | `@tsc-ts/darwin-arm64`     |
+| macOS, Intel         | `@tsc-ts/darwin-x64`       |
+| Linux arm64, glibc   | `@tsc-ts/linux-arm64-gnu`  |
+| Linux arm64, musl    | `@tsc-ts/linux-arm64-musl` |
+| Linux x64, glibc     | `@tsc-ts/linux-x64-gnu`    |
+| Linux x64, musl      | `@tsc-ts/linux-x64-musl`   |
+| Windows x64          | `@tsc-ts/win32-x64-msvc`   |
+
+Default library declarations ship next to the executable. Set `TSC_TS_LIB_DIR` only when you need a different library directory.
+
+## Compare results
+
+Use the same files, options, dependencies, and library declarations for both compilers. Matching one project's diagnostics does not establish general compatibility. See [compatibility](/compiler/compatibility) for the upstream version and comparison suites.
+
+For source builds and package tarballs, see [the repository build instructions](https://github.com/vercel-labs/tsc-ts#build). Those builds require Node.js, Go, and a scriptc host with a linker.

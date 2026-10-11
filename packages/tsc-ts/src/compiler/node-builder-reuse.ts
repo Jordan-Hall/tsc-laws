@@ -32,6 +32,7 @@ import {
   MappedTypeNode,
   type Node,
   NodeList,
+  PropertyAccessExpression,
   SourceFile,
   StringLiteral,
   TypeOperatorNode,
@@ -727,7 +728,7 @@ function isEntityNameExpressionNode(node: Node): boolean {
     return (
       name !== undefined &&
       name.kind === SyntaxKind.Identifier &&
-      isEntityNameExpressionNode((node as unknown as { expression: Node }).expression)
+      isEntityNameExpressionNode((node as PropertyAccessExpression).expression)
     );
   }
   return false;

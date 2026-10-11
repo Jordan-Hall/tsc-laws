@@ -1,0 +1,97 @@
+---
+title: Arrays
+description: Element types, indexed access, mutable arrays, and readonly arrays.
+---
+
+`T[]` and `Array<T>` describe arrays of elements assignable to `T`. The type does not establish a fixed length or guarantee that a particular index exists.
+
+```ts
+const names: string[] = ['Ada', 'Grace'];
+names.push('Lin');
+const first = names[0]; // string with default reference options
+```
+
+## Missing elements
+
+With `noUncheckedIndexedAccess`, an indexed read includes `undefined`, because an array can be empty or the index can be out of range.
+
+```ts
+// @option: noUncheckedIndexedAccess=true
+const names: string[] = [];
+const first = names[0]; // string | undefined
+// @ts-expect-error: the element might not exist
+first.toUpperCase();
+```
+
+Even a length check does not generally narrow an arbitrary indexed access to a present element. A tuple can encode a known position when the structure is fixed.
+
+## Readonly arrays
+
+`readonly T[]` and `ReadonlyArray<T>` expose reads without mutation methods. A mutable array can be passed where a readonly array is expected. The reverse assignment is rejected.
+
+```ts
+function total(values: readonly number[]): number {
+  return values.reduce((sum, value) => sum + value, 0);
+}
+const mutable = [1, 2];
+total(mutable);
+```
+
+The readonly view does not freeze the array or its elements. Another alias can still mutate the same array at runtime.
+
+## Compatibility
+
+Mutable array compatibility can allow an array of a narrower element type to be used as an array of a wider element type. Writes through the wider alias can break assumptions held by the narrower alias. TypeScript's compatibility rules do not enforce full soundness for every mutable operation.
+
+See [array types](https://www.typescriptlang.org/docs/handbook/2/objects.html#the-array-type), [tuples](/typescript/types/tuples), and [readonly](/typescript/types/readonly).
+
+## Array checking rules
+
+`T[]` is array type syntax for `Array<T>`. `readonly T[]` corresponds to `ReadonlyArray<T>`. Their operations come from the selected library declarations, while the checker supplies special handling for indexing, literals, spreads, and tuple relationships. A missing `Array` declaration is an environmental error; an array type is not permission to ignore library selection.
+
+For an array literal, check each element using contextual element information if available, obtain spread element types from the relevant iterable or array-like context, and combine element candidates. Without a tuple context or const assertion, a literal normally infers an array rather than a fixed-length tuple. Mutable inference widens eligible literal elements.
+
+```ts
+const values = [1, 'two'];
+const accepted: (string | number)[] = values;
+// @ts-expect-error: ordinary array inference does not promise exactly two positions
+const fixed: [number, string] = values;
+const contextual: [number, string] = [1, 'two'];
+```
+
+## Indexing and bounds
+
+A numeric array index reads the declared element type by default, even when that index may be out of bounds. `noUncheckedIndexedAccess` adds an undefined possibility for unchecked reads; a write still must satisfy the element type. Bounds checks are not automatically inferred from an arbitrary arithmetic or length relationship.
+
+```ts
+// @option: noUncheckedIndexedAccess=true
+const values: number[] = [1];
+const possible: number | undefined = values[10];
+// @ts-expect-error: unchecked indexing does not guarantee a present element
+const definite: number = values[10];
+```
+
+String property names can designate ordinary array members. Numeric property conversion follows JavaScript at runtime, while index signatures and recognized literal keys govern checking. A tuple has additional known-index behavior and rejects some statically out-of-range accesses.
+
+## Mutability and variance
+
+Mutable arrays permit covariant assignments in their element types, which can be unsafe through aliases. A readonly array removes mutation methods and write operations from its checking interface. A mutable array can be assigned to a compatible readonly array; the reverse is rejected because mutation capabilities would be added.
+
+```ts
+const strings: string[] = ['a'];
+const wider: (string | number)[] = strings;
+wider.push(1);
+const view: readonly string[] = strings;
+// @ts-expect-error: a readonly view cannot supply mutable array capabilities
+const mutable: string[] = view;
+```
+
+Readonly checking does not prevent another alias from mutating the same array. Element object properties can remain mutable. See [readonly](/typescript/types/readonly).
+
+## Evolving empty arrays and iteration
+
+Some unannotated local empty arrays evolve from later writes. This behavior is location-sensitive; a nested object property initialized to `[]` can instead infer `never[]` in a strict context. An annotation defines the intended element contract and avoids reliance on evolving inference.
+
+Iteration uses the selected iterator declarations and target/transform options. Array assignability does not by itself establish that an arbitrary object is iterable at runtime. See [iterators](/typescript/language/iterators).
+
+Source: [array literal checking and evolving arrays](https://github.com/microsoft/TypeScript/blob/c63de15a992d37f0d6cec03ac7631872838602cb/src/compiler/checker.ts), and [Array declarations](https://github.com/microsoft/TypeScript/blob/c63de15a992d37f0d6cec03ac7631872838602cb/src/lib/es5.d.ts).

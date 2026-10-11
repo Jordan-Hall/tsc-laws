@@ -1,0 +1,76 @@
+---
+title: Type normalization and widening
+description: Union and intersection reductions, literal widening, apparent types, recursive types, and deferred operations.
+---
+
+Type syntax is not a guarantee of a particular internal representation. The checker can flatten, combine, reduce, or defer types before applying an operation. These transformations affect displayed types and relationships without evaluating JavaScript.
+
+## Union construction
+
+For a union, nested unions are flattened and duplicate alternatives are removed. `never` contributes no alternative. `any` ordinarily dominates a union; `unknown` ordinarily dominates unions of concrete alternatives. Literal alternatives can be absorbed by their primitive type. `true | false` can be represented as `boolean`.
+
+```ts
+type Assert<T extends true> = T;
+type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false;
+type A = Assert<Equal<string | never, string>>;
+type B = Assert<Equal<'x' | string, string>>;
+type C = Assert<Equal<number | unknown, unknown>>;
+```
+
+Structural union reduction depends on the operation and on strict-subtype rules. The checker does not promise to replace every mutually assignable pair by one printed member. A union preserves alternatives useful to narrowing and property checking.
+
+## Intersection construction
+
+Intersections flatten nested intersections, combine obligations, and remove some redundant constituents. `unknown` is neutral in an ordinary intersection; `never` makes the intersection uninhabitable. Conflicting primitive categories reduce to `never`. Conflicting discriminant properties can reduce an entire object intersection to `never`; conflicts in other properties can instead produce an object containing a `never` property.
+
+```ts
+type ImpossiblePrimitive = string & number;
+type ConflictingMember = { value: string } & { value: number };
+declare const conflict: ConflictingMember;
+const uninhabitable: never = conflict.value;
+```
+
+Do not replace intersection construction by interface inheritance: an interface reports incompatible inherited members at declaration time, whereas an intersection can remain a usable type expression with an impossible component.
+
+`T & {}` is significant under strict null checking: it removes nullish alternatives while retaining nonnullish values, including primitives. `{}` is not an exact empty-object type. See [object types](/typescript/types/objects).
+
+## Fresh literal types
+
+An eligible literal initializer starts with a fresh literal type. A `const` binding can retain it because the binding cannot be reassigned. A mutable variable or property often widens it to its base primitive type. A literal type annotation preserves specificity even through assignments that would otherwise widen.
+
+```ts
+const fresh = 'ready';
+let widened = fresh;
+const fixed: 'ready' = 'ready';
+let preserved = fixed;
+const exact: 'ready' = preserved;
+// @ts-expect-error: widened is string
+const notExact: 'ready' = widened;
+```
+
+Object properties and array elements are mutable even when the containing binding is `const`. A const assertion suppresses widening, marks literal object properties readonly, and converts literal arrays to readonly tuples. Contextual typing can also preserve an appropriate literal.
+
+## Nullish and evolving inference
+
+With `strictNullChecks`, `null` and `undefined` remain distinct types. With it disabled, their inference and assignability are more permissive and ordinary nullish union distinctions disappear.
+
+An unannotated variable without an initializer and some empty-array variables have evolving inference behavior rather than a permanently fixed initial type. Assignments or element writes can contribute types before a later use. The behavior depends on location and options; an object property initialized with `[]` does not receive every special inference rule of a standalone local array. See [inference](/typescript/type-system/inference).
+
+## Apparent types
+
+Member operations can use an apparent type: a primitive's wrapper-interface members, a parameter's constraint, or resolved members of a structured type. This does not change the original type into a boxed runtime object. `keyof`, indexing, assignment, and member access each apply their own operation to the resolved or apparent form.
+
+## Deferred and recursive types
+
+A generic conditional, indexed access, or mapped type can remain unresolved until substitution supplies its parameters. A recursive alias is allowed when recursion passes through supported object, array, tuple, or other deferred structure. An immediately circular alias such as `type T = T` is rejected.
+
+```ts
+type Json = string | number | boolean | null | Json[] | { [key: string]: Json };
+const document: Json = { items: [1, 'two', null] };
+// @ts-expect-error: an immediately circular alias has no resolvable structure
+type Loop = Loop;
+```
+
+Recursive computation remains subject to instantiation and representation limits. Normalization is not a promise that every mathematically equivalent expression displays identically in an editor.
+
+Source: [union, intersection, widening, apparent-type, and recursion operations](https://github.com/microsoft/TypeScript/blob/c63de15a992d37f0d6cec03ac7631872838602cb/src/compiler/checker.ts).

@@ -1,0 +1,56 @@
+---
+title: Import attributes and deferred imports
+description: Runtime import attributes, type-only resolution modes, import-type options, and TypeScript 5.9 deferred imports.
+---
+
+Import attributes supply host information about a module request. They differ from type annotations and from type-only resolution hints. The host decides how supported runtime attributes affect loading.
+
+## Runtime attributes
+
+```text
+ImportAttributes = 'with' '{' Attribute { ',' Attribute } [ ',' ] '}' ;
+Attribute = ( IdentifierName | StringLiteral ) ':' StringLiteral ;
+```
+
+Supported static import/export forms can carry attributes. Dynamic import accepts its corresponding options object. Keys and values must satisfy the permitted syntax; duplicate entries and unsupported forms are diagnosed. A host can require an attribute such as `type: 'json'` even when the TypeScript resolver already found the file.
+
+The deprecated `assert` form belongs to edition-specific compatibility behavior and is not interchangeable in every Node mode. Selecting an attribute does not transform the imported data or validate its runtime schema.
+
+## Type-only resolution mode
+
+A type-only import can use the supported `resolution-mode` attribute to choose import or require conditions during checking. This controls which declarations resolve; it does not create a runtime request in that mode.
+
+```text
+import type { Name } from 'package' with { 'resolution-mode': 'require' };
+type Name = import('package', { with: { 'resolution-mode': 'import' } }).Name;
+```
+
+These are syntax illustrations; resolving a real package requires package declarations and export conditions. The attribute is restricted to supported type-only/import-type contexts. It must not be described as a free override of the runtime semantics of every ordinary value import.
+
+## Import-type options
+
+An import type resolves a literal module name and optional qualifier. Its options object supports the edition's attribute syntax and relevant compatibility forms. `typeof import(...)` queries the module's value export type; an ordinary qualified import type resolves exported type meaning. Both are erased.
+
+Package conditions and file format can select distinct declaration entry points. A type query successfully resolving one entry does not guarantee that a differently emitted runtime import selects an equivalent implementation.
+
+## Deferred namespace imports
+
+TypeScript 5.9 supports `import defer * as name from 'module'`. The form is a namespace import; it is not a default or arbitrary named-import modifier. Module evaluation is deferred until the applicable namespace access while linking/loading follows the proposal's requirements.
+
+```ts
+// @filename: feature.ts
+export const value = 1;
+// @filename: consumer.ts
+import defer * as feature from './feature';
+export function read() {
+  return feature.value;
+}
+```
+
+The example checks syntax in the default `ESNext` mode. This edition supports preservation in the relevant `ESNext`/`preserve` configurations and does not provide a universal lowering for runtimes without deferred-import support. A runtime dependency using incompatible asynchronous evaluation can have additional restrictions. A type-only import instead erases evaluation entirely.
+
+## Node and bundler boundaries
+
+Node's accepted attributes and package conditions depend on the modeled Node module mode. Bundler mode models supported bundler resolution but does not install a loader or promise that every bundler implements every deferred-import form. Keep checking, emit, and runtime support as separate observations.
+
+Sources: [import attributes](https://www.typescriptlang.org/docs/handbook/release-notes/typescript-5-3.html#import-attributes), [resolution-mode](https://www.typescriptlang.org/docs/handbook/release-notes/typescript-5-3.html#stable-support-resolution-mode-in-import-types), [deferred imports](https://www.typescriptlang.org/docs/handbook/release-notes/typescript-5-9.html#support-for-import-defer), and [parser/checker](https://github.com/microsoft/TypeScript/blob/c63de15a992d37f0d6cec03ac7631872838602cb/src/compiler/checker.ts).

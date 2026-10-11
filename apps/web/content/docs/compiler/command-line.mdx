@@ -1,0 +1,49 @@
+---
+title: Command line
+description: Select projects, inspect configuration, check files, and emit output.
+---
+
+tsc-ts accepts TypeScript compiler arguments. Project options come from `tsconfig.json` and can be overridden on the command line.
+
+## Select the input
+
+With no input files and no `--project`, the compiler searches for a `tsconfig.json` starting in the current directory. Select a configuration explicitly with `-p`:
+
+```sh
+npx tsc-ts -p packages/server/tsconfig.json
+```
+
+Passing source files directly bypasses `tsconfig.json`. Supply the options those files need:
+
+```sh
+npx tsc-ts --strict --target ES2022 --noEmit src/index.ts
+```
+
+You cannot combine `--project` with source filenames.
+
+## Common commands
+
+| Command                                     | Behavior                             |
+| ------------------------------------------- | ------------------------------------ |
+| `tsc-ts -p tsconfig.json --noEmit`          | Check without emitting files.        |
+| `tsc-ts -p tsconfig.json --showConfig`      | Print the resolved configuration.    |
+| `tsc-ts -p tsconfig.json --listFilesOnly`   | List program files.                  |
+| `tsc-ts -p tsconfig.json --explainFiles`    | Explain why files enter the program. |
+| `tsc-ts -p tsconfig.json --traceResolution` | Trace module resolution.             |
+| `tsc-ts -p tsconfig.json --watch`           | Recheck when project files change.   |
+| `tsc-ts --build tsconfig.json`              | Build a project reference graph.     |
+| `tsc-ts --build --clean tsconfig.json`      | Remove outputs for the build graph.  |
+
+Read [project references](/typescript/projects/project-references) before using `--build`. Build mode and ordinary project mode have different orchestration behavior.
+
+## Output and diagnostics
+
+`--noEmit` suppresses output. `--noEmitOnError` allows output only when the program has no errors. `--declaration` emits declarations; `--emitDeclarationOnly` emits declarations without JavaScript.
+
+Exit status distinguishes a successful invocation from a failed one. A failed invocation can still produce output when the configuration permits it. Do not use output-file existence as a success check.
+
+## Environment
+
+`TSC_TS_LIB_DIR` overrides the directory containing `lib.*.d.ts`. Changing those declarations can change diagnostics and inferred types. It does not change the JavaScript runtime.
+
+See the upstream [CLI reference](https://www.typescriptlang.org/docs/handbook/compiler-options.html) and [TSConfig reference](https://www.typescriptlang.org/tsconfig/) for compiler options. See [compatibility](/compiler/compatibility) for the command-line comparison coverage.

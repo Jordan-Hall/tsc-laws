@@ -2345,7 +2345,7 @@ export class DeclarationTransformer extends Transformer {
   private createModifiers(flags: ModifierFlags): ModifierList | undefined {
     const nodes: Node[] = [];
     for (const kind of modifierKindsInOrder)
-      if ((flags & modifierToFlag(kind)) !== 0) nodes.push(this.factory.createToken(kind));
+      if ((flags & modifierToFlag(kind)) !== 0) nodes.push(this.factory.createToken((kind | 0) as SyntaxKind));
     return nodes.length === 0 ? undefined : this.factory.createModifierList(nodes);
   }
 

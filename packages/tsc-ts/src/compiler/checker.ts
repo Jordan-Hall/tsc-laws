@@ -47,7 +47,7 @@ import {
   getStrictOptionValue,
   shouldPreserveConstEnums,
 } from './options.js';
-import { CheckFlags, Symbol, SymbolFlags, type SymbolTable } from './symbol.js';
+import { CheckFlags, Symbol, SymbolFlags, type SymbolTable, getSymbolId } from './symbol.js';
 import {
   IndexInfo,
   IntrinsicType,
@@ -93,10 +93,10 @@ import {
   mergeAmbientModulesAndAugmentations,
 } from './checker-symbols.js';
 import { PermissiveMapper, ReportingMapper, RestrictiveMapper, UniqueLiteralMapper } from './instantiation.js';
-import { Relation, RelationKey, TypeComparer } from './relations.js';
+import { Relation, RelationKey, type Relater, TypeComparer } from './relations.js';
 import { TypeNodeVisitor, checkSourceFile } from './checker-source-file.js';
 import { InferenceCaches } from './checker-inference.js';
-import { AssignmentMarker, type FlowLoopInfo } from './checker-narrowing.js';
+import { AssignmentMarker, type FlowLoopInfo, type FlowState } from './checker-narrowing.js';
 import type { FlowNode, FlowReduceLabel } from './flow.js';
 import { JsxState } from './checker-jsx.js';
 import type { DeferredIterationError, IterationTypes } from './checker-iteration.js';
@@ -252,6 +252,16 @@ export class SymbolAccessibilityCaches {
   markedSlot = -1;
 }
 
+/** Links are stored in pages of 256 ids. */
+const enum LinkPaging {
+  Bits = 8,
+  Size = 1 << Bits,
+  Mask = Size - 1,
+}
+
+/** A page of links, indexed by the low bits of an id; undefined until a link in it is stored. */
+type LinkPage<T> = (T | undefined)[] | undefined;
+
 export class Checker {
   readonly host: CheckerHost;
   readonly compilerOptions: CompilerOptions;
@@ -289,10 +299,11 @@ export class Checker {
   /** Specifier generation for hosts without a program. */
   fallbackModuleSpecifierHost: ModuleSpecifierHost | undefined = undefined;
 
-  // Links of symbols and nodes, keyed by object like tsgo's link stores. Object keys are faster
-  // natively than ids.
-  readonly symbolLinkStore = new Map<Symbol, SymbolLinks>();
-  readonly nodeLinkStore = new Map<Node, NodeLinks>();
+  // Links of symbols and nodes by symbol and node id, in pages of `LinkPaging.Size` ids created on
+  // first use. Lookups are array reads, and a checker that touches part of a program (as each of
+  // several parallel checkers does) stores only the pages it touches.
+  readonly symbolLinkPages: LinkPage<SymbolLinks>[] = [];
+  readonly nodeLinkPages: LinkPage<NodeLinks>[] = [];
   /** Merged symbols, indexed by the id of the symbol merged into them. */
   readonly mergedSymbols: Map<number, Symbol>;
   /** Globals merged from the default libraries, shared with other checkers. */
@@ -325,6 +336,8 @@ export class Checker {
   readonly bigintLiteralTypes = new Map<string, LiteralType>();
   readonly enumLiteralTypes = new Map<string, LiteralType>();
   readonly uniqueESSymbolTypes = new Map<Symbol, Type>();
+  /** Unions by a hash of their key; `unionTypes` holds the unions whose key hash was taken. */
+  readonly unionTypesByHash = new Map<number, Type>();
   readonly unionTypes = new Map<string, Type>();
   readonly unionOfUnionTypes = new Map<string, Type>();
   readonly intersectionTypes = new Map<string, Type>();
@@ -335,6 +348,9 @@ export class Checker {
   readonly substitutionTypes = new Map<string, Type>();
   readonly subtypeReductionCache = new Map<string, Type[]>();
   readonly cachedTypes = new Map<string, Type>();
+  /** Cached types by `cachedTypeKey` and by `cachedTypePairKey`, without spelled keys. */
+  readonly cachedTypesById = new Map<number, Type>();
+  readonly cachedTypesByPair = new Map<number, Type>();
   readonly errorTypes = new Map<string, Type>();
 
   // Intrinsic types, created in tsgo's order so ids (the last-resort union order) match.
@@ -419,6 +435,8 @@ export class Checker {
   readonly comparableRelation = new Relation();
   readonly identityRelation = new Relation();
   readonly enumRelation = new Map<string, number>();
+  /** A relater that is not in use, kept so that relation checks don't allocate one each. */
+  spareRelater: Relater | undefined = undefined;
 
   // Global types, set by `initializeChecker`.
   globalArrayType: Type;
@@ -436,7 +454,7 @@ export class Checker {
   anyReadonlyArrayType: Type;
   globalThisType: Type;
   /** Lazily resolved global types and symbols, by name. */
-  readonly globalTypeCache = new Map<string, Type>();
+  readonly globalTypeCache = new Map<string, Map<number, Type>>();
   /** Module namespace types with synthetic defaults, by kind and type id. */
   readonly moduleTypeCache = new Map<string, Type>();
   readonly globalSymbolCache = new Map<string, Symbol | null>();
@@ -451,7 +469,12 @@ export class Checker {
   /** Instantiations over the checker's lifetime (statistics). */
   totalInstantiations = 0;
   readonly activeMappers: TypeMapper[] = [];
-  readonly activeMapperCaches: Map<string, Type>[] = [];
+  /** Per active mapper: its instantiations by type id, created on the first nested write. */
+  readonly activeMapperCaches: (Map<number, Type> | undefined)[] = [];
+  /** Per active mapper: its instantiations with an alias, by type id and alias key. */
+  readonly activeMapperAliasCaches: (Map<string, Type> | undefined)[] = [];
+  /** Cleared caches of popped mappers, reused as tsgo's pushActiveMapper reuses the maps popActiveMapper clears. */
+  readonly freeMapperCaches: Map<number, Type>[] = [];
   conditionalConstraintDepth = 0;
 
   readonly suggestionResolver: SuggestionNameResolver;
@@ -471,6 +494,8 @@ export class Checker {
   readonly instantiationExpressionTypes = new Map<string, Type>();
   relationComparers: TypeComparer[] = [];
   readonly relationScratchKey = new RelationKey();
+  /** Numbers for relation keys that are spelled as strings (see getRelationKey). */
+  readonly relationKeyIds = new Map<string, number>();
   readonly markerTypes = new Set<Type>();
   readonly arrayVariances: VarianceFlags[] = [VarianceFlags.Covariant];
   nanLiteralType: LiteralType | undefined = undefined;
@@ -481,6 +506,8 @@ export class Checker {
   flowAnalysisDisabled = false;
   inlineLevel = 0;
   readonly sharedFlowNodes: FlowNode[] = [];
+  /** Flow states of finished walks, reused as in tsgo's getFlowState/putFlowState. */
+  readonly freeFlowStates: FlowState[] = [];
   readonly sharedFlowTypes: Type[] = [];
   readonly sharedFlowIncomplete: boolean[] = [];
   readonly flowLoopCaches = new Map<FlowNode, Map<string, Type>>();
@@ -742,19 +769,30 @@ export class Checker {
   // ---- Links
 
   symbolLinks(symbol: Symbol): SymbolLinks {
-    let links = this.symbolLinkStore.get(symbol);
+    const id = getSymbolId(symbol);
+    const page = this.symbolLinkPages[id >> LinkPaging.Bits];
+    let links = page !== undefined ? page[id & LinkPaging.Mask] : undefined;
     if (links === undefined) {
       links = new SymbolLinks();
-      this.symbolLinkStore.set(symbol, links);
+      setLinks(this.symbolLinkPages, id, links);
     }
     return links;
   }
 
+  /** The links of `symbol` if it has any, without creating them. */
+  existingSymbolLinks(symbol: Symbol): SymbolLinks | undefined {
+    const id = symbol.id;
+    const page = this.symbolLinkPages[id >> LinkPaging.Bits];
+    return page !== undefined ? page[id & LinkPaging.Mask] : undefined;
+  }
+
   nodeLinks(node: Node): NodeLinks {
-    let links = this.nodeLinkStore.get(node);
+    const id = node.id;
+    const page = this.nodeLinkPages[id >> LinkPaging.Bits];
+    let links = page !== undefined ? page[id & LinkPaging.Mask] : undefined;
     if (links === undefined) {
       links = new NodeLinks();
-      this.nodeLinkStore.set(node, links);
+      setLinks(this.nodeLinkPages, id, links);
     }
     return links;
   }
@@ -835,14 +873,29 @@ export class Checker {
   }
 }
 
+/** Stores `links` at `id`, filling the gap below it so the store stays a dense array. */
+/** Stores `links` at `id`, creating its page (and filling the gap below it) as needed. */
+function setLinks<T>(pages: LinkPage<T>[], id: number, links: T): void {
+  const index = id >> LinkPaging.Bits;
+  while (pages.length <= index) pages.push(undefined);
+  let page = pages[index];
+  if (page === undefined) {
+    page = [];
+    for (let i = 0; i < LinkPaging.Size; i++) page.push(undefined);
+    pages[index] = page;
+  }
+  page[id & LinkPaging.Mask] = links;
+}
+
 /**
  * Drops a checker's links and type caches. Native builds free memory by reference counting, and
  * the checker's caches, types and mappers reference each other; releasing them early lets most of
  * them go without a cycle collection.
  */
 export function disposeChecker(c: Checker): void {
-  c.symbolLinkStore.clear();
-  c.nodeLinkStore.clear();
+  c.symbolLinkPages.length = 0;
+  c.nodeLinkPages.length = 0;
+  c.spareRelater = undefined;
   if (c.globalChanges !== undefined) returnLibGlobals(c);
   else {
     c.mergedSymbols.clear();
@@ -857,6 +910,7 @@ export function disposeChecker(c: Checker): void {
   c.bigintLiteralTypes.clear();
   c.enumLiteralTypes.clear();
   c.uniqueESSymbolTypes.clear();
+  c.unionTypesByHash.clear();
   c.unionTypes.clear();
   c.unionOfUnionTypes.clear();
   c.intersectionTypes.clear();
@@ -867,6 +921,8 @@ export function disposeChecker(c: Checker): void {
   c.substitutionTypes.clear();
   c.subtypeReductionCache.clear();
   c.cachedTypes.clear();
+  c.cachedTypesById.clear();
+  c.cachedTypesByPair.clear();
   c.iterationTypesCache.clear();
   c.deferredIterationErrors = [];
   c.errorTypes.clear();
