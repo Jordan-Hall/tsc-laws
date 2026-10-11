@@ -1,0 +1,76 @@
+---
+title: Type aliases
+description: Alias declarations, scope, generics, recursion, nominality, and differences from interfaces.
+---
+
+A type alias names a type expression. It introduces a type-space declaration and is erased from JavaScript. It does not introduce a constructor, runtime tag, or nominal wrapper.
+
+## Syntax and resolution
+
+```text
+TypeAlias = [ 'export' ] [ 'declare' ] 'type' Identifier
+            [ TypeParameters ] '=' Type [ ';' ] ;
+```
+
+The body can be a primitive, literal, object, signature, tuple, union, intersection, operator, or deferred generic expression. Resolve the body in the alias's lexical and generic scope. A reference to the alias denotes its resolved or instantiated type rather than allocating a new runtime entity.
+
+```ts
+type Identifier = string;
+const text: string = 'a';
+const identifier: Identifier = text;
+// @ts-expect-error: an alias is not a runtime constructor
+const value = Identifier('a');
+```
+
+Alias names can be retained in editor display and declaration output. Such display preservation is not nominal identity.
+
+## Generic aliases
+
+Parameters can have constraints, defaults, and supported variance annotations. Required parameters cannot follow defaulted parameters. Instantiation checks argument count and constraints, substitutes arguments, and resolves deferred operations as needed.
+
+```ts
+type Pair<T, U = T> = readonly [T, U];
+const same: Pair<number> = [1, 2];
+const different: Pair<number, string> = [1, 'two'];
+```
+
+An alias cannot directly be used as an arbitrary higher-kinded type constructor parameter. `const` type parameters are not available on type aliases merely because they are permitted on supported function/class declarations.
+
+## Recursive aliases
+
+An alias can recursively refer to itself through supported structural or deferred forms. JSON-like objects, arrays, tuples, and recursive conditional types are common cases. Immediately circular resolution without a permitted structure is rejected.
+
+```ts
+type Tree<T> = { value: T; children: Tree<T>[] };
+const tree: Tree<number> = { value: 1, children: [] };
+// @ts-expect-error: this immediate cycle has no resolvable structure
+type Cycle = Cycle;
+```
+
+Permitted recursion can still exceed instantiation depth or representation limits when expanded by an operation. Accepting a recursive declaration does not require the compiler to normalize every possible recursive application.
+
+## Alias and interface distinctions
+
+| Alias                                               | Interface                                                     |
+| --------------------------------------------------- | ------------------------------------------------------------- |
+| Names any supported type expression.                | Defines an object shape with permitted heritage.              |
+| Does not merge with another same-name alias.        | Can merge with compatible interface declarations.             |
+| Can directly denote unions, primitives, and tuples. | Has object-type member syntax.                                |
+| Uses intersections to combine obligations.          | Diagnoses incompatible inherited declarations when extending. |
+
+An interface can extend an alias only when its resolved type satisfies the interface heritage restrictions. Index-signature comparisons can differ because an interface is augmentable while an alias to an object literal can receive implicit index compatibility.
+
+## Structural and branded contracts
+
+Two aliases with the same structural body are not distinct solely because of their names. A branded design adds a member requirement, often keyed by a unique symbol, to create a controlled compatibility boundary. Such a contract is still a type-level design unless a runtime validator or constructor establishes it.
+
+```ts
+declare const brand: unique symbol;
+type UserId = string & { readonly [brand]: 'UserId' };
+declare const id: UserId;
+const string: string = id;
+// @ts-expect-error: a plain string lacks the brand requirement
+const unvalidated: UserId = 'user-1';
+```
+
+Sources: [aliases and interfaces](https://www.typescriptlang.org/docs/handbook/2/everyday-types.html#differences-between-type-aliases-and-interfaces), [recursive aliases](https://www.typescriptlang.org/docs/handbook/release-notes/typescript-3-7.html#more-recursive-type-aliases), and [alias checking](https://github.com/microsoft/TypeScript/blob/c63de15a992d37f0d6cec03ac7631872838602cb/src/compiler/checker.ts).

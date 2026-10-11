@@ -1,0 +1,14 @@
+{
+  "title": "Projects",
+  "pages": [
+    "tsconfig",
+    "compiler-options",
+    "libraries",
+    "strictness",
+    "module-resolution",
+    "emit",
+    "declaration-emit",
+    "project-references",
+    "diagnostics"
+  ]
+}

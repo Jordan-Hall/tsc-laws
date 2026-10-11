@@ -143,6 +143,12 @@ export const enum CheckFlags {
   Partial = ReadPartial | WritePartial,
 }
 
+/**
+ * The declarations of a symbol that has none yet, shared by all such symbols and never mutated: tsgo
+ * leaves the slice nil. Add declarations with addDeclaration.
+ */
+const noDeclarations: Node[] = [];
+
 export class Symbol {
   flags: SymbolFlags;
   checkFlags: CheckFlags;
@@ -161,7 +167,7 @@ export class Symbol {
     this.flags = flags;
     this.checkFlags = CheckFlags.None;
     this.name = name;
-    this.declarations = [];
+    this.declarations = noDeclarations;
     this.valueDeclaration = undefined;
     this.members = undefined;
     this.exports = undefined;
@@ -236,6 +242,12 @@ export function lastSymbolIdValue(): number {
 /** Continues symbol ids above `last` (a checker thread starts above the program it checks). */
 export function reserveSymbolIds(last: number): void {
   if (last > nextSymbolId) nextSymbolId = last;
+}
+
+/** Appends `node` to the declarations of `symbol`, which may still share the empty `noDeclarations`. */
+export function addDeclaration(symbol: Symbol, node: Node): void {
+  if (symbol.declarations.length === 0) symbol.declarations = [node];
+  else symbol.declarations.push(node);
 }
 
 /** A program-wide id, assigned to each symbol when first requested. */

@@ -7,6 +7,8 @@ import { SyntaxKind } from './syntax-kind.js';
 import { SymbolFlags } from './symbol.js';
 import { type Checker, createDiagnosticForNode } from './checker.js';
 import {
+  CachedTypeKind,
+  cachedTypeKey,
   type InterfaceType,
   type ObjectType,
   type Signature,
@@ -941,8 +943,8 @@ export function getAwaitedTypeNoAliasEx(
   if ((t.flags & TypeFlags.Any) !== 0) return t;
   // An `Awaited<T>` stays as is, avoiding `Awaited<Awaited<T>>`.
   if (isAwaitedTypeInstantiation(c, t)) return t;
-  const key = 'awaited:' + t.id;
-  const cached = c.cachedTypes.get(key);
+  const key = cachedTypeKey(CachedTypeKind.Awaited, t.id);
+  const cached = c.cachedTypesById.get(key);
   if (cached !== undefined) return cached;
   if ((t.flags & TypeFlags.Union) !== 0) {
     if (c.awaitedTypeStack.includes(t.id)) {
@@ -956,12 +958,12 @@ export function getAwaitedTypeNoAliasEx(
     c.awaitedTypeStack.push(t.id);
     const mapped = mapType(c, t, (u) => getAwaitedTypeNoAliasEx(c, u, errorNode, message));
     c.awaitedTypeStack.pop();
-    c.cachedTypes.set(key, mapped);
+    c.cachedTypesById.set(key, mapped);
     return mapped;
   }
   // A generic type that should be wrapped in `Awaited<T>` is returned as is.
   if (isAwaitedTypeNeeded(c, t)) {
-    c.cachedTypes.set(key, t);
+    c.cachedTypesById.set(key, t);
     return t;
   }
   const promised = getPromisedTypeOfPromiseWorker(c, t, undefined);
@@ -980,7 +982,7 @@ export function getAwaitedTypeNoAliasEx(
     const awaitedType = getAwaitedTypeNoAliasEx(c, promisedType, errorNode, message);
     c.awaitedTypeStack.pop();
     if (awaitedType === undefined) return undefined;
-    c.cachedTypes.set(key, awaitedType);
+    c.cachedTypesById.set(key, awaitedType);
     return awaitedType;
   }
   // A non-promise with a callable `then` would never settle when adopted by a promise.
@@ -1002,7 +1004,7 @@ export function getAwaitedTypeNoAliasEx(
     }
     return undefined;
   }
-  c.cachedTypes.set(key, t);
+  c.cachedTypesById.set(key, t);
   return t;
 }
 
@@ -1096,12 +1098,12 @@ export function getPromisedTypeOfPromiseEx(c: Checker, t: Type, errorNode: Node 
 function getPromisedTypeOfPromiseWorker(c: Checker, t: Type, errorNode: Node | undefined): PromisedType {
   //  { then(onfulfilled: (value: T) => any): any }
   if ((t.flags & TypeFlags.Any) !== 0) return noPromisedType();
-  const key = 'promised:' + t.id;
-  const cached = c.cachedTypes.get(key);
+  const key = cachedTypeKey(CachedTypeKind.PromisedTypeOfPromise, t.id);
+  const cached = c.cachedTypesById.get(key);
   if (cached !== undefined) return new PromisedType(cached, undefined);
   if (isReferenceToType(t, getGlobalPromiseType(c))) {
     const result = getTypeArguments(c, t)[0]!;
-    c.cachedTypes.set(key, result);
+    c.cachedTypesById.set(key, result);
     return new PromisedType(result, undefined);
   }
   // Primitives with a `then` aren't adopted.
@@ -1151,7 +1153,7 @@ function getPromisedTypeOfPromiseWorker(c: Checker, t: Type, errorNode: Node | u
     undefined,
     undefined,
   );
-  c.cachedTypes.set(key, result);
+  c.cachedTypesById.set(key, result);
   return new PromisedType(result, undefined);
 }
 

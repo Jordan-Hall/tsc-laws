@@ -11,6 +11,8 @@ import { Diagnostics } from './diagnostic-messages.js';
 import { CheckFlags, type Symbol, SymbolFlags, type SymbolTable, getSymbolId } from './symbol.js';
 import type { Checker } from './checker.js';
 import {
+  CachedTypeKind,
+  cachedTypeKey,
   ElementFlags,
   EvolvingArrayType,
   IndexInfo,
@@ -102,6 +104,77 @@ function unionKey(types: Type[], origin: Type | undefined, alias: TypeAlias | un
   else if ((origin.flags & TypeFlags.Intersection) !== 0) key = '&' + typeListKey((origin as IntersectionType).types);
   else key = '#' + origin.id + '|' + typeListKey(types);
   return key + aliasKey(alias);
+}
+
+/** The list `unionKey` spells for `types` and `origin`. */
+function unionKeyTypes(types: Type[], origin: Type | undefined): readonly Type[] {
+  return origin !== undefined && (origin.flags & TypeFlags.UnionOrIntersection) !== 0
+    ? (origin as UnionOrIntersectionType).types
+    : types;
+}
+
+/** The kind of `unionKey`'s spelling: no origin, a union origin, an intersection origin, another origin. */
+function unionKeyKind(origin: Type | undefined): number {
+  if (origin === undefined) return 0;
+  if ((origin.flags & TypeFlags.Union) !== 0) return 1;
+  if ((origin.flags & TypeFlags.Intersection) !== 0) return 2;
+  return 3;
+}
+
+/**
+ * A number for `unionKey(types, origin, alias)` without spelling it: two 32-bit hashes of the same
+ * parts, combined below 2^53. Equal keys hash alike; unequal keys rarely do, and a union found by
+ * hash is checked against the key (`isUnionOfKey`).
+ */
+function unionKeyHash(types: Type[], origin: Type | undefined, alias: TypeAlias | undefined): number {
+  const kind = unionKeyKind(origin);
+  let h1 = 0x811c9dc5 ^ kind;
+  let h2 = 0x9e3779b9 + kind;
+  if (kind === 3) {
+    h1 = Math.imul(h1 ^ origin!.id, 0x01000193);
+    h2 = Math.imul(h2 + origin!.id, 0x85ebca6b);
+  }
+  const list = unionKeyTypes(types, origin);
+  for (let i = 0; i < list.length; i++) {
+    const id = list[i]!.id;
+    h1 = Math.imul(h1 ^ id, 0x01000193);
+    h2 = Math.imul(h2 + id, 0x85ebca6b) ^ (h2 >>> 15);
+  }
+  if (alias !== undefined) {
+    h1 = Math.imul(h1 ^ (getSymbolId(alias.symbol) + 0x40000000), 0x01000193);
+    for (const t of alias.typeArguments) {
+      h1 = Math.imul(h1 ^ t.id, 0x01000193);
+      h2 = Math.imul(h2 + t.id, 0x85ebca6b) ^ (h2 >>> 15);
+    }
+    h2 = Math.imul(h2 ^ alias.typeArguments.length, 0xc2b2ae35);
+  }
+  h1 ^= h1 >>> 16;
+  h1 = Math.imul(h1, 0x7feb352d);
+  h1 ^= h1 >>> 15;
+  return (h1 >>> 0) * 0x100000 + ((h2 ^ list.length) & 0xfffff);
+}
+
+function sameTypeLists(a: readonly Type[], b: readonly Type[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i]! !== b[i]!) return false;
+  return true;
+}
+
+/** Whether `union` was created for `unionKey(types, origin, alias)`. */
+function isUnionOfKey(
+  union: UnionType,
+  types: Type[],
+  origin: Type | undefined,
+  alias: TypeAlias | undefined,
+): boolean {
+  const kind = unionKeyKind(origin);
+  const own = union.origin;
+  if (unionKeyKind(own) !== kind) return false;
+  if (kind === 3 && own !== origin) return false;
+  if (!sameTypeLists(unionKeyTypes(union.types, own), unionKeyTypes(types, origin))) return false;
+  const ownAlias = union.alias;
+  if (alias === undefined || ownAlias === undefined) return alias === ownAlias;
+  return ownAlias.symbol === alias.symbol && sameTypeLists(ownAlias.typeArguments, alias.typeArguments);
 }
 
 // ---- Constructors
@@ -266,8 +339,8 @@ export function getNumberEnumLiteralType(c: Checker, value: number, enumSymbol: 
 
 export function isFreshLiteralType(type: Type): boolean {
   if ((type.flags & TypeFlags.Freshable) === 0) return false;
-  const fresh = (type as LiteralType).freshType;
-  return fresh !== undefined && fresh.id === type.id;
+  // An identity test, like tsgo's: comparing ids would load the fresh type as well.
+  return (type as LiteralType).freshType === type;
 }
 
 export function getFreshTypeOfLiteralType(c: Checker, type: Type): Type {
@@ -329,11 +402,11 @@ export function getBaseTypeOfLiteralType(c: Checker, type: Type): Type {
   if ((flags & TypeFlags.BigIntLiteral) !== 0) return c.bigintType;
   if ((flags & TypeFlags.BooleanLiteral) !== 0) return c.booleanType;
   if ((flags & TypeFlags.Union) !== 0) {
-    const key = 'lub' + type.id;
-    let cached = c.cachedTypes.get(key);
+    const key = cachedTypeKey(CachedTypeKind.LiteralUnionBaseType, type.id);
+    let cached = c.cachedTypesById.get(key);
     if (cached === undefined) {
       cached = mapType(c, type, (t) => getBaseTypeOfLiteralType(c, t));
-      c.cachedTypes.set(key, cached);
+      c.cachedTypesById.set(key, cached);
     }
     return cached;
   }
@@ -427,11 +500,12 @@ function compareTypeNames(c: Checker, t1: Type, t2: Type): number {
 }
 
 function compareTypeLists(c: Checker, s1: readonly Type[] | undefined, s2: readonly Type[] | undefined): number {
-  const a = s1 ?? emptyTypes;
-  const b = s2 ?? emptyTypes;
-  if (a.length !== b.length) return a.length - b.length;
-  for (let i = 0; i < a.length; i++) {
-    const r = compareTypes(c, a[i]!, b[i]!);
+  // Index the parameters directly: an alias such as `s1 ?? emptyTypes` would hold its own reference.
+  const n1 = s1 === undefined ? 0 : s1.length;
+  const n2 = s2 === undefined ? 0 : s2.length;
+  if (n1 !== n2) return n1 - n2;
+  for (let i = 0; i < n1; i++) {
+    const r = compareTypes(c, s1![i]!, s2![i]!);
     if (r !== 0) return r;
   }
   return 0;
@@ -624,8 +698,58 @@ export function binarySearchTypes(c: Checker, types: readonly Type[], t: Type): 
   return ~low;
 }
 
+/**
+ * Sorted type lists shorter than this are searched by identity. `compareTypes` is 0 only for
+ * identical types (the last criterion is the unique id), so membership needs no ordering.
+ */
+const linearTypeSearchLimit = 16;
+
+/** The index of `t` in `types` at or after `from`, or -1. */
+function indexOfType(types: readonly Type[], t: Type, from: number): number {
+  for (let i = from; i < types.length; i++) if (types[i]! === t) return i;
+  return -1;
+}
+
 export function containsType(c: Checker, types: readonly Type[], t: Type): boolean {
+  if (types.length < linearTypeSearchLimit) return indexOfType(types, t, 0) >= 0;
   return binarySearchTypes(c, types, t) >= 0;
+}
+
+/**
+ * Whether `t` is a constituent of `union`. Equal types are identical, so a large union tested more
+ * than once looks `t` up in a set instead of searching its sorted constituents. Most large unions
+ * are tested once; a few are tested very often.
+ */
+export function unionContainsType(c: Checker, union: UnionType, t: Type): boolean {
+  let set = union.constituentSet;
+  if (set === undefined) {
+    const types = union.types;
+    if (types.length < linearTypeSearchLimit) return indexOfType(types, t, 0) >= 0;
+    if (union.membershipTests++ === 0) return binarySearchTypes(c, types, t) >= 0;
+    set = new Set(types);
+    union.constituentSet = set;
+  }
+  return set.has(t);
+}
+
+/**
+ * Whether `union` contains every type of the sorted `types` (the constituents of another union).
+ * Both lists follow `compareTypes`, so in a small union each type is found by identity after the
+ * previous one; large unions keep `unionContainsType`.
+ */
+export function unionContainsSortedTypes(c: Checker, union: UnionType, types: readonly Type[]): boolean {
+  const targets = union.types;
+  if (targets.length >= linearTypeSearchLimit) {
+    for (const t of types) if (!unionContainsType(c, union, t)) return false;
+    return true;
+  }
+  let next = 0;
+  for (const t of types) {
+    const index = indexOfType(targets, t, next);
+    if (index < 0) return false;
+    next = index + 1;
+  }
+  return true;
 }
 
 /** Inserts `t` into the sorted `types`; returns false if already present. */
@@ -789,6 +913,50 @@ export function getUnionTypeEx(
 class TypeSet {
   types: Type[] = [];
   includes = 0;
+  /** Index of the type added or found last, or -1. */
+  last = -1;
+}
+
+/**
+ * Inserts `t` into the sorted `set.types` unless present, starting next to the previous type.
+ * Constituents arrive in sorted runs (nested unions, union members mapped in order), so most
+ * inserts land at or just after the previous position; otherwise the search covers only the side
+ * of the previous position that holds `t`. The set equals binary-search insertion's: the types
+ * stay sorted under the total order `compareTypes`.
+ */
+function insertTypeNearLast(c: Checker, set: TypeSet, t: Type): void {
+  const types = set.types;
+  let low = 0;
+  let high = types.length - 1;
+  const last = set.last;
+  if (last >= 0) {
+    const r = compareTypes(c, types[last]!, t);
+    if (r === 0) return;
+    if (r < 0) {
+      low = last + 1;
+      if (low <= high) {
+        const next = compareTypes(c, types[low]!, t);
+        if (next === 0) {
+          set.last = low;
+          return;
+        }
+        if (next > 0) high = low - 1;
+        else low++;
+      }
+    } else high = last - 1;
+  }
+  while (low <= high) {
+    const middle = (low + high) >> 1;
+    const r = compareTypes(c, types[middle]!, t);
+    if (r === 0) {
+      set.last = middle;
+      return;
+    }
+    if (r < 0) low = middle + 1;
+    else high = middle - 1;
+  }
+  types.splice(low, 0, t);
+  set.last = low;
 }
 
 function getUnionTypeWorker(
@@ -851,7 +1019,7 @@ function getUnionTypeWorker(
     for (const t of typeSet) {
       let inNamed = false;
       for (const u of namedUnions)
-        if (containsType(c, (u as UnionType).types, t)) {
+        if (unionContainsType(c, u as UnionType, t)) {
           inNamed = true;
           break;
         }
@@ -882,8 +1050,15 @@ export function getUnionTypeFromSortedList(
 ): Type {
   if (types.length === 0) return c.neverType;
   if (types.length === 1) return types[0]!;
-  const key = unionKey(types, origin, alias);
-  let result = c.unionTypes.get(key);
+  // Unions are found by a hash of their key; the spelled key is only needed when two keys share a
+  // hash, for the second one.
+  const hash = unionKeyHash(types, origin, alias);
+  let result = c.unionTypesByHash.get(hash);
+  let key: string | undefined;
+  if (result !== undefined && !isUnionOfKey(result as UnionType, types, origin, alias)) {
+    key = unionKey(types, origin, alias);
+    result = c.unionTypes.get(key);
+  }
   if (result === undefined) {
     const union = newUnionType(
       c,
@@ -898,7 +1073,8 @@ export function getUnionTypeFromSortedList(
       (types[1]!.flags & TypeFlags.BooleanLiteral) !== 0
     )
       union.flags |= TypeFlags.Boolean;
-    c.unionTypes.set(key, union);
+    if (key === undefined) c.unionTypesByHash.set(hash, union);
+    else c.unionTypes.set(key, union);
     result = union;
   }
   return result;
@@ -928,7 +1104,7 @@ function addTypeToUnion(c: Checker, set: TypeSet, t: Type): void {
   if (isErrorType(c, t)) includes |= TypeFlags.IncludesError;
   if (!c.strictNullChecks && (flags & TypeFlags.Nullable) !== 0) {
     if ((t.objectFlags & ObjectFlags.ContainsWideningType) === 0) includes |= TypeFlags.IncludesNonWideningType;
-  } else insertType(c, set.types, t);
+  } else insertTypeNearLast(c, set, t);
   set.includes = includes;
 }
 
@@ -1493,17 +1669,17 @@ function intersectUnionsOfPrimitiveTypes(c: Checker, types: Type[]): boolean {
 }
 
 function eachUnionContains(c: Checker, unionTypes: Type[], t: Type): boolean {
-  for (const u of unionTypes) {
-    const types = typesOf(u);
-    if (containsType(c, types, t)) continue;
-    if (t === c.missingType) return containsType(c, types, c.undefinedType);
-    if (t === c.undefinedType) return containsType(c, types, c.missingType);
+  for (const type of unionTypes) {
+    const u = type as UnionType;
+    if (unionContainsType(c, u, t)) continue;
+    if (t === c.missingType) return unionContainsType(c, u, c.undefinedType);
+    if (t === c.undefinedType) return unionContainsType(c, u, c.missingType);
     let primitive: Type | undefined;
     if ((t.flags & TypeFlags.StringLiteral) !== 0) primitive = c.stringType;
     else if ((t.flags & (TypeFlags.Enum | TypeFlags.NumberLiteral)) !== 0) primitive = c.numberType;
     else if ((t.flags & TypeFlags.BigIntLiteral) !== 0) primitive = c.bigintType;
     else if ((t.flags & TypeFlags.UniqueESSymbol) !== 0) primitive = c.esSymbolType;
-    if (primitive === undefined || !containsType(c, types, primitive)) return false;
+    if (primitive === undefined || !unionContainsType(c, u, primitive)) return false;
   }
   return true;
 }

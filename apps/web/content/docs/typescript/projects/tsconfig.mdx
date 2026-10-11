@@ -1,0 +1,80 @@
+---
+title: tsconfig.json
+description: Select program files and configure checking, module behavior, and output.
+---
+
+`tsconfig.json` describes a TypeScript project. It selects root files and compiler options. Dependencies reached through imports, references, and library declarations can add more files to the program.
+
+```json
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "noEmit": true
+  },
+  "include": ["src"]
+}
+```
+
+This configuration is appropriate for type checking code whose module loading and output are handled by a compatible bundler. A Node.js runtime project may need Node-specific module settings instead.
+
+## File selection
+
+`files` lists root files explicitly. `include` discovers files using patterns. `exclude` filters that discovery; it does not prohibit an excluded file from entering through an import. Default libraries and visible type packages can also enter the program.
+
+`rootDir` helps determine the output layout; it does not select which files are included. `outDir` selects where emitted files are written.
+
+## Inheritance
+
+`extends` loads another configuration and applies local overrides. Relative paths are resolved relative to the file in which they originated. `files`, `include`, and `exclude` in a derived configuration replace their inherited counterparts rather than simply appending.
+
+Project `references` are not inherited through `extends`. Multi-base inheritance has ordering rules; later bases can override earlier options.
+
+## Inspection
+
+Use `--showConfig` to inspect the resolved configuration, `--listFilesOnly` for program inputs, and `--explainFiles` for inclusion reasons. Passing source filenames directly on the command line bypasses project configuration.
+
+See [what is a tsconfig](https://www.typescriptlang.org/docs/handbook/tsconfig-json.html), [the TSConfig reference](https://www.typescriptlang.org/tsconfig/), and [the command line](/compiler/command-line).
+
+## Configuration record
+
+A configuration can contain `compilerOptions`, `files`, `include`, `exclude`, `extends`, `references`, and `watchOptions`, plus supported tooling metadata. `compilerOptions` values must satisfy their option types and combinations. Invalid enum names or incompatible pairs are diagnostics, not silently ignored language modes.
+
+The [option index](/typescript/projects/compiler-options) lists the edition's recognized compiler, command-line, build, and watch option names. Environment-dependent defaults must be resolved before comparing programs; absence of an option is not always equivalent to false.
+
+## SelectRootFiles
+
+1. Load and combine the selected configuration and its bases.
+2. Add explicit `files` entries as roots.
+3. Discover files matching `include` with the permitted extensions and directory glob rules.
+4. Apply `exclude` to that discovery, not as a prohibition against all later dependencies.
+5. Expand the program through imports, reference directives, libraries, and type packages unless the applicable option changes that step.
+6. Diagnose inconsistent composite file coverage and other root constraints.
+
+When `files` is specified, the default include set differs from the ordinary unspecified-root case. Default exclusions cover dependency directories and relevant output locations. An imported excluded file can still enter the program. `rootDir` affects output layout and containment checks; it is not a discovery filter.
+
+## Configuration inheritance
+
+`extends` can identify a relative, absolute, or resolved package configuration. An array of bases is processed in order, with later contributions and local overrides taking priority. Paths remain relative to the configuration file that originally supplied them. Arrays such as `files`, `include`, and `exclude` replace inherited arrays rather than concatenate them.
+
+Project `references` are not inherited. Circular configuration inheritance is invalid. TypeScript 5.5's `${configDir}` placeholder has specific substitution behavior in supported configuration properties, allowing a base to refer to the consuming configuration directory rather than its own location.
+
+## Program dependencies
+
+Imports, triple-slash references, global libraries, visible `@types` packages, and package declarations can add nonroot files. `types` restricts automatically included type packages; it does not block types reached by an ordinary import. `typeRoots` selects type-package discovery locations. `noResolve` restricts dependency expansion but does not define a standalone runtime loader.
+
+`allowJs` expands eligible JavaScript input; `checkJs` controls its checking. `resolveJsonModule` admits supported JSON import typing, not every arbitrary extension. `allowArbitraryExtensions` enables declaration patterns for other extensions under its rules; it does not parse the asset as TypeScript.
+
+## Invocation contexts
+
+`--project` selects a configuration file or directory. Passing source filenames directly uses command-line options without loading a project's configuration and cannot be combined with `--project`. Build mode interprets project references and orchestration separately.
+
+`--showConfig` exposes resolved configuration; `--listFilesOnly`, `--explainFiles`, and `--traceResolution` answer different questions. A generated effective configuration is useful evidence but must still be paired with compiler version, actual files, and package metadata.
+
+## Output path boundaries
+
+Output paths are computed from input layout and `rootDir`/`outDir` or declaration options. A selected output directory does not guarantee old files are removed. Compiling must not overwrite an input file under the compiler's output checks. Source maps and declaration maps have their own path relationships.
+
+Sources: [configuration parsing](https://github.com/microsoft/TypeScript/blob/c63de15a992d37f0d6cec03ac7631872838602cb/src/compiler/commandLineParser.ts), [program file construction](https://github.com/microsoft/TypeScript/blob/c63de15a992d37f0d6cec03ac7631872838602cb/src/compiler/program.ts), and [configDir](https://www.typescriptlang.org/docs/handbook/release-notes/typescript-5-5.html#the-configdir-template-variable-for-configuration-files).

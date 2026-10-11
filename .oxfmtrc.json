@@ -8,6 +8,9 @@
     "packages/tsgo/tests/fixtures/**",
     "packages/tsc-ts/tests/fixtures/**",
     "**/dist/**",
+    "**/.next/**",
+    "**/.source/**",
+    "**/next-env.d.ts",
     "upstream/**"
   ]
 }

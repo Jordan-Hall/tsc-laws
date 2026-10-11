@@ -1,0 +1,19 @@
+{
+  "title": "Type system",
+  "pages": [
+    "relations",
+    "normalization",
+    "assignability",
+    "inference",
+    "contextual-typing",
+    "narrowing",
+    "control-flow",
+    "generics",
+    "overloads",
+    "assertions",
+    "type-predicates",
+    "this-types",
+    "instantiation-expressions",
+    "variance"
+  ]
+}

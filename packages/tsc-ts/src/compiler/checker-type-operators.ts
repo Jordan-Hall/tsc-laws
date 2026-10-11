@@ -26,6 +26,8 @@ import { CheckFlags, InternalSymbolName, type Symbol, SymbolFlags, getSymbolId }
 import { SyntaxKind } from './syntax-kind.js';
 import type { Checker } from './checker.js';
 import {
+  CachedTypeKind,
+  cachedTypeKey,
   AccessFlags,
   ConditionalRoot,
   ConditionalType,
@@ -288,11 +290,14 @@ function someEmptyAnonymousObjectType(c: Checker, types: Type[]): boolean {
 }
 
 function getIndexTypeForGenericType(c: Checker, t: Type, indexFlags: IndexFlags): Type {
-  const key = ((indexFlags & IndexFlags.StringsOnly) !== 0 ? 'stringIndex' : 'index') + t.id;
-  let indexType = c.cachedTypes.get(key);
+  const key = cachedTypeKey(
+    (indexFlags & IndexFlags.StringsOnly) !== 0 ? CachedTypeKind.StringIndexType : CachedTypeKind.IndexType,
+    t.id,
+  );
+  let indexType = c.cachedTypesById.get(key);
   if (indexType === undefined) {
     indexType = newIndexType(c, t, indexFlags & IndexFlags.StringsOnly);
-    c.cachedTypes.set(key, indexType);
+    c.cachedTypesById.set(key, indexType);
   }
   return indexType;
 }
@@ -1199,11 +1204,14 @@ function isIntersectionEmpty(c: Checker, type1: Type, type2: Type): boolean {
 }
 
 function getSimplifiedIndexedAccessType(c: Checker, t: IndexedAccessType, writing: boolean): Type {
-  const key = (writing ? 'simplifiedWrite' : 'simplifiedRead') + t.id;
-  const cached = c.cachedTypes.get(key);
+  const key = cachedTypeKey(
+    writing ? CachedTypeKind.IndexedAccessForWriting : CachedTypeKind.IndexedAccessForReading,
+    t.id,
+  );
+  const cached = c.cachedTypesById.get(key);
   if (cached !== undefined) return cached === c.circularConstraintType ? t : cached;
   const self: Type = t;
-  c.cachedTypes.set(key, self);
+  c.cachedTypesById.set(key, self);
   const objectType = getSimplifiedType(c, t.objectType, writing);
   const indexType = getSimplifiedType(c, t.indexType, writing);
   let result: Type = t;
@@ -1247,7 +1255,7 @@ function getSimplifiedIndexedAccessType(c: Checker, t: IndexedAccessType, writin
   if (result.id !== t.id) {
     const self: Type = t;
     result = filterType(c, result, (u) => u.id !== self.id);
-    c.cachedTypes.set(key, result);
+    c.cachedTypesById.set(key, result);
   }
   return result;
 }
@@ -1968,11 +1976,11 @@ function isDeferredType(c: Checker, t: Type, checkTuples: boolean): boolean {
 
 export function getPermissiveInstantiation(c: Checker, t: Type): Type {
   if ((t.flags & (TypeFlags.Primitive | TypeFlags.AnyOrUnknown | TypeFlags.Never)) !== 0) return t;
-  const key = 'permissive' + t.id;
-  let result = c.cachedTypes.get(key);
+  const key = cachedTypeKey(CachedTypeKind.PermissiveInstantiation, t.id);
+  let result = c.cachedTypesById.get(key);
   if (result === undefined) {
     result = instantiateType(c, t, c.permissiveMapper);
-    c.cachedTypes.set(key, result);
+    c.cachedTypesById.set(key, result);
   }
   return result;
 }

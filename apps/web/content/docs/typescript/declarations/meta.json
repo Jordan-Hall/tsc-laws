@@ -1,0 +1,14 @@
+{
+  "title": "Declarations",
+  "pages": [
+    "type-aliases",
+    "modules",
+    "import-attributes",
+    "namespaces",
+    "merging",
+    "ambient",
+    "jsx",
+    "jsdoc",
+    "decorators"
+  ]
+}

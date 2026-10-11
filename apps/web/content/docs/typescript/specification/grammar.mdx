@@ -1,0 +1,291 @@
+---
+title: TypeScript syntax grammar
+description: Type syntax, annotated declarations, TypeScript expressions, module syntax, JSX, and context restrictions.
+---
+
+This grammar specifies TypeScript additions using the [EBNF conventions](/typescript/specification/conventions). ECMAScript lexical tokens, expressions, bindings, statements, and declarations are inherited from [ECMA-262](https://tc39.es/ecma262/#sec-grammar-summary). Inherited expressions may recursively contain the TypeScript additions below. File kind, parameter context, ambient context, and early errors restrict the productions.
+
+The edition's parser is the [TypeScript 5.9.3 parser](https://github.com/microsoft/TypeScript/blob/c63de15a992d37f0d6cec03ac7631872838602cb/src/compiler/parser.ts). Recovery productions used to continue after malformed source are not accepted-program grammar.
+
+## Lexical and inherited categories
+
+```text
+Identifier        = ECMAScript:Identifier ;
+IdentifierName    = ECMAScript:IdentifierName ;
+StringLiteral     = ECMAScript:StringLiteral ;
+NumericLiteral    = ECMAScript:NumericLiteral ;
+BigIntLiteral     = ECMAScript:BigIntLiteral ;
+BindingName       = Identifier | ECMAScript:BindingPattern ;
+Expression        = ECMAScript expression extended by TypeScript expressions ;
+AssignmentExpression = ECMAScript assignment expression with those extensions ;
+Statement         = ECMAScript statement extended by TypeScript statements ;
+PropertyName      = IdentifierName | StringLiteral | NumericLiteral
+                  | '[' AssignmentExpression ']' ;
+QualifiedName     = Identifier { '.' IdentifierName } ;
+Annotation        = ':' Type ;
+Initializer       = '=' AssignmentExpression ;
+```
+
+In grammar, descriptive inherited categories such as the extended `Expression` stand for the corresponding ECMAScript category with the recursive additions in this clause. They are not identifiers that can appear in source. TypeScript keywords such as `type`, `as`, `satisfies`, and `infer` can be contextual; recognizing them depends on their position.
+
+## Type precedence
+
+```text
+Type              = FunctionType | ConstructorType | ConditionalType ;
+ConditionalType   = UnionType [ 'extends' UnionType '?' Type ':' Type ] ;
+UnionType         = [ '|' ] IntersectionType { '|' IntersectionType } ;
+IntersectionType  = [ '&' ] OperatorType { '&' OperatorType } ;
+OperatorType      = ( 'keyof' | 'readonly' ) OperatorType
+                  | 'unique' 'symbol'
+                  | 'infer' Identifier [ 'extends' Type ]
+                  | PostfixType ;
+PostfixType       = PrimaryType { '[' ']' | '[' Type ']' } ;
+PrimaryType       = PrimitiveType | LiteralType | 'this'
+                  | TypeReference | TypeQuery | ImportType
+                  | ObjectType | TupleType | MappedType
+                  | '(' Type ')' | TemplateLiteralType ;
+PrimitiveType     = 'any' | 'unknown' | 'never' | 'void' | 'undefined'
+                  | 'null' | 'boolean' | 'number' | 'bigint' | 'string'
+                  | 'symbol' | 'object' ;
+LiteralType       = StringLiteral | [ '-' ] NumericLiteral
+                  | [ '-' ] BigIntLiteral | 'true' | 'false' ;
+TypeReference     = QualifiedName [ TypeArguments ] ;
+TypeArguments     = '<' Type { ',' Type } [ ',' ] '>' ;
+TypeQuery         = 'typeof' QualifiedName [ TypeArguments ]
+                  | 'typeof' ImportType ;
+ImportType        = 'import' '(' StringLiteral [ ',' ImportTypeOptions ] ')'
+                    [ '.' QualifiedName ] [ TypeArguments ] ;
+ImportTypeOptions = '{' ( 'with' | 'assert' ) ':' AttributeObject [ ',' ] '}' ;
+AttributeObject   = '{' [ Attribute { ',' Attribute } [ ',' ] ] '}' ;
+Attribute         = ( IdentifierName | StringLiteral ) ':' StringLiteral ;
+TemplateLiteralType = '`' template text { '${' Type '}' template text } '`' ;
+```
+
+Postfix array/indexed-access operations bind more tightly than type operators; intersections bind more tightly than unions. The conditional branches can themselves contain conditionals. Function types used as union or intersection operands require parentheses where needed to disambiguate the grammar. The `readonly` type operator is restricted to array and tuple syntax; `infer` is restricted to a conditional type's `extends` pattern; `unique symbol` has declaration-position restrictions.
+
+The separate `ImportTypeOptions` category admits the edition's `with` attributes and supported compatibility syntax. Its keys and resolution-mode restrictions are specified in [import attributes](/typescript/declarations/import-attributes).
+
+## Type parameters and signatures
+
+```text
+TypeParameters    = '<' TypeParameter { ',' TypeParameter } [ ',' ] '>' ;
+TypeParameter     = [ Variance ] [ 'const' ] Identifier
+                    [ 'extends' Type ] [ '=' Type ] ;
+Variance          = 'in' | 'out' | 'in' 'out' ;
+FunctionType      = [ TypeParameters ] Parameters '=>' ReturnType ;
+ConstructorType   = [ 'abstract' ] 'new' [ TypeParameters ] Parameters '=>' Type ;
+Parameters        = '(' [ Parameter { ',' Parameter } [ ',' ] ] ')' ;
+Parameter         = [ LegacyParameterDecorators ] [ ParameterPropertyModifiers ]
+                    ( BindingName [ '?' ] [ Annotation ] [ Initializer ]
+                    | '...' BindingName [ Annotation ] ) ;
+ReturnType        = Type | TypePredicate ;
+TypePredicate     = Identifier 'is' Type | 'this' 'is' Type
+                  | 'asserts' ( Identifier | 'this' ) [ 'is' Type ] ;
+CallSignature     = [ TypeParameters ] Parameters [ ':' ReturnType ] ;
+ConstructSignature = 'new' [ TypeParameters ] Parameters [ Annotation ] ;
+ParameterPropertyModifiers = ParameterPropertyModifier { ParameterPropertyModifier } ;
+ParameterPropertyModifier = 'public' | 'protected' | 'private' | 'readonly' | 'override' ;
+LegacyParameterDecorators = Decorator { Decorator } ;
+```
+
+Variance annotations are allowed only at supported alias, interface, and class parameter positions, not on arbitrary function parameters. `const` type parameters apply to functions, methods, and classes where supported, not to interfaces or type aliases. An optional parameter cannot have an initializer, rest parameters cannot be optional or initialized, and required ordinary parameters cannot follow optional ordinary parameters. A default-initialized parameter may precede a required parameter. A leading parameter named `this` is a pseudo-parameter with an annotation and is erased. Parameter decorators are restricted to the legacy mode's supported constructor and member implementations; they are not admitted on every signature using this production.
+
+Predicates are return annotations, not arbitrary type arguments. An assertion signature requires the declaration and call-site conditions specified in [assertion functions](/typescript/type-system/type-predicates).
+
+## Object and tuple types
+
+```text
+ObjectType        = '{' { TypeMember [ ';' | ',' ] } '}' ;
+TypeMember        = PropertySignature | MethodSignature | CallSignature
+                  | ConstructSignature | IndexSignature | AccessorSignature ;
+PropertySignature = [ 'readonly' ] PropertyName [ '?' ] [ Annotation ] ;
+MethodSignature   = PropertyName [ '?' ] [ TypeParameters ] Parameters
+                    [ ':' ReturnType ] ;
+IndexSignature    = [ 'readonly' ] '[' Identifier ':' IndexKeyType ']' Annotation ;
+IndexKeyType      = Type ;
+AccessorSignature = 'get' PropertyName '(' ')' [ Annotation ]
+                  | 'set' PropertyName '(' Parameter ')' ;
+TupleType         = '[' [ TupleElement { ',' TupleElement } [ ',' ] ] ']' ;
+TupleElement      = Type [ '?' ] | '...' Type
+                  | Identifier [ '?' ] ':' Type | '...' Identifier ':' Type ;
+MappedType        = '{' [ ReadonlyModifier ] '[' Identifier 'in' Type
+                    [ 'as' Type ] ']' [ OptionalModifier ] [ Annotation ] [ ';' ] '}' ;
+ReadonlyModifier  = [ '+' | '-' ] 'readonly' ;
+OptionalModifier  = [ '+' | '-' ] '?' ;
+```
+
+An index key type must satisfy the [index-signature rules](/typescript/types/index-signatures), not merely parse as a type. A tuple's optional and rest elements must satisfy its ordering restrictions. A mapped type cannot declare additional properties or methods in the same mapped body. A computed property in a type declaration must satisfy the permitted constant-key rules. Accessor getter and setter parameters have separate arity and annotation restrictions.
+
+## Named declarations
+
+```text
+TypeAlias         = [ 'export' ] [ 'declare' ] 'type' Identifier
+                    [ TypeParameters ] '=' Type [ ';' ] ;
+Interface         = [ 'export' ] [ 'declare' ] 'interface' Identifier
+                    [ TypeParameters ] [ 'extends' HeritageType
+                    { ',' HeritageType } ] ObjectType ;
+HeritageType      = QualifiedName [ TypeArguments ] ;
+Enum              = [ 'export' ] [ 'declare' ] [ 'const' ] 'enum' Identifier
+                    '{' [ EnumMember { ',' EnumMember } [ ',' ] ] '}' ;
+EnumMember        = PropertyName [ Initializer ] ;
+Namespace         = [ 'export' ] [ 'declare' ] ( 'namespace' | 'module' )
+                    QualifiedName NamespaceBody ;
+NamespaceBody     = '{' { namespace statement or declaration } '}' ;
+AmbientModule     = [ 'declare' ] 'module' StringLiteral NamespaceBody ;
+GlobalAugmentation = 'declare' 'global' NamespaceBody ;
+```
+
+Interfaces can extend only permitted object types with statically known members. Classes add type parameters, annotated heritage expressions, accessibility modifiers, abstract and override members, annotations, overload declarations, parameter properties, and definite-assignment assertions to ECMAScript class syntax. Those additions are specified in [classes](/typescript/types/classes); inherited private identifiers, static blocks, getters, setters, and field evaluation retain their ECMAScript semantics.
+
+## Annotated values and statements
+
+```text
+AnnotatedBinding  = BindingName [ '!' ] [ Annotation ] [ Initializer ] ;
+VariableStatement = [ 'export' ] [ 'declare' ] ( 'var' | 'let' | 'const' ) AnnotatedBinding
+                    { ',' AnnotatedBinding } [ ';' ] ;
+FunctionDeclaration = [ 'export' ] [ 'default' ] [ 'declare' ] [ 'async' ]
+                      'function' [ '*' ] [ Identifier ] [ TypeParameters ]
+                      Parameters [ ':' ReturnType ] ( FunctionBody | ';' ) ;
+FunctionBody      = ECMAScript:FunctionBody inside braces ;
+ResourceDeclaration = [ 'await' ] 'using' ResourceBinding
+                      { ',' ResourceBinding } [ ';' ] ;
+ResourceBinding   = Identifier [ Annotation ] Initializer ;
+ResourceForBinding = [ 'await' ] 'using' Identifier ;
+ResourceForOf     = 'for' [ 'await' ] '(' ResourceForBinding 'of'
+                    AssignmentExpression ')' Statement ;
+```
+
+Variable and parameter destructuring inherits ECMAScript binding patterns; an annotation applies to the whole binding pattern. Definite-assignment assertions apply only in permitted declarations, not to arbitrary binding patterns. `using` declarations require their own context and resource-type checks. `await using` has asynchronous-context restrictions. Restricted line breaks apply between `await` and `using`, and between `using` and its binding. A resource binding in a `for...of` header has one identifier and no annotation or explicit initializer; the iterated value initializes it. Resource declarations cannot use `declare` or `export` to bypass these restrictions.
+
+## TypeScript expression additions
+
+```text
+AsExpression      = Expression 'as' Type ;
+ConstAssertion    = Expression 'as' 'const' | '<' 'const' '>' Expression ;
+SatisfiesExpression = Expression 'satisfies' Type ;
+AngleAssertion    = '<' Type '>' Expression ;
+NonNullExpression = Expression '!' ;
+InstantiationExpression = Expression TypeArguments ;
+TypedArrow        = [ 'async' ] [ TypeParameters ] Parameters
+                    [ ':' ReturnType ] '=>' ( AssignmentExpression | FunctionBody ) ;
+```
+
+These are additions at the precedence and disambiguation positions used by the parser, not unrestricted substitutions in every inherited expression. `as` and `satisfies` occur at relational precedence; non-null assertions are postfix expressions with a restricted preceding line break. Angle assertions are unavailable in TSX. Generic arrow functions in TSX may require `<T,>` or a constraint to distinguish them from JSX. Instantiation expressions require expression/type-argument lookahead; `<` remains a relational operator in other contexts.
+
+## Class declarations and members
+
+The following productions extend the inherited class categories. `ClassExpression` has the corresponding optional name and expression context. A class name can be omitted only where the inherited default-export or expression rules permit it.
+
+```text
+ClassDeclaration = [ Decorators ] [ 'export' ] [ 'default' ] [ Decorators ] [ 'declare' ]
+                   [ 'abstract' ] 'class' [ Identifier ] [ TypeParameters ]
+                   [ 'extends' HeritageExpression ]
+                   [ 'implements' HeritageType { ',' HeritageType } ] ClassBody ;
+HeritageExpression = ECMAScript:LeftHandSideExpression [ TypeArguments ] ;
+ClassBody = '{' { ClassElement } '}' ;
+ClassElement = ';' | ECMAScript static initialization block
+             | [ Decorators ] [ ClassModifiers ] ClassMember ;
+ClassModifiers = ClassModifier { ClassModifier } ;
+ClassModifier = 'public' | 'private' | 'protected' | 'static' | 'abstract'
+              | 'readonly' | 'override' | 'declare' | 'accessor' ;
+ClassMember = ConstructorMember | FieldMember | MethodMember | AccessorMember
+            | IndexSignature ;
+MemberName = PropertyName | ECMAScript:PrivateIdentifier ;
+ConstructorMember = 'constructor' Parameters ( FunctionBody | ';' ) ;
+FieldMember = MemberName [ '?' | '!' ] [ Annotation ] [ Initializer ] [ ';' ] ;
+MethodMember = [ 'async' ] [ '*' ] MemberName [ '?' ] [ TypeParameters ]
+               Parameters [ ':' ReturnType ] ( FunctionBody | ';' ) ;
+AccessorMember = 'get' MemberName '(' ')' [ Annotation ] ( FunctionBody | ';' )
+               | 'set' MemberName '(' Parameter ')' ( FunctionBody | ';' ) ;
+Decorators = Decorator { Decorator } ;
+Decorator = '@' permitted decorator left-hand-side or parenthesized expression ;
+```
+
+Decorators can appear before or after `export`/`export default` in the supported modern class forms, but the same declaration cannot use both positions. The modifier list is intentionally followed by validation rather than accepting every combination. A class member cannot have multiple conflicting accessibilities. An abstract member is restricted to an abstract class and cannot provide an ordinary implementation. Static members cannot be abstract; private members cannot establish an externally implementable abstract requirement. Constructors cannot be generic, async, generators, optional, or given arbitrary return annotations. Parameter properties are permitted only in constructor implementation contexts.
+
+`readonly` applies to fields and supported index/parameter-property positions, not an arbitrary method declaration. `override` must have an inherited target; `noImplicitOverride` can require it. Definite-assignment assertions cannot be combined freely with optionality or initializers. Private identifiers have their inherited runtime restrictions and cannot simply acquire TypeScript accessibility modifiers as another private-name mechanism. Static blocks do not take ordinary member annotations or decorators.
+
+An auto-accessor uses its supported `accessor` modifier and field-like declaration form. Modern decorators apply only at supported class/member locations; legacy mode adds its own parameter-decorator syntax and contract. [Classes](/typescript/types/classes) and [decorators](/typescript/declarations/decorators) define checking and output.
+
+## Annotated object members and bindings
+
+Object literals inherit property assignments, shorthand properties, spread assignments, methods, and accessors. TypeScript extends methods with generic parameters, typed parameters, and return annotations. An object literal cannot use a property signature such as `name: string` to declare the runtime value `string`; an annotation belongs to the whole binding or the applicable function/member declaration.
+
+```text
+ObjectMethod = [ 'async' ] [ '*' ] PropertyName [ TypeParameters ] Parameters
+               [ ':' ReturnType ] FunctionBody ;
+BindingElement = [ '...' ] BindingName [ Initializer ] ;
+ObjectBindingElement = [ PropertyName ':' ] BindingName [ Initializer ]
+                       | '...' Identifier ;
+```
+
+Destructuring inherits the separate object/array ordering and rest restrictions. Type annotations are not introduced by the colon used to rename an object binding. An optional binding pattern in an implementation has restrictions beyond an ordinary optional identifier parameter. Arrow functions cannot introduce an explicit `this` pseudo-parameter; constructor and accessor parameter lists have their own restrictions.
+
+## Module additions
+
+```text
+ImportEquals      = [ 'export' ] 'import' [ 'type' ] Identifier '='
+                    ( QualifiedName | 'require' '(' StringLiteral ')' ) [ ';' ] ;
+TypeOnlyImport    = 'import' 'type' TypeImportClause
+                    'from' StringLiteral [ ImportAttributes ] [ ';' ] ;
+TypeImportClause  = Identifier | '*' 'as' Identifier | NamedImports ;
+NamedImports     = '{' [ ImportSpecifier { ',' ImportSpecifier } [ ',' ] ] '}' ;
+ImportSpecifier  = [ 'type' ] ( IdentifierName | StringLiteral )
+                   [ 'as' Identifier ] ;
+TypeOnlySpecifier = 'type' IdentifierName [ 'as' IdentifierName ] ;
+TypeOnlyExport    = 'export' 'type' ( NamedExports | '*' [ 'as' IdentifierName ] )
+                    [ 'from' StringLiteral ] [ ImportAttributes ] [ ';' ] ;
+NamedExports     = '{' [ ExportSpecifier { ',' ExportSpecifier } [ ',' ] ] '}' ;
+ExportSpecifier  = [ 'type' ] ( IdentifierName | StringLiteral )
+                   [ 'as' ( IdentifierName | StringLiteral ) ] ;
+ExportAssignment  = 'export' '=' AssignmentExpression [ ';' ] ;
+ExportAsNamespace = 'export' 'as' 'namespace' Identifier [ ';' ] ;
+ImportAttributes  = 'with' AttributeObject ;
+DeferredImport   = 'import' 'defer' '*' 'as' Identifier
+                   'from' StringLiteral [ ImportAttributes ] [ ';' ] ;
+```
+
+Ordinary imports and exports inherit ECMAScript syntax, augmented with per-specifier `type`, type-only declarations, attributes, and module-format checking. A type-only import cannot combine a default binding and named bindings. `export =` cannot be mixed arbitrarily with other exported elements, and its output depends on the module mode. Attributes use literal keys/values and their host-dependent semantics; they are not a substitute for TypeScript annotations.
+
+## JSX grammar and declarations
+
+```text
+JsxExpression = JsxElement | JsxSelfClosing | JsxFragment ;
+JsxElement = '<' JsxTagName [ TypeArguments ] JsxAttributes '>'
+             JsxChildren '</' JsxTagName '>' ;
+JsxSelfClosing = '<' JsxTagName [ TypeArguments ] JsxAttributes '/>' ;
+JsxFragment = '<' '>' JsxChildren '</' '>' ;
+JsxTagName = JsxIdentifier { '.' JsxIdentifier }
+             | JsxIdentifier ':' JsxIdentifier ;
+JsxIdentifier = a JSX name with the permitted identifier and hyphen syntax ;
+JsxAttributes = { JsxAttribute | JsxSpreadAttribute } ;
+JsxAttribute = JsxAttributeName [ '=' JsxAttributeValue ] ;
+JsxAttributeName = JsxIdentifier [ ':' JsxIdentifier ] ;
+JsxAttributeValue = StringLiteral | '{' Expression '}' | JsxExpression ;
+JsxSpreadAttribute = '{' '...' AssignmentExpression '}' ;
+JsxChildren = { JSX text | JsxExpression | '{' [ '...' ] [ Expression ] '}' } ;
+```
+
+An empty ordinary child expression is permitted, but a spread requires its expression and the applicable array-type checking. JSX attribute values and text use JSX scanning rather than ordinary string-expression scanning in every position. Generic tag arguments require the relevant component contract. Namespaced tags/attributes have library and emit restrictions; the grammar does not guarantee that every JSX framework supports them.
+
+JSX is available in JSX/TSX file kinds. It introduces element and fragment expressions, tag names, string-valued and expression-valued attributes, spread attributes, text children, and expression children. [JSX](/typescript/declarations/jsx) defines the syntactic categories and checking contract, including matching close tags and library-controlled component eligibility.
+
+Decorators precede supported class declarations and members. Their expression grammar and allowed locations differ between modern and legacy modes. [Decorators](/typescript/declarations/decorators) defines the distinction. JSDoc annotations are comment syntax interpreted in JavaScript files, not productions that make TypeScript annotations valid in `.js`.
+
+## Context restrictions and early errors
+
+| Context              | Restriction                                                                                                                                                          |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Type arguments       | Argument count, defaults, and constraints are checked after parsing.                                                                                                 |
+| Conditional pattern  | `infer` binds parameters available in the true branch.                                                                                                               |
+| Class members        | Accessibility, abstract, override, static, optional, and definite-assignment modifiers must form valid combinations.                                                 |
+| Ambient declarations | Executable bodies and most nonconstant initializers are prohibited.                                                                                                  |
+| Interface            | No executable method body or property initializer.                                                                                                                   |
+| Tuple                | Required elements cannot follow ordinary optional elements; optional elements cannot follow an unbounded rest. Generic substitutions have their normalization rules. |
+| Enum                 | Member names, computed names, constant expressions, and automatic initialization must satisfy enum restrictions.                                                     |
+| Function overload    | Nonambient overload declarations must have the required compatible implementation.                                                                                   |
+| JSX                  | Angle assertions are unavailable; tag and attribute syntax is checked in its own parse mode.                                                                         |
+| Type-only import     | The alias cannot be used where a runtime value is required.                                                                                                          |
+| Resource declaration | Bindings and resource types satisfy disposal and scope restrictions.                                                                                                 |
+
+The linked feature clauses specify the full checking consequences. Sources: [parser](https://github.com/microsoft/TypeScript/blob/c63de15a992d37f0d6cec03ac7631872838602cb/src/compiler/parser.ts), [syntax kinds](https://github.com/microsoft/TypeScript/blob/c63de15a992d37f0d6cec03ac7631872838602cb/src/compiler/types.ts), and [checker grammar checks](https://github.com/microsoft/TypeScript/blob/c63de15a992d37f0d6cec03ac7631872838602cb/src/compiler/checker.ts).

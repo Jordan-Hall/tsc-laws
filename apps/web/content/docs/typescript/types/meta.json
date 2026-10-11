@@ -1,0 +1,20 @@
+{
+  "title": "Types",
+  "pages": [
+    "primitives",
+    "literals",
+    "any-unknown-never",
+    "unions",
+    "intersections",
+    "objects",
+    "index-signatures",
+    "arrays",
+    "tuples",
+    "functions",
+    "classes",
+    "interfaces",
+    "enums",
+    "symbols",
+    "readonly"
+  ]
+}

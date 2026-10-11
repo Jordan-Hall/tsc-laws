@@ -16,7 +16,7 @@ import {
 import { getSourceFileOfNode } from './binder-utilities.js';
 import { type Diagnostic, type DiagnosticMessage, Diagnostics } from './diagnostics.js';
 import { SyntaxKind } from './syntax-kind.js';
-import { SymbolFlags } from './symbol.js';
+import { type Symbol, SymbolFlags } from './symbol.js';
 import { type Checker, createDiagnosticForNode } from './checker.js';
 import { AccessFlags, SignatureKind, type Type, TypeFlags } from './checker-types.js';
 import { getNumberLiteralType, getUnionType, isTupleType, typesOf } from './checker-type-factory.js';
@@ -342,7 +342,7 @@ export function elaborateElement(
   if (diagnostics.length === 0) return false;
   const diagnostic = diagnostics[0]!;
   let propertyName = '';
-  let targetProp = undefined;
+  let targetProp: Symbol | undefined = undefined;
   if (isTypeUsableAsPropertyName(nameType)) {
     propertyName = getPropertyNameFromType(nameType);
     targetProp = getPropertyOfType(c, target, propertyName);

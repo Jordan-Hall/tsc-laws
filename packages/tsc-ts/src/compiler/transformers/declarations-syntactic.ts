@@ -89,7 +89,7 @@ import { combinePaths, getDirectoryPath, getNormalizedAbsolutePath, normalizePat
 import type { EmitContext } from '../printer/emit-context.js';
 import { EmitFlags } from '../printer/emit-flags.js';
 import { isIdentifierText } from '../scanner.js';
-import { Symbol, SymbolFlags, type SymbolTable } from '../symbol.js';
+import { Symbol, SymbolFlags, type SymbolTable, addDeclaration } from '../symbol.js';
 import { SyntaxKind } from '../syntax-kind.js';
 import { TokenFlags } from '../types.js';
 import type { SyntacticEmitResolver } from './emit-resolver.js';
@@ -1768,7 +1768,7 @@ function mergeInto(target: Map<string, Symbol>, source: SymbolTable, mergedSymbo
       target.set(name, merged);
     }
     merged.flags |= symbol.flags;
-    for (const declaration of symbol.declarations) merged.declarations.push(declaration);
+    for (const declaration of symbol.declarations) addDeclaration(merged, declaration);
     merged.valueDeclaration ??= symbol.valueDeclaration;
     if (symbol.exports !== undefined) {
       merged.exports ??= new Map<string, Symbol>();
