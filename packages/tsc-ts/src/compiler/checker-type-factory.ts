@@ -104,6 +104,77 @@ function unionKey(types: Type[], origin: Type | undefined, alias: TypeAlias | un
   return key + aliasKey(alias);
 }
 
+/** The list `unionKey` spells for `types` and `origin`. */
+function unionKeyTypes(types: Type[], origin: Type | undefined): readonly Type[] {
+  return origin !== undefined && (origin.flags & TypeFlags.UnionOrIntersection) !== 0
+    ? (origin as UnionOrIntersectionType).types
+    : types;
+}
+
+/** The kind of `unionKey`'s spelling: no origin, a union origin, an intersection origin, another origin. */
+function unionKeyKind(origin: Type | undefined): number {
+  if (origin === undefined) return 0;
+  if ((origin.flags & TypeFlags.Union) !== 0) return 1;
+  if ((origin.flags & TypeFlags.Intersection) !== 0) return 2;
+  return 3;
+}
+
+/**
+ * A number for `unionKey(types, origin, alias)` without spelling it: two 32-bit hashes of the same
+ * parts, combined below 2^53. Equal keys hash alike; unequal keys rarely do, and a union found by
+ * hash is checked against the key (`isUnionOfKey`).
+ */
+function unionKeyHash(types: Type[], origin: Type | undefined, alias: TypeAlias | undefined): number {
+  const kind = unionKeyKind(origin);
+  let h1 = 0x811c9dc5 ^ kind;
+  let h2 = 0x9e3779b9 + kind;
+  if (kind === 3) {
+    h1 = Math.imul(h1 ^ origin!.id, 0x01000193);
+    h2 = Math.imul(h2 + origin!.id, 0x85ebca6b);
+  }
+  const list = unionKeyTypes(types, origin);
+  for (let i = 0; i < list.length; i++) {
+    const id = list[i]!.id;
+    h1 = Math.imul(h1 ^ id, 0x01000193);
+    h2 = Math.imul(h2 + id, 0x85ebca6b) ^ (h2 >>> 15);
+  }
+  if (alias !== undefined) {
+    h1 = Math.imul(h1 ^ (getSymbolId(alias.symbol) + 0x40000000), 0x01000193);
+    for (const t of alias.typeArguments) {
+      h1 = Math.imul(h1 ^ t.id, 0x01000193);
+      h2 = Math.imul(h2 + t.id, 0x85ebca6b) ^ (h2 >>> 15);
+    }
+    h2 = Math.imul(h2 ^ alias.typeArguments.length, 0xc2b2ae35);
+  }
+  h1 ^= h1 >>> 16;
+  h1 = Math.imul(h1, 0x7feb352d);
+  h1 ^= h1 >>> 15;
+  return (h1 >>> 0) * 0x100000 + ((h2 ^ list.length) & 0xfffff);
+}
+
+function sameTypeLists(a: readonly Type[], b: readonly Type[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i]! !== b[i]!) return false;
+  return true;
+}
+
+/** Whether `union` was created for `unionKey(types, origin, alias)`. */
+function isUnionOfKey(
+  union: UnionType,
+  types: Type[],
+  origin: Type | undefined,
+  alias: TypeAlias | undefined,
+): boolean {
+  const kind = unionKeyKind(origin);
+  const own = union.origin;
+  if (unionKeyKind(own) !== kind) return false;
+  if (kind === 3 && own !== origin) return false;
+  if (!sameTypeLists(unionKeyTypes(union.types, own), unionKeyTypes(types, origin))) return false;
+  const ownAlias = union.alias;
+  if (alias === undefined || ownAlias === undefined) return alias === ownAlias;
+  return ownAlias.symbol === alias.symbol && sameTypeLists(ownAlias.typeArguments, alias.typeArguments);
+}
+
 // ---- Constructors
 
 export function newObjectType(c: Checker, objectFlags: ObjectFlags, symbol: Symbol | undefined): ObjectType {
@@ -977,8 +1048,15 @@ export function getUnionTypeFromSortedList(
 ): Type {
   if (types.length === 0) return c.neverType;
   if (types.length === 1) return types[0]!;
-  const key = unionKey(types, origin, alias);
-  let result = c.unionTypes.get(key);
+  // Unions are found by a hash of their key; the spelled key is only needed when two keys share a
+  // hash, for the second one.
+  const hash = unionKeyHash(types, origin, alias);
+  let result = c.unionTypesByHash.get(hash);
+  let key: string | undefined;
+  if (result !== undefined && !isUnionOfKey(result as UnionType, types, origin, alias)) {
+    key = unionKey(types, origin, alias);
+    result = c.unionTypes.get(key);
+  }
   if (result === undefined) {
     const union = newUnionType(
       c,
@@ -993,7 +1071,8 @@ export function getUnionTypeFromSortedList(
       (types[1]!.flags & TypeFlags.BooleanLiteral) !== 0
     )
       union.flags |= TypeFlags.Boolean;
-    c.unionTypes.set(key, union);
+    if (key === undefined) c.unionTypesByHash.set(hash, union);
+    else c.unionTypes.set(key, union);
     result = union;
   }
   return result;

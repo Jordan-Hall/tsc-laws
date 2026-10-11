@@ -336,6 +336,8 @@ export class Checker {
   readonly bigintLiteralTypes = new Map<string, LiteralType>();
   readonly enumLiteralTypes = new Map<string, LiteralType>();
   readonly uniqueESSymbolTypes = new Map<Symbol, Type>();
+  /** Unions by a hash of their key; `unionTypes` holds the unions whose key hash was taken. */
+  readonly unionTypesByHash = new Map<number, Type>();
   readonly unionTypes = new Map<string, Type>();
   readonly unionOfUnionTypes = new Map<string, Type>();
   readonly intersectionTypes = new Map<string, Type>();
@@ -897,6 +899,7 @@ export function disposeChecker(c: Checker): void {
   c.bigintLiteralTypes.clear();
   c.enumLiteralTypes.clear();
   c.uniqueESSymbolTypes.clear();
+  c.unionTypesByHash.clear();
   c.unionTypes.clear();
   c.unionOfUnionTypes.clear();
   c.intersectionTypes.clear();
