@@ -79,6 +79,7 @@ import {
   getEndElementCount,
   createNormalizedTypeReference,
   typeListKey,
+  getRegularTypeOfLiteralType,
 } from './checker-type-factory.js';
 import {
   findApplicableIndexInfo,
@@ -2535,7 +2536,7 @@ export class Relater extends TypeComparer {
       !isObjectLiteralType(source) &&
       !isEmptyArrayLiteralType(c, source) &&
       !isTupleType(source);
-    const unmatchedProperty = getUnmatchedProperty(c, source, target, requireOptionalProperties);
+    const unmatchedProperty = getUnmatchedProperty(c, source, target, requireOptionalProperties, false);
     if (unmatchedProperty !== undefined) {
       if (reportErrors && shouldReportUnmatchedPropertyError(c, source, target))
         this.reportUnmatchedProperty(source, target, unmatchedProperty, requireOptionalProperties);
@@ -3828,14 +3829,31 @@ export function getUnmatchedProperty(
   source: Type,
   target: Type,
   requireOptionalProperties: boolean,
+  matchDiscriminantProperties: boolean,
 ): Symbol | undefined {
   for (const targetProp of getPropertiesOfType(c, target)) {
     if (isStaticPrivateIdentifierProperty(targetProp)) continue;
     if (
       requireOptionalProperties ||
       ((targetProp.flags & SymbolFlags.Optional) === 0 && (targetProp.checkFlags & CheckFlags.Partial) === 0)
-    )
-      if (getPropertyOfType(c, source, targetProp.name) === undefined) return targetProp;
+    ) {
+      const sourceProp = getPropertyOfType(c, source, targetProp.name);
+      if (sourceProp === undefined) return targetProp;
+      if (matchDiscriminantProperties) {
+        // A unit-typed (discriminant) property whose literal differs in the source is unmatched.
+        const targetType = getTypeOfSymbol(c, targetProp);
+        if ((targetType.flags & TypeFlags.Unit) !== 0) {
+          const sourceType = getTypeOfSymbol(c, sourceProp);
+          if (
+            !(
+              (sourceType.flags & TypeFlags.Any) !== 0 ||
+              getRegularTypeOfLiteralType(c, sourceType) === getRegularTypeOfLiteralType(c, targetType)
+            )
+          )
+            return targetProp;
+        }
+      }
+    }
   }
   return undefined;
 }

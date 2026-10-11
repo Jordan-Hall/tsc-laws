@@ -96,7 +96,7 @@ import { PermissiveMapper, ReportingMapper, RestrictiveMapper, UniqueLiteralMapp
 import { Relation, RelationKey, type Relater, TypeComparer } from './relations.js';
 import { TypeNodeVisitor, checkSourceFile } from './checker-source-file.js';
 import { InferenceCaches } from './checker-inference.js';
-import { AssignmentMarker, type FlowLoopInfo } from './checker-narrowing.js';
+import { AssignmentMarker, type FlowLoopInfo, type FlowState } from './checker-narrowing.js';
 import type { FlowNode, FlowReduceLabel } from './flow.js';
 import { JsxState } from './checker-jsx.js';
 import type { DeferredIterationError, IterationTypes } from './checker-iteration.js';
@@ -462,7 +462,12 @@ export class Checker {
   instantiationDepth = 0;
   instantiationCount = 0;
   readonly activeMappers: TypeMapper[] = [];
-  readonly activeMapperCaches: Map<string, Type>[] = [];
+  /** Per active mapper: its instantiations by type id, created on the first nested write. */
+  readonly activeMapperCaches: (Map<number, Type> | undefined)[] = [];
+  /** Per active mapper: its instantiations with an alias, by type id and alias key. */
+  readonly activeMapperAliasCaches: (Map<string, Type> | undefined)[] = [];
+  /** Cleared caches of popped mappers, reused as tsgo's pushActiveMapper reuses the maps popActiveMapper clears. */
+  readonly freeMapperCaches: Map<number, Type>[] = [];
   conditionalConstraintDepth = 0;
 
   readonly suggestionResolver: SuggestionNameResolver;
@@ -494,6 +499,8 @@ export class Checker {
   flowAnalysisDisabled = false;
   inlineLevel = 0;
   readonly sharedFlowNodes: FlowNode[] = [];
+  /** Flow states of finished walks, reused as in tsgo's getFlowState/putFlowState. */
+  readonly freeFlowStates: FlowState[] = [];
   readonly sharedFlowTypes: Type[] = [];
   readonly sharedFlowIncomplete: boolean[] = [];
   readonly flowLoopCaches = new Map<FlowNode, Map<string, Type>>();

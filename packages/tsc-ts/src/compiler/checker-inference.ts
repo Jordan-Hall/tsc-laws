@@ -48,6 +48,7 @@ import {
   VarianceFlags,
   newTypeMapper,
   SimpleTypeMapper,
+  emptyTypes,
 } from './checker-types.js';
 import {
   UnionReduction,
@@ -1333,8 +1334,8 @@ function typesDefinitelyUnrelated(c: Checker, source: Type, target: Type): boole
     );
   }
   return (
-    getUnmatchedProperty(c, source, target, false) !== undefined &&
-    getUnmatchedProperty(c, target, source, false) !== undefined
+    getUnmatchedProperty(c, source, target, false, true) !== undefined &&
+    getUnmatchedProperty(c, target, source, false, false) !== undefined
   );
 }
 
@@ -1515,8 +1516,21 @@ export function inferTypesFromTemplateLiteralType(
   source: Type,
   target: TemplateLiteralType,
 ): Type[] | undefined {
-  if ((source.flags & TypeFlags.StringLiteral) !== 0)
-    return inferFromLiteralPartsToTemplateLiteral(c, [(source as LiteralType).stringValue], [], target);
+  if ((source.flags & TypeFlags.StringLiteral) !== 0) {
+    // Most string literals fail inferFromLiteralPartsToTemplateLiteral's start and end text test;
+    // apply it before building the one-element source texts.
+    const text = (source as LiteralType).stringValue;
+    const targetTexts = target.texts;
+    const targetStartText = targetTexts[0]!;
+    const targetEndText = targetTexts[targetTexts.length - 1]!;
+    if (
+      text.length < targetStartText.length + targetEndText.length ||
+      !text.startsWith(targetStartText) ||
+      !text.endsWith(targetEndText)
+    )
+      return undefined;
+    return inferFromLiteralPartsToTemplateLiteral(c, [text], emptyTypes, target);
+  }
   if ((source.flags & TypeFlags.TemplateLiteral) !== 0) {
     const s = source as TemplateLiteralType;
     if (arraysEqual(s.texts, target.texts)) {
@@ -2009,7 +2023,8 @@ export function getInferredType(c: Checker, context: InferenceContext, index: nu
 }
 
 function clearActiveMapperCaches(c: Checker): void {
-  for (const cache of c.activeMapperCaches) cache.clear();
+  for (const cache of c.activeMapperCaches) if (cache !== undefined) cache.clear();
+  for (const cache of c.activeMapperAliasCaches) if (cache !== undefined) cache.clear();
 }
 
 /** Maps forward references to later type parameters to `unknown`, for instantiating defaults. */

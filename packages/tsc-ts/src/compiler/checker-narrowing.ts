@@ -205,6 +205,18 @@ export class FlowState {
     this.initialType = initialType;
     this.flowContainer = flowContainer;
   }
+
+  /** Prepares a free flow state for another walk. */
+  reset(reference: Node, declaredType: Type, initialType: Type, flowContainer: Node | undefined): void {
+    this.reference = reference;
+    this.declaredType = declaredType;
+    this.initialType = initialType;
+    this.flowContainer = flowContainer;
+    this.refKey = undefined;
+    this.depth = 0;
+    this.sharedFlowStart = 0;
+    this.incomplete = false;
+  }
 }
 
 /** A loop junction being analyzed for a reference, with the types seen on its paths so far. */
@@ -242,13 +254,18 @@ export function getFlowTypeOfReferenceAt(
 ): Type {
   if (c.flowAnalysisDisabled) return c.errorType;
   if (flowNode === undefined) return declaredType;
-  const f = new FlowState(reference, declaredType, initialType, flowContainer);
+  let f: FlowState;
+  if (c.freeFlowStates.length !== 0) {
+    f = c.freeFlowStates.pop()!;
+    f.reset(reference, declaredType, initialType, flowContainer);
+  } else f = new FlowState(reference, declaredType, initialType, flowContainer);
   f.sharedFlowStart = c.sharedFlowNodes.length;
   c.flowInvocationCount++;
   const evolvedType = getTypeAtFlowNode(c, f, flowNode);
   c.sharedFlowNodes.length = f.sharedFlowStart;
   c.sharedFlowTypes.length = f.sharedFlowStart;
   c.sharedFlowIncomplete.length = f.sharedFlowStart;
+  c.freeFlowStates.push(f);
   // `x` in `x.length`, `x.push(v)`, `x.unshift(v)` or `x[n] = v` stays `any[]` so empty arrays may be
   // operated on and new element types inferred without implicit any or mismatch errors.
   const resultType =
