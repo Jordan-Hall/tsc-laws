@@ -256,6 +256,9 @@ function checkCosts(checked: CheckedProgram, order: number[]): CheckCosts {
   for (const i of order) cost[i] = files[i]!.text.length;
   const indexOf = new Map<SourceFile, number>();
   for (let i = 0; i < files.length; i++) indexOf.set(files[i]!, i);
+  // A file resolved by its own file name is that file (its path is the path of that name).
+  const byFileName = new Map<string, SourceFile>();
+  for (const file of files) byFileName.set(file.fileName, file);
   const checkedFile: boolean[] = [];
   for (let i = 0; i < files.length; i++) checkedFile.push(false);
   for (const i of order) checkedFile[i] = true;
@@ -267,7 +270,7 @@ function checkCosts(checked: CheckedProgram, order: number[]): CheckCosts {
     let result = edges[i];
     if (result === undefined) {
       result = [];
-      for (const target of program.getResolvedFilesOf(files[i]!)) {
+      for (const target of program.getResolvedFilesOf(files[i]!, byFileName)) {
         const k = indexOf.get(target);
         if (k !== undefined && k !== i) result.push(k);
       }

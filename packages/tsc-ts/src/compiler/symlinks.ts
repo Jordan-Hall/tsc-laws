@@ -17,11 +17,25 @@ export class KnownDirectoryLink {
   ) {}
 }
 
+/** A directory symlink a resolution implies: as spelled, as a path (trailing `/`), and its real directory. */
+class ImpliedDirectoryLink {
+  constructor(
+    readonly symlink: string,
+    readonly symlinkPath: string,
+    readonly real: KnownDirectoryLink,
+  ) {}
+}
+
 export class KnownSymlinks {
   /** Real directories by symlink path; keys have a trailing `/`. */
   private readonly directories = new Map<string, KnownDirectoryLink>();
   /** Symlinks, as spelled, by real directory path; keys have a trailing `/`. */
   private readonly directoriesByRealpath = new Map<string, Set<string>>();
+  /**
+   * The directory symlink each resolution implies (`null` for none), by original path and resolved
+   * file name: many files resolve the same module through the same symlink.
+   */
+  private readonly implied = new Map<string, Map<string, ImpliedDirectoryLink | null>>();
 
   constructor(
     readonly currentDirectory: string,
@@ -52,11 +66,25 @@ export class KnownSymlinks {
   /** Records the directory symlink a resolution through `originalPath` to `resolvedFileName` implies. */
   processResolution(originalPath: string, resolvedFileName: string): void {
     if (originalPath === '' || resolvedFileName === '') return;
+    let byResolved = this.implied.get(originalPath);
+    if (byResolved === undefined) {
+      byResolved = new Map<string, ImpliedDirectoryLink | null>();
+      this.implied.set(originalPath, byResolved);
+    }
+    let link = byResolved.get(resolvedFileName);
+    if (link === undefined) {
+      link = this.impliedDirectoryLink(originalPath, resolvedFileName);
+      byResolved.set(resolvedFileName, link);
+    }
+    if (link !== null) this.setDirectory(link.symlink, link.symlinkPath, link.real);
+  }
+
+  private impliedDirectoryLink(originalPath: string, resolvedFileName: string): ImpliedDirectoryLink | null {
     const common = this.guessDirectorySymlink(resolvedFileName, originalPath);
-    if (common === undefined) return;
+    if (common === undefined) return null;
     const symlinkPath = toPath(common.original, this.currentDirectory, this.useCaseSensitiveFileNames);
-    if (containsIgnoredPath(symlinkPath)) return;
-    this.setDirectory(
+    if (containsIgnoredPath(symlinkPath)) return null;
+    return new ImpliedDirectoryLink(
       common.original,
       ensureTrailingDirectorySeparator(symlinkPath),
       new KnownDirectoryLink(
