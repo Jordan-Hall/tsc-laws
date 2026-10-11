@@ -96,7 +96,7 @@ import { PermissiveMapper, ReportingMapper, RestrictiveMapper, UniqueLiteralMapp
 import { Relation, RelationKey, type Relater, TypeComparer } from './relations.js';
 import { TypeNodeVisitor, checkSourceFile } from './checker-source-file.js';
 import { InferenceCaches } from './checker-inference.js';
-import { AssignmentMarker, type FlowLoopInfo } from './checker-narrowing.js';
+import { AssignmentMarker, type FlowLoopInfo, type FlowState } from './checker-narrowing.js';
 import type { FlowNode, FlowReduceLabel } from './flow.js';
 import { JsxState } from './checker-jsx.js';
 import type { DeferredIterationError, IterationTypes } from './checker-iteration.js';
@@ -499,6 +499,8 @@ export class Checker {
   flowAnalysisDisabled = false;
   inlineLevel = 0;
   readonly sharedFlowNodes: FlowNode[] = [];
+  /** Flow states of finished walks, reused as in tsgo's getFlowState/putFlowState. */
+  readonly freeFlowStates: FlowState[] = [];
   readonly sharedFlowTypes: Type[] = [];
   readonly sharedFlowIncomplete: boolean[] = [];
   readonly flowLoopCaches = new Map<FlowNode, Map<string, Type>>();
