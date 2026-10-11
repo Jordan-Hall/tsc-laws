@@ -33,6 +33,6 @@ npx tsc-ts --noEmit src/index.ts
 
 `tsc-ts --api` serves the TypeScript API over stdin and stdout, like `tsc --api`.
 
-`--checkers N` checks the program on N threads. Like tsgo, the native executable uses four checkers unless `--checkers` or `--singleThreaded` is given; it shares one program between its threads and also parses and binds the program's files on them. Under Node.js, where every thread builds its own copy of the program, tsc-ts checks on one thread unless `--checkers` is given. `--incremental`, `--watch` and `--build` always check on one thread. The diagnostics are the same as with one checker.
+`--checkers N` checks the program on N threads. Unless `--checkers` or `--singleThreaded` is given, the native executable uses one checker per CPU it may run on (up to 16), and at least tsgo's four; it uses fewer than the CPUs, but never fewer than four, when the estimated peak memory of more checkers would not fit 80% of the machine's memory (`TSC_TS_CHECKERS=fixed` keeps tsgo's four); it shares one program between its threads and also parses and binds the program's files on them. Under Node.js, where every thread builds its own copy of the program, tsc-ts checks on one thread unless `--checkers` is given. `--incremental`, `--watch` and `--build` always check on one thread. The diagnostics are the same as with one checker.
 
 The default lib files (`lib.*.d.ts`) ship next to the executable. Set `TSC_TS_LIB_DIR` to use another directory.

@@ -41,8 +41,16 @@ const { createNodeSystem } = await load('drivers/node-system.js');
 const { executeCommandLine } = await load('compiler/tsc-cli.js');
 const { CheckedProgram } = await load('compiler/program-checker.js');
 const { ParseQueue } = await load('compiler/parallel-parse.js');
-const { checkOrder, fillScheduleCosts, newSchedule, planSchedule, scheduleOf, takePosition } =
-  await load('compiler/parallel-check.js');
+const {
+  autoCheckers,
+  checkOrder,
+  checkersFittingMemory,
+  fillScheduleCosts,
+  newSchedule,
+  planSchedule,
+  scheduleOf,
+  takePosition,
+} = await load('compiler/parallel-check.js');
 
 const Root = 0;
 const File = 1;
@@ -169,4 +177,22 @@ test('an idle checker leaves files whose library only the owner has resolved', (
   assert.deepEqual(Array.from(both.slice(ranges, ranges + 4)), [2, 2, 3, 6]);
   assert.equal(takePosition(both, 6, 0), 5);
   assert.deepEqual(Array.from(both.slice(ranges, ranges + 4)), [6, 6, 3, 5]);
+});
+
+test('auto starts a checker per CPU, at least four, fewer only when memory does not fit', () => {
+  assert.equal(autoCheckers(8, 100), 8);
+  assert.equal(autoCheckers(2, 100), 4);
+  assert.equal(autoCheckers(16, 10), 10);
+  assert.equal(autoCheckers(8, 1), 4);
+  const GiB = 1024 ** 3;
+  // VS Code (158.6M characters, 16.8M in declaration files): on 16 GiB the estimate leaves tsgo's
+  // four checkers (it checked with 13.2 GiB at 8), on 32 GiB one per CPU.
+  assert.equal(autoCheckers(8, checkersFittingMemory(158592222, 16769893, 16 * GiB)), 4);
+  assert.equal(autoCheckers(16, checkersFittingMemory(158592222, 16769893, 32 * GiB)), 16);
+  // T3 Code's apps/server (57.5M, 30.4M; 11.1 GiB at 8 checkers, 19 GiB at 16) and Sentry (71.7M, 22.1M;
+  // 9.8 GiB at 8) get eight on 16 GiB.
+  assert.equal(autoCheckers(8, checkersFittingMemory(57491513, 30414210, 16 * GiB)), 8);
+  assert.equal(autoCheckers(16, checkersFittingMemory(57491513, 30414210, 16 * GiB)), 8);
+  assert.equal(autoCheckers(8, checkersFittingMemory(71728469, 22113123, 16 * GiB)), 8);
+  assert.equal(autoCheckers(16, checkersFittingMemory(57491513, 30414210, 32 * GiB)), 16);
 });

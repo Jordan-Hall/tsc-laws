@@ -94,13 +94,17 @@ function checkersReportDeclarations(checked: CheckedProgram): boolean {
 }
 
 /**
- * How the number of checkers is chosen without `--checkers`: `fixed` uses tsgo's four; `auto`
- * (TSC_TS_CHECKERS=auto) uses every CPU this process may run on (`os.availableParallelism()`, at
- * most `maxAutoCheckers`), fewer when the estimated peak memory would not fit (`memoryCheckers`).
+ * How the number of checkers is chosen without `--checkers`: `auto` (the default) uses every CPU
+ * this process may run on (`os.availableParallelism()`, at most `maxAutoCheckers`), and at least
+ * tsgo's four; fewer than the CPUs, but never fewer than four, when the estimated peak memory of more
+ * checkers would not fit (`memoryCheckers`). `fixed` (TSC_TS_CHECKERS=fixed) uses tsgo's four.
  */
-export const checkerPolicy: 'fixed' | 'auto' = process.env.TSC_TS_CHECKERS === 'auto' ? 'auto' : 'fixed';
+export const checkerPolicy: 'fixed' | 'auto' = process.env.TSC_TS_CHECKERS === 'fixed' ? 'fixed' : 'auto';
 
-/** The most checkers `auto` starts (measured up to 8 CPUs; see parmem notes). */
+/** tsgo's number of checkers, and the fewest `auto` starts. */
+const tsgoCheckers = 4;
+
+/** The most checkers `auto` starts (measured up to 16 CPUs). */
 const maxAutoCheckers = 16;
 
 /**
@@ -121,9 +125,14 @@ export function checkerThreads(
 
 function defaultCheckers(program: Program | undefined): number {
   if (!sharesPublishedGraphs) return 1;
-  if (checkerPolicy === 'fixed') return 4;
+  if (checkerPolicy === 'fixed') return tsgoCheckers;
   const cpus = Math.min(availableParallelism(), maxAutoCheckers);
-  return program === undefined ? cpus : Math.min(cpus, memoryCheckers(program));
+  return autoCheckers(cpus, program === undefined ? Number.MAX_SAFE_INTEGER : memoryCheckers(program));
+}
+
+/** `auto` with `cpus` CPUs when the memory estimate fits `fit` checkers: tsgo's four at least. */
+export function autoCheckers(cpus: number, fit: number): number {
+  return Math.max(tsgoCheckers, Math.min(cpus, fit));
 }
 
 /**
@@ -136,27 +145,45 @@ export function parseThreads(checkers: number): number {
 }
 
 /**
- * Measured on the benchmark apps: the bound program takes 28-38 bytes per character of source text
- * (estimated with `programBytesPerChar`); peak memory is about 2.0-2.6 programs plus 0.03-0.15
- * programs per further checker (most for Sentry, least for VS Code).
+ * Peak memory with one checker, per character of source text: measured 44-107 bytes on the
+ * benchmark apps (the shared program 28-38, one checker's heap the rest; most where checking
+ * instantiates many types, as in Sentry and T3 Code's Effect code, least for tRPC and VS Code).
  */
-const programBytesPerChar = 40;
-const peakPrograms = 2.5;
-const programsPerChecker = 0.15;
+const peakBytesPerChar = 110;
 
-/** The most checkers whose estimated peak memory fits 80% of the memory limit; at least 1. */
+/**
+ * What each further checker adds, per character of declaration files: measured 0.3-31 bytes (every
+ * checker resolves the declarations its files use; most for T3 Code's Effect-based projects, 6 for
+ * VS Code, under 1 for tRPC).
+ */
+const checkerBytesPerDeclarationChar = 32;
+
+/**
+ * The most checkers whose estimated peak memory (`peakBytesPerChar`,
+ * `checkerBytesPerDeclarationChar`) fits 80% of the memory limit, of `memory` bytes; at least 1.
+ */
+export function checkersFittingMemory(chars: number, declarationChars: number, memory: number): number {
+  const peak = chars * peakBytesPerChar;
+  const perChecker = Math.max(1, declarationChars * checkerBytesPerDeclarationChar);
+  return Math.max(1, 1 + Math.floor((0.8 * memory - peak) / perChecker));
+}
+
+/** The most checkers whose estimated peak memory fits (`checkersFittingMemory`), for `program`. */
 export function memoryCheckers(program: Program): number {
   let chars = 0;
-  for (const file of program.getSourceFiles()) chars += file.text.length;
-  const programBytes = chars * programBytesPerChar;
+  let declarationChars = 0;
+  for (const file of program.getSourceFiles()) {
+    chars += file.text.length;
+    if (file.isDeclarationFile) declarationChars += file.text.length;
+  }
   const constrained = process.constrainedMemory();
-  const limit = 0.8 * (constrained > 0 ? Math.min(constrained, totalmem()) : totalmem());
-  const fit = 1 + Math.floor((limit - peakPrograms * programBytes) / (programsPerChecker * programBytes));
+  const memory = constrained > 0 ? Math.min(constrained, totalmem()) : totalmem();
+  const fit = checkersFittingMemory(chars, declarationChars, memory);
   if (process.env.TSC_TS_CHECKERS_TRACE !== undefined)
     process.stderr.write(
-      `checkers: ${chars} source chars, estimated program ${Math.round(programBytes / 1048576)}MB, limit ${Math.round(limit / 1048576)}MB, memory fits ${fit} checkers\n`,
+      `checkers: ${chars} source chars (${declarationChars} in declaration files), memory ${Math.round(memory / 1048576)}MB fits ${fit} checkers\n`,
     );
-  return Math.max(1, fit);
+  return fit;
 }
 
 /**
