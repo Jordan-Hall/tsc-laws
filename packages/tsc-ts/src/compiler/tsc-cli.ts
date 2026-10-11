@@ -2,6 +2,7 @@
  * The `tsc` command line up to binding: argument errors, `--init`, `--version`, `--help`, project lookup,
  * tsconfig.json, `--showConfig`, program construction and `--listFilesOnly`.
  */
+import { mark } from './timeline.js';
 import {
   createCompilerDiagnostic,
   Diagnostics,
@@ -317,6 +318,7 @@ function executeCompile(sys: System, commandLine: ParsedCommandLine): CommandLin
 
   const fs = new CachedFileSystem(new SystemFileSystem(sys));
   const configStart = performance.now();
+  mark('config start');
   const errors: Diagnostic[] = [];
   const config = readProjectConfig(sys, fs, commandLine, configFileName, errors);
   if (config === undefined) {
@@ -331,11 +333,14 @@ function executeCompile(sys: System, commandLine: ParsedCommandLine): CommandLin
     return exit(ExitStatus.Success);
   }
   const configTime = configFileName !== '' ? performance.now() - configStart : 0;
+  mark(`config read, ${config.fileNames.length} root files`);
   if (config.options.watch === true) return { kind: 'watch', config, commandLine };
 
   const parseStart = performance.now();
   const createProgram = (): CommandLineResult => {
+    mark('program start');
     const program = new Program(config, new SystemCompilerHost(sys, fs, locale));
+    mark(`program built, ${program.getSourceFiles().length} files`);
     const parseTime = performance.now() - parseStart;
     reportPreparedFiles(program.getSourceFiles().map((f) => f.fileName));
     // Statistics need checking and emit timings.

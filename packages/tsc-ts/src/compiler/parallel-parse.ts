@@ -25,6 +25,7 @@ import { useLazyJSDocTable } from './parser.js';
 import { getNormalizedAbsolutePath } from './path.js';
 import { getDefaultLibFileName, getLibFileName } from './program-utilities.js';
 import { lastSymbolIdValue, shareSymbolIds } from './symbol.js';
+import { mark, timeline } from './timeline.js';
 
 /** What a queued file is. */
 export const enum LoadKind {
@@ -99,7 +100,7 @@ export type LoadMessage = {
  * (`''` for none) with the command line of this run, takes ids from `counter`, and loads the chunks
  * posted to it (`LoadMessage`) until it is told to stop.
  */
-export type ParserSpawn = (configFileName: string, counter: SharedArrayBuffer) => Worker;
+export type ParserSpawn = (configFileName: string, counter: SharedArrayBuffer, index: number) => Worker;
 
 export class ParallelParse {
   /** Set where parse threads can be started and share what they parse (scriptc builds). */
@@ -208,6 +209,7 @@ export function startParallelParse(
   done: () => void,
 ): void {
   const start = performance.now();
+  mark(`parse start, ${count} threads`);
   const trace = process.env.TSC_TS_CHECKERS_TRACE !== undefined;
   const verbose = process.env.TSC_TS_CHECKERS_TRACE === '3';
   // Prepared files are published (immutable): this thread keeps lazily parsed JSDoc in a table.
@@ -250,6 +252,7 @@ export function startParallelParse(
     for (let i = 0; i < workers.length; i++) if (alive[i]!) workers[i]!.postMessage(stop);
     shareNodeIds(undefined);
     shareSymbolIds(undefined);
+    mark(`parse done, ${parallelParse.files.size} files, ${chunks} chunks`);
     if (trace)
       process.stderr.write(
         `parsers: ${parallelParse.files.size} files prepared in ${(performance.now() - start).toFixed(1)}ms (${chunks} chunks, ${queue.queued()} queued, ${queue.left()} left)\n`,
@@ -269,12 +272,13 @@ export function startParallelParse(
     if (busy === 0 && !finished) finish();
   };
   for (let i = 0; i < count; i++) {
-    const worker = parallelParse.spawn!(configFileName, counter);
+    const worker = parallelParse.spawn!(configFileName, counter, i);
     workers.push(worker);
     alive.push(true);
     idle.push(i);
     worker.on('message', (message: unknown) => {
       const batch = publish((message as { batch: PreparedBatch }).batch);
+      if (timeline) mark(`chunk from p${i}: ${batch.files.length} files, ${queue.left()} left, ${busy - 1} busy`);
       for (const prepared of batch.files) parallelParse.files.set(prepared.fileName, prepared);
       const added = batch.added;
       for (let k = 0; k < added.names.length; k++) enqueue(added.kinds[k]!, added.names[k]!, added.depths[k]!);
@@ -296,6 +300,7 @@ export function startParallelParse(
       if (!finished) dispatch();
     });
   }
+  mark('parse threads spawned');
   dispatch();
 }
 

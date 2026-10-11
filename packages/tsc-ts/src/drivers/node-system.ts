@@ -1,4 +1,5 @@
 // The tsc command line on the disk, for `tsc-ts` and the cli driver.
+import { mark, markMemory } from '../compiler/timeline.js';
 import { spawnSync } from 'node:child_process';
 import {
   mkdirSync,
@@ -236,14 +237,22 @@ function runCommandLineResult(sys: System, result: CommandLineResult): number {
     const threads = compileThreads(result);
     if (threads <= 1) return compile(sys, result);
     // Checker threads report back on this thread's event loop.
-    compileInParallel(sys, result, threads, (status) => process.exit(status));
+    compileInParallel(sys, result, threads, (status) => {
+      markMemory();
+      mark('exit');
+      process.exit(status);
+    });
     return watching;
   }
   if (result.kind === 'deferred') {
     // Parse threads prepare the program's files first (parallel-parse.ts).
     result.run((ready) => {
       const status = runCommandLineResult(sys, ready);
-      if (status !== watching) process.exit(status);
+      if (status !== watching) {
+        markMemory();
+        mark('exit');
+        process.exit(status);
+      }
     });
     return watching;
   }
