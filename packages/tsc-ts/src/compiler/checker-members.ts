@@ -494,14 +494,17 @@ function pendingInstantiatedList(c: Checker, list: Symbol[], mapper: TypeMapper)
 
 /** Positions by name in a source table or list, cached per source. The last of equal names wins. */
 function memberPositions(c: Checker, table: SymbolTable | undefined, list: Symbol[] | undefined): Map<string, number> {
-  const key: SymbolTable | Symbol[] = table !== undefined ? table : list!;
-  let positions = c.memberPositions.get(key);
+  let positions = table !== undefined ? c.memberPositionsInTables.get(table) : c.memberPositionsInLists.get(list!);
   if (positions === undefined) {
     positions = new Map<string, number>();
     let i = 0;
-    if (table !== undefined) for (const id of table.keys()) positions.set(id, i++);
-    else for (const symbol of list!) positions.set(symbol.name, i++);
-    c.memberPositions.set(key, positions);
+    if (table !== undefined) {
+      for (const id of table.keys()) positions.set(id, i++);
+      c.memberPositionsInTables.set(table, positions);
+    } else {
+      for (const symbol of list!) positions.set(symbol.name, i++);
+      c.memberPositionsInLists.set(list!, positions);
+    }
   }
   return positions;
 }

@@ -286,7 +286,8 @@ export class Checker {
   typeCount = 0;
   signatureCount = 0;
   /** Positions of members by name in the tables and lists that lazily instantiated members come from. */
-  readonly memberPositions = new Map<SymbolTable | Symbol[], Map<string, number>>();
+  readonly memberPositionsInTables = new Map<SymbolTable, Map<string, number>>();
+  readonly memberPositionsInLists = new Map<Symbol[], Map<string, number>>();
   /** Long lists of inherited properties, by name. */
   readonly propertiesByName = new Map<Symbol[], Map<string, Symbol>>();
   /** Number of `typeToString` calls in progress. */
@@ -905,7 +906,8 @@ export function disposeChecker(c: Checker): void {
     c.globals.clear();
   }
   c.sharedSymbolCopies.clear();
-  c.memberPositions.clear();
+  c.memberPositionsInTables.clear();
+  c.memberPositionsInLists.clear();
   c.propertiesByName.clear();
   c.symbolAccessibilityCaches = undefined;
   c.unresolvedSymbols.clear();
