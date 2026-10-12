@@ -41,7 +41,7 @@ import {
 } from './binder-utilities.js';
 import { identifierToKeywordKind } from './scanner.js';
 import { type DiagnosticMessage, Diagnostics } from './diagnostics.js';
-import { CheckFlags, type Symbol, SymbolFlags } from './symbol.js';
+import { CheckFlags, getSymbolId, type Symbol, SymbolFlags } from './symbol.js';
 import { SyntaxKind } from './syntax-kind.js';
 import { type Checker, createDiagnosticForNode } from './checker.js';
 import {
@@ -754,13 +754,24 @@ function createSymbolWithWidenedType(c: Checker, prop: Symbol, t: Type): Symbol 
   return result;
 }
 
-/** An optional `undefined` property standing in for a property of a sibling object literal. */
+/**
+ * An optional `undefined` property standing in for `prop`, the last property of that name among the
+ * sibling object literals (getPropertiesOfContext). It carries `prop`'s declarations, which order it
+ * among the members when they are printed.
+ *
+ * tsgo caches one such symbol per name and checker, so the declarations come from whichever literal
+ * the checker widened first: with one checker that depends on every file checked before, with several
+ * on how files were spread over them. Cached per sibling property instead, the result depends only on
+ * the literals being widened. It is the symbol tsgo creates when it first widens a name, and it orders
+ * differently only where tsgo reuses a symbol from an earlier literal.
+ */
 function getUndefinedProperty(c: Checker, prop: Symbol): Symbol {
-  const cached = c.undefinedProperties.get(prop.name);
+  const key = getSymbolId(prop);
+  const cached = c.undefinedProperties.get(key);
   if (cached !== undefined) return cached;
   const result = createSymbolWithWidenedType(c, prop, c.undefinedOrMissingType);
   result.flags |= SymbolFlags.Optional;
-  c.undefinedProperties.set(prop.name, result);
+  c.undefinedProperties.set(key, result);
   return result;
 }
 
