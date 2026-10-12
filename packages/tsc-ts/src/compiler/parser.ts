@@ -787,7 +787,11 @@ export class Parser extends ScannerErrorReporter {
     }
     collectExternalModuleReferences(result);
     if (result.isJS()) result.jsDiagnostics = attachFileToDiagnostics(this.jsDiagnostics, result);
-    result.computeCaches();
+    // The scanner holds the text's code units unless a nested parse cut its text short.
+    const scanner = this.scanner;
+    if (scanner.text === result.text && scanner.end === result.text.length)
+      result.computeCachesFromUnits(scanner.chars);
+    else result.computeCaches();
     return result;
   }
 
