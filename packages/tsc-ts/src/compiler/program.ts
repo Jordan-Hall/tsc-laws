@@ -114,14 +114,16 @@ export class Program implements OutputPathsHost {
   private packagesMap: Map<string, boolean> | undefined = undefined;
   private symlinks: KnownSymlinks | undefined = undefined;
 
+  /** `loader`, if given, is a FileLoader of `host` and `commandLine` that has not loaded yet. */
   constructor(
     readonly commandLine: ParsedCommandLine,
     readonly host: CompilerHost,
+    loader?: FileLoader,
   ) {
     this.options = commandLine.options;
     this.currentDirectory = host.currentDirectory;
     this.useCaseSensitiveFileNames = host.fs.useCaseSensitiveFileNames;
-    this.processed = new FileLoader(host, commandLine).load();
+    this.processed = (loader ?? new FileLoader(host, commandLine)).load();
     this.includeProcessor = this.processed.includeProcessor;
     this.verifyCompilerOptions();
   }

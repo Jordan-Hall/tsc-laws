@@ -404,6 +404,8 @@ export class FileLoader {
   private readonly paths = new Map<string, string>();
   /** The normalized config file name root files are found from, once computed. */
   private rootContainingFile: string | undefined = undefined;
+  /** Root files whose tasks `addRootFiles` added. */
+  private rootFilesAdded = 0;
 
   constructor(
     readonly host: CompilerHost,
@@ -429,9 +431,22 @@ export class FileLoader {
     return path;
   }
 
+  /**
+   * Adds the tasks of up to `count` more root files, the first step of `load`: the main thread does
+   * this while parse threads load the files (parallel-parse.ts). Returns whether every root file's
+   * task is added.
+   */
+  addRootFiles(count: number): boolean {
+    const rootFiles = this.config.fileNames;
+    const end = Math.min(rootFiles.length, this.rootFilesAdded + count);
+    for (let i = this.rootFilesAdded; i < end; i++) this.addRootFileTask(rootFiles[i], FileIncludeReason.rootFile(i));
+    this.rootFilesAdded = end;
+    return end === rootFiles.length;
+  }
+
   load(): ProcessedFiles {
     const rootFiles = this.config.fileNames;
-    for (let i = 0; i < rootFiles.length; i++) this.addRootFileTask(rootFiles[i], FileIncludeReason.rootFile(i));
+    this.addRootFiles(rootFiles.length);
     if (rootFiles.length > 0 && this.options.noLib !== true) {
       const lib = this.options.lib;
       if (lib === undefined) {

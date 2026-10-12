@@ -93,6 +93,17 @@ test('parse threads get large files right after libraries, one per chunk, ahead 
   assert.equal(queue.next(1), undefined);
 });
 
+test('while root files are matched, other files go out to parse threads in full chunks only', () => {
+  const queue = new ParseQueue();
+  queue.push(Library, 'lib.es5.d.ts', 0);
+  for (let i = 0; i < 20; i++) queue.push(Root, `/p/${i}.ts`, 0);
+  assert.deepEqual(queue.next(8, true).names, ['lib.es5.d.ts']);
+  assert.equal(queue.next(8, true).names.length, 16);
+  assert.equal(queue.next(8, true), undefined);
+  assert.deepEqual(queue.next(8).names, ['/p/16.ts']);
+  assert.equal(queue.left(), 3);
+});
+
 function project() {
   const dir = tempDir('tsc-ts-parallel-schedule-project-');
   const files = {
