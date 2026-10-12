@@ -341,7 +341,7 @@ export function getLiteralTypeFromProperty(
     includeNonPublic ||
     (getDeclarationModifierFlagsFromSymbol(c, prop, false) & ModifierFlags.NonPublicAccessibilityModifier) === 0
   ) {
-    let t = c.symbolLinks(getLateBoundSymbol(c, prop)).nameType;
+    let t = c.symbolNameTypes.get(getSymbolId(getLateBoundSymbol(c, prop)));
     if (t === undefined) {
       if (prop.name === InternalSymbolName.Default) t = getStringLiteralType(c, 'default');
       else {
@@ -725,7 +725,7 @@ function getPropertyTypeForIndexType(
           );
           return undefined;
         }
-        if ((accessFlags & AccessFlags.CacheSymbol) !== 0) c.nodeLinks(accessExpression).resolvedSymbol = prop;
+        if ((accessFlags & AccessFlags.CacheSymbol) !== 0) c.resolvedSymbols.set(accessExpression.id, prop);
         if (isThisPropertyAccessInConstructor(c, accessExpression, prop)) return c.autoType;
       }
       const propType =
@@ -1448,16 +1448,15 @@ export function getMappedTypeOptionality(t: MappedType): number {
 }
 
 export function getTypeFromMappedTypeNode(c: Checker, node: Node): Type {
-  const links = c.nodeLinks(node);
-  if (links.resolvedType === undefined) {
+  if (c.resolvedTypes.get(node.id) === undefined) {
     const t = newObjectType(c, ObjectFlags.Mapped, getSymbol(node)) as MappedType;
     t.declaration = node;
     t.alias = getAliasForTypeNode(c, node);
-    links.resolvedType = t;
+    c.resolvedTypes.set(node.id, t);
     // Resolve the constraint eagerly to report circular aliases.
     getConstraintTypeFromMappedType(c, t);
   }
-  return links.resolvedType;
+  return c.resolvedTypes.get(node.id)!;
 }
 
 export function getTypeParameterFromMappedType(c: Checker, t: MappedType): TypeParameter {
@@ -1594,9 +1593,9 @@ export function resolveMappedTypeMembers(c: Checker, t: MappedType): void {
       const existing = members.get(propName);
       if (existing !== undefined) {
         // Same-valued string enum members from different enums share a property.
-        const links = c.symbolLinks(existing);
-        links.nameType = getUnionType(c, [links.nameType!, propNameType]);
-        links.keyType = getUnionType(c, [links.keyType!, keyType]);
+        const id = getSymbolId(existing);
+        c.symbolNameTypes.set(id, getUnionType(c, [c.symbolNameTypes.get(id)!, propNameType]));
+        c.symbolKeyTypes.set(id, getUnionType(c, [c.symbolKeyTypes.get(id)!, keyType]));
         return;
       }
       const modifiersProp = isTypeUsableAsPropertyName(keyType)
@@ -1624,12 +1623,12 @@ export function resolveMappedTypeMembers(c: Checker, t: MappedType): void {
         CheckFlags.Mapped |
         (isReadonly ? CheckFlags.Readonly : 0) |
         (stripOptional ? CheckFlags.StripOptional : 0);
-      const links = c.symbolLinks(prop);
-      links.containingType = t;
-      links.nameType = propNameType;
-      links.keyType = keyType;
+      const symbolId = getSymbolId(prop);
+      c.symbolContainingTypes.set(symbolId, t);
+      c.symbolNameTypes.set(symbolId, propNameType);
+      c.symbolKeyTypes.set(symbolId, keyType);
       if (modifiersProp !== undefined) {
-        links.syntheticOrigin = modifiersProp;
+        c.symbolSyntheticOrigins.set(symbolId, modifiersProp);
         if (shouldLinkPropDeclarations) prop.declarations = modifiersProp.declarations;
       }
       members.set(propName, prop);
@@ -1675,37 +1674,41 @@ export function resolveMappedTypeMembers(c: Checker, t: MappedType): void {
 }
 
 export function getTypeOfMappedSymbol(c: Checker, symbol: Symbol): Type {
-  const links = c.symbolLinks(symbol);
-  if (links.type === undefined) {
-    const mappedType = links.containingType as MappedType;
-    if (!pushTypeResolution(c, symbol, TypeSystemPropertyName.Type)) {
-      mappedType.containsError = true;
-      return c.errorType;
-    }
-    const templateType = getTemplateTypeFromMappedType(c, mappedTypeTarget(mappedType));
-    const mapper = appendTypeMapping(mappedType.mapper, getTypeParameterFromMappedType(c, mappedType), links.keyType!);
-    let propType = instantiateType(c, templateType, mapper);
-    // Optional properties get `undefined`; stripped optionality removes it.
-    if (
-      c.strictNullChecks &&
-      (symbol.flags & SymbolFlags.Optional) !== 0 &&
-      !maybeTypeOfKind(propType, TypeFlags.Undefined | TypeFlags.Void)
-    )
-      propType = getOptionalType(c, propType, true);
-    else if ((symbol.checkFlags & CheckFlags.StripOptional) !== 0) propType = removeMissingOrUndefinedType(c, propType);
-    if (popTypeResolution(c)) {
-      if (links.type === undefined) links.type = propType;
-    } else {
-      if (links.type === undefined) links.type = c.errorType;
-      c.error(
-        c.currentNode,
-        Diagnostics.Type_of_property_0_circularly_references_itself_in_mapped_type_1,
-        symbolToString(c, symbol),
-        typeToString(c, mappedType),
-      );
-    }
+  const id = getSymbolId(symbol);
+  const cached = c.symbolTypes.get(id);
+  if (cached !== undefined) return cached;
+  const mappedType = c.symbolContainingTypes.get(id) as MappedType;
+  if (!pushTypeResolution(c, symbol, TypeSystemPropertyName.Type)) {
+    mappedType.containsError = true;
+    return c.errorType;
   }
-  return links.type;
+  const templateType = getTemplateTypeFromMappedType(c, mappedTypeTarget(mappedType));
+  const mapper = appendTypeMapping(
+    mappedType.mapper,
+    getTypeParameterFromMappedType(c, mappedType),
+    c.symbolKeyTypes.get(id)!,
+  );
+  let propType = instantiateType(c, templateType, mapper);
+  // Optional properties get `undefined`; stripped optionality removes it.
+  if (
+    c.strictNullChecks &&
+    (symbol.flags & SymbolFlags.Optional) !== 0 &&
+    !maybeTypeOfKind(propType, TypeFlags.Undefined | TypeFlags.Void)
+  )
+    propType = getOptionalType(c, propType, true);
+  else if ((symbol.checkFlags & CheckFlags.StripOptional) !== 0) propType = removeMissingOrUndefinedType(c, propType);
+  if (popTypeResolution(c)) {
+    if (c.symbolTypes.get(id) === undefined) c.symbolTypes.set(id, propType);
+  } else {
+    if (c.symbolTypes.get(id) === undefined) c.symbolTypes.set(id, c.errorType);
+    c.error(
+      c.currentNode,
+      Diagnostics.Type_of_property_0_circularly_references_itself_in_mapped_type_1,
+      symbolToString(c, symbol),
+      typeToString(c, mappedType),
+    );
+  }
+  return c.symbolTypes.get(id)!;
 }
 
 function everyArrayOrTupleType(c: Checker, types: Type[]): boolean {
@@ -1881,8 +1884,7 @@ export function resolveReverseMappedTypeMembers(c: Checker, t: Type): void {
 // ---- Conditional types
 
 export function getTypeFromConditionalTypeNode(c: Checker, node: Node): Type {
-  const links = c.nodeLinks(node);
-  if (links.resolvedType === undefined) {
+  if (c.resolvedTypes.get(node.id) === undefined) {
     const shape = node as ConditionalTypeNode;
     const checkType = getTypeFromTypeNode(c, shape.checkType);
     const alias = getAliasForTypeNode(c, node);
@@ -1901,16 +1903,17 @@ export function getTypeFromConditionalTypeNode(c: Checker, node: Node): Type {
       outerTypeParameters,
       alias,
     );
-    links.resolvedType = getConditionalType(c, root, undefined, false, undefined);
+    const resolved = getConditionalType(c, root, undefined, false, undefined);
+    c.resolvedTypes.set(node.id, resolved);
     root.instantiations.set(
       typeListHash(outerTypeParameters, undefined, 0),
       outerTypeParameters,
       undefined,
       0,
-      links.resolvedType,
+      resolved,
     );
   }
-  return links.resolvedType;
+  return c.resolvedTypes.get(node.id)!;
 }
 
 function conditionalNode(root: ConditionalRoot): ConditionalTypeNode {

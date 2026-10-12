@@ -350,6 +350,10 @@ class IdentifierTable {
   private lengths: Int32Array;
   private texts: string[];
   private count: number;
+  // Per entry: 1 once its text was recorded among the file's identifier texts (`markRecorded`).
+  private recorded: Uint8Array;
+  // The entry the last `intern` returned.
+  private lastEntry: number;
 
   constructor(text: string) {
     this.text = text;
@@ -360,6 +364,20 @@ class IdentifierTable {
     this.lengths = new Int32Array(128);
     this.texts = [];
     this.count = 0;
+    this.recorded = new Uint8Array(128);
+    this.lastEntry = -1;
+  }
+
+  /**
+   * Whether `text`, just returned by `intern`, still needs recording among the file's identifier
+   * texts; marks it recorded. Texts the table doesn't know are always recorded.
+   */
+  markRecorded(text: string): boolean {
+    const entry = this.lastEntry;
+    if (entry < 0 || this.texts[entry] !== text) return true;
+    if (this.recorded[entry] !== 0) return false;
+    this.recorded[entry] = 1;
+    return true;
   }
 
   /** Empties the table for a new text. */
@@ -367,9 +385,11 @@ class IdentifierTable {
     this.text = text;
     if (this.count === 0) return;
     this.slots.fill(0);
+    this.recorded.fill(0, 0, this.count);
     this.texts.length = 0;
     this.unitCount = 0;
     this.count = 0;
+    this.lastEntry = -1;
   }
 
   /** `text.substring(start, end)`, or the string interned for an equal range. */
@@ -387,7 +407,10 @@ class IdentifierTable {
         const offset = this.offsets[entry - 1];
         let i = 0;
         while (i < length && units[(offset + i) | 0] === chars[(start + i) | 0]) i++;
-        if (i === length) return this.texts[entry - 1]!;
+        if (i === length) {
+          this.lastEntry = entry - 1;
+          return this.texts[entry - 1]!;
+        }
       }
       slot = (slot + 1) & mask;
     }
@@ -400,6 +423,9 @@ class IdentifierTable {
       const lengths = new Int32Array(index * 2);
       lengths.set(this.lengths);
       this.lengths = lengths;
+      const recorded = new Uint8Array(index * 2);
+      recorded.set(this.recorded);
+      this.recorded = recorded;
     }
     let units = this.units;
     const offset = this.unitCount;
@@ -414,6 +440,7 @@ class IdentifierTable {
     this.lengths[index] = length;
     this.texts.push(value);
     this.count = index + 1;
+    this.lastEntry = index;
     slots[slot * 2] = index + 1;
     slots[slot * 2 + 1] = hash;
     if (this.count * 2 > mask + 1) this.slots = rehash(slots);
@@ -693,6 +720,14 @@ export class Scanner {
       this.valueStart = -1;
     }
     return this.tokenValue;
+  }
+
+  /**
+   * Whether `text`, the identifier value just returned by `getIdentifierValue`, is the first of its
+   * file to be recorded; files record each identifier text once.
+   */
+  recordIdentifierValue(text: string): boolean {
+    return this.identifiers.markRecorded(text);
   }
 
   /** @internal Like `getTokenValue`, but identifiers with the same text share one string. */

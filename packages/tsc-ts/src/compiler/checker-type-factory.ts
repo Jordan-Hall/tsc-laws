@@ -1991,7 +1991,7 @@ function createTupleTargetType(c: Checker, elementInfos: TupleElementInfo[], rea
         String(i),
         readonly ? CheckFlags.Readonly : CheckFlags.None,
       );
-      c.symbolLinks(property).type = typeParameter;
+      c.symbolTypes.set(getSymbolId(property), typeParameter);
       members.set(property.name, property);
     }
   }
@@ -2001,11 +2001,11 @@ function createTupleTargetType(c: Checker, elementInfos: TupleElementInfo[], rea
     'length',
     readonly ? CheckFlags.Readonly : CheckFlags.None,
   );
-  if ((combinedFlags & ElementFlags.Variable) !== 0) c.symbolLinks(lengthSymbol).type = c.numberType;
+  if ((combinedFlags & ElementFlags.Variable) !== 0) c.symbolTypes.set(getSymbolId(lengthSymbol), c.numberType);
   else {
     const literalTypes: Type[] = [];
     for (let i = minLength; i <= arity; i++) literalTypes.push(getNumberLiteralType(c, i));
-    c.symbolLinks(lengthSymbol).type = getUnionType(c, literalTypes);
+    c.symbolTypes.set(getSymbolId(lengthSymbol), getUnionType(c, literalTypes));
   }
   members.set(lengthSymbol.name, lengthSymbol);
   const type = newObjectType(c, ObjectFlags.Tuple | ObjectFlags.Reference, undefined) as TupleType;

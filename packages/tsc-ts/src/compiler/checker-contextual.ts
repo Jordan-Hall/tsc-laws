@@ -71,7 +71,7 @@ import {
   getSignaturesOfType,
 } from './checker-members.js';
 import { getTypeFromTypeNode } from './checker-type-nodes.js';
-import { CheckFlags, SymbolFlags } from './symbol.js';
+import { CheckFlags, SymbolFlags, getSymbolId } from './symbol.js';
 import {
   TypeSystemPropertyName,
   findResolutionCycleStartIndex,
@@ -753,7 +753,7 @@ function getContextualTypeForObjectLiteralElement(
     const name = getPropertyNameOfObjectLiteralElement(c, element);
     if (name !== undefined) {
       const symbol = getSymbol(element);
-      let nameType = symbol !== undefined ? c.symbolLinks(symbol).nameType : undefined;
+      let nameType = symbol !== undefined ? c.symbolNameTypes.get(getSymbolId(symbol)) : undefined;
       // Late-bound members are named by the type of their computed name, like a unique symbol.
       const nameNode = getName(element)!;
       if (nameType === undefined && nameNode.kind === SyntaxKind.ComputedPropertyName)
@@ -894,7 +894,7 @@ function getTypeOfConcretePropertyOfContextualType(c: Checker, t: Type, name: st
 function isCircularMappedProperty(c: Checker, symbol: Symbol): boolean {
   return (
     (symbol.checkFlags & CheckFlags.Mapped) !== 0 &&
-    c.symbolLinks(symbol).type === undefined &&
+    c.symbolTypes.get(getSymbolId(symbol)) === undefined &&
     findResolutionCycleStartIndex(c, symbol, TypeSystemPropertyName.Type) >= 0
   );
 }
@@ -1300,16 +1300,15 @@ function getContextuallyTypedParameterTypeOrUndefined(c: Checker, parameter: Nod
     const indexOfParameter = getParameters(func)!.nodes.indexOf(parameter);
     if ((parameter as ParameterDeclaration).dotDotDotToken !== undefined)
       return getRestArgumentsType(c, iife, args, indexOfParameter);
-    const links = c.nodeLinks(iife);
-    const cached = links.resolvedSignature;
-    links.resolvedSignature = c.anySignature;
+    const cached = c.resolvedSignatures.get(iife.id);
+    c.resolvedSignatures.set(iife.id, c.anySignature);
     const t =
       indexOfParameter < args.length
         ? getWidenedLiteralType(c, checkExpression(c, args[indexOfParameter]!))
         : getInitializer(parameter) !== undefined
           ? undefined
           : c.undefinedWideningType;
-    links.resolvedSignature = cached;
+    c.resolvedSignatures.set(iife.id, cached);
     return t;
   }
   const signature = getContextualSignatureForFunctionLikeDeclaration(c, func);

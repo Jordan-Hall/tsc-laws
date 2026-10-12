@@ -4,7 +4,7 @@ import type { Node } from './ast.js';
 import { getCombinedModifierFlags, getDeclarationOfKind } from './binder-utilities.js';
 import { Diagnostics } from './diagnostics.js';
 import { ModifierFlags, getSymbol, MappedTypeNode, getName } from './ast.js';
-import { CheckFlags, InternalSymbolName, type Symbol, SymbolFlags, type SymbolTable } from './symbol.js';
+import { CheckFlags, InternalSymbolName, type Symbol, SymbolFlags, type SymbolTable, getSymbolId } from './symbol.js';
 import { SyntaxKind } from './syntax-kind.js';
 import type { Checker } from './checker.js';
 import {
@@ -1135,7 +1135,10 @@ function combineUnionOrIntersectionParameters(
       paramName,
       isRestParam ? CheckFlags.RestParameter : isOptional ? CheckFlags.OptionalParameter : CheckFlags.None,
     );
-    c.symbolLinks(paramSymbol).type = isRestParam ? createArrayTypeEx(c, combinedParamType, false) : combinedParamType;
+    c.symbolTypes.set(
+      getSymbolId(paramSymbol),
+      isRestParam ? createArrayTypeEx(c, combinedParamType, false) : combinedParamType,
+    );
     params.push(paramSymbol);
   }
   if (needsExtraRestElement) {
@@ -1146,7 +1149,7 @@ function combineUnionOrIntersectionParameters(
     );
     let restType = createArrayTypeEx(c, getTypeAtPosition(c, shorter, longestCount), false);
     if (shorter === right) restType = instantiateType(c, restType, mapper);
-    c.symbolLinks(restParamSymbol).type = restType;
+    c.symbolTypes.set(getSymbolId(restParamSymbol), restType);
     params.push(restParamSymbol);
   }
   return params;
@@ -1522,15 +1525,15 @@ export function createUnionOrIntersectionProperty(
     let singlePropType: Type | undefined;
     let singlePropMapper: TypeMapper | undefined;
     if ((singleProp.flags & SymbolFlags.Transient) !== 0) {
-      const links = c.symbolLinks(singleProp);
-      singlePropType = links.type;
-      singlePropMapper = links.mapper;
+      const id = getSymbolId(singleProp);
+      singlePropType = c.symbolTypes.get(id);
+      singlePropMapper = c.symbolMappers.get(id);
     }
     const clone = createSymbolWithType(c, singleProp, singlePropType);
     if (singleProp.valueDeclaration !== undefined) clone.parent = getSymbol(singleProp.valueDeclaration)?.parent;
     const links = c.symbolLinks(clone);
-    links.containingType = containingType;
-    links.mapper = singlePropMapper;
+    c.symbolContainingTypes.set(clone.id, containingType);
+    c.symbolMappers.set(clone.id, singlePropMapper);
     links.writeType = getWriteTypeOfSymbol(c, singleProp);
     return clone;
   }
@@ -1550,7 +1553,7 @@ export function createUnionOrIntersectionProperty(
     const t = getTypeOfSymbol(c, prop);
     if (firstType === undefined) {
       firstType = t;
-      nameType = c.symbolLinks(prop).nameType;
+      nameType = c.symbolNameTypes.get(getSymbolId(prop));
     }
     const writeType = getWriteTypeOfSymbol(c, prop);
     if (writeTypes !== undefined || writeType !== t) {
@@ -1569,20 +1572,21 @@ export function createUnionOrIntersectionProperty(
     result.valueDeclaration = firstValueDeclaration;
     result.parent = getSymbol(firstValueDeclaration)?.parent;
   }
-  const links = c.symbolLinks(result);
-  links.containingType = containingType;
-  links.nameType = nameType;
+  const id = getSymbolId(result);
+  c.symbolContainingTypes.set(id, containingType);
+  c.symbolNameTypes.set(id, nameType);
   if (propTypes.length > 2) {
     // Defer normalization of possibly large constituent lists.
     result.checkFlags |= CheckFlags.DeferredType;
+    const links = c.symbolLinks(result);
     links.deferralParent = containingType;
     links.deferralConstituents = propTypes;
     links.deferralWriteConstituents = writeTypes;
     return result;
   }
-  links.type = isUnion ? getUnionType(c, propTypes) : getIntersectionType(c, propTypes);
+  c.symbolTypes.set(id, isUnion ? getUnionType(c, propTypes) : getIntersectionType(c, propTypes));
   if (writeTypes !== undefined)
-    links.writeType = isUnion ? getUnionType(c, writeTypes) : getIntersectionType(c, writeTypes);
+    c.symbolLinks(result).writeType = isUnion ? getUnionType(c, writeTypes) : getIntersectionType(c, writeTypes);
   return result;
 }
 
@@ -1591,7 +1595,7 @@ export function isObjectLiteralType(t: Type): boolean {
 }
 
 export function getTargetSymbol(c: Checker, s: Symbol): Symbol {
-  return (s.checkFlags & CheckFlags.Instantiated) !== 0 ? c.symbolLinks(s).target! : s;
+  return (s.checkFlags & CheckFlags.Instantiated) !== 0 ? c.symbolTargets.get(getSymbolId(s))! : s;
 }
 
 export function isPrototypeProperty(symbol: Symbol): boolean {
@@ -1619,10 +1623,10 @@ export function createSymbolWithType(c: Checker, source: Symbol, t: Type | undef
   symbol.declarations = source.declarations;
   symbol.parent = source.parent;
   symbol.valueDeclaration = source.valueDeclaration;
-  const links = c.symbolLinks(symbol);
-  links.type = t;
-  links.target = source;
-  links.nameType = c.symbolLinks(source).nameType;
+  const id = getSymbolId(symbol);
+  c.symbolTypes.set(id, t);
+  c.symbolTargets.set(id, source);
+  c.symbolNameTypes.set(id, c.symbolNameTypes.get(getSymbolId(source)));
   return symbol;
 }
 
