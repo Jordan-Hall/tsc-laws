@@ -467,6 +467,10 @@ export class Parser extends ScannerErrorReporter {
   possibleAwaitSpans: number[];
   /** Nodes produced by JSDoc reparsing to insert before the current list element. */
   reparseList: Node[];
+  // One reparse list per nesting depth of `parseListIndex`, reused by sibling lists: a list rarely
+  // receives reparsed nodes, and a fresh array per parsed list would be one more allocation each.
+  private readonly reparseLists: Node[][];
+  private reparseDepth: number;
   reparsedClones: Node[];
   /** Nodes with eagerly parsed JSDoc, for rewinding. */
   jsDocInfos: Node[];
@@ -522,6 +526,8 @@ export class Parser extends ScannerErrorReporter {
     this.notParenthesizedArrow = new Set<number>();
     this.possibleAwaitSpans = [];
     this.reparseList = [];
+    this.reparseLists = [this.reparseList];
+    this.reparseDepth = 0;
     this.reparsedClones = [];
     this.jsDocInfos = [];
     this.jsDocTable = undefined;
@@ -960,31 +966,34 @@ export class Parser extends ScannerErrorReporter {
   parseListIndex(kind: ParsingContext, element: ListElement): Node[] {
     const saveParsingContexts = this.parsingContexts;
     this.parsingContexts |= 1 << kind;
-    let outerReparseList = this.reparseList;
-    this.reparseList = [];
+    const outerReparseList = this.reparseList;
+    const depth = ++this.reparseDepth;
+    if (depth === this.reparseLists.length) this.reparseLists.push([]);
+    const reparseList = this.reparseLists[depth]!;
+    this.reparseList = reparseList;
     const list: Node[] = [];
     while (!this.isListTerminator(kind)) {
       if (this.isListElement(kind, false)) {
         const elt = this.parseListElement(element, list.length);
-        if (this.reparseList.length !== 0) {
-          for (const e of this.reparseList) {
+        if (reparseList.length !== 0) {
+          for (const e of reparseList) {
             // Propagate @typedef aliases and @import declarations to a context that permits them.
             if (
               (e.kind === SyntaxKind.JSTypeAliasDeclaration || e.kind === SyntaxKind.JSImportDeclaration) &&
               kind !== ParsingContext.SourceElements &&
               kind !== ParsingContext.BlockStatements
-            ) {
-              if (outerReparseList.length === 0) outerReparseList = [];
+            )
               outerReparseList.push(e);
-            } else list.push(e);
+            else list.push(e);
           }
-          this.reparseList = [];
+          reparseList.length = 0;
         }
         if (elt !== this.noElement) list.push(elt);
         continue;
       }
       if (this.abortParsingListOrMoveToNextToken(kind)) break;
     }
+    this.reparseDepth = depth - 1;
     this.reparseList = outerReparseList;
     this.parsingContexts = saveParsingContexts;
     return list;
