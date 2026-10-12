@@ -398,12 +398,14 @@ function executeCompile(sys: System, commandLine: ParsedCommandLine): CommandLin
             configFileName,
             config.fileNames.length > 0,
           );
-        // The program's first step (a task per root file, which looks the file up) runs while the
-        // threads load files.
+        // While the threads load files, the program's first step (a task per root file, which looks
+        // the file up) runs, and the tasks of the files they return are built ahead.
         const host = new SystemCompilerHost(sys, fs, locale);
         const loader = new FileLoader(host, config);
-        session.onIdle = () => {
-          if (loader.addRootFiles(rootFilesPerChunk)) session.onIdle = undefined;
+        let rootFilesAdded = false;
+        session.onIdle = (batch) => {
+          if (!rootFilesAdded) rootFilesAdded = loader.addRootFiles(rootFilesPerChunk);
+          loader.takeAhead(batch.files);
         };
         session.start(config.fileNames, () => done(createProgram(host, loader)));
       },

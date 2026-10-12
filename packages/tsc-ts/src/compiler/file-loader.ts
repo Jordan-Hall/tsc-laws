@@ -31,7 +31,7 @@ import {
   ModuleResolutionKind,
   type CompilerOptions,
 } from './options.js';
-import { LoadKind, type LoadJobs, preparedLoad, takePreparedFile } from './parallel-parse.js';
+import { LoadKind, type LoadJobs, type PreparedFile, preparedLoad, takePreparedFile } from './parallel-parse.js';
 import { parseSourceFile } from './parser.js';
 import { mark } from './timeline.js';
 import {
@@ -209,6 +209,14 @@ export class LoadedFile {
     readonly processingDiagnostics: ProcessingDiagnostic[],
     readonly importHelpersImportSpecifier: StringLiteral | undefined,
     readonly jsxRuntimeImport: JsxRuntimeImport | undefined,
+  ) {}
+}
+
+/** Sub-tasks of a prepared file built ahead (`FileLoader.takeAhead`), and what they were built from. */
+class SubTasksAhead {
+  constructor(
+    readonly loaded: LoadedFile,
+    readonly subTasks: ParseTask[],
   ) {}
 }
 
@@ -406,6 +414,8 @@ export class FileLoader {
   private rootContainingFile: string | undefined = undefined;
   /** Root files whose tasks `addRootFiles` added. */
   private rootFilesAdded = 0;
+  /** The sub-tasks of prepared files, by file name, built ahead by `takeAhead`. */
+  private readonly subTasksAhead = new Map<string, SubTasksAhead>();
 
   constructor(
     readonly host: CompilerHost,
@@ -442,6 +452,20 @@ export class FileLoader {
     for (let i = this.rootFilesAdded; i < end; i++) this.addRootFileTask(rootFiles[i], FileIncludeReason.rootFile(i));
     this.rootFilesAdded = end;
     return end === rootFiles.length;
+  }
+
+  /**
+   * Builds ahead what loading takes from each of `files` (`takeLoadedFile`): the main thread does
+   * this while parse threads load more files (parallel-parse.ts).
+   */
+  takeAhead(files: readonly PreparedFile[]): void {
+    for (const prepared of files) {
+      const loaded = prepared.loaded;
+      if (loaded === undefined) continue;
+      const subTasks = this.subTasksOf(loaded);
+      for (const task of subTasks) task.path = this.toPath(task.normalizedFilePath);
+      this.subTasksAhead.set(prepared.fileName, new SubTasksAhead(loaded, subTasks));
+    }
   }
 
   load(): ProcessedFiles {
@@ -777,7 +801,8 @@ export class FileLoader {
   private start(tasks: ParseTask[], depth: number): void {
     for (let i = 0; i < tasks.length; i++) {
       const task = tasks[i];
-      task.path = this.toPath(task.normalizedFilePath);
+      // Sub-tasks built ahead have their paths.
+      if (task.path === '') task.path = this.toPath(task.normalizedFilePath);
       let data = this.taskDataByPath.get(task.path);
       const loaded = data !== undefined;
       if (data === undefined) {
@@ -914,9 +939,24 @@ export class FileLoader {
 
   /** Loads `task` from what a parse thread found loading the same file (`LoadedFile`). */
   private takeLoadedFile(task: ParseTask, loaded: LoadedFile): void {
+    const ahead = this.subTasksAhead.get(task.normalizedFilePath);
+    if (ahead !== undefined && ahead.loaded === loaded) {
+      this.subTasksAhead.delete(task.normalizedFilePath);
+      task.subTasks = ahead.subTasks;
+    } else task.subTasks = this.subTasksOf(loaded);
+    for (const diagnostic of loaded.processingDiagnostics) task.processingDiagnostics.push(diagnostic.copy());
+    task.resolutionsInFile = loaded.resolutionsInFile;
+    task.typeResolutionsInFile = loaded.typeResolutionsInFile;
+    task.importHelpersImportSpecifier = loaded.importHelpersImportSpecifier;
+    task.jsxRuntimeImport = loaded.jsxRuntimeImport;
+  }
+
+  /** New tasks of the references a parse thread found loading a file. */
+  private subTasksOf(loaded: LoadedFile): ParseTask[] {
+    const subTasks: ParseTask[] = [];
     for (const reference of loaded.references) {
       const libFile = reference.libName !== '' ? this.pathForLibFile(reference.libName) : undefined;
-      task.subTasks.push(
+      subTasks.push(
         new ParseTask(
           reference.normalizedFilePath,
           libFile,
@@ -928,11 +968,7 @@ export class FileLoader {
         ),
       );
     }
-    for (const diagnostic of loaded.processingDiagnostics) task.processingDiagnostics.push(diagnostic.copy());
-    task.resolutionsInFile = loaded.resolutionsInFile;
-    task.typeResolutionsInFile = loaded.typeResolutionsInFile;
-    task.importHelpersImportSpecifier = loaded.importHelpersImportSpecifier;
-    task.jsxRuntimeImport = loaded.jsxRuntimeImport;
+    return subTasks;
   }
 
   private loadSourceFileMetadata(fileName: string): SourceFileMetadata {

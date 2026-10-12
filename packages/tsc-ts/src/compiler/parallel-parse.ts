@@ -270,8 +270,11 @@ export class ParseSession {
   /** Until `start`: root files are still being matched, and more may come. */
   private matching = true;
   private done: (() => void) | undefined = undefined;
-  /** Main-thread work done a little at a time while the threads load files: called after each chunk returns. */
-  onIdle: (() => void) | undefined = undefined;
+  /**
+   * Main-thread work done a little at a time while the threads load files: called with each batch
+   * a thread returns, once its files are available and the next chunk is out.
+   */
+  onIdle: ((batch: PreparedBatch) => void) | undefined = undefined;
 
   /**
    * Starts `count` parse threads for a program with `options`, with or without root files
@@ -370,7 +373,7 @@ export class ParseSession {
       this.idle.push(i);
     }
     this.dispatch();
-    if (!this.finished && this.onIdle !== undefined) this.onIdle();
+    if (!this.finished && this.onIdle !== undefined) this.onIdle(batch);
   }
 
   private post(i: number, chunk: LoadMessage): void {
