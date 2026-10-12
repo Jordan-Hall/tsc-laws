@@ -35,6 +35,7 @@ import {
   type TypePredicate,
   TypePredicateKind,
   type TypeReference,
+  type UnionOrIntersectionType,
   type UnionType,
   VarianceFlags,
   emptyTypes,
@@ -3745,7 +3746,7 @@ function getTypeOfPropertyInType(c: Checker, t: Type, name: string): Type {
   t = getApparentType(c, t);
   const prop =
     (t.flags & TypeFlags.UnionOrIntersection) !== 0
-      ? getPropertyOfUnionOrIntersectionType(c, t as IntersectionType, name, false)
+      ? getPropertyOfUnionOrIntersectionType(c, t as UnionOrIntersectionType, name, false)
       : getPropertyOfObjectType(c, t, name);
   if (prop !== undefined) return getTypeOfSymbol(c, prop);
   const indexInfo = getApplicableIndexInfoForName(c, t, name);
