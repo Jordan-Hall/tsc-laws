@@ -3905,7 +3905,7 @@ function isPropertyInClassDerivedFrom(c: Checker, prop: Symbol, baseClass: Type 
 /** Calls `callback` with a property, or with the underlying properties of a synthetic one, until it returns true. */
 function forEachProperty(c: Checker, prop: Symbol, callback: (p: Symbol) => boolean): boolean {
   if ((prop.checkFlags & CheckFlags.Synthetic) === 0) return callback(prop);
-  const containingType = c.symbolLinks(prop).containingType;
+  const containingType = c.symbolContainingTypes.get(getSymbolId(prop));
   if (containingType === undefined) return false;
   for (const t of typesOf(containingType)) {
     const p = getPropertyOfType(c, t, prop.name);

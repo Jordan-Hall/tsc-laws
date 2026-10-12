@@ -445,7 +445,7 @@ export function getContainersOfSymbol(
         continue;
       }
       checkExpressionCached(c, target);
-      addCandidate(c.nodeLinks(target).resolvedSymbol);
+      addCandidate(c.resolvedSymbols.get(target.id));
     }
   }
   if (candidates.length === 0) return [];

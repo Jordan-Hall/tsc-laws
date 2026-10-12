@@ -14,7 +14,7 @@ import {
   TypeQueryNode,
 } from './ast.js';
 import { Diagnostics } from './diagnostics.js';
-import { CheckFlags, type Symbol, SymbolFlags } from './symbol.js';
+import { CheckFlags, type Symbol, SymbolFlags, getSymbolId } from './symbol.js';
 import { SyntaxKind } from './syntax-kind.js';
 import type { Checker, VarianceReporting } from './checker.js';
 import {
@@ -401,7 +401,7 @@ function getObjectTypeInstantiation(
   else declaration = type.symbol!.declarations[0]!;
   const links = c.nodeLinks(declaration);
   let target: ObjectType;
-  if ((type.objectFlags & ObjectFlags.Reference) !== 0) target = links.resolvedType as ObjectType;
+  if ((type.objectFlags & ObjectFlags.Reference) !== 0) target = c.resolvedTypes.get(declaration.id) as ObjectType;
   else if ((type.objectFlags & ObjectFlags.Instantiated) !== 0) target = type.target as ObjectType;
   else target = type;
   let typeParameters = links.outerTypeParameters;
@@ -707,17 +707,19 @@ export function instantiateSignatureEx(
 }
 
 export function instantiateSymbol(c: Checker, symbol: Symbol, mapper: TypeMapper): Symbol {
-  const links = c.symbolLinks(symbol);
+  const symbolId = getSymbolId(symbol);
   if (mapper.mapsThisOnly() && isThisless(symbol)) return symbol;
   // A resolved type that can't change under instantiation keeps the symbol.
-  if (links.type !== undefined && !couldContainTypeVariables(c, links.type)) {
+  const type = c.symbolTypes.get(symbolId);
+  if (type !== undefined && !couldContainTypeVariables(c, type)) {
     if ((symbol.flags & SymbolFlags.SetAccessor) === 0) return symbol;
-    if (links.writeType !== undefined && !couldContainTypeVariables(c, links.writeType)) return symbol;
+    const writeType = c.existingSymbolLinks(symbol)?.writeType;
+    if (writeType !== undefined && !couldContainTypeVariables(c, writeType)) return symbol;
   }
   if ((symbol.checkFlags & CheckFlags.Instantiated) !== 0) {
     // Instantiate the original with combined mappers, preserving identities.
-    symbol = links.target!;
-    mapper = combineTypeMappers(c, links.mapper, mapper);
+    symbol = c.symbolTargets.get(symbolId)!;
+    mapper = combineTypeMappers(c, c.symbolMappers.get(symbolId), mapper);
   }
   const result = c.newSymbol(symbol.flags, symbol.name);
   result.checkFlags =
@@ -727,10 +729,10 @@ export function instantiateSymbol(c: Checker, symbol: Symbol, mapper: TypeMapper
   result.declarations = symbol.declarations;
   result.parent = symbol.parent;
   result.valueDeclaration = symbol.valueDeclaration;
-  const resultLinks = c.symbolLinks(result);
-  resultLinks.target = symbol;
-  resultLinks.mapper = mapper;
-  resultLinks.nameType = c.symbolLinks(symbol).nameType;
+  const id = getSymbolId(result);
+  c.symbolTargets.set(id, symbol);
+  c.symbolMappers.set(id, mapper);
+  c.symbolNameTypes.set(id, c.symbolNameTypes.get(getSymbolId(symbol)));
   return result;
 }
 
