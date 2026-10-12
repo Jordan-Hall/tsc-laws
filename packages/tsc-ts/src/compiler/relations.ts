@@ -891,6 +891,11 @@ export class Relater extends TypeComparer {
   relationCount = 0;
   /** The intersection state passed to `compare` during signature comparisons. */
   signatureIntersectionState: IntersectionState = IntersectionState.None;
+  // What `relateVariances` changes in its caller's state when it falls back to structure.
+  varianceSetsCheckFailed = false;
+  varianceCheckFailed = false;
+  varianceSetsErrorChain = false;
+  varianceErrorChain: ErrorChain | undefined = undefined;
 
   constructor(c: Checker, relation: Relation, errorNode: Node | undefined) {
     super();
@@ -1578,6 +1583,47 @@ export class Relater extends TypeComparer {
     return result;
   }
 
+  /**
+   * Relates the type arguments of `structuredTypeRelatedToWorker`'s source and target by variance:
+   * a result when variance decides, else undefined to fall back to structure, with the caller's
+   * `varianceCheckFailed` and original error chain to update in the fields above. (A method rather
+   * than a closure over the caller's locals, which native builds would allocate on every call.)
+   */
+  relateVariances(
+    sourceArgs: Type[],
+    targetArgs: Type[],
+    variances: VarianceFlags[],
+    reportErrors: boolean,
+    intersectionState: IntersectionState,
+    saveChain: ErrorChain | undefined,
+    saveRelated: Diagnostic[],
+  ): Ternary | undefined {
+    const result = this.typeArgumentsRelatedTo(sourceArgs, targetArgs, variances, reportErrors, intersectionState);
+    if (result !== Ternary.False) return result;
+    if (someVarianceHasFlags(variances, VarianceFlags.AllowsStructuralFallback)) {
+      // Unmeasurable or unreliable variance: elide variance errors and compare structurally.
+      this.varianceSetsCheckFailed = false;
+      this.varianceSetsErrorChain = true;
+      this.varianceErrorChain = undefined;
+      this.errorChain = saveChain;
+      this.relatedInfo = saveRelated;
+      return undefined;
+    }
+    const allowStructuralFallback = hasCovariantVoidArgument(targetArgs, variances);
+    this.varianceSetsCheckFailed = true;
+    this.varianceCheckFailed = !allowStructuralFallback;
+    this.varianceSetsErrorChain = false;
+    if (variances.length !== 0 && !allowStructuralFallback) {
+      // With invariant parameters, compare structurally to explain why.
+      if (!(reportErrors && someVarianceIsInvariant(variances))) return Ternary.False;
+      this.varianceSetsErrorChain = true;
+      this.varianceErrorChain = this.errorChain;
+      this.errorChain = saveChain;
+      this.relatedInfo = saveRelated;
+    }
+    return undefined;
+  }
+
   structuredTypeRelatedToWorker(
     source: Type,
     target: Type,
@@ -1590,38 +1636,6 @@ export class Relater extends TypeComparer {
     let result: Ternary = Ternary.False;
     let varianceCheckFailed = false;
     let originalErrorChain: ErrorChain | undefined;
-    const restore = (): void => {
-      this.errorChain = saveChain;
-      this.relatedInfo = saveRelated;
-    };
-    // Returns a result when decided by variance; undefined to fall back to structure.
-    const relateVariances = (
-      sourceArgs: Type[],
-      targetArgs: Type[],
-      variances: VarianceFlags[],
-    ): Ternary | undefined => {
-      result = this.typeArgumentsRelatedTo(sourceArgs, targetArgs, variances, reportErrors, intersectionState);
-      if (result !== Ternary.False) return result;
-      if (variances.some((v) => (v & VarianceFlags.AllowsStructuralFallback) !== 0)) {
-        // Unmeasurable or unreliable variance: elide variance errors and compare structurally.
-        originalErrorChain = undefined;
-        restore();
-        return undefined;
-      }
-      const allowStructuralFallback = hasCovariantVoidArgument(targetArgs, variances);
-      varianceCheckFailed = !allowStructuralFallback;
-      if (variances.length !== 0 && !allowStructuralFallback) {
-        // With invariant parameters, compare structurally to explain why.
-        if (
-          varianceCheckFailed &&
-          !(reportErrors && variances.some((v) => (v & VarianceFlags.VarianceMask) === VarianceFlags.Invariant))
-        )
-          return Ternary.False;
-        originalErrorChain = this.errorChain;
-        restore();
-      }
-      return undefined;
-    };
     if (this.relation === c.identityRelation) {
       // Flags are known to be identical.
       if ((source.flags & TypeFlags.UnionOrIntersection) !== 0) {
@@ -1726,8 +1740,19 @@ export class Relater extends TypeComparer {
         (source.alias.symbol.valueDeclaration.flags & (1 << 16)) !== 0;
       const sourceTypes = fillMissingTypeArguments(c, source.alias.typeArguments, params, minParams, inJS);
       const targetTypes = fillMissingTypeArguments(c, target.alias.typeArguments, params, minParams, inJS);
-      const varianceResult = relateVariances(sourceTypes, targetTypes, variances);
+      const varianceResult = this.relateVariances(
+        sourceTypes,
+        targetTypes,
+        variances,
+        reportErrors,
+        intersectionState,
+        saveChain,
+        saveRelated,
+      );
       if (varianceResult !== undefined) return varianceResult;
+      result = Ternary.False;
+      if (this.varianceSetsCheckFailed) varianceCheckFailed = this.varianceCheckFailed;
+      if (this.varianceSetsErrorChain) originalErrorChain = this.varianceErrorChain;
     }
     // [...U] relates where U does, and U to readonly [...T] or to [...T] for mutable array constraints.
     if (isSingleElementGenericTupleType(source) && !tupleTargetOf(source).readonly) {
@@ -1792,7 +1817,10 @@ export class Relater extends TypeComparer {
           const accessFlags = (1 << 2) | (baseObjectType !== t.objectType ? 1 << 1 : 0);
           const constraint = getIndexedAccessTypeOrUndefined(c, baseObjectType, baseIndexType, accessFlags);
           if (constraint !== undefined) {
-            if (reportErrors && originalErrorChain !== undefined) restore();
+            if (reportErrors && originalErrorChain !== undefined) {
+              this.errorChain = saveChain;
+              this.relatedInfo = saveRelated;
+            }
             result = this.isRelatedToEx(
               source,
               constraint,
@@ -1919,7 +1947,8 @@ export class Relater extends TypeComparer {
       const r = this.relateToGenericMappedType(source, target as MappedType, reportErrors);
       if (r !== Ternary.False) return r;
       originalErrorChain = this.errorChain;
-      restore();
+      this.errorChain = saveChain;
+      this.relatedInfo = saveRelated;
     }
     if ((source.flags & TypeFlags.TypeVariable) !== 0) {
       // Indexed access against indexed access is handled above.
@@ -2089,8 +2118,19 @@ export class Relater extends TypeComparer {
         // References to the same generic type relate by variance.
         const variances = getVariances(c, (source as TypeReference).target!);
         if (variances.length === 0) return Ternary.Unknown;
-        const varianceResult = relateVariances(getTypeArguments(c, source), getTypeArguments(c, target), variances);
+        const varianceResult = this.relateVariances(
+          getTypeArguments(c, source),
+          getTypeArguments(c, target),
+          variances,
+          reportErrors,
+          intersectionState,
+          saveChain,
+          saveRelated,
+        );
         if (varianceResult !== undefined) return varianceResult;
+        result = Ternary.False;
+        if (this.varianceSetsCheckFailed) varianceCheckFailed = this.varianceCheckFailed;
+        if (this.varianceSetsErrorChain) originalErrorChain = this.varianceErrorChain;
       } else if (
         isArrayType(c, target) &&
         ((isReadonlyArrayType(c, target) && everyType(source, (u) => isArrayOrTupleType(c, u))) ||
@@ -4160,6 +4200,16 @@ export function getTypeParameterModifiers(tp: Type): ModifierFlags {
   let flags = 0;
   if (tp.symbol !== undefined) for (const d of tp.symbol.declarations) flags |= getCombinedModifierFlags(d);
   return flags & (ModifierFlags.In | ModifierFlags.Out | ModifierFlags.Const);
+}
+
+function someVarianceHasFlags(variances: readonly VarianceFlags[], flags: VarianceFlags): boolean {
+  for (const v of variances) if ((v & flags) !== 0) return true;
+  return false;
+}
+
+function someVarianceIsInvariant(variances: readonly VarianceFlags[]): boolean {
+  for (const v of variances) if ((v & VarianceFlags.VarianceMask) === VarianceFlags.Invariant) return true;
+  return false;
 }
 
 function hasCovariantVoidArgument(typeArguments: readonly Type[], variances: readonly VarianceFlags[]): boolean {

@@ -319,6 +319,9 @@ function isFunctionObjectType(c: Checker, t: Type): boolean {
 }
 
 export function getTypeWithFacts(c: Checker, t: Type, include: TypeFacts): Type {
+  // Filter non-unions without a closure (as filterType would).
+  if ((t.flags & TypeFlags.Union) === 0)
+    return (t.flags & TypeFlags.Never) !== 0 || hasTypeFacts(c, t, include) ? t : c.neverType;
   return filterType(c, t, (u) => hasTypeFacts(c, u, include));
 }
 

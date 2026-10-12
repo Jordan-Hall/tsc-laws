@@ -603,7 +603,8 @@ export function resolvedPropertiesAreOptional(t: StructuredType): boolean {
     if (pending.hasRequiredOwnMembers) return false;
     if (!pending.hasBases) return true;
   }
-  return t.properties.every((p) => (p.flags & SymbolFlags.Optional) !== 0);
+  for (const p of t.properties) if ((p.flags & SymbolFlags.Optional) === 0) return false;
+  return true;
 }
 
 /** resolveObjectTypeMembers for an instantiation whose member symbols are instantiated on demand. */
@@ -1669,16 +1670,22 @@ export function findApplicableIndexInfo(
 ): IndexInfo | undefined {
   // `string` index signatures apply only when no other one does.
   let stringIndexInfo: IndexInfo | undefined;
-  const applicable: IndexInfo[] = [];
+  // The list of applicable infos is built only when more than one applies.
+  let first: IndexInfo | undefined;
+  let applicable: IndexInfo[] | undefined;
   for (const info of indexInfos) {
     if (info.keyType === c.stringType) stringIndexInfo = info;
-    else if (isApplicableIndexType(c, keyType, info.keyType)) applicable.push(info);
+    else if (isApplicableIndexType(c, keyType, info.keyType)) {
+      if (first === undefined) first = info;
+      else if (applicable === undefined) applicable = [first, info];
+      else applicable.push(info);
+    }
   }
-  if (applicable.length === 0)
+  if (first === undefined)
     return stringIndexInfo !== undefined && isApplicableIndexType(c, keyType, c.stringType)
       ? stringIndexInfo
       : undefined;
-  if (applicable.length === 1) return applicable[0]!;
+  if (applicable === undefined) return first;
   // Several apply: a synthetic info; its key type is unused.
   let isReadonly = true;
   const types: Type[] = [];
