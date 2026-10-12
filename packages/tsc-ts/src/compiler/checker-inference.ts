@@ -229,13 +229,18 @@ const enum ExpandingFlags {
   Both = 3,
 }
 
+// Shared empty candidate lists: an InferenceInfo gets its own on its first candidate, as tsgo's nil
+// slices do. Never changed.
+const noCandidates: Type[] = [];
+const noCandidateDepths: number[] = [];
+
 /** Inferences for one type parameter. */
 export class InferenceInfo {
   readonly typeParameter: Type;
   /** Covariant candidates, in decreasing depth order. */
-  candidates: Type[] = [];
-  candidateDepths: number[] = [];
-  contraCandidates: Type[] = [];
+  candidates: Type[] = noCandidates;
+  candidateDepths: number[] = noCandidateDepths;
+  contraCandidates: Type[] = noCandidates;
   inferredType: Type | undefined = undefined;
   priority: InferencePriority = InferencePriority.MaxValue;
   /** Whether all inferences are to top-level occurrences. */
@@ -249,9 +254,11 @@ export class InferenceInfo {
 
   clone(): InferenceInfo {
     const info = new InferenceInfo(this.typeParameter);
-    info.candidates = this.candidates.slice();
-    info.candidateDepths = this.candidateDepths.slice();
-    info.contraCandidates = this.contraCandidates.slice();
+    if (this.candidates.length !== 0) {
+      info.candidates = this.candidates.slice();
+      info.candidateDepths = this.candidateDepths.slice();
+    }
+    if (this.contraCandidates.length !== 0) info.contraCandidates = this.contraCandidates.slice();
     info.inferredType = this.inferredType;
     info.priority = this.priority;
     info.topLevel = this.topLevel;
@@ -658,9 +665,9 @@ class InferenceState {
       const candidate = this.propagationType ?? source;
       if (candidate === c.blockedStringType) return;
       if (this.priority < inference.priority) {
-        inference.candidates = [];
-        inference.candidateDepths = [];
-        inference.contraCandidates = [];
+        inference.candidates = noCandidates;
+        inference.candidateDepths = noCandidateDepths;
+        inference.contraCandidates = noCandidates;
         inference.topLevel = true;
         inference.priority = this.priority;
       }
@@ -668,6 +675,7 @@ class InferenceState {
         // Contravariant inferences only in purely contravariant positions.
         if (this.contravariant && !this.bivariant) {
           if (!inference.contraCandidates.includes(candidate)) {
+            if (inference.contraCandidates === noCandidates) inference.contraCandidates = [];
             inference.contraCandidates.push(candidate);
             clearCachedInferences(this.inferences);
           }
@@ -677,6 +685,10 @@ class InferenceState {
             if (index >= 0) {
               inference.candidates.splice(index, 1);
               inference.candidateDepths.splice(index, 1);
+            }
+            if (inference.candidates === noCandidates) {
+              inference.candidates = [];
+              inference.candidateDepths = [];
             }
             // Keep candidates with the highest depth first.
             index = 0;
