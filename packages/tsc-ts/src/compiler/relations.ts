@@ -222,22 +222,79 @@ export const enum RelationComparisonResult {
   Overflow = ComplexityOverflow | StackDepthOverflow,
 }
 
-/** Cached results of one relation, by relation key. */
-/** Relation results by numeric relation key (see getRelationKey). */
+/**
+ * Cached results of one relation by numeric relation key (see getRelationKey): an open-addressing
+ * table of keys and one-byte results. Keys are never 0 (packed keys are positive, interned ones
+ * negative), so 0 marks a free slot. At 3/8 to 3/4 full it takes about 16 bytes per result, where a
+ * Map takes about 40 (a 24-byte entry, its share of the bucket table and of the spare capacity);
+ * relations are most of a checker's tables on programs with many structural comparisons.
+ */
 export class Relation {
-  private readonly results = new Map<number, number>();
+  private keys = new Float64Array(64);
+  private results = new Uint8Array(64);
+  private count = 0;
 
   get(key: number): number {
-    return this.results.get(key) ?? RelationComparisonResult.None;
+    const keys = this.keys;
+    const mask = keys.length - 1;
+    for (let i = relationSlot(key) & mask; ; i = (i + 1) & mask) {
+      const k = keys[i]!;
+      if (k === key) return this.results[i]!;
+      if (k === 0) return RelationComparisonResult.None;
+    }
   }
 
   set(key: number, result: number): void {
-    this.results.set(key, result);
+    const keys = this.keys;
+    const mask = keys.length - 1;
+    for (let i = relationSlot(key) & mask; ; i = (i + 1) & mask) {
+      const k = keys[i]!;
+      if (k === key) {
+        this.results[i] = result;
+        return;
+      }
+      if (k === 0) {
+        keys[i] = key;
+        this.results[i] = result;
+        this.count++;
+        if (this.count * 4 > keys.length * 3) this.grow();
+        return;
+      }
+    }
   }
 
   size(): number {
-    return this.results.size;
+    return this.count;
   }
+
+  private grow(): void {
+    const oldKeys = this.keys;
+    const oldResults = this.results;
+    const keys = new Float64Array(oldKeys.length * 2);
+    const results = new Uint8Array(oldKeys.length * 2);
+    const mask = keys.length - 1;
+    for (let j = 0; j < oldKeys.length; j++) {
+      const key = oldKeys[j]!;
+      if (key === 0) continue;
+      let i = relationSlot(key) & mask;
+      while (keys[i] !== 0) i = (i + 1) & mask;
+      keys[i] = key;
+      results[i] = oldResults[j]!;
+    }
+    this.keys = keys;
+    this.results = results;
+  }
+}
+
+/**
+ * The hash of a relation key, an integer of at most 53 bits: its low 24 bits (a type id in packed
+ * keys) mixed with the rest, both small enough for int32 arithmetic.
+ */
+function relationSlot(key: number): number {
+  const high = Math.floor(key / 16777216);
+  const low = key - high * 16777216;
+  const h = Math.imul((high | 0) ^ Math.imul(low | 0, 0x9e3779b1 | 0), 0x85ebca6b | 0);
+  return h ^ (h >>> 15);
 }
 
 const enum RecursionFlags {
