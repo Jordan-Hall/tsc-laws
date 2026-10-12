@@ -1386,7 +1386,16 @@ export function getPropertyOfUnionOrIntersectionType(
   return prop !== undefined && (prop.checkFlags & CheckFlags.ReadPartial) !== 0 ? undefined : prop;
 }
 
-/** The (possibly partial) property `name` of a union or intersection, cached on the type. */
+/**
+ * The (possibly partial) property `name` of a union or intersection, cached on the type.
+ *
+ * Non-partial results without the Object/Function augment also serve lookups with it (tsgo copies
+ * them into the augmented cache unless it already has the name). The augmented cache keeps only
+ * its own results and a miss there falls back to the other cache, which answers exactly what the
+ * copy would have: a name is in the augmented cache whenever a non-partial copy was skipped. This
+ * keeps intersections, which resolve every property without the augment, from holding each
+ * property twice.
+ */
 export function getUnionOrIntersectionProperty(
   c: Checker,
   t: UnionOrIntersectionType,
@@ -1396,6 +1405,10 @@ export function getUnionOrIntersectionProperty(
   let cache = skipObjectFunctionPropertyAugment ? t.propertyCacheWithoutFunctionPropertyAugment : t.propertyCache;
   const cached = cache?.get(name);
   if (cached !== undefined) return cached;
+  if (!skipObjectFunctionPropertyAugment) {
+    const withoutAugment = t.propertyCacheWithoutFunctionPropertyAugment?.get(name);
+    if (withoutAugment !== undefined && (withoutAugment.checkFlags & CheckFlags.Partial) === 0) return withoutAugment;
+  }
   const prop = createUnionOrIntersectionProperty(c, t, name, skipObjectFunctionPropertyAugment);
   if (prop !== undefined) {
     if (cache === undefined) {
@@ -1404,15 +1417,6 @@ export function getUnionOrIntersectionProperty(
       else t.propertyCache = cache;
     }
     cache.set(name, prop);
-    // Non-partial results also serve the augmented cache.
-    if (skipObjectFunctionPropertyAugment && (prop.checkFlags & CheckFlags.Partial) === 0) {
-      let augmented = t.propertyCache;
-      if (augmented === undefined) {
-        augmented = new Map<string, Symbol>();
-        t.propertyCache = augmented;
-      }
-      if (!augmented.has(name)) augmented.set(name, prop);
-    }
   }
   return prop;
 }
