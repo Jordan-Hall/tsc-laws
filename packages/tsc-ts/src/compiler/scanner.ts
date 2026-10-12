@@ -346,10 +346,14 @@ function isASCIIIdentifierPart(c: number): boolean {
   );
 }
 
-/** FNV-1a over a range's code units. */
+/** FNV-1a over a range's code units. The identifier scan computes the same hash as it goes. */
 function rangeHash(chars: Uint16Array, start: number, end: number): number {
   let hash = 0x811c9dc5 | 0;
   for (let i = start | 0; i < end; i = (i + 1) | 0) hash = Math.imul(hash ^ (chars[i] | 0), 0x01000193);
+  return finishHash(hash);
+}
+
+function finishHash(hash: number): number {
   return hash ^ (hash >>> 15);
 }
 
@@ -358,11 +362,12 @@ class IdentifierTable {
   private text: string;
   // Pairs of (entry index + 1, hash) per slot, (0, 0) when empty; linear probing.
   private slots: Int32Array;
-  // Each entry's code units, at `offsets[entry]` in `units`: compact, so probes stay in cache.
+  // Each entry's code units, at its offset in `units`: compact, so probes stay in cache.
   private units: Uint16Array;
   private unitCount: number;
-  private offsets: Int32Array;
-  private lengths: Int32Array;
+  // Pairs of (offset in `units`, length) per entry: one array for both, so a lookup reads (and, in
+  // native builds, retains) one array less.
+  private ranges: Int32Array;
   private texts: string[];
   private count: number;
   // Per entry: 1 once its text was recorded among the file's identifier texts (`markRecorded`).
@@ -375,8 +380,7 @@ class IdentifierTable {
     this.slots = new Int32Array(512);
     this.units = new Uint16Array(1024);
     this.unitCount = 0;
-    this.offsets = new Int32Array(128);
-    this.lengths = new Int32Array(128);
+    this.ranges = new Int32Array(256);
     this.texts = [];
     this.count = 0;
     this.recorded = new Uint8Array(128);
@@ -407,45 +411,46 @@ class IdentifierTable {
     this.lastEntry = -1;
   }
 
-  /** `text.substring(start, end)`, or the string interned for an equal range. */
-  intern(chars: Uint16Array, start: number, end: number): string {
+  /** `text.substring(start, end)`, or the string interned for an equal range; `hash` is its `rangeHash`. */
+  intern(chars: Uint16Array, start: number, end: number, hash: number): string {
     start = start | 0;
     end = end | 0;
+    hash = hash | 0;
     const length = (end - start) | 0;
-    const hash = rangeHash(chars, start, end);
     const slots = this.slots;
     const mask = ((slots.length >> 1) - 1) | 0;
     let slot = hash & mask;
     for (;;) {
       const entry = slots[(slot * 2) | 0] | 0;
       if (entry === 0) break;
-      if ((slots[(slot * 2 + 1) | 0] | 0) === hash && (this.lengths[(entry - 1) | 0] | 0) === length) {
-        const units = this.units;
-        const offset = this.offsets[(entry - 1) | 0] | 0;
-        let i = 0;
-        while (i < length && (units[(offset + i) | 0] | 0) === (chars[(start + i) | 0] | 0)) i = (i + 1) | 0;
-        if (i === length) {
-          this.lastEntry = (entry - 1) | 0;
-          return this.texts[(entry - 1) | 0]!;
+      if ((slots[(slot * 2 + 1) | 0] | 0) === hash) {
+        const ranges = this.ranges;
+        const at = ((entry - 1) * 2) | 0;
+        if ((ranges[(at + 1) | 0] | 0) === length) {
+          const units = this.units;
+          const offset = ranges[at] | 0;
+          let i = 0;
+          while (i < length && (units[(offset + i) | 0] | 0) === (chars[(start + i) | 0] | 0)) i = (i + 1) | 0;
+          if (i === length) {
+            this.lastEntry = (entry - 1) | 0;
+            return this.texts[(entry - 1) | 0]!;
+          }
         }
       }
       slot = (slot + 1) & mask;
     }
     const value = this.text.substring(start, end);
-    const index = this.count;
-    if (index === this.offsets.length) {
-      const offsets = new Int32Array(index * 2);
-      offsets.set(this.offsets);
-      this.offsets = offsets;
-      const lengths = new Int32Array(index * 2);
-      lengths.set(this.lengths);
-      this.lengths = lengths;
+    const index = this.count | 0;
+    if (index * 2 === this.ranges.length) {
+      const ranges = new Int32Array(index * 4);
+      ranges.set(this.ranges);
+      this.ranges = ranges;
       const recorded = new Uint8Array(index * 2);
       recorded.set(this.recorded);
       this.recorded = recorded;
     }
     let units = this.units;
-    const offset = this.unitCount;
+    const offset = this.unitCount | 0;
     if (offset + length > units.length) {
       units = new Uint16Array(Math.max(units.length * 2, offset + length));
       units.set(this.units);
@@ -453,13 +458,13 @@ class IdentifierTable {
     }
     units.set(chars.subarray(start, end), offset);
     this.unitCount = (offset + length) | 0;
-    this.offsets[index] = offset;
-    this.lengths[index] = length;
+    this.ranges[(index * 2) | 0] = offset;
+    this.ranges[(index * 2 + 1) | 0] = length;
     this.texts.push(value);
     this.count = (index + 1) | 0;
     this.lastEntry = index;
-    slots[slot * 2] = index + 1;
-    slots[slot * 2 + 1] = hash;
+    slots[(slot * 2) | 0] = (index + 1) | 0;
+    slots[(slot * 2 + 1) | 0] = hash;
     if (this.count * 2 > mask + 1) this.slots = rehash(slots);
     return value;
   }
@@ -612,6 +617,10 @@ export class Scanner {
   /** @internal */ tokenValue: string;
   /** @internal */ valueStart: number;
   /** @internal */ valueEnd: number;
+  // `rangeHash` of `chars[hashStart, hashEnd)`, which the ASCII identifier scan computes as it goes.
+  private valueHash: number;
+  private hashStart: number;
+  private hashEnd: number;
   /** @internal */ commentDirectives: CommentDirective[];
   /** @internal */ skipJSDocLeadingAsterisks: number;
   // The code units zeroed by `setTextEnd`.
@@ -634,6 +643,9 @@ export class Scanner {
     this.tokenValue = '';
     this.valueStart = -1;
     this.valueEnd = -1;
+    this.valueHash = 0;
+    this.hashStart = -1;
+    this.hashEnd = -1;
     this.commentDirectives = [];
     this.skipJSDocLeadingAsterisks = 0;
     this.cutUnits = new Uint16Array(4);
@@ -653,6 +665,7 @@ export class Scanner {
     this.tokenFlags = TokenFlags.None;
     this.tokenValue = '';
     this.valueStart = -1;
+    this.hashStart = -1;
     this.commentDirectives = [];
     this.skipJSDocLeadingAsterisks = 0;
   }
@@ -676,6 +689,7 @@ export class Scanner {
     this.tokenFlags = TokenFlags.None;
     this.tokenValue = '';
     this.valueStart = -1;
+    this.hashStart = -1;
     this.skipJSDocLeadingAsterisks = 0;
   }
 
@@ -749,8 +763,12 @@ export class Scanner {
 
   /** @internal Like `getTokenValue`, but identifiers with the same text share one string. */
   getIdentifierValue(): string {
-    if (this.valueStart >= 0) {
-      this.tokenValue = this.identifiers.intern(this.chars, this.valueStart, this.valueEnd);
+    const start = this.valueStart;
+    if (start >= 0) {
+      const end = this.valueEnd;
+      const hash =
+        start === this.hashStart && end === this.hashEnd ? this.valueHash : rangeHash(this.chars, start, end);
+      this.tokenValue = this.identifiers.intern(this.chars, start, end, hash);
       this.valueStart = -1;
     }
     return this.tokenValue;
@@ -1381,18 +1399,25 @@ export class Scanner {
     this.pos = (this.pos + prefixLength) | 0;
     let ch = this.char();
     if (isASCIILetter(ch) || ch === CharacterCodes._ || ch === CharacterCodes.$) {
-      // Fast path for ASCII identifiers.
+      // Fast path for ASCII identifiers, which also hashes the units for interning.
       let pos = (this.pos + 1) | 0;
       const end = this.end;
+      // The FNV-1a offset basis, as in `rangeHash` (a literal: native builds load module constants).
+      let hash = 0x811c9dc5 | 0;
+      for (let i = start; i < pos; i = (i + 1) | 0) hash = Math.imul(hash ^ (chars[i] | 0), 0x01000193);
       while (pos < end) {
         const c = chars[pos] | 0;
         if (!isASCIIIdentifierPart(c)) break;
+        hash = Math.imul(hash ^ c, 0x01000193);
         pos = (pos + 1) | 0;
       }
       this.pos = pos;
       ch = pos < end ? chars[pos] | 0 : CharacterCodes.EOF;
       if (ch <= CharacterCodes.maxAsciiCharacter && ch !== CharacterCodes.backslash) {
-        this.setValueSlice(start, this.pos);
+        this.setValueSlice(start, pos);
+        this.valueHash = finishHash(hash);
+        this.hashStart = start;
+        this.hashEnd = pos;
         return true;
       }
       this.pos = (start + prefixLength) | 0;
