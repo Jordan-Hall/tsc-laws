@@ -172,40 +172,43 @@ export class DiagnosticFile {
       this.computeCaches();
       return;
     }
-    const length = text.length | 0;
+    const length = text.length;
     const lineStarts: number[] = [0];
     const starts: number[] = [];
     const lengths = this.nonASCIILengths;
     const extraBytes = this.extraBytes;
     let extra = 0;
-    let pos = 0;
-    while (pos < length) {
-      const ch = units[pos] | 0;
-      pos = (pos + 1) | 0;
+    // The body never moves `i`, so native builds keep it an integer: a CR followed by an LF leaves
+    // the line start to the LF, and the low half of a surrogate pair is skipped by looking back.
+    for (let i = 0; i < length; i++) {
+      const ch = units[i] | 0;
       if (ch > CharacterCodes.carriageReturn && ch < 0x80) continue;
       if (ch < 0x80) {
-        if (ch === CharacterCodes.lineFeed) {
-          lineStarts.push(pos);
-        } else if (ch === CharacterCodes.carriageReturn) {
-          if (pos < length && (units[pos] | 0) === CharacterCodes.lineFeed) pos = (pos + 1) | 0;
-          lineStarts.push(pos);
-        }
+        if (
+          ch === CharacterCodes.lineFeed ||
+          (ch === CharacterCodes.carriageReturn && (i + 1 >= length || (units[i + 1] | 0) !== CharacterCodes.lineFeed))
+        )
+          lineStarts.push(i + 1);
         continue;
       }
       // The UTF-8 length of the character; a lone surrogate is encoded as U+FFFD, in 3 bytes.
       let size = 3;
       if (ch < 0x800) {
         size = 2;
-      } else if (ch >= 0xd800 && ch <= 0xdbff && pos < length) {
-        const low = units[pos] | 0;
-        if (low >= 0xdc00 && low <= 0xdfff) size = 4;
+      } else if (ch >= 0xd800 && ch <= 0xdbff) {
+        if (i + 1 < length) {
+          const low = units[i + 1] | 0;
+          if (low >= 0xdc00 && low <= 0xdfff) size = 4;
+        }
+      } else if (ch >= 0xdc00 && ch <= 0xdfff && i > 0) {
+        const high = units[i - 1] | 0;
+        if (high >= 0xd800 && high <= 0xdbff) continue;
       }
-      starts.push((pos - 1) | 0);
+      starts.push(i);
       lengths.push(size);
       extra = (extra + (size === 4 ? 2 : size - 1)) | 0;
       extraBytes.push(extra);
-      if (size === 4) pos = (pos + 1) | 0;
-      else if (ch === CharacterCodes.lineSeparator || ch === CharacterCodes.paragraphSeparator) lineStarts.push(pos);
+      if (ch === CharacterCodes.lineSeparator || ch === CharacterCodes.paragraphSeparator) lineStarts.push(i + 1);
     }
     this.lineStarts = lineStarts;
     this.nonASCIIStarts = starts;
