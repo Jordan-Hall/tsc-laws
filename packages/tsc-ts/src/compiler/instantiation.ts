@@ -42,6 +42,7 @@ import {
   emptyTypes,
   newTypeMapper,
   SimpleTypeMapper,
+  TypeListCache,
 } from './checker-types.js';
 import {
   IntersectionFlags,
@@ -55,9 +56,9 @@ import {
   getTypeArguments,
   getUnionTypeEx,
   newObjectType,
-  typeListKey,
   aliasKey,
   typesOf,
+  typeListHash,
 } from './checker-type-factory.js';
 import { getOuterTypeParameters } from './checker-declared-types.js';
 import { getSymbolFromTypeReference, getResolvedSymbolOfIdentifier } from './checker-type-nodes.js';
@@ -434,14 +435,15 @@ function getObjectTypeInstantiation(
   for (const tp of typeParameters) typeArguments.push(combinedMapper.map(tp));
   const newAlias = alias ?? instantiateTypeAlias(c, type.alias, mapper);
   const singleSignature = (type.objectFlags & ObjectFlags.SingleSignatureType) !== 0;
-  const key = typeListKey(typeArguments) + aliasKey(newAlias) + (singleSignature ? '!' : '');
+  const tag = singleSignature ? 1 : 0;
+  const hash = typeListHash(typeArguments, newAlias, tag);
   let instantiations = target.instantiations;
   if (instantiations === undefined) {
-    instantiations = new Map<string, Type>();
-    instantiations.set(typeListKey(typeParameters) + aliasKey(target.alias), target);
+    instantiations = new TypeListCache<Type>();
+    instantiations.set(typeListHash(typeParameters, target.alias, 0), typeParameters, target.alias, 0, target);
     target.instantiations = instantiations;
   }
-  let result = instantiations.get(key);
+  let result = instantiations.get(hash, typeArguments, newAlias, tag);
   if (result === undefined) {
     let newMapper = newTypeMapper(typeParameters, typeArguments);
     if ((target.objectFlags & ObjectFlags.SingleSignatureType) !== 0)
@@ -457,7 +459,7 @@ function getObjectTypeInstantiation(
     else if ((target.objectFlags & ObjectFlags.Mapped) !== 0)
       result = instantiateMappedType(c, target as MappedType, newMapper, newAlias);
     else result = instantiateAnonymousType(c, target, newMapper, newAlias);
-    instantiations.set(key, result);
+    instantiations.set(hash, typeArguments, newAlias, tag, result);
     if (
       (result.flags & TypeFlags.ObjectFlagsType) !== 0 &&
       (result.objectFlags & ObjectFlags.CouldContainTypeVariablesComputed) === 0

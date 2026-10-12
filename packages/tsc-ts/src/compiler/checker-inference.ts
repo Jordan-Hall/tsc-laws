@@ -2257,6 +2257,8 @@ export class InferenceCaches {
   readonly inferenceContexts: (InferenceContext | undefined)[] = [];
   readonly optionalCallSignatures = new Map<Signature, Map<string, Signature>>();
   readonly discriminatedContextualTypes = new Map<string, Type>();
+  /** `discriminatedContextualTypes` by node and type id packed into one number, when they fit. */
+  readonly discriminatedContextualTypesById = new Map<number, Type>();
   readonly contextFreeTypes = new Map<Node, Type>();
   readonly reverseMapped = new Map<string, Type | undefined>();
   readonly reverseHomomorphicMapped = new Map<string, Type | undefined>();

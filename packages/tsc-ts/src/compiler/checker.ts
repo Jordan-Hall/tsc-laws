@@ -66,6 +66,7 @@ import {
   TypePredicateKind,
   emptyTypes,
   VarianceFlags,
+  TypeListCache,
 } from './checker-types.js';
 import {
   createArrayType,
@@ -344,13 +345,15 @@ export class Checker {
   readonly unionTypesByHash = new Map<number, Type>();
   readonly unionTypes = new Map<string, Type>();
   readonly unionOfUnionTypes = new Map<string, Type>();
-  readonly intersectionTypes = new Map<string, Type>();
+  /** `unionOfUnionTypes` without an alias, by both ids and the reduction packed into one number. */
+  readonly unionOfUnionTypesById = new Map<number, Type>();
+  readonly intersectionTypes = new TypeListCache<Type>();
   readonly tupleTypes = new Map<string, Type>();
   readonly indexedAccessTypes = new Map<string, Type>();
   readonly templateLiteralTypes = new Map<string, Type>();
   readonly stringMappingTypes = new Map<string, Type>();
   readonly substitutionTypes = new Map<string, Type>();
-  readonly subtypeReductionCache = new Map<string, Type[]>();
+  readonly subtypeReductionCache = new TypeListCache<Type[]>();
   readonly cachedTypes = new Map<string, Type>();
   /** Cached types by `cachedTypeKey` and by `cachedTypePairKey`, without spelled keys. */
   readonly cachedTypesById = new Map<number, Type>();
@@ -668,7 +671,7 @@ export class Checker {
       ? getUnionType(this, [this.undefinedType, this.nullType, this.unknownEmptyObjectType])
       : this.unknownType;
     this.emptyGenericType = newAnonymousType(this, undefined);
-    this.emptyGenericType.instantiations = new Map<string, Type>();
+    this.emptyGenericType.instantiations = new TypeListCache<Type>();
     this.anyFunctionType = newAnonymousType(this, undefined);
     this.anyFunctionType.objectFlags |= ObjectFlags.NonInferrableType;
     this.noConstraintType = newAnonymousType(this, undefined);
@@ -918,6 +921,7 @@ export function disposeChecker(c: Checker): void {
   c.unionTypesByHash.clear();
   c.unionTypes.clear();
   c.unionOfUnionTypes.clear();
+  c.unionOfUnionTypesById.clear();
   c.intersectionTypes.clear();
   c.tupleTypes.clear();
   c.indexedAccessTypes.clear();

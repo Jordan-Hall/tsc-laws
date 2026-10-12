@@ -984,11 +984,28 @@ export function getApparentTypeOfContextualTypeEx(
   return apparentType;
 }
 
+/** Node ids below this and type ids below `PairTypeIdLimit` pack into one exact number. */
+const PairNodeIdLimit = 1 << 29;
+const PairTypeIdLimit = 1 << 24;
+
+function getDiscriminatedContextualType(c: Checker, nodeId: number, t: Type): Type | undefined {
+  const caches = c.inferenceCaches;
+  return nodeId < PairNodeIdLimit && t.id < PairTypeIdLimit
+    ? caches.discriminatedContextualTypesById.get(nodeId * PairTypeIdLimit + t.id)
+    : caches.discriminatedContextualTypes.get(nodeId + ',' + t.id);
+}
+
+function setDiscriminatedContextualType(c: Checker, nodeId: number, t: Type, value: Type): void {
+  const caches = c.inferenceCaches;
+  if (nodeId < PairNodeIdLimit && t.id < PairTypeIdLimit)
+    caches.discriminatedContextualTypesById.set(nodeId * PairTypeIdLimit + t.id, value);
+  else caches.discriminatedContextualTypes.set(nodeId + ',' + t.id, value);
+}
+
 /** The constituents of a union contextual type an object literal's discriminant members select. */
 function discriminateContextualTypeByObjectMembers(c: Checker, node: Node, contextualType: UnionType): Type {
-  const key = getNodeId(node) + ',' + contextualType.id;
-  const cache = c.inferenceCaches.discriminatedContextualTypes;
-  const cached = cache.get(key);
+  const nodeId = getNodeId(node);
+  const cached = getDiscriminatedContextualType(c, nodeId, contextualType);
   if (cached !== undefined) return cached;
   let discriminated = getMatchingUnionConstituentForObjectLiteral(c, contextualType, node);
   if (discriminated === undefined) {
@@ -1014,14 +1031,13 @@ function discriminateContextualTypeByObjectMembers(c: Checker, node: Node, conte
     );
     discriminated = discriminateTypeByObjectLiteral(c, contextualType, props, members);
   }
-  cache.set(key, discriminated);
+  setDiscriminatedContextualType(c, nodeId, contextualType, discriminated);
   return discriminated;
 }
 
 function discriminateContextualTypeByJSXAttributes(c: Checker, node: Node, contextualType: UnionType): Type {
-  const key = getNodeId(node) + ',' + contextualType.id;
-  const cache = c.inferenceCaches.discriminatedContextualTypes;
-  const cached = cache.get(key);
+  const nodeId = getNodeId(node);
+  const cached = getDiscriminatedContextualType(c, nodeId, contextualType);
   if (cached !== undefined) return cached;
   const childrenPropertyName = getJsxElementChildrenPropertyName(c, getJsxNamespaceAt(c, node));
   const props: Node[] = [];
@@ -1052,7 +1068,7 @@ function discriminateContextualTypeByJSXAttributes(c: Checker, node: Node, conte
     );
   });
   const discriminated = discriminateTypeByObjectLiteral(c, contextualType, props, members);
-  cache.set(key, discriminated);
+  setDiscriminatedContextualType(c, nodeId, contextualType, discriminated);
   return discriminated;
 }
 
