@@ -4,7 +4,7 @@
  */
 import type { Node, SourceFile } from './ast.js';
 import type { Diagnostic } from './diagnostics.js';
-import { EmitHost, EmitOnly, EmitResult, emitFiles, skippedWrite } from './emitter.js';
+import { EmitHost, EmitOnly, EmitResult, emitFiles, skippedWrite, sourceFileMayBeEmitted } from './emitter.js';
 import { Resolver } from './module-resolution.js';
 import { getEmitDeclarations, type CompilerOptions, type ModuleKind } from './options.js';
 import type { Program } from './program.js';
@@ -137,6 +137,16 @@ export class ProgramEmitter {
   }
 
   emit(files: readonly SourceFile[], emitOnly: EmitOnly, writer: OutputWriter): EmitResult {
+    // Where `emitFiles` would emit nothing, it is not given a host, whose resolvers index every file.
+    const options = this.program.options;
+    if (
+      (options.noEmit === true && emitOnly !== EmitOnly.ForcedDts) ||
+      !files.some((file) => sourceFileMayBeEmitted(file, options))
+    ) {
+      const result = new EmitResult();
+      result.emitSkipped = options.noEmit === true && emitOnly !== EmitOnly.ForcedDts;
+      return result;
+    }
     const host = this.getHost();
     host.writer = writer;
     const result = emitFiles(host, files, emitOnly);
