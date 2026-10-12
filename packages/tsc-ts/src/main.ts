@@ -6,6 +6,7 @@ import { runServer } from './api/server.js';
 import { reserveNodeIds, shareNodeIds } from './compiler/ast.js';
 import { CheckerResult, checkFromQueue, parallelCheck } from './compiler/parallel-check.js';
 import { type LoadMessage, parallelParse } from './compiler/parallel-parse.js';
+import { useThreadTextCaches } from './compiler/diagnostics.js';
 import { useLazyJSDocTable } from './compiler/parser.js';
 import { CheckedProgram } from './compiler/program-checker.js';
 import type { Program } from './compiler/program.js';
@@ -77,6 +78,7 @@ function runCheckerThread(): void {
     reserveSymbolIds(job.symbolIds);
     assignSymbolIdsAtCreation();
     useLazyJSDocTable();
+    useThreadTextCaches();
     program = publish(job.program);
     mark('program received');
   } else program = programOfCommandLine(job.args, defaultLibraryPath);

@@ -21,6 +21,7 @@ import { publish } from '@scriptc/threads';
 import { type SourceFile, type ExternalModuleIndicatorOptions, lastNodeIdValue, shareNodeIds } from './ast.js';
 import type { LoadedFile } from './file-loader.js';
 import type { CompilerOptions } from './options.js';
+import { useThreadTextCaches } from './diagnostics.js';
 import { useLazyJSDocTable } from './parser.js';
 import { getNormalizedAbsolutePath } from './path.js';
 import { getDefaultLibFileName, getLibFileName } from './program-utilities.js';
@@ -247,8 +248,10 @@ export function startParallelParse(
   mark(`parse start, ${count} threads`);
   const trace = process.env.TSC_TS_CHECKERS_TRACE !== undefined;
   const verbose = process.env.TSC_TS_CHECKERS_TRACE === '3';
-  // Prepared files are published (immutable): this thread keeps lazily parsed JSDoc in a table.
+  // Prepared files are published (immutable): this thread keeps lazily parsed JSDoc, and the text
+  // caches of declaration files, in tables.
   useLazyJSDocTable();
+  useThreadTextCaches();
 
   const queue = new ParseQueue();
   const enqueue = (kind: LoadKind, name: string, depth: number, size = 0): void => queue.push(kind, name, depth, size);

@@ -792,7 +792,11 @@ export class Parser extends ScannerErrorReporter {
     }
     collectExternalModuleReferences(result);
     if (result.isJS()) result.jsDiagnostics = attachFileToDiagnostics(this.jsDiagnostics, result);
-    result.computeCaches();
+    // Declaration files get their caches on first use (in a thread's copy once they may be shared,
+    // `useThreadTextCaches`); the file's DiagnosticFile exists from here on, so reading it never
+    // writes to the file.
+    if (result.isDeclarationFile) result.diagnosticFile();
+    else result.computeCaches();
     return result;
   }
 
