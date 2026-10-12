@@ -504,7 +504,7 @@ function getInitialType(c: Checker, node: Node): Type {
 
 /** The type of an initializer: the type a variable was inferred from, else computed without caching. */
 export function getTypeOfInitializer(c: Checker, node: Node): Type {
-  return c.nodeLinks(node).resolvedType ?? getTypeOfExpression(c, node);
+  return c.resolvedTypes.get(node.id) ?? getTypeOfExpression(c, node);
 }
 
 function getInitialTypeOfBindingElement(c: Checker, node: BindingElement): Type {
@@ -766,7 +766,7 @@ function getExplicitTypeOfSymbol(c: Checker, original: Symbol): Type | undefined
     return getTypeOfSymbol(c, symbol);
   if ((symbol.flags & (SymbolFlags.Variable | SymbolFlags.Property)) !== 0) {
     if ((symbol.checkFlags & CheckFlags.Mapped) !== 0) {
-      const origin = c.symbolLinks(symbol).syntheticOrigin;
+      const origin = c.symbolSyntheticOrigins.get(getSymbolId(symbol));
       if (origin !== undefined && getExplicitTypeOfSymbol(c, origin) !== undefined) return getTypeOfSymbol(c, symbol);
     }
     const declaration = symbol.valueDeclaration;
@@ -2298,7 +2298,7 @@ export function isConstantReference(c: Checker, node: Node): boolean {
     case SyntaxKind.PropertyAccessExpression:
     case SyntaxKind.ElementAccessExpression: {
       if (!isConstantReference(c, getExpression(node)!)) return false;
-      const symbol = c.nodeLinks(node).resolvedSymbol;
+      const symbol = c.resolvedSymbols.get(node.id);
       return symbol !== undefined && isReadonlySymbol(c, symbol);
     }
     case SyntaxKind.ObjectBindingPattern:
@@ -2581,7 +2581,11 @@ function ensureAssignmentsMarked(c: Checker, symbol: Symbol): void {
   // An enclosing function already marked everything inside it.
   let outer = parent.parent;
   while (outer !== undefined) {
-    if (isFunctionOrSourceFile(outer) && (c.nodeLinks(outer).flags & NodeCheckFlags.AssignmentsMarked) !== 0) return;
+    if (
+      isFunctionOrSourceFile(outer) &&
+      ((c.existingNodeLinks(outer)?.flags ?? 0) & NodeCheckFlags.AssignmentsMarked) !== 0
+    )
+      return;
     outer = outer.parent;
   }
   c.assignmentMarker.visitNode(parent);

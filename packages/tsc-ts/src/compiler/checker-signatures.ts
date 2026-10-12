@@ -174,8 +174,8 @@ function getAnnotatedAccessorThisParameter(accessor: Node): Symbol | undefined {
 }
 
 export function getSignatureFromDeclaration(c: Checker, declaration: Node): Signature {
-  const links = c.nodeLinks(declaration);
-  if (links.resolvedSignature !== undefined) return links.resolvedSignature;
+  const cached = c.resolvedSignatures.get(declaration.id);
+  if (cached !== undefined) return cached;
   const parameters: Symbol[] = [];
   let flags = SignatureFlags.None;
   let thisParameter: Symbol | undefined;
@@ -251,7 +251,7 @@ export function getSignatureFromDeclaration(c: Checker, declaration: Node): Sign
     undefined,
     minArgumentCount,
   );
-  links.resolvedSignature = signature;
+  c.resolvedSignatures.set(declaration.id, signature);
   return signature;
 }
 

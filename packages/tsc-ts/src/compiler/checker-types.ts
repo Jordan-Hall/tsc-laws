@@ -1096,27 +1096,17 @@ export function appendTypeMapping(mapper: TypeMapper | undefined, source: Type, 
 
 // ---- Links
 
-/** What the checker caches per symbol. */
+/**
+ * What the checker caches per symbol and rarely sets. Common values (the type, target, mapper, name type
+ * and others) are columns of `Checker` instead; see link-tables.ts.
+ */
 export class SymbolLinks {
   // Values
-  type: Type | undefined;
   writeType: Type | undefined;
-  /** For instantiated and synthetic symbols, the symbol they come from. */
-  target: Symbol | undefined;
-  mapper: TypeMapper | undefined;
-  nameType: Type | undefined;
-  /** The mapped type of a mapped type property, or the union/intersection of a synthetic property. */
-  containingType: Type | undefined;
   /** Constituents of a deferred union/intersection property type. */
   deferralParent: Type | undefined;
   deferralConstituents: Type[] | undefined;
   deferralWriteConstituents: Type[] | undefined;
-  /** For mapped type properties. */
-  keyType: Type | undefined;
-  syntheticOrigin: Symbol | undefined;
-  /** For spread properties. */
-  leftSpread: Symbol | undefined;
-  rightSpread: Symbol | undefined;
   functionOrConstructorChecked: boolean;
   // Aliases
   immediateTarget: Symbol | undefined;
@@ -1141,8 +1131,6 @@ export class SymbolLinks {
   typeParametersChecked: boolean;
   enumChecked: boolean;
   variances: VarianceFlags[] | undefined;
-  /** Bits of SymbolFlags for the meanings in which the symbol was referenced. */
-  referenceKinds: number;
   // Assignment tracking
   lastAssignmentPos: number;
   hasDefiniteAssignment: boolean;
@@ -1157,19 +1145,10 @@ export class SymbolLinks {
   reverseMappedConstraintType: Type | undefined;
 
   constructor() {
-    this.type = undefined;
     this.writeType = undefined;
-    this.target = undefined;
-    this.mapper = undefined;
-    this.nameType = undefined;
-    this.containingType = undefined;
     this.deferralParent = undefined;
     this.deferralConstituents = undefined;
     this.deferralWriteConstituents = undefined;
-    this.keyType = undefined;
-    this.syntheticOrigin = undefined;
-    this.leftSpread = undefined;
-    this.rightSpread = undefined;
     this.functionOrConstructorChecked = false;
     this.immediateTarget = undefined;
     this.aliasTarget = undefined;
@@ -1188,7 +1167,6 @@ export class SymbolLinks {
     this.typeParametersChecked = false;
     this.enumChecked = false;
     this.variances = undefined;
-    this.referenceKinds = 0;
     this.lastAssignmentPos = 0;
     this.hasDefiniteAssignment = false;
     this.isConstructorDeclaredProperty = false;
@@ -1200,16 +1178,14 @@ export class SymbolLinks {
   }
 }
 
-/** What the checker caches per node. */
+/**
+ * What the checker caches per node and rarely sets. The resolved symbol, type and signature are columns of
+ * `Checker` instead; see link-tables.ts.
+ */
 export class NodeLinks {
   flags: NodeCheckFlags;
-  /** Resolved symbol of an identifier, entity name or call. */
-  resolvedSymbol: Symbol | undefined;
-  /** Resolved type of a type node or expression. */
-  resolvedType: Type | undefined;
   /** Outer type parameters of an anonymous object type node. */
   outerTypeParameters: Type[] | undefined;
-  resolvedSignature: Signature | undefined;
   effectsSignature: Signature | undefined;
   /** Type of an assertion's operand. */
   assertionExpressionType: Type | undefined;
@@ -1242,10 +1218,7 @@ export class NodeLinks {
   constructor() {
     this.containsArgumentsReference = 0;
     this.flags = NodeCheckFlags.None;
-    this.resolvedSymbol = undefined;
-    this.resolvedType = undefined;
     this.outerTypeParameters = undefined;
-    this.resolvedSignature = undefined;
     this.effectsSignature = undefined;
     this.assertionExpressionType = undefined;
     this.contextFreeType = undefined;

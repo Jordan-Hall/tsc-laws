@@ -12,7 +12,7 @@ import {
   type ConditionalTypeNode,
 } from './ast.js';
 import { hasSyntacticModifier } from './binder-utilities.js';
-import { CheckFlags, type Symbol, SymbolFlags } from './symbol.js';
+import { CheckFlags, type Symbol, SymbolFlags, getSymbolId } from './symbol.js';
 import { SyntaxKind } from './syntax-kind.js';
 import type { Checker } from './checker.js';
 import {
@@ -1282,7 +1282,7 @@ function createEmptyObjectTypeFromStringLiteral(c: Checker, t: Type): Type {
     if ((u.flags & TypeFlags.StringLiteral) === 0) continue;
     const name = (u as LiteralType).stringValue;
     const literalProp = c.newSymbol(SymbolFlags.Property, name);
-    c.symbolLinks(literalProp).type = c.anyType;
+    c.symbolTypes.set(getSymbolId(literalProp), c.anyType);
     if (u.symbol !== undefined) {
       literalProp.declarations = u.symbol.declarations;
       literalProp.valueDeclaration = u.symbol.valueDeclaration;
@@ -1876,7 +1876,8 @@ export function resolveReverseMappedTypeMembers(c: Checker, t: ReverseMappedType
     );
     inferredProp.declarations = prop.declarations;
     const links = c.symbolLinks(inferredProp);
-    links.nameType = c.symbolLinks(prop).nameType;
+    const id = inferredProp.id;
+    c.symbolNameTypes.set(id, c.symbolNameTypes.get(getSymbolId(prop)));
     links.reverseMappedPropertyType = getTypeOfSymbol(c, prop);
     const constraintTarget = constraintType.target;
     if (
@@ -1904,15 +1905,19 @@ export function resolveReverseMappedTypeMembers(c: Checker, t: ReverseMappedType
 
 export function getTypeOfReverseMappedSymbol(c: Checker, symbol: Symbol): Type {
   const links = c.symbolLinks(symbol);
-  if (links.type === undefined)
-    links.type =
+  const id = symbol.id;
+  let type = c.symbolTypes.get(id);
+  if (type === undefined) {
+    type =
       inferReverseMappedType(
         c,
         links.reverseMappedPropertyType!,
         links.reverseMappedMappedType as MappedType,
         links.reverseMappedConstraintType as IndexType,
       ) ?? c.unknownType;
-  return links.type;
+    c.symbolTypes.set(id, type);
+  }
+  return type;
 }
 
 /** The filtering literals of an intersection constraint, e.g. `"a" | "b"` in `keyof U & ("a" | "b")`. */
@@ -2391,7 +2396,7 @@ export function getInferredTypeParameterConstraint(c: Checker, t: Type, omitType
 
 function getTypeParametersForTypeReference(c: Checker, node: Node): readonly Type[] | undefined {
   if (isErrorType(c, getTypeFromTypeNode(c, node))) return undefined;
-  const symbol = c.nodeLinks(node).resolvedSymbol;
+  const symbol = c.resolvedSymbols.get(node.id);
   if (symbol === undefined || symbol === c.unknownSymbol) return undefined;
   if ((symbol.flags & (SymbolFlags.Class | SymbolFlags.Interface)) !== 0)
     return getDeclaredTypeOfClassOrInterface(c, getMergedSymbol(c, symbol)).localTypeParameters();
