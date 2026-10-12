@@ -1166,6 +1166,9 @@ export function startParallelCheck(checked: CheckedProgram, count: number, done:
     });
   }
   mark('checkers spawned');
+  // This thread's checker (`CheckedProgram.checker`) merges the globals while the threads start.
+  void checked.checker;
+  mark('reporting checker created');
   record(checkFromQueue(checked, 0, new Int32Array(counter), order, epoch));
   ownDone = true;
   if (remaining === 0) finish();
