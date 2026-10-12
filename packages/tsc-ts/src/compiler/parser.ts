@@ -7436,28 +7436,17 @@ function hasModifierFlag(node: Node, flags: ModifierFlags): boolean {
   return modifiers !== undefined && (modifiers.modifierFlags & flags) !== 0;
 }
 
-/** The position of the next `import` or `require` at or after `start`, or -1. */
-function findImportOrRequire(text: string, start: number): number {
-  let index = Math.max(start, 0);
-  const n = text.length;
-  while (index < n) {
-    const ch = text.charCodeAt(index);
-    if (ch === CharacterCodes.i) {
-      if (text.startsWith('import', index)) return index;
-    } else if (ch === CharacterCodes.r) {
-      if (text.startsWith('require', index)) return index;
-    }
-    index++;
-  }
-  return -1;
-}
-
 /** Adds the specifiers of `import(…)` calls, `import("…")` types and, in JS files, `require(…)` calls. */
 function collectDynamicImportOrRequireCalls(file: SourceFile): void {
   const text = file.text;
   const isJavaScriptFile = isInJSFile(file);
-  let index = findImportOrRequire(text, 0);
-  while (index >= 0) {
+  // Visit every `import` and `require` in text order. Native substring searches find them faster
+  // than reading each code unit; each search resumes only once the visit has passed its match.
+  let nextImport = text.indexOf('import');
+  let nextRequire = text.indexOf('require');
+  while (nextImport >= 0 || nextRequire >= 0) {
+    const isImport = nextRequire < 0 || (nextImport >= 0 && nextImport < nextRequire);
+    const index = isImport ? nextImport : nextRequire;
     const node = getNodeAtPosition(file, index, isJavaScriptFile);
     if (isJavaScriptFile && node instanceof CallExpression && isRequireCall(node, true)) {
       file.imports.push((node as CallExpression).arguments.nodes[0]!);
@@ -7473,7 +7462,9 @@ function collectDynamicImportOrRequireCalls(file: SourceFile): void {
       if (literal !== undefined) file.imports.push(literal);
     }
     // Skip past `import` or `require`.
-    index = findImportOrRequire(text, index + (text.charCodeAt(index) === CharacterCodes.i ? 6 : 7));
+    const resume = index + (isImport ? 6 : 7);
+    if (nextImport >= 0 && nextImport < resume) nextImport = text.indexOf('import', resume);
+    if (nextRequire >= 0 && nextRequire < resume) nextRequire = text.indexOf('require', resume);
   }
 }
 
