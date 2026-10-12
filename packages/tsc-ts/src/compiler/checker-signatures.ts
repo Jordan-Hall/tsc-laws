@@ -53,8 +53,6 @@ import {
   TypeParameter,
   UnionOrIntersectionType,
   TypeListCache,
-  shortTypeListKey,
-  typeListKey,
 } from './checker-types.js';
 import {
   UnionReduction,
@@ -72,6 +70,7 @@ import {
   setStructuredTypeMembers,
   someType,
   tupleTargetOf,
+  typeListHash,
 } from './checker-type-factory.js';
 import {
   getMergedSymbol,
@@ -729,12 +728,11 @@ export function getSignatureInstantiationWithoutFillingInTypeArguments(
     instantiations = new TypeListCache<Signature>();
     sig.instantiations = instantiations;
   }
-  const short = shortTypeListKey(typeArguments);
-  const key = short < 0 ? typeListKey(typeArguments) : '';
-  let instantiation = instantiations.get(short, key);
+  const hash = typeListHash(typeArguments, undefined, 0);
+  let instantiation = instantiations.get(hash, typeArguments, undefined, 0);
   if (instantiation === undefined) {
     instantiation = createSignatureInstantiation(c, sig, typeArguments);
-    instantiations.set(short, key, instantiation);
+    instantiations.set(hash, typeArguments, undefined, 0, instantiation);
   }
   return instantiation;
 }

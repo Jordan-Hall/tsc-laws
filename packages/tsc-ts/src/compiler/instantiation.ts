@@ -43,7 +43,6 @@ import {
   newTypeMapper,
   SimpleTypeMapper,
   TypeListCache,
-  typeListCacheKey,
 } from './checker-types.js';
 import {
   IntersectionFlags,
@@ -57,9 +56,9 @@ import {
   getTypeArguments,
   getUnionTypeEx,
   newObjectType,
-  typeListKey,
   aliasKey,
   typesOf,
+  typeListHash,
 } from './checker-type-factory.js';
 import { getOuterTypeParameters } from './checker-declared-types.js';
 import { getSymbolFromTypeReference, getResolvedSymbolOfIdentifier } from './checker-type-nodes.js';
@@ -436,18 +435,15 @@ function getObjectTypeInstantiation(
   for (const tp of typeParameters) typeArguments.push(combinedMapper.map(tp));
   const newAlias = alias ?? instantiateTypeAlias(c, type.alias, mapper);
   const singleSignature = (type.objectFlags & ObjectFlags.SingleSignatureType) !== 0;
-  const suffix = aliasKey(newAlias) + (singleSignature ? '!' : '');
-  const short = typeListCacheKey(typeArguments, suffix);
-  const key = short < 0 ? typeListKey(typeArguments) + suffix : '';
+  const tag = singleSignature ? 1 : 0;
+  const hash = typeListHash(typeArguments, newAlias, tag);
   let instantiations = target.instantiations;
   if (instantiations === undefined) {
     instantiations = new TypeListCache<Type>();
-    const targetSuffix = aliasKey(target.alias);
-    const targetShort = typeListCacheKey(typeParameters, targetSuffix);
-    instantiations.set(targetShort, targetShort < 0 ? typeListKey(typeParameters) + targetSuffix : '', target);
+    instantiations.set(typeListHash(typeParameters, target.alias, 0), typeParameters, target.alias, 0, target);
     target.instantiations = instantiations;
   }
-  let result = instantiations.get(short, key);
+  let result = instantiations.get(hash, typeArguments, newAlias, tag);
   if (result === undefined) {
     let newMapper = newTypeMapper(typeParameters, typeArguments);
     if ((target.objectFlags & ObjectFlags.SingleSignatureType) !== 0)
@@ -463,7 +459,7 @@ function getObjectTypeInstantiation(
     else if ((target.objectFlags & ObjectFlags.Mapped) !== 0)
       result = instantiateMappedType(c, target as MappedType, newMapper, newAlias);
     else result = instantiateAnonymousType(c, target, newMapper, newAlias);
-    instantiations.set(short, key, result);
+    instantiations.set(hash, typeArguments, newAlias, tag, result);
     if (
       (result.flags & TypeFlags.ObjectFlagsType) !== 0 &&
       (result.objectFlags & ObjectFlags.CouldContainTypeVariablesComputed) === 0

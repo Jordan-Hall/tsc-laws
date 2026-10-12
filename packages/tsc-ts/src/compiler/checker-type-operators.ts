@@ -95,6 +95,7 @@ import {
   tupleTargetOf,
   typeListKey,
   typesOf,
+  typeListHash,
 } from './checker-type-factory.js';
 import {
   appendIndexInfo,
@@ -1902,14 +1903,17 @@ export function getTypeFromConditionalTypeNode(c: Checker, node: Node): Type {
       outerTypeParameters,
       alias,
     );
-    c.resolvedTypes.set(node.id, getConditionalType(c, root, undefined, false, undefined));
-    root.instantiations.set(conditionalKey(outerTypeParameters, undefined, false), c.resolvedTypes.get(node.id)!);
+    const resolved = getConditionalType(c, root, undefined, false, undefined);
+    c.resolvedTypes.set(node.id, resolved);
+    root.instantiations.set(
+      typeListHash(outerTypeParameters, undefined, 0),
+      outerTypeParameters,
+      undefined,
+      0,
+      resolved,
+    );
   }
   return c.resolvedTypes.get(node.id)!;
-}
-
-function conditionalKey(typeArguments: Type[], alias: TypeAlias | undefined, forConstraint: boolean): string {
-  return typeListKey(typeArguments) + aliasKey(alias) + (forConstraint ? '!' : '');
 }
 
 function conditionalNode(root: ConditionalRoot): ConditionalTypeNode {
@@ -1927,8 +1931,9 @@ export function getConditionalTypeInstantiation(
   if (root.outerTypeParameters.length === 0) return t;
   const typeArguments: Type[] = [];
   for (const tp of root.outerTypeParameters) typeArguments.push(mapper.map(tp));
-  const key = conditionalKey(typeArguments, alias, forConstraint);
-  let result = root.instantiations.get(key);
+  const tag = forConstraint ? 1 : 0;
+  const hash = typeListHash(typeArguments, alias, tag);
+  let result = root.instantiations.get(hash, typeArguments, alias, tag);
   if (result === undefined) {
     const newMapper = newTypeMapper(root.outerTypeParameters, typeArguments);
     const checkType = root.checkType;
@@ -1946,7 +1951,7 @@ export function getConditionalTypeInstantiation(
         alias,
       );
     else result = getConditionalType(c, root, newMapper, forConstraint, alias);
-    root.instantiations.set(key, result);
+    root.instantiations.set(hash, typeArguments, alias, tag, result);
   }
   return result;
 }

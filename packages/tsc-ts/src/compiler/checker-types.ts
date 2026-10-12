@@ -365,89 +365,6 @@ export function cachedTypePairKey(a: number, b: number, bits: number): number {
   return a < CachedTypePairIdLimit && b < CachedTypePairIdLimit ? (a * CachedTypePairIdLimit + b) * 8 + bits : -1;
 }
 
-/**
- * An exact number for a list of at most two types with ids below 2^24 (0 for the empty list, then
- * the length in the low two bits), or -1 for other lists. Caches keyed by a type list use it instead
- * of the list's spelling (`typeListKey`), which converts every id to a string.
- */
-export function shortTypeListKey(types: readonly Type[]): number {
-  const n = types.length;
-  if (n === 0) return 0;
-  if (n > 2) return -1;
-  const a = types[0]!.id;
-  if (a >= CachedTypePairIdLimit) return -1;
-  if (n === 1) return a * 4 + 1;
-  const b = types[1]!.id;
-  return b < CachedTypePairIdLimit ? (a * CachedTypePairIdLimit + b) * 4 + 2 : -1;
-}
-
-/**
- * A cache keyed by a type list and a suffix of the key (tsgo's getTypeListKey followed by alias or
- * flag parts). Lists without a suffix that `shortTypeListKey` encodes are keyed by that number;
- * every other key is spelled as before. A key always takes the same path, so the two maps together
- * answer exactly what one map of spelled keys would.
- */
-export class TypeListCache<V> {
-  byShortKey: Map<number, V> | undefined;
-  bySpelling: Map<string, V> | undefined;
-
-  constructor() {
-    this.byShortKey = undefined;
-    this.bySpelling = undefined;
-  }
-
-  /** `short` is `shortTypeListKey` of the list when the key has no suffix, else -1; `spelling` is the spelled key when `short` is -1. */
-  get(short: number, spelling: string): V | undefined {
-    if (short >= 0) {
-      const byShortKey = this.byShortKey;
-      return byShortKey !== undefined ? byShortKey.get(short) : undefined;
-    }
-    const bySpelling = this.bySpelling;
-    return bySpelling !== undefined ? bySpelling.get(spelling) : undefined;
-  }
-
-  clear(): void {
-    this.byShortKey = undefined;
-    this.bySpelling = undefined;
-  }
-
-  /** Stores `value` for `types` without a key suffix. */
-  setList(types: readonly Type[], value: V): void {
-    const short = shortTypeListKey(types);
-    this.set(short, short < 0 ? typeListKey(types) : '', value);
-  }
-
-  set(short: number, spelling: string, value: V): void {
-    if (short >= 0) {
-      let byShortKey = this.byShortKey;
-      if (byShortKey === undefined) {
-        byShortKey = new Map<number, V>();
-        this.byShortKey = byShortKey;
-      }
-      byShortKey.set(short, value);
-    } else {
-      let bySpelling = this.bySpelling;
-      if (bySpelling === undefined) {
-        bySpelling = new Map<string, V>();
-        this.bySpelling = bySpelling;
-      }
-      bySpelling.set(spelling, value);
-    }
-  }
-}
-
-/** The spelling of a type list key (tsgo's getTypeListKey): the ids separated by commas. */
-export function typeListKey(types: readonly Type[]): string {
-  let key = '';
-  for (let i = 0; i < types.length; i++) key += (i === 0 ? '' : ',') + types[i]!.id;
-  return key;
-}
-
-/** `shortTypeListKey` of `types` when `suffix` is empty, else -1. */
-export function typeListCacheKey(types: readonly Type[], suffix: string): number {
-  return suffix === '' ? shortTypeListKey(types) : -1;
-}
-
 // ---- Types
 
 /** An alias symbol and its type arguments, for types written through a type alias. */
@@ -458,6 +375,70 @@ export class TypeAlias {
   constructor(symbol: Symbol, typeArguments: Type[]) {
     this.symbol = symbol;
     this.typeArguments = typeArguments;
+  }
+}
+
+/** One entry of a `TypeListCache`: the parts of its key, its value, and the next entry with the same hash. */
+class TypeListEntry<V> {
+  readonly types: readonly Type[];
+  readonly alias: TypeAlias | undefined;
+  readonly tag: number;
+  value: V;
+  next: TypeListEntry<V> | undefined;
+
+  constructor(types: readonly Type[], alias: TypeAlias | undefined, tag: number, value: V) {
+    this.types = types;
+    this.alias = alias;
+    this.tag = tag;
+    this.value = value;
+    this.next = undefined;
+  }
+}
+
+function sameTypeListParts(a: readonly Type[], b: readonly Type[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i]! !== b[i]!) return false;
+  return true;
+}
+
+function sameAliasParts(a: TypeAlias | undefined, b: TypeAlias | undefined): boolean {
+  if (a === undefined || b === undefined) return a === b;
+  return a.symbol === b.symbol && sameTypeListParts(a.typeArguments, b.typeArguments);
+}
+
+/**
+ * Values keyed by a list of types, an optional alias and a small tag: the keys `typeListKey(types) +
+ * aliasKey(alias)` plus a suffix spelled, without building them. A lookup takes a number hashing the
+ * parts (`typeListHash`); entries keep their parts, so a match is exact and keys sharing a hash chain.
+ * Like tsgo's hashed type list keys. A list must not change after it keys an entry.
+ */
+export class TypeListCache<V> {
+  private readonly entries = new Map<number, TypeListEntry<V>>();
+
+  get(hash: number, types: readonly Type[], alias: TypeAlias | undefined, tag: number): V | undefined {
+    for (let e = this.entries.get(hash); e !== undefined; e = e.next)
+      if (e.tag === tag && sameTypeListParts(e.types, types) && sameAliasParts(e.alias, alias)) return e.value;
+    return undefined;
+  }
+
+  set(hash: number, types: readonly Type[], alias: TypeAlias | undefined, tag: number, value: V): void {
+    const head = this.entries.get(hash);
+    if (head === undefined) {
+      this.entries.set(hash, new TypeListEntry(types, alias, tag, value));
+      return;
+    }
+    for (let e: TypeListEntry<V> | undefined = head; e !== undefined; e = e.next)
+      if (e.tag === tag && sameTypeListParts(e.types, types) && sameAliasParts(e.alias, alias)) {
+        e.value = value;
+        return;
+      }
+    const entry = new TypeListEntry(types, alias, tag, value);
+    entry.next = head.next;
+    head.next = entry;
+  }
+
+  clear(): void {
+    this.entries.clear();
   }
 }
 
@@ -1005,7 +986,7 @@ export class ConditionalRoot {
   readonly isDistributive: boolean;
   readonly inferTypeParameters: Type[];
   readonly outerTypeParameters: Type[];
-  readonly instantiations: Map<string, Type>;
+  readonly instantiations: TypeListCache<Type>;
   readonly alias: TypeAlias | undefined;
 
   constructor(
@@ -1023,7 +1004,7 @@ export class ConditionalRoot {
     this.isDistributive = isDistributive;
     this.inferTypeParameters = inferTypeParameters;
     this.outerTypeParameters = outerTypeParameters;
-    this.instantiations = new Map<string, Type>();
+    this.instantiations = new TypeListCache<Type>();
     this.alias = alias;
   }
 }
@@ -1435,7 +1416,7 @@ export class SymbolLinks {
   /** Type parameters of a type alias. */
   typeParameters: Type[] | undefined;
   /** Instantiations of a generic type alias. */
-  instantiations: TypeListCache<Type> | undefined;
+  instantiations: Map<string, Type> | undefined;
   interfaceChecked: boolean;
   indexSignaturesChecked: boolean;
   typeParametersChecked: boolean;

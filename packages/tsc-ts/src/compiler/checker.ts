@@ -95,7 +95,7 @@ import {
   mergeAmbientModulesAndAugmentations,
 } from './checker-symbols.js';
 import { PermissiveMapper, ReportingMapper, RestrictiveMapper, UniqueLiteralMapper } from './instantiation.js';
-import { Relation, RelationKey, type Relater, TypeComparer } from './relations.js';
+import { Relation, RelationKey, type InternedRelationKey, type Relater, TypeComparer } from './relations.js';
 import { TypeNodeVisitor, checkSourceFile } from './checker-source-file.js';
 import { InferenceCaches } from './checker-inference.js';
 import { AssignmentMarker, type FlowLoopInfo, type FlowState } from './checker-narrowing.js';
@@ -367,15 +367,15 @@ export class Checker {
   readonly unionTypesByHash = new Map<number, Type>();
   readonly unionTypes = new Map<string, Type>();
   readonly unionOfUnionTypes = new Map<string, Type>();
-  /** unionOfUnionTypes entries without an alias, keyed by `cachedTypePairKey` of the ids and the reduction. */
-  readonly unionOfUnionTypesByPair = new Map<number, Type>();
+  /** `unionOfUnionTypes` without an alias, by both ids and the reduction packed into one number. */
+  readonly unionOfUnionTypesById = new Map<number, Type>();
   readonly intersectionTypes = new TypeListCache<Type>();
   readonly tupleTypes = new Map<string, Type>();
   readonly indexedAccessTypes = new Map<string, Type>();
   readonly templateLiteralTypes = new Map<string, Type>();
   readonly stringMappingTypes = new Map<string, Type>();
   readonly substitutionTypes = new Map<string, Type>();
-  readonly subtypeReductionCache = new Map<string, Type[]>();
+  readonly subtypeReductionCache = new TypeListCache<Type[]>();
   readonly cachedTypes = new Map<string, Type>();
   /** Cached types by `cachedTypeKey` and by `cachedTypePairKey`, without spelled keys. */
   readonly cachedTypesById = new Map<number, Type>();
@@ -523,6 +523,10 @@ export class Checker {
   readonly relationScratchKey = new RelationKey();
   /** Numbers for relation keys that are spelled as strings (see getRelationKey). */
   readonly relationKeyIds = new Map<string, number>();
+  /** Numbers for generic relation keys spelled as tokens, by a hash of the tokens. */
+  readonly relationKeyTokens = new Map<number, InternedRelationKey>();
+  /** The number of interned relation keys of both kinds. */
+  relationKeyCount = 0;
   readonly markerTypes = new Set<Type>();
   readonly arrayVariances: VarianceFlags[] = [VarianceFlags.Covariant];
   nanLiteralType: LiteralType | undefined = undefined;
@@ -948,7 +952,7 @@ export function disposeChecker(c: Checker): void {
   c.unionTypesByHash.clear();
   c.unionTypes.clear();
   c.unionOfUnionTypes.clear();
-  c.unionOfUnionTypesByPair.clear();
+  c.unionOfUnionTypesById.clear();
   c.intersectionTypes.clear();
   c.tupleTypes.clear();
   c.indexedAccessTypes.clear();

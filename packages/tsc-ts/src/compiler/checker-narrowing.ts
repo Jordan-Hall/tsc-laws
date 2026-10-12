@@ -896,14 +896,29 @@ function getUnionOfFlowTypes(c: Checker, f: FlowState, types: Type[], reduction:
     for (const t of types) elementTypes.push(getElementTypeOfEvolvingArrayType(c, t));
     return getEvolvingArrayType(c, getUnionType(c, elementTypes));
   }
-  const finalized: Type[] = [];
-  for (const t of types) finalized.push(finalizeEvolvingArrayType(c, t));
+  // Finalizing changes only evolving arrays; without one, the list itself is unioned (getUnionTypeEx
+  // does not keep or change it).
+  let finalized = types;
+  for (const t of types)
+    if ((t.objectFlags & ObjectFlags.EvolvingArray) !== 0) {
+      finalized = [];
+      for (const u of types) finalized.push(finalizeEvolvingArrayType(c, u));
+      break;
+    }
   const result = recombineUnknownType(c, getUnionTypeEx(c, finalized, reduction, undefined, undefined));
   const declared = f.declaredType;
   if (result !== declared && (result.flags & declared.flags & TypeFlags.Union) !== 0) {
     const a = (result as UnionType).types;
     const b = (declared as UnionType).types;
-    if (a.length === b.length && a.every((t, i) => t === b[i]!)) return declared;
+    if (a.length === b.length) {
+      let same = true;
+      for (let i = 0; i < a.length; i++)
+        if (a[i]! !== b[i]!) {
+          same = false;
+          break;
+        }
+      if (same) return declared;
+    }
   }
   return result;
 }
