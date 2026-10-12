@@ -465,13 +465,12 @@ export class TypeAlias {
  * Fields that few types set, kept out of line in `Type.extra`, which is created on the first write
  * of a value other than the field's default. A type then costs one slot for all of them. Each field
  * is read and written through an accessor of the type class it belongs to, which returns the
- * default while the type has no extra fields.
+ * default while the type has no extra fields. Rare fields that hot paths read stay inline (the
+ * alias, construct signatures): a native accessor returns an owned reference, which costs reference
+ * counting on every read of a counted value.
  */
 export class TypeExtra {
-  // Type
-  alias: TypeAlias | undefined;
   // StructuredType
-  constructSignatures: Signature[];
   objectTypeWithoutAbstractConstructSignatures: Type | undefined;
   // ObjectType
   instantiations: TypeListCache<Type> | undefined;
@@ -489,8 +488,6 @@ export class TypeExtra {
   uniqueLiteralFilledInstantiation: Type | undefined;
 
   constructor() {
-    this.alias = undefined;
-    this.constructSignatures = emptySignatures;
     this.objectTypeWithoutAbstractConstructSignatures = undefined;
     this.instantiations = undefined;
     this.node = undefined;
@@ -524,6 +521,7 @@ export class Type {
   objectFlags: ObjectFlags;
   readonly id: number;
   symbol: Symbol | undefined;
+  alias: TypeAlias | undefined;
   /** For types with a computed base constraint (type variables, structured types, …). */
   resolvedBaseConstraint: Type | undefined;
   /** Rarely set fields; undefined while all of them have their defaults. */
@@ -534,17 +532,9 @@ export class Type {
     this.objectFlags = objectFlags;
     this.id = id | 0;
     this.symbol = symbol;
+    this.alias = undefined;
     this.resolvedBaseConstraint = undefined;
     this.extra = undefined;
-  }
-
-  get alias(): TypeAlias | undefined {
-    const extra = this.extra;
-    return extra !== undefined ? extra.alias : undefined;
-  }
-
-  set alias(alias: TypeAlias | undefined) {
-    if (alias !== undefined || this.extra !== undefined) typeExtra(this).alias = alias;
   }
 }
 
@@ -604,6 +594,7 @@ export class StructuredType extends Type {
   /** Set while the member symbols of an instantiated type are not instantiated yet. */
   pendingMembers: PendingMembers | undefined;
   callSignatures: Signature[];
+  constructSignatures: Signature[];
   indexInfos: IndexInfo[];
 
   constructor(flags: TypeFlags, objectFlags: ObjectFlags, id: number, symbol: Symbol | undefined) {
@@ -612,20 +603,8 @@ export class StructuredType extends Type {
     this.propertiesValue = emptySymbols;
     this.pendingMembers = undefined;
     this.callSignatures = emptySignatures;
+    this.constructSignatures = emptySignatures;
     this.indexInfos = emptyIndexInfos;
-  }
-
-  get constructSignatures(): Signature[] {
-    const extra = this.extra;
-    return extra !== undefined ? extra.constructSignatures : emptySignatures;
-  }
-
-  /**
-   * An empty list is stored only once the type has extra fields: resolved signature lists are never
-   * changed after they are set, so any empty list reads the same as `emptySignatures`.
-   */
-  set constructSignatures(signatures: Signature[]) {
-    if (signatures.length !== 0 || this.extra !== undefined) typeExtra(this).constructSignatures = signatures;
   }
 
   get objectTypeWithoutAbstractConstructSignatures(): Type | undefined {
