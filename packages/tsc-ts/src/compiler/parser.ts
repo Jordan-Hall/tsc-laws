@@ -457,7 +457,7 @@ export class Parser extends ScannerErrorReporter {
   hasDeprecatedTag: boolean;
   hasParseError: boolean;
 
-  /** Identifier and interned literal texts, in parse order with repeats. */
+  /** Identifier and interned literal texts in parse order, each identifier text once (other texts may repeat). */
   identifierTexts: string[];
   identifierCount: number;
   nodeCount: number;
@@ -5872,8 +5872,10 @@ export class Parser extends ScannerErrorReporter {
     if (isIdentifier) {
       const pos = this.scanner.hasPrecedingJSDocLeadingAsterisks() ? this.scanner.getTokenStart() : this.nodePos();
       const text = this.scanner.getIdentifierValue();
+      const record = this.scanner.recordIdentifierValue(text);
       this.nextTokenWithoutCheck();
-      const result = this.newIdentifier(this.internIdentifier(text));
+      if (record) this.identifierTexts.push(text);
+      const result = this.newIdentifier(text);
       this.finishNode(result, pos);
       return result;
     }
