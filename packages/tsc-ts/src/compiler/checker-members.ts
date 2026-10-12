@@ -1875,8 +1875,11 @@ export function isConflictingPrivateProperty(prop: Symbol): boolean {
 }
 
 export function getReducedApparentType(c: Checker, t: Type): Type {
-  // Apparent types may be unreduced, so reduce before and after.
-  return getReducedType(c, getApparentType(c, getReducedType(c, t)));
+  // Apparent types may be unreduced, so reduce before and after. Reducing is idempotent, so an
+  // apparent type that is the reduced type itself needs no second pass.
+  const reduced = getReducedType(c, t);
+  const apparent = getApparentType(c, reduced);
+  return apparent === reduced ? reduced : getReducedType(c, apparent);
 }
 
 // ---- Base constraints
