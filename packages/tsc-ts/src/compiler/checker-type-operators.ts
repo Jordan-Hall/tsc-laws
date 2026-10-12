@@ -110,6 +110,7 @@ import {
   getReducedType,
   getBaseConstraintOfType,
   getIndexTypeOfType,
+  hasPropertiesOfType,
 } from './checker-members.js';
 import {
   getLateBoundSymbol,
@@ -646,7 +647,7 @@ export function isStringIndexSignatureOnlyType(c: Checker, t: Type): boolean {
   return (
     ((t.flags & TypeFlags.Object) !== 0 &&
       !isGenericMappedType(c, t) &&
-      getPropertiesOfType(c, t).length === 0 &&
+      !hasPropertiesOfType(c, t) &&
       getIndexInfosOfType(c, t).length === 1 &&
       getIndexInfoOfType(c, t, c.stringType) !== undefined) ||
     ((t.flags & TypeFlags.UnionOrIntersection) !== 0 && everyStringIndexSignatureOnlyType(c, typesOf(t)))
