@@ -247,13 +247,17 @@ export class Program implements OutputPathsHost {
         for (const resolved of resolutions.values())
           symlinks.processResolution(resolved.originalPath, resolved.resolvedFileName);
     const seenPackageJsons = new Set<string>();
+    // Directories as spelled, once one of their files got past the checks below: every file of a
+    // package names its directory the same, and its path need not be computed again.
+    const seenDirectories = new Set<string>();
     const resolver = this.processed.resolver;
     for (const [path, metadata] of this.processed.sourceFileMetadata) {
       const directory = metadata.packageJsonDirectory;
-      if (directory === '') continue;
+      if (directory === '' || seenDirectories.has(directory)) continue;
       const file = this.getSourceFileByPath(path);
       if (file === undefined || !this.sourceFileMayBeEmitted(file, false)) continue;
       const directoryPath = this.toPath(directory);
+      seenDirectories.add(directory);
       if (seenPackageJsons.has(directoryPath)) continue;
       seenPackageJsons.add(directoryPath);
       const packageJsonName = combinePaths(directory, 'package.json');
