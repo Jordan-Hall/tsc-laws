@@ -419,6 +419,39 @@ export function isSimpleTypeRelatedTo(
   relation: Relation,
   reporter: Relater | undefined,
 ): boolean {
+  // Every rule below that can succeed needs one of these target flags, one of these source flags, or
+  // the wildcard source. Most pairs (objects, type parameters, intersections) have none of them; the
+  // test is small enough to inline into callers.
+  if (
+    (target.flags &
+      (TypeFlags.Any |
+        TypeFlags.Unknown |
+        TypeFlags.String |
+        TypeFlags.StringLiteral |
+        TypeFlags.Number |
+        TypeFlags.NumberLiteral |
+        TypeFlags.BigInt |
+        TypeFlags.Boolean |
+        TypeFlags.ESSymbol |
+        TypeFlags.Enum |
+        TypeFlags.EnumLiteral |
+        TypeFlags.NonPrimitive |
+        TypeFlags.Union)) ===
+      0 &&
+    (source.flags & (TypeFlags.Any | TypeFlags.Never | TypeFlags.Undefined | TypeFlags.Null)) === 0 &&
+    source !== c.wildcardType
+  )
+    return false;
+  return isSimpleTypeRelatedToWorker(c, source, target, relation, reporter);
+}
+
+function isSimpleTypeRelatedToWorker(
+  c: Checker,
+  source: Type,
+  target: Type,
+  relation: Relation,
+  reporter: Relater | undefined,
+): boolean {
   const s = source.flags;
   const t = target.flags;
   if ((t & TypeFlags.Any) !== 0 || (s & TypeFlags.Never) !== 0 || source === c.wildcardType) return true;

@@ -421,17 +421,26 @@ export function chainDiagnostic(
 /** Orders strings by code point, like Go's byte-wise comparison of UTF-8. */
 export function compareCodePoints(a: string, b: string): number {
   if (a === b) return 0;
-  const length = Math.min(a.length, b.length);
+  // Integer lengths and bound: with a double bound (Math.min, or lengths not coerced) scriptc
+  // rounds the trip count with a libm ceil call on every call.
+  const aLength = a.length | 0;
+  const bLength = b.length | 0;
+  const length = aLength < bLength ? aLength : bLength;
   for (let i = 0; i < length; i++) {
-    let x = a.charCodeAt(i);
-    let y = b.charCodeAt(i);
-    if (x === y) continue;
-    // Surrogates encode code points above every other UTF-16 unit.
-    if (x >= 0xd800 && x <= 0xdfff) x += 0x10000;
-    if (y >= 0xd800 && y <= 0xdfff) y += 0x10000;
-    return x < y ? -1 : 1;
+    const x = a.charCodeAt(i);
+    const y = b.charCodeAt(i);
+    if (x !== y) return x < 0xd800 && y < 0xd800 ? (x < y ? -1 : 1) : compareUnitsAsCodePoints(x, y);
   }
-  return a.length === b.length ? 0 : a.length < b.length ? -1 : 1;
+  // Different strings with a common prefix of the shorter one's length differ in length.
+  return aLength < bLength ? -1 : 1;
+}
+
+/** Orders two different UTF-16 units as the code points they start. */
+function compareUnitsAsCodePoints(x: number, y: number): number {
+  // Surrogates encode code points above every other UTF-16 unit.
+  if (x >= 0xd800 && x <= 0xdfff) x += 0x10000;
+  if (y >= 0xd800 && y <= 0xdfff) y += 0x10000;
+  return x < y ? -1 : 1;
 }
 
 function compareArgs(a: readonly string[], b: readonly string[]): number {
