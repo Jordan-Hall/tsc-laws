@@ -125,7 +125,8 @@ test('containsPath answers by components, also on its fast path for normalized a
   const segments = ['', '/', 'a', 'A', 'ab', 'b', '.', '..', '.a', '..a', 'a.', 'a\\b', 'src', 'src2'];
   const paths = [''];
   for (const s of segments) paths.push(s, '/' + s);
-  for (const s of segments) for (const t of segments) paths.push('/' + s + '/' + t, s + '/' + t, '/' + s + '/' + t + '/');
+  for (const s of segments)
+    for (const t of segments) paths.push('/' + s + '/' + t, s + '/' + t, '/' + s + '/' + t + '/');
   paths.push('//server/share', 'c:/a/b', 'file:///a', '/a/b/c/d', '/a/b/c/../d', '/a/./b');
   let fast = 0;
   for (const caseSensitive of [true, false])
@@ -133,7 +134,11 @@ test('containsPath answers by components, also on its fast path for normalized a
       for (const parent of paths)
         for (const child of paths) {
           const expected = byComponents(parent, child, caseSensitive, cwd);
-          assert.equal(path.containsPath(parent, child, caseSensitive, cwd), expected, `${parent} ${child} ${caseSensitive} ${cwd}`);
+          assert.equal(
+            path.containsPath(parent, child, caseSensitive, cwd),
+            expected,
+            `${parent} ${child} ${caseSensitive} ${cwd}`,
+          );
           if (expected && caseSensitive && parent.startsWith('/') && !parent.includes('.')) fast++;
         }
   assert.ok(fast > 100);
