@@ -707,14 +707,28 @@ export function instantiateSignatureEx(
 }
 
 export function instantiateSymbol(c: Checker, symbol: Symbol, mapper: TypeMapper): Symbol {
+  return keepsSymbolUnderInstantiation(c, symbol, mapper) ? symbol : newInstantiatedSymbol(c, symbol, mapper);
+}
+
+/**
+ * Whether `instantiateSymbol` returns `symbol` itself. This depends on whether the type of `symbol`
+ * is resolved yet, so lazily instantiated members record it when tsgo would instantiate them.
+ */
+export function keepsSymbolUnderInstantiation(c: Checker, symbol: Symbol, mapper: TypeMapper): boolean {
   const links = c.symbolLinks(symbol);
-  if (mapper.mapsThisOnly() && isThisless(symbol)) return symbol;
+  if (mapper.mapsThisOnly() && isThisless(symbol)) return true;
   // A resolved type that can't change under instantiation keeps the symbol.
   if (links.type !== undefined && !couldContainTypeVariables(c, links.type)) {
-    if ((symbol.flags & SymbolFlags.SetAccessor) === 0) return symbol;
-    if (links.writeType !== undefined && !couldContainTypeVariables(c, links.writeType)) return symbol;
+    if ((symbol.flags & SymbolFlags.SetAccessor) === 0) return true;
+    if (links.writeType !== undefined && !couldContainTypeVariables(c, links.writeType)) return true;
   }
+  return false;
+}
+
+/** The instantiated copy of `symbol` that `instantiateSymbol` creates when it doesn't keep it. */
+export function newInstantiatedSymbol(c: Checker, symbol: Symbol, mapper: TypeMapper): Symbol {
   if ((symbol.checkFlags & CheckFlags.Instantiated) !== 0) {
+    const links = c.symbolLinks(symbol);
     // Instantiate the original with combined mappers, preserving identities.
     symbol = links.target!;
     mapper = combineTypeMappers(c, links.mapper, mapper);

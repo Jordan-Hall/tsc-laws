@@ -115,6 +115,9 @@ import {
   isDiscriminantWithNeverType,
   isConflictingPrivateProperty,
   resolveStructuredTypeMembers,
+  getResolvedMember,
+  hasResolvedProperties,
+  resolvedPropertiesAreOptional,
 } from './checker-members.js';
 import {
   getParentOfSymbol,
@@ -3519,8 +3522,8 @@ export function isWeakType(c: Checker, t: Type): boolean {
       resolved.callSignatures.length === 0 &&
       resolved.constructSignatures.length === 0 &&
       resolved.indexInfos.length === 0 &&
-      resolved.properties.length > 0 &&
-      resolved.properties.every((p) => (p.flags & SymbolFlags.Optional) !== 0)
+      hasResolvedProperties(resolved) &&
+      resolvedPropertiesAreOptional(resolved)
     );
   }
   if ((t.flags & TypeFlags.Substitution) !== 0) return isWeakType(c, (t as SubstitutionType).baseType);
@@ -4698,7 +4701,7 @@ function isFunctionObjectType(c: Checker, t: Type): boolean {
   return (
     resolved.callSignatures.length !== 0 ||
     resolved.constructSignatures.length !== 0 ||
-    (resolved.members?.has('bind') === true && isTypeSubtypeOf(c, t, c.globalFunctionType))
+    (getResolvedMember(resolved, 'bind') !== undefined && isTypeSubtypeOf(c, t, c.globalFunctionType))
   );
 }
 

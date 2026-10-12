@@ -93,7 +93,12 @@ import {
 import { getTypeOfSymbol, addOptionality } from './checker-symbol-types.js';
 import { getTypeFromTypeNode } from './checker-type-nodes.js';
 import { instantiateSignatureEx, instantiateType, instantiateTypes } from './instantiation.js';
-import { getIndexInfosOfType, getSignaturesOfType, resolveStructuredTypeMembers } from './checker-members.js';
+import {
+  hasResolvedProperties,
+  getIndexInfosOfType,
+  getSignaturesOfType,
+  resolveStructuredTypeMembers,
+} from './checker-members.js';
 import {
   getIndexedAccessType,
   getElementTypeOfSliceOfTupleType,
@@ -795,7 +800,7 @@ export function getSingleSignature(
 ): Signature | undefined {
   if ((t.flags & TypeFlags.Object) === 0) return undefined;
   const resolved = resolveStructuredTypeMembers(c, t);
-  if (!allowMembers && (resolved.properties.length !== 0 || resolved.indexInfos.length !== 0)) return undefined;
+  if (!allowMembers && (hasResolvedProperties(resolved) || resolved.indexInfos.length !== 0)) return undefined;
   if (kind === SignatureKind.Call && resolved.callSignatures.length === 1 && resolved.constructSignatures.length === 0)
     return resolved.callSignatures[0]!;
   if (

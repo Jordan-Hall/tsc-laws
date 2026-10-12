@@ -59,6 +59,7 @@ import {
   getTypeOfPropertyOfType,
   isArrayLikeType,
   resolveStructuredTypeMembers,
+  hasResolvedProperties,
 } from './checker-members.js';
 import { getTypeOfSymbol } from './checker-symbol-types.js';
 import { getDeclaredTypeOfSymbol, getParentOfSymbol } from './checker-declared-types.js';
@@ -227,6 +228,7 @@ export function setStructuredTypeMembers(
   indexInfos: IndexInfo[],
 ): void {
   type.objectFlags |= ObjectFlags.MembersResolved;
+  type.pendingMembers = undefined;
   type.members = members;
   type.properties = getNamedMembers(c, members, type.symbol);
   type.callSignatures = callSignatures;
@@ -1294,7 +1296,7 @@ export function getTargetType(type: Type): Type {
 export function isEmptyResolvedType(c: Checker, t: StructuredType): boolean {
   return (
     t !== c.anyFunctionType &&
-    t.properties.length === 0 &&
+    !hasResolvedProperties(t) &&
     t.callSignatures.length === 0 &&
     t.constructSignatures.length === 0 &&
     t.indexInfos.length === 0

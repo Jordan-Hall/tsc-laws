@@ -440,10 +440,22 @@ export class UniqueESSymbolType extends Type {
   }
 }
 
+/**
+ * The members table and properties of an instantiated type whose member symbols are instantiated on
+ * demand (checker-members.ts). Reading `members` or `properties` builds them, as tsgo builds them
+ * when it resolves the members; lookups by name instantiate only the member asked for.
+ */
+export abstract class PendingMembers {
+  /** Sets `t.membersValue` and `t.propertiesValue` and clears `t.pendingMembers`. */
+  abstract materialize(t: StructuredType): void;
+}
+
 /** A type with members: object types, unions and intersections. */
 export class StructuredType extends Type {
-  members: SymbolTable | undefined;
-  properties: Symbol[];
+  membersValue: SymbolTable | undefined;
+  propertiesValue: Symbol[];
+  /** Set while the member symbols of an instantiated type are not instantiated yet. */
+  pendingMembers: PendingMembers | undefined;
   callSignatures: Signature[];
   constructSignatures: Signature[];
   indexInfos: IndexInfo[];
@@ -451,12 +463,33 @@ export class StructuredType extends Type {
 
   constructor(flags: TypeFlags, objectFlags: ObjectFlags, id: number, symbol: Symbol | undefined) {
     super(flags, objectFlags, id, symbol);
-    this.members = undefined;
-    this.properties = emptySymbols;
+    this.membersValue = undefined;
+    this.propertiesValue = emptySymbols;
+    this.pendingMembers = undefined;
     this.callSignatures = emptySignatures;
     this.constructSignatures = emptySignatures;
     this.indexInfos = emptyIndexInfos;
     this.objectTypeWithoutAbstractConstructSignatures = undefined;
+  }
+
+  get members(): SymbolTable | undefined {
+    const pending = this.pendingMembers;
+    if (pending !== undefined) pending.materialize(this);
+    return this.membersValue;
+  }
+
+  set members(members: SymbolTable | undefined) {
+    this.membersValue = members;
+  }
+
+  get properties(): Symbol[] {
+    const pending = this.pendingMembers;
+    if (pending !== undefined) pending.materialize(this);
+    return this.propertiesValue;
+  }
+
+  set properties(properties: Symbol[]) {
+    this.propertiesValue = properties;
   }
 }
 
@@ -501,9 +534,12 @@ export class InterfaceType extends TypeReference {
   declaredCallSignatures: Signature[];
   declaredConstructSignatures: Signature[];
   declaredIndexInfos: IndexInfo[];
+  /** Positions of the declared members by name, for lazily instantiated members of instantiations. */
+  declaredMemberPositions: Map<string, number> | undefined;
 
   constructor(objectFlags: ObjectFlags, id: number, symbol: Symbol | undefined) {
     super(objectFlags, id, symbol);
+    this.declaredMemberPositions = undefined;
     this.allTypeParameters = emptyTypes;
     this.outerTypeParameterCount = 0;
     this.thisType = undefined;
