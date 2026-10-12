@@ -247,10 +247,16 @@ export class SymbolAccessibilityCaches {
   readonly containers = new Map<number, Symbol[]>();
   /** The name tables of named class expressions, by node id. */
   readonly classExpressionNames = new Map<number, SymbolTable>();
-  readonly declarationVisibility = new Map<number, boolean>();
-  /** Declarations marked visible by declaration emit, by the checker slot of the emitted file. */
-  readonly markedVisible = new Map<number, Node[]>();
+  /** Computed declaration visibility by node id (see isDeclarationVisible), 0 if not computed. */
+  readonly declarationVisibility = new IntLinkTable();
+  /** The checker slots (bit `slot + 1`) whose declaration emit marked a node visible, by node id. */
+  readonly markedSlots = new IntLinkTable();
+  /** The checker slot of the file in declaration emit, -1 before declaration emit. */
   markedSlot = -1;
+  /** Counts the times declaration emit left a checker slot. */
+  visibilityEpoch = 0;
+  /** The epoch at which each slot (index `slot + 1`) was last left. */
+  readonly slotsLeftAt: number[] = [0, 0, 0, 0, 0];
 }
 
 export class Checker {
