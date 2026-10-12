@@ -665,7 +665,7 @@ export class JSDocParser {
         : linkType === 'linkcode'
           ? new JSDocLinkCode(name, text)
           : new JSDocLinkPlain(name, text);
-    return p.finishNodeWithEnd(link, start, p.scanner.getTokenEnd());
+    return p.finishNodeWithEnd(link, start | 0, p.scanner.getTokenEnd());
   }
 
   parseJSDocLinkName(): EntityName | undefined {
