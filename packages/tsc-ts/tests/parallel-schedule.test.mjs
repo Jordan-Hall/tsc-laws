@@ -130,6 +130,17 @@ test('a small file that alone imports a large library is checked before larger f
   );
 });
 
+test('a checker resolving a library for the first time pays for all the text the library reaches', () => {
+  const c = checked();
+  const plan = planSchedule(c, 2);
+  // The only library is heavy/index.d.ts, which reaches more.d.ts: both texts in full.
+  const reach =
+    "export * from './more';\n".length +
+    'export declare const a0: number;\n'.length * 500 +
+    'export declare const b0: string;\n'.length * 500;
+  assert.deepEqual(plan.libraryCosts, [reach]);
+});
+
 test('checkers take every file once: the costliest first, then their ranges, then the end of others', () => {
   const c = checked();
   const plan = planSchedule(c, 2);

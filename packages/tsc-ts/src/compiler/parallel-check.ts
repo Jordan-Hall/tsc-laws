@@ -221,7 +221,7 @@ class CheckCosts {
     readonly cost: number[],
     /** The libraries (indices) each file of `order` imports, by index. */
     readonly libraries: number[][],
-    /** What resolving a library costs a checker the first time (`libraryCostShare` of the text it reaches), by index. */
+    /** What resolving a library costs a checker the first time (`libraryFirstUseShare` of the text it reaches), by index. */
     readonly libraryCost: number[],
     /** The program files (indices) each file of `order` imports, by index. */
     readonly imports: (number[] | undefined)[],
@@ -240,6 +240,18 @@ function costOrder(checked: CheckedProgram): CheckCosts {
 
 /** How much of a library's text counts as checking cost of the files importing it. */
 const libraryCostShare = 0.25;
+
+/**
+ * How much of a library's text counts as the cost of a checker resolving it for the first time, in
+ * the steals of `takeCheapestEnd`: all of it. A checker pays that once for all the files importing
+ * the library, so the estimate of each file counts only a share (`libraryCostShare`); but a thief
+ * that takes files whose libraries it has not resolved pays for them all at once. Counted at a
+ * quarter, the end of a range was often taken in pieces by checkers that each paid for the
+ * library again: Playwright's 41 MCP tool files (zod, its MCP SDK and Playwright's own types)
+ * went to up to seven checkers, each paying 100-260 ms before its first tool file checked, often
+ * at the very end.
+ */
+const libraryFirstUseShare = 1;
 
 /** The estimated cost of checking each file of `order` (indices into the program files). */
 function checkCosts(checked: CheckedProgram, order: number[]): CheckCosts {
@@ -309,7 +321,7 @@ function checkCosts(checked: CheckedProgram, order: number[]): CheckCosts {
     const i = order[n]!;
     let share = 0;
     for (const k of librariesOf[i]!) {
-      libraryCost[k] = libraryCostShare * reachOf(k);
+      libraryCost[k] = libraryFirstUseShare * reachOf(k);
       share += reachOf(k) / importers.get(k)!;
     }
     cost[i] = cost[i]! + libraryCostShare * share;
