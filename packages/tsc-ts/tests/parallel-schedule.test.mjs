@@ -43,16 +43,19 @@ const { CheckedProgram } = await load('compiler/program-checker.js');
 const { ParseQueue } = await load('compiler/parallel-parse.js');
 const {
   autoCheckers,
+  checkFromQueue,
   checkGroups,
   checkOrder,
   checkersFittingMemory,
   fillScheduleCosts,
   newSchedule,
+  packResult,
   planSchedule,
   retirementMemory,
   retires,
   scheduleOf,
   takePosition,
+  unpackResult,
 } = await load('compiler/parallel-check.js');
 
 const Root = 0;
@@ -287,4 +290,80 @@ test('beyond four checkers, one checker at a time retires when memory runs short
   assert.deepEqual(Array.from(schedule.slice(ranges, ranges + 2)), [1, 10]);
   assert.deepEqual(Array.from(schedule.slice(ranges + 8, ranges + 10)), [0, 0]);
   assert.equal(retirementMemory(1000), 850);
+});
+
+function erroneous() {
+  const dir = tempDir('tsc-ts-parallel-schedule-errors-');
+  const files = {
+    'tsconfig.json': JSON.stringify({ compilerOptions: { strict: true, noEmit: true, types: [] }, include: ['src'] }),
+    // A message chain (elaboration), related information (redeclaration) and an argument-free error.
+    'src/a.ts': 'interface P { x: { y: number } }\nconst p: P = { x: { y: "no" } };\nlet d = 1;\nlet d = 2;\n',
+    'src/b.ts': 'export const n: number = "s";\ndeclare const q: { x: string };\nexport const r: { x: number } = q;\n',
+    'src/c.ts': 'export const fine = 1;\n',
+  };
+  for (const [name, text] of Object.entries(files)) {
+    mkdirSync(dirname(join(dir, name)), { recursive: true });
+    writeFileSync(join(dir, name), text);
+  }
+  const work = executeCommandLine(createNodeSystem(bundledLibs, ''), ['-p', dir]);
+  assert.equal(work.kind, 'compile');
+  return new CheckedProgram(work.program);
+}
+
+const described = (d) => ({
+  file: d.file?.fileName,
+  pos: d.pos,
+  end: d.end,
+  code: d.code,
+  category: d.category,
+  message: d.message,
+  args: [...d.args],
+  skipped: d.skippedOnNoEmit,
+  chain: d.messageChain.map(described),
+  related: d.relatedInformation.map(described),
+});
+
+test('a checker result packed as plain data comes back with the same diagnostics on the same files', () => {
+  const c = erroneous();
+  const plan = planSchedule(c, 1);
+  const result = checkFromQueue(c, 0, new Int32Array(scheduleOf(plan, 1)), plan.order, 0);
+  const all = result.diagnostics.flat();
+  assert.ok(all.length >= 3);
+  assert.ok(all.some((d) => d.messageChain.length > 0));
+  assert.ok(all.some((d) => d.relatedInformation.length > 0));
+  // Through a structured clone, as postMessage copies it.
+  const packed = structuredClone(packResult(result, c.program));
+  assert.ok(
+    packed.strs.every((s) => !s.includes('interface P')),
+    'file texts the program has stay behind',
+  );
+  const files = new Map();
+  const back = unpackResult(packed, c.program, files);
+  assert.deepEqual(back.files, result.files);
+  assert.deepEqual(
+    back.diagnostics.map((list) => list.map(described)),
+    result.diagnostics.map((list) => list.map(described)),
+  );
+  assert.deepEqual(back.globals.map(described), result.globals.map(described));
+  assert.equal(back.more, false);
+  // Diagnostics refer to the program's own files.
+  const a = back.diagnostics.flat().find((d) => d.file?.fileName.endsWith('a.ts'));
+  assert.equal(
+    a.file,
+    c.program
+      .getSourceFiles()
+      .find((f) => f.fileName.endsWith('a.ts'))
+      .diagnosticFile(),
+  );
+});
+
+test('a checker at its file limit stops, and a new one on its schedule index checks the rest once', () => {
+  const c = erroneous();
+  const plan = planSchedule(c, 1);
+  const schedule = new Int32Array(scheduleOf(plan, 1));
+  const first = checkFromQueue(c, 0, schedule, plan.order, 0, 1);
+  assert.deepEqual([first.files.length, first.more], [1, true]);
+  const rest = checkFromQueue(new CheckedProgram(c.program), 0, schedule, plan.order, 0, 100000);
+  assert.equal(rest.more, false);
+  assert.deepEqual([...first.files, ...rest.files].sort(), [...plan.order].sort());
 });

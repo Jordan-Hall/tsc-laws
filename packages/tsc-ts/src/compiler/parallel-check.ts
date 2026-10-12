@@ -84,7 +84,181 @@ export class CheckerResult {
      * (user, system); process RSS MB when it finished.
      */
     readonly stats: number[],
+    /** Whether the thread stopped at its file limit (`recycleFiles`) with files possibly left. */
+    readonly more: boolean = false,
   ) {}
+}
+
+/**
+ * Whether checker threads send their results as plain data (`PackedResult`), which the message
+ * copies, instead of publishing them (TSC_TS_REGION, default on in scriptc builds). Then nothing a
+ * checker thread allocated is reachable from another thread, and the scriptc runtime discards the
+ * thread's whole heap when it ends: a finished or retired checker returns its memory.
+ */
+export const packsResults: boolean = sharesPublishedGraphs && process.env.TSC_TS_REGION !== '0';
+
+/**
+ * The number of files after which a checker thread ends and a new one takes over its schedule
+ * index (TSC_TS_RECYCLE=n; 0, the default, for none). A new checker starts empty, so with packed
+ * results the old one's types, links and caches go back to the system.
+ */
+export const recycleFiles: number = Math.max(0, Number(process.env.TSC_TS_RECYCLE ?? '0') | 0);
+
+/**
+ * A `CheckerResult` as plain data. `nums` holds, in order, the diagnostic lists of `files`, the
+ * declaration diagnostic lists, and the global diagnostics, each as a count followed by that many
+ * diagnostics; a diagnostic is file name (an index into `strs`, -1 for none), file text (index, -1
+ * when the program has the file), pos, end, code, category, message, skippedOnNoEmit, the argument
+ * count and indices, then its message chain and related information as counted lists.
+ */
+export type PackedResult = {
+  readonly index: number;
+  readonly files: number[];
+  readonly nums: number[];
+  readonly strs: string[];
+  readonly checkTime: number;
+  readonly stats: number[];
+  readonly more: boolean;
+};
+
+class ResultPacker {
+  readonly nums: number[] = [];
+  readonly strs: string[] = [];
+  private readonly indices = new Map<string, number>();
+
+  constructor(private readonly program: Program) {}
+
+  private str(text: string): number {
+    let k = this.indices.get(text);
+    if (k === undefined) {
+      k = this.strs.length;
+      this.strs.push(text);
+      this.indices.set(text, k);
+    }
+    return k;
+  }
+
+  list(diagnostics: readonly Diagnostic[]): void {
+    this.nums.push(diagnostics.length);
+    for (const d of diagnostics) this.diagnostic(d);
+  }
+
+  private diagnostic(d: Diagnostic): void {
+    const nums = this.nums;
+    const file = d.file;
+    if (file === undefined) nums.push(-1, -1);
+    else
+      nums.push(
+        this.str(file.fileName),
+        this.program.getSourceFile(file.fileName) === undefined ? this.str(file.text) : -1,
+      );
+    nums.push(d.pos, d.end, d.code, d.category, d.message, d.skippedOnNoEmit ? 1 : 0, d.args.length);
+    for (const arg of d.args) nums.push(this.str(arg));
+    this.list(d.messageChain);
+    this.list(d.relatedInformation);
+  }
+}
+
+/** Packs `result` (on the checker thread) for `postMessage`. */
+export function packResult(result: CheckerResult, program: Program): PackedResult {
+  const packer = new ResultPacker(program);
+  for (const list of result.diagnostics) packer.list(list);
+  packer.nums.push(result.declarations.length);
+  for (const list of result.declarations) packer.list(list);
+  packer.list(result.globals);
+  return {
+    index: result.index,
+    files: result.files,
+    nums: packer.nums,
+    strs: packer.strs,
+    checkTime: result.checkTime,
+    stats: result.stats,
+    more: result.more,
+  };
+}
+
+/** Rebuilds a packed result on the main thread against `program`'s files. */
+class ResultUnpacker {
+  private at = 0;
+
+  constructor(
+    private readonly packed: PackedResult,
+    private readonly program: Program,
+    private readonly files: Map<string, DiagnosticFile>,
+  ) {}
+
+  private next(): number {
+    return this.packed.nums[this.at++]!;
+  }
+
+  count(): number {
+    return this.next();
+  }
+
+  list(): Diagnostic[] {
+    const n = this.next();
+    const result: Diagnostic[] = [];
+    for (let k = 0; k < n; k++) result.push(this.diagnostic());
+    return result;
+  }
+
+  private diagnostic(): Diagnostic {
+    const strs = this.packed.strs;
+    const name = this.next();
+    const text = this.next();
+    let file: DiagnosticFile | undefined = undefined;
+    if (name >= 0) {
+      const fileName = strs[name]!;
+      file = this.files.get(fileName);
+      if (file === undefined) {
+        file =
+          text >= 0
+            ? new DiagnosticFile(fileName, strs[text]!)
+            : this.program.getSourceFile(fileName)!.diagnosticFile();
+        this.files.set(fileName, file);
+      }
+    }
+    const pos = this.next();
+    const end = this.next();
+    const code = this.next();
+    const category = this.next();
+    const message = this.next();
+    const skipped = this.next() === 1;
+    const argc = this.next();
+    const args: string[] = [];
+    for (let k = 0; k < argc; k++) args.push(strs[this.next()]!);
+    const result = new Diagnostic(file, pos, end, message, args);
+    result.code = code;
+    result.category = category;
+    result.skippedOnNoEmit = skipped;
+    result.messageChain = this.list();
+    result.relatedInformation = this.list();
+    return result;
+  }
+}
+
+export function unpackResult(
+  packed: PackedResult,
+  program: Program,
+  files: Map<string, DiagnosticFile>,
+): CheckerResult {
+  const unpacker = new ResultUnpacker(packed, program, files);
+  const diagnostics: Diagnostic[][] = [];
+  for (let k = 0; k < packed.files.length; k++) diagnostics.push(unpacker.list());
+  const declarations: Diagnostic[][] = [];
+  const nd = unpacker.count();
+  for (let k = 0; k < nd; k++) declarations.push(unpacker.list());
+  const globals = unpacker.list();
+  return new CheckerResult(
+    packed.index,
+    packed.files,
+    diagnostics,
+    declarations,
+    globals,
+    packed.checkTime,
+    packed.stats,
+    packed.more,
+  );
 }
 
 /**
@@ -988,6 +1162,7 @@ export function checkFromQueue(
   counter: Int32Array,
   order: number[],
   startedAt: number = Date.now(),
+  limit: number = 0,
 ): CheckerResult {
   const start = performance.now();
   const readyAt = Date.now();
@@ -1002,7 +1177,13 @@ export function checkFromQueue(
   const plan = schedulePlan(counter);
   const retirement = index >= tsgoCheckers ? retirementMemory() : 0;
   let memoryReadAt = 0;
+  let more = false;
   for (;;) {
+    // At its file limit the thread ends; a new one continues its schedule index.
+    if (limit > 0 && done.length >= limit) {
+      more = true;
+      break;
+    }
     // Beyond tsgo's four, read the process's memory every 20 ms at most.
     if (retirement > 0 && performance.now() - memoryReadAt >= 20) {
       memoryReadAt = performance.now();
@@ -1053,7 +1234,7 @@ export function checkFromQueue(
       relations,
     ];
   }
-  return new CheckerResult(index, done, diagnostics, declarations, globals, performance.now() - start, stats);
+  return new CheckerResult(index, done, diagnostics, declarations, globals, performance.now() - start, stats, more);
 }
 
 /**
@@ -1133,7 +1314,8 @@ export function startParallelCheck(checked: CheckedProgram, count: number, done:
     remaining--;
     if (remaining === 0 && ownDone) finish();
   };
-  for (let i = 1; i < count; i++) {
+  const diagnosticFiles = new Map<string, DiagnosticFile>();
+  const spawn = (i: number): void => {
     const worker = parallelCheck.spawn!(
       shared ? program : undefined,
       i,
@@ -1143,16 +1325,25 @@ export function startParallelCheck(checked: CheckedProgram, count: number, done:
       lastSymbolIdValue(),
     );
     worker.on('message', (message: unknown) => {
-      const result = (message as { result: CheckerResult }).result;
       mark(`result from c${i}`);
-      record(revival === undefined ? publish(result) : revival.result(result));
-      threadDone();
+      let result: CheckerResult;
+      if (packsResults) {
+        result = unpackResult(message as PackedResult, program, diagnosticFiles);
+        record(result);
+      } else {
+        result = (message as { result: CheckerResult }).result;
+        record(revival === undefined ? publish(result) : revival.result(result));
+      }
+      // A thread at its file limit hands its schedule index to a new one.
+      if (result.more) spawn(i);
+      else threadDone();
     });
     worker.on('error', (error: unknown) => {
       if (trace) process.stderr.write(`checkers: thread ${i} failed: ${String(error)}\n`);
       threadDone();
     });
-  }
+  };
+  for (let i = 1; i < count; i++) spawn(i);
   mark('checkers spawned');
   record(checkFromQueue(checked, 0, new Int32Array(counter), order, epoch));
   ownDone = true;
@@ -1176,6 +1367,7 @@ class Revival {
       copy.globals.map((d) => this.diagnostic(d)),
       copy.checkTime,
       copy.stats,
+      copy.more,
     );
   }
 

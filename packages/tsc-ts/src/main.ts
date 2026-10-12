@@ -4,7 +4,14 @@ import { Worker, isMainThread, parentPort, workerData } from 'node:worker_thread
 import { publish, sharesPublishedGraphs } from '@scriptc/threads';
 import { runServer } from './api/server.js';
 import { reserveNodeIds, shareNodeIds } from './compiler/ast.js';
-import { CheckerResult, checkFromQueue, parallelCheck } from './compiler/parallel-check.js';
+import {
+  CheckerResult,
+  checkFromQueue,
+  packResult,
+  packsResults,
+  parallelCheck,
+  recycleFiles,
+} from './compiler/parallel-check.js';
 import { type LoadMessage, parallelParse } from './compiler/parallel-parse.js';
 import { useLazyJSDocTable } from './compiler/parser.js';
 import { CheckedProgram } from './compiler/program-checker.js';
@@ -84,8 +91,17 @@ function runCheckerThread(): void {
   const result =
     program === undefined
       ? new CheckerResult(job.index, [], [], [], [], 0, [])
-      : checkFromQueue(new CheckedProgram(program), job.index, new Int32Array(job.counter), job.order, startedAt);
-  parentPort!.postMessage({ result: sharesPublishedGraphs ? publish(result) : result });
+      : checkFromQueue(
+          new CheckedProgram(program),
+          job.index,
+          new Int32Array(job.counter),
+          job.order,
+          startedAt,
+          recycleFiles,
+        );
+  // Packed results are copied: nothing this thread allocated stays reachable after it ends.
+  if (packsResults) parentPort!.postMessage(packResult(result, program!));
+  else parentPort!.postMessage({ result: sharesPublishedGraphs ? publish(result) : result });
   mark('result posted');
 }
 
