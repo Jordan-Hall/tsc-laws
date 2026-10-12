@@ -53,6 +53,7 @@ const {
   retires,
   scheduleOf,
   takePosition,
+  textLengths,
 } = await load('compiler/parallel-check.js');
 
 const Root = 0;
@@ -121,6 +122,16 @@ function checked() {
 }
 
 const baseName = (program, i) => program.getSourceFiles()[i].fileName.split('/').pop();
+
+test('planning reads the text length of each file once per program', () => {
+  const program = checked().program;
+  const lengths = textLengths(program);
+  assert.equal(textLengths(program), lengths);
+  assert.deepEqual(
+    lengths,
+    program.getSourceFiles().map((file) => file.text.length),
+  );
+});
 
 test('a small file that alone imports a large library is checked before larger files', () => {
   const c = checked();
