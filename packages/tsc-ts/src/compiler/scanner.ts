@@ -304,21 +304,21 @@ export class ScannerState {
     commentDirectiveCount: number,
     skipJSDocLeadingAsterisks: number,
   ) {
-    this.pos = pos;
-    this.fullStartPos = fullStartPos;
-    this.tokenStart = tokenStart;
+    this.pos = pos | 0;
+    this.fullStartPos = fullStartPos | 0;
+    this.tokenStart = tokenStart | 0;
     this.token = token;
     this.tokenFlags = tokenFlags;
     this.tokenValue = tokenValue;
-    this.valueStart = valueStart;
-    this.valueEnd = valueEnd;
+    this.valueStart = valueStart | 0;
+    this.valueEnd = valueEnd | 0;
     this.commentDirectiveCount = commentDirectiveCount;
     this.skipJSDocLeadingAsterisks = skipJSDocLeadingAsterisks;
   }
 
   /** @internal Overwrites this snapshot with the scanner's current state, like `Scanner.mark`. */
   assign(scanner: Scanner): void {
-    this.pos = scanner.pos;
+    this.pos = scanner.pos | 0;
     this.fullStartPos = scanner.fullStartPos;
     this.tokenStart = scanner.tokenStart;
     this.token = scanner.token;
@@ -350,6 +350,10 @@ class IdentifierTable {
   private lengths: Int32Array;
   private texts: string[];
   private count: number;
+  // Per entry: 1 once its text was recorded among the file's identifier texts (`markRecorded`).
+  private recorded: Uint8Array;
+  // The entry the last `intern` returned.
+  private lastEntry: number;
 
   constructor(text: string) {
     this.text = text;
@@ -360,6 +364,20 @@ class IdentifierTable {
     this.lengths = new Int32Array(128);
     this.texts = [];
     this.count = 0;
+    this.recorded = new Uint8Array(128);
+    this.lastEntry = -1;
+  }
+
+  /**
+   * Whether `text`, just returned by `intern`, still needs recording among the file's identifier
+   * texts; marks it recorded. Texts the table doesn't know are always recorded.
+   */
+  markRecorded(text: string): boolean {
+    const entry = this.lastEntry;
+    if (entry < 0 || this.texts[entry] !== text) return true;
+    if (this.recorded[entry] !== 0) return false;
+    this.recorded[entry] = 1;
+    return true;
   }
 
   /** Empties the table for a new text. */
@@ -367,9 +385,11 @@ class IdentifierTable {
     this.text = text;
     if (this.count === 0) return;
     this.slots.fill(0);
+    this.recorded.fill(0, 0, this.count);
     this.texts.length = 0;
     this.unitCount = 0;
     this.count = 0;
+    this.lastEntry = -1;
   }
 
   /** `text.substring(start, end)`, or the string interned for an equal range. */
@@ -387,7 +407,10 @@ class IdentifierTable {
         const offset = this.offsets[entry - 1];
         let i = 0;
         while (i < length && units[(offset + i) | 0] === chars[(start + i) | 0]) i++;
-        if (i === length) return this.texts[entry - 1]!;
+        if (i === length) {
+          this.lastEntry = entry - 1;
+          return this.texts[entry - 1]!;
+        }
       }
       slot = (slot + 1) & mask;
     }
@@ -400,6 +423,9 @@ class IdentifierTable {
       const lengths = new Int32Array(index * 2);
       lengths.set(this.lengths);
       this.lengths = lengths;
+      const recorded = new Uint8Array(index * 2);
+      recorded.set(this.recorded);
+      this.recorded = recorded;
     }
     let units = this.units;
     const offset = this.unitCount;
@@ -414,6 +440,7 @@ class IdentifierTable {
     this.lengths[index] = length;
     this.texts.push(value);
     this.count = index + 1;
+    this.lastEntry = index;
     slots[slot * 2] = index + 1;
     slots[slot * 2 + 1] = hash;
     if (this.count * 2 > mask + 1) this.slots = rehash(slots);
@@ -554,6 +581,9 @@ export class Scanner {
   private onError: ScannerErrorReporter | undefined;
   private skipTrivia: boolean;
 
+  // Writes of the token offsets below are coerced with `| 0` where the compiler can't bound the
+  // value, so native builds store them as 32-bit integers. `pos` stays a double: loops advance it
+  // in too many places.
   /** @internal Current position; the end of the current token. */
   pos: number;
   /** @internal */ fullStartPos: number;
@@ -574,7 +604,7 @@ export class Scanner {
   constructor(text = '') {
     this.text = text;
     this.chars = toCodeUnits(text);
-    this.end = text.length;
+    this.end = text.length | 0;
     this.languageVariant = LanguageVariant.Standard;
     this.scriptTarget = ScriptTarget.None;
     this.onError = undefined;
@@ -598,7 +628,7 @@ export class Scanner {
     this.text = text;
     this.chars = toCodeUnits(text);
     this.identifiers.setText(text);
-    this.end = text.length;
+    this.end = text.length | 0;
     this.pos = 0;
     this.fullStartPos = 0;
     this.tokenStart = 0;
@@ -621,7 +651,7 @@ export class Scanner {
         cut[i] = chars[end + i];
         chars[end + i] = 0;
       }
-    this.end = end;
+    this.end = end | 0;
     this.pos = 0;
     this.fullStartPos = 0;
     this.tokenStart = 0;
@@ -690,6 +720,14 @@ export class Scanner {
       this.valueStart = -1;
     }
     return this.tokenValue;
+  }
+
+  /**
+   * Whether `text`, the identifier value just returned by `getIdentifierValue`, is the first of its
+   * file to be recorded; files record each identifier text once.
+   */
+  recordIdentifierValue(text: string): boolean {
+    return this.identifiers.markRecorded(text);
   }
 
   /** @internal Like `getTokenValue`, but identifiers with the same text share one string. */
@@ -785,8 +823,8 @@ export class Scanner {
   resetPos(pos: number): void {
     if (pos < 0) throw new Error('Cannot reset token state to negative position');
     this.pos = pos;
-    this.fullStartPos = pos;
-    this.tokenStart = pos;
+    this.fullStartPos = pos | 0;
+    this.tokenStart = pos | 0;
   }
 
   resetTokenState(pos: number): void {
@@ -856,18 +894,18 @@ export class Scanner {
   }
 
   private setValueSlice(start: number, end: number): void {
-    this.valueStart = start;
-    this.valueEnd = end;
+    this.valueStart = start | 0;
+    this.valueEnd = end | 0;
   }
 
   scan(): SyntaxKind {
     // `chars` is zero-padded, so peeking a few units past the end is safe.
     const chars = this.chars;
-    this.fullStartPos = this.pos;
+    this.fullStartPos = this.pos | 0;
     this.tokenFlags = TokenFlags.None;
     for (;;) {
       const ch = this.pos < this.end ? chars[this.pos] : CharacterCodes.EOF;
-      this.tokenStart = this.pos;
+      this.tokenStart = this.pos | 0;
       switch (ch) {
         case CharacterCodes.tab:
         case CharacterCodes.verticalTab:
@@ -2144,7 +2182,7 @@ export class Scanner {
         const savedTokenStart = this.tokenStart;
         const savedTokenFlags = this.tokenFlags;
         this.pos = bodyStart;
-        this.end = bodyEnd;
+        this.end = bodyEnd | 0;
         checkRegularExpression(this, bodyEnd, flags, namedCaptureGroups);
         this.end = savedEnd;
         this.tokenStart = savedTokenStart;
@@ -2195,8 +2233,8 @@ export class Scanner {
 
   /** Scans JSX children: text, `<`, `</` or `{`. */
   scanJsxToken(allowMultilineJsxText = true): SyntaxKind {
-    this.fullStartPos = this.pos;
-    this.tokenStart = this.pos;
+    this.fullStartPos = this.pos | 0;
+    this.tokenStart = this.pos | 0;
     const ch = this.char();
     if (ch < 0) return (this.token = SyntaxKind.EndOfFile);
     if (ch === CharacterCodes.lessThan) {
@@ -2256,9 +2294,9 @@ export class Scanner {
 
   /** Scans a JSX attribute value after `=`: a string, or any other token. */
   scanJsxAttributeValue(): SyntaxKind {
-    this.fullStartPos = this.pos;
+    this.fullStartPos = this.pos | 0;
     while (this.pos < this.end && isWhiteSpaceLike(this.chars[this.pos])) this.pos++;
-    this.tokenStart = this.pos;
+    this.tokenStart = this.pos | 0;
     const ch = this.char();
     if (ch === CharacterCodes.doubleQuote || ch === CharacterCodes.singleQuote) {
       this.scanString(true);
@@ -2275,10 +2313,10 @@ export class Scanner {
 
   /** Scans JSDoc comment text up to a line break, backtick, `{` or tag; falls back to `scanJSDocToken`. */
   scanJSDocCommentTextToken(inBackticks: boolean): SyntaxKind {
-    this.fullStartPos = this.pos;
+    this.fullStartPos = this.pos | 0;
     this.tokenFlags = TokenFlags.None;
     if (this.pos >= this.end) return (this.token = SyntaxKind.EndOfFile);
-    this.tokenStart = this.pos;
+    this.tokenStart = this.pos | 0;
     while (this.pos < this.end) {
       const ch = this.codePointAt(this.pos, this.end);
       if (isLineBreak(ch) || ch === CharacterCodes.backtick) break;
@@ -2308,12 +2346,12 @@ export class Scanner {
   }
 
   scanJSDocToken(): SyntaxKind {
-    this.fullStartPos = this.pos;
+    this.fullStartPos = this.pos | 0;
     this.tokenFlags = TokenFlags.None;
     const text = this.text;
     const chars = this.chars;
     if (this.pos >= this.end) return (this.token = SyntaxKind.EndOfFile);
-    this.tokenStart = this.pos;
+    this.tokenStart = this.pos | 0;
     const ch = this.codePointAt(this.pos, this.end);
     this.pos += charSize(ch);
     switch (ch) {
