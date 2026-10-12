@@ -8165,6 +8165,11 @@ export class SourceFile extends Node {
     this.diagnosticFile().computeCaches();
   }
 
+  /** Like `computeCaches`, from the UTF-16 code units of the text (at least `text.length` of them). */
+  computeCachesFromUnits(units: Uint16Array): void {
+    this.diagnosticFile().computeCachesFromUnits(units);
+  }
+
   /** The file as diagnostics see it. */
   diagnosticFile(): DiagnosticFile {
     let file = this.diagnosticFileCache;

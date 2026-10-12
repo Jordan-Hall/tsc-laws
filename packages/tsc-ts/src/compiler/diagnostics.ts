@@ -2,7 +2,7 @@
  * Diagnostics: message lookup and localization, the `Diagnostic` type, and tsc's plain and
  * pretty diagnostic output.
  */
-import { isDigit, isUnicodeWhiteSpace, utf8Length } from './character-codes.js';
+import { CharacterCodes, isDigit, isUnicodeWhiteSpace, utf8Length } from './character-codes.js';
 import { Locale, translations } from './diagnostic-locales.js';
 import { Diagnostics, messageCodes, messageFlags, messageKeys, messageTexts } from './diagnostic-messages.js';
 import { getPathComponentsRelativeTo, getPathFromPathComponents, isRootedDiskPath, pathIsAbsolute } from './path.js';
@@ -155,6 +155,60 @@ export class DiagnosticFile {
   computeCaches(): void {
     this.getLineStarts();
     this.getNonASCIIStarts();
+  }
+
+  /**
+   * Like `computeCaches`, from the text's UTF-16 code units `units[0, text.length)` in one pass, so
+   * the text itself is neither searched nor copied.
+   */
+  computeCachesFromUnits(units: Uint16Array): void {
+    const text = this.text;
+    // ASCII texts are searched faster than walked, and have no non-ASCII characters to find.
+    if (
+      this.lineStarts.length !== 0 ||
+      this.nonASCIIStarts !== undefined ||
+      Buffer.byteLength(text, 'utf8') === text.length
+    ) {
+      this.computeCaches();
+      return;
+    }
+    const length = text.length | 0;
+    const lineStarts: number[] = [0];
+    const starts: number[] = [];
+    const lengths = this.nonASCIILengths;
+    const extraBytes = this.extraBytes;
+    let extra = 0;
+    let pos = 0;
+    while (pos < length) {
+      const ch = units[pos] | 0;
+      pos = (pos + 1) | 0;
+      if (ch > CharacterCodes.carriageReturn && ch < 0x80) continue;
+      if (ch < 0x80) {
+        if (ch === CharacterCodes.lineFeed) {
+          lineStarts.push(pos);
+        } else if (ch === CharacterCodes.carriageReturn) {
+          if (pos < length && (units[pos] | 0) === CharacterCodes.lineFeed) pos = (pos + 1) | 0;
+          lineStarts.push(pos);
+        }
+        continue;
+      }
+      // The UTF-8 length of the character; a lone surrogate is encoded as U+FFFD, in 3 bytes.
+      let size = 3;
+      if (ch < 0x800) {
+        size = 2;
+      } else if (ch >= 0xd800 && ch <= 0xdbff && pos < length) {
+        const low = units[pos] | 0;
+        if (low >= 0xdc00 && low <= 0xdfff) size = 4;
+      }
+      starts.push((pos - 1) | 0);
+      lengths.push(size);
+      extra = (extra + (size === 4 ? 2 : size - 1)) | 0;
+      extraBytes.push(extra);
+      if (size === 4) pos = (pos + 1) | 0;
+      else if (ch === CharacterCodes.lineSeparator || ch === CharacterCodes.paragraphSeparator) lineStarts.push(pos);
+    }
+    this.lineStarts = lineStarts;
+    this.nonASCIIStarts = starts;
   }
 
   /** Start offsets of each line, split at CR, LF, CRLF, LS and PS. */
