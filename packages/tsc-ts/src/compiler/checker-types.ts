@@ -379,6 +379,60 @@ export class TypeAlias {
 }
 
 /**
+ * Fields that few types set, kept out of line in `Type.extra`, which is created on the first write
+ * of a value other than the field's default. A type then costs one slot for all of them. Each field
+ * is read and written through an accessor of the type class it belongs to, which returns the
+ * default while the type has no extra fields.
+ */
+export class TypeExtra {
+  // Type
+  alias: TypeAlias | undefined;
+  // StructuredType
+  constructSignatures: Signature[];
+  objectTypeWithoutAbstractConstructSignatures: Type | undefined;
+  // ObjectType
+  instantiations: Map<string, Type> | undefined;
+  // TypeReference
+  node: Node | undefined;
+  // UnionType
+  resolvedReducedType: Type | undefined;
+  regularType: Type | undefined;
+  origin: Type | undefined;
+  keyPropertyName: string;
+  constituentMap: Map<Type, Type> | undefined;
+  constituentSet: Set<Type> | undefined;
+  membershipTests: number;
+  // IntersectionType
+  uniqueLiteralFilledInstantiation: Type | undefined;
+
+  constructor() {
+    this.alias = undefined;
+    this.constructSignatures = emptySignatures;
+    this.objectTypeWithoutAbstractConstructSignatures = undefined;
+    this.instantiations = undefined;
+    this.node = undefined;
+    this.resolvedReducedType = undefined;
+    this.regularType = undefined;
+    this.origin = undefined;
+    this.keyPropertyName = '';
+    this.constituentMap = undefined;
+    this.constituentSet = undefined;
+    this.membershipTests = 0;
+    this.uniqueLiteralFilledInstantiation = undefined;
+  }
+}
+
+/** The extra fields of `t`, created if it has none yet. */
+export function typeExtra(t: Type): TypeExtra {
+  let extra = t.extra;
+  if (extra === undefined) {
+    extra = new TypeExtra();
+    t.extra = extra;
+  }
+  return extra;
+}
+
+/**
  * The base of every type. Narrow by `flags` (and `objectFlags` for object types), then cast to
  * the subclass, as tsgo does with `AsUnionType()` etc.
  */
@@ -387,17 +441,27 @@ export class Type {
   objectFlags: ObjectFlags;
   readonly id: number;
   symbol: Symbol | undefined;
-  alias: TypeAlias | undefined;
   /** For types with a computed base constraint (type variables, structured types, …). */
   resolvedBaseConstraint: Type | undefined;
+  /** Rarely set fields; undefined while all of them have their defaults. */
+  extra: TypeExtra | undefined;
 
   constructor(flags: TypeFlags, objectFlags: ObjectFlags, id: number, symbol: Symbol | undefined) {
     this.flags = flags;
     this.objectFlags = objectFlags;
     this.id = id | 0;
     this.symbol = symbol;
-    this.alias = undefined;
     this.resolvedBaseConstraint = undefined;
+    this.extra = undefined;
+  }
+
+  get alias(): TypeAlias | undefined {
+    const extra = this.extra;
+    return extra !== undefined ? extra.alias : undefined;
+  }
+
+  set alias(alias: TypeAlias | undefined) {
+    if (alias !== undefined || this.extra !== undefined) typeExtra(this).alias = alias;
   }
 }
 
@@ -457,9 +521,7 @@ export class StructuredType extends Type {
   /** Set while the member symbols of an instantiated type are not instantiated yet. */
   pendingMembers: PendingMembers | undefined;
   callSignatures: Signature[];
-  constructSignatures: Signature[];
   indexInfos: IndexInfo[];
-  objectTypeWithoutAbstractConstructSignatures: Type | undefined;
 
   constructor(flags: TypeFlags, objectFlags: ObjectFlags, id: number, symbol: Symbol | undefined) {
     super(flags, objectFlags, id, symbol);
@@ -467,9 +529,29 @@ export class StructuredType extends Type {
     this.propertiesValue = emptySymbols;
     this.pendingMembers = undefined;
     this.callSignatures = emptySignatures;
-    this.constructSignatures = emptySignatures;
     this.indexInfos = emptyIndexInfos;
-    this.objectTypeWithoutAbstractConstructSignatures = undefined;
+  }
+
+  get constructSignatures(): Signature[] {
+    const extra = this.extra;
+    return extra !== undefined ? extra.constructSignatures : emptySignatures;
+  }
+
+  /**
+   * An empty list is stored only once the type has extra fields: resolved signature lists are never
+   * changed after they are set, so any empty list reads the same as `emptySignatures`.
+   */
+  set constructSignatures(signatures: Signature[]) {
+    if (signatures.length !== 0 || this.extra !== undefined) typeExtra(this).constructSignatures = signatures;
+  }
+
+  get objectTypeWithoutAbstractConstructSignatures(): Type | undefined {
+    const extra = this.extra;
+    return extra !== undefined ? extra.objectTypeWithoutAbstractConstructSignatures : undefined;
+  }
+
+  set objectTypeWithoutAbstractConstructSignatures(t: Type | undefined) {
+    if (t !== undefined || this.extra !== undefined) typeExtra(this).objectTypeWithoutAbstractConstructSignatures = t;
   }
 
   get members(): SymbolTable | undefined {
@@ -497,26 +579,40 @@ export class ObjectType extends StructuredType {
   /** The generic type this one instantiates. */
   target: Type | undefined;
   mapper: TypeMapper | undefined;
-  instantiations: Map<string, Type> | undefined;
 
   constructor(objectFlags: ObjectFlags, id: number, symbol: Symbol | undefined) {
     super(TypeFlags.Object, objectFlags, id, symbol);
     this.target = undefined;
     this.mapper = undefined;
-    this.instantiations = undefined;
+  }
+
+  get instantiations(): Map<string, Type> | undefined {
+    const extra = this.extra;
+    return extra !== undefined ? extra.instantiations : undefined;
+  }
+
+  set instantiations(instantiations: Map<string, Type> | undefined) {
+    if (instantiations !== undefined || this.extra !== undefined) typeExtra(this).instantiations = instantiations;
   }
 }
 
 /** An instantiation of a generic class, interface or tuple type. */
 export class TypeReference extends ObjectType {
-  /** The type node of a deferred reference, else undefined. */
-  node: Node | undefined;
   resolvedTypeArguments: Type[] | undefined;
 
   constructor(objectFlags: ObjectFlags, id: number, symbol: Symbol | undefined) {
     super(objectFlags, id, symbol);
-    this.node = undefined;
     this.resolvedTypeArguments = undefined;
+  }
+
+  /** The type node of a deferred reference, else undefined. */
+  get node(): Node | undefined {
+    const extra = this.extra;
+    return extra !== undefined ? extra.node : undefined;
+  }
+
+  set node(node: Node | undefined) {
+    if (node !== undefined || this.extra !== undefined) typeExtra(this).node = node;
   }
 }
 
@@ -671,38 +767,94 @@ export class UnionOrIntersectionType extends StructuredType {
   }
 }
 
+/** A union; all of its own fields are rarely set and live in `extra`. */
 export class UnionType extends UnionOrIntersectionType {
-  resolvedReducedType: Type | undefined;
-  regularType: Type | undefined;
-  /** The denormalized union, intersection or index type the union came from. */
-  origin: Type | undefined;
-  /** A property with a unique unit type in every object of the union; '' if not computed, '\0' if none. */
-  keyPropertyName: string;
-  constituentMap: Map<Type, Type> | undefined;
-  /** The constituents of a large union, for membership tests; created on the second test. */
-  constituentSet: Set<Type> | undefined;
-  membershipTests: number;
-
   constructor(objectFlags: ObjectFlags, id: number, types: Type[]) {
     super(TypeFlags.Union, objectFlags, id, types);
-    this.resolvedReducedType = undefined;
-    this.regularType = undefined;
-    this.origin = undefined;
-    this.keyPropertyName = '';
-    this.constituentMap = undefined;
-    this.constituentSet = undefined;
-    this.membershipTests = 0;
+  }
+
+  get resolvedReducedType(): Type | undefined {
+    const extra = this.extra;
+    return extra !== undefined ? extra.resolvedReducedType : undefined;
+  }
+
+  set resolvedReducedType(t: Type | undefined) {
+    if (t !== undefined || this.extra !== undefined) typeExtra(this).resolvedReducedType = t;
+  }
+
+  get regularType(): Type | undefined {
+    const extra = this.extra;
+    return extra !== undefined ? extra.regularType : undefined;
+  }
+
+  set regularType(t: Type | undefined) {
+    if (t !== undefined || this.extra !== undefined) typeExtra(this).regularType = t;
+  }
+
+  /** The denormalized union, intersection or index type the union came from. */
+  get origin(): Type | undefined {
+    const extra = this.extra;
+    return extra !== undefined ? extra.origin : undefined;
+  }
+
+  set origin(t: Type | undefined) {
+    if (t !== undefined || this.extra !== undefined) typeExtra(this).origin = t;
+  }
+
+  /** A property with a unique unit type in every object of the union; '' if not computed, '\0' if none. */
+  get keyPropertyName(): string {
+    const extra = this.extra;
+    return extra !== undefined ? extra.keyPropertyName : '';
+  }
+
+  set keyPropertyName(name: string) {
+    if (name !== '' || this.extra !== undefined) typeExtra(this).keyPropertyName = name;
+  }
+
+  get constituentMap(): Map<Type, Type> | undefined {
+    const extra = this.extra;
+    return extra !== undefined ? extra.constituentMap : undefined;
+  }
+
+  set constituentMap(map: Map<Type, Type> | undefined) {
+    if (map !== undefined || this.extra !== undefined) typeExtra(this).constituentMap = map;
+  }
+
+  /** The constituents of a large union, for membership tests; created on the second test. */
+  get constituentSet(): Set<Type> | undefined {
+    const extra = this.extra;
+    return extra !== undefined ? extra.constituentSet : undefined;
+  }
+
+  set constituentSet(set: Set<Type> | undefined) {
+    if (set !== undefined || this.extra !== undefined) typeExtra(this).constituentSet = set;
+  }
+
+  get membershipTests(): number {
+    const extra = this.extra;
+    return extra !== undefined ? extra.membershipTests : 0;
+  }
+
+  set membershipTests(tests: number) {
+    if (tests !== 0 || this.extra !== undefined) typeExtra(this).membershipTests = tests;
   }
 }
 
 export class IntersectionType extends UnionOrIntersectionType {
   resolvedApparentType: Type | undefined;
-  uniqueLiteralFilledInstantiation: Type | undefined;
 
   constructor(objectFlags: ObjectFlags, id: number, types: Type[]) {
     super(TypeFlags.Intersection, objectFlags, id, types);
     this.resolvedApparentType = undefined;
-    this.uniqueLiteralFilledInstantiation = undefined;
+  }
+
+  get uniqueLiteralFilledInstantiation(): Type | undefined {
+    const extra = this.extra;
+    return extra !== undefined ? extra.uniqueLiteralFilledInstantiation : undefined;
+  }
+
+  set uniqueLiteralFilledInstantiation(t: Type | undefined) {
+    if (t !== undefined || this.extra !== undefined) typeExtra(this).uniqueLiteralFilledInstantiation = t;
   }
 }
 
@@ -875,6 +1027,42 @@ export class CompositeSignature {
   }
 }
 
+/**
+ * Fields that few signatures set, kept out of line in `Signature.extra` (see TypeExtra): the `this`
+ * parameter, composite signatures and the caches of derived signatures.
+ */
+export class SignatureExtra {
+  thisParameter: Symbol | undefined;
+  isolatedSignatureType: Type | undefined;
+  composite: CompositeSignature | undefined;
+  erasedSignatureCache: Signature | undefined;
+  canonicalSignatureCache: Signature | undefined;
+  baseSignatureCache: Signature | undefined;
+  optionalCallSignatureCache: Signature | undefined;
+  instantiations: Map<string, Signature> | undefined;
+
+  constructor() {
+    this.thisParameter = undefined;
+    this.isolatedSignatureType = undefined;
+    this.composite = undefined;
+    this.erasedSignatureCache = undefined;
+    this.canonicalSignatureCache = undefined;
+    this.baseSignatureCache = undefined;
+    this.optionalCallSignatureCache = undefined;
+    this.instantiations = undefined;
+  }
+}
+
+/** The extra fields of `s`, created if it has none yet. */
+export function signatureExtra(s: Signature): SignatureExtra {
+  let extra = s.extra;
+  if (extra === undefined) {
+    extra = new SignatureExtra();
+    s.extra = extra;
+  }
+  return extra;
+}
+
 export class Signature {
   readonly id: number;
   flags: SignatureFlags;
@@ -884,19 +1072,12 @@ export class Signature {
   declaration: Node | undefined;
   typeParameters: Type[];
   parameters: Symbol[];
-  thisParameter: Symbol | undefined;
   resolvedReturnType: Type | undefined;
   resolvedTypePredicate: TypePredicate | undefined;
   target: Signature | undefined;
   mapper: TypeMapper | undefined;
-  isolatedSignatureType: Type | undefined;
-  composite: CompositeSignature | undefined;
-  /** Caches of derived signatures. */
-  erasedSignatureCache: Signature | undefined;
-  canonicalSignatureCache: Signature | undefined;
-  baseSignatureCache: Signature | undefined;
-  optionalCallSignatureCache: Signature | undefined;
-  instantiations: Map<string, Signature> | undefined;
+  /** Rarely set fields; undefined while all of them have their defaults. */
+  extra: SignatureExtra | undefined;
 
   constructor(
     id: number,
@@ -916,18 +1097,85 @@ export class Signature {
     this.declaration = declaration;
     this.typeParameters = typeParameters;
     this.parameters = parameters;
-    this.thisParameter = thisParameter;
     this.resolvedReturnType = resolvedReturnType;
     this.resolvedTypePredicate = resolvedTypePredicate;
     this.target = undefined;
     this.mapper = undefined;
-    this.isolatedSignatureType = undefined;
-    this.composite = undefined;
-    this.erasedSignatureCache = undefined;
-    this.canonicalSignatureCache = undefined;
-    this.baseSignatureCache = undefined;
-    this.optionalCallSignatureCache = undefined;
-    this.instantiations = undefined;
+    this.extra = undefined;
+    if (thisParameter !== undefined) signatureExtra(this).thisParameter = thisParameter;
+  }
+
+  get thisParameter(): Symbol | undefined {
+    const extra = this.extra;
+    return extra !== undefined ? extra.thisParameter : undefined;
+  }
+
+  set thisParameter(symbol: Symbol | undefined) {
+    if (symbol !== undefined || this.extra !== undefined) signatureExtra(this).thisParameter = symbol;
+  }
+
+  get isolatedSignatureType(): Type | undefined {
+    const extra = this.extra;
+    return extra !== undefined ? extra.isolatedSignatureType : undefined;
+  }
+
+  set isolatedSignatureType(t: Type | undefined) {
+    if (t !== undefined || this.extra !== undefined) signatureExtra(this).isolatedSignatureType = t;
+  }
+
+  get composite(): CompositeSignature | undefined {
+    const extra = this.extra;
+    return extra !== undefined ? extra.composite : undefined;
+  }
+
+  set composite(composite: CompositeSignature | undefined) {
+    if (composite !== undefined || this.extra !== undefined) signatureExtra(this).composite = composite;
+  }
+
+  /** Caches of derived signatures. */
+  get erasedSignatureCache(): Signature | undefined {
+    const extra = this.extra;
+    return extra !== undefined ? extra.erasedSignatureCache : undefined;
+  }
+
+  set erasedSignatureCache(s: Signature | undefined) {
+    if (s !== undefined || this.extra !== undefined) signatureExtra(this).erasedSignatureCache = s;
+  }
+
+  get canonicalSignatureCache(): Signature | undefined {
+    const extra = this.extra;
+    return extra !== undefined ? extra.canonicalSignatureCache : undefined;
+  }
+
+  set canonicalSignatureCache(s: Signature | undefined) {
+    if (s !== undefined || this.extra !== undefined) signatureExtra(this).canonicalSignatureCache = s;
+  }
+
+  get baseSignatureCache(): Signature | undefined {
+    const extra = this.extra;
+    return extra !== undefined ? extra.baseSignatureCache : undefined;
+  }
+
+  set baseSignatureCache(s: Signature | undefined) {
+    if (s !== undefined || this.extra !== undefined) signatureExtra(this).baseSignatureCache = s;
+  }
+
+  get optionalCallSignatureCache(): Signature | undefined {
+    const extra = this.extra;
+    return extra !== undefined ? extra.optionalCallSignatureCache : undefined;
+  }
+
+  set optionalCallSignatureCache(s: Signature | undefined) {
+    if (s !== undefined || this.extra !== undefined) signatureExtra(this).optionalCallSignatureCache = s;
+  }
+
+  get instantiations(): Map<string, Signature> | undefined {
+    const extra = this.extra;
+    return extra !== undefined ? extra.instantiations : undefined;
+  }
+
+  set instantiations(instantiations: Map<string, Signature> | undefined) {
+    if (instantiations !== undefined || this.extra !== undefined) signatureExtra(this).instantiations = instantiations;
   }
 
   hasRestParameter(): boolean {
