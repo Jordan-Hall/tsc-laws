@@ -378,6 +378,70 @@ export class TypeAlias {
   }
 }
 
+/** One entry of a `TypeListCache`: the parts of its key, its value, and the next entry with the same hash. */
+class TypeListEntry<V> {
+  readonly types: readonly Type[];
+  readonly alias: TypeAlias | undefined;
+  readonly tag: number;
+  value: V;
+  next: TypeListEntry<V> | undefined;
+
+  constructor(types: readonly Type[], alias: TypeAlias | undefined, tag: number, value: V) {
+    this.types = types;
+    this.alias = alias;
+    this.tag = tag;
+    this.value = value;
+    this.next = undefined;
+  }
+}
+
+function sameTypeListParts(a: readonly Type[], b: readonly Type[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i]! !== b[i]!) return false;
+  return true;
+}
+
+function sameAliasParts(a: TypeAlias | undefined, b: TypeAlias | undefined): boolean {
+  if (a === undefined || b === undefined) return a === b;
+  return a.symbol === b.symbol && sameTypeListParts(a.typeArguments, b.typeArguments);
+}
+
+/**
+ * Values keyed by a list of types, an optional alias and a small tag: the keys `typeListKey(types) +
+ * aliasKey(alias)` plus a suffix spelled, without building them. A lookup takes a number hashing the
+ * parts (`typeListHash`); entries keep their parts, so a match is exact and keys sharing a hash chain.
+ * Like tsgo's hashed type list keys. A list must not change after it keys an entry.
+ */
+export class TypeListCache<V> {
+  private readonly entries = new Map<number, TypeListEntry<V>>();
+
+  get(hash: number, types: readonly Type[], alias: TypeAlias | undefined, tag: number): V | undefined {
+    for (let e = this.entries.get(hash); e !== undefined; e = e.next)
+      if (e.tag === tag && sameTypeListParts(e.types, types) && sameAliasParts(e.alias, alias)) return e.value;
+    return undefined;
+  }
+
+  set(hash: number, types: readonly Type[], alias: TypeAlias | undefined, tag: number, value: V): void {
+    const head = this.entries.get(hash);
+    if (head === undefined) {
+      this.entries.set(hash, new TypeListEntry(types, alias, tag, value));
+      return;
+    }
+    for (let e: TypeListEntry<V> | undefined = head; e !== undefined; e = e.next)
+      if (e.tag === tag && sameTypeListParts(e.types, types) && sameAliasParts(e.alias, alias)) {
+        e.value = value;
+        return;
+      }
+    const entry = new TypeListEntry(types, alias, tag, value);
+    entry.next = head.next;
+    head.next = entry;
+  }
+
+  clear(): void {
+    this.entries.clear();
+  }
+}
+
 /**
  * The base of every type. Narrow by `flags` (and `objectFlags` for object types), then cast to
  * the subclass, as tsgo does with `AsUnionType()` etc.
@@ -497,7 +561,7 @@ export class ObjectType extends StructuredType {
   /** The generic type this one instantiates. */
   target: Type | undefined;
   mapper: TypeMapper | undefined;
-  instantiations: Map<string, Type> | undefined;
+  instantiations: TypeListCache<Type> | undefined;
 
   constructor(objectFlags: ObjectFlags, id: number, symbol: Symbol | undefined) {
     super(TypeFlags.Object, objectFlags, id, symbol);
@@ -791,7 +855,7 @@ export class ConditionalRoot {
   readonly isDistributive: boolean;
   readonly inferTypeParameters: Type[];
   readonly outerTypeParameters: Type[];
-  readonly instantiations: Map<string, Type>;
+  readonly instantiations: TypeListCache<Type>;
   readonly alias: TypeAlias | undefined;
 
   constructor(
@@ -809,7 +873,7 @@ export class ConditionalRoot {
     this.isDistributive = isDistributive;
     this.inferTypeParameters = inferTypeParameters;
     this.outerTypeParameters = outerTypeParameters;
-    this.instantiations = new Map<string, Type>();
+    this.instantiations = new TypeListCache<Type>();
     this.alias = alias;
   }
 }
@@ -896,7 +960,7 @@ export class Signature {
   canonicalSignatureCache: Signature | undefined;
   baseSignatureCache: Signature | undefined;
   optionalCallSignatureCache: Signature | undefined;
-  instantiations: Map<string, Signature> | undefined;
+  instantiations: TypeListCache<Signature> | undefined;
 
   constructor(
     id: number,

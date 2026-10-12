@@ -1368,12 +1368,14 @@ export function resolveAlias(c: Checker, symbol: Symbol): Symbol {
 /** The combined flags of `symbol` and every alias target; All when an alias resolves to unknown. */
 export function getSymbolFlags(c: Checker, symbol: Symbol): SymbolFlags {
   let flags = symbol.flags;
-  const seen = new Set<Symbol>();
+  // Created for the first alias of an alias, as tsgo's zero-value set.
+  let seen: Set<Symbol> | undefined = undefined;
   while ((symbol.flags & SymbolFlags.Alias) !== 0) {
     const target = getExportSymbolOfValueSymbolIfExported(c, resolveAlias(c, symbol));
     if (target === c.unknownSymbol) return SymbolFlags.All;
     if ((target.flags & SymbolFlags.Alias) !== 0) {
-      if (target === symbol || seen.has(target)) break;
+      if (target === symbol || (seen !== undefined && seen.has(target))) break;
+      if (seen === undefined) seen = new Set<Symbol>();
       seen.add(symbol);
       seen.add(target);
     }

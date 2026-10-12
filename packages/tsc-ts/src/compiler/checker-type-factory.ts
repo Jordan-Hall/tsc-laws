@@ -50,6 +50,7 @@ import {
   emptySignatures,
   emptySymbols,
   emptyTypes,
+  TypeListCache,
 } from './checker-types.js';
 import { getNamedMembers, getMembersOfSymbol } from './checker-symbols.js';
 import {
@@ -155,6 +156,35 @@ function unionKeyHash(types: Type[], origin: Type | undefined, alias: TypeAlias 
   h1 ^= h1 >>> 15;
   return (h1 >>> 0) * 0x100000 + ((h2 ^ list.length) & 0xfffff);
 }
+
+/**
+ * The hash a `TypeListCache` finds `types`, `alias` and `tag` by: two 32-bit hashes of the ids,
+ * combined below 2^53. Takes the alias symbol's id as `aliasKey` would.
+ */
+export function typeListHash(types: readonly Type[], alias: TypeAlias | undefined, tag: number): number {
+  let h1 = 0x811c9dc5 ^ tag;
+  let h2 = 0x9e3779b9 + tag;
+  for (let i = 0; i < types.length; i++) {
+    const id = types[i]!.id;
+    h1 = Math.imul(h1 ^ id, 0x01000193);
+    h2 = Math.imul(h2 + id, 0x85ebca6b) ^ (h2 >>> 15);
+  }
+  if (alias !== undefined) {
+    h1 = Math.imul(h1 ^ (getSymbolId(alias.symbol) + 0x40000000), 0x01000193);
+    for (const t of alias.typeArguments) {
+      h1 = Math.imul(h1 ^ t.id, 0x01000193);
+      h2 = Math.imul(h2 + t.id, 0x85ebca6b) ^ (h2 >>> 15);
+    }
+    h2 = Math.imul(h2 ^ alias.typeArguments.length, 0xc2b2ae35);
+  }
+  h1 ^= h1 >>> 16;
+  h1 = Math.imul(h1, 0x7feb352d);
+  h1 ^= h1 >>> 15;
+  return (h1 >>> 0) * 0x100000 + ((h2 ^ types.length) & 0xfffff);
+}
+
+/** Ids below this pack in pairs into exact numbers (`getUnionTypeEx`). */
+const UnionPairIdLimit = 1 << 24;
 
 function sameTypeLists(a: readonly Type[], b: readonly Type[]): boolean {
   if (a.length !== b.length) return false;
@@ -904,6 +934,16 @@ export function getUnionTypeEx(
       id1 = id2;
       id2 = t;
     }
+    // Without an alias, both ids and the reduction pack into one exact number.
+    if (alias === undefined && id2 < UnionPairIdLimit) {
+      const id = (id1 * UnionPairIdLimit + id2) * 4 + unionReduction;
+      let result = c.unionOfUnionTypesById.get(id);
+      if (result === undefined) {
+        result = getUnionTypeWorker(c, types, unionReduction, alias, undefined);
+        c.unionOfUnionTypesById.set(id, result);
+      }
+      return result;
+    }
     const key = id1 + ',' + id2 + ',' + unionReduction + aliasKey(alias);
     let result = c.unionOfUnionTypes.get(key);
     if (result === undefined) {
@@ -1210,9 +1250,11 @@ function removeConstrainedTypeVariables(c: Checker, types: Type[]): void {
 
 function removeSubtypes(c: Checker, types: Type[], hasObjectTypes: boolean): Type[] | undefined {
   if (types.length < 2) return types;
-  const key = typeListKey(types);
-  const cached = c.subtypeReductionCache.get(key);
+  const hash = typeListHash(types, undefined, 0);
+  const cached = c.subtypeReductionCache.get(hash, types, undefined, 0);
   if (cached !== undefined) return cached;
+  // The reduction removes from `types`; the key is the list before.
+  const keyTypes = types.slice();
   let hasEmptyObject = false;
   if (hasObjectTypes)
     for (const t of types)
@@ -1286,7 +1328,7 @@ function removeSubtypes(c: Checker, types: Type[], hasObjectTypes: boolean): Typ
       }
     }
   }
-  c.subtypeReductionCache.set(key, types);
+  c.subtypeReductionCache.set(hash, keyTypes, undefined, 0, types);
   return types;
 }
 
@@ -1509,10 +1551,16 @@ export function getIntersectionTypeEx(
       }
     }
   }
-  const key = typeListKey(typeSet) + ((flags & IntersectionFlags.NoConstraintReduction) === 0 ? aliasKey(alias) : '*');
-  let result = c.intersectionTypes.get(key);
+  // Keys without constraint reduction ignore the alias.
+  const keyAlias = (flags & IntersectionFlags.NoConstraintReduction) === 0 ? alias : undefined;
+  const keyTag = (flags & IntersectionFlags.NoConstraintReduction) === 0 ? 0 : 1;
+  const hash = typeListHash(typeSet, keyAlias, keyTag);
+  let result = c.intersectionTypes.get(hash, typeSet, keyAlias, keyTag);
+  let keyTypes = typeSet;
   if (result === undefined) {
     if ((includes & TypeFlags.Union) !== 0) {
+      // The distributions below change `typeSet`; the key is the list before.
+      keyTypes = typeSet.slice();
       if (intersectUnionsOfPrimitiveTypes(c, typeSet)) {
         // Restart with fresh flags; reduction happens at most once.
         result = getIntersectionTypeEx(c, typeSet, flags, alias);
@@ -1565,7 +1613,7 @@ export function getIntersectionTypeEx(
       result = newIntersectionType(c, objectFlags | getPropagatingFlagsOfTypes(types, TypeFlags.Nullable), typeSet);
       result.alias = alias;
     }
-    c.intersectionTypes.set(key, result);
+    c.intersectionTypes.set(hash, keyTypes, keyAlias, keyTag, result);
   }
   return result;
 }
@@ -1756,14 +1804,14 @@ export function createTypeReference(c: Checker, target: Type, typeArguments: Typ
 }
 
 export function createTypeReferenceEx(c: Checker, target: Type, typeArguments: Type[], objectFlags: ObjectFlags): Type {
-  const key = typeListKey(typeArguments);
+  const hash = typeListHash(typeArguments, undefined, 0);
   const generic = target as InterfaceType;
   let instantiations = generic.instantiations;
   if (instantiations === undefined) {
-    instantiations = new Map<string, Type>();
+    instantiations = new TypeListCache<Type>();
     generic.instantiations = instantiations;
   }
-  const existing = instantiations.get(key);
+  const existing = instantiations.get(hash, typeArguments, undefined, 0);
   if (existing !== undefined) return existing;
   const type = newObjectType(
     c,
@@ -1772,7 +1820,7 @@ export function createTypeReferenceEx(c: Checker, target: Type, typeArguments: T
   ) as TypeReference;
   type.target = target;
   type.resolvedTypeArguments = typeArguments;
-  instantiations.set(key, type);
+  instantiations.set(hash, typeArguments, undefined, 0, type);
   return type;
 }
 
@@ -1967,9 +2015,9 @@ function createTupleTargetType(c: Checker, elementInfos: TupleElementInfo[], rea
   type.thisType = thisType;
   typeParameters.push(thisType);
   type.allTypeParameters = typeParameters;
-  type.instantiations = new Map<string, Type>();
+  type.instantiations = new TypeListCache<Type>();
   const ownParameters = type.typeParameters();
-  type.instantiations.set(typeListKey(ownParameters), type);
+  type.instantiations.set(typeListHash(ownParameters, undefined, 0), ownParameters, undefined, 0, type);
   type.target = type;
   type.resolvedTypeArguments = ownParameters;
   type.declaredMembersResolved = true;
