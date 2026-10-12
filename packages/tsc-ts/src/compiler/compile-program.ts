@@ -12,6 +12,7 @@ import { CheckedProgram } from './program-checker.js';
 import { CheckerDeclarationEmitResolver } from './checker-emit-resolver.js';
 import { getEmitModuleFormatOfFile } from './program-utilities.js';
 import { SyntacticDeclarationEmitResolver } from './transformers/declarations-syntactic.js';
+import { mark } from './timeline.js';
 import { type EmitResolver, SyntacticEmitResolver } from './transformers/emit-resolver.js';
 import { ModuleFormatHost } from './transformers/module.js';
 import { ModuleLookup, ReferenceResolver } from './transformers/reference-resolver.js';
@@ -263,8 +264,10 @@ export function getDiagnosticsOfProgram(program: CompilerProgram, withDeclaratio
   const result: Diagnostic[] = [...program.getConfigFileParsingDiagnostics()];
   const configCount = result.length;
   for (const d of program.getSyntacticDiagnostics()) result.push(d);
+  mark('syntactic diagnostics');
   if (result.length !== configCount) return result;
   for (const d of program.getProgramDiagnostics()) result.push(d);
+  mark('program diagnostics');
   const options = program.options;
   if (options.listFilesOnly === true) return result;
   for (const d of program.getGlobalDiagnostics()) result.push(d);
@@ -275,6 +278,7 @@ export function getDiagnosticsOfProgram(program: CompilerProgram, withDeclaratio
     for (const d of semantic) result.push(d);
     // Checking may have found more, such as missing global types.
     for (const d of program.getGlobalDiagnostics()) result.push(d);
+    mark('semantic diagnostics');
   }
   if (
     (withDeclarationDiagnostics || options.noEmit === true) &&

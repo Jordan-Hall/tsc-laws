@@ -33,6 +33,7 @@ import {
 } from './options.js';
 import { LoadKind, type LoadJobs, preparedLoad, takePreparedFile } from './parallel-parse.js';
 import { parseSourceFile } from './parser.js';
+import { mark } from './timeline.js';
 import {
   combinePaths,
   fileExtensionIsOneOf,
@@ -463,9 +464,12 @@ export class FileLoader {
       );
     }
 
+    mark('loader roots added');
     this.start(this.rootTasks, 0);
     for (let work = this.work.pop(); work !== undefined; work = this.work.pop()) this.run(work);
+    mark('loader walked');
     const result = this.collect();
+    mark('loader collected');
     this.mapper.loader = undefined;
     return result;
   }

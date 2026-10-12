@@ -99,6 +99,7 @@ import {
 } from './tsconfig.js';
 import { SyntaxKind } from './syntax-kind.js';
 import { KnownSymlinks } from './symlinks.js';
+import { mark } from './timeline.js';
 import { LanguageVariant } from './types.js';
 
 export class Program implements OutputPathsHost {
@@ -478,8 +479,11 @@ export class Program implements OutputPathsHost {
    */
   prepareForSharing(): void {
     this.getSymlinkCache();
+    mark('symlink cache');
     this.getPackagesMap();
+    mark('packages map');
     this.includeProcessor.diagnostics(this);
+    mark('include diagnostics');
     this.commonSourceDirectory();
     // File system and resolution lookups that checking and declaration emit add later (module
     // specifiers probe files and `package.json` scopes) go to tables of each thread.
