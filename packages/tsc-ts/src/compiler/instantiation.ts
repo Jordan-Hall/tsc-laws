@@ -42,6 +42,8 @@ import {
   emptyTypes,
   newTypeMapper,
   SimpleTypeMapper,
+  TypeListCache,
+  typeListCacheKey,
 } from './checker-types.js';
 import {
   IntersectionFlags,
@@ -434,14 +436,18 @@ function getObjectTypeInstantiation(
   for (const tp of typeParameters) typeArguments.push(combinedMapper.map(tp));
   const newAlias = alias ?? instantiateTypeAlias(c, type.alias, mapper);
   const singleSignature = (type.objectFlags & ObjectFlags.SingleSignatureType) !== 0;
-  const key = typeListKey(typeArguments) + aliasKey(newAlias) + (singleSignature ? '!' : '');
+  const suffix = aliasKey(newAlias) + (singleSignature ? '!' : '');
+  const short = typeListCacheKey(typeArguments, suffix);
+  const key = short < 0 ? typeListKey(typeArguments) + suffix : '';
   let instantiations = target.instantiations;
   if (instantiations === undefined) {
-    instantiations = new Map<string, Type>();
-    instantiations.set(typeListKey(typeParameters) + aliasKey(target.alias), target);
+    instantiations = new TypeListCache<Type>();
+    const targetSuffix = aliasKey(target.alias);
+    const targetShort = typeListCacheKey(typeParameters, targetSuffix);
+    instantiations.set(targetShort, targetShort < 0 ? typeListKey(typeParameters) + targetSuffix : '', target);
     target.instantiations = instantiations;
   }
-  let result = instantiations.get(key);
+  let result = instantiations.get(short, key);
   if (result === undefined) {
     let newMapper = newTypeMapper(typeParameters, typeArguments);
     if ((target.objectFlags & ObjectFlags.SingleSignatureType) !== 0)
@@ -457,7 +463,7 @@ function getObjectTypeInstantiation(
     else if ((target.objectFlags & ObjectFlags.Mapped) !== 0)
       result = instantiateMappedType(c, target as MappedType, newMapper, newAlias);
     else result = instantiateAnonymousType(c, target, newMapper, newAlias);
-    instantiations.set(key, result);
+    instantiations.set(short, key, result);
     if (
       (result.flags & TypeFlags.ObjectFlagsType) !== 0 &&
       (result.objectFlags & ObjectFlags.CouldContainTypeVariablesComputed) === 0

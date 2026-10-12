@@ -38,6 +38,7 @@ import {
   type TypeReference,
   emptyTypes,
   newTypeMapper,
+  TypeListCache,
 } from './checker-types.js';
 import {
   UnionReduction,
@@ -51,7 +52,6 @@ import {
   getUnionTypeEx,
   isErrorType,
   newObjectType,
-  typeListKey,
   typesOf,
 } from './checker-type-factory.js';
 import {
@@ -138,8 +138,9 @@ export function getDeclaredTypeOfClassOrInterface(c: Checker, symbol: Symbol): I
       type.allTypeParameters = typeParameters;
       type.outerTypeParameterCount = outerTypeParameters.length;
       type.resolvedTypeArguments = type.typeParameters();
-      type.instantiations = new Map<string, Type>();
-      type.instantiations.set(typeListKey(type.resolvedTypeArguments), type);
+      const instantiations = new TypeListCache<Type>();
+      instantiations.setList(type.resolvedTypeArguments, type);
+      type.instantiations = instantiations;
       type.target = type;
     }
   }
@@ -349,8 +350,9 @@ export function getDeclaredTypeOfTypeAlias(c: Checker, symbol: Symbol): Type {
     if (typeParameters.length !== 0) {
       // The declared type is the instantiation with the type parameters themselves.
       links.typeParameters = typeParameters;
-      links.instantiations = new Map<string, Type>();
-      links.instantiations.set(typeListKey(typeParameters), type);
+      const instantiations = new TypeListCache<Type>();
+      instantiations.setList(typeParameters, type);
+      links.instantiations = instantiations;
     }
     // `BuiltinIteratorReturn` is `undefined` with `strictBuiltinIteratorReturn`, else `any`.
     if (type === c.intrinsicMarkerType && symbol.name === 'BuiltinIteratorReturn')

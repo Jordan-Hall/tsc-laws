@@ -365,6 +365,89 @@ export function cachedTypePairKey(a: number, b: number, bits: number): number {
   return a < CachedTypePairIdLimit && b < CachedTypePairIdLimit ? (a * CachedTypePairIdLimit + b) * 8 + bits : -1;
 }
 
+/**
+ * An exact number for a list of at most two types with ids below 2^24 (0 for the empty list, then
+ * the length in the low two bits), or -1 for other lists. Caches keyed by a type list use it instead
+ * of the list's spelling (`typeListKey`), which converts every id to a string.
+ */
+export function shortTypeListKey(types: readonly Type[]): number {
+  const n = types.length;
+  if (n === 0) return 0;
+  if (n > 2) return -1;
+  const a = types[0]!.id;
+  if (a >= CachedTypePairIdLimit) return -1;
+  if (n === 1) return a * 4 + 1;
+  const b = types[1]!.id;
+  return b < CachedTypePairIdLimit ? (a * CachedTypePairIdLimit + b) * 4 + 2 : -1;
+}
+
+/**
+ * A cache keyed by a type list and a suffix of the key (tsgo's getTypeListKey followed by alias or
+ * flag parts). Lists without a suffix that `shortTypeListKey` encodes are keyed by that number;
+ * every other key is spelled as before. A key always takes the same path, so the two maps together
+ * answer exactly what one map of spelled keys would.
+ */
+export class TypeListCache<V> {
+  byShortKey: Map<number, V> | undefined;
+  bySpelling: Map<string, V> | undefined;
+
+  constructor() {
+    this.byShortKey = undefined;
+    this.bySpelling = undefined;
+  }
+
+  /** `short` is `shortTypeListKey` of the list when the key has no suffix, else -1; `spelling` is the spelled key when `short` is -1. */
+  get(short: number, spelling: string): V | undefined {
+    if (short >= 0) {
+      const byShortKey = this.byShortKey;
+      return byShortKey !== undefined ? byShortKey.get(short) : undefined;
+    }
+    const bySpelling = this.bySpelling;
+    return bySpelling !== undefined ? bySpelling.get(spelling) : undefined;
+  }
+
+  clear(): void {
+    this.byShortKey = undefined;
+    this.bySpelling = undefined;
+  }
+
+  /** Stores `value` for `types` without a key suffix. */
+  setList(types: readonly Type[], value: V): void {
+    const short = shortTypeListKey(types);
+    this.set(short, short < 0 ? typeListKey(types) : '', value);
+  }
+
+  set(short: number, spelling: string, value: V): void {
+    if (short >= 0) {
+      let byShortKey = this.byShortKey;
+      if (byShortKey === undefined) {
+        byShortKey = new Map<number, V>();
+        this.byShortKey = byShortKey;
+      }
+      byShortKey.set(short, value);
+    } else {
+      let bySpelling = this.bySpelling;
+      if (bySpelling === undefined) {
+        bySpelling = new Map<string, V>();
+        this.bySpelling = bySpelling;
+      }
+      bySpelling.set(spelling, value);
+    }
+  }
+}
+
+/** The spelling of a type list key (tsgo's getTypeListKey): the ids separated by commas. */
+export function typeListKey(types: readonly Type[]): string {
+  let key = '';
+  for (let i = 0; i < types.length; i++) key += (i === 0 ? '' : ',') + types[i]!.id;
+  return key;
+}
+
+/** `shortTypeListKey` of `types` when `suffix` is empty, else -1. */
+export function typeListCacheKey(types: readonly Type[], suffix: string): number {
+  return suffix === '' ? shortTypeListKey(types) : -1;
+}
+
 // ---- Types
 
 /** An alias symbol and its type arguments, for types written through a type alias. */
@@ -391,7 +474,7 @@ export class TypeExtra {
   constructSignatures: Signature[];
   objectTypeWithoutAbstractConstructSignatures: Type | undefined;
   // ObjectType
-  instantiations: Map<string, Type> | undefined;
+  instantiations: TypeListCache<Type> | undefined;
   // TypeReference
   node: Node | undefined;
   // UnionType
@@ -586,12 +669,12 @@ export class ObjectType extends StructuredType {
     this.mapper = undefined;
   }
 
-  get instantiations(): Map<string, Type> | undefined {
+  get instantiations(): TypeListCache<Type> | undefined {
     const extra = this.extra;
     return extra !== undefined ? extra.instantiations : undefined;
   }
 
-  set instantiations(instantiations: Map<string, Type> | undefined) {
+  set instantiations(instantiations: TypeListCache<Type> | undefined) {
     if (instantiations !== undefined || this.extra !== undefined) typeExtra(this).instantiations = instantiations;
   }
 }
@@ -1039,7 +1122,7 @@ export class SignatureExtra {
   canonicalSignatureCache: Signature | undefined;
   baseSignatureCache: Signature | undefined;
   optionalCallSignatureCache: Signature | undefined;
-  instantiations: Map<string, Signature> | undefined;
+  instantiations: TypeListCache<Signature> | undefined;
 
   constructor() {
     this.thisParameter = undefined;
@@ -1169,12 +1252,12 @@ export class Signature {
     if (s !== undefined || this.extra !== undefined) signatureExtra(this).optionalCallSignatureCache = s;
   }
 
-  get instantiations(): Map<string, Signature> | undefined {
+  get instantiations(): TypeListCache<Signature> | undefined {
     const extra = this.extra;
     return extra !== undefined ? extra.instantiations : undefined;
   }
 
-  set instantiations(instantiations: Map<string, Signature> | undefined) {
+  set instantiations(instantiations: TypeListCache<Signature> | undefined) {
     if (instantiations !== undefined || this.extra !== undefined) signatureExtra(this).instantiations = instantiations;
   }
 
@@ -1373,7 +1456,7 @@ export class SymbolLinks {
   /** Type parameters of a type alias. */
   typeParameters: Type[] | undefined;
   /** Instantiations of a generic type alias. */
-  instantiations: Map<string, Type> | undefined;
+  instantiations: TypeListCache<Type> | undefined;
   interfaceChecked: boolean;
   indexSignaturesChecked: boolean;
   typeParametersChecked: boolean;

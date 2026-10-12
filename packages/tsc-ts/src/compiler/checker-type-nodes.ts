@@ -55,6 +55,8 @@ import {
   UniqueESSymbolType,
   emptyTypes,
   newTypeMapper,
+  TypeListCache,
+  typeListCacheKey,
 } from './checker-types.js';
 import {
   createArrayType,
@@ -804,11 +806,13 @@ export function getTypeAliasInstantiation(
   const typeParameters = links.typeParameters ?? emptyTypes;
   let instantiations = links.instantiations;
   if (instantiations === undefined) {
-    instantiations = new Map<string, Type>();
+    instantiations = new TypeListCache<Type>();
     links.instantiations = instantiations;
   }
-  const key = typeListKey(typeArguments) + aliasKey(alias);
-  let instantiation = instantiations.get(key);
+  const suffix = aliasKey(alias);
+  const short = typeListCacheKey(typeArguments, suffix);
+  const key = short < 0 ? typeListKey(typeArguments) + suffix : '';
+  let instantiation = instantiations.get(short, key);
   if (instantiation === undefined) {
     const inJs =
       symbol.valueDeclaration !== undefined && (symbol.valueDeclaration.flags & NodeFlags.JavaScriptFile) !== 0;
@@ -817,7 +821,7 @@ export function getTypeAliasInstantiation(
       fillMissingTypeArguments(c, typeArguments, typeParameters, getMinTypeArgumentCount(c, typeParameters), inJs),
     );
     instantiation = instantiateTypeWithAlias(c, t, mapper, alias);
-    instantiations.set(key, instantiation);
+    instantiations.set(short, key, instantiation);
   }
   return instantiation;
 }

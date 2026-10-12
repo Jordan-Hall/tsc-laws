@@ -67,6 +67,7 @@ import {
   TypePredicateKind,
   emptyTypes,
   VarianceFlags,
+  TypeListCache,
 } from './checker-types.js';
 import {
   createArrayType,
@@ -366,7 +367,9 @@ export class Checker {
   readonly unionTypesByHash = new Map<number, Type>();
   readonly unionTypes = new Map<string, Type>();
   readonly unionOfUnionTypes = new Map<string, Type>();
-  readonly intersectionTypes = new Map<string, Type>();
+  /** unionOfUnionTypes entries without an alias, keyed by `cachedTypePairKey` of the ids and the reduction. */
+  readonly unionOfUnionTypesByPair = new Map<number, Type>();
+  readonly intersectionTypes = new TypeListCache<Type>();
   readonly tupleTypes = new Map<string, Type>();
   readonly indexedAccessTypes = new Map<string, Type>();
   readonly templateLiteralTypes = new Map<string, Type>();
@@ -690,7 +693,7 @@ export class Checker {
       ? getUnionType(this, [this.undefinedType, this.nullType, this.unknownEmptyObjectType])
       : this.unknownType;
     this.emptyGenericType = newAnonymousType(this, undefined);
-    this.emptyGenericType.instantiations = new Map<string, Type>();
+    this.emptyGenericType.instantiations = new TypeListCache<Type>();
     this.anyFunctionType = newAnonymousType(this, undefined);
     this.anyFunctionType.objectFlags |= ObjectFlags.NonInferrableType;
     this.noConstraintType = newAnonymousType(this, undefined);
@@ -945,6 +948,7 @@ export function disposeChecker(c: Checker): void {
   c.unionTypesByHash.clear();
   c.unionTypes.clear();
   c.unionOfUnionTypes.clear();
+  c.unionOfUnionTypesByPair.clear();
   c.intersectionTypes.clear();
   c.tupleTypes.clear();
   c.indexedAccessTypes.clear();

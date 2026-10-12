@@ -13,6 +13,7 @@ import type { Checker } from './checker.js';
 import {
   CachedTypeKind,
   cachedTypeKey,
+  cachedTypePairKey,
   ElementFlags,
   EvolvingArrayType,
   IndexInfo,
@@ -50,6 +51,10 @@ import {
   emptySignatures,
   emptySymbols,
   emptyTypes,
+  shortTypeListKey,
+  typeListCacheKey,
+  TypeListCache,
+  typeListKey,
 } from './checker-types.js';
 import { getNamedMembers, getMembersOfSymbol } from './checker-symbols.js';
 import {
@@ -89,11 +94,7 @@ export const enum IntersectionFlags {
 
 // ---- Keys
 
-export function typeListKey(types: readonly Type[]): string {
-  let key = '';
-  for (let i = 0; i < types.length; i++) key += (i === 0 ? '' : ',') + types[i]!.id;
-  return key;
-}
+export { typeListKey };
 
 export function aliasKey(alias: TypeAlias | undefined): string {
   return alias === undefined ? '' : '@' + getSymbolId(alias.symbol) + ':' + typeListKey(alias.typeArguments);
@@ -904,11 +905,14 @@ export function getUnionTypeEx(
       id1 = id2;
       id2 = t;
     }
-    const key = id1 + ',' + id2 + ',' + unionReduction + aliasKey(alias);
-    let result = c.unionOfUnionTypes.get(key);
+    // Without an alias the key packs into a number when the ids are small enough.
+    const pair = alias === undefined ? cachedTypePairKey(id1, id2, unionReduction) : -1;
+    const key = pair < 0 ? id1 + ',' + id2 + ',' + unionReduction + aliasKey(alias) : '';
+    let result = pair < 0 ? c.unionOfUnionTypes.get(key) : c.unionOfUnionTypesByPair.get(pair);
     if (result === undefined) {
       result = getUnionTypeWorker(c, types, unionReduction, alias, undefined);
-      c.unionOfUnionTypes.set(key, result);
+      if (pair < 0) c.unionOfUnionTypes.set(key, result);
+      else c.unionOfUnionTypesByPair.set(pair, result);
     }
     return result;
   }
@@ -1509,8 +1513,10 @@ export function getIntersectionTypeEx(
       }
     }
   }
-  const key = typeListKey(typeSet) + ((flags & IntersectionFlags.NoConstraintReduction) === 0 ? aliasKey(alias) : '*');
-  let result = c.intersectionTypes.get(key);
+  const suffix = (flags & IntersectionFlags.NoConstraintReduction) === 0 ? aliasKey(alias) : '*';
+  const short = typeListCacheKey(typeSet, suffix);
+  const key = short < 0 ? typeListKey(typeSet) + suffix : '';
+  let result = c.intersectionTypes.get(short, key);
   if (result === undefined) {
     if ((includes & TypeFlags.Union) !== 0) {
       if (intersectUnionsOfPrimitiveTypes(c, typeSet)) {
@@ -1565,7 +1571,7 @@ export function getIntersectionTypeEx(
       result = newIntersectionType(c, objectFlags | getPropagatingFlagsOfTypes(types, TypeFlags.Nullable), typeSet);
       result.alias = alias;
     }
-    c.intersectionTypes.set(key, result);
+    c.intersectionTypes.set(short, key, result);
   }
   return result;
 }
@@ -1756,14 +1762,15 @@ export function createTypeReference(c: Checker, target: Type, typeArguments: Typ
 }
 
 export function createTypeReferenceEx(c: Checker, target: Type, typeArguments: Type[], objectFlags: ObjectFlags): Type {
-  const key = typeListKey(typeArguments);
+  const short = shortTypeListKey(typeArguments);
+  const key = short < 0 ? typeListKey(typeArguments) : '';
   const generic = target as InterfaceType;
   let instantiations = generic.instantiations;
   if (instantiations === undefined) {
-    instantiations = new Map<string, Type>();
+    instantiations = new TypeListCache<Type>();
     generic.instantiations = instantiations;
   }
-  const existing = instantiations.get(key);
+  const existing = instantiations.get(short, key);
   if (existing !== undefined) return existing;
   const type = newObjectType(
     c,
@@ -1772,7 +1779,7 @@ export function createTypeReferenceEx(c: Checker, target: Type, typeArguments: T
   ) as TypeReference;
   type.target = target;
   type.resolvedTypeArguments = typeArguments;
-  instantiations.set(key, type);
+  instantiations.set(short, key, type);
   return type;
 }
 
@@ -1967,9 +1974,10 @@ function createTupleTargetType(c: Checker, elementInfos: TupleElementInfo[], rea
   type.thisType = thisType;
   typeParameters.push(thisType);
   type.allTypeParameters = typeParameters;
-  type.instantiations = new Map<string, Type>();
+  const instantiations = new TypeListCache<Type>();
   const ownParameters = type.typeParameters();
-  type.instantiations.set(typeListKey(ownParameters), type);
+  instantiations.setList(ownParameters, type);
+  type.instantiations = instantiations;
   type.target = type;
   type.resolvedTypeArguments = ownParameters;
   type.declaredMembersResolved = true;

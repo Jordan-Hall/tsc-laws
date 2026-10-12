@@ -52,6 +52,9 @@ import {
   newTypeMapper,
   TypeParameter,
   UnionOrIntersectionType,
+  TypeListCache,
+  shortTypeListKey,
+  typeListKey,
 } from './checker-types.js';
 import {
   UnionReduction,
@@ -723,14 +726,15 @@ export function getSignatureInstantiationWithoutFillingInTypeArguments(
 ): Signature {
   let instantiations = sig.instantiations;
   if (instantiations === undefined) {
-    instantiations = new Map<string, Signature>();
+    instantiations = new TypeListCache<Signature>();
     sig.instantiations = instantiations;
   }
-  const key = typeArguments.map((t) => t.id).join(',');
-  let instantiation = instantiations.get(key);
+  const short = shortTypeListKey(typeArguments);
+  const key = short < 0 ? typeListKey(typeArguments) : '';
+  let instantiation = instantiations.get(short, key);
   if (instantiation === undefined) {
     instantiation = createSignatureInstantiation(c, sig, typeArguments);
-    instantiations.set(key, instantiation);
+    instantiations.set(short, key, instantiation);
   }
   return instantiation;
 }
