@@ -1191,16 +1191,46 @@ function removeStringLiteralsMatchedByTemplateLiterals(c: Checker, types: Type[]
   const templates: Type[] = [];
   for (const t of types) if (isPatternLiteralType(c, t)) templates.push(t);
   if (templates.length === 0) return;
+  // Every string literal is tested against every template, and most fail the first test of
+  // inferTypesFromTemplateLiteralType: the literal starts with the template's first text, ends with
+  // its last, and is long enough for both. Apply that test here with the texts read once per
+  // template; only literals that pass it take the full match. (String mapping templates keep the
+  // full test: their start and end are empty.)
+  const starts: string[] = [];
+  const ends: string[] = [];
+  const minLengths: number[] = [];
+  for (const template of templates) {
+    if ((template.flags & TypeFlags.TemplateLiteral) !== 0) {
+      const texts = (template as TemplateLiteralType).texts;
+      const start = texts[0]!;
+      const end = texts[texts.length - 1]!;
+      starts.push(start);
+      ends.push(end);
+      minLengths.push(start.length + end.length);
+    } else {
+      starts.push('');
+      ends.push('');
+      minLengths.push(0);
+    }
+  }
   let i = types.length;
   while (i > 0) {
     i--;
     const t = types[i]!;
     if ((t.flags & TypeFlags.StringLiteral) === 0) continue;
-    for (const template of templates)
-      if (isTypeMatchedByTemplateLiteralOrStringMapping(c, t, template)) {
+    const text = (t as LiteralType).stringValue;
+    const length = text.length;
+    for (let j = 0; j < templates.length; j++) {
+      if (length < minLengths[j]!) continue;
+      const start = starts[j]!;
+      if (start.length !== 0 && !text.startsWith(start)) continue;
+      const end = ends[j]!;
+      if (end.length !== 0 && !text.endsWith(end)) continue;
+      if (isTypeMatchedByTemplateLiteralOrStringMapping(c, t, templates[j]!)) {
         types.splice(i, 1);
         break;
       }
+    }
   }
 }
 
