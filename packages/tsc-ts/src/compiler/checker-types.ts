@@ -394,7 +394,7 @@ export class Type {
   constructor(flags: TypeFlags, objectFlags: ObjectFlags, id: number, symbol: Symbol | undefined) {
     this.flags = flags;
     this.objectFlags = objectFlags;
-    this.id = id;
+    this.id = id | 0;
     this.symbol = symbol;
     this.alias = undefined;
     this.resolvedBaseConstraint = undefined;
@@ -909,9 +909,9 @@ export class Signature {
     resolvedTypePredicate: TypePredicate | undefined,
     minArgumentCount: number,
   ) {
-    this.id = id;
+    this.id = id | 0;
     this.flags = flags;
-    this.minArgumentCount = minArgumentCount;
+    this.minArgumentCount = minArgumentCount | 0;
     this.resolvedMinArgumentCount = -1;
     this.declaration = declaration;
     this.typeParameters = typeParameters;

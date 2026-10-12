@@ -829,7 +829,7 @@ function resolveAnonymousTypeMembers(c: Checker, t: ObjectType): void {
       if (numberLike) indexInfos.push(c.enumNumberIndexInfo);
     }
   }
-  t.indexInfos = indexInfos;
+  t.indexInfos = indexInfos.length === 0 ? emptyIndexInfos : indexInfos;
   // Members are resolved before signatures, which may use `typeof` on this type (#6072).
   if ((symbol.flags & (SymbolFlags.Function | SymbolFlags.Method)) !== 0)
     t.callSignatures = getSignaturesOfSymbol(c, symbol);
