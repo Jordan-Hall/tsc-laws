@@ -1,8 +1,9 @@
 /**
  * Checking on several threads (`--checkers N`).
  *
- * The main thread is checker 0; it starts N-1 checker threads. Every checker creates its own checker
- * over the program and takes files until none are left (`planSchedule`): the costliest files first,
+ * In scriptc builds the main thread starts N checker threads and only collects their results
+ * (`mainThreadChecks`); under Node.js it is checker 0 and starts N-1. Every checker creates its own
+ * checker over the program and takes files until none are left (`planSchedule`): the costliest files first,
  * and groups of files that share costly declarations as a whole (`checkGroups`), then a range of
  * neighboring files of its own, then the end of other checkers' ranges where that makes them finish
  * earlier (`takePosition`). Checkers beyond tsgo's four stop when the process's memory reaches its
@@ -1006,13 +1007,17 @@ export function traceSingleChecker(checked: CheckedProgram): void {
   );
 }
 
-/** Checks files from the shared queue until it is empty; the main thread and checker threads alike. */
+/**
+ * Checks files from the shared queue until it is empty; the main thread and checker threads alike.
+ * A checker thread (`onMainThread` false) also sends back its global diagnostics.
+ */
 export function checkFromQueue(
   checked: CheckedProgram,
   index: number,
   counter: Int32Array,
   order: number[],
   startedAt: number = Date.now(),
+  onMainThread: boolean = true,
 ): CheckerResult {
   const start = performance.now();
   const readyAt = Date.now();
@@ -1052,7 +1057,7 @@ export function checkFromQueue(
   }
   mark(`checked ${done.length} files`);
   // The main thread reports its own global diagnostics (CheckedProgram.getGlobalDiagnostics).
-  const globals = index === 0 ? [] : checked.getGlobalDiagnostics().slice();
+  const globals = onMainThread ? [] : checked.getGlobalDiagnostics().slice();
   let stats: number[] = [];
   if (process.env.TSC_TS_CHECKERS_TRACE !== undefined) {
     const cpu = process.threadCpuUsage();
@@ -1082,8 +1087,21 @@ export function checkFromQueue(
 }
 
 /**
- * Checks `checked` with `count` checkers, this thread included, and calls `done` with the wall time
- * once `checked` holds every file's diagnostics.
+ * Whether the main thread is one of the checkers, given whether threads share the published program.
+ * In scriptc builds it is not: the main thread carries the memory state of loading the program, and
+ * checking there is slower than on a new thread (on Playwright the same files took 1.5 times as long
+ * on the main thread, its cycle collector took twice the share of a checker thread's, and a checker
+ * created on it after publishing was no faster), so the main thread often finished last. Starting
+ * one more thread costs well under a millisecond. Under Node.js, where every checker thread builds
+ * its own copy of the program, the main thread checks too.
+ */
+export function mainThreadChecks(shared: boolean): boolean {
+  return !shared;
+}
+
+/**
+ * Checks `checked` with `count` checkers and calls `done` with the wall time once `checked` holds
+ * every file's diagnostics.
  */
 export function startParallelCheck(checked: CheckedProgram, count: number, done: (checkTime: number) => void): void {
   const start = performance.now();
@@ -1125,7 +1143,9 @@ export function startParallelCheck(checked: CheckedProgram, count: number, done:
     perFileDeclarations.push(undefined);
   }
   const revival = shared ? undefined : new Revival(program);
-  let remaining = count - 1;
+  const mainChecks = mainThreadChecks(shared);
+  const firstThread = mainChecks ? 1 : 0;
+  let remaining = count - firstThread;
   let ownDone = false;
   const finish = (): void => {
     // A thread that failed may have taken files it never checked: check them here.
@@ -1158,7 +1178,7 @@ export function startParallelCheck(checked: CheckedProgram, count: number, done:
     remaining--;
     if (remaining === 0 && ownDone) finish();
   };
-  for (let i = 1; i < count; i++) {
+  for (let i = firstThread; i < count; i++) {
     const worker = parallelCheck.spawn!(
       shared ? program : undefined,
       i,
@@ -1179,7 +1199,7 @@ export function startParallelCheck(checked: CheckedProgram, count: number, done:
     });
   }
   mark('checkers spawned');
-  record(checkFromQueue(checked, 0, new Int32Array(counter), order, epoch));
+  if (mainChecks) record(checkFromQueue(checked, 0, new Int32Array(counter), order, epoch));
   ownDone = true;
   if (remaining === 0) finish();
 }
