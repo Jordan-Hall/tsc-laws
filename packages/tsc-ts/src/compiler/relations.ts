@@ -633,10 +633,69 @@ const RelationKeyIdLimit = 1 << 24;
 function internRelationKey(c: Checker, text: string): number {
   let key = c.relationKeyIds.get(text);
   if (key === undefined) {
-    key = -(c.relationKeyIds.size + 1);
+    key = -++c.relationKeyCount;
     c.relationKeyIds.set(text, key);
   }
   return key;
+}
+
+/** An interned generic relation key (`writeTypeReference`'s tokens) and the next one with the same hash. */
+export class InternedRelationKey {
+  readonly tokens: number[];
+  readonly key: number;
+  next: InternedRelationKey | undefined = undefined;
+
+  constructor(tokens: number[], key: number) {
+    this.tokens = tokens;
+    this.key = key;
+  }
+}
+
+/** `internRelationKey` for a generic relation key spelled as tokens, without building its string. */
+function internRelationKeyTokens(c: Checker, tokens: number[]): number {
+  let h1 = 0x811c9dc5;
+  let h2 = 0x9e3779b9;
+  for (let i = 0; i < tokens.length; i++) {
+    const t = tokens[i]!;
+    h1 = Math.imul(h1 ^ t, 0x01000193);
+    h2 = Math.imul(h2 + t, 0x85ebca6b) ^ (h2 >>> 15);
+  }
+  h1 ^= h1 >>> 16;
+  h1 = Math.imul(h1, 0x7feb352d);
+  h1 ^= h1 >>> 15;
+  const hash = (h1 >>> 0) * 0x100000 + ((h2 ^ tokens.length) & 0xfffff);
+  const head = c.relationKeyTokens.get(hash);
+  for (let e = head; e !== undefined; e = e.next) {
+    const other = e.tokens;
+    if (other.length !== tokens.length) continue;
+    let same = true;
+    for (let i = 0; i < tokens.length; i++)
+      if (other[i]! !== tokens[i]!) {
+        same = false;
+        break;
+      }
+    if (same) return e.key;
+  }
+  const entry = new InternedRelationKey(tokens, -++c.relationKeyCount);
+  if (head === undefined) c.relationKeyTokens.set(hash, entry);
+  else {
+    entry.next = head.next;
+    head.next = entry;
+  }
+  return entry.key;
+}
+
+// The tokens of a generic relation key: what the key string would spell, as numbers. Ids and type
+// parameter positions carry their kind in the low two bits; the markers end in 3.
+const enum RelationKeyToken {
+  TargetId = 0,
+  ArgumentId = 1,
+  TypeParameterIndex = 2,
+  Open = 3,
+  Close = 7,
+  Separator = 11,
+  /** Plus 4 x the intersection state. */
+  End = 15,
 }
 
 export function getRelationKey(
@@ -656,11 +715,12 @@ export function getRelationKey(
   result.constrained = false;
   if (isTypeReferenceWithGenericArguments(c, source) && isTypeReferenceWithGenericArguments(c, target)) {
     const typeParameters: Type[] = [];
-    const parts: string[] = ['g'];
-    writeTypeReference(c, source, 0, typeParameters, parts, ignoreConstraints, result);
-    parts.push(',');
-    writeTypeReference(c, target, 0, typeParameters, parts, ignoreConstraints, result);
-    result.key = internRelationKey(c, parts.join('') + ':' + intersectionState);
+    const tokens: number[] = [];
+    writeTypeReference(c, source, 0, typeParameters, tokens, ignoreConstraints, result);
+    tokens.push(RelationKeyToken.Separator);
+    writeTypeReference(c, target, 0, typeParameters, tokens, ignoreConstraints, result);
+    tokens.push(RelationKeyToken.End + 4 * intersectionState);
+    result.key = internRelationKeyTokens(c, tokens);
   } else {
     // The common case packs both ids and the intersection state (two bits) into one exact number,
     // so the relation caches need no key strings.
@@ -679,11 +739,11 @@ function writeTypeReference(
   ref: Type,
   depth: number,
   typeParameters: Type[],
-  parts: string[],
+  tokens: number[],
   ignoreConstraints: boolean,
   result: RelationKey,
 ): void {
-  parts.push(String((ref as TypeReference).target!.id));
+  tokens.push((ref as TypeReference).target!.id * 4 + RelationKeyToken.TargetId);
   for (const t of (ref as TypeReference).resolvedTypeArguments ?? getTypeArguments(c, ref)) {
     if ((t.flags & TypeFlags.TypeParameter) !== 0) {
       if (ignoreConstraints || getConstraintFromTypeParameter(c, t) === undefined) {
@@ -692,17 +752,17 @@ function writeTypeReference(
           index = typeParameters.length;
           typeParameters.push(t);
         }
-        parts.push('=' + index);
+        tokens.push(index * 4 + RelationKeyToken.TypeParameterIndex);
         continue;
       }
       result.constrained = true;
     } else if (depth < 4 && isTypeReferenceWithGenericArguments(c, t)) {
-      parts.push('<');
-      writeTypeReference(c, t, depth + 1, typeParameters, parts, ignoreConstraints, result);
-      parts.push('>');
+      tokens.push(RelationKeyToken.Open);
+      writeTypeReference(c, t, depth + 1, typeParameters, tokens, ignoreConstraints, result);
+      tokens.push(RelationKeyToken.Close);
       continue;
     }
-    parts.push('-' + t.id);
+    tokens.push(t.id * 4 + RelationKeyToken.ArgumentId);
   }
 }
 

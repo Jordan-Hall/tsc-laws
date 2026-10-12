@@ -94,7 +94,7 @@ import {
   mergeAmbientModulesAndAugmentations,
 } from './checker-symbols.js';
 import { PermissiveMapper, ReportingMapper, RestrictiveMapper, UniqueLiteralMapper } from './instantiation.js';
-import { Relation, RelationKey, type Relater, TypeComparer } from './relations.js';
+import { Relation, RelationKey, type InternedRelationKey, type Relater, TypeComparer } from './relations.js';
 import { TypeNodeVisitor, checkSourceFile } from './checker-source-file.js';
 import { InferenceCaches } from './checker-inference.js';
 import { AssignmentMarker, type FlowLoopInfo, type FlowState } from './checker-narrowing.js';
@@ -501,6 +501,10 @@ export class Checker {
   readonly relationScratchKey = new RelationKey();
   /** Numbers for relation keys that are spelled as strings (see getRelationKey). */
   readonly relationKeyIds = new Map<string, number>();
+  /** Numbers for generic relation keys spelled as tokens, by a hash of the tokens. */
+  readonly relationKeyTokens = new Map<number, InternedRelationKey>();
+  /** The number of interned relation keys of both kinds. */
+  relationKeyCount = 0;
   readonly markerTypes = new Set<Type>();
   readonly arrayVariances: VarianceFlags[] = [VarianceFlags.Covariant];
   nanLiteralType: LiteralType | undefined = undefined;
