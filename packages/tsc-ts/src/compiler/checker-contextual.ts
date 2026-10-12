@@ -232,7 +232,7 @@ export function popInferenceContext(c: Checker): void {
 export function getInferenceContext(c: Checker, node: Node): InferenceContext | undefined {
   const caches = c.inferenceCaches;
   for (let i = caches.inferenceNodes.length - 1; i >= 0; i--)
-    if (isNodeDescendantOf(node, caches.inferenceNodes[i]!)) return caches.inferenceContexts.at(i);
+    if (isNodeDescendantOf(node, caches.inferenceNodes[i]!)) return caches.inferenceContexts[i];
   return undefined;
 }
 
@@ -328,7 +328,7 @@ export function getContextualType(c: Checker, node: Node): Type | undefined {
 export function getContextualTypeEx(c: Checker, node: Node, contextFlags: ContextFlags): Type | undefined {
   // Cached contextual types were obtained without flags.
   const index = findContextualNode(c, node, contextFlags === ContextFlags.None);
-  if (index >= 0) return c.inferenceCaches.contextualTypes.at(index);
+  if (index >= 0) return c.inferenceCaches.contextualTypes[index];
   const parent = node.parent;
   if (parent === undefined) return undefined;
   switch (parent.kind) {
