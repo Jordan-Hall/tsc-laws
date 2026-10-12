@@ -48,6 +48,7 @@ import {
   type StringMappingType,
   emptyIndexInfos,
   emptySignatures,
+  emptySymbols,
   emptyTypes,
 } from './checker-types.js';
 import { getNamedMembers, getMembersOfSymbol } from './checker-symbols.js';
@@ -59,6 +60,7 @@ import {
   getTypeOfPropertyOfType,
   isArrayLikeType,
   resolveStructuredTypeMembers,
+  hasResolvedProperties,
 } from './checker-members.js';
 import { getTypeOfSymbol } from './checker-symbol-types.js';
 import { getDeclaredTypeOfSymbol, getParentOfSymbol } from './checker-declared-types.js';
@@ -227,11 +229,14 @@ export function setStructuredTypeMembers(
   indexInfos: IndexInfo[],
 ): void {
   type.objectFlags |= ObjectFlags.MembersResolved;
+  type.pendingMembers = undefined;
   type.members = members;
-  type.properties = getNamedMembers(c, members, type.symbol);
-  type.callSignatures = callSignatures;
-  type.constructSignatures = constructSignatures;
-  type.indexInfos = indexInfos;
+  // Resolved member lists are never modified, so every empty one shares one array.
+  const properties = getNamedMembers(c, members, type.symbol);
+  type.properties = properties.length === 0 ? emptySymbols : properties;
+  type.callSignatures = callSignatures.length === 0 ? emptySignatures : callSignatures;
+  type.constructSignatures = constructSignatures.length === 0 ? emptySignatures : constructSignatures;
+  type.indexInfos = indexInfos.length === 0 ? emptyIndexInfos : indexInfos;
 }
 
 export function newUnionType(c: Checker, objectFlags: ObjectFlags, types: Type[]): UnionType {
@@ -1294,7 +1299,7 @@ export function getTargetType(type: Type): Type {
 export function isEmptyResolvedType(c: Checker, t: StructuredType): boolean {
   return (
     t !== c.anyFunctionType &&
-    t.properties.length === 0 &&
+    !hasResolvedProperties(t) &&
     t.callSignatures.length === 0 &&
     t.constructSignatures.length === 0 &&
     t.indexInfos.length === 0
