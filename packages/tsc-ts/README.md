@@ -35,4 +35,6 @@ npx tsc-ts --noEmit src/index.ts
 
 `--checkers N` checks the program on N threads. Like tsgo, the native executable uses four checkers unless `--checkers` or `--singleThreaded` is given; it shares one program between its threads and also parses and binds the program's files on them. Under Node.js, where every thread builds its own copy of the program, tsc-ts checks on one thread unless `--checkers` is given. `--incremental`, `--watch` and `--build` always check on one thread. The diagnostics are the same as with one checker.
 
+The native executable never frees syntax trees, types, signatures or symbols: it keeps them until it exits, which saves the cost of tracking them during a build. A one-shot build is unaffected, but a long-running `--watch` or `--api` process grows with each rebuild or project update; restart it to reclaim the memory.
+
 The default lib files (`lib.*.d.ts`) ship next to the executable. Set `TSC_TS_LIB_DIR` to use another directory.
