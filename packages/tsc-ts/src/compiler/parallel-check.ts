@@ -591,9 +591,9 @@ export function retires(schedule: Int32Array, index: number, limit: number, resi
 /** The process's resident memory in bytes (Linux), or 0 where it is unknown. */
 function residentBytes(): number {
   try {
-    const statm = readFileSync('/proc/self/statm', 'utf8');
-    const space = statm.indexOf(' ');
-    return Number(statm.substring(space + 1, statm.indexOf(' ', space + 1))) * 4096;
+    // VmRSS is in kB, so this holds on kernels with any page size (statm counts pages).
+    const rss = /VmRSS:\s+(\d+)/.exec(readFileSync('/proc/self/status', 'utf8'));
+    return rss === null ? 0 : Number(rss[1]) * 1024;
   } catch {
     return 0;
   }
@@ -977,7 +977,7 @@ export function traceSingleChecker(checked: CheckedProgram): void {
     c.identityRelation.size();
   const cpu = process.threadCpuUsage();
   process.stderr.write(
-    `checkers: single types ${c.typeCount} inst ${c.totalInstantiations} user ${Math.round(cpu.user / 1000)} sys ${Math.round(cpu.system / 1000)} rss ${residentMB().join('/')}MB symlinks ${countLinks(c.symbolLinkPages)} nodelinks ${countLinks(c.nodeLinkPages)} sigs ${c.signatureCount} rel ${relations}\n`,
+    `checkers: single types ${c.typeCount} inst ${c.totalInstantiations} user ${Math.round(cpu.user / 1000)} sys ${Math.round(cpu.system / 1000)} rss ${residentMB().join('/')}MB symlinks ${countLinks(c.symbolLinkTable.pages)} nodelinks ${countLinks(c.nodeLinkTable.pages)} sigs ${c.signatureCount} rel ${relations}\n`,
   );
 }
 
@@ -1047,8 +1047,8 @@ export function checkFromQueue(
       cpu.user / 1000,
       cpu.system / 1000,
       residentMB()[0]!,
-      countLinks(checker.symbolLinkPages),
-      countLinks(checker.nodeLinkPages),
+      countLinks(checker.symbolLinkTable.pages),
+      countLinks(checker.nodeLinkTable.pages),
       checker.signatureCount,
       relations,
     ];

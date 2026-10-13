@@ -28,7 +28,7 @@ import { Diagnostic, type DiagnosticMessage, Diagnostics, chainDiagnostic } from
 import { JsxEmit } from './options.js';
 import { parseIsolatedEntityName } from './parser.js';
 import { skipTrivia } from './scanner.js';
-import { InternalSymbolName, type Symbol, SymbolFlags, type SymbolTable } from './symbol.js';
+import { InternalSymbolName, type Symbol, SymbolFlags, type SymbolTable, getSymbolId } from './symbol.js';
 import { SyntaxKind } from './syntax-kind.js';
 import { type Checker, createDiagnosticForNode } from './checker.js';
 import {
@@ -654,7 +654,7 @@ function getJsxElementTypeForIntrinsic(c: Checker, node: Node): Type {
 
 function newJsxIntrinsicSignature(c: Checker, result: Type, elementType: Type): Signature {
   const parameterSymbol = c.newSymbol(SymbolFlags.FunctionScopedVariable, 'props');
-  c.symbolLinks(parameterSymbol).type = result;
+  c.symbolTypes.set(getSymbolId(parameterSymbol), result);
   return c.newSignature(SignatureFlags.None, undefined, [], undefined, [parameterSymbol], elementType, 1);
 }
 
@@ -945,9 +945,9 @@ export function createJsxAttributesTypeFromAttributesProperty(
         attributeSymbol.declarations = member.declarations;
         attributeSymbol.parent = member.parent;
         if (member.valueDeclaration !== undefined) attributeSymbol.valueDeclaration = member.valueDeclaration;
-        const links = c.symbolLinks(attributeSymbol);
-        links.type = exprType;
-        links.target = member;
+        const id = getSymbolId(attributeSymbol);
+        c.symbolTypes.set(id, exprType);
+        c.symbolTargets.set(id, member);
         attributesTable.set(attributeSymbol.name, attributeSymbol);
         if (allAttributesTable !== undefined) allAttributesTable.set(attributeSymbol.name, attributeSymbol);
         if (jsxNameText((attributeDecl as JsxAttribute).name) === jsxChildrenPropertyName)
@@ -1022,11 +1022,11 @@ export function createJsxAttributesTypeFromAttributesProperty(
           childrenContextualType = getTypeOfPropertyOfContextualType(c, contextualType, jsxChildrenPropertyName);
       }
       const childrenPropSymbol = c.newSymbol(SymbolFlags.Property, jsxChildrenPropertyName);
-      const links = c.symbolLinks(childrenPropSymbol);
-      if (childTypes.length === 1) links.type = childTypes[0]!;
+      const id = getSymbolId(childrenPropSymbol);
+      if (childTypes.length === 1) c.symbolTypes.set(id, childTypes[0]!);
       else if (childrenContextualType !== undefined && someType(childrenContextualType, (t) => isTupleLikeType(c, t)))
-        links.type = createTupleType(c, childTypes);
-      else links.type = createArrayType(c, getUnionType(c, childTypes));
+        c.symbolTypes.set(id, createTupleType(c, childTypes));
+      else c.symbolTypes.set(id, createArrayType(c, getUnionType(c, childTypes)));
       // Errors on the synthetic `children` property are reported on the attributes.
       childrenPropSymbol.valueDeclaration = attributeParent;
       const childPropMap: SymbolTable = new Map<string, Symbol>();
@@ -1589,11 +1589,12 @@ export function getContextualJsxElementAttributesType(c: Checker, node: Node): T
   if (node.kind === SyntaxKind.JsxOpeningElement) {
     // Contextual types of an element's attributes are pushed onto the element, which spans the children.
     const index = findContextualNode(c, node.parent!, true);
-    if (index >= 0) return c.inferenceCaches.contextualTypes.at(index);
+    if (index >= 0) return c.inferenceCaches.contextualTypes[index];
   }
-  const links = c.nodeLinks(node);
   const signature =
-    links.resolvedSignature === c.resolvingSignature ? c.resolvingSignature : getResolvedJsxSignature(c, node);
+    c.resolvedSignatures.get(node.id) === c.resolvingSignature
+      ? c.resolvingSignature
+      : getResolvedJsxSignature(c, node);
   return getEffectiveFirstArgumentForJsxSignature(c, signature, node);
 }
 

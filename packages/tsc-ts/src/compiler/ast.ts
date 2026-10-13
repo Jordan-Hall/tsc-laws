@@ -2,6 +2,7 @@
 //
 // Every node extends `Node`. Child fields are typed by category (`Expression`, `TypeNode`, …),
 // which are aliases of `Node`; narrow with the `is*` guards in ast-utilities.ts or `instanceof`.
+import type { ProgramLifetime } from '@scriptc/types';
 import { SyntaxKind } from './syntax-kind.js';
 import { type CommentDirective, type CommentRange, type LanguageVariant, TokenFlags } from './types.js';
 import { type Diagnostic, DiagnosticFile } from './diagnostics.js';
@@ -210,7 +211,7 @@ export abstract class NodeVisitor {
 // Native builds store `pos`, `end` and `id` as 32-bit integers when every write provably stores an
 // int32, so writes of values the compiler can't bound (parameters, the id counter) are coerced
 // with `| 0`; the values are always int32.
-export abstract class Node {
+export abstract class Node implements ProgramLifetime {
   readonly kind: SyntaxKind;
   flags: NodeFlags;
   /** Start including leading trivia, as a UTF-16 offset. */
@@ -249,7 +250,7 @@ export function getNodeId(node: Node): number {
 }
 
 /** A list of child nodes with its own text range. */
-export class NodeList {
+export class NodeList implements ProgramLifetime {
   pos: number;
   end: number;
   nodes: Node[];
@@ -8203,6 +8204,11 @@ export class SourceFile extends Node {
    */
   computeCaches(): void {
     this.diagnosticFile().computeCaches();
+  }
+
+  /** Like `computeCaches`, from the UTF-16 code units of the text (at least `text.length` of them). */
+  computeCachesFromUnits(units: Uint16Array): void {
+    this.diagnosticFile().computeCachesFromUnits(units);
   }
 
   /** The file as diagnostics see it. */

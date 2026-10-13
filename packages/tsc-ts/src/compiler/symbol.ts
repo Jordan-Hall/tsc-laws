@@ -1,4 +1,5 @@
 // Symbols: what the binder declares for each named entity, and the tables that hold them.
+import type { ProgramLifetime } from '@scriptc/types';
 import type { Node } from './ast.js';
 
 export const enum SymbolFlags {
@@ -144,13 +145,13 @@ export const enum CheckFlags {
 }
 
 /** Fields of Symbol that few symbols set (about one in twenty), allocated on first write. */
-export class SymbolRareFields {
+export class SymbolRareFields implements ProgramLifetime {
   members: SymbolTable | undefined = undefined;
   exports: SymbolTable | undefined = undefined;
   exportSymbol: Symbol | undefined = undefined;
 }
 
-export class Symbol {
+export class Symbol implements ProgramLifetime {
   flags: SymbolFlags;
   checkFlags: CheckFlags;
   readonly name: string;
