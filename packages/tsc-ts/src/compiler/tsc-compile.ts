@@ -2,6 +2,7 @@
  * The `tsc` compile step after the command line: bind and check the program, emit it, then report
  * diagnostics, listed files, the error summary and statistics like tsgo's `EmitFilesAndReportErrors`.
  */
+import { mark } from './timeline.js';
 import {
   CheckedProgram,
   CompilerProgram,
@@ -111,10 +112,13 @@ export function compileInParallel(
   times.configTime = work.configTime;
   times.parseTime = work.parseTime;
   const bindStart = performance.now();
+  mark(`${threads} checkers`);
   const checked = new CheckedProgram(program);
   times.bindTime = performance.now() - bindStart;
+  mark('checker created');
   startParallelCheck(checked, threads, (checkTime) => {
     const compilerProgram = new PlainProgram(checked, times);
+    mark('report start');
     const result = emitFilesAndReportErrors(
       sys,
       compilerProgram,
@@ -124,6 +128,7 @@ export function compileInParallel(
       outputLocale(program.options),
     );
     times.checkTime = checkTime;
+    mark(`reported ${result.diagnostics.length} diagnostics`);
     done(emitStatusAndReportStatistics(sys, compilerProgram, result));
   });
 }
@@ -145,6 +150,7 @@ export function emitFilesAndReportErrors(
   locale: Locale,
 ): CompileResult {
   const diagnostics = getDiagnosticsOfProgram(program, false);
+  mark('diagnostics collected');
   let emitResult = new EmitResult();
   emitResult.emitSkipped = true;
   if (program.options.listFilesOnly !== true) {

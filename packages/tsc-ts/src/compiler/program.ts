@@ -364,20 +364,26 @@ export class Program implements OutputPathsHost {
   }
 
   /** The program files that the imports and type reference directives of `file` resolved to. */
-  getResolvedFilesOf(file: SourceFile): SourceFile[] {
+  /**
+   * The files `file` imports and references through type directives. `byFileName`, the program's
+   * files by file name, finds a file without computing its path when it is resolved by that name.
+   */
+  getResolvedFilesOf(file: SourceFile, byFileName?: ReadonlyMap<string, SourceFile>): SourceFile[] {
     const result: SourceFile[] = [];
     const modules = this.processed.resolvedModules.get(file.path);
     if (modules !== undefined)
       for (const resolved of modules.values()) {
-        if (resolved.resolvedFileName === '') continue;
-        const target = this.getSourceFileForResolvedModule(resolved.resolvedFileName);
+        const name = resolved.resolvedFileName;
+        if (name === '') continue;
+        const target = byFileName?.get(name) ?? this.getSourceFileForResolvedModule(name);
         if (target !== undefined) result.push(target);
       }
     const types = this.processed.typeResolutionsInFile.get(file.path);
     if (types !== undefined)
       for (const resolved of types.values()) {
-        if (resolved.resolvedFileName === '') continue;
-        const target = this.getSourceFile(resolved.resolvedFileName);
+        const name = resolved.resolvedFileName;
+        if (name === '') continue;
+        const target = byFileName?.get(name) ?? this.getSourceFile(name);
         if (target !== undefined) result.push(target);
       }
     return result;

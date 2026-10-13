@@ -399,6 +399,10 @@ export class FileLoader {
   private readonly libFileCache = new Map<string, LibFile>();
   private readonly libResolutions = new Map<string, LibResolution>();
   private readonly referenceTasks = new Map<string, ProjectReferenceTask>();
+  /** `toPath` of each file name seen: every reference to a file asks again. */
+  private readonly paths = new Map<string, string>();
+  /** The normalized config file name root files are found from, once computed. */
+  private rootContainingFile: string | undefined = undefined;
 
   constructor(
     readonly host: CompilerHost,
@@ -416,7 +420,12 @@ export class FileLoader {
   }
 
   toPath(fileName: string): string {
-    return toPath(fileName, this.host.currentDirectory, this.host.fs.useCaseSensitiveFileNames);
+    let path = this.paths.get(fileName);
+    if (path === undefined) {
+      path = toPath(fileName, this.host.currentDirectory, this.host.fs.useCaseSensitiveFileNames);
+      this.paths.set(fileName, path);
+    }
+    return path;
   }
 
   load(): ProcessedFiles {
@@ -611,11 +620,15 @@ export class FileLoader {
   private addRootFileTask(fileName: string, reason: FileIncludeReason): void {
     const currentDirectory = this.host.currentDirectory;
     const absolute = getNormalizedAbsolutePath(fileName, currentDirectory);
-    const configFile = this.config.configFile;
-    const containingFile =
-      configFile !== undefined
-        ? getNormalizedAbsolutePath(configFile.sourceFile.fileName, currentDirectory)
-        : currentDirectory;
+    let containingFile = this.rootContainingFile;
+    if (containingFile === undefined) {
+      const configFile = this.config.configFile;
+      containingFile =
+        configFile !== undefined
+          ? getNormalizedAbsolutePath(configFile.sourceFile.fileName, currentDirectory)
+          : currentDirectory;
+      this.rootContainingFile = containingFile;
+    }
     const resolved = this.getSourceFileFromReference(absolute, fileName, containingFile, reason);
     if (typeof resolved === 'string') {
       this.rootTasks.push(new ParseTask(resolved, undefined, reason, false, false, false, undefined));
@@ -1147,8 +1160,10 @@ export class FileLoader {
 
         const checkedName = seen.get(data);
         if (checkedName !== undefined) {
+          // The same name normalizes the same: only another spelling needs comparing.
           if (
             checkCasing &&
+            checkedName !== task.normalizedFilePath &&
             withoutRoot(getNormalizedAbsolutePath(checkedName, host.currentDirectory)) !==
               withoutRoot(getNormalizedAbsolutePath(task.normalizedFilePath, host.currentDirectory))
           ) {

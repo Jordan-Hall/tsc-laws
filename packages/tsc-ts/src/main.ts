@@ -9,6 +9,7 @@ import { type LoadMessage, parallelParse } from './compiler/parallel-parse.js';
 import { useLazyJSDocTable } from './compiler/parser.js';
 import { CheckedProgram } from './compiler/program-checker.js';
 import type { Program } from './compiler/program.js';
+import { mark, markMemory, setTimelineThread, timeline } from './compiler/timeline.js';
 import { assignSymbolIdsAtCreation, reserveSymbolIds, shareSymbolIds } from './compiler/symbol.js';
 import { parseThreadOfCommandLine, programOfCommandLine, runTsc, watching } from './drivers/node-system.js';
 import './drivers/lowering.js';
@@ -20,10 +21,19 @@ const defaultLibraryPath =
 const args = process.argv.slice(2);
 if (!isMainThread) runThread();
 else {
+  if (timeline) {
+    // The monotonic clock at the same moment, to line the timeline up with profiles.
+    const hr = process.hrtime();
+    mark(`main clock ${hr[0]} ${hr[1]}`);
+  }
   if (args[0] !== '--api') startThreads();
   const status = args[0] === '--api' ? runServer(args.slice(1), defaultLibraryPath) : runTsc(args, defaultLibraryPath);
   // Watch mode and `--checkers` keep running until their callbacks exit.
-  if (status !== watching) process.exit(status);
+  if (status !== watching) {
+    markMemory();
+    mark('exit');
+    process.exit(status);
+  }
 }
 
 /** Lets `--checkers N` start checker threads, and parse threads where threads share objects. */
@@ -33,9 +43,9 @@ function startThreads(): void {
       workerData: { kind: 'check', program, args, index, counter, order, nodeIds, symbolIds },
     });
   if (sharesPublishedGraphs)
-    parallelParse.spawn = (configFileName, counter) =>
+    parallelParse.spawn = (configFileName, counter, index) =>
       new Worker(new URL(import.meta.url), {
-        workerData: { kind: 'parse', configFileName, counter },
+        workerData: { kind: 'parse', configFileName, counter, index },
       });
 }
 
@@ -47,6 +57,8 @@ function runThread(): void {
 /** A checker thread (parallel-check.ts). */
 function runCheckerThread(): void {
   const startedAt = Date.now();
+  setTimelineThread('c' + String((workerData as { index: number }).index));
+  mark('thread start');
   const job = workerData as {
     kind: string;
     program: Program | undefined;
@@ -66,6 +78,7 @@ function runCheckerThread(): void {
     assignSymbolIdsAtCreation();
     useLazyJSDocTable();
     program = publish(job.program);
+    mark('program received');
   } else program = programOfCommandLine(job.args, defaultLibraryPath);
   // Without a program this thread checks nothing; the main thread checks the files it would have.
   const result =
@@ -73,16 +86,20 @@ function runCheckerThread(): void {
       ? new CheckerResult(job.index, [], [], [], [], 0, [])
       : checkFromQueue(new CheckedProgram(program), job.index, new Int32Array(job.counter), job.order, startedAt);
   parentPort!.postMessage({ result: sharesPublishedGraphs ? publish(result) : result });
+  mark('result posted');
 }
 
 /** A parse thread (parallel-parse.ts): loads the chunks the main thread posts until it posts `stop`. */
 function runParseThread(): void {
-  const job = workerData as { kind: string; configFileName: string; counter: SharedArrayBuffer };
+  const job = workerData as { kind: string; configFileName: string; counter: SharedArrayBuffer; index: number };
+  setTimelineThread('p' + String(job.index));
+  mark('thread start');
   // Ids, also of the nodes of the config, come in chunks from the counter shared with the other threads.
   shareNodeIds(new Int32Array(job.counter, 0, 1));
   shareSymbolIds(new Int32Array(job.counter, 4, 1));
   assignSymbolIdsAtCreation();
   const thread = parseThreadOfCommandLine(args, job.configFileName, defaultLibraryPath);
+  mark('project read');
   const port = parentPort!;
   port.on('message', (message: unknown) => {
     const chunk = message as LoadMessage;

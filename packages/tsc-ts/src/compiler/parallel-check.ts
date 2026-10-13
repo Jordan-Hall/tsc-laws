@@ -18,6 +18,7 @@
  * checker thread builds its own copy of the program from the command line instead, and the main
  * thread revives the diagnostics it receives against its own files.
  */
+import { mark, markAt, timeline } from './timeline.js';
 import type { Worker } from 'node:worker_threads';
 import { publish, sharesPublishedGraphs } from '@scriptc/threads';
 import { lastNodeIdValue } from './ast.js';
@@ -255,6 +256,9 @@ function checkCosts(checked: CheckedProgram, order: number[]): CheckCosts {
   for (const i of order) cost[i] = files[i]!.text.length;
   const indexOf = new Map<SourceFile, number>();
   for (let i = 0; i < files.length; i++) indexOf.set(files[i]!, i);
+  // A file resolved by its own file name is that file (its path is the path of that name).
+  const byFileName = new Map<string, SourceFile>();
+  for (const file of files) byFileName.set(file.fileName, file);
   const checkedFile: boolean[] = [];
   for (let i = 0; i < files.length; i++) checkedFile.push(false);
   for (const i of order) checkedFile[i] = true;
@@ -266,7 +270,7 @@ function checkCosts(checked: CheckedProgram, order: number[]): CheckCosts {
     let result = edges[i];
     if (result === undefined) {
       result = [];
-      for (const target of program.getResolvedFilesOf(files[i]!)) {
+      for (const target of program.getResolvedFilesOf(files[i]!, byFileName)) {
         const k = indexOf.get(target);
         if (k !== undefined && k !== i) result.push(k);
       }
@@ -988,6 +992,7 @@ export function checkFromQueue(
   const start = performance.now();
   const readyAt = Date.now();
   const verbose = process.env.TSC_TS_CHECKERS_TRACE === '3';
+  mark('checking');
   const files = checked.program.getSourceFiles();
   const done: number[] = [];
   const diagnostics: Diagnostic[][] = [];
@@ -1007,14 +1012,20 @@ export function checkFromQueue(
     if (k < 0) break;
     const i = order[k]!;
     done.push(i);
-    const fileStart = verbose ? performance.now() : 0;
+    const fileStart = verbose || timeline ? performance.now() : 0;
     diagnostics.push(checked.semanticDiagnosticsOfFile(files[i]!));
+    if (timeline)
+      markAt(
+        fileStart,
+        `file ${(performance.now() - fileStart).toFixed(1)} pos ${k} ${files[i]!.text.length} ${files[i]!.fileName}`,
+      );
     if (verbose)
       process.stderr.write(
         `checkers: file ${index} ${(performance.now() - fileStart).toFixed(1)}ms ${files[i]!.text.length} ${files[i]!.fileName}\n`,
       );
     if (emitter !== undefined) declarations.push(declarationDiagnosticsOfFile(emitter, files[i]!));
   }
+  mark(`checked ${done.length} files`);
   // The main thread reports its own global diagnostics (CheckedProgram.getGlobalDiagnostics).
   const globals = index === 0 ? [] : checked.getGlobalDiagnostics().slice();
   let stats: number[] = [];
@@ -1059,7 +1070,9 @@ export function startParallelCheck(checked: CheckedProgram, count: number, done:
   if (trace) process.stderr.write(`checkers: start at ${epoch} rss ${residentMB().join('/')}MB\n`);
   if (shared) {
     program.prepareForSharing();
+    mark('prepared for sharing');
     publish(program);
+    mark('program published');
     // The program is immutable now; lazily parsed JSDoc goes to a table of this thread.
     useLazyJSDocTable();
     if (trace)
@@ -1079,6 +1092,7 @@ export function startParallelCheck(checked: CheckedProgram, count: number, done:
     );
   }
   if (shared) publish(order);
+  mark(`planned ${order.length} files, ${plan.heavy} heavy`);
   const perFile: (Diagnostic[] | undefined)[] = [];
   const perFileDeclarations: (Diagnostic[] | undefined)[] = [];
   for (let i = 0; i < files.length; i++) {
@@ -1092,6 +1106,7 @@ export function startParallelCheck(checked: CheckedProgram, count: number, done:
     // A thread that failed may have taken files it never checked: check them here.
     for (const i of order) if (perFile[i] === undefined) perFile[i] = checked.semanticDiagnosticsOfFile(files[i]!);
     checked.checkedInParallel = perFile;
+    mark('all checked');
     if (trace)
       process.stderr.write(
         `checkers: finished at ${(performance.now() - start).toFixed(1)}ms rss ${residentMB().join('/')}MB\n`,
@@ -1129,6 +1144,7 @@ export function startParallelCheck(checked: CheckedProgram, count: number, done:
     );
     worker.on('message', (message: unknown) => {
       const result = (message as { result: CheckerResult }).result;
+      mark(`result from c${i}`);
       record(revival === undefined ? publish(result) : revival.result(result));
       threadDone();
     });
@@ -1137,6 +1153,7 @@ export function startParallelCheck(checked: CheckedProgram, count: number, done:
       threadDone();
     });
   }
+  mark('checkers spawned');
   record(checkFromQueue(checked, 0, new Int32Array(counter), order, epoch));
   ownDone = true;
   if (remaining === 0) finish();

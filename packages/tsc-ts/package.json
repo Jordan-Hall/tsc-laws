@@ -19,7 +19,7 @@
   "type": "module",
   "scripts": {
     "build": "tsc --outDir dist --rootDir .. --target es2024 --module nodenext --moduleResolution nodenext --strict --skipLibCheck --types node src/main.ts",
-    "build:native": "scriptc build src/main.ts --optimization=speed -o dist/tsc",
+    "build:native": "scriptc build src/main.ts --optimization=speed --detached-exit -o dist/tsc",
     "build:native:dev": "scriptc build src/main.ts --optimization=dev -o dist/tsc",
     "generate": "node scripts/generate.mjs && node scripts/generate-diagnostics.mjs && node scripts/generate-ast.mjs",
     "pack:npm": "node scripts/pack.mjs",

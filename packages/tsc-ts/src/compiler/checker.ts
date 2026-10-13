@@ -355,7 +355,8 @@ export class Checker {
   readonly unknownSymbol: Symbol;
   readonly globalThisSymbol: Symbol;
   readonly unresolvedSymbols = new Map<string, Symbol>();
-  readonly undefinedProperties = new Map<string, Symbol>();
+  /** Widening's optional `undefined` properties by the id of the sibling property each stands for. */
+  readonly undefinedProperties = new Map<number, Symbol>();
 
   // Interning tables.
   readonly stringLiteralTypes = new Map<string, LiteralType>();
