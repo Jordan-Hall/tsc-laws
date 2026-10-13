@@ -14,8 +14,10 @@ import {
 import { dirname } from 'node:path';
 import { DirectoryEntries } from '../compiler/file-system.js';
 import { normalizePath } from '../compiler/path.js';
-import { System, executeCommandLine } from '../compiler/tsc-cli.js';
-import { compile } from '../compiler/tsc-compile.js';
+import type { Program } from '../compiler/program.js';
+import { ParseThread } from '../compiler/parse-thread.js';
+import { type CommandLineResult, System, executeCommandLine, readThreadProject } from '../compiler/tsc-cli.js';
+import { compile, compileInParallel, compileThreads } from '../compiler/tsc-compile.js';
 import { build } from '../compiler/tsc-build.js';
 import { watch, watchBuild } from '../compiler/tsc-watch.js';
 
@@ -196,12 +198,55 @@ export const watching = -1;
 
 /** Runs the tsc command line `args` and returns the exit status, or `watching`. */
 export function runTsc(args: readonly string[], libraryPath: string): number {
+  const sys = tscSystem(libraryPath);
+  return runCommandLineResult(sys, executeCommandLine(sys, args));
+}
+
+/** The program the tsc command line `args` compiles, if it compiles one: a checker thread's own copy. */
+export function programOfCommandLine(args: readonly string[], libraryPath: string): Program | undefined {
+  const result = executeCommandLine(tscSystem(libraryPath), args);
+  return result.kind === 'compile' ? result.program : undefined;
+}
+
+/**
+ * A parse thread (parallel-parse.ts) for the compile command line `args`, whose main thread found its
+ * config at `configFileName`; `undefined` if the project cannot be read.
+ */
+export function parseThreadOfCommandLine(
+  args: readonly string[],
+  configFileName: string,
+  libraryPath: string,
+): ParseThread | undefined {
+  const sys = tscSystem(libraryPath);
+  const project = readThreadProject(sys, args, configFileName);
+  return project === undefined
+    ? undefined
+    : new ParseThread(project.config, project.fs, sys.currentDirectory, sys.defaultLibraryPath);
+}
+
+function tscSystem(libraryPath: string): System {
   // With TSC_TS_BUNDLED_LIBS set, lib files are read from there as `bundled:///libs/`, like tsgo's embedded ones.
   const bundledLibs = process.env.TSC_TS_BUNDLED_LIBS ?? '';
-  const sys = createNodeSystem(bundledLibs !== '' ? 'bundled:///libs' : libraryPath, bundledLibs);
-  const result = executeCommandLine(sys, args);
+  return createNodeSystem(bundledLibs !== '' ? 'bundled:///libs' : libraryPath, bundledLibs);
+}
+
+function runCommandLineResult(sys: System, result: CommandLineResult): number {
   if (result.kind === 'exit') return result.status;
-  if (result.kind === 'compile') return compile(sys, result);
+  if (result.kind === 'compile') {
+    const threads = compileThreads(result);
+    if (threads <= 1) return compile(sys, result);
+    // Checker threads report back on this thread's event loop.
+    compileInParallel(sys, result, threads, (status) => process.exit(status));
+    return watching;
+  }
+  if (result.kind === 'deferred') {
+    // Parse threads prepare the program's files first (parallel-parse.ts).
+    result.run((ready) => {
+      const status = runCommandLineResult(sys, ready);
+      if (status !== watching) process.exit(status);
+    });
+    return watching;
+  }
   if (result.kind === 'build') {
     if (result.commandLine.compilerOptions.watch === true) {
       watchBuild(sys, result.commandLine);

@@ -3,7 +3,7 @@
 import { execFileSync, spawn } from 'node:child_process';
 import { mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
-import { tempDir } from './temp.mjs';
+import { compiledDir, tempDir } from './temp.mjs';
 
 export const root = resolve(import.meta.dirname, '..');
 export const repo = resolve(root, '../..');
@@ -99,7 +99,7 @@ export function materialize(files, prefix = 'tsc-ts-parse-cases-') {
 
 /** Compiles the parse driver with tsc and returns the command that runs it under Node. */
 export function buildDriver() {
-  const out = tempDir('tsc-ts-parse-');
+  const out = compiledDir('tsc-ts-parse-');
   execFileSync(
     resolve(repo, 'node_modules/.bin/tsc'),
     [

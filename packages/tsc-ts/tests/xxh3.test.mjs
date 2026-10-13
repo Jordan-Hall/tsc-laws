@@ -4,14 +4,14 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { tempDir } from './temp.mjs';
+import { compiledDir } from './temp.mjs';
 
 // Vectors come from zeebo/xxh3 via xxh3-vectors/main.go (`go run . > vectors.json`).
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '../../..');
 const vectors = JSON.parse(readFileSync(join(here, 'xxh3-vectors/vectors.json'), 'utf8'));
 
-const out = tempDir('tsc-ts-xxh3-');
+const out = compiledDir('tsc-ts-xxh3-');
 execFileSync(
   join(root, 'node_modules/.bin/tsc'),
   [

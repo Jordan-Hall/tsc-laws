@@ -390,7 +390,12 @@ export function parseSourceFile(fileName: string, text: string, options?: ParseO
     options === undefined ? new ExternalModuleIndicatorOptions(false, false) : options.externalModuleIndicatorOptions;
   const p = new Parser(fileName, path, text, scriptKind, moduleOptions);
   p.nextToken();
-  if (scriptKind === ScriptKind.JSON) return p.parseJSONText();
+  if (scriptKind === ScriptKind.JSON) {
+    // Like other files (parseSourceFileWorker): reading the caches later never writes to the file.
+    const json = p.parseJSONText();
+    json.computeCaches();
+    return json;
+  }
   return p.parseSourceFileWorker();
 }
 
@@ -6834,6 +6839,10 @@ export function getJSDoc(file: SourceFile, node: Node): readonly Node[] {
     if (jsDoc !== undefined) return jsDoc;
   }
   if (!file.hasLazyJSDoc) return noNodes;
+  if (lazyJSDocTable !== undefined) {
+    const parsed = lazyJSDocTable.get(node.id);
+    if (parsed !== undefined) return parsed;
+  }
   let parser = lazyJSDocParser;
   if (parser === undefined || lazyJSDocFile !== file) {
     parser = new Parser(file.fileName, file.path, file.text, file.scriptKind, file.externalModuleIndicatorOptions);
@@ -6841,7 +6850,8 @@ export function getJSDoc(file: SourceFile, node: Node): readonly Node[] {
     lazyJSDocFile = file;
   }
   const result = parser.jsdoc.parseJSDocForNode(node);
-  if (jsDocs !== undefined) jsDocs.set(node.id, result);
+  if (lazyJSDocTable !== undefined) lazyJSDocTable.set(node.id, result);
+  else if (jsDocs !== undefined) jsDocs.set(node.id, result);
   else {
     const table = new Map<number, Node[]>();
     table.set(node.id, result);
@@ -6864,8 +6874,19 @@ export function getAttachedJSDoc(node: Node): readonly Node[] | undefined {
   }
   if (root.kind !== SyntaxKind.SourceFile) return undefined;
   const jsDocs = (root as SourceFile).jsDocs;
-  return jsDocs === undefined ? undefined : jsDocs.get(node.id);
+  const attached = jsDocs === undefined ? undefined : jsDocs.get(node.id);
+  if (attached !== undefined || lazyJSDocTable === undefined) return attached;
+  return lazyJSDocTable.get(node.id);
 }
+
+/**
+ * Keeps lazily parsed JSDoc in a table of this thread instead of on the nodes: a program shared with
+ * other threads is never written.
+ */
+export function useLazyJSDocTable(): void {
+  lazyJSDocTable = new Map<number, Node[]>();
+}
+let lazyJSDocTable: Map<number, Node[]> | undefined;
 
 const noNodes: readonly Node[] = [];
 // The parser for lazily parsed JSDoc, reused while the same file is visited.

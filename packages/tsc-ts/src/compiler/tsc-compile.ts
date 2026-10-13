@@ -13,6 +13,7 @@ import {
 import type { Diagnostic, Locale } from './diagnostics.js';
 import { EmitResult } from './emitter.js';
 import { FileBuildInfoReader, IncrementalProgram, readBuildInfoProgram, TimeStampHost } from './incremental.js';
+import { checkerThreads, startParallelCheck } from './parallel-check.js';
 import { getNormalizedAbsolutePath } from './path.js';
 import { sortAndDeduplicateDiagnostics } from './program.js';
 import {
@@ -85,6 +86,45 @@ export function compile(sys: System, work: CompileWork): ExitStatus {
     outputLocale(program.options),
   );
   return emitStatusAndReportStatistics(sys, compilerProgram, result);
+}
+
+/** The number of checker threads for `work` (`--checkers`); 1 checks on this thread with `compile`. */
+export function compileThreads(work: CompileWork): number {
+  if (work.incremental) return 1;
+  const options = work.program.options;
+  return checkerThreads(options.checkers, options.singleThreaded);
+}
+
+/**
+ * Like `compile`, with `threads` checker threads (parallel-check.ts): calls `done` with the exit
+ * status once the threads have checked the program and it is emitted and reported.
+ */
+export function compileInParallel(
+  sys: System,
+  work: CompileWork,
+  threads: number,
+  done: (status: ExitStatus) => void,
+): void {
+  const program = work.program;
+  const times = new CompileTimes();
+  times.configTime = work.configTime;
+  times.parseTime = work.parseTime;
+  const bindStart = performance.now();
+  const checked = new CheckedProgram(program);
+  times.bindTime = performance.now() - bindStart;
+  startParallelCheck(checked, threads, (checkTime) => {
+    const compilerProgram = new PlainProgram(checked, times);
+    const result = emitFilesAndReportErrors(
+      sys,
+      compilerProgram,
+      work.reporter,
+      work.errorSummary,
+      new SystemWriter(sys),
+      outputLocale(program.options),
+    );
+    times.checkTime = checkTime;
+    done(emitStatusAndReportStatistics(sys, compilerProgram, result));
+  });
 }
 
 export class CompileResult {

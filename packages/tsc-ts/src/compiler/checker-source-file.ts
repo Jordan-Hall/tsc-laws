@@ -137,16 +137,20 @@ export function checkSourceFile(c: Checker, file: SourceFile, checkUnused = fals
 function checkSourceFileWorker(c: Checker, file: SourceFile): void {
   c.saveDeferredDiagnostics = true;
   for (const statement of getStatements(file)!.nodes) checkSourceElement(c, statement);
-  checkDeferredNodes(c);
+  checkDeferredNodes(c, file);
   if (isExternalOrCommonJSModule(file)) checkExternalModuleExports(c, file);
   if (!file.isDeclarationFile) checkUnusedRenamedBindingElements(c);
   else c.renamedBindingElementsInTypes.length = 0;
   // Grammar checks run last so the types they need are created in tsgo's order.
   checkGrammarSourceFile(c, file);
   // Expressions first checked by grammar checks may defer more nodes.
-  checkDeferredNodes(c);
+  checkDeferredNodes(c, file);
   c.saveDeferredDiagnostics = false;
   produceDeferredIterationErrors(c);
+  // The file's deferred nodes are all checked; later ones are not queued (checkNodeDeferred).
+  const links = c.nodeLinks(file);
+  links.typeChecked = true;
+  links.deferredNodes = undefined;
 }
 
 /** Checks a statement, declaration, class member or type node. */
@@ -642,18 +646,33 @@ export class TypeNodeVisitor extends NodeVisitor {
 
 // ---- Deferred checks
 
-/** Queues a function expression, arrow, accessor or class expression body to check after the current statement list. */
+/**
+ * Queues a function expression, arrow, accessor, class expression or other deferred node to check with
+ * its file, like tsgo: nodes wait in the links of their own source file and are checked when that file
+ * is checked, and nodes of files this checker has already checked are not queued again. Checking one
+ * file often defers nodes of others (inferring a function's return type checks its body), and those
+ * belong to whichever checker checks the other file.
+ */
 export function checkNodeDeferred(c: Checker, node: Node): void {
+  const links = c.nodeLinks(getSourceFileOfNode(node));
+  if (links.typeChecked) return;
   const id = getNodeId(node);
   if (c.deferredNodeIds.has(id)) return;
   c.deferredNodeIds.add(id);
-  c.deferredNodes.push(node);
+  let nodes = links.deferredNodes;
+  if (nodes === undefined) {
+    nodes = [];
+    links.deferredNodes = nodes;
+  }
+  nodes.push(node);
 }
 
-function checkDeferredNodes(c: Checker): void {
+function checkDeferredNodes(c: Checker, file: SourceFile): void {
+  const nodes = c.nodeLinks(file).deferredNodes;
+  if (nodes === undefined) return;
   // Deferred checks may defer more nodes.
-  for (let i = 0; i < c.deferredNodes.length; i++) checkDeferredNode(c, c.deferredNodes[i]!);
-  c.deferredNodes.length = 0;
+  for (let i = 0; i < nodes.length; i++) checkDeferredNode(c, nodes[i]!);
+  nodes.length = 0;
 }
 
 /** Resolves the type of an object literal accessor, which reports accessors implicitly typed `any`. */

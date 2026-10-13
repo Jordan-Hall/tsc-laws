@@ -279,11 +279,17 @@ function unresolvedModule(diagnostics: readonly Diagnostic[]): ResolvedModule {
   };
 }
 
+// The results each resolver shared with other threads (and so immutable) did not have yet when it was
+// shared, as this thread resolved them.
+const threadModuleCaches = new Map<Resolver, Map<string, ResolvedModule>>();
+const threadTypeReferenceCaches = new Map<Resolver, Map<string, ResolvedTypeReferenceDirective>>();
+
 export class Resolver {
   readonly packageJsonInfoCache: PackageJsonInfoCache;
   private readonly moduleCache = new Map<string, ResolvedModule>();
   private readonly typeReferenceCache = new Map<string, ResolvedTypeReferenceDirective>();
   private pathPatterns: ParsedPatterns | undefined;
+  private shared = false;
 
   constructor(
     readonly host: ModuleResolutionHost,
@@ -295,6 +301,56 @@ export class Resolver {
   ) {
     this.packageJsonInfoCache =
       packageJsonInfoCache ?? new PackageJsonInfoCache(host.getCurrentDirectory(), host.useCaseSensitiveFileNames());
+  }
+
+  /**
+   * Called before the resolver is shared with other threads, which makes it immutable
+   * (parallel-check.ts): from then on, each thread caches the results and `package.json` lookups the
+   * resolver did not have yet in tables of its own.
+   */
+  prepareForSharing(): void {
+    this.getPathPatterns();
+    this.packageJsonInfoCache.prepareForSharing();
+    this.shared = true;
+  }
+
+  private cachedModule(key: string): ResolvedModule | undefined {
+    const cached = this.moduleCache.get(key);
+    if (cached !== undefined || !this.shared) return cached;
+    return threadModuleCaches.get(this)?.get(key);
+  }
+
+  private cacheModule(key: string, resolved: ResolvedModule): void {
+    if (this.cachedModule(key) !== undefined) return;
+    if (!this.shared) {
+      this.moduleCache.set(key, resolved);
+      return;
+    }
+    let cache = threadModuleCaches.get(this);
+    if (cache === undefined) {
+      cache = new Map<string, ResolvedModule>();
+      threadModuleCaches.set(this, cache);
+    }
+    cache.set(key, resolved);
+  }
+
+  private cachedTypeReference(key: string): ResolvedTypeReferenceDirective | undefined {
+    const cached = this.typeReferenceCache.get(key);
+    if (cached !== undefined || !this.shared) return cached;
+    return threadTypeReferenceCaches.get(this)?.get(key);
+  }
+
+  private cacheTypeReference(key: string, resolved: ResolvedTypeReferenceDirective): void {
+    if (!this.shared) {
+      this.typeReferenceCache.set(key, resolved);
+      return;
+    }
+    let cache = threadTypeReferenceCaches.get(this);
+    if (cache === undefined) {
+      cache = new Map<string, ResolvedTypeReferenceDirective>();
+      threadTypeReferenceCaches.set(this, cache);
+    }
+    cache.set(key, resolved);
   }
 
   /** Parsed `paths` of the resolver's own options. */
@@ -318,7 +374,7 @@ export class Resolver {
     const tracer = this.options.traceResolution === true ? (traces ?? []) : undefined;
     const cacheKey = mode + '|' + (redirect?.configName ?? '') + '|' + containingDirectory + '|' + moduleName;
     if (tracer === undefined) {
-      const cached = this.moduleCache.get(cacheKey);
+      const cached = this.cachedModule(cacheKey);
       if (cached !== undefined) return cached;
     }
 
@@ -363,7 +419,7 @@ export class Resolver {
     }
 
     const final = this.tryResolveFromTypingsLocation(moduleName, containingDirectory, result, tracer);
-    if (!this.moduleCache.has(cacheKey)) this.moduleCache.set(cacheKey, final);
+    this.cacheModule(cacheKey, final);
     return final;
   }
 
@@ -388,7 +444,7 @@ export class Resolver {
       '|' +
       name;
     if (tracer === undefined) {
-      const cached = this.typeReferenceCache.get(cacheKey);
+      const cached = this.cachedTypeReference(cacheKey);
       if (cached !== undefined) return cached;
     }
 
@@ -435,7 +491,7 @@ export class Resolver {
       }
     }
 
-    this.typeReferenceCache.set(cacheKey, result);
+    this.cacheTypeReference(cacheKey, result);
     return result;
   }
 
