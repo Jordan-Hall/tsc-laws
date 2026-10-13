@@ -1,5 +1,6 @@
 // The checker's type model: types, signatures, index infos, mappers and the links the checker
 // caches per symbol and node. Flag values match tsgo, because union ordering depends on them.
+import type { ProgramLifetime } from '@scriptc/types';
 import type { Node } from './ast.js';
 import type { Symbol, SymbolTable } from './symbol.js';
 
@@ -450,7 +451,7 @@ export class TypeListCache<V> {
  * alias, construct signatures): a native accessor returns an owned reference, which costs reference
  * counting on every read of a counted value.
  */
-export class TypeExtra {
+export class TypeExtra implements ProgramLifetime {
   // StructuredType
   objectTypeWithoutAbstractConstructSignatures: Type | undefined;
   // ObjectType
@@ -497,7 +498,7 @@ export function typeExtra(t: Type): TypeExtra {
  * The base of every type. Narrow by `flags` (and `objectFlags` for object types), then cast to
  * the subclass, as tsgo does with `AsUnionType()` etc.
  */
-export class Type {
+export class Type implements ProgramLifetime {
   flags: TypeFlags;
   objectFlags: ObjectFlags;
   readonly id: number;
@@ -1074,7 +1075,7 @@ export class CompositeSignature {
  * Fields that few signatures set, kept out of line in `Signature.extra` (see TypeExtra): the `this`
  * parameter, composite signatures and the caches of derived signatures.
  */
-export class SignatureExtra {
+export class SignatureExtra implements ProgramLifetime {
   thisParameter: Symbol | undefined;
   isolatedSignatureType: Type | undefined;
   composite: CompositeSignature | undefined;
@@ -1106,7 +1107,7 @@ export function signatureExtra(s: Signature): SignatureExtra {
   return extra;
 }
 
-export class Signature {
+export class Signature implements ProgramLifetime {
   readonly id: number;
   flags: SignatureFlags;
   minArgumentCount: number;
@@ -1226,7 +1227,7 @@ export class Signature {
   }
 }
 
-export class IndexInfo {
+export class IndexInfo implements ProgramLifetime {
   readonly keyType: Type;
   readonly valueType: Type;
   readonly isReadonly: boolean;
@@ -1391,7 +1392,7 @@ export function appendTypeMapping(mapper: TypeMapper | undefined, source: Type, 
  * What the checker caches per symbol and rarely sets. Common values (the type, target, mapper, name type
  * and others) are columns of `Checker` instead; see link-tables.ts.
  */
-export class SymbolLinks {
+export class SymbolLinks implements ProgramLifetime {
   // Values
   writeType: Type | undefined;
   /** Constituents of a deferred union/intersection property type. */
@@ -1473,7 +1474,7 @@ export class SymbolLinks {
  * What the checker caches per node and rarely sets. The resolved symbol, type and signature are columns of
  * `Checker` instead; see link-tables.ts.
  */
-export class NodeLinks {
+export class NodeLinks implements ProgramLifetime {
   flags: NodeCheckFlags;
   /** Outer type parameters of an anonymous object type node. */
   outerTypeParameters: Type[] | undefined;
