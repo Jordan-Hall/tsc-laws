@@ -495,6 +495,8 @@ export class Checker {
   // Instantiation
   instantiationDepth = 0;
   instantiationCount = 0;
+  /** Instantiations over the checker's lifetime (statistics). */
+  totalInstantiations = 0;
   readonly activeMappers: TypeMapper[] = [];
   /** Per active mapper: its instantiations by type id, created on the first nested write. */
   readonly activeMapperCaches: (Map<number, Type> | undefined)[] = [];

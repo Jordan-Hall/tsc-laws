@@ -363,6 +363,26 @@ export class Program implements OutputPathsHost {
     return this.processed.resolvedModules.get(file.path)?.get(modeAwareKey(moduleName, mode));
   }
 
+  /** The program files that the imports and type reference directives of `file` resolved to. */
+  getResolvedFilesOf(file: SourceFile): SourceFile[] {
+    const result: SourceFile[] = [];
+    const modules = this.processed.resolvedModules.get(file.path);
+    if (modules !== undefined)
+      for (const resolved of modules.values()) {
+        if (resolved.resolvedFileName === '') continue;
+        const target = this.getSourceFileForResolvedModule(resolved.resolvedFileName);
+        if (target !== undefined) result.push(target);
+      }
+    const types = this.processed.typeResolutionsInFile.get(file.path);
+    if (types !== undefined)
+      for (const resolved of types.values()) {
+        if (resolved.resolvedFileName === '') continue;
+        const target = this.getSourceFile(resolved.resolvedFileName);
+        if (target !== undefined) result.push(target);
+      }
+    return result;
+  }
+
   /** The specifier of the implicit JSX runtime import of `file`, if any. */
   jsxRuntimeImportSpecifier(path: string): Node | undefined {
     return this.processed.jsxRuntimeImports.get(path)?.specifier;

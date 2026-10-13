@@ -80,6 +80,11 @@ export class FileIncludeReason {
     return new FileIncludeReason(kind, file, index, synthetic, '', undefined);
   }
 
+  /** The same reason without what it has computed (a parse thread's reasons are immutable). */
+  copy(): FileIncludeReason {
+    return new FileIncludeReason(this.kind, this.file, this.index, this.synthetic, this.typeReference, this.packageId);
+  }
+
   isReferencedFile(): boolean {
     return this.kind <= FileIncludeKind.LibReferenceDirective;
   }
@@ -410,6 +415,11 @@ export class ProcessingDiagnostic {
     args: readonly string[],
   ): ProcessingDiagnostic {
     return new ProcessingDiagnostic(ProcessingDiagnosticKind.ExplainingFileInclude, file, reason, message, args);
+  }
+
+  /** The same diagnostic with a copy of its reason (`FileIncludeReason.copy`). */
+  copy(): ProcessingDiagnostic {
+    return new ProcessingDiagnostic(this.kind, this.file, this.reason?.copy(), this.message, this.args);
   }
 
   toDiagnostic(program: Program): Diagnostic {

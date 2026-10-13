@@ -19,6 +19,7 @@
 import type { Worker } from 'node:worker_threads';
 import { publish } from '@scriptc/threads';
 import { type SourceFile, type ExternalModuleIndicatorOptions, lastNodeIdValue, shareNodeIds } from './ast.js';
+import type { LoadedFile } from './file-loader.js';
 import type { CompilerOptions } from './options.js';
 import { useLazyJSDocTable } from './parser.js';
 import { getNormalizedAbsolutePath } from './path.js';
@@ -50,8 +51,14 @@ export class LoadJobs {
   }
 }
 
-/** A parsed and bound source file, with the inputs it was parsed from. */
+/**
+ * A parsed and bound source file, with the inputs it was parsed from and what the parse thread's
+ * FileLoader found loading it (its references and their resolutions), which the program's
+ * FileLoader takes instead of resolving them again.
+ */
 export class PreparedFile {
+  loaded: LoadedFile | undefined = undefined;
+
   constructor(
     readonly fileName: string,
     readonly path: string,
@@ -59,6 +66,12 @@ export class PreparedFile {
     readonly force: boolean,
     readonly file: SourceFile,
   ) {}
+}
+
+/** What a parse thread's FileLoader found loading `fileName`, if the thread prepared it. */
+export function preparedLoad(fileName: string): LoadedFile | undefined {
+  if (parallelParse.files.size === 0) return undefined;
+  return parallelParse.files.get(fileName)?.loaded;
 }
 
 /** What a parse thread sends back for a chunk: its bound files and the files they add. */
@@ -125,6 +138,64 @@ export function takePreparedFile(
 const maxChunk = 16;
 
 /**
+ * The files to hand out to parse threads, each queued once. Library files go out first, one per
+ * chunk, also those found later through `/// <reference lib>`: a large one (`lib.dom.d.ts`) takes a
+ * thread 100–150 ms, and queued behind other files it would be the last file the program waits for.
+ * The other files go out in program order, in chunks of up to `maxChunk`.
+ */
+export class ParseQueue {
+  private readonly libraries = new LoadJobs();
+  private readonly others = new LoadJobs();
+  private libraryHead = 0;
+  private head = 0;
+  private readonly seen = new Set<string>();
+
+  push(kind: LoadKind, name: string, depth: number): void {
+    const key = kind === LoadKind.Library ? 'lib:' + name : kind === LoadKind.AutomaticTypes ? 'types:' : name;
+    if (this.seen.has(key)) return;
+    this.seen.add(key);
+    (kind === LoadKind.Library ? this.libraries : this.others).push(kind, name, depth);
+  }
+
+  /** Files queued so far. */
+  queued(): number {
+    return this.seen.size;
+  }
+
+  /** Files not handed out yet. */
+  left(): number {
+    return this.libraries.names.length - this.libraryHead + this.others.names.length - this.head;
+  }
+
+  /** The next chunk for one of `threads` parse threads, or `undefined` when nothing is left. */
+  next(threads: number): LoadMessage | undefined {
+    const libraries = this.libraries;
+    if (this.libraryHead < libraries.names.length) {
+      const k = this.libraryHead++;
+      return {
+        stop: false,
+        kinds: [libraries.kinds[k]!],
+        names: [libraries.names[k]!],
+        depths: [libraries.depths[k]!],
+      };
+    }
+    const queue = this.others;
+    const left = queue.names.length - this.head;
+    if (left <= 0) return undefined;
+    const size = Math.min(maxChunk, Math.max(1, Math.floor(left / threads)));
+    const start = this.head;
+    const end = start + size;
+    this.head = end;
+    return {
+      stop: false,
+      kinds: queue.kinds.slice(start, end),
+      names: queue.names.slice(start, end),
+      depths: queue.depths.slice(start, end),
+    };
+  }
+}
+
+/**
  * Main thread: loads the program's files ahead of it on `count` parse threads, and calls `done` once
  * every prepared file is available to the FileLoader.
  */
@@ -142,16 +213,8 @@ export function startParallelParse(
   // Prepared files are published (immutable): this thread keeps lazily parsed JSDoc in a table.
   useLazyJSDocTable();
 
-  // The queue: files not handed out yet, from `head` on.
-  const queue = new LoadJobs();
-  let head = 0;
-  const seen = new Set<string>();
-  const enqueue = (kind: LoadKind, name: string, depth: number): void => {
-    const key = kind === LoadKind.Library ? 'lib:' + name : kind === LoadKind.AutomaticTypes ? 'types:' : name;
-    if (seen.has(key)) return;
-    seen.add(key);
-    queue.push(kind, name, depth);
-  };
+  const queue = new ParseQueue();
+  const enqueue = (kind: LoadKind, name: string, depth: number): void => queue.push(kind, name, depth);
   // The FileLoader's root tasks.
   for (const name of rootNames) enqueue(LoadKind.Root, getNormalizedAbsolutePath(name, currentDirectory), 0);
   if (rootNames.length > 0) {
@@ -189,22 +252,14 @@ export function startParallelParse(
     shareSymbolIds(undefined);
     if (trace)
       process.stderr.write(
-        `parsers: ${parallelParse.files.size} files prepared in ${(performance.now() - start).toFixed(1)}ms (${chunks} chunks, ${seen.size} queued, ${queue.names.length - head} left)\n`,
+        `parsers: ${parallelParse.files.size} files prepared in ${(performance.now() - start).toFixed(1)}ms (${chunks} chunks, ${queue.queued()} queued, ${queue.left()} left)\n`,
       );
     done();
   };
   const dispatch = (): void => {
-    while (idle.length > 0 && head < queue.names.length) {
-      const left = queue.names.length - head;
-      const size = Math.min(maxChunk, Math.max(1, Math.floor(left / count)));
-      const end = head + size;
-      const chunk: LoadMessage = {
-        stop: false,
-        kinds: queue.kinds.slice(head, end),
-        names: queue.names.slice(head, end),
-        depths: queue.depths.slice(head, end),
-      };
-      head = end;
+    while (idle.length > 0) {
+      const chunk = queue.next(count);
+      if (chunk === undefined) break;
       workers[idle.pop()!]!.postMessage(chunk);
       busy++;
       chunks++;
