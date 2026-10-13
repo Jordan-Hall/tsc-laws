@@ -145,7 +145,7 @@ export const enum CheckFlags {
 }
 
 /** Fields of Symbol that few symbols set (about one in twenty), allocated on first write. */
-export class SymbolRareFields {
+export class SymbolRareFields implements ProgramLifetime {
   members: SymbolTable | undefined = undefined;
   exports: SymbolTable | undefined = undefined;
   exportSymbol: Symbol | undefined = undefined;

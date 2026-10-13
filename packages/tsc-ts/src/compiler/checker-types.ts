@@ -451,7 +451,7 @@ export class TypeListCache<V> {
  * alias, construct signatures): a native accessor returns an owned reference, which costs reference
  * counting on every read of a counted value.
  */
-export class TypeExtra {
+export class TypeExtra implements ProgramLifetime {
   // StructuredType
   objectTypeWithoutAbstractConstructSignatures: Type | undefined;
   // ObjectType
@@ -1075,7 +1075,7 @@ export class CompositeSignature {
  * Fields that few signatures set, kept out of line in `Signature.extra` (see TypeExtra): the `this`
  * parameter, composite signatures and the caches of derived signatures.
  */
-export class SignatureExtra {
+export class SignatureExtra implements ProgramLifetime {
   thisParameter: Symbol | undefined;
   isolatedSignatureType: Type | undefined;
   composite: CompositeSignature | undefined;
