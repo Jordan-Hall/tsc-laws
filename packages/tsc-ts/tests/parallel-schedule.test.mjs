@@ -43,11 +43,14 @@ const { CheckedProgram } = await load('compiler/program-checker.js');
 const { ParseQueue } = await load('compiler/parallel-parse.js');
 const {
   autoCheckers,
+  checkGroups,
   checkOrder,
   checkersFittingMemory,
   fillScheduleCosts,
   newSchedule,
   planSchedule,
+  retirementMemory,
+  retires,
   scheduleOf,
   takePosition,
 } = await load('compiler/parallel-check.js');
@@ -185,14 +188,86 @@ test('auto starts a checker per CPU, at least four, fewer only when memory does 
   assert.equal(autoCheckers(16, 10), 10);
   assert.equal(autoCheckers(8, 1), 4);
   const GiB = 1024 ** 3;
-  // VS Code (158.6M characters, 16.8M in declaration files): on 16 GiB the estimate leaves tsgo's
-  // four checkers (it checked with 13.2 GiB at 8), on 32 GiB one per CPU.
-  assert.equal(autoCheckers(8, checkersFittingMemory(158592222, 16769893, 16 * GiB)), 4);
+  // VS Code (158.6M characters, 16.8M in declaration files) gets one checker per CPU on 16 GiB (it
+  // checked with 13.2 GiB at 8) and on 32 GiB.
+  assert.equal(autoCheckers(8, checkersFittingMemory(158592222, 16769893, 16 * GiB)), 8);
   assert.equal(autoCheckers(16, checkersFittingMemory(158592222, 16769893, 32 * GiB)), 16);
-  // T3 Code's apps/server (57.5M, 30.4M; 11.1 GiB at 8 checkers, 19 GiB at 16) and Sentry (71.7M, 22.1M;
-  // 9.8 GiB at 8) get eight on 16 GiB.
+  // So do T3 Code's apps/server (57.5M, 30.4M; 9.2 GiB at 8 checkers, 11.8 GiB at 16) and Sentry
+  // (71.7M, 22.1M; 9.8 GiB at 8). Programs above the estimate retire checkers instead.
   assert.equal(autoCheckers(8, checkersFittingMemory(57491513, 30414210, 16 * GiB)), 8);
-  assert.equal(autoCheckers(16, checkersFittingMemory(57491513, 30414210, 16 * GiB)), 8);
+  assert.equal(autoCheckers(16, checkersFittingMemory(57491513, 30414210, 16 * GiB)), 15);
   assert.equal(autoCheckers(8, checkersFittingMemory(71728469, 22113123, 16 * GiB)), 8);
   assert.equal(autoCheckers(16, checkersFittingMemory(57491513, 30414210, 32 * GiB)), 16);
+});
+
+function groupProject() {
+  const dir = tempDir('tsc-ts-parallel-schedule-groups-');
+  const files = {
+    'tsconfig.json': JSON.stringify({
+      compilerOptions: { strict: true, noEmit: true, types: [], skipLibCheck: true, module: 'nodenext' },
+      include: ['src'],
+    }),
+    // A large generated module that few files import, the files importing it, and their importer.
+    'src/schema.gen.ts': 'export declare const s0: { a: number; b: string };\n'.repeat(200),
+    'src/meta.gen.ts': "import { s0 } from './schema.gen.js';\nexport const meta = s0;\n",
+    'src/client.ts':
+      "import { s0 } from './schema.gen.js';\nimport { meta } from './meta.gen.js';\nexport const client = [s0, meta];\n",
+    'src/app.ts': "import { client } from './client.js';\nexport const app = client;\n",
+    'src/other.ts': 'export const other = 1;\n'.repeat(20),
+    'src/more.ts': 'export const more = 1;\n'.repeat(20),
+  };
+  for (const [name, text] of Object.entries(files)) {
+    mkdirSync(dirname(join(dir, name)), { recursive: true });
+    writeFileSync(join(dir, name), text);
+  }
+  const work = executeCommandLine(createNodeSystem(bundledLibs, ''), ['-p', dir]);
+  assert.equal(work.kind, 'compile');
+  return new CheckedProgram(work.program);
+}
+
+test('a large module that few files import groups with the files importing it, costliest first', () => {
+  const c = groupProject();
+  // The default least load is a million characters: this project has no groups.
+  assert.deepEqual(checkGroups(c, 2), []);
+  const groups = checkGroups(c, 2, 1000);
+  assert.equal(groups.length, 1);
+  const names = groups[0].map((i) => baseName(c.program, i));
+  assert.equal(names[0], 'schema.gen.ts');
+  assert.deepEqual(names.slice().sort(), ['app.ts', 'client.ts', 'meta.gen.ts', 'schema.gen.ts']);
+  // With many checkers, the files around the schema would be too much for one checker.
+  assert.deepEqual(checkGroups(c, 64, 1000), []);
+});
+
+test('a checker takes a group from the shared queue as a whole, and nobody takes it from that checker', () => {
+  // Positions 0-2 are a group, 3 a file of its own, then the ranges 4-5 and 6-7.
+  const schedule = new Int32Array(newSchedule(2, 8, 0, 0));
+  fillScheduleCosts(schedule, Array(8).fill(10), Array(8).fill([]), [], [3, 0, 0, 1]);
+  ownRanges(schedule, 4, 6, 6, 8);
+  schedule[2] = 4;
+  assert.equal(takePosition(schedule, 8, 1), 0);
+  assert.equal(takePosition(schedule, 8, 0), 3);
+  assert.equal(takePosition(schedule, 8, 1), 1);
+  assert.equal(takePosition(schedule, 8, 0), 4);
+  assert.equal(takePosition(schedule, 8, 0), 5);
+  // Checker 0 is idle: it takes from checker 1's range, never the rest of its group.
+  assert.equal(takePosition(schedule, 8, 0), 7);
+  assert.equal(takePosition(schedule, 8, 1), 2);
+  assert.equal(takePosition(schedule, 8, 1), 6);
+  assert.equal(takePosition(schedule, 8, 0), -1);
+  assert.equal(takePosition(schedule, 8, 1), -1);
+});
+
+test('beyond four checkers, one checker at a time retires when memory runs short, and an idle one takes its range', () => {
+  const schedule = new Int32Array(newSchedule(6, 10, 0, 0));
+  fillScheduleCosts(schedule, Array(10).fill(10), Array(10).fill([]), []);
+  ownRanges(schedule, 10, 10, 10, 10, 10, 10, 10, 10, 0, 10, 10, 10);
+  assert.equal(retires(schedule, 4, 100, 50), false);
+  assert.equal(retires(schedule, 3, 100, 200), false);
+  assert.equal(retires(schedule, 4, 100, 200), true);
+  // The next retirement waits until the first one's memory has come back.
+  assert.equal(retires(schedule, 5, 100, 200), false);
+  assert.equal(takePosition(schedule, 10, 0), 0);
+  assert.deepEqual(Array.from(schedule.slice(ranges, ranges + 2)), [1, 10]);
+  assert.deepEqual(Array.from(schedule.slice(ranges + 8, ranges + 10)), [0, 0]);
+  assert.equal(retirementMemory(1000), 850);
 });
