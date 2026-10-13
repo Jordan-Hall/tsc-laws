@@ -4,7 +4,7 @@ import type { Node } from './ast.js';
 import { getCombinedModifierFlags, getDeclarationOfKind } from './binder-utilities.js';
 import { Diagnostics } from './diagnostics.js';
 import { ModifierFlags, getSymbol, MappedTypeNode, getName } from './ast.js';
-import { CheckFlags, InternalSymbolName, type Symbol, SymbolFlags, type SymbolTable } from './symbol.js';
+import { CheckFlags, InternalSymbolName, type Symbol, SymbolFlags, type SymbolTable, getSymbolId } from './symbol.js';
 import { SyntaxKind } from './syntax-kind.js';
 import type { Checker } from './checker.js';
 import {
@@ -152,20 +152,26 @@ import { isLateBoundName, isNumericLiteralName } from './checker-utilities.js';
 
 // ---- Resolution
 
+/**
+ * `t` with its members resolved. The test is small enough to inline into callers, so a resolved
+ * type (almost every call) costs no call; the resolution itself is out of line.
+ */
 export function resolveStructuredTypeMembers(c: Checker, t: Type): StructuredType {
-  if ((t.objectFlags & ObjectFlags.MembersResolved) === 0) {
-    if ((t.flags & TypeFlags.Object) !== 0) {
-      const objectFlags = t.objectFlags;
-      if ((objectFlags & ObjectFlags.Reference) !== 0) resolveTypeReferenceMembers(c, t as TypeReference);
-      else if ((objectFlags & ObjectFlags.ClassOrInterface) !== 0)
-        resolveObjectTypeMembers(c, t as StructuredType, t as InterfaceType, emptyTypes, emptyTypes);
-      else if ((objectFlags & ObjectFlags.ReverseMapped) !== 0) resolveReverseMappedTypeMembers(c, t);
-      else if ((objectFlags & ObjectFlags.Anonymous) !== 0) resolveAnonymousTypeMembers(c, t as ObjectType);
-      else if ((objectFlags & ObjectFlags.Mapped) !== 0) resolveMappedTypeMembers(c, t as MappedType);
-    } else if ((t.flags & TypeFlags.Union) !== 0) resolveUnionTypeMembers(c, t as UnionType);
-    else if ((t.flags & TypeFlags.Intersection) !== 0) resolveIntersectionTypeMembers(c, t as IntersectionType);
-  }
+  if ((t.objectFlags & ObjectFlags.MembersResolved) === 0) resolveMembersOfType(c, t);
   return t as StructuredType;
+}
+
+function resolveMembersOfType(c: Checker, t: Type): void {
+  if ((t.flags & TypeFlags.Object) !== 0) {
+    const objectFlags = t.objectFlags;
+    if ((objectFlags & ObjectFlags.Reference) !== 0) resolveTypeReferenceMembers(c, t as TypeReference);
+    else if ((objectFlags & ObjectFlags.ClassOrInterface) !== 0)
+      resolveObjectTypeMembers(c, t as StructuredType, t as InterfaceType, emptyTypes, emptyTypes);
+    else if ((objectFlags & ObjectFlags.ReverseMapped) !== 0) resolveReverseMappedTypeMembers(c, t);
+    else if ((objectFlags & ObjectFlags.Anonymous) !== 0) resolveAnonymousTypeMembers(c, t as ObjectType);
+    else if ((objectFlags & ObjectFlags.Mapped) !== 0) resolveMappedTypeMembers(c, t as MappedType);
+  } else if ((t.flags & TypeFlags.Union) !== 0) resolveUnionTypeMembers(c, t as UnionType);
+  else if ((t.flags & TypeFlags.Intersection) !== 0) resolveIntersectionTypeMembers(c, t as IntersectionType);
 }
 
 function resolveTypeReferenceMembers(c: Checker, t: TypeReference): void {
@@ -586,7 +592,7 @@ export function hasResolvedProperties(t: StructuredType): boolean {
 
 /** `getPropertiesOfType(c, t).length !== 0`, without building a pending table. */
 export function hasPropertiesOfType(c: Checker, t: Type): boolean {
-  t = getReducedApparentType(c, t);
+  if (!isOwnReducedApparentType(t)) t = getReducedApparentTypeWorker(c, t);
   if ((t.flags & TypeFlags.UnionOrIntersection) !== 0)
     return getPropertiesOfUnionOrIntersectionType(c, t as UnionOrIntersectionType).length !== 0;
   return (t.flags & TypeFlags.Object) !== 0 && hasResolvedProperties(resolveStructuredTypeMembers(c, t));
@@ -603,7 +609,8 @@ export function resolvedPropertiesAreOptional(t: StructuredType): boolean {
     if (pending.hasRequiredOwnMembers) return false;
     if (!pending.hasBases) return true;
   }
-  return t.properties.every((p) => (p.flags & SymbolFlags.Optional) !== 0);
+  for (const p of t.properties) if ((p.flags & SymbolFlags.Optional) === 0) return false;
+  return true;
 }
 
 /** resolveObjectTypeMembers for an instantiation whose member symbols are instantiated on demand. */
@@ -1134,7 +1141,10 @@ function combineUnionOrIntersectionParameters(
       paramName,
       isRestParam ? CheckFlags.RestParameter : isOptional ? CheckFlags.OptionalParameter : CheckFlags.None,
     );
-    c.symbolLinks(paramSymbol).type = isRestParam ? createArrayTypeEx(c, combinedParamType, false) : combinedParamType;
+    c.symbolTypes.set(
+      getSymbolId(paramSymbol),
+      isRestParam ? createArrayTypeEx(c, combinedParamType, false) : combinedParamType,
+    );
     params.push(paramSymbol);
   }
   if (needsExtraRestElement) {
@@ -1145,7 +1155,7 @@ function combineUnionOrIntersectionParameters(
     );
     let restType = createArrayTypeEx(c, getTypeAtPosition(c, shorter, longestCount), false);
     if (shorter === right) restType = instantiateType(c, restType, mapper);
-    c.symbolLinks(restParamSymbol).type = restType;
+    c.symbolTypes.set(getSymbolId(restParamSymbol), restType);
     params.push(restParamSymbol);
   }
   return params;
@@ -1278,7 +1288,7 @@ export function appendIndexInfo(c: Checker, indexInfos: IndexInfo[], newInfo: In
 // ---- Properties
 
 export function getPropertiesOfType(c: Checker, t: Type): Symbol[] {
-  t = getReducedApparentType(c, t);
+  if (!isOwnReducedApparentType(t)) t = getReducedApparentTypeWorker(c, t);
   if ((t.flags & TypeFlags.UnionOrIntersection) !== 0)
     return getPropertiesOfUnionOrIntersectionType(c, t as UnionOrIntersectionType);
   return getPropertiesOfObjectType(c, t);
@@ -1327,7 +1337,7 @@ export function getPropertyOfTypeEx(
   skipObjectFunctionPropertyAugment: boolean,
   includeTypeOnlyMembers: boolean,
 ): Symbol | undefined {
-  t = getReducedApparentType(c, t);
+  if (!isOwnReducedApparentType(t)) t = getReducedApparentTypeWorker(c, t);
   if ((t.flags & TypeFlags.Object) !== 0) {
     const resolved = resolveStructuredTypeMembers(c, t);
     const symbol = getResolvedMember(resolved, name);
@@ -1383,7 +1393,16 @@ export function getPropertyOfUnionOrIntersectionType(
   return prop !== undefined && (prop.checkFlags & CheckFlags.ReadPartial) !== 0 ? undefined : prop;
 }
 
-/** The (possibly partial) property `name` of a union or intersection, cached on the type. */
+/**
+ * The (possibly partial) property `name` of a union or intersection, cached on the type.
+ *
+ * Non-partial results without the Object/Function augment also serve lookups with it (tsgo copies
+ * them into the augmented cache unless it already has the name). The augmented cache keeps only
+ * its own results and a miss there falls back to the other cache, which answers exactly what the
+ * copy would have: a name is in the augmented cache whenever a non-partial copy was skipped. This
+ * keeps intersections, which resolve every property without the augment, from holding each
+ * property twice.
+ */
 export function getUnionOrIntersectionProperty(
   c: Checker,
   t: UnionOrIntersectionType,
@@ -1393,6 +1412,10 @@ export function getUnionOrIntersectionProperty(
   let cache = skipObjectFunctionPropertyAugment ? t.propertyCacheWithoutFunctionPropertyAugment : t.propertyCache;
   const cached = cache?.get(name);
   if (cached !== undefined) return cached;
+  if (!skipObjectFunctionPropertyAugment) {
+    const withoutAugment = t.propertyCacheWithoutFunctionPropertyAugment?.get(name);
+    if (withoutAugment !== undefined && (withoutAugment.checkFlags & CheckFlags.Partial) === 0) return withoutAugment;
+  }
   const prop = createUnionOrIntersectionProperty(c, t, name, skipObjectFunctionPropertyAugment);
   if (prop !== undefined) {
     if (cache === undefined) {
@@ -1401,15 +1424,6 @@ export function getUnionOrIntersectionProperty(
       else t.propertyCache = cache;
     }
     cache.set(name, prop);
-    // Non-partial results also serve the augmented cache.
-    if (skipObjectFunctionPropertyAugment && (prop.checkFlags & CheckFlags.Partial) === 0) {
-      let augmented = t.propertyCache;
-      if (augmented === undefined) {
-        augmented = new Map<string, Symbol>();
-        t.propertyCache = augmented;
-      }
-      if (!augmented.has(name)) augmented.set(name, prop);
-    }
   }
   return prop;
 }
@@ -1521,15 +1535,15 @@ export function createUnionOrIntersectionProperty(
     let singlePropType: Type | undefined;
     let singlePropMapper: TypeMapper | undefined;
     if ((singleProp.flags & SymbolFlags.Transient) !== 0) {
-      const links = c.symbolLinks(singleProp);
-      singlePropType = links.type;
-      singlePropMapper = links.mapper;
+      const id = getSymbolId(singleProp);
+      singlePropType = c.symbolTypes.get(id);
+      singlePropMapper = c.symbolMappers.get(id);
     }
     const clone = createSymbolWithType(c, singleProp, singlePropType);
     if (singleProp.valueDeclaration !== undefined) clone.parent = getSymbol(singleProp.valueDeclaration)?.parent;
     const links = c.symbolLinks(clone);
-    links.containingType = containingType;
-    links.mapper = singlePropMapper;
+    c.symbolContainingTypes.set(clone.id, containingType);
+    c.symbolMappers.set(clone.id, singlePropMapper);
     links.writeType = getWriteTypeOfSymbol(c, singleProp);
     return clone;
   }
@@ -1549,7 +1563,7 @@ export function createUnionOrIntersectionProperty(
     const t = getTypeOfSymbol(c, prop);
     if (firstType === undefined) {
       firstType = t;
-      nameType = c.symbolLinks(prop).nameType;
+      nameType = c.symbolNameTypes.get(getSymbolId(prop));
     }
     const writeType = getWriteTypeOfSymbol(c, prop);
     if (writeTypes !== undefined || writeType !== t) {
@@ -1568,20 +1582,21 @@ export function createUnionOrIntersectionProperty(
     result.valueDeclaration = firstValueDeclaration;
     result.parent = getSymbol(firstValueDeclaration)?.parent;
   }
-  const links = c.symbolLinks(result);
-  links.containingType = containingType;
-  links.nameType = nameType;
+  const id = getSymbolId(result);
+  c.symbolContainingTypes.set(id, containingType);
+  c.symbolNameTypes.set(id, nameType);
   if (propTypes.length > 2) {
     // Defer normalization of possibly large constituent lists.
     result.checkFlags |= CheckFlags.DeferredType;
+    const links = c.symbolLinks(result);
     links.deferralParent = containingType;
     links.deferralConstituents = propTypes;
     links.deferralWriteConstituents = writeTypes;
     return result;
   }
-  links.type = isUnion ? getUnionType(c, propTypes) : getIntersectionType(c, propTypes);
+  c.symbolTypes.set(id, isUnion ? getUnionType(c, propTypes) : getIntersectionType(c, propTypes));
   if (writeTypes !== undefined)
-    links.writeType = isUnion ? getUnionType(c, writeTypes) : getIntersectionType(c, writeTypes);
+    c.symbolLinks(result).writeType = isUnion ? getUnionType(c, writeTypes) : getIntersectionType(c, writeTypes);
   return result;
 }
 
@@ -1590,7 +1605,7 @@ export function isObjectLiteralType(t: Type): boolean {
 }
 
 export function getTargetSymbol(c: Checker, s: Symbol): Symbol {
-  return (s.checkFlags & CheckFlags.Instantiated) !== 0 ? c.symbolLinks(s).target! : s;
+  return (s.checkFlags & CheckFlags.Instantiated) !== 0 ? c.symbolTargets.get(getSymbolId(s))! : s;
 }
 
 export function isPrototypeProperty(symbol: Symbol): boolean {
@@ -1618,17 +1633,17 @@ export function createSymbolWithType(c: Checker, source: Symbol, t: Type | undef
   symbol.declarations = source.declarations;
   symbol.parent = source.parent;
   symbol.valueDeclaration = source.valueDeclaration;
-  const links = c.symbolLinks(symbol);
-  links.type = t;
-  links.target = source;
-  links.nameType = c.symbolLinks(source).nameType;
+  const id = getSymbolId(symbol);
+  c.symbolTypes.set(id, t);
+  c.symbolTargets.set(id, source);
+  c.symbolNameTypes.set(id, c.symbolNameTypes.get(getSymbolId(source)));
   return symbol;
 }
 
 // ---- Signatures and index infos
 
 export function getSignaturesOfType(c: Checker, t: Type, kind: SignatureKind): Signature[] {
-  return getSignaturesOfStructuredType(c, getReducedApparentType(c, t), kind);
+  return getSignaturesOfStructuredType(c, isOwnReducedApparentType(t) ? t : getReducedApparentTypeWorker(c, t), kind);
 }
 
 export function getSignaturesOfStructuredType(c: Checker, t: Type, kind: SignatureKind): Signature[] {
@@ -1638,7 +1653,7 @@ export function getSignaturesOfStructuredType(c: Checker, t: Type, kind: Signatu
 }
 
 export function getIndexInfosOfType(c: Checker, t: Type): IndexInfo[] {
-  return getIndexInfosOfStructuredType(c, getReducedApparentType(c, t));
+  return getIndexInfosOfStructuredType(c, isOwnReducedApparentType(t) ? t : getReducedApparentTypeWorker(c, t));
 }
 
 export function getIndexInfosOfStructuredType(c: Checker, t: Type): IndexInfo[] {
@@ -1669,16 +1684,22 @@ export function findApplicableIndexInfo(
 ): IndexInfo | undefined {
   // `string` index signatures apply only when no other one does.
   let stringIndexInfo: IndexInfo | undefined;
-  const applicable: IndexInfo[] = [];
+  // The list of applicable infos is built only when more than one applies.
+  let first: IndexInfo | undefined;
+  let applicable: IndexInfo[] | undefined;
   for (const info of indexInfos) {
     if (info.keyType === c.stringType) stringIndexInfo = info;
-    else if (isApplicableIndexType(c, keyType, info.keyType)) applicable.push(info);
+    else if (isApplicableIndexType(c, keyType, info.keyType)) {
+      if (first === undefined) first = info;
+      else if (applicable === undefined) applicable = [first, info];
+      else applicable.push(info);
+    }
   }
-  if (applicable.length === 0)
+  if (first === undefined)
     return stringIndexInfo !== undefined && isApplicableIndexType(c, keyType, c.stringType)
       ? stringIndexInfo
       : undefined;
-  if (applicable.length === 1) return applicable[0]!;
+  if (applicable === undefined) return first;
   // Several apply: a synthetic info; its key type is unused.
   let isReadonly = true;
   const types: Type[] = [];
@@ -1715,8 +1736,38 @@ function isArrayType(c: Checker, t: Type): boolean {
 
 // ---- Apparent and reduced types
 
-/** Type parameters' base constraints; primitives' wrapper object types; otherwise the type itself. */
+/**
+ * Type parameters' base constraints; primitives' wrapper object types; otherwise the type itself.
+ * Most types are the last case: that test is small enough to inline into callers.
+ */
 export function getApparentType(c: Checker, t: Type): Type {
+  return isOwnApparentType(t) ? t : getApparentTypeWorker(c, t);
+}
+
+/**
+ * Whether getApparentType returns `t` itself because no rule applies to it: no constraint, wrapper
+ * type, mapped type or intersection, and not `unknown` (whose apparent type depends on the options).
+ */
+function isOwnApparentType(t: Type): boolean {
+  const flags = t.flags;
+  return (
+    (flags &
+      (TypeFlags.Instantiable |
+        TypeFlags.Intersection |
+        TypeFlags.StringLike |
+        TypeFlags.NumberLike |
+        TypeFlags.BigIntLike |
+        TypeFlags.BooleanLike |
+        TypeFlags.ESSymbolLike |
+        TypeFlags.NonPrimitive |
+        TypeFlags.Index |
+        TypeFlags.Unknown)) ===
+      0 &&
+    ((flags & TypeFlags.Object) === 0 || (t.objectFlags & ObjectFlags.Mapped) === 0)
+  );
+}
+
+function getApparentTypeWorker(c: Checker, t: Type): Type {
   const originalType = t;
   if ((t.flags & TypeFlags.Instantiable) !== 0) t = getBaseConstraintOfType(c, t) ?? c.unknownType;
   const flags = t.flags;
@@ -1868,8 +1919,27 @@ export function isConflictingPrivateProperty(prop: Symbol): boolean {
 }
 
 export function getReducedApparentType(c: Checker, t: Type): Type {
-  // Apparent types may be unreduced, so reduce before and after.
-  return getReducedType(c, getApparentType(c, getReducedType(c, t)));
+  return isOwnReducedApparentType(t) ? t : getReducedApparentTypeWorker(c, t);
+}
+
+/**
+ * Whether getReducedApparentType returns `t` itself: it is its own apparent type, and no reduction
+ * applies to it (getReducedType changes only intersections and unions with intersections). The hot
+ * member lookups below test this inline before calling getReducedApparentTypeWorker.
+ */
+function isOwnReducedApparentType(t: Type): boolean {
+  return (
+    isOwnApparentType(t) &&
+    ((t.flags & TypeFlags.Union) === 0 || (t.objectFlags & ObjectFlags.ContainsIntersections) === 0)
+  );
+}
+
+function getReducedApparentTypeWorker(c: Checker, t: Type): Type {
+  // Apparent types may be unreduced, so reduce before and after. Reducing is idempotent, so an
+  // apparent type that is the reduced type itself needs no second pass.
+  const reduced = getReducedType(c, t);
+  const apparent = getApparentType(c, reduced);
+  return apparent === reduced ? reduced : getReducedType(c, apparent);
 }
 
 // ---- Base constraints
