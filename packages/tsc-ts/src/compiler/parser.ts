@@ -6893,6 +6893,12 @@ const noNodes: readonly Node[] = [];
 let lazyJSDocParser: Parser | undefined;
 let lazyJSDocFile: SourceFile | undefined;
 
+/** Forgets the file the lazy JSDoc parser last visited. */
+export function forgetLazyJSDocFile(): void {
+  lazyJSDocParser = undefined;
+  lazyJSDocFile = undefined;
+}
+
 const viableKeywordSuggestions = getViableKeywordSuggestions();
 
 function getSpaceSuggestion(expressionText: string): string {
