@@ -735,6 +735,11 @@ export class LibGlobals {
 
 const libGlobalsCache: LibGlobals[] = [];
 
+/** Drops the shared library globals (a rebuild reparses the library files). */
+export function clearLibGlobalsCache(): void {
+  libGlobalsCache.length = 0;
+}
+
 /** Number of leading default library files, whose merged locals can be shared. */
 function getLibraryCount(c: Checker): number {
   const files = c.files;

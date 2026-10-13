@@ -14,6 +14,11 @@ import {
 } from './diagnostics.js';
 import { CompilerHost } from './file-loader.js';
 import { CachedFileSystem } from './file-system.js';
+import { clearLibGlobalsCache } from './checker-symbols.js';
+import { forgetLazyJSDocFile } from './parser.js';
+import { forgetNavigationFile } from './astnav.js';
+import { forgetRangeScannerFile } from './binder-utilities.js';
+import { forgetIdentifierSets } from './printer/name-generator.js';
 import { FileBuildInfoReader, IncrementalProgram, readBuildInfoProgram, type Snapshot } from './incremental.js';
 import { combinePaths, getDirectoryPath, getNormalizedAbsolutePath, toPath } from './path.js';
 import { Program } from './program.js';
@@ -202,6 +207,13 @@ class Watcher {
   }
 
   private build(): void {
+    // A rebuild parses every file again, so drop the module-level caches that still point at the
+    // previous program's files and library globals.
+    clearLibGlobalsCache();
+    forgetLazyJSDocFile();
+    forgetNavigationFile();
+    forgetRangeScannerFile();
+    forgetIdentifierSets();
     const sys = this.sys;
     const fs = new CachedFileSystem(new SystemFileSystem(sys));
     if (this.config.configName !== '') {
