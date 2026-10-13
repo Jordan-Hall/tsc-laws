@@ -3,8 +3,8 @@
  *
  * The main thread is checker 0; it starts N-1 checker threads. Every checker creates its own checker
  * over the program and takes files until none are left (`planSchedule`): the costliest files first,
- * then a range of neighboring files of its own, then the cheap end of other checkers' ranges. The
- * threads send back the semantic diagnostics of their files (and under `noEmit` with declarations,
+ * then a range of neighboring files of its own, then the end of other checkers' ranges where that
+ * makes them finish earlier (`takePosition`). The threads send back the semantic diagnostics of their files (and under `noEmit` with declarations,
  * their declaration diagnostics) and their global diagnostics, and the main thread reports them like
  * a single checker would. Which checker checks a file does not change its diagnostics.
  *
@@ -94,13 +94,17 @@ function checkersReportDeclarations(checked: CheckedProgram): boolean {
 }
 
 /**
- * How the number of checkers is chosen without `--checkers`: `fixed` uses tsgo's four; `auto`
- * (TSC_TS_CHECKERS=auto) uses every CPU this process may run on (`os.availableParallelism()`, at
- * most `maxAutoCheckers`), fewer when the estimated peak memory would not fit (`memoryCheckers`).
+ * How the number of checkers is chosen without `--checkers`: `auto` (the default) uses every CPU
+ * this process may run on (`os.availableParallelism()`, at most `maxAutoCheckers`), and at least
+ * tsgo's four; fewer than the CPUs, but never fewer than four, when the estimated peak memory of more
+ * checkers would not fit (`memoryCheckers`). `fixed` (TSC_TS_CHECKERS=fixed) uses tsgo's four.
  */
-export const checkerPolicy: 'fixed' | 'auto' = process.env.TSC_TS_CHECKERS === 'auto' ? 'auto' : 'fixed';
+export const checkerPolicy: 'fixed' | 'auto' = process.env.TSC_TS_CHECKERS === 'fixed' ? 'fixed' : 'auto';
 
-/** The most checkers `auto` starts (measured up to 8 CPUs; see parmem notes). */
+/** tsgo's number of checkers, and the fewest `auto` starts. */
+const tsgoCheckers = 4;
+
+/** The most checkers `auto` starts (measured up to 16 CPUs). */
 const maxAutoCheckers = 16;
 
 /**
@@ -121,9 +125,14 @@ export function checkerThreads(
 
 function defaultCheckers(program: Program | undefined): number {
   if (!sharesPublishedGraphs) return 1;
-  if (checkerPolicy === 'fixed') return 4;
+  if (checkerPolicy === 'fixed') return tsgoCheckers;
   const cpus = Math.min(availableParallelism(), maxAutoCheckers);
-  return program === undefined ? cpus : Math.min(cpus, memoryCheckers(program));
+  return autoCheckers(cpus, program === undefined ? Number.MAX_SAFE_INTEGER : memoryCheckers(program));
+}
+
+/** `auto` with `cpus` CPUs when the memory estimate fits `fit` checkers: tsgo's four at least. */
+export function autoCheckers(cpus: number, fit: number): number {
+  return Math.max(tsgoCheckers, Math.min(cpus, fit));
 }
 
 /**
@@ -136,27 +145,45 @@ export function parseThreads(checkers: number): number {
 }
 
 /**
- * Measured on the benchmark apps: the bound program takes 28-38 bytes per character of source text
- * (estimated with `programBytesPerChar`); peak memory is about 2.0-2.6 programs plus 0.03-0.15
- * programs per further checker (most for Sentry, least for VS Code).
+ * Peak memory with one checker, per character of source text: measured 44-107 bytes on the
+ * benchmark apps (the shared program 28-38, one checker's heap the rest; most where checking
+ * instantiates many types, as in Sentry and T3 Code's Effect code, least for tRPC and VS Code).
  */
-const programBytesPerChar = 40;
-const peakPrograms = 2.5;
-const programsPerChecker = 0.15;
+const peakBytesPerChar = 110;
 
-/** The most checkers whose estimated peak memory fits 80% of the memory limit; at least 1. */
+/**
+ * What each further checker adds, per character of declaration files: measured 0.3-31 bytes (every
+ * checker resolves the declarations its files use; most for T3 Code's Effect-based projects, 6 for
+ * VS Code, under 1 for tRPC).
+ */
+const checkerBytesPerDeclarationChar = 32;
+
+/**
+ * The most checkers whose estimated peak memory (`peakBytesPerChar`,
+ * `checkerBytesPerDeclarationChar`) fits 80% of the memory limit, of `memory` bytes; at least 1.
+ */
+export function checkersFittingMemory(chars: number, declarationChars: number, memory: number): number {
+  const peak = chars * peakBytesPerChar;
+  const perChecker = Math.max(1, declarationChars * checkerBytesPerDeclarationChar);
+  return Math.max(1, 1 + Math.floor((0.8 * memory - peak) / perChecker));
+}
+
+/** The most checkers whose estimated peak memory fits (`checkersFittingMemory`), for `program`. */
 export function memoryCheckers(program: Program): number {
   let chars = 0;
-  for (const file of program.getSourceFiles()) chars += file.text.length;
-  const programBytes = chars * programBytesPerChar;
+  let declarationChars = 0;
+  for (const file of program.getSourceFiles()) {
+    chars += file.text.length;
+    if (file.isDeclarationFile) declarationChars += file.text.length;
+  }
   const constrained = process.constrainedMemory();
-  const limit = 0.8 * (constrained > 0 ? Math.min(constrained, totalmem()) : totalmem());
-  const fit = 1 + Math.floor((limit - peakPrograms * programBytes) / (programsPerChecker * programBytes));
+  const memory = constrained > 0 ? Math.min(constrained, totalmem()) : totalmem();
+  const fit = checkersFittingMemory(chars, declarationChars, memory);
   if (process.env.TSC_TS_CHECKERS_TRACE !== undefined)
     process.stderr.write(
-      `checkers: ${chars} source chars, estimated program ${Math.round(programBytes / 1048576)}MB, limit ${Math.round(limit / 1048576)}MB, memory fits ${fit} checkers\n`,
+      `checkers: ${chars} source chars (${declarationChars} in declaration files), memory ${Math.round(memory / 1048576)}MB fits ${fit} checkers\n`,
     );
-  return Math.max(1, fit);
+  return fit;
 }
 
 /**
@@ -168,28 +195,48 @@ export function memoryCheckers(program: Program): number {
  * a server framework's types under an adapter, makes that file one of the most expensive).
  */
 export function checkOrder(checked: CheckedProgram): number[] {
-  return costOrder(checked)[0];
+  return costOrder(checked).order;
 }
 
-/** The files to check, costliest first (`checkOrder`), and the estimated cost of each file by index. */
-function costOrder(checked: CheckedProgram): [number[], number[]] {
+/** The estimated costs of checking a program's files (`checkOrder`). */
+class CheckCosts {
+  constructor(
+    /** The files to check (indices into the program files), costliest first. */
+    readonly order: number[],
+    /** The estimated cost of each file, by index. */
+    readonly cost: number[],
+    /** The libraries (indices) each file of `order` imports, by index. */
+    readonly libraries: number[][],
+    /** What resolving a library costs a checker the first time (`libraryCostShare` of the text it reaches), by index. */
+    readonly libraryCost: number[],
+  ) {}
+}
+
+function costOrder(checked: CheckedProgram): CheckCosts {
   const files = checked.program.getSourceFiles();
   const order: number[] = [];
   for (let i = 0; i < files.length; i++) if (!checked.skipTypeChecking(files[i]!)) order.push(i);
-  const cost = checkCosts(checked, order);
+  const costs = checkCosts(checked, order);
+  const cost = costs.cost;
   order.sort((a, b) => cost[b]! - cost[a]! || a - b);
-  return [order, cost];
+  return costs;
 }
 
 /** How much of a library's text counts as checking cost of the files importing it. */
 const libraryCostShare = 0.25;
 
-/** The estimated cost of checking each file of `order` (indices into the program files), by index. */
-function checkCosts(checked: CheckedProgram, order: number[]): number[] {
+/** The estimated cost of checking each file of `order` (indices into the program files). */
+function checkCosts(checked: CheckedProgram, order: number[]): CheckCosts {
   const program = checked.program;
   const files = program.getSourceFiles();
   const cost: number[] = [];
-  for (let i = 0; i < files.length; i++) cost.push(0);
+  const librariesOf: number[][] = [];
+  const libraryCost: number[] = [];
+  for (let i = 0; i < files.length; i++) {
+    cost.push(0);
+    librariesOf.push([]);
+    libraryCost.push(0);
+  }
   for (const i of order) cost[i] = files[i]!.text.length;
   const indexOf = new Map<SourceFile, number>();
   for (let i = 0; i < files.length; i++) indexOf.set(files[i]!, i);
@@ -213,11 +260,10 @@ function checkCosts(checked: CheckedProgram, order: number[]): number[] {
     return result;
   };
   const importers = new Map<number, number>();
-  const imports: number[][] = [];
   for (const i of order) {
     const libraries: number[] = [];
     for (const k of edgesOf(i)) if (isLibrary(k) && libraries.indexOf(k) < 0) libraries.push(k);
-    imports.push(libraries);
+    librariesOf[i] = libraries;
     for (const k of libraries) importers.set(k, (importers.get(k) ?? 0) + 1);
   }
   // The text length of the libraries each library reaches (itself included).
@@ -241,11 +287,15 @@ function checkCosts(checked: CheckedProgram, order: number[]): number[] {
     return total;
   };
   for (let n = 0; n < order.length; n++) {
+    const i = order[n]!;
     let share = 0;
-    for (const k of imports[n]!) share += reachOf(k) / importers.get(k)!;
-    cost[order[n]!] += libraryCostShare * share;
+    for (const k of librariesOf[i]!) {
+      libraryCost[k] = libraryCostShare * reachOf(k);
+      share += reachOf(k) / importers.get(k)!;
+    }
+    cost[i] = cost[i]! + libraryCostShare * share;
   }
-  return cost;
+  return new CheckCosts(order, cost, librariesOf, libraryCost);
 }
 
 function isExternalModuleFile(file: SourceFile): boolean {
@@ -253,23 +303,154 @@ function isExternalModuleFile(file: SourceFile): boolean {
 }
 
 /**
- * The shared schedule (an Int32Array over a SharedArrayBuffer): [0] the cursor of the shared queue,
- * [1] a lock, [2] the number of leading positions of the order that every checker takes from the
- * shared queue first, or -1 when the whole order is one shared queue, [3] the number of checkers,
- * then for each checker the start and end of its range of positions.
+ * The shared schedule (an Int32Array over a SharedArrayBuffer). Header: [0] the cursor of the
+ * shared queue, [1] a lock, [2] the number of leading positions of the order that every checker
+ * takes from the shared queue first, or -1 when the whole order is one shared queue, [3] the number
+ * of checkers, [4] the number of positions with costs (0 for none), [5] the number of libraries, [6]
+ * the words of a set of libraries, [7] the number of library references. Then, for each checker, the
+ * start and end of its range of positions; with costs, for each position the text length of its file
+ * and the start of its libraries in the library references (one more start at the end), the library
+ * references, for each library what resolving it costs, and for each checker the set of libraries it
+ * has resolved (one bit per library).
  *
  * With ranges, each checker checks a contiguous run of the program's files (files next to each
  * other in program order tend to use the same declarations, so its checker resolves fewer of them),
- * and a checker whose range is empty takes the back half of the largest remaining range.
+ * and a checker whose range is empty takes the end of another checker's range: the part that brings
+ * the later of the two checkers' estimated finishing times furthest forward, counting for itself the
+ * libraries it has not resolved yet. It takes nothing when that would not finish earlier: the end of
+ * a range is often a few files that are cheap only to the checker that resolved their libraries.
+ * Without costs, it takes the back half of the largest remaining range.
  */
-const scheduleHeader = 4;
+const scheduleHeader = 8;
 
-export function newSchedule(count: number): SharedArrayBuffer {
-  return new SharedArrayBuffer(4 * (scheduleHeader + 2 * count));
+export function newSchedule(count: number, positions = 0, libraries = 0, references = 0): SharedArrayBuffer {
+  const words = (libraries + 31) >> 5;
+  const plan = positions === 0 ? 0 : 2 * positions + 1 + references + libraries + count * words;
+  const buffer = new SharedArrayBuffer(4 * (scheduleHeader + 2 * count + plan));
+  const schedule = new Int32Array(buffer);
+  schedule[3] = count;
+  if (positions > 0) {
+    schedule[4] = positions;
+    schedule[5] = libraries;
+    schedule[6] = words;
+    schedule[7] = references;
+  }
+  return buffer;
 }
 
-/** The next position of the order for checker `index`, or -1 when every file is taken. */
-export function takePosition(schedule: Int32Array, length: number, index: number): number {
+/** Where the parts of a schedule with costs start (`newSchedule`). */
+class PlanLayout {
+  readonly lengths: number;
+  readonly starts: number;
+  readonly references: number;
+  readonly costs: number;
+  readonly resolved: number;
+  readonly words: number;
+
+  constructor(schedule: Int32Array) {
+    const positions = schedule[4]!;
+    this.lengths = scheduleHeader + 2 * schedule[3]!;
+    this.starts = this.lengths + positions;
+    this.references = this.starts + positions + 1;
+    this.costs = this.references + schedule[7]!;
+    this.resolved = this.costs + schedule[5]!;
+    this.words = schedule[6]!;
+  }
+}
+
+/**
+ * The costs of a schedule, copied out of the shared buffer once per checker: they do not change, and
+ * in scriptc builds every access to a shared buffer takes a process-wide lock, which the checkers
+ * waiting for the schedule's own lock also take.
+ */
+export class SchedulePlan {
+  readonly layout: PlanLayout;
+  /** The schedule from its first length up to the sets of resolved libraries. */
+  private readonly data: Int32Array;
+
+  constructor(schedule: Int32Array) {
+    this.layout = new PlanLayout(schedule);
+    this.data = schedule.slice(this.layout.lengths, this.layout.resolved);
+  }
+
+  length(position: number): number {
+    return this.data[position]!;
+  }
+
+  /** The start of the libraries of `position` in the references (`referenceStart(position + 1)` is its end). */
+  referenceStart(position: number): number {
+    return this.data[this.layout.starts - this.layout.lengths + position]!;
+  }
+
+  reference(k: number): number {
+    return this.data[this.layout.references - this.layout.lengths + k]!;
+  }
+
+  cost(library: number): number {
+    return this.data[this.layout.costs - this.layout.lengths + library]!;
+  }
+
+  /** A copy of the set of libraries `checker` has resolved. */
+  resolvedBy(schedule: Int32Array, checker: number): number[] {
+    const words: number[] = [];
+    const at = this.layout.resolved + checker * this.layout.words;
+    for (let w = 0; w < this.layout.words; w++) words.push(Atomics.load(schedule, at + w));
+    return words;
+  }
+}
+
+/** The costs of `schedule`, or `undefined` if it has none. */
+export function schedulePlan(schedule: Int32Array): SchedulePlan | undefined {
+  return Atomics.load(schedule, 4) > 0 ? new SchedulePlan(schedule) : undefined;
+}
+
+function isResolved(words: readonly number[], library: number): boolean {
+  return (words[library >> 5]! & (1 << (library & 31))) !== 0;
+}
+
+/**
+ * Fills the costs of a schedule from `newSchedule(count, lengths.length, libraryCosts.length, R)`:
+ * the text length of the file at each position, the libraries (0 to `libraryCosts.length - 1`) it
+ * imports, R in total, and what resolving each library costs.
+ */
+export function fillScheduleCosts(
+  schedule: Int32Array,
+  lengths: readonly number[],
+  libraries: readonly (readonly number[])[],
+  libraryCosts: readonly number[],
+): void {
+  const layout = new PlanLayout(schedule);
+  let reference = 0;
+  for (let p = 0; p < lengths.length; p++) {
+    schedule[layout.lengths + p] = lengths[p]!;
+    schedule[layout.starts + p] = reference;
+    for (const library of libraries[p]!) schedule[layout.references + reference++] = library;
+  }
+  schedule[layout.starts + lengths.length] = reference;
+  for (let k = 0; k < libraryCosts.length; k++) schedule[layout.costs + k] = Math.round(libraryCosts[k]!);
+}
+
+/** Records that `checker` resolves the libraries of the file at `position`. */
+function markResolved(schedule: Int32Array, plan: SchedulePlan | undefined, checker: number, position: number): void {
+  if (plan === undefined) return;
+  const set = plan.layout.resolved + checker * plan.layout.words;
+  const end = plan.referenceStart(position + 1);
+  for (let r = plan.referenceStart(position); r < end; r++) {
+    const library = plan.reference(r);
+    Atomics.or(schedule, set + (library >> 5), 1 << (library & 31));
+  }
+}
+
+/**
+ * The next position of the order for checker `index`, or -1 when every file is taken. `plan` is
+ * `schedulePlan(schedule)`, which a checker reads once.
+ */
+export function takePosition(
+  schedule: Int32Array,
+  length: number,
+  index: number,
+  plan: SchedulePlan | undefined = schedulePlan(schedule),
+): number {
   const heavy = Atomics.load(schedule, 2);
   if (heavy < 0) {
     const k = Atomics.add(schedule, 0, 1);
@@ -277,54 +458,173 @@ export function takePosition(schedule: Int32Array, length: number, index: number
   }
   if (Atomics.load(schedule, 0) < heavy) {
     const k = Atomics.add(schedule, 0, 1);
-    if (k < heavy) return k;
+    if (k < heavy) {
+      markResolved(schedule, plan, index, k);
+      return k;
+    }
   }
   while (Atomics.compareExchange(schedule, 1, 0, 1) !== 0) {
-    // Another checker is taking a file; this takes nanoseconds.
+    // Another checker is taking a file; this takes nanoseconds, or microseconds to take a range.
   }
   const own = scheduleHeader + 2 * index;
   let lo = Atomics.load(schedule, own);
   let hi = Atomics.load(schedule, own + 1);
   if (lo >= hi) {
-    const count = Atomics.load(schedule, 3);
-    let victim = -1;
-    let most = 0;
-    for (let v = 0; v < count; v++) {
-      const at = scheduleHeader + 2 * v;
-      const left = Atomics.load(schedule, at + 1) - Atomics.load(schedule, at);
-      if (left > most) {
-        most = left;
-        victim = v;
-      }
-    }
-    if (victim < 0) {
+    const taken = plan !== undefined ? takeCheapestEnd(schedule, plan, index) : takeBackHalf(schedule);
+    if (taken === undefined) {
       Atomics.store(schedule, 1, 0);
       return -1;
     }
-    const at = scheduleHeader + 2 * victim;
-    hi = Atomics.load(schedule, at + 1);
-    lo = Atomics.load(schedule, at) + (most >> 1);
-    Atomics.store(schedule, at + 1, lo);
+    lo = taken[0]!;
+    hi = taken[1]!;
   }
   Atomics.store(schedule, own, lo + 1);
   Atomics.store(schedule, own + 1, hi);
+  markResolved(schedule, plan, index, lo);
   Atomics.store(schedule, 1, 0);
   return lo;
 }
 
-/**
- * Fills the schedule for `count` checkers and returns the order to check files in: the costliest
- * files first (at least `count`, and every file costing more than a 32nd of a checker's share), from
- * the shared queue; then the others split, in program order, into one range of about equal cost per
- * checker, each costliest first.
- */
-export function planSchedule(checked: CheckedProgram, schedule: Int32Array, count: number): number[] {
-  const [order, cost] = costOrder(checked);
-  Atomics.store(schedule, 3, count);
-  if (order.length <= count) {
-    Atomics.store(schedule, 2, -1);
-    return order;
+/** Takes the back half of the largest remaining range: its positions, or `undefined` if none is left. */
+function takeBackHalf(schedule: Int32Array): number[] | undefined {
+  const count = Atomics.load(schedule, 3);
+  let victim = -1;
+  let most = 0;
+  for (let v = 0; v < count; v++) {
+    const at = scheduleHeader + 2 * v;
+    const left = Atomics.load(schedule, at + 1) - Atomics.load(schedule, at);
+    if (left > most) {
+      most = left;
+      victim = v;
+    }
   }
+  if (victim < 0) return undefined;
+  const at = scheduleHeader + 2 * victim;
+  const hi = Atomics.load(schedule, at + 1);
+  const lo = Atomics.load(schedule, at) + (most >> 1);
+  Atomics.store(schedule, at + 1, lo);
+  return [lo, hi];
+}
+
+/**
+ * For checker `thief`: takes the end of another checker's range that brings the later of the two
+ * estimated finishing times furthest forward (its positions), or nothing (`undefined`) if every part
+ * would make it later. The owner's remaining cost counts its files and, once, the libraries they import that it
+ * has not resolved; the thief's cost of an end counts its files and the libraries they import that
+ * the thief has not resolved.
+ */
+/** With TSC_TS_CHECKERS_TRACE=3: what each idle checker takes. */
+const traceSteals = process.env.TSC_TS_CHECKERS_TRACE === '3';
+
+function takeCheapestEnd(schedule: Int32Array, plan: SchedulePlan, thief: number): number[] | undefined {
+  const count = Atomics.load(schedule, 3);
+  const thiefResolved = plan.resolvedBy(schedule, thief);
+  let bestVictim = -1;
+  let bestStart = 0;
+  // Even taking what changes nothing helps when the owner is busy with a long file, or never starts.
+  let bestGain = -1;
+  let bestRemaining = 0;
+  let bestThiefCost = 0;
+  for (let v = 0; v < count; v++) {
+    if (v === thief) continue;
+    const at = scheduleHeader + 2 * v;
+    const lo = Atomics.load(schedule, at);
+    const hi = Atomics.load(schedule, at + 1);
+    if (lo >= hi) continue;
+    const ownerResolved = plan.resolvedBy(schedule, v);
+    let remaining = 0;
+    const counted = new Set<number>();
+    for (let p = lo; p < hi; p++) {
+      remaining += plan.length(p);
+      const end = plan.referenceStart(p + 1);
+      for (let r = plan.referenceStart(p); r < end; r++) {
+        const library = plan.reference(r);
+        if (!counted.has(library) && !isResolved(ownerResolved, library)) {
+          counted.add(library);
+          remaining += plan.cost(library);
+        }
+      }
+    }
+    // The thief takes [start, hi): the owner keeps the rest, the thief pays for libraries it lacks.
+    let taken = 0;
+    let thiefCost = 0;
+    const lacking = new Set<number>();
+    for (let start = hi - 1; start >= lo; start--) {
+      const length = plan.length(start);
+      taken += length;
+      thiefCost += length;
+      const end = plan.referenceStart(start + 1);
+      for (let r = plan.referenceStart(start); r < end; r++) {
+        const library = plan.reference(r);
+        if (!lacking.has(library) && !isResolved(thiefResolved, library)) {
+          lacking.add(library);
+          thiefCost += plan.cost(library);
+        }
+      }
+      const gain = remaining - Math.max(remaining - taken, thiefCost);
+      if (gain > bestGain) {
+        bestGain = gain;
+        bestVictim = v;
+        bestStart = start;
+        bestRemaining = remaining;
+        bestThiefCost = thiefCost;
+      }
+      // Taking more only makes the thief finish later.
+      if (thiefCost >= remaining - taken) break;
+    }
+  }
+  if (bestVictim < 0) {
+    if (traceSteals) process.stderr.write(`checkers: steal ${thief} none at ${Date.now()}\n`);
+    return undefined;
+  }
+  const at = scheduleHeader + 2 * bestVictim;
+  const hi = Atomics.load(schedule, at + 1);
+  if (traceSteals)
+    process.stderr.write(
+      `checkers: steal ${thief} from ${bestVictim} [${bestStart},${hi}) of [${Atomics.load(schedule, at)},${hi}) remaining ${bestRemaining} thief ${bestThiefCost} at ${Date.now()}\n`,
+    );
+  Atomics.store(schedule, at + 1, bestStart);
+  return [bestStart, hi];
+}
+
+/**
+ * A plan for checking a program with several checkers (`planSchedule`): the order of its files, the
+ * number of leading positions every checker takes from the shared queue (-1 for all), the start and
+ * end of each checker's range, and the costs of each position (`fillScheduleCosts`).
+ */
+export class CheckPlan {
+  constructor(
+    readonly order: number[],
+    readonly heavy: number,
+    readonly ranges: number[],
+    readonly lengths: number[],
+    readonly libraries: number[][],
+    readonly libraryCosts: number[],
+    readonly references: number,
+  ) {}
+}
+
+/** The shared schedule of `plan` for `count` checkers. */
+export function scheduleOf(plan: CheckPlan, count: number): SharedArrayBuffer {
+  const buffer = newSchedule(count, plan.lengths.length, plan.libraryCosts.length, plan.references);
+  const schedule = new Int32Array(buffer);
+  if (plan.lengths.length > 0) fillScheduleCosts(schedule, plan.lengths, plan.libraries, plan.libraryCosts);
+  Atomics.store(schedule, 2, plan.heavy);
+  for (let k = 0; k < plan.ranges.length; k++) Atomics.store(schedule, scheduleHeader + k, plan.ranges[k]!);
+  return buffer;
+}
+
+/**
+ * Plans checking with `count` checkers: the order to check files in, the costliest files first (at
+ * least `count`, and every file costing more than a 32nd of a checker's share), from the shared
+ * queue; then the others split, in program order, into one range of about equal cost per checker,
+ * each costliest first.
+ */
+export function planSchedule(checked: CheckedProgram, count: number): CheckPlan {
+  const costs = costOrder(checked);
+  const order = costs.order;
+  const cost = costs.cost;
+  if (order.length <= count) return new CheckPlan(order, -1, [], [], [], [], 0);
   let all = 0;
   for (const i of order) all += cost[i]!;
   // Files that cost more than a 32nd of a checker's share go first, costliest first: at the end of
@@ -336,7 +636,7 @@ export function planSchedule(checked: CheckedProgram, schedule: Int32Array, coun
   let total = 0;
   for (const i of rest) total += cost[i]!;
   const planned = heavy.concat(rest);
-  Atomics.store(schedule, 2, heavyCount);
+  const ranges: number[] = [];
   let position = heavyCount;
   let sum = 0;
   for (let c = 0; c < count; c++) {
@@ -346,14 +646,35 @@ export function planSchedule(checked: CheckedProgram, schedule: Int32Array, coun
       sum += cost[planned[position]!]!;
       position++;
     }
-    Atomics.store(schedule, scheduleHeader + 2 * c, start);
-    Atomics.store(schedule, scheduleHeader + 2 * c + 1, position);
+    ranges.push(start, position);
     // A range is the files of a checker; within it, costliest first, so that the files other
-    // checkers steal from its end, and the last files anyone checks, are cheap.
+    // checkers take from its end, and the last files anyone checks, are cheap.
     const range = planned.slice(start, position).sort((a, b) => cost[b]! - cost[a]! || a - b);
     for (let k = 0; k < range.length; k++) planned[start + k] = range[k]!;
   }
-  return planned;
+  // The costs of each position, with the libraries numbered in order of first use.
+  const files = checked.program.getSourceFiles();
+  const libraryIds = new Map<number, number>();
+  const libraryCosts: number[] = [];
+  const lengths: number[] = [];
+  const libraries: number[][] = [];
+  let references = 0;
+  for (const i of planned) {
+    lengths.push(files[i]!.text.length);
+    const ids: number[] = [];
+    for (const k of costs.libraries[i]!) {
+      let id = libraryIds.get(k);
+      if (id === undefined) {
+        id = libraryCosts.length;
+        libraryIds.set(k, id);
+        libraryCosts.push(costs.libraryCost[k]!);
+      }
+      ids.push(id);
+    }
+    libraries.push(ids);
+    references += ids.length;
+  }
+  return new CheckPlan(planned, heavyCount, ranges, lengths, libraries, libraryCosts, references);
 }
 
 /** With TSC_TS_CHECKERS_TRACE: the single-threaded checker's statistics, like a checker thread's. */
@@ -389,8 +710,9 @@ export function checkFromQueue(
   const declarations: Diagnostic[][] = [];
   // Declaration emit of a file right after checking it, with this checker.
   const emitter = checkersReportDeclarations(checked) ? new ProgramEmitter(checked) : undefined;
+  const plan = schedulePlan(counter);
   for (;;) {
-    const k = takePosition(counter, order.length, index);
+    const k = takePosition(counter, order.length, index, plan);
     if (k < 0) break;
     const i = order[k]!;
     done.push(i);
@@ -454,9 +776,10 @@ export function startParallelCheck(checked: CheckedProgram, count: number, done:
         `checkers: published the program in ${(performance.now() - start).toFixed(1)}ms rss ${residentMB().join('/')}MB\n`,
       );
   }
-  const counter = newSchedule(count);
   const orderStart = performance.now();
-  const order = planSchedule(checked, new Int32Array(counter), count);
+  const plan = planSchedule(checked, count);
+  const order = plan.order;
+  const counter = scheduleOf(plan, count);
   if (trace) {
     let top = '';
     for (let k = 0; k < Math.min(5, order.length); k++) top += ' ' + files[order[k]!]!.fileName;

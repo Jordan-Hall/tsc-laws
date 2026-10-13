@@ -49,9 +49,14 @@ export class ParseThread {
   load(chunk: LoadMessage): PreparedBatch {
     const start = performance.now();
     const added = new LoadJobs();
-    for (let i = 0; i < chunk.names.length; i++)
-      this.loader.loadAhead(chunk.kinds[i]!, chunk.names[i]!, chunk.depths[i]!, added);
     const files = this.host.prepared;
+    for (let i = 0; i < chunk.names.length; i++) {
+      const before = files.length;
+      const loaded = this.loader.loadAhead(chunk.kinds[i]!, chunk.names[i]!, chunk.depths[i]!, added);
+      // What the loader found loading the file it just prepared.
+      if (loaded !== undefined && files.length === before + 1 && files[before]!.file === loaded.file)
+        files[before]!.loaded = loaded;
+    }
     this.host.prepared = [];
     return publish(new PreparedBatch(files, added, performance.now() - start));
   }

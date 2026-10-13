@@ -19,6 +19,7 @@
 import type { Worker } from 'node:worker_threads';
 import { publish } from '@scriptc/threads';
 import { type SourceFile, type ExternalModuleIndicatorOptions, lastNodeIdValue, shareNodeIds } from './ast.js';
+import type { LoadedFile } from './file-loader.js';
 import type { CompilerOptions } from './options.js';
 import { useLazyJSDocTable } from './parser.js';
 import { getNormalizedAbsolutePath } from './path.js';
@@ -50,8 +51,14 @@ export class LoadJobs {
   }
 }
 
-/** A parsed and bound source file, with the inputs it was parsed from. */
+/**
+ * A parsed and bound source file, with the inputs it was parsed from and what the parse thread's
+ * FileLoader found loading it (its references and their resolutions), which the program's
+ * FileLoader takes instead of resolving them again.
+ */
 export class PreparedFile {
+  loaded: LoadedFile | undefined = undefined;
+
   constructor(
     readonly fileName: string,
     readonly path: string,
@@ -59,6 +66,12 @@ export class PreparedFile {
     readonly force: boolean,
     readonly file: SourceFile,
   ) {}
+}
+
+/** What a parse thread's FileLoader found loading `fileName`, if the thread prepared it. */
+export function preparedLoad(fileName: string): LoadedFile | undefined {
+  if (parallelParse.files.size === 0) return undefined;
+  return parallelParse.files.get(fileName)?.loaded;
 }
 
 /** What a parse thread sends back for a chunk: its bound files and the files they add. */
