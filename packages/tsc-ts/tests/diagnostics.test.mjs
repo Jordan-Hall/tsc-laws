@@ -4,7 +4,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { tempDir } from './temp.mjs';
+import { compiledDir } from './temp.mjs';
 
 // Compares messages, translations, locale matching, formatting and diagnostic output with tsgo's
 // (packages/tsgo/dist/diag-oracle, built by `npm run build:oracle`).
@@ -16,7 +16,7 @@ const skip = existsSync(oracle) ? false : 'diag-oracle is not built';
 let compiled;
 function compile() {
   if (compiled !== undefined) return compiled;
-  const out = tempDir('tsc-ts-diag-');
+  const out = compiledDir('tsc-ts-diag-');
   execFileSync(
     join(repo, 'node_modules/.bin/tsc'),
     [

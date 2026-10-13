@@ -643,29 +643,59 @@ export function withPackageDirectory(info: PackageJsonInfo, packageDirectory: st
 }
 
 /** `package.json` lookups keyed by file path; the first entry stored for a path wins. */
+// The lookups each cache shared with other threads (and so immutable) did not have yet when it was
+// shared, as this thread made them.
+const threadPackageJsonInfoCaches = new Map<PackageJsonInfoCache, Map<Path, PackageJsonInfo>>();
+
 export class PackageJsonInfoCache {
   private readonly cache = new Map<Path, PackageJsonInfo>();
+  private shared = false;
 
   constructor(
     readonly currentDirectory: string,
     readonly useCaseSensitiveFileNames: boolean,
   ) {}
 
+  /**
+   * Called before the cache is shared with other threads, which makes it immutable: from then on,
+   * each thread keeps the lookups it adds in a table of its own.
+   */
+  prepareForSharing(): void {
+    this.shared = true;
+  }
+
   get(packageJsonPath: string): PackageJsonInfo | undefined {
-    return this.cache.get(toPath(packageJsonPath, this.currentDirectory, this.useCaseSensitiveFileNames));
+    return this.lookup(toPath(packageJsonPath, this.currentDirectory, this.useCaseSensitiveFileNames));
   }
 
   set(packageJsonPath: string, info: PackageJsonInfo): PackageJsonInfo {
     const key = toPath(packageJsonPath, this.currentDirectory, this.useCaseSensitiveFileNames);
-    const existing = this.cache.get(key);
+    const existing = this.lookup(key);
     if (existing !== undefined) return existing;
-    this.cache.set(key, info);
+    if (!this.shared) this.cache.set(key, info);
+    else {
+      let cache = threadPackageJsonInfoCaches.get(this);
+      if (cache === undefined) {
+        cache = new Map<Path, PackageJsonInfo>();
+        threadPackageJsonInfoCaches.set(this, cache);
+      }
+      cache.set(key, info);
+    }
     return info;
   }
 
-  /** The lookups made, in order. */
+  private lookup(key: Path): PackageJsonInfo | undefined {
+    const info = this.cache.get(key);
+    if (info !== undefined || !this.shared) return info;
+    return threadPackageJsonInfoCaches.get(this)?.get(key);
+  }
+
+  /** The lookups made, in order (on this thread, once shared). */
   infos(): PackageJsonInfo[] {
-    return [...this.cache.values()];
+    const infos = [...this.cache.values()];
+    const own = this.shared ? threadPackageJsonInfoCaches.get(this) : undefined;
+    if (own !== undefined) for (const info of own.values()) infos.push(info);
+    return infos;
   }
 }
 

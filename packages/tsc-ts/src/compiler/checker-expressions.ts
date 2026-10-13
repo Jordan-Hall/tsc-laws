@@ -1220,18 +1220,18 @@ export function isConstContext(c: Checker, node: Node): boolean {
     case SyntaxKind.AsExpression:
     case SyntaxKind.TypeAssertionExpression:
       return isConstTypeReference(getType(parent)!);
+    // As in tsgo, a const context does not reach through `satisfies` or into the branches of a
+    // conditional expression: those are in one only when their own contextual type is a `const`
+    // type parameter (above).
     case SyntaxKind.ParenthesizedExpression:
     case SyntaxKind.ArrayLiteralExpression:
     case SyntaxKind.SpreadElement:
-    case SyntaxKind.SatisfiesExpression:
       return isConstContext(c, parent);
     case SyntaxKind.PropertyAssignment:
     case SyntaxKind.ShorthandPropertyAssignment:
       return isConstContext(c, parent.parent!);
     case SyntaxKind.TemplateSpan:
       return isConstContext(c, parent.parent!);
-    case SyntaxKind.ConditionalExpression:
-      return (parent as ConditionalExpression).condition !== node && isConstContext(c, parent);
   }
   return false;
 }

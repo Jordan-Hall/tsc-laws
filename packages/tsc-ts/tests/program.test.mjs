@@ -10,7 +10,7 @@ import { existsSync, mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { fixtureProjects, testCaseProjects } from './program-cases.mjs';
-import { tempDir } from './temp.mjs';
+import { compiledDir, tempDir } from './temp.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '../../..');
@@ -19,7 +19,7 @@ const bundledLibs = join(root, 'upstream/typescript-go/internal/bundled/libs');
 const testsRoot = join(root, 'upstream/TypeScript/tests/cases');
 const workers = Number(process.env.TEST_WORKERS ?? 12);
 
-const out = tempDir('tsc-ts-program-');
+const out = compiledDir('tsc-ts-program-');
 execFileSync(
   join(root, 'node_modules/.bin/tsc'),
   [

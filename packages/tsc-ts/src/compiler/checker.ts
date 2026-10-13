@@ -555,8 +555,6 @@ export class Checker {
   readonly assignmentMarker: AssignmentMarker;
   readonly primitiveTypeAliasSuggestions = new Map<string, Symbol>();
 
-  // Deferred checks of function bodies and class expressions.
-  readonly deferredNodes: Node[] = [];
   /** Renamed binding elements in parameters of bodiless signatures, checked for use with their file. */
   readonly renamedBindingElementsInTypes: Node[] = [];
   /** The type parameter whose variance annotation is being checked, to name its marker types. */
@@ -566,6 +564,7 @@ export class Checker {
   readonly reportedUnreachableNodes = new Set<Node>();
   /** The grammar checker of the file whose expressions are being checked. */
   grammarChecker: GrammarChecker | undefined = undefined;
+  /** Nodes queued for a deferred check (checkNodeDeferred), each checked once. */
   readonly deferredNodeIds = new Set<number>();
   readonly typeNodeVisitor: TypeNodeVisitor;
 

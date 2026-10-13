@@ -159,7 +159,7 @@ export class Symbol implements ProgramLifetime {
   valueDeclaration: Node | undefined;
   parent: Symbol | undefined;
   private rareFields: SymbolRareFields | undefined;
-  /** Assigned on first use by `getSymbolId`; 0 until then. */
+  /** Assigned on first use by `getSymbolId`, or at creation while threads share the program; 0 until then. */
   id: number;
 
   constructor(flags: SymbolFlags, name: string) {
@@ -170,7 +170,7 @@ export class Symbol implements ProgramLifetime {
     this.valueDeclaration = undefined;
     this.parent = undefined;
     this.rareFields = undefined;
-    this.id = 0;
+    this.id = idsAtCreation ? takeSymbolId() : 0;
   }
 
   private rareFieldsOrNew(): SymbolRareFields {
@@ -227,6 +227,61 @@ export class Symbol implements ProgramLifetime {
 
 export type SymbolTable = Map<string, Symbol>;
 
+let nextSymbolId = 0;
+// A program shared between threads (parallel-check.ts) is never written, so its symbols get their ids
+// when they are created rather than on first use.
+let idsAtCreation = false;
+// While several threads bind one program (parallel-parse.ts), each takes symbol ids in chunks from a
+// shared counter; ids up to `symbolIdLimit` belong to this thread.
+let symbolIdLimit = Number.POSITIVE_INFINITY;
+let symbolIdCounter: Int32Array | undefined = undefined;
+const symbolIdChunk = 4096;
+
+/** Symbols get their ids when they are created from now on (see `idsAtCreation`). */
+export function assignSymbolIdsAtCreation(): void {
+  idsAtCreation = true;
+}
+
+function takeSymbolId(): number {
+  // `| 0`: ids stay far below 2^31, and native builds then store `id` as an int32.
+  return (nextSymbolId < symbolIdLimit ? ++nextSymbolId : takeSymbolIdChunk()) | 0;
+}
+
+function takeSymbolIdChunk(): number {
+  const base = Atomics.add(symbolIdCounter!, 0, symbolIdChunk);
+  nextSymbolId = base + 1;
+  symbolIdLimit = base + symbolIdChunk;
+  return nextSymbolId;
+}
+
+/**
+ * Takes symbol ids in chunks from `counter[0]`, shared by the threads that bind together; with
+ * `undefined`, goes back to a plain counter above every id handed out.
+ */
+export function shareSymbolIds(counter: Int32Array | undefined): void {
+  if (counter !== undefined) {
+    symbolIdCounter = counter;
+    symbolIdLimit = nextSymbolId;
+    return;
+  }
+  if (symbolIdCounter !== undefined) {
+    const top = Atomics.load(symbolIdCounter, 0);
+    if (top > nextSymbolId) nextSymbolId = top;
+  }
+  symbolIdCounter = undefined;
+  symbolIdLimit = Number.POSITIVE_INFINITY;
+}
+
+/** The last symbol id handed out on this thread. */
+export function lastSymbolIdValue(): number {
+  return nextSymbolId;
+}
+
+/** Continues symbol ids above `last` (a checker thread starts above the program it checks). */
+export function reserveSymbolIds(last: number): void {
+  if (last > nextSymbolId) nextSymbolId = last;
+}
+
 /**
  * The declarations of a symbol without any: shared, so never modified. Add declarations with
  * `addDeclaration`, which gives the symbol its own array on the first one.
@@ -240,14 +295,11 @@ export function addDeclaration(symbol: Symbol, node: Node): void {
   else declarations.push(node);
 }
 
-let nextSymbolId = 0;
-
 /** A program-wide id, assigned to each symbol when first requested. */
 export function getSymbolId(symbol: Symbol): number {
   let id = symbol.id;
   if (id === 0) {
-    // `| 0`: ids stay far below 2^31, and native builds then store `id` as an int32.
-    id = ++nextSymbolId | 0;
+    id = takeSymbolId();
     symbol.id = id;
   }
   return id;

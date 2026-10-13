@@ -3,13 +3,13 @@
 import { execFileSync } from 'node:child_process';
 import { join, resolve } from 'node:path';
 import { repo, root, run } from './parser-cases.mjs';
-import { tempDir } from './temp.mjs';
+import { compiledDir } from './temp.mjs';
 
 export const bindOracle = resolve(repo, 'packages/tsgo/dist/bind-oracle');
 
 /** Compiles the bind driver with tsc and returns the command that runs it under Node. */
 export function buildBindDriver() {
-  const out = tempDir('tsc-ts-bind-');
+  const out = compiledDir('tsc-ts-bind-');
   execFileSync(
     resolve(repo, 'node_modules/.bin/tsc'),
     [

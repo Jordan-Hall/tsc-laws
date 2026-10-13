@@ -8,6 +8,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { compiledDir } from './temp.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '../../..');
@@ -17,7 +18,7 @@ const haveScript = existsSync('/usr/bin/script');
 const bundledLibs = join(root, 'upstream/typescript-go/internal/bundled/libs');
 
 const work = mkdtempSync(join(tmpdir(), 'tsc-ts-cli-'));
-const out = join(work, 'build');
+const out = compiledDir('tsc-ts-cli-build-');
 execFileSync(
   join(root, 'node_modules/.bin/tsc'),
   [

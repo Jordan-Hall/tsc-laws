@@ -205,6 +205,11 @@ class DiscardingWriter extends OutputWriter {
 
 export const discardingWriter: OutputWriter = new DiscardingWriter();
 
+/** The declaration emit errors of `file` (none if it is not emitted). */
+export function declarationDiagnosticsOfFile(emitter: ProgramEmitter, file: SourceFile): Diagnostic[] {
+  return emitter.emit([file], EmitOnly.ForcedDts, discardingWriter).diagnostics;
+}
+
 /** A program compiled from scratch. */
 export class PlainProgram extends CompilerProgram {
   getSemanticDiagnostics(): Diagnostic[] {
@@ -212,7 +217,16 @@ export class PlainProgram extends CompilerProgram {
   }
 
   getDeclarationDiagnostics(): Diagnostic[] {
-    return this.emitter.emit(this.program.getSourceFiles(), EmitOnly.ForcedDts, discardingWriter).diagnostics;
+    const files = this.program.getSourceFiles();
+    const parallel = this.checked.declarationsInParallel;
+    if (parallel === undefined) return this.emitter.emit(files, EmitOnly.ForcedDts, discardingWriter).diagnostics;
+    // Declaration emit is per file: the files checker threads emitted, the others here, in order.
+    const result: Diagnostic[] = [];
+    for (let i = 0; i < files.length; i++) {
+      const diagnostics = parallel[i] ?? declarationDiagnosticsOfFile(this.emitter, files[i]!);
+      for (const d of diagnostics) result.push(d);
+    }
+    return result;
   }
 
   emit(writer: OutputWriter): EmitResult {

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { existsSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { tempDir } from './temp.mjs';
+import { compiledDir } from './temp.mjs';
 
 const root = resolve(import.meta.dirname, '..');
 const repo = resolve(root, '../..');
@@ -65,6 +65,23 @@ const cases = [
     expected: ["/input.ts 2552 17 5 Cannot find name 'cuont'. Did you mean 'count'?"],
   },
   {
+    // A const type parameter makes the literals of its argument const, but not the branches of a
+    // conditional or a `satisfies` operand in it (T3 Code: `Effect.all([a, b, ...(c ? [d] : [])])`).
+    name: 'const type parameter contexts stop at conditionals and satisfies',
+    source: [
+      "declare function all<const T extends Iterable<{ readonly tag: 'e' }> | Record<string, unknown>>(arg: T): T;",
+      "declare const e: { readonly tag: 'e' };",
+      'declare const cond: boolean;',
+      'all([e, e, e, ...(cond ? [e] : [])]);',
+      'all([...(cond ? [] : [e]), e, e]);',
+      'declare function f<const T>(x: T): T;',
+      'const n: number = f({ a: cond ? [1] : [2, 3], b: [4] satisfies number[] });',
+    ],
+    expected: [
+      "/input.ts 2322 294 1 Type '{ readonly a: number[]; readonly b: number[]; }' is not assignable to type 'number'.",
+    ],
+  },
+  {
     // Inferences flow between the context-sensitive elements of an array literal only in a tuple
     // context: in `f`, `T` is fixed at `b` before the first element's return type is inferred.
     name: 'intra-expression inference in array literals needs a tuple context',
@@ -84,7 +101,7 @@ test(
   'checker matches tsgo on small cases',
   { skip: !existsSync(libs) && 'needs upstream sources', timeout: 300_000 },
   () => {
-    const out = tempDir('tsc-ts-check-');
+    const out = compiledDir('tsc-ts-check-');
     execFileSync(
       join(repo, 'node_modules/.bin/tsc'),
       [

@@ -30,7 +30,10 @@ import { Colors, defaultIsPretty, header, printBuildHelp, printHelp, printVersio
 import { generateTSConfig } from './init.js';
 import { isIncremental, type CompilerOptions } from './options.js';
 import { combinePaths, getDirectoryPath, normalizePath } from './path.js';
+import { checkerThreads } from './parallel-check.js';
+import { parallelParse, reportPreparedFiles, startParallelParse } from './parallel-parse.js';
 import { showConfig, type ShowConfigInput } from './show-config.js';
+import { assignSymbolIdsAtCreation } from './symbol.js';
 
 export enum ExitStatus {
   Success = 0,
@@ -134,6 +137,8 @@ export type CommandLineResult =
       readonly reporter: DiagnosticReporter;
       readonly errorSummary: ErrorSummaryReporter;
     }
+  /** Threads are preparing the program's files; `run` calls back with the result once they are done. */
+  | { readonly kind: 'deferred'; readonly run: (done: (result: CommandLineResult) => void) => void }
   /** Watch the project of `config`. */
   | { readonly kind: 'watch'; readonly config: ProjectConfig; readonly commandLine: ParsedCommandLine }
   | { readonly kind: 'build'; readonly commandLine: ParsedBuildCommandLine };
@@ -311,31 +316,12 @@ function executeCompile(sys: System, commandLine: ParsedCommandLine): CommandLin
   }
 
   const fs = new CachedFileSystem(new SystemFileSystem(sys));
-  let config = new ProjectConfig(
-    options,
-    undefined,
-    fileNames,
-    [],
-    undefined,
-    [],
-    sys.currentDirectory,
-    sys.useCaseSensitiveFileNames,
-    0,
-  );
   const configStart = performance.now();
-  if (configFileName !== '') {
-    const errors: Diagnostic[] = [];
-    const parsed = new ConfigParser(fs, sys.currentDirectory).parseConfigFile(
-      configFileName,
-      options,
-      commandLine.raw,
-      errors,
-    );
-    if (parsed === undefined) {
-      reporter.reportAll(errors);
-      return exit(ExitStatus.DiagnosticsPresent_OutputsGenerated);
-    }
-    config = parsed;
+  const errors: Diagnostic[] = [];
+  const config = readProjectConfig(sys, fs, commandLine, configFileName, errors);
+  if (config === undefined) {
+    reporter.reportAll(errors);
+    return exit(ExitStatus.DiagnosticsPresent_OutputsGenerated);
   }
 
   // The summary follows `pretty` of the config; diagnostics only that of the command line, as in tsgo.
@@ -348,22 +334,93 @@ function executeCompile(sys: System, commandLine: ParsedCommandLine): CommandLin
   if (config.options.watch === true) return { kind: 'watch', config, commandLine };
 
   const parseStart = performance.now();
-  const program = new Program(config, new SystemCompilerHost(sys, fs, locale));
-  const parseTime = performance.now() - parseStart;
-  // Statistics need checking and emit timings.
-  const statistics = config.options.diagnostics === true || config.options.extendedDiagnostics === true;
-  if (config.options.listFilesOnly === true && !statistics) {
-    return exit(listFilesOnly(sys, program, locale, reporter, errorSummary));
-  }
-  return {
-    kind: 'compile',
-    program,
-    incremental: isIncremental(config.options),
-    configTime,
-    parseTime,
-    reporter,
-    errorSummary,
+  const createProgram = (): CommandLineResult => {
+    const program = new Program(config, new SystemCompilerHost(sys, fs, locale));
+    const parseTime = performance.now() - parseStart;
+    reportPreparedFiles(program.getSourceFiles().map((f) => f.fileName));
+    // Statistics need checking and emit timings.
+    const statistics = config.options.diagnostics === true || config.options.extendedDiagnostics === true;
+    if (config.options.listFilesOnly === true && !statistics) {
+      return exit(listFilesOnly(sys, program, locale, reporter, errorSummary));
+    }
+    return {
+      kind: 'compile',
+      program,
+      incremental: isIncremental(config.options),
+      configTime,
+      parseTime,
+      reporter,
+      errorSummary,
+    };
   };
+  const threads = checkerThreads(config.options.checkers, config.options.singleThreaded);
+  if (threads > 1 && parallelParse.spawn !== undefined && !isIncremental(config.options)) {
+    // Threads parse and bind the files the program is expected to load first (parallel-parse.ts), and
+    // share the program it becomes: its symbols get their ids when they are created.
+    assignSymbolIdsAtCreation();
+    return {
+      kind: 'deferred',
+      run: (done: (result: CommandLineResult) => void) =>
+        startParallelParse(threads, config.fileNames, config.options, sys.currentDirectory, configFileName, () =>
+          done(createProgram()),
+        ),
+    };
+  }
+  return createProgram();
+}
+
+/**
+ * The project of a compile command line: the config `configFileName` read with the command line's
+ * options, or the command line's files without a config (`configFileName` is `''`). `undefined`, with
+ * `errors`, if the config cannot be read.
+ */
+function readProjectConfig(
+  sys: System,
+  fs: FileSystem,
+  commandLine: ParsedCommandLine,
+  configFileName: string,
+  errors: Diagnostic[],
+): ProjectConfig | undefined {
+  if (configFileName !== '')
+    return new ConfigParser(fs, sys.currentDirectory).parseConfigFile(
+      configFileName,
+      commandLine.options,
+      commandLine.raw,
+      errors,
+    );
+  return new ProjectConfig(
+    commandLine.options,
+    undefined,
+    commandLine.fileNames,
+    [],
+    undefined,
+    [],
+    sys.currentDirectory,
+    sys.useCaseSensitiveFileNames,
+    0,
+  );
+}
+
+/** A parse thread's own copy of the project it loads files of, and the file system it reads it with. */
+export class ThreadProject {
+  constructor(
+    readonly config: ProjectConfig,
+    readonly fs: FileSystem,
+  ) {}
+}
+
+/**
+ * The project of the compile command line `args` for a parse thread (parallel-parse.ts), whose main
+ * thread found its config at `configFileName`; `undefined` if it cannot be read.
+ */
+export function readThreadProject(
+  sys: System,
+  args: readonly string[],
+  configFileName: string,
+): ThreadProject | undefined {
+  const fs = new CachedFileSystem(new SystemFileSystem(sys));
+  const config = readProjectConfig(sys, fs, parseCommandLine(args, sys), configFileName, []);
+  return config === undefined ? undefined : new ThreadProject(config, fs);
 }
 
 /** What `--showConfig` prints for a project. */

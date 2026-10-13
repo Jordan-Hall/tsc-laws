@@ -4,13 +4,13 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { repo, root, run } from './parser-cases.mjs';
-import { tempDir } from './temp.mjs';
+import { compiledDir, tempDir } from './temp.mjs';
 
 export const printOracle = resolve(repo, 'packages/tsgo/dist/print-oracle');
 
 /** Compiles the print driver with tsc and returns the command that runs it under Node. */
 export function buildPrintDriver() {
-  const out = tempDir('tsc-ts-print-');
+  const out = compiledDir('tsc-ts-print-');
   execFileSync(
     resolve(repo, 'node_modules/.bin/tsc'),
     [
