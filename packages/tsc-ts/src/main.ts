@@ -45,7 +45,7 @@ function startThreads(): void {
   if (sharesPublishedGraphs)
     parallelParse.spawn = (configFileName, counter, index) =>
       new Worker(new URL(import.meta.url), {
-        workerData: { kind: 'parse', configFileName, counter, index },
+        workerData: { kind: 'parse', configFileName, args, counter, index },
       });
 }
 
@@ -98,14 +98,21 @@ function runCheckerThread(): void {
 
 /** A parse thread (parallel-parse.ts): loads the chunks the main thread posts until it posts `stop`. */
 function runParseThread(): void {
-  const job = workerData as { kind: string; configFileName: string; counter: SharedArrayBuffer; index: number };
+  const job = workerData as {
+    kind: string;
+    configFileName: string;
+    args: string[];
+    counter: SharedArrayBuffer;
+    index: number;
+  };
   setTimelineThread('p' + String(job.index));
   mark('thread start');
   // Ids, also of the nodes of the config, come in chunks from the counter shared with the other threads.
   shareNodeIds(new Int32Array(job.counter, 0, 1));
   shareSymbolIds(new Int32Array(job.counter, 4, 1));
   assignSymbolIdsAtCreation();
-  const thread = parseThreadOfCommandLine(args, job.configFileName, defaultLibraryPath);
+  // The command line comes from the main thread: native worker threads don't inherit process.argv.
+  const thread = parseThreadOfCommandLine(job.args, job.configFileName, defaultLibraryPath);
   mark('project read');
   const port = parentPort!;
   port.on('message', (message: unknown) => {
