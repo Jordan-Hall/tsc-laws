@@ -45,14 +45,14 @@ else {
 
 /** Lets `--checkers N` start checker threads, and parse threads where threads share objects. */
 function startThreads(): void {
-  parallelCheck.spawn = (program, index, counter, order, nodeIds, symbolIds) =>
+  parallelCheck.spawn = (program, index, counter, order, nodeIds, symbolIds, reserved) =>
     new Worker(new URL(import.meta.url), {
-      workerData: { kind: 'check', program, args, index, counter, order, nodeIds, symbolIds },
+      workerData: { kind: 'check', program, args, index, counter, order, nodeIds, symbolIds, reserved },
     });
   if (sharesPublishedGraphs)
     parallelParse.spawn = (configFileName, counter, index) =>
       new Worker(new URL(import.meta.url), {
-        workerData: { kind: 'parse', configFileName, counter, index },
+        workerData: { kind: 'parse', configFileName, args, counter, index },
       });
 }
 
@@ -75,6 +75,7 @@ function runCheckerThread(): void {
     order: number[];
     nodeIds: number;
     symbolIds: number;
+    reserved: number[];
   };
   let program: Program | undefined = undefined;
   if (job.program !== undefined) {
@@ -97,7 +98,9 @@ function runCheckerThread(): void {
           new Int32Array(job.counter),
           job.order,
           startedAt,
+          false,
           recycleFiles,
+          job.reserved,
         );
   // Packed results are copied: nothing this thread allocated stays reachable after it ends.
   if (packsResults) parentPort!.postMessage(packResult(result, program!));
@@ -107,14 +110,21 @@ function runCheckerThread(): void {
 
 /** A parse thread (parallel-parse.ts): loads the chunks the main thread posts until it posts `stop`. */
 function runParseThread(): void {
-  const job = workerData as { kind: string; configFileName: string; counter: SharedArrayBuffer; index: number };
+  const job = workerData as {
+    kind: string;
+    configFileName: string;
+    args: string[];
+    counter: SharedArrayBuffer;
+    index: number;
+  };
   setTimelineThread('p' + String(job.index));
   mark('thread start');
   // Ids, also of the nodes of the config, come in chunks from the counter shared with the other threads.
   shareNodeIds(new Int32Array(job.counter, 0, 1));
   shareSymbolIds(new Int32Array(job.counter, 4, 1));
   assignSymbolIdsAtCreation();
-  const thread = parseThreadOfCommandLine(args, job.configFileName, defaultLibraryPath);
+  // The command line comes from the main thread: native worker threads don't inherit process.argv.
+  const thread = parseThreadOfCommandLine(job.args, job.configFileName, defaultLibraryPath);
   mark('project read');
   const port = parentPort!;
   port.on('message', (message: unknown) => {

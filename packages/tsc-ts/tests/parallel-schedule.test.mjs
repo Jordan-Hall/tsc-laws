@@ -55,6 +55,7 @@ const {
   retires,
   scheduleOf,
   takePosition,
+  textLengths,
   unpackResult,
 } = await load('compiler/parallel-check.js');
 
@@ -124,6 +125,16 @@ function checked() {
 }
 
 const baseName = (program, i) => program.getSourceFiles()[i].fileName.split('/').pop();
+
+test('planning reads the text length of each file once per program', () => {
+  const program = checked().program;
+  const lengths = textLengths(program);
+  assert.equal(textLengths(program), lengths);
+  assert.deepEqual(
+    lengths,
+    program.getSourceFiles().map((file) => file.text.length),
+  );
+});
 
 test('a small file that alone imports a large library is checked before larger files', () => {
   const c = checked();
@@ -361,9 +372,26 @@ test('a checker at its file limit stops, and a new one on its schedule index che
   const c = erroneous();
   const plan = planSchedule(c, 1);
   const schedule = new Int32Array(scheduleOf(plan, 1));
-  const first = checkFromQueue(c, 0, schedule, plan.order, 0, 1);
+  const first = checkFromQueue(c, 0, schedule, plan.order, 0, true, 1);
   assert.deepEqual([first.files.length, first.more], [1, true]);
-  const rest = checkFromQueue(new CheckedProgram(c.program), 0, schedule, plan.order, 0, 100000);
+  const rest = checkFromQueue(new CheckedProgram(c.program), 0, schedule, plan.order, 0, true, 100000);
   assert.equal(rest.more, false);
   assert.deepEqual([...first.files, ...rest.files].sort(), [...plan.order].sort());
+});
+
+test('a checker at its file limit inside a group hands the rest of the group to its successor', () => {
+  const c = erroneous();
+  const order = planSchedule(c, 1).order;
+  assert.ok(order.length >= 4);
+  // Positions 0-2 are a group in the shared queue, then checker 0's range.
+  const schedule = new Int32Array(newSchedule(1, order.length, 0, 0));
+  fillScheduleCosts(schedule, Array(order.length).fill(10), Array(order.length).fill([]), [], [3, 0, 0]);
+  ownRanges(schedule, 3, order.length);
+  schedule[2] = 3;
+  const first = checkFromQueue(c, 0, schedule, order, 0, true, 1);
+  assert.deepEqual([first.files, first.more, first.reserved], [[order[0]], true, [1, 2]]);
+  const rest = checkFromQueue(new CheckedProgram(c.program), 0, schedule, order, 0, true, 100000, first.reserved);
+  assert.equal(rest.more, false);
+  assert.deepEqual(rest.files.slice(0, 2), [order[1], order[2]]);
+  assert.deepEqual([...first.files, ...rest.files].sort(), [...order].sort());
 });
