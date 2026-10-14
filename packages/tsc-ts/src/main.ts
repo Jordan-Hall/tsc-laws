@@ -84,7 +84,14 @@ function runCheckerThread(): void {
   const result =
     program === undefined
       ? new CheckerResult(job.index, [], [], [], [], 0, [])
-      : checkFromQueue(new CheckedProgram(program), job.index, new Int32Array(job.counter), job.order, startedAt);
+      : checkFromQueue(
+          new CheckedProgram(program),
+          job.index,
+          new Int32Array(job.counter),
+          job.order,
+          startedAt,
+          false,
+        );
   parentPort!.postMessage({ result: sharesPublishedGraphs ? publish(result) : result });
   mark('result posted');
 }

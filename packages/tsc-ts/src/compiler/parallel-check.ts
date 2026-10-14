@@ -1,8 +1,9 @@
 /**
  * Checking on several threads (`--checkers N`).
  *
- * The main thread is checker 0; it starts N-1 checker threads. Every checker creates its own checker
- * over the program and takes files until none are left (`planSchedule`): the costliest files first,
+ * In scriptc builds the main thread starts N checker threads and only collects their results
+ * (`mainThreadChecks`); under Node.js it is checker 0 and starts N-1. Every checker creates its own
+ * checker over the program and takes files until none are left (`planSchedule`): the costliest files first,
  * and groups of files that share costly declarations as a whole (`checkGroups`), then a range of
  * neighboring files of its own, then the end of other checkers' ranges where that makes them finish
  * earlier (`takePosition`). Checkers beyond tsgo's four stop when the process's memory reaches its
@@ -183,13 +184,35 @@ function memoryLimit(): number {
   return constrained > 0 ? Math.min(constrained, totalmem()) : totalmem();
 }
 
+/** The program whose text lengths `textLengths` holds. */
+let lengthsProgram: Program | undefined = undefined;
+let lengthsOfProgram: number[] = [];
+
+/**
+ * The text length of each of `program`'s files, by index, computed once per program. In scriptc
+ * builds a thread caches the UTF-16 length of only the few non-ASCII strings it read last, so each
+ * read of a non-ASCII file's `text.length` scans its text again, and planning reads a file's length
+ * several times (its cost, the load of each group candidate importing it, its position).
+ */
+export function textLengths(program: Program): number[] {
+  if (lengthsProgram !== program) {
+    const lengths: number[] = [];
+    for (const file of program.getSourceFiles()) lengths.push(file.text.length);
+    lengthsProgram = program;
+    lengthsOfProgram = lengths;
+  }
+  return lengthsOfProgram;
+}
+
 /** The most checkers whose estimated peak memory fits (`checkersFittingMemory`), for `program`. */
 export function memoryCheckers(program: Program): number {
   let chars = 0;
   let declarationChars = 0;
-  for (const file of program.getSourceFiles()) {
-    chars += file.text.length;
-    if (file.isDeclarationFile) declarationChars += file.text.length;
+  const files = program.getSourceFiles();
+  const length = textLengths(program);
+  for (let i = 0; i < files.length; i++) {
+    chars += length[i]!;
+    if (files[i]!.isDeclarationFile) declarationChars += length[i]!;
   }
   const memory = memoryLimit();
   const fit = checkersFittingMemory(chars, declarationChars, memory);
@@ -253,7 +276,8 @@ function checkCosts(checked: CheckedProgram, order: number[]): CheckCosts {
     librariesOf.push([]);
     libraryCost.push(0);
   }
-  for (const i of order) cost[i] = files[i]!.text.length;
+  const length = textLengths(program);
+  for (const i of order) cost[i] = length[i]!;
   const indexOf = new Map<SourceFile, number>();
   for (let i = 0; i < files.length; i++) indexOf.set(files[i]!, i);
   // A file resolved by its own file name is that file (its path is the path of that name).
@@ -295,7 +319,7 @@ function checkCosts(checked: CheckedProgram, order: number[]): CheckCosts {
     const stack = [root];
     while (stack.length > 0) {
       const k = stack.pop()!;
-      total += files[k]!.text.length;
+      total += length[k]!;
       for (const t of edgesOf(k))
         if (!seen.has(t) && isLibrary(t)) {
           seen.add(t);
@@ -768,6 +792,7 @@ export function checkGroups(
 ): number[][] {
   const files = checked.program.getSourceFiles();
   const n = files.length;
+  const length = textLengths(checked.program);
   const order = costs.order;
   const cost = costs.cost;
   const isChecked: boolean[] = [];
@@ -788,7 +813,7 @@ export function checkGroups(
   // The checked files that each checked file imports, once each, and their importers.
   let total = 0;
   for (const i of order) {
-    total += files[i]!.text.length;
+    total += length[i]!;
     const own: number[] = [];
     for (const k of costs.imports[i] ?? []) {
       if (!isChecked[k]! || mark[k] === i) continue;
@@ -805,8 +830,8 @@ export function checkGroups(
   for (const i of order) {
     const by = importers[i]?.length ?? 0;
     if (by < 1 || by > groupImporters) continue;
-    let load = files[i]!.text.length;
-    for (const k of imports[i]!) load += files[k]!.text.length;
+    let load = length[i]!;
+    for (const k of imports[i]!) load += length[k]!;
     if (load < threshold) continue;
     starts.push(i);
     isStart[i] = true;
@@ -864,8 +889,8 @@ export function checkGroups(
     let largest = 0;
     let text = 0;
     for (const i of group) {
-      text += files[i]!.text.length;
-      largest = Math.max(largest, files[i]!.text.length);
+      text += length[i]!;
+      largest = Math.max(largest, length[i]!);
     }
     if (text - largest > total / count / 4) continue;
     group.sort((a, b) => cost[b]! - cost[a]! || a - b);
@@ -936,13 +961,14 @@ export function planSchedule(checked: CheckedProgram, count: number): CheckPlan 
   }
   // The costs of each position, with the libraries numbered in order of first use.
   const files = checked.program.getSourceFiles();
+  const textLength = textLengths(checked.program);
   const libraryIds = new Map<number, number>();
   const libraryCosts: number[] = [];
   const lengths: number[] = [];
   const libraries: number[][] = [];
   let references = 0;
   for (const i of planned) {
-    lengths.push(files[i]!.text.length);
+    lengths.push(textLength[i]!);
     const ids: number[] = [];
     for (const k of costs.libraries[i]!) {
       let id = libraryIds.get(k);
@@ -981,13 +1007,17 @@ export function traceSingleChecker(checked: CheckedProgram): void {
   );
 }
 
-/** Checks files from the shared queue until it is empty; the main thread and checker threads alike. */
+/**
+ * Checks files from the shared queue until it is empty; the main thread and checker threads alike.
+ * A checker thread (`onMainThread` false) also sends back its global diagnostics.
+ */
 export function checkFromQueue(
   checked: CheckedProgram,
   index: number,
   counter: Int32Array,
   order: number[],
   startedAt: number = Date.now(),
+  onMainThread: boolean = true,
 ): CheckerResult {
   const start = performance.now();
   const readyAt = Date.now();
@@ -1027,7 +1057,7 @@ export function checkFromQueue(
   }
   mark(`checked ${done.length} files`);
   // The main thread reports its own global diagnostics (CheckedProgram.getGlobalDiagnostics).
-  const globals = index === 0 ? [] : checked.getGlobalDiagnostics().slice();
+  const globals = onMainThread ? [] : checked.getGlobalDiagnostics().slice();
   let stats: number[] = [];
   if (process.env.TSC_TS_CHECKERS_TRACE !== undefined) {
     const cpu = process.threadCpuUsage();
@@ -1057,8 +1087,21 @@ export function checkFromQueue(
 }
 
 /**
- * Checks `checked` with `count` checkers, this thread included, and calls `done` with the wall time
- * once `checked` holds every file's diagnostics.
+ * Whether the main thread is one of the checkers, given whether threads share the published program.
+ * In scriptc builds it is not: the main thread carries the memory state of loading the program, and
+ * checking there is slower than on a new thread (on Playwright the same files took 1.5 times as long
+ * on the main thread, its cycle collector took twice the share of a checker thread's, and a checker
+ * created on it after publishing was no faster), so the main thread often finished last. Starting
+ * one more thread costs well under a millisecond. Under Node.js, where every checker thread builds
+ * its own copy of the program, the main thread checks too.
+ */
+export function mainThreadChecks(shared: boolean): boolean {
+  return !shared;
+}
+
+/**
+ * Checks `checked` with `count` checkers and calls `done` with the wall time once `checked` holds
+ * every file's diagnostics.
  */
 export function startParallelCheck(checked: CheckedProgram, count: number, done: (checkTime: number) => void): void {
   const start = performance.now();
@@ -1100,7 +1143,9 @@ export function startParallelCheck(checked: CheckedProgram, count: number, done:
     perFileDeclarations.push(undefined);
   }
   const revival = shared ? undefined : new Revival(program);
-  let remaining = count - 1;
+  const mainChecks = mainThreadChecks(shared);
+  const firstThread = mainChecks ? 1 : 0;
+  let remaining = count - firstThread;
   let ownDone = false;
   const finish = (): void => {
     // A thread that failed may have taken files it never checked: check them here.
@@ -1133,7 +1178,7 @@ export function startParallelCheck(checked: CheckedProgram, count: number, done:
     remaining--;
     if (remaining === 0 && ownDone) finish();
   };
-  for (let i = 1; i < count; i++) {
+  for (let i = firstThread; i < count; i++) {
     const worker = parallelCheck.spawn!(
       shared ? program : undefined,
       i,
@@ -1154,7 +1199,7 @@ export function startParallelCheck(checked: CheckedProgram, count: number, done:
     });
   }
   mark('checkers spawned');
-  record(checkFromQueue(checked, 0, new Int32Array(counter), order, epoch));
+  if (mainChecks) record(checkFromQueue(checked, 0, new Int32Array(counter), order, epoch));
   ownDone = true;
   if (remaining === 0) finish();
 }
