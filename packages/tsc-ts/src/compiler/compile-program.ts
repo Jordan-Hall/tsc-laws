@@ -199,8 +199,9 @@ export abstract class CompilerProgram {
     return this.program.getProgramDiagnostics();
   }
 
-  getGlobalDiagnostics(): Diagnostic[] {
-    return this.checked.getGlobalDiagnostics();
+  /** See `CheckedProgram.getGlobalDiagnostics`. */
+  getGlobalDiagnostics(withCheckerThreads = true): Diagnostic[] {
+    return this.checked.getGlobalDiagnostics(withCheckerThreads);
   }
 
   /** Semantic diagnostics of every file. */
@@ -291,7 +292,8 @@ export function getDiagnosticsOfProgram(program: CompilerProgram, withDeclaratio
   mark('program diagnostics');
   const options = program.options;
   if (options.listFilesOnly === true) return result;
-  for (const d of program.getGlobalDiagnostics()) result.push(d);
+  // Those found by checking come after the semantic diagnostics, as with a single checker.
+  for (const d of program.getGlobalDiagnostics(false)) result.push(d);
   if (result.length === configCount) {
     const checkStart = performance.now();
     const semantic = program.getSemanticDiagnostics();

@@ -272,11 +272,15 @@ export class CheckedProgram {
     return this.collectChecked(file, (f) => this.checkerOf(f).getSuggestionDiagnostics(f));
   }
 
-  /** Diagnostics without a file, once every file is checked. */
-  getGlobalDiagnostics(): Diagnostic[] {
+  /**
+   * Diagnostics without a file, once every file is checked. Without `withCheckerThreads`, those of the
+   * reporting checkers only, as before checking: checker threads (parallel-check.ts) also report
+   * those they found checking files.
+   */
+  getGlobalDiagnostics(withCheckerThreads = true): Diagnostic[] {
     if (this.program.getSourceFiles().length === 0) return [];
     const libraryChecker = this.libraryChecker;
-    const parallel = this.parallelGlobalDiagnostics;
+    const parallel = withCheckerThreads ? this.parallelGlobalDiagnostics : [];
     if (libraryChecker === undefined && parallel.length === 0) return this.checker.getGlobalDiagnostics();
     const result = [...this.checker.getGlobalDiagnostics(), ...parallel];
     if (libraryChecker !== undefined) for (const d of libraryChecker.getGlobalDiagnostics()) result.push(d);
