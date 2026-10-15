@@ -374,6 +374,8 @@ export class Checker {
   readonly tupleTypes = new Map<string, Type>();
   readonly indexedAccessTypes = new Map<string, Type>();
   readonly templateLiteralTypes = new Map<string, Type>();
+  /** Instantiations of template literal types: the instantiated types, tagged with the template's id. */
+  readonly templateLiteralInstantiations = new TypeListCache<Type>();
   readonly stringMappingTypes = new Map<string, Type>();
   readonly substitutionTypes = new Map<string, Type>();
   readonly subtypeReductionCache = new TypeListCache<Type[]>();
@@ -959,6 +961,7 @@ export function disposeChecker(c: Checker): void {
   c.tupleTypes.clear();
   c.indexedAccessTypes.clear();
   c.templateLiteralTypes.clear();
+  c.templateLiteralInstantiations.clear();
   c.stringMappingTypes.clear();
   c.substitutionTypes.clear();
   c.subtypeReductionCache.clear();
