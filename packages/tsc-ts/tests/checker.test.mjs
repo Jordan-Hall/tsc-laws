@@ -95,6 +95,25 @@ const cases = [
     ],
     expected: ["/input.ts 2322 103 1 Type 'unknown' is not assignable to type 'number'."],
   },
+  {
+    // The `children` property made from an element's body is an excess property like an attribute.
+    name: 'JSX children are checked as excess properties',
+    file: 'input.tsx',
+    source: [
+      '// @jsx: preserve',
+      'declare namespace JSX {',
+      '  interface Element {}',
+      '  interface ElementChildrenAttribute { children: {} }',
+      '}',
+      'interface Props { resizable?: boolean }',
+      'declare function Demo(props: Props): JSX.Element;',
+      'const a = <Demo resizable>text</Demo>;',
+      'const b = <Demo resizable />;',
+    ],
+    expected: [
+      "/input.tsx 2322 222 4 Type '{ resizable: true; children: string; }' is not assignable to type 'Props'.",
+    ],
+  },
 ];
 
 test(
@@ -121,8 +140,8 @@ test(
       ],
       { stdio: 'inherit' },
     );
-    for (const { name, source, expected } of cases) {
-      const file = join(out, 'input.ts');
+    for (const { name, file: fileName = 'input.ts', source, expected } of cases) {
+      const file = join(out, fileName);
       writeFileSync(file, source.join('\n') + '\n');
       const actual = execFileSync(process.execPath, ['--stack-size=16000', join(out, 'drivers/check.js'), file, libs], {
         encoding: 'utf8',
