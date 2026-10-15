@@ -1537,6 +1537,42 @@ export function instantiateSignatureInContextOf(
 
 // ---- Template literal inference
 
+/**
+ * Whether `source`, a string literal or a template literal type, fails the start and end text test of
+ * `inferFromLiteralPartsToTemplateLiteral` against `target`: its first text does not start with the
+ * target's first text, its last text does not end with the target's last text, or a string literal
+ * is shorter than both. `inferTypesFromTemplateLiteralType` returns undefined then.
+ */
+export function failsTemplateLiteralTextTest(source: Type, target: TemplateLiteralType): boolean {
+  const targetTexts = target.texts;
+  const targetStartText = targetTexts[0]!;
+  const targetEndText = targetTexts[targetTexts.length - 1]!;
+  if ((source.flags & TypeFlags.StringLiteral) !== 0) {
+    const text = (source as LiteralType).stringValue;
+    return (
+      text.length < targetStartText.length + targetEndText.length ||
+      !text.startsWith(targetStartText) ||
+      !text.endsWith(targetEndText)
+    );
+  }
+  const sourceTexts = (source as TemplateLiteralType).texts;
+  return !sourceTexts[0]!.startsWith(targetStartText) || !sourceTexts[sourceTexts.length - 1]!.endsWith(targetEndText);
+}
+
+/**
+ * Whether `source` is a string literal, or a template literal type whose placeholders are `string`,
+ * `number` or `bigint`, that fails the start and end text test against `target`. It is then not
+ * assignable to `target`, and relating the two has no other effect: such a template has no type
+ * variables for a variance marker mapper to find.
+ */
+export function isUnmatchedTemplateLiteralKey(source: Type, target: TemplateLiteralType): boolean {
+  if ((source.flags & TypeFlags.TemplateLiteral) !== 0) {
+    for (const t of (source as TemplateLiteralType).types)
+      if ((t.flags & (TypeFlags.String | TypeFlags.Number | TypeFlags.BigInt)) === 0) return false;
+  } else if ((source.flags & TypeFlags.StringLiteral) === 0) return false;
+  return failsTemplateLiteralTextTest(source, target);
+}
+
 /** The types matched by `target`'s placeholders in `source`, or undefined if it doesn't match. */
 export function inferTypesFromTemplateLiteralType(
   c: Checker,
@@ -1544,19 +1580,10 @@ export function inferTypesFromTemplateLiteralType(
   target: TemplateLiteralType,
 ): Type[] | undefined {
   if ((source.flags & TypeFlags.StringLiteral) !== 0) {
-    // Most string literals fail inferFromLiteralPartsToTemplateLiteral's start and end text test;
-    // apply it before building the one-element source texts.
-    const text = (source as LiteralType).stringValue;
-    const targetTexts = target.texts;
-    const targetStartText = targetTexts[0]!;
-    const targetEndText = targetTexts[targetTexts.length - 1]!;
-    if (
-      text.length < targetStartText.length + targetEndText.length ||
-      !text.startsWith(targetStartText) ||
-      !text.endsWith(targetEndText)
-    )
-      return undefined;
-    return inferFromLiteralPartsToTemplateLiteral(c, [text], emptyTypes, target);
+    // Most string literals fail the start and end text test; apply it before building the
+    // one-element source texts.
+    if (failsTemplateLiteralTextTest(source, target)) return undefined;
+    return inferFromLiteralPartsToTemplateLiteral(c, [(source as LiteralType).stringValue], emptyTypes, target);
   }
   if ((source.flags & TypeFlags.TemplateLiteral) !== 0) {
     const s = source as TemplateLiteralType;
