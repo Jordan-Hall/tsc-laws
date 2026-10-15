@@ -44,6 +44,7 @@ import {
   type TypeParameter,
   type TypePredicate,
   type TypeReference,
+  type UnionOrIntersectionType,
   type UnionType,
   VarianceFlags,
   newTypeMapper,
@@ -134,6 +135,8 @@ import {
   getPropertiesOfObjectType,
   getPropertiesOfType,
   getPropertyOfType,
+  getPropertyOfUnionOrIntersectionType,
+  getReducedApparentType,
   getReducedType,
   getSignaturesOfType,
   getTypeWithThisArgument,
@@ -175,6 +178,7 @@ import {
   getComparer,
   getUnmatchedProperty,
   getVariances,
+  isUnmatchedProperty,
   isDeeplyNestedType,
   isObjectTypeWithInferableIndex,
   isTypeAssignableTo,
@@ -1360,10 +1364,52 @@ function typesDefinitelyUnrelated(c: Checker, source: Type, target: Type): boole
         ((s.combinedFlags & ElementFlags.Variable) !== 0 || t.fixedLength < s.fixedLength))
     );
   }
-  return (
-    getUnmatchedProperty(c, source, target, false, true) !== undefined &&
-    getUnmatchedProperty(c, target, source, false, false) !== undefined
-  );
+  return hasUnmatchedProperty(c, source, target, true) && hasUnmatchedProperty(c, target, source, false);
+}
+
+/**
+ * Whether `getUnmatchedProperty(c, source, target, false, matchDiscriminantProperties)` finds a
+ * property, without creating every property of a union or intersection target whose properties
+ * aren't resolved yet. That test reports only required properties: a union property is optional
+ * when it is optional in any constituent, an intersection property when it is optional in every
+ * constituent that has it. So only names required in a constituent (of those
+ * `getPropertiesOfUnionOrIntersectionType` reads) are candidates, and the search stops at the first
+ * unmatched one. A union property is created only when the result can depend on it: when the source
+ * lacks the name, or for the discriminant test when the first constituent's property type is a unit
+ * type or never (otherwise the union of the constituents' types is not a unit type).
+ */
+function hasUnmatchedProperty(c: Checker, source: Type, target: Type, matchDiscriminantProperties: boolean): boolean {
+  const t = getReducedApparentType(c, target);
+  if (
+    (t.flags & TypeFlags.UnionOrIntersection) === 0 ||
+    (t as UnionOrIntersectionType).resolvedProperties !== undefined
+  )
+    return getUnmatchedProperty(c, source, target, false, matchDiscriminantProperties) !== undefined;
+  const containingType = t as UnionOrIntersectionType;
+  const isUnion = (t.flags & TypeFlags.Union) !== 0;
+  const checked = new Set<string>();
+  for (const current of containingType.types) {
+    for (const prop of getPropertiesOfType(c, current)) {
+      const name = prop.name;
+      if ((prop.flags & SymbolFlags.Optional) !== 0) {
+        if (isUnion) checked.add(name);
+        continue;
+      }
+      if (checked.has(name)) continue;
+      checked.add(name);
+      if (
+        isUnion &&
+        getPropertyOfType(c, source, name) !== undefined &&
+        (!matchDiscriminantProperties || (getTypeOfSymbol(c, prop).flags & (TypeFlags.Unit | TypeFlags.Never)) === 0)
+      )
+        continue;
+      const combined = getPropertyOfUnionOrIntersectionType(c, containingType, name, !isUnion);
+      if (combined !== undefined && isUnmatchedProperty(c, source, combined, false, matchDiscriminantProperties))
+        return true;
+    }
+    if (isUnion && getIndexInfosOfType(c, current).length === 0) break;
+  }
+  return false;
 }
 
 function isTupleTypeStructureMatching(t1: Type, t2: Type): boolean {
