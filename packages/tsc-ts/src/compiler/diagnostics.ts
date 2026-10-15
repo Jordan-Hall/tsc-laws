@@ -142,6 +142,7 @@ function toWellFormed(text: string): string {
 /**
  * Where this thread computes the line starts and UTF-8 offsets of files that may be shared with other
  * threads (`useThreadTextCaches`): a copy of each such file, by file, that computes them in place.
+ * Files leave the parser with line starts, except declaration files, and without UTF-8 offsets.
  */
 let threadCopies: Map<DiagnosticFile, DiagnosticFile> | undefined = undefined;
 
@@ -192,68 +193,43 @@ export class DiagnosticFile {
     this.text = text;
   }
 
-  /** Computes the line starts and UTF-8 offsets, so that later reads never write to the file. */
+  /**
+   * Computes the line starts, so that later reads never write to the file. The UTF-8 offsets, which
+   * only incremental builds read (for the diagnostics they store), are computed on first use, in a
+   * thread's copy where the file may be shared (`useThreadTextCaches`).
+   */
   computeCaches(): void {
     if (this.lineStarts.length === 0) this.lineStarts = computeLineStarts(this.text);
-    this.getNonASCIIStarts();
   }
 
   /**
-   * Like `computeCaches`, from the text's UTF-16 code units `units[0, text.length)` in one pass, so
-   * the text itself is neither searched nor copied.
+   * Like `computeCaches`, from the text's UTF-16 code units `units[0, text.length)`, so the text
+   * itself is neither searched nor copied.
    */
   computeCachesFromUnits(units: Uint16Array): void {
     const text = this.text;
-    // ASCII texts are searched faster than walked, and have no non-ASCII characters to find.
-    if (
-      this.lineStarts.length !== 0 ||
-      this.nonASCIIStarts !== undefined ||
-      Buffer.byteLength(text, 'utf8') === text.length
-    ) {
+    // ASCII texts are searched faster than walked.
+    if (this.lineStarts.length !== 0 || Buffer.byteLength(text, 'utf8') === text.length) {
       this.computeCaches();
       return;
     }
     const length = text.length | 0;
     const lineStarts: number[] = [0];
-    const starts: number[] = [];
-    const lengths = this.nonASCIILengths;
-    const extraBytes = this.extraBytes;
-    let extra = 0;
-    // Visit only the code units that need work; `skipPlainASCII` runs over the rest without calls,
-    // so native builds keep its loop on registers. The body never moves `i`: a CR followed by an LF
-    // leaves the line start to the LF, and the low half of a surrogate pair is skipped by looking back.
+    // Visit only the code units that may break a line; `skipPlainASCII` runs over the rest without
+    // calls, so native builds keep its loop on registers. A CR followed by an LF leaves the line start
+    // to the LF.
     for (let i = skipPlainASCII(units, 0, length); i < length; i = skipPlainASCII(units, (i + 1) | 0, length)) {
       const ch = units[i] | 0;
-      if (ch < 0x80) {
-        if (
-          ch === CharacterCodes.lineFeed ||
-          (ch === CharacterCodes.carriageReturn &&
-            (i + 1 >= length || (units[(i + 1) | 0] | 0) !== CharacterCodes.lineFeed))
-        )
-          lineStarts.push(i + 1);
-        continue;
-      }
-      // The UTF-8 length of the character; a lone surrogate is encoded as U+FFFD, in 3 bytes.
-      let size = 3;
-      if (ch < 0x800) {
-        size = 2;
-      } else if (ch >= 0xd800 && ch <= 0xdbff) {
-        if (i + 1 < length) {
-          const low = units[(i + 1) | 0] | 0;
-          if (low >= 0xdc00 && low <= 0xdfff) size = 4;
-        }
-      } else if (ch >= 0xdc00 && ch <= 0xdfff && i > 0) {
-        const high = units[(i - 1) | 0] | 0;
-        if (high >= 0xd800 && high <= 0xdbff) continue;
-      }
-      starts.push(i);
-      lengths.push(size);
-      extra = (extra + (size === 4 ? 2 : size - 1)) | 0;
-      extraBytes.push(extra);
-      if (ch === CharacterCodes.lineSeparator || ch === CharacterCodes.paragraphSeparator) lineStarts.push(i + 1);
+      if (
+        ch === CharacterCodes.lineFeed ||
+        (ch === CharacterCodes.carriageReturn &&
+          (i + 1 >= length || (units[(i + 1) | 0] | 0) !== CharacterCodes.lineFeed)) ||
+        ch === CharacterCodes.lineSeparator ||
+        ch === CharacterCodes.paragraphSeparator
+      )
+        lineStarts.push(i + 1);
     }
     this.lineStarts = lineStarts;
-    this.nonASCIIStarts = starts;
   }
 
   /** Start offsets of each line, split at CR, LF, CRLF, LS and PS. */
