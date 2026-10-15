@@ -486,6 +486,17 @@ function rehash(old: Int32Array): Int32Array {
   return slots;
 }
 
+/**
+ * The code units a scanner with code units on demand copies at a time: few enough that the comments
+ * of a large declaration file copy a small part of it, enough that a file whose comments are all
+ * parsed is copied in a few hundred writes.
+ */
+const unitBlockSize = 1024;
+
+function isLowSurrogate(ch: number): boolean {
+  return ch >= 0xdc00 && ch <= 0xdfff;
+}
+
 /** The UTF-16 code units of `text`, followed by zeros so the scanner can peek past the end. */
 function toCodeUnits(text: string): Uint16Array {
   const chars = new Uint16Array(text.length + 4);
@@ -626,10 +637,23 @@ export class Scanner {
   // The code units zeroed by `setTextEnd`.
   private readonly cutUnits: Uint16Array;
   private readonly identifiers: IdentifierTable;
+  // With code units on demand: per block of `unitBlockSize` code units, 1 once `chars` holds them
+  // (`loadUnits`); `chars` is zero elsewhere.
+  private loadedBlocks: Uint8Array | undefined;
 
-  constructor(text = '') {
+  /**
+   * With `unitsOnDemand`, the code units of the text are copied only for the ranges passed to
+   * `loadUnits`, for scanning a few ranges of a large text.
+   */
+  constructor(text = '', unitsOnDemand = false) {
     this.text = text;
-    this.chars = toCodeUnits(text);
+    if (unitsOnDemand) {
+      this.chars = new Uint16Array(text.length + 4);
+      this.loadedBlocks = new Uint8Array(((text.length + unitBlockSize - 1) / unitBlockSize) | 0);
+    } else {
+      this.chars = toCodeUnits(text);
+      this.loadedBlocks = undefined;
+    }
     this.end = text.length | 0;
     this.languageVariant = LanguageVariant.Standard;
     this.scriptTarget = ScriptTarget.None;
@@ -656,6 +680,7 @@ export class Scanner {
   setText(text: string): void {
     this.text = text;
     this.chars = toCodeUnits(text);
+    this.loadedBlocks = undefined;
     this.identifiers.setText(text);
     this.end = text.length | 0;
     this.pos = 0;
@@ -691,6 +716,32 @@ export class Scanner {
     this.valueStart = -1;
     this.hashStart = -1;
     this.skipJSDocLeadingAsterisks = 0;
+  }
+
+  /**
+   * @internal Where the scanner copies code units on demand, copies those of `text[start, end)`
+   * and the four around each end, a block of `unitBlockSize` units at a time (and whole surrogate
+   * pairs); otherwise does nothing.
+   */
+  loadUnits(start: number, end: number): void {
+    const blocks = this.loadedBlocks;
+    if (blocks === undefined) return;
+    const text = this.text;
+    const length = text.length;
+    const last = Math.min(blocks.length - 1, ((end + 4) / unitBlockSize) | 0);
+    for (let block = (Math.max(0, start - 4) / unitBlockSize) | 0; block <= last; block++) {
+      if (blocks[block] !== 0) continue;
+      // The run of blocks not copied yet.
+      let runEnd = block;
+      while (runEnd < last && blocks[runEnd + 1] === 0) runEnd++;
+      let from = block * unitBlockSize;
+      let to = Math.min(length, (runEnd + 1) * unitBlockSize);
+      if (from > 0 && isLowSurrogate(text.charCodeAt(from))) from--;
+      if (to < length && isLowSurrogate(text.charCodeAt(to))) to++;
+      Buffer.from(this.chars.buffer, from * 2, (to - from) * 2).write(text.substring(from, to), 'utf16le');
+      blocks.fill(1, block, runEnd + 1);
+      block = runEnd;
+    }
   }
 
   setOnError(reporter: ScannerErrorReporter | undefined): void {
