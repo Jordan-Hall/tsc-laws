@@ -2276,6 +2276,8 @@ export class InferenceCaches {
   readonly discriminatedContextualTypes = new Map<string, Type>();
   /** `discriminatedContextualTypes` by node and type id packed into one number, when they fit. */
   readonly discriminatedContextualTypesById = new Map<number, Type>();
+  /** For union contextual types, what each constituent has for a missing optional property (discriminateTypeByObjectLiteral). */
+  readonly missingPropertyStates = new Map<Type, Map<string, number>>();
   readonly contextFreeTypes = new Map<Node, Type>();
   readonly reverseMapped = new Map<string, Type | undefined>();
   readonly reverseHomomorphicMapped = new Map<string, Type | undefined>();
