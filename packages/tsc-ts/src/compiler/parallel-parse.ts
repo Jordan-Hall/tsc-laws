@@ -121,6 +121,17 @@ export class ParallelParse {
 
 export const parallelParse = new ParallelParse();
 
+/**
+ * Drops the prepared files once a program took what it needed. In a build, the next project's
+ * program must not take another project's files, which were loaded with that project's options.
+ */
+export function clearPreparedFiles(): void {
+  parallelParse.files.clear();
+  parallelParse.used = 0;
+  parallelParse.missed = 0;
+  parallelParse.unprepared = 0;
+}
+
 /** The FileLoader's lookup: the prepared file for these parse inputs, or `undefined`. */
 export function takePreparedFile(
   fileName: string,

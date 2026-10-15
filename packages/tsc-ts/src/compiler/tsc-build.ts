@@ -56,7 +56,7 @@ import {
 import { emitFilesAndReportErrors, exitStatusOf, Statistics, statisticsOf, SystemTimeStamps } from './tsc-compile.js';
 import { sharesPublishedGraphs } from '@scriptc/threads';
 import { checkerThreads, parseThreads, startParallelCheck } from './parallel-check.js';
-import { LoadKind, ParseSession, parallelParse, reportPreparedFiles } from './parallel-parse.js';
+import { LoadKind, ParseSession, clearPreparedFiles, parallelParse, reportPreparedFiles } from './parallel-parse.js';
 import { assignSymbolIdsAtCreation } from './symbol.js';
 
 const enum BuildKind {
@@ -675,6 +675,8 @@ export class Orchestrator {
         loader.takesPreparedResolutions = false;
         const program = new Program(config, host, loader);
         reportPreparedFiles(program.getSourceFiles().map((f) => f.fileName));
+        // A later project of the build, with or without parse threads, loads its own files.
+        clearPreparedFiles();
         if (!this.checkAndEmit(task, program, parseStart, times, oldSnapshot, true, then)) then();
       });
       return true;

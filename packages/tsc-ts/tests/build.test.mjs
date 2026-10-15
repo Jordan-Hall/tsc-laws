@@ -67,6 +67,27 @@ const scenarios = {
       { args: ['-b', 'missing', 'c'] },
     ],
   },
+  // Both projects include shared/value.ts, whose import of "lib" resolves to a different file in each.
+  // In the second build, a (no build info) is checked on threads and parsed on parse threads, and b
+  // (incremental) on the main thread: b must load the file itself.
+  'a project parsed on threads before one that is not': {
+    files: {
+      'shared/value.ts': 'import { v } from "lib";\nexport const n: number = v;\n',
+      'a/x/lib.ts': 'export const v: number = 1;\n',
+      'b/y/lib.ts': 'export const v: string = "s";\n',
+      'a/tsconfig.json':
+        '{"compilerOptions":{"outDir":"out","rootDir":"..","paths":{"lib":["./x/lib.ts"]}},"files":["../shared/value.ts"]}',
+      'b/tsconfig.json':
+        '{"compilerOptions":{"incremental":true,"outDir":"out","rootDir":"..","paths":{"lib":["./y/lib.ts"]}},"files":["../shared/value.ts"]}',
+    },
+    steps: [
+      { args: ['-b', 'a', 'b'] },
+      {
+        args: ['-b', 'a', 'b'],
+        edit: { 'shared/value.ts': 'import { v } from "lib";\nexport const n: number = v;\n// changed\n' },
+      },
+    ],
+  },
   'circular references': {
     files: {
       'a/tsconfig.json': '{"compilerOptions":{"composite":true},"references":[{"path":"../b"}],"files":["a.ts"]}',
