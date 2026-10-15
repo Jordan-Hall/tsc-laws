@@ -172,7 +172,11 @@ for (const test of tests) {
   result[test] = files;
 }
 
-const git = spawnSync('git', ['-C', root, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).stdout.trim();
+// The sources the map describes, named by the last commit that changed them, which stays reachable when commits after it
+// are rebased. select-tests.mjs reads the sources at this commit to tell new functions from ones no test runs.
+const git = spawnSync('git', ['-C', root, 'log', '-1', '--format=%H', '--', 'packages/tsc-ts/src'], {
+  encoding: 'utf8',
+}).stdout.trim();
 const map = { commit: git, tests: tests.map((t) => 'packages/tsc-ts/tests/' + t), files: {} };
 for (const file of sources.sort()) {
   const entry = { loaded: [], ran: [], functions: {} };

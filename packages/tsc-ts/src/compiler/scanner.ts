@@ -362,12 +362,8 @@ class IdentifierTable {
   private text: string;
   // Pairs of (entry index + 1, hash) per slot, (0, 0) when empty; linear probing.
   private slots: Int32Array;
-  // Each entry's code units, at its offset in `units`: compact, so probes stay in cache.
-  private units: Uint16Array;
-  private unitCount: number;
-  // Pairs of (offset in `units`, length) per entry: one array for both, so a lookup reads (and, in
-  // native builds, retains) one array less.
-  private ranges: Int32Array;
+  // Each entry's length in code units.
+  private lengths: Int32Array;
   private texts: string[];
   private count: number;
   // Per entry: 1 once its text was recorded among the file's identifier texts (`markRecorded`).
@@ -378,9 +374,7 @@ class IdentifierTable {
   constructor(text: string) {
     this.text = text;
     this.slots = new Int32Array(512);
-    this.units = new Uint16Array(1024);
-    this.unitCount = 0;
-    this.ranges = new Int32Array(256);
+    this.lengths = new Int32Array(128);
     this.texts = [];
     this.count = 0;
     this.recorded = new Uint8Array(128);
@@ -406,13 +400,16 @@ class IdentifierTable {
     this.slots.fill(0);
     this.recorded.fill(0, 0, this.count);
     this.texts.length = 0;
-    this.unitCount = 0;
     this.count = 0;
     this.lastEntry = -1;
   }
 
-  /** `text.substring(start, end)`, or the string interned for an equal range; `hash` is its `rangeHash`. */
-  intern(chars: Uint16Array, start: number, end: number, hash: number): string {
+  /**
+   * `text.substring(start, end)`, or the string interned for an equal range; `hash` is its `rangeHash`.
+   * A candidate of the same hash and length is compared with `startsWith`, which natively compares
+   * the bytes of both strings at once.
+   */
+  intern(start: number, end: number, hash: number): string {
     start = start | 0;
     end = end | 0;
     hash = hash | 0;
@@ -423,43 +420,26 @@ class IdentifierTable {
     for (;;) {
       const entry = slots[(slot * 2) | 0] | 0;
       if (entry === 0) break;
-      if ((slots[(slot * 2 + 1) | 0] | 0) === hash) {
-        const ranges = this.ranges;
-        const at = ((entry - 1) * 2) | 0;
-        if ((ranges[(at + 1) | 0] | 0) === length) {
-          const units = this.units;
-          const offset = ranges[at] | 0;
-          let i = 0;
-          while (i < length && (units[(offset + i) | 0] | 0) === (chars[(start + i) | 0] | 0)) i = (i + 1) | 0;
-          if (i === length) {
-            this.lastEntry = (entry - 1) | 0;
-            return this.texts[(entry - 1) | 0]!;
-          }
+      if ((slots[(slot * 2 + 1) | 0] | 0) === hash && (this.lengths[(entry - 1) | 0] | 0) === length) {
+        const candidate = this.texts[(entry - 1) | 0]!;
+        if (this.text.startsWith(candidate, start)) {
+          this.lastEntry = (entry - 1) | 0;
+          return candidate;
         }
       }
       slot = (slot + 1) & mask;
     }
     const value = this.text.substring(start, end);
     const index = this.count | 0;
-    if (index * 2 === this.ranges.length) {
-      const ranges = new Int32Array(index * 4);
-      ranges.set(this.ranges);
-      this.ranges = ranges;
+    if (index === this.lengths.length) {
+      const lengths = new Int32Array(index * 2);
+      lengths.set(this.lengths);
+      this.lengths = lengths;
       const recorded = new Uint8Array(index * 2);
       recorded.set(this.recorded);
       this.recorded = recorded;
     }
-    let units = this.units;
-    const offset = this.unitCount | 0;
-    if (offset + length > units.length) {
-      units = new Uint16Array(Math.max(units.length * 2, offset + length));
-      units.set(this.units);
-      this.units = units;
-    }
-    units.set(chars.subarray(start, end), offset);
-    this.unitCount = (offset + length) | 0;
-    this.ranges[(index * 2) | 0] = offset;
-    this.ranges[(index * 2 + 1) | 0] = length;
+    this.lengths[index] = length;
     this.texts.push(value);
     this.count = (index + 1) | 0;
     this.lastEntry = index;
@@ -484,6 +464,17 @@ function rehash(old: Int32Array): Int32Array {
     slots[slot * 2 + 1] = hash;
   }
   return slots;
+}
+
+/**
+ * The code units a scanner with code units on demand copies at a time: few enough that the comments
+ * of a large declaration file copy a small part of it, enough that a file whose comments are all
+ * parsed is copied in a few hundred writes.
+ */
+const unitBlockSize = 1024;
+
+function isLowSurrogate(ch: number): boolean {
+  return ch >= 0xdc00 && ch <= 0xdfff;
 }
 
 /** The UTF-16 code units of `text`, followed by zeros so the scanner can peek past the end. */
@@ -626,10 +617,23 @@ export class Scanner {
   // The code units zeroed by `setTextEnd`.
   private readonly cutUnits: Uint16Array;
   private readonly identifiers: IdentifierTable;
+  // With code units on demand: per block of `unitBlockSize` code units, 1 once `chars` holds them
+  // (`loadUnits`); `chars` is zero elsewhere.
+  private loadedBlocks: Uint8Array | undefined;
 
-  constructor(text = '') {
+  /**
+   * With `unitsOnDemand`, the code units of the text are copied only for the ranges passed to
+   * `loadUnits`, for scanning a few ranges of a large text.
+   */
+  constructor(text = '', unitsOnDemand = false) {
     this.text = text;
-    this.chars = toCodeUnits(text);
+    if (unitsOnDemand) {
+      this.chars = new Uint16Array(text.length + 4);
+      this.loadedBlocks = new Uint8Array(((text.length + unitBlockSize - 1) / unitBlockSize) | 0);
+    } else {
+      this.chars = toCodeUnits(text);
+      this.loadedBlocks = undefined;
+    }
     this.end = text.length | 0;
     this.languageVariant = LanguageVariant.Standard;
     this.scriptTarget = ScriptTarget.None;
@@ -656,6 +660,7 @@ export class Scanner {
   setText(text: string): void {
     this.text = text;
     this.chars = toCodeUnits(text);
+    this.loadedBlocks = undefined;
     this.identifiers.setText(text);
     this.end = text.length | 0;
     this.pos = 0;
@@ -691,6 +696,32 @@ export class Scanner {
     this.valueStart = -1;
     this.hashStart = -1;
     this.skipJSDocLeadingAsterisks = 0;
+  }
+
+  /**
+   * @internal Where the scanner copies code units on demand, copies those of `text[start, end)`
+   * and the four around each end, a block of `unitBlockSize` units at a time (and whole surrogate
+   * pairs); otherwise does nothing.
+   */
+  loadUnits(start: number, end: number): void {
+    const blocks = this.loadedBlocks;
+    if (blocks === undefined) return;
+    const text = this.text;
+    const length = text.length;
+    const last = Math.min(blocks.length - 1, ((end + 4) / unitBlockSize) | 0);
+    for (let block = (Math.max(0, start - 4) / unitBlockSize) | 0; block <= last; block++) {
+      if (blocks[block] !== 0) continue;
+      // The run of blocks not copied yet.
+      let runEnd = block;
+      while (runEnd < last && blocks[runEnd + 1] === 0) runEnd++;
+      let from = block * unitBlockSize;
+      let to = Math.min(length, (runEnd + 1) * unitBlockSize);
+      if (from > 0 && isLowSurrogate(text.charCodeAt(from))) from--;
+      if (to < length && isLowSurrogate(text.charCodeAt(to))) to++;
+      Buffer.from(this.chars.buffer, from * 2, (to - from) * 2).write(text.substring(from, to), 'utf16le');
+      blocks.fill(1, block, runEnd + 1);
+      block = runEnd;
+    }
   }
 
   setOnError(reporter: ScannerErrorReporter | undefined): void {
@@ -768,7 +799,7 @@ export class Scanner {
       const end = this.valueEnd;
       const hash =
         start === this.hashStart && end === this.hashEnd ? this.valueHash : rangeHash(this.chars, start, end);
-      this.tokenValue = this.identifiers.intern(this.chars, start, end, hash);
+      this.tokenValue = this.identifiers.intern(start, end, hash);
       this.valueStart = -1;
     }
     return this.tokenValue;

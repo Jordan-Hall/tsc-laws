@@ -9,6 +9,11 @@
       "outputs": ["dist/*-oracle", "dist/tsgo", "dist/oracle-build.json"],
       "inputs": ["oracle/**", "oracles/**", "checkhost/**", "scripts/build-oracle.mjs", "$TURBO_ROOT$/upstream.json"]
     },
+    "@tsc-ts/tsgo#build:oracle": {
+      "dependsOn": ["@tsc-ts/relater#build:oracle"],
+      "outputs": ["dist/*-oracle", "dist/tsgo", "dist/oracle-build.json"],
+      "inputs": ["oracle/**", "oracles/**", "checkhost/**", "scripts/build-oracle.mjs", "$TURBO_ROOT$/upstream.json"]
+    },
     "translate": {
       "dependsOn": ["^build"],
       "cache": false

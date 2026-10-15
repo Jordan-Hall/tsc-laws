@@ -12,7 +12,6 @@ import {
   JsxExpression,
   JsxFragment,
   JsxNamespacedName,
-  JsxOpeningElement,
   JsxSelfClosingElement,
   JsxSpreadAttribute,
   JsxText,
@@ -30,6 +29,7 @@ import {
   StringLiteral,
   ArrayLiteralExpression,
   VariableDeclaration,
+  getTagName,
 } from '../ast.js';
 import { isExternalOrCommonJSModule } from '../binder-utilities.js';
 import { isLineBreak, isWhiteSpaceSingleLine } from '../character-codes.js';
@@ -325,8 +325,9 @@ export class JsxTransformer extends Transformer {
     );
   }
 
+  /** The tag of an opening or self-closing element, as an expression. */
   private tagName(element: Node): Node {
-    const tagName = (element as JsxOpeningElement).tagName;
+    const tagName = getTagName(element)!;
     const factory = this.factory;
     if (tagName instanceof Identifier && isIntrinsicJsxName(tagName.text))
       return factory.createStringLiteral(tagName.text, TokenFlags.None);

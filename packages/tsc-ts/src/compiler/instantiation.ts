@@ -358,7 +358,17 @@ function instantiateTypeWorker(c: Checker, type: Type, mapper: TypeMapper, alias
   }
   if ((flags & TypeFlags.TemplateLiteral) !== 0) {
     const template = type as TemplateLiteralType;
-    return getTemplateLiteralType(c, template.texts, instantiateTypes(c, template.types, mapper));
+    const newTypes = instantiateTypes(c, template.types, mapper);
+    // The result depends only on the template and the instantiated types; with union types it is
+    // their cross product, so each list is expanded once.
+    const hash = typeListHash(newTypes, undefined, template.id);
+    let result = c.templateLiteralInstantiations.get(hash, newTypes, undefined, template.id);
+    if (result === undefined) {
+      result = getTemplateLiteralType(c, template.texts, newTypes);
+      // A cross product that is too large reports an error at the current node each time.
+      if (result !== c.errorType) c.templateLiteralInstantiations.set(hash, newTypes, undefined, template.id, result);
+    }
+    return result;
   }
   if ((flags & TypeFlags.StringMapping) !== 0)
     return getStringMappingType(c, type.symbol!, instantiateType(c, (type as StringMappingType).target, mapper));

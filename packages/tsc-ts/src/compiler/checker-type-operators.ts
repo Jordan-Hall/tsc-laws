@@ -121,6 +121,7 @@ import {
   TypeSystemPropertyName,
   getParentOfSymbol,
   findResolutionCycleStartIndex,
+  getFullyQualifiedName,
 } from './checker-symbols.js';
 import {
   getConstraintOfTypeParameter,
@@ -905,7 +906,7 @@ function getPropertyTypeForIndexType(
             ]);
           else if ((indexType.flags & TypeFlags.UniqueESSymbol) !== 0)
             head = createDiagnosticForNode(accessExpression, Diagnostics.Property_0_does_not_exist_on_type_1, [
-              '[' + symbolToString(c, indexType.symbol!) + ']',
+              '[' + getFullyQualifiedName(c, indexType.symbol!, accessExpression) + ']',
               objectText,
             ]);
           else if ((indexType.flags & (TypeFlags.StringLiteral | TypeFlags.NumberLiteral)) !== 0)

@@ -1,6 +1,7 @@
 {
   "note": "Seconds per unit on a GitHub-hosted ubuntu-latest runner. Update with scripts/ci/update-durations.mjs.",
   "seconds": {
+    "packages/relater/tests/checker.test.mjs": 103,
     "packages/tsc-ts/tests/api.test.mjs": 27,
     "packages/tsc-ts/tests/binder.test.mjs": 157,
     "packages/tsc-ts/tests/build.test.mjs": 51,
@@ -19,6 +20,7 @@
     "packages/tsc-ts/tests/library-checking.test.mjs#2/3": 195,
     "packages/tsc-ts/tests/library-checking.test.mjs#3/3": 195,
     "packages/tsc-ts/tests/module-resolution.test.mjs": 9,
+    "packages/tsc-ts/tests/parallel-emit.test.mjs": 8,
     "packages/tsc-ts/tests/parallel-load.test.mjs": 8,
     "packages/tsc-ts/tests/parallel-schedule.test.mjs": 9,
     "packages/tsc-ts/tests/parser.test.mjs": 147,
@@ -37,13 +39,12 @@
     "packages/tsc-ts/tests/shared-program.test.mjs": 6,
     "packages/tsc-ts/tests/undefined-properties.test.mjs": 6,
     "packages/tsc-ts/tests/xxh3.test.mjs": 6,
-    "packages/relater/tests/checker.test.mjs": 103,
+    "packages/tsgo/corpus/compiler": 115,
+    "packages/tsgo/corpus/conformance": 95,
     "packages/tsgo/tests/binder.test.mjs": 41,
     "packages/tsgo/tests/checker-diagnostics.test.mjs": 35,
     "packages/tsgo/tests/parser.test.mjs": 38,
     "packages/tsgo/tests/scanner.test.mjs": 26,
-    "packages/tsgo/tests/tsc.test.mjs": 36,
-    "packages/tsgo/corpus/compiler": 115,
-    "packages/tsgo/corpus/conformance": 95
+    "packages/tsgo/tests/tsc.test.mjs": 36
   }
 }

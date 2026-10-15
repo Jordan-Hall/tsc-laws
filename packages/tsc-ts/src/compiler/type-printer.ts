@@ -32,10 +32,19 @@ export function typeToString(c: Checker, t: Type, enclosingDeclaration?: Node, f
   return typeToStringFromTypeNode(c, t, enclosingDeclaration, formatFlags) ?? '';
 }
 
-/** `symbol` as text: the expression naming it. */
-export function symbolToString(c: Checker, symbol: Symbol): string {
-  const b = new NodeBuilder(c, undefined, NodeBuilderFlags.IgnoreErrors, NodeBuilderInternalFlags.None, undefined);
-  return printSingleLine(b, symbolToExpression(b, symbol, SymbolFlags.All), false);
+/** `symbol` as text: the expression naming it, as seen from `enclosingDeclaration` if given. */
+export function symbolToString(
+  c: Checker,
+  symbol: Symbol,
+  enclosingDeclaration?: Node,
+  internalFlags: NodeBuilderInternalFlags = NodeBuilderInternalFlags.None,
+): string {
+  const b = new NodeBuilder(c, enclosingDeclaration, NodeBuilderFlags.IgnoreErrors, internalFlags, undefined);
+  return printSingleLine(
+    b,
+    symbolToExpression(b, symbol, SymbolFlags.All),
+    enclosingDeclaration !== undefined && enclosingDeclaration.kind === SyntaxKind.SourceFile,
+  );
 }
 
 /** `signature` as text: a call or construct signature without its trailing semicolon. */
