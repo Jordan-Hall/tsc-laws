@@ -4,6 +4,8 @@ import {
   type ForInOrOfStatement,
   type MetaProperty,
   type BindingElement,
+  type VariableDeclaration,
+  type Identifier,
   getName,
   type BinaryExpression,
   type ElementAccessExpression,
@@ -2132,6 +2134,20 @@ function getBaseConstraintOrType(c: Checker, t: Type): Type {
 // ---- References
 
 export function isMatchingReference(c: Checker, source: Node, target: Node): boolean {
+  // A declaration's symbol has the declaration's name, and an identifier's text is its name: an
+  // identifier never refers to the variable or binding element of a declaration of another name.
+  if (
+    source.kind === SyntaxKind.Identifier &&
+    (target.kind === SyntaxKind.VariableDeclaration || target.kind === SyntaxKind.BindingElement)
+  ) {
+    const name = (target as VariableDeclaration | BindingElement).name;
+    if (
+      name !== undefined &&
+      name.kind === SyntaxKind.Identifier &&
+      (name as Identifier).text !== (source as Identifier).text
+    )
+      return false;
+  }
   switch (target.kind) {
     case SyntaxKind.ParenthesizedExpression:
     case SyntaxKind.NonNullExpression:
