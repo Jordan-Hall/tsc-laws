@@ -114,9 +114,14 @@ export function pack(ids, count, measured = durations()) {
   return shards;
 }
 
-/** The number of shards that keeps each at about `target` seconds, between 1 and `max`. */
+/** The number of shards that keeps each at about `target` seconds (or the longest unit), between 1 and `max`. */
 export function shardCount(ids, target, max, measured = durations()) {
   const total = ids.reduce((sum, id) => sum + durationOf(id, measured), 0);
   const longest = Math.max(0, ...ids.map((id) => durationOf(id, measured)));
-  return Math.max(1, Math.min(max, Math.ceil(total / Math.max(target, longest))));
+  const limit = Math.max(target, longest);
+  let count = Math.max(1, Math.min(max, Math.ceil(total / limit)));
+  // Units do not split, so a count that fits on average can still leave one shard well over the target (three
+  // parts of 185 s in two shards): add shards while the packed longest shard is more than 10% over.
+  while (count < max && Math.max(...pack(ids, count, measured).map((s) => s.seconds)) > limit * 1.1) count++;
+  return count;
 }
