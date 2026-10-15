@@ -477,6 +477,17 @@ function isLowSurrogate(ch: number): boolean {
   return ch >= 0xdc00 && ch <= 0xdfff;
 }
 
+/** Which line breaks a text holds, for the comment scans that search it (`Scanner.getTextKind`). */
+const enum TextKind {
+  Unknown = 0,
+  /** Line feeds only. */
+  LF = 1,
+  /** Line feeds and carriage returns. */
+  LFAndCR = 2,
+  /** Also line or paragraph separators (U+2028, U+2029): comments are scanned code unit by code unit. */
+  Separators = 3,
+}
+
 /** The UTF-16 code units of `text`, followed by zeros so the scanner can peek past the end. */
 function toCodeUnits(text: string): Uint16Array {
   const chars = new Uint16Array(text.length + 4);
@@ -620,6 +631,8 @@ export class Scanner {
   // With code units on demand: per block of `unitBlockSize` code units, 1 once `chars` holds them
   // (`loadUnits`); `chars` is zero elsewhere.
   private loadedBlocks: Uint8Array | undefined;
+  // The line breaks the text holds, computed on first use.
+  private textKind: TextKind;
 
   /**
    * With `unitsOnDemand`, the code units of the text are copied only for the ranges passed to
@@ -654,6 +667,7 @@ export class Scanner {
     this.skipJSDocLeadingAsterisks = 0;
     this.cutUnits = new Uint16Array(4);
     this.identifiers = new IdentifierTable(text);
+    this.textKind = TextKind.Unknown;
   }
 
   /** Sets the text to scan and resets the token state. */
@@ -662,6 +676,7 @@ export class Scanner {
     this.chars = toCodeUnits(text);
     this.loadedBlocks = undefined;
     this.identifiers.setText(text);
+    this.textKind = TextKind.Unknown;
     this.end = text.length | 0;
     this.pos = 0;
     this.fullStartPos = 0;
@@ -1124,9 +1139,7 @@ export class Scanner {
         case CharacterCodes.slash: {
           const next = chars[this.pos + 1] | 0;
           if (next === CharacterCodes.slash) {
-            let pos = (this.pos + 2) | 0;
-            const end = this.end;
-            while (pos < end && !isLineBreak(chars[pos] | 0)) pos = (pos + 1) | 0;
+            const pos = this.lineCommentEnd((this.pos + 2) | 0);
             this.pos = pos;
             this.processCommentDirective(this.tokenStart, pos, false);
             if (this.skipTrivia) continue;
@@ -1355,6 +1368,45 @@ export class Scanner {
       : getIdentifierToken(this.tokenValue);
   }
 
+  /** The line breaks the text holds, found once per text. */
+  private getTextKind(): TextKind {
+    let kind = this.textKind;
+    if (kind === TextKind.Unknown) {
+      const text = this.text;
+      // Natively, the UTF-8 length is known without a search, and ASCII texts hold no separators.
+      if (
+        Buffer.byteLength(text, 'utf8') !== text.length &&
+        (text.indexOf('\u2028') >= 0 || text.indexOf('\u2029') >= 0)
+      )
+        kind = TextKind.Separators;
+      else kind = text.indexOf('\r') >= 0 ? TextKind.LFAndCR : TextKind.LF;
+      this.textKind = kind;
+    }
+    return kind;
+  }
+
+  /**
+   * The end of the line comment whose text starts at `pos`: the next line break, or `end`. Found with
+   * string searches (natively, byte searches) instead of a loop over code units, except in texts with
+   * line or paragraph separators.
+   */
+  private lineCommentEnd(pos: number): number {
+    const end = this.end;
+    const kind = this.getTextKind();
+    if (kind !== TextKind.Separators) {
+      const text = this.text;
+      let at = text.indexOf('\n', pos);
+      if (kind === TextKind.LFAndCR) {
+        const cr = text.indexOf('\r', pos);
+        if (cr >= 0 && (at < 0 || cr < at)) at = cr;
+      }
+      return at < 0 || at > end ? end : at | 0;
+    }
+    const chars = this.chars;
+    while (pos < end && !isLineBreak(chars[pos] | 0)) pos = (pos + 1) | 0;
+    return pos;
+  }
+
   /** Scans `/* … *\/`; returns true if the comment is skipped as trivia. */
   private scanMultiLineComment(): boolean {
     const chars = this.chars;
@@ -1366,24 +1418,49 @@ export class Scanner {
     let lastLineStart = this.tokenStart;
     let flags = this.tokenFlags;
     if (isJSDoc) flags |= TokenFlags.PrecedingJSDocComment;
-    while (pos < end) {
-      pos = skipCommentText(chars, pos, end) | 0;
-      if (pos >= end) break;
-      const c = chars[pos] | 0;
-      pos = (pos + 1) | 0;
-      if (c === CharacterCodes.asterisk) {
-        if ((chars[pos] | 0) === CharacterCodes.slash) {
-          pos = (pos + 1) | 0;
-          closed = true;
-          break;
-        }
-      } else if (c === CharacterCodes.lineFeed || c === CharacterCodes.carriageReturn || c >= 0x2028) {
-        if (isLineBreak(c)) {
-          lastLineStart = pos;
+    const kind = this.getTextKind();
+    if (kind !== TextKind.Separators) {
+      // String searches for the closing `*/`, then for the line breaks and JSDoc tags in the comment,
+      // instead of a loop over code units; not in texts with line or paragraph separators.
+      const text = this.text;
+      const close = text.indexOf('*/', pos);
+      closed = close >= 0 && close + 2 <= end;
+      const bodyEnd = closed ? close : end;
+      if (pos < bodyEnd) {
+        const body = text.substring(pos, bodyEnd);
+        // A forward search first: most comments have no line break, and searching back is slower.
+        let lastBreak = body.indexOf('\n') >= 0 ? body.lastIndexOf('\n') : -1;
+        if (kind === TextKind.LFAndCR && body.indexOf('\r') >= 0)
+          lastBreak = Math.max(lastBreak, body.lastIndexOf('\r'));
+        if (lastBreak >= 0) {
+          lastLineStart = (pos + lastBreak + 1) | 0;
           flags |= TokenFlags.PrecedingLineBreak;
         }
-      } else if (c === CharacterCodes.at && isJSDoc) {
-        flags = jsDocTagFlags(chars, pos, end, flags);
+        if (isJSDoc)
+          for (let at = body.indexOf('@'); at >= 0; at = body.indexOf('@', at + 1))
+            flags = jsDocTagFlags(chars, pos + at + 1, end, flags);
+      }
+      pos = closed ? (close + 2) | 0 : end;
+    } else {
+      while (pos < end) {
+        pos = skipCommentText(chars, pos, end) | 0;
+        if (pos >= end) break;
+        const c = chars[pos] | 0;
+        pos = (pos + 1) | 0;
+        if (c === CharacterCodes.asterisk) {
+          if ((chars[pos] | 0) === CharacterCodes.slash) {
+            pos = (pos + 1) | 0;
+            closed = true;
+            break;
+          }
+        } else if (c === CharacterCodes.lineFeed || c === CharacterCodes.carriageReturn || c >= 0x2028) {
+          if (isLineBreak(c)) {
+            lastLineStart = pos;
+            flags |= TokenFlags.PrecedingLineBreak;
+          }
+        } else if (c === CharacterCodes.at && isJSDoc) {
+          flags = jsDocTagFlags(chars, pos, end, flags);
+        }
       }
     }
     this.pos = pos;

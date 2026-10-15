@@ -665,7 +665,7 @@ function newJsxIntrinsicSignature(c: Checker, result: Type, elementType: Type): 
  * getStaticTypeOfReferencedJsxConstructor gives an intrinsic element: `new (props: result) =>
  * JSX.Element`. tsgo creates a new one for every element, which makes each element's
  * `LibraryManagedAttributes<C, P>` a new instantiation; it is a function of the two types, so one is
- * kept per pair (as bun check does).
+ * kept per pair.
  */
 function getJsxIntrinsicConstructorType(c: Checker, node: Node, result: Type): Type {
   const elementType = getJsxElementTypeForIntrinsic(c, node);
