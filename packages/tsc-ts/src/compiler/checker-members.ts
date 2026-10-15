@@ -115,6 +115,7 @@ import {
   isTypeAssignableTo,
   type RecursionId,
 } from './relations.js';
+import { isUnmatchedTemplateLiteralKey } from './checker-inference.js';
 import { typeToString } from './type-printer.js';
 import {
   cloneSignature,
@@ -1711,6 +1712,13 @@ export function findApplicableIndexInfo(
 }
 
 export function isApplicableIndexType(c: Checker, source: Type, target: Type): boolean {
+  // Types with many template literal index signatures would relate most pairs of their keys only
+  // to find that the start or end texts differ.
+  if (
+    (target.flags & TypeFlags.TemplateLiteral) !== 0 &&
+    isUnmatchedTemplateLiteralKey(source, target as TemplateLiteralType)
+  )
+    return false;
   // `string` applies to keys assignable to string or number; `number` to numeric strings too.
   return (
     isTypeAssignableTo(c, source, target) ||
