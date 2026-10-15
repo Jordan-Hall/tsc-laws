@@ -148,6 +148,7 @@ import {
 } from './checker-symbol-types.js';
 import {
   cloneTypeParameter,
+  couldContainTypeVariables,
   instantiateSignatureEx,
   instantiateType,
   isTypeParameterPossiblyReferenced,
@@ -438,6 +439,24 @@ export function isTypeRelatedTo(c: Checker, source: Type, target: Type, relation
   if (isFreshLiteralType(source)) source = (source as LiteralType).regularType;
   if (isFreshLiteralType(target)) target = (target as LiteralType).regularType;
   if (source === target) return true;
+  // A template literal target whose start and end texts rule out a match relates to no string
+  // literal or template literal source, under any relation. (The full check reports unreliable
+  // variance for type variables in a template literal source, so those take it.)
+  if ((target.flags & TypeFlags.TemplateLiteral) !== 0) {
+    if (
+      (source.flags & TypeFlags.StringLiteral) !== 0 &&
+      !stringLiteralTextMayMatch((source as LiteralType).stringValue, target as TemplateLiteralType)
+    )
+      return false;
+    if (
+      (source.flags & TypeFlags.TemplateLiteral) !== 0 &&
+      (relation === c.comparableRelation
+        ? templateLiteralTypesDefinitelyUnrelated(source as TemplateLiteralType, target as TemplateLiteralType)
+        : !templateLiteralTextsMayMatch(source as TemplateLiteralType, target as TemplateLiteralType)) &&
+      !someTypeCouldContainTypeVariables(c, (source as TemplateLiteralType).types)
+    )
+      return false;
+  }
   if (relation !== c.identityRelation) {
     if (
       (relation === c.comparableRelation &&
@@ -4498,12 +4517,38 @@ function templateLiteralTypesDefinitelyUnrelated(source: TemplateLiteralType, ta
   const targetStart = target.texts[0]!;
   const sourceEnd = source.texts[source.texts.length - 1]!;
   const targetEnd = target.texts[target.texts.length - 1]!;
-  const startLen = Math.min(sourceStart.length, targetStart.length);
-  const endLen = Math.min(sourceEnd.length, targetEnd.length);
   return (
-    sourceStart.substring(0, startLen) !== targetStart.substring(0, startLen) ||
-    sourceEnd.substring(sourceEnd.length - endLen) !== targetEnd.substring(targetEnd.length - endLen)
+    !(sourceStart.length <= targetStart.length
+      ? targetStart.startsWith(sourceStart)
+      : sourceStart.startsWith(targetStart)) ||
+    !(sourceEnd.length <= targetEnd.length ? targetEnd.endsWith(sourceEnd) : sourceEnd.endsWith(targetEnd))
   );
+}
+
+/**
+ * Whether `source` starts and ends with the start and end texts of `target`, which a template literal
+ * source needs to match `target` (see inferFromLiteralPartsToTemplateLiteral) or to be identical to it.
+ */
+function templateLiteralTextsMayMatch(source: TemplateLiteralType, target: TemplateLiteralType): boolean {
+  return (
+    source.texts[0]!.startsWith(target.texts[0]!) &&
+    source.texts[source.texts.length - 1]!.endsWith(target.texts[target.texts.length - 1]!)
+  );
+}
+
+/**
+ * Whether string literal `text` passes inferTypesFromTemplateLiteralType's start and end text test
+ * against `target`, which it needs to match `target`.
+ */
+function stringLiteralTextMayMatch(text: string, target: TemplateLiteralType): boolean {
+  const start = target.texts[0]!;
+  const end = target.texts[target.texts.length - 1]!;
+  return text.length >= start.length + end.length && text.startsWith(start) && text.endsWith(end);
+}
+
+function someTypeCouldContainTypeVariables(c: Checker, types: readonly Type[]): boolean {
+  for (const t of types) if (couldContainTypeVariables(c, t)) return true;
+  return false;
 }
 
 function isPartialMappedType(t: Type): boolean {
