@@ -361,9 +361,9 @@ export function cachedTypeKey(kind: CachedTypeKind, id: number): number {
 /** Type ids below this bound pack in pairs into a `cachedTypesByPair` key. */
 const CachedTypePairIdLimit = 1 << 24;
 
-/** The `cachedTypesByPair` key of two type ids and three bits, or -1 when an id is too large to pack. */
+/** The `cachedTypesByPair` key of two type ids and four bits, or -1 when an id is too large to pack. */
 export function cachedTypePairKey(a: number, b: number, bits: number): number {
-  return a < CachedTypePairIdLimit && b < CachedTypePairIdLimit ? (a * CachedTypePairIdLimit + b) * 8 + bits : -1;
+  return a < CachedTypePairIdLimit && b < CachedTypePairIdLimit ? (a * CachedTypePairIdLimit + b) * 16 + bits : -1;
 }
 
 // ---- Types
