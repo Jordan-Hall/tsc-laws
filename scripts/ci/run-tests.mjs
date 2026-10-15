@@ -1,9 +1,12 @@
 // Runs CI test units (units.mjs) one after another, retrying each failed unit once.
 //
-// Usage: node scripts/ci/run-tests.mjs [--plan plan.json] [--shard i/n] [--report report.json] [unit id ...]
+// Usage: node scripts/ci/run-tests.mjs [--plan plan.json] [--set node|native|all] [--shard i/n] [--report report.json]
+//          [unit id ...]
 //
-// Without unit ids or --plan (the output of select-tests.mjs), runs every unit. --shard i/n runs the ith of n shards
-// packed from measured durations. A unit that fails and then passes is reported as flaky and does not fail the run.
+// Without unit ids or --plan (the output of select-tests.mjs), runs every unit. --set picks the Node units (the
+// default) or the native ones (`native:`), which need packages/tsc-ts/dist/tsc and dist/cli (units.mjs); unit ids
+// given on the command line run whatever their set. --shard i/n runs the ith of n shards of the set, packed from
+// measured durations. A unit that fails and then passes is reported as flaky and does not fail the run.
 // A unit whose failing tests are all listed in scripts/ci/quarantine.txt is reported as quarantined and does not
 // fail the run either. Everything else that fails twice fails the run. Results go to stdout, to the GitHub step
 // summary and annotations when running in GitHub Actions, and to --report as JSON.
@@ -12,7 +15,7 @@ import { appendFileSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFil
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { allUnits, durationOf, pack, root } from './units.mjs';
+import { allUnits, durationOf, nativeBinaries, pack, root } from './units.mjs';
 
 const args = process.argv.slice(2);
 const option = (name) => {
@@ -25,10 +28,13 @@ const option = (name) => {
 const planPath = option('--plan');
 const shardArg = option('--shard');
 const reportPath = option('--report');
+const set = option('--set') ?? 'node';
+if (!['node', 'native', 'all'].includes(set)) throw new Error(`unknown set ${set}`);
 
 const units = new Map(allUnits().map((unit) => [unit.id, unit]));
 let ids = args.length > 0 ? args : planPath ? JSON.parse(readFileSync(planPath, 'utf8')).units : [...units.keys()];
 for (const id of ids) if (!units.has(id)) throw new Error(`unknown unit ${id}`);
+if (args.length === 0 && set !== 'all') ids = ids.filter((id) => units.get(id).native === (set === 'native'));
 let shard = '1/1';
 if (shardArg !== undefined) {
   const [index, count] = shardArg.split('/').map(Number);
@@ -97,6 +103,11 @@ function attempt(unit, number) {
 
 const expected = ids.reduce((sum, id) => sum + durationOf(id), 0);
 console.log(`shard ${shard}: ${ids.length} units, ${Math.round(expected)} s expected`);
+// A missing native build would make some test files skip their tests and pass.
+const missing = Object.values(nativeBinaries).filter(
+  (binary) => ids.some((id) => Object.values(units.get(id).env).includes(binary)) && !existsSync(binary),
+);
+if (missing.length > 0) throw new Error(`native units need ${missing.join(' and ')}: build them first`);
 const results = [];
 for (const id of ids) {
   const unit = units.get(id);
