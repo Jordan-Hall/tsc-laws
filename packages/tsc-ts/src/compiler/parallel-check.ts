@@ -27,7 +27,7 @@ import type { Worker } from 'node:worker_threads';
 import { publish, sharesPublishedGraphs } from '@scriptc/threads';
 import { lastNodeIdValue } from './ast.js';
 import { declarationDiagnosticsOfFile, type OutputWriter, ProgramEmitter } from './compile-program.js';
-import { Diagnostic, DiagnosticFile } from './diagnostics.js';
+import { Diagnostic, DiagnosticFile, RepopulateInfo } from './diagnostics.js';
 import { EmitOnly, EmitResult } from './emitter.js';
 import { getEmitDeclarations } from './options.js';
 import { useLazyJSDocTable } from './parser.js';
@@ -122,10 +122,12 @@ export const recycleFiles: number = Math.max(0, Number(process.env.TSC_TS_RECYCL
  * declaration diagnostic lists, the global diagnostics and the emit results, each list as a count
  * followed by that many items. A diagnostic is file name (an index into `strs`, -1 for none), file
  * text (index, -1 when the program has the file), pos, end, code, category, message,
- * skippedOnNoEmit, the argument count and indices, then its message chain and related information
- * as lists. An emit result is emitSkipped, the emitted files, errors and unsupported files as lists
- * of indices, then its diagnostics. `files` and `nums` are typed arrays, which postMessage copies as
- * one block of memory each; it copies an array of numbers element by element.
+ * skippedOnNoEmit, the argument count and indices, its repopulate kind (0 for none) followed by the
+ * module reference (index), mode and package name (index) of other kinds, then its message chain and
+ * related information as lists. An emit result is emitSkipped, the emitted files, errors and
+ * unsupported files as lists of indices, then its diagnostics. `files` and `nums` are typed arrays,
+ * which postMessage copies as one block of memory each; it copies an array of numbers element by
+ * element.
  */
 export type PackedResult = {
   readonly index: number;
@@ -184,6 +186,15 @@ class ResultPacker {
       );
     nums.push(d.pos, d.end, d.code, d.category, d.message, d.skippedOnNoEmit ? 1 : 0, d.args.length);
     for (const arg of d.args) nums.push(this.str(arg));
+    const repopulate = d.repopulateInfo;
+    if (repopulate === undefined) nums.push(0);
+    else
+      nums.push(
+        repopulate.kind,
+        this.str(repopulate.moduleReference),
+        repopulate.mode,
+        this.str(repopulate.packageName),
+      );
     this.list(d.messageChain);
     this.list(d.relatedInformation);
   }
@@ -264,6 +275,12 @@ class ResultUnpacker {
     result.code = code;
     result.category = category;
     result.skippedOnNoEmit = skipped;
+    const kind = this.next();
+    if (kind !== 0) {
+      const moduleReference = strs[this.next()]!;
+      const mode = this.next();
+      result.repopulateInfo = new RepopulateInfo(kind, moduleReference, mode, strs[this.next()]!);
+    }
     result.messageChain = this.list();
     result.relatedInformation = this.list();
     return result;
@@ -1636,6 +1653,14 @@ class Revival {
     result.code = copy.code;
     result.category = copy.category;
     result.skippedOnNoEmit = copy.skippedOnNoEmit;
+    const repopulate = copy.repopulateInfo;
+    if (repopulate !== undefined)
+      result.repopulateInfo = new RepopulateInfo(
+        repopulate.kind,
+        repopulate.moduleReference,
+        repopulate.mode,
+        repopulate.packageName,
+      );
     result.messageChain = copy.messageChain.map((d) => this.diagnostic(d));
     result.relatedInformation = copy.relatedInformation.map((d) => this.diagnostic(d));
     return result;
