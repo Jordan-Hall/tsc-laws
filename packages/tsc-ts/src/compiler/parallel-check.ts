@@ -1340,7 +1340,7 @@ export function traceSingleChecker(checked: CheckedProgram): void {
     c.identityRelation.size();
   const cpu = process.threadCpuUsage();
   process.stderr.write(
-    `checkers: single types ${c.typeCount} inst ${c.totalInstantiations} user ${Math.round(cpu.user / 1000)} sys ${Math.round(cpu.system / 1000)} rss ${residentMB().join('/')}MB symlinks ${countLinks(c.symbolLinkTable.pages)} nodelinks ${countLinks(c.nodeLinkTable.pages)} sigs ${c.signatureCount} rel ${relations}\n`,
+    `checkers: single types ${c.typeCount} inst ${c.totalInstantiations} user ${Math.round(cpu.user / 1000)} sys ${Math.round(cpu.system / 1000)} rss ${residentMB().join('/')}MB symlinks ${c.symbolLinkTable.values.size} nodelinks ${c.nodeLinkTable.values.size} sigs ${c.signatureCount} rel ${relations}\n`,
   );
 }
 
@@ -1433,8 +1433,8 @@ export function checkFromQueue(
       cpu.user / 1000,
       cpu.system / 1000,
       residentMB()[0]!,
-      countLinks(checker.symbolLinkTable.pages),
-      countLinks(checker.nodeLinkTable.pages),
+      checker.symbolLinkTable.values.size,
+      checker.nodeLinkTable.values.size,
       checker.signatureCount,
       relations,
     ];
@@ -1640,14 +1640,4 @@ class Revival {
     result.relatedInformation = copy.relatedInformation.map((d) => this.diagnostic(d));
     return result;
   }
-}
-
-/** The number of links in a checker's link pages (for the statistics above). */
-function countLinks<T>(pages: readonly ((T | undefined)[] | undefined)[]): number {
-  let count = 0;
-  for (const page of pages) {
-    if (page === undefined) continue;
-    for (const links of page) if (links !== undefined) count++;
-  }
-  return count;
 }

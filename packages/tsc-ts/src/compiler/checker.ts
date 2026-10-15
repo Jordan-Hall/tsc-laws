@@ -30,7 +30,7 @@
 // | checker-grammar.ts              | grammar checks                                          |
 // | checker-flow.ts                 | control flow narrowing                                  |
 import type { Node, PatternAmbientModule, SourceFile } from './ast.js';
-import { IntLinkTable, LinkTable } from './link-tables.js';
+import { IntLinkTable, LinkTable, SparseLinkTable } from './link-tables.js';
 import { getErrorRangeForNode, getSourceFileOfNode } from './binder-utilities.js';
 import {
   Diagnostic,
@@ -304,8 +304,8 @@ export class Checker {
   // Links of symbols and nodes by symbol and node id (see link-tables.ts). Values that many symbols
   // or nodes have are columns of their own; the rest share one links object per symbol or node,
   // created on first use.
-  readonly symbolLinkTable = new LinkTable<SymbolLinks>();
-  readonly nodeLinkTable = new LinkTable<NodeLinks>();
+  readonly symbolLinkTable = new SparseLinkTable<SymbolLinks>();
+  readonly nodeLinkTable = new SparseLinkTable<NodeLinks>();
   /** The type of a value symbol. */
   readonly symbolTypes = new LinkTable<Type>();
   /** For instantiated and synthetic symbols, the symbol they come from. */
@@ -326,11 +326,11 @@ export class Checker {
   /** Bits of SymbolFlags for the meanings in which a symbol was referenced. */
   readonly symbolReferenceKinds = new IntLinkTable();
   /** The resolved symbol of an identifier, entity name or call. */
-  readonly resolvedSymbols = new LinkTable<Symbol>();
+  readonly resolvedSymbols = new SparseLinkTable<Symbol>();
   /** The resolved type of a type node or expression. */
-  readonly resolvedTypes = new LinkTable<Type>();
+  readonly resolvedTypes = new SparseLinkTable<Type>();
   /** The resolved signature of a call-like node or a signature declaration. */
-  readonly resolvedSignatures = new LinkTable<Signature>();
+  readonly resolvedSignatures = new SparseLinkTable<Signature>();
   /** Merged symbols, indexed by the id of the symbol merged into them. */
   readonly mergedSymbols: Map<number, Symbol>;
   /** Globals merged from the default libraries, shared with other checkers. */
