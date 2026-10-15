@@ -501,6 +501,10 @@ export function containsPath(
   child = combinePaths(currentDirectory, child);
   if (parent === '' || child === '') return false;
   if (parent === child) return true;
+  // Both in normal form, their components are their `/`-separated segments.
+  if (useCaseSensitiveFileNames && isNormalPosixPath(parent) && isNormalPosixPath(child)) {
+    return parent.length === 1 || (child.startsWith(parent) && child.charCodeAt(parent.length) === SLASH);
+  }
   const parentComponents = reducePathComponents(getPathComponents(parent));
   const childComponents = reducePathComponents(getPathComponents(child));
   if (childComponents.length < parentComponents.length) return false;
@@ -511,6 +515,32 @@ export function containsPath(
         ? equateStringsCaseInsensitive(parentComponents[i]!, childComponents[i]!)
         : equateStrings(parentComponents[i]!, childComponents[i]!, ignoreCase);
     if (!equal) return false;
+  }
+  return true;
+}
+
+/**
+ * Whether `path` is rooted at a single `/` and has no backslash, no empty, `.` or `..` segment and
+ * no trailing `/` (but may be the root itself), so that `getPathComponents` and
+ * `reducePathComponents` give `/` followed by its segments.
+ */
+function isNormalPosixPath(path: string): boolean {
+  const n = path.length;
+  if (n === 0 || path.charCodeAt(0) !== SLASH) return false;
+  if (n === 1) return true;
+  let segmentStart = 1;
+  for (let i = 1; i <= n; i++) {
+    const c = i < n ? path.charCodeAt(i) : SLASH;
+    if (c === BACKSLASH) return false;
+    if (c !== SLASH) continue;
+    const length = i - segmentStart;
+    if (length === 0) return false;
+    if (
+      path.charCodeAt(segmentStart) === DOT &&
+      (length === 1 || (length === 2 && path.charCodeAt(segmentStart + 1) === DOT))
+    )
+      return false;
+    segmentStart = i + 1;
   }
   return true;
 }

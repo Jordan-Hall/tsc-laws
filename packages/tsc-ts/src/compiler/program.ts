@@ -100,6 +100,7 @@ import {
 } from './tsconfig.js';
 import { SyntaxKind } from './syntax-kind.js';
 import { KnownSymlinks } from './symlinks.js';
+import { mark } from './timeline.js';
 import { LanguageVariant } from './types.js';
 
 export class Program implements OutputPathsHost {
@@ -114,14 +115,16 @@ export class Program implements OutputPathsHost {
   private packagesMap: Map<string, boolean> | undefined = undefined;
   private symlinks: KnownSymlinks | undefined = undefined;
 
+  /** `loader`, if given, is a FileLoader of `host` and `commandLine` that has not loaded yet. */
   constructor(
     readonly commandLine: ParsedCommandLine,
     readonly host: CompilerHost,
+    loader?: FileLoader,
   ) {
     this.options = commandLine.options;
     this.currentDirectory = host.currentDirectory;
     this.useCaseSensitiveFileNames = host.fs.useCaseSensitiveFileNames;
-    this.processed = new FileLoader(host, commandLine).load();
+    this.processed = (loader ?? new FileLoader(host, commandLine)).load();
     this.includeProcessor = this.processed.includeProcessor;
     this.verifyCompilerOptions();
   }
@@ -245,13 +248,17 @@ export class Program implements OutputPathsHost {
         for (const resolved of resolutions.values())
           symlinks.processResolution(resolved.originalPath, resolved.resolvedFileName);
     const seenPackageJsons = new Set<string>();
+    // Directories as spelled, once one of their files got past the checks below: every file of a
+    // package names its directory the same, and its path need not be computed again.
+    const seenDirectories = new Set<string>();
     const resolver = this.processed.resolver;
     for (const [path, metadata] of this.processed.sourceFileMetadata) {
       const directory = metadata.packageJsonDirectory;
-      if (directory === '') continue;
+      if (directory === '' || seenDirectories.has(directory)) continue;
       const file = this.getSourceFileByPath(path);
       if (file === undefined || !this.sourceFileMayBeEmitted(file, false)) continue;
       const directoryPath = this.toPath(directory);
+      seenDirectories.add(directory);
       if (seenPackageJsons.has(directoryPath)) continue;
       seenPackageJsons.add(directoryPath);
       const packageJsonName = combinePaths(directory, 'package.json');
@@ -479,8 +486,11 @@ export class Program implements OutputPathsHost {
    */
   prepareForSharing(): void {
     this.getSymlinkCache();
+    mark('symlink cache');
     this.getPackagesMap();
+    mark('packages map');
     this.includeProcessor.diagnostics(this);
+    mark('include diagnostics');
     this.commonSourceDirectory();
     // File system and resolution lookups that checking and declaration emit add later (module
     // specifiers probe files and `package.json` scopes) go to tables of each thread.
