@@ -5,12 +5,12 @@
 // a substring of project names to run only those, and PROGRAM_SHARD to `i/n` to run every nth run starting at the ith.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { execFile, execFileSync } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { existsSync, mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { fixtureProjects, testCaseProjects } from './program-cases.mjs';
-import { compiledDir, tempDir } from './temp.mjs';
+import { compileSources, tempDir } from './temp.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '../../..');
@@ -18,29 +18,10 @@ const tsgo = join(root, 'packages/tsgo/dist/tsgo');
 const bundledLibs = join(root, 'upstream/typescript-go/internal/bundled/libs');
 const testsRoot = join(root, 'upstream/TypeScript/tests/cases');
 const workers = Number(process.env.TEST_WORKERS ?? 12);
+// Lets the many Node processes share compiled code (https://nodejs.org/api/module.html#module-compile-cache).
+const compileCache = process.env.NODE_COMPILE_CACHE ? { NODE_COMPILE_CACHE: process.env.NODE_COMPILE_CACHE } : {};
 
-const out = compiledDir('tsc-ts-program-');
-execFileSync(
-  join(root, 'node_modules/.bin/tsc'),
-  [
-    '--outDir',
-    out,
-    '--rootDir',
-    resolve(here, '../src'),
-    '--target',
-    'es2024',
-    '--module',
-    'nodenext',
-    '--moduleResolution',
-    'nodenext',
-    '--strict',
-    '--skipLibCheck',
-    '--types',
-    'node',
-    resolve(here, '../src/drivers/cli.ts'),
-  ],
-  { stdio: 'inherit', cwd: root },
-);
+const out = compileSources('tsc-ts-program-', ['drivers/cli.ts']);
 const ours = process.env.TSC_TS_CLI ? [process.env.TSC_TS_CLI] : [process.execPath, join(out, 'drivers/cli.js')];
 const decls = await import(pathToFileURL(join(out, 'compiler/option-declarations.js')).href);
 
@@ -67,7 +48,7 @@ function setUp(project) {
 }
 
 function run(command, args, cwd) {
-  const env = { PATH: process.env.PATH ?? '', TSC_TS_BUNDLED_LIBS: bundledLibs, NO_COLOR: '1' };
+  const env = { PATH: process.env.PATH ?? '', TSC_TS_BUNDLED_LIBS: bundledLibs, NO_COLOR: '1', ...compileCache };
   return new Promise((done) => {
     execFile(
       command[0],

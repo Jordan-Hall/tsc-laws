@@ -1,9 +1,9 @@
 // Shared by the parser test and scripts/parse-corpus.mjs: test case discovery, splitting
 // multi-file cases, building the parse driver, and comparing it with the encode oracle.
-import { execFileSync, spawn } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
-import { compiledDir, tempDir } from './temp.mjs';
+import { compileSources, tempDir } from './temp.mjs';
 
 export const root = resolve(import.meta.dirname, '..');
 export const repo = resolve(root, '../..');
@@ -99,26 +99,7 @@ export function materialize(files, prefix = 'tsc-ts-parse-cases-') {
 
 /** Compiles the parse driver with tsc and returns the command that runs it under Node. */
 export function buildDriver() {
-  const out = compiledDir('tsc-ts-parse-');
-  execFileSync(
-    resolve(repo, 'node_modules/.bin/tsc'),
-    [
-      '--outDir',
-      out,
-      '--strict',
-      '--target',
-      'es2024',
-      '--module',
-      'nodenext',
-      '--moduleResolution',
-      'nodenext',
-      '--types',
-      'node',
-      '--skipLibCheck',
-      join(root, 'src/drivers/parse.ts'),
-    ],
-    { stdio: 'inherit' },
-  );
+  const out = compileSources('tsc-ts-parse-', ['drivers/parse.ts']);
   return [process.execPath, '--stack-size=16000', join(out, 'drivers/parse.js')];
 }
 

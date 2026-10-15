@@ -1,34 +1,14 @@
 // Shared by the binder test and scripts/bind-corpus.mjs: building the bind driver and
 // comparing it with the bind oracle.
-import { execFileSync } from 'node:child_process';
 import { join, resolve } from 'node:path';
-import { repo, root, run } from './parser-cases.mjs';
-import { compiledDir } from './temp.mjs';
+import { repo, run } from './parser-cases.mjs';
+import { compileSources } from './temp.mjs';
 
 export const bindOracle = resolve(repo, 'packages/tsgo/dist/bind-oracle');
 
 /** Compiles the bind driver with tsc and returns the command that runs it under Node. */
 export function buildBindDriver() {
-  const out = compiledDir('tsc-ts-bind-');
-  execFileSync(
-    resolve(repo, 'node_modules/.bin/tsc'),
-    [
-      '--outDir',
-      out,
-      '--strict',
-      '--target',
-      'es2024',
-      '--module',
-      'nodenext',
-      '--moduleResolution',
-      'nodenext',
-      '--types',
-      'node',
-      '--skipLibCheck',
-      join(root, 'src/drivers/bind.ts'),
-    ],
-    { stdio: 'inherit' },
-  );
+  const out = compileSources('tsc-ts-bind-', ['drivers/bind.ts']);
   return [process.execPath, '--stack-size=16000', join(out, 'drivers/bind.js')];
 }
 

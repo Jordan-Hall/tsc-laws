@@ -1,35 +1,16 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { compiledDir } from './temp.mjs';
+import { compileSources } from './temp.mjs';
 
 // Vectors come from zeebo/xxh3 via xxh3-vectors/main.go (`go run . > vectors.json`).
 const here = dirname(fileURLToPath(import.meta.url));
-const root = resolve(here, '../../..');
 const vectors = JSON.parse(readFileSync(join(here, 'xxh3-vectors/vectors.json'), 'utf8'));
 
-const out = compiledDir('tsc-ts-xxh3-');
-execFileSync(
-  join(root, 'node_modules/.bin/tsc'),
-  [
-    '--outDir',
-    out,
-    '--target',
-    'es2024',
-    '--module',
-    'nodenext',
-    '--moduleResolution',
-    'nodenext',
-    '--strict',
-    '--skipLibCheck',
-    resolve(here, '../src/compiler/xxh3.ts'),
-  ],
-  { stdio: 'inherit' },
-);
-const { hash128, hash128String, toHex, Hasher128 } = await import(pathToFileURL(join(out, 'xxh3.js')).href);
+const out = compileSources('tsc-ts-xxh3-', ['compiler/xxh3.ts']);
+const { hash128, hash128String, toHex, Hasher128 } = await import(pathToFileURL(join(out, 'compiler/xxh3.js')).href);
 
 /** Matches `input` in main.go. */
 function input(n) {

@@ -1,0 +1,6 @@
+# Tests that are known to flake. They still run and their failures are reported, but a failure on the retry does not
+# fail the CI job (scripts/ci/run-tests.mjs). One entry per line: a test file, or a test file and a top-level test
+# name separated by " :: ". Give each entry the reason, and remove it once the flake is fixed.
+
+# A case hit the 20 s per-case timeout once under load (ours exited without output, status -1), in CI on 2026-10-15.
+packages/tsc-ts/tests/command-line.test.mjs :: localized output

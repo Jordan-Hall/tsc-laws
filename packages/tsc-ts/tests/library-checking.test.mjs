@@ -4,7 +4,8 @@
 // status, and the build info of incremental runs. Each project runs with several option combinations,
 // skipLibCheck and skipDefaultLibCheck included. Projects with packages in node_modules check module
 // resolution and the checks that depend on it the same way.
-// Set LIBRARY_FILTER to a substring of project names to run only those.
+// Set LIBRARY_FILTER to a substring of project names to run only those, and LIBRARY_SHARD to `i/n` to run every nth
+// run of each test starting at the ith.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
@@ -20,6 +21,8 @@ const tsgo = join(root, 'packages/tsgo/dist/tsgo');
 const bundledLibs = join(root, 'upstream/typescript-go/internal/bundled/libs');
 const skip = (!existsSync(tsgo) && 'needs packages/tsgo/dist/tsgo') || tscTsMissing;
 const workers = Number(process.env.TEST_WORKERS ?? 8);
+// Lets the many Node processes share compiled code (https://nodejs.org/api/module.html#module-compile-cache).
+const compileCache = process.env.NODE_COMPILE_CACHE ? { NODE_COMPILE_CACHE: process.env.NODE_COMPILE_CACHE } : {};
 
 const base = { target: 'ES2025', module: 'NodeNext', strict: true, noEmit: true, types: [], pretty: false };
 
@@ -227,7 +230,7 @@ function writeFiles(dir, files) {
 function run(command, files) {
   const cwd = tempDir('tsc-ts-library-');
   writeFiles(cwd, files);
-  const env = { PATH: process.env.PATH ?? '', TSC_TS_BUNDLED_LIBS: bundledLibs, NO_COLOR: '1' };
+  const env = { PATH: process.env.PATH ?? '', TSC_TS_BUNDLED_LIBS: bundledLibs, NO_COLOR: '1', ...compileCache };
   const args = [...command.slice(1), '-p', '.'];
   return new Promise((done) => {
     execFile(command[0], args, { cwd, env, encoding: 'utf8', maxBuffer: 1 << 26 }, (error, stdout, stderr) => {
@@ -259,7 +262,7 @@ function firstDifference(a, b) {
 /** Runs each project with each variant through tsgo and tsc-ts and asserts that they match. */
 async function compareProjects(t, projectList, variantList) {
   const filter = process.env.LIBRARY_FILTER;
-  const runs = [];
+  let runs = [];
   for (const [name, source, options = {}] of projectList) {
     if (filter !== undefined && !name.includes(filter)) continue;
     const { files: rootFiles, ...projectOptions } = options;
@@ -273,6 +276,8 @@ async function compareProjects(t, projectList, variantList) {
       });
     }
   }
+  const shard = /^(\d+)\/(\d+)$/.exec(process.env.LIBRARY_SHARD ?? '');
+  if (shard !== null) runs = runs.filter((_, i) => i % Number(shard[2]) === Number(shard[1]) - 1);
   const failures = [];
   let errors = 0;
   let next = 0;
