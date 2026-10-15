@@ -362,12 +362,8 @@ class IdentifierTable {
   private text: string;
   // Pairs of (entry index + 1, hash) per slot, (0, 0) when empty; linear probing.
   private slots: Int32Array;
-  // Each entry's code units, at its offset in `units`: compact, so probes stay in cache.
-  private units: Uint16Array;
-  private unitCount: number;
-  // Pairs of (offset in `units`, length) per entry: one array for both, so a lookup reads (and, in
-  // native builds, retains) one array less.
-  private ranges: Int32Array;
+  // Each entry's length in code units.
+  private lengths: Int32Array;
   private texts: string[];
   private count: number;
   // Per entry: 1 once its text was recorded among the file's identifier texts (`markRecorded`).
@@ -378,9 +374,7 @@ class IdentifierTable {
   constructor(text: string) {
     this.text = text;
     this.slots = new Int32Array(512);
-    this.units = new Uint16Array(1024);
-    this.unitCount = 0;
-    this.ranges = new Int32Array(256);
+    this.lengths = new Int32Array(128);
     this.texts = [];
     this.count = 0;
     this.recorded = new Uint8Array(128);
@@ -406,13 +400,16 @@ class IdentifierTable {
     this.slots.fill(0);
     this.recorded.fill(0, 0, this.count);
     this.texts.length = 0;
-    this.unitCount = 0;
     this.count = 0;
     this.lastEntry = -1;
   }
 
-  /** `text.substring(start, end)`, or the string interned for an equal range; `hash` is its `rangeHash`. */
-  intern(chars: Uint16Array, start: number, end: number, hash: number): string {
+  /**
+   * `text.substring(start, end)`, or the string interned for an equal range; `hash` is its `rangeHash`.
+   * A candidate of the same hash and length is compared with `startsWith`, which natively compares
+   * the bytes of both strings at once.
+   */
+  intern(start: number, end: number, hash: number): string {
     start = start | 0;
     end = end | 0;
     hash = hash | 0;
@@ -423,43 +420,26 @@ class IdentifierTable {
     for (;;) {
       const entry = slots[(slot * 2) | 0] | 0;
       if (entry === 0) break;
-      if ((slots[(slot * 2 + 1) | 0] | 0) === hash) {
-        const ranges = this.ranges;
-        const at = ((entry - 1) * 2) | 0;
-        if ((ranges[(at + 1) | 0] | 0) === length) {
-          const units = this.units;
-          const offset = ranges[at] | 0;
-          let i = 0;
-          while (i < length && (units[(offset + i) | 0] | 0) === (chars[(start + i) | 0] | 0)) i = (i + 1) | 0;
-          if (i === length) {
-            this.lastEntry = (entry - 1) | 0;
-            return this.texts[(entry - 1) | 0]!;
-          }
+      if ((slots[(slot * 2 + 1) | 0] | 0) === hash && (this.lengths[(entry - 1) | 0] | 0) === length) {
+        const candidate = this.texts[(entry - 1) | 0]!;
+        if (this.text.startsWith(candidate, start)) {
+          this.lastEntry = (entry - 1) | 0;
+          return candidate;
         }
       }
       slot = (slot + 1) & mask;
     }
     const value = this.text.substring(start, end);
     const index = this.count | 0;
-    if (index * 2 === this.ranges.length) {
-      const ranges = new Int32Array(index * 4);
-      ranges.set(this.ranges);
-      this.ranges = ranges;
+    if (index === this.lengths.length) {
+      const lengths = new Int32Array(index * 2);
+      lengths.set(this.lengths);
+      this.lengths = lengths;
       const recorded = new Uint8Array(index * 2);
       recorded.set(this.recorded);
       this.recorded = recorded;
     }
-    let units = this.units;
-    const offset = this.unitCount | 0;
-    if (offset + length > units.length) {
-      units = new Uint16Array(Math.max(units.length * 2, offset + length));
-      units.set(this.units);
-      this.units = units;
-    }
-    units.set(chars.subarray(start, end), offset);
-    this.unitCount = (offset + length) | 0;
-    this.ranges[(index * 2) | 0] = offset;
-    this.ranges[(index * 2 + 1) | 0] = length;
+    this.lengths[index] = length;
     this.texts.push(value);
     this.count = (index + 1) | 0;
     this.lastEntry = index;
@@ -819,7 +799,7 @@ export class Scanner {
       const end = this.valueEnd;
       const hash =
         start === this.hashStart && end === this.hashEnd ? this.valueHash : rangeHash(this.chars, start, end);
-      this.tokenValue = this.identifiers.intern(this.chars, start, end, hash);
+      this.tokenValue = this.identifiers.intern(start, end, hash);
       this.valueStart = -1;
     }
     return this.tokenValue;
