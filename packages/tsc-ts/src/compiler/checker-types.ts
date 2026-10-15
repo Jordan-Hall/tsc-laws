@@ -1390,30 +1390,267 @@ export function appendTypeMapping(mapper: TypeMapper | undefined, source: Type, 
 
 /**
  * What the checker caches per symbol and rarely sets. Common values (the type, target, mapper, name type
- * and others) are columns of `Checker` instead; see link-tables.ts.
+ * and others) are columns of `Checker` instead; see link-tables.ts. The fields most links objects have
+ * are fields of this class; the others are in a RareSymbolLinks object, created on the first write of
+ * one of them, behind accessors.
  */
 export class SymbolLinks implements ProgramLifetime {
-  // Values
-  writeType: Type | undefined;
   /** Constituents of a deferred union/intersection property type. */
   deferralParent: Type | undefined;
   deferralConstituents: Type[] | undefined;
-  deferralWriteConstituents: Type[] | undefined;
-  functionOrConstructorChecked: boolean;
-  // Aliases
   immediateTarget: Symbol | undefined;
   aliasTarget: Symbol | undefined;
-  aliasReferenced: boolean;
-  typeOnlyDeclaration: Node | undefined;
-  // Modules and late-bound containers
   resolvedExports: SymbolTable | undefined;
   resolvedMembers: SymbolTable | undefined;
+  declaredType: Type | undefined;
+  /** The other links, created on first write. */
+  private rareLinks: RareSymbolLinks | undefined;
+  functionOrConstructorChecked: boolean;
+  aliasReferenced: boolean;
+
+  constructor() {
+    this.deferralParent = undefined;
+    this.deferralConstituents = undefined;
+    this.functionOrConstructorChecked = false;
+    this.immediateTarget = undefined;
+    this.aliasTarget = undefined;
+    this.aliasReferenced = false;
+    this.resolvedExports = undefined;
+    this.resolvedMembers = undefined;
+    this.declaredType = undefined;
+    this.rareLinks = undefined;
+  }
+
+  private rare(): RareSymbolLinks {
+    let rare = this.rareLinks;
+    if (rare === undefined) {
+      rare = new RareSymbolLinks();
+      this.rareLinks = rare;
+    }
+    return rare;
+  }
+
+  get writeType(): Type | undefined {
+    const rare = this.rareLinks;
+    return rare === undefined ? undefined : rare.writeType;
+  }
+
+  set writeType(value: Type | undefined) {
+    if (value === undefined && this.rareLinks === undefined) return;
+    this.rare().writeType = value;
+  }
+
+  get deferralWriteConstituents(): Type[] | undefined {
+    const rare = this.rareLinks;
+    return rare === undefined ? undefined : rare.deferralWriteConstituents;
+  }
+
+  set deferralWriteConstituents(value: Type[] | undefined) {
+    if (value === undefined && this.rareLinks === undefined) return;
+    this.rare().deferralWriteConstituents = value;
+  }
+
+  get typeOnlyDeclaration(): Node | undefined {
+    const rare = this.rareLinks;
+    return rare === undefined ? undefined : rare.typeOnlyDeclaration;
+  }
+
+  set typeOnlyDeclaration(value: Node | undefined) {
+    if (value === undefined && this.rareLinks === undefined) return;
+    this.rare().typeOnlyDeclaration = value;
+  }
+
+  get typeOnlyExportStarMap(): Map<string, Node> | undefined {
+    const rare = this.rareLinks;
+    return rare === undefined ? undefined : rare.typeOnlyExportStarMap;
+  }
+
+  set typeOnlyExportStarMap(value: Map<string, Node> | undefined) {
+    if (value === undefined && this.rareLinks === undefined) return;
+    this.rare().typeOnlyExportStarMap = value;
+  }
+
+  get exportsChecked(): boolean {
+    const rare = this.rareLinks;
+    return rare === undefined ? false : rare.exportsChecked;
+  }
+
+  set exportsChecked(value: boolean) {
+    if (value === false && this.rareLinks === undefined) return;
+    this.rare().exportsChecked = value;
+  }
+
+  get lateSymbol(): Symbol | undefined {
+    const rare = this.rareLinks;
+    return rare === undefined ? undefined : rare.lateSymbol;
+  }
+
+  set lateSymbol(value: Symbol | undefined) {
+    if (value === undefined && this.rareLinks === undefined) return;
+    this.rare().lateSymbol = value;
+  }
+
+  get typeParameters(): Type[] | undefined {
+    const rare = this.rareLinks;
+    return rare === undefined ? undefined : rare.typeParameters;
+  }
+
+  set typeParameters(value: Type[] | undefined) {
+    if (value === undefined && this.rareLinks === undefined) return;
+    this.rare().typeParameters = value;
+  }
+
+  get instantiations(): Map<string, Type> | undefined {
+    const rare = this.rareLinks;
+    return rare === undefined ? undefined : rare.instantiations;
+  }
+
+  set instantiations(value: Map<string, Type> | undefined) {
+    if (value === undefined && this.rareLinks === undefined) return;
+    this.rare().instantiations = value;
+  }
+
+  get interfaceChecked(): boolean {
+    const rare = this.rareLinks;
+    return rare === undefined ? false : rare.interfaceChecked;
+  }
+
+  set interfaceChecked(value: boolean) {
+    if (value === false && this.rareLinks === undefined) return;
+    this.rare().interfaceChecked = value;
+  }
+
+  get indexSignaturesChecked(): boolean {
+    const rare = this.rareLinks;
+    return rare === undefined ? false : rare.indexSignaturesChecked;
+  }
+
+  set indexSignaturesChecked(value: boolean) {
+    if (value === false && this.rareLinks === undefined) return;
+    this.rare().indexSignaturesChecked = value;
+  }
+
+  get typeParametersChecked(): boolean {
+    const rare = this.rareLinks;
+    return rare === undefined ? false : rare.typeParametersChecked;
+  }
+
+  set typeParametersChecked(value: boolean) {
+    if (value === false && this.rareLinks === undefined) return;
+    this.rare().typeParametersChecked = value;
+  }
+
+  get enumChecked(): boolean {
+    const rare = this.rareLinks;
+    return rare === undefined ? false : rare.enumChecked;
+  }
+
+  set enumChecked(value: boolean) {
+    if (value === false && this.rareLinks === undefined) return;
+    this.rare().enumChecked = value;
+  }
+
+  get variances(): VarianceFlags[] | undefined {
+    const rare = this.rareLinks;
+    return rare === undefined ? undefined : rare.variances;
+  }
+
+  set variances(value: VarianceFlags[] | undefined) {
+    if (value === undefined && this.rareLinks === undefined) return;
+    this.rare().variances = value;
+  }
+
+  get lastAssignmentPos(): number {
+    const rare = this.rareLinks;
+    return rare === undefined ? 0 : rare.lastAssignmentPos;
+  }
+
+  set lastAssignmentPos(value: number) {
+    if (value === 0 && this.rareLinks === undefined) return;
+    this.rare().lastAssignmentPos = value;
+  }
+
+  get hasDefiniteAssignment(): boolean {
+    const rare = this.rareLinks;
+    return rare === undefined ? false : rare.hasDefiniteAssignment;
+  }
+
+  set hasDefiniteAssignment(value: boolean) {
+    if (value === false && this.rareLinks === undefined) return;
+    this.rare().hasDefiniteAssignment = value;
+  }
+
+  get isConstructorDeclaredProperty(): boolean {
+    const rare = this.rareLinks;
+    return rare === undefined ? false : rare.isConstructorDeclaredProperty;
+  }
+
+  set isConstructorDeclaredProperty(value: boolean) {
+    if (value === false && this.rareLinks === undefined) return;
+    this.rare().isConstructorDeclaredProperty = value;
+  }
+
+  get thisAssignmentKind(): number {
+    const rare = this.rareLinks;
+    return rare === undefined ? 0 : rare.thisAssignmentKind;
+  }
+
+  set thisAssignmentKind(value: number) {
+    if (value === 0 && this.rareLinks === undefined) return;
+    this.rare().thisAssignmentKind = value;
+  }
+
+  get thisAssignmentLocation(): Node | undefined {
+    const rare = this.rareLinks;
+    return rare === undefined ? undefined : rare.thisAssignmentLocation;
+  }
+
+  set thisAssignmentLocation(value: Node | undefined) {
+    if (value === undefined && this.rareLinks === undefined) return;
+    this.rare().thisAssignmentLocation = value;
+  }
+
+  get reverseMappedPropertyType(): Type | undefined {
+    const rare = this.rareLinks;
+    return rare === undefined ? undefined : rare.reverseMappedPropertyType;
+  }
+
+  set reverseMappedPropertyType(value: Type | undefined) {
+    if (value === undefined && this.rareLinks === undefined) return;
+    this.rare().reverseMappedPropertyType = value;
+  }
+
+  get reverseMappedMappedType(): Type | undefined {
+    const rare = this.rareLinks;
+    return rare === undefined ? undefined : rare.reverseMappedMappedType;
+  }
+
+  set reverseMappedMappedType(value: Type | undefined) {
+    if (value === undefined && this.rareLinks === undefined) return;
+    this.rare().reverseMappedMappedType = value;
+  }
+
+  get reverseMappedConstraintType(): Type | undefined {
+    const rare = this.rareLinks;
+    return rare === undefined ? undefined : rare.reverseMappedConstraintType;
+  }
+
+  set reverseMappedConstraintType(value: Type | undefined) {
+    if (value === undefined && this.rareLinks === undefined) return;
+    this.rare().reverseMappedConstraintType = value;
+  }
+}
+
+/** The links of a symbol that few symbols have (SymbolLinks). */
+export class RareSymbolLinks implements ProgramLifetime {
+  // Values
+  writeType: Type | undefined;
+  deferralWriteConstituents: Type[] | undefined;
+  typeOnlyDeclaration: Node | undefined;
   /** Exports reached only through `export type *`, by name. */
   typeOnlyExportStarMap: Map<string, Node> | undefined;
   exportsChecked: boolean;
   lateSymbol: Symbol | undefined;
-  // Declared types
-  declaredType: Type | undefined;
   /** Type parameters of a type alias. */
   typeParameters: Type[] | undefined;
   /** Instantiations of a generic type alias. */
@@ -1438,20 +1675,11 @@ export class SymbolLinks implements ProgramLifetime {
 
   constructor() {
     this.writeType = undefined;
-    this.deferralParent = undefined;
-    this.deferralConstituents = undefined;
     this.deferralWriteConstituents = undefined;
-    this.functionOrConstructorChecked = false;
-    this.immediateTarget = undefined;
-    this.aliasTarget = undefined;
-    this.aliasReferenced = false;
     this.typeOnlyDeclaration = undefined;
-    this.resolvedExports = undefined;
-    this.resolvedMembers = undefined;
     this.typeOnlyExportStarMap = undefined;
     this.exportsChecked = false;
     this.lateSymbol = undefined;
-    this.declaredType = undefined;
     this.typeParameters = undefined;
     this.instantiations = undefined;
     this.interfaceChecked = false;
@@ -1472,15 +1700,179 @@ export class SymbolLinks implements ProgramLifetime {
 
 /**
  * What the checker caches per node and rarely sets. The resolved symbol, type and signature are columns of
- * `Checker` instead; see link-tables.ts.
+ * `Checker` instead; see link-tables.ts. As in SymbolLinks, the fields few links objects have are in a
+ * RareNodeLinks object behind accessors.
  */
 export class NodeLinks implements ProgramLifetime {
-  flags: NodeCheckFlags;
   /** Outer type parameters of an anonymous object type node. */
   outerTypeParameters: Type[] | undefined;
   effectsSignature: Signature | undefined;
   /** Type of an assertion's operand. */
   assertionExpressionType: Type | undefined;
+  /** The other links, created on first write. */
+  private rareLinks: RareNodeLinks | undefined;
+  flags: NodeCheckFlags;
+
+  constructor() {
+    this.flags = NodeCheckFlags.None;
+    this.outerTypeParameters = undefined;
+    this.effectsSignature = undefined;
+    this.assertionExpressionType = undefined;
+    this.rareLinks = undefined;
+  }
+
+  private rare(): RareNodeLinks {
+    let rare = this.rareLinks;
+    if (rare === undefined) {
+      rare = new RareNodeLinks();
+      this.rareLinks = rare;
+    }
+    return rare;
+  }
+
+  get contextFreeType(): Type | undefined {
+    const rare = this.rareLinks;
+    return rare === undefined ? undefined : rare.contextFreeType;
+  }
+
+  set contextFreeType(value: Type | undefined) {
+    if (value === undefined && this.rareLinks === undefined) return;
+    this.rare().contextFreeType = value;
+  }
+
+  get enumStringValue(): string {
+    const rare = this.rareLinks;
+    return rare === undefined ? '' : rare.enumStringValue;
+  }
+
+  set enumStringValue(value: string) {
+    if (value === '' && this.rareLinks === undefined) return;
+    this.rare().enumStringValue = value;
+  }
+
+  get enumNumberValue(): number {
+    const rare = this.rareLinks;
+    return rare === undefined ? 0 : rare.enumNumberValue;
+  }
+
+  set enumNumberValue(value: number) {
+    if (value === 0 && this.rareLinks === undefined) return;
+    this.rare().enumNumberValue = value;
+  }
+
+  get enumValueKind(): number {
+    const rare = this.rareLinks;
+    return rare === undefined ? 0 : rare.enumValueKind;
+  }
+
+  set enumValueKind(value: number) {
+    if (value === 0 && this.rareLinks === undefined) return;
+    this.rare().enumValueKind = value;
+  }
+
+  get hasReportedStatementInAmbientContext(): boolean {
+    const rare = this.rareLinks;
+    return rare === undefined ? false : rare.hasReportedStatementInAmbientContext;
+  }
+
+  set hasReportedStatementInAmbientContext(value: boolean) {
+    if (value === false && this.rareLinks === undefined) return;
+    this.rare().hasReportedStatementInAmbientContext = value;
+  }
+
+  get declarationRequiresScopeChange(): number {
+    const rare = this.rareLinks;
+    return rare === undefined ? 0 : rare.declarationRequiresScopeChange;
+  }
+
+  set declarationRequiresScopeChange(value: number) {
+    if (value === 0 && this.rareLinks === undefined) return;
+    this.rare().declarationRequiresScopeChange = value;
+  }
+
+  get typeChecked(): boolean {
+    const rare = this.rareLinks;
+    return rare === undefined ? false : rare.typeChecked;
+  }
+
+  set typeChecked(value: boolean) {
+    if (value === false && this.rareLinks === undefined) return;
+    this.rare().typeChecked = value;
+  }
+
+  get deferredNodes(): Node[] | undefined {
+    const rare = this.rareLinks;
+    return rare === undefined ? undefined : rare.deferredNodes;
+  }
+
+  set deferredNodes(value: Node[] | undefined) {
+    if (value === undefined && this.rareLinks === undefined) return;
+    this.rare().deferredNodes = value;
+  }
+
+  get switchTypes(): Type[] | undefined {
+    const rare = this.rareLinks;
+    return rare === undefined ? undefined : rare.switchTypes;
+  }
+
+  set switchTypes(value: Type[] | undefined) {
+    if (value === undefined && this.rareLinks === undefined) return;
+    this.rare().switchTypes = value;
+  }
+
+  get switchWitnesses(): string[] | undefined {
+    const rare = this.rareLinks;
+    return rare === undefined ? undefined : rare.switchWitnesses;
+  }
+
+  set switchWitnesses(value: string[] | undefined) {
+    if (value === undefined && this.rareLinks === undefined) return;
+    this.rare().switchWitnesses = value;
+  }
+
+  get switchWitnessesValid(): boolean {
+    const rare = this.rareLinks;
+    return rare === undefined ? false : rare.switchWitnessesValid;
+  }
+
+  set switchWitnessesValid(value: boolean) {
+    if (value === false && this.rareLinks === undefined) return;
+    this.rare().switchWitnessesValid = value;
+  }
+
+  get exhaustiveState(): number {
+    const rare = this.rareLinks;
+    return rare === undefined ? 0 : rare.exhaustiveState;
+  }
+
+  set exhaustiveState(value: number) {
+    if (value === 0 && this.rareLinks === undefined) return;
+    this.rare().exhaustiveState = value;
+  }
+
+  get decoratorSignature(): Signature | undefined {
+    const rare = this.rareLinks;
+    return rare === undefined ? undefined : rare.decoratorSignature;
+  }
+
+  set decoratorSignature(value: Signature | undefined) {
+    if (value === undefined && this.rareLinks === undefined) return;
+    this.rare().decoratorSignature = value;
+  }
+
+  get containsArgumentsReference(): number {
+    const rare = this.rareLinks;
+    return rare === undefined ? 0 : rare.containsArgumentsReference;
+  }
+
+  set containsArgumentsReference(value: number) {
+    if (value === 0 && this.rareLinks === undefined) return;
+    this.rare().containsArgumentsReference = value;
+  }
+}
+
+/** The links of a node that few nodes have (NodeLinks). */
+export class RareNodeLinks implements ProgramLifetime {
   /** Context-free type of an expression. */
   contextFreeType: Type | undefined;
   /** Enum member value: a string, or a number when `enumValueIsNumber`. */
@@ -1492,7 +1884,6 @@ export class NodeLinks implements ProgramLifetime {
   /** For source files: whether the file has been checked, and its nodes waiting for a deferred check. */
   typeChecked: boolean;
   deferredNodes: Node[] | undefined;
-
   /** Case clause types of a switch statement. */
   switchTypes: Type[] | undefined;
   /** `typeof` case texts of a switch statement; '' for default and duplicates. */
@@ -1502,16 +1893,10 @@ export class NodeLinks implements ProgramLifetime {
   exhaustiveState: number;
   /** The signature the runtime calls a decorator of this declaration with. */
   decoratorSignature: Signature | undefined;
-
   /** Whether a function body references `arguments`: 0 until computed, 1 for no, 2 for yes. */
   containsArgumentsReference: number;
 
   constructor() {
-    this.containsArgumentsReference = 0;
-    this.flags = NodeCheckFlags.None;
-    this.outerTypeParameters = undefined;
-    this.effectsSignature = undefined;
-    this.assertionExpressionType = undefined;
     this.contextFreeType = undefined;
     this.enumStringValue = '';
     this.enumNumberValue = 0;
@@ -1525,5 +1910,6 @@ export class NodeLinks implements ProgramLifetime {
     this.switchWitnessesValid = false;
     this.exhaustiveState = 0;
     this.decoratorSignature = undefined;
+    this.containsArgumentsReference = 0;
   }
 }
