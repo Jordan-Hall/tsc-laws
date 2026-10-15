@@ -231,6 +231,39 @@ const scenarios = {
       },
     ],
   },
+  'modules augmented in several files': {
+    files: {
+      'tsconfig.json':
+        '{"compilerOptions":{"strict":true,"noEmit":true,"incremental":true,"esModuleInterop":true,"types":[]},' +
+        '"files":["a.ts","m.ts","m-aug1.ts","m-aug2.ts"]}',
+      // A package whose `export =` target is augmented in two files.
+      'node_modules/@types/lib/package.json': '{"name":"@types/lib","version":"1.0.0"}',
+      'node_modules/@types/lib/index.d.ts':
+        '/// <reference path="./common/one.d.ts" />\n/// <reference path="./common/two.d.ts" />\n' +
+        'export = _;\nexport as namespace _;\ndeclare const _: _.Static;\ndeclare namespace _ {\n  interface Static {}\n}\n',
+      'node_modules/@types/lib/common/one.d.ts':
+        'import _ = require("../index");\ndeclare module "../index" {\n  interface Static { one(): number; }\n}\n',
+      'node_modules/@types/lib/common/two.d.ts':
+        'import _ = require("../index");\ndeclare module "../index" {\n  interface Static { two(): number; }\n}\n',
+      // A module of the program augmented in two files.
+      'm.ts': 'export interface M { m: number; }\n',
+      'm-aug1.ts': 'export {};\ndeclare module "./m" { interface M { aug1: number; } }\n',
+      'm-aug2.ts': 'export {};\ndeclare module "./m" { interface M { aug2: number; } }\n',
+      'a.ts':
+        'import _ from "lib";\nimport type { M } from "./m";\nexport const a = (m: M) => _.one() + _.two() + m.aug1;\n',
+    },
+    steps: [
+      { args: [] },
+      { args: [], edit: { 'm-aug2.ts': 'export {};\ndeclare module "./m" { interface M { aug2: string; } }\n' } },
+      {
+        args: [],
+        edit: {
+          'node_modules/@types/lib/common/two.d.ts':
+            'import _ = require("../index");\ndeclare module "../index" {\n  interface Static { two(): string; }\n}\n',
+        },
+      },
+    ],
+  },
   'explainFiles and statistics': {
     files: {
       'tsconfig.json': '{"compilerOptions":{"outDir":"out"},"files":["a.ts"]}',

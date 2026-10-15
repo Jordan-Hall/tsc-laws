@@ -35,12 +35,8 @@ import {
   isBuildInfoFileNameDefaultLibrary,
   parseBuildInfo,
 } from './build-info.js';
-import {
-  type DiagnosticDetails,
-  modeMismatchDetails,
-  moduleNotFoundDetails,
-  resolveExternalModuleName,
-} from './checker-modules.js';
+import { type DiagnosticDetails, modeMismatchDetails, moduleNotFoundDetails } from './checker-modules.js';
+import { getSymbolAtLocation } from './checker-services.js';
 import { resolveAlias } from './checker-symbols.js';
 import {
   CompilerProgram,
@@ -730,7 +726,7 @@ function getReferencedFiles(
   const checker = checked.checker;
   const referenced = new Set<string>();
   for (const importName of file.imports) {
-    addReferencedFilesFromSymbol(file, referenced, resolveExternalModuleName(checker, importName, importName, true));
+    addReferencedFilesFromSymbol(file, referenced, getSymbolAtLocation(checker, importName));
   }
   const sourceFileDirectory = getDirectoryPath(file.fileName);
   for (const reference of file.referencedFiles) {
@@ -739,9 +735,11 @@ function getReferencedFiles(
   for (const resolved of program.getResolvedTypeReferenceDirectiveFiles(file.path)) {
     addReferencedFileFromFileName(program, resolved, referenced, sourceFileDirectory);
   }
+  // The symbol of an augmentation's name is the symbol the augmentation is merged into (the module, or the
+  // target of its `export =`), which has the declarations of every augmentation of the module.
   for (const moduleName of file.moduleAugmentations) {
     if (moduleName.kind !== SyntaxKind.StringLiteral) continue;
-    addReferencedFilesFromSymbol(file, referenced, resolveExternalModuleName(checker, moduleName, moduleName, true));
+    addReferencedFilesFromSymbol(file, referenced, getSymbolAtLocation(checker, moduleName));
   }
   for (const ambientModule of ambientModules) addReferencedFilesFromSymbol(file, referenced, ambientModule);
   return referenced.size > 0 ? referenced : undefined;
