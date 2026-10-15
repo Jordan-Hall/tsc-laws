@@ -561,6 +561,14 @@ export class FileLoader {
     }
     task.path = this.toPath(task.normalizedFilePath);
     this.loadTask(task);
+    const redirected = task.redirectedParseTask;
+    if (redirected !== undefined) {
+      // A source file of a referenced project: queue its output declaration file, which the program
+      // loads in its place. The redirected task has this task's include reason, which is undefined
+      // for a task loaded ahead, so no reference is recorded for it.
+      out.push(LoadKind.File, redirected.normalizedFilePath, depth);
+      return undefined;
+    }
     const references: LoadedReference[] = [];
     for (const sub of task.subTasks) {
       references.push(
@@ -581,8 +589,7 @@ export class FileLoader {
     }
     const file = task.file;
     // Traces are reported in the program's order: such programs resolve on their own.
-    if (file === undefined || task.redirectedParseTask !== undefined || this.options.traceResolution === true)
-      return undefined;
+    if (file === undefined || this.options.traceResolution === true) return undefined;
     return new LoadedFile(
       file,
       task.libFile !== undefined,
