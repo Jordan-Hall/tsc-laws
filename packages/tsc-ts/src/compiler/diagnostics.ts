@@ -139,6 +139,36 @@ function toWellFormed(text: string): string {
   return text;
 }
 
+/**
+ * Where this thread computes the line starts and UTF-8 offsets of files that may be shared with other
+ * threads (`useThreadTextCaches`): a copy of each such file, by file, that computes them in place.
+ */
+let threadCopies: Map<DiagnosticFile, DiagnosticFile> | undefined = undefined;
+
+/**
+ * Makes this thread compute the caches of files that do not have them yet in copies of its own: the
+ * files may be published (immutable) and shared with other threads. Declaration files leave the
+ * parser without them (`Parser.parseSourceFile`): they make up most of the text of a typical program,
+ * and are rarely checked or pointed into by a diagnostic.
+ */
+export function useThreadTextCaches(): void {
+  if (threadCopies === undefined) threadCopies = new Map<DiagnosticFile, DiagnosticFile>();
+}
+
+/** This thread's copy of `file` for its caches, if this thread computes them in copies. */
+function threadCopyOf(file: DiagnosticFile): DiagnosticFile | undefined {
+  const copies = threadCopies;
+  if (copies === undefined || file.isThreadCopy) return undefined;
+  let copy = copies.get(file);
+  if (copy === undefined) {
+    copy = new DiagnosticFile(file.fileName, file.text);
+    // A copy computes its caches in place, each on first use.
+    copy.isThreadCopy = true;
+    copies.set(file, copy);
+  }
+  return copy;
+}
+
 /** The position of the first code unit at or after `pos` that is a CR or below, or not ASCII; or `end`. */
 function skipPlainASCII(units: Uint16Array, pos: number, end: number): number {
   for (let i = pos | 0; i < end; i = (i + 1) | 0) {
@@ -154,6 +184,8 @@ export class DiagnosticFile {
   readonly text: string;
   // Computed on first use; never empty once computed.
   private lineStarts: number[] = [];
+  /** Whether this is a thread's copy of a possibly shared file (`threadCopyOf`). */
+  isThreadCopy = false;
 
   constructor(fileName: string, text: string) {
     this.fileName = fileName;
@@ -162,7 +194,7 @@ export class DiagnosticFile {
 
   /** Computes the line starts and UTF-8 offsets, so that later reads never write to the file. */
   computeCaches(): void {
-    this.getLineStarts();
+    if (this.lineStarts.length === 0) this.lineStarts = computeLineStarts(this.text);
     this.getNonASCIIStarts();
   }
 
@@ -226,7 +258,11 @@ export class DiagnosticFile {
 
   /** Start offsets of each line, split at CR, LF, CRLF, LS and PS. */
   getLineStarts(): readonly number[] {
-    if (this.lineStarts.length === 0) this.lineStarts = computeLineStarts(this.text);
+    if (this.lineStarts.length === 0) {
+      const copy = threadCopyOf(this);
+      if (copy !== undefined) return copy.getLineStarts();
+      this.lineStarts = computeLineStarts(this.text);
+    }
     return this.lineStarts;
   }
 
@@ -278,6 +314,10 @@ export class DiagnosticFile {
 
   /** The UTF-8 offset of UTF-16 offset `pos`, as tsgo counts positions. */
   toUtf8Offset(pos: number): number {
+    if (this.nonASCIIStarts === undefined) {
+      const copy = threadCopyOf(this);
+      if (copy !== undefined) return copy.toUtf8Offset(pos);
+    }
     const starts = this.getNonASCIIStarts();
     if (starts.length === 0 || pos <= 0 || pos > this.text.length) return pos;
     const count = this.countNonASCIIBefore(starts, pos);
@@ -291,6 +331,10 @@ export class DiagnosticFile {
 
   /** The UTF-16 offset of UTF-8 offset `pos`; inside a character, the offset of its start. */
   fromUtf8Offset(pos: number): number {
+    if (this.nonASCIIStarts === undefined) {
+      const copy = threadCopyOf(this);
+      if (copy !== undefined) return copy.fromUtf8Offset(pos);
+    }
     const starts = this.getNonASCIIStarts();
     if (starts.length === 0 || pos <= 0) return pos;
     const extraBytes = this.extraBytes;

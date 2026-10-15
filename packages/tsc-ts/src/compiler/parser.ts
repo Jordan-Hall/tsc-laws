@@ -792,9 +792,12 @@ export class Parser extends ScannerErrorReporter {
     }
     collectExternalModuleReferences(result);
     if (result.isJS()) result.jsDiagnostics = attachFileToDiagnostics(this.jsDiagnostics, result);
-    // The scanner holds the text's code units unless a nested parse cut its text short.
+    // Declaration files get their caches on first use (in a thread's copy once they may be shared,
+    // `useThreadTextCaches`); the file's DiagnosticFile exists from here on, so reading it never
+    // writes to the file. The scanner holds the text's code units unless a nested parse cut its text short.
     const scanner = this.scanner;
-    if (scanner.text === result.text && scanner.end === result.text.length)
+    if (result.isDeclarationFile) result.diagnosticFile();
+    else if (scanner.text === result.text && scanner.end === result.text.length)
       result.computeCachesFromUnits(scanner.chars);
     else result.computeCaches();
     return result;
