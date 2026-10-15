@@ -18,6 +18,7 @@ import {
   localizeMessage,
   type MessageWithArgs,
 } from './diagnostics.js';
+import type { ExternalModuleIndicatorOptions, SourceFile } from './ast.js';
 import { CompilerHost } from './file-loader.js';
 import { CachedFileSystem } from './file-system.js';
 import { defaultIsPretty, version } from './help.js';
@@ -186,6 +187,13 @@ class TaskBuildInfoReader extends BuildInfoReader {
 }
 
 /** A compiler host writing `--traceResolution` output to the system. */
+/**
+ * The declaration and JSON files parsed in the current build (BuildCompilerHost), by name, path and
+ * module detection options. Not reachable from the programs: a program shared with checker threads
+ * is immutable, and so is everything it refers to.
+ */
+let buildSourceFiles = new Map<string, SourceFile>();
+
 class BuildCompilerHost extends CompilerHost {
   constructor(
     private readonly sys: System,
@@ -193,6 +201,33 @@ class BuildCompilerHost extends CompilerHost {
     private readonly locale: Locale,
   ) {
     super(fs, sys.currentDirectory, sys.defaultLibraryPath);
+  }
+
+  /**
+   * Declaration and JSON files are parsed once per build and shared by the programs of its projects,
+   * as tsgo's build host shares them: libraries and the declaration outputs of referenced projects
+   * are in many programs. A file is parsed the same for the same name, path and module detection
+   * options, and binding a bound file does nothing.
+   */
+  getSourceFile(
+    fileName: string,
+    path: string,
+    externalModuleIndicatorOptions: ExternalModuleIndicatorOptions,
+  ): SourceFile | undefined {
+    if (!isDeclarationFileName(fileName) && !fileExtensionIs(fileName, '.json'))
+      return super.getSourceFile(fileName, path, externalModuleIndicatorOptions);
+    const key =
+      fileName +
+      '\u0000' +
+      path +
+      (externalModuleIndicatorOptions.jsx ? '\u0000j' : '\u0000') +
+      (externalModuleIndicatorOptions.force ? 'f' : '');
+    const cached = buildSourceFiles.get(key);
+    if (cached !== undefined) return cached;
+    const file = super.getSourceFile(fileName, path, externalModuleIndicatorOptions);
+    // A file that can't be read is looked up again, as tsgo does.
+    if (file !== undefined) buildSourceFiles.set(key, file);
+    return file;
   }
 
   trace(message: MessageWithArgs): void {
@@ -346,6 +381,7 @@ export class Orchestrator {
     this.status = new StatusReporter(sys, options.pretty, options.quiet === true, this.locale);
     this.reporter = new DiagnosticReporter(sys, options, this.locale);
     this.errorSummary = new ErrorSummaryReporter(sys, options, this.locale);
+    buildSourceFiles = new Map<string, SourceFile>();
   }
 
   private get verbose(): boolean {
