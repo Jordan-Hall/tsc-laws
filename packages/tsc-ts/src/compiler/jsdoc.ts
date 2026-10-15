@@ -227,6 +227,7 @@ export class JSDocParser {
     const lineStart = start === 0 ? 0 : text.lastIndexOf('\n', start - 1) + 1;
     const initialIndent = utf8Length(text.substring(lineStart, start)) + 4;
     // Scan the comment without its `*/`, starting after `/**`.
+    p.scanner.loadUnits(start, end);
     p.scanner.setTextEnd(end - 2);
     p.scanner.resetPos(start + 3);
     p.setContextFlags(NodeFlags.JSDoc, true);
