@@ -158,3 +158,60 @@ test('the program takes what parse threads found loading their files and is the 
   assert.match(expected, /include .*a\.ts:\d+-\d+:2688:missing-types/);
   assert.match(expected, /include .*a\.ts:\d+-\d+:6053:/);
 });
+
+test('a source file of a referenced project loaded ahead queues the file it is redirected to', () => {
+  const dir = tempDir('tsc-ts-parallel-load-references-');
+  const files = {
+    'lib/tsconfig.json': JSON.stringify({
+      compilerOptions: { composite: true, outDir: 'out', rootDir: 'src', lib: ['es2022'] },
+      include: ['src'],
+    }),
+    'lib/src/index.ts': 'export const v = 1;\n',
+    'lib/out/index.d.ts': 'export declare const v = 1;\n',
+    'app/tsconfig.json': JSON.stringify({
+      compilerOptions: { strict: true, noEmit: true, lib: ['es2022'] },
+      include: ['src'],
+      references: [{ path: '../lib' }],
+    }),
+    'app/src/main.ts': "import { v } from '../../lib/src/index';\nexport const w: string = v;\n",
+  };
+  for (const [name, text] of Object.entries(files)) {
+    mkdirSync(dirname(join(dir, name)), { recursive: true });
+    writeFileSync(join(dir, name), text);
+  }
+  const args = ['-p', join(dir, 'app')];
+  parallelParse.files.clear();
+  parallelParse.used = 0;
+  parallelParse.missed = 0;
+  parallelParse.unprepared = 0;
+  const plain = executeCommandLine(createNodeSystem(bundledLibs, ''), args);
+  assert.equal(plain.kind, 'compile');
+  const expected = describe(plain.program);
+
+  const thread = parseThreadOfCommandLine(args, join(dir, 'app/tsconfig.json'), bundledLibs);
+  const queue = new ParseQueue();
+  queue.push(Root, join(dir, 'app/src/main.ts'), 0);
+  queue.push(Library, 'lib.es2022.d.ts', 0);
+  queue.push(AutomaticTypes, '', 0);
+  const added = [];
+  for (let chunk = queue.next(1); chunk !== undefined; chunk = queue.next(1)) {
+    const batch = thread.load(chunk);
+    for (const prepared of batch.files) {
+      parallelParse.files.set(prepared.fileName, prepared);
+      for (const reference of prepared.loaded?.references ?? []) assert.ok(reference.reason !== undefined);
+    }
+    for (let k = 0; k < batch.added.names.length; k++) {
+      added.push(batch.added.names[k]);
+      queue.push(batch.added.kinds[k], batch.added.names[k], batch.added.depths[k]);
+    }
+  }
+  assert.ok(added.includes(join(dir, 'lib/out/index.d.ts')));
+  assert.ok(!parallelParse.files.has(join(dir, 'lib/src/index.ts')));
+
+  const shared = executeCommandLine(createNodeSystem(bundledLibs, ''), args);
+  assert.equal(shared.kind, 'compile');
+  assert.equal(parallelParse.used, shared.program.getSourceFiles().length);
+  assert.equal(describe(shared.program), expected);
+  assert.match(expected, /out\/index\.d\.ts/);
+  assert.match(expected, /main\.ts:\d+-\d+:2322:/);
+});
