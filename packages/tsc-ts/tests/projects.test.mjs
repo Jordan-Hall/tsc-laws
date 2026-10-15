@@ -452,6 +452,45 @@ projects.push(
   ['emit on three checkers', emitFiles, ['--checkers', '3']],
 );
 
+// JSX emit: opening and self-closing elements, fragments and spread attributes for the automatic and
+// classic runtimes, with JavaScript, declarations and maps compared.
+const jsxRuntime = {
+  'node_modules/react/package.json': JSON.stringify({ name: 'react', version: '1.0.0', types: 'index.d.ts' }),
+  'node_modules/react/index.d.ts':
+    'export declare function createElement(...args: any[]): any;\nexport declare const Fragment: any;\n' +
+    'declare global { namespace JSX { interface Element {} interface IntrinsicElements { [name: string]: any } } }\n',
+  'node_modules/react/jsx-runtime.d.ts':
+    'export declare function jsx(...args: any[]): any;\nexport declare function jsxs(...args: any[]): any;\n' +
+    'export declare const Fragment: any;\n',
+  'a.tsx':
+    'import * as React from "react";\nvoid React;\n' +
+    'export const Item = (props: { name: string }) => <li className="item">{props.name}<br /></li>;\n' +
+    'export const List = (props: any) => <ul {...props} key="k"><Item name="a" /><>{[1, 2]}</></ul>;\n' +
+    'export const Empty = () => <input disabled />;\n',
+};
+
+for (const jsx of ['react-jsx', 'react'])
+  projects.push([
+    `JSX elements with jsx ${jsx}`,
+    {
+      ...jsxRuntime,
+      'tsconfig.json': JSON.stringify({
+        compilerOptions: {
+          ...base,
+          noEmit: false,
+          jsx,
+          module: 'esnext',
+          moduleResolution: 'bundler',
+          sourceMap: true,
+          declaration: true,
+          declarationMap: true,
+          outDir: 'out',
+        },
+        files: ['a.tsx'],
+      }),
+    },
+  ]);
+
 /** Writes `files`; a `{ link }` value is a symlink to the relative path `link`. */
 function writeFiles(dir, files) {
   for (const [path, content] of Object.entries(files)) {
