@@ -465,6 +465,31 @@ export function isTypeRelatedTo(c: Checker, source: Type, target: Type, relation
       isSimpleTypeRelatedTo(c, source, target, relation, undefined)
     )
       return true;
+    // A primitive against a union: the relater (in typeRelatedToSomeType) finds it related when the
+    // union contains it, and decides a union of primitives without setting up a relater. Unions of
+    // four or more primitives that membership doesn't decide take the full check, which caches them.
+    if ((target.flags & TypeFlags.Union) !== 0 && (source.flags & TypeFlags.StructuredOrInstantiable) === 0) {
+      if (unionContainsType(c, target as UnionType, source)) return true;
+      if ((target.objectFlags & ObjectFlags.PrimitiveUnion) !== 0) {
+        if (isLiteralRelatedByPrimitiveUnionForms(c, source, target, relation))
+          return literalRelatedToPrimitiveUnion(c, source, target as UnionType);
+        const types = typesOf(target);
+        if (types.length < 4) {
+          for (const t of types) {
+            const u = isFreshLiteralType(t) ? (t as LiteralType).regularType : t;
+            if (
+              source === u ||
+              (relation === c.comparableRelation &&
+                (u.flags & TypeFlags.Never) === 0 &&
+                isSimpleTypeRelatedTo(c, u, source, relation, undefined)) ||
+              isSimpleTypeRelatedTo(c, source, u, relation, undefined)
+            )
+              return true;
+          }
+          return false;
+        }
+      }
+    }
   } else if (
     ((source.flags | target.flags) &
       (TypeFlags.UnionOrIntersection | TypeFlags.IndexedAccess | TypeFlags.Conditional | TypeFlags.Substitution)) ===
@@ -486,6 +511,35 @@ export function isTypeRelatedTo(c: Checker, source: Type, target: Type, relation
   )
     return checkTypeRelatedTo(c, source, target, relation, undefined, undefined, undefined);
   return false;
+}
+
+/**
+ * Whether `source` is a literal that relates to the primitive union `target` only through its base
+ * primitive or its other freshness form (see literalRelatedToPrimitiveUnion).
+ */
+function isLiteralRelatedByPrimitiveUnionForms(c: Checker, source: Type, target: Type, relation: Relation): boolean {
+  return (
+    relation !== c.comparableRelation &&
+    (target.objectFlags & ObjectFlags.PrimitiveUnion) !== 0 &&
+    (source.flags & TypeFlags.EnumLiteral) === 0 &&
+    ((source.flags & (TypeFlags.StringLiteral | TypeFlags.BooleanLiteral | TypeFlags.BigIntLiteral)) !== 0 ||
+      ((relation === c.subtypeRelation || relation === c.strictSubtypeRelation) &&
+        (source.flags & TypeFlags.NumberLiteral) !== 0))
+  );
+}
+
+function literalRelatedToPrimitiveUnion(c: Checker, source: Type, target: UnionType): boolean {
+  const literal = source as LiteralType;
+  // Typed: scriptc can't pass the narrowed LiteralType field as a Type.
+  const alternateForm: Type | undefined = source === literal.regularType ? literal.freshType : literal.regularType;
+  let primitive: Type | undefined;
+  if ((source.flags & TypeFlags.StringLiteral) !== 0) primitive = c.stringType;
+  else if ((source.flags & TypeFlags.NumberLiteral) !== 0) primitive = c.numberType;
+  else if ((source.flags & TypeFlags.BigIntLiteral) !== 0) primitive = c.bigintType;
+  return (
+    (primitive !== undefined && unionContainsType(c, target, primitive)) ||
+    (alternateForm !== undefined && unionContainsType(c, target, alternateForm))
+  );
 }
 
 export function isSimpleTypeRelatedTo(
@@ -1510,30 +1564,8 @@ export class Relater extends TypeComparer {
     const targetTypes = typesOf(target);
     if ((target.flags & TypeFlags.Union) !== 0) {
       if (unionContainsType(c, target as UnionType, source)) return Ternary.True;
-      if (
-        this.relation !== c.comparableRelation &&
-        (target.objectFlags & ObjectFlags.PrimitiveUnion) !== 0 &&
-        (source.flags & TypeFlags.EnumLiteral) === 0 &&
-        ((source.flags & (TypeFlags.StringLiteral | TypeFlags.BooleanLiteral | TypeFlags.BigIntLiteral)) !== 0 ||
-          ((this.relation === c.subtypeRelation || this.relation === c.strictSubtypeRelation) &&
-            (source.flags & TypeFlags.NumberLiteral) !== 0))
-      ) {
-        // A literal relates to a primitive union only via its base primitive or other freshness form.
-        const literal = source as LiteralType;
-        // Typed: scriptc can't pass the narrowed LiteralType field as a Type.
-        const alternateForm: Type | undefined =
-          source === literal.regularType ? literal.freshType : literal.regularType;
-        let primitive: Type | undefined;
-        if ((source.flags & TypeFlags.StringLiteral) !== 0) primitive = c.stringType;
-        else if ((source.flags & TypeFlags.NumberLiteral) !== 0) primitive = c.numberType;
-        else if ((source.flags & TypeFlags.BigIntLiteral) !== 0) primitive = c.bigintType;
-        if (
-          (primitive !== undefined && unionContainsType(c, target as UnionType, primitive)) ||
-          (alternateForm !== undefined && unionContainsType(c, target as UnionType, alternateForm))
-        )
-          return Ternary.True;
-        return Ternary.False;
-      }
+      if (isLiteralRelatedByPrimitiveUnionForms(c, source, target, this.relation))
+        return literalRelatedToPrimitiveUnion(c, source, target as UnionType) ? Ternary.True : Ternary.False;
       const match = getMatchingUnionConstituentForType(c, target as UnionType, source);
       if (match !== undefined) {
         const related = this.isRelatedToEx(source, match, RecursionFlags.Target, false, undefined, intersectionState);
