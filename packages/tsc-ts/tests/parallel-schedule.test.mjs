@@ -43,16 +43,20 @@ const { CheckedProgram } = await load('compiler/program-checker.js');
 const { ParseQueue } = await load('compiler/parallel-parse.js');
 const {
   autoCheckers,
+  checkFromQueue,
   checkGroups,
   checkOrder,
   checkersFittingMemory,
   fillScheduleCosts,
   newSchedule,
+  packResult,
   planSchedule,
   retirementMemory,
   retires,
   scheduleOf,
   takePosition,
+  textLengths,
+  unpackResult,
 } = await load('compiler/parallel-check.js');
 
 const Root = 0;
@@ -121,6 +125,16 @@ function checked() {
 }
 
 const baseName = (program, i) => program.getSourceFiles()[i].fileName.split('/').pop();
+
+test('planning reads the text length of each file once per program', () => {
+  const program = checked().program;
+  const lengths = textLengths(program);
+  assert.equal(textLengths(program), lengths);
+  assert.deepEqual(
+    lengths,
+    program.getSourceFiles().map((file) => file.text.length),
+  );
+});
 
 test('a small file that alone imports a large library is checked before larger files', () => {
   const c = checked();
@@ -294,4 +308,97 @@ test('one checker thread at a time retires when memory runs short, and an idle c
   assert.equal(retirementMemory(4, 1000), 850);
   assert.equal(retirementMemory(1, 1000), 950);
   assert.equal(retirementMemory(0, 1000), 0);
+});
+
+function erroneous() {
+  const dir = tempDir('tsc-ts-parallel-schedule-errors-');
+  const files = {
+    'tsconfig.json': JSON.stringify({ compilerOptions: { strict: true, noEmit: true, types: [] }, include: ['src'] }),
+    // A message chain (elaboration), related information (redeclaration) and an argument-free error.
+    'src/a.ts': 'interface P { x: { y: number } }\nconst p: P = { x: { y: "no" } };\nlet d = 1;\nlet d = 2;\n',
+    'src/b.ts': 'export const n: number = "s";\ndeclare const q: { x: string };\nexport const r: { x: number } = q;\n',
+    'src/c.ts': 'export const fine = 1;\n',
+  };
+  for (const [name, text] of Object.entries(files)) {
+    mkdirSync(dirname(join(dir, name)), { recursive: true });
+    writeFileSync(join(dir, name), text);
+  }
+  const work = executeCommandLine(createNodeSystem(bundledLibs, ''), ['-p', dir]);
+  assert.equal(work.kind, 'compile');
+  return new CheckedProgram(work.program);
+}
+
+const described = (d) => ({
+  file: d.file?.fileName,
+  pos: d.pos,
+  end: d.end,
+  code: d.code,
+  category: d.category,
+  message: d.message,
+  args: [...d.args],
+  skipped: d.skippedOnNoEmit,
+  chain: d.messageChain.map(described),
+  related: d.relatedInformation.map(described),
+});
+
+test('a checker result packed as plain data comes back with the same diagnostics on the same files', () => {
+  const c = erroneous();
+  const plan = planSchedule(c, 1);
+  const result = checkFromQueue(c, 0, new Int32Array(scheduleOf(plan, 1)), plan.order, 0);
+  const all = result.diagnostics.flat();
+  assert.ok(all.length >= 3);
+  assert.ok(all.some((d) => d.messageChain.length > 0));
+  assert.ok(all.some((d) => d.relatedInformation.length > 0));
+  // Through a structured clone, as postMessage copies it.
+  const packed = structuredClone(packResult(result, c.program));
+  assert.ok(
+    packed.strs.every((s) => !s.includes('interface P')),
+    'file texts the program has stay behind',
+  );
+  const files = new Map();
+  const back = unpackResult(packed, c.program, files);
+  assert.deepEqual(back.files, result.files);
+  assert.deepEqual(
+    back.diagnostics.map((list) => list.map(described)),
+    result.diagnostics.map((list) => list.map(described)),
+  );
+  assert.deepEqual(back.globals.map(described), result.globals.map(described));
+  assert.equal(back.more, false);
+  // Diagnostics refer to the program's own files.
+  const a = back.diagnostics.flat().find((d) => d.file?.fileName.endsWith('a.ts'));
+  assert.equal(
+    a.file,
+    c.program
+      .getSourceFiles()
+      .find((f) => f.fileName.endsWith('a.ts'))
+      .diagnosticFile(),
+  );
+});
+
+test('a checker at its file limit stops, and a new one on its schedule index checks the rest once', () => {
+  const c = erroneous();
+  const plan = planSchedule(c, 1);
+  const schedule = new Int32Array(scheduleOf(plan, 1));
+  const first = checkFromQueue(c, 0, schedule, plan.order, 0, true, 1);
+  assert.deepEqual([first.files.length, first.more], [1, true]);
+  const rest = checkFromQueue(new CheckedProgram(c.program), 0, schedule, plan.order, 0, true, 100000);
+  assert.equal(rest.more, false);
+  assert.deepEqual([...first.files, ...rest.files].sort(), [...plan.order].sort());
+});
+
+test('a checker at its file limit inside a group hands the rest of the group to its successor', () => {
+  const c = erroneous();
+  const order = planSchedule(c, 1).order;
+  assert.ok(order.length >= 4);
+  // Positions 0-2 are a group in the shared queue, then checker 0's range.
+  const schedule = new Int32Array(newSchedule(1, order.length, 0, 0));
+  fillScheduleCosts(schedule, Array(order.length).fill(10), Array(order.length).fill([]), [], [3, 0, 0]);
+  ownRanges(schedule, 3, order.length);
+  schedule[2] = 3;
+  const first = checkFromQueue(c, 0, schedule, order, 0, true, 1);
+  assert.deepEqual([first.files, first.more, first.reserved], [[order[0]], true, [1, 2]]);
+  const rest = checkFromQueue(new CheckedProgram(c.program), 0, schedule, order, 0, true, 100000, first.reserved);
+  assert.equal(rest.more, false);
+  assert.deepEqual(rest.files.slice(0, 2), [order[1], order[2]]);
+  assert.deepEqual([...first.files, ...rest.files].sort(), [...order].sort());
 });
