@@ -159,6 +159,8 @@ export class EmitContext {
   readonly textSource: Map<Node, Node>;
   readonly original: Map<Node, Node>;
   readonly emitNodes: Map<Node, EmitNode>;
+  private lastLookup: Node | undefined;
+  private lastEmitNode: EmitNode | undefined;
   readonly assignedNames: Map<Node, Node>;
   readonly classThisNames: Map<Node, Node>;
   readonly varScopes: VariableScope[];
@@ -171,6 +173,8 @@ export class EmitContext {
     this.textSource = new Map<Node, Node>();
     this.original = new Map<Node, Node>();
     this.emitNodes = new Map<Node, EmitNode>();
+    this.lastLookup = undefined;
+    this.lastEmitNode = undefined;
     this.assignedNames = new Map<Node, Node>();
     this.classThisNames = new Map<Node, Node>();
     this.varScopes = [];
@@ -184,7 +188,7 @@ export class EmitContext {
    * comments, as if it were the same node.
    */
   copyEmitNode(node: Node, source: Node): void {
-    const emitNode = this.emitNodes.get(source);
+    const emitNode = this.lookup(source);
     if (emitNode === undefined) return;
     const target = this.emitNode(node).copyFrom(emitNode);
     target.leadingComments = emitNode.leadingComments === undefined ? undefined : emitNode.leadingComments.slice();
@@ -193,11 +197,22 @@ export class EmitContext {
   }
 
   private emitNode(node: Node): EmitNode {
-    let emitNode = this.emitNodes.get(node);
+    let emitNode = this.lookup(node);
     if (emitNode === undefined) {
       emitNode = new EmitNode();
       this.emitNodes.set(node, emitNode);
+      this.lastLookup = node;
+      this.lastEmitNode = emitNode;
     }
+    return emitNode;
+  }
+
+  /** The emit data of `node`. The printer asks for several of a node's in a row, so the last answer is kept. */
+  private lookup(node: Node): EmitNode | undefined {
+    if (node === this.lastLookup) return this.lastEmitNode;
+    const emitNode = this.emitNodes.get(node);
+    this.lastLookup = node;
+    this.lastEmitNode = emitNode;
     return emitNode;
   }
 
@@ -211,7 +226,7 @@ export class EmitContext {
     const existing = this.original.get(node);
     if (existing === undefined) {
       this.original.set(node, original);
-      const emitNode = this.emitNodes.get(original);
+      const emitNode = this.lookup(original);
       if (emitNode !== undefined) this.emitNode(node).copyFrom(emitNode);
     } else if (allowOverwrite) this.original.set(node, original);
     else if (existing !== original) throw new Error('Original node already set.');
@@ -281,7 +296,7 @@ export class EmitContext {
   // Emit data
 
   getEmitFlags(node: Node): EmitFlags {
-    const emitNode = this.emitNodes.get(node);
+    const emitNode = this.lookup(node);
     return emitNode === undefined ? EmitFlags.None : emitNode.emitFlags;
   }
 
@@ -296,14 +311,14 @@ export class EmitContext {
   }
 
   commentPos(node: Node): number {
-    const emitNode = this.emitNodes.get(node);
+    const emitNode = this.lookup(node);
     return emitNode !== undefined && (emitNode.flags & EmitNodeFlags.HasCommentRange) !== 0
       ? emitNode.commentPos
       : node.pos;
   }
 
   commentEnd(node: Node): number {
-    const emitNode = this.emitNodes.get(node);
+    const emitNode = this.lookup(node);
     return emitNode !== undefined && (emitNode.flags & EmitNodeFlags.HasCommentRange) !== 0
       ? emitNode.commentEnd
       : node.end;
@@ -322,14 +337,14 @@ export class EmitContext {
   }
 
   sourceMapPos(node: Node): number {
-    const emitNode = this.emitNodes.get(node);
+    const emitNode = this.lookup(node);
     return emitNode !== undefined && (emitNode.flags & EmitNodeFlags.HasSourceMapRange) !== 0
       ? emitNode.sourceMapPos
       : node.pos;
   }
 
   sourceMapEnd(node: Node): number {
-    const emitNode = this.emitNodes.get(node);
+    const emitNode = this.lookup(node);
     return emitNode !== undefined && (emitNode.flags & EmitNodeFlags.HasSourceMapRange) !== 0
       ? emitNode.sourceMapEnd
       : node.end;
@@ -363,7 +378,7 @@ export class EmitContext {
 
   /** The `[pos, end]` source map range of a token of `node`, if one was set. */
   tokenSourceMapRange(node: Node, kind: SyntaxKind): number[] | undefined {
-    const emitNode = this.emitNodes.get(node);
+    const emitNode = this.lookup(node);
     if (emitNode === undefined || emitNode.tokenSourceMapRanges === undefined) return undefined;
     return emitNode.tokenSourceMapRanges.get(kind);
   }
@@ -407,7 +422,7 @@ export class EmitContext {
   }
 
   getTypeNode(node: Node): Node | undefined {
-    const emitNode = this.emitNodes.get(node);
+    const emitNode = this.lookup(node);
     return emitNode === undefined ? undefined : emitNode.typeNode;
   }
 
@@ -420,7 +435,7 @@ export class EmitContext {
   // Synthesized comments
 
   getSyntheticLeadingComments(node: Node): SynthesizedComment[] | undefined {
-    const emitNode = this.emitNodes.get(node);
+    const emitNode = this.lookup(node);
     return emitNode === undefined ? undefined : emitNode.leadingComments;
   }
 
@@ -437,7 +452,7 @@ export class EmitContext {
   }
 
   getSyntheticTrailingComments(node: Node): SynthesizedComment[] | undefined {
-    const emitNode = this.emitNodes.get(node);
+    const emitNode = this.lookup(node);
     return emitNode === undefined ? undefined : emitNode.trailingComments;
   }
 
@@ -476,14 +491,14 @@ export class EmitContext {
   }
 
   getEmitHelpers(node: Node): EmitHelper[] | undefined {
-    const emitNode = this.emitNodes.get(node);
+    const emitNode = this.lookup(node);
     return emitNode === undefined ? undefined : emitNode.helpers;
   }
 
   getExternalHelpersModuleName(file: SourceFile): Identifier | undefined {
     const parseNode = this.parseNode(file);
     if (parseNode === undefined) return undefined;
-    const emitNode = this.emitNodes.get(parseNode);
+    const emitNode = this.lookup(parseNode);
     return emitNode === undefined ? undefined : emitNode.externalHelpersModuleName;
   }
 
@@ -497,7 +512,7 @@ export class EmitContext {
   hasRecordedExternalHelpers(file: SourceFile): boolean {
     const parseNode = this.parseNode(file);
     if (parseNode === undefined) return false;
-    const emitNode = this.emitNodes.get(parseNode);
+    const emitNode = this.lookup(parseNode);
     return (
       emitNode !== undefined &&
       (emitNode.externalHelpersModuleName !== undefined || (emitNode.emitFlags & EmitFlags.ExternalHelpers) !== 0)
