@@ -27,6 +27,7 @@ import {
   equalDiagnosticsNoRelatedInfo,
   type DiagnosticMessage,
   type Locale,
+  useThreadTextCaches,
 } from './diagnostics.js';
 import {
   FileLoader,
@@ -495,6 +496,8 @@ export class Program implements OutputPathsHost {
     // specifiers probe files and `package.json` scopes) go to tables of each thread.
     this.host.fs.prepareForSharing();
     this.processed.resolver.prepareForSharing();
+    // So do the line starts and UTF-8 offsets of declaration files, which the parser leaves out.
+    useThreadTextCaches();
   }
 
   isEmitBlocked(fileName: string): boolean {

@@ -21,6 +21,7 @@ import { publish } from '@scriptc/threads';
 import { type SourceFile, type ExternalModuleIndicatorOptions, lastNodeIdValue, shareNodeIds } from './ast.js';
 import type { LoadedFile } from './file-loader.js';
 import type { CompilerOptions } from './options.js';
+import { useThreadTextCaches } from './diagnostics.js';
 import { useLazyJSDocTable } from './parser.js';
 import { getNormalizedAbsolutePath } from './path.js';
 import { getDefaultLibFileName, getLibFileName } from './program-utilities.js';
@@ -288,8 +289,10 @@ export class ParseSession {
     hasRootFiles: boolean,
   ) {
     mark(`parse start, ${count} threads`);
-    // Prepared files are published (immutable): this thread keeps lazily parsed JSDoc in a table.
+    // Prepared files are published (immutable): this thread keeps lazily parsed JSDoc, and the text
+    // caches of declaration files, in tables.
     useLazyJSDocTable();
+    useThreadTextCaches();
     const queue = this.queue;
     if (hasRootFiles) {
       if (options.noLib !== true) {
