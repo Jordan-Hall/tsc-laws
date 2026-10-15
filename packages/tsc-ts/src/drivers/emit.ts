@@ -27,11 +27,11 @@ import { getDirectoryPath, getNormalizedAbsolutePath } from '../compiler/path.js
 import { Program, sortAndDeduplicateDiagnostics } from '../compiler/program.js';
 import { getEmitModuleFormatOfFile } from '../compiler/program-utilities.js';
 import { ParsedCommandLine } from '../compiler/tsconfig.js';
-import { CheckerDeclarationEmitResolver } from '../compiler/checker-emit-resolver.js';
+import { CheckerDeclarationEmitResolver, CheckerEmitResolver } from '../compiler/checker-emit-resolver.js';
 import { Checker } from '../compiler/checker.js';
 import { ProgramCheckerHost } from '../compiler/program-checker.js';
 import { SyntacticDeclarationEmitResolver } from '../compiler/transformers/declarations-syntactic.js';
-import { type EmitResolver, SyntacticEmitResolver } from '../compiler/transformers/emit-resolver.js';
+import type { EmitResolver } from '../compiler/transformers/emit-resolver.js';
 import { ModuleFormatHost } from '../compiler/transformers/module.js';
 import { ModuleLookup, ReferenceResolver } from '../compiler/transformers/reference-resolver.js';
 
@@ -150,12 +150,13 @@ function main(): number {
     if (sourceFileMayBeEmitted(all[i], options)) files.push(all[i]);
   }
   const references = new ReferenceResolver(options, all, new ProgramModules(program, host));
-  const emitResolver = new SyntacticEmitResolver(options, references);
+  // Declaration emit and decorator metadata ask the checker for types, as tsc does even without type checking.
+  const checker = new Checker(new ProgramCheckerHost(program));
+  const emitResolver = new CheckerEmitResolver(options, references, checker);
   let resolver: EmitResolver = emitResolver;
   if (options.declaration === true || options.composite === true) {
-    // Declaration emit asks the checker for types, as tsc does even without type checking.
     const syntactic = new SyntacticDeclarationEmitResolver(options, all, cwd, emitResolver);
-    resolver = new CheckerDeclarationEmitResolver(new Checker(new ProgramCheckerHost(program)), syntactic);
+    resolver = new CheckerDeclarationEmitResolver(checker, syntactic);
   }
   const emitHost = new DiskEmitHost(program, resolver, new ProgramFormats(program));
   const result = emitFiles(emitHost, files);

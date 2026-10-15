@@ -1,6 +1,7 @@
 // Declaration emit's queries answered by the checker, as tsgo's emit resolver: visibility and
 // accessibility from resolved symbols, and type nodes built from types. JavaScript emit's
-// queries, enum values and references between files are answered syntactically.
+// queries, enum values and references between files are answered syntactically, except how
+// decorator metadata serializes a type reference, which comes from the referenced type.
 import {
   BigIntLiteral,
   BinaryExpression,
@@ -45,11 +46,22 @@ import {
 } from './binder-utilities.js';
 import type { Checker } from './checker.js';
 import { getEffectiveDeclarationFlags } from './checker-declarations.js';
-import { getBaseTypes, getDeclaredTypeOfSymbol } from './checker-declared-types.js';
+import { getBaseTypes, getDeclaredTypeOfSymbol, isConstructorType } from './checker-declared-types.js';
 import { getResolvedSymbol } from './checker-expressions.js';
 import { tryGetNameFromEntityNameExpression } from './checker-narrowing.js';
-import { getIndexInfosOfType, getIndexSymbol, getPropertiesOfType, getPropertyOfType } from './checker-members.js';
-import { getExternalModuleFileFromDeclaration, getTargetOfExportSpecifier } from './checker-modules.js';
+import {
+  getIndexInfosOfType,
+  getIndexSymbol,
+  getPropertiesOfType,
+  getPropertyOfType,
+  getSignaturesOfType,
+} from './checker-members.js';
+import {
+  getExternalModuleFileFromDeclaration,
+  getTargetOfExportSpecifier,
+  getTypeOnlyAliasDeclarationOfMeaning,
+  isTypeOnlyImportOrExportDeclaration,
+} from './checker-modules.js';
 import {
   getIndexInfosOfIndexSymbol,
   getSignatureFromDeclaration,
@@ -60,13 +72,17 @@ import {
   getExportsOfModule,
   getFirstIdentifier,
   getGlobalSymbol,
+  getGlobalValueSymbol,
   getMergedSymbol,
   getMembersOfSymbol,
   getSymbolOfDeclaration,
+  resolveAlias,
+  resolveEntityName,
   resolveName,
 } from './checker-symbols.js';
-import { isFreshLiteralType } from './checker-type-factory.js';
-import { type IndexInfo, type LiteralType, TypeFlags } from './checker-types.js';
+import { isArrayType, isErrorType, isFreshLiteralType, isTupleType } from './checker-type-factory.js';
+import { isTypeAssignableToKind } from './checker-type-operators.js';
+import { type IndexInfo, type LiteralType, SignatureKind, type Type, TypeFlags } from './checker-types.js';
 import { hasLateBindableName } from './checker-utilities.js';
 import { NodeBuilder, isEntityNameVisible, isOptionalParameter } from './node-builder.js';
 import {
@@ -76,7 +92,7 @@ import {
 } from './node-builder-pseudo.js';
 import { symbolToExpression } from './node-builder-names.js';
 import { tryReuseExistingNode } from './node-builder-reuse.js';
-import type { ModuleKind } from './options.js';
+import type { CompilerOptions, ModuleKind } from './options.js';
 import type { EmitContext } from './printer/emit-context.js';
 import { isTypeIdenticalTo } from './relations.js';
 import { CheckFlags, type Symbol, SymbolFlags } from './symbol.js';
@@ -96,8 +112,9 @@ import {
   type SymbolTracker,
 } from './transformers/declarations-resolver.js';
 import type { SyntacticDeclarationEmitResolver } from './transformers/declarations-syntactic.js';
-import type { Evaluation } from './transformers/reference-resolver.js';
-import type { TypeReferenceSerializationKind } from './transformers/type-serialization.js';
+import { SyntacticEmitResolver } from './transformers/emit-resolver.js';
+import type { Evaluation, ReferenceResolver } from './transformers/reference-resolver.js';
+import { TypeReferenceSerializationKind } from './transformers/type-serialization.js';
 import { TokenFlags } from './types.js';
 
 const declarationEmitInternalFlags = NodeBuilderInternalFlags.AllowUnresolvedNames;
@@ -135,7 +152,7 @@ export class CheckerDeclarationEmitResolver extends DeclarationEmitResolver {
   }
 
   getTypeReferenceSerializationKind(typeName: Node, location: Node | undefined): TypeReferenceSerializationKind {
-    return this.syntactic.getTypeReferenceSerializationKind(typeName, location);
+    return getTypeReferenceSerializationKind(this.checker, typeName, location);
   }
 
   getReferencedExportContainer(node: Identifier, prefixLocals: boolean): Node | undefined {
@@ -573,6 +590,86 @@ export class CheckerDeclarationEmitResolver extends DeclarationEmitResolver {
 }
 
 /** Visits every node, marking the declarations exports name visible. */
+/** JavaScript emit's resolver, with decorator metadata's type references serialized from the checker's types. */
+export class CheckerEmitResolver extends SyntacticEmitResolver {
+  constructor(
+    options: CompilerOptions,
+    referenceResolver: ReferenceResolver,
+    readonly checker: Checker,
+  ) {
+    super(options, referenceResolver);
+  }
+
+  getTypeReferenceSerializationKind(typeName: Node, location: Node | undefined): TypeReferenceSerializationKind {
+    return getTypeReferenceSerializationKind(this.checker, typeName, location);
+  }
+}
+
+/**
+ * How decorator metadata serializes a reference to `typeName` from `location`, as tsgo's
+ * `GetTypeReferenceSerializationKind`: the name of a class or another value with construct
+ * signatures that is reachable at runtime, else the kind of the declared type it names.
+ */
+export function getTypeReferenceSerializationKind(
+  c: Checker,
+  typeName: Node,
+  location: Node | undefined,
+): TypeReferenceSerializationKind {
+  if (location === undefined) return TypeReferenceSerializationKind.Unknown;
+  // The value must be reachable at runtime.
+  let isTypeOnly = false;
+  if (typeName.kind === SyntaxKind.QualifiedName) {
+    const root = resolveEntityName(c, getFirstIdentifier(typeName), SymbolFlags.Value, true, true, location);
+    if (root !== undefined && root.declarations.length > 0)
+      isTypeOnly = root.declarations.every(isTypeOnlyImportOrExportDeclaration);
+  }
+  const valueSymbol = resolveEntityName(c, typeName, SymbolFlags.Value, true, true, location);
+  let resolvedValue = valueSymbol;
+  if (valueSymbol !== undefined && (valueSymbol.flags & SymbolFlags.Alias) !== 0)
+    resolvedValue = resolveAlias(c, valueSymbol);
+  if (
+    valueSymbol !== undefined &&
+    getTypeOnlyAliasDeclarationOfMeaning(c, valueSymbol, SymbolFlags.Value) !== undefined
+  )
+    isTypeOnly = true;
+  // The type gives a more specific constructor, and tells whether the value is reachable when it doesn't resolve.
+  const typeSymbol = resolveEntityName(c, typeName, SymbolFlags.Type, true, true, location);
+  let resolvedType = typeSymbol;
+  if (typeSymbol !== undefined && (typeSymbol.flags & SymbolFlags.Alias) !== 0)
+    resolvedType = resolveAlias(c, typeSymbol);
+  if (typeSymbol !== undefined && getTypeOnlyAliasDeclarationOfMeaning(c, typeSymbol, SymbolFlags.Type) !== undefined)
+    isTypeOnly = true;
+  if (resolvedValue !== undefined && resolvedValue === resolvedType) {
+    const promise = getGlobalValueSymbol(c, 'Promise', false);
+    if (promise !== undefined && resolvedValue === promise) return TypeReferenceSerializationKind.Promise;
+    if (isConstructorType(c, getTypeOfSymbol(c, resolvedValue)))
+      return isTypeOnly
+        ? TypeReferenceSerializationKind.TypeWithCallSignature
+        : TypeReferenceSerializationKind.TypeWithConstructSignatureAndValue;
+  }
+  if (resolvedType === undefined)
+    return isTypeOnly ? TypeReferenceSerializationKind.ObjectType : TypeReferenceSerializationKind.Unknown;
+  const t = getDeclaredTypeOfSymbol(c, resolvedType);
+  if (isErrorType(c, t))
+    return isTypeOnly ? TypeReferenceSerializationKind.ObjectType : TypeReferenceSerializationKind.Unknown;
+  if ((t.flags & TypeFlags.AnyOrUnknown) !== 0) return TypeReferenceSerializationKind.ObjectType;
+  if (isTypeAssignableToKind(c, t, TypeFlags.Void | TypeFlags.Nullable | TypeFlags.Never))
+    return TypeReferenceSerializationKind.VoidNullableOrNeverType;
+  if (isTypeAssignableToKind(c, t, TypeFlags.BooleanLike)) return TypeReferenceSerializationKind.BooleanType;
+  if (isTypeAssignableToKind(c, t, TypeFlags.NumberLike)) return TypeReferenceSerializationKind.NumberLikeType;
+  if (isTypeAssignableToKind(c, t, TypeFlags.BigIntLike)) return TypeReferenceSerializationKind.BigIntLikeType;
+  if (isTypeAssignableToKind(c, t, TypeFlags.StringLike)) return TypeReferenceSerializationKind.StringLikeType;
+  if (isTupleType(t)) return TypeReferenceSerializationKind.ArrayLikeType;
+  if (isTypeAssignableToKind(c, t, TypeFlags.ESSymbolLike)) return TypeReferenceSerializationKind.ESSymbolType;
+  if (isFunctionType(c, t)) return TypeReferenceSerializationKind.TypeWithCallSignature;
+  if (isArrayType(c, t)) return TypeReferenceSerializationKind.ArrayLikeType;
+  return TypeReferenceSerializationKind.ObjectType;
+}
+
+function isFunctionType(c: Checker, t: Type): boolean {
+  return (t.flags & TypeFlags.Object) !== 0 && getSignaturesOfType(c, t, SignatureKind.Call).length > 0;
+}
+
 class AliasMarker extends NodeVisitor {
   readonly resolver: CheckerDeclarationEmitResolver;
 
