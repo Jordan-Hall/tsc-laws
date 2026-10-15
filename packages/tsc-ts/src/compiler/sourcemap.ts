@@ -2,6 +2,9 @@
 import { getPathComponentsRelativeTo, getPathFromPathComponents, isRootedDiskPath } from './path.js';
 
 const base64Digits = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+const base64DigitCodes = new Uint8Array(64);
+for (let i = 0; i < 64; i++) base64DigitCodes[i] = base64Digits.charCodeAt(i);
+const mappingsDecoder = new TextDecoder();
 
 /** The path of `path` relative to `directory`, with absolute results as `file://` URLs. */
 export function getRelativePathToDirectoryOrUrl(
@@ -28,8 +31,9 @@ export class SourceMapGenerator {
   private readonly sourceIndices: Map<string, number>;
   private readonly sourcesContent: (string | undefined)[];
   private readonly names: string[];
-  private mappings: string[];
-  private mappingsChunk: string;
+  /** The mappings as ASCII bytes; the first `mappingsLength` are used. */
+  private mappings: Uint8Array;
+  private mappingsLength: number;
 
   private lastGeneratedLine: number;
   private lastGeneratedCharacter: number;
@@ -66,8 +70,8 @@ export class SourceMapGenerator {
     this.sourceIndices = new Map<string, number>();
     this.sourcesContent = [];
     this.names = [];
-    this.mappings = [];
-    this.mappingsChunk = '';
+    this.mappings = new Uint8Array(1024);
+    this.mappingsLength = 0;
     this.lastGeneratedLine = 0;
     this.lastGeneratedCharacter = 0;
     this.lastSourceIndex = 0;
@@ -116,26 +120,28 @@ export class SourceMapGenerator {
     return this.names.length - 1;
   }
 
-  private appendMapping(text: string): boolean {
-    let chunk = this.mappingsChunk + text;
-    if (chunk.length > 1024) {
-      this.mappings.push(chunk);
-      chunk = '';
+  /** Appends the ASCII character `code` to the mappings. */
+  private appendMapping(code: number): boolean {
+    const length = this.mappingsLength;
+    if (length === this.mappings.length) {
+      const grown = new Uint8Array(length * 2);
+      grown.set(this.mappings);
+      this.mappings = grown;
     }
-    this.mappingsChunk = chunk;
+    this.mappings[length] = code;
+    this.mappingsLength = length + 1;
     return true;
   }
 
   private appendBase64VLQ(value: number): boolean {
     value = value < 0 ? (-value << 1) + 1 : value << 1;
-    let text = '';
     do {
       let digit = value & 31;
       value = value >> 5;
       if (value > 0) digit |= 32;
-      text += base64Digits.charAt(digit);
+      this.appendMapping(base64DigitCodes[digit]!);
     } while (value > 0);
-    return this.appendMapping(text);
+    return true;
   }
 
   private shouldCommitMapping(): boolean {
@@ -154,16 +160,14 @@ export class SourceMapGenerator {
   private commitPendingMapping(): boolean {
     if (!this.shouldCommitMapping()) return false;
     if (this.lastGeneratedLine < this.pendingGeneratedLine) {
-      let separators = '';
       do {
-        separators += ';';
+        this.appendMapping(0x3b); // ;
         this.lastGeneratedLine++;
       } while (this.lastGeneratedLine < this.pendingGeneratedLine);
-      this.appendMapping(separators);
       this.lastGeneratedCharacter = 0;
     } else {
       if (this.lastGeneratedLine !== this.pendingGeneratedLine) throw new Error('generatedLine cannot backtrack');
-      if (this.hasLast) this.appendMapping(',');
+      if (this.hasLast) this.appendMapping(0x2c); // ,
     }
     this.appendBase64VLQ(this.pendingGeneratedCharacter - this.lastGeneratedCharacter);
     this.lastGeneratedCharacter = this.pendingGeneratedCharacter;
@@ -242,10 +246,7 @@ export class SourceMapGenerator {
   /** The mappings string. */
   getMappings(): string {
     this.commitPendingMapping();
-    const all = this.mappings.join('') + this.mappingsChunk;
-    this.mappings = [all];
-    this.mappingsChunk = '';
-    return all;
+    return mappingsDecoder.decode(this.mappings.subarray(0, this.mappingsLength));
   }
 
   /** The source map as JSON, with keys in tsgo's order. */
@@ -260,8 +261,10 @@ export class SourceMapGenerator {
       jsonStrings(this.sources) +
       ',"names":' +
       jsonStrings(this.names) +
-      ',"mappings":' +
-      jsonString(mappings);
+      // Base64 digits, `;` and `,` need no escaping.
+      ',"mappings":"' +
+      mappings +
+      '"';
     if (this.sourcesContent.length > 0) {
       json += ',"sourcesContent":[';
       let separator = '';
