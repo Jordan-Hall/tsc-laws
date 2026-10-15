@@ -115,12 +115,14 @@ export const recycleFiles: number = Math.max(0, Number(process.env.TSC_TS_RECYCL
  * declaration diagnostic lists, and the global diagnostics, each as a count followed by that many
  * diagnostics; a diagnostic is file name (an index into `strs`, -1 for none), file text (index, -1
  * when the program has the file), pos, end, code, category, message, skippedOnNoEmit, the argument
- * count and indices, then its message chain and related information as counted lists.
+ * count and indices, then its message chain and related information as counted lists. `files` and
+ * `nums` are typed arrays, which postMessage copies as one block of memory each; it copies an array
+ * of numbers element by element.
  */
 export type PackedResult = {
   readonly index: number;
-  readonly files: number[];
-  readonly nums: number[];
+  readonly files: Int32Array;
+  readonly nums: Int32Array;
   readonly strs: string[];
   readonly checkTime: number;
   readonly stats: number[];
@@ -175,8 +177,8 @@ export function packResult(result: CheckerResult, program: Program): PackedResul
   packer.list(result.globals);
   return {
     index: result.index,
-    files: result.files,
-    nums: packer.nums,
+    files: Int32Array.from(result.files),
+    nums: Int32Array.from(packer.nums),
     strs: packer.strs,
     checkTime: result.checkTime,
     stats: result.stats,
@@ -259,7 +261,7 @@ export function unpackResult(
   const globals = unpacker.list();
   return new CheckerResult(
     packed.index,
-    packed.files,
+    Array.from(packed.files),
     diagnostics,
     declarations,
     globals,
