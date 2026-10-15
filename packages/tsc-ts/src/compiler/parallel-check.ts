@@ -6,8 +6,9 @@
  * checker over the program and takes files until none are left (`planSchedule`): the costliest files first,
  * and groups of files that share costly declarations as a whole (`checkGroups`), then a range of
  * neighboring files of its own, then the end of other checkers' ranges where that makes them finish
- * earlier (`takePosition`). Checkers beyond tsgo's four stop when the process's memory reaches its
- * limit, and the others take over their files (`retires`). The threads send back the semantic
+ * earlier (`takePosition`). Checkers beyond tsgo's four stop when the process's memory nears its
+ * limit, and checkers 1-3 when it is about to run out; the others take over their files
+ * (`retires`). The threads send back the semantic
  * diagnostics of their files (and under `noEmit` with declarations, their declaration diagnostics)
  * and their global diagnostics, and the main thread reports them like a single checker would. Which
  * checker checks a file does not change its diagnostics.
@@ -331,17 +332,23 @@ export function parseThreads(checkers: number): number {
 }
 
 /**
- * Peak memory with one checker, per character of source text, for a typical program: measured
- * 44-107 bytes on the benchmark apps (the shared program 28-38, one checker's heap the rest; most
- * where checking instantiates many types, as in Sentry and T3 Code's Effect code, least for tRPC).
- * Programs that need more stay within memory by retiring checkers (`retires`).
+ * The program's memory per character of source text, where it can't be measured (`residentBytes`):
+ * 23-28 bytes on the benchmark apps when checking starts (parse threads' arenas included).
  */
-const peakBytesPerChar = 72;
+const programBytesPerChar = 32;
+
+/**
+ * What the first checker adds, as a share of the program's memory: measured 0.24 (tRPC), 0.7-0.9
+ * (TypeORM, Playwright, Excalidraw), 1.0 (VS Code) and 1.4 (Sentry). The first checker needs this
+ * whatever the count, so the estimate mostly decides how many further checkers fit; programs above
+ * it stay within memory by retiring checkers (`retires`).
+ */
+const firstCheckerShare = 1;
 
 /**
  * What each further checker adds, per character of declaration files, for a typical program:
- * measured 0.3-31 bytes (every checker resolves the declarations its files use; most for T3 Code's
- * Effect-based projects, 6 for VS Code, under 1 for tRPC).
+ * measured 6 bytes for VS Code, 9 for Excalidraw, 15 for Sentry and up to 31 for T3 Code's
+ * Effect-based projects (every checker resolves the declarations its files use; under 2 for tRPC).
  */
 const checkerBytesPerDeclarationChar = 24;
 
@@ -349,20 +356,86 @@ const checkerBytesPerDeclarationChar = 24;
 const memoryShare = 0.85;
 
 /**
- * The most checkers whose estimated peak memory (`peakBytesPerChar`,
- * `checkerBytesPerDeclarationChar`) fits `memoryShare` of the memory limit, of `memory` bytes; at
- * least 1.
+ * The share of the memory limit at which even checkers 1-3 retire, to finish on fewer threads rather
+ * than run out of memory (`retires`).
  */
-export function checkersFittingMemory(chars: number, declarationChars: number, memory: number): number {
-  const peak = chars * peakBytesPerChar;
+const lastResortShare = 0.95;
+
+/**
+ * The most checkers whose estimated peak memory fits `memoryShare` of the memory limit, of `memory`
+ * bytes, for a program of `programBytes` (`firstCheckerShare`, `checkerBytesPerDeclarationChar`);
+ * at least 1.
+ */
+export function checkersFittingMemory(programBytes: number, declarationChars: number, memory: number): number {
+  const peak = programBytes * (1 + firstCheckerShare);
   const perChecker = Math.max(1, declarationChars * checkerBytesPerDeclarationChar);
   return Math.max(1, 1 + Math.floor((memoryShare * memory - peak) / perChecker));
 }
 
-/** The memory this process may use: the smaller of its constrained memory and the total, in bytes. */
-function memoryLimit(): number {
+/**
+ * The memory this process may use, in bytes: the smallest of the total, its constrained memory, and
+ * the limits of its cgroup (`cgroupMemoryLimit`).
+ */
+export function memoryLimit(): number {
+  let limit = totalmem();
   const constrained = process.constrainedMemory();
-  return constrained > 0 ? Math.min(constrained, totalmem()) : totalmem();
+  if (constrained > 0 && constrained < limit) limit = constrained;
+  const cgroup = cgroupMemoryLimit();
+  if (cgroup > 0 && cgroup < limit) limit = cgroup;
+  return limit;
+}
+
+/**
+ * The smallest memory limit of this process's cgroup and its ancestors (Linux), or 0 where there is
+ * none or it is unknown: `memory.max` and `memory.high` under cgroup v2, `memory.limit_in_bytes`
+ * under v1. `process.constrainedMemory()` does not always see these: libuv reads only the process's
+ * own cgroup, and scriptc's runtime only the root of the cgroup mount, which is the process's own
+ * cgroup only inside a cgroup namespace.
+ */
+export function cgroupMemoryLimit(): number {
+  let membership: string;
+  try {
+    membership = readFileSync('/proc/self/cgroup', 'utf8');
+  } catch {
+    return 0;
+  }
+  let limit = 0;
+  const lower = (value: number): void => {
+    if (value > 0 && (limit === 0 || value < limit)) limit = value;
+  };
+  for (const line of membership.split('\n')) {
+    // "0::/path" (v2), "N:memory:/path" or "N:cpu,memory:/path" (v1).
+    const first = line.indexOf(':');
+    const second = line.indexOf(':', first + 1);
+    if (first < 0 || second < 0) continue;
+    const controllers = line.substring(first + 1, second);
+    const path = line.substring(second + 1);
+    if (controllers === '') {
+      for (let dir = path; ; dir = dir.substring(0, dir.lastIndexOf('/'))) {
+        const base = '/sys/fs/cgroup' + (dir === '/' ? '' : dir);
+        lower(cgroupLimitValue(base + '/memory.max'));
+        lower(cgroupLimitValue(base + '/memory.high'));
+        if (dir === '/' || dir === '' || dir.lastIndexOf('/') < 0) break;
+      }
+    } else if (controllers.split(',').indexOf('memory') >= 0) {
+      lower(cgroupLimitValue('/sys/fs/cgroup/memory' + (path === '/' ? '' : path) + '/memory.limit_in_bytes'));
+    }
+  }
+  return limit;
+}
+
+/** A cgroup memory limit file's value in bytes, or 0 for `max`, an unreadable file or no number. */
+function cgroupLimitValue(file: string): number {
+  let text: string;
+  try {
+    text = readFileSync(file, 'utf8').trim();
+  } catch {
+    return 0;
+  }
+  if (text === '' || text === 'max') return 0;
+  const value = Number(text);
+  // cgroup v1 reports no limit as a page-aligned value near 2^63.
+  return Number.isFinite(value) && value > 0 && value < 2 ** 62 ? value : 0;
 }
 
 /** The program whose text lengths `textLengths` holds. */
@@ -385,7 +458,11 @@ export function textLengths(program: Program): number[] {
   return lengthsOfProgram;
 }
 
-/** The most checkers whose estimated peak memory fits (`checkersFittingMemory`), for `program`. */
+/**
+ * The most checkers whose estimated peak memory fits (`checkersFittingMemory`), for `program`: its
+ * memory is this process's resident memory now (it is parsed and bound, and nothing is checked yet),
+ * or an estimate from its text where that is unknown.
+ */
 export function memoryCheckers(program: Program): number {
   let chars = 0;
   let declarationChars = 0;
@@ -395,11 +472,13 @@ export function memoryCheckers(program: Program): number {
     chars += length[i]!;
     if (files[i]!.isDeclarationFile) declarationChars += length[i]!;
   }
+  const resident = residentBytes();
+  const programBytes = resident > 0 ? resident : chars * programBytesPerChar;
   const memory = memoryLimit();
-  const fit = checkersFittingMemory(chars, declarationChars, memory);
+  const fit = checkersFittingMemory(programBytes, declarationChars, memory);
   if (process.env.TSC_TS_CHECKERS_TRACE !== undefined)
     process.stderr.write(
-      `checkers: ${chars} source chars (${declarationChars} in declaration files), memory ${Math.round(memory / 1048576)}MB fits ${fit} checkers\n`,
+      `checkers: ${chars} source chars (${declarationChars} in declaration files), program ${Math.round(programBytes / 1048576)}MB${resident > 0 ? '' : ' (estimated)'}, memory ${Math.round(memory / 1048576)}MB fits ${fit} checkers\n`,
     );
   return fit;
 }
@@ -771,13 +850,14 @@ function takeRetired(schedule: Int32Array, thief: number): number[] | undefined 
 const retirementSpacing = 1000;
 
 /**
- * Whether checker `index` stops taking files: it is not one of tsgo's four and holds no group, the
- * process's resident memory has reached `limit` bytes, and no other checker retired in the last
- * `retirementSpacing` ms. Its thread then ends, which returns its memory, and idle checkers take
- * the rest of its range.
+ * Whether checker `index` stops taking files: it is not checker 0 and holds no group, the process's
+ * resident memory has reached `limit` bytes (`retirementMemory`), and no other checker retired in the
+ * last `retirementSpacing` ms. Its thread then ends, which returns its memory (with ProgramLifetime
+ * classes, only its other objects: it still stops adding to it), and idle checkers take the rest of
+ * its range.
  */
 export function retires(schedule: Int32Array, index: number, limit: number, resident = residentBytes()): boolean {
-  if (index < tsgoCheckers || reservedBy(index).length > 0 || resident < limit) return false;
+  if (index === 0 || reservedBy(index).length > 0 || resident < limit) return false;
   const at = retirementAt(schedule);
   const now = (Date.now() % 0x7fffffff) + 1;
   const last = Atomics.load(schedule, at);
@@ -804,9 +884,13 @@ function residentBytes(): number {
   }
 }
 
-/** The resident memory, in bytes, at which checkers retire: `memoryShare` of the memory limit. */
-export function retirementMemory(memory = memoryLimit()): number {
-  return memoryShare * memory;
+/**
+ * The resident memory, in bytes, at which checker `index` retires: `memoryShare` of the memory limit
+ * beyond tsgo's four, `lastResortShare` for checkers 1-3; checker 0 never retires.
+ */
+export function retirementMemory(index: number, memory = memoryLimit()): number {
+  if (index === 0) return 0;
+  return (index >= tsgoCheckers ? memoryShare : lastResortShare) * memory;
 }
 
 /** Takes the back half of the largest remaining range: its positions, or `undefined` if none is left. */
@@ -1214,7 +1298,7 @@ export function checkFromQueue(
   // Declaration emit of a file right after checking it, with this checker.
   const emitter = checkersReportDeclarations(checked) ? new ProgramEmitter(checked) : undefined;
   const plan = schedulePlan(counter);
-  const retirement = index >= tsgoCheckers ? retirementMemory() : 0;
+  const retirement = retirementMemory(index);
   let memoryReadAt = 0;
   let more = false;
   let left: number[] = [];
@@ -1227,7 +1311,7 @@ export function checkFromQueue(
       left = reservedBy(index).splice(0);
       break;
     }
-    // Beyond tsgo's four, read the process's memory every 20 ms at most.
+    // Except on checker 0, read the process's memory every 20 ms at most.
     if (retirement > 0 && performance.now() - memoryReadAt >= 20) {
       memoryReadAt = performance.now();
       if (retires(counter, index, retirement)) break;
