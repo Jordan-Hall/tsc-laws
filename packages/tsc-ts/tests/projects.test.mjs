@@ -388,6 +388,45 @@ projects.push(
   ],
 );
 
+// Emit on checker threads: each checker emits the files it checks; the main thread emits the files no
+// checker checks (JSON, unchecked JavaScript). Declaration errors and outputs must match.
+const emitFiles = {
+  'src/shapes.ts':
+    'export interface Shape { kind: string; size: number }\n' +
+    'export const shapes = [{ kind: "a", size: 1 }, { kind: "b", size: 2, extra: true }];\n',
+  'src/area.ts':
+    'import { Shape, shapes } from "./shapes";\nexport function area(s: Shape) { return s.size * 2; }\n' +
+    'export const total = shapes.map(area).reduce((a, b) => a + b, 0);\n',
+  'src/hidden.ts': 'export const instance = new (class { private secret = 1; open = 2 })();\n',
+  'src/wrong.ts': 'export const n: number = "not a number";\n',
+  'src/data.json': '{ "name": "data", "values": [1, 2, 3] }\n',
+  'src/plain.js': 'export function plain(a) { return a + 1; }\n',
+  'src/index.ts':
+    'import data from "./data.json";\nimport { plain } from "./plain.js";\nimport { total } from "./area";\n' +
+    'export * from "./hidden";\nexport const summary = { name: data.name, total, next: plain(total) };\n',
+  'tsconfig.json': JSON.stringify({
+    compilerOptions: {
+      ...base,
+      noEmit: false,
+      module: 'commonjs',
+      esModuleInterop: true,
+      resolveJsonModule: true,
+      allowJs: true,
+      declaration: true,
+      declarationMap: true,
+      sourceMap: true,
+      rootDir: 'src',
+      outDir: 'out',
+    },
+    include: ['src'],
+  }),
+};
+
+projects.push(
+  ['emit on one checker', emitFiles, ['--singleThreaded']],
+  ['emit on three checkers', emitFiles, ['--checkers', '3']],
+);
+
 /** Writes `files`; a `{ link }` value is a symlink to the relative path `link`. */
 function writeFiles(dir, files) {
   for (const [path, content] of Object.entries(files)) {

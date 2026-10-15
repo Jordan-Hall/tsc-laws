@@ -18,7 +18,8 @@ import { normalizePath } from '../compiler/path.js';
 import type { Program } from '../compiler/program.js';
 import { ParseThread } from '../compiler/parse-thread.js';
 import { type CommandLineResult, System, executeCommandLine, readThreadProject } from '../compiler/tsc-cli.js';
-import { compile, compileInParallel, compileThreads } from '../compiler/tsc-compile.js';
+import type { OutputWriter } from '../compiler/compile-program.js';
+import { compile, compileInParallel, compileThreads, SystemWriter } from '../compiler/tsc-compile.js';
 import { build } from '../compiler/tsc-build.js';
 import { watch, watchBuild } from '../compiler/tsc-watch.js';
 
@@ -192,6 +193,11 @@ export function createNodeSystem(libraryPath: string, bundledLibs: string): Syst
     normalizePath(libraryPath),
     bundledLibs,
   );
+}
+
+/** Writes the files checker threads emit (parallel-check.ts) as the system of `runTsc` does. */
+export function outputWriterOfThread(libraryPath: string): OutputWriter {
+  return new SystemWriter(new NodeSystem(normalizePath(process.cwd()), false, 0, normalizePath(libraryPath), ''));
 }
 
 /** What `runTsc` returns when it keeps watching for changes instead of exiting. */

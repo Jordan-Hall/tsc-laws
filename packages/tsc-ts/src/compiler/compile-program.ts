@@ -248,7 +248,12 @@ export class PlainProgram extends CompilerProgram {
     }
     const program = this.program;
     const files = program.getSourceFiles();
-    const result = this.emitter.emit(files, EmitOnly.All, writer);
+    const parallel = this.checked.emittedInParallel;
+    // Checker threads emitted the files they checked (parallel-check.ts); the others are emitted here, in order.
+    const result =
+      parallel === undefined
+        ? this.emitter.emit(files, EmitOnly.All, writer)
+        : combineEmitResults(files.map((file, i) => parallel[i] ?? this.emitter.emit([file], EmitOnly.All, writer)));
     // Emit is skipped only for files that would have been emitted.
     if (options.noEmit === true) result.emitSkipped = files.some((file) => program.sourceFileMayBeEmitted(file, false));
     return result;
