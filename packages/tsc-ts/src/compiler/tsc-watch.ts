@@ -12,10 +12,11 @@ import {
   localizeMessage,
   type MessageWithArgs,
 } from './diagnostics.js';
+import { type ExternalModuleIndicatorOptions, ParseOptions, ScriptKind, type SourceFile } from './ast.js';
 import { CompilerHost } from './file-loader.js';
 import { CachedFileSystem } from './file-system.js';
 import { clearLibGlobalsCache } from './checker-symbols.js';
-import { forgetLazyJSDocFile } from './parser.js';
+import { forgetLazyJSDocFile, parseSourceFile } from './parser.js';
 import { forgetNavigationFile } from './astnav.js';
 import { forgetRangeScannerFile } from './binder-utilities.js';
 import { forgetIdentifierSets } from './printer/name-generator.js';
@@ -112,14 +113,62 @@ function includeDirectories(config: ParsedCommandLine): { path: string; recursiv
   return result;
 }
 
-/** A compiler host writing `--traceResolution` output to the system. */
+/**
+ * The source files of the last build, by name, path and module detection options, for the next build
+ * to take where their text is unchanged (`WatchCompilerHost`).
+ */
+class WatchSourceFiles {
+  previous = new Map<string, SourceFile>();
+  current = new Map<string, SourceFile>();
+
+  /** Starts a build: the files of the last one are what it can take. */
+  next(): void {
+    this.previous = this.current;
+    this.current = new Map<string, SourceFile>();
+  }
+}
+
+/**
+ * A compiler host writing `--traceResolution` output to the system, which takes the parsed and bound
+ * source file of the last build when a file's text is unchanged, as tsgo's watch reuses the files of
+ * its old program. A file parses the same for the same text, name, path and module detection options,
+ * and binding a bound file does nothing. Natively, syntax trees and symbols are never freed
+ * (ProgramLifetime), so parsing every file again made each rebuild keep another copy of the program.
+ */
 class WatchCompilerHost extends CompilerHost {
   constructor(
     private readonly sys: System,
     fs: CachedFileSystem,
     private readonly locale: Locale,
+    private readonly files: WatchSourceFiles,
   ) {
     super(fs, sys.currentDirectory, sys.defaultLibraryPath);
+  }
+
+  getSourceFile(
+    fileName: string,
+    path: string,
+    externalModuleIndicatorOptions: ExternalModuleIndicatorOptions,
+  ): SourceFile | undefined {
+    const text = this.fs.readFile(fileName);
+    if (text === undefined) return undefined;
+    const key =
+      fileName +
+      '\u0000' +
+      path +
+      (externalModuleIndicatorOptions.jsx ? '\u0000j' : '\u0000') +
+      (externalModuleIndicatorOptions.force ? 'f' : '');
+    let file = this.files.current.get(key);
+    if (file !== undefined && file.text === text) return file;
+    file = this.files.previous.get(key);
+    if (file === undefined || file.text !== text)
+      file = parseSourceFile(
+        fileName,
+        text,
+        new ParseOptions(path, ScriptKind.Unknown, externalModuleIndicatorOptions),
+      );
+    this.files.current.set(key, file);
+    return file;
   }
 
   trace(message: MessageWithArgs): void {
@@ -139,6 +188,7 @@ class Watcher {
   private readonly locale: Locale;
   private readonly reporter: DiagnosticReporter;
   private readonly status: WatchStatusReporter;
+  private readonly files = new WatchSourceFiles();
 
   constructor(
     private readonly sys: System,
@@ -220,7 +270,8 @@ class Watcher {
       );
       if (parsed !== undefined) this.config = parsed;
     }
-    const program = new Program(this.config, new WatchCompilerHost(sys, fs, this.locale));
+    this.files.next();
+    const program = new Program(this.config, new WatchCompilerHost(sys, fs, this.locale, this.files));
     const checked = new CheckedProgram(program);
     const incremental = new IncrementalProgram(checked, new CompileTimes(), this.snapshot, new SystemTimeStamps(sys));
     const result = emitFilesAndReportErrors(
