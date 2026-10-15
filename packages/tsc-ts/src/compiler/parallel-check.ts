@@ -54,7 +54,8 @@ export function residentMB(): number[] {
  * Starts checker thread `index` (main.ts owns the worker entry point). `program` is the shared,
  * published program in scriptc builds and `undefined` under Node.js; ids continue above `nodeIds` and
  * `symbolIds`. `reserved` are the positions of a group the thread's predecessor on `index` left
- * (`CheckerResult.reserved`).
+ * (`CheckerResult.reserved`). With `emits` false the thread doesn't emit the files it checks, where
+ * the main thread emits the program (`checkersEmit`).
  */
 export type CheckerSpawn = (
   program: Program | undefined,
@@ -64,6 +65,7 @@ export type CheckerSpawn = (
   nodeIds: number,
   symbolIds: number,
   reserved: number[],
+  emits: boolean,
 ) => Worker;
 
 export class ParallelCheck {
@@ -346,10 +348,12 @@ function checkersReportDeclarations(checked: CheckedProgram): boolean {
  * files): unless the program doesn't emit, or `noEmitOnError` makes emit wait for every file's
  * diagnostics. The checker that checked a file has its types at hand, and its declarations print
  * as on the checker tsgo emits the file with. The main thread emits the files no checker emitted.
+ * With `emits` false (build mode, whose incremental program emits) checkers don't emit.
  */
-function checkersEmit(checked: CheckedProgram): boolean {
+function checkersEmit(checked: CheckedProgram, emits: boolean): boolean {
   const options = checked.program.options;
   return (
+    emits &&
     parallelCheck.writer !== undefined &&
     options.noEmit !== true &&
     options.noEmitOnError !== true &&
@@ -1365,6 +1369,7 @@ export function traceSingleChecker(checked: CheckedProgram): void {
  * Checks files from the shared queue until it is empty; the main thread and checker threads alike.
  * A checker thread (`onMainThread` false) also sends back its global diagnostics. At `limit` files
  * it stops; `reserved` are the positions of a group its predecessor on `index` had not checked then.
+ * With `emit` false it doesn't emit the files it checks (`checkersEmit`).
  */
 export function checkFromQueue(
   checked: CheckedProgram,
@@ -1375,6 +1380,7 @@ export function checkFromQueue(
   onMainThread: boolean = true,
   limit: number = 0,
   reserved: readonly number[] = [],
+  emit: boolean = true,
 ): CheckerResult {
   const start = performance.now();
   const readyAt = Date.now();
@@ -1386,7 +1392,7 @@ export function checkFromQueue(
   const declarations: Diagnostic[][] = [];
   const emits: EmitResult[] = [];
   // Emit (or declaration emit) of a file right after checking it, with this checker.
-  const writer = checkersEmit(checked) ? parallelCheck.writer : undefined;
+  const writer = checkersEmit(checked, emit) ? parallelCheck.writer : undefined;
   const emitter = writer !== undefined || checkersReportDeclarations(checked) ? new ProgramEmitter(checked) : undefined;
   const plan = schedulePlan(counter);
   const retirement = retirementMemory(index);
@@ -1487,7 +1493,12 @@ export function mainThreadChecks(shared: boolean): boolean {
  * Checks `checked` with `count` checkers and calls `done` with the wall time once `checked` holds
  * every file's diagnostics.
  */
-export function startParallelCheck(checked: CheckedProgram, count: number, done: (checkTime: number) => void): void {
+export function startParallelCheck(
+  checked: CheckedProgram,
+  count: number,
+  done: (checkTime: number) => void,
+  emits: boolean = true,
+): void {
   const start = performance.now();
   const program = checked.program;
   const files = program.getSourceFiles();
@@ -1544,7 +1555,7 @@ export function startParallelCheck(checked: CheckedProgram, count: number, done:
       );
     // Files without declaration diagnostics or emit results here get them on this thread (PlainProgram).
     if (checkersReportDeclarations(checked)) checked.declarationsInParallel = perFileDeclarations;
-    if (checkersEmit(checked)) checked.emittedInParallel = perFileEmits;
+    if (checkersEmit(checked, emits)) checked.emittedInParallel = perFileEmits;
     done(performance.now() - start);
   };
   const record = (result: CheckerResult): void => {
@@ -1576,6 +1587,7 @@ export function startParallelCheck(checked: CheckedProgram, count: number, done:
       lastNodeIdValue(),
       lastSymbolIdValue(),
       reserved,
+      emits,
     );
     worker.on('message', (message: unknown) => {
       mark(`result from c${i}`);
@@ -1601,7 +1613,7 @@ export function startParallelCheck(checked: CheckedProgram, count: number, done:
   // This thread's checker (`CheckedProgram.checker`) merges the globals while the threads start.
   void checked.checker;
   mark('reporting checker created');
-  if (mainChecks) record(checkFromQueue(checked, 0, new Int32Array(counter), order, epoch));
+  if (mainChecks) record(checkFromQueue(checked, 0, new Int32Array(counter), order, epoch, true, 0, [], emits));
   ownDone = true;
   if (remaining === 0) finish();
 }
