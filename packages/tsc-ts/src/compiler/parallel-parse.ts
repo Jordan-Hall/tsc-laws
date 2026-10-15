@@ -121,6 +121,17 @@ export class ParallelParse {
 
 export const parallelParse = new ParallelParse();
 
+/**
+ * Drops the prepared files once a program took what it needed. In a build, the next project's
+ * program must not take another project's files, which were loaded with that project's options.
+ */
+export function clearPreparedFiles(): void {
+  parallelParse.files.clear();
+  parallelParse.used = 0;
+  parallelParse.missed = 0;
+  parallelParse.unprepared = 0;
+}
+
 /** The FileLoader's lookup: the prepared file for these parse inputs, or `undefined`. */
 export function takePreparedFile(
   fileName: string,
@@ -163,11 +174,14 @@ export class ParseQueue {
   private largeHead = 0;
   private head = 0;
   private readonly seen = new Set<string>();
+  /** Files not to load ahead: the program has them already (`ParseSession`'s `skip`). */
+  skip: ((kind: LoadKind, name: string) => boolean) | undefined = undefined;
 
   push(kind: LoadKind, name: string, depth: number, size = 0): void {
     const key = kind === LoadKind.Library ? 'lib:' + name : kind === LoadKind.AutomaticTypes ? 'types:' : name;
     if (this.seen.has(key)) return;
     this.seen.add(key);
+    if (this.skip !== undefined && this.skip(kind, name)) return;
     const jobs =
       kind === LoadKind.Library
         ? this.libraries
@@ -280,6 +294,8 @@ export class ParseSession {
   /**
    * Starts `count` parse threads for a program with `options`, with or without root files
    * (`hasRootFiles`; `true` when not known yet). They read the config `configFileName` (`''` for none).
+   * They don't load the files `skip` names (a library's name, or another file's normalized name),
+   * which the program gets elsewhere; nor the files only those add.
    */
   constructor(
     private readonly count: number,
@@ -287,6 +303,7 @@ export class ParseSession {
     private readonly currentDirectory: string,
     configFileName: string,
     hasRootFiles: boolean,
+    skip?: (kind: LoadKind, name: string) => boolean,
   ) {
     mark(`parse start, ${count} threads`);
     // Prepared files are published (immutable): this thread keeps lazily parsed JSDoc, and the text
@@ -294,6 +311,7 @@ export class ParseSession {
     useLazyJSDocTable();
     useThreadTextCaches();
     const queue = this.queue;
+    queue.skip = skip;
     if (hasRootFiles) {
       if (options.noLib !== true) {
         const lib = options.lib;

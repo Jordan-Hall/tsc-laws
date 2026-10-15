@@ -416,6 +416,12 @@ export class FileLoader {
   private rootFilesAdded = 0;
   /** The sub-tasks of prepared files, by file name, built ahead by `takeAhead`. */
   private readonly subTasksAhead = new Map<string, SubTasksAhead>();
+  /**
+   * Whether a file that parse threads prepared is loaded from what its thread found (its metadata
+   * and resolutions). If not, only the parsed and bound file is taken, and this loader looks up the
+   * file's metadata and resolves its references and imports itself, as without parse threads.
+   */
+  takesPreparedResolutions = true;
 
   constructor(
     readonly host: CompilerHost,
@@ -905,7 +911,7 @@ export class FileLoader {
     }
 
     // What a parse thread found loading this file, if it prepared it as the same kind of file.
-    let loaded = preparedLoad(task.normalizedFilePath);
+    let loaded = this.takesPreparedResolutions ? preparedLoad(task.normalizedFilePath) : undefined;
     if (loaded !== undefined && loaded.isLibFile !== (task.libFile !== undefined)) loaded = undefined;
     // Default libraries are scripts: skip looking up their package.json.
     task.metadata =
