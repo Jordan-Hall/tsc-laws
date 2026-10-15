@@ -4044,31 +4044,37 @@ export function getUnmatchedProperty(
   requireOptionalProperties: boolean,
   matchDiscriminantProperties: boolean,
 ): Symbol | undefined {
-  for (const targetProp of getPropertiesOfType(c, target)) {
-    if (isStaticPrivateIdentifierProperty(targetProp)) continue;
-    if (
-      requireOptionalProperties ||
-      ((targetProp.flags & SymbolFlags.Optional) === 0 && (targetProp.checkFlags & CheckFlags.Partial) === 0)
-    ) {
-      const sourceProp = getPropertyOfType(c, source, targetProp.name);
-      if (sourceProp === undefined) return targetProp;
-      if (matchDiscriminantProperties) {
-        // A unit-typed (discriminant) property whose literal differs in the source is unmatched.
-        const targetType = getTypeOfSymbol(c, targetProp);
-        if ((targetType.flags & TypeFlags.Unit) !== 0) {
-          const sourceType = getTypeOfSymbol(c, sourceProp);
-          if (
-            !(
-              (sourceType.flags & TypeFlags.Any) !== 0 ||
-              getRegularTypeOfLiteralType(c, sourceType) === getRegularTypeOfLiteralType(c, targetType)
-            )
-          )
-            return targetProp;
-        }
-      }
-    }
-  }
+  for (const targetProp of getPropertiesOfType(c, target))
+    if (isUnmatchedProperty(c, source, targetProp, requireOptionalProperties, matchDiscriminantProperties))
+      return targetProp;
   return undefined;
+}
+
+/** Whether `getUnmatchedProperty` reports `targetProp`, a property of the target. */
+export function isUnmatchedProperty(
+  c: Checker,
+  source: Type,
+  targetProp: Symbol,
+  requireOptionalProperties: boolean,
+  matchDiscriminantProperties: boolean,
+): boolean {
+  if (isStaticPrivateIdentifierProperty(targetProp)) return false;
+  if (
+    !requireOptionalProperties &&
+    ((targetProp.flags & SymbolFlags.Optional) !== 0 || (targetProp.checkFlags & CheckFlags.Partial) !== 0)
+  )
+    return false;
+  const sourceProp = getPropertyOfType(c, source, targetProp.name);
+  if (sourceProp === undefined) return true;
+  if (!matchDiscriminantProperties) return false;
+  // A unit-typed (discriminant) property whose literal differs in the source is unmatched.
+  const targetType = getTypeOfSymbol(c, targetProp);
+  if ((targetType.flags & TypeFlags.Unit) === 0) return false;
+  const sourceType = getTypeOfSymbol(c, sourceProp);
+  return !(
+    (sourceType.flags & TypeFlags.Any) !== 0 ||
+    getRegularTypeOfLiteralType(c, sourceType) === getRegularTypeOfLiteralType(c, targetType)
+  );
 }
 
 export function getUnmatchedProperties(
