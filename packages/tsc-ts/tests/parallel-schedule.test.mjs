@@ -373,6 +373,8 @@ test('a checker result packed as plain data comes back with the same diagnostics
   assert.ok(all.some((d) => d.relatedInformation.length > 0));
   // Through a structured clone, as postMessage copies it.
   const packed = structuredClone(packResult(result, c.program));
+  // Typed arrays, which the message copies as one block each.
+  assert.ok(packed.files instanceof Int32Array && packed.nums instanceof Int32Array);
   assert.ok(
     packed.strs.every((s) => !s.includes('interface P')),
     'file texts the program has stay behind',
