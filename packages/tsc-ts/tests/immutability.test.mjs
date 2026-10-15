@@ -2,8 +2,8 @@
 // JSDoc, which are assigned and parsed on first use, and that a program prepared for sharing between
 // threads (`Program.prepareForSharing`, used by `--checkers`) is not written at all: deep-freezes
 // every object reachable from the prepared program and its bound source files (nodes, symbols, symbol
-// tables, flow nodes, diagnostics, the program's caches), then checks the program and emits
-// JavaScript, declarations and source maps. Writes to frozen objects throw in strict mode, and Map and
+// tables, flow nodes, diagnostics, the program's caches), then checks the program, emits
+// JavaScript, declarations and source maps, and explains its files (`--explainFiles`). Writes to frozen objects throw in strict mode, and Map and
 // Set mutators are replaced by throwing ones. The diagnostics and outputs must match those of an
 // unfrozen run.
 // Projects: tsc-ts itself, and test cases from TypeScript's compiler and conformance suites.
@@ -142,7 +142,16 @@ function compile(args, freeze) {
   const emitted = compiled.emit(writer);
   // The line counts of `--extendedDiagnostics`.
   const lines = program.getSourceFiles().map((file) => `${file.fileName} ${file.lineStarts().length}`);
-  return { frozen, diagnostics, outputs: writer.outputs, emitDiagnostics: format(emitted.diagnostics), lines };
+  // `--explainFiles` is reported after checking, from the program as checker threads share it.
+  const explained = program.explainFiles(defaultLocale);
+  return {
+    frozen,
+    diagnostics,
+    outputs: writer.outputs,
+    emitDiagnostics: format(emitted.diagnostics),
+    lines,
+    explained,
+  };
 }
 
 function assertImmutable(args, minimumFrozen = 100000) {
@@ -154,6 +163,7 @@ function assertImmutable(args, minimumFrozen = 100000) {
   assert.deepEqual(frozen.emitDiagnostics, plain.emitDiagnostics);
   assert.deepEqual(frozen.outputs, plain.outputs);
   assert.deepEqual(frozen.lines, plain.lines);
+  assert.equal(frozen.explained, plain.explained);
 }
 
 const emitOptions = (dir) => ['--noEmit', 'false', '--outDir', dir, '--declaration', '--declarationMap', '--sourceMap'];

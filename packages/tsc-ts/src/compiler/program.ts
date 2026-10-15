@@ -497,6 +497,14 @@ export class Program implements OutputPathsHost {
    * (or the config file's directory), which reports only when options compute it while the program
    * is created (verifyCompilerOptions), not when emit or declaration diagnostics compute it later.
    */
+  /**
+   * Whether the program was prepared for sharing (`prepareForSharing`): its objects are immutable, so what is
+   * computed on first use after that is not kept in them.
+   */
+  isShared(): boolean {
+    return this.shared;
+  }
+
   prepareForSharing(): void {
     // Each thread computes the symlink cache and the packages map on first use (module specifiers,
     // and the hint of a missing declaration file): checking rarely needs them.

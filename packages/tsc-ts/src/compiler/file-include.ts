@@ -142,18 +142,19 @@ export class FileIncludeReason {
           false,
         );
     }
-    this.location = location;
+    if (!program.isShared()) this.location = location;
     return location;
   }
 
   /** The reason as a message, with file names relative to the current directory if `relative`. */
   toDiagnostic(program: Program, relative: boolean): Diagnostic {
-    if (relative) {
-      if (this.relativeDiagnostic === undefined) this.relativeDiagnostic = this.computeDiagnostic(program, true);
-      return this.relativeDiagnostic;
-    }
-    if (this.absoluteDiagnostic === undefined) this.absoluteDiagnostic = this.computeDiagnostic(program, false);
-    return this.absoluteDiagnostic;
+    const cached = relative ? this.relativeDiagnostic : this.absoluteDiagnostic;
+    if (cached !== undefined) return cached;
+    const diagnostic = this.computeDiagnostic(program, relative);
+    if (program.isShared()) return diagnostic;
+    if (relative) this.relativeDiagnostic = diagnostic;
+    else this.absoluteDiagnostic = diagnostic;
+    return diagnostic;
   }
 
   private computeDiagnostic(program: Program, relative: boolean): Diagnostic {
@@ -285,8 +286,10 @@ export class FileIncludeReason {
 
   /** Where in the config or a file this reason is written, as related information; `undefined` if nowhere. */
   toRelatedInfo(program: Program): Diagnostic | undefined {
-    if (this.relatedInfo === undefined) this.relatedInfo = this.computeRelatedInfo(program) ?? null;
-    return this.relatedInfo ?? undefined;
+    if (this.relatedInfo !== undefined) return this.relatedInfo ?? undefined;
+    const info = this.computeRelatedInfo(program);
+    if (!program.isShared()) this.relatedInfo = info ?? null;
+    return info;
   }
 
   private computeRelatedInfo(program: Program): Diagnostic | undefined {
@@ -576,23 +579,26 @@ export class IncludeProcessor {
 
   /** The compiler options object of the config file. */
   compilerOptionsSyntax(program: Program): ObjectLiteralExpression | undefined {
-    if (!this.compilerOptionsComputed) {
+    if (this.compilerOptionsComputed) return this.compilerOptionsObject;
+    const property = findPropertyAssignment(
+      getTsConfigObjectLiteral(program.commandLine.configFile?.sourceFile),
+      'compilerOptions',
+    );
+    const initializer = property?.initializer;
+    // `as`: scriptc loses instanceof narrowing here.
+    const object =
+      initializer instanceof ObjectLiteralExpression ? (initializer as ObjectLiteralExpression) : undefined;
+    if (!program.isShared()) {
       this.compilerOptionsComputed = true;
-      const property = findPropertyAssignment(
-        getTsConfigObjectLiteral(program.commandLine.configFile?.sourceFile),
-        'compilerOptions',
-      );
-      const initializer = property?.initializer;
-      // `as`: scriptc loses instanceof narrowing here.
-      if (initializer instanceof ObjectLiteralExpression)
-        this.compilerOptionsObject = initializer as ObjectLiteralExpression;
+      this.compilerOptionsObject = object;
     }
-    return this.compilerOptionsObject;
+    return object;
   }
 
   /**
    * Notes on a file's origin and module format. Cached per file: the first caller's choice of relative or
-   * absolute file names sticks, as in tsgo.
+   * absolute file names sticks, as in tsgo. A shared program keeps what was cached before sharing; after that,
+   * only `--explainFiles` asks, once per file, and the result is not kept.
    */
   explainRedirectAndImpliedFormat(program: Program, path: string, relative: boolean): readonly Diagnostic[] {
     const cached = this.redirectAndFileFormat.get(path);
@@ -653,7 +659,7 @@ export class IncludeProcessor {
         }
       }
     }
-    this.redirectAndFileFormat.set(path, result);
+    if (!program.isShared()) this.redirectAndFileFormat.set(path, result);
     return result;
   }
 }
