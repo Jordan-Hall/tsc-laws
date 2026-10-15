@@ -88,6 +88,7 @@ import {
 } from './checker-modules.js';
 import { isJSAliasDeclaration } from './checker-javascript.js';
 import { getFeatureMap } from './checker-features.js';
+import { NodeBuilderInternalFlags } from './transformers/declarations-resolver.js';
 
 // ---- Name resolution
 
@@ -1742,10 +1743,14 @@ function tryGetQualifiedNameAsValue(c: Checker, node: Node): Symbol | undefined 
   return symbol;
 }
 
-export function getFullyQualifiedName(c: Checker, symbol: Symbol): string {
+/**
+ * `symbol` qualified by its parents. The outermost one is written as seen from `containingLocation`
+ * if given, so that a module is named by a specifier the containing file could import it with.
+ */
+export function getFullyQualifiedName(c: Checker, symbol: Symbol, containingLocation?: Node): string {
   return symbol.parent !== undefined
-    ? getFullyQualifiedName(c, symbol.parent) + '.' + symbolToString(c, symbol)
-    : symbolToString(c, symbol);
+    ? getFullyQualifiedName(c, symbol.parent, containingLocation) + '.' + symbolToString(c, symbol)
+    : symbolToString(c, symbol, containingLocation, NodeBuilderInternalFlags.DoNotIncludeSymbolChain);
 }
 
 export function getCannotFindNameDiagnosticForName(c: Checker, node: Node): DiagnosticMessage {

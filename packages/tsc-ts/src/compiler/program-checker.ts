@@ -10,6 +10,7 @@
 import { type Node, ScriptKind, type SourceFile } from './ast.js';
 import { Checker, CheckerHost } from './checker.js';
 import { createDiagnostic, Diagnostic, type DiagnosticMessage, Diagnostics, messageCode } from './diagnostics.js';
+import type { EmitResult } from './emitter.js';
 import type { CompilerOptions, ModuleKind } from './options.js';
 import type { ResolvedModule } from './module-resolution-types.js';
 import { ModuleSpecifierHost } from './module-specifiers.js';
@@ -234,6 +235,11 @@ export class CheckedProgram {
    * index; `undefined` for files they did not. Set once every file is checked.
    */
   declarationsInParallel: (Diagnostic[] | undefined)[] | undefined = undefined;
+  /**
+   * What checker threads emitted (PlainProgram), by file index; `undefined` for files they did not
+   * emit. Set once every file is checked, when checker threads emit (parallel-check.ts).
+   */
+  emittedInParallel: (EmitResult | undefined)[] | undefined = undefined;
 
   getSemanticDiagnostics(file: SourceFile | undefined): Diagnostic[] {
     const parallel = this.checkedInParallel;
@@ -266,11 +272,15 @@ export class CheckedProgram {
     return this.collectChecked(file, (f) => this.checkerOf(f).getSuggestionDiagnostics(f));
   }
 
-  /** Diagnostics without a file, once every file is checked. */
-  getGlobalDiagnostics(): Diagnostic[] {
+  /**
+   * Diagnostics without a file, once every file is checked. Without `withCheckerThreads`, those of the
+   * reporting checkers only, as before checking: checker threads (parallel-check.ts) also report
+   * those they found checking files.
+   */
+  getGlobalDiagnostics(withCheckerThreads = true): Diagnostic[] {
     if (this.program.getSourceFiles().length === 0) return [];
     const libraryChecker = this.libraryChecker;
-    const parallel = this.parallelGlobalDiagnostics;
+    const parallel = withCheckerThreads ? this.parallelGlobalDiagnostics : [];
     if (libraryChecker === undefined && parallel.length === 0) return this.checker.getGlobalDiagnostics();
     const result = [...this.checker.getGlobalDiagnostics(), ...parallel];
     if (libraryChecker !== undefined) for (const d of libraryChecker.getGlobalDiagnostics()) result.push(d);

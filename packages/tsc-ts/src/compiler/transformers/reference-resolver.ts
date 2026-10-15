@@ -314,6 +314,10 @@ export class ReferenceResolver {
   private readonly unresolvedReferences: Set<Node>;
   private readonly unresolvedAliases: Set<Symbol>;
   private readonly resolvingAliases: Set<Symbol>;
+  /** The module each module specifier names (`null` for none), by specifier. */
+  private readonly specifierModules: Map<Node, Symbol | null>;
+  /** Results of `isTypeOnlyAliasChain`, for queries outside alias resolution. */
+  private readonly typeOnlyChains: Map<Symbol, boolean>;
 
   constructor(options: CompilerOptions, files: readonly SourceFile[], modules: ModuleLookup | undefined) {
     this.options = options;
@@ -327,6 +331,8 @@ export class ReferenceResolver {
     this.unresolvedReferences = new Set<Node>();
     this.unresolvedAliases = new Set<Symbol>();
     this.resolvingAliases = new Set<Symbol>();
+    this.specifierModules = new Map<Node, Symbol | null>();
+    this.typeOnlyChains = new Map<Symbol, boolean>();
     this.names.aliases = this;
     this.merged.merge(files, this);
   }
@@ -546,8 +552,21 @@ export class ReferenceResolver {
     );
   }
 
-  /** Whether an alias is type-only, itself or through the aliases it directly names. */
+  /**
+   * Whether an alias is type-only, itself or through the aliases it directly names. Cached unless an
+   * alias is being resolved, when the answer can depend on which.
+   */
   isTypeOnlyAliasChain(symbol: Symbol): boolean {
+    if (this.resolvingAliases.size > 0) return this.computeTypeOnlyAliasChain(symbol);
+    let result = this.typeOnlyChains.get(symbol);
+    if (result === undefined) {
+      result = this.computeTypeOnlyAliasChain(symbol);
+      this.typeOnlyChains.set(symbol, result);
+    }
+    return result;
+  }
+
+  private computeTypeOnlyAliasChain(symbol: Symbol): boolean {
     let current = symbol;
     for (let depth = 0; depth < maxAliasDepth && (current.flags & SymbolFlags.Alias) !== 0; depth++) {
       if (this.isTypeOnlyAlias(current)) return true;
@@ -663,8 +682,17 @@ export class ReferenceResolver {
     return this.resolveModuleSpecifier(specifier, specifier);
   }
 
+  /** The module `specifier` names; `location` is in the same file. */
   private resolveModuleSpecifier(location: Node, specifier: Node | undefined): Symbol | undefined {
     if (specifier === undefined) return undefined;
+    const cached = this.specifierModules.get(specifier);
+    if (cached !== undefined) return cached === null ? undefined : cached;
+    const result = this.computeModuleOfSpecifier(location, specifier);
+    this.specifierModules.set(specifier, result === undefined ? null : result);
+    return result;
+  }
+
+  private computeModuleOfSpecifier(location: Node, specifier: Node): Symbol | undefined {
     const name = stringLiteralText(specifier);
     if (name === undefined) return undefined;
     // Ambient modules, `declare module "m"`, come first for names that aren't relative.

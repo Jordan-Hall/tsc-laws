@@ -68,7 +68,14 @@ import {
   isVariableDeclarationInitializedToRequire,
   moduleExportNameIsDefault,
 } from './binder-utilities.js';
-import { type Diagnostic, type DiagnosticMessage, Diagnostics, chainDiagnostic } from './diagnostics.js';
+import {
+  type Diagnostic,
+  type DiagnosticMessage,
+  Diagnostics,
+  chainDiagnostic,
+  RepopulateInfo,
+  RepopulateKind,
+} from './diagnostics.js';
 import {
   JsxEmit,
   ModuleKind,
@@ -103,7 +110,7 @@ import {
 import { InternalSymbolName, type Symbol, SymbolFlags, type SymbolTable, getSymbolId } from './symbol.js';
 import { SyntaxKind } from './syntax-kind.js';
 import { isExpressionNode } from './transformers/alias-references.js';
-import { type Checker, createDiagnosticForNode } from './checker.js';
+import { type Checker, type CheckerHost, createDiagnosticForNode } from './checker.js';
 import { ObjectFlags, type Type, TypeFlags, SignatureKind } from './checker-types.js';
 import {
   createAnonymousType,
@@ -503,8 +510,10 @@ function checkSyncImportOfESModule(
   }
   let details: Diagnostic | undefined;
   const extension = tryGetExtensionFromPath(importingFile.fileName);
-  if (extension === '.ts' || extension === '.js' || extension === '.tsx' || extension === '.jsx')
-    details = createModeMismatchDetails(c, importingFile, errorNode);
+  if (extension === '.ts' || extension === '.js' || extension === '.tsx' || extension === '.jsx') {
+    details = detailsAt(errorNode, modeMismatchDetails(c.host, importingFile));
+    details.repopulateInfo = new RepopulateInfo(RepopulateKind.ModeMismatch);
+  }
   let message =
     Diagnostics.The_current_file_is_a_CommonJS_module_whose_imports_will_produce_require_calls_however_the_referenced_file_is_an_ECMAScript_module_and_cannot_be_imported_with_require_Consider_writing_a_dynamic_import_0_call_instead;
   if (overrideHost !== undefined && overrideHost.kind === SyntaxKind.ImportDeclaration) {
@@ -554,34 +563,45 @@ function hasResolutionModeOverride(node: Node): boolean {
   return attributes !== undefined && getResolutionModeOverride(attributes as ImportAttributes) !== ModuleKind.None;
 }
 
-/** How to make a CommonJS file an ES module, elaborating an error about importing one from it. */
-function createModeMismatchDetails(c: Checker, file: SourceFile, errorNode: Node): Diagnostic {
+/** A message with its arguments, the elaboration of a diagnostic before it has a location. */
+export class DiagnosticDetails {
+  constructor(
+    readonly message: DiagnosticMessage,
+    readonly args: string[],
+  ) {}
+}
+
+function detailsAt(node: Node, details: DiagnosticDetails): Diagnostic {
+  return createDiagnosticForNode(node, details.message, details.args);
+}
+
+/**
+ * How to make the CommonJS file `file` an ES module, elaborating an error about importing one from
+ * it; also what an incremental build recomputes for a stored diagnostic (`RepopulateKind.ModeMismatch`).
+ */
+export function modeMismatchDetails(host: CheckerHost, file: SourceFile): DiagnosticDetails {
   const extension = tryGetExtensionFromPath(file.fileName);
   const targetExtension = extension === '.ts' ? '.mts' : extension === '.js' ? '.mjs' : '';
-  const metadata = c.host.getSourceFileMetadata(file);
+  const metadata = host.getSourceFileMetadata(file);
   const packageJsonDirectory = metadata !== undefined ? metadata.packageJsonDirectory : '';
   if (packageJsonDirectory !== '' && metadata!.packageJsonType === '') {
     const packageJson = combinePaths(packageJsonDirectory, 'package.json');
     return targetExtension !== ''
-      ? createDiagnosticForNode(
-          errorNode,
+      ? new DiagnosticDetails(
           Diagnostics.To_convert_this_file_to_an_ECMAScript_module_change_its_file_extension_to_0_or_add_the_field_type_Colon_module_to_1,
           [targetExtension, packageJson],
         )
-      : createDiagnosticForNode(
-          errorNode,
+      : new DiagnosticDetails(
           Diagnostics.To_convert_this_file_to_an_ECMAScript_module_add_the_field_type_Colon_module_to_0,
           [packageJson],
         );
   }
   return targetExtension !== ''
-    ? createDiagnosticForNode(
-        errorNode,
+    ? new DiagnosticDetails(
         Diagnostics.To_convert_this_file_to_an_ECMAScript_module_change_its_file_extension_to_0_or_create_a_local_package_json_file_with_type_Colon_module,
         [targetExtension],
       )
-    : createDiagnosticForNode(
-        errorNode,
+    : new DiagnosticDetails(
         Diagnostics.To_convert_this_file_to_an_ECMAScript_module_create_a_local_package_json_file_with_type_Colon_module,
         [],
       );
@@ -617,34 +637,52 @@ function createModuleNotFoundChain(
   errorNode: Node,
   moduleReference: string,
   mode: ModuleKind,
-  packageNameIn: string,
+  packageName: string,
 ): Diagnostic {
+  const file = getSourceFileOfNode(errorNode);
+  const result = detailsAt(errorNode, moduleNotFoundDetails(c.host, file, moduleReference, mode, packageName));
+  result.repopulateInfo = new RepopulateInfo(
+    RepopulateKind.ModuleNotFound,
+    moduleReference,
+    mode,
+    packageName === moduleReference ? '' : packageName,
+  );
+  return result;
+}
+
+/**
+ * Where types for `moduleReference`, imported by `file`, might come from; also what an incremental
+ * build recomputes for a stored diagnostic (`RepopulateKind.ModuleNotFound`).
+ */
+export function moduleNotFoundDetails(
+  host: CheckerHost,
+  file: SourceFile,
+  moduleReference: string,
+  mode: ModuleKind,
+  packageNameIn: string,
+): DiagnosticDetails {
   let packageName = packageNameIn;
-  const resolved = c.host.getResolvedModule(getSourceFileOfNode(errorNode), moduleReference, mode);
+  const resolved = host.getResolvedModule(file, moduleReference, mode);
   if (resolved !== undefined && resolved.alternateResult !== '') {
     if (resolved.alternateResult.includes('/node_modules/@types/'))
       packageName = '@types/' + mangleScopedPackageName(packageName);
-    return createDiagnosticForNode(
-      errorNode,
+    return new DiagnosticDetails(
       Diagnostics.There_are_types_at_0_but_this_result_could_not_be_resolved_when_respecting_package_json_exports_The_1_library_may_need_to_update_its_package_json_or_typings,
       [resolved.alternateResult, packageName],
     );
   }
-  const packages = c.host.getPackagesMap();
+  const packages = host.getPackagesMap();
   if (packages.has(getTypesPackageName(packageName)))
-    return createDiagnosticForNode(
-      errorNode,
+    return new DiagnosticDetails(
       Diagnostics.If_the_0_package_actually_exposes_this_module_consider_sending_a_pull_request_to_amend_https_Colon_Slash_Slashgithub_com_SlashDefinitelyTyped_SlashDefinitelyTyped_Slashtree_Slashmaster_Slashtypes_Slash_1,
       [packageName, mangleScopedPackageName(packageName)],
     );
   if (packages.get(packageName) === true)
-    return createDiagnosticForNode(
-      errorNode,
+    return new DiagnosticDetails(
       Diagnostics.If_the_0_package_actually_exposes_this_module_try_adding_a_new_declaration_d_ts_file_containing_declare_module_1,
       [packageName, moduleReference],
     );
-  return createDiagnosticForNode(
-    errorNode,
+  return new DiagnosticDetails(
     Diagnostics.Try_npm_i_save_dev_types_Slash_1_if_it_exists_or_add_a_new_declaration_d_ts_file_containing_declare_module_0,
     [moduleReference, mangleScopedPackageName(packageName)],
   );
@@ -1227,7 +1265,7 @@ function errorNoModuleMemberSymbol(
   node: Node,
   name: Node,
 ): void {
-  const moduleName = getFullyQualifiedName(c, moduleSymbol);
+  const moduleName = getFullyQualifiedName(c, moduleSymbol, node);
   const declarationName = declarationNameToString(getSourceFileOfNode(name), name);
   const suggestion =
     name.kind === SyntaxKind.Identifier

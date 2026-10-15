@@ -22,6 +22,8 @@ import {
   getText,
   getTypeArguments,
   getExpression,
+  Identifier,
+  PropertySignatureDeclaration,
 } from './ast.js';
 import { getSourceFileOfNode, getSourceTextOfNode } from './binder-utilities.js';
 import { Diagnostic, type DiagnosticMessage, Diagnostics, chainDiagnostic } from './diagnostics.js';
@@ -1027,8 +1029,18 @@ export function createJsxAttributesTypeFromAttributesProperty(
       else if (childrenContextualType !== undefined && someType(childrenContextualType, (t) => isTupleLikeType(c, t)))
         c.symbolTypes.set(id, createTupleType(c, childTypes));
       else c.symbolTypes.set(id, createArrayType(c, getUnionType(c, childTypes)));
-      // Errors on the synthetic `children` property are reported on the attributes.
-      childrenPropSymbol.valueDeclaration = attributeParent;
+      // A property signature in the attributes declares the synthetic `children` property, so it is
+      // checked as an excess property like the attributes.
+      const childrenDeclaration = new PropertySignatureDeclaration(
+        undefined,
+        new Identifier(jsxChildrenPropertyName),
+        undefined,
+        undefined,
+        undefined,
+      );
+      childrenDeclaration.parent = attributeParent;
+      childrenDeclaration.symbol = childrenPropSymbol;
+      childrenPropSymbol.valueDeclaration = childrenDeclaration;
       const childPropMap: SymbolTable = new Map<string, Symbol>();
       childPropMap.set(jsxChildrenPropertyName, childrenPropSymbol);
       spread = getSpreadType(

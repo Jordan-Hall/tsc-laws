@@ -386,7 +386,110 @@ projects.push(
       }),
     },
   ],
+  [
+    'missing exports of a workspace package linked into node_modules',
+    {
+      'app/package.json': JSON.stringify({ name: '@scope/app', private: true, type: 'module' }),
+      'app/utils/theme/index.ts': 'export const size = 1;\n',
+      'app/components/a.ts': 'import type { Size, Variant } from "app/utils/theme";\nexport type S = Size | Variant;\n',
+      'node_modules/app': link('../app'),
+      'tsconfig.json': JSON.stringify({
+        compilerOptions: { ...base, module: 'preserve', moduleResolution: 'bundler' },
+        include: ['app'],
+      }),
+    },
+  ],
+  [
+    'unique symbols of modules as missing index keys',
+    {
+      'a.ts':
+        'export const sym: unique symbol = Symbol();\n' +
+        'export namespace NS {\n  export const inner: unique symbol = Symbol();\n}\n',
+      'b.ts':
+        'import { sym, NS } from "./a";\nconst o = { x: 1 };\no[sym];\no[NS.inner];\n' +
+        'declare const g: unique symbol;\no[g];\n',
+      'tsconfig.json': JSON.stringify({ compilerOptions: { ...base, module: 'preserve' }, files: ['a.ts', 'b.ts'] }),
+    },
+  ],
 );
+
+// Emit on checker threads: each checker emits the files it checks; the main thread emits the files no
+// checker checks (JSON, unchecked JavaScript). Declaration errors and outputs must match.
+const emitFiles = {
+  'src/shapes.ts':
+    'export interface Shape { kind: string; size: number }\n' +
+    'export const shapes = [{ kind: "a", size: 1 }, { kind: "b", size: 2, extra: true }];\n',
+  'src/area.ts':
+    'import { Shape, shapes } from "./shapes";\nexport function area(s: Shape) { return s.size * 2; }\n' +
+    'export const total = shapes.map(area).reduce((a, b) => a + b, 0);\n',
+  'src/hidden.ts': 'export const instance = new (class { private secret = 1; open = 2 })();\n',
+  'src/wrong.ts': 'export const n: number = "not a number";\n',
+  'src/data.json': '{ "name": "data", "values": [1, 2, 3] }\n',
+  'src/plain.js': 'export function plain(a) { return a + 1; }\n',
+  'src/index.ts':
+    'import data from "./data.json";\nimport { plain } from "./plain.js";\nimport { total } from "./area";\n' +
+    'export * from "./hidden";\nexport const summary = { name: data.name, total, next: plain(total) };\n',
+  'tsconfig.json': JSON.stringify({
+    compilerOptions: {
+      ...base,
+      noEmit: false,
+      module: 'commonjs',
+      esModuleInterop: true,
+      resolveJsonModule: true,
+      allowJs: true,
+      declaration: true,
+      declarationMap: true,
+      sourceMap: true,
+      rootDir: 'src',
+      outDir: 'out',
+    },
+    include: ['src'],
+  }),
+};
+
+projects.push(
+  ['emit on one checker', emitFiles, ['--singleThreaded']],
+  ['emit on three checkers', emitFiles, ['--checkers', '3']],
+);
+
+// JSX emit: opening and self-closing elements, fragments and spread attributes for the automatic and
+// classic runtimes, with JavaScript, declarations and maps compared.
+const jsxRuntime = {
+  'node_modules/react/package.json': JSON.stringify({ name: 'react', version: '1.0.0', types: 'index.d.ts' }),
+  'node_modules/react/index.d.ts':
+    'export declare function createElement(...args: any[]): any;\nexport declare const Fragment: any;\n' +
+    'declare global { namespace JSX { interface Element {} interface IntrinsicElements { [name: string]: any } } }\n',
+  'node_modules/react/jsx-runtime.d.ts':
+    'export declare function jsx(...args: any[]): any;\nexport declare function jsxs(...args: any[]): any;\n' +
+    'export declare const Fragment: any;\n',
+  'a.tsx':
+    'import * as React from "react";\nvoid React;\n' +
+    'export const Item = (props: { name: string }) => <li className="item">{props.name}<br /></li>;\n' +
+    'export const List = (props: any) => <ul {...props} key="k"><Item name="a" /><>{[1, 2]}</></ul>;\n' +
+    'export const Empty = () => <input disabled />;\n',
+};
+
+for (const jsx of ['react-jsx', 'react'])
+  projects.push([
+    `JSX elements with jsx ${jsx}`,
+    {
+      ...jsxRuntime,
+      'tsconfig.json': JSON.stringify({
+        compilerOptions: {
+          ...base,
+          noEmit: false,
+          jsx,
+          module: 'esnext',
+          moduleResolution: 'bundler',
+          sourceMap: true,
+          declaration: true,
+          declarationMap: true,
+          outDir: 'out',
+        },
+        files: ['a.tsx'],
+      }),
+    },
+  ]);
 
 // Decorator metadata: `design:type`, `design:paramtypes` and `design:returntype` of type references
 // follow the referenced types, and the JavaScript, declarations and their maps must match.

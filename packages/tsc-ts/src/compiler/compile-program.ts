@@ -73,7 +73,13 @@ class ProgramModules extends ModuleLookup {
 
   resolveModule(location: Node, file: SourceFile, specifier: string): SourceFile | undefined {
     const mode = this.program.getModeForUsageLocation(file, location);
-    const resolved = this.resolver.resolveModuleName(specifier, file.fileName, mode).resolvedFileName;
+    // The program resolved the module names its files import; others, such as names emit
+    // synthesizes, are resolved here.
+    const recorded = this.program.getResolvedModule(file, specifier, mode);
+    const resolved =
+      recorded !== undefined
+        ? recorded.resolvedFileName
+        : this.resolver.resolveModuleName(specifier, file.fileName, mode).resolvedFileName;
     return resolved === '' ? undefined : this.program.getSourceFile(resolved);
   }
 }
@@ -193,8 +199,9 @@ export abstract class CompilerProgram {
     return this.program.getProgramDiagnostics();
   }
 
-  getGlobalDiagnostics(): Diagnostic[] {
-    return this.checked.getGlobalDiagnostics();
+  /** See `CheckedProgram.getGlobalDiagnostics`. */
+  getGlobalDiagnostics(withCheckerThreads = true): Diagnostic[] {
+    return this.checked.getGlobalDiagnostics(withCheckerThreads);
   }
 
   /** Semantic diagnostics of every file. */
@@ -248,7 +255,12 @@ export class PlainProgram extends CompilerProgram {
     }
     const program = this.program;
     const files = program.getSourceFiles();
-    const result = this.emitter.emit(files, EmitOnly.All, writer);
+    const parallel = this.checked.emittedInParallel;
+    // Checker threads emitted the files they checked (parallel-check.ts); the others are emitted here, in order.
+    const result =
+      parallel === undefined
+        ? this.emitter.emit(files, EmitOnly.All, writer)
+        : combineEmitResults(files.map((file, i) => parallel[i] ?? this.emitter.emit([file], EmitOnly.All, writer)));
     // Emit is skipped only for files that would have been emitted.
     if (options.noEmit === true) result.emitSkipped = files.some((file) => program.sourceFileMayBeEmitted(file, false));
     return result;
@@ -280,7 +292,8 @@ export function getDiagnosticsOfProgram(program: CompilerProgram, withDeclaratio
   mark('program diagnostics');
   const options = program.options;
   if (options.listFilesOnly === true) return result;
-  for (const d of program.getGlobalDiagnostics()) result.push(d);
+  // Those found by checking come after the semantic diagnostics, as with a single checker.
+  for (const d of program.getGlobalDiagnostics(false)) result.push(d);
   if (result.length === configCount) {
     const checkStart = performance.now();
     const semantic = program.getSemanticDiagnostics();

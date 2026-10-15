@@ -35,7 +35,12 @@ import {
   isBuildInfoFileNameDefaultLibrary,
   parseBuildInfo,
 } from './build-info.js';
-import { resolveExternalModuleName } from './checker-modules.js';
+import {
+  type DiagnosticDetails,
+  modeMismatchDetails,
+  moduleNotFoundDetails,
+  resolveExternalModuleName,
+} from './checker-modules.js';
 import { getMergedSymbol, resolveAlias } from './checker-symbols.js';
 import {
   CompilerProgram,
@@ -52,6 +57,8 @@ import {
   Diagnostics,
   messageForKey,
   messageKey,
+  RepopulateKind,
+  type RepopulateInfo,
 } from './diagnostics.js';
 import { EmitOnly, EmitResult, skippedWrite } from './emitter.js';
 import type { FileSystem } from './file-system.js';
@@ -67,6 +74,7 @@ import {
   type CompilerOptionValue,
 } from './options.js';
 import type { Program } from './program.js';
+import { ProgramCheckerHost } from './program-checker.js';
 import {
   combinePaths,
   ensurePathIsNonModuleName,
@@ -166,9 +174,26 @@ class StoredDiagnostic {
     let fileForDiagnostic: SourceFile | undefined = undefined;
     if (this.file !== '') fileForDiagnostic = program.getSourceFileByPath(this.file);
     else if (!this.stored.noFile) fileForDiagnostic = file;
-    const message = messageForKey(this.stored.messageKey);
-    if (message === undefined) return undefined;
     const d = this.stored;
+    const repopulate = d.repopulateInfo;
+    if (repopulate !== undefined && fileForDiagnostic !== undefined) {
+      const details = repopulatedDetails(program, fileForDiagnostic, repopulate);
+      if (details !== undefined) {
+        // The entry as the program now has it, with the rest of the chain as stored.
+        const diagnosticFile = fileForDiagnostic.diagnosticFile();
+        const result = new Diagnostic(
+          diagnosticFile,
+          diagnosticFile.fromUtf8Offset(d.pos),
+          diagnosticFile.fromUtf8Offset(d.end),
+          details.message,
+          details.args,
+        );
+        for (const chain of this.messageChain) result.addMessageChain(chain.toDiagnostic(program, fileForDiagnostic));
+        return result;
+      }
+    }
+    const message = messageForKey(d.messageKey);
+    if (message === undefined) return undefined;
     const diagnosticFile = fileForDiagnostic === undefined ? undefined : fileForDiagnostic.diagnosticFile();
     const result = new Diagnostic(
       diagnosticFile,
@@ -186,6 +211,91 @@ class StoredDiagnostic {
     }
     return result;
   }
+}
+
+/**
+ * The message and arguments of a message chain entry of `file` that depends on the program, as the
+ * program now has them (tsgo's `repopulateDiagnosticChain`); `undefined` for an unknown kind.
+ */
+function repopulatedDetails(program: Program, file: SourceFile, info: RepopulateInfo): DiagnosticDetails | undefined {
+  const host = new ProgramCheckerHost(program);
+  switch (info.kind) {
+    case RepopulateKind.ModeMismatch:
+      return modeMismatchDetails(host, file);
+    case RepopulateKind.ModuleNotFound:
+      return moduleNotFoundDetails(
+        host,
+        file,
+        info.moduleReference,
+        info.mode,
+        info.packageName === '' ? info.moduleReference : info.packageName,
+      );
+  }
+  return undefined;
+}
+
+/**
+ * The computed diagnostics of `file` from the previous state, with the message chain entries that
+ * depend on the program recomputed (tsgo's `repopulateDiagnosticsOfFile`). Diagnostics as read from
+ * build info are recomputed when they are converted (`StoredDiagnostic.toDiagnostic`).
+ */
+function repopulateFileDiagnostics(diagnostics: FileDiagnostics, program: Program, file: SourceFile): FileDiagnostics {
+  const computed = diagnostics.computed;
+  if (computed === undefined) return diagnostics;
+  let changed = false;
+  const result: Diagnostic[] = [];
+  for (const d of computed) {
+    const chain = repopulateChain(d.messageChain, program, file);
+    if (chain === undefined) result.push(d);
+    else {
+      const copy = d.clone();
+      copy.messageChain = chain;
+      result.push(copy);
+      changed = true;
+    }
+  }
+  return changed ? FileDiagnostics.of(result) : diagnostics;
+}
+
+/** `chain` with the entries that depend on the program recomputed; `undefined` if none do. */
+function repopulateChain(chain: readonly Diagnostic[], program: Program, file: SourceFile): Diagnostic[] | undefined {
+  let changed = false;
+  const result: Diagnostic[] = [];
+  for (const entry of chain) {
+    if (entry.repopulateInfo !== undefined) {
+      result.push(repopulatedEntry(entry, program, file));
+      changed = true;
+      continue;
+    }
+    const nested = repopulateChain(entry.messageChain, program, file);
+    if (nested === undefined) result.push(entry);
+    else {
+      const copy = entry.clone();
+      copy.messageChain = nested;
+      result.push(copy);
+      changed = true;
+    }
+  }
+  return changed ? result : undefined;
+}
+
+/**
+ * A message chain entry of `file` as tsgo recomputes it: the program's message for an entry that
+ * depends on it, and only the location, message and chain of the entries below.
+ */
+function repopulatedEntry(entry: Diagnostic, program: Program, file: SourceFile): Diagnostic {
+  const info = entry.repopulateInfo;
+  const details = info === undefined ? undefined : repopulatedDetails(program, file, info);
+  const result =
+    details === undefined
+      ? new Diagnostic(file.diagnosticFile(), entry.pos, entry.end, entry.message, entry.args)
+      : new Diagnostic(file.diagnosticFile(), entry.pos, entry.end, details.message, details.args);
+  if (details === undefined) {
+    result.code = entry.code;
+    result.category = entry.category;
+  }
+  for (const nested of entry.messageChain) result.addMessageChain(repopulatedEntry(nested, program, file));
+  return result;
 }
 
 /** Diagnostics of a file: computed, or still as read from build info. */
@@ -718,14 +828,18 @@ function programToSnapshot(checked: CheckedProgram, oldSnapshot: Snapshot | unde
       } else snapshot.addFileToChangeSet(path);
       if (!snapshot.changedFilesSet.has(path)) {
         const emitDiagnostics = oldSnapshot.emitDiagnosticsPerFile.get(path);
-        if (emitDiagnostics !== undefined) snapshot.emitDiagnosticsPerFile.set(path, emitDiagnostics);
+        if (emitDiagnostics !== undefined) {
+          snapshot.emitDiagnosticsPerFile.set(path, repopulateFileDiagnostics(emitDiagnostics, program, file));
+        }
         if (
           canCopySemanticDiagnostics &&
           (!file.isDeclarationFile || copyDeclarationFileDiagnostics) &&
           (!program.isSourceFileDefaultLibrary(path) || copyLibFileDiagnostics)
         ) {
           const diagnostics = oldSnapshot.semanticDiagnosticsPerFile.get(path);
-          if (diagnostics !== undefined) snapshot.semanticDiagnosticsPerFile.set(path, diagnostics);
+          if (diagnostics !== undefined) {
+            snapshot.semanticDiagnosticsPerFile.set(path, repopulateFileDiagnostics(diagnostics, program, file));
+          }
         }
       }
       if (canCopyEmitSignatures) {
@@ -1307,6 +1421,7 @@ class ToBuildInfo {
       result.reportsUnnecessary = d.reportsUnnecessary;
       result.reportsDeprecated = d.reportsDeprecated;
       result.skippedOnNoEmit = d.skippedOnNoEmit;
+      result.repopulateInfo = d.repopulateInfo;
       return result;
     });
   }
@@ -1328,6 +1443,7 @@ class ToBuildInfo {
       result.reportsUnnecessary = stored.reportsUnnecessary;
       result.reportsDeprecated = stored.reportsDeprecated;
       result.skippedOnNoEmit = stored.skippedOnNoEmit;
+      result.repopulateInfo = stored.repopulateInfo;
       return result;
     });
   }

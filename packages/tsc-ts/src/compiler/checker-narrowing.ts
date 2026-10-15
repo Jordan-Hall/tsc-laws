@@ -1327,6 +1327,28 @@ function narrowTypeByEquality(c: Checker, t: Type, operator: SyntaxKind, value: 
     assumeTrue = !assumeTrue;
   const valueType = getTypeOfExpression(c, value);
   const doubleEquals = operator === SyntaxKind.EqualsEqualsToken || operator === SyntaxKind.ExclamationEqualsToken;
+  if ((t.flags & TypeFlags.Union) === 0) return narrowTypeByEqualityWorker(c, t, valueType, doubleEquals, assumeTrue);
+  // The result depends only on the types and the operator, and each flow walk through a condition
+  // narrows the same union again: cache it.
+  const bits = 8 | (doubleEquals ? 2 : 0) | (assumeTrue ? 1 : 0);
+  const pair = cachedTypePairKey(t.id, valueType.id, bits);
+  const key = pair < 0 ? 'narrowedByEquality' + t.id + ',' + valueType.id + ',' + bits : '';
+  let result = pair < 0 ? c.cachedTypes.get(key) : c.cachedTypesByPair.get(pair);
+  if (result === undefined) {
+    result = narrowTypeByEqualityWorker(c, t, valueType, doubleEquals, assumeTrue);
+    if (pair < 0) c.cachedTypes.set(key, result);
+    else c.cachedTypesByPair.set(pair, result);
+  }
+  return result;
+}
+
+function narrowTypeByEqualityWorker(
+  c: Checker,
+  t: Type,
+  valueType: Type,
+  doubleEquals: boolean,
+  assumeTrue: boolean,
+): Type {
   if ((valueType.flags & TypeFlags.Nullable) !== 0) {
     if (!c.strictNullChecks) return t;
     let facts: TypeFacts;
@@ -1946,6 +1968,19 @@ function getSwitchClauseTypes(c: Checker, statement: Node): Type[] {
 }
 
 function narrowTypeBySwitchOnDiscriminant(c: Checker, t: Type, flow: FlowSwitchClause): Type {
+  if ((t.flags & TypeFlags.Union) === 0) return narrowTypeBySwitchOnDiscriminantWorker(c, t, flow);
+  // As in narrowTypeByEquality, each union is narrowed by each range of clauses once.
+  const key =
+    'narrowedBySwitch' + t.id + ',' + getNodeId(flow.switchStatement) + ',' + flow.clauseStart + ',' + flow.clauseEnd;
+  let result = c.cachedTypes.get(key);
+  if (result === undefined) {
+    result = narrowTypeBySwitchOnDiscriminantWorker(c, t, flow);
+    c.cachedTypes.set(key, result);
+  }
+  return result;
+}
+
+function narrowTypeBySwitchOnDiscriminantWorker(c: Checker, t: Type, flow: FlowSwitchClause): Type {
   const switchTypes = getSwitchClauseTypes(c, flow.switchStatement);
   if (switchTypes.length === 0) return t;
   const clauseTypes = switchTypes.slice(flow.clauseStart, flow.clauseEnd);

@@ -11,7 +11,9 @@
  * (`retires`). The threads send back the semantic
  * diagnostics of their files (and under `noEmit` with declarations, their declaration diagnostics)
  * and their global diagnostics, and the main thread reports them like a single checker would. Which
- * checker checks a file does not change its diagnostics.
+ * checker checks a file does not change its diagnostics. When the program emits, each checker also
+ * emits the files it checks, right after checking each one, as tsgo emits on its checkers, and sends
+ * back what it wrote (`checkersEmit`).
  *
  * In scriptc builds, threads share one program: the main thread computes the program's lazy caches,
  * publishes it with `@scriptc/threads` (the program becomes immutable and immortal, and threads
@@ -24,8 +26,9 @@ import { mark, markAt, timeline } from './timeline.js';
 import type { Worker } from 'node:worker_threads';
 import { publish, sharesPublishedGraphs } from '@scriptc/threads';
 import { lastNodeIdValue } from './ast.js';
-import { declarationDiagnosticsOfFile, ProgramEmitter } from './compile-program.js';
-import { Diagnostic, DiagnosticFile } from './diagnostics.js';
+import { declarationDiagnosticsOfFile, type OutputWriter, ProgramEmitter } from './compile-program.js';
+import { Diagnostic, DiagnosticFile, RepopulateInfo } from './diagnostics.js';
+import { EmitOnly, EmitResult } from './emitter.js';
 import { getEmitDeclarations } from './options.js';
 import { useLazyJSDocTable } from './parser.js';
 import type { CheckedProgram } from './program-checker.js';
@@ -66,13 +69,16 @@ export type CheckerSpawn = (
 export class ParallelCheck {
   /** Set where checker threads can be started. */
   spawn: CheckerSpawn | undefined = undefined;
+  /** Where checkers write the files they emit (`checkersEmit`); set where they can write files. */
+  writer: OutputWriter | undefined = undefined;
 }
 
 export const parallelCheck = new ParallelCheck();
 
 /**
  * What a checker thread sends back: the files it checked (indices) with their semantic diagnostics,
- * and their declaration diagnostics when the program reports them without emitting.
+ * their declaration diagnostics when the program reports them without emitting, and the results of
+ * emitting them when it emits them (`checkersEmit`).
  */
 export class CheckerResult {
   constructor(
@@ -92,6 +98,7 @@ export class CheckerResult {
     readonly more: boolean = false,
     /** The positions of a group the thread took and had not checked when it stopped at its file limit. */
     readonly reserved: number[] = [],
+    readonly emits: EmitResult[] = [],
   ) {}
 }
 
@@ -112,12 +119,15 @@ export const recycleFiles: number = Math.max(0, Number(process.env.TSC_TS_RECYCL
 
 /**
  * A `CheckerResult` as plain data. `nums` holds, in order, the diagnostic lists of `files`, the
- * declaration diagnostic lists, and the global diagnostics, each as a count followed by that many
- * diagnostics; a diagnostic is file name (an index into `strs`, -1 for none), file text (index, -1
- * when the program has the file), pos, end, code, category, message, skippedOnNoEmit, the argument
- * count and indices, then its message chain and related information as counted lists. `files` and
- * `nums` are typed arrays, which postMessage copies as one block of memory each; it copies an array
- * of numbers element by element.
+ * declaration diagnostic lists, the global diagnostics and the emit results, each list as a count
+ * followed by that many items. A diagnostic is file name (an index into `strs`, -1 for none), file
+ * text (index, -1 when the program has the file), pos, end, code, category, message,
+ * skippedOnNoEmit, the argument count and indices, its repopulate kind (0 for none) followed by the
+ * module reference (index), mode and package name (index) of other kinds, then its message chain and
+ * related information as lists. An emit result is emitSkipped, the emitted files, errors and
+ * unsupported files as lists of indices, then its diagnostics. `files` and `nums` are typed arrays,
+ * which postMessage copies as one block of memory each; it copies an array of numbers element by
+ * element.
  */
 export type PackedResult = {
   readonly index: number;
@@ -152,6 +162,19 @@ class ResultPacker {
     for (const d of diagnostics) this.diagnostic(d);
   }
 
+  private strList(texts: readonly string[]): void {
+    this.nums.push(texts.length);
+    for (const text of texts) this.nums.push(this.str(text));
+  }
+
+  emit(result: EmitResult): void {
+    this.nums.push(result.emitSkipped ? 1 : 0);
+    this.strList(result.emittedFiles);
+    this.strList(result.errors);
+    this.strList(result.unsupported);
+    this.list(result.diagnostics);
+  }
+
   private diagnostic(d: Diagnostic): void {
     const nums = this.nums;
     const file = d.file;
@@ -163,6 +186,15 @@ class ResultPacker {
       );
     nums.push(d.pos, d.end, d.code, d.category, d.message, d.skippedOnNoEmit ? 1 : 0, d.args.length);
     for (const arg of d.args) nums.push(this.str(arg));
+    const repopulate = d.repopulateInfo;
+    if (repopulate === undefined) nums.push(0);
+    else
+      nums.push(
+        repopulate.kind,
+        this.str(repopulate.moduleReference),
+        repopulate.mode,
+        this.str(repopulate.packageName),
+      );
     this.list(d.messageChain);
     this.list(d.relatedInformation);
   }
@@ -175,6 +207,8 @@ export function packResult(result: CheckerResult, program: Program): PackedResul
   packer.nums.push(result.declarations.length);
   for (const list of result.declarations) packer.list(list);
   packer.list(result.globals);
+  packer.nums.push(result.emits.length);
+  for (const emit of result.emits) packer.emit(emit);
   return {
     index: result.index,
     files: Int32Array.from(result.files),
@@ -241,8 +275,29 @@ class ResultUnpacker {
     result.code = code;
     result.category = category;
     result.skippedOnNoEmit = skipped;
+    const kind = this.next();
+    if (kind !== 0) {
+      const moduleReference = strs[this.next()]!;
+      const mode = this.next();
+      result.repopulateInfo = new RepopulateInfo(kind, moduleReference, mode, strs[this.next()]!);
+    }
     result.messageChain = this.list();
     result.relatedInformation = this.list();
+    return result;
+  }
+
+  private strList(into: string[]): void {
+    const n = this.next();
+    for (let k = 0; k < n; k++) into.push(this.packed.strs[this.next()]!);
+  }
+
+  emit(): EmitResult {
+    const result = new EmitResult();
+    result.emitSkipped = this.next() === 1;
+    this.strList(result.emittedFiles);
+    this.strList(result.errors);
+    this.strList(result.unsupported);
+    for (const d of this.list()) result.diagnostics.push(d);
     return result;
   }
 }
@@ -259,6 +314,9 @@ export function unpackResult(
   const nd = unpacker.count();
   for (let k = 0; k < nd; k++) declarations.push(unpacker.list());
   const globals = unpacker.list();
+  const emits: EmitResult[] = [];
+  const ne = unpacker.count();
+  for (let k = 0; k < ne; k++) emits.push(unpacker.emit());
   return new CheckerResult(
     packed.index,
     Array.from(packed.files),
@@ -269,6 +327,7 @@ export function unpackResult(
     packed.stats,
     packed.more,
     packed.reserved,
+    emits,
   );
 }
 
@@ -280,6 +339,22 @@ export function unpackResult(
 function checkersReportDeclarations(checked: CheckedProgram): boolean {
   const options = checked.program.options;
   return options.noEmit === true && getEmitDeclarations(options);
+}
+
+/**
+ * Whether checkers emit the files they check, each right after checking it (where they can write
+ * files): unless the program doesn't emit, or `noEmitOnError` makes emit wait for every file's
+ * diagnostics. The checker that checked a file has its types at hand, and its declarations print
+ * as on the checker tsgo emits the file with. The main thread emits the files no checker emitted.
+ */
+function checkersEmit(checked: CheckedProgram): boolean {
+  const options = checked.program.options;
+  return (
+    parallelCheck.writer !== undefined &&
+    options.noEmit !== true &&
+    options.noEmitOnError !== true &&
+    options.listFilesOnly !== true
+  );
 }
 
 /**
@@ -1282,7 +1357,7 @@ export function traceSingleChecker(checked: CheckedProgram): void {
     c.identityRelation.size();
   const cpu = process.threadCpuUsage();
   process.stderr.write(
-    `checkers: single types ${c.typeCount} inst ${c.totalInstantiations} user ${Math.round(cpu.user / 1000)} sys ${Math.round(cpu.system / 1000)} rss ${residentMB().join('/')}MB symlinks ${countLinks(c.symbolLinkTable.pages)} nodelinks ${countLinks(c.nodeLinkTable.pages)} sigs ${c.signatureCount} rel ${relations}\n`,
+    `checkers: single types ${c.typeCount} inst ${c.totalInstantiations} user ${Math.round(cpu.user / 1000)} sys ${Math.round(cpu.system / 1000)} rss ${residentMB().join('/')}MB symlinks ${c.symbolLinkTable.values.size} nodelinks ${c.nodeLinkTable.values.size} sigs ${c.signatureCount} rel ${relations}\n`,
   );
 }
 
@@ -1309,8 +1384,10 @@ export function checkFromQueue(
   const done: number[] = [];
   const diagnostics: Diagnostic[][] = [];
   const declarations: Diagnostic[][] = [];
-  // Declaration emit of a file right after checking it, with this checker.
-  const emitter = checkersReportDeclarations(checked) ? new ProgramEmitter(checked) : undefined;
+  const emits: EmitResult[] = [];
+  // Emit (or declaration emit) of a file right after checking it, with this checker.
+  const writer = checkersEmit(checked) ? parallelCheck.writer : undefined;
+  const emitter = writer !== undefined || checkersReportDeclarations(checked) ? new ProgramEmitter(checked) : undefined;
   const plan = schedulePlan(counter);
   const retirement = retirementMemory(index);
   let memoryReadAt = 0;
@@ -1345,7 +1422,11 @@ export function checkFromQueue(
       process.stderr.write(
         `checkers: file ${index} ${(performance.now() - fileStart).toFixed(1)}ms ${files[i]!.text.length} ${files[i]!.fileName}\n`,
       );
-    if (emitter !== undefined) declarations.push(declarationDiagnosticsOfFile(emitter, files[i]!));
+    if (writer !== undefined) {
+      const emitStart = timeline ? performance.now() : 0;
+      emits.push(emitter!.emit([files[i]!], EmitOnly.All, writer));
+      if (timeline) markAt(emitStart, `emit ${(performance.now() - emitStart).toFixed(1)} ${files[i]!.fileName}`);
+    } else if (emitter !== undefined) declarations.push(declarationDiagnosticsOfFile(emitter, files[i]!));
   }
   mark(`checked ${done.length} files`);
   // The main thread reports its own global diagnostics (CheckedProgram.getGlobalDiagnostics).
@@ -1369,8 +1450,8 @@ export function checkFromQueue(
       cpu.user / 1000,
       cpu.system / 1000,
       residentMB()[0]!,
-      countLinks(checker.symbolLinkTable.pages),
-      countLinks(checker.nodeLinkTable.pages),
+      checker.symbolLinkTable.values.size,
+      checker.nodeLinkTable.values.size,
       checker.signatureCount,
       relations,
     ];
@@ -1385,6 +1466,7 @@ export function checkFromQueue(
     stats,
     more,
     left,
+    emits,
   );
 }
 
@@ -1440,9 +1522,11 @@ export function startParallelCheck(checked: CheckedProgram, count: number, done:
   mark(`planned ${order.length} files, ${plan.heavy} heavy`);
   const perFile: (Diagnostic[] | undefined)[] = [];
   const perFileDeclarations: (Diagnostic[] | undefined)[] = [];
+  const perFileEmits: (EmitResult | undefined)[] = [];
   for (let i = 0; i < files.length; i++) {
     perFile.push(undefined);
     perFileDeclarations.push(undefined);
+    perFileEmits.push(undefined);
   }
   const revival = shared ? undefined : new Revival(program);
   const mainChecks = mainThreadChecks(shared);
@@ -1458,14 +1542,16 @@ export function startParallelCheck(checked: CheckedProgram, count: number, done:
       process.stderr.write(
         `checkers: finished at ${(performance.now() - start).toFixed(1)}ms rss ${residentMB().join('/')}MB\n`,
       );
-    // Files without declaration diagnostics here get them on this thread (PlainProgram).
+    // Files without declaration diagnostics or emit results here get them on this thread (PlainProgram).
     if (checkersReportDeclarations(checked)) checked.declarationsInParallel = perFileDeclarations;
+    if (checkersEmit(checked)) checked.emittedInParallel = perFileEmits;
     done(performance.now() - start);
   };
   const record = (result: CheckerResult): void => {
     for (let k = 0; k < result.files.length; k++) perFile[result.files[k]!] = result.diagnostics[k]!;
     for (let k = 0; k < result.declarations.length; k++)
       perFileDeclarations[result.files[k]!] = result.declarations[k]!;
+    for (let k = 0; k < result.emits.length; k++) perFileEmits[result.files[k]!] = result.emits[k]!;
     for (const d of result.globals) checked.parallelGlobalDiagnostics.push(d);
     if (trace) {
       const st = result.stats;
@@ -1539,7 +1625,18 @@ class Revival {
       copy.stats,
       copy.more,
       copy.reserved,
+      copy.emits.map((emit) => this.emit(emit)),
     );
+  }
+
+  private emit(copy: EmitResult): EmitResult {
+    const result = new EmitResult();
+    result.emitSkipped = copy.emitSkipped;
+    for (const f of copy.emittedFiles) result.emittedFiles.push(f);
+    for (const e of copy.errors) result.errors.push(e);
+    for (const u of copy.unsupported) result.unsupported.push(u);
+    for (const d of copy.diagnostics) result.diagnostics.push(this.diagnostic(d));
+    return result;
   }
 
   private diagnostic(copy: Diagnostic): Diagnostic {
@@ -1556,18 +1653,16 @@ class Revival {
     result.code = copy.code;
     result.category = copy.category;
     result.skippedOnNoEmit = copy.skippedOnNoEmit;
+    const repopulate = copy.repopulateInfo;
+    if (repopulate !== undefined)
+      result.repopulateInfo = new RepopulateInfo(
+        repopulate.kind,
+        repopulate.moduleReference,
+        repopulate.mode,
+        repopulate.packageName,
+      );
     result.messageChain = copy.messageChain.map((d) => this.diagnostic(d));
     result.relatedInformation = copy.relatedInformation.map((d) => this.diagnostic(d));
     return result;
   }
-}
-
-/** The number of links in a checker's link pages (for the statistics above). */
-function countLinks<T>(pages: readonly ((T | undefined)[] | undefined)[]): number {
-  let count = 0;
-  for (const page of pages) {
-    if (page === undefined) continue;
-    for (const links of page) if (links !== undefined) count++;
-  }
-  return count;
 }

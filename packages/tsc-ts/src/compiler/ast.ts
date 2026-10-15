@@ -8199,8 +8199,8 @@ export class SourceFile extends Node {
   }
 
   /**
-   * Computes the line starts and UTF-8 offsets, which are otherwise computed on first use, so that
-   * reading them later never writes to the file.
+   * Computes the line starts, which are otherwise computed on first use, so that reading them later
+   * never writes to the file (UTF-8 offsets are computed on first use, `DiagnosticFile.computeCaches`).
    */
   computeCaches(): void {
     this.diagnosticFile().computeCaches();

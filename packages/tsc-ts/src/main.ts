@@ -19,7 +19,13 @@ import { CheckedProgram } from './compiler/program-checker.js';
 import type { Program } from './compiler/program.js';
 import { mark, markMemory, setTimelineThread, timeline } from './compiler/timeline.js';
 import { assignSymbolIdsAtCreation, reserveSymbolIds, shareSymbolIds } from './compiler/symbol.js';
-import { parseThreadOfCommandLine, programOfCommandLine, runTsc, watching } from './drivers/node-system.js';
+import {
+  outputWriterOfThread,
+  parseThreadOfCommandLine,
+  programOfCommandLine,
+  runTsc,
+  watching,
+} from './drivers/node-system.js';
 import './drivers/lowering.js';
 
 // Lib files come from TSC_TS_LIB_DIR, or the executable's directory as in tsc.
@@ -44,8 +50,12 @@ else {
   }
 }
 
-/** Lets `--checkers N` start checker threads, and parse threads where threads share objects. */
+/**
+ * Lets `--checkers N` start checker threads that write the files they emit, and parse threads where
+ * threads share objects.
+ */
 function startThreads(): void {
+  parallelCheck.writer = outputWriterOfThread(defaultLibraryPath);
   parallelCheck.spawn = (program, index, counter, order, nodeIds, symbolIds, reserved) =>
     new Worker(new URL(import.meta.url), {
       workerData: { kind: 'check', program, args, index, counter, order, nodeIds, symbolIds, reserved },
@@ -67,6 +77,7 @@ function runCheckerThread(): void {
   const startedAt = Date.now();
   setTimelineThread('c' + String((workerData as { index: number }).index));
   mark('thread start');
+  parallelCheck.writer = outputWriterOfThread(defaultLibraryPath);
   const job = workerData as {
     kind: string;
     program: Program | undefined;

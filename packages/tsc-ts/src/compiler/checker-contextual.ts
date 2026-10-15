@@ -1136,6 +1136,14 @@ export function getContextFreeTypeOfExpression(c: Checker, node: Node): Type {
 }
 
 /** Narrows `target` by the discriminant properties `props` and missing optional discriminants `members`. */
+/** What a constituent of a union has for a missing optional property: none, or a type `undefined` matches or not. */
+const enum MissingPropertyState {
+  Unknown = 0,
+  Absent = 1,
+  Matches = 2,
+  Mismatches = 3,
+}
+
 function discriminateTypeByObjectLiteral(c: Checker, target: UnionType, props: Node[], members: Symbol[]): Type {
   const types = target.types;
   const include: Ternary[] = [];
@@ -1146,16 +1154,48 @@ function discriminateTypeByObjectLiteral(c: Checker, target: UnionType, props: N
         : Ternary.False,
     );
   const count = props.length + members.length;
+  // Whether `undefined` (a missing property) matches a constituent's property depends only on the
+  // union and the name: it is remembered for each constituent, two bits each.
+  let missingStates: Map<string, number> | undefined = undefined;
+  if (members.length !== 0 && types.length <= 16) {
+    missingStates = c.inferenceCaches.missingPropertyStates.get(target);
+    if (missingStates === undefined) {
+      missingStates = new Map<string, number>();
+      c.inferenceCaches.missingPropertyStates.set(target, missingStates);
+    }
+  }
   for (let n = 0; n < count; n++) {
     // Eliminate non-matching constituents only if some constituent matches.
     let matched = false;
-    const name = n < props.length ? getSymbol(props[n]!)!.name : members[n - props.length]!.name;
-    for (let i = 0; i < types.length; i++) {
-      if (include[i]! === Ternary.False) continue;
-      const targetType = getTypeOfPropertyOrIndexSignatureOfType(c, types[i]!, name);
-      if (targetType === undefined) continue;
-      if (discriminantMatches(c, props, n, targetType)) matched = true;
-      else include[i] = Ternary.Maybe;
+    if (n >= props.length && missingStates !== undefined) {
+      const name = members[n - props.length]!.name;
+      let states = missingStates.get(name) ?? 0;
+      for (let i = 0; i < types.length; i++) {
+        if (include[i]! === Ternary.False) continue;
+        let state = (states >>> (i * 2)) & 3;
+        if (state === MissingPropertyState.Unknown) {
+          const targetType = getTypeOfPropertyOrIndexSignatureOfType(c, types[i]!, name);
+          state =
+            targetType === undefined
+              ? MissingPropertyState.Absent
+              : discriminantMatches(c, props, n, targetType)
+                ? MissingPropertyState.Matches
+                : MissingPropertyState.Mismatches;
+          states |= state << (i * 2);
+        }
+        if (state === MissingPropertyState.Matches) matched = true;
+        else if (state === MissingPropertyState.Mismatches) include[i] = Ternary.Maybe;
+      }
+      missingStates.set(name, states);
+    } else {
+      const name = n < props.length ? getSymbol(props[n]!)!.name : members[n - props.length]!.name;
+      for (let i = 0; i < types.length; i++) {
+        if (include[i]! === Ternary.False) continue;
+        const targetType = getTypeOfPropertyOrIndexSignatureOfType(c, types[i]!, name);
+        if (targetType === undefined) continue;
+        if (discriminantMatches(c, props, n, targetType)) matched = true;
+        else include[i] = Ternary.Maybe;
+      }
     }
     for (let i = 0; i < types.length; i++)
       if (include[i]! === Ternary.Maybe) include[i] = matched ? Ternary.False : Ternary.True;
@@ -1179,7 +1219,12 @@ function discriminantMatches(c: Checker, props: Node[], index: number, t: Type):
     else propType = getContextFreeTypeOfExpression(c, getName(prop)!);
   } else propType = c.undefinedType;
   const sources = (propType.flags & TypeFlags.Union) !== 0 ? typesOf(propType) : [propType];
-  for (const s of sources) if (isTypeAssignableTo(c, s, t)) return true;
+  for (const s of sources) {
+    // A type is assignable to a union it is a constituent of, such as `undefined` to the type of
+    // an optional property; most discriminants checked are missing optional properties.
+    if ((t.flags & TypeFlags.Union) !== 0 && typesOf(t).includes(s)) return true;
+    if (isTypeAssignableTo(c, s, t)) return true;
+  }
   return false;
 }
 

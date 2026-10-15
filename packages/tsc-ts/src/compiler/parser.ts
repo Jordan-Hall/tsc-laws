@@ -504,6 +504,8 @@ export class Parser extends ScannerErrorReporter {
     sourceText: string,
     scriptKind: ScriptKind,
     externalModuleIndicatorOptions: ExternalModuleIndicatorOptions,
+    /** The scanner copies the code units of only the ranges it is asked to (`Scanner.loadUnits`). */
+    unitsOnDemand = false,
   ) {
     super();
     if (scriptKind === ScriptKind.Unknown) throw new Error('ScriptKind must be specified when parsing ' + fileName);
@@ -543,7 +545,7 @@ export class Parser extends ScannerErrorReporter {
     this.noElement = new Token(SyntaxKind.Unknown);
     this.speculation = [];
     this.speculationDepth = 0;
-    this.scanner = new Scanner(sourceText);
+    this.scanner = new Scanner(sourceText, unitsOnDemand);
     this.scanner.setOnError(this);
     this.scanner.setLanguageVariant(this.languageVariant);
   }
@@ -6848,7 +6850,16 @@ export function getJSDoc(file: SourceFile, node: Node): readonly Node[] {
   }
   let parser = lazyJSDocParser;
   if (parser === undefined || lazyJSDocFile !== file) {
-    parser = new Parser(file.fileName, file.path, file.text, file.scriptKind, file.externalModuleIndicatorOptions);
+    // The parser scans only the comments it parses: copying the code units of the whole file each
+    // time the checker moves to another file would cost more than parsing them.
+    parser = new Parser(
+      file.fileName,
+      file.path,
+      file.text,
+      file.scriptKind,
+      file.externalModuleIndicatorOptions,
+      true,
+    );
     lazyJSDocParser = parser;
     lazyJSDocFile = file;
   }

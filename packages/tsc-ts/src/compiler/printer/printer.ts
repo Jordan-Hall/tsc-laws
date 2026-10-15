@@ -430,6 +430,8 @@ export class Printer extends NameGeneratorHost {
   private sourceMapSourceIndex: number;
   private sourceMapSourceIsJson: boolean;
   private sourceMapLineStarts: readonly number[];
+  /** The line of the last source map position, where finding the next one's starts. */
+  private sourceMapLine: number;
   private mostRecentSourceMapSource: SourceFile | undefined;
   private mostRecentSourceMapSourceIndex: number;
 
@@ -461,6 +463,7 @@ export class Printer extends NameGeneratorHost {
     this.sourceMapSourceIndex = -1;
     this.sourceMapSourceIsJson = false;
     this.sourceMapLineStarts = [];
+    this.sourceMapLine = 0;
     this.mostRecentSourceMapSource = undefined;
     this.mostRecentSourceMapSourceIndex = -1;
   }
@@ -525,6 +528,7 @@ export class Printer extends NameGeneratorHost {
     this.sourceMapSource = undefined;
     this.sourceMapSourceIndex = -1;
     this.sourceMapLineStarts = [];
+    this.sourceMapLine = 0;
     this.setSourceFile(sourceFile);
     this.writer = writer;
     writer.clear();
@@ -539,6 +543,7 @@ export class Printer extends NameGeneratorHost {
     this.sourceMapSource = savedSource;
     this.sourceMapSourceIndex = savedSourceIndex;
     this.sourceMapLineStarts = savedSourceLineStarts;
+    this.sourceMapLine = 0;
     return true;
   }
 
@@ -4654,6 +4659,7 @@ export class Printer extends NameGeneratorHost {
     if (this.sourceMapsDisabled) return false;
     this.sourceMapSource = source;
     this.sourceMapLineStarts = source.lineStarts();
+    this.sourceMapLine = 0;
     if (this.mostRecentSourceMapSource === source) {
       this.sourceMapSourceIndex = this.mostRecentSourceMapSourceIndex;
       return true;
@@ -4679,7 +4685,7 @@ export class Printer extends NameGeneratorHost {
     )
       return false;
     const lineStarts = this.sourceMapLineStarts;
-    const line = computeLineOfPosition(lineStarts, pos);
+    const line = this.sourceMapLineOf(pos);
     return generator.addSourceMapping(
       this.writer.getLine(),
       this.writer.getColumn(),
@@ -4687,6 +4693,27 @@ export class Printer extends NameGeneratorHost {
       line,
       pos - (lineStarts[line] | 0),
     );
+  }
+
+  /**
+   * The line of `pos` in the source map source, as `computeLineOfPosition` finds it. Positions mostly
+   * increase, so the line of the last position and the few after it are tried first.
+   */
+  private sourceMapLineOf(pos: number): number {
+    const lineStarts = this.sourceMapLineStarts;
+    let line = this.sourceMapLine;
+    if (line < lineStarts.length && (lineStarts[line] | 0) <= pos) {
+      for (let k = 0; k < 4; k++) {
+        if (line + 1 >= lineStarts.length || (lineStarts[line + 1] | 0) > pos) {
+          this.sourceMapLine = line;
+          return line;
+        }
+        line++;
+      }
+    }
+    line = computeLineOfPosition(lineStarts, pos);
+    this.sourceMapLine = line;
+    return line;
   }
 
   private emitSourceMapsBeforeNode(node: Node): boolean {

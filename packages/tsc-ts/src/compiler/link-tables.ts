@@ -74,3 +74,25 @@ export class IntLinkTable {
     this.pages.length = 0;
   }
 }
+
+/**
+ * Values by id in a map, for ids that are sparse: a checker caches values for a small part of the
+ * nodes of a program, spread over the declaration files it reads, where a page would mostly hold
+ * empty slots.
+ */
+export class SparseLinkTable<T> {
+  readonly values = new Map<number, T>();
+
+  get(id: number): T | undefined {
+    return this.values.get(id);
+  }
+
+  set(id: number, value: T | undefined): void {
+    if (value !== undefined) this.values.set(id, value);
+    else this.values.delete(id);
+  }
+
+  clear(): void {
+    this.values.clear();
+  }
+}
