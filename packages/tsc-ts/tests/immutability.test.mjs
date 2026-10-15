@@ -186,6 +186,14 @@ test('a shared declaration file gets its line starts and UTF-8 offsets without b
   const plain = parseSourceFile('/p/plain.d.ts', text).diagnosticFile();
   const shared = parseSourceFile('/p/shared.d.ts', text);
   const file = shared.diagnosticFile();
+  // Other files get their caches from the scanner's code units at parse time: reading them writes
+  // nothing, before this thread computes caches in copies too.
+  const units = parseSourceFile('/p/units.ts', text).diagnosticFile();
+  Object.freeze(units);
+  assert.deepEqual(units.getLineStarts(), plain.getLineStarts());
+  for (let pos = 0; pos <= text.length; pos++) assert.equal(units.toUtf8Offset(pos), plain.toUtf8Offset(pos));
+  for (let pos = 0; pos <= Buffer.byteLength(text, 'utf8'); pos++)
+    assert.equal(units.fromUtf8Offset(pos), plain.fromUtf8Offset(pos));
   Object.freeze(shared);
   Object.freeze(file);
   useThreadTextCaches();
