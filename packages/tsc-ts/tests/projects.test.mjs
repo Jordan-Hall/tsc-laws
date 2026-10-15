@@ -388,6 +388,57 @@ projects.push(
   ],
 );
 
+// Decorator metadata: `design:type`, `design:paramtypes` and `design:returntype` of type references
+// follow the referenced types, and the JavaScript, declarations and their maps must match.
+const decorated = {
+  ...base,
+  noEmit: false,
+  module: 'commonjs',
+  experimentalDecorators: true,
+  emitDecoratorMetadata: true,
+  useDefineForClassFields: false,
+  sourceMap: true,
+  declaration: true,
+  declarationMap: true,
+  outDir: 'out',
+};
+
+projects.push([
+  'decorator metadata of type references',
+  {
+    'types.ts':
+      'export type Str = string;\nexport enum Color { Red = "red", Blue = "blue" }\n' +
+      'export const enum Size { S = 1, M = 2 }\nexport type Keys = keyof { a: 1; b: 2 };\n' +
+      'export interface Shape { name: string; size: number; draw(): void }\n' +
+      'export type Name = Shape["name"];\nexport type Picked = { [K in "x"]: number }["x"];\n' +
+      'export type Cond<T> = T extends string ? string : string;\nexport type Extracted = Extract<"a" | 1, string>;\n' +
+      'export const values = ["one", "two"] as const;\nexport type Value = (typeof values)[number];\n' +
+      'export type Lower = Lowercase<"A">;\nexport type Present = NonNullable<string | undefined>;\n' +
+      'export type Callback = () => void;\nexport type Factory = new () => object;\n' +
+      'export type Pair = [string, number];\nexport type Strings = Array<string>;\n' +
+      'export type Frozen = ReadonlyArray<string>;\nexport interface Callable { (): void }\n' +
+      'export class Model { id!: number }\nexport namespace NS { export class Inner {} export type Id = number }\n',
+    'a.ts':
+      'import type { Model as ModelType } from "./types";\n' +
+      'import { Str, Color, Size, Keys, Shape, Name, Picked, Cond, Extracted, Value, Lower, Present, Callback, Factory, Pair, Strings, Frozen, Callable, Model, NS } from "./types";\n' +
+      'declare function d(...args: any[]): any;\n' +
+      'type Local = Color.Red;\n' +
+      'export class C {\n' +
+      '  @d a!: Str;\n  @d b!: Color;\n  @d c!: Size;\n  @d k!: Keys;\n  @d s!: Shape;\n  @d n!: Name;\n' +
+      '  @d p!: Picked;\n  @d cs!: Cond<number>;\n  @d ex!: Extracted;\n  @d v!: Value;\n  @d lo!: Lower;\n' +
+      '  @d pr!: Present;\n  @d cb!: Callback;\n  @d f!: Factory;\n  @d pa!: Pair;\n  @d st!: Strings;\n' +
+      '  @d fr!: Frozen;\n  @d ca!: Callable;\n  @d m!: Model;\n  @d mt!: ModelType;\n  @d ni!: NS.Inner;\n' +
+      '  @d nid!: NS.Id;\n  @d l!: Local;\n  @d u!: Str | undefined;\n  @d pm!: Promise<Model[]>;\n' +
+      '  @d dt!: Date;\n  @d rec!: Record<string, string>;\n  @d miss!: Missing;\n' +
+      '  @d method(@d x: Keys, y: Value, z: Promise<Name>): Value { return "one"; }\n' +
+      '  @d async run(): Promise<void> {}\n' +
+      '  @d get g(): Name { return ""; }\n' +
+      '  constructor(@d readonly x: Value, readonly y: Strings) {}\n' +
+      '}\n',
+    'tsconfig.json': JSON.stringify({ compilerOptions: decorated, files: ['a.ts'] }),
+  },
+]);
+
 /** Writes `files`; a `{ link }` value is a symlink to the relative path `link`. */
 function writeFiles(dir, files) {
   for (const [path, content] of Object.entries(files)) {

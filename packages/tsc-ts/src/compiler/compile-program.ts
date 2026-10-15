@@ -9,11 +9,11 @@ import { Resolver } from './module-resolution.js';
 import { getEmitDeclarations, type CompilerOptions, type ModuleKind } from './options.js';
 import type { Program } from './program.js';
 import { CheckedProgram } from './program-checker.js';
-import { CheckerDeclarationEmitResolver } from './checker-emit-resolver.js';
+import { CheckerDeclarationEmitResolver, CheckerEmitResolver } from './checker-emit-resolver.js';
 import { getEmitModuleFormatOfFile } from './program-utilities.js';
 import { SyntacticDeclarationEmitResolver } from './transformers/declarations-syntactic.js';
 import { mark } from './timeline.js';
-import { type EmitResolver, SyntacticEmitResolver } from './transformers/emit-resolver.js';
+import type { EmitResolver } from './transformers/emit-resolver.js';
 import { ModuleFormatHost } from './transformers/module.js';
 import { ModuleLookup, ReferenceResolver } from './transformers/reference-resolver.js';
 
@@ -123,7 +123,7 @@ export class ProgramEmitter {
       const options = program.options;
       const files = program.getSourceFiles();
       const references = new ReferenceResolver(options, files, new ProgramModules(program));
-      const emitResolver = new SyntacticEmitResolver(options, references);
+      const emitResolver = new CheckerEmitResolver(options, references, this.checked.checker);
       // Declaration emit is also needed for the shape signatures of incremental builds.
       let resolver: EmitResolver = emitResolver;
       if (getEmitDeclarations(options) || options.incremental === true || options.composite === true) {
