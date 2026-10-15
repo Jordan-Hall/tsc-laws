@@ -124,6 +124,10 @@ class DiskEmitHost extends EmitHost {
     return this.program.isEmitBlocked(fileName);
   }
 
+  isSourceFileFromExternalLibrary(file: SourceFile): boolean {
+    return this.program.isSourceFileFromExternalLibrary(file);
+  }
+
   writeFile(fileName: string, text: string, _declarationDiagnostics?: readonly Diagnostic[]): string {
     mkdirSync(getDirectoryPath(fileName), { recursive: true });
     writeFileSync(fileName, text);

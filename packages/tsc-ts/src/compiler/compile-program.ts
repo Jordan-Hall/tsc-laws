@@ -105,6 +105,10 @@ class ProgramEmitHost extends EmitHost {
     return this.program.isEmitBlocked(fileName);
   }
 
+  isSourceFileFromExternalLibrary(file: SourceFile): boolean {
+    return this.program.isSourceFileFromExternalLibrary(file);
+  }
+
   writeFile(fileName: string, text: string, declarationDiagnostics?: readonly Diagnostic[]): string {
     const writer = this.writer;
     if (writer === undefined) return skippedWrite;
