@@ -1027,8 +1027,55 @@ export const enum ModuleInstanceState {
 }
 
 /** Whether a namespace declaration has a runtime value. Parents of `node` must be set. */
-export function getModuleInstanceState(node: Node): ModuleInstanceState {
-  return new ModuleInstanceStateComputer().ofModule(node as ModuleDeclaration, []);
+/**
+ * `names` holds the statements of the blocks searched for the targets of `export { x }` (`forAliasTarget`)
+ * by name; a caller that asks for the states of many modules of a file passes the same one.
+ */
+export function getModuleInstanceState(node: Node, names = new StatementsByName()): ModuleInstanceState {
+  return new ModuleInstanceStateComputer(names).ofModule(node as ModuleDeclaration, []);
+}
+
+/**
+ * The statements of blocks (a block, module block or source file) by the names they declare, in
+ * order: a declaration by its name if that is an identifier, a variable statement by the identifier
+ * names of its declarations. Built for each block the first time it is searched:
+ * scanning the statements for each name made `export { x as default }` in each of the 1,671
+ * namespaces of lucide-react's dynamic.d.ts compare against all 8,600 statements of the file.
+ */
+export class StatementsByName {
+  private readonly blocks = new Map<Node, Map<string, Node[]>>();
+
+  /** The statements of `block` that declare `name`. */
+  get(block: Node, name: string): readonly Node[] {
+    let byName = this.blocks.get(block);
+    if (byName === undefined) {
+      byName = new Map<string, Node[]>();
+      for (const statement of getStatements(block)!.nodes) {
+        const declarationName = getName(statement);
+        if (declarationName !== undefined) {
+          if (declarationName.kind === SyntaxKind.Identifier)
+            addStatementByName(byName, getText(declarationName), statement);
+        } else if (statement instanceof VariableStatement) {
+          for (const declaration of (statement as VariableStatement).declarationList.declarations.nodes) {
+            const name = getName(declaration);
+            if (name !== undefined && name.kind === SyntaxKind.Identifier)
+              addStatementByName(byName, getText(name), statement);
+          }
+        }
+      }
+      this.blocks.set(block, byName);
+    }
+    return byName.get(name) ?? noStatements;
+  }
+}
+
+const noStatements: readonly Node[] = [];
+
+function addStatementByName(byName: Map<string, Node[]>, name: string, statement: Node): void {
+  const statements = byName.get(name);
+  if (statements === undefined) byName.set(name, [statement]);
+  // A variable statement declaring a name twice is listed once.
+  else if (statements[statements.length - 1] !== statement) statements.push(statement);
 }
 
 class ModuleInstanceStateComputer extends NodeVisitor {
@@ -1037,7 +1084,7 @@ class ModuleInstanceStateComputer extends NodeVisitor {
   private blockAncestors: Node[];
   private blockState: ModuleInstanceState;
 
-  constructor() {
+  constructor(private readonly names: StatementsByName) {
     super();
     this.visited = new Map<Node, ModuleInstanceState>();
     this.blockAncestors = [];
@@ -1140,8 +1187,7 @@ class ModuleInstanceStateComputer extends NodeVisitor {
       let found = ModuleInstanceState.Unknown;
       const statementsAncestors = ancestors.slice(0, remaining);
       statementsAncestors.push(p);
-      for (const statement of getStatements(p)!.nodes) {
-        if (!nodeHasName(statement, text)) continue;
+      for (const statement of this.names.get(p, text)) {
         const state = this.cached(statement, statementsAncestors);
         if (found === ModuleInstanceState.Unknown || state > found) found = state;
         if (found === ModuleInstanceState.Instantiated) return found;
@@ -1159,17 +1205,6 @@ function withAncestor(ancestors: readonly Node[], node: Node): Node[] {
   const result = ancestors.slice();
   result.push(node);
   return result;
-}
-
-function nodeHasName(statement: Node, name: string): boolean {
-  const declarationName = getName(statement);
-  if (declarationName !== undefined)
-    return declarationName.kind === SyntaxKind.Identifier && getText(declarationName) === name;
-  if (statement instanceof VariableStatement) {
-    for (const declaration of (statement as VariableStatement).declarationList.declarations.nodes)
-      if (nodeHasName(declaration, name)) return true;
-  }
-  return false;
 }
 
 // Text and error ranges
