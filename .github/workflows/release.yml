@@ -1,7 +1,8 @@
 name: Release
 
 # Builds the npm packages on each platform and uploads them as artifacts.
-# Nothing is published.
+# Nothing is published. The packages are built only for a commit whose CI run for its push to main succeeded in
+# every job (scripts/ci/ci-status.mjs); `node scripts/ci/ci-status.mjs latest-green` prints the latest such commit.
 on:
   workflow_dispatch:
   push:
@@ -11,8 +12,26 @@ permissions:
   contents: read
 
 jobs:
+  ci-green:
+    name: CI is green on this commit
+    runs-on: ubuntu-latest
+    # A tag pushed right after a merge arrives while CI still runs on the commit; this waits up to 90 minutes for it.
+    timeout-minutes: 100
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: node scripts/ci/ci-status.mjs require-green "$GITHUB_SHA" --wait 90
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
   package:
     name: ${{ matrix.platform }}
+    needs: ci-green
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 180
     strategy:

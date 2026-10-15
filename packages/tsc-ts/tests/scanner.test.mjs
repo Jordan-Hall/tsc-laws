@@ -1,10 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { execFileSync, spawn } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { existsSync, readdirSync } from 'node:fs';
 import { availableParallelism } from 'node:os';
 import { join, resolve } from 'node:path';
-import { compiledDir } from './temp.mjs';
+import { compileSources } from './temp.mjs';
 
 const root = resolve(import.meta.dirname, '..');
 const repo = resolve(root, '../..');
@@ -45,26 +45,7 @@ test(
   'scanner matches tsgo on test cases and libs',
   { skip: (!existsSync(oracle) || !existsSync(cases)) && 'needs upstream sources and the scan oracle' },
   async () => {
-    const out = compiledDir('tsc-ts-scan-');
-    execFileSync(
-      resolve(repo, 'node_modules/.bin/tsc'),
-      [
-        '--outDir',
-        out,
-        '--strict',
-        '--target',
-        'es2024',
-        '--module',
-        'nodenext',
-        '--moduleResolution',
-        'nodenext',
-        '--types',
-        'node',
-        '--skipLibCheck',
-        join(root, 'src/drivers/scan.ts'),
-      ],
-      { stdio: 'inherit' },
-    );
+    const out = compileSources('tsc-ts-scan-', ['drivers/scan.ts']);
     const driver = join(out, 'drivers/scan.js');
     const tasks = [];
     for (const file of sample())

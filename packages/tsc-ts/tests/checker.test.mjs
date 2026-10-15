@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { existsSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { compiledDir } from './temp.mjs';
+import { compileSources } from './temp.mjs';
 
 const root = resolve(import.meta.dirname, '..');
 const repo = resolve(root, '../..');
@@ -101,26 +101,7 @@ test(
   'checker matches tsgo on small cases',
   { skip: !existsSync(libs) && 'needs upstream sources', timeout: 300_000 },
   () => {
-    const out = compiledDir('tsc-ts-check-');
-    execFileSync(
-      join(repo, 'node_modules/.bin/tsc'),
-      [
-        '--outDir',
-        out,
-        '--strict',
-        '--target',
-        'es2024',
-        '--module',
-        'nodenext',
-        '--moduleResolution',
-        'nodenext',
-        '--types',
-        'node',
-        '--skipLibCheck',
-        join(root, 'src/drivers/check.ts'),
-      ],
-      { stdio: 'inherit' },
-    );
+    const out = compileSources('tsc-ts-check-', ['drivers/check.ts']);
     for (const { name, source, expected } of cases) {
       const file = join(out, 'input.ts');
       writeFileSync(file, source.join('\n') + '\n');

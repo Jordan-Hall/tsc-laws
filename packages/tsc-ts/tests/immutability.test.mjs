@@ -9,39 +9,18 @@
 // Projects: tsc-ts itself, and test cases from TypeScript's compiler and conformance suites.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
+
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { compiledDir, tempDir } from './temp.mjs';
+import { compileSources, tempDir } from './temp.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '../../..');
 const bundledLibs = join(root, 'upstream/typescript-go/internal/bundled/libs');
 const cases = join(root, 'upstream/TypeScript/tests/cases');
 
-const out = compiledDir('tsc-ts-immutability-');
-execFileSync(
-  join(root, 'node_modules/.bin/tsc'),
-  [
-    '--outDir',
-    out,
-    '--rootDir',
-    resolve(here, '../src'),
-    '--target',
-    'es2024',
-    '--module',
-    'nodenext',
-    '--moduleResolution',
-    'nodenext',
-    '--strict',
-    '--skipLibCheck',
-    '--types',
-    'node',
-    resolve(here, '../src/main.ts'),
-  ],
-  { stdio: 'inherit', cwd: root },
-);
+const out = compileSources('tsc-ts-immutability-', ['main.ts']);
 const load = (path) => import(pathToFileURL(join(out, path)).href);
 const { createNodeSystem } = await load('drivers/node-system.js');
 const { executeCommandLine } = await load('compiler/tsc-cli.js');

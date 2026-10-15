@@ -1,10 +1,10 @@
 // Shared by the emit test and scripts/emit-corpus.mjs: builds the emit driver and compares every
 // output file with tsgo's on batches of files.
-import { execFileSync } from 'node:child_process';
+
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, normalize, relative, resolve } from 'node:path';
-import { repo, root, run } from './parser-cases.mjs';
-import { compiledDir, tempDir } from './temp.mjs';
+import { repo, run } from './parser-cases.mjs';
+import { compileSources, tempDir } from './temp.mjs';
 
 export const tsgo = resolve(repo, 'packages/tsgo/dist/tsgo');
 
@@ -24,26 +24,7 @@ export const baseFlags = [
 ];
 
 export function buildEmitDriver() {
-  const out = compiledDir('tsc-ts-emit-');
-  execFileSync(
-    resolve(repo, 'node_modules/.bin/tsc'),
-    [
-      '--outDir',
-      out,
-      '--strict',
-      '--target',
-      'es2024',
-      '--module',
-      'nodenext',
-      '--moduleResolution',
-      'nodenext',
-      '--types',
-      'node',
-      '--skipLibCheck',
-      join(root, 'src/drivers/emit.ts'),
-    ],
-    { stdio: 'inherit' },
-  );
+  const out = compileSources('tsc-ts-emit-', ['drivers/emit.ts']);
   return [process.execPath, '--stack-size=16000', join(out, 'drivers/emit.js')];
 }
 

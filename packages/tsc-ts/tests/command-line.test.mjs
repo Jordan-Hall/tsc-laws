@@ -1,14 +1,15 @@
 // Runs `tsc` argument lists through tsgo (packages/tsgo/dist/tsgo) and the tsc-ts command line,
 // comparing stdout, stderr, exit status and any written tsconfig.json.
-// Set TSC_TS_CLI to a native build of src/drivers/cli.ts to test it instead of the JS build.
+// Set TSC_TS_CLI to a native build of src/drivers/cli.ts to test it instead of the JS build, and CLI_SHARD to `i/n`
+// to run every nth case of each test starting at the ith.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { execFile, execFileSync } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { compiledDir } from './temp.mjs';
+import { compileSources } from './temp.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '../../..');
@@ -16,28 +17,11 @@ const tsgo = join(root, 'packages/tsgo/dist/tsgo');
 const haveScript = existsSync('/usr/bin/script');
 // tsgo's embedded lib files, which ours reads as `bundled:///libs/` from here.
 const bundledLibs = join(root, 'upstream/typescript-go/internal/bundled/libs');
+// Lets the many Node processes share compiled code (https://nodejs.org/api/module.html#module-compile-cache).
+const compileCache = process.env.NODE_COMPILE_CACHE ? { NODE_COMPILE_CACHE: process.env.NODE_COMPILE_CACHE } : {};
 
 const work = mkdtempSync(join(tmpdir(), 'tsc-ts-cli-'));
-const out = compiledDir('tsc-ts-cli-build-');
-execFileSync(
-  join(root, 'node_modules/.bin/tsc'),
-  [
-    '--outDir',
-    out,
-    '--target',
-    'es2024',
-    '--module',
-    'nodenext',
-    '--moduleResolution',
-    'nodenext',
-    '--strict',
-    '--skipLibCheck',
-    '--types',
-    'node',
-    resolve(here, '../src/drivers/cli.ts'),
-  ],
-  { stdio: 'inherit', cwd: root },
-);
+const out = compileSources('tsc-ts-cli-build-', ['drivers/cli.ts']);
 const ours = process.env.TSC_TS_CLI ? [process.env.TSC_TS_CLI] : [process.execPath, join(out, 'drivers/cli.js')];
 const decls = await import(pathToFileURL(join(out, 'compiler/option-declarations.js')).href);
 
@@ -540,7 +524,7 @@ function shellQuote(s) {
 function run(command, testCase, label) {
   const dir = mkdtempSync(join(work, label + '-'));
   setUp(dir, testCase.files);
-  const env = { PATH: process.env.PATH ?? '', TSC_TS_BUNDLED_LIBS: bundledLibs, ...testCase.env };
+  const env = { PATH: process.env.PATH ?? '', TSC_TS_BUNDLED_LIBS: bundledLibs, ...compileCache, ...testCase.env };
   let file = command[0];
   let args = [...command.slice(1), ...testCase.args];
   if (testCase.width !== undefined) {
@@ -591,6 +575,8 @@ function describe(testCase) {
 
 /** Compares all cases; returns counts and mismatch descriptions. */
 async function compare(cases) {
+  const shard = /^(\d+)\/(\d+)$/.exec(process.env.CLI_SHARD ?? '');
+  if (shard !== null) cases = cases.filter((_, i) => i % Number(shard[2]) === Number(shard[1]) - 1);
   const counts = { total: cases.length, matched: 0, skipped: 0, seam: 0 };
   const skips = new Map();
   const failures = [];

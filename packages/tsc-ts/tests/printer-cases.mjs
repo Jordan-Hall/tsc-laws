@@ -1,35 +1,16 @@
 // Shared by the printer test and scripts/print-corpus.mjs: builds the print driver and compares
 // it with the print oracle on batches of files.
-import { execFileSync } from 'node:child_process';
+
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { repo, root, run } from './parser-cases.mjs';
-import { compiledDir, tempDir } from './temp.mjs';
+import { repo, run } from './parser-cases.mjs';
+import { compileSources, tempDir } from './temp.mjs';
 
 export const printOracle = resolve(repo, 'packages/tsgo/dist/print-oracle');
 
 /** Compiles the print driver with tsc and returns the command that runs it under Node. */
 export function buildPrintDriver() {
-  const out = compiledDir('tsc-ts-print-');
-  execFileSync(
-    resolve(repo, 'node_modules/.bin/tsc'),
-    [
-      '--outDir',
-      out,
-      '--strict',
-      '--target',
-      'es2024',
-      '--module',
-      'nodenext',
-      '--moduleResolution',
-      'nodenext',
-      '--types',
-      'node',
-      '--skipLibCheck',
-      join(root, 'src/drivers/print.ts'),
-    ],
-    { stdio: 'inherit' },
-  );
+  const out = compileSources('tsc-ts-print-', ['drivers/print.ts']);
   return [process.execPath, '--stack-size=16000', join(out, 'drivers/print.js')];
 }
 
