@@ -111,6 +111,36 @@ const scenarios = {
       { args: ['--listFiles', '--pretty'] },
     ],
   },
+  // In native builds the programs are checked and emitted on three checker threads, without old build info.
+  'composite references built on checker threads': {
+    files: {
+      'a/tsconfig.json':
+        '{"compilerOptions":{"composite":true,"declarationMap":true,"sourceMap":true,"outDir":"out"},' +
+        '"include":["*.ts"]}',
+      'a/shapes.ts':
+        'export interface Shape { kind: string; size: number }\nexport const unit = { kind: "u", size: 1 };\n',
+      'a/area.ts':
+        'import { Shape, unit } from "./shapes";\nexport function area(s: Shape) { return s.size * 2; }\n' +
+        'export const total = [unit].map(area);\n',
+      'a/hidden.ts': 'export const instance = new (class { private secret = 1; open = 2 })();\n',
+      'a/index.ts': 'export * from "./area";\nexport * from "./hidden";\nexport { unit } from "./shapes";\n',
+      'b/tsconfig.json':
+        '{"compilerOptions":{"composite":true,"outDir":"out"},"references":[{"path":"../a"}],"include":["*.ts"]}',
+      'b/main.ts': 'import { area, unit } from "../a/index";\nexport const value = area(unit);\n',
+      'b/other.ts': 'export const other: number = "x";\n',
+    },
+    steps: [
+      { args: ['-b', 'b', '--verbose', '--checkers', '3'] },
+      {
+        args: ['-b', 'b', '--verbose', '--checkers', '3'],
+        edit: {
+          'a/shapes.ts':
+            'export interface Shape { kind: string; size: number }\nexport const unit = { kind: "u", size: 2 };\n',
+        },
+      },
+      { args: ['-b', 'b', '--verbose', '--checkers', '3', '--force'] },
+    ],
+  },
   'composite, node16 packages, tsBuildInfoFile and noEmitOnError': {
     files: {
       'tsconfig.json':
