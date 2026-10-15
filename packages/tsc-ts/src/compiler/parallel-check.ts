@@ -49,7 +49,8 @@ export function residentMB(): number[] {
 /**
  * Starts checker thread `index` (main.ts owns the worker entry point). `program` is the shared,
  * published program in scriptc builds and `undefined` under Node.js; ids continue above `nodeIds` and
- * `symbolIds`.
+ * `symbolIds`. `reserved` are the positions of a group the thread's predecessor on `index` left
+ * (`CheckerResult.reserved`).
  */
 export type CheckerSpawn = (
   program: Program | undefined,
@@ -58,6 +59,7 @@ export type CheckerSpawn = (
   order: number[],
   nodeIds: number,
   symbolIds: number,
+  reserved: number[],
 ) => Worker;
 
 export class ParallelCheck {
@@ -85,7 +87,186 @@ export class CheckerResult {
      * (user, system); process RSS MB when it finished.
      */
     readonly stats: number[],
+    /** Whether the thread stopped at its file limit (`recycleFiles`) with files possibly left. */
+    readonly more: boolean = false,
+    /** The positions of a group the thread took and had not checked when it stopped at its file limit. */
+    readonly reserved: number[] = [],
   ) {}
+}
+
+/**
+ * Whether checker threads send their results as plain data (`PackedResult`), which the message
+ * copies, instead of publishing them (TSC_TS_REGION, default on in scriptc builds). Then nothing a
+ * checker thread allocated is reachable from another thread, and the scriptc runtime discards the
+ * thread's whole heap when it ends: a finished or retired checker returns its memory.
+ */
+export const packsResults: boolean = sharesPublishedGraphs && process.env.TSC_TS_REGION !== '0';
+
+/**
+ * The number of files after which a checker thread ends and a new one takes over its schedule
+ * index (TSC_TS_RECYCLE=n; 0, the default, for none). A new checker starts empty, so with packed
+ * results the old one's types, links and caches go back to the system.
+ */
+export const recycleFiles: number = Math.max(0, Number(process.env.TSC_TS_RECYCLE ?? '0') | 0);
+
+/**
+ * A `CheckerResult` as plain data. `nums` holds, in order, the diagnostic lists of `files`, the
+ * declaration diagnostic lists, and the global diagnostics, each as a count followed by that many
+ * diagnostics; a diagnostic is file name (an index into `strs`, -1 for none), file text (index, -1
+ * when the program has the file), pos, end, code, category, message, skippedOnNoEmit, the argument
+ * count and indices, then its message chain and related information as counted lists.
+ */
+export type PackedResult = {
+  readonly index: number;
+  readonly files: number[];
+  readonly nums: number[];
+  readonly strs: string[];
+  readonly checkTime: number;
+  readonly stats: number[];
+  readonly more: boolean;
+  readonly reserved: number[];
+};
+
+class ResultPacker {
+  readonly nums: number[] = [];
+  readonly strs: string[] = [];
+  private readonly indices = new Map<string, number>();
+
+  constructor(private readonly program: Program) {}
+
+  private str(text: string): number {
+    let k = this.indices.get(text);
+    if (k === undefined) {
+      k = this.strs.length;
+      this.strs.push(text);
+      this.indices.set(text, k);
+    }
+    return k;
+  }
+
+  list(diagnostics: readonly Diagnostic[]): void {
+    this.nums.push(diagnostics.length);
+    for (const d of diagnostics) this.diagnostic(d);
+  }
+
+  private diagnostic(d: Diagnostic): void {
+    const nums = this.nums;
+    const file = d.file;
+    if (file === undefined) nums.push(-1, -1);
+    else
+      nums.push(
+        this.str(file.fileName),
+        this.program.getSourceFile(file.fileName) === undefined ? this.str(file.text) : -1,
+      );
+    nums.push(d.pos, d.end, d.code, d.category, d.message, d.skippedOnNoEmit ? 1 : 0, d.args.length);
+    for (const arg of d.args) nums.push(this.str(arg));
+    this.list(d.messageChain);
+    this.list(d.relatedInformation);
+  }
+}
+
+/** Packs `result` (on the checker thread) for `postMessage`. */
+export function packResult(result: CheckerResult, program: Program): PackedResult {
+  const packer = new ResultPacker(program);
+  for (const list of result.diagnostics) packer.list(list);
+  packer.nums.push(result.declarations.length);
+  for (const list of result.declarations) packer.list(list);
+  packer.list(result.globals);
+  return {
+    index: result.index,
+    files: result.files,
+    nums: packer.nums,
+    strs: packer.strs,
+    checkTime: result.checkTime,
+    stats: result.stats,
+    more: result.more,
+    reserved: result.reserved,
+  };
+}
+
+/** Rebuilds a packed result on the main thread against `program`'s files. */
+class ResultUnpacker {
+  private at = 0;
+
+  constructor(
+    private readonly packed: PackedResult,
+    private readonly program: Program,
+    private readonly files: Map<string, DiagnosticFile>,
+  ) {}
+
+  private next(): number {
+    return this.packed.nums[this.at++]!;
+  }
+
+  count(): number {
+    return this.next();
+  }
+
+  list(): Diagnostic[] {
+    const n = this.next();
+    const result: Diagnostic[] = [];
+    for (let k = 0; k < n; k++) result.push(this.diagnostic());
+    return result;
+  }
+
+  private diagnostic(): Diagnostic {
+    const strs = this.packed.strs;
+    const name = this.next();
+    const text = this.next();
+    let file: DiagnosticFile | undefined = undefined;
+    if (name >= 0) {
+      const fileName = strs[name]!;
+      file = this.files.get(fileName);
+      if (file === undefined) {
+        file =
+          text >= 0
+            ? new DiagnosticFile(fileName, strs[text]!)
+            : this.program.getSourceFile(fileName)!.diagnosticFile();
+        this.files.set(fileName, file);
+      }
+    }
+    const pos = this.next();
+    const end = this.next();
+    const code = this.next();
+    const category = this.next();
+    const message = this.next();
+    const skipped = this.next() === 1;
+    const argc = this.next();
+    const args: string[] = [];
+    for (let k = 0; k < argc; k++) args.push(strs[this.next()]!);
+    const result = new Diagnostic(file, pos, end, message, args);
+    result.code = code;
+    result.category = category;
+    result.skippedOnNoEmit = skipped;
+    result.messageChain = this.list();
+    result.relatedInformation = this.list();
+    return result;
+  }
+}
+
+export function unpackResult(
+  packed: PackedResult,
+  program: Program,
+  files: Map<string, DiagnosticFile>,
+): CheckerResult {
+  const unpacker = new ResultUnpacker(packed, program, files);
+  const diagnostics: Diagnostic[][] = [];
+  for (let k = 0; k < packed.files.length; k++) diagnostics.push(unpacker.list());
+  const declarations: Diagnostic[][] = [];
+  const nd = unpacker.count();
+  for (let k = 0; k < nd; k++) declarations.push(unpacker.list());
+  const globals = unpacker.list();
+  return new CheckerResult(
+    packed.index,
+    packed.files,
+    diagnostics,
+    declarations,
+    globals,
+    packed.checkTime,
+    packed.stats,
+    packed.more,
+    packed.reserved,
+  );
 }
 
 /**
@@ -1009,7 +1190,8 @@ export function traceSingleChecker(checked: CheckedProgram): void {
 
 /**
  * Checks files from the shared queue until it is empty; the main thread and checker threads alike.
- * A checker thread (`onMainThread` false) also sends back its global diagnostics.
+ * A checker thread (`onMainThread` false) also sends back its global diagnostics. At `limit` files
+ * it stops; `reserved` are the positions of a group its predecessor on `index` had not checked then.
  */
 export function checkFromQueue(
   checked: CheckedProgram,
@@ -1018,6 +1200,8 @@ export function checkFromQueue(
   order: number[],
   startedAt: number = Date.now(),
   onMainThread: boolean = true,
+  limit: number = 0,
+  reserved: readonly number[] = [],
 ): CheckerResult {
   const start = performance.now();
   const readyAt = Date.now();
@@ -1032,7 +1216,17 @@ export function checkFromQueue(
   const plan = schedulePlan(counter);
   const retirement = index >= tsgoCheckers ? retirementMemory() : 0;
   let memoryReadAt = 0;
+  let more = false;
+  let left: number[] = [];
+  for (const k of reserved) reservedBy(index).push(k);
   for (;;) {
+    // At its file limit the thread ends; a new one continues its schedule index, and the rest of the
+    // group it took, which no other checker takes.
+    if (limit > 0 && done.length >= limit) {
+      more = true;
+      left = reservedBy(index).splice(0);
+      break;
+    }
     // Beyond tsgo's four, read the process's memory every 20 ms at most.
     if (retirement > 0 && performance.now() - memoryReadAt >= 20) {
       memoryReadAt = performance.now();
@@ -1083,7 +1277,17 @@ export function checkFromQueue(
       relations,
     ];
   }
-  return new CheckerResult(index, done, diagnostics, declarations, globals, performance.now() - start, stats);
+  return new CheckerResult(
+    index,
+    done,
+    diagnostics,
+    declarations,
+    globals,
+    performance.now() - start,
+    stats,
+    more,
+    left,
+  );
 }
 
 /**
@@ -1178,7 +1382,8 @@ export function startParallelCheck(checked: CheckedProgram, count: number, done:
     remaining--;
     if (remaining === 0 && ownDone) finish();
   };
-  for (let i = firstThread; i < count; i++) {
+  const diagnosticFiles = new Map<string, DiagnosticFile>();
+  const spawn = (i: number, reserved: number[]): void => {
     const worker = parallelCheck.spawn!(
       shared ? program : undefined,
       i,
@@ -1186,18 +1391,28 @@ export function startParallelCheck(checked: CheckedProgram, count: number, done:
       order,
       lastNodeIdValue(),
       lastSymbolIdValue(),
+      reserved,
     );
     worker.on('message', (message: unknown) => {
-      const result = (message as { result: CheckerResult }).result;
       mark(`result from c${i}`);
-      record(revival === undefined ? publish(result) : revival.result(result));
-      threadDone();
+      let result: CheckerResult;
+      if (packsResults) {
+        result = unpackResult(message as PackedResult, program, diagnosticFiles);
+        record(result);
+      } else {
+        result = (message as { result: CheckerResult }).result;
+        record(revival === undefined ? publish(result) : revival.result(result));
+      }
+      // A thread at its file limit hands its schedule index to a new one.
+      if (result.more) spawn(i, result.reserved);
+      else threadDone();
     });
     worker.on('error', (error: unknown) => {
       if (trace) process.stderr.write(`checkers: thread ${i} failed: ${String(error)}\n`);
       threadDone();
     });
-  }
+  };
+  for (let i = firstThread; i < count; i++) spawn(i, []);
   mark('checkers spawned');
   if (mainChecks) record(checkFromQueue(checked, 0, new Int32Array(counter), order, epoch));
   ownDone = true;
@@ -1221,6 +1436,8 @@ class Revival {
       copy.globals.map((d) => this.diagnostic(d)),
       copy.checkTime,
       copy.stats,
+      copy.more,
+      copy.reserved,
     );
   }
 

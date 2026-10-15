@@ -4,7 +4,14 @@ import { Worker, isMainThread, parentPort, workerData } from 'node:worker_thread
 import { publish, sharesPublishedGraphs } from '@scriptc/threads';
 import { runServer } from './api/server.js';
 import { reserveNodeIds, shareNodeIds } from './compiler/ast.js';
-import { CheckerResult, checkFromQueue, parallelCheck } from './compiler/parallel-check.js';
+import {
+  CheckerResult,
+  checkFromQueue,
+  packResult,
+  packsResults,
+  parallelCheck,
+  recycleFiles,
+} from './compiler/parallel-check.js';
 import { type LoadMessage, parallelParse } from './compiler/parallel-parse.js';
 import { useLazyJSDocTable } from './compiler/parser.js';
 import { CheckedProgram } from './compiler/program-checker.js';
@@ -38,9 +45,9 @@ else {
 
 /** Lets `--checkers N` start checker threads, and parse threads where threads share objects. */
 function startThreads(): void {
-  parallelCheck.spawn = (program, index, counter, order, nodeIds, symbolIds) =>
+  parallelCheck.spawn = (program, index, counter, order, nodeIds, symbolIds, reserved) =>
     new Worker(new URL(import.meta.url), {
-      workerData: { kind: 'check', program, args, index, counter, order, nodeIds, symbolIds },
+      workerData: { kind: 'check', program, args, index, counter, order, nodeIds, symbolIds, reserved },
     });
   if (sharesPublishedGraphs)
     parallelParse.spawn = (configFileName, counter, index) =>
@@ -68,6 +75,7 @@ function runCheckerThread(): void {
     order: number[];
     nodeIds: number;
     symbolIds: number;
+    reserved: number[];
   };
   let program: Program | undefined = undefined;
   if (job.program !== undefined) {
@@ -91,8 +99,12 @@ function runCheckerThread(): void {
           job.order,
           startedAt,
           false,
+          recycleFiles,
+          job.reserved,
         );
-  parentPort!.postMessage({ result: sharesPublishedGraphs ? publish(result) : result });
+  // Packed results are copied: nothing this thread allocated stays reachable after it ends.
+  if (packsResults) parentPort!.postMessage(packResult(result, program!));
+  else parentPort!.postMessage({ result: sharesPublishedGraphs ? publish(result) : result });
   mark('result posted');
 }
 
