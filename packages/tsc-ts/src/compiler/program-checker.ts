@@ -10,6 +10,7 @@
 import { type Node, ScriptKind, type SourceFile } from './ast.js';
 import { Checker, CheckerHost } from './checker.js';
 import { createDiagnostic, Diagnostic, type DiagnosticMessage, Diagnostics, messageCode } from './diagnostics.js';
+import type { EmitResult } from './emitter.js';
 import type { CompilerOptions, ModuleKind } from './options.js';
 import type { ResolvedModule } from './module-resolution-types.js';
 import { ModuleSpecifierHost } from './module-specifiers.js';
@@ -234,6 +235,11 @@ export class CheckedProgram {
    * index; `undefined` for files they did not. Set once every file is checked.
    */
   declarationsInParallel: (Diagnostic[] | undefined)[] | undefined = undefined;
+  /**
+   * What checker threads emitted (PlainProgram), by file index; `undefined` for files they did not
+   * emit. Set once every file is checked, when checker threads emit (parallel-check.ts).
+   */
+  emittedInParallel: (EmitResult | undefined)[] | undefined = undefined;
 
   getSemanticDiagnostics(file: SourceFile | undefined): Diagnostic[] {
     const parallel = this.checkedInParallel;
