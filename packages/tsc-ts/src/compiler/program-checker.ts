@@ -263,9 +263,35 @@ export class CheckedProgram {
     return result;
   }
 
-  /** The bind and check diagnostics of `file` before `noEmit` filtering and without include errors. */
+  /**
+   * The bind and check diagnostics of `file` before `noEmit` filtering and without include errors.
+   * Once checker threads checked the program, they come from the threads' diagnostics of the file,
+   * without the include errors added last; under `noEmit` those are already filtered (tsc-build.ts
+   * reads them only where that doesn't matter).
+   */
   getSemanticDiagnosticsWithoutNoEmitFiltering(file: SourceFile): Diagnostic[] {
-    return this.skipTypeChecking(file) ? [] : sortAndDeduplicateDiagnostics(this.getBindAndCheckDiagnostics(file));
+    if (this.skipTypeChecking(file)) return [];
+    const parallel = this.checkedInParallel;
+    if (parallel !== undefined) {
+      const diagnostics = parallel[this.indexOfFile(file)]!;
+      const count = diagnostics.length - this.getIncludeProcessorDiagnostics(file).length;
+      return sortAndDeduplicateDiagnostics(diagnostics.slice(0, count));
+    }
+    return sortAndDeduplicateDiagnostics(this.getBindAndCheckDiagnostics(file));
+  }
+
+  private fileIndexes: Map<SourceFile, number> | undefined = undefined;
+
+  /** The index of `file` in the program's files. */
+  private indexOfFile(file: SourceFile): number {
+    let indexes = this.fileIndexes;
+    if (indexes === undefined) {
+      indexes = new Map<SourceFile, number>();
+      const files = this.program.getSourceFiles();
+      for (let i = 0; i < files.length; i++) indexes.set(files[i]!, i);
+      this.fileIndexes = indexes;
+    }
+    return indexes.get(file)!;
   }
 
   getSuggestionDiagnostics(file: SourceFile | undefined): Diagnostic[] {

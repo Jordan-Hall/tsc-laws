@@ -61,7 +61,8 @@ export class CachedFileSystem extends FileSystem {
   }
 
   prepareForSharing(): void {
-    this.shared = true;
+    // A file system already shared (with an earlier program of a build) is immutable.
+    if (!this.shared) this.shared = true;
   }
 
   /** Where new answers go: this file system's caches, or once it is shared, this thread's. */

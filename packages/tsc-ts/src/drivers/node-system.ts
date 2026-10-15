@@ -20,7 +20,7 @@ import { ParseThread } from '../compiler/parse-thread.js';
 import { type CommandLineResult, System, executeCommandLine, readThreadProject } from '../compiler/tsc-cli.js';
 import type { OutputWriter } from '../compiler/compile-program.js';
 import { compile, compileInParallel, compileThreads, SystemWriter } from '../compiler/tsc-compile.js';
-import { build } from '../compiler/tsc-build.js';
+import { buildWithThreads } from '../compiler/tsc-build.js';
 import { watch, watchBuild } from '../compiler/tsc-watch.js';
 
 const bundledPrefix = 'bundled:///libs/';
@@ -267,7 +267,12 @@ function runCommandLineResult(sys: System, result: CommandLineResult): number {
       watchBuild(sys, result.commandLine);
       return watching;
     }
-    return build(sys, result.commandLine);
+    const status = buildWithThreads(sys, result.commandLine, (s) => {
+      markMemory();
+      mark('exit');
+      process.exit(s);
+    });
+    return status ?? watching;
   }
   watch(sys, result.config, result.commandLine);
   return watching;

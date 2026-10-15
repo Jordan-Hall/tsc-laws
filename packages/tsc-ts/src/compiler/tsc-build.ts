@@ -1,6 +1,7 @@
 /**
  * `tsc --build`: builds projects and their references in dependency order, skipping projects whose
- * outputs are up to date, like tsgo's build orchestrator (run on one thread).
+ * outputs are up to date, like tsgo's build orchestrator. Projects are built one after another; the
+ * program of a project whose every file is checked is checked by checker threads.
  */
 import { BuildInfo, isBuildInfoFileNameDefaultLibrary, parseBuildInfo } from './build-info.js';
 import type { ParsedBuildCommandLine } from './command-line.js';
@@ -26,6 +27,7 @@ import {
   fileInfoFromBuildInfo,
   IncrementalProgram,
   readBuildInfoProgram,
+  type Snapshot,
 } from './incremental.js';
 import { getAreDeclarationMapsEnabled, getEmitDeclarations, isIncremental } from './options.js';
 import { getOutputDeclarationFileName, getOutputJSFileName, getSourceMapFilePath } from './output-paths.js';
@@ -51,6 +53,9 @@ import {
   SystemFileSystem,
 } from './tsc-cli.js';
 import { emitFilesAndReportErrors, exitStatusOf, Statistics, statisticsOf, SystemTimeStamps } from './tsc-compile.js';
+import { sharesPublishedGraphs } from '@scriptc/threads';
+import { checkerThreads, startParallelCheck } from './parallel-check.js';
+import { assignSymbolIdsAtCreation } from './symbol.js';
 
 const enum BuildKind {
   None,
@@ -465,6 +470,22 @@ export class Orchestrator {
 
   /** Builds or cleans every project; returns the exit status. */
   start(): ExitStatus {
+    let status: ExitStatus | undefined;
+    this.run((s) => (status = s), false);
+    return status!;
+  }
+
+  /**
+   * Builds or cleans every project like `start`. A project whose every file is checked is checked
+   * by checker threads (parallel-check.ts), and the build continues on this thread's event loop once
+   * they are done. `done` gets the exit status, on this call or later; returns whether later.
+   */
+  startWithThreads(done: (status: ExitStatus) => void): boolean {
+    return this.run(done, true);
+  }
+
+  /** Builds the projects from `this.order`; returns whether a project's check went to threads. */
+  private run(done: (status: ExitStatus) => void, threads: boolean): boolean {
     this.generateGraph();
     const command = this.command;
     if (command.buildOptions.clean !== true && this.verbose) {
@@ -473,43 +494,67 @@ export class Orchestrator {
         this.order.map((p) => '\r\n    * ' + this.relativeFileName(p)).join(''),
       );
     }
-    let status = ExitStatus.Success;
-    let errors: Diagnostic[] = [];
-    const statistics = new Statistics();
-    const filesToDelete: string[] = [];
+    const state = new BuildState();
     if (this.errors.length === 0) {
-      statistics.projects = this.order.length;
-      for (const config of this.order) {
-        const task = this.getTask(this.toPath(config));
-        if (command.buildOptions.clean !== true) this.buildProject(task);
-        else this.cleanProject(task);
-        if (task.errors.length > 0) for (const e of task.errors) errors.push(e);
-        if (task.exitStatus > status) status = task.exitStatus;
-        const taskStatistics = task.statistics;
-        if (taskStatistics !== undefined) statistics.aggregate(taskStatistics);
-        if (task.buildKind === BuildKind.Program) statistics.projectsBuilt++;
-        else if (task.buildKind === BuildKind.Pseudo) statistics.timestampUpdates++;
-        for (const file of task.filesToDelete) filesToDelete.push(file);
-      }
-    } else {
-      status = ExitStatus.ProjectReferenceCycle_OutputsSkipped;
-      this.reporter.reportAll(this.errors);
-      errors = this.errors;
+      state.statistics.projects = this.order.length;
+      return this.runFrom(0, state, threads, done);
     }
+    state.status = ExitStatus.ProjectReferenceCycle_OutputsSkipped;
+    this.reporter.reportAll(this.errors);
+    state.errors = this.errors;
+    done(this.finish(state));
+    return false;
+  }
+
+  /**
+   * Builds the projects from `index` on; when a project is checked by threads, continues after it
+   * once they are done. Returns whether that happened.
+   */
+  private runFrom(index: number, state: BuildState, threads: boolean, done: (status: ExitStatus) => void): boolean {
+    const clean = this.command.buildOptions.clean === true;
+    for (let i = index; i < this.order.length; i++) {
+      const task = this.getTask(this.toPath(this.order[i]!));
+      if (clean) this.cleanProject(task);
+      else {
+        const deferred = this.buildProject(task, threads, () => {
+          this.recordTask(task, state);
+          this.runFrom(i + 1, state, threads, done);
+        });
+        if (deferred) return true;
+      }
+      this.recordTask(task, state);
+    }
+    done(this.finish(state));
+    return false;
+  }
+
+  private recordTask(task: BuildTask, state: BuildState): void {
+    if (task.errors.length > 0) for (const e of task.errors) state.errors.push(e);
+    if (task.exitStatus > state.status) state.status = task.exitStatus;
+    const taskStatistics = task.statistics;
+    if (taskStatistics !== undefined) state.statistics.aggregate(taskStatistics);
+    if (task.buildKind === BuildKind.Program) state.statistics.projectsBuilt++;
+    else if (task.buildKind === BuildKind.Pseudo) state.statistics.timestampUpdates++;
+    for (const file of task.filesToDelete) state.filesToDelete.push(file);
+  }
+
+  /** Reports the summary of the build; returns its exit status. */
+  private finish(state: BuildState): ExitStatus {
+    const errors = state.errors;
     this.errorCount = errors.length;
     if (!this.watching) this.errorSummary.report(errors);
-    if (filesToDelete.length > 0) {
+    if (state.filesToDelete.length > 0) {
       this.status.report(
         Diagnostics.A_non_dry_build_would_delete_the_following_files_Colon_0,
-        filesToDelete.map((f) => '\r\n * ' + f).join(''),
+        state.filesToDelete.map((f) => '\r\n * ' + f).join(''),
       );
     }
-    const options = command.compilerOptions;
+    const options = this.command.compilerOptions;
     if (options.diagnostics === true || options.extendedDiagnostics === true) {
-      statistics.times.totalTime = this.sys.sinceStart();
-      statistics.report(this.sys);
+      state.statistics.times.totalTime = this.sys.sinceStart();
+      state.statistics.report(this.sys);
     }
-    return status;
+    return state.status;
   }
 
   private reportDiagnostic(task: BuildTask, diagnostic: Diagnostic): void {
@@ -517,11 +562,15 @@ export class Orchestrator {
     this.reporter.report(diagnostic);
   }
 
-  private buildProject(task: BuildTask): void {
+  /**
+   * Builds `task` unless it is up to date. With `threads`, a program whose every file is checked is
+   * checked by checker threads: returns true, and calls `then` once the project is built.
+   */
+  private buildProject(task: BuildTask, threads: boolean, then: () => void): boolean {
     task.status = this.getUpToDateStatus(task);
     this.reportUpToDateStatus(task);
     if (!this.handleStatusThatDoesntRequireBuild(task)) {
-      this.compileAndEmit(task);
+      return this.compileAndEmit(task, threads, then);
     } else {
       const resolved = task.resolved;
       if (resolved !== undefined) {
@@ -529,11 +578,13 @@ export class Orchestrator {
       }
       if (task.errors.length > 0) task.exitStatus = ExitStatus.DiagnosticsPresent_OutputsSkipped;
     }
+    return false;
   }
 
-  private compileAndEmit(task: BuildTask): void {
+  /** Builds `task`'s program; see `buildProject` for `threads` and `then`. */
+  private compileAndEmit(task: BuildTask, threads: boolean, then: () => void): boolean {
     const resolved = task.resolved;
-    if (resolved === undefined) return;
+    if (resolved === undefined) return false;
     const sys = this.sys;
     task.errors = [];
     if (this.verbose) this.status.report(Diagnostics.Building_project_0, this.relativeFileName(task.config));
@@ -550,12 +601,61 @@ export class Orchestrator {
           sys.currentDirectory,
         );
     times.buildInfoReadTime = performance.now() - readStart;
+    const mayUseThreads = threads && this.mayCheckOnThreads(resolved, oldSnapshot === undefined);
     const parseStart = performance.now();
-    const program = new Program(resolved, new BuildCompilerHost(sys, this.fs, this.locale));
+    // A program checked by threads is shared with them and can't change after; the project's config
+    // here, whose output paths are computed later, gets a copy of its own.
+    const program = new Program(
+      mayUseThreads ? copyCommandLine(resolved) : resolved,
+      new BuildCompilerHost(sys, this.fs, this.locale),
+    );
     times.parseTime = performance.now() - parseStart;
     const bindStart = performance.now();
     const checked = new CheckedProgram(program);
     times.bindTime = performance.now() - bindStart;
+    const options = program.options;
+    const count = mayUseThreads ? checkerThreads(options.checkers, options.singleThreaded, program) : 1;
+    if (count > 1) {
+      // The incremental program emits on this thread (it notes which declaration files change).
+      startParallelCheck(
+        checked,
+        count,
+        (checkTime) => {
+          this.emitAndReport(task, checked, times, oldSnapshot, checkTime);
+          then();
+        },
+        false,
+      );
+      return true;
+    }
+    this.emitAndReport(task, checked, times, oldSnapshot, undefined);
+    return false;
+  }
+
+  /**
+   * Whether checker threads may check the program of a project: only when they would check every
+   * file, as without old build info. Checker threads report a file's semantic diagnostics filtered
+   * for `noEmit`, while the incremental program keeps them unfiltered
+   * (`getSemanticDiagnosticsWithoutNoEmitFiltering`): with `noEmit`, only a program that keeps no
+   * incremental state, whose diagnostics are only reported filtered, is checked by threads.
+   */
+  private mayCheckOnThreads(config: ParsedCommandLine, checksEveryFile: boolean): boolean {
+    const options = config.options;
+    return checksEveryFile && !(options.noEmit === true && isIncremental(options));
+  }
+
+  /** Emits and reports `task`'s checked program, the rest of `compileAndEmit`. */
+  private emitAndReport(
+    task: BuildTask,
+    checked: CheckedProgram,
+    times: CompileTimes,
+    oldSnapshot: Snapshot | undefined,
+    /** The wall time of checker threads that checked the program, as reported. */
+    parallelCheckTime: number | undefined,
+  ): void {
+    const resolved = task.resolved!;
+    const sys = this.sys;
+    const program = checked.program;
     const changesStart = performance.now();
     const incrementalProgram = new IncrementalProgram(checked, times, oldSnapshot, new SystemTimeStamps(sys));
     times.changesComputeTime = performance.now() - changesStart;
@@ -570,6 +670,7 @@ export class Orchestrator {
       this.locale,
     );
     task.exitStatus = exitStatusOf(result);
+    if (parallelCheckTime !== undefined) times.checkTime = parallelCheckTime;
     const options = program.options;
     if (options.diagnostics === true || options.extendedDiagnostics === true) {
       times.totalTime = sys.sinceStart();
@@ -1058,4 +1159,48 @@ function resolveProjectReferencePathOf(path: string): string {
 /** Runs `tsc --build`; returns the exit status. */
 export function build(sys: System, command: ParsedBuildCommandLine): ExitStatus {
   return new Orchestrator(sys, command).start();
+}
+
+/**
+ * Runs `tsc --build` like `build`, checking programs on checker threads where every file is
+ * checked: returns the exit status, or `undefined` when the build goes on on this thread's event
+ * loop and `done` gets it.
+ */
+export function buildWithThreads(
+  sys: System,
+  command: ParsedBuildCommandLine,
+  done: (status: ExitStatus) => void,
+): ExitStatus | undefined {
+  // Programs shared with checker threads get their symbol ids when the symbols are created.
+  if (sharesPublishedGraphs && command.compilerOptions.singleThreaded !== true) assignSymbolIdsAtCreation();
+  let status: ExitStatus | undefined;
+  let deferred = false;
+  deferred = new Orchestrator(sys, command).startWithThreads((s) => {
+    if (deferred) done(s);
+    else status = s;
+  });
+  return deferred ? undefined : status;
+}
+
+/** A copy of `config` with its own lazily computed parts and errors. */
+function copyCommandLine(config: ParsedCommandLine): ParsedCommandLine {
+  return new ParsedCommandLine(
+    config.options,
+    config.typeAcquisition,
+    config.fileNames,
+    config.projectReferences,
+    config.configFile,
+    config.errors.slice(),
+    config.currentDirectory,
+    config.useCaseSensitiveFileNames,
+    config.literalFileNamesLength,
+  );
+}
+
+/** The totals of a build, gathered project by project. */
+class BuildState {
+  status = ExitStatus.Success;
+  errors: Diagnostic[] = [];
+  readonly statistics = new Statistics();
+  readonly filesToDelete: string[] = [];
 }
