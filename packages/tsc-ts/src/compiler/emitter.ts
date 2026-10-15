@@ -98,6 +98,11 @@ export class EmitResult {
   readonly unsupported: string[];
   /** Declaration emit errors; a file with any gets no declaration file. */
   readonly diagnostics: Diagnostic[];
+  /**
+   * For each declaration file a checker thread wrote for an incremental program, its name, its signature
+   * and the signature compared for composite projects (`DeclarationSignatureWriter`).
+   */
+  readonly declarationSignatures: string[];
   emitSkipped: boolean;
 
   constructor() {
@@ -105,6 +110,7 @@ export class EmitResult {
     this.errors = [];
     this.unsupported = [];
     this.diagnostics = [];
+    this.declarationSignatures = [];
     this.emitSkipped = false;
   }
 }

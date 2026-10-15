@@ -652,16 +652,12 @@ export class Orchestrator {
     const options = program.options;
     const count = mayUseThreads ? checkerThreads(options.checkers, options.singleThreaded, program) : 1;
     if (count > 1) {
-      // The incremental program emits on this thread (it notes which declaration files change).
-      startParallelCheck(
-        checked,
-        count,
-        (checkTime) => {
-          this.emitAndReport(task, checked, times, oldSnapshot, checkTime);
-          then();
-        },
-        false,
-      );
+      // Checker threads also emit the files they check; the incremental program records their
+      // declaration signatures on this thread.
+      startParallelCheck(checked, count, (checkTime) => {
+        this.emitAndReport(task, checked, times, oldSnapshot, checkTime);
+        then();
+      });
       return true;
     }
     this.emitAndReport(task, checked, times, oldSnapshot, undefined);

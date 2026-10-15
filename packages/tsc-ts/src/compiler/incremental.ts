@@ -1167,6 +1167,45 @@ class SignatureRecordingWriter extends OutputWriter {
   }
 }
 
+/**
+ * Writes outputs with `writer` and keeps, for each declaration file, its name, its signature and the
+ * signature compared for composite projects, as `SignatureRecordingWriter` computes them: for checker
+ * threads that emit the files of an incremental program, whose main thread records them
+ * (`EmitFilesHandler.recordDeclarationSignatures`).
+ */
+export class DeclarationSignatureWriter extends OutputWriter {
+  /** The file being emitted. */
+  file: SourceFile | undefined = undefined;
+  private signatures: string[] = [];
+
+  constructor(
+    private readonly writer: OutputWriter,
+    private readonly options: CompilerOptions,
+  ) {
+    super();
+  }
+
+  write(fileName: string, text: string, declarationDiagnostics: readonly Diagnostic[]): string {
+    const file = this.file;
+    if (file !== undefined && isDeclarationFileName(fileName)) {
+      const signature = computeSignatureWithDiagnostics(file, text, declarationDiagnostics, this.options);
+      const compositeSignature =
+        declarationDiagnostics.length === 0
+          ? signature
+          : computeHash(getTextHandlingSourceMapForSignature(text, this.options));
+      this.signatures.push(fileName, signature, compositeSignature);
+    }
+    return this.writer.write(fileName, text, declarationDiagnostics);
+  }
+
+  /** The signatures kept since the last call. */
+  take(): string[] {
+    const signatures = this.signatures;
+    this.signatures = [];
+    return signatures;
+  }
+}
+
 class EmitUpdate {
   constructor(
     readonly pendingKind: number,
@@ -1203,7 +1242,15 @@ class EmitFilesHandler {
       return result;
     }
     if (!this.isForDtsErrors) {
-      const result = program.emitter.emit(program.program.getSourceFiles(), EmitOnly.All, this.wrap(writer));
+      const files = program.program.getSourceFiles();
+      const emittedOnCheckers = this.emittedOnCheckers();
+      const wrapped = this.wrap(writer);
+      const result =
+        emittedOnCheckers.size === 0
+          ? program.emitter.emit(files, EmitOnly.All, wrapped)
+          : combineEmitResults(
+              files.map((file) => emittedOnCheckers.get(file) ?? program.emitter.emit([file], EmitOnly.All, wrapped)),
+            );
       this.updateHasEmitDiagnostics(result);
       this.updateSnapshot();
       this.emitBuildInfo(writer, result);
@@ -1227,6 +1274,23 @@ class EmitFilesHandler {
     }
   }
 
+  /**
+   * The emit results of the files checker threads emitted right after checking them (parallel-check.ts),
+   * which are not emitted again here. Checker threads emit every file of a program without old build
+   * info, with the outputs its options select, as its pending emit asks.
+   */
+  private emittedOnCheckers(): Map<SourceFile, EmitResult> {
+    const result = new Map<SourceFile, EmitResult>();
+    const emitted = this.program.checked.emittedInParallel;
+    if (emitted === undefined) return result;
+    const files = this.program.program.getSourceFiles();
+    for (let i = 0; i < files.length; i++) {
+      const fileResult = emitted[i];
+      if (fileResult !== undefined) result.set(files[i]!, fileResult);
+    }
+    return result;
+  }
+
   /** Records declaration signatures when declarations are emitted. */
   private wrap(writer: OutputWriter): OutputWriter {
     return getEmitDeclarations(this.program.snapshot.options) ? new SignatureRecordingWriter(this, writer) : writer;
@@ -1237,6 +1301,7 @@ class EmitFilesHandler {
     const snapshot = program.snapshot;
     collectAllAffectedFiles(program);
     const wrapped = this.wrap(writer);
+    const emittedOnCheckers = this.emittedOnCheckers();
     for (const [path, emitKind] of snapshot.affectedFilesPendingEmit) {
       const affectedFile = program.program.getSourceFileByPath(path);
       if (affectedFile === undefined || !program.program.sourceFileMayBeEmitted(affectedFile, false)) {
@@ -1253,8 +1318,14 @@ class EmitFilesHandler {
         const dts = (pendingKind & FileEmitKind.AllDts) !== 0;
         if (js && !dts) emitOnly = EmitOnly.Js;
         else if (dts && !js) emitOnly = EmitOnly.Dts;
-        if (wrapped instanceof SignatureRecordingWriter) wrapped.file = affectedFile;
-        result = program.emitter.emit([affectedFile], emitOnly, wrapped);
+        const emitted = emittedOnCheckers.get(affectedFile);
+        if (emitted !== undefined) {
+          result = emitted;
+          this.recordDeclarationSignatures(affectedFile, emitted.declarationSignatures);
+        } else {
+          if (wrapped instanceof SignatureRecordingWriter) wrapped.file = affectedFile;
+          result = program.emitter.emit([affectedFile], emitOnly, wrapped);
+        }
       } else {
         result = new EmitResult();
         result.emitSkipped = true;
@@ -1284,6 +1355,14 @@ class EmitFilesHandler {
   skipDtsOutputOfComposite(file: SourceFile, outputFileName: string, text: string, newSignature: string): number {
     const snapshot = this.program.snapshot;
     if (snapshot.options.composite !== true) return 0;
+    const signature =
+      newSignature !== '' ? newSignature : computeHash(getTextHandlingSourceMapForSignature(text, snapshot.options));
+    return this.skipDtsOutputWithSignature(file, outputFileName, signature);
+  }
+
+  /** `skipDtsOutputOfComposite` with the declaration file's signature computed. */
+  private skipDtsOutputWithSignature(file: SourceFile, outputFileName: string, signature: string): number {
+    const snapshot = this.program.snapshot;
     let oldSignature = '';
     const oldSignatureFormat = snapshot.emitSignatures.get(file.path);
     if (oldSignatureFormat !== undefined) {
@@ -1292,8 +1371,6 @@ class EmitFilesHandler {
           ? oldSignatureFormat.signature
           : (oldSignatureFormat.signatureWithDifferentOptions ?? '');
     }
-    let signature = newSignature;
-    if (signature === '') signature = computeHash(getTextHandlingSourceMapForSignature(text, snapshot.options));
     let result = 0;
     if (signature === oldSignature) {
       if (oldSignatureFormat !== undefined && oldSignatureFormat.signature === oldSignature) return 1;
@@ -1301,6 +1378,26 @@ class EmitFilesHandler {
     } else this.latestChangedDtsFiles.set(file.path, outputFileName);
     this.emitSignatures.set(file.path, new EmitSignature(signature, undefined));
     return result;
+  }
+
+  /**
+   * Records the declaration files a checker thread wrote for `file` (`EmitResult.declarationSignatures`),
+   * as `SignatureRecordingWriter` records the ones written here. Checker threads emit only programs
+   * without old build info, which have no old emit signatures, so no declaration file was to be skipped
+   * or to keep its time stamp.
+   */
+  private recordDeclarationSignatures(file: SourceFile, signatures: readonly string[]): void {
+    const snapshot = this.program.snapshot;
+    if (!snapshot.canUseIncrementalState()) return;
+    for (let i = 0; i + 2 < signatures.length; i += 3) {
+      const info = snapshot.fileInfos.get(file.path);
+      if (info !== undefined && info.signature === info.version) {
+        const signature = signatures[i + 1]!;
+        if (signature !== info.version) this.signatures.set(file.path, signature);
+      }
+      if (snapshot.options.composite === true)
+        this.skipDtsOutputWithSignature(file, signatures[i]!, signatures[i + 2]!);
+    }
   }
 
   private updateSnapshot(): EmitResult[] {

@@ -29,7 +29,8 @@ import { lastNodeIdValue } from './ast.js';
 import { declarationDiagnosticsOfFile, type OutputWriter, ProgramEmitter } from './compile-program.js';
 import { Diagnostic, DiagnosticFile, RepopulateInfo } from './diagnostics.js';
 import { EmitOnly, EmitResult } from './emitter.js';
-import { getEmitDeclarations } from './options.js';
+import { getEmitDeclarations, isIncremental } from './options.js';
+import { DeclarationSignatureWriter } from './incremental.js';
 import { useLazyJSDocTable } from './parser.js';
 import type { CheckedProgram } from './program-checker.js';
 import type { Program } from './program.js';
@@ -127,9 +128,9 @@ export const recycleFiles: number = Math.max(0, Number(process.env.TSC_TS_RECYCL
  * skippedOnNoEmit, the argument count and indices, its repopulate kind (0 for none) followed by the
  * module reference (index), mode and package name (index) of other kinds, then its message chain and
  * related information as lists. An emit result is emitSkipped, the emitted files, errors and
- * unsupported files as lists of indices, then its diagnostics. `files` and `nums` are typed arrays,
- * which postMessage copies as one block of memory each; it copies an array of numbers element by
- * element.
+ * unsupported files as lists of indices, then its diagnostics and its declaration signatures as a list
+ * of indices. `files` and `nums` are typed arrays, which postMessage copies as one block of memory
+ * each; it copies an array of numbers element by element.
  */
 export type PackedResult = {
   readonly index: number;
@@ -175,6 +176,7 @@ class ResultPacker {
     this.strList(result.errors);
     this.strList(result.unsupported);
     this.list(result.diagnostics);
+    this.strList(result.declarationSignatures);
   }
 
   private diagnostic(d: Diagnostic): void {
@@ -300,6 +302,7 @@ class ResultUnpacker {
     this.strList(result.errors);
     this.strList(result.unsupported);
     for (const d of this.list()) result.diagnostics.push(d);
+    this.strList(result.declarationSignatures);
     return result;
   }
 }
@@ -348,7 +351,7 @@ function checkersReportDeclarations(checked: CheckedProgram): boolean {
  * files): unless the program doesn't emit, or `noEmitOnError` makes emit wait for every file's
  * diagnostics. The checker that checked a file has its types at hand, and its declarations print
  * as on the checker tsgo emits the file with. The main thread emits the files no checker emitted.
- * With `emits` false (build mode, whose incremental program emits) checkers don't emit.
+ * With `emits` false checkers don't emit.
  */
 function checkersEmit(checked: CheckedProgram, emits: boolean): boolean {
   const options = checked.program.options;
@@ -1394,6 +1397,12 @@ export function checkFromQueue(
   // Emit (or declaration emit) of a file right after checking it, with this checker.
   const writer = checkersEmit(checked, emit) ? parallelCheck.writer : undefined;
   const emitter = writer !== undefined || checkersReportDeclarations(checked) ? new ProgramEmitter(checked) : undefined;
+  // An incremental program records the signatures of the declaration files on the main thread.
+  const options = checked.program.options;
+  const signatures =
+    writer !== undefined && isIncremental(options) && getEmitDeclarations(options)
+      ? new DeclarationSignatureWriter(writer, options)
+      : undefined;
   const plan = schedulePlan(counter);
   const retirement = retirementMemory(index);
   let memoryReadAt = 0;
@@ -1430,7 +1439,12 @@ export function checkFromQueue(
       );
     if (writer !== undefined) {
       const emitStart = timeline ? performance.now() : 0;
-      emits.push(emitter!.emit([files[i]!], EmitOnly.All, writer));
+      if (signatures !== undefined) {
+        signatures.file = files[i]!;
+        const result = emitter!.emit([files[i]!], EmitOnly.All, signatures);
+        for (const s of signatures.take()) result.declarationSignatures.push(s);
+        emits.push(result);
+      } else emits.push(emitter!.emit([files[i]!], EmitOnly.All, writer));
       if (timeline) markAt(emitStart, `emit ${(performance.now() - emitStart).toFixed(1)} ${files[i]!.fileName}`);
     } else if (emitter !== undefined) declarations.push(declarationDiagnosticsOfFile(emitter, files[i]!));
   }
@@ -1648,6 +1662,7 @@ class Revival {
     for (const e of copy.errors) result.errors.push(e);
     for (const u of copy.unsupported) result.unsupported.push(u);
     for (const d of copy.diagnostics) result.diagnostics.push(this.diagnostic(d));
+    for (const s of copy.declarationSignatures) result.declarationSignatures.push(s);
     return result;
   }
 
