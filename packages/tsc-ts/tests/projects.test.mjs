@@ -400,6 +400,15 @@ projects.push(
     },
   ],
   [
+    'missing exports of a namespace module imported with its output extension',
+    {
+      'src/types.ts': 'export interface Diagnostic {\n  code: number;\n}\n',
+      'src/_namespaces/ts.ts': 'export * from "../types.js";\nexport * from "../messages.generated.js";\n',
+      'src/binder.ts': 'import { Diagnostics } from "./_namespaces/ts.js";\nexport const d = Diagnostics;\n',
+      'tsconfig.json': JSON.stringify({ compilerOptions: { ...base, module: 'nodenext' }, include: ['src'] }),
+    },
+  ],
+  [
     'unique symbols of modules as missing index keys',
     {
       'a.ts':
