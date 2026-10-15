@@ -332,6 +332,30 @@ export class DiagnosticFile {
   }
 }
 
+/** What a message chain entry is recomputed from when an incremental build reuses it (`RepopulateInfo`). */
+export const enum RepopulateKind {
+  /** How to make a CommonJS file an ES module. */
+  ModeMismatch = 1,
+  /** Where types for a module might come from. */
+  ModuleNotFound = 2,
+}
+
+/**
+ * How to recompute a message chain entry that depends on the program (`package.json` scopes, the
+ * packages, alternate resolutions) when an incremental build reuses the diagnostic, like tsgo's
+ * `RepopulateDiagnosticInfo`.
+ */
+export class RepopulateInfo {
+  constructor(
+    readonly kind: RepopulateKind,
+    readonly moduleReference = '',
+    /** The resolution mode of the import (a `ModuleKind`). */
+    readonly mode = 0,
+    /** The package the types were looked up for, `''` when it is the module reference. */
+    readonly packageName = '',
+  ) {}
+}
+
 /**
  * A diagnostic: a message with arguments, optionally at a span of a file. Positions are UTF-16
  * offsets; compiler diagnostics have no file and a position of -1.
@@ -352,6 +376,7 @@ export class Diagnostic {
   readonly reportsUnnecessary: boolean;
   readonly reportsDeprecated: boolean;
   skippedOnNoEmit = false;
+  repopulateInfo: RepopulateInfo | undefined = undefined;
 
   constructor(
     file: DiagnosticFile | undefined,
@@ -392,6 +417,7 @@ export class Diagnostic {
     result.messageChain = this.messageChain;
     result.relatedInformation = this.relatedInformation;
     result.skippedOnNoEmit = this.skippedOnNoEmit;
+    result.repopulateInfo = this.repopulateInfo;
     return result;
   }
 }

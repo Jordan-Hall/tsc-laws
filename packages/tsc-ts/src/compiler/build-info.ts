@@ -2,6 +2,7 @@
  * The `.tsbuildinfo` file: what an incremental or `--build` compilation records about a program, in
  * tsgo's JSON format, and reading it back.
  */
+import { RepopulateInfo } from './diagnostics.js';
 import { version } from './help.js';
 import { optionDeclarations, type OptionDeclaration } from './option-declarations.js';
 import {
@@ -104,6 +105,7 @@ export class BuildInfoDiagnostic {
   reportsUnnecessary = false;
   reportsDeprecated = false;
   skippedOnNoEmit = false;
+  repopulateInfo: RepopulateInfo | undefined = undefined;
 }
 
 export class BuildInfoDiagnosticsOfFile {
@@ -398,6 +400,15 @@ function diagnosticJson(d: BuildInfoDiagnostic): string {
   if (d.reportsUnnecessary) w.add('reportsUnnecessary', 'true');
   if (d.reportsDeprecated) w.add('reportsDeprecated', 'true');
   if (d.skippedOnNoEmit) w.add('skippedOnNoEmit', 'true');
+  const repopulate = d.repopulateInfo;
+  if (repopulate !== undefined) {
+    const r = new ObjectWriter();
+    r.add('kind', String(repopulate.kind));
+    if (repopulate.moduleReference !== '') r.add('moduleReference', quote(repopulate.moduleReference));
+    if (repopulate.mode !== 0) r.add('mode', String(repopulate.mode));
+    if (repopulate.packageName !== '') r.add('packageName', quote(repopulate.packageName));
+    w.add('repopulateInfo', r.done());
+  }
   return w.done();
 }
 
@@ -606,9 +617,26 @@ function readDiagnostic(value: JsonValue): BuildInfoDiagnostic {
       case 'skippedOnNoEmit':
         d.skippedOnNoEmit = asBoolean(v);
         break;
+      case 'repopulateInfo':
+        d.repopulateInfo = readRepopulateInfo(v);
+        break;
     }
   }
   return d;
+}
+
+function readRepopulateInfo(value: JsonValue): RepopulateInfo {
+  let kind = 0;
+  let moduleReference = '';
+  let mode = 0;
+  let packageName = '';
+  for (const [key, v] of asObject(value).entries) {
+    if (key === 'kind') kind = asNumber(v);
+    else if (key === 'moduleReference') moduleReference = asString(v);
+    else if (key === 'mode') mode = asNumber(v);
+    else if (key === 'packageName') packageName = asString(v);
+  }
+  return new RepopulateInfo(kind, moduleReference, mode, packageName);
 }
 
 function readDiagnosticsOfFile(value: JsonValue): BuildInfoDiagnosticsOfFile {

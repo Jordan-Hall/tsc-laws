@@ -151,6 +151,30 @@ const scenarios = {
       { args: ['-b', '-v', '--diagnostics'] },
     ],
   },
+  'stored diagnostics whose elaborations depend on the program': {
+    files: {
+      'tsconfig.json':
+        '{"compilerOptions":{"module":"node16","strict":true,"noEmit":true,"incremental":true,"types":[]},' +
+        '"files":["a.ts","c.ts","d.ts"]}',
+      'package.json': '{"name":"app"}',
+      'node_modules/esm/package.json': '{"name":"esm","type":"module","exports":"./index.js","types":"./index.d.ts"}',
+      'node_modules/esm/index.d.ts': 'export declare const e: number;\n',
+      'node_modules/esm/index.js': 'export const e = 1;\n',
+      'node_modules/untyped/package.json': '{"name":"untyped","version":"1.0.0","main":"index.js"}',
+      'node_modules/untyped/index.js': 'module.exports = 1;\n',
+      // A CommonJS file importing an ES module, and an import of a package without types.
+      'a.ts': 'import { e } from "esm";\nexport const a = e;\n',
+      'c.ts': 'export const c = 1;\n',
+      'd.ts': 'import * as u from "untyped";\nexport const d = u;\n',
+    },
+    steps: [
+      { args: [] },
+      { args: [] },
+      { args: [], edit: { 'c.ts': 'export const c = 2;\n' } },
+      { args: [], edit: { 'node_modules/@types/untyped/package.json': '{"name":"@types/untyped","version":"1.0.0"}' } },
+      { args: [], edit: { 'c.ts': 'export const c = 3;\n' } },
+    ],
+  },
   'explainFiles and statistics': {
     files: {
       'tsconfig.json': '{"compilerOptions":{"outDir":"out"},"files":["a.ts"]}',
