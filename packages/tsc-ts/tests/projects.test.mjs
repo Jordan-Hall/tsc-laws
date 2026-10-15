@@ -1,6 +1,6 @@
 // Compiles small projects reduced from real-world code through tsgo (packages/tsgo/dist/tsgo) and
 // tsc-ts (the Node build, or TSC_TS_BIN), and compares stdout, stderr, exit status and the files
-// written to `out`.
+// written in the project's directory.
 // Set PROJECTS_FILTER to a substring of project names to run only those.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -411,6 +411,30 @@ projects.push(
       'tsconfig.json': JSON.stringify({ compilerOptions: { ...base, module: 'preserve' }, files: ['a.ts', 'b.ts'] }),
     },
   ],
+  [
+    'workspace package sources through a node_modules symlink are not emitted',
+    {
+      'packages/contracts/package.json': JSON.stringify({
+        name: '@ws/contracts',
+        version: '1.0.0',
+        type: 'module',
+        exports: { '.': { types: './src/index.ts', import: './src/index.ts' } },
+      }),
+      'packages/contracts/src/index.ts':
+        'export * from "./util.js";\nexport interface Contract { id: string }\nexport const version = 1;\n',
+      'packages/contracts/src/util.ts': 'export const util = (x: number) => ({ x, y: [x] });\n',
+      'apps/server/package.json': JSON.stringify({ name: 'server', type: 'module' }),
+      'apps/server/node_modules/@ws/contracts': link('../../../../packages/contracts'),
+      'apps/server/src/index.ts':
+        'import { util, version, type Contract } from "@ws/contracts";\n' +
+        'export const c: Contract = { id: String(version) };\nexport const u = util(1);\n',
+      'apps/server/tsconfig.json': JSON.stringify({
+        compilerOptions: { ...emit, emitDeclarationOnly: false, module: 'nodenext', rootDir: 'src' },
+        include: ['src'],
+      }),
+    },
+    ['-p', 'apps/server'],
+  ],
 );
 
 // Emit on checker threads: each checker emits the files it checks; the main thread emits the files no
@@ -500,13 +524,13 @@ function writeFiles(dir, files) {
   }
 }
 
-/** The files under `dir`, by path relative to `root`. */
-function readOutputs(root, dir, outputs = {}) {
-  if (!existsSync(dir)) return outputs;
+/** The files under `dir` that are not in `inputs`, by path relative to `root`; symlinks are skipped. */
+function readOutputs(root, dir, inputs, outputs = {}) {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const path = join(dir, entry.name);
-    if (entry.isDirectory()) readOutputs(root, path, outputs);
-    else outputs[relative(root, path)] = readFileSync(path, 'utf8');
+    if (entry.isSymbolicLink()) continue;
+    if (entry.isDirectory()) readOutputs(root, path, inputs, outputs);
+    else if (!(relative(root, path) in inputs)) outputs[relative(root, path)] = readFileSync(path, 'utf8');
   }
   return outputs;
 }
@@ -522,8 +546,7 @@ function run(command, files, args) {
       { cwd, env, encoding: 'utf8', maxBuffer: 1 << 26 },
       (error, stdout, stderr) => {
         const status = error ? (typeof error.code === 'number' ? error.code : -1) : 0;
-        const project = args.includes('-p') ? args[args.indexOf('-p') + 1] : '.';
-        done({ stdout, stderr, status, outputs: readOutputs(cwd, join(cwd, project, 'out')) });
+        done({ stdout, stderr, status, outputs: readOutputs(cwd, cwd, files) });
       },
     );
   });

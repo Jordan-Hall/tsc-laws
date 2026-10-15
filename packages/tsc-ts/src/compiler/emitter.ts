@@ -78,6 +78,14 @@ export abstract class EmitHost implements OutputPathsHost {
   isEmitBlocked(_fileName: string): boolean {
     return false;
   }
+
+  /**
+   * Whether the program found `file` through a module or type reference resolved in `node_modules`
+   * (`Program.isSourceFileFromExternalLibrary`); such files are not emitted. False by default.
+   */
+  isSourceFileFromExternalLibrary(_file: SourceFile): boolean {
+    return false;
+  }
 }
 
 /** What `EmitHost.writeFile` returns for a file it chose not to write. */
@@ -129,7 +137,7 @@ export function emitFiles(host: EmitHost, files: readonly SourceFile[], emitOnly
   }
   for (let i = 0; i < files.length; i++) {
     const file = files[i];
-    if (!sourceFileMayBeEmitted(file, options)) continue;
+    if (!sourceFileMayBeEmitted(file, options) || host.isSourceFileFromExternalLibrary(file)) continue;
     const paths = getOutputPathsFor(file.fileName, file.scriptKind === ScriptKind.JSON, options, host, forced);
     if (paths.jsFilePath !== '' && (emitOnly === EmitOnly.All || emitOnly === EmitOnly.Js)) {
       if (host.isEmitBlocked(paths.jsFilePath)) result.emitSkipped = true;
