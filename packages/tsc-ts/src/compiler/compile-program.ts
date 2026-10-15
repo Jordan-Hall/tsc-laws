@@ -73,7 +73,13 @@ class ProgramModules extends ModuleLookup {
 
   resolveModule(location: Node, file: SourceFile, specifier: string): SourceFile | undefined {
     const mode = this.program.getModeForUsageLocation(file, location);
-    const resolved = this.resolver.resolveModuleName(specifier, file.fileName, mode).resolvedFileName;
+    // The program resolved the module names its files import; others, such as names emit
+    // synthesizes, are resolved here.
+    const recorded = this.program.getResolvedModule(file, specifier, mode);
+    const resolved =
+      recorded !== undefined
+        ? recorded.resolvedFileName
+        : this.resolver.resolveModuleName(specifier, file.fileName, mode).resolvedFileName;
     return resolved === '' ? undefined : this.program.getSourceFile(resolved);
   }
 }
