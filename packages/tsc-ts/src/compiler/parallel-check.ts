@@ -1266,8 +1266,7 @@ export function checkGroups(
  * checker's share), costliest first, from the shared queue; then the others split, in program
  * order, into one range of about equal cost per checker, each costliest first.
  */
-export function planSchedule(checked: CheckedProgram, count: number): CheckPlan {
-  const costs = costOrder(checked);
+export function planSchedule(checked: CheckedProgram, count: number, costs = costOrder(checked)): CheckPlan {
   const order = costs.order;
   const cost = costs.cost;
   if (order.length <= count) return new CheckPlan(order, -1, [], [], [], [], 0);
@@ -1504,15 +1503,98 @@ export function mainThreadChecks(shared: boolean): boolean {
 }
 
 /**
- * Checks `checked` with `count` checkers and calls `done` with the wall time once `checked` holds
- * every file's diagnostics.
+ * When a checker's own files are a small part of what it resolves (`libraryBoundCheckers`): the least
+ * text, in characters, of the libraries the files of a checker's range reach, on average over the
+ * ranges, and the least multiple of the text of the range's own files it is.
+ */
+const libraryBoundText = 6_000_000;
+const libraryBoundShare = 5;
+
+/**
+ * The number of checkers for `count` checkers whose ranges reach `library` characters of libraries
+ * and check `own` characters each, on average: three quarters of them (tsgo's four at least) where
+ * every checker spends most of its time resolving the same large libraries (`libraryBoundText`,
+ * `libraryBoundShare`), else `count`.
+ *
+ * Each checker resolves the declarations its files reach, whatever else it checks. Where they are
+ * millions of characters, such as an Effect-based project's, and much more than the checker's own
+ * files, a checker costs seconds of CPU and hundreds of MB before its files get cheap, and the last
+ * quarter of the checkers (on 16 CPUs of 8 cores, the ones sharing a core with another) repeat that
+ * work rather than save time: T3 Code's web and server projects ran 3% and 1% faster with 12
+ * checkers than with 16, and used 16% and 8% less memory. Where checkers resolve less, or mostly
+ * check their own files, 12 of 16 checkers were slower: Excalidraw (1.4M library and 0.15M own
+ * characters per range) by 6%, Sentry (5.7M and 3.0M) and the tsc-ts sources by about 11%.
+ */
+export function libraryBoundCount(count: number, library: number, own: number): number {
+  return library >= libraryBoundText && library >= libraryBoundShare * own
+    ? Math.max(tsgoCheckers, Math.ceil((count * 3) / 4))
+    : count;
+}
+
+/**
+ * The number of checkers for `plan`, made with `count` checkers that `auto` chose
+ * (`libraryBoundCount` of what its ranges reach and check).
+ */
+function libraryBoundCheckers(checked: CheckedProgram, plan: CheckPlan, costs: CheckCosts, count: number): number {
+  if (checkerPolicy !== 'auto' || checked.program.options.checkers !== undefined || count <= tsgoCheckers) return count;
+  const program = checked.program;
+  const files = program.getSourceFiles();
+  const length = textLengths(program);
+  const isChecked: boolean[] = [];
+  for (let i = 0; i < files.length; i++) isChecked.push(false);
+  for (const i of costs.order) isChecked[i] = true;
+  const ranges = plan.ranges.length >> 1;
+  if (ranges === 0) return count;
+  let library = 0;
+  let own = 0;
+  for (let r = 0; r < ranges; r++) {
+    // The libraries the range's files import, and what they reach through other libraries (as checkCosts counts them).
+    const reached = new Set<number>();
+    const stack: number[] = [];
+    for (let p = plan.ranges[2 * r]!; p < plan.ranges[2 * r + 1]!; p++) {
+      const i = plan.order[p]!;
+      own += length[i]!;
+      for (const k of costs.libraries[i]!)
+        if (!reached.has(k)) {
+          reached.add(k);
+          stack.push(k);
+        }
+    }
+    while (stack.length > 0) {
+      const k = stack.pop()!;
+      library += length[k]!;
+      for (const t of costs.imports[k] ?? [])
+        if (
+          !reached.has(t) &&
+          !isChecked[t]! &&
+          !program.isSourceFileDefaultLibrary(files[t]!.path) &&
+          isExternalModuleFile(files[t]!)
+        ) {
+          reached.add(t);
+          stack.push(t);
+        }
+    }
+  }
+  const fewer = libraryBoundCount(count, library / ranges, own / ranges);
+  if (process.env.TSC_TS_CHECKERS_TRACE !== undefined)
+    process.stderr.write(
+      `checkers: ranges reach ${Math.round(library / ranges / 1000)}K library chars and check ${Math.round(own / ranges / 1000)}K on average: ${fewer} checkers\n`,
+    );
+  return fewer;
+}
+
+/**
+ * Checks `checked` with `checkers` checkers (fewer where `auto` chose them and they would mostly
+ * resolve the same libraries: `libraryBoundCheckers`) and calls `done` with the wall time once
+ * `checked` holds every file's diagnostics.
  */
 export function startParallelCheck(
   checked: CheckedProgram,
-  count: number,
+  checkers: number,
   done: (checkTime: number) => void,
   emits: boolean = true,
 ): void {
+  let count = checkers;
   const start = performance.now();
   const program = checked.program;
   const files = program.getSourceFiles();
@@ -1533,7 +1615,13 @@ export function startParallelCheck(
       );
   }
   const orderStart = performance.now();
-  const plan = planSchedule(checked, count);
+  const costs = costOrder(checked);
+  let plan = planSchedule(checked, count, costs);
+  const fewer = libraryBoundCheckers(checked, plan, costs, count);
+  if (fewer < count) {
+    count = fewer;
+    plan = planSchedule(checked, count, costs);
+  }
   const order = plan.order;
   const counter = scheduleOf(plan, count);
   if (trace) {

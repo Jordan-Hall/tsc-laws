@@ -28,6 +28,7 @@ const {
   checkOrder,
   checkersFittingMemory,
   fillScheduleCosts,
+  libraryBoundCount,
   newSchedule,
   packResult,
   planSchedule,
@@ -260,6 +261,18 @@ function groupProject() {
   assert.equal(work.kind, 'compile');
   return new CheckedProgram(work.program);
 }
+
+test('auto starts fewer checkers where each would mostly resolve the same large libraries', () => {
+  // Library and own characters per range of the benchmark programs at 16 checkers.
+  assert.equal(libraryBoundCount(16, 12_145_000, 889_000), 12); // T3 Code web
+  assert.equal(libraryBoundCount(16, 8_727_000, 1_134_000), 12); // T3 Code server
+  assert.equal(libraryBoundCount(16, 5_704_000, 3_037_000), 16); // Sentry
+  assert.equal(libraryBoundCount(16, 2_403_000, 232_000), 16); // Playwright
+  assert.equal(libraryBoundCount(16, 1_354_000, 151_000), 16); // Excalidraw
+  assert.equal(libraryBoundCount(8, 12_145_000, 889_000), 6);
+  assert.equal(libraryBoundCount(4, 12_145_000, 889_000), 4);
+  assert.equal(libraryBoundCount(5, 12_145_000, 889_000), 4);
+});
 
 test('a large module that few files import groups with the files importing it, costliest first', () => {
   const c = groupProject();
