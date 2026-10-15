@@ -40,6 +40,7 @@ const load = (path) => import(pathToFileURL(join(out, path)).href);
 const { createNodeSystem } = await load('drivers/node-system.js');
 const { executeCommandLine } = await load('compiler/tsc-cli.js');
 const { CheckedProgram } = await load('compiler/program-checker.js');
+const { CompileTimes, PlainProgram, getDiagnosticsOfProgram } = await load('compiler/compile-program.js');
 const { ParseQueue } = await load('compiler/parallel-parse.js');
 const {
   autoCheckers,
@@ -425,4 +426,47 @@ test('a checker at its file limit inside a group hands the rest of the group to 
   assert.equal(rest.more, false);
   assert.deepEqual(rest.files.slice(0, 2), [order[1], order[2]]);
   assert.deepEqual([...first.files, ...rest.files].sort(), [...order].sort());
+});
+
+test('global errors a checker thread found are reported after the semantic diagnostics, which they do not hide', () => {
+  const dir = tempDir('tsc-ts-parallel-schedule-globals-');
+  const files = {
+    'tsconfig.json': JSON.stringify({
+      compilerOptions: { target: 'es2015', lib: ['es5'], strict: true, noEmit: true, types: [] },
+      include: ['src'],
+    }),
+    // Checking the generator needs a global type the library lacks.
+    'src/a.ts': 'export function* g() { yield 1; }\n',
+    'src/b.ts': 'export const n: number = "s";\n',
+  };
+  for (const [name, text] of Object.entries(files)) {
+    mkdirSync(dirname(join(dir, name)), { recursive: true });
+    writeFileSync(join(dir, name), text);
+  }
+  const work = executeCommandLine(createNodeSystem(bundledLibs, ''), ['-p', dir]);
+  assert.equal(work.kind, 'compile');
+  const c = new CheckedProgram(work.program);
+  const plan = planSchedule(c, 1);
+  const thread = checkFromQueue(
+    new CheckedProgram(work.program),
+    0,
+    new Int32Array(scheduleOf(plan, 1)),
+    plan.order,
+    0,
+    false,
+  );
+  assert.deepEqual(
+    thread.globals.map((d) => d.code),
+    [2318],
+  );
+  // What the main thread records of the thread's result.
+  const perFile = c.program.getSourceFiles().map(() => undefined);
+  for (let k = 0; k < thread.files.length; k++) perFile[thread.files[k]] = thread.diagnostics[k];
+  c.checkedInParallel = perFile;
+  for (const d of thread.globals) c.parallelGlobalDiagnostics.push(d);
+  const reported = getDiagnosticsOfProgram(new PlainProgram(c, new CompileTimes()), false);
+  assert.deepEqual(
+    reported.map((d) => d.code),
+    [2322, 2318],
+  );
 });
