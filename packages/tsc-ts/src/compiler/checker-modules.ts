@@ -1227,7 +1227,7 @@ function errorNoModuleMemberSymbol(
   node: Node,
   name: Node,
 ): void {
-  const moduleName = getFullyQualifiedName(c, moduleSymbol);
+  const moduleName = getFullyQualifiedName(c, moduleSymbol, node);
   const declarationName = declarationNameToString(getSourceFileOfNode(name), name);
   const suggestion =
     name.kind === SyntaxKind.Identifier

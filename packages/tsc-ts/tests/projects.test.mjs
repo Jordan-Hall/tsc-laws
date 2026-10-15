@@ -386,6 +386,31 @@ projects.push(
       }),
     },
   ],
+  [
+    'missing exports of a workspace package linked into node_modules',
+    {
+      'app/package.json': JSON.stringify({ name: '@scope/app', private: true, type: 'module' }),
+      'app/utils/theme/index.ts': 'export const size = 1;\n',
+      'app/components/a.ts': 'import type { Size, Variant } from "app/utils/theme";\nexport type S = Size | Variant;\n',
+      'node_modules/app': link('../app'),
+      'tsconfig.json': JSON.stringify({
+        compilerOptions: { ...base, module: 'preserve', moduleResolution: 'bundler' },
+        include: ['app'],
+      }),
+    },
+  ],
+  [
+    'unique symbols of modules as missing index keys',
+    {
+      'a.ts':
+        'export const sym: unique symbol = Symbol();\n' +
+        'export namespace NS {\n  export const inner: unique symbol = Symbol();\n}\n',
+      'b.ts':
+        'import { sym, NS } from "./a";\nconst o = { x: 1 };\no[sym];\no[NS.inner];\n' +
+        'declare const g: unique symbol;\no[g];\n',
+      'tsconfig.json': JSON.stringify({ compilerOptions: { ...base, module: 'preserve' }, files: ['a.ts', 'b.ts'] }),
+    },
+  ],
 );
 
 // Emit on checker threads: each checker emits the files it checks; the main thread emits the files no
