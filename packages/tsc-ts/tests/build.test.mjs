@@ -205,6 +205,32 @@ const scenarios = {
       { args: [], edit: { 'c.ts': 'export const c = 3;\n' } },
     ],
   },
+  'ambient modules augmented in module files': {
+    files: {
+      'tsconfig.json':
+        '{"compilerOptions":{"strict":true,"noEmit":true,"incremental":true,"types":["lib"]},' +
+        '"files":["a.ts","b.ts","dup1.d.ts","dup2.d.ts","dup-aug.d.ts"]}',
+      // "lib" is declared in one file and augmented in a module file.
+      'node_modules/@types/lib/package.json': '{"name":"@types/lib","version":"1.0.0"}',
+      'node_modules/@types/lib/index.d.ts':
+        '/// <reference path="base.d.ts" />\ndeclare module "lib" { export const x: number; }\n',
+      'node_modules/@types/lib/base.d.ts': 'export {};\ndeclare module "lib" { export const y: number; }\n',
+      // "dup" is declared in two files and augmented in a module file.
+      'dup1.d.ts': 'declare module "dup" { export const d1: number; }\n',
+      'dup2.d.ts': 'declare module "dup" { export const d2: number; }\n',
+      'dup-aug.d.ts': 'export {};\ndeclare module "dup" { export const d3: number; }\n',
+      'a.ts': 'export const a = 1;\n',
+      'b.ts': 'import { x, y } from "lib";\nexport const b = x + y;\n',
+    },
+    steps: [
+      { args: [] },
+      { args: [], edit: { 'a.ts': 'export const a = 2;\n' } },
+      {
+        args: [],
+        edit: { 'node_modules/@types/lib/base.d.ts': 'export {};\ndeclare module "lib" { export const y: string; }\n' },
+      },
+    ],
+  },
   'explainFiles and statistics': {
     files: {
       'tsconfig.json': '{"compilerOptions":{"outDir":"out"},"files":["a.ts"]}',

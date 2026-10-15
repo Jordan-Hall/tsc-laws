@@ -41,7 +41,7 @@ import {
   moduleNotFoundDetails,
   resolveExternalModuleName,
 } from './checker-modules.js';
-import { getMergedSymbol, resolveAlias } from './checker-symbols.js';
+import { resolveAlias } from './checker-symbols.js';
 import {
   CompilerProgram,
   CompileTimes,
@@ -747,12 +747,16 @@ function getReferencedFiles(
   return referenced.size > 0 ? referenced : undefined;
 }
 
-/** The ambient module symbols (`declare module "x"`) of the program. */
+/**
+ * The ambient module symbols (`declare module "x"`) of the program, as stored in the checker's globals.
+ * When a module file augments an ambient module declared in one file, the augmentation is merged into
+ * a copy of the symbol, so the augmenting file is not among these declarations.
+ */
 function getAmbientModules(checked: CheckedProgram): Symbol[] {
   const result: Symbol[] = [];
   for (const [name, symbol] of checked.checker.globals) {
     if (name.length >= 2 && name.charCodeAt(0) === 0x22 && name.charCodeAt(name.length - 1) === 0x22) {
-      result.push(getMergedSymbol(checked.checker, symbol));
+      result.push(symbol);
     }
   }
   return result;
