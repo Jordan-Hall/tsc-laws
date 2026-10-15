@@ -103,6 +103,11 @@ import { KnownSymlinks } from './symlinks.js';
 import { mark } from './timeline.js';
 import { LanguageVariant } from './types.js';
 
+// The symlink caches and packages maps of programs shared with other threads (`prepareForSharing`),
+// as this thread computed them.
+const threadSymlinkCaches = new Map<Program, KnownSymlinks>();
+const threadPackagesMaps = new Map<Program, Map<string, boolean>>();
+
 export class Program implements OutputPathsHost {
   readonly options: CompilerOptions;
   readonly currentDirectory: string;
@@ -114,6 +119,8 @@ export class Program implements OutputPathsHost {
   private commonSourceDirectoryValue: string | undefined = undefined;
   private packagesMap: Map<string, boolean> | undefined = undefined;
   private symlinks: KnownSymlinks | undefined = undefined;
+  /** Set by `prepareForSharing`: the program is immutable from then on. */
+  private shared = false;
 
   /** `loader`, if given, is a FileLoader of `host` and `commandLine` that has not loaded yet. */
   constructor(
@@ -235,9 +242,16 @@ export class Program implements OutputPathsHost {
    * packages that contain emitted files.
    */
   getSymlinkCache(): KnownSymlinks {
-    let symlinks = this.symlinks;
+    let symlinks = this.symlinks ?? (this.shared ? threadSymlinkCaches.get(this) : undefined);
     if (symlinks !== undefined) return symlinks;
-    symlinks = new KnownSymlinks(this.currentDirectory, this.useCaseSensitiveFileNames);
+    symlinks = this.computeSymlinkCache();
+    if (this.shared) threadSymlinkCaches.set(this, symlinks);
+    else this.symlinks = symlinks;
+    return symlinks;
+  }
+
+  private computeSymlinkCache(): KnownSymlinks {
+    const symlinks = new KnownSymlinks(this.currentDirectory, this.useCaseSensitiveFileNames);
     // Resolutions record the symlink path they were found through.
     for (const resolutions of this.processed.resolvedModules.values())
       if (resolutions !== undefined)
@@ -283,7 +297,6 @@ export class Program implements OutputPathsHost {
           );
       }
     }
-    this.symlinks = symlinks;
     return symlinks;
   }
 
@@ -352,18 +365,18 @@ export class Program implements OutputPathsHost {
 
   /** Packages that modules resolved into, by name: whether any resolution into them was a declaration file. */
   getPackagesMap(): ReadonlyMap<string, boolean> {
-    let map = this.packagesMap;
-    if (map === undefined) {
-      map = new Map<string, boolean>();
-      for (const resolutions of this.processed.resolvedModules.values()) {
-        if (resolutions === undefined) continue;
-        for (const resolved of resolutions.values()) {
-          const name = resolved.packageId?.name ?? '';
-          if (name !== '') map.set(name, map.get(name) === true || resolved.extension === '.d.ts');
-        }
+    let map = this.packagesMap ?? (this.shared ? threadPackagesMaps.get(this) : undefined);
+    if (map !== undefined) return map;
+    map = new Map<string, boolean>();
+    for (const resolutions of this.processed.resolvedModules.values()) {
+      if (resolutions === undefined) continue;
+      for (const resolved of resolutions.values()) {
+        const name = resolved.packageId?.name ?? '';
+        if (name !== '') map.set(name, map.get(name) === true || resolved.extension === '.d.ts');
       }
-      this.packagesMap = map;
     }
+    if (this.shared) threadPackagesMaps.set(this, map);
+    else this.packagesMap = map;
     return map;
   }
 
@@ -485,10 +498,9 @@ export class Program implements OutputPathsHost {
    * is created (verifyCompilerOptions), not when emit or declaration diagnostics compute it later.
    */
   prepareForSharing(): void {
-    this.getSymlinkCache();
-    mark('symlink cache');
-    this.getPackagesMap();
-    mark('packages map');
+    // Each thread computes the symlink cache and the packages map on first use (module specifiers,
+    // and the hint of a missing declaration file): checking rarely needs them.
+    this.shared = true;
     this.includeProcessor.diagnostics(this);
     mark('include diagnostics');
     this.commonSourceDirectory();

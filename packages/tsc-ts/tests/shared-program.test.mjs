@@ -5,7 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { compiledDir, tempDir } from './temp.mjs';
@@ -80,4 +80,37 @@ test('a program prepared for sharing still reports files outside an explicit roo
   const dir = project({ rootDir: '.' });
   assert.deepEqual(diagnosticCodes(dir, false), [6059]);
   assert.deepEqual(diagnosticCodes(dir, true), [6059]);
+});
+
+test('a program prepared for sharing computes its symlink cache and packages map on each thread', async () => {
+  const { publish } = await import('@scriptc/threads');
+  const dir = tempDir('tsc-ts-shared-program-symlinks-');
+  const files = {
+    'app/tsconfig.json': JSON.stringify({
+      compilerOptions: { strict: true, noEmit: true, types: [], module: 'preserve' },
+      include: ['src'],
+    }),
+    'app/src/main.ts': "import { value } from 'dep';\nimport 'untyped';\nexport const doubled = value * 2;\n",
+    'packages/dep/package.json': JSON.stringify({ name: 'dep', version: '1.0.0', types: 'index.d.ts' }),
+    'packages/dep/index.d.ts': 'export declare const value: number;\n',
+    'app/node_modules/untyped/package.json': JSON.stringify({ name: 'untyped', version: '1.0.0', main: 'index.js' }),
+    'app/node_modules/untyped/index.js': 'module.exports = {};\n',
+  };
+  for (const [name, text] of Object.entries(files)) {
+    mkdirSync(dirname(join(dir, name)), { recursive: true });
+    writeFileSync(join(dir, name), text);
+  }
+  symlinkSync(join(dir, 'packages/dep'), join(dir, 'app/node_modules/dep'), 'dir');
+  const describe = (program) =>
+    JSON.stringify([[...program.getSymlinkCache().directories.entries()], [...program.getPackagesMap().entries()]]);
+  const plain = executeCommandLine(createNodeSystem(bundledLibs, ''), ['-p', join(dir, 'app')]);
+  assert.equal(plain.kind, 'compile');
+  const expected = describe(plain.program);
+  assert.match(expected, /packages\/dep\//);
+  const shared = executeCommandLine(createNodeSystem(bundledLibs, ''), ['-p', join(dir, 'app')]);
+  bindProgram(shared.program);
+  shared.program.prepareForSharing();
+  // Writes into the program throw from here on.
+  publish(shared.program);
+  assert.equal(describe(shared.program), expected);
 });
