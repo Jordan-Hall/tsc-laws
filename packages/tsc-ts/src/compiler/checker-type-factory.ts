@@ -2237,12 +2237,19 @@ export function getTemplateLiteralType(c: Checker, texts: string[], types: Type[
   while (unionIndex < types.length && (types[unionIndex]!.flags & (TypeFlags.Never | TypeFlags.Union)) === 0)
     unionIndex++;
   if (unionIndex < types.length) {
+    // The distribution over a union depends only on the texts and types, so it is cached; results
+    // that reported a too complex union are not, so each such use reports it.
+    const key = 'templateLiteral:' + typeListKey(types) + '|' + texts.join('\u0000');
+    const cached = c.cachedTypes.get(key);
+    if (cached !== undefined) return cached;
     if (!checkCrossProductUnion(c, types)) return c.errorType;
-    return mapType(c, types[unionIndex]!, (t) => {
+    const result = mapType(c, types[unionIndex]!, (t) => {
       const replaced = types.slice();
       replaced[unionIndex] = t;
       return getTemplateLiteralType(c, texts, replaced);
     });
+    c.cachedTypes.set(key, result);
+    return result;
   }
   if (types.includes(c.wildcardType)) return c.wildcardType;
   const builder = new TemplateBuilder(c, texts[0]!);
