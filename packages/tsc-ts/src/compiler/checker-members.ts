@@ -1875,15 +1875,90 @@ export function getReducedType(c: Checker, t: Type): Type {
   } else if ((t.flags & TypeFlags.Intersection) !== 0) {
     if ((t.objectFlags & ObjectFlags.IsNeverIntersectionComputed) === 0) {
       t.objectFlags |= ObjectFlags.IsNeverIntersectionComputed;
-      for (const p of getPropertiesOfUnionOrIntersectionType(c, t as IntersectionType))
-        if (isNeverReducedProperty(c, p)) {
-          t.objectFlags |= ObjectFlags.IsNeverIntersection;
-          break;
-        }
+      if (hasNeverReducedProperty(c, t as IntersectionType)) t.objectFlags |= ObjectFlags.IsNeverIntersection;
     }
     if ((t.objectFlags & ObjectFlags.IsNeverIntersection) !== 0) return c.neverType;
   }
   return t;
+}
+
+/**
+ * Whether a property of the intersection `t` reduces it to never, without resolving all of its
+ * properties. Such a property is one that createUnionOrIntersectionProperty combines from different
+ * properties of two or more constituents, with a literal type among them (a discriminant whose
+ * types intersect to never) or a private one (conflicting private properties); a property read from
+ * a type is never one itself, since an intersection with one reduces to never and has no
+ * properties. So only names with different properties in two constituents, one of them literal or
+ * private, are combined, and the costliest constituent's properties are only looked up by name.
+ */
+function hasNeverReducedProperty(c: Checker, t: IntersectionType): boolean {
+  const resolved = t.resolvedProperties;
+  if (resolved !== undefined) {
+    for (const p of resolved) if (isNeverReducedProperty(c, p)) return true;
+    return false;
+  }
+  const skipped = getCostliestConstituent(c, t);
+  // The other constituents' properties by name, without repeating a symbol.
+  const byName = new Map<string, Symbol[]>();
+  for (const current of t.types) {
+    if (current === skipped) continue;
+    for (const prop of getPropertiesOfType(c, current)) {
+      const props = byName.get(prop.name);
+      if (props === undefined) byName.set(prop.name, [prop]);
+      else if (!props.includes(prop)) props.push(prop);
+    }
+  }
+  let skippedType: Type | undefined;
+  if (skipped !== undefined) {
+    skippedType = getApparentType(c, skipped);
+    if (isErrorType(c, skippedType) || (skippedType.flags & TypeFlags.Never) !== 0) skippedType = undefined;
+  }
+  for (const [name, props] of byName) {
+    if (skippedType !== undefined) {
+      const prop = getPropertyOfTypeEx(c, skippedType, name, true, false);
+      if (prop !== undefined && !props.includes(prop)) props.push(prop);
+    }
+    if (props.length < 2 || !someLiteralOrPrivateProperty(c, props)) continue;
+    const combined = getPropertyOfUnionOrIntersectionType(c, t, name, true);
+    if (combined !== undefined && isNeverReducedProperty(c, combined)) return true;
+  }
+  return false;
+}
+
+/** Whether a property of `props` has a literal type or is private, as createUnionOrIntersectionProperty tests them. */
+function someLiteralOrPrivateProperty(c: Checker, props: Symbol[]): boolean {
+  for (const prop of props) {
+    if ((getDeclarationModifierFlagsFromSymbol(c, prop, false) & ModifierFlags.Private) !== 0) return true;
+    const t = getTypeOfSymbol(c, prop);
+    if (isLiteralType(t) || isPatternLiteralType(c, t)) return true;
+  }
+  return false;
+}
+
+/**
+ * The object constituent of `t` whose properties cost the most to read: the one with the most members
+ * not instantiated yet, or else the one with the most properties.
+ */
+function getCostliestConstituent(c: Checker, t: IntersectionType): Type | undefined {
+  let costliest: Type | undefined;
+  let costliestPending = 0;
+  let costliestProperties = 0;
+  for (const current of t.types) {
+    const apparent = getReducedApparentType(c, current);
+    if ((apparent.flags & TypeFlags.Object) === 0) continue;
+    const resolved = resolveStructuredTypeMembers(c, apparent);
+    const pending = resolved.pendingMembers as PendingInstantiatedMembers | undefined;
+    if (pending !== undefined) {
+      if (pending.positions.size > costliestPending) {
+        costliest = current;
+        costliestPending = pending.positions.size;
+      }
+    } else if (costliestPending === 0 && resolved.propertiesValue.length > costliestProperties) {
+      costliest = current;
+      costliestProperties = resolved.propertiesValue.length;
+    }
+  }
+  return costliest;
 }
 
 function getReducedUnionType(c: Checker, union: UnionType): Type {
