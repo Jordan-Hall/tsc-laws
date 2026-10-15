@@ -33,8 +33,8 @@ export const smoke = [
 ];
 
 // Seconds of tests per shard, and the most shards a run uses.
-const target = 6 * 60;
-const maxShards = { fast: 12, full: 14 };
+const target = 330;
+const maxShards = { fast: 16, full: 16 };
 
 // What a change to a path selects; the first matching rule applies.
 const rules = [
