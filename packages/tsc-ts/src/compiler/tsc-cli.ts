@@ -209,11 +209,15 @@ export function outputLocale(options: CompilerOptions): Locale {
   return parseLocale(options.locale ?? '');
 }
 
+function isBuildFlag(arg: string): boolean {
+  return arg === '-b' || arg === '--b' || arg === '-build' || arg === '--build';
+}
+
 /** Runs `tsc` with `args` (without the executable). */
 export function executeCommandLine(sys: System, args: readonly string[]): CommandLineResult {
   if (args.length > 0) {
     const first = args[0].toLowerCase();
-    if (first === '-b' || first === '--b' || first === '-build' || first === '--build') {
+    if (isBuildFlag(first)) {
       return executeBuild(sys, parseBuildCommandLine(args, sys));
     }
   }
@@ -468,8 +472,10 @@ export class ThreadProject {
 }
 
 /**
- * The project of the compile command line `args` for a parse thread (parallel-parse.ts), whose main
- * thread found its config at `configFileName`; `undefined` if it cannot be read.
+ * The project of the command line `args` for a parse thread (parallel-parse.ts), whose main thread
+ * found its config at `configFileName`; `undefined` if it cannot be read. Under `--build`, the
+ * project whose config is `configFileName`, read with the build's compiler options as the build
+ * reads it (tsc-build.ts).
  */
 export function readThreadProject(
   sys: System,
@@ -479,7 +485,13 @@ export function readThreadProject(
   const fs = new CachedFileSystem(new SystemFileSystem(sys));
   // The main thread hands out the root files: matching the config's `include` patterns again (tens
   // of milliseconds on large trees) would only delay the thread's first files.
-  const config = readProjectConfig(sys, fs, parseCommandLine(args, sys), configFileName, [], false);
+  let config: ProjectConfig | undefined;
+  if (args.length > 0 && isBuildFlag(args[0]!.toLowerCase())) {
+    const command = parseBuildCommandLine(args, sys);
+    const parser = new ConfigParser(fs, sys.currentDirectory);
+    parser.expandFileNames = false;
+    config = parser.parseConfigFile(configFileName, command.compilerOptions, command.raw, []);
+  } else config = readProjectConfig(sys, fs, parseCommandLine(args, sys), configFileName, [], false);
   return config === undefined ? undefined : new ThreadProject(config, fs);
 }
 
