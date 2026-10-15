@@ -409,6 +409,18 @@ projects.push(
     },
   ],
   [
+    'narrowing of references to declarations with escaped names',
+    {
+      'a.ts':
+        'declare const input: string | number | undefined;\n' +
+        'let \\u0061 = input;\nconst { b: \\u0063 = 1 } = { b: input };\nlet other = input;\n' +
+        "if (typeof a === 'string') {\n  const s: number = a;\n}\n" +
+        "a = 1;\nconst n: string = a;\nconst t: boolean = c;\nother = 'x';\nconst u: number = other;\n" +
+        'export {};\n',
+      'tsconfig.json': JSON.stringify({ compilerOptions: { ...base, module: 'preserve' }, files: ['a.ts'] }),
+    },
+  ],
+  [
     'unique symbols of modules as missing index keys',
     {
       'a.ts':
