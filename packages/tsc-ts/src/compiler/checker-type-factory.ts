@@ -1786,6 +1786,11 @@ export function checkCrossProductUnion(c: Checker, types: readonly Type[]): bool
 }
 
 function getCrossProductIntersections(c: Checker, types: Type[], flags: IntersectionFlags): Type[] {
+  if (allWithoutMembersToResolve(c, types)) {
+    const intersections: Type[] = [];
+    addCrossProductIntersections(c, types, flags, types.slice(), 0, undefined, intersections);
+    return intersections;
+  }
   const count = getCrossProductUnionSize(types);
   const intersections: Type[] = [];
   for (let i = 0; i < count; i++) {
@@ -1803,6 +1808,71 @@ function getCrossProductIntersections(c: Checker, types: Type[], flags: Intersec
     if ((t.flags & TypeFlags.Never) === 0) intersections.push(t);
   }
   return intersections;
+}
+
+/**
+ * Adds the intersections of `constituents` with each combination of the constituents of `types` from
+ * position `index` on, in the order of `getCrossProductIntersections`, except the never ones. A
+ * combination with two distinct unit types (`unit` is the one taken before `index`) is never:
+ * `addTypeToIntersection` marks it NonPrimitive, which is disjoint from the domain of the first unit
+ * type, so `getIntersectionTypeEx` returns never before it creates or caches anything. Such
+ * combinations, and every combination extending them, are skipped without calling it.
+ */
+function addCrossProductIntersections(
+  c: Checker,
+  types: readonly Type[],
+  flags: IntersectionFlags,
+  constituents: Type[],
+  index: number,
+  unit: Type | undefined,
+  intersections: Type[],
+): void {
+  if (index === types.length) {
+    const t = getIntersectionTypeEx(c, constituents.slice(), flags, undefined);
+    if ((t.flags & TypeFlags.Never) === 0) intersections.push(t);
+    return;
+  }
+  const t = types[index]!;
+  const candidates = (t.flags & TypeFlags.Union) !== 0 ? typesOf(t) : [t];
+  for (const candidate of candidates) {
+    const candidateUnit = getIntersectionUnitType(c, candidate);
+    if (candidateUnit !== undefined && unit !== undefined && candidateUnit !== unit) continue;
+    constituents[index] = candidate;
+    addCrossProductIntersections(c, types, flags, constituents, index + 1, unit ?? candidateUnit, intersections);
+  }
+}
+
+/**
+ * The unit type `t` adds to an intersection (`addTypeToIntersection`), or `undefined` when it adds
+ * none: regular literal types for fresh ones, undefined for the missing type, and no nullable type
+ * without strictNullChecks.
+ */
+function getIntersectionUnitType(c: Checker, t: Type): Type | undefined {
+  if ((t.flags & TypeFlags.Unit) === 0) return undefined;
+  if (!c.strictNullChecks && (t.flags & TypeFlags.Nullable) !== 0) return undefined;
+  const regular = getRegularTypeOfLiteralType(c, t);
+  return regular === c.missingType ? c.undefinedType : regular;
+}
+
+/**
+ * Whether adding `t`, or any constituent of the union `t`, to an intersection resolves nothing:
+ * `isEmptyAnonymousObjectType` reads the members of a type literal's symbol, which binds its late
+ * bound members the first time, unless the type's members are resolved already.
+ */
+function isIntersectionConstituentWithoutMembersToResolve(c: Checker, t: Type): boolean {
+  if ((t.flags & TypeFlags.UnionOrIntersection) !== 0) return allWithoutMembersToResolve(c, typesOf(t));
+  return (
+    (t.objectFlags & ObjectFlags.Anonymous) === 0 ||
+    (t.flags & TypeFlags.Object) === 0 ||
+    (t.objectFlags & ObjectFlags.MembersResolved) !== 0 ||
+    t.symbol === undefined ||
+    (t.symbol.flags & SymbolFlags.TypeLiteral) === 0
+  );
+}
+
+function allWithoutMembersToResolve(c: Checker, types: readonly Type[]): boolean {
+  for (const t of types) if (!isIntersectionConstituentWithoutMembersToResolve(c, t)) return false;
+  return true;
 }
 
 function getConstituentCount(t: Type): number {
