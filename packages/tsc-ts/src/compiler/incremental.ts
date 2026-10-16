@@ -757,11 +757,14 @@ function addReferencedFileFromFileName(
   else referenced.add(toPath(fileName, sourceFileDirectory, program.useCaseSensitiveFileNames));
 }
 
-/** The files `file` depends on: imports, references, type references, augmentations, ambient modules. */
+/**
+ * The files `file` depends on: imports, references, type references, augmentations, and the files that
+ * declare ambient modules (`getAmbientModuleFiles`).
+ */
 function getReferencedFiles(
   checked: CheckedProgram,
   file: SourceFile,
-  ambientModules: readonly Symbol[],
+  ambientModuleFiles: readonly string[],
 ): Set<string> | undefined {
   const program = checked.program;
   const checker = checked.checker;
@@ -785,23 +788,25 @@ function getReferencedFiles(
     if (moduleName.kind !== SyntaxKind.StringLiteral) continue;
     addReferencedFilesFromSymbol(file, referenced, getSymbolAtLocation(checker, moduleName));
   }
-  for (const ambientModule of ambientModules) addReferencedFilesFromSymbol(file, referenced, ambientModule);
+  for (const path of ambientModuleFiles) if (path !== file.path) referenced.add(path);
   return referenced.size > 0 ? referenced : undefined;
 }
 
 /**
- * The ambient module symbols (`declare module "x"`) of the program, as stored in the checker's globals.
- * When a module file augments an ambient module declared in one file, the augmentation is merged into
- * a copy of the symbol, so the augmenting file is not among these declarations.
+ * The files that declare the program's ambient modules (`declare module "x"`), as stored in the
+ * checker's globals, in the order of their modules and declarations. When a module file augments an
+ * ambient module declared in one file, the augmentation is merged into a copy of the symbol, so the
+ * augmenting file is not among these declarations. Every file references all of them; listed once
+ * here, the files are not found again from each declaration of every file's ambient modules.
  */
-function getAmbientModules(checked: CheckedProgram): Symbol[] {
-  const result: Symbol[] = [];
+function getAmbientModuleFiles(checked: CheckedProgram): string[] {
+  const result = new Set<string>();
   for (const [name, symbol] of checked.checker.globals) {
     if (name.length >= 2 && name.charCodeAt(0) === 0x22 && name.charCodeAt(name.length - 1) === 0x22) {
-      result.push(symbol);
+      for (const declaration of symbol.declarations) result.add(getSourceFileOfNode(declaration).path);
     }
   }
-  return result;
+  return [...result];
 }
 
 function programToSnapshot(checked: CheckedProgram, oldSnapshot: Snapshot | undefined): Snapshot {
@@ -843,7 +848,7 @@ function programToSnapshot(checked: CheckedProgram, oldSnapshot: Snapshot | unde
     oldSnapshot !== undefined &&
     (options.skipDefaultLibCheck === true) === (oldSnapshot.options.skipDefaultLibCheck === true);
 
-  const ambientModules = getAmbientModules(checked);
+  const ambientModuleFiles = getAmbientModuleFiles(checked);
   for (const file of program.getSourceFiles()) {
     const path = file.path;
     const prepared = preparedVersion(file);
@@ -851,7 +856,7 @@ function programToSnapshot(checked: CheckedProgram, oldSnapshot: Snapshot | unde
     const impliedNodeFormat: number = program.sourceFileMetadata(path).impliedNodeFormat;
     const affectsGlobalScope = fileAffectsGlobalScope(file);
     let signature = '';
-    const newReferences = getReferencedFiles(checked, file, ambientModules);
+    const newReferences = getReferencedFiles(checked, file, ambientModuleFiles);
     if (newReferences !== undefined) snapshot.referencedMap.references.set(path, newReferences);
     if (oldSnapshot !== undefined) {
       const oldInfo = oldSnapshot.fileInfos.get(path);
