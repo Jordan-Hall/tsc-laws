@@ -18,7 +18,8 @@ import {
   localizeMessage,
   type MessageWithArgs,
 } from './diagnostics.js';
-import type { ExternalModuleIndicatorOptions, SourceFile } from './ast.js';
+import { type ExternalModuleIndicatorOptions, ParseOptions, ScriptKind, type SourceFile } from './ast.js';
+import { parseSourceFile } from './parser.js';
 import { CompilerHost, FileLoader } from './file-loader.js';
 import { CachedFileSystem } from './file-system.js';
 import { defaultIsPretty, version } from './help.js';
@@ -197,6 +198,25 @@ let buildSourceFiles = new Map<string, SourceFile>();
 /** The names of `buildSourceFiles`, which parse threads don't load again. */
 let buildSourceFileNames = new Set<string>();
 
+/**
+ * In `tsc -b -w`, the source files of the last rebuild and those of this one, by the key of
+ * `buildSourceFiles` (`startWatchRebuild`); outside watch mode `undefined`. Not reachable from the
+ * programs, like `buildSourceFiles`.
+ */
+let watchSourceFilesOfLastBuild: ReadonlyMap<string, SourceFile> | undefined = undefined;
+let watchSourceFiles: Map<string, SourceFile> | undefined = undefined;
+
+/**
+ * Starts a rebuild of `tsc -b -w`: its projects' programs take the source files of the last rebuild
+ * whose text is unchanged (`BuildCompilerHost`), as `tsc -w` does. Natively, syntax trees and symbols
+ * are never freed (ProgramLifetime), so parsing every file again made each rebuild keep another copy of
+ * every project's program.
+ */
+export function startWatchRebuild(): void {
+  watchSourceFilesOfLastBuild = watchSourceFiles ?? new Map<string, SourceFile>();
+  watchSourceFiles = new Map<string, SourceFile>();
+}
+
 class BuildCompilerHost extends CompilerHost {
   constructor(
     private readonly sys: System,
@@ -217,14 +237,16 @@ class BuildCompilerHost extends CompilerHost {
     path: string,
     externalModuleIndicatorOptions: ExternalModuleIndicatorOptions,
   ): SourceFile | undefined {
-    if (!isDeclarationFileName(fileName) && !fileExtensionIs(fileName, '.json'))
-      return super.getSourceFile(fileName, path, externalModuleIndicatorOptions);
     const key =
       fileName +
       '\u0000' +
       path +
       (externalModuleIndicatorOptions.jsx ? '\u0000j' : '\u0000') +
       (externalModuleIndicatorOptions.force ? 'f' : '');
+    if (watchSourceFiles !== undefined)
+      return this.getWatchSourceFile(fileName, path, externalModuleIndicatorOptions, key);
+    if (!isDeclarationFileName(fileName) && !fileExtensionIs(fileName, '.json'))
+      return super.getSourceFile(fileName, path, externalModuleIndicatorOptions);
     const cached = buildSourceFiles.get(key);
     if (cached !== undefined) return cached;
     const file = super.getSourceFile(fileName, path, externalModuleIndicatorOptions);
@@ -233,6 +255,34 @@ class BuildCompilerHost extends CompilerHost {
       buildSourceFiles.set(key, file);
       buildSourceFileNames.add(fileName);
     }
+    return file;
+  }
+
+  /**
+   * In `tsc -b -w` (`startWatchRebuild`), any file is parsed once per rebuild and shared by its
+   * projects' programs, and a rebuild takes the last rebuild's file when its text is unchanged. A file
+   * parses the same for the same text, name, path and module detection options, and binding a bound
+   * file does nothing.
+   */
+  private getWatchSourceFile(
+    fileName: string,
+    path: string,
+    externalModuleIndicatorOptions: ExternalModuleIndicatorOptions,
+    key: string,
+  ): SourceFile | undefined {
+    const text = this.fs.readFile(fileName);
+    if (text === undefined) return undefined;
+    let file = watchSourceFiles!.get(key);
+    if (file !== undefined && file.text === text) return file;
+    file = watchSourceFilesOfLastBuild?.get(key);
+    if (file === undefined || file.text !== text)
+      file = parseSourceFile(
+        fileName,
+        text,
+        new ParseOptions(path, ScriptKind.Unknown, externalModuleIndicatorOptions),
+      );
+    watchSourceFiles!.set(key, file);
+    buildSourceFileNames.add(fileName);
     return file;
   }
 
