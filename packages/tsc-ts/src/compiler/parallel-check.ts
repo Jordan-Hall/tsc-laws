@@ -991,7 +991,7 @@ export function retires(schedule: Int32Array, index: number, limit: number, resi
 }
 
 /** The process's resident memory in bytes (Linux), or 0 where it is unknown. */
-export function residentBytes(): number {
+function residentBytes(): number {
   try {
     // VmRSS is in kB, so this holds on kernels with any page size (statm counts pages).
     const rss = /VmRSS:\s+(\d+)/.exec(readFileSync('/proc/self/status', 'utf8'));

@@ -35,7 +35,6 @@ import {
 } from './tsc-cli.js';
 import { Orchestrator, StatusReporter, startWatchRebuild } from './tsc-build.js';
 import { emitFilesAndReportErrors, SystemTimeStamps, SystemWriter } from './tsc-compile.js';
-import { residentBytes } from './parallel-check.js';
 
 /** How often inputs are polled, in milliseconds, where their directories can't be watched. */
 const pollInterval = 250;
@@ -64,15 +63,24 @@ export class WatchRestart {
 
   /** Sets `limit` from the resident memory after the first build, unless it is set. */
   firstBuildDone(): void {
-    if (this.restart !== undefined && this.limit === 0) this.limit = residentBytes() * firstBuildFactor;
+    if (this.restart !== undefined && this.limit === 0) this.limit = residentMemory() * firstBuildFactor;
   }
 
   /** Restarts the process if a rebuild would start above `limit`; returns whether it did. */
   restartsBeforeRebuild(): boolean {
     const restart = this.restart;
-    if (restart === undefined || this.limit <= 0 || residentBytes() <= this.limit) return false;
+    if (restart === undefined || this.limit <= 0 || residentMemory() <= this.limit) return false;
     restart();
     return true;
+  }
+}
+
+/** The process's resident memory in bytes, as Node.js reads it on each platform; 0 if it can't be read. */
+function residentMemory(): number {
+  try {
+    return process.memoryUsage.rss();
+  } catch {
+    return 0;
   }
 }
 
@@ -370,6 +378,8 @@ class Watcher {
   private snapshot: Snapshot | undefined = undefined;
   private stamps: Stamps;
   private configStamps: Stamps;
+  /** Whether the last read of the config file after a change succeeded (`reloadConfig`). */
+  private configRead = true;
   private readonly locale: Locale;
   private readonly reporter: DiagnosticReporter;
   private readonly status: WatchStatusReporter;
@@ -429,8 +439,9 @@ class Watcher {
   private rebuildIfChanged(): void {
     const configChanged = this.configStamps.changed();
     if (!configChanged && !this.stamps.changed()) return;
-    // A changed config is read here, where errors in it keep the last one.
-    if (!configChanged && watchRestart.restartsBeforeRebuild()) return;
+    // A changed config is read here, where errors in it keep the last one. A new process would read the
+    // config again, so a process whose last read of it failed builds on with the config it has.
+    if (!configChanged && this.configRead && watchRestart.restartsBeforeRebuild()) return;
     if (configChanged && !this.reloadConfig()) return;
     this.status.report(Diagnostics.File_change_detected_Starting_incremental_compilation);
     this.build();
@@ -444,6 +455,7 @@ class Watcher {
     const errors: Diagnostic[] = [];
     const parser = new ConfigParser(new CachedFileSystem(new SystemFileSystem(sys)), sys.currentDirectory);
     const parsed = parser.parseConfigFile(configName, this.commandLine.options, this.commandLine.raw, errors);
+    this.configRead = parsed !== undefined;
     if (parsed === undefined) {
       this.reporter.reportAll(errors);
       this.status.reportErrorCount(errors.length);

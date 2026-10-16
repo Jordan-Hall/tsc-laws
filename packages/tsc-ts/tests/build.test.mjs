@@ -795,6 +795,23 @@ for (const args of [['--watch'], ['--build', '--watch']]) {
   );
 }
 
+// A new process reads the config again: after a failed read of a changed config, the process builds on with the
+// config it has, as it does without restarts.
+test(
+  '--watch builds on after a failed config read when the watch process would restart',
+  { skip: tscTsMissing, timeout: 120_000 },
+  async () => {
+    const steps = [
+      ['tsconfig.json', null],
+      ['src/a.ts', 'export const a: string = 1;\n'],
+    ];
+    const expected = await watchSequence(['--watch'], steps, watchProject, () => {}, { TSC_TS_WATCH_MEMORY: '0' });
+    const restarting = await watchSequence(['--watch'], steps, watchProject, () => {}, { TSC_TS_WATCH_MEMORY: '1' });
+    assert.match(expected.output, /error TS2322/);
+    assert.equal(restarting.output, expected.output);
+  },
+);
+
 test(
   '--watch rebuilds when the target of a linked input changes',
   { skip: tscTsMissing, timeout: 120_000 },
