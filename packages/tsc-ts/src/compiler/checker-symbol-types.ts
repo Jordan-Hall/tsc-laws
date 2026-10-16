@@ -4,8 +4,13 @@ import { checkJsxAttribute } from './checker-jsx.js';
 import { getTargetOfAliasDeclaration, resolveExternalModuleSymbol } from './checker-modules.js';
 import { CachedTypeKind, cachedTypeKey, CheckMode } from './checker-types.js';
 import {
-  getNodeId,
+  type ArrayLiteralExpression,
+  type BinaryExpression,
+  type Block,
+  type ConditionalExpression,
   ModifierFlags,
+  NodeVisitor,
+  type ObjectLiteralExpression,
   type Node,
   NodeFlags,
   getArguments,
@@ -111,7 +116,7 @@ import {
   getSignatureFromDeclaration,
   getTypeOfParameter as getTypeOfParameterOfSignature,
 } from './checker-signatures.js';
-import { getReturnTypeFromBody, getTypeOfObjectLiteralMethod } from './checker-functions.js';
+import { getReturnTypeFromBody, getTypeOfObjectLiteralMethod, ReturnCollector } from './checker-functions.js';
 import { getTypeOfReverseMappedSymbol } from './checker-inference.js';
 import {
   checkDeclarationInitializer,
@@ -771,26 +776,203 @@ function createSymbolWithWidenedType(c: Checker, prop: Symbol, t: Type): Symbol 
 
 /**
  * An optional `undefined` property standing in for `prop`, the last property of that name among the
- * sibling object literals (getPropertiesOfContext). It carries `prop`'s declarations, which order it
- * among the members when they are printed.
+ * sibling object literals (getPropertiesOfContext). It carries the declarations of the property it is
+ * created from, which order it among the members when they are printed.
  *
- * tsgo caches one such symbol per name and checker, so the declarations come from whichever literal
- * the checker widened first: with one checker that depends on every file checked before, with several
- * on how files were spread over them. Cached per sibling property instead, the result depends only on
- * the literals being widened. It is the symbol tsgo creates when it first widens a name, and it orders
- * differently only where tsgo reuses a symbol from an earlier literal.
+ * tsgo caches one such symbol per name and checker, so the declarations come from the first literal
+ * its checker widened with that name missing in a sibling. With each file checked from the top, that
+ * is the first such union in the file, and later unions order the property by that one's
+ * declaration. tsc-ts's checkers take files in another order, and a checker can infer a file's
+ * functions for an importer before it checks the file, so the first union is found in the source
+ * instead (`firstSiblingProperty`), which doesn't depend on the order of checking. Without one, and
+ * for readonly properties, the property is cached per sibling property. The order differs from tsgo's
+ * where tsgo's checker infers a later function of the file first, or takes the property from another
+ * file it checked before.
  */
 function getUndefinedProperty(c: Checker, prop: Symbol): Symbol {
-  // By file and name: the property keeps the declarations of the first one of its name in the
-  // file, which order it among the type's properties.
-  const declaration = prop.declarations.length > 0 ? prop.declarations[0]! : undefined;
-  const key = (declaration !== undefined ? getNodeId(getSourceFileOfNode(declaration)) : 0) + ':' + prop.name;
+  const first =
+    prop.declarations.length > 0 && (prop.checkFlags & CheckFlags.Readonly) === 0
+      ? firstSiblingProperty(c, prop.declarations[0]!, prop.name)
+      : undefined;
+  const source = first ?? prop;
+  const key = getSymbolId(source);
   const cached = c.undefinedProperties.get(key);
   if (cached !== undefined) return cached;
-  const result = createSymbolWithWidenedType(c, prop, c.undefinedOrMissingType);
+  const result = createSymbolWithWidenedType(c, source, c.undefinedOrMissingType);
   result.flags |= SymbolFlags.Optional;
   c.undefinedProperties.set(key, result);
   return result;
+}
+
+/**
+ * The property of `name` in the first union of object literals of the declaration's file that leaves
+ * `name` missing in one of them: the last literal's property of that name. Unions are those of the
+ * returned expressions of a function without a return type, and of the alternatives of an initializer
+ * without a type (`?:`, `||`, `??`, array elements, and the values of a property across the
+ * literals), ordered by their first literal.
+ */
+function firstSiblingProperty(c: Checker, declaration: Node, name: string): Symbol | undefined {
+  const file = getSourceFileOfNode(declaration);
+  let first = c.firstSiblingProperties.get(file);
+  if (first === undefined) {
+    const scan = new SiblingPropertyScan();
+    file.forEachChild(scan);
+    first = scan.members;
+    c.firstSiblingProperties.set(file, first);
+  }
+  const member = first.get(name);
+  return member !== undefined ? getSymbol(member) : undefined;
+}
+
+class SiblingPropertyScan extends NodeVisitor {
+  /** By name, the property of the first union, and the position of that union's first literal. */
+  readonly members = new Map<string, Node>();
+  readonly positions = new Map<string, number>();
+
+  visitNode(node: Node): boolean {
+    switch (node.kind) {
+      case SyntaxKind.FunctionDeclaration:
+      case SyntaxKind.FunctionExpression:
+      case SyntaxKind.ArrowFunction:
+      case SyntaxKind.MethodDeclaration:
+      case SyntaxKind.GetAccessor: {
+        const body = getBody(node);
+        if (body === undefined || getType(node) !== undefined) break;
+        const returned: Node[] = [];
+        if (body.kind === SyntaxKind.Block) {
+          const collector = new ReturnCollector();
+          collector.visitStatements(body as Block);
+          for (const r of collector.returns) if (r.expression !== undefined) addAlternatives(r.expression, returned);
+        } else addAlternatives(body, returned);
+        this.widen(returned);
+        break;
+      }
+      case SyntaxKind.VariableDeclaration:
+      case SyntaxKind.PropertyDeclaration:
+      case SyntaxKind.Parameter: {
+        const initializer = getInitializer(node);
+        if (initializer !== undefined && getType(node) === undefined) this.widen(addAlternatives(initializer, []));
+        break;
+      }
+      case SyntaxKind.ExportAssignment:
+        if (getType(node) === undefined) this.widen(addAlternatives(getExpression(node)!, []));
+        break;
+    }
+    if (!isTypeNodeKind(node.kind)) node.forEachChild(this);
+    return false;
+  }
+
+  /** Records the unions of the alternatives of one widened expression, and of their nested values. */
+  widen(alternatives: Node[]): void {
+    const literals: ObjectLiteralExpression[] = [];
+    for (const a of alternatives)
+      if (a.kind === SyntaxKind.ObjectLiteralExpression) literals.push(a as ObjectLiteralExpression);
+      else if (a.kind === SyntaxKind.ArrayLiteralExpression) {
+        const elements: Node[] = [];
+        for (const e of (a as ArrayLiteralExpression).elements.nodes)
+          if (e.kind !== SyntaxKind.SpreadElement) addAlternatives(e, elements);
+        this.widen(elements);
+      }
+    if (literals.length === 0) return;
+    if (literals.length > 1) this.record(literals);
+    const values = new Map<string, Node[]>();
+    for (const literal of literals)
+      for (const member of literal.properties.nodes) {
+        if (member.kind !== SyntaxKind.PropertyAssignment) continue;
+        const name = staticPropertyName(member);
+        if (name === undefined) continue;
+        let list = values.get(name);
+        if (list === undefined) values.set(name, (list = []));
+        addAlternatives((member as PropertyAssignment).initializer, list);
+      }
+    for (const list of values.values()) this.widen(list);
+  }
+
+  /**
+   * Records, for each name that some literal without a spread lacks, the last such literal's property
+   * of that name, unless an earlier union has the name.
+   */
+  record(literals: ObjectLiteralExpression[]): void {
+    const position = literals[0]!.pos;
+    const plain: Map<string, Node>[] = [];
+    for (const literal of literals) {
+      let members: Map<string, Node> | undefined = new Map();
+      for (const member of literal.properties.nodes) {
+        if (member.kind === SyntaxKind.SpreadAssignment) {
+          members = undefined;
+          break;
+        }
+        const name = staticPropertyName(member);
+        if (name !== undefined) members.set(name, member);
+      }
+      if (members !== undefined) plain.push(members);
+    }
+    const last = new Map<string, Node>();
+    for (const members of plain) for (const [name, member] of members) last.set(name, member);
+    for (const [name, member] of last) {
+      // A method's or accessor's symbol has other flags than the property checkObjectLiteral makes of it.
+      if (member.kind !== SyntaxKind.PropertyAssignment && member.kind !== SyntaxKind.ShorthandPropertyAssignment)
+        continue;
+      if (plain.every((members) => members.has(name))) continue;
+      const recorded = this.positions.get(name);
+      if (recorded !== undefined && recorded <= position) continue;
+      this.positions.set(name, position);
+      this.members.set(name, member);
+    }
+  }
+}
+
+/** Adds the expressions whose types make up the type of `node`: both sides of `?:`, `||` and `??`. */
+function addAlternatives(node: Node, out: Node[]): Node[] {
+  switch (node.kind) {
+    case SyntaxKind.ParenthesizedExpression:
+    case SyntaxKind.NonNullExpression:
+    case SyntaxKind.SatisfiesExpression:
+    case SyntaxKind.AwaitExpression:
+      return addAlternatives(getExpression(node)!, out);
+    case SyntaxKind.ConditionalExpression:
+      addAlternatives((node as ConditionalExpression).whenTrue, out);
+      return addAlternatives((node as ConditionalExpression).whenFalse, out);
+    case SyntaxKind.BinaryExpression: {
+      const binary = node as BinaryExpression;
+      switch (binary.operatorToken.kind) {
+        case SyntaxKind.BarBarToken:
+        case SyntaxKind.QuestionQuestionToken:
+          addAlternatives(binary.left, out);
+          return addAlternatives(binary.right, out);
+        case SyntaxKind.AmpersandAmpersandToken:
+        case SyntaxKind.CommaToken:
+          return addAlternatives(binary.right, out);
+      }
+      break;
+    }
+  }
+  out.push(node);
+  return out;
+}
+
+/** The name of an object literal member with a literal name. */
+function staticPropertyName(member: Node): string | undefined {
+  switch (member.kind) {
+    case SyntaxKind.PropertyAssignment:
+    case SyntaxKind.ShorthandPropertyAssignment:
+    case SyntaxKind.MethodDeclaration:
+    case SyntaxKind.GetAccessor:
+    case SyntaxKind.SetAccessor:
+      break;
+    default:
+      return undefined;
+  }
+  const name = getName(member)!;
+  switch (name.kind) {
+    case SyntaxKind.Identifier:
+    case SyntaxKind.StringLiteral:
+    case SyntaxKind.NoSubstitutionTemplateLiteral:
+      return getText(name);
+    case SyntaxKind.NumericLiteral:
+      return String(Number(getText(name)));
+  }
+  return undefined;
 }
 
 function getPropertiesOfContext(c: Checker, context: WideningContext): Symbol[] {
