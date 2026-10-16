@@ -1935,6 +1935,7 @@ export function pushTypeResolution(
 ): boolean {
   const start = findResolutionCycleStartIndex(c, target, propertyName);
   if (start >= 0) {
+    c.resolutionCycleCount++;
     for (let i = start; i < c.resolutionResults.length; i++) c.resolutionResults[i] = false;
     return false;
   }
