@@ -44,6 +44,7 @@ import {
   isCatchClauseVariableDeclarationOrBindingElement,
   isJsonSourceFile,
   isTypeNodeKind,
+  skipParentheses,
 } from './binder-utilities.js';
 import { identifierToKeywordKind } from './scanner.js';
 import { type DiagnosticMessage, Diagnostics } from './diagnostics.js';
@@ -809,7 +810,8 @@ function getUndefinedProperty(c: Checker, prop: Symbol): Symbol {
  * `name` missing in one of them: the last literal's property of that name. Unions are those of the
  * returned expressions of a function without a return type, and of the alternatives of an initializer
  * without a type (`?:`, `||`, `??`, array elements, and the values of a property across the
- * literals), ordered by their first literal.
+ * literals). They are taken in the order a checker checking the file from the top widens them
+ * (`SiblingPropertyScan`).
  */
 function firstSiblingProperty(c: Checker, declaration: Node, name: string): Symbol | undefined {
   const file = getSourceFileOfNode(declaration);
@@ -817,6 +819,7 @@ function firstSiblingProperty(c: Checker, declaration: Node, name: string): Symb
   if (first === undefined) {
     const scan = new SiblingPropertyScan();
     file.forEachChild(scan);
+    scan.widenAll();
     first = scan.members;
     c.firstSiblingProperties.set(file, first);
   }
@@ -824,10 +827,31 @@ function firstSiblingProperty(c: Checker, declaration: Node, name: string): Symb
   return member !== undefined ? getSymbol(member) : undefined;
 }
 
+/** An expression whose type is widened, at the position where a checker widens it. */
+class WideningRoot {
+  constructor(
+    readonly position: number,
+    /** The function whose returned expressions are widened, or undefined for `alternatives`. */
+    readonly func: Node | undefined,
+    readonly alternatives: Node[],
+  ) {}
+}
+
+/**
+ * Finds the unions of a file's object literals in the order a checker widens them: an initializer
+ * where it is, and a function's returned expressions at its first `return`, where the checker
+ * infers its return type. Before them come the functions of the file those expressions call, by name
+ * or as `this.name(...)` in a class, whose return types the checker infers first.
+ */
 class SiblingPropertyScan extends NodeVisitor {
-  /** By name, the property of the first union, and the position of that union's first literal. */
+  /** By name, the property of the first union that leaves the name missing in a literal. */
   readonly members = new Map<string, Node>();
-  readonly positions = new Map<string, number>();
+  private readonly roots: WideningRoot[] = [];
+  private readonly returned = new Map<Node, Node[]>();
+  private readonly widened = new Set<Node>();
+  /** Functions by name: those of the file's statements, and the members of each class. */
+  private readonly topLevelFunctions = new Map<string, Node>();
+  private readonly classFunctions = new Map<Node, Map<string, Node>>();
 
   visitNode(node: Node): boolean {
     switch (node.kind) {
@@ -839,31 +863,92 @@ class SiblingPropertyScan extends NodeVisitor {
         const body = getBody(node);
         if (body === undefined || getType(node) !== undefined) break;
         const returned: Node[] = [];
+        let position = body.pos;
         if (body.kind === SyntaxKind.Block) {
           const collector = new ReturnCollector();
           collector.visitStatements(body as Block);
+          if (collector.returns.length > 0) position = collector.returns[0]!.pos;
           for (const r of collector.returns) if (r.expression !== undefined) addAlternatives(r.expression, returned);
         } else addAlternatives(body, returned);
-        this.widen(returned);
+        if (returned.length === 0) break;
+        this.returned.set(node, returned);
+        this.roots.push(new WideningRoot(position, node, returned));
+        this.addFunctionName(node, node);
         break;
       }
       case SyntaxKind.VariableDeclaration:
       case SyntaxKind.PropertyDeclaration:
       case SyntaxKind.Parameter: {
         const initializer = getInitializer(node);
-        if (initializer !== undefined && getType(node) === undefined) this.widen(addAlternatives(initializer, []));
+        if (initializer === undefined || getType(node) !== undefined) break;
+        this.roots.push(new WideningRoot(initializer.pos, undefined, addAlternatives(initializer, [])));
+        const value = skipParentheses(initializer);
+        if (value.kind === SyntaxKind.ArrowFunction || value.kind === SyntaxKind.FunctionExpression)
+          this.addFunctionName(node, value);
         break;
       }
       case SyntaxKind.ExportAssignment:
-        if (getType(node) === undefined) this.widen(addAlternatives(getExpression(node)!, []));
+        if (getType(node) === undefined)
+          this.roots.push(new WideningRoot(node.pos, undefined, addAlternatives(getExpression(node)!, [])));
         break;
     }
     if (!isTypeNodeKind(node.kind)) node.forEachChild(this);
     return false;
   }
 
+  /** Names `func` by `declaration`, a function or method, or a variable or property it initializes. */
+  private addFunctionName(declaration: Node, func: Node): void {
+    const name = getName(declaration);
+    if (name === undefined || name.kind !== SyntaxKind.Identifier) return;
+    const parent = declaration.parent!;
+    if (parent.kind === SyntaxKind.ClassDeclaration || parent.kind === SyntaxKind.ClassExpression) {
+      let functions = this.classFunctions.get(parent);
+      if (functions === undefined) this.classFunctions.set(parent, (functions = new Map()));
+      if (!functions.has(getText(name))) functions.set(getText(name), func);
+    } else if (
+      parent.kind === SyntaxKind.SourceFile ||
+      (declaration.kind === SyntaxKind.VariableDeclaration && parent.parent!.parent!.kind === SyntaxKind.SourceFile)
+    ) {
+      if (!this.topLevelFunctions.has(getText(name))) this.topLevelFunctions.set(getText(name), func);
+    }
+  }
+
+  widenAll(): void {
+    this.roots.sort((a, b) => a.position - b.position);
+    for (const root of this.roots)
+      if (root.func === undefined) this.widen(root.alternatives);
+      else this.widenReturned(root.func);
+  }
+
+  /** Widens what `func` returns, after the functions of the file it returns calls of. */
+  private widenReturned(func: Node): void {
+    if (this.widened.has(func)) return;
+    this.widened.add(func);
+    const returned = this.returned.get(func)!;
+    for (const r of returned) {
+      if (r.kind !== SyntaxKind.CallExpression) continue;
+      const callee = this.calledFunction(func, getExpression(r)!);
+      if (callee !== undefined && this.returned.has(callee)) this.widenReturned(callee);
+    }
+    this.widen(returned);
+  }
+
+  /** The function of the file that `func` calls with `callee`: `name(...)`, or `this.name(...)` in a class member. */
+  private calledFunction(func: Node, callee: Node): Node | undefined {
+    callee = skipParentheses(callee);
+    if (callee.kind === SyntaxKind.Identifier) return this.topLevelFunctions.get(getText(callee));
+    if (callee.kind !== SyntaxKind.PropertyAccessExpression || getExpression(callee)!.kind !== SyntaxKind.ThisKeyword)
+      return undefined;
+    const name = getName(callee)!;
+    if (name.kind !== SyntaxKind.Identifier) return undefined;
+    const member =
+      func.kind === SyntaxKind.MethodDeclaration || func.kind === SyntaxKind.GetAccessor ? func : func.parent!;
+    const functions = this.classFunctions.get(member.parent!);
+    return functions !== undefined ? functions.get(getText(name)) : undefined;
+  }
+
   /** Records the unions of the alternatives of one widened expression, and of their nested values. */
-  widen(alternatives: Node[]): void {
+  private widen(alternatives: Node[]): void {
     const literals: ObjectLiteralExpression[] = [];
     for (const a of alternatives)
       if (a.kind === SyntaxKind.ObjectLiteralExpression) literals.push(a as ObjectLiteralExpression);
@@ -892,8 +977,7 @@ class SiblingPropertyScan extends NodeVisitor {
    * Records, for each name that some literal without a spread lacks, the last such literal's property
    * of that name, unless an earlier union has the name.
    */
-  record(literals: ObjectLiteralExpression[]): void {
-    const position = literals[0]!.pos;
+  private record(literals: ObjectLiteralExpression[]): void {
     const plain: Map<string, Node>[] = [];
     for (const literal of literals) {
       let members: Map<string, Node> | undefined = new Map();
@@ -913,10 +997,7 @@ class SiblingPropertyScan extends NodeVisitor {
       // A method's or accessor's symbol has other flags than the property checkObjectLiteral makes of it.
       if (member.kind !== SyntaxKind.PropertyAssignment && member.kind !== SyntaxKind.ShorthandPropertyAssignment)
         continue;
-      if (plain.every((members) => members.has(name))) continue;
-      const recorded = this.positions.get(name);
-      if (recorded !== undefined && recorded <= position) continue;
-      this.positions.set(name, position);
+      if (this.members.has(name) || plain.every((members) => members.has(name))) continue;
       this.members.set(name, member);
     }
   }

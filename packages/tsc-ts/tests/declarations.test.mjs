@@ -260,6 +260,44 @@ test(
 );
 
 test(
+  'optional undefined properties of widened object literals follow the functions a returned call infers first',
+  { skip: !existsSync(tsgo) && 'needs packages/tsgo/dist/tsgo' },
+  async () => {
+    // f1's return type needs g3's, so g3's `a` comes first and g2's `a?: undefined` follows g2's `b`.
+    // R.get returns this.later() first, so later's `z` comes first.
+    const { expected, actual } = await emitBoth(
+      {
+        'a.ts': [
+          'export function f1(x: boolean) {',
+          '  return g3(x);',
+          '}',
+          'export function g2(x: boolean) {',
+          '  if (x) return { b: 1 };',
+          '  return { b: 2, a: 1 };',
+          '}',
+          'export function g3(x: boolean) {',
+          '  if (x) return { c: 1 };',
+          '  return { c: 2, a: 1 };',
+          '}',
+          'export class R {',
+          '  get = (x: boolean) => {',
+          '    if (x) return this.later();',
+          '    return this.earlier();',
+          '  };',
+          '  earlier = () => [{ s: 1 }, { s: 2, z: 0 }];',
+          '  later = () => [{ t: 1 }, { t: 2, z: 0 }];',
+          '}',
+        ],
+      },
+      'a.d.ts',
+      baseFlags,
+    );
+    assert.match(expected, /g3\(x: boolean\): \{\n {4}c: number;\n {4}a\?: undefined;/);
+    assert.equal(actual, expected);
+  },
+);
+
+test(
   'optional undefined properties of widened object literals keep their order when an importer infers a later function first',
   { skip: !existsSync(tsgo) && 'needs packages/tsgo/dist/tsgo' },
   async () => {
