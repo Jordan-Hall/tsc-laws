@@ -619,16 +619,18 @@ test('JavaScript require dependencies are rebuilt', { skip: tscTsMissing }, () =
   assert.deepEqual(outputs(incremental), outputs(clean));
 });
 
-// tsgo's file watching doesn't report changes in every environment, so watch mode is checked against the output
-// tsgo prints for the same sequence.
-test('--watch rebuilds on changes', { skip: tscTsMissing, timeout: 120_000 }, async () => {
+/**
+ * Runs `tsc-ts` with `args` in a new project and makes the edits of `steps` (files to write, or `null` to remove a
+ * directory), each once the previous build reported. Returns the output and the output directory's files.
+ */
+async function watchSequence(args, steps) {
   const dir = tempDir('tsc-ts-watch-');
   writeFiles(dir, {
     'tsconfig.json': '{"compilerOptions":{"outDir":"out","rootDir":"src"},"include":["src"]}',
     'src/a.ts': 'export const a: number = 1;\n',
   });
   const env = { PATH: process.env.PATH ?? '', TSC_TS_BUNDLED_LIBS: bundledLibs, NO_COLOR: '1' };
-  const child = spawn(tscTs[0], [...tscTs.slice(1), '--watch', '--preserveWatchOutput'], { cwd: dir, env });
+  const child = spawn(tscTs[0], [...tscTs.slice(1), ...args, '--preserveWatchOutput'], { cwd: dir, env });
   let output = '';
   child.stdout.on('data', (chunk) => (output += chunk));
   const waitFor = async (count) => {
@@ -640,24 +642,60 @@ test('--watch rebuilds on changes', { skip: tscTsMissing, timeout: 120_000 }, as
   };
   try {
     await waitFor(1);
-    writeFiles(dir, { 'src/a.ts': 'export const a: string = 1;\n' });
-    await waitFor(2);
-    writeFiles(dir, { 'src/b.ts': 'export const b = 2;\n' });
-    await waitFor(3);
+    for (let i = 0; i < steps.length; i++) {
+      const [path, text] = steps[i];
+      if (text === null) rmSync(join(dir, path), { recursive: true });
+      else writeFiles(dir, { [path]: text });
+      await waitFor(i + 2);
+    }
   } finally {
     child.kill();
   }
-  const error = "src/a.ts(1,14): error TS2322: Type 'number' is not assignable to type 'string'.\n";
-  assert.equal(
-    normalize(output, dir),
+  return { output: normalize(output, dir), files: Object.keys(readFiles(join(dir, 'out'))).sort() };
+}
+
+// Edits, a new file, a new directory and an edit in it, and the directory removed and created again. tsgo's file
+// watching doesn't report changes in every environment, so the output is checked against what tsgo prints for the
+// same sequence.
+const watchSteps = [
+  ['src/a.ts', 'export const a: string = 1;\n'],
+  ['src/b.ts', 'export const b = 2;\n'],
+  ['src/sub/c.ts', 'export const c = 3;\n'],
+  ['src/sub/c.ts', 'export const c: string = 3;\n'],
+  ['src/sub', null],
+  ['src/sub/c.ts', 'export const c = 4;\n'],
+  ['src/sub/c.ts', 'export const c: boolean = 4;\n'],
+];
+const watchOutput = (() => {
+  const a = "src/a.ts(1,14): error TS2322: Type 'number' is not assignable to type 'string'.\n";
+  const c = (type) => `src/sub/c.ts(1,14): error TS2322: Type 'number' is not assignable to type '${type}'.\n`;
+  const rebuild = (errors) =>
+    '<time> - File change detected. Starting incremental compilation...\n\n' +
+    errors.join('') +
+    (errors.length === 1
+      ? '<time> - Found 1 error. Watching for file changes.\n\n'
+      : `<time> - Found ${errors.length} errors. Watching for file changes.\n\n`);
+  return (
     '<time> - Starting compilation in watch mode...\n\n' +
-      '<time> - Found 0 errors. Watching for file changes.\n\n' +
-      '<time> - File change detected. Starting incremental compilation...\n\n' +
-      error +
-      '<time> - Found 1 error. Watching for file changes.\n\n' +
-      '<time> - File change detected. Starting incremental compilation...\n\n' +
-      error +
-      '<time> - Found 1 error. Watching for file changes.\n\n',
+    '<time> - Found 0 errors. Watching for file changes.\n\n' +
+    rebuild([a]) +
+    rebuild([a]) +
+    rebuild([a]) +
+    rebuild([a, c('string')]) +
+    rebuild([a]) +
+    rebuild([a]) +
+    rebuild([a, c('boolean')])
   );
-  assert.deepEqual(Object.keys(readFiles(join(dir, 'out'))).sort(), ['a.js', 'b.js']);
+})();
+
+test('--watch rebuilds on changes', { skip: tscTsMissing, timeout: 120_000 }, async () => {
+  const { output, files } = await watchSequence(['--watch'], watchSteps);
+  assert.equal(output, watchOutput);
+  assert.deepEqual(files, ['a.js', 'b.js', 'sub/c.js']);
+});
+
+test('--build --watch rebuilds on changes', { skip: tscTsMissing, timeout: 120_000 }, async () => {
+  const { output, files } = await watchSequence(['--build', '--watch'], watchSteps);
+  assert.equal(output, watchOutput);
+  assert.deepEqual(files, ['a.js', 'b.js', 'sub/c.js']);
 });

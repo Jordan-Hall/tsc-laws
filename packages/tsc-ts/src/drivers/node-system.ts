@@ -2,6 +2,7 @@
 import { mark, markMemory } from '../compiler/timeline.js';
 import { spawnSync } from 'node:child_process';
 import {
+  type FSWatcher,
   mkdirSync,
   readdirSync,
   readFileSync,
@@ -9,6 +10,7 @@ import {
   statSync,
   unlinkSync,
   utimesSync,
+  watch as watchPath,
   writeFileSync,
   writeSync,
 } from 'node:fs';
@@ -17,7 +19,13 @@ import { DirectoryEntries } from '../compiler/file-system.js';
 import { normalizePath } from '../compiler/path.js';
 import type { Program } from '../compiler/program.js';
 import { ParseThread } from '../compiler/parse-thread.js';
-import { type CommandLineResult, System, executeCommandLine, readThreadProject } from '../compiler/tsc-cli.js';
+import {
+  type CommandLineResult,
+  type DirectoryWatch,
+  System,
+  executeCommandLine,
+  readThreadProject,
+} from '../compiler/tsc-cli.js';
 import type { OutputWriter } from '../compiler/compile-program.js';
 import { compile, compileInParallel, compileThreads, SystemWriter } from '../compiler/tsc-compile.js';
 import { buildWithThreads } from '../compiler/tsc-build.js';
@@ -162,6 +170,24 @@ class NodeSystem extends System {
     } catch {
       return false;
     }
+  }
+
+  watchDirectory(path: string, onChange: () => void): DirectoryWatch | undefined {
+    // inotify and ReadDirectoryChangesW report writes to a directory's files; kqueue only its entries.
+    if (process.platform !== 'linux' && process.platform !== 'win32') return undefined;
+    try {
+      return new NodeDirectoryWatch(watchPath(path, () => onChange()));
+    } catch {
+      return undefined;
+    }
+  }
+}
+
+class NodeDirectoryWatch implements DirectoryWatch {
+  constructor(private readonly watcher: FSWatcher) {}
+
+  close(): void {
+    this.watcher.close();
   }
 }
 

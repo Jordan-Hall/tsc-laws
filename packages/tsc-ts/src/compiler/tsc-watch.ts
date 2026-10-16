@@ -1,6 +1,7 @@
 /**
- * `tsc --watch` and `tsc --build --watch`: rebuild when inputs change. Changes are found by polling
- * the time stamps of the files a build read and of the directories that may gain files.
+ * `tsc --watch` and `tsc --build --watch`: rebuild when inputs change. Changes are found by comparing
+ * the time stamps of the files a build read and of the directories that may gain files, when their
+ * directories report an event, or by polling where directories can't be watched.
  */
 import type { ParsedBuildCommandLine, ParsedCommandLine as CommandLine } from './command-line.js';
 import { CheckedProgram, CompileTimes } from './compile-program.js';
@@ -24,12 +25,27 @@ import { FileBuildInfoReader, IncrementalProgram, readBuildInfoProgram, type Sna
 import { combinePaths, getDirectoryPath, getNormalizedAbsolutePath, toPath } from './path.js';
 import { Program } from './program.js';
 import { ConfigParser, ParsedCommandLine } from './tsconfig.js';
-import { DiagnosticReporter, ErrorSummaryReporter, outputLocale, type System, SystemFileSystem } from './tsc-cli.js';
+import {
+  DiagnosticReporter,
+  type DirectoryWatch,
+  ErrorSummaryReporter,
+  outputLocale,
+  type System,
+  SystemFileSystem,
+} from './tsc-cli.js';
 import { Orchestrator, StatusReporter, startWatchRebuild } from './tsc-build.js';
 import { emitFilesAndReportErrors, SystemTimeStamps, SystemWriter } from './tsc-compile.js';
 
-/** How often inputs are polled, in milliseconds. */
+/** How often inputs are polled, in milliseconds, where their directories can't be watched. */
 const pollInterval = 250;
+
+/**
+ * Directory events are batched as tsgo's file watching batches them: the first event after
+ * `quietTime` milliseconds without a check is checked at once, and later ones once no other event came
+ * for `settleTime` milliseconds.
+ */
+const settleTime = 50;
+const quietTime = 500;
 
 /** Writes watch status lines, clearing the screen where tsc does. */
 class WatchStatusReporter {
@@ -64,6 +80,7 @@ class WatchStatusReporter {
 /** Time stamps of files and directories, to tell when any changed. */
 class Stamps {
   private readonly times = new Map<string, number | undefined>();
+  private readonly directories = new Set<string>();
 
   constructor(private readonly sys: System) {}
 
@@ -75,6 +92,7 @@ class Stamps {
   addDirectory(path: string, recursive: boolean, depth = 0): void {
     if (this.times.has(path) || !this.sys.directoryExists(path)) return;
     this.add(path);
+    this.directories.add(path);
     if (!recursive || depth > 32) return;
     for (const name of this.sys.getAccessibleEntries(path).directories) {
       if (name === 'node_modules' || name.startsWith('.')) continue;
@@ -87,6 +105,11 @@ class Stamps {
       if (this.sys.getMTime(path) !== time) return true;
     }
     return false;
+  }
+
+  /** Adds the directories whose events report changes of these paths: each directory, and each file's. */
+  addWatchedDirectories(directories: Set<string>): void {
+    for (const path of this.times.keys()) directories.add(this.directories.has(path) ? path : getDirectoryPath(path));
   }
 }
 
@@ -176,9 +199,80 @@ class WatchCompilerHost extends CompilerHost {
   }
 }
 
-/** Keeps `poll` running every `pollInterval` milliseconds. */
-function startPolling(poll: () => void): void {
-  setInterval(poll, pollInterval);
+/** A watched directory, with its time stamp when the watch started. */
+class WatchedDirectory {
+  constructor(
+    readonly watch: DirectoryWatch,
+    readonly time: number,
+  ) {}
+}
+
+/**
+ * Calls `check` when inputs may have changed: on events of the directories of the stamped paths, or
+ * every `pollInterval` milliseconds once a directory can't be watched.
+ */
+class ChangeWatcher {
+  private readonly watches = new Map<string, WatchedDirectory>();
+  private polling = false;
+  private timer: ReturnType<typeof setTimeout> | undefined = undefined;
+  private lastCheck = -quietTime;
+
+  constructor(
+    private readonly sys: System,
+    private readonly check: () => void,
+  ) {}
+
+  /**
+   * Watches the directories of the paths of `stamps`, keeping the watches of unchanged directories.
+   * A change between the stamps and a new watch has no event, so new watches are followed by a check.
+   */
+  watch(stamps: Stamps[]): void {
+    if (this.polling) return;
+    let created = false;
+    const directories = new Set<string>();
+    for (const s of stamps) s.addWatchedDirectories(directories);
+    for (const [path, watched] of this.watches) {
+      if (directories.has(path)) continue;
+      watched.watch.close();
+      this.watches.delete(path);
+    }
+    for (const path of directories) {
+      const time = this.sys.getMTime(path);
+      const watched = this.watches.get(path);
+      if (watched !== undefined) {
+        if (watched.time === time) continue;
+        // A changed directory may have been removed and created again, which ends the old watch.
+        watched.watch.close();
+        this.watches.delete(path);
+      }
+      if (time === undefined) continue;
+      const watch = this.sys.watchDirectory(path, () => this.changed());
+      if (watch === undefined) {
+        this.startPolling();
+        return;
+      }
+      this.watches.set(path, new WatchedDirectory(watch, time));
+      created = true;
+    }
+    if (created) this.changed();
+  }
+
+  private changed(): void {
+    if (this.timer !== undefined) clearTimeout(this.timer);
+    const wait = performance.now() - this.lastCheck > quietTime ? 0 : settleTime;
+    this.timer = setTimeout(() => {
+      this.timer = undefined;
+      this.lastCheck = performance.now();
+      this.check();
+    }, wait);
+  }
+
+  private startPolling(): void {
+    this.polling = true;
+    for (const watched of this.watches.values()) watched.watch.close();
+    this.watches.clear();
+    setInterval(this.check, pollInterval);
+  }
 }
 
 class Watcher {
@@ -189,6 +283,7 @@ class Watcher {
   private readonly reporter: DiagnosticReporter;
   private readonly status: WatchStatusReporter;
   private readonly files = new WatchSourceFiles();
+  private readonly changes: ChangeWatcher;
 
   constructor(
     private readonly sys: System,
@@ -206,6 +301,7 @@ class Watcher {
     );
     this.stamps = new Stamps(sys);
     this.configStamps = new Stamps(sys);
+    this.changes = new ChangeWatcher(sys, () => this.poll());
   }
 
   start(): void {
@@ -220,7 +316,7 @@ class Watcher {
     }
     this.status.report(Diagnostics.Starting_compilation_in_watch_mode);
     this.build();
-    startPolling(() => this.poll());
+    this.changes.watch([this.stamps, this.configStamps]);
   }
 
   private configFiles(): string[] {
@@ -230,6 +326,11 @@ class Watcher {
   }
 
   private poll(): void {
+    this.rebuildIfChanged();
+    this.changes.watch([this.stamps, this.configStamps]);
+  }
+
+  private rebuildIfChanged(): void {
     const configChanged = this.configStamps.changed();
     if (!configChanged && !this.stamps.changed()) return;
     if (configChanged && !this.reloadConfig()) return;
@@ -361,11 +462,14 @@ export function watchBuild(sys: System, command: ParsedBuildCommandLine): void {
     return buildInputs(sys, command);
   };
   let stamps = run();
-  startPolling(() => {
-    if (!stamps.changed()) return;
-    status.report(Diagnostics.File_change_detected_Starting_incremental_compilation);
-    stamps = run();
+  const changes = new ChangeWatcher(sys, () => {
+    if (stamps.changed()) {
+      status.report(Diagnostics.File_change_detected_Starting_incremental_compilation);
+      stamps = run();
+    }
+    changes.watch([stamps]);
   });
+  changes.watch([stamps]);
 }
 
 /**
