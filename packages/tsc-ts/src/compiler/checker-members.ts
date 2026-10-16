@@ -150,6 +150,7 @@ import {
 } from './checker-type-operators.js';
 import { getGlobalBigIntType, getGlobalESSymbolType } from './checker-globals.js';
 import { isLateBoundName, isNumericLiteralName } from './checker-utilities.js';
+import { lazyObjectFlags, sideOf } from './side-state.js';
 
 // ---- Resolution
 
@@ -158,8 +159,24 @@ import { isLateBoundName, isNumericLiteralName } from './checker-utilities.js';
  * type (almost every call) costs no call; the resolution itself is out of line.
  */
 export function resolveStructuredTypeMembers(c: Checker, t: Type): StructuredType {
-  if ((t.objectFlags & ObjectFlags.MembersResolved) === 0) resolveMembersOfType(c, t);
-  return t as StructuredType;
+  if ((t.objectFlags & ObjectFlags.MembersResolved) !== 0) return t as StructuredType;
+  const resolved = membersHolder(c, t);
+  if ((resolved.objectFlags & ObjectFlags.MembersResolved) === 0) resolveMembersOfType(c, t);
+  return resolved;
+}
+
+/**
+ * The object that holds the resolved members of `t`: `t` itself, or for a type with side state
+ * (`ObjectFlags.SideState`) the checker's holder of its state (`sideOf`). Resolving the members of
+ * `t` writes them there; `t` keeps its identity and is never written.
+ */
+export function membersHolder(c: Checker, t: Type): StructuredType {
+  return sideOf(c, t as StructuredType);
+}
+
+/** The `objectFlags` of `t` that resolving its members sets (MembersResolved, UnresolvedMembers). */
+export function memberResolutionFlags(c: Checker, t: Type): ObjectFlags {
+  return lazyObjectFlags(c, t);
 }
 
 function resolveMembersOfType(c: Checker, t: Type): void {
@@ -167,7 +184,7 @@ function resolveMembersOfType(c: Checker, t: Type): void {
     const objectFlags = t.objectFlags;
     if ((objectFlags & ObjectFlags.Reference) !== 0) resolveTypeReferenceMembers(c, t as TypeReference);
     else if ((objectFlags & ObjectFlags.ClassOrInterface) !== 0)
-      resolveObjectTypeMembers(c, t as StructuredType, t as InterfaceType, emptyTypes, emptyTypes);
+      resolveObjectTypeMembers(c, membersHolder(c, t), t as InterfaceType, emptyTypes, emptyTypes);
     else if ((objectFlags & ObjectFlags.ReverseMapped) !== 0) resolveReverseMappedTypeMembers(c, t);
     else if ((objectFlags & ObjectFlags.Anonymous) !== 0) resolveAnonymousTypeMembers(c, t as ObjectType);
     else if ((objectFlags & ObjectFlags.Mapped) !== 0) resolveMappedTypeMembers(c, t as MappedType);
@@ -185,7 +202,7 @@ function resolveTypeReferenceMembers(c: Checker, t: TypeReference): void {
     padded = typeArguments.slice();
     padded.push(t as Type);
   }
-  resolveObjectTypeMembers(c, t, source, typeParameters, padded);
+  resolveObjectTypeMembers(c, membersHolder(c, t), source, typeParameters, padded);
 }
 
 function sameTypes(a: readonly Type[], b: readonly Type[]): boolean {
@@ -194,6 +211,7 @@ function sameTypes(a: readonly Type[], b: readonly Type[]): boolean {
   return true;
 }
 
+/** Resolves the members of an instantiation of `source` into `t`, the holder of its members. */
 function resolveObjectTypeMembers(
   c: Checker,
   t: StructuredType,
@@ -201,7 +219,7 @@ function resolveObjectTypeMembers(
   typeParameters: Type[],
   typeArguments: Type[],
 ): void {
-  resolveDeclaredMembers(c, source);
+  const declared = resolveDeclaredMembers(c, source);
   let mapper: TypeMapper | undefined;
   let members: SymbolTable | undefined;
   let callSignatures: Signature[];
@@ -211,18 +229,18 @@ function resolveObjectTypeMembers(
   // The member symbols of an instantiation are instantiated on demand (PendingInstantiatedMembers).
   let pending: PendingInstantiatedMembers | undefined;
   if (sameTypes(typeParameters, typeArguments)) {
-    members = source.declaredMembers;
-    callSignatures = source.declaredCallSignatures;
-    constructSignatures = source.declaredConstructSignatures;
-    indexInfos = source.declaredIndexInfos;
+    members = declared.declaredMembers;
+    callSignatures = declared.declaredCallSignatures;
+    constructSignatures = declared.declaredConstructSignatures;
+    indexInfos = declared.declaredIndexInfos;
   } else {
     instantiated = true;
     mapper = newTypeMapper(typeParameters, typeArguments);
     pending = pendingInstantiatedTable(c, source, mapper);
-    members = pending === undefined ? instantiateSymbolTable(c, source.declaredMembers, mapper) : undefined;
-    callSignatures = instantiateSignatures(c, source.declaredCallSignatures, mapper);
-    constructSignatures = instantiateSignatures(c, source.declaredConstructSignatures, mapper);
-    indexInfos = instantiateIndexInfos(c, source.declaredIndexInfos, mapper);
+    members = pending === undefined ? instantiateSymbolTable(c, declared.declaredMembers, mapper) : undefined;
+    callSignatures = instantiateSignatures(c, declared.declaredCallSignatures, mapper);
+    constructSignatures = instantiateSignatures(c, declared.declaredConstructSignatures, mapper);
+    indexInfos = instantiateIndexInfos(c, declared.declaredIndexInfos, mapper);
   }
   const baseTypes = getBaseTypes(c, source);
   if (pending !== undefined) {
@@ -448,7 +466,8 @@ function pendingInstantiatedTable(
   source: InterfaceType,
   mapper: TypeMapper,
 ): PendingInstantiatedMembers | undefined {
-  const table = source.declaredMembers;
+  const declared = sideOf(c, source);
+  const table = declared.declaredMembers;
   if (table === undefined || table.size === 0) return undefined;
   const states: number[] = [];
   let word = 0;
@@ -481,7 +500,7 @@ function pendingInstantiatedTable(
     undefined,
     mapper,
     states,
-    declaredMemberPositions(source, table),
+    declaredMemberPositions(declared, table),
     hasOwnMembers,
     hasRequiredOwnMembers,
   );
@@ -514,7 +533,10 @@ function pendingInstantiatedList(c: Checker, list: Symbol[], mapper: TypeMapper)
   );
 }
 
-/** Positions of the declared members of `source` by name, shared by all its instantiations. */
+/**
+ * Positions of the declared members of a class or interface by name, shared by all its
+ * instantiations; `source` is the holder of its declared members (`resolveDeclaredMembers`).
+ */
 function declaredMemberPositions(source: InterfaceType, table: SymbolTable): Map<string, number> {
   let positions = source.declaredMemberPositions;
   if (positions === undefined) {
@@ -611,7 +633,7 @@ function resolvePendingObjectTypeMembers(
   constructSignatures: Signature[],
   indexInfos: IndexInfo[],
 ): void {
-  setPendingStructuredTypeMembers(t, pending, callSignatures, constructSignatures, indexInfos);
+  setPendingStructuredTypeMembers(c, t, pending, callSignatures, constructSignatures, indexInfos);
   if (baseTypes.length === 0) return;
   pending.hasBases = true;
   pending.resolving = true;
@@ -653,17 +675,19 @@ function resolvePendingObjectTypeMembers(
   t.objectFlags &= ~ObjectFlags.UnresolvedMembers;
   pending.resolving = false;
   if (t.pendingMembers === pending)
-    setPendingStructuredTypeMembers(t, pending, callSignatures, constructSignatures, indexInfos);
+    setPendingStructuredTypeMembers(c, t, pending, callSignatures, constructSignatures, indexInfos);
   else setStructuredTypeMembers(c, t, t.membersValue, callSignatures, constructSignatures, indexInfos);
 }
 
 function setPendingStructuredTypeMembers(
-  t: StructuredType,
+  c: Checker,
+  type: StructuredType,
   pending: PendingInstantiatedMembers,
   callSignatures: Signature[],
   constructSignatures: Signature[],
   indexInfos: IndexInfo[],
 ): void {
+  const t = membersHolder(c, type);
   t.objectFlags |= ObjectFlags.MembersResolved;
   t.membersValue = undefined;
   t.propertiesValue = emptySymbols;
@@ -678,16 +702,18 @@ export function findIndexInfo(indexInfos: readonly IndexInfo[], keyType: Type): 
   return undefined;
 }
 
+/** Resolves the declared members of `t`; returns the object that holds them (`sideOf`). */
 export function resolveDeclaredMembers(c: Checker, t: InterfaceType): InterfaceType {
-  if (!t.declaredMembersResolved) {
+  const declared = sideOf(c, t);
+  if (!declared.declaredMembersResolved) {
     const members = getMembersOfSymbol(c, t.symbol!);
-    t.declaredMembersResolved = true;
-    t.declaredMembers = members;
-    t.declaredCallSignatures = getSignaturesOfSymbol(c, members.get(InternalSymbolName.Call));
-    t.declaredConstructSignatures = getSignaturesOfSymbol(c, members.get(InternalSymbolName.New));
-    t.declaredIndexInfos = getIndexInfosOfSymbol(c, t.symbol!);
+    declared.declaredMembersResolved = true;
+    declared.declaredMembers = members;
+    declared.declaredCallSignatures = getSignaturesOfSymbol(c, members.get(InternalSymbolName.Call));
+    declared.declaredConstructSignatures = getSignaturesOfSymbol(c, members.get(InternalSymbolName.New));
+    declared.declaredIndexInfos = getIndexInfosOfSymbol(c, t.symbol!);
   }
-  return t;
+  return declared;
 }
 
 export function getIndexSymbol(c: Checker, symbol: Symbol): Symbol | undefined {
@@ -752,6 +778,7 @@ function createInstantiatedSymbolTable(
 }
 
 function resolveAnonymousTypeMembers(c: Checker, t: ObjectType): void {
+  const resolved = membersHolder(c, t);
   if (t.target !== undefined) {
     setStructuredTypeMembers(c, t, undefined, emptySignatures, emptySignatures, emptyIndexInfos);
     const target = t.target;
@@ -770,7 +797,7 @@ function resolveAnonymousTypeMembers(c: Checker, t: ObjectType): void {
     );
     const indexInfos = instantiateIndexInfos(c, getIndexInfosOfType(c, target), t.mapper!);
     if (pending !== undefined)
-      setPendingStructuredTypeMembers(t, pending, callSignatures, constructSignatures, indexInfos);
+      setPendingStructuredTypeMembers(c, t, pending, callSignatures, constructSignatures, indexInfos);
     else setStructuredTypeMembers(c, t, members, callSignatures, constructSignatures, indexInfos);
     return;
   }
@@ -814,7 +841,7 @@ function resolveAnonymousTypeMembers(c: Checker, t: ObjectType): void {
     if ((symbol.flags & SymbolFlags.Enum) !== 0) {
       let numberLike = (getDeclaredTypeOfSymbol(c, symbol).flags & TypeFlags.Enum) !== 0;
       if (!numberLike)
-        for (const prop of t.properties)
+        for (const prop of resolved.properties)
           if ((getTypeOfSymbol(c, prop).flags & TypeFlags.NumberLike) !== 0) {
             numberLike = true;
             break;
@@ -822,15 +849,15 @@ function resolveAnonymousTypeMembers(c: Checker, t: ObjectType): void {
       if (numberLike) indexInfos.push(c.enumNumberIndexInfo);
     }
   }
-  t.indexInfos = indexInfos.length === 0 ? emptyIndexInfos : indexInfos;
+  resolved.indexInfos = indexInfos.length === 0 ? emptyIndexInfos : indexInfos;
   // Members are resolved before signatures, which may use `typeof` on this type (#6072).
   if ((symbol.flags & (SymbolFlags.Function | SymbolFlags.Method)) !== 0)
-    t.callSignatures = getSignaturesOfSymbol(c, symbol);
+    resolved.callSignatures = getSignaturesOfSymbol(c, symbol);
   if ((symbol.flags & SymbolFlags.Class) !== 0) {
     const classType = getDeclaredTypeOfClassOrInterface(c, symbol);
     let constructSignatures = getSignaturesOfSymbol(c, symbol.members?.get(InternalSymbolName.Constructor));
     if (constructSignatures.length === 0) constructSignatures = getDefaultConstructSignatures(c, classType);
-    t.constructSignatures = constructSignatures;
+    resolved.constructSignatures = constructSignatures;
   }
 }
 
@@ -1285,7 +1312,8 @@ export function getPropertiesOfObjectType(c: Checker, t: Type): Symbol[] {
 }
 
 export function getPropertiesOfUnionOrIntersectionType(c: Checker, t: UnionOrIntersectionType): Symbol[] {
-  if (t.resolvedProperties === undefined) {
+  const side = sideOf(c, t);
+  if (side.resolvedProperties === undefined) {
     const checked = new Set<string>();
     const props: Symbol[] = [];
     for (const current of t.types) {
@@ -1303,9 +1331,9 @@ export function getPropertiesOfUnionOrIntersectionType(c: Checker, t: UnionOrInt
       // Union properties are in every constituent: the first without index signatures suffices.
       if ((t.flags & TypeFlags.Union) !== 0 && getIndexInfosOfType(c, current).length === 0) break;
     }
-    t.resolvedProperties = props;
+    side.resolvedProperties = props;
   }
-  return t.resolvedProperties;
+  return side.resolvedProperties;
 }
 
 export function getPropertyOfType(c: Checker, t: Type, name: string): Symbol | undefined {
@@ -1395,19 +1423,20 @@ export function getUnionOrIntersectionProperty(
   name: string,
   skipObjectFunctionPropertyAugment: boolean,
 ): Symbol | undefined {
-  let cache = skipObjectFunctionPropertyAugment ? t.propertyCacheWithoutFunctionPropertyAugment : t.propertyCache;
+  const side = sideOf(c, t);
+  let cache = skipObjectFunctionPropertyAugment ? side.propertyCacheWithoutFunctionPropertyAugment : side.propertyCache;
   const cached = cache?.get(name);
   if (cached !== undefined) return cached;
   if (!skipObjectFunctionPropertyAugment) {
-    const withoutAugment = t.propertyCacheWithoutFunctionPropertyAugment?.get(name);
+    const withoutAugment = side.propertyCacheWithoutFunctionPropertyAugment?.get(name);
     if (withoutAugment !== undefined && (withoutAugment.checkFlags & CheckFlags.Partial) === 0) return withoutAugment;
   }
   const prop = createUnionOrIntersectionProperty(c, t, name, skipObjectFunctionPropertyAugment);
   if (prop !== undefined) {
     if (cache === undefined) {
       cache = new Map<string, Symbol>();
-      if (skipObjectFunctionPropertyAugment) t.propertyCacheWithoutFunctionPropertyAugment = cache;
-      else t.propertyCache = cache;
+      if (skipObjectFunctionPropertyAugment) side.propertyCacheWithoutFunctionPropertyAugment = cache;
+      else side.propertyCache = cache;
     }
     cache.set(name, prop);
   }
@@ -1782,8 +1811,9 @@ function getApparentTypeWorker(c: Checker, t: Type): Type {
 }
 
 function getApparentTypeOfMappedType(c: Checker, t: MappedType): Type {
-  if (t.resolvedApparentType === undefined) t.resolvedApparentType = getResolvedApparentTypeOfMappedType(c, t);
-  return t.resolvedApparentType;
+  const side = sideOf(c, t);
+  if (side.resolvedApparentType === undefined) side.resolvedApparentType = getResolvedApparentTypeOfMappedType(c, t);
+  return side.resolvedApparentType;
 }
 
 function getResolvedApparentTypeOfMappedType(c: Checker, t: MappedType): Type {
@@ -1812,9 +1842,10 @@ export function isArrayOrTupleOrIntersection(c: Checker, t: Type): boolean {
 
 function getApparentTypeOfIntersectionType(c: Checker, t: IntersectionType, thisArgument: Type): Type {
   if (t.id === thisArgument.id) {
-    if (t.resolvedApparentType === undefined)
-      t.resolvedApparentType = getTypeWithThisArgument(c, t, thisArgument, true);
-    return t.resolvedApparentType;
+    const side = sideOf(c, t);
+    if (side.resolvedApparentType === undefined)
+      side.resolvedApparentType = getTypeWithThisArgument(c, t, thisArgument, true);
+    return side.resolvedApparentType;
   }
   const key = cachedTypeKey(CachedTypeKind.Apparent, thisArgument.id);
   let result = c.cachedTypesById.get(key);
@@ -1859,18 +1890,19 @@ export function getTypeWithThisArgument(
 export function getReducedType(c: Checker, t: Type): Type {
   if ((t.flags & TypeFlags.Union) !== 0) {
     if ((t.objectFlags & ObjectFlags.ContainsIntersections) !== 0) {
-      const union = t as UnionType;
-      if (union.resolvedReducedType !== undefined) return union.resolvedReducedType;
-      const reduced = getReducedUnionType(c, union);
-      union.resolvedReducedType = reduced;
+      const side = sideOf(c, t as UnionType);
+      if (side.resolvedReducedType !== undefined) return side.resolvedReducedType;
+      const reduced = getReducedUnionType(c, t as UnionType);
+      side.resolvedReducedType = reduced;
       return reduced;
     }
   } else if ((t.flags & TypeFlags.Intersection) !== 0) {
-    if ((t.objectFlags & ObjectFlags.IsNeverIntersectionComputed) === 0) {
-      t.objectFlags |= ObjectFlags.IsNeverIntersectionComputed;
-      if (hasNeverReducedProperty(c, t as IntersectionType)) t.objectFlags |= ObjectFlags.IsNeverIntersection;
+    const side = sideOf(c, t);
+    if ((side.objectFlags & ObjectFlags.IsNeverIntersectionComputed) === 0) {
+      side.objectFlags |= ObjectFlags.IsNeverIntersectionComputed;
+      if (hasNeverReducedProperty(c, t as IntersectionType)) side.objectFlags |= ObjectFlags.IsNeverIntersection;
     }
-    if ((t.objectFlags & ObjectFlags.IsNeverIntersection) !== 0) return c.neverType;
+    if ((side.objectFlags & ObjectFlags.IsNeverIntersection) !== 0) return c.neverType;
   }
   return t;
 }
@@ -1885,7 +1917,7 @@ export function getReducedType(c: Checker, t: Type): Type {
  * private, are combined, and the costliest constituent's properties are only looked up by name.
  */
 function hasNeverReducedProperty(c: Checker, t: IntersectionType): boolean {
-  const resolved = t.resolvedProperties;
+  const resolved = sideOf(c, t).resolvedProperties;
   if (resolved !== undefined) {
     for (const p of resolved) if (isNeverReducedProperty(c, p)) return true;
     return false;
@@ -1964,7 +1996,7 @@ function getReducedUnionType(c: Checker, union: UnionType): Type {
   }
   if (!changed) return union;
   const reduced = getUnionType(c, reducedTypes);
-  if ((reduced.flags & TypeFlags.Union) !== 0) (reduced as UnionType).resolvedReducedType = reduced;
+  if ((reduced.flags & TypeFlags.Union) !== 0) sideOf(c, reduced as UnionType).resolvedReducedType = reduced;
   return reduced;
 }
 
@@ -2048,6 +2080,8 @@ function hasConstrainedTypeData(t: Type): boolean {
 export function getResolvedBaseConstraint(c: Checker, t: Type, stack?: RecursionId[]): Type {
   if (!hasConstrainedTypeData(t)) return t;
   if (t.resolvedBaseConstraint !== undefined) return t.resolvedBaseConstraint;
+  const side = sideOf(c, t);
+  if (side.resolvedBaseConstraint !== undefined) return side.resolvedBaseConstraint;
   if (!pushTypeResolution(c, t, TypeSystemPropertyName.ResolvedBaseConstraint)) return c.circularConstraintType;
   let constraint: Type | undefined;
   // At least 10 levels; up to 50 without deeply nested types on the stack.
@@ -2064,7 +2098,7 @@ export function getResolvedBaseConstraint(c: Checker, t: Type, stack?: Recursion
     constraint = c.circularConstraintType;
   }
   if (constraint === undefined) constraint = c.noConstraintType;
-  if (t.resolvedBaseConstraint === undefined) t.resolvedBaseConstraint = constraint;
+  if (side.resolvedBaseConstraint === undefined) side.resolvedBaseConstraint = constraint;
   return constraint;
 }
 

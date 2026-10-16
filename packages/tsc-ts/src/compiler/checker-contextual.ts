@@ -1,4 +1,5 @@
 // Contextual typing: the type an expression's position implies, and contextual signatures.
+import { resolvedReturnTypeOf } from './side-state.js';
 import {
   type ArrayLiteralExpression,
   type BinaryExpression,
@@ -622,7 +623,7 @@ function isResolvingReturnTypeOfSignature(c: Checker, signature: Signature): boo
   if (composite !== undefined)
     for (const s of composite.signatures) if (isResolvingReturnTypeOfSignature(c, s)) return true;
   return (
-    signature.resolvedReturnType === undefined &&
+    resolvedReturnTypeOf(c, signature) === undefined &&
     findResolutionCycleStartIndex(c, signature, TypeSystemPropertyName.ResolvedReturnType) >= 0
   );
 }

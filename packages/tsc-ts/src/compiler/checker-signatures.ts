@@ -1,5 +1,6 @@
 // Signatures: from declarations, their parameters, return types and type predicates, and
 // derived instantiations (erased, canonical, base).
+import { resolvedReturnTypeOf, signatureSideOf } from './side-state.js';
 import { instantiateSignatureInContextOf as instantiateSignatureInContextOfInference } from './checker-inference.js';
 import {
   ModifierFlags,
@@ -280,6 +281,8 @@ function getReturnTypesOfSignatures(c: Checker, signatures: readonly Signature[]
 
 export function getReturnTypeOfSignature(c: Checker, sig: Signature): Type {
   if (sig.resolvedReturnType !== undefined) return sig.resolvedReturnType;
+  const side = signatureSideOf(c, sig);
+  if (side.resolvedReturnType !== undefined) return side.resolvedReturnType;
   if (!pushTypeResolution(c, sig, TypeSystemPropertyName.ResolvedReturnType)) return c.errorType;
   let t: Type;
   if (sig.target !== undefined) t = instantiateType(c, getReturnTypeOfSignature(c, sig.target), sig.mapper);
@@ -327,8 +330,8 @@ export function getReturnTypeOfSignature(c: Checker, sig: Signature): Type {
     }
     t = c.anyType;
   }
-  if (sig.resolvedReturnType === undefined) sig.resolvedReturnType = t;
-  return sig.resolvedReturnType;
+  if (side.resolvedReturnType === undefined) side.resolvedReturnType = t;
+  return side.resolvedReturnType;
 }
 
 import { getOptionalType as getOptionalTypeLocal, addOptionalTypeMarker } from './checker-symbol-types.js';
@@ -337,7 +340,7 @@ export function isResolvingReturnTypeOfSignature(c: Checker, sig: Signature): bo
   if (sig.composite !== undefined)
     for (const s of sig.composite.signatures) if (isResolvingReturnTypeOfSignature(c, s)) return true;
   return (
-    sig.resolvedReturnType === undefined &&
+    resolvedReturnTypeOf(c, sig) === undefined &&
     findResolutionCycleStartIndex(c, sig, TypeSystemPropertyName.ResolvedReturnType) >= 0
   );
 }
@@ -377,34 +380,39 @@ export function getReturnTypeFromAnnotation(c: Checker, declaration: Node): Type
 }
 
 export function getTypePredicateOfSignature(c: Checker, sig: Signature): TypePredicate | undefined {
-  if (sig.resolvedTypePredicate === undefined) {
+  // Signatures created with a predicate have it inline; others resolve it on first use.
+  if (sig.resolvedTypePredicate !== undefined)
+    return sig.resolvedTypePredicate === c.noTypePredicate ? undefined : sig.resolvedTypePredicate;
+  const side = signatureSideOf(c, sig);
+  if (side.resolvedTypePredicate === undefined) {
     if (sig.target !== undefined) {
       const targetPredicate = getTypePredicateOfSignature(c, sig.target);
       if (targetPredicate !== undefined)
-        sig.resolvedTypePredicate = instantiateTypePredicate(c, targetPredicate, sig.mapper);
+        side.resolvedTypePredicate = instantiateTypePredicate(c, targetPredicate, sig.mapper);
     } else if (sig.composite !== undefined)
-      sig.resolvedTypePredicate = getUnionOrIntersectionTypePredicate(
+      side.resolvedTypePredicate = getUnionOrIntersectionTypePredicate(
         c,
         sig.composite.signatures,
         sig.composite.isUnion,
       );
     else if (sig.declaration !== undefined) {
+      const returnType = resolvedReturnTypeOf(c, sig);
       const typeNode = getType(sig.declaration);
       if (typeNode !== undefined) {
         if (typeNode.kind === SyntaxKind.TypePredicate)
-          sig.resolvedTypePredicate = createTypePredicateFromTypePredicateNode(c, typeNode, sig);
+          side.resolvedTypePredicate = createTypePredicateFromTypePredicateNode(c, typeNode, sig);
       } else if (
         isFunctionLikeDeclarationKind(sig.declaration.kind) &&
-        (sig.resolvedReturnType === undefined || (sig.resolvedReturnType.flags & TypeFlags.Boolean) !== 0) &&
+        (returnType === undefined || (returnType.flags & TypeFlags.Boolean) !== 0) &&
         getParameterCount(c, sig) > 0
       ) {
-        sig.resolvedTypePredicate = c.noTypePredicate; // Breaks cycles through the body.
-        sig.resolvedTypePredicate = getTypePredicateFromBody(c, sig.declaration);
+        side.resolvedTypePredicate = c.noTypePredicate; // Breaks cycles through the body.
+        side.resolvedTypePredicate = getTypePredicateFromBody(c, sig.declaration);
       }
     }
-    if (sig.resolvedTypePredicate === undefined) sig.resolvedTypePredicate = c.noTypePredicate;
+    if (side.resolvedTypePredicate === undefined) side.resolvedTypePredicate = c.noTypePredicate;
   }
-  return sig.resolvedTypePredicate === c.noTypePredicate ? undefined : sig.resolvedTypePredicate;
+  return side.resolvedTypePredicate === c.noTypePredicate ? undefined : side.resolvedTypePredicate;
 }
 
 function getUnionOrIntersectionTypePredicate(
@@ -498,7 +506,8 @@ export function getParameterCount(c: Checker, signature: Signature): number {
 }
 
 export function getMinArgumentCount(c: Checker, signature: Signature): number {
-  if (signature.resolvedMinArgumentCount === -1) {
+  const side = signatureSideOf(c, signature);
+  if (side.resolvedMinArgumentCount === -1) {
     let minArgumentCount = -1;
     if (signature.hasRestParameter()) {
       const restType = getTypeOfSymbol(c, signature.parameters[signature.parameters.length - 1]!);
@@ -519,9 +528,9 @@ export function getMinArgumentCount(c: Checker, signature: Signature): number {
       if (!someType(t, (u) => (u.flags & TypeFlags.Void) !== 0)) break;
       minArgumentCount = i;
     }
-    signature.resolvedMinArgumentCount = minArgumentCount | 0;
+    side.resolvedMinArgumentCount = minArgumentCount | 0;
   }
-  return signature.resolvedMinArgumentCount;
+  return side.resolvedMinArgumentCount;
 }
 
 export function hasEffectiveRestParameter(c: Checker, signature: Signature): boolean {
@@ -723,10 +732,11 @@ export function getSignatureInstantiationWithoutFillingInTypeArguments(
   sig: Signature,
   typeArguments: Type[],
 ): Signature {
-  let instantiations = sig.instantiations;
+  const side = signatureSideOf(c, sig);
+  let instantiations = side.instantiations;
   if (instantiations === undefined) {
     instantiations = new TypeListCache<Signature>();
-    sig.instantiations = instantiations;
+    side.instantiations = instantiations;
   }
   const hash = typeListHash(typeArguments, undefined, 0);
   let instantiation = instantiations.get(hash, typeArguments, undefined, 0);
@@ -745,33 +755,35 @@ export function createSignatureInstantiation(c: Checker, sig: Signature, typeArg
 
 export function getErasedSignature(c: Checker, signature: Signature): Signature {
   if (signature.typeParameters.length === 0) return signature;
-  if (signature.erasedSignatureCache === undefined)
-    signature.erasedSignatureCache = instantiateSignatureEx(
+  const side = signatureSideOf(c, signature);
+  if (side.erasedSignatureCache === undefined)
+    side.erasedSignatureCache = instantiateSignatureEx(
       c,
       signature,
       new ArrayToSingleTypeMapper(signature.typeParameters, c.anyType),
       true,
     );
-  return signature.erasedSignatureCache;
+  return side.erasedSignatureCache;
 }
 
 /** Unconstrained instantiated type parameters map back to their originals. */
 export function getCanonicalSignature(c: Checker, signature: Signature): Signature {
   if (signature.typeParameters.length === 0) return signature;
-  if (signature.canonicalSignatureCache === undefined) {
+  const side = signatureSideOf(c, signature);
+  if (side.canonicalSignatureCache === undefined) {
     const typeArguments: Type[] = [];
     for (const tp of signature.typeParameters) {
       const target = (tp as TypeParameter).target;
       typeArguments.push(target !== undefined && getConstraintOfTypeParameter(c, target) === undefined ? target : tp);
     }
-    signature.canonicalSignatureCache = getSignatureInstantiation(
+    side.canonicalSignatureCache = getSignatureInstantiation(
       c,
       signature,
       typeArguments,
       signature.declaration !== undefined && (signature.declaration.flags & NodeFlags.JavaScriptFile) !== 0,
     );
   }
-  return signature.canonicalSignatureCache;
+  return side.canonicalSignatureCache;
 }
 
 /** The generic `signature` instantiated in the context of the non-generic `contextualSignature`. */
@@ -815,7 +827,8 @@ export function getSingleSignature(
 }
 
 export function getOrCreateTypeFromSignature(c: Checker, sig: Signature): Type {
-  if (sig.isolatedSignatureType === undefined) {
+  const side = signatureSideOf(c, sig);
+  if (side.isolatedSignatureType === undefined) {
     const kind = sig.declaration !== undefined ? sig.declaration.kind : SyntaxKind.Unknown;
     // No declaration means a default constructor.
     const isConstructor =
@@ -830,9 +843,9 @@ export function getOrCreateTypeFromSignature(c: Checker, sig: Signature): Type {
     );
     if (isConstructor) setStructuredTypeMembers(c, t, undefined, [], [sig], []);
     else setStructuredTypeMembers(c, t, undefined, [sig], [], []);
-    sig.isolatedSignatureType = t;
+    side.isolatedSignatureType = t;
   }
-  return sig.isolatedSignatureType;
+  return side.isolatedSignatureType;
 }
 
 export function getDefaultConstructSignatures(c: Checker, classType: InterfaceType): Signature[] {

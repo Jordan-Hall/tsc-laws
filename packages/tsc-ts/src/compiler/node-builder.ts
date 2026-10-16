@@ -3,6 +3,7 @@
 //
 // A `NodeBuilder` is one serialization: its fields are tsgo's node builder context. Naming
 // symbols is in node-builder-names.ts and reusing existing type nodes in node-builder-reuse.ts.
+import { sideOf } from './side-state.js';
 import { utf8Length } from './character-codes.js';
 import {
   ArrayTypeNode,
@@ -112,6 +113,7 @@ import {
   getReducedType,
   getSignaturesOfType,
   getTargetSymbol,
+  membersHolder,
   resolveStructuredTypeMembers,
 } from './checker-members.js';
 import {
@@ -1491,7 +1493,10 @@ export class NodeBuilder {
 
   createTypeNodeFromObjectType(t: Type): Node | undefined {
     const c = this.c;
-    if (isGenericMappedType(c, t) || ((t.objectFlags & ObjectFlags.Mapped) !== 0 && (t as MappedType).containsError))
+    if (
+      isGenericMappedType(c, t) ||
+      ((t.objectFlags & ObjectFlags.Mapped) !== 0 && sideOf(c, t as MappedType).containsError)
+    )
       return this.createMappedTypeNodeFromType(t as MappedType);
     const resolved = resolveStructuredTypeMembers(c, t);
     const callSignatures = resolved.callSignatures;
@@ -1524,12 +1529,12 @@ export class NodeBuilder {
         resolved.indexInfos.length +
         propertyCount;
       // `abstract class C {}` is `abstract new () => C`, not `(abstract new () => C) & {}`.
-      if (typeElementCount !== 0) types.push(getResolvedTypeWithoutAbstractConstructSignatures(c, resolved));
+      if (typeElementCount !== 0) types.push(getResolvedTypeWithoutAbstractConstructSignatures(c, t, resolved));
       return this.typeToTypeNode(getIntersectionType(c, types));
     }
     const savedFlags = this.flags;
     this.flags |= NodeBuilderFlags.InObjectTypeLiteral;
-    const members = this.createTypeNodesFromResolvedType(resolved);
+    const members = this.createTypeNodesFromResolvedType(t, resolved);
     this.flags = savedFlags;
     const typeLiteralNode = this.created(new TypeLiteralNode(members ?? this.list([])));
     this.approximateLength += 2;
@@ -1540,7 +1545,8 @@ export class NodeBuilder {
     return typeLiteralNode;
   }
 
-  private createTypeNodesFromResolvedType(resolved: StructuredType): NodeList | undefined {
+  /** The type elements of `t`, whose members are `resolved`. */
+  private createTypeNodesFromResolvedType(t: Type, resolved: StructuredType): NodeList | undefined {
     if (this.checkTruncationLength()) {
       if ((this.flags & NodeBuilderFlags.NoTruncation) !== 0) {
         const element = this.created(new NotEmittedTypeElement());
@@ -1562,9 +1568,7 @@ export class NodeBuilder {
     }
     for (const info of resolved.indexInfos) {
       const typeNode =
-        (resolved.objectFlags & ObjectFlags.ReverseMapped) !== 0
-          ? this.createElidedInformationPlaceholder()
-          : undefined;
+        (t.objectFlags & ObjectFlags.ReverseMapped) !== 0 ? this.createElidedInformationPlaceholder() : undefined;
       for (const element of this.indexInfoToObjectComputedNamesOrSignatureDeclaration(info, typeNode))
         typeElements.push(element);
     }
@@ -2748,24 +2752,27 @@ function getTypeAliasForTypeLiteral(c: Checker, t: Type): Symbol | undefined {
   return undefined;
 }
 
-/** A copy of `t` without its abstract construct signatures. */
-function getResolvedTypeWithoutAbstractConstructSignatures(c: Checker, t: StructuredType): Type {
-  if (t.constructSignatures.length === 0) return t;
-  if (t.objectTypeWithoutAbstractConstructSignatures !== undefined)
-    return t.objectTypeWithoutAbstractConstructSignatures;
-  const constructSignatures = t.constructSignatures.filter((s) => (s.flags & SignatureFlags.Abstract) === 0);
-  if (constructSignatures.length === t.constructSignatures.length) {
-    t.objectTypeWithoutAbstractConstructSignatures = t;
+/** A copy of `t`, whose members are `resolved`, without its abstract construct signatures. */
+function getResolvedTypeWithoutAbstractConstructSignatures(c: Checker, t: Type, resolved: StructuredType): Type {
+  if (resolved.constructSignatures.length === 0) return t;
+  const side = sideOf(c, t as StructuredType);
+  if (side.objectTypeWithoutAbstractConstructSignatures !== undefined)
+    return side.objectTypeWithoutAbstractConstructSignatures;
+  const constructSignatures = resolved.constructSignatures.filter((s) => (s.flags & SignatureFlags.Abstract) === 0);
+  if (constructSignatures.length === resolved.constructSignatures.length) {
+    side.objectTypeWithoutAbstractConstructSignatures = t;
     return t;
   }
   const copy = newAnonymousType(c, t.symbol);
-  copy.members = t.members;
-  copy.properties = t.properties;
-  copy.callSignatures = t.callSignatures;
-  copy.constructSignatures = constructSignatures;
-  copy.indexInfos = t.indexInfos;
-  t.objectTypeWithoutAbstractConstructSignatures = copy;
-  copy.objectTypeWithoutAbstractConstructSignatures = copy;
+  const copied = membersHolder(c, copy);
+  copied.objectFlags |= ObjectFlags.MembersResolved;
+  copied.members = resolved.members;
+  copied.properties = resolved.properties;
+  copied.callSignatures = resolved.callSignatures;
+  copied.constructSignatures = constructSignatures;
+  copied.indexInfos = resolved.indexInfos;
+  side.objectTypeWithoutAbstractConstructSignatures = copy;
+  sideOf(c, copy).objectTypeWithoutAbstractConstructSignatures = copy;
   return copy;
 }
 

@@ -1,5 +1,6 @@
 // Type inference: inference contexts, inferring from source to target types, and the inferred
 // types of type parameters.
+import { sideOf, signatureSideOf } from './side-state.js';
 import {
   type NamedTupleMember,
   type ParameterDeclaration,
@@ -1382,7 +1383,7 @@ function hasUnmatchedProperty(c: Checker, source: Type, target: Type, matchDiscr
   const t = getReducedApparentType(c, target);
   if (
     (t.flags & TypeFlags.UnionOrIntersection) === 0 ||
-    (t as UnionOrIntersectionType).resolvedProperties !== undefined
+    sideOf(c, t as UnionOrIntersectionType).resolvedProperties !== undefined
   )
     return getUnmatchedProperty(c, source, target, false, matchDiscriminantProperties) !== undefined;
   const containingType = t as UnionOrIntersectionType;
@@ -1519,7 +1520,8 @@ export function applyToReturnTypes(
 export function getBaseSignature(c: Checker, signature: Signature): Signature {
   const typeParameters = signature.typeParameters;
   if (typeParameters.length === 0) return signature;
-  if (signature.baseSignatureCache !== undefined) return signature.baseSignatureCache;
+  const side = signatureSideOf(c, signature);
+  if (side.baseSignatureCache !== undefined) return side.baseSignatureCache;
   const constraints: Type[] = [];
   for (const tp of typeParameters) constraints.push(getConstraintOfTypeParameter(c, tp) ?? c.unknownType);
   const baseConstraintMapper = newTypeMapper(typeParameters, constraints);
@@ -1530,7 +1532,7 @@ export function getBaseSignature(c: Checker, signature: Signature): Signature {
     baseConstraints = instantiateTypes(c, baseConstraints, baseConstraintMapper);
   baseConstraints = instantiateTypes(c, baseConstraints, new ArrayToSingleTypeMapper(typeParameters, c.anyType));
   const result = instantiateSignatureEx(c, signature, newTypeMapper(typeParameters, baseConstraints), true);
-  signature.baseSignatureCache = result;
+  side.baseSignatureCache = result;
   return result;
 }
 
