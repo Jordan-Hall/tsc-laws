@@ -24,6 +24,7 @@ import {
   getDotDotDotToken,
   getElements,
   getExpression,
+  getLocals,
   getPostfixToken,
   getQuestionToken,
   getText,
@@ -831,26 +832,30 @@ function firstSiblingProperty(c: Checker, declaration: Node, name: string): Symb
 class WideningRoot {
   constructor(
     readonly position: number,
-    /** The function whose returned expressions are widened, or undefined for `alternatives`. */
+    /** The function whose returned expressions these are, widened once. */
     readonly func: Node | undefined,
+    /** The expressions whose types are unioned and widened. */
     readonly alternatives: Node[],
+    /** The calls in them, innermost first, whose functions' return types the checker infers before. */
+    readonly calls: Node[],
   ) {}
 }
 
 /**
  * Finds the unions of a file's object literals in the order a checker widens them: an initializer
  * where it is, and a function's returned expressions at its first `return`, where the checker
- * infers its return type. Before them come the functions of the file those expressions call, by name
- * or as `this.name(...)` in a class, whose return types the checker infers first.
+ * infers its return type. A call of a function of the file, by a name that resolves to it or as
+ * `this.name(...)` in a class, infers that function's return type where the call is, and before the
+ * union of the expression the call is in.
  */
 class SiblingPropertyScan extends NodeVisitor {
   /** By name, the property of the first union that leaves the name missing in a literal. */
   readonly members = new Map<string, Node>();
   private readonly roots: WideningRoot[] = [];
-  private readonly returned = new Map<Node, Node[]>();
+  /** The returned expressions of each function without a return type. */
+  private readonly returned = new Map<Node, WideningRoot>();
   private readonly widened = new Set<Node>();
-  /** Functions by name: those of the file's statements, and the members of each class. */
-  private readonly topLevelFunctions = new Map<string, Node>();
+  /** The functions and methods of each class, by name. */
   private readonly classFunctions = new Map<Node, Map<string, Node>>();
 
   visitNode(node: Node): boolean {
@@ -863,17 +868,27 @@ class SiblingPropertyScan extends NodeVisitor {
         const body = getBody(node);
         if (body === undefined || getType(node) !== undefined) break;
         const returned: Node[] = [];
+        const calls = new CallCollector();
         let position = body.pos;
         if (body.kind === SyntaxKind.Block) {
           const collector = new ReturnCollector();
           collector.visitStatements(body as Block);
           if (collector.returns.length > 0) position = collector.returns[0]!.pos;
-          for (const r of collector.returns) if (r.expression !== undefined) addAlternatives(r.expression, returned);
-        } else addAlternatives(body, returned);
+          for (const r of collector.returns)
+            if (r.expression !== undefined) {
+              addAlternatives(r.expression, returned);
+              calls.visitNode(r.expression);
+            }
+        } else {
+          addAlternatives(body, returned);
+          calls.visitNode(body);
+        }
         if (returned.length === 0) break;
-        this.returned.set(node, returned);
-        this.roots.push(new WideningRoot(position, node, returned));
-        this.addFunctionName(node, node);
+        const root = new WideningRoot(position, node, returned, calls.calls);
+        this.returned.set(node, root);
+        this.roots.push(root);
+        if (node.kind === SyntaxKind.MethodDeclaration || node.kind === SyntaxKind.GetAccessor)
+          this.addClassFunction(node, node);
         break;
       }
       case SyntaxKind.VariableDeclaration:
@@ -881,70 +896,97 @@ class SiblingPropertyScan extends NodeVisitor {
       case SyntaxKind.Parameter: {
         const initializer = getInitializer(node);
         if (initializer === undefined || getType(node) !== undefined) break;
-        this.roots.push(new WideningRoot(initializer.pos, undefined, addAlternatives(initializer, [])));
+        const calls = new CallCollector();
+        calls.visitNode(initializer);
+        this.roots.push(new WideningRoot(initializer.pos, undefined, addAlternatives(initializer, []), calls.calls));
         const value = skipParentheses(initializer);
-        if (value.kind === SyntaxKind.ArrowFunction || value.kind === SyntaxKind.FunctionExpression)
-          this.addFunctionName(node, value);
+        if (
+          node.kind === SyntaxKind.PropertyDeclaration &&
+          (value.kind === SyntaxKind.ArrowFunction || value.kind === SyntaxKind.FunctionExpression)
+        )
+          this.addClassFunction(node, value);
         break;
       }
       case SyntaxKind.ExportAssignment:
-        if (getType(node) === undefined)
-          this.roots.push(new WideningRoot(node.pos, undefined, addAlternatives(getExpression(node)!, [])));
+        if (getType(node) === undefined) {
+          const calls = new CallCollector();
+          calls.visitNode(getExpression(node)!);
+          this.roots.push(
+            new WideningRoot(node.pos, undefined, addAlternatives(getExpression(node)!, []), calls.calls),
+          );
+        }
+        break;
+      case SyntaxKind.CallExpression:
+        // Calls elsewhere, as in statements, infer where they end.
+        this.roots.push(new WideningRoot(node.end, undefined, [], [node]));
         break;
     }
     if (!isTypeNodeKind(node.kind)) node.forEachChild(this);
     return false;
   }
 
-  /** Names `func` by `declaration`, a function or method, or a variable or property it initializes. */
-  private addFunctionName(declaration: Node, func: Node): void {
-    const name = getName(declaration);
+  /** Names `func` in its class by `member`, a method or a property it initializes. */
+  private addClassFunction(member: Node, func: Node): void {
+    const name = getName(member);
+    const parent = member.parent!;
     if (name === undefined || name.kind !== SyntaxKind.Identifier) return;
-    const parent = declaration.parent!;
-    if (parent.kind === SyntaxKind.ClassDeclaration || parent.kind === SyntaxKind.ClassExpression) {
-      let functions = this.classFunctions.get(parent);
-      if (functions === undefined) this.classFunctions.set(parent, (functions = new Map()));
-      if (!functions.has(getText(name))) functions.set(getText(name), func);
-    } else if (
-      parent.kind === SyntaxKind.SourceFile ||
-      (declaration.kind === SyntaxKind.VariableDeclaration && parent.parent!.parent!.kind === SyntaxKind.SourceFile)
-    ) {
-      if (!this.topLevelFunctions.has(getText(name))) this.topLevelFunctions.set(getText(name), func);
-    }
+    if (parent.kind !== SyntaxKind.ClassDeclaration && parent.kind !== SyntaxKind.ClassExpression) return;
+    let functions = this.classFunctions.get(parent);
+    if (functions === undefined) this.classFunctions.set(parent, (functions = new Map()));
+    if (!functions.has(getText(name))) functions.set(getText(name), func);
   }
 
   widenAll(): void {
     this.roots.sort((a, b) => a.position - b.position);
-    for (const root of this.roots)
-      if (root.func === undefined) this.widen(root.alternatives);
-      else this.widenReturned(root.func);
+    for (const root of this.roots) this.widenRoot(root);
   }
 
-  /** Widens what `func` returns, after the functions of the file it returns calls of. */
-  private widenReturned(func: Node): void {
-    if (this.widened.has(func)) return;
-    this.widened.add(func);
-    const returned = this.returned.get(func)!;
-    for (const r of returned) {
-      if (r.kind !== SyntaxKind.CallExpression) continue;
-      const callee = this.calledFunction(func, getExpression(r)!);
-      if (callee !== undefined && this.returned.has(callee)) this.widenReturned(callee);
+  /** Widens a root's unions, after the returned expressions of the functions its calls infer. */
+  private widenRoot(root: WideningRoot): void {
+    if (root.func !== undefined) {
+      if (this.widened.has(root.func)) return;
+      this.widened.add(root.func);
     }
-    this.widen(returned);
+    for (const call of root.calls) {
+      const callee = this.calledFunction(call);
+      const returned = callee !== undefined ? this.returned.get(callee) : undefined;
+      if (returned !== undefined) this.widenRoot(returned);
+    }
+    this.widen(root.alternatives);
   }
 
-  /** The function of the file that `func` calls with `callee`: `name(...)`, or `this.name(...)` in a class member. */
-  private calledFunction(func: Node, callee: Node): Node | undefined {
-    callee = skipParentheses(callee);
-    if (callee.kind === SyntaxKind.Identifier) return this.topLevelFunctions.get(getText(callee));
+  /**
+   * The function a call calls: a function declaration or a variable initialized with a function that
+   * the callee's name resolves to (`getLocals` of the scopes around the call), or a method or property
+   * of the class for `this.name(...)` in a class member.
+   */
+  private calledFunction(call: Node): Node | undefined {
+    const callee = skipParentheses(getExpression(call)!);
+    if (callee.kind === SyntaxKind.Identifier) {
+      const name = getText(callee);
+      for (let scope = call.parent; scope !== undefined; scope = scope.parent) {
+        const symbol = getLocals(scope)?.get(name);
+        if (symbol === undefined) continue;
+        // An exported declaration's local symbol has no value declaration of its own.
+        const declaration = symbol.valueDeclaration ?? symbol.declarations[0];
+        if (declaration === undefined) return undefined;
+        if (declaration.kind === SyntaxKind.FunctionDeclaration) return declaration;
+        const initializer =
+          declaration.kind === SyntaxKind.VariableDeclaration ? getInitializer(declaration) : undefined;
+        const value = initializer !== undefined ? skipParentheses(initializer) : undefined;
+        return value !== undefined &&
+          (value.kind === SyntaxKind.ArrowFunction || value.kind === SyntaxKind.FunctionExpression)
+          ? value
+          : undefined;
+      }
+      return undefined;
+    }
     if (callee.kind !== SyntaxKind.PropertyAccessExpression || getExpression(callee)!.kind !== SyntaxKind.ThisKeyword)
       return undefined;
     const name = getName(callee)!;
-    if (name.kind !== SyntaxKind.Identifier) return undefined;
-    const member =
-      func.kind === SyntaxKind.MethodDeclaration || func.kind === SyntaxKind.GetAccessor ? func : func.parent!;
-    const functions = this.classFunctions.get(member.parent!);
-    return functions !== undefined ? functions.get(getText(name)) : undefined;
+    const container = thisClass(call);
+    const functions = container !== undefined ? this.classFunctions.get(container) : undefined;
+    return functions !== undefined && name.kind === SyntaxKind.Identifier ? functions.get(getText(name)) : undefined;
   }
 
   /** Records the unions of the alternatives of one widened expression, and of their nested values. */
@@ -1001,6 +1043,39 @@ class SiblingPropertyScan extends NodeVisitor {
       this.members.set(name, member);
     }
   }
+}
+
+/** Collects the calls in an expression, innermost first, outside the functions in it. */
+class CallCollector extends NodeVisitor {
+  readonly calls: Node[] = [];
+
+  visitNode(node: Node): boolean {
+    if (isFunctionLike(node) || node.kind === SyntaxKind.ClassExpression) return false;
+    node.forEachChild(this);
+    if (node.kind === SyntaxKind.CallExpression) this.calls.push(node);
+    return false;
+  }
+}
+
+/** The class whose instance `this` is at `node`, through arrow functions, in a member or property initializer. */
+function thisClass(node: Node): Node | undefined {
+  for (let current = node.parent; current !== undefined; current = current.parent) {
+    if (current.kind === SyntaxKind.ArrowFunction) continue;
+    if (
+      current.kind === SyntaxKind.MethodDeclaration ||
+      current.kind === SyntaxKind.GetAccessor ||
+      current.kind === SyntaxKind.SetAccessor ||
+      current.kind === SyntaxKind.Constructor ||
+      current.kind === SyntaxKind.PropertyDeclaration
+    ) {
+      const parent = current.parent!;
+      return parent.kind === SyntaxKind.ClassDeclaration || parent.kind === SyntaxKind.ClassExpression
+        ? parent
+        : undefined;
+    }
+    if (isFunctionLike(current) || current.kind === SyntaxKind.SourceFile) return undefined;
+  }
+  return undefined;
 }
 
 /** Adds the expressions whose types make up the type of `node`: both sides of `?:`, `||` and `??`. */
@@ -1172,7 +1247,7 @@ import {
 } from './checker-members.js';
 import { checkExpression } from './checker-expressions.js';
 import { getParameterTypeOfFullSignature } from './checker-jsdoc.js';
-import { isInJSFile } from './ast-utilities.js';
+import { isFunctionLike, isInJSFile } from './ast-utilities.js';
 import { isEmptyArrayLiteralType } from './relations.js';
 import { isCheckJsEnabledForFile } from './program-utilities.js';
 

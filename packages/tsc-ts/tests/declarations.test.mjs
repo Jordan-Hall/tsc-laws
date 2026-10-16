@@ -298,6 +298,43 @@ test(
 );
 
 test(
+  'optional undefined properties of widened object literals follow calls of the functions their names resolve to',
+  { skip: !existsSync(tsgo) && 'needs packages/tsgo/dist/tsgo' },
+  async () => {
+    const g2g3 = [
+      'export function g2(x: boolean) {',
+      '  if (x) return { b: 1 };',
+      '  return { b: 2, a: 1 };',
+      '}',
+      'export function g3(x: boolean) {',
+      '  if (x) return { c: 1 };',
+      '  return { c: 2, a: 1 };',
+      '}',
+    ];
+    // f1's `g3` is its parameter, so g2 comes first.
+    const shadowed = await emitBoth(
+      {
+        'a.ts': ['export function f1(g3: (x: boolean) => { c: number }) {', '  return g3(true);', '}', ...g2g3],
+      },
+      'a.d.ts',
+      baseFlags,
+    );
+    assert.match(shadowed.expected, /g3\(x: boolean\): \{\n {4}a\?: undefined;\n {4}c: number;/);
+    assert.equal(shadowed.actual, shadowed.expected);
+    // v's initializer infers g2 before f1 infers g3.
+    const initializer = await emitBoth(
+      {
+        'a.ts': ['export const v = g2(true);', 'export function f1(x: boolean) {', '  return g3(x);', '}', ...g2g3],
+      },
+      'a.d.ts',
+      baseFlags,
+    );
+    assert.match(initializer.expected, /g3\(x: boolean\): \{\n {4}a\?: undefined;\n {4}c: number;/);
+    assert.equal(initializer.actual, initializer.expected);
+  },
+);
+
+test(
   'optional undefined properties of widened object literals keep their order when an importer infers a later function first',
   { skip: !existsSync(tsgo) && 'needs packages/tsgo/dist/tsgo' },
   async () => {
