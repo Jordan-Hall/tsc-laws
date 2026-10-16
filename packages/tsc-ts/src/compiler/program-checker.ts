@@ -395,7 +395,8 @@ export class CheckedProgram {
 
   getIncludeProcessorDiagnostics(file: SourceFile): Diagnostic[] {
     if (this.skipTypeChecking(file)) return [];
-    return new Directives(file).filter(this.program.getIncludeProcessorDiagnostics(file));
+    const diagnostics = this.program.getIncludeProcessorDiagnostics(file);
+    return diagnostics.length === 0 ? diagnostics : new Directives(file).filter(diagnostics);
   }
 }
 

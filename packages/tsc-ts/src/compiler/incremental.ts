@@ -1890,8 +1890,10 @@ export class IncrementalProgram extends CompilerProgram {
   private ensureHasErrorsForState(): void {
     const snapshot = this.snapshot;
     const program = this.program;
+    const checked = this.checked;
     const files = program.getSourceFiles();
     let hasEmitDiagnostics = false;
+    // Without the files whose checking is skipped, and filtered by comment directives, as when reported.
     let hasIncludeProcessingDiagnostics = false;
     if (snapshot.canUseIncrementalState()) {
       for (const file of files) {
@@ -1899,13 +1901,13 @@ export class IncrementalProgram extends CompilerProgram {
           hasEmitDiagnostics = true;
           break;
         }
-        if (!hasIncludeProcessingDiagnostics && program.getIncludeProcessorDiagnostics(file).length > 0) {
+        if (!hasIncludeProcessingDiagnostics && checked.getIncludeProcessorDiagnostics(file).length > 0) {
           hasIncludeProcessingDiagnostics = true;
         }
       }
     } else {
       hasEmitDiagnostics = snapshot.hasEmitDiagnostics;
-      hasIncludeProcessingDiagnostics = files.some((file) => program.getIncludeProcessorDiagnostics(file).length > 0);
+      hasIncludeProcessingDiagnostics = files.some((file) => checked.getIncludeProcessorDiagnostics(file).length > 0);
     }
     if (hasEmitDiagnostics) {
       snapshot.hasErrors = isIncremental(snapshot.options) ? Tristate.False : Tristate.True;
