@@ -1431,7 +1431,8 @@ export class ConfigParser {
         const siblings = new Map<string, string>();
         for (const file of pending) siblings.set(getCanonicalFileName(file, cs), file);
         for (const file of pending)
-          if (!hasFileWithHigherPriorityExtension(file, supportedExtensions, literalFiles, siblings, cs)) onRootFile(file);
+          if (!hasFileWithHigherPriorityExtension(file, supportedExtensions, literalFiles, siblings, cs))
+            onRootFile(file);
         pending = [];
       };
       const onMatch =
