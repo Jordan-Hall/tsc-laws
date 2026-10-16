@@ -696,13 +696,13 @@ const watchProject = {
  * Runs `tsc-ts` with `args` in a new directory with `files` and makes the edits of `steps` (a file and its text, or
  * `null` to remove a directory, files to write in order, or a function of the directory), each once the previous build
  * reported. `prepare` runs on the directory before `tsc-ts`
- * starts. Returns the output and the output directory's files.
+ * starts, which gets `extraEnv` in its environment. Returns the output and the output directory's files.
  */
-async function watchSequence(args, steps, files = watchProject, prepare = () => {}) {
+async function watchSequence(args, steps, files = watchProject, prepare = () => {}, extraEnv = {}) {
   const dir = tempDir('tsc-ts-watch-');
   writeFiles(dir, files);
   prepare(dir);
-  const env = { PATH: process.env.PATH ?? '', TSC_TS_BUNDLED_LIBS: bundledLibs, NO_COLOR: '1' };
+  const env = { PATH: process.env.PATH ?? '', TSC_TS_BUNDLED_LIBS: bundledLibs, NO_COLOR: '1', ...extraEnv };
   const child = spawn(tscTs[0], [...tscTs.slice(1), ...args, '--preserveWatchOutput'], { cwd: dir, env });
   let output = '';
   let exit;
@@ -778,6 +778,39 @@ test('--build --watch rebuilds on changes', { skip: tscTsMissing, timeout: 120_0
   assert.equal(output, watchOutput);
   assert.deepEqual(files, ['a.js', 'b.js', 'sub/c.js']);
 });
+
+// Natively, a watch process whose memory passes TSC_TS_WATCH_MEMORY stops before a rebuild, and a new one builds
+// instead (tsc-watch.ts); 1 MB restarts it on every change. The output is the same as without restarts.
+for (const args of [['--watch'], ['--build', '--watch']]) {
+  test(
+    `${args.join(' ')} reports the same when the watch process restarts`,
+    { skip: tscTsMissing, timeout: 120_000 },
+    async () => {
+      const { output, files } = await watchSequence(args, watchSteps, watchProject, () => {}, {
+        TSC_TS_WATCH_MEMORY: '1',
+      });
+      assert.equal(output, watchOutput);
+      assert.deepEqual(files, ['a.js', 'b.js', 'sub/c.js']);
+    },
+  );
+}
+
+// A new process reads the config again: after a failed read of a changed config, the process builds on with the
+// config it has, as it does without restarts.
+test(
+  '--watch builds on after a failed config read when the watch process would restart',
+  { skip: tscTsMissing, timeout: 120_000 },
+  async () => {
+    const steps = [
+      ['tsconfig.json', null],
+      ['src/a.ts', 'export const a: string = 1;\n'],
+    ];
+    const expected = await watchSequence(['--watch'], steps, watchProject, () => {}, { TSC_TS_WATCH_MEMORY: '0' });
+    const restarting = await watchSequence(['--watch'], steps, watchProject, () => {}, { TSC_TS_WATCH_MEMORY: '1' });
+    assert.match(expected.output, /error TS2322/);
+    assert.equal(restarting.output, expected.output);
+  },
+);
 
 test(
   '--watch rebuilds when the target of a linked input changes',
