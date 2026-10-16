@@ -254,3 +254,76 @@ test('root files found while include patterns are matched are the root files of 
   assert.ok(config.fileNames.some((f) => f.endsWith('src/c.d.ts')));
   assert.ok(!config.fileNames.some((f) => f.endsWith('src/a.tsx') || f.endsWith('src/lit.tsx')));
 });
+
+// The FileLoader takes the prepared files of a second copy of a package version too, resolving their
+// imports from what the parse thread found, and only then makes them redirects to the first copy:
+// the parse threads' package.json lookups are still those of the program's own load.
+test('a program with a redirect to another copy of a package takes the parse threads lookups', () => {
+  const dir = tempDir('tsc-ts-parallel-load-redirect-');
+  const files = {
+    'tsconfig.json': JSON.stringify({
+      compilerOptions: { strict: true, noEmit: true, module: 'nodenext', lib: ['es2022'], types: [] },
+      include: ['src'],
+    }),
+    'src/main.ts': "import { dup } from 'dup';\nimport { wrap } from 'wrap';\nexport const v = [dup, wrap];\n",
+    'node_modules/dup/package.json': JSON.stringify({ name: 'dup', version: '1.0.0', types: 'index.d.ts' }),
+    'node_modules/dup/index.d.ts': "export * from './more';\nexport declare const dup: number;\n",
+    'node_modules/dup/more.d.ts': 'export declare const more: number;\n',
+    'node_modules/wrap/package.json': JSON.stringify({ name: 'wrap', version: '1.0.0', types: 'index.d.ts' }),
+    'node_modules/wrap/index.d.ts': "import { dup } from 'dup';\nexport declare const wrap: typeof dup;\n",
+    'node_modules/wrap/node_modules/dup/package.json': JSON.stringify({
+      name: 'dup',
+      version: '1.0.0',
+      types: 'index.d.ts',
+    }),
+    'node_modules/wrap/node_modules/dup/index.d.ts': "export * from './more';\nexport declare const dup: number;\n",
+    'node_modules/wrap/node_modules/dup/more.d.ts': "import type {} from 'only-here';\nexport declare const more: number;\n",
+  };
+  for (const [name, text] of Object.entries(files)) {
+    mkdirSync(dirname(join(dir, name)), { recursive: true });
+    writeFileSync(join(dir, name), text);
+  }
+  const args = ['-p', dir];
+  parallelParse.files.clear();
+  parallelParse.used = 0;
+  parallelParse.missed = 0;
+  parallelParse.unprepared = 0;
+  parallelParse.taken.clear();
+  parallelParse.packageJsons.length = 0;
+  const plain = executeCommandLine(createNodeSystem(bundledLibs, ''), args);
+  assert.equal(plain.kind, 'compile');
+  const expected = describe(plain.program);
+
+  assignSymbolIdsAtCreation();
+  useLazyJSDocTable();
+  const thread = parseThreadOfCommandLine(args, join(dir, 'tsconfig.json'), bundledLibs);
+  const queue = new ParseQueue();
+  queue.push(Root, join(dir, 'src/main.ts'), 0);
+  queue.push(Library, 'lib.es2022.d.ts', 0);
+  queue.push(AutomaticTypes, '', 0);
+  for (let chunk = queue.next(1); chunk !== undefined; chunk = queue.next(1)) {
+    const batch = thread.load(chunk);
+    for (const prepared of batch.files) parallelParse.files.set(prepared.fileName, prepared);
+    for (let k = 0; k < batch.added.names.length; k++)
+      queue.push(batch.added.kinds[k], batch.added.names[k], batch.added.depths[k]);
+    const lookups = batch.packageJsons;
+    for (let k = 0; k < lookups.directories.length; k++)
+      parallelParse.packageJsons.push(
+        new PackageJsonLookup(lookups.directories[k], lookups.exists[k], lookups.directoryExists[k]),
+      );
+  }
+
+  const shared = executeCommandLine(createNodeSystem(bundledLibs, ''), args);
+  assert.equal(shared.kind, 'compile');
+  assert.equal(describe(shared.program), expected);
+  // The second copy is a redirect, so the program has fewer source files than the thread prepared.
+  assert.ok(shared.program.getRedirectTargets(join(dir, 'node_modules/dup/index.d.ts')).length > 0);
+  assert.ok(shared.program.getSourceFiles().length < parallelParse.files.size);
+  const lookups = (program) =>
+    [
+      ...new Set(program.packageJsonLookups().map((l) => `${l.packageDirectory} ${l.exists} ${l.directoryExists}`)),
+    ].sort();
+  assert.ok(shared.program.hasAllPackageJsonLookups());
+  assert.deepEqual(lookups(shared.program), lookups(plain.program));
+  assert.ok(lookups(plain.program).some((l) => l.includes('only-here')));
+});

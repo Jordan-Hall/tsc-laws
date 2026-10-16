@@ -1370,7 +1370,7 @@ export class FileLoader {
       redirectTargets,
       redirectFilesByPath,
       this.mapper,
-      this.tookPreparedResolutions ? preparedPackageJsonLookups(allFiles) : noPackageJsonLookups,
+      this.tookPreparedResolutions ? preparedPackageJsonLookups() : noPackageJsonLookups,
     );
   }
 }
