@@ -544,7 +544,11 @@ class InferenceState {
         const minParams = getMinTypeArgumentCount(c, params);
         const sourceTypes = fillMissingTypeArguments(c, sourceAlias.typeArguments, params, minParams, false);
         const targetTypes = fillMissingTypeArguments(c, targetAlias.typeArguments, params, minParams, false);
-        this.inferFromTypeArguments(sourceTypes, targetTypes, getAliasVariances(c, sourceAlias.symbol));
+        this.inferFromTypeArguments(
+          sourceTypes,
+          targetTypes,
+          someTypeCouldHoldInference(c, targetTypes) ? getAliasVariances(c, sourceAlias.symbol) : noVariances,
+        );
       }
       return;
     }
@@ -608,11 +612,7 @@ class InferenceState {
       (referenceTarget(source) === referenceTarget(target) || (isArrayType(c, source) && isArrayType(c, target))) &&
       !(referenceNode(source) !== undefined && referenceNode(target) !== undefined)
     ) {
-      this.inferFromTypeArguments(
-        getTypeArguments(c, source),
-        getTypeArguments(c, target),
-        getVariances(c, referenceTarget(source)!),
-      );
+      this.inferFromReferenceTypeArguments(source, target);
     } else if ((source.flags & TypeFlags.Index) !== 0 && (target.flags & TypeFlags.Index) !== 0) {
       this.inferFromContravariantTypes((source as IndexType).target, (target as IndexType).target);
     } else if (
@@ -715,6 +715,22 @@ class InferenceState {
       }
     }
     this.inferencePriority = Math.min(this.inferencePriority, this.priority);
+  }
+
+  /**
+   * Infers between the type arguments of two references to one generic type. The variances only pick
+   * the direction of each inference, so they are measured only when a target type argument could hold
+   * one: measuring them relates marker instantiations of the whole type.
+   */
+  inferFromReferenceTypeArguments(source: Type, target: Type): void {
+    const c = this.c;
+    const sourceTypes = getTypeArguments(c, source);
+    const targetTypes = getTypeArguments(c, target);
+    this.inferFromTypeArguments(
+      sourceTypes,
+      targetTypes,
+      someTypeCouldHoldInference(c, targetTypes) ? getVariances(c, referenceTarget(source)!) : noVariances,
+    );
   }
 
   inferFromTypeArguments(sourceTypes: Type[], targetTypes: Type[], variances: VarianceFlags[]): void {
@@ -961,11 +977,7 @@ class InferenceState {
       (target.objectFlags & ObjectFlags.Reference) !== 0 &&
       (referenceTarget(source) === referenceTarget(target) || (isArrayType(c, source) && isArrayType(c, target)))
     ) {
-      this.inferFromTypeArguments(
-        getTypeArguments(c, source),
-        getTypeArguments(c, target),
-        getVariances(c, referenceTarget(source)!),
-      );
+      this.inferFromReferenceTypeArguments(source, target);
       return;
     }
     if (isGenericMappedType(c, source) && isGenericMappedType(c, target))
@@ -1269,6 +1281,57 @@ function referenceTarget(t: Type): Type | undefined {
 
 function referenceNode(t: Type): Node | undefined {
   return (t as TypeReference).node;
+}
+
+const noVariances: VarianceFlags[] = [];
+
+/** Whether inferring to one of `targets` could record a candidate. */
+function someTypeCouldHoldInference(c: Checker, targets: readonly Type[]): boolean {
+  for (const t of targets) if (couldHoldInference(c, t, 0)) return true;
+  return false;
+}
+
+/**
+ * `couldContainTypeVariables` without two of its conservative answers: a deferred reference without an
+ * alias, once its type arguments are resolved, holds type variables only through them, like any other
+ * reference; and the static side of a class declared at the top level of a file or module holds none
+ * outside its generic signatures, which inference erases.
+ */
+function couldHoldInference(c: Checker, t: Type, depth: number): boolean {
+  if (!couldContainTypeVariables(c, t)) return false;
+  if (t.alias !== undefined || depth === 4) return true;
+  if ((t.objectFlags & ObjectFlags.Reference) !== 0) {
+    const resolved = (t as TypeReference).resolvedTypeArguments ?? sideOf(c, t as TypeReference).resolvedTypeArguments;
+    if (resolved === undefined) return true;
+    for (const a of resolved) if (couldHoldInference(c, a, depth + 1)) return true;
+    return false;
+  }
+  return !isTopLevelClassStaticSide(t);
+}
+
+function isTopLevelClassStaticSide(t: Type): boolean {
+  const symbol = t.symbol;
+  if (
+    (t.objectFlags & ObjectFlags.Anonymous) === 0 ||
+    symbol === undefined ||
+    (symbol.flags & SymbolFlags.Class) === 0 ||
+    (symbol.flags &
+      (SymbolFlags.Function | SymbolFlags.Method | SymbolFlags.TypeLiteral | SymbolFlags.ObjectLiteral)) !==
+      0 ||
+    symbol.declarations.length === 0
+  )
+    return false;
+  for (const d of symbol.declarations) {
+    if (
+      d.kind !== SyntaxKind.ClassDeclaration &&
+      d.kind !== SyntaxKind.InterfaceDeclaration &&
+      d.kind !== SyntaxKind.ModuleDeclaration
+    )
+      return false;
+    for (let n = d.parent!; n.kind !== SyntaxKind.SourceFile; n = n.parent!)
+      if (n.kind !== SyntaxKind.ModuleBlock && n.kind !== SyntaxKind.ModuleDeclaration) return false;
+  }
+  return true;
 }
 
 function isNonGenericObjectType(c: Checker, t: Type): boolean {
