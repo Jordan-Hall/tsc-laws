@@ -107,9 +107,45 @@ class Stamps {
     return false;
   }
 
-  /** Adds the directories whose events report changes of these paths: each directory, and each file's. */
-  addWatchedDirectories(directories: Set<string>): void {
-    for (const path of this.times.keys()) directories.add(this.directories.has(path) ? path : getDirectoryPath(path));
+  /**
+   * Adds the directories whose events report changes of these paths: each directory, and each file's,
+   * and for a file that is a symbolic link, its target's.
+   */
+  addWatchedDirectories(directories: Set<string>, links: LinkTargets): void {
+    for (const [path, time] of this.times) {
+      if (this.directories.has(path)) {
+        directories.add(path);
+        continue;
+      }
+      directories.add(getDirectoryPath(path));
+      const target = links.directoryOf(path, time);
+      if (target !== undefined) directories.add(target);
+    }
+  }
+}
+
+class LinkTarget {
+  constructor(
+    readonly time: number | undefined,
+    readonly directory: string | undefined,
+  ) {}
+}
+
+/** The directories of the targets of files that are symbolic links, kept while a file's time stamp is the same. */
+class LinkTargets {
+  private readonly targets = new Map<string, LinkTarget>();
+
+  constructor(private readonly sys: System) {}
+
+  /** The directory of the target of the file, or undefined if the file isn't a link. */
+  directoryOf(path: string, time: number | undefined): string | undefined {
+    let target = this.targets.get(path);
+    if (target === undefined || target.time !== time) {
+      const real = this.sys.realpath(path);
+      target = new LinkTarget(time, real !== path ? getDirectoryPath(real) : undefined);
+      this.targets.set(path, target);
+    }
+    return target.directory;
   }
 }
 
@@ -213,6 +249,7 @@ class WatchedDirectory {
  */
 class ChangeWatcher {
   private readonly watches = new Map<string, WatchedDirectory>();
+  private readonly links: LinkTargets;
   private polling = false;
   private timer: ReturnType<typeof setTimeout> | undefined = undefined;
   private lastCheck = -quietTime;
@@ -220,7 +257,9 @@ class ChangeWatcher {
   constructor(
     private readonly sys: System,
     private readonly check: () => void,
-  ) {}
+  ) {
+    this.links = new LinkTargets(sys);
+  }
 
   /**
    * Watches the directories of the paths of `stamps`, keeping the watches of unchanged directories.
@@ -230,14 +269,24 @@ class ChangeWatcher {
     if (this.polling) return;
     let created = false;
     const directories = new Set<string>();
-    for (const s of stamps) s.addWatchedDirectories(directories);
+    for (const s of stamps) s.addWatchedDirectories(directories, this.links);
+    // A missing directory is watched through its closest existing ancestor, which reports its creation.
+    const existing = new Map<string, number>();
+    for (const directory of directories) {
+      let path = directory;
+      let time = this.sys.getMTime(path);
+      while (time === undefined && getDirectoryPath(path) !== path) {
+        path = getDirectoryPath(path);
+        time = this.sys.getMTime(path);
+      }
+      if (time !== undefined) existing.set(path, time);
+    }
     for (const [path, watched] of this.watches) {
-      if (directories.has(path)) continue;
+      if (existing.has(path)) continue;
       watched.watch.close();
       this.watches.delete(path);
     }
-    for (const path of directories) {
-      const time = this.sys.getMTime(path);
+    for (const [path, time] of existing) {
       const watched = this.watches.get(path);
       if (watched !== undefined) {
         if (watched.time === time) continue;
@@ -245,7 +294,6 @@ class ChangeWatcher {
         watched.watch.close();
         this.watches.delete(path);
       }
-      if (time === undefined) continue;
       const watch = this.sys.watchDirectory(path, () => this.changed());
       if (watch === undefined) {
         this.startPolling();
@@ -254,7 +302,9 @@ class ChangeWatcher {
       this.watches.set(path, new WatchedDirectory(watch, time));
       created = true;
     }
-    if (created) this.changed();
+    // Without a watch nothing would keep the process running.
+    if (this.watches.size === 0) this.startPolling();
+    else if (created) this.changed();
   }
 
   private changed(): void {
