@@ -252,6 +252,63 @@ const scenarios = {
       },
     ],
   },
+  'dependencies of each kind of import': {
+    files: {
+      'tsconfig.json':
+        '{"compilerOptions":{"strict":true,"incremental":true,"declaration":true,"outDir":"out","module":"nodenext"},' +
+        '"files":["main.ts","d1.ts","d2.ts","d3.ts","d4.ts","d5.ts","d6.ts"]}',
+      'package.json': '{"name":"app","type":"module"}',
+      'main.ts':
+        'import { a } from "./d1.js";\nexport { b } from "./d2.js";\nimport type { C } from "./d3.js";\n' +
+        'export type D = typeof import("./d4.js");\nexport const e = () => import("./d5.js");\n' +
+        'import f = require("./d6.cjs");\nexport const c: C = a;\nexport const g = f;\n',
+      'd1.ts': 'export const a = 1;\n',
+      'd2.ts': 'export const b = 1;\n',
+      'd3.ts': 'export type C = number;\n',
+      'd4.ts': 'export const d = 1;\n',
+      'd5.ts': 'export const e = 1;\n',
+      'd6.cts': 'export = 1;\n',
+    },
+    steps: [
+      { args: [] },
+      { args: [], edit: { 'd4.ts': 'export const d = "s";\n' } },
+      { args: [], edit: { 'd6.cts': 'export = "s";\n' } },
+      { args: [] },
+    ],
+  },
+  'modules augmented in several files': {
+    files: {
+      'tsconfig.json':
+        '{"compilerOptions":{"strict":true,"noEmit":true,"incremental":true,"esModuleInterop":true,"types":[]},' +
+        '"files":["a.ts","m.ts","m-aug1.ts","m-aug2.ts"]}',
+      // A package whose `export =` target is augmented in two files.
+      'node_modules/@types/lib/package.json': '{"name":"@types/lib","version":"1.0.0"}',
+      'node_modules/@types/lib/index.d.ts':
+        '/// <reference path="./common/one.d.ts" />\n/// <reference path="./common/two.d.ts" />\n' +
+        'export = _;\nexport as namespace _;\ndeclare const _: _.Static;\ndeclare namespace _ {\n  interface Static {}\n}\n',
+      'node_modules/@types/lib/common/one.d.ts':
+        'import _ = require("../index");\ndeclare module "../index" {\n  interface Static { one(): number; }\n}\n',
+      'node_modules/@types/lib/common/two.d.ts':
+        'import _ = require("../index");\ndeclare module "../index" {\n  interface Static { two(): number; }\n}\n',
+      // A module of the program augmented in two files.
+      'm.ts': 'export interface M { m: number; }\n',
+      'm-aug1.ts': 'export {};\ndeclare module "./m" { interface M { aug1: number; } }\n',
+      'm-aug2.ts': 'export {};\ndeclare module "./m" { interface M { aug2: number; } }\n',
+      'a.ts':
+        'import _ from "lib";\nimport type { M } from "./m";\nexport const a = (m: M) => _.one() + _.two() + m.aug1;\n',
+    },
+    steps: [
+      { args: [] },
+      { args: [], edit: { 'm-aug2.ts': 'export {};\ndeclare module "./m" { interface M { aug2: string; } }\n' } },
+      {
+        args: [],
+        edit: {
+          'node_modules/@types/lib/common/two.d.ts':
+            'import _ = require("../index");\ndeclare module "../index" {\n  interface Static { two(): string; }\n}\n',
+        },
+      },
+    ],
+  },
   'explainFiles and statistics': {
     files: {
       'tsconfig.json': '{"compilerOptions":{"outDir":"out"},"files":["a.ts"]}',
@@ -363,6 +420,41 @@ for (const [name, scenario] of Object.entries(scenarios)) {
     assert.deepEqual(failures, []);
   });
 }
+
+// tsgo leaves out of build info the modules of JavaScript `require` calls that do not initialize a variable, and its
+// incremental builds then keep outputs that depend on them; tsc-ts records them, so its output matches a clean build.
+test('JavaScript require dependencies are rebuilt', { skip: tscTsMissing }, () => {
+  const files = {
+    'tsconfig.json':
+      '{"compilerOptions":{"allowJs":true,"checkJs":true,"declaration":true,"incremental":true,"outDir":"out",' +
+      '"module":"commonjs"},"files":["main.js","dep.js","dep2.js","dep3.js"]}',
+    'main.js':
+      'exports.value = require("./dep").value;\nmodule.exports.other = require("./dep2");\n' +
+      '/** @type {number} */\nexports.m = require("./dep3").m;\n',
+    'dep.js': 'exports.value = 1;\n',
+    'dep2.js': 'exports.other = 1;\n',
+    'dep3.js': 'module.exports = { m: 1 };\n',
+  };
+  const edit = {
+    'dep.js': 'exports.value = "s";\n',
+    'dep2.js': 'exports.other = "s";\n',
+    'dep3.js': 'module.exports = { m: "s" };\n',
+  };
+  const incremental = tempDir('tsc-ts-build-require-');
+  writeFiles(incremental, files);
+  run(tscTs, [], incremental);
+  writeFiles(incremental, edit);
+  const rebuilt = run(tscTs, [], incremental);
+  const clean = tempDir('tsc-ts-build-require-clean-');
+  writeFiles(clean, files);
+  writeFiles(clean, edit);
+  const expected = run(tscTs, [], clean);
+  assert.equal(normalize(rebuilt.output, incremental), normalize(expected.output, clean));
+  assert.equal(rebuilt.status, expected.status);
+  const outputs = (dir) =>
+    Object.fromEntries(Object.entries(readFiles(join(dir, 'out'))).filter(([file]) => !file.endsWith('.tsbuildinfo')));
+  assert.deepEqual(outputs(incremental), outputs(clean));
+});
 
 // tsgo's file watching doesn't report changes in every environment, so watch mode is checked against the output
 // tsgo prints for the same sequence.
