@@ -49,6 +49,23 @@ const scenarios = {
       { args: ['-b', 'b', '--pretty'] },
     ],
   },
+  'signatures of files with several declaration errors': {
+    files: {
+      'tsconfig.json':
+        '{"compilerOptions":{"strict":true,"incremental":true,"outDir":"out","module":"nodenext"},"files":["a.ts"]}',
+      'package.json': '{"name":"app","type":"module"}',
+      'node_modules/dep/package.json': '{"name":"dep","exports":{".":{"types":"./index.d.ts"}}}',
+      'node_modules/dep/index.d.ts':
+        'import type { Z, A } from "./internal.js";\nexport declare function make(): { z: Z; a: A };\n',
+      'node_modules/dep/internal.d.ts': 'export interface Z { z: 1 }\nexport interface A { a: 1 }\n',
+      // TS2883 for Z, then for A: the declaration emitter reports them in that order.
+      'a.ts': 'import { make } from "dep";\nexport const x = make();\n',
+    },
+    steps: [
+      { args: [] },
+      { args: [], edit: { 'a.ts': 'import { make } from "dep";\nexport const x = make();\n// edit\n' } },
+    ],
+  },
   'upstream errors, --stopBuildOnErrors, solutions and missing references': {
     files: {
       'tsconfig.json': '{"files":[],"references":[{"path":"./b"},{"path":"./c"}]}',
