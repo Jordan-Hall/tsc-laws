@@ -73,7 +73,16 @@ export class PreparedFile {
     readonly jsx: boolean,
     readonly force: boolean,
     readonly file: SourceFile,
+    /** The build info version of `file` (`computeHash` of its text) for an incremental program, or `''`. */
+    readonly version: string,
   ) {}
+}
+
+/** The version a parse thread computed for `file` (`PreparedFile.version`), or `''`. */
+export function preparedVersion(file: SourceFile): string {
+  if (parallelParse.files.size === 0) return '';
+  const prepared = parallelParse.files.get(file.fileName);
+  return prepared !== undefined && prepared.file === file ? prepared.version : '';
 }
 
 /** What a parse thread's FileLoader found loading `fileName`, if the thread prepared it. */

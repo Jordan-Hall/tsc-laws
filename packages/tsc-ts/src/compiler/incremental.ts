@@ -88,6 +88,7 @@ import {
 import { SymbolFlags, type Symbol } from './symbol.js';
 import type { ParsedCommandLine } from './tsconfig.js';
 import { hash128String, toHex } from './xxh3.js';
+import { preparedVersion } from './parallel-parse.js';
 
 /** The hash of file text that build info records as a version or signature. */
 export function computeHash(text: string): string {
@@ -809,7 +810,8 @@ function programToSnapshot(checked: CheckedProgram, oldSnapshot: Snapshot | unde
   const ambientModules = getAmbientModules(checked);
   for (const file of program.getSourceFiles()) {
     const path = file.path;
-    const version = computeHash(file.text);
+    const prepared = preparedVersion(file);
+    const version = prepared !== '' ? prepared : computeHash(file.text);
     const impliedNodeFormat: number = program.sourceFileMetadata(path).impliedNodeFormat;
     const affectsGlobalScope = fileAffectsGlobalScope(file);
     let signature = '';
