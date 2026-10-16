@@ -317,6 +317,20 @@ const scenarios = {
     },
     steps: [{ args: ['--explainFiles'] }, { args: ['--diagnostics'] }, { args: ['--extendedDiagnostics', '--noEmit'] }],
   },
+  'signatures of files whose declaration files are empty': {
+    files: {
+      'tsconfig.json': '{"compilerOptions":{"strict":true,"incremental":true,"outDir":"out"},"files":["m.ts","g.ts"]}',
+      'm.ts': 'export interface I { a: number; }\n',
+      // A script whose declarations are all inside a function: its declaration file is empty.
+      'g.ts': '(function () {\n  type T = import("./m").I;\n  const t: T = { a: 1 };\n  console.log(t);\n})();\n',
+    },
+    steps: [
+      { args: [] },
+      { args: [], edit: { 'm.ts': 'export interface I { a: number; }\n// edit\n' } },
+      { args: [], edit: { 'm.ts': 'export interface I { a: number; b?: string; }\n' } },
+      { args: [] },
+    ],
+  },
 };
 
 function writeFiles(dir, files) {
