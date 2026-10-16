@@ -96,6 +96,7 @@ import {
   getErrorRangeForNode,
   getImmediatelyInvokedFunctionExpression,
   getModuleInstanceState,
+  StatementsByName,
   getNameOfDeclaration,
   getRangeOfTokenAtPosition,
   getSourceTextOfNode,
@@ -381,6 +382,8 @@ class Binder extends NodeVisitor {
   symbolCount: number;
   readonly notConstEnumOnlyModules: Set<Symbol>;
   readonly expandoAssignments: ExpandoAssignment[];
+  /** For the module instance states of the file's module declarations (`getModuleInstanceState`). */
+  private readonly statementsByName: StatementsByName;
 
   constructor(file: SourceFile) {
     super();
@@ -410,6 +413,7 @@ class Binder extends NodeVisitor {
     this.symbolCount = 0;
     this.notConstEnumOnlyModules = new Set<Symbol>();
     this.expandoAssignments = [];
+    this.statementsByName = new StatementsByName();
   }
 
   visitNode(node: Node): boolean {
@@ -1985,7 +1989,7 @@ class Binder extends NodeVisitor {
   }
 
   declareModuleSymbol(node: ModuleDeclaration): ModuleInstanceState {
-    const state = getModuleInstanceState(node);
+    const state = getModuleInstanceState(node, this.statementsByName);
     const instantiated = state !== ModuleInstanceState.NonInstantiated;
     this.declareSymbolAndAddToSymbolTable(
       node,
