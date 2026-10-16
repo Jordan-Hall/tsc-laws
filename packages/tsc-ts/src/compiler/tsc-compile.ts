@@ -181,7 +181,9 @@ function recheckInParallel(
   const changesStart = performance.now();
   const incrementalProgram = new IncrementalProgram(checked, times, old, new SystemTimeStamps(sys));
   times.changesComputeTime = performance.now() - changesStart;
-  const finish = (): void => {
+  // `threadsCheckTime` is the wall time of checker threads that checked the affected files: the check
+  // time reported (--diagnostics) is theirs and this thread's, which takes their diagnostics.
+  const finish = (threadsCheckTime: number = 0): void => {
     mark('report start');
     const result = emitFilesAndReportErrors(
       sys,
@@ -191,6 +193,7 @@ function recheckInParallel(
       new SystemWriter(sys),
       outputLocale(program.options),
     );
+    times.checkTime += threadsCheckTime;
     mark(`reported ${result.diagnostics.length} diagnostics`);
     done(emitStatusAndReportStatistics(sys, incrementalProgram, result));
   };
