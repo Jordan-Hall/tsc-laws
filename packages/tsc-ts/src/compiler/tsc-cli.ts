@@ -407,17 +407,28 @@ function executeCompile(sys: System, commandLine: ParsedCommandLine): CommandLin
         // the file up) runs, and the tasks of the files they return are built ahead.
         const host = new SystemCompilerHost(sys, fs, locale);
         const loader = new FileLoader(host, config);
-        // An incremental program takes the files the threads prepared and resolves their imports and
-        // references itself (`takesPreparedResolutions`), as in build mode (tsc-build.ts): its build
-        // info lists the `package.json` files its module resolution looked up.
-        const incremental = isIncremental(config.options);
-        if (incremental) loader.takesPreparedResolutions = false;
         let rootFilesAdded = false;
         session.onIdle = (batch) => {
           if (!rootFilesAdded) rootFilesAdded = loader.addRootFiles(rootFilesPerChunk);
-          if (!incremental) loader.takeAhead(batch.files);
+          loader.takeAhead(batch.files);
         };
-        session.start(config.fileNames, () => done(createProgram(host, loader)));
+        session.start(config.fileNames, () => {
+          let result = createProgram(host, loader);
+          // The build info of an incremental program lists the `package.json` files its module
+          // resolution looked up, which include the parse threads' lookups for the resolutions it
+          // took. Where those may miss some (`preparedPackageJsonLookups`), the program is loaded
+          // again, resolving every file's imports and references itself, as in build mode.
+          if (
+            result.kind === 'compile' &&
+            isIncremental(config.options) &&
+            !result.program.hasAllPackageJsonLookups()
+          ) {
+            const own = new FileLoader(host, config);
+            own.takesPreparedResolutions = false;
+            result = createProgram(host, own);
+          }
+          done(result);
+        });
       },
     };
   }

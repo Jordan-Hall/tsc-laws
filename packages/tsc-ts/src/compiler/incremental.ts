@@ -1944,7 +1944,7 @@ export class IncrementalProgram extends CompilerProgram {
     if (program.commandLine.configName !== '') {
       for (const info of program.packageJsonLookups()) {
         let packageJson = combinePaths(info.packageDirectory, 'package.json');
-        const exists = info.contents !== undefined;
+        const exists = info.exists;
         if (exists || info.directoryExists) packageJson = program.host.fs.realpath(packageJson);
         if (exists) packageJsons.push(packageJson);
         else if (packageJson.includes('/node_modules/')) missing.push(packageJson);
@@ -1961,7 +1961,7 @@ export class IncrementalProgram extends CompilerProgram {
     const result: string[] = [];
     for (const info of program.packageJsonLookups()) {
       let packageJson = combinePaths(info.packageDirectory, 'package.json');
-      if (info.contents !== undefined || info.directoryExists) packageJson = program.host.fs.realpath(packageJson);
+      if (info.exists || info.directoryExists) packageJson = program.host.fs.realpath(packageJson);
       result.push(packageJson);
     }
     return normalizePackageJsons(result);
