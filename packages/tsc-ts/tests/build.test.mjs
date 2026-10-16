@@ -23,6 +23,19 @@ const skip = (!existsSync(tsgo) && 'needs packages/tsgo/dist/tsgo') || tscTsMiss
 
 /** @type {Record<string, Scenario>} */
 const scenarios = {
+  'stored relation errors with elaborations and related information': {
+    files: {
+      'tsconfig.json': '{"compilerOptions":{"strict":true,"noEmit":true,"incremental":true},"files":["a.ts","b.ts"]}',
+      // TS2322 elaborated by TS2326 and TS2741, with "'b' is declared here." as related information.
+      'a.ts':
+        'interface P { a: number; b: string; }\ndeclare const r: { x: { a: number } };\nexport const p: { x: P } = r;\n' +
+        'declare function f(x: { a: { b: number } }): void;\ndeclare const v: { a: { b: string } };\nf(v);\n' +
+        // TS2769 with "The last overload is declared here." as related information of the outermost message.
+        'declare function g(x: number): void;\ndeclare function g(x: { a: number }): void;\ng({ a: "s" });\n',
+      'b.ts': 'export const b = 1;\n',
+    },
+    steps: [{ args: [] }, { args: [], edit: { 'b.ts': 'export const b = 2;\n' } }, { args: [] }],
+  },
   'references with --verbose, --force, --dry and --clean': {
     files: {
       'a/tsconfig.json': '{"compilerOptions":{"composite":true,"outDir":"out"},"files":["index.ts"]}',
