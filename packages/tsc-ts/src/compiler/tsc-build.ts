@@ -651,15 +651,17 @@ export class Orchestrator {
     const config = mayUseThreads ? copyCommandLine(resolved) : resolved;
     const host = new BuildCompilerHost(sys, this.fs, this.locale);
     const configOptions = config.options;
-    const checkers = mayUseThreads ? checkerThreads(configOptions.checkers, configOptions.singleThreaded) : 1;
+    const checkers = threads ? checkerThreads(configOptions.checkers, configOptions.singleThreaded) : 1;
     if (checkers > 1 && parallelParse.spawn !== undefined) {
-      // As for plain compiles, threads parse and bind the program's files ahead of it
-      // (parallel-parse.ts) when threads check it. The program's FileLoader takes the files they
-      // prepared, and resolves their imports and references itself
-      // (`takesPreparedResolutions`): the build info lists the `package.json` files the program's
-      // module resolution looked up, and which ones it looks up depends on the order of its
-      // resolutions and on what its own caches hold. Declaration files that earlier projects of the
-      // build parsed come from the build's cache, and parse threads don't load them again.
+      // Threads parse and bind the program's files ahead of it (parallel-parse.ts), as for plain
+      // compiles that check on threads. Here also when the program is checked on this thread, as
+      // after a change with old build info, whose program is parsed in full all the same. The
+      // program's FileLoader takes the files they prepared, and resolves their imports and
+      // references itself (`takesPreparedResolutions`): the build info lists the `package.json`
+      // files the program's module resolution looked up, and which ones it looks up depends on the
+      // order of its resolutions and on what its own caches hold. Declaration files that earlier
+      // projects of the build parsed come from the build's cache, and parse threads don't load
+      // them again.
       const libraryDirectory = getNormalizedAbsolutePath(sys.defaultLibraryPath, sys.currentDirectory);
       const session = new ParseSession(
         parseThreads(checkers),
@@ -677,7 +679,7 @@ export class Orchestrator {
         reportPreparedFiles(program.getSourceFiles().map((f) => f.fileName));
         // A later project of the build, with or without parse threads, loads its own files.
         clearPreparedFiles();
-        if (!this.checkAndEmit(task, program, parseStart, times, oldSnapshot, true, then)) then();
+        if (!this.checkAndEmit(task, program, parseStart, times, oldSnapshot, mayUseThreads, then)) then();
       });
       return true;
     }
