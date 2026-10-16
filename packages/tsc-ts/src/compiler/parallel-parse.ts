@@ -172,6 +172,8 @@ export class ParallelParse {
   used = 0;
   missed = 0;
   unprepared = 0;
+  /** The names of the prepared files the FileLoader took. */
+  readonly taken = new Set<string>();
   /** The `package.json` lookups of the parse threads' module resolution, of all prepared files. */
   readonly packageJsons: PackageJsonLookup[] = [];
   /** The hashes of large library files (`LibraryHash` jobs), by file name. */
@@ -189,20 +191,22 @@ export function clearPreparedFiles(): void {
   parallelParse.used = 0;
   parallelParse.missed = 0;
   parallelParse.unprepared = 0;
+  parallelParse.taken.clear();
   parallelParse.packageJsons.length = 0;
   parallelParse.libraryHashes.clear();
 }
 
 /**
  * The parse threads' `package.json` lookups, where they are the lookups the program's own module
- * resolution would make: the program took every prepared file and the resolutions found loading
- * it. A thread's resolution caches lookups, so the lookups of a file another file's resolution made
- * first are among that file's: without every prepared file, some may be missing.
+ * resolution would make: the program's FileLoader took every prepared file and the resolutions found
+ * loading it, also of files it then makes redirects to another copy of the same package version,
+ * whose imports its own load resolves all the same. A thread's resolution caches lookups, so the
+ * lookups of a file another file's resolution made first are among that file's: without every
+ * prepared file, some may be missing.
  */
-export function preparedPackageJsonLookups(files: readonly SourceFile[]): PackageJsonLookup[] | undefined {
+export function preparedPackageJsonLookups(): PackageJsonLookup[] | undefined {
   if (parallelParse.missed > 0) return undefined;
-  const programFiles = new Set<SourceFile>(files);
-  for (const prepared of parallelParse.files.values()) if (!programFiles.has(prepared.file)) return undefined;
+  for (const fileName of parallelParse.files.keys()) if (!parallelParse.taken.has(fileName)) return undefined;
   return parallelParse.packageJsons;
 }
 
@@ -223,6 +227,7 @@ export function takePreparedFile(
     return undefined;
   }
   parallelParse.used++;
+  parallelParse.taken.add(fileName);
   return prepared.file;
 }
 
@@ -579,7 +584,7 @@ export function reportPreparedFiles(fileNames: readonly string[]): void {
   const trace = process.env.TSC_TS_CHECKERS_TRACE;
   if (trace === undefined || parallelParse.files.size === 0) return;
   process.stderr.write(
-    `parsers: program took ${parallelParse.used} prepared files, ${parallelParse.missed} mismatched, ${parallelParse.missed + parallelParse.unprepared} parsed on the main thread, ${parallelParse.files.size - parallelParse.used} prepared but not taken (${fileNames.length} files)\n`,
+    `parsers: program took ${parallelParse.used} prepared files, ${parallelParse.missed} mismatched, ${parallelParse.missed + parallelParse.unprepared} parsed on the main thread, ${parallelParse.files.size - parallelParse.taken.size} prepared but not taken (${fileNames.length} files)\n`,
   );
   if (trace === '2')
     for (const fileName of fileNames)
