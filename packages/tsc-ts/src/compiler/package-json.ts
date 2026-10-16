@@ -95,7 +95,7 @@ function objectKind(entries: ReadonlyMap<string, JsonValue>): JsonObjectKind {
 }
 
 /** Strict RFC 8259 parser. Any error makes the whole document unparseable. */
-class JsonParser {
+export class JsonParser {
   pos = 0;
 
   constructor(readonly text: string) {}
@@ -320,9 +320,18 @@ class JsonParser {
     let pos = start;
     if (text.charCodeAt(pos) === 0x2d) pos++;
     const first = pos < text.length ? text.charCodeAt(pos) : -1;
+    const integerStart = pos;
     if (first === 0x30) pos++;
     else if (first >= 0x31 && first <= 0x39) pos = digits(text, pos);
     else return undefined;
+    const next = pos < text.length ? text.charCodeAt(pos) : -1;
+    if (next !== 0x2e && next !== 0x65 && next !== 0x45 && pos - integerStart <= 15) {
+      // An integer of up to 15 digits, which its digits give exactly.
+      let value = 0;
+      for (let i = integerStart; i < pos; i++) value = value * 10 + (text.charCodeAt(i) - 0x30);
+      this.pos = pos;
+      return integerStart > start ? -value : value;
+    }
     if (text.charCodeAt(pos) === 0x2e) {
       const end = digits(text, pos + 1);
       if (end === pos + 1) return undefined;
