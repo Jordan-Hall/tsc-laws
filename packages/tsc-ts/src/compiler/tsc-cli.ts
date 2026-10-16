@@ -421,9 +421,19 @@ function executeCompile(sys: System, commandLine: ParsedCommandLine): CommandLin
         const host = new SystemCompilerHost(sys, fs, locale);
         const loader = new FileLoader(host, config);
         let rootFilesAdded = false;
+        // The build info lists the real paths of the `package.json` files module resolution looked up:
+        // those of the threads' lookups are resolved here, into the file system's cache, rather than
+        // when the build info is written.
+        const resolvesPackageJsons = config.configName !== '' && config.buildInfoFileName() !== '';
         session.onIdle = (batch) => {
           if (!rootFilesAdded) rootFilesAdded = loader.addRootFiles(rootFilesPerChunk);
           loader.takeAhead(batch.files);
+          if (resolvesPackageJsons) {
+            const lookups = batch.packageJsons;
+            for (let k = 0; k < lookups.directories.length; k++)
+              if (lookups.exists[k]! || lookups.directoryExists[k]!)
+                fs.realpath(combinePaths(lookups.directories[k]!, 'package.json'));
+          }
         };
         session.start(config.fileNames, () => {
           let result = createProgram(host, loader);
