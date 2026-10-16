@@ -805,7 +805,7 @@ export function getNarrowableTypeForReference(
   return substituteConstraints ? mapToBaseConstraintOrType(c, t) : t;
 }
 
-function someTypeIsGenericWithUnionConstraint(c: Checker, t: Type): boolean {
+export function someTypeIsGenericWithUnionConstraint(c: Checker, t: Type): boolean {
   if ((t.flags & TypeFlags.Union) === 0) return isGenericTypeWithUnionConstraint(c, t);
   for (const u of typesOf(t)) if (isGenericTypeWithUnionConstraint(c, u)) return true;
   return false;

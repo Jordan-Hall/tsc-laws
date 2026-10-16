@@ -636,6 +636,18 @@ export interface PackageJsonInfo {
   readonly contents: PackageJson | undefined;
 }
 
+/**
+ * A `package.json` lookup as build info records it: the directory searched, whether the file exists,
+ * and whether the directory does.
+ */
+export class PackageJsonLookup {
+  constructor(
+    readonly packageDirectory: string,
+    readonly exists: boolean,
+    readonly directoryExists: boolean,
+  ) {}
+}
+
 /** `info` with `packageDirectory` spelled as the caller looked it up. */
 export function withPackageDirectory(info: PackageJsonInfo, packageDirectory: string): PackageJsonInfo {
   if (info.packageDirectory === packageDirectory) return info;

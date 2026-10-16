@@ -31,7 +31,15 @@ import {
   ModuleResolutionKind,
   type CompilerOptions,
 } from './options.js';
-import { LoadKind, type LoadJobs, type PreparedFile, preparedLoad, takePreparedFile } from './parallel-parse.js';
+import {
+  LoadKind,
+  type LoadJobs,
+  type PreparedFile,
+  preparedLoad,
+  preparedPackageJsonLookups,
+  takePreparedFile,
+} from './parallel-parse.js';
+import type { PackageJsonLookup } from './package-json.js';
 import { parseSourceFile } from './parser.js';
 import { mark } from './timeline.js';
 import {
@@ -381,6 +389,11 @@ export class ProcessedFiles {
     readonly redirectTargets: ReadonlyMap<string, string[]>,
     readonly redirectFilesByPath: ReadonlyMap<string, RedirectFile>,
     readonly projectReferenceMapper: ProjectReferenceMapper,
+    /**
+     * The `package.json` lookups made resolving the files whose resolutions were taken from parse
+     * threads (`preparedPackageJsonLookups`); `undefined` where they may miss some.
+     */
+    readonly preparedPackageJsons: readonly PackageJsonLookup[] | undefined,
   ) {}
 }
 
@@ -422,6 +435,8 @@ export class FileLoader {
    * file's metadata and resolves its references and imports itself, as without parse threads.
    */
   takesPreparedResolutions = true;
+  // Whether a file's resolutions were taken from a parse thread.
+  private tookPreparedResolutions = false;
 
   constructor(
     readonly host: CompilerHost,
@@ -952,6 +967,7 @@ export class FileLoader {
 
   /** Loads `task` from what a parse thread found loading the same file (`LoadedFile`). */
   private takeLoadedFile(task: ParseTask, loaded: LoadedFile): void {
+    this.tookPreparedResolutions = true;
     const ahead = this.subTasksAhead.get(task.normalizedFilePath);
     if (ahead !== undefined && ahead.loaded === loaded) {
       this.subTasksAhead.delete(task.normalizedFilePath);
@@ -1354,9 +1370,12 @@ export class FileLoader {
       redirectTargets,
       redirectFilesByPath,
       this.mapper,
+      this.tookPreparedResolutions ? preparedPackageJsonLookups(allFiles) : noPackageJsonLookups,
     );
   }
 }
+
+const noPackageJsonLookups: readonly PackageJsonLookup[] = [];
 
 function addIncludeReason(processor: IncludeProcessor, task: ParseTask, reason: FileIncludeReason): void {
   const redirected = task.redirectedParseTask;

@@ -22,6 +22,7 @@ const { createNodeSystem, parseThreadOfCommandLine } = await load('drivers/node-
 const { executeCommandLine } = await load('compiler/tsc-cli.js');
 const { CheckedProgram } = await load('compiler/program-checker.js');
 const { ParseQueue, parallelParse } = await load('compiler/parallel-parse.js');
+const { PackageJsonLookup } = await load('compiler/package-json.js');
 const { useLazyJSDocTable } = await load('compiler/parser.js');
 const { parseLocale } = await load('compiler/diagnostics.js');
 const { assignSymbolIdsAtCreation } = await load('compiler/symbol.js');
@@ -121,6 +122,11 @@ test('the program takes what parse threads found loading their files and is the 
     }
     for (let k = 0; k < batch.added.names.length; k++)
       queue.push(batch.added.kinds[k], batch.added.names[k], batch.added.depths[k]);
+    const lookups = batch.packageJsons;
+    for (let k = 0; k < lookups.directories.length; k++)
+      parallelParse.packageJsons.push(
+        new PackageJsonLookup(lookups.directories[k], lookups.exists[k], lookups.directoryExists[k]),
+      );
   }
 
   const shared = executeCommandLine(createNodeSystem(bundledLibs, ''), args);
@@ -129,6 +135,15 @@ test('the program takes what parse threads found loading their files and is the 
   assert.equal(parallelParse.used, files);
   assert.equal(recorded, parallelParse.files.size);
   assert.equal(describe(shared.program), expected);
+  // The program took every prepared file, so with the parse thread's lookups it has the
+  // \`package.json\` lookups resolving everything itself makes, which build info records.
+  const lookups = (program) =>
+    [
+      ...new Set(program.packageJsonLookups().map((l) => `${l.packageDirectory} ${l.exists} ${l.directoryExists}`)),
+    ].sort();
+  assert.ok(shared.program.hasAllPackageJsonLookups());
+  assert.deepEqual(lookups(shared.program), lookups(plain.program));
+  assert.ok(lookups(plain.program).some((l) => l.includes('node_modules/heavy true')));
   // The fixture exercises what loading records: a JSX runtime import, import helpers, missing
   // references and type directives, a library reference and a package.
   assert.match(expected, /react\/jsx-runtime\.d\.ts/);
@@ -163,6 +178,7 @@ test('a source file of a referenced project loaded ahead queues the file it is r
   parallelParse.used = 0;
   parallelParse.missed = 0;
   parallelParse.unprepared = 0;
+  parallelParse.packageJsons.length = 0;
   const plain = executeCommandLine(createNodeSystem(bundledLibs, ''), args);
   assert.equal(plain.kind, 'compile');
   const expected = describe(plain.program);

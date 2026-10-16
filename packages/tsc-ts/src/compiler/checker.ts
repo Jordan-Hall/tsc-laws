@@ -99,7 +99,7 @@ import { PermissiveMapper, ReportingMapper, RestrictiveMapper, UniqueLiteralMapp
 import { Relation, RelationKey, type InternedRelationKey, type Relater, TypeComparer } from './relations.js';
 import { TypeNodeVisitor, checkSourceFile } from './checker-source-file.js';
 import { InferenceCaches } from './checker-inference.js';
-import { AssignmentMarker, type FlowLoopInfo, type FlowState } from './checker-narrowing.js';
+import { AssignmentMarker, type FlowLoopInfo, type FlowState, type FlowWalk } from './checker-narrowing.js';
 import type { FlowNode, FlowReduceLabel } from './flow.js';
 import { JsxState } from './checker-jsx.js';
 import type { DeferredIterationError, IterationTypes } from './checker-iteration.js';
@@ -574,6 +574,8 @@ export class Checker {
   readonly sharedFlowTypes: Type[] = [];
   readonly sharedFlowIncomplete: boolean[] = [];
   readonly flowLoopCaches = new Map<FlowNode, Map<string, Type>>();
+  /** The last long walk of each reference key outside loops: see `FlowWalk`. */
+  readonly flowWalks = new Map<string, FlowWalk>();
   readonly flowLoopStack: FlowLoopInfo[] = [];
   /** Types of expressions whose computation needed flow analysis, outside loop back edges. */
   flowTypeCache: Map<Node, Type> | undefined = undefined;
@@ -611,6 +613,8 @@ export class Checker {
   readonly resolutionTargets: (Symbol | Type | Signature | Node)[] = [];
   readonly resolutionResults: boolean[] = [];
   readonly resolutionPropertyNames: number[] = [];
+  /** The number of resolution cycles found (`pushTypeResolution`). */
+  resolutionCycleCount = 0;
 
   constructor(host: CheckerHost) {
     this.host = host;
@@ -1013,6 +1017,7 @@ export function disposeChecker(c: Checker): void {
   c.globalSymbolCache.clear();
   c.markerTypes.clear();
   c.flowLoopCaches.clear();
+  c.flowWalks.clear();
   c.flowNodeReachable.clear();
   c.flowNodePostSuper.clear();
   c.primitiveTypeAliasSuggestions.clear();

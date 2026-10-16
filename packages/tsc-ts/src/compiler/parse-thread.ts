@@ -10,7 +10,14 @@ import { bindSourceFile } from './binder.js';
 import { useThreadTextCaches } from './diagnostics.js';
 import { CompilerHost, FileLoader } from './file-loader.js';
 import type { FileSystem } from './file-system.js';
-import { LoadJobs, LoadKind, type LoadMessage, PreparedBatch, PreparedFile } from './parallel-parse.js';
+import {
+  LoadJobs,
+  LoadKind,
+  type LoadMessage,
+  PackageJsonLookups,
+  PreparedBatch,
+  PreparedFile,
+} from './parallel-parse.js';
 import { parseSourceFile } from './parser.js';
 import { mark, markAt, timeline } from './timeline.js';
 import type { ParsedCommandLine } from './tsconfig.js';
@@ -68,6 +75,8 @@ function fileSize(fileName: string): number {
 export class ParseThread {
   private readonly host: PreparingHost;
   private readonly loader: FileLoader;
+  // The `package.json` lookups of earlier chunks, sent with them.
+  private sentPackageJsons = 0;
 
   constructor(config: ParsedCommandLine, fs: FileSystem, currentDirectory: string, defaultLibraryPath: string) {
     this.host = new PreparingHost(fs, currentDirectory, defaultLibraryPath);
@@ -104,7 +113,17 @@ export class ParseThread {
       h.parseMs = 0;
       h.bindMs = 0;
     }
-    const batch = publish(new PreparedBatch(files, added, end - start));
+    // The lookups this chunk added to the module resolution's cache (which keeps insertion order).
+    const packageJsons = new PackageJsonLookups();
+    const infos = this.loader.resolver.packageJsonInfoCache.infos();
+    for (let k = this.sentPackageJsons; k < infos.length; k++) {
+      const info = infos[k]!;
+      packageJsons.directories.push(info.packageDirectory);
+      packageJsons.exists.push(info.contents !== undefined);
+      packageJsons.directoryExists.push(info.directoryExists);
+    }
+    this.sentPackageJsons = infos.length;
+    const batch = publish(new PreparedBatch(files, added, end - start, packageJsons));
     if (timeline) mark(`published ${(performance.now() - end).toFixed(1)}ms`);
     return batch;
   }
