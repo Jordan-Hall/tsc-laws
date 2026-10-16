@@ -966,9 +966,14 @@ class SiblingPropertyScan extends NodeVisitor {
       const name = getText(callee);
       for (let scope = call.parent; scope !== undefined; scope = scope.parent) {
         const symbol = getLocals(scope)?.get(name);
-        if (symbol === undefined) continue;
+        // A type alias, interface or type parameter of the name doesn't hide a value of an outer scope.
+        if (symbol === undefined || (symbol.flags & (SymbolFlags.Value | SymbolFlags.ExportValue)) === 0) continue;
         // An exported declaration's local symbol has no value declaration of its own.
-        const declaration = symbol.valueDeclaration ?? symbol.declarations[0];
+        const declaration =
+          symbol.valueDeclaration ??
+          symbol.declarations.find(
+            (d) => d.kind === SyntaxKind.FunctionDeclaration || d.kind === SyntaxKind.VariableDeclaration,
+          );
         if (declaration === undefined) return undefined;
         if (declaration.kind === SyntaxKind.FunctionDeclaration) return declaration;
         const initializer =

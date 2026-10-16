@@ -331,6 +331,16 @@ test(
     );
     assert.match(initializer.expected, /g3\(x: boolean\): \{\n {4}a\?: undefined;\n {4}c: number;/);
     assert.equal(initializer.actual, initializer.expected);
+    // f1's type parameter `g3` and type alias `g2` don't hide the functions, so f1 infers g3 first.
+    const types = await emitBoth(
+      {
+        'a.ts': ['export function f1<g3>(x: boolean) {', '  type g2 = number;', '  return g3(x);', '}', ...g2g3],
+      },
+      'a.d.ts',
+      baseFlags,
+    );
+    assert.match(types.expected, /g3\(x: boolean\): \{\n {4}c: number;\n {4}a\?: undefined;/);
+    assert.equal(types.actual, types.expected);
   },
 );
 
