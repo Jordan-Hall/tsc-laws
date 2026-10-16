@@ -633,6 +633,13 @@ export class Scanner {
   private loadedBlocks: Uint8Array | undefined;
   // The line breaks the text holds, computed on first use.
   private textKind: TextKind;
+  // The first LF and CR at or after `lineFeedFrom` and `carriageReturnFrom`: `lineFeedAt` and
+  // `carriageReturnAt` (the text length where there is none), found by `nextLineFeed` and
+  // `nextCarriageReturn`. -1 for none found yet.
+  private lineFeedFrom: number;
+  private lineFeedAt: number;
+  private carriageReturnFrom: number;
+  private carriageReturnAt: number;
 
   /**
    * With `unitsOnDemand`, the code units of the text are copied only for the ranges passed to
@@ -668,6 +675,10 @@ export class Scanner {
     this.cutUnits = new Uint16Array(4);
     this.identifiers = new IdentifierTable(text);
     this.textKind = TextKind.Unknown;
+    this.lineFeedFrom = -1;
+    this.lineFeedAt = -1;
+    this.carriageReturnFrom = -1;
+    this.carriageReturnAt = -1;
   }
 
   /** Sets the text to scan and resets the token state. */
@@ -677,6 +688,10 @@ export class Scanner {
     this.loadedBlocks = undefined;
     this.identifiers.setText(text);
     this.textKind = TextKind.Unknown;
+    this.lineFeedFrom = -1;
+    this.lineFeedAt = -1;
+    this.carriageReturnFrom = -1;
+    this.carriageReturnAt = -1;
     this.end = text.length | 0;
     this.pos = 0;
     this.fullStartPos = 0;
@@ -1394,17 +1409,37 @@ export class Scanner {
     const end = this.end;
     const kind = this.getTextKind();
     if (kind !== TextKind.Separators) {
-      const text = this.text;
-      let at = text.indexOf('\n', pos);
-      if (kind === TextKind.LFAndCR) {
-        const cr = text.indexOf('\r', pos);
-        if (cr >= 0 && (at < 0 || cr < at)) at = cr;
-      }
-      return at < 0 || at > end ? end : at | 0;
+      let at = this.nextLineFeed(pos);
+      if (kind === TextKind.LFAndCR) at = Math.min(at, this.nextCarriageReturn(pos));
+      return at > end ? end : at | 0;
     }
     const chars = this.chars;
     while (pos < end && !isLineBreak(chars[pos] | 0)) pos = (pos + 1) | 0;
     return pos;
+  }
+
+  /**
+   * The position of the first LF at or after `pos`, or the text length. The last result is kept: as
+   * the scanner moves forward each search starts where the previous one ended, so a text with few
+   * LFs (CR line breaks) is not searched to its end once per line comment.
+   */
+  private nextLineFeed(pos: number): number {
+    if (pos >= this.lineFeedFrom && pos <= this.lineFeedAt) return this.lineFeedAt;
+    const text = this.text;
+    const at = text.indexOf('\n', pos);
+    this.lineFeedFrom = pos;
+    this.lineFeedAt = at < 0 ? text.length : at;
+    return this.lineFeedAt;
+  }
+
+  /** Like `nextLineFeed`, for CR: a text with LF line breaks and few CRs is searched once. */
+  private nextCarriageReturn(pos: number): number {
+    if (pos >= this.carriageReturnFrom && pos <= this.carriageReturnAt) return this.carriageReturnAt;
+    const text = this.text;
+    const at = text.indexOf('\r', pos);
+    this.carriageReturnFrom = pos;
+    this.carriageReturnAt = at < 0 ? text.length : at;
+    return this.carriageReturnAt;
   }
 
   /** Scans `/* … *\/`; returns true if the comment is skipped as trivia. */

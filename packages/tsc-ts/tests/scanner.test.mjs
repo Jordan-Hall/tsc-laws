@@ -4,6 +4,7 @@ import { spawn } from 'node:child_process';
 import { existsSync, readdirSync } from 'node:fs';
 import { availableParallelism } from 'node:os';
 import { join, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { compileSources } from './temp.mjs';
 
 const root = resolve(import.meta.dirname, '..');
@@ -69,3 +70,42 @@ test(
     assert.deepEqual(failures, []);
   },
 );
+
+// Line comments end at the next line break, found with string searches. A text with LF line breaks
+// and a CR only at its end (or CR line breaks and no LF) must not be searched to its end once per
+// comment: scanning stays linear in the text's length.
+test('line comments scan in linear time with a CR or LF found only at the end', async () => {
+  const out = compileSources('tsc-ts-scan-linear-', ['compiler/scanner.ts']);
+  const { Scanner } = await import(pathToFileURL(join(out, 'compiler/scanner.js')).href);
+  // Milliseconds to scan the text with trivia, and the line comments seen.
+  const scan = (text) => {
+    const scanner = new Scanner(text);
+    scanner.setSkipTrivia(false);
+    let comments = 0;
+    const start = performance.now();
+    for (let token = scanner.scan(); token !== endOfFile; token = scanner.scan()) if (token === lineComment) comments++;
+    return [performance.now() - start, comments];
+  };
+  // SyntaxKind is a const enum: the kinds of the end of a text and of a line comment.
+  const endOfFile = new Scanner('').scan();
+  const probe = new Scanner('// x');
+  probe.setSkipTrivia(false);
+  const lineComment = probe.scan();
+  const lines = 100_000;
+  for (const [lineBreak, last] of [
+    ['\n', '\r\n'],
+    ['\r', '\n'],
+  ]) {
+    const text = '// a comment on its own line\n'.replace('\n', lineBreak).repeat(lines) + '// last' + last;
+    const small = '// a comment on its own line\n'.replace('\n', lineBreak).repeat(lines / 10) + '// last' + last;
+    const [time, comments] = scan(text);
+    const [smallTime] = scan(small);
+    assert.equal(comments, lines + 1);
+    // Ten times the text takes about ten times as long; searching to the end per comment would take
+    // about a hundred times as long.
+    assert.ok(
+      time < Math.max(smallTime, 1) * 40,
+      `${time.toFixed(1)} ms for ${lines} lines, ${smallTime.toFixed(1)} ms for a tenth`,
+    );
+  }
+});
