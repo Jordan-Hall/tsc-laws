@@ -773,6 +773,11 @@ export class FileLoader {
 
   // ---- Libraries
 
+  /** The normalized file name of the library file `name` (`lib.dom.d.ts`), as `loadAhead` loads it. */
+  libraryFileName(name: string): string {
+    return getNormalizedAbsolutePath(this.pathForLibFile(name).path, this.host.currentDirectory);
+  }
+
   private pathForLibFile(name: string): LibFile {
     const cached = this.libFileCache.get(name);
     if (cached !== undefined) return cached;

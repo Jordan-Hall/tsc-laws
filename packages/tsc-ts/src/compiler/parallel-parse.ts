@@ -40,6 +40,11 @@ export const enum LoadKind {
   Library = 2,
   /** The automatic type directives (`types`, or every package in `node_modules/@types`). */
   AutomaticTypes = 3,
+  /**
+   * The text hash of a large library file, by name: read and hashed on another thread than the
+   * one that parses the file (library-diagnostics.ts).
+   */
+  LibraryHash = 4,
 }
 
 /**
@@ -76,7 +81,32 @@ export class PreparedFile {
     readonly file: SourceFile,
     /** The build info version of `file` (`computeHash` of its text) for an incremental program, or `''`. */
     readonly version: string,
+    /** `computeHash` of the text of a library file the thread hashed (`libraryTextHash`), or `''`. */
+    readonly libraryHash: string,
   ) {}
+}
+
+/** The text of a large library file and its `computeHash`, from a `LibraryHash` job. */
+export class LibraryHash {
+  constructor(
+    readonly fileName: string,
+    readonly text: string,
+    readonly hash: string,
+  ) {}
+}
+
+/**
+ * `computeHash` of the text of the library file `file`, where a parse thread computed it, or `''`.
+ * Library files are hashed to tell whether their diagnostics are known (library-diagnostics.ts).
+ */
+export function preparedLibraryHash(file: SourceFile): string {
+  if (parallelParse.files.size === 0) return '';
+  const prepared = parallelParse.files.get(file.fileName);
+  if (prepared === undefined || prepared.file !== file) return '';
+  if (prepared.libraryHash !== '') return prepared.libraryHash;
+  if (prepared.version !== '') return prepared.version;
+  const hashed = parallelParse.libraryHashes.get(file.fileName);
+  return hashed !== undefined && hashed.text === file.text ? hashed.hash : '';
 }
 
 /** The version a parse thread computed for `file` (`PreparedFile.version`), or `''`. */
@@ -100,6 +130,8 @@ export class PreparedBatch {
     readonly parseMs: number,
     /** The `package.json` lookups the thread's module resolution made loading the chunk. */
     readonly packageJsons: PackageJsonLookups,
+    /** The results of the chunk's `LibraryHash` jobs. */
+    readonly libraryHashes: LibraryHash[],
   ) {}
 }
 
@@ -142,6 +174,8 @@ export class ParallelParse {
   unprepared = 0;
   /** The `package.json` lookups of the parse threads' module resolution, of all prepared files. */
   readonly packageJsons: PackageJsonLookup[] = [];
+  /** The hashes of large library files (`LibraryHash` jobs), by file name. */
+  readonly libraryHashes = new Map<string, LibraryHash>();
 }
 
 export const parallelParse = new ParallelParse();
@@ -156,6 +190,7 @@ export function clearPreparedFiles(): void {
   parallelParse.missed = 0;
   parallelParse.unprepared = 0;
   parallelParse.packageJsons.length = 0;
+  parallelParse.libraryHashes.clear();
 }
 
 /**
@@ -240,6 +275,8 @@ export class ParseQueue {
           ? this.large
           : this.others;
     jobs.push(kind, name, depth, size);
+    // Another thread hashes a large library while one parses it.
+    if (kind === LoadKind.Library && largeLibraries.has(name)) this.libraries.push(LoadKind.LibraryHash, name, depth);
   }
 
   /** Files queued so far. */
@@ -309,7 +346,7 @@ export class ParseQueue {
 const maxQueuedWhileMatching = 12;
 
 /** Libraries that take a parse thread 50 ms or more: nothing is queued behind them. */
-const largeLibraries = new Set(['lib.dom.d.ts', 'lib.webworker.d.ts']);
+export const largeLibraries = new Set(['lib.dom.d.ts', 'lib.webworker.d.ts']);
 
 /**
  * Main thread: loads the program's files ahead of it on parse threads. Started with the compiler
@@ -366,12 +403,23 @@ export class ParseSession {
     if (hasRootFiles) {
       if (options.noLib !== true) {
         const lib = options.lib;
-        if (lib === undefined) queue.push(LoadKind.Library, getDefaultLibFileName(options), 0);
-        else
+        const libraries: string[] = [];
+        if (lib === undefined) {
+          const fileName = getDefaultLibFileName(options);
+          // The default libraries of the targets reference `dom` (`lib.d.ts`, `lib.es2022.full.d.ts`):
+          // it goes out with them rather than once they are parsed. Unless a library references it,
+          // the program leaves it out.
+          if (options.libReplacement !== true && (fileName === 'lib.d.ts' || fileName.endsWith('.full.d.ts')))
+            libraries.push('lib.dom.d.ts');
+          libraries.push(fileName);
+        } else
           for (const name of lib) {
             const fileName = getLibFileName(name);
-            if (fileName !== '') queue.push(LoadKind.Library, fileName, 0);
+            if (fileName !== '') libraries.push(fileName);
           }
+        // Large libraries first: the program waits for them.
+        for (const fileName of libraries) if (largeLibraries.has(fileName)) queue.push(LoadKind.Library, fileName, 0);
+        for (const fileName of libraries) if (!largeLibraries.has(fileName)) queue.push(LoadKind.Library, fileName, 0);
       }
       queue.push(LoadKind.AutomaticTypes, '', 0);
     }
@@ -403,6 +451,9 @@ export class ParseSession {
         this.outstanding[i] = 0;
         if (!this.finished) this.dispatch();
       });
+      // The first threads to start get the first chunks: the libraries, largest first.
+      const chunk = queue.next(count, true);
+      if (chunk !== undefined) this.post(this.idle.pop()!, chunk);
     }
     mark('parse threads spawned');
     this.dispatch();
@@ -430,6 +481,7 @@ export class ParseSession {
     const queue = this.queue;
     if (timeline) mark(`chunk from p${i}: ${batch.files.length} files, ${queue.left()} left, ${this.busy - 1} busy`);
     for (const prepared of batch.files) parallelParse.files.set(prepared.fileName, prepared);
+    for (const hashed of batch.libraryHashes) parallelParse.libraryHashes.set(hashed.fileName, hashed);
     const lookups = batch.packageJsons;
     for (let k = 0; k < lookups.directories.length; k++)
       parallelParse.packageJsons.push(
