@@ -54,6 +54,7 @@ import {
   IndexInfo,
   IntrinsicType,
   LiteralType,
+  MemberNames,
   NodeLinks,
   ObjectFlags,
   ObjectType,
@@ -306,6 +307,8 @@ export class Checker {
   signatureCount = 0;
   /** Positions of members by name in the tables and lists that lazily instantiated members come from. */
   readonly memberPositionsInLists = new Map<Symbol[], Map<string, number>>();
+  /** The property names of the last instantiation of each such list whose table is built on demand. */
+  readonly memberNamesOfLists = new Map<Symbol[], MemberNames>();
   /** Long lists of inherited properties, by name. */
   readonly propertiesByName = new Map<Symbol[], Map<string, Symbol>>();
   /** Number of `typeToString` calls in progress. */
@@ -993,6 +996,7 @@ export function disposeChecker(c: Checker): void {
   }
   c.sharedSymbolCopies.clear();
   c.memberPositionsInLists.clear();
+  c.memberNamesOfLists.clear();
   c.propertiesByName.clear();
   c.symbolAccessibilityCaches = undefined;
   c.unresolvedSymbols.clear();

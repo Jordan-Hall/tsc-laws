@@ -18,6 +18,7 @@ import {
   type InterfaceType,
   type IntersectionType,
   type MappedType,
+  MemberNames,
   ObjectFlags,
   type ObjectType,
   type Signature,
@@ -296,10 +297,10 @@ function resolveObjectTypeMembers(
 // ids are unchanged. Member symbols come out identical too: whether `instantiateSymbol` keeps a
 // symbol depends on whether its type is resolved yet, so that decision is recorded at resolution.
 //
-// Most reads are of `properties`; the table serves lookups by name. Where the own members are the
-// first properties, in table order, materializing keeps only the properties: lookups by name read
-// them by position (`positions`, shared by the instantiations of a source), and reading `members`
-// builds the table.
+// Most reads are of `properties`; the table serves lookups by name. Where every member of the table
+// is a property, materializing keeps only the properties, and lookups by name find a property by
+// the position of its name in a `MemberNames` that instantiations with the same names share.
+// Reading `members` builds the table.
 
 // Two bits per member, in table order: whether tsgo puts it in the instantiated table, and whether
 // `instantiateSymbol` keeps the symbol itself.
@@ -307,13 +308,6 @@ const enum MemberState {
   Skipped = 0,
   Instantiated = 1,
   Kept = 3,
-}
-
-/** The number of MemberState.Skipped states (two zero bits) in a word of 16 states. */
-function skippedInWord(word: number): number {
-  let bits = ~(word | (word >>> 1)) & 0x55555555;
-  bits = (bits & 0x33333333) + ((bits >>> 2) & 0x33333333);
-  return Math.imul((bits + (bits >>> 4)) & 0x0f0f0f0f, 0x01010101) >>> 24;
 }
 
 const noBaseTypes: (StructuredType | undefined)[] = [];
@@ -343,12 +337,10 @@ export class PendingInstantiatedMembers extends PendingMembers {
   resolving: boolean;
   /** Members instantiated by name lookups so far. */
   instantiated: Map<string, Symbol> | undefined;
-  /**
-   * With `materializedProperties`, where the table skips members of the source: for each word of
-   * `states` and one past the last, the number of members it skips before the word. Undefined with
-   * `materializedProperties` where it skips none.
-   */
-  skippedBeforeWord: number[] | undefined;
+  /** References: the holder of the declared members of the class or interface. */
+  owner: InterfaceType | undefined;
+  /** With `materializedProperties`: the names of the properties. */
+  memberNames: MemberNames | undefined;
   /** Whether the instantiated table has an own member, and one that isn't optional. */
   readonly hasOwnMembers: boolean;
   readonly hasRequiredOwnMembers: boolean;
@@ -378,27 +370,12 @@ export class PendingInstantiatedMembers extends PendingMembers {
     this.hasBases = false;
     this.resolving = false;
     this.instantiated = undefined;
-    this.skippedBeforeWord = undefined;
+    this.owner = undefined;
+    this.memberNames = undefined;
   }
 
   state(position: number): MemberState {
     return ((this.states[position >> 4]! >>> ((position & 15) * 2)) & 3) as MemberState;
-  }
-
-  /** The number of members before `position` that the table skips (MemberState.Skipped). */
-  skippedBefore(position: number): number {
-    const states = this.states;
-    const words = position >> 4;
-    const before = this.skippedBeforeWord;
-    let skipped = 0;
-    if (before !== undefined) skipped = before[words]!;
-    else if (this.materializedProperties === undefined)
-      for (let w = 0; w < words; w++) skipped += skippedInWord(states[w]!);
-    else return 0;
-    const rest = position & 15;
-    // The states from `position` on in its word count as kept.
-    if (rest !== 0) skipped += skippedInWord(states[words]! | (0x55555555 << (rest * 2)));
-    return skipped;
   }
 
   /** The member symbol at `position` of the source, instantiated as tsgo would have. */
@@ -416,8 +393,6 @@ export class PendingInstantiatedMembers extends PendingMembers {
   ownMember(name: string): Symbol | undefined {
     const position = this.positions.get(name);
     if (position === undefined || this.state(position) === MemberState.Skipped) return undefined;
-    const materialized = this.materializedProperties;
-    if (materialized !== undefined) return materialized[position - this.skippedBefore(position)];
     let instantiated = this.instantiated;
     if (instantiated !== undefined) {
       const known = instantiated.get(name);
@@ -433,6 +408,11 @@ export class PendingInstantiatedMembers extends PendingMembers {
 
   /** `members.get(name)` of the table tsgo would have built by now. */
   get(name: string): Symbol | undefined {
+    const materialized = this.materializedProperties;
+    if (materialized !== undefined) {
+      const position = this.memberNames!.positions.get(name);
+      return position !== undefined ? materialized[position] : undefined;
+    }
     let existing = this.ownMember(name);
     // Own members have value flags (pendingInstantiatedTable), so no base replaces them.
     const baseTypes = this.baseTypes;
@@ -485,14 +465,13 @@ export class PendingInstantiatedMembers extends PendingMembers {
     if (!this.hasBases) {
       t.membersValue = members;
       t.propertiesValue = getNamedMembers(c, members, t.symbol);
-      this.keepTableOnDemand(t, members, members.size);
+      this.keepTableOnDemand(t, members);
       return;
     }
     // While the bases are resolved, tsgo's `properties` holds the own members and its table
     // grows by each base as it is resolved; the rest of resolution continues eagerly.
     const resolving = this.resolving;
     const ownProperties = resolving ? getNamedMembers(c, members, t.symbol) : undefined;
-    const ownCount = members.size;
     const baseTypes = this.baseTypes;
     for (let i = 0; i < baseTypes.length; i++) {
       const base = baseTypes[i];
@@ -501,39 +480,30 @@ export class PendingInstantiatedMembers extends PendingMembers {
     t.membersValue = members;
     t.propertiesValue = ownProperties ?? getNamedMembers(c, members, t.symbol);
     // Resolving the bases goes on with the table (resolvePendingObjectTypeMembers).
-    if (!resolving) this.keepTableOnDemand(t, members, ownCount);
+    if (!resolving) this.keepTableOnDemand(t, members);
   }
 
   /**
-   * After `materialize`: drops `members`, the table, where `materializeTable` can build it again
-   * from the properties. That holds when the table's first `ownCount` members, its own, are the
-   * members of the source it doesn't skip, in order (two of one name leave a gap), and are the first
-   * properties. Lookups by name then read the properties by position, and lookups of inherited
-   * members go to the bases as before materializing.
+   * After `materialize`: drops `members`, the table, where every member of it is a property. The
+   * table's names are then the names of the properties, so lookups by name read the properties by
+   * the positions of their names, and `materializeTable` builds the table again from them. The
+   * names come from the last instantiation of the same source, where they are the same.
    */
-  private keepTableOnDemand(t: StructuredType, members: SymbolTable, ownCount: number): void {
-    const count = this.sourceTable !== undefined ? this.sourceTable.size : this.sourceList!.length;
-    const skipped = this.skippedBefore(count);
+  private keepTableOnDemand(t: StructuredType, members: SymbolTable): void {
     const properties = t.propertiesValue;
-    if (ownCount !== count - skipped || properties.length < ownCount) return;
-    let i = 0;
-    for (const symbol of members.values()) {
-      if (i === ownCount) break;
-      if (properties[i++] !== symbol) return;
+    if (properties.length !== members.size) return;
+    const owner = this.owner;
+    const last = owner !== undefined ? owner.lastMemberNames : this.c.memberNamesOfLists.get(this.sourceList!);
+    let names = last !== undefined && hasMemberNames(last, properties, members) ? last : undefined;
+    if (names === undefined) {
+      names = memberNamesOf(properties, members);
+      if (owner !== undefined) owner.lastMemberNames = names;
+      else this.c.memberNamesOfLists.set(this.sourceList!, names);
     }
     t.membersValue = undefined;
     t.pendingMembers = this;
     this.materializedProperties = properties;
-    if (skipped !== 0) {
-      const before: number[] = [];
-      let sum = 0;
-      for (let w = 0; w < this.states.length; w++) {
-        before.push(sum);
-        sum += skippedInWord(this.states[w]!);
-      }
-      before.push(sum);
-      this.skippedBeforeWord = before;
-    }
+    this.memberNames = names;
   }
 
   materializeTable(t: StructuredType): void {
@@ -544,21 +514,39 @@ export class PendingInstantiatedMembers extends PendingMembers {
       this.materializeTable(t);
       return;
     }
-    // The table `materialize` built: the own members in order, then what the bases add.
     t.pendingMembers = undefined;
-    const members = new Map<string, Symbol>();
-    const count = this.sourceTable !== undefined ? this.sourceTable.size : this.sourceList!.length;
-    const ownCount = count - this.skippedBefore(count);
+    const order = this.memberNames!.tableOrder;
     this.materializedProperties = undefined;
-    this.skippedBeforeWord = undefined;
-    for (let i = 0; i < ownCount; i++) members.set(properties[i]!.name, properties[i]!);
-    const baseTypes = this.baseTypes;
-    for (let i = 0; i < baseTypes.length; i++) {
-      const base = baseTypes[i];
-      addInheritedMembers(members, base !== undefined ? base.properties : this.baseProperties[i]!);
-    }
+    this.memberNames = undefined;
+    const members = new Map<string, Symbol>();
+    for (const i of order) members.set(properties[i]!.name, properties[i]!);
     t.membersValue = members;
   }
+}
+
+/** The names of `properties`, and the order of the names of `members`, a table with the same names. */
+function memberNamesOf(properties: Symbol[], members: SymbolTable): MemberNames {
+  const names: string[] = [];
+  const positions = new Map<string, number>();
+  for (let i = 0; i < properties.length; i++) {
+    const name = properties[i]!.name;
+    names.push(name);
+    positions.set(name, i);
+  }
+  const tableOrder: number[] = [];
+  for (const name of members.keys()) tableOrder.push(positions.get(name)!);
+  return new MemberNames(names, positions, tableOrder);
+}
+
+/** Whether `properties` have the names of `names`, and `members` has them in its table order. */
+function hasMemberNames(names: MemberNames, properties: Symbol[], members: SymbolTable): boolean {
+  const list = names.names;
+  if (list.length !== properties.length) return false;
+  for (let i = 0; i < list.length; i++) if (properties[i]!.name !== list[i]) return false;
+  const order = names.tableOrder;
+  let k = 0;
+  for (const name of members.keys()) if (list[order[k++]!] !== name) return false;
+  return true;
 }
 
 /**
@@ -598,7 +586,7 @@ function pendingInstantiatedTable(
     i++;
   }
   if ((i & 15) !== 0) states.push(word);
-  return new PendingInstantiatedMembers(
+  const pending = new PendingInstantiatedMembers(
     c,
     table,
     undefined,
@@ -608,6 +596,8 @@ function pendingInstantiatedTable(
     hasOwnMembers,
     hasRequiredOwnMembers,
   );
+  pending.owner = declared;
+  return pending;
 }
 
 /**
