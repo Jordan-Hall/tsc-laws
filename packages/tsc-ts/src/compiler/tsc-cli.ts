@@ -3,6 +3,7 @@
  * tsconfig.json, `--showConfig`, program construction and `--listFilesOnly`.
  */
 import { mark } from './timeline.js';
+import { FileBuildInfoReader, readBuildInfoProgram, type Snapshot } from './incremental.js';
 import {
   createCompilerDiagnostic,
   Diagnostics,
@@ -84,6 +85,14 @@ export abstract class System extends CommandLineHost {
 }
 
 /** The file system of a `System`. */
+/** The old state from an incremental program's build info (`readBuildInfoProgram`), and the time reading it took. */
+export class EarlyBuildInfo {
+  constructor(
+    readonly snapshot: Snapshot | undefined,
+    readonly readTime: number,
+  ) {}
+}
+
 export class SystemFileSystem extends FileSystem {
   constructor(private readonly sys: System) {
     super(sys.useCaseSensitiveFileNames);
@@ -138,6 +147,8 @@ export type CommandLineResult =
       readonly parseTime: number;
       readonly reporter: DiagnosticReporter;
       readonly errorSummary: ErrorSummaryReporter;
+      /** The build info of an incremental program, read while threads parsed its files; `undefined` if not read yet. */
+      readonly buildInfo?: EarlyBuildInfo;
     }
   /** Threads are preparing the program's files; `run` calls back with the result once they are done. */
   | { readonly kind: 'deferred'; readonly run: (done: (result: CommandLineResult) => void) => void }
@@ -362,6 +373,7 @@ function executeCompile(sys: System, commandLine: ParsedCommandLine): CommandLin
   if (config.options.watch === true) return { kind: 'watch', config, commandLine };
 
   const parseStart = performance.now();
+  let buildInfo: EarlyBuildInfo | undefined = undefined;
   const createProgram = (
     host: CompilerHost = new SystemCompilerHost(sys, fs, locale),
     loader?: FileLoader,
@@ -384,6 +396,7 @@ function executeCompile(sys: System, commandLine: ParsedCommandLine): CommandLin
       parseTime,
       reporter,
       errorSummary,
+      buildInfo,
     };
   };
   if (parsesAhead(config.options)) {
@@ -429,6 +442,19 @@ function executeCompile(sys: System, commandLine: ParsedCommandLine): CommandLin
           }
           done(result);
         });
+        // The build info of an incremental program is read while the threads parse: reading it needs
+        // only the config (compile and recheckInParallel, tsc-compile.ts, take it from here).
+        if (isIncremental(config.options)) {
+          const readStart = performance.now();
+          const snapshot = readBuildInfoProgram(
+            config,
+            new FileBuildInfoReader(new SystemFileSystem(sys)),
+            sys.defaultLibraryPath,
+            sys.currentDirectory,
+          );
+          buildInfo = new EarlyBuildInfo(snapshot, performance.now() - readStart);
+          mark('build info read');
+        }
       },
     };
   }

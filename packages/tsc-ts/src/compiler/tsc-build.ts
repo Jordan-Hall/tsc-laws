@@ -682,6 +682,10 @@ export class Orchestrator {
     task.errors = [];
     if (this.verbose) this.status.report(Diagnostics.Building_project_0, this.relativeFileName(task.config));
 
+    // Each project loads its own files, with or without parse threads: the files prepared for the
+    // previous project (loaded with its options) go now, not before its incremental program took their
+    // versions (programToSnapshot).
+    clearPreparedFiles();
     const times = new CompileTimes();
     times.configTime = task.configTime;
     const readStart = performance.now();
@@ -727,8 +731,6 @@ export class Orchestrator {
         loader.takesPreparedResolutions = false;
         const program = new Program(config, host, loader);
         reportPreparedFiles(program.getSourceFiles().map((f) => f.fileName));
-        // A later project of the build, with or without parse threads, loads its own files.
-        clearPreparedFiles();
         if (!this.checkAndEmit(task, program, parseStart, times, oldSnapshot, mayUseThreads, then)) then();
       });
       return true;

@@ -9,6 +9,8 @@ import { type ExternalModuleIndicatorOptions, ParseOptions, ScriptKind, type Sou
 import { bindSourceFile } from './binder.js';
 import { useThreadTextCaches } from './diagnostics.js';
 import { CompilerHost, FileLoader } from './file-loader.js';
+import { computeHash } from './incremental.js';
+import { isIncremental } from './options.js';
 import type { FileSystem } from './file-system.js';
 import {
   LoadJobs,
@@ -25,6 +27,8 @@ import type { ParsedCommandLine } from './tsconfig.js';
 /** Parses and binds the files the loader asks for, and keeps them with their parse inputs. */
 class PreparingHost extends CompilerHost {
   prepared: PreparedFile[] = [];
+  /** Whether the files' build info versions are computed (an incremental program). */
+  computesVersions = false;
   readMs = 0;
   parseMs = 0;
   bindMs = 0;
@@ -57,7 +61,14 @@ class PreparingHost extends CompilerHost {
         );
     }
     this.prepared.push(
-      new PreparedFile(fileName, path, externalModuleIndicatorOptions.jsx, externalModuleIndicatorOptions.force, file),
+      new PreparedFile(
+        fileName,
+        path,
+        externalModuleIndicatorOptions.jsx,
+        externalModuleIndicatorOptions.force,
+        file,
+        this.computesVersions ? computeHash(file.text) : '',
+      ),
     );
     return file;
   }
@@ -80,6 +91,9 @@ export class ParseThread {
 
   constructor(config: ParsedCommandLine, fs: FileSystem, currentDirectory: string, defaultLibraryPath: string) {
     this.host = new PreparingHost(fs, currentDirectory, defaultLibraryPath);
+    // The versions of an incremental program's files are computed here rather than one after another
+    // on the main thread (programToSnapshot, incremental.ts).
+    this.host.computesVersions = isIncremental(config.options);
     this.loader = new FileLoader(this.host, config);
     // The files this thread loads are published with their chunk: text caches it computes later (of
     // declaration files, which the parser leaves out) go to copies.

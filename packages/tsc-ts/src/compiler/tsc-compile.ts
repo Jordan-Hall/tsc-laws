@@ -14,7 +14,13 @@ import {
 } from './compile-program.js';
 import type { Diagnostic, Locale } from './diagnostics.js';
 import { EmitResult } from './emitter.js';
-import { FileBuildInfoReader, IncrementalProgram, readBuildInfoProgram, TimeStampHost } from './incremental.js';
+import {
+  FileBuildInfoReader,
+  IncrementalProgram,
+  readBuildInfoProgram,
+  type Snapshot,
+  TimeStampHost,
+} from './incremental.js';
 import { checkerThreads, shareWithCheckers, startParallelCheck, traceSingleChecker } from './parallel-check.js';
 import { sharesPublishedGraphs } from '@scriptc/threads';
 import { getNormalizedAbsolutePath } from './path.js';
@@ -69,14 +75,7 @@ export function compile(sys: System, work: CompileWork): ExitStatus {
   times.bindTime = performance.now() - bindStart;
   let compilerProgram: CompilerProgram;
   if (work.incremental) {
-    const readStart = performance.now();
-    const old = readBuildInfoProgram(
-      program.commandLine,
-      new FileBuildInfoReader(new SystemFileSystem(sys)),
-      sys.defaultLibraryPath,
-      sys.currentDirectory,
-    );
-    times.buildInfoReadTime = performance.now() - readStart;
+    const old = oldSnapshotOf(sys, work, times);
     const changesStart = performance.now();
     compilerProgram = new IncrementalProgram(checked, times, old, new SystemTimeStamps(sys));
     times.changesComputeTime = performance.now() - changesStart;
@@ -91,6 +90,24 @@ export function compile(sys: System, work: CompileWork): ExitStatus {
   );
   traceSingleChecker(checked);
   return emitStatusAndReportStatistics(sys, compilerProgram, result);
+}
+
+/** The old state of `work`'s incremental program: read while threads parsed its files, or now. */
+function oldSnapshotOf(sys: System, work: CompileWork, times: CompileTimes): Snapshot | undefined {
+  const early = work.buildInfo;
+  if (early !== undefined) {
+    times.buildInfoReadTime = early.readTime;
+    return early.snapshot;
+  }
+  const readStart = performance.now();
+  const old = readBuildInfoProgram(
+    work.program.commandLine,
+    new FileBuildInfoReader(new SystemFileSystem(sys)),
+    sys.defaultLibraryPath,
+    sys.currentDirectory,
+  );
+  times.buildInfoReadTime = performance.now() - readStart;
+  return old;
 }
 
 /**
@@ -168,14 +185,7 @@ function recheckInParallel(
   done: (status: ExitStatus) => void,
 ): void {
   const program = work.program;
-  const readStart = performance.now();
-  const old = readBuildInfoProgram(
-    program.commandLine,
-    new FileBuildInfoReader(new SystemFileSystem(sys)),
-    sys.defaultLibraryPath,
-    sys.currentDirectory,
-  );
-  times.buildInfoReadTime = performance.now() - readStart;
+  const old = oldSnapshotOf(sys, work, times);
   // The program is shared before its checker does more than merge the globals.
   if (sharesPublishedGraphs) shareWithCheckers(checked);
   const changesStart = performance.now();
