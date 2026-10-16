@@ -298,6 +298,23 @@ function isDottedReference(node: Node): boolean {
   }
 }
 
+/**
+ * Whether an element access in `node` names a property with a character that keys use as a
+ * separator (`.`, `@`, `#`). Its key can then be another reference's, as `o["a.b"]` has the key of
+ * `o.a.b`, so its walks aren't kept.
+ */
+function hasKeyCharacterInName(c: Checker, node: Node): boolean {
+  let n = node;
+  while (n.kind === SyntaxKind.PropertyAccessExpression || n.kind === SyntaxKind.ElementAccessExpression) {
+    if (n.kind === SyntaxKind.ElementAccessExpression) {
+      const name = getAccessedPropertyName(c, n);
+      if (name !== undefined && /[.@#]/.test(name)) return true;
+    }
+    n = getExpression(n)!;
+  }
+  return false;
+}
+
 /** A loop junction being analyzed for a reference, with the types seen on its paths so far. */
 export class FlowLoopInfo {
   readonly flow: FlowNode;
@@ -410,7 +427,7 @@ export function getTypeAtFlowNode(c: Checker, f: FlowState, start: FlowNode): Ty
     if (++frameSteps === flowWalkAnchorSteps && f.keepsWalk && !f.lookedUp) {
       f.lookedUp = true;
       if (f.refKey === undefined) f.refKey = getFlowReferenceKey(c, f);
-      if (f.refKey !== '') {
+      if (f.refKey !== '' && !hasKeyCharacterInName(c, f.reference)) {
         f.walk = c.flowWalks.get(f.refKey);
         // Only the first frame's nodes have the walk's result as their type.
         if (f.depth === 1) f.anchor = flow;
@@ -1190,6 +1207,9 @@ function narrowType(c: Checker, f: FlowState, t: Type, expr: Node, assumeTrue: b
             getType(declaration) === undefined
           ) {
             const initializer = getInitializer(declaration);
+            // For an access, isConstantReference reads the property symbol resolved where the
+            // reference is, which narrowing of its object changes.
+            if (initializer !== undefined && isAccessExpression(f.reference)) f.positional = true;
             if (initializer !== undefined && isConstantReference(c, f.reference)) {
               c.inlineLevel++;
               const result = narrowType(c, f, t, initializer, assumeTrue);

@@ -340,6 +340,46 @@ const cases = [
       "/input.ts 2322 4765 1 Type 'string | number' is not assignable to type 'boolean'.",
     ],
   },
+  {
+    name: 'flow analysis matches tsgo on long walks of element and property accesses with the same key',
+    source: [
+      'declare const o: { "a.b": string | number; a: { b: string | number } };',
+      'o["a.b"] = "s";',
+      ...filler('a'),
+      'const t1: number = o["a.b"];',
+      'o.a.b = 1;',
+      ...filler('b'),
+      'const t2: string = o.a.b;',
+      ...filler('c'),
+      'const t3: number = o["a.b"];',
+      ...filler('d'),
+      'const t4: string = o.a.b;',
+    ],
+    expected: [
+      "/input.ts 2322 754 2 Type 'string' is not assignable to type 'number'.",
+      "/input.ts 2322 1454 2 Type 'number' is not assignable to type 'string'.",
+      "/input.ts 2322 2140 2 Type 'string' is not assignable to type 'number'.",
+      "/input.ts 2322 2829 2 Type 'number' is not assignable to type 'string'.",
+    ],
+  },
+  {
+    name: 'flow analysis matches tsgo on long walks through an aliased condition on a readonly or mutable property',
+    source: [
+      'type R = { readonly kind: "r"; readonly v: string | number };',
+      'type M = { kind: "m"; v: string | number };',
+      'declare const o: R | M;',
+      'const isStr = typeof o.v === "string";',
+      'if (isStr) {',
+      ...filler('a', 40, '  '),
+      '  const x1: string = o.v;',
+      '  if (o.kind === "m") {',
+      ...filler('b', 40, '    '),
+      '    const x2: string = o.v;',
+      '  }',
+      '}',
+    ],
+    expected: ["/input.ts 2322 1802 2 Type 'string | number' is not assignable to type 'string'."],
+  },
 ];
 
 test(
