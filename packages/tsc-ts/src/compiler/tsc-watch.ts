@@ -35,6 +35,7 @@ import {
 } from './tsc-cli.js';
 import { Orchestrator, StatusReporter, startWatchRebuild } from './tsc-build.js';
 import { emitFilesAndReportErrors, SystemTimeStamps, SystemWriter } from './tsc-compile.js';
+import { residentBytes } from './parallel-check.js';
 
 /** How often inputs are polled, in milliseconds, where their directories can't be watched. */
 const pollInterval = 250;
@@ -46,6 +47,39 @@ const pollInterval = 250;
  */
 const settleTime = 50;
 const quietTime = 500;
+
+/**
+ * Natively, ProgramLifetime objects (syntax trees, symbols, types, signatures, links) are never freed,
+ * so each rebuild keeps what its checkers allocated. The driver runs watch mode in a child process and
+ * sets `restart` (node-system.ts): a rebuild that would start with more resident memory than `limit`
+ * calls it instead of building, and the driver starts a new process, which builds with the changed
+ * files and reports the change as this process would have.
+ */
+export class WatchRestart {
+  /** Whether this process continues the watch of one that restarted: its first build reports a change. */
+  resumed = false;
+  /** The resident bytes above which a rebuild restarts; 0 to take `firstBuildFactor` times the first build's. */
+  limit = 0;
+  restart: (() => void) | undefined = undefined;
+
+  /** Sets `limit` from the resident memory after the first build, unless it is set. */
+  firstBuildDone(): void {
+    if (this.restart !== undefined && this.limit === 0) this.limit = residentBytes() * firstBuildFactor;
+  }
+
+  /** Restarts the process if a rebuild would start above `limit`; returns whether it did. */
+  restartsBeforeRebuild(): boolean {
+    const restart = this.restart;
+    if (restart === undefined || this.limit <= 0 || residentBytes() <= this.limit) return false;
+    restart();
+    return true;
+  }
+}
+
+/** The default restart limit, as a multiple of the resident memory after the first build. */
+const firstBuildFactor = 2.5;
+
+export const watchRestart = new WatchRestart();
 
 /** Writes watch status lines, clearing the screen where tsc does. */
 class WatchStatusReporter {
@@ -371,8 +405,13 @@ class Watcher {
         sys.currentDirectory,
       );
     }
-    this.status.report(Diagnostics.Starting_compilation_in_watch_mode);
+    this.status.report(
+      watchRestart.resumed
+        ? Diagnostics.File_change_detected_Starting_incremental_compilation
+        : Diagnostics.Starting_compilation_in_watch_mode,
+    );
     this.build();
+    watchRestart.firstBuildDone();
     this.changes.watch([this.stamps, this.configStamps]);
   }
 
@@ -390,6 +429,8 @@ class Watcher {
   private rebuildIfChanged(): void {
     const configChanged = this.configStamps.changed();
     if (!configChanged && !this.stamps.changed()) return;
+    // A changed config is read here, where errors in it keep the last one.
+    if (!configChanged && watchRestart.restartsBeforeRebuild()) return;
     if (configChanged && !this.reloadConfig()) return;
     this.status.report(Diagnostics.File_change_detected_Starting_incremental_compilation);
     this.build();
@@ -508,7 +549,11 @@ export function watchBuild(sys: System, command: ParsedBuildCommandLine): void {
     options.pretty,
     locale,
   );
-  status.report(Diagnostics.Starting_compilation_in_watch_mode);
+  status.report(
+    watchRestart.resumed
+      ? Diagnostics.File_change_detected_Starting_incremental_compilation
+      : Diagnostics.Starting_compilation_in_watch_mode,
+  );
   const run = (): Stamps => {
     releaseProgramCaches();
     startWatchRebuild();
@@ -519,8 +564,9 @@ export function watchBuild(sys: System, command: ParsedBuildCommandLine): void {
     return buildInputs(sys, command);
   };
   let stamps = run();
+  watchRestart.firstBuildDone();
   const changes = new ChangeWatcher(sys, () => {
-    if (stamps.changed()) {
+    if (stamps.changed() && !watchRestart.restartsBeforeRebuild()) {
       status.report(Diagnostics.File_change_detected_Starting_incremental_compilation);
       stamps = run();
     }
