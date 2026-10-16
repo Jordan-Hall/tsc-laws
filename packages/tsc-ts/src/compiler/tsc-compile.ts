@@ -113,12 +113,11 @@ function oldSnapshotOf(sys: System, work: CompileWork, times: CompileTimes): Sna
 /**
  * The number of checker threads for `work` (`--checkers`); 1 checks on this thread with `compile`. An
  * incremental program is checked in full on threads without build info (`checksIncrementalOnThreads`);
- * with build info, threads may check the files a change affects (`recheckInParallel`). Not under
- * `noEmit`, where the incremental program keeps its files' diagnostics unfiltered.
+ * with build info, threads may check the files a change affects (`recheckInParallel`). Threads report
+ * diagnostics before `noEmit` filtering, which an incremental program keeps.
  */
 export function compileThreads(_sys: System, work: CompileWork): number {
   const options = work.program.options;
-  if (work.incremental && options.noEmit === true) return 1;
   mark('compile threads');
   return checkerThreads(options.checkers, options.singleThreaded, work.program);
 }
@@ -142,7 +141,7 @@ export function compileInParallel(
   const checked = new CheckedProgram(program);
   times.bindTime = performance.now() - bindStart;
   mark('checker created');
-  if (work.incremental && !checksIncrementalOnThreads(sys, program.options, program.commandLine.buildInfoFileName())) {
+  if (work.incremental && !checksIncrementalOnThreads(sys, program.commandLine.buildInfoFileName())) {
     recheckInParallel(sys, work, threads, times, checked, done);
     return;
   }

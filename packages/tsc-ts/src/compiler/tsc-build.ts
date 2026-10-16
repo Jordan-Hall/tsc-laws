@@ -698,7 +698,10 @@ export class Orchestrator {
           sys.currentDirectory,
         );
     times.buildInfoReadTime = performance.now() - readStart;
-    const mayUseThreads = threads && this.mayCheckOnThreads(resolved, oldSnapshot === undefined);
+    // Checker threads may check the program only when they would check every file, as without old
+    // build info. They report a file's semantic diagnostics before `noEmit` filtering, which the
+    // incremental program keeps (`getSemanticDiagnosticsWithoutNoEmitFiltering`).
+    const mayUseThreads = threads && oldSnapshot === undefined;
     const parseStart = performance.now();
     // A program checked by threads is shared with them and can't change after; the project's config
     // here, whose output paths are computed later, gets a copy of its own.
@@ -768,18 +771,6 @@ export class Orchestrator {
     }
     this.emitAndReport(task, checked, times, oldSnapshot, undefined);
     return false;
-  }
-
-  /**
-   * Whether checker threads may check the program of a project: only when they would check every
-   * file, as without old build info. Checker threads report a file's semantic diagnostics filtered
-   * for `noEmit`, while the incremental program keeps them unfiltered
-   * (`getSemanticDiagnosticsWithoutNoEmitFiltering`): with `noEmit`, only a program that keeps no
-   * incremental state, whose diagnostics are only reported filtered, is checked by threads.
-   */
-  private mayCheckOnThreads(config: ParsedCommandLine, checksEveryFile: boolean): boolean {
-    const options = config.options;
-    return checksEveryFile && !(options.noEmit === true && isIncremental(options));
   }
 
   /** Emits and reports `task`'s checked program, the rest of `compileAndEmit`. */

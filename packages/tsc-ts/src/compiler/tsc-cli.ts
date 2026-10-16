@@ -502,13 +502,12 @@ function parsesAhead(options: CompilerOptions): boolean {
 }
 
 /**
- * Whether an incremental program with `options` and the build info file `buildInfoFileName` is checked on
+ * Whether an incremental program with the build info file `buildInfoFileName` is checked in full on
  * checker threads (tsc-compile.ts): only where its build info file doesn't exist, so that every file is
- * checked, and not under `noEmit`, where it keeps its files' diagnostics unfiltered, as in build mode
- * (tsc-build.ts).
+ * checked.
  */
-export function checksIncrementalOnThreads(sys: System, options: CompilerOptions, buildInfoFileName: string): boolean {
-  return options.noEmit !== true && (buildInfoFileName === '' || !sys.fileExists(buildInfoFileName));
+export function checksIncrementalOnThreads(sys: System, buildInfoFileName: string): boolean {
+  return buildInfoFileName === '' || !sys.fileExists(buildInfoFileName);
 }
 
 /**
