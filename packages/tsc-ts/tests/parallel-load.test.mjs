@@ -277,7 +277,8 @@ test('a program with a redirect to another copy of a package takes the parse thr
       types: 'index.d.ts',
     }),
     'node_modules/wrap/node_modules/dup/index.d.ts': "export * from './more';\nexport declare const dup: number;\n",
-    'node_modules/wrap/node_modules/dup/more.d.ts': "import type {} from 'only-here';\nexport declare const more: number;\n",
+    'node_modules/wrap/node_modules/dup/more.d.ts':
+      "import type {} from 'only-here';\nexport declare const more: number;\n",
   };
   for (const [name, text] of Object.entries(files)) {
     mkdirSync(dirname(join(dir, name)), { recursive: true });
