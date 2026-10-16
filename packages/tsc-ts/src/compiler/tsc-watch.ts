@@ -440,9 +440,10 @@ class Watcher {
     const configChanged = this.configStamps.changed();
     if (!configChanged && !this.stamps.changed()) return;
     // A changed config is read here, where errors in it keep the last one. A new process would read the
-    // config again, so a process whose last read of it failed builds on with the config it has.
-    if (!configChanged && this.configRead && watchRestart.restartsBeforeRebuild()) return;
+    // config again, so a process whose last read of it failed builds on with the config it has; after a
+    // read that succeeded, a config change restarts the process like any other change.
     if (configChanged && !this.reloadConfig()) return;
+    if (this.configRead && watchRestart.restartsBeforeRebuild()) return;
     this.status.report(Diagnostics.File_change_detected_Starting_incremental_compilation);
     this.build();
   }
