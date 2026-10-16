@@ -24,6 +24,7 @@ import type { CompilerOptions } from './options.js';
 import { useThreadTextCaches } from './diagnostics.js';
 import { useLazyJSDocTable } from './parser.js';
 import { getNormalizedAbsolutePath } from './path.js';
+import { PackageJsonLookup } from './package-json.js';
 import { getDefaultLibFileName, getLibFileName } from './program-utilities.js';
 import { lastSymbolIdValue, shareSymbolIds } from './symbol.js';
 import { mark, timeline } from './timeline.js';
@@ -87,7 +88,19 @@ export class PreparedBatch {
     readonly files: PreparedFile[],
     readonly added: LoadJobs,
     readonly parseMs: number,
+    /** The `package.json` lookups the thread's module resolution made loading the chunk. */
+    readonly packageJsons: PackageJsonLookups,
   ) {}
+}
+
+/**
+ * `package.json` lookups: per lookup, the directory searched and whether the file exists
+ * (`PackageJsonLookup`).
+ */
+export class PackageJsonLookups {
+  readonly directories: string[] = [];
+  readonly exists: boolean[] = [];
+  readonly directoryExists: boolean[] = [];
 }
 
 /**
@@ -117,6 +130,8 @@ export class ParallelParse {
   used = 0;
   missed = 0;
   unprepared = 0;
+  /** The `package.json` lookups of the parse threads' module resolution, of all prepared files. */
+  readonly packageJsons: PackageJsonLookup[] = [];
 }
 
 export const parallelParse = new ParallelParse();
@@ -130,6 +145,20 @@ export function clearPreparedFiles(): void {
   parallelParse.used = 0;
   parallelParse.missed = 0;
   parallelParse.unprepared = 0;
+  parallelParse.packageJsons.length = 0;
+}
+
+/**
+ * The parse threads' `package.json` lookups, where they are the lookups the program's own module
+ * resolution would make: the program took every prepared file and the resolutions found loading
+ * it. A thread's resolution caches lookups, so the lookups of a file another file's resolution made
+ * first are among that file's: without every prepared file, some may be missing.
+ */
+export function preparedPackageJsonLookups(files: readonly SourceFile[]): PackageJsonLookup[] | undefined {
+  if (parallelParse.missed > 0) return undefined;
+  const programFiles = new Set<SourceFile>(files);
+  for (const prepared of parallelParse.files.values()) if (!programFiles.has(prepared.file)) return undefined;
+  return parallelParse.packageJsons;
 }
 
 /** The FileLoader's lookup: the prepared file for these parse inputs, or `undefined`. */
@@ -379,6 +408,11 @@ export class ParseSession {
     const queue = this.queue;
     if (timeline) mark(`chunk from p${i}: ${batch.files.length} files, ${queue.left()} left, ${this.busy - 1} busy`);
     for (const prepared of batch.files) parallelParse.files.set(prepared.fileName, prepared);
+    const lookups = batch.packageJsons;
+    for (let k = 0; k < lookups.directories.length; k++)
+      parallelParse.packageJsons.push(
+        new PackageJsonLookup(lookups.directories[k]!, lookups.exists[k]!, lookups.directoryExists[k]!),
+      );
     const added = batch.added;
     for (let k = 0; k < added.names.length; k++)
       queue.push(added.kinds[k]!, added.names[k]!, added.depths[k]!, added.sizes[k]!);
