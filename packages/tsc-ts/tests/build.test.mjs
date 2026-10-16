@@ -9,6 +9,7 @@ import {
   mkdirSync,
   readdirSync,
   readFileSync,
+  renameSync,
   rmSync,
   statSync,
   symlinkSync,
@@ -678,45 +679,185 @@ test('JavaScript require dependencies are rebuilt', { skip: tscTsMissing }, () =
   assert.deepEqual(outputs(incremental), outputs(clean));
 });
 
-// tsgo's file watching doesn't report changes in every environment, so watch mode is checked against the output
-// tsgo prints for the same sequence.
-test('--watch rebuilds on changes', { skip: tscTsMissing, timeout: 120_000 }, async () => {
+const watchProject = {
+  'tsconfig.json': '{"compilerOptions":{"outDir":"out","rootDir":"src"},"include":["src"]}',
+  'src/a.ts': 'export const a: number = 1;\n',
+};
+
+/**
+ * Runs `tsc-ts` with `args` in a new directory with `files` and makes the edits of `steps` (a file and its text, or
+ * `null` to remove a directory, files to write in order, or a function of the directory), each once the previous build
+ * reported. `prepare` runs on the directory before `tsc-ts`
+ * starts. Returns the output and the output directory's files.
+ */
+async function watchSequence(args, steps, files = watchProject, prepare = () => {}) {
   const dir = tempDir('tsc-ts-watch-');
-  writeFiles(dir, {
-    'tsconfig.json': '{"compilerOptions":{"outDir":"out","rootDir":"src"},"include":["src"]}',
-    'src/a.ts': 'export const a: number = 1;\n',
-  });
+  writeFiles(dir, files);
+  prepare(dir);
   const env = { PATH: process.env.PATH ?? '', TSC_TS_BUNDLED_LIBS: bundledLibs, NO_COLOR: '1' };
-  const child = spawn(tscTs[0], [...tscTs.slice(1), '--watch', '--preserveWatchOutput'], { cwd: dir, env });
+  const child = spawn(tscTs[0], [...tscTs.slice(1), ...args, '--preserveWatchOutput'], { cwd: dir, env });
   let output = '';
+  let exit;
   child.stdout.on('data', (chunk) => (output += chunk));
+  child.on('exit', (code) => (exit = code));
   const waitFor = async (count) => {
     const deadline = Date.now() + 60_000;
     while ((output.match(/Watching for file changes/g) ?? []).length < count) {
+      if (exit !== undefined) throw new Error(`exited with ${exit}; output so far:\n` + output);
       if (Date.now() > deadline) throw new Error('timed out; output so far:\n' + output);
       await new Promise((resolve) => setTimeout(resolve, 50));
     }
   };
   try {
     await waitFor(1);
-    writeFiles(dir, { 'src/a.ts': 'export const a: string = 1;\n' });
-    await waitFor(2);
-    writeFiles(dir, { 'src/b.ts': 'export const b = 2;\n' });
-    await waitFor(3);
+    for (let i = 0; i < steps.length; i++) {
+      const step = steps[i];
+      if (typeof step === 'function') await step(dir);
+      else if (!Array.isArray(step)) writeFiles(dir, step);
+      else if (step[1] === null) rmSync(join(dir, step[0]), { recursive: true });
+      else writeFiles(dir, { [step[0]]: step[1] });
+      await waitFor(i + 2);
+    }
   } finally {
     child.kill();
   }
-  const error = "src/a.ts(1,14): error TS2322: Type 'number' is not assignable to type 'string'.\n";
-  assert.equal(
-    normalize(output, dir),
+  const out = join(dir, files === watchProject ? 'out' : 'proj/out');
+  return { output: normalize(output, dir), files: existsSync(out) ? Object.keys(readFiles(out)).sort() : [] };
+}
+
+// Edits, a new file, a new directory and an edit in it, and the directory removed and created again. tsgo's file
+// watching doesn't report changes in every environment, so the output is checked against what tsgo prints for the
+// same sequence.
+const watchSteps = [
+  ['src/a.ts', 'export const a: string = 1;\n'],
+  ['src/b.ts', 'export const b = 2;\n'],
+  ['src/sub/c.ts', 'export const c = 3;\n'],
+  ['src/sub/c.ts', 'export const c: string = 3;\n'],
+  ['src/sub', null],
+  ['src/sub/c.ts', 'export const c = 4;\n'],
+  ['src/sub/c.ts', 'export const c: boolean = 4;\n'],
+];
+const watchOutput = (() => {
+  const a = "src/a.ts(1,14): error TS2322: Type 'number' is not assignable to type 'string'.\n";
+  const c = (type) => `src/sub/c.ts(1,14): error TS2322: Type 'number' is not assignable to type '${type}'.\n`;
+  const rebuild = (errors) =>
+    '<time> - File change detected. Starting incremental compilation...\n\n' +
+    errors.join('') +
+    (errors.length === 1
+      ? '<time> - Found 1 error. Watching for file changes.\n\n'
+      : `<time> - Found ${errors.length} errors. Watching for file changes.\n\n`);
+  return (
     '<time> - Starting compilation in watch mode...\n\n' +
-      '<time> - Found 0 errors. Watching for file changes.\n\n' +
-      '<time> - File change detected. Starting incremental compilation...\n\n' +
-      error +
-      '<time> - Found 1 error. Watching for file changes.\n\n' +
-      '<time> - File change detected. Starting incremental compilation...\n\n' +
-      error +
-      '<time> - Found 1 error. Watching for file changes.\n\n',
+    '<time> - Found 0 errors. Watching for file changes.\n\n' +
+    rebuild([a]) +
+    rebuild([a]) +
+    rebuild([a]) +
+    rebuild([a, c('string')]) +
+    rebuild([a]) +
+    rebuild([a]) +
+    rebuild([a, c('boolean')])
   );
-  assert.deepEqual(Object.keys(readFiles(join(dir, 'out'))).sort(), ['a.js', 'b.js']);
+})();
+
+test('--watch rebuilds on changes', { skip: tscTsMissing, timeout: 120_000 }, async () => {
+  const { output, files } = await watchSequence(['--watch'], watchSteps);
+  assert.equal(output, watchOutput);
+  assert.deepEqual(files, ['a.js', 'b.js', 'sub/c.js']);
 });
+
+test('--build --watch rebuilds on changes', { skip: tscTsMissing, timeout: 120_000 }, async () => {
+  const { output, files } = await watchSequence(['--build', '--watch'], watchSteps);
+  assert.equal(output, watchOutput);
+  assert.deepEqual(files, ['a.js', 'b.js', 'sub/c.js']);
+});
+
+test(
+  '--watch rebuilds when the target of a linked input changes',
+  { skip: tscTsMissing, timeout: 120_000 },
+  async () => {
+    // src/link.ts links to shared/b.ts, in a directory with no other input.
+    const { output } = await watchSequence(
+      ['--watch'],
+      [['shared/b.ts', 'export const b: string = 1;\n']],
+      { ...watchProject, 'shared/b.ts': 'export const b: number = 1;\n' },
+      (dir) => symlinkSync('../shared/b.ts', join(dir, 'src/link.ts')),
+    );
+    assert.equal(
+      output,
+      '<time> - Starting compilation in watch mode...\n\n' +
+        '<time> - Found 0 errors. Watching for file changes.\n\n' +
+        '<time> - File change detected. Starting incremental compilation...\n\n' +
+        "src/link.ts(1,14): error TS2322: Type 'number' is not assignable to type 'string'.\n" +
+        '<time> - Found 1 error. Watching for file changes.\n\n',
+    );
+  },
+);
+
+test(
+  '--watch follows a linked input pointed at another file with the same time stamp',
+  { skip: tscTsMissing, timeout: 120_000 },
+  async () => {
+    // src/link.ts links to one/b.ts, then to two/c.ts, which has the same time stamp; then two/c.ts changes.
+    const time = new Date(2020, 0, 1);
+    const { output } = await watchSequence(
+      ['--watch'],
+      [
+        (dir) => {
+          // Replaced by a rename, so that no build sees the link missing.
+          symlinkSync('../two/c.ts', join(dir, 'link.tmp'));
+          renameSync(join(dir, 'link.tmp'), join(dir, 'src/link.ts'));
+        },
+        async (dir) => {
+          // After the check that follows the new watches, so only an event of two/ can report the edit.
+          await new Promise((resolve) => setTimeout(resolve, 500));
+          writeFiles(dir, { 'two/c.ts': 'export const b: string = 2;\n' });
+        },
+      ],
+      { ...watchProject, 'one/b.ts': 'export const b: number = 1;\n', 'two/c.ts': 'export const b: number = 2;\n' },
+      (dir) => {
+        utimesSync(join(dir, 'one/b.ts'), time, time);
+        utimesSync(join(dir, 'two/c.ts'), time, time);
+        symlinkSync('../one/b.ts', join(dir, 'src/link.ts'));
+      },
+    );
+    assert.equal(
+      output,
+      '<time> - Starting compilation in watch mode...\n\n' +
+        '<time> - Found 0 errors. Watching for file changes.\n\n' +
+        '<time> - File change detected. Starting incremental compilation...\n\n' +
+        '<time> - Found 0 errors. Watching for file changes.\n\n' +
+        '<time> - File change detected. Starting incremental compilation...\n\n' +
+        "src/link.ts(1,14): error TS2322: Type 'number' is not assignable to type 'string'.\n" +
+        '<time> - Found 1 error. Watching for file changes.\n\n',
+    );
+  },
+);
+
+test(
+  '--build --watch rebuilds when a removed project directory is created again',
+  { skip: tscTsMissing, timeout: 120_000 },
+  async () => {
+    const project = Object.fromEntries(Object.entries(watchProject).map(([path, text]) => ['proj/' + path, text]));
+    const { output, files } = await watchSequence(
+      ['--build', 'proj', '--watch'],
+      [
+        ['proj', null],
+        // The config last, so that no build sees it without the source file.
+        { 'proj/src/a.ts': 'export const a: string = 1;\n', 'proj/tsconfig.json': project['proj/tsconfig.json'] },
+      ],
+      project,
+    );
+    assert.equal(
+      output,
+      '<time> - Starting compilation in watch mode...\n\n' +
+        '<time> - Found 0 errors. Watching for file changes.\n\n' +
+        '<time> - File change detected. Starting incremental compilation...\n\n' +
+        "error TS6053: File '<dir>/proj/tsconfig.json' not found.\n" +
+        '<time> - Found 1 error. Watching for file changes.\n\n' +
+        '<time> - File change detected. Starting incremental compilation...\n\n' +
+        "proj/src/a.ts(1,14): error TS2322: Type 'number' is not assignable to type 'string'.\n" +
+        '<time> - Found 1 error. Watching for file changes.\n\n',
+    );
+    assert.deepEqual(files, ['a.js']);
+  },
+);

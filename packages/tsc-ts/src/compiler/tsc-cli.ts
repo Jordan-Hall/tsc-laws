@@ -75,6 +75,12 @@ export abstract class System extends CommandLineHost {
   abstract getMTime(path: string): number | undefined;
   abstract setMTime(path: string, time: number): boolean;
   abstract removeFile(path: string): boolean;
+  /**
+   * Calls `onChange` when the directory or a file in it changes, until the watch is closed. Undefined
+   * if the directory can't be watched, or where watching a directory doesn't report writes to its
+   * files.
+   */
+  abstract watchDirectory(path: string, onChange: () => void): DirectoryWatch | undefined;
 
   private readonly startTime = performance.now();
 
@@ -82,6 +88,11 @@ export abstract class System extends CommandLineHost {
   sinceStart(): number {
     return performance.now() - this.startTime;
   }
+}
+
+/** A watch of `System.watchDirectory`. */
+export interface DirectoryWatch {
+  close(): void;
 }
 
 /** The file system of a `System`. */
