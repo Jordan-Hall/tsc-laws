@@ -265,7 +265,9 @@ function emitJSFile(
   printerOptions.sourceMap = options.sourceMap === true;
   printerOptions.inlineSourceMap = options.inlineSourceMap === true;
   printerOptions.inlineSources = options.inlineSources === true;
-  printerOptions.target = getEmitScriptTarget(options);
+  // The target option as given, as tsgo's JavaScript printer takes it: without one, the printer's default
+  // removes numeric separators, although the transforms target the default target.
+  if (options.target !== undefined) printerOptions.target = options.target;
   const printer = new Printer(printerOptions, context);
   const emitSourceMaps =
     (options.sourceMap === true || options.inlineSourceMap === true) && !fileExtensionIs(file.fileName, '.json');
