@@ -198,14 +198,13 @@ function recheckInParallel(
     done(emitStatusAndReportStatistics(sys, incrementalProgram, result));
   };
   // Reporting checks only programs without syntactic, program and global errors (getDiagnosticsOfProgram).
-  // The threads emit the files they check, as the checker that checks a file emits it on this thread;
-  // where emit waits for every file's errors (noEmitOnError), or may skip writing a declaration file
-  // (composite), this thread checks and emits.
+  // The threads emit the files they check, as the checker that checks a file emits it on this thread
+  // (under noEmitOnError into memory, for this thread to write if there are no errors); where emit may
+  // skip writing a declaration file (composite), this thread checks and emits.
   const options = program.options;
   if (
     !sharesPublishedGraphs ||
     options.listFilesOnly === true ||
-    options.noEmitOnError === true ||
     options.composite === true ||
     incrementalProgram.getSyntacticDiagnostics().length > 0 ||
     incrementalProgram.getProgramDiagnostics().length > 0 ||

@@ -248,6 +248,44 @@ const scenarios = {
       { args: ['--checkers', '2', '--listEmittedFiles', '--strictNullChecks', 'false'] },
     ],
   },
+  'noEmitOnError rebuild of affected files on checker threads': {
+    files: {
+      'tsconfig.json':
+        '{"compilerOptions":{"incremental":true,"noEmitOnError":true,"declaration":true,"sourceMap":true,' +
+        '"outDir":"out","rootDir":"src"},"include":["src"]}',
+      'src/base.ts':
+        'export interface Shape { kind: string; size: number }\nexport const unit = { kind: "u", size: 1 };\n',
+      'src/a.ts': 'import { Shape, unit } from "./base";\nexport const a = (s: Shape) => [s, unit];\n',
+      'src/b.ts': 'import { unit } from "./base";\nexport const b = { ...unit, extra: true };\n',
+      'src/c.ts': 'import * as base from "./base";\nexport const c: base.Shape = base.unit;\n',
+      'src/d.ts': 'import { Shape } from "./base";\nexport function d(s: Shape): Shape | undefined { return s; }\n',
+      'src/e.ts': 'import { unit } from "./base";\nexport const e: string = unit.kind;\n',
+      'src/f.ts': 'import { a } from "./a";\nexport const f = a({ kind: "f", size: 2 });\n',
+    },
+    steps: [
+      { args: ['--checkers', '2', '--listEmittedFiles'] },
+      {
+        args: ['--checkers', '2', '--listEmittedFiles'],
+        edit: {
+          'src/base.ts':
+            'export interface Shape { kind: string; size: number; label?: string }\n' +
+            'export const unit = { kind: "u", size: 1, label: "unit" };\n',
+        },
+      },
+      {
+        args: ['--checkers', '2', '--listEmittedFiles'],
+        edit: { 'src/e.ts': 'import { unit } from "./base";\nexport const e: number = unit.kind;\n' },
+      },
+      {
+        args: ['--checkers', '2', '--listEmittedFiles'],
+        edit: {
+          'src/e.ts': 'import { unit } from "./base";\nexport const e: string = unit.kind;\n',
+          'src/base.ts':
+            'export interface Shape { kind: string; size: number }\nexport const unit = { kind: "v", size: 1 };\n',
+        },
+      },
+    ],
+  },
   'composite, node16 packages, tsBuildInfoFile and noEmitOnError': {
     files: {
       'tsconfig.json':
