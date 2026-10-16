@@ -234,6 +234,13 @@ export class CheckedProgram {
    * index, and their global diagnostics. Set once every file is checked.
    */
   checkedInParallel: (Diagnostic[] | undefined)[] | undefined = undefined;
+  /**
+   * The files checker threads check, where only some are (the affected files of an incremental
+   * program's rebuild); `undefined` for every file. The others are checked on this thread when asked.
+   */
+  checkOnly: ReadonlySet<SourceFile> | undefined = undefined;
+  /** Whether the program is shared with checker threads (`shareWithCheckers`, parallel-check.ts). */
+  sharedWithCheckers = false;
   readonly parallelGlobalDiagnostics: Diagnostic[] = [];
   /**
    * The declaration diagnostics checker threads computed under `noEmit` (PlainProgram), by file
@@ -277,8 +284,8 @@ export class CheckedProgram {
   getSemanticDiagnosticsWithoutNoEmitFiltering(file: SourceFile): Diagnostic[] {
     if (this.skipTypeChecking(file)) return [];
     const parallel = this.checkedInParallel;
-    if (parallel !== undefined) {
-      const diagnostics = parallel[this.indexOfFile(file)]!;
+    const diagnostics = parallel === undefined ? undefined : parallel[this.indexOfFile(file)];
+    if (diagnostics !== undefined) {
       const count = diagnostics.length - this.getIncludeProcessorDiagnostics(file).length;
       return sortAndDeduplicateDiagnostics(diagnostics.slice(0, count));
     }

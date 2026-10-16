@@ -2,6 +2,7 @@
  * The `tsc` compile step after the command line: bind and check the program, emit it, then report
  * diagnostics, listed files, the error summary and statistics like tsgo's `EmitFilesAndReportErrors`.
  */
+import type { SourceFile } from './ast.js';
 import { mark } from './timeline.js';
 import {
   CheckedProgram,
@@ -14,7 +15,8 @@ import {
 import type { Diagnostic, Locale } from './diagnostics.js';
 import { EmitResult } from './emitter.js';
 import { FileBuildInfoReader, IncrementalProgram, readBuildInfoProgram, TimeStampHost } from './incremental.js';
-import { checkerThreads, startParallelCheck, traceSingleChecker } from './parallel-check.js';
+import { checkerThreads, shareWithCheckers, startParallelCheck, traceSingleChecker } from './parallel-check.js';
+import { sharesPublishedGraphs } from '@scriptc/threads';
 import { getNormalizedAbsolutePath } from './path.js';
 import { sortAndDeduplicateDiagnostics } from './program.js';
 import {
@@ -93,12 +95,13 @@ export function compile(sys: System, work: CompileWork): ExitStatus {
 
 /**
  * The number of checker threads for `work` (`--checkers`); 1 checks on this thread with `compile`. An
- * incremental program is checked on threads only without build info (`checksIncrementalOnThreads`).
+ * incremental program is checked in full on threads without build info (`checksIncrementalOnThreads`);
+ * with build info, threads may check the files a change affects (`recheckInParallel`). Not under
+ * `noEmit`, where the incremental program keeps its files' diagnostics unfiltered.
  */
-export function compileThreads(sys: System, work: CompileWork): number {
+export function compileThreads(_sys: System, work: CompileWork): number {
   const options = work.program.options;
-  if (work.incremental && !checksIncrementalOnThreads(sys, options, work.program.commandLine.buildInfoFileName()))
-    return 1;
+  if (work.incremental && options.noEmit === true) return 1;
   mark('compile threads');
   return checkerThreads(options.checkers, options.singleThreaded, work.program);
 }
@@ -122,6 +125,10 @@ export function compileInParallel(
   const checked = new CheckedProgram(program);
   times.bindTime = performance.now() - bindStart;
   mark('checker created');
+  if (work.incremental && !checksIncrementalOnThreads(sys, program.options, program.commandLine.buildInfoFileName())) {
+    recheckInParallel(sys, work, threads, times, checked, done);
+    return;
+  }
   startParallelCheck(checked, threads, (checkTime) => {
     // An incremental program here has no build info (`compileThreads`).
     let compilerProgram: CompilerProgram;
@@ -144,6 +151,87 @@ export function compileInParallel(
     done(emitStatusAndReportStatistics(sys, compilerProgram, result));
   });
 }
+
+/**
+ * The rest of `compileInParallel` for an incremental program with build info: its program is shared with
+ * the checker threads first, then the incremental program finds the files a change affects
+ * (`IncrementalProgram.filesToCheck`); the threads check those when they are many enough to be worth it
+ * (`rechecksOnThreads`), each emitting what the incremental program's emit would of the files it
+ * checks (`emitKindsOnCheckers`), and this thread checks and emits them otherwise.
+ */
+function recheckInParallel(
+  sys: System,
+  work: CompileWork,
+  threads: number,
+  times: CompileTimes,
+  checked: CheckedProgram,
+  done: (status: ExitStatus) => void,
+): void {
+  const program = work.program;
+  const readStart = performance.now();
+  const old = readBuildInfoProgram(
+    program.commandLine,
+    new FileBuildInfoReader(new SystemFileSystem(sys)),
+    sys.defaultLibraryPath,
+    sys.currentDirectory,
+  );
+  times.buildInfoReadTime = performance.now() - readStart;
+  // The program is shared before its checker does more than merge the globals.
+  if (sharesPublishedGraphs) shareWithCheckers(checked);
+  const changesStart = performance.now();
+  const incrementalProgram = new IncrementalProgram(checked, times, old, new SystemTimeStamps(sys));
+  times.changesComputeTime = performance.now() - changesStart;
+  const finish = (): void => {
+    mark('report start');
+    const result = emitFilesAndReportErrors(
+      sys,
+      incrementalProgram,
+      work.reporter,
+      work.errorSummary,
+      new SystemWriter(sys),
+      outputLocale(program.options),
+    );
+    mark(`reported ${result.diagnostics.length} diagnostics`);
+    done(emitStatusAndReportStatistics(sys, incrementalProgram, result));
+  };
+  // Reporting checks only programs without syntactic, program and global errors (getDiagnosticsOfProgram).
+  // The threads emit the files they check, as the checker that checks a file emits it on this thread;
+  // where emit waits for every file's errors (noEmitOnError), or may skip writing a declaration file
+  // (composite), this thread checks and emits.
+  const options = program.options;
+  if (
+    !sharesPublishedGraphs ||
+    options.listFilesOnly === true ||
+    options.noEmitOnError === true ||
+    options.composite === true ||
+    incrementalProgram.getSyntacticDiagnostics().length > 0 ||
+    incrementalProgram.getProgramDiagnostics().length > 0 ||
+    incrementalProgram.getGlobalDiagnostics(false).length > 0
+  )
+    return finish();
+  const files = incrementalProgram.filesToCheck();
+  mark(`${files.length} files to check`);
+  if (!rechecksOnThreads(files, threads, options.checkers !== undefined)) return finish();
+  checked.checkOnly = new Set(files);
+  startParallelCheck(checked, threads, finish, true, incrementalProgram.emitKindsOnCheckers(files));
+}
+
+/**
+ * Whether checker threads check `files`, the files a change affects: when there are at least two per
+ * checker and, unless the number of checkers was given (`--checkers`), they hold at least
+ * `recheckOnThreadsText` characters, so that the threads' start (each checker resolves the
+ * declarations the files use again) costs less than checking them on one thread.
+ */
+function rechecksOnThreads(files: readonly SourceFile[], threads: number, checkersGiven: boolean): boolean {
+  if (files.length < 2 * threads) return false;
+  if (checkersGiven) return true;
+  let text = 0;
+  for (const file of files) text += file.text.length;
+  return text >= recheckOnThreadsText;
+}
+
+/** The least text of the files a change affects that checker threads check (`rechecksOnThreads`). */
+const recheckOnThreadsText = 200_000;
 
 export class CompileResult {
   constructor(
