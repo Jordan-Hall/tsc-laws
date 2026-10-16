@@ -1489,6 +1489,16 @@ class ToBuildInfo {
     );
   }
 
+  /** The path tsgo orders a file by, where bundled libraries have `bundled:///libs/` paths. */
+  private orderPath(path: string): string {
+    const libFile = this.program.getDefaultLibFile(path);
+    return libFile !== undefined && !libFile.replaced ? 'bundled:///libs/' + libFile.name : path;
+  }
+
+  /** Orders paths as tsgo does (`orderPath`). */
+  private readonly comparePaths = (a: string, b: string): number =>
+    compareStrings(this.orderPath(a), this.orderPath(b));
+
   private toFileId(path: string): number {
     let fileId = this.fileNameToFileId.get(path);
     if (fileId === undefined) {
@@ -1584,10 +1594,10 @@ class ToBuildInfo {
       this.setRootOfIncrementalProgram();
       this.setCompilerOptions();
       this.setReferencedMap();
-      const changed = [...snapshot.changedFilesSet].sort(compareStrings);
+      const changed = [...snapshot.changedFilesSet].sort(this.comparePaths);
       buildInfo.changeFileSet = changed.map((path) => this.toFileId(path));
       this.setSemanticDiagnostics();
-      const emitDiagnostics = [...snapshot.emitDiagnosticsPerFile.keys()].sort(compareStrings);
+      const emitDiagnostics = [...snapshot.emitDiagnosticsPerFile.keys()].sort(this.comparePaths);
       for (const path of emitDiagnostics) {
         const diagnostics = snapshot.emitDiagnosticsPerFile.get(path);
         if (diagnostics === undefined) continue;
@@ -1705,7 +1715,7 @@ class ToBuildInfo {
 
   private setReferencedMap(): void {
     const references = this.snapshot.referencedMap.references;
-    const keys = [...references.keys()].sort(compareStrings);
+    const keys = [...references.keys()].sort(this.comparePaths);
     for (const path of keys) {
       const set = references.get(path);
       if (set === undefined) continue;
@@ -1734,7 +1744,7 @@ class ToBuildInfo {
 
   private setAffectedFilesPendingEmit(): void {
     const snapshot = this.snapshot;
-    const files = [...snapshot.affectedFilesPendingEmit.keys()].sort(compareStrings);
+    const files = [...snapshot.affectedFilesPendingEmit.keys()].sort(this.comparePaths);
     const fullEmitKind = getFileEmitKind(snapshot.options);
     for (const path of files) {
       const file = this.program.getSourceFileByPath(path);
