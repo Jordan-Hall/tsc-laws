@@ -366,6 +366,20 @@ class ReferenceMap {
   }
 }
 
+/**
+ * The `fileIdsList` of a build info that was read: the paths of its file ids, the set of paths the
+ * snapshot read from it has for each list, and the list of each file of its referenced map.
+ */
+class FileIdLists {
+  readonly listOfFile = new Map<string, number>();
+
+  constructor(
+    readonly filePaths: readonly string[],
+    readonly ids: readonly number[][],
+    readonly sets: readonly ReadonlySet<string>[],
+  ) {}
+}
+
 function sameSet(a: ReadonlySet<string> | undefined, b: ReadonlySet<string> | undefined): boolean {
   if (a === undefined || b === undefined) return a === b;
   if (a.size !== b.size) return false;
@@ -397,6 +411,11 @@ export class Snapshot {
   readonly fileInfos = new Map<string, FileInfo>();
   options: CompilerOptions;
   readonly referencedMap = new ReferenceMap();
+  /**
+   * The lists of file ids of the build info read last, whose sets of paths the referenced map keeps
+   * for files whose references did not change.
+   */
+  fileIdLists: FileIdLists | undefined = undefined;
   readonly semanticDiagnosticsPerFile = new Map<string, FileDiagnostics>();
   readonly emitDiagnosticsPerFile = new Map<string, FileDiagnostics>();
   changedFilesSet = new Set<string>();
@@ -648,11 +667,17 @@ function buildInfoToSnapshot(
     } else if (value.differsInOptions) snapshot.emitSignatures.set(path, new EmitSignature('', value.signature));
     else snapshot.emitSignatures.set(path, new EmitSignature(value.signature, undefined));
   }
+  const fileIdLists = new FileIdLists(filePaths, buildInfo.fileIdsList, fileSets);
   for (const entry of buildInfo.referencedMap) {
     const set =
       entry.fileIdListId >= 1 && entry.fileIdListId <= fileSets.length ? fileSets[entry.fileIdListId - 1] : undefined;
-    if (set !== undefined) snapshot.referencedMap.references.set(filePath(entry.fileId), set);
+    if (set !== undefined) {
+      const path = filePath(entry.fileId);
+      snapshot.referencedMap.references.set(path, set);
+      fileIdLists.listOfFile.set(path, entry.fileIdListId - 1);
+    }
   }
+  snapshot.fileIdLists = fileIdLists;
   for (const fileId of buildInfo.changeFileSet) snapshot.changedFilesSet.add(filePath(fileId));
   for (const path of snapshot.fileInfos.keys()) {
     if (!snapshot.changedFilesSet.has(path)) snapshot.semanticDiagnosticsPerFile.set(path, FileDiagnostics.of([]));
@@ -797,6 +822,7 @@ function programToSnapshot(checked: CheckedProgram, oldSnapshot: Snapshot | unde
     const oldPackageJsons = oldSnapshot.packageJsons;
     if (oldPackageJsons !== undefined) snapshot.packageJsonsFromOldState = oldPackageJsons;
     snapshot.missingPackageJsonsFromOldState = oldSnapshot.missingPackageJsons;
+    snapshot.fileIdLists = oldSnapshot.fileIdLists;
   } else {
     snapshot.buildInfoEmitPending = isIncremental(options);
   }
@@ -837,13 +863,17 @@ function programToSnapshot(checked: CheckedProgram, oldSnapshot: Snapshot | unde
           oldInfo.impliedNodeFormat !== impliedNodeFormat
         ) {
           snapshot.addFileToChangeSet(path);
-        } else if (!sameSet(newReferences, oldSnapshot.referencedMap.references.get(path))) {
-          snapshot.addFileToChangeSet(path);
-        } else if (newReferences !== undefined) {
-          for (const reference of newReferences) {
-            if (program.getSourceFileByPath(reference) === undefined && oldSnapshot.fileInfos.has(reference)) {
-              snapshot.addFileToChangeSet(path);
-              break;
+        } else {
+          const oldReferences = oldSnapshot.referencedMap.references.get(path);
+          if (!sameSet(newReferences, oldReferences)) snapshot.addFileToChangeSet(path);
+          else if (newReferences !== undefined && oldReferences !== undefined) {
+            // The old set, which can be of a list of file ids the build info writes again (`FileIdLists`).
+            snapshot.referencedMap.references.set(path, oldReferences);
+            for (const reference of newReferences) {
+              if (program.getSourceFileByPath(reference) === undefined && oldSnapshot.fileInfos.has(reference)) {
+                snapshot.addFileToChangeSet(path);
+                break;
+              }
             }
           }
         }
@@ -1486,8 +1516,17 @@ class ToBuildInfo {
   private readonly fileNameToFileId = new Map<string, number>();
   private readonly fileNamesToFileIdListId = new Map<string, number>();
   private readonly roots = new Map<SourceFile, string>();
-  /** `relativeToBuildInfo` of the directories of the paths so far. */
+  /** `relativePath` of the directories of the paths so far. */
   private readonly relativeDirectories = new Map<string, string>();
+  /** The path of each file id so far. */
+  private readonly fileIdPaths: string[] = [];
+  /**
+   * How many of the first file ids here are of the same paths as in the snapshot's `fileIdLists`, once
+   * computed.
+   */
+  private sameFileIds = -1;
+  /** The id here of each list of the snapshot's `fileIdLists` written so far. */
+  private readonly listIdOfOldList = new Map<number, number>();
 
   constructor(
     private readonly snapshot: Snapshot,
@@ -1498,9 +1537,15 @@ class ToBuildInfo {
   }
 
   private relativeToBuildInfo(path: string): string {
-    // The relative path of a file is that of its directory and its name, unless the directory is the
-    // build info's directory or one above it, where the name could be a component of the build info's
-    // directory.
+    return ensurePathIsNonModuleName(this.relativePath(path));
+  }
+
+  /**
+   * The path of `path` relative to the build info's directory: that of its directory and its name,
+   * unless the directory is the build info's directory or one above it, where the name could be a
+   * component of the build info's directory.
+   */
+  private relativePath(path: string): string {
     const slash = path.lastIndexOf('/');
     const name = path.slice(slash + 1);
     if (slash > getRootLength(path) && name !== '' && name !== '.' && name !== '..' && !path.includes('\\')) {
@@ -1510,12 +1555,8 @@ class ToBuildInfo {
         relative = this.relativePath(directory);
         this.relativeDirectories.set(directory, relative);
       }
-      if (relative !== '' && !isParentDirectoryPath(relative)) return ensurePathIsNonModuleName(relative + '/' + name);
+      if (relative !== '' && !isParentDirectoryPath(relative)) return relative + '/' + name;
     }
-    return ensurePathIsNonModuleName(this.relativePath(path));
-  }
-
-  private relativePath(path: string): string {
     return getRelativePathFromDirectory(
       this.buildInfoDirectory,
       path,
@@ -1540,16 +1581,32 @@ class ToBuildInfo {
       const libFile = this.program.getDefaultLibFile(path);
       if (libFile !== undefined && !libFile.replaced) this.buildInfo.fileNames.push(libFile.name);
       else this.buildInfo.fileNames.push(this.relativeToBuildInfo(path));
+      this.fileIdPaths.push(path);
       fileId = this.buildInfo.fileNames.length;
       this.fileNameToFileId.set(path, fileId);
     }
     return fileId;
   }
 
-  private toFileIdListId(set: ReadonlySet<string>): number {
-    const fileIds: number[] = [];
-    for (const path of set) fileIds.push(this.toFileId(path));
-    fileIds.sort((a, b) => a - b);
+  /** The id of the list of the ids of `set`, the references of the file at `path`. */
+  private toFileIdListId(path: string, set: ReadonlySet<string>): number {
+    // A set read from the old build info has the ids it was read from, where those are the same here.
+    const lists = this.snapshot.fileIdLists;
+    let oldIndex = lists?.listOfFile.get(path);
+    if (oldIndex !== undefined && lists?.sets[oldIndex] !== set) oldIndex = undefined;
+    let fileIds: number[] | undefined = undefined;
+    if (lists !== undefined && oldIndex !== undefined) {
+      const known = this.listIdOfOldList.get(oldIndex);
+      if (known !== undefined) return known;
+      const ids = lists.ids[oldIndex];
+      if (this.hasSameFileIds(ids, lists)) fileIds = ids;
+    }
+    if (fileIds === undefined) {
+      const newIds: number[] = [];
+      for (const reference of set) newIds.push(this.toFileId(reference));
+      newIds.sort((a, b) => a - b);
+      fileIds = newIds;
+    }
     const key = fileIds.join(',');
     let id = this.fileNamesToFileIdListId.get(key);
     if (id === undefined) {
@@ -1558,7 +1615,29 @@ class ToBuildInfo {
       id = this.buildInfo.fileIdsList.length;
       this.fileNamesToFileIdListId.set(key, id);
     }
+    if (oldIndex !== undefined && fileIds === lists?.ids[oldIndex]) this.listIdOfOldList.set(oldIndex, id);
     return id;
+  }
+
+  /**
+   * Whether `ids`, a list of `lists`, has ascending ids that are of the same paths here, as the ids of
+   * the program's files, which come first, are where the program has the same files in the same order.
+   */
+  private hasSameFileIds(ids: readonly number[], lists: FileIdLists): boolean {
+    if (this.sameFileIds < 0) {
+      const paths = this.fileIdPaths;
+      const oldPaths = lists.filePaths;
+      const length = Math.min(paths.length, oldPaths.length);
+      let same = 0;
+      while (same < length && paths[same] === oldPaths[same]) same++;
+      this.sameFileIds = same;
+    }
+    let previous = 0;
+    for (const id of ids) {
+      if (id <= previous) return false;
+      previous = id;
+    }
+    return previous <= this.sameFileIds;
   }
 
   private toBuildInfoDiagnostics(filePath: string, diagnostics: readonly Diagnostic[]): BuildInfoDiagnostic[] {
@@ -1757,7 +1836,7 @@ class ToBuildInfo {
     for (const path of keys) {
       const set = references.get(path);
       if (set === undefined) continue;
-      this.buildInfo.referencedMap.push(new BuildInfoReference(this.toFileId(path), this.toFileIdListId(set)));
+      this.buildInfo.referencedMap.push(new BuildInfoReference(this.toFileId(path), this.toFileIdListId(path, set)));
     }
   }
 
