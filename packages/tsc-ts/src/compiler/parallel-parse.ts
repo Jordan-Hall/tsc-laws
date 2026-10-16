@@ -16,6 +16,7 @@
  * module-indicator options match; anything else (a file that was not loaded ahead, or that is parsed
  * with other options) is parsed as usual, so the program does not depend on what was loaded ahead.
  */
+import { statSync } from 'node:fs';
 import type { Worker } from 'node:worker_threads';
 import { publish } from '@scriptc/threads';
 import { type SourceFile, type ExternalModuleIndicatorOptions, lastNodeIdValue, shareNodeIds } from './ast.js';
@@ -190,6 +191,15 @@ export function takePreparedFile(
   return prepared.file;
 }
 
+/** The size of the file `fileName` in bytes, or 0. */
+export function fileSize(fileName: string): number {
+  try {
+    return statSync(fileName).size;
+  } catch {
+    return 0;
+  }
+}
+
 /** Files per chunk at most: small enough that the files a chunk adds are queued again soon. */
 const maxChunk = 16;
 
@@ -200,9 +210,10 @@ const largeFile = 256 * 1024;
  * The files to hand out to parse threads, each queued once. Library files go out first, one per
  * chunk, also those found later through `/// <reference lib>`: a large one (`lib.dom.d.ts`) takes a
  * thread 100–150 ms, and queued behind other files it would be the last file the program waits for.
- * Then, for the same reason, large files the parse threads found (`csstype`'s 0.9 MB of
- * declarations, found through React's), one per chunk. The other files go out in program order, in
- * chunks of up to `maxChunk`.
+ * Then, for the same reason, large files, one per chunk: root files (TypeScript's 3 MB `checker.ts`,
+ * which in a chunk of root files kept one thread busy after the others were done) and the files the
+ * parse threads found (`csstype`'s 0.9 MB of declarations, found through React's). The other files go
+ * out in program order, in chunks of up to `maxChunk`.
  */
 export class ParseQueue {
   private readonly libraries = new LoadJobs();
@@ -215,15 +226,17 @@ export class ParseQueue {
   /** Files not to load ahead: the program has them already (`ParseSession`'s `skip`). */
   skip: ((kind: LoadKind, name: string) => boolean) | undefined = undefined;
 
+  /** Queues a file; the size of a root file, which the threads haven't seen, is read here. */
   push(kind: LoadKind, name: string, depth: number, size = 0): void {
     const key = kind === LoadKind.Library ? 'lib:' + name : kind === LoadKind.AutomaticTypes ? 'types:' : name;
     if (this.seen.has(key)) return;
     this.seen.add(key);
     if (this.skip !== undefined && this.skip(kind, name)) return;
+    if (kind === LoadKind.Root) size = fileSize(name);
     const jobs =
       kind === LoadKind.Library
         ? this.libraries
-        : kind === LoadKind.File && size >= largeFile
+        : (kind === LoadKind.File || kind === LoadKind.Root) && size >= largeFile
           ? this.large
           : this.others;
     jobs.push(kind, name, depth, size);

@@ -62,17 +62,22 @@ test('parse threads get library files first, one per chunk, also libraries queue
 });
 
 test('parse threads get large files right after libraries, one per chunk, ahead of files queued earlier', () => {
+  const dir = tempDir('tsc-ts-parallel-schedule-large-');
+  // 300 KB, a large root file such as TypeScript's checker.ts.
+  writeFileSync(join(dir, 'checker.ts'), 'export const a = 1;\n'.repeat(15_000));
   const queue = new ParseQueue();
   queue.push(Root, '/p/a.ts', 0);
   queue.push(File, '/p/small.d.ts', 0, 1000);
   queue.push(File, '/p/csstype.d.ts', 0, 900_000);
   queue.push(Library, 'lib.dom.d.ts', 0);
-  // A root file the main thread did not size stays in program order whatever its size.
-  queue.push(Root, '/p/root-of-unknown-size.ts', 0, 0);
+  // The queue reads the size of a root file: one it can't read stays in program order.
+  queue.push(Root, '/p/root-of-unknown-size.ts', 0);
+  queue.push(Root, join(dir, 'checker.ts'), 0);
   queue.push(File, '/p/electron.d.ts', 0, 1_100_000);
-  assert.equal(queue.left(), 6);
+  assert.equal(queue.left(), 7);
   assert.deepEqual(queue.next(1).names, ['lib.dom.d.ts']);
   assert.deepEqual(queue.next(1).names, ['/p/csstype.d.ts']);
+  assert.deepEqual(queue.next(1).names, [join(dir, 'checker.ts')]);
   assert.deepEqual(queue.next(1).names, ['/p/electron.d.ts']);
   assert.deepEqual(queue.next(1).names, ['/p/a.ts', '/p/small.d.ts', '/p/root-of-unknown-size.ts']);
   assert.equal(queue.next(1), undefined);
