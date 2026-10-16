@@ -309,6 +309,31 @@ const scenarios = {
       },
     ],
   },
+  'type references that are not found in files whose diagnostics are not reported': {
+    files: {
+      'tsconfig.json':
+        '{"compilerOptions":{"strict":true,"skipLibCheck":true,"composite":true,"types":[]},' +
+        '"files":["a.ts","b.ts","env.d.ts"]}',
+      // Not checked with skipLibCheck.
+      'env.d.ts': '/// <reference types="missing-env" />\n',
+      // Filtered by the directive.
+      'b.ts': '// @ts-ignore\n/// <reference types="missing-b" />\nexport const b = 1;\n',
+      'a.ts': 'export const a = 1;\n',
+    },
+    steps: [
+      { args: [] },
+      { args: ['-b', '-v'] },
+      { args: ['-b', '-v'], edit: { 'a.ts': 'export const a = 2;\n' } },
+      {
+        args: ['-b', '-v'],
+        edit: {
+          'tsconfig.json':
+            '{"compilerOptions":{"strict":true,"composite":true,"types":[]},"files":["a.ts","b.ts","env.d.ts"]}',
+        },
+      },
+      { args: ['-b', '-v'] },
+    ],
+  },
   'explainFiles and statistics': {
     files: {
       'tsconfig.json': '{"compilerOptions":{"outDir":"out"},"files":["a.ts"]}',
