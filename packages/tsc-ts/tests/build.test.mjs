@@ -45,6 +45,14 @@ const scenarios = {
     },
     steps: [{ args: [] }],
   },
+  'numeric separators without a target': {
+    files: {
+      'tsconfig.json': '{"compilerOptions":{"outDir":"out"},"files":["a.ts","b.ts"]}',
+      'a.ts': 'export const n = 30_000;\nlet q: number | undefined;\nq ??= 1_000;\n',
+      'b.ts': 'export const m = 0x_ff;\n',
+    },
+    steps: [{ args: [] }, { args: ['--target', 'es2020'] }, { args: ['--target', 'es2021'] }],
+  },
   'stored relation errors with elaborations and related information': {
     files: {
       'tsconfig.json': '{"compilerOptions":{"strict":true,"noEmit":true,"incremental":true},"files":["a.ts","b.ts"]}',
