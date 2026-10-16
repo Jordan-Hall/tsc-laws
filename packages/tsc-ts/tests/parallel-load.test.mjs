@@ -22,9 +22,13 @@ const { createNodeSystem, parseThreadOfCommandLine } = await load('drivers/node-
 const { executeCommandLine } = await load('compiler/tsc-cli.js');
 const { CheckedProgram } = await load('compiler/program-checker.js');
 const { ParseQueue, parallelParse } = await load('compiler/parallel-parse.js');
+const { PackageJsonLookup } = await load('compiler/package-json.js');
 const { useLazyJSDocTable } = await load('compiler/parser.js');
 const { parseLocale } = await load('compiler/diagnostics.js');
 const { assignSymbolIdsAtCreation } = await load('compiler/symbol.js');
+const { ConfigParser } = await load('compiler/tsconfig.js');
+const { CachedFileSystem } = await load('compiler/file-system.js');
+const { SystemFileSystem } = await load('compiler/tsc-cli.js');
 
 const Root = 0;
 const Library = 2;
@@ -121,6 +125,11 @@ test('the program takes what parse threads found loading their files and is the 
     }
     for (let k = 0; k < batch.added.names.length; k++)
       queue.push(batch.added.kinds[k], batch.added.names[k], batch.added.depths[k]);
+    const lookups = batch.packageJsons;
+    for (let k = 0; k < lookups.directories.length; k++)
+      parallelParse.packageJsons.push(
+        new PackageJsonLookup(lookups.directories[k], lookups.exists[k], lookups.directoryExists[k]),
+      );
   }
 
   const shared = executeCommandLine(createNodeSystem(bundledLibs, ''), args);
@@ -129,6 +138,15 @@ test('the program takes what parse threads found loading their files and is the 
   assert.equal(parallelParse.used, files);
   assert.equal(recorded, parallelParse.files.size);
   assert.equal(describe(shared.program), expected);
+  // The program took every prepared file, so with the parse thread's lookups it has the
+  // \`package.json\` lookups resolving everything itself makes, which build info records.
+  const lookups = (program) =>
+    [
+      ...new Set(program.packageJsonLookups().map((l) => `${l.packageDirectory} ${l.exists} ${l.directoryExists}`)),
+    ].sort();
+  assert.ok(shared.program.hasAllPackageJsonLookups());
+  assert.deepEqual(lookups(shared.program), lookups(plain.program));
+  assert.ok(lookups(plain.program).some((l) => l.includes('node_modules/heavy true')));
   // The fixture exercises what loading records: a JSX runtime import, import helpers, missing
   // references and type directives, a library reference and a package.
   assert.match(expected, /react\/jsx-runtime\.d\.ts/);
@@ -163,6 +181,7 @@ test('a source file of a referenced project loaded ahead queues the file it is r
   parallelParse.used = 0;
   parallelParse.missed = 0;
   parallelParse.unprepared = 0;
+  parallelParse.packageJsons.length = 0;
   const plain = executeCommandLine(createNodeSystem(bundledLibs, ''), args);
   assert.equal(plain.kind, 'compile');
   const expected = describe(plain.program);
@@ -193,4 +212,45 @@ test('a source file of a referenced project loaded ahead queues the file it is r
   assert.equal(describe(shared.program), expected);
   assert.match(expected, /out\/index\.d\.ts/);
   assert.match(expected, /main\.ts:\d+-\d+:2322:/);
+});
+
+// Root files go to the parse threads as the config's \`include\` patterns match them
+// (\`ConfigParser.beforeRootFiles\`), so that the threads start on them: a file that one of the same
+// name with a higher priority extension leaves out of the config is not among them, since the
+// program does not load it.
+test('root files found while include patterns are matched are the root files of the config', () => {
+  const dir = tempDir('tsc-ts-parallel-load-root-files-');
+  const files = {
+    'tsconfig.json': JSON.stringify({
+      compilerOptions: { noEmit: true, allowJs: true, lib: ['es2022'] },
+      files: ['src/lit.ts'],
+      include: ['src'],
+    }),
+    'src/a.ts': 'export const a = 1;\n',
+    'src/a.tsx': 'export const a = 2;\n',
+    'src/a.d.ts': 'export declare const a: number;\n',
+    'src/b.tsx': 'export const b = 1;\n',
+    'src/b.js': 'export const b = 2;\n',
+    'src/c.js': 'export const c = 1;\n',
+    'src/c.d.ts': 'export declare const c: number;\n',
+    'src/d.jsx': 'export const d = 1;\n',
+    'src/lit.ts': 'export const lit = 1;\n',
+    'src/lit.tsx': 'export const lit = 2;\n',
+    'src/sub/e.ts': 'export const e = 1;\n',
+    'src/sub/e.d.ts': 'export declare const e: number;\n',
+  };
+  for (const [name, text] of Object.entries(files)) {
+    mkdirSync(dirname(join(dir, name)), { recursive: true });
+    writeFileSync(join(dir, name), text);
+  }
+  const sys = createNodeSystem(bundledLibs, '');
+  const parser = new ConfigParser(new CachedFileSystem(new SystemFileSystem(sys)), sys.currentDirectory);
+  const found = [];
+  parser.beforeRootFiles = () => (fileName) => found.push(fileName);
+  const errors = [];
+  const config = parser.parseConfigFile(join(dir, 'tsconfig.json'), undefined, undefined, errors);
+  assert.deepEqual(errors, []);
+  assert.deepEqual([...found].sort(), [...config.fileNames].sort());
+  assert.ok(config.fileNames.some((f) => f.endsWith('src/c.d.ts')));
+  assert.ok(!config.fileNames.some((f) => f.endsWith('src/a.tsx') || f.endsWith('src/lit.tsx')));
 });

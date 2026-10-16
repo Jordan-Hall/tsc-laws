@@ -29,6 +29,7 @@
 // | checker-elaboration.ts          | reporting relation errors at the failing subexpression  |
 // | checker-grammar.ts              | grammar checks                                          |
 // | checker-flow.ts                 | control flow narrowing                                  |
+import { sideOf } from './side-state.js';
 import type { Node, PatternAmbientModule, SourceFile } from './ast.js';
 import { IntLinkTable, LinkTable, SparseLinkTable } from './link-tables.js';
 import { getErrorRangeForNode, getSourceFileOfNode } from './binder-utilities.js';
@@ -53,6 +54,7 @@ import {
   IndexInfo,
   IntrinsicType,
   LiteralType,
+  MemberNames,
   NodeLinks,
   ObjectFlags,
   ObjectType,
@@ -83,6 +85,7 @@ import {
 import {
   CheckerNameResolver,
   type LibGlobals,
+  type MergedGlobals,
   TableChanges,
   borrowLibGlobals,
   findLibGlobals,
@@ -98,7 +101,7 @@ import { PermissiveMapper, ReportingMapper, RestrictiveMapper, UniqueLiteralMapp
 import { Relation, RelationKey, type InternedRelationKey, type Relater, TypeComparer } from './relations.js';
 import { TypeNodeVisitor, checkSourceFile } from './checker-source-file.js';
 import { InferenceCaches } from './checker-inference.js';
-import { AssignmentMarker, type FlowLoopInfo, type FlowState } from './checker-narrowing.js';
+import { AssignmentMarker, type FlowLoopInfo, type FlowState, type FlowWalk } from './checker-narrowing.js';
 import type { FlowNode, FlowReduceLabel } from './flow.js';
 import { JsxState } from './checker-jsx.js';
 import type { DeferredIterationError, IterationTypes } from './checker-iteration.js';
@@ -145,6 +148,10 @@ export abstract class CheckerHost {
   getJSXRuntimeImportSpecifier(_file: SourceFile): Node | undefined {
     return undefined;
   }
+  /** The globals and module augmentations of the program, if a checker merged them for the others. */
+  getMergedGlobals(): MergedGlobals | undefined {
+    return undefined;
+  }
   /** The format `file` is emitted in when it differs from `module`, else `None`. */
   getImpliedNodeFormatForEmit(_file: SourceFile): ModuleKind {
     return ModuleKind.None;
@@ -177,8 +184,11 @@ class DiagnosticCollection {
   private readonly sortedFiles = new Set<string>();
   private readonly global: Diagnostic[] = [];
   private globalSorted = true;
+  /** The diagnostics added since `startLog`, while recording. */
+  private log: Diagnostic[] | undefined = undefined;
 
   add(diagnostic: Diagnostic): void {
+    if (this.log !== undefined) this.log.push(diagnostic);
     const file = diagnostic.file;
     if (file === undefined) {
       this.global.push(diagnostic);
@@ -225,6 +235,18 @@ class DiagnosticCollection {
       this.globalSorted = true;
     }
     return this.global.slice();
+  }
+
+  /** Records the diagnostics added from now on. */
+  startLog(): void {
+    this.log = [];
+  }
+
+  /** The diagnostics added since `startLog`, in order; stops recording. */
+  takeLog(): Diagnostic[] {
+    const log = this.log!;
+    this.log = undefined;
+    return log;
   }
 }
 
@@ -285,6 +307,8 @@ export class Checker {
   signatureCount = 0;
   /** Positions of members by name in the tables and lists that lazily instantiated members come from. */
   readonly memberPositionsInLists = new Map<Symbol[], Map<string, number>>();
+  /** The property names of the last instantiation of each such list whose table is built on demand. */
+  readonly memberNamesOfLists = new Map<Symbol[], MemberNames>();
   /** Long lists of inherited properties, by name. */
   readonly propertiesByName = new Map<Symbol[], Map<string, Symbol>>();
   /** Number of `typeToString` calls in progress. */
@@ -306,6 +330,10 @@ export class Checker {
   // created on first use.
   readonly symbolLinkTable = new SparseLinkTable<SymbolLinks>();
   readonly nodeLinkTable = new SparseLinkTable<NodeLinks>();
+  /** The holders of the lazily computed state of types with side state (`sideOf`), by type id. */
+  readonly sideHolders = new LinkTable<Type>();
+  /** The same for signatures with side state (`signatureSideOf`), by signature id. */
+  readonly signatureSideHolders = new LinkTable<Signature>();
   /** The type of a value symbol. */
   readonly symbolTypes = new LinkTable<Type>();
   /** For instantiated and synthetic symbols, the symbol they come from. */
@@ -335,6 +363,13 @@ export class Checker {
   readonly mergedSymbols: Map<number, Symbol>;
   /** Globals merged from the default libraries, shared with other checkers. */
   libGlobals: LibGlobals | undefined;
+  /** The program's globals and module augmentations as another checker merged them, shared with it. */
+  mergedGlobals: MergedGlobals | undefined;
+  /**
+   * The diagnostics and suggestions the merges reported: those of the globals, then those of the
+   * ambient modules and module augmentations.
+   */
+  readonly mergeDiagnostics: Diagnostic[][] = [];
   /**
    * This checker's changes to `globals` and `mergedSymbols` when it uses the tables of
    * `libGlobals` in place rather than copies; they are undone when it is disposed.
@@ -355,8 +390,10 @@ export class Checker {
   readonly unknownSymbol: Symbol;
   readonly globalThisSymbol: Symbol;
   readonly unresolvedSymbols = new Map<string, Symbol>();
-  /** Widening's optional `undefined` properties by the id of the sibling property each stands for. */
+  /** Widening's optional `undefined` properties by the id of the property each is created from. */
   readonly undefinedProperties = new Map<number, Symbol>();
+  /** By file and name, the property that widening's optional `undefined` properties are created from. */
+  readonly firstSiblingProperties = new Map<SourceFile, Map<string, Node>>();
 
   // Interning tables.
   readonly stringLiteralTypes = new Map<string, LiteralType>();
@@ -547,6 +584,8 @@ export class Checker {
   readonly sharedFlowTypes: Type[] = [];
   readonly sharedFlowIncomplete: boolean[] = [];
   readonly flowLoopCaches = new Map<FlowNode, Map<string, Type>>();
+  /** The last long walk of each reference key outside loops: see `FlowWalk`. */
+  readonly flowWalks = new Map<string, FlowWalk>();
   readonly flowLoopStack: FlowLoopInfo[] = [];
   /** Types of expressions whose computation needed flow analysis, outside loop back edges. */
   flowTypeCache: Map<Node, Type> | undefined = undefined;
@@ -584,6 +623,8 @@ export class Checker {
   readonly resolutionTargets: (Symbol | Type | Signature | Node)[] = [];
   readonly resolutionResults: boolean[] = [];
   readonly resolutionPropertyNames: number[] = [];
+  /** The number of resolution cycles found (`pushTypeResolution`). */
+  resolutionCycleCount = 0;
 
   constructor(host: CheckerHost) {
     this.host = host;
@@ -611,9 +652,14 @@ export class Checker {
     this.argumentsSymbol = this.newSymbol(SymbolFlags.Property, 'arguments');
     this.requireSymbol = this.newSymbol(SymbolFlags.Property, 'require');
     this.unknownSymbol = this.newSymbol(SymbolFlags.Property, 'unknown');
-    const libs = findLibGlobals(this);
+    const merged = host.getMergedGlobals();
+    this.mergedGlobals = merged;
+    const libs = merged === undefined ? findLibGlobals(this) : undefined;
     this.libGlobals = libs;
-    if (libs === undefined) {
+    if (merged !== undefined) {
+      this.globals = new Map(merged.globals);
+      this.mergedSymbols = new Map(merged.mergedSymbols);
+    } else if (libs === undefined) {
       this.globals = new Map<string, Symbol>();
       this.mergedSymbols = new Map<number, Symbol>();
     } else if (libs.borrower === undefined) {
@@ -701,7 +747,7 @@ export class Checker {
       ? getUnionType(this, [this.undefinedType, this.nullType, this.unknownEmptyObjectType])
       : this.unknownType;
     this.emptyGenericType = newAnonymousType(this, undefined);
-    this.emptyGenericType.instantiations = new TypeListCache<Type>();
+    sideOf(this, this.emptyGenericType).instantiations = new TypeListCache<Type>();
     this.anyFunctionType = newAnonymousType(this, undefined);
     this.anyFunctionType.objectFlags |= ObjectFlags.NonInferrableType;
     this.noConstraintType = newAnonymousType(this, undefined);
@@ -754,7 +800,10 @@ export class Checker {
     this.typeofType = getUnionType(this, typeofTypes);
 
     // initializeChecker
+    this.diagnostics.startLog();
+    this.suggestionDiagnostics.startLog();
     initializeGlobals(this);
+    this.mergeDiagnostics.push(this.diagnostics.takeLog(), this.suggestionDiagnostics.takeLog());
     this.symbolTypes.set(getSymbolId(this.undefinedSymbol), this.undefinedWideningType);
     this.symbolTypes.set(getSymbolId(this.argumentsSymbol), getGlobalType(this, 'IArguments', 0, true));
     this.symbolTypes.set(getSymbolId(this.unknownSymbol), this.errorType);
@@ -782,7 +831,10 @@ export class Checker {
     this.globalReadonlyArrayType = readonlyArrayType;
     this.anyReadonlyArrayType = createTypeFromGenericGlobalType(this, readonlyArrayType, [this.anyType]);
     this.globalThisType = getGlobalType(this, 'ThisType', 1, false);
+    this.diagnostics.startLog();
+    this.suggestionDiagnostics.startLog();
     mergeAmbientModulesAndAugmentations(this);
+    this.mergeDiagnostics.push(this.diagnostics.takeLog(), this.suggestionDiagnostics.takeLog());
   }
 
   // ---- Public API
@@ -944,10 +996,12 @@ export function disposeChecker(c: Checker): void {
   }
   c.sharedSymbolCopies.clear();
   c.memberPositionsInLists.clear();
+  c.memberNamesOfLists.clear();
   c.propertiesByName.clear();
   c.symbolAccessibilityCaches = undefined;
   c.unresolvedSymbols.clear();
   c.undefinedProperties.clear();
+  c.firstSiblingProperties.clear();
   c.stringLiteralTypes.clear();
   c.numberLiteralTypes.clear();
   c.bigintLiteralTypes.clear();
@@ -975,6 +1029,7 @@ export function disposeChecker(c: Checker): void {
   c.globalSymbolCache.clear();
   c.markerTypes.clear();
   c.flowLoopCaches.clear();
+  c.flowWalks.clear();
   c.flowNodeReachable.clear();
   c.flowNodePostSuper.clear();
   c.primitiveTypeAliasSuggestions.clear();

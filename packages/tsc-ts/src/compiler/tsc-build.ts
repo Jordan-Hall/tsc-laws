@@ -18,8 +18,9 @@ import {
   localizeMessage,
   type MessageWithArgs,
 } from './diagnostics.js';
-import type { ExternalModuleIndicatorOptions, SourceFile } from './ast.js';
-import { CompilerHost } from './file-loader.js';
+import { type ExternalModuleIndicatorOptions, ParseOptions, ScriptKind, type SourceFile } from './ast.js';
+import { parseSourceFile } from './parser.js';
+import { CompilerHost, FileLoader } from './file-loader.js';
 import { CachedFileSystem } from './file-system.js';
 import { defaultIsPretty, version } from './help.js';
 import {
@@ -55,7 +56,8 @@ import {
 } from './tsc-cli.js';
 import { emitFilesAndReportErrors, exitStatusOf, Statistics, statisticsOf, SystemTimeStamps } from './tsc-compile.js';
 import { sharesPublishedGraphs } from '@scriptc/threads';
-import { checkerThreads, startParallelCheck } from './parallel-check.js';
+import { checkerThreads, parseThreads, startParallelCheck } from './parallel-check.js';
+import { LoadKind, ParseSession, clearPreparedFiles, parallelParse, reportPreparedFiles } from './parallel-parse.js';
 import { assignSymbolIdsAtCreation } from './symbol.js';
 
 const enum BuildKind {
@@ -193,6 +195,27 @@ class TaskBuildInfoReader extends BuildInfoReader {
  * is immutable, and so is everything it refers to.
  */
 let buildSourceFiles = new Map<string, SourceFile>();
+/** The names of `buildSourceFiles`, which parse threads don't load again. */
+let buildSourceFileNames = new Set<string>();
+
+/**
+ * In `tsc -b -w`, the source files of the last rebuild and those of this one, by the key of
+ * `buildSourceFiles` (`startWatchRebuild`); outside watch mode `undefined`. Not reachable from the
+ * programs, like `buildSourceFiles`.
+ */
+let watchSourceFilesOfLastBuild: ReadonlyMap<string, SourceFile> | undefined = undefined;
+let watchSourceFiles: Map<string, SourceFile> | undefined = undefined;
+
+/**
+ * Starts a rebuild of `tsc -b -w`: its projects' programs take the source files of the last rebuild
+ * whose text is unchanged (`BuildCompilerHost`), as `tsc -w` does. Natively, syntax trees and symbols
+ * are never freed (ProgramLifetime), so parsing every file again made each rebuild keep another copy of
+ * every project's program.
+ */
+export function startWatchRebuild(): void {
+  watchSourceFilesOfLastBuild = watchSourceFiles ?? new Map<string, SourceFile>();
+  watchSourceFiles = new Map<string, SourceFile>();
+}
 
 class BuildCompilerHost extends CompilerHost {
   constructor(
@@ -214,19 +237,52 @@ class BuildCompilerHost extends CompilerHost {
     path: string,
     externalModuleIndicatorOptions: ExternalModuleIndicatorOptions,
   ): SourceFile | undefined {
-    if (!isDeclarationFileName(fileName) && !fileExtensionIs(fileName, '.json'))
-      return super.getSourceFile(fileName, path, externalModuleIndicatorOptions);
     const key =
       fileName +
       '\u0000' +
       path +
       (externalModuleIndicatorOptions.jsx ? '\u0000j' : '\u0000') +
       (externalModuleIndicatorOptions.force ? 'f' : '');
+    if (watchSourceFiles !== undefined)
+      return this.getWatchSourceFile(fileName, path, externalModuleIndicatorOptions, key);
+    if (!isDeclarationFileName(fileName) && !fileExtensionIs(fileName, '.json'))
+      return super.getSourceFile(fileName, path, externalModuleIndicatorOptions);
     const cached = buildSourceFiles.get(key);
     if (cached !== undefined) return cached;
     const file = super.getSourceFile(fileName, path, externalModuleIndicatorOptions);
     // A file that can't be read is looked up again, as tsgo does.
-    if (file !== undefined) buildSourceFiles.set(key, file);
+    if (file !== undefined) {
+      buildSourceFiles.set(key, file);
+      buildSourceFileNames.add(fileName);
+    }
+    return file;
+  }
+
+  /**
+   * In `tsc -b -w` (`startWatchRebuild`), any file is parsed once per rebuild and shared by its
+   * projects' programs, and a rebuild takes the last rebuild's file when its text is unchanged. A file
+   * parses the same for the same text, name, path and module detection options, and binding a bound
+   * file does nothing.
+   */
+  private getWatchSourceFile(
+    fileName: string,
+    path: string,
+    externalModuleIndicatorOptions: ExternalModuleIndicatorOptions,
+    key: string,
+  ): SourceFile | undefined {
+    const text = this.fs.readFile(fileName);
+    if (text === undefined) return undefined;
+    let file = watchSourceFiles!.get(key);
+    if (file !== undefined && file.text === text) return file;
+    file = watchSourceFilesOfLastBuild?.get(key);
+    if (file === undefined || file.text !== text)
+      file = parseSourceFile(
+        fileName,
+        text,
+        new ParseOptions(path, ScriptKind.Unknown, externalModuleIndicatorOptions),
+      );
+    watchSourceFiles!.set(key, file);
+    buildSourceFileNames.add(fileName);
     return file;
   }
 
@@ -382,6 +438,7 @@ export class Orchestrator {
     this.reporter = new DiagnosticReporter(sys, options, this.locale);
     this.errorSummary = new ErrorSummaryReporter(sys, options, this.locale);
     buildSourceFiles = new Map<string, SourceFile>();
+    buildSourceFileNames = new Set<string>();
   }
 
   private get verbose(): boolean {
@@ -625,6 +682,10 @@ export class Orchestrator {
     task.errors = [];
     if (this.verbose) this.status.report(Diagnostics.Building_project_0, this.relativeFileName(task.config));
 
+    // Each project loads its own files, with or without parse threads: the files prepared for the
+    // previous project (loaded with its options) go now, not before its incremental program took their
+    // versions (programToSnapshot).
+    clearPreparedFiles();
     const times = new CompileTimes();
     times.configTime = task.configTime;
     const readStart = performance.now();
@@ -641,10 +702,55 @@ export class Orchestrator {
     const parseStart = performance.now();
     // A program checked by threads is shared with them and can't change after; the project's config
     // here, whose output paths are computed later, gets a copy of its own.
-    const program = new Program(
-      mayUseThreads ? copyCommandLine(resolved) : resolved,
-      new BuildCompilerHost(sys, this.fs, this.locale),
-    );
+    const config = mayUseThreads ? copyCommandLine(resolved) : resolved;
+    const host = new BuildCompilerHost(sys, this.fs, this.locale);
+    const configOptions = config.options;
+    const checkers = threads ? checkerThreads(configOptions.checkers, configOptions.singleThreaded) : 1;
+    if (checkers > 1 && parallelParse.spawn !== undefined) {
+      // Threads parse and bind the program's files ahead of it (parallel-parse.ts), as for plain
+      // compiles that check on threads. Here also when the program is checked on this thread, as
+      // after a change with old build info, whose program is parsed in full all the same. The
+      // program's FileLoader takes the files they prepared, and resolves their imports and
+      // references itself (`takesPreparedResolutions`): the build info lists the `package.json`
+      // files the program's module resolution looked up, and which ones it looks up depends on the
+      // order of its resolutions and on what its own caches hold. Declaration files that earlier
+      // projects of the build parsed come from the build's cache, and parse threads don't load
+      // them again.
+      const libraryDirectory = getNormalizedAbsolutePath(sys.defaultLibraryPath, sys.currentDirectory);
+      const session = new ParseSession(
+        parseThreads(checkers),
+        configOptions,
+        sys.currentDirectory,
+        task.config,
+        config.fileNames.length > 0,
+        (kind, name) =>
+          buildSourceFileNames.has(kind === LoadKind.Library ? combinePaths(libraryDirectory, name) : name),
+      );
+      session.start(config.fileNames, () => {
+        const loader = new FileLoader(host, config);
+        loader.takesPreparedResolutions = false;
+        const program = new Program(config, host, loader);
+        reportPreparedFiles(program.getSourceFiles().map((f) => f.fileName));
+        if (!this.checkAndEmit(task, program, parseStart, times, oldSnapshot, mayUseThreads, then)) then();
+      });
+      return true;
+    }
+    return this.checkAndEmit(task, new Program(config, host), parseStart, times, oldSnapshot, mayUseThreads, then);
+  }
+
+  /**
+   * Binds and checks `program`, the program of `task` parsed from `parseStart` on, and emits it;
+   * returns whether checker threads check it, and then calls `then` once it is emitted.
+   */
+  private checkAndEmit(
+    task: BuildTask,
+    program: Program,
+    parseStart: number,
+    times: CompileTimes,
+    oldSnapshot: Snapshot | undefined,
+    mayUseThreads: boolean,
+    then: () => void,
+  ): boolean {
     times.parseTime = performance.now() - parseStart;
     const bindStart = performance.now();
     const checked = new CheckedProgram(program);

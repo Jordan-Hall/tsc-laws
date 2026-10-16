@@ -16,7 +16,8 @@
 // - Other changes in packages/relater and packages/tsgo run that package's tests (and the corpus for tsgo).
 // - apps/web runs the documentation job. Markdown, lint configuration, code generators and corpus tools select
 //   nothing beyond the jobs that always run.
-// A smoke set of short units always runs.
+// A smoke set of short units always runs. When a change reaches runtime code of tsc-ts (or the full matrix runs),
+// the native twins of the selected units run too, against native builds, in their own shards.
 import { execFileSync } from 'node:child_process';
 import { appendFileSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -35,6 +36,9 @@ export const smoke = [
 // Seconds of tests per shard, and the most shards a run uses.
 const target = 330;
 const maxShards = { fast: 16, full: 16 };
+// Native test shards start after the native build, so they get less time each.
+const nativeTarget = 150;
+const maxNativeShards = 8;
 
 // What a change to a path selects; the first matching rule applies.
 const rules = [
@@ -55,7 +59,9 @@ const rules = [
   [/./, 'full'],
 ];
 
-const units = allUnits();
+const everyUnit = allUnits();
+// Selection works on the Node units; native twins are added afterwards (`select`).
+const units = everyUnit.filter((unit) => !unit.native);
 const unitsOf = (file) => units.filter((unit) => unit.file === file).map((unit) => unit.id);
 const tscTsUnits = () => units.filter((unit) => unit.id.startsWith('packages/tsc-ts/')).map((unit) => unit.id);
 const packageUnits = (pkg) => units.filter((unit) => unit.cwd === `packages/${pkg}`).map((unit) => unit.id);
@@ -313,7 +319,10 @@ function sourceUnits(base, head, change, reasons) {
     ...(before === undefined ? [] : classify(before, change.status === 'D' ? allLines(before) : oldLines)),
     ...(after === undefined ? [] : classify(after, change.status === 'A' ? allLines(after) : newLines)),
   ];
-  if (found.some((f) => f.kind === 'const-enum')) return reasons.add(tscTsUnits(), `${path}: const enum changed`);
+  if (found.some((f) => f.kind === 'const-enum')) {
+    reasons.native();
+    return reasons.add(tscTsUnits(), `${path}: const enum changed`);
+  }
   const parts = [{ file: path, found }];
   const exported = [...new Set(found.filter((f) => f.kind === 'exported').flatMap((f) => f.names))];
   if (exported.length > 0) {
@@ -331,6 +340,7 @@ function sourceUnits(base, head, change, reasons) {
       why.push(part.file === path ? result.why.join('; ') : `${posix.basename(part.file)}: ${result.why.join('; ')}`);
   }
   if (why.length === 0) return reasons.note(`${path}: types, comments or whitespace only`);
+  reasons.native();
   const files = [...tests].map((t) => map.tests[t]);
   reasons.add(
     files.flatMap((file) => unitsOf(file)),
@@ -391,7 +401,12 @@ export function select(base, head, changes, full = false) {
   const chosen = new Set(smoke);
   const notes = full ? ['full matrix requested'] : [];
   let docs = false;
+  // Whether the change touches runtime code of tsc-ts, which the native build compiles.
+  let native = full;
   const reasons = {
+    native() {
+      native = true;
+    },
     add(ids, why) {
       for (const id of ids) chosen.add(id);
       notes.push(why);
@@ -416,10 +431,22 @@ export function select(base, head, changes, full = false) {
     else if (rule === 'relater' || rule === 'tsgo') reasons.add(packageUnits(rule), `${path}: ${rule} tests`);
     else reasons.full(path);
   }
+  if (full) native = true;
   const ids = units.map((u) => u.id).filter((id) => full || chosen.has(id));
   const count = shardCount(ids, target, full ? maxShards.full : maxShards.fast);
   const shards = pack(ids, count).map((s, i) => ({ shard: `${i + 1}/${count}`, seconds: Math.round(s.seconds) }));
-  return { full, docs: docs || full, units: ids, shards, notes };
+  // The native twins of the selected units, when the change reaches the native build.
+  const selected = new Set(ids);
+  const nativeIds = native
+    ? everyUnit.filter((u) => u.native && selected.has(u.id.slice('native:'.length))).map((u) => u.id)
+    : [];
+  const nativeCount = nativeIds.length === 0 ? 0 : shardCount(nativeIds, nativeTarget, maxNativeShards);
+  const nativeShards = pack(nativeIds, nativeCount).map((s, i) => ({
+    shard: `${i + 1}/${nativeCount}`,
+    seconds: Math.round(s.seconds),
+  }));
+  if (nativeIds.length > 0) notes.push(`runtime code changed: ${nativeIds.length} native units`);
+  return { full, docs: docs || full, units: [...ids, ...nativeIds], shards, nativeShards, notes };
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
@@ -440,8 +467,9 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   }
   const total = plan.units.reduce((sum, id) => sum + durationOf(id), 0);
   console.log(
-    `${plan.full ? 'full matrix' : 'selected'}: ${plan.units.length} of ${units.length} units, ` +
-      `${Math.round(total / 60)} min of tests in ${plan.shards.length} shards; documentation ${plan.docs ? 'yes' : 'no'}`,
+    `${plan.full ? 'full matrix' : 'selected'}: ${plan.units.length} of ${everyUnit.length} units, ` +
+      `${Math.round(total / 60)} min of tests in ${plan.shards.length} shards and ${plan.nativeShards.length} native ` +
+      `shards; documentation ${plan.docs ? 'yes' : 'no'}`,
   );
   for (const note of plan.notes) console.log('  ' + note);
   const out = option('--out');
@@ -450,13 +478,15 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     appendFileSync(
       process.env.GITHUB_OUTPUT,
       `plan=${JSON.stringify({ units: plan.units })}\nshards=${JSON.stringify(plan.shards.map((s) => s.shard))}\n` +
-        `docs=${plan.docs}\nfull=${plan.full}\n`,
+        `native-shards=${JSON.stringify(plan.nativeShards.map((s) => s.shard))}\n` +
+        `native=${plan.nativeShards.length > 0}\ndocs=${plan.docs}\nfull=${plan.full}\n`,
     );
   }
   if (process.env.GITHUB_STEP_SUMMARY)
     appendFileSync(
       process.env.GITHUB_STEP_SUMMARY,
-      `### Test selection\n\n${plan.full ? 'Full matrix' : 'Selected'}: ${plan.units.length} of ${units.length} units ` +
-        `in ${plan.shards.length} shards.\n\n${plan.notes.map((n) => `- ${n}`).join('\n')}\n`,
+      `### Test selection\n\n${plan.full ? 'Full matrix' : 'Selected'}: ${plan.units.length} of ${everyUnit.length} ` +
+        `units in ${plan.shards.length} shards and ${plan.nativeShards.length} native shards.\n\n` +
+        `${plan.notes.map((n) => `- ${n}`).join('\n')}\n`,
     );
 }

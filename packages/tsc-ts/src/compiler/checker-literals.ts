@@ -33,8 +33,8 @@ export function getRegularTypeOfObjectLiteral(c: Checker, t: Type): Type {
     resolved.constructSignatures,
     resolved.indexInfos,
   );
-  regular.flags = resolved.flags;
-  regular.objectFlags |= resolved.objectFlags & ~ObjectFlags.FreshLiteral;
+  regular.flags = t.flags;
+  regular.objectFlags |= t.objectFlags & ~(ObjectFlags.FreshLiteral | ObjectFlags.SideState);
   c.cachedTypesById.set(key, regular);
   return regular;
 }

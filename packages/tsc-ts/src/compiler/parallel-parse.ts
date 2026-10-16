@@ -16,6 +16,7 @@
  * module-indicator options match; anything else (a file that was not loaded ahead, or that is parsed
  * with other options) is parsed as usual, so the program does not depend on what was loaded ahead.
  */
+import { statSync } from 'node:fs';
 import type { Worker } from 'node:worker_threads';
 import { publish } from '@scriptc/threads';
 import { type SourceFile, type ExternalModuleIndicatorOptions, lastNodeIdValue, shareNodeIds } from './ast.js';
@@ -24,6 +25,7 @@ import type { CompilerOptions } from './options.js';
 import { useThreadTextCaches } from './diagnostics.js';
 import { useLazyJSDocTable } from './parser.js';
 import { getNormalizedAbsolutePath } from './path.js';
+import { PackageJsonLookup } from './package-json.js';
 import { getDefaultLibFileName, getLibFileName } from './program-utilities.js';
 import { lastSymbolIdValue, shareSymbolIds } from './symbol.js';
 import { mark, timeline } from './timeline.js';
@@ -72,7 +74,16 @@ export class PreparedFile {
     readonly jsx: boolean,
     readonly force: boolean,
     readonly file: SourceFile,
+    /** The build info version of `file` (`computeHash` of its text) for an incremental program, or `''`. */
+    readonly version: string,
   ) {}
+}
+
+/** The version a parse thread computed for `file` (`PreparedFile.version`), or `''`. */
+export function preparedVersion(file: SourceFile): string {
+  if (parallelParse.files.size === 0) return '';
+  const prepared = parallelParse.files.get(file.fileName);
+  return prepared !== undefined && prepared.file === file ? prepared.version : '';
 }
 
 /** What a parse thread's FileLoader found loading `fileName`, if the thread prepared it. */
@@ -87,7 +98,19 @@ export class PreparedBatch {
     readonly files: PreparedFile[],
     readonly added: LoadJobs,
     readonly parseMs: number,
+    /** The `package.json` lookups the thread's module resolution made loading the chunk. */
+    readonly packageJsons: PackageJsonLookups,
   ) {}
+}
+
+/**
+ * `package.json` lookups: per lookup, the directory searched and whether the file exists
+ * (`PackageJsonLookup`).
+ */
+export class PackageJsonLookups {
+  readonly directories: string[] = [];
+  readonly exists: boolean[] = [];
+  readonly directoryExists: boolean[] = [];
 }
 
 /**
@@ -117,9 +140,36 @@ export class ParallelParse {
   used = 0;
   missed = 0;
   unprepared = 0;
+  /** The `package.json` lookups of the parse threads' module resolution, of all prepared files. */
+  readonly packageJsons: PackageJsonLookup[] = [];
 }
 
 export const parallelParse = new ParallelParse();
+
+/**
+ * Drops the prepared files once a program took what it needed. In a build, the next project's
+ * program must not take another project's files, which were loaded with that project's options.
+ */
+export function clearPreparedFiles(): void {
+  parallelParse.files.clear();
+  parallelParse.used = 0;
+  parallelParse.missed = 0;
+  parallelParse.unprepared = 0;
+  parallelParse.packageJsons.length = 0;
+}
+
+/**
+ * The parse threads' `package.json` lookups, where they are the lookups the program's own module
+ * resolution would make: the program took every prepared file and the resolutions found loading
+ * it. A thread's resolution caches lookups, so the lookups of a file another file's resolution made
+ * first are among that file's: without every prepared file, some may be missing.
+ */
+export function preparedPackageJsonLookups(files: readonly SourceFile[]): PackageJsonLookup[] | undefined {
+  if (parallelParse.missed > 0) return undefined;
+  const programFiles = new Set<SourceFile>(files);
+  for (const prepared of parallelParse.files.values()) if (!programFiles.has(prepared.file)) return undefined;
+  return parallelParse.packageJsons;
+}
 
 /** The FileLoader's lookup: the prepared file for these parse inputs, or `undefined`. */
 export function takePreparedFile(
@@ -141,6 +191,15 @@ export function takePreparedFile(
   return prepared.file;
 }
 
+/** The size of the file `fileName` in bytes, or 0. */
+export function fileSize(fileName: string): number {
+  try {
+    return statSync(fileName).size;
+  } catch {
+    return 0;
+  }
+}
+
 /** Files per chunk at most: small enough that the files a chunk adds are queued again soon. */
 const maxChunk = 16;
 
@@ -151,9 +210,10 @@ const largeFile = 256 * 1024;
  * The files to hand out to parse threads, each queued once. Library files go out first, one per
  * chunk, also those found later through `/// <reference lib>`: a large one (`lib.dom.d.ts`) takes a
  * thread 100–150 ms, and queued behind other files it would be the last file the program waits for.
- * Then, for the same reason, large files the parse threads found (`csstype`'s 0.9 MB of
- * declarations, found through React's), one per chunk. The other files go out in program order, in
- * chunks of up to `maxChunk`.
+ * Then, for the same reason, large files, one per chunk: root files (TypeScript's 3 MB `checker.ts`,
+ * which in a chunk of root files kept one thread busy after the others were done) and the files the
+ * parse threads found (`csstype`'s 0.9 MB of declarations, found through React's). The other files go
+ * out in program order, in chunks of up to `maxChunk`.
  */
 export class ParseQueue {
   private readonly libraries = new LoadJobs();
@@ -163,15 +223,20 @@ export class ParseQueue {
   private largeHead = 0;
   private head = 0;
   private readonly seen = new Set<string>();
+  /** Files not to load ahead: the program has them already (`ParseSession`'s `skip`). */
+  skip: ((kind: LoadKind, name: string) => boolean) | undefined = undefined;
 
+  /** Queues a file; the size of a root file, which the threads haven't seen, is read here. */
   push(kind: LoadKind, name: string, depth: number, size = 0): void {
     const key = kind === LoadKind.Library ? 'lib:' + name : kind === LoadKind.AutomaticTypes ? 'types:' : name;
     if (this.seen.has(key)) return;
     this.seen.add(key);
+    if (this.skip !== undefined && this.skip(kind, name)) return;
+    if (kind === LoadKind.Root) size = fileSize(name);
     const jobs =
       kind === LoadKind.Library
         ? this.libraries
-        : kind === LoadKind.File && size >= largeFile
+        : (kind === LoadKind.File || kind === LoadKind.Root) && size >= largeFile
           ? this.large
           : this.others;
     jobs.push(kind, name, depth, size);
@@ -280,6 +345,8 @@ export class ParseSession {
   /**
    * Starts `count` parse threads for a program with `options`, with or without root files
    * (`hasRootFiles`; `true` when not known yet). They read the config `configFileName` (`''` for none).
+   * They don't load the files `skip` names (a library's name, or another file's normalized name),
+   * which the program gets elsewhere; nor the files only those add.
    */
   constructor(
     private readonly count: number,
@@ -287,6 +354,7 @@ export class ParseSession {
     private readonly currentDirectory: string,
     configFileName: string,
     hasRootFiles: boolean,
+    skip?: (kind: LoadKind, name: string) => boolean,
   ) {
     mark(`parse start, ${count} threads`);
     // Prepared files are published (immutable): this thread keeps lazily parsed JSDoc, and the text
@@ -294,6 +362,7 @@ export class ParseSession {
     useLazyJSDocTable();
     useThreadTextCaches();
     const queue = this.queue;
+    queue.skip = skip;
     if (hasRootFiles) {
       if (options.noLib !== true) {
         const lib = options.lib;
@@ -361,6 +430,11 @@ export class ParseSession {
     const queue = this.queue;
     if (timeline) mark(`chunk from p${i}: ${batch.files.length} files, ${queue.left()} left, ${this.busy - 1} busy`);
     for (const prepared of batch.files) parallelParse.files.set(prepared.fileName, prepared);
+    const lookups = batch.packageJsons;
+    for (let k = 0; k < lookups.directories.length; k++)
+      parallelParse.packageJsons.push(
+        new PackageJsonLookup(lookups.directories[k]!, lookups.exists[k]!, lookups.directoryExists[k]!),
+      );
     const added = batch.added;
     for (let k = 0; k < added.names.length; k++)
       queue.push(added.kinds[k]!, added.names[k]!, added.depths[k]!, added.sizes[k]!);

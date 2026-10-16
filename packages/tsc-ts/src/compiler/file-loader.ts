@@ -31,7 +31,15 @@ import {
   ModuleResolutionKind,
   type CompilerOptions,
 } from './options.js';
-import { LoadKind, type LoadJobs, type PreparedFile, preparedLoad, takePreparedFile } from './parallel-parse.js';
+import {
+  LoadKind,
+  type LoadJobs,
+  type PreparedFile,
+  preparedLoad,
+  preparedPackageJsonLookups,
+  takePreparedFile,
+} from './parallel-parse.js';
+import type { PackageJsonLookup } from './package-json.js';
 import { parseSourceFile } from './parser.js';
 import { mark } from './timeline.js';
 import {
@@ -381,6 +389,11 @@ export class ProcessedFiles {
     readonly redirectTargets: ReadonlyMap<string, string[]>,
     readonly redirectFilesByPath: ReadonlyMap<string, RedirectFile>,
     readonly projectReferenceMapper: ProjectReferenceMapper,
+    /**
+     * The `package.json` lookups made resolving the files whose resolutions were taken from parse
+     * threads (`preparedPackageJsonLookups`); `undefined` where they may miss some.
+     */
+    readonly preparedPackageJsons: readonly PackageJsonLookup[] | undefined,
   ) {}
 }
 
@@ -416,6 +429,14 @@ export class FileLoader {
   private rootFilesAdded = 0;
   /** The sub-tasks of prepared files, by file name, built ahead by `takeAhead`. */
   private readonly subTasksAhead = new Map<string, SubTasksAhead>();
+  /**
+   * Whether a file that parse threads prepared is loaded from what its thread found (its metadata
+   * and resolutions). If not, only the parsed and bound file is taken, and this loader looks up the
+   * file's metadata and resolves its references and imports itself, as without parse threads.
+   */
+  takesPreparedResolutions = true;
+  // Whether a file's resolutions were taken from a parse thread.
+  private tookPreparedResolutions = false;
 
   constructor(
     readonly host: CompilerHost,
@@ -905,7 +926,7 @@ export class FileLoader {
     }
 
     // What a parse thread found loading this file, if it prepared it as the same kind of file.
-    let loaded = preparedLoad(task.normalizedFilePath);
+    let loaded = this.takesPreparedResolutions ? preparedLoad(task.normalizedFilePath) : undefined;
     if (loaded !== undefined && loaded.isLibFile !== (task.libFile !== undefined)) loaded = undefined;
     // Default libraries are scripts: skip looking up their package.json.
     task.metadata =
@@ -946,6 +967,7 @@ export class FileLoader {
 
   /** Loads `task` from what a parse thread found loading the same file (`LoadedFile`). */
   private takeLoadedFile(task: ParseTask, loaded: LoadedFile): void {
+    this.tookPreparedResolutions = true;
     const ahead = this.subTasksAhead.get(task.normalizedFilePath);
     if (ahead !== undefined && ahead.loaded === loaded) {
       this.subTasksAhead.delete(task.normalizedFilePath);
@@ -1348,9 +1370,12 @@ export class FileLoader {
       redirectTargets,
       redirectFilesByPath,
       this.mapper,
+      this.tookPreparedResolutions ? preparedPackageJsonLookups(allFiles) : noPackageJsonLookups,
     );
   }
 }
+
+const noPackageJsonLookups: readonly PackageJsonLookup[] = [];
 
 function addIncludeReason(processor: IncludeProcessor, task: ParseTask, reason: FileIncludeReason): void {
   const redirected = task.redirectedParseTask;

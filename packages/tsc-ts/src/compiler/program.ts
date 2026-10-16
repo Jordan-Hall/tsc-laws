@@ -37,7 +37,9 @@ import {
   type ProcessedFiles,
   type RedirectFile,
 } from './file-loader.js';
-import type { PackageJsonInfo } from './package-json.js';
+import { type PackageJsonInfo, PackageJsonLookup } from './package-json.js';
+import type { MergedGlobals } from './checker-symbols.js';
+import type { EmitIndexes } from './compile-program.js';
 import { ProcessingDiagnostic, type IncludeProcessor } from './file-include.js';
 import type { ResolvedModule } from './module-resolution-types.js';
 import { getTypesPackageName, moduleResolutionKindName } from './module-resolution-types.js';
@@ -121,6 +123,10 @@ export class Program implements OutputPathsHost {
   private symlinks: KnownSymlinks | undefined = undefined;
   /** Set by `prepareForSharing`: the program is immutable from then on. */
   private shared = false;
+  /** The globals and module augmentations as the main thread's checker merged them, for checker threads. */
+  mergedGlobals: MergedGlobals | undefined = undefined;
+  /** What emit resolvers index for all files, built by the main thread for checker threads. */
+  emitIndexes: EmitIndexes | undefined = undefined;
 
   /** `loader`, if given, is a FileLoader of `host` and `commandLine` that has not loaded yet. */
   constructor(
@@ -207,9 +213,25 @@ export class Program implements OutputPathsHost {
     return result;
   }
 
-  /** The `package.json` lookups of module resolution. */
-  packageJsonLookups(): PackageJsonInfo[] {
-    return this.processed.resolver.packageJsonInfoCache.infos();
+  /**
+   * Whether `packageJsonLookups` has every lookup of the program's module resolution: not where it
+   * took resolutions from parse threads whose lookups may miss some (`preparedPackageJsonLookups`).
+   */
+  hasAllPackageJsonLookups(): boolean {
+    return this.processed.preparedPackageJsons !== undefined;
+  }
+
+  /**
+   * The `package.json` lookups of module resolution: this program's, and those of the parse threads
+   * whose resolutions it took. A directory can be among both.
+   */
+  packageJsonLookups(): PackageJsonLookup[] {
+    const result: PackageJsonLookup[] = [];
+    for (const info of this.processed.resolver.packageJsonInfoCache.infos())
+      result.push(new PackageJsonLookup(info.packageDirectory, info.contents !== undefined, info.directoryExists));
+    const prepared = this.processed.preparedPackageJsons;
+    if (prepared !== undefined) for (const lookup of prepared) result.push(lookup);
+    return result;
   }
 
   /** The typings cache of automatic type acquisition, or `''`. */

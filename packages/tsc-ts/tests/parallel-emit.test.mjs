@@ -99,3 +99,34 @@ test('emit on checker threads matches emit on one checker', { skip: tscTsMissing
     assert.deepEqual(actual.outputs, expected.outputs, `outputs with --checkers ${checkers}`);
   }
 });
+
+// Under `noEmitOnError` checker threads hold what they emit, and the main thread writes it only when
+// there are no errors; with errors only the build info is written.
+test('under noEmitOnError, emit on checker threads matches emit on one checker', { skip: tscTsMissing }, () => {
+  const config = JSON.parse(files['tsconfig.json']);
+  config.compilerOptions.noEmitOnError = true;
+  config.compilerOptions.incremental = true;
+  config.compilerOptions.tsBuildInfoFile = 'out/build.tsbuildinfo';
+  const clean = { ...files, 'tsconfig.json': JSON.stringify(config) };
+  delete clean['src/hidden.ts'];
+  delete clean['src/wrong.ts'];
+  clean['src/index.ts'] = clean['src/index.ts'].replace('export * from "./hidden";\n', '');
+  for (const [project, withErrors] of [
+    [clean, false],
+    [{ ...files, 'tsconfig.json': JSON.stringify(config) }, true],
+  ]) {
+    const cwd = tempDir('tsc-ts-parallel-emit-no-emit-on-error-');
+    for (const [path, content] of Object.entries(project)) {
+      mkdirSync(dirname(join(cwd, path)), { recursive: true });
+      writeFileSync(join(cwd, path), content);
+    }
+    const expected = run(cwd, ['--singleThreaded']);
+    const outputs = Object.keys(expected.outputs);
+    if (withErrors) assert.deepEqual(outputs, ['build.tsbuildinfo']);
+    else assert.ok(outputs.length > 10 && outputs.includes('index.js'), `outputs: ${outputs.join(' ')}`);
+    const actual = run(cwd, ['--checkers', '3']);
+    assert.equal(actual.stdout, expected.stdout);
+    assert.equal(actual.status, expected.status);
+    assert.deepEqual(actual.outputs, expected.outputs);
+  }
+});

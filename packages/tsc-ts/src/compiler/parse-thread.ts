@@ -3,14 +3,23 @@
  * FileLoader of its own, which parses, binds and resolves them as the program's FileLoader will, and
  * returns their bound source files, published, with the files they add.
  */
-import { statSync } from 'node:fs';
 import { publish } from '@scriptc/threads';
 import { type ExternalModuleIndicatorOptions, ParseOptions, ScriptKind, type SourceFile } from './ast.js';
 import { bindSourceFile } from './binder.js';
 import { useThreadTextCaches } from './diagnostics.js';
 import { CompilerHost, FileLoader } from './file-loader.js';
+import { computeHash } from './incremental.js';
+import { isIncremental } from './options.js';
 import type { FileSystem } from './file-system.js';
-import { LoadJobs, LoadKind, type LoadMessage, PreparedBatch, PreparedFile } from './parallel-parse.js';
+import {
+  fileSize,
+  LoadJobs,
+  LoadKind,
+  type LoadMessage,
+  PackageJsonLookups,
+  PreparedBatch,
+  PreparedFile,
+} from './parallel-parse.js';
 import { parseSourceFile } from './parser.js';
 import { mark, markAt, timeline } from './timeline.js';
 import type { ParsedCommandLine } from './tsconfig.js';
@@ -18,6 +27,8 @@ import type { ParsedCommandLine } from './tsconfig.js';
 /** Parses and binds the files the loader asks for, and keeps them with their parse inputs. */
 class PreparingHost extends CompilerHost {
   prepared: PreparedFile[] = [];
+  /** Whether the files' build info versions are computed (an incremental program). */
+  computesVersions = false;
   readMs = 0;
   parseMs = 0;
   bindMs = 0;
@@ -50,27 +61,30 @@ class PreparingHost extends CompilerHost {
         );
     }
     this.prepared.push(
-      new PreparedFile(fileName, path, externalModuleIndicatorOptions.jsx, externalModuleIndicatorOptions.force, file),
+      new PreparedFile(
+        fileName,
+        path,
+        externalModuleIndicatorOptions.jsx,
+        externalModuleIndicatorOptions.force,
+        file,
+        this.computesVersions ? computeHash(file.text) : '',
+      ),
     );
     return file;
-  }
-}
-
-/** The size of the file `fileName` in bytes, or 0. */
-function fileSize(fileName: string): number {
-  try {
-    return statSync(fileName).size;
-  } catch {
-    return 0;
   }
 }
 
 export class ParseThread {
   private readonly host: PreparingHost;
   private readonly loader: FileLoader;
+  // The `package.json` lookups of earlier chunks, sent with them.
+  private sentPackageJsons = 0;
 
   constructor(config: ParsedCommandLine, fs: FileSystem, currentDirectory: string, defaultLibraryPath: string) {
     this.host = new PreparingHost(fs, currentDirectory, defaultLibraryPath);
+    // The versions of an incremental program's files are computed here rather than one after another
+    // on the main thread (programToSnapshot, incremental.ts).
+    this.host.computesVersions = isIncremental(config.options);
     this.loader = new FileLoader(this.host, config);
     // The files this thread loads are published with their chunk: text caches it computes later (of
     // declaration files, which the parser leaves out) go to copies.
@@ -104,7 +118,17 @@ export class ParseThread {
       h.parseMs = 0;
       h.bindMs = 0;
     }
-    const batch = publish(new PreparedBatch(files, added, end - start));
+    // The lookups this chunk added to the module resolution's cache (which keeps insertion order).
+    const packageJsons = new PackageJsonLookups();
+    const infos = this.loader.resolver.packageJsonInfoCache.infos();
+    for (let k = this.sentPackageJsons; k < infos.length; k++) {
+      const info = infos[k]!;
+      packageJsons.directories.push(info.packageDirectory);
+      packageJsons.exists.push(info.contents !== undefined);
+      packageJsons.directoryExists.push(info.directoryExists);
+    }
+    this.sentPackageJsons = infos.length;
+    const batch = publish(new PreparedBatch(files, added, end - start, packageJsons));
     if (timeline) mark(`published ${(performance.now() - end).toFixed(1)}ms`);
     return batch;
   }

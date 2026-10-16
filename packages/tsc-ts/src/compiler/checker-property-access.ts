@@ -39,9 +39,11 @@ import { CheckFlags, type Symbol, SymbolFlags, getSymbolId } from './symbol.js';
 import { SyntaxKind } from './syntax-kind.js';
 import {
   CheckMode,
+  type IntersectionType,
   ObjectFlags,
   type Type,
   TypeFlags,
+  TypeFormatFlags,
   type TypeParameter,
   type TypeReference,
 } from './checker-types.js';
@@ -58,8 +60,11 @@ import {
   getApplicableIndexInfoForName,
   getDeclarationModifierFlagsFromSymbol,
   getPropertiesOfType,
+  getPropertiesOfUnionOrIntersectionType,
   getPropertyOfType,
   getPropertyOfTypeEx,
+  isConflictingPrivateProperty,
+  isDiscriminantWithNeverType,
 } from './checker-members.js';
 import {
   getDeclarationOfAliasSymbol,
@@ -68,6 +73,7 @@ import {
   getSymbolOfDeclaration,
 } from './checker-symbols.js';
 import { getFeatureMap } from './checker-features.js';
+import { lazyObjectFlags } from './side-state.js';
 import { isNodeDescendantOf } from './instantiation.js';
 import { getTypeOfSymbol, getWidenedType, getWriteTypeOfSymbol, isReadonlySymbol } from './checker-symbol-types.js';
 import {
@@ -768,7 +774,8 @@ export function reportNonexistentProperty(c: Checker, propNode: Node, containing
           diagnostic.addRelatedInfo(
             createDiagnosticForNode(suggestion.valueDeclaration, Diagnostics.X_0_is_declared_here, [suggestion.name]),
           );
-      } else
+      } else {
+        chain = elaborateNeverIntersection(c, chain, propNode, containingType);
         diagnostic = createDiagnosticForNode(
           propNode,
           containerSeemsToBeEmptyDomElement(c, containingType)
@@ -776,10 +783,40 @@ export function reportNonexistentProperty(c: Checker, propNode: Node, containing
             : Diagnostics.Property_0_does_not_exist_on_type_1,
           [missingProperty, container],
         );
+      }
     }
   }
   if (chain !== undefined) diagnostic.addMessageChain(chain);
   c.addDiagnostic(diagnostic);
+}
+
+/**
+ * `chain` under the reason an intersection reduced to `never` when `t` is one: a property with conflicting
+ * literal types, or one private in some constituents.
+ */
+export function elaborateNeverIntersection(
+  c: Checker,
+  chain: Diagnostic | undefined,
+  node: Node,
+  t: Type,
+): Diagnostic | undefined {
+  if ((t.flags & TypeFlags.Intersection) === 0 || (lazyObjectFlags(c, t) & ObjectFlags.IsNeverIntersection) === 0)
+    return chain;
+  const props = getPropertiesOfUnionOrIntersectionType(c, t as IntersectionType);
+  let message =
+    Diagnostics.The_intersection_0_was_reduced_to_never_because_property_1_has_conflicting_types_in_some_constituents;
+  let prop = props.find((p) => isDiscriminantWithNeverType(c, p));
+  if (prop === undefined) {
+    message =
+      Diagnostics.The_intersection_0_was_reduced_to_never_because_property_1_exists_in_multiple_constituents_and_is_private_in_some;
+    prop = props.find(isConflictingPrivateProperty);
+  }
+  if (prop === undefined) return chain;
+  const result = createDiagnosticForNode(node, message, [
+    typeToString(c, t, undefined, TypeFormatFlags.NoTypeReduction),
+    symbolToString(c, prop),
+  ]);
+  return result.addMessageChain(chain);
 }
 
 /** The library that adds `missingProperty` to the apparent type's global, or '' if none does. */

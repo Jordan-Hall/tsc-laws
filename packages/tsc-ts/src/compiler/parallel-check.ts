@@ -26,7 +26,13 @@ import { mark, markAt, timeline } from './timeline.js';
 import type { Worker } from 'node:worker_threads';
 import { publish, sharesPublishedGraphs } from '@scriptc/threads';
 import { lastNodeIdValue } from './ast.js';
-import { declarationDiagnosticsOfFile, type OutputWriter, ProgramEmitter } from './compile-program.js';
+import {
+  declarationDiagnosticsOfFile,
+  EmitIndexes,
+  HoldingWriter,
+  type OutputWriter,
+  ProgramEmitter,
+} from './compile-program.js';
 import { Diagnostic, DiagnosticFile, RepopulateInfo } from './diagnostics.js';
 import { EmitOnly, EmitResult } from './emitter.js';
 import { getEmitDeclarations, isIncremental } from './options.js';
@@ -36,6 +42,7 @@ import type { CheckedProgram } from './program-checker.js';
 import type { Program } from './program.js';
 import type { SourceFile } from './ast.js';
 import { lastSymbolIdValue } from './symbol.js';
+import { shareMergedGlobals } from './checker-symbols.js';
 import { readFileSync } from 'node:fs';
 import { availableParallelism, totalmem } from 'node:os';
 
@@ -56,7 +63,9 @@ export function residentMB(): number[] {
  * published program in scriptc builds and `undefined` under Node.js; ids continue above `nodeIds` and
  * `symbolIds`. `reserved` are the positions of a group the thread's predecessor on `index` left
  * (`CheckerResult.reserved`). With `emits` false the thread doesn't emit the files it checks, where
- * the main thread emits the program (`checkersEmit`).
+ * the main thread emits the program (`checkersEmit`). `emitKinds`, by file index, is what the emit of
+ * each file includes (an `EmitOnly`, or -1 for none) where not every output of every file is emitted
+ * (an incremental program's rebuild); `undefined` for all of them.
  */
 export type CheckerSpawn = (
   program: Program | undefined,
@@ -67,6 +76,7 @@ export type CheckerSpawn = (
   symbolIds: number,
   reserved: number[],
   emits: boolean,
+  emitKinds: number[] | undefined,
 ) => Worker;
 
 export class ParallelCheck {
@@ -177,6 +187,7 @@ class ResultPacker {
     this.strList(result.unsupported);
     this.list(result.diagnostics);
     this.strList(result.declarationSignatures);
+    this.strList(result.heldOutputs);
   }
 
   private diagnostic(d: Diagnostic): void {
@@ -303,6 +314,7 @@ class ResultUnpacker {
     this.strList(result.unsupported);
     for (const d of this.list()) result.diagnostics.push(d);
     this.strList(result.declarationSignatures);
+    this.strList(result.heldOutputs);
     return result;
   }
 }
@@ -347,21 +359,28 @@ function checkersReportDeclarations(checked: CheckedProgram): boolean {
 }
 
 /**
+ * Records in the shared schedule that a checked file has diagnostics, which under `noEmitOnError`
+ * keeps the program from emitting: checkers stop emitting the files they check.
+ */
+function blockEmit(schedule: Int32Array): void {
+  Atomics.store(schedule, schedule.length - 1, 1);
+}
+
+function blocksEmit(schedule: Int32Array): boolean {
+  return Atomics.load(schedule, schedule.length - 1) !== 0;
+}
+
+/**
  * Whether checkers emit the files they check, each right after checking it (where they can write
- * files): unless the program doesn't emit, or `noEmitOnError` makes emit wait for every file's
- * diagnostics. The checker that checked a file has its types at hand, and its declarations print
- * as on the checker tsgo emits the file with. The main thread emits the files no checker emitted.
- * With `emits` false checkers don't emit.
+ * files): unless the program doesn't emit. The checker that checked a file has its types at hand, and
+ * its declarations print as on the checker tsgo emits the file with. Under `noEmitOnError`, which
+ * makes emit wait for every file's diagnostics, they hold the outputs (`EmitResult.heldOutputs`) for
+ * the main thread, which writes them if there are no errors. The main thread emits the files no
+ * checker emitted. With `emits` false checkers don't emit.
  */
 function checkersEmit(checked: CheckedProgram, emits: boolean): boolean {
   const options = checked.program.options;
-  return (
-    emits &&
-    parallelCheck.writer !== undefined &&
-    options.noEmit !== true &&
-    options.noEmitOnError !== true &&
-    options.listFilesOnly !== true
-  );
+  return emits && parallelCheck.writer !== undefined && options.noEmit !== true && options.listFilesOnly !== true;
 }
 
 /**
@@ -597,8 +616,10 @@ class CheckCosts {
 
 function costOrder(checked: CheckedProgram): CheckCosts {
   const files = checked.program.getSourceFiles();
+  const only = checked.checkOnly;
   const order: number[] = [];
-  for (let i = 0; i < files.length; i++) if (!checked.skipTypeChecking(files[i]!)) order.push(i);
+  for (let i = 0; i < files.length; i++)
+    if (!checked.skipTypeChecking(files[i]!) && (only === undefined || only.has(files[i]!))) order.push(i);
   const costs = checkCosts(checked, order);
   const cost = costs.cost;
   order.sort((a, b) => cost[b]! - cost[a]! || a - b);
@@ -713,7 +734,7 @@ function isExternalModuleFile(file: SourceFile): boolean {
  * has resolved (one bit per library), and for each position the number of files of the group starting
  * there (0 or 1 for a file of its own). Between the ranges and the costs, the time of the latest
  * retirement (`Date.now()` modulo 2^31, 0 for none) and for each checker whether it retired
- * (`retires`).
+ * (`retires`). The last word is 1 once a checked file has diagnostics (`blocksEmit`).
  *
  * The leading positions are the shared queue: the costliest files, and groups of files that a
  * checker takes as a whole (`checkGroups`), which no other checker takes from it.
@@ -731,7 +752,7 @@ const scheduleHeader = 8;
 export function newSchedule(count: number, positions = 0, libraries = 0, references = 0): SharedArrayBuffer {
   const words = (libraries + 31) >> 5;
   const plan = positions === 0 ? 0 : 3 * positions + 1 + references + libraries + count * words;
-  const buffer = new SharedArrayBuffer(4 * (scheduleHeader + 3 * count + 1 + plan));
+  const buffer = new SharedArrayBuffer(4 * (scheduleHeader + 3 * count + 1 + plan + 1));
   const schedule = new Int32Array(buffer);
   schedule[3] = count;
   if (positions > 0) {
@@ -1266,8 +1287,7 @@ export function checkGroups(
  * checker's share), costliest first, from the shared queue; then the others split, in program
  * order, into one range of about equal cost per checker, each costliest first.
  */
-export function planSchedule(checked: CheckedProgram, count: number): CheckPlan {
-  const costs = costOrder(checked);
+export function planSchedule(checked: CheckedProgram, count: number, costs = costOrder(checked)): CheckPlan {
   const order = costs.order;
   const cost = costs.cost;
   if (order.length <= count) return new CheckPlan(order, -1, [], [], [], [], 0);
@@ -1384,6 +1404,7 @@ export function checkFromQueue(
   limit: number = 0,
   reserved: readonly number[] = [],
   emit: boolean = true,
+  emitKinds: readonly number[] | undefined = undefined,
 ): CheckerResult {
   const start = performance.now();
   const readyAt = Date.now();
@@ -1395,7 +1416,10 @@ export function checkFromQueue(
   const declarations: Diagnostic[][] = [];
   const emits: EmitResult[] = [];
   // Emit (or declaration emit) of a file right after checking it, with this checker.
-  const writer = checkersEmit(checked, emit) ? parallelCheck.writer : undefined;
+  const emitting = checkersEmit(checked, emit);
+  // Under `noEmitOnError` emit waits for every file's diagnostics: outputs are held for the main thread.
+  const holding = emitting && checked.program.options.noEmitOnError === true ? new HoldingWriter() : undefined;
+  const writer = emitting ? (holding ?? parallelCheck.writer) : undefined;
   const emitter = writer !== undefined || checkersReportDeclarations(checked) ? new ProgramEmitter(checked) : undefined;
   // An incremental program records the signatures of the declaration files on the main thread.
   const options = checked.program.options;
@@ -1427,7 +1451,9 @@ export function checkFromQueue(
     const i = order[k]!;
     done.push(i);
     const fileStart = verbose || timeline ? performance.now() : 0;
-    diagnostics.push(checked.semanticDiagnosticsOfFile(files[i]!));
+    const fileDiagnostics = checked.semanticDiagnosticsOfFile(files[i]!);
+    diagnostics.push(fileDiagnostics);
+    if (holding !== undefined && fileDiagnostics.length > 0) blockEmit(counter);
     if (timeline)
       markAt(
         fileStart,
@@ -1437,14 +1463,26 @@ export function checkFromQueue(
       process.stderr.write(
         `checkers: file ${index} ${(performance.now() - fileStart).toFixed(1)}ms ${files[i]!.text.length} ${files[i]!.fileName}\n`,
       );
-    if (writer !== undefined) {
+    if (holding !== undefined && blocksEmit(counter)) {
+      // The program won't emit (`handleNoEmitOnError`).
+      const skipped = new EmitResult();
+      skipped.emitSkipped = true;
+      emits.push(skipped);
+    } else if (writer !== undefined) {
       const emitStart = timeline ? performance.now() : 0;
-      if (signatures !== undefined) {
+      const kind = (emitKinds === undefined ? EmitOnly.All : emitKinds[i]!) as EmitOnly;
+      if (kind < 0) emits.push(new EmitResult());
+      else if (signatures !== undefined) {
         signatures.file = files[i]!;
-        const result = emitter!.emit([files[i]!], EmitOnly.All, signatures);
+        const result = emitter!.emit([files[i]!], kind, signatures);
         for (const s of signatures.take()) result.declarationSignatures.push(s);
+        if (holding !== undefined) for (const o of holding.take()) result.heldOutputs.push(o);
         emits.push(result);
-      } else emits.push(emitter!.emit([files[i]!], EmitOnly.All, writer));
+      } else {
+        const result = emitter!.emit([files[i]!], kind, writer);
+        if (holding !== undefined) for (const o of holding.take()) result.heldOutputs.push(o);
+        emits.push(result);
+      }
       if (timeline) markAt(emitStart, `emit ${(performance.now() - emitStart).toFixed(1)} ${files[i]!.fileName}`);
     } else if (emitter !== undefined) declarations.push(declarationDiagnosticsOfFile(emitter, files[i]!));
   }
@@ -1504,15 +1542,123 @@ export function mainThreadChecks(shared: boolean): boolean {
 }
 
 /**
- * Checks `checked` with `count` checkers and calls `done` with the wall time once `checked` holds
- * every file's diagnostics.
+ * When a checker's own files are a small part of what it resolves (`libraryBoundCheckers`): the least
+ * text, in characters, of the libraries the files of a checker's range reach, on average over the
+ * ranges, and the least multiple of the text of the range's own files it is.
  */
+const libraryBoundText = 6_000_000;
+const libraryBoundShare = 5;
+
+/**
+ * The number of checkers for `count` checkers whose ranges reach `library` characters of libraries
+ * and check `own` characters each, on average: three quarters of them (tsgo's four at least) where
+ * every checker spends most of its time resolving the same large libraries (`libraryBoundText`,
+ * `libraryBoundShare`), else `count`.
+ *
+ * Each checker resolves the declarations its files reach, whatever else it checks. Where they are
+ * millions of characters, such as an Effect-based project's, and much more than the checker's own
+ * files, a checker costs seconds of CPU and hundreds of MB before its files get cheap, and the last
+ * quarter of the checkers (on 16 CPUs of 8 cores, the ones sharing a core with another) repeat that
+ * work rather than save time: T3 Code's web and server projects ran 3% and 1% faster with 12
+ * checkers than with 16, and used 16% and 8% less memory. Where checkers resolve less, or mostly
+ * check their own files, 12 of 16 checkers were slower: Excalidraw (1.4M library and 0.15M own
+ * characters per range) by 6%, Sentry (5.7M and 3.0M) and the tsc-ts sources by about 11%.
+ */
+export function libraryBoundCount(count: number, library: number, own: number): number {
+  return library >= libraryBoundText && library >= libraryBoundShare * own
+    ? Math.max(tsgoCheckers, Math.ceil((count * 3) / 4))
+    : count;
+}
+
+/**
+ * The number of checkers for `plan`, made with `count` checkers that `auto` chose
+ * (`libraryBoundCount` of what its ranges reach and check).
+ */
+function libraryBoundCheckers(checked: CheckedProgram, plan: CheckPlan, costs: CheckCosts, count: number): number {
+  if (checkerPolicy !== 'auto' || checked.program.options.checkers !== undefined || count <= tsgoCheckers) return count;
+  const program = checked.program;
+  const files = program.getSourceFiles();
+  const length = textLengths(program);
+  const isChecked: boolean[] = [];
+  for (let i = 0; i < files.length; i++) isChecked.push(false);
+  for (const i of costs.order) isChecked[i] = true;
+  const ranges = plan.ranges.length >> 1;
+  if (ranges === 0) return count;
+  let library = 0;
+  let own = 0;
+  for (let r = 0; r < ranges; r++) {
+    // The libraries the range's files import, and what they reach through other libraries (as checkCosts counts them).
+    const reached = new Set<number>();
+    const stack: number[] = [];
+    for (let p = plan.ranges[2 * r]!; p < plan.ranges[2 * r + 1]!; p++) {
+      const i = plan.order[p]!;
+      own += length[i]!;
+      for (const k of costs.libraries[i]!)
+        if (!reached.has(k)) {
+          reached.add(k);
+          stack.push(k);
+        }
+    }
+    while (stack.length > 0) {
+      const k = stack.pop()!;
+      library += length[k]!;
+      for (const t of costs.imports[k] ?? [])
+        if (
+          !reached.has(t) &&
+          !isChecked[t]! &&
+          !program.isSourceFileDefaultLibrary(files[t]!.path) &&
+          isExternalModuleFile(files[t]!)
+        ) {
+          reached.add(t);
+          stack.push(t);
+        }
+    }
+  }
+  const fewer = libraryBoundCount(count, library / ranges, own / ranges);
+  if (process.env.TSC_TS_CHECKERS_TRACE !== undefined)
+    process.stderr.write(
+      `checkers: ranges reach ${Math.round(library / ranges / 1000)}K library chars and check ${Math.round(own / ranges / 1000)}K on average: ${fewer} checkers\n`,
+    );
+  return fewer;
+}
+
+/**
+ * Checks `checked` with `checkers` checkers (fewer where `auto` chose them and they would mostly
+ * resolve the same libraries: `libraryBoundCheckers`) and calls `done` with the wall time once
+ * `checked` holds every file's diagnostics.
+ */
+/**
+ * Shares the program of `checked` with checker threads (scriptc builds): this thread's checker merges the
+ * globals and module augmentations, which checker threads start from, and the program is published, so
+ * immutable from then on. `startParallelCheck` does this first unless it was done before.
+ */
+export function shareWithCheckers(checked: CheckedProgram): void {
+  const program = checked.program;
+  program.prepareForSharing();
+  mark('prepared for sharing');
+  program.mergedGlobals = shareMergedGlobals(checked.checker);
+  mark('globals merged');
+  // Checker threads emit, or report declaration errors, with the program's indexes.
+  const options = program.options;
+  if (options.noEmit !== true || getEmitDeclarations(options)) {
+    program.emitIndexes = new EmitIndexes(program);
+    mark('emit indexes built');
+  }
+  publish(program);
+  mark('program published');
+  // Lazily parsed JSDoc goes to a table of this thread.
+  useLazyJSDocTable();
+  checked.sharedWithCheckers = true;
+}
+
 export function startParallelCheck(
   checked: CheckedProgram,
-  count: number,
+  checkers: number,
   done: (checkTime: number) => void,
   emits: boolean = true,
+  emitKinds: number[] | undefined = undefined,
 ): void {
+  let count = checkers;
   const start = performance.now();
   const program = checked.program;
   const files = program.getSourceFiles();
@@ -1520,20 +1666,21 @@ export function startParallelCheck(
   const shared = sharesPublishedGraphs;
   const epoch = Date.now();
   if (trace) process.stderr.write(`checkers: start at ${epoch} rss ${residentMB().join('/')}MB\n`);
-  if (shared) {
-    program.prepareForSharing();
-    mark('prepared for sharing');
-    publish(program);
-    mark('program published');
-    // The program is immutable now; lazily parsed JSDoc goes to a table of this thread.
-    useLazyJSDocTable();
+  if (shared && !checked.sharedWithCheckers) {
+    shareWithCheckers(checked);
     if (trace)
       process.stderr.write(
         `checkers: published the program in ${(performance.now() - start).toFixed(1)}ms rss ${residentMB().join('/')}MB\n`,
       );
   }
   const orderStart = performance.now();
-  const plan = planSchedule(checked, count);
+  const costs = costOrder(checked);
+  let plan = planSchedule(checked, count, costs);
+  const fewer = libraryBoundCheckers(checked, plan, costs, count);
+  if (fewer < count) {
+    count = fewer;
+    plan = planSchedule(checked, count, costs);
+  }
   const order = plan.order;
   const counter = scheduleOf(plan, count);
   if (trace) {
@@ -1543,7 +1690,10 @@ export function startParallelCheck(
       `checkers: ordered ${order.length} files in ${(performance.now() - orderStart).toFixed(1)}ms, first:${top}\n`,
     );
   }
-  if (shared) publish(order);
+  if (shared) {
+    publish(order);
+    if (emitKinds !== undefined) publish(emitKinds);
+  }
   mark(`planned ${order.length} files, ${plan.heavy} heavy`);
   const perFile: (Diagnostic[] | undefined)[] = [];
   const perFileDeclarations: (Diagnostic[] | undefined)[] = [];
@@ -1602,6 +1752,7 @@ export function startParallelCheck(
       lastSymbolIdValue(),
       reserved,
       emits,
+      emitKinds,
     );
     worker.on('message', (message: unknown) => {
       mark(`result from c${i}`);
@@ -1624,10 +1775,12 @@ export function startParallelCheck(
   };
   for (let i = firstThread; i < count; i++) spawn(i, []);
   mark('checkers spawned');
-  // This thread's checker (`CheckedProgram.checker`) merges the globals while the threads start.
+  // Without a shared program, this thread's checker (`CheckedProgram.checker`) merges the globals
+  // while the threads start.
   void checked.checker;
   mark('reporting checker created');
-  if (mainChecks) record(checkFromQueue(checked, 0, new Int32Array(counter), order, epoch, true, 0, [], emits));
+  if (mainChecks)
+    record(checkFromQueue(checked, 0, new Int32Array(counter), order, epoch, true, 0, [], emits, emitKinds));
   ownDone = true;
   if (remaining === 0) finish();
 }
@@ -1663,6 +1816,7 @@ class Revival {
     for (const u of copy.unsupported) result.unsupported.push(u);
     for (const d of copy.diagnostics) result.diagnostics.push(this.diagnostic(d));
     for (const s of copy.declarationSignatures) result.declarationSignatures.push(s);
+    for (const o of copy.heldOutputs) result.heldOutputs.push(o);
     return result;
   }
 

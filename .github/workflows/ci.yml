@@ -25,6 +25,8 @@ jobs:
     outputs:
       plan: ${{ steps.select.outputs.plan }}
       shards: ${{ steps.select.outputs.shards }}
+      native: ${{ steps.select.outputs.native }}
+      native-shards: ${{ steps.select.outputs.native-shards }}
       docs: ${{ steps.select.outputs.docs }}
     steps:
       - uses: actions/checkout@v4
@@ -80,11 +82,14 @@ jobs:
         with:
           path: upstream
           key: upstream-${{ hashFiles('upstream.json') }}
-      # Turbo's local cache. The oracles only change with these inputs, so their builds are restored from here.
+      # Turbo's local cache. The oracles only change with these inputs, so their builds are restored from here. Turbo's
+      # task hashes also cover the dependencies resolved in the lockfile, turbo.json and the packages' package.json,
+      # so the key does too: otherwise a dependency bump keeps restoring entries for the old hashes and never saves
+      # new ones.
       - uses: actions/cache@v4
         with:
           path: .turbo/cache
-          key: turbo-oracles-${{ hashFiles('upstream.json', 'packages/tsgo/oracles/**', 'packages/tsgo/checkhost/**', 'packages/*/scripts/build-oracle.mjs', 'packages/relater/oracle/**') }}
+          key: turbo-oracles-${{ hashFiles('upstream.json', 'packages/tsgo/oracles/**', 'packages/tsgo/checkhost/**', 'packages/*/scripts/build-oracle.mjs', 'packages/relater/oracle/**', 'package-lock.json', 'turbo.json', 'packages/tsgo/package.json', 'packages/relater/package.json') }}
       - run: npm ci
       - run: npm run fetch:upstream
       - run: npx turbo run build build:oracle --filter='!@tsc-ts/web'
@@ -129,11 +134,95 @@ jobs:
           TSC_TS_TEST_BUILD: ${{ github.workspace }}/packages/tsc-ts/dist/test-build
         run: |
           printf '%s' "$PLAN" > "$RUNNER_TEMP/plan.json"
-          node scripts/ci/run-tests.mjs --plan "$RUNNER_TEMP/plan.json" --shard ${{ matrix.shard }} --report "$RUNNER_TEMP/report.json"
+          node scripts/ci/run-tests.mjs --plan "$RUNNER_TEMP/plan.json" --set node --shard ${{ matrix.shard }} --report "$RUNNER_TEMP/report.json"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: test-report-${{ strategy.job-index }}
+          path: ${{ runner.temp }}/report.json
+          retention-days: 30
+
+  # The shipped native tsc-ts (`npm run build:native`) and a native command line driver, for the native test units:
+  # when a pull request changes runtime code of tsc-ts, and on every full run. Runs alongside the build job.
+  native-build:
+    name: native build
+    needs: plan
+    if: needs.plan.outputs.native == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - id: scriptc
+        run: echo "version=$(node -p "require('./package.json').devDependencies.scriptc")" >> "$GITHUB_OUTPUT"
+      # scriptc's precompiled runtime families, which depend only on the scriptc version.
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/scriptc
+          key: scriptc-${{ runner.os }}-${{ steps.scriptc.outputs.version }}
+      - name: Build natively
+        working-directory: packages/tsc-ts
+        run: |
+          npm run build:native > "$RUNNER_TEMP/tsc.log" 2>&1 &
+          tsc=$!
+          npx scriptc build src/drivers/cli.ts --optimization=speed --no-keep-llvm -o dist/cli > "$RUNNER_TEMP/cli.log" 2>&1 &
+          cli=$!
+          status=0
+          wait $tsc || { status=1; cat "$RUNNER_TEMP/tsc.log"; }
+          wait $cli || { status=1; cat "$RUNNER_TEMP/cli.log"; }
+          exit $status
+      - run: tar -cf native.tar packages/tsc-ts/dist/tsc packages/tsc-ts/dist/cli
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native
+          path: native.tar
+          retention-days: 3
+          compression-level: 1
+
+  native-test:
+    name: native test ${{ matrix.shard }}
+    needs: [plan, build, native-build]
+    if: needs.plan.outputs.native == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJSON(needs.plan.outputs.native-shards) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: actions/cache/restore@v4
+        with:
+          path: upstream
+          key: upstream-${{ hashFiles('upstream.json') }}
+      - run: npm ci
+      - run: npm run fetch:upstream
+      - uses: actions/download-artifact@v4
+        with:
+          name: build
+      - uses: actions/download-artifact@v4
+        with:
+          name: native
+      - run: tar -xf build.tar && tar -xf native.tar && rm build.tar native.tar
+      - name: Run native tests
+        env:
+          PLAN: ${{ needs.plan.outputs.plan }}
+          TSC_TS_TEST_BUILD: ${{ github.workspace }}/packages/tsc-ts/dist/test-build
+        run: |
+          printf '%s' "$PLAN" > "$RUNNER_TEMP/plan.json"
+          node scripts/ci/run-tests.mjs --plan "$RUNNER_TEMP/plan.json" --set native --shard ${{ matrix.shard }} --report "$RUNNER_TEMP/report.json"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-report-native-${{ strategy.job-index }}
           path: ${{ runner.temp }}/report.json
           retention-days: 30
 
@@ -159,7 +248,7 @@ jobs:
   # The one check branch protection needs: it fails when any job above failed or was cancelled.
   result:
     name: CI result
-    needs: [plan, checks, build, test, docs]
+    needs: [plan, checks, build, test, native-build, native-test, docs]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5

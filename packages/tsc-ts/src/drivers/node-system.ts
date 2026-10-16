@@ -1,7 +1,8 @@
 // The tsc command line on the disk, for `tsc-ts` and the cli driver.
 import { mark, markMemory } from '../compiler/timeline.js';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import {
+  type FSWatcher,
   mkdirSync,
   readdirSync,
   readFileSync,
@@ -9,6 +10,7 @@ import {
   statSync,
   unlinkSync,
   utimesSync,
+  watch as watchPath,
   writeFileSync,
   writeSync,
 } from 'node:fs';
@@ -17,11 +19,17 @@ import { DirectoryEntries } from '../compiler/file-system.js';
 import { normalizePath } from '../compiler/path.js';
 import type { Program } from '../compiler/program.js';
 import { ParseThread } from '../compiler/parse-thread.js';
-import { type CommandLineResult, System, executeCommandLine, readThreadProject } from '../compiler/tsc-cli.js';
+import {
+  type CommandLineResult,
+  type DirectoryWatch,
+  System,
+  executeCommandLine,
+  readThreadProject,
+} from '../compiler/tsc-cli.js';
 import type { OutputWriter } from '../compiler/compile-program.js';
 import { compile, compileInParallel, compileThreads, SystemWriter } from '../compiler/tsc-compile.js';
 import { buildWithThreads } from '../compiler/tsc-build.js';
-import { watch, watchBuild } from '../compiler/tsc-watch.js';
+import { watch, watchBuild, watchRestart } from '../compiler/tsc-watch.js';
 
 const bundledPrefix = 'bundled:///libs/';
 
@@ -163,6 +171,24 @@ class NodeSystem extends System {
       return false;
     }
   }
+
+  watchDirectory(path: string, onChange: () => void): DirectoryWatch | undefined {
+    // inotify and ReadDirectoryChangesW report writes to a directory's files; kqueue only its entries.
+    if (process.platform !== 'linux' && process.platform !== 'win32') return undefined;
+    try {
+      return new NodeDirectoryWatch(watchPath(path, () => onChange()));
+    } catch {
+      return undefined;
+    }
+  }
+}
+
+class NodeDirectoryWatch implements DirectoryWatch {
+  constructor(private readonly watcher: FSWatcher) {}
+
+  close(): void {
+    this.watcher.close();
+  }
 }
 
 /** Orders names by UTF-8 bytes, as Go's directory listing does. */
@@ -240,7 +266,7 @@ function tscSystem(libraryPath: string): System {
 function runCommandLineResult(sys: System, result: CommandLineResult): number {
   if (result.kind === 'exit') return result.status;
   if (result.kind === 'compile') {
-    const threads = compileThreads(result);
+    const threads = compileThreads(sys, result);
     if (threads <= 1) return compile(sys, result);
     // Checker threads report back on this thread's event loop.
     compileInParallel(sys, result, threads, (status) => {
@@ -264,7 +290,7 @@ function runCommandLineResult(sys: System, result: CommandLineResult): number {
   }
   if (result.kind === 'build') {
     if (result.commandLine.compilerOptions.watch === true) {
-      watchBuild(sys, result.commandLine);
+      if (!superviseWatch()) watchBuild(sys, result.commandLine);
       return watching;
     }
     const status = buildWithThreads(sys, result.commandLine, (s) => {
@@ -274,6 +300,61 @@ function runCommandLineResult(sys: System, result: CommandLineResult): number {
     });
     return status ?? watching;
   }
-  watch(sys, result.config, result.commandLine);
+  if (!superviseWatch()) watch(sys, result.config, result.commandLine);
   return watching;
+}
+
+/** The environment variable that marks a watch process started by `superviseWatch`, and how. */
+const watchProcessVariable = 'TSC_TS_WATCH_PROCESS';
+/** The exit status of a watch process that stops for a new one to continue (`watchRestart`). */
+const watchRestartStatus = 75;
+
+/**
+ * Natively, watch mode runs in a child process of this one, started again whenever it stops for its
+ * memory (`WatchRestart`, tsc-watch.ts), since syntax trees, symbols and types are never freed. Returns
+ * whether this process supervises; in the child, sets up `watchRestart` and returns false. Under
+ * Node.js, or with TSC_TS_WATCH_MEMORY=0, watch mode runs in this process.
+ *
+ * TSC_TS_WATCH_MEMORY sets the limit in megabytes; by default it is 2.5 times the resident memory
+ * after the first build.
+ */
+function superviseWatch(): boolean {
+  if (/(^|[/\\])node(\.exe)?$/.test(process.execPath)) return false;
+  const memory = process.env.TSC_TS_WATCH_MEMORY ?? '';
+  if (memory === '0') return false;
+  const role = process.env[watchProcessVariable];
+  if (role !== undefined) {
+    watchRestart.resumed = role === 'resume';
+    const megabytes = Number(memory);
+    if (memory !== '' && megabytes > 0) watchRestart.limit = megabytes * 1048576;
+    watchRestart.restart = () => process.exit(watchRestartStatus);
+    // A supervisor that ends without stopping this process (SIGKILL) leaves it to init.
+    const parent = process.ppid;
+    setInterval(() => {
+      if (process.ppid !== parent) process.exit(1);
+    }, 1000);
+    return false;
+  }
+  const signals: NodeJS.Signals[] = ['SIGINT', 'SIGTERM', 'SIGHUP'];
+  const start = (resumed: boolean): void => {
+    const env: Record<string, string | undefined> = { ...process.env };
+    env[watchProcessVariable] = resumed ? 'resume' : 'start';
+    const child = spawn(process.execPath, process.argv.slice(2), { stdio: 'inherit', env });
+    const forward = (signal: NodeJS.Signals): void => {
+      child.kill(signal);
+    };
+    for (const signal of signals) process.on(signal, forward);
+    child.on('error', (error) => {
+      process.stderr.write(error.message + '\n');
+      process.exit(1);
+    });
+    child.on('exit', (code, signal) => {
+      for (const s of signals) process.off(s, forward);
+      if (code === watchRestartStatus) start(true);
+      else if (signal !== null) process.kill(process.pid, signal);
+      else process.exit(code ?? 1);
+    });
+  };
+  start(false);
+  return true;
 }

@@ -169,6 +169,11 @@ export const enum ObjectFlags {
   IdenticalBaseTypeExists = 1 << 28,
   UnresolvedMembers = 1 << 29,
   FromTypeNode = 1 << 30,
+  /**
+   * The type keeps the state that is computed lazily in the checker's side tables instead of its
+   * own fields, which stay unset (`sideOf`). Every type with `TSC_TS_SIDE_STATE=1`.
+   */
+  SideState = 1 << 31,
   // Unions, intersections and substitutions only.
   IsGenericTypeComputed = 1 << 22,
   IsGenericObjectType = 1 << 23,
@@ -217,6 +222,8 @@ export const enum SignatureFlags {
   IsUntypedSignatureInJSFile = 1 << 6,
   IsNonInferrable = 1 << 7,
   IsSignatureCandidateForOverloadFailure = 1 << 8,
+  /** The signature keeps its lazily computed state in the checker's side tables (`signatureSideOf`). */
+  SideState = 1 << 9,
   PropagatingFlags = HasRestParameter |
     HasLiteralTypes |
     Construct |
@@ -498,6 +505,12 @@ export function typeExtra(t: Type): TypeExtra {
  * The base of every type. Narrow by `flags` (and `objectFlags` for object types), then cast to
  * the subclass, as tsgo does with `AsUnionType()` etc.
  */
+/**
+ * `TSC_TS_SIDE_STATE=1` (a test of the side tables): every type and signature keeps its lazily
+ * computed state in the checker's side tables (`ObjectFlags.SideState`, `SignatureFlags.SideState`).
+ */
+export const sideStateForAll: boolean = process.env.TSC_TS_SIDE_STATE === '1';
+
 export class Type implements ProgramLifetime {
   flags: TypeFlags;
   objectFlags: ObjectFlags;
@@ -511,7 +524,7 @@ export class Type implements ProgramLifetime {
 
   constructor(flags: TypeFlags, objectFlags: ObjectFlags, id: number, symbol: Symbol | undefined) {
     this.flags = flags;
-    this.objectFlags = objectFlags;
+    this.objectFlags = sideStateForAll ? objectFlags | ObjectFlags.SideState : objectFlags;
     this.id = id | 0;
     this.symbol = symbol;
     this.alias = undefined;
@@ -565,8 +578,41 @@ export class UniqueESSymbolType extends Type {
  * when it resolves the members; lookups by name instantiate only the member asked for.
  */
 export abstract class PendingMembers {
-  /** Sets `t.membersValue` and `t.propertiesValue` and clears `t.pendingMembers`. */
+  /**
+   * Set when `properties` is built and the members table is not (`MemberNames`): the type's
+   * properties, which lookups by name then read.
+   */
+  materializedProperties: Symbol[] | undefined = undefined;
+
+  /**
+   * Sets `t.propertiesValue`. Where lookups can read the properties, it sets
+   * `materializedProperties` and keeps `t.pendingMembers`; otherwise it sets `t.membersValue` too and
+   * clears `t.pendingMembers`.
+   */
   abstract materialize(t: StructuredType): void;
+
+  /** Sets `t.membersValue` and `t.propertiesValue` and clears `t.pendingMembers`. */
+  abstract materializeTable(t: StructuredType): void;
+}
+
+/**
+ * The property names of instantiated types whose members tables are built on demand, shared by the
+ * instantiations of one source that have the same names in the same order: most instantiations of
+ * a class or interface have the members of their source and of the same bases.
+ */
+export class MemberNames {
+  /** The names of the properties, in order. */
+  readonly names: string[];
+  /** The index of each name in `names`. */
+  readonly positions: Map<string, number>;
+  /** The indexes in `names` of the members table's names, in table order. */
+  readonly tableOrder: number[];
+
+  constructor(names: string[], positions: Map<string, number>, tableOrder: number[]) {
+    this.names = names;
+    this.positions = positions;
+    this.tableOrder = tableOrder;
+  }
 }
 
 /** A type with members: object types, unions and intersections. */
@@ -600,7 +646,7 @@ export class StructuredType extends Type {
 
   get members(): SymbolTable | undefined {
     const pending = this.pendingMembers;
-    if (pending !== undefined) pending.materialize(this);
+    if (pending !== undefined) pending.materializeTable(this);
     return this.membersValue;
   }
 
@@ -610,7 +656,7 @@ export class StructuredType extends Type {
 
   get properties(): Symbol[] {
     const pending = this.pendingMembers;
-    if (pending !== undefined) pending.materialize(this);
+    if (pending !== undefined && pending.materializedProperties === undefined) pending.materialize(this);
     return this.propertiesValue;
   }
 
@@ -676,10 +722,16 @@ export class InterfaceType extends TypeReference {
   declaredIndexInfos: IndexInfo[];
   /** Positions of the declared members by name, for lazily instantiated members of instantiations. */
   declaredMemberPositions: Map<string, number> | undefined;
+  /** The member states of the last pending instantiation of the type's members (`sharedStates`). */
+  lastMemberStates: number[] | undefined;
+  /** The property names of the last instantiation whose members table is built on demand. */
+  lastMemberNames: MemberNames | undefined;
 
   constructor(objectFlags: ObjectFlags, id: number, symbol: Symbol | undefined) {
     super(objectFlags, id, symbol);
     this.declaredMemberPositions = undefined;
+    this.lastMemberStates = undefined;
+    this.lastMemberNames = undefined;
     this.allTypeParameters = emptyTypes;
     this.outerTypeParameterCount = 0;
     this.thisType = undefined;
@@ -1135,7 +1187,7 @@ export class Signature implements ProgramLifetime {
     minArgumentCount: number,
   ) {
     this.id = id | 0;
-    this.flags = flags;
+    this.flags = sideStateForAll ? flags | SignatureFlags.SideState : flags;
     this.minArgumentCount = minArgumentCount | 0;
     this.resolvedMinArgumentCount = -1;
     this.declaration = declaration;
@@ -1869,6 +1921,16 @@ export class NodeLinks implements ProgramLifetime {
     if (value === 0 && this.rareLinks === undefined) return;
     this.rare().containsArgumentsReference = value;
   }
+
+  get mentionsArguments(): number {
+    const rare = this.rareLinks;
+    return rare === undefined ? 0 : rare.mentionsArguments;
+  }
+
+  set mentionsArguments(value: number) {
+    if (value === 0 && this.rareLinks === undefined) return;
+    this.rare().mentionsArguments = value;
+  }
 }
 
 /** The links of a node that few nodes have (NodeLinks). */
@@ -1895,6 +1957,8 @@ export class RareNodeLinks implements ProgramLifetime {
   decoratorSignature: Signature | undefined;
   /** Whether a function body references `arguments`: 0 until computed, 1 for no, 2 for yes. */
   containsArgumentsReference: number;
+  /** For source files: whether the file has an identifier `arguments`: 0 until computed, 1 for no, 2 for yes. */
+  mentionsArguments: number;
 
   constructor() {
     this.contextFreeType = undefined;
@@ -1911,5 +1975,6 @@ export class RareNodeLinks implements ProgramLifetime {
     this.exhaustiveState = 0;
     this.decoratorSignature = undefined;
     this.containsArgumentsReference = 0;
+    this.mentionsArguments = 0;
   }
 }

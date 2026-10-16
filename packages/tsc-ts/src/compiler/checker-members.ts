@@ -18,6 +18,7 @@ import {
   type InterfaceType,
   type IntersectionType,
   type MappedType,
+  MemberNames,
   ObjectFlags,
   type ObjectType,
   type Signature,
@@ -150,6 +151,7 @@ import {
 } from './checker-type-operators.js';
 import { getGlobalBigIntType, getGlobalESSymbolType } from './checker-globals.js';
 import { isLateBoundName, isNumericLiteralName } from './checker-utilities.js';
+import { lazyObjectFlags, sideOf } from './side-state.js';
 
 // ---- Resolution
 
@@ -158,8 +160,24 @@ import { isLateBoundName, isNumericLiteralName } from './checker-utilities.js';
  * type (almost every call) costs no call; the resolution itself is out of line.
  */
 export function resolveStructuredTypeMembers(c: Checker, t: Type): StructuredType {
-  if ((t.objectFlags & ObjectFlags.MembersResolved) === 0) resolveMembersOfType(c, t);
-  return t as StructuredType;
+  if ((t.objectFlags & ObjectFlags.MembersResolved) !== 0) return t as StructuredType;
+  const resolved = membersHolder(c, t);
+  if ((resolved.objectFlags & ObjectFlags.MembersResolved) === 0) resolveMembersOfType(c, t);
+  return resolved;
+}
+
+/**
+ * The object that holds the resolved members of `t`: `t` itself, or for a type with side state
+ * (`ObjectFlags.SideState`) the checker's holder of its state (`sideOf`). Resolving the members of
+ * `t` writes them there; `t` keeps its identity and is never written.
+ */
+export function membersHolder(c: Checker, t: Type): StructuredType {
+  return sideOf(c, t as StructuredType);
+}
+
+/** The `objectFlags` of `t` that resolving its members sets (MembersResolved, UnresolvedMembers). */
+export function memberResolutionFlags(c: Checker, t: Type): ObjectFlags {
+  return lazyObjectFlags(c, t);
 }
 
 function resolveMembersOfType(c: Checker, t: Type): void {
@@ -167,7 +185,7 @@ function resolveMembersOfType(c: Checker, t: Type): void {
     const objectFlags = t.objectFlags;
     if ((objectFlags & ObjectFlags.Reference) !== 0) resolveTypeReferenceMembers(c, t as TypeReference);
     else if ((objectFlags & ObjectFlags.ClassOrInterface) !== 0)
-      resolveObjectTypeMembers(c, t as StructuredType, t as InterfaceType, emptyTypes, emptyTypes);
+      resolveObjectTypeMembers(c, membersHolder(c, t), t as InterfaceType, emptyTypes, emptyTypes);
     else if ((objectFlags & ObjectFlags.ReverseMapped) !== 0) resolveReverseMappedTypeMembers(c, t);
     else if ((objectFlags & ObjectFlags.Anonymous) !== 0) resolveAnonymousTypeMembers(c, t as ObjectType);
     else if ((objectFlags & ObjectFlags.Mapped) !== 0) resolveMappedTypeMembers(c, t as MappedType);
@@ -185,7 +203,7 @@ function resolveTypeReferenceMembers(c: Checker, t: TypeReference): void {
     padded = typeArguments.slice();
     padded.push(t as Type);
   }
-  resolveObjectTypeMembers(c, t, source, typeParameters, padded);
+  resolveObjectTypeMembers(c, membersHolder(c, t), source, typeParameters, padded);
 }
 
 function sameTypes(a: readonly Type[], b: readonly Type[]): boolean {
@@ -194,6 +212,7 @@ function sameTypes(a: readonly Type[], b: readonly Type[]): boolean {
   return true;
 }
 
+/** Resolves the members of an instantiation of `source` into `t`, the holder of its members. */
 function resolveObjectTypeMembers(
   c: Checker,
   t: StructuredType,
@@ -201,7 +220,7 @@ function resolveObjectTypeMembers(
   typeParameters: Type[],
   typeArguments: Type[],
 ): void {
-  resolveDeclaredMembers(c, source);
+  const declared = resolveDeclaredMembers(c, source);
   let mapper: TypeMapper | undefined;
   let members: SymbolTable | undefined;
   let callSignatures: Signature[];
@@ -211,18 +230,18 @@ function resolveObjectTypeMembers(
   // The member symbols of an instantiation are instantiated on demand (PendingInstantiatedMembers).
   let pending: PendingInstantiatedMembers | undefined;
   if (sameTypes(typeParameters, typeArguments)) {
-    members = source.declaredMembers;
-    callSignatures = source.declaredCallSignatures;
-    constructSignatures = source.declaredConstructSignatures;
-    indexInfos = source.declaredIndexInfos;
+    members = declared.declaredMembers;
+    callSignatures = declared.declaredCallSignatures;
+    constructSignatures = declared.declaredConstructSignatures;
+    indexInfos = declared.declaredIndexInfos;
   } else {
     instantiated = true;
     mapper = newTypeMapper(typeParameters, typeArguments);
     pending = pendingInstantiatedTable(c, source, mapper);
-    members = pending === undefined ? instantiateSymbolTable(c, source.declaredMembers, mapper) : undefined;
-    callSignatures = instantiateSignatures(c, source.declaredCallSignatures, mapper);
-    constructSignatures = instantiateSignatures(c, source.declaredConstructSignatures, mapper);
-    indexInfos = instantiateIndexInfos(c, source.declaredIndexInfos, mapper);
+    members = pending === undefined ? instantiateSymbolTable(c, declared.declaredMembers, mapper) : undefined;
+    callSignatures = instantiateSignatures(c, declared.declaredCallSignatures, mapper);
+    constructSignatures = instantiateSignatures(c, declared.declaredConstructSignatures, mapper);
+    indexInfos = instantiateIndexInfos(c, declared.declaredIndexInfos, mapper);
   }
   const baseTypes = getBaseTypes(c, source);
   if (pending !== undefined) {
@@ -250,10 +269,12 @@ function resolveObjectTypeMembers(
           ? getTypeWithThisArgument(c, instantiateType(c, baseType, mapper), thisArgument, false)
           : baseType;
       addInheritedMembers(members, getPropertiesOfType(c, instantiatedBaseType));
-      callSignatures = callSignatures.concat(getSignaturesOfType(c, instantiatedBaseType, SignatureKind.Call));
-      constructSignatures = constructSignatures.concat(
-        getSignaturesOfType(c, instantiatedBaseType, SignatureKind.Construct),
-      );
+      // A base without signatures adds none: no copy of the list then.
+      const baseCallSignatures = getSignaturesOfType(c, instantiatedBaseType, SignatureKind.Call);
+      if (baseCallSignatures.length !== 0) callSignatures = callSignatures.concat(baseCallSignatures);
+      const baseConstructSignatures = getSignaturesOfType(c, instantiatedBaseType, SignatureKind.Construct);
+      if (baseConstructSignatures.length !== 0)
+        constructSignatures = constructSignatures.concat(baseConstructSignatures);
       const inherited =
         instantiatedBaseType !== c.anyType ? getIndexInfosOfType(c, instantiatedBaseType) : [c.anyBaseTypeIndexInfo];
       const added: IndexInfo[] = [];
@@ -275,6 +296,11 @@ function resolveObjectTypeMembers(
 // base types and their members) is still resolved eagerly and in tsgo's order, so type identities and
 // ids are unchanged. Member symbols come out identical too: whether `instantiateSymbol` keeps a
 // symbol depends on whether its type is resolved yet, so that decision is recorded at resolution.
+//
+// Most reads are of `properties`; the table serves lookups by name. Where every member of the table
+// is a property, materializing keeps only the properties, and lookups by name find a property by
+// the position of its name in a `MemberNames` that instantiations with the same names share.
+// Reading `members` builds the table.
 
 // Two bits per member, in table order: whether tsgo puts it in the instantiated table, and whether
 // `instantiateSymbol` keeps the symbol itself.
@@ -283,6 +309,9 @@ const enum MemberState {
   Instantiated = 1,
   Kept = 3,
 }
+
+const noBaseTypes: (StructuredType | undefined)[] = [];
+const noBaseProperties: (Symbol[] | undefined)[] = [];
 
 export class PendingInstantiatedMembers extends PendingMembers {
   readonly c: Checker;
@@ -300,14 +329,18 @@ export class PendingInstantiatedMembers extends PendingMembers {
    * table is complete (its properties are read on demand), or else the base's properties as read when
    * tsgo reads them.
    */
-  readonly baseTypes: (StructuredType | undefined)[];
-  readonly baseProperties: (Symbol[] | undefined)[];
+  baseTypes: (StructuredType | undefined)[];
+  baseProperties: (Symbol[] | undefined)[];
   /** Whether the type has base types (tsgo copies the instantiated table into a new one then). */
   hasBases: boolean;
   /** While the base types are resolved: `properties` holds the own members only, as in tsgo. */
   resolving: boolean;
   /** Members instantiated by name lookups so far. */
   instantiated: Map<string, Symbol> | undefined;
+  /** References: the holder of the declared members of the class or interface. */
+  owner: InterfaceType | undefined;
+  /** With `materializedProperties`: the names of the properties. */
+  memberNames: MemberNames | undefined;
   /** Whether the instantiated table has an own member, and one that isn't optional. */
   readonly hasOwnMembers: boolean;
   readonly hasRequiredOwnMembers: boolean;
@@ -331,11 +364,14 @@ export class PendingInstantiatedMembers extends PendingMembers {
     this.mapper = mapper;
     this.states = states;
     this.positions = positions;
-    this.baseTypes = [];
-    this.baseProperties = [];
+    // Most instantiations have no base types: the lists are created by the first one.
+    this.baseTypes = noBaseTypes;
+    this.baseProperties = noBaseProperties;
     this.hasBases = false;
     this.resolving = false;
     this.instantiated = undefined;
+    this.owner = undefined;
+    this.memberNames = undefined;
   }
 
   state(position: number): MemberState {
@@ -372,6 +408,11 @@ export class PendingInstantiatedMembers extends PendingMembers {
 
   /** `members.get(name)` of the table tsgo would have built by now. */
   get(name: string): Symbol | undefined {
+    const materialized = this.materializedProperties;
+    if (materialized !== undefined) {
+      const position = this.memberNames!.positions.get(name);
+      return position !== undefined ? materialized[position] : undefined;
+    }
     let existing = this.ownMember(name);
     // Own members have value flags (pendingInstantiatedTable), so no base replaces them.
     const baseTypes = this.baseTypes;
@@ -424,11 +465,13 @@ export class PendingInstantiatedMembers extends PendingMembers {
     if (!this.hasBases) {
       t.membersValue = members;
       t.propertiesValue = getNamedMembers(c, members, t.symbol);
+      this.keepTableOnDemand(t, members);
       return;
     }
     // While the bases are resolved, tsgo's `properties` holds the own members and its table
     // grows by each base as it is resolved; the rest of resolution continues eagerly.
-    const ownProperties = this.resolving ? getNamedMembers(c, members, t.symbol) : undefined;
+    const resolving = this.resolving;
+    const ownProperties = resolving ? getNamedMembers(c, members, t.symbol) : undefined;
     const baseTypes = this.baseTypes;
     for (let i = 0; i < baseTypes.length; i++) {
       const base = baseTypes[i];
@@ -436,7 +479,74 @@ export class PendingInstantiatedMembers extends PendingMembers {
     }
     t.membersValue = members;
     t.propertiesValue = ownProperties ?? getNamedMembers(c, members, t.symbol);
+    // Resolving the bases goes on with the table (resolvePendingObjectTypeMembers).
+    if (!resolving) this.keepTableOnDemand(t, members);
   }
+
+  /**
+   * After `materialize`: drops `members`, the table, where every member of it is a property. The
+   * table's names are then the names of the properties, so lookups by name read the properties by
+   * the positions of their names, and `materializeTable` builds the table again from them. The
+   * names come from the last instantiation of the same source, where they are the same.
+   */
+  private keepTableOnDemand(t: StructuredType, members: SymbolTable): void {
+    const properties = t.propertiesValue;
+    if (properties.length !== members.size) return;
+    const owner = this.owner;
+    const last = owner !== undefined ? owner.lastMemberNames : this.c.memberNamesOfLists.get(this.sourceList!);
+    let names = last !== undefined && hasMemberNames(last, properties, members) ? last : undefined;
+    if (names === undefined) {
+      names = memberNamesOf(properties, members);
+      if (owner !== undefined) owner.lastMemberNames = names;
+      else this.c.memberNamesOfLists.set(this.sourceList!, names);
+    }
+    t.membersValue = undefined;
+    t.pendingMembers = this;
+    this.materializedProperties = properties;
+    this.memberNames = names;
+  }
+
+  materializeTable(t: StructuredType): void {
+    const properties = this.materializedProperties;
+    if (properties === undefined) {
+      this.materialize(t);
+      if (t.pendingMembers === undefined) return;
+      this.materializeTable(t);
+      return;
+    }
+    t.pendingMembers = undefined;
+    const order = this.memberNames!.tableOrder;
+    this.materializedProperties = undefined;
+    this.memberNames = undefined;
+    const members = new Map<string, Symbol>();
+    for (const i of order) members.set(properties[i]!.name, properties[i]!);
+    t.membersValue = members;
+  }
+}
+
+/** The names of `properties`, and the order of the names of `members`, a table with the same names. */
+function memberNamesOf(properties: Symbol[], members: SymbolTable): MemberNames {
+  const names: string[] = [];
+  const positions = new Map<string, number>();
+  for (let i = 0; i < properties.length; i++) {
+    const name = properties[i]!.name;
+    names.push(name);
+    positions.set(name, i);
+  }
+  const tableOrder: number[] = [];
+  for (const name of members.keys()) tableOrder.push(positions.get(name)!);
+  return new MemberNames(names, positions, tableOrder);
+}
+
+/** Whether `properties` have the names of `names`, and `members` has them in its table order. */
+function hasMemberNames(names: MemberNames, properties: Symbol[], members: SymbolTable): boolean {
+  const list = names.names;
+  if (list.length !== properties.length) return false;
+  for (let i = 0; i < list.length; i++) if (properties[i]!.name !== list[i]) return false;
+  const order = names.tableOrder;
+  let k = 0;
+  for (const name of members.keys()) if (list[order[k++]!] !== name) return false;
+  return true;
 }
 
 /**
@@ -448,7 +558,8 @@ function pendingInstantiatedTable(
   source: InterfaceType,
   mapper: TypeMapper,
 ): PendingInstantiatedMembers | undefined {
-  const table = source.declaredMembers;
+  const declared = sideOf(c, source);
+  const table = declared.declaredMembers;
   if (table === undefined || table.size === 0) return undefined;
   const states: number[] = [];
   let word = 0;
@@ -475,16 +586,33 @@ function pendingInstantiatedTable(
     i++;
   }
   if ((i & 15) !== 0) states.push(word);
-  return new PendingInstantiatedMembers(
+  const pending = new PendingInstantiatedMembers(
     c,
     table,
     undefined,
     mapper,
-    states,
-    declaredMemberPositions(source, table),
+    sharedStates(declared, states),
+    declaredMemberPositions(declared, table),
     hasOwnMembers,
     hasRequiredOwnMembers,
   );
+  pending.owner = declared;
+  return pending;
+}
+
+/**
+ * `states`, or the equal list the last instantiation of `source` used: most instantiations of a
+ * source keep and instantiate the same members, and the lists are never changed.
+ */
+function sharedStates(source: InterfaceType, states: number[]): number[] {
+  const last = source.lastMemberStates;
+  if (last !== undefined && last.length === states.length) {
+    let i = 0;
+    while (i < states.length && last[i] === states[i]) i++;
+    if (i === states.length) return last;
+  }
+  source.lastMemberStates = states;
+  return states;
 }
 
 /** The pending table of the properties `list` instantiated with `mapper` (createInstantiatedSymbolTable). */
@@ -514,7 +642,10 @@ function pendingInstantiatedList(c: Checker, list: Symbol[], mapper: TypeMapper)
   );
 }
 
-/** Positions of the declared members of `source` by name, shared by all its instantiations. */
+/**
+ * Positions of the declared members of a class or interface by name, shared by all its
+ * instantiations; `source` is the holder of its declared members (`resolveDeclaredMembers`).
+ */
 function declaredMemberPositions(source: InterfaceType, table: SymbolTable): Map<string, number> {
   let positions = source.declaredMemberPositions;
   if (positions === undefined) {
@@ -611,7 +742,7 @@ function resolvePendingObjectTypeMembers(
   constructSignatures: Signature[],
   indexInfos: IndexInfo[],
 ): void {
-  setPendingStructuredTypeMembers(t, pending, callSignatures, constructSignatures, indexInfos);
+  setPendingStructuredTypeMembers(c, t, pending, callSignatures, constructSignatures, indexInfos);
   if (baseTypes.length === 0) return;
   pending.hasBases = true;
   pending.resolving = true;
@@ -633,17 +764,26 @@ function resolvePendingObjectTypeMembers(
     ) {
       const resolved = resolveStructuredTypeMembers(c, instantiatedBaseType);
       const basePending = resolved.pendingMembers;
-      if (basePending !== undefined && !(basePending as PendingInstantiatedMembers).resolving) lazyBase = resolved;
+      if (
+        basePending !== undefined &&
+        basePending.materializedProperties === undefined &&
+        !(basePending as PendingInstantiatedMembers).resolving
+      )
+        lazyBase = resolved;
     }
     const baseProperties = lazyBase === undefined ? getPropertiesOfType(c, instantiatedBaseType) : undefined;
     if (t.pendingMembers === pending) {
+      if (pending.baseTypes === noBaseTypes) {
+        pending.baseTypes = [];
+        pending.baseProperties = [];
+      }
       pending.baseTypes.push(lazyBase);
       pending.baseProperties.push(baseProperties);
     } else addInheritedMembers(t.membersValue!, baseProperties ?? lazyBase!.properties);
-    callSignatures = callSignatures.concat(getSignaturesOfType(c, instantiatedBaseType, SignatureKind.Call));
-    constructSignatures = constructSignatures.concat(
-      getSignaturesOfType(c, instantiatedBaseType, SignatureKind.Construct),
-    );
+    const baseCallSignatures = getSignaturesOfType(c, instantiatedBaseType, SignatureKind.Call);
+    if (baseCallSignatures.length !== 0) callSignatures = callSignatures.concat(baseCallSignatures);
+    const baseConstructSignatures = getSignaturesOfType(c, instantiatedBaseType, SignatureKind.Construct);
+    if (baseConstructSignatures.length !== 0) constructSignatures = constructSignatures.concat(baseConstructSignatures);
     const inherited =
       instantiatedBaseType !== c.anyType ? getIndexInfosOfType(c, instantiatedBaseType) : [c.anyBaseTypeIndexInfo];
     const added: IndexInfo[] = [];
@@ -653,17 +793,19 @@ function resolvePendingObjectTypeMembers(
   t.objectFlags &= ~ObjectFlags.UnresolvedMembers;
   pending.resolving = false;
   if (t.pendingMembers === pending)
-    setPendingStructuredTypeMembers(t, pending, callSignatures, constructSignatures, indexInfos);
+    setPendingStructuredTypeMembers(c, t, pending, callSignatures, constructSignatures, indexInfos);
   else setStructuredTypeMembers(c, t, t.membersValue, callSignatures, constructSignatures, indexInfos);
 }
 
 function setPendingStructuredTypeMembers(
-  t: StructuredType,
+  c: Checker,
+  type: StructuredType,
   pending: PendingInstantiatedMembers,
   callSignatures: Signature[],
   constructSignatures: Signature[],
   indexInfos: IndexInfo[],
 ): void {
+  const t = membersHolder(c, type);
   t.objectFlags |= ObjectFlags.MembersResolved;
   t.membersValue = undefined;
   t.propertiesValue = emptySymbols;
@@ -678,16 +820,18 @@ export function findIndexInfo(indexInfos: readonly IndexInfo[], keyType: Type): 
   return undefined;
 }
 
+/** Resolves the declared members of `t`; returns the object that holds them (`sideOf`). */
 export function resolveDeclaredMembers(c: Checker, t: InterfaceType): InterfaceType {
-  if (!t.declaredMembersResolved) {
+  const declared = sideOf(c, t);
+  if (!declared.declaredMembersResolved) {
     const members = getMembersOfSymbol(c, t.symbol!);
-    t.declaredMembersResolved = true;
-    t.declaredMembers = members;
-    t.declaredCallSignatures = getSignaturesOfSymbol(c, members.get(InternalSymbolName.Call));
-    t.declaredConstructSignatures = getSignaturesOfSymbol(c, members.get(InternalSymbolName.New));
-    t.declaredIndexInfos = getIndexInfosOfSymbol(c, t.symbol!);
+    declared.declaredMembersResolved = true;
+    declared.declaredMembers = members;
+    declared.declaredCallSignatures = getSignaturesOfSymbol(c, members.get(InternalSymbolName.Call));
+    declared.declaredConstructSignatures = getSignaturesOfSymbol(c, members.get(InternalSymbolName.New));
+    declared.declaredIndexInfos = getIndexInfosOfSymbol(c, t.symbol!);
   }
-  return t;
+  return declared;
 }
 
 export function getIndexSymbol(c: Checker, symbol: Symbol): Symbol | undefined {
@@ -752,6 +896,7 @@ function createInstantiatedSymbolTable(
 }
 
 function resolveAnonymousTypeMembers(c: Checker, t: ObjectType): void {
+  const resolved = membersHolder(c, t);
   if (t.target !== undefined) {
     setStructuredTypeMembers(c, t, undefined, emptySignatures, emptySignatures, emptyIndexInfos);
     const target = t.target;
@@ -770,7 +915,7 @@ function resolveAnonymousTypeMembers(c: Checker, t: ObjectType): void {
     );
     const indexInfos = instantiateIndexInfos(c, getIndexInfosOfType(c, target), t.mapper!);
     if (pending !== undefined)
-      setPendingStructuredTypeMembers(t, pending, callSignatures, constructSignatures, indexInfos);
+      setPendingStructuredTypeMembers(c, t, pending, callSignatures, constructSignatures, indexInfos);
     else setStructuredTypeMembers(c, t, members, callSignatures, constructSignatures, indexInfos);
     return;
   }
@@ -814,7 +959,7 @@ function resolveAnonymousTypeMembers(c: Checker, t: ObjectType): void {
     if ((symbol.flags & SymbolFlags.Enum) !== 0) {
       let numberLike = (getDeclaredTypeOfSymbol(c, symbol).flags & TypeFlags.Enum) !== 0;
       if (!numberLike)
-        for (const prop of t.properties)
+        for (const prop of resolved.properties)
           if ((getTypeOfSymbol(c, prop).flags & TypeFlags.NumberLike) !== 0) {
             numberLike = true;
             break;
@@ -822,15 +967,15 @@ function resolveAnonymousTypeMembers(c: Checker, t: ObjectType): void {
       if (numberLike) indexInfos.push(c.enumNumberIndexInfo);
     }
   }
-  t.indexInfos = indexInfos.length === 0 ? emptyIndexInfos : indexInfos;
+  resolved.indexInfos = indexInfos.length === 0 ? emptyIndexInfos : indexInfos;
   // Members are resolved before signatures, which may use `typeof` on this type (#6072).
   if ((symbol.flags & (SymbolFlags.Function | SymbolFlags.Method)) !== 0)
-    t.callSignatures = getSignaturesOfSymbol(c, symbol);
+    resolved.callSignatures = getSignaturesOfSymbol(c, symbol);
   if ((symbol.flags & SymbolFlags.Class) !== 0) {
     const classType = getDeclaredTypeOfClassOrInterface(c, symbol);
     let constructSignatures = getSignaturesOfSymbol(c, symbol.members?.get(InternalSymbolName.Constructor));
     if (constructSignatures.length === 0) constructSignatures = getDefaultConstructSignatures(c, classType);
-    t.constructSignatures = constructSignatures;
+    resolved.constructSignatures = constructSignatures;
   }
 }
 
@@ -1285,7 +1430,8 @@ export function getPropertiesOfObjectType(c: Checker, t: Type): Symbol[] {
 }
 
 export function getPropertiesOfUnionOrIntersectionType(c: Checker, t: UnionOrIntersectionType): Symbol[] {
-  if (t.resolvedProperties === undefined) {
+  const side = sideOf(c, t);
+  if (side.resolvedProperties === undefined) {
     const checked = new Set<string>();
     const props: Symbol[] = [];
     for (const current of t.types) {
@@ -1303,9 +1449,9 @@ export function getPropertiesOfUnionOrIntersectionType(c: Checker, t: UnionOrInt
       // Union properties are in every constituent: the first without index signatures suffices.
       if ((t.flags & TypeFlags.Union) !== 0 && getIndexInfosOfType(c, current).length === 0) break;
     }
-    t.resolvedProperties = props;
+    side.resolvedProperties = props;
   }
-  return t.resolvedProperties;
+  return side.resolvedProperties;
 }
 
 export function getPropertyOfType(c: Checker, t: Type, name: string): Symbol | undefined {
@@ -1395,19 +1541,20 @@ export function getUnionOrIntersectionProperty(
   name: string,
   skipObjectFunctionPropertyAugment: boolean,
 ): Symbol | undefined {
-  let cache = skipObjectFunctionPropertyAugment ? t.propertyCacheWithoutFunctionPropertyAugment : t.propertyCache;
+  const side = sideOf(c, t);
+  let cache = skipObjectFunctionPropertyAugment ? side.propertyCacheWithoutFunctionPropertyAugment : side.propertyCache;
   const cached = cache?.get(name);
   if (cached !== undefined) return cached;
   if (!skipObjectFunctionPropertyAugment) {
-    const withoutAugment = t.propertyCacheWithoutFunctionPropertyAugment?.get(name);
+    const withoutAugment = side.propertyCacheWithoutFunctionPropertyAugment?.get(name);
     if (withoutAugment !== undefined && (withoutAugment.checkFlags & CheckFlags.Partial) === 0) return withoutAugment;
   }
   const prop = createUnionOrIntersectionProperty(c, t, name, skipObjectFunctionPropertyAugment);
   if (prop !== undefined) {
     if (cache === undefined) {
       cache = new Map<string, Symbol>();
-      if (skipObjectFunctionPropertyAugment) t.propertyCacheWithoutFunctionPropertyAugment = cache;
-      else t.propertyCache = cache;
+      if (skipObjectFunctionPropertyAugment) side.propertyCacheWithoutFunctionPropertyAugment = cache;
+      else side.propertyCache = cache;
     }
     cache.set(name, prop);
   }
@@ -1782,8 +1929,9 @@ function getApparentTypeWorker(c: Checker, t: Type): Type {
 }
 
 function getApparentTypeOfMappedType(c: Checker, t: MappedType): Type {
-  if (t.resolvedApparentType === undefined) t.resolvedApparentType = getResolvedApparentTypeOfMappedType(c, t);
-  return t.resolvedApparentType;
+  const side = sideOf(c, t);
+  if (side.resolvedApparentType === undefined) side.resolvedApparentType = getResolvedApparentTypeOfMappedType(c, t);
+  return side.resolvedApparentType;
 }
 
 function getResolvedApparentTypeOfMappedType(c: Checker, t: MappedType): Type {
@@ -1812,9 +1960,10 @@ export function isArrayOrTupleOrIntersection(c: Checker, t: Type): boolean {
 
 function getApparentTypeOfIntersectionType(c: Checker, t: IntersectionType, thisArgument: Type): Type {
   if (t.id === thisArgument.id) {
-    if (t.resolvedApparentType === undefined)
-      t.resolvedApparentType = getTypeWithThisArgument(c, t, thisArgument, true);
-    return t.resolvedApparentType;
+    const side = sideOf(c, t);
+    if (side.resolvedApparentType === undefined)
+      side.resolvedApparentType = getTypeWithThisArgument(c, t, thisArgument, true);
+    return side.resolvedApparentType;
   }
   const key = cachedTypeKey(CachedTypeKind.Apparent, thisArgument.id);
   let result = c.cachedTypesById.get(key);
@@ -1859,18 +2008,19 @@ export function getTypeWithThisArgument(
 export function getReducedType(c: Checker, t: Type): Type {
   if ((t.flags & TypeFlags.Union) !== 0) {
     if ((t.objectFlags & ObjectFlags.ContainsIntersections) !== 0) {
-      const union = t as UnionType;
-      if (union.resolvedReducedType !== undefined) return union.resolvedReducedType;
-      const reduced = getReducedUnionType(c, union);
-      union.resolvedReducedType = reduced;
+      const side = sideOf(c, t as UnionType);
+      if (side.resolvedReducedType !== undefined) return side.resolvedReducedType;
+      const reduced = getReducedUnionType(c, t as UnionType);
+      side.resolvedReducedType = reduced;
       return reduced;
     }
   } else if ((t.flags & TypeFlags.Intersection) !== 0) {
-    if ((t.objectFlags & ObjectFlags.IsNeverIntersectionComputed) === 0) {
-      t.objectFlags |= ObjectFlags.IsNeverIntersectionComputed;
-      if (hasNeverReducedProperty(c, t as IntersectionType)) t.objectFlags |= ObjectFlags.IsNeverIntersection;
+    const side = sideOf(c, t);
+    if ((side.objectFlags & ObjectFlags.IsNeverIntersectionComputed) === 0) {
+      side.objectFlags |= ObjectFlags.IsNeverIntersectionComputed;
+      if (hasNeverReducedProperty(c, t as IntersectionType)) side.objectFlags |= ObjectFlags.IsNeverIntersection;
     }
-    if ((t.objectFlags & ObjectFlags.IsNeverIntersection) !== 0) return c.neverType;
+    if ((side.objectFlags & ObjectFlags.IsNeverIntersection) !== 0) return c.neverType;
   }
   return t;
 }
@@ -1885,7 +2035,7 @@ export function getReducedType(c: Checker, t: Type): Type {
  * private, are combined, and the costliest constituent's properties are only looked up by name.
  */
 function hasNeverReducedProperty(c: Checker, t: IntersectionType): boolean {
-  const resolved = t.resolvedProperties;
+  const resolved = sideOf(c, t).resolvedProperties;
   if (resolved !== undefined) {
     for (const p of resolved) if (isNeverReducedProperty(c, p)) return true;
     return false;
@@ -1941,7 +2091,7 @@ function getCostliestConstituent(c: Checker, t: IntersectionType): Type | undefi
     if ((apparent.flags & TypeFlags.Object) === 0) continue;
     const resolved = resolveStructuredTypeMembers(c, apparent);
     const pending = resolved.pendingMembers as PendingInstantiatedMembers | undefined;
-    if (pending !== undefined) {
+    if (pending !== undefined && pending.materializedProperties === undefined) {
       if (pending.positions.size > costliestPending) {
         costliest = current;
         costliestPending = pending.positions.size;
@@ -1964,7 +2114,7 @@ function getReducedUnionType(c: Checker, union: UnionType): Type {
   }
   if (!changed) return union;
   const reduced = getUnionType(c, reducedTypes);
-  if ((reduced.flags & TypeFlags.Union) !== 0) (reduced as UnionType).resolvedReducedType = reduced;
+  if ((reduced.flags & TypeFlags.Union) !== 0) sideOf(c, reduced as UnionType).resolvedReducedType = reduced;
   return reduced;
 }
 
@@ -2048,6 +2198,8 @@ function hasConstrainedTypeData(t: Type): boolean {
 export function getResolvedBaseConstraint(c: Checker, t: Type, stack?: RecursionId[]): Type {
   if (!hasConstrainedTypeData(t)) return t;
   if (t.resolvedBaseConstraint !== undefined) return t.resolvedBaseConstraint;
+  const side = sideOf(c, t);
+  if (side.resolvedBaseConstraint !== undefined) return side.resolvedBaseConstraint;
   if (!pushTypeResolution(c, t, TypeSystemPropertyName.ResolvedBaseConstraint)) return c.circularConstraintType;
   let constraint: Type | undefined;
   // At least 10 levels; up to 50 without deeply nested types on the stack.
@@ -2064,7 +2216,7 @@ export function getResolvedBaseConstraint(c: Checker, t: Type, stack?: Recursion
     constraint = c.circularConstraintType;
   }
   if (constraint === undefined) constraint = c.noConstraintType;
-  if (t.resolvedBaseConstraint === undefined) t.resolvedBaseConstraint = constraint;
+  if (side.resolvedBaseConstraint === undefined) side.resolvedBaseConstraint = constraint;
   return constraint;
 }
 

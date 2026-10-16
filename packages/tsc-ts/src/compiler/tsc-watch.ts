@@ -1,6 +1,7 @@
 /**
- * `tsc --watch` and `tsc --build --watch`: rebuild when inputs change. Changes are found by polling
- * the time stamps of the files a build read and of the directories that may gain files.
+ * `tsc --watch` and `tsc --build --watch`: rebuild when inputs change. Changes are found by comparing
+ * the time stamps of the files a build read and of the directories that may gain files, when their
+ * directories report an event, or by polling where directories can't be watched.
  */
 import type { ParsedBuildCommandLine, ParsedCommandLine as CommandLine } from './command-line.js';
 import { CheckedProgram, CompileTimes } from './compile-program.js';
@@ -12,10 +13,11 @@ import {
   localizeMessage,
   type MessageWithArgs,
 } from './diagnostics.js';
+import { type ExternalModuleIndicatorOptions, ParseOptions, ScriptKind, type SourceFile } from './ast.js';
 import { CompilerHost } from './file-loader.js';
 import { CachedFileSystem } from './file-system.js';
 import { clearLibGlobalsCache } from './checker-symbols.js';
-import { forgetLazyJSDocFile } from './parser.js';
+import { forgetLazyJSDocFile, parseSourceFile } from './parser.js';
 import { forgetNavigationFile } from './astnav.js';
 import { forgetRangeScannerFile } from './binder-utilities.js';
 import { forgetIdentifierSets } from './printer/name-generator.js';
@@ -23,12 +25,69 @@ import { FileBuildInfoReader, IncrementalProgram, readBuildInfoProgram, type Sna
 import { combinePaths, getDirectoryPath, getNormalizedAbsolutePath, toPath } from './path.js';
 import { Program } from './program.js';
 import { ConfigParser, ParsedCommandLine } from './tsconfig.js';
-import { DiagnosticReporter, ErrorSummaryReporter, outputLocale, type System, SystemFileSystem } from './tsc-cli.js';
-import { Orchestrator, StatusReporter } from './tsc-build.js';
+import {
+  DiagnosticReporter,
+  type DirectoryWatch,
+  ErrorSummaryReporter,
+  outputLocale,
+  type System,
+  SystemFileSystem,
+} from './tsc-cli.js';
+import { Orchestrator, StatusReporter, startWatchRebuild } from './tsc-build.js';
 import { emitFilesAndReportErrors, SystemTimeStamps, SystemWriter } from './tsc-compile.js';
 
-/** How often inputs are polled, in milliseconds. */
+/** How often inputs are polled, in milliseconds, where their directories can't be watched. */
 const pollInterval = 250;
+
+/**
+ * Directory events are batched as tsgo's file watching batches them: the first event after
+ * `quietTime` milliseconds without a check is checked at once, and later ones once no other event came
+ * for `settleTime` milliseconds.
+ */
+const settleTime = 50;
+const quietTime = 500;
+
+/**
+ * Natively, ProgramLifetime objects (syntax trees, symbols, types, signatures, links) are never freed,
+ * so each rebuild keeps what its checkers allocated. The driver runs watch mode in a child process and
+ * sets `restart` (node-system.ts): a rebuild that would start with more resident memory than `limit`
+ * calls it instead of building, and the driver starts a new process, which builds with the changed
+ * files and reports the change as this process would have.
+ */
+export class WatchRestart {
+  /** Whether this process continues the watch of one that restarted: its first build reports a change. */
+  resumed = false;
+  /** The resident bytes above which a rebuild restarts; 0 to take `firstBuildFactor` times the first build's. */
+  limit = 0;
+  restart: (() => void) | undefined = undefined;
+
+  /** Sets `limit` from the resident memory after the first build, unless it is set. */
+  firstBuildDone(): void {
+    if (this.restart !== undefined && this.limit === 0) this.limit = residentMemory() * firstBuildFactor;
+  }
+
+  /** Restarts the process if a rebuild would start above `limit`; returns whether it did. */
+  restartsBeforeRebuild(): boolean {
+    const restart = this.restart;
+    if (restart === undefined || this.limit <= 0 || residentMemory() <= this.limit) return false;
+    restart();
+    return true;
+  }
+}
+
+/** The process's resident memory in bytes, as Node.js reads it on each platform; 0 if it can't be read. */
+function residentMemory(): number {
+  try {
+    return process.memoryUsage.rss();
+  } catch {
+    return 0;
+  }
+}
+
+/** The default restart limit, as a multiple of the resident memory after the first build. */
+const firstBuildFactor = 2.5;
+
+export const watchRestart = new WatchRestart();
 
 /** Writes watch status lines, clearing the screen where tsc does. */
 class WatchStatusReporter {
@@ -63,6 +122,7 @@ class WatchStatusReporter {
 /** Time stamps of files and directories, to tell when any changed. */
 class Stamps {
   private readonly times = new Map<string, number | undefined>();
+  private readonly directories = new Set<string>();
 
   constructor(private readonly sys: System) {}
 
@@ -74,6 +134,7 @@ class Stamps {
   addDirectory(path: string, recursive: boolean, depth = 0): void {
     if (this.times.has(path) || !this.sys.directoryExists(path)) return;
     this.add(path);
+    this.directories.add(path);
     if (!recursive || depth > 32) return;
     for (const name of this.sys.getAccessibleEntries(path).directories) {
       if (name === 'node_modules' || name.startsWith('.')) continue;
@@ -86,6 +147,54 @@ class Stamps {
       if (this.sys.getMTime(path) !== time) return true;
     }
     return false;
+  }
+
+  /**
+   * Adds the directories whose events report changes of these paths: each directory, and each file's,
+   * and for a file that is a symbolic link, its target's.
+   */
+  addWatchedDirectories(directories: Set<string>, links: LinkTargets): void {
+    for (const [path, time] of this.times) {
+      if (this.directories.has(path)) {
+        directories.add(path);
+        continue;
+      }
+      const directory = getDirectoryPath(path);
+      directories.add(directory);
+      const directoryTime = this.times.has(directory) ? this.times.get(directory) : this.sys.getMTime(directory);
+      const target = links.directoryOf(path, time, directoryTime);
+      if (target !== undefined) directories.add(target);
+    }
+  }
+}
+
+class LinkTarget {
+  constructor(
+    readonly time: number | undefined,
+    readonly directoryTime: number | undefined,
+    readonly directory: string | undefined,
+  ) {}
+}
+
+/**
+ * The directories of the targets of files that are symbolic links, kept while the time stamps of the
+ * file and of its directory are the same. Pointing a link elsewhere replaces it, which changes its
+ * directory's time stamp even when the new target has the old one's.
+ */
+class LinkTargets {
+  private readonly targets = new Map<string, LinkTarget>();
+
+  constructor(private readonly sys: System) {}
+
+  /** The directory of the target of the file, or undefined if the file isn't a link. */
+  directoryOf(path: string, time: number | undefined, directoryTime: number | undefined): string | undefined {
+    let target = this.targets.get(path);
+    if (target === undefined || target.time !== time || target.directoryTime !== directoryTime) {
+      const real = this.sys.realpath(path);
+      target = new LinkTarget(time, directoryTime, real !== path ? getDirectoryPath(real) : undefined);
+      this.targets.set(path, target);
+    }
+    return target.directory;
   }
 }
 
@@ -112,14 +221,62 @@ function includeDirectories(config: ParsedCommandLine): { path: string; recursiv
   return result;
 }
 
-/** A compiler host writing `--traceResolution` output to the system. */
+/**
+ * The source files of the last build, by name, path and module detection options, for the next build
+ * to take where their text is unchanged (`WatchCompilerHost`).
+ */
+class WatchSourceFiles {
+  previous = new Map<string, SourceFile>();
+  current = new Map<string, SourceFile>();
+
+  /** Starts a build: the files of the last one are what it can take. */
+  next(): void {
+    this.previous = this.current;
+    this.current = new Map<string, SourceFile>();
+  }
+}
+
+/**
+ * A compiler host writing `--traceResolution` output to the system, which takes the parsed and bound
+ * source file of the last build when a file's text is unchanged, as tsgo's watch reuses the files of
+ * its old program. A file parses the same for the same text, name, path and module detection options,
+ * and binding a bound file does nothing. Natively, syntax trees and symbols are never freed
+ * (ProgramLifetime), so parsing every file again made each rebuild keep another copy of the program.
+ */
 class WatchCompilerHost extends CompilerHost {
   constructor(
     private readonly sys: System,
     fs: CachedFileSystem,
     private readonly locale: Locale,
+    private readonly files: WatchSourceFiles,
   ) {
     super(fs, sys.currentDirectory, sys.defaultLibraryPath);
+  }
+
+  getSourceFile(
+    fileName: string,
+    path: string,
+    externalModuleIndicatorOptions: ExternalModuleIndicatorOptions,
+  ): SourceFile | undefined {
+    const text = this.fs.readFile(fileName);
+    if (text === undefined) return undefined;
+    const key =
+      fileName +
+      '\u0000' +
+      path +
+      (externalModuleIndicatorOptions.jsx ? '\u0000j' : '\u0000') +
+      (externalModuleIndicatorOptions.force ? 'f' : '');
+    let file = this.files.current.get(key);
+    if (file !== undefined && file.text === text) return file;
+    file = this.files.previous.get(key);
+    if (file === undefined || file.text !== text)
+      file = parseSourceFile(
+        fileName,
+        text,
+        new ParseOptions(path, ScriptKind.Unknown, externalModuleIndicatorOptions),
+      );
+    this.files.current.set(key, file);
+    return file;
   }
 
   trace(message: MessageWithArgs): void {
@@ -127,18 +284,107 @@ class WatchCompilerHost extends CompilerHost {
   }
 }
 
-/** Keeps `poll` running every `pollInterval` milliseconds. */
-function startPolling(poll: () => void): void {
-  setInterval(poll, pollInterval);
+/** A watched directory, with its time stamp when the watch started. */
+class WatchedDirectory {
+  constructor(
+    readonly watch: DirectoryWatch,
+    readonly time: number,
+  ) {}
+}
+
+/**
+ * Calls `check` when inputs may have changed: on events of the directories of the stamped paths, or
+ * every `pollInterval` milliseconds once a directory can't be watched.
+ */
+class ChangeWatcher {
+  private readonly watches = new Map<string, WatchedDirectory>();
+  private readonly links: LinkTargets;
+  private polling = false;
+  private timer: ReturnType<typeof setTimeout> | undefined = undefined;
+  private lastCheck = -quietTime;
+
+  constructor(
+    private readonly sys: System,
+    private readonly check: () => void,
+  ) {
+    this.links = new LinkTargets(sys);
+  }
+
+  /**
+   * Watches the directories of the paths of `stamps`, keeping the watches of unchanged directories.
+   * A change between the stamps and a new watch has no event, so new watches are followed by a check.
+   */
+  watch(stamps: Stamps[]): void {
+    if (this.polling) return;
+    let created = false;
+    const directories = new Set<string>();
+    for (const s of stamps) s.addWatchedDirectories(directories, this.links);
+    // A missing directory is watched through its closest existing ancestor, which reports its creation.
+    const existing = new Map<string, number>();
+    for (const directory of directories) {
+      let path = directory;
+      let time = this.sys.getMTime(path);
+      while (time === undefined && getDirectoryPath(path) !== path) {
+        path = getDirectoryPath(path);
+        time = this.sys.getMTime(path);
+      }
+      if (time !== undefined) existing.set(path, time);
+    }
+    for (const [path, watched] of this.watches) {
+      if (existing.has(path)) continue;
+      watched.watch.close();
+      this.watches.delete(path);
+    }
+    for (const [path, time] of existing) {
+      const watched = this.watches.get(path);
+      if (watched !== undefined) {
+        if (watched.time === time) continue;
+        // A changed directory may have been removed and created again, which ends the old watch.
+        watched.watch.close();
+        this.watches.delete(path);
+      }
+      const watch = this.sys.watchDirectory(path, () => this.changed());
+      if (watch === undefined) {
+        this.startPolling();
+        return;
+      }
+      this.watches.set(path, new WatchedDirectory(watch, time));
+      created = true;
+    }
+    // Without a watch nothing would keep the process running.
+    if (this.watches.size === 0) this.startPolling();
+    else if (created) this.changed();
+  }
+
+  private changed(): void {
+    if (this.timer !== undefined) clearTimeout(this.timer);
+    const wait = performance.now() - this.lastCheck > quietTime ? 0 : settleTime;
+    this.timer = setTimeout(() => {
+      this.timer = undefined;
+      this.lastCheck = performance.now();
+      this.check();
+    }, wait);
+  }
+
+  private startPolling(): void {
+    this.polling = true;
+    for (const watched of this.watches.values()) watched.watch.close();
+    this.watches.clear();
+    setInterval(this.check, pollInterval);
+  }
 }
 
 class Watcher {
   private snapshot: Snapshot | undefined = undefined;
   private stamps: Stamps;
   private configStamps: Stamps;
+  /** Whether the last read of the config file after a change succeeded (`reloadConfig`). */
+  private configRead = true;
   private readonly locale: Locale;
   private readonly reporter: DiagnosticReporter;
   private readonly status: WatchStatusReporter;
+  private readonly files = new WatchSourceFiles();
+  private readonly changes: ChangeWatcher;
 
   constructor(
     private readonly sys: System,
@@ -156,6 +402,7 @@ class Watcher {
     );
     this.stamps = new Stamps(sys);
     this.configStamps = new Stamps(sys);
+    this.changes = new ChangeWatcher(sys, () => this.poll());
   }
 
   start(): void {
@@ -168,9 +415,14 @@ class Watcher {
         sys.currentDirectory,
       );
     }
-    this.status.report(Diagnostics.Starting_compilation_in_watch_mode);
+    this.status.report(
+      watchRestart.resumed
+        ? Diagnostics.File_change_detected_Starting_incremental_compilation
+        : Diagnostics.Starting_compilation_in_watch_mode,
+    );
     this.build();
-    startPolling(() => this.poll());
+    watchRestart.firstBuildDone();
+    this.changes.watch([this.stamps, this.configStamps]);
   }
 
   private configFiles(): string[] {
@@ -180,9 +432,18 @@ class Watcher {
   }
 
   private poll(): void {
+    this.rebuildIfChanged();
+    this.changes.watch([this.stamps, this.configStamps]);
+  }
+
+  private rebuildIfChanged(): void {
     const configChanged = this.configStamps.changed();
     if (!configChanged && !this.stamps.changed()) return;
+    // A changed config is read here, where errors in it keep the last one. A new process would read the
+    // config again, so a process whose last read of it failed builds on with the config it has; after a
+    // read that succeeded, a config change restarts the process like any other change.
     if (configChanged && !this.reloadConfig()) return;
+    if (this.configRead && watchRestart.restartsBeforeRebuild()) return;
     this.status.report(Diagnostics.File_change_detected_Starting_incremental_compilation);
     this.build();
   }
@@ -195,6 +456,7 @@ class Watcher {
     const errors: Diagnostic[] = [];
     const parser = new ConfigParser(new CachedFileSystem(new SystemFileSystem(sys)), sys.currentDirectory);
     const parsed = parser.parseConfigFile(configName, this.commandLine.options, this.commandLine.raw, errors);
+    this.configRead = parsed !== undefined;
     if (parsed === undefined) {
       this.reporter.reportAll(errors);
       this.status.reportErrorCount(errors.length);
@@ -220,7 +482,8 @@ class Watcher {
       );
       if (parsed !== undefined) this.config = parsed;
     }
-    const program = new Program(this.config, new WatchCompilerHost(sys, fs, this.locale));
+    this.files.next();
+    const program = new Program(this.config, new WatchCompilerHost(sys, fs, this.locale, this.files));
     const checked = new CheckedProgram(program);
     const incremental = new IncrementalProgram(checked, new CompileTimes(), this.snapshot, new SystemTimeStamps(sys));
     const result = emitFilesAndReportErrors(
@@ -299,9 +562,14 @@ export function watchBuild(sys: System, command: ParsedBuildCommandLine): void {
     options.pretty,
     locale,
   );
-  status.report(Diagnostics.Starting_compilation_in_watch_mode);
+  status.report(
+    watchRestart.resumed
+      ? Diagnostics.File_change_detected_Starting_incremental_compilation
+      : Diagnostics.Starting_compilation_in_watch_mode,
+  );
   const run = (): Stamps => {
     releaseProgramCaches();
+    startWatchRebuild();
     const orchestrator = new Orchestrator(sys, command);
     orchestrator.watching = true;
     orchestrator.start();
@@ -309,11 +577,15 @@ export function watchBuild(sys: System, command: ParsedBuildCommandLine): void {
     return buildInputs(sys, command);
   };
   let stamps = run();
-  startPolling(() => {
-    if (!stamps.changed()) return;
-    status.report(Diagnostics.File_change_detected_Starting_incremental_compilation);
-    stamps = run();
+  watchRestart.firstBuildDone();
+  const changes = new ChangeWatcher(sys, () => {
+    if (stamps.changed() && !watchRestart.restartsBeforeRebuild()) {
+      status.report(Diagnostics.File_change_detected_Starting_incremental_compilation);
+      stamps = run();
+    }
+    changes.watch([stamps]);
   });
+  changes.watch([stamps]);
 }
 
 /**

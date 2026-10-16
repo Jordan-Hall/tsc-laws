@@ -1,7 +1,7 @@
 // Emits JavaScript and declarations for source files: runs the transforms, prints, and writes
 // the output, source map and `//# sourceMappingURL` comment.
 import { ScriptKind, type SourceFile } from './ast.js';
-import type { Diagnostic } from './diagnostics.js';
+import { compareDiagnostics, type Diagnostic } from './diagnostics.js';
 import { type CompilerOptions, JsxEmit, NewLineKind, getEmitScriptTarget, getIsolatedModules } from './options.js';
 import { LanguageVariant } from './types.js';
 import { type OutputPathsHost, getOutputPathsFor } from './output-paths.js';
@@ -103,6 +103,11 @@ export class EmitResult {
    * and the signature compared for composite projects (`DeclarationSignatureWriter`).
    */
   readonly declarationSignatures: string[];
+  /**
+   * Under `noEmitOnError`, the outputs a checker thread emitted without writing them, as file name and
+   * text alternately: the main thread writes them once it knows there are no errors (`writeHeldOutputs`).
+   */
+  readonly heldOutputs: string[];
   emitSkipped: boolean;
 
   constructor() {
@@ -111,6 +116,7 @@ export class EmitResult {
     this.unsupported = [];
     this.diagnostics = [];
     this.declarationSignatures = [];
+    this.heldOutputs = [];
     this.emitSkipped = false;
   }
 }
@@ -201,7 +207,8 @@ function emitDeclarationFile(
     emitSourceMaps,
     false,
     result,
-    diagnostics,
+    // Sorted, as tsgo's emitter diagnostics are; the order is part of the file's signature in build info.
+    diagnostics.length > 1 ? diagnostics.toSorted(compareDiagnostics) : diagnostics,
   );
 }
 
@@ -258,7 +265,9 @@ function emitJSFile(
   printerOptions.sourceMap = options.sourceMap === true;
   printerOptions.inlineSourceMap = options.inlineSourceMap === true;
   printerOptions.inlineSources = options.inlineSources === true;
-  printerOptions.target = getEmitScriptTarget(options);
+  // The target option as given, as tsgo's JavaScript printer takes it: without one, the printer's default
+  // removes numeric separators, although the transforms target the default target.
+  if (options.target !== undefined) printerOptions.target = options.target;
   const printer = new Printer(printerOptions, context);
   const emitSourceMaps =
     (options.sourceMap === true || options.inlineSourceMap === true) && !fileExtensionIs(file.fileName, '.json');

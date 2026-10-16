@@ -1,4 +1,5 @@
 // Functions: function expressions and arrows, bodies, inferred return types, generators, `await`.
+import { resolvedReturnTypeOf, signatureSideOf } from './side-state.js';
 import { isJsxAttributesContextSensitive } from './checker-jsx.js';
 import {
   type Block,
@@ -224,9 +225,13 @@ function contextuallyCheckFunctionExpressionOrObjectLiteralMethod(c: Checker, no
     if ((checkMode & CheckMode.Inferential) !== 0 && inferenceContext !== undefined)
       inferFromAnnotatedParametersAndReturn(c, signature, contextualSignature, inferenceContext);
   }
-  if (contextualSignature !== undefined && getType(node) === undefined && signature.resolvedReturnType === undefined) {
+  if (
+    contextualSignature !== undefined &&
+    getType(node) === undefined &&
+    resolvedReturnTypeOf(c, signature) === undefined
+  ) {
     const returnType = getReturnTypeFromBodyEx(c, node, checkMode);
-    if (signature.resolvedReturnType === undefined) signature.resolvedReturnType = returnType;
+    if (resolvedReturnTypeOf(c, signature) === undefined) signatureSideOf(c, signature).resolvedReturnType = returnType;
   }
   checkFunctionLikeSignature(c, node);
 }
@@ -1125,7 +1130,7 @@ class YieldCollector extends NodeVisitor {
 }
 
 /** Collects the return statements of a function body, skipping nested functions and classes. */
-class ReturnCollector {
+export class ReturnCollector {
   readonly returns: ReturnStatement[] = [];
 
   visitStatements(block: Block): void {

@@ -3,6 +3,7 @@
  * tsconfig.json, `--showConfig`, program construction and `--listFilesOnly`.
  */
 import { mark } from './timeline.js';
+import { FileBuildInfoReader, readBuildInfoProgram, type Snapshot } from './incremental.js';
 import {
   createCompilerDiagnostic,
   Diagnostics,
@@ -35,6 +36,7 @@ import { checkerThreads, parseThreads } from './parallel-check.js';
 import { ParseSession, parallelParse, reportPreparedFiles } from './parallel-parse.js';
 import { showConfig, type ShowConfigInput } from './show-config.js';
 import { assignSymbolIdsAtCreation } from './symbol.js';
+import { sharesPublishedGraphs } from '@scriptc/threads';
 
 export enum ExitStatus {
   Success = 0,
@@ -73,6 +75,12 @@ export abstract class System extends CommandLineHost {
   abstract getMTime(path: string): number | undefined;
   abstract setMTime(path: string, time: number): boolean;
   abstract removeFile(path: string): boolean;
+  /**
+   * Calls `onChange` when the directory or a file in it changes, until the watch is closed. Undefined
+   * if the directory can't be watched, or where watching a directory doesn't report writes to its
+   * files.
+   */
+  abstract watchDirectory(path: string, onChange: () => void): DirectoryWatch | undefined;
 
   private readonly startTime = performance.now();
 
@@ -82,7 +90,20 @@ export abstract class System extends CommandLineHost {
   }
 }
 
+/** A watch of `System.watchDirectory`. */
+export interface DirectoryWatch {
+  close(): void;
+}
+
 /** The file system of a `System`. */
+/** The old state from an incremental program's build info (`readBuildInfoProgram`), and the time reading it took. */
+export class EarlyBuildInfo {
+  constructor(
+    readonly snapshot: Snapshot | undefined,
+    readonly readTime: number,
+  ) {}
+}
+
 export class SystemFileSystem extends FileSystem {
   constructor(private readonly sys: System) {
     super(sys.useCaseSensitiveFileNames);
@@ -137,6 +158,8 @@ export type CommandLineResult =
       readonly parseTime: number;
       readonly reporter: DiagnosticReporter;
       readonly errorSummary: ErrorSummaryReporter;
+      /** The build info of an incremental program, read while threads parsed its files; `undefined` if not read yet. */
+      readonly buildInfo?: EarlyBuildInfo;
     }
   /** Threads are preparing the program's files; `run` calls back with the result once they are done. */
   | { readonly kind: 'deferred'; readonly run: (done: (result: CommandLineResult) => void) => void }
@@ -209,11 +232,15 @@ export function outputLocale(options: CompilerOptions): Locale {
   return parseLocale(options.locale ?? '');
 }
 
+function isBuildFlag(arg: string): boolean {
+  return arg === '-b' || arg === '--b' || arg === '-build' || arg === '--build';
+}
+
 /** Runs `tsc` with `args` (without the executable). */
 export function executeCommandLine(sys: System, args: readonly string[]): CommandLineResult {
   if (args.length > 0) {
     const first = args[0].toLowerCase();
-    if (first === '-b' || first === '--b' || first === '-build' || first === '--build') {
+    if (isBuildFlag(first)) {
       return executeBuild(sys, parseBuildCommandLine(args, sys));
     }
   }
@@ -357,6 +384,7 @@ function executeCompile(sys: System, commandLine: ParsedCommandLine): CommandLin
   if (config.options.watch === true) return { kind: 'watch', config, commandLine };
 
   const parseStart = performance.now();
+  let buildInfo: EarlyBuildInfo | undefined = undefined;
   const createProgram = (
     host: CompilerHost = new SystemCompilerHost(sys, fs, locale),
     loader?: FileLoader,
@@ -379,6 +407,7 @@ function executeCompile(sys: System, commandLine: ParsedCommandLine): CommandLin
       parseTime,
       reporter,
       errorSummary,
+      buildInfo,
     };
   };
   if (parsesAhead(config.options)) {
@@ -403,27 +432,83 @@ function executeCompile(sys: System, commandLine: ParsedCommandLine): CommandLin
         const host = new SystemCompilerHost(sys, fs, locale);
         const loader = new FileLoader(host, config);
         let rootFilesAdded = false;
+        // The build info lists the real paths of the `package.json` files module resolution looked up:
+        // those of the threads' lookups are resolved here, into the file system's cache, rather than
+        // when the build info is written.
+        const resolvesPackageJsons = config.configName !== '' && config.buildInfoFileName() !== '';
         session.onIdle = (batch) => {
           if (!rootFilesAdded) rootFilesAdded = loader.addRootFiles(rootFilesPerChunk);
           loader.takeAhead(batch.files);
+          if (resolvesPackageJsons) {
+            const lookups = batch.packageJsons;
+            for (let k = 0; k < lookups.directories.length; k++)
+              if (lookups.exists[k]! || lookups.directoryExists[k]!)
+                fs.realpath(combinePaths(lookups.directories[k]!, 'package.json'));
+          }
         };
-        session.start(config.fileNames, () => done(createProgram(host, loader)));
+        session.start(config.fileNames, () => {
+          let result = createProgram(host, loader);
+          // The build info of an incremental program lists the `package.json` files its module
+          // resolution looked up, which include the parse threads' lookups for the resolutions it
+          // took. Where those may miss some (`preparedPackageJsonLookups`), the program is loaded
+          // again, resolving every file's imports and references itself, as in build mode.
+          if (
+            result.kind === 'compile' &&
+            isIncremental(config.options) &&
+            !result.program.hasAllPackageJsonLookups()
+          ) {
+            const own = new FileLoader(host, config);
+            own.takesPreparedResolutions = false;
+            result = createProgram(host, own);
+          }
+          done(result);
+        });
+        // The build info of an incremental program is read while the threads parse: reading it needs
+        // only the config (compile and recheckInParallel, tsc-compile.ts, take it from here).
+        if (isIncremental(config.options)) {
+          const readStart = performance.now();
+          const snapshot = readBuildInfoProgram(
+            config,
+            new FileBuildInfoReader(new SystemFileSystem(sys)),
+            sys.defaultLibraryPath,
+            sys.currentDirectory,
+          );
+          buildInfo = new EarlyBuildInfo(snapshot, performance.now() - readStart);
+          mark('build info read');
+        }
       },
     };
   }
+  // An incremental program without build info is shared with checker threads too (`compileThreads`).
+  if (
+    sharesPublishedGraphs &&
+    isIncremental(config.options) &&
+    checkerThreads(config.options.checkers, config.options.singleThreaded) > 1
+  )
+    assignSymbolIdsAtCreation();
   return createProgram();
 }
 
 /** Root file tasks the main thread adds each time a parse thread returns a chunk (`FileLoader.addRootFiles`). */
 const rootFilesPerChunk = 32;
 
-/** Whether threads parse and bind the files of a program with `options` ahead of it (parallel-parse.ts). */
+/**
+ * Whether threads parse and bind the files of a program with `options` ahead of it (parallel-parse.ts):
+ * where checker threads may be used. Also for an incremental program with build info, which is checked
+ * on this thread (`checksIncrementalOnThreads`) but parsed in full all the same, as in build mode.
+ */
 function parsesAhead(options: CompilerOptions): boolean {
-  return (
-    checkerThreads(options.checkers, options.singleThreaded) > 1 &&
-    parallelParse.spawn !== undefined &&
-    !isIncremental(options)
-  );
+  return checkerThreads(options.checkers, options.singleThreaded) > 1 && parallelParse.spawn !== undefined;
+}
+
+/**
+ * Whether an incremental program with `options` and the build info file `buildInfoFileName` is checked on
+ * checker threads (tsc-compile.ts): only where its build info file doesn't exist, so that every file is
+ * checked, and not under `noEmit`, where it keeps its files' diagnostics unfiltered, as in build mode
+ * (tsc-build.ts).
+ */
+export function checksIncrementalOnThreads(sys: System, options: CompilerOptions, buildInfoFileName: string): boolean {
+  return options.noEmit !== true && (buildInfoFileName === '' || !sys.fileExists(buildInfoFileName));
 }
 
 /**
@@ -468,8 +553,10 @@ export class ThreadProject {
 }
 
 /**
- * The project of the compile command line `args` for a parse thread (parallel-parse.ts), whose main
- * thread found its config at `configFileName`; `undefined` if it cannot be read.
+ * The project of the command line `args` for a parse thread (parallel-parse.ts), whose main thread
+ * found its config at `configFileName`; `undefined` if it cannot be read. Under `--build`, the
+ * project whose config is `configFileName`, read with the build's compiler options as the build
+ * reads it (tsc-build.ts).
  */
 export function readThreadProject(
   sys: System,
@@ -479,7 +566,13 @@ export function readThreadProject(
   const fs = new CachedFileSystem(new SystemFileSystem(sys));
   // The main thread hands out the root files: matching the config's `include` patterns again (tens
   // of milliseconds on large trees) would only delay the thread's first files.
-  const config = readProjectConfig(sys, fs, parseCommandLine(args, sys), configFileName, [], false);
+  let config: ProjectConfig | undefined;
+  if (args.length > 0 && isBuildFlag(args[0]!.toLowerCase())) {
+    const command = parseBuildCommandLine(args, sys);
+    const parser = new ConfigParser(fs, sys.currentDirectory);
+    parser.expandFileNames = false;
+    config = parser.parseConfigFile(configFileName, command.compilerOptions, command.raw, []);
+  } else config = readProjectConfig(sys, fs, parseCommandLine(args, sys), configFileName, [], false);
   return config === undefined ? undefined : new ThreadProject(config, fs);
 }
 

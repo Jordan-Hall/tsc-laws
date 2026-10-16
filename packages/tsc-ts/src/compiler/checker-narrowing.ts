@@ -1,9 +1,12 @@
 // Control flow analysis: the type of a reference at a position, walking the binder's flow graph
 // backwards from the reference through assignments, conditions, calls and labels.
+import { sideOf } from './side-state.js';
 import {
   type ForInOrOfStatement,
   type MetaProperty,
   type BindingElement,
+  type VariableDeclaration,
+  type Identifier,
   getName,
   type BinaryExpression,
   type ElementAccessExpression,
@@ -104,6 +107,7 @@ import {
   checkNonNullExpression,
   checkNonNullType,
   getNarrowableTypeForReference,
+  someTypeIsGenericWithUnionConstraint,
   getResolvedSymbol,
   getTypeOfExpression,
   isThisInTypeQuery,
@@ -201,6 +205,18 @@ export class FlowState {
   depth = 0;
   sharedFlowStart = 0;
   incomplete = false;
+  /** The flow nodes visited, and the deepest nesting of the walk. */
+  steps = 0;
+  maxDepth = 0;
+  /** Whether this walk may be kept and end on a kept one (`FlowWalk`), and whether it looked one up. */
+  keepsWalk = false;
+  lookedUp = false;
+  /** The reference's last long walk, which this walk may end on. */
+  walk: FlowWalk | undefined = undefined;
+  /** The node where this walk would be kept from: see `flowWalkAnchorSteps`. */
+  anchor: FlowNode | undefined = undefined;
+  /** Whether the result depends on where the reference is, not only on its key. */
+  positional = false;
 
   constructor(reference: Node, declaredType: Type, initialType: Type, flowContainer: Node | undefined) {
     this.reference = reference;
@@ -219,7 +235,85 @@ export class FlowState {
     this.depth = 0;
     this.sharedFlowStart = 0;
     this.incomplete = false;
+    this.steps = 0;
+    this.maxDepth = 0;
+    this.keepsWalk = false;
+    this.lookedUp = false;
+    this.walk = undefined;
+    this.anchor = undefined;
+    this.positional = false;
   }
+}
+
+/**
+ * A node of a reference's last long walk, and the walk's result. Without loops or reduce labels in
+ * effect, the type of a reference at a flow node doesn't change, so a later walk that reaches `start`
+ * ends there. In a long list of top-level declarations, each reference otherwise walks back over
+ * every one before it.
+ */
+export class FlowWalk {
+  start: FlowNode;
+  type: Type;
+  /** The deepest nesting of a walk from `start`, which reaches the depth limit the same way. */
+  depth: number;
+
+  constructor(start: FlowNode, type: Type, depth: number) {
+    this.start = start;
+    this.type = type;
+    this.depth = depth;
+  }
+}
+
+/** Walks shorter than this aren't kept. */
+const minFlowWalkSteps = 32;
+
+/**
+ * The step of a frame of a walk at which the walk looks up the reference's kept walk; in the first
+ * frame, also the node it would be kept from. Every node a frame passes before the last one leaves
+ * the type unchanged, so the type there is the walk's result. Shorter walks don't compute the
+ * reference's key. A later walk that passes this walk's start reaches the node after this many steps
+ * or more, once it has looked.
+ */
+const flowWalkAnchorSteps = 16;
+
+/**
+ * Whether `node` is an identifier, `this`, or property and element accesses on one. Walks of such
+ * references with the same key (`getFlowReferenceKey`) go the same way; with parentheses or a
+ * non-null assertion in between, a reference has the key of the one without, but not its walk.
+ */
+function isDottedReference(node: Node): boolean {
+  let n = node;
+  for (;;) {
+    switch (n.kind) {
+      case SyntaxKind.Identifier:
+        return !isThisInTypeQuery(n);
+      case SyntaxKind.ThisKeyword:
+        return true;
+      case SyntaxKind.PropertyAccessExpression:
+      case SyntaxKind.ElementAccessExpression:
+        n = getExpression(n)!;
+        break;
+      default:
+        return false;
+    }
+  }
+}
+
+/**
+ * Whether an element access in `node` names a property with a character that keys use as a
+ * separator (`.`, `@`, `#`). Its key can then be another reference's, as `o["a.b"]` has the key of
+ * `o.a.b`, so its walks aren't kept.
+ */
+function hasKeyCharacterInName(c: Checker, node: Node): boolean {
+  let n = node;
+  while (n.kind === SyntaxKind.PropertyAccessExpression || n.kind === SyntaxKind.ElementAccessExpression) {
+    if (n.kind === SyntaxKind.ElementAccessExpression) {
+      const name = getAccessedPropertyName(c, n);
+      if (name !== undefined && /[.@#]/.test(name)) return true;
+    }
+    n = getExpression(n)!;
+  }
+  return false;
 }
 
 /** A loop junction being analyzed for a reference, with the types seen on its paths so far. */
@@ -264,7 +358,29 @@ export function getFlowTypeOfReferenceAt(
   } else f = new FlowState(reference, declaredType, initialType, flowContainer);
   f.sharedFlowStart = c.sharedFlowNodes.length;
   c.flowInvocationCount++;
+  f.keepsWalk =
+    c.flowLoopStack.length === 0 &&
+    c.flowReduceLabels.length === 0 &&
+    c.inlineLevel === 0 &&
+    isDottedReference(reference);
+  const cycles = c.resolutionCycleCount;
   const evolvedType = getTypeAtFlowNode(c, f, flowNode);
+  const anchor = f.anchor;
+  if (
+    anchor !== undefined &&
+    f.steps >= minFlowWalkSteps &&
+    !f.incomplete &&
+    !f.positional &&
+    !c.flowAnalysisDisabled &&
+    c.resolutionCycleCount === cycles
+  ) {
+    const walk = f.walk;
+    if (walk !== undefined) {
+      walk.start = anchor;
+      walk.type = evolvedType;
+      walk.depth = f.maxDepth;
+    } else c.flowWalks.set(f.refKey!, new FlowWalk(anchor, evolvedType, f.maxDepth));
+  }
   c.sharedFlowNodes.length = f.sharedFlowStart;
   c.sharedFlowTypes.length = f.sharedFlowStart;
   c.sharedFlowIncomplete.length = f.sharedFlowStart;
@@ -303,9 +419,22 @@ export function getTypeAtFlowNode(c: Checker, f: FlowState, start: FlowNode): Ty
     return complete(f, c.errorType);
   }
   f.depth++;
+  if (f.depth > f.maxDepth) f.maxDepth = f.depth;
   let flow = start;
   let sharedFlow: FlowNode | undefined = undefined;
+  let frameSteps = 0;
   for (;;) {
+    f.steps++;
+    if (++frameSteps === flowWalkAnchorSteps && f.keepsWalk && !f.lookedUp) {
+      f.lookedUp = true;
+      if (f.refKey === undefined) f.refKey = getFlowReferenceKey(c, f);
+      if (f.refKey !== '' && !hasKeyCharacterInName(c, f.reference)) {
+        f.walk = c.flowWalks.get(f.refKey);
+        // Only the first frame's nodes have the walk's result as their type.
+        if (f.depth === 1) f.anchor = flow;
+      }
+    }
+    const walk = f.walk;
     const flags = flow.flags;
     if ((flags & FlowFlags.Shared) !== 0) {
       // Shared nodes are cached for the duration of one walk.
@@ -319,7 +448,17 @@ export function getTypeAtFlowNode(c: Checker, f: FlowState, start: FlowNode): Ty
       sharedFlow = flow;
     }
     let t: Type;
-    if ((flags & FlowFlags.Assignment) !== 0) {
+    if (
+      walk !== undefined &&
+      flow === walk.start &&
+      c.flowLoopStack.length === 0 &&
+      c.flowReduceLabels.length === 0 &&
+      c.inlineLevel === 0 &&
+      f.depth + walk.depth - 1 <= 2000
+    ) {
+      if (f.depth + walk.depth - 1 > f.maxDepth) f.maxDepth = f.depth + walk.depth - 1;
+      t = complete(f, walk.type);
+    } else if ((flags & FlowFlags.Assignment) !== 0) {
       const assigned = getTypeAtFlowAssignment(c, f, flow);
       if (assigned === undefined) {
         flow = flow.antecedent!;
@@ -487,6 +626,8 @@ function getInitialOrAssignedType(c: Checker, f: FlowState, flow: FlowNode): Typ
     node.kind === SyntaxKind.VariableDeclaration || node.kind === SyntaxKind.BindingElement
       ? getInitialType(c, node)
       : getAssignedType(c, node);
+  // getNarrowableTypeForReference looks at the reference's position for these.
+  if (someTypeIsGenericWithUnionConstraint(c, t)) f.positional = true;
   return getNarrowableTypeForReference(c, t, f.reference);
 }
 
@@ -1067,6 +1208,9 @@ function narrowType(c: Checker, f: FlowState, t: Type, expr: Node, assumeTrue: b
             getType(declaration) === undefined
           ) {
             const initializer = getInitializer(declaration);
+            // For an access, isConstantReference reads the property symbol resolved where the
+            // reference is, which narrowing of its object changes.
+            if (initializer !== undefined && isAccessExpression(f.reference)) f.positional = true;
             if (initializer !== undefined && isConstantReference(c, f.reference)) {
               c.inlineLevel++;
               const result = narrowType(c, f, t, initializer, assumeTrue);
@@ -1830,17 +1974,19 @@ function narrowTypeByDiscriminantProperty(
 
 /** The name of a property usable to index the constituents of a large union by literal values, or ''. */
 export function getKeyPropertyName(c: Checker, t: UnionType): string {
-  if (t.keyPropertyName === '') computeKeyPropertyNameAndMap(c, t);
-  return t.keyPropertyName === InternalSymbolName.Missing ? '' : t.keyPropertyName;
+  const side = sideOf(c, t);
+  if (side.keyPropertyName === '') computeKeyPropertyNameAndMap(c, t, side);
+  return side.keyPropertyName === InternalSymbolName.Missing ? '' : side.keyPropertyName;
 }
 
 export function getConstituentTypeForKeyType(c: Checker, t: UnionType, keyType: Type): Type | undefined {
-  const result = t.constituentMap?.get(getRegularTypeOfLiteralType(c, keyType));
+  const result = sideOf(c, t).constituentMap?.get(getRegularTypeOfLiteralType(c, keyType));
   return result !== c.unknownType ? result : undefined;
 }
 
-function computeKeyPropertyNameAndMap(c: Checker, t: UnionType): void {
-  t.keyPropertyName = InternalSymbolName.Missing;
+/** Computes the key property of `t` and its constituents by key into `side`, the holder of its state. */
+function computeKeyPropertyNameAndMap(c: Checker, t: UnionType, side: UnionType): void {
+  side.keyPropertyName = InternalSymbolName.Missing;
   const types = t.types;
   let objectCount = 0;
   for (const u of types) if ((u.flags & (TypeFlags.Object | TypeFlags.InstantiableNonPrimitive)) !== 0) objectCount++;
@@ -1876,8 +2022,8 @@ function computeKeyPropertyNameAndMap(c: Checker, t: UnionType): void {
     if (!duplicate) count++;
   }
   if (count >= 10 && count * 2 >= types.length) {
-    t.keyPropertyName = keyPropertyName;
-    t.constituentMap = map;
+    side.keyPropertyName = keyPropertyName;
+    side.constituentMap = map;
   }
 }
 
@@ -2132,6 +2278,24 @@ function getBaseConstraintOrType(c: Checker, t: Type): Type {
 // ---- References
 
 export function isMatchingReference(c: Checker, source: Node, target: Node): boolean {
+  // A declaration's symbol has the declaration's name, and an identifier's text is its name: an
+  // identifier never refers to the variable or binding element of a declaration of another name.
+  if (
+    source.kind === SyntaxKind.Identifier &&
+    (target.kind === SyntaxKind.VariableDeclaration || target.kind === SyntaxKind.BindingElement)
+  ) {
+    // A cast to one class: a union of the two would be boxed in native builds.
+    const name =
+      target.kind === SyntaxKind.VariableDeclaration
+        ? (target as VariableDeclaration).name
+        : (target as BindingElement).name;
+    if (
+      name !== undefined &&
+      name.kind === SyntaxKind.Identifier &&
+      (name as Identifier).text !== (source as Identifier).text
+    )
+      return false;
+  }
   switch (target.kind) {
     case SyntaxKind.ParenthesizedExpression:
     case SyntaxKind.NonNullExpression:
@@ -2849,7 +3013,8 @@ function addEvolvingArrayElementType(c: Checker, evolvingArrayType: Type, node: 
 export function finalizeEvolvingArrayType(c: Checker, t: Type): Type {
   if ((t.objectFlags & ObjectFlags.EvolvingArray) === 0) return t;
   const evolving = t as EvolvingArrayType;
-  if (evolving.finalArrayType !== undefined) return evolving.finalArrayType;
+  const side = sideOf(c, evolving);
+  if (side.finalArrayType !== undefined) return side.finalArrayType;
   const elementType = evolving.elementType!;
   const finalArrayType =
     (elementType.flags & TypeFlags.Never) !== 0
@@ -2860,7 +3025,7 @@ export function finalizeEvolvingArrayType(c: Checker, t: Type): Type {
             ? getUnionTypeEx(c, (elementType as UnionType).types, UnionReduction.Subtype, undefined, undefined)
             : elementType,
         );
-  evolving.finalArrayType = finalArrayType;
+  side.finalArrayType = finalArrayType;
   return finalArrayType;
 }
 

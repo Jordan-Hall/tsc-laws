@@ -1,4 +1,5 @@
 // Decorators: their applicability, resolution as calls and return types.
+import { resolvedReturnTypeOf } from './side-state.js';
 import { checkDeprecatedSignature } from './checker-deprecation.js';
 import {
   type Decorator,
@@ -79,8 +80,9 @@ function checkDecorator(c: Checker, node: Decorator): void {
   if ((returnType.flags & TypeFlags.Any) !== 0) return;
   // Without a signature, the grammar checks reported an error.
   const decoratorSignature = getDecoratorCallSignature(c, node);
-  if (decoratorSignature === undefined || decoratorSignature.resolvedReturnType === undefined) return;
-  const expectedReturnType = decoratorSignature.resolvedReturnType;
+  if (decoratorSignature === undefined) return;
+  const expectedReturnType = resolvedReturnTypeOf(c, decoratorSignature);
+  if (expectedReturnType === undefined) return;
   const parent = node.parent!;
   const headMessage =
     parent.kind === SyntaxKind.Parameter || (parent.kind === SyntaxKind.PropertyDeclaration && c.legacyDecorators)

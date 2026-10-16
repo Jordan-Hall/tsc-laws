@@ -1,6 +1,15 @@
 // Type relations: identity, subtype, strict subtype, assignability and comparability, with
 // tsgo's result caching, recursion limits, variance measurement and error elaboration.
-import { ModifierFlags, type Node, type ConditionalTypeNode, getExpression, getName, getText } from './ast.js';
+import { lazyObjectFlags, sideOf, sideOfIfAny } from './side-state.js';
+import {
+  ModifierFlags,
+  type Node,
+  type ConditionalTypeNode,
+  getExpression,
+  getName,
+  getNodeId,
+  getText,
+} from './ast.js';
 import { getSymbolNameForPrivateIdentifier } from './binder.js';
 import { getCombinedModifierFlags } from './binder-utilities.js';
 import { Diagnostic, type DiagnosticMessage, Diagnostics, messageElidedInCompatibilityPyramid } from './diagnostics.js';
@@ -333,7 +342,12 @@ export const enum SignatureCheckMode {
 }
 
 /** An object identity shared by instantiations of the same type, for recursion limits. */
-export type RecursionId = Node | Symbol | Type;
+/**
+ * The recursion identity of a type (`getRecursionIdentity`): a node, a symbol or a type, as a number
+ * (its id times 4 plus its kind), compared only for equality. A union of the three classes would be
+ * boxed in native builds on every call.
+ */
+export type RecursionId = number;
 
 // ---- Comparers
 
@@ -531,7 +545,8 @@ function isLiteralRelatedByPrimitiveUnionForms(c: Checker, source: Type, target:
 function literalRelatedToPrimitiveUnion(c: Checker, source: Type, target: UnionType): boolean {
   const literal = source as LiteralType;
   // Typed: scriptc can't pass the narrowed LiteralType field as a Type.
-  const alternateForm: Type | undefined = source === literal.regularType ? literal.freshType : literal.regularType;
+  const alternateForm: Type | undefined =
+    source === literal.regularType ? (literal.freshType ?? sideOfIfAny(c, literal)?.freshType) : literal.regularType;
   let primitive: Type | undefined;
   if ((source.flags & TypeFlags.StringLiteral) !== 0) primitive = c.stringType;
   else if ((source.flags & TypeFlags.NumberLiteral) !== 0) primitive = c.numberType;
@@ -689,8 +704,9 @@ function someTypeIsEmptyAnonymousObject(c: Checker, types: readonly Type[]): boo
 
 export function isUnknownLikeUnionType(c: Checker, t: Type): boolean {
   if (!c.strictNullChecks || (t.flags & TypeFlags.Union) === 0) return false;
-  if ((t.objectFlags & ObjectFlags.IsUnknownLikeUnionComputed) === 0) {
-    t.objectFlags |= ObjectFlags.IsUnknownLikeUnionComputed;
+  const side = sideOf(c, t);
+  if ((side.objectFlags & ObjectFlags.IsUnknownLikeUnionComputed) === 0) {
+    side.objectFlags |= ObjectFlags.IsUnknownLikeUnionComputed;
     const types = typesOf(t);
     if (
       types.length >= 3 &&
@@ -698,9 +714,9 @@ export function isUnknownLikeUnionType(c: Checker, t: Type): boolean {
       (types[1]!.flags & TypeFlags.Null) !== 0 &&
       someTypeIsEmptyAnonymousObject(c, types)
     )
-      t.objectFlags |= ObjectFlags.IsUnknownLikeUnion;
+      side.objectFlags |= ObjectFlags.IsUnknownLikeUnion;
   }
-  return (t.objectFlags & ObjectFlags.IsUnknownLikeUnion) !== 0;
+  return (side.objectFlags & ObjectFlags.IsUnknownLikeUnion) !== 0;
 }
 
 function isEnumTypeRelatedTo(c: Checker, source: Symbol, target: Symbol, reporter: Relater | undefined): boolean {
@@ -1022,7 +1038,10 @@ function reportDiagnostic(c: Checker, diagnostic: Diagnostic, output: Diagnostic
   else c.addDiagnostic(diagnostic);
 }
 
-/** The diagnostic for an error chain, skipping elided head messages; nested messages become its chain. */
+/**
+ * The diagnostic for an error chain, skipping elided messages; nested messages become its chain. As in tsgo, every
+ * message of the chain has the location and related information of the error, which build info records.
+ */
 function createDiagnosticFromErrorChain(
   chain: ErrorChain | undefined,
   errorNode: Node | undefined,
@@ -1036,7 +1055,8 @@ function createDiagnosticFromErrorChain(
   let parent = diagnostic;
   while (next !== undefined) {
     if (!messageElidedInCompatibilityPyramid(next.message)) {
-      const child = new Diagnostic(undefined, 0, 0, next.message, next.args);
+      const child = new Diagnostic(diagnostic.file, diagnostic.pos, diagnostic.end, next.message, next.args);
+      for (const info of relatedInfo) child.addRelatedInfo(info);
       parent.addMessageChain(child);
       parent = child;
     }
@@ -3419,7 +3439,7 @@ export class Relater extends TypeComparer {
         return;
     } else if (
       (originalTarget.flags & TypeFlags.Intersection) !== 0 &&
-      (originalTarget.objectFlags & ObjectFlags.IsNeverIntersection) !== 0
+      (lazyObjectFlags(c, originalTarget) & ObjectFlags.IsNeverIntersection) !== 0
     ) {
       const props = getPropertiesOfUnionOrIntersectionType(c, originalTarget as IntersectionType);
       let message =
@@ -3684,8 +3704,9 @@ export function getSingleBaseForNonAugmentingSubtype(c: Checker, t: Type): Type 
   if ((reference.target!.objectFlags & ObjectFlags.ClassOrInterface) === 0) return undefined;
   const target = reference.target as InterfaceType;
   const key = cachedTypeKey(CachedTypeKind.EquivalentBaseType, t.id);
-  if ((t.objectFlags & ObjectFlags.IdenticalBaseTypeCalculated) !== 0) return c.cachedTypesById.get(key);
-  t.objectFlags |= ObjectFlags.IdenticalBaseTypeCalculated;
+  const side = sideOf(c, t);
+  if ((side.objectFlags & ObjectFlags.IdenticalBaseTypeCalculated) !== 0) return c.cachedTypesById.get(key);
+  side.objectFlags |= ObjectFlags.IdenticalBaseTypeCalculated;
   if ((target.objectFlags & ObjectFlags.Class) !== 0) {
     // Only base types named by simple qualified names; others may refer back to the class.
     const declaration = target.symbol?.valueDeclaration;
@@ -4297,24 +4318,37 @@ export function getRecursionIdentity(t: Type): RecursionId {
     (t.objectFlags & (ObjectFlags.ObjectLiteral | ObjectFlags.ArrayLiteral)) === 0
   ) {
     if ((t.objectFlags & ObjectFlags.Reference) !== 0 && (t as TypeReference).node !== undefined)
-      return (t as TypeReference).node!;
+      return nodeRecursionId((t as TypeReference).node!);
     if (
       t.symbol !== undefined &&
       !((t.objectFlags & ObjectFlags.Anonymous) !== 0 && (t.symbol.flags & SymbolFlags.Class) !== 0) &&
       (t.objectFlags & ObjectFlags.FromTypeNode) === 0
     )
-      return t.symbol;
-    if (isTupleType(t) && (t.objectFlags & ObjectFlags.FromTypeNode) === 0) return (t as TypeReference).target!;
+      return symbolRecursionId(t.symbol);
+    if (isTupleType(t) && (t.objectFlags & ObjectFlags.FromTypeNode) === 0)
+      return typeRecursionId((t as TypeReference).target!);
   }
-  if ((t.flags & TypeFlags.TypeParameter) !== 0 && t.symbol !== undefined) return t.symbol;
+  if ((t.flags & TypeFlags.TypeParameter) !== 0 && t.symbol !== undefined) return symbolRecursionId(t.symbol);
   if ((t.flags & TypeFlags.IndexedAccess) !== 0) {
     let objectType = (t as IndexedAccessType).objectType;
     while ((objectType.flags & TypeFlags.IndexedAccess) !== 0)
       objectType = (objectType as IndexedAccessType).objectType;
-    return objectType;
+    return typeRecursionId(objectType);
   }
-  if ((t.flags & TypeFlags.Conditional) !== 0) return (t as ConditionalType).root.node;
-  return t;
+  if ((t.flags & TypeFlags.Conditional) !== 0) return nodeRecursionId((t as ConditionalType).root.node);
+  return typeRecursionId(t);
+}
+
+function nodeRecursionId(node: Node): RecursionId {
+  return getNodeId(node) * 4 + 1;
+}
+
+function symbolRecursionId(symbol: Symbol): RecursionId {
+  return getSymbolId(symbol) * 4 + 2;
+}
+
+function typeRecursionId(t: Type): RecursionId {
+  return t.id * 4 + 3;
 }
 
 // ---- Variance

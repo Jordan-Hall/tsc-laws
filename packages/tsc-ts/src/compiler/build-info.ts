@@ -13,7 +13,7 @@ import {
   type CompilerOptions,
   type CompilerOptionValue,
 } from './options.js';
-import { parseJson, type JsonObject, type JsonValue } from './package-json.js';
+import { JsonParser, type JsonObject, type JsonValue } from './package-json.js';
 import { getNormalizedAbsolutePath, pathIsAbsolute, pathIsRelative, toPath } from './path.js';
 
 /** What emit a file still needs, or which outputs an option set produces. */
@@ -176,6 +176,8 @@ export class BuildInfo {
   fileNames: string[] = [];
   fileInfos: BuildInfoFileInfo[] = [];
   fileIdsList: number[][] = [];
+  /** The ids of each `fileIdsList` entry joined with commas, when the writer of the build info kept them. */
+  fileIdsListText: string[] = [];
   options: BuildInfoOption[] | undefined = undefined;
   referencedMap: BuildInfoReference[] = [];
   semanticDiagnosticsPerFile: BuildInfoSemanticDiagnostic[] = [];
@@ -460,7 +462,13 @@ export function buildInfoToJson(b: BuildInfo): string {
   if (b.missingPackageJsons.length > 0) w.add('missingPackageJsons', stringArray(b.missingPackageJsons));
   if (b.fileNames.length > 0) w.add('fileNames', stringArray(b.fileNames));
   if (b.fileInfos.length > 0) w.add('fileInfos', listJson(b.fileInfos, fileInfoJson));
-  if (b.fileIdsList.length > 0) w.add('fileIdsList', listJson(b.fileIdsList, numberArray));
+  if (b.fileIdsList.length > 0) {
+    const text = b.fileIdsListText;
+    w.add(
+      'fileIdsList',
+      text.length === b.fileIdsList.length ? listJson(text, (ids) => `[${ids}]`) : listJson(b.fileIdsList, numberArray),
+    );
+  }
   const options = b.options;
   if (options !== undefined) {
     const o = new ObjectWriter();
@@ -681,96 +689,456 @@ function readOptionValue(value: JsonValue): CompilerOptionValue | undefined {
   }
 }
 
-function readBuildInfo(o: JsonObject): BuildInfo {
-  const b = new BuildInfo();
-  for (const [key, v] of o.entries) {
-    switch (key) {
-      case 'version':
-        b.version = asString(v);
-        break;
-      case 'errors':
-        b.errors = asBoolean(v);
-        break;
-      case 'checkPending':
-        b.checkPending = asBoolean(v);
-        break;
-      case 'root':
-        b.root = asArray(v).map(readRoot);
-        break;
-      case 'packageJsons':
-        b.packageJsons = stringsOf(v);
-        break;
-      case 'missingPackageJsons':
-        b.missingPackageJsons = stringsOf(v);
-        break;
-      case 'fileNames':
-        b.fileNames = stringsOf(v);
-        break;
-      case 'fileInfos':
-        b.fileInfos = asArray(v).map(readFileInfo);
-        break;
-      case 'fileIdsList':
-        b.fileIdsList = asArray(v).map(numbersOf);
-        break;
-      case 'options': {
-        const options: BuildInfoOption[] = [];
-        for (const [name, optionValue] of asObject(v).entries) {
-          const value = readOptionValue(optionValue);
-          if (value !== undefined) options.push(new BuildInfoOption(name, value));
+/** Sets the field of `b` that `key` names to `v`; other keys are left out. */
+function readBuildInfoField(b: BuildInfo, key: string, v: JsonValue): void {
+  switch (key) {
+    case 'version':
+      b.version = asString(v);
+      break;
+    case 'errors':
+      b.errors = asBoolean(v);
+      break;
+    case 'checkPending':
+      b.checkPending = asBoolean(v);
+      break;
+    case 'root':
+      b.root = asArray(v).map(readRoot);
+      break;
+    case 'packageJsons':
+      b.packageJsons = stringsOf(v);
+      break;
+    case 'missingPackageJsons':
+      b.missingPackageJsons = stringsOf(v);
+      break;
+    case 'fileNames':
+      b.fileNames = stringsOf(v);
+      break;
+    case 'fileInfos':
+      b.fileInfos = asArray(v).map(readFileInfo);
+      break;
+    case 'fileIdsList':
+      b.fileIdsList = asArray(v).map(numbersOf);
+      break;
+    case 'options': {
+      const options: BuildInfoOption[] = [];
+      for (const [name, optionValue] of asObject(v).entries) {
+        const value = readOptionValue(optionValue);
+        if (value !== undefined) options.push(new BuildInfoOption(name, value));
+      }
+      b.options = options;
+      break;
+    }
+    case 'referencedMap':
+      b.referencedMap = asArray(v).map((entry) => {
+        const items = numbersOf(entry);
+        if (items.length !== 2) throw invalid();
+        return new BuildInfoReference(items[0], items[1]);
+      });
+      break;
+    case 'semanticDiagnosticsPerFile':
+      b.semanticDiagnosticsPerFile = asArray(v).map((entry) =>
+        entry.type === 'number'
+          ? new BuildInfoSemanticDiagnostic(entry.value, undefined)
+          : new BuildInfoSemanticDiagnostic(0, readDiagnosticsOfFile(entry)),
+      );
+      break;
+    case 'emitDiagnosticsPerFile':
+      b.emitDiagnosticsPerFile = asArray(v).map(readDiagnosticsOfFile);
+      break;
+    case 'changeFileSet':
+      b.changeFileSet = numbersOf(v);
+      break;
+    case 'affectedFilesPendingEmit':
+      b.affectedFilesPendingEmit = asArray(v).map(readPendingEmit);
+      break;
+    case 'latestChangedDtsFile':
+      b.latestChangedDtsFile = asString(v);
+      break;
+    case 'emitSignatures':
+      b.emitSignatures = asArray(v).map(readEmitSignature);
+      break;
+    case 'resolvedRoot':
+      b.resolvedRoot = asArray(v).map((entry) => {
+        const items = numbersOf(entry);
+        if (items.length !== 2) throw invalid();
+        return new BuildInfoResolvedRoot(items[0], items[1]);
+      });
+      break;
+    case 'semanticErrors':
+      b.semanticErrors = asBoolean(v);
+      break;
+  }
+}
+
+/** A bit for each key of a diagnostic in build info (`BuildInfoTextReader.diagnostic`). */
+const diagnosticKeys = new Map<string, number>(
+  [
+    'file',
+    'noFile',
+    'pos',
+    'end',
+    'code',
+    'category',
+    'messageKey',
+    'messageArgs',
+    'messageChain',
+    'relatedInformation',
+    'reportsUnnecessary',
+    'reportsDeprecated',
+    'skippedOnNoEmit',
+    'repopulateInfo',
+  ].map((key, i) => [key, 1 << i]),
+);
+
+/**
+ * Reads build info text: the fields that hold most of it (lists of file ids, file names, references and
+ * diagnostics) straight into their arrays where they have the shape the writer writes, and the others,
+ * or any of those that do not, through JSON values (`readBuildInfoField`). A repeated key takes its
+ * last value, as in a JSON object.
+ */
+class BuildInfoTextReader {
+  private readonly p: JsonParser;
+  /** The JSON values of the fields read through them, by key. */
+  private readonly values = new Map<string, JsonValue>();
+
+  constructor(text: string) {
+    this.p = new JsonParser(text);
+  }
+
+  read(): BuildInfo {
+    const p = this.p;
+    const b = new BuildInfo();
+    p.skipWhitespace();
+    if (p.peek() !== 0x7b) throw invalid();
+    p.pos++;
+    p.skipWhitespace();
+    if (p.peek() === 0x7d) p.pos++;
+    else
+      for (;;) {
+        const key = p.key();
+        if (key === undefined) throw invalid();
+        const start = p.pos;
+        if (!this.readFast(b, key)) {
+          p.pos = start;
+          const value = p.value();
+          if (value === undefined) throw invalid();
+          this.values.set(key, value);
         }
-        b.options = options;
+        if (!p.endOfMember(0x7d)) throw invalid();
+        if (p.peek() === 0x7d) {
+          p.pos++;
+          break;
+        }
+      }
+    p.skipWhitespace();
+    if (p.pos !== p.text.length) throw invalid();
+    for (const [key, value] of this.values) readBuildInfoField(b, key, value);
+    return b;
+  }
+
+  /** Reads the value of `key` into `b` if it is one of the fields read directly and has their shape. */
+  private readFast(b: BuildInfo, key: string): boolean {
+    switch (key) {
+      case 'fileIdsList': {
+        const lists = this.list(() => this.numbers());
+        if (lists === undefined) return false;
+        b.fileIdsList = lists;
         break;
       }
-      case 'referencedMap':
-        b.referencedMap = asArray(v).map((entry) => {
-          const items = numbersOf(entry);
-          if (items.length !== 2) throw invalid();
-          return new BuildInfoReference(items[0], items[1]);
+      case 'fileNames':
+      case 'packageJsons':
+      case 'missingPackageJsons': {
+        const strings = this.list(() => this.string());
+        if (strings === undefined) return false;
+        if (key === 'fileNames') b.fileNames = strings;
+        else if (key === 'packageJsons') b.packageJsons = strings;
+        else b.missingPackageJsons = strings;
+        break;
+      }
+      case 'semanticDiagnosticsPerFile': {
+        const diagnostics = this.list(() => {
+          const p = this.p;
+          p.skipWhitespace();
+          if (p.peek() !== 0x5b) {
+            const fileId = p.number();
+            return fileId === undefined ? undefined : new BuildInfoSemanticDiagnostic(fileId, undefined);
+          }
+          const ofFile = this.diagnosticsOfFile();
+          return ofFile === undefined ? undefined : new BuildInfoSemanticDiagnostic(0, ofFile);
         });
+        if (diagnostics === undefined) return false;
+        b.semanticDiagnosticsPerFile = diagnostics;
         break;
-      case 'semanticDiagnosticsPerFile':
-        b.semanticDiagnosticsPerFile = asArray(v).map((entry) =>
-          entry.type === 'number'
-            ? new BuildInfoSemanticDiagnostic(entry.value, undefined)
-            : new BuildInfoSemanticDiagnostic(0, readDiagnosticsOfFile(entry)),
-        );
+      }
+      case 'emitDiagnosticsPerFile': {
+        const diagnostics = this.list(() => this.diagnosticsOfFile());
+        if (diagnostics === undefined) return false;
+        b.emitDiagnosticsPerFile = diagnostics;
         break;
-      case 'emitDiagnosticsPerFile':
-        b.emitDiagnosticsPerFile = asArray(v).map(readDiagnosticsOfFile);
-        break;
-      case 'changeFileSet':
-        b.changeFileSet = numbersOf(v);
-        break;
-      case 'affectedFilesPendingEmit':
-        b.affectedFilesPendingEmit = asArray(v).map(readPendingEmit);
-        break;
-      case 'latestChangedDtsFile':
-        b.latestChangedDtsFile = asString(v);
-        break;
-      case 'emitSignatures':
-        b.emitSignatures = asArray(v).map(readEmitSignature);
-        break;
-      case 'resolvedRoot':
-        b.resolvedRoot = asArray(v).map((entry) => {
-          const items = numbersOf(entry);
-          if (items.length !== 2) throw invalid();
-          return new BuildInfoResolvedRoot(items[0], items[1]);
+      }
+      case 'referencedMap': {
+        const references = this.list(() => {
+          const items = this.numbers();
+          return items === undefined || items.length !== 2 ? undefined : new BuildInfoReference(items[0], items[1]);
         });
+        if (references === undefined) return false;
+        b.referencedMap = references;
         break;
-      case 'semanticErrors':
-        b.semanticErrors = asBoolean(v);
-        break;
+      }
+      default:
+        return false;
+    }
+    this.values.delete(key);
+    return true;
+  }
+
+  /** The array at `pos`, with `item` reading each element; `undefined` if anything else is there. */
+  private list<T>(item: () => T | undefined): T[] | undefined {
+    const p = this.p;
+    p.skipWhitespace();
+    if (p.peek() !== 0x5b) return undefined;
+    p.pos++;
+    const result: T[] = [];
+    p.skipWhitespace();
+    if (p.peek() === 0x5d) {
+      p.pos++;
+      return result;
+    }
+    for (;;) {
+      const value = item();
+      if (value === undefined) return undefined;
+      result.push(value);
+      if (!p.endOfMember(0x5d)) return undefined;
+      if (p.peek() === 0x5d) {
+        p.pos++;
+        return result;
+      }
     }
   }
-  return b;
+
+  /** `[fileId, [diagnostic, ...]]`. */
+  private diagnosticsOfFile(): BuildInfoDiagnosticsOfFile | undefined {
+    const p = this.p;
+    p.skipWhitespace();
+    if (p.peek() !== 0x5b) return undefined;
+    p.pos++;
+    p.skipWhitespace();
+    const fileId = p.number();
+    if (fileId === undefined || !p.endOfMember(0x5d)) return undefined;
+    const diagnostics = this.list(() => this.diagnostic());
+    p.skipWhitespace();
+    if (diagnostics === undefined || p.peek() !== 0x5d) return undefined;
+    p.pos++;
+    return new BuildInfoDiagnosticsOfFile(fileId, diagnostics);
+  }
+
+  /** A diagnostic with the fields the writer writes, each once; `undefined` for anything else. */
+  private diagnostic(): BuildInfoDiagnostic | undefined {
+    const p = this.p;
+    p.skipWhitespace();
+    if (p.peek() !== 0x7b) return undefined;
+    p.pos++;
+    const d = new BuildInfoDiagnostic();
+    p.skipWhitespace();
+    if (p.peek() === 0x7d) {
+      p.pos++;
+      return d;
+    }
+    let seen = 0;
+    for (;;) {
+      const key = p.key();
+      const bit = key === undefined ? undefined : diagnosticKeys.get(key);
+      if (key === undefined || bit === undefined || (seen & bit) !== 0) return undefined;
+      seen |= bit;
+      switch (key) {
+        case 'file':
+        case 'pos':
+        case 'end':
+        case 'code':
+        case 'category': {
+          p.skipWhitespace();
+          const n = p.number();
+          if (n === undefined) return undefined;
+          if (key === 'file') d.file = n;
+          else if (key === 'pos') d.pos = n;
+          else if (key === 'end') d.end = n;
+          else if (key === 'code') d.code = n;
+          else d.category = n;
+          break;
+        }
+        case 'noFile':
+        case 'reportsUnnecessary':
+        case 'reportsDeprecated':
+        case 'skippedOnNoEmit': {
+          const value = this.boolean();
+          if (value === undefined) return undefined;
+          if (key === 'noFile') d.noFile = value;
+          else if (key === 'reportsUnnecessary') d.reportsUnnecessary = value;
+          else if (key === 'reportsDeprecated') d.reportsDeprecated = value;
+          else d.skippedOnNoEmit = value;
+          break;
+        }
+        case 'messageKey': {
+          const value = this.string();
+          if (value === undefined) return undefined;
+          d.messageKey = value;
+          break;
+        }
+        case 'messageArgs': {
+          const value = this.list(() => this.string());
+          if (value === undefined) return undefined;
+          d.messageArgs = value;
+          break;
+        }
+        case 'messageChain':
+        case 'relatedInformation': {
+          const value = this.list(() => this.diagnostic());
+          if (value === undefined) return undefined;
+          if (key === 'messageChain') d.messageChain = value;
+          else d.relatedInformation = value;
+          break;
+        }
+        case 'repopulateInfo': {
+          const value = this.repopulateInfo();
+          if (value === undefined) return undefined;
+          d.repopulateInfo = value;
+          break;
+        }
+        default:
+          return undefined;
+      }
+      if (!p.endOfMember(0x7d)) return undefined;
+      if (p.peek() === 0x7d) {
+        p.pos++;
+        return d;
+      }
+    }
+  }
+
+  /** `repopulateInfo` with the fields the writer writes, each once; `undefined` for anything else. */
+  private repopulateInfo(): RepopulateInfo | undefined {
+    const p = this.p;
+    p.skipWhitespace();
+    if (p.peek() !== 0x7b) return undefined;
+    p.pos++;
+    let kind = 0;
+    let moduleReference = '';
+    let mode = 0;
+    let packageName = '';
+    p.skipWhitespace();
+    if (p.peek() === 0x7d) {
+      p.pos++;
+      return new RepopulateInfo(kind, moduleReference, mode, packageName);
+    }
+    const seen = new Set<string>();
+    for (;;) {
+      const key = p.key();
+      if (key === undefined || seen.has(key)) return undefined;
+      seen.add(key);
+      if (key === 'kind' || key === 'mode') {
+        p.skipWhitespace();
+        const n = p.number();
+        if (n === undefined) return undefined;
+        if (key === 'kind') kind = n;
+        else mode = n;
+      } else if (key === 'moduleReference' || key === 'packageName') {
+        const value = this.string();
+        if (value === undefined) return undefined;
+        if (key === 'moduleReference') moduleReference = value;
+        else packageName = value;
+      } else return undefined;
+      if (!p.endOfMember(0x7d)) return undefined;
+      if (p.peek() === 0x7d) {
+        p.pos++;
+        return new RepopulateInfo(kind, moduleReference, mode, packageName);
+      }
+    }
+  }
+
+  private boolean(): boolean | undefined {
+    const p = this.p;
+    p.skipWhitespace();
+    if (p.eat('true')) return true;
+    if (p.eat('false')) return false;
+    return undefined;
+  }
+
+  /**
+   * `[n, ...]` of integers as the writer writes them (digits, at most 15, without a leading zero);
+   * `undefined` for anything else.
+   */
+  private numbers(): number[] | undefined {
+    const p = this.p;
+    const text = p.text;
+    const length = text.length;
+    let pos = skipJsonWhitespace(text, p.pos);
+    if (pos >= length || text.charCodeAt(pos) !== 0x5b) return undefined;
+    pos = skipJsonWhitespace(text, pos + 1);
+    const result: number[] = [];
+    if (pos < length && text.charCodeAt(pos) === 0x5d) {
+      p.pos = pos + 1;
+      return result;
+    }
+    for (;;) {
+      const start = pos;
+      let value = 0;
+      while (pos < length) {
+        const digit = text.charCodeAt(pos) - 0x30;
+        if (digit < 0 || digit > 9) break;
+        value = value * 10 + digit;
+        pos++;
+      }
+      const digits = pos - start;
+      if (digits === 0 || digits > 15 || (digits > 1 && text.charCodeAt(start) === 0x30)) return undefined;
+      let c = pos < length ? text.charCodeAt(pos) : -1;
+      if (c === 0x2e || c === 0x65 || c === 0x45) return undefined;
+      result.push(value);
+      if (c !== 0x2c && c !== 0x5d) {
+        pos = skipJsonWhitespace(text, pos);
+        c = pos < length ? text.charCodeAt(pos) : -1;
+      }
+      if (c === 0x5d) {
+        p.pos = pos + 1;
+        return result;
+      }
+      if (c !== 0x2c) return undefined;
+      pos = skipJsonWhitespace(text, pos + 1);
+    }
+  }
+
+  private string(): string | undefined {
+    const p = this.p;
+    const text = p.text;
+    const start = skipJsonWhitespace(text, p.pos);
+    if (start >= text.length || text.charCodeAt(start) !== 0x22) return undefined;
+    // A string without escapes is the text between its quotes.
+    for (let end = start + 1; end < text.length; end++) {
+      const c = text.charCodeAt(end);
+      if (c === 0x22) {
+        p.pos = end + 1;
+        return text.slice(start + 1, end);
+      }
+      if (c === 0x5c || c < 0x20) break;
+    }
+    p.pos = start;
+    return p.string();
+  }
+}
+
+/** The position of the first character at or after `pos` that is not JSON whitespace. */
+function skipJsonWhitespace(text: string, pos: number): number {
+  while (pos < text.length) {
+    const c = text.charCodeAt(pos);
+    if (c !== 0x20 && c !== 0x0a && c !== 0x0d && c !== 0x09) break;
+    pos++;
+  }
+  return pos;
 }
 
 /** Parses build info text; `undefined` if it isn't valid. */
 export function parseBuildInfo(text: string): BuildInfo | undefined {
-  const value = parseJson(text);
-  if (value === undefined || value.type !== 'object') return undefined;
   try {
-    return readBuildInfo(value);
+    return new BuildInfoTextReader(text).read();
   } catch {
     return undefined;
   }

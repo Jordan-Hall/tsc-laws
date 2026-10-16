@@ -1,5 +1,6 @@
 // Creating and interning types: object types, literals, unions, intersections, references,
 // arrays and tuples. Interning keys follow tsgo's, so identity matches.
+import { sideOf, sideOfIfAny } from './side-state.js';
 import { type Node, getNodeId, getName, getText, SourceFile } from './ast.js';
 import { symbolToString } from './type-printer.js';
 import { instantiateTypes } from './instantiation.js';
@@ -62,6 +63,8 @@ import {
   isArrayLikeType,
   resolveStructuredTypeMembers,
   hasResolvedProperties,
+  memberResolutionFlags,
+  membersHolder,
 } from './checker-members.js';
 import { getTypeOfSymbol } from './checker-symbol-types.js';
 import { getDeclaredTypeOfSymbol, getParentOfSymbol } from './checker-declared-types.js';
@@ -218,7 +221,8 @@ export function newObjectType(c: Checker, objectFlags: ObjectFlags, symbol: Symb
     ~(
       ObjectFlags.CouldContainTypeVariablesComputed |
       ObjectFlags.CouldContainTypeVariables |
-      ObjectFlags.MembersResolved
+      ObjectFlags.MembersResolved |
+      ObjectFlags.SideState
     );
   if ((objectFlags & ObjectFlags.ClassOrInterface) !== 0) return new InterfaceType(flags, id, symbol);
   if ((objectFlags & ObjectFlags.Tuple) !== 0) return new TupleType(flags, id);
@@ -252,12 +256,13 @@ export function createAnonymousType(
 
 export function setStructuredTypeMembers(
   c: Checker,
-  type: StructuredType,
+  t: StructuredType,
   members: SymbolTable | undefined,
   callSignatures: Signature[],
   constructSignatures: Signature[],
   indexInfos: IndexInfo[],
 ): void {
+  const type = membersHolder(c, t);
   type.objectFlags |= ObjectFlags.MembersResolved;
   type.pendingMembers = undefined;
   type.members = members;
@@ -381,23 +386,26 @@ export function isFreshLiteralType(type: Type): boolean {
 export function getFreshTypeOfLiteralType(c: Checker, type: Type): Type {
   if ((type.flags & TypeFlags.Freshable) === 0) return type;
   const literal = type as LiteralType;
-  const existing = literal.freshType;
+  // The fresh twin of a literal created with one is inline; others are created on first use.
+  if (literal.freshType !== undefined) return literal.freshType;
+  const side = sideOf(c, literal);
+  const existing = side.freshType;
   if (existing !== undefined) return existing;
   const fresh = c.newLiteralType(type.flags, literal.stringValue, literal.numberValue, type.symbol);
   fresh.regularType = literal;
   fresh.freshType = fresh;
-  literal.freshType = fresh;
+  side.freshType = fresh;
   return fresh;
 }
 
 export function getRegularTypeOfLiteralType(c: Checker, type: Type): Type {
   if ((type.flags & TypeFlags.Freshable) !== 0) return (type as LiteralType).regularType;
   if ((type.flags & TypeFlags.Union) !== 0) {
-    const union = type as UnionType;
-    let regular = union.regularType;
+    const side = sideOf(c, type as UnionType);
+    let regular = side.regularType;
     if (regular === undefined) {
       regular = mapType(c, type, (t) => getRegularTypeOfLiteralType(c, t));
-      union.regularType = regular;
+      side.regularType = regular;
     }
     return regular;
   }
@@ -504,7 +512,23 @@ export function compareSymbols(c: Checker, s1: Symbol | undefined, s2: Symbol | 
   else if (s2.declarations.length !== 0) return 1;
   const r = compareCodePoints(s1.name, s2.name);
   if (r !== 0) return r;
-  return getSymbolId(s1) - getSymbolId(s2);
+  return compareIds(getSymbolId(s1), getSymbolId(s2));
+}
+
+/**
+ * `TSC_TS_ID_ORDER` (a test of output that must not depend on the order in which types and symbols
+ * are created): `reverse` reverses, and `scramble` permutes, the order of the ids that
+ * `compareTypes` and `compareSymbols` fall back to. Intrinsic types, created in a fixed order, keep
+ * theirs.
+ */
+const idOrder = process.env.TSC_TS_ID_ORDER === 'reverse' ? 1 : process.env.TSC_TS_ID_ORDER === 'scramble' ? 2 : 0;
+
+/** The order of two ids as a last resort: ascending, or as `TSC_TS_ID_ORDER` chooses. */
+function compareIds(a: number, b: number): number {
+  if (idOrder === 0) return a - b;
+  if (idOrder === 1) return b - a;
+  // A bijection on 32-bit ids (multiplication by an odd constant), so the order stays total.
+  return (Math.imul(a, 0x9e3779b1) >>> 0) - (Math.imul(b, 0x9e3779b1) >>> 0);
 }
 
 function getSortOrderFlags(t: Type): number {
@@ -716,7 +740,7 @@ export function compareTypes(c: Checker, t1: Type, t2: Type): number {
     r = compareTypes(c, (t1 as StringMappingType).target, (t2 as StringMappingType).target);
     if (r !== 0) return r;
   }
-  return t1.id - t2.id;
+  return (flags & TypeFlags.Singleton) !== 0 ? t1.id - t2.id : compareIds(t1.id, t2.id);
 }
 
 /** Binary search position of `t` in the sorted `types`: index if found, else `-(insertion point) - 1`. */
@@ -756,13 +780,14 @@ export function containsType(c: Checker, types: readonly Type[], t: Type): boole
  * are tested once; a few are tested very often.
  */
 export function unionContainsType(c: Checker, union: UnionType, t: Type): boolean {
-  let set = union.constituentSet;
+  const types = union.types;
+  if (types.length < linearTypeSearchLimit) return indexOfType(types, t, 0) >= 0;
+  const side = sideOf(c, union);
+  let set = side.constituentSet;
   if (set === undefined) {
-    const types = union.types;
-    if (types.length < linearTypeSearchLimit) return indexOfType(types, t, 0) >= 0;
-    if (union.membershipTests++ === 0) return binarySearchTypes(c, types, t) >= 0;
+    if (side.membershipTests++ === 0) return binarySearchTypes(c, types, t) >= 0;
     set = new Set(types);
-    union.constituentSet = set;
+    side.constituentSet = set;
   }
   return set.has(t);
 }
@@ -1291,7 +1316,7 @@ function removeSubtypes(c: Checker, types: Type[], hasObjectTypes: boolean): Typ
       if (
         (t.flags & TypeFlags.Object) !== 0 &&
         !isGenericMappedType(c, t) &&
-        isEmptyResolvedType(c, resolveStructuredTypeMembers(c, t))
+        isEmptyResolvedType(c, t, resolveStructuredTypeMembers(c, t))
       ) {
         hasEmptyObject = true;
         break;
@@ -1368,19 +1393,24 @@ export function getTargetType(type: Type): Type {
     : type;
 }
 
-export function isEmptyResolvedType(c: Checker, t: StructuredType): boolean {
+/** Whether `t`, whose members are `resolved`, has no members. */
+export function isEmptyResolvedType(c: Checker, t: Type, resolved: StructuredType): boolean {
   return (
     t !== c.anyFunctionType &&
-    !hasResolvedProperties(t) &&
-    t.callSignatures.length === 0 &&
-    t.constructSignatures.length === 0 &&
-    t.indexInfos.length === 0
+    !hasResolvedProperties(resolved) &&
+    resolved.callSignatures.length === 0 &&
+    resolved.constructSignatures.length === 0 &&
+    resolved.indexInfos.length === 0
   );
 }
 
 export function isEmptyAnonymousObjectType(c: Checker, t: Type): boolean {
   if ((t.objectFlags & ObjectFlags.Anonymous) === 0 || (t.flags & TypeFlags.Object) === 0) return false;
-  if ((t.objectFlags & ObjectFlags.MembersResolved) !== 0 && isEmptyResolvedType(c, t as StructuredType)) return true;
+  if (
+    (memberResolutionFlags(c, t) & ObjectFlags.MembersResolved) !== 0 &&
+    isEmptyResolvedType(c, t, membersHolder(c, t))
+  )
+    return true;
   return (
     t.symbol !== undefined &&
     (t.symbol.flags & SymbolFlags.TypeLiteral) !== 0 &&
@@ -1390,7 +1420,7 @@ export function isEmptyAnonymousObjectType(c: Checker, t: Type): boolean {
 
 export function isEmptyObjectType(c: Checker, t: Type): boolean {
   if ((t.flags & TypeFlags.Object) !== 0)
-    return !isGenericMappedType(c, t) && isEmptyResolvedType(c, resolveStructuredTypeMembers(c, t));
+    return !isGenericMappedType(c, t) && isEmptyResolvedType(c, t, resolveStructuredTypeMembers(c, t));
   if ((t.flags & TypeFlags.NonPrimitive) !== 0) return true;
   if ((t.flags & TypeFlags.Union) !== 0) {
     for (const u of typesOf(t)) if (isEmptyObjectType(c, u)) return true;
@@ -1864,7 +1894,7 @@ function isIntersectionConstituentWithoutMembersToResolve(c: Checker, t: Type): 
   return (
     (t.objectFlags & ObjectFlags.Anonymous) === 0 ||
     (t.flags & TypeFlags.Object) === 0 ||
-    (t.objectFlags & ObjectFlags.MembersResolved) !== 0 ||
+    (memberResolutionFlags(c, t) & ObjectFlags.MembersResolved) !== 0 ||
     t.symbol === undefined ||
     (t.symbol.flags & SymbolFlags.TypeLiteral) === 0
   );
@@ -1905,7 +1935,7 @@ export function createTypeReference(c: Checker, target: Type, typeArguments: Typ
 
 export function createTypeReferenceEx(c: Checker, target: Type, typeArguments: Type[], objectFlags: ObjectFlags): Type {
   const hash = typeListHash(typeArguments, undefined, 0);
-  const generic = target as InterfaceType;
+  const generic = sideOf(c, target as InterfaceType);
   let instantiations = generic.instantiations;
   if (instantiations === undefined) {
     instantiations = new TypeListCache<Type>();
@@ -1952,9 +1982,12 @@ export function createDeferredTypeReference(
 
 export function cloneTypeReference(c: Checker, source: TypeReference): TypeReference {
   const type = newObjectType(c, ObjectFlags.Reference, source.symbol) as TypeReference;
-  type.objectFlags = source.objectFlags & ~ObjectFlags.MembersResolved;
+  // The clone keeps its own side state: a source's lazily computed state is not the clone's.
+  type.objectFlags =
+    (source.objectFlags & ~(ObjectFlags.MembersResolved | ObjectFlags.SideState)) |
+    (type.objectFlags & ObjectFlags.SideState);
   type.target = source.target;
-  type.resolvedTypeArguments = source.resolvedTypeArguments;
+  type.resolvedTypeArguments = source.resolvedTypeArguments ?? sideOfIfAny(c, source)?.resolvedTypeArguments;
   return type;
 }
 
@@ -2115,13 +2148,15 @@ function createTupleTargetType(c: Checker, elementInfos: TupleElementInfo[], rea
   type.thisType = thisType;
   typeParameters.push(thisType);
   type.allTypeParameters = typeParameters;
-  type.instantiations = new TypeListCache<Type>();
+  const instantiations = new TypeListCache<Type>();
+  sideOf(c, type).instantiations = instantiations;
   const ownParameters = type.typeParameters();
-  type.instantiations.set(typeListHash(ownParameters, undefined, 0), ownParameters, undefined, 0, type);
+  instantiations.set(typeListHash(ownParameters, undefined, 0), ownParameters, undefined, 0, type);
   type.target = type;
   type.resolvedTypeArguments = ownParameters;
-  type.declaredMembersResolved = true;
-  type.declaredMembers = members;
+  const declared = sideOf(c, type);
+  declared.declaredMembersResolved = true;
+  declared.declaredMembers = members;
   type.elementInfos = elementInfos;
   type.minLength = minLength;
   type.fixedLength = fixedLength;
@@ -2261,6 +2296,10 @@ export function getTypeArguments(c: Checker, t: Type): Type[] {
   const ref = t as TypeReference;
   let resolved = ref.resolvedTypeArguments;
   if (resolved !== undefined) return resolved;
+  // A deferred reference resolves its type arguments on first use.
+  const side = sideOf(c, ref);
+  resolved = side.resolvedTypeArguments;
+  if (resolved !== undefined) return resolved;
   const target = ref.target as InterfaceType;
   const errors = (): Type[] => {
     const result: Type[] = [];
@@ -2272,16 +2311,16 @@ export function getTypeArguments(c: Checker, t: Type): Type[] {
   let typeArguments: Type[] = emptyTypes;
   if (node !== undefined) typeArguments = getTypeArgumentsOfDeferredReference(c, node, target);
   if (popTypeResolution(c)) {
-    resolved = ref.resolvedTypeArguments;
+    resolved = side.resolvedTypeArguments;
     if (resolved === undefined) {
       resolved = instantiateTypes(c, typeArguments, ref.mapper);
-      ref.resolvedTypeArguments = resolved;
+      side.resolvedTypeArguments = resolved;
     }
   } else {
-    resolved = ref.resolvedTypeArguments;
+    resolved = side.resolvedTypeArguments;
     if (resolved === undefined) {
       resolved = errors();
-      ref.resolvedTypeArguments = resolved;
+      side.resolvedTypeArguments = resolved;
     }
     const errorNode = node ?? c.currentNode;
     if (target.symbol !== undefined)

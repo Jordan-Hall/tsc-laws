@@ -1,4 +1,5 @@
 // Instantiation: mappers that need the checker, and `instantiateType` for every kind of type.
+import { lazyObjectFlags, sideOf, sideOfIfAny } from './side-state.js';
 import {
   type Node,
   NodeVisitor,
@@ -249,6 +250,9 @@ export function couldContainTypeVariables(c: Checker, type: Type): boolean {
   const objectFlags = type.objectFlags;
   if ((objectFlags & ObjectFlags.CouldContainTypeVariablesComputed) !== 0)
     return (objectFlags & ObjectFlags.CouldContainTypeVariables) !== 0;
+  const side = sideOf(c, type);
+  if ((side.objectFlags & ObjectFlags.CouldContainTypeVariablesComputed) !== 0)
+    return (side.objectFlags & ObjectFlags.CouldContainTypeVariables) !== 0;
   let result = false;
   if ((type.flags & TypeFlags.Instantiable) !== 0) result = true;
   else if ((type.flags & TypeFlags.Object) !== 0) {
@@ -291,7 +295,7 @@ export function couldContainTypeVariables(c: Checker, type: Type): boolean {
         break;
       }
   }
-  type.objectFlags |=
+  side.objectFlags |=
     ObjectFlags.CouldContainTypeVariablesComputed | (result ? ObjectFlags.CouldContainTypeVariables : 0);
   return result;
 }
@@ -448,11 +452,12 @@ function getObjectTypeInstantiation(
   const singleSignature = (type.objectFlags & ObjectFlags.SingleSignatureType) !== 0;
   const tag = singleSignature ? 1 : 0;
   const hash = typeListHash(typeArguments, newAlias, tag);
-  let instantiations = target.instantiations;
+  const generic = sideOf(c, target);
+  let instantiations = generic.instantiations;
   if (instantiations === undefined) {
     instantiations = new TypeListCache<Type>();
     instantiations.set(typeListHash(typeParameters, target.alias, 0), typeParameters, target.alias, 0, target);
-    target.instantiations = instantiations;
+    generic.instantiations = instantiations;
   }
   let result = instantiations.get(hash, typeArguments, newAlias, tag);
   if (result === undefined) {
@@ -473,7 +478,7 @@ function getObjectTypeInstantiation(
     instantiations.set(hash, typeArguments, newAlias, tag, result);
     if (
       (result.flags & TypeFlags.ObjectFlagsType) !== 0 &&
-      (result.objectFlags & ObjectFlags.CouldContainTypeVariablesComputed) === 0
+      (lazyObjectFlags(c, result) & ObjectFlags.CouldContainTypeVariablesComputed) === 0
     ) {
       // Type variable containment follows from the type arguments.
       let couldContain = false;
@@ -483,9 +488,9 @@ function getObjectTypeInstantiation(
           break;
         }
       if ((result.objectFlags & (ObjectFlags.Mapped | ObjectFlags.Anonymous | ObjectFlags.Reference)) !== 0)
-        result.objectFlags |=
+        sideOf(c, result).objectFlags |=
           ObjectFlags.CouldContainTypeVariablesComputed | (couldContain ? ObjectFlags.CouldContainTypeVariables : 0);
-      else if (!couldContain) result.objectFlags |= ObjectFlags.CouldContainTypeVariablesComputed;
+      else if (!couldContain) sideOf(c, result).objectFlags |= ObjectFlags.CouldContainTypeVariablesComputed;
     }
   }
   return result;
@@ -847,10 +852,8 @@ export function isRestrictiveInstance(c: Checker, type: Type): boolean {
 }
 
 function getRestrictiveTypeParameter(c: Checker, tp: TypeParameter): Type {
-  if (
-    (tp.constraint === undefined && getConstraintDeclaration(tp) === undefined) ||
-    tp.constraint === c.noConstraintType
-  )
+  const constraint = tp.constraint ?? sideOfIfAny(c, tp)?.constraint;
+  if ((constraint === undefined && getConstraintDeclaration(tp) === undefined) || constraint === c.noConstraintType)
     return tp;
   const key = cachedTypeKey(CachedTypeKind.RestrictiveTypeParameter, tp.id);
   const cached = c.cachedTypesById.get(key);
