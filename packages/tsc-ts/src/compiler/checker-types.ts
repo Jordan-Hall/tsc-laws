@@ -689,10 +689,13 @@ export class InterfaceType extends TypeReference {
   declaredIndexInfos: IndexInfo[];
   /** Positions of the declared members by name, for lazily instantiated members of instantiations. */
   declaredMemberPositions: Map<string, number> | undefined;
+  /** The member states of the last pending instantiation of the type's members (`sharedStates`). */
+  lastMemberStates: number[] | undefined;
 
   constructor(objectFlags: ObjectFlags, id: number, symbol: Symbol | undefined) {
     super(objectFlags, id, symbol);
     this.declaredMemberPositions = undefined;
+    this.lastMemberStates = undefined;
     this.allTypeParameters = emptyTypes;
     this.outerTypeParameterCount = 0;
     this.thisType = undefined;
