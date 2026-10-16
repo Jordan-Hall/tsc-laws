@@ -57,7 +57,9 @@ export function residentMB(): number[] {
  * published program in scriptc builds and `undefined` under Node.js; ids continue above `nodeIds` and
  * `symbolIds`. `reserved` are the positions of a group the thread's predecessor on `index` left
  * (`CheckerResult.reserved`). With `emits` false the thread doesn't emit the files it checks, where
- * the main thread emits the program (`checkersEmit`).
+ * the main thread emits the program (`checkersEmit`). `emitKinds`, by file index, is what the emit of
+ * each file includes (an `EmitOnly`, or -1 for none) where not every output of every file is emitted
+ * (an incremental program's rebuild); `undefined` for all of them.
  */
 export type CheckerSpawn = (
   program: Program | undefined,
@@ -68,6 +70,7 @@ export type CheckerSpawn = (
   symbolIds: number,
   reserved: number[],
   emits: boolean,
+  emitKinds: number[] | undefined,
 ) => Worker;
 
 export class ParallelCheck {
@@ -598,8 +601,10 @@ class CheckCosts {
 
 function costOrder(checked: CheckedProgram): CheckCosts {
   const files = checked.program.getSourceFiles();
+  const only = checked.checkOnly;
   const order: number[] = [];
-  for (let i = 0; i < files.length; i++) if (!checked.skipTypeChecking(files[i]!)) order.push(i);
+  for (let i = 0; i < files.length; i++)
+    if (!checked.skipTypeChecking(files[i]!) && (only === undefined || only.has(files[i]!))) order.push(i);
   const costs = checkCosts(checked, order);
   const cost = costs.cost;
   order.sort((a, b) => cost[b]! - cost[a]! || a - b);
@@ -1384,6 +1389,7 @@ export function checkFromQueue(
   limit: number = 0,
   reserved: readonly number[] = [],
   emit: boolean = true,
+  emitKinds: readonly number[] | undefined = undefined,
 ): CheckerResult {
   const start = performance.now();
   const readyAt = Date.now();
@@ -1439,12 +1445,14 @@ export function checkFromQueue(
       );
     if (writer !== undefined) {
       const emitStart = timeline ? performance.now() : 0;
-      if (signatures !== undefined) {
+      const kind = (emitKinds === undefined ? EmitOnly.All : emitKinds[i]!) as EmitOnly;
+      if (kind < 0) emits.push(new EmitResult());
+      else if (signatures !== undefined) {
         signatures.file = files[i]!;
-        const result = emitter!.emit([files[i]!], EmitOnly.All, signatures);
+        const result = emitter!.emit([files[i]!], kind, signatures);
         for (const s of signatures.take()) result.declarationSignatures.push(s);
         emits.push(result);
-      } else emits.push(emitter!.emit([files[i]!], EmitOnly.All, writer));
+      } else emits.push(emitter!.emit([files[i]!], kind, writer));
       if (timeline) markAt(emitStart, `emit ${(performance.now() - emitStart).toFixed(1)} ${files[i]!.fileName}`);
     } else if (emitter !== undefined) declarations.push(declarationDiagnosticsOfFile(emitter, files[i]!));
   }
@@ -1589,11 +1597,30 @@ function libraryBoundCheckers(checked: CheckedProgram, plan: CheckPlan, costs: C
  * resolve the same libraries: `libraryBoundCheckers`) and calls `done` with the wall time once
  * `checked` holds every file's diagnostics.
  */
+/**
+ * Shares the program of `checked` with checker threads (scriptc builds): this thread's checker merges the
+ * globals and module augmentations, which checker threads start from, and the program is published, so
+ * immutable from then on. `startParallelCheck` does this first unless it was done before.
+ */
+export function shareWithCheckers(checked: CheckedProgram): void {
+  const program = checked.program;
+  program.prepareForSharing();
+  mark('prepared for sharing');
+  program.mergedGlobals = shareMergedGlobals(checked.checker);
+  mark('globals merged');
+  publish(program);
+  mark('program published');
+  // Lazily parsed JSDoc goes to a table of this thread.
+  useLazyJSDocTable();
+  checked.sharedWithCheckers = true;
+}
+
 export function startParallelCheck(
   checked: CheckedProgram,
   checkers: number,
   done: (checkTime: number) => void,
   emits: boolean = true,
+  emitKinds: number[] | undefined = undefined,
 ): void {
   let count = checkers;
   const start = performance.now();
@@ -1603,16 +1630,8 @@ export function startParallelCheck(
   const shared = sharesPublishedGraphs;
   const epoch = Date.now();
   if (trace) process.stderr.write(`checkers: start at ${epoch} rss ${residentMB().join('/')}MB\n`);
-  if (shared) {
-    program.prepareForSharing();
-    mark('prepared for sharing');
-    // This thread's checker merges the globals and module augmentations; checker threads start from them.
-    program.mergedGlobals = shareMergedGlobals(checked.checker);
-    mark('globals merged');
-    publish(program);
-    mark('program published');
-    // The program is immutable now; lazily parsed JSDoc goes to a table of this thread.
-    useLazyJSDocTable();
+  if (shared && !checked.sharedWithCheckers) {
+    shareWithCheckers(checked);
     if (trace)
       process.stderr.write(
         `checkers: published the program in ${(performance.now() - start).toFixed(1)}ms rss ${residentMB().join('/')}MB\n`,
@@ -1635,7 +1654,10 @@ export function startParallelCheck(
       `checkers: ordered ${order.length} files in ${(performance.now() - orderStart).toFixed(1)}ms, first:${top}\n`,
     );
   }
-  if (shared) publish(order);
+  if (shared) {
+    publish(order);
+    if (emitKinds !== undefined) publish(emitKinds);
+  }
   mark(`planned ${order.length} files, ${plan.heavy} heavy`);
   const perFile: (Diagnostic[] | undefined)[] = [];
   const perFileDeclarations: (Diagnostic[] | undefined)[] = [];
@@ -1694,6 +1716,7 @@ export function startParallelCheck(
       lastSymbolIdValue(),
       reserved,
       emits,
+      emitKinds,
     );
     worker.on('message', (message: unknown) => {
       mark(`result from c${i}`);
@@ -1720,7 +1743,8 @@ export function startParallelCheck(
   // while the threads start.
   void checked.checker;
   mark('reporting checker created');
-  if (mainChecks) record(checkFromQueue(checked, 0, new Int32Array(counter), order, epoch, true, 0, [], emits));
+  if (mainChecks)
+    record(checkFromQueue(checked, 0, new Int32Array(counter), order, epoch, true, 0, [], emits, emitKinds));
   ownDone = true;
   if (remaining === 0) finish();
 }

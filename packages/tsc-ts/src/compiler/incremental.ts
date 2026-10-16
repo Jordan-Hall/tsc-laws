@@ -1217,6 +1217,15 @@ export class DeclarationSignatureWriter extends OutputWriter {
   }
 }
 
+/** What emitting a file with the pending emit `pendingKind` (not 0) includes. */
+function emitOnlyOfPendingKind(pendingKind: number): EmitOnly {
+  const js = (pendingKind & FileEmitKind.AllJs) !== 0;
+  const dts = (pendingKind & FileEmitKind.AllDts) !== 0;
+  if (js && !dts) return EmitOnly.Js;
+  if (dts && !js) return EmitOnly.Dts;
+  return EmitOnly.All;
+}
+
 class EmitUpdate {
   constructor(
     readonly pendingKind: number,
@@ -1324,11 +1333,7 @@ class EmitFilesHandler {
       if (pendingKind === 0) continue;
       let result: EmitResult;
       if (!this.isForDtsErrors) {
-        let emitOnly = EmitOnly.All;
-        const js = (pendingKind & FileEmitKind.AllJs) !== 0;
-        const dts = (pendingKind & FileEmitKind.AllDts) !== 0;
-        if (js && !dts) emitOnly = EmitOnly.Js;
-        else if (dts && !js) emitOnly = EmitOnly.Dts;
+        const emitOnly = emitOnlyOfPendingKind(pendingKind);
         const emitted = emittedOnCheckers.get(affectedFile);
         if (emitted !== undefined) {
           result = emitted;
@@ -1766,6 +1771,58 @@ export class IncrementalProgram extends CompilerProgram {
 
   get hasChangedDtsFile(): boolean {
     return this.snapshot.hasChangedDtsFile;
+  }
+
+  /**
+   * The global diagnostics found before `filesToCheck` computed the affected files, which the program
+   * reports before its semantic diagnostics (`getGlobalDiagnostics(false)`), as when they are computed
+   * while checking.
+   */
+  private globalDiagnosticsBeforeChecking: Diagnostic[] | undefined = undefined;
+
+  getGlobalDiagnostics(withCheckerThreads = true): Diagnostic[] {
+    const before = this.globalDiagnosticsBeforeChecking;
+    if (!withCheckerThreads && before !== undefined) return before;
+    return super.getGlobalDiagnostics(withCheckerThreads);
+  }
+
+  /**
+   * The files `getSemanticDiagnostics` checks: once the affected files are known
+   * (`collectAllAffectedFiles`), those the build info has no semantic diagnostics for. Called before
+   * reporting, so that checker threads can check them (tsc-compile.ts).
+   */
+  filesToCheck(): SourceFile[] {
+    const snapshot = this.snapshot;
+    if (snapshot.options.noCheck === true) return [];
+    this.globalDiagnosticsBeforeChecking = super.getGlobalDiagnostics(false);
+    if (snapshot.canUseIncrementalState()) collectAllAffectedFiles(this);
+    const result: SourceFile[] = [];
+    for (const file of this.program.getSourceFiles())
+      if (!snapshot.semanticDiagnosticsPerFile.has(file.path) && !this.checked.skipTypeChecking(file))
+        result.push(file);
+    return result;
+  }
+
+  /**
+   * For checker threads that check `files` (from `filesToCheck`) and emit them, what the emit of each
+   * file includes, by file index: its pending emit (`EmitFilesHandler.emitFilesIncremental`), or -1.
+   * The incremental program's emit then takes what the threads emitted.
+   */
+  emitKindsOnCheckers(files: readonly SourceFile[]): number[] {
+    const program = this.program;
+    const all = program.getSourceFiles();
+    const index = new Map<SourceFile, number>();
+    for (let i = 0; i < all.length; i++) index.set(all[i]!, i);
+    const result: number[] = [];
+    for (let i = 0; i < all.length; i++) result.push(-1);
+    const checking = new Set(files);
+    for (const [path, emitKind] of this.snapshot.affectedFilesPendingEmit) {
+      const file = program.getSourceFileByPath(path);
+      if (file === undefined || !checking.has(file) || !program.sourceFileMayBeEmitted(file, false)) continue;
+      const pendingKind = getPendingEmitKind(emitKind, 0);
+      if (pendingKind !== 0) result[index.get(file)!] = emitOnlyOfPendingKind(pendingKind);
+    }
+    return result;
   }
 
   getSemanticDiagnostics(): Diagnostic[] {
