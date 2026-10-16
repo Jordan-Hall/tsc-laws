@@ -647,7 +647,11 @@ function buildInfoToSnapshot(
       : toPath(fileName, buildInfoDirectory, useCaseSensitiveFileNames),
   );
   const filePath = (fileId: number): string => (fileId >= 1 && fileId <= filePaths.length ? filePaths[fileId - 1] : '');
-  const fileSets = buildInfo.fileIdsList.map((ids) => new Set(ids.map(filePath)));
+  const fileSets = buildInfo.fileIdsList.map((ids) => {
+    const set = new Set<string>();
+    for (const id of ids) set.add(filePath(id));
+    return set;
+  });
   const snapshot = new Snapshot(buildInfo.getCompilerOptions(buildInfoDirectory));
 
   const isComposite = snapshot.options.composite === true;
