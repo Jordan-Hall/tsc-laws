@@ -11,11 +11,11 @@ import type { Program } from './program.js';
 import { CheckedProgram } from './program-checker.js';
 import { CheckerDeclarationEmitResolver, CheckerEmitResolver } from './checker-emit-resolver.js';
 import { getEmitModuleFormatOfFile } from './program-utilities.js';
-import { SyntacticDeclarationEmitResolver } from './transformers/declarations-syntactic.js';
+import { DeclarationGlobals, SyntacticDeclarationEmitResolver } from './transformers/declarations-syntactic.js';
 import { mark } from './timeline.js';
 import type { EmitResolver } from './transformers/emit-resolver.js';
 import { ModuleFormatHost } from './transformers/module.js';
-import { ModuleLookup, ReferenceResolver } from './transformers/reference-resolver.js';
+import { type MergedGlobals, ModuleLookup, ReferenceResolver } from './transformers/reference-resolver.js';
 
 /** Where emit writes files. */
 export abstract class OutputWriter {
@@ -163,6 +163,31 @@ class ProgramEmitHost extends EmitHost {
   }
 }
 
+/** Whether a program's emit resolves declarations, which incremental builds need for their shape signatures. */
+function resolvesDeclarations(options: CompilerOptions): boolean {
+  return getEmitDeclarations(options) || options.incremental === true || options.composite === true;
+}
+
+/**
+ * What the emit resolvers of a program index for all its files: the globals of emit's name
+ * resolution and, where declarations are resolved, those of declaration emit and the files by path.
+ * The thread that shares a program with checker threads builds them before publishing it
+ * (`shareWithCheckers`), so that the checkers' resolvers use one copy instead of each building its own.
+ */
+export class EmitIndexes {
+  readonly globals: MergedGlobals;
+  readonly declarations: DeclarationGlobals | undefined;
+
+  constructor(program: Program) {
+    const options = program.options;
+    const files = program.getSourceFiles();
+    this.globals = new ReferenceResolver(options, files, new ProgramModules(program)).merged;
+    this.declarations = resolvesDeclarations(options)
+      ? new DeclarationGlobals(files, program.currentDirectory)
+      : undefined;
+  }
+}
+
 /** A checked program and the emit of its files. */
 export class ProgramEmitter {
   private host: ProgramEmitHost | undefined = undefined;
@@ -179,12 +204,24 @@ export class ProgramEmitter {
       const program = this.program;
       const options = program.options;
       const files = program.getSourceFiles();
-      const references = new ReferenceResolver(options, files, new ProgramModules(program));
+      const indexes = program.emitIndexes;
+      const references = new ReferenceResolver(
+        options,
+        files,
+        new ProgramModules(program),
+        indexes !== undefined ? indexes.globals : undefined,
+      );
       const emitResolver = new CheckerEmitResolver(options, references, this.checked.checker);
       // Declaration emit is also needed for the shape signatures of incremental builds.
       let resolver: EmitResolver = emitResolver;
-      if (getEmitDeclarations(options) || options.incremental === true || options.composite === true) {
-        const syntactic = new SyntacticDeclarationEmitResolver(options, files, program.currentDirectory, emitResolver);
+      if (resolvesDeclarations(options)) {
+        const syntactic = new SyntacticDeclarationEmitResolver(
+          options,
+          files,
+          program.currentDirectory,
+          emitResolver,
+          indexes !== undefined ? indexes.declarations : undefined,
+        );
         resolver = new CheckerDeclarationEmitResolver(this.checked.checker, syntactic);
       }
       host = new ProgramEmitHost(program, resolver);

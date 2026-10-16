@@ -146,6 +146,13 @@ export class MergedGlobals {
   /** Merges the globals of `files`, resolving aliases they merge with through `aliases`. */
   merge(files: readonly SourceFile[], aliases: ReferenceResolver): boolean {
     this.aliases = aliases;
+    this.mergeFiles(files);
+    // Aliases are resolved only while merging: resolvers of other threads can share the tables.
+    this.aliases = undefined;
+    return true;
+  }
+
+  private mergeFiles(files: readonly SourceFile[]): boolean {
     for (const file of files) {
       if (isExternalOrCommonJSModule(file)) continue;
       const locals = getLocals(file);
@@ -319,9 +326,15 @@ export class ReferenceResolver {
   /** Results of `isTypeOnlyAliasChain`, for queries outside alias resolution. */
   private readonly typeOnlyChains: Map<Symbol, boolean>;
 
-  constructor(options: CompilerOptions, files: readonly SourceFile[], modules: ModuleLookup | undefined) {
+  /** With `merged`, the globals of `files` as another resolver merged them (`EmitIndexes`), not merged again. */
+  constructor(
+    options: CompilerOptions,
+    files: readonly SourceFile[],
+    modules: ModuleLookup | undefined,
+    merged: MergedGlobals | undefined = undefined,
+  ) {
     this.options = options;
-    this.merged = new MergedGlobals();
+    this.merged = merged !== undefined ? merged : new MergedGlobals();
     this.names = new MergedNameResolver(options, this.merged);
     this.modules = modules !== undefined ? modules : new NoModules();
     this.enumValues = new Map<Node, Evaluation>();
@@ -334,7 +347,7 @@ export class ReferenceResolver {
     this.specifierModules = new Map<Node, Symbol | null>();
     this.typeOnlyChains = new Map<Symbol, boolean>();
     this.names.aliases = this;
-    this.merged.merge(files, this);
+    if (merged === undefined) this.merged.merge(files, this);
   }
 
   getMergedSymbol(symbol: Symbol): Symbol {

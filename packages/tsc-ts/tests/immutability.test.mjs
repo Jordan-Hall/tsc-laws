@@ -7,7 +7,8 @@
 // Set mutators are replaced by throwing ones. The diagnostics and outputs must match those of an
 // unfrozen run. As with checker threads, a first checker merges the globals and module augmentations
 // before the program is frozen with them (`Program.mergedGlobals`); the checker that checks starts
-// from them, and the first checker reports the same diagnostics afterwards.
+// from them, and the first checker reports the same diagnostics afterwards. The indexes of the emit
+// resolvers are built before freezing too (`Program.emitIndexes`), as the main thread builds them.
 // Projects: tsc-ts itself, and test cases from TypeScript's compiler and conformance suites.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -31,7 +32,8 @@ const { NodeVisitor } = await load('compiler/ast.js');
 const { getJSDoc, parseSourceFile } = await load('compiler/parser.js');
 const { useThreadTextCaches } = await load('compiler/diagnostics.js');
 const { Symbol, getSymbolId } = await load('compiler/symbol.js');
-const { CompileTimes, OutputWriter, PlainProgram, getDiagnosticsOfProgram } = await load('compiler/compile-program.js');
+const { CompileTimes, EmitIndexes, OutputWriter, PlainProgram, getDiagnosticsOfProgram } =
+  await load('compiler/compile-program.js');
 const { shareMergedGlobals } = await load('compiler/checker-symbols.js');
 // `Locale.Default`, a const enum member.
 const defaultLocale = 0;
@@ -138,6 +140,7 @@ function compile(args, freeze) {
     program.prepareForSharing();
     merging = new CheckedProgram(program);
     program.mergedGlobals = shareMergedGlobals(merging.checker);
+    program.emitIndexes = new EmitIndexes(program);
   }
   const frozen = freeze ? deepFreeze(program, program.getSourceFiles()) : 0;
   const compiled = new PlainProgram(new CheckedProgram(program), new CompileTimes());
