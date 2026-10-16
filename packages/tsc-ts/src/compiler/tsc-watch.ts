@@ -117,8 +117,10 @@ class Stamps {
         directories.add(path);
         continue;
       }
-      directories.add(getDirectoryPath(path));
-      const target = links.directoryOf(path, time);
+      const directory = getDirectoryPath(path);
+      directories.add(directory);
+      const directoryTime = this.times.has(directory) ? this.times.get(directory) : this.sys.getMTime(directory);
+      const target = links.directoryOf(path, time, directoryTime);
       if (target !== undefined) directories.add(target);
     }
   }
@@ -127,22 +129,27 @@ class Stamps {
 class LinkTarget {
   constructor(
     readonly time: number | undefined,
+    readonly directoryTime: number | undefined,
     readonly directory: string | undefined,
   ) {}
 }
 
-/** The directories of the targets of files that are symbolic links, kept while a file's time stamp is the same. */
+/**
+ * The directories of the targets of files that are symbolic links, kept while the time stamps of the
+ * file and of its directory are the same. Pointing a link elsewhere replaces it, which changes its
+ * directory's time stamp even when the new target has the old one's.
+ */
 class LinkTargets {
   private readonly targets = new Map<string, LinkTarget>();
 
   constructor(private readonly sys: System) {}
 
   /** The directory of the target of the file, or undefined if the file isn't a link. */
-  directoryOf(path: string, time: number | undefined): string | undefined {
+  directoryOf(path: string, time: number | undefined, directoryTime: number | undefined): string | undefined {
     let target = this.targets.get(path);
-    if (target === undefined || target.time !== time) {
+    if (target === undefined || target.time !== time || target.directoryTime !== directoryTime) {
       const real = this.sys.realpath(path);
-      target = new LinkTarget(time, real !== path ? getDirectoryPath(real) : undefined);
+      target = new LinkTarget(time, directoryTime, real !== path ? getDirectoryPath(real) : undefined);
       this.targets.set(path, target);
     }
     return target.directory;

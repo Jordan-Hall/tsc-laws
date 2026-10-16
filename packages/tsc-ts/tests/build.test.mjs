@@ -9,6 +9,7 @@ import {
   mkdirSync,
   readdirSync,
   readFileSync,
+  renameSync,
   rmSync,
   statSync,
   symlinkSync,
@@ -636,7 +637,8 @@ const watchProject = {
 
 /**
  * Runs `tsc-ts` with `args` in a new directory with `files` and makes the edits of `steps` (a file and its text, or
- * `null` to remove a directory, or files to write in order), each once the previous build reported. `prepare` runs on the directory before `tsc-ts`
+ * `null` to remove a directory, files to write in order, or a function of the directory), each once the previous build
+ * reported. `prepare` runs on the directory before `tsc-ts`
  * starts. Returns the output and the output directory's files.
  */
 async function watchSequence(args, steps, files = watchProject, prepare = () => {}) {
@@ -661,7 +663,8 @@ async function watchSequence(args, steps, files = watchProject, prepare = () => 
     await waitFor(1);
     for (let i = 0; i < steps.length; i++) {
       const step = steps[i];
-      if (!Array.isArray(step)) writeFiles(dir, step);
+      if (typeof step === 'function') await step(dir);
+      else if (!Array.isArray(step)) writeFiles(dir, step);
       else if (step[1] === null) rmSync(join(dir, step[0]), { recursive: true });
       else writeFiles(dir, { [step[0]]: step[1] });
       await waitFor(i + 2);
@@ -733,6 +736,46 @@ test(
     assert.equal(
       output,
       '<time> - Starting compilation in watch mode...\n\n' +
+        '<time> - Found 0 errors. Watching for file changes.\n\n' +
+        '<time> - File change detected. Starting incremental compilation...\n\n' +
+        "src/link.ts(1,14): error TS2322: Type 'number' is not assignable to type 'string'.\n" +
+        '<time> - Found 1 error. Watching for file changes.\n\n',
+    );
+  },
+);
+
+test(
+  '--watch follows a linked input pointed at another file with the same time stamp',
+  { skip: tscTsMissing, timeout: 120_000 },
+  async () => {
+    // src/link.ts links to one/b.ts, then to two/c.ts, which has the same time stamp; then two/c.ts changes.
+    const time = new Date(2020, 0, 1);
+    const { output } = await watchSequence(
+      ['--watch'],
+      [
+        (dir) => {
+          // Replaced by a rename, so that no build sees the link missing.
+          symlinkSync('../two/c.ts', join(dir, 'link.tmp'));
+          renameSync(join(dir, 'link.tmp'), join(dir, 'src/link.ts'));
+        },
+        async (dir) => {
+          // After the check that follows the new watches, so only an event of two/ can report the edit.
+          await new Promise((resolve) => setTimeout(resolve, 500));
+          writeFiles(dir, { 'two/c.ts': 'export const b: string = 2;\n' });
+        },
+      ],
+      { ...watchProject, 'one/b.ts': 'export const b: number = 1;\n', 'two/c.ts': 'export const b: number = 2;\n' },
+      (dir) => {
+        utimesSync(join(dir, 'one/b.ts'), time, time);
+        utimesSync(join(dir, 'two/c.ts'), time, time);
+        symlinkSync('../one/b.ts', join(dir, 'src/link.ts'));
+      },
+    );
+    assert.equal(
+      output,
+      '<time> - Starting compilation in watch mode...\n\n' +
+        '<time> - Found 0 errors. Watching for file changes.\n\n' +
+        '<time> - File change detected. Starting incremental compilation...\n\n' +
         '<time> - Found 0 errors. Watching for file changes.\n\n' +
         '<time> - File change detected. Starting incremental compilation...\n\n' +
         "src/link.ts(1,14): error TS2322: Type 'number' is not assignable to type 'string'.\n" +
