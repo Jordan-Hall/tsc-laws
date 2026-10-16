@@ -29,7 +29,7 @@ const skip = (!existsSync(tsgo) && 'needs packages/tsgo/dist/tsgo') || tscTsMiss
 
 /**
  * @typedef {{ args: string[], edit?: Record<string, string | null>, touch?: string[], cwd?: string }} Step
- * @typedef {{ files: Record<string, string>, steps: Step[] }} Scenario
+ * @typedef {{ files: Record<string, string>, links?: Record<string, string>, steps: Step[] }} Scenario
  */
 
 /** @type {Record<string, Scenario>} */
@@ -469,6 +469,32 @@ const scenarios = {
       { args: ['-b', '-v'] },
     ],
   },
+  // Steps 2 and 3 keep the references of most files, whose lists of file ids the build info writes as it
+  // read them; step 4 adds a file ahead of the others, which renumbers the files, and step 5 removes it.
+  // "lib" resolves through a symbolic link, and build info lists the real path of its package.json.
+  'references kept, changed and renumbered across rebuilds': {
+    files: {
+      'tsconfig.json':
+        '{"compilerOptions":{"incremental":true,"outDir":"out","rootDir":"src","module":"nodenext"},"include":["src"]}',
+      'src/a.ts': 'import { b } from "./b.js";\nimport { c } from "./c.js";\nexport const a = b + c;\n',
+      'src/b.ts': 'import { c } from "./c.js";\nexport const b = c;\n',
+      'src/c.ts': 'import { lib } from "lib";\nexport const c = lib;\n',
+      'src/d.ts': 'import { a } from "./a.js";\nimport { b } from "./b.js";\nexport const d = a + b;\n',
+      'packages/lib/package.json': '{"name":"lib","types":"./index.d.ts"}',
+      'packages/lib/index.d.ts': 'export declare const lib: number;\n',
+    },
+    links: { 'node_modules/lib': '../packages/lib' },
+    steps: [
+      { args: [] },
+      {
+        args: [],
+        edit: { 'src/d.ts': 'import { a } from "./a.js";\nimport { b } from "./b.js";\nexport const d = a * b;\n' },
+      },
+      { args: [], edit: { 'src/b.ts': 'export const b = 2;\n' } },
+      { args: [], edit: { 'src/0.ts': 'import { d } from "./d.js";\nexport const zero = d;\n' } },
+      { args: [], edit: { 'src/0.ts': null } },
+    ],
+  },
   'explainFiles and statistics': {
     files: {
       'tsconfig.json': '{"compilerOptions":{"outDir":"out"},"files":["a.ts"]}',
@@ -493,6 +519,15 @@ const scenarios = {
   },
 };
 
+/** Creates the symbolic links `links`, from paths in `dir` to their targets. */
+function writeLinks(dir, links) {
+  for (const [path, target] of Object.entries(links)) {
+    const link = join(dir, path);
+    mkdirSync(dirname(link), { recursive: true });
+    symlinkSync(target, link);
+  }
+}
+
 function writeFiles(dir, files) {
   for (const [path, text] of Object.entries(files)) {
     const file = join(dir, path);
@@ -510,7 +545,7 @@ function readFiles(dir) {
     for (const entry of readdirSync(directory, { withFileTypes: true })) {
       const file = join(directory, entry.name);
       if (entry.isDirectory()) walk(file);
-      else result[relative(dir, file)] = readFileSync(file, 'utf8');
+      else if (!entry.isSymbolicLink()) result[relative(dir, file)] = readFileSync(file, 'utf8');
     }
   };
   walk(dir);
@@ -561,7 +596,10 @@ function run(command, args, cwd) {
 for (const [name, scenario] of Object.entries(scenarios)) {
   test(name, { skip }, () => {
     const dirs = { tsgo: tempDir('tsc-ts-build-tsgo-'), ours: tempDir('tsc-ts-build-ours-') };
-    for (const dir of Object.values(dirs)) writeFiles(dir, scenario.files);
+    for (const dir of Object.values(dirs)) {
+      writeFiles(dir, scenario.files);
+      if (scenario.links) writeLinks(dir, scenario.links);
+    }
     const failures = [];
     for (const [index, step] of scenario.steps.entries()) {
       const results = {};
