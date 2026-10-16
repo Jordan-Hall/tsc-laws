@@ -176,6 +176,8 @@ export class BuildInfo {
   fileNames: string[] = [];
   fileInfos: BuildInfoFileInfo[] = [];
   fileIdsList: number[][] = [];
+  /** The ids of each `fileIdsList` entry joined with commas, when the writer of the build info kept them. */
+  fileIdsListText: string[] = [];
   options: BuildInfoOption[] | undefined = undefined;
   referencedMap: BuildInfoReference[] = [];
   semanticDiagnosticsPerFile: BuildInfoSemanticDiagnostic[] = [];
@@ -460,7 +462,13 @@ export function buildInfoToJson(b: BuildInfo): string {
   if (b.missingPackageJsons.length > 0) w.add('missingPackageJsons', stringArray(b.missingPackageJsons));
   if (b.fileNames.length > 0) w.add('fileNames', stringArray(b.fileNames));
   if (b.fileInfos.length > 0) w.add('fileInfos', listJson(b.fileInfos, fileInfoJson));
-  if (b.fileIdsList.length > 0) w.add('fileIdsList', listJson(b.fileIdsList, numberArray));
+  if (b.fileIdsList.length > 0) {
+    const text = b.fileIdsListText;
+    w.add(
+      'fileIdsList',
+      text.length === b.fileIdsList.length ? listJson(text, (ids) => `[${ids}]`) : listJson(b.fileIdsList, numberArray),
+    );
+  }
   const options = b.options;
   if (options !== undefined) {
     const o = new ObjectWriter();
