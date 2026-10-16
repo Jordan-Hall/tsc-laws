@@ -162,6 +162,32 @@ const scenarios = {
       { args: ['-b', 'b', '--verbose', '--checkers', '3', '--force'] },
     ],
   },
+  // In native builds the first step checks and emits on three checker threads (no build info yet).
+  'incremental program on checker threads': {
+    files: {
+      'tsconfig.json':
+        '{"compilerOptions":{"incremental":true,"declaration":true,"declarationMap":true,"outDir":"out"},' +
+        '"include":["src"]}',
+      'src/shapes.ts':
+        'export interface Shape { kind: string; size: number }\nexport const unit = { kind: "u", size: 1 };\n',
+      'src/area.ts':
+        'import { Shape, unit } from "./shapes";\nexport function area(s: Shape) { return s.size * 2; }\n' +
+        'export const total = [unit].map(area);\n',
+      'src/hidden.ts': 'export const instance = new (class { private secret = 1; open = 2 })();\n',
+      'src/wrong.ts': 'export const n: number = "not a number";\n',
+    },
+    steps: [
+      { args: ['--checkers', '3', '--listEmittedFiles'] },
+      {
+        args: ['--checkers', '3', '--listEmittedFiles'],
+        edit: {
+          'src/shapes.ts':
+            'export interface Shape { kind: string; size: number }\nexport const unit = { kind: "u", size: 2 };\n',
+        },
+      },
+      { args: ['--checkers', '3', '--listEmittedFiles'] },
+    ],
+  },
   'composite, node16 packages, tsBuildInfoFile and noEmitOnError': {
     files: {
       'tsconfig.json':
