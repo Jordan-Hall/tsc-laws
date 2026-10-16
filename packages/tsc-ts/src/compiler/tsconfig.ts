@@ -973,8 +973,9 @@ export class ConfigParser {
   expandFileNames = true;
   /**
    * Called once, with the options of the config, before its `include` patterns are matched; what it
-   * returns is called with each root file name as it is found (literal `files` first, then each
-   * matched file; matches the config later drops as outputs of other matched files included).
+   * returns is called with each root file name as it is found: literal `files` first, then the matched
+   * files a directory at a time, without those that a file of the same name with a higher priority
+   * extension leaves out.
    */
   beforeRootFiles: ((options: CompilerOptions) => ((fileName: string) => void) | undefined) | undefined = undefined;
 
@@ -1421,6 +1422,30 @@ export class ConfigParser {
 
     const includes = specs.validatedIncludeSpecs;
     if (includes.length > 0) {
+      // Matches go to `onRootFile` a directory at a time, without those that a file of the same name
+      // with a higher priority extension leaves out below.
+      let directory = '';
+      let pending: string[] = [];
+      const flush = (): void => {
+        if (onRootFile === undefined || pending.length === 0) return;
+        const siblings = new Map<string, string>();
+        for (const file of pending) siblings.set(getCanonicalFileName(file, cs), file);
+        for (const file of pending)
+          if (!hasFileWithHigherPriorityExtension(file, supportedExtensions, literalFiles, siblings, cs))
+            onRootFile(file);
+        pending = [];
+      };
+      const onMatch =
+        onRootFile === undefined
+          ? undefined
+          : (file: string): void => {
+              const fileDirectory = getDirectoryPath(file);
+              if (fileDirectory !== directory) {
+                flush();
+                directory = fileDirectory;
+              }
+              pending.push(file);
+            };
       const matched = readDirectory(
         this.fs,
         basePath,
@@ -1429,8 +1454,9 @@ export class ConfigParser {
         specs.validatedExcludeSpecs,
         includes,
         unlimitedDepth,
-        onRootFile,
+        onMatch,
       );
+      flush();
       let jsonIncludes: SpecMatcher | undefined;
       for (const file of matched) {
         if (fileExtensionIs(file, '.json')) {
