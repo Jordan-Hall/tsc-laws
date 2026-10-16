@@ -43,6 +43,7 @@ const {
 const Root = 0;
 const File = 1;
 const Library = 2;
+const LibraryHash = 4;
 
 test('parse threads get library files first, one per chunk, also libraries queued later', () => {
   const queue = new ParseQueue();
@@ -55,7 +56,11 @@ test('parse threads get library files first, one per chunk, also libraries queue
   queue.push(Library, 'lib.dom.d.ts', 0);
   assert.deepEqual(queue.next(2).names, ['lib.dom.d.ts']);
   assert.equal(queue.queued(), 5);
-  assert.equal(queue.left(), 3);
+  assert.equal(queue.left(), 4);
+  // Another thread hashes a large library while one parses it.
+  const hash = queue.next(2);
+  assert.deepEqual(hash.names, ['lib.dom.d.ts']);
+  assert.deepEqual(hash.kinds, [LibraryHash]);
   assert.deepEqual(queue.next(2).names, ['/p/a.ts']);
   assert.deepEqual(queue.next(1).names, ['/p/b.ts', '/p/c.ts']);
   assert.equal(queue.next(1), undefined);
@@ -74,8 +79,9 @@ test('parse threads get large files right after libraries, one per chunk, ahead 
   queue.push(Root, '/p/root-of-unknown-size.ts', 0);
   queue.push(Root, join(dir, 'checker.ts'), 0);
   queue.push(File, '/p/electron.d.ts', 0, 1_100_000);
-  assert.equal(queue.left(), 7);
+  assert.equal(queue.left(), 8);
   assert.deepEqual(queue.next(1).names, ['lib.dom.d.ts']);
+  assert.deepEqual(queue.next(1).kinds, [LibraryHash]);
   assert.deepEqual(queue.next(1).names, ['/p/csstype.d.ts']);
   assert.deepEqual(queue.next(1).names, [join(dir, 'checker.ts')]);
   assert.deepEqual(queue.next(1).names, ['/p/electron.d.ts']);

@@ -22,6 +22,7 @@
  * checker thread builds its own copy of the program from the command line instead, and the main
  * thread revives the diagnostics it receives against its own files.
  */
+import { libraryDiagnosticsAreKnownEmpty } from './library-diagnostics.js';
 import { mark, markAt, timeline } from './timeline.js';
 import type { Worker } from 'node:worker_threads';
 import { publish, sharesPublishedGraphs } from '@scriptc/threads';
@@ -415,9 +416,45 @@ export function checkerThreads(
 
 function defaultCheckers(program: Program | undefined): number {
   if (!sharesPublishedGraphs) return 1;
+  if (program !== undefined && checksLittle(program)) return 1;
   if (checkerPolicy === 'fixed') return tsgoCheckers;
   const cpus = Math.min(availableParallelism(), maxAutoCheckers);
   return autoCheckers(cpus, program === undefined ? Number.MAX_SAFE_INTEGER : memoryCheckers(program));
+}
+
+/**
+ * The most text of the files to check, in characters, of a program checked on this thread without
+ * `--checkers`: starting checker threads and sharing the program with them takes about 10 ms on 16
+ * CPUs, more than checking that much.
+ */
+const littleText = 20_000;
+
+/**
+ * Whether `program` has less than `littleText` characters to check, not counting the default
+ * library files when their diagnostics are known (`libraryDiagnosticsAreKnownEmpty`) nor the
+ * declaration files `skipLibCheck` skips.
+ */
+function checksLittle(program: Program): boolean {
+  const options = program.options;
+  const files = program.getSourceFiles();
+  // Whether the libraries' diagnostics are known depends on what the other files declare.
+  for (const file of files) if (!file.isBound) return false;
+  let clean = program.librariesAreClean;
+  if (clean === undefined) {
+    clean = libraryDiagnosticsAreKnownEmpty(program);
+    program.librariesAreClean = clean;
+  }
+  let text = 0;
+  for (const file of files) {
+    if (
+      file.isDeclarationFile &&
+      (options.skipLibCheck === true || (clean && program.isSourceFileDefaultLibrary(file.path)))
+    )
+      continue;
+    text += file.text.length;
+    if (text >= littleText) return false;
+  }
+  return true;
 }
 
 /** `auto` with `cpus` CPUs when the memory estimate fits `fit` checkers: tsgo's four at least. */
@@ -1644,6 +1681,8 @@ export function shareWithCheckers(checked: CheckedProgram): void {
     program.emitIndexes = new EmitIndexes(program);
     mark('emit indexes built');
   }
+  if (program.librariesAreClean === undefined) program.librariesAreClean = libraryDiagnosticsAreKnownEmpty(program);
+  mark('libraries verified');
   publish(program);
   mark('program published');
   // Lazily parsed JSDoc goes to a table of this thread.

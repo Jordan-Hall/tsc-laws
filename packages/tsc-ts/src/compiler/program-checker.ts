@@ -385,7 +385,7 @@ export class CheckedProgram {
   private getBindAndCheckDiagnostics(file: SourceFile): Diagnostic[] {
     const options = this.program.options;
     if (this.program.isSourceFileDefaultLibrary(file.path)) {
-      let clean = this.librariesAreClean;
+      let clean = this.librariesAreClean ?? this.program.librariesAreClean;
       if (clean === undefined) {
         clean = libraryDiagnosticsAreKnownEmpty(this.program);
         this.librariesAreClean = clean;

@@ -15,6 +15,7 @@ import { isExternalOrCommonJSModule } from './binder-utilities.js';
 import type { Program } from './program.js';
 import { hash128String, toHex } from './xxh3.js';
 import { verifiedLibraries, verifiedLibrarySets } from './verified-libraries.js';
+import { preparedLibraryHash } from './parallel-parse.js';
 
 /** Whether the default library files of the bound `program` have no semantic diagnostics. */
 export function libraryDiagnosticsAreKnownEmpty(program: Program): boolean {
@@ -27,12 +28,18 @@ export function libraryDiagnosticsAreKnownEmpty(program: Program): boolean {
       continue;
     }
     const index = libraryIndex(library.name);
-    if (index < 0 || verifiedLibraries[index]![1] !== toHex(hash128String(file.text))) return false;
+    if (index < 0 || verifiedLibraries[index]![1] !== libraryTextHash(file)) return false;
     digits[index >> 2] = digits[index >> 2]! | (1 << (index & 3));
   }
   let mask = '';
   for (const digit of digits) mask += digit.toString(16);
   return verifiedLibrarySets.has(mask);
+}
+
+/** `toHex(hash128String(file.text))`, which parse threads may have computed. */
+function libraryTextHash(file: SourceFile): string {
+  const prepared = preparedLibraryHash(file);
+  return prepared !== '' ? prepared : toHex(hash128String(file.text));
 }
 
 let libraryIndices: Map<string, number> | undefined = undefined;

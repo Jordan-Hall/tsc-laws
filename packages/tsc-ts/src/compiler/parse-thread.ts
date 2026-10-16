@@ -12,6 +12,7 @@ import { computeHash } from './incremental.js';
 import { isIncremental } from './options.js';
 import type { FileSystem } from './file-system.js';
 import {
+  LibraryHash,
   fileSize,
   LoadJobs,
   LoadKind,
@@ -19,7 +20,9 @@ import {
   PackageJsonLookups,
   PreparedBatch,
   PreparedFile,
+  largeLibraries,
 } from './parallel-parse.js';
+import { getBaseFileName, getDirectoryPath, getNormalizedAbsolutePath } from './path.js';
 import { parseSourceFile } from './parser.js';
 import { mark, markAt, timeline } from './timeline.js';
 import type { ParsedCommandLine } from './tsconfig.js';
@@ -32,6 +35,22 @@ class PreparingHost extends CompilerHost {
   readMs = 0;
   parseMs = 0;
   bindMs = 0;
+
+  /** Whether `fileName` is a library file this thread hashes as it loads it; large ones are hashed apart. */
+  private hashesLibrary(fileName: string): boolean {
+    return getDirectoryPath(fileName) === this.libraryDirectory && !largeLibraries.has(getBaseFileName(fileName));
+  }
+
+  private get libraryDirectory(): string {
+    let directory = this.normalizedLibraryDirectory;
+    if (directory === undefined) {
+      directory = getNormalizedAbsolutePath(this.defaultLibraryPath, this.currentDirectory);
+      this.normalizedLibraryDirectory = directory;
+    }
+    return directory;
+  }
+
+  private normalizedLibraryDirectory: string | undefined = undefined;
 
   getSourceFile(
     fileName: string,
@@ -60,6 +79,7 @@ class PreparingHost extends CompilerHost {
           `file read ${(t1 - t0).toFixed(1)} parse ${(t2 - t1).toFixed(1)} bind ${(t3 - t2).toFixed(1)} ${text.length} ${fileName}`,
         );
     }
+    const version = this.computesVersions ? computeHash(file.text) : '';
     this.prepared.push(
       new PreparedFile(
         fileName,
@@ -67,7 +87,8 @@ class PreparingHost extends CompilerHost {
         externalModuleIndicatorOptions.jsx,
         externalModuleIndicatorOptions.force,
         file,
-        this.computesVersions ? computeHash(file.text) : '',
+        version,
+        version === '' && this.hashesLibrary(fileName) ? computeHash(file.text) : '',
       ),
     );
     return file;
@@ -96,7 +117,14 @@ export class ParseThread {
     const start = performance.now();
     const added = new LoadJobs();
     const files = this.host.prepared;
+    const libraryHashes: LibraryHash[] = [];
     for (let i = 0; i < chunk.names.length; i++) {
+      if (chunk.kinds[i] === LoadKind.LibraryHash) {
+        const fileName = this.loader.libraryFileName(chunk.names[i]!);
+        const text = this.host.fs.readFile(fileName);
+        if (text !== undefined) libraryHashes.push(new LibraryHash(fileName, text, computeHash(text)));
+        continue;
+      }
       const before = files.length;
       const loaded = this.loader.loadAhead(chunk.kinds[i]!, chunk.names[i]!, chunk.depths[i]!, added);
       // What the loader found loading the file it just prepared.
@@ -128,7 +156,7 @@ export class ParseThread {
       packageJsons.directoryExists.push(info.directoryExists);
     }
     this.sentPackageJsons = infos.length;
-    const batch = publish(new PreparedBatch(files, added, end - start, packageJsons));
+    const batch = publish(new PreparedBatch(files, added, end - start, packageJsons, libraryHashes));
     if (timeline) mark(`published ${(performance.now() - end).toFixed(1)}ms`);
     return batch;
   }
