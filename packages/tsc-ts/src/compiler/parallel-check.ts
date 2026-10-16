@@ -26,7 +26,13 @@ import { mark, markAt, timeline } from './timeline.js';
 import type { Worker } from 'node:worker_threads';
 import { publish, sharesPublishedGraphs } from '@scriptc/threads';
 import { lastNodeIdValue } from './ast.js';
-import { declarationDiagnosticsOfFile, HoldingWriter, type OutputWriter, ProgramEmitter } from './compile-program.js';
+import {
+  declarationDiagnosticsOfFile,
+  EmitIndexes,
+  HoldingWriter,
+  type OutputWriter,
+  ProgramEmitter,
+} from './compile-program.js';
 import { Diagnostic, DiagnosticFile, RepopulateInfo } from './diagnostics.js';
 import { EmitOnly, EmitResult } from './emitter.js';
 import { getEmitDeclarations, isIncremental } from './options.js';
@@ -1632,6 +1638,12 @@ export function shareWithCheckers(checked: CheckedProgram): void {
   mark('prepared for sharing');
   program.mergedGlobals = shareMergedGlobals(checked.checker);
   mark('globals merged');
+  // Checker threads emit, or report declaration errors, with the program's indexes.
+  const options = program.options;
+  if (options.noEmit !== true || getEmitDeclarations(options)) {
+    program.emitIndexes = new EmitIndexes(program);
+    mark('emit indexes built');
+  }
   publish(program);
   mark('program published');
   // Lazily parsed JSDoc goes to a table of this thread.

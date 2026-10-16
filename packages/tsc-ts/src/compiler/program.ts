@@ -39,6 +39,7 @@ import {
 } from './file-loader.js';
 import { type PackageJsonInfo, PackageJsonLookup } from './package-json.js';
 import type { MergedGlobals } from './checker-symbols.js';
+import type { EmitIndexes } from './compile-program.js';
 import { ProcessingDiagnostic, type IncludeProcessor } from './file-include.js';
 import type { ResolvedModule } from './module-resolution-types.js';
 import { getTypesPackageName, moduleResolutionKindName } from './module-resolution-types.js';
@@ -124,6 +125,8 @@ export class Program implements OutputPathsHost {
   private shared = false;
   /** The globals and module augmentations as the main thread's checker merged them, for checker threads. */
   mergedGlobals: MergedGlobals | undefined = undefined;
+  /** What emit resolvers index for all files, built by the main thread for checker threads. */
+  emitIndexes: EmitIndexes | undefined = undefined;
 
   /** `loader`, if given, is a FileLoader of `host` and `commandLine` that has not loaded yet. */
   constructor(

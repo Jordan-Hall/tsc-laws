@@ -167,6 +167,28 @@ export class InferenceCounts {
   }
 }
 
+/**
+ * The files of a program by path and its globals merged across script files, as declaration emit
+ * without the checker resolves names. Read-only once built, so checker threads can share one.
+ */
+export class DeclarationGlobals {
+  readonly filesByPath: Map<string, SourceFile>;
+  readonly globals: Map<string, Symbol>;
+  /** Global symbols merged across files, by each file's symbol. */
+  readonly mergedSymbols: Map<Symbol, Symbol>;
+
+  constructor(files: readonly SourceFile[], currentDirectory: string) {
+    this.filesByPath = new Map<string, SourceFile>();
+    this.globals = new Map<string, Symbol>();
+    this.mergedSymbols = new Map<Symbol, Symbol>();
+    for (const file of files) {
+      this.filesByPath.set(getNormalizedAbsolutePath(file.fileName, currentDirectory), file);
+      if (!isExternalOrCommonJSModule(file) && file.locals !== undefined)
+        mergeInto(this.globals, file.locals, this.mergedSymbols);
+    }
+  }
+}
+
 export class SyntacticDeclarationEmitResolver extends DeclarationEmitResolver {
   readonly options: CompilerOptions;
   readonly strictNullChecks: boolean;
@@ -179,32 +201,30 @@ export class SyntacticDeclarationEmitResolver extends DeclarationEmitResolver {
   /** Inference counts by file. */
   readonly inference: Map<SourceFile, InferenceCounts>;
 
-  /** `emitResolver` answers the queries of JavaScript emit and enum values. */
+  /**
+   * `emitResolver` answers the queries of JavaScript emit and enum values. `indexed` is the program's
+   * `DeclarationGlobals` if they were built before; otherwise they are built from `files`.
+   */
   constructor(
     options: CompilerOptions,
     files: readonly SourceFile[],
     currentDirectory: string,
     emitResolver: SyntacticEmitResolver,
+    indexed: DeclarationGlobals | undefined = undefined,
   ) {
     super();
     this.options = options;
     this.strictNullChecks =
       options.strictNullChecks !== undefined ? options.strictNullChecks : options.strict !== false;
     this.emitResolver = emitResolver;
-    const mergedSymbols = new Map<Symbol, Symbol>();
-    this.names = new DeclarationNameResolver(options, mergedSymbols);
-    this.pseudo = new PseudoChecker(this.strictNullChecks, mergedSymbols, this.names);
-    this.filesByPath = new Map<string, SourceFile>();
+    const index = indexed !== undefined ? indexed : new DeclarationGlobals(files, currentDirectory);
+    this.names = new DeclarationNameResolver(options, index.mergedSymbols);
+    this.pseudo = new PseudoChecker(this.strictNullChecks, index.mergedSymbols, this.names);
+    this.filesByPath = index.filesByPath;
     this.visibility = new Map<Node, boolean>();
     this.aliasesMarked = new Set<SourceFile>();
     this.inference = new Map<SourceFile, InferenceCounts>();
-    const globals = new Map<string, Symbol>();
-    for (const file of files) {
-      this.filesByPath.set(getNormalizedAbsolutePath(file.fileName, currentDirectory), file);
-      if (!isExternalOrCommonJSModule(file) && file.locals !== undefined)
-        mergeInto(globals, file.locals, this.pseudo.mergedSymbols);
-    }
-    this.names.globals = globals;
+    this.names.globals = index.globals;
   }
 
   // Emit queries
