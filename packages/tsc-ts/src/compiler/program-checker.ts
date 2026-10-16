@@ -231,7 +231,8 @@ export class CheckedProgram {
 
   /**
    * Diagnostics of checker threads (parallel-check.ts): the semantic diagnostics of each file by file
-   * index, and their global diagnostics. Set once every file is checked.
+   * index, before `noEmit` filtering (`unfilteredDiagnosticsOfFile`), and their global diagnostics. Set
+   * once every file is checked.
    */
   checkedInParallel: (Diagnostic[] | undefined)[] | undefined = undefined;
   /**
@@ -243,8 +244,9 @@ export class CheckedProgram {
   sharedWithCheckers = false;
   readonly parallelGlobalDiagnostics: Diagnostic[] = [];
   /**
-   * The declaration diagnostics checker threads computed under `noEmit` (PlainProgram), by file
-   * index; `undefined` for files they did not. Set once every file is checked.
+   * The declaration diagnostics checker threads computed under `noEmit` (PlainProgram,
+   * IncrementalProgram), by file index; `undefined` for files they did not. Set once every file is
+   * checked.
    */
   declarationsInParallel: (Diagnostic[] | undefined)[] | undefined = undefined;
   /**
@@ -256,8 +258,10 @@ export class CheckedProgram {
   getSemanticDiagnostics(file: SourceFile | undefined): Diagnostic[] {
     const parallel = this.checkedInParallel;
     if (file === undefined && parallel !== undefined) {
+      const noEmit = this.program.options.noEmit === true;
       const result: Diagnostic[] = [];
-      for (const diagnostics of parallel) if (diagnostics !== undefined) for (const d of diagnostics) result.push(d);
+      for (const diagnostics of parallel)
+        if (diagnostics !== undefined) for (const d of diagnostics) if (!noEmit || !d.skippedOnNoEmit) result.push(d);
       return sortAndDeduplicateDiagnostics(result);
     }
     return this.collectChecked(file, (f) => this.semanticDiagnosticsOfFile(f));
@@ -265,12 +269,20 @@ export class CheckedProgram {
 
   /** The semantic diagnostics of `file`, unsorted. */
   semanticDiagnosticsOfFile(file: SourceFile): Diagnostic[] {
-    const diagnostics = this.getBindAndCheckDiagnostics(file);
-    let result = diagnostics;
-    if (this.program.options.noEmit === true) {
-      result = [];
-      for (const d of diagnostics) if (!d.skippedOnNoEmit) result.push(d);
-    }
+    const diagnostics = this.unfilteredDiagnosticsOfFile(file);
+    if (this.program.options.noEmit !== true) return diagnostics;
+    const result: Diagnostic[] = [];
+    for (const d of diagnostics) if (!d.skippedOnNoEmit) result.push(d);
+    return result;
+  }
+
+  /**
+   * The semantic diagnostics of `file`, unsorted, before `noEmit` filtering: the bind and check
+   * diagnostics, then the include errors. Checker threads report these (parallel-check.ts), so that an
+   * incremental program keeps them unfiltered under `noEmit` too.
+   */
+  unfilteredDiagnosticsOfFile(file: SourceFile): Diagnostic[] {
+    const result = this.getBindAndCheckDiagnostics(file);
     for (const d of this.getIncludeProcessorDiagnostics(file)) result.push(d);
     return result;
   }
@@ -278,8 +290,7 @@ export class CheckedProgram {
   /**
    * The bind and check diagnostics of `file` before `noEmit` filtering and without include errors.
    * Once checker threads checked the program, they come from the threads' diagnostics of the file,
-   * without the include errors added last; under `noEmit` those are already filtered (tsc-build.ts
-   * reads them only where that doesn't matter).
+   * without the include errors added last.
    */
   getSemanticDiagnosticsWithoutNoEmitFiltering(file: SourceFile): Diagnostic[] {
     if (this.skipTypeChecking(file)) return [];
@@ -290,6 +301,12 @@ export class CheckedProgram {
       return sortAndDeduplicateDiagnostics(diagnostics.slice(0, count));
     }
     return sortAndDeduplicateDiagnostics(this.getBindAndCheckDiagnostics(file));
+  }
+
+  /** The declaration diagnostics checker threads computed for `file` (`declarationsInParallel`), if any. */
+  declarationDiagnosticsInParallel(file: SourceFile): Diagnostic[] | undefined {
+    const parallel = this.declarationsInParallel;
+    return parallel === undefined ? undefined : parallel[this.indexOfFile(file)];
   }
 
   private fileIndexes: Map<SourceFile, number> | undefined = undefined;

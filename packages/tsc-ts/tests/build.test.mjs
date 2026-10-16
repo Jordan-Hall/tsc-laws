@@ -278,6 +278,40 @@ const scenarios = {
       { args: ['--checkers', '2', '--listEmittedFiles', '--strictNullChecks', 'false'] },
     ],
   },
+  // In native builds the first step checks on two checker threads, which also find the declaration error,
+  // the second checks the files the change affects on them, and the last builds without build info on them.
+  'noEmit incremental program on checker threads': {
+    files: {
+      'tsconfig.json':
+        '{"compilerOptions":{"incremental":true,"noEmit":true,"declaration":true,"rootDir":"src"},"include":["src"]}',
+      'src/base.ts':
+        'export interface Shape { kind: string; size: number }\nexport const unit = { kind: "u", size: 1 };\n',
+      'src/a.ts': 'import { Shape, unit } from "./base";\nexport const a = (s: Shape) => [s, unit];\n',
+      'src/b.ts': 'import { unit } from "./base";\nexport const b = { ...unit, extra: true };\n',
+      'src/c.ts': 'import * as base from "./base";\nexport const c: base.Shape = base.unit;\n',
+      'src/d.ts': 'import { Shape } from "./base";\nexport function d(s: Shape): Shape | undefined { return s; }\n',
+      'src/e.ts': 'import { unit } from "./base";\nexport const e: string = unit.kind;\n',
+      'src/f.ts': 'import { a } from "./a";\nexport const f = a({ kind: "f", size: 2 });\n',
+      'src/hidden.ts':
+        'import { unit } from "./base";\nexport const instance = new (class { private secret = unit })();\n',
+    },
+    steps: [
+      { args: ['--checkers', '2'] },
+      {
+        args: ['--checkers', '2'],
+        edit: {
+          'src/base.ts':
+            'export interface Shape { kind: string; size: number; label?: string }\n' +
+            'export const unit = { kind: "u", size: 1, label: "unit" };\n',
+        },
+      },
+      {
+        args: ['--checkers', '2'],
+        edit: { 'src/e.ts': 'import { unit } from "./base";\nexport const e: number = unit.kind;\n' },
+      },
+      { args: ['-b', '--checkers', '2'], edit: { 'tsconfig.tsbuildinfo': null } },
+    ],
+  },
   'noEmitOnError rebuild of affected files on checker threads': {
     files: {
       'tsconfig.json':

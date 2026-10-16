@@ -1451,7 +1451,7 @@ export function checkFromQueue(
     const i = order[k]!;
     done.push(i);
     const fileStart = verbose || timeline ? performance.now() : 0;
-    const fileDiagnostics = checked.semanticDiagnosticsOfFile(files[i]!);
+    const fileDiagnostics = checked.unfilteredDiagnosticsOfFile(files[i]!);
     diagnostics.push(fileDiagnostics);
     if (holding !== undefined && fileDiagnostics.length > 0) blockEmit(counter);
     if (timeline)
@@ -1710,7 +1710,7 @@ export function startParallelCheck(
   let ownDone = false;
   const finish = (): void => {
     // A thread that failed may have taken files it never checked: check them here.
-    for (const i of order) if (perFile[i] === undefined) perFile[i] = checked.semanticDiagnosticsOfFile(files[i]!);
+    for (const i of order) if (perFile[i] === undefined) perFile[i] = checked.unfilteredDiagnosticsOfFile(files[i]!);
     checked.checkedInParallel = perFile;
     mark('all checked');
     if (trace)

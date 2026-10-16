@@ -47,6 +47,7 @@ import {
   CompilerProgram,
   CompileTimes,
   combineEmitResults,
+  declarationDiagnosticsOfFile,
   handleNoEmitOnError,
   OutputWriter,
   type CheckedProgram,
@@ -1987,9 +1988,21 @@ export class IncrementalProgram extends CompilerProgram {
     return new EmitFilesHandler(this, true).emitAllAffectedFiles(new DiscardWriter()).diagnostics;
   }
 
-  /** Declaration emit errors of `files`, without writing. */
+  /**
+   * Declaration emit errors of `files`, without writing. Declaration emit is per file: those checker
+   * threads computed under `noEmit` (`declarationsInParallel`), the others here, in order.
+   */
   emitDeclarationDiagnostics(files: readonly SourceFile[]): Diagnostic[] {
-    return this.emitter.emit(files, EmitOnly.ForcedDts, new DiscardWriter()).diagnostics;
+    const checked = this.checked;
+    if (checked.declarationsInParallel === undefined)
+      return this.emitter.emit(files, EmitOnly.ForcedDts, new DiscardWriter()).diagnostics;
+    const result: Diagnostic[] = [];
+    for (const file of files) {
+      const diagnostics =
+        checked.declarationDiagnosticsInParallel(file) ?? declarationDiagnosticsOfFile(this.emitter, file);
+      for (const d of diagnostics) result.push(d);
+    }
+    return result;
   }
 
   emit(writer: OutputWriter): EmitResult {
