@@ -30,7 +30,6 @@ import {
 import { Colors, defaultIsPretty, header, printBuildHelp, printHelp, printVersion } from './help.js';
 import { generateTSConfig } from './init.js';
 import { isIncremental, type CompilerOptions } from './options.js';
-import { getBuildInfoFileName } from './output-paths.js';
 import { combinePaths, getDirectoryPath, normalizePath } from './path.js';
 import { checkerThreads, parseThreads } from './parallel-check.js';
 import { ParseSession, parallelParse, reportPreparedFiles } from './parallel-parse.js';
@@ -330,8 +329,7 @@ function executeCompile(sys: System, commandLine: ParsedCommandLine): CommandLin
   // the libraries and the root files found so far while the config's `include` patterns are matched.
   let session: ParseSession | undefined = undefined;
   const beforeRootFiles = (projectOptions: CompilerOptions): ((fileName: string) => void) | undefined => {
-    if (projectOptions.watch === true || options.showConfig === true || !parsesAhead(sys, projectOptions))
-      return undefined;
+    if (projectOptions.watch === true || options.showConfig === true || !parsesAhead(projectOptions)) return undefined;
     assignSymbolIdsAtCreation();
     const started = new ParseSession(
       parseThreads(checkerThreads(projectOptions.checkers, projectOptions.singleThreaded)),
@@ -388,7 +386,7 @@ function executeCompile(sys: System, commandLine: ParsedCommandLine): CommandLin
       errorSummary,
     };
   };
-  if (parsesAhead(sys, config.options)) {
+  if (parsesAhead(config.options)) {
     // Threads parse and bind the files the program is expected to load first (parallel-parse.ts), and
     // share the program it becomes: its symbols get their ids when they are created.
     assignSymbolIdsAtCreation();
@@ -438,19 +436,11 @@ const rootFilesPerChunk = 32;
 
 /**
  * Whether threads parse and bind the files of a program with `options` ahead of it (parallel-parse.ts):
- * with checker threads, which an incremental program uses only without build info (`checksIncrementalOnThreads`).
+ * where checker threads may be used. Also for an incremental program with build info, which is checked
+ * on this thread (`checksIncrementalOnThreads`) but parsed in full all the same, as in build mode.
  */
-function parsesAhead(sys: System, options: CompilerOptions): boolean {
-  return (
-    checkerThreads(options.checkers, options.singleThreaded) > 1 &&
-    parallelParse.spawn !== undefined &&
-    (!isIncremental(options) ||
-      checksIncrementalOnThreads(
-        sys,
-        options,
-        getBuildInfoFileName(options, sys.currentDirectory, sys.useCaseSensitiveFileNames),
-      ))
-  );
+function parsesAhead(options: CompilerOptions): boolean {
+  return checkerThreads(options.checkers, options.singleThreaded) > 1 && parallelParse.spawn !== undefined;
 }
 
 /**
