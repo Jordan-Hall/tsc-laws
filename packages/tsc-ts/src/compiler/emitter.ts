@@ -103,6 +103,11 @@ export class EmitResult {
    * and the signature compared for composite projects (`DeclarationSignatureWriter`).
    */
   readonly declarationSignatures: string[];
+  /**
+   * Under `noEmitOnError`, the outputs a checker thread emitted without writing them, as file name and
+   * text alternately: the main thread writes them once it knows there are no errors (`writeHeldOutputs`).
+   */
+  readonly heldOutputs: string[];
   emitSkipped: boolean;
 
   constructor() {
@@ -111,6 +116,7 @@ export class EmitResult {
     this.unsupported = [];
     this.diagnostics = [];
     this.declarationSignatures = [];
+    this.heldOutputs = [];
     this.emitSkipped = false;
   }
 }

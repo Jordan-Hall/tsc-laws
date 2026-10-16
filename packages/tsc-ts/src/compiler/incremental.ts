@@ -50,6 +50,7 @@ import {
   handleNoEmitOnError,
   OutputWriter,
   type CheckedProgram,
+  writeHeldOutputs,
 } from './compile-program.js';
 import {
   categoryName,
@@ -1260,7 +1261,12 @@ class EmitFilesHandler {
         emittedOnCheckers.size === 0
           ? program.emitter.emit(files, EmitOnly.All, wrapped)
           : combineEmitResults(
-              files.map((file) => emittedOnCheckers.get(file) ?? program.emitter.emit([file], EmitOnly.All, wrapped)),
+              files.map((file) => {
+                const emitted = emittedOnCheckers.get(file);
+                return emitted !== undefined
+                  ? writeHeldOutputs(emitted, writer)
+                  : program.emitter.emit([file], EmitOnly.All, wrapped);
+              }),
             );
       this.updateHasEmitDiagnostics(result);
       this.updateSnapshot();
@@ -1331,7 +1337,7 @@ class EmitFilesHandler {
         else if (dts && !js) emitOnly = EmitOnly.Dts;
         const emitted = emittedOnCheckers.get(affectedFile);
         if (emitted !== undefined) {
-          result = emitted;
+          result = writeHeldOutputs(emitted, writer);
           this.recordDeclarationSignatures(affectedFile, emitted.declarationSignatures);
         } else {
           if (wrapped instanceof SignatureRecordingWriter) wrapped.file = affectedFile;
