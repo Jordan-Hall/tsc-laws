@@ -948,7 +948,8 @@ class AffectedFilesHandler {
 
   private computeDtsSignature(file: SourceFile): string {
     const emitted = this.incremental.emitter.forcedDeclaration(file);
-    if (emitted.text === '') return '';
+    // A file without declarations, such as a script of statements, has an empty declaration file and a signature.
+    if (!emitted.written) return '';
     return computeSignatureWithDiagnostics(file, emitted.text, emitted.diagnostics, this.snapshot.options);
   }
 
