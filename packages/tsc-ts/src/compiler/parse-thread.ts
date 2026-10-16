@@ -3,7 +3,6 @@
  * FileLoader of its own, which parses, binds and resolves them as the program's FileLoader will, and
  * returns their bound source files, published, with the files they add.
  */
-import { statSync } from 'node:fs';
 import { publish } from '@scriptc/threads';
 import { type ExternalModuleIndicatorOptions, ParseOptions, ScriptKind, type SourceFile } from './ast.js';
 import { bindSourceFile } from './binder.js';
@@ -13,6 +12,7 @@ import { computeHash } from './incremental.js';
 import { isIncremental } from './options.js';
 import type { FileSystem } from './file-system.js';
 import {
+  fileSize,
   LoadJobs,
   LoadKind,
   type LoadMessage,
@@ -71,15 +71,6 @@ class PreparingHost extends CompilerHost {
       ),
     );
     return file;
-  }
-}
-
-/** The size of the file `fileName` in bytes, or 0. */
-function fileSize(fileName: string): number {
-  try {
-    return statSync(fileName).size;
-  } catch {
-    return 0;
   }
 }
 
