@@ -1,7 +1,15 @@
 // Type relations: identity, subtype, strict subtype, assignability and comparability, with
 // tsgo's result caching, recursion limits, variance measurement and error elaboration.
 import { lazyObjectFlags, sideOf, sideOfIfAny } from './side-state.js';
-import { ModifierFlags, type Node, type ConditionalTypeNode, getExpression, getName, getText } from './ast.js';
+import {
+  ModifierFlags,
+  type Node,
+  type ConditionalTypeNode,
+  getExpression,
+  getName,
+  getNodeId,
+  getText,
+} from './ast.js';
 import { getSymbolNameForPrivateIdentifier } from './binder.js';
 import { getCombinedModifierFlags } from './binder-utilities.js';
 import { Diagnostic, type DiagnosticMessage, Diagnostics, messageElidedInCompatibilityPyramid } from './diagnostics.js';
@@ -334,7 +342,12 @@ export const enum SignatureCheckMode {
 }
 
 /** An object identity shared by instantiations of the same type, for recursion limits. */
-export type RecursionId = Node | Symbol | Type;
+/**
+ * The recursion identity of a type (`getRecursionIdentity`): a node, a symbol or a type, as a number
+ * (its id times 4 plus its kind), compared only for equality. A union of the three classes would be
+ * boxed in native builds on every call.
+ */
+export type RecursionId = number;
 
 // ---- Comparers
 
@@ -4305,24 +4318,37 @@ export function getRecursionIdentity(t: Type): RecursionId {
     (t.objectFlags & (ObjectFlags.ObjectLiteral | ObjectFlags.ArrayLiteral)) === 0
   ) {
     if ((t.objectFlags & ObjectFlags.Reference) !== 0 && (t as TypeReference).node !== undefined)
-      return (t as TypeReference).node!;
+      return nodeRecursionId((t as TypeReference).node!);
     if (
       t.symbol !== undefined &&
       !((t.objectFlags & ObjectFlags.Anonymous) !== 0 && (t.symbol.flags & SymbolFlags.Class) !== 0) &&
       (t.objectFlags & ObjectFlags.FromTypeNode) === 0
     )
-      return t.symbol;
-    if (isTupleType(t) && (t.objectFlags & ObjectFlags.FromTypeNode) === 0) return (t as TypeReference).target!;
+      return symbolRecursionId(t.symbol);
+    if (isTupleType(t) && (t.objectFlags & ObjectFlags.FromTypeNode) === 0)
+      return typeRecursionId((t as TypeReference).target!);
   }
-  if ((t.flags & TypeFlags.TypeParameter) !== 0 && t.symbol !== undefined) return t.symbol;
+  if ((t.flags & TypeFlags.TypeParameter) !== 0 && t.symbol !== undefined) return symbolRecursionId(t.symbol);
   if ((t.flags & TypeFlags.IndexedAccess) !== 0) {
     let objectType = (t as IndexedAccessType).objectType;
     while ((objectType.flags & TypeFlags.IndexedAccess) !== 0)
       objectType = (objectType as IndexedAccessType).objectType;
-    return objectType;
+    return typeRecursionId(objectType);
   }
-  if ((t.flags & TypeFlags.Conditional) !== 0) return (t as ConditionalType).root.node;
-  return t;
+  if ((t.flags & TypeFlags.Conditional) !== 0) return nodeRecursionId((t as ConditionalType).root.node);
+  return typeRecursionId(t);
+}
+
+function nodeRecursionId(node: Node): RecursionId {
+  return getNodeId(node) * 4 + 1;
+}
+
+function symbolRecursionId(symbol: Symbol): RecursionId {
+  return getSymbolId(symbol) * 4 + 2;
+}
+
+function typeRecursionId(t: Type): RecursionId {
+  return t.id * 4 + 3;
 }
 
 // ---- Variance

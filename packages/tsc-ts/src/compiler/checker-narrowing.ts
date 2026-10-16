@@ -2284,7 +2284,11 @@ export function isMatchingReference(c: Checker, source: Node, target: Node): boo
     source.kind === SyntaxKind.Identifier &&
     (target.kind === SyntaxKind.VariableDeclaration || target.kind === SyntaxKind.BindingElement)
   ) {
-    const name = (target as VariableDeclaration | BindingElement).name;
+    // A cast to one class: a union of the two would be boxed in native builds.
+    const name =
+      target.kind === SyntaxKind.VariableDeclaration
+        ? (target as VariableDeclaration).name
+        : (target as BindingElement).name;
     if (
       name !== undefined &&
       name.kind === SyntaxKind.Identifier &&
