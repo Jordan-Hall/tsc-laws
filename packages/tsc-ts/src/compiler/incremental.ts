@@ -83,6 +83,7 @@ import {
   getDirectoryPath,
   getNormalizedAbsolutePath,
   getRelativePathFromDirectory,
+  getRootLength,
   isDeclarationFileName,
   toPath,
 } from './path.js';
@@ -368,6 +369,14 @@ function sameSet(a: ReadonlySet<string> | undefined, b: ReadonlySet<string> | un
   if (a === undefined || b === undefined) return a === b;
   if (a.size !== b.size) return false;
   for (const value of a) if (!b.has(value)) return false;
+  return true;
+}
+
+/** Whether `path` is `..` or a sequence of `../` up from a directory. */
+function isParentDirectoryPath(path: string): boolean {
+  for (let i = 0; i < path.length; i += 3) {
+    if (!path.startsWith('..', i) || (i + 2 < path.length && path[i + 2] !== '/')) return false;
+  }
   return true;
 }
 
@@ -1475,6 +1484,8 @@ class ToBuildInfo {
   private readonly fileNameToFileId = new Map<string, number>();
   private readonly fileNamesToFileIdListId = new Map<string, number>();
   private readonly roots = new Map<SourceFile, string>();
+  /** `relativeToBuildInfo` of the directories of the paths so far. */
+  private readonly relativeDirectories = new Map<string, string>();
 
   constructor(
     private readonly snapshot: Snapshot,
@@ -1485,13 +1496,29 @@ class ToBuildInfo {
   }
 
   private relativeToBuildInfo(path: string): string {
-    return ensurePathIsNonModuleName(
-      getRelativePathFromDirectory(
-        this.buildInfoDirectory,
-        path,
-        this.program.useCaseSensitiveFileNames,
-        this.program.currentDirectory,
-      ),
+    // The relative path of a file is that of its directory and its name, unless the directory is the
+    // build info's directory or one above it, where the name could be a component of the build info's
+    // directory.
+    const slash = path.lastIndexOf('/');
+    const name = path.slice(slash + 1);
+    if (slash > getRootLength(path) && name !== '' && name !== '.' && name !== '..' && !path.includes('\\')) {
+      const directory = path.slice(0, slash);
+      let relative = this.relativeDirectories.get(directory);
+      if (relative === undefined) {
+        relative = this.relativePath(directory);
+        this.relativeDirectories.set(directory, relative);
+      }
+      if (relative !== '' && !isParentDirectoryPath(relative)) return ensurePathIsNonModuleName(relative + '/' + name);
+    }
+    return ensurePathIsNonModuleName(this.relativePath(path));
+  }
+
+  private relativePath(path: string): string {
+    return getRelativePathFromDirectory(
+      this.buildInfoDirectory,
+      path,
+      this.program.useCaseSensitiveFileNames,
+      this.program.currentDirectory,
     );
   }
 
@@ -1518,11 +1545,14 @@ class ToBuildInfo {
   }
 
   private toFileIdListId(set: ReadonlySet<string>): number {
-    const fileIds = [...set].map((path) => this.toFileId(path)).sort((a, b) => a - b);
+    const fileIds: number[] = [];
+    for (const path of set) fileIds.push(this.toFileId(path));
+    fileIds.sort((a, b) => a - b);
     const key = fileIds.join(',');
     let id = this.fileNamesToFileIdListId.get(key);
     if (id === undefined) {
       this.buildInfo.fileIdsList.push(fileIds);
+      this.buildInfo.fileIdsListText.push(key);
       id = this.buildInfo.fileIdsList.length;
       this.fileNamesToFileIdListId.set(key, id);
     }
