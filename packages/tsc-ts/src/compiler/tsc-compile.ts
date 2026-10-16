@@ -233,7 +233,7 @@ function recheckInParallel(
  * `recheckOnThreadsText` characters, so that the threads' start (each checker resolves the
  * declarations the files use again) costs less than checking them on one thread.
  */
-function rechecksOnThreads(files: readonly SourceFile[], threads: number, checkersGiven: boolean): boolean {
+export function rechecksOnThreads(files: readonly SourceFile[], threads: number, checkersGiven: boolean): boolean {
   if (files.length < 2 * threads) return false;
   if (checkersGiven) return true;
   let text = 0;

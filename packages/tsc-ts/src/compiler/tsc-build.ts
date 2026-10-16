@@ -54,9 +54,16 @@ import {
   System,
   SystemFileSystem,
 } from './tsc-cli.js';
-import { emitFilesAndReportErrors, exitStatusOf, Statistics, statisticsOf, SystemTimeStamps } from './tsc-compile.js';
+import {
+  emitFilesAndReportErrors,
+  exitStatusOf,
+  rechecksOnThreads,
+  Statistics,
+  statisticsOf,
+  SystemTimeStamps,
+} from './tsc-compile.js';
 import { sharesPublishedGraphs } from '@scriptc/threads';
-import { checkerThreads, parseThreads, startParallelCheck } from './parallel-check.js';
+import { checkerThreads, parseThreads, shareWithCheckers, startParallelCheck } from './parallel-check.js';
 import { LoadKind, ParseSession, clearPreparedFiles, parallelParse, reportPreparedFiles } from './parallel-parse.js';
 import { assignSymbolIdsAtCreation } from './symbol.js';
 
@@ -698,10 +705,10 @@ export class Orchestrator {
           sys.currentDirectory,
         );
     times.buildInfoReadTime = performance.now() - readStart;
-    // Checker threads may check the program only when they would check every file, as without old
-    // build info. They report a file's semantic diagnostics before `noEmit` filtering, which the
+    // Checker threads check every file without old build info, and the files a change affects with it
+    // (`recheckOnThreads`). They report a file's semantic diagnostics before `noEmit` filtering, which the
     // incremental program keeps (`getSemanticDiagnosticsWithoutNoEmitFiltering`).
-    const mayUseThreads = threads && oldSnapshot === undefined;
+    const mayUseThreads = threads;
     const parseStart = performance.now();
     // A program checked by threads is shared with them and can't change after; the project's config
     // here, whose output paths are computed later, gets a copy of its own.
@@ -760,6 +767,8 @@ export class Orchestrator {
     times.bindTime = performance.now() - bindStart;
     const options = program.options;
     const count = mayUseThreads ? checkerThreads(options.checkers, options.singleThreaded, program) : 1;
+    if (count > 1 && oldSnapshot !== undefined)
+      return this.recheckOnThreads(task, checked, times, oldSnapshot, count, then);
     if (count > 1) {
       // Checker threads also emit the files they check; the incremental program records their
       // declaration signatures on this thread.
@@ -773,6 +782,71 @@ export class Orchestrator {
     return false;
   }
 
+  /**
+   * The rest of `checkAndEmit` for a project with old build info on checker threads, as `tsc -p` rebuilds
+   * (`recheckInParallel`, tsc-compile.ts): the program is shared with the threads first, then the
+   * incremental program finds the files the change affects, and the threads check them when they are
+   * many enough (`rechecksOnThreads`). They also emit them, except where emit may skip writing a
+   * declaration file (composite): this thread then emits, as without threads. Returns whether the
+   * threads check, and then calls `then` once the project is emitted.
+   */
+  private recheckOnThreads(
+    task: BuildTask,
+    checked: CheckedProgram,
+    times: CompileTimes,
+    oldSnapshot: Snapshot,
+    count: number,
+    then: () => void,
+  ): boolean {
+    // The program is shared before its checker does more than merge the globals.
+    if (sharesPublishedGraphs) shareWithCheckers(checked);
+    const incrementalProgram = this.incrementalProgramOf(task, checked, times, oldSnapshot);
+    const options = checked.program.options;
+    // Reporting checks only programs without syntactic, program and global errors (getDiagnosticsOfProgram).
+    if (
+      !sharesPublishedGraphs ||
+      options.listFilesOnly === true ||
+      incrementalProgram.getSyntacticDiagnostics().length > 0 ||
+      incrementalProgram.getProgramDiagnostics().length > 0 ||
+      incrementalProgram.getGlobalDiagnostics(false).length > 0
+    ) {
+      this.emitAndReport(task, checked, times, oldSnapshot, undefined, incrementalProgram);
+      return false;
+    }
+    const files = incrementalProgram.filesToCheck();
+    if (!rechecksOnThreads(files, count, options.checkers !== undefined)) {
+      this.emitAndReport(task, checked, times, oldSnapshot, undefined, incrementalProgram);
+      return false;
+    }
+    checked.checkOnly = new Set(files);
+    const emits = options.composite !== true;
+    startParallelCheck(
+      checked,
+      count,
+      (checkTime) => {
+        this.emitAndReport(task, checked, times, oldSnapshot, checkTime, incrementalProgram);
+        then();
+      },
+      emits,
+      emits ? incrementalProgram.emitKindsOnCheckers(files) : undefined,
+    );
+    return true;
+  }
+
+  /** The incremental program of `task`'s checked program and its old build info. */
+  private incrementalProgramOf(
+    task: BuildTask,
+    checked: CheckedProgram,
+    times: CompileTimes,
+    oldSnapshot: Snapshot | undefined,
+  ): IncrementalProgram {
+    const changesStart = performance.now();
+    const incrementalProgram = new IncrementalProgram(checked, times, oldSnapshot, new SystemTimeStamps(this.sys));
+    times.changesComputeTime = performance.now() - changesStart;
+    task.program = incrementalProgram;
+    return incrementalProgram;
+  }
+
   /** Emits and reports `task`'s checked program, the rest of `compileAndEmit`. */
   private emitAndReport(
     task: BuildTask,
@@ -781,14 +855,13 @@ export class Orchestrator {
     oldSnapshot: Snapshot | undefined,
     /** The wall time of checker threads that checked the program, as reported. */
     parallelCheckTime: number | undefined,
+    /** The incremental program, where `recheckOnThreads` made it. */
+    made?: IncrementalProgram,
   ): void {
     const resolved = task.resolved!;
     const sys = this.sys;
     const program = checked.program;
-    const changesStart = performance.now();
-    const incrementalProgram = new IncrementalProgram(checked, times, oldSnapshot, new SystemTimeStamps(sys));
-    times.changesComputeTime = performance.now() - changesStart;
-    task.program = incrementalProgram;
+    const incrementalProgram = made ?? this.incrementalProgramOf(task, checked, times, oldSnapshot);
 
     const result = emitFilesAndReportErrors(
       sys,
