@@ -26,6 +26,50 @@ export abstract class OutputWriter {
   abstract write(fileName: string, text: string, declarationDiagnostics: readonly Diagnostic[]): string;
 }
 
+/** Keeps the outputs written to it, as file name and text alternately, instead of writing them. */
+export class HoldingWriter extends OutputWriter {
+  private outputs: string[] = [];
+
+  write(fileName: string, text: string, _declarationDiagnostics: readonly Diagnostic[]): string {
+    this.outputs.push(fileName, text);
+    return '';
+  }
+
+  /** The outputs kept since the last call. */
+  take(): string[] {
+    const outputs = this.outputs;
+    this.outputs = [];
+    return outputs;
+  }
+}
+
+/**
+ * Writes the outputs a checker thread held (`EmitResult.heldOutputs`) with `writer`; returns the emit
+ * result as if the thread had written them: an output that fails to be written is an error instead of
+ * an emitted file.
+ */
+export function writeHeldOutputs(result: EmitResult, writer: OutputWriter): EmitResult {
+  const held = result.heldOutputs;
+  let failed: Map<string, string> | undefined = undefined;
+  for (let i = 0; i < held.length; i += 2) {
+    const error = writer.write(held[i]!, held[i + 1]!, []);
+    if (error !== '' && error !== skippedWrite) {
+      if (failed === undefined) failed = new Map<string, string>();
+      failed.set(held[i]!, error);
+    }
+  }
+  if (failed === undefined) return result;
+  const copy = new EmitResult();
+  copy.emitSkipped = result.emitSkipped;
+  for (const f of result.emittedFiles) if (!failed.has(f)) copy.emittedFiles.push(f);
+  for (const e of result.errors) copy.errors.push(e);
+  for (const e of failed.values()) copy.errors.push(e);
+  for (const u of result.unsupported) copy.unsupported.push(u);
+  for (const d of result.diagnostics) copy.diagnostics.push(d);
+  for (const s of result.declarationSignatures) copy.declarationSignatures.push(s);
+  return copy;
+}
+
 /** Collects what a forced declaration emit produces instead of writing it. */
 export class CapturingWriter extends OutputWriter {
   /** Whether a file was written; its text can be empty. */
@@ -267,7 +311,14 @@ export class PlainProgram extends CompilerProgram {
     const result =
       parallel === undefined
         ? this.emitter.emit(files, EmitOnly.All, writer)
-        : combineEmitResults(files.map((file, i) => parallel[i] ?? this.emitter.emit([file], EmitOnly.All, writer)));
+        : combineEmitResults(
+            files.map((file, i) => {
+              const emitted = parallel[i];
+              return emitted !== undefined
+                ? writeHeldOutputs(emitted, writer)
+                : this.emitter.emit([file], EmitOnly.All, writer);
+            }),
+          );
     // Emit is skipped only for files that would have been emitted.
     if (options.noEmit === true) result.emitSkipped = files.some((file) => program.sourceFileMayBeEmitted(file, false));
     return result;

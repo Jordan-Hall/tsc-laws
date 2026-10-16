@@ -26,7 +26,7 @@ import { mark, markAt, timeline } from './timeline.js';
 import type { Worker } from 'node:worker_threads';
 import { publish, sharesPublishedGraphs } from '@scriptc/threads';
 import { lastNodeIdValue } from './ast.js';
-import { declarationDiagnosticsOfFile, type OutputWriter, ProgramEmitter } from './compile-program.js';
+import { declarationDiagnosticsOfFile, HoldingWriter, type OutputWriter, ProgramEmitter } from './compile-program.js';
 import { Diagnostic, DiagnosticFile, RepopulateInfo } from './diagnostics.js';
 import { EmitOnly, EmitResult } from './emitter.js';
 import { getEmitDeclarations, isIncremental } from './options.js';
@@ -181,6 +181,7 @@ class ResultPacker {
     this.strList(result.unsupported);
     this.list(result.diagnostics);
     this.strList(result.declarationSignatures);
+    this.strList(result.heldOutputs);
   }
 
   private diagnostic(d: Diagnostic): void {
@@ -307,6 +308,7 @@ class ResultUnpacker {
     this.strList(result.unsupported);
     for (const d of this.list()) result.diagnostics.push(d);
     this.strList(result.declarationSignatures);
+    this.strList(result.heldOutputs);
     return result;
   }
 }
@@ -351,21 +353,28 @@ function checkersReportDeclarations(checked: CheckedProgram): boolean {
 }
 
 /**
+ * Records in the shared schedule that a checked file has diagnostics, which under `noEmitOnError`
+ * keeps the program from emitting: checkers stop emitting the files they check.
+ */
+function blockEmit(schedule: Int32Array): void {
+  Atomics.store(schedule, schedule.length - 1, 1);
+}
+
+function blocksEmit(schedule: Int32Array): boolean {
+  return Atomics.load(schedule, schedule.length - 1) !== 0;
+}
+
+/**
  * Whether checkers emit the files they check, each right after checking it (where they can write
- * files): unless the program doesn't emit, or `noEmitOnError` makes emit wait for every file's
- * diagnostics. The checker that checked a file has its types at hand, and its declarations print
- * as on the checker tsgo emits the file with. The main thread emits the files no checker emitted.
- * With `emits` false checkers don't emit.
+ * files): unless the program doesn't emit. The checker that checked a file has its types at hand, and
+ * its declarations print as on the checker tsgo emits the file with. Under `noEmitOnError`, which
+ * makes emit wait for every file's diagnostics, they hold the outputs (`EmitResult.heldOutputs`) for
+ * the main thread, which writes them if there are no errors. The main thread emits the files no
+ * checker emitted. With `emits` false checkers don't emit.
  */
 function checkersEmit(checked: CheckedProgram, emits: boolean): boolean {
   const options = checked.program.options;
-  return (
-    emits &&
-    parallelCheck.writer !== undefined &&
-    options.noEmit !== true &&
-    options.noEmitOnError !== true &&
-    options.listFilesOnly !== true
-  );
+  return emits && parallelCheck.writer !== undefined && options.noEmit !== true && options.listFilesOnly !== true;
 }
 
 /**
@@ -719,7 +728,7 @@ function isExternalModuleFile(file: SourceFile): boolean {
  * has resolved (one bit per library), and for each position the number of files of the group starting
  * there (0 or 1 for a file of its own). Between the ranges and the costs, the time of the latest
  * retirement (`Date.now()` modulo 2^31, 0 for none) and for each checker whether it retired
- * (`retires`).
+ * (`retires`). The last word is 1 once a checked file has diagnostics (`blocksEmit`).
  *
  * The leading positions are the shared queue: the costliest files, and groups of files that a
  * checker takes as a whole (`checkGroups`), which no other checker takes from it.
@@ -737,7 +746,7 @@ const scheduleHeader = 8;
 export function newSchedule(count: number, positions = 0, libraries = 0, references = 0): SharedArrayBuffer {
   const words = (libraries + 31) >> 5;
   const plan = positions === 0 ? 0 : 3 * positions + 1 + references + libraries + count * words;
-  const buffer = new SharedArrayBuffer(4 * (scheduleHeader + 3 * count + 1 + plan));
+  const buffer = new SharedArrayBuffer(4 * (scheduleHeader + 3 * count + 1 + plan + 1));
   const schedule = new Int32Array(buffer);
   schedule[3] = count;
   if (positions > 0) {
@@ -1401,7 +1410,10 @@ export function checkFromQueue(
   const declarations: Diagnostic[][] = [];
   const emits: EmitResult[] = [];
   // Emit (or declaration emit) of a file right after checking it, with this checker.
-  const writer = checkersEmit(checked, emit) ? parallelCheck.writer : undefined;
+  const emitting = checkersEmit(checked, emit);
+  // Under `noEmitOnError` emit waits for every file's diagnostics: outputs are held for the main thread.
+  const holding = emitting && checked.program.options.noEmitOnError === true ? new HoldingWriter() : undefined;
+  const writer = emitting ? (holding ?? parallelCheck.writer) : undefined;
   const emitter = writer !== undefined || checkersReportDeclarations(checked) ? new ProgramEmitter(checked) : undefined;
   // An incremental program records the signatures of the declaration files on the main thread.
   const options = checked.program.options;
@@ -1433,7 +1445,9 @@ export function checkFromQueue(
     const i = order[k]!;
     done.push(i);
     const fileStart = verbose || timeline ? performance.now() : 0;
-    diagnostics.push(checked.semanticDiagnosticsOfFile(files[i]!));
+    const fileDiagnostics = checked.semanticDiagnosticsOfFile(files[i]!);
+    diagnostics.push(fileDiagnostics);
+    if (holding !== undefined && fileDiagnostics.length > 0) blockEmit(counter);
     if (timeline)
       markAt(
         fileStart,
@@ -1443,7 +1457,12 @@ export function checkFromQueue(
       process.stderr.write(
         `checkers: file ${index} ${(performance.now() - fileStart).toFixed(1)}ms ${files[i]!.text.length} ${files[i]!.fileName}\n`,
       );
-    if (writer !== undefined) {
+    if (holding !== undefined && blocksEmit(counter)) {
+      // The program won't emit (`handleNoEmitOnError`).
+      const skipped = new EmitResult();
+      skipped.emitSkipped = true;
+      emits.push(skipped);
+    } else if (writer !== undefined) {
       const emitStart = timeline ? performance.now() : 0;
       const kind = (emitKinds === undefined ? EmitOnly.All : emitKinds[i]!) as EmitOnly;
       if (kind < 0) emits.push(new EmitResult());
@@ -1451,8 +1470,13 @@ export function checkFromQueue(
         signatures.file = files[i]!;
         const result = emitter!.emit([files[i]!], kind, signatures);
         for (const s of signatures.take()) result.declarationSignatures.push(s);
+        if (holding !== undefined) for (const o of holding.take()) result.heldOutputs.push(o);
         emits.push(result);
-      } else emits.push(emitter!.emit([files[i]!], kind, writer));
+      } else {
+        const result = emitter!.emit([files[i]!], kind, writer);
+        if (holding !== undefined) for (const o of holding.take()) result.heldOutputs.push(o);
+        emits.push(result);
+      }
       if (timeline) markAt(emitStart, `emit ${(performance.now() - emitStart).toFixed(1)} ${files[i]!.fileName}`);
     } else if (emitter !== undefined) declarations.push(declarationDiagnosticsOfFile(emitter, files[i]!));
   }
@@ -1780,6 +1804,7 @@ class Revival {
     for (const u of copy.unsupported) result.unsupported.push(u);
     for (const d of copy.diagnostics) result.diagnostics.push(this.diagnostic(d));
     for (const s of copy.declarationSignatures) result.declarationSignatures.push(s);
+    for (const o of copy.heldOutputs) result.heldOutputs.push(o);
     return result;
   }
 
