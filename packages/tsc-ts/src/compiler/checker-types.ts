@@ -169,6 +169,11 @@ export const enum ObjectFlags {
   IdenticalBaseTypeExists = 1 << 28,
   UnresolvedMembers = 1 << 29,
   FromTypeNode = 1 << 30,
+  /**
+   * The type keeps the state that is computed lazily in the checker's side tables instead of its
+   * own fields, which stay unset (`sideOf`). Every type with `TSC_TS_SIDE_STATE=1`.
+   */
+  SideState = 1 << 31,
   // Unions, intersections and substitutions only.
   IsGenericTypeComputed = 1 << 22,
   IsGenericObjectType = 1 << 23,
@@ -217,6 +222,8 @@ export const enum SignatureFlags {
   IsUntypedSignatureInJSFile = 1 << 6,
   IsNonInferrable = 1 << 7,
   IsSignatureCandidateForOverloadFailure = 1 << 8,
+  /** The signature keeps its lazily computed state in the checker's side tables (`signatureSideOf`). */
+  SideState = 1 << 9,
   PropagatingFlags = HasRestParameter |
     HasLiteralTypes |
     Construct |
@@ -498,6 +505,12 @@ export function typeExtra(t: Type): TypeExtra {
  * The base of every type. Narrow by `flags` (and `objectFlags` for object types), then cast to
  * the subclass, as tsgo does with `AsUnionType()` etc.
  */
+/**
+ * `TSC_TS_SIDE_STATE=1` (a test of the side tables): every type and signature keeps its lazily
+ * computed state in the checker's side tables (`ObjectFlags.SideState`, `SignatureFlags.SideState`).
+ */
+export const sideStateForAll: boolean = process.env.TSC_TS_SIDE_STATE === '1';
+
 export class Type implements ProgramLifetime {
   flags: TypeFlags;
   objectFlags: ObjectFlags;
@@ -511,7 +524,7 @@ export class Type implements ProgramLifetime {
 
   constructor(flags: TypeFlags, objectFlags: ObjectFlags, id: number, symbol: Symbol | undefined) {
     this.flags = flags;
-    this.objectFlags = objectFlags;
+    this.objectFlags = sideStateForAll ? objectFlags | ObjectFlags.SideState : objectFlags;
     this.id = id | 0;
     this.symbol = symbol;
     this.alias = undefined;
@@ -1135,7 +1148,7 @@ export class Signature implements ProgramLifetime {
     minArgumentCount: number,
   ) {
     this.id = id | 0;
-    this.flags = flags;
+    this.flags = sideStateForAll ? flags | SignatureFlags.SideState : flags;
     this.minArgumentCount = minArgumentCount | 0;
     this.resolvedMinArgumentCount = -1;
     this.declaration = declaration;

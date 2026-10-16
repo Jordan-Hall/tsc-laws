@@ -471,7 +471,7 @@ function padObjectLiteralType(c: Checker, t: Type, pattern: Node): Type {
     members.set(symbol.name, symbol);
   }
   const result = createAnonymousType(c, t.symbol, members, [], [], getIndexInfosOfType(c, t));
-  result.objectFlags = t.objectFlags;
+  result.objectFlags = (t.objectFlags & ~ObjectFlags.SideState) | (result.objectFlags & ObjectFlags.SideState);
   return result;
 }
 

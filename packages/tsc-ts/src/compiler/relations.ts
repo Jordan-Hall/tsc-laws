@@ -1,5 +1,6 @@
 // Type relations: identity, subtype, strict subtype, assignability and comparability, with
 // tsgo's result caching, recursion limits, variance measurement and error elaboration.
+import { lazyObjectFlags, sideOf, sideOfIfAny } from './side-state.js';
 import { ModifierFlags, type Node, type ConditionalTypeNode, getExpression, getName, getText } from './ast.js';
 import { getSymbolNameForPrivateIdentifier } from './binder.js';
 import { getCombinedModifierFlags } from './binder-utilities.js';
@@ -531,7 +532,8 @@ function isLiteralRelatedByPrimitiveUnionForms(c: Checker, source: Type, target:
 function literalRelatedToPrimitiveUnion(c: Checker, source: Type, target: UnionType): boolean {
   const literal = source as LiteralType;
   // Typed: scriptc can't pass the narrowed LiteralType field as a Type.
-  const alternateForm: Type | undefined = source === literal.regularType ? literal.freshType : literal.regularType;
+  const alternateForm: Type | undefined =
+    source === literal.regularType ? (literal.freshType ?? sideOfIfAny(c, literal)?.freshType) : literal.regularType;
   let primitive: Type | undefined;
   if ((source.flags & TypeFlags.StringLiteral) !== 0) primitive = c.stringType;
   else if ((source.flags & TypeFlags.NumberLiteral) !== 0) primitive = c.numberType;
@@ -689,8 +691,9 @@ function someTypeIsEmptyAnonymousObject(c: Checker, types: readonly Type[]): boo
 
 export function isUnknownLikeUnionType(c: Checker, t: Type): boolean {
   if (!c.strictNullChecks || (t.flags & TypeFlags.Union) === 0) return false;
-  if ((t.objectFlags & ObjectFlags.IsUnknownLikeUnionComputed) === 0) {
-    t.objectFlags |= ObjectFlags.IsUnknownLikeUnionComputed;
+  const side = sideOf(c, t);
+  if ((side.objectFlags & ObjectFlags.IsUnknownLikeUnionComputed) === 0) {
+    side.objectFlags |= ObjectFlags.IsUnknownLikeUnionComputed;
     const types = typesOf(t);
     if (
       types.length >= 3 &&
@@ -698,9 +701,9 @@ export function isUnknownLikeUnionType(c: Checker, t: Type): boolean {
       (types[1]!.flags & TypeFlags.Null) !== 0 &&
       someTypeIsEmptyAnonymousObject(c, types)
     )
-      t.objectFlags |= ObjectFlags.IsUnknownLikeUnion;
+      side.objectFlags |= ObjectFlags.IsUnknownLikeUnion;
   }
-  return (t.objectFlags & ObjectFlags.IsUnknownLikeUnion) !== 0;
+  return (side.objectFlags & ObjectFlags.IsUnknownLikeUnion) !== 0;
 }
 
 function isEnumTypeRelatedTo(c: Checker, source: Symbol, target: Symbol, reporter: Relater | undefined): boolean {
@@ -3423,7 +3426,7 @@ export class Relater extends TypeComparer {
         return;
     } else if (
       (originalTarget.flags & TypeFlags.Intersection) !== 0 &&
-      (originalTarget.objectFlags & ObjectFlags.IsNeverIntersection) !== 0
+      (lazyObjectFlags(c, originalTarget) & ObjectFlags.IsNeverIntersection) !== 0
     ) {
       const props = getPropertiesOfUnionOrIntersectionType(c, originalTarget as IntersectionType);
       let message =
@@ -3688,8 +3691,9 @@ export function getSingleBaseForNonAugmentingSubtype(c: Checker, t: Type): Type 
   if ((reference.target!.objectFlags & ObjectFlags.ClassOrInterface) === 0) return undefined;
   const target = reference.target as InterfaceType;
   const key = cachedTypeKey(CachedTypeKind.EquivalentBaseType, t.id);
-  if ((t.objectFlags & ObjectFlags.IdenticalBaseTypeCalculated) !== 0) return c.cachedTypesById.get(key);
-  t.objectFlags |= ObjectFlags.IdenticalBaseTypeCalculated;
+  const side = sideOf(c, t);
+  if ((side.objectFlags & ObjectFlags.IdenticalBaseTypeCalculated) !== 0) return c.cachedTypesById.get(key);
+  side.objectFlags |= ObjectFlags.IdenticalBaseTypeCalculated;
   if ((target.objectFlags & ObjectFlags.Class) !== 0) {
     // Only base types named by simple qualified names; others may refer back to the class.
     const declaration = target.symbol?.valueDeclaration;

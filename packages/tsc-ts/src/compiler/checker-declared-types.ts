@@ -1,5 +1,6 @@
 // Declared types: classes, interfaces, type aliases, enums and type parameters, with their base
 // types, constraints and defaults.
+import { sideOf } from './side-state.js';
 import { getInferredTypeParameterConstraint } from './checker-inference.js';
 import {
   EnumDeclaration,
@@ -76,6 +77,7 @@ import {
   getResolvedBaseConstraint,
   getReturnTypeOfSignature,
   getSignaturesOfType,
+  membersHolder,
   resolveStructuredTypeMembers,
 } from './checker-members.js';
 import { checkExpression } from './checker-expressions.js';
@@ -140,8 +142,9 @@ export function getDeclaredTypeOfClassOrInterface(c: Checker, symbol: Symbol): I
       type.allTypeParameters = typeParameters;
       type.outerTypeParameterCount = outerTypeParameters.length;
       type.resolvedTypeArguments = type.typeParameters();
-      type.instantiations = new TypeListCache<Type>();
-      type.instantiations.set(
+      const instantiations = new TypeListCache<Type>();
+      sideOf(c, type).instantiations = instantiations;
+      instantiations.set(
         typeListHash(type.resolvedTypeArguments, undefined, 0),
         type.resolvedTypeArguments,
         undefined,
@@ -522,20 +525,20 @@ export function isNumericLiteralName(name: string): boolean {
 
 export function getBaseTypes(c: Checker, t: Type): Type[] {
   if ((t.objectFlags & (ObjectFlags.ClassOrInterface | ObjectFlags.Tuple)) === 0) return emptyTypes;
-  const data = t as InterfaceType;
+  const data = sideOf(c, t as InterfaceType);
   if (!data.baseTypesResolved) {
     if (!pushTypeResolution(c, t, TypeSystemPropertyName.ResolvedBaseTypes)) return data.resolvedBaseTypes;
     if ((t.objectFlags & ObjectFlags.Tuple) !== 0) data.resolvedBaseTypes = [getTupleBaseType(c, t as TupleType)];
     else {
-      if ((t.symbol!.flags & SymbolFlags.Class) !== 0) resolveBaseTypesOfClass(c, data);
-      if ((t.symbol!.flags & SymbolFlags.Interface) !== 0) resolveBaseTypesOfInterface(c, data);
+      if ((t.symbol!.flags & SymbolFlags.Class) !== 0) resolveBaseTypesOfClass(c, t as InterfaceType);
+      if ((t.symbol!.flags & SymbolFlags.Interface) !== 0) resolveBaseTypesOfInterface(c, t as InterfaceType);
     }
     if (!popTypeResolution(c))
       for (const declaration of t.symbol!.declarations)
         if (declaration.kind === SyntaxKind.ClassDeclaration || declaration.kind === SyntaxKind.InterfaceDeclaration)
           reportCircularBaseType(c, declaration, t);
     // Circular defaults may leave members partially resolved; reset them.
-    t.objectFlags &= ~ObjectFlags.MembersResolved;
+    membersHolder(c, t).objectFlags &= ~ObjectFlags.MembersResolved;
     data.baseTypesResolved = true;
   }
   return data.resolvedBaseTypes;
@@ -599,7 +602,7 @@ function resolveBaseTypesOfClass(c: Checker, t: InterfaceType): void {
     );
     return;
   }
-  t.resolvedBaseTypes = [reducedBaseType];
+  sideOf(c, t).resolvedBaseTypes = [reducedBaseType];
 }
 
 export function getInstantiatedConstructorsForTypeArguments(
@@ -634,8 +637,9 @@ function resolveBaseTypesOfInterface(c: Checker, t: InterfaceType): void {
       if (isErrorType(c, baseType)) continue;
       if (isValidBaseType(c, baseType)) {
         if (t.id !== baseType.id && !hasBaseType(c, baseType, t)) {
-          if (t.resolvedBaseTypes === emptyTypes) t.resolvedBaseTypes = [baseType];
-          else t.resolvedBaseTypes.push(baseType);
+          const side = sideOf(c, t);
+          if (side.resolvedBaseTypes === emptyTypes) side.resolvedBaseTypes = [baseType];
+          else side.resolvedBaseTypes.push(baseType);
         } else reportCircularBaseType(c, declaration, t);
       } else
         c.error(
@@ -688,11 +692,12 @@ export function hasBaseType(c: Checker, t: Type, checkBase: Type): boolean {
 }
 
 export function getBaseConstructorTypeOfClass(c: Checker, t: InterfaceType): Type {
-  if (t.resolvedBaseConstructorType !== undefined) return t.resolvedBaseConstructorType;
+  const side = sideOf(c, t);
+  if (side.resolvedBaseConstructorType !== undefined) return side.resolvedBaseConstructorType;
   const declaration = getClassLikeDeclarationOfSymbol(t.symbol!);
   const baseTypeNode = declaration !== undefined ? getExtendsHeritageClauseElement(declaration) : undefined;
   if (baseTypeNode === undefined) {
-    t.resolvedBaseConstructorType = c.undefinedType;
+    side.resolvedBaseConstructorType = c.undefinedType;
     return c.undefinedType;
   }
   if (!pushTypeResolution(c, t, TypeSystemPropertyName.ResolvedBaseConstructorType)) return c.errorType;
@@ -705,8 +710,8 @@ export function getBaseConstructorTypeOfClass(c: Checker, t: InterfaceType): Typ
       Diagnostics.X_0_is_referenced_directly_or_indirectly_in_its_own_base_expression,
       symbolToString(c, t.symbol!),
     );
-    if (t.resolvedBaseConstructorType === undefined) t.resolvedBaseConstructorType = c.errorType;
-    return t.resolvedBaseConstructorType;
+    if (side.resolvedBaseConstructorType === undefined) side.resolvedBaseConstructorType = c.errorType;
+    return side.resolvedBaseConstructorType;
   }
   if (
     (baseConstructorType.flags & TypeFlags.Any) === 0 &&
@@ -718,11 +723,11 @@ export function getBaseConstructorTypeOfClass(c: Checker, t: InterfaceType): Typ
       Diagnostics.Type_0_is_not_a_constructor_function_type,
       typeToString(c, baseConstructorType),
     );
-    if (t.resolvedBaseConstructorType === undefined) t.resolvedBaseConstructorType = c.errorType;
-    return t.resolvedBaseConstructorType;
+    if (side.resolvedBaseConstructorType === undefined) side.resolvedBaseConstructorType = c.errorType;
+    return side.resolvedBaseConstructorType;
   }
-  if (t.resolvedBaseConstructorType === undefined) t.resolvedBaseConstructorType = baseConstructorType;
-  return t.resolvedBaseConstructorType;
+  if (side.resolvedBaseConstructorType === undefined) side.resolvedBaseConstructorType = baseConstructorType;
+  return side.resolvedBaseConstructorType;
 }
 
 export function isConstructorType(c: Checker, t: Type): boolean {
@@ -776,7 +781,10 @@ export function getConstraintDeclaration(t: Type): Node | undefined {
 export function getConstraintFromTypeParameter(c: Checker, t: Type): Type | undefined {
   if ((t.flags & TypeFlags.TypeParameter) === 0) return undefined;
   const tp = t as TypeParameter;
-  if (tp.constraint === undefined) {
+  // Type parameters created with a constraint have it inline; others get it on first use.
+  if (tp.constraint !== undefined) return tp.constraint !== c.noConstraintType ? tp.constraint : undefined;
+  const side = sideOf(c, tp);
+  if (side.constraint === undefined) {
     let constraint: Type | undefined;
     if (tp.target !== undefined) {
       const targetConstraint = getConstraintOfTypeParameter(c, tp.target);
@@ -791,9 +799,9 @@ export function getConstraintFromTypeParameter(c: Checker, t: Type): Type | unde
             declaration.parent!.parent!.kind === SyntaxKind.MappedType ? c.stringNumberSymbolType : c.unknownType;
       } else constraint = getInferredTypeParameterConstraint(c, t);
     }
-    tp.constraint = constraint ?? c.noConstraintType;
+    side.constraint = constraint ?? c.noConstraintType;
   }
-  return tp.constraint !== c.noConstraintType ? tp.constraint : undefined;
+  return side.constraint !== c.noConstraintType ? side.constraint : undefined;
 }
 
 export function getDefaultFromTypeParameter(c: Checker, t: Type): Type | undefined {
@@ -803,13 +811,14 @@ export function getDefaultFromTypeParameter(c: Checker, t: Type): Type | undefin
 }
 
 export function getResolvedTypeParameterDefault(c: Checker, t: TypeParameter): Type {
-  if (t.resolvedDefaultType === undefined) {
+  const side = sideOf(c, t);
+  if (side.resolvedDefaultType === undefined) {
     if (t.target !== undefined) {
       const targetDefault = getResolvedTypeParameterDefault(c, t.target as TypeParameter);
-      t.resolvedDefaultType = instantiateType(c, targetDefault, t.mapper);
+      side.resolvedDefaultType = instantiateType(c, targetDefault, t.mapper);
     } else {
       // Block recursion while resolving.
-      t.resolvedDefaultType = c.resolvingDefaultType;
+      side.resolvedDefaultType = c.resolvingDefaultType;
       let defaultType: Type = c.noConstraintType;
       if (t.symbol !== undefined)
         for (const d of t.symbol.declarations)
@@ -820,10 +829,10 @@ export function getResolvedTypeParameterDefault(c: Checker, t: TypeParameter): T
               break;
             }
           }
-      if (t.resolvedDefaultType === c.resolvingDefaultType) t.resolvedDefaultType = defaultType;
+      if (side.resolvedDefaultType === c.resolvingDefaultType) side.resolvedDefaultType = defaultType;
     }
-  } else if (t.resolvedDefaultType === c.resolvingDefaultType) t.resolvedDefaultType = c.circularConstraintType;
-  return t.resolvedDefaultType;
+  } else if (side.resolvedDefaultType === c.resolvingDefaultType) side.resolvedDefaultType = c.circularConstraintType;
+  return side.resolvedDefaultType;
 }
 
 export function getDefaultOrUnknownFromTypeParameter(c: Checker, t: Type): Type {

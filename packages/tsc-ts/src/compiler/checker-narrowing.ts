@@ -1,5 +1,6 @@
 // Control flow analysis: the type of a reference at a position, walking the binder's flow graph
 // backwards from the reference through assignments, conditions, calls and labels.
+import { sideOf } from './side-state.js';
 import {
   type ForInOrOfStatement,
   type MetaProperty,
@@ -1973,17 +1974,19 @@ function narrowTypeByDiscriminantProperty(
 
 /** The name of a property usable to index the constituents of a large union by literal values, or ''. */
 export function getKeyPropertyName(c: Checker, t: UnionType): string {
-  if (t.keyPropertyName === '') computeKeyPropertyNameAndMap(c, t);
-  return t.keyPropertyName === InternalSymbolName.Missing ? '' : t.keyPropertyName;
+  const side = sideOf(c, t);
+  if (side.keyPropertyName === '') computeKeyPropertyNameAndMap(c, t, side);
+  return side.keyPropertyName === InternalSymbolName.Missing ? '' : side.keyPropertyName;
 }
 
 export function getConstituentTypeForKeyType(c: Checker, t: UnionType, keyType: Type): Type | undefined {
-  const result = t.constituentMap?.get(getRegularTypeOfLiteralType(c, keyType));
+  const result = sideOf(c, t).constituentMap?.get(getRegularTypeOfLiteralType(c, keyType));
   return result !== c.unknownType ? result : undefined;
 }
 
-function computeKeyPropertyNameAndMap(c: Checker, t: UnionType): void {
-  t.keyPropertyName = InternalSymbolName.Missing;
+/** Computes the key property of `t` and its constituents by key into `side`, the holder of its state. */
+function computeKeyPropertyNameAndMap(c: Checker, t: UnionType, side: UnionType): void {
+  side.keyPropertyName = InternalSymbolName.Missing;
   const types = t.types;
   let objectCount = 0;
   for (const u of types) if ((u.flags & (TypeFlags.Object | TypeFlags.InstantiableNonPrimitive)) !== 0) objectCount++;
@@ -2019,8 +2022,8 @@ function computeKeyPropertyNameAndMap(c: Checker, t: UnionType): void {
     if (!duplicate) count++;
   }
   if (count >= 10 && count * 2 >= types.length) {
-    t.keyPropertyName = keyPropertyName;
-    t.constituentMap = map;
+    side.keyPropertyName = keyPropertyName;
+    side.constituentMap = map;
   }
 }
 
@@ -3006,7 +3009,8 @@ function addEvolvingArrayElementType(c: Checker, evolvingArrayType: Type, node: 
 export function finalizeEvolvingArrayType(c: Checker, t: Type): Type {
   if ((t.objectFlags & ObjectFlags.EvolvingArray) === 0) return t;
   const evolving = t as EvolvingArrayType;
-  if (evolving.finalArrayType !== undefined) return evolving.finalArrayType;
+  const side = sideOf(c, evolving);
+  if (side.finalArrayType !== undefined) return side.finalArrayType;
   const elementType = evolving.elementType!;
   const finalArrayType =
     (elementType.flags & TypeFlags.Never) !== 0
@@ -3017,7 +3021,7 @@ export function finalizeEvolvingArrayType(c: Checker, t: Type): Type {
             ? getUnionTypeEx(c, (elementType as UnionType).types, UnionReduction.Subtype, undefined, undefined)
             : elementType,
         );
-  evolving.finalArrayType = finalArrayType;
+  side.finalArrayType = finalArrayType;
   return finalArrayType;
 }
 

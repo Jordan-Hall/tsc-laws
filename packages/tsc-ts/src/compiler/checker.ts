@@ -29,6 +29,7 @@
 // | checker-elaboration.ts          | reporting relation errors at the failing subexpression  |
 // | checker-grammar.ts              | grammar checks                                          |
 // | checker-flow.ts                 | control flow narrowing                                  |
+import { sideOf } from './side-state.js';
 import type { Node, PatternAmbientModule, SourceFile } from './ast.js';
 import { IntLinkTable, LinkTable, SparseLinkTable } from './link-tables.js';
 import { getErrorRangeForNode, getSourceFileOfNode } from './binder-utilities.js';
@@ -326,6 +327,10 @@ export class Checker {
   // created on first use.
   readonly symbolLinkTable = new SparseLinkTable<SymbolLinks>();
   readonly nodeLinkTable = new SparseLinkTable<NodeLinks>();
+  /** The holders of the lazily computed state of types with side state (`sideOf`), by type id. */
+  readonly sideHolders = new LinkTable<Type>();
+  /** The same for signatures with side state (`signatureSideOf`), by signature id. */
+  readonly signatureSideHolders = new LinkTable<Signature>();
   /** The type of a value symbol. */
   readonly symbolTypes = new LinkTable<Type>();
   /** For instantiated and synthetic symbols, the symbol they come from. */
@@ -737,7 +742,7 @@ export class Checker {
       ? getUnionType(this, [this.undefinedType, this.nullType, this.unknownEmptyObjectType])
       : this.unknownType;
     this.emptyGenericType = newAnonymousType(this, undefined);
-    this.emptyGenericType.instantiations = new TypeListCache<Type>();
+    sideOf(this, this.emptyGenericType).instantiations = new TypeListCache<Type>();
     this.anyFunctionType = newAnonymousType(this, undefined);
     this.anyFunctionType.objectFlags |= ObjectFlags.NonInferrableType;
     this.noConstraintType = newAnonymousType(this, undefined);

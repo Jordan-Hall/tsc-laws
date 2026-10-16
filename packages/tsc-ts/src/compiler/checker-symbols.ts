@@ -1,5 +1,6 @@
 // Symbols: merging globals and augmentations, merged and late-bound symbols, aliases, exports,
 // entity names and the checker's name resolver.
+import { sideOf, signatureSideOf } from './side-state.js';
 import { isTypeAssignableToKindEx } from './checker-type-operators.js';
 import {
   BinaryExpression,
@@ -1971,15 +1972,24 @@ function resolutionHasProperty(c: Checker, target: ResolutionTarget, propertyNam
     case TypeSystemPropertyName.DeclaredType:
       return c.symbolLinks(target as Symbol).declaredType !== undefined;
     case TypeSystemPropertyName.ResolvedTypeArguments:
-      return typeReferenceOf(target as Type).resolvedTypeArguments !== undefined;
+      return (
+        typeReferenceOf(target as Type).resolvedTypeArguments !== undefined ||
+        sideOf(c, typeReferenceOf(target as Type)).resolvedTypeArguments !== undefined
+      );
     case TypeSystemPropertyName.ResolvedBaseTypes:
-      return interfaceTypeOf(target as Type).baseTypesResolved;
+      return sideOf(c, interfaceTypeOf(target as Type)).baseTypesResolved;
     case TypeSystemPropertyName.ResolvedBaseConstructorType:
-      return interfaceTypeOf(target as Type).resolvedBaseConstructorType !== undefined;
+      return sideOf(c, interfaceTypeOf(target as Type)).resolvedBaseConstructorType !== undefined;
     case TypeSystemPropertyName.ResolvedReturnType:
-      return (target as Signature).resolvedReturnType !== undefined;
+      return (
+        (target as Signature).resolvedReturnType !== undefined ||
+        signatureSideOf(c, target as Signature).resolvedReturnType !== undefined
+      );
     case TypeSystemPropertyName.ResolvedBaseConstraint:
-      return (target as Type).resolvedBaseConstraint !== undefined;
+      return (
+        (target as Type).resolvedBaseConstraint !== undefined ||
+        sideOf(c, target as Type).resolvedBaseConstraint !== undefined
+      );
     case TypeSystemPropertyName.InitializerIsUndefined:
       return ((c.existingNodeLinks(target as Node)?.flags ?? 0) & (1 << 25)) !== 0;
     case TypeSystemPropertyName.WriteType:

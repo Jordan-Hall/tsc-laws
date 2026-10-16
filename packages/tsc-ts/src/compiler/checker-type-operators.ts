@@ -1,5 +1,6 @@
 // Type operators: `keyof`, indexed access, mapped, conditional, substitution and string mapping
 // types, and genericity tests.
+import { sideOf } from './side-state.js';
 import { getTypeOfPropertyOfContextualType } from './checker-contextual.js';
 import { checkDeprecatedIndexedAccess } from './checker-deprecation.js';
 import { isSelfTypeAccess, markPropertyAsReferenced } from './checker-unused.js';
@@ -112,6 +113,7 @@ import {
   getBaseConstraintOfType,
   getIndexTypeOfType,
   hasPropertiesOfType,
+  memberResolutionFlags,
 } from './checker-members.js';
 import {
   getLateBoundSymbol,
@@ -195,7 +197,9 @@ export function isGenericIndexType(c: Checker, t: Type): boolean {
 
 function getGenericObjectFlags(c: Checker, t: Type): ObjectFlags {
   if ((t.flags & (TypeFlags.UnionOrIntersection | TypeFlags.Substitution)) !== 0) {
-    if ((t.objectFlags & ObjectFlags.IsGenericTypeComputed) === 0) {
+    if ((t.objectFlags & ObjectFlags.IsGenericTypeComputed) !== 0) return t.objectFlags & ObjectFlags.IsGenericType;
+    const side = sideOf(c, t);
+    if ((side.objectFlags & ObjectFlags.IsGenericTypeComputed) === 0) {
       let combined = 0;
       if ((t.flags & TypeFlags.UnionOrIntersection) !== 0)
         for (const u of typesOf(t)) combined |= getGenericObjectFlags(c, u);
@@ -203,9 +207,9 @@ function getGenericObjectFlags(c: Checker, t: Type): ObjectFlags {
         const s = t as SubstitutionType;
         combined = getGenericObjectFlags(c, s.baseType) | getGenericObjectFlags(c, s.constraint);
       }
-      t.objectFlags |= ObjectFlags.IsGenericTypeComputed | combined;
+      side.objectFlags |= ObjectFlags.IsGenericTypeComputed | combined;
     }
-    return t.objectFlags & ObjectFlags.IsGenericType;
+    return side.objectFlags & ObjectFlags.IsGenericType;
   }
   let combined = 0;
   if ((t.flags & TypeFlags.InstantiableNonPrimitive) !== 0 || isGenericMappedType(c, t) || isGenericTupleType(t))
@@ -242,9 +246,10 @@ export function isGenericReducibleType(c: Checker, t: Type): boolean {
 }
 
 function isReducibleIntersection(c: Checker, t: IntersectionType): boolean {
-  if (t.uniqueLiteralFilledInstantiation === undefined)
-    t.uniqueLiteralFilledInstantiation = instantiateType(c, t, c.uniqueLiteralMapper);
-  return getReducedType(c, t.uniqueLiteralFilledInstantiation) !== t.uniqueLiteralFilledInstantiation;
+  const side = sideOf(c, t);
+  if (side.uniqueLiteralFilledInstantiation === undefined)
+    side.uniqueLiteralFilledInstantiation = instantiateType(c, t, c.uniqueLiteralMapper);
+  return getReducedType(c, side.uniqueLiteralFilledInstantiation) !== side.uniqueLiteralFilledInstantiation;
 }
 
 // ---- keyof
@@ -312,7 +317,7 @@ export function getLiteralTypeFromProperties(c: Checker, t: Type, include: TypeF
     ':' +
     include +
     (includeOrigin ? 'o' : '') +
-    ((t.objectFlags & ObjectFlags.UnresolvedMembers) !== 0 ? 'u' : '');
+    ((memberResolutionFlags(c, t) & ObjectFlags.UnresolvedMembers) !== 0 ? 'u' : '');
   const cached = c.cachedTypes.get(key);
   if (cached !== undefined) return cached;
   const origin =
@@ -1461,28 +1466,37 @@ export function getTypeFromMappedTypeNode(c: Checker, node: Node): Type {
 }
 
 export function getTypeParameterFromMappedType(c: Checker, t: MappedType): TypeParameter {
-  if (t.typeParameter === undefined)
-    t.typeParameter = getDeclaredTypeOfTypeParameter(c, getSymbolOfDeclaration(c, mappedDeclaration(t).typeParameter)!);
-  return t.typeParameter as TypeParameter;
+  // Instantiations have it from creation; a declared mapped type gets it on first use.
+  if (t.typeParameter !== undefined) return t.typeParameter as TypeParameter;
+  const side = sideOf(c, t);
+  if (side.typeParameter === undefined)
+    side.typeParameter = getDeclaredTypeOfTypeParameter(
+      c,
+      getSymbolOfDeclaration(c, mappedDeclaration(t).typeParameter)!,
+    );
+  return side.typeParameter as TypeParameter;
 }
 
 export function getConstraintTypeFromMappedType(c: Checker, t: MappedType): Type {
-  if (t.constraintType === undefined)
-    t.constraintType = getConstraintOfTypeParameter(c, getTypeParameterFromMappedType(c, t)) ?? c.errorType;
-  return t.constraintType;
+  const side = sideOf(c, t);
+  if (side.constraintType === undefined)
+    side.constraintType = getConstraintOfTypeParameter(c, getTypeParameterFromMappedType(c, t)) ?? c.errorType;
+  return side.constraintType;
 }
 
 export function getNameTypeFromMappedType(c: Checker, t: MappedType): Type | undefined {
+  const side = sideOf(c, t);
   const node = mappedNameTypeNode(t);
   if (node === undefined) return undefined;
-  if (t.nameType === undefined) t.nameType = instantiateType(c, getTypeFromTypeNode(c, node), t.mapper);
-  return t.nameType;
+  if (side.nameType === undefined) side.nameType = instantiateType(c, getTypeFromTypeNode(c, node), t.mapper);
+  return side.nameType;
 }
 
 export function getTemplateTypeFromMappedType(c: Checker, t: MappedType): Type {
-  if (t.templateType === undefined) {
+  const side = sideOf(c, t);
+  if (side.templateType === undefined) {
     const typeNode = mappedDeclaration(t).type;
-    t.templateType =
+    side.templateType =
       typeNode !== undefined
         ? instantiateType(
             c,
@@ -1496,7 +1510,7 @@ export function getTemplateTypeFromMappedType(c: Checker, t: MappedType): Type {
           )
         : c.errorType;
   }
-  return t.templateType;
+  return side.templateType;
 }
 
 function getConstraintDeclarationForMappedType(t: MappedType): Node | undefined {
@@ -1513,10 +1527,11 @@ export function isMappedTypeWithKeyofConstraintDeclaration(c: Checker, t: Mapped
 }
 
 export function getModifiersTypeFromMappedType(c: Checker, t: MappedType): Type {
-  if (t.modifiersType === undefined) {
+  const side = sideOf(c, t);
+  if (side.modifiersType === undefined) {
     if (isMappedTypeWithKeyofConstraintDeclaration(c, t)) {
       // For `keyof T`, the modifiers type is T, read from the node since `keyof` of a concrete T resolves eagerly.
-      t.modifiersType = instantiateType(
+      side.modifiersType = instantiateType(
         c,
         getTypeFromTypeNode(c, getType(getConstraintDeclarationForMappedType(t)!)!),
         t.mapper,
@@ -1526,13 +1541,13 @@ export function getModifiersTypeFromMappedType(c: Checker, t: MappedType): Type 
       const constraint = getConstraintTypeFromMappedType(c, declaredType);
       const extended =
         (constraint.flags & TypeFlags.TypeParameter) !== 0 ? getConstraintOfTypeParameter(c, constraint) : constraint;
-      t.modifiersType =
+      side.modifiersType =
         extended !== undefined && (extended.flags & TypeFlags.Index) !== 0
           ? instantiateType(c, (extended as IndexType).target, t.mapper)
           : c.unknownType;
     }
   }
-  return t.modifiersType;
+  return side.modifiersType;
 }
 
 export function getHomomorphicTypeVariable(c: Checker, t: MappedType): TypeParameter | undefined {
@@ -1680,7 +1695,7 @@ export function getTypeOfMappedSymbol(c: Checker, symbol: Symbol): Type {
   if (cached !== undefined) return cached;
   const mappedType = c.symbolContainingTypes.get(id) as MappedType;
   if (!pushTypeResolution(c, symbol, TypeSystemPropertyName.Type)) {
-    mappedType.containsError = true;
+    sideOf(c, mappedType).containsError = true;
     return c.errorType;
   }
   const templateType = getTemplateTypeFromMappedType(c, mappedTypeTarget(mappedType));
@@ -2140,39 +2155,43 @@ function getTailRecursionRoot(c: Checker, newType: Type, newMapper: TypeMapper |
 }
 
 export function getTrueTypeFromConditionalType(c: Checker, t: ConditionalType): Type {
-  if (t.resolvedTrueType === undefined)
-    t.resolvedTrueType = instantiateType(c, getTypeFromTypeNode(c, conditionalNode(t.root).trueType), t.mapper);
-  return t.resolvedTrueType;
+  const side = sideOf(c, t);
+  if (side.resolvedTrueType === undefined)
+    side.resolvedTrueType = instantiateType(c, getTypeFromTypeNode(c, conditionalNode(t.root).trueType), t.mapper);
+  return side.resolvedTrueType;
 }
 
 export function getFalseTypeFromConditionalType(c: Checker, t: ConditionalType): Type {
-  if (t.resolvedFalseType === undefined)
-    t.resolvedFalseType = instantiateType(c, getTypeFromTypeNode(c, conditionalNode(t.root).falseType), t.mapper);
-  return t.resolvedFalseType;
+  const side = sideOf(c, t);
+  if (side.resolvedFalseType === undefined)
+    side.resolvedFalseType = instantiateType(c, getTypeFromTypeNode(c, conditionalNode(t.root).falseType), t.mapper);
+  return side.resolvedFalseType;
 }
 
 export function getInferredTrueTypeFromConditionalType(c: Checker, t: ConditionalType): Type {
-  if (t.resolvedInferredTrueType === undefined)
-    t.resolvedInferredTrueType =
+  const side = sideOf(c, t);
+  if (side.resolvedInferredTrueType === undefined)
+    side.resolvedInferredTrueType =
       t.combinedMapper !== undefined
         ? instantiateType(c, getTypeFromTypeNode(c, conditionalNode(t.root).trueType), t.combinedMapper)
         : getTrueTypeFromConditionalType(c, t);
-  return t.resolvedInferredTrueType;
+  return side.resolvedInferredTrueType;
 }
 
 export function getDefaultConstraintOfConditionalType(c: Checker, t: ConditionalType): Type {
-  if (t.resolvedDefaultConstraint === undefined) {
+  const side = sideOf(c, t);
+  if (side.resolvedDefaultConstraint === undefined) {
     // The default constraint is the union of the branches, ignoring `never` branches from the check.
     const trueConstraint = getInferredTrueTypeFromConditionalType(c, t);
     const falseConstraint = getFalseTypeFromConditionalType(c, t);
-    t.resolvedDefaultConstraint =
+    side.resolvedDefaultConstraint =
       (trueConstraint.flags & TypeFlags.Any) !== 0
         ? falseConstraint
         : (falseConstraint.flags & TypeFlags.Any) !== 0
           ? trueConstraint
           : getUnionType(c, [trueConstraint, falseConstraint]);
   }
-  return t.resolvedDefaultConstraint;
+  return side.resolvedDefaultConstraint;
 }
 
 export function getConstraintOfConditionalType(c: Checker, t: Type): Type | undefined {
@@ -2192,8 +2211,9 @@ export function getConstraintFromConditionalType(c: Checker, t: Type): Type {
  * removes `undefined` from T. Restrictive instantiations have none: their type parameters are `unknown`.
  */
 export function getConstraintOfDistributiveConditionalType(c: Checker, t: ConditionalType): Type | undefined {
-  if (t.resolvedConstraintOfDistributive === undefined) {
-    t.resolvedConstraintOfDistributive = c.noConstraintType;
+  const side = sideOf(c, t);
+  if (side.resolvedConstraintOfDistributive === undefined) {
+    side.resolvedConstraintOfDistributive = c.noConstraintType;
     if (t.root.isDistributive && !isRestrictiveInstance(c, t)) {
       let constraint: Type | undefined = getSimplifiedType(c, t.checkType, false);
       if (constraint === t.checkType) constraint = getConstraintOfTypeLocal(c, constraint);
@@ -2205,11 +2225,13 @@ export function getConstraintOfDistributiveConditionalType(c: Checker, t: Condit
           true,
           undefined,
         );
-        if ((instantiated.flags & TypeFlags.Never) === 0) t.resolvedConstraintOfDistributive = instantiated;
+        if ((instantiated.flags & TypeFlags.Never) === 0) side.resolvedConstraintOfDistributive = instantiated;
       }
     }
   }
-  return t.resolvedConstraintOfDistributive !== c.noConstraintType ? t.resolvedConstraintOfDistributive : undefined;
+  return side.resolvedConstraintOfDistributive !== c.noConstraintType
+    ? side.resolvedConstraintOfDistributive
+    : undefined;
 }
 
 // ---- Template literal matching
