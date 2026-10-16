@@ -387,8 +387,10 @@ export class Checker {
   readonly unknownSymbol: Symbol;
   readonly globalThisSymbol: Symbol;
   readonly unresolvedSymbols = new Map<string, Symbol>();
-  /** Widening's optional `undefined` properties by the id of the sibling property each stands for. */
+  /** Widening's optional `undefined` properties by the id of the property each is created from. */
   readonly undefinedProperties = new Map<number, Symbol>();
+  /** By file and name, the property that widening's optional `undefined` properties are created from. */
+  readonly firstSiblingProperties = new Map<SourceFile, Map<string, Node>>();
 
   // Interning tables.
   readonly stringLiteralTypes = new Map<string, LiteralType>();
@@ -995,6 +997,7 @@ export function disposeChecker(c: Checker): void {
   c.symbolAccessibilityCaches = undefined;
   c.unresolvedSymbols.clear();
   c.undefinedProperties.clear();
+  c.firstSiblingProperties.clear();
   c.stringLiteralTypes.clear();
   c.numberLiteralTypes.clear();
   c.bigintLiteralTypes.clear();

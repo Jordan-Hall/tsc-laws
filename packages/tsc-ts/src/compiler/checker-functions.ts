@@ -1130,7 +1130,7 @@ class YieldCollector extends NodeVisitor {
 }
 
 /** Collects the return statements of a function body, skipping nested functions and classes. */
-class ReturnCollector {
+export class ReturnCollector {
   readonly returns: ReturnStatement[] = [];
 
   visitStatements(block: Block): void {

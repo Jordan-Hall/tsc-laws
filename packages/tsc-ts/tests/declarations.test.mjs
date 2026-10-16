@@ -206,6 +206,89 @@ test(
   },
 );
 
+/** Emits declarations for `files` (name to lines) with tsgo and tsc-ts, and returns both outputs of `name`. */
+async function emitBoth(files, name, flags) {
+  const dir = tempDir('tsc-ts-declarations-undefined-');
+  const sources = Object.entries(files).map(([file, lines]) => {
+    writeFileSync(join(dir, file), [...lines, ''].join('\n'));
+    return join(dir, file);
+  });
+  const args = [...flags, '--declaration', '--emitDeclarationOnly', '--rootDir', dir];
+  const [, mine] = await Promise.all([
+    run([tsgo, ...args, '--outDir', join(dir, 'expected'), ...sources]),
+    run([...command, ...args, '--outDir', join(dir, 'actual'), ...sources]),
+  ]);
+  assert.equal(mine.stderr.toString(), '');
+  const read = (out) => readFileSync(join(dir, out, name), 'utf8');
+  return { expected: read('expected'), actual: read('actual') };
+}
+
+test(
+  'optional undefined properties of widened object literals are ordered as in tsgo',
+  { skip: !existsSync(tsgo) && 'needs packages/tsgo/dist/tsgo' },
+  async () => {
+    // A property added for a sibling literal takes the declarations of the property of that name in
+    // the file's first union that lacks it in a literal, and is ordered by that one's declaration.
+    // `o` is not a union, so g1's `a` comes after its `b`.
+    const { expected, actual } = await emitBoth(
+      {
+        'a.ts': [
+          'export const o = { a: 1, d: 1 };',
+          'export function g1(x: boolean) {',
+          '  if (x) return { b: 1 };',
+          '  return { a: 1, b: 2 };',
+          '}',
+          'export function g2(x: boolean) {',
+          '  if (x) return { b: 1 };',
+          '  return { b: 2, a: 1 };',
+          '}',
+          'export function g3(x: boolean) {',
+          '  if (x) return { b: 1, c: 1 };',
+          '  return { a: 1, c: 2, d: 3, b: 2 };',
+          '}',
+          'export const g4 = (x: boolean) => (x ? [{ e: { f: 1 } }, { e: {} }] : { e: { g: 1, f: 2 } });',
+        ],
+      },
+      'a.d.ts',
+      baseFlags,
+    );
+    assert.match(expected, /g1\(x: boolean\): \{\n {4}b: number;\n {4}a\?: undefined;/);
+    // In g2, `a` comes first: it is g1's `a`, declared before g2's `b`.
+    assert.match(expected, /g2\(x: boolean\): \{\n {4}a\?: undefined;\n {4}b: number;/);
+    assert.equal(actual, expected);
+  },
+);
+
+test(
+  'optional undefined properties of widened object literals keep their order when an importer infers a later function first',
+  { skip: !existsSync(tsgo) && 'needs packages/tsgo/dist/tsgo' },
+  async () => {
+    // b.ts imports a.ts, which imports b.ts, so b.ts comes first and its declarations infer g2
+    // before g1. tsgo checks each file on its own checker, from the top.
+    const { expected, actual } = await emitBoth(
+      {
+        'a.ts': [
+          'import { r } from "./b";',
+          'export function g1(x: boolean) {',
+          '  if (x) return { b: 1 };',
+          '  return { a: 1, b: 2 };',
+          '}',
+          'export function g2(x: boolean) {',
+          '  if (x) return { b: 1 };',
+          '  return { b: 2, a: 1 };',
+          '}',
+          'export const q = r;',
+        ],
+        'b.ts': ['import { g2 } from "./a";', 'export const r = g2(true);'],
+      },
+      'a.d.ts',
+      baseFlags.filter((flag) => flag !== '--noResolve'),
+    );
+    assert.match(expected, /g2\(x: boolean\): \{\n {4}a\?: undefined;\n {4}b: number;/);
+    assert.equal(actual, expected);
+  },
+);
+
 // Every 25th test case.
 function sample() {
   return [...listFiles(join(cases, 'compiler')), ...listFiles(join(cases, 'conformance'))].filter(
