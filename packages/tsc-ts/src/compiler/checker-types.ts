@@ -578,8 +578,21 @@ export class UniqueESSymbolType extends Type {
  * when it resolves the members; lookups by name instantiate only the member asked for.
  */
 export abstract class PendingMembers {
-  /** Sets `t.membersValue` and `t.propertiesValue` and clears `t.pendingMembers`. */
+  /**
+   * Set when `properties` is built and the members table is not: the type's properties, which then
+   * start with its own members in table order, so lookups by name read them by position.
+   */
+  materializedProperties: Symbol[] | undefined = undefined;
+
+  /**
+   * Sets `t.propertiesValue`. Where the table can be built later from the properties, it sets
+   * `materializedProperties` and keeps `t.pendingMembers`; otherwise it sets `t.membersValue` too and
+   * clears `t.pendingMembers`.
+   */
   abstract materialize(t: StructuredType): void;
+
+  /** Sets `t.membersValue` and `t.propertiesValue` and clears `t.pendingMembers`. */
+  abstract materializeTable(t: StructuredType): void;
 }
 
 /** A type with members: object types, unions and intersections. */
@@ -613,7 +626,7 @@ export class StructuredType extends Type {
 
   get members(): SymbolTable | undefined {
     const pending = this.pendingMembers;
-    if (pending !== undefined) pending.materialize(this);
+    if (pending !== undefined) pending.materializeTable(this);
     return this.membersValue;
   }
 
@@ -623,7 +636,7 @@ export class StructuredType extends Type {
 
   get properties(): Symbol[] {
     const pending = this.pendingMembers;
-    if (pending !== undefined) pending.materialize(this);
+    if (pending !== undefined && pending.materializedProperties === undefined) pending.materialize(this);
     return this.propertiesValue;
   }
 
