@@ -295,6 +295,11 @@ function resolveObjectTypeMembers(
 // base types and their members) is still resolved eagerly and in tsgo's order, so type identities and
 // ids are unchanged. Member symbols come out identical too: whether `instantiateSymbol` keeps a
 // symbol depends on whether its type is resolved yet, so that decision is recorded at resolution.
+//
+// Most reads are of `properties`; the table serves lookups by name. Where the own members are the
+// first properties, in table order, materializing keeps only the properties: lookups by name read
+// them by position (`positions`, shared by the instantiations of a source), and reading `members`
+// builds the table.
 
 // Two bits per member, in table order: whether tsgo puts it in the instantiated table, and whether
 // `instantiateSymbol` keeps the symbol itself.
@@ -302,6 +307,13 @@ const enum MemberState {
   Skipped = 0,
   Instantiated = 1,
   Kept = 3,
+}
+
+/** The number of MemberState.Skipped states (two zero bits) in a word of 16 states. */
+function skippedInWord(word: number): number {
+  let bits = ~(word | (word >>> 1)) & 0x55555555;
+  bits = (bits & 0x33333333) + ((bits >>> 2) & 0x33333333);
+  return Math.imul((bits + (bits >>> 4)) & 0x0f0f0f0f, 0x01010101) >>> 24;
 }
 
 const noBaseTypes: (StructuredType | undefined)[] = [];
@@ -331,6 +343,12 @@ export class PendingInstantiatedMembers extends PendingMembers {
   resolving: boolean;
   /** Members instantiated by name lookups so far. */
   instantiated: Map<string, Symbol> | undefined;
+  /**
+   * With `materializedProperties`, where the table skips members of the source: for each word of
+   * `states` and one past the last, the number of members it skips before the word. Undefined with
+   * `materializedProperties` where it skips none.
+   */
+  skippedBeforeWord: number[] | undefined;
   /** Whether the instantiated table has an own member, and one that isn't optional. */
   readonly hasOwnMembers: boolean;
   readonly hasRequiredOwnMembers: boolean;
@@ -360,10 +378,27 @@ export class PendingInstantiatedMembers extends PendingMembers {
     this.hasBases = false;
     this.resolving = false;
     this.instantiated = undefined;
+    this.skippedBeforeWord = undefined;
   }
 
   state(position: number): MemberState {
     return ((this.states[position >> 4]! >>> ((position & 15) * 2)) & 3) as MemberState;
+  }
+
+  /** The number of members before `position` that the table skips (MemberState.Skipped). */
+  skippedBefore(position: number): number {
+    const states = this.states;
+    const words = position >> 4;
+    const before = this.skippedBeforeWord;
+    let skipped = 0;
+    if (before !== undefined) skipped = before[words]!;
+    else if (this.materializedProperties === undefined)
+      for (let w = 0; w < words; w++) skipped += skippedInWord(states[w]!);
+    else return 0;
+    const rest = position & 15;
+    // The states from `position` on in its word count as kept.
+    if (rest !== 0) skipped += skippedInWord(states[words]! | (0x55555555 << (rest * 2)));
+    return skipped;
   }
 
   /** The member symbol at `position` of the source, instantiated as tsgo would have. */
@@ -381,6 +416,8 @@ export class PendingInstantiatedMembers extends PendingMembers {
   ownMember(name: string): Symbol | undefined {
     const position = this.positions.get(name);
     if (position === undefined || this.state(position) === MemberState.Skipped) return undefined;
+    const materialized = this.materializedProperties;
+    if (materialized !== undefined) return materialized[position - this.skippedBefore(position)];
     let instantiated = this.instantiated;
     if (instantiated !== undefined) {
       const known = instantiated.get(name);
@@ -448,11 +485,14 @@ export class PendingInstantiatedMembers extends PendingMembers {
     if (!this.hasBases) {
       t.membersValue = members;
       t.propertiesValue = getNamedMembers(c, members, t.symbol);
+      this.keepTableOnDemand(t, members, members.size);
       return;
     }
     // While the bases are resolved, tsgo's `properties` holds the own members and its table
     // grows by each base as it is resolved; the rest of resolution continues eagerly.
-    const ownProperties = this.resolving ? getNamedMembers(c, members, t.symbol) : undefined;
+    const resolving = this.resolving;
+    const ownProperties = resolving ? getNamedMembers(c, members, t.symbol) : undefined;
+    const ownCount = members.size;
     const baseTypes = this.baseTypes;
     for (let i = 0; i < baseTypes.length; i++) {
       const base = baseTypes[i];
@@ -460,6 +500,64 @@ export class PendingInstantiatedMembers extends PendingMembers {
     }
     t.membersValue = members;
     t.propertiesValue = ownProperties ?? getNamedMembers(c, members, t.symbol);
+    // Resolving the bases goes on with the table (resolvePendingObjectTypeMembers).
+    if (!resolving) this.keepTableOnDemand(t, members, ownCount);
+  }
+
+  /**
+   * After `materialize`: drops `members`, the table, where `materializeTable` can build it again
+   * from the properties. That holds when the table's first `ownCount` members, its own, are the
+   * members of the source it doesn't skip, in order (two of one name leave a gap), and are the first
+   * properties. Lookups by name then read the properties by position, and lookups of inherited
+   * members go to the bases as before materializing.
+   */
+  private keepTableOnDemand(t: StructuredType, members: SymbolTable, ownCount: number): void {
+    const count = this.sourceTable !== undefined ? this.sourceTable.size : this.sourceList!.length;
+    const skipped = this.skippedBefore(count);
+    const properties = t.propertiesValue;
+    if (ownCount !== count - skipped || properties.length < ownCount) return;
+    let i = 0;
+    for (const symbol of members.values()) {
+      if (i === ownCount) break;
+      if (properties[i++] !== symbol) return;
+    }
+    t.membersValue = undefined;
+    t.pendingMembers = this;
+    this.materializedProperties = properties;
+    if (skipped !== 0) {
+      const before: number[] = [];
+      let sum = 0;
+      for (let w = 0; w < this.states.length; w++) {
+        before.push(sum);
+        sum += skippedInWord(this.states[w]!);
+      }
+      before.push(sum);
+      this.skippedBeforeWord = before;
+    }
+  }
+
+  materializeTable(t: StructuredType): void {
+    const properties = this.materializedProperties;
+    if (properties === undefined) {
+      this.materialize(t);
+      if (t.pendingMembers === undefined) return;
+      this.materializeTable(t);
+      return;
+    }
+    // The table `materialize` built: the own members in order, then what the bases add.
+    t.pendingMembers = undefined;
+    const members = new Map<string, Symbol>();
+    const count = this.sourceTable !== undefined ? this.sourceTable.size : this.sourceList!.length;
+    const ownCount = count - this.skippedBefore(count);
+    this.materializedProperties = undefined;
+    this.skippedBeforeWord = undefined;
+    for (let i = 0; i < ownCount; i++) members.set(properties[i]!.name, properties[i]!);
+    const baseTypes = this.baseTypes;
+    for (let i = 0; i < baseTypes.length; i++) {
+      const base = baseTypes[i];
+      addInheritedMembers(members, base !== undefined ? base.properties : this.baseProperties[i]!);
+    }
+    t.membersValue = members;
   }
 }
 
@@ -676,7 +774,12 @@ function resolvePendingObjectTypeMembers(
     ) {
       const resolved = resolveStructuredTypeMembers(c, instantiatedBaseType);
       const basePending = resolved.pendingMembers;
-      if (basePending !== undefined && !(basePending as PendingInstantiatedMembers).resolving) lazyBase = resolved;
+      if (
+        basePending !== undefined &&
+        basePending.materializedProperties === undefined &&
+        !(basePending as PendingInstantiatedMembers).resolving
+      )
+        lazyBase = resolved;
     }
     const baseProperties = lazyBase === undefined ? getPropertiesOfType(c, instantiatedBaseType) : undefined;
     if (t.pendingMembers === pending) {
@@ -1998,7 +2101,7 @@ function getCostliestConstituent(c: Checker, t: IntersectionType): Type | undefi
     if ((apparent.flags & TypeFlags.Object) === 0) continue;
     const resolved = resolveStructuredTypeMembers(c, apparent);
     const pending = resolved.pendingMembers as PendingInstantiatedMembers | undefined;
-    if (pending !== undefined) {
+    if (pending !== undefined && pending.materializedProperties === undefined) {
       if (pending.positions.size > costliestPending) {
         costliest = current;
         costliestPending = pending.positions.size;
