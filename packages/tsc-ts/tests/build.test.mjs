@@ -694,7 +694,7 @@ const watchProject = {
 
 /**
  * Runs `tsc-ts` with `args` in a new directory with `files` and makes the edits of `steps` (a file and its text, or
- * `null` to remove a directory, files to write in order, or a function of the directory), each once the previous build
+ * `null` to remove a directory, files to write in order, or a function of the directory and the `tsc-ts` process), each once the previous build
  * reported. `prepare` runs on the directory before `tsc-ts`
  * starts, which gets `extraEnv` in its environment. Returns the output and the output directory's files.
  */
@@ -720,7 +720,7 @@ async function watchSequence(args, steps, files = watchProject, prepare = () => 
     await waitFor(1);
     for (let i = 0; i < steps.length; i++) {
       const step = steps[i];
-      if (typeof step === 'function') await step(dir);
+      if (typeof step === 'function') await step(dir, child);
       else if (!Array.isArray(step)) writeFiles(dir, step);
       else if (step[1] === null) rmSync(join(dir, step[0]), { recursive: true });
       else writeFiles(dir, { [step[0]]: step[1] });
@@ -809,6 +809,48 @@ test(
     const restarting = await watchSequence(['--watch'], steps, watchProject, () => {}, { TSC_TS_WATCH_MEMORY: '1' });
     assert.match(expected.output, /error TS2322/);
     assert.equal(restarting.output, expected.output);
+  },
+);
+
+// A config edit restarts the process too once the config reads again: a run of config edits otherwise grows past the
+// limit. Natively on Linux, the supervising process's child is a new process after the edit.
+test(
+  '--watch restarts after a config edit when the watch process is above its limit',
+  { skip: tscTsMissing, timeout: 120_000 },
+  async () => {
+    const children = (child) => {
+      try {
+        return readFileSync(`/proc/${child.pid}/task/${child.pid}/children`, 'utf8').trim();
+      } catch {
+        return '';
+      }
+    };
+    const run = async (memory) => {
+      const workers = [];
+      const steps = [
+        (dir, child) => {
+          workers.push(children(child));
+          writeFiles(dir, {
+            'tsconfig.json': '{"compilerOptions":{"outDir":"out","rootDir":"src","strict":true},"include":["src"]}',
+          });
+        },
+        (dir, child) => {
+          workers.push(children(child));
+          writeFiles(dir, { 'src/a.ts': 'export const a: string = 1;\n' });
+        },
+      ];
+      const result = await watchSequence(['--watch'], steps, watchProject, () => {}, { TSC_TS_WATCH_MEMORY: memory });
+      return { ...result, workers };
+    };
+    const expected = await run('0');
+    const restarting = await run('1');
+    assert.match(expected.output, /error TS2322/);
+    assert.equal(restarting.output, expected.output);
+    assert.deepEqual(restarting.files, expected.files);
+    if (tscTs[0] !== process.execPath && existsSync('/proc/self/task')) {
+      assert.notEqual(restarting.workers[0], '');
+      assert.notEqual(restarting.workers[1], restarting.workers[0]);
+    }
   },
 );
 
