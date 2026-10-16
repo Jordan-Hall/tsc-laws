@@ -268,10 +268,12 @@ function resolveObjectTypeMembers(
           ? getTypeWithThisArgument(c, instantiateType(c, baseType, mapper), thisArgument, false)
           : baseType;
       addInheritedMembers(members, getPropertiesOfType(c, instantiatedBaseType));
-      callSignatures = callSignatures.concat(getSignaturesOfType(c, instantiatedBaseType, SignatureKind.Call));
-      constructSignatures = constructSignatures.concat(
-        getSignaturesOfType(c, instantiatedBaseType, SignatureKind.Construct),
-      );
+      // A base without signatures adds none: no copy of the list then.
+      const baseCallSignatures = getSignaturesOfType(c, instantiatedBaseType, SignatureKind.Call);
+      if (baseCallSignatures.length !== 0) callSignatures = callSignatures.concat(baseCallSignatures);
+      const baseConstructSignatures = getSignaturesOfType(c, instantiatedBaseType, SignatureKind.Construct);
+      if (baseConstructSignatures.length !== 0)
+        constructSignatures = constructSignatures.concat(baseConstructSignatures);
       const inherited =
         instantiatedBaseType !== c.anyType ? getIndexInfosOfType(c, instantiatedBaseType) : [c.anyBaseTypeIndexInfo];
       const added: IndexInfo[] = [];
@@ -302,6 +304,9 @@ const enum MemberState {
   Kept = 3,
 }
 
+const noBaseTypes: (StructuredType | undefined)[] = [];
+const noBaseProperties: (Symbol[] | undefined)[] = [];
+
 export class PendingInstantiatedMembers extends PendingMembers {
   readonly c: Checker;
   /** References: the declared members of the class or interface, by name. */
@@ -318,8 +323,8 @@ export class PendingInstantiatedMembers extends PendingMembers {
    * table is complete (its properties are read on demand), or else the base's properties as read when
    * tsgo reads them.
    */
-  readonly baseTypes: (StructuredType | undefined)[];
-  readonly baseProperties: (Symbol[] | undefined)[];
+  baseTypes: (StructuredType | undefined)[];
+  baseProperties: (Symbol[] | undefined)[];
   /** Whether the type has base types (tsgo copies the instantiated table into a new one then). */
   hasBases: boolean;
   /** While the base types are resolved: `properties` holds the own members only, as in tsgo. */
@@ -349,8 +354,9 @@ export class PendingInstantiatedMembers extends PendingMembers {
     this.mapper = mapper;
     this.states = states;
     this.positions = positions;
-    this.baseTypes = [];
-    this.baseProperties = [];
+    // Most instantiations have no base types: the lists are created by the first one.
+    this.baseTypes = noBaseTypes;
+    this.baseProperties = noBaseProperties;
     this.hasBases = false;
     this.resolving = false;
     this.instantiated = undefined;
@@ -499,11 +505,26 @@ function pendingInstantiatedTable(
     table,
     undefined,
     mapper,
-    states,
+    sharedStates(declared, states),
     declaredMemberPositions(declared, table),
     hasOwnMembers,
     hasRequiredOwnMembers,
   );
+}
+
+/**
+ * `states`, or the equal list the last instantiation of `source` used: most instantiations of a
+ * source keep and instantiate the same members, and the lists are never changed.
+ */
+function sharedStates(source: InterfaceType, states: number[]): number[] {
+  const last = source.lastMemberStates;
+  if (last !== undefined && last.length === states.length) {
+    let i = 0;
+    while (i < states.length && last[i] === states[i]) i++;
+    if (i === states.length) return last;
+  }
+  source.lastMemberStates = states;
+  return states;
 }
 
 /** The pending table of the properties `list` instantiated with `mapper` (createInstantiatedSymbolTable). */
@@ -659,13 +680,17 @@ function resolvePendingObjectTypeMembers(
     }
     const baseProperties = lazyBase === undefined ? getPropertiesOfType(c, instantiatedBaseType) : undefined;
     if (t.pendingMembers === pending) {
+      if (pending.baseTypes === noBaseTypes) {
+        pending.baseTypes = [];
+        pending.baseProperties = [];
+      }
       pending.baseTypes.push(lazyBase);
       pending.baseProperties.push(baseProperties);
     } else addInheritedMembers(t.membersValue!, baseProperties ?? lazyBase!.properties);
-    callSignatures = callSignatures.concat(getSignaturesOfType(c, instantiatedBaseType, SignatureKind.Call));
-    constructSignatures = constructSignatures.concat(
-      getSignaturesOfType(c, instantiatedBaseType, SignatureKind.Construct),
-    );
+    const baseCallSignatures = getSignaturesOfType(c, instantiatedBaseType, SignatureKind.Call);
+    if (baseCallSignatures.length !== 0) callSignatures = callSignatures.concat(baseCallSignatures);
+    const baseConstructSignatures = getSignaturesOfType(c, instantiatedBaseType, SignatureKind.Construct);
+    if (baseConstructSignatures.length !== 0) constructSignatures = constructSignatures.concat(baseConstructSignatures);
     const inherited =
       instantiatedBaseType !== c.anyType ? getIndexInfosOfType(c, instantiatedBaseType) : [c.anyBaseTypeIndexInfo];
     const added: IndexInfo[] = [];
