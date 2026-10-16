@@ -33,6 +33,17 @@ const skip = (!existsSync(tsgo) && 'needs packages/tsgo/dist/tsgo') || tscTsMiss
 
 /** @type {Record<string, Scenario>} */
 const scenarios = {
+  'errors on intersections reduced to never': {
+    files: {
+      'tsconfig.json': '{"compilerOptions":{"strict":true,"noEmit":true},"files":["a.ts"]}',
+      // TS2339 and TS2509 say which property reduced the intersection to never.
+      'a.ts':
+        'declare class A<T> { private _p: T; a: T }\ndeclare class B { private _p: number; b: string }\n' +
+        'declare function isB(x: unknown): x is B;\ndeclare const x: A<number>;\nif (isB(x)) x.c;\n' +
+        'declare const C: new () => A<number> & B;\nexport class D extends C {}\n',
+    },
+    steps: [{ args: [] }],
+  },
   'stored relation errors with elaborations and related information': {
     files: {
       'tsconfig.json': '{"compilerOptions":{"strict":true,"noEmit":true,"incremental":true},"files":["a.ts","b.ts"]}',

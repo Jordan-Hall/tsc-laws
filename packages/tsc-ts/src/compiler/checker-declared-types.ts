@@ -23,7 +23,8 @@ import { getSourceFileOfNode, isEnumConst, isObjectLiteralMethod } from './binde
 import { Diagnostics } from './diagnostics.js';
 import { type Symbol, SymbolFlags } from './symbol.js';
 import { SyntaxKind } from './syntax-kind.js';
-import type { Checker } from './checker.js';
+import { type Checker, createDiagnosticForNode } from './checker.js';
+import { elaborateNeverIntersection } from './checker-property-access.js';
 import {
   ElementFlags,
   InterfaceType,
@@ -587,11 +588,13 @@ function resolveBaseTypesOfClass(c: Checker, t: InterfaceType): void {
   if (isErrorType(c, baseType)) return;
   const reducedBaseType = getReducedType(c, baseType);
   if (!isValidBaseType(c, reducedBaseType)) {
-    c.error(
-      getExpression(baseTypeNode),
+    const errorNode = getExpression(baseTypeNode)!;
+    const diagnostic = createDiagnosticForNode(
+      errorNode,
       Diagnostics.Base_constructor_return_type_0_is_not_an_object_type_or_intersection_of_object_types_with_statically_known_members,
-      typeToString(c, reducedBaseType),
+      [typeToString(c, reducedBaseType)],
     );
+    c.addDiagnostic(diagnostic.addMessageChain(elaborateNeverIntersection(c, undefined, errorNode, baseType)));
     return;
   }
   if (t.id === reducedBaseType.id || hasBaseType(c, reducedBaseType, t)) {
