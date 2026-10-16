@@ -4,6 +4,7 @@ import { checkJsxAttribute } from './checker-jsx.js';
 import { getTargetOfAliasDeclaration, resolveExternalModuleSymbol } from './checker-modules.js';
 import { CachedTypeKind, cachedTypeKey, CheckMode } from './checker-types.js';
 import {
+  getNodeId,
   ModifierFlags,
   type Node,
   NodeFlags,
@@ -780,7 +781,10 @@ function createSymbolWithWidenedType(c: Checker, prop: Symbol, t: Type): Symbol 
  * differently only where tsgo reuses a symbol from an earlier literal.
  */
 function getUndefinedProperty(c: Checker, prop: Symbol): Symbol {
-  const key = getSymbolId(prop);
+  // By file and name: the property keeps the declarations of the first one of its name in the
+  // file, which order it among the type's properties.
+  const declaration = prop.declarations.length > 0 ? prop.declarations[0]! : undefined;
+  const key = (declaration !== undefined ? getNodeId(getSourceFileOfNode(declaration)) : 0) + ':' + prop.name;
   const cached = c.undefinedProperties.get(key);
   if (cached !== undefined) return cached;
   const result = createSymbolWithWidenedType(c, prop, c.undefinedOrMissingType);

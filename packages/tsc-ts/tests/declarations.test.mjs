@@ -206,6 +206,45 @@ test(
   },
 );
 
+test(
+  'optional undefined properties of widened object literals are ordered as in tsgo',
+  { skip: !existsSync(tsgo) && 'needs packages/tsgo/dist/tsgo' },
+  async () => {
+    // A property added for a sibling literal is created once per file and name, from the first
+    // property of that name, and is ordered by that one's declaration.
+    const dir = tempDir('tsc-ts-declarations-undefined-');
+    const source = join(dir, 'a.ts');
+    writeFileSync(
+      source,
+      [
+        'export function g1(x: boolean) {',
+        '  if (x) return { b: 1 };',
+        '  return { a: 1, b: 2 };',
+        '}',
+        'export function g2(x: boolean) {',
+        '  if (x) return { b: 1 };',
+        '  return { b: 2, a: 1 };',
+        '}',
+        'export function g3(x: boolean) {',
+        '  if (x) return { b: 1, c: 1 };',
+        '  return { a: 1, c: 2, d: 3, b: 2 };',
+        '}',
+        '',
+      ].join('\n'),
+    );
+    const args = [...baseFlags, '--declaration', '--emitDeclarationOnly', '--rootDir', dir];
+    const [theirs, mine] = await Promise.all([
+      run([tsgo, ...args, '--outDir', join(dir, 'expected'), source]),
+      run([...command, ...args, '--outDir', join(dir, 'actual'), source]),
+    ]);
+    assert.equal(mine.stderr.toString(), '');
+    const expected = readFileSync(join(dir, 'expected/a.d.ts'), 'utf8');
+    // In g2, `a` comes first: it is g1's `a`, declared before g2's `b`.
+    assert.match(expected, /g2\(x: boolean\): \{\n {4}a\?: undefined;\n {4}b: number;/);
+    assert.equal(readFileSync(join(dir, 'actual/a.d.ts'), 'utf8'), expected);
+  },
+);
+
 // Every 25th test case.
 function sample() {
   return [...listFiles(join(cases, 'compiler')), ...listFiles(join(cases, 'conformance'))].filter(

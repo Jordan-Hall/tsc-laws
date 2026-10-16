@@ -383,7 +383,7 @@ export class Checker {
   readonly globalThisSymbol: Symbol;
   readonly unresolvedSymbols = new Map<string, Symbol>();
   /** Widening's optional `undefined` properties by the id of the sibling property each stands for. */
-  readonly undefinedProperties = new Map<number, Symbol>();
+  readonly undefinedProperties = new Map<string, Symbol>();
 
   // Interning tables.
   readonly stringLiteralTypes = new Map<string, LiteralType>();
