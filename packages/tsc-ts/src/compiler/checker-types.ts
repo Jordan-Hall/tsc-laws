@@ -578,8 +578,41 @@ export class UniqueESSymbolType extends Type {
  * when it resolves the members; lookups by name instantiate only the member asked for.
  */
 export abstract class PendingMembers {
-  /** Sets `t.membersValue` and `t.propertiesValue` and clears `t.pendingMembers`. */
+  /**
+   * Set when `properties` is built and the members table is not (`MemberNames`): the type's
+   * properties, which lookups by name then read.
+   */
+  materializedProperties: Symbol[] | undefined = undefined;
+
+  /**
+   * Sets `t.propertiesValue`. Where lookups can read the properties, it sets
+   * `materializedProperties` and keeps `t.pendingMembers`; otherwise it sets `t.membersValue` too and
+   * clears `t.pendingMembers`.
+   */
   abstract materialize(t: StructuredType): void;
+
+  /** Sets `t.membersValue` and `t.propertiesValue` and clears `t.pendingMembers`. */
+  abstract materializeTable(t: StructuredType): void;
+}
+
+/**
+ * The property names of instantiated types whose members tables are built on demand, shared by the
+ * instantiations of one source that have the same names in the same order: most instantiations of
+ * a class or interface have the members of their source and of the same bases.
+ */
+export class MemberNames {
+  /** The names of the properties, in order. */
+  readonly names: string[];
+  /** The index of each name in `names`. */
+  readonly positions: Map<string, number>;
+  /** The indexes in `names` of the members table's names, in table order. */
+  readonly tableOrder: number[];
+
+  constructor(names: string[], positions: Map<string, number>, tableOrder: number[]) {
+    this.names = names;
+    this.positions = positions;
+    this.tableOrder = tableOrder;
+  }
 }
 
 /** A type with members: object types, unions and intersections. */
@@ -613,7 +646,7 @@ export class StructuredType extends Type {
 
   get members(): SymbolTable | undefined {
     const pending = this.pendingMembers;
-    if (pending !== undefined) pending.materialize(this);
+    if (pending !== undefined) pending.materializeTable(this);
     return this.membersValue;
   }
 
@@ -623,7 +656,7 @@ export class StructuredType extends Type {
 
   get properties(): Symbol[] {
     const pending = this.pendingMembers;
-    if (pending !== undefined) pending.materialize(this);
+    if (pending !== undefined && pending.materializedProperties === undefined) pending.materialize(this);
     return this.propertiesValue;
   }
 
@@ -691,11 +724,14 @@ export class InterfaceType extends TypeReference {
   declaredMemberPositions: Map<string, number> | undefined;
   /** The member states of the last pending instantiation of the type's members (`sharedStates`). */
   lastMemberStates: number[] | undefined;
+  /** The property names of the last instantiation whose members table is built on demand. */
+  lastMemberNames: MemberNames | undefined;
 
   constructor(objectFlags: ObjectFlags, id: number, symbol: Symbol | undefined) {
     super(objectFlags, id, symbol);
     this.declaredMemberPositions = undefined;
     this.lastMemberStates = undefined;
+    this.lastMemberNames = undefined;
     this.allTypeParameters = emptyTypes;
     this.outerTypeParameterCount = 0;
     this.thisType = undefined;

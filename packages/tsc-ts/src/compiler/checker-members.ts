@@ -18,6 +18,7 @@ import {
   type InterfaceType,
   type IntersectionType,
   type MappedType,
+  MemberNames,
   ObjectFlags,
   type ObjectType,
   type Signature,
@@ -295,6 +296,11 @@ function resolveObjectTypeMembers(
 // base types and their members) is still resolved eagerly and in tsgo's order, so type identities and
 // ids are unchanged. Member symbols come out identical too: whether `instantiateSymbol` keeps a
 // symbol depends on whether its type is resolved yet, so that decision is recorded at resolution.
+//
+// Most reads are of `properties`; the table serves lookups by name. Where every member of the table
+// is a property, materializing keeps only the properties, and lookups by name find a property by
+// the position of its name in a `MemberNames` that instantiations with the same names share.
+// Reading `members` builds the table.
 
 // Two bits per member, in table order: whether tsgo puts it in the instantiated table, and whether
 // `instantiateSymbol` keeps the symbol itself.
@@ -331,6 +337,10 @@ export class PendingInstantiatedMembers extends PendingMembers {
   resolving: boolean;
   /** Members instantiated by name lookups so far. */
   instantiated: Map<string, Symbol> | undefined;
+  /** References: the holder of the declared members of the class or interface. */
+  owner: InterfaceType | undefined;
+  /** With `materializedProperties`: the names of the properties. */
+  memberNames: MemberNames | undefined;
   /** Whether the instantiated table has an own member, and one that isn't optional. */
   readonly hasOwnMembers: boolean;
   readonly hasRequiredOwnMembers: boolean;
@@ -360,6 +370,8 @@ export class PendingInstantiatedMembers extends PendingMembers {
     this.hasBases = false;
     this.resolving = false;
     this.instantiated = undefined;
+    this.owner = undefined;
+    this.memberNames = undefined;
   }
 
   state(position: number): MemberState {
@@ -396,6 +408,11 @@ export class PendingInstantiatedMembers extends PendingMembers {
 
   /** `members.get(name)` of the table tsgo would have built by now. */
   get(name: string): Symbol | undefined {
+    const materialized = this.materializedProperties;
+    if (materialized !== undefined) {
+      const position = this.memberNames!.positions.get(name);
+      return position !== undefined ? materialized[position] : undefined;
+    }
     let existing = this.ownMember(name);
     // Own members have value flags (pendingInstantiatedTable), so no base replaces them.
     const baseTypes = this.baseTypes;
@@ -448,11 +465,13 @@ export class PendingInstantiatedMembers extends PendingMembers {
     if (!this.hasBases) {
       t.membersValue = members;
       t.propertiesValue = getNamedMembers(c, members, t.symbol);
+      this.keepTableOnDemand(t, members);
       return;
     }
     // While the bases are resolved, tsgo's `properties` holds the own members and its table
     // grows by each base as it is resolved; the rest of resolution continues eagerly.
-    const ownProperties = this.resolving ? getNamedMembers(c, members, t.symbol) : undefined;
+    const resolving = this.resolving;
+    const ownProperties = resolving ? getNamedMembers(c, members, t.symbol) : undefined;
     const baseTypes = this.baseTypes;
     for (let i = 0; i < baseTypes.length; i++) {
       const base = baseTypes[i];
@@ -460,7 +479,74 @@ export class PendingInstantiatedMembers extends PendingMembers {
     }
     t.membersValue = members;
     t.propertiesValue = ownProperties ?? getNamedMembers(c, members, t.symbol);
+    // Resolving the bases goes on with the table (resolvePendingObjectTypeMembers).
+    if (!resolving) this.keepTableOnDemand(t, members);
   }
+
+  /**
+   * After `materialize`: drops `members`, the table, where every member of it is a property. The
+   * table's names are then the names of the properties, so lookups by name read the properties by
+   * the positions of their names, and `materializeTable` builds the table again from them. The
+   * names come from the last instantiation of the same source, where they are the same.
+   */
+  private keepTableOnDemand(t: StructuredType, members: SymbolTable): void {
+    const properties = t.propertiesValue;
+    if (properties.length !== members.size) return;
+    const owner = this.owner;
+    const last = owner !== undefined ? owner.lastMemberNames : this.c.memberNamesOfLists.get(this.sourceList!);
+    let names = last !== undefined && hasMemberNames(last, properties, members) ? last : undefined;
+    if (names === undefined) {
+      names = memberNamesOf(properties, members);
+      if (owner !== undefined) owner.lastMemberNames = names;
+      else this.c.memberNamesOfLists.set(this.sourceList!, names);
+    }
+    t.membersValue = undefined;
+    t.pendingMembers = this;
+    this.materializedProperties = properties;
+    this.memberNames = names;
+  }
+
+  materializeTable(t: StructuredType): void {
+    const properties = this.materializedProperties;
+    if (properties === undefined) {
+      this.materialize(t);
+      if (t.pendingMembers === undefined) return;
+      this.materializeTable(t);
+      return;
+    }
+    t.pendingMembers = undefined;
+    const order = this.memberNames!.tableOrder;
+    this.materializedProperties = undefined;
+    this.memberNames = undefined;
+    const members = new Map<string, Symbol>();
+    for (const i of order) members.set(properties[i]!.name, properties[i]!);
+    t.membersValue = members;
+  }
+}
+
+/** The names of `properties`, and the order of the names of `members`, a table with the same names. */
+function memberNamesOf(properties: Symbol[], members: SymbolTable): MemberNames {
+  const names: string[] = [];
+  const positions = new Map<string, number>();
+  for (let i = 0; i < properties.length; i++) {
+    const name = properties[i]!.name;
+    names.push(name);
+    positions.set(name, i);
+  }
+  const tableOrder: number[] = [];
+  for (const name of members.keys()) tableOrder.push(positions.get(name)!);
+  return new MemberNames(names, positions, tableOrder);
+}
+
+/** Whether `properties` have the names of `names`, and `members` has them in its table order. */
+function hasMemberNames(names: MemberNames, properties: Symbol[], members: SymbolTable): boolean {
+  const list = names.names;
+  if (list.length !== properties.length) return false;
+  for (let i = 0; i < list.length; i++) if (properties[i]!.name !== list[i]) return false;
+  const order = names.tableOrder;
+  let k = 0;
+  for (const name of members.keys()) if (list[order[k++]!] !== name) return false;
+  return true;
 }
 
 /**
@@ -500,7 +586,7 @@ function pendingInstantiatedTable(
     i++;
   }
   if ((i & 15) !== 0) states.push(word);
-  return new PendingInstantiatedMembers(
+  const pending = new PendingInstantiatedMembers(
     c,
     table,
     undefined,
@@ -510,6 +596,8 @@ function pendingInstantiatedTable(
     hasOwnMembers,
     hasRequiredOwnMembers,
   );
+  pending.owner = declared;
+  return pending;
 }
 
 /**
@@ -676,7 +764,12 @@ function resolvePendingObjectTypeMembers(
     ) {
       const resolved = resolveStructuredTypeMembers(c, instantiatedBaseType);
       const basePending = resolved.pendingMembers;
-      if (basePending !== undefined && !(basePending as PendingInstantiatedMembers).resolving) lazyBase = resolved;
+      if (
+        basePending !== undefined &&
+        basePending.materializedProperties === undefined &&
+        !(basePending as PendingInstantiatedMembers).resolving
+      )
+        lazyBase = resolved;
     }
     const baseProperties = lazyBase === undefined ? getPropertiesOfType(c, instantiatedBaseType) : undefined;
     if (t.pendingMembers === pending) {
@@ -1998,7 +2091,7 @@ function getCostliestConstituent(c: Checker, t: IntersectionType): Type | undefi
     if ((apparent.flags & TypeFlags.Object) === 0) continue;
     const resolved = resolveStructuredTypeMembers(c, apparent);
     const pending = resolved.pendingMembers as PendingInstantiatedMembers | undefined;
-    if (pending !== undefined) {
+    if (pending !== undefined && pending.materializedProperties === undefined) {
       if (pending.positions.size > costliestPending) {
         costliest = current;
         costliestPending = pending.positions.size;
