@@ -35,7 +35,12 @@ import {
   isBuildInfoFileNameDefaultLibrary,
   parseBuildInfo,
 } from './build-info.js';
-import { type DiagnosticDetails, modeMismatchDetails, moduleNotFoundDetails } from './checker-modules.js';
+import {
+  type DiagnosticDetails,
+  modeMismatchDetails,
+  moduleNotFoundDetails,
+  resolveExternalModuleName,
+} from './checker-modules.js';
 import { getSymbolAtLocation } from './checker-services.js';
 import { resolveAlias } from './checker-symbols.js';
 import {
@@ -725,8 +730,11 @@ function getReferencedFiles(
   const program = checked.program;
   const checker = checked.checker;
   const referenced = new Set<string>();
+  // Every import is resolved. tsgo takes the symbol at each import name, which is undefined for a JavaScript `require`
+  // call that does not initialize a variable (`exports.a = require("./a").a`), so its build info leaves out that
+  // module and its incremental builds keep outputs that depend on it.
   for (const importName of file.imports) {
-    addReferencedFilesFromSymbol(file, referenced, getSymbolAtLocation(checker, importName));
+    addReferencedFilesFromSymbol(file, referenced, resolveExternalModuleName(checker, importName, importName, true));
   }
   const sourceFileDirectory = getDirectoryPath(file.fileName);
   for (const reference of file.referencedFiles) {
