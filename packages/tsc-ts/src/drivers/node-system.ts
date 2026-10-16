@@ -317,6 +317,11 @@ const watchRestartStatus = 75;
  *
  * TSC_TS_WATCH_MEMORY sets the limit in megabytes; by default it is 2.5 times the resident memory
  * after the first build.
+ *
+ * Signals are not forwarded: a terminal's SIGINT and SIGHUP reach the child too, which is in this
+ * process's group, and a child whose supervisor ends exits within a second (its `process.ppid` check).
+ * A signal listener here would link scriptc's events unit, which turns off int32 specialization for
+ * hundreds of functions in the whole program and makes every compile slower.
  */
 function superviseWatch(): boolean {
   if (/(^|[/\\])node(\.exe)?$/.test(process.execPath)) return false;
@@ -328,28 +333,22 @@ function superviseWatch(): boolean {
     const megabytes = Number(memory);
     if (memory !== '' && megabytes > 0) watchRestart.limit = megabytes * 1048576;
     watchRestart.restart = () => process.exit(watchRestartStatus);
-    // A supervisor that ends without stopping this process (SIGKILL) leaves it to init.
+    // A supervisor that ends (on SIGTERM, or SIGKILL) leaves this process to init.
     const parent = process.ppid;
     setInterval(() => {
       if (process.ppid !== parent) process.exit(1);
     }, 1000);
     return false;
   }
-  const signals: NodeJS.Signals[] = ['SIGINT', 'SIGTERM', 'SIGHUP'];
   const start = (resumed: boolean): void => {
     const env: Record<string, string | undefined> = { ...process.env };
     env[watchProcessVariable] = resumed ? 'resume' : 'start';
     const child = spawn(process.execPath, process.argv.slice(2), { stdio: 'inherit', env });
-    const forward = (signal: NodeJS.Signals): void => {
-      child.kill(signal);
-    };
-    for (const signal of signals) process.on(signal, forward);
     child.on('error', (error) => {
       process.stderr.write(error.message + '\n');
       process.exit(1);
     });
     child.on('exit', (code, signal) => {
-      for (const s of signals) process.off(s, forward);
       if (code === watchRestartStatus) start(true);
       else if (signal !== null) process.kill(process.pid, signal);
       else process.exit(code ?? 1);
