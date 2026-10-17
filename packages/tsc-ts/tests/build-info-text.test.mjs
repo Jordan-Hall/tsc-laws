@@ -115,3 +115,13 @@ test('diagnostics read straight from the text and through JSON values agree', ()
   ])
     assert.equal(read(text), undefined, text);
 });
+
+test('lists of file ids read from text without whitespace keep their text, and others none', () => {
+  assert.deepEqual(parseBuildInfo('{"fileIdsList":[[2,3],[],[14]]}').fileIdsListText, ['2,3', '', '14']);
+  assert.deepEqual(parseBuildInfo('{"fileIdsList":[[2,3],[4, 5]]}').fileIdsListText, []);
+  assert.deepEqual(parseBuildInfo('{"fileIdsList":[[2,3],[ ]]}').fileIdsListText, []);
+  // A later value read through JSON values replaces the lists, and their text with them.
+  const repeated = parseBuildInfo('{"fileIdsList":[[2,3]],"fileIdsList":[[4,1e0]]}');
+  assert.deepEqual(repeated.fileIdsList, [[4, 1]]);
+  assert.deepEqual(repeated.fileIdsListText, []);
+});

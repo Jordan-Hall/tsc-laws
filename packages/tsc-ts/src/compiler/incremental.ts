@@ -392,13 +392,32 @@ class ReferenceMap {
  */
 class FileIdLists {
   readonly listOfFile = new Map<string, number>();
+  /** `hashOfIds` of each list. */
+  readonly hashes: number[] = [];
+  /** The last id of each list whose ids are ascending from 1 (0 for an empty list), and -1 for the others. */
+  readonly lastIds: number[] = [];
   private pathIndexes: Map<string, number> | undefined = undefined;
 
   constructor(
     readonly filePaths: readonly string[],
     readonly ids: readonly number[][],
     readonly sets: readonly ReadonlySet<string>[],
-  ) {}
+    /** The ids of each list joined with commas, as read (`BuildInfo.fileIdsListText`), or empty. */
+    readonly texts: readonly string[],
+  ) {
+    for (const list of ids) {
+      this.hashes.push(hashOfIds(list));
+      let previous = 0;
+      for (const id of list) {
+        if (id <= previous) {
+          previous = -1;
+          break;
+        }
+        previous = id;
+      }
+      this.lastIds.push(previous);
+    }
+  }
 
   /** The index in `filePaths` of each path; `undefined` where two file ids have the same path. */
   indexOfPath(): Map<string, number> | undefined {
@@ -515,6 +534,19 @@ class ReferenceListComparer {
     }
     return false;
   }
+}
+
+/** A hash of `ids`, for finding lists of file ids with the same ids. */
+function hashOfIds(ids: readonly number[]): number {
+  let hash = 0x811c9dc5 ^ ids.length;
+  for (const id of ids) hash = Math.imul(hash ^ id, 0x01000193);
+  return hash;
+}
+
+function sameIds(a: readonly number[], b: readonly number[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
 }
 
 function sameSet(a: ReadonlySet<string> | undefined, b: ReadonlySet<string> | undefined): boolean {
@@ -813,7 +845,12 @@ function buildInfoToSnapshot(
     } else if (value.differsInOptions) snapshot.emitSignatures.set(path, new EmitSignature('', value.signature));
     else snapshot.emitSignatures.set(path, new EmitSignature(value.signature, undefined));
   }
-  const fileIdLists = new FileIdLists(filePaths, buildInfo.fileIdsList, fileSets);
+  const fileIdLists = new FileIdLists(
+    filePaths,
+    buildInfo.fileIdsList,
+    fileSets,
+    buildInfo.fileIdsListText.length === buildInfo.fileIdsList.length ? buildInfo.fileIdsListText : [],
+  );
   for (const entry of buildInfo.referencedMap) {
     const set =
       entry.fileIdListId >= 1 && entry.fileIdListId <= fileSets.length ? fileSets[entry.fileIdListId - 1] : undefined;
@@ -1698,7 +1735,8 @@ class ToBuildInfo {
   readonly buildInfo = new BuildInfo();
   private readonly buildInfoDirectory: string;
   private readonly fileNameToFileId = new Map<string, number>();
-  private readonly fileNamesToFileIdListId = new Map<string, number>();
+  /** The ids of the lists of file ids so far, by `hashOfIds` of their ids. */
+  private readonly fileIdListIdsOfHash = new Map<number, number[]>();
   private readonly roots = new Map<SourceFile, string>();
   /** `relativePath` of the directories of the paths so far. */
   private readonly relativeDirectories = new Map<string, string>();
@@ -1778,36 +1816,56 @@ class ToBuildInfo {
     const lists = this.snapshot.fileIdLists;
     let oldIndex = lists?.listOfFile.get(path);
     if (oldIndex !== undefined && lists?.sets[oldIndex] !== set) oldIndex = undefined;
-    let fileIds: number[] | undefined = undefined;
+    // The index of the list taken as read, or -1.
+    let readIndex = -1;
     if (lists !== undefined && oldIndex !== undefined) {
       const known = this.listIdOfOldList.get(oldIndex);
       if (known !== undefined) return known;
-      const ids = lists.ids[oldIndex];
-      if (this.hasSameFileIds(ids, lists)) fileIds = ids;
+      if (this.hasSameFileIds(oldIndex, lists)) readIndex = oldIndex;
     }
-    if (fileIds === undefined) {
-      const newIds: number[] = [];
-      for (const reference of set) newIds.push(this.toFileId(reference));
-      newIds.sort((a, b) => a - b);
-      fileIds = newIds;
+    let fileIds: number[];
+    let hash: number;
+    if (lists !== undefined && readIndex >= 0) {
+      fileIds = lists.ids[readIndex];
+      hash = lists.hashes[readIndex];
+    } else {
+      fileIds = [];
+      for (const reference of set) fileIds.push(this.toFileId(reference));
+      fileIds.sort((a, b) => a - b);
+      hash = hashOfIds(fileIds);
     }
-    const key = fileIds.join(',');
-    let id = this.fileNamesToFileIdListId.get(key);
-    if (id === undefined) {
+    let listIds = this.fileIdListIdsOfHash.get(hash);
+    if (listIds === undefined) {
+      listIds = [];
+      this.fileIdListIdsOfHash.set(hash, listIds);
+    }
+    let id = 0;
+    for (const listId of listIds) {
+      if (sameIds(this.buildInfo.fileIdsList[listId - 1], fileIds)) {
+        id = listId;
+        break;
+      }
+    }
+    if (id === 0) {
+      // A list taken as read has the text it was read from.
+      const text =
+        lists !== undefined && readIndex >= 0 && readIndex < lists.texts.length
+          ? lists.texts[readIndex]
+          : fileIds.join(',');
       this.buildInfo.fileIdsList.push(fileIds);
-      this.buildInfo.fileIdsListText.push(key);
+      this.buildInfo.fileIdsListText.push(text);
       id = this.buildInfo.fileIdsList.length;
-      this.fileNamesToFileIdListId.set(key, id);
+      listIds.push(id);
     }
-    if (oldIndex !== undefined && fileIds === lists?.ids[oldIndex]) this.listIdOfOldList.set(oldIndex, id);
+    if (readIndex >= 0) this.listIdOfOldList.set(readIndex, id);
     return id;
   }
 
   /**
-   * Whether `ids`, a list of `lists`, has ascending ids that are of the same paths here, as the ids of
+   * Whether the list at `index` of `lists` has ascending ids that are of the same paths here, as the ids of
    * the program's files, which come first, are where the program has the same files in the same order.
    */
-  private hasSameFileIds(ids: readonly number[], lists: FileIdLists): boolean {
+  private hasSameFileIds(index: number, lists: FileIdLists): boolean {
     if (this.sameFileIds < 0) {
       const paths = this.fileIdPaths;
       const oldPaths = lists.filePaths;
@@ -1816,12 +1874,8 @@ class ToBuildInfo {
       while (same < length && paths[same] === oldPaths[same]) same++;
       this.sameFileIds = same;
     }
-    let previous = 0;
-    for (const id of ids) {
-      if (id <= previous) return false;
-      previous = id;
-    }
-    return previous <= this.sameFileIds;
+    const last = lists.lastIds[index];
+    return last >= 0 && last <= this.sameFileIds;
   }
 
   private toBuildInfoDiagnostics(filePath: string, diagnostics: readonly Diagnostic[]): BuildInfoDiagnostic[] {
@@ -1932,11 +1986,10 @@ class ToBuildInfo {
   private collectRootFiles(): void {
     const program = this.program;
     for (const fileName of program.commandLine.fileNames) {
+      const path = program.toPath(fileName);
       const redirect = program.getParseFileRedirect(fileName);
-      const file = program.getSourceFile(redirect !== '' ? redirect : fileName);
-      if (file !== undefined) {
-        this.roots.set(file, toPath(fileName, program.currentDirectory, program.useCaseSensitiveFileNames));
-      }
+      const file = redirect !== '' ? program.getSourceFile(redirect) : program.getSourceFileByPath(path);
+      if (file !== undefined) this.roots.set(file, path);
     }
   }
 
@@ -1974,13 +2027,22 @@ class ToBuildInfo {
   }
 
   private setRootOfIncrementalProgram(): void {
-    const files = [...this.roots.keys()].sort((a, b) => this.toFileId(a.path) - this.toFileId(b.path));
+    // The files in the order of their ids, each looked up once.
+    const files = [...this.roots.keys()];
+    const ids: number[] = [];
+    const order: number[] = [];
+    for (let i = 0; i < files.length; i++) {
+      ids.push(this.toFileId(files[i].path));
+      order.push(i);
+    }
+    order.sort((a, b) => ids[a] - ids[b]);
     const roots = this.buildInfo.root;
-    for (const file of files) {
+    for (const i of order) {
+      const file = files[i];
       const rootPath = this.roots.get(file);
       if (rootPath === undefined) continue;
       const root = this.toFileId(rootPath);
-      const resolved = this.toFileId(file.path);
+      const resolved = ids[i];
       const last = roots.length > 0 ? roots[roots.length - 1] : undefined;
       if (last === undefined) roots.push(new BuildInfoRoot(resolved, 0, ''));
       else if (last.end === resolved - 1) last.end = resolved;
