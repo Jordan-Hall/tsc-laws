@@ -168,6 +168,25 @@ const projects = [
     },
   ],
   [
+    'types of decorated signatures under isolatedModules and emitDecoratorMetadata',
+    {
+      'a.ts':
+        'import { Point, Polygon, Id, Model, Shapes } from "./types";\nimport type { Point as TypePoint } from "./types";\nimport * as all from "./types";\ndeclare function dec(...args: any[]): any;\n@dec\nexport class Entity {\n  constructor(p: Point, m: Model) {}\n  @dec point: Point = { x: 1 };\n  @dec polygon: Polygon | null = null;\n  @dec typed: TypePoint = { x: 1 };\n  @dec ns: all.Point = { x: 1 };\n  @dec circle: Shapes.Circle = { r: 1 };\n  @dec id: Id = "";\n  @dec both: Point & Polygon = { x: 1, p: [] };\n  @dec method(a: Point, ...rest: Polygon[]): Point { return a; }\n  @dec get acc(): Point { return { x: 1 }; }\n  set acc(v: Point) {}\n  other(@dec q: Polygon): Id { return ""; }\n}\n',
+      'types.ts':
+        'export interface Point { x: number }\nexport interface Polygon { p: Point[] }\nexport type Id = string;\nexport class Model { id = 1 }\nexport namespace Shapes { export interface Circle { r: number } }\n',
+      'tsconfig.json': JSON.stringify({
+        compilerOptions: {
+          ...base,
+          module: 'ESNext',
+          experimentalDecorators: true,
+          emitDecoratorMetadata: true,
+          isolatedModules: true,
+        },
+        files: ['a.ts', 'types.ts'],
+      }),
+    },
+  ],
+  [
     'asserted unique symbol in an inferred object literal',
     {
       'a.ts':
