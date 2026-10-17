@@ -312,6 +312,52 @@ const projects = [
     },
   ],
   [
+    'conditional types inferring from references to the same interface',
+    {
+      'a.ts':
+        'interface Rpc<in out Tag extends string, out P = unknown, out S = unknown, out E = never> { readonly _tag: Tag; p: P; s: S; e: E }\n' +
+        'interface Stream<out A, out E> { a: A; e: E }\n' +
+        'type A1 = Rpc<"a", { x: 1 }, Stream<1, 2>, "e1"> | Rpc<"b", { y: 2 }, string, "e2"> | Rpc<"c", void, void, void>;\n' +
+        'type IsStream<R, Tag extends string> = R extends Rpc<Tag, infer _P, Stream<infer _A, infer _E>, infer _Er> ? true : never;\n' +
+        'type Provides<R, Tag extends string> = R extends Rpc<Tag, infer P, infer _S, infer _Er> ? P : "none";\n' +
+        'export const s1: IsStream<A1, "a"> = 0;\n' +
+        'export const s2: IsStream<A1, "b"> = 0;\n' +
+        'export const p1: Provides<A1, "a"> = 0;\n' +
+        'export const p2: Provides<A1, "b" | "c"> = 0;\n' +
+        'export const p3: Provides<A1, string> = 0;\n' +
+        '// A covariant void type argument relates by structure.\n' +
+        'interface Fn<in out K extends string, out R> { k: K; (): R }\n' +
+        'type Ret<F, K extends string> = F extends Fn<K, infer R> ? R : "none";\n' +
+        'export const f1: Ret<Fn<"a", void>, "b"> = 0;\n' +
+        'export const f2: Ret<Fn<"a", number>, "b"> = 0;\n' +
+        'type FixedVoid<F> = F extends Fn<"a", void> ? 1 : 0;\n' +
+        'export const f3: FixedVoid<Fn<"a", number>> = 2;\n' +
+        'type InferVoid<F> = F extends Fn<"b", infer R extends void> ? R : "none";\n' +
+        'export const f4: InferVoid<Fn<"a", undefined>> = 0;\n' +
+        '// Covariant and contravariant fixed arguments.\n' +
+        'interface Co<out T, out U> { t: T; u: U }\n' +
+        'interface Contra<in T, out U> { f(x: T): void; u: U }\n' +
+        'type C1<X> = X extends Co<"a" | "b", infer U> ? U : "no";\n' +
+        'export const c1: C1<Co<"a", 1>> = 0;\n' +
+        'export const c2: C1<Co<"c", 1>> = 0;\n' +
+        'type C2<X> = X extends Contra<"a", infer U> ? U : "no";\n' +
+        'export const c3: C2<Contra<"a" | "b", 1>> = 0;\n' +
+        'export const c4: C2<Contra<"b", 1>> = 0;\n' +
+        '// Measured variances, including unmeasurable ones.\n' +
+        'interface M<T, U> { m: { [K in keyof T]: T[K] }; u: U }\n' +
+        'type C3<X> = X extends M<{ a: 1 }, infer U> ? U : "no";\n' +
+        'export const c5: C3<M<{ a: 2 }, 1>> = 0;\n' +
+        'interface Plain<T, U> { t: T; u: U }\n' +
+        'type C4<X> = X extends Plain<"x", infer U> ? U : "no";\n' +
+        'export const c6: C4<Plain<"y", 1>> = 0;\n' +
+        'export const c7: C4<Plain<"x", 1>> = 0;\n' +
+        'type C5<X> = X extends Plain<infer T, T> ? T : "no";\n' +
+        'export const c8: C5<Plain<"y", 1>> = 0;\n' +
+        'type C6<X> = X extends Plain<string, infer U extends number> ? U : "no";\n' +
+        'export const c9: C6<Plain<1, 2>> = 0;\n',
+    },
+  ],
+  [
     'conditional types inferring from the parameters of callback-taking functions',
     {
       'a.ts':

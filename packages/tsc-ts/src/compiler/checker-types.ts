@@ -1041,6 +1041,11 @@ export class ConditionalRoot {
   readonly outerTypeParameters: Type[];
   readonly instantiations: TypeListCache<Type>;
   readonly alias: TypeAlias | undefined;
+  /**
+   * The type arguments of an extends type that is a reference to a class or interface; null for
+   * other extends types, undefined until computed.
+   */
+  referenceArgs: ReferenceArgs | null | undefined;
 
   constructor(
     node: Node,
@@ -1059,7 +1064,30 @@ export class ConditionalRoot {
     this.outerTypeParameters = outerTypeParameters;
     this.instantiations = new TypeListCache<Type>();
     this.alias = alias;
+    this.referenceArgs = undefined;
   }
+}
+
+/** What each type argument of a conditional type's extends type is, for `isFalseForEveryInference`. */
+export class ReferenceArgs {
+  readonly kinds: ReferenceArgKind[];
+  /** The `infer` type parameter of each `ReferenceArgKind.Infer` type argument. */
+  readonly inferTypeParameters: (Type | undefined)[];
+
+  constructor(kinds: ReferenceArgKind[], inferTypeParameters: (Type | undefined)[]) {
+    this.kinds = kinds;
+    this.inferTypeParameters = inferTypeParameters;
+  }
+}
+
+export const enum ReferenceArgKind {
+  /** Has no `infer` type parameters, so inference doesn't change it. */
+  Fixed,
+  /** Just an `infer` type parameter that occurs nowhere else in the extends type. */
+  Infer,
+  /** An object type with `infer` type parameters: an instantiation of it is an object type. */
+  Object,
+  Other,
 }
 
 export class ConditionalType extends Type {

@@ -561,6 +561,11 @@ class ReferenceFinder extends NodeVisitor {
   }
 }
 
+/** Whether `node` has a reference to `tp` (or one that may be to it, such as a type query). */
+export function containsTypeParameterReference(c: Checker, tp: Type, node: Node): boolean {
+  return new ReferenceFinder(c, tp as TypeParameter).containsReference(node);
+}
+
 export function isNodeDescendantOf(node: Node, ancestor: Node): boolean {
   for (let n: Node | undefined = node; n !== undefined; n = n.parent) if (n === ancestor) return true;
   return false;
