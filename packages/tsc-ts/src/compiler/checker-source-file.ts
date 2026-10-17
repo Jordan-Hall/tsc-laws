@@ -10,6 +10,7 @@
 // - grammar: checker-grammar.ts (checks the parser leaves to the checker)
 // - type nodes: `checkTypeNode` below
 import { checkPendingExternalEmitHelpers } from './checker-emit-helpers.js';
+import { produceDeferredCollisionChecks } from './checker-generated-code.js';
 import { resolveUntypedCall } from './checker-calls.js';
 import {
   type ImportTypeNode,
@@ -151,6 +152,7 @@ function checkSourceFileWorker(c: Checker, file: SourceFile): void {
   c.fileBeingChecked = undefined;
   c.saveDeferredDiagnostics = false;
   produceDeferredIterationErrors(c);
+  produceDeferredCollisionChecks(c);
   // The file's deferred nodes are all checked; later ones are not queued (checkNodeDeferred).
   const links = c.nodeLinks(file);
   links.typeChecked = true;

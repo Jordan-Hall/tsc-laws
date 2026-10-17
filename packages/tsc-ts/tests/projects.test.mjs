@@ -384,6 +384,37 @@ projects.push(
     },
   ],
   [
+    'names reserved by emitted CommonJS code',
+    {
+      'a.ts':
+        'const require = (id: string) => id;\nfunction exports() {}\nconst Object = 1;\nconst Promise = 2;\nexport async function af() { await 0; }\nlet WeakMap = 3;\nclass P { #x = 1; get() { return this.#x; } }\nfunction outer() {\n  const WeakSet = 4;\n  class Q { #y = 1; }\n  return [WeakSet, Q];\n}\nclass Base { static v = 1; }\nconst Reflect = 5;\nclass D extends Base { static w = super.v; }\nimport type { T as require2 } from "./b";\ndeclare const require3: number;\nexport { require, exports, Object, Promise, WeakMap, P, outer, Reflect, D };\nexport type R = require2;\n',
+      'b.ts': 'export type T = number;\nexport class Object {}\n',
+      'tsconfig.json': JSON.stringify({
+        compilerOptions: {
+          ...base,
+          noEmit: false,
+          outDir: 'out',
+          target: 'ES2015',
+          module: 'commonjs',
+          lib: ['esnext'],
+        },
+        files: ['a.ts', 'b.ts'],
+      }),
+    },
+  ],
+  [
+    'names reserved by emitted code under noEmit',
+    {
+      'a.ts':
+        'const require = (id: string) => id;\nfunction exports() {}\nconst Object = 1;\nconst Promise = 2;\nexport async function af() { await 0; }\nlet WeakMap = 3;\nclass P { #x = 1; get() { return this.#x; } }\nfunction outer() {\n  const WeakSet = 4;\n  class Q { #y = 1; }\n  return [WeakSet, Q];\n}\nclass Base { static v = 1; }\nconst Reflect = 5;\nclass D extends Base { static w = super.v; }\nimport type { T as require2 } from "./b";\ndeclare const require3: number;\nexport { require, exports, Object, Promise, WeakMap, P, outer, Reflect, D };\nexport type R = require2;\n',
+      'b.ts': 'export type T = number;\nexport class Object {}\n',
+      'tsconfig.json': JSON.stringify({
+        compilerOptions: { ...base, target: 'ES2015', module: 'commonjs', lib: ['esnext'] },
+        files: ['a.ts', 'b.ts'],
+      }),
+    },
+  ],
+  [
     'package names through pnpm symlinks',
     {
       'package.json': JSON.stringify({ name: 'app', dependencies: { lib: '1.0.0', dep: '1.0.0' } }),

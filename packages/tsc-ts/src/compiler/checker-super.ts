@@ -1,4 +1,6 @@
 // `super` expressions and `this` before `super(...)` in derived class constructors.
+import { ScriptTarget } from './options.js';
+import { markSuperPropertyInStaticInitializer } from './checker-generated-code.js';
 import { type Node, getExpression, getFlowNode, getInitializer, getModifiers } from './ast.js';
 import { isClassElement, isClassLike, isStatic } from './binder-utilities.js';
 import { type DiagnosticMessage, Diagnostics } from './diagnostics.js';
@@ -74,7 +76,15 @@ export function checkSuperExpression(c: Checker, node: Node): Type {
     c.error(node, Diagnostics.X_super_cannot_be_referenced_in_constructor_arguments);
     return c.errorType;
   }
-  if (isStatic(container) || isCallExpression) return getBaseConstructorTypeOfClass(c, classType as InterfaceType);
+  if (isStatic(container) || isCallExpression) {
+    if (
+      !isCallExpression &&
+      c.languageVersion <= ScriptTarget.ES2021 &&
+      (container.kind === SyntaxKind.PropertyDeclaration || container.kind === SyntaxKind.ClassStaticBlockDeclaration)
+    )
+      markSuperPropertyInStaticInitializer(c, node);
+    return getBaseConstructorTypeOfClass(c, classType as InterfaceType);
+  }
   return getTypeWithThisArgument(c, baseTypes[0]!, (classType as InterfaceType).thisType, false);
 }
 

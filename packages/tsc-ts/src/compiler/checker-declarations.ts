@@ -1,4 +1,5 @@
 // Declarations: variables, parameters, functions, type aliases, enums, namespaces, imports, exports.
+import { checkCollisionsForDeclarationName } from './checker-generated-code.js';
 import { ExternalEmitHelpers, checkExternalEmitHelpers } from './checker-emit-helpers.js';
 import { convertAutoToAny } from './checker-narrowing.js';
 import { markPropertyAsReferenced } from './checker-unused.js';
@@ -227,6 +228,13 @@ export function checkVariableLikeDeclaration(c: Checker, node: Node): void {
     checkAliasSymbol(c, node);
     return;
   }
+  if (
+    name !== undefined &&
+    name.kind === SyntaxKind.Identifier &&
+    node.kind !== SyntaxKind.PropertyDeclaration &&
+    node.kind !== SyntaxKind.PropertySignature
+  )
+    checkCollisionsForDeclarationName(c, node, name);
   const t = convertAutoToAny(c, getTypeOfSymbol(c, symbol));
   if (
     node.kind !== SyntaxKind.PropertyDeclaration &&
@@ -441,6 +449,7 @@ function checkBindingElement(c: Checker, element: BindingElement): void {
     c.renamedBindingElementsInTypes.push(element);
     return;
   }
+  if (element.name.kind === SyntaxKind.Identifier) checkCollisionsForDeclarationName(c, element, element.name);
   // An object rest binding before ES2018 uses __rest.
   if (
     element.parent!.kind === SyntaxKind.ObjectBindingPattern &&
@@ -585,6 +594,7 @@ export function checkFunctionDeclaration(c: Checker, node: Node): void {
   checkFunctionLikeBody(c, node);
   checkJSDocFullSignature(c, node);
   checkFunctionOrMethodSymbols(c, node);
+  checkCollisionsForDeclarationName(c, node, getName(node));
 }
 
 // ---- Types
@@ -792,6 +802,7 @@ export function checkEnumMember(c: Checker, node: Node): void {
 
 export function checkEnumDeclaration(c: Checker, node: Node): void {
   const name = getName(node)!;
+  checkCollisionsForDeclarationName(c, node, name);
   checkTypeNameIsReserved(c, name, Diagnostics.Enum_name_cannot_be_0);
   checkExportsOnMergedDeclarations(c, node);
   for (const member of (node as EnumDeclaration).members.nodes) checkSourceElement(c, member);
@@ -839,6 +850,7 @@ export function checkModuleDeclaration(c: Checker, node: Node): void {
     ? Diagnostics.An_ambient_module_declaration_is_only_allowed_at_the_top_level_in_a_file
     : Diagnostics.A_namespace_declaration_is_only_allowed_at_the_top_level_of_a_namespace_or_module;
   if (checkModuleElementContext(c, node, contextMessage)) return;
+  if (module.name.kind === SyntaxKind.Identifier) checkCollisionsForDeclarationName(c, node, module.name);
   if (module.name.kind === SyntaxKind.Identifier && module.keyword === SyntaxKind.ModuleKeyword)
     c.error(
       module.name,
