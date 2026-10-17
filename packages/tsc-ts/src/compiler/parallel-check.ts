@@ -1781,6 +1781,7 @@ export function startParallelCheck(
       );
     // Files without declaration diagnostics or emit results here get them on this thread (PlainProgram).
     if (checkersReportDeclarations(checked)) checked.declarationsInParallel = perFileDeclarations;
+    for (const [i, result] of emittedHere) perFileEmits[i] = result;
     if (checkersEmit(checked, emits)) checked.emittedInParallel = perFileEmits;
     if (emitKinds === undefined && isIncremental(program.options)) checked.referencesInParallel = perFileReferences;
     done(performance.now() - start);
@@ -1843,10 +1844,53 @@ export function startParallelCheck(
   // while the threads start.
   void checked.checker;
   mark('reporting checker created');
+  const emittedHere =
+    !mainChecks && emitKinds === undefined ? emitUncheckedFiles(checked, order, emits) : new Map<number, EmitResult>();
   if (mainChecks)
     record(checkFromQueue(checked, 0, new Int32Array(counter), order, epoch, true, 0, [], emits, emitKinds));
   ownDone = true;
   if (remaining === 0) finish();
+}
+
+/**
+ * Emits, on this thread and into memory, the files that checker threads emit nothing for because
+ * they don't check them (`skipTypeChecking`, such as a file with `// @ts-nocheck`), while the threads
+ * check the others: the program would emit them here after the threads finish. This thread's checker
+ * hasn't checked anything yet either way, so the outputs are the same. Returns the results by file
+ * index; the program writes them in order with the threads' (`writeHeldOutputs`).
+ */
+function emitUncheckedFiles(
+  checked: CheckedProgram,
+  order: readonly number[],
+  emits: boolean,
+): Map<number, EmitResult> {
+  const results = new Map<number, EmitResult>();
+  const program = checked.program;
+  const options = program.options;
+  if (!checkersEmit(checked, emits) || options.noEmitOnError === true || isIncremental(options)) return results;
+  const files = program.getSourceFiles();
+  const inOrder: boolean[] = [];
+  for (let i = 0; i < files.length; i++) inOrder.push(false);
+  for (const i of order) inOrder[i] = true;
+  let emitter: ProgramEmitter | undefined = undefined;
+  let holding: HoldingWriter | undefined = undefined;
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i]!;
+    if (inOrder[i]! || file.isDeclarationFile || !program.sourceFileMayBeEmitted(file, false)) continue;
+    if (emitter === undefined) {
+      emitter = new ProgramEmitter(checked);
+      // The program reports the global diagnostics this checker has before emitting, as it would
+      // collect them before emitting these files.
+      checked.ownGlobalDiagnostics = checked.checker.getGlobalDiagnostics().slice();
+    }
+    if (holding === undefined) holding = new HoldingWriter();
+    const start = timeline ? performance.now() : 0;
+    const result = emitter.emit([file], EmitOnly.All, holding);
+    for (const output of holding.take()) result.heldOutputs.push(output);
+    results.set(i, result);
+    if (timeline) markAt(start, `emit ${(performance.now() - start).toFixed(1)} ${file.fileName}`);
+  }
+  return results;
 }
 
 /** Diagnostics copied from another thread (Node.js), attached to this program's files again. */
