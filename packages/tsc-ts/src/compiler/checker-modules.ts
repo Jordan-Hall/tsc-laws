@@ -154,7 +154,7 @@ import { getTypeFromTypeNode, getTypeReferenceType } from './checker-type-nodes.
 import { checkExpression, checkExpressionCached, getResolvedSymbol } from './checker-expressions.js';
 import { isTypeAssignableTo, checkTypeAssignableTo } from './relations.js';
 import { getSpreadType } from './checker-object-literals.js';
-import { checkExternalModuleExports } from './checker-declarations.js';
+import { checkExternalModuleExports, shouldCheckErasableSyntax } from './checker-declarations.js';
 import { checkTypeNameIsReserved } from './checker-classes.js';
 import { getDeclaredTypeOfSymbol } from './checker-declared-types.js';
 import { isValidSpreadType } from './checker-destructuring.js';
@@ -2425,7 +2425,7 @@ export function checkImportEqualsDeclaration(c: Checker, node: Node): void {
   const declaration = node as ImportEqualsDeclaration;
   const reference = declaration.moduleReference;
   const isExternal = reference.kind === SyntaxKind.ExternalModuleReference;
-  if (c.compilerOptions.erasableSyntaxOnly === true && (node.flags & NodeFlags.Ambient) === 0)
+  if (shouldCheckErasableSyntax(c, node) && (node.flags & NodeFlags.Ambient) === 0)
     c.error(node, Diagnostics.This_syntax_is_not_allowed_when_erasableSyntaxOnly_is_enabled);
   if (isExternal && !isValidExternalImportOrExportDeclaration(node)) return;
   checkImportBinding(c, node);
@@ -2551,11 +2551,11 @@ export function checkExportAssignment(c: Checker, node: Node): void {
   if (!isInModuleElementContext(node)) return;
   const declaration = node as ExportAssignment;
   const isExportEquals = declaration.isExportEquals;
+  const ambient = (node.flags & NodeFlags.Ambient) !== 0;
+  if (shouldCheckErasableSyntax(c, node) && isExportEquals && !ambient)
+    c.error(node, Diagnostics.This_syntax_is_not_allowed_when_erasableSyntaxOnly_is_enabled);
   const container = node.parent!.kind === SyntaxKind.SourceFile ? node.parent! : node.parent!.parent!;
   if (container.kind === SyntaxKind.ModuleDeclaration && !isAmbientModule(container)) return;
-  const ambient = (node.flags & NodeFlags.Ambient) !== 0;
-  if (c.compilerOptions.erasableSyntaxOnly === true && isExportEquals && !ambient)
-    c.error(node, Diagnostics.This_syntax_is_not_allowed_when_erasableSyntaxOnly_is_enabled);
   const verbatimModuleSyntax = c.compilerOptions.verbatimModuleSyntax === true;
   const isIllegalExportDefaultInCJS =
     !isExportEquals &&

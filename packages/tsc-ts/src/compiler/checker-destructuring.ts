@@ -111,7 +111,6 @@ import {
 } from './checker-expressions.js';
 import { IterationUse, checkIteratedTypeOrElementType, createIterableType } from './checker-iteration.js';
 import { ScriptTarget } from './options.js';
-import { checkExpressionWithContextualType } from './checker-contextual.js';
 import { checkBinaryExpression, checkReferenceExpression, removeDefinitelyFalsyTypes } from './checker-operators.js';
 import { TypeFacts, getNonNullableType, getTypeWithFacts, hasTypeFacts } from './checker-flow.js';
 import { sliceTupleType } from './checker-signatures.js';
@@ -426,11 +425,7 @@ function getTypeFromBindingElement(
     const contextualType = isBindingPatternNode(element.name)
       ? getTypeFromBindingPattern(c, element.name!, true, false)
       : c.unknownType;
-    const t = padParameterInitializerType(
-      c,
-      element,
-      checkExpressionWithContextualType(c, element.initializer, contextualType, undefined, CheckMode.Normal),
-    );
+    const t = checkDeclarationInitializer(c, element, CheckMode.Normal, contextualType);
     return addOptionality(c, getWidenedLiteralTypeForInitializer(c, element, t), false, true);
   }
   if (isBindingPatternNode(element.name))

@@ -49,8 +49,11 @@ import {
   isPartOfTypeQuery,
   isOptionalChain,
   isAssignmentTarget,
+  getSourceFileOfNode,
 } from './binder-utilities.js';
-import { Diagnostics } from './diagnostics.js';
+import { shouldCheckErasableSyntax } from './checker-declarations.js';
+import { skipTrivia } from './scanner.js';
+import { Diagnostic, Diagnostics } from './diagnostics.js';
 import { type Symbol, SymbolFlags } from './symbol.js';
 import { SyntaxKind } from './syntax-kind.js';
 import { type Checker } from './checker.js';
@@ -230,7 +233,7 @@ import {
   getNarrowedTypeOfSymbol,
 } from './checker-narrowing.js';
 import { getFlowTypeOfAutoTypedProperty, getThisTypeOfAssignedFunction } from './checker-javascript.js';
-import { getThisTypeOfObjectLiteralMember } from './checker-contextual.js';
+import { checkExpressionWithContextualType, getThisTypeOfObjectLiteralMember } from './checker-contextual.js';
 
 import {
   ContextFlags,
@@ -352,13 +355,16 @@ export function checkDeclarationInitializer(
   c: Checker,
   declaration: Node,
   checkMode: CheckMode = CheckMode.Normal,
+  contextualType?: Type,
 ): Type {
   const initializer = getInitializer(declaration)!;
   const t =
     getQuickTypeOfExpression(c, initializer) ??
-    (checkMode === CheckMode.Normal
-      ? checkExpressionCached(c, initializer)
-      : checkExpressionEx(c, initializer, checkMode));
+    (contextualType !== undefined
+      ? checkExpressionWithContextualType(c, initializer, contextualType, undefined, checkMode)
+      : checkMode === CheckMode.Normal
+        ? checkExpressionCached(c, initializer)
+        : checkExpressionEx(c, initializer, checkMode));
   return padParameterInitializerType(c, declaration, t);
 }
 
@@ -1705,6 +1711,19 @@ function hasNumericPropertyNames(c: Checker, t: Type): boolean {
 // ---- Assertions
 
 function checkAssertion(c: Checker, node: Node, checkMode: CheckMode): Type {
+  // `<T>expr`, over `<T>`.
+  if (node.kind === SyntaxKind.TypeAssertionExpression && shouldCheckErasableSyntax(c, node)) {
+    const file = getSourceFileOfNode(node);
+    c.addDiagnostic(
+      new Diagnostic(
+        file.diagnosticFile(),
+        skipTrivia(file.text, node.pos),
+        getExpression(node)!.pos,
+        Diagnostics.This_syntax_is_not_allowed_when_erasableSyntaxOnly_is_enabled,
+        [],
+      ),
+    );
+  }
   if (isConstTypeReference(getType(node)!)) {
     const exprType = checkExpressionEx(c, getExpression(node)!, checkMode);
     if (!isValidConstAssertionArgument(c, getExpression(node)!))
