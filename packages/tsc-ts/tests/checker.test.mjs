@@ -395,6 +395,15 @@ const cases = [
       "/input.ts 2322 404 1 Type 'number' is not assignable to type 'string'.",
     ],
   },
+  {
+    // `[...][0]` widens the union of the array's elements, the first union that leaves `b` missing,
+    // so y's `b?: undefined` takes x's `b` and comes first.
+    name: 'undefined properties of widened object literals from an element of an array literal',
+    source: ['let x = [{ a: 0 }, { a: 1, b: "x" }][0];', 'let y = !true ? { a: 0, b: 0 } : { c: 1 };', 'y = 1;'],
+    expected: [
+      "/input.ts 2322 84 1 Type 'number' is not assignable to type '{ a: number; b: number; c?: undefined; } | { b?: undefined; a?: undefined; c: number; }'.",
+    ],
+  },
 ];
 
 test(

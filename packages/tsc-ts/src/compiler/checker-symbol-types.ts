@@ -812,8 +812,8 @@ function getUndefinedProperty(c: Checker, prop: Symbol): Symbol {
  * The property of `name` in the first union of object literals of the declaration's file that leaves
  * `name` missing in one of them: the last literal's property of that name. Unions are those of the
  * returned expressions of a function without a return type, and of the alternatives of an initializer
- * without a type (`?:`, `||`, `??`, array elements, and the values of a property across the
- * literals). They are taken in the order a checker checking the file from the top widens them
+ * without a type (`?:`, `||`, `??`, array elements, an element access of an array literal, and the
+ * values of a property across the literals). They are taken in the order a checker checking the file from the top widens them
  * (`SiblingPropertyScan`).
  */
 function firstSiblingProperty(c: Checker, declaration: Node, name: string): Symbol | undefined {
@@ -854,6 +854,11 @@ class SiblingPropertyScan extends NodeVisitor {
   private readonly c: Checker;
   /** By name, the property of the first union that leaves the name missing in a literal. */
   readonly members = new Map<string, Node>();
+  /**
+   * Whether array literals have an array type, whose elements are widened as one union. Without the
+   * global Array type (--noLib) an array literal is an empty object type.
+   */
+  private readonly arrays: boolean;
   private readonly roots: WideningRoot[] = [];
   /** The returned expressions of each function without a return type. */
   private readonly returned = new Map<Node, WideningRoot>();
@@ -864,6 +869,7 @@ class SiblingPropertyScan extends NodeVisitor {
   constructor(c: Checker) {
     super();
     this.c = c;
+    this.arrays = c.globalArrayType !== c.emptyGenericType;
   }
 
   visitNode(node: Node): boolean {
@@ -884,11 +890,11 @@ class SiblingPropertyScan extends NodeVisitor {
           if (collector.returns.length > 0) position = collector.returns[0]!.pos;
           for (const r of collector.returns)
             if (r.expression !== undefined) {
-              addAlternatives(r.expression, returned);
+              addAlternatives(r.expression, returned, this.arrays);
               calls.visitNode(r.expression);
             }
         } else {
-          addAlternatives(body, returned);
+          addAlternatives(body, returned, this.arrays);
           calls.visitNode(body);
         }
         if (returned.length === 0) break;
@@ -906,7 +912,9 @@ class SiblingPropertyScan extends NodeVisitor {
         if (initializer === undefined || getType(node) !== undefined) break;
         const calls = new CallCollector();
         calls.visitNode(initializer);
-        this.roots.push(new WideningRoot(initializer.pos, undefined, addAlternatives(initializer, []), calls.calls));
+        this.roots.push(
+          new WideningRoot(initializer.pos, undefined, addAlternatives(initializer, [], this.arrays), calls.calls),
+        );
         const value = skipParentheses(initializer);
         if (
           node.kind === SyntaxKind.PropertyDeclaration &&
@@ -920,7 +928,7 @@ class SiblingPropertyScan extends NodeVisitor {
           const calls = new CallCollector();
           calls.visitNode(getExpression(node)!);
           this.roots.push(
-            new WideningRoot(node.pos, undefined, addAlternatives(getExpression(node)!, []), calls.calls),
+            new WideningRoot(node.pos, undefined, addAlternatives(getExpression(node)!, [], this.arrays), calls.calls),
           );
         }
         break;
@@ -1013,10 +1021,10 @@ class SiblingPropertyScan extends NodeVisitor {
     let literals: ObjectLiteralExpression[] = [];
     for (const a of alternatives)
       if (a.kind === SyntaxKind.ObjectLiteralExpression) literals.push(a as ObjectLiteralExpression);
-      else if (a.kind === SyntaxKind.ArrayLiteralExpression) {
+      else if (this.arrays && a.kind === SyntaxKind.ArrayLiteralExpression) {
         const elements: Node[] = [];
         for (const e of (a as ArrayLiteralExpression).elements.nodes)
-          if (e.kind !== SyntaxKind.SpreadElement) addAlternatives(e, elements);
+          if (e.kind !== SyntaxKind.SpreadElement) addAlternatives(e, elements, this.arrays);
         this.widen(elements, true);
       }
     if (literals.length === 0) return;
@@ -1031,7 +1039,7 @@ class SiblingPropertyScan extends NodeVisitor {
         let list = values.get(name);
         if (list === undefined) values.set(name, (list = []));
         // A value's own alternatives make up one reduced union, one member of the property's values.
-        const own = addAlternatives((member as PropertyAssignment).initializer, []);
+        const own = addAlternatives((member as PropertyAssignment).initializer, [], this.arrays);
         for (const value of withoutRepeatedLiterals(this.c, own)) list.push(value);
       }
     for (const list of values.values()) this.widen(list, false);
@@ -1265,29 +1273,40 @@ function thisClass(node: Node): Node | undefined {
   return undefined;
 }
 
-/** Adds the expressions whose types make up the type of `node`: both sides of `?:`, `||` and `??`. */
-function addAlternatives(node: Node, out: Node[]): Node[] {
+/**
+ * Adds the expressions whose types make up the type of `node`: both sides of `?:`, `||` and `??`,
+ * and the elements of an array literal that `node` indexes when `arrays` (see SiblingPropertyScan).
+ */
+function addAlternatives(node: Node, out: Node[], arrays: boolean): Node[] {
   switch (node.kind) {
     case SyntaxKind.ParenthesizedExpression:
     case SyntaxKind.NonNullExpression:
     case SyntaxKind.SatisfiesExpression:
     case SyntaxKind.AwaitExpression:
-      return addAlternatives(getExpression(node)!, out);
+      return addAlternatives(getExpression(node)!, out, arrays);
     case SyntaxKind.ConditionalExpression:
-      addAlternatives((node as ConditionalExpression).whenTrue, out);
-      return addAlternatives((node as ConditionalExpression).whenFalse, out);
+      addAlternatives((node as ConditionalExpression).whenTrue, out, arrays);
+      return addAlternatives((node as ConditionalExpression).whenFalse, out, arrays);
     case SyntaxKind.BinaryExpression: {
       const binary = node as BinaryExpression;
       switch (binary.operatorToken.kind) {
         case SyntaxKind.BarBarToken:
         case SyntaxKind.QuestionQuestionToken:
-          addAlternatives(binary.left, out);
-          return addAlternatives(binary.right, out);
+          addAlternatives(binary.left, out, arrays);
+          return addAlternatives(binary.right, out, arrays);
         case SyntaxKind.AmpersandAmpersandToken:
         case SyntaxKind.CommaToken:
-          return addAlternatives(binary.right, out);
+          return addAlternatives(binary.right, out, arrays);
       }
       break;
+    }
+    case SyntaxKind.ElementAccessExpression: {
+      // `[a, b][i]` has the type of the array's elements, which the declaration widens as one union.
+      const array = skipParentheses(getExpression(node)!);
+      if (!arrays || array.kind !== SyntaxKind.ArrayLiteralExpression) break;
+      for (const e of (array as ArrayLiteralExpression).elements.nodes)
+        if (e.kind !== SyntaxKind.SpreadElement) addAlternatives(e, out, arrays);
+      return out;
     }
   }
   out.push(node);
