@@ -1419,6 +1419,34 @@ export class ArrayTypeMapper extends TypeMapper {
   }
 }
 
+/**
+ * The number of sources from which a mapper looks types up in an index. A tuple reference with thousands of
+ * elements maps one type parameter per element, and searching them all for each element was quadratic in the
+ * tuple's length.
+ */
+const indexedTypeMapperThreshold = 64;
+
+/** An ArrayTypeMapper that looks its sources up in an index, built on its first lookup. */
+export class IndexedArrayTypeMapper extends ArrayTypeMapper {
+  /** The index of each source's first occurrence. */
+  index: Map<Type, number> | undefined = undefined;
+  /** The number of sources `index` was built from. */
+  indexedLength = 0;
+
+  map(type: Type): Type {
+    const sources = this.sources;
+    let index = this.index;
+    if (index === undefined || this.indexedLength !== sources.length) {
+      index = new Map<Type, number>();
+      for (let i = 0; i < sources.length; i++) if (!index.has(sources[i]!)) index.set(sources[i]!, i);
+      this.index = index;
+      this.indexedLength = sources.length;
+    }
+    const i = index.get(type);
+    return i !== undefined ? this.targets[i]! : type;
+  }
+}
+
 /** Maps each of `sources` to one target. */
 export class ArrayToSingleTypeMapper extends TypeMapper {
   readonly sources: Type[];
@@ -1460,7 +1488,10 @@ export class MergedTypeMapper extends TypeMapper {
 }
 
 export function newTypeMapper(sources: Type[], targets: Type[]): TypeMapper {
-  return sources.length === 1 ? new SimpleTypeMapper(sources[0]!, targets[0]!) : new ArrayTypeMapper(sources, targets);
+  if (sources.length === 1) return new SimpleTypeMapper(sources[0]!, targets[0]!);
+  return sources.length >= indexedTypeMapperThreshold
+    ? new IndexedArrayTypeMapper(sources, targets)
+    : new ArrayTypeMapper(sources, targets);
 }
 
 export function mergeTypeMappers(m1: TypeMapper | undefined, m2: TypeMapper): TypeMapper {
