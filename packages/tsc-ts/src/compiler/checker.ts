@@ -586,7 +586,7 @@ export class Checker {
   readonly flowLoopCaches = new Map<FlowNode, Map<string, Type>>();
   /** The last long walk of each reference key outside loops: see `FlowWalk`. */
   readonly flowWalks = new Map<string, FlowWalk>();
-  readonly flowLoopStack: FlowLoopInfo[] = [];
+  flowLoopStack: FlowLoopInfo[] = [];
   /** Types of expressions whose computation needed flow analysis, outside loop back edges. */
   flowTypeCache: Map<Node, Type> | undefined = undefined;
   flowInvocationCount = 0;
