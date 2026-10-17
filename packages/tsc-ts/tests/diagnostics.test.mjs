@@ -78,18 +78,31 @@ test('formatting with arguments matches tsgo', { skip }, async () => {
   const tags = await localeTags();
   const { expected: table } = run({ locales: ['en'], matches: [], formats: [], renders: [] }, 'table');
   const formats = [];
+  const missing = [];
   for (const m of table.messages) {
     const count = Math.max(0, ...[...m.text.matchAll(/\{(\d+)\}/g)].map((p) => Number(p[1]) + 1));
     const args = Array.from({ length: count }, (_, i) => `<${String.fromCharCode(0x41 + i)}${i}{${i}}>`);
     for (const locale of tags) formats.push({ locale, key: m.key, args });
     if (count > 0) {
       formats.push({ locale: 'en', key: m.key, args: [] });
+      // With no arguments at all a message is returned as it is.
+      if (count > 1) missing.push(formats.length);
       formats.push({ locale: 'de', key: m.key, args: args.slice(0, count - 1) });
+      formats.push({ locale: 'de', key: m.key, args: [] });
       formats.push({ locale: 'ja', key: m.key, args: [...args, 'extra'] });
     }
   }
   formats.push({ locale: 'en', key: '_0_expected_1005', args: ['😀 {0} $& $1'] });
   const { expected, actual } = run({ locales: [], matches: [], formats, renders: [] }, 'formats');
+  // A placeholder without an argument: tsgo panics, tsc-ts leaves the placeholder in the message (the
+  // message without arguments is the next request) and goes on.
+  for (const k of missing) {
+    assert.equal(expected.formats[k], 'panic: Invalid formatting placeholder', `formats[${k}]: tsgo`);
+    const args = formats[k].args;
+    expected.formats[k] = expected.formats[k + 1].replace(/\{(\d+)\}/g, (p, n) =>
+      Number(n) < args.length ? args[Number(n)] : p,
+    );
+  }
   compareLists('formats', expected.formats, actual.formats);
   console.log(`${formats.length} formatted messages`);
 });
