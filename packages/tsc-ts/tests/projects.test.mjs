@@ -345,6 +345,24 @@ projects.push(
     },
   ],
   [
+    'type arguments of untyped JSX elements',
+    {
+      'a.tsx':
+        'import { Missing } from "./nope";\nimport type { A } from "./n1";\nimport type { F } from "./t";\ndeclare const Anyy: any;\nexport const p = <Missing<A> a={1} />;\nexport const q = <Missing<F, NotAType> />;\nexport const r = <Anyy<AlsoMissing, string> b="x" />;\n',
+      't.ts': 'export type T = number;\n',
+      'tsconfig.json': JSON.stringify({
+        compilerOptions: {
+          ...base,
+          jsx: 'preserve',
+          module: 'esnext',
+          moduleResolution: 'bundler',
+          noUnusedLocals: true,
+        },
+        files: ['a.tsx', 't.ts'],
+      }),
+    },
+  ],
+  [
     'pnpm dependency the project does not declare',
     {
       'package.json': JSON.stringify({ name: 'app', dependencies: { lib: '1.0.0' } }),

@@ -1281,7 +1281,13 @@ function isUntypedFunctionCall(c: Checker, funcType: Type, apparentFuncType: Typ
 }
 
 function resolveUntypedCall(c: Checker, node: Node): Signature {
-  if (node.kind !== SyntaxKind.JsxOpeningFragment) checkExpression(c, getAttributesOf(node));
+  if (node.kind !== SyntaxKind.JsxOpeningFragment) {
+    // Type arguments are checked even though an untyped element can't accept them: they get their
+    // diagnostics and mark what they reference as used.
+    const typeArguments = getTypeArgumentListOf(node);
+    if (typeArguments !== undefined) for (const t of typeArguments.nodes) checkSourceElement(c, t);
+    checkExpression(c, getAttributesOf(node));
+  }
   return c.anySignature;
 }
 
