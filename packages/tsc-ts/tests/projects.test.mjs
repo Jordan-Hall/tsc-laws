@@ -253,6 +253,36 @@ const projects = [
     },
   ],
   [
+    'JSON imports into ES modules under nodenext',
+    {
+      'a.ts':
+        'import d from "./data.json";\nimport { name } from "./data.json";\nimport * as ns from "./data.json";\nimport ok from "./data.json" with { type: "json" };\nexport const v = [d.name, name, ns.default.count, ok.count];\nexport async function f() {\n  const m = await import("./data.json", { with: { type: "json" } });\n  return m.default.name;\n}\n',
+      'b.ts':
+        'export { name } from "./data.json";\nexport { default as dflt } from "./data.json";\nimport type T from "./data.json";\nimport * as ns2 from "./data.json" with { type: "json" };\nexport const n: T["count"] = ns2.default.count;\n',
+      'data.json': '{ "name": "x", "count": 1 }\n',
+      'package.json': '{ "type": "module" }\n',
+      'tsconfig.json': JSON.stringify({
+        compilerOptions: { ...base, module: 'nodenext', moduleResolution: 'nodenext', resolveJsonModule: true },
+        files: ['a.ts', 'b.ts'],
+      }),
+    },
+  ],
+  [
+    'JSON imports into CommonJS modules under node16',
+    {
+      'a.ts':
+        'import d from "./data.json";\nimport { name } from "./data.json";\nimport * as ns from "./data.json";\nimport ok from "./data.json" with { type: "json" };\nexport const v = [d.name, name, ns.default.count, ok.count];\nexport async function f() {\n  const m = await import("./data.json", { with: { type: "json" } });\n  return m.default.name;\n}\n',
+      'b.ts':
+        'export { name } from "./data.json";\nexport { default as dflt } from "./data.json";\nimport type T from "./data.json";\nimport * as ns2 from "./data.json" with { type: "json" };\nexport const n: T["count"] = ns2.default.count;\n',
+      'data.json': '{ "name": "x", "count": 1 }\n',
+      'package.json': '{ "type": "commonjs" }\n',
+      'tsconfig.json': JSON.stringify({
+        compilerOptions: { ...base, module: 'node16', moduleResolution: 'node16', resolveJsonModule: true },
+        files: ['a.ts', 'b.ts'],
+      }),
+    },
+  ],
+  [
     'excess property check against a union with a union-constrained type parameter',
     {
       'a.ts':
