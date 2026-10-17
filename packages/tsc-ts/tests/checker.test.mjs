@@ -268,6 +268,28 @@ const cases = [
     ],
   },
   {
+    // More than 128 conditions on `x` and `k`: the walks for each are indexed, and so are walks for
+    // `k` inside them.
+    name: 'flow analysis matches tsgo on walks through many consecutive conditions',
+    source: [
+      'declare function g(): string | number;',
+      'const x = g();',
+      'const k = g();',
+      ...Array.from({ length: 150 }, () => 'if (x === k) {}'),
+      'if (typeof x === "string") {',
+      '  const n: number = x;',
+      '}',
+      ...Array.from({ length: 150 }, () => 'if (x !== 1) {}'),
+      'const b: boolean = x;',
+      'const c: boolean = k;',
+    ],
+    expected: [
+      "/input.ts 2322 2506 1 Type 'string' is not assignable to type 'number'.",
+      "/input.ts 2322 4929 1 Type 'string | number' is not assignable to type 'boolean'.",
+      "/input.ts 2322 4951 1 Type 'string | number' is not assignable to type 'boolean'.",
+    ],
+  },
+  {
     name: 'flow analysis matches tsgo on long walks in branches of an aliased condition',
     source: [
       'declare function g(): string | number;',
