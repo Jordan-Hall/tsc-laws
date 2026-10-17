@@ -150,6 +150,7 @@ import {
   getWidenedLiteralType,
   isErrorType,
   isTupleType,
+  inDeclarationOrder,
   newAnonymousType,
 } from './checker-type-factory.js';
 import { getTypeFromTypeNode } from './checker-type-nodes.js';
@@ -1006,10 +1007,12 @@ export class NodeBuilder {
     let u = t;
     if ((flags & TypeFlags.Union) !== 0 && (t as UnionType).origin !== undefined) u = (t as UnionType).origin!;
     if ((u.flags & (TypeFlags.Union | TypeFlags.Intersection)) !== 0) {
-      const types =
+      let types: readonly Type[] =
         (u.flags & TypeFlags.Union) !== 0
           ? formatUnionTypes(c, (u as UnionOrIntersectionType).types, false)
           : (u as UnionOrIntersectionType).types;
+      // Declaration emit writes unions in an order that doesn't depend on the checker's history.
+      if (this.pseudo !== undefined && (u.flags & TypeFlags.Union) !== 0) types = inDeclarationOrder(c, types);
       if (types.length === 1) return this.typeToTypeNode(types[0]!);
       const typeNodes = this.mapToTypeNodes(types, true);
       if (typeNodes !== undefined && typeNodes.nodes.length > 0)

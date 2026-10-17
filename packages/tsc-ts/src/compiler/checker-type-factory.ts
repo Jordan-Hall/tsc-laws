@@ -3,7 +3,7 @@
 import { sideOf, sideOfIfAny } from './side-state.js';
 import { type Node, getNodeId, getName, getText, SourceFile } from './ast.js';
 import { symbolToString } from './type-printer.js';
-import { instantiateTypes } from './instantiation.js';
+import { CompositeTypeMapper, instantiateTypes } from './instantiation.js';
 import { getAliasForTypeNode, getTypeArgumentsOfDeferredReference } from './checker-type-nodes.js';
 import { TypeSystemPropertyName, popTypeResolution, pushTypeResolution } from './checker-symbols.js';
 import { isGenericIndexType } from './checker-type-operators.js';
@@ -43,6 +43,7 @@ import {
   UnionType,
   type UnionOrIntersectionType,
   ArrayTypeMapper,
+  ArrayToSingleTypeMapper,
   MergedTypeMapper,
   SimpleTypeMapper,
   type ConditionalType,
@@ -512,6 +513,8 @@ export function compareSymbols(c: Checker, s1: Symbol | undefined, s2: Symbol | 
   else if (s2.declarations.length !== 0) return 1;
   const r = compareCodePoints(s1.name, s2.name);
   if (r !== 0) return r;
+  if (structuralTies) return 0;
+  usedIds = true;
   return compareIds(getSymbolId(s1), getSymbolId(s2));
 }
 
@@ -624,7 +627,138 @@ export function compareTypeMappers(c: Checker, m1: TypeMapper | undefined, m2: T
       return r !== 0 ? r : compareTypeMappers(c, a.m2, b.m2);
     }
   }
+  return structuralTies ? compareOtherTypeMappers(c, m1, m2) : 0;
+}
+
+/**
+ * With `structuralTies`: the order of two mappers of the kinds `compareTypeMappers` doesn't compare,
+ * by their parts: composite mappers by their two mappers, mappers of several sources to one target by
+ * the sources and the target.
+ */
+function compareOtherTypeMappers(c: Checker, m1: TypeMapper, m2: TypeMapper): number {
+  const r = otherMapperRank(m1) - otherMapperRank(m2);
+  if (r !== 0) return r;
+  if (m1 instanceof CompositeTypeMapper && m2 instanceof CompositeTypeMapper) {
+    const r1 = compareTypeMappers(c, m1.m1, m2.m1);
+    return r1 !== 0 ? r1 : compareTypeMappers(c, m1.m2, m2.m2);
+  }
+  if (m1 instanceof ArrayToSingleTypeMapper && m2 instanceof ArrayToSingleTypeMapper) {
+    const r1 = compareTypeLists(c, m1.sources, m2.sources);
+    return r1 !== 0 ? r1 : compareTypes(c, m1.target, m2.target);
+  }
   return 0;
+}
+
+function otherMapperRank(m: TypeMapper): number {
+  return m instanceof CompositeTypeMapper ? 1 : m instanceof ArrayToSingleTypeMapper ? 2 : 3;
+}
+
+/**
+ * The places of the declarations that `t`'s identity reaches, breadth first: its symbol and alias, then
+ * those of its type arguments, constituents and mapper targets, as numbers ordered by file and
+ * position; those in the program's own files first, then those in declaration files. Types that
+ * differ only in a part the program wrote, such as the fields of two instantiations of a library
+ * generic, first differ where that part was written, which is the order in which checking the source
+ * creates them.
+ */
+function declarationPlaces(c: Checker, t: Type): number[] {
+  const places: number[] = [];
+  const libraryPlaces: number[] = [];
+  const queue: Type[] = [t];
+  const seen = new Set<Type>();
+  const visit = (symbol: Symbol | undefined): void => {
+    if (symbol === undefined || symbol.declarations.length === 0) return;
+    const node = symbol.declarations[0]!;
+    const file = sourceFileOf(node);
+    (file.isDeclarationFile ? libraryPlaces : places).push((c.fileIndex.get(file) ?? 0) * 0x4000000 + node.pos);
+  };
+  const mapper = (m: TypeMapper | undefined): void => {
+    if (m === undefined) return;
+    if (m instanceof SimpleTypeMapper) queue.push(m.target);
+    else if (m instanceof ArrayTypeMapper) for (const u of m.targets) queue.push(u);
+    else if (m instanceof ArrayToSingleTypeMapper) queue.push(m.target);
+    else if (m instanceof MergedTypeMapper || m instanceof CompositeTypeMapper) {
+      mapper(m.m1);
+      mapper(m.m2);
+    }
+  };
+  for (let k = 0; k < queue.length && places.length < declarationPlaceLimit && k < 64; k++) {
+    const u = queue[k]!;
+    if (seen.has(u)) continue;
+    seen.add(u);
+    visit(u.symbol);
+    if (u.alias !== undefined) {
+      visit(u.alias.symbol);
+      for (const v of u.alias.typeArguments) queue.push(v);
+    }
+    if ((u.flags & TypeFlags.UnionOrIntersection) !== 0)
+      for (const v of (u as UnionOrIntersectionType).types) queue.push(v);
+    if ((u.flags & TypeFlags.Object) !== 0) {
+      if ((u.objectFlags & ObjectFlags.Reference) !== 0 && (u as TypeReference).node === undefined) {
+        const args = (u as TypeReference).resolvedTypeArguments;
+        if (args !== undefined) for (const v of args) queue.push(v);
+      }
+      mapper((u as ObjectType).mapper);
+    }
+  }
+  for (const place of libraryPlaces) places.push(place);
+  return places;
+}
+
+const declarationPlaceLimit = 16;
+
+function comparePlaces(a: number[], b: number[]): number {
+  const n = Math.min(a.length, b.length);
+  for (let i = 0; i < n; i++) if (a[i] !== b[i]) return a[i]! - b[i]!;
+  return a.length - b.length;
+}
+
+/**
+ * While set (`inDeclarationOrder`), `compareTypes`, `compareSymbols` and `compareTypeMappers` don't fall
+ * back to ids, which follow the order in which the checker created the types, and compare all mapper
+ * kinds by their parts.
+ */
+let structuralTies = false;
+/** Set when a comparison falls back to an id (`inDeclarationOrder`). */
+let usedIds = false;
+
+/**
+ * The constituents of a union in the order declaration emit writes them: as in the union, except that
+ * neighbors the union orders by ids, at any depth of `compareTypes`, are ordered by their structure
+ * where that tells them apart. Ids follow the order in which the checker created the types, which
+ * with several checkers depends on the files a checker checked first, so declaration files would
+ * otherwise differ from run to run.
+ */
+export function inDeclarationOrder(c: Checker, types: readonly Type[]): readonly Type[] {
+  let result: Type[] | undefined;
+  let start = 0;
+  for (let i = 1; i <= types.length; i++) {
+    let tied = false;
+    if (i < types.length) {
+      usedIds = false;
+      compareTypes(c, types[i - 1]!, types[i]!);
+      tied = usedIds;
+    }
+    if (tied) continue;
+    // types[start..i) are neighbors ordered by ids.
+    if (i - start > 1) {
+      const run = types.slice(start, i);
+      const order: number[] = [];
+      for (let k = 0; k < run.length; k++) order.push(k);
+      const places: number[][] = [];
+      for (const t of run) places.push(declarationPlaces(c, t));
+      structuralTies = true;
+      order.sort((a, b) => comparePlaces(places[a]!, places[b]!) || compareTypes(c, run[a]!, run[b]!) || a - b);
+      structuralTies = false;
+      for (let k = 0; k < order.length; k++)
+        if (order[k] !== k) {
+          if (result === undefined) result = types.slice();
+          result[start + k] = run[order[k]!]!;
+        }
+    }
+    start = i;
+  }
+  return result ?? types;
 }
 
 function compareNumbers(a: number, b: number): number {
@@ -740,7 +874,10 @@ export function compareTypes(c: Checker, t1: Type, t2: Type): number {
     r = compareTypes(c, (t1 as StringMappingType).target, (t2 as StringMappingType).target);
     if (r !== 0) return r;
   }
-  return (flags & TypeFlags.Singleton) !== 0 ? t1.id - t2.id : compareIds(t1.id, t2.id);
+  if ((flags & TypeFlags.Singleton) !== 0) return t1.id - t2.id;
+  if (structuralTies) return 0;
+  usedIds = true;
+  return compareIds(t1.id, t2.id);
 }
 
 /** Binary search position of `t` in the sorted `types`: index if found, else `-(insertion point) - 1`. */
