@@ -345,10 +345,29 @@ class FileDiagnostics {
 class ReferenceMap {
   readonly references = new Map<string, Set<string>>();
   private referencedBy: Map<string, Set<string>> | undefined = undefined;
+  /** The number of references in `references`, once computed (`getReferencedBy`). */
+  private referenceCount = -1;
+  /** The number of sets `getReferencedBy` looked into before building `referencedBy`. */
+  private setsScanned = 0;
 
+  /**
+   * The files that reference `path`, in the order of `references`. The first queries look into each
+   * set; once those have looked into as many sets as there are references, the inverse map is built.
+   */
   getReferencedBy(path: string): string[] {
     let referencedBy = this.referencedBy;
     if (referencedBy === undefined) {
+      if (this.referenceCount < 0) {
+        let count = 0;
+        for (const references of this.references.values()) count += references.size;
+        this.referenceCount = count;
+      }
+      if (this.setsScanned + this.references.size <= this.referenceCount) {
+        this.setsScanned += this.references.size;
+        const result: string[] = [];
+        for (const [key, references] of this.references) if (references.has(path)) result.push(key);
+        return result;
+      }
       referencedBy = new Map();
       for (const [key, references] of this.references) {
         for (const reference of references) {
@@ -373,12 +392,129 @@ class ReferenceMap {
  */
 class FileIdLists {
   readonly listOfFile = new Map<string, number>();
+  private pathIndexes: Map<string, number> | undefined = undefined;
 
   constructor(
     readonly filePaths: readonly string[],
     readonly ids: readonly number[][],
     readonly sets: readonly ReadonlySet<string>[],
   ) {}
+
+  /** The index in `filePaths` of each path; `undefined` where two file ids have the same path. */
+  indexOfPath(): Map<string, number> | undefined {
+    let indexes = this.pathIndexes;
+    if (indexes === undefined) {
+      indexes = new Map();
+      const filePaths = this.filePaths;
+      for (let i = 0; i < filePaths.length; i++) indexes.set(filePaths[i], i);
+      this.pathIndexes = indexes;
+    }
+    return indexes.size === this.filePaths.length ? indexes : undefined;
+  }
+}
+
+/**
+ * Compares the references of files (`getReferencedFiles`) with their lists of file ids in the build
+ * info read (`FileIdLists`) by the indexes of the paths, without collecting each file's references
+ * into a set. Every file references the files that declare ambient modules: those of a list are
+ * counted as the list is read.
+ */
+class ReferenceListComparer {
+  /** For each index, the comparison whose list has it. */
+  private readonly listed: Int32Array;
+  /** 1 at the index of each file that declares ambient modules. */
+  private readonly declaresAmbientModules: Uint8Array;
+  /** For each index, 1 where its file is in the old state and not in the program, 2 where not, 0 if not known yet. */
+  private readonly missing: Uint8Array;
+  private ambientModuleFileCount = 0;
+  /** Whether a file that declares ambient modules has no file id. */
+  private ambientModuleFileNotListed = false;
+  private comparison = 0;
+
+  constructor(
+    private readonly lists: FileIdLists,
+    private readonly indexOfPath: Map<string, number>,
+    ambientModuleFiles: readonly string[],
+  ) {
+    const count = lists.filePaths.length;
+    this.listed = new Int32Array(count);
+    this.declaresAmbientModules = new Uint8Array(count);
+    this.missing = new Uint8Array(count);
+    for (const path of ambientModuleFiles) {
+      const index = indexOfPath.get(path);
+      if (index === undefined) this.ambientModuleFileNotListed = true;
+      else {
+        this.declaresAmbientModules[index] = 1;
+        this.ambientModuleFileCount++;
+      }
+    }
+  }
+
+  /** The index of the list whose set is `references`, the old references of the file at `path`; -1 if none or empty. */
+  listOf(path: string, references: ReadonlySet<string> | undefined): number {
+    const index = this.lists.listOfFile.get(path);
+    if (index === undefined || references === undefined || references.size === 0) return -1;
+    return this.lists.sets[index] === references ? index : -1;
+  }
+
+  /**
+   * Whether the references of `file` are the paths of the list at `listIndex`. `undefined` where the
+   * list has an id with no path, whose set has the path '', or where `file` has no file id.
+   */
+  sameReferences(checked: CheckedProgram, file: SourceFile, listIndex: number): boolean | undefined {
+    const selfIndex = this.indexOfPath.get(file.path);
+    if (selfIndex === undefined) return undefined;
+    // A file that declares ambient modules and has no file id is not in the list, and is not `file`.
+    if (this.ambientModuleFileNotListed) return false;
+    const count = this.lists.filePaths.length;
+    const listed = this.listed;
+    const declaresAmbientModules = this.declaresAmbientModules;
+    const comparison = ++this.comparison;
+    let listedCount = 0;
+    let listedAmbientModuleFiles = 0;
+    for (const id of this.lists.ids[listIndex]) {
+      if (id < 1 || id > count) return undefined;
+      const index = id - 1;
+      if (listed[index] !== comparison) {
+        listed[index] = comparison;
+        listedCount++;
+        if (declaresAmbientModules[index] === 1 && index !== selfIndex) listedAmbientModuleFiles++;
+      }
+    }
+    // Each file that declares ambient modules, other than `file`, is in the list.
+    const ambientModuleFiles = this.ambientModuleFileCount - declaresAmbientModules[selfIndex];
+    if (listedAmbientModuleFiles !== ambientModuleFiles) return false;
+    // Each of the other references is in the list, and the list has no more paths.
+    let otherReferences = 0;
+    const ownReferences = new Set<string>();
+    addOwnReferencedFiles(checked, file, ownReferences);
+    for (const path of ownReferences) {
+      const index = this.indexOfPath.get(path);
+      if (index === undefined || listed[index] !== comparison) return false;
+      if (declaresAmbientModules[index] === 0 || index === selfIndex) otherReferences++;
+    }
+    return listedCount === ambientModuleFiles + otherReferences;
+  }
+
+  /**
+   * Whether a file of the list at `listIndex` is not in `program` and is in `oldSnapshot`, as for the
+   * references of a file that are the list's paths.
+   */
+  hasMissingFile(listIndex: number, program: Program, oldSnapshot: Snapshot): boolean {
+    const filePaths = this.lists.filePaths;
+    const missing = this.missing;
+    for (const id of this.lists.ids[listIndex]) {
+      const index = id - 1;
+      let state = missing[index];
+      if (state === 0) {
+        const path = filePaths[index];
+        state = program.getSourceFileByPath(path) === undefined && oldSnapshot.fileInfos.has(path) ? 1 : 2;
+        missing[index] = state;
+      }
+      if (state === 1) return true;
+    }
+    return false;
+  }
 }
 
 function sameSet(a: ReadonlySet<string> | undefined, b: ReadonlySet<string> | undefined): boolean {
@@ -771,9 +907,16 @@ function getReferencedFiles(
   file: SourceFile,
   ambientModuleFiles: readonly string[],
 ): Set<string> | undefined {
+  const referenced = new Set<string>();
+  addOwnReferencedFiles(checked, file, referenced);
+  for (const path of ambientModuleFiles) if (path !== file.path) referenced.add(path);
+  return referenced.size > 0 ? referenced : undefined;
+}
+
+/** Adds to `referenced` the files `file` depends on (`getReferencedFiles`) other than those that declare ambient modules. */
+function addOwnReferencedFiles(checked: CheckedProgram, file: SourceFile, referenced: Set<string>): void {
   const program = checked.program;
   const checker = checked.checker;
-  const referenced = new Set<string>();
   // Every import is resolved. tsgo takes the symbol at each import name, which is undefined for a JavaScript `require`
   // call that does not initialize a variable (`exports.a = require("./a").a`), so its build info leaves out that
   // module and its incremental builds keep outputs that depend on it.
@@ -793,8 +936,6 @@ function getReferencedFiles(
     if (moduleName.kind !== SyntaxKind.StringLiteral) continue;
     addReferencedFilesFromSymbol(file, referenced, getSymbolAtLocation(checker, moduleName));
   }
-  for (const path of ambientModuleFiles) if (path !== file.path) referenced.add(path);
-  return referenced.size > 0 ? referenced : undefined;
 }
 
 /**
@@ -854,6 +995,12 @@ function programToSnapshot(checked: CheckedProgram, oldSnapshot: Snapshot | unde
     (options.skipDefaultLibCheck === true) === (oldSnapshot.options.skipDefaultLibCheck === true);
 
   const ambientModuleFiles = getAmbientModuleFiles(checked);
+  const lists = oldSnapshot === undefined ? undefined : oldSnapshot.fileIdLists;
+  const indexOfPath = lists === undefined ? undefined : lists.indexOfPath();
+  const comparer =
+    lists === undefined || indexOfPath === undefined
+      ? undefined
+      : new ReferenceListComparer(lists, indexOfPath, ambientModuleFiles);
   for (const file of program.getSourceFiles()) {
     const path = file.path;
     const prepared = preparedVersion(file);
@@ -861,7 +1008,23 @@ function programToSnapshot(checked: CheckedProgram, oldSnapshot: Snapshot | unde
     const impliedNodeFormat: number = program.sourceFileMetadata(path).impliedNodeFormat;
     const affectsGlobalScope = fileAffectsGlobalScope(file);
     let signature = '';
-    const newReferences = getReferencedFiles(checked, file, ambientModuleFiles);
+    // An unchanged file whose old references are the set of its list of file ids in the build info read
+    // is compared with the list, and keeps the set if its references are the list's paths.
+    let listIndex = -1;
+    let sameAsList: boolean | undefined = undefined;
+    if (comparer !== undefined && oldSnapshot !== undefined) {
+      const oldInfo = oldSnapshot.fileInfos.get(path);
+      if (
+        oldInfo !== undefined &&
+        oldInfo.version === version &&
+        oldInfo.affectsGlobalScope === affectsGlobalScope &&
+        oldInfo.impliedNodeFormat === impliedNodeFormat
+      ) {
+        listIndex = comparer.listOf(path, oldSnapshot.referencedMap.references.get(path));
+        if (listIndex >= 0) sameAsList = comparer.sameReferences(checked, file, listIndex);
+      }
+    }
+    const newReferences = sameAsList === true ? undefined : getReferencedFiles(checked, file, ambientModuleFiles);
     if (newReferences !== undefined) snapshot.referencedMap.references.set(path, newReferences);
     if (oldSnapshot !== undefined) {
       const oldInfo = oldSnapshot.fileInfos.get(path);
@@ -873,9 +1036,13 @@ function programToSnapshot(checked: CheckedProgram, oldSnapshot: Snapshot | unde
           oldInfo.impliedNodeFormat !== impliedNodeFormat
         ) {
           snapshot.addFileToChangeSet(path);
+        } else if (comparer !== undefined && sameAsList === true) {
+          const oldReferences = oldSnapshot.referencedMap.references.get(path);
+          if (oldReferences !== undefined) snapshot.referencedMap.references.set(path, oldReferences);
+          if (comparer.hasMissingFile(listIndex, program, oldSnapshot)) snapshot.addFileToChangeSet(path);
         } else {
           const oldReferences = oldSnapshot.referencedMap.references.get(path);
-          if (!sameSet(newReferences, oldReferences)) snapshot.addFileToChangeSet(path);
+          if (sameAsList === false || !sameSet(newReferences, oldReferences)) snapshot.addFileToChangeSet(path);
           else if (newReferences !== undefined && oldReferences !== undefined) {
             // The old set, which can be of a list of file ids the build info writes again (`FileIdLists`).
             snapshot.referencedMap.references.set(path, oldReferences);
